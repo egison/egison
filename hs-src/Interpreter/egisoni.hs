@@ -4,6 +4,7 @@ module Main where
 import Prelude hiding (putStr, putStrLn)
 import Text.Parsec
 import Text.Parsec.Combinator
+import System.Console.Haskeline
 
 import Data.ByteString.Lazy(ByteString)
 import Data.ByteString.Lazy.Char8
@@ -22,8 +23,11 @@ runParser' input = case parse parseEgisonTopExpr "Test" (pack input)  of
                   Right val -> show val 
 
 repl :: IO ()
-repl = do putStr ">" 
-          line <- getLine
-          putStrLn . pack $ runParser' line
-          repl
+repl = do
+  mInput <- runInputT defaultSettings $ getInputLine "> "
+  case mInput of
+    Nothing -> return ()
+    Just input -> do
+      putStrLn . pack $ runParser' input
+      repl
 
