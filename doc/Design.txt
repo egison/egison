@@ -2,14 +2,6 @@
 ;;;;; Design of Egison3
 ;;;;;
 
-;;;
-;;; Type system
-;;;
-
-;;
-;; Type Examples
-;;
-
 ;
 ; Data which defines how to pattern-match is called `matcher'.
 ; A mather is defined with a matcher expression.
@@ -20,7 +12,7 @@
 (define $integer
   (matcher
     {[,$val []
-      {[$tgt (if (eq-integer? val tgt)
+      {[$tgt (if (eq? val tgt)
                  {[]}
                  {})]}]
      [$ [something]
@@ -30,7 +22,7 @@
   (lambda [$m]
     (matcher
       {[,$val []
-        {[$tgt (if (eq-integer? (modulo val m) (modulo tgt m))
+        {[$tgt (if (eq? (modulo val m) (modulo tgt m))
                    {[]}
                    {})]}]
        [$ [integer]
@@ -84,7 +76,7 @@
         {[$tgt {tgt}]}]
        })))
 
-(define $multiset-normal
+(define $multiset-default
   (lambda [$a]
     (matcher
       {[,$val []
