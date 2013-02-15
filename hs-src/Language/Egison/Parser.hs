@@ -203,8 +203,8 @@ egisonDef =
   P.LanguageDef { P.commentStart       = "#|"
                 , P.commentEnd         = "|#"
                 , P.commentLine        = ";"
-                , P.identStart         = letter <|> char '_'
-                , P.identLetter        = letter <|> char '_' <|> digit
+                , P.identStart         = letter <|> oneOf "*+-/:="
+                , P.identLetter        = letter <|> digit <|> oneOf "*+-/:=" <|> oneOf "!?"
                 , P.opStart            = symbol
                 , P.opLetter           = symbol
                 , P.reservedNames      = reservedKeywords
