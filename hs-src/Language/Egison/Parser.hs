@@ -43,12 +43,21 @@ parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 parseEgisonExpr :: Parser EgisonExpr
 parseEgisonExpr = parseVar
               <|> parseSym
-              <|> parsePatternExpr
+              <|> parsePatVarExpr
+              
+              <|> parseWildCardExpr
+              <|> parseCutPatExpr
+              <|> parseNotPatExpr
+              <|> parseValuePatExpr
+              <|> parsePredPatExpr 
+               
               <|> parseConstantExpr
               <|> parseInductiveExpr
               <|> parseTupleExpr
               <|> parseCollectionExpr
-              <|> parens (parseIfExpr
+              <|> parens (parseAndPatExpr 
+                      <|> parseOrPatExpr
+                      <|> parseIfExpr
                       <|> parseLambdaExpr
                       <|> parseFunctionExpr
                       <|> parseLetRecExpr
@@ -119,7 +128,7 @@ parseLetExpr :: Parser EgisonExpr
 parseLetExpr = keywordLet >> LetExpr <$> parseBindings <*> parseEgisonExpr
 
 parseApplyExpr :: Parser EgisonExpr
-parseApplyExpr = ApplyExpr <$> parseEgisonExpr <*> parseEgisonExpr
+parseApplyExpr = ApplyExpr <$> parseEgisonExpr <*> (TupleExpr <$> sepEndBy parseEgisonExpr whiteSpace)
 
 parseDoExpr :: Parser EgisonExpr
 parseDoExpr = keywordDo >> DoExpr <$> parseBindings <*> parseEgisonExpr
@@ -129,13 +138,6 @@ parseBindings = braces $ sepEndBy parseBinding whiteSpace
 
 parseBinding :: Parser Binding
 parseBinding = brackets $ (,) <$> parseEgisonExpr <*> parseEgisonExpr
-
-parsePatternExpr :: Parser EgisonExpr
-parsePatternExpr = parseWildCardExpr
-               <|> parseCutPatExpr
-               <|> parseNotPatExpr
-               <|> parseValuePatExpr
-               <|> parens (parsePredPatExpr <|> parseAndPatExpr <|> parseOrPatExpr)
 
 parseCutPatExpr :: Parser EgisonExpr
 parseCutPatExpr = char '!' >> CutPatExpr <$> parseEgisonExpr
