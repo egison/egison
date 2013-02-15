@@ -16,9 +16,7 @@
 ; Only varialbes in value patterns and predicate patterns should be able to refer to the result of the processing of the pattern matching.
 ; (I don't think patterns like `<cons $fn (fn 10)>' is useful)
 ;
-; "Pattern" is a primitive-pattern-constructor introdueced with Egison3 as "Matcher".
-;
-(define $shuntsu : (\ [(VarName Integer) (Pattern (Collection Integer))] (Pattern (Collection Integer)))
+(define $shuntsu
   (lambda [$s $pat]
     <cons $`s <cons ,(+ `s 1) <cons ,(+ `s 2) pat>>>))
 
@@ -27,13 +25,13 @@
 ; => <cons $n <cons ,(+ n 1) <cons ,(+ n 2) _>>>
 ; {1 2 3 3 4 5 2 3 4}
 
-(define $test-pat : (\ [(VarName Integer) Integer] (Pattern Integer))
+(define $test-pat
   (lambda [$s $n]
     ,(+ `s (+ 1 n))))
 
 <cons $m <cons ?(dividable $ m) _>>
 
-(define $test-pat2 : (\ [(VarName Integer) Integer] (Pattern (Collection Integer)))
+(define $test-pat2
   (lambda [$var]
     <cons $`var <cons ?(dividable $ `var) _>>
 
