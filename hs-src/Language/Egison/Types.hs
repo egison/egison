@@ -28,7 +28,6 @@ data EgisonExpr =
   | PatVarExpr String [EgisonExpr]
   | VarExpr String [EgisonExpr]
   | SymExpr String
-  | VarNameExpr String
   | PatVarOmitExpr String [EgisonExpr]
   | OmitExpr String [EgisonExpr]
 
