@@ -28,7 +28,6 @@ data EgisonExpr =
   | PatVarExpr String [EgisonExpr]
   | VarExpr String [EgisonExpr]
   | SymExpr String
-  | VarNameExpr String
   | PatVarOmitExpr String [EgisonExpr]
   | OmitExpr String [EgisonExpr]
 
@@ -92,11 +91,6 @@ data InnerExpr =
   | SubCollectionExpr EgisonExpr
  deriving (Show)
 
-data InnerTypedExpr =
-    ElementTypedExpr EgisonTypedExpr
-  | SubCollectionTypedExpr EgisonTypedExpr
- deriving (Show)
-
 type Binding = (EgisonExpr, EgisonExpr)
 
 type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
@@ -107,7 +101,6 @@ type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern
 
 data Environment =
   Poyo
- deriving (Show)
 
 --
 -- Values
