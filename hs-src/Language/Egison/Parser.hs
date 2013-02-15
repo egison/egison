@@ -118,10 +118,7 @@ parseIfExpr = IfExpr <$> (keywordIf   *> parseEgisonExpr)
                      <*> (keywordElse *> parseEgisonExpr)
 
 parseLambdaExpr :: Parser EgisonExpr
-parseLambdaExpr = keywordLambda >> LambdaExpr <$> parseParams <*> parseEgisonExpr
-
-parseParams :: Parser [String]
-parseParams = brackets $ sepEndBy parseName whiteSpace
+parseLambdaExpr = keywordLambda >> LambdaExpr <$> parseEgisonExpr <*> parseEgisonExpr
 
 parseLetRecExpr :: Parser EgisonExpr
 parseLetRecExpr =  keywordLetRec >> LetRecExpr <$> parseBindings <*> parseEgisonExpr

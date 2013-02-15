@@ -42,7 +42,7 @@ data EgisonExpr =
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]
-  | LambdaExpr [String] EgisonExpr
+  | LambdaExpr EgisonExpr EgisonExpr
 
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetExpr [Binding] EgisonExpr
