@@ -1,0 +1,38 @@
+Name:                egison
+Version:             3.0.0
+Synopsis:            An Interpreter for the Programming Language Egison
+Description:         An interpreter for the programming language Egison.
+                     A feature of Egison is the strong pattern match facility.
+                     With Egison, you can represent pattern matching for unfree data intuitively,
+                     especially for collection data, such as lists, multisets, sets, and so on.
+                     This package include sample Egison program codes "*-test.egi" in "sample/" directory.
+                     This package also include Emacs Lisp file "egison-mode.el" in "elisp/" directory.
+Homepage:            http://egison.pira.jp
+License:             MIT
+License-file:        LICENSE
+Author:              Satoshi Egi
+Maintainer:          egisatoshi@gmail.com
+Category:            Compilers/Interpreters
+Build-type:          Simple
+Cabal-version:       >=1.8
+
+Data-files:          lib/core/base.egi lib/core/number.egi lib/core/collection.egi lib/core/pattern.egi
+                     elisp/egison-mode.el
+
+Library
+  Build-Depends:   base >= 4.0 && < 5, array, containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io
+  Hs-Source-Dirs:  hs-src
+  Exposed-Modules: Language.Egison.Core
+                   Language.Egison.Types
+                   Language.Egison.Variables
+                   Language.Egison.Numerical
+                   Language.Egison.Parser
+                   Language.Egison.Primitives
+  Other-modules:   Paths_egison
+
+
+Executable egison
+  Main-is:             egisoni.hs
+  Build-depends:       egison, base >= 4.0 && < 5, array, containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, regex-posix, strict-io
+  Other-modules:       Paths_egison
+  Hs-Source-Dirs:      hs-src/Interpreter

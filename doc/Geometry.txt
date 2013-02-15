@@ -1,0 +1,61 @@
+;;;;;
+;;;;; Geometry with Egison
+;;;;;
+
+Situation := (multiset Condition)
+
+Point := <point string>
+
+;
+; A stick is a list without direction.
+; e.g. {1 2 3 4} <=> {4 3 2 1}
+;
+Condition :=
+  | <line (stick point)>
+  | <circle (stick point)>
+  | <eq-angle (multiset <angle half-line half-line>)>
+  | <eq-length (multiset <line-segment point point>)>
+  | <parallel (multiset <line (multiset point)>)>
+
+Theorem := Situation -> Situation
+
+;;;
+
+(define $inscribed-angle
+  (function Situation
+     {[_ <cons <circle _ {$a $c1 $c2 $b}> _> _]
+      <eq-angle {<angle (half-line c1 a) (half-line c1 b)>
+                 <angle (half-line c2 a) (half-line c2 b)>}>}))
+
+;;;
+
+<line {<point "A"> <point "D1"> <point "B">}>
+
+<line {<point "B"> <point "D2"> <point "C">}>
+
+<line {<point "C"> <point "D3"> <point "A">}>
+
+<circle <point "C1"> {<point "D1"> <point "D2"> <point "D3">}>
+
+
+;;;
+
+<line {<point "A"> <point "D1"> <point "B">}>
+
+<line {<point "B"> <point "D2"> <point "C">}>
+
+<line {<point "C"> <point "D3"> <point "A">}>
+
+<circle <point "C1"> {<point "D1"> <point "D2"> <point "D3">}>
+
+=>
+
+<eq-angle <angle <point "B"> <point "A"> <point "C1">>
+          <angle <point "C"> <point "A"> <point "C1">>>
+
+<eq-angle <angle <point "A"> <point "B"> <point "C1">>
+          <angle <point "C"> <point "B"> <point "C1">>>
+
+<eq-angle <angle <point "A"> <point "C"> <point "C1">>
+          <angle <point "B"> <point "C"> <point "C1">>>
+

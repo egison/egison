@@ -1,0 +1,49 @@
+=====
+Type Inference Algorithm
+=====
+
+Calculate the types for the arguments of each pattern constructor of each type definitions.
+
+e.g.
+
+(multiset a)
+---
+<nil>
+<cons a {a}>
+<join {a} {a}>
+_ {a}
+
+
+From this information, type inference of pattern matching expressions are done.
+
+=====
+
+Type enviroment which has all information on types for each variable.
+TypeVar environment which knows what value is bound for each vaiable whose type is Type.
+
+=====
+
+Unification
+
+Unify types
+
+($a -> ,a) and ($b -> ,b)
+rewrited to
+($1 -> ,1) and ($1 -> ,1)
+
+Unify '$a' and '$b', then  all 'b' of the second type expression are rewrited to 'a'.
+
+($a -> ,a) and (Integer -> Integer)
+rewrited to
+($1 -> ,1) and (Integer -> Integer)
+
+Unify '$a' and 'Integer', then [$1 Integer] is added to TypeVar environment.
+
+=====
+
+typeCheck :: TypeEnv -> EgisonExpr -> ThrowError TypedEgisonExpr
+
+Check whether there are contradiction between expression and types with the type environment
+
+=====
+
