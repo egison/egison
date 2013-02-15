@@ -26,7 +26,7 @@ parseEgisonTopExpr = parens (parseDefineExpr
                          <?> "TopLevel Expression")
 
 parseDefineExpr :: Parser EgisonTopExpr
-parseDefineExpr = keywordDefine >> Define <$> parseBinding
+parseDefineExpr = keywordDefine >> Define <$> ((,) <$> parseEgisonExpr <*> parseEgisonExpr)
 
 parseTestExpr :: Parser EgisonTopExpr
 parseTestExpr = keywordTest >> Test <$> parseEgisonExpr
@@ -43,7 +43,9 @@ parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 parseEgisonExpr :: Parser EgisonExpr
 parseEgisonExpr = parseVar
               <|> parseSym
-              <|> parsePatVarExpr
+              <|> parseOmitExpr
+              <|> try parsePatVarExpr
+              <|> parsePatVarOmitExpr
               
               <|> parseWildCardExpr
               <|> parseCutPatExpr
