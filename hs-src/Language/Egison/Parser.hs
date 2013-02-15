@@ -26,7 +26,7 @@ parseEgisonTopExpr = parens (parseDefineExpr
                          <?> "TopLevel Expression")
 
 parseDefineExpr :: Parser EgisonTopExpr
-parseDefineExpr = keywordDefine >> Define <$> parseBinding <*> parseEgisonExpr
+parseDefineExpr = keywordDefine >> Define <$> parseBinding
 
 parseTestExpr :: Parser EgisonTopExpr
 parseTestExpr = keywordTest >> Test <$> parseEgisonExpr
@@ -125,7 +125,7 @@ parseDoExpr :: Parser EgisonExpr
 parseDoExpr = keywordDo >> DoExpr <$> parseBindings <*> parseEgisonExpr
 
 parseBindings :: Parser [Binding]
-parseBindings = braces $ sepEndBy parseBinding  whiteSpace
+parseBindings = braces $ sepEndBy parseBinding whiteSpace
 
 parseBinding :: Parser Binding
 parseBinding = brackets $ (,) <$> parseEgisonExpr <*> parseEgisonExpr
