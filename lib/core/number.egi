@@ -1,0 +1,133 @@
+(define $integer
+  (matcher
+    {
+     [,$n []
+      {[$tgt (if (eq? tgt n)
+                 {[]}
+                 {})]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $compare-integer
+  (lambda [$m $n]
+    (if (lt? m n)
+        <less>
+        (if (eq? m n)
+            <equal>
+            <greater>))))
+
+(define $float
+  (matcher
+    {[,$d []
+      {[$tgt (if (eq? tgt d)
+                 {[]}
+                 {})]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $compare-float
+  (lambda [$d1 $d2]
+    (if (lt? d1 d2)
+        <less>
+        (if (eq? d1 d2)
+            <equal>
+            <greater>))))
+
+(define $nat
+  (matcher
+    {[,$n []
+      {[$tgt (if (eq? tgt n)
+                 {[]}
+                 {})]}]
+     [<o> []
+      {[0 {[]}]
+       [_ {}]}]
+     [<s $> nat
+      {[$tgt (match (compare-integer tgt 0) ordering
+               {[<greater> {(- tgt 1)}]
+                [_ {}]})]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $between
+  (lambda [$m $n]
+    (match (compare-integer m n) ordering
+      {[<less> {m @(between (+ m 1) n)}]
+       [<equal> {n}]
+       [<greater> {}]})))
+
+(define $min
+  (lambda [$ns]
+    (match ns (list integer)
+      {[<cons $n <nil>> n]
+       [<cons $n $rs>
+        (let {[$r (min rs)]}
+          (match (compare-integer n r) ordering
+            {[<less> n]
+             [_ r]}))]})))
+
+(define $max
+  (lambda [$ns]
+    (match ns (list integer)
+      {[<cons $n <nil>> n]
+       [<cons $n $rs>
+        (let {[$r (max rs)]}
+          (match (compare-integer n r) ordering
+            {[<greater> n]
+             [_ r]}))]})))
+
+(define $min-and-max
+  (lambda [$ns]
+    (match ns (list integer)
+      {[<cons $n <nil>> [n n]]
+       [<cons $n $rs>
+        (let {[[$min-n $max-n] (min-and-max rs)]}
+          (match (compare-integer n min-n) ordering
+            {[<less> [n max-n]]
+             [_ (match (compare-integer n max-n) ordering
+                  {[<greater> [min-n n]]
+                   [_ [min-n max-n]]})]}))]})))
+
+(define $gcd
+  (lambda [$ns]
+    (match ns (set integer)
+      {[<cons $n <nil>> n]
+       [<cons (& ,(min ns) $m)
+              $rs>
+        (gcd {m @((remove-all integer)
+                                       (map (lambda [$r] (mod r m))
+                                            rs)
+                                       0)})]})))
+
+(define $fib
+  (lambda [$n]
+    (letrec {[$fib1 (lambda [$n $ret1 $ret2]
+                      (match n nat
+                        {[<o> ret2]
+                         [<s <o>> ret1]
+                         [<s $n1> (fib1 (- n 1) (+ ret1 ret2) ret1)]
+                         }))]}
+      (fib1 n 1 1))))
+
+
+(define $fact
+  (lambda [$n]
+    (letrec {[$fact1 (lambda [$n $ret]
+                       (match n [nat]
+                         {[<o> ret]
+                          [<s $n1> (fact1 n1 (* n ret))]}))]}
+      (fact1 n 1))))
+
+(define $mod
+  (lambda [$m]
+    (matcher
+      {[,$n []
+        {[$tgt (if (eq? (modulo tgt m) (modulo n m))
+                   {[]}
+                   {})]}]
+       [$ [something]
+        {[$tgt {(modulo tgt m)}]}]
+       })))
