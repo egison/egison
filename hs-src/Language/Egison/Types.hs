@@ -12,9 +12,6 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 --
 data EgisonTopExpr =
     Define Binding
-  | DefineType String EgisonType
-  | DefineClass String EgisonClass
-  | Instance String [String] [(String, String)]
   | Test EgisonExpr
   | Execute [String]
     -- temporary : we will replace load to import and export
@@ -66,60 +63,8 @@ data EgisonExpr =
 
   | SomethingExpr
   | UndefinedExpr
-    
-  | ContextExpr EgisonType [EgisonClass]
  deriving (Show)
 
-data EgisonType =
-    CharType
-  | BoolType
-  | IntegerType
-  | FloatType
-    
-    -- @ Types for variable names
-  | VarNameType EgisonType
-    
-    -- @ Functional types
-    -- Example)
-    --   (\ Integer Bool) -> FunType IntegerType BoolType
-  | FunType EgisonType EgisonType
-
-    -- (Matcher _), (Pattern _)
-  | MatcherType EgisonType
-  | PatternType EgisonType
-    
-    -- @ Type constructors for user-defined types
-    -- Example)
-    --   Nat          -> TypeCons "Nat" []
-    --   Tree Integer -> TypeCons "Tree" [IntegerType]
-  | TypeCons String [EgisonType]
-    
-    -- @ Tuples of types
-  | TupleType [EgisonType]
-    
-    -- @ Types for collections
-  | CollectionType EgisonType
-    
-    -- @ Type variable binded to some type
-  | VarType String
-    
-    -- @ Types with contexts
-    -- Example)
-    --   ($a :: Show ,a) -> TypeContext (PatVarType "a") [ClassContext "Show" [VarType "a"]]
-  | TypeContext EgisonType [EgisonContext]
- deriving (Show)
-          
-data EgisonContext = 
-  -- @ Contexts defined by a class predicate
-  ClassContext String       -- Names of classes
-               [EgisonExpr] -- Type parameters
-               deriving (Show)
-
-data EgisonClass =
-  -- @ Type classes of egison
-  Class [String] ClassInfoExpr
-                 deriving (Show)
-        
 type MatchClause = (EgisonExpr, EgisonExpr)
 
 data PrimitivePatPattern =
@@ -156,16 +101,9 @@ type Binding = (EgisonExpr, EgisonExpr)
 
 type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
-type ClassInfoExpr = [(String, EgisonType)]
-
 --
--- Typed Expression
+-- Environment
 --
-
-
-data EgisonTypedExpr =
- Hoge
- deriving (Show)
 
 data Environment =
   Poyo
@@ -270,13 +208,11 @@ data MState = MState {msFrame :: FrameList,
 ---
 data EgisonError =
     Parser ParseError
-  | TypeMismatch EgisonExpr EgisonType
   | NotImplemented String
   | Default String
     
 instance Show EgisonError where
   show (Parser parseErr) = "Parse error at " ++ ": " ++ show parseErr
-  show (TypeMismatch expr typ) = "Type error: The type of a expression '" ++ show expr ++ "' is expected to be '" ++ show typ ++ "'"
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Default message) = "Error: " ++ message
 instance Error EgisonError where
