@@ -22,12 +22,13 @@ Data-files:          lib/core/base.egi lib/core/number.egi lib/core/collection.e
 Library
   Build-Depends:   base >= 4.0 && < 5, array, containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io, bytestring
   Hs-Source-Dirs:  hs-src
-  Exposed-Modules: Language.Egison.Core
+  Exposed-Modules:
+                   --Language.Egison.Core
                    Language.Egison.Types
-                   Language.Egison.Variables
-                   Language.Egison.Numerical
+                   --Language.Egison.Variables
+                   --Language.Egison.Numerical
                    Language.Egison.Parser
-                   Language.Egison.Primitives
+                   --Language.Egison.Primitives
   Other-modules:   Paths_egison
 
 

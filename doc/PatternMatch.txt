@@ -13,7 +13,7 @@
 ;;
 
 ;
-; Only varialbes in value patterns and predicate patterns should be able to refer to the result of the processing of the pattern matching.
+; Only varialbes in value patterns or predicate patterns should be able to refer to the result of the processing of the pattern matching.
 ; (I don't think patterns like `<cons $fn (fn 10)>' is useful)
 ;
 (define $shuntsu
