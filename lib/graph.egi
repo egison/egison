@@ -1,0 +1,56 @@
+;;;
+;;; graph.egi
+;;;
+
+(define $node integer)
+
+(define $nodeInfo
+  (matcher
+    {[,$val []
+      {[$tgt (match [val tgt] [nodeInfo nodeInfo]
+               {[[<node $n $in $out> <node ,n ,in ,out>] {[]}]
+                [[_ _] {}]})]}]
+     [<node $ $ $> [node (multiset node) (multiset node)]
+      {[<node $n $in $out> {[n in out]}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $all-paths
+  (lambda [$g $s $e]
+    (let {[$n (size g)]}
+      (match-all g graph
+        [(| <cons <node ,s <cons ,e _> _> $rest>
+            <cons <node ,s <cons $a_2 _> _>
+                  (loop $l $i (between 3 (- n 1))
+                        (| <cons <node ,a_(- i 1) <cons ,e _> _> $rest>
+                           <cons <node ,a_(- i 1) <cons $a_i _> _> l>)
+                        <cons <node ,a_(- n 1) <cons ,e _> $rest>>)>)
+         [{s @(loop $l $i (between 2 (- n (size rest))) {a_i @l} {e})}]]))))
+
+(define $graph (multiset nodeInfo))
+
+(define $hamilton-cycle
+  (lambda [$g]
+    (let {[$n (size g)]}
+      (match-all g graph
+        [<cons <node $a_1 <cons $a_2 _> _>
+               (loop $l $i (between 3 n)
+                     <cons <node ,a_(- i 1) <cons $a_i _> _>
+                           l>
+                     <cons <node ,a_n <cons ,a_1 _> _>
+                           _>)>
+         (loop $l $i (between 1 n) {a_i @l} {})]))))
+
+(define $hamilton-path
+  (lambda [$g]
+    (let {[$n (size g)]}
+      (match-all g graph
+        [<cons <node $a_1 <cons $a_2 _> _>
+               (loop $l $i (between 3 n)
+                     <cons <node ,a_(- i 1) <cons $a_i _> _>
+                           l>
+                     <cons <node ,a_n _ _>
+                           <nil>>)>
+         (loop $l $i (between 1 n) {a_i @l} {})]))))
+

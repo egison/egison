@@ -1,0 +1,16 @@
+(define $tree
+  (lambda [$a]
+    (matcher
+      {[,$val []
+      {[$tgt (match [tgt val] [(tree a) (tree a)]
+               {[[<node $n1 $n2> <node ,n1 ,n2>] {[]}]
+                [[<leaf $x> <leaf ,x>] {[]}]
+                [[_ _] {}]})]}]
+     [<node $ $> [(tree a) (tree a)]
+      {[<node $n1 $n2> {[n1 n2]}]}]
+     [<leaf $> [a]
+      {[<leaf $x> {[x]}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+

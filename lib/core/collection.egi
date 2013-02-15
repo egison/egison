@@ -1,0 +1,272 @@
+;;
+;; Collection.egi
+;;
+(define $list
+  (lambda [$a]
+    (matcher
+      {[,$val []
+        {[$tgt (match [val tgt] [(list a) (list a)]
+                 {[[<nil> <nil>] {[]}]
+                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
+                  [[_ _] {}]})]}]
+       [<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<cons $ $> [a (list a)]
+        {[{$x @$xs} {[x xs]}]
+         [_ {}]}]
+       [<snoc $ $> [a (list a)]
+        {[{.$xs $x} {[x xs]}]
+         [_ {}]}]
+       [<join ,$pxs $> [(list a)]
+        {[$tgt (letrec {[$helper (lambda [$pxs $tgt]
+                                   (match [pxs tgt] [(list a) (list a)]
+                                     {[[<nil> _] {tgt}]
+                                      [[<cons $x $xs> <cons ,x $ys>] (helper xs ys)]
+                                      [[_ _] {}]}))]}
+                 (helper pxs tgt))]}]
+       [<join $ $> [(list a) (list a)]
+        {[$tgt (letrec {[$helper (lambda [$xs $ys]
+                                   (match ys (list a)
+                                     {[<nil> {[xs {}]}]
+                                      [<cons $z $zs> {[xs ys] @(helper {@xs z} zs)}]}))]}
+                 (helper {} tgt))]}]
+       [<nioj ,$pxs $> [(list a)]
+        {[$tgt (match-all tgt (list a) [<join $ys ,pxs> ys])]}]
+       [<nioj $ $> [(list a) (list a)]
+        {[$tgt (letrec {[$helper (lambda [$xs $ys]
+                                   (match ys (list a)
+                                     {[<nil> {[{} xs]}]
+                                      [<cons $z $zs> {[ys xs] @(helper {@xs z} zs)}]}))]}
+                 (helper {} tgt))]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))
+
+(define $map
+  (lambda [$fn $ls]
+    (match ls (list something)
+      {[<nil> {}]
+       [<cons $x $xs> {(fn x) @(map fn xs)}]})))
+
+(define $map-and-concat
+  (lambda [$fn $ls]
+    (match ls (list something)
+      {[<nil> {}]
+       [<cons $x $xs> {@(fn x) @(map-and-concat fn xs)}]})))
+
+(define $foldr
+  (lambda [$fn $init $ls]
+    (match ls (list something)
+      {[<nil> init]
+       [<cons $x $xs> (fn x (foldr fn init xs))]})))
+
+(define $foldl
+  (lambda [$fn $init $ls]
+    (match ls (list something)
+      {[<nil> init]
+       [<cons $x $xs> (let {[$y (fn init x)]}
+                        (foldl fn y xs))]})))
+
+(define $filter
+  (lambda [$pred $ls]
+    (match ls (list something)
+      {[<nil> {}]
+       [<cons $x $xs>
+        (if (pred x)
+            {x @(filter pred xs)}
+            (filter pred xs))]})))
+
+(define $remove
+  (lambda [$xs $x]
+    (match xs (list _)
+      {[<nil> {}]
+       [<cons ,x $rs> rs]
+       [<cons $y $rs> {y @(remove a rs x)}]})))
+
+(define $remove-all
+  (lambda [$xs $x]
+    (match xs (list _)
+      {[<nil> {}]
+       [<cons ,x $rs> (remove-all rs x)]
+       [<cons $y $rs> {y @(remove-all rs x)}]})))
+
+(define $remove-collection
+  (lambda [$xs $ys]
+    (match ys (list _)
+      {[<nil> xs]
+       [<cons $y $rs> ((remove-collection a) ((remove a) xs y) rs)]})))
+
+(define $add
+  (lambda [$xs $x]
+    (if (member? x xs)
+        xs
+        {@xs x})))
+
+(define $union
+  (lambda [$xs $ys]
+    (match ys (list _)
+      {[<nil> xs]
+       [<cons $y $rs> ((union a) ((add a) xs y) rs)]})))
+
+(define $occurrence
+  (lambda [$xs]
+    (letrec {[$remove-and-count
+              (lambda [$x $xs]
+                (match xs (list _)
+                  {[<nil> [{} 1]]
+                   [<cons ,x $ys> (let {[[$r $i] (remove-and-count x ys)]}
+                                    [r (+ i 1)])]
+                   [<cons $y $ys> (let {[[$r $i] (remove-and-count x ys)]}
+                                    [{y @r} i])]}))]}
+      (match xs (list something)
+        {[<nil> {}]
+         [<cons $x $ys> (let {[[$rs $i] (remove-and-count x ys)]}
+                          {[x i] @(occurrence rs)})]}))))
+
+(define $subcollections
+  (lambda [$xs]
+    (foldr (lambda [$x $rs]
+             (let {[[$y $i] x]} 
+               (map-and-concat (lambda [$sub] 
+                                 (match-all (loop $l $j (between 1 i) {y @l} {}) (list _)
+                                   [<join $ys _> {@ys @sub}]))
+                               rs)))
+           {{}}
+           ((occurrence a) xs))))
+
+(define $size
+  (lambda [$xs]
+    (match xs (list something)
+      {[<nil> 0]
+       [<cons _ $rs> (+ 1 (size rs))]})))
+
+(define $car
+  (lambda [$xs]
+    (match xs (list something)
+      {[<cons $x _> x]})))
+
+(define $cdr
+  (lambda [$xs]
+    (match xs (list something)
+      {[<cons _ $ys> ys]})))
+
+(define $rac
+  (lambda [$xs]
+    (match xs (list something)
+      {[<snoc $x _> x]})))
+
+(define $rdc
+  (lambda [$xs]
+    (match xs (list something)
+      {[<snoc _ $ys> ys]})))
+
+(define $nth (lambda [$i $l]
+               (match l (list something) {[<cons $x $xs> (if (eq? i 0) x (nth (- i 1) xs))]})))
+
+(define $reverse
+  (lambda [$xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs>
+        {@(reverse rs) x}]})))
+
+(define $member?
+  (lambda [$x $ys]
+    (match ys (list _)
+      {[<nil> #f]
+       [<cons ,x $ys> #t]
+       [<cons $y $ys> ((member? a) x ys)]})))
+
+(define $unique
+  (lambda [$xs]
+    (letrec {[$loop-fn
+              (lambda [$xs $ys]
+                (match xs (list _)
+                  {[<nil> ys]
+                   [<cons $x $rs>
+                    (if (member? x ys)
+                        (loop-fn rs ys)
+                        (loop-fn rs {@ys x}))]}))]}
+      (loop-fn xs {}))))
+
+(define $subcollection?
+  (lambda [$xs $ys]
+    (match xs (list _)
+      {[<nil> #t]
+       [<cons $x $rest>
+        (if (member? x ys)
+            (subcollection? rest ys)
+            #f)]})))
+
+(define $concat
+  (lambda [$xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs> {@x @(concat rs)}]})))
+
+(define $multiset
+  (lambda [$a]
+    (matcher
+      {[,$val []
+        {[$tgt (match [val tgt] [(list a) (multiset a)]
+                 {[[<nil> <nil>] {[]}]
+                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
+                  [[_ _] {}]})]}]
+       [<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<cons ,$px $> [(multiset a)]
+        {[$tgt (if (member? px tgt)
+                   {(remove tgt px)}
+                   {})]}]
+       [<cons $ $> [a (multiset a)]
+        {[$tgt (letrec {[$helper (lambda [$xs $ys]
+                                   (match ys (list a)
+                                     {[<nil> {}]
+                                      [<cons $z $zs> (if (member? z xs)
+                                                         (helper {@xs z} zs)
+                                                         {[z {@xs @zs}] @(helper {@xs z} zs)})]}))]}
+                 (helper {} tgt))]}]
+       [<join ,$pxs _> [(multiset a)]
+        {[$tgt (letrec {[$helper (lambda [$xs $ys]
+                                   (match xs (list something)
+                                     {[<nil> ys]
+                                      [<cons $z $zs> (if (member? z ys)
+                                                         (helper zs (remove ys z))
+                                                         {})]}))]}
+                 {(helper pxs tgt)})]}]
+       [<join $ $> [(multiset a) (multiset a)]
+        {[$tgt
+          (foldr
+                 (lambda [$xi $xs]
+                   (let {[[$x $i] xi]}
+                     (map-and-concat
+                                     (lambda [$sub] 
+                                       (do {[[$ys $zs] sub]
+                                            [$zs ((remove-all a) zs x)]}
+                                         (match-all (loop $l $j (between 1 i) {x @l} {}) (list a) [<join $us $vs> [{@us @ys} {@zs @vs}]])))
+                                     xs)))
+                 {[{} tgt]}
+                 ((occurrence a) tgt))]}]
+       [_ [something]
+        {[$tgt {tgt}]}]
+       })))
+
+(define $set
+  (lambda [$a]
+    (matcher
+      {
+       [<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<cons ,$px $> [(set a)]
+        {[$tgt (if (member? px tgt)
+                   {tgt}
+                   {})]}]
+       [<cons $ $> [a (set a)]
+        {[$tgt (match-all tgt (list a)
+                 [<join _ <cons $x _>> [x tgt]])]}]
+       [_ [something]
+        {[$tgt {tgt}]}]
+       })))

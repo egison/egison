@@ -1,0 +1,77 @@
+;;
+;; Base.egi
+;;
+
+(define $bool
+  (matcher
+    {[,$val []
+      {[$tgt (if (eq? val tgt)
+                 {[]}
+                 {})]}]
+     [_ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $or
+  (lambda [$b1 $b2]
+    (if b1
+        #t
+        b2)))
+
+(define $and
+  (lambda [$b1 $b2]
+    (if b1
+        b2
+        #f)))
+
+(define $not
+  (lambda [$b]
+    (match b bool
+      {[,#t #f]
+       [,#f #t]})))
+
+(define $char
+  (matcher
+    {[,$c []
+      {[$tgt (if (eq? tgt c)
+                 {[]}
+                 {})]}]
+     [_ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $string
+  (type
+    {[,$s []
+      {[$tgt (if (eq? tgt s)
+                 {[]}
+                 {})]}]
+     [_ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $ordering
+  (type
+    {[,$val []
+      {[$tgt (if (eq? val tgt)
+                 {[]}
+                 {})]}]
+     [<less> []
+      {[<less> {[]}]
+       [_ {}]}]
+     [<equal> []
+      {[<equal> {[]}]
+       [_ {}]}]
+     [<greater> []
+      {[<greater> {[]}]
+       [_ {}]}]
+     [_ [Something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $match?
+  (lambda [$a]
+    (lambda [$x $y]
+      (match x a
+        {[,y #t]
+         [_ #f]}))))
