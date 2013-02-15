@@ -102,13 +102,39 @@ parseFunctionExpr :: Parser EgisonExpr
 parseFunctionExpr = keywordFunction >> FunctionExpr <$> parseEgisonExpr <*> parseMatchClauses
 
 parseMatchClauses :: Parser [MatchClause]
-parseMatchClauses = sepEndBy parseMatchClause whiteSpace
+parseMatchClauses = braces $ sepEndBy parseMatchClause whiteSpace
 
 parseMatchClause :: Parser MatchClause
 parseMatchClause = brackets $ (,) <$> parseEgisonExpr <*> parseEgisonExpr
 
 parseMatcherExpr :: Parser EgisonExpr
-parseMatcherExpr = notImplemented
+parseMatcherExpr = keywordMatcher >> MatcherExpr <$> parsePPMatchClauses
+
+parsePPMatchClauses :: Parser MatcherInfoExpr
+parsePPMatchClauses = braces $ sepEndBy parsePPMatchClause whiteSpace
+
+parsePPMatchClause :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+parsePPMatchClause = brackets $ (,,) <$> parsePrimitivePatPattern <*> parseEgisonExpr <*> parsePMatchClauses
+
+parsePMatchClauses :: Parser [(PrimitiveDataPattern, EgisonExpr)]
+parsePMatchClauses = braces $ sepEndBy parsePMatchClause whiteSpace
+
+parsePMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
+parsePMatchClause = brackets $ (,) <$> parsePrimitivePattern <*> parseEgisonExpr
+
+parsePrimitivePatPattern :: Parser PrimitivePatPattern
+parsePrimitivePatPattern = char '_' *> pure PPWildCard
+                       <|> (string ",$" >> PPValuePat <$> ident)
+                       <|> angles (PPInductivePat <$> ident <*> sepEndBy parsePrimitivePatPattern whiteSpace)
+
+parsePrimitivePattern :: Parser PrimitiveDataPattern
+parsePrimitivePattern = char '_' *> pure PWildCard
+                    <|> (char '$' >> PPatVar <$> ident)
+                    <|> braces ((PConsPat <$> parsePrimitivePattern <*> (dot *> parsePrimitivePattern))
+                            <|> (PSnocPat <$> (dot *> parsePrimitivePattern) <*> parsePrimitivePattern) 
+                            <|> pure PEmptyPat)
+                    <|> angles (PInductivePat <$> ident <*> sepEndBy parsePrimitivePattern whiteSpace)
+                    <|> PConstantPat <$> parseConstantExpr
 
 parseIfExpr :: Parser EgisonExpr
 parseIfExpr = IfExpr <$> (keywordIf   *> parseEgisonExpr)

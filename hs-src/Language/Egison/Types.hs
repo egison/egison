@@ -79,11 +79,7 @@ data PrimitiveDataPattern =
   | PEmptyPat
   | PConsPat PrimitiveDataPattern PrimitiveDataPattern
   | PSnocPat PrimitiveDataPattern PrimitiveDataPattern
-  -- Are these really necessary?
-  | PPatBool Bool
-  | PPatChar Char
-  | PPatInteger Integer
-  | PPatFloat Double
+  | PConstantPat EgisonExpr
  deriving (Show)
 
 data InnerExpr =
