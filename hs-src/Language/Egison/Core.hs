@@ -10,8 +10,15 @@ eval1 env (MatchAllExpr target matcher (pattern, body)) = do
                matchs
   return $ Intermidiate $ ICollection $ map IElement rets
 
+evalPattern :: Env -> EgisonExpr -> IOThrowsError EgisonPattern
+evalPattern _ WildCardExpr = return WildCard
+evalPattern _ (InductiveDataExpr cons exprs) = return $ InductivePat cons exprs
+evalPattern env (ApplyExpr fn args) = do
+  (newEnv, expr) <- apply env fn args
+  \\\\\\\
 
-objRefEval1 :: ObjectRef -> Object
+objRefEval1 :: ObjectRef ->
+Object
 objRefEval1 = undefined
 
 patternMatch :: MatchFlag -> Env -> [MatchState] -> IOThrowsError [MatchResult]
@@ -21,9 +28,12 @@ patternMatch MOne env ((MState frame []):_) = do
 patternMatch MAll env ((MState frame []):mStates) = do
   ret <- patternMatch MAll env mStates
   return (frame:ret)
-patternMatch mFlag env ((MState frame ((MAtom matcher pattern target):mAtoms)):mStates) = do
-  pattern1 <- eval1 env pattern
-  case pattern1 of
-    Intermidiate (IInductiveData _ _) -> do -- same with ValuePat
-
- 
+patternMatch mFlag env ((MState frame ((MAtom matcher patExpr target):mAtoms)):mStates) = do
+  pat <- evalPattern env patExpr
+  case pat of
+    InductivePat cons exprs -> do
+      undefined
+    ValuePat env expr -> do
+      undefined
+    
+      

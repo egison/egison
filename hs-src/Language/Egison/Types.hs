@@ -25,13 +25,17 @@ data EgisonExpr =
   | BoolExpr Bool
   | IntegerExpr Integer
   | FloatExpr Double
-  | PatVarExpr String [EgisonExpr]
   | VarExpr String [EgisonExpr]
+
+  | InductiveDataExpr String [EgisonExpr]
+  | TupleExpr [EgisonExpr]
+  | CollectionExpr [InnerExpr]
+
+  | WildCardExpr
+  | PatVarExpr String [EgisonExpr]
   | SymExpr String
   | PatVarOmitExpr String [EgisonExpr]
   | OmitExpr String [EgisonExpr]
-
-  | WildCardExpr
   | ValuePatExpr EgisonExpr
   | PredPatExpr EgisonExpr
   | CutPatExpr EgisonExpr
@@ -39,11 +43,8 @@ data EgisonExpr =
   | AndPatExpr [EgisonExpr]
   | OrPatExpr [EgisonExpr]
 
-  | InductiveDataExpr String [EgisonExpr]
-  | TupleExpr [EgisonExpr]
-  | CollectionExpr [InnerExpr]
   | LambdaExpr EgisonExpr EgisonExpr
-
+  
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetExpr [Binding] EgisonExpr
   | LetRecExpr [Binding] EgisonExpr
@@ -58,7 +59,6 @@ data EgisonExpr =
   | DoExpr [Binding] EgisonExpr
     
   | ApplyExpr EgisonExpr EgisonExpr
-
 
   | SomethingExpr
   | UndefinedExpr
@@ -92,34 +92,26 @@ type Binding = (EgisonExpr, EgisonExpr)
 type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
 --
--- Environment
---
-
-data Environment =
-  Poyo
-
---
 -- Values
 --
 type ObjectRef = IORef Object
 
 data Object =
     Closure Env EgisonExpr
-  | Pattern EgisonPattern
   | Intermidiate EgisonIntermidiate
   | Value EgisonValue
   
 data EgisonPattern =
     WildCard
   | PatVar String [Integer]
-  | ValuePat Environment EgisonExpr
-  | PredPat Environment EgisonExpr [EgisonExpr]
+  | ValuePat Env EgisonExpr
+  | PredPat Env EgisonExpr [EgisonExpr]
   | CutPat EgisonPattern
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
-  | TuplePat [EgisonPattern]
-  | InductivePat String [EgisonPattern]
+  | TuplePat [EgisonExpr]
+  | InductivePat String [EgisonExpr]
 
 data EgisonIntermidiate =
     IInductiveData String [ObjectRef]
