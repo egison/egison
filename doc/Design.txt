@@ -2,6 +2,16 @@
 ;;;;; Design of Egison3
 ;;;;;
 
+;; Data construct
+<Node <Leaf 1>
+      <Node <Leaf 2>
+            <Leaf 3>>>
+
+;; Pattern construct
+<node <leaf 1>
+      <node <leaf 2>
+            <leaf 3>>>
+
 ;
 ; Data which defines how to pattern-match is called `matcher'.
 ; A mather is defined with a matcher expression.
@@ -29,6 +39,21 @@
         {[$tgt {(modulo tgt m)}]}]
        })))
 
+(define $tree
+  (lambda [$a]
+    (matcher
+      {[,$val []
+        {[$tgt (if ((equal-tree? a) val tgt)
+                   {[]}
+                   {})]}]
+       [<node $ $> [(tree a) (tree a)]
+        {[<node $n1 $n2> {[n1 n2]}]}]
+       [<leaf $> [a]
+        {[<leaf $x> {[x]}]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       }))
+       
 ;
 ; `function' expression is like `match-lambda' of other languages.
 ;

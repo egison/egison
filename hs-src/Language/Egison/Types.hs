@@ -166,7 +166,7 @@ type VarExpr = (String, [EgisonExpr])
 
 type Var = (String, [Integer])
 
-type FrameList = [(Var, ObjectRef)]
+type MatchResult = [(Var, ObjectRef)]
 
 type Frame = Data.Map.Map Var ObjectRef
 
@@ -179,18 +179,14 @@ data Env = Environment {
 
 data MatchFlag = MAll | MOne
   
-data PClosure = PClosure {pcFrame :: FrameList,
-                          pcBody :: ObjectRef
+data MatchAtom = MAtom {maPat :: ObjectRef,
+                        maTyp :: ObjectRef,
+                        maTgt :: ObjectRef
+                         }
+
+data MatchState = MState {msFrame :: MatchResult,
+                          mAtoms :: [MatchAtom]
                           }
-
-data MAtom = MAtom {pClosure :: PClosure,
-                    maTyp :: ObjectRef,
-                    maTarget :: ObjectRef
-                    }
-
-data MState = MState {msFrame :: FrameList,
-                      mAtoms :: [MAtom]
-                      }
 
 ---
 --- Types for Error Handling
