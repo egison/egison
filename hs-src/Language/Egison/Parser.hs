@@ -75,6 +75,7 @@ parseEgisonExpr = whiteSpace >> (parseVar
                                      <|> parseFunctionExpr
                                      <|> parseLetRecExpr
                                      <|> parseLetExpr
+                                     <|> parseDoExpr
                                      <|> parseMatchAllExpr
                                      <|> parseMatchExpr
                                      <|> parseMatcherExpr
@@ -164,31 +165,6 @@ parseLetRecExpr =  keywordLetRec >> LetRecExpr <$> parseBindings <*> parseEgison
 parseLetExpr :: Parser EgisonExpr
 parseLetExpr = keywordLet >> LetExpr <$> parseBindings <*> parseEgisonExpr
 
-parseApplyExpr :: Parser EgisonExpr
-parseApplyExpr = do
-  func <- parseEgisonExpr
-  args <- parseArgs 
-  let vars = lefts args
-  case vars of
-    [] -> return . ApplyExpr func . TupleExpr $ rights args
-    "" : _ ->
-      if all null vars
-        then
-          let args' = evalState (mapM (either (\_ ->  modify (1+) >> gets (flip VarExpr [] . ('#':) . show)) return) args) 0
-          in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
-        else fail "invalid partial application"
-    _ -> let ns = Set.fromList $ map read vars
-             n = Set.size ns
-         in if Set.findMin ns == 1 && Set.findMax ns == n
-              then
-                let args' = map (either (flip VarExpr [] . ('#':)) id) args
-                in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
-              else fail "invalid partial application" 
- where
-  parseArgs = sepEndBy ((char '$' >> Left <$> option "" parseIndex) <|> Right <$> parseEgisonExpr) whiteSpace
-  parseIndex = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  annonVars n = take n $ map (("$#"++) . show) [1..]
-
 parseDoExpr :: Parser EgisonExpr
 parseDoExpr = keywordDo >> DoExpr <$> parseBindings <*> parseEgisonExpr
 
@@ -204,6 +180,33 @@ parseVarNames = return <$> parseVarName
 
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
+
+parseApplyExpr :: Parser EgisonExpr
+parseApplyExpr = do
+  func <- parseEgisonExpr
+  args <- parseArgs
+  let vars = lefts args
+  case vars of
+    [] -> return . ApplyExpr func . TupleExpr $ rights args
+    _ | all null vars ->
+        let genVar = modify (1+) >> gets (flip VarExpr [] . ('#':) . show)
+            args' = evalState (mapM (either (const genVar) return) args) 0
+        in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
+      | all (not . null) vars ->
+        let ns = Set.fromList $ map read vars
+            n = Set.size ns
+        in if Set.findMin ns == 1 && Set.findMax ns == n
+             then
+               let args' = map (either (flip VarExpr [] . ('#':)) id) args
+               in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
+             else fail "invalid partial application"
+      | otherwise -> fail "invalid partial application"
+ where
+  parseArgs = sepEndBy parseArg whiteSpace
+  parseArg = (char '$' >> Left <$> option "" parseIndex)
+         <|> Right <$> parseEgisonExpr
+  parseIndex = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
+  annonVars n = take n $ map (('#':) . show) [1..]
 
 parseCutPatExpr :: Parser EgisonExpr
 parseCutPatExpr = char '!' >> CutPatExpr <$> parseEgisonExpr
@@ -275,9 +278,9 @@ egisonDef =
                 , P.reservedOpNames    = reservedOperators
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
-  where
-    symbol1 = oneOf "&*+-/:="
-    symbol2 = symbol1 <|> oneOf "!?"
+ where
+  symbol1 = oneOf "&*+-/:="
+  symbol2 = symbol1 <|> oneOf "!?"
 
 lexer :: P.GenTokenParser ByteString () Identity
 lexer = P.makeTokenParser egisonDef
