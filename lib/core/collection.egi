@@ -16,7 +16,7 @@
         {[{$x @$xs} {[x xs]}]
          [_ {}]}]
        [<snoc $ $> [a (list a)]
-        {[{.$xs $x} {[x xs]}]
+        {[{@$xs $x} {[x xs]}]
          [_ {}]}]
        [<join ,$pxs $> [(list a)]
         {[$tgt (letrec {[$helper (lambda [$pxs $tgt]
@@ -79,21 +79,21 @@
 
 (define $remove
   (lambda [$xs $x]
-    (match xs (list _)
+    (match xs (list something)
       {[<nil> {}]
        [<cons ,x $rs> rs]
        [<cons $y $rs> {y @(remove a rs x)}]})))
 
 (define $remove-all
   (lambda [$xs $x]
-    (match xs (list _)
+    (match xs (list something)
       {[<nil> {}]
        [<cons ,x $rs> (remove-all rs x)]
        [<cons $y $rs> {y @(remove-all rs x)}]})))
 
 (define $remove-collection
   (lambda [$xs $ys]
-    (match ys (list _)
+    (match ys (list something)
       {[<nil> xs]
        [<cons $y $rs> ((remove-collection a) ((remove a) xs y) rs)]})))
 
@@ -105,7 +105,7 @@
 
 (define $union
   (lambda [$xs $ys]
-    (match ys (list _)
+    (match ys (list something)
       {[<nil> xs]
        [<cons $y $rs> ((union a) ((add a) xs y) rs)]})))
 
@@ -113,7 +113,7 @@
   (lambda [$xs]
     (letrec {[$remove-and-count
               (lambda [$x $xs]
-                (match xs (list _)
+                (match xs (list something)
                   {[<nil> [{} 1]]
                    [<cons ,x $ys> (let {[[$r $i] (remove-and-count x ys)]}
                                     [r (+ i 1)])]
@@ -129,7 +129,7 @@
     (foldr (lambda [$x $rs]
              (let {[[$y $i] x]} 
                (map-and-concat (lambda [$sub] 
-                                 (match-all (loop $l $j (between 1 i) {y @l} {}) (list _)
+                                 (match-all (loop $l $j (between 1 i) {y @l} {}) (list something)
                                    [<join $ys _> {@ys @sub}]))
                                rs)))
            {{}}
@@ -173,7 +173,7 @@
 
 (define $member?
   (lambda [$x $ys]
-    (match ys (list _)
+    (match ys (list something)
       {[<nil> #f]
        [<cons ,x $ys> #t]
        [<cons $y $ys> ((member? a) x ys)]})))
@@ -182,7 +182,7 @@
   (lambda [$xs]
     (letrec {[$loop-fn
               (lambda [$xs $ys]
-                (match xs (list _)
+                (match xs (list something)
                   {[<nil> ys]
                    [<cons $x $rs>
                     (if (member? x ys)
@@ -192,7 +192,7 @@
 
 (define $subcollection?
   (lambda [$xs $ys]
-    (match xs (list _)
+    (match xs (list something)
       {[<nil> #t]
        [<cons $x $rest>
         (if (member? x ys)
