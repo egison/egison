@@ -173,7 +173,7 @@ parseApplyExpr = do
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     "" : _ ->
       if all null vars
-        then 
+        then
           let args' = evalState (mapM (either (\_ ->  modify (1+) >> gets (flip VarExpr [] . ('#':) . show)) return) args) 0
           in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
         else fail "invalid partial application"
@@ -185,7 +185,7 @@ parseApplyExpr = do
                 in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
               else fail "invalid partial application" 
  where
-  parseArgs = sepEndBy ((char '$' >> Left <$> parseIndex) <|> Right <$> parseEgisonExpr) whiteSpace
+  parseArgs = sepEndBy ((char '$' >> Left <$> option "" parseIndex) <|> Right <$> parseEgisonExpr) whiteSpace
   parseIndex = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   annonVars n = take n $ map (("$#"++) . show) [1..]
 
