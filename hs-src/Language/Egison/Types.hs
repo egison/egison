@@ -5,8 +5,7 @@ import qualified Data.Map
 import Data.IORef
 import System.IO
 import Control.Monad.Error
-import Text.ParserCombinators.Parsec hiding (spaces)
-
+import Text.Parsec (ParseError)
 --
 -- Expressions
 --
@@ -43,7 +42,7 @@ data EgisonExpr =
   | AndPatExpr [EgisonExpr]
   | OrPatExpr [EgisonExpr]
 
-  | LambdaExpr EgisonExpr EgisonExpr
+  | LambdaExpr [String] EgisonExpr
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetExpr [Binding] EgisonExpr
@@ -68,6 +67,7 @@ type MatchClause = (EgisonExpr, EgisonExpr)
 
 data PrimitivePatPattern =
     PPWildCard
+  | PPPatVar
   | PPValuePat String
   | PPInductivePat String [PrimitivePatPattern]
  deriving (Show)
@@ -87,7 +87,7 @@ data InnerExpr =
   | SubCollectionExpr EgisonExpr
  deriving (Show)
 
-type Binding = (EgisonExpr, EgisonExpr)
+type Binding = ([String], EgisonExpr)
 
 type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
