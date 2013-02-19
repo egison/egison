@@ -216,20 +216,40 @@
   (lambda [$pvar $pat $i]
     <cons ,(+ `pvar i) (| (seq-pat-helper pvar (+ i 1)) pat)))
 
+;
+; Mah-jong example
+;
+
 (define $shuntsu
   (lambda [$pvar $pat]
-    <cons <num $S pvar>
-     <cons <num ,S ,(+ `pvar 1)>
-      <cons <num ,S ,(+ `pvar 2)>
+    <cons (& <num $s $n> pvar)
+     <cons <num ,s ,(+ `n 1)>
+      <cons <num ,s ,(+ `n 2)>
        pat>>>))
         
 (define $kohtsu
   (lambda [$pvar $pat]
-    <cons <num $S pvar>
-     <cons <num ,S ,`pvar>
-      <cons <num ,S ,`pvar>
+    <cons pvar
+     <cons ,`pvar
+      <cons ,`pvar
        pat>>>))
-        
+
+(define $head
+  (lambda [$pvar $pat]
+    <cons pvar
+     <cons ,`pvar
+       pat>>))
+
+(define $yaku?
+  (function (multiset hai)
+    {[(head $head (| (shuntsu $h1 (shuntsu $h2 (shuntsu $h3 <nil>)))
+                     (shuntsu $h1 (shuntsu $h2 (kohtsu $h3 <nil>)))
+                     (shuntsu $h1 (kohtsu $h2 (kohtsu $h3 <nil>)))
+                     (kohtsu $h1 (kohtsu $h2 (kohtsu $h3 <nil>)))))
+      #t]
+     [_
+      #f]}))
+
 ;;
 ;; IO
 ;;
