@@ -2,16 +2,6 @@
 ;;;;; Design of Egison3
 ;;;;;
 
-;; Data construct
-<Node <Leaf 1>
-      <Node <Leaf 2>
-            <Leaf 3>>>
-
-;; Pattern construct
-<node <leaf 1>
-      <node <leaf 2>
-            <leaf 3>>>
-
 ;
 ; Data which defines how to pattern-match is called `matcher'.
 ; A mather is defined with a matcher expression.
@@ -219,21 +209,27 @@
 ;;
 
 (define $seq-pat
-  (lambda [$var $pat]
-    (seq-pat-helper var pat 1)))
+  (lambda [$pvar $pat]
+    <cons pvar (seq-pat-helper pvar pat 1)>))
 
 (define $seq-pat-helper
-  (lambda [$var $pat $i]
-    <cons ,(+ `var i) (| (seq-pat-helper var (+ i 1)) pat)))
+  (lambda [$pvar $pat $i]
+    <cons ,(+ `pvar i) (| (seq-pat-helper pvar (+ i 1)) pat)))
 
-(loop %l %i (between 1 n) <cons $a_i l> <nil>) <=> (n-pat %a (between 1 n) <nil>)
-
-(define $n-pat
-  (lambda [$var $range $pat]
-    (match range (list something)
-      {[<nil> pat]
-       [<cons $i $is> <cons `$var_i (n-pat var is pat)]})))
-
+(define $shuntsu
+  (lambda [$pvar $pat]
+    <cons <num $S pvar>
+     <cons <num ,S ,(+ `pvar 1)>
+      <cons <num ,S ,(+ `pvar 2)>
+       pat>>>))
+        
+(define $kohtsu
+  (lambda [$pvar $pat]
+    <cons <num $S pvar>
+     <cons <num ,S ,`pvar>
+      <cons <num ,S ,`pvar>
+       pat>>>))
+        
 ;;
 ;; IO
 ;;
