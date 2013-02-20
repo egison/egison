@@ -12,10 +12,10 @@ import qualified Data.Set as Set
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
-import Text.Parsec
+import Text.Parsec hiding (char)
 import Text.Parsec.ByteString.Lazy
-import Text.Parsec.Char
 import Text.Parsec.Combinator
+import qualified Text.Parsec.Char  as C
 import qualified Text.Parsec.Token as P
 
 import Language.Egison.Types
@@ -29,12 +29,12 @@ parseTopExprs :: Parser [EgisonTopExpr]
 parseTopExprs = endBy parseTopExpr whiteSpace
 
 parseTopExpr :: Parser EgisonTopExpr
-parseTopExpr = whiteSpace >> parens (parseDefineExpr
-                                 <|> parseTestExpr
-                                 <|> parseExecuteExpr
-                                 <|> parseLoadFileExpr
-                                 <|> parseLoadExpr
-                                 <?> "top-level expression")
+parseTopExpr = parens (parseDefineExpr
+                       <|> parseTestExpr
+                       <|> parseExecuteExpr
+                       <|> parseLoadFileExpr
+                       <|> parseLoadExpr
+                       <?> "top-level expression")
 
 parseDefineExpr :: Parser EgisonTopExpr
 parseDefineExpr = keywordDefine >> (Define .) . (,) <$> parseVarNames <*> parseExpr
@@ -52,40 +52,40 @@ parseLoadExpr :: Parser EgisonTopExpr
 parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 
 parseExpr :: Parser EgisonExpr
-parseExpr = whiteSpace >> (parseVarExpr
-                       <|> parseOmitExpr
-                       <|> try parsePatVarExpr
-                       <|> parsePatVarOmitExpr
+parseExpr = (parseVarExpr
+             <|> parseOmitExpr
+             <|> try parsePatVarExpr
+             <|> parsePatVarOmitExpr
                        
-                       <|> parseWildCardExpr
-                       <|> parseCutPatExpr
-                       <|> parseNotPatExpr
-                       <|> parseValuePatExpr
-                       <|> parsePredPatExpr 
+             <|> parseWildCardExpr
+             <|> parseCutPatExpr
+             <|> parseNotPatExpr
+             <|> parseValuePatExpr
+             <|> parsePredPatExpr 
                         
-                       <|> parseConstantExpr
-                       <|> parseInductiveExpr
-                       <|> parseTupleExpr
-                       <|> parseCollectionExpr
-                       <|> parens (parseAndPatExpr 
-                               <|> parseOrPatExpr
-                               <|> parseIfExpr
-                               <|> parseLambdaExpr
-                               <|> parseFunctionExpr
-                               <|> parseLetRecExpr
-                               <|> parseLetExpr
-                               <|> parseDoExpr
-                               <|> parseMatchAllExpr
-                               <|> parseMatchExpr
-                               <|> parseMatcherExpr
-                               <|> parseApplyExpr)
-                       <?> "expression")
+             <|> parseConstantExpr
+             <|> parseInductiveExpr
+             <|> parseTupleExpr
+             <|> parseCollectionExpr
+             <|> parens (parseAndPatExpr 
+                         <|> parseOrPatExpr
+                         <|> parseIfExpr
+                         <|> parseLambdaExpr
+                         <|> parseFunctionExpr
+                         <|> parseLetRecExpr
+                         <|> parseLetExpr
+                         <|> parseDoExpr
+                         <|> parseMatchAllExpr
+                         <|> parseMatchExpr
+                         <|> parseMatcherExpr
+                         <|> parseApplyExpr)
+                         <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
 parseVarExpr = VarExpr <$> ident <*> parseIndexNums
 
 parseIndexNums :: Parser [EgisonExpr]
-parseIndexNums = (char '_' >> ((:) <$> parseExpr <*> parseIndexNums))
+parseIndexNums = (prefixChar '_' >> ((:) <$> parseExpr <*> parseIndexNums))
               <|> pure []
 
 parseInductiveExpr :: Parser EgisonExpr
@@ -99,7 +99,7 @@ parseCollectionExpr :: Parser EgisonExpr
 parseCollectionExpr = braces $ CollectionExpr <$> sepEndBy parseInnerExpr whiteSpace
  where
   parseInnerExpr :: Parser InnerExpr
-  parseInnerExpr = (char '@' >> SubCollectionExpr <$> parseExpr)
+  parseInnerExpr = (prefixChar '@' >> SubCollectionExpr <$> parseExpr)
                <|> ElementExpr <$> parseExpr
 
 parseMatchAllExpr :: Parser EgisonExpr
@@ -135,15 +135,15 @@ parsePMatchClause = brackets $ (,) <$> parsePrimitivePattern <*> parseExpr
 parsePrimitivePatPattern :: Parser PrimitivePatPattern
 parsePrimitivePatPattern = char '_' *> pure PPWildCard
                        <|> char '$' *> pure PPPatVar
-                       <|> (string ",$" >> PPValuePat <$> ident)
+                       <|> (prefixString ",$" >> PPValuePat <$> ident)
                        <|> angles (PPInductivePat <$> ident <*> sepEndBy parsePrimitivePatPattern whiteSpace)
                        <?> "primitive-pattren-pattern"
 
 parsePrimitivePattern :: Parser PrimitiveDataPattern
 parsePrimitivePattern = char '_' *> pure PWildCard
-                    <|> (char '$' >> PPatVar <$> ident)
-                    <|> braces ((PConsPat <$> parsePrimitivePattern <*> (char '@' *> parsePrimitivePattern))
-                            <|> (PSnocPat <$> (char '@' *> parsePrimitivePattern) <*> parsePrimitivePattern) 
+                    <|> (prefixChar '$' >> PPatVar <$> ident)
+                    <|> braces ((PConsPat <$> parsePrimitivePattern <*> (prefixChar '@' *> parsePrimitivePattern))
+                            <|> (PSnocPat <$> (prefixChar '@' *> parsePrimitivePattern) <*> parsePrimitivePattern) 
                             <|> pure PEmptyPat)
                     <|> angles (PInductivePat <$> ident <*> sepEndBy parsePrimitivePattern whiteSpace)
                     <|> PConstantPat <$> parseConstantExpr
@@ -175,7 +175,7 @@ parseVarNames = return <$> parseVarName
             <|> brackets (sepEndBy parseVarName whiteSpace) 
 
 parseVarName :: Parser String
-parseVarName = char '$' >> ident
+parseVarName = prefixChar '$' >> ident
 
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = do
@@ -200,8 +200,8 @@ parseApplyExpr = do
  where
   parseArgs = sepEndBy parseArg whiteSpace
   parseArg = try (Right <$> parseExpr)
-         <|> char '$' *> (Left <$> option "" parseIndex)
-  parseIndex = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
+         <|> prefixChar '$' *> (Left <$> option "" parseIndex)
+  parseIndex = (try . noneOf $ "0") >> digits
   annonVars n = take n $ map (('#':) . show) [1..]
 
 parseCutPatExpr :: Parser EgisonExpr
@@ -229,10 +229,10 @@ parseOrPatExpr :: Parser EgisonExpr
 parseOrPatExpr = char '|' >> OrPatExpr <$> sepEndBy parseExpr whiteSpace
 
 parseOmitExpr :: Parser EgisonExpr
-parseOmitExpr = char '`' >> OmitExpr <$> ident <*> parseIndexNums
+parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
 
 parsePatVarOmitExpr :: Parser EgisonExpr
-parsePatVarOmitExpr = string "$`" >> PatVarOmitExpr <$> ident <*> parseIndexNums
+parsePatVarOmitExpr = prefixString "$`" >> PatVarOmitExpr <$> ident <*> parseIndexNums
 
 parseConstantExpr :: Parser EgisonExpr
 parseConstantExpr =  parseCharExpr
@@ -266,8 +266,8 @@ egisonDef =
   P.LanguageDef { P.commentStart       = "#|"
                 , P.commentEnd         = "|#"
                 , P.commentLine        = ";"
-                , P.identStart         = letter <|> symbol1
-                , P.identLetter        = letter <|> digit <|> symbol2
+                , P.identStart         = C.letter <|> symbol1
+                , P.identLetter        = C.letter <|> C.digit <|> symbol2
                 , P.opStart            = symbol1
                 , P.opLetter           = symbol1
                 , P.reservedNames      = reservedKeywords
@@ -340,10 +340,37 @@ charLiteral :: Parser Char
 charLiteral = P.charLiteral lexer
 
 boolLiteral :: Parser Bool
-boolLiteral = char '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
+boolLiteral = prefixChar '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
 
 whiteSpace :: Parser ()
 whiteSpace = P.whiteSpace lexer
+
+prefix :: Parser a -> Parser a
+prefix p = whiteSpace *> p
+
+prefixChar :: Char -> Parser Char
+prefixChar = prefix . C.char
+
+prefixString :: String -> Parser String
+prefixString = prefix . C.string
+
+suffix :: Parser a -> Parser a
+suffix p = p <* whiteSpace
+
+suffixChar :: Char -> Parser Char
+suffixChar = suffix . C.char
+
+suffixString :: String -> Parser String
+suffixString = suffix . C.string
+
+digit :: Parser Char
+digit = P.lexeme lexer $ C.digit
+
+digits :: Parser [Char]
+digits = P.lexeme lexer $ many1 C.digit
+
+char :: Char -> Parser Char
+char c = P.lexeme lexer $ C.char c
 
 parens :: Parser a -> Parser a
 parens = P.parens lexer
