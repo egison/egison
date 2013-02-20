@@ -234,7 +234,7 @@
       <cons ,`pvar
        pat>>>))
 
-(define $head
+(define $twin
   (lambda [$pvar $pat]
     <cons pvar
      <cons ,`pvar
@@ -242,10 +242,12 @@
 
 (define $yaku?
   (function (multiset hai)
-    {[(head $head (| (shuntsu $h1 (shuntsu $h2 (shuntsu $h3 <nil>)))
-                     (shuntsu $h1 (shuntsu $h2 (kohtsu $h3 <nil>)))
-                     (shuntsu $h1 (kohtsu $h2 (kohtsu $h3 <nil>)))
-                     (kohtsu $h1 (kohtsu $h2 (kohtsu $h3 <nil>)))))
+    {[(twin $th_1 (| (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 <nil>)))
+                     (shuntsu $sh_1 (shuntsu $sh_2 (kohtsu $kh_1 <nil>)))
+                     (shuntsu $sh_1 (kohtsu $kh_1 (kohtsu $kh_2 <nil>)))
+                     (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 <nil>)))
+                     (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 <nil>))))))
+                     ))
       #t]
      [_
       #f]}))
