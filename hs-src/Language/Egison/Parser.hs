@@ -26,7 +26,7 @@ notImplemented = choice []
 -- Expressions
 
 parseTopExprs :: Parser [EgisonTopExpr]
-parseTopExprs = endBy parseTopExpr whiteSpace
+parseTopExprs = whiteSpace >> endBy parseTopExpr whiteSpace
 
 parseTopExpr :: Parser EgisonTopExpr
 parseTopExpr = parens (parseDefineExpr
@@ -124,29 +124,29 @@ parsePPMatchClauses :: Parser MatcherInfoExpr
 parsePPMatchClauses = braces $ sepEndBy parsePPMatchClause whiteSpace
 
 parsePPMatchClause :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
-parsePPMatchClause = brackets $ (,,) <$> parsePrimitivePatPattern <*> parseExpr <*> parsePMatchClauses
+parsePPMatchClause = brackets $ (,,) <$> parsePPPattern <*> parseExpr <*> parsePDMatchClauses
 
-parsePMatchClauses :: Parser [(PrimitiveDataPattern, EgisonExpr)]
-parsePMatchClauses = braces $ sepEndBy parsePMatchClause whiteSpace
+parsePDMatchClauses :: Parser [(PrimitiveDataPattern, EgisonExpr)]
+parsePDMatchClauses = braces $ sepEndBy parsePDMatchClause whiteSpace
 
-parsePMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
-parsePMatchClause = brackets $ (,) <$> parsePrimitivePattern <*> parseExpr
+parsePDMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
+parsePDMatchClause = brackets $ (,) <$> parsePDPattern <*> parseExpr
 
-parsePrimitivePatPattern :: Parser PrimitivePatPattern
-parsePrimitivePatPattern = char '_' *> pure PPWildCard
+parsePPPattern :: Parser PrimitivePatPattern
+parsePPPattern = char '_' *> pure PPWildCard
                        <|> char '$' *> pure PPPatVar
                        <|> (prefixString ",$" >> PPValuePat <$> ident)
-                       <|> angles (PPInductivePat <$> ident <*> sepEndBy parsePrimitivePatPattern whiteSpace)
+                       <|> angles (PPInductivePat <$> ident <*> sepEndBy parsePPPattern whiteSpace)
                        <?> "primitive-pattren-pattern"
 
-parsePrimitivePattern :: Parser PrimitiveDataPattern
-parsePrimitivePattern = char '_' *> pure PWildCard
-                    <|> (prefixChar '$' >> PPatVar <$> ident)
-                    <|> braces ((PConsPat <$> parsePrimitivePattern <*> (prefixChar '@' *> parsePrimitivePattern))
-                            <|> (PSnocPat <$> (prefixChar '@' *> parsePrimitivePattern) <*> parsePrimitivePattern) 
-                            <|> pure PEmptyPat)
-                    <|> angles (PInductivePat <$> ident <*> sepEndBy parsePrimitivePattern whiteSpace)
-                    <|> PConstantPat <$> parseConstantExpr
+parsePDPattern :: Parser PrimitiveDataPattern
+parsePDPattern = char '_' *> pure PDWildCard
+                    <|> (prefixChar '$' >> PDPatVar <$> ident)
+                    <|> braces ((PDConsPat <$> parsePDPattern <*> (prefixChar '@' *> parsePDPattern))
+                            <|> (PDSnocPat <$> (prefixChar '@' *> parsePDPattern) <*> parsePDPattern) 
+                            <|> pure PDEmptyPat)
+                    <|> angles (PDInductivePat <$> ident <*> sepEndBy parsePDPattern whiteSpace)
+                    <|> PDConstantPat <$> parseConstantExpr
                     <?> "primitive-data-pattern"
 
 parseIfExpr :: Parser EgisonExpr
