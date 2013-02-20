@@ -32,7 +32,6 @@ data EgisonExpr =
 
   | WildCardExpr
   | PatVarExpr String [EgisonExpr]
-  | SymExpr String
   | PatVarOmitExpr String [EgisonExpr]
   | OmitExpr String [EgisonExpr]
   | ValuePatExpr EgisonExpr

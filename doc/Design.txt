@@ -223,8 +223,8 @@
 (define $shuntsu
   (lambda [$pvar $pat]
     <cons (& <num $s $n> pvar)
-     <cons <num ,s ,(+ `n 1)>
-      <cons <num ,s ,(+ `n 2)>
+     <cons <num ,s ,(+ n 1)>
+      <cons <num ,s ,(+ n 2)>
        pat>>>))
         
 (define $kohtsu

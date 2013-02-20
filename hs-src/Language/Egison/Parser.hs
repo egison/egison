@@ -53,7 +53,6 @@ parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 
 parseEgisonExpr :: Parser EgisonExpr
 parseEgisonExpr = whiteSpace >> (parseVar
-                             <|> parseSym
                              <|> parseOmitExpr
                              <|> try parsePatVarExpr
                              <|> parsePatVarOmitExpr
@@ -84,9 +83,6 @@ parseEgisonExpr = whiteSpace >> (parseVar
 
 parseVar :: Parser EgisonExpr
 parseVar = VarExpr <$> ident <*> parseIndexNums
-
-parseSym :: Parser EgisonExpr
-parseSym = char '%' >> SymExpr <$> ident
 
 parseIndexNums :: Parser [EgisonExpr]
 parseIndexNums = (char '_' >> ((:) <$> parseEgisonExpr <*> parseIndexNums))
@@ -203,8 +199,8 @@ parseApplyExpr = do
       | otherwise -> fail "invalid partial application"
  where
   parseArgs = sepEndBy parseArg whiteSpace
-  parseArg = (char '$' >> Left <$> option "" parseIndex)
-         <|> Right <$> parseEgisonExpr
+  parseArg = try (Right <$> parseEgisonExpr)
+         <|> char '$' *> (Left <$> option "" parseIndex)
   parseIndex = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   annonVars n = take n $ map (('#':) . show) [1..]
 
