@@ -18,7 +18,7 @@ main :: IO ()
 main = do args <- getArgs
           if null args
             then repl
-            else readFile (args !! 0) >>= putStrLn . runParser' parseEgisonTopExprs
+            else readFile (args !! 0) >>= putStrLn . runParser' parseTopExprs
 
 runParser' :: Show a => Parser a -> String -> String
 runParser' parser input = either show show $ parse parser "egison" (B.pack input)
@@ -29,5 +29,5 @@ repl = do
   case mInput of
     Nothing -> return ()
     Just input -> do
-      putStrLn $ runParser' parseEgisonTopExpr input
+      putStrLn $ runParser' parseTopExpr input
       repl
