@@ -30,11 +30,11 @@ parseTopExprs = endBy parseTopExpr whiteSpace
 
 parseTopExpr :: Parser EgisonTopExpr
 parseTopExpr = whiteSpace >> parens (parseDefineExpr
-                                       <|> parseTestExpr
-                                       <|> parseExecuteExpr
-                                       <|> parseLoadFileExpr
-                                       <|> parseLoadExpr
-                                       <?> "top-level expression")
+                                 <|> parseTestExpr
+                                 <|> parseExecuteExpr
+                                 <|> parseLoadFileExpr
+                                 <|> parseLoadExpr
+                                 <?> "top-level expression")
 
 parseDefineExpr :: Parser EgisonTopExpr
 parseDefineExpr = keywordDefine >> (Define .) . (,) <$> parseVarNames <*> parseExpr
@@ -53,33 +53,33 @@ parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 
 parseExpr :: Parser EgisonExpr
 parseExpr = whiteSpace >> (parseVarExpr
-                             <|> parseOmitExpr
-                             <|> try parsePatVarExpr
-                             <|> parsePatVarOmitExpr
-                             
-                             <|> parseWildCardExpr
-                             <|> parseCutPatExpr
-                             <|> parseNotPatExpr
-                             <|> parseValuePatExpr
-                             <|> parsePredPatExpr 
-                              
-                             <|> parseConstantExpr
-                             <|> parseInductiveExpr
-                             <|> parseTupleExpr
-                             <|> parseCollectionExpr
-                             <|> parens (parseAndPatExpr 
-                                     <|> parseOrPatExpr
-                                     <|> parseIfExpr
-                                     <|> parseLambdaExpr
-                                     <|> parseFunctionExpr
-                                     <|> parseLetRecExpr
-                                     <|> parseLetExpr
-                                     <|> parseDoExpr
-                                     <|> parseMatchAllExpr
-                                     <|> parseMatchExpr
-                                     <|> parseMatcherExpr
-                                     <|> parseApplyExpr)
-                             <?> "expression")
+                       <|> parseOmitExpr
+                       <|> try parsePatVarExpr
+                       <|> parsePatVarOmitExpr
+                       
+                       <|> parseWildCardExpr
+                       <|> parseCutPatExpr
+                       <|> parseNotPatExpr
+                       <|> parseValuePatExpr
+                       <|> parsePredPatExpr 
+                        
+                       <|> parseConstantExpr
+                       <|> parseInductiveExpr
+                       <|> parseTupleExpr
+                       <|> parseCollectionExpr
+                       <|> parens (parseAndPatExpr 
+                               <|> parseOrPatExpr
+                               <|> parseIfExpr
+                               <|> parseLambdaExpr
+                               <|> parseFunctionExpr
+                               <|> parseLetRecExpr
+                               <|> parseLetExpr
+                               <|> parseDoExpr
+                               <|> parseMatchAllExpr
+                               <|> parseMatchExpr
+                               <|> parseMatcherExpr
+                               <|> parseApplyExpr)
+                       <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
 parseVarExpr = VarExpr <$> ident <*> parseIndexNums
