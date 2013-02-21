@@ -1,10 +1,13 @@
-{-# Language TypeSynonymInstances, FlexibleInstances #-}
+{-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving #-}
 module Language.Egison.Types where
 
-import qualified Data.Map
-import Data.IORef
-import System.IO
 import Control.Monad.Error
+
+import Data.IORef
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+
+import System.IO
 import Text.Parsec (ParseError)
 --
 -- Expressions
@@ -72,13 +75,13 @@ data PrimitivePatPattern =
  deriving (Show)
 
 data PrimitiveDataPattern =
-    PWildCard
-  | PPatVar String
-  | PInductivePat String [PrimitiveDataPattern]
-  | PEmptyPat
-  | PConsPat PrimitiveDataPattern PrimitiveDataPattern
-  | PSnocPat PrimitiveDataPattern PrimitiveDataPattern
-  | PConstantPat EgisonExpr
+    PDWildCard
+  | PDPatVar String
+  | PDInductivePat String [PrimitiveDataPattern]
+  | PDEmptyPat
+  | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
+  | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
+  | PDConstantPat EgisonExpr
  deriving (Show)
 
 data InnerExpr =
@@ -129,8 +132,8 @@ data EgisonValue =
   | Collection [EgisonValue]
   | Matcher MatcherInfo
   | Func ObjectRef EgisonExpr Env
-  | PrimitiveFunc ([EgisonValue] -> ThrowsError EgisonValue)
-  | IOFunc ([EgisonValue] -> IOThrowsError EgisonValue)
+  | PrimitiveFunc ([EgisonValue] -> EgisonM EgisonValue)
+  | IOFunc ([EgisonValue] -> EgisonM EgisonValue)
   | Port String Handle
   | Something
   | EOF
@@ -150,23 +153,17 @@ data Action =
 
 type MatcherInfo = [(PrimitivePatPattern, ObjectRef, [(Env, PrimitiveDataPattern, EgisonExpr)])]
 
+instance Show EgisonValue where
+ show = undefined
+
 --
 -- Internal Data
 --
-type VarExpr = (String, [EgisonExpr])
-
 type Var = (String, [Integer])
 
-type MatchResult = [(Var, ObjectRef)]
+type Frame = HashMap Var ObjectRef
 
-type Frame = Data.Map.Map Var ObjectRef
-
-type FrameRef = IORef Frame
-
-data Env = Environment {
-        parentEnv :: (Maybe Env), 
-        topFrameRef :: FrameRef
-    }
+type Env = [Frame]
 
 data MatchFlag = MAll | MOne
   
@@ -175,7 +172,7 @@ data MatchAtom = MAtom {maPat :: ObjectRef,
                         maTgt :: ObjectRef
                          }
 
-data MatchState = MState {msFrame :: MatchResult,
+data MatchState = MState {msFrame :: Frame,
                           mAtoms :: [MatchAtom]
                           }
 
@@ -184,38 +181,24 @@ data MatchState = MState {msFrame :: MatchResult,
 ---
 data EgisonError =
     Parser ParseError
+  | UnboundVariable Var
+  | TypeMismatch String EgisonValue
   | NotImplemented String
   | Default String
     
 instance Show EgisonError where
-  show (Parser parseErr) = "Parse error at " ++ ": " ++ show parseErr
+  show (Parser error) = "Parse error at: " ++ show error
+  show (UnboundVariable (var, nums)) = "Unbound variable: $" ++ var ++
+                                      concatMap (('_':) . show) nums
+  show (TypeMismatch expected found) = "Expected " ++  expected ++
+                                        " ,but found: " ++ show found
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Default message) = "Error: " ++ message
+
 instance Error EgisonError where
   noMsg = Default "An error has occurred"
   strMsg = Default
 
-type ThrowsError = Either EgisonError
-
-trapError :: (MonadError e m, Show e) => m String -> m String
-trapError action = catchError action (return . show)
-
-extractValue :: ThrowsError a -> a
-extractValue (Right val) = val
-extractValue (Left err) = error $ "Unexpected error(" ++ show err ++ ") in extractValue; "
-
-type IOThrowsError = ErrorT EgisonError IO
-
-liftThrows :: ThrowsError a -> IOThrowsError a
-liftThrows (Left err) = throwError err
-liftThrows (Right val) = return val
-
-runIOThrowsREPL :: IOThrowsError String -> IO String
-runIOThrowsREPL action = runErrorT (trapError action) >>= return . extractValue
-
-runIOThrows :: IOThrowsError String -> IO (Maybe String)
-runIOThrows action = do
-    runState <- runErrorT action
-    case runState of
-        Left err -> return $ Just (show err)
-        Right _ -> return $ Nothing
+newtype EgisonM a = EgisonM {
+    runEgisonM :: ErrorT EgisonError IO a
+  } deriving (Functor, Monad, MonadIO, MonadError EgisonError)
