@@ -109,7 +109,7 @@ fromCollection _ = throwError $ TypeMismatch "tuple" Something
 fromTuple :: Object -> EgisonM [ObjectRef]
 fromTuple (Intermidiate (ITuple refs)) = return refs
 fromTuple (Value (Tuple vals)) = liftIO $ mapM (newIORef . Value) vals
-fromTuple _ = throwError $ TypeMismatch "tuple" Something
+fromTuple obj = liftIO $ return <$> newIORef obj 
 
 --
 -- Primitives

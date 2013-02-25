@@ -166,6 +166,7 @@ instance Show EgisonValue where
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
+  show Something = "something"
   show _ = undefined
 
 class Convertible a where
