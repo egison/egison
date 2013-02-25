@@ -12,5 +12,5 @@
       {[<leaf $x> {[x]}]}]
      [$ [something]
       {[$tgt {tgt}]}]
-     }))
+     })))
 

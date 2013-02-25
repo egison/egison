@@ -1,6 +1,7 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving #-}
 module Language.Egison.Types where
 
+import Control.Applicative
 import Control.Monad.Error
 
 import Data.IORef
@@ -9,9 +10,11 @@ import qualified Data.HashMap.Strict as HashMap
 
 import System.IO
 import Text.Parsec (ParseError)
+
 --
 -- Expressions
 --
+
 data EgisonTopExpr =
     Define Binding
   | Test EgisonExpr
@@ -66,6 +69,8 @@ data EgisonExpr =
  deriving (Show)
 
 type MatchClause = (EgisonExpr, EgisonExpr)
+type Binding = ([String], EgisonExpr)
+type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
 data PrimitivePatPattern =
     PPWildCard
@@ -89,19 +94,47 @@ data InnerExpr =
   | SubCollectionExpr EgisonExpr
  deriving (Show)
 
-type Binding = ([String], EgisonExpr)
-
-type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
-
 --
 -- Values
 --
-type ObjectRef = IORef Object
 
 data Object =
     Closure Env EgisonExpr
-  | Intermidiate EgisonIntermidiate
+  | Intermidiate Intermidiate
   | Value EgisonValue
+
+type ObjectRef = IORef Object
+
+data Intermidiate =
+    IInductiveData String [ObjectRef]
+  | ITuple [ObjectRef]
+  | ICollection [InnerObject]
+
+data InnerObject =
+    IElement ObjectRef
+  | ISubCollection ObjectRef
+
+data EgisonValue =
+    World [Action]
+  | Char Char
+  | String String
+  | Bool Bool
+  | Integer Integer
+  | Float Double
+  | InductiveData String [EgisonValue]
+  | Tuple [EgisonValue]
+  | Collection [EgisonValue]
+  | Matcher MatcherInfo
+  | Func Env [String] EgisonExpr
+  | PrimitiveFunc PrimitiveFunc
+  | IOFunc IOFunc
+  | Port String Handle
+  | Something
+  | EOF
+
+type PrimitiveFunc = [EgisonValue] -> Either EgisonError EgisonValue
+type IOFunc = [EgisonValue] -> EgisonM EgisonValue
+type MatcherInfo = [(PrimitivePatPattern, ObjectRef, [(Env, PrimitiveDataPattern, EgisonExpr)])]
   
 data EgisonPattern =
     WildCard
@@ -115,33 +148,6 @@ data EgisonPattern =
   | TuplePat [EgisonExpr]
   | InductivePat String [EgisonExpr]
 
-data EgisonIntermidiate =
-    IInductiveData String [ObjectRef]
-  | ITuple [ObjectRef]
-  | ICollection [InnerObject]
-
-data EgisonValue =
-    World [Action]
-  | Char Char
-  | String String
-  | Bool Bool
-  | Integer Integer
-  | Float Double
-  | InductiveData String [EgisonValue]
-  | Tuple [EgisonValue]
-  | Collection [EgisonValue]
-  | Matcher MatcherInfo
-  | Func ObjectRef EgisonExpr Env
-  | PrimitiveFunc ([EgisonValue] -> EgisonM EgisonValue)
-  | IOFunc ([EgisonValue] -> EgisonM EgisonValue)
-  | Port String Handle
-  | Something
-  | EOF
-
-data InnerObject =
-    IElement ObjectRef
-  | ISubCollection ObjectRef
-
 data Action =
     OpenInputPort String
   | OpenOutputPort String
@@ -151,34 +157,57 @@ data Action =
   | WriteToPort String String
  deriving (Show)
 
-type MatcherInfo = [(PrimitivePatPattern, ObjectRef, [(Env, PrimitiveDataPattern, EgisonExpr)])]
-
 instance Show EgisonValue where
- show = undefined
+  show (Char c) = return c
+  show (String s) = s
+  show (Bool b) = show b
+  show (Integer i) = show i
+  show (Float f) = show f
+  show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
+  show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
+  show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
+  show _ = undefined
+
+class Convertible a where
+  toValue :: a -> EgisonValue
+  fromValue :: EgisonValue -> Either EgisonError a
+
+instance Convertible Bool where
+  toValue = Bool
+  fromValue (Bool b) = return b
+  fromValue val = throwError $ TypeMismatch "bool" val
+
+instance Convertible Integer where
+  toValue = Integer
+  fromValue (Integer i) = return i
+  fromValue val = throwError $ TypeMismatch "integer" val
 
 --
 -- Internal Data
 --
+
 type Var = (String, [Integer])
+type Env = [HashMap Var ObjectRef]
 
-type Frame = HashMap Var ObjectRef
+nullEnv :: Env
+nullEnv = []
 
-type Env = [Frame]
+extendEnv :: Env -> [(Var, ObjectRef)] -> Env
+extendEnv env = (: env) . HashMap.fromList
 
-data MatchFlag = MAll | MOne
-  
-data MatchAtom = MAtom {maPat :: ObjectRef,
-                        maTyp :: ObjectRef,
-                        maTgt :: ObjectRef
-                         }
+refVar :: Env -> Var -> EgisonM ObjectRef
+refVar env var = maybe (throwError $ UnboundVariable var) return
+                       (msum $ map (HashMap.lookup var) env)
 
-data MatchState = MState {msFrame :: Frame,
-                          mAtoms :: [MatchAtom]
-                          }
+makeBindings :: [Var] -> [ObjectRef] -> EgisonM [(Var, ObjectRef)] 
+makeBindings (name : names) (ref : refs) = ((name, ref) :) <$> makeBindings names refs
+makeBindings [] [] = return []
+makeBindings _ _ = throwError $ strMsg "invalid binding"
 
----
---- Types for Error Handling
----
+--
+-- Errors
+--
+
 data EgisonError =
     Parser ParseError
   | UnboundVariable Var
@@ -202,3 +231,6 @@ instance Error EgisonError where
 newtype EgisonM a = EgisonM {
     runEgisonM :: ErrorT EgisonError IO a
   } deriving (Functor, Monad, MonadIO, MonadError EgisonError)
+
+liftError :: Either EgisonError a -> EgisonM a
+liftError = either throwError return
