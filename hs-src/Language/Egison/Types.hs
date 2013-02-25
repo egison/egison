@@ -98,22 +98,6 @@ data InnerExpr =
 -- Values
 --
 
-data Object =
-    Closure Env EgisonExpr
-  | Intermidiate Intermidiate
-  | Value EgisonValue
-
-type ObjectRef = IORef Object
-
-data Intermidiate =
-    IInductiveData String [ObjectRef]
-  | ITuple [ObjectRef]
-  | ICollection [InnerObject]
-
-data InnerObject =
-    IElement ObjectRef
-  | ISubCollection ObjectRef
-
 data EgisonValue =
     World [Action]
   | Char Char
@@ -135,27 +119,6 @@ data EgisonValue =
 type PrimitiveFunc = [EgisonValue] -> Either EgisonError EgisonValue
 type IOFunc = [EgisonValue] -> EgisonM EgisonValue
 type MatcherInfo = [(PrimitivePatPattern, ObjectRef, [(Env, PrimitiveDataPattern, EgisonExpr)])]
-  
-data EgisonPattern =
-    WildCard
-  | PatVar String [Integer]
-  | ValuePat Env EgisonExpr
-  | PredPat Env EgisonExpr [EgisonExpr]
-  | CutPat EgisonPattern
-  | NotPat EgisonPattern
-  | AndPat [EgisonPattern]
-  | OrPat [EgisonPattern]
-  | TuplePat [EgisonExpr]
-  | InductivePat String [EgisonExpr]
-
-data Action =
-    OpenInputPort String
-  | OpenOutputPort String
-  | ClosePort String
-  | FlushPort String
-  | ReadFromPort String String
-  | WriteToPort String String
- deriving (Show)
 
 instance Show EgisonValue where
   show (Char c) = return c
@@ -166,6 +129,8 @@ instance Show EgisonValue where
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
+  show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
+  show (PrimitiveFunc _) = "#<primitive>"
   show Something = "something"
   show _ = undefined
 
@@ -182,11 +147,47 @@ instance Convertible Integer where
   toValue = Integer
   fromValue (Integer i) = return i
   fromValue val = throwError $ TypeMismatch "integer" val
+  
+data EgisonPattern =
+    WildCard
+  | PatVar String [Integer]
+  | ValuePat Env EgisonExpr
+  | PredPat Env EgisonExpr [EgisonExpr]
+  | CutPat EgisonPattern
+  | NotPat EgisonPattern
+  | AndPat [EgisonPattern]
+  | OrPat [EgisonPattern]
+  | TuplePat [EgisonExpr]
+  | InductivePat String [EgisonExpr]
 
 --
 -- Internal Data
 --
 
+data Object =
+    Closure Env EgisonExpr
+  | Intermidiate Intermidiate
+  | Value EgisonValue
+
+data Intermidiate =
+    IInductiveData String [ObjectRef]
+  | ITuple [ObjectRef]
+  | ICollection [InnerObject]
+
+data InnerObject =
+    IElement ObjectRef
+  | ISubCollection ObjectRef
+
+data Action =
+    OpenInputPort String
+  | OpenOutputPort String
+  | ClosePort String
+  | FlushPort String
+  | ReadFromPort String String
+  | WriteToPort String String
+ deriving (Show)
+
+type ObjectRef = IORef Object
 type Var = (String, [Integer])
 type Env = [HashMap Var ObjectRef]
 
@@ -200,10 +201,13 @@ refVar :: Env -> Var -> EgisonM ObjectRef
 refVar env var = maybe (throwError $ UnboundVariable var) return
                        (msum $ map (HashMap.lookup var) env)
 
-makeBindings :: [Var] -> [ObjectRef] -> EgisonM [(Var, ObjectRef)] 
-makeBindings (name : names) (ref : refs) = ((name, ref) :) <$> makeBindings names refs
+makeThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
+makeThunk = ((liftIO . newIORef) .) . Closure
+
+makeBindings :: [String] -> [ObjectRef] -> EgisonM [(Var, ObjectRef)]
+makeBindings (name : names) (ref : refs) = (((name, []), ref) :) <$> makeBindings names refs
 makeBindings [] [] = return []
-makeBindings _ _ = throwError $ strMsg "invalid binding"
+makeBindings _ _ = throwError $ strMsg "invalid bindings"
 
 --
 -- Errors

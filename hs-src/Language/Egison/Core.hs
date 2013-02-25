@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections #-}
 module Language.Egison.Core where
 
 import Control.Applicative
@@ -37,33 +36,40 @@ evalExpr' _ (BoolExpr b) = return . Value $ Bool b
 evalExpr' _ (IntegerExpr i) = return . Value $ Integer i
 evalExpr' _ (FloatExpr d) = return . Value $ Float d
 evalExpr' env (VarExpr name nums) =
-  (name,) <$> mapM (\num -> evalExpr env num >>= liftError . fromValue) nums >>= refVar env >>= evalRef'
+  (,) name <$> mapM (evalNumExpr env) nums >>= refVar env >>= evalRef'
+ where
+  evalNumExpr env num = evalExpr env num >>= liftError . fromValue
 evalExpr' env (InductiveDataExpr name exprs) =
-  Intermidiate . IInductiveData name <$> mapM (liftIO . newIORef . Closure env) exprs 
+  Intermidiate . IInductiveData name <$> mapM (makeThunk env) exprs 
 evalExpr' _ (TupleExpr []) = return . Value $ Tuple []
 evalExpr' env (TupleExpr exprs) =
-  Intermidiate . ITuple <$> mapM (liftIO . newIORef . Closure env) exprs 
+  Intermidiate . ITuple <$> mapM (makeThunk env) exprs 
 evalExpr' env (CollectionExpr []) = return . Value $ Collection []
 evalExpr' env (CollectionExpr inners) =
   Intermidiate . ICollection <$> mapM fromInnerExpr inners
  where
-  fromInnerExpr (ElementExpr expr) = liftIO $ IElement <$> newIORef (Closure env expr)
-  fromInnerExpr (SubCollectionExpr expr) = liftIO $ ISubCollection <$> newIORef (Closure env expr)
+  fromInnerExpr (ElementExpr expr) = IElement <$> makeThunk env expr
+  fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> makeThunk env expr
 evalExpr' env (LambdaExpr vars expr) = return . Value $ Func env vars expr 
 evalExpr' env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromValue
   evalExpr' env $ if test then expr else expr'
 evalExpr' env (LetExpr bindings expr) =
-  mapM extractBinding bindings >>= flip evalExpr' expr . extendEnv env . concat
+  mapM extractBindings bindings >>= flip evalExpr' expr . extendEnv env . concat
  where
-  extractBinding (names, expr) = evalExpr' env expr >>= fromTuple >>= makeBindings (map (, []) names)
+  extractBindings (names, expr) = evalExpr' env expr >>= tupleToRefs >>= makeBindings names
 -- evalExpr' env (LetRecExpr bindings expr) =
 evalExpr' env (ApplyExpr func args) = do
   func <- evalExpr' env func 
-  args <- evalExpr' env args >>= fromTuple
-  apply' func args
+  args <- evalExpr' env args
+  case func of
+    Value (Func env names body) -> do
+      bindings <- tupleToRefs args >>= makeBindings names  
+      evalExpr' (extendEnv env bindings) body
+    Value (PrimitiveFunc func) ->
+      tupleToVals args >>= liftError . liftM Value . func
 evalExpr' env UndefinedExpr = throwError $ strMsg "undefined"
-evalExpr' env _ = throwError $ NotImplemented "evalExpr'"
+evalExpr' env expr = throwError $ NotImplemented ("evalExpr' for " ++ show expr)
 
 eval :: Object -> EgisonM EgisonValue
 eval (Closure env expr) = evalExpr env expr
@@ -73,12 +79,6 @@ eval (Value val) = return val
 eval' :: Object -> EgisonM Object
 eval' (Closure env expr) = evalExpr' env expr
 eval' obj = return obj
-
-apply' :: Object -> [ObjectRef] -> EgisonM Object
-apply' (Value (Func env names body)) args =
-  makeBindings (map (, []) names) args >>= flip evalExpr' body . extendEnv env
-apply' (Value (PrimitiveFunc func)) args =
-  mapM evalRef args >>= liftError . liftM Value . func
 
 evalRef :: ObjectRef -> EgisonM EgisonValue
 evalRef ref = do
@@ -95,21 +95,23 @@ evalRef' ref = do
 evalIntermidiate :: Intermidiate -> EgisonM EgisonValue
 evalIntermidiate (IInductiveData name refs) = InductiveData name <$> mapM evalRef refs
 evalIntermidiate (ITuple refs) = Tuple <$> mapM evalRef refs
-evalIntermidiate coll@(ICollection _) = fromCollection (Intermidiate coll) >>= liftM Collection .  mapM evalRef
-
-fromCollection :: Object -> EgisonM [ObjectRef]
-fromCollection (Intermidiate (ICollection inners)) = concat <$> mapM fromInner inners
+evalIntermidiate coll@(ICollection _) = Collection <$> collectionToVals (Intermidiate coll)
  where
-  fromInner :: InnerObject -> EgisonM [ObjectRef]
-  fromInner (IElement ref) = return [ref]
-  fromInner (ISubCollection ref) = evalRef' ref >>= fromCollection 
-fromCollection (Value (Collection vals)) = liftIO $ mapM (newIORef . Value) vals
-fromCollection _ = throwError $ TypeMismatch "tuple" Something
+  collectionToVals (Intermidiate (ICollection inners)) = concat <$> mapM innerToVals inners
+  collectionToVals (Value (Collection vals)) = return vals
+  collectionToVals _ = throwError $ TypeMismatch "collection" Something
+  innerToVals (IElement ref) = return <$> evalRef ref
+  innerToVals (ISubCollection ref) = evalRef' ref >>= collectionToVals
 
-fromTuple :: Object -> EgisonM [ObjectRef]
-fromTuple (Intermidiate (ITuple refs)) = return refs
-fromTuple (Value (Tuple vals)) = liftIO $ mapM (newIORef . Value) vals
-fromTuple obj = liftIO $ return <$> newIORef obj 
+tupleToRefs :: Object -> EgisonM [ObjectRef]
+tupleToRefs (Intermidiate (ITuple refs)) = return refs
+tupleToRefs (Value (Tuple vals)) = liftIO $ mapM (newIORef . Value) vals
+tupleToRefs obj = liftIO $ return <$> newIORef obj 
+
+tupleToVals :: Object -> EgisonM [EgisonValue]
+tupleToVals (Intermidiate (ITuple refs)) = mapM evalRef refs
+tupleToVals (Value (Tuple vals)) = return vals
+tupleToVals obj = return <$> eval obj
 
 --
 -- Primitives
