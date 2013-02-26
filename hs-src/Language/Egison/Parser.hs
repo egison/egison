@@ -325,7 +325,7 @@ keywordMatcher    = reserved "matcher"
 keywordDo         = reserved "do"
 keywordFunction   = reserved "function"
 keywordSomething  = reserved "something"
-keywordUndefined  = reserved "undefiend"
+keywordUndefined  = reserved "undefined"
 
 integerLiteral :: Parser Integer
 integerLiteral = P.integer lexer
