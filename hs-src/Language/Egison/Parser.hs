@@ -53,9 +53,9 @@ parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 
 parseExpr :: Parser EgisonExpr
 parseExpr = (parseVarExpr
-             <|> parseOmitExpr
-             <|> try parsePatVarExpr
-             <|> parsePatVarOmitExpr
+--           <|> parseOmitExpr
+             <|> parsePatVarExpr
+--           <|> parsePatVarOmitExpr
                        
              <|> parseWildCardExpr
              <|> parseCutPatExpr
@@ -228,11 +228,11 @@ parseAndPatExpr = char '&' >> AndPatExpr <$> sepEndBy parseExpr whiteSpace
 parseOrPatExpr :: Parser EgisonExpr
 parseOrPatExpr = char '|' >> OrPatExpr <$> sepEndBy parseExpr whiteSpace
 
-parseOmitExpr :: Parser EgisonExpr
-parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
+--parseOmitExpr :: Parser EgisonExpr
+--parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
 
-parsePatVarOmitExpr :: Parser EgisonExpr
-parsePatVarOmitExpr = prefixString "$`" >> PatVarOmitExpr <$> ident <*> parseIndexNums
+--parsePatVarOmitExpr :: Parser EgisonExpr
+--parsePatVarOmitExpr = prefixString "$`" >> PatVarOmitExpr <$> ident <*> parseIndexNums
 
 parseConstantExpr :: Parser EgisonExpr
 parseConstantExpr =  parseCharExpr
