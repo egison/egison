@@ -12,10 +12,9 @@ import qualified Data.Set as Set
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
-import Text.Parsec hiding (char)
+import Text.Parsec
 import Text.Parsec.ByteString.Lazy
 import Text.Parsec.Combinator
-import qualified Text.Parsec.Char  as C
 import qualified Text.Parsec.Token as P
 
 import Language.Egison.Types
@@ -82,10 +81,13 @@ parseExpr = (parseVarExpr
                          <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
-parseVarExpr = VarExpr <$> ident <*> parseIndexNums
+parseVarExpr = P.lexeme lexer $ VarExpr <$> ident' <*> parseIndexNums
+  where
+    ident' :: Parser String
+    ident' = (:) <$> P.identStart egisonDef <*> (many $ P.identLetter egisonDef)
 
 parseIndexNums :: Parser [EgisonExpr]
-parseIndexNums = (prefixChar '_' >> ((:) <$> parseExpr <*> parseIndexNums))
+parseIndexNums = (char '_' >> ((:) <$> parseExpr <*> parseIndexNums))
               <|> pure []
 
 parseInductiveExpr :: Parser EgisonExpr
@@ -99,7 +101,7 @@ parseCollectionExpr :: Parser EgisonExpr
 parseCollectionExpr = braces $ CollectionExpr <$> sepEndBy parseInnerExpr whiteSpace
  where
   parseInnerExpr :: Parser InnerExpr
-  parseInnerExpr = (prefixChar '@' >> SubCollectionExpr <$> parseExpr)
+  parseInnerExpr = (char '@' >> SubCollectionExpr <$> parseExpr)
                <|> ElementExpr <$> parseExpr
 
 parseMatchAllExpr :: Parser EgisonExpr
@@ -133,17 +135,17 @@ parsePDMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
 parsePDMatchClause = brackets $ (,) <$> parsePDPattern <*> parseExpr
 
 parsePPPattern :: Parser PrimitivePatPattern
-parsePPPattern = char '_' *> pure PPWildCard
-                       <|> char '$' *> pure PPPatVar
-                       <|> (prefixString ",$" >> PPValuePat <$> ident)
+parsePPPattern = reservedOp "_" *> pure PPWildCard
+                       <|> reservedOp "$" *> pure PPPatVar
+                       <|> (string ",$" >> PPValuePat <$> ident)
                        <|> angles (PPInductivePat <$> ident <*> sepEndBy parsePPPattern whiteSpace)
                        <?> "primitive-pattren-pattern"
 
 parsePDPattern :: Parser PrimitiveDataPattern
-parsePDPattern = char '_' *> pure PDWildCard
-                    <|> (prefixChar '$' >> PDPatVar <$> ident)
-                    <|> braces ((PDConsPat <$> parsePDPattern <*> (prefixChar '@' *> parsePDPattern))
-                            <|> (PDSnocPat <$> (prefixChar '@' *> parsePDPattern) <*> parsePDPattern) 
+parsePDPattern = reservedOp "_" *> pure PDWildCard
+                    <|> (char '$' >> PDPatVar <$> ident)
+                    <|> braces ((PDConsPat <$> parsePDPattern <*> (char '@' *> parsePDPattern))
+                            <|> (PDSnocPat <$> (char '@' *> parsePDPattern) <*> parsePDPattern) 
                             <|> pure PDEmptyPat)
                     <|> angles (PDInductivePat <$> ident <*> sepEndBy parsePDPattern whiteSpace)
                     <|> PDConstantPat <$> parseConstantExpr
@@ -175,7 +177,7 @@ parseVarNames = return <$> parseVarName
             <|> brackets (sepEndBy parseVarName whiteSpace) 
 
 parseVarName :: Parser String
-parseVarName = prefixChar '$' >> ident
+parseVarName = char '$' >> ident
 
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = do
@@ -200,33 +202,33 @@ parseApplyExpr = do
  where
   parseArgs = sepEndBy parseArg whiteSpace
   parseArg = try (Right <$> parseExpr)
-         <|> prefixChar '$' *> (Left <$> option "" parseIndex)
-  parseIndex = (try . noneOf $ "0") >> digits
+         <|> char '$' *> (Left <$> option "" parseIndex)
+  parseIndex = (try . noneOf $ "0") >> (P.lexeme lexer $ many1 digit)
   annonVars n = take n $ map (('#':) . show) [1..]
 
 parseCutPatExpr :: Parser EgisonExpr
-parseCutPatExpr = char '!' >> CutPatExpr <$> parseExpr
+parseCutPatExpr = reservedOp "!" >> CutPatExpr <$> parseExpr
 
 parseNotPatExpr :: Parser EgisonExpr
-parseNotPatExpr = char '^' >> NotPatExpr <$> parseExpr
+parseNotPatExpr = reservedOp "^" >> NotPatExpr <$> parseExpr
 
 parseWildCardExpr :: Parser EgisonExpr
-parseWildCardExpr = char '_' >> pure WildCardExpr
+parseWildCardExpr = reservedOp "," >> pure WildCardExpr
 
 parseValuePatExpr :: Parser EgisonExpr
-parseValuePatExpr = char ',' >> ValuePatExpr <$> parseExpr
+parseValuePatExpr = reservedOp "," >> ValuePatExpr <$> parseExpr
 
 parsePatVarExpr :: Parser EgisonExpr
 parsePatVarExpr = PatVarExpr <$> parseVarName <*> parseIndexNums
 
 parsePredPatExpr :: Parser EgisonExpr
-parsePredPatExpr = char '?' >> PredPatExpr <$> parseExpr
+parsePredPatExpr = reservedOp "?" >> PredPatExpr <$> parseExpr
 
 parseAndPatExpr :: Parser EgisonExpr
-parseAndPatExpr = char '&' >> AndPatExpr <$> sepEndBy parseExpr whiteSpace
+parseAndPatExpr = reservedOp "&" >> AndPatExpr <$> sepEndBy parseExpr whiteSpace
 
 parseOrPatExpr :: Parser EgisonExpr
-parseOrPatExpr = char '|' >> OrPatExpr <$> sepEndBy parseExpr whiteSpace
+parseOrPatExpr = reservedOp "|" >> OrPatExpr <$> sepEndBy parseExpr whiteSpace
 
 --parseOmitExpr :: Parser EgisonExpr
 --parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
@@ -266,8 +268,8 @@ egisonDef =
   P.LanguageDef { P.commentStart       = "#|"
                 , P.commentEnd         = "|#"
                 , P.commentLine        = ";"
-                , P.identStart         = C.letter <|> symbol1
-                , P.identLetter        = C.letter <|> C.digit <|> symbol2
+                , P.identStart         = letter <|> symbol1
+                , P.identLetter        = letter <|> digit <|> symbol2
                 , P.opStart            = symbol1
                 , P.opLetter           = symbol1
                 , P.reservedNames      = reservedKeywords
@@ -303,10 +305,21 @@ reservedKeywords =
   , "undefined"]
   
 reservedOperators :: [String]
-reservedOperators = []
+reservedOperators = 
+  [ "$"
+  , "_"
+  , "&"
+  , "|"
+  , "^"
+  , "!"
+  , ","
+  , "@"]
 
 reserved :: String -> Parser ()
 reserved = P.reserved lexer
+
+reservedOp :: String -> Parser ()
+reservedOp = P.reservedOp lexer
 
 keywordDefine     = reserved "define"
 keywordTest       = reserved "test"
@@ -340,37 +353,10 @@ charLiteral :: Parser Char
 charLiteral = P.charLiteral lexer
 
 boolLiteral :: Parser Bool
-boolLiteral = prefixChar '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
+boolLiteral = char '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
 
 whiteSpace :: Parser ()
 whiteSpace = P.whiteSpace lexer
-
-prefix :: Parser a -> Parser a
-prefix p = whiteSpace *> p
-
-prefixChar :: Char -> Parser Char
-prefixChar = prefix . C.char
-
-prefixString :: String -> Parser String
-prefixString = prefix . C.string
-
-suffix :: Parser a -> Parser a
-suffix p = p <* whiteSpace
-
-suffixChar :: Char -> Parser Char
-suffixChar = suffix . C.char
-
-suffixString :: String -> Parser String
-suffixString = suffix . C.string
-
-digit :: Parser Char
-digit = P.lexeme lexer $ C.digit
-
-digits :: Parser [Char]
-digits = P.lexeme lexer $ many1 C.digit
-
-char :: Char -> Parser Char
-char c = P.lexeme lexer $ C.char c
 
 parens :: Parser a -> Parser a
 parens = P.parens lexer
