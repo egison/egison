@@ -26,16 +26,26 @@ main = repl
 runParser' :: Parser a -> String -> Either EgisonError a
 runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
 
-runEgison :: String -> IO (Either EgisonError EgisonValue)
-runEgison input = runErrorT . runEgisonM $ do 
+runEgison :: Env -> String -> IO (Either EgisonError (Env, EgisonValue))
+runEgison env input = runErrorT . runEgisonM $ do 
   expr <- liftError $ runParser' parseTopExpr input
-  evalTopExpr expr
+  evalTopExpr env expr
 
 repl :: IO ()
-repl = do
+repl = primitives >>= repl'
+
+repl' :: Env -> IO ()
+repl' env = do
   mInput <- runInputT defaultSettings $ getInputLine "> "
   case mInput of
     Nothing -> return ()
-    Just input -> do
-      runEgison input >>= putStrLn . either show show
-      repl
+    Just input -> 
+      do (env, mes) <- runEgison env input >>= either showError showResult 
+         putStrLn mes
+         repl' env
+  where
+    showError :: EgisonError -> IO (Env, String)
+    showError err = return (env, show err) 
+    
+    showResult :: (Env, EgisonValue) -> IO (Env, String)
+    showResult (env, val) = return (env, show val) 

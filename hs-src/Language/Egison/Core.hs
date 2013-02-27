@@ -17,8 +17,15 @@ import Language.Egison.Types
 evalTopExprs :: [EgisonTopExpr] -> EgisonM ()
 evalTopExprs = undefined 
 
-evalTopExpr :: EgisonTopExpr -> EgisonM EgisonValue
-evalTopExpr (Test expr) = liftIO primitives >>= flip evalExpr expr
+evalTopExpr :: Env -> EgisonTopExpr -> EgisonM (Env,  EgisonValue)
+evalTopExpr env (Define (name, expr)) = do
+  obj <- evalExpr' env expr
+  val <- eval obj
+  binds <- tupleToRefs obj >>= makeBindings name
+  liftIO $ return (extendEnv env binds, val)
+evalTopExpr env (Test expr) = do
+  val <- evalExpr env expr
+  liftIO $ return (env, val)
 
 evalExpr :: Env -> EgisonExpr -> EgisonM EgisonValue
 evalExpr env expr = do
