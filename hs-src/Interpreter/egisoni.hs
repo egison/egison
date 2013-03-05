@@ -17,19 +17,26 @@ import Language.Egison.Parser
 import Language.Egison.Core
 
 main :: IO ()
--- main = do args <- getArgs
---          if null args
---            then repl
---            else readFile (args !! 0) >>= putStrLn . runParser' parseTopExprs
-main = repl
+main = do args <- getArgs
+          if null args
+            then repl
+            else do
+              input <- readFile (args !! 0)
+              env <- primitives
+              runEgisonTopExprs env input >>= either print return
 
 runParser' :: Parser a -> String -> Either EgisonError a
 runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
 
-runEgison :: Env -> String -> IO (Either EgisonError Env)
-runEgison env input = runErrorT . runEgisonM $ do 
+runEgisonTopExpr :: Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExpr env input = runErrorT . runEgisonM $ do 
   expr <- liftError $ runParser' parseTopExpr input
   evalTopExpr env expr
+
+runEgisonTopExprs :: Env -> String -> IO (Either EgisonError ())
+runEgisonTopExprs env input = runErrorT . runEgisonM $ do 
+  expr <- liftError $ runParser' parseTopExprs input
+  evalTopExprs env expr
 
 repl :: IO ()
 repl = primitives >>= repl'
@@ -40,7 +47,7 @@ repl' env = do
   case mInput of
     Nothing -> return ()
     Just input -> 
-      do result <- runEgison env input
+      do result <- runEgisonTopExpr env input
          case result of
            Left err -> print err >> repl' env
            Right env -> repl' env

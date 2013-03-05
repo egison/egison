@@ -23,20 +23,30 @@ fromTuple (Intermediate (ITuple refs)) = return refs
 fromTuple (Value (Tuple vals)) = liftIO $ mapM (newIORef . WHNF . Value) vals
 fromTuple val = liftIO $ return <$> newIORef (WHNF val)
 
+recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
+recursiveBind env bindings = do
+  refs <- replicateM (length bindings) $ makeThunk env UndefinedExpr
+  env <- extendEnv env <$> makeBindings (map fst bindings) refs
+  forM_ (zip refs (map snd bindings)) (\(ref, expr) -> do
+    liftIO . writeIORef ref $ Thunk env expr)
+  return env
+
 --
 -- Evaluator
 --
 
 evalTopExprs :: Env -> [EgisonTopExpr] -> EgisonM ()
-evalTopExprs env exprs = undefined
+evalTopExprs env exprs = do
+  let (bindings, rest) = foldr collectDefs ([], []) exprs
+  env <- recursiveBind env bindings
+  forM_ rest $ evalTopExpr env
+ where
+  collectDefs (Define name expr) (bindings, rest) = ((name, expr) : bindings, rest)
+  collectDefs expr (bindings, rest) = (bindings, expr : rest)  
 
 -- for REPL
 evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
-evalTopExpr env (Define name expr) = do
-  ref <- makeThunk env UndefinedExpr
-  env <- extendEnv env <$> makeBindings [name] [ref]
-  liftIO . writeIORef ref $ Thunk env expr
-  return env
+evalTopExpr env (Define name expr) = recursiveBind env [(name, expr)]
 evalTopExpr env (Test expr) = do
   val <- evalExpr' env expr
   liftIO $ print val
@@ -72,11 +82,7 @@ evalExpr env (LetExpr bindings expr) = do
     evalExpr env expr >>= fromTuple >>= makeBindings names)
   evalExpr (extendEnv env bindings) expr
 evalExpr env (LetRecExpr bindings expr) = do
-  refs <- replicateM (length bindings) $ makeThunk env UndefinedExpr
-  env <- extendEnv env <$> makeBindings (map fst bindings) refs
-  forM_ (zip refs (map snd bindings)) (\(ref, expr) -> do
-    liftIO . writeIORef ref $ Thunk env expr)
-  evalExpr env expr
+  recursiveBind env bindings >>= flip evalExpr expr
 evalExpr env (ApplyExpr func args) = do
   func <- evalExpr env func 
   args <- evalExpr env args
