@@ -51,7 +51,7 @@ data EgisonExpr =
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetExpr [Binding] EgisonExpr
-  | LetRecExpr [Binding] EgisonExpr
+  | LetRecExpr [(String, EgisonExpr)] EgisonExpr
     
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr MatchClause
@@ -133,7 +133,7 @@ instance Show EgisonValue where
   show (PrimitiveFunc _) = "#<primitive>"
   show Something = "something"
   show _ = undefined
-  
+
 data EgisonPattern =
     WildCard
   | PatVar String [Integer]
@@ -205,7 +205,8 @@ makeThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
 makeThunk = ((liftIO . newIORef) .) . Thunk
 
 makeBindings :: [String] -> [ObjectRef] -> EgisonM [(Var, ObjectRef)]
-makeBindings (name : names) (ref : refs) = (((name, []), ref) :) <$> makeBindings names refs
+makeBindings (name : names) (ref : refs) =
+  (((name, []), ref) :) <$> makeBindings names refs
 makeBindings [] [] = return []
 makeBindings _ _ = throwError $ strMsg "invalid bindings"
 
@@ -217,12 +218,13 @@ data EgisonError =
     Parser ParseError
   | UnboundVariable Var
   | TypeMismatch String WHNFData
+  | ArgumentsNum Int [WHNFData]
   | NotImplemented String
   | Default String
     
 instance Show EgisonError where
   show (Parser error) = "Parse error at: " ++ show error
-  show (UnboundVariable (var, nums)) = "Unbound variable: $" ++ var ++
+  show (UnboundVariable (var, nums)) = "Unbound variable: " ++ var ++
                                       concatMap (('_':) . show) nums
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found

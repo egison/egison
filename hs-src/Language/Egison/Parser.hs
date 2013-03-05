@@ -158,7 +158,7 @@ parseLambdaExpr :: Parser EgisonExpr
 parseLambdaExpr = keywordLambda >> LambdaExpr <$> parseVarNames <*> parseExpr
 
 parseLetRecExpr :: Parser EgisonExpr
-parseLetRecExpr =  keywordLetRec >> LetRecExpr <$> parseBindings <*> parseExpr
+parseLetRecExpr =  keywordLetRec >> LetRecExpr <$> parseBindings' <*> parseExpr
 
 parseLetExpr :: Parser EgisonExpr
 parseLetExpr = keywordLet >> LetExpr <$> parseBindings <*> parseExpr
@@ -171,6 +171,12 @@ parseBindings = braces $ sepEndBy parseBinding whiteSpace
 
 parseBinding :: Parser Binding
 parseBinding = brackets $ (,) <$> parseVarNames <*> parseExpr
+
+parseBindings' :: Parser [(String, EgisonExpr)]
+parseBindings' = braces $ sepEndBy parseBinding' whiteSpace
+
+parseBinding' :: Parser (String, EgisonExpr)
+parseBinding' = brackets $ (,) <$> parseVarName <*> parseExpr
 
 parseVarNames :: Parser [String]
 parseVarNames = return <$> parseVarName

@@ -68,12 +68,15 @@ evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromBoolValue
   evalExpr env $ if test then expr else expr'
 evalExpr env (LetExpr bindings expr) = do
-  bindings <- concat <$> mapM extractBindings bindings
+  bindings <- concat <$> forM bindings (\(names, expr) ->
+    evalExpr env expr >>= fromTuple >>= makeBindings names)
   evalExpr (extendEnv env bindings) expr
- where
-  extractBindings (names, expr) =
-    evalExpr env expr >>= fromTuple >>= makeBindings names
--- evalExpr env (LetRecExpr bindings expr) =
+evalExpr env (LetRecExpr bindings expr) = do
+  refs <- replicateM (length bindings) $ makeThunk env UndefinedExpr
+  env <- extendEnv env <$> makeBindings (map fst bindings) refs
+  forM_ (zip refs (map snd bindings)) (\(ref, expr) -> do
+    liftIO . writeIORef ref $ Thunk env expr)
+  evalExpr env expr
 evalExpr env (ApplyExpr func args) = do
   func <- evalExpr env func 
   args <- evalExpr env args
@@ -84,6 +87,7 @@ evalExpr env (ApplyExpr func args) = do
     Value (PrimitiveFunc func) -> do
       args <- fromTuple args >>= mapM evalRef
       Value <$> liftError (func args)
+    val -> throwError $ TypeMismatch "function" val
 evalExpr env UndefinedExpr = throwError $ strMsg "undefined"
 evalExpr env expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
@@ -137,12 +141,40 @@ evalIntermediate coll = Collection <$> fromCollection (Intermediate coll)
 --
 
 primitives :: IO Env
-primitives = extendEnv nullEnv <$> mapM (second' (newIORef . WHNF . Value . PrimitiveFunc)) primitiveOps
- where
-  second' = runKleisli . second . Kleisli
+primitives = do
+  extendEnv nullEnv <$> forM primitiveOps (\(name, op) -> do
+    ref <- newIORef . WHNF . Value $ PrimitiveFunc op
+    return ((name, []), ref))
 
-primitiveOps :: [(Var, PrimitiveFunc)]
-primitiveOps = [(("+", []), add)]
+primitiveOps :: [(String, PrimitiveFunc)]
+primitiveOps = [ ("+", add) 
+               , ("-", sub)
+               , ("*", mul)
+               , ("eq?", eq) ]
 
 add :: PrimitiveFunc
-add vals = Integer . foldl' (+) 0 <$> mapM fromIntegerValue vals
+add [val, val'] = (Integer .) . (+) <$> fromIntegerValue val
+                                    <*> fromIntegerValue val'
+add vals = throwError $ ArgumentsNum 2 vals
+
+sub :: PrimitiveFunc
+sub [val, val'] = (Integer .) . (-) <$> fromIntegerValue val
+                                    <*> fromIntegerValue val'
+sub vals = throwError $ ArgumentsNum 2 vals
+
+mul :: PrimitiveFunc
+mul [val, val'] = (Integer .) . (*) <$> fromIntegerValue val
+                                    <*> fromIntegerValue val'
+mul vals = throwError $ ArgumentsNum 2 vals
+
+eq :: PrimitiveFunc
+eq [Value val, Value val'] = Bool <$> eq' val val'
+ where
+  eq' (Char c) (Char c') = return $ c == c'
+  eq' (String s) (String s') = return $ s == s'
+  eq' (Bool b) (Bool b') = return $ b == b'
+  eq' (Integer i) (Integer i') = return $ i == i'
+  eq' (Float f) (Float f') = return $ f == f'
+  eq' _ _ = throwError $ TypeMismatch "immediate" $ Value val
+eq [val, _] = throwError $ TypeMismatch "immediate" val
+eq vals = throwError $ ArgumentsNum 2 vals
