@@ -36,7 +36,7 @@ parseTopExpr = parens (parseDefineExpr
                        <?> "top-level expression")
 
 parseDefineExpr :: Parser EgisonTopExpr
-parseDefineExpr = keywordDefine >> (Define .) . (,) <$> parseVarNames <*> parseExpr
+parseDefineExpr = keywordDefine >> Define <$> parseVarName <*> parseExpr
 
 parseTestExpr :: Parser EgisonTopExpr
 parseTestExpr = keywordTest >> Test <$> parseExpr

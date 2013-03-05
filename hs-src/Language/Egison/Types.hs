@@ -16,7 +16,7 @@ import Text.Parsec (ParseError)
 --
 
 data EgisonTopExpr =
-    Define Binding
+    Define String EgisonExpr
   | Test EgisonExpr
   | Execute [String]
     -- temporary : we will replace load to import and export
@@ -68,8 +68,8 @@ data EgisonExpr =
   | UndefinedExpr
  deriving (Show)
 
-type MatchClause = (EgisonExpr, EgisonExpr)
 type Binding = ([String], EgisonExpr)
+type MatchClause = (EgisonExpr, EgisonExpr)
 type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
 data PrimitivePatPattern =
@@ -116,8 +116,8 @@ data EgisonValue =
   | Something
   | EOF
 
-type PrimitiveFunc = [EgisonValue] -> Either EgisonError EgisonValue
-type IOFunc = [EgisonValue] -> EgisonM EgisonValue
+type PrimitiveFunc = [WHNFData] -> Either EgisonError EgisonValue
+type IOFunc = [WHNFData] -> EgisonM EgisonValue
 type MatcherInfo = [(PrimitivePatPattern, ObjectRef, [(Env, PrimitiveDataPattern, EgisonExpr)])]
 
 instance Show EgisonValue where
@@ -133,20 +133,6 @@ instance Show EgisonValue where
   show (PrimitiveFunc _) = "#<primitive>"
   show Something = "something"
   show _ = undefined
-
-class Convertible a where
-  toValue :: a -> EgisonValue
-  fromValue :: EgisonValue -> Either EgisonError a
-
-instance Convertible Bool where
-  toValue = Bool
-  fromValue (Bool b) = return b
-  fromValue val = throwError $ TypeMismatch "bool" val
-
-instance Convertible Integer where
-  toValue = Integer
-  fromValue (Integer i) = return i
-  fromValue val = throwError $ TypeMismatch "integer" val
   
 data EgisonPattern =
     WildCard
@@ -160,24 +146,6 @@ data EgisonPattern =
   | TuplePat [EgisonExpr]
   | InductivePat String [EgisonExpr]
 
---
--- Internal Data
---
-
-data Object =
-    Closure Env EgisonExpr
-  | Intermidiate Intermidiate
-  | Value EgisonValue
-
-data Intermidiate =
-    IInductiveData String [ObjectRef]
-  | ITuple [ObjectRef]
-  | ICollection [InnerObject]
-
-data InnerObject =
-    IElement ObjectRef
-  | ISubCollection ObjectRef
-
 data Action =
     OpenInputPort String
   | OpenOutputPort String
@@ -187,7 +155,39 @@ data Action =
   | WriteToPort String String
  deriving (Show)
 
+--
+-- Internal Data
+--
+
+data Object =
+    Thunk Env EgisonExpr
+  | WHNF WHNFData
+
 type ObjectRef = IORef Object
+
+data WHNFData =
+    Intermediate Intermediate
+  | Value EgisonValue
+
+data Intermediate =
+    IInductiveData String [ObjectRef]
+  | ITuple [ObjectRef]
+  | ICollection [Inner]
+
+data Inner =
+    IElement ObjectRef
+  | ISubCollection ObjectRef
+
+instance Show WHNFData where
+  show (Value val) = show val 
+  show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
+  show (Intermediate (ITuple _)) = "[...]"
+  show (Intermediate (ICollection _)) = "{...}"
+
+--
+-- Environment
+--
+
 type Var = (String, [Integer])
 type Env = [HashMap Var ObjectRef]
 
@@ -202,7 +202,7 @@ refVar env var = maybe (throwError $ UnboundVariable var) return
                        (msum $ map (HashMap.lookup var) env)
 
 makeThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
-makeThunk = ((liftIO . newIORef) .) . Closure
+makeThunk = ((liftIO . newIORef) .) . Thunk
 
 makeBindings :: [String] -> [ObjectRef] -> EgisonM [(Var, ObjectRef)]
 makeBindings (name : names) (ref : refs) = (((name, []), ref) :) <$> makeBindings names refs
@@ -216,7 +216,7 @@ makeBindings _ _ = throwError $ strMsg "invalid bindings"
 data EgisonError =
     Parser ParseError
   | UnboundVariable Var
-  | TypeMismatch String EgisonValue
+  | TypeMismatch String WHNFData
   | NotImplemented String
   | Default String
     
@@ -225,7 +225,7 @@ instance Show EgisonError where
   show (UnboundVariable (var, nums)) = "Unbound variable: $" ++ var ++
                                       concatMap (('_':) . show) nums
   show (TypeMismatch expected found) = "Expected " ++  expected ++
-                                        " ,but found: " ++ show found
+                                        ", but found: " ++ show found
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Default message) = "Error: " ++ message
 
