@@ -1,6 +1,5 @@
 module Language.Egison.Core where
 
-import Control.Applicative
 import Control.Arrow
 import Control.Applicative
 import Control.Monad.Error
@@ -25,10 +24,10 @@ fromTuple val = liftIO $ return <$> newIORef (WHNF val)
 
 recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
-  refs <- replicateM (length bindings) $ makeThunk env UndefinedExpr
-  env <- extendEnv env <$> makeBindings (map fst bindings) refs
-  forM_ (zip refs (map snd bindings)) (\(ref, expr) -> do
-    liftIO . writeIORef ref $ Thunk env expr)
+  let (names, exprs) = unzip bindings
+  refs <- replicateM (length bindings) $ makeThunk nullEnv UndefinedExpr
+  env <- extendEnv env <$> makeBindings names refs
+  zipWithM_ (\ref expr -> liftIO . writeIORef ref $ Thunk env expr) refs exprs
   return env
 
 --
@@ -81,18 +80,16 @@ evalExpr env (LetExpr bindings expr) = do
   bindings <- concat <$> forM bindings (\(names, expr) ->
     evalExpr env expr >>= fromTuple >>= makeBindings names)
   evalExpr (extendEnv env bindings) expr
-evalExpr env (LetRecExpr bindings expr) = do
+evalExpr env (LetRecExpr bindings expr) =
   recursiveBind env bindings >>= flip evalExpr expr
 evalExpr env (ApplyExpr func args) = do
   func <- evalExpr env func 
-  args <- evalExpr env args
+  args <- evalExpr env args >>= fromTuple
   case func of
-    Value (Func env names body) -> do
-      bindings <- fromTuple args >>= makeBindings names  
-      evalExpr (extendEnv env bindings) body
-    Value (PrimitiveFunc func) -> do
-      args <- fromTuple args >>= mapM evalRef
-      Value <$> liftError (func args)
+    Value (Func env names body) ->
+      makeBindings names args >>= flip evalExpr body . extendEnv env  
+    Value (PrimitiveFunc func) ->
+      mapM evalRef args >>= liftM Value . liftError . func
     val -> throwError $ TypeMismatch "function" val
 evalExpr env UndefinedExpr = throwError $ strMsg "undefined"
 evalExpr env expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
@@ -148,9 +145,10 @@ evalIntermediate coll = Collection <$> fromCollection (Intermediate coll)
 
 primitives :: IO Env
 primitives = do
-  extendEnv nullEnv <$> forM primitiveOps (\(name, op) -> do
+  bindings <- forM primitiveOps $ \(name, op) -> do
     ref <- newIORef . WHNF . Value $ PrimitiveFunc op
-    return ((name, []), ref))
+    return ((name, []), ref)
+  return $ extendEnv nullEnv bindings
 
 primitiveOps :: [(String, PrimitiveFunc)]
 primitiveOps = [ ("+", add) 
