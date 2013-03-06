@@ -219,7 +219,7 @@ parseNotPatExpr :: Parser EgisonExpr
 parseNotPatExpr = reservedOp "^" >> NotPatExpr <$> parseExpr
 
 parseWildCardExpr :: Parser EgisonExpr
-parseWildCardExpr = reservedOp "," >> pure WildCardExpr
+parseWildCardExpr = reservedOp "_" >> pure WildCardExpr
 
 parseValuePatExpr :: Parser EgisonExpr
 parseValuePatExpr = reservedOp "," >> ValuePatExpr <$> parseExpr
