@@ -7,6 +7,7 @@ import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
 import Data.Either
 import Data.Set (Set)
+import Data.Char (toLower)
 import qualified Data.Set as Set
 
 import Data.ByteString.Lazy (ByteString)
@@ -82,9 +83,6 @@ parseExpr = (parseVarExpr
 
 parseVarExpr :: Parser EgisonExpr
 parseVarExpr = P.lexeme lexer $ VarExpr <$> ident' <*> parseIndexNums
-  where
-    ident' :: Parser String
-    ident' = (:) <$> P.identStart egisonDef <*> (many $ P.identLetter egisonDef)
 
 parseIndexNums :: Parser [EgisonExpr]
 parseIndexNums = (char '_' >> ((:) <$> parseExpr <*> parseIndexNums))
@@ -185,6 +183,8 @@ parseVarNames = return <$> parseVarName
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
 
+
+                          
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = do
   func <- parseExpr
@@ -209,7 +209,7 @@ parseApplyExpr = do
   parseArgs = sepEndBy parseArg whiteSpace
   parseArg = try (Right <$> parseExpr)
          <|> char '$' *> (Left <$> option "" parseIndex)
-  parseIndex = (try . noneOf $ "0") >> (P.lexeme lexer $ many1 digit)
+  parseIndex = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   annonVars n = take n $ map (('#':) . show) [1..]
 
 parseCutPatExpr :: Parser EgisonExpr
@@ -225,7 +225,7 @@ parseValuePatExpr :: Parser EgisonExpr
 parseValuePatExpr = reservedOp "," >> ValuePatExpr <$> parseExpr
 
 parsePatVarExpr :: Parser EgisonExpr
-parsePatVarExpr = PatVarExpr <$> parseVarName <*> parseIndexNums
+parsePatVarExpr = PatVarExpr <$> ident' <*> parseIndexNums
 
 parsePredPatExpr :: Parser EgisonExpr
 parsePredPatExpr = reservedOp "?" >> PredPatExpr <$> parseExpr
@@ -235,6 +235,8 @@ parseAndPatExpr = reservedOp "&" >> AndPatExpr <$> sepEndBy parseExpr whiteSpace
 
 parseOrPatExpr :: Parser EgisonExpr
 parseOrPatExpr = reservedOp "|" >> OrPatExpr <$> sepEndBy parseExpr whiteSpace
+
+
 
 --parseOmitExpr :: Parser EgisonExpr
 --parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
@@ -359,7 +361,7 @@ charLiteral :: Parser Char
 charLiteral = P.charLiteral lexer
 
 boolLiteral :: Parser Bool
-boolLiteral = char '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
+boolLiteral = P.lexeme lexer $ char '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
 
 whiteSpace :: Parser ()
 whiteSpace = P.whiteSpace lexer
@@ -387,3 +389,15 @@ dot = P.dot lexer
 
 ident :: Parser String
 ident = P.identifier lexer
+
+ident' :: Parser String
+ident' = do 
+  name <- ident'
+  if isReserved name then unexpected ("reserved word" ++ show name)
+                     else return name
+  where
+    ident' :: Parser String
+    ident' = (:) <$> P.identStart egisonDef <*> many (P.identLetter egisonDef)
+    
+    isReserved :: String -> Bool
+    isReserved s = elem s $ map (map toLower) (P.reservedNames egisonDef)
