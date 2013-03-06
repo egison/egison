@@ -52,9 +52,9 @@ parseLoadExpr :: Parser EgisonTopExpr
 parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 
 parseExpr :: Parser EgisonExpr
-parseExpr = (parseVarExpr
+parseExpr = (try parseVarExpr
 --           <|> parseOmitExpr
-             <|> parsePatVarExpr
+             <|> try parsePatVarExpr
 --           <|> parsePatVarOmitExpr
                        
              <|> parseWildCardExpr
@@ -183,8 +183,9 @@ parseVarNames = return <$> parseVarName
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
 
+parseVarName' :: Parser String
+parseVarName' = char '$' >> ident'
 
-                          
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = do
   func <- parseExpr
@@ -225,7 +226,7 @@ parseValuePatExpr :: Parser EgisonExpr
 parseValuePatExpr = reservedOp "," >> ValuePatExpr <$> parseExpr
 
 parsePatVarExpr :: Parser EgisonExpr
-parsePatVarExpr = PatVarExpr <$> ident' <*> parseIndexNums
+parsePatVarExpr = P.lexeme lexer $ PatVarExpr <$> parseVarName' <*> parseIndexNums
 
 parsePredPatExpr :: Parser EgisonExpr
 parsePredPatExpr = reservedOp "?" >> PredPatExpr <$> parseExpr
@@ -392,12 +393,9 @@ ident = P.identifier lexer
 
 ident' :: Parser String
 ident' = do 
-  name <- ident'
+  name <- (:) <$> P.identStart egisonDef <*> many (P.identLetter egisonDef)
   if isReserved name then unexpected ("reserved word" ++ show name)
                      else return name
   where
-    ident' :: Parser String
-    ident' = (:) <$> P.identStart egisonDef <*> many (P.identLetter egisonDef)
-    
     isReserved :: String -> Bool
     isReserved s = elem s $ map (map toLower) (P.reservedNames egisonDef)
