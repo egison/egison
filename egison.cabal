@@ -28,7 +28,7 @@ Library
                    --Language.Egison.Variables
                    --Language.Egison.Numerical
                    Language.Egison.Parser
-                   --Language.Egison.Primitives
+                   Language.Egison.Primitives
   Other-modules:   Paths_egison
 
 

@@ -99,7 +99,7 @@ data InnerExpr =
 --
 
 data EgisonValue =
-    World [Action]
+    World
   | Char Char
   | String String
   | Bool Bool
@@ -112,7 +112,7 @@ data EgisonValue =
   | Func Env [String] EgisonExpr
   | PrimitiveFunc PrimitiveFunc
   | IOFunc IOFunc
-  | Port String Handle
+  | Port Handle
   | Something
   | EOF
 
@@ -146,15 +146,6 @@ data EgisonPattern =
   | TuplePat [EgisonExpr]
   | InductivePat String [EgisonExpr]
 
-data Action =
-    OpenInputPort String
-  | OpenOutputPort String
-  | ClosePort String
-  | FlushPort String
-  | ReadFromPort String String
-  | WriteToPort String String
- deriving (Show)
-
 --
 -- Internal Data
 --
@@ -183,6 +174,30 @@ instance Show WHNFData where
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
+
+fromStringValue :: WHNFData -> Either EgisonError String
+fromStringValue (Value (String s)) = return s
+fromStringValue val = throwError $ TypeMismatch "string" val
+
+fromCharValue :: WHNFData -> Either EgisonError Char
+fromCharValue (Value (Char c)) = return c
+fromCharValue val = throwError $ TypeMismatch "char" val
+
+fromBoolValue :: WHNFData -> Either EgisonError Bool
+fromBoolValue (Value (Bool b)) = return b
+fromBoolValue val = throwError $ TypeMismatch "bool" val
+
+fromIntegerValue :: WHNFData -> Either EgisonError Integer
+fromIntegerValue (Value (Integer i)) = return i
+fromIntegerValue val = throwError $ TypeMismatch "integer" val
+
+fromFloatValue :: WHNFData -> Either EgisonError Double
+fromFloatValue (Value (Float f)) = return f
+fromFloatValue val = throwError $ TypeMismatch "float" val
+
+fromPortValue :: WHNFData -> Either EgisonError Handle
+fromPortValue (Value (Port handle)) = return handle
+fromPortValue val = throwError $ TypeMismatch "port" val
 
 --
 -- Environment
@@ -239,5 +254,5 @@ newtype EgisonM a = EgisonM {
     runEgisonM :: ErrorT EgisonError IO a
   } deriving (Functor, Monad, MonadIO, MonadError EgisonError)
 
-liftError :: Either EgisonError a -> EgisonM a
+liftError :: (MonadError e m) => Either e a -> m a
 liftError = either throwError return

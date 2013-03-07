@@ -15,6 +15,7 @@ import System.Console.Haskeline
 import Language.Egison.Types
 import Language.Egison.Parser
 import Language.Egison.Core
+import Language.Egison.Primitives
 
 main :: IO ()
 main = do args <- getArgs
@@ -22,7 +23,7 @@ main = do args <- getArgs
             then repl
             else do
               input <- readFile (args !! 0)
-              env <- primitives
+              env <- primitiveEnv
               runEgisonTopExprs env input >>= either print return
 
 runParser' :: Parser a -> String -> Either EgisonError a
@@ -39,7 +40,7 @@ runEgisonTopExprs env input = runErrorT . runEgisonM $ do
   evalTopExprs env expr
 
 repl :: IO ()
-repl = primitives >>= repl'
+repl = primitiveEnv >>= repl'
 
 repl' :: Env -> IO ()
 repl' env = do

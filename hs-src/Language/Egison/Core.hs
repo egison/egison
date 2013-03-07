@@ -8,14 +8,7 @@ import Data.IORef
 import Data.List
 
 import Language.Egison.Types
-
-fromIntegerValue :: WHNFData -> Either EgisonError Integer
-fromIntegerValue (Value (Integer i)) = return i
-fromIntegerValue val = throwError $ TypeMismatch "integer" val
-
-fromBoolValue :: WHNFData -> Either EgisonError Bool
-fromBoolValue (Value (Bool b)) = return b
-fromBoolValue val = throwError $ TypeMismatch "bool" val
+import Language.Egison.Primitives
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
@@ -50,6 +43,12 @@ evalTopExpr env (Test expr) = do
   val <- evalExpr' env expr
   liftIO $ print val
   return env
+evalTopExpr env (Execute argv) = do
+  main <- refVar env ("main", []) >>= evalRef
+  argv <- liftIO . newIORef . WHNF . Value . Collection $ map String argv
+  world <- liftIO . newIORef . WHNF $ Value World
+  applyFunc main [argv] >>= flip applyFunc [world]
+  return env
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
@@ -77,20 +76,18 @@ evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromBoolValue
   evalExpr env $ if test then expr else expr'
 evalExpr env (LetExpr bindings expr) = do
-  bindings <- concat <$> forM bindings (\(names, expr) ->
-    evalExpr env expr >>= fromTuple >>= makeBindings names)
-  evalExpr (extendEnv env bindings) expr
+  mapM extractBindings bindings >>= flip evalExpr expr . extendEnv env . concat
+ where
+  extractBindings ([name], expr) =
+    makeThunk env expr >>= makeBindings [name] . return
+  extractBindings (names, expr) =
+    evalExpr env expr >>= fromTuple >>= makeBindings names
 evalExpr env (LetRecExpr bindings expr) =
   recursiveBind env bindings >>= flip evalExpr expr
 evalExpr env (ApplyExpr func args) = do
-  func <- evalExpr env func 
-  args <- evalExpr env args >>= fromTuple
-  case func of
-    Value (Func env names body) ->
-      makeBindings names args >>= flip evalExpr body . extendEnv env  
-    Value (PrimitiveFunc func) ->
-      mapM evalRef args >>= liftM Value . liftError . func
-    val -> throwError $ TypeMismatch "function" val
+  func <- evalExpr env func
+  args <- evalExpr env args >>= fromTuple 
+  applyFunc func args
 evalExpr env UndefinedExpr = throwError $ strMsg "undefined"
 evalExpr env expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
@@ -139,46 +136,11 @@ evalIntermediate coll = Collection <$> fromCollection (Intermediate coll)
   fromInner (IElement ref) = return <$> evalRef' ref
   fromInner (ISubCollection ref) = evalRef ref >>= fromCollection
 
---
--- Primitives
---
-
-primitives :: IO Env
-primitives = do
-  bindings <- forM primitiveOps $ \(name, op) -> do
-    ref <- newIORef . WHNF . Value $ PrimitiveFunc op
-    return ((name, []), ref)
-  return $ extendEnv nullEnv bindings
-
-primitiveOps :: [(String, PrimitiveFunc)]
-primitiveOps = [ ("+", add) 
-               , ("-", sub)
-               , ("*", mul)
-               , ("eq?", eq) ]
-
-add :: PrimitiveFunc
-add [val, val'] = (Integer .) . (+) <$> fromIntegerValue val
-                                    <*> fromIntegerValue val'
-add vals = throwError $ ArgumentsNum 2 vals
-
-sub :: PrimitiveFunc
-sub [val, val'] = (Integer .) . (-) <$> fromIntegerValue val
-                                    <*> fromIntegerValue val'
-sub vals = throwError $ ArgumentsNum 2 vals
-
-mul :: PrimitiveFunc
-mul [val, val'] = (Integer .) . (*) <$> fromIntegerValue val
-                                    <*> fromIntegerValue val'
-mul vals = throwError $ ArgumentsNum 2 vals
-
-eq :: PrimitiveFunc
-eq [Value val, Value val'] = Bool <$> eq' val val'
- where
-  eq' (Char c) (Char c') = return $ c == c'
-  eq' (String s) (String s') = return $ s == s'
-  eq' (Bool b) (Bool b') = return $ b == b'
-  eq' (Integer i) (Integer i') = return $ i == i'
-  eq' (Float f) (Float f') = return $ f == f'
-  eq' _ _ = throwError $ TypeMismatch "immediate" $ Value val
-eq [val, _] = throwError $ TypeMismatch "immediate" val
-eq vals = throwError $ ArgumentsNum 2 vals
+applyFunc :: WHNFData -> [ObjectRef] -> EgisonM WHNFData
+applyFunc (Value (Func env names body)) args =
+  makeBindings names args >>= flip evalExpr body . extendEnv env
+applyFunc (Value (PrimitiveFunc func)) args =
+  mapM evalRef args >>= liftM Value . liftError . func
+applyFunc (Value (IOFunc func)) args =
+  mapM evalRef args >>= liftM Value . func
+applyFunc val _ = throwError $ TypeMismatch "function" val
