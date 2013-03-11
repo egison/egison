@@ -84,6 +84,11 @@ evalExpr env (LetExpr bindings expr) = do
     evalExpr env expr >>= fromTuple >>= makeBindings names
 evalExpr env (LetRecExpr bindings expr) =
   recursiveBind env bindings >>= flip evalExpr expr
+evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
+  pattern <- makeThunk env pattern
+  target <- makeThunk env target
+  matcher <- makeThunk env matcher
+  Intermidiate . ICollection . ISubCollection . MatchThunk <$> (patternMatch [(MState env [] [(MAtom pattern target matcher)])]) expr
 evalExpr env (ApplyExpr func args) = do
   func <- evalExpr env func
   args <- evalExpr env args >>= fromTuple 
@@ -107,6 +112,7 @@ evalRef ref = do
       val <- evalExpr env expr
       liftIO . writeIORef ref $ WHNF val
       return val
+    MatchThunk mstates expr -> undefined
 
 evalRef' :: ObjectRef -> EgisonM EgisonValue
 evalRef' ref = do
@@ -121,6 +127,7 @@ evalRef' ref = do
       val <- evalExpr' env expr
       liftIO . writeIORef ref . WHNF $ Value val
       return val
+    MatchThunk mstates expr -> undefined
 
 evalIntermediate :: Intermediate -> EgisonM EgisonValue
 evalIntermediate (IInductiveData name refs) = InductiveData name <$> mapM evalRef' refs
@@ -144,3 +151,35 @@ applyFunc (Value (PrimitiveFunc func)) args =
 applyFunc (Value (IOFunc func)) args =
   mapM evalRef args >>= liftM Value . func
 applyFunc val _ = throwError $ TypeMismatch "function" val
+
+patternMatch :: [MatchingState] -> EgisonM MatchingResult
+patternMatch ((MState env ret []):mstates) = Find (extendEnv ret env) mstates
+patternMatch [] = End
+patternMatch ((MState env ret ((MAtom (PatVarExpr name nums) target matcher):mtrees)):mstates) =
+  matcher <- evalExpr' matcher
+  case matcher of
+    Something ->
+      patternMatch ((MState env (undefined:ret) mtrees):mstates)
+    Matcher matcherInfo ->
+      (patterns, targetss, matchers) <- inductiveMatch matcherInfo pattern target
+      patternMatch ((objectMap (\targets ->
+                                  (MState env ret ((map3 (\(pattern, target, matcher) ->
+                                                            (MAtom pattern target matcher)
+                                                         (patterns, (fromTuple targets), (fromTuple matchers)))) ++
+                                                   mtrees)))
+                               targetss) ++ mstates)
+patternMatch ((MState env ret ((MNode _ _ []):mtrees)):mstates) =
+  patternMatch ((MState env ret mtrees):mstates)
+patternMatch ((MState env ret ((MNode env1 ret1 penv1 ((MAtom (VarExpr name nums) target matcher):mtrees1)):mtrees)):mstates) =
+  patternMatch ((MState env ret ((MNode (refVar (VarExpr name nums) penv1) target matcher):(MNode env1 ret1 penv1 mtrees1):mtrees)):mstates)
+patternMatch ((MState env ret mtrees):mstates) =
+  patternMatch ((MState env ret (patternMatch' mtrees)):mstates)
+
+patternMatch' :: [MatchingTree] -> EgisonM [MatchingTree]
+patternMatch' ((MNode env ret penv ((MNode env1 ret1 penv1 ((MAtom (VarExpr name nums) target matcher):mtrees1)):mtrees)):mstates) =
+  patternMatch' ((MNode env ret penv ((MAtom (refVar (VarExpr name nums) penv1) target matcher):(MNode env1 ret1 penv1 mtrees1):mtrees)):mstates)
+patternMatch' = undefined
+
+inductiveMatch :: MatcherInfo -> Object -> Object -> EgisonM [([EgisonExpr], Object, Object)]
+inductiveMatch = undefined
+

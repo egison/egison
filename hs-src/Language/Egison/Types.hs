@@ -33,13 +33,12 @@ data EgisonExpr =
   | VarExpr String [EgisonExpr]
 
   | InductiveDataExpr String [EgisonExpr]
+  | InductivePatternExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]
 
   | WildCardExpr
   | PatVarExpr String [EgisonExpr]
-  | PatVarOmitExpr String [EgisonExpr]
-  | OmitExpr String [EgisonExpr]
   | ValuePatExpr EgisonExpr
   | PredPatExpr EgisonExpr
   | CutPatExpr EgisonExpr
@@ -134,30 +133,20 @@ instance Show EgisonValue where
   show Something = "something"
   show _ = undefined
 
-data EgisonPattern =
-    WildCard
-  | PatVar String [Integer]
-  | ValuePat Env EgisonExpr
-  | PredPat Env EgisonExpr [EgisonExpr]
-  | CutPat EgisonPattern
-  | NotPat EgisonPattern
-  | AndPat [EgisonPattern]
-  | OrPat [EgisonPattern]
-  | TuplePat [EgisonExpr]
-  | InductivePat String [EgisonExpr]
-
 --
 -- Internal Data
 --
 
 data Object =
     Thunk Env EgisonExpr
+  | MatchThunk [MatchingState] EgisonExpr
   | WHNF WHNFData
 
 type ObjectRef = IORef Object
 
 data WHNFData =
     Intermediate Intermediate
+  | Pattern EgisonPattern
   | Value EgisonValue
 
 data Intermediate =
@@ -169,6 +158,17 @@ data Inner =
     IElement ObjectRef
   | ISubCollection ObjectRef
 
+data EgisonPattern =
+    WildCard
+  | PatVar String [EgisonExpr]
+  | ValuePat EgisonExpr
+  | PredPat EgisonExpr
+  | CutPat EgisonExpr
+  | NotPat EgisonExpr
+  | AndPat [EgisonExpr]
+  | OrPat [EgisonExpr]
+  | InductivePattern String [EgisonExpr]
+  
 instance Show WHNFData where
   show (Value val) = show val 
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
@@ -198,6 +198,18 @@ fromFloatValue val = throwError $ TypeMismatch "float" val
 fromPortValue :: WHNFData -> Either EgisonError Handle
 fromPortValue (Value (Port handle)) = return handle
 fromPortValue val = throwError $ TypeMismatch "port" val
+
+--
+-- Pattern Match
+--
+
+data MatchingState = MState Env [(Var, ObjectRef)] [MatchingTree]
+
+data MatchingTree =
+    MAtom EgisonExpr Object Object
+  | MNode Env [(Var, ObjectRef)] [(Var, EgisonExpr)] [MatchingTree]
+
+data MatchingResult = End | Find Env [MatchingState]
 
 --
 -- Environment
@@ -235,6 +247,7 @@ data EgisonError =
   | TypeMismatch String WHNFData
   | ArgumentsNum Int [WHNFData]
   | NotImplemented String
+  | SystemError String
   | Default String
     
 instance Show EgisonError where
