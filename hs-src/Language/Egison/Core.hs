@@ -8,17 +8,22 @@ import Data.IORef
 import Data.List
 
 import Language.Egison.Types
-import Language.Egison.Primitives
+
+newThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
+newThunk = ((liftIO . newIORef . Thunk) .) . evalExpr
+
+newWHNF :: WHNFData -> EgisonM ObjectRef
+newWHNF = liftIO . newIORef . WHNF
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
-fromTuple (Value (Tuple vals)) = liftIO $ mapM (newIORef . WHNF . Value) vals
-fromTuple val = liftIO $ return <$> newIORef (WHNF val)
+fromTuple (Value (Tuple vals)) = liftIO $ mapM (newWHNF . Value) vals
+fromTuple val = return <$> newWHNF val
 
 recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
-  refs <- replicateM (length bindings) $ makeThunk nullEnv UndefinedExpr
+  refs <- replicateM (length bindings) $ newThunk nullEnv UndefinedExpr
   env <- extendEnv env <$> makeBindings names refs
   zipWithM_ (\ref expr -> liftIO . writeIORef ref $ Thunk env expr) refs exprs
   return env
@@ -36,7 +41,6 @@ evalTopExprs env exprs = do
   collectDefs (Define name expr) (bindings, rest) = ((name, expr) : bindings, rest)
   collectDefs expr (bindings, rest) = (bindings, expr : rest)  
 
--- for REPL
 evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
 evalTopExpr env (Define name expr) = recursiveBind env [(name, expr)]
 evalTopExpr env (Test expr) = do
@@ -45,8 +49,8 @@ evalTopExpr env (Test expr) = do
   return env
 evalTopExpr env (Execute argv) = do
   main <- refVar env ("main", []) >>= evalRef
-  argv <- liftIO . newIORef . WHNF . Value . Collection $ map String argv
-  world <- liftIO . newIORef . WHNF $ Value World
+  argv <- newWHNF . Value . Collection $ map String argv
+  world <- newWHNF $ Value World
   applyFunc main [argv] >>= flip applyFunc [world]
   return env
 
@@ -60,35 +64,49 @@ evalExpr env (VarExpr name nums) = do
   var <- (,) name <$> mapM (evalExpr env >=> liftError . fromIntegerValue) nums
   refVar env var >>= evalRef
 evalExpr env (InductiveDataExpr name exprs) =
-  Intermediate . IInductiveData name <$> mapM (makeThunk env) exprs 
+  Intermediate . IInductiveData name <$> mapM (newThunk env) exprs 
 evalExpr _ (TupleExpr []) = return . Value $ Tuple []
 evalExpr env (TupleExpr [expr]) = evalExpr env expr
 evalExpr env (TupleExpr exprs) =
-  Intermediate . ITuple <$> mapM (makeThunk env) exprs 
+  Intermediate . ITuple <$> mapM (newThunk env) exprs 
 evalExpr env (CollectionExpr []) = return . Value $ Collection []
 evalExpr env (CollectionExpr inners) =
   Intermediate . ICollection <$> mapM fromInnerExpr inners
  where
-  fromInnerExpr (ElementExpr expr) = IElement <$> makeThunk env expr
-  fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> makeThunk env expr
+  fromInnerExpr (ElementExpr expr) = IElement <$> newThunk env expr
+  fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newThunk env expr
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromBoolValue
   evalExpr env $ if test then expr else expr'
-evalExpr env (LetExpr bindings expr) = do
+evalExpr env (LetExpr bindings expr) =
   mapM extractBindings bindings >>= flip evalExpr expr . extendEnv env . concat
  where
   extractBindings ([name], expr) =
-    makeThunk env expr >>= makeBindings [name] . return
+    newThunk env expr >>= makeBindings [name] . return
   extractBindings (names, expr) =
     evalExpr env expr >>= fromTuple >>= makeBindings names
 evalExpr env (LetRecExpr bindings expr) =
   recursiveBind env bindings >>= flip evalExpr expr
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
-  pattern <- makeThunk env pattern
-  target <- makeThunk env target
-  matcher <- makeThunk env matcher
-  Intermidiate . ICollection . ISubCollection . MatchThunk <$> (patternMatch [(MState env [] [(MAtom pattern target matcher)])]) expr
+  target <- newThunk env target
+  result <- patternMatch pattern target matcher
+  mmap (flip evalExpr expr) result >>= fromMList
+ where
+  fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
+  fromMList MNil = return . Value $ Collection []
+  fromMList (MCons val vals) = do
+    head <- IElement <$> newWHNF val
+    tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ fromMList vals)
+    return . Intermidiate $ ICollection [head, tail]
+evalExpr env (MatchExpr target matcher clauses) = do
+  target <- newThunk env target
+  result <- liftM msum .  forM clauses $ \(pattern, expr) -> do
+    result <- patternMatch pattern target matcher
+    case result of
+      MCons env _ -> Just <$> evalExpr env expr
+      MNil -> Nothing
+  maybe (throwError $ strMsg "can't match") return result
 evalExpr env (ApplyExpr func args) = do
   func <- evalExpr env func
   args <- evalExpr env args >>= fromTuple 
@@ -97,22 +115,17 @@ evalExpr env UndefinedExpr = throwError $ strMsg "undefined"
 evalExpr env expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
 evalExpr' :: Env -> EgisonExpr -> EgisonM EgisonValue
-evalExpr' env expr = do
-  val <- evalExpr env expr
-  case val of
-    Value val -> return val
-    Intermediate i -> evalIntermediate i
+evalExpr' env expr = evalExpr env expr >>= evalWHNF
 
 evalRef :: ObjectRef -> EgisonM WHNFData
 evalRef ref = do
   obj <- liftIO $ readIORef ref
   case obj of
     WHNF val -> return val
-    Thunk env expr -> do
-      val <- evalExpr env expr
+    Thunk thunk -> do
+      val <- thunk
       liftIO . writeIORef ref $ WHNF val
       return val
-    MatchThunk mstates expr -> undefined
 
 evalRef' :: ObjectRef -> EgisonM EgisonValue
 evalRef' ref = do
@@ -123,11 +136,14 @@ evalRef' ref = do
       val <- evalIntermediate i
       liftIO . writeIORef ref . WHNF $ Value val
       return val
-    Thunk env expr -> do
-      val <- evalExpr' env expr
+    Thunk thunk -> do
+      val <- thunk >>= evalWHNF
       liftIO . writeIORef ref . WHNF $ Value val
       return val
-    MatchThunk mstates expr -> undefined
+
+evalWHNF :: WHNFData -> EgisonM EgisonValue
+evalWHNF (Value val) = return val
+evalWHNF (Intermidiate i) = evalIntermediate i
 
 evalIntermediate :: Intermediate -> EgisonM EgisonValue
 evalIntermediate (IInductiveData name refs) = InductiveData name <$> mapM evalRef' refs
@@ -152,34 +168,86 @@ applyFunc (Value (IOFunc func)) args =
   mapM evalRef args >>= liftM Value . func
 applyFunc val _ = throwError $ TypeMismatch "function" val
 
-patternMatch :: [MatchingState] -> EgisonM MatchingResult
-patternMatch ((MState env ret []):mstates) = Find (extendEnv ret env) mstates
-patternMatch [] = End
-patternMatch ((MState env ret ((MAtom (PatVarExpr name nums) target matcher):mtrees)):mstates) =
-  matcher <- evalExpr' matcher
-  case matcher of
-    Something ->
-      patternMatch ((MState env (undefined:ret) mtrees):mstates)
-    Matcher matcherInfo ->
-      (patterns, targetss, matchers) <- inductiveMatch matcherInfo pattern target
-      patternMatch ((objectMap (\targets ->
-                                  (MState env ret ((map3 (\(pattern, target, matcher) ->
-                                                            (MAtom pattern target matcher)
-                                                         (patterns, (fromTuple targets), (fromTuple matchers)))) ++
-                                                   mtrees)))
-                               targetss) ++ mstates)
-patternMatch ((MState env ret ((MNode _ _ []):mtrees)):mstates) =
-  patternMatch ((MState env ret mtrees):mstates)
-patternMatch ((MState env ret ((MNode env1 ret1 penv1 ((MAtom (VarExpr name nums) target matcher):mtrees1)):mtrees)):mstates) =
-  patternMatch ((MState env ret ((MNode (refVar (VarExpr name nums) penv1) target matcher):(MNode env1 ret1 penv1 mtrees1):mtrees)):mstates)
-patternMatch ((MState env ret mtrees):mstates) =
-  patternMatch ((MState env ret (patternMatch' mtrees)):mstates)
+--
+-- Pattern Match
+--
 
-patternMatch' :: [MatchingTree] -> EgisonM [MatchingTree]
-patternMatch' ((MNode env ret penv ((MNode env1 ret1 penv1 ((MAtom (VarExpr name nums) target matcher):mtrees1)):mtrees)):mstates) =
-  patternMatch' ((MNode env ret penv ((MAtom (refVar (VarExpr name nums) penv1) target matcher):(MNode env1 ret1 penv1 mtrees1):mtrees)):mstates)
-patternMatch' = undefined
+patternMatch :: Env -> EgisonExpr -> ObjectRef -> EgisonExpr -> EgisonM (MList EgisonM Env) 
+patternMatch env pattern target matcher = undefined
+--  processMState $ MState env [] [MAtom pattern target matcher]
 
-inductiveMatch :: MatcherInfo -> Object -> Object -> EgisonM [([EgisonExpr], Object, Object)]
-inductiveMatch = undefined
+processMState :: MatchingState -> EgisonM (Maybe Env, MList EgisonM MatchingState)
+processMState = undefined
 
+inductiveMatch :: EgisonExpr -> ObjectRef -> MatcherInfo ->
+                  EgisonM ([EgisonExpr], MList ObjectRef, [EgisonExpr])
+inductiveMatch pattern target matcherInfo = do
+  forM matcherInfo $ \(pppat, matchers, clauses) -> do
+  evalExpr env expr >>= fromCollection
+ where
+  fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
+  fromCollection (Value (Collection [])) = MNil
+  fromCollection (Value (Collection vals)) =
+    mapM (newWHNF . Value) vals >>= fromList
+  fromCollection coll@(Intermedeiate (ICollection _)) = do
+    isEmpty <- isEmptyCollection coll
+    if isEmpty
+      then MNil
+      else do
+        (head, tail) <- consDestruct coll
+        return $ MCons head (evalRef tail >>= fromCollection)
+  fromCollection val = throwError $ TypeMismatch "collection" val
+
+primitivePatPatternMatch :: Env -> PrimitivePatPattern -> EgisonExpr ->
+                            EgisonM (Maybe ([EgisonExpr], Frame))
+primitivePatPatternMatch PPWildCard _ = return $ Just ([], [])
+primitivePatPatternMatch PPPatVar pattern = return $ Just ([pattern], [])
+primitivePatPatternMatch (PPValuePat name) pattern = do
+  pattern <- evalExpr env pattern
+  case pattern of
+    Value (Pattern (ValuePat expr)) ->
+      Just . flip (,) [] . return . (,) (name, []) <$> newThunk env expr
+    _ -> return Nothing
+primitivePatPatternMatch (PPInductivePat name patterns) pattern = do
+  pattern <- evalExpr env pattern
+  case pattern of
+    Value (Pattern (InductivePattern name' exprs)) | name == name' ->
+      (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
+    _ -> throwError MatchError
+
+primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> EgisonM (Maybe Frame)
+primitiveDataPatternMatch PDWildCard _ = return $ Just [] 
+primitiveDataPatternMatch (PDPatVar name) ref = return $ Just [((name, []), ref)]
+primitiveDataPatternMatch (PInductivePat name patterns) ref = undefined
+primitiveDataPatternMatch PDEmptyPat ref = do
+  val <- evalRef ref >>= isEmptyCollection
+  val
+primitiveDataPatternMatch (PDConsPat pattern1 pattern2) ref = do
+  (head, tail) <- evalRef ref >>= consDestruct
+  (++) <$> primitiveDataPatternMatch pattern1 head
+       <*> primitiveDataPatternMatch pattern2 tail
+primitiveDataPatternMatch (PDSnocPat pattern1 pattern2) ref = undefined
+primitiveDataPatternMatch (PDConstantPat expr) val = undefined
+
+isEmptyCollection :: WHNFData -> EgisonM Bool
+isEmptyCollection (Value (Collection [])) = return True
+isEmptyCollection (Intermediate (ICollection [])) = return True
+isEmptyCollection (Intermediate (ICollection (ISubCollection ref):inners)) = do
+  isEmpty <- evalRef ref >>= isEmptyCollection
+  if isEmpty
+    then isEmptyCollection $ Intermediate (ICollection inners)
+    else return False
+isEmptyCollection _ = return False
+
+consDestruct :: WHNFData -> EgisonM (ObjectRef, ObjectRef)
+consDestruct (Value (Collection (val:vals))) =
+  (,) <$> newWHNF (Value val) <*>  newWHNF (Value $ Collection vals)
+consDestruct (Intermediate (ICollection (IElement ref):inners)) =
+  (,) ref <$> newWHNF (Intermediate $ ICollection inners)
+consDestruct (Intermediate (ICollection (ISubCollection ref):inners)) = do
+  (head, tail) <- evalRef ref >>= consDestruct
+  (,) head <$> newWHNF (Intermediate $ ICollection ((ISubCollection tail):inners))
+consDestruct _ = throwError $ MatchError
+
+snocDestruct :: WHNFData -> EgisonM (ObjectRef, ObjectRef)
+snocDestruct = undefined

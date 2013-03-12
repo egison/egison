@@ -57,7 +57,7 @@ data EgisonExpr =
 
   | FunctionExpr EgisonExpr [MatchClause]
 
-  | MatcherExpr MatcherInfoExpr
+  | MatcherExpr MatcherInfo
   
   | DoExpr [Binding] EgisonExpr
     
@@ -69,7 +69,7 @@ data EgisonExpr =
 
 type Binding = ([String], EgisonExpr)
 type MatchClause = (EgisonExpr, EgisonExpr)
-type MatcherInfoExpr = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
+type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
 data PrimitivePatPattern =
     PPWildCard
@@ -107,6 +107,7 @@ data EgisonValue =
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
   | Collection [EgisonValue]
+  | Pattern EgisonPattern
   | Matcher MatcherInfo
   | Func Env [String] EgisonExpr
   | PrimitiveFunc PrimitiveFunc
@@ -115,9 +116,19 @@ data EgisonValue =
   | Something
   | EOF
 
+data EgisonPattern =
+    WildCard
+  | PatVar String [EgisonExpr]
+  | ValuePat EgisonExpr
+  | PredPat EgisonExpr
+  | CutPat EgisonExpr
+  | NotPat EgisonExpr
+  | AndPat [EgisonExpr]
+  | OrPat [EgisonExpr]
+  | InductivePattern String [EgisonExpr]
+
 type PrimitiveFunc = [WHNFData] -> Either EgisonError EgisonValue
 type IOFunc = [WHNFData] -> EgisonM EgisonValue
-type MatcherInfo = [(PrimitivePatPattern, ObjectRef, [(Env, PrimitiveDataPattern, EgisonExpr)])]
 
 instance Show EgisonValue where
   show (Char c) = return c
@@ -138,15 +149,13 @@ instance Show EgisonValue where
 --
 
 data Object =
-    Thunk Env EgisonExpr
-  | MatchThunk [MatchingState] EgisonExpr
+    Thunk (EgisonM WHNFData)
   | WHNF WHNFData
 
 type ObjectRef = IORef Object
 
 data WHNFData =
     Intermediate Intermediate
-  | Pattern EgisonPattern
   | Value EgisonValue
 
 data Intermediate =
@@ -157,17 +166,6 @@ data Intermediate =
 data Inner =
     IElement ObjectRef
   | ISubCollection ObjectRef
-
-data EgisonPattern =
-    WildCard
-  | PatVar String [EgisonExpr]
-  | ValuePat EgisonExpr
-  | PredPat EgisonExpr
-  | CutPat EgisonExpr
-  | NotPat EgisonExpr
-  | AndPat [EgisonExpr]
-  | OrPat [EgisonExpr]
-  | InductivePattern String [EgisonExpr]
   
 instance Show WHNFData where
   show (Value val) = show val 
@@ -207,9 +205,7 @@ data MatchingState = MState Env [(Var, ObjectRef)] [MatchingTree]
 
 data MatchingTree =
     MAtom EgisonExpr Object Object
-  | MNode Env [(Var, ObjectRef)] [(Var, EgisonExpr)] [MatchingTree]
-
-data MatchingResult = End | Find Env [MatchingState]
+  | MNode [(Var, EgisonExpr)] Env [(Var, ObjectRef)] [MatchingTree]
 
 --
 -- Environment
@@ -227,9 +223,6 @@ extendEnv env = (: env) . HashMap.fromList
 refVar :: Env -> Var -> EgisonM ObjectRef
 refVar env var = maybe (throwError $ UnboundVariable var) return
                        (msum $ map (HashMap.lookup var) env)
-
-makeThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
-makeThunk = ((liftIO . newIORef) .) . Thunk
 
 makeBindings :: [String] -> [ObjectRef] -> EgisonM [(Var, ObjectRef)]
 makeBindings (name : names) (ref : refs) =
@@ -263,9 +256,19 @@ instance Error EgisonError where
   noMsg = Default "An error has occurred"
   strMsg = Default
 
+liftError :: (MonadError e m) => Either e a -> m a
+liftError = either throwError return
+
+--
+-- Monads
+--
+
 newtype EgisonM a = EgisonM {
     runEgisonM :: ErrorT EgisonError IO a
   } deriving (Functor, Monad, MonadIO, MonadError EgisonError)
 
-liftError :: (MonadError e m) => Either e a -> m a
-liftError = either throwError return
+data MList m a = MNil | MCons a (m (MList a))  
+
+mmap :: Monad m => (a -> m b) -> MList a -> m (MList b)
+mmap f MNil = return MNil
+mmap f (MCons a m) = f a >>= flip MCons (m >>= mmap f)
