@@ -1,6 +1,7 @@
 ;;
 ;; Collection.egi
 ;;
+
 (define $list
   (lambda [$a]
     (matcher
@@ -217,39 +218,15 @@
         {[{} {[]}]
          [_ {}]}]
        [<cons ,$px $> [(multiset a)]
-        {[$tgt (if (member? px tgt)
-                   {(remove tgt px)}
-                   {})]}]
+        {[$tgt (match tgt (list something)
+                 {[<join $hs <cons ,px $ts>> {{@hs @ts}}]
+                  [_ {}]})]}]
        [<cons $ $> [a (multiset a)]
-        {[$tgt (letrec {[$helper (lambda [$xs $ys]
-                                   (match ys (list a)
-                                     {[<nil> {}]
-                                      [<cons $z $zs> (if (member? z xs)
-                                                         (helper {@xs z} zs)
-                                                         {[z {@xs @zs}] @(helper {@xs z} zs)})]}))]}
-                 (helper {} tgt))]}]
-       [<join ,$pxs _> [(multiset a)]
-        {[$tgt (letrec {[$helper (lambda [$xs $ys]
-                                   (match xs (list something)
-                                     {[<nil> ys]
-                                      [<cons $z $zs> (if (member? z ys)
-                                                         (helper zs (remove ys z))
-                                                         {})]}))]}
-                 {(helper pxs tgt)})]}]
-       [<join $ $> [(multiset a) (multiset a)]
-        {[$tgt
-          (foldr
-                 (lambda [$xi $xs]
-                   (let {[[$x $i] xi]}
-                     (map-and-concat
-                                     (lambda [$sub] 
-                                       (do {[[$ys $zs] sub]
-                                            [$zs ((remove-all a) zs x)]}
-                                         (match-all (loop $l $j (between 1 i) {x @l} {}) (list a) [<join $us $vs> [{@us @ys} {@zs @vs}]])))
-                                     xs)))
-                 {[{} tgt]}
-                 ((occurrence a) tgt))]}]
-       [_ [something]
+        {[$tgt (match-all tgt (list something)
+                 [<join $hs <cons $x $ts>> [x {@hs @ts}]])]}]
+       [<join ,$pxs $> [(multiset a)]
+        {[$tgt undefined]}]
+       [$ [something]
         {[$tgt {tgt}]}]
        })))
 
@@ -261,12 +238,12 @@
         {[{} {[]}]
          [_ {}]}]
        [<cons ,$px $> [(set a)]
-        {[$tgt (if (member? px tgt)
-                   {tgt}
-                   {})]}]
+        {[$tgt (match tgt (list something)
+                 {[<join _ <cons ,px _>> {tgt}]
+                  [_ {}]})]}]
        [<cons $ $> [a (set a)]
         {[$tgt (match-all tgt (list a)
                  [<join _ <cons $x _>> [x tgt]])]}]
-       [_ [something]
+       [$ [something]
         {[$tgt {tgt}]}]
        })))
