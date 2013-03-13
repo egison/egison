@@ -120,7 +120,7 @@ parseMatchClause = brackets $ (,) <$> parseExpr <*> parseExpr
 parseMatcherExpr :: Parser EgisonExpr
 parseMatcherExpr = keywordMatcher >> MatcherExpr <$> parsePPMatchClauses
 
-parsePPMatchClauses :: Parser MatcherInfoExpr
+parsePPMatchClauses :: Parser MatcherInfo
 parsePPMatchClauses = braces $ sepEndBy parsePPMatchClause whiteSpace
 
 parsePPMatchClause :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
@@ -164,10 +164,10 @@ parseLetExpr = keywordLet >> LetExpr <$> parseBindings <*> parseExpr
 parseDoExpr :: Parser EgisonExpr
 parseDoExpr = keywordDo >> DoExpr <$> parseBindings <*> parseExpr
 
-parseBindings :: Parser [Binding]
+parseBindings :: Parser [BindingExpr]
 parseBindings = braces $ sepEndBy parseBinding whiteSpace
 
-parseBinding :: Parser Binding
+parseBinding :: Parser BindingExpr
 parseBinding = brackets $ (,) <$> parseVarNames <*> parseExpr
 
 parseBindings' :: Parser [(String, EgisonExpr)]

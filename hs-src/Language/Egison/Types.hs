@@ -3,6 +3,7 @@ module Language.Egison.Types where
 
 import Control.Applicative
 import Control.Monad.Error
+import Control.Monad.Trans.Maybe
 
 import Data.IORef
 import Data.HashMap.Strict (HashMap)
@@ -49,7 +50,7 @@ data EgisonExpr =
   | LambdaExpr [String] EgisonExpr
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
-  | LetExpr [Binding] EgisonExpr
+  | LetExpr [BindingExpr] EgisonExpr
   | LetRecExpr [(String, EgisonExpr)] EgisonExpr
     
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
@@ -59,7 +60,7 @@ data EgisonExpr =
 
   | MatcherExpr MatcherInfo
   
-  | DoExpr [Binding] EgisonExpr
+  | DoExpr [BindingExpr] EgisonExpr
     
   | ApplyExpr EgisonExpr EgisonExpr
 
@@ -67,7 +68,7 @@ data EgisonExpr =
   | UndefinedExpr
  deriving (Show)
 
-type Binding = ([String], EgisonExpr)
+type BindingExpr = ([String], EgisonExpr)
 type MatchClause = (EgisonExpr, EgisonExpr)
 type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
@@ -108,7 +109,7 @@ data EgisonValue =
   | Tuple [EgisonValue]
   | Collection [EgisonValue]
   | Pattern EgisonPattern
-  | Matcher MatcherInfo
+  | Matcher Matcher
   | Func Env [String] EgisonExpr
   | PrimitiveFunc PrimitiveFunc
   | IOFunc IOFunc
@@ -127,6 +128,7 @@ data EgisonPattern =
   | OrPat [EgisonExpr]
   | InductivePattern String [EgisonExpr]
 
+type Matcher = (Env, MatcherInfo)
 type PrimitiveFunc = [WHNFData] -> Either EgisonError EgisonValue
 type IOFunc = [WHNFData] -> EgisonM EgisonValue
 
@@ -197,15 +199,9 @@ fromPortValue :: WHNFData -> Either EgisonError Handle
 fromPortValue (Value (Port handle)) = return handle
 fromPortValue val = throwError $ TypeMismatch "port" val
 
---
--- Pattern Match
---
-
-data MatchingState = MState Env [(Var, ObjectRef)] [MatchingTree]
-
-data MatchingTree =
-    MAtom EgisonExpr Object Object
-  | MNode [(Var, EgisonExpr)] Env [(Var, ObjectRef)] [MatchingTree]
+fromMatcherValue :: WHNFData -> Either EgisonError Matcher
+fromMatcherValue (Value (Matcher matcher)) = return matcher
+fromMatcherValue val = throwError $ TypeMismatch "matcher" val
 
 --
 -- Environment
@@ -213,22 +209,33 @@ data MatchingTree =
 
 type Var = (String, [Integer])
 type Env = [HashMap Var ObjectRef]
+type Binding = (Var, ObjectRef)
 
 nullEnv :: Env
 nullEnv = []
 
-extendEnv :: Env -> [(Var, ObjectRef)] -> Env
+extendEnv :: Env -> [Binding] -> Env
 extendEnv env = (: env) . HashMap.fromList
 
 refVar :: Env -> Var -> EgisonM ObjectRef
 refVar env var = maybe (throwError $ UnboundVariable var) return
                        (msum $ map (HashMap.lookup var) env)
 
-makeBindings :: [String] -> [ObjectRef] -> EgisonM [(Var, ObjectRef)]
+makeBindings :: [String] -> [ObjectRef] -> EgisonM [Binding]
 makeBindings (name : names) (ref : refs) =
   (((name, []), ref) :) <$> makeBindings names refs
 makeBindings [] [] = return []
 makeBindings _ _ = throwError $ strMsg "invalid bindings"
+
+--
+-- Pattern Match
+--
+
+data MatchingState = MState Env [Binding] [MatchingTree]
+
+data MatchingTree =
+    MAtom EgisonExpr Object Object
+  | MNode [(Var, EgisonExpr)] Env [Binding] [MatchingTree]
 
 --
 -- Errors
@@ -240,7 +247,7 @@ data EgisonError =
   | TypeMismatch String WHNFData
   | ArgumentsNum Int [WHNFData]
   | NotImplemented String
-  | SystemError String
+  | Match String
   | Default String
     
 instance Show EgisonError where
@@ -265,10 +272,12 @@ liftError = either throwError return
 
 newtype EgisonM a = EgisonM {
     runEgisonM :: ErrorT EgisonError IO a
-  } deriving (Functor, Monad, MonadIO, MonadError EgisonError)
+  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
 
-data MList m a = MNil | MCons a (m (MList a))  
+type MatchM = MaybeT EgisonM
 
-mmap :: Monad m => (a -> m b) -> MList a -> m (MList b)
+data MList m a = MNil | MCons a (m (MList m a))  
+
+mmap :: Monad m => (a -> m b) -> MList m a -> m (MList m b)
 mmap f MNil = return MNil
-mmap f (MCons a m) = f a >>= flip MCons (m >>= mmap f)
+mmap f (MCons a m) = f a >>= return . flip MCons (m >>= mmap f)
