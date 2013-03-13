@@ -7,7 +7,7 @@ import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
 import Data.Either
 import Data.Set (Set)
-import Data.Char (toLower)
+import Data.Char (toLower, isSpace)
 import qualified Data.Set as Set
 
 import Data.ByteString.Lazy (ByteString)
@@ -133,14 +133,14 @@ parsePDMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
 parsePDMatchClause = brackets $ (,) <$> parsePDPattern <*> parseExpr
 
 parsePPPattern :: Parser PrimitivePatPattern
-parsePPPattern = reservedOp "_" *> pure PPWildCard
+parsePPPattern = wildcard *> pure PPWildCard
                        <|> reservedOp "$" *> pure PPPatVar
                        <|> (string ",$" >> PPValuePat <$> ident)
                        <|> angles (PPInductivePat <$> ident <*> sepEndBy parsePPPattern whiteSpace)
                        <?> "primitive-pattren-pattern"
 
 parsePDPattern :: Parser PrimitiveDataPattern
-parsePDPattern = reservedOp "_" *> pure PDWildCard
+parsePDPattern = wildcard *> pure PDWildCard
                     <|> (char '$' >> PDPatVar <$> ident)
                     <|> braces ((PDConsPat <$> parsePDPattern <*> (char '@' *> parsePDPattern))
                             <|> (PDSnocPat <$> (char '@' *> parsePDPattern) <*> parsePDPattern) 
@@ -220,7 +220,7 @@ parseNotPatExpr :: Parser EgisonExpr
 parseNotPatExpr = reservedOp "^" >> NotPatExpr <$> parseExpr
 
 parseWildCardExpr :: Parser EgisonExpr
-parseWildCardExpr = reservedOp "_" >> pure WildCardExpr
+parseWildCardExpr = wildcard >> pure WildCardExpr
 
 parseValuePatExpr :: Parser EgisonExpr
 parseValuePatExpr = reservedOp "," >> ValuePatExpr <$> parseExpr
@@ -378,6 +378,14 @@ braces = P.braces lexer
 
 angles :: Parser a -> Parser a
 angles = P.angles lexer
+
+wildcard :: Parser Char
+wildcard =  do result <- P.lexeme lexer $ char '_' >> isConsume whiteSpace
+               if result then return '_'
+                         else unexpected "whiteSpace" 
+  where
+    isConsume :: Parser a -> Parser Bool
+    isConsume p = (/=) <$> getPosition <*> (p >> getPosition)
 
 colon :: Parser String
 colon = P.colon lexer
