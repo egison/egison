@@ -7,7 +7,7 @@ import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
 import Data.Either
 import Data.Set (Set)
-import Data.Char (toLower)
+import Data.Char (isLower, isUpper)
 import qualified Data.Set as Set
 
 import Data.ByteString.Lazy (ByteString)
@@ -64,7 +64,8 @@ parseExpr = (try parseVarExpr
              <|> parsePredPatExpr 
                         
              <|> parseConstantExpr
-             <|> parseInductiveExpr
+             <|> try parseInductiveDataExpr
+             <|> parseInductivePatternExpr
              <|> parseTupleExpr
              <|> parseCollectionExpr
              <|> parens (parseAndPatExpr 
@@ -96,9 +97,23 @@ parseIndexNums = ((:) <$> try (prefix >> parseExpr) <*> parseIndexNums)
     isConsumed :: Parser a -> Parser Bool
     isConsumed p = (/=) <$> getPosition <*> (p >> getPosition)
 
-parseInductiveExpr :: Parser EgisonExpr
-parseInductiveExpr = angles $ InductivePatternExpr <$> ident <*> exprs
- where exprs = sepEndBy parseExpr whiteSpace
+parseInductiveDataExpr :: Parser EgisonExpr
+parseInductiveDataExpr = angles $ InductiveDataExpr <$> name <*> sepEndBy parseExpr whiteSpace
+  where
+    name :: Parser String
+    name = (:) <$> upper <*> ident
+    
+    upper :: Parser Char 
+    upper = satisfy isUpper
+
+parseInductivePatternExpr :: Parser EgisonExpr
+parseInductivePatternExpr = angles $ InductivePatternExpr <$> name <*> sepEndBy parseExpr whiteSpace
+  where
+    name :: Parser String
+    name = (:) <$> lower <*> ident
+    
+    lower :: Parser Char 
+    lower = satisfy isLower
 
 parseTupleExpr :: Parser EgisonExpr
 parseTupleExpr = brackets $ TupleExpr <$> sepEndBy parseExpr whiteSpace
