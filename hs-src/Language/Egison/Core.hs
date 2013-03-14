@@ -94,7 +94,14 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
     tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
     return . Intermediate $ ICollection [head, tail]
 
-evalExpr env (MatchExpr target matcher clauses) = undefined
+evalExpr env (MatchExpr target matcher clauses) = do
+  target <- newThunk env target
+  let tryMatchClause (pattern, expr) cont = do
+        result <- patternMatch env pattern target matcher
+        case result of
+          MCons bindings _ -> evalExpr (extendEnv env bindings) expr
+          MNil -> cont
+  foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
 
 evalExpr env (ApplyExpr func args) = do
   func <- evalExpr env func

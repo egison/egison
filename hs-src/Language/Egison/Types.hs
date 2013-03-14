@@ -292,7 +292,7 @@ fromList = foldr f MNil
  where f x xs = MCons x $ return xs
 
 msingleton :: Monad m => a -> MList m a
-msingleton = flip MCons $ return MNil 
+msingleton = flip MCons $ return MNil
 
 mfoldr :: Monad m => (a -> m b -> m b) -> m b -> MList m a -> m b
 mfoldr f init MNil = init
