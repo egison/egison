@@ -7,7 +7,7 @@ import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
 import Data.Either
 import Data.Set (Set)
-import Data.Char (toLower, isSpace)
+import Data.Char (toLower)
 import qualified Data.Set as Set
 
 import Data.ByteString.Lazy (ByteString)
@@ -82,11 +82,19 @@ parseExpr = (try parseVarExpr
                          <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
-parseVarExpr = P.lexeme lexer $ VarExpr <$> ident' <*> parseIndexNums
+parseVarExpr = VarExpr <$> ident <*> parseIndexNums
 
 parseIndexNums :: Parser [EgisonExpr]
-parseIndexNums = (char '_' >> ((:) <$> parseExpr <*> parseIndexNums))
+parseIndexNums = ((:) <$> try (prefix >> parseExpr) <*> parseIndexNums)
               <|> pure []
+  where
+    prefix :: Parser Char
+    prefix = do result <- char '_' >> isConsumed whiteSpace
+                if result then parserFail "unexpected whiteSpace"
+                          else return '_'
+    
+    isConsumed :: Parser a -> Parser Bool
+    isConsumed p = (/=) <$> getPosition <*> (p >> getPosition)
 
 parseInductiveExpr :: Parser EgisonExpr
 parseInductiveExpr = angles $ InductiveDataExpr <$> ident <*> exprs
@@ -120,7 +128,7 @@ parseMatchClause = brackets $ (,) <$> parseExpr <*> parseExpr
 parseMatcherExpr :: Parser EgisonExpr
 parseMatcherExpr = keywordMatcher >> MatcherExpr <$> parsePPMatchClauses
 
-parsePPMatchClauses :: Parser MatcherInfo
+parsePPMatchClauses :: Parser MatcherInfoExpr
 parsePPMatchClauses = braces $ sepEndBy parsePPMatchClause whiteSpace
 
 parsePPMatchClause :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
@@ -133,14 +141,14 @@ parsePDMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
 parsePDMatchClause = brackets $ (,) <$> parsePDPattern <*> parseExpr
 
 parsePPPattern :: Parser PrimitivePatPattern
-parsePPPattern = wildcard *> pure PPWildCard
+parsePPPattern = reservedOp "_" *> pure PPWildCard
                        <|> reservedOp "$" *> pure PPPatVar
                        <|> (string ",$" >> PPValuePat <$> ident)
                        <|> angles (PPInductivePat <$> ident <*> sepEndBy parsePPPattern whiteSpace)
                        <?> "primitive-pattren-pattern"
 
 parsePDPattern :: Parser PrimitiveDataPattern
-parsePDPattern = wildcard *> pure PDWildCard
+parsePDPattern = reservedOp "_" *> pure PDWildCard
                     <|> (char '$' >> PDPatVar <$> ident)
                     <|> braces ((PDConsPat <$> parsePDPattern <*> (char '@' *> parsePDPattern))
                             <|> (PDSnocPat <$> (char '@' *> parsePDPattern) <*> parsePDPattern) 
@@ -164,10 +172,10 @@ parseLetExpr = keywordLet >> LetExpr <$> parseBindings <*> parseExpr
 parseDoExpr :: Parser EgisonExpr
 parseDoExpr = keywordDo >> DoExpr <$> parseBindings <*> parseExpr
 
-parseBindings :: Parser [BindingExpr]
+parseBindings :: Parser [Binding]
 parseBindings = braces $ sepEndBy parseBinding whiteSpace
 
-parseBinding :: Parser BindingExpr
+parseBinding :: Parser Binding
 parseBinding = brackets $ (,) <$> parseVarNames <*> parseExpr
 
 parseBindings' :: Parser [(String, EgisonExpr)]
@@ -182,9 +190,6 @@ parseVarNames = return <$> parseVarName
 
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
-
-parseVarName' :: Parser String
-parseVarName' = char '$' >> ident'
 
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = do
@@ -220,13 +225,13 @@ parseNotPatExpr :: Parser EgisonExpr
 parseNotPatExpr = reservedOp "^" >> NotPatExpr <$> parseExpr
 
 parseWildCardExpr :: Parser EgisonExpr
-parseWildCardExpr = wildcard >> pure WildCardExpr
+parseWildCardExpr = reservedOp "_" >> pure WildCardExpr
 
 parseValuePatExpr :: Parser EgisonExpr
 parseValuePatExpr = reservedOp "," >> ValuePatExpr <$> parseExpr
 
 parsePatVarExpr :: Parser EgisonExpr
-parsePatVarExpr = P.lexeme lexer $ PatVarExpr <$> parseVarName' <*> parseIndexNums
+parsePatVarExpr = P.lexeme lexer $ PatVarExpr <$> parseVarName <*> parseIndexNums
 
 parsePredPatExpr :: Parser EgisonExpr
 parsePredPatExpr = reservedOp "?" >> PredPatExpr <$> parseExpr
@@ -379,14 +384,6 @@ braces = P.braces lexer
 angles :: Parser a -> Parser a
 angles = P.angles lexer
 
-wildcard :: Parser Char
-wildcard =  do result <- P.lexeme lexer $ char '_' >> isConsume whiteSpace
-               if result then return '_'
-                         else unexpected "whiteSpace" 
-  where
-    isConsume :: Parser a -> Parser Bool
-    isConsume p = (/=) <$> getPosition <*> (p >> getPosition)
-
 colon :: Parser String
 colon = P.colon lexer
 
@@ -399,11 +396,3 @@ dot = P.dot lexer
 ident :: Parser String
 ident = P.identifier lexer
 
-ident' :: Parser String
-ident' = do 
-  name <- (:) <$> P.identStart egisonDef <*> many (P.identLetter egisonDef)
-  if isReserved name then unexpected ("reserved word" ++ show name)
-                     else return name
-  where
-    isReserved :: String -> Bool
-    isReserved s = elem s $ map (map toLower) (P.reservedNames egisonDef)
