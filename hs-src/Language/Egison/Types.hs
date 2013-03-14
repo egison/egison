@@ -34,18 +34,10 @@ data EgisonExpr =
   | VarExpr String [EgisonExpr]
 
   | InductiveDataExpr String [EgisonExpr]
-  | InductivePatternExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]
 
-  | WildCardExpr
-  | PatVarExpr String [EgisonExpr]
-  | ValuePatExpr EgisonExpr
-  | PredPatExpr EgisonExpr
-  | CutPatExpr EgisonExpr
-  | NotPatExpr EgisonExpr
-  | AndPatExpr [EgisonExpr]
-  | OrPatExpr [EgisonExpr]
+  | PatternExpr EgisonPattern
 
   | LambdaExpr [String] EgisonExpr
   
@@ -71,6 +63,18 @@ data EgisonExpr =
 type BindingExpr = ([String], EgisonExpr)
 type MatchClause = (EgisonExpr, EgisonExpr)
 type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
+
+data EgisonPattern =
+    WildCard
+  | PatVar String [EgisonExpr]
+  | ValuePat EgisonExpr
+  | PredPat EgisonExpr
+  | CutPat EgisonExpr
+  | NotPat EgisonExpr
+  | AndPat [EgisonExpr]
+  | OrPat [EgisonExpr]
+  | InductivePattern String [EgisonExpr]
+ deriving (Show)
 
 data PrimitivePatPattern =
     PPWildCard
@@ -116,17 +120,6 @@ data EgisonValue =
   | Port Handle
   | Something
   | EOF
-
-data EgisonPattern =
-    WildCard
-  | PatVar String [EgisonExpr]
-  | ValuePat EgisonExpr
-  | PredPat EgisonExpr
-  | CutPat EgisonExpr
-  | NotPat EgisonExpr
-  | AndPat [EgisonExpr]
-  | OrPat [EgisonExpr]
-  | InductivePattern String [EgisonExpr]
 
 type Matcher = (Env, MatcherInfo)
 type PrimitiveFunc = [WHNFData] -> Either EgisonError EgisonValue

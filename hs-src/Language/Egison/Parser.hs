@@ -107,7 +107,7 @@ parseInductiveDataExpr = angles $ InductiveDataExpr <$> name <*> sepEndBy parseE
     upper = satisfy isUpper
 
 parseInductivePatternExpr :: Parser EgisonExpr
-parseInductivePatternExpr = angles $ InductivePatternExpr <$> name <*> sepEndBy parseExpr whiteSpace
+parseInductivePatternExpr = angles $ (PatternExpr .) . InductivePattern <$> name <*> sepEndBy parseExpr whiteSpace
   where
     name :: Parser String
     name = (:) <$> lower <*> ident
@@ -234,28 +234,28 @@ parseApplyExpr = do
   annonVars n = take n $ map (('#':) . show) [1..]
 
 parseCutPatExpr :: Parser EgisonExpr
-parseCutPatExpr = reservedOp "!" >> CutPatExpr <$> parseExpr
+parseCutPatExpr = reservedOp "!" >> PatternExpr . CutPat <$> parseExpr
 
 parseNotPatExpr :: Parser EgisonExpr
-parseNotPatExpr = reservedOp "^" >> NotPatExpr <$> parseExpr
+parseNotPatExpr = reservedOp "^" >> PatternExpr . NotPat <$> parseExpr
 
 parseWildCardExpr :: Parser EgisonExpr
-parseWildCardExpr = reservedOp "_" >> pure WildCardExpr
+parseWildCardExpr = reservedOp "_" >> pure (PatternExpr WildCard)
 
 parseValuePatExpr :: Parser EgisonExpr
-parseValuePatExpr = reservedOp "," >> ValuePatExpr <$> parseExpr
+parseValuePatExpr = reservedOp "," >> PatternExpr . ValuePat <$> parseExpr
 
 parsePatVarExpr :: Parser EgisonExpr
-parsePatVarExpr = P.lexeme lexer $ PatVarExpr <$> parseVarName <*> parseIndexNums
+parsePatVarExpr = P.lexeme lexer $ (PatternExpr .) . PatVar <$> parseVarName <*> parseIndexNums
 
 parsePredPatExpr :: Parser EgisonExpr
-parsePredPatExpr = reservedOp "?" >> PredPatExpr <$> parseExpr
+parsePredPatExpr = reservedOp "?" >> PatternExpr . PredPat <$> parseExpr
 
 parseAndPatExpr :: Parser EgisonExpr
-parseAndPatExpr = reservedOp "&" >> AndPatExpr <$> sepEndBy parseExpr whiteSpace
+parseAndPatExpr = reservedOp "&" >> PatternExpr . AndPat <$> sepEndBy parseExpr whiteSpace
 
 parseOrPatExpr :: Parser EgisonExpr
-parseOrPatExpr = reservedOp "|" >> OrPatExpr <$> sepEndBy parseExpr whiteSpace
+parseOrPatExpr = reservedOp "|" >> PatternExpr . OrPat <$> sepEndBy parseExpr whiteSpace
 
 
 

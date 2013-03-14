@@ -108,12 +108,9 @@ evalExpr env (ApplyExpr func args) = do
   args <- evalExpr env args >>= fromTuple 
   applyFunc func args
 
-evalExpr env (MatcherExpr info) = return $ Value (Matcher (env, info))
+evalExpr env (MatcherExpr info) = return $ Value $ Matcher (env, info)
 
-evalExpr _ (InductivePatternExpr name patterns) =
-  return . Value . Pattern $ InductivePattern name patterns
-evalExpr _ WildCardExpr = return $ Value $ Pattern WildCard
-evalExpr _ (PatVarExpr name nums) =  return $ Value $ Pattern $ PatVar name nums
+evalExpr _ (PatternExpr pattern) = return $ Value $ Pattern pattern
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = throwError $ strMsg "undefined"
