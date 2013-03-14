@@ -291,6 +291,10 @@ fromList :: Monad m => [a] -> MList m a
 fromList = foldr f MNil
  where f x xs = MCons x $ return xs
 
+fromMList :: Monad m => MList m a -> m [a]
+fromMList = mfoldr f $ return []
+ where f x xs = xs >>= return . (x:)
+
 msingleton :: Monad m => a -> MList m a
 msingleton = flip MCons $ return MNil
 

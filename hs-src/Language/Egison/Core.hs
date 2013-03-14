@@ -153,16 +153,8 @@ evalWHNF (Intermediate i) = evalIntermediate i
 evalIntermediate :: Intermediate -> EgisonM EgisonValue
 evalIntermediate (IInductiveData name refs) = InductiveData name <$> mapM evalRef' refs
 evalIntermediate (ITuple refs) = Tuple <$> mapM evalRef' refs
-evalIntermediate coll = Collection <$> fromCollection (Intermediate coll)
- where
-  fromCollection :: WHNFData -> EgisonM [EgisonValue]
-  fromCollection (Intermediate (ICollection inners)) = concat <$> mapM fromInner inners
-  fromCollection (Value (Collection vals)) = return vals
-  fromCollection val = throwError $ TypeMismatch "collection" val
-
-  fromInner :: Inner -> EgisonM [EgisonValue]
-  fromInner (IElement ref) = return <$> evalRef' ref
-  fromInner (ISubCollection ref) = evalRef ref >>= fromCollection
+evalIntermediate coll =
+  Collection <$> (fromCollection (Intermediate coll) >>= fromMList >>= mapM evalRef')
 
 applyFunc :: WHNFData -> [ObjectRef] -> EgisonM WHNFData
 applyFunc (Value (Func env names body)) args =
@@ -182,11 +174,6 @@ writeThunk ref val = liftIO . writeIORef ref $ WHNF val
 newEvalutedThunk :: WHNFData -> EgisonM ObjectRef
 newEvalutedThunk = liftIO . newIORef . WHNF
 
-fromTuple :: WHNFData -> EgisonM [ObjectRef]
-fromTuple (Intermediate (ITuple refs)) = return refs
-fromTuple (Value (Tuple vals)) = mapM (newEvalutedThunk . Value) vals
-fromTuple val = return <$> newEvalutedThunk val
-
 recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
@@ -194,6 +181,27 @@ recursiveBind env bindings = do
   env <- extendEnv env <$> makeBindings names refs
   zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env expr) refs exprs
   return env
+
+fromTuple :: WHNFData -> EgisonM [ObjectRef]
+fromTuple (Intermediate (ITuple refs)) = return refs
+fromTuple (Value (Tuple vals)) = mapM (newEvalutedThunk . Value) vals
+fromTuple val = return <$> newEvalutedThunk val
+
+fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
+fromCollection (Value (Collection [])) = return MNil
+fromCollection (Value (Collection vals)) =
+  fromList <$> mapM (newEvalutedThunk . Value) vals
+fromCollection coll@(Intermediate (ICollection _)) =
+  newEvalutedThunk coll >>= fromCollection'
+ where
+  fromCollection' ref = do
+    isEmpty <- isEmptyCollection ref
+    if isEmpty
+      then return MNil
+      else do
+        (head, tail) <- fromJust <$> runMaybeT (unconsCollection ref)
+        return $ MCons head (fromCollection' tail)
+fromCollection val = throwError $ TypeMismatch "collection" val
 
 --
 -- Pattern Match
@@ -253,28 +261,13 @@ inductiveMatch env pattern target (matcherEnv, clauses) = do
         tryPDMatchClause (pat, expr) cont = do
           result <- runMaybeT $ primitiveDataPatternMatch pat target
           case result of
-            Just bindings' ->
-              evalExpr (extendEnv matcherEnv (bindings ++ bindings')) expr >>= fromCollection
+            Just bindings' -> do
+              let env = extendEnv matcherEnv $ bindings ++ bindings'
+              evalExpr env expr >>= fromCollection
             _ -> cont
       _ -> cont
   failPPPatternMatch = throwError $ strMsg "failed primitive data pattern match"
   failPDPatternMatch = throwError $ strMsg "failed primitive pattern pattern match"
-
-  fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
-  fromCollection (Value (Collection [])) = return MNil
-  fromCollection (Value (Collection vals)) =
-    fromList <$> mapM (newEvalutedThunk . Value) vals
-  fromCollection coll@(Intermediate (ICollection _)) =
-    newEvalutedThunk coll >>= fromCollection'
-   where
-    fromCollection' ref = do
-      isEmpty <- isEmptyCollection ref
-      if isEmpty
-        then return MNil
-        else do
-          (head, tail) <- fromJust <$> runMaybeT (unconsCollection ref)
-          return $ MCons head (fromCollection' tail)
-  fromCollection val = throwError $ TypeMismatch "collection" val
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> EgisonExpr ->
                             MatchM ([EgisonExpr], [Binding])
@@ -310,12 +303,11 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = undefined
 --  isEqual <- (==) <$> evalExpr' nullEnv expr <*> evalRef' ref
 --  if isEqual then return [] else matchFail
 
-fromCollection :: WHNFData -> EgisonM [Inner]
-fromCollection (Value (Collection [])) = return []
-fromCollection (Value (Collection vals)) =
+expandCollection :: WHNFData -> EgisonM [Inner]
+expandCollection (Value (Collection vals)) =
   mapM (liftM IElement . newEvalutedThunk . Value) vals
-fromCollection (Intermediate (ICollection inners)) = return inners
-fromCollection val = throwError $ TypeMismatch "collection" val
+expandCollection (Intermediate (ICollection inners)) = return inners
+expandCollection val = throwError $ TypeMismatch "collection" val
 
 isEmptyCollection :: ObjectRef -> EgisonM Bool
 isEmptyCollection ref = evalRef ref >>= isEmptyCollection'
@@ -324,7 +316,7 @@ isEmptyCollection ref = evalRef ref >>= isEmptyCollection'
   isEmptyCollection' (Value (Collection [])) = return True
   isEmptyCollection' (Intermediate (ICollection [])) = return True
   isEmptyCollection' (Intermediate (ICollection ((ISubCollection ref'):inners))) = do
-    inners' <- evalRef ref' >>= fromCollection
+    inners' <- evalRef ref' >>= expandCollection
     let coll = Intermediate (ICollection (inners' ++ inners))
     writeThunk ref coll
     isEmptyCollection' coll
@@ -340,7 +332,7 @@ unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
   unconsCollection' (Intermediate (ICollection ((IElement ref):inners))) =
     lift $ (,) ref <$> newEvalutedThunk (Intermediate $ ICollection inners)
   unconsCollection' (Intermediate (ICollection ((ISubCollection ref'):inners))) = do
-    inners' <- lift $ evalRef ref' >>= fromCollection
+    inners' <- lift $ evalRef ref' >>= expandCollection
     let coll = Intermediate (ICollection (inners' ++ inners))
     lift $ writeThunk ref coll
     unconsCollection' coll
