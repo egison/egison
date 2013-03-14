@@ -85,7 +85,7 @@ evalExpr env (LetRecExpr bindings expr) =
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
   result <- patternMatch env pattern target matcher
-  mmap (flip evalExpr expr) result >>= fromMList
+  mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
   fromMList MNil = return . Value $ Collection []
@@ -101,6 +101,14 @@ evalExpr env (ApplyExpr func args) = do
   args <- evalExpr env args >>= fromTuple 
   applyFunc func args
 
+evalExpr env (MatcherExpr info) = return $ Value (Matcher (env, info))
+
+evalExpr _ (InductivePatternExpr name patterns) =
+  return . Value . Pattern $ InductivePattern name patterns
+evalExpr _ WildCardExpr = return $ Value $ Pattern WildCard
+evalExpr _ (PatVarExpr name nums) =  return $ Value $ Pattern $ PatVar name nums
+
+evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = throwError $ strMsg "undefined"
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
@@ -184,42 +192,71 @@ recursiveBind env bindings = do
 -- Pattern Match
 --
 
-patternMatch :: Env -> EgisonExpr -> ObjectRef -> EgisonExpr -> EgisonM (MList EgisonM Env) 
-patternMatch env pattern target matcher = undefined
---  processMState $ MState env [] [MAtom pattern target matcher]
+patternMatch :: Env -> EgisonExpr -> ObjectRef -> EgisonExpr ->
+                EgisonM (MList EgisonM [Binding]) 
+patternMatch env pattern target matcher = do
+  matcher <- evalExpr env matcher
+  processMState (MState env [] [MAtom pattern target matcher]) >>= processMStates
 
-processMState :: MatchingState -> EgisonM (Maybe Env, MList EgisonM MatchingState)
-processMState = undefined
+processMStates :: MList EgisonM MatchingState -> EgisonM (MList EgisonM [Binding])
+processMStates MNil = return MNil
+processMStates (MCons (MState env bindings []) states) = 
+  return $ MCons bindings (states >>= processMStates)
+processMStates (MCons state states) = 
+  processMState state >>= flip mappend states >>= processMStates
+
+processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
+processMState state@(MState env bindings []) = return $ msingleton state 
+processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
+  let env' = extendEnv env bindings
+  pattern' <- evalExpr env' pattern >>= liftError . fromPatternValue
+  case matcher of
+    Value Something -> 
+      case pattern' of
+        WildCard -> return MNil
+        PatVar name nums -> do
+          var <- (,) name <$> mapM (evalExpr env' >=> liftError . fromIntegerValue) nums
+          processMState $ MState env ((var, target):bindings) trees
+        _ -> throwError $ strMsg "something can only match with a pattern variable"
+    Value (Matcher matcher) ->
+      case pattern' of
+        WildCard -> return MNil
+        _ -> do
+          (patterns, targetss, matchers) <- inductiveMatch env pattern target matcher
+          mfor targetss $ \ref -> do
+            targets <- evalRef ref >>= fromTuple
+            let trees' = zipWith3 MAtom patterns targets matchers ++ trees
+            return $ MState env bindings trees'
+    _ -> throwError $ TypeMismatch "matcher" matcher
+processMState _ = throwError $ NotImplemented "MNode"
 
 inductiveMatch :: Env -> EgisonExpr -> ObjectRef -> Matcher ->
-                  EgisonM ([EgisonExpr], MList EgisonM ObjectRef, [Matcher])
-inductiveMatch env pattern target (env', clauses) = do
+                  EgisonM ([EgisonExpr], MList EgisonM ObjectRef, [WHNFData])
+inductiveMatch env pattern target (matcherEnv, clauses) = do
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
   tryPPMatchClause (pat, matchers, clauses) cont = do
     result <- runMaybeT $ primitivePatPatternMatch env pat pattern
     case result of
       Just (patterns, bindings) -> do
-        targets <- foldr tryPDMatchClause failPDPatternMatch clauses
-        matchers <- evalExpr env' matchers >>= fromTuple >>=
-                    mapM (evalRef >=> liftError . fromMatcherValue)
-        return (patterns, targets, matchers)
+        targetss <- foldr tryPDMatchClause failPDPatternMatch clauses
+        matchers <- evalExpr matcherEnv matchers >>= fromTuple >>= mapM evalRef
+        return (patterns, targetss, matchers)
        where
         tryPDMatchClause (pat, expr) cont = do
           result <- runMaybeT $ primitiveDataPatternMatch pat target
           case result of
             Just bindings' ->
-              evalExpr (extendEnv env' (bindings ++ bindings')) expr >>= fromCollection
+              evalExpr (extendEnv matcherEnv (bindings ++ bindings')) expr >>= fromCollection
             _ -> cont
       _ -> cont
-  failPDPatternMatch = throwError $ strMsg "failed primitive pattern pattern match"
   failPPPatternMatch = throwError $ strMsg "failed primitive data pattern match"
+  failPDPatternMatch = throwError $ strMsg "failed primitive pattern pattern match"
 
   fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
   fromCollection (Value (Collection [])) = return MNil
-  fromCollection (Value (Collection vals)) = do
-    refs <- mapM (newEvalutedThunk . Value) vals
-    return $ foldr (flip $ flip MCons . return) MNil refs
+  fromCollection (Value (Collection vals)) =
+    fromList <$> mapM (newEvalutedThunk . Value) vals
   fromCollection coll@(Intermediate (ICollection _)) =
     newEvalutedThunk coll >>= fromCollection'
    where
@@ -242,13 +279,13 @@ primitivePatPatternMatch env (PPValuePat name) pattern = do
     Value (Pattern (ValuePat expr)) -> do
       ref <- lift $ newThunk env expr
       return ([], [((name, []), ref)])
-    _ -> fail "primitive pattern pattern match"
+    _ -> matchFail
 primitivePatPatternMatch env (PPInductivePat name patterns) pattern = do
   pattern <- lift $ evalExpr env pattern
   case pattern of
     Value (Pattern (InductivePattern name' exprs)) | name == name' ->
       (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
-    _ -> fail "primitive pattern pattern match"
+    _ -> matchFail
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _ = return []
@@ -256,13 +293,15 @@ primitiveDataPatternMatch (PDPatVar name) ref = return [((name, []), ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = undefined
 primitiveDataPatternMatch PDEmptyPat ref = do
   isEmpty <- lift $ isEmptyCollection ref
-  if isEmpty then return [] else fail "primitive data pattern match"
+  if isEmpty then return [] else matchFail
 primitiveDataPatternMatch (PDConsPat pattern pattern') ref = do
   (head, tail) <- unconsCollection ref
   (++) <$> primitiveDataPatternMatch pattern head
        <*> primitiveDataPatternMatch pattern' tail
 primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = undefined
-primitiveDataPatternMatch (PDConstantPat expr) val = undefined
+primitiveDataPatternMatch (PDConstantPat expr) ref = undefined
+--  isEqual <- (==) <$> evalExpr' nullEnv expr <*> evalRef' ref
+--  if isEqual then return [] else matchFail
 
 fromCollection :: WHNFData -> EgisonM [Inner]
 fromCollection (Value (Collection [])) = return []
@@ -298,4 +337,4 @@ unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
     let coll = Intermediate (ICollection (inners' ++ inners))
     lift $ writeThunk ref coll
     unconsCollection' coll
-  unconsCollection' _ = fail "primitive cons pattern"
+  unconsCollection' _ = matchFail

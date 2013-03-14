@@ -89,7 +89,7 @@ parseIndexNums = (char '_' >> ((:) <$> parseExpr <*> parseIndexNums))
               <|> pure []
 
 parseInductiveExpr :: Parser EgisonExpr
-parseInductiveExpr = angles $ InductiveDataExpr <$> ident <*> exprs
+parseInductiveExpr = angles $ InductivePatternExpr <$> ident <*> exprs
  where exprs = sepEndBy parseExpr whiteSpace
 
 parseTupleExpr :: Parser EgisonExpr

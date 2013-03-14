@@ -199,6 +199,10 @@ fromPortValue :: WHNFData -> Either EgisonError Handle
 fromPortValue (Value (Port handle)) = return handle
 fromPortValue val = throwError $ TypeMismatch "port" val
 
+fromPatternValue :: WHNFData -> Either EgisonError EgisonPattern
+fromPatternValue (Value (Pattern pattern)) = return pattern
+fromPatternValue val = throwError $ TypeMismatch "pattern" val
+
 fromMatcherValue :: WHNFData -> Either EgisonError Matcher
 fromMatcherValue (Value (Matcher matcher)) = return matcher
 fromMatcherValue val = throwError $ TypeMismatch "matcher" val
@@ -234,8 +238,10 @@ makeBindings _ _ = throwError $ strMsg "invalid bindings"
 data MatchingState = MState Env [Binding] [MatchingTree]
 
 data MatchingTree =
-    MAtom EgisonExpr Object Object
-  | MNode [(Var, EgisonExpr)] Env [Binding] [MatchingTree]
+    MAtom EgisonExpr ObjectRef WHNFData
+  | MNode [PatternBinding] Env [Binding] [MatchingTree]
+
+type PatternBinding = (Var, EgisonExpr)
 
 --
 -- Errors
@@ -276,8 +282,31 @@ newtype EgisonM a = EgisonM {
 
 type MatchM = MaybeT EgisonM
 
+matchFail :: MatchM a
+matchFail = MaybeT $ return Nothing
+
 data MList m a = MNil | MCons a (m (MList m a))  
 
+fromList :: Monad m => [a] -> MList m a
+fromList = foldr f MNil
+ where f x xs = MCons x $ return xs
+
+msingleton :: Monad m => a -> MList m a
+msingleton = flip MCons $ return MNil 
+
+mfoldr :: Monad m => (a -> m b -> m b) -> m b -> MList m a -> m b
+mfoldr f init MNil = init
+mfoldr f init (MCons x xs) = f x (xs >>= mfoldr f init)
+
+mappend :: Monad m => MList m a -> m (MList m a) -> m (MList m a)
+mappend xs ys = mfoldr ((return .) . MCons) ys xs
+
+mconcat :: Monad m => MList m (MList m a) -> m (MList m a)
+mconcat = mfoldr mappend $ return MNil
+
 mmap :: Monad m => (a -> m b) -> MList m a -> m (MList m b)
-mmap f MNil = return MNil
-mmap f (MCons a m) = f a >>= return . flip MCons (m >>= mmap f)
+mmap f = mfoldr g $ return MNil
+ where g x xs = f x >>= return . flip MCons xs
+
+mfor :: Monad m => MList m a -> (a -> m b) -> m (MList m b)
+mfor = flip mmap
