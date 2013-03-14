@@ -200,9 +200,9 @@ patternMatch env pattern target matcher = do
 
 processMStates :: MList EgisonM MatchingState -> EgisonM (MList EgisonM [Binding])
 processMStates MNil = return MNil
-processMStates (MCons (MState env bindings []) states) = 
+processMStates (MCons (MState _ bindings []) states) =
   return $ MCons bindings (states >>= processMStates)
-processMStates (MCons state states) = 
+processMStates (MCons state states) =
   processMState state >>= flip mappend states >>= processMStates
 
 processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
@@ -213,14 +213,14 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   case matcher of
     Value Something -> 
       case pattern' of
-        WildCard -> return MNil
+        WildCard -> return $ msingleton $ MState env bindings trees 
         PatVar name nums -> do
           var <- (,) name <$> mapM (evalExpr env' >=> liftError . fromIntegerValue) nums
           processMState $ MState env ((var, target):bindings) trees
         _ -> throwError $ strMsg "something can only match with a pattern variable"
     Value (Matcher matcher) ->
       case pattern' of
-        WildCard -> return MNil
+        WildCard -> return $ msingleton $ MState env bindings trees 
         _ -> do
           (patterns, targetss, matchers) <- inductiveMatch env pattern target matcher
           mfor targetss $ \ref -> do
