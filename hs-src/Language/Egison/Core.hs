@@ -222,24 +222,29 @@ processMState state@(MState env bindings []) = return $ msingleton state
 processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env bindings
   pattern' <- evalExpr env' pattern >>= liftError . fromPatternValue
-  case matcher of
-    Value Something -> 
-      case pattern' of
-        WildCard -> return $ msingleton $ MState env bindings trees 
-        PatVar name nums -> do
-          var <- (,) name <$> mapM (evalExpr env' >=> liftError . fromIntegerValue) nums
-          processMState $ MState env ((var, target):bindings) trees
-        _ -> throwError $ strMsg "something can only match with a pattern variable"
-    Value (Matcher matcher) ->
-      case pattern' of
-        WildCard -> return $ msingleton $ MState env bindings trees 
-        _ -> do
-          (patterns, targetss, matchers) <- inductiveMatch env pattern target matcher
+  case pattern' of
+    WildCard -> return $ msingleton $ MState env bindings trees 
+    AndPat patterns ->
+      let trees' = map (\pattern -> MAtom pattern target matcher) patterns ++ trees
+      in return $ msingleton $ MState env bindings trees'
+    OrPat patterns ->
+      return $ fromList $ flip map patterns $ \pattern ->
+        MState env bindings (MAtom pattern target matcher : trees)
+    _ ->
+      case matcher of
+        Value Something -> 
+          case pattern' of
+            PatVar name nums -> do
+              var <- (,) name <$> mapM (evalExpr env' >=> liftError . fromIntegerValue) nums
+              processMState $ MState env ((var, target):bindings) trees
+            _ -> throwError $ strMsg "something can only match with a pattern variable"
+        Value (Matcher matcher) -> do
+          (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTuple
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env bindings trees'
-    _ -> throwError $ TypeMismatch "matcher" matcher
+        _ -> throwError $ TypeMismatch "matcher" matcher
 processMState _ = throwError $ NotImplemented "MNode"
 
 inductiveMatch :: Env -> EgisonExpr -> ObjectRef -> Matcher ->
