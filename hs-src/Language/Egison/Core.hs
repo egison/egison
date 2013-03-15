@@ -300,7 +300,10 @@ primitiveDataPatternMatch (PDConsPat pattern pattern') ref = do
   (head, tail) <- unconsCollection ref
   (++) <$> primitiveDataPatternMatch pattern head
        <*> primitiveDataPatternMatch pattern' tail
-primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = undefined
+primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
+  (init, last) <- unsnocCollection ref
+  (++) <$> primitiveDataPatternMatch pattern init
+       <*> primitiveDataPatternMatch pattern' last
 primitiveDataPatternMatch (PDConstantPat expr) ref = undefined
 --  isEqual <- (==) <$> evalExpr' nullEnv expr <*> evalRef' ref
 --  if isEqual then return [] else matchFail
@@ -339,3 +342,21 @@ unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
     lift $ writeThunk ref coll
     unconsCollection' coll
   unconsCollection' _ = matchFail
+  
+unsnocCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
+unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
+  where
+    unsnocCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
+    unsnocCollection' (Value (Collection [])) = matchFail
+    unsnocCollection' (Value (Collection vals)) =
+      lift $ (,) <$> newEvalutedThunk (Value . Collection $ init vals)
+                 <*> newEvalutedThunk (Value $ last vals)
+    unsnocCollection' (Intermediate (ICollection [])) = matchFail
+    unsnocCollection' (Intermediate (ICollection vals)) =
+      case last vals of
+        IElement ref -> lift $ (,) <$> newEvalutedThunk (Intermediate . ICollection $ init vals) <*> pure ref
+        ISubCollection ref -> do
+          inners' <- lift $ evalRef ref >>= expandCollection
+          let coll = Intermediate (ICollection (init vals ++ inners'))
+          lift $ writeThunk ref coll
+          unsnocCollection' coll
