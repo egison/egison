@@ -221,16 +221,24 @@ processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState state@(MState env bindings []) = return $ msingleton state 
 processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env bindings
-  pattern' <- evalExpr env' pattern >>= liftError . fromPatternValue
-  case pattern' of
-    WildCard -> return $ msingleton $ MState env bindings trees 
-    AndPat patterns ->
+  pattern <- evalPattern env pattern
+  case pattern of
+    VarExpr _ _ -> throwError $ strMsg "cannot use variable in pattern"
+    ApplyExpr func (TupleExpr args) -> do
+      func <- evalExpr env' func
+      case func of
+        Value (Func env names expr) -> do
+          penv <- zip (map (flip (,) []) names) <$> mapM (evalPattern env') args
+          return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
+        _ -> throwError $ TypeMismatch "pattern constructor" func
+    PatternExpr WildCard -> return $ msingleton $ MState env bindings trees 
+    PatternExpr (AndPat patterns) ->
       let trees' = map (\pattern -> MAtom pattern target matcher) patterns ++ trees
       in return $ msingleton $ MState env bindings trees'
-    OrPat patterns ->
+    PatternExpr (OrPat patterns) ->
       return $ fromList $ flip map patterns $ \pattern ->
         MState env bindings (MAtom pattern target matcher : trees)
-    _ ->
+    PatternExpr pattern' ->
       case matcher of
         Value Something -> 
           case pattern' of
@@ -245,7 +253,21 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env bindings trees'
         _ -> throwError $ TypeMismatch "matcher" matcher
-processMState _ = throwError $ NotImplemented "MNode"
+processMState (MState env bindings ((MNode penv (MState _ _ [])):trees)) =
+  return $ msingleton $ MState env bindings trees
+processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tree:trees')):trees))) = do
+  case tree of
+    MAtom pattern target matcher -> do
+      pattern <- evalPattern env' pattern
+      case pattern of
+        VarExpr name nums -> do
+          var <- (,) name <$> mapM (evalExpr env' >=> liftError . fromIntegerValue) nums
+          case lookup var penv of
+            Just pattern -> do
+              return $ msingleton $ MState env bindings (MAtom pattern target matcher:MNode penv (MState env' bindings' trees'):trees)
+            Nothing -> throwError $ UnboundVariable var
+        _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
+    _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
 
 inductiveMatch :: Env -> EgisonExpr -> ObjectRef -> Matcher ->
                   EgisonM ([EgisonExpr], MList EgisonM ObjectRef, [WHNFData])
@@ -360,3 +382,14 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
           let coll = Intermediate (ICollection (init vals ++ inners'))
           lift $ writeThunk ref coll
           unsnocCollection' coll
+
+evalPattern :: Env -> EgisonExpr -> EgisonM EgisonExpr
+evalPattern _ expr@(PatternExpr _) = return expr
+evalPattern _ expr@(VarExpr _ _) = return expr
+evalPattern _ expr@(ApplyExpr _ _) = return expr
+evalPattern env (IfExpr test expr expr') = do
+  test <- evalExpr env test >>= liftError . fromBoolValue
+  evalPattern env $ if test then expr else expr'  
+evalPattern env (LetExpr _ _) = undefined
+evalPattern env (LetRecExpr _ _) = undefined
+evalPattern _ _ = throwError $ strMsg "pattern expression required"

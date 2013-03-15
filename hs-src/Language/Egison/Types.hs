@@ -232,7 +232,7 @@ data MatchingState = MState Env [Binding] [MatchingTree]
 
 data MatchingTree =
     MAtom EgisonExpr ObjectRef WHNFData
-  | MNode [PatternBinding] Env [Binding] [MatchingTree]
+  | MNode [PatternBinding] MatchingState
 
 type PatternBinding = (Var, EgisonExpr)
 
