@@ -218,11 +218,11 @@
         {[{} {[]}]
          [_ {}]}]
        [<cons ,$px $> [(multiset a)]
-        {[$tgt (match tgt (list something)
+        {[$tgt (match tgt (list a)
                  {[<join $hs <cons ,px $ts>> {{@hs @ts}}]
                   [_ {}]})]}]
        [<cons $ $> [a (multiset a)]
-        {[$tgt (match-all tgt (list something)
+        {[$tgt (match-all tgt (list a)
                  [<join $hs <cons $x $ts>> [x {@hs @ts}]])]}]
        [<join ,$pxs $> [(multiset a)]
         {[$tgt undefined]}]
@@ -238,7 +238,7 @@
         {[{} {[]}]
          [_ {}]}]
        [<cons ,$px $> [(set a)]
-        {[$tgt (match tgt (list something)
+        {[$tgt (match tgt (list a)
                  {[<join _ <cons ,px _>> {tgt}]
                   [_ {}]})]}]
        [<cons $ $> [a (set a)]

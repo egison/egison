@@ -8,7 +8,7 @@
       {[$tgt (if (eq? val tgt)
                  {[]}
                  {})]}]
-     [_ [something]
+     [$ [something]
       {[$tgt {tgt}]}]
      }))
 
