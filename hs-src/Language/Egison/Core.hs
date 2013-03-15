@@ -230,6 +230,13 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
     OrPat patterns ->
       return $ fromList $ flip map patterns $ \pattern ->
         MState env bindings (MAtom pattern target matcher : trees)
+    NotPat pattern -> do 
+      results <- processMState (MState env bindings [MAtom pattern target matcher])
+      case results of
+        MNil -> return $ msingleton $ MState env bindings trees
+        _    -> return $ MNil
+    CutPat pattern -> undefined
+    PredPat pattern -> undefined
     _ ->
       case matcher of
         Value Something -> 
