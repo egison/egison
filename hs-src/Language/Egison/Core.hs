@@ -256,7 +256,7 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
           case pattern' of
             PatVar name nums -> do
               var <- (,) name <$> mapM (evalExpr env' >=> liftError . fromIntegerValue) nums
-              processMState $ MState env ((var, target):bindings) trees
+              return $ msingleton $ MState env ((var, target):bindings) trees
             _ -> throwError $ strMsg "something can only match with a pattern variable"
         Value (Matcher matcher) -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
