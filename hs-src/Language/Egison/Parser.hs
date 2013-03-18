@@ -400,13 +400,13 @@ ident :: Parser String
 ident = P.identifier lexer
 
 upperName :: Parser String
-upperName = (:) <$> upper <*> ident
+upperName = P.lexeme lexer $ (:) <$> upper <*> option "" ident
  where
   upper :: Parser Char 
   upper = satisfy isUpper
 
 lowerName :: Parser String
-lowerName = (:) <$> lower <*> ident
+lowerName = P.lexeme lexer $ (:) <$> lower <*> option "" ident
  where
   lower :: Parser Char 
   lower = satisfy isLower
