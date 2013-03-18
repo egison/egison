@@ -164,7 +164,7 @@ parseIfExpr :: Parser EgisonExpr
 parseIfExpr = keywordIf >> IfExpr <$> parseExpr <*> parseExpr <*> parseExpr
 
 parseLambdaExpr :: Parser EgisonExpr
-parseLambdaExpr = keywordLambda >> LambdaExpr <$> parseVarNames <*> parseExpr
+parseLambdaExpr = (keywordLambda <|> keywordPatternConstructor) >> LambdaExpr <$> parseVarNames <*> parseExpr
 
 parseLetRecExpr :: Parser EgisonExpr
 parseLetRecExpr =  keywordLetRec >> LetRecExpr <$> parseBindings' <*> parseExpr
@@ -338,24 +338,25 @@ reserved = P.reserved lexer
 reservedOp :: String -> Parser ()
 reservedOp = P.reservedOp lexer
 
-keywordDefine     = reserved "define"
-keywordTest       = reserved "test"
-keywordExecute    = reserved "execute"
-keywordLoadFile   = reserved "load-file"
-keywordLoad       = reserved "load"
-keywordIf         = reserved "if"
-keywordThen       = reserved "then"
-keywordElse       = reserved "else"
-keywordLambda     = reserved "lambda"
-keywordLetRec     = reserved "letrec"
-keywordLet        = reserved "let"
-keywordMatchAll   = reserved "match-all"
-keywordMatch      = reserved "match"
-keywordMatcher    = reserved "matcher"
-keywordDo         = reserved "do"
-keywordFunction   = reserved "function"
-keywordSomething  = reserved "something"
-keywordUndefined  = reserved "undefined"
+keywordDefine             = reserved "define"
+keywordTest               = reserved "test"
+keywordExecute            = reserved "execute"
+keywordLoadFile           = reserved "load-file"
+keywordLoad               = reserved "load"
+keywordIf                 = reserved "if"
+keywordThen               = reserved "then"
+keywordElse               = reserved "else"
+keywordLambda             = reserved "lambda"
+keywordPatternConstructor = reserved "pattern-constructor"
+keywordLetRec             = reserved "letrec"
+keywordLet                = reserved "let"
+keywordMatchAll           = reserved "match-all"
+keywordMatch              = reserved "match"
+keywordMatcher            = reserved "matcher"
+keywordDo                 = reserved "do"
+keywordFunction           = reserved "function"
+keywordSomething          = reserved "something"
+keywordUndefined          = reserved "undefined"
 
 integerLiteral :: Parser Integer
 integerLiteral = P.integer lexer
