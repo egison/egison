@@ -10,7 +10,7 @@ Description:         An interpreter for the programming language Egison.
 Homepage:            http://egison.pira.jp
 License:             MIT
 License-file:        LICENSE
-Author:              Satoshi Egi
+Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe
 Maintainer:          egisatoshi@gmail.com
 Category:            Compilers/Interpreters
 Build-type:          Simple
