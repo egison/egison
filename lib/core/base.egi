@@ -41,7 +41,7 @@
      }))
 
 (define $string
-  (type
+  (matcher
     {[,$s []
       {[$tgt (if (eq? tgt s)
                  {[]}
@@ -51,21 +51,21 @@
      }))
 
 (define $ordering
-  (type
+  (matcher
     {[,$val []
       {[$tgt (if (eq? val tgt)
                  {[]}
                  {})]}]
      [<less> []
-      {[<less> {[]}]
+      {[<Less> {[]}]
        [_ {}]}]
      [<equal> []
-      {[<equal> {[]}]
+      {[<Equal> {[]}]
        [_ {}]}]
      [<greater> []
-      {[<greater> {[]}]
+      {[<Greater> {[]}]
        [_ {}]}]
-     [_ [Something]
+     [_ [something]
       {[$tgt {tgt}]}]
      }))
 
