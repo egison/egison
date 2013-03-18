@@ -9,7 +9,14 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 
+import Text.Parsec
+import Text.Parsec.ByteString.Lazy
+
+import System.Directory (doesFileExist)
+
 import Language.Egison.Types
+import Language.Egison.Parser
+import Paths_egison
 
 --
 -- Evaluator
@@ -36,6 +43,21 @@ evalTopExpr env (Execute argv) = do
   world <- newEvalutedThunk $ Value World
   applyFunc main [argv] >>= flip applyFunc [world]
   return env
+evalTopExpr env (Load file) =
+  liftIO (getDataFileName file) >>= loadFile >>= foldM evalTopExpr env
+evalTopExpr env (LoadFile file) =
+  loadFile file >>= foldM evalTopExpr env
+
+loadFile :: FilePath -> EgisonM [EgisonTopExpr]
+loadFile file = do
+  doesExist <- liftIO $ doesFileExist file
+  unless doesExist $ throwError $ strMsg ("file does not exist: " ++ file) 
+  exprs <- liftIO (parseFromFile parseTopExprs file) >>= either (throwError . Parser) return
+  concat <$> mapM recursiveLoad exprs
+ where
+  recursiveLoad (Load file) = loadFile file
+  recursiveLoad (LoadFile file) = liftIO (getDataFileName file) >>= loadFile
+  recursiveLoad expr = return [expr]
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
