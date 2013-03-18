@@ -248,7 +248,7 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
       result <- let placeholder = (("$", []), target)
                 in evalExpr (extendEnv env [placeholder]) (ApplyExpr pattern (VarExpr "$" [])) 
                    >>= liftError . fromBoolValue
-      if result then processMState (MState env bindings trees)
+      if result then return $ msingleton $ (MState env bindings trees)
                 else return MNil
     PatternExpr pattern' ->
       case matcher of
