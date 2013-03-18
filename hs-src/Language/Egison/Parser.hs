@@ -98,22 +98,10 @@ parseIndexNums = ((:) <$> try (prefix >> parseExpr) <*> parseIndexNums)
     isConsumed p = (/=) <$> getPosition <*> (p >> getPosition)
 
 parseInductiveDataExpr :: Parser EgisonExpr
-parseInductiveDataExpr = angles $ InductiveDataExpr <$> name <*> sepEndBy parseExpr whiteSpace
-  where
-    name :: Parser String
-    name = (:) <$> upper <*> ident
-    
-    upper :: Parser Char 
-    upper = satisfy isUpper
+parseInductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy parseExpr whiteSpace
 
 parseInductivePatternExpr :: Parser EgisonExpr
-parseInductivePatternExpr = angles $ (PatternExpr .) . InductivePattern <$> name <*> sepEndBy parseExpr whiteSpace
-  where
-    name :: Parser String
-    name = (:) <$> lower <*> ident
-    
-    lower :: Parser Char 
-    lower = satisfy isLower
+parseInductivePatternExpr = angles $ (PatternExpr .) . InductivePattern <$> lowerName <*> sepEndBy parseExpr whiteSpace
 
 parseTupleExpr :: Parser EgisonExpr
 parseTupleExpr = brackets $ TupleExpr <$> sepEndBy parseExpr whiteSpace
@@ -159,7 +147,7 @@ parsePPPattern :: Parser PrimitivePatPattern
 parsePPPattern = reservedOp "_" *> pure PPWildCard
                        <|> reservedOp "$" *> pure PPPatVar
                        <|> (string ",$" >> PPValuePat <$> ident)
-                       <|> angles (PPInductivePat <$> ident <*> sepEndBy parsePPPattern whiteSpace)
+                       <|> angles (PPInductivePat <$> lowerName <*> sepEndBy parsePPPattern whiteSpace)
                        <?> "primitive-pattren-pattern"
 
 parsePDPattern :: Parser PrimitiveDataPattern
@@ -168,7 +156,7 @@ parsePDPattern = reservedOp "_" *> pure PDWildCard
                     <|> braces ((PDConsPat <$> parsePDPattern <*> (char '@' *> parsePDPattern))
                             <|> (PDSnocPat <$> (char '@' *> parsePDPattern) <*> parsePDPattern) 
                             <|> pure PDEmptyPat)
-                    <|> angles (PDInductivePat <$> ident <*> sepEndBy parsePDPattern whiteSpace)
+                    <|> angles (PDInductivePat <$> upperName <*> sepEndBy parsePDPattern whiteSpace)
                     <|> PDConstantPat <$> parseConstantExpr
                     <?> "primitive-data-pattern"
 
@@ -411,3 +399,14 @@ dot = P.dot lexer
 ident :: Parser String
 ident = P.identifier lexer
 
+upperName :: Parser String
+upperName = (:) <$> upper <*> ident
+ where
+  upper :: Parser Char 
+  upper = satisfy isUpper
+
+lowerName :: Parser String
+lowerName = (:) <$> lower <*> ident
+ where
+  lower :: Parser Char 
+  lower = satisfy isLower

@@ -32,8 +32,8 @@ evalTopExpr env (Test expr) = do
   return env
 evalTopExpr env (Execute argv) = do
   main <- refVar env ("main", []) >>= evalRef
-  argv <- newEvalutedThunk . Value . Collection $ map String argv
-  world <- newEvalutedThunk $ Value World
+  argv <- newEvaluatedThunk . Value . Collection $ map String argv
+  world <- newEvaluatedThunk $ Value World
   applyFunc main [argv] >>= flip applyFunc [world]
   return env
 
@@ -90,7 +90,7 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
   fromMList MNil = return . Value $ Collection []
   fromMList (MCons val m) = do
-    head <- IElement <$> newEvalutedThunk val
+    head <- IElement <$> newEvaluatedThunk val
     tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
     return . Intermediate $ ICollection [head, tail]
 
@@ -168,8 +168,8 @@ newThunk env expr = liftIO . newIORef . Thunk $ evalExpr env expr
 writeThunk :: ObjectRef -> WHNFData -> EgisonM ()
 writeThunk ref val = liftIO . writeIORef ref $ WHNF val
 
-newEvalutedThunk :: WHNFData -> EgisonM ObjectRef
-newEvalutedThunk = liftIO . newIORef . WHNF
+newEvaluatedThunk :: WHNFData -> EgisonM ObjectRef
+newEvaluatedThunk = liftIO . newIORef . WHNF
 
 recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
@@ -181,15 +181,15 @@ recursiveBind env bindings = do
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
-fromTuple (Value (Tuple vals)) = mapM (newEvalutedThunk . Value) vals
-fromTuple val = return <$> newEvalutedThunk val
+fromTuple (Value (Tuple vals)) = mapM (newEvaluatedThunk . Value) vals
+fromTuple val = return <$> newEvaluatedThunk val
 
 fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
 fromCollection (Value (Collection [])) = return MNil
 fromCollection (Value (Collection vals)) =
-  fromList <$> mapM (newEvalutedThunk . Value) vals
+  fromList <$> mapM (newEvaluatedThunk . Value) vals
 fromCollection coll@(Intermediate (ICollection _)) =
-  newEvalutedThunk coll >>= fromCollection'
+  newEvaluatedThunk coll >>= fromCollection'
  where
   fromCollection' ref = do
     isEmpty <- isEmptyCollection ref
@@ -324,7 +324,15 @@ primitivePatPatternMatch env (PPInductivePat name patterns) pattern = do
 primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _ = return []
 primitiveDataPatternMatch (PDPatVar name) ref = return [((name, []), ref)]
-primitiveDataPatternMatch (PDInductivePat name patterns) ref = undefined
+primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
+  val <- lift $ evalRef ref
+  case val of
+    Intermediate (IInductiveData name' refs) | name == name' ->
+      concat <$> zipWithM primitiveDataPatternMatch patterns refs
+    Value (InductiveData name' vals) | name == name' -> do
+      refs <- lift $ mapM (newEvaluatedThunk . Value) vals
+      concat <$> zipWithM primitiveDataPatternMatch patterns refs
+    _ -> matchFail
 primitiveDataPatternMatch PDEmptyPat ref = do
   isEmpty <- lift $ isEmptyCollection ref
   if isEmpty then return [] else matchFail
@@ -342,7 +350,7 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = undefined
 
 expandCollection :: WHNFData -> EgisonM [Inner]
 expandCollection (Value (Collection vals)) =
-  mapM (liftM IElement . newEvalutedThunk . Value) vals
+  mapM (liftM IElement . newEvaluatedThunk . Value) vals
 expandCollection (Intermediate (ICollection inners)) = return inners
 expandCollection val = throwError $ TypeMismatch "collection" val
 
@@ -364,10 +372,10 @@ unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
  where
   unconsCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
   unconsCollection' (Value (Collection (val:vals))) =
-    lift $ (,) <$> newEvalutedThunk (Value val)
-               <*> newEvalutedThunk (Value $ Collection vals)
+    lift $ (,) <$> newEvaluatedThunk (Value val)
+               <*> newEvaluatedThunk (Value $ Collection vals)
   unconsCollection' (Intermediate (ICollection ((IElement ref):inners))) =
-    lift $ (,) ref <$> newEvalutedThunk (Intermediate $ ICollection inners)
+    lift $ (,) ref <$> newEvaluatedThunk (Intermediate $ ICollection inners)
   unconsCollection' (Intermediate (ICollection ((ISubCollection ref'):inners))) = do
     inners' <- lift $ evalRef ref' >>= expandCollection
     let coll = Intermediate (ICollection (inners' ++ inners))
@@ -381,12 +389,12 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
     unsnocCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
     unsnocCollection' (Value (Collection [])) = matchFail
     unsnocCollection' (Value (Collection vals)) =
-      lift $ (,) <$> newEvalutedThunk (Value . Collection $ init vals)
-                 <*> newEvalutedThunk (Value $ last vals)
+      lift $ (,) <$> newEvaluatedThunk (Value . Collection $ init vals)
+                 <*> newEvaluatedThunk (Value $ last vals)
     unsnocCollection' (Intermediate (ICollection [])) = matchFail
     unsnocCollection' (Intermediate (ICollection vals)) =
       case last vals of
-        IElement ref -> lift $ (,) <$> newEvalutedThunk (Intermediate . ICollection $ init vals) <*> pure ref
+        IElement ref -> lift $ (,) <$> newEvaluatedThunk (Intermediate . ICollection $ init vals) <*> pure ref
         ISubCollection ref -> do
           inners' <- lift $ evalRef ref >>= expandCollection
           let coll = Intermediate (ICollection (init vals ++ inners'))
