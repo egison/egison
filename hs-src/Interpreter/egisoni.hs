@@ -19,41 +19,30 @@ import Language.Egison.Primitives
 
 main :: IO ()
 main = do args <- getArgs
-          loadEgisonLibraries
+          env <- primitiveEnv >>= loadLibraries
           if null args
-            then repl
+            then repl env "> "
             else do
-              result <- loadEgisonFile (args !! 0)
-              case result of
-                Left err -> print . show $ err
-                Right _  -> return ()
+              result <- runErrorT . runEgisonM $ do
+                exprs <- loadFile (args !! 0)
+                evalTopExprs env exprs
+              either print return result
 
-
-
-
-loadEgisonLibraries :: IO ()
-loadEgisonLibraries = do
-  result <- forM libraries loadEgisonFile
-  showErrors result
+loadLibraries :: Env -> IO Env
+loadLibraries env = do
+  result <- runErrorT $ runEgisonM $ foldM evalTopExpr env (map LoadFile libraries)
+  case result of
+    Left err -> do
+      print . show $ err
+      return env
+    Right env' -> 
+      return env'
   where
     libraries :: [String]
     libraries = [ "lib/core/base.egi"
                 , "lib/core/number.egi"
                 , "lib/core/collection.egi"
                 , "lib/core/pattern.egi" ]
-    
-    showErrors :: [Either EgisonError ()] -> IO ()
-    showErrors [] = return ()
-    showErrors (e:err) = do
-      either (print . show) return $ e
-      showErrors err
-
-loadEgisonFile :: String -> IO (Either EgisonError ())
-loadEgisonFile path = 
-  runErrorT $ runEgisonM $ do
-    exprs <- loadFile path
-    env <- liftIO primitiveEnv
-    evalTopExprs env exprs
 
 runParser' :: Parser a -> String -> Either EgisonError a
 runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
@@ -68,18 +57,8 @@ runEgisonTopExprs env input = runErrorT . runEgisonM $ do
   expr <- liftError $ runParser' parseTopExprs input
   evalTopExprs env expr
 
-getInputLine' :: MonadException m => String -> InputT m (Maybe String)
-getInputLine' s = do
-  input <- getInputLine s
-  cont <- getInputLine' ".."
-  return $ (++) <$> input <*> cont
-      
- 
-repl :: IO ()
-repl = primitiveEnv >>= flip repl' "> "
-
-repl' :: Env -> String -> IO ()
-repl' env prompt = loop env prompt ""
+repl :: Env -> String -> IO ()
+repl env prompt = loop env prompt ""
   where
     loop :: Env -> String -> String -> IO ()
     loop env prompt' rest = do
@@ -96,8 +75,8 @@ repl' env prompt = loop env prompt ""
             Left err -> do
               liftIO $ putStrLn $ show err
               loop env prompt ""
-            Right _ ->
-              loop env prompt ""
+            Right env' ->
+              loop env' prompt ""
         
      
     
