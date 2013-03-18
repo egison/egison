@@ -218,7 +218,7 @@ processMStates (MCons state states) =
   processMState state >>= flip mappend states >>= processMStates
 
 processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
-processMState state@(MState env bindings []) = return $ msingleton state 
+processMState state@(MState env bindings []) = throwError $ strMsg "should not reach here"
 processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env bindings
   pattern <- evalPattern env pattern
@@ -244,10 +244,8 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
         MNil -> return $ msingleton $ MState env bindings trees
         _    -> return $ MNil
     PatternExpr (CutPat pattern) -> undefined
-    PatternExpr (PredPat pattern) -> do
-      result <- let placeholder = (("$", []), target)
-                in evalExpr (extendEnv env [placeholder]) (ApplyExpr pattern (VarExpr "$" [])) 
-                   >>= liftError . fromBoolValue
+    PatternExpr (PredPat pred) -> do
+      result <- evalExpr env' pred >>= flip applyFunc [target] >>= liftError . fromBoolValue
       if result then return $ msingleton $ (MState env bindings trees)
                 else return MNil
     PatternExpr pattern' ->
