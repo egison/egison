@@ -19,15 +19,41 @@ import Language.Egison.Primitives
 
 main :: IO ()
 main = do args <- getArgs
+          loadEgisonLibraries
           if null args
             then repl
             else do
-              result <- runErrorT . runEgisonM $ do
-                exprs <- loadFile (args !! 0)
-                env <- liftIO primitiveEnv
-                evalTopExprs env exprs
-              either print return result
+              result <- loadEgisonFile (args !! 0)
+              case result of
+                Left err -> print . show $ err
+                Right _  -> return ()
 
+
+
+
+loadEgisonLibraries :: IO ()
+loadEgisonLibraries = do
+  result <- forM libraries loadEgisonFile
+  showErrors result
+  where
+    libraries :: [String]
+    libraries = [ "lib/core/base.egi"
+                , "lib/core/number.egi"
+                , "lib/core/collection.egi"
+                , "lib/core/pattern.egi" ]
+    
+    showErrors :: [Either EgisonError ()] -> IO ()
+    showErrors [] = return ()
+    showErrors (e:err) = do
+      either (print . show) return $ e
+      showErrors err
+
+loadEgisonFile :: String -> IO (Either EgisonError ())
+loadEgisonFile path = 
+  runErrorT $ runEgisonM $ do
+    exprs <- loadFile path
+    env <- liftIO primitiveEnv
+    evalTopExprs env exprs
 
 runParser' :: Parser a -> String -> Either EgisonError a
 runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
@@ -48,7 +74,7 @@ getInputLine' s = do
   cont <- getInputLine' ".."
   return $ (++) <$> input <*> cont
       
-
+ 
 repl :: IO ()
 repl = primitiveEnv >>= flip repl' "> "
 
