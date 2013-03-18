@@ -5,16 +5,16 @@
                  {[]}
                  {})]}]
      [<spade> []
-      {[<spade> {[]}]
+      {[<Spade> {[]}]
        [_ {}]}]
      [<heart> []
-      {[<heart> {[]}]
+      {[<Heart> {[]}]
        [_ {}]}]
      [<club> []
-      {[<club> {[]}]
+      {[<Club> {[]}]
        [_ {}]}]
      [<diamond> []
-      {[<diamond> {[]}]
+      {[<Diamond> {[]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {tgt}]}]
@@ -27,74 +27,74 @@
                {[[<card $s $n> <card ,s ,n>] {[]}]
                 [[_ _] {}]})]}]
      [<card $ $> [suit (mod 13)]
-      {[<card $s $n> {[s n]}]}]
+      {[<Card $s $n> {[s n]}]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))
 
 (define $poker-hands
-  (lambda [$Cs]
-    (match Cs (Multiset card)
-      {[<cons <card $S $n>
-         <cons <card ,S ,(- n 1)>
-          <cons <card ,S ,(- n 2)>
-           <cons <card ,S ,(- n 3)>
-            <cons <card ,S ,(- n 4)>
+  (lambda [$cs]
+    (match cs (multiset card)
+      {[<cons <card $s $n>
+         <cons <card ,s ,(- n 1)>
+          <cons <card ,s ,(- n 2)>
+           <cons <card ,s ,(- n 3)>
+            <cons <card ,s ,(- n 4)>
              !<nil>>>>>>
-        <straight-flush>]
+        <Straight-Flush>]
        [<cons <card _ $n>
          <cons <card _ ,n>
           !<cons <card _ ,n>
             !<cons <card _ ,n>
               !<cons _
                 !<nil>>>>>>
-        <four-of-kind>]
+        <Four-of-Kind>]
        [<cons <card _ $m>
          <cons <card _ ,m>
           <cons <card _ ,m>
            <cons <card _ $n>
             !<cons <card _ ,n>
               !<nil>>>>>>
-        <full-house>]
-       [<cons <card $S _>
-         !<cons <card ,S _>
-           !<cons <card ,S _>
-             !<cons <card ,S _>
-               !<cons <card ,S _>
+        <Full-House>]
+       [<cons <card $s _>
+         !<cons <card ,s _>
+           !<cons <card ,s _>
+             !<cons <card ,s _>
+               !<cons <card ,s _>
                  !<nil>>>>>>
-        <flush>]
+        <Flush>]
        [<cons <card _ $n>
          <cons <card _ ,(- n 1)>
           <cons <card _ ,(- n 2)>
            <cons <card _ ,(- n 3)>
             <cons <card _ ,(- n 4)>
              !<nil>>>>>>
-        <straight>]
+        <Straight>]
        [<cons <card _ $n>
          <cons <card _ ,n>
           <cons <card _ ,n>
            <cons _
             <cons _
              !<nil>>>>>>
-        <three-of-kind>]
+        <Three-of-Kind>]
        [<cons <card _ $m>
          <cons <card _ ,m>
           !<cons <card _ $n>
             <cons <card _ ,n>
              !<cons _
                !<nil>>>>>>
-        <two-pair>]
+        <Two-Pair>]
        [<cons <card _ $n>
          <cons <card _ ,n>
           <cons _
            <cons _
             <cons _
              !<nil>>>>>>
-        <one-pair>]
+        <One-Pair>]
        [<cons _
          <cons _
           <cons _
            <cons _
             <cons _
              !<nil>>>>>>
-        <nothing>]})))
+        <Nothing>]})))
