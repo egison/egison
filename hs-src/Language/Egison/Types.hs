@@ -131,13 +131,19 @@ instance Show EgisonValue where
   show (Bool b) = show b
   show (Integer i) = show i
   show (Float f) = show f
+  show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
+  show (Pattern _) = "#<pattern>"
+  show (Matcher _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
   show (PrimitiveFunc _) = "#<primitive>"
+  show (IOFunc _) = "#<io>"
+  show (Port _) = "#<port>"
   show Something = "something"
-  show _ = undefined
+  show World = "#<world>"
+  show EOF = "#<eof>"
 
 --
 -- Internal Data
