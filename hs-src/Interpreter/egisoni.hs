@@ -30,7 +30,7 @@ main = do args <- getArgs
 
 loadLibraries :: Env -> IO Env
 loadLibraries env = do
-  result <- runErrorT $ runEgisonM $ foldM evalTopExpr env (map LoadFile libraries)
+  result <- runErrorT $ runEgisonM $ foldM evalTopExpr env (map Load libraries)
   case result of
     Left err -> do
       print . show $ err
@@ -71,7 +71,7 @@ repl env prompt = loop env prompt ""
           result <- runEgisonTopExpr env newInput
           case result of
             Left err | show err =~ "unexpected end of input" -> do
-              loop env (take (length prompt) (repeat '.')) $ newInput ++ "\n"
+              loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
             Left err -> do
               liftIO $ putStrLn $ show err
               loop env prompt ""

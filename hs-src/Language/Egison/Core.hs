@@ -265,7 +265,8 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
       case results of
         MNil -> return $ msingleton $ MState env bindings trees
         _    -> return $ MNil
-    PatternExpr (CutPat pattern) -> undefined
+    PatternExpr (CutPat pattern) -> -- TEMPORARY ignoring cut patterns
+      return $ msingleton (MState env bindings ((MAtom pattern target matcher):trees))
     PatternExpr (PredPat pred) -> do
       result <- evalExpr env' pred >>= flip applyFunc [target] >>= liftError . fromBoolValue
       if result then return $ msingleton $ (MState env bindings trees)
