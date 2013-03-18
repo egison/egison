@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Control.Monad.Error
@@ -22,9 +21,11 @@ main = do args <- getArgs
           if null args
             then repl
             else do
-              input <- readFile (args !! 0)
-              env <- primitiveEnv
-              runEgisonTopExprs env input >>= either print return
+              result <- runErrorT . runEgisonM $ do
+                exprs <- loadFile (args !! 0)
+                env <- liftIO primitiveEnv
+                evalTopExprs env exprs
+              either print return result
 
 runParser' :: Parser a -> String -> Either EgisonError a
 runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
@@ -33,11 +34,6 @@ runEgisonTopExpr :: Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExpr env input = runErrorT . runEgisonM $ do 
   expr <- liftError $ runParser' parseTopExpr input
   evalTopExpr env expr
-
-runEgisonTopExprs :: Env -> String -> IO (Either EgisonError ())
-runEgisonTopExprs env input = runErrorT . runEgisonM $ do 
-  expr <- liftError $ runParser' parseTopExprs input
-  evalTopExprs env expr
 
 repl :: IO ()
 repl = primitiveEnv >>= repl'
