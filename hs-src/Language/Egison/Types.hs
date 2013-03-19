@@ -43,7 +43,7 @@ data EgisonExpr =
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetExpr [BindingExpr] EgisonExpr
-  | LetRecExpr [(String, EgisonExpr)] EgisonExpr
+  | LetRecExpr [BindingExpr] EgisonExpr
 
   | LoopExpr String String EgisonExpr EgisonExpr EgisonExpr
     

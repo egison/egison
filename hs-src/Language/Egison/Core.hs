@@ -3,13 +3,13 @@ module Language.Egison.Core where
 import Control.Arrow
 import Control.Applicative
 import Control.Monad.Error
+import Control.Monad.State
 import Control.Monad.Trans.Maybe
 
 import Data.IORef
 import Data.List
 import Data.Maybe
 
-import Text.Parsec
 import Text.Parsec.ByteString.Lazy
 
 import System.Directory (doesFileExist)
@@ -102,7 +102,26 @@ evalExpr env (LetExpr bindings expr) =
     evalExpr env expr >>= fromTuple >>= makeBindings names
 
 evalExpr env (LetRecExpr bindings expr) =
-  recursiveBind env bindings >>= flip evalExpr expr
+  let bindings' = evalState (concat <$> mapM extractBindings bindings) 0
+  in recursiveBind env bindings' >>= flip evalExpr expr 
+ where
+  extractBindings :: BindingExpr -> State Int [(String, EgisonExpr)]
+  extractBindings ([name], expr) = return [(name, expr)]
+  extractBindings (names, expr) = do
+    var <- genVar
+    let k = length names
+        target = VarExpr var []
+        matcher = TupleExpr $ replicate k SomethingExpr
+        nth n =
+          let pattern = TupleExpr $ flip map [1..k] $ \i ->
+                if i == n
+                  then PatternExpr $ PatVar "#_" []
+                  else PatternExpr WildCard
+          in MatchExpr target matcher [(pattern, VarExpr "#_" [])]
+    return ((var, expr) : map (second nth) (zip names [1..]))
+
+  genVar :: State Int String
+  genVar = modify (1+) >> gets (('#':) . show)
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
