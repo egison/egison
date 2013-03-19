@@ -65,6 +65,7 @@
     {[,$val []
       {[$tgt (match [val tgt] [hai hai]
                {[[<num $s $n> <num ,s ,n>] {[]}]
+                [[<ji $h> <ji ,h>] {[]}]
                 [[_ _] {}]})]}]
      [<num $ $> [suit integer]
       {[<Num $s $n> {[s n]}]
