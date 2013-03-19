@@ -70,7 +70,7 @@ mul = twoArgs $ \val val' ->
 eq :: PrimitiveFunc
 eq = twoArgs $ \val val' ->
   (Bool .) . (==) <$> fromPrimitiveValue val
-                  <*> fromPrimitiveValue val
+                  <*> fromPrimitiveValue val'
 
 --
 -- IO Primitives
