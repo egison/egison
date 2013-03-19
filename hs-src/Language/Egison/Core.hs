@@ -331,8 +331,8 @@ inductiveMatch env pattern target (matcherEnv, clauses) = do
               evalExpr env expr >>= fromCollection
             _ -> cont
       _ -> cont
-  failPPPatternMatch = throwError $ strMsg "failed primitive data pattern match"
-  failPDPatternMatch = throwError $ strMsg "failed primitive pattern pattern match"
+  failPPPatternMatch = throwError $ strMsg "failed primitive pattern pattern match"
+  failPDPatternMatch = throwError $ strMsg "failed primitive data pattern match"
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> EgisonExpr ->
                             MatchM ([EgisonExpr], [Binding])
