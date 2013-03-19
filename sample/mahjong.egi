@@ -23,6 +23,8 @@
       {[$tgt {tgt}]}]
      }))
 
+(test 1)
+
 (define $honor
   (matcher
     {[,$val []
@@ -60,6 +62,8 @@
       {[$tgt {tgt}]}]
      }))
 
+(test 2)
+
 (define $hai
   (matcher
     {[,$val []
@@ -74,26 +78,31 @@
       {[$tgt {tgt}]}]
      }))
 
+(test 3)
+
 (define $shuntsu
   (pattern-constructor [$pat1 $pat2]
     <cons (& <num $s $n> pat1)
      <cons <num ,s ,(+ n 1)>
       <cons <num ,s ,(+ n 2)>
        pat2>>>))
- 
+(test 4)
+
 (define $kohtsu
   (pattern-constructor [$pat1 $pat2]
     <cons (& $pat pat1)
      <cons ,pat
       <cons ,pat
        pat2>>>))
- 
+(test 5)
+
 (define $twin
   (pattern-constructor [$pat1 $pat2]
     <cons (& $pat pat1)
      <cons ,pat
       pat2>>))
- 
+(test 6)
+
 (define $agari?
   (function (multiset hai)
     {[(twin $th_1 (| (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (shuntsu $sh_4 <nil>))))
