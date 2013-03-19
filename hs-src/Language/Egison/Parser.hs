@@ -316,6 +316,7 @@ reservedKeywords =
   , "then"
   , "else" 
   , "lambda"
+  , "pattern-constructor"
   , "letrec"
   , "let"
   , "loop"

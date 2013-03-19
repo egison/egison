@@ -125,6 +125,9 @@ evalExpr env (MatchExpr target matcher clauses) = do
           MNil -> cont
   foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
 
+evalExpr env (FunctionExpr matcher clauses) =
+  return . Value $ Func env ["#_"] (MatchExpr (VarExpr "#_" []) matcher clauses)
+
 evalExpr env (ApplyExpr func args) = do
   func <- evalExpr env func
   args <- evalExpr env args >>= fromTuple 
@@ -253,6 +256,11 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
           penv <- zip (map (flip (,) []) names) <$> mapM (evalPattern env') args
           return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
+    TupleExpr patterns -> do
+      matchers <- fromTuple matcher >>= mapM evalRef
+      targets <- evalRef target >>= fromTuple
+      let trees' = zipWith3 MAtom patterns targets matchers ++ trees
+      return $ msingleton $ MState env bindings trees'
     PatternExpr WildCard -> return $ msingleton $ MState env bindings trees 
     PatternExpr (AndPat patterns) ->
       let trees' = map (\pattern -> MAtom pattern target matcher) patterns ++ trees
@@ -426,6 +434,7 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
           unsnocCollection' coll
 
 evalPattern :: Env -> EgisonExpr -> EgisonM EgisonExpr
+evalPattern _ expr@(TupleExpr _) = return expr
 evalPattern _ expr@(PatternExpr _) = return expr
 evalPattern _ expr@(VarExpr _ _) = return expr
 evalPattern _ expr@(ApplyExpr _ _) = return expr

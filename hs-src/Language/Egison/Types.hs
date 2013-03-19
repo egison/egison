@@ -130,7 +130,8 @@ type IOFunc = [WHNFData] -> EgisonM EgisonValue
 instance Show EgisonValue where
   show (Char c) = return c
   show (String s) = s
-  show (Bool b) = show b
+  show (Bool True) = "#t"
+  show (Bool False) = "#f"
   show (Integer i) = show i
   show (Float f) = show f
   show (InductiveData name []) = "<" ++ name ++ ">"
