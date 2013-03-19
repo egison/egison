@@ -53,31 +53,24 @@ primitives = [ ("+", add)
              , ("eq?", eq) ]
 
 add :: PrimitiveFunc
-add [val, val'] = (Integer .) . (+) <$> fromIntegerValue val
-                                    <*> fromIntegerValue val'
-add vals = throwError $ ArgumentsNum 2 vals
+add = twoArgs $ \val val' ->
+  (Integer .) . (+) <$> fromIntegerValue val
+                    <*> fromIntegerValue val'
 
 sub :: PrimitiveFunc
-sub [val, val'] = (Integer .) . (-) <$> fromIntegerValue val
-                                    <*> fromIntegerValue val'
-sub vals = throwError $ ArgumentsNum 2 vals
+sub = twoArgs $ \val val' ->
+  (Integer .) . (-) <$> fromIntegerValue val
+                    <*> fromIntegerValue val'
 
 mul :: PrimitiveFunc
-mul [val, val'] = (Integer .) . (*) <$> fromIntegerValue val
-                                    <*> fromIntegerValue val'
-mul vals = throwError $ ArgumentsNum 2 vals
+mul = twoArgs $ \val val' ->
+  (Integer .) . (*) <$> fromIntegerValue val
+                    <*> fromIntegerValue val'
 
 eq :: PrimitiveFunc
-eq [Value val, Value val'] = Bool <$> eq' val val'
- where
-  eq' (Char c) (Char c') = return $ c == c'
-  eq' (String s) (String s') = return $ s == s'
-  eq' (Bool b) (Bool b') = return $ b == b'
-  eq' (Integer i) (Integer i') = return $ i == i'
-  eq' (Float f) (Float f') = return $ f == f'
-  eq' _ _ = throwError $ TypeMismatch "immediate" $ Value val
-eq [val, _] = throwError $ TypeMismatch "immediate" val
-eq vals = throwError $ ArgumentsNum 2 vals
+eq = twoArgs $ \val val' ->
+  (Bool .) . (==) <$> fromPrimitiveValue val
+                  <*> fromPrimitiveValue val
 
 --
 -- IO Primitives
