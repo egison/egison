@@ -5,11 +5,11 @@
 (define $suit
   (matcher
     {[,$val []
-      {[$tgt (match [val tgt] [hai hai]
+      {[$tgt (match [val tgt] [suit suit]
                {[[<wan> <wan>] {[]}]
                 [[<pin> <pin>] {[]}]
                 [[<sou> <sou>] {[]}]
-                [[_ _] {}]})]}]
+                [_ {}]})]}]
      [<wan> []
       {[<Wan> {[]}]
        [_ {}]}]
@@ -23,12 +23,10 @@
       {[$tgt {tgt}]}]
      }))
 
-(test 1)
-
 (define $honor
   (matcher
     {[,$val []
-      {[$tgt (match [val tgt] [hai hai]
+      {[$tgt (match [val tgt] [honor honor]
                {[[<ton> <ton>] {[]}]
                 [[<nan> <nan>] {[]}]
                 [[<sha> <sha>] {[]}]
@@ -36,7 +34,7 @@
                 [[<haku> <haku>] {[]}]
                 [[<hatsu> <hatsu>] {[]}]
                 [[<chun> <chun>] {[]}]
-                [[_ _] {}]})]}]
+                [_ {}]})]}]
      [<ton> []
       {[<Ton> {[]}]
        [_ {}]}]
@@ -62,8 +60,6 @@
       {[$tgt {tgt}]}]
      }))
 
-(test 2)
-
 (define $hai
   (matcher
     {[,$val []
@@ -71,14 +67,14 @@
                {[[<num $s $n> <num ,s ,n>] {[]}]
                 [[_ _] {}]})]}]
      [<num $ $> [suit integer]
-      {[<Num $s $n> {[s n]}]}]
+      {[<Num $s $n> {[s n]}]
+       [_ {}]}]
      [<ji $> [honor]
-      {[<Ji $h> {[h]}]}]
+      {[<Ji $h> {h}]
+       [_ {}]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))
-
-(test 3)
 
 (define $shuntsu
   (pattern-constructor [$pat1 $pat2]
@@ -86,7 +82,6 @@
      <cons <num ,s ,(+ n 1)>
       <cons <num ,s ,(+ n 2)>
        pat2>>>))
-(test 4)
 
 (define $kohtsu
   (pattern-constructor [$pat1 $pat2]
@@ -94,14 +89,12 @@
      <cons ,pat
       <cons ,pat
        pat2>>>))
-(test 5)
 
 (define $twin
   (pattern-constructor [$pat1 $pat2]
     <cons (& $pat pat1)
      <cons ,pat
       pat2>>))
-(test 6)
 
 (define $agari?
   (function (multiset hai)
@@ -117,7 +110,8 @@
       #f]}))
 
 (define $tehai
-  {<Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
+  {<Ji <Haku>> <Ji <Haku>>
+   <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
    <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
    <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
    <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>})
