@@ -147,6 +147,17 @@ instance Show EgisonValue where
   show World = "#<world>"
   show EOF = "#<eof>"
 
+instance Eq EgisonValue where
+ (Char c) == (Char c') = c == c'
+ (String s) == (String s') = s == s'
+ (Bool b) == (Bool b') = b == b'
+ (Integer i) == (Integer i') = i == i'
+ (Float f) == (Float f') = f == f'
+ (InductiveData name vals) == (InductiveData name' vals') = name == name' && vals == vals'
+ (Tuple vals) == (Tuple vals') = vals == vals'
+ (Collection vals) == (Collection vals') = vals == vals'
+ _ == _ = False
+
 --
 -- Internal Data
 --
@@ -207,6 +218,14 @@ fromPatternValue val = throwError $ TypeMismatch "pattern" val
 fromMatcherValue :: WHNFData -> Either EgisonError Matcher
 fromMatcherValue (Value (Matcher matcher)) = return matcher
 fromMatcherValue val = throwError $ TypeMismatch "matcher" val
+
+fromPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
+fromPrimitiveValue (Value val@(Char _)) = return val
+fromPrimitiveValue (Value val@(String _)) = return val
+fromPrimitiveValue (Value val@(Bool _)) = return val
+fromPrimitiveValue (Value val@(Integer _)) = return val
+fromPrimitiveValue (Value val@(Float _)) = return val
+fromPrimitiveValue val = throwError $ TypeMismatch "primitive value" val 
 
 --
 -- Environment

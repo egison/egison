@@ -367,9 +367,10 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
   (init, last) <- unsnocCollection ref
   (++) <$> primitiveDataPatternMatch pattern init
        <*> primitiveDataPatternMatch pattern' last
-primitiveDataPatternMatch (PDConstantPat expr) ref = undefined
---  isEqual <- (==) <$> evalExpr' nullEnv expr <*> evalRef' ref
---  if isEqual then return [] else matchFail
+primitiveDataPatternMatch (PDConstantPat expr) ref = do
+  target <- lift (evalRef ref) >>= either (const matchFail) return . fromPrimitiveValue
+  isEqual <- lift $ (==) <$> evalExpr' nullEnv expr <*> pure target
+  if isEqual then return [] else matchFail
 
 expandCollection :: WHNFData -> EgisonM [Inner]
 expandCollection (Value (Collection vals)) =
