@@ -1,0 +1,116 @@
+;
+; Mah-jong example
+;
+
+(define $suit
+  (matcher
+    {[,$val []
+      {[$tgt (match [val tgt] [hai hai]
+               {[[<wan> <wan>] {[]}]
+                [[<pin> <pin>] {[]}]
+                [[<sou> <sou>] {[]}]
+                [[_ _] {}]})]}]
+     [<wan> []
+      {[<Wan> {[]}]
+       [_ {}]}]
+     [<pin> []
+      {[<Pin> {[]}]
+       [_ {}]}]
+     [<sou> []
+      {[<Sou> {[]}]
+       [_ {}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $honor
+  (matcher
+    {[,$val []
+      {[$tgt (match [val tgt] [hai hai]
+               {[[<ton> <ton>] {[]}]
+                [[<nan> <nan>] {[]}]
+                [[<sha> <sha>] {[]}]
+                [[<pe> <pe>] {[]}]
+                [[<haku> <haku>] {[]}]
+                [[<hatsu> <hatsu>] {[]}]
+                [[<chun> <chun>] {[]}]
+                [[_ _] {}]})]}]
+     [<ton> []
+      {[<Ton> {[]}]
+       [_ {}]}]
+     [<nan> []
+      {[<Nan> {[]}]
+       [_ {}]}]
+     [<sha> []
+      {[<Sha> {[]}]
+       [_ {}]}]
+     [<pe> []
+      {[<Pe> {[]}]
+       [_ {}]}]
+     [<haku> []
+      {[<Haku> {[]}]
+       [_ {}]}]
+     [<hatsu> []
+      {[<Hatsu> {[]}]
+       [_ {}]}]
+     [<chun> []
+      {[<Chun> {[]}]
+       [_ {}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $hai
+  (matcher
+    {[,$val []
+      {[$tgt (match [val tgt] [hai hai]
+               {[[<num $s $n> <num ,s ,n>] {[]}]
+                [[_ _] {}]})]}]
+     [<num $ $> [suit integer]
+      {[<Num $s $n> {[s n]}]}]
+     [<ji $> [honor]
+      {[<Ji $h> {[h]}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $shuntsu
+  (pattern-constructor [$pat1 $pat2]
+    <cons (& <num $s $n> pat1)
+     <cons <num ,s ,(+ n 1)>
+      <cons <num ,s ,(+ n 2)>
+       pat2>>>))
+ 
+(define $kohtsu
+  (pattern-constructor [$pat1 $pat2]
+    <cons (& $pat pat1)
+     <cons ,pat
+      <cons ,pat
+       pat2>>>))
+ 
+(define $twin
+  (pattern-constructor [$pat1 $pat2]
+    <cons (& $pat pat1)
+     <cons ,pat
+      pat2>>))
+ 
+(define $agari?
+  (function (multiset hai)
+    {[(twin $th_1 (| (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (shuntsu $sh_4 <nil>))))
+                     (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (kohtsu $kh_1 <nil>))))
+                     (shuntsu $sh_1 (shuntsu $sh_2 (kohtsu $kh_1 (kohtsu $kh_2 <nil>))))
+                     (shuntsu $sh_1 (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 <nil>))))
+                     (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 <nil>))))
+                     (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 <nil>))))))
+                     ))
+      #t]
+     [_
+      #f]}))
+
+(define $tehai
+  {<Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
+   <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
+   <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
+   <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>})
+
+(test (agari? tehai))
