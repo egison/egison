@@ -44,6 +44,8 @@ data EgisonExpr =
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetExpr [BindingExpr] EgisonExpr
   | LetRecExpr [(String, EgisonExpr)] EgisonExpr
+
+  | LoopExpr String String EgisonExpr EgisonExpr EgisonExpr
     
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr MatchClause

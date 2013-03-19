@@ -75,6 +75,7 @@ parseExpr = (try parseVarExpr
                          <|> parseFunctionExpr
                          <|> parseLetRecExpr
                          <|> parseLetExpr
+                         <|> parseLoopExpr
                          <|> parseDoExpr
                          <|> parseMatchAllExpr
                          <|> parseMatchExpr
@@ -193,6 +194,10 @@ parseVarNames = return <$> parseVarName
 
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
+
+parseLoopExpr :: Parser EgisonExpr
+parseLoopExpr = keywordLoop >> LoopExpr <$> parseVarName <*> parseVarName
+                                        <*> parseExpr <*> parseExpr <*> parseExpr
 
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = do
@@ -313,6 +318,7 @@ reservedKeywords =
   , "lambda"
   , "letrec"
   , "let"
+  , "loop"
   , "match-all"
   , "match"
   , "matcher"
@@ -350,6 +356,7 @@ keywordLambda             = reserved "lambda"
 keywordPatternConstructor = reserved "pattern-constructor"
 keywordLetRec             = reserved "letrec"
 keywordLet                = reserved "let"
+keywordLoop               = reserved "loop"
 keywordMatchAll           = reserved "match-all"
 keywordMatch              = reserved "match"
 keywordMatcher            = reserved "matcher"
