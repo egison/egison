@@ -110,3 +110,28 @@
    <Card <Heart> 5>})
 
 (test (poker-hands cards))
+  
+(test (poker-hands {<Card <Club> 4>
+                    <Card <Club> 2>
+                    <Card <Club> 13>
+                    <Card <Club> 1>
+                    <Card <Club> 3>}))
+
+(test (poker-hands {<Card <Diamond> 1>
+                    <Card <Club> 2>
+                    <Card <Club> 1>
+                    <Card <Heart> 1>
+                    <Card <Diamond> 2>}))
+
+(test (poker-hands {<Card <Diamond> 4>
+                    <Card <Club> 2>
+                    <Card <Club> 5>
+                    <Card <Heart> 1>
+                    <Card <Diamond> 3>}))
+
+(test (poker-hands {<Card <Diamond> 4>
+                    <Card <Club> 10>
+                    <Card <Club> 5>
+                    <Card <Heart> 1>
+                    <Card <Diamond> 3>}))
+
