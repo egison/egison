@@ -102,15 +102,13 @@
              <nil>>>>>>
         <Nothing>]})))
 
-(define $cards
-  {<Card <Heart> 1>
-   <Card <Heart> 2>
-   <Card <Heart> 3>
-   <Card <Heart> 4>
-   <Card <Heart> 5>})
 
-(test (poker-hands cards))
-  
+(test (poker-hands {<Card <Heart> 1>
+                    <Card <Heart> 2>
+                    <Card <Heart> 3>
+                    <Card <Heart> 4>
+                    <Card <Heart> 5>}))
+
 (test (poker-hands {<Card <Club> 4>
                     <Card <Club> 2>
                     <Card <Club> 13>
