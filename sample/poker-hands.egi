@@ -1,9 +1,12 @@
 (define $suit
   (matcher
-    {[,$suit []
-      {[$tgt (if (eq? tgt suit)
-                 {[]}
-                 {})]}]
+    {[,$val []
+      {[$tgt (match [val tgt] [suit suit]
+               {[[<spade> <spade>] {[]}]
+                [[<heart> <heart>] {[]}]
+                [[<club> <club>] {[]}]
+                [[<diamond> <diamond>] {[]}]
+                [[_ _] {}]})]}]
      [<spade> []
       {[<Spade> {[]}]
        [_ {}]}]
@@ -26,7 +29,7 @@
       {[$tgt (match [val tgt] [card card]
                {[[<card $s $n> <card ,s ,n>] {[]}]
                 [[_ _] {}]})]}]
-     [<card $ $> [suit (mod 13)]
+     [<card $ $> [suit integer]
       {[<Card $s $n> {[s n]}]}]
      [$ [something]
       {[$tgt {tgt}]}]
@@ -40,61 +43,70 @@
           <cons <card ,s ,(- n 2)>
            <cons <card ,s ,(- n 3)>
             <cons <card ,s ,(- n 4)>
-             !<nil>>>>>>
+             <nil>>>>>>
         <Straight-Flush>]
        [<cons <card _ $n>
          <cons <card _ ,n>
-          !<cons <card _ ,n>
-            !<cons <card _ ,n>
-              !<cons _
-                !<nil>>>>>>
+          <cons <card _ ,n>
+            <cons <card _ ,n>
+              <cons _
+                <nil>>>>>>
         <Four-of-Kind>]
        [<cons <card _ $m>
          <cons <card _ ,m>
           <cons <card _ ,m>
            <cons <card _ $n>
-            !<cons <card _ ,n>
-              !<nil>>>>>>
+            <cons <card _ ,n>
+              <nil>>>>>>
         <Full-House>]
        [<cons <card $s _>
-         !<cons <card ,s _>
-           !<cons <card ,s _>
-             !<cons <card ,s _>
-               !<cons <card ,s _>
-                 !<nil>>>>>>
+         <cons <card ,s _>
+           <cons <card ,s _>
+             <cons <card ,s _>
+               <cons <card ,s _>
+                 <nil>>>>>>
         <Flush>]
        [<cons <card _ $n>
          <cons <card _ ,(- n 1)>
           <cons <card _ ,(- n 2)>
            <cons <card _ ,(- n 3)>
             <cons <card _ ,(- n 4)>
-             !<nil>>>>>>
+             <nil>>>>>>
         <Straight>]
        [<cons <card _ $n>
          <cons <card _ ,n>
           <cons <card _ ,n>
            <cons _
             <cons _
-             !<nil>>>>>>
+             <nil>>>>>>
         <Three-of-Kind>]
        [<cons <card _ $m>
          <cons <card _ ,m>
-          !<cons <card _ $n>
+          <cons <card _ $n>
             <cons <card _ ,n>
-             !<cons _
-               !<nil>>>>>>
+             <cons _
+               <nil>>>>>>
         <Two-Pair>]
        [<cons <card _ $n>
          <cons <card _ ,n>
           <cons _
            <cons _
             <cons _
-             !<nil>>>>>>
+             <nil>>>>>>
         <One-Pair>]
        [<cons _
          <cons _
           <cons _
            <cons _
             <cons _
-             !<nil>>>>>>
+             <nil>>>>>>
         <Nothing>]})))
+
+(define $cards
+  {<Card <Heart> 1>
+   <Card <Heart> 2>
+   <Card <Heart> 3>
+   <Card <Heart> 4>
+   <Card <Heart> 5>})
+
+(test (poker-hands cards))
