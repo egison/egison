@@ -79,24 +79,27 @@
             (filter pred xs))]})))
 
 (define $remove
-  (lambda [$xs $x]
-    (match xs (list something)
-      {[<nil> {}]
-       [<cons ,x $rs> rs]
-       [<cons $y $rs> {y @(remove a rs x)}]})))
+  (lambda [$a]
+    (lambda [$xs $x]
+      (match xs (list a)
+        {[<nil> {}]
+         [<cons ,x $rs> rs]
+         [<cons $y $rs> {y @((remove a) rs x)}]}))))
 
 (define $remove-all
-  (lambda [$xs $x]
-    (match xs (list something)
-      {[<nil> {}]
-       [<cons ,x $rs> (remove-all rs x)]
-       [<cons $y $rs> {y @(remove-all rs x)}]})))
+  (lambda [$a]
+    (lambda [$xs $x]
+      (match xs (list a)
+        {[<nil> {}]
+         [<cons ,x $rs> ((remove-all a) rs x)]
+         [<cons $y $rs> {y @((remove-all a) rs x)}]}))))
 
 (define $remove-collection
-  (lambda [$xs $ys]
-    (match ys (list something)
-      {[<nil> xs]
-       [<cons $y $rs> ((remove-collection a) ((remove a) xs y) rs)]})))
+  (lambda [$a]
+    (lambda [$xs $ys]
+      (match ys (list a)
+        {[<nil> xs]
+         [<cons $y $rs> ((remove-collection a) ((remove a) xs y) rs)]}))))
 
 (define $add
   (lambda [$xs $x]
@@ -225,7 +228,7 @@
         {[$tgt (match-all tgt (list a)
                  [<join $hs <cons $x $ts>> [x {@hs @ts}]])]}]
        [<join ,$pxs $> [(multiset a)]
-        {[$tgt undefined]}]
+        {[$tgt {((remove-collection a) tgt pxs)}]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
