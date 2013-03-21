@@ -252,21 +252,19 @@ patternMatch :: Env -> EgisonExpr -> ObjectRef -> EgisonExpr ->
                 EgisonM (MList EgisonM [Binding]) 
 patternMatch env pattern target matcher = do
   matcher <- evalExpr env matcher
-  processMState (MState env [] [MAtom pattern target matcher]) >>= processMStates
+  processMState (MState env [] [MAtom pattern target matcher]) >>= processMStates . (:[])
 
-processMStates :: MList EgisonM MatchingState -> EgisonM (MList EgisonM [Binding])
-processMStates states = processMStates' [states]
-
-processMStates' :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM [Binding])
-processMStates' streams = do
-  let (bindings, streams') = (catMaybes *** concat) . unzip $ map processMStates'' streams
-  mappend (fromList bindings) (sequence streams' >>= processMStates')
+processMStates :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM [Binding])
+processMStates [] = return MNil
+processMStates streams = do
+  let (bindings, streams') = (catMaybes *** concat) . unzip $ map processMStates' streams
+  mappend (fromList bindings) (sequence streams' >>= processMStates)
  where
-  processMStates'' :: MList EgisonM MatchingState ->
+  processMStates' :: MList EgisonM MatchingState ->
                       (Maybe [Binding], [EgisonM (MList EgisonM MatchingState)])
-  processMStates'' MNil = (Nothing, [])
-  processMStates'' (MCons (MState _ bindings []) states) = (Just bindings, [states])
-  processMStates'' (MCons state states) = (Nothing, [processMState state, states])
+  processMStates' MNil = (Nothing, [])
+  processMStates' (MCons (MState _ bindings []) states) = (Just bindings, [states])
+  processMStates' (MCons state states) = (Nothing, [processMState state, states])
 
 processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState state@(MState env bindings []) = throwError $ strMsg "should not reach here"
