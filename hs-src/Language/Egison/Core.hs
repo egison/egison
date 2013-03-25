@@ -10,23 +10,23 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 
-import Text.Parsec.ByteString.Lazy
-
+import Text.Parsec.ByteString.Lazy (parseFromFile)
 import System.Directory (doesFileExist)
 
 import Language.Egison.Types
 import Language.Egison.Parser
-import Paths_egison
+import Paths_egison (getDataFileName)
 
 --
 -- Evaluator
 --
 
-evalTopExprs :: Env -> [EgisonTopExpr] -> EgisonM ()
+evalTopExprs :: Env -> [EgisonTopExpr] -> EgisonM Env
 evalTopExprs env exprs = do
   let (bindings, rest) = foldr collectDefs ([], []) exprs
   env <- recursiveBind env bindings
   forM_ rest $ evalTopExpr env
+  return env
  where
   collectDefs (Define name expr) (bindings, rest) = ((name, expr) : bindings, rest)
   collectDefs expr (bindings, rest) = (bindings, expr : rest)  
@@ -43,10 +43,8 @@ evalTopExpr env (Execute argv) = do
   world <- newEvaluatedThunk $ Value World
   applyFunc main [argv] >>= flip applyFunc [world]
   return env
-evalTopExpr env (Load file) =
-  liftIO (getDataFileName file) >>= loadFile >>= foldM evalTopExpr env
-evalTopExpr env (LoadFile file) =
-  loadFile file >>= foldM evalTopExpr env
+evalTopExpr env (Load file) = loadLibraryFile file >>= evalTopExprs env
+evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
 
 loadFile :: FilePath -> EgisonM [EgisonTopExpr]
 loadFile file = do
@@ -56,8 +54,11 @@ loadFile file = do
   concat <$> mapM recursiveLoad exprs
  where
   recursiveLoad (Load file) = loadFile file
-  recursiveLoad (LoadFile file) = liftIO (getDataFileName file) >>= loadFile
+  recursiveLoad (LoadFile file) = loadLibraryFile file
   recursiveLoad expr = return [expr]
+
+loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
+loadLibraryFile file = liftIO (getDataFileName file) >>= loadFile
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
@@ -125,6 +126,7 @@ evalExpr env (LetRecExpr bindings expr) =
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
+  matcher <- evalExpr env matcher
   result <- patternMatch env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
@@ -137,6 +139,7 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
 
 evalExpr env (MatchExpr target matcher clauses) = do
   target <- newThunk env target
+  matcher <- evalExpr env matcher
   let tryMatchClause (pattern, expr) cont = do
         result <- patternMatch env pattern target matcher
         case result of
@@ -161,7 +164,7 @@ evalExpr _ UndefinedExpr = throwError $ strMsg "undefined"
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
 evalExpr' :: Env -> EgisonExpr -> EgisonM EgisonValue
-evalExpr' env expr = evalExpr env expr >>= evalWHNF
+evalExpr' env expr = evalExpr env expr >>= evalDeep
 
 evalRef :: ObjectRef -> EgisonM WHNFData
 evalRef ref = do
@@ -178,24 +181,21 @@ evalRef' ref = do
   obj <- liftIO $ readIORef ref
   case obj of
     WHNF (Value val) -> return val
-    WHNF (Intermediate i) -> do
-      val <- evalIntermediate i
+    WHNF val -> do
+      val <- evalDeep val
       writeThunk ref $ Value val
       return val
     Thunk thunk -> do
-      val <- thunk >>= evalWHNF
+      val <- thunk >>= evalDeep
       writeThunk ref $ Value val
       return val
 
-evalWHNF :: WHNFData -> EgisonM EgisonValue
-evalWHNF (Value val) = return val
-evalWHNF (Intermediate i) = evalIntermediate i
-
-evalIntermediate :: Intermediate -> EgisonM EgisonValue
-evalIntermediate (IInductiveData name refs) = InductiveData name <$> mapM evalRef' refs
-evalIntermediate (ITuple refs) = Tuple <$> mapM evalRef' refs
-evalIntermediate coll =
-  Collection <$> (fromCollection (Intermediate coll) >>= fromMList >>= mapM evalRef')
+evalDeep :: WHNFData -> EgisonM EgisonValue
+evalDeep (Value val) = return val
+evalDeep (Intermediate (IInductiveData name refs)) =
+  InductiveData name <$> mapM evalRef' refs
+evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
+evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef')
 
 applyFunc :: WHNFData -> [ObjectRef] -> EgisonM WHNFData
 applyFunc (Value (Func env names body)) args =
@@ -248,10 +248,9 @@ fromCollection val = throwError $ TypeMismatch "collection" val
 -- Pattern Match
 --
 
-patternMatch :: Env -> EgisonExpr -> ObjectRef -> EgisonExpr ->
+patternMatch :: Env -> EgisonExpr -> ObjectRef -> WHNFData ->
                 EgisonM (MList EgisonM [Binding]) 
-patternMatch env pattern target matcher = do
-  matcher <- evalExpr env matcher
+patternMatch env pattern target matcher =
   processMState (MState env [] [MAtom pattern target matcher]) >>= processMStates . (:[])
 
 processMStates :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM [Binding])
@@ -261,7 +260,7 @@ processMStates streams = do
   mappend (fromList bindings) (sequence streams' >>= processMStates)
  where
   processMStates' :: MList EgisonM MatchingState ->
-                      (Maybe [Binding], [EgisonM (MList EgisonM MatchingState)])
+                     (Maybe [Binding], [EgisonM (MList EgisonM MatchingState)])
   processMStates' MNil = (Nothing, [])
   processMStates' (MCons (MState _ bindings []) states) = (Just bindings, [states])
   processMStates' (MCons state states) = (Nothing, [processMState state, states])
@@ -270,7 +269,7 @@ processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState state@(MState env bindings []) = throwError $ strMsg "should not reach here"
 processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env bindings
-  pattern <- evalPattern env pattern
+  pattern <- evalPattern env' pattern
   case pattern of
     VarExpr _ _ -> throwError $ strMsg "cannot use variable in pattern"
     ApplyExpr func (TupleExpr args) -> do
@@ -333,6 +332,18 @@ processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tr
             Nothing -> throwError $ UnboundVariable var
         _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
     _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
+
+evalPattern :: Env -> EgisonExpr -> EgisonM EgisonExpr
+evalPattern _ expr@(TupleExpr _) = return expr
+evalPattern _ expr@(PatternExpr _) = return expr
+evalPattern _ expr@(VarExpr _ _) = return expr
+evalPattern _ expr@(ApplyExpr _ _) = return expr
+evalPattern env (IfExpr test expr expr') = do
+  test <- evalExpr env test >>= liftError . fromBoolValue
+  evalPattern env $ if test then expr else expr'  
+evalPattern env (LetExpr _ _) = undefined
+evalPattern env (LetRecExpr _ _) = undefined
+evalPattern _ _ = throwError $ strMsg "pattern expression required"
 
 inductiveMatch :: Env -> EgisonExpr -> ObjectRef -> Matcher ->
                   EgisonM ([EgisonExpr], MList EgisonM ObjectRef, [WHNFData])
@@ -456,15 +467,3 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
           let coll = Intermediate (ICollection (init vals ++ inners'))
           lift $ writeThunk ref coll
           unsnocCollection' coll
-
-evalPattern :: Env -> EgisonExpr -> EgisonM EgisonExpr
-evalPattern _ expr@(TupleExpr _) = return expr
-evalPattern _ expr@(PatternExpr _) = return expr
-evalPattern _ expr@(VarExpr _ _) = return expr
-evalPattern _ expr@(ApplyExpr _ _) = return expr
-evalPattern env (IfExpr test expr expr') = do
-  test <- evalExpr env test >>= liftError . fromBoolValue
-  evalPattern env $ if test then expr else expr'  
-evalPattern env (LetExpr _ _) = undefined
-evalPattern env (LetRecExpr _ _) = undefined
-evalPattern _ _ = throwError $ strMsg "pattern expression required"

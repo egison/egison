@@ -298,8 +298,11 @@ liftError = either throwError return
 --
 
 newtype EgisonM a = EgisonM {
-    runEgisonM :: ErrorT EgisonError IO a
+    unEgisonM :: ErrorT EgisonError IO a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
+
+runEgisonM :: EgisonM a -> IO (Either EgisonError a)
+runEgisonM = runErrorT . unEgisonM
 
 type MatchM = MaybeT EgisonM
 
