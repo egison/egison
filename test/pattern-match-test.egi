@@ -1,0 +1,11 @@
+(define $nat {1 @(map (+ $ 1) nat)})
+
+(test (assert-equal "pairs of 2 natural numbers"
+        (take 10 (match-all nat (set integer)
+                   [<cons $m <cons $n _>> [m n]]))
+        {[1 1] [1 2] [2 1] [1 3] [2 2] [3 1] [1 4] [2 3] [3 2] [4 1]}))
+
+(test (assert-equal "pairs of 2 different natural numbers"
+        (take 10 (match-all nat (list integer)
+                   [<join _ <cons $m <join _ <cons $n _>>>> [m n]]))
+        {[1 2] [1 3] [2 3] [1 4] [2 4] [3 4] [1 5] [2 5] [3 5] [4 5]}))

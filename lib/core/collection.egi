@@ -168,6 +168,14 @@
 (define $nth (lambda [$i $l]
                (match l (list something) {[<cons $x $xs> (if (eq? i 0) x (nth (- i 1) xs))]})))
 
+(define $take
+  (lambda [$n $xs]
+    (if (eq? n 0)
+        {}
+        (match xs (list something)
+          {[<cons $x $xs> {x @(take (- n 1) xs)}]
+           [<nil> {}]}))))
+
 (define $reverse
   (lambda [$xs]
     (match xs (list something)

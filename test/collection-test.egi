@@ -1,0 +1,31 @@
+(define $numbers {1 2 3})
+
+(test (assert-equal "list's cons"
+        (match numbers (list integer)
+          {[<cons $n $ns> [n ns]]})
+        [1 {2 3}]))
+
+(test (assert-equal "list's snoc"
+        (match numbers (list integer)
+          {[<snoc $n $ns> [n ns]]})
+        [3 {1 2}]))
+
+(test (assert-equal "list's join"
+        (match-all numbers (list integer)
+          [<join $xs $ys> [xs ys]])
+        {[{} {1 2 3}]
+         [{1} {2 3}]
+         [{1 2} {3}]
+         [{1 2 3} {}]}))
+
+(test (assert-equal "list's nioj"
+        (match-all numbers (list integer)
+          [<nioj $xs $ys> [xs ys]])
+        {[{1 2 3} {}]
+         [{2 3} {1}]
+         [{3} {1 2}]
+         [{} {1 2 3}]}))
+
+(test (assert-equal "list's map"
+        (map (* $ 2) numbers)
+        {2 4 6}))
