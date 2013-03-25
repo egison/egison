@@ -28,6 +28,7 @@ Library
   Exposed-Modules:
                    Language.Egison
                    Language.Egison.Core
+                   Language.Egison.Desugar
                    Language.Egison.Types
                    --Language.Egison.Variables
                    --Language.Egison.Numerical

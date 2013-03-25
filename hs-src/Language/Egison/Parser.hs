@@ -145,11 +145,23 @@ parsePDMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
 parsePDMatchClause = brackets $ (,) <$> parsePDPattern <*> parseExpr
 
 parsePPPattern :: Parser PrimitivePatPattern
-parsePPPattern = reservedOp "_" *> pure PPWildCard
-                       <|> reservedOp "$" *> pure PPPatVar
-                       <|> (string ",$" >> PPValuePat <$> ident)
-                       <|> angles (PPInductivePat <$> lowerName <*> sepEndBy parsePPPattern whiteSpace)
-                       <?> "primitive-pattren-pattern"
+parsePPPattern = parsePPWildCard
+                 <|> parsePPPatVar
+                 <|> parsePPValuePat
+                 <|> parsePPInductivePat
+                 <?> "primitive-pattren-pattern"
+                       
+parsePPWildCard :: Parser PrimitivePatPattern
+parsePPWildCard = reservedOp "_" *> pure PPWildCard
+
+parsePPPatVar :: Parser PrimitivePatPattern
+parsePPPatVar = reservedOp "$" *> pure PPPatVar
+
+parsePPValuePat :: Parser PrimitivePatPattern
+parsePPValuePat = string ",$" >> PPValuePat <$> ident
+
+parsePPInductivePat :: Parser PrimitivePatPattern
+parsePPInductivePat = angles (PPInductivePat <$> lowerName <*> sepEndBy parsePPPattern whiteSpace)
 
 parsePDPattern :: Parser PrimitiveDataPattern
 parsePDPattern = reservedOp "_" *> pure PDWildCard
@@ -244,7 +256,12 @@ parseAndPatExpr = reservedOp "&" >> PatternExpr . AndPat <$> sepEndBy parseExpr 
 parseOrPatExpr :: Parser EgisonExpr
 parseOrPatExpr = reservedOp "|" >> PatternExpr . OrPat <$> sepEndBy parseExpr whiteSpace
 
-
+parseAlgebraicDataMatcherExpr :: Parser EgisonExpr
+parseAlgebraicDataMatcherExpr = keywordAlgebraicDataMatcher 
+                                >> (parens $ AlgebraicDataMatcher <$> parseAlgebraicDataMatcherBody)
+  where
+    parseAlgebraicDataMatcherBody :: Parser [PrimitivePatPattern]
+    parseAlgebraicDataMatcherBody = reservedOp "|" >> sepEndBy1 parsePPInductivePat whiteSpace
 
 --parseOmitExpr :: Parser EgisonExpr
 --parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
@@ -319,6 +336,7 @@ reservedKeywords =
   , "matcher"
   , "do"
   , "function"
+  , "algebraic-data-matcher"
   , "something"
   , "undefined"]
   
@@ -339,26 +357,27 @@ reserved = P.reserved lexer
 reservedOp :: String -> Parser ()
 reservedOp = P.reservedOp lexer
 
-keywordDefine             = reserved "define"
-keywordTest               = reserved "test"
-keywordExecute            = reserved "execute"
-keywordLoadFile           = reserved "load-file"
-keywordLoad               = reserved "load"
-keywordIf                 = reserved "if"
-keywordThen               = reserved "then"
-keywordElse               = reserved "else"
-keywordLambda             = reserved "lambda"
-keywordPatternConstructor = reserved "pattern-constructor"
-keywordLetRec             = reserved "letrec"
-keywordLet                = reserved "let"
-keywordLoop               = reserved "loop"
-keywordMatchAll           = reserved "match-all"
-keywordMatch              = reserved "match"
-keywordMatcher            = reserved "matcher"
-keywordDo                 = reserved "do"
-keywordFunction           = reserved "function"
-keywordSomething          = reserved "something"
-keywordUndefined          = reserved "undefined"
+keywordDefine               = reserved "define"
+keywordTest                 = reserved "test"
+keywordExecute              = reserved "execute"
+keywordLoadFile             = reserved "load-file"
+keywordLoad                 = reserved "load"
+keywordIf                   = reserved "if"
+keywordThen                 = reserved "then"
+keywordElse                 = reserved "else"
+keywordLambda               = reserved "lambda"
+keywordPatternConstructor   = reserved "pattern-constructor"
+keywordLetRec               = reserved "letrec"
+keywordLet                  = reserved "let"
+keywordLoop                 = reserved "loop"
+keywordMatchAll             = reserved "match-all"
+keywordMatch                = reserved "match"
+keywordMatcher              = reserved "matcher"
+keywordDo                   = reserved "do"
+keywordFunction             = reserved "function"
+keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
+keywordSomething            = reserved "something"
+keywordUndefined            = reserved "undefined"
 
 integerLiteral :: Parser Integer
 integerLiteral = P.integer lexer

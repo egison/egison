@@ -58,6 +58,8 @@ data EgisonExpr =
     
   | ApplyExpr EgisonExpr EgisonExpr
 
+  | AlgebraicDataMatcher [PrimitivePatPattern]
+
   | SomethingExpr
   | UndefinedExpr
  deriving (Show)
