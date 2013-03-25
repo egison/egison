@@ -19,6 +19,7 @@ import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
 import Text.Parsec
 import Text.Parsec.ByteString.Lazy
+import qualified Paths_egison as P
 
 import Language.Egison.Types
 import Language.Egison.Core
@@ -26,7 +27,7 @@ import Language.Egison.Parser
 import Language.Egison.Primitives
 
 version :: Version
-version =  Version [3,0,0] []
+version = P.version
 
 loadLibraries :: Env -> IO Env
 loadLibraries env = do
