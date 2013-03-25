@@ -4,6 +4,7 @@ module Language.Egison
        , module Language.Egison.Parser
        , module Language.Egison.Core
        , module Language.Egison.Primitives
+       , version
        , loadLibraries
        , loadPrimitives
        , runEgisonTopExpr
@@ -12,6 +13,7 @@ module Language.Egison
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad.Error
 
+import Data.Version
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -22,6 +24,9 @@ import Language.Egison.Types
 import Language.Egison.Core
 import Language.Egison.Parser
 import Language.Egison.Primitives
+
+version :: Version
+version =  Version [3,0,0] []
 
 loadLibraries :: Env -> IO Env
 loadLibraries env = do
