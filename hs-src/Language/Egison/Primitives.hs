@@ -10,11 +10,14 @@ import Data.IORef
 import System.IO
 
 import Language.Egison.Types
+import Language.Egison.Core
 
 primitiveEnv :: IO Env
 primitiveEnv = do
-  bindings <- forM (primitives ++ ioPrimitives) $ \(name, op) -> do
-    ref <- newIORef . WHNF . Value $ PrimitiveFunc op
+  let ops = map (second PrimitiveFunc) (primitives ++ ioPrimitives) ++
+            map (second IOFunc) assertions
+  bindings <- forM ops $ \(name, op) -> do
+    ref <- newIORef . WHNF $ Value op
     return ((name, []), ref)
   return $ extendEnv nullEnv bindings
 
@@ -36,8 +39,8 @@ oneArg f = \vals -> case vals of
 
 {-# INLINE twoArgs #-}
 twoArgs :: (MonadError EgisonError m) =>
-          (WHNFData -> WHNFData -> m EgisonValue) ->
-          [WHNFData] -> m EgisonValue
+           (WHNFData -> WHNFData -> m EgisonValue) ->
+           [WHNFData] -> m EgisonValue
 twoArgs f = \vals -> case vals of 
                        [val, val'] -> f val val'
                        _ -> throwError $ ArgumentsNum 2 vals
@@ -153,3 +156,20 @@ readCharFromPort = oneArg $ \val ->
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = oneArg $ \val ->
   makeIO . liftM String . hGetLine <$> fromPortValue val
+
+--
+-- Assertions
+--
+
+assertions :: [(String, IOFunc)]
+assertions = [ ("assert-equal", assertEqual) ]
+
+assertEqual :: IOFunc 
+assertEqual [label, actual, expected] = do
+  actual <- evalDeep actual
+  expected <- evalDeep expected
+  if actual == expected
+    then return $ Bool True
+    else throwError $ strMsg $ show label ++ "\n expected: " ++ show expected ++
+                               "\n but found: " ++ show actual
+assertEqual vals = throwError $ ArgumentsNum 3 vals
