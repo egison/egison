@@ -26,6 +26,7 @@ Library
   Build-Depends:   base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io, bytestring
   Hs-Source-Dirs:  hs-src
   Exposed-Modules:
+                   Language.Egison
                    Language.Egison.Core
                    Language.Egison.Types
                    --Language.Egison.Variables
