@@ -23,14 +23,12 @@ main = do args <- getArgs
           if null args
             then repl env "> "
             else do
-              result <- runErrorT . runEgisonM $ do
-                exprs <- loadFile (args !! 0)
-                evalTopExprs env exprs
-              either print return result
+              result <- runEgisonM $ evalTopExpr env $ LoadFile (args !! 0)
+              either print (const $ return ()) result
 
 loadLibraries :: Env -> IO Env
 loadLibraries env = do
-  result <- runErrorT $ runEgisonM $ foldM evalTopExpr env (map Load libraries)
+  result <- runEgisonM $ foldM evalTopExpr env (map Load libraries)
   case result of
     Left err -> do
       print . show $ err
@@ -48,14 +46,9 @@ runParser' :: Parser a -> String -> Either EgisonError a
 runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
 
 runEgisonTopExpr :: Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExpr env input = runErrorT . runEgisonM $ do 
+runEgisonTopExpr env input = runEgisonM $ do 
   expr <- liftError $ runParser' parseTopExpr input
   evalTopExpr env expr
-
-runEgisonTopExprs :: Env -> String -> IO (Either EgisonError ())
-runEgisonTopExprs env input = runErrorT . runEgisonM $ do 
-  expr <- liftError $ runParser' parseTopExprs input
-  evalTopExprs env expr
 
 repl :: Env -> String -> IO ()
 repl env prompt = loop env prompt ""

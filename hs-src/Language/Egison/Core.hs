@@ -21,11 +21,12 @@ import Paths_egison (getDataFileName)
 -- Evaluator
 --
 
-evalTopExprs :: Env -> [EgisonTopExpr] -> EgisonM ()
+evalTopExprs :: Env -> [EgisonTopExpr] -> EgisonM Env
 evalTopExprs env exprs = do
   let (bindings, rest) = foldr collectDefs ([], []) exprs
   env <- recursiveBind env bindings
   forM_ rest $ evalTopExpr env
+  return env
  where
   collectDefs (Define name expr) (bindings, rest) = ((name, expr) : bindings, rest)
   collectDefs expr (bindings, rest) = (bindings, expr : rest)  
@@ -42,8 +43,8 @@ evalTopExpr env (Execute argv) = do
   world <- newEvaluatedThunk $ Value World
   applyFunc main [argv] >>= flip applyFunc [world]
   return env
-evalTopExpr env (Load file) = loadLibraryFile file >>= foldM evalTopExpr env
-evalTopExpr env (LoadFile file) = loadFile file >>= foldM evalTopExpr env
+evalTopExpr env (Load file) = loadLibraryFile file >>= evalTopExprs env
+evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
 
 loadFile :: FilePath -> EgisonM [EgisonTopExpr]
 loadFile file = do
@@ -125,6 +126,7 @@ evalExpr env (LetRecExpr bindings expr) =
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
+  matcher <- evalExpr env matcher
   result <- patternMatch env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
@@ -137,6 +139,7 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
 
 evalExpr env (MatchExpr target matcher clauses) = do
   target <- newThunk env target
+  matcher <- evalExpr env matcher
   let tryMatchClause (pattern, expr) cont = do
         result <- patternMatch env pattern target matcher
         case result of
@@ -161,7 +164,7 @@ evalExpr _ UndefinedExpr = throwError $ strMsg "undefined"
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
 evalExpr' :: Env -> EgisonExpr -> EgisonM EgisonValue
-evalExpr' env expr = evalExpr env expr >>= evalWHNF
+evalExpr' env expr = evalExpr env expr >>= evalDeep
 
 evalRef :: ObjectRef -> EgisonM WHNFData
 evalRef ref = do
@@ -178,24 +181,21 @@ evalRef' ref = do
   obj <- liftIO $ readIORef ref
   case obj of
     WHNF (Value val) -> return val
-    WHNF (Intermediate i) -> do
-      val <- evalIntermediate i
+    WHNF val -> do
+      val <- evalDeep val
       writeThunk ref $ Value val
       return val
     Thunk thunk -> do
-      val <- thunk >>= evalWHNF
+      val <- thunk >>= evalDeep
       writeThunk ref $ Value val
       return val
 
-evalWHNF :: WHNFData -> EgisonM EgisonValue
-evalWHNF (Value val) = return val
-evalWHNF (Intermediate i) = evalIntermediate i
-
-evalIntermediate :: Intermediate -> EgisonM EgisonValue
-evalIntermediate (IInductiveData name refs) = InductiveData name <$> mapM evalRef' refs
-evalIntermediate (ITuple refs) = Tuple <$> mapM evalRef' refs
-evalIntermediate coll =
-  Collection <$> (fromCollection (Intermediate coll) >>= fromMList >>= mapM evalRef')
+evalDeep :: WHNFData -> EgisonM EgisonValue
+evalDeep (Value val) = return val
+evalDeep (Intermediate (IInductiveData name refs)) =
+  InductiveData name <$> mapM evalRef' refs
+evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
+evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef')
 
 applyFunc :: WHNFData -> [ObjectRef] -> EgisonM WHNFData
 applyFunc (Value (Func env names body)) args =
@@ -248,10 +248,9 @@ fromCollection val = throwError $ TypeMismatch "collection" val
 -- Pattern Match
 --
 
-patternMatch :: Env -> EgisonExpr -> ObjectRef -> EgisonExpr ->
+patternMatch :: Env -> EgisonExpr -> ObjectRef -> WHNFData ->
                 EgisonM (MList EgisonM [Binding]) 
-patternMatch env pattern target matcher = do
-  matcher <- evalExpr env matcher
+patternMatch env pattern target matcher =
   processMState (MState env [] [MAtom pattern target matcher]) >>= processMStates . (:[])
 
 processMStates :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM [Binding])
@@ -270,7 +269,7 @@ processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState state@(MState env bindings []) = throwError $ strMsg "should not reach here"
 processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env bindings
-  pattern <- evalPattern env pattern
+  pattern <- evalPattern env' pattern
   case pattern of
     VarExpr _ _ -> throwError $ strMsg "cannot use variable in pattern"
     ApplyExpr func (TupleExpr args) -> do
