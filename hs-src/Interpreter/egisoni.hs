@@ -12,10 +12,7 @@ import Text.Regex.Posix
 
 import System.Environment
 import System.Console.Haskeline
-import Language.Egison.Types
-import Language.Egison.Parser
-import Language.Egison.Core
-import Language.Egison.Primitives
+import Language.Egison
 
 main :: IO ()
 main = do args <- getArgs
@@ -26,29 +23,6 @@ main = do args <- getArgs
               result <- runEgisonM $ evalTopExpr env $ LoadFile (args !! 0)
               either print (const $ return ()) result
 
-loadLibraries :: Env -> IO Env
-loadLibraries env = do
-  result <- runEgisonM $ foldM evalTopExpr env (map Load libraries)
-  case result of
-    Left err -> do
-      print . show $ err
-      return env
-    Right env' -> 
-      return env'
-  where
-    libraries :: [String]
-    libraries = [ "lib/core/base.egi"
-                , "lib/core/number.egi"
-                , "lib/core/collection.egi"
-                , "lib/core/pattern.egi" ]
-
-runParser' :: Parser a -> String -> Either EgisonError a
-runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
-
-runEgisonTopExpr :: Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExpr env input = runEgisonM $ do 
-  expr <- liftError $ runParser' parseTopExpr input
-  evalTopExpr env expr
 
 repl :: Env -> String -> IO ()
 repl env prompt = loop env prompt ""

@@ -1,0 +1,7 @@
+ 
+(define $fact
+  (function integer
+    {[,1 1]
+     [$x (* x (fact (- x 1)))]}))
+
+(test (fact 30000))
