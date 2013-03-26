@@ -50,25 +50,66 @@ twoArgs f = \vals -> case vals of
 --
 
 primitives :: [(String, PrimitiveFunc)]
-primitives = [ ("+", add) 
-             , ("-", sub)
-             , ("*", mul)
+primitives = [ ("+", integerBinaryOp (+)) 
+             , ("-", integerBinaryOp (-))
+             , ("*", integerBinaryOp (*))
+             , ("modulo",    integerBinaryOp mod)
+             , ("qutient",   integerBinaryOp quot)
+             , ("remainder", integerBinaryOp rem)
+             , ("eq-n?",  integerBinaryPred (==))
+             , ("lt-n?",  integerBinaryPred (<))
+             , ("lte-n?", integerBinaryPred (<=))
+             , ("gt-n?",  integerBinaryPred (>))
+             , ("gte-n?", integerBinaryPred (>=))
+             , ("+f", floatBinaryOp (+))
+             , ("-f", floatBinaryOp (-))
+             , ("*f", floatBinaryOp (*))
+             , ("/f", floatBinaryOp (/))
+             , ("eq-f?",  floatBinaryPred (==))
+             , ("lt-f?",  floatBinaryPred (<))
+             , ("lte-f?", floatBinaryPred (<=))
+             , ("gt-f?",  floatBinaryPred (>))
+             , ("gte-f?", floatBinaryPred (>=))
+             , ("sqrt", floatUnaryOp sqrt)
+             , ("exp", floatUnaryOp exp)
+             , ("log", floatUnaryOp log)
+             , ("sin", floatUnaryOp sin)
+             , ("cos", floatUnaryOp cos)
+             , ("tan", floatUnaryOp tan)
+             , ("asin", floatUnaryOp asin)
+             , ("acos", floatUnaryOp acos)
+             , ("atan", floatUnaryOp atan)
+             , ("sinh", floatUnaryOp sinh)
+             , ("cosh", floatUnaryOp cosh)
+             , ("tanh", floatUnaryOp tanh)
+             , ("asinh", floatUnaryOp asinh)
+             , ("acosh", floatUnaryOp acosh)
+             , ("atanh", floatUnaryOp atanh)
              , ("eq?", eq) ]
 
-add :: PrimitiveFunc
-add = twoArgs $ \val val' ->
-  (Integer .) . (+) <$> fromIntegerValue val
-                    <*> fromIntegerValue val'
+integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
+integerBinaryOp op = twoArgs $ \val val' ->
+  (Integer .) . op <$> fromIntegerValue val
+                   <*> fromIntegerValue val'
 
-sub :: PrimitiveFunc
-sub = twoArgs $ \val val' ->
-  (Integer .) . (-) <$> fromIntegerValue val
-                    <*> fromIntegerValue val'
+integerBinaryPred :: (Integer -> Integer -> Bool) -> PrimitiveFunc
+integerBinaryPred pred = twoArgs $ \val val' ->
+  (Bool .) . pred <$> fromIntegerValue val
+                  <*> fromIntegerValue val'
 
-mul :: PrimitiveFunc
-mul = twoArgs $ \val val' ->
-  (Integer .) . (*) <$> fromIntegerValue val
-                    <*> fromIntegerValue val'
+floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
+floatUnaryOp op = oneArg $ \val ->
+  Float . op <$> fromFloatValue val
+
+floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
+floatBinaryOp op = twoArgs $ \val val' ->
+  (Float .) . op <$> fromFloatValue val
+                 <*> fromFloatValue val'
+
+floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
+floatBinaryPred pred = twoArgs $ \val val' ->
+  (Bool .) . pred <$> fromFloatValue val
+                  <*> fromFloatValue val'
 
 eq :: PrimitiveFunc
 eq = twoArgs $ \val val' ->

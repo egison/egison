@@ -256,8 +256,8 @@ parseConstantExpr :: Parser EgisonExpr
 parseConstantExpr =  parseCharExpr
                  <|> parseStringExpr
                  <|> parseBoolExpr
+                 <|> try parseFloatExpr
                  <|> parseIntegerExpr
-                 <|> parseFloatExpr
                  <|> (keywordSomething *> pure SomethingExpr)
                  <|> (keywordUndefined *> pure UndefinedExpr)
                  <?> "constant"

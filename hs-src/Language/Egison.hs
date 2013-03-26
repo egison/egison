@@ -41,8 +41,8 @@ loadLibraries env = do
   where
     libraries :: [String]
     libraries = [ "lib/core/base.egi"
-                , "lib/core/number.egi"
                 , "lib/core/collection.egi"
+                , "lib/core/number.egi"
                 , "lib/core/pattern.egi" ]
                 
 loadPrimitives :: Env -> IO Env
