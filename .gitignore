@@ -1,3 +1,4 @@
 dist/
 prof/
 hs-src/Paths_egison.hs
+.egison_history
