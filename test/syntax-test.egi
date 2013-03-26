@@ -1,0 +1,39 @@
+(test (assert-equal "if"
+        (if #t #t #f)
+        #t))
+
+(test (assert-equal "if"
+        (if #f #t #f)
+        #f))
+
+(test (assert-equal "let binding"
+        (let {[$t [1 2]]}
+          (let {[[$x $y] t]}
+            (+ x y)))
+        3))
+
+(test (assert-equal "letrec binding"
+        (letrec {[[$x $y] t]
+                 [$t [1 2]]}
+            (+ x y))
+        3))
+
+(test (assert-equal "mutual recursion"
+        (letrec {[$even? (lambda [$n]
+                          (if (eq? n 0) #t (odd? (- n 1))))]
+                 [$odd? (lambda [$n]
+                          (if (eq? n 0) #f (even? (- n 1))))]}
+          (even? 10))
+        #t))
+
+(test (assert-equal "lambda and application"
+        ((lambda [$x] (+ 1 x)) 10)
+        11))
+
+(test (assert-equal "placeholder"
+        ((+ $ 1) 10)
+        11))
+
+(test (assert-equal "indexed placeholder"
+        ((+ $1 $1) 10)
+        20))

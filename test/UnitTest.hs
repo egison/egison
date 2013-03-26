@@ -1,21 +1,22 @@
 module Main where
 
+import Control.Applicative
 import Control.Monad
+
 
 import Test.Framework (defaultMain)
 import Test.Framework.Providers.HUnit (hUnitTestToTests)
 import Test.HUnit
+import System.FilePath.Glob (glob)
 
 import Language.Egison.Types
 import Language.Egison.Core
 import Language.Egison.Primitives
 import Language.Egison
 
-main = defaultMain $ hUnitTestToTests $ test $ map runTestCase testCases
-
-testCases :: [FilePath]
-testCases = [ "test/collection-test.egi"
-            , "test/pattern-match-test.egi" ]
+main = do
+  testCases <- glob "test/**/*.egi"
+  defaultMain $ hUnitTestToTests $ test $ map runTestCase testCases
 
 runTestCase :: FilePath -> Test
 runTestCase file = TestLabel file . TestCase $ do 

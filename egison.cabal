@@ -39,7 +39,7 @@ Test-Suite test
   Type:           exitcode-stdio-1.0
   Hs-Source-Dirs: test
   Main-Is:        UnitTest.hs
-  Build-Depends: egison, base >= 4.0 && < 5, transformers, mtl, HUnit, test-framework, test-framework-hunit
+  Build-Depends: egison, base >= 4.0 && < 5, transformers, mtl, Glob, HUnit, test-framework, test-framework-hunit
 
 Benchmark benchmark
   Type: exitcode-stdio-1.0
