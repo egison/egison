@@ -274,7 +274,7 @@ data EgisonError =
   | TypeMismatch String WHNFData
   | ArgumentsNum Int [WHNFData]
   | NotImplemented String
-  | Match String
+  | Assertion String
   | Default String
     
 instance Show EgisonError where
@@ -284,6 +284,7 @@ instance Show EgisonError where
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
   show (NotImplemented message) = "Not implemented: " ++ message
+  show (Assertion message) = "Assertion failed: " ++ message
   show (Default message) = "Error: " ++ message
 
 instance Error EgisonError where

@@ -1,0 +1,14 @@
+(test (assert "value pattern for bool"
+        (match [#t #f] bool
+          {[[,#t ,#f] #t]
+           [_ #f]})))
+
+(test (assert "value pattern for char"
+        (match 'a' char
+          {[,'a' #t]
+           [_ #f]})))
+
+(test (assert "value pattern for string"
+        (match "abc" char
+          {[,"abc" #t]
+           [_ #f]})))

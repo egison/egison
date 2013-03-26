@@ -211,7 +211,16 @@ readLineFromPort = oneArg $ \val ->
 --
 
 assertions :: [(String, IOFunc)]
-assertions = [ ("assert-equal", assertEqual) ]
+assertions = [ ("assert", assert)
+             , ("assert-equal", assertEqual) ]
+
+assert :: IOFunc 
+assert [label, test] = do
+  test <- liftError $ fromBoolValue test
+  if test
+    then return $ Bool True
+    else throwError $ Assertion $ show label
+assert vals = throwError $ ArgumentsNum 2 vals
 
 assertEqual :: IOFunc 
 assertEqual [label, actual, expected] = do
@@ -219,6 +228,6 @@ assertEqual [label, actual, expected] = do
   expected <- evalDeep expected
   if actual == expected
     then return $ Bool True
-    else throwError $ strMsg $ show label ++ "\n expected: " ++ show expected ++
-                               "\n but found: " ++ show actual
+    else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
+                                  "\n but found: " ++ show actual
 assertEqual vals = throwError $ ArgumentsNum 3 vals
