@@ -12,10 +12,10 @@
 (define $compare-integer
   (lambda [$m $n]
     (if (lt? m n)
-        <less>
+        <Less>
         (if (eq? m n)
-            <equal>
-            <greater>))))
+            <Equal>
+            <Greater>))))
 
 (define $float
   (matcher
@@ -30,10 +30,10 @@
 (define $compare-float
   (lambda [$d1 $d2]
     (if (lt? d1 d2)
-        <less>
+        <Less>
         (if (eq? d1 d2)
-            <equal>
-            <greater>))))
+            <Equal>
+            <Greater>))))
 
 (define $nat
   (matcher
