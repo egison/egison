@@ -44,7 +44,7 @@ repl env prompt = loop env prompt ""
     loop env prompt' rest = do
       input <- runInputT settings $ getInputLine prompt'
       case input of
-        Nothing -> return ()
+        Nothing -> showByebyeMessage >> return ()
         Just "quit" -> showByebyeMessage >> return ()
         Just "" ->  loop env prompt ""
         Just input' -> do
