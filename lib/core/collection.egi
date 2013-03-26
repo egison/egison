@@ -178,6 +178,14 @@
           {[<cons $x $xs> {x @(take (- n 1) xs)}]
            [<nil> {}]}))))
 
+(define $drop
+  (lambda [$n $xs]
+    (if (eq? n 0)
+        xs
+        (match xs (list something)
+          {[<cons _ $xs> (drop (- n 1) xs)]
+           [<nil> {}]}))))
+
 (define $reverse
   (lambda [$xs]
     (match xs (list something)
