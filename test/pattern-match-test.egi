@@ -1,3 +1,22 @@
+(define $twin
+  (pattern-constructor [$pat1 $pat2]
+    <cons (& pat1 $x) <cons ,x pat2>>))
+
+(test (assert-equal "pattern constructor call"
+        (match {1 1 1 2 3} (list integer)
+          {[(twin $n $ns) [n ns]]})
+        [1 {1 2 3}]))
+
+(define $repeat
+  (pattern-constructor [$pat]
+    (| <nil>
+       <cons (& pat $x) (repeat ,x)>)))
+
+(test (assert-equal "recursive pattern constructor call"
+        (match {1 1 1 1} (list integer)
+          {[(repeat $n) n]})
+        1))
+
 (define $nat {1 @(map (+ $ 1) nat)})
 
 (test (assert-equal "pairs of 2 natural numbers"
