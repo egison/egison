@@ -85,6 +85,10 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("asinh", floatUnaryOp asinh)
              , ("acosh", floatUnaryOp acosh)
              , ("atanh", floatUnaryOp atanh)
+             , ("round",    floatToIntegerOp round)
+             , ("floor",    floatToIntegerOp floor)
+             , ("ceiling",  floatToIntegerOp ceiling)
+             , ("truncate", floatToIntegerOp truncate)
              , ("eq?", eq) ]
 
 integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
@@ -110,6 +114,10 @@ floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' ->
   (Bool .) . pred <$> fromFloatValue val
                   <*> fromFloatValue val'
+
+floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
+floatToIntegerOp op = oneArg $ \val ->
+  Integer . op <$> fromFloatValue val
 
 eq :: PrimitiveFunc
 eq = twoArgs $ \val val' ->
