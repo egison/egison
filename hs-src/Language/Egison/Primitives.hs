@@ -101,7 +101,8 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("lt?",  lt)
              , ("lte?", lte)
              , ("gt?",  gt)
-             , ("gte?", gte) ]
+             , ("gte?", gte)
+             , ("string-append", stringAppend) ]
 
 integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
 integerBinaryOp op = twoArgs $ \val val' ->
@@ -180,6 +181,11 @@ gte = twoArgs gte'
   gte' (Value (Float _)) val = throwError $ TypeMismatch "number" val
   gte' val _ = throwError $ TypeMismatch "number" val
 
+stringAppend :: PrimitiveFunc
+stringAppend = twoArgs $ \val val' ->
+  (String .) . (++) <$> fromStringValue val
+                    <*> fromStringValue val'
+
 --
 -- IO Primitives
 --
@@ -196,15 +202,15 @@ ioPrimitives = [ ("open-input-file", makePort ReadMode)
                , ("write-string", writeString)
                , ("write", write)
 --             , ("print", writeStringLine)
---             , ("flush", flushStdout)
+               , ("flush", flushStdout)
                , ("read-char-from-port", readCharFromPort)
                , ("read-line-from-port", readLineFromPort)
 --             , ("read-from-port", readFromPort)
                , ("write-char-to-port", writeCharToPort)
                , ("write-string-to-port", writeStringToPort)
-               , ("write-to-port", writeToPort) ]
+               , ("write-to-port", writeToPort)
 --             , ("print-to-port", writeStringLineToPort)
---             , ("flush-port", flushPort)
+               , ("flush-port", flushPort) ]
 --             , ("get-lib-dir-name", getLibDirName) ]
 
 makeIO :: IO EgisonValue -> EgisonValue
@@ -242,6 +248,9 @@ readChar = noArg $ Right $ makeIO (liftM Char getChar)
 readLine :: PrimitiveFunc
 readLine = noArg $ Right $ makeIO (liftM String getLine)
 
+flushStdout :: PrimitiveFunc
+flushStdout = noArg $ Right $ makeIO' $ hFlush stdout
+
 writeCharToPort :: PrimitiveFunc
 writeCharToPort = twoArgs $ \val val' ->
   (makeIO' .) . hPutChar <$> fromPortValue val <*> fromCharValue val'
@@ -261,6 +270,10 @@ readCharFromPort = oneArg $ \val ->
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = oneArg $ \val ->
   makeIO . liftM String . hGetLine <$> fromPortValue val
+
+flushPort :: PrimitiveFunc
+flushPort = oneArg $ \val ->
+  makeIO' . hFlush <$> fromPortValue val
 
 --
 -- Assertions

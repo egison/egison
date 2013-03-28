@@ -188,13 +188,13 @@ instance Show WHNFData where
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
 
-fromStringValue :: WHNFData -> Either EgisonError String
-fromStringValue (Value (String s)) = return s
-fromStringValue val = throwError $ TypeMismatch "string" val
-
 fromCharValue :: WHNFData -> Either EgisonError Char
 fromCharValue (Value (Char c)) = return c
 fromCharValue val = throwError $ TypeMismatch "char" val
+
+fromStringValue :: WHNFData -> Either EgisonError String
+fromStringValue (Value (String s)) = return s
+fromStringValue val = throwError $ TypeMismatch "string" val
 
 fromBoolValue :: WHNFData -> Either EgisonError Bool
 fromBoolValue (Value (Bool b)) = return b
