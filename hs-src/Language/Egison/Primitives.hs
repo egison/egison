@@ -89,7 +89,11 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("floor",    floatToIntegerOp floor)
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", floatToIntegerOp truncate)
-             , ("eq?", eq) ]
+             , ("eq?",  eq)
+             , ("lt?",  lt)
+             , ("lte?", lte)
+             , ("gt?",  gt)
+             , ("gte?", gte) ]
 
 integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
 integerBinaryOp op = twoArgs $ \val val' ->
@@ -123,6 +127,50 @@ eq :: PrimitiveFunc
 eq = twoArgs $ \val val' ->
   (Bool .) . (==) <$> fromPrimitiveValue val
                   <*> fromPrimitiveValue val'
+
+lt :: PrimitiveFunc
+lt = twoArgs lt'
+ where
+  lt' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i < i
+  lt' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i < f
+  lt' (Value (Float f)) (Value (Integer i)) = return $ Bool $ f < fromInteger i
+  lt' (Value (Float f)) (Value (Float f')) = return $ Bool $ f < f
+  lt' (Value (Integer _)) val = throwError $ TypeMismatch "number" val
+  lt' (Value (Float _)) val = throwError $ TypeMismatch "number" val
+  lt' val _ = throwError $ TypeMismatch "number" val
+
+lte :: PrimitiveFunc
+lte = twoArgs lte'
+ where
+  lte' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i <= i
+  lte' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i <= f
+  lte' (Value (Float f)) (Value (Integer i)) = return $ Bool $ f <= fromInteger i
+  lte' (Value (Float f)) (Value (Float f')) = return $ Bool $ f <= f
+  lte' (Value (Integer _)) val = throwError $ TypeMismatch "number" val
+  lte' (Value (Float _)) val = throwError $ TypeMismatch "number" val
+  lte' val _ = throwError $ TypeMismatch "number" val
+
+gt :: PrimitiveFunc
+gt = twoArgs gt'
+ where
+  gt' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i > i
+  gt' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i > f
+  gt' (Value (Float f)) (Value (Integer i)) = return $ Bool $ f > fromInteger i
+  gt' (Value (Float f)) (Value (Float f')) = return $ Bool $ f > f
+  gt' (Value (Integer _)) val = throwError $ TypeMismatch "number" val
+  gt' (Value (Float _)) val = throwError $ TypeMismatch "number" val
+  gt' val _ = throwError $ TypeMismatch "number" val
+
+gte :: PrimitiveFunc
+gte = twoArgs gte'
+ where
+  gte' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i >= i
+  gte' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i >= f
+  gte' (Value (Float f)) (Value (Integer i)) = return $ Bool $ f >= fromInteger i
+  gte' (Value (Float f)) (Value (Float f')) = return $ Bool $ f >= f
+  gte' (Value (Integer _)) val = throwError $ TypeMismatch "number" val
+  gte' (Value (Float _)) val = throwError $ TypeMismatch "number" val
+  gte' val _ = throwError $ TypeMismatch "number" val
 
 --
 -- IO Primitives
