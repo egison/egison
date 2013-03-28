@@ -1,27 +1,30 @@
-(define $numbers {1 2 3})
+(test (assert "list's value pattern"
+        (match {1 2 3} (list integer)
+          {[,{@{@{1}} @{2 @{3}}} #t]
+           [_ #f]})))
 
 (test (assert-equal "list's cons"
-        (match numbers (list integer)
+        (match {1 2 3} (list integer)
           {[<cons $n $ns> [n ns]]})
         [1 {2 3}]))
 
 (test (assert-equal "list's cons with value pattern"
-        (match numbers (list integer)
+        (match {1 2 3} (list integer)
           {[<cons ,1 $ns> ns]})
         {2 3}))
 
 (test (assert-equal "list's snoc"
-        (match numbers (list integer)
+        (match {1 2 3} (list integer)
           {[<snoc $n $ns> [n ns]]})
         [3 {1 2}]))
 
 (test (assert-equal "list's snoc with value pattern"
-        (match numbers (list integer)
+        (match {1 2 3} (list integer)
           {[<snoc ,3 $ns> ns]})
         {1 2}))
 
 (test (assert-equal "list's join"
-        (match-all numbers (list integer)
+        (match-all {1 2 3} (list integer)
           [<join $xs $ys> [xs ys]])
         {[{} {1 2 3}]
          [{1} {2 3}]
@@ -29,37 +32,37 @@
          [{1 2 3} {}]}))
 
 (test (assert-equal "list's join with value pattern"
-        (match numbers (list integer)
+        (match {1 2 3} (list integer)
           {[<join ,{1} $ns> ns]})
         {2 3}))
 
 (test (assert-equal "list's nioj"
-        (match-all numbers (list integer)
+        (match-all {1 2 3} (list integer)
           [<nioj $xs $ys> [xs ys]])
         {[{1 2 3} {}]
          [{2 3} {1}]
          [{3} {1 2}]
          [{} {1 2 3}]}))
 
-(test (assert-equal "list's join with value pattern"
-        (match numbers (list integer)
+(test (assert-equal "list's nioj with value pattern"
+        (match {1 2 3} (list integer)
           {[<nioj ,{3} $ns> ns]})
         {1 2}))
 
 (test (assert-equal "map"
-        (map (* $ 2) numbers)
+        (map (* $ 2) {1 2 3})
         {2 4 6}))
 
 (test (assert-equal "map-and-concat"
-        (map-and-concat (between 1 $) numbers)
+        (map-and-concat (between 1 $) {1 2 3})
         {1 1 2 1 2 3}))
 
 (test (assert-equal "foldr"
-        (foldr (lambda [$n $ns] {n @ns}) {} numbers)
+        (foldr (lambda [$n $ns] {n @ns}) {} {1 2 3})
         {1 2 3}))
 
 (test (assert-equal "foldl"
-        (foldl (lambda [$ns $n] {n @ns}) {} numbers)
+        (foldl (lambda [$ns $n] {n @ns}) {} {1 2 3})
         {3 2 1}))
 
 (test (assert-equal "filter"
@@ -131,12 +134,11 @@
 
 #|
 (test (assert-equal "member?" ; use of value pattern for something
-        (member? 2 numbers)
+        (member? 2 {1 2 3})
         #t))
 
 (test (assert-equal "unique" ; use of member?
         ...))
-
 
 (test (assert-equal "subcollection?" ; use of member?
         ...))
@@ -146,35 +148,39 @@
         (concat {{1 2} {3 4 5}})
         {1 2 3 4 5}))
 
+(test (assert "multiset's value pattern"
+        (match {1 1 1 2 3} (multiset integer)
+          {[,{@{@{1}} @{2 @{1 3}} 1} #t]
+           [_ #f]})))
+
 (test (assert-equal "multiset's cons"
-        (match-all numbers (multiset integer)
+        (match-all {1 2 3} (multiset integer)
           [<cons $n $ns> [n ns]])
         {[1 {2 3}] [2 {1 3}] [3 {1 2}]}))
 
 (test (assert-equal "multiset's cons with value pattern"
-        (match numbers (multiset integer)
+        (match {1 2 3} (multiset integer)
           {[<cons ,2 $ns> ns]})
         {1 3}))
 
-#|
-(test (assert-equal "multiset's join"
-        (match numbers (multiset integer)
-          {[<join $xs $ys> [xs ys]]})
-        {[{} {1 2 3}] [{1} {2 3}] [{2} {1 3}] [{3} {1 2}]
-         [{1 2} {3}] [{1 3} {2}] [{2 3} {1}] [{1 2 3} {}]}))
-|#
-
 (test (assert-equal "multiset's join with value pattern"
-        (match numbers (multiset integer)
+        (match {1 2 3} (multiset integer)
           {[<join ,{1} $ns> ns]})
         {2 3}))
 
+#|
+(test (assert "set's value pattern"
+        (match {1 2 3} (set integer)
+          {[,{@{@{1}} @{2 @{3}}} #t]
+           [_ #f]})))
+|#
+
 (test (assert-equal "set's cons"
-        (match-all numbers (set integer)
+        (match-all {1 2 3} (set integer)
           [<cons $n $ns> [n ns]])
         {[1 {1 2 3}] [2 {1 2 3}] [3 {1 2 3}]}))
 
 (test (assert-equal "set's cons with value pattern"
-        (match numbers (set integer)
+        (match {1 2 3} (set integer)
           {[<cons ,2 $ns> ns]})
         {1 2 3}))
