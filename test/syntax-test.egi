@@ -1,6 +1,38 @@
-(test (assert-equal "singleton tuple"
+(test (assert-equal "char literal"
+        ['a' 'b' 'c']
+        ['a' 'b' 'c']))
+
+(test (assert-equal "string literal"
+        ["abc\n" "cdf"]
+        ["abc\n" "cdf"]))
+
+(test (assert-equal "bool literal"
+        [#t #f]
+        [#t #f]))
+
+(test (assert-equal "integer literal"
+        [1 0 -100 (+ 1 -100)]
+        [1 0 -100 -99]))
+
+(test (assert-equal "float literal"
+        [1.0 0.0 -100.012001]
+        [1.0 0.0 -100.012001]))
+
+(test (assert-equal "inductive data literal"
+        <A>
+        <A>))
+
+(test (assert-equal "tuple literal"
+        [1 2 3]
+        [1 2 3]))
+
+(test (assert-equal "singleton tuple literal"
         [1]
         1))
+
+(test (assert-equal "collection literal"
+        {@{@{1}} @{2 @{3}}}
+        {1 2 3}))
 
 (test (assert-equal "if"
         (if #t #t #f)
