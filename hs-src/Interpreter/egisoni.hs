@@ -12,6 +12,8 @@ import Text.Parsec.ByteString.Lazy
 import Text.Regex.Posix
 
 import System.Environment
+import System.Directory (getHomeDirectory)
+import System.FilePath ((</>))
 import System.Console.Haskeline
 import Language.Egison
 
@@ -34,14 +36,13 @@ showByebyeMessage :: IO ()
 showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
 
-settings :: Settings IO
-settings = defaultSettings {historyFile = Just ".egison_history"}
-
 repl :: Env -> String -> IO ()
 repl env prompt = loop env prompt ""
   where
     loop :: Env -> String -> String -> IO ()
     loop env prompt' rest = do
+      home <- getHomeDirectory
+      let settings = defaultSettings { historyFile = Just (home </> ".egison_history") }
       input <- runInputT settings $ getInputLine prompt'
       case input of
         Nothing -> showByebyeMessage >> return ()
