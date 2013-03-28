@@ -50,11 +50,9 @@
         (map (* $ 2) numbers)
         {2 4 6}))
 
-#|
 (test (assert-equal "map-and-concat"
         (map-and-concat (between 1 $) numbers)
         {1 1 2 1 2 3}))
-|#
 
 (test (assert-equal "foldr"
         (foldr (lambda [$n $ns] {n @ns}) {} numbers)
