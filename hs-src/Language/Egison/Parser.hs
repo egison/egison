@@ -52,7 +52,8 @@ parseLoadExpr :: Parser EgisonTopExpr
 parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 
 parseExpr :: Parser EgisonExpr
-parseExpr = (try parseVarExpr
+parseExpr = (try parseConstantExpr
+             <|> try parseVarExpr
 --           <|> parseOmitExpr
              <|> try parsePatVarExpr
 --           <|> parsePatVarOmitExpr
@@ -63,7 +64,6 @@ parseExpr = (try parseVarExpr
              <|> parseValuePatExpr
              <|> parsePredPatExpr 
                         
-             <|> parseConstantExpr
              <|> try parseInductiveDataExpr
              <|> parseInductivePatternExpr
              <|> parseTupleExpr
@@ -297,8 +297,8 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
  where
-  symbol1 = oneOf "&*+-/:="
-  symbol2 = symbol1 <|> oneOf "!?"
+  symbol1 = oneOf "&*/:="
+  symbol2 = symbol1 <|> oneOf "+-!?"
 
 lexer :: P.GenTokenParser ByteString () Identity
 lexer = P.makeTokenParser egisonDef
@@ -366,11 +366,16 @@ keywordFunction           = reserved "function"
 keywordSomething          = reserved "something"
 keywordUndefined          = reserved "undefined"
 
+sign :: Num a => Parser (a -> a)
+sign = (char '-' >> return negate)
+   <|> (char '+' >> return id)
+   <|> return id
+
 integerLiteral :: Parser Integer
-integerLiteral = P.integer lexer
+integerLiteral = sign <*> P.natural lexer
 
 floatLiteral :: Parser Double
-floatLiteral = P.float lexer
+floatLiteral = sign <*> P.float lexer
 
 stringLiteral :: Parser String
 stringLiteral = P.stringLiteral lexer
@@ -407,6 +412,8 @@ dot = P.dot lexer
 
 ident :: Parser String
 ident = P.identifier lexer
+    <|> (P.lexeme lexer $ string "+")
+    <|> (P.lexeme lexer $ string "-")
 
 upperName :: Parser String
 upperName = P.lexeme lexer $ (:) <$> upper <*> option "" ident
