@@ -98,9 +98,9 @@ evalExpr env (LetExpr bindings expr) =
  where
   extractBindings :: BindingExpr -> EgisonM [Binding]
   extractBindings ([name], expr) =
-    newThunk env expr >>= makeBindings [name] . return
+    makeBindings [name] . (:[]) <$> newThunk env expr
   extractBindings (names, expr) =
-    evalExpr env expr >>= fromTuple >>= makeBindings names
+    makeBindings names <$> (evalExpr env expr >>= fromTuple)
 
 evalExpr env (LetRecExpr bindings expr) =
   let bindings' = evalState (concat <$> mapM extractBindings bindings) 0
@@ -198,8 +198,11 @@ evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef')
 
 applyFunc :: WHNFData -> [ObjectRef] -> EgisonM WHNFData
-applyFunc (Value (Func env names body)) args =
-  makeBindings names args >>= flip evalExpr body . extendEnv env
+applyFunc (Value (Func env names body)) args
+  | length names == length args =
+    let env' = extendEnv env $ makeBindings names args
+    in evalExpr env' body
+  | otherwise = throwError $ ArgumentsNum (length names) (length args)
 applyFunc (Value (PrimitiveFunc func)) args =
   mapM evalRef args >>= liftM Value . liftError . func
 applyFunc (Value (IOFunc func)) args =
@@ -215,13 +218,16 @@ writeThunk ref val = liftIO . writeIORef ref $ WHNF val
 newEvaluatedThunk :: WHNFData -> EgisonM ObjectRef
 newEvaluatedThunk = liftIO . newIORef . WHNF
 
+makeBindings :: [String] -> [ObjectRef] -> [Binding]
+makeBindings = zip . map (flip (,) [])
+
 recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
   refs <- replicateM (length bindings) $ newThunk nullEnv UndefinedExpr
-  env <- extendEnv env <$> makeBindings names refs
-  zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env expr) refs exprs
-  return env
+  let env' = extendEnv env $ makeBindings names refs
+  zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr) refs exprs
+  return env'
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs

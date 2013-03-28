@@ -27,7 +27,7 @@ noArg :: (MonadError EgisonError m) =>
          [WHNFData] -> m EgisonValue
 noArg f = \vals -> case vals of 
                      [] -> f
-                     _ -> throwError $ ArgumentsNum 0 vals
+                     _ -> throwError $ ArgumentsNum 0 $ length vals
 
 {-# INLINE oneArg #-}
 oneArg :: (MonadError EgisonError m) =>
@@ -35,7 +35,7 @@ oneArg :: (MonadError EgisonError m) =>
           [WHNFData] -> m EgisonValue
 oneArg f = \vals -> case vals of 
                       [val] -> f val
-                      _ -> throwError $ ArgumentsNum 1 vals
+                      _ -> throwError $ ArgumentsNum 1 $ length vals
 
 {-# INLINE twoArgs #-}
 twoArgs :: (MonadError EgisonError m) =>
@@ -43,7 +43,15 @@ twoArgs :: (MonadError EgisonError m) =>
            [WHNFData] -> m EgisonValue
 twoArgs f = \vals -> case vals of 
                        [val, val'] -> f val val'
-                       _ -> throwError $ ArgumentsNum 2 vals
+                       _ -> throwError $ ArgumentsNum 2 $ length vals
+
+{-# INLINE threeArgs #-}
+threeArgs :: (MonadError EgisonError m) =>
+             (WHNFData -> WHNFData -> WHNFData -> m EgisonValue) ->
+             [WHNFData] -> m EgisonValue
+threeArgs f = \vals -> case vals of 
+                         [val, val', val''] -> f val val' val''
+                         _ -> throwError $ ArgumentsNum 3 $ length vals
 
 --
 -- Primitives
@@ -263,19 +271,17 @@ assertions = [ ("assert", assert)
              , ("assert-equal", assertEqual) ]
 
 assert :: IOFunc 
-assert [label, test] = do
+assert = twoArgs $ \label test -> do
   test <- liftError $ fromBoolValue test
   if test
     then return $ Bool True
     else throwError $ Assertion $ show label
-assert vals = throwError $ ArgumentsNum 2 vals
 
 assertEqual :: IOFunc 
-assertEqual [label, actual, expected] = do
+assertEqual = threeArgs $ \label actual expected -> do
   actual <- evalDeep actual
   expected <- evalDeep expected
   if actual == expected
     then return $ Bool True
     else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
                                   "\n but found: " ++ show actual
-assertEqual vals = throwError $ ArgumentsNum 3 vals

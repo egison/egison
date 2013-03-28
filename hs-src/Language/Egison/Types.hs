@@ -246,12 +246,6 @@ refVar :: Env -> Var -> EgisonM ObjectRef
 refVar env var = maybe (throwError $ UnboundVariable var) return
                        (msum $ map (HashMap.lookup var) env)
 
-makeBindings :: [String] -> [ObjectRef] -> EgisonM [Binding]
-makeBindings (name : names) (ref : refs) =
-  (((name, []), ref) :) <$> makeBindings names refs
-makeBindings [] [] = return []
-makeBindings _ _ = throwError $ strMsg "invalid bindings"
-
 --
 -- Pattern Match
 --
@@ -272,7 +266,7 @@ data EgisonError =
     Parser ParseError
   | UnboundVariable Var
   | TypeMismatch String WHNFData
-  | ArgumentsNum Int [WHNFData]
+  | ArgumentsNum Int Int
   | NotImplemented String
   | Assertion String
   | Default String
@@ -283,6 +277,8 @@ instance Show EgisonError where
                                       concatMap (('_':) . show) nums
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
+  show (ArgumentsNum expected got) = "Wrong number of arguments: expected " ++
+                                     show expected ++ ", but got " ++  show got
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
   show (Default message) = "Error: " ++ message
