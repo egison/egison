@@ -79,10 +79,28 @@
   (lambda [$a]
     (algebraic-data-matcher
       (| <leaf> <node tree a tree>)))) 
+|#
+
+(define $tree ; temporally
+  (lambda [$a]
+    (matcher
+      {[,$val []
+        {[$tgt (match [tgt val] [(tree a) (tree a)]
+                 {[[<leaf> <leaf>] {[]}]
+                  [[<node $t1 $x $t2> <node ,t1 ,x ,t2>] {[]}]
+                  [_ {}]})]}]
+       [<leaf> []
+        {[<Leaf> {[]}]
+         [_ {}]}]
+       [<node $ $ $> [(tree a) a (tree a)]
+        {[<Node $t1 $x $t2> {[t1 x t2]}]
+         [_ {}]}]
+       [$ [something]
+        {[$tgt {tgt}]}]})))
 
 (define $insert
-  (lambda [$n $tree]
-    (match tree (tree integer)
+  (lambda [$n $t]
+    (match t (tree integer)
       {[<leaf> <Node <Leaf> n <Leaf>>]
        [<node $t1 $m $t2>
         (match (compare-integer n m) ordering
@@ -91,8 +109,8 @@
            [<greater> <Node t1 m (insert n t2)>]})]})))
 
 (define $member?
-  (lambda [$n $tree]
-    (match tree (tree integer)
+  (lambda [$n $t]
+    (match t (tree integer)
       {[<leaf> #f]
        [<node $t1 $m $t2>
         (match (compare-integer n m) ordering
@@ -104,4 +122,3 @@
         (let {[$t (foldr insert <Leaf> (between 1 10))]}
           [(member? 5 t) (member? 0 t)])
         [#t #f]))
-|#
