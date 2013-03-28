@@ -16,7 +16,7 @@ primitiveEnv :: IO Env
 primitiveEnv = do
   let ops = map (second PrimitiveFunc) (primitives ++ ioPrimitives) ++
             map (second IOFunc) assertions
-  bindings <- forM ops $ \(name, op) -> do
+  bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return ((name, []), ref)
   return $ extendEnv nullEnv bindings
@@ -52,6 +52,13 @@ threeArgs :: (MonadError EgisonError m) =>
 threeArgs f = \vals -> case vals of 
                          [val, val', val''] -> f val val' val''
                          _ -> throwError $ ArgumentsNum 3 $ length vals
+
+--
+-- Constants
+--
+
+constants :: [(String, EgisonValue)]
+constants = [ ("pi", Float 3.141592653589793) ]
 
 --
 -- Primitives
