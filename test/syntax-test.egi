@@ -1,3 +1,7 @@
+(test (assert-equal "singleton tuple"
+        [1]
+        1))
+
 (test (assert-equal "if"
         (if #t #t #f)
         #t))
@@ -37,3 +41,21 @@
 (test (assert-equal "indexed placeholder"
         ((+ $1 $1) 10)
         20))
+
+(test (assert-equal "match"
+        (match {1 2 3} (list integer)
+          {[<nil> #f]
+           [<cons $x $xs> [x xs]]})
+        [1 {2 3}]))
+
+(test (assert-equal "match-all"
+        (match-all {1 2 3} (list integer)
+          [<cons $x $xs> [x xs]])
+        {[1 {2 3}]}))
+
+(test (assert-equal "function"
+        (letrec {[$count (function (list something)
+                           {[<nil> 0]
+                            [<cons _ $xs> (+ (count xs) 1)]})]}
+          (count {1 2 3}))
+        3))

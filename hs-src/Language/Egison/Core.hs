@@ -466,7 +466,7 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
                  <*> newEvaluatedThunk (Value $ last vals)
     unsnocCollection' (Intermediate (ICollection [])) = matchFail
     unsnocCollection' (Intermediate (ICollection inners)) =
-      case last vals of
+      case last inners of
         IElement ref ->
           lift $ (,) <$> newEvaluatedThunk (Intermediate . ICollection $ init inners)
                      <*> pure ref
