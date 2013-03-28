@@ -194,7 +194,11 @@ parseLoopExpr = keywordLoop >> LoopExpr <$> parseVarName <*> parseVarName
                                         <*> parseExpr <*> parseExpr <*> parseExpr
 
 parseApplyExpr :: Parser EgisonExpr
-parseApplyExpr = do
+parseApplyExpr = (keywordApply >> ApplyExpr <$> parseExpr <*> parseExpr) 
+             <|> parseApplyExpr'
+
+parseApplyExpr' :: Parser EgisonExpr
+parseApplyExpr' = do
   func <- parseExpr
   args <- parseArgs
   let vars = lefts args
@@ -309,6 +313,7 @@ reservedKeywords =
   , "if"
   , "then"
   , "else" 
+  , "apply"
   , "lambda"
   , "pattern-constructor"
   , "letrec"
@@ -347,6 +352,7 @@ keywordLoad               = reserved "load"
 keywordIf                 = reserved "if"
 keywordThen               = reserved "then"
 keywordElse               = reserved "else"
+keywordApply              = reserved "apply"
 keywordLambda             = reserved "lambda"
 keywordPatternConstructor = reserved "pattern-constructor"
 keywordLetRec             = reserved "letrec"
