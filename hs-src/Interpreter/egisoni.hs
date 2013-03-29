@@ -37,20 +37,23 @@ showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
 
 repl :: Env -> String -> IO ()
-repl env prompt = loop env prompt ""
+repl env prompt = do
+  home <- getHomeDirectory
+  liftIO (runInputT (settings home) $ loop env prompt "")
   where
-    loop :: Env -> String -> String -> IO ()
+    settings :: MonadIO m => FilePath -> Settings m
+    settings home = defaultSettings { historyFile = Just (home </> ".egison_history") }
+    
+    loop :: Env -> String -> String -> InputT IO ()
     loop env prompt' rest = do
-      home <- getHomeDirectory
-      let settings = defaultSettings { historyFile = Just (home </> ".egison_history") }
-      input <- runInputT settings $ getInputLine prompt'
+      input <- getInputLine prompt'
       case input of
-        Nothing -> showByebyeMessage >> return ()
-        Just "quit" -> showByebyeMessage >> return ()
+        Nothing -> liftIO showByebyeMessage >> return ()
+        Just "quit" -> liftIO showByebyeMessage >> return ()
         Just "" ->  loop env prompt ""
         Just input' -> do
           let newInput = rest ++ input'
-          result <- runEgisonTopExpr env newInput
+          result <- liftIO $ runEgisonTopExpr env newInput
           case result of
             Left err | show err =~ "unexpected end of input" -> do
               loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
