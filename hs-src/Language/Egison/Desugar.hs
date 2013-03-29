@@ -40,36 +40,27 @@ desugar (AlgebraicDataMatcher patterns) = do
         return $ MatcherExpr clauses
         
       genMainClause :: [EgisonExpr] -> EgisonExpr -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
-      genMainClause patterns matcher =
+      genMainClause patterns matcher = do
+        clauses <- genClauses patterns
         return (PPValuePat "val", TupleExpr [],
                  [(PDPatVar "tgt", (MatchExpr (TupleExpr [(VarExpr "val" []), (VarExpr "tgt" [])]) 
                                               (TupleExpr [matcher, matcher]) 
-                                              (genClauses patterns)))])
+                                              clauses))])
         where
-          genClauses :: [EgisonExpr] -> [MatchClause]
-          genClauses patterns = map genClause patterns ++ [(PatternExpr WildCard, matchingFailure)]
+          genClauses :: [EgisonExpr] -> DesugarM [MatchClause]
+          genClauses patterns = (++) <$> mapM genClause patterns
+                                     <*> pure [(PatternExpr WildCard, matchingFailure)]
           
-          genClause :: EgisonExpr -> MatchClause
-          genClause pattern = (TupleExpr [pattern, genMatchingPattern pattern], matchingSuccess)
+          genClause :: EgisonExpr -> DesugarM MatchClause
+          genClause pattern = do
+            (pat0, pat1) <- genMatchingPattern pattern
+            return (TupleExpr [pat0, pat1], matchingSuccess)
         
-          genMatchingPattern :: EgisonExpr -> EgisonExpr
-          genMatchingPattern (PatternExpr (InductivePattern name patterns)) =
-            (PatternExpr (InductivePattern name $ map genMatchingPattern patterns))
-          genMatchingPattern (PatternExpr (PatVar name index)) =
-            (PatternExpr (ValuePat (VarExpr name index)))
-          genMatchingPattern (PatternExpr (ValuePat expr)) =
-            (PatternExpr (ValuePat (genMatchingPattern expr)))
-          genMatchingPattern (PatternExpr (PredPat expr)) =
-            (PatternExpr (PredPat (genMatchingPattern expr)))
-          genMatchingPattern (PatternExpr (AndPat exprs)) =
-            (PatternExpr (AndPat $ map genMatchingPattern exprs))
-          genMatchingPattern (PatternExpr (OrPat exprs)) =
-            (PatternExpr (OrPat $ map genMatchingPattern exprs))
-          genMatchingPattern (PatternExpr (NotPat expr)) = 
-            (PatternExpr (NotPat $ genMatchingPattern expr))
-          genMatchingPattern (PatternExpr (CutPat expr)) =
-            (PatternExpr (CutPat $ genMatchingPattern expr))
-          genMatchingPattern pattern = pattern
+          genMatchingPattern :: EgisonExpr -> DesugarM (EgisonExpr, EgisonExpr)
+          genMatchingPattern (PatternExpr (InductivePattern name patterns)) = do
+            names <- mapM (const fresh) patterns
+            return $ ((PatternExpr $ InductivePattern name (map (PatternExpr . flip PatVar []) names))  
+                     ,(PatternExpr $ InductivePattern name (map (PatternExpr . ValuePat . (flip VarExpr [])) names)))
           
       genMatcherClause :: EgisonExpr -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genMatcherClause pattern = do

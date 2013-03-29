@@ -3,79 +3,16 @@
 ;
 
 (define $suit
-  (matcher
-    {[,$val []
-      {[$tgt (match [val tgt] [suit suit]
-               {[[<wan> <wan>] {[]}]
-                [[<pin> <pin>] {[]}]
-                [[<sou> <sou>] {[]}]
-                [_ {}]})]}]
-     [<wan> []
-      {[<Wan> {[]}]
-       [_ {}]}]
-     [<pin> []
-      {[<Pin> {[]}]
-       [_ {}]}]
-     [<sou> []
-      {[<Sou> {[]}]
-       [_ {}]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+  (algebraic-data-matcher
+    (| <wan> <pin> <sou> )))
 
 (define $honor
-  (matcher
-    {[,$val []
-      {[$tgt (match [val tgt] [honor honor]
-               {[[<ton> <ton>] {[]}]
-                [[<nan> <nan>] {[]}]
-                [[<sha> <sha>] {[]}]
-                [[<pe> <pe>] {[]}]
-                [[<haku> <haku>] {[]}]
-                [[<hatsu> <hatsu>] {[]}]
-                [[<chun> <chun>] {[]}]
-                [_ {}]})]}]
-     [<ton> []
-      {[<Ton> {[]}]
-       [_ {}]}]
-     [<nan> []
-      {[<Nan> {[]}]
-       [_ {}]}]
-     [<sha> []
-      {[<Sha> {[]}]
-       [_ {}]}]
-     [<pe> []
-      {[<Pe> {[]}]
-       [_ {}]}]
-     [<haku> []
-      {[<Haku> {[]}]
-       [_ {}]}]
-     [<hatsu> []
-      {[<Hatsu> {[]}]
-       [_ {}]}]
-     [<chun> []
-      {[<Chun> {[]}]
-       [_ {}]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+  (algebraic-data-matcher
+    (| <ton> <nan> <sha> <pe> <haku> <hatsu> <chun> )))
 
 (define $hai
-  (matcher
-    {[,$val []
-      {[$tgt (match [val tgt] [hai hai]
-               {[[<num $s $n> <num ,s ,n>] {[]}]
-                [[<ji $h> <ji ,h>] {[]}]
-                [[_ _] {}]})]}]
-     [<num $ $> [suit integer]
-      {[<Num $s $n> {[s n]}]
-       [_ {}]}]
-     [<ji $> [honor]
-      {[<Ji $h> {h}]
-       [_ {}]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+  (algebraic-data-matcher
+    (| <num suit integer> <ji honor> )))
 
 (define $shuntsu
   (pattern-constructor [$pat1 $pat2]
