@@ -85,6 +85,8 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("lte-f?", floatBinaryPred (<=))
              , ("gt-f?",  floatBinaryPred (>))
              , ("gte-f?", floatBinaryPred (>=))
+             , ("neg", integerUnaryOp negate)
+             , ("abs", integerUnaryOp abs)
              , ("sqrt", floatUnaryOp sqrt)
              , ("exp", floatUnaryOp exp)
              , ("log", floatUnaryOp log)
@@ -110,6 +112,10 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("gt?",  gt)
              , ("gte?", gte)
              , ("string-append", stringAppend) ]
+             
+integerUnaryOp :: (Integer -> Integer) -> PrimitiveFunc
+integerUnaryOp op = oneArg $ \val ->
+  Integer . op <$> fromIntegerValue val
 
 integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
 integerBinaryOp op = twoArgs $ \val val' ->
