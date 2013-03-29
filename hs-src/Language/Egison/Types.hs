@@ -58,7 +58,7 @@ data EgisonExpr =
     
   | ApplyExpr EgisonExpr EgisonExpr
 
-  | AlgebraicDataMatcher [PrimitivePatPattern]
+  | AlgebraicDataMatcher [EgisonExpr]
 
   | SomethingExpr
   | UndefinedExpr
@@ -277,6 +277,7 @@ data EgisonError =
   | ArgumentsNum Int [WHNFData]
   | NotImplemented String
   | Match String
+  | Desugar String
   | Default String
     
 instance Show EgisonError where
@@ -286,6 +287,7 @@ instance Show EgisonError where
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
   show (NotImplemented message) = "Not implemented: " ++ message
+  show (Desugar message) = "Error: " ++ message
   show (Default message) = "Error: " ++ message
 
 instance Error EgisonError where

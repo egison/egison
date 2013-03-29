@@ -21,7 +21,8 @@ main = do args <- getArgs
           if null args
             then showBanner >> repl env "> "
             else do
-              result <- runEgisonM $ evalTopExpr env $ LoadFile (args !! 0)
+              input <- readFile (args !! 0)
+              result <- runEgisonTopExpr env $ input
               either print (const $ return ()) result
 
 showBanner :: IO ()
@@ -35,7 +36,7 @@ showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
 
 settings :: Settings IO
-settings = defaultSettings {historyFile = Just ".egison_history"}
+settings = defaultSettings { historyFile = Just ".egison_history" }
 
 repl :: Env -> String -> IO ()
 repl env prompt = loop env prompt ""

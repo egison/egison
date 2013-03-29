@@ -1,4 +1,8 @@
-module Language.Egison.Parser where
+module Language.Egison.Parser 
+       ( readTopExprs
+       , readTopExpr
+       , readExprs
+       , readExpr ) where
 
 import Control.Monad.Identity
 import Control.Monad.Error
@@ -19,14 +23,41 @@ import Text.Parsec.Combinator
 import qualified Text.Parsec.Token as P
 
 import Language.Egison.Types
+import Language.Egison.Desugar
   
-notImplemented :: Parser a
-notImplemented = choice []
+runParser' :: Parser a -> String -> Either EgisonError a
+runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
+  
+readTopExprs :: String -> Either EgisonError [EgisonTopExpr]
+readTopExprs input = either throwError (mapM desugarTopExpr) $ runParser' (whiteSpace >> parseTopExprs) input
+
+readTopExpr :: String -> Either EgisonError EgisonTopExpr
+readTopExpr input = either throwError desugarTopExpr $ runParser' (whiteSpace >> parseTopExpr) input
+
+readExprs :: String -> Either EgisonError [EgisonExpr]
+readExprs input = either throwError (mapM desugarExpr) $ runParser' (whiteSpace >> parseExprs) input
+
+readExpr :: String -> Either EgisonError EgisonExpr
+readExpr input = either throwError desugarExpr $ runParser' (whiteSpace >> parseExpr) input
+
+desugarTopExpr :: EgisonTopExpr -> Either EgisonError EgisonTopExpr
+desugarTopExpr (Define name expr) = do
+  expr' <- desugarExpr expr
+  return (Define name expr')
+  
+desugarTopExpr (Test expr) = do
+  expr' <- desugarExpr expr
+  return (Test expr')
+
+desugarTopExpr expr = return expr
+
+desugarExpr :: EgisonExpr -> Either EgisonError EgisonExpr
+desugarExpr expr = either throwError return $ runDesugarM $ desugar expr
 
 -- Expressions
 
 parseTopExprs :: Parser [EgisonTopExpr]
-parseTopExprs = whiteSpace >> endBy parseTopExpr whiteSpace
+parseTopExprs = endBy parseTopExpr whiteSpace
 
 parseTopExpr :: Parser EgisonTopExpr
 parseTopExpr = parens (parseDefineExpr
@@ -51,8 +82,12 @@ parseLoadFileExpr = keywordLoadFile >> LoadFile <$> stringLiteral
 parseLoadExpr :: Parser EgisonTopExpr
 parseLoadExpr = keywordLoad >> Load <$> stringLiteral
 
+parseExprs :: Parser [EgisonExpr]
+parseExprs = endBy parseExpr whiteSpace
+
 parseExpr :: Parser EgisonExpr
-parseExpr = (try parseVarExpr
+parseExpr = (try parseConstantExpr
+             <|> try parseVarExpr
 --           <|> parseOmitExpr
              <|> try parsePatVarExpr
 --           <|> parsePatVarOmitExpr
@@ -63,7 +98,7 @@ parseExpr = (try parseVarExpr
              <|> parseValuePatExpr
              <|> parsePredPatExpr 
                         
-             <|> parseConstantExpr
+ 
              <|> try parseInductiveDataExpr
              <|> parseInductivePatternExpr
              <|> parseTupleExpr
@@ -80,7 +115,8 @@ parseExpr = (try parseVarExpr
                          <|> parseMatchAllExpr
                          <|> parseMatchExpr
                          <|> parseMatcherExpr
-                         <|> parseApplyExpr)
+                         <|> parseApplyExpr
+                         <|> parseAlgebraicDataMatcherExpr)
                          <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
@@ -260,8 +296,8 @@ parseAlgebraicDataMatcherExpr :: Parser EgisonExpr
 parseAlgebraicDataMatcherExpr = keywordAlgebraicDataMatcher 
                                 >> (parens $ AlgebraicDataMatcher <$> parseAlgebraicDataMatcherBody)
   where
-    parseAlgebraicDataMatcherBody :: Parser [PrimitivePatPattern]
-    parseAlgebraicDataMatcherBody = reservedOp "|" >> sepEndBy1 parsePPInductivePat whiteSpace
+    parseAlgebraicDataMatcherBody :: Parser [EgisonExpr]
+    parseAlgebraicDataMatcherBody = reservedOp "|" >> sepEndBy1 parseInductivePatternExpr whiteSpace
 
 --parseOmitExpr :: Parser EgisonExpr
 --parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
