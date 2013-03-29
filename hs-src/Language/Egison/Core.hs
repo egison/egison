@@ -15,6 +15,7 @@ import System.Directory (doesFileExist)
 
 import Language.Egison.Types
 import Language.Egison.Parser
+import Language.Egison.Desugar
 import Paths_egison (getDataFileName)
 
 --
@@ -49,8 +50,9 @@ evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
 loadFile :: FilePath -> EgisonM [EgisonTopExpr]
 loadFile file = do
   doesExist <- liftIO $ doesFileExist file
-  unless doesExist $ throwError $ strMsg ("file does not exist: " ++ file) 
-  exprs <- liftIO (parseFromFile parseTopExprs file) >>= either (throwError . Parser) return
+  unless doesExist $ throwError $ strMsg ("file does not exist: " ++ file)
+  input <- liftIO $ readFile file
+  exprs <- liftError $ readTopExprs input
   concat <$> mapM recursiveLoad exprs
  where
   recursiveLoad (Load file) = loadFile file

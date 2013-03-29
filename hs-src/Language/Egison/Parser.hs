@@ -1,4 +1,8 @@
-module Language.Egison.Parser where
+module Language.Egison.Parser 
+       ( readTopExprs
+       , readTopExpr
+       , readExprs
+       , readExpr ) where
 
 import Control.Monad.Identity
 import Control.Monad.Error
@@ -19,14 +23,41 @@ import Text.Parsec.Combinator
 import qualified Text.Parsec.Token as P
 
 import Language.Egison.Types
+import Language.Egison.Desugar
   
-notImplemented :: Parser a
-notImplemented = choice []
+runParser' :: Parser a -> String -> Either EgisonError a
+runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
+  
+readTopExprs :: String -> Either EgisonError [EgisonTopExpr]
+readTopExprs input = either throwError (mapM desugarTopExpr) $ runParser' (whiteSpace >> parseTopExprs) input
+
+readTopExpr :: String -> Either EgisonError EgisonTopExpr
+readTopExpr input = either throwError desugarTopExpr $ runParser' (whiteSpace >> parseTopExpr) input
+
+readExprs :: String -> Either EgisonError [EgisonExpr]
+readExprs input = either throwError (mapM desugarExpr) $ runParser' (whiteSpace >> parseExprs) input
+
+readExpr :: String -> Either EgisonError EgisonExpr
+readExpr input = either throwError desugarExpr $ runParser' (whiteSpace >> parseExpr) input
+
+desugarTopExpr :: EgisonTopExpr -> Either EgisonError EgisonTopExpr
+desugarTopExpr (Define name expr) = do
+  expr' <- desugarExpr expr
+  return (Define name expr')
+  
+desugarTopExpr (Test expr) = do
+  expr' <- desugarExpr expr
+  return (Test expr')
+
+desugarTopExpr expr = return expr
+
+desugarExpr :: EgisonExpr -> Either EgisonError EgisonExpr
+desugarExpr expr = either throwError return $ runDesugarM $ desugar expr
 
 -- Expressions
 
 parseTopExprs :: Parser [EgisonTopExpr]
-parseTopExprs = whiteSpace >> endBy parseTopExpr whiteSpace
+parseTopExprs = endBy parseTopExpr whiteSpace
 
 parseTopExpr :: Parser EgisonTopExpr
 parseTopExpr = parens (parseDefineExpr
@@ -50,6 +81,9 @@ parseLoadFileExpr = keywordLoadFile >> LoadFile <$> stringLiteral
 
 parseLoadExpr :: Parser EgisonTopExpr
 parseLoadExpr = keywordLoad >> Load <$> stringLiteral
+
+parseExprs :: Parser [EgisonExpr]
+parseExprs = endBy parseExpr whiteSpace
 
 parseExpr :: Parser EgisonExpr
 parseExpr = (try parseConstantExpr
@@ -80,7 +114,8 @@ parseExpr = (try parseConstantExpr
                          <|> parseMatchAllExpr
                          <|> parseMatchExpr
                          <|> parseMatcherExpr
-                         <|> parseApplyExpr)
+                         <|> parseApplyExpr
+                         <|> parseAlgebraicDataMatcherExpr)
                          <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
@@ -145,11 +180,23 @@ parsePDMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
 parsePDMatchClause = brackets $ (,) <$> parsePDPattern <*> parseExpr
 
 parsePPPattern :: Parser PrimitivePatPattern
-parsePPPattern = reservedOp "_" *> pure PPWildCard
-                       <|> reservedOp "$" *> pure PPPatVar
-                       <|> (string ",$" >> PPValuePat <$> ident)
-                       <|> angles (PPInductivePat <$> lowerName <*> sepEndBy parsePPPattern whiteSpace)
-                       <?> "primitive-pattren-pattern"
+parsePPPattern = parsePPWildCard
+                 <|> parsePPPatVar
+                 <|> parsePPValuePat
+                 <|> parsePPInductivePat
+                 <?> "primitive-pattren-pattern"
+                       
+parsePPWildCard :: Parser PrimitivePatPattern
+parsePPWildCard = reservedOp "_" *> pure PPWildCard
+
+parsePPPatVar :: Parser PrimitivePatPattern
+parsePPPatVar = reservedOp "$" *> pure PPPatVar
+
+parsePPValuePat :: Parser PrimitivePatPattern
+parsePPValuePat = string ",$" >> PPValuePat <$> ident
+
+parsePPInductivePat :: Parser PrimitivePatPattern
+parsePPInductivePat = angles (PPInductivePat <$> lowerName <*> sepEndBy parsePPPattern whiteSpace)
 
 parsePDPattern :: Parser PrimitiveDataPattern
 parsePDPattern = reservedOp "_" *> pure PDWildCard
@@ -248,7 +295,12 @@ parseAndPatExpr = reservedOp "&" >> PatternExpr . AndPat <$> sepEndBy parseExpr 
 parseOrPatExpr :: Parser EgisonExpr
 parseOrPatExpr = reservedOp "|" >> PatternExpr . OrPat <$> sepEndBy parseExpr whiteSpace
 
-
+parseAlgebraicDataMatcherExpr :: Parser EgisonExpr
+parseAlgebraicDataMatcherExpr = keywordAlgebraicDataMatcher 
+                                >> (parens $ AlgebraicDataMatcher <$> parseAlgebraicDataMatcherBody)
+  where
+    parseAlgebraicDataMatcherBody :: Parser [EgisonExpr]
+    parseAlgebraicDataMatcherBody = reservedOp "|" >> sepEndBy1 parseInductivePatternExpr whiteSpace
 
 --parseOmitExpr :: Parser EgisonExpr
 --parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
@@ -324,6 +376,7 @@ reservedKeywords =
   , "matcher"
   , "do"
   , "function"
+  , "algebraic-data-matcher"
   , "something"
   , "undefined"]
   
@@ -344,27 +397,28 @@ reserved = P.reserved lexer
 reservedOp :: String -> Parser ()
 reservedOp = P.reservedOp lexer
 
-keywordDefine             = reserved "define"
-keywordTest               = reserved "test"
-keywordExecute            = reserved "execute"
-keywordLoadFile           = reserved "load-file"
-keywordLoad               = reserved "load"
-keywordIf                 = reserved "if"
-keywordThen               = reserved "then"
-keywordElse               = reserved "else"
-keywordApply              = reserved "apply"
-keywordLambda             = reserved "lambda"
-keywordPatternConstructor = reserved "pattern-constructor"
-keywordLetRec             = reserved "letrec"
-keywordLet                = reserved "let"
-keywordLoop               = reserved "loop"
-keywordMatchAll           = reserved "match-all"
-keywordMatch              = reserved "match"
-keywordMatcher            = reserved "matcher"
-keywordDo                 = reserved "do"
-keywordFunction           = reserved "function"
-keywordSomething          = reserved "something"
-keywordUndefined          = reserved "undefined"
+keywordDefine               = reserved "define"
+keywordTest                 = reserved "test"
+keywordExecute              = reserved "execute"
+keywordLoadFile             = reserved "load-file"
+keywordLoad                 = reserved "load"
+keywordIf                   = reserved "if"
+keywordThen                 = reserved "then"
+keywordElse                 = reserved "else"
+keywordApply                = reserved "apply"
+keywordLambda               = reserved "lambda"
+keywordPatternConstructor   = reserved "pattern-constructor"
+keywordLetRec               = reserved "letrec"
+keywordLet                  = reserved "let"
+keywordLoop                 = reserved "loop"
+keywordMatchAll             = reserved "match-all"
+keywordMatch                = reserved "match"
+keywordMatcher              = reserved "matcher"
+keywordDo                   = reserved "do"
+keywordFunction             = reserved "function"
+keywordSomething            = reserved "something"
+keywordUndefined            = reserved "undefined"
+keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

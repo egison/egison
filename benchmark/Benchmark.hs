@@ -12,7 +12,7 @@ import Text.Parsec.ByteString
 runEgisonFile :: String -> IO (Either EgisonError Env)
 runEgisonFile path = do
   env <- loadPrimitives nullEnv >>= loadLibraries
-  runEgisonM $ evalTopExpr env (LoadFile path) 
+  evalEgisonTopExpr env $ LoadFile path
 
 main :: IO ()
 main = defaultMain [

@@ -23,7 +23,7 @@ main = do args <- getArgs
           if null args
             then showBanner >> repl env "> "
             else do
-              result <- runEgisonM $ evalTopExpr env $ LoadFile (args !! 0)
+              result <- evalEgisonTopExpr env $ (LoadFile $ args !! 0)
               either print (const $ return ()) result
 
 showBanner :: IO ()
@@ -59,6 +59,4 @@ repl env prompt = loop env prompt ""
               loop env prompt ""
             Right env' ->
               loop env' prompt ""
-        
-     
     

@@ -58,6 +58,8 @@ data EgisonExpr =
     
   | ApplyExpr EgisonExpr EgisonExpr
 
+  | AlgebraicDataMatcher [EgisonExpr]
+
   | SomethingExpr
   | UndefinedExpr
  deriving (Show)
@@ -269,6 +271,8 @@ data EgisonError =
   | ArgumentsNum Int Int
   | NotImplemented String
   | Assertion String
+  | Match String
+  | Desugar String
   | Default String
     
 instance Show EgisonError where
@@ -281,6 +285,7 @@ instance Show EgisonError where
                                      show expected ++ ", but got " ++  show got
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
+  show (Desugar message) = "Error: " ++ message
   show (Default message) = "Error: " ++ message
 
 instance Error EgisonError where
@@ -335,3 +340,4 @@ mmap f = mfoldr g $ return MNil
 
 mfor :: Monad m => MList m a -> (a -> m b) -> m (MList m b)
 mfor = flip mmap
+
