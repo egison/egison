@@ -363,8 +363,6 @@ reservedKeywords =
   , "load-file"
   , "load"
   , "if"
-  , "then"
-  , "else" 
   , "apply"
   , "lambda"
   , "pattern-constructor"
