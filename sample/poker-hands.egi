@@ -1,39 +1,10 @@
 (define $suit
-  (matcher
-    {[,$val []
-      {[$tgt (match [val tgt] [suit suit]
-               {[[<spade> <spade>] {[]}]
-                [[<heart> <heart>] {[]}]
-                [[<club> <club>] {[]}]
-                [[<diamond> <diamond>] {[]}]
-                [[_ _] {}]})]}]
-     [<spade> []
-      {[<Spade> {[]}]
-       [_ {}]}]
-     [<heart> []
-      {[<Heart> {[]}]
-       [_ {}]}]
-     [<club> []
-      {[<Club> {[]}]
-       [_ {}]}]
-     [<diamond> []
-      {[<Diamond> {[]}]
-       [_ {}]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+  (algebraic-data-matcher
+    (| <spade> <heart> <club> <diamond> )))
 
 (define $card
-  (matcher
-    {[,$val []
-      {[$tgt (match [val tgt] [card card]
-               {[[<card $s $n> <card ,s ,n>] {[]}]
-                [[_ _] {}]})]}]
-     [<card $ $> [suit integer]
-      {[<Card $s $n> {[s n]}]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+  (algebraic-data-matcher
+    (| <card suit integer> )))
 
 (define $poker-hands
   (lambda [$cs]
