@@ -51,23 +51,8 @@
      }))
 
 (define $ordering
-  (matcher
-    {[,$val []
-      {[$tgt (if (eq? val tgt)
-                 {[]}
-                 {})]}]
-     [<less> []
-      {[<Less> {[]}]
-       [_ {}]}]
-     [<equal> []
-      {[<Equal> {[]}]
-       [_ {}]}]
-     [<greater> []
-      {[<Greater> {[]}]
-       [_ {}]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+  (algebraic-data-matcher 
+    (| <less> <equal> <greater>)))
 
 (define $match?
   (lambda [$a]

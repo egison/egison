@@ -5,16 +5,8 @@
 (define $node integer)
 
 (define $nodeInfo
-  (matcher
-    {[,$val []
-      {[$tgt (match [val tgt] [nodeInfo nodeInfo]
-               {[[<node $n $in $out> <node ,n ,in ,out>] {[]}]
-                [[_ _] {}]})]}]
-     [<node $ $ $> [node (multiset node) (multiset node)]
-      {[<node $n $in $out> {[n in out]}]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+  (algebraic-data-matcher
+    (| <node node (multiset node) (multiset node)>)))
 
 (define $all-paths
   (lambda [$g $s $e]
