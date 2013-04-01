@@ -74,14 +74,13 @@
                    [<join _ <cons $m <join _ <cons $n _>>>> [m n]]))
         {[1 2] [1 3] [2 3] [1 4] [2 4] [3 4] [1 5] [2 5] [3 5] [4 5]}))
 
-#|
 (define $tree
   (lambda [$a]
     (algebraic-data-matcher
       (| <leaf> <node (tree a) a (tree a)>)))) 
-|#
 
-(define $tree ; temporally
+#|
+(define $tree
   (lambda [$a]
     (matcher
       {[,$val []
@@ -97,6 +96,7 @@
          [_ {}]}]
        [$ [something]
         {[$tgt {tgt}]}]})))
+|#
 
 (define $insert
   (lambda [$n $t]
@@ -119,6 +119,6 @@
            [<greater> (member? n t2)]})]})))
 
 (test (assert-equal "tree set using algebraic-data-matcher"
-        (let {[$t (foldr insert <Leaf> (between 1 10))]}
-          [(member? 5 t) (member? 0 t)])
+        (let {[$t (foldr insert <Leaf> {4 1 2 4 3})]}
+          [(member? 1 t) (member? 0 t)])
         [#t #f]))
