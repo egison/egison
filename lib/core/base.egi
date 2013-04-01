@@ -36,7 +36,7 @@
       {[$tgt (if (eq? tgt c)
                  {[]}
                  {})]}]
-     [_ [something]
+     [$ [something]
       {[$tgt {tgt}]}]
      }))
 
@@ -46,28 +46,13 @@
       {[$tgt (if (eq? tgt s)
                  {[]}
                  {})]}]
-     [_ [something]
+     [$ [something]
       {[$tgt {tgt}]}]
      }))
 
 (define $ordering
-  (matcher
-    {[,$val []
-      {[$tgt (if (eq? val tgt)
-                 {[]}
-                 {})]}]
-     [<less> []
-      {[<Less> {[]}]
-       [_ {}]}]
-     [<equal> []
-      {[<Equal> {[]}]
-       [_ {}]}]
-     [<greater> []
-      {[<Greater> {[]}]
-       [_ {}]}]
-     [_ [something]
-      {[$tgt {tgt}]}]
-     }))
+  (algebraic-data-matcher 
+    (| <less> <equal> <greater>)))
 
 (define $match?
   (lambda [$a]

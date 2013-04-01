@@ -78,6 +78,15 @@
             {x @(filter pred xs)}
             (filter pred xs))]})))
 
+(define $split
+  (lambda [$pred $ls]
+    (letrec {[$helper (lambda [$ls $xs $ys]
+                        (match ls (list something)
+                          {[<nil> [xs ys]]
+                           [<cons (& ?pred $l) $rs> (helper rs {l @xs} ys)]
+                           [<cons $l $rs> (helper rs xs {l @ys})]}))]}
+      (helper ls {} {}))))
+
 (define $remove
   (lambda [$a]
     (lambda [$xs $x]
