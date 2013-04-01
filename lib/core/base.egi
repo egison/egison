@@ -36,7 +36,7 @@
       {[$tgt (if (eq? tgt c)
                  {[]}
                  {})]}]
-     [_ [something]
+     [$ [something]
       {[$tgt {tgt}]}]
      }))
 
@@ -46,7 +46,7 @@
       {[$tgt (if (eq? tgt s)
                  {[]}
                  {})]}]
-     [_ [something]
+     [$ [something]
       {[$tgt {tgt}]}]
      }))
 
@@ -65,7 +65,7 @@
      [<greater> []
       {[<Greater> {[]}]
        [_ {}]}]
-     [_ [something]
+     [$ [something]
       {[$tgt {tgt}]}]
      }))
 
