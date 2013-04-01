@@ -14,8 +14,7 @@ import Language.Egison.Core
 
 primitiveEnv :: IO Env
 primitiveEnv = do
-  let ops = map (second PrimitiveFunc) (primitives ++ ioPrimitives) ++
-            map (second IOFunc) assertions
+  let ops = map (second PrimitiveFunc) (primitives ++ ioPrimitives)
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return ((name, []), ref)
@@ -111,47 +110,49 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("lte?", lte)
              , ("gt?",  gt)
              , ("gte?", gte)
-             , ("string-append", stringAppend) ]
-             
+             , ("string-append", stringAppend)
+             , ("assert", assert)
+             , ("assert-equal", assertEqual) ]
+
 integerUnaryOp :: (Integer -> Integer) -> PrimitiveFunc
-integerUnaryOp op = oneArg $ \val ->
+integerUnaryOp op = (liftError .) $ oneArg $ \val ->
   Integer . op <$> fromIntegerValue val
 
 integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
-integerBinaryOp op = twoArgs $ \val val' ->
+integerBinaryOp op = (liftError .) $ twoArgs $ \val val' ->
   (Integer .) . op <$> fromIntegerValue val
                    <*> fromIntegerValue val'
 
 integerBinaryPred :: (Integer -> Integer -> Bool) -> PrimitiveFunc
-integerBinaryPred pred = twoArgs $ \val val' ->
+integerBinaryPred pred = (liftError .) $ twoArgs $ \val val' ->
   (Bool .) . pred <$> fromIntegerValue val
                   <*> fromIntegerValue val'
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
-floatUnaryOp op = oneArg $ \val ->
+floatUnaryOp op = (liftError .) $ oneArg $ \val ->
   Float . op <$> fromFloatValue val
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
-floatBinaryOp op = twoArgs $ \val val' ->
+floatBinaryOp op = (liftError .) $ twoArgs $ \val val' ->
   (Float .) . op <$> fromFloatValue val
                  <*> fromFloatValue val'
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
-floatBinaryPred pred = twoArgs $ \val val' ->
+floatBinaryPred pred = (liftError .) $ twoArgs $ \val val' ->
   (Bool .) . pred <$> fromFloatValue val
                   <*> fromFloatValue val'
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
-floatToIntegerOp op = oneArg $ \val ->
+floatToIntegerOp op = (liftError .) $ oneArg $ \val ->
   Integer . op <$> fromFloatValue val
 
 eq :: PrimitiveFunc
-eq = twoArgs $ \val val' ->
+eq = (liftError .) $ twoArgs $ \val val' ->
   (Bool .) . (==) <$> fromPrimitiveValue val
                   <*> fromPrimitiveValue val'
 
 lt :: PrimitiveFunc
-lt = twoArgs lt'
+lt = (liftError .) $ twoArgs lt'
  where
   lt' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i < i'
   lt' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i < f
@@ -162,7 +163,7 @@ lt = twoArgs lt'
   lt' val _ = throwError $ TypeMismatch "number" val
 
 lte :: PrimitiveFunc
-lte = twoArgs lte'
+lte = (liftError .) $ twoArgs lte'
  where
   lte' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i <= i'
   lte' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i <= f
@@ -173,7 +174,7 @@ lte = twoArgs lte'
   lte' val _ = throwError $ TypeMismatch "number" val
 
 gt :: PrimitiveFunc
-gt = twoArgs gt'
+gt = (liftError .) $ twoArgs gt'
  where
   gt' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i > i'
   gt' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i > f
@@ -184,7 +185,7 @@ gt = twoArgs gt'
   gt' val _ = throwError $ TypeMismatch "number" val
 
 gte :: PrimitiveFunc
-gte = twoArgs gte'
+gte = (liftError .) $ twoArgs gte'
  where
   gte' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i >= i'
   gte' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i >= f
@@ -195,9 +196,25 @@ gte = twoArgs gte'
   gte' val _ = throwError $ TypeMismatch "number" val
 
 stringAppend :: PrimitiveFunc
-stringAppend = twoArgs $ \val val' ->
+stringAppend = (liftError .) $ twoArgs $ \val val' ->
   (String .) . (++) <$> fromStringValue val
                     <*> fromStringValue val'
+
+assert ::  PrimitiveFunc
+assert = (liftError .) $ twoArgs $ \label test -> do
+  test <- fromBoolValue test
+  if test
+    then return $ Bool True
+    else throwError $ Assertion $ show label
+
+assertEqual :: PrimitiveFunc
+assertEqual = threeArgs $ \label actual expected -> do
+  actual <- evalDeep actual
+  expected <- evalDeep expected
+  if actual == expected
+    then return $ Bool True
+    else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
+                                  "\n but found: " ++ show actual
 
 --
 -- IO Primitives
@@ -226,88 +243,63 @@ ioPrimitives = [ ("open-input-file", makePort ReadMode)
                , ("flush-port", flushPort) ]
 --             , ("get-lib-dir-name", getLibDirName) ]
 
-makeIO :: IO EgisonValue -> EgisonValue
-makeIO io = IOFunc . oneArg $ \val ->
-  case val of
-    Value World -> Tuple . (:) World . return <$> liftIO io
-    _ -> throwError $ TypeMismatch "world" val
+makeIO :: EgisonM EgisonValue -> EgisonValue
+makeIO m = IOFunc $ liftM (Value . Tuple . (World :) . (:[])) m
 
-makeIO' :: IO () -> EgisonValue
-makeIO' io = IOFunc . oneArg $ \val ->
-  case val of
-    Value World -> liftIO io >> return World
-    _ -> throwError $ TypeMismatch "world" val
+makeIO' :: EgisonM () -> EgisonValue
+makeIO' m = IOFunc $ m >> return (Value $ Tuple [World, Tuple []])
 
 makePort :: IOMode -> PrimitiveFunc
-makePort mode = oneArg $ \val -> do
+makePort mode = (liftError .) $ oneArg $ \val -> do
   filename <- fromStringValue val 
-  return . makeIO $ Port <$> openFile filename mode
+  return . makeIO . liftIO $ Port <$> openFile filename mode
 
 closePort :: PrimitiveFunc
-closePort = oneArg $ \val -> makeIO' . hClose <$> fromPortValue val
+closePort = (liftError .) $ oneArg $ \val ->
+  makeIO' . liftIO . hClose <$> fromPortValue val
 
 writeChar :: PrimitiveFunc
-writeChar = oneArg $ \val -> makeIO' . putChar <$> fromCharValue val
+writeChar = (liftError .) $ oneArg $ \val ->
+  makeIO' . liftIO . putChar <$> fromCharValue val
 
 writeString :: PrimitiveFunc
-writeString = oneArg $ \val -> makeIO' . putStr <$> fromStringValue val
+writeString = (liftError .) $ oneArg $ \val ->
+  makeIO' . liftIO . putStr <$> fromStringValue val
 
 write :: PrimitiveFunc
-write = oneArg $ Right . makeIO' . putStr . show
+write = oneArg $ \val ->
+  makeIO' . liftIO . putStr . show <$> evalDeep val
 
 readChar :: PrimitiveFunc
-readChar = noArg $ Right $ makeIO (liftM Char getChar)
+readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
 
 readLine :: PrimitiveFunc
-readLine = noArg $ Right $ makeIO (liftM String getLine)
+readLine = noArg $ return $ makeIO $ liftIO $ liftM String getLine
 
 flushStdout :: PrimitiveFunc
-flushStdout = noArg $ Right $ makeIO' $ hFlush stdout
+flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
 
 writeCharToPort :: PrimitiveFunc
-writeCharToPort = twoArgs $ \val val' ->
-  (makeIO' .) . hPutChar <$> fromPortValue val <*> fromCharValue val'
+writeCharToPort = (liftError .) $ twoArgs $ \val val' ->
+  ((makeIO' . liftIO) .) . hPutChar <$> fromPortValue val <*> fromCharValue val'
 
 writeStringToPort :: PrimitiveFunc
-writeStringToPort = twoArgs $ \val val' ->
-  (makeIO' .) . hPutStr <$> fromPortValue val <*> fromStringValue val'
+writeStringToPort = (liftError .) $ twoArgs $ \val val' ->
+  ((makeIO' . liftIO) .) . hPutStr <$> fromPortValue val <*> fromStringValue val'
 
 writeToPort :: PrimitiveFunc
-writeToPort = twoArgs $ \val val' ->
-  makeIO' . flip hPutStr (show val') <$> fromPortValue val
+writeToPort = twoArgs $ \val val' -> do
+  ((makeIO' . liftIO) .) . hPutStr <$> liftError (fromPortValue val)
+                                   <*> (show <$> evalDeep val')
 
 readCharFromPort :: PrimitiveFunc
-readCharFromPort = oneArg $ \val ->
-  makeIO . liftM Char . hGetChar <$> fromPortValue val
+readCharFromPort = (liftError .) $ oneArg $ \val ->
+  makeIO . liftIO . liftM Char . hGetChar <$> fromPortValue val
 
 readLineFromPort :: PrimitiveFunc
-readLineFromPort = oneArg $ \val ->
-  makeIO . liftM String . hGetLine <$> fromPortValue val
+readLineFromPort = (liftError .) $ oneArg $ \val ->
+  makeIO . liftIO . liftM String . hGetLine <$> fromPortValue val
 
 flushPort :: PrimitiveFunc
-flushPort = oneArg $ \val ->
-  makeIO' . hFlush <$> fromPortValue val
-
---
--- Assertions
---
-
-assertions :: [(String, IOFunc)]
-assertions = [ ("assert", assert)
-             , ("assert-equal", assertEqual) ]
-
-assert :: IOFunc 
-assert = twoArgs $ \label test -> do
-  test <- liftError $ fromBoolValue test
-  if test
-    then return $ Bool True
-    else throwError $ Assertion $ show label
-
-assertEqual :: IOFunc 
-assertEqual = threeArgs $ \label actual expected -> do
-  actual <- evalDeep actual
-  expected <- evalDeep expected
-  if actual == expected
-    then return $ Bool True
-    else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
-                                  "\n but found: " ++ show actual
+flushPort = (liftError .) $ oneArg $ \val ->
+  makeIO' . liftIO . hFlush <$> fromPortValue val

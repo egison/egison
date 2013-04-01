@@ -120,14 +120,13 @@ data EgisonValue =
   | Matcher Matcher
   | Func Env [String] EgisonExpr
   | PrimitiveFunc PrimitiveFunc
-  | IOFunc IOFunc
+  | IOFunc (EgisonM WHNFData)
   | Port Handle
   | Something
   | EOF
 
 type Matcher = (Env, MatcherInfo)
-type PrimitiveFunc = [WHNFData] -> Either EgisonError EgisonValue
-type IOFunc = [WHNFData] -> EgisonM EgisonValue
+type PrimitiveFunc = [WHNFData] -> EgisonM EgisonValue
 
 instance Show EgisonValue where
   show (Char c) = return c

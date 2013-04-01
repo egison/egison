@@ -40,10 +40,9 @@ evalTopExpr env (Test expr) = do
   return env
 evalTopExpr env (Execute argv) = do
   main <- refVar env ("main", []) >>= evalRef
-  argv <- newEvaluatedThunk . Value . Collection $ map String argv
-  world <- newEvaluatedThunk $ Value World
-  applyFunc main [argv] >>= flip applyFunc [world]
-  return env
+  case main of
+    Value (IOFunc m) -> m >> return env
+    _ -> throwError $ TypeMismatch "io" main
 evalTopExpr env (Load file) = loadLibraryFile file >>= evalTopExprs env
 evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
 
@@ -73,7 +72,7 @@ evalExpr env (VarExpr name nums) = do
   var <- (,) name <$> mapM (evalExpr env >=> liftError . fromIntegerValue) nums
   refVar env var >>= evalRef
 
-evalExpr env (InductiveDataExpr name []) = return . Value $ InductiveData name []
+evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
   Intermediate . IInductiveData name <$> mapM (newThunk env) exprs 
 
@@ -82,7 +81,7 @@ evalExpr env (TupleExpr [expr]) = evalExpr env expr
 evalExpr env (TupleExpr exprs) =
   Intermediate . ITuple <$> mapM (newThunk env) exprs 
 
-evalExpr env (CollectionExpr []) = return . Value $ Collection []
+evalExpr _ (CollectionExpr []) = return . Value $ Collection []
 evalExpr env (CollectionExpr inners) =
   Intermediate . ICollection <$> mapM fromInnerExpr inners
  where
@@ -125,6 +124,15 @@ evalExpr env (LetRecExpr bindings expr) =
 
   genVar :: State Int String
   genVar = modify (1+) >> gets (('#':) . show)
+
+evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
+  world <- newEvaluatedThunk $ Value World
+  let body = foldr genLet (TupleExpr [VarExpr "#1" [], expr]) bindings
+  applyFunc (Value $ Func env ["#1"] body) [world]
+ where
+  genLet (names, expr) expr' =
+    LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1" []])] $
+    LetExpr [(names, VarExpr "#2" [])] expr'
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
@@ -206,9 +214,13 @@ applyFunc (Value (Func env names body)) args
     in evalExpr env' body
   | otherwise = throwError $ ArgumentsNum (length names) (length args)
 applyFunc (Value (PrimitiveFunc func)) args =
-  mapM evalRef args >>= liftM Value . liftError . func
-applyFunc (Value (IOFunc func)) args =
   mapM evalRef args >>= liftM Value . func
+applyFunc (Value (IOFunc m)) [arg] = do
+  val <- evalRef arg
+  case val of
+    Value World -> m
+    _ -> throwError $ TypeMismatch "world" val
+applyFunc (Value (IOFunc _)) args = throwError $ ArgumentsNum 1 (length args)
 applyFunc val _ = throwError $ TypeMismatch "function" val
 
 newThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
