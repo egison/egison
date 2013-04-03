@@ -345,11 +345,18 @@ processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tr
       pattern <- evalPattern env' pattern
       case pattern of
         VarExpr name nums -> do
-          var <- (,) name <$> mapM (evalExpr env' >=> liftError . fromIntegerValue) nums
-          case lookup var penv of
-            Just pattern -> do
+          case lookup (name, []) penv of
+            Just (PatternExpr (PatVar name' nums')) -> do
+              nums' <- mapM (evalExpr env >=> liftError . fromIntegerValue) (nums' ++ nums) >>= mapM (return . IntegerExpr)
+              pattern' <- return $ PatternExpr (PatVar name' nums')
+              return $ msingleton $ MState env bindings (MAtom pattern' target matcher:MNode penv (MState env' bindings' trees'):trees)
+            Just (VarExpr name' nums') -> do
+              nums' <- mapM (evalExpr env >=> liftError . fromIntegerValue) (nums' ++ nums) >>= mapM (return . IntegerExpr)
+              pattern' <- return $ VarExpr name' nums'
+              return $ msingleton $ MState env bindings (MAtom pattern' target matcher:MNode penv (MState env' bindings' trees'):trees)
+            Just pattern ->
               return $ msingleton $ MState env bindings (MAtom pattern target matcher:MNode penv (MState env' bindings' trees'):trees)
-            Nothing -> throwError $ UnboundVariable var
+            Nothing -> throwError $ UnboundVariable (name, [])
         _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
     _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
 

@@ -236,6 +236,11 @@
       {[<nil> {}]
        [<cons $x $rs> {@x @(concat rs)}]})))
 
+(define $empty?
+  (function (list something)
+   {[<nil>      #t]
+    [<cons _ _> #f]}))
+
 (define $multiset
   (lambda [$a]
     (matcher
