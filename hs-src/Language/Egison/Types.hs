@@ -7,6 +7,7 @@ import Control.Monad.Trans.Maybe
 
 import Data.IORef
 import Data.HashMap.Strict (HashMap)
+import qualified Data.Array as A
 import qualified Data.HashMap.Strict as HashMap
 
 import System.IO
@@ -36,6 +37,7 @@ data EgisonExpr =
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]
+  | ArrayExpr [EgisonExpr]
 
   | PatternExpr EgisonPattern
 
@@ -58,7 +60,10 @@ data EgisonExpr =
     
   | ApplyExpr EgisonExpr EgisonExpr
 
-  | AlgebraicDataMatcher [EgisonExpr]
+  | AlgebraicDataMatcherExpr [EgisonExpr]
+  | GenerateArrayExpr [String] EgisonExpr EgisonExpr
+  | ArraySizeExpr EgisonExpr
+  | ArrayRefExpr EgisonExpr EgisonExpr
 
   | SomethingExpr
   | UndefinedExpr
@@ -116,6 +121,7 @@ data EgisonValue =
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
   | Collection [EgisonValue]
+  | Array Integer (A.Array Integer EgisonValue) 
   | Pattern EgisonPattern
   | Matcher Matcher
   | Func Env [String] EgisonExpr
@@ -139,6 +145,7 @@ instance Show EgisonValue where
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
+  show (Array _ vals) = "[|" ++ unwords (map show $ A.elems vals) ++ "|]"
   show (Pattern _) = "#<pattern>"
   show (Matcher _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
@@ -157,6 +164,7 @@ instance Eq EgisonValue where
  (Float f) == (Float f') = f == f'
  (InductiveData name vals) == (InductiveData name' vals') = name == name' && vals == vals'
  (Tuple vals) == (Tuple vals') = vals == vals'
+ (Array i vals) == (Array i' vals') = i == i' && vals == vals'
  (Collection vals) == (Collection vals') = vals == vals'
  _ == _ = False
 
@@ -178,6 +186,7 @@ data Intermediate =
     IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
   | ICollection [Inner]
+  | IArray Integer (A.Array Integer ObjectRef)
 
 data Inner =
     IElement ObjectRef
@@ -188,6 +197,7 @@ instance Show WHNFData where
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
+  show (Intermediate (IArray _ _)) = "[|...|]" 
 
 fromCharValue :: WHNFData -> Either EgisonError Char
 fromCharValue (Value (Char c)) = return c

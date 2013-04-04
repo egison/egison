@@ -25,7 +25,7 @@ runDesugarM :: DesugarM a -> Either EgisonError a
 runDesugarM d =runIdentity $ runErrorT $ flip evalStateT 0 $ unDesugarM d
 
 desugar :: EgisonExpr -> DesugarM EgisonExpr
-desugar (AlgebraicDataMatcher patterns) = do
+desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- fresh
   matcherRef <- return $ VarExpr matcherName []
   matcher <- genMatcherClauses patterns matcherRef
@@ -100,6 +100,16 @@ desugar (FunctionExpr matcher clauses) = do
   matcher' <- desugar matcher
   clauses' <- desugarMatchClauses clauses
   desugar (LambdaExpr [name] (MatchExpr (VarExpr name []) matcher' clauses'))
+
+desugar (ArrayRefExpr (VarExpr name nums) (TupleExpr nums')) =
+  desugar $ VarExpr name (nums ++ nums')
+  
+desugar (ArrayRefExpr expr (TupleExpr nums)) = do
+  name <- fresh
+  desugar $ LetExpr [([name], expr)] (VarExpr name nums)
+  
+desugar (ArrayRefExpr expr nums) =
+  desugar $ ArrayRefExpr expr (TupleExpr [nums])
 
 desugar (VarExpr name exprs) = do
   exprs' <- mapM desugar exprs

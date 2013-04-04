@@ -9,6 +9,7 @@ import Control.Monad.Trans.Maybe
 import Data.IORef
 import Data.List
 import Data.Maybe
+import qualified Data.Array as A
 
 import Text.Parsec.ByteString.Lazy (parseFromFile)
 import System.Directory (doesFileExist)
@@ -88,6 +89,11 @@ evalExpr env (CollectionExpr inners) =
   fromInnerExpr (ElementExpr expr) = IElement <$> newThunk env expr
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newThunk env expr
 
+evalExpr env (ArrayExpr exprs) = do
+  ref' <- mapM (newThunk env) exprs
+  size <- return . toInteger $ length exprs
+  return . Intermediate . IArray size $ (A.listArray (1, size) ref')
+
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
 
 evalExpr env (IfExpr test expr expr') = do
@@ -136,6 +142,7 @@ evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
+  
   matcher <- evalExpr env matcher
   result <- patternMatch env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
@@ -166,6 +173,20 @@ evalExpr env (ApplyExpr func args) = do
   applyFunc func args
 
 evalExpr env (MatcherExpr info) = return $ Value $ Matcher (env, info)
+
+evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (size:[])) expr) =
+  generateArray env name size expr
+evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (size:ys)) expr) = 
+  generateArray env name size (GenerateArrayExpr xs (TupleExpr ys) expr)
+evalExpr _ (GenerateArrayExpr _ _ _) = throwError $ strMsg "invalid generate-array expression"
+
+evalExpr env (ArraySizeExpr expr) = 
+  evalExpr env expr >>= arraySize
+  where
+    arraySize :: WHNFData -> EgisonM WHNFData
+    arraySize (Intermediate (IArray i _)) = return . Value . Integer $ i
+    arraySize (Value (Array i _))         = return . Value . Integer $ i
+    arraySize val                         = throwError $ TypeMismatch "array" val
 
 evalExpr _ (PatternExpr pattern) = return $ Value $ Pattern pattern
 
@@ -204,8 +225,22 @@ evalDeep :: WHNFData -> EgisonM EgisonValue
 evalDeep (Value val) = return val
 evalDeep (Intermediate (IInductiveData name refs)) =
   InductiveData name <$> mapM evalRef' refs
+evalDeep (Intermediate (IArray i refs)) = do
+  refs' <- mapM evalRef' $ A.elems refs
+  return $ Array i (A.listArray (1, i) refs')
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef')
+
+generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
+generateArray env name size expr = do
+  size <- evalExpr env size >>= liftError . fromIntegerValue  
+  vals <- mapM (\i -> bindEnv env name i >>= flip evalExpr expr >>= newEvaluatedThunk) (enumFromTo 1 size)
+  return $ Intermediate $ IArray size (A.listArray (1, size) vals)
+  where
+    bindEnv :: Env -> String -> Integer -> EgisonM Env
+    bindEnv env name i = do
+      ref <- liftIO $ newIORef (WHNF . Value . Integer $ i)
+      return $ extendEnv env [((name, []), ref)]
 
 applyFunc :: WHNFData -> [ObjectRef] -> EgisonM WHNFData
 applyFunc (Value (Func env names body)) args
@@ -242,6 +277,10 @@ recursiveBind env bindings = do
   let env' = extendEnv env $ makeBindings names refs
   zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr) refs exprs
   return env'
+
+fromArray :: WHNFData -> EgisonM [ObjectRef]
+fromArray (Intermediate (IArray _ refs)) = return $ A.elems refs
+fromArray (Value (Array _ vals)) = mapM (newEvaluatedThunk . Value) $ A.elems vals
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs

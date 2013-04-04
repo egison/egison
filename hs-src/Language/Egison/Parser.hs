@@ -100,6 +100,7 @@ parseExpr = (try parseConstantExpr
                         
              <|> try parseInductiveDataExpr
              <|> parseInductivePatternExpr
+             <|> try parseArrayExpr
              <|> parseTupleExpr
              <|> parseCollectionExpr
              <|> parens (parseAndPatExpr 
@@ -115,7 +116,10 @@ parseExpr = (try parseConstantExpr
                          <|> parseMatchExpr
                          <|> parseMatcherExpr
                          <|> parseApplyExpr
-                         <|> parseAlgebraicDataMatcherExpr)
+                         <|> parseAlgebraicDataMatcherExpr
+                         <|> parseGenerateArrayExpr
+                         <|> parseArraySizeExpr
+                         <|> parseArrayRefExpr)
                          <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
@@ -148,6 +152,12 @@ parseCollectionExpr = braces $ CollectionExpr <$> sepEndBy parseInnerExpr whiteS
   parseInnerExpr :: Parser InnerExpr
   parseInnerExpr = (char '@' >> SubCollectionExpr <$> parseExpr)
                <|> ElementExpr <$> parseExpr
+
+parseArrayExpr :: Parser EgisonExpr
+parseArrayExpr = between lp rp $ ArrayExpr <$> sepEndBy parseExpr whiteSpace
+  where
+    lp = P.lexeme lexer (string "[|")
+    rp = P.lexeme lexer (string "|]")
 
 parseMatchAllExpr :: Parser EgisonExpr
 parseMatchAllExpr = keywordMatchAll >> MatchAllExpr <$> parseExpr <*> parseExpr <*> parseMatchClause
@@ -297,10 +307,19 @@ parseOrPatExpr = reservedOp "|" >> PatternExpr . OrPat <$> sepEndBy parseExpr wh
 
 parseAlgebraicDataMatcherExpr :: Parser EgisonExpr
 parseAlgebraicDataMatcherExpr = keywordAlgebraicDataMatcher 
-                                >> (parens $ AlgebraicDataMatcher <$> parseAlgebraicDataMatcherBody)
+                                >> (parens $ AlgebraicDataMatcherExpr <$> parseAlgebraicDataMatcherBody)
   where
     parseAlgebraicDataMatcherBody :: Parser [EgisonExpr]
     parseAlgebraicDataMatcherBody = reservedOp "|" >> sepEndBy1 parseInductivePatternExpr whiteSpace
+
+parseGenerateArrayExpr :: Parser EgisonExpr
+parseGenerateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> parseVarNames <*> parseExpr <*> parseExpr
+
+parseArraySizeExpr :: Parser EgisonExpr
+parseArraySizeExpr = keywordArraySize >> ArraySizeExpr <$> parseExpr
+
+parseArrayRefExpr :: Parser EgisonExpr
+parseArrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> parseExpr <*> parseExpr
 
 --parseOmitExpr :: Parser EgisonExpr
 --parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
@@ -375,6 +394,9 @@ reservedKeywords =
   , "do"
   , "function"
   , "algebraic-data-matcher"
+  , "generate-array"
+  , "array-size"
+  , "array-ref"
   , "something"
   , "undefined"]
   
@@ -417,6 +439,9 @@ keywordFunction             = reserved "function"
 keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
+keywordGenerateArray        = reserved "generate-array"
+keywordArraySize            = reserved "array-size"
+keywordArrayRef             = reserved "array-ref"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

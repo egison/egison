@@ -6,6 +6,7 @@ import Control.Applicative
 import Control.Monad.Error
 
 import Data.IORef
+import qualified Data.Array as A
 
 import System.IO
 
@@ -303,3 +304,6 @@ readLineFromPort = (liftError .) $ oneArg $ \val ->
 flushPort :: PrimitiveFunc
 flushPort = (liftError .) $ oneArg $ \val ->
   makeIO' . liftIO . hFlush <$> fromPortValue val
+  
+
+  
