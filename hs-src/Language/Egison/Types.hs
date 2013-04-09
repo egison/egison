@@ -32,8 +32,8 @@ data EgisonExpr =
   | BoolExpr Bool
   | IntegerExpr Integer
   | FloatExpr Double
-  | VarExpr String [EgisonExpr]
-
+  | VarExpr String
+  | IndexedExpr EgisonExpr EgisonExpr
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]
@@ -75,13 +75,14 @@ type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, Eg
 
 data EgisonPattern =
     WildCard
-  | PatVar String [EgisonExpr]
+  | PatVar String
   | ValuePat EgisonExpr
   | PredPat EgisonExpr
   | CutPat EgisonExpr
   | NotPat EgisonExpr
   | AndPat [EgisonExpr]
   | OrPat [EgisonExpr]
+  | IndexedPattern EgisonPattern EgisonExpr
   | InductivePattern String [EgisonExpr]
  deriving (Show)
 
@@ -243,7 +244,7 @@ fromPrimitiveValue val = throwError $ TypeMismatch "primitive value" val
 -- Environment
 --
 
-type Var = (String, [Integer])
+type Var = String
 type Env = [HashMap Var ObjectRef]
 type Binding = (Var, ObjectRef)
 
@@ -286,8 +287,7 @@ data EgisonError =
     
 instance Show EgisonError where
   show (Parser error) = "Parse error at: " ++ show error
-  show (UnboundVariable (var, nums)) = "Unbound variable: " ++ var ++
-                                      concatMap (('_':) . show) nums
+  show (UnboundVariable var) = "Unbound variable: " ++ var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
   show (ArgumentsNum expected got) = "Wrong number of arguments: expected " ++

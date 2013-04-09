@@ -18,7 +18,7 @@ primitiveEnv = do
   let ops = map (second PrimitiveFunc) (primitives ++ ioPrimitives)
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
-    return ((name, []), ref)
+    return (name, ref)
   return $ extendEnv nullEnv bindings
 
 {-# INLINE noArg #-}

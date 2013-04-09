@@ -86,7 +86,11 @@ parseExprs :: Parser [EgisonExpr]
 parseExprs = endBy parseExpr whiteSpace
 
 parseExpr :: Parser EgisonExpr
-parseExpr = (try parseConstantExpr
+parseExpr = do expr <- parseExpr'; index <- many (try $ char '_' >> parseExpr')
+               return $ foldl IndexedExpr expr index
+
+parseExpr' :: Parser EgisonExpr
+parseExpr' = (try parseConstantExpr
              <|> try parseVarExpr
 --           <|> parseOmitExpr
              <|> try parsePatVarExpr
@@ -123,19 +127,7 @@ parseExpr = (try parseConstantExpr
                          <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
-parseVarExpr = VarExpr <$> ident <*> parseIndexNums
-
-parseIndexNums :: Parser [EgisonExpr]
-parseIndexNums = ((:) <$> try (prefix >> parseExpr) <*> parseIndexNums)
-              <|> pure []
-  where
-    prefix :: Parser Char
-    prefix = do result <- char '_' >> isConsumed whiteSpace
-                if result then parserFail "unexpected whiteSpace"
-                          else return '_'
-    
-    isConsumed :: Parser a -> Parser Bool
-    isConsumed p = (/=) <$> getPosition <*> (p >> getPosition)
+parseVarExpr = VarExpr <$> ident
 
 parseInductiveDataExpr :: Parser EgisonExpr
 parseInductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy parseExpr whiteSpace
@@ -262,7 +254,7 @@ parseApplyExpr' = do
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let genVar = modify (1+) >> gets (flip VarExpr [] . ('#':) . show)
+        let genVar = modify (1+) >> gets (VarExpr . ('#':) . show)
             args' = evalState (mapM (either (const genVar) return) args) 0
         in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
       | all (not . null) vars ->
@@ -270,7 +262,7 @@ parseApplyExpr' = do
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
-               let args' = map (either (flip VarExpr [] . ('#':)) id) args
+               let args' = map (either (VarExpr . ('#':)) id) args
                in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
@@ -294,7 +286,7 @@ parseValuePatExpr :: Parser EgisonExpr
 parseValuePatExpr = reservedOp "," >> PatternExpr . ValuePat <$> parseExpr
 
 parsePatVarExpr :: Parser EgisonExpr
-parsePatVarExpr = P.lexeme lexer $ (PatternExpr .) . PatVar <$> parseVarName <*> parseIndexNums
+parsePatVarExpr = P.lexeme lexer $ PatternExpr . PatVar <$> parseVarName
 
 parsePredPatExpr :: Parser EgisonExpr
 parsePredPatExpr = reservedOp "?" >> PatternExpr . PredPat <$> parseExpr

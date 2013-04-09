@@ -27,7 +27,7 @@ runDesugarM d =runIdentity $ runErrorT $ flip evalStateT 0 $ unDesugarM d
 desugar :: EgisonExpr -> DesugarM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- fresh
-  matcherRef <- return $ VarExpr matcherName []
+  matcherRef <- return $ VarExpr matcherName
   matcher <- genMatcherClauses patterns matcherRef
   return $ LetRecExpr [([matcherName], matcher)] matcherRef
     where
@@ -43,7 +43,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", TupleExpr [],
-                 [(PDPatVar "tgt", (MatchExpr (TupleExpr [(VarExpr "val" []), (VarExpr "tgt" [])]) 
+                 [(PDPatVar "tgt", (MatchExpr (TupleExpr [(VarExpr "val"), (VarExpr "tgt")]) 
                                               (TupleExpr [matcher, matcher]) 
                                               clauses))])
         where
@@ -59,8 +59,8 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genMatchingPattern :: EgisonExpr -> DesugarM (EgisonExpr, EgisonExpr)
           genMatchingPattern (PatternExpr (InductivePattern name patterns)) = do
             names <- mapM (const fresh) patterns
-            return $ ((PatternExpr $ InductivePattern name (map (PatternExpr . flip PatVar []) names))  
-                     ,(PatternExpr $ InductivePattern name (map (PatternExpr . ValuePat . (flip VarExpr [])) names)))
+            return $ ((PatternExpr $ InductivePattern name (map (PatternExpr . PatVar) names))  
+                     ,(PatternExpr $ InductivePattern name (map (PatternExpr . ValuePat . VarExpr) names)))
           
       genMatcherClause :: EgisonExpr -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genMatcherClause pattern = do
@@ -78,7 +78,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitiveDataPat :: EgisonExpr -> DesugarM (PrimitiveDataPattern, [EgisonExpr])
           genPrimitiveDataPat (PatternExpr (InductivePattern name patterns)) = do
             patterns' <- mapM (const fresh) patterns 
-            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map (flip VarExpr []) patterns')
+            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map VarExpr patterns')
           genPrimitiveDataPatr _ = throwError $ Desugar "invalid algebraic-data-matcher"
 
           capitalize :: String -> String
@@ -87,7 +87,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       
       genSomethingClause :: DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genSomethingClause = 
-        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr $ [ElementExpr (VarExpr "tgt" [])])])
+        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr $ [ElementExpr (VarExpr "tgt")])])
     
       matchingSuccess :: EgisonExpr
       matchingSuccess = CollectionExpr $ [ElementExpr $ TupleExpr []]
@@ -99,21 +99,19 @@ desugar (FunctionExpr matcher clauses) = do
   name <- fresh
   matcher' <- desugar matcher
   clauses' <- desugarMatchClauses clauses
-  desugar (LambdaExpr [name] (MatchExpr (VarExpr name []) matcher' clauses'))
+  desugar (LambdaExpr [name] (MatchExpr (VarExpr name) matcher' clauses'))
 
-desugar (ArrayRefExpr (VarExpr name nums) (TupleExpr nums')) =
-  desugar $ VarExpr name (nums ++ nums')
-  
-desugar (ArrayRefExpr expr (TupleExpr nums)) = do
-  name <- fresh
-  desugar $ LetExpr [([name], expr)] (VarExpr name nums)
+desugar (ArrayRefExpr (VarExpr name) (TupleExpr nums)) =
+  desugar $ foldl IndexedExpr (VarExpr name) nums
   
 desugar (ArrayRefExpr expr nums) =
   desugar $ ArrayRefExpr expr (TupleExpr [nums])
 
-desugar (VarExpr name exprs) = do
-  exprs' <- mapM desugar exprs
-  return $ VarExpr name exprs'
+desugar (IndexedExpr (PatternExpr pattern) index) =
+  desugar =<< PatternExpr <$> (IndexedPattern <$> desugarPattern pattern <*> desugar index)
+
+desugar (IndexedExpr expr index) = 
+  IndexedExpr <$> desugar expr <*> desugar index
 
 desugar (InductiveDataExpr name exprs) = do 
   exprs' <- mapM desugar exprs
@@ -173,6 +171,9 @@ desugar (MatchAllExpr expr0 expr1 clause) = do
   clause' <- desugarMatchClause clause
   return $ MatchAllExpr expr0' expr1' clause'
   
+desugar (PatternExpr pattern) =
+  PatternExpr <$> desugarPattern pattern
+  
 desugar (DoExpr binds expr) = do
   binds' <- desugarBindings binds
   expr' <- desugar expr
@@ -184,6 +185,19 @@ desugar (ApplyExpr expr0 expr1) = do
   return $ ApplyExpr expr0' expr1'
   
 desugar expr = return expr
+
+desugarPattern :: EgisonPattern -> DesugarM EgisonPattern
+desugarPattern (ValuePat expr) = ValuePat <$> desugar expr
+desugarPattern (PredPat expr) = PredPat <$> desugar expr
+desugarPattern (CutPat expr) = CutPat <$> desugar expr
+desugarPattern (NotPat expr) = NotPat <$> desugar expr
+desugarPattern (AndPat exprs) = AndPat <$> mapM desugar exprs
+desugarPattern (OrPat exprs)  = OrPat <$> mapM desugar exprs
+desugarPattern (IndexedPattern pat expr) = 
+  IndexedPattern <$> desugarPattern pat <*> desugar expr
+desugarPattern (InductivePattern name exprs) =
+  InductivePattern name <$> mapM desugar exprs
+desugarPattern pattern = return pattern
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
 desugarBinding (name, expr) = do
@@ -209,5 +223,4 @@ desugarMatchClauses (clause:rest) = do
   clause' <- desugarMatchClause clause
   rest'   <- desugarMatchClauses rest
   return $ clause : rest'
-  
 desugarMatchClauses [] = return []
