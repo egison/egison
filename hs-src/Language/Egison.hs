@@ -8,6 +8,7 @@ module Language.Egison
        , loadPrimitives
        , runEgisonTopExpr
        , evalEgisonTopExpr
+       , evalEgisonTopExprs
        ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -55,3 +56,6 @@ runEgisonTopExpr env input = runEgisonM $ do
 
 evalEgisonTopExpr :: Env -> EgisonTopExpr -> IO (Either EgisonError Env)
 evalEgisonTopExpr env expr = runEgisonM $ evalTopExpr env expr
+
+evalEgisonTopExprs :: Env -> [EgisonTopExpr] -> IO (Either EgisonError Env)
+evalEgisonTopExprs env exprs = runEgisonM $ foldM evalTopExpr env exprs

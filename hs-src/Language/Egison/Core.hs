@@ -40,7 +40,9 @@ evalTopExpr env (Test expr) = do
   return env
 evalTopExpr env (Execute argv) = do
   main <- refVar env ("main", []) >>= evalRef
-  case main of
+  argv <- newEvaluatedThunk $ Value $ Collection $ map String argv
+  io <- applyFunc main [argv]
+  case io of
     Value (IOFunc m) -> m >> return env
     _ -> throwError $ TypeMismatch "io" main
 evalTopExpr env (Load file) = loadLibraryFile file >>= evalTopExprs env

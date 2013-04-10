@@ -20,10 +20,10 @@ import Language.Egison
 main :: IO ()
 main = do args <- getArgs
           env <- primitiveEnv >>= loadLibraries
-          if null args
-            then showBanner >> repl env "> "
-            else do
-              result <- evalEgisonTopExpr env $ (LoadFile $ args !! 0)
+          case args of
+            [] -> showBanner >> repl env "> "
+            (file:args) -> do
+              result <- evalEgisonTopExprs env [LoadFile file, Execute args]
               either print (const $ return ()) result
 
 showBanner :: IO ()
@@ -48,8 +48,8 @@ repl env prompt = do
     loop env prompt' rest = do
       input <- getInputLine prompt'
       case input of
-        Nothing -> liftIO showByebyeMessage >> return ()
-        Just "quit" -> liftIO showByebyeMessage >> return ()
+        Nothing -> liftIO showByebyeMessage
+        Just "quit" -> liftIO showByebyeMessage
         Just "" ->  loop env prompt ""
         Just input' -> do
           let newInput = rest ++ input'
