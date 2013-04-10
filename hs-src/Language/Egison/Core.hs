@@ -40,8 +40,7 @@ evalTopExpr env (Test expr) = do
   return env
 evalTopExpr env (Execute argv) = do
   main <- refVar env ("main", []) >>= evalRef
-  argv <- newEvaluatedThunk $ Value $ Collection $ map String argv
-  io <- applyFunc main [argv]
+  io <- applyFunc main $ Value $ Collection $ map String argv
   case io of
     Value (IOFunc m) -> m >> return env
     _ -> throwError $ TypeMismatch "io" main
@@ -128,9 +127,8 @@ evalExpr env (LetRecExpr bindings expr) =
   genVar = modify (1+) >> gets (('#':) . show)
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
-  world <- newEvaluatedThunk $ Value World
   let body = foldr genLet (TupleExpr [VarExpr "#1" [], expr]) bindings
-  applyFunc (Value $ Func env ["#1"] body) [world]
+  applyFunc (Value $ Func env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
     LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1" []])] $
@@ -162,10 +160,10 @@ evalExpr env (MatchExpr target matcher clauses) = do
 evalExpr env (FunctionExpr matcher clauses) =
   return . Value $ Func env ["#_"] (MatchExpr (VarExpr "#_" []) matcher clauses)
 
-evalExpr env (ApplyExpr func args) = do
+evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
-  args <- evalExpr env args >>= fromTuple 
-  applyFunc func args
+  arg <- evalExpr env arg
+  applyFunc func arg
 
 evalExpr env (MatcherExpr info) = return $ Value $ Matcher (env, info)
 
@@ -209,20 +207,21 @@ evalDeep (Intermediate (IInductiveData name refs)) =
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef')
 
-applyFunc :: WHNFData -> [ObjectRef] -> EgisonM WHNFData
-applyFunc (Value (Func env names body)) args
-  | length names == length args =
-    let env' = extendEnv env $ makeBindings names args
-    in evalExpr env' body
-  | otherwise = throwError $ ArgumentsNum (length names) (length args)
-applyFunc (Value (PrimitiveFunc func)) args =
-  mapM evalRef args >>= liftM Value . func
-applyFunc (Value (IOFunc m)) [arg] = do
-  val <- evalRef arg
-  case val of
+applyFunc :: WHNFData -> WHNFData -> EgisonM WHNFData
+applyFunc (Value (Func env [name] body)) arg = do
+  ref <- newEvaluatedThunk arg
+  evalExpr (extendEnv env $ makeBindings [name] [ref]) body
+applyFunc (Value (Func env names body)) arg = do
+  refs <- fromTuple arg
+  if length names == length refs
+    then evalExpr (extendEnv env $ makeBindings names refs) body
+    else throwError $ ArgumentsNum (length names) (length refs)
+applyFunc (Value (PrimitiveFunc func)) arg =
+  fromTuple arg >>= mapM evalRef >>= liftM Value . func
+applyFunc (Value (IOFunc m)) arg = do
+  case arg of
     Value World -> m
-    _ -> throwError $ TypeMismatch "world" val
-applyFunc (Value (IOFunc _)) args = throwError $ ArgumentsNum 1 (length args)
+    _ -> throwError $ TypeMismatch "world" arg
 applyFunc val _ = throwError $ TypeMismatch "function" val
 
 newThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
@@ -321,7 +320,9 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
     PatternExpr (CutPat pattern) -> -- TEMPORARY ignoring cut patterns
       return $ msingleton (MState env bindings ((MAtom pattern target matcher):trees))
     PatternExpr (PredPat pred) -> do
-      result <- evalExpr env' pred >>= flip applyFunc [target] >>= liftError . fromBoolValue
+      func <- evalExpr env' pred
+      arg <- evalRef target
+      result <- applyFunc func arg >>= liftError . fromBoolValue
       if result then return $ msingleton $ (MState env bindings trees)
                 else return MNil
     PatternExpr pattern' ->

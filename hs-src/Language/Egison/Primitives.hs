@@ -34,6 +34,7 @@ oneArg :: (MonadError EgisonError m) =>
           [WHNFData] -> m EgisonValue
 oneArg f = \vals -> case vals of 
                       [val] -> f val
+                      [] -> f $ Value $ Tuple []
                       _ -> throwError $ ArgumentsNum 1 $ length vals
 
 {-# INLINE twoArgs #-}

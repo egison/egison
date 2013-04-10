@@ -28,7 +28,7 @@
                                      []))]}
                           [])]}
                  iter)]
-           [[] (close-port port)]
+           [[] (close-input-port port)]
            [[] (cat-files files)]}
         [])]}))
 
