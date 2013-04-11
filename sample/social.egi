@@ -1,35 +1,39 @@
-(define $edge (algebraic-data-matcher (| <edge integer integer>)))
+;;;
+;;; social demo
+;;;
+
+struct node {
+  int i;
+  int[] edges;
+};
+
+(define $node integer)
+
+(define $nodeInfo
+  (algebraic-data-matcher
+    (| <node node (multiset node)>)))
 
 (define $triangles
-  (lambda [$graph]
-    (match-all graph (multiset edge)
-      [<cons <edge $n_1 $n_2>
-        <cons <edge ,n_2 $n_3>
-         <cons <edge ,n_3 ,n_1>
+  (lambda [$g]
+    (match-all g graph
+      [<cons <node $n_1 <cons $n_2 _>>
+        <cons <node ,n_2 <cons $n_3 _>>
+         <cons <node ,n_3 <cons ,n_1 _>>
           _>>>
-       [n_1 n_2 n_3]])))
+       {n_1 n_2 n_3}])))
 
 (define $graph1 {
-    <edge 1 4>
-    <edge 1 5>
-    <edge 1 8>
-    <edge 1 10>
-    <edge 2 3>
-    <edge 2 6>
-    <edge 2 12>
-    <edge 3 7>
-    <edge 3 9>
-    <edge 4 6>
-    <edge 5 8>
-    <edge 5 9>
-    <edge 5 11>
-    <edge 6 10>
-    <edge 6 12>
-    <edge 7 9>
-    <edge 7 11>
-    <edge 10 12>
+    <node 1 {4 5 8 10}>
+    <node 2 {3 6 12}>
+    <node 3 {2 7 9}>
+    <node 4 {1 6}>
+    <node 5 {1 8 9 11}>
+    <node 6 {2 4 10 12}>
+    <node 7 {3 9 11}>
+    <node 10 {1 6 12}>
     })
 
 (test (triangles graph1))
-;{[1 5 8] [2 6 10] [3 7 9] [5 8 9] [6 10 12] [8 9 12]}
+;{{1 5 8} {2 6 10} {3 7 9} {5 8 9} {6 10 12} {8 9 12}}
+
 
