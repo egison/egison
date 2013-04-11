@@ -1,0 +1,35 @@
+(define $edge (algebraic-data-matcher (| <edge integer integer>)))
+
+(define $triangles
+  (lambda [$graph]
+    (match-all graph (multiset edge)
+      [<cons <edge $n_1 $n_2>
+        <cons <edge ,n_2 $n_3>
+         <cons <edge ,n_3 ,n_1>
+          _>>>
+       [n_1 n_2 n_3]])))
+
+(define $graph1 {
+    <edge 1 4>
+    <edge 1 5>
+    <edge 1 8>
+    <edge 1 10>
+    <edge 2 3>
+    <edge 2 6>
+    <edge 2 12>
+    <edge 3 7>
+    <edge 3 9>
+    <edge 4 6>
+    <edge 5 8>
+    <edge 5 9>
+    <edge 5 11>
+    <edge 6 10>
+    <edge 6 12>
+    <edge 7 9>
+    <edge 7 11>
+    <edge 10 12>
+    })
+
+(test (triangles graph1))
+;{[1 5 8] [2 6 10] [3 7 9] [5 8 9] [6 10 12] [8 9 12]}
+
