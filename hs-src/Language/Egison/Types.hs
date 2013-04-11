@@ -7,11 +7,13 @@ import Control.Monad.Trans.Maybe
 
 import Data.IORef
 import Data.HashMap.Strict (HashMap)
-import qualified Data.Array as A
 import qualified Data.HashMap.Strict as HashMap
 
 import System.IO
 import Text.Parsec (ParseError)
+
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 
 --
 -- Expressions
@@ -122,7 +124,7 @@ data EgisonValue =
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
   | Collection [EgisonValue]
-  | Array Integer (A.Array Integer EgisonValue) 
+  | Array Int (IntMap EgisonValue) 
   | Pattern EgisonPattern
   | Matcher Matcher
   | Func Env [String] EgisonExpr
@@ -146,7 +148,7 @@ instance Show EgisonValue where
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
-  show (Array _ vals) = "[|" ++ unwords (map show $ A.elems vals) ++ "|]"
+  show (Array _ vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
   show (Pattern _) = "#<pattern>"
   show (Matcher _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
@@ -187,7 +189,7 @@ data Intermediate =
     IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
   | ICollection [Inner]
-  | IArray Integer (A.Array Integer ObjectRef)
+  | IArray Int (IntMap ObjectRef)
 
 data Inner =
     IElement ObjectRef
