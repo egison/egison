@@ -124,7 +124,7 @@ data EgisonValue =
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
   | Collection [EgisonValue]
-  | Array Int (IntMap EgisonValue) 
+  | Array (IntMap EgisonValue)
   | Pattern EgisonPattern
   | Matcher Matcher
   | Func Env [String] EgisonExpr
@@ -132,6 +132,7 @@ data EgisonValue =
   | IOFunc (EgisonM WHNFData)
   | Port Handle
   | Something
+  | Undefined
   | EOF
 
 type Matcher = (Env, MatcherInfo)
@@ -148,7 +149,7 @@ instance Show EgisonValue where
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
-  show (Array _ vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
+  show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
   show (Pattern _) = "#<pattern>"
   show (Matcher _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
@@ -156,6 +157,7 @@ instance Show EgisonValue where
   show (IOFunc _) = "#<io>"
   show (Port _) = "#<port>"
   show Something = "something"
+  show Undefined = "undefined"
   show World = "#<world>"
   show EOF = "#<eof>"
 
@@ -167,7 +169,7 @@ instance Eq EgisonValue where
  (Float f) == (Float f') = f == f'
  (InductiveData name vals) == (InductiveData name' vals') = name == name' && vals == vals'
  (Tuple vals) == (Tuple vals') = vals == vals'
- (Array i vals) == (Array i' vals') = i == i' && vals == vals'
+ (Array vals) == (Array vals') = vals == vals'
  (Collection vals) == (Collection vals') = vals == vals'
  _ == _ = False
 
@@ -189,7 +191,7 @@ data Intermediate =
     IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
   | ICollection [Inner]
-  | IArray Int (IntMap ObjectRef)
+  | IArray (IntMap ObjectRef)
 
 data Inner =
     IElement ObjectRef
@@ -200,7 +202,7 @@ instance Show WHNFData where
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
-  show (Intermediate (IArray _ _)) = "[|...|]" 
+  show (Intermediate (IArray _)) = "[|...|]" 
 
 fromCharValue :: WHNFData -> Either EgisonError Char
 fromCharValue (Value (Char c)) = return c

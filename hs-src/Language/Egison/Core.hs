@@ -10,6 +10,9 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 
@@ -91,19 +94,20 @@ evalExpr env (CollectionExpr inners) =
 
 evalExpr env (ArrayExpr exprs) = do
   ref' <- mapM (newThunk env) exprs
-  size <- return $ length exprs
-  return . Intermediate . IArray size $ IntMap.fromList $ zip (enumFromTo 1 size) ref'
+  return . Intermediate . IArray $ IntMap.fromList $ zip (enumFromTo 1 (length exprs)) ref'
 
 evalExpr env (IndexedExpr expr index) = do
   result <- evalExpr env expr
   index' <- evalExpr env index >>= either throwError (return . fromInteger)  . fromIntegerValue
   case result of
-    Value (Array size val) ->
-      if index' > size then throwError $ strMsg "index out of range"
-                        else return . Value $ (IntMap.!) val index'
-    Intermediate (IArray size val) ->
-      if index' > size then throwError $ strMsg "index out of range"
-                        else evalRef $ (IntMap.!) val index'
+    Value (Array val) ->
+       case IntMap.lookup index' val of
+        Just val -> return . Value $ val
+        Nothing  -> return . Value $ Undefined
+    Intermediate (IArray val) ->
+      case IntMap.lookup index' val of
+        Just ref -> evalRef ref
+        Nothing  -> return . Value $ Undefined
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
 
@@ -195,14 +199,14 @@ evalExpr env (ArraySizeExpr expr) =
   evalExpr env expr >>= arraySize
   where
     arraySize :: WHNFData -> EgisonM WHNFData
-    arraySize (Intermediate (IArray i _)) = return . Value . Integer . toInteger $ i
-    arraySize (Value (Array i _))         = return . Value . Integer . toInteger $ i
-    arraySize val                         = throwError $ TypeMismatch "array" val
+    arraySize (Intermediate (IArray vals)) = return . Value . Integer . toInteger $ IntMap.size vals
+    arraySize (Value (Array vals))         = return . Value . Integer . toInteger $ IntMap.size vals
+    arraySize val                          = throwError $ TypeMismatch "array" val
 
 evalExpr _ (PatternExpr pattern) = return $ Value $ Pattern pattern
 
 evalExpr _ SomethingExpr = return $ Value Something
-evalExpr _ UndefinedExpr = throwError $ strMsg "undefined"
+evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
 evalExpr' :: Env -> EgisonExpr -> EgisonM EgisonValue
@@ -236,9 +240,9 @@ evalDeep :: WHNFData -> EgisonM EgisonValue
 evalDeep (Value val) = return val
 evalDeep (Intermediate (IInductiveData name refs)) =
   InductiveData name <$> mapM evalRef' refs
-evalDeep (Intermediate (IArray size refs)) = do
+evalDeep (Intermediate (IArray refs)) = do
   refs' <- mapM evalRef' $ IntMap.elems refs
-  return $ Array size $ IntMap.fromList $ zip (enumFromTo 1 size) refs'
+  return $ Array $ IntMap.fromList $ zip (enumFromTo 1 (IntMap.size refs)) refs'
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef')
 
@@ -246,7 +250,7 @@ generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name size expr = do  
   size' <- evalExpr env size >>= either throwError (return . fromInteger) . fromIntegerValue
   elems <- mapM genElem (enumFromTo 1 size')
-  return $ Intermediate $ IArray size' $ IntMap.fromList elems
+  return $ Intermediate $ IArray $ IntMap.fromList elems
   where
     genElem :: Int -> EgisonM (Int, ObjectRef)
     genElem i = do env <- bindEnv env name $ toInteger i
@@ -295,8 +299,8 @@ recursiveBind env bindings = do
   return env'
 
 fromArray :: WHNFData -> EgisonM [ObjectRef]
-fromArray (Intermediate (IArray _ refs)) = return $ IntMap.elems refs
-fromArray (Value (Array _ vals)) = mapM (newEvaluatedThunk . Value) $ IntMap.elems vals
+fromArray (Intermediate (IArray refs)) = return $ IntMap.elems refs
+fromArray (Value (Array vals)) = mapM (newEvaluatedThunk . Value) $ IntMap.elems vals
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
@@ -377,7 +381,29 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
       result <- evalExpr env' pred >>= flip applyFunc [target] >>= liftError . fromBoolValue
       if result then return $ msingleton $ (MState env bindings trees)
                 else return MNil
-    PatternExpr (IndexedPattern pat expr) -> undefined
+    PatternExpr (IndexedPattern (PatVar name) expr) -> do
+      index <- evalExpr env' expr >>= either throwError (return . fromInteger) . fromIntegerValue
+      case lookup name bindings of
+        Just ref -> do
+          val <- evalRef ref
+          case val of
+            Intermediate (IArray val) -> do
+              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target val
+              return $ msingleton $ MState env (subst name obj bindings) trees
+            Value (Array val) -> do
+              keys' <- return $ IntMap.keys val
+              vals' <- mapM (newEvaluatedThunk . Value) $ IntMap.elems val
+              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys' vals')
+              return $ msingleton $ MState env (subst name obj bindings) trees
+        Nothing  -> do
+          obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.singleton index target 
+          return $ msingleton $ MState env ((name, obj):bindings) trees
+      where
+        subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
+        subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
+                                 | otherwise = (k', v'):(subst k nv xs)
+        subst _ _ [] = []
+    PatternExpr (IndexedPattern _ _) -> throwError $ strMsg "invalid indexed-pattern"
     PatternExpr pattern' ->
       case matcher of
         Value Something -> 
