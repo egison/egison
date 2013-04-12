@@ -33,7 +33,12 @@
                                       [<cons $z $zs> {[xs ys] @(helper {@xs z} zs)}]}))]}
                  (helper {} tgt))]}]
        [<nioj ,$pxs $> [(list a)]
-        {[$tgt (match-all tgt (list a) [<join $ys ,pxs> ys])]}]
+        {[$tgt (letrec {[$helper (lambda [$pxs $tgt]
+                                   (match [pxs tgt] [(list a) (list a)]
+                                     {[[<nil> _] {tgt}]
+                                      [[<snoc $x $xs> <snoc ,x $ys>] (helper xs ys)]
+                                      [[_ _] {}]}))]}
+                 (helper pxs tgt))]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (letrec {[$helper (lambda [$xs $ys]
                                    (match ys (list a)

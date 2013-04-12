@@ -2,10 +2,10 @@
 ;;; social demo
 ;;;
 
-struct node {
-  int i;
-  int[] edges;
-};
+;; struct node {
+;;  int i;
+;;  int[] edges;
+;;};
 
 (define $node integer)
 
@@ -23,17 +23,21 @@ struct node {
        {n_1 n_2 n_3}])))
 
 (define $graph1 {
-    <node 1 {4 5 8 10}>
-    <node 2 {3 6 12}>
-    <node 3 {2 7 9}>
-    <node 4 {1 6}>
-    <node 5 {1 8 9 11}>
-    <node 6 {2 4 10 12}>
-    <node 7 {3 9 11}>
-    <node 10 {1 6 12}>
+    <Node 1 {4 5 8 10}>
+    <Node 2 {3 6 12}>
+    <Node 3 {2 7 9}>
+    <Node 4 {1 6}>
+    <Node 5 {1 8 9 11}>
+    <Node 6 {2 4 10 12}>
+    <Node 7 {3 9 11}>
+    <Node 8 {1 5}>
+    <Node 9 {3 5 7}>
+    <Node 10 {1 6 12}>
+    <Node 11 {5 7}>
+    <Node 12 {2 6 10}>
     })
 
 (test (triangles graph1))
-;{{1 5 8} {2 6 10} {3 7 9} {5 8 9} {6 10 12} {8 9 12}}
+;{{1 5 8} {3 7 9} {2 6 12} {6 10 12}}
 
 
