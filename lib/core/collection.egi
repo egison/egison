@@ -116,42 +116,46 @@
          [<cons $y $rs> ((remove-collection a) ((remove a) xs y) rs)]}))))
 
 (define $add
-  (lambda [$xs $x]
-    (if (member? x xs)
-        xs
-        {@xs x})))
+  (lambda [$a]
+    (lambda [$xs $x]
+      (if ((member? a) x xs)
+          xs
+          {@xs x}))))
 
 (define $union
-  (lambda [$xs $ys]
-    (match ys (list something)
-      {[<nil> xs]
-       [<cons $y $rs> ((union a) ((add a) xs y) rs)]})))
+  (lambda [$a]
+    (lambda [$xs $ys]
+      (match ys (list something)
+        {[<nil> xs]
+         [<cons $y $rs> ((union a) ((add a) xs y) rs)]}))))
 
 (define $occurrence
-  (lambda [$xs]
-    (letrec {[$remove-and-count
-              (lambda [$x $xs]
-                (match xs (list something)
-                  {[<nil> [{} 1]]
-                   [<cons ,x $ys> (let {[[$r $i] (remove-and-count x ys)]}
-                                    [r (+ i 1)])]
-                   [<cons $y $ys> (let {[[$r $i] (remove-and-count x ys)]}
-                                    [{y @r} i])]}))]}
-      (match xs (list something)
-        {[<nil> {}]
-         [<cons $x $ys> (let {[[$rs $i] (remove-and-count x ys)]}
-                          {[x i] @(occurrence rs)})]}))))
+  (lambda [$a]
+    (lambda [$xs]
+      (letrec {[$remove-and-count
+                (lambda [$x $xs]
+                  (match xs (list a)
+                    {[<nil> [{} 1]]
+                     [<cons ,x $ys> (let {[[$r $i] (remove-and-count x ys)]}
+                                      [r (+ i 1)])]
+                     [<cons $y $ys> (let {[[$r $i] (remove-and-count x ys)]}
+                                      [{y @r} i])]}))]}
+        (match xs (list something)
+          {[<nil> {}]
+           [<cons $x $ys> (let {[[$rs $i] (remove-and-count x ys)]}
+                            {[x i] @((occurrence a) rs)})]})))))
 
 (define $subcollections
-  (lambda [$xs]
-    (foldr (lambda [$x $rs]
-             (let {[[$y $i] x]} 
-               (map-and-concat (lambda [$sub] 
-                                 (match-all (loop $l $j (between 1 i) {y @l} {}) (list something)
-                                   [<join $ys _> {@ys @sub}]))
-                               rs)))
-           {{}}
-           ((occurrence a) xs))))
+  (lambda [$a]
+    (lambda [$xs]
+      (foldr (lambda [$x $rs]
+               (let {[[$y $i] x]} 
+                 (map-and-concat (lambda [$sub] 
+                                   (match-all (loop $l $j (between 1 i) {y @l} {}) (list something)
+                                     [<join $ys _> {@ys @sub}]))
+                                 rs)))
+             {{}}
+             ((occurrence a) xs)))))
 
 (define $size
   (lambda [$xs]
@@ -208,32 +212,35 @@
         {@(reverse rs) x}]})))
 
 (define $member?
-  (lambda [$x $ys]
-    (match ys (list something)
-      {[<nil> #f]
-       [<cons ,x $ys> #t]
-       [<cons $y $ys> ((member? a) x ys)]})))
+  (lambda [$a]
+    (lambda [$x $ys]
+      (match ys (list a)
+        {[<nil> #f]
+         [<cons ,x $ys> #t]
+         [<cons $y $ys> ((member? a) x ys)]}))))
 
 (define $unique
-  (lambda [$xs]
-    (letrec {[$loop-fn
-              (lambda [$xs $ys]
-                (match xs (list something)
-                  {[<nil> ys]
-                   [<cons $x $rs>
-                    (if (member? x ys)
-                        (loop-fn rs ys)
-                        (loop-fn rs {@ys x}))]}))]}
-      (loop-fn xs {}))))
+  (lambda [$a]
+    (lambda [$xs]
+      (letrec {[$loop-fn
+                (lambda [$xs $ys]
+                  (match xs (list something)
+                    {[<nil> ys]
+                     [<cons $x $rs>
+                      (if ((member? a) x ys)
+                          (loop-fn rs ys)
+                          (loop-fn rs {@ys x}))]}))]}
+        (loop-fn xs {})))))
 
 (define $subcollection?
-  (lambda [$xs $ys]
-    (match xs (list something)
-      {[<nil> #t]
-       [<cons $x $rest>
-        (if (member? x ys)
-            (subcollection? rest ys)
-            #f)]})))
+  (lambda [$a]
+    (lambda [$xs $ys]
+      (match xs (list something)
+        {[<nil> #t]
+         [<cons $x $rest>
+          (if ((member? a) x ys)
+              ((subcollection? a) rest ys)
+              #f)]}))))
 
 (define $concat
   (lambda [$xs]
