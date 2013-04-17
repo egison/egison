@@ -114,7 +114,7 @@ parseExpr' = (try parseConstantExpr
                          <|> parseFunctionExpr
                          <|> parseLetRecExpr
                          <|> parseLetExpr
-                         <|> parseLoopExpr
+                         <|> parseIndexLoopExpr
                          <|> parseDoExpr
                          <|> parseMatchAllExpr
                          <|> parseMatchExpr
@@ -238,9 +238,9 @@ parseVarNames = return <$> parseVarName
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
 
-parseLoopExpr :: Parser EgisonExpr
-parseLoopExpr = keywordLoop >> LoopExpr <$> parseVarName <*> parseVarName
-                                        <*> parseExpr <*> parseExpr <*> parseExpr
+parseIndexLoopExpr :: Parser EgisonExpr
+parseIndexLoopExpr = keywordIndexLoop >> IndexLoopExpr <$> parseVarName <*> parseVarName <*> parseVarName
+                                                       <*> parseExpr <*> parseExpr <*> parseExpr <*> parseExpr
 
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = (keywordApply >> ApplyExpr <$> parseExpr <*> parseExpr) 
@@ -422,7 +422,7 @@ keywordLambda               = reserved "lambda"
 keywordPatternConstructor   = reserved "pattern-constructor"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
-keywordLoop                 = reserved "loop"
+keywordIndexLoop            = reserved "index-loop"
 keywordMatchAll             = reserved "match-all"
 keywordMatch                = reserved "match"
 keywordMatcher              = reserved "matcher"

@@ -137,6 +137,7 @@
          [<cons $x $ys> (let {[[$rs $i] (remove-and-count x ys)]}
                           {[x i] @(occurrence rs)})]}))))
 
+#|
 (define $subcollections
   (lambda [$xs]
     (foldr (lambda [$x $rs]
@@ -147,6 +148,7 @@
                                rs)))
            {{}}
            ((occurrence a) xs))))
+|#
 
 (define $size
   (lambda [$xs]

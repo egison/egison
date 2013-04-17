@@ -153,11 +153,12 @@ desugar (LetRecExpr binds expr) = do
   expr' <- desugar expr
   return $ LetRecExpr binds' expr'
   
-desugar (LoopExpr s0 s1 expr0 expr1 expr2) = do
+desugar (IndexLoopExpr s0 s1 s2 expr0 expr1 expr2 expr3) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
   expr2' <- desugar expr2
-  return $ LoopExpr s0 s1 expr0' expr1' expr2'
+  expr3' <- desugar expr3
+  return $ IndexLoopExpr s0 s1 s2 expr0' expr1' expr2' expr3'
   
 desugar (MatchExpr expr0 expr1 clauses) = do  
   expr0' <- desugar expr0
