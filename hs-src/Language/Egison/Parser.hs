@@ -464,6 +464,8 @@ dot = P.dot lexer
 
 ident :: Parser String
 ident = P.identifier lexer
+    <|> try ((:) <$> char '+' <*> ident)
+    <|> try ((:) <$> char '-' <*> ident)
     <|> (P.lexeme lexer $ string "+")
     <|> (P.lexeme lexer $ string "-")
 
