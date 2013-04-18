@@ -13,6 +13,8 @@
   (algebraic-data-matcher
     (| <node node (multiset node)>)))
 
+(define $graph (multiset nodeInfo))
+
 (define $triangles
   (lambda [$g]
     (match-all g graph
@@ -38,6 +40,10 @@
     })
 
 (test (triangles graph1))
-;{{1 5 8} {3 7 9} {2 6 12} {6 10 12}}
+;{{1 5 8} {5 1 8} {5 8 1} {8 1 5} {1 8 5} {8 5 1}
+; {3 7 9} {7 3 9} {7 9 3} {9 3 7} {6 2 12} {12 2 6}
+; {2 6 12} {2 12 6} {3 9 7} {9 7 3} {12 6 2} {6 12 2}
+; {6 10 12} {10 6 12} {10 12 6} {12 6 10} {6 12 10} {12 10 6}}
 
+;{{1 5 8} {3 7 9} {2 6 12} {6 10 12}}
 
