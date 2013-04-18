@@ -471,15 +471,15 @@ unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
   unconsCollection' (Value (Collection (val:vals))) =
     lift $ (,) <$> newEvaluatedThunk (Value val)
                <*> newEvaluatedThunk (Value $ Collection vals)
-  unconsCollection' (Intermediate (ICollection ((IElement ref):inners))) =
-    lift $ (,) ref <$> newEvaluatedThunk (Intermediate $ ICollection inners)
+  unconsCollection' (Intermediate (ICollection ((IElement ref'):inners))) =
+    lift $ (,) ref' <$> newEvaluatedThunk (Intermediate $ ICollection inners)
   unconsCollection' (Intermediate (ICollection ((ISubCollection ref'):inners))) = do
     inners' <- lift $ evalRef ref' >>= expandCollection
     let coll = Intermediate (ICollection (inners' ++ inners))
     lift $ writeThunk ref coll
     unconsCollection' coll
   unconsCollection' _ = matchFail
-  
+
 unsnocCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
 unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
   where
@@ -491,11 +491,11 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
     unsnocCollection' (Intermediate (ICollection [])) = matchFail
     unsnocCollection' (Intermediate (ICollection inners)) =
       case last inners of
-        IElement ref ->
+        IElement ref' ->
           lift $ (,) <$> newEvaluatedThunk (Intermediate . ICollection $ init inners)
-                     <*> pure ref
-        ISubCollection ref -> do
-          inners' <- lift $ evalRef ref >>= expandCollection
+                     <*> pure ref'
+        ISubCollection ref' -> do
+          inners' <- lift $ evalRef ref' >>= expandCollection
           let coll = Intermediate (ICollection (init inners ++ inners'))
           lift $ writeThunk ref coll
           unsnocCollection' coll
