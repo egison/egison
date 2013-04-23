@@ -110,9 +110,6 @@ desugar (ArrayRefExpr (VarExpr name) (TupleExpr nums)) =
 desugar (ArrayRefExpr expr nums) =
   desugar $ ArrayRefExpr expr (TupleExpr [nums])
 
-desugar (IndexedExpr (PatternExpr pattern) index) =
-  desugar =<< PatternExpr <$> (IndexedPattern <$> desugarPattern pattern <*> desugar index)
-
 desugar (IndexedExpr expr index) = 
   IndexedExpr <$> desugar expr <*> desugar index
 

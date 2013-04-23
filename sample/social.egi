@@ -2,11 +2,6 @@
 ;;; social demo
 ;;;
 
-;; struct node {
-;;  int i;
-;;  int[] edges;
-;;};
-
 (define $node integer)
 
 (define $nodeInfo
