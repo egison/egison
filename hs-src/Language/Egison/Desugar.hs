@@ -155,29 +155,23 @@ desugar (LetRecExpr binds expr) = do
   
 desugar (IndexLoopExpr n0 n1 n2 expr0 expr1 expr2 expr3) = do
   name <- fresh
-  bind <- genBind (VarExpr name)
-  return $ ApplyExpr (LetRecExpr [([name], bind)] (ApplyExpr (VarExpr name) (TupleExpr [expr1]))) (TupleExpr [expr0])
-  
-  where
-    genBind :: EgisonExpr -> DesugarM EgisonExpr
-    genBind comb = do
-      ns <- fresh
-      constructor <- genPatternConstructor comb (VarExpr ns)
-      return $ LambdaExpr [ns] $ constructor
-    
-    genPatternConstructor :: EgisonExpr -> EgisonExpr -> DesugarM EgisonExpr
-    genPatternConstructor comb ns = do
-      p <- fresh
-      subst <- return [(n0, (ApplyExpr carFunc (TupleExpr [ns])))
-                      ,(n1, (ApplyExpr (ApplyExpr comb (TupleExpr [expr1])) (TupleExpr [expr1])))
-                      ,(n2, (ApplyExpr cdrFunc (TupleExpr [ns])))]
-      initExpr <- desugar expr3
-      bodyExpr <- local (subst ++) $ desugar expr2
-      return $ LambdaExpr [p] $ IfExpr (ApplyExpr emptyFunc (TupleExpr [ns])) initExpr bodyExpr
-                                          
-    emptyFunc = VarExpr "empty?"
-    carFunc   = VarExpr "car"
-    cdrFunc   = VarExpr "cdr"
+  helper <- genHelper name
+  return $ ApplyExpr (LetRecExpr [([name], helper)] (ApplyExpr (VarExpr name) (TupleExpr [expr1]))) (TupleExpr [expr0])
+ where
+  genHelper :: String -> DesugarM EgisonExpr
+  genHelper name = do
+    indicesName <- fresh
+    patName <- fresh
+    let subst = [(n0, VarExpr patName), (n1, ApplyExpr (ApplyExpr (VarExpr name) (VarExpr indicesName)) (VarExpr patName))]
+    bodyExpr <- local (subst ++) $ desugar expr2
+    initExpr <- desugar expr3
+    let matchClauses = [ (PatternExpr $ InductivePattern "nil" [], LambdaExpr [patName] $ initExpr)
+                       , (PatternExpr $ InductivePattern "cons" [PatternExpr (PatVar n2), PatternExpr (PatVar indicesName)], LambdaExpr [patName] $ bodyExpr)]
+    return $ LambdaExpr [indicesName] $ MatchExpr (VarExpr indicesName) matcher matchClauses
+
+  matcher :: EgisonExpr
+  matcher = ApplyExpr (VarExpr "list") (TupleExpr [SomethingExpr])
+      
   
 desugar (MatchExpr expr0 expr1 clauses) = do  
   expr0' <- desugar expr0
