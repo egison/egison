@@ -109,6 +109,10 @@ evalExpr env (IndexedExpr expr index) = do
       case IntMap.lookup index' val of
         Just ref -> evalRef ref
         Nothing  -> return . Value $ Undefined
+    _ -> do liftIO $ putStrLn $ show expr
+            liftIO $ putStrLn $ show result
+            liftIO $ putStrLn $ show index
+            undefined
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
 
@@ -360,6 +364,29 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
           penv <- zip names <$> mapM (evalPattern env') args
           return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
+    IndexedExpr (PatternExpr (PatVar name)) expr -> do
+      index <- evalExpr env' expr >>= either throwError (return . fromInteger) . fromIntegerValue
+      case lookup name bindings of
+        Just ref -> do
+          val <- evalRef ref
+          case val of
+            Intermediate (IArray val) -> do
+              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target val
+              return $ msingleton $ MState env (subst name obj bindings) trees
+            Value (Array val) -> do
+              keys' <- return $ IntMap.keys val
+              vals' <- mapM (newEvaluatedThunk . Value) $ IntMap.elems val
+              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys' vals')
+              return $ msingleton $ MState env (subst name obj bindings) trees
+        Nothing  -> do
+          obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.singleton index target 
+          return $ msingleton $ MState env ((name, obj):bindings) trees
+      where
+        subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
+        subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
+                                 | otherwise = (k', v'):(subst k nv xs)
+        subst _ _ [] = []
+    IndexedExpr _ _ -> throwError $ strMsg "invalid indexed-pattern"
     TupleExpr patterns -> do
       matchers <- fromTuple matcher >>= mapM evalRef
       targets <- evalRef target >>= fromTuple
@@ -385,29 +412,6 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
       result <- applyFunc func arg >>= liftError . fromBoolValue
       if result then return $ msingleton $ (MState env bindings trees)
                 else return MNil
-    PatternExpr (IndexedPattern (PatVar name) expr) -> do
-      index <- evalExpr env' expr >>= either throwError (return . fromInteger) . fromIntegerValue
-      case lookup name bindings of
-        Just ref -> do
-          val <- evalRef ref
-          case val of
-            Intermediate (IArray val) -> do
-              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target val
-              return $ msingleton $ MState env (subst name obj bindings) trees
-            Value (Array val) -> do
-              keys' <- return $ IntMap.keys val
-              vals' <- mapM (newEvaluatedThunk . Value) $ IntMap.elems val
-              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys' vals')
-              return $ msingleton $ MState env (subst name obj bindings) trees
-        Nothing  -> do
-          obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.singleton index target 
-          return $ msingleton $ MState env ((name, obj):bindings) trees
-      where
-        subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
-        subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
-                                 | otherwise = (k', v'):(subst k nv xs)
-        subst _ _ [] = []
-    PatternExpr (IndexedPattern _ _) -> throwError $ strMsg "invalid indexed-pattern"
     PatternExpr pattern' ->
       case matcher of
         Value Something -> 
@@ -441,6 +445,7 @@ evalPattern :: Env -> EgisonExpr -> EgisonM EgisonExpr
 evalPattern _ expr@(TupleExpr _) = return expr
 evalPattern _ expr@(PatternExpr _) = return expr
 evalPattern _ expr@(VarExpr _) = return expr
+evalPattern _ expr@(IndexedExpr _ _) = return expr
 evalPattern _ expr@(ApplyExpr _ _) = return expr
 evalPattern env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromBoolValue
@@ -478,16 +483,16 @@ primitivePatPatternMatch :: Env -> PrimitivePatPattern -> EgisonExpr ->
 primitivePatPatternMatch _ PPWildCard _ = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
 primitivePatPatternMatch env (PPValuePat name) pattern = do
-  pattern <- lift $ evalExpr env pattern
+  pattern <- lift $ evalPattern env pattern
   case pattern of
-    Value (Pattern (ValuePat expr)) -> do
+    PatternExpr (ValuePat expr) -> do
       ref <- lift $ newThunk env expr
       return ([], [(name, ref)])
     _ -> matchFail
 primitivePatPatternMatch env (PPInductivePat name patterns) pattern = do
-  pattern <- lift $ evalExpr env pattern
+  pattern <- lift $ evalPattern env pattern
   case pattern of
-    Value (Pattern (InductivePattern name' exprs)) | name == name' ->
+    PatternExpr (InductivePattern name' exprs) | name == name' ->
       (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
     _ -> matchFail
 
