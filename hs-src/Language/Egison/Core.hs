@@ -438,6 +438,7 @@ processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tr
             Just pattern ->
               return $ msingleton $ MState env bindings (MAtom pattern target matcher:MNode penv (MState env' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name
+        IndexedExpr _ _ -> throwError $ strMsg "invalid indexed-pattern2"
         _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
     _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
 
