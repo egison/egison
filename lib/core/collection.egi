@@ -151,7 +151,7 @@
     (foldr (lambda [$x $rs]
              (let {[[$y $i] x]} 
                (map-and-concat (lambda [$sub] 
-                                 (match-all (loop $l $j (between 1 i) {y @l} {}) (list something)
+                                 (match-all (index-loop $l $j (between 1 i) {y @l} {}) (list something)
                                    [<join $ys _> {@ys @sub}]))
                                rs)))
            {{}}

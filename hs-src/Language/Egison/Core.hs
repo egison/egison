@@ -442,11 +442,10 @@ evalPattern _ expr@(TupleExpr _) = return expr
 evalPattern _ expr@(PatternExpr _) = return expr
 evalPattern _ expr@(VarExpr _) = return expr
 evalPattern _ expr@(ApplyExpr _ _) = return expr
+evalPattern _ expr@(IndexedExpr _ _) = return expr
 evalPattern env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromBoolValue
   evalPattern env $ if test then expr else expr'  
-evalPattern env (LetExpr _ _) = undefined
-evalPattern env (LetRecExpr _ _) = undefined
 evalPattern _ _ = throwError $ strMsg "pattern expression required"
 
 inductiveMatch :: Env -> EgisonExpr -> ObjectRef -> Matcher ->

@@ -379,7 +379,7 @@ reservedKeywords =
   , "pattern-constructor"
   , "letrec"
   , "let"
-  , "loop"
+  , "index-loop"
   , "match-all"
   , "match"
   , "matcher"
