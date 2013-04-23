@@ -1,0 +1,6 @@
+(define $main
+  (lambda [$argv]
+    (do {[[] (write-string "argv: ")]
+         [[] (write argv)]
+         [[] (write "\n")]}
+      [])))

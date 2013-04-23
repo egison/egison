@@ -1,0 +1,44 @@
+(define $main
+  (lambda [$argv]
+    (match argv (list string)
+      {[<nil> (letrec {[$iter
+                        (do {[$eof (eof?)]
+                             [[] (unless eof
+                                   (do {[$line (read-line)]
+                                        [[] (write-string line)]
+                                        [[] (write-char '\n')]
+                                        [[] iter]}
+                                     []))]}
+                          [])]}
+                iter)]
+       [_ (cat-files argv)]})))
+
+(define $cat-files
+  (function (list string)
+    {[<nil> nop]
+     [<cons $file $files>
+      (do {[$port (open-input-file file)]
+           [[] (letrec {[$iter
+                        (do {[$eof (eof-port? port)]
+                             [[] (unless eof
+                                   (do {[$line (read-line-from-port port)]
+                                        [[] (write-string line)]
+                                        [[] (write-char '\n')]
+                                        [[] iter]}
+                                     []))]}
+                          [])]}
+                 iter)]
+           [[] (close-input-port port)]
+           [[] (cat-files files)]}
+        [])]}))
+
+(define $nop
+  (return []))
+
+(define $when
+  (lambda [$cond $action]
+    (if cond action nop)))
+
+(define $unless
+  (lambda [$cond $action]
+    (when (not cond) action)))

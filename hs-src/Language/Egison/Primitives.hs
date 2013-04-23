@@ -35,6 +35,7 @@ oneArg :: (MonadError EgisonError m) =>
           [WHNFData] -> m EgisonValue
 oneArg f = \vals -> case vals of 
                       [val] -> f val
+                      [] -> f $ Value $ Tuple []
                       _ -> throwError $ ArgumentsNum 1 $ length vals
 
 {-# INLINE twoArgs #-}
@@ -222,7 +223,8 @@ assertEqual = threeArgs $ \label actual expected -> do
 --
 
 ioPrimitives :: [(String, PrimitiveFunc)]
-ioPrimitives = [ ("open-input-file", makePort ReadMode)
+ioPrimitives = [ ("return", return')
+               , ("open-input-file", makePort ReadMode)
                , ("open-output-file", makePort WriteMode)
                , ("close-input-port", closePort)
                , ("close-output-port", closePort)
@@ -233,6 +235,7 @@ ioPrimitives = [ ("open-input-file", makePort ReadMode)
                , ("write-string", writeString)
                , ("write", write)
 --             , ("print", writeStringLine)
+               , ("eof?", isEOFStdin)
                , ("flush", flushStdout)
                , ("read-char-from-port", readCharFromPort)
                , ("read-line-from-port", readLineFromPort)
@@ -240,6 +243,7 @@ ioPrimitives = [ ("open-input-file", makePort ReadMode)
                , ("write-char-to-port", writeCharToPort)
                , ("write-string-to-port", writeStringToPort)
                , ("write-to-port", writeToPort)
+               , ("eof-port?", isEOFPort)
 --             , ("print-to-port", writeStringLineToPort)
                , ("flush-port", flushPort) ]
 --             , ("get-lib-dir-name", getLibDirName) ]
@@ -249,6 +253,9 @@ makeIO m = IOFunc $ liftM (Value . Tuple . (World :) . (:[])) m
 
 makeIO' :: EgisonM () -> EgisonValue
 makeIO' m = IOFunc $ m >> return (Value $ Tuple [World, Tuple []])
+
+return' :: PrimitiveFunc
+return' = oneArg $ return . makeIO . evalDeep
 
 makePort :: IOMode -> PrimitiveFunc
 makePort mode = (liftError .) $ oneArg $ \val -> do
@@ -280,6 +287,9 @@ readLine = noArg $ return $ makeIO $ liftIO $ liftM String getLine
 flushStdout :: PrimitiveFunc
 flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
 
+isEOFStdin :: PrimitiveFunc
+isEOFStdin = noArg $ return $ makeIO $ liftIO $ liftM Bool isEOF
+
 writeCharToPort :: PrimitiveFunc
 writeCharToPort = (liftError .) $ twoArgs $ \val val' ->
   ((makeIO' . liftIO) .) . hPutChar <$> fromPortValue val <*> fromCharValue val'
@@ -304,6 +314,7 @@ readLineFromPort = (liftError .) $ oneArg $ \val ->
 flushPort :: PrimitiveFunc
 flushPort = (liftError .) $ oneArg $ \val ->
   makeIO' . liftIO . hFlush <$> fromPortValue val
-  
 
-  
+isEOFPort :: PrimitiveFunc
+isEOFPort = (liftError .) $ oneArg $ \val ->
+  makeIO . liftIO . liftM Bool . hIsEOF <$> fromPortValue val

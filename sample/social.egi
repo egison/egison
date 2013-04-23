@@ -1,0 +1,49 @@
+;;;
+;;; social demo
+;;;
+
+;; struct node {
+;;  int i;
+;;  int[] edges;
+;;};
+
+(define $node integer)
+
+(define $nodeInfo
+  (algebraic-data-matcher
+    (| <node node (multiset node)>)))
+
+(define $graph (multiset nodeInfo))
+
+(define $triangles
+  (lambda [$g]
+    (match-all g graph
+      [<cons <node $n_1 <cons $n_2 _>>
+        <cons <node ,n_2 <cons $n_3 _>>
+         <cons <node ,n_3 <cons ,n_1 _>>
+          _>>>
+       {n_1 n_2 n_3}])))
+
+(define $graph1 {
+    <Node 1 {4 5 8 10}>
+    <Node 2 {3 6 12}>
+    <Node 3 {2 7 9}>
+    <Node 4 {1 6}>
+    <Node 5 {1 8 9 11}>
+    <Node 6 {2 4 10 12}>
+    <Node 7 {3 9 11}>
+    <Node 8 {1 5}>
+    <Node 9 {3 5 7}>
+    <Node 10 {1 6 12}>
+    <Node 11 {5 7}>
+    <Node 12 {2 6 10}>
+    })
+
+(test (triangles graph1))
+;{{1 5 8} {5 1 8} {5 8 1} {8 1 5} {1 8 5} {8 5 1}
+; {3 7 9} {7 3 9} {7 9 3} {9 3 7} {6 2 12} {12 2 6}
+; {2 6 12} {2 12 6} {3 9 7} {9 7 3} {12 6 2} {6 12 2}
+; {6 10 12} {10 6 12} {10 12 6} {12 6 10} {6 12 10} {12 10 6}}
+
+;{{1 5 8} {3 7 9} {2 6 12} {6 10 12}}
+

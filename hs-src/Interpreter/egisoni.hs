@@ -15,16 +15,73 @@ import System.Environment
 import System.Directory (getHomeDirectory)
 import System.FilePath ((</>))
 import System.Console.Haskeline
+import System.Console.GetOpt
+import System.Exit (ExitCode (..), exitWith, exitFailure)
 import Language.Egison
 
 main :: IO ()
 main = do args <- getArgs
-          env <- primitiveEnv >>= loadLibraries
-          if null args
-            then showBanner >> repl env "> "
-            else do
-              result <- evalEgisonTopExpr env $ (LoadFile $ args !! 0)
-              either print (const $ return ()) result
+          let (actions, nonOpts, _) = getOpt Permute options args
+          let opts = foldl (flip id) defaultOptions actions
+          case opts of
+            Options {optShowHelp = True} -> printHelp
+            Options {optShowVersion = True} -> printVersionNumber
+            Options {optPrompt = prompt, optShowBanner = bannerFlag} -> do
+                env <- primitiveEnv >>= loadLibraries
+                case nonOpts of
+                    [] -> when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
+                    (file:args) -> do
+                        result <- evalEgisonTopExprs env [LoadFile file, Execute args]
+                        either print (const $ return ()) result
+
+data Options = Options {
+    optShowVersion :: Bool,
+    optShowHelp :: Bool,
+    optShowBanner :: Bool,
+    optPrompt :: String
+    }
+
+defaultOptions :: Options
+defaultOptions = Options {
+    optShowVersion = False,
+    optShowHelp = False,
+    optShowBanner = True,
+    optPrompt = "> "
+    }
+
+options :: [OptDescr (Options -> Options)]
+options = [
+  Option ['v', 'V'] ["version"]
+    (NoArg (\opts -> opts {optShowVersion = True}))
+    "show version number",
+  Option ['h', '?'] ["help"]
+    (NoArg (\opts -> opts {optShowHelp = True}))
+    "show usage information",
+  Option [] ["no-banner"]
+    (NoArg (\opts -> opts {optShowBanner = False}))
+    "show usage information",
+  Option ['p'] ["prompt"]
+    (ReqArg (\prompt opts -> opts {optPrompt = prompt})
+            "String")
+    "output file to write"
+  ]
+
+printHelp :: IO ()
+printHelp = do
+  putStrLn "Usage: egison [options] file"
+  putStrLn ""
+  putStrLn "Options:"
+  putStrLn "  --help                Display this information"
+  putStrLn "  --version             Display egison version information"
+  putStrLn "  --no-banner           Don't show banner"
+  putStrLn "  --prompt string       Set prompt of the interpreter"
+  putStrLn ""
+  exitWith ExitSuccess
+
+printVersionNumber :: IO ()
+printVersionNumber = do
+  putStrLn $ showVersion version 
+  exitWith ExitSuccess
 
 showBanner :: IO ()
 showBanner = do
@@ -48,8 +105,8 @@ repl env prompt = do
     loop env prompt' rest = do
       input <- getInputLine prompt'
       case input of
-        Nothing -> liftIO showByebyeMessage >> return ()
-        Just "quit" -> liftIO showByebyeMessage >> return ()
+        Nothing -> return () 
+        Just "quit" -> return () 
         Just "" ->  loop env prompt ""
         Just input' -> do
           let newInput = rest ++ input'
