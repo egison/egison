@@ -447,7 +447,6 @@ evalPattern _ expr@(PatternExpr _) = return expr
 evalPattern _ expr@(VarExpr _) = return expr
 evalPattern _ expr@(IndexedExpr _ _) = return expr
 evalPattern _ expr@(ApplyExpr _ _) = return expr
-evalPattern _ expr@(IndexedExpr _ _) = return expr
 evalPattern env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromBoolValue
   evalPattern env $ if test then expr else expr'  
