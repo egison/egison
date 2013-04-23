@@ -10,6 +10,12 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
+
 import Text.Parsec.ByteString.Lazy (parseFromFile)
 import System.Directory (doesFileExist)
 
@@ -39,7 +45,7 @@ evalTopExpr env (Test expr) = do
   liftIO $ print val
   return env
 evalTopExpr env (Execute argv) = do
-  main <- refVar env ("main", []) >>= evalRef
+  main <- refVar env "main" >>= evalRef
   io <- applyFunc main $ Value $ Collection $ map String argv
   case io of
     Value (IOFunc m) -> m >> return env
@@ -69,9 +75,7 @@ evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (IntegerExpr i) = return . Value $ Integer i
 evalExpr _ (FloatExpr d) = return . Value $ Float d
 
-evalExpr env (VarExpr name nums) = do
-  var <- (,) name <$> mapM (evalExpr env >=> liftError . fromIntegerValue) nums
-  refVar env var >>= evalRef
+evalExpr env (VarExpr name) = refVar env name >>= evalRef
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
@@ -88,6 +92,23 @@ evalExpr env (CollectionExpr inners) =
  where
   fromInnerExpr (ElementExpr expr) = IElement <$> newThunk env expr
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newThunk env expr
+
+evalExpr env (ArrayExpr exprs) = do
+  ref' <- mapM (newThunk env) exprs
+  return . Intermediate . IArray $ IntMap.fromList $ zip (enumFromTo 1 (length exprs)) ref'
+
+evalExpr env (IndexedExpr expr index) = do
+  result <- evalExpr env expr
+  index' <- evalExpr env index >>= either throwError (return . fromInteger)  . fromIntegerValue
+  case result of
+    Value (Array val) ->
+       case IntMap.lookup index' val of
+        Just val -> return . Value $ val
+        Nothing  -> return . Value $ Undefined
+    Intermediate (IArray val) ->
+      case IntMap.lookup index' val of
+        Just ref -> evalRef ref
+        Nothing  -> return . Value $ Undefined
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
 
@@ -113,29 +134,30 @@ evalExpr env (LetRecExpr bindings expr) =
   extractBindings (names, expr) = do
     var <- genVar
     let k = length names
-        target = VarExpr var []
+        target = VarExpr var
         matcher = TupleExpr $ replicate k SomethingExpr
         nth n =
           let pattern = TupleExpr $ flip map [1..k] $ \i ->
                 if i == n
-                  then PatternExpr $ PatVar "#_" []
+                  then PatternExpr $ PatVar "#_"
                   else PatternExpr WildCard
-          in MatchExpr target matcher [(pattern, VarExpr "#_" [])]
+          in MatchExpr target matcher [(pattern, VarExpr "#_")]
     return ((var, expr) : map (second nth) (zip names [1..]))
 
   genVar :: State Int String
   genVar = modify (1+) >> gets (('#':) . show)
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
-  let body = foldr genLet (TupleExpr [VarExpr "#1" [], expr]) bindings
+  let body = foldr genLet (TupleExpr [VarExpr "#1", expr]) bindings
   applyFunc (Value $ Func env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
-    LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1" []])] $
-    LetExpr [(names, VarExpr "#2" [])] expr'
+    LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1"])] $
+    LetExpr [(names, VarExpr "#2")] expr'
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
+  
   matcher <- evalExpr env matcher
   result <- patternMatch env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
@@ -158,7 +180,7 @@ evalExpr env (MatchExpr target matcher clauses) = do
   foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
 
 evalExpr env (FunctionExpr matcher clauses) =
-  return . Value $ Func env ["#_"] (MatchExpr (VarExpr "#_" []) matcher clauses)
+  return . Value $ Func env ["#_"] (MatchExpr (VarExpr "#_") matcher clauses)
 
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
@@ -167,10 +189,24 @@ evalExpr env (ApplyExpr func arg) = do
 
 evalExpr env (MatcherExpr info) = return $ Value $ Matcher (env, info)
 
+evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (size:[])) expr) =
+  generateArray env name size expr
+evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (size:ys)) expr) = 
+  generateArray env name size (GenerateArrayExpr xs (TupleExpr ys) expr)
+evalExpr _ (GenerateArrayExpr _ _ _) = throwError $ strMsg "invalid generate-array expression"
+
+evalExpr env (ArraySizeExpr expr) = 
+  evalExpr env expr >>= arraySize
+  where
+    arraySize :: WHNFData -> EgisonM WHNFData
+    arraySize (Intermediate (IArray vals)) = return . Value . Integer . toInteger $ IntMap.size vals
+    arraySize (Value (Array vals))         = return . Value . Integer . toInteger $ IntMap.size vals
+    arraySize val                          = throwError $ TypeMismatch "array" val
+
 evalExpr _ (PatternExpr pattern) = return $ Value $ Pattern pattern
 
 evalExpr _ SomethingExpr = return $ Value Something
-evalExpr _ UndefinedExpr = throwError $ strMsg "undefined"
+evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
 evalExpr' :: Env -> EgisonExpr -> EgisonM EgisonValue
@@ -204,6 +240,9 @@ evalDeep :: WHNFData -> EgisonM EgisonValue
 evalDeep (Value val) = return val
 evalDeep (Intermediate (IInductiveData name refs)) =
   InductiveData name <$> mapM evalRef' refs
+evalDeep (Intermediate (IArray refs)) = do
+  refs' <- mapM evalRef' $ IntMap.elems refs
+  return $ Array $ IntMap.fromList $ zip (enumFromTo 1 (IntMap.size refs)) refs'
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef')
 
@@ -220,9 +259,26 @@ applyFunc (Value (PrimitiveFunc func)) arg =
   fromTuple arg >>= mapM evalRef >>= liftM Value . func
 applyFunc (Value (IOFunc m)) arg = do
   case arg of
-    Value World -> m
-    _ -> throwError $ TypeMismatch "world" arg
+     Value World -> m
+     _ -> throwError $ TypeMismatch "world" arg
 applyFunc val _ = throwError $ TypeMismatch "function" val
+
+generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
+generateArray env name size expr = do  
+  size' <- evalExpr env size >>= either throwError (return . fromInteger) . fromIntegerValue
+  elems <- mapM genElem (enumFromTo 1 size')
+  return $ Intermediate $ IArray $ IntMap.fromList elems
+  where
+    genElem :: Int -> EgisonM (Int, ObjectRef)
+    genElem i = do env <- bindEnv env name $ toInteger i
+                   val <- evalExpr env expr >>= newEvaluatedThunk                   
+                   return (i, val)
+    
+    bindEnv :: Env -> String -> Integer -> EgisonM Env
+    bindEnv env name i = do
+      ref <- liftIO $ newIORef (WHNF . Value . Integer $ i)
+      return $ extendEnv env [(name, ref)]
+
 
 newThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
 newThunk env expr = liftIO . newIORef . Thunk $ evalExpr env expr
@@ -234,7 +290,7 @@ newEvaluatedThunk :: WHNFData -> EgisonM ObjectRef
 newEvaluatedThunk = liftIO . newIORef . WHNF
 
 makeBindings :: [String] -> [ObjectRef] -> [Binding]
-makeBindings = zip . map (flip (,) [])
+makeBindings = zip
 
 recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
@@ -243,6 +299,10 @@ recursiveBind env bindings = do
   let env' = extendEnv env $ makeBindings names refs
   zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr) refs exprs
   return env'
+
+fromArray :: WHNFData -> EgisonM [ObjectRef]
+fromArray (Intermediate (IArray refs)) = return $ IntMap.elems refs
+fromArray (Value (Array vals)) = mapM (newEvaluatedThunk . Value) $ IntMap.elems vals
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
@@ -292,12 +352,12 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env bindings
   pattern <- evalPattern env' pattern
   case pattern of
-    VarExpr _ _ -> throwError $ strMsg "cannot use variable in pattern"
+    VarExpr _ -> throwError $ strMsg "cannot use variable in pattern"
     ApplyExpr func (TupleExpr args) -> do
       func <- evalExpr env' func
       case func of
         Value (Func env names expr) -> do
-          penv <- zip (map (flip (,) []) names) <$> mapM (evalPattern env') args
+          penv <- zip names <$> mapM (evalPattern env') args
           return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
     TupleExpr patterns -> do
@@ -325,13 +385,35 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
       result <- applyFunc func arg >>= liftError . fromBoolValue
       if result then return $ msingleton $ (MState env bindings trees)
                 else return MNil
+    PatternExpr (IndexedPattern (PatVar name) expr) -> do
+      index <- evalExpr env' expr >>= either throwError (return . fromInteger) . fromIntegerValue
+      case lookup name bindings of
+        Just ref -> do
+          val <- evalRef ref
+          case val of
+            Intermediate (IArray val) -> do
+              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target val
+              return $ msingleton $ MState env (subst name obj bindings) trees
+            Value (Array val) -> do
+              keys' <- return $ IntMap.keys val
+              vals' <- mapM (newEvaluatedThunk . Value) $ IntMap.elems val
+              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys' vals')
+              return $ msingleton $ MState env (subst name obj bindings) trees
+        Nothing  -> do
+          obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.singleton index target 
+          return $ msingleton $ MState env ((name, obj):bindings) trees
+      where
+        subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
+        subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
+                                 | otherwise = (k', v'):(subst k nv xs)
+        subst _ _ [] = []
+    PatternExpr (IndexedPattern _ _) -> throwError $ strMsg "invalid indexed-pattern"
     PatternExpr pattern' ->
       case matcher of
         Value Something -> 
           case pattern' of
-            PatVar name nums -> do
-              var <- (,) name <$> mapM (evalExpr env' >=> liftError . fromIntegerValue) nums
-              return $ msingleton $ MState env ((var, target):bindings) trees
+            PatVar name -> do
+              return $ msingleton $ MState env ((name, target):bindings) trees
             _ -> throwError $ strMsg "something can only match with a pattern variable"
         Value (Matcher matcher) -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
@@ -347,26 +429,18 @@ processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tr
     MAtom pattern target matcher -> do
       pattern <- evalPattern env' pattern
       case pattern of
-        VarExpr name nums -> do
-          case lookup (name, []) penv of
-            Just (PatternExpr (PatVar name' nums')) -> do
-              nums' <- mapM (evalExpr env >=> liftError . fromIntegerValue) (nums' ++ nums) >>= mapM (return . IntegerExpr)
-              pattern' <- return $ PatternExpr (PatVar name' nums')
-              return $ msingleton $ MState env bindings (MAtom pattern' target matcher:MNode penv (MState env' bindings' trees'):trees)
-            Just (VarExpr name' nums') -> do
-              nums' <- mapM (evalExpr env >=> liftError . fromIntegerValue) (nums' ++ nums) >>= mapM (return . IntegerExpr)
-              pattern' <- return $ VarExpr name' nums'
-              return $ msingleton $ MState env bindings (MAtom pattern' target matcher:MNode penv (MState env' bindings' trees'):trees)
+        VarExpr name -> do
+          case lookup name penv of
             Just pattern ->
               return $ msingleton $ MState env bindings (MAtom pattern target matcher:MNode penv (MState env' bindings' trees'):trees)
-            Nothing -> throwError $ UnboundVariable (name, [])
+            Nothing -> throwError $ UnboundVariable name
         _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
     _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
 
 evalPattern :: Env -> EgisonExpr -> EgisonM EgisonExpr
 evalPattern _ expr@(TupleExpr _) = return expr
 evalPattern _ expr@(PatternExpr _) = return expr
-evalPattern _ expr@(VarExpr _ _) = return expr
+evalPattern _ expr@(VarExpr _) = return expr
 evalPattern _ expr@(ApplyExpr _ _) = return expr
 evalPattern env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromBoolValue
@@ -408,7 +482,7 @@ primitivePatPatternMatch env (PPValuePat name) pattern = do
   case pattern of
     Value (Pattern (ValuePat expr)) -> do
       ref <- lift $ newThunk env expr
-      return ([], [((name, []), ref)])
+      return ([], [(name, ref)])
     _ -> matchFail
 primitivePatPatternMatch env (PPInductivePat name patterns) pattern = do
   pattern <- lift $ evalExpr env pattern
@@ -419,7 +493,7 @@ primitivePatPatternMatch env (PPInductivePat name patterns) pattern = do
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _ = return []
-primitiveDataPatternMatch (PDPatVar name) ref = return [((name, []), ref)]
+primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
   val <- lift $ evalRef ref
   case val of

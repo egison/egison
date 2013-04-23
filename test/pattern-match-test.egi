@@ -132,11 +132,12 @@
           <join _ <cons p_(car ns) ((comb (cdr ns)) p)>>))))
 
 
+#|
 (test (assert-equal "indexed-variable matching test"
  (match { 1 2 3 4 5 } (list integer)
   {[((comb (between 1 5)) $a) [a_1 a_2 a_3 a_4 a_5]]})
   [1 2 3 4 5]))
-
+|#
 
 
 

@@ -86,7 +86,11 @@ parseExprs :: Parser [EgisonExpr]
 parseExprs = endBy parseExpr whiteSpace
 
 parseExpr :: Parser EgisonExpr
-parseExpr = (try parseConstantExpr
+parseExpr = do expr <- parseExpr'; index <- many (try $ char '_' >> parseExpr')
+               return $ foldl IndexedExpr expr index
+
+parseExpr' :: Parser EgisonExpr
+parseExpr' = (try parseConstantExpr
              <|> try parseVarExpr
 --           <|> parseOmitExpr
              <|> try parsePatVarExpr
@@ -100,6 +104,7 @@ parseExpr = (try parseConstantExpr
                         
              <|> try parseInductiveDataExpr
              <|> parseInductivePatternExpr
+             <|> try parseArrayExpr
              <|> parseTupleExpr
              <|> parseCollectionExpr
              <|> parens (parseAndPatExpr 
@@ -115,23 +120,14 @@ parseExpr = (try parseConstantExpr
                          <|> parseMatchExpr
                          <|> parseMatcherExpr
                          <|> parseApplyExpr
-                         <|> parseAlgebraicDataMatcherExpr)
+                         <|> parseAlgebraicDataMatcherExpr
+                         <|> parseGenerateArrayExpr
+                         <|> parseArraySizeExpr
+                         <|> parseArrayRefExpr)
                          <?> "expression")
 
 parseVarExpr :: Parser EgisonExpr
-parseVarExpr = VarExpr <$> ident <*> parseIndexNums
-
-parseIndexNums :: Parser [EgisonExpr]
-parseIndexNums = ((:) <$> try (prefix >> parseExpr) <*> parseIndexNums)
-              <|> pure []
-  where
-    prefix :: Parser Char
-    prefix = do result <- char '_' >> isConsumed whiteSpace
-                if result then parserFail "unexpected whiteSpace"
-                          else return '_'
-    
-    isConsumed :: Parser a -> Parser Bool
-    isConsumed p = (/=) <$> getPosition <*> (p >> getPosition)
+parseVarExpr = VarExpr <$> ident
 
 parseInductiveDataExpr :: Parser EgisonExpr
 parseInductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy parseExpr whiteSpace
@@ -148,6 +144,12 @@ parseCollectionExpr = braces $ CollectionExpr <$> sepEndBy parseInnerExpr whiteS
   parseInnerExpr :: Parser InnerExpr
   parseInnerExpr = (char '@' >> SubCollectionExpr <$> parseExpr)
                <|> ElementExpr <$> parseExpr
+
+parseArrayExpr :: Parser EgisonExpr
+parseArrayExpr = between lp rp $ ArrayExpr <$> sepEndBy parseExpr whiteSpace
+  where
+    lp = P.lexeme lexer (string "[|")
+    rp = P.lexeme lexer (string "|]")
 
 parseMatchAllExpr :: Parser EgisonExpr
 parseMatchAllExpr = keywordMatchAll >> MatchAllExpr <$> parseExpr <*> parseExpr <*> parseMatchClause
@@ -252,7 +254,7 @@ parseApplyExpr' = do
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let genVar = modify (1+) >> gets (flip VarExpr [] . ('#':) . show)
+        let genVar = modify (1+) >> gets (VarExpr . ('#':) . show)
             args' = evalState (mapM (either (const genVar) return) args) 0
         in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
       | all (not . null) vars ->
@@ -260,7 +262,7 @@ parseApplyExpr' = do
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
-               let args' = map (either (flip VarExpr [] . ('#':)) id) args
+               let args' = map (either (VarExpr . ('#':)) id) args
                in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
@@ -284,7 +286,7 @@ parseValuePatExpr :: Parser EgisonExpr
 parseValuePatExpr = reservedOp "," >> PatternExpr . ValuePat <$> parseExpr
 
 parsePatVarExpr :: Parser EgisonExpr
-parsePatVarExpr = P.lexeme lexer $ (PatternExpr .) . PatVar <$> parseVarName <*> parseIndexNums
+parsePatVarExpr = P.lexeme lexer $ PatternExpr . PatVar <$> parseVarName
 
 parsePredPatExpr :: Parser EgisonExpr
 parsePredPatExpr = reservedOp "?" >> PatternExpr . PredPat <$> parseExpr
@@ -297,10 +299,19 @@ parseOrPatExpr = reservedOp "|" >> PatternExpr . OrPat <$> sepEndBy parseExpr wh
 
 parseAlgebraicDataMatcherExpr :: Parser EgisonExpr
 parseAlgebraicDataMatcherExpr = keywordAlgebraicDataMatcher 
-                                >> (parens $ AlgebraicDataMatcher <$> parseAlgebraicDataMatcherBody)
+                                >> (parens $ AlgebraicDataMatcherExpr <$> parseAlgebraicDataMatcherBody)
   where
     parseAlgebraicDataMatcherBody :: Parser [EgisonExpr]
     parseAlgebraicDataMatcherBody = reservedOp "|" >> sepEndBy1 parseInductivePatternExpr whiteSpace
+
+parseGenerateArrayExpr :: Parser EgisonExpr
+parseGenerateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> parseVarNames <*> parseExpr <*> parseExpr
+
+parseArraySizeExpr :: Parser EgisonExpr
+parseArraySizeExpr = keywordArraySize >> ArraySizeExpr <$> parseExpr
+
+parseArrayRefExpr :: Parser EgisonExpr
+parseArrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> parseExpr <*> parseExpr
 
 --parseOmitExpr :: Parser EgisonExpr
 --parseOmitExpr = prefixChar '`' >> OmitExpr <$> ident <*> parseIndexNums
@@ -375,6 +386,9 @@ reservedKeywords =
   , "do"
   , "function"
   , "algebraic-data-matcher"
+  , "generate-array"
+  , "array-size"
+  , "array-ref"
   , "something"
   , "undefined"]
   
@@ -417,6 +431,9 @@ keywordFunction             = reserved "function"
 keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
+keywordGenerateArray        = reserved "generate-array"
+keywordArraySize            = reserved "array-size"
+keywordArrayRef             = reserved "array-ref"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)
