@@ -392,7 +392,7 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
         subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
                                  | otherwise = (k', v'):(subst k nv xs)
         subst _ _ [] = []
-    IndexedExpr _ _ -> throwError $ strMsg "invalid indexed-pattern"
+    IndexedExpr expr index -> throwError $ strMsg ("invalid indexed-pattern: " ++ show expr) 
     TupleExpr patterns -> do
       matchers <- fromTuple matcher >>= mapM evalRef
       targets <- evalRef target >>= fromTuple
@@ -432,24 +432,32 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env bindings trees'
         _ -> throwError $ TypeMismatch "matcher" matcher
-    _ -> throwError $ strMsg ("? " ++ show pattern) 
+    _ -> throwError $ strMsg "should not reach here"
 processMState (MState env bindings ((MNode penv (MState _ _ [])):trees)) =
   return $ msingleton $ MState env bindings trees
 processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tree:trees')):trees))) = do
+  let env'' = extendEnv env' bindings
   case tree of
     MAtom pattern target matcher -> do
-      pattern <- evalPattern env' pattern
+      pattern <- evalPattern env'' pattern
       case pattern of
-        VarExpr name -> do
+        VarExpr name ->
           case lookup name penv of
             Just pattern ->
               return $ msingleton $ MState env bindings (MAtom pattern target matcher:MNode penv (MState env' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name
-        IndexedExpr _ _ -> throwError $ strMsg "invalid indexed-pattern2"
+        IndexedExpr (VarExpr name) index ->
+          case lookup name penv of
+            Just pattern -> do
+              index <- evalExpr env'' index >>= liftError . fromIntegerValue
+              let pattern' = IndexedExpr pattern (IntegerExpr index)
+              return $ msingleton $ MState env bindings (MAtom pattern' target matcher:MNode penv (MState env' bindings' trees'):trees)
+            Nothing -> throwError $ UnboundVariable name
         _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
     _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
 
 evalPattern :: Env -> EgisonExpr -> EgisonM EgisonExpr
+evalPattern _ (TupleExpr [expr]) = return expr
 evalPattern _ expr@(TupleExpr _) = return expr
 evalPattern _ expr@(PatternExpr _) = return expr
 evalPattern _ expr@(VarExpr _) = return expr
