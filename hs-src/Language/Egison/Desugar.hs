@@ -162,7 +162,7 @@ desugar (IndexLoopExpr n0 n1 n2 expr0 expr1 expr2 expr3) = do
   genHelper name = do
     indicesName <- fresh
     patName <- fresh
-    let subst = [(n0, VarExpr patName), (n1, ApplyExpr (ApplyExpr (VarExpr name) (VarExpr indicesName)) (VarExpr patName))]
+    let subst = [(n0, ApplyExpr (ApplyExpr (VarExpr name) (VarExpr indicesName)) (VarExpr patName)), (n1, VarExpr patName)]
     bodyExpr <- local (subst ++) $ desugar expr2
     initExpr <- desugar expr3
     let matchClauses = [ (PatternExpr $ InductivePattern "nil" [], LambdaExpr [patName] $ initExpr)
