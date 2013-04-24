@@ -1,3 +1,9 @@
+(test (match-all {1 2 3 4 5} (list integer)
+        [(index-loop $l $p $i $a (between 1 2)
+           <join _ <cons p_i l>>
+           _)
+         a]))
+
 (define $npc
   (pattern-constructor [$p]
     p))
@@ -9,7 +15,10 @@
 (test (match-all {1 2 3 4 5} (multiset integer)
         [<cons (pc $a) _> a]))
 
-(test (match-all {1 2 3 4 5} (multiset integer) [<cons $a_1_1 _> a]))
+(test (match-all {1 2 3 4 5} (multiset integer)
+        [<cons (pc $a_1) _> a]))
+
+(test (match-all {1 2 3 4 5} (multiset integer) [<cons $a_1_1 _> a])) {[| [| 1 |] |] [| [| 2 |] |] ...  [| [| 5 |] |]}
 
 (define $pc1
   (pattern-constructor [$p]
@@ -20,10 +29,10 @@
 
 (define $pc2
   (pattern-constructor [$p]
-    p_2))
+    p_1))
 
 (test (match-all {1 2 3 4 5} (multiset integer)
-        [<cons (pc2 $a_1) _> a_2_1]))
+        [<cons (pc2 $a_1) _> a]))
 
 (define $comb
   (lambda [$ns]
@@ -32,6 +41,7 @@
        [<cons $i $rs> 
         (pattern-constructor [$p]
           <join _ <cons p_i ((comb rs) p)>>)]})))
+
 
 (test (match-all {1 2 3 4 5} (list integer)
         [((comb (between 1 2)) $a) a]))
