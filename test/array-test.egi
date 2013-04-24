@@ -36,7 +36,11 @@
        3
       ))
 
-
+(test (assert-equal "array access"
+        (let {[$a (generate-array [$x $y $z] [3 3 3]
+                    (+ (+ (* 100 x) (* 10 y)) z))]}
+          a_1_2_3)
+        123))
 
 
 

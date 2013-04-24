@@ -35,7 +35,7 @@ data EgisonExpr =
   | IntegerExpr Integer
   | FloatExpr Double
   | VarExpr String
-  | IndexedExpr EgisonExpr EgisonExpr
+  | IndexedExpr EgisonExpr [EgisonExpr]
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]

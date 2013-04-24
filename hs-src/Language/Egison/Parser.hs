@@ -86,8 +86,8 @@ parseExprs :: Parser [EgisonExpr]
 parseExprs = endBy parseExpr whiteSpace
 
 parseExpr :: Parser EgisonExpr
-parseExpr = do expr <- parseExpr'; index <- many (try $ char '_' >> parseExpr')
-               return $ foldl IndexedExpr expr index
+parseExpr = do expr <- parseExpr'
+               option expr $ IndexedExpr expr <$> many1 (try $ char '_' >> parseExpr')
 
 parseExpr' :: Parser EgisonExpr
 parseExpr' = (try parseConstantExpr

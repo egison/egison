@@ -105,13 +105,13 @@ desugar (FunctionExpr matcher clauses) = do
   desugar (LambdaExpr [name] (MatchExpr (VarExpr name) matcher' clauses'))
 
 desugar (ArrayRefExpr (VarExpr name) (TupleExpr nums)) =
-  desugar $ foldl IndexedExpr (VarExpr name) nums
+  desugar $ IndexedExpr (VarExpr name) nums
   
 desugar (ArrayRefExpr expr nums) =
   desugar $ ArrayRefExpr expr (TupleExpr [nums])
 
-desugar (IndexedExpr expr index) = 
-  IndexedExpr <$> desugar expr <*> desugar index
+desugar (IndexedExpr expr indices) = 
+  IndexedExpr <$> desugar expr <*> (mapM desugar indices)
 
 desugar (InductiveDataExpr name exprs) = do 
   exprs' <- mapM desugar exprs
