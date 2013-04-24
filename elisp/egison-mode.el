@@ -22,9 +22,13 @@
      "\\<let\\>"
      "\\<letrec\\>"
      "\\<matcher\\>"
+     "\\<algebraic-data-matcher\\>"
      "\\<loop\\>"
+     "\\<function\\>"
      "\\<match\\>"
      "\\<match-all\\>"
+     "\\<index-loop\\>"
+     "\\<pattern-constructor\\>"
 
      "\\<undefined\\>"
      "\\<something\\>"
@@ -112,6 +116,7 @@
 (defun keyword-indent-point (name)
   (cond ((equal "define" name) 2)
         ((equal "lambda" name) 2)
+        ((equal "function" name) 2)
         ((equal "macro" name) 2)
         ((equal "let" name) 2)
         ((equal "letrec" name) 2)
@@ -119,7 +124,10 @@
         ((equal "match" name) 2)
         ((equal "match-all" name) 2)
         ((equal "matcher" name) 2)
+        ((equal "algebraic-data-matcher" name) 2)
         ((equal "generate-array" name) 2)
+        ((equal "index-loop" name) 2)
+        ((equal "pattern-constructor" name) 2)
         ))
 
 (defun egison-indent-line ()
