@@ -357,10 +357,16 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   pattern <- evalPattern env' pattern
   case pattern of
     VarExpr _ -> throwError $ strMsg "cannot use variable in pattern"
-    ApplyExpr func (TupleExpr args) -> do
+    ApplyExpr func arg -> do
       func <- evalExpr env' func
       case func of
+        Value (Func env [name] expr) -> do
+          penv <- (:[]) . (,) name <$> evalPattern env' arg
+          return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
         Value (Func env names expr) -> do
+          let args = case arg of
+                       TupleExpr exprs -> exprs
+                       expr -> [expr]
           penv <- zip names <$> mapM (evalPattern env') args
           return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
@@ -426,6 +432,7 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env bindings trees'
         _ -> throwError $ TypeMismatch "matcher" matcher
+    _ -> throwError $ strMsg ("? " ++ show pattern) 
 processMState (MState env bindings ((MNode penv (MState _ _ [])):trees)) =
   return $ msingleton $ MState env bindings trees
 processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tree:trees')):trees))) = do
