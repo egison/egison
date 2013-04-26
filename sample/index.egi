@@ -2,7 +2,13 @@
         [(index-loop $l $p $i $a (between 1 2)
            <join _ <cons p_i l>>
            _)
-         a]))
+         [a_1 a_2]]))
+
+(test (match-all {1 2 3 4 5} (multiset integer)
+        [(index-loop $l $p $i $a (between 1 2)
+           <cons p_i l>
+           _)
+         [a_1 a_2]]))
 
 (define $npc
   (pattern-constructor [$p]

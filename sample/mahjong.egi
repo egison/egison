@@ -78,6 +78,12 @@
               <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
 
 (test (agari {<Ji <Haku>> <Ji <Haku>>
+              <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
+              <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
+              <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
+              <Num <Sou> 6> <Num <Sou> 7> <Num <Sou> 8>}))
+
+(test (agari {<Ji <Haku>> <Ji <Haku>>
               <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
               <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
               <Num <Pin> 1> <Num <Pin> 3> <Num <Pin> 4>
