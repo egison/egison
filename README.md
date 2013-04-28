@@ -1,4 +1,8 @@
-egison3
+Egison3
 =======
 
-Refer Egison4 for documents
+Egison is the pattern-matching oriented pure functional programming langauge.
+
+For more information, see Egison public site.
+
+[http://egison.pira.jp](http://egison.pira.jp)
