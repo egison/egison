@@ -19,6 +19,26 @@
           _>>>
        {n_1 n_2 n_3}])))
 
+(define $triangles
+  (lambda [$g]
+    (match-all g graph
+      [<cons <node $n_1 <cons $n_2 _>>
+        <cons <node ,n_2 <cons $n_3 _>>
+         <cons <node ,n_3 <cons ,n_1 _>>
+          _>>>
+       {n_1 n_2 n_3}])))
+
+(define $circuits
+  (lambda [$g]
+    (let {[$n (size g)]}
+      (match-all g graph
+        [<cons <node $n_1 <cons $n_2 _>>
+               (index-loop $l $p $i $n (between 2 (- (size g) 1))
+                           <cons <node ,`p_i <cons p_(+ i 1) _>>
+                                 l>
+                           <cons <node ,`p_n <cons ,`p_1 _>> _>)>
+         n]))))
+
 (define $graph1 {
     <Node 1 {4 5 8 10}>
     <Node 2 {3 6 12}>

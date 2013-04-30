@@ -145,17 +145,18 @@
            [<cons $x $ys> (let {[[$rs $i] (remove-and-count x ys)]}
                             {[x i] @((occurrence a) rs)})]})))))
 
+#|
 (define $subcollections
-  (lambda [$a]
-    (lambda [$xs]
-      (foldr (lambda [$x $rs]
-               (let {[[$y $i] x]} 
-                 (map-and-concat (lambda [$sub] 
-                                   (match-all (loop $l $j (between 1 i) {y @l} {}) (list something)
-                                     [<join $ys _> {@ys @sub}]))
-                                 rs)))
-             {{}}
-             ((occurrence a) xs)))))
+  (lambda [$xs]
+    (foldr (lambda [$x $rs]
+             (let {[[$y $i] x]} 
+               (map-and-concat (lambda [$sub] 
+                                 (match-all (index-loop $l $j (between 1 i) {y @l} {}) (list something)
+                                   [<join $ys _> {@ys @sub}]))
+                               rs)))
+           {{}}
+           ((occurrence a) xs))))
+|#
 
 (define $size
   (lambda [$xs]
