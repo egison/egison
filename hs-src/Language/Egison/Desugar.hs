@@ -8,21 +8,23 @@ import Control.Monad.State
 import Control.Monad.Identity
 import Language.Egison.Types
 
-newtype DesugarM a = DesugarM { unDesugarM :: StateT Int (ErrorT EgisonError Identity) a }
-  deriving (Functor, Applicative, Monad, MonadState Int, MonadError EgisonError)
-           
-class (Applicative m, Monad m) => MonadFresh m where
-  fresh :: m String
-           
-instance MonadFresh DesugarM where
-  fresh = do counter <- get; modify (+ 1) 
-             return $ genFreshName counter
-    where
-      genFreshName :: Int -> String
-      genFreshName n = "$_" ++ show n
+newtype DesugarM a = DesugarM { unDesugarM :: ErrorT EgisonError Fresh a }
+  deriving (Functor, Applicative, Monad, MonadError EgisonError, MonadFresh)
 
-runDesugarM :: DesugarM a -> Either EgisonError a
-runDesugarM d =runIdentity $ runErrorT $ flip evalStateT 0 $ unDesugarM d
+instance MonadFresh (ErrorT EgisonError Fresh) where
+  fresh = lift $ fresh
+
+runDesugarM :: DesugarM a -> Fresh (Either EgisonError a)
+runDesugarM = runErrorT . unDesugarM
+
+desugarTopExpr :: EgisonTopExpr -> DesugarM EgisonTopExpr
+desugarTopExpr (Define name expr) = do
+  expr' <- desugar expr
+  return (Define name expr')
+desugarTopExpr (Test expr) = do
+  expr' <- desugar expr
+  return (Test expr')
+desugarTopExpr expr = return expr
 
 desugar :: EgisonExpr -> DesugarM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do

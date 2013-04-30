@@ -58,7 +58,7 @@ loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ strMsg ("file does not exist: " ++ file)
   input <- liftIO $ readFile file
-  exprs <- liftError $ readTopExprs input
+  exprs <-  liftEgisonM $ readTopExprs input
   concat <$> mapM recursiveLoad exprs
  where
   recursiveLoad (Load file) = loadFile file

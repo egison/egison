@@ -1,8 +1,11 @@
-{-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving #-}
+{-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
+             MultiParamTypeClasses, UndecidableInstances  #-}
 module Language.Egison.Types where
 
 import Control.Applicative
 import Control.Monad.Error
+import Control.Monad.State
+import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 
 import Data.IORef
@@ -312,13 +315,49 @@ liftError = either throwError return
 -- Monads
 --
 
+newtype FreshT m a = FreshT { unFreshT :: StateT Int m a }
+  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans)
+
+type Fresh = FreshT Identity
+
+class (Applicative m, Monad m) => MonadFresh m where
+  fresh :: m String
+
+instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
+  fresh = FreshT $ do counter <- get; modify (+ 1)
+                      return $ "$_" ++ show counter
+
+instance (MonadError e m) => MonadError e (FreshT m) where
+  throwError = lift . throwError
+  catchError m h = FreshT $ catchError (unFreshT m) (unFreshT . h)
+
+instance (MonadState s m) => MonadState s (FreshT m) where
+  get = lift $ get
+  put s = lift $ put s
+  
+instance MonadIO (FreshT IO) where
+  liftIO = lift
+
+runFreshT :: Monad m => Int -> FreshT m a -> m (a, Int)
+runFreshT seed = flip (runStateT . unFreshT) seed
+
+runFresh :: Int -> Fresh a -> (a, Int)
+runFresh seed m = runIdentity $ flip runStateT seed $ unFreshT m
+
 newtype EgisonM a = EgisonM {
-    unEgisonM :: ErrorT EgisonError IO a
+    unEgisonM :: ErrorT EgisonError (FreshT IO) a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
 
-runEgisonM :: EgisonM a -> IO (Either EgisonError a)
+runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
 runEgisonM = runErrorT . unEgisonM
 
+liftEgisonM :: Fresh (Either EgisonError a) -> EgisonM a
+liftEgisonM m = EgisonM $ ErrorT $ FreshT $ do
+  s <- get
+  (a, s') <- return $ runFresh s m
+  put s'
+  return $ either throwError return $ a   
+  
 type MatchM = MaybeT EgisonM
 
 matchFail :: MatchM a

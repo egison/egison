@@ -25,34 +25,20 @@ import qualified Text.Parsec.Token as P
 import Language.Egison.Types
 import Language.Egison.Desugar
   
-runParser' :: Parser a -> String -> Either EgisonError a
-runParser' parser input = either (throwError . Parser) return $ parse parser "egison" (B.pack input)
-  
-readTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-readTopExprs input = either throwError (mapM desugarTopExpr) $ runParser' (whiteSpace >> parseTopExprs) input
+doParse :: Parser a -> String -> Either EgisonError a
+doParse p input = either (throwError . Parser) return $ parse p "egison" $ B.pack input
 
-readTopExpr :: String -> Either EgisonError EgisonTopExpr
-readTopExpr input = either throwError desugarTopExpr $ runParser' (whiteSpace >> parseTopExpr) input
+readTopExprs :: String -> Fresh (Either EgisonError [EgisonTopExpr])
+readTopExprs input = runDesugarM $ either throwError (mapM desugarTopExpr) $ doParse (whiteSpace >> parseTopExprs) input
 
-readExprs :: String -> Either EgisonError [EgisonExpr]
-readExprs input = either throwError (mapM desugarExpr) $ runParser' (whiteSpace >> parseExprs) input
+readTopExpr :: String -> Fresh (Either EgisonError EgisonTopExpr)
+readTopExpr input = runDesugarM $ either throwError desugarTopExpr $ doParse (whiteSpace >> parseTopExpr) input
 
-readExpr :: String -> Either EgisonError EgisonExpr
-readExpr input = either throwError desugarExpr $ runParser' (whiteSpace >> parseExpr) input
+readExprs :: String -> Fresh (Either EgisonError [EgisonExpr])
+readExprs input = runDesugarM $ either throwError (mapM desugar) $ doParse (whiteSpace >> parseExprs) input
 
-desugarTopExpr :: EgisonTopExpr -> Either EgisonError EgisonTopExpr
-desugarTopExpr (Define name expr) = do
-  expr' <- desugarExpr expr
-  return (Define name expr')
-  
-desugarTopExpr (Test expr) = do
-  expr' <- desugarExpr expr
-  return (Test expr')
-
-desugarTopExpr expr = return expr
-
-desugarExpr :: EgisonExpr -> Either EgisonError EgisonExpr
-desugarExpr expr = either throwError return $ runDesugarM $ desugar expr
+readExpr :: String -> Fresh (Either EgisonError EgisonExpr)
+readExpr input = runDesugarM $ either throwError desugar $ doParse (whiteSpace >> parseExpr) input
 
 -- Expressions
 
