@@ -5,17 +5,20 @@ import Control.Applicative ((<$>), (<*>), (<*), (*>), pure)
 import Data.Char (toUpper)
 import Control.Monad.Error
 import Control.Monad.State
+import Control.Monad.Reader
 import Control.Monad.Identity
 import Language.Egison.Types
 
-newtype DesugarM a = DesugarM { unDesugarM :: ErrorT EgisonError Fresh a }
-  deriving (Functor, Applicative, Monad, MonadError EgisonError, MonadFresh)
+type Subst = [(String, EgisonExpr)]
 
-instance MonadFresh (ErrorT EgisonError Fresh) where
-  fresh = lift $ fresh
+newtype DesugarM a = DesugarM { unDesugarM :: ReaderT Subst (ErrorT EgisonError Fresh) a }
+  deriving (Functor, Applicative, Monad, MonadError EgisonError, MonadFresh, MonadReader Subst)
+
+instance MonadFresh (ReaderT Subst (ErrorT EgisonError Fresh)) where
+  fresh = lift $ lift $ fresh
 
 runDesugarM :: DesugarM a -> Fresh (Either EgisonError a)
-runDesugarM = runErrorT . unDesugarM
+runDesugarM = runErrorT . flip runReaderT [] . unDesugarM
 
 desugarTopExpr :: EgisonTopExpr -> DesugarM EgisonTopExpr
 desugarTopExpr (Define name expr) = do
@@ -25,6 +28,7 @@ desugarTopExpr (Test expr) = do
   expr' <- desugar expr
   return (Test expr')
 desugarTopExpr expr = return expr
+
 
 desugar :: EgisonExpr -> DesugarM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do
@@ -104,13 +108,13 @@ desugar (FunctionExpr matcher clauses) = do
   desugar (LambdaExpr [name] (MatchExpr (VarExpr name) matcher' clauses'))
 
 desugar (ArrayRefExpr (VarExpr name) (TupleExpr nums)) =
-  desugar $ foldl IndexedExpr (VarExpr name) nums
+  desugar $ IndexedExpr (VarExpr name) nums
   
 desugar (ArrayRefExpr expr nums) =
   desugar $ ArrayRefExpr expr (TupleExpr [nums])
 
-desugar (IndexedExpr expr index) = 
-  IndexedExpr <$> desugar expr <*> desugar index
+desugar (IndexedExpr expr indices) = 
+  IndexedExpr <$> desugar expr <*> (mapM desugar indices)
 
 desugar (InductiveDataExpr name exprs) = do 
   exprs' <- mapM desugar exprs
@@ -152,11 +156,25 @@ desugar (LetRecExpr binds expr) = do
   expr' <- desugar expr
   return $ LetRecExpr binds' expr'
   
-desugar (LoopExpr s0 s1 expr0 expr1 expr2) = do
-  expr0' <- desugar expr0
-  expr1' <- desugar expr1
-  expr2' <- desugar expr2
-  return $ LoopExpr s0 s1 expr0' expr1' expr2'
+desugar (IndexLoopExpr n0 n1 n2 expr0 expr1 expr2 expr3) = do
+  name <- fresh
+  helper <- genHelper name
+  return $ ApplyExpr (LetRecExpr [([name], helper)] (ApplyExpr (VarExpr name) expr1)) expr0
+ where
+  genHelper :: String -> DesugarM EgisonExpr
+  genHelper name = do
+    indicesName <- fresh
+    patName <- fresh
+    let subst = [(n0, ApplyExpr (ApplyExpr (VarExpr name) (VarExpr indicesName)) (VarExpr patName)), (n1, VarExpr patName)]
+    bodyExpr <- local (subst ++) $ desugar expr2
+    initExpr <- desugar expr3
+    let matchClauses = [ (PatternExpr $ InductivePattern "nil" [], LambdaExpr [patName] $ initExpr)
+                       , (PatternExpr $ InductivePattern "cons" [PatternExpr (PatVar n2), PatternExpr (PatVar indicesName)], LambdaExpr [patName] $ bodyExpr)]
+    return $ LambdaExpr [indicesName] $ MatchExpr (VarExpr indicesName) matcher matchClauses
+
+  matcher :: EgisonExpr
+  matcher = ApplyExpr (VarExpr "list") SomethingExpr
+     
   
 desugar (MatchExpr expr0 expr1 clauses) = do  
   expr0' <- desugar expr0
@@ -182,6 +200,9 @@ desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
   return $ ApplyExpr expr0' expr1'
+
+desugar (VarExpr name) = do
+  asks $ maybe (VarExpr name) id . lookup name
   
 desugar expr = return expr
 

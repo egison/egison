@@ -72,8 +72,8 @@ parseExprs :: Parser [EgisonExpr]
 parseExprs = endBy parseExpr whiteSpace
 
 parseExpr :: Parser EgisonExpr
-parseExpr = do expr <- parseExpr'; index <- many (try $ char '_' >> parseExpr')
-               return $ foldl IndexedExpr expr index
+parseExpr = do expr <- parseExpr'
+               option expr $ IndexedExpr expr <$> many1 (try $ char '_' >> parseExpr')
 
 parseExpr' :: Parser EgisonExpr
 parseExpr' = (try parseConstantExpr
@@ -100,7 +100,7 @@ parseExpr' = (try parseConstantExpr
                          <|> parseFunctionExpr
                          <|> parseLetRecExpr
                          <|> parseLetExpr
-                         <|> parseLoopExpr
+                         <|> parseIndexLoopExpr
                          <|> parseDoExpr
                          <|> parseMatchAllExpr
                          <|> parseMatchExpr
@@ -224,9 +224,9 @@ parseVarNames = return <$> parseVarName
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
 
-parseLoopExpr :: Parser EgisonExpr
-parseLoopExpr = keywordLoop >> LoopExpr <$> parseVarName <*> parseVarName
-                                        <*> parseExpr <*> parseExpr <*> parseExpr
+parseIndexLoopExpr :: Parser EgisonExpr
+parseIndexLoopExpr = keywordIndexLoop >> IndexLoopExpr <$> parseVarName <*> parseVarName <*> parseVarName
+                                                       <*> parseExpr <*> parseExpr <*> parseExpr <*> parseExpr
 
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = (keywordApply >> ApplyExpr <$> parseExpr <*> parseExpr) 
@@ -365,7 +365,7 @@ reservedKeywords =
   , "pattern-constructor"
   , "letrec"
   , "let"
-  , "loop"
+  , "index-loop"
   , "match-all"
   , "match"
   , "matcher"
@@ -408,7 +408,7 @@ keywordLambda               = reserved "lambda"
 keywordPatternConstructor   = reserved "pattern-constructor"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
-keywordLoop                 = reserved "loop"
+keywordIndexLoop            = reserved "index-loop"
 keywordMatchAll             = reserved "match-all"
 keywordMatch                = reserved "match"
 keywordMatcher              = reserved "matcher"

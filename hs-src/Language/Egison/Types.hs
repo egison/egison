@@ -38,7 +38,7 @@ data EgisonExpr =
   | IntegerExpr Integer
   | FloatExpr Double
   | VarExpr String
-  | IndexedExpr EgisonExpr EgisonExpr
+  | IndexedExpr EgisonExpr [EgisonExpr]
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]
@@ -52,7 +52,7 @@ data EgisonExpr =
   | LetExpr [BindingExpr] EgisonExpr
   | LetRecExpr [BindingExpr] EgisonExpr
 
-  | LoopExpr String String EgisonExpr EgisonExpr EgisonExpr
+  | IndexLoopExpr String String String EgisonExpr EgisonExpr EgisonExpr EgisonExpr
     
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr MatchClause

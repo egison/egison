@@ -3,6 +3,7 @@ module Language.Egison
        ( module Language.Egison.Types
        , module Language.Egison.Parser
        , module Language.Egison.Primitives
+       , counter --danger
        , version
        , loadLibraries
        , loadPrimitives

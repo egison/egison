@@ -97,22 +97,22 @@ evalExpr env (ArrayExpr exprs) = do
   ref' <- mapM (newThunk env) exprs
   return . Intermediate . IArray $ IntMap.fromList $ zip (enumFromTo 1 (length exprs)) ref'
 
-evalExpr env (IndexedExpr expr index) = do
-  result <- evalExpr env expr
-  index' <- evalExpr env index >>= either throwError (return . fromInteger)  . fromIntegerValue
-  case result of
-    Value (Array val) ->
-       case IntMap.lookup index' val of
-        Just val -> return . Value $ val
-        Nothing  -> return . Value $ Undefined
-    Intermediate (IArray val) ->
-      case IntMap.lookup index' val of
-        Just ref -> evalRef ref
-        Nothing  -> return . Value $ Undefined
-    _ -> do liftIO $ putStrLn $ show expr
-            liftIO $ putStrLn $ show result
-            liftIO $ putStrLn $ show index
-            undefined
+evalExpr env (IndexedExpr expr indices) = do
+  array <- evalExpr env expr
+  indices <- mapM (evalExpr env >=> liftError . liftM fromInteger . fromIntegerValue) indices
+  refArray array indices
+ where
+  refArray :: WHNFData -> [Int] -> EgisonM WHNFData
+  refArray val [] = return val 
+  refArray (Value (Array array)) (index:indices) =
+    case IntMap.lookup index array of
+      Just val -> refArray (Value val) indices
+      Nothing -> return $ Value Undefined
+  refArray (Intermediate (IArray array)) (index:indices) =
+    case IntMap.lookup index array of
+      Just ref -> evalRef ref >>= flip refArray indices
+      Nothing -> return $ Value Undefined
+  refArray val _ = throwError $ TypeMismatch "array" val
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
 
@@ -283,7 +283,6 @@ generateArray env name size expr = do
       ref <- liftIO $ newIORef (WHNF . Value . Integer $ i)
       return $ extendEnv env [(name, ref)]
 
-
 newThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
 newThunk env expr = liftIO . newIORef . Thunk $ evalExpr env expr
 
@@ -307,6 +306,7 @@ recursiveBind env bindings = do
 fromArray :: WHNFData -> EgisonM [ObjectRef]
 fromArray (Intermediate (IArray refs)) = return $ IntMap.elems refs
 fromArray (Value (Array vals)) = mapM (newEvaluatedThunk . Value) $ IntMap.elems vals
+fromArray val = throwError $ TypeMismatch "array" val
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
@@ -357,15 +357,22 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
   pattern <- evalPattern env' pattern
   case pattern of
     VarExpr _ -> throwError $ strMsg "cannot use variable in pattern"
-    ApplyExpr func (TupleExpr args) -> do
+    ApplyExpr func arg -> do
       func <- evalExpr env' func
       case func of
+        Value (Func env [name] expr) -> do
+          penv <- (:[]) . (,) name <$> evalPattern env' arg
+          return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
         Value (Func env names expr) -> do
+          let args = case arg of
+                       TupleExpr exprs -> exprs
+                       expr -> [expr]
           penv <- zip names <$> mapM (evalPattern env') args
           return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
-    IndexedExpr (PatternExpr (PatVar name)) expr -> do
-      index <- evalExpr env' expr >>= either throwError (return . fromInteger) . fromIntegerValue
+    IndexedExpr (PatternExpr (PatVar name)) indices -> do
+      indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
+      let (index:_) = indices 
       case lookup name bindings of
         Just ref -> do
           val <- evalRef ref
@@ -381,12 +388,12 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
         Nothing  -> do
           obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.singleton index target 
           return $ msingleton $ MState env ((name, obj):bindings) trees
-      where
+       where
         subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
         subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
                                  | otherwise = (k', v'):(subst k nv xs)
         subst _ _ [] = []
-    IndexedExpr _ _ -> throwError $ strMsg "invalid indexed-pattern"
+    IndexedExpr expr index -> throwError $ strMsg ("invalid indexed-pattern: " ++ show expr) 
     TupleExpr patterns -> do
       matchers <- fromTuple matcher >>= mapM evalRef
       targets <- evalRef target >>= fromTuple
@@ -426,22 +433,32 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env bindings trees'
         _ -> throwError $ TypeMismatch "matcher" matcher
+    _ -> throwError $ strMsg "should not reach here"
 processMState (MState env bindings ((MNode penv (MState _ _ [])):trees)) =
   return $ msingleton $ MState env bindings trees
 processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tree:trees')):trees))) = do
+  let env'' = extendEnv env' bindings
   case tree of
     MAtom pattern target matcher -> do
-      pattern <- evalPattern env' pattern
+      pattern <- evalPattern env'' pattern
       case pattern of
-        VarExpr name -> do
+        VarExpr name ->
           case lookup name penv of
             Just pattern ->
               return $ msingleton $ MState env bindings (MAtom pattern target matcher:MNode penv (MState env' bindings' trees'):trees)
+            Nothing -> throwError $ UnboundVariable name
+        IndexedExpr (VarExpr name) (index:_) ->
+          case lookup name penv of
+            Just pattern -> do
+              index <- evalExpr env'' index >>= liftError . fromIntegerValue
+              let pattern' = IndexedExpr pattern [IntegerExpr index]
+              return $ msingleton $ MState env bindings (MAtom pattern' target matcher:MNode penv (MState env' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name
         _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
     _ -> processMState state >>= mmap (return . MState env bindings . (: trees) . MNode penv)
 
 evalPattern :: Env -> EgisonExpr -> EgisonM EgisonExpr
+evalPattern _ (TupleExpr [expr]) = return expr
 evalPattern _ expr@(TupleExpr _) = return expr
 evalPattern _ expr@(PatternExpr _) = return expr
 evalPattern _ expr@(VarExpr _) = return expr
@@ -450,8 +467,6 @@ evalPattern _ expr@(ApplyExpr _ _) = return expr
 evalPattern env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= liftError . fromBoolValue
   evalPattern env $ if test then expr else expr'  
-evalPattern env (LetExpr _ _) = undefined
-evalPattern env (LetRecExpr _ _) = undefined
 evalPattern _ _ = throwError $ strMsg "pattern expression required"
 
 inductiveMatch :: Env -> EgisonExpr -> ObjectRef -> Matcher ->

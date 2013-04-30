@@ -2,7 +2,7 @@ module Main where
 
 import Control.Applicative
 import Control.Monad
-
+import Data.IORef
 
 import Test.Framework (defaultMain)
 import Test.Framework.Providers.HUnit (hUnitTestToTests)
@@ -21,7 +21,9 @@ main = do
 runTestCase :: FilePath -> Test
 runTestCase file = TestLabel file . TestCase $ do 
   env <- primitiveEnv >>= loadLibraries
-  result <- runEgisonM $ loadFile file >>= evalTopExprs' env
+  seed <- readIORef counter
+  (result, seed') <- runFreshT seed $ runEgisonM $ loadFile file >>= evalTopExprs' env
+  writeIORef counter seed'
   assertString $ either show (const "") result
 
 evalTopExprs' :: Env -> [EgisonTopExpr] -> EgisonM ()
