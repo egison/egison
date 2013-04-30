@@ -1,0 +1,7 @@
+(define $main
+  (lambda [$argv]
+    (do {[$v (rand-range 1 6)]
+         [[] (write v)]
+         [[] (write-char '\n')]}
+        [])))
+

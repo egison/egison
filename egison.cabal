@@ -23,7 +23,7 @@ Data-files:          lib/core/base.egi lib/core/number.egi lib/core/collection.e
                      elisp/egison-mode.el
 
 Library
-  Build-Depends:   base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io, bytestring
+  Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io, bytestring
   Hs-Source-Dirs:  hs-src
   Exposed-Modules:
                    Language.Egison

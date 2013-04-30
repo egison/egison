@@ -9,6 +9,7 @@ import Data.IORef
 import qualified Data.Array as A
 
 import System.IO
+import System.Random
 
 import Language.Egison.Types
 import Language.Egison.Core
@@ -197,6 +198,8 @@ gte = (liftError .) $ twoArgs gte'
   gte' (Value (Float _)) val = throwError $ TypeMismatch "number" val
   gte' val _ = throwError $ TypeMismatch "number" val
 
+
+
 stringAppend :: PrimitiveFunc
 stringAppend = (liftError .) $ twoArgs $ \val val' ->
   (String .) . (++) <$> fromStringValue val
@@ -245,7 +248,9 @@ ioPrimitives = [ ("return", return')
                , ("write-to-port", writeToPort)
                , ("eof-port?", isEOFPort)
 --             , ("print-to-port", writeStringLineToPort)
-               , ("flush-port", flushPort) ]
+               , ("flush-port", flushPort) 
+               , ("rand", rand)
+               , ("rand-range", randRange) ]
 --             , ("get-lib-dir-name", getLibDirName) ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
@@ -318,3 +323,10 @@ flushPort = (liftError .) $ oneArg $ \val ->
 isEOFPort :: PrimitiveFunc
 isEOFPort = (liftError .) $ oneArg $ \val ->
   makeIO . liftIO . liftM Bool . hIsEOF <$> fromPortValue val
+
+rand :: PrimitiveFunc
+rand = noArg $ return $ makeIO $ liftIO $ liftM Integer $ getStdRandom random
+
+randRange :: PrimitiveFunc
+randRange = (liftError .) $ twoArgs $ \val val' ->
+  return . makeIO . liftIO . liftM Integer . getStdRandom . randomR =<< liftM2 (,) (fromIntegerValue val) (fromIntegerValue val')
