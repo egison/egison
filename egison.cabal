@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.0.0
+Version:             3.0.1
 Synopsis:            An Interpreter for the Programming Language Egison
 Description:         An interpreter for the programming language Egison.
                      A feature of Egison is the strong pattern match facility.
@@ -10,7 +10,7 @@ Description:         An interpreter for the programming language Egison.
 Homepage:            http://egison.pira.jp
 License:             MIT
 License-file:        LICENSE
-Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe
+Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe, Kentaro Honda
 Maintainer:          egisatoshi@gmail.com
 Category:            Compilers/Interpreters
 Build-type:          Simple
