@@ -249,8 +249,9 @@ ioPrimitives = [ ("return", return')
                , ("eof-port?", isEOFPort)
 --             , ("print-to-port", writeStringLineToPort)
                , ("flush-port", flushPort) 
-               , ("rand", rand)
-               , ("rand-range", randRange) ]
+--               , ("rand", rand)
+--               , ("rand-range", randRange) ]
+               , ("rand", randRange) ]                 
 --             , ("get-lib-dir-name", getLibDirName) ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
@@ -324,8 +325,8 @@ isEOFPort :: PrimitiveFunc
 isEOFPort = (liftError .) $ oneArg $ \val ->
   makeIO . liftIO . liftM Bool . hIsEOF <$> fromPortValue val
 
-rand :: PrimitiveFunc
-rand = noArg $ return $ makeIO $ liftIO $ liftM Integer $ getStdRandom random
+--rand :: PrimitiveFunc
+--rand = noArg $ return $ makeIO $ liftIO $ liftM Integer $ getStdRandom random
 
 randRange :: PrimitiveFunc
 randRange = (liftError .) $ twoArgs $ \val val' ->
