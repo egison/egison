@@ -4,7 +4,7 @@
 
 (define $card
   (algebraic-data-matcher
-    (| <card suit integer> )))
+    (| <card suit (mod 13)> )))
 
 (define $poker-hands
   (lambda [$cs]
@@ -80,11 +80,11 @@
                     <Card <Heart> 4>
                     <Card <Heart> 5>}))
 
-(test (poker-hands {<Card <Club> 4>
-                    <Card <Club> 2>
+(test (poker-hands {<Card <Club> 12>
+                    <Card <Club> 10>
                     <Card <Club> 13>
                     <Card <Club> 1>
-                    <Card <Club> 3>}))
+                    <Card <Club> 11>}))
 
 (test (poker-hands {<Card <Diamond> 1>
                     <Card <Club> 2>
