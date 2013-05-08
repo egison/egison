@@ -77,7 +77,7 @@
 (define $tree
   (lambda [$a]
     (algebraic-data-matcher
-      (| <leaf> <node (tree a) a (tree a)>)))) 
+      {<leaf> <node (tree a) a (tree a)>}))) 
 
 #|
 (define $tree

@@ -1,10 +1,10 @@
 (define $suit
   (algebraic-data-matcher
-    (| <spade> <heart> <club> <diamond> )))
+    {<spade> <heart> <club> <diamond>}))
 
 (define $card
   (algebraic-data-matcher
-    (| <card suit (mod 13)> )))
+    {<card suit (mod 13)>}))
 
 (define $poker-hands
   (lambda [$cs]

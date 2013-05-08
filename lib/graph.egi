@@ -6,7 +6,7 @@
 
 (define $nodeInfo
   (algebraic-data-matcher
-    (| <node node (multiset node) (multiset node)>)))
+    {<node node (multiset node) (multiset node)>}))
 
 (define $all-paths
   (lambda [$g $s $e]

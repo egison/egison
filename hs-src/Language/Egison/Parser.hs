@@ -250,12 +250,9 @@ parseApplyExpr' = do
   annonVars n = take n $ map (('#':) . show) [1..]
 
 parseAlgebraicDataMatcherExpr :: Parser EgisonExpr
-parseAlgebraicDataMatcherExpr = keywordAlgebraicDataMatcher 
-                                >> (parens $ AlgebraicDataMatcherExpr <$> parseAlgebraicDataMatcherBody)
+parseAlgebraicDataMatcherExpr = keywordAlgebraicDataMatcher
+                                >> braces (AlgebraicDataMatcherExpr <$> sepEndBy1 parseInductivePat' whiteSpace)
   where
-    parseAlgebraicDataMatcherBody :: Parser [(String, [EgisonExpr])]
-    parseAlgebraicDataMatcherBody = reservedOp "|" >> sepEndBy1 parseInductivePat' whiteSpace
-
     parseInductivePat' :: Parser (String, [EgisonExpr]) 
     parseInductivePat' = angles $ (,) <$> lowerName <*> sepEndBy parseExpr whiteSpace
 

@@ -52,7 +52,7 @@
 
 (define $ordering
   (algebraic-data-matcher 
-    (| <less> <equal> <greater>)))
+    {<less> <equal> <greater>}))
 
 (define $match?
   (lambda [$a]

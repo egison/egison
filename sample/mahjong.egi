@@ -4,15 +4,15 @@
 
 (define $suit
   (algebraic-data-matcher
-    (| <wan> <pin> <sou> )))
+    {<wan> <pin> <sou>}))
 
 (define $honor
   (algebraic-data-matcher
-    (| <ton> <nan> <sha> <pe> <haku> <hatsu> <chun> )))
+    {<ton> <nan> <sha> <pe> <haku> <hatsu> <chun>}))
 
 (define $hai
   (algebraic-data-matcher
-    (| <num suit integer> <ji honor> )))
+    {<num suit integer> <ji honor>}))
 
 (define $shuntsu
   (pattern-function [$pat1 $pat2]
