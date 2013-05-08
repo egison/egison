@@ -183,9 +183,6 @@ evalExpr env (MatchExpr target matcher clauses) = do
           MNil -> cont
   foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
 
-evalExpr env (FunctionExpr matcher clauses) =
-  return . Value $ Func env ["#_"] (MatchExpr (VarExpr "#_") matcher clauses)
-
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg

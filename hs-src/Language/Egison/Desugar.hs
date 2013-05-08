@@ -31,6 +31,7 @@ desugarTopExpr expr = return expr
 
 
 desugar :: EgisonExpr -> DesugarM EgisonExpr
+{- temporarily commented
 desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- fresh
   matcherRef <- return $ VarExpr matcherName
@@ -100,8 +101,9 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
       matchingFailure :: EgisonExpr
       matchingFailure = CollectionExpr []
+-}
 
-desugar (FunctionExpr matcher clauses) = do
+desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
   matcher' <- desugar matcher
   clauses' <- desugarMatchClauses clauses
@@ -140,6 +142,10 @@ desugar (LambdaExpr names expr) = do
   expr' <- desugar expr
   return $ LambdaExpr names expr'
 
+desugar (PatternFunctionExpr names pattern) = do
+  pattern' <- desugarPattern pattern
+  return $ PatternFunctionExpr names pattern'
+
 desugar (IfExpr expr0 expr1 expr2) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
@@ -156,6 +162,7 @@ desugar (LetRecExpr binds expr) = do
   expr' <- desugar expr
   return $ LetRecExpr binds' expr'
   
+{- temporarily commented
 desugar (IndexLoopExpr n0 n1 n2 expr0 expr1 expr2 expr3) = do
   name <- fresh
   helper <- genHelper name
@@ -174,7 +181,7 @@ desugar (IndexLoopExpr n0 n1 n2 expr0 expr1 expr2 expr3) = do
 
   matcher :: EgisonExpr
   matcher = ApplyExpr (VarExpr "list") SomethingExpr
-     
+-}
   
 desugar (MatchExpr expr0 expr1 clauses) = do  
   expr0' <- desugar expr0
@@ -187,9 +194,6 @@ desugar (MatchAllExpr expr0 expr1 clause) = do
   expr1' <- desugar expr1
   clause' <- desugarMatchClause clause
   return $ MatchAllExpr expr0' expr1' clause'
-  
-desugar (PatternExpr pattern) =
-  PatternExpr <$> desugarPattern pattern
   
 desugar (DoExpr binds expr) = do
   binds' <- desugarBindings binds
@@ -209,14 +213,15 @@ desugar expr = return expr
 desugarPattern :: EgisonPattern -> DesugarM EgisonPattern
 desugarPattern (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern (PredPat expr) = PredPat <$> desugar expr
-desugarPattern (CutPat expr) = CutPat <$> desugar expr
-desugarPattern (NotPat expr) = NotPat <$> desugar expr
-desugarPattern (AndPat exprs) = AndPat <$> mapM desugar exprs
-desugarPattern (OrPat exprs)  = OrPat <$> mapM desugar exprs
-desugarPattern (IndexedPattern pat expr) = 
-  IndexedPattern <$> desugarPattern pat <*> desugar expr
-desugarPattern (InductivePattern name exprs) =
-  InductivePattern name <$> mapM desugar exprs
+desugarPattern (CutPat pattern) = CutPat <$> desugarPattern pattern
+desugarPattern (NotPat pattern) = NotPat <$> desugarPattern pattern
+desugarPattern (AndPat patterns) = AndPat <$> mapM desugarPattern patterns
+desugarPattern (OrPat patterns)  = OrPat <$> mapM desugarPattern patterns
+desugarPattern (TuplePat patterns)  = TuplePat <$> mapM desugarPattern patterns
+desugarPattern (InductivePat name patterns) =
+  InductivePat name <$> mapM desugarPattern patterns
+desugarPattern (ApplyPat expr patterns) =
+  ApplyPat <$> desugar expr <*> mapM desugarPattern patterns 
 desugarPattern pattern = return pattern
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
@@ -233,10 +238,10 @@ desugarBindings (bind:rest) = do
 desugarBindings [] = return []
 
 desugarMatchClause :: MatchClause -> DesugarM MatchClause
-desugarMatchClause (expr0, expr1) = do
-  expr0' <- desugar expr0
-  expr1' <- desugar expr1
-  return $ (expr0', expr1')
+desugarMatchClause (pattern, expr) = do
+  pattern' <- desugarPattern pattern
+  expr'    <- desugar expr
+  return $ (pattern', expr')
 
 desugarMatchClauses :: [MatchClause] -> DesugarM [MatchClause]
 desugarMatchClauses (clause:rest) = do

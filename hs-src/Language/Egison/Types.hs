@@ -44,9 +44,8 @@ data EgisonExpr =
   | CollectionExpr [InnerExpr]
   | ArrayExpr [EgisonExpr]
 
-  | PatternExpr EgisonPattern
-
   | LambdaExpr [String] EgisonExpr
+  | PatternFunctionExpr [String] EgisonPattern
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetExpr [BindingExpr] EgisonExpr
@@ -56,8 +55,7 @@ data EgisonExpr =
     
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr MatchClause
-
-  | FunctionExpr EgisonExpr [MatchClause]
+  | MatchLambdaExpr EgisonExpr [MatchClause]
 
   | MatcherExpr MatcherInfo
   
@@ -65,7 +63,7 @@ data EgisonExpr =
     
   | ApplyExpr EgisonExpr EgisonExpr
 
-  | AlgebraicDataMatcherExpr [EgisonExpr]
+  | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
   | GenerateArrayExpr [String] EgisonExpr EgisonExpr
   | ArraySizeExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
@@ -75,20 +73,22 @@ data EgisonExpr =
  deriving (Show)
 
 type BindingExpr = ([String], EgisonExpr)
-type MatchClause = (EgisonExpr, EgisonExpr)
+type MatchClause = (EgisonPattern, EgisonExpr)
 type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
 data EgisonPattern =
     WildCard
   | PatVar String
+  | VarPat String
   | ValuePat EgisonExpr
   | PredPat EgisonExpr
-  | CutPat EgisonExpr
-  | NotPat EgisonExpr
-  | AndPat [EgisonExpr]
-  | OrPat [EgisonExpr]
-  | IndexedPattern EgisonPattern EgisonExpr
-  | InductivePattern String [EgisonExpr]
+  | CutPat EgisonPattern
+  | NotPat EgisonPattern
+  | AndPat [EgisonPattern]
+  | OrPat [EgisonPattern]
+  | TuplePat [EgisonPattern]
+  | InductivePat String [EgisonPattern]
+  | ApplyPat EgisonExpr [EgisonPattern]
  deriving (Show)
 
 data PrimitivePatPattern =
