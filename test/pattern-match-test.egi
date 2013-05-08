@@ -96,6 +96,7 @@
          [_ {}]}]
        [$ [something]
         {[$tgt {tgt}]}]})))
+|#
 
 (define $insert
   (lambda [$n $t]
@@ -116,7 +117,6 @@
           {[<less> (member? n t1)]
            [<equal> #t]
            [<greater> (member? n t2)]})]})))
-|#
 
 (test (assert-equal "tree set using algebraic-data-matcher"
         (let {[$t (foldr insert <Leaf> {4 1 2 4 3})]}

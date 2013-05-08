@@ -420,7 +420,6 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env bindings trees'
         _ -> throwError $ TypeMismatch "matcher" matcher
-    _ -> throwError $ strMsg "should not reach here"
 processMState (MState env bindings ((MNode penv (MState _ _ [])):trees)) =
   return $ msingleton $ MState env bindings trees
 processMState (MState env bindings ((MNode penv state@(MState env' bindings' (tree:trees')):trees))) = do
