@@ -123,19 +123,14 @@
           [(member? 1 t) (member? 0 t)])
         [#t #f]))
 
-
-#|
 (define $comb
   (lambda [$ns]
-    (pattern-function [$p]
-      (if (empty? ns)
-          _
+    (if (empty? ns)
+        (pattern-function [$p] _)
+        (pattern-function [$p]
           <join _ <cons p_(car ns) ((comb (cdr ns)) p)>>))))
 
-
 (test (assert-equal "indexed-variable matching test"
- (match { 1 2 3 4 5 } (list integer)
-  {[((comb (between 1 5)) $a) [a_1 a_2 a_3 a_4 a_5]]})
-  [1 2 3 4 5]))
-|#
-
+        (match {1 2 3 4 5} (list integer)
+          {[((comb (between 1 5)) $a) [a_1 a_2 a_3 a_4 a_5]]})
+        [1 2 3 4 5]))
