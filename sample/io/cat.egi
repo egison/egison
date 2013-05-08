@@ -14,7 +14,7 @@
        [_ (cat-files argv)]})))
 
 (define $cat-files
-  (function (list string)
+  (match-lambda (list string)
     {[<nil> nop]
      [<cons $file $files>
       (do {[$port (open-input-file file)]

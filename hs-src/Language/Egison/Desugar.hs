@@ -220,6 +220,8 @@ desugarPattern (OrPat patterns)  = OrPat <$> mapM desugarPattern patterns
 desugarPattern (TuplePat patterns)  = TuplePat <$> mapM desugarPattern patterns
 desugarPattern (InductivePat name patterns) =
   InductivePat name <$> mapM desugarPattern patterns
+desugarPattern (IndexedPat pattern exprs) =
+  IndexedPat <$> desugarPattern pattern <*> mapM desugar exprs
 desugarPattern (ApplyPat expr patterns) =
   ApplyPat <$> desugar expr <*> mapM desugarPattern patterns 
 desugarPattern pattern = return pattern

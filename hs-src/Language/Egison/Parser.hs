@@ -86,6 +86,7 @@ parseExpr' = (try parseConstantExpr
              <|> parseCollectionExpr
              <|> parens (parseIfExpr
                          <|> parseLambdaExpr
+                         <|> parsePatternFunctionExpr
                          <|> parseLetRecExpr
                          <|> parseLetExpr
                          <|> parseIndexLoopExpr
@@ -270,18 +271,22 @@ parseArrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> parseExpr <*> parseExpr
 -- Patterns
 
 parsePattern :: Parser EgisonPattern
-parsePattern = parseWildCard
-           <|> parsePatVar
-           <|> parseVarPat
-           <|> parseValuePat
-           <|> parsePredPat
-           <|> parseCutPat
-           <|> parseNotPat
-           <|> parseTuplePat
-           <|> parseInductivePat
-           <|> parens (parseAndPat
-                   <|> parseOrPat
-                   <|> parseApplyPat)
+parsePattern = do pattern <- parsePattern'
+                  option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> parseExpr')
+
+parsePattern' :: Parser EgisonPattern
+parsePattern' = parseWildCard
+            <|> parsePatVar
+            <|> parseVarPat
+            <|> parseValuePat
+            <|> parsePredPat
+            <|> parseCutPat
+            <|> parseNotPat
+            <|> parseTuplePat
+            <|> parseInductivePat
+            <|> parens (parseAndPat
+                    <|> parseOrPat
+                    <|> parseApplyPat)
 
 parseWildCard :: Parser EgisonPattern
 parseWildCard = reservedOp "_" >> pure WildCard

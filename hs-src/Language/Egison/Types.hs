@@ -82,6 +82,7 @@ data EgisonPattern =
   | VarPat String
   | ValuePat EgisonExpr
   | PredPat EgisonExpr
+  | IndexedPat EgisonPattern [EgisonExpr]
   | CutPat EgisonPattern
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
@@ -128,9 +129,9 @@ data EgisonValue =
   | Tuple [EgisonValue]
   | Collection [EgisonValue]
   | Array (IntMap EgisonValue)
-  | Pattern EgisonPattern
   | Matcher Matcher
   | Func Env [String] EgisonExpr
+  | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
   | Port Handle
@@ -153,11 +154,11 @@ instance Show EgisonValue where
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
   show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
-  show (Pattern _) = "#<pattern>"
   show (Matcher _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
-  show (PrimitiveFunc _) = "#<primitive>"
-  show (IOFunc _) = "#<io>"
+  show (PatternFunc _ _ _) = "#<pattern-function>"
+  show (PrimitiveFunc _) = "#<primitive-function>"
+  show (IOFunc _) = "#<io-function>"
   show (Port _) = "#<port>"
   show Something = "something"
   show Undefined = "undefined"
@@ -231,10 +232,6 @@ fromPortValue :: WHNFData -> Either EgisonError Handle
 fromPortValue (Value (Port handle)) = return handle
 fromPortValue val = throwError $ TypeMismatch "port" val
 
-fromPatternValue :: WHNFData -> Either EgisonError EgisonPattern
-fromPatternValue (Value (Pattern pattern)) = return pattern
-fromPatternValue val = throwError $ TypeMismatch "pattern" val
-
 fromMatcherValue :: WHNFData -> Either EgisonError Matcher
 fromMatcherValue (Value (Matcher matcher)) = return matcher
 fromMatcherValue val = throwError $ TypeMismatch "matcher" val
@@ -272,10 +269,10 @@ refVar env var = maybe (throwError $ UnboundVariable var) return
 data MatchingState = MState Env [Binding] [MatchingTree]
 
 data MatchingTree =
-    MAtom EgisonExpr ObjectRef WHNFData
+    MAtom EgisonPattern ObjectRef WHNFData
   | MNode [PatternBinding] MatchingState
 
-type PatternBinding = (Var, EgisonExpr)
+type PatternBinding = (Var, EgisonPattern)
 
 --
 -- Errors

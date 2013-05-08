@@ -15,27 +15,27 @@
     (| <num suit integer> <ji honor> )))
 
 (define $shuntsu
-  (pattern-constructor [$pat1 $pat2]
+  (pattern-function [$pat1 $pat2]
     <cons (& <num $s $n> pat1)
      <cons <num ,s ,(+ n 1)>
       <cons <num ,s ,(+ n 2)>
        pat2>>>))
 
 (define $kohtsu
-  (pattern-constructor [$pat1 $pat2]
+  (pattern-function [$pat1 $pat2]
     <cons (& $pat pat1)
      <cons ,pat
       <cons ,pat
        pat2>>>))
 
 (define $twin
-  (pattern-constructor [$pat1 $pat2]
+  (pattern-function [$pat1 $pat2]
     <cons (& $pat pat1)
      <cons ,pat
       pat2>>))
 
 (define $agari?
-  (function (multiset hai)
+  (match-lambda (multiset hai)
     {[(twin $th_1 (| (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (shuntsu $sh_4 <nil>))))
                      (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (kohtsu $kh_1 <nil>))))
                      (shuntsu $sh_1 (shuntsu $sh_2 (kohtsu $kh_1 (kohtsu $kh_2 <nil>))))

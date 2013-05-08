@@ -85,8 +85,8 @@
           [<cons $x $xs> [x xs]])
         {[1 {2 3}]}))
 
-(test (assert-equal "function"
-        (letrec {[$count (function (list something)
+(test (assert-equal "match-lambda"
+        (letrec {[$count (match-lambda (list something)
                            {[<nil> 0]
                             [<cons _ $xs> (+ (count xs) 1)]})]}
           (count {1 2 3}))
