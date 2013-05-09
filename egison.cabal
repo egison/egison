@@ -5,7 +5,7 @@ Description:         An interpreter for the programming language Egison.
                      A feature of Egison is the strong pattern match facility.
                      With Egison, you can represent pattern matching for unfree data intuitively,
                      especially for collection data, such as lists, multisets, sets, and so on.
-                     This package include sample Egison program codes "*-test.egi" in "sample/" directory.
+                     This package include sample Egison programs "*-test.egi" in "sample/" directory.
                      This package also include Emacs Lisp file "egison-mode.el" in "elisp/" directory.
 Homepage:            http://egison.pira.jp
 License:             MIT
