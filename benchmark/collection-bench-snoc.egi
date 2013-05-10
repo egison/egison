@@ -1,0 +1,19 @@
+(define $is-even
+  (lambda [$n] (eq? (modulo n 2) 0)))
+
+(define $count-evens
+  (lambda [$n $l]
+    (match l (list integer)
+      {[<snoc ?is-even $tl> (count-evens (+ n 1) tl)]
+       [<snoc _ $tl> (count-evens n tl)]
+       [<nil> n]})))
+
+(define $test-numbers
+  (letrec {[$from
+            (lambda [$n]
+              (if (lte? n 0)
+                  {0}
+                  {n @(from (- n 1))}))]}
+    (from 10000)))
+
+(test (count-evens 0 test-numbers))

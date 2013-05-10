@@ -9,6 +9,7 @@ import Control.Monad.Error
 import Control.Monad.State
 import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
+import qualified Data.Sequence as Sq
 import Data.Either
 import Data.Set (Set)
 import Data.Char (isLower, isUpper)
@@ -112,7 +113,7 @@ parseTupleExpr :: Parser EgisonExpr
 parseTupleExpr = brackets $ TupleExpr <$> sepEndBy parseExpr whiteSpace
 
 parseCollectionExpr :: Parser EgisonExpr
-parseCollectionExpr = braces $ CollectionExpr <$> sepEndBy parseInnerExpr whiteSpace
+parseCollectionExpr = braces $ CollectionExpr . Sq.fromList <$> sepEndBy parseInnerExpr whiteSpace
  where
   parseInnerExpr :: Parser InnerExpr
   parseInnerExpr = (char '@' >> SubCollectionExpr <$> parseExpr)

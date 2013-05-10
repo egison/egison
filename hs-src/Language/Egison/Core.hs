@@ -1,11 +1,17 @@
+{-# Language TupleSections #-}
 module Language.Egison.Core where
+
+import Prelude hiding (mapM)
 
 import Control.Arrow
 import Control.Applicative
-import Control.Monad.Error
-import Control.Monad.State
+import Control.Monad.Error hiding (mapM)
+import Control.Monad.State hiding (mapM)
 import Control.Monad.Trans.Maybe
 
+import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
+import qualified Data.Sequence as Sq
+import Data.Traversable (mapM)
 import Data.IORef
 import Data.List
 import Data.Maybe
@@ -46,7 +52,7 @@ evalTopExpr env (Test expr) = do
   return env
 evalTopExpr env (Execute argv) = do
   main <- refVar env "main" >>= evalRef
-  io <- applyFunc main $ Value $ Collection $ map String argv
+  io <- applyFunc main $ Value $ Collection $ Sq.fromList $ map String argv
   case io of
     Value (IOFunc m) -> m >> return env
     _ -> throwError $ TypeMismatch "io" main
@@ -86,12 +92,14 @@ evalExpr env (TupleExpr [expr]) = evalExpr env expr
 evalExpr env (TupleExpr exprs) =
   Intermediate . ITuple <$> mapM (newThunk env) exprs 
 
-evalExpr _ (CollectionExpr []) = return . Value $ Collection []
 evalExpr env (CollectionExpr inners) =
-  Intermediate . ICollection <$> mapM fromInnerExpr inners
- where
-  fromInnerExpr (ElementExpr expr) = IElement <$> newThunk env expr
-  fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newThunk env expr
+  if Sq.null inners then
+    return . Value $ Collection Sq.empty
+  else
+    Intermediate . ICollection <$> mapM fromInnerExpr inners
+    where
+      fromInnerExpr (ElementExpr expr) = IElement <$> newThunk env expr
+      fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newThunk env expr
 
 evalExpr env (ArrayExpr exprs) = do
   ref' <- mapM (newThunk env) exprs
@@ -166,11 +174,11 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
-  fromMList MNil = return . Value $ Collection []
+  fromMList MNil = return . Value $ Collection Sq.empty
   fromMList (MCons val m) = do
     head <- IElement <$> newEvaluatedThunk val
     tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
-    return . Intermediate $ ICollection [head, tail]
+    return . Intermediate $ ICollection $ Sq.fromList [head, tail]
 
 evalExpr env (MatchExpr target matcher clauses) = do
   target <- newThunk env target
@@ -242,7 +250,7 @@ evalDeep (Intermediate (IArray refs)) = do
   refs' <- mapM evalRef' $ IntMap.elems refs
   return $ Array $ IntMap.fromList $ zip (enumFromTo 1 (IntMap.size refs)) refs'
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
-evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef')
+evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef' . Sq.fromList)
 
 applyFunc :: WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc (Value (Func env [name] body)) arg = do
@@ -308,9 +316,9 @@ fromTuple (Value (Tuple vals)) = mapM (newEvaluatedThunk . Value) vals
 fromTuple val = return <$> newEvaluatedThunk val
 
 fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
-fromCollection (Value (Collection [])) = return MNil
 fromCollection (Value (Collection vals)) =
-  fromList <$> mapM (newEvaluatedThunk . Value) vals
+  if Sq.null vals then return MNil
+                  else fromSeq <$> mapM (newEvaluatedThunk . Value) vals
 fromCollection coll@(Intermediate (ICollection _)) =
   newEvaluatedThunk coll >>= fromCollection'
  where
@@ -507,7 +515,7 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
   isEqual <- lift $ (==) <$> evalExpr' nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
 
-expandCollection :: WHNFData -> EgisonM [Inner]
+expandCollection :: WHNFData -> EgisonM (Seq Inner)
 expandCollection (Value (Collection vals)) =
   mapM (liftM IElement . newEvaluatedThunk . Value) vals
 expandCollection (Intermediate (ICollection inners)) = return inners
@@ -517,47 +525,58 @@ isEmptyCollection :: ObjectRef -> EgisonM Bool
 isEmptyCollection ref = evalRef ref >>= isEmptyCollection'
  where
   isEmptyCollection' :: WHNFData -> EgisonM Bool
-  isEmptyCollection' (Value (Collection [])) = return True
-  isEmptyCollection' (Intermediate (ICollection [])) = return True
-  isEmptyCollection' (Intermediate (ICollection ((ISubCollection ref'):inners))) = do
-    inners' <- evalRef ref' >>= expandCollection
-    let coll = Intermediate (ICollection (inners' ++ inners))
-    writeThunk ref coll
-    isEmptyCollection' coll
+  isEmptyCollection' (Value (Collection col)) = return $ Sq.null col
+  isEmptyCollection' (Intermediate (ICollection ic)) =
+    case Sq.viewl ic of
+      EmptyL -> return True
+      (ISubCollection ref') :< inners -> do
+        inners' <- evalRef ref' >>= expandCollection
+        let coll = Intermediate (ICollection (inners' >< inners))
+        writeThunk ref coll
+        isEmptyCollection' coll
+      _ -> return False
   isEmptyCollection' _ = return False
 
 unconsCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
 unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
  where
   unconsCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
-  unconsCollection' (Value (Collection (val:vals))) =
-    lift $ (,) <$> newEvaluatedThunk (Value val)
-               <*> newEvaluatedThunk (Value $ Collection vals)
-  unconsCollection' (Intermediate (ICollection ((IElement ref'):inners))) =
-    lift $ (,) ref' <$> newEvaluatedThunk (Intermediate $ ICollection inners)
-  unconsCollection' (Intermediate (ICollection ((ISubCollection ref'):inners))) = do
-    inners' <- lift $ evalRef ref' >>= expandCollection
-    let coll = Intermediate (ICollection (inners' ++ inners))
-    lift $ writeThunk ref coll
-    unconsCollection' coll
+  unconsCollection' (Value (Collection col)) =
+    case Sq.viewl col of
+      EmptyL -> matchFail
+      val :< vals ->
+        lift $ (,) <$> newEvaluatedThunk (Value val)
+                   <*> newEvaluatedThunk (Value $ Collection vals)
+  unconsCollection' (Intermediate (ICollection ic)) =
+    case Sq.viewl ic of
+      EmptyL -> matchFail
+      (IElement ref') :< inners ->
+        lift $ (ref', ) <$> newEvaluatedThunk (Intermediate $ ICollection inners)
+      (ISubCollection ref') :< inners -> do
+        inners' <- lift $ evalRef ref' >>= expandCollection
+        let coll = Intermediate (ICollection (inners' >< inners))
+        lift $ writeThunk ref coll
+        unconsCollection' coll
   unconsCollection' _ = matchFail
 
 unsnocCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
 unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
-  where
-    unsnocCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
-    unsnocCollection' (Value (Collection [])) = matchFail
-    unsnocCollection' (Value (Collection vals)) =
-      lift $ (,) <$> newEvaluatedThunk (Value . Collection $ init vals)
-                 <*> newEvaluatedThunk (Value $ last vals)
-    unsnocCollection' (Intermediate (ICollection [])) = matchFail
-    unsnocCollection' (Intermediate (ICollection inners)) =
-      case last inners of
-        IElement ref' ->
-          lift $ (,) <$> newEvaluatedThunk (Intermediate . ICollection $ init inners)
-                     <*> pure ref'
-        ISubCollection ref' -> do
-          inners' <- lift $ evalRef ref' >>= expandCollection
-          let coll = Intermediate (ICollection (init inners ++ inners'))
-          lift $ writeThunk ref coll
-          unsnocCollection' coll
+ where
+  unsnocCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
+  unsnocCollection' (Value (Collection col)) =
+   case Sq.viewr col of
+     EmptyR -> matchFail
+     vals :> val ->
+       lift $ (,) <$> newEvaluatedThunk (Value $ Collection vals)
+                  <*> newEvaluatedThunk (Value val)
+  unsnocCollection' (Intermediate (ICollection ic)) =
+   case Sq.viewr ic of
+     EmptyR -> matchFail
+     inners :> (IElement ref') ->
+       lift $ (, ref') <$> newEvaluatedThunk (Intermediate $ ICollection inners)
+     inners :> (ISubCollection ref') -> do
+       inners' <- lift $ evalRef ref' >>= expandCollection
+       let coll = Intermediate (ICollection (inners >< inners'))
+       lift $ writeThunk ref coll
+       unsnocCollection' coll
+  unsnocCollection' _ = matchFail
