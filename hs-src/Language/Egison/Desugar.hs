@@ -2,6 +2,8 @@
 module Language.Egison.Desugar where
 import Control.Applicative (Applicative)
 import Control.Applicative ((<$>), (<*>), (<*), (*>), pure)
+import qualified Data.Sequence as Sq
+import Data.Sequence (ViewL(..), (<|))
 import Data.Char (toUpper)
 import Control.Monad.Error
 import Control.Monad.State
@@ -72,7 +74,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMatcherClause pattern = do
         (ppat, matchers) <- genPrimitivePatPat pattern
         (dpat, body)     <- genPrimitiveDataPat pattern
-        return (ppat, TupleExpr matchers, [(dpat, CollectionExpr [ElementExpr . TupleExpr $ body]), (PDWildCard, matchingFailure)])
+        return (ppat, TupleExpr matchers, [(dpat, CollectionExpr (Sq.singleton . ElementExpr . TupleExpr $ body)), (PDWildCard, matchingFailure)])
         
         where
           genPrimitivePatPat :: (String, [EgisonExpr]) -> DesugarM (PrimitivePatPattern, [EgisonExpr])
@@ -91,13 +93,13 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       
       genSomethingClause :: DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genSomethingClause = 
-        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr $ [ElementExpr (VarExpr "tgt")])])
+        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr . Sq.singleton $ ElementExpr (VarExpr "tgt"))])
     
       matchingSuccess :: EgisonExpr
-      matchingSuccess = CollectionExpr $ [ElementExpr $ TupleExpr []]
+      matchingSuccess = CollectionExpr . Sq.singleton. ElementExpr $ TupleExpr []
 
       matchingFailure :: EgisonExpr
-      matchingFailure = CollectionExpr []
+      matchingFailure = CollectionExpr Sq.empty
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
@@ -122,6 +124,19 @@ desugar (TupleExpr exprs) = do
   exprs' <- mapM desugar exprs
   return $ TupleExpr exprs'
 
+desugar expr@(CollectionExpr seq) =
+  case Sq.viewl seq of
+    EmptyL -> return expr
+    ElementExpr seqHead :< seqTail -> do
+      seqHead' <- desugar seqHead
+      (CollectionExpr seqTail') <- desugar (CollectionExpr seqTail)
+      return $ CollectionExpr (ElementExpr seqHead' <| seqTail')
+    SubCollectionExpr seqHead :< seqTail -> do
+      seqHead' <- desugar seqHead
+      (CollectionExpr seqTail') <- desugar (CollectionExpr seqTail)
+      return $ CollectionExpr (SubCollectionExpr seqHead' <| seqTail')
+
+{-
 desugar (CollectionExpr ((ElementExpr expr):rest)) = do
   expr' <- desugar expr
   (CollectionExpr rest') <- desugar (CollectionExpr rest)
@@ -133,6 +148,7 @@ desugar (CollectionExpr ((SubCollectionExpr expr):rest)) = do
   return $ CollectionExpr ((SubCollectionExpr expr'):rest')
 
 desugar expr@(CollectionExpr []) = return expr
+-}
 
 desugar (LambdaExpr names expr) = do
   expr' <- desugar expr

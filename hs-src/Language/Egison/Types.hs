@@ -2,12 +2,17 @@
              MultiParamTypeClasses, UndecidableInstances  #-}
 module Language.Egison.Types where
 
+import Prelude hiding (foldr)
+
 import Control.Applicative
 import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 
+import Data.Foldable (foldr, toList)
+import qualified Data.Sequence as Sq
+import Data.Sequence (Seq)
 import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -41,7 +46,7 @@ data EgisonExpr =
   | IndexedExpr EgisonExpr [EgisonExpr]
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
-  | CollectionExpr [InnerExpr]
+  | CollectionExpr (Seq InnerExpr)
   | ArrayExpr [EgisonExpr]
 
   | LambdaExpr [String] EgisonExpr
@@ -127,7 +132,7 @@ data EgisonValue =
   | Float Double
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
-  | Collection [EgisonValue]
+  | Collection (Seq EgisonValue)
   | Array (IntMap EgisonValue)
   | Matcher Matcher
   | Func Env [String] EgisonExpr
@@ -152,7 +157,7 @@ instance Show EgisonValue where
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
-  show (Collection vals) = "{" ++ unwords (map show vals) ++ "}"
+  show (Collection vals) = "{" ++ unwords (map show (toList vals)) ++ "}"
   show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
   show (Matcher _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
@@ -194,7 +199,7 @@ data WHNFData =
 data Intermediate =
     IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
-  | ICollection [Inner]
+  | ICollection (Seq Inner)
   | IArray (IntMap ObjectRef)
 
 data Inner =
@@ -364,6 +369,10 @@ data MList m a = MNil | MCons a (m (MList m a))
 
 fromList :: Monad m => [a] -> MList m a
 fromList = foldr f MNil
+ where f x xs = MCons x $ return xs
+
+fromSeq :: Monad m => Seq a -> MList m a
+fromSeq = foldr f MNil
  where f x xs = MCons x $ return xs
 
 fromMList :: Monad m => MList m a -> m [a]
