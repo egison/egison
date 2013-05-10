@@ -136,20 +136,6 @@ desugar expr@(CollectionExpr seq) =
       (CollectionExpr seqTail') <- desugar (CollectionExpr seqTail)
       return $ CollectionExpr (SubCollectionExpr seqHead' <| seqTail')
 
-{-
-desugar (CollectionExpr ((ElementExpr expr):rest)) = do
-  expr' <- desugar expr
-  (CollectionExpr rest') <- desugar (CollectionExpr rest)
-  return $ CollectionExpr ((ElementExpr expr'):rest')
-
-desugar (CollectionExpr ((SubCollectionExpr expr):rest)) = do
-  expr' <- desugar expr
-  (CollectionExpr rest') <- desugar (CollectionExpr rest)
-  return $ CollectionExpr ((SubCollectionExpr expr'):rest')
-
-desugar expr@(CollectionExpr []) = return expr
--}
-
 desugar (LambdaExpr names expr) = do
   expr' <- desugar expr
   return $ LambdaExpr names expr'
