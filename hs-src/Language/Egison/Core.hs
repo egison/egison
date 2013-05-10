@@ -4,12 +4,12 @@ module Language.Egison.Core where
 import Prelude hiding (mapM)
 
 import Control.Arrow
-import Control.Applicative hiding (empty)
+import Control.Applicative
 import Control.Monad.Error hiding (mapM)
 import Control.Monad.State hiding (mapM)
 import Control.Monad.Trans.Maybe
 
-import Data.Sequence (Seq, ViewL(..), ViewR(..), (><), empty)
+import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
 import Data.Traversable (mapM)
 import Data.IORef
@@ -94,7 +94,7 @@ evalExpr env (TupleExpr exprs) =
 
 evalExpr env (CollectionExpr inners) =
   if Sq.null inners then
-    return . Value $ Collection empty
+    return . Value $ Collection Sq.empty
   else
     Intermediate . ICollection <$> mapM fromInnerExpr inners
     where
@@ -174,7 +174,7 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
-  fromMList MNil = return . Value $ Collection empty
+  fromMList MNil = return . Value $ Collection Sq.empty
   fromMList (MCons val m) = do
     head <- IElement <$> newEvaluatedThunk val
     tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
@@ -525,7 +525,7 @@ isEmptyCollection :: ObjectRef -> EgisonM Bool
 isEmptyCollection ref = evalRef ref >>= isEmptyCollection'
  where
   isEmptyCollection' :: WHNFData -> EgisonM Bool
-  isEmptyCollection' (Value (Collection empty)) = return True
+  isEmptyCollection' (Value (Collection col)) = return $ Sq.null col
   isEmptyCollection' (Intermediate (ICollection ic)) =
     case Sq.viewl ic of
       EmptyL -> return True
