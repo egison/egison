@@ -23,6 +23,7 @@ config = defaultConfig { cfgSamples   = ljust 3
 main :: IO ()
 main = defaultMainWith config (return ()) [
     bgroup "collection" [ bench "cons-bench" $ runEgisonFile "benchmark/collection-bench-cons.egi"
+                        , bench "cons-bench-large" $ runEgisonFile "benchmark/collection-bench-cons-large.egi"
                         , bench "snoc-bench" $ runEgisonFile "benchmark/collection-bench-snoc.egi"
                         ]
   ]
