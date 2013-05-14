@@ -56,8 +56,6 @@ data EgisonExpr =
   | LetExpr [BindingExpr] EgisonExpr
   | LetRecExpr [BindingExpr] EgisonExpr
 
-  | IndexLoopExpr String String String EgisonExpr EgisonExpr EgisonExpr EgisonExpr
-    
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr MatchClause
   | MatchLambdaExpr EgisonExpr [MatchClause]
@@ -73,6 +71,7 @@ data EgisonExpr =
   | ArraySizeExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 
+  | ValueExpr EgisonValue
   | SomethingExpr
   | UndefinedExpr
  deriving (Show)
@@ -95,6 +94,7 @@ data EgisonPattern =
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | ApplyPat EgisonExpr [EgisonPattern]
+  | LoopPat String String LoopContext EgisonPattern EgisonPattern
  deriving (Show)
 
 data PrimitivePatPattern =
@@ -206,6 +206,11 @@ data Inner =
     IElement ObjectRef
   | ISubCollection ObjectRef
   
+data LoopContext =
+    CtxExpr EgisonExpr
+  | CtxWHNF WHNFData
+  deriving (Show)
+    
 instance Show WHNFData where
   show (Value val) = show val 
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"

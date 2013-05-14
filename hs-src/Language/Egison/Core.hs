@@ -252,6 +252,10 @@ evalDeep (Intermediate (IArray refs)) = do
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef' . Sq.fromList)
 
+evalLoopContext :: Env -> LoopContext -> EgisonM WHNFData
+evalLoopContext env (CtxExpr expr) = evalExpr env expr
+evalLoopContext env (CtxWHNF whnf) = return whnf
+
 applyFunc :: WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc (Value (Func env [name] body)) arg = do
   ref <- newEvaluatedThunk arg
@@ -287,6 +291,9 @@ generateArray env name size expr = do
 
 newThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
 newThunk env expr = liftIO . newIORef . Thunk $ evalExpr env expr
+
+newThunk' :: WHNFData -> EgisonM ObjectRef
+newThunk' val = liftIO . newIORef . Thunk $ return val
 
 writeThunk :: ObjectRef -> WHNFData -> EgisonM ()
 writeThunk ref val = liftIO . writeIORef ref $ WHNF val
@@ -365,6 +372,19 @@ processMState (MState env bindings ((MAtom pattern target matcher):trees)) = do
           let penv = zip names args
           in return $ msingleton $ MState env bindings (MNode penv (MState env [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
+    
+---  FIX ME
+    LoopPat cnt idx ctx pat pat' -> do
+      val <- evalLoopContext env' ctx
+      val' <- runMaybeT $ unconsCollection' val
+      case val' of
+        Nothing -> return $ msingleton $ MState env bindings ((MAtom pat' target matcher):trees)
+        Just (head, tail) -> do
+          let env'' = extendEnv env [(idx, head)]
+          col <- evalRef tail
+          let penv = [(cnt, LoopPat cnt idx (CtxWHNF col) pat pat')]
+          return $ msingleton $ MState env'' bindings (MNode penv (MState env'' [] [MAtom pat target matcher]):trees)
+---
     IndexedPat (PatVar name) indices -> do
       indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
       let (index:_) = indices 
@@ -539,25 +559,25 @@ isEmptyCollection ref = evalRef ref >>= isEmptyCollection'
 
 unconsCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
 unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
- where
-  unconsCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
-  unconsCollection' (Value (Collection col)) =
-    case Sq.viewl col of
-      EmptyL -> matchFail
-      val :< vals ->
-        lift $ (,) <$> newEvaluatedThunk (Value val)
-                   <*> newEvaluatedThunk (Value $ Collection vals)
-  unconsCollection' (Intermediate (ICollection ic)) =
-    case Sq.viewl ic of
-      EmptyL -> matchFail
-      (IElement ref') :< inners ->
-        lift $ (ref', ) <$> newEvaluatedThunk (Intermediate $ ICollection inners)
-      (ISubCollection ref') :< inners -> do
-        inners' <- lift $ evalRef ref' >>= expandCollection
-        let coll = Intermediate (ICollection (inners' >< inners))
-        lift $ writeThunk ref coll
-        unconsCollection' coll
-  unconsCollection' _ = matchFail
+
+unconsCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
+unconsCollection' (Value (Collection col)) =
+  case Sq.viewl col of
+    EmptyL -> matchFail
+    val :< vals ->
+      lift $ (,) <$> newEvaluatedThunk (Value val)
+                 <*> newEvaluatedThunk (Value $ Collection vals)
+unconsCollection' (Intermediate (ICollection ic)) =
+  case Sq.viewl ic of
+    EmptyL -> matchFail
+    (IElement ref') :< inners ->
+      lift $ (ref', ) <$> newEvaluatedThunk (Intermediate $ ICollection inners)
+    (ISubCollection ref') :< inners -> do
+      inners' <- lift $ evalRef ref' >>= expandCollection
+      let coll = Intermediate (ICollection (inners' >< inners))
+      lift $ writeThunk ref' coll
+      unconsCollection' coll
+unconsCollection' _ = matchFail
 
 unsnocCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
 unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'

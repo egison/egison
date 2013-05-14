@@ -90,7 +90,6 @@ parseExpr' = (try parseConstantExpr
                          <|> parsePatternFunctionExpr
                          <|> parseLetRecExpr
                          <|> parseLetExpr
-                         <|> parseIndexLoopExpr
                          <|> parseDoExpr
                          <|> parseMatchAllExpr
                          <|> parseMatchExpr
@@ -215,10 +214,6 @@ parseVarNames = return <$> parseVarName
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
 
-parseIndexLoopExpr :: Parser EgisonExpr
-parseIndexLoopExpr = keywordIndexLoop >> IndexLoopExpr <$> parseVarName <*> parseVarName <*> parseVarName
-                                                       <*> parseExpr <*> parseExpr <*> parseExpr <*> parseExpr
-
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = (keywordApply >> ApplyExpr <$> parseExpr <*> parseExpr) 
              <|> parseApplyExpr'
@@ -284,7 +279,8 @@ parsePattern' = parseWildCard
             <|> parseInductivePat
             <|> parens (parseAndPat
                     <|> parseOrPat
-                    <|> parseApplyPat)
+                    <|> parseApplyPat
+                    <|> parseLoopPat)
 
 parseWildCard :: Parser EgisonPattern
 parseWildCard = reservedOp "_" >> pure WildCard
@@ -321,6 +317,9 @@ parseOrPat = reservedOp "|" >> OrPat <$> sepEndBy parsePattern whiteSpace
 
 parseApplyPat :: Parser EgisonPattern
 parseApplyPat = ApplyPat <$> parseExpr <*> sepEndBy parsePattern whiteSpace 
+
+parseLoopPat :: Parser EgisonPattern
+parseLoopPat = keywordLoop >> LoopPat <$> parseVarName <*> parseVarName <*> (CtxExpr <$> parseExpr) <*> parsePattern <*> parsePattern
 
 -- Constants
 
@@ -386,7 +385,7 @@ reservedKeywords =
   , "pattern-constructor"
   , "letrec"
   , "let"
-  , "index-loop"
+  , "loop"
   , "match-all"
   , "match-lambda"
   , "match"
@@ -429,7 +428,7 @@ keywordLambda               = reserved "lambda"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
-keywordIndexLoop            = reserved "index-loop"
+keywordLoop                 = reserved "loop"
 keywordMatchAll             = reserved "match-all"
 keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "match-lambda"
