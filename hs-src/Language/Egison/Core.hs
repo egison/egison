@@ -386,23 +386,31 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
           
     IndexedPat (PatVar name) indices -> do
       indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
-      let (index:_) = indices 
       case lookup name bindings of
         Just ref -> do
-          val <- evalRef ref
-          case val of
-            Intermediate (IArray val) -> do
-              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target val
-              return $ msingleton $ MState env loops (subst name obj bindings) trees
-            Value (Array val) -> do
-              keys' <- return $ IntMap.keys val
-              vals' <- mapM (newEvaluatedThunk . Value) $ IntMap.elems val
-              obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys' vals')
-              return $ msingleton $ MState env loops (subst name obj bindings) trees
+          obj <- evalRef ref >>= flip updateArray indices >>= newEvaluatedThunk
+          return $ msingleton $ MState env loops (subst name obj bindings) trees
         Nothing  -> do
-          obj <- newEvaluatedThunk $ Intermediate . IArray $ IntMap.singleton index target 
+          obj <- updateArray (Value $ Array IntMap.empty) indices >>= newEvaluatedThunk
           return $ msingleton $ MState env loops ((name, obj):bindings) trees
        where
+        updateArray :: WHNFData -> [Int] -> EgisonM WHNFData
+        updateArray (Intermediate (IArray ary)) [index] =
+          return . Intermediate . IArray $ IntMap.insert index target ary
+        updateArray (Intermediate (IArray ary)) (index:indices) = do
+          val <- maybe (return $ Value $ Array IntMap.empty) evalRef $ IntMap.lookup index ary
+          ref <- updateArray val indices >>= newEvaluatedThunk
+          return . Intermediate . IArray $ IntMap.insert index ref ary
+        updateArray (Value (Array ary)) [index] = do
+          keys <- return $ IntMap.keys ary
+          vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
+          return . Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys vals)
+        updateArray (Value (Array ary)) (index:indices) = do
+          let val = Value $ fromMaybe (Array IntMap.empty) $ IntMap.lookup index ary
+          ref <- updateArray val indices >>= newEvaluatedThunk
+          keys <- return $ IntMap.keys ary
+          vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
+          return . Intermediate . IArray $ IntMap.insert index ref (IntMap.fromList $ zip keys vals)
         subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
         subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
                                  | otherwise = (k', v'):(subst k nv xs)
@@ -458,12 +466,12 @@ processMState (MState env loops bindings ((MNode penv state@(MState env' loops' 
             Just pattern ->
               return $ msingleton $ MState env loops bindings (MAtom pattern target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name
-        IndexedPat (VarPat name) (index:_) -> -- cannot use multiple indices
+        IndexedPat (VarPat name) indices -> -- cannot use multiple indices
           case lookup name penv of
             Just pattern -> do
               let env'' = extendEnv env' (bindings' ++ map (\(LoopContext binding _ _ _) -> binding) loops')
-              index <- evalExpr env'' index >>= liftError . fromIntegerValue
-              let pattern' = IndexedPat pattern [IntegerExpr index]
+              indices <- mapM (evalExpr env'' >=> liftError . liftM fromInteger . fromIntegerValue) indices
+              let pattern' = IndexedPat pattern $ map IntegerExpr indices
               return $ msingleton $ MState env loops bindings (MAtom pattern' target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name
         _ -> processMState state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
