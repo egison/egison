@@ -276,7 +276,7 @@ refVar env var = maybe (throwError $ UnboundVariable var) return
 -- Pattern Match
 --
 
-data MatchingState = MState Env [Binding] [MatchingTree]
+data MatchingState = MState Env [PatternBinding] [Binding] [MatchingTree]
 
 data MatchingTree =
     MAtom EgisonPattern ObjectRef WHNFData
