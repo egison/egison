@@ -94,7 +94,8 @@ data EgisonPattern =
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | ApplyPat EgisonExpr [EgisonPattern]
-  | LoopPat String String LoopContext EgisonPattern EgisonPattern
+  | LoopPat String EgisonExpr EgisonPattern EgisonPattern
+  | ContPat
  deriving (Show)
 
 data PrimitivePatPattern =
@@ -205,11 +206,6 @@ data Intermediate =
 data Inner =
     IElement ObjectRef
   | ISubCollection ObjectRef
-  
-data LoopContext =
-    CtxExpr EgisonExpr
-  | CtxWHNF WHNFData
-  deriving (Show)
     
 instance Show WHNFData where
   show (Value val) = show val 
@@ -276,13 +272,15 @@ refVar env var = maybe (throwError $ UnboundVariable var) return
 -- Pattern Match
 --
 
-data MatchingState = MState Env [PatternBinding] [Binding] [MatchingTree]
+data MatchingState = MState Env [LoopContext] [Binding] [MatchingTree]
 
 data MatchingTree =
     MAtom EgisonPattern ObjectRef WHNFData
   | MNode [PatternBinding] MatchingState
 
 type PatternBinding = (Var, EgisonPattern)
+
+data LoopContext = LoopContext (String, ObjectRef) ObjectRef EgisonPattern EgisonPattern
 
 --
 -- Errors

@@ -277,6 +277,7 @@ parsePattern' = parseWildCard
             <|> parseNotPat
             <|> parseTuplePat
             <|> parseInductivePat
+            <|> parseContPat
             <|> parens (parseAndPat
                     <|> parseOrPat
                     <|> parseApplyPat
@@ -309,6 +310,9 @@ parseTuplePat = brackets $ TuplePat <$> sepEndBy parsePattern whiteSpace
 parseInductivePat :: Parser EgisonPattern
 parseInductivePat = angles $ InductivePat <$> lowerName <*> sepEndBy parsePattern whiteSpace
 
+parseContPat :: Parser EgisonPattern
+parseContPat = reservedOp "..." >> pure ContPat
+
 parseAndPat :: Parser EgisonPattern
 parseAndPat = reservedOp "&" >> AndPat <$> sepEndBy parsePattern whiteSpace
 
@@ -319,7 +323,7 @@ parseApplyPat :: Parser EgisonPattern
 parseApplyPat = ApplyPat <$> parseExpr <*> sepEndBy parsePattern whiteSpace 
 
 parseLoopPat :: Parser EgisonPattern
-parseLoopPat = keywordLoop >> LoopPat <$> parseVarName <*> parseVarName <*> (CtxExpr <$> parseExpr) <*> parsePattern <*> parsePattern
+parseLoopPat = keywordLoop >> LoopPat <$> parseVarName <*> parseExpr <*> parsePattern <*> parsePattern
 
 -- Constants
 
@@ -407,7 +411,8 @@ reservedOperators =
   , "^"
   , "!"
   , ","
-  , "@"]
+  , "@"
+  , "..."]
 
 reserved :: String -> Parser ()
 reserved = P.reserved lexer
