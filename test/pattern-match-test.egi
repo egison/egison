@@ -43,11 +43,25 @@
           {[<cons ?(eq? 2 $) _> #f]
            [_ #t]})))
 
+(test (assert "loop pattern"
+        (match {3 2 1} (list integer)
+          {[(loop $i (between 1 3) <snoc ,i ...> <nil>) #t]})))
+
+(test (assert-equal "double loop pattern"
+        (match {{1 2 3} {4 5 6} {7 8 9}} (list (list integer))
+          {[(loop $i (between 0 2)
+                  <cons (loop $j (between 1 3)
+                          <cons $n_(+ (* i 3) j) ...>
+                          <nil>) ...>
+                  <nil>)
+            n_5]})
+        5))
+
 (define $twin
   (pattern-function [$pat1 $pat2]
     <cons (& pat1 $x) <cons ,x pat2>>))
 
-(test (assert-equal "pattern constructor call"
+(test (assert-equal "pattern function call"
         (match {1 1 1 2 3} (list integer)
           {[(twin $n $ns) [n ns]]})
         [1 {1 2 3}]))
@@ -57,10 +71,23 @@
     (| <nil>
        <cons (& pat $x) (repeat ,x)>)))
 
-(test (assert-equal "recursive pattern constructor call"
+(test (assert-equal "recursive pattern function call"
         (match {1 1 1 1} (list integer)
           {[(repeat $n) n]})
         1))
+
+(define $comb
+  (lambda [$n]
+    (pattern-function [$p]
+      (loop $i (between 1 n)
+               <join _ <cons p_i ...>>
+               _))))
+
+(test (assert-equal "loop pattern in pattern function"
+        (match-all {1 2 3 4 5} (list integer)
+          [((comb 2) $n) n])
+        {[|1 2|] [|1 3|] [|2 3|] [|1 4|] [|2 4|]
+         [|3 4|] [|1 5|] [|2 5|] [|3 5|] [|4 5|]}))
 
 (define $nat {1 @(map (+ $ 1) nat)})
 
@@ -79,7 +106,7 @@
     (algebraic-data-matcher
       {<leaf> <node (tree a) a (tree a)>}))) 
 
-#|
+#| above is equivalent to:
 (define $tree
   (lambda [$a]
     (matcher
@@ -122,15 +149,3 @@
         (let {[$t (foldr insert <Leaf> {4 1 2 4 3})]}
           [(member? 1 t) (member? 0 t)])
         [#t #f]))
-
-(define $comb
-  (lambda [$ns]
-    (if (empty? ns)
-        (pattern-function [$p] _)
-        (pattern-function [$p]
-          <join _ <cons p_(car ns) ((comb (cdr ns)) p)>>))))
-
-(test (assert-equal "indexed-variable matching test"
-        (match {1 2 3 4 5} (list integer)
-          {[((comb (between 1 5)) $a) [a_1 a_2 a_3 a_4 a_5]]})
-        [1 2 3 4 5]))
