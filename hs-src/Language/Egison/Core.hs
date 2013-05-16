@@ -357,6 +357,8 @@ processMState state@(MState _ _ _ []) = throwError $ strMsg "should not reach he
 processMState (MState env loops bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env (bindings ++ map (\(LoopContext binding _ _ _) -> binding) loops)
   case pattern of
+    WildCard -> return $ msingleton $ MState env loops bindings trees 
+    
     VarPat _ -> throwError $ strMsg "cannot use variable except in pattern function"
     ApplyPat func args -> do
       func <- evalExpr env' func
@@ -389,14 +391,13 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
       targets <- evalRef target >>= fromTuple
       let trees' = zipWith3 MAtom patterns targets matchers ++ trees
       return $ msingleton $ MState env loops bindings trees'
-    WildCard -> return $ msingleton $ MState env loops bindings trees 
     AndPat patterns ->
       let trees' = map (\pattern -> MAtom pattern target matcher) patterns ++ trees
       in return $ msingleton $ MState env loops bindings trees'
     OrPat patterns ->
       return $ fromList $ flip map patterns $ \pattern ->
         MState env loops bindings (MAtom pattern target matcher : trees)
-    NotPat pattern -> do 
+    NotPat pattern -> do -- TEMPORARY do not run in the pattern function
       results <- processMState (MState env loops bindings [MAtom pattern target matcher])
       case results of
         MNil -> return $ msingleton $ MState env loops bindings trees
