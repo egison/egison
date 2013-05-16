@@ -4,7 +4,7 @@
 
 ;;; Author: Satoshi Egi <egisatoshi@gmail.com>
 ;;; URL: https://github.com/egisatoshi/egison3/blob/master/elisp/egison-mode.el
-;;; Version: 0.1.3
+;;; Version: 0.1.4
 
 ;; Code goes here
 
@@ -27,8 +27,7 @@
      "\\<function\\>"
      "\\<match\\>"
      "\\<match-all\\>"
-     "\\<index-loop\\>"
-     "\\<pattern-constructor\\>"
+     "\\<pattern-function\\>"
 
      "\\<undefined\\>"
      "\\<something\\>"
