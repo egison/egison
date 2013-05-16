@@ -31,14 +31,6 @@
                      <nil>>)>
        )))
 
-(define $three-cycle
-  (pattern-function [$a]
-    <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
-          <cons <node ,h_2 <cons (& a_3 $h_3) _> _>
-                <cons <node ,h_3 <cons ,h_1 _> _>
-                      <nil>>>>
-    ))
-
 (define $hamilton-path
   (pattern-function [$a]
     (& $g
