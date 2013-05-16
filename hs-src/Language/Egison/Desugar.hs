@@ -222,6 +222,8 @@ desugarPattern (IndexedPat pattern exprs) =
   IndexedPat <$> desugarPattern pattern <*> mapM desugar exprs
 desugarPattern (ApplyPat expr patterns) =
   ApplyPat <$> desugar expr <*> mapM desugarPattern patterns 
+desugarPattern (LoopPat name expr pattern1 pattern2) =
+  LoopPat name <$> desugar expr <*> desugarPattern pattern1 <*> desugarPattern pattern2
 desugarPattern pattern = return pattern
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr

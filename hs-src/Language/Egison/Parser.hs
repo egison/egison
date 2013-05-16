@@ -90,7 +90,6 @@ parseExpr' = (try parseConstantExpr
                          <|> parsePatternFunctionExpr
                          <|> parseLetRecExpr
                          <|> parseLetExpr
-                         <|> parseIndexLoopExpr
                          <|> parseDoExpr
                          <|> parseMatchAllExpr
                          <|> parseMatchExpr
@@ -215,10 +214,6 @@ parseVarNames = return <$> parseVarName
 parseVarName :: Parser String
 parseVarName = char '$' >> ident
 
-parseIndexLoopExpr :: Parser EgisonExpr
-parseIndexLoopExpr = keywordIndexLoop >> IndexLoopExpr <$> parseVarName <*> parseVarName <*> parseVarName
-                                                       <*> parseExpr <*> parseExpr <*> parseExpr <*> parseExpr
-
 parseApplyExpr :: Parser EgisonExpr
 parseApplyExpr = (keywordApply >> ApplyExpr <$> parseExpr <*> parseExpr) 
              <|> parseApplyExpr'
@@ -282,9 +277,11 @@ parsePattern' = parseWildCard
             <|> parseNotPat
             <|> parseTuplePat
             <|> parseInductivePat
+            <|> parseContPat
             <|> parens (parseAndPat
                     <|> parseOrPat
-                    <|> parseApplyPat)
+                    <|> parseApplyPat
+                    <|> parseLoopPat)
 
 parseWildCard :: Parser EgisonPattern
 parseWildCard = reservedOp "_" >> pure WildCard
@@ -313,6 +310,9 @@ parseTuplePat = brackets $ TuplePat <$> sepEndBy parsePattern whiteSpace
 parseInductivePat :: Parser EgisonPattern
 parseInductivePat = angles $ InductivePat <$> lowerName <*> sepEndBy parsePattern whiteSpace
 
+parseContPat :: Parser EgisonPattern
+parseContPat = reservedOp "..." >> pure ContPat
+
 parseAndPat :: Parser EgisonPattern
 parseAndPat = reservedOp "&" >> AndPat <$> sepEndBy parsePattern whiteSpace
 
@@ -321,6 +321,9 @@ parseOrPat = reservedOp "|" >> OrPat <$> sepEndBy parsePattern whiteSpace
 
 parseApplyPat :: Parser EgisonPattern
 parseApplyPat = ApplyPat <$> parseExpr <*> sepEndBy parsePattern whiteSpace 
+
+parseLoopPat :: Parser EgisonPattern
+parseLoopPat = keywordLoop >> LoopPat <$> parseVarName <*> parseExpr <*> parsePattern <*> parsePattern
 
 -- Constants
 
@@ -386,7 +389,7 @@ reservedKeywords =
   , "pattern-constructor"
   , "letrec"
   , "let"
-  , "index-loop"
+  , "loop"
   , "match-all"
   , "match-lambda"
   , "match"
@@ -408,7 +411,8 @@ reservedOperators =
   , "^"
   , "!"
   , ","
-  , "@"]
+  , "@"
+  , "..."]
 
 reserved :: String -> Parser ()
 reserved = P.reserved lexer
@@ -429,7 +433,7 @@ keywordLambda               = reserved "lambda"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
-keywordIndexLoop            = reserved "index-loop"
+keywordLoop                 = reserved "loop"
 keywordMatchAll             = reserved "match-all"
 keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "match-lambda"
