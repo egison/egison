@@ -384,38 +384,6 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
               let loops' = LoopContext (name, head) tail pat pat' : loops 
               in return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
           
-    IndexedPat (PatVar name) indices -> do
-      indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
-      case lookup name bindings of
-        Just ref -> do
-          obj <- evalRef ref >>= flip updateArray indices >>= newEvaluatedThunk
-          return $ msingleton $ MState env loops (subst name obj bindings) trees
-        Nothing  -> do
-          obj <- updateArray (Value $ Array IntMap.empty) indices >>= newEvaluatedThunk
-          return $ msingleton $ MState env loops ((name, obj):bindings) trees
-       where
-        updateArray :: WHNFData -> [Int] -> EgisonM WHNFData
-        updateArray (Intermediate (IArray ary)) [index] =
-          return . Intermediate . IArray $ IntMap.insert index target ary
-        updateArray (Intermediate (IArray ary)) (index:indices) = do
-          val <- maybe (return $ Value $ Array IntMap.empty) evalRef $ IntMap.lookup index ary
-          ref <- updateArray val indices >>= newEvaluatedThunk
-          return . Intermediate . IArray $ IntMap.insert index ref ary
-        updateArray (Value (Array ary)) [index] = do
-          keys <- return $ IntMap.keys ary
-          vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
-          return . Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys vals)
-        updateArray (Value (Array ary)) (index:indices) = do
-          let val = Value $ fromMaybe (Array IntMap.empty) $ IntMap.lookup index ary
-          ref <- updateArray val indices >>= newEvaluatedThunk
-          keys <- return $ IntMap.keys ary
-          vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
-          return . Intermediate . IArray $ IntMap.insert index ref (IntMap.fromList $ zip keys vals)
-        subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
-        subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
-                                 | otherwise = (k', v'):(subst k nv xs)
-        subst _ _ [] = []
-    IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
     TuplePat patterns -> do
       matchers <- fromTuple matcher >>= mapM evalRef
       targets <- evalRef target >>= fromTuple
@@ -447,7 +415,42 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
           case pattern of
             PatVar name -> do
               return $ msingleton $ MState env loops ((name, target):bindings) trees
+            
+            IndexedPat (PatVar name) indices -> do
+              indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
+              case lookup name bindings of
+                Just ref -> do
+                  obj <- evalRef ref >>= flip updateArray indices >>= newEvaluatedThunk
+                  return $ msingleton $ MState env loops (subst name obj bindings) trees
+                Nothing  -> do
+                  obj <- updateArray (Value $ Array IntMap.empty) indices >>= newEvaluatedThunk
+                  return $ msingleton $ MState env loops ((name, obj):bindings) trees
+               where
+                updateArray :: WHNFData -> [Int] -> EgisonM WHNFData
+                updateArray (Intermediate (IArray ary)) [index] =
+                  return . Intermediate . IArray $ IntMap.insert index target ary
+                updateArray (Intermediate (IArray ary)) (index:indices) = do
+                  val <- maybe (return $ Value $ Array IntMap.empty) evalRef $ IntMap.lookup index ary
+                  ref <- updateArray val indices >>= newEvaluatedThunk
+                  return . Intermediate . IArray $ IntMap.insert index ref ary
+                updateArray (Value (Array ary)) [index] = do
+                  keys <- return $ IntMap.keys ary
+                  vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
+                  return . Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys vals)
+                updateArray (Value (Array ary)) (index:indices) = do
+                  let val = Value $ fromMaybe (Array IntMap.empty) $ IntMap.lookup index ary
+                  ref <- updateArray val indices >>= newEvaluatedThunk
+                  keys <- return $ IntMap.keys ary
+                  vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
+                  return . Intermediate . IArray $ IntMap.insert index ref (IntMap.fromList $ zip keys vals)
+                subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
+                subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
+                                         | otherwise = (k', v'):(subst k nv xs)
+                subst _ _ [] = []
+            IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
+            
             _ -> throwError $ strMsg "something can only match with a pattern variable"
+
         Value (Matcher matcher) -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
