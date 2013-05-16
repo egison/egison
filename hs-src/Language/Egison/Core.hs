@@ -369,7 +369,7 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
         _ -> throwError $ TypeMismatch "pattern constructor" func
     
     LoopPat name range pat pat' -> do
-      result <- runMaybeT $ lift (evalExpr env' range) >>= unconsCollection'
+      result <- runMaybeT $ lift (evalExpr env' range >>= newEvaluatedThunk) >>= unconsCollection
       case result of
         Nothing -> return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
         Just (head, tail) ->
@@ -570,25 +570,25 @@ isEmptyCollection ref = evalRef ref >>= isEmptyCollection'
 
 unconsCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
 unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
-
-unconsCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
-unconsCollection' (Value (Collection col)) =
-  case Sq.viewl col of
-    EmptyL -> matchFail
-    val :< vals ->
-      lift $ (,) <$> newEvaluatedThunk (Value val)
-                 <*> newEvaluatedThunk (Value $ Collection vals)
-unconsCollection' (Intermediate (ICollection ic)) =
-  case Sq.viewl ic of
-    EmptyL -> matchFail
-    (IElement ref') :< inners ->
-      lift $ (ref', ) <$> newEvaluatedThunk (Intermediate $ ICollection inners)
-    (ISubCollection ref') :< inners -> do
-      inners' <- lift $ evalRef ref' >>= expandCollection
-      let coll = Intermediate (ICollection (inners' >< inners))
-      lift $ writeThunk ref' coll
-      unconsCollection' coll
-unconsCollection' _ = matchFail
+ where
+  unconsCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
+  unconsCollection' (Value (Collection col)) =
+    case Sq.viewl col of
+      EmptyL -> matchFail
+      val :< vals ->
+        lift $ (,) <$> newEvaluatedThunk (Value val)
+                   <*> newEvaluatedThunk (Value $ Collection vals)
+  unconsCollection' (Intermediate (ICollection ic)) =
+    case Sq.viewl ic of
+      EmptyL -> matchFail
+      (IElement ref') :< inners ->
+        lift $ (ref', ) <$> newEvaluatedThunk (Intermediate $ ICollection inners)
+      (ISubCollection ref') :< inners -> do
+        inners' <- lift $ evalRef ref' >>= expandCollection
+        let coll = Intermediate (ICollection (inners' >< inners))
+        lift $ writeThunk ref coll
+        unconsCollection' coll
+  unconsCollection' _ = matchFail
 
 unsnocCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
 unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
