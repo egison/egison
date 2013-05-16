@@ -470,7 +470,7 @@ processMState (MState env loops bindings ((MNode penv state@(MState env' loops' 
             Just pattern ->
               return $ msingleton $ MState env loops bindings (MAtom pattern target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name
-        IndexedPat (VarPat name) indices -> -- cannot use multiple indices
+        IndexedPat (VarPat name) indices -> -- TEMPORARY cannot use multiple indices
           case lookup name penv of
             Just pattern -> do
               let env'' = extendEnv env' (bindings' ++ map (\(LoopContext binding _ _ _) -> binding) loops')
