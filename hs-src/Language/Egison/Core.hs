@@ -67,8 +67,8 @@ loadFile file = do
   exprs <-  liftEgisonM $ readTopExprs input
   concat <$> mapM recursiveLoad exprs
  where
-  recursiveLoad (Load file) = loadFile file
-  recursiveLoad (LoadFile file) = loadLibraryFile file
+  recursiveLoad (Load file) = loadLibraryFile file
+  recursiveLoad (LoadFile file) = loadFile file
   recursiveLoad expr = return [expr]
 
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
