@@ -28,6 +28,7 @@
      "\\<match\\>"
      "\\<match-all\\>"
      "\\<pattern-function\\>"
+     "\\<generate-array\\>"
 
      "\\<undefined\\>"
      "\\<something\\>"
@@ -125,8 +126,7 @@
         ((equal "matcher" name) 2)
         ((equal "algebraic-data-matcher" name) 2)
         ((equal "generate-array" name) 2)
-        ((equal "index-loop" name) 2)
-        ((equal "pattern-constructor" name) 2)
+        ((equal "pattern-function" name) 2)
         ))
 
 (defun egison-indent-line ()
