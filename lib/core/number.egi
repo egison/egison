@@ -59,6 +59,10 @@
        [<equal> {n}]
        [<greater> {}]})))
 
+(define $from
+  (lambda [$m]
+    {m @(from (+ m 1))}))
+
 (define $min
   (lambda [$ns]
     (match ns (list integer)
