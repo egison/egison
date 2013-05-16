@@ -12,27 +12,32 @@
     (multiset (nodeInfo a))))
 
 (define $all-paths
-  (pattern-function [$s $e $rest]
-    undefined))
+  (pattern-function [$s $e $p $rest]
+    (| <cons <node (& s p_1) <cons (& e p_2) _> _> rest>
+       <cons <node (& s p_1)  <cons (& p_2 $h_2) _> _>
+          (loop $i (from 2)
+            <cons <node ,h_(- i 1) <cons (& p_i $h_i) _> _>
+                  ...>
+            rest)>)))
 
 (define $hamilton-cycle
-  (pattern-function [$h]
+  (pattern-function [$a]
     (& $g
-       <cons <node $h_1 <cons $h_2 _> _>
-               (loop $i (between 3 (size g))
-                     <cons <node ,h_(- i 1) <cons $h_i _> _>
-                           ...>
-                     <cons <node ,h_(size g) <cons ,h_1 _> _>
-                           _>)>
+       <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
+             (loop $i (between 3 (size g))
+               <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
+                     ...>
+               <cons <node ,h_(size g) <cons ,h_1 _> _>
+                     <nil>>)>
        )))
 
 (define $hamilton-path
-  (pattern-function [$h]
+  (pattern-function [$a]
     (& $g
-       <cons <node $h_1 <cons $h_2 _> _>
+       <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
              (loop $l $i (between 3 n)
-                   <cons <node ,h_(- i 1) <cons $h_i _> _>
-                         ...>
-                   <cons <node ,h_n _ _>
-                         <nil>>)>
+               <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
+                     ...>
+               <cons <node ,h_n _ _>
+                     <nil>>)>
        )))
