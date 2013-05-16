@@ -35,9 +35,9 @@
   (pattern-function [$a]
     (& $g
        <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
-             (loop $l $i (between 3 n)
+             (loop $l $i (between 3 (size g))
                <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
                      ...>
-               <cons <node ,h_n _ _>
+               <cons <node ,h_(size g) _ _>
                      <nil>>)>
        )))
