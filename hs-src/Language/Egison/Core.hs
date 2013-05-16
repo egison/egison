@@ -369,7 +369,7 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
         _ -> throwError $ TypeMismatch "pattern constructor" func
     
     LoopPat name range pat pat' -> do
-      result <- runMaybeT $ lift (evalExpr env range) >>= unconsCollection'
+      result <- runMaybeT $ lift (evalExpr env' range) >>= unconsCollection'
       case result of
         Nothing -> return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
         Just (head, tail) ->
