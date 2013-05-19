@@ -280,7 +280,7 @@ data MatchingTree =
 
 type PatternBinding = (Var, EgisonPattern)
 
-data LoopContext = LoopContext (String, ObjectRef) ObjectRef EgisonPattern EgisonPattern
+data LoopContext = LoopContext Binding ObjectRef EgisonPattern EgisonPattern
 
 --
 -- Errors
