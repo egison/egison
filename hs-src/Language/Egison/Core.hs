@@ -412,9 +412,9 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
                 else return MNil
     LetPat bindings' pattern ->
       let extractBindings ([name], expr) =
-            makeBindings [name] . (:[]) <$> newThunk env expr
+            makeBindings [name] . (:[]) <$> newThunk env' expr
           extractBindings (names, expr) =
-            makeBindings names <$> (evalExpr env expr >>= fromTuple)
+            makeBindings names <$> (evalExpr env' expr >>= fromTuple)
       in
        liftM concat (mapM extractBindings bindings')
          >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))

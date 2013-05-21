@@ -61,6 +61,21 @@
             n]})
         [|[|1 2 3|] [|4 5 6|] [|7 8 9|]|]))
 
+(test (assert-equal "let pattern"
+        (match {1 2 3} (list integer)
+          {[(let {[$a 42]} _) a]})
+        42))
+
+(test (assert-equal "let pattern"
+        (match {1 2 3} (list integer)
+          {[<cons $a (let {[$x a]} $xs)> [x xs]]})
+        [1 { 2 3 }]))
+
+(test (assert-equal "let pattern"
+        (match {1 2 3} (list integer)
+         {[(& $a (let {[$n (size a)]} _)) [a n]]})
+        [{1 2 3} 3]))
+
 (define $twin
   (pattern-function [$pat1 $pat2]
     <cons (& pat1 $x) <cons ,x pat2>>))
