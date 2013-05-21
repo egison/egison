@@ -281,7 +281,8 @@ parsePattern' = parseWildCard
             <|> parens (parseAndPat
                     <|> parseOrPat
                     <|> parseApplyPat
-                    <|> parseLoopPat)
+                    <|> parseLoopPat
+                    <|> parseLetPat)
 
 parseWildCard :: Parser EgisonPattern
 parseWildCard = reservedOp "_" >> pure WildCard
@@ -297,6 +298,9 @@ parseValuePat = reservedOp "," >> ValuePat <$> parseExpr
 
 parsePredPat :: Parser EgisonPattern
 parsePredPat = reservedOp "?" >> PredPat <$> parseExpr
+
+parseLetPat :: Parser EgisonPattern
+parseLetPat = keywordLet >> LetPat <$> parseBindings <*> parsePattern
 
 parseCutPat :: Parser EgisonPattern
 parseCutPat = reservedOp "!" >> CutPat <$> parsePattern

@@ -410,13 +410,20 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
       result <- applyFunc func arg >>= liftError . fromBoolValue
       if result then return $ msingleton $ (MState env loops bindings trees)
                 else return MNil
+    LetPat bindings' pattern ->
+      let extractBindings ([name], expr) =
+            makeBindings [name] . (:[]) <$> newThunk env expr
+          extractBindings (names, expr) =
+            makeBindings names <$> (evalExpr env expr >>= fromTuple)
+      in
+       liftM concat (mapM extractBindings bindings')
+         >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))
     _ ->
       case matcher of
         Value Something -> 
           case pattern of
             PatVar name -> do
               return $ msingleton $ MState env loops ((name, target):bindings) trees
-            
             IndexedPat (PatVar name) indices -> do
               indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
               case lookup name bindings of
