@@ -87,6 +87,7 @@ data EgisonPattern =
   | ValuePat EgisonExpr
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
+  | LetPat [BindingExpr] EgisonPattern
   | CutPat EgisonPattern
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
