@@ -3,13 +3,15 @@ module Language.Egison
        ( module Language.Egison.Types
        , module Language.Egison.Parser
        , module Language.Egison.Primitives
-       , counter --danger
        , version
+       , counter --danger
        , loadLibraries
        , loadPrimitives
-       , runEgisonTopExpr
+       , evalEgisonExpr
        , evalEgisonTopExpr
        , evalEgisonTopExprs
+       , runEgisonTopExpr
+       , runEgisonTopExprs
        ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -26,17 +28,29 @@ import Text.Parsec.ByteString.Lazy
 import qualified Paths_egison as P
 
 import Language.Egison.Types
-import Language.Egison.Core
 import Language.Egison.Parser
 import Language.Egison.Primitives
+import Language.Egison.Core
+
+version :: Version
+version = P.version
 
 -- Unsafe
 counter :: IORef Int
 counter = unsafePerformIO (newIORef 0)
 
+readCounter :: IO Int
+readCounter = readIORef counter
 
-version :: Version
-version = P.version
+updateCounter :: Int -> IO ()
+updateCounter = writeIORef counter
+
+modifyCounter :: FreshT IO a -> IO a
+modifyCounter m = do
+  seed <- readCounter
+  (result, seed) <- runFreshT seed m 
+  updateCounter seed
+  return result  
 
 loadLibraries :: Env -> IO Env
 loadLibraries env = do
@@ -58,26 +72,21 @@ loadLibraries env = do
                 
 loadPrimitives :: Env -> IO Env
 loadPrimitives env = (++) <$> return env <*> primitiveEnv
-
-runEgisonTopExpr :: Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExpr env input = do
-  seed <- readIORef counter
-  (result, seed') <- runFreshT seed $ runEgisonM $ do 
-    expr <- liftEgisonM $ readTopExpr input
-    evalTopExpr env expr
-  writeIORef counter seed'
-  return result
+  
+evalEgisonExpr :: Env -> EgisonExpr -> IO (Either EgisonError EgisonValue)
+evalEgisonExpr env expr = modifyCounter $ runEgisonM $ evalExpr' env expr
 
 evalEgisonTopExpr :: Env -> EgisonTopExpr -> IO (Either EgisonError Env)
-evalEgisonTopExpr env expr = do
-  seed <- readIORef counter
-  (result, seed') <- runFreshT seed $ runEgisonM $ evalTopExpr env expr
-  writeIORef counter seed'
-  return result
+evalEgisonTopExpr env exprs = modifyCounter $ runEgisonM $ evalTopExpr env exprs
 
 evalEgisonTopExprs :: Env -> [EgisonTopExpr] -> IO (Either EgisonError Env)
-evalEgisonTopExprs env exprs = do
-  seed <- readIORef counter
-  (result, seed') <- runFreshT seed $ runEgisonM $ foldM evalTopExpr env exprs
-  writeIORef counter seed'
-  return result
+evalEgisonTopExprs env exprs = modifyCounter $ runEgisonM $ evalTopExprs env exprs
+
+runEgisonTopExpr :: Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExpr env input = modifyCounter $ runEgisonM $ liftEgisonM (readTopExpr input) >>= evalTopExpr env
+
+runEgisonTopExprs :: Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExprs env input = modifyCounter $ runEgisonM $ liftEgisonM (readTopExprs input) >>= evalTopExprs env
+
+
+

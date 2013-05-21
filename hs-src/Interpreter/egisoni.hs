@@ -110,7 +110,7 @@ repl env prompt = do
         Just "" ->  loop env prompt ""
         Just input' -> do
           let newInput = rest ++ input'
-          result <- liftIO $ runEgisonTopExpr env newInput
+          result <- liftIO $ runEgisonTopExprs env newInput
           case result of
             Left err | show err =~ "unexpected end of input" -> do
               loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
