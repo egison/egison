@@ -353,8 +353,31 @@ processMStates streams = do
   processMStates' (MCons state states) = (Nothing, [processMState state, states])
 
 processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
-processMState state@(MState _ _ _ []) = throwError $ strMsg "should not reach here"
-processMState (MState env loops bindings ((MAtom pattern target matcher):trees)) = do
+processMState state =
+  if isNotPat state
+    then do
+      let (state1, state2) = splitMState state
+      result <- processMStates [msingleton state1]
+      case result of
+        MNil -> return $ msingleton state2
+        _ -> return MNil
+    else processMState' state
+ where
+  isNotPat :: MatchingState -> Bool
+  isNotPat (MState _ _ _ ((MAtom (NotPat _) _ _) : _)) = True
+  isNotPat (MState _ _ _ ((MNode _ state) : _)) = isNotPat state
+  isNotPat _ = False
+
+  splitMState :: MatchingState -> (MatchingState, MatchingState)
+  splitMState (MState env loops bindings ((MAtom (NotPat pattern) target matcher) : trees)) =
+    (MState env loops bindings [MAtom pattern target matcher], MState env loops bindings trees)
+  splitMState (MState env loops bindings ((MNode penv state) : trees)) =
+    let (state1, state2) = splitMState state
+    in (MState env loops bindings [MNode penv state1], MState env loops bindings (MNode penv state2 : trees)) 
+
+processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
+processMState' state@(MState _ _ _ []) = throwError $ strMsg "should not reach here"
+processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env (bindings ++ map (\(LoopContext binding _ _ _) -> binding) loops)
   case pattern of
     WildCard -> return $ msingleton $ MState env loops bindings trees 
@@ -397,11 +420,7 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
     OrPat patterns ->
       return $ fromList $ flip map patterns $ \pattern ->
         MState env loops bindings (MAtom pattern target matcher : trees)
-    NotPat pattern -> do -- TEMPORARY do not run in the pattern function
-      results <- processMState (MState env loops bindings [MAtom pattern target matcher])
-      case results of
-        MNil -> return $ msingleton $ MState env loops bindings trees
-        _    -> return $ MNil
+    NotPat pattern -> throwError $ strMsg "should not reach here (cut pattern)"
     CutPat pattern -> -- TEMPORARY ignoring cut patterns
       return $ msingleton (MState env loops bindings ((MAtom pattern target matcher):trees))
     PredPat pred -> do
@@ -466,9 +485,9 @@ processMState (MState env loops bindings ((MAtom pattern target matcher):trees))
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env loops bindings trees'
         _ -> throwError $ TypeMismatch "matcher" matcher
-processMState (MState env loops bindings ((MNode penv (MState _ _ _ [])):trees)) =
+processMState' (MState env loops bindings ((MNode penv (MState _ _ _ [])):trees)) =
   return $ msingleton $ MState env loops bindings trees
-processMState (MState env loops bindings ((MNode penv state@(MState env' loops' bindings' (tree:trees')):trees))) = do
+processMState' (MState env loops bindings ((MNode penv state@(MState env' loops' bindings' (tree:trees')):trees))) = do
   case tree of
     MAtom pattern target matcher -> do
       case pattern of
@@ -485,8 +504,8 @@ processMState (MState env loops bindings ((MNode penv state@(MState env' loops' 
               let pattern' = IndexedPat pattern $ map IntegerExpr indices
               return $ msingleton $ MState env loops bindings (MAtom pattern' target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name
-        _ -> processMState state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
-    _ -> processMState state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
+        _ -> processMState' state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
+    _ -> processMState' state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
 
 inductiveMatch :: Env -> EgisonPattern -> ObjectRef -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [WHNFData])
