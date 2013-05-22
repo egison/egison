@@ -41,3 +41,15 @@
                <cons <node ,h_(size g) _ _>
                      <nil>>)>
        )))
+
+(define $hamilton-path2
+  (pattern-function [$a]
+    (& $g
+       (let {[$n (size g)]}
+         <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
+               (loop $i (between 3 n)
+                 <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
+                       ...>
+                 <cons <node ,h_n _ _>
+                       <nil>>)>)
+       )))
