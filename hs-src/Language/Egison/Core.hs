@@ -386,9 +386,9 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     ApplyPat func args -> do
       func <- evalExpr env' func
       case func of
-        Value (PatternFunc env names expr) ->
+        Value (PatternFunc env'' names expr) ->
           let penv = zip names args
-          in return $ msingleton $ MState env loops bindings (MNode penv (MState env [] [] [MAtom expr target matcher]) : trees)
+          in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
     
     LoopPat name range pat pat' -> do
