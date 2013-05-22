@@ -34,6 +34,16 @@
           {[(|) #f]
            [_ #t]})))
 
+(test (assert "not pattern"
+        (match 1 integer
+          {[^,1 #f]
+           [^,2 #t]})))
+
+(test (assert-equal "not pattern"
+        (match-all {1 2 2 3 3 3} (multiset integer)
+          [<cons $n ^<cons ,n _>> n])
+        {1}))
+
 (test (assert "predicate pattern"
         (match {1 2 3} (list integer)
           {[<cons ?(eq? 1 $) _> #t]})))
