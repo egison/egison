@@ -403,7 +403,7 @@ reservedKeywords =
   , "if"
   , "apply"
   , "lambda"
-  , "pattern-constructor"
+  , "pattern-function"
   , "letrec"
   , "let"
   , "loop"
