@@ -294,7 +294,7 @@ pattern' = wildCard
             <|> parens (andPat
                     <|> orPat
                     <|> applyPat
-                    <|> looppat
+                    <|> loopPat
                     <|> letPat)
 
 wildCard :: Parser EgisonPattern
@@ -339,8 +339,8 @@ orPat = reservedOp "|" >> OrPat <$> sepEndBy pattern whiteSpace
 applyPat :: Parser EgisonPattern
 applyPat = ApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
 
-looppat :: Parser EgisonPattern
-looppat = keywordLoop >> LoopPat <$> varName <*> expr <*> pattern <*> pattern
+loopPat :: Parser EgisonPattern
+loopPat = keywordLoop >> LoopPat <$> varName <*> expr <*> pattern <*> option (NotPat WildCard) pattern
 
 -- Constants
 
