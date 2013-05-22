@@ -36,13 +36,22 @@ import Paths_egison (getDataFileName)
 
 evalTopExprs :: Env -> [EgisonTopExpr] -> EgisonM Env
 evalTopExprs env exprs = do
-  let (bindings, rest) = foldr collectDefs ([], []) exprs
+  (bindings, rest) <- collectDefs exprs [] []
   env <- recursiveBind env bindings
   forM_ rest $ evalTopExpr env
   return env
  where
-  collectDefs (Define name expr) (bindings, rest) = ((name, expr) : bindings, rest)
-  collectDefs expr (bindings, rest) = (bindings, expr : rest)  
+  collectDefs (expr:exprs) bindings rest =
+    case expr of
+      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
+      Load file -> do
+        exprs' <- loadLibraryFile file
+        collectDefs (exprs' ++ exprs) bindings rest
+      LoadFile file -> do
+        exprs' <- loadFile file
+        collectDefs (exprs' ++ exprs) bindings rest
+      _ -> collectDefs exprs bindings (expr : rest)
+  collectDefs [] bindings rest = return (bindings, rest)
 
 evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
 evalTopExpr env (Define name expr) = recursiveBind env [(name, expr)]
@@ -55,7 +64,7 @@ evalTopExpr env (Execute argv) = do
   io <- applyFunc main $ Value $ Collection $ Sq.fromList $ map String argv
   case io of
     Value (IOFunc m) -> m >> return env
-    _ -> throwError $ TypeMismatch "io" main
+    _ -> throwError $ TypeMismatch "io" io
 evalTopExpr env (Load file) = loadLibraryFile file >>= evalTopExprs env
 evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
 
