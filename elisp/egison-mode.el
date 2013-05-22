@@ -24,7 +24,7 @@
      "\\<matcher\\>"
      "\\<algebraic-data-matcher\\>"
      "\\<loop\\>"
-     "\\<function\\>"
+     "\\<match-lambda\\>"
      "\\<match\\>"
      "\\<match-all\\>"
      "\\<pattern-function\\>"
@@ -33,7 +33,7 @@
      "\\<undefined\\>"
      "\\<something\\>"
      
-     "\\\."
+     "\\\.\\\.\\\."
      "\\\,"
      "\\\!"
      "`"
@@ -116,7 +116,7 @@
 (defun keyword-indent-point (name)
   (cond ((equal "define" name) 2)
         ((equal "lambda" name) 2)
-        ((equal "function" name) 2)
+        ((equal "match-lambda" name) 2)
         ((equal "macro" name) 2)
         ((equal "let" name) 2)
         ((equal "letrec" name) 2)
