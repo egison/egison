@@ -51,7 +51,7 @@ evalTopExprs env exprs = do
         exprs' <- loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
       _ -> collectDefs exprs bindings (expr : rest)
-  collectDefs [] bindings rest = return (bindings, rest)
+  collectDefs [] bindings rest = return (bindings, reverse rest)
 
 evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
 evalTopExpr env (Define name expr) = recursiveBind env [(name, expr)]
