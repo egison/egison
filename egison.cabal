@@ -46,13 +46,7 @@ Benchmark benchmark
   Type: exitcode-stdio-1.0
   Hs-Source-Dirs:  benchmark
   Main-Is: Benchmark.hs
-  Build-Depends: egison, base >= 4.0 && < 5, deepseq, criterion >= 0.5, transformers, mtl, parsec >= 3.0
-
-Benchmark benchmark-collection
-  Type: exitcode-stdio-1.0
-  Hs-Source-Dirs:  benchmark
-  Main-Is: Benchmark-Collection.hs
-  Build-Depends: egison, base >= 4.0 && < 5, deepseq, criterion >= 0.5, transformers, mtl, parsec >= 3.0
+  Build-Depends: egison, base >= 4.0 && < 5, deepseq, criterion >= 0.5, transformers, mtl
 
 Executable egison
   Main-is:             egisoni.hs
