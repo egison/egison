@@ -67,21 +67,6 @@ evalTopExpr env (Execute argv) = do
 evalTopExpr env (Load file) = loadLibraryFile file >>= evalTopExprs env
 evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
 
-loadFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadFile file = do
-  doesExist <- liftIO $ doesFileExist file
-  unless doesExist $ throwError $ strMsg ("file does not exist: " ++ file)
-  input <- liftIO $ readFile file
-  exprs <-  liftEgisonM $ readTopExprs input
-  concat <$> mapM recursiveLoad exprs
- where
-  recursiveLoad (Load file) = loadLibraryFile file
-  recursiveLoad (LoadFile file) = loadFile file
-  recursiveLoad expr = return [expr]
-
-loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadLibraryFile file = liftIO (getDataFileName file) >>= loadFile
-
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return . Value $ String s 

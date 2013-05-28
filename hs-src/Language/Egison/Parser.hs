@@ -2,22 +2,28 @@ module Language.Egison.Parser
        ( readTopExprs
        , readTopExpr
        , readExprs
-       , readExpr 
+       , readExpr
+       , loadFile
+       , loadLibraryFile
        , parseTopExprs
        , parseTopExpr
        , parseExprs
        , parseExpr ) where
 
-import Control.Monad.Identity
-import Control.Monad.Error
-import Control.Monad.State
+import Prelude hiding (mapM)
+import Control.Monad.Identity hiding (mapM)
+import Control.Monad.Error hiding (mapM)
+import Control.Monad.State hiding (mapM)
 import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
+
+import System.Directory (doesFileExist)
 
 import qualified Data.Sequence as Sq
 import Data.Either
 import Data.Set (Set)
 import Data.Char (isLower, isUpper)
 import qualified Data.Set as Set
+import Data.Traversable (mapM)
 
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
@@ -29,6 +35,7 @@ import qualified Text.Parsec.Token as P
 
 import Language.Egison.Types
 import Language.Egison.Desugar
+import Paths_egison (getDataFileName)
   
 doParse :: Parser a -> String -> Either EgisonError a
 doParse p input = either (throwError . fromParsecError) return $ parse p "egison" $ B.pack input
@@ -36,17 +43,32 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
     fromParsecError :: ParseError -> EgisonError
     fromParsecError = Parser . show
 
-readTopExprs :: String -> Fresh (Either EgisonError [EgisonTopExpr])
-readTopExprs = runDesugarM . either throwError (mapM desugarTopExpr) . parseTopExprs
+readTopExprs :: String -> EgisonM [EgisonTopExpr]
+readTopExprs = liftEgisonM . runDesugarM . either throwError (mapM desugarTopExpr) . parseTopExprs
 
-readTopExpr :: String -> Fresh (Either EgisonError EgisonTopExpr)
-readTopExpr = runDesugarM . either throwError desugarTopExpr . parseTopExpr
+readTopExpr :: String -> EgisonM EgisonTopExpr
+readTopExpr = liftEgisonM . runDesugarM . either throwError desugarTopExpr . parseTopExpr
 
-readExprs :: String -> Fresh (Either EgisonError [EgisonExpr])
-readExprs = runDesugarM . either throwError (mapM desugar) . parseExprs
+readExprs :: String -> EgisonM [EgisonExpr]
+readExprs = liftEgisonM . runDesugarM . either throwError (mapM desugar) . parseExprs
 
-readExpr :: String -> Fresh (Either EgisonError EgisonExpr)
-readExpr = runDesugarM . either throwError desugar . parseExpr
+readExpr :: String -> EgisonM EgisonExpr
+readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
+
+loadFile :: FilePath -> EgisonM [EgisonTopExpr]
+loadFile file = do
+  doesExist <- liftIO $ doesFileExist file
+  unless doesExist $ throwError $ strMsg ("file does not exist: " ++ file)
+  input <- liftIO $ readFile file
+  exprs <- readTopExprs input
+  concat <$> mapM  recursiveLoad exprs
+ where
+  recursiveLoad (Load file) = loadLibraryFile file
+  recursiveLoad (LoadFile file) = loadFile file
+  recursiveLoad expr = return [expr]
+
+loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
+loadLibraryFile file = liftIO (getDataFileName file) >>= loadFile
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ whiteSpace >> endBy topExpr whiteSpace
