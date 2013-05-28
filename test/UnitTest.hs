@@ -19,21 +19,21 @@ main = do
   defaultMain $ hUnitTestToTests $ test $ map runTestCase testCases
 
 runTestCase :: FilePath -> Test
-runTestCase file = TestLabel file . TestCase $ do 
+runTestCase file = TestLabel file . TestCase $ do
   env <- primitiveEnv >>= loadLibraries
-  seed <- readIORef counter
-  (result, seed') <- runFreshT seed $ runEgisonM $ loadFile file >>= evalTopExprs' env
-  writeIORef counter seed'
-  assertString $ either show (const "") result
-
-evalTopExprs' :: Env -> [EgisonTopExpr] -> EgisonM ()
-evalTopExprs' env exprs = do
-  let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
-  env <- recursiveBind env bindings
-  forM_ tests $ evalExpr' env
- where
-  collectDefsAndTests (Define name expr) (bindings, tests) =
-    ((name, expr) : bindings, tests)
-  collectDefsAndTests (Test expr) (bindings, tests) =
-    (bindings, expr : tests)
-  collectDefsAndTests _ r = r
+  assertEgisonM $ do
+    exprs <- loadFile file
+    let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
+    env' <- recursiveBind env bindings
+    forM_ tests $ evalExpr' env'
+      where
+        assertEgisonM :: EgisonM a -> Assertion
+        assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")
+    
+        collectDefsAndTests (Define name expr) (bindings, tests) =
+          ((name, expr) : bindings, tests)
+        collectDefsAndTests (Test expr) (bindings, tests) =
+          (bindings, expr : tests)
+        collectDefsAndTests _ r = r
+  
+ 

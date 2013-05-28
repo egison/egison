@@ -5,6 +5,7 @@ module Language.Egison
        , module Language.Egison.Primitives
        , version
        , counter --danger
+       , fromEgisonM
        , loadLibraries
        , loadPrimitives
        , loadEgisonFile
@@ -66,7 +67,10 @@ loadLibraries env = do
                 , "lib/core/collection.egi"
                 , "lib/core/number.egi"
                 , "lib/core/pattern.egi" ]
-                
+
+fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
+fromEgisonM = modifyCounter . runEgisonM
+
 loadPrimitives :: Env -> IO Env
 loadPrimitives env = (++) <$> return env <*> primitiveEnv
   
