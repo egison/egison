@@ -18,8 +18,6 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
 import System.IO
-import Text.Parsec (ParseError)
-
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 
@@ -288,18 +286,18 @@ data LoopContext = LoopContext Binding ObjectRef EgisonPattern EgisonPattern
 --
 
 data EgisonError =
-    Parser ParseError
-  | UnboundVariable Var
+    UnboundVariable Var
   | TypeMismatch String WHNFData
   | ArgumentsNum Int Int
   | NotImplemented String
   | Assertion String
   | Match String
+  | Parser String
   | Desugar String
   | Default String
     
 instance Show EgisonError where
-  show (Parser error) = "Parse error at: " ++ show error
+  show (Parser error) = "Parse error at: " ++ error
   show (UnboundVariable var) = "Unbound variable: " ++ var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found

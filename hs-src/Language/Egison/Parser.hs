@@ -31,7 +31,10 @@ import Language.Egison.Types
 import Language.Egison.Desugar
   
 doParse :: Parser a -> String -> Either EgisonError a
-doParse p input = either (throwError . Parser) return $ parse p "egison" $ B.pack input
+doParse p input = either (throwError . fromParsecError) return $ parse p "egison" $ B.pack input
+  where
+    fromParsecError :: ParseError -> EgisonError
+    fromParsecError = Parser . show
 
 readTopExprs :: String -> Fresh (Either EgisonError [EgisonTopExpr])
 readTopExprs = runDesugarM . either throwError (mapM desugarTopExpr) . parseTopExprs

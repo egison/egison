@@ -22,7 +22,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 
-import Text.Parsec.ByteString.Lazy (parseFromFile)
 import System.Directory (doesFileExist)
 
 import Language.Egison.Types

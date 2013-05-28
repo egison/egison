@@ -20,11 +20,6 @@ import Control.Monad.Error
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef
 import Data.Version
-import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Lazy.Char8 ()
-import qualified Data.ByteString.Lazy.Char8 as B
-import Text.Parsec
-import Text.Parsec.ByteString.Lazy
 import qualified Paths_egison as P
 
 import Language.Egison.Types
