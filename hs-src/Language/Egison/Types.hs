@@ -7,9 +7,12 @@ import Prelude hiding (foldr)
 import Control.Applicative
 import Control.Monad.Error
 import Control.Monad.State
+import Control.Monad.Reader (ReaderT)
+import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 
+import Data.Monoid (Monoid)
 import Data.Foldable (foldr, toList)
 import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
@@ -338,7 +341,19 @@ instance (MonadError e m) => MonadError e (FreshT m) where
 instance (MonadState s m) => MonadState s (FreshT m) where
   get = lift $ get
   put s = lift $ put s
-  
+
+instance (MonadFresh m) => MonadFresh (StateT s m) where
+  fresh = lift $ fresh
+
+instance (MonadFresh m, Error e) => MonadFresh (ErrorT e m) where
+  fresh = lift $ fresh
+
+instance (MonadFresh m, Monoid e) => MonadFresh (ReaderT e m) where
+  fresh = lift $ fresh
+
+instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
+  fresh = lift $ fresh
+
 instance MonadIO (FreshT IO) where
   liftIO = lift
 
@@ -350,7 +365,7 @@ runFresh seed m = runIdentity $ flip runStateT seed $ unFreshT m
 
 newtype EgisonM a = EgisonM {
     unEgisonM :: ErrorT EgisonError (FreshT IO) a
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
+  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
 
 runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
 runEgisonM = runErrorT . unEgisonM

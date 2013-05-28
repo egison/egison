@@ -16,9 +16,6 @@ type Subst = [(String, EgisonExpr)]
 newtype DesugarM a = DesugarM { unDesugarM :: ReaderT Subst (ErrorT EgisonError Fresh) a }
   deriving (Functor, Applicative, Monad, MonadError EgisonError, MonadFresh, MonadReader Subst)
 
-instance MonadFresh (ReaderT Subst (ErrorT EgisonError Fresh)) where
-  fresh = lift $ lift $ fresh
-
 runDesugarM :: DesugarM a -> Fresh (Either EgisonError a)
 runDesugarM = runErrorT . flip runReaderT [] . unDesugarM
 
