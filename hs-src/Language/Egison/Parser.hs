@@ -87,17 +87,16 @@ parseExpr = doParse $ whiteSpace >> expr
 --
 
 topExpr :: Parser EgisonTopExpr
-topExpr = topExpr' 
-          <|> (Test <$> expr) 
+topExpr = (try $ Test <$> expr)
+          <|> topExpr' 
           <?> "top-level expression"
 
 topExpr' :: Parser EgisonTopExpr
-topExpr' = (try $ parens $ defineExpr
-                  <|> testExpr
-                  <|> executeExpr
-                  <|> loadFileExpr
-                  <|> loadExpr)
-                  
+topExpr' = parens $ defineExpr
+                <|> testExpr
+                <|> executeExpr
+                <|> loadFileExpr
+                <|> loadExpr
 
 defineExpr :: Parser EgisonTopExpr
 defineExpr = keywordDefine >> Define <$> varName <*> expr
