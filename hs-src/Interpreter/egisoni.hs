@@ -60,7 +60,7 @@ options = [
   Option ['p'] ["prompt"]
     (ReqArg (\prompt opts -> opts {optPrompt = prompt})
             "String")
-    "output file to write"
+    "prompt string"
   ]
 
 printHelp :: IO ()
@@ -111,6 +111,15 @@ repl env prompt = do
           case result of
             Left err | show err =~ "unexpected end of input" -> do
               loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
+            Left err | show err =~ "expecting (top-level|\"define\")" -> do
+              result <- liftIO $ fromEgisonM (readExpr newInput) >>= either (return . Left) (evalEgisonExpr env)
+              case result of
+                Left err -> do
+                  liftIO $ putStrLn $ show err
+                  loop env prompt ""
+                Right val -> do
+                  liftIO $ putStrLn $ show val
+                  loop env prompt ""
             Left err -> do
               liftIO $ putStrLn $ show err
               loop env prompt ""
