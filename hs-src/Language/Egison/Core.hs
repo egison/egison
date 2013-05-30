@@ -373,8 +373,6 @@ processMState' state@(MState _ _ _ []) = throwError $ strMsg "should not reach h
 processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnv env (bindings ++ map (\(LoopContext binding _ _ _) -> binding) loops)
   case pattern of
-    WildCard -> return $ msingleton $ MState env loops bindings trees 
-    
     VarPat _ -> throwError $ strMsg "cannot use variable except in pattern function"
     ApplyPat func args -> do
       func <- evalExpr env' func
@@ -434,8 +432,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       case matcher of
         Value Something -> 
           case pattern of
-            PatVar name -> do
-              return $ msingleton $ MState env loops ((name, target):bindings) trees
+            WildCard -> return $ msingleton $ MState env loops bindings trees 
+            PatVar name -> return $ msingleton $ MState env loops ((name, target):bindings) trees
             IndexedPat (PatVar name) indices -> do
               indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
               case lookup name bindings of
