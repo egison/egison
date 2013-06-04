@@ -4,6 +4,8 @@ import Control.Applicative (Applicative)
 import Control.Applicative ((<$>), (<*>), (<*), (*>), pure)
 import qualified Data.Sequence as Sq
 import Data.Sequence (ViewL(..), (<|))
+import qualified Data.Set as S
+import Data.Set (Set)
 import Data.Char (toUpper)
 import Control.Monad.Error
 import Control.Monad.State
@@ -190,7 +192,6 @@ desugarPattern (PredPat expr) = PredPat <$> desugar expr
 desugarPattern (CutPat pattern) = CutPat <$> desugarPattern pattern
 desugarPattern (NotPat pattern) = NotPat <$> desugarPattern pattern
 desugarPattern (AndPat patterns) = AndPat <$> mapM desugarPattern patterns
-desugarPattern (OrPat patterns)  = OrPat <$> mapM desugarPattern patterns
 desugarPattern (TuplePat patterns)  = TuplePat <$> mapM desugarPattern patterns
 desugarPattern (InductivePat name patterns) =
   InductivePat name <$> mapM desugarPattern patterns
@@ -202,7 +203,16 @@ desugarPattern (LoopPat name expr pattern1 pattern2) =
   LoopPat name <$> desugar expr <*> desugarPattern pattern1 <*> desugarPattern pattern2
 desugarPattern (LetPat binds pattern) = do
   LetPat <$> desugarBindings binds <*> desugarPattern pattern
-
+desugarPattern (OrPat patterns)  = 
+  LetPat (map makeBinding $ S.elems $ collectNames patterns) . OrPat <$> mapM desugarPattern patterns
+ where
+   collectNames :: [EgisonPattern] -> Set String
+   collectNames ((IndexedPat (PatVar name) _):xs) = S.singleton name `S.union` collectNames xs
+   collectNames (_:xs)                            = collectNames xs
+   collectNames []                                = S.empty
+   
+   makeBinding :: String -> BindingExpr
+   makeBinding name = ([name], ArrayExpr [])
 desugarPattern pattern = return pattern
 
 
