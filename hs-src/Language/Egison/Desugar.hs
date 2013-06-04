@@ -200,7 +200,11 @@ desugarPattern (ApplyPat expr patterns) =
   ApplyPat <$> desugar expr <*> mapM desugarPattern patterns 
 desugarPattern (LoopPat name expr pattern1 pattern2) =
   LoopPat name <$> desugar expr <*> desugarPattern pattern1 <*> desugarPattern pattern2
+desugarPattern (LetPat binds pattern) = do
+  LetPat <$> desugarBindings binds <*> desugarPattern pattern
+
 desugarPattern pattern = return pattern
+
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
 desugarBinding (name, expr) = do
