@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Language.Egison.Parser 
        ( readTopExprs
        , readTopExpr
@@ -237,7 +238,13 @@ letExpr :: Parser EgisonExpr
 letExpr = keywordLet >> LetExpr <$> bindings <*> expr
 
 doExpr :: Parser EgisonExpr
-doExpr = keywordDo >> DoExpr <$> bindings <*> expr
+doExpr = keywordDo >> DoExpr <$> statements <*> expr
+
+statements :: Parser [BindingExpr]
+statements = braces $ sepEndBy statement whiteSpace
+
+statement :: Parser BindingExpr
+statement = try binding <|> brackets (([],) <$> expr)
 
 bindings :: Parser [BindingExpr]
 bindings = braces $ sepEndBy binding whiteSpace

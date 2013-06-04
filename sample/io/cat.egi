@@ -3,12 +3,12 @@
     (match argv (list string)
       {[<nil> (letrec {[$iter
                         (do {[$eof (eof?)]
-                             [[] (unless eof
-                                   (do {[$line (read-line)]
-                                        [[] (write-string line)]
-                                        [[] (write-char '\n')]
-                                        [[] iter]}
-                                     []))]}
+                             [(unless eof
+                                (do {[$line (read-line)]
+                                     [(write-string line)]
+                                     [(write-char '\n')]
+                                     [iter]}
+                                  []))]}
                           [])]}
                 iter)]
        [_ (cat-files argv)]})))
@@ -18,18 +18,18 @@
     {[<nil> nop]
      [<cons $file $files>
       (do {[$port (open-input-file file)]
-           [[] (letrec {[$iter
-                        (do {[$eof (eof-port? port)]
-                             [[] (unless eof
-                                   (do {[$line (read-line-from-port port)]
-                                        [[] (write-string line)]
-                                        [[] (write-char '\n')]
-                                        [[] iter]}
-                                     []))]}
-                          [])]}
-                 iter)]
-           [[] (close-input-port port)]
-           [[] (cat-files files)]}
+           [(letrec {[$iter
+                     (do {[$eof (eof-port? port)]
+                          [(unless eof
+                             (do {[$line (read-line-from-port port)]
+                                  [(write-string line)]
+                                  [(write-char '\n')]
+                                  [iter]}
+                               []))]}
+                       [])]}
+              iter)]
+           [(close-input-port port)]
+           [(cat-files files)]}
         [])]}))
 
 (define $nop
