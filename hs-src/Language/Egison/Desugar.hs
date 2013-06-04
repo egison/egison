@@ -207,9 +207,20 @@ desugarPattern (OrPat patterns)  =
   LetPat (map makeBinding $ S.elems $ collectNames patterns) . OrPat <$> mapM desugarPattern patterns
  where
    collectNames :: [EgisonPattern] -> Set String
-   collectNames ((IndexedPat (PatVar name) _):xs) = S.singleton name `S.union` collectNames xs
-   collectNames (_:xs)                            = collectNames xs
-   collectNames []                                = S.empty
+   collectNames (x:xs) = collectName x `S.union` collectNames xs
+   collectNames []     = S.empty
+
+   collectName :: EgisonPattern -> Set String
+   collectName (CutPat pattern) = collectName pattern 
+   collectName (NotPat pattern) = collectName pattern
+   collectName (AndPat patterns) = S.unions $ map collectName patterns
+   collectName (TuplePat patterns) = S.unions $ map collectName patterns
+   collectName (InductivePat _ patterns) = S.unions $ map collectName patterns
+   collectName (ApplyPat _ patterns) = S.unions $ map collectName patterns
+   collectName (LoopPat _ _ pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
+   collectName (LetPat _ pattern) = collectName pattern
+   collectName (IndexedPat (PatVar name) _) = S.singleton name
+   collectName _ = S.empty
    
    makeBinding :: String -> BindingExpr
    makeBinding name = ([name], ArrayExpr [])
