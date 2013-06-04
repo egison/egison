@@ -194,7 +194,8 @@ evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (size:[])) expr) =
   generateArray env name size expr
 evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (size:ys)) expr) = 
   generateArray env name size (GenerateArrayExpr xs (TupleExpr ys) expr)
-evalExpr _ (GenerateArrayExpr _ _ _) = throwError $ strMsg "invalid generate-array expression"
+evalExpr env (GenerateArrayExpr names size expr) = 
+  evalExpr env (GenerateArrayExpr names (TupleExpr [size]) expr)
 
 evalExpr env (ArraySizeExpr expr) = 
   evalExpr env expr >>= arraySize
