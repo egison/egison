@@ -187,44 +187,47 @@ desugar (VarExpr name) = do
 desugar expr = return expr
 
 desugarPattern :: EgisonPattern -> DesugarM EgisonPattern
-desugarPattern (ValuePat expr) = ValuePat <$> desugar expr
-desugarPattern (PredPat expr) = PredPat <$> desugar expr
-desugarPattern (CutPat pattern) = CutPat <$> desugarPattern pattern
-desugarPattern (NotPat pattern) = NotPat <$> desugarPattern pattern
-desugarPattern (AndPat patterns) = AndPat <$> mapM desugarPattern patterns
-desugarPattern (TuplePat patterns)  = TuplePat <$> mapM desugarPattern patterns
-desugarPattern (InductivePat name patterns) =
-  InductivePat name <$> mapM desugarPattern patterns
-desugarPattern (IndexedPat pattern exprs) =
-  IndexedPat <$> desugarPattern pattern <*> mapM desugar exprs
-desugarPattern (ApplyPat expr patterns) =
-  ApplyPat <$> desugar expr <*> mapM desugarPattern patterns 
-desugarPattern (LoopPat name expr pattern1 pattern2) =
-  LoopPat name <$> desugar expr <*> desugarPattern pattern1 <*> desugarPattern pattern2
-desugarPattern (LetPat binds pattern) = do
-  LetPat <$> desugarBindings binds <*> desugarPattern pattern
-desugarPattern (OrPat patterns)  = 
-  LetPat (map makeBinding $ S.elems $ collectNames patterns) . OrPat <$> mapM desugarPattern patterns
+desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern) <$> desugarPattern' pattern 
  where
    collectNames :: [EgisonPattern] -> Set String
-   collectNames (x:xs) = collectName x `S.union` collectNames xs
-   collectNames []     = S.empty
+   collectNames patterns = S.unions $ map collectName patterns
 
    collectName :: EgisonPattern -> Set String
    collectName (CutPat pattern) = collectName pattern 
    collectName (NotPat pattern) = collectName pattern
-   collectName (AndPat patterns) = S.unions $ map collectName patterns
-   collectName (TuplePat patterns) = S.unions $ map collectName patterns
-   collectName (InductivePat _ patterns) = S.unions $ map collectName patterns
-   collectName (ApplyPat _ patterns) = S.unions $ map collectName patterns
+   collectName (AndPat patterns) = collectNames patterns
+   collectName (TuplePat patterns) = collectNames patterns
+   collectName (InductivePat _ patterns) = collectNames patterns
+   collectName (ApplyPat _ patterns) = collectNames patterns
    collectName (LoopPat _ _ pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
    collectName (LetPat _ pattern) = collectName pattern
    collectName (IndexedPat (PatVar name) _) = S.singleton name
+   collectName (OrPat patterns) = collectNames patterns
    collectName _ = S.empty
    
    makeBinding :: String -> BindingExpr
    makeBinding name = ([name], ArrayExpr [])
-desugarPattern pattern = return pattern
+
+desugarPattern' :: EgisonPattern -> DesugarM EgisonPattern
+desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
+desugarPattern' (PredPat expr) = PredPat <$> desugar expr
+desugarPattern' (CutPat pattern) = CutPat <$> desugarPattern' pattern
+desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
+desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
+desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
+desugarPattern' (InductivePat name patterns) =
+  InductivePat name <$> mapM desugarPattern' patterns
+desugarPattern' (IndexedPat pattern exprs) =
+  IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs
+desugarPattern' (ApplyPat expr patterns) =
+  ApplyPat <$> desugar expr <*> mapM desugarPattern' patterns 
+desugarPattern' (LoopPat name expr pattern1 pattern2) =
+  LoopPat name <$> desugar expr <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
+desugarPattern' (LetPat binds pattern) = do
+  LetPat <$> desugarBindings binds <*> desugarPattern' pattern
+desugarPattern' (OrPat patterns)  = 
+  OrPat <$> mapM desugarPattern' patterns
+desugarPattern' pattern = return pattern
 
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
