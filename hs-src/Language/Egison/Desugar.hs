@@ -56,7 +56,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         where
           genClauses :: [(String, [EgisonExpr])] -> DesugarM [MatchClause]
           genClauses patterns = (++) <$> mapM genClause patterns
-                                     <*> pure [(WildCard, matchingFailure)]
+                                     <*> pure [((TuplePat [WildCard, WildCard]), matchingFailure)]
           
           genClause :: (String, [EgisonExpr]) -> DesugarM MatchClause
           genClause pattern = do
