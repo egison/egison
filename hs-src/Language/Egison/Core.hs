@@ -462,6 +462,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                   keys <- return $ IntMap.keys ary
                   vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
                   return . Intermediate . IArray $ IntMap.insert index ref (IntMap.fromList $ zip keys vals)
+                updateArray _ _ = do
+                  throwError $ strMsg "expected array value"
                 subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
                                          | otherwise = (k', v'):(subst k nv xs)
