@@ -121,7 +121,7 @@ expr' = (try constantExpr
              <|> try varExpr
              <|> inductiveDataExpr
              <|> try arrayExpr
-             <|> tupleExpr
+             <|> try tupleExpr
              <|> collectionExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
