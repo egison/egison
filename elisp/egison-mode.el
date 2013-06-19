@@ -14,21 +14,27 @@
      "\\<define\\>"
      "\\<test\\>"
      "\\<execute\\>"
-     
+     "\\<load\\>"
+     "\\<load-file\\>"
+
      "\\<lambda\\>"
-     "\\<macro\\>"
-     "\\<do\\>"
-     "\\<if\\>"
      "\\<let\\>"
      "\\<letrec\\>"
-     "\\<matcher\\>"
-     "\\<algebraic-data-matcher\\>"
+     "\\<if\\>"
+     "\\<apply\\>"
+     "\\<generate-array\\>"
+     "\\<array-size\\>"
+     "\\<array-ref\\>"
+
      "\\<loop\\>"
-     "\\<match-lambda\\>"
      "\\<match\\>"
      "\\<match-all\\>"
+     "\\<matcher\\>"
+     "\\<algebraic-data-matcher\\>"
+     "\\<match-lambda\\>"
      "\\<pattern-function\\>"
-     "\\<generate-array\\>"
+
+     "\\<do\\>"
 
      "\\<undefined\\>"
      "\\<something\\>"
@@ -113,20 +119,43 @@
                     (t (+ 1 cp)))))
         0))))
 
+     "\\<define\\>"
+     "\\<test\\>"
+     "\\<execute\\>"
+     "\\<load\\>"
+     "\\<load-file\\>"
+
+     "\\<lambda\\>"
+     "\\<let\\>"
+     "\\<letrec\\>"
+     "\\<if\\>"
+     "\\<apply\\>"
+     "\\<generate-array\\>"
+     "\\<array-size\\>"
+     "\\<array-ref\\>"
+
 (defun keyword-indent-point (name)
   (cond ((equal "define" name) 2)
+        ((equal "test" name) 2)
+        ((equal "load" name) 2)
+        ((equal "load-file" name) 2)
+        ((equal "execute" name) 2)
         ((equal "lambda" name) 2)
-        ((equal "match-lambda" name) 2)
-        ((equal "macro" name) 2)
         ((equal "let" name) 2)
         ((equal "letrec" name) 2)
-        ((equal "do" name) 2)
+        ((equal "if" name) 2)
+        ((equal "apply" name) 2)
+        ((equal "generate-array" name) 2)
+        ((equal "array-size" name) 2)
+        ((equal "array-ref" name) 2)
+        ((equal "loop" name) 2)
         ((equal "match" name) 2)
         ((equal "match-all" name) 2)
         ((equal "matcher" name) 2)
         ((equal "algebraic-data-matcher" name) 2)
-        ((equal "generate-array" name) 2)
+        ((equal "match-lambda" name) 2)
         ((equal "pattern-function" name) 2)
+        ((equal "do" name) 2)
         ))
 
 (defun egison-indent-line ()
