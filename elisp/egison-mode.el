@@ -119,21 +119,6 @@
                     (t (+ 1 cp)))))
         0))))
 
-     "\\<define\\>"
-     "\\<test\\>"
-     "\\<execute\\>"
-     "\\<load\\>"
-     "\\<load-file\\>"
-
-     "\\<lambda\\>"
-     "\\<let\\>"
-     "\\<letrec\\>"
-     "\\<if\\>"
-     "\\<apply\\>"
-     "\\<generate-array\\>"
-     "\\<array-size\\>"
-     "\\<array-ref\\>"
-
 (defun keyword-indent-point (name)
   (cond ((equal "define" name) 2)
         ((equal "test" name) 2)
