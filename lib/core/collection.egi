@@ -158,6 +158,15 @@
            ((occurrence a) xs))))
 |#
 
+(define $one-of
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> #f]
+       [<cons $x $rs>
+        (if (pred x)
+            #t
+            (one-of pred rs))]})))
+
 (define $size
   (lambda [$xs]
     (match xs (list something)

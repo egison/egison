@@ -135,3 +135,11 @@
        [$ [something]
         {[$tgt {(modulo tgt m)}]}]
        })))
+
+(define $primes
+  (letrec {[$next-primes
+            (lambda [$primes1 $n]
+              (if (one-of (lambda [$p] (eq-n? (remainder n p) 0)) primes1)
+                  (next-primes primes1 (+ n 1))
+                  {n @(next-primes {@primes1 n} (+ n 1))}))]}
+    {2 @(next-primes {2} 3)}))
