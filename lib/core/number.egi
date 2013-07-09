@@ -116,7 +116,6 @@
                          }))]}
       (fib1 n 1 1))))
 
-
 (define $fact
   (lambda [$n]
     (letrec {[$fact1 (lambda [$n $ret]
