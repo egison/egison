@@ -136,10 +136,18 @@
         {[$tgt {(modulo tgt m)}]}]
        })))
 
+(define $nats {1 @(map (+ 1 $) nats)})
+
 (define $primes
   (letrec {[$next-primes
-            (lambda [$primes1 $n]
-              (if (one-of (lambda [$p] (eq-n? (remainder n p) 0)) primes1)
-                  (next-primes primes1 (+ n 1))
-                  {n @(next-primes {@primes1 n} (+ n 1))}))]}
-    {2 @(next-primes {2} 3)}))
+            (lambda [$primes1 $k]
+              (let {[$primes2 (while (lte? $ (floor (sqrt (itof (* 6 (+ k 1)))))) primes1)]}
+                (match [(one-of (lambda [$p] (eq? (remainder (+ (* 6 k) 1) p) 0)) primes2)
+                        (one-of (lambda [$p] (eq? (remainder (+ (* 6 k) 5) p) 0)) primes2)]
+                  [bool bool]
+                  {[[,#f ,#f] {(+ (* 6 k) 1) (+ (* 6 k) 5) @(next-primes {@primes1 (+ (* 6 k) 1) (+ (* 6 k) 5)} (+ k 1))}]
+                   [[,#f ,#t] {(+ (* 6 k) 1) @(next-primes {@primes1 (+ (* 6 k) 1)} (+ k 1))}]
+                   [[,#t ,#f] {(+ (* 6 k) 5) @(next-primes {@primes1 (+ (* 6 k) 5)} (+ k 1))}]
+                   [[,#t ,#t] (next-primes primes1 (+ k 1))]
+                   })))]}
+    {2 3 5 @(next-primes {2 3 5} 1)}))

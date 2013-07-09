@@ -73,11 +73,11 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
              , ("remainder", integerBinaryOp rem)
-             , ("eq-n?",  integerBinaryPred (==))
-             , ("lt-n?",  integerBinaryPred (<))
-             , ("lte-n?", integerBinaryPred (<=))
-             , ("gt-n?",  integerBinaryPred (>))
-             , ("gte-n?", integerBinaryPred (>=))
+             , ("eq-i?",  integerBinaryPred (==))
+             , ("lt-i?",  integerBinaryPred (<))
+             , ("lte-i?", integerBinaryPred (<=))
+             , ("gt-i?",  integerBinaryPred (>))
+             , ("gte-i?", integerBinaryPred (>=))
              , ("+f", floatBinaryOp (+))
              , ("-f", floatBinaryOp (-))
              , ("*f", floatBinaryOp (*))
@@ -108,6 +108,7 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("floor",    floatToIntegerOp floor)
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", floatToIntegerOp truncate)
+             , ("itof", integerToFloat)
              , ("eq?",  eq)
              , ("lt?",  lt)
              , ("lte?", lte)
@@ -148,6 +149,10 @@ floatBinaryPred pred = (liftError .) $ twoArgs $ \val val' ->
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = (liftError .) $ oneArg $ \val ->
   Integer . op <$> fromFloatValue val
+
+integerToFloat :: PrimitiveFunc
+integerToFloat = (liftError .) $ oneArg $ \val ->
+  Float . fromInteger <$> fromIntegerValue val
 
 eq :: PrimitiveFunc
 eq = (liftError .) $ twoArgs $ \val val' ->

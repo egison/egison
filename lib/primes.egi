@@ -1,0 +1,12 @@
+(define $eratosthenes
+  (lambda [$n]
+    (let {[$ls (between 2 n)]}
+      (letrec {[$looper
+                (lambda [$ps $ls]
+                  (let {[$p (car ls)]
+                        [$xs (cdr ls)]}
+                    (if (gt? (* p p) (rac xs))
+                        {@ps @ls}
+                        (looper {@ps p} (filter (lambda [$l] (not (eq? (remainder l p) 0))) xs)))))
+                ]}
+        (looper {} ls)))))
