@@ -1,11 +1,10 @@
 Name:                egison
-Version:             3.0.9
-Synopsis:            An Interpreter for Egison, the world-first programming langugage which realized non-linear pattern-matching with unfree data types
-Description:         An interpreter for the programming language Egison.
-                     A feature of Egison is the strong pattern match facility.
-                     With Egison, you can represent pattern-matching for unfree data intuitively,
-                     especially for collection data, such as lists, multisets, sets, and so on.
-                     This package include sample Egison programs "*-test.egi" in "sample/" directory.
+Version:             3.0.10
+Synopsis:            The world-first language with non-linear pattern-matching against unfree data
+Description:         An interpreter for Egison, the world-first programming langugage which realized non-linear pattern-matching with unfree data types.
+                     With Egison, you can represent pattern-matching with unfree data types intuitively,
+                     especially for collection data, such as lists, multisets, sets.
+                     You can find Egison programs in "lib/" and "sample/" directories.
                      This package also include Emacs Lisp file "egison-mode.el" in "elisp/" directory.
 Homepage:            http://egison.pira.jp
 License:             MIT
