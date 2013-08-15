@@ -158,11 +158,13 @@
 
 (defvar egison-mode-syntax-table
   (let ((egison-mode-syntax-table (make-syntax-table)))
-    (modify-syntax-entry 60 "(" egison-mode-syntax-table)
-    (modify-syntax-entry 62 ")" egison-mode-syntax-table)
-    (modify-syntax-entry 59 "<" egison-mode-syntax-table)
-    (modify-syntax-entry 10 ">" egison-mode-syntax-table)
-    (modify-syntax-entry 63 "w" egison-mode-syntax-table)
+    (modify-syntax-entry ?< "(" egison-mode-syntax-table)
+    (modify-syntax-entry ?> ")" egison-mode-syntax-table)
+    (modify-syntax-entry ?\; "<" egison-mode-syntax-table)
+    (modify-syntax-entry ?\n ">" egison-mode-syntax-table)
+    (modify-syntax-entry ?\? "w" egison-mode-syntax-table)
+    (modify-syntax-entry ?# ". 14bn" egison-mode-syntax-table)
+    (modify-syntax-entry ?| ". 23bn" egison-mode-syntax-table)
     egison-mode-syntax-table)
   ;; (copy-syntax-table lisp-mode-syntax-table)
   "Syntax table for Egison mode")
