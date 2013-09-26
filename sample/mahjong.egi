@@ -14,6 +14,12 @@
   (algebraic-data-matcher
     {<num suit integer> <ji honor>}))
 
+(define $twin
+  (pattern-function [$pat1 $pat2]
+    <cons (& $pat pat1)
+     <cons ,pat
+      pat2>>))
+
 (define $shuntsu
   (pattern-function [$pat1 $pat2]
     <cons (& <num $s $n> pat1)
@@ -28,12 +34,6 @@
       <cons ,pat
        pat2>>>))
 
-(define $twin
-  (pattern-function [$pat1 $pat2]
-    <cons (& $pat pat1)
-     <cons ,pat
-      pat2>>))
-
 (define $agari?
   (match-lambda (multiset hai)
     {[(twin $th_1
@@ -44,8 +44,7 @@
           (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 <nil>)))))
        (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 <nil>)))))))
       #t]
-     [_
-      #f]}))
+     [_ #f]}))
 
 (define $agari
   (lambda [$hs]
