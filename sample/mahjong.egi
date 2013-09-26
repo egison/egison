@@ -36,13 +36,13 @@
 
 (define $agari?
   (match-lambda (multiset hai)
-    {[(twin $th_1 (| (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (shuntsu $sh_4 <nil>))))
-                     (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (kohtsu $kh_1 <nil>))))
-                     (shuntsu $sh_1 (shuntsu $sh_2 (kohtsu $kh_1 (kohtsu $kh_2 <nil>))))
-                     (shuntsu $sh_1 (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 <nil>))))
-                     (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 <nil>))))
-                     (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 <nil>))))))
-                     ))
+    {[(twin $th_1
+       (| (shuntsu $sh_1 (| (shuntsu $sh_2 (| (shuntsu $sh_3 (| (shuntsu $sh_4 <nil>)
+                                                                (kohtsu $kh_1 <nil>)))
+                                              (kohtsu $kh_1 (kohtsu $kh_2 <nil>))))
+                            (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 <nil>)))))
+          (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 <nil>)))))
+       (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 <nil>)))))))
       #t]
      [_
       #f]}))
@@ -50,13 +50,13 @@
 (define $agari
   (lambda [$hs]
     (match-all hs (multiset hai)
-      [(twin $th_1 (| (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (shuntsu $sh_4 <nil>))))
-                      (shuntsu $sh_1 (shuntsu $sh_2 (shuntsu $sh_3 (kohtsu $kh_1 <nil>))))
-                      (shuntsu $sh_1 (shuntsu $sh_2 (kohtsu $kh_1 (kohtsu $kh_2 <nil>))))
-                      (shuntsu $sh_1 (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 <nil>))))
-                      (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 <nil>))))
-                      (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 <nil>))))))
-                      ))
+      [(twin $th_1
+       (| (shuntsu $sh_1 (| (shuntsu $sh_2 (| (shuntsu $sh_3 (| (shuntsu $sh_4 <nil>)
+                                                                (kohtsu $kh_1 <nil>)))
+                                              (kohtsu $kh_1 (kohtsu $kh_2 <nil>))))
+                            (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 <nil>)))))
+          (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 <nil>)))))
+       (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 <nil>)))))))
        [th sh kh]])))
 
 (test (agari? {<Ji <Haku>> <Ji <Haku>>
