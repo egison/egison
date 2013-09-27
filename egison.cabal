@@ -1,16 +1,16 @@
 Name:                egison
-Version:             3.0.10
+Version:             3.0.11
 Synopsis:            The world's first language with non-linear pattern-matching against unfree data
 Description:         An interpreter for Egison, the world's first programming langugage which realized non-linear pattern-matching with unfree data types.
                      With Egison, you can represent pattern-matching with unfree data types intuitively,
                      especially for collection data, such as lists, multisets, sets.
                      You can find Egison programs in "lib/" and "sample/" directories.
                      This package also include Emacs Lisp file "egison-mode.el" in "elisp/" directory.
-Homepage:            http://egison.pira.jp
+Homepage:            http://www.egison.org
 License:             MIT
 License-file:        LICENSE
 Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe, Kentaro Honda
-Maintainer:          egisatoshi@gmail.com
+Maintainer:          egi@egison.org
 Category:            Compilers/Interpreters
 Build-type:          Simple
 Cabal-version:       >=1.8

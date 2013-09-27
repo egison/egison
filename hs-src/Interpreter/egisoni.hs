@@ -83,7 +83,7 @@ printVersionNumber = do
 showBanner :: IO ()
 showBanner = do
   putStrLn $ "Egison Version " ++ showVersion version ++ " (C) 2011-2013 Satoshi Egi"
-  putStrLn $ "http://egison.pira.jp"
+  putStrLn $ "http://www.egison.org"
   putStrLn $ "Welcome to Egison Interpreter!"
 
 showByebyeMessage :: IO ()

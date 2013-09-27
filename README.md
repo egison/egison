@@ -5,7 +5,7 @@ Egison is the pattern-matching oriented pure functional programming langauge.
 
 For more information, see Egison public site.
 
-[http://egison.pira.jp](http://egison.pira.jp)
+[http://www.egison.org](http://www.egison.org)
 
 ### How to start Development
 
