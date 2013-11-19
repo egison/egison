@@ -4,7 +4,7 @@
 
 ;;; Author: Satoshi Egi <egisatoshi@gmail.com>
 ;;; URL: https://github.com/egisatoshi/egison3/blob/master/elisp/egison-mode.el
-;;; Version: 0.1.4
+;;; Version: 0.1.5
 
 ;; Code goes here
 
