@@ -1,0 +1,29 @@
+(load "lib/tree/xml.egi")
+
+(define $xml1
+  <Node "top"
+        {<Node "middle1" {<Leaf "bottom1" "text1">
+                          <Leaf "bottom2" "text2">
+                          <Leaf "bottom3" "text3">
+                          <Leaf "bottom2" "text2">
+                          <Leaf "bottom3" "text3">
+                          }>
+         <Node "middle2" {<Leaf "bottom1" "text1">
+                          <Leaf "bottom2" "text2">
+                          <Leaf "bottom3" "text3">
+                          <Leaf "bottom4" "text2">
+                          <Leaf "bottom5" "text3">
+                          }>
+
+         <Node "middle3" {<Leaf "bottom31" "text1">
+                          <Leaf "bottom32" "text2">
+                          <Leaf "bottom33" "text3">
+                          <Leaf "bottom34" "text4">
+                          <Leaf "bottom35" "text5">
+                          }>
+         }>)
+
+         
+(test (match-all xml1 xml
+        [<mdescendant <cons <mnode $tag <cons $x <cons ,x _>>>
+                            _>> [tag x]]))
