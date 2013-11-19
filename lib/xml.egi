@@ -1,0 +1,22 @@
+(define $xml
+  (matcher
+    {[<lnode $ $> [string (list xml)]
+      {[<Node $tag $cs> {[tag cs]}]
+       [_ {}]}]
+     [<mnode $ $> [string (multiset xml)]
+      {[<Node $tag $cs> {[tag cs]}]
+       [_ {}]}]
+     [<leaf $ $> string
+      {[<Leaf $tag $text> {[tag text]}]
+       [_ {}]}]
+     [<descendant $> xml
+      {[$x {x @(all-descendant x)}]}]
+     }))
+
+(define $all-descendant
+  (lambda [$x]
+    (match x xml
+      {[<leaf _ _> {}]
+       [_ (match-all x xml
+            [<lnode _ $cs> {@cs @(concat (map all-descendant cs))}])]})))
+     
