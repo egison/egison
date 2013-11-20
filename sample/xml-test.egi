@@ -22,7 +22,7 @@
                                            <Leaf "text100">
                                            <Leaf "text53">}>
                           <Leaf "text44">
-                          <Leaf "text42">
+                          <Leaf "text53">
                           }>
          }>)
 
@@ -31,11 +31,13 @@
 (test (match-all xml1 xml
         [<descendant <mnode $tag _>
                             _> [tag]]))
+; {top middle1 middle2 middle3 bottom1 bottom2}
 
 ;; List up all nodes which has more than two same child nodes.
 (test (match-all xml1 xml
         [<descendant <mnode $tag <cons $x <cons ,x _>>>>
          [tag x]]))
+; {[middle2 <Leaf text31>] [middle2 <Leaf text31>]}
 
 ;; List up all nodes which has more than two same descendant nodes.
 (test (match-all xml1 xml
@@ -45,3 +47,7 @@
             <cons <descendant ,x>
              _>>>>
          [tag x]]))
+; {[middle2 <Leaf text31>] [middle2 <Leaf text31>] [middle3 <Leaf text53>] [middle3 <Leaf text53>] [top <Leaf text100>] [top <Leaf text100>]}
+
+
+
