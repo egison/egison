@@ -26,15 +26,18 @@
                           }>
          }>)
 
-         
+
+;; List up all tags.
 (test (match-all xml1 xml
         [<descendant <mnode $tag _>
                             _> [tag]]))
 
+;; List up all nodes which has more than two same child nodes.
 (test (match-all xml1 xml
         [<descendant <mnode $tag <cons $x <cons ,x _>>>>
          [tag x]]))
 
+;; List up all nodes which has more than two same descendant nodes.
 (test (match-all xml1 xml
         [<descendant
           <mnode $tag
