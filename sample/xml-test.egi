@@ -2,27 +2,27 @@
 
 (define $xml1
   <Node "top"
-        {<Node "middle1" {<Leaf "text1">
-                          <Leaf "text2">
-                          <Leaf "text3">
-                          <Node "bottom1" {<Leaf "text21">
-                                           <Leaf "text100">
-                                           <Leaf "text22">}>
+        {<Node "middle1" {<Leaf "bottom1" "text1">
+                          <Leaf "bottom1" "text2">
+                          <Leaf "bottom1" "text3">
+                          <Node "bottom1" {<Leaf "bottom2" "text21">
+                                           <Leaf "bottom2" "text100">
+                                           <Leaf "bottom2" "text22">}>
                           }>
-         <Node "middle2" {<Leaf "text31">
-                          <Leaf "text32">
-                          <Leaf "text33">
-                          <Leaf "text31">
-                          <Leaf "text35">
+         <Node "middle2" {<Leaf "bottom3" "text31">
+                          <Leaf "bottom3" "text32">
+                          <Leaf "bottom3" "text33">
+                          <Leaf "bottom3" "text31">
+                          <Leaf "bottom3" "text35">
                           }>
 
-         <Node "middle3" {<Leaf "text41">
-                          <Leaf "text42">
-                          <Node "bottom2" {<Leaf "text51">
-                                           <Leaf "text100">
-                                           <Leaf "text53">}>
-                          <Leaf "text44">
-                          <Leaf "text53">
+         <Node "middle3" {<Leaf "bottom4" "text41">
+                          <Leaf "bottom4"  "text42">
+                          <Node "bottom4" {<Leaf "bottom2" "text51">
+                                           <Leaf "bottom2" "text100">
+                                           <Leaf "bottom2" "text53">}>
+                          <Leaf "bottom4"  "text44">
+                          <Leaf "bottom4"  "text53">
                           }>
          }>)
 
@@ -31,13 +31,13 @@
 (test (match-all xml1 xml
         [<descendant <mnode $tag _>
                             _> [tag]]))
-; {top middle1 middle2 middle3 bottom1 bottom2}
+; {top middle1 middle2 middle3 bottom1 bottom4}
 
 ;; List up all nodes which has more than two same child nodes.
 (test (match-all xml1 xml
         [<descendant <mnode $tag <cons $x <cons ,x _>>>>
          [tag x]]))
-; {[middle2 <Leaf text31>] [middle2 <Leaf text31>]}
+; {[middle2 <Leaf bottom3 text31>] [middle2 <Leaf bottom3 text31>]}
 
 ;; List up all nodes which has more than two same descendant nodes.
 (test (match-all xml1 xml
@@ -47,7 +47,4 @@
             <cons <descendant ,x>
              _>>>>
          [tag x]]))
-; {[middle2 <Leaf text31>] [middle2 <Leaf text31>] [middle3 <Leaf text53>] [middle3 <Leaf text53>] [top <Leaf text100>] [top <Leaf text100>]}
-
-
-
+; {[middle2 <Leaf bottom3 text31>] [middle2 <Leaf bottom3 text31>] [top <Leaf bottom2 text100>] [top <Leaf bottom2 text100>]}
