@@ -25,5 +25,9 @@
 
          
 (test (match-all xml1 xml
-        [<mdescendant <cons <mnode $tag <cons $x <cons ,x _>>>
-                            _>> [tag x]]))
+        [<mdescendant <mnode $tag _>
+                            _> [tag]]))
+
+(test (match-all xml1 xml
+        [<mdescendant <mnode $tag <cons $x <cons ,x _>>>>
+         [tag x]]))

@@ -14,9 +14,13 @@
      [<mnode $ $> [string (multiset xml)]
       {[<Node $tag $cs> {[tag cs]}]
        [_ {}]}]
-     [<ldescendant $> (list xml)
+     [<ldescendant $> xml
+      {[$x {x @(all-descendant x)}]}]
+     [<mdescendant $> xml
+      {[$x {x @(all-descendant x)}]}]
+     [<ldescendants $> (list xml)
       {[$x {{x} @(all-descendants x)}]}]
-     [<mdescendant $> (multiset xml)
+     [<mdescendants $> (multiset xml)
       {[$x {{x} @(all-descendants x)}]}]
      [$ [something]
       {[$tgt {tgt}]}]
@@ -27,3 +31,9 @@
     (match x xml
       {[<leaf _ _> {}]
        [<lnode _ $cs> {cs @(concat (map all-descendants cs))}]})))
+
+(define $all-descendant
+  (lambda [$x]
+    (match x xml
+      {[<leaf _ _> {}]
+       [<lnode _ $cs> {@cs @(concat (map all-descendant cs))}]})))
