@@ -23,5 +23,5 @@
 (define $all-descendants
   (lambda [$x]
     (match x xml
-      {[<leaf _> {}]
+      {[<leaf _ _> {}]
        [<lnode _ $cs> {@cs @(concat (map all-descendants cs))}]})))
