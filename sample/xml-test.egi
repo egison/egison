@@ -29,8 +29,7 @@
 
 ;; List up all tags.
 (test (match-all xml1 xml
-        [<descendant <mnode $tag _>
-                            _> [tag]]))
+        [<descendant <mnode $tag _>  _> [tag]]))
 ; {top middle1 middle2 middle3 bottom1 bottom4}
 
 ;; List up all nodes which has more than two same child nodes.
