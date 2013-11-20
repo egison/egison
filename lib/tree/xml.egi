@@ -8,10 +8,10 @@
      [<leaf $> string
       {[<Leaf $text> {text}]
        [_ {}]}]
-     [<lnode $ $> [string (list xml)]
+     [<lnode $ $> [string (list xml)] ; Node whose children are seen as a list.
       {[<Node $tag $cs> {[tag cs]}]
        [_ {}]}]
-     [<mnode $ $> [string (multiset xml)]
+     [<mnode $ $> [string (multiset xml)]  ; Node whose children are seen as a multiset.
       {[<Node $tag $cs> {[tag cs]}]
        [_ {}]}]
      [<descendant $> xml
