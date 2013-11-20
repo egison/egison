@@ -2,24 +2,24 @@
 
 (define $xml1
   <Node "top"
-        {<Node "middle1" {<Leaf "bottom1" "text1">
-                          <Leaf "bottom2" "text2">
-                          <Leaf "bottom3" "text3">
-                          <Leaf "bottom2" "text2">
-                          <Leaf "bottom3" "text3">
+        {<Node "middle1" {<Leaf "text1">
+                          <Leaf "text2">
+                          <Leaf "text3">
+                          <Leaf "text2">
+                          <Leaf "text3">
                           }>
-         <Node "middle2" {<Leaf "bottom1" "text1">
-                          <Leaf "bottom2" "text2">
-                          <Leaf "bottom3" "text3">
-                          <Leaf "bottom4" "text2">
-                          <Leaf "bottom5" "text3">
+         <Node "middle2" {<Leaf "text1">
+                          <Leaf "text2">
+                          <Leaf "text3">
+                          <Leaf "text2">
+                          <Leaf "text3">
                           }>
 
-         <Node "middle3" {<Leaf "bottom31" "text1">
-                          <Leaf "bottom32" "text2">
-                          <Leaf "bottom33" "text3">
-                          <Leaf "bottom34" "text4">
-                          <Leaf "bottom35" "text5">
+         <Node "middle3" {<Leaf "text1">
+                          <Leaf "text2">
+                          <Leaf "text3">
+                          <Leaf "text4">
+                          <Leaf "text5">
                           }>
          }>)
 

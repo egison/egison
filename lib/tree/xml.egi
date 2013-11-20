@@ -5,8 +5,8 @@
                {[[<leaf $tag $text> <leaf ,tag ,text>] {[]}]
                 [[<lnode $tag $xs> <lnode ,tag ,xs>] {[]}]
                 [[_ _] {}]})]}]
-     [<leaf $ $> string
-      {[<Leaf $tag $text> {[tag text]}]
+     [<leaf $> string
+      {[<Leaf $text> {text}]
        [_ {}]}]
      [<lnode $ $> [string (list xml)]
       {[<Node $tag $cs> {[tag cs]}]
@@ -14,14 +14,8 @@
      [<mnode $ $> [string (multiset xml)]
       {[<Node $tag $cs> {[tag cs]}]
        [_ {}]}]
-     [<ldescendant $> xml
-      {[$x {x @(all-descendant x)}]}]
-     [<mdescendant $> xml
-      {[$x {x @(all-descendant x)}]}]
-     [<ldescendants $> (list xml)
-      {[$x {{x} @(all-descendants x)}]}]
-     [<mdescendants $> (multiset xml)
-      {[$x {{x} @(all-descendants x)}]}]
+     [<descendant $> xml
+      {[$x {x @(all-descendants x)}]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))
@@ -29,11 +23,5 @@
 (define $all-descendants
   (lambda [$x]
     (match x xml
-      {[<leaf _ _> {}]
-       [<lnode _ $cs> {cs @(concat (map all-descendants cs))}]})))
-
-(define $all-descendant
-  (lambda [$x]
-    (match x xml
-      {[<leaf _ _> {}]
-       [<lnode _ $cs> {@cs @(concat (map all-descendant cs))}]})))
+      {[<leaf _> {}]
+       [<lnode _ $cs> {@cs @(concat (map all-descendants cs))}]})))
