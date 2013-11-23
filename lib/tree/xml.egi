@@ -11,7 +11,7 @@
      [<lnode $ $> [string (list xml)] ; Node whose children are seen as a list.
       {[<Node $tag $cs> {[tag cs]}]
        [_ {}]}]
-     [<mnode $ $> [string (multiset xml)]  ; Node whose children are seen as a multiset.
+     [<mnode $ $> [string (multiset xml)] ; Node whose children are seen as a multiset.
       {[<Node $tag $cs> {[tag cs]}]
        [_ {}]}]
      [<descendant $> xml

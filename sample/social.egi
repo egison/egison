@@ -19,7 +19,7 @@
           _>>>
        {n_1 n_2 n_3}])))
 
-(define $circuits
+(define $hamilton-circuits
   (lambda [$g]
     (let {[$n (size g)]}
       (match-all g graph
