@@ -104,7 +104,7 @@ desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
   matcher' <- desugar matcher
   clauses' <- desugarMatchClauses clauses
-  desugar (LambdaExpr [name] (MatchExpr (VarExpr name) matcher' clauses'))
+  return $ LambdaExpr [name] (MatchExpr (VarExpr name) matcher' clauses')
 
 desugar (ArrayRefExpr (VarExpr name) (TupleExpr nums)) =
   desugar $ IndexedExpr (VarExpr name) nums
@@ -253,5 +253,5 @@ desugarMatchClauses :: [MatchClause] -> DesugarM [MatchClause]
 desugarMatchClauses (clause:rest) = do
   clause' <- desugarMatchClause clause
   rest'   <- desugarMatchClauses rest
-  return $ clause : rest'
+  return $ clause' : rest'
 desugarMatchClauses [] = return []
