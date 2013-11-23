@@ -104,7 +104,10 @@ repl env prompt = do
       case input of
         Nothing -> return () 
         Just "quit" -> return () 
-        Just "" ->  loop env prompt ""
+        Just "" ->
+          case rest of
+            "" -> loop env prompt rest
+            _ -> loop env (take (length prompt) (repeat ' ')) rest
         Just input' -> do
           let newInput = rest ++ input'
           result <- liftIO $ runEgisonTopExpr env newInput
