@@ -10,7 +10,7 @@ Homepage:            http://www.egison.org
 License:             MIT
 License-file:        LICENSE
 Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe, Kentaro Honda
-Maintainer:          egi@egison.org
+Maintainer:          Satoshi Egi <egi@egison.org>
 Category:            Compilers/Interpreters
 Build-type:          Simple
 Cabal-version:       >=1.8
