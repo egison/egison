@@ -1,4 +1,4 @@
-## The Programming Language Egison
+1;3201;0c## The Programming Language Egison
 
 Egison is the pattern-matching oriented pure functional programming langauge.
 Egison is the world's first programming language that can pattern-match against sets.
@@ -17,7 +17,8 @@ If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.
 ### How to test
 
 ```
-% cabal install --enable-test
+% cabal install --enable-tests
+% cabal test
 ```
 
 ### Demonstration
