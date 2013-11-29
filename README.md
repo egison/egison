@@ -98,4 +98,5 @@ All hands are expressed in a single pattern.
 
 The pattern-matching of Egison is very powerful.
 We can use it for pattern-matching against graphs or tree-structures such as XML.
-The creator of Egison think Egison will be very famous in the world in several years.
+Egison is not famous at all now.
+Please help us to make Egison popular.
