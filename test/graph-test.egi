@@ -1,4 +1,4 @@
-(load "lib/graph.egi")
+(load "lib/graph/graph.egi")
 
 (define $g1 {<Node 1 {2 3 4 5} {2 3 4 5}>
              <Node 2 {1 3} {1 3}>
