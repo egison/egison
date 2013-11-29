@@ -16,9 +16,6 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 
