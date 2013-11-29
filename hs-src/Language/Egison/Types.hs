@@ -49,6 +49,7 @@ data EgisonExpr =
   | TupleExpr [EgisonExpr]
   | CollectionExpr (Seq InnerExpr)
   | ArrayExpr [EgisonExpr]
+  | HashExpr [(EgisonExpr, EgisonExpr)]
 
   | LambdaExpr [String] EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern

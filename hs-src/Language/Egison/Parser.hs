@@ -123,6 +123,7 @@ expr' = (try constantExpr
              <|> inductiveDataExpr
              <|> try arrayExpr
              <|> try tupleExpr
+             <|> try hashExpr
              <|> collectionExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
@@ -162,6 +163,14 @@ arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr whiteSpace
   where
     lp = P.lexeme lexer (string "[|")
     rp = P.lexeme lexer (string "|]")
+
+hashExpr :: Parser EgisonExpr
+hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
+  where
+    lp = P.lexeme lexer (string "{|")
+    rp = P.lexeme lexer (string "|}")
+    pairExpr :: Parser (EgisonExpr, EgisonExpr)
+    pairExpr = brackets $ (,) <$> expr <*> expr
 
 matchAllExpr :: Parser EgisonExpr
 matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> matchClause
