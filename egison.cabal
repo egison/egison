@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.0.12
+Version:             3.1.0
 Synopsis:            The world's first language with non-linear pattern-matching against unfree data
 Description:         An interpreter for Egison, the world's first programming langugage which realized non-linear pattern-matching with unfree data types.
                      With Egison, you can represent pattern-matching with unfree data types intuitively,
@@ -17,6 +17,9 @@ Cabal-version:       >=1.8
 
 Extra-Source-Files:  benchmark/Benchmark.hs
 
+source-repository head
+  type: git
+  location: https://github.com/egisatoshi/egison3.git
 
 Data-files:          lib/core/base.egi lib/core/number.egi lib/core/collection.egi lib/core/pattern.egi
                      lib/graph/graph.egi lib/tree/xml.egi lib/math/prime.egi
