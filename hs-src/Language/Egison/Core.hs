@@ -110,20 +110,29 @@ evalExpr env (HashExpr assocs) = do
 
 evalExpr env (IndexedExpr expr indices) = do
   array <- evalExpr env expr
-  indices <- mapM (evalExpr env) indices
-  -- TODO add case of Hash
+  indices <- mapM (evalExpr' env) indices
   refArray array indices
  where
-  refArray :: WHNFData -> [WHNFData] -> EgisonM WHNFData
+  refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
   refArray val [] = return val 
   refArray (Value (Array array)) (index:indices) = do
-    i <- (liftError . liftM fromInteger . fromIntegerValue) index
+    i <- (liftError . liftM fromInteger . fromIntegerValue) (Value index)
     case IntMap.lookup i array of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IArray array)) (index:indices) = do
-    i <- (liftError . liftM fromInteger . fromIntegerValue) index
+    i <- (liftError . liftM fromInteger . fromIntegerValue) (Value index)
     case IntMap.lookup i array of
+      Just ref -> evalRef ref >>= flip refArray indices
+      Nothing -> return $ Value Undefined
+  refArray (Value (Hash hash)) (index:indices) = do
+    key <- makeKey index
+    case HL.lookup key hash of
+      Just val -> refArray (Value val) indices
+      Nothing -> return $ Value Undefined
+  refArray (Intermediate (IHash hash)) (index:indices) = do
+    key <- makeKey index
+    case HL.lookup key hash of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
   refArray val _ = throwError $ TypeMismatch "array" val
