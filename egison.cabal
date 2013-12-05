@@ -17,10 +17,6 @@ Cabal-version:       >=1.8
 
 Extra-Source-Files:  benchmark/Benchmark.hs
 
-source-repository head
-  type: git
-  location: https://github.com/egisatoshi/egison3.git
-
 Data-files:          lib/core/base.egi lib/core/number.egi lib/core/collection.egi lib/core/pattern.egi
                      lib/graph/graph.egi lib/tree/xml.egi lib/math/prime.egi
                      elisp/egison-mode.el
