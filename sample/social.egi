@@ -1,55 +1,47 @@
-;;;
-;;; social demo
-;;;
+(define $user
+  (matcher
+    {[<id $> [integer]
+      {[<User $id _> {id}]}]
+     [<name $> [string]
+      {[<User _ $name> {name}]}]
+     }))
 
-(define $node integer)
+(define $user-table
+  (matcher
+    {[<by-id ,$n $> [user_table]
+      {[<Users _ $ih $nh> {<Users ih_n ih nh>}]}]
+     [<by-name ,$n $> [follow_table]
+      {[<Follows _ $ih $nh> {<Users nh_n ih nh>}]}]
+     [<cons $ $> [user user_table]
+      {[<Users $us $ih $nh>
+        (match-all us (multiset something)
+          [<cons $u $rs> [u <Users rs $ih $nh>]])]}]
+     }))
 
-(define $nodeInfo
-  (algebraic-data-matcher
-    {<node node (multiset node)>}))
+(define $follow
+  (matcher
+    {[<from_id $> [integer]
+      {[<Follow $fid _> {fid}]}]
+     [<to_id $> [integer]
+      {[<Follow _ $tid> {tid}]}]
+     }))
 
-(define $graph (multiset nodeInfo))
+(define $follow-table
+  (matcher
+    {[<by-from-id ,$n $> [follow_table]
+      {[<Follows _ $fih $tih> {<Follows fih_n fih tih>}]}]
+     [<by-to-id ,$n $> [follow_table]
+      {[<Follows _ $fih $tih> {<Follows tih_n fih tih>}]}]
+     [<cons $ $> [follow follow_table]
+      {[<Follows $fs $fih $tih>
+        (match-all fs (multiset something)
+          [<cons $f $rs> [f <Follows rs $fih $tih>]])]}]
+     }))
 
-(define $triangles
-  (lambda [$g]
-    (match-all g graph
-      [<cons <node $n_1 <cons $n_2 _>>
-        <cons <node ,n_2 <cons $n_3 _>>
-         <cons <node ,n_3 <cons ,n_1 _>>
-          _>>>
-       {n_1 n_2 n_3}])))
-
-(define $hamilton-circuits
-  (lambda [$g]
-    (let {[$n (size g)]}
-      (match-all g graph
-        [<cons <node $a_1 <cons $a_2 _>>
-               (loop $i (between 2 (- (size g) 1))
-                   <cons <node ,a_i <cons $a_(+ i 1) _>>
-                         ...>
-                   <cons <node ,a_n <cons ,a_1 _>> _>)>
-         a]))))
-
-(define $graph1 {
-    <Node 1 {4 5 8 10}>
-    <Node 2 {3 6 12}>
-    <Node 3 {2 7 9}>
-    <Node 4 {1 6}>
-    <Node 5 {1 8 9 11}>
-    <Node 6 {2 4 10 12}>
-    <Node 7 {3 9 11}>
-    <Node 8 {1 5}>
-    <Node 9 {3 5 7}>
-    <Node 10 {1 6 12}>
-    <Node 11 {5 7}>
-    <Node 12 {2 6 10}>
-    })
-
-(test (triangles graph1))
-;{{1 5 8} {5 1 8} {5 8 1} {8 1 5} {1 8 5} {8 5 1}
-; {3 7 9} {7 3 9} {7 9 3} {9 3 7} {6 2 12} {12 2 6}
-; {2 6 12} {2 12 6} {3 9 7} {9 7 3} {12 6 2} {6 12 2}
-; {6 10 12} {10 6 12} {10 12 6} {12 6 10} {6 12 10} {12 10 6}}
-
-;{{1 5 8} {3 7 9} {2 6 12} {6 10 12}}
-
+(match [users follows follows users] [user_table follow_table follow_table user_table]
+  [[<by-name ,"__Egi" <cons <id $uid> _>>]
+   [<by-from-id ,uid <cons <to-id $fid> _>>]
+   [<by-from-id ,fid <cons <to-id ,uid> _>>]
+   [<by-id ,fid <cons <name $name> _>>]
+   <User fid name>])
+  
