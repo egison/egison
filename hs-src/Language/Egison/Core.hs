@@ -101,9 +101,17 @@ evalExpr env (ArrayExpr exprs) = do
   ref' <- mapM (newThunk env) exprs
   return . Intermediate . IArray $ IntMap.fromList $ zip (enumFromTo 1 (length exprs)) ref'
 
+evalExpr env (HashExpr assocs) = do
+  let (keyExprs, exprs) = unzip assocs
+  keyVals <- mapM (evalExpr' env) keyExprs
+  keys <- mapM makeKey keyVals
+  refs <- mapM (newThunk env) exprs
+  return . Intermediate . IHash $ HL.fromList $ zip keys refs
+
 evalExpr env (IndexedExpr expr indices) = do
   array <- evalExpr env expr
   indices <- mapM (evalExpr env >=> liftError . liftM fromInteger . fromIntegerValue) indices
+  -- TODO add case of Hash
   refArray array indices
  where
   refArray :: WHNFData -> [Int] -> EgisonM WHNFData
@@ -246,6 +254,9 @@ evalDeep (Intermediate (IInductiveData name refs)) =
 evalDeep (Intermediate (IArray refs)) = do
   refs' <- mapM evalRef' $ IntMap.elems refs
   return $ Array $ IntMap.fromList $ zip (enumFromTo 1 (IntMap.size refs)) refs'
+evalDeep (Intermediate (IHash refs)) = do
+  refs' <- mapM evalRef' refs
+  return $ Hash refs'
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef' . Sq.fromList)
 
