@@ -16,6 +16,12 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 
+import qualified Data.HashMap.Lazy as HL
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy.Char8 ()
+import qualified Data.ByteString.Lazy.Char8 as B
+
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 
@@ -57,7 +63,7 @@ evalTopExpr env (Test expr) = do
   return env
 evalTopExpr env (Execute argv) = do
   main <- refVar env "main" >>= evalRef
-  io <- applyFunc main $ Value $ Collection $ Sq.fromList $ map String argv
+  io <- applyFunc main $ Value $ Collection $ Sq.fromList $ map (String . B.pack) argv
   case io of
     Value (IOFunc m) -> m >> return env
     _ -> throwError $ TypeMismatch "io" io
@@ -66,7 +72,7 @@ evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
-evalExpr _ (StringExpr s) = return . Value $ String s 
+evalExpr _ (StringExpr s) = return . Value $ String $ B.pack s 
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (IntegerExpr i) = return . Value $ Integer i
 evalExpr _ (FloatExpr d) = return . Value $ Float d

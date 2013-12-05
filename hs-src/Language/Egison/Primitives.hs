@@ -11,6 +11,11 @@ import qualified Data.Array as A
 import System.IO
 import System.Random
 
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy.Char8 ()
+import qualified Data.ByteString.Lazy.Char8 as B
+
 import Language.Egison.Types
 import Language.Egison.Core
 
@@ -207,8 +212,8 @@ gte = (liftError .) $ twoArgs gte'
 
 stringAppend :: PrimitiveFunc
 stringAppend = (liftError .) $ twoArgs $ \val val' ->
-  (String .) . (++) <$> fromStringValue val
-                    <*> fromStringValue val'
+  (String .) . BL.append <$> fromStringValue val
+                         <*> fromStringValue val'
 
 assert ::  PrimitiveFunc
 assert = (liftError .) $ twoArgs $ \label test -> do
@@ -271,7 +276,7 @@ return' = oneArg $ return . makeIO . evalDeep
 makePort :: IOMode -> PrimitiveFunc
 makePort mode = (liftError .) $ oneArg $ \val -> do
   filename <- fromStringValue val 
-  return . makeIO . liftIO $ Port <$> openFile filename mode
+  return . makeIO . liftIO $ Port <$> openFile (B.unpack filename) mode
 
 closePort :: PrimitiveFunc
 closePort = (liftError .) $ oneArg $ \val ->
@@ -283,7 +288,7 @@ writeChar = (liftError .) $ oneArg $ \val ->
 
 writeString :: PrimitiveFunc
 writeString = (liftError .) $ oneArg $ \val ->
-  makeIO' . liftIO . putStr <$> fromStringValue val
+  makeIO' . liftIO . putStr . B.unpack <$> fromStringValue val
 
 write :: PrimitiveFunc
 write = oneArg $ \val ->
@@ -293,7 +298,7 @@ readChar :: PrimitiveFunc
 readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
 
 readLine :: PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ liftM String getLine
+readLine = noArg $ return $ makeIO $ liftIO $ liftM (String . B.pack) getLine
 
 flushStdout :: PrimitiveFunc
 flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
@@ -307,7 +312,7 @@ writeCharToPort = (liftError .) $ twoArgs $ \val val' ->
 
 writeStringToPort :: PrimitiveFunc
 writeStringToPort = (liftError .) $ twoArgs $ \val val' ->
-  ((makeIO' . liftIO) .) . hPutStr <$> fromPortValue val <*> fromStringValue val'
+  ((makeIO' . liftIO) .) . hPutStr <$> fromPortValue val <*> (B.unpack <$> fromStringValue val')
 
 writeToPort :: PrimitiveFunc
 writeToPort = twoArgs $ \val val' -> do
@@ -320,7 +325,7 @@ readCharFromPort = (liftError .) $ oneArg $ \val ->
 
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = (liftError .) $ oneArg $ \val ->
-  makeIO . liftIO . liftM String . hGetLine <$> fromPortValue val
+  makeIO . liftIO . liftM (String . B.pack) . hGetLine <$> fromPortValue val
 
 flushPort :: PrimitiveFunc
 flushPort = (liftError .) $ oneArg $ \val ->

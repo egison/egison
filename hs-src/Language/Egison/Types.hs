@@ -20,6 +20,12 @@ import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
+import qualified Data.HashMap.Lazy as HL
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy.Char8 ()
+import qualified Data.ByteString.Lazy.Char8 as B
+
 import System.IO
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
@@ -130,7 +136,7 @@ data InnerExpr =
 data EgisonValue =
     World
   | Char Char
-  | String String
+  | String ByteString
   | Bool Bool
   | Integer Integer
   | Float Double
@@ -153,7 +159,7 @@ type PrimitiveFunc = [WHNFData] -> EgisonM EgisonValue
 
 instance Show EgisonValue where
   show (Char c) = return c
-  show (String s) = s
+  show (String s) = B.unpack s
   show (Bool True) = "#t"
   show (Bool False) = "#f"
   show (Integer i) = show i
@@ -221,7 +227,7 @@ fromCharValue :: WHNFData -> Either EgisonError Char
 fromCharValue (Value (Char c)) = return c
 fromCharValue val = throwError $ TypeMismatch "char" val
 
-fromStringValue :: WHNFData -> Either EgisonError String
+fromStringValue :: WHNFData -> Either EgisonError ByteString
 fromStringValue (Value (String s)) = return s
 fromStringValue val = throwError $ TypeMismatch "string" val
 
