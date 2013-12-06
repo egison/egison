@@ -20,9 +20,9 @@
 
 (define $follow
   (matcher
-    {[<from_id $> [integer]
+    {[<from-id $> [integer]
       {[<Follow $fid _> {fid}]}]
-     [<to_id $> [integer]
+     [<to-id $> [integer]
       {[<Follow _ $tid> {tid}]}]
      }))
 
