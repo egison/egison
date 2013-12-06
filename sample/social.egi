@@ -39,9 +39,16 @@
      }))
 
 (match [users follows follows users] [user-table follow-table follow-table user-table]
-  [[<by-name ,"__Egi" <cons <id $uid> _>>]
-   [<by-from-id ,uid <cons <to-id $fid> _>>]
-   [<by-from-id ,fid <cons <to-id ,uid> _>>]
-   [<by-id ,fid <cons <name $name> _>>]
+  [[<by-name ,"Egison_Lang" <cons <id $uid> _>>
+    <by-from-id ,uid <cons <to-id $fid> _>>
+    <by-from-id ,fid <cons <to-id ,uid> _>>
+    <by-id ,fid <cons <name $name> _>>]
    <User fid name>])
-  
+
+(match [users follows follows users] [user-table follow-table follow-table user-table]
+  [[<by-name ,"Egison_Lang" <cons <id $uid> _>>
+    <by-from-id ,uid <cons <to-id $fid> _>>
+    ^<by-from-id ,fid <cons <to-id ,uid> _>>
+    <by-id ,fid <cons <name $name> _>>]
+   <User fid name>])
+
