@@ -136,7 +136,6 @@ data InnerExpr =
 data EgisonValue =
     World
   | Char Char
-  | String ByteString
   | Bool Bool
   | Integer Integer
   | Float Double
@@ -159,8 +158,7 @@ type Matcher = (Env, MatcherInfo)
 type PrimitiveFunc = [WHNFData] -> EgisonM EgisonValue
 
 instance Show EgisonValue where
-  show (Char c) = return c
-  show (String s) = "\"" ++ B.unpack s ++ "\""
+  show (Char c) = show c
   show (Bool True) = "#t"
   show (Bool False) = "#f"
   show (Integer i) = show i
@@ -184,7 +182,6 @@ instance Show EgisonValue where
 
 instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
- (String s) == (String s') = s == s'
  (Bool b) == (Bool b') = b == b'
  (Integer i) == (Integer i') = i == i'
  (Float f) == (Float f') = f == f'
@@ -197,7 +194,6 @@ instance Eq EgisonValue where
 makeKey :: EgisonValue ->  EgisonM ByteString
 makeKey (Integer i) = return $ B.pack $ show i
 makeKey (Char i) = return $ B.pack $ show i
-makeKey (String s) = return s
 makeKey val = throwError $ TypeMismatch "integer, char or string" (Value val)
 
 --
@@ -237,9 +233,17 @@ fromCharValue :: WHNFData -> Either EgisonError Char
 fromCharValue (Value (Char c)) = return c
 fromCharValue val = throwError $ TypeMismatch "char" val
 
-fromStringValue :: WHNFData -> Either EgisonError ByteString
-fromStringValue (Value (String s)) = return s
+fromStringValue :: WHNFData -> Either EgisonError String
+fromStringValue (Value (Collection seq)) = do
+  let ls = toList seq
+  mapM (\val -> case val of
+                  Char c -> return c
+                  _ -> throwError $ TypeMismatch "char" (Value val))
+       ls
 fromStringValue val = throwError $ TypeMismatch "string" val
+
+makeStringValue :: String -> EgisonValue
+makeStringValue str = Collection $ Sq.fromList $ map Char str
 
 fromBoolValue :: WHNFData -> Either EgisonError Bool
 fromBoolValue (Value (Bool b)) = return b
@@ -263,7 +267,6 @@ fromMatcherValue val = throwError $ TypeMismatch "matcher" val
 
 fromPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
 fromPrimitiveValue (Value val@(Char _)) = return val
-fromPrimitiveValue (Value val@(String _)) = return val
 fromPrimitiveValue (Value val@(Bool _)) = return val
 fromPrimitiveValue (Value val@(Integer _)) = return val
 fromPrimitiveValue (Value val@(Float _)) = return val
