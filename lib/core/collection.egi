@@ -49,6 +49,8 @@
         {[$tgt {tgt}]}]
        })))
 
+(define $string (list char))
+
 (define $map
   (lambda [$fn $ls]
     (match ls (list something)

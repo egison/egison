@@ -40,16 +40,6 @@
       {[$tgt {tgt}]}]
      }))
 
-(define $string
-  (matcher
-    {[,$s []
-      {[$tgt (if (eq? tgt s)
-                 {[]}
-                 {})]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
-
 (define $ordering
   (algebraic-data-matcher 
     {<less> <equal> <greater>}))
