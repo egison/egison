@@ -104,9 +104,17 @@ evalExpr env (ArrayExpr exprs) = do
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
   keyVals <- mapM (evalExpr' env) keyExprs
-  keys <- mapM makeKey keyVals
+  keys <- liftError $ mapM makeKey keyVals
   refs <- mapM (newThunk env) exprs
-  return . Intermediate . IHash $ HL.fromList $ zip keys refs
+  case head keys of
+    IntKey _ -> do
+      let keys' = map (\key -> case key of
+                                 IntKey i -> i) keys
+      return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
+    StrKey _ -> do
+      let keys' = map (\key -> case key of
+                                 StrKey s -> s) keys
+      return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
 
 evalExpr env (IndexedExpr expr indices) = do
   array <- evalExpr env expr
@@ -125,14 +133,24 @@ evalExpr env (IndexedExpr expr indices) = do
     case IntMap.lookup i array of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
-  refArray (Value (Hash hash)) (index:indices) = do
-    key <- makeKey index
+  refArray (Value (IntHash hash)) (index:indices) = do
+    key <- liftError $ fromIntegerValue $ Value index
     case HL.lookup key hash of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
-  refArray (Intermediate (IHash hash)) (index:indices) = do
-    key <- makeKey index
+  refArray (Intermediate (IIntHash hash)) (index:indices) = do
+    key <- liftError $ fromIntegerValue $ Value index
     case HL.lookup key hash of
+      Just ref -> evalRef ref >>= flip refArray indices
+      Nothing -> return $ Value Undefined
+  refArray (Value (StrHash hash)) (index:indices) = do
+    key <- liftError $ fromStringValue $ Value index
+    case HL.lookup (B.pack key) hash of
+      Just val -> refArray (Value val) indices
+      Nothing -> return $ Value Undefined
+  refArray (Intermediate (IStrHash hash)) (index:indices) = do
+    key <- liftError $ fromStringValue $ Value index
+    case HL.lookup (B.pack key) hash of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
   refArray val _ = throwError $ TypeMismatch "array" val
@@ -265,9 +283,12 @@ evalDeep (Intermediate (IInductiveData name refs)) =
 evalDeep (Intermediate (IArray refs)) = do
   refs' <- mapM evalRef' $ IntMap.elems refs
   return $ Array $ IntMap.fromList $ zip (enumFromTo 1 (IntMap.size refs)) refs'
-evalDeep (Intermediate (IHash refs)) = do
+evalDeep (Intermediate (IIntHash refs)) = do
   refs' <- mapM evalRef' refs
-  return $ Hash refs'
+  return $ IntHash refs'
+evalDeep (Intermediate (IStrHash refs)) = do
+  refs' <- mapM evalRef' refs
+  return $ StrHash refs'
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef' . Sq.fromList)
 

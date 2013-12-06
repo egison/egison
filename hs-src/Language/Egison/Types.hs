@@ -143,7 +143,8 @@ data EgisonValue =
   | Tuple [EgisonValue]
   | Collection (Seq EgisonValue)
   | Array (IntMap EgisonValue)
-  | Hash (HashMap ByteString EgisonValue)
+  | IntHash (HashMap Integer EgisonValue)
+  | StrHash (HashMap ByteString EgisonValue)
   | Matcher Matcher
   | Func Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
@@ -168,7 +169,8 @@ instance Show EgisonValue where
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = "{" ++ unwords (map show (toList vals)) ++ "}"
   show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
-  show (Hash hash) = "{|" ++ unwords (map (\(key, val) -> B.unpack key ++ " " ++ show val) $ HashMap.toList hash) ++ "|}"
+  show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
+  show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ B.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (Matcher _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
@@ -191,11 +193,6 @@ instance Eq EgisonValue where
  (Collection vals) == (Collection vals') = vals == vals'
  _ == _ = False
 
-makeKey :: EgisonValue ->  EgisonM ByteString
-makeKey (Integer i) = return $ B.pack $ show i
-makeKey (Char i) = return $ B.pack $ show i
-makeKey val = throwError $ TypeMismatch "integer, char or string" (Value val)
-
 --
 -- Internal Data
 --
@@ -215,7 +212,8 @@ data Intermediate =
   | ITuple [ObjectRef]
   | ICollection (Seq Inner)
   | IArray (IntMap ObjectRef)
-  | IHash (HashMap ByteString ObjectRef)
+  | IIntHash (HashMap Integer ObjectRef)
+  | IStrHash (HashMap ByteString ObjectRef)
 
 data Inner =
     IElement ObjectRef
@@ -227,7 +225,21 @@ instance Show WHNFData where
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
   show (Intermediate (IArray _)) = "[|...|]" 
-  show (Intermediate (IHash _)) = "{|...|}" 
+  show (Intermediate (IIntHash _)) = "{|...|}" 
+  show (Intermediate (IStrHash _)) = "{|...|}" 
+
+data EgisonHashKey =
+    IntKey Integer
+  | StrKey ByteString
+
+makeKey :: EgisonValue -> Either EgisonError EgisonHashKey
+makeKey val =
+  case val of
+    Integer i -> return (IntKey i)
+    Collection _ -> do
+      str <- fromStringValue $ Value val
+      return $ StrKey $ B.pack str
+    _ -> throwError $ TypeMismatch "integer or string" $ Value val
 
 fromCharValue :: WHNFData -> Either EgisonError Char
 fromCharValue (Value (Char c)) = return c
