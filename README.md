@@ -8,11 +8,37 @@ For more information, visit [Egison public site](http://www.egison.org).
 
 If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.org/~egi/) or tweet to [@__Egi](https://twitter.com/__Egi) or [@Egison_Lang](https://twitter.com/Egison_Lang).
 
-### How to compile
+### Getting Started
+
+At first, you should install [Haskell Platform](http://www.haskell.org/platform/).
+
+After you installed Haskell Platform, run the following commands on the terminal.
 
 ```
-% cabal install
+% cabal update
+% cabal install egison
 ```
+
+Now, you can try Egison.
+
+```
+% egison
+Egison Version X.X.X(C) 2011-2013 Satoshi Egi
+http://www.egison.org
+Welcome to Egison Interpreter!
+> ^D
+Leaving Egison Interpreter.
+```
+
+If you are a begginer of Egison, it would be better to install `egison-tutorial`.
+
+```
+% cabal update
+% cabal install egison-tutorial
+% egison-tutorial
+```
+
+Enjoy!
 
 ### How to test
 
@@ -96,6 +122,7 @@ All hands are expressed in a single pattern.
         <Nothing>]})))
 ```
 
+Isn't it exciting?
 The pattern-matching of Egison is very powerful.
 We can use it for pattern-matching against graphs or tree-structures such as XML.
 Egison is not famous at all now.
