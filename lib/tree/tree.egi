@@ -1,4 +1,29 @@
-(define $tree
+(define $b-tree
   (lambda [$a]
     (algebraic-data-matcher
-      {<leaf a> <node (tree a) (tree a)>}))) 
+      {<leaf a> <node (b-tree a) (b-tree a)>})))
+
+(define $n-tree
+  (lambda [$a]
+    (matcher
+      {[,$val []
+        {[$tgt (match [val tgt] [(n-tree a) (n-tree a)]
+                 {[[<lnode $tag $xs> <lnode ,tag ,xs>] {[]}]
+                  [[_ _] {}]})]}]
+       [<lnode $ $> [a (list (mtree a))] ; Node whose children are seen as a list.
+        {[<Node $x $ts> {[x ts]}]
+         [_ {}]}]
+       [<mnode $ $> [a (multiset (mtree a))] ; Node whose children are seen as a multiset.
+        {[<Node $x $ts> {[x ts]}]
+         [_ {}]}]
+       [<descendant $> [(n-tree a)]
+        {[$x {x @(all-descendants x)}]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))
+
+(define $mtree
+  (lambda [$x]
+    (match x (mtree something)
+      {[<leaf _ _> {}]
+       [<lnode _ $cs> {@cs @(concat (map all-descendants cs))}]})))
