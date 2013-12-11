@@ -4,11 +4,11 @@ Egison is the pattern-matching oriented pure functional programming langauge.
 Egison is the world's first programming language that can pattern-match against sets.
 This is the repository of the interpreter of Egison.
 
-For more information, visit [Egison public site](http://www.egison.org).
+For more information, visit [Egison web site](http://www.egison.org).
 
 If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.org/~egi/) or tweet to [@__Egi](https://twitter.com/__Egi) or [@Egison_Lang](https://twitter.com/Egison_Lang).
 
-### Getting Started
+### Getting Started!
 
 At first, you should install [Haskell Platform](http://www.haskell.org/platform/).
 
@@ -39,13 +39,6 @@ If you are a begginer of Egison, it would be better to install `egison-tutorial`
 ```
 
 Enjoy!
-
-### How to test
-
-```
-% cabal install --enable-tests
-% cabal test
-```
 
 ### Demonstration
 
@@ -127,3 +120,10 @@ The pattern-matching of Egison is very powerful.
 We can use it for pattern-matching against graphs or tree-structures such as XML.
 Egison is not famous at all now.
 Please help us to make Egison popular.
+
+### How to test (for developer)
+
+```
+% cabal install --enable-tests
+% cabal test
+```
