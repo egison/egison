@@ -1,6 +1,18 @@
+(define $write-each
+  (lambda [$xs]
+    (match xs (list something)
+      {[<nil> (do {} [])]
+       [<cons $x $rs>
+        (do {[(write-string x)]
+             [(write-string "\n")]
+             [(write-each rs)]
+             }
+          [])]})))
+
 (define $main
   (lambda [$argv]
     (do {[(write-string "argv: ")]
          [(write argv)]
-         [(write-string "\n")]}
+         [(write-string "\n")]
+         [(write-each argv)]}
       [])))
