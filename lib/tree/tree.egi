@@ -8,22 +8,19 @@
     (matcher
       {[,$val []
         {[$tgt (match [val tgt] [(n-tree a) (n-tree a)]
-                 {[[<lnode $tag $xs> <lnode ,tag ,xs>] {[]}]
+                 {[[<lnode $x $ts> <lnode ,x ,ts>] {[]}]
                   [[_ _] {}]})]}]
-       [<lnode $ $> [a (list (mtree a))] ; Node whose children are seen as a list.
+       [<lnode $ $> [a (list (n-tree a))] ; Node whose children are seen as a list.
         {[<Node $x $ts> {[x ts]}]
          [_ {}]}]
-       [<mnode $ $> [a (multiset (mtree a))] ; Node whose children are seen as a multiset.
+       [<mnode $ $> [a (multiset (n-tree a))] ; Node whose children are seen as a multiset.
         {[<Node $x $ts> {[x ts]}]
          [_ {}]}]
        [<descendant $> [(n-tree a)]
-        {[$x {x @(all-descendants x)}]}]
+        {[$t {@(match-all t (n-tree a)
+                 [<lnode $x _> x])
+              @(match-all t (n-tree a)
+                 [<mnode _ <cons <descendant $x> _>> x])}]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
-
-(define $mtree
-  (lambda [$x]
-    (match x (mtree something)
-      {[<leaf _ _> {}]
-       [<lnode _ $cs> {@cs @(concat (map all-descendants cs))}]})))

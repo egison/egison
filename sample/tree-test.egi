@@ -1,0 +1,21 @@
+(load "lib/tree/tree.egi")
+
+(define $tree-data
+  <Node 1 {<Node 11 {<Node 111 {}>
+                     <Node 112 {}>}>
+           <Node 12 {<Node 121 {}>
+                     <Node 122 {}>
+                     <Node 123 {}>}>
+           <Node 13 {<Node 131 {}>
+                     <Node 132 {}>
+                     <Node 133 {}>}>
+           }>)
+
+(test (match-all tree-data (n-tree integer)
+        [<lnode $x _> x]))
+        
+(test (match-all tree-data (n-tree integer)
+        [<mnode $x <cons <lnode $y _> _>> [x y]]))
+        
+(test (match-all tree-data (n-tree integer)
+        [<descendant $x> x]))
