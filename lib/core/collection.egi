@@ -20,31 +20,21 @@
         {[{@$xs $x} {[x xs]}]
          [_ {}]}]
        [<join ,$pxs $> [(list a)]
-        {[$tgt (letrec {[$helper (lambda [$pxs $tgt]
-                                   (match [pxs tgt] [(list a) (list a)]
-                                     {[[<nil> _] {tgt}]
-                                      [[<cons $x $xs> <cons ,x $ys>] (helper xs ys)]
-                                      [[_ _] {}]}))]}
-                 (helper pxs tgt))]}]
+        {[$tgt (match-all [pxs tgt] [(list a) (list a)]
+                 [[(loop $i [1 $n] <cons $a_i ...> <nil>)
+                   (loop $i [1 $n] <cons ,a_i ...> $rs)]
+                  rs])]}]
        [<join $ $> [(list a) (list a)]
-        {[$tgt (letrec {[$helper (lambda [$xs $ys]
-                                   (match ys (list a)
-                                     {[<nil> {[xs {}]}]
-                                      [<cons $z $zs> {[xs ys] @(helper {@xs z} zs)}]}))]}
-                 (helper {} tgt))]}]
+        {[$tgt (match-all tgt (list a)
+                 [(loop $i [1 $n] <cons $a_i ...> $rs) [{a_1 ... a_n} rs]])]}]
        [<nioj ,$pxs $> [(list a)]
-        {[$tgt (letrec {[$helper (lambda [$pxs $tgt]
-                                   (match [pxs tgt] [(list a) (list a)]
-                                     {[[<nil> _] {tgt}]
-                                      [[<snoc $x $xs> <snoc ,x $ys>] (helper xs ys)]
-                                      [[_ _] {}]}))]}
-                 (helper pxs tgt))]}]
+        {[$tgt (match-all [pxs tgt] [(list a) (list a)]
+                 [[(loop $i [1 $n] <snoc $a_i ...> <nil>)
+                   (loop $i [1 $n] <snoc ,a_i ...> $rs)]
+                  rs])]}]
        [<nioj $ $> [(list a) (list a)]
-        {[$tgt (letrec {[$helper (lambda [$xs $ys]
-                                   (match ys (list a)
-                                     {[<nil> {[{} xs]}]
-                                      [<cons $z $zs> {[ys xs] @(helper {@xs z} zs)}]}))]}
-                 (helper {} tgt))]}]
+        {[$tgt (match-all tgt (list a)
+                 [(loop $i [1 $n] <snoc $a_i ...> $rs) [{a_1 ... a_n} rs]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -147,19 +137,6 @@
            [<cons $x $ys> (let {[[$rs $i] (remove-and-count x ys)]}
                             {[x i] @((occurrence a) rs)})]})))))
 
-#|
-(define $subcollections
-  (lambda [$xs]
-    (foldr (lambda [$x $rs]
-             (let {[[$y $i] x]} 
-               (map-and-concat (lambda [$sub] 
-                                 (match-all (index-loop $l $j (between 1 i) {y @l} {}) (list something)
-                                   [<join $ys _> {@ys @sub}]))
-                               rs)))
-           {{}}
-           ((occurrence a) xs))))
-|#
-
 (define $one-of
   (lambda [$pred $xs]
     (match xs (list something)
@@ -169,11 +146,11 @@
             #t
             (one-of pred rs))]})))
 
-(define $size
+(define $length
   (lambda [$xs]
     (match xs (list something)
       {[<nil> 0]
-       [<cons _ $rs> (+ 1 (size rs))]})))
+       [<cons _ $rs> (+ 1 (length rs))]})))
 
 (define $car
   (lambda [$xs]
@@ -271,7 +248,7 @@
 
 (define $empty?
   (match-lambda (list something)
-   {[<nil>      #t]
+   {[<nil> #t]
     [<cons _ _> #f]}))
 
 (define $multiset
@@ -301,8 +278,7 @@
 (define $set
   (lambda [$a]
     (matcher
-      {
-       [<nil> []
+      {[<nil> []
         {[{} {[]}]
          [_ {}]}]
        [<cons ,$px $> [(set a)]

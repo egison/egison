@@ -1,7 +1,6 @@
 (define $integer
   (matcher
-    {
-     [,$n []
+    {[,$n []
       {[$tgt (if (eq? tgt n)
                  {[]}
                  {})]}]
@@ -20,9 +19,7 @@
 (define $float
   (matcher
     {[,$d []
-      {[$tgt (if (eq? tgt d)
-                 {[]}
-                 {})]}]
+      {[$tgt (if (eq? tgt d) {[]} {})]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))
@@ -38,9 +35,7 @@
 (define $nat
   (matcher
     {[,$n []
-      {[$tgt (if (eq? tgt n)
-                 {[]}
-                 {})]}]
+      {[$tgt (if (eq? tgt n) {[]} {})]}]
      [<o> []
       {[0 {[]}]
        [_ {}]}]
@@ -99,11 +94,8 @@
   (lambda [$ns]
     (match ns (set integer)
       {[<cons $n <nil>> n]
-       [<cons (& ,(min ns) $m)
-              $rs>
-        (gcd {m @((remove-all integer)
-                                       (map (lambda [$r] (mod r m))
-                                            rs)
+       [<cons (& ,(min ns) $m) $rs>
+        (gcd {m @((remove-all integer) (map (lambda [$r] (mod r m)) rs)
                                        0)})]})))
 
 (define $fib
