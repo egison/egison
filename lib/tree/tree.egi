@@ -17,10 +17,8 @@
         {[<Node $x $ts> {[x ts]}]
          [_ {}]}]
        [<descendant $> [(n-tree a)]
-        {[$t {@(match-all t (n-tree a)
-                 [<lnode $x _> x])
-              @(match-all t (n-tree a)
-                 [<mnode _ <cons <descendant $x> _>> x])}]}]
+        {[$t {t @(match-all t (n-tree a)
+                   [<mnode _ <cons <descendant $x> _>> x])}]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
