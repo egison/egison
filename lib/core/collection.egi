@@ -26,7 +26,7 @@
                   rs])]}]
        [<join $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $a_i ...> $rs) [{a_1 ... a_n} rs]])]}]
+                 [(loop $i [1 $n] <cons $a_i ...> $rs) [(map (lambda [$i] a_i) (between 1 10)) rs]])]}]
        [<nioj ,$pxs $> [(list a)]
         {[$tgt (match-all [pxs tgt] [(list a) (list a)]
                  [[(loop $i [1 $n] <snoc $a_i ...> <nil>)
@@ -34,7 +34,7 @@
                   rs])]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $a_i ...> $rs) [{a_1 ... a_n} rs]])]}]
+                 [(loop $i [1 $n] <snoc $a_i ...> $rs) [(map (lambda [$i] a_i) (between 1 10)) rs]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
