@@ -21,20 +21,20 @@
          [_ {}]}]
        [<join ,$pxs $> [(list a)]
         {[$tgt (match-all [pxs tgt] [(list a) (list a)]
-                 [[(loop $i [1 $n] <cons $k_i ...> <nil>)
-                   (loop $i [1 n] <cons ,k_i ...> $rs)]
+                 [[(loop $i [1 $n] <cons $xa_i ...> <nil>)
+                   (loop $i [1 n] <cons ,xa_i ...> $rs)]
                   rs])]}]
        [<join $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $k_i ...> $rs) [(map (lambda [$i] k_i) (between 1 n)) rs]])]}]
+                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
        [<nioj ,$pxs $> [(list a)]
         {[$tgt (match-all [pxs tgt] [(list a) (list a)]
-                 [[(loop $i [1 $n] <snoc $k_i ...> <nil>)
-                   (loop $i [1 n] <snoc ,k_i ...> $rs)]
+                 [[(loop $i [1 $n] <snoc $xa_i ...> <nil>)
+                   (loop $i [1 n] <snoc ,xa_i ...> $rs)]
                   rs])]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $k_i ...> $rs) [(map (lambda [$i] k_i) (between 1 n)) rs]])]}]
+                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))

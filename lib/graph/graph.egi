@@ -13,42 +13,18 @@
 
 (define $hamilton-cycle
   (pattern-function [$a]
-    (& $g
-       <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
-             (loop $i (between 3 (size g))
-               <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
-                     ...>
-               <cons <node ,h_(size g) <cons ,h_1 _> _>
-                     <nil>>)>)))
+    <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
+     (loop $i [3 $n]
+       <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
+             ...>
+       <cons <node ,h_n <cons ,h_1 _> _>
+             <nil>>)>))
 
 (define $hamilton-path
   (pattern-function [$a]
-    (& $g
-       <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
-             (loop $i (between 3 (size g))
-               <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
-                     ...>
-               <cons <node ,h_(size g) _ _>
-                     <nil>>)>)))
-
-(define $hamilton-path2
-  (pattern-function [$a]
-    (& $g
-       (let {[$n (size g)]}
-         <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
-               (loop $i (between 3 n)
-                 <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
-                       ...>
-                 <cons <node ,h_n _ _>
-                       <nil>>)>)
-       )))
-
-(define $all-paths
-  (pattern-function [$s $e $p $rest]
-    (| <cons <node (& s p_1) <cons (& e p_2) _> _> rest>
-       <cons <node (& s p_1)  <cons (& p_2 $h_2) _> _>
-          (loop $i (from 2) ;; TEMPORARY
-            <cons <node ,h_(- i 1) <cons (& p_i $h_i) _> _>
-                  ...>
-            rest)>)))
-
+    <cons <node (& a_1 $h_1) <cons (& a_2 $h_2) _> _>
+     (loop $i [3 $n]
+       <cons <node ,h_(- i 1) <cons (& a_i $h_i) _> _>
+        ...>
+       <cons <node ,h_n _ _>
+        <nil>>)>))
