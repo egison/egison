@@ -103,8 +103,13 @@ data EgisonPattern =
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | ApplyPat EgisonExpr [EgisonPattern]
-  | LoopPat String EgisonExpr EgisonPattern EgisonPattern
+  | LoopPat String LoopRange EgisonPattern EgisonPattern
   | ContPat
+ deriving (Show)
+
+data LoopRange =
+    LoopRangeConstant EgisonExpr EgisonExpr
+  | LoopRangeVariable EgisonExpr String
  deriving (Show)
 
 data PrimitivePatPattern =
@@ -284,6 +289,10 @@ fromPrimitiveValue (Value val@(Integer _)) = return val
 fromPrimitiveValue (Value val@(Float _)) = return val
 fromPrimitiveValue val = throwError $ TypeMismatch "primitive value" val 
 
+extractInteger :: EgisonValue -> EgisonM Integer
+extractInteger (Integer i) = return i
+extractInteger val = throwError $ TypeMismatch "integer" (Value val)
+
 --
 -- Environment
 --
@@ -314,7 +323,9 @@ data MatchingTree =
 
 type PatternBinding = (Var, EgisonPattern)
 
-data LoopContext = LoopContext Binding ObjectRef EgisonPattern EgisonPattern
+data LoopContext =
+    LoopContextConstant Binding Integer EgisonPattern EgisonPattern
+  | LoopContextVariable Binding String EgisonPattern EgisonPattern
 
 --
 -- Errors

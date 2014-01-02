@@ -221,14 +221,22 @@ desugarPattern' (IndexedPat pattern exprs) =
   IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs
 desugarPattern' (ApplyPat expr patterns) =
   ApplyPat <$> desugar expr <*> mapM desugarPattern' patterns 
-desugarPattern' (LoopPat name expr pattern1 pattern2) =
-  LoopPat name <$> desugar expr <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
+desugarPattern' (LoopPat name range pattern1 pattern2) =
+  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (LetPat binds pattern) = do
   LetPat <$> desugarBindings binds <*> desugarPattern' pattern
 desugarPattern' (OrPat patterns)  = 
   OrPat <$> mapM desugarPattern' patterns
 desugarPattern' pattern = return pattern
 
+desugarLoopRange :: LoopRange -> DesugarM LoopRange
+desugarLoopRange (LoopRangeConstant expr1 expr2) = do
+  expr1' <- desugar expr1
+  expr2' <- desugar expr2
+  return $ LoopRangeConstant expr1' expr2'
+desugarLoopRange (LoopRangeVariable expr1 name) = do
+  expr1' <- desugar expr1
+  return $ LoopRangeVariable expr1' name
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
 desugarBinding (name, expr) = do

@@ -418,7 +418,9 @@ processMState state =
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState' state@(MState _ _ _ []) = throwError $ strMsg "should not reach here"
 processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)) = do
-  let env' = extendEnv env (bindings ++ map (\(LoopContext binding _ _ _) -> binding) loops)
+  let env' = extendEnv env (bindings ++ map (\lc -> case lc of
+                                                      (LoopContextConstant binding _ _ _) -> binding
+                                                      (LoopContextVariable binding _ _ _) -> binding) loops)
   case pattern of
     VarPat _ -> throwError $ strMsg "cannot use variable except in pattern function"
     ApplyPat func args -> do
@@ -429,23 +431,30 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
     
-    LoopPat name range pat pat' -> do
-      result <- runMaybeT $ lift (evalExpr env' range >>= newEvaluatedThunk) >>= unconsCollection
-      case result of
-        Nothing -> return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
-        Just (head, tail) ->
-          let loops' = LoopContext (name, head) tail pat pat' : loops 
-          in return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
+    LoopPat name (LoopRangeConstant start end) pat pat' -> do
+      startNum' <- evalExpr' env start
+      startNum <- extractInteger startNum'
+      endNum' <- evalExpr' env end
+      endNum <- extractInteger endNum'
+      if startNum > endNum
+        then return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
+        else do
+          startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
+          let loops' = LoopContextConstant (name, startNumRef) endNum pat pat' : loops
+          return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
-        LoopContext (name, _) coll pat pat' : loops -> do
-          result <- runMaybeT $ unconsCollection coll
-          case result of
-            Nothing -> return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
-            Just (head, tail) ->
-              let loops' = LoopContext (name, head) tail pat pat' : loops 
-              in return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
+        LoopContextConstant (name, startNumRef) endNum pat pat' : loops -> do
+          startNum' <- evalRef' startNumRef
+          startNum <- extractInteger startNum'
+          let nextNum = startNum + 1
+          if nextNum > endNum
+            then return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
+            else do
+              nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
+              let loops' = LoopContextConstant (name, nextNumRef) endNum pat pat' : loops 
+              return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
           
     TuplePat patterns -> do
       matchers <- fromTuple matcher >>= mapM evalRef
@@ -539,7 +548,9 @@ processMState' (MState env loops bindings ((MNode penv state@(MState env' loops'
         IndexedPat (VarPat name) indices ->
           case lookup name penv of
             Just pattern -> do
-              let env'' = extendEnv env' (bindings' ++ map (\(LoopContext binding _ _ _) -> binding) loops')
+              let env'' = extendEnv env' (bindings' ++ map (\lc -> case lc of
+                                                                     (LoopContextConstant binding _ _ _) -> binding
+                                                                     (LoopContextVariable binding _ _ _) -> binding) loops')
               indices <- mapM (evalExpr env'' >=> liftError . liftM fromInteger . fromIntegerValue) indices
               let pattern' = IndexedPat pattern $ map IntegerExpr indices
               return $ msingleton $ MState env loops bindings (MAtom pattern' target matcher:MNode penv (MState env' loops' bindings' trees'):trees)

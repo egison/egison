@@ -381,7 +381,11 @@ applyPat :: Parser EgisonPattern
 applyPat = ApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
 
 loopPat :: Parser EgisonPattern
-loopPat = keywordLoop >> LoopPat <$> varName <*> expr <*> pattern <*> option (NotPat WildCard) pattern
+loopPat = keywordLoop >> LoopPat <$> varName <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
+
+loopRange :: Parser LoopRange
+loopRange = brackets ((try $ LoopRangeConstant <$> expr <*> expr)
+                      <|> LoopRangeVariable  <$> expr <*> varName)
 
 -- Constants
 
