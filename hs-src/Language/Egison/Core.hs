@@ -437,11 +437,19 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       endNum' <- evalExpr' env end
       endNum <- extractInteger endNum'
       if startNum > endNum
-        then return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
+        then do
+          return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
         else do
           startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
           let loops' = LoopContextConstant (name, startNumRef) endNum pat pat' : loops
           return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
+    LoopPat name (LoopRangeVariable start lastName) pat pat' -> do
+      startNum' <- evalExpr' env start
+      startNum <- extractInteger startNum'
+      startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
+      lastNumRef <- liftIO . newIORef . WHNF $ Value $ Integer (startNum - 1)
+      return $ fromList [MState env loops ((lastName, lastNumRef):bindings) ((MAtom pat' target matcher):trees),
+                         MState env ((LoopContextVariable (name, startNumRef) lastName pat pat'):loops) bindings ((MAtom pat target matcher):trees)]
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
@@ -455,6 +463,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
               let loops' = LoopContextConstant (name, nextNumRef) endNum pat pat' : loops 
               return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
+        LoopContextVariable (name, startNumRef) lastName pat pat' : loops -> do
+          startNum' <- evalRef' startNumRef
+          startNum <- extractInteger startNum'
+          let nextNum = startNum + 1
+          nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
+          let loops' = LoopContextVariable (name, nextNumRef) lastName pat pat' : loops 
+          return $ fromList [MState env loops ((lastName, startNumRef):bindings) (MAtom pat' target matcher : trees),
+                             MState env loops' bindings (MAtom pat target matcher : trees)]
           
     TuplePat patterns -> do
       matchers <- fromTuple matcher >>= mapM evalRef

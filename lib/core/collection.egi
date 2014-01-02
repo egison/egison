@@ -21,25 +21,31 @@
          [_ {}]}]
        [<join ,$pxs $> [(list a)]
         {[$tgt (match-all [pxs tgt] [(list a) (list a)]
-                 [[(loop $i [1 $n] <cons $a_i ...> <nil>)
-                   (loop $i [1 n] <cons ,a_i ...> $rs)]
+                 [[(loop $i [1 $n] <cons $k_i ...> <nil>)
+                   (loop $i [1 n] <cons ,k_i ...> $rs)]
                   rs])]}]
        [<join $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $a_i ...> $rs) [(map (lambda [$i] a_i) (between 1 10)) rs]])]}]
+                 [(loop $i [1 $n] <cons $k_i ...> $rs) [(map (lambda [$i] k_i) (between 1 n)) rs]])]}]
        [<nioj ,$pxs $> [(list a)]
         {[$tgt (match-all [pxs tgt] [(list a) (list a)]
-                 [[(loop $i [1 $n] <snoc $a_i ...> <nil>)
-                   (loop $i [1 n] <snoc ,a_i ...> $rs)]
+                 [[(loop $i [1 $n] <snoc $k_i ...> <nil>)
+                   (loop $i [1 n] <snoc ,k_i ...> $rs)]
                   rs])]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $a_i ...> $rs) [(map (lambda [$i] a_i) (between 1 10)) rs]])]}]
+                 [(loop $i [1 $n] <snoc $k_i ...> $rs) [(map (lambda [$i] k_i) (between 1 n)) rs]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
 
 (define $string (list char))
+
+(define $between
+  (lambda [$s $e]
+    (if (gt-i? s e)
+        {}
+        {s @(between (+ s 1) e)})))
 
 (define $map
   (lambda [$fn $ls]
