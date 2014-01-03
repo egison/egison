@@ -66,7 +66,7 @@ loadLibraries env = do
     libraries = [ "lib/core/base.egi"
                 , "lib/core/collection.egi"
                 , "lib/core/number.egi"
-                , "lib/core/pattern.egi" ]
+                 ]
 
 fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
 fromEgisonM = modifyCounter . runEgisonM
