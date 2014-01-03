@@ -432,9 +432,9 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
     
     LoopPat name (LoopRangeConstant start end) pat pat' -> do
-      startNum' <- evalExpr' env start
+      startNum' <- evalExpr' env' start
       startNum <- extractInteger startNum'
-      endNum' <- evalExpr' env end
+      endNum' <- evalExpr' env' end
       endNum <- extractInteger endNum'
       if startNum > endNum
         then do
@@ -444,7 +444,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           let loops' = LoopContextConstant (name, startNumRef) endNum pat pat' : loops
           return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
     LoopPat name (LoopRangeVariable start lastName) pat pat' -> do
-      startNum' <- evalExpr' env start
+      startNum' <- evalExpr' env' start
       startNum <- extractInteger startNum'
       startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
       lastNumRef <- liftIO . newIORef . WHNF $ Value $ Integer (startNum - 1)
