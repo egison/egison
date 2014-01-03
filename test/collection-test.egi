@@ -39,10 +39,10 @@
 (test (assert-equal "list's nioj"
         (match-all {1 2 3} (list integer)
           [<nioj $xs $ys> [xs ys]])
-        {[{1 2 3} {}]
-         [{2 3} {1}]
+        {[{} {1 2 3}]
          [{3} {1 2}]
-         [{} {1 2 3}]}))
+         [{3 2} {1}]
+         [{3 2 1} {}]}))
 
 (test (assert-equal "list's nioj with value pattern"
         (match {1 2 3} (list integer)
