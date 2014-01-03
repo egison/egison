@@ -96,8 +96,8 @@
         ...))
 |#
 
-(test (assert-equal "size"
-        (size {1 2 3})
+(test (assert-equal "length"
+        (length {1 2 3})
         3))
 
 (test (assert-equal "car"

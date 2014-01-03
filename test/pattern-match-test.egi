@@ -83,7 +83,7 @@
 
 (test (assert-equal "let pattern"
         (match {1 2 3} (list integer)
-         {[(& $a (let {[$n (size a)]} _)) [a n]]})
+         {[(& $a (let {[$n (length a)]} _)) [a n]]})
         [{1 2 3} 3]))
 
 (define $twin
