@@ -28,13 +28,19 @@ main = do args <- getArgs
                 case nonOpts of
                     [] -> when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
                     (file:args) -> do
-                        result <- evalEgisonTopExprs env [LoadFile file, Execute args]
-                        either print (const $ return ()) result
+                        case opts of
+                          Options {optLoadOnly = True} -> do
+                            result <- evalEgisonTopExprs env [LoadFile file]
+                            either print (const $ return ()) result
+                          Options {optLoadOnly = False} -> do
+                            result <- evalEgisonTopExprs env [LoadFile file, Execute args]
+                            either print (const $ return ()) result
 
 data Options = Options {
     optShowVersion :: Bool,
     optShowHelp :: Bool,
     optShowBanner :: Bool,
+    optLoadOnly :: Bool,
     optPrompt :: String
     }
 
@@ -43,6 +49,7 @@ defaultOptions = Options {
     optShowVersion = False,
     optShowHelp = False,
     optShowBanner = True,
+    optLoadOnly = False,
     optPrompt = "> "
     }
 
@@ -56,6 +63,9 @@ options = [
     "show usage information",
   Option [] ["no-banner"]
     (NoArg (\opts -> opts {optShowBanner = False}))
+    "show usage information",
+  Option ['l'] ["load"]
+    (NoArg (\opts -> opts {optLoadOnly = True}))
     "show usage information",
   Option ['p'] ["prompt"]
     (ReqArg (\prompt opts -> opts {optPrompt = prompt})
@@ -71,6 +81,7 @@ printHelp = do
   putStrLn "  --help                Display this information"
   putStrLn "  --version             Display egison version information"
   putStrLn "  --no-banner           Don't show banner"
+  putStrLn "  --load                Don't execute main function"
   putStrLn "  --prompt string       Set prompt of the interpreter"
   putStrLn ""
   exitWith ExitSuccess
