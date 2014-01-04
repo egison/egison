@@ -29,6 +29,6 @@
 
 (test (take 5 (match-all primes (list integer)
                 [<join _ <cons $m
-                  <cons (& ?(gte-i? $ (+ 50 m)) $n)
+                  <cons (& ?(gte-i? $ (+ 10 m)) $n)
                    _>>>
                  [m n]])))
