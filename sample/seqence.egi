@@ -1,0 +1,34 @@
+;;;
+;;;
+;;; Pattern-matching against sequence of natural numbers
+;;;
+;;;
+
+(test (take 10 nats))
+
+(test (take 10 (match-all nats (list integer)
+                 [<join _ <cons $x
+                   <join _ <cons $y
+                    <join _ <cons (& ?(lambda [$z] (eq? (* z z) (+ (* x x) (* y y)))) $z)
+                     _>>>>>>
+                  [x y z]])))
+
+(test (take 10 primes))
+
+(test (take 10 (match-all primes (list integer)
+                 [<join _ <cons $n <cons ,(+ n 2) _>>>
+                  [n (+ n 2)]])))
+
+(test (take 5 (match-all primes (list integer)
+                [<join _ <cons $n <cons ,(+ n 2) <cons ,(+ n 6) _>>>>
+                 [n (+ n 2) (+ n 6)]])))
+
+(test (take 5 (match-all primes (list integer)
+                [<join _ <cons $n <cons ,(+ n 4) <cons ,(+ n 6) _>>>>
+                 [n (+ n 2) (+ n 6)]])))
+
+(test (take 5 (match-all primes (list integer)
+                [<join _ <cons $m
+                  <cons (& ?(gte-i? $ (+ 50 m)) $n)
+                   _>>>
+                 [m n]])))
