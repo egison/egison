@@ -11,11 +11,11 @@
                      <Node 133 {}>}>
            }>)
 
-(test (match-all tree-data (n-tree integer)
+(test (match-all tree-data (tree integer)
         [<lnode $x _> x]))
         
-(test (match-all tree-data (n-tree integer)
+(test (match-all tree-data (tree integer)
         [<mnode $x <cons <lnode $y _> _>> [x y]]))
         
-(test (match-all tree-data (n-tree integer)
+(test (match-all tree-data (tree integer)
         [<descendant $x> x]))

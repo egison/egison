@@ -1,28 +1,84 @@
 ;;;
-;;; social demo
 ;;;
-(load "lib/graph/graph.egi")
+;;; Graph demonstartion
+;;;
+;;;
 
-(define $graph1 {
-    <Node 1 {2 3} {2 3}>
-    <Node 2 {1 3} {1 3}>
-    <Node 3 {1 2} {1 2}>
-    })
+;;
+;; Matcher definitions
+;;
+(define $graph
+  (lambda [$a]
+    (multiset (nodeInfo a))))
 
-(define $graph2 {
-    <Node 1 {4 5 8 10} {4 5 8 10}>
-    <Node 2 {3 6 12} {3 6 12}>
-    <Node 3 {2 7 9} {2 7 9}>
-    <Node 4 {1 6} {1 6}>
-    <Node 5 {1 8 9 11} {1 8 9 11}>
-    <Node 6 {2 4 10 12} {2 4 10 12}>
-    <Node 7 {3 9 11} {3 9 11}>
-    <Node 8 {1 5} {1 5}>
-    <Node 9 {3 5 7} {3 5 7}>
-    <Node 10 {1 6 12} {1 6 12}>
-    <Node 11 {5 7} {5 7}>
-    <Node 12 {2 6 10} {2 6 10}>
-    })
+(define $nodeInfo
+  (lambda [$a]
+    (algebraic-data-matcher
+      {<node a (multiset a) (multiset a)>})))
 
-(test (match-all graph1 (graph integer) [(hamilton-cycle $p) p]))
+;;
+;; Demonstration code
+;;
+(define $graph-data1
+  {<Node 1 {4} {2 3 5}>
+   <Node 2 {1} {3}>
+   <Node 3 {1 2} {4}>
+   <Node 4 {3} {1 5}>
+   <Node 5 {1 4} {}>})
 
+; hamilton-cycle
+(test (match-all graph-data1 (graph integer)  
+        [<cons <node $h_1 <cons $h_2 _> _>
+               (loop $i [3 $n]
+                     <cons <node ,h_(- i 1) <cons $h_i _> _>
+                           ...>
+                     <cons <node ,h_n <cons ,h_1 _> _>
+                           <nil>>)>
+         h]))
+
+; hamilton-path
+(test (match-all graph-data1 (graph integer)  
+        [<cons <node $h_1 <cons $h_2 _> _>
+               (loop $i [3 $n]
+                     <cons <node ,h_(- i 1) <cons $h_i _> _>
+                           ...>
+                     <cons <node ,h_n _ _>
+                           <nil>>)>
+         h]))
+
+(define $graph-data2
+  {<Node 1 {4 5 8 10} {4 5 8 10}>
+   <Node 2 {3 6 12} {3 6 12}>
+   <Node 3 {2 7 9} {2 7 9}>
+   <Node 4 {1 6} {1 6}>
+   <Node 5 {1 8 9 11} {1 8 9 11}>
+   <Node 6 {2 4 10 12} {2 4 10 12}>
+   <Node 7 {3 9 11} {3 9 11}>
+   <Node 8 {1 5} {1 5}>
+   <Node 9 {3 5 7} {3 5 7}>
+   <Node 10 {1 6 12} {1 6 12}>
+   <Node 11 {5 7} {5 7}>
+   <Node 12 {2 6 10} {2 6 10}>
+   })
+
+; All circuits whose length are 5
+(test (let {[$n 5]}
+        (match-all graph-data2 (graph integer)
+          [<cons <node $c_1 <cons $c_2 _> _>
+                 (loop $i [3 n]
+                       <cons <node ,c_(- i 1) <cons $c_i _> _>
+                             ...>
+                       <cons <node ,c_n <cons ,c_1 _> _>
+                             _>)>
+           c])))
+
+; All paths from 1 to 12
+(test (let {[$s 1] [$e 12]}
+        (match-all graph-data2 (graph integer)
+          [<cons <node (& ,s $c_1) <cons $c_2 _> _>
+                 (loop $i [3 $n]
+                       <cons <node ,c_(- i 1) <cons $c_i _> _>
+                             ...>
+                       <cons <node (& ,c_n ,e) _ _>
+                             _>)>
+           c])))

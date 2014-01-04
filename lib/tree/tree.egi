@@ -3,21 +3,21 @@
     (algebraic-data-matcher
       {<leaf a> <node (b-tree a) (b-tree a)>})))
 
-(define $n-tree
+(define $tree
   (lambda [$a]
     (matcher
       {[,$val []
-        {[$tgt (match [val tgt] [(n-tree a) (n-tree a)]
+        {[$tgt (match [val tgt] [(tree a) (tree a)]
                  {[[<lnode $x $ts> <lnode ,x ,ts>] {[]}]
                   [[_ _] {}]})]}]
-       [<lnode $ $> [a (list (n-tree a))] ; Node whose children are seen as a list.
+       [<lnode $ $> [a (list (tree a))] ; Node whose children are seen as a list.
         {[<Node $x $ts> {[x ts]}]
          [_ {}]}]
-       [<mnode $ $> [a (multiset (n-tree a))] ; Node whose children are seen as a multiset.
+       [<mnode $ $> [a (multiset (tree a))] ; Node whose children are seen as a multiset.
         {[<Node $x $ts> {[x ts]}]
          [_ {}]}]
-       [<descendant $> [(n-tree a)]
-        {[$t {t @(match-all t (n-tree a)
+       [<descendant $> [(tree a)]
+        {[$t {t @(match-all t (tree a)
                    [<mnode _ <cons <descendant $x> _>> x])}]}]
        [$ [something]
         {[$tgt {tgt}]}]
