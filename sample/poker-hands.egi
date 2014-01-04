@@ -1,3 +1,12 @@
+;;;
+;;;
+;;; Poker-hands demonstration
+;;;
+;;;
+
+;;
+;; Matcher definitions
+;;
 (define $suit
   (algebraic-data-matcher
     {<spade> <heart> <club> <diamond>}))
@@ -6,6 +15,9 @@
   (algebraic-data-matcher
     {<card suit (mod 13)>}))
 
+;;
+;; Poker-hands function
+;;
 (define $poker-hands
   (lambda [$cs]
     (match cs (multiset card)
@@ -73,13 +85,9 @@
              <nil>>>>>>
         <Nothing>]})))
 
-
-(test (poker-hands {<Card <Heart> 1>
-                    <Card <Heart> 2>
-                    <Card <Heart> 3>
-                    <Card <Heart> 4>
-                    <Card <Heart> 5>}))
-
+;;
+;; Demonstration code
+;;
 (test (poker-hands {<Card <Club> 12>
                     <Card <Club> 10>
                     <Card <Club> 13>
