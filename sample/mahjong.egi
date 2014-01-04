@@ -1,7 +1,12 @@
-;
-; Mah-jong example
-;
+;;;
+;;;
+;;; Mah-jong example
+;;;
+;;;
 
+;;
+;; Matcher definitions
+;;
 (define $suit
   (algebraic-data-matcher
     {<wan> <pin> <sou>}))
@@ -14,6 +19,9 @@
   (algebraic-data-matcher
     {<num suit integer> <ji honor>}))
 
+;;
+;; Pattern modularizations
+;;
 (define $twin
   (pattern-function [$pat1 $pat2]
     <cons (& $pat pat1)
@@ -34,6 +42,9 @@
       <cons ,pat
        pat2>>>))
 
+;;
+;; A function that determins whether the hand is finished or not.
+;;
 (define $agari?
   (match-lambda (multiset hai)
     {[(twin $th_1
@@ -46,18 +57,9 @@
       #t]
      [_ #f]}))
 
-(define $agari
-  (lambda [$hs]
-    (match-all hs (multiset hai)
-      [(twin $th_1
-       (| (shuntsu $sh_1 (| (shuntsu $sh_2 (| (shuntsu $sh_3 (| (shuntsu $sh_4 <nil>)
-                                                                (kohtsu $kh_1 <nil>)))
-                                              (kohtsu $kh_1 (kohtsu $kh_2 <nil>))))
-                            (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 <nil>)))))
-          (kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 <nil>)))))
-       (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 <nil>)))))))
-       [th sh kh]])))
-
+;;
+;; Demonstration code
+;;
 (test (agari? {<Ji <Haku>> <Ji <Haku>>
                <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
                <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
@@ -65,25 +67,7 @@
                <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
 
 (test (agari? {<Ji <Haku>> <Ji <Haku>>
+               <Num <Pin> 1> <Num <Pin> 3> <Num <Pin> 4>
                <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
                <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
-               <Num <Pin> 1> <Num <Pin> 3> <Num <Pin> 4>
                <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
-
-(test (agari {<Ji <Haku>> <Ji <Haku>>
-              <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
-              <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
-              <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
-              <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
-
-(test (agari {<Ji <Haku>> <Ji <Haku>>
-              <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
-              <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
-              <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
-              <Num <Sou> 6> <Num <Sou> 7> <Num <Sou> 8>}))
-
-(test (agari {<Ji <Haku>> <Ji <Haku>>
-              <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
-              <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
-              <Num <Pin> 1> <Num <Pin> 3> <Num <Pin> 4>
-              <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
