@@ -1,0 +1,11 @@
+(test (match-all {1 2 3 4 5} (list integer)
+        [<cons $x $xs> [x xs]]))
+
+(test (match-all {1 2 3 4 5} (multiset integer)
+        [<cons $x $xs> [x xs]]))
+
+(test (match-all {1 2 3 4 5} (list integer)
+        [<join $xs $ys> [xs ys]]))
+
+(test (match-all {1 2 3 4 5} (multiset integer)
+        [<cons $x ,(+ x 2)> [x (+ x 2)]]))
