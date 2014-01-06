@@ -24,15 +24,18 @@ main = do args <- getArgs
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
             Options {optPrompt = prompt, optShowBanner = bannerFlag} -> do
-                env <- primitiveEnv >>= loadLibraries
                 case nonOpts of
-                    [] -> when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
+                    [] -> do
+                        env <- primitiveEnv >>= loadLibraries
+                        when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
                     (file:args) -> do
                         case opts of
                           Options {optLoadOnly = True} -> do
+                            env <- primitiveEnvNoIO >>= loadLibraries
                             result <- evalEgisonTopExprs env [LoadFile file]
                             either print (const $ return ()) result
                           Options {optLoadOnly = False} -> do
+                            env <- primitiveEnv >>= loadLibraries
                             result <- evalEgisonTopExprs env [LoadFile file, Execute args]
                             either print (const $ return ()) result
 

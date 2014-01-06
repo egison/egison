@@ -1,5 +1,5 @@
 {-# Language FlexibleContexts #-}
-module Language.Egison.Primitives (primitiveEnv) where
+module Language.Egison.Primitives (primitiveEnv, primitiveEnvNoIO) where
 
 import Control.Arrow
 import Control.Applicative
@@ -23,6 +23,14 @@ import Language.Egison.Core
 primitiveEnv :: IO Env
 primitiveEnv = do
   let ops = map (second PrimitiveFunc) (primitives ++ ioPrimitives)
+  bindings <- forM (constants ++ ops) $ \(name, op) -> do
+    ref <- newIORef . WHNF $ Value op
+    return (name, ref)
+  return $ extendEnv nullEnv bindings
+
+primitiveEnvNoIO :: IO Env
+primitiveEnvNoIO = do
+  let ops = map (second PrimitiveFunc) primitives
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (name, ref)
