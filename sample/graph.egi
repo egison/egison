@@ -26,26 +26,6 @@
    <Node 4 {3} {1 5}>
    <Node 5 {1 4} {}>})
 
-; hamilton-cycle
-(test (match-all graph-data1 (graph integer)  
-        [<cons <node $h_1 <cons $h_2 _> _>
-               (loop $i [3 $n]
-                     <cons <node ,h_(- i 1) <cons $h_i _> _>
-                           ...>
-                     <cons <node ,h_n <cons ,h_1 _> _>
-                           <nil>>)>
-         h]))
-
-; hamilton-path
-(test (match-all graph-data1 (graph integer)  
-        [<cons <node $h_1 <cons $h_2 _> _>
-               (loop $i [3 $n]
-                     <cons <node ,h_(- i 1) <cons $h_i _> _>
-                           ...>
-                     <cons <node ,h_n _ _>
-                           <nil>>)>
-         h]))
-
 (define $graph-data2
   {<Node 1 {4 5 8 10} {4 5 8 10}>
    <Node 2 {3 6 12} {3 6 12}>
@@ -61,7 +41,27 @@
    <Node 12 {2 6 10} {2 6 10}>
    })
 
-; All circuits whose length are 5
+; All hamilton-cycles in graph-data1
+(test (match-all graph-data1 (graph integer)  
+        [<cons <node $h_1 <cons $h_2 _> _>
+               (loop $i [3 $n]
+                     <cons <node ,h_(- i 1) <cons $h_i _> _>
+                           ...>
+                     <cons <node ,h_n <cons ,h_1 _> _>
+                           <nil>>)>
+         h]))
+
+; All hamilton-paths in graph-data1
+(test (match-all graph-data1 (graph integer)  
+        [<cons <node $h_1 <cons $h_2 _> _>
+               (loop $i [3 $n]
+                     <cons <node ,h_(- i 1) <cons $h_i _> _>
+                           ...>
+                     <cons <node ,h_n _ _>
+                           <nil>>)>
+         h]))
+
+; All circuits whose length are 5 in graph-data2
 (test (let {[$n 5]}
         (match-all graph-data2 (graph integer)
           [<cons <node $c_1 <cons $c_2 _> _>
@@ -72,7 +72,7 @@
                              _>)>
            c])))
 
-; All paths from 1 to 12
+; All paths from 1 to 12 in graph-data2
 (test (let {[$s 1] [$e 12]}
         (match-all graph-data2 (graph integer)
           [<cons <node (& ,s $c_1) <cons $c_2 _> _>
