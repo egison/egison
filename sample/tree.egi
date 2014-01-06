@@ -1,23 +1,23 @@
 (load "lib/tree/tree.egi")
 
 (define $tree-data
-  <Node "Programming Langauge"
+  <Node "Programming language"
     {<Node "Pattern-mathcing oriented"
        {<Leaf "Egison">}>
-     <Node "Functianal Langauge"
-       {<Node "Strictly Typed"
+     <Node "Functional language"
+       {<Node "Strictly typed"
           {<Leaf "OCaml">
            <Leaf "Haskell">
            <Leaf "Curry">
            <Leaf "Coq">
            }>
-        <Node "Dynamically Typed"
+        <Node "Dynamically typed"
           {<Leaf "Egison">
            <Leaf "Lisp">
            <Leaf "Scheme">
            }>
         }>
-     <Node "Logic Programming"
+     <Node "Logic programming"
        {<Leaf "Prolog">
         <Leaf "LiLFeS">
         <Leaf "Curry">
@@ -36,10 +36,20 @@
 (test ((unique string) (match-all tree-data (tree string string)
                          [<descendant <leaf $x>> x])))
         
+; All langauges that belongs to Functional language
+(test ((unique string) (match-all tree-data (tree string string)
+                         [<descendant <mnode ,"Functional language" <cons <descendant <leaf $x>> _>>> x])))
+        
 ; All langauges that belongs more than two categories
 (test ((unique string) (match-all tree-data (tree string string)
                          [<mnode _ <cons <descendant <leaf $x>>
                                          <cons <descendant <leaf ,x>>
                                                _>>>
                           x])))
-        
+
+; All categories that Egison belongs
+(test (match-all tree-data (tree string string)
+        [(loop $i [1 $n]
+               <mnode $c_i <cons ...>>
+               <leaf ,"Egison">)
+         c]))
