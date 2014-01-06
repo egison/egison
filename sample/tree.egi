@@ -1,21 +1,45 @@
 (load "lib/tree/tree.egi")
 
 (define $tree-data
-  <Node 1 {<Node 11 {<Node 111 {}>
-                     <Node 112 {}>}>
-           <Node 12 {<Node 121 {}>
-                     <Node 122 {}>
-                     <Node 123 {}>}>
-           <Node 13 {<Node 131 {}>
-                     <Node 132 {}>
-                     <Node 133 {}>}>
-           }>)
+  <Node "Programming Langauge"
+    {<Node "Pattern-mathcing oriented"
+       {<Leaf "Egison">}>
+     <Node "Functianal Langauge"
+       {<Node "Strictly Typed"
+          {<Leaf "OCaml">
+           <Leaf "Haskell">
+           <Leaf "Curry">
+           <Leaf "Coq">
+           }>
+        <Node "Dynamically Typed"
+          {<Leaf "Egison">
+           <Leaf "Lisp">
+           <Leaf "Scheme">
+           }>
+        }>
+     <Node "Logic Programming"
+       {<Leaf "Prolog">
+        <Leaf "LiLFeS">
+        <Leaf "Curry">
+        }>
+     <Node "Object oriented"
+       {<Leaf "C++">
+        <Leaf "Java">
+        <Leaf "Ruby">
+        <Leaf "Python">
+        <Leaf "OCaml">
+        }>
+     }>)
 
-(test (match-all tree-data (tree integer)
-        [<lnode $x _> x]))
+
+; All langauges
+(test ((unique string) (match-all tree-data (tree string string)
+                         [<descendant <leaf $x>> x])))
         
-(test (match-all tree-data (tree integer)
-        [<mnode $x <cons <lnode $y _> _>> [x y]]))
+; All langauges that belongs more than two categories
+(test ((unique string) (match-all tree-data (tree string string)
+                         [<mnode _ <cons <descendant <leaf $x>>
+                                         <cons <descendant <leaf ,x>>
+                                               _>>>
+                          x])))
         
-(test (match-all tree-data (tree integer)
-        [<descendant $x> x]))
