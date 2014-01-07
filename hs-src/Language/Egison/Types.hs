@@ -172,13 +172,15 @@ instance Show EgisonValue where
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
-  show (Collection vals) = if all isChar (toList vals)
-                             then "\"" ++ map (\(Char c) -> c) (toList vals) ++ "\""
-                             else "{" ++ unwords (map show (toList vals)) ++ "}"
-                            where
-                              isChar :: EgisonValue -> Bool
-                              isChar (Char _) = True
-                              isChar _ = False
+  show (Collection vals) = if Sq.null vals
+                             then "{}"
+                             else if all isChar (toList vals)
+                                    then "\"" ++ map (\(Char c) -> c) (toList vals) ++ "\""
+                                    else "{" ++ unwords (map show (toList vals)) ++ "}"
+                                   where
+                                     isChar :: EgisonValue -> Bool
+                                     isChar (Char _) = True
+                                     isChar _ = False
   show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ B.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
