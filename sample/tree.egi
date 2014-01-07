@@ -48,6 +48,7 @@
           {<Leaf "Egison">
            <Leaf "Lisp">
            <Leaf "Scheme">
+           <Leaf "Clojure">
            }>
         }>
      <Node "Logic programming"
