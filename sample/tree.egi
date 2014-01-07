@@ -35,7 +35,7 @@
 ;;
 (define $tree-data
   <Node "Programming language"
-    {<Node "Pattern-mathcing oriented"
+    {<Node "Pattern-matching oriented"
        {<Leaf "Egison">}>
      <Node "Functional language"
        {<Node "Strictly typed"
