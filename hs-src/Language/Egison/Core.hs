@@ -448,8 +448,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       startNum <- extractInteger startNum'
       startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
       lastNumRef <- liftIO . newIORef . WHNF $ Value $ Integer (startNum - 1)
-      return $ fromList [MState env loops bindings ((MAtom lastNumPat lastNumRef (Value Something)):(MAtom pat' target matcher):trees),
-                         MState env ((LoopContextVariable (name, startNumRef) lastNumPat pat pat'):loops) bindings ((MAtom pat target matcher):trees)]
+      return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value Something) : MAtom pat' target matcher : trees),
+                         MState env (LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops) bindings (MAtom pat target matcher : trees)]
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
