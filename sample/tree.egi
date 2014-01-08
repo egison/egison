@@ -25,7 +25,7 @@
          [_ {}]}]
        [<descendant $> [(tree a b)]
         {[$t (match-all t (tree a b)
-               [(loop $i [1 $n] <mnode _ <cons ... _>> $x) x])]}]
+               [(loop $i [1 _] <mnode _ <cons ... _>> $x) x])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
