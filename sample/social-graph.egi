@@ -1,0 +1,53 @@
+;;;
+;;;
+;;; Social-graph Demonstration
+;;;
+;;;
+
+;;
+;; Matcher definition
+;;
+(define $user
+  (matcher
+    {[<id $> [integer]
+      {[<User $id _ _> {id}]}]
+     [<name $> [string]
+      {[<User _ $name _> {name}]}]
+     [<description $> [string]
+      {[<User _ _ $txt> {txt}]}]
+     }))
+
+(define $user-table (multiset user))
+
+(define $follow
+  (matcher
+    {[<from-id $> [integer]
+      {[<Follow $fid _> {fid}]}]
+     [<to-id $> [integer]
+      {[<Follow _ $tid> {tid}]}]
+     }))
+
+(define $follow-table (multiset follow))
+
+;;
+;; Demonstration code
+;;
+; Users who don't follow back "Egison_Lang"
+(test (match [users follows users] [user-table follow-table user-table]
+        [[<cons (& <name ,"Egison_Lang"> <id $uid>) _>
+          <cons (& <from_id ,uid> <to_id $fid>)
+           ^<cons (& <from_id ,fid> <to_id ,uid>)
+             _>>
+          <cons (& <id ,fid> <name $name> <description $txt>) _>
+         <User fid name txt>])))
+
+; Users who have interested in "Haskell" in the followers of followers of "Egison_Lang"
+(test (match [users follows users] [user-table follow-table user-table]
+        [[<cons (& <name ,"Egison_Lang"> <id $uid>) _>
+          <cons (& <from_id ,uid> <to_id $fid>)
+           <cons (& <from_id ,fid> <to_id $ffid>)
+            _>>
+          <cons (& <id ,ffid> <description (& <join _ <join ,"Haskell" _>> $txt)> <name $name>) _>
+         <User ffid name txt>]))
+
+
