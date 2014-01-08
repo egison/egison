@@ -59,12 +59,12 @@
 
 (test (assert "loop pattern"
         (match {3 2 1} (list integer)
-          {[(loop $i [1 3] <snoc ,i ...> <nil>) #t]})))
+          {[(loop $i [1 ,3] <snoc ,i ...> <nil>) #t]})))
 
 (test (assert-equal "double loop pattern"
         (match {{1 2 3} {4 5 6} {7 8 9}} (list (list integer))
-          {[(loop $i [1 3]
-                  <cons (loop $j [1 3]
+          {[(loop $i [1 ,3]
+                  <cons (loop $j [1 ,3]
                           <cons $n_i_j ...>
                           <nil>) ...>
                   <nil>)
@@ -108,7 +108,7 @@
 (define $comb
   (lambda [$n]
     (pattern-function [$p]
-      (loop $i [1 n]
+      (loop $i [1 ,n]
                <join _ <cons p_i ...>>
                _))))
 

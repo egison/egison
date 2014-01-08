@@ -443,13 +443,13 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
           let loops' = LoopContextConstant (name, startNumRef) endNum pat pat' : loops
           return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
-    LoopPat name (LoopRangeVariable start lastName) pat pat' -> do
+    LoopPat name (LoopRangeVariable start lastNumPat) pat pat' -> do
       startNum' <- evalExpr' env' start
       startNum <- extractInteger startNum'
       startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
       lastNumRef <- liftIO . newIORef . WHNF $ Value $ Integer (startNum - 1)
-      return $ fromList [MState env loops ((lastName, lastNumRef):bindings) ((MAtom pat' target matcher):trees),
-                         MState env ((LoopContextVariable (name, startNumRef) lastName pat pat'):loops) bindings ((MAtom pat target matcher):trees)]
+      return $ fromList [MState env loops bindings ((MAtom lastNumPat lastNumRef (Value Something)):(MAtom pat' target matcher):trees),
+                         MState env ((LoopContextVariable (name, startNumRef) lastNumPat pat pat'):loops) bindings ((MAtom pat target matcher):trees)]
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
@@ -463,13 +463,13 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
               let loops' = LoopContextConstant (name, nextNumRef) endNum pat pat' : loops 
               return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
-        LoopContextVariable (name, startNumRef) lastName pat pat' : loops -> do
+        LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops -> do
           startNum' <- evalRef' startNumRef
           startNum <- extractInteger startNum'
           let nextNum = startNum + 1
           nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
-          let loops' = LoopContextVariable (name, nextNumRef) lastName pat pat' : loops 
-          return $ fromList [MState env loops ((lastName, startNumRef):bindings) (MAtom pat' target matcher : trees),
+          let loops' = LoopContextVariable (name, nextNumRef) lastNumPat pat pat' : loops 
+          return $ fromList [MState env loops bindings (MAtom lastNumPat startNumRef (Value Something) : MAtom pat' target matcher : trees),
                              MState env loops' bindings (MAtom pat target matcher : trees)]
           
     TuplePat patterns -> do

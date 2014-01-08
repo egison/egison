@@ -65,7 +65,7 @@
 (test (let {[$n 5]}
         (match-all graph-data2 (graph integer)
           [<cons <node $c_1 <cons $c_2 _> _>
-                 (loop $i [3 n]
+                 (loop $i [3 ,n]
                        <cons <node ,c_(- i 1) <cons $c_i _> _>
                              ...>
                        <cons <node ,c_n <cons ,c_1 _> _>

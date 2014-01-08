@@ -109,7 +109,7 @@ data EgisonPattern =
 
 data LoopRange =
     LoopRangeConstant EgisonExpr EgisonExpr
-  | LoopRangeVariable EgisonExpr String
+  | LoopRangeVariable EgisonExpr EgisonPattern
  deriving (Show)
 
 data PrimitivePatPattern =
@@ -333,7 +333,7 @@ type PatternBinding = (Var, EgisonPattern)
 
 data LoopContext =
     LoopContextConstant Binding Integer EgisonPattern EgisonPattern
-  | LoopContextVariable Binding String EgisonPattern EgisonPattern
+  | LoopContextVariable Binding EgisonPattern EgisonPattern EgisonPattern
 
 --
 -- Errors
