@@ -9,22 +9,34 @@
 ;;
 (define $user
   (matcher
-    {[<id $> [integer]
+    {[,$u []
+      {[$tgt (match [u tgt] [user user]
+               {[[<id $id> <id ,id>] {[]}]
+                [_ {}]})]}]
+     [<id $> [integer]
       {[<User $id _ _> {id}]}]
      [<name $> [string]
       {[<User _ $name _> {name}]}]
      [<description $> [string]
       {[<User _ _ $txt> {txt}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
      }))
 
 (define $user-table (multiset user))
 
 (define $follow
   (matcher
-    {[<from-id $> [integer]
+    {[,$f []
+      {[$tgt (match [f tgt] [follow follow]
+               {[[(& <from-id $fid> <to-id $tid>) (& <from-id ,fid> <to-id ,tid>)] {[]}]
+                [_ {}]})]}]
+     [<from-id $> [integer]
       {[<Follow $fid _> {fid}]}]
      [<to-id $> [integer]
       {[<Follow _ $tid> {tid}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
      }))
 
 (define $follow-table (multiset follow))
@@ -32,22 +44,38 @@
 ;;
 ;; Demonstration code
 ;;
-; Users who don't follow back "Egison_Lang"
-(test (match [users follows users] [user-table follow-table user-table]
+(define $user-data
+  {<User 1 "Egison_Lang" "The Programming Language Egison.\nThe pattern-matching-oriented pure functional programming language.">
+   <User 2 "RakutenRIT" "Rakuten Institute of Technology">
+   })
+
+(define $follow-data
+  {<Follow 1 2>
+   })
+
+; Users whom "Egison_Lang" follows
+(test (match-all [user-data follow-data user-data] [user-table follow-table user-table]
         [[<cons (& <name ,"Egison_Lang"> <id $uid>) _>
-          <cons (& <from_id ,uid> <to_id $fid>)
-           ^<cons (& <from_id ,fid> <to_id ,uid>)
+          <cons (& <from-id ,uid> <to-id $fid>) _>
+          <cons (& <id ,fid> <name $name> <description $txt>) _>]
+         <User fid name txt>]))
+
+; Users who don't follow back "Egison_Lang"
+(test (match-all [user-data follow-data user-data] [user-table follow-table user-table]
+        [[<cons (& <name ,"Egison_Lang"> <id $uid>) _>
+          <cons (& <from-id ,uid> <to-id $fid>)
+           ^<cons (& <from-id ,fid> <to-id ,uid>)
              _>>
-          <cons (& <id ,fid> <name $name> <description $txt>) _>
-         <User fid name txt>])))
+          <cons (& <id ,fid> <name $name> <description $txt>) _>]
+         <User fid name txt>]))
 
 ; Users who have interested in "Haskell" in the followers of followers of "Egison_Lang"
-(test (match [users follows users] [user-table follow-table user-table]
+(test (match-all [user-data follow-data user-data] [user-table follow-table user-table]
         [[<cons (& <name ,"Egison_Lang"> <id $uid>) _>
-          <cons (& <from_id ,uid> <to_id $fid>)
-           <cons (& <from_id ,fid> <to_id $ffid>)
+          <cons (& <from-id ,uid> <to-id $fid>)
+           <cons (& <from-id ,fid> <to-id $ffid>)
             _>>
-          <cons (& <id ,ffid> <description (& <join _ <join ,"Haskell" _>> $txt)> <name $name>) _>
+          <cons (& <id ,ffid> <description (& <join _ <join ,"Rakuten" _>> $txt)> <name $name>) _>]
          <User ffid name txt>]))
 
 
