@@ -1,6 +1,6 @@
 Name:                egison
 Version:             3.2.3
-Synopsis:            The programming language with non-linear pattern-matching against unfree data
+Synopsis:            Programming language with non-linear pattern-matching against unfree data types
 Description:         An interpreter for Egison, the programming langugage that realized non-linear pattern-matching with unfree data types.
                      With Egison, you can represent pattern-matching with unfree data types intuitively,
                      especially for collection data, such as lists, multisets, sets.
