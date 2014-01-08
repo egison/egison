@@ -84,6 +84,6 @@
 ; All categories that Egison belongs
 (test (match-all tree-data (tree string string)
         [(loop $i [1 $n]
-               <mnode $c_i <cons ...>>
+               <mnode $c_i <cons ... _>>
                <leaf ,"Egison">)
          c]))
