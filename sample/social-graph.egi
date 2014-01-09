@@ -47,10 +47,12 @@
 (define $user-data
   {<User 1 "Egison_Lang" "The Programming Language Egison.\nThe pattern-matching-oriented pure functional programming language.">
    <User 2 "RakutenRIT" "Rakuten Institute of Technology">
+   <User 3 "Haskell" "I love Haskell programming.">
    })
 
 (define $follow-data
   {<Follow 1 2>
+   <Follow 2 3>
    })
 
 ; Users whom "Egison_Lang" follows
@@ -75,7 +77,5 @@
           <cons (& <from-id ,uid> <to-id $fid>)
            <cons (& <from-id ,fid> <to-id $ffid>)
             _>>
-          <cons (& <id ,ffid> <description (& <join _ <join ,"Rakuten" _>> $txt)> <name $name>) _>]
+          <cons (& <id ,ffid> <description (& <join _ <join ,"Haskell" _>> $txt)> <name $name>) _>]
          <User ffid name txt>]))
-
-
