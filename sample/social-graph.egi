@@ -47,7 +47,7 @@
 (define $user-data
   {<User 1 "Egison_Lang" "The Programming Language Egison.\nThe pattern-matching-oriented pure functional programming language.">
    <User 2 "RakutenRIT" "Rakuten Institute of Technology">
-   <User 3 "Haskell" "I love Haskell programming.">
+   <User 3 "Haskeller" "I love Haskell programming.">
    })
 
 (define $follow-data

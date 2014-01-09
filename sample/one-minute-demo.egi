@@ -8,4 +8,4 @@
         [<join $xs $ys> [xs ys]]))
 
 (test (match-all {1 2 3 4 5} (multiset integer)
-        [<cons $x ,(+ x 2)> [x (+ x 2)]]))
+        [<cons $x <cons ,(+ x 2) _>> [x (+ x 2)]]))
