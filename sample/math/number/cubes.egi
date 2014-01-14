@@ -1,0 +1,13 @@
+(define $sum-of-cubes
+  (let {[$cube (lambda [$x] (* x (* x x)))]}
+    (match-all nats (list integer)
+      [<join _ (& <cons $m _> <join _ <cons $n _>>)> [m n (+ (cube m) (cube n))]])))
+
+(test (take 10 sum-of-cubes))
+
+(test (take 2 (match-all sum-of-cubes (list [integer integer integer])
+                [<join _ <cons [$x1 $y1 $c]
+                  <join _ <cons [$x2 $y2 ,c]
+                   _>>>>
+                 [[x1 y1 c] [x2 y2 c]]]
+                )))
