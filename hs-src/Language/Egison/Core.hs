@@ -502,7 +502,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
          >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))
     _ ->
       case matcher of
-        Value Something -> 
+        Value (Matcher matcher) -> do
+          (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
+          mfor targetss $ \ref -> do
+            targets <- evalRef ref >>= fromTuple
+            let trees' = zipWith3 MAtom patterns targets matchers ++ trees
+            return $ MState env loops bindings trees'
+            
+        _ -> -- Value Something -> -- for tupple patterns
           case pattern of
             WildCard -> return $ msingleton $ MState env loops bindings trees 
             PatVar name -> return $ msingleton $ MState env loops ((name, target):bindings) trees
@@ -540,16 +547,9 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                                          | otherwise = (k', v'):(subst k nv xs)
                 subst _ _ [] = []
             IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
-            
             _ -> throwError $ strMsg "something can only match with a pattern variable"
 
-        Value (Matcher matcher) -> do
-          (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
-          mfor targetss $ \ref -> do
-            targets <- evalRef ref >>= fromTuple
-            let trees' = zipWith3 MAtom patterns targets matchers ++ trees
-            return $ MState env loops bindings trees'
-        _ -> throwError $ TypeMismatch "matcher" matcher
+--        _ -> throwError $ TypeMismatch "matcher" matcher
 processMState' (MState env loops bindings ((MNode penv (MState _ _ _ [])):trees)) =
   return $ msingleton $ MState env loops bindings trees
 processMState' (MState env loops bindings ((MNode penv state@(MState env' loops' bindings' (tree:trees')):trees))) = do
