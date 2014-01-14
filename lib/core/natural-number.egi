@@ -1,0 +1,84 @@
+;;;;;
+;;;;;
+;;;;; Natural Number Library
+;;;;;
+;;;;;
+
+(define $nat
+  (matcher
+    {[,$n []
+      {[$tgt (if (eq? tgt n) {[]} {})]}]
+     [<o> []
+      {[0 {[]}]
+       [_ {}]}]
+     [<s $> nat
+      {[$tgt (match (compare-integer tgt 0) ordering
+               {[<greater> {(- tgt 1)}]
+                [_ {}]})]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $fib
+  (lambda [$n]
+    (letrec {[$fib1 (lambda [$n $ret1 $ret2]
+                      (match n nat
+                        {[<o> ret2]
+                         [<s <o>> ret1]
+                         [<s $n1> (fib1 (- n 1) (+ ret1 ret2) ret1)]
+                         }))]}
+      (fib1 n 1 1))))
+
+(define $fact
+  (lambda [$n]
+    (letrec {[$fact1 (lambda [$n $ret]
+                       (match n [nat]
+                         {[<o> ret]
+                          [<s $n1> (fact1 n1 (* n ret))]}))]}
+      (fact1 n 1))))
+
+(define $divisor?
+  (lambda [$n $d]
+    (eq-i? 0 (remainder n d))))
+      
+
+(define $gcd
+  (lambda [$ns]
+    (match ns (multiset integer)
+      {[<cons $n <nil>> n]
+       [<cons (& ,(min ns) $m) $rs>
+        (gcd {m @((remove-all integer) (map (lambda [$r] (modulo r m)) rs)
+                                       0)})]})))
+
+;;;
+;;; Number Collections
+;;;
+(define $primes
+  (letrec {[$next-primes
+            (lambda [$primes1 $k]
+              (let {[$primes2 (while (lte? $ (floor (sqrt (itof (* 6 (+ k 1)))))) primes1)]}
+                (match [(one-of (lambda [$p] (eq? (remainder (+ (* 6 k) 1) p) 0)) primes2)
+                        (one-of (lambda [$p] (eq? (remainder (+ (* 6 k) 5) p) 0)) primes2)]
+                  [bool bool]
+                  {[[,#f ,#f] {(+ (* 6 k) 1) (+ (* 6 k) 5) @(next-primes {@primes1 (+ (* 6 k) 1) (+ (* 6 k) 5)} (+ k 1))}]
+                   [[,#f ,#t] {(+ (* 6 k) 1) @(next-primes {@primes1 (+ (* 6 k) 1)} (+ k 1))}]
+                   [[,#t ,#f] {(+ (* 6 k) 5) @(next-primes {@primes1 (+ (* 6 k) 5)} (+ k 1))}]
+                   [[,#t ,#t] (next-primes primes1 (+ k 1))]
+                   })))]}
+    {2 3 5 @(next-primes {2 3 5} 1)}))
+
+;;;
+;;; Prime Numbers
+;;;
+(define $find-factor
+  (lambda [$n]
+    (match primes (list integer)
+      {[<join _ <cons (& ?(divisor? n $) $x) _>> x]})))
+
+(define $prime-factorization
+  (match-lambda nat
+    {[,1 {}]
+     [$n (let {[$p (find-factor n)]}
+           {p @(prime-factorization (quotient n p))})]}))
+
+(define $p-f prime-factorization)

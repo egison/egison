@@ -120,13 +120,6 @@
           xs
           {@xs x}))))
 
-(define $union
-  (lambda [$a]
-    (lambda [$xs $ys]
-      (match ys (list something)
-        {[<nil> xs]
-         [<cons $y $rs> ((union a) ((add a) xs y) rs)]}))))
-
 (define $occurrence
   (lambda [$a]
     (lambda [$xs]
@@ -179,9 +172,12 @@
       {[<snoc _ $ys> ys]})))
 
 (define $nth
-  (lambda [$i $l]
-    (match l (list something)
-      {[<cons $x $xs> (if (eq? i 0) x (nth (- i 1) xs))]})))
+  (lambda [$n $xs]
+    (match xs (list something)
+      {[(loop $i [1 ,(- n 1)]
+          <cons _ ...>
+          <cons $x _>)
+        x]})))
 
 (define $take
   (lambda [$n $xs]
@@ -281,6 +277,20 @@
         {[$tgt {tgt}]}]
        })))
 
+(define $union
+  (lambda [$a]
+    (lambda [$xs $ys]
+      {xs
+       @(match-all [ys xs] [(multiset a) (multiset a)]
+          [[<cons $y _> ^<cons ,y _>] y])
+       })))
+
+(define $intersect
+  (lambda [$a]
+    (lambda [$xs $ys]
+      (match-all [xs ys] [(multiset a) (multiset a)]
+        [[<cons $x _> <cons ,x _>] x]))))
+
 (define $set
   (lambda [$a]
     (matcher
@@ -297,3 +307,4 @@
        [$ [something]
         {[$tgt {tgt}]}]
        })))
+
