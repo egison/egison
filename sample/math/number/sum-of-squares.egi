@@ -30,7 +30,7 @@
 ; sample output
 (test (take 30 sum-of-squares-pf))
 
-; list prime numbers that is the sum of two non-zero square numbers in two distinct way
+; list prime numbers that is the sum of two non-zero square numbers
 (test (take 10 (match-all sum-of-squares-pf (list [integer integer (multiset integer)])
                  [<join _ <cons [_ _ <cons $p <nil>>] _>> p])))
 

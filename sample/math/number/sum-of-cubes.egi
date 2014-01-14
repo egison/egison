@@ -14,7 +14,7 @@
 ; sample output
 (test (take 10 sum-of-cubes))
 
-; list numbers that is the sum of two non-zero cube numbers in two distinct way
+; list numbers that is the sum of two non-zero cube numbers
 (test (take 2 (match-all sum-of-cubes (list [integer integer integer])
                 [<join _ <cons [$x1 $y1 $c]
                   <join _ <cons [$x2 $y2 ,c]
