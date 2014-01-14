@@ -4,7 +4,7 @@
 ;;;;;
 ;;;;;
 
-; Infintite list of sum of squres triple.
+; Infintite list of sum of cubes.
 ; -- [m n (+ m^3 n^3)]
 (define $sum-of-cubes
   (let {[$cube (lambda [$x] (* x (* x x)))]}
