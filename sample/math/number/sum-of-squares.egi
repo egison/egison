@@ -1,0 +1,22 @@
+(define $sum-of-squares
+  (let {[$square (lambda [$x] (* x x))]}
+    (match-all nats (list integer)
+      [<join _ (& <cons $m _> <join _ <cons $n _>>)> [m n (+ (square m) (square n))]])))
+
+(test (take 30 sum-of-squares))
+
+(test (let {[$n 2]}
+        (take 10 (match-all sum-of-squares (list [integer integer integer])
+                  [<join _ <cons [$x_1 $y_1 $c]
+                    (loop $i [2 ,n]
+                      <join _ <cons [$x_i $y_i ,c] ...>>
+                      _)>>
+                   (map (lambda [$i] [x_i y_i c]) (between 1 n))]))))
+
+(test (let {[$n 3]}
+        (take 1 (match-all sum-of-squares (list [integer integer integer])
+                  [<join _ <cons [$x_1 $y_1 $c]
+                    (loop $i [2 ,n]
+                      <join _ <cons [$x_i $y_i ,c] ...>>
+                      _)>>
+                   (map (lambda [$i] [x_i y_i c]) (between 1 n))]))))
