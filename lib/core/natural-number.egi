@@ -53,6 +53,10 @@
 ;;;
 ;;; Number Collections
 ;;;
+(define $nats {1 @(map (+ 1 $) nats)})
+
+(define $nats0 {0 @(map (+ 1 $) nats0)})
+
 (define $primes
   (letrec {[$next-primes
             (lambda [$primes1 $k]

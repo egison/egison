@@ -79,11 +79,6 @@
         {[$tgt {(modulo tgt m)}]}]
        })))
 
-;;;
-;;; Number Collections
-;;;
-(define $nats {1 @(map (+ 1 $) nats)})
-
 ;;
 ;; Float Numbers
 ;;
