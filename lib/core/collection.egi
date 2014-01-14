@@ -53,11 +53,11 @@
       {[<nil> {}]
        [<cons $x $xs> {(fn x) @(map fn xs)}]})))
 
-(define $map-and-concat
-  (lambda [$fn $ls]
-    (match ls (list something)
+(define $concat
+  (lambda [$xss]
+    (match xss (list something)
       {[<nil> {}]
-       [<cons $x $xs> {@(fn x) @(map-and-concat fn xs)}]})))
+       [<cons $xs $rss> {@xs @(concat rss)}]})))
 
 (define $foldr
   (lambda [$fn $init $ls]
@@ -241,12 +241,6 @@
           (if ((member? a) x ys)
               ((subcollection? a) rest ys)
               #f)]}))))
-
-(define $concat
-  (lambda [$xs]
-    (match xs (list something)
-      {[<nil> {}]
-       [<cons $x $rs> {@x @(concat rs)}]})))
 
 (define $empty?
   (match-lambda (list something)
