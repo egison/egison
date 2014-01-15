@@ -394,6 +394,7 @@ constantExpr =  charExpr
                  <|> stringExpr
                  <|> boolExpr
                  <|> try floatExpr
+--                 <|> try rationalExpr
                  <|> integerExpr
                  <|> (keywordSomething *> pure SomethingExpr)
                  <|> (keywordUndefined *> pure UndefinedExpr)
@@ -432,7 +433,7 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
  where
-  symbol1 = oneOf "&*/:="
+  symbol1 = oneOf "+-*="
   symbol2 = symbol1 <|> oneOf "+-!?"
 
 lexer :: P.GenTokenParser ByteString () Identity
