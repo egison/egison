@@ -74,6 +74,7 @@ evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ makeStringValue s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
+evalExpr _ (RationalExpr x) = return . Value $ Rational x
 evalExpr _ (IntegerExpr i) = return . Value $ Integer i
 evalExpr _ (FloatExpr d) = return . Value $ Float d
 

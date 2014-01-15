@@ -29,6 +29,7 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import System.IO
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
+import Data.Ratio
 
 --
 -- Expressions
@@ -47,6 +48,7 @@ data EgisonExpr =
     CharExpr Char
   | StringExpr String
   | BoolExpr Bool
+  | RationalExpr Rational
   | IntegerExpr Integer
   | FloatExpr Double
   | VarExpr String
@@ -142,6 +144,7 @@ data EgisonValue =
     World
   | Char Char
   | Bool Bool
+  | Rational Rational
   | Integer Integer
   | Float Double
   | InductiveData String [EgisonValue]
@@ -167,6 +170,7 @@ instance Show EgisonValue where
   show (Char c) = show c
   show (Bool True) = "#t"
   show (Bool False) = "#f"
+  show (Rational x) = show (numerator x) ++ "/" ++ show (denominator x)
   show (Integer i) = show i
   show (Float f) = show f
   show (InductiveData name []) = "<" ++ name ++ ">"

@@ -7,6 +7,7 @@ import Control.Monad.Error
 
 import Data.IORef
 import qualified Data.Array as A
+import Data.Ratio
 
 import System.IO
 import System.Random
@@ -81,9 +82,9 @@ constants = [ ("pi", Float 3.141592653589793) ]
 --
 
 primitives :: [(String, PrimitiveFunc)]
-primitives = [ ("+", integerBinaryOp (+)) 
-             , ("-", integerBinaryOp (-))
-             , ("*", integerBinaryOp (*))
+primitives = [ ("+i", integerBinaryOp (+)) 
+             , ("-i", integerBinaryOp (-))
+             , ("*i", integerBinaryOp (*))
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
              , ("remainder", integerBinaryOp rem)
@@ -128,6 +129,10 @@ primitives = [ ("+", integerBinaryOp (+))
              , ("lte?", lte)
              , ("gt?",  gt)
              , ("gte?", gte)
+             , ("+", plus)
+             , ("-", minus)
+             , ("*", multiply)
+             , ("/", divide)
              , ("string-append", stringAppend)
              , ("assert", assert)
              , ("assert-equal", assertEqual) ]
@@ -217,6 +222,72 @@ gte = (liftError .) $ twoArgs gte'
   gte' (Value (Float _)) val = throwError $ TypeMismatch "number" val
   gte' val _ = throwError $ TypeMismatch "number" val
 
+plus :: PrimitiveFunc
+plus = (liftError .) $ twoArgs plus'
+ where
+  plus' (Value (Integer x)) (Value (Integer x')) = return $ Integer $ (x + x')
+  plus' (Value (Integer i)) val = plus' (Value (Rational (i % 1))) val
+  plus' val (Value (Integer i)) = plus' val (Value (Rational (i % 1)))
+  plus' (Value (Rational x)) (Value (Rational x')) = let y = (x + x') in
+                                                      if denominator y == 1
+                                                        then return $ Integer $ numerator y
+                                                        else return $ Rational y
+  plus' (Value (Float f)) (Value (Float f')) = return $ Float $ f + f'
+  plus' (Value (Rational i)) (Value (Float f)) = return $ Float $ (fromRational i) + f
+  plus' (Value (Float f)) (Value (Rational i)) = return $ Float $ f + (fromRational i)
+  plus' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
+  plus' (Value (Float _)) val = throwError $ TypeMismatch "number" val
+  plus' val _ = throwError $ TypeMismatch "number" val
+
+minus :: PrimitiveFunc
+minus = (liftError .) $ twoArgs minus'
+ where
+  minus' (Value (Integer x)) (Value (Integer x')) = return $ Integer $ (x - x')
+  minus' (Value (Integer i)) val = minus' (Value (Rational (i % 1))) val
+  minus' val (Value (Integer i)) = minus' val (Value (Rational (i % 1)))
+  minus' (Value (Rational x)) (Value (Rational x')) = let y = (x - x') in
+                                                      if denominator y == 1
+                                                        then return $ Integer $ numerator y
+                                                        else return $ Rational y
+  minus' (Value (Float f)) (Value (Float f')) = return $ Float $ f - f'
+  minus' (Value (Rational i)) (Value (Float f)) = return $ Float $ (fromRational i) - f
+  minus' (Value (Float f)) (Value (Rational i)) = return $ Float $ f - (fromRational i)
+  minus' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
+  minus' (Value (Float _)) val = throwError $ TypeMismatch "number" val
+  minus' val _ = throwError $ TypeMismatch "number" val
+
+multiply :: PrimitiveFunc
+multiply = (liftError .) $ twoArgs multiply'
+ where
+  multiply' (Value (Integer x)) (Value (Integer x')) = return $ Integer $ (x * x')
+  multiply' (Value (Integer i)) val = multiply' (Value (Rational (i % 1))) val
+  multiply' val (Value (Integer i)) = multiply' val (Value (Rational (i % 1)))
+  multiply' (Value (Rational x)) (Value (Rational x')) = let y = (x * x') in
+                                                      if denominator y == 1
+                                                        then return $ Integer $ numerator y
+                                                        else return $ Rational y
+  multiply' (Value (Float f)) (Value (Float f')) = return $ Float $ f * f'
+  multiply' (Value (Rational i)) (Value (Float f)) = return $ Float $ (fromRational i) * f
+  multiply' (Value (Float f)) (Value (Rational i)) = return $ Float $ f * (fromRational i)
+  multiply' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
+  multiply' (Value (Float _)) val = throwError $ TypeMismatch "number" val
+  multiply' val _ = throwError $ TypeMismatch "number" val
+
+divide :: PrimitiveFunc
+divide = (liftError .) $ twoArgs divide'
+ where
+  divide' (Value (Integer x)) (Value (Integer x')) = return $ Rational $ (x % x')
+  divide' (Value (Integer i)) val = divide' (Value (Rational (i % 1))) val
+  divide' val (Value (Integer i)) = divide' val (Value (Rational (i % 1)))
+  divide' (Value (Rational x)) (Value (Rational x')) =
+    let m = numerator x' in
+    let n = denominator x' in
+    let y = (x * (n % m)) in
+      if denominator y == 1
+        then return $ Integer $ numerator y
+        else return $ Rational y
+  divide' (Value (Rational _)) val = throwError $ TypeMismatch "rational number" val
+  divide' val _ = throwError $ TypeMismatch "rational number" val
 
 
 stringAppend :: PrimitiveFunc

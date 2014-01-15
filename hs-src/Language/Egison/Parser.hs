@@ -25,6 +25,7 @@ import Data.Set (Set)
 import Data.Char (isLower, isUpper)
 import qualified Data.Set as Set
 import Data.Traversable (mapM)
+import Data.Ratio
 
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
@@ -394,7 +395,7 @@ constantExpr =  charExpr
                  <|> stringExpr
                  <|> boolExpr
                  <|> try floatExpr
---                 <|> try rationalExpr
+                 <|> try rationalExpr
                  <|> integerExpr
                  <|> (keywordSomething *> pure SomethingExpr)
                  <|> (keywordUndefined *> pure UndefinedExpr)
@@ -409,11 +410,18 @@ stringExpr = StringExpr <$> stringLiteral
 boolExpr :: Parser EgisonExpr
 boolExpr = BoolExpr <$> boolLiteral
 
-integerExpr :: Parser EgisonExpr
-integerExpr = IntegerExpr <$> integerLiteral
-
 floatExpr :: Parser EgisonExpr
 floatExpr = FloatExpr <$> floatLiteral
+
+rationalExpr :: Parser EgisonExpr
+rationalExpr = do
+  m <- integerLiteral
+  char '/'
+  n <- naturalLiteral
+  return $ RationalExpr (m % n)
+
+integerExpr :: Parser EgisonExpr
+integerExpr = IntegerExpr <$> integerLiteral
 
 --
 -- Tokens
@@ -433,7 +441,7 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
  where
-  symbol1 = oneOf "+-*="
+  symbol1 = oneOf "+-*/="
   symbol2 = symbol1 <|> oneOf "+-!?"
 
 lexer :: P.GenTokenParser ByteString () Identity
@@ -513,6 +521,9 @@ sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)
    <|> (char '+' >> return id)
    <|> return id
+
+naturalLiteral :: Parser Integer
+naturalLiteral = P.natural lexer
 
 integerLiteral :: Parser Integer
 integerLiteral = sign <*> P.natural lexer
