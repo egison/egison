@@ -68,6 +68,11 @@
                   {[<greater> [min-n n]]
                    [_ [min-n max-n]]})]}))]})))
 
+(define $power
+  (lambda [$x $n]
+    (letrec {[$xs {x @xs}]}
+      (foldl * 1 (take n xs)))))
+
 (define $mod
   (lambda [$m]
     (matcher

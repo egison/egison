@@ -15,6 +15,14 @@
                      _>>>>>>
                   [x y z]])))
 
+; first 10 Pythagoras numbers
+(test (take 10 (match-all nats (list integer)
+                 [<join (& _
+                           <snoc $z
+                            <join _ <cons $x <join _ <cons (& ?(lambda [$y] (eq? (* y y) (- (* z z) (* x x)))) $y) _>>>>>)
+                        _>
+                  [x y z]])))
+
 ; first 10 prime numbers
 (test (take 10 primes))
 
