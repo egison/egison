@@ -31,6 +31,6 @@
 (test (take 30 sum-of-squares-pf))
 
 ; list prime numbers that is the sum of two non-zero square numbers
-(test (take 10 (match-all sum-of-squares-pf (list [integer integer (multiset integer)])
+(test (take 30 (match-all sum-of-squares-pf (list [integer integer (multiset integer)])
                  [<join _ <cons [$m $n <cons $p <nil>>] _>> [m n p]])))
 
