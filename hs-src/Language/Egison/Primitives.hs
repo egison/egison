@@ -124,6 +124,7 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", floatToIntegerOp truncate)
              , ("itof", integerToFloat)
+             , ("rtof", rationalToFloat)
              , ("eq?",  eq)
              , ("lt?",  lt)
              , ("lte?", lte)
@@ -172,6 +173,10 @@ floatToIntegerOp op = (liftError .) $ oneArg $ \val ->
 integerToFloat :: PrimitiveFunc
 integerToFloat = (liftError .) $ oneArg $ \val ->
   Float . fromInteger <$> fromIntegerValue val
+
+rationalToFloat :: PrimitiveFunc
+rationalToFloat = (liftError .) $ oneArg $ \val ->
+  Float . fromRational <$> fromRationalValue val
 
 eq :: PrimitiveFunc
 eq = (liftError .) $ twoArgs $ \val val' ->
@@ -286,8 +291,11 @@ divide = (liftError .) $ twoArgs divide'
       if denominator y == 1
         then return $ Integer $ numerator y
         else return $ Rational y
-  divide' (Value (Rational _)) val = throwError $ TypeMismatch "rational number" val
-  divide' val _ = throwError $ TypeMismatch "rational number" val
+  divide' (Value (Rational x)) (Value (Float f)) = return $ Float $ (fromRational x) / f
+  divide' (Value (Float f)) (Value (Rational x)) = return $ Float $ f / (fromRational x)
+  divide' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
+  divide' (Value (Float _)) val = throwError $ TypeMismatch "number" val
+  divide' val _ = throwError $ TypeMismatch "number" val
 
 
 stringAppend :: PrimitiveFunc
@@ -339,8 +347,6 @@ ioPrimitives = [ ("return", return')
                , ("eof-port?", isEOFPort)
 --             , ("print-to-port", writeStringLineToPort)
                , ("flush-port", flushPort) 
---               , ("rand", rand)
---               , ("rand-range", randRange) ]
                , ("rand", randRange) ]                 
 --             , ("get-lib-dir-name", getLibDirName) ]
 

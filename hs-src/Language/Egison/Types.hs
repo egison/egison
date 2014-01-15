@@ -278,6 +278,10 @@ fromBoolValue :: WHNFData -> Either EgisonError Bool
 fromBoolValue (Value (Bool b)) = return b
 fromBoolValue val = throwError $ TypeMismatch "bool" val
 
+fromRationalValue :: WHNFData -> Either EgisonError Rational
+fromRationalValue (Value (Rational x)) = return x
+fromRationalValue val = throwError $ TypeMismatch "rational" val
+
 fromIntegerValue :: WHNFData -> Either EgisonError Integer
 fromIntegerValue (Value (Integer i)) = return i
 fromIntegerValue val = throwError $ TypeMismatch "integer" val
