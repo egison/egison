@@ -43,15 +43,18 @@
 
 (define $between
   (lambda [$s $e]
-    (if (gt-i? s e)
+    (if (gt-i? (+ s 10) e)
+      (if (gt-i? s e)
         {}
-        {s @(between (+ s 1) e)})))
+        {s @(between (+ s 1) e)})
+      {s (+ s 1) (+ s 2) (+ s 3) (+ s 4) (+ s 5) (+ s 6) (+ s 7) (+ s 8) (+ s 9) (+ s 10) @(between (+ s 11) e)})
+    ))
 
 (define $map
-  (lambda [$fn $ls]
-    (match ls (list something)
+  (lambda [$fn $xs]
+    (match xs (list something)
       {[<nil> {}]
-       [<cons $x $xs> {(fn x) @(map fn xs)}]})))
+       [<cons $x $rs> {(fn x) @(map fn rs)}]})))
 
 (define $concat
   (lambda [$xss]
@@ -73,13 +76,13 @@
                         (foldl fn y xs))]})))
 
 (define $filter
-  (lambda [$pred $ls]
-    (match ls (list something)
+  (lambda [$pred $xs]
+    (match xs (list something)
       {[<nil> {}]
-       [<cons $x $xs>
+       [<cons $x $rs>
         (if (pred x)
-            {x @(filter pred xs)}
-            (filter pred xs))]})))
+            {x @(filter pred rs)}
+            (filter pred rs))]})))
 
 (define $split
   (lambda [$pred $ls]
@@ -179,12 +182,26 @@
           <cons $x _>)
         x]})))
 
+(define $take-and-drop
+  (lambda [$n $xs]
+    (match xs (list something)
+      {[(loop $i [1 ,n] <cons $a_i ...> $rs)
+        [(map (lambda [$i] a_i) (between 1 n)) rs]]})))
+
 (define $take
   (lambda [$n $xs]
     (if (eq? n 0)
         {}
         (match xs (list something)
           {[<cons $x $xs> {x @(take (- n 1) xs)}]
+           [<nil> {}]}))))
+
+(define $drop
+  (lambda [$n $xs]
+    (if (eq? n 0)
+        xs
+        (match xs (list something)
+          {[<cons _ $xs> (drop (- n 1) xs)]
            [<nil> {}]}))))
 
 (define $while
@@ -195,14 +212,6 @@
         (if (pred x)
             {x @(while pred rs)}
             {})]})))
-
-(define $drop
-  (lambda [$n $xs]
-    (if (eq? n 0)
-        xs
-        (match xs (list something)
-          {[<cons _ $xs> (drop (- n 1) xs)]
-           [<nil> {}]}))))
 
 (define $reverse
   (lambda [$xs]
