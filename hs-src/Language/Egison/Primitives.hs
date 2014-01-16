@@ -294,6 +294,7 @@ divide = (liftError .) $ twoArgs divide'
   divide' (Value (Rational x)) (Value (Float f)) = return $ Float $ (fromRational x) / f
   divide' (Value (Float f)) (Value (Rational x)) = return $ Float $ f / (fromRational x)
   divide' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
+  divide' (Value (Float f)) (Value (Float f')) = return $ Float $ f / f'
   divide' (Value (Float _)) val = throwError $ TypeMismatch "number" val
   divide' val _ = throwError $ TypeMismatch "number" val
 
