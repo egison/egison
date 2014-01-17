@@ -46,3 +46,13 @@
       (match x a
         {[,y #t]
          [_ #f]}))))
+
+(define $compose
+  (lambda [$f $g]
+    (lambda $x
+      (apply g (apply f x)))))
+
+(define $compose3
+  (lambda [$f $g $h]
+    (lambda $x
+      (apply h (apply g (apply f x))))))
