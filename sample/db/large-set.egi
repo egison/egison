@@ -1,0 +1,12 @@
+(define $main
+  (lambda [$argv]
+    (match argv (list string)
+      {[<cons $db-kind <cons $db-port _>>
+        (do {[$db (connect-database db-kind db-port)]
+             (add-records db {<Lang 1 "Egison">
+                              <Lang 2 "Haskell">})
+             (add-records db {<Follow 1 2>})
+             }
+          <Ok>)]
+       [_ <Ko>]})))
+             

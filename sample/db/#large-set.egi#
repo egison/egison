@@ -1,0 +1,14 @@
+(define $main
+  (lambda [$argv]
+    (match argv (list string)
+      {[<cons $db-kind <cons $db-port _>>
+        (do {[$db (connect-database db-kind db-port)]
+             [$langs (create-table db "langs")]
+             (add-records langs {<Lang 1 "Egison">)
+             (add-record langs <Lang 2 "Haskell">)
+             [$follows (create-table db "follows")]
+             (add-record folows <Follow 1 2>)
+             }
+          <Ok>)]
+       [_ <Ko>]})))
+             
