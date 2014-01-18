@@ -1,0 +1,35 @@
+;;
+;; Database/Collection.egi
+;;
+
+(define $large-list
+  (lambda [$a]
+    (matcher
+      {[<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<jcons $ $> [a (large-list a)]
+        {[{$x @$xs} {[x xs]}]
+         [_ {}]}]
+       [<jjoin ,$pxs $> [(large-list a)]
+        {[$tgt (match-all [pxs tgt] [(list a) (list a)]
+                 [[(loop $i [1 $n] <cons $xa_i ...> <nil>)
+                   (loop $i [1 ,n] <cons ,xa_i ...> $rs)]
+                  rs])]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))
+
+(define $large-set
+  (lambda [$a]
+    (matcher
+      {[<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<cons ,$px $> [(large-set a)]
+        {[$tgt undefined]}]
+       [<cons $ $> [a (large-set a)]
+        {[$tgt undefined]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))
