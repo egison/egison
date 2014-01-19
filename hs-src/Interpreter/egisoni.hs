@@ -1,5 +1,12 @@
 module Main where
 
+import Prelude hiding (catch)
+import Control.Exception ( SomeException(..),
+                           AsyncException(..),
+                           catch, handle, throw)
+import System.Posix.Signals
+import Control.Concurrent
+
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad.Error
 
@@ -11,7 +18,7 @@ import Text.Regex.Posix
 import System.Environment
 import System.Directory (getHomeDirectory)
 import System.FilePath ((</>))
-import System.Console.Haskeline
+import System.Console.Haskeline hiding (handle, catch, throwTo)
 import System.Console.GetOpt
 import System.Exit (ExitCode (..), exitWith, exitFailure)
 import Language.Egison
@@ -104,10 +111,16 @@ showByebyeMessage :: IO ()
 showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
 
+onAbort e = do
+  let x = show (e :: SomeException)
+  putStrLn $ "\nAborted: " ++ x
+
 repl :: Env -> String -> IO ()
 repl env prompt = do
+  tid <- myThreadId
+  _ <- installHandler keyboardSignal (Catch (throwTo tid UserInterruption)) Nothing
   home <- getHomeDirectory
-  liftIO (runInputT (settings home) $ loop env prompt "")
+  liftIO (runInputT (settings home) $ (loop env prompt ""))
   where
     settings :: MonadIO m => FilePath -> Settings m
     settings home = defaultSettings { historyFile = Just (home </> ".egison_history") }
@@ -144,4 +157,3 @@ repl env prompt = do
               loop env prompt ""
             Right env' ->
               loop env' prompt ""
-    

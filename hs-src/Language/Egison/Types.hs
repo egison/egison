@@ -1,8 +1,11 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
-             MultiParamTypeClasses, UndecidableInstances  #-}
+             MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable #-}
 module Language.Egison.Types where
 
 import Prelude hiding (foldr)
+
+import Control.Exception
+import Data.Typeable
 
 import Control.Applicative
 import Control.Monad.Error
@@ -356,7 +359,9 @@ data EgisonError =
   | Match String
   | Parser String
   | Desugar String
+  | UserInterruption
   | Default String
+  deriving Typeable
     
 instance Show EgisonError where
   show (Parser error) = "Parse error at: " ++ error
@@ -368,7 +373,10 @@ instance Show EgisonError where
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
   show (Desugar message) = "Error: " ++ message
+  show UserInterruption = "Error: User interruption"
   show (Default message) = "Error: " ++ message
+
+instance Exception EgisonError
 
 instance Error EgisonError where
   noMsg = Default "An error has occurred"
