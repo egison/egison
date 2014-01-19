@@ -21,6 +21,7 @@ import System.FilePath ((</>))
 import System.Console.Haskeline hiding (handle, catch, throwTo)
 import System.Console.GetOpt
 import System.Exit (ExitCode (..), exitWith, exitFailure)
+import System.IO
 import Language.Egison
 
 main :: IO ()
@@ -118,8 +119,6 @@ onAbort e = do
 
 repl :: Env -> String -> IO ()
 repl env prompt = do
-  tid <- myThreadId
-  _ <- installHandler keyboardSignal (Catch (throwTo tid UserInterruption)) Nothing
   home <- getHomeDirectory
   liftIO (runInputT (settings home) $ (loop env prompt ""))
   where
@@ -128,7 +127,10 @@ repl env prompt = do
     
     loop :: Env -> String -> String -> InputT IO ()
     loop env prompt' rest = do
+      _ <- liftIO $ installHandler keyboardSignal (Catch (do {putStr "^C"; hFlush stdout})) Nothing
       input <- getInputLine prompt'
+      tid <- liftIO $ myThreadId
+      _ <- liftIO $ installHandler keyboardSignal (Catch (throwTo tid UserInterruption)) Nothing
       case input of
         Nothing -> return () 
         Just "quit" -> return () 
