@@ -111,9 +111,10 @@ showByebyeMessage :: IO ()
 showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
 
+onAbort :: EgisonError -> IO (Either EgisonError a)
 onAbort e = do
-  let x = show (e :: SomeException)
-  putStrLn $ "\nAborted: " ++ x
+  let x = show e
+  return $ Left e
 
 repl :: Env -> String -> IO ()
 repl env prompt = do
@@ -137,12 +138,12 @@ repl env prompt = do
             _ -> loop env (take (length prompt) (repeat ' ')) rest
         Just input' -> do
           let newInput = rest ++ input'
-          result <- liftIO $ runEgisonTopExpr env newInput
+          result <- liftIO $ handle onAbort $ runEgisonTopExpr env newInput
           case result of
             Left err | show err =~ "unexpected end of input" -> do
               loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
             Left err | show err =~ "expecting (top-level|\"define\")" -> do
-              result <- liftIO $ fromEgisonM (readExpr newInput) >>= either (return . Left) (evalEgisonExpr env)
+              result <- liftIO $ handle onAbort $ fromEgisonM (readExpr newInput) >>= either (return . Left) (evalEgisonExpr env)
               case result of
                 Left err | show err =~ "unexpected end of input" -> do
                   loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"

@@ -373,7 +373,7 @@ instance Show EgisonError where
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
   show (Desugar message) = "Error: " ++ message
-  show UserInterruption = "Error: User interruption"
+  show UserInterruption = "Aborted: User interruption"
   show (Default message) = "Error: " ++ message
 
 instance Exception EgisonError
