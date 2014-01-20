@@ -110,6 +110,17 @@
        [<cons $x $xs> (let {[$y (fn init x)]}
                         (foldl fn y xs))]})))
 
+(define $map2
+  (lambda [$fn $xs $ys]
+    (match [xs ys] [(list something) (list something)]
+      {[[<nil> <nil>] {}]
+       [[<cons $x $xs2> <cons $y $ys2>]
+        {(fn x y) @(map2 fn xs2 ys2)}]})))
+
+(define $zip
+  (lambda [$xs $ys]
+    (map2 (lambda [$x $y] [x y]) xs ys)))
+
 ;;
 ;; Simple predicate
 ;;

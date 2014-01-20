@@ -70,6 +70,7 @@
                      _>>
                    n])))
 
+;; I found bug on nested not-patterns
 ;(test (unique/m integer
 ;                (match-all bipartite-graph-data (bipartite-graph integer string)
 ;                  [(& <cons <edge $n $str>
@@ -79,9 +80,8 @@
 ;                             ^<cons <edge ,n2 ,str2> _>>)
 ;                   n])))
 
-;; I found bug on nested not-patterns
 (test (unique/m integer
                 (match-all bipartite-graph-data (bipartite-graph integer string)
-                  [^<cons <edge $n2 $str2>
-                          ^<cons <edge ,n2 ,str2> _>>
+                  [<cons <edge $n2 $str2>
+                         ^<cons <edge ,n2 ,str2> _>>
                   n2])))
