@@ -36,6 +36,17 @@
    <Edge 5 "a">
    <Edge 5 "b">
    <Edge 5 "c">
+   <Edge 6 "c">
+   <Edge 6 "c">
+   <Edge 6 "c">
    })
 
+(test (match-all bipartite-graph-data (bipartite-graph integer string)
+        [<cons <edge ,1 $str> _> str]))
 
+(test (unique/m integer
+                (match-all bipartite-graph-data (bipartite-graph integer string)
+                  [<cons <edge $n $str>
+                         <cons <edge ,n ,str>
+                               ^<cons <edge ,n ^,str> _>>>
+                   n])))
