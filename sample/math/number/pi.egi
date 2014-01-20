@@ -1,0 +1,26 @@
+;;;;;
+;;;;; Calucualate Pi
+;;;;;
+
+(define $calculate-pi
+  (lambda [$n]
+    (let {[$xs (reverse (map (lambda [$n] (/ (power n 2) (+ (* 2 n) 1))) (take n nats)))]
+          [$fn (lambda [$x $y]
+                 (let {[[$m $n] (/-inverse y)]}
+                   (/ m (+ n x))))]}
+      (/ 4 (+ 1 (foldl fn (car xs) (cdr xs)))))))
+
+(test (calculate-pi 1))
+(test (calculate-pi 2))
+(test (calculate-pi 3))
+(test (calculate-pi 4))
+(test (calculate-pi 5))
+(test (calculate-pi 6))
+(test (calculate-pi 7))
+(test (calculate-pi 8))
+(test (calculate-pi 9))
+(test (calculate-pi 10))
+(test (calculate-pi 100))
+(test (calculate-pi 200))
+(test (rtof (calculate-pi 200)))
+(test pi)
