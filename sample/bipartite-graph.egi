@@ -1,0 +1,41 @@
+;;;
+;;;
+;;; Bipartite Graph demonstartion
+;;;
+;;;
+
+;;
+;; Matcher definitions
+;;
+(define $bipartite-graph
+  (lambda [$a $b]
+    (multiset (edge a b))))
+
+(define $edge
+  (lambda [$a $b]
+    (algebraic-data-matcher
+      {<edge a b>})))
+
+;;
+;; Demonstration code
+;;
+(define $bipartite-graph-data
+  {<Edge 1 "a">
+   <Edge 1 "a">
+   <Edge 1 "a">
+   <Edge 1 "a">
+   <Edge 1 "b">
+   <Edge 1 "c">
+   <Edge 2 "a">
+   <Edge 2 "a">
+   <Edge 2 "a">
+   <Edge 2 "a">
+   <Edge 2 "a">
+   <Edge 3 "c">
+   <Edge 4 "a">
+   <Edge 5 "a">
+   <Edge 5 "b">
+   <Edge 5 "c">
+   })
+
+
