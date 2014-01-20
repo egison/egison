@@ -123,7 +123,8 @@ repl env prompt = do
   liftIO (runInputT (settings home) $ (loop env prompt ""))
   where
     settings :: MonadIO m => FilePath -> Settings m
-    settings home = defaultSettings { historyFile = Just (home </> ".egison_history") }
+    settings home = do
+      setComplete noCompletion $ defaultSettings { historyFile = Just (home </> ".egison_history") }
     
     loop :: Env -> String -> String -> InputT IO ()
     loop env prompt' rest = do
