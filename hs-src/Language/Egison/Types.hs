@@ -23,7 +23,6 @@ import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import qualified Data.HashMap.Lazy as HL
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy.Char8 ()

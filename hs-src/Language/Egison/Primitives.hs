@@ -134,6 +134,7 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("-", minus)
              , ("*", multiply)
              , ("/", divide)
+             , ("/-inverse", divideInverse)
              , ("string-append", stringAppend)
              , ("assert", assert)
              , ("assert-equal", assertEqual) ]
@@ -298,6 +299,14 @@ divide = (liftError .) $ twoArgs divide'
   divide' (Value (Float _)) val = throwError $ TypeMismatch "number" val
   divide' val _ = throwError $ TypeMismatch "number" val
 
+divideInverse :: PrimitiveFunc
+divideInverse = (liftError .) $ oneArg $ divideInverse'
+ where
+  divideInverse' (Value (Rational rat)) = do
+    return $ Tuple [Integer (numerator rat), Integer (denominator rat)]
+  divideInverse' (Value (Integer x)) = do
+    return $ Tuple [Integer x, Integer 1]
+  divideInverse' val = throwError $ TypeMismatch "rational" val
 
 stringAppend :: PrimitiveFunc
 stringAppend = (liftError .) $ twoArgs $ \val val' -> do
