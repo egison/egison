@@ -67,15 +67,15 @@
 
 
 ; All langauges
-(test ((unique string) (match-all tree-data (tree string string)
+(test (unique/m string (match-all tree-data (tree string string)
                          [<descendant <leaf $x>> x])))
         
 ; All langauges that belongs to Functional language
-(test ((unique string) (match-all tree-data (tree string string)
+(test (unique/m string (match-all tree-data (tree string string)
                          [<descendant <mnode ,"Functional language" <cons <descendant <leaf $x>> _>>> x])))
         
 ; All langauges that belongs more than two categories
-(test ((unique string) (match-all tree-data (tree string string)
+(test (unique/m string (match-all tree-data (tree string string)
                          [<mnode _ <cons <descendant <leaf $x>>
                                          <cons <descendant <leaf ,x>>
                                                _>>>

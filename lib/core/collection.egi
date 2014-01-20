@@ -1,7 +1,10 @@
-;;
-;; Collection.egi
-;;
+;;;;;
+;;;;; Collection.egi
+;;;;;
 
+;;;
+;;; List
+;;;
 (define $list
   (lambda [$a]
     (matcher
@@ -41,6 +44,15 @@
 
 (define $string (list char))
 
+;;
+;; Helper function for List matcher, be careful for recursive calls
+;;
+(define $map
+  (lambda [$fn $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs> {(fn x) @(map fn rs)}]})))
+
 (define $between
   (lambda [$s $e]
     (if (gt-i? (+ s 10) e)
@@ -50,11 +62,34 @@
       {s (+ s 1) (+ s 2) (+ s 3) (+ s 4) (+ s 5) (+ s 6) (+ s 7) (+ s 8) (+ s 9) (+ s 10) @(between (+ s 11) e)})
     ))
 
-(define $map
-  (lambda [$fn $xs]
+;;
+;; list functions
+;;
+(define $repeat1
+  (lambda [$x]
+    {x @(repeat1 x)}))
+
+(define $repeat
+  (lambda [$xs]
+    {@xs @(repeat xs)}))
+
+(define $filter
+  (lambda [$pred $xs]
     (match xs (list something)
       {[<nil> {}]
-       [<cons $x $rs> {(fn x) @(map fn rs)}]})))
+       [<cons $x $rs>
+        (if (pred x)
+            {x @(filter pred rs)}
+            (filter pred rs))]})))
+
+(define $split
+  (lambda [$pred $ls]
+    (letrec {[$helper (lambda [$ls $xs $ys]
+                        (match ls (list something)
+                          {[<nil> [xs ys]]
+                           [<cons (& ?pred $l) $rs> (helper rs {l @xs} ys)]
+                           [<cons $l $rs> (helper rs xs {l @ys})]}))]}
+      (helper ls {} {}))))
 
 (define $concat
   (lambda [$xss]
@@ -75,85 +110,64 @@
        [<cons $x $xs> (let {[$y (fn init x)]}
                         (foldl fn y xs))]})))
 
-(define $filter
-  (lambda [$pred $xs]
+;;
+;; Simple predicate
+;;
+(define $empty?
+  (match-lambda (list something)
+   {[<nil> #t]
+    [<cons _ _> #f]}))
+
+(define $member?/m
+  (lambda [$a $x $ys]
+    (match ys (list a)
+      {[<join _ <cons ,x _>> #t]
+       [_ #f]})))
+
+(define $include?/m
+  (lambda [$a $xs $ys]
     (match xs (list something)
-      {[<nil> {}]
-       [<cons $x $rs>
-        (if (pred x)
-            {x @(filter pred rs)}
-            (filter pred rs))]})))
+      {[<nil> #t]
+       [<cons $x $rest>
+        (if (member?/m a x ys)
+          (include?/m a rest ys)
+          #f)]})))
 
-(define $split
-  (lambda [$pred $ls]
-    (letrec {[$helper (lambda [$ls $xs $ys]
-                        (match ls (list something)
-                          {[<nil> [xs ys]]
-                           [<cons (& ?pred $l) $rs> (helper rs {l @xs} ys)]
-                           [<cons $l $rs> (helper rs xs {l @ys})]}))]}
-      (helper ls {} {}))))
-
-(define $remove
-  (lambda [$a]
-    (lambda [$xs $x]
-      (match xs (list a)
-        {[<nil> {}]
-         [<cons ,x $rs> rs]
-         [<cons $y $rs> {y @((remove a) rs x)}]}))))
-
-(define $remove-all
-  (lambda [$a]
-    (lambda [$xs $x]
-      (match xs (list a)
-        {[<nil> {}]
-         [<cons ,x $rs> ((remove-all a) rs x)]
-         [<cons $y $rs> {y @((remove-all a) rs x)}]}))))
-
-(define $remove-collection
-  (lambda [$a]
-    (lambda [$xs $ys]
-      (match ys (list a)
-        {[<nil> xs]
-         [<cons $y $rs> ((remove-collection a) ((remove a) xs y) rs)]}))))
-
-(define $add
-  (lambda [$a]
-    (lambda [$xs $x]
-      (if ((member? a) x xs)
-          xs
-          {@xs x}))))
-
-(define $occurrence
-  (lambda [$a]
-    (lambda [$xs]
-      (letrec {[$remove-and-count
-                (lambda [$x $xs]
-                  (match xs (list a)
-                    {[<nil> [{} 1]]
-                     [<cons ,x $ys> (let {[[$r $i] (remove-and-count x ys)]}
-                                      [r (+ i 1)])]
-                     [<cons $y $ys> (let {[[$r $i] (remove-and-count x ys)]}
-                                      [{y @r} i])]}))]}
-        (match xs (list something)
-          {[<nil> {}]
-           [<cons $x $ys> (let {[[$rs $i] (remove-and-count x ys)]}
-                            {[x i] @((occurrence a) rs)})]})))))
-
-(define $one-of
+(define $any
   (lambda [$pred $xs]
     (match xs (list something)
       {[<nil> #f]
        [<cons $x $rs>
         (if (pred x)
             #t
-            (one-of pred rs))]})))
+            (any pred rs))]})))
 
+(define $all
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> #t]
+       [<cons $x $rs>
+        (if (pred x)
+            #f
+            (all pred rs))]})))
+
+;;
+;; Counting
+;;
 (define $length
   (lambda [$xs]
     (match xs (list something)
       {[<nil> 0]
        [<cons _ $rs> (+ 1 (length rs))]})))
 
+(define $count/m
+  (lambda [$a $x $xs]
+    (length (match-all xs (list a)
+              [<join _ <cons $x _>> x]))))
+
+;;
+;; Simple accessors
+;;
 (define $car
   (lambda [$xs]
     (match xs (list something)
@@ -213,6 +227,9 @@
             {x @(while pred rs)}
             {})]})))
 
+;;
+;; Others
+;;
 (define $reverse
   (lambda [$xs]
     (match xs (list something)
@@ -220,42 +237,9 @@
        [<cons $x $rs>
         {@(reverse rs) x}]})))
 
-(define $member?
-  (lambda [$a]
-    (lambda [$x $ys]
-      (match ys (list a)
-        {[<nil> #f]
-         [<cons ,x $ys> #t]
-         [<cons $y $ys> ((member? a) x ys)]}))))
-
-(define $unique
-  (lambda [$a]
-    (lambda [$xs]
-      (letrec {[$loop-fn
-                (lambda [$xs $ys]
-                  (match xs (list something)
-                    {[<nil> ys]
-                     [<cons $x $rs>
-                      (if ((member? a) x ys)
-                          (loop-fn rs ys)
-                          (loop-fn rs {@ys x}))]}))]}
-        (loop-fn xs {})))))
-
-(define $subcollection?
-  (lambda [$a]
-    (lambda [$xs $ys]
-      (match xs (list something)
-        {[<nil> #t]
-         [<cons $x $rest>
-          (if ((member? a) x ys)
-              ((subcollection? a) rest ys)
-              #f)]}))))
-
-(define $empty?
-  (match-lambda (list something)
-   {[<nil> #t]
-    [<cons _ _> #f]}))
-
+;;;
+;;; Multiset
+;;;
 (define $multiset
   (lambda [$a]
     (matcher
@@ -275,25 +259,55 @@
         {[$tgt (match-all tgt (list a)
                  [<join $hs <cons $x $ts>> [x {@hs @ts}]])]}]
        [<join ,$pxs $> [(multiset a)]
-        {[$tgt {((remove-collection a) tgt pxs)}]}]
+        {[$tgt {(difference/m a tgt pxs)}]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
 
-(define $union
-  (lambda [$a]
-    (lambda [$xs $ys]
-      {xs
-       @(match-all [ys xs] [(multiset a) (multiset a)]
-          [[<cons $y _> ^<cons ,y _>] y])
-       })))
+;;
+;; multiset operation (Don't use multiset matcher)
+;;
+(define $add/m
+  (lambda [$a $x $xs]
+    (if ((member? a) x xs)
+      xs
+      {@xs x})))
 
-(define $intersect
-  (lambda [$a]
-    (lambda [$xs $ys]
-      (match-all [xs ys] [(multiset a) (multiset a)]
-        [[<cons $x _> <cons ,x _>] x]))))
+(define $delete-first/m
+  (lambda [$a $x $xs]
+    (match xs (list a)
+      {[<nil> {}]
+       [<cons ,x $rs> rs]
+       [<cons $y $rs> {y @(delete-first/m a x rs)}]})))
 
+(define $delete/m
+  (lambda [$a $x $xs]
+    (match xs (list a)
+      {[<nil> {}]
+       [<cons ,x $rs> (delete/m a x rs)]
+       [<cons $y $rs> {y @(delete/m a x rs)}]})))
+
+(define $difference/m
+  (lambda [$a $xs $ys]
+    (match ys (list a)
+      {[<nil> xs]
+       [<cons $y $rs> (difference/m a (delete-first/m a y xs) rs)]})))
+
+(define $union/m
+  (lambda [$a $xs $ys]
+    {xs
+     @(match-all [ys xs] [(multiset a) (multiset a)]
+        [[<cons $y _> ^<cons ,y _>] y])
+     }))
+
+(define $intersect/m
+  (lambda [$a $xs $ys]
+    (match-all [xs ys] [(multiset a) (multiset a)]
+      [[<cons $x _> <cons ,x _>] x])))
+
+;;;
+;;; Set
+;;;
 (define $set
   (lambda [$a]
     (matcher
@@ -310,3 +324,18 @@
        [$ [something]
         {[$tgt {tgt}]}]
        })))
+
+;;
+;; set operation
+;;
+(define $unique/m
+  (lambda [$a $xs]
+    (letrec {[$loop-fn
+              (lambda [$xs $ys]
+                (match xs (list something)
+                  {[<nil> ys]
+                   [<cons $x $rs>
+                    (if (member?/m a x ys)
+                      (loop-fn rs ys)
+                      (loop-fn rs {@ys x}))]}))]}
+      (loop-fn xs {}))))

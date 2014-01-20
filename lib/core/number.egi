@@ -25,17 +25,6 @@
             <Equal>
             <Greater>))))
 
-(define $between
-  (lambda [$m $n]
-    (match (compare-integer m n) ordering
-      {[<less> {m @(between (+ m 1) n)}]
-       [<equal> {n}]
-       [<greater> {}]})))
-
-(define $from
-  (lambda [$m]
-    {m @(from (+ m 1))}))
-
 (define $min
   (lambda [$ns]
     (match ns (list integer)
@@ -70,8 +59,7 @@
 
 (define $power
   (lambda [$x $n]
-    (letrec {[$xs {x @xs}]}
-      (foldl * 1 (take n xs)))))
+    (foldl * 1 (take n (repeat1 x)))))
 
 (define $mod
   (lambda [$m]

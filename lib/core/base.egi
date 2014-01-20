@@ -40,12 +40,11 @@
       {[$tgt {tgt}]}]
      }))
 
-(define $match?
-  (lambda [$a]
-    (lambda [$x $y]
-      (match x a
-        {[,y #t]
-         [_ #f]}))))
+(define $match?/m
+  (lambda [$a $x $y]
+    (match x a
+      {[,y #t]
+       [_ #f]})))
 
 (define $compose
   (lambda [$f $g]

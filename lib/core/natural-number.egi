@@ -61,8 +61,8 @@
   (letrec {[$next-primes
             (lambda [$primes1 $k]
               (let {[$primes2 (while (lte? $ (floor (sqrt (itof (* 6 (+ k 1)))))) primes1)]}
-                (match [(one-of (lambda [$p] (eq? (remainder (+ (* 6 k) 1) p) 0)) primes2)
-                        (one-of (lambda [$p] (eq? (remainder (+ (* 6 k) 5) p) 0)) primes2)]
+                (match [(any (lambda [$p] (eq? (remainder (+ (* 6 k) 1) p) 0)) primes2)
+                        (any (lambda [$p] (eq? (remainder (+ (* 6 k) 5) p) 0)) primes2)]
                   [bool bool]
                   {[[,#f ,#f] {(+ (* 6 k) 1) (+ (* 6 k) 5) @(next-primes {@primes1 (+ (* 6 k) 1) (+ (* 6 k) 5)} (+ k 1))}]
                    [[,#f ,#t] {(+ (* 6 k) 1) @(next-primes {@primes1 (+ (* 6 k) 1)} (+ k 1))}]
@@ -87,9 +87,9 @@
 
 (define $p-f prime-factorization)
 
-(define $p-fs (map (lambda [$n] [n (p-f n)]) nats))
+(define $pfs (map (lambda [$n] [n (p-f n)]) nats))
 
-(define $p-fs-n
+(define $pfs-n
   (lambda [$n]
     (match-all p-fs (list [integer (list integer)])
       [<join _ <cons [$m (loop $i [1 ,n] <cons $p_i ...> <nil>)] _>> [m (map (lambda [$i] p_i) (between 1 n))]])))
