@@ -50,3 +50,38 @@
                          <cons <edge ,n ,str>
                                ^<cons <edge ,n ^,str> _>>>
                    n])))
+
+(test (unique/m integer
+                (match-all bipartite-graph-data (bipartite-graph integer string)
+                  [<cons <edge $n $str>
+                         <cons <edge ,n ,str>
+                               ^<cons <edge ,n ^,str> _>>>
+                   n])))
+
+(test (unique/m integer
+                (match-all bipartite-graph-data (bipartite-graph integer string)
+                  [<cons <edge $n ,"a"> _>
+                   n])))
+
+(test (unique/m integer
+                (match-all bipartite-graph-data (bipartite-graph integer string)
+                  [<cons <edge $n ,"a">
+                    <cons <edge ,n ,"c">
+                     _>>
+                   n])))
+
+;(test (unique/m integer
+;                (match-all bipartite-graph-data (bipartite-graph integer string)
+;                  [(& <cons <edge $n $str>
+;                            <cons <edge ,n ,str>
+;                                  <cons <edge ,n ,str> _>>>
+;                      ^<cons <edge $n2 $str2>
+;                             ^<cons <edge ,n2 ,str2> _>>)
+;                   n])))
+
+;; I found bug on nested not-patterns
+(test (unique/m integer
+                (match-all bipartite-graph-data (bipartite-graph integer string)
+                  [^<cons <edge $n2 $str2>
+                          ^<cons <edge ,n2 ,str2> _>>
+                  n2])))
