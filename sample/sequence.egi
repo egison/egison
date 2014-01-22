@@ -4,46 +4,29 @@
 ;;;
 ;;;
 
-; first 10 natural numbers
-(test (take 10 nats))
+; first 100 natural numbers
+(test (take 100 nats))
 
-; first 10 Pythagoras numbers
-(test (take 10 (match-all nats (list integer)
-                 [<join _ <cons $x
-                   <join _ <cons $y
-                    <join _ <cons (& ?(lambda [$z] (eq? (* z z) (+ (* x x) (* y y)))) $z)
-                     _>>>>>>
-                  [x y z]])))
+; inifinite list of two-combinations of numbers
+(define $pairs (match-all nats (list integer)
+                 [<join _ (& <cons $m _> <join _ <cons $n _>>)>
+                  [m n]]))
 
-; first 10 Pythagoras numbers
-(test (take 10 (match-all nats (list integer)
-                 [<join (& _
-                           <snoc $z
-                            <join _ <cons $x <join _ <cons (& ?(lambda [$y] (eq? (* y y) (- (* z z) (* x x)))) $y) _>>>>>)
-                        _>
-                  [x y z]])))
+; test 'pairs'
+(test (take 100 pairs))
 
-; first 10 prime numbers
-(test (take 10 primes))
+; infinite list of pythagoras numbers
+(define $pyths (map (lambda [$m $n] (+ (power m 2) (power n 2))) pairs)))
 
-; first 10 twin prime pairs
-(test (take 10 (match-all primes (list integer)
-                 [<join _ <cons $n <cons ,(+ n 2) _>>>
-                  [n (+ n 2)]])))
+; test 'pyths'
+(test (take 100 pyths))
 
-; first 5 prime triplets (pattern 1)
-(test (take 5 (match-all primes (list integer)
-                [<join _ <cons $n <cons ,(+ n 2) <cons ,(+ n 6) _>>>>
-                 [n (+ n 2) (+ n 6)]])))
+; function that enumerates all common elements between two lists
+(define $commons
+  (lambda [$xs $ys]
+    (match-all [xs ys] [(multiset integer) (multiset integer)]
+      [[<cons $c _> <cons ,c _>]
+       c])))
 
-; first 5 prime triplets (pattern 2)
-(test (take 5 (match-all primes (list integer)
-                [<join _ <cons $n <cons ,(+ n 4) <cons ,(+ n 6) _>>>>
-                 [n (+ n 2) (+ n 6)]])))
-
-; first 5 prime deserts whose length is equal or greater than 10
-(test (take 5 (match-all primes (list integer)
-                [<join _ <cons $m
-                  <cons (& ?(gte-i? $ (+ 10 m)) $n)
-                   _>>>
-                 [m n]])))
+; test 'commons'
+(test (commons (take 100 primes) (take 150 pyths)))
