@@ -9,76 +9,78 @@
 ;;
 (define $graph
   (lambda [$a]
-    (multiset (nodeInfo a))))
+    (multiset (edge a))))
 
-(define $nodeInfo
+(define $edge
   (lambda [$a]
     (algebraic-data-matcher
-      {<node a (multiset a) (multiset a)>})))
+      {<edge a a>})))
 
+;;
+;; Sample data
+;;
+(define $graph-data1
+  {<Edge 1 4>
+   <Edge 2 1>
+   <Edge 3 1>
+   <Edge 3 2>
+   <Edge 4 3>
+   <Edge 5 1>
+   <Edge 5 4>
+   })
+
+(define $graph-data2
+  {<Edge 1 4> <Edge 1 5> <Edge 1 8> <Edge 1 10>
+   <Edge 2 3> <Edge 2 6> <Edge 2 12>
+   <Edge 3 2> <Edge 3 7> <Edge 3 9>
+   <Edge 4 1> <Edge 4 6>
+   <Edge 5 1> <Edge 5 8> <Edge 5 9> <Edge 5 11>
+   <Edge 6 2> <Edge 6 4> <Edge 6 10> <Edge 6 12>
+   <Edge 7 3> <Edge 7 9> <Edge 7 11>
+   <Edge 8 1> <Edge 8 5>
+   <Edge 9 3> <Edge 9 5> <Edge 9 7>
+   <Edge 10 1> <Edge 10 6> <Edge 10 12>
+   <Edge 11 5> <Edge 11 7>
+   <Edge 12 2> <Edge 12 6> <Edge 12 10>
+   })
+   
 ;;
 ;; Demonstration code
 ;;
-(define $graph-data1
-  {<Node 1 {4} {2 3 5}>
-   <Node 2 {1} {3}>
-   <Node 3 {1 2} {4}>
-   <Node 4 {3} {1 5}>
-   <Node 5 {1 4} {}>})
+;; find all nodes who have an edege from 's' but not have an edge to 's'
+(test (let {[$s 1]}
+        (match-all graph-data1 (graph integer)
+          [<cons <edge ,s $x>
+                 ^<cons <edge ,x ,x>
+                        _>>
+           x])))
 
-(define $graph-data2
-  {<Node 1 {4 5 8 10} {4 5 8 10}>
-   <Node 2 {3 6 12} {3 6 12}>
-   <Node 3 {2 7 9} {2 7 9}>
-   <Node 4 {1 6} {1 6}>
-   <Node 5 {1 8 9 11} {1 8 9 11}>
-   <Node 6 {2 4 10 12} {2 4 10 12}>
-   <Node 7 {3 9 11} {3 9 11}>
-   <Node 8 {1 5} {1 5}>
-   <Node 9 {3 5 7} {3 5 7}>
-   <Node 10 {1 6 12} {1 6 12}>
-   <Node 11 {5 7} {5 7}>
-   <Node 12 {2 6 10} {2 6 10}>
-   })
+;; find all nodes in two path from 's'
+(test (let {[$s 1]}
+        (match-all graph-data1 (graph integer)
+          [<cons <edge (& ,s $x_1) $x_2>
+                 <cons <edge ,x_2 $x_3>
+                       _>>
+           x])))
 
-; All hamilton-cycles in graph-data1
-(test (match-all graph-data1 (graph integer)  
-        [<cons <node $h_1 <cons $h_2 _> _>
-               (loop $i [3 $n]
-                     <cons <node ,h_(- i 1) <cons $h_i _> _>
-                           ...>
-                     <cons <node ,h_n <cons ,h_1 _> _>
-                           <nil>>)>
-         h]))
+;; find all paths from 's' to 'e'
+(test (let {[$s 1] [$e 2]}
+        (match-all graph-data1 (graph integer)
+          [<cons <edge (& ,s $x_1) $x_2>
+                 (loop $i [4 $n]
+                   <cons <edge ,x_(- i 2) $x_(- i 1)> ...>
+                   <cons <edge ,x_(- n 1) (& ,e $x_n)> _>)>
+           x])))
 
-; All hamilton-paths in graph-data1
-(test (match-all graph-data1 (graph integer)  
-        [<cons <node $h_1 <cons $h_2 _> _>
-               (loop $i [3 $n]
-                     <cons <node ,h_(- i 1) <cons $h_i _> _>
-                           ...>
-                     <cons <node ,h_n _ _>
-                           <nil>>)>
-         h]))
-
-; All circuits whose length are 5 in graph-data2
-(test (let {[$n 5]}
+;; find all cliques whose size is 'n'
+(test (let {[$n 3]}
         (match-all graph-data2 (graph integer)
-          [<cons <node $c_1 <cons $c_2 _> _>
+          [<cons <edge $x_1 $x_2>
                  (loop $i [3 ,n]
-                       <cons <node ,c_(- i 1) <cons $c_i _> _>
-                             ...>
-                       <cons <node ,c_n <cons ,c_1 _> _>
-                             _>)>
-           c])))
-
-; All paths from 1 to 12 in graph-data2
-(test (let {[$s 1] [$e 12]}
-        (match-all graph-data2 (graph integer)
-          [<cons <node (& ,s $c_1) <cons $c_2 _> _>
-                 (loop $i [3 $n]
-                       <cons <node ,c_(- i 1) <cons $c_i _> _>
-                             ...>
-                       <cons <node (& ,c_n ,e) _ _>
-                             _>)>
-           c])))
+                   <cons <edge ,x_1 $x_i>
+                         (loop $j [2 ,(- i 1)]
+                           <cons <edge ,x_j ,x_i> ...>
+                           ...)
+                         _>
+                   _)>
+           x])))
