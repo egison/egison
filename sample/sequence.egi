@@ -29,4 +29,4 @@
        c])))
 
 ; test 'commons'
-(test (commons (take 100 primes) (take 150 pyths)))
+(test (commons (take 100 primes) (take 300 pyths)))
