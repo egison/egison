@@ -16,7 +16,7 @@
 (test (take 100 pairs))
 
 ; infinite list of pythagoras numbers
-(define $pyths (map (lambda [$m $n] (+ (power m 2) (power n 2))) pairs)))
+(define $pyths (map (lambda [$m $n] (+ (power m 2) (power n 2))) pairs))
 
 ; test 'pyths'
 (test (take 100 pyths))
