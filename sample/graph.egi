@@ -9,7 +9,7 @@
 ;;
 (define $graph
   (lambda [$a]
-    (multiset (edge a))))
+    (set (edge a))))
 
 (define $edge
   (lambda [$a]
@@ -63,14 +63,14 @@
                        _>>
            x])))
 
-;; find all paths from 's' to 'e'
-(test (let {[$s 1] [$e 2]}
-        (match-all graph-data1 (graph integer)
-          [<cons <edge (& ,s $x_1) $x_2>
-                 (loop $i [4 $n]
-                   <cons <edge ,x_(- i 2) $x_(- i 1)> ...>
-                   <cons <edge ,x_(- n 1) (& ,e $x_n)> _>)>
-           x])))
+;; list first 5 paths from 's' to 'e'
+(test (take 5 (let {[$s 1] [$e 2]}
+                 (match-all graph-data2 (graph integer)
+                   [<cons <edge (& ,s $x_1) $x_2>
+                          (loop $i [4 $n]
+                            <cons <edge ,x_(- i 2) $x_(- i 1)> ...>
+                            <cons <edge ,x_(- n 1) (& ,e $x_n)> _>)>
+                    x]))))
 
 ;; find all cliques whose size is 'n'
 (test (let {[$n 3]}
