@@ -1,0 +1,22 @@
+;;
+;; Database/Sql.egi
+;;
+
+(define $simple-select
+  (lambda [$table $wheres]
+    {@"select * from " @(table-name table) @" " @(simple-where wheres)}))
+
+(define $table-name
+  (lambda [$table]
+    table))
+
+(define $simple-where
+  (lambda [$wheres]
+    (letrec {[$loop-fn (lambda [$wheres]
+                               (match wheres (list [string something])
+                                 {[<nil> ""]
+                                  [<cons [$key $val] $rs>
+                                   {{@key @" = " @val} @(loop-fn rs)}]}))]}
+      (match (loop-fn wheres) (list string)
+        {[<nil> ""]
+         [<cons $wc $wcs> {@"where " @(foldl (lambda [$s1 $s2] {@s1 @" and " @s2}) wc wcs)}]}))))

@@ -125,6 +125,7 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("truncate", floatToIntegerOp truncate)
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
+             , ("itos", integerToString)
              , ("eq?",  eq)
              , ("lt?",  lt)
              , ("lte?", lte)
@@ -178,6 +179,10 @@ integerToFloat = (liftError .) $ oneArg $ \val ->
 rationalToFloat :: PrimitiveFunc
 rationalToFloat = (liftError .) $ oneArg $ \val ->
   Float . fromRational <$> fromRationalValue val
+
+integerToString :: PrimitiveFunc
+integerToString = (liftError .) $ oneArg $ \val ->
+   makeStringValue . show <$> fromIntegerValue val
 
 eq :: PrimitiveFunc
 eq = (liftError .) $ twoArgs $ \val val' ->
