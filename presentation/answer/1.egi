@@ -1,8 +1,0 @@
-;;;;;
-;;;;; Egison, a pure functional langauge with strong pattern-matching facilitiy
-;;;;;
-
-; list numbers which has at least two prime factors cogruent to 1 modulo 4
-(test (take 10 (map (foldl * 1 $)
-                    (filter (match-lambda (multiset (mod 4)) {[<cons ,1 <cons ,1 _>> #t] [_ #f]}) (map p-f nats)))))
-

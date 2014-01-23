@@ -1,5 +1,0 @@
-;;;;;
-;;;;; Egison, a pure functional langauge with strong pattern-matching facilitiy
-;;;;;
-
-; list numbers which has at least two prime factors cogruent to 1 modulo 4
