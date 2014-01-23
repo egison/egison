@@ -361,8 +361,8 @@ ioPrimitives = [ ("return", return')
                , ("write-to-port", writeToPort)
                , ("eof-port?", isEOFPort)
 --             , ("print-to-port", writeStringLineToPort)
-               , ("flush-port", flushPort) 
-               , ("rand", randRange) ]                 
+               , ("flush-port", flushPort)
+               , ("rand", randRange) ]
 --             , ("get-lib-dir-name", getLibDirName) ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue

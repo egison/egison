@@ -11,15 +11,15 @@
   (matcher
     {[<cons <edge ,$px ,$py> $> [integer edge-table]
       ; select * from edge where from_id = px and to_id = py
-      {[$tgt (match (sql (simple-select (table-name tgt) {["from_id" (itos px)] ["to_id" (itos py)]}) (list edge)
+      {[$tgt (match (sql (simple-select (table-name tgt) {["from_id" (itos px)] ["to_id" (itos py)]})) (list edge)
                {[<nil> {}]
                 [_ {tgt}]})]}]
      [<cons <edge ,$px $> $> [integer edge-table]
       ; select to_id from edge where from_id = px
-      {[$tgt (map (lambda [$x] [x tgt]) (sql "select to_id from edge where from_id = px"))]}]
+      {[$tgt (map (lambda [$x] [x tgt]) (simple-select (table-name tgt) {["from_id" (itos px)]}))]}]
      [<cons <edge $ ,$px> $> [integer edge-table]
       ; select from_id from edge where to_id = px
-      {[$tgt (map (lambda [$x] [x tgt]) (sql "select from_id from edge where to_id = px"))]}]
+      {[$tgt (map (lambda [$x] [x tgt]) (simple-select (table-name tgt) {["to_id" (itos px)]}))]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))
