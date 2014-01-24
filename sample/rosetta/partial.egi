@@ -1,0 +1,12 @@
+(define $fs (map $1 $2))
+
+(define $f1 (* $ 2))
+(define $f2 (power $ 2))
+
+(define $fsf1 (fs f1 $))
+(define $fsf2 (fs f2 $))
+
+(test (fsf1 {0 1 2 3}))
+(test (fsf2 {0 1 2 3}))
+(test (fsf1 {2 4 6 8}))
+(test (fsf2 {2 4 6 8}))
