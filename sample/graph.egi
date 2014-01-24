@@ -63,7 +63,7 @@
                        _>>
            x])))
 
-;; list first 5 paths from 's' to 'e'
+;; enumerate first 5 paths from 's' to 'e'
 (test (take 5 (let {[$s 1] [$e 2]}
                  (match-all graph-data2 (graph integer)
                    [<cons <edge (& ,s $x_1) $x_2>
