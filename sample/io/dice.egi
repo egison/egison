@@ -4,4 +4,3 @@
          [(write v)]
          [(write-char '\n')]}
         [])))
-
