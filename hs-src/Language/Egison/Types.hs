@@ -169,7 +169,7 @@ type Matcher = (Env, MatcherInfo)
 type PrimitiveFunc = [WHNFData] -> EgisonM EgisonValue
 
 instance Show EgisonValue where
-  show (Char c) = show c
+  show (Char c) = "'" ++ [c] ++ "'"
   show (Bool True) = "#t"
   show (Bool False) = "#f"
   show (Rational x) = show (numerator x) ++ "/" ++ show (denominator x)

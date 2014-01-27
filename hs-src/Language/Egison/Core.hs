@@ -512,7 +512,13 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             
         _ -> -- Value Something -> -- for tupple patterns
           case pattern of
-            WildCard -> return $ msingleton $ MState env loops bindings trees 
+            ValuePat valExpr -> do
+              val <- evalExpr' env' valExpr
+              tgtVal <- evalRef' target
+              if val == tgtVal
+                then return $ msingleton $ MState env loops bindings trees
+                else return MNil
+            WildCard -> return $ msingleton $ MState env loops bindings trees
             PatVar name -> return $ msingleton $ MState env loops ((name, target):bindings) trees
             IndexedPat (PatVar name) indices -> do
               indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
