@@ -40,7 +40,7 @@
       {[$tgt {tgt}]}]
      }))
 
-(define $match?/m
+(define $eq?/m
   (lambda [$a $x $y]
     (match x a
       {[,y #t]

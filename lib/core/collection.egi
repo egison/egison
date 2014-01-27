@@ -129,11 +129,26 @@
    {[<nil> #t]
     [<cons _ _> #f]}))
 
+(define $member?
+  (lambda [$x $ys]
+    (match ys (list something)
+      {[<join _ <cons ,x _>> #t]
+       [_ #f]})))
+
 (define $member?/m
   (lambda [$a $x $ys]
     (match ys (list a)
       {[<join _ <cons ,x _>> #t]
        [_ #f]})))
+
+(define $include?
+  (lambda [$a $xs $ys]
+    (match xs (list something)
+      {[<nil> #t]
+       [<cons $x $rest>
+        (if (member? x ys)
+          (include? rest ys)
+          #f)]})))
 
 (define $include?/m
   (lambda [$a $xs $ys]
@@ -171,10 +186,15 @@
       {[<nil> 0]
        [<cons _ $rs> (+ 1 (length rs))]})))
 
+(define $count
+  (lambda [$x $xs]
+    (length (match-all xs (list something)
+              [<join _ <cons ,x _>> x]))))
+
 (define $count/m
   (lambda [$a $x $xs]
     (length (match-all xs (list a)
-              [<join _ <cons $x _>> x]))))
+              [<join _ <cons ,x _>> x]))))
 
 ;;
 ;; Simple accessors
@@ -278,11 +298,24 @@
 ;;
 ;; multiset operation (Don't use multiset matcher)
 ;;
-(define $add/m
-  (lambda [$a $x $xs]
-    (if ((member? a) x xs)
+(define $add
+  (lambda [$x $xs]
+    (if (member? x xs)
       xs
       {@xs x})))
+
+(define $add/m
+  (lambda [$a $x $xs]
+    (if (member?/m a x xs)
+      xs
+      {@xs x})))
+
+(define $delete-first
+  (lambda [$x $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons ,x $rs> rs]
+       [<cons $y $rs> {y @(delete-first x rs)}]})))
 
 (define $delete-first/m
   (lambda [$a $x $xs]
@@ -291,6 +324,13 @@
        [<cons ,x $rs> rs]
        [<cons $y $rs> {y @(delete-first/m a x rs)}]})))
 
+(define $delete
+  (lambda [$x $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons ,x $rs> (delete x rs)]
+       [<cons $y $rs> {y @(delete x rs)}]})))
+
 (define $delete/m
   (lambda [$a $x $xs]
     (match xs (list a)
@@ -298,11 +338,24 @@
        [<cons ,x $rs> (delete/m a x rs)]
        [<cons $y $rs> {y @(delete/m a x rs)}]})))
 
+(define $difference
+  (lambda [$xs $ys]
+    (match ys (list something)
+      {[<nil> xs]
+       [<cons $y $rs> (difference (delete-first y xs) rs)]})))
+
 (define $difference/m
   (lambda [$a $xs $ys]
     (match ys (list a)
       {[<nil> xs]
        [<cons $y $rs> (difference/m a (delete-first/m a y xs) rs)]})))
+
+(define $union
+  (lambda [$xs $ys]
+    {xs
+     @(match-all [ys xs] [(multiset something) (multiset something)]
+        [[<cons $y _> ^<cons ,y _>] y])
+     }))
 
 (define $union/m
   (lambda [$a $xs $ys]
@@ -310,6 +363,11 @@
      @(match-all [ys xs] [(multiset a) (multiset a)]
         [[<cons $y _> ^<cons ,y _>] y])
      }))
+
+(define $intersect
+  (lambda [$xs $ys]
+    (match-all [xs ys] [(multiset something) (multiset something)]
+      [[<cons $x _> <cons ,x _>] x])))
 
 (define $intersect/m
   (lambda [$a $xs $ys]
@@ -339,6 +397,18 @@
 ;;
 ;; set operation
 ;;
+(define $unique
+  (lambda [$xs]
+    (letrec {[$loop-fn
+              (lambda [$xs $ys]
+                (match xs (list something)
+                  {[<nil> ys]
+                   [<cons $x $rs>
+                    (if (member? x ys)
+                      (loop-fn rs ys)
+                      (loop-fn rs {@ys x}))]}))]}
+      (loop-fn xs {}))))
+
 (define $unique/m
   (lambda [$a $xs]
     (letrec {[$loop-fn
