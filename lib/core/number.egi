@@ -69,7 +69,7 @@
                    {[]}
                    {})]}]
        [$ [something]
-        {[$tgt {(modulo tgt m)}]}]
+        {[$tgt {tgt}]}]
        })))
 
 ;;
@@ -90,4 +90,3 @@
         (if (eq? d1 d2)
             <Equal>
             <Greater>))))
-
