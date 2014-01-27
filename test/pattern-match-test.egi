@@ -55,7 +55,7 @@
 
 (test (assert-equal "indexed pattern variable"
         (match 23 (mod 10) {[$a_1 a]})
-        [| 3 |]))
+        [| 23 |]))
 
 (test (assert "loop pattern"
         (match {3 2 1} (list integer)

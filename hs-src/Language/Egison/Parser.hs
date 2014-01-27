@@ -18,6 +18,7 @@ import Control.Monad.State hiding (mapM)
 import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
 import System.Directory (doesFileExist)
+import System.IO
 
 import qualified Data.Sequence as Sq
 import Data.Either
@@ -27,11 +28,8 @@ import qualified Data.Set as Set
 import Data.Traversable (mapM)
 import Data.Ratio
 
-import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Lazy.Char8 ()
-import qualified Data.ByteString.Lazy.Char8 as B
 import Text.Parsec
-import Text.Parsec.ByteString.Lazy
+import Text.Parsec.String
 import Text.Parsec.Combinator
 import qualified Text.Parsec.Token as P
 
@@ -40,7 +38,7 @@ import Language.Egison.Desugar
 import Paths_egison (getDataFileName)
   
 doParse :: Parser a -> String -> Either EgisonError a
-doParse p input = either (throwError . fromParsecError) return $ parse p "egison" $ B.pack input
+doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
   where
     fromParsecError :: ParseError -> EgisonError
     fromParsecError = Parser . show
@@ -427,7 +425,7 @@ integerExpr = IntegerExpr <$> integerLiteral
 -- Tokens
 --
 
-egisonDef :: P.GenLanguageDef ByteString () Identity
+egisonDef :: P.GenLanguageDef String () Identity
 egisonDef = 
   P.LanguageDef { P.commentStart       = "#|"
                 , P.commentEnd         = "|#"
@@ -444,7 +442,7 @@ egisonDef =
   symbol1 = oneOf "+-*/="
   symbol2 = symbol1 <|> oneOf "!?"
 
-lexer :: P.GenTokenParser ByteString () Identity
+lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
 
 reservedKeywords :: [String]
