@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.2.8
+Version:             3.2.9
 Synopsis:            Programming language with non-linear pattern-matching against unfree data types
 Description:         An interpreter for Egison, the programming langugage that realized non-linear pattern-matching with unfree data types.
                      With Egison, you can represent pattern-matching with unfree data types intuitively,
@@ -26,7 +26,7 @@ source-repository head
   location: https://github.com/egisatoshi/egison3.git
   
 Library
-  Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io, bytestring, mysql, hedis
+  Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io, bytestring
   Hs-Source-Dirs:  hs-src
   Exposed-Modules:
                    Language.Egison
