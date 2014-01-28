@@ -333,6 +333,8 @@ refVar env var = maybe (throwError $ UnboundVariable var) return
 -- Pattern Match
 --
 
+data PMMode = BFSMode | DFSMode
+
 data MatchingState = MState Env [LoopContext] [Binding] [MatchingTree]
 
 data MatchingTree =

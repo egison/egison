@@ -204,7 +204,7 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
   
   matcher <- evalExpr env matcher
-  result <- patternMatch env pattern target matcher
+  result <- patternMatch BFSMode env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
@@ -218,7 +218,7 @@ evalExpr env (MatchExpr target matcher clauses) = do
   target <- newThunk env target
   matcher <- evalExpr env matcher
   let tryMatchClause (pattern, expr) cont = do
-        result <- patternMatch env pattern target matcher
+        result <- patternMatch BFSMode env pattern target matcher
         case result of
           MCons bindings _ -> evalExpr (extendEnv env bindings) expr
           MNil -> cont
@@ -376,29 +376,34 @@ fromCollection val = throwError $ TypeMismatch "collection" val
 -- Pattern Match
 --
 
-patternMatch :: Env -> EgisonPattern -> ObjectRef -> WHNFData ->
+patternMatch :: PMMode -> Env -> EgisonPattern -> ObjectRef -> WHNFData ->
                 EgisonM (MList EgisonM [Binding]) 
-patternMatch env pattern target matcher =
-  processMState (MState env [] [] [MAtom pattern target matcher]) >>= processMStates . (:[])
+patternMatch mode env pattern target matcher =
+  processMState mode (MState env [] [] [MAtom pattern target matcher]) >>= (processMStates mode) . (:[])
 
-processMStates :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM [Binding])
-processMStates [] = return MNil
-processMStates streams = do
-  let (bindings, streams') = (catMaybes *** concat) . unzip $ map processMStates' streams
-  mappend (fromList bindings) (sequence streams' >>= processMStates)
- where
-  processMStates' :: MList EgisonM MatchingState ->
-                     (Maybe [Binding], [EgisonM (MList EgisonM MatchingState)])
-  processMStates' MNil = (Nothing, [])
-  processMStates' (MCons (MState _ _ bindings []) states) = (Just bindings, [states])
-  processMStates' (MCons state states) = (Nothing, [processMState state, states])
+processMStates :: PMMode -> [MList EgisonM MatchingState] -> EgisonM (MList EgisonM [Binding])
+processMStates _ [] = return MNil
+processMStates BFSMode streams = do
+  let (bindings, streams') = (catMaybes *** concat) . unzip $ map (processMStates' BFSMode) streams
+  mappend (fromList bindings) (sequence streams' >>= (processMStates BFSMode))
+processMStates DFSMode (stream:streams) =
+  case processMStates' DFSMode stream of
+    (Nothing, streams2) -> do streams' <- sequence streams2
+                              processMStates DFSMode (streams' ++ streams)
+    (Just bindings, streams2) -> do streams' <- sequence streams2
+                                    mappend (fromList [bindings]) (processMStates DFSMode (streams' ++ streams))
 
-processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
-processMState state =
+processMStates' :: PMMode -> MList EgisonM MatchingState -> (Maybe [Binding], [EgisonM (MList EgisonM MatchingState)])
+processMStates' _ MNil = (Nothing, [])
+processMStates' _ (MCons (MState _ _ bindings []) states) = (Just bindings, [states])
+processMStates' mode (MCons state states) = (Nothing, [processMState mode state, states])
+
+processMState :: PMMode -> MatchingState -> EgisonM (MList EgisonM MatchingState)
+processMState mode state =
   if isNotPat state
     then do
       let (state1, state2) = splitMState state
-      result <- processMStates [msingleton state1]
+      result <- processMStates mode [msingleton state1]
       case result of
         MNil -> return $ msingleton state2
         _ -> return MNil
