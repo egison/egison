@@ -136,9 +136,11 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("*", multiply)
              , ("/", divide)
              , ("/-inverse", divideInverse)
-             , ("string-append", stringAppend)
              , ("assert", assert)
-             , ("assert-equal", assertEqual) ]
+             , ("assert-equal", assertEqual)
+
+             , ("pure-mysql", pureMySQL)
+             ]
 
 integerUnaryOp :: (Integer -> Integer) -> PrimitiveFunc
 integerUnaryOp op = (liftError .) $ oneArg $ \val ->
@@ -313,11 +315,6 @@ divideInverse = (liftError .) $ oneArg $ divideInverse'
     return $ Tuple [Integer x, Integer 1]
   divideInverse' val = throwError $ TypeMismatch "rational" val
 
-stringAppend :: PrimitiveFunc
-stringAppend = (liftError .) $ twoArgs $ \val val' -> do
-  (makeStringValue .) . (++) <$> fromStringValue val
-                         <*> fromStringValue val'
-
 assert ::  PrimitiveFunc
 assert = (liftError .) $ twoArgs $ \label test -> do
   test <- fromBoolValue test
@@ -333,6 +330,12 @@ assertEqual = threeArgs $ \label actual expected -> do
     then return $ Bool True
     else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
                                   "\n but found: " ++ show actual
+
+
+pureMySQL :: PrimitiveFunc
+pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
+  (makeStringValue .) . (++) <$> fromStringValue val
+                         <*> fromStringValue val'
 
 --
 -- IO Primitives

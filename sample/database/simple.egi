@@ -3,6 +3,6 @@
 ;;
 
 ;(define $edge-data <Database-table "graph" "edge">)
-;(test (mysql (database-name edge-data) (simple-select {"to_id"} (table-name edge-data) {["from_id" (itos px)]})))
+;(test (pure-mysql (database-name edge-data) (simple-select {"to_id"} (table-name edge-data) {["from_id" (itos px)]})))
 
-(test (mysql "graph" (simple-select {"to_id"} "edge" {["from_id" (itos px)]})))
+(test (pure-mysql "graph" (simple-select {"to_id"} "edge" {["from_id" (itos px)]})))
