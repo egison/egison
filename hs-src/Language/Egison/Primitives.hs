@@ -14,10 +14,12 @@ import System.Random
 
 import qualified Data.Sequence as Sq
 
+import System.IO.Unsafe
 import qualified Database.MySQL.Base as MySQL
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+
 import Control.Monad
 
 import Language.Egison.Types
@@ -336,8 +338,10 @@ assertEqual = threeArgs $ \label actual expected -> do
 
 pureMySQL :: PrimitiveFunc
 pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
-  (makeStringValue .) . (++) <$> fromStringValue val
-                         <*> fromStringValue val'
+  dbName <- fromStringValue val
+  qStr <- fromStringValue val'
+  let ret = unsafePerformIO $ query' dbName $ BC.pack qStr
+  return $ Bool True
  where
   query' :: String -> ByteString -> IO [[ByteString]]
   query' dbName q = do
