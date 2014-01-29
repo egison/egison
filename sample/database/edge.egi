@@ -1,0 +1,41 @@
+;;
+;; database/edge.egi
+;;
+
+;(define $edge-table
+;  (relational-matcher "edge"
+;    {["from_id" integer]
+;     ["to_id" integer]}))
+
+;; Above code generates the following code.
+;; 'relational-matcher' is a sytax sugar.
+(define $edge-table
+  (matcher
+    {[<cons <edge ,$px ,$py> $> [edge-table]
+      ; select * from edge where from_id = px and to_id = py
+      {[$tgt (match (mysql (database-name tgt) (simple-select {"from_id to_id"} (table-name tgt) {["from_id" (itos px)] ["to_id" (itos py)]})) (list edge)
+               {[<nil> {}]
+                [_ {tgt}]})]}]
+     [<cons <edge ,$px $> $> [integer edge-table]
+      ; select to_id from edge where from_id = px
+      {[$tgt (map (lambda [$x] [(stoi x) tgt]) (mysql (database-name tgt) (simple-select {"to_id"} (table-name tgt) {["from_id" (itos px)]})))]}]
+     [<cons <edge $ ,$px> $> [integer edge-table]
+      ; select from_id from edge where to_id = px
+      {[$tgt (map (lambda [$x] [(stoi x) tgt]) (mysql (database-name tgt) (simple-select {"from_id"} (table-name tgt) {["to_id" (itos px)]})))]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $edge-data <Database-table "graph" "edge">)
+
+(test (match-all edge-data edge-table
+        [<cons <edge ,40 $m>
+               <cons <edge ,m $n>
+                     _>>
+         [40 m n]]))
+
+(test (match-all edge-data edge-table
+        [<cons <edge ,40 $m>
+               ^<cons <edge ,m ,40>
+                     _>>
+         [40 m]]))

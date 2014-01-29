@@ -3,12 +3,8 @@
 ;;
 
 (define $simple-select
-  (lambda [$table $wheres]
-    {@"select * from " @(table-name table) @" " @(simple-where wheres)}))
-
-(define $table-name
-  (lambda [$table]
-    table))
+  (lambda [$whats $table-name $wheres]
+    {@"select " @(insert-between whats ", ") @" from " @table-name @" " @(simple-where wheres)}))
 
 (define $simple-where
   (lambda [$wheres]
@@ -19,4 +15,5 @@
                                    {{@key @" = " @val} @(loop-fn rs)}]}))]}
       (match (loop-fn wheres) (list string)
         {[<nil> ""]
-         [<cons $wc $wcs> {@"where " @(foldl (lambda [$s1 $s2] {@s1 @" and " @s2}) wc wcs)}]}))))
+         [<cons $wc $wcs> {@"where " @(insert-between {wc @wcs} " and ")}]}))))
+

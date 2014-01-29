@@ -2,6 +2,10 @@
 ;;; String.egi
 ;;;
 
+(define $insert-between
+  (lambda [$ws $in]
+    (foldl (lambda [$s1 $s2] {@s1 in s2}) {(car ws)} (cdr ws))))
+
 (define $palindrome?
   (lambda [$str]
     (match str string
