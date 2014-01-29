@@ -341,24 +341,24 @@ pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
   dbName <- fromStringValue val
   qStr <- fromStringValue val'
   let ret = unsafePerformIO $ query' dbName $ BC.pack qStr
-  return $ Bool True
+  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map makeStringValue r)) ret
  where
-  query' :: String -> ByteString -> IO [[ByteString]]
+  query' :: String -> ByteString -> IO [[String]]
   query' dbName q = do
     conn <- MySQL.connect MySQL.defaultConnectInfo { MySQL.connectDatabase = dbName }
     MySQL.query conn q
     ret <- MySQL.storeResult conn
     fetchAllRows ret
-  fetchAllRows :: MySQL.Result -> IO [[ByteString]]
+  fetchAllRows :: MySQL.Result -> IO [[String]]
   fetchAllRows ret = do
     row <- MySQL.fetchRow ret
     case row of
       [] -> return []
       _ -> do row' <- forM row (\mcol -> case mcol of
-                                           Just col ->  return col
-                                           Nothing -> return (BC.pack "null" :: ByteString))
+                                           Just col ->  return $ BC.unpack col
+                                           Nothing -> return "null")
               rows' <- fetchAllRows ret
-              return (row':rows')
+              return $ row':rows'
 
 --
 -- IO Primitives

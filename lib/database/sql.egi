@@ -4,7 +4,7 @@
 
 (define $simple-select
   (lambda [$whats $table-name $wheres]
-    {@"select " @(insert-between whats ", ") @" from " @table-name @" " @(simple-where wheres)}))
+    {@"select " @(concat (insert-between whats ", ")) @" from " @table-name @" " @(simple-where wheres)}))
 
 (define $simple-where
   (lambda [$wheres]
@@ -15,5 +15,5 @@
                                    {{@key @" = " @val} @(loop-fn rs)}]}))]}
       (match (loop-fn wheres) (list string)
         {[<nil> ""]
-         [<cons $wc $wcs> {@"where " @(insert-between {wc @wcs} " and ")}]}))))
+         [<cons $wc $wcs> {@"where " @(concat (insert-between {wc @wcs} " and "))}]}))))
 

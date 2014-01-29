@@ -2,7 +2,10 @@
 ;; Simple test query
 ;;
 
-;(define $edge-data <Database-table "graph" "edge">)
-;(test (pure-mysql (database-name edge-data) (simple-select {"to_id"} (table-name edge-data) {["from_id" (itos px)]})))
+(load-file "./lib/database/sql.egi")
 
-(test (pure-mysql "graph" (simple-select {"to_id"} "edge" {["from_id" (itos px)]})))
+;(define $edge-data <Database-table "graph" "edge">)
+;(test (pure-mysql (database-name edge-data) (simple-select {"to_id"} (table-name edge-data) {["from_id" (itos 40)]})))
+
+(test (simple-select {"to_id"} "edge" {["from_id" (itos 40)]}))
+(test (pure-mysql "graph" (simple-select {"to_id"} "edge" {["from_id" (itos 40)]})))
