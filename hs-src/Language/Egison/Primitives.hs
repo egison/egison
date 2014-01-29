@@ -12,11 +12,13 @@ import Data.Ratio
 import System.IO
 import System.Random
 
-import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as BL
-import Data.ByteString.Lazy.Char8 ()
-import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.Sequence as Sq
+
+import qualified Database.MySQL.Base as MySQL
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BC
+import Control.Monad
 
 import Language.Egison.Types
 import Language.Egison.Core
@@ -336,6 +338,23 @@ pureMySQL :: PrimitiveFunc
 pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
   (makeStringValue .) . (++) <$> fromStringValue val
                          <*> fromStringValue val'
+ where
+  query' :: String -> ByteString -> IO [[ByteString]]
+  query' dbName q = do
+    conn <- MySQL.connect MySQL.defaultConnectInfo { MySQL.connectDatabase = dbName }
+    MySQL.query conn q
+    ret <- MySQL.storeResult conn
+    fetchAllRows ret
+  fetchAllRows :: MySQL.Result -> IO [[ByteString]]
+  fetchAllRows ret = do
+    row <- MySQL.fetchRow ret
+    case row of
+      [] -> return []
+      _ -> do row' <- forM row (\mcol -> case mcol of
+                                           Just col ->  return col
+                                           Nothing -> return (BC.pack "null" :: ByteString))
+              rows' <- fetchAllRows ret
+              return (row':rows')
 
 --
 -- IO Primitives
