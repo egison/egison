@@ -17,7 +17,7 @@ Cabal-version:       >=1.8
 
 Extra-Source-Files:  benchmark/Benchmark.hs
 
-Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.egi lib/core/number.egi lib/core/natural-number.egi lib/core/string.egi
+Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.egi lib/core/number.egi lib/core/natural-number.egi lib/core/string.egi lib/core/database.egi
                      lib/tree/xml.egi lib/math/prime.egi
                      elisp/egison-mode.el
 

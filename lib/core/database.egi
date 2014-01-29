@@ -1,7 +1,24 @@
-;;
-;; Database/Sql.egi
-;;
+;;;
+;;; Database.egi
+;;;
 
+(define $database-table
+  (algebraic-data-matcher
+    {<database-table string string>}))
+
+(define $database-name
+  (lambda [$data]
+    (match data database-table
+      {[<database-table $n _> n]})))
+
+(define $table-name
+  (lambda [$data]
+    (match data database-table
+      {[<database-table _ $n> n]})))
+
+;;
+;; Generate SQL
+;;
 (define $simple-select
   (lambda [$whats $table-name $wheres]
     {@"select " @(concat (insert-between whats ", ")) @" from " @table-name @" " @(simple-where wheres)}))
@@ -16,4 +33,3 @@
       (match (loop-fn wheres) (list string)
         {[<nil> ""]
          [<cons $wc $wcs> {@"where " @(concat (insert-between {wc @wcs} " and "))}]}))))
-
