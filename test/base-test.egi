@@ -25,10 +25,6 @@
           {[,"abc" #t]
            [_ #f]})))
 
-(test (assert-equal "string-append"
-        (string-append "foo" "bar")
-        "foobar"))
-
 (test (assert "integer's value pattern"
         (match 10 char
           {[,10 #t]
