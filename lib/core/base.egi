@@ -2,6 +2,8 @@
 ;; Base.egi
 ;;
 
+(define $id (lambda [$x] x))
+
 (define $bool
   (matcher
     {[,$val []
