@@ -52,14 +52,15 @@
          [40 m]]))
 
 ; not followed back
+SELECT edge1.to_id FROM edge AS edge1
+  WHERE edge1.from_id = 40
+    AND NOT EXISTS
+      (SELECT ''FROM edge AS edge2
+         WHERE edge2.from_uid = edge1.to_id
+           AND edge2.to_uid = edge1.from_id)
 (test (match-all edge-data edge-table
         [<cons <edge ,40 $m>
                ^<cons <edge ,m ,40>
                      _>>
          [40 m]]))
 
-(match-all edge-data edge-table
-  [<cons <edge ,40 $m>
-         ^<cons <edge ,m ,40>
-                _>>
-   [40 m]])
