@@ -37,12 +37,12 @@
 
 (define $edge-data <Database-table "graph" "edge">)
 
-; two edges from the start node
-;(test (match-all edge-data edge-table
-;        [<cons <edge ,40 $m>
-;               <cons <edge ,m $n>
-;                     _>>
-;         [40 m n]]))
+ two edges from the start node
+(test (match-all edge-data edge-table
+        [<cons <edge ,40 $m>
+               <cons <edge ,m $n>
+                     _>>
+         [40 m n]]))
 
 ; both following
 (test (match-all edge-data edge-table

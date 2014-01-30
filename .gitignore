@@ -5,3 +5,4 @@ hs-src/Paths_egison.hs
 exp/
 .cabal-sandbox
 cabal.sandbox.config
+sqlite

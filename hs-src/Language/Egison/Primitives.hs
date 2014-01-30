@@ -18,6 +18,9 @@ import System.IO.Unsafe
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+import qualified Data.Text as T
+
+import qualified Database.SQLite3 as SQLite
 --import qualified Database.MySQL.Base as MySQL -- for 'egison-mysql'
 
 import Control.Monad
@@ -144,6 +147,7 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("assert", assert)
              , ("assert-equal", assertEqual)
 
+             , ("pure-sqlite", pureSQLite) -- for 'egison-sqlite'
 --             , ("pure-mysql", pureMySQL) -- for 'egison-mysql'
              ]
 
@@ -340,6 +344,27 @@ assertEqual = threeArgs $ \label actual expected -> do
     then return $ Bool True
     else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
                                   "\n but found: " ++ show actual
+
+pureSQLite :: PrimitiveFunc
+pureSQLite  = (liftError .) $ twoArgs $ \val val' -> do
+  dbName <- fromStringValue val
+  qStr <- fromStringValue val'
+  let ret = unsafePerformIO $ query' (T.pack dbName) $ T.pack qStr
+  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map makeStringValue r)) ret
+ where
+  query' :: T.Text -> T.Text -> IO [[String]]
+  query' dbName q = do
+    db <- SQLite.open dbName
+    rowsRef <- newIORef []
+    SQLite.execWithCallback db q (\_ _ mcs -> do
+                                    row <- forM mcs (\mcol -> case mcol of
+                                                              Just col ->  return $ T.unpack col
+                                                              Nothing -> return "null")
+                                    rows <- readIORef rowsRef
+                                    writeIORef rowsRef (row:rows))
+    SQLite.close db
+    ret <- readIORef rowsRef
+    return $ reverse ret
 
 {--  -- for 'egison-mysql'
 pureMySQL :: PrimitiveFunc

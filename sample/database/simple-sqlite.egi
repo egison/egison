@@ -1,0 +1,7 @@
+;;
+;; Simple test query
+;;
+
+(test (simple-select {"to_id"} "edge" {["from_id" (itos 40)]}))
+
+(test (pure-sqlite "sqlite/graph" (simple-select {"to_id"} "edge" {["from_id" (itos 40)]})))
