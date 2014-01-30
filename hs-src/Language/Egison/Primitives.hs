@@ -15,10 +15,10 @@ import System.Random
 import qualified Data.Sequence as Sq
 
 import System.IO.Unsafe
-import qualified Database.MySQL.Base as MySQL
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+--import qualified Database.MySQL.Base as MySQL -- for 'egison-mysql'
 
 import Control.Monad
 
@@ -144,7 +144,7 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("assert", assert)
              , ("assert-equal", assertEqual)
 
-             , ("pure-mysql", pureMySQL)
+--             , ("pure-mysql", pureMySQL) -- for 'egison-mysql'
              ]
 
 integerUnaryOp :: (Integer -> Integer) -> PrimitiveFunc
@@ -341,7 +341,7 @@ assertEqual = threeArgs $ \label actual expected -> do
     else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
                                   "\n but found: " ++ show actual
 
-
+{--  -- for 'egison-mysql'
 pureMySQL :: PrimitiveFunc
 pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
   dbName <- fromStringValue val
@@ -365,6 +365,7 @@ pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
                                            Nothing -> return "null")
               rows' <- fetchAllRows ret
               return $ row':rows'
+--}
 
 --
 -- IO Primitives
