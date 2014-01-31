@@ -31,6 +31,7 @@ import qualified Database.MySQL.Base as MySQL
 import Control.Monad
 
 import Language.Egison.Types
+import Language.Egison.Parser
 import Language.Egison.Core
 
 primitiveEnv :: IO Env
@@ -415,11 +416,11 @@ ioPrimitives = [ ("return", return')
                , ("close-output-port", closePort)
                , ("read-char", readChar)
                , ("read-line", readLine)
---             , ("read", readFromStdin)
+               , ("read", readFromStdin)
                , ("write-char", writeChar)
                , ("write-string", writeString)
-               , ("write", write)
 --             , ("print", writeStringLine)
+               , ("write", writeToStdout)
                , ("eof?", isEOFStdin)
                , ("flush", flushStdout)
                , ("read-char-from-port", readCharFromPort)
@@ -427,10 +428,11 @@ ioPrimitives = [ ("return", return')
 --             , ("read-from-port", readFromPort)
                , ("write-char-to-port", writeCharToPort)
                , ("write-string-to-port", writeStringToPort)
+--             , ("print-to-port", writeStringLineToPort)
                , ("write-to-port", writeToPort)
                , ("eof-port?", isEOFPort)
---             , ("print-to-port", writeStringLineToPort)
                , ("flush-port", flushPort)
+                 
                , ("rand", randRange) ]
 --             , ("get-lib-dir-name", getLibDirName) ]
 
@@ -460,8 +462,8 @@ writeString :: PrimitiveFunc
 writeString = (liftError .) $ oneArg $ \val ->
   makeIO' . liftIO . putStr <$> fromStringValue val
 
-write :: PrimitiveFunc
-write = oneArg $ \val ->
+writeToStdout :: PrimitiveFunc
+writeToStdout = oneArg $ \val ->
   makeIO' . liftIO . putStr . show <$> evalDeep val
 
 readChar :: PrimitiveFunc
@@ -469,6 +471,9 @@ readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
 
 readLine :: PrimitiveFunc
 readLine = noArg $ return $ makeIO $ liftIO $ liftM makeStringValue getLine
+
+readFromStdin :: PrimitiveFunc
+readFromStdin = noArg $ return $ makeIO $ (liftIO getLine) >>= readExpr >>= evalExpr' nullEnv
 
 flushStdout :: PrimitiveFunc
 flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
@@ -504,9 +509,6 @@ flushPort = (liftError .) $ oneArg $ \val ->
 isEOFPort :: PrimitiveFunc
 isEOFPort = (liftError .) $ oneArg $ \val ->
   makeIO . liftIO . liftM Bool . hIsEOF <$> fromPortValue val
-
---rand :: PrimitiveFunc
---rand = noArg $ return $ makeIO $ liftIO $ liftM Integer $ getStdRandom random
 
 randRange :: PrimitiveFunc
 randRange = (liftError .) $ twoArgs $ \val val' ->

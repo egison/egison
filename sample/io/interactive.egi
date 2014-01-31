@@ -2,7 +2,7 @@
   (lambda []
     (do {[(write-string "input: ")]
          [(flush)]
-         [$input (read-line)]
+         [$input (read)]
          [(write input)]
          [(write (take 3 input))]
          [(write-string "\n")]
