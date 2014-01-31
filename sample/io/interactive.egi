@@ -4,8 +4,9 @@
          [(flush)]
          [$input (read)]
          [(write input)]
+         [(print "")]
          [(write (take 3 input))]
-         [(write-string "\n")]
+         [(print "")]
          [(repl)]
          }
       [])))
