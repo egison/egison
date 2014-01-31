@@ -20,8 +20,13 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
 
---import qualified Database.SQLite3 as SQLite -- for 'egison-sqlite'
---import qualified Database.MySQL.Base as MySQL -- for 'egison-mysql'
+{--  -- for 'egison-sqlite'
+import qualified Database.SQLite3 as SQLite
+--}  -- for 'egison-sqlite'
+
+{--  -- for 'egison-mysql'
+import qualified Database.MySQL.Base as MySQL
+--}  -- for 'egison-mysql'
 
 import Control.Monad
 
@@ -147,8 +152,13 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("assert", assert)
              , ("assert-equal", assertEqual)
 
---             , ("pure-sqlite", pureSQLite) -- for 'egison-sqlite'
---             , ("pure-mysql", pureMySQL) -- for 'egison-mysql'
+{-- -- for 'egison-sqlite'
+             , ("pure-sqlite", pureSQLite)
+--} -- for 'egison-sqlite'
+
+{-- -- for 'egison-mysql'
+             , ("pure-mysql", pureMySQL)
+--} -- for 'egison-mysql'
              ]
 
 integerUnaryOp :: (Integer -> Integer) -> PrimitiveFunc
@@ -365,7 +375,7 @@ pureSQLite  = (liftError .) $ twoArgs $ \val val' -> do
     SQLite.close db
     ret <- readIORef rowsRef
     return $ reverse ret
---}
+--} -- for 'egison-sqlite'
 
 {--  -- for 'egison-mysql'
 pureMySQL :: PrimitiveFunc
@@ -391,7 +401,7 @@ pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
                                            Nothing -> return "null")
               rows' <- fetchAllRows ret
               return $ row':rows'
---}
+--}  -- for 'egison-mysql'
 
 --
 -- IO Primitives
