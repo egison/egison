@@ -1,0 +1,58 @@
+Name:                egison
+Version:             3.2.11
+Synopsis:            Programming language with non-linear pattern-matching against unfree data types
+Description:         An interpreter for Egison, the programming langugage that realized non-linear pattern-matching with unfree data types.
+                     With Egison, you can represent pattern-matching with unfree data types intuitively,
+                     especially for collection data, such as lists, multisets, sets.
+                     You can find Egison programs in "lib/" and "sample/" directories.
+                     This package also include Emacs Lisp file "egison-mode.el" in "elisp/" directory.
+Homepage:            http://www.egison.org
+License:             MIT
+License-file:        LICENSE
+Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe, Kentaro Honda
+Maintainer:          Satoshi Egi <egi@egison.org>
+Category:            Compilers/Interpreters
+Build-type:          Simple
+Cabal-version:       >=1.8
+
+Extra-Source-Files:  benchmark/Benchmark.hs
+
+Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.egi lib/core/number.egi lib/core/natural-number.egi lib/core/string.egi lib/core/database.egi
+                     lib/tree/xml.egi lib/math/prime.egi
+                     elisp/egison-mode.el
+
+source-repository head
+  type: git
+  location: https://github.com/egisatoshi/egison3.git
+  
+Library
+  Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io, bytestring, text
+--                   , direct-sqlite -- for 'egison-sqlite'
+--                   , mysql -- for 'egison-mysql'
+  Hs-Source-Dirs:  hs-src
+  Exposed-Modules:
+                   Language.Egison
+                   Language.Egison.Core
+                   Language.Egison.Desugar
+                   Language.Egison.Types
+                   Language.Egison.Parser
+                   Language.Egison.Primitives
+  Other-modules:   Paths_egison
+
+Test-Suite test
+  Type:           exitcode-stdio-1.0
+  Hs-Source-Dirs: test
+  Main-Is:        UnitTest.hs
+  Build-Depends: egison, base >= 4.0 && < 5, transformers, mtl, Glob, HUnit, test-framework, test-framework-hunit
+
+Benchmark benchmark
+  Type: exitcode-stdio-1.0
+  Hs-Source-Dirs:  benchmark
+  Main-Is: Benchmark.hs
+  Build-Depends: egison, base >= 4.0 && < 5, deepseq, criterion >= 0.5, transformers, mtl
+
+Executable egison
+  Main-is:             egisoni.hs
+  Build-depends:       egison, base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, filepath, regex-posix, strict-io, bytestring, unix
+  Other-modules:       Paths_egison
+  Hs-Source-Dirs:      hs-src/Interpreter
