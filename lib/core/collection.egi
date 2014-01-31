@@ -82,7 +82,7 @@
             {x @(filter pred rs)}
             (filter pred rs))]})))
 
-(define $split
+(define $separate
   (lambda [$pred $ls]
     (letrec {[$helper (lambda [$ls $xs $ys]
                         (match ls (list something)

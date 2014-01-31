@@ -8,6 +8,18 @@
 
 (define $intercalate (compose intersperse concat))
 
+(define $split
+  (lambda [$in $ls]
+    (match ls (list something)
+      {[<join $xs <join ,in $rs>> {xs @(split in rs)}]
+       [_ {ls}]})))
+
+(define $split/m
+  (lambda [$a $in $ls]
+    (match ls (list a)
+      {[<join $xs <join ,in $rs>> {xs @(split/m $a in rs)}]
+       [_ {ls}]})))
+
 (define $palindrome?
   (lambda [$str]
     (match str string
