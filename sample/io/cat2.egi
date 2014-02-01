@@ -1,7 +1,5 @@
 (define $main
   (lambda [$argv]
-    (match argv (list string)
-      {[<cons $file _> (do {[$content (read-file file)]
-                            [(write-string content)]}
-                           [])]
-       [_ <Error>]})))
+    (do {[$content (read-file (car argv))]
+         [(write-string content)]}
+        [])))
