@@ -432,6 +432,8 @@ ioPrimitives = [ ("return", return')
                , ("write-to-port", writeToPort)
                , ("eof-port?", isEOFPort)
                , ("flush-port", flushPort)
+
+               , ("read-file", readFile')
                  
                , ("rand", randRange) ]
 --             , ("get-lib-dir-name", getLibDirName) ]
@@ -514,6 +516,10 @@ isEOFPort :: PrimitiveFunc
 isEOFPort = (liftError .) $ oneArg $ \val ->
   makeIO . liftIO . liftM Bool . hIsEOF <$> fromPortValue val
 
+readFile' :: PrimitiveFunc
+readFile' =  (liftError .) $ oneArg $ \val ->
+  makeIO . liftIO . liftM makeStringValue . readFile <$> fromStringValue val
+  
 randRange :: PrimitiveFunc
 randRange = (liftError .) $ twoArgs $ \val val' ->
   return . makeIO . liftIO . liftM Integer . getStdRandom . randomR =<< liftM2 (,) (fromIntegerValue val) (fromIntegerValue val')
