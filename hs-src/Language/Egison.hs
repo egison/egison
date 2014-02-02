@@ -70,6 +70,7 @@ loadLibraries env = do
                 , "lib/core/natural-number.egi"
                 , "lib/core/string.egi"
                 , "lib/core/database.egi"
+                , "lib/core/io.egi"
                  ]
 
 fromEgisonM :: EgisonM a -> IO (Either EgisonError a)

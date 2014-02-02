@@ -419,7 +419,6 @@ ioPrimitives = [ ("return", return')
                , ("read", readFromStdin)
                , ("write-char", writeChar)
                , ("write-string", writeString)
-               , ("print", writeStringLine)
                , ("write", writeToStdout)
                , ("eof?", isEOFStdin)
                , ("flush", flushStdout)
@@ -428,7 +427,6 @@ ioPrimitives = [ ("return", return')
 --             , ("read-from-port", readFromPort)
                , ("write-char-to-port", writeCharToPort)
                , ("write-string-to-port", writeStringToPort)
---             , ("print-to-port", writeStringLineToPort)
                , ("write-to-port", writeToPort)
                , ("eof-port?", isEOFPort)
                , ("flush-port", flushPort)
@@ -463,10 +461,6 @@ writeChar = (liftError .) $ oneArg $ \val ->
 writeString :: PrimitiveFunc
 writeString = (liftError .) $ oneArg $ \val ->
   makeIO' . liftIO . putStr <$> fromStringValue val
-
-writeStringLine :: PrimitiveFunc
-writeStringLine = (liftError .) $ oneArg $ \val ->
-  makeIO' . liftIO . (\str -> putStr (str ++ "\n")) <$> fromStringValue val
 
 writeToStdout :: PrimitiveFunc
 writeToStdout = oneArg $ \val ->

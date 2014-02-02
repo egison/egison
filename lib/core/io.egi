@@ -1,0 +1,26 @@
+;;;;;
+;;;;; Collection.egi
+;;;;;
+
+;;;
+;;; IO
+;;;
+(define $print
+  (lambda [$x]
+    (do {[(write-string (itos x))]
+         [(write-string "\n")]
+         }
+        [])))
+
+;;;
+;;; Collection
+;;;
+(define $each
+  (lambda [$proc $xs]
+    (match xs (list something)
+      {[<nil> (do {} [])]
+       [<cons $x $rs>
+        (do {[(proc x)]
+             [(each proc rs)]
+             }
+          [])]})))
