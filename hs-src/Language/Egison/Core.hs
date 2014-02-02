@@ -61,9 +61,12 @@ evalTopExpr env (Test expr) = do
   val <- evalExpr' env expr
   liftIO $ print val
   return env
-evalTopExpr env (Execute argv) = do
-  main <- refVar env "main" >>= evalRef
-  io <- applyFunc main $ Value $ Collection $ Sq.fromList $ map makeStringValue argv
+evalTopExpr env (Execute ioFuncExpr argvExpr) = do
+--  main <- refVar env pname >>= evalRef
+--  io <- applyFunc main $ Value $ Collection $ Sq.fromList $ map makeStringValue argv
+  ioFunc <- evalExpr env ioFuncExpr
+  argv <- evalExpr env argvExpr
+  io <- applyFunc ioFunc argv
   case io of
     Value (IOFunc m) -> m >> return env
     _ -> throwError $ TypeMismatch "io" io
