@@ -10,6 +10,9 @@ import Control.Concurrent
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad.Error
 
+import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
+import qualified Data.Sequence as Sq
+
 import Data.Version
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
@@ -44,7 +47,7 @@ main = do args <- getArgs
                             either print (const $ return ()) result
                           Options {optLoadOnly = False} -> do
                             env <- primitiveEnv >>= loadLibraries
-                            result <- evalEgisonTopExprs env [LoadFile file, Execute (VarExpr "main") (TupleExpr (map StringExpr args))]
+                            result <- evalEgisonTopExprs env [LoadFile file, Execute (VarExpr "main") (CollectionExpr (Sq.fromList (map (ElementExpr . StringExpr) args)))]
                             either print (const $ return ()) result
 
 data Options = Options {
