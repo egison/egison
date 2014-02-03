@@ -31,3 +31,10 @@
              [(each proc rs)]
              }
           [])]})))
+
+;;;
+;;; Others
+;;;
+(define $pure-rand
+  (lambda [$s $e]
+    (io (rand s e))))
