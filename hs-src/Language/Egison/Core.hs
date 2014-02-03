@@ -199,6 +199,15 @@ evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
     LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1"])] $
     LetExpr [(names, VarExpr "#2")] expr'
 
+evalExpr env (IoExpr expr) = do
+  io <- evalExpr env expr
+  case io of
+    Value (IOFunc m) -> do
+      val <- m >>= evalDeep
+      case val of
+        Tuple [_, val'] -> return $ Value val'
+    _ -> throwError $ TypeMismatch "io" io
+
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newThunk env target
   

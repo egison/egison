@@ -130,6 +130,7 @@ expr' = (try constantExpr
                          <|> letRecExpr
                          <|> letExpr
                          <|> doExpr
+                         <|> ioExpr
                          <|> matchAllExpr
                          <|> matchExpr
                          <|> matcherExpr
@@ -266,6 +267,9 @@ varNames = return <$> varName
 
 varName :: Parser String
 varName = char '$' >> ident
+
+ioExpr :: Parser EgisonExpr
+ioExpr = keywordIo >> IoExpr <$> expr
 
 applyExpr :: Parser EgisonExpr
 applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr) 
@@ -464,6 +468,7 @@ reservedKeywords =
   , "match"
   , "matcher"
   , "do"
+  , "io"
   , "algebraic-data-matcher"
   , "generate-array"
   , "array-size"
@@ -508,6 +513,7 @@ keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "match-lambda"
 keywordMatcher              = reserved "matcher"
 keywordDo                   = reserved "do"
+keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"

@@ -75,6 +75,7 @@ data EgisonExpr =
   | MatcherExpr MatcherInfo
   
   | DoExpr [BindingExpr] EgisonExpr
+  | IoExpr EgisonExpr
     
   | ApplyExpr EgisonExpr EgisonExpr
 
