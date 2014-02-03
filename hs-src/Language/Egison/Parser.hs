@@ -101,7 +101,7 @@ testExpr :: Parser EgisonTopExpr
 testExpr = keywordTest >> Test <$> expr
 
 executeExpr :: Parser EgisonTopExpr
-executeExpr = keywordExecute >> Execute <$> expr <*> expr
+executeExpr = keywordExecute >> Execute <$> expr
 
 loadFileExpr :: Parser EgisonTopExpr
 loadFileExpr = keywordLoadFile >> LoadFile <$> stringLiteral

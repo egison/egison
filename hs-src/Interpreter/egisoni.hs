@@ -47,7 +47,7 @@ main = do args <- getArgs
                             either print (const $ return ()) result
                           Options {optLoadOnly = False} -> do
                             env <- primitiveEnv >>= loadLibraries
-                            result <- evalEgisonTopExprs env [LoadFile file, Execute (VarExpr "main") (CollectionExpr (Sq.fromList (map (ElementExpr . StringExpr) args)))]
+                            result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (Sq.fromList (map (ElementExpr . StringExpr) args))))]
                             either print (const $ return ()) result
 
 data Options = Options {

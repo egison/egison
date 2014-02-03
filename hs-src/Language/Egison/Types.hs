@@ -40,7 +40,7 @@ import Data.Ratio
 data EgisonTopExpr =
     Define String EgisonExpr
   | Test EgisonExpr
-  | Execute EgisonExpr EgisonExpr
+  | Execute EgisonExpr
     -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
