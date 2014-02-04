@@ -173,8 +173,8 @@ completeParen arg@((']':_), _) = completeParen' arg
 completeParen arg@(('}':_), _) = completeParen' arg
 completeParen arg@(('(':_), _) = (completeWord Nothing " \t<>[]{}$," completeAfterOpenParen) arg
 completeParen arg@(('<':_), _) = (completeWord Nothing " \t()[]{}$," completeAfterOpenCons) arg
-completeParen arg@((' ':_), _) = (completeWord Nothing " \t()<>[]{}$," completeInNeutral) arg
-completeParen arg@([], _) = (completeWord Nothing " \t()<>[]{}$," completeInNeutral) arg
+completeParen arg@((' ':_), _) = (completeWord Nothing "" completeNothing) arg
+completeParen arg@([], _) = (completeWord Nothing "" completeNothing) arg
 completeParen arg@(_, _) = (completeWord Nothing " \t[]{}$," completeEgisonKeyword) arg
 
 completeAfterOpenParen :: Monad m => String -> m [Completion]
@@ -183,17 +183,17 @@ completeAfterOpenParen str = return $ map (\kwd -> Completion kwd kwd False) $ f
 completeAfterOpenCons :: Monad m => String -> m [Completion]
 completeAfterOpenCons str = return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) egisonKeywordsAfterOpenCons
 
-completeInNeutral :: Monad m => String -> m [Completion]
-completeInNeutral str = return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) egisonKeywordsInNeutral
+completeNothing :: Monad m => String -> m [Completion]
+completeNothing _ = return []
 
 completeEgisonKeyword :: Monad m => String -> m [Completion]
 completeEgisonKeyword str = return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) egisonKeywords
 
-egisonKeywordsAfterOpenParen = map ((:) '(') $ ["define", "test", "let", "letrec", "do", "lambda", "match-lambda", "match", "match-all", "pattern-function", "matcher", "algebraic-data-matcher", "if", "loop", "io"]
-                            ++ ["id", "or", "and", "not", "char", "eq?/m", "compose", "compose3", "list", "map", "between", "repeat1", "repeat", "filter", "separate", "concat", "foldr", "foldl", "map2", "zip", "empty?", "member?", "member?/m", "include?", "include?/m", "any", "all", "length", "count", "count/m", "car", "cdr", "rac", "rdc", "nth", "take-and-drop", "take", "drop", "while", "reverse", "multiset", "add", "add/m", "delete-first", "delete-first/m", "delete", "delete/m", "difference", "difference/m", "union", "union/m", "intersect", "intersect/m", "set", "unique", "unique/m", "database-table", "database-name", "table-name", "simple-select", "simple-where", "print", "print-to-port", "each", "pure-rand", "fib", "fact", "divisor?", "gcd", "primes", "find-factor", "prime-factorization", "p-f", "pfs", "pfs-n", "compare-integer", "min", "max", "min-and-max", "power", "mod", "float", "compare-float", "ordering", "split-by-ordering", "qsort", "intersperse", "intercalate", "split", "split/m", "palindrome?"]
+egisonKeywordsAfterOpenParen = map ((:) '(') $ ["define", "let", "letrec", "do", "lambda", "match-lambda", "match", "match-all", "pattern-function", "matcher", "algebraic-data-matcher", "if", "loop", "io"]
+                            ++ ["id", "or", "and", "not", "char", "eq?/m", "compose", "compose3", "list", "map", "between", "repeat1", "repeat", "filter", "separate", "concat", "foldr", "foldl", "map2", "zip", "empty?", "member?", "member?/m", "include?", "include?/m", "any", "all", "length", "count", "count/m", "car", "cdr", "rac", "rdc", "nth", "take", "drop", "while", "reverse", "multiset", "add", "add/m", "delete-first", "delete-first/m", "delete", "delete/m", "difference", "difference/m", "union", "union/m", "intersect", "intersect/m", "set", "unique", "unique/m", "simple-select", "print", "print-to-port", "each", "pure-rand", "fib", "fact", "divisor?", "gcd", "primes", "find-factor", "prime-factorization", "p-f", "pfs", "pfs-n", "min", "max", "min-and-max", "power", "mod", "float", "ordering", "qsort", "intersperse", "intercalate", "split", "split/m"]
 egisonKeywordsAfterOpenCons = map ((:) '<') ["nil", "cons", "join", "snoc", "nioj"]
-egisonKeywordsInNeutral = ["(", "<", "[", "{", "something", "integer"]
-                       ++ ["bool", "string", "nat", "nats", "nats0"]
+egisonKeywordsInNeutral = ["something"]
+                       ++ ["bool", "string", "integer", "nat", "nats", "nats0"]
 egisonKeywords = egisonKeywordsAfterOpenParen ++ egisonKeywordsAfterOpenCons ++ egisonKeywordsInNeutral
 
 completeParen' :: Monad m => CompletionFunc m
