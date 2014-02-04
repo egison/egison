@@ -60,12 +60,16 @@ loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ strMsg ("file does not exist: " ++ file)
   input <- liftIO $ readFile file
-  exprs <- readTopExprs input
+  exprs <- readTopExprs $ shebang input
   concat <$> mapM  recursiveLoad exprs
  where
   recursiveLoad (Load file) = loadLibraryFile file
   recursiveLoad (LoadFile file) = loadFile file
   recursiveLoad expr = return [expr]
+  shebang :: String -> String
+  shebang ('#':'!':cs) = ';':'#':'!':cs
+  shebang cs = cs
+
 
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
 loadLibraryFile file = liftIO (getDataFileName file) >>= loadFile
