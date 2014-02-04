@@ -127,7 +127,7 @@ repl env prompt = do
   where
     settings :: MonadIO m => FilePath -> Settings m
     settings home = do
-      setComplete noCompletion $ defaultSettings { historyFile = Just (home </> ".egison_history") }
+      setComplete completeParen $ defaultSettings { historyFile = Just (home </> ".egison_history") }
     
     loop :: Env -> String -> String -> InputT IO ()
     loop env prompt' rest = do
@@ -164,3 +164,45 @@ repl env prompt = do
               loop env prompt ""
             Right env' ->
               loop env' prompt ""
+
+completeParen :: Monad m => CompletionFunc m
+completeParen (lstr, _) =
+  case (closeParen lstr) of
+    Nothing -> return (lstr, [])
+    Just paren -> return (lstr, [(Completion paren paren False)])
+
+closeParen :: String -> Maybe String
+closeParen str = closeParen' 0 $ removeCharAndStringLiteral str
+
+removeCharAndStringLiteral :: String -> String
+removeCharAndStringLiteral [] = []
+removeCharAndStringLiteral ('"':'\\':str) = '"':'\\':(removeCharAndStringLiteral str)
+removeCharAndStringLiteral ('"':str) = removeCharAndStringLiteral' str
+removeCharAndStringLiteral ('\'':'\\':str) = '\'':'\\':(removeCharAndStringLiteral str)
+removeCharAndStringLiteral ('\'':str) = removeCharAndStringLiteral' str
+removeCharAndStringLiteral (c:str) = c:(removeCharAndStringLiteral str)
+
+removeCharAndStringLiteral' :: String -> String
+removeCharAndStringLiteral' [] = []
+removeCharAndStringLiteral' ('"':'\\':str) = removeCharAndStringLiteral' str
+removeCharAndStringLiteral' ('"':str) = removeCharAndStringLiteral str
+removeCharAndStringLiteral' ('\'':'\\':str) = removeCharAndStringLiteral' str
+removeCharAndStringLiteral' ('\'':str) = removeCharAndStringLiteral str
+removeCharAndStringLiteral' (_:str) = removeCharAndStringLiteral' str
+
+
+closeParen' :: Integer -> String -> Maybe String
+closeParen' _ [] = Nothing
+closeParen' 0 ('(':_) = Just ")"
+closeParen' 0 ('<':_) = Just ">"
+closeParen' 0 ('[':_) = Just "]"
+closeParen' 0 ('{':_) = Just "}"
+closeParen' n ('(':str) = closeParen' (n - 1) str
+closeParen' n ('<':str) = closeParen' (n - 1) str
+closeParen' n ('[':str) = closeParen' (n - 1) str
+closeParen' n ('{':str) = closeParen' (n - 1) str
+closeParen' n (')':str) = closeParen' (n + 1) str
+closeParen' n ('>':str) = closeParen' (n + 1) str
+closeParen' n (']':str) = closeParen' (n + 1) str
+closeParen' n ('}':str) = closeParen' (n + 1) str
+closeParen' n (_:str) = closeParen' n str
