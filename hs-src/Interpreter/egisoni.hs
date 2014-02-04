@@ -190,7 +190,6 @@ removeCharAndStringLiteral' ('\'':'\\':str) = removeCharAndStringLiteral' str
 removeCharAndStringLiteral' ('\'':str) = removeCharAndStringLiteral str
 removeCharAndStringLiteral' (_:str) = removeCharAndStringLiteral' str
 
-
 closeParen' :: Integer -> String -> Maybe String
 closeParen' _ [] = Nothing
 closeParen' 0 ('(':_) = Just ")"

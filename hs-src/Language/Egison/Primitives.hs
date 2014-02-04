@@ -420,21 +420,23 @@ ioPrimitives = [ ("return", return')
                , ("write-char", writeChar)
                , ("write-string", writeString)
                , ("write", writeToStdout)
-               , ("eof?", isEOFStdin)
-               , ("flush", flushStdout)
                , ("read-char-from-port", readCharFromPort)
                , ("read-line-from-port", readLineFromPort)
 --             , ("read-from-port", readFromPort)
                , ("write-char-to-port", writeCharToPort)
                , ("write-string-to-port", writeStringToPort)
                , ("write-to-port", writeToPort)
+                 
+               , ("eof?", isEOFStdin)
+               , ("flush", flushStdout)
                , ("eof-port?", isEOFPort)
                , ("flush-port", flushPort)
-
                , ("read-file", readFile')
                  
-               , ("rand", randRange) ]
---             , ("get-lib-dir-name", getLibDirName) ]
+               , ("rand", randRange)
+                 
+--             , ("get-lib-dir-name", getLibDirName)
+               ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
 makeIO m = IOFunc $ liftM (Value . Tuple . (World :) . (:[])) m
