@@ -167,7 +167,7 @@ data EgisonValue =
   | EOF
 
 type Matcher = (Env, MatcherInfo)
-type PrimitiveFunc = [WHNFData] -> EgisonM EgisonValue
+type PrimitiveFunc = EgisonValue -> EgisonM EgisonValue
 
 instance Show EgisonValue where
   show (Char c) = "'" ++ [c] ++ "'"
@@ -311,6 +311,10 @@ fromPrimitiveValue val = throwError $ TypeMismatch "primitive value" val
 extractInteger :: EgisonValue -> EgisonM Integer
 extractInteger (Integer i) = return i
 extractInteger val = throwError $ TypeMismatch "integer" (Value val)
+
+fromTupleValue :: EgisonValue -> [EgisonValue]
+fromTupleValue (Tuple vals) = vals
+fromTupleValue val = [val]
 
 --
 -- Environment

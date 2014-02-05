@@ -53,35 +53,32 @@ primitiveEnvNoIO = do
 {-# INLINE noArg #-}
 noArg :: (MonadError EgisonError m) =>
          m EgisonValue ->
-         [WHNFData] -> m EgisonValue
-noArg f = \vals -> case vals of 
+         EgisonValue -> m EgisonValue
+noArg f = \args -> case fromTupleValue args of 
                      [] -> f
-                     _ -> throwError $ ArgumentsNum 0 $ length vals
+                     vals -> throwError $ ArgumentsNum 0 $ length vals
 
 {-# INLINE oneArg #-}
 oneArg :: (MonadError EgisonError m) =>
           (WHNFData -> m EgisonValue) ->
-          [WHNFData] -> m EgisonValue
-oneArg f = \vals -> case vals of 
-                      [val] -> f val
-                      [] -> f $ Value $ Tuple []
-                      _ -> throwError $ ArgumentsNum 1 $ length vals
+          EgisonValue -> m EgisonValue
+oneArg f = \args -> f (Value args)
 
 {-# INLINE twoArgs #-}
 twoArgs :: (MonadError EgisonError m) =>
            (WHNFData -> WHNFData -> m EgisonValue) ->
-           [WHNFData] -> m EgisonValue
-twoArgs f = \vals -> case vals of 
-                       [val, val'] -> f val val'
-                       _ -> throwError $ ArgumentsNum 2 $ length vals
+           EgisonValue -> m EgisonValue
+twoArgs f = \args -> case fromTupleValue args of 
+                       [val, val'] -> f (Value val) (Value val')
+                       vals -> throwError $ ArgumentsNum 2 $ length vals
 
 {-# INLINE threeArgs #-}
 threeArgs :: (MonadError EgisonError m) =>
              (WHNFData -> WHNFData -> WHNFData -> m EgisonValue) ->
-             [WHNFData] -> m EgisonValue
-threeArgs f = \vals -> case vals of 
-                         [val, val', val''] -> f val val' val''
-                         _ -> throwError $ ArgumentsNum 3 $ length vals
+             EgisonValue -> m EgisonValue
+threeArgs f = \args -> case fromTupleValue args of 
+                         [val, val', val''] -> f (Value val) (Value val') (Value val'')
+                         vals -> throwError $ ArgumentsNum 3 $ length vals
 
 --
 -- Constants

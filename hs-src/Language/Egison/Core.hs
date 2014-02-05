@@ -311,9 +311,8 @@ applyFunc (Value (Func env names body)) arg = do
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNum (length names) (length refs)
 applyFunc (Value (PrimitiveFunc func)) arg = do
---  fromTuple arg >>= mapM evalRef >>= liftM Value . func
-  arg' <- fromTuple arg >>= mapM evalRef'
-  liftM Value . func $ map Value arg'
+  arg' <- evalDeep arg
+  liftM Value . func $ arg'
 applyFunc (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
@@ -355,32 +354,6 @@ recursiveBind env bindings = do
   let env' = extendEnv env $ makeBindings names refs
   zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr) refs exprs
   return env'
-
-fromArray :: WHNFData -> EgisonM [ObjectRef]
-fromArray (Intermediate (IArray refs)) = return $ IntMap.elems refs
-fromArray (Value (Array vals)) = mapM (newEvaluatedThunk . Value) $ IntMap.elems vals
-fromArray val = throwError $ TypeMismatch "array" val
-
-fromTuple :: WHNFData -> EgisonM [ObjectRef]
-fromTuple (Intermediate (ITuple refs)) = return refs
-fromTuple (Value (Tuple vals)) = mapM (newEvaluatedThunk . Value) vals
-fromTuple val = return <$> newEvaluatedThunk val
-
-fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
-fromCollection (Value (Collection vals)) =
-  if Sq.null vals then return MNil
-                  else fromSeq <$> mapM (newEvaluatedThunk . Value) vals
-fromCollection coll@(Intermediate (ICollection _)) =
-  newEvaluatedThunk coll >>= fromCollection'
- where
-  fromCollection' ref = do
-    isEmpty <- isEmptyCollection ref
-    if isEmpty
-      then return MNil
-      else do
-        (head, tail) <- fromJust <$> runMaybeT (unconsCollection ref)
-        return $ MCons head (fromCollection' tail)
-fromCollection val = throwError $ TypeMismatch "collection" val
 
 --
 -- Pattern Match
@@ -726,3 +699,29 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
        lift $ writeThunk ref coll
        unsnocCollection' coll
   unsnocCollection' _ = matchFail
+
+fromArray :: WHNFData -> EgisonM [ObjectRef]
+fromArray (Intermediate (IArray refs)) = return $ IntMap.elems refs
+fromArray (Value (Array vals)) = mapM (newEvaluatedThunk . Value) $ IntMap.elems vals
+fromArray val = throwError $ TypeMismatch "array" val
+
+fromTuple :: WHNFData -> EgisonM [ObjectRef]
+fromTuple (Intermediate (ITuple refs)) = return refs
+fromTuple (Value (Tuple vals)) = mapM (newEvaluatedThunk . Value) vals
+fromTuple val = return <$> newEvaluatedThunk val
+
+fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
+fromCollection (Value (Collection vals)) =
+  if Sq.null vals then return MNil
+                  else fromSeq <$> mapM (newEvaluatedThunk . Value) vals
+fromCollection coll@(Intermediate (ICollection _)) =
+  newEvaluatedThunk coll >>= fromCollection'
+ where
+  fromCollection' ref = do
+    isEmpty <- isEmptyCollection ref
+    if isEmpty
+      then return MNil
+      else do
+        (head, tail) <- fromJust <$> runMaybeT (unconsCollection ref)
+        return $ MCons head (fromCollection' tail)
+fromCollection val = throwError $ TypeMismatch "collection" val
