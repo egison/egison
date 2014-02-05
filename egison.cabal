@@ -37,6 +37,7 @@ Library
                    Language.Egison.Types
                    Language.Egison.Parser
                    Language.Egison.Primitives
+                   Language.Egison.Util
   Other-modules:   Paths_egison
 
 Test-Suite test
