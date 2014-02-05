@@ -140,6 +140,7 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("rtof", rationalToFloat)
              , ("itos", integerToString)
              , ("stoi", stringToInteger)
+             , ("show", show')
              , ("eq?",  eq)
              , ("lt?",  lt)
              , ("lte?", lte)
@@ -210,6 +211,10 @@ stringToInteger :: PrimitiveFunc
 stringToInteger = (liftError .) $ oneArg $ \val -> do
    numStr <- fromStringValue val
    return $ Integer (read numStr :: Integer)
+
+show' :: PrimitiveFunc
+show'= (liftError .) $ oneArg $ \val ->
+   return $ makeStringValue $ show val
 
 eq :: PrimitiveFunc
 eq = (liftError .) $ twoArgs $ \val val' ->
