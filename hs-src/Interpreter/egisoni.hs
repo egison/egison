@@ -129,7 +129,7 @@ repl env prompt = do
   where
     settings :: MonadIO m => FilePath -> Settings m
     settings home = do
-      setComplete completeParen $ defaultSettings { historyFile = Just (home </> ".egison_history") }
+      setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
     
     loop :: Env -> String -> String -> InputT IO ()
     loop env prompt' rest = do

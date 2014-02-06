@@ -334,7 +334,6 @@ pattern' = wildCard
             <|> varPat
             <|> valuePat
             <|> predPat
-            <|> cutPat
             <|> notPat
             <|> tuplePat
             <|> inductivePat
@@ -362,9 +361,6 @@ predPat = reservedOp "?" >> PredPat <$> expr
 
 letPat :: Parser EgisonPattern
 letPat = keywordLet >> LetPat <$> bindings <*> pattern
-
-cutPat :: Parser EgisonPattern
-cutPat = reservedOp "!" >> CutPat <$> pattern
 
 notPat :: Parser EgisonPattern
 notPat = reservedOp "^" >> NotPat <$> pattern
@@ -487,7 +483,6 @@ reservedOperators =
   , "&"
   , "|"
   , "^"
-  , "!"
   , ","
   , "@"
   , "..."]

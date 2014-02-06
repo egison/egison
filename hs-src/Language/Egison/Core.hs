@@ -486,8 +486,6 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       return $ fromList $ flip map patterns $ \pattern ->
         MState env loops bindings (MAtom pattern target matcher : trees)
     NotPat pattern -> throwError $ strMsg "should not reach here (cut pattern)"
-    CutPat pattern -> -- TEMPORARY ignoring cut patterns
-      return $ msingleton (MState env loops bindings ((MAtom pattern target matcher):trees))
     PredPat pred -> do
       func <- evalExpr env' pred
       arg <- evalRef target
@@ -713,11 +711,9 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
        unsnocCollection' coll
   unsnocCollection' _ = matchFail
 
-fromArray :: WHNFData -> EgisonM [ObjectRef]
-fromArray (Intermediate (IArray refs)) = return $ IntMap.elems refs
-fromArray (Value (Array vals)) = mapM (newEvaluatedThunk . Value) $ IntMap.elems vals
-fromArray val = throwError $ TypeMismatch "array" val
-
+--
+-- Util
+--
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
 fromTuple (Value (Tuple vals)) = mapM (newEvaluatedThunk . Value) vals
@@ -762,3 +758,7 @@ fromStringValue (Collection seq) = do
        ls
 fromStringValue (Tuple [val]) = fromStringValue val
 fromStringValue val = throwError $ TypeMismatch "string" (Value val)
+
+--
+-- Repl
+--
