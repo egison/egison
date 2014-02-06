@@ -16,9 +16,9 @@ import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 
 import Data.Monoid (Monoid)
-import Data.Foldable (foldr, toList)
 import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
+import Data.Foldable (foldr, toList)
 import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -169,6 +169,10 @@ data EgisonValue =
 type Matcher = (Env, MatcherInfo)
 type PrimitiveFunc = EgisonValue -> EgisonM EgisonValue
 
+data EgisonHashKey =
+    IntKey Integer
+  | StrKey ByteString
+
 instance Show EgisonValue where
   show (Char c) = "'" ++ [c] ++ "'"
   show (Bool True) = "#t"
@@ -248,73 +252,53 @@ instance Show WHNFData where
   show (Intermediate (IIntHash _)) = "{|...|}" 
   show (Intermediate (IStrHash _)) = "{|...|}" 
 
-data EgisonHashKey =
-    IntKey Integer
-  | StrKey ByteString
-
-makeKey :: EgisonValue -> Either EgisonError EgisonHashKey
-makeKey val =
-  case val of
-    Integer i -> return (IntKey i)
-    Collection _ -> do
-      str <- fromStringValue $ Value val
-      return $ StrKey $ B.pack str
-    _ -> throwError $ TypeMismatch "integer or string" $ Value val
-
+--
+-- Extract data from WHNF
+--
 fromCharValue :: WHNFData -> Either EgisonError Char
 fromCharValue (Value (Char c)) = return c
-fromCharValue val = throwError $ TypeMismatch "char" val
-
-fromStringValue :: WHNFData -> Either EgisonError String
-fromStringValue (Value (Collection seq)) = do
-  let ls = toList seq
-  mapM (\val -> case val of
-                  Char c -> return c
-                  _ -> throwError $ TypeMismatch "char" (Value val))
-       ls
-fromStringValue val = throwError $ TypeMismatch "string" val
-
-makeStringValue :: String -> EgisonValue
-makeStringValue str = Collection $ Sq.fromList $ map Char str
+fromCharValue whnf = throwError $ TypeMismatch "char" whnf
 
 fromBoolValue :: WHNFData -> Either EgisonError Bool
 fromBoolValue (Value (Bool b)) = return b
-fromBoolValue val = throwError $ TypeMismatch "bool" val
+fromBoolValue whnf = throwError $ TypeMismatch "bool" whnf
 
 fromRationalValue :: WHNFData -> Either EgisonError Rational
 fromRationalValue (Value (Rational x)) = return x
-fromRationalValue val = throwError $ TypeMismatch "rational" val
+fromRationalValue whnf = throwError $ TypeMismatch "rational" whnf
 
 fromIntegerValue :: WHNFData -> Either EgisonError Integer
 fromIntegerValue (Value (Integer i)) = return i
-fromIntegerValue val = throwError $ TypeMismatch "integer" val
+fromIntegerValue whnf = throwError $ TypeMismatch "integer" whnf
 
 fromFloatValue :: WHNFData -> Either EgisonError Double
 fromFloatValue (Value (Float f)) = return f
-fromFloatValue val = throwError $ TypeMismatch "float" val
+fromFloatValue whnf = throwError $ TypeMismatch "float" whnf
 
 fromPortValue :: WHNFData -> Either EgisonError Handle
 fromPortValue (Value (Port handle)) = return handle
-fromPortValue val = throwError $ TypeMismatch "port" val
+fromPortValue whnf = throwError $ TypeMismatch "port" whnf
 
 fromMatcherValue :: WHNFData -> Either EgisonError Matcher
 fromMatcherValue (Value (Matcher matcher)) = return matcher
-fromMatcherValue val = throwError $ TypeMismatch "matcher" val
+fromMatcherValue whnf = throwError $ TypeMismatch "matcher" whnf
 
-fromPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
-fromPrimitiveValue (Value val@(Char _)) = return val
-fromPrimitiveValue (Value val@(Bool _)) = return val
-fromPrimitiveValue (Value val@(Integer _)) = return val
-fromPrimitiveValue (Value val@(Float _)) = return val
-fromPrimitiveValue val = throwError $ TypeMismatch "primitive value" val 
-
-extractInteger :: EgisonValue -> EgisonM Integer
-extractInteger (Integer i) = return i
-extractInteger val = throwError $ TypeMismatch "integer" (Value val)
+fromBuiltinValue :: WHNFData -> Either EgisonError EgisonValue
+fromBuiltinValue (Value val@(Char _)) = return val
+fromBuiltinValue (Value val@(Bool _)) = return val
+fromBuiltinValue (Value val@(Integer _)) = return val
+fromBuiltinValue (Value val@(Float _)) = return val
+fromBuiltinValue whnf = throwError $ TypeMismatch "primitive value" whnf
 
 fromTupleValue :: EgisonValue -> [EgisonValue]
 fromTupleValue (Tuple vals) = vals
 fromTupleValue val = [val]
+
+--
+-- String
+--
+makeEgisonString :: String -> EgisonValue
+makeEgisonString str = Collection $ Sq.fromList $ map Char str
 
 --
 -- Environment

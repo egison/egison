@@ -92,28 +92,29 @@ constants = [ ("pi", Float 3.141592653589793) ]
 --
 
 primitives :: [(String, PrimitiveFunc)]
-primitives = [ ("+i", integerBinaryOp (+)) 
-             , ("-i", integerBinaryOp (-))
-             , ("*i", integerBinaryOp (*))
+primitives = [ ("+", plus)
+             , ("-", minus)
+             , ("*", multiply)
+             , ("/", divide)
+             , ("/-inverse", divideInverse)
+               
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
              , ("remainder", integerBinaryOp rem)
-             , ("eq-i?",  integerBinaryPred (==))
-             , ("lt-i?",  integerBinaryPred (<))
-             , ("lte-i?", integerBinaryPred (<=))
-             , ("gt-i?",  integerBinaryPred (>))
-             , ("gte-i?", integerBinaryPred (>=))
-             , ("+f", floatBinaryOp (+))
-             , ("-f", floatBinaryOp (-))
-             , ("*f", floatBinaryOp (*))
-             , ("/f", floatBinaryOp (/))
-             , ("eq-f?",  floatBinaryPred (==))
-             , ("lt-f?",  floatBinaryPred (<))
-             , ("lte-f?", floatBinaryPred (<=))
-             , ("gt-f?",  floatBinaryPred (>))
-             , ("gte-f?", floatBinaryPred (>=))
              , ("neg", integerUnaryOp negate)
              , ("abs", integerUnaryOp abs)
+               
+             , ("eq?",  eq)
+             , ("lt?",  lt)
+             , ("lte?", lte)
+             , ("gt?",  gt)
+             , ("gte?", gte)
+               
+             , ("round",    floatToIntegerOp round)
+             , ("floor",    floatToIntegerOp floor)
+             , ("ceiling",  floatToIntegerOp ceiling)
+             , ("truncate", floatToIntegerOp truncate)
+               
              , ("sqrt", floatUnaryOp sqrt)
              , ("exp", floatUnaryOp exp)
              , ("log", floatUnaryOp log)
@@ -129,25 +130,15 @@ primitives = [ ("+i", integerBinaryOp (+))
              , ("asinh", floatUnaryOp asinh)
              , ("acosh", floatUnaryOp acosh)
              , ("atanh", floatUnaryOp atanh)
-             , ("round",    floatToIntegerOp round)
-             , ("floor",    floatToIntegerOp floor)
-             , ("ceiling",  floatToIntegerOp ceiling)
-             , ("truncate", floatToIntegerOp truncate)
+               
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
-             , ("itos", integerToString)
+               
              , ("stoi", stringToInteger)
+               
+             , ("read", read')
              , ("show", show')
-             , ("eq?",  eq)
-             , ("lt?",  lt)
-             , ("lte?", lte)
-             , ("gt?",  gt)
-             , ("gte?", gte)
-             , ("+", plus)
-             , ("-", minus)
-             , ("*", multiply)
-             , ("/", divide)
-             , ("/-inverse", divideInverse)
+               
              , ("assert", assert)
              , ("assert-equal", assertEqual)
 
@@ -202,7 +193,7 @@ rationalToFloat = (liftError .) $ oneArg $ \val ->
 
 integerToString :: PrimitiveFunc
 integerToString = (liftError .) $ oneArg $ \val ->
-   makeStringValue . show <$> fromIntegerValue val
+   makeEgisonString . show <$> fromIntegerValue val
 
 stringToInteger :: PrimitiveFunc
 stringToInteger = (liftError .) $ oneArg $ \val -> do
@@ -211,12 +202,12 @@ stringToInteger = (liftError .) $ oneArg $ \val -> do
 
 show' :: PrimitiveFunc
 show'= (liftError .) $ oneArg $ \val ->
-   return $ makeStringValue $ show val
+   return $ makeEgisonString $ show val
 
 eq :: PrimitiveFunc
 eq = (liftError .) $ twoArgs $ \val val' ->
-  (Bool .) . (==) <$> fromPrimitiveValue val
-                  <*> fromPrimitiveValue val'
+  (Bool .) . (==) <$> fromBuiltinValue val
+                  <*> fromBuiltinValue val'
 
 lt :: PrimitiveFunc
 lt = (liftError .) $ twoArgs lt'
@@ -363,7 +354,7 @@ pureSQLite  = (liftError .) $ twoArgs $ \val val' -> do
   dbName <- fromStringValue val
   qStr <- fromStringValue val'
   let ret = unsafePerformIO $ query' (T.pack dbName) $ T.pack qStr
-  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map makeStringValue r)) ret
+  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map makeEgisonString r)) ret
  where
   query' :: T.Text -> T.Text -> IO [[String]]
   query' dbName q = do
@@ -386,7 +377,7 @@ pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
   dbName <- fromStringValue val
   qStr <- fromStringValue val'
   let ret = unsafePerformIO $ query' dbName $ BC.pack qStr
-  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map makeStringValue r)) ret
+  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map makeEgisonString r)) ret
  where
   query' :: String -> ByteString -> IO [[String]]
   query' dbName q = do
@@ -411,20 +402,19 @@ pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
 --
 
 ioPrimitives :: [(String, PrimitiveFunc)]
-ioPrimitives = [ ("return", return')
+ioPrimitives = [
+                 ("return", return')
                , ("open-input-file", makePort ReadMode)
                , ("open-output-file", makePort WriteMode)
                , ("close-input-port", closePort)
                , ("close-output-port", closePort)
                , ("read-char", readChar)
                , ("read-line", readLine)
-               , ("read", readFromStdin)
                , ("write-char", writeChar)
                , ("write-string", writeString)
-               , ("write", writeToStdout)
+                 
                , ("read-char-from-port", readCharFromPort)
                , ("read-line-from-port", readLineFromPort)
---             , ("read-from-port", readFromPort)
                , ("write-char-to-port", writeCharToPort)
                , ("write-string-to-port", writeStringToPort)
                , ("write-to-port", writeToPort)
@@ -436,8 +426,6 @@ ioPrimitives = [ ("return", return')
                , ("read-file", readFile')
                  
                , ("rand", randRange)
-                 
---             , ("get-lib-dir-name", getLibDirName)
                ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
@@ -474,10 +462,7 @@ readChar :: PrimitiveFunc
 readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
 
 readLine :: PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ liftM makeStringValue getLine
-
-readFromStdin :: PrimitiveFunc
-readFromStdin = noArg $ return $ makeIO $ (liftIO getLine) >>= readExpr >>= evalExpr' nullEnv
+readLine = noArg $ return $ makeIO $ liftIO $ liftM makeEgisonString getLine
 
 flushStdout :: PrimitiveFunc
 flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
@@ -493,18 +478,13 @@ writeStringToPort :: PrimitiveFunc
 writeStringToPort = (liftError .) $ twoArgs $ \val val' ->
   ((makeIO' . liftIO) .) . hPutStr <$> fromPortValue val <*> fromStringValue val'
 
-writeToPort :: PrimitiveFunc
-writeToPort = twoArgs $ \val val' -> do
-  ((makeIO' . liftIO) .) . hPutStr <$> liftError (fromPortValue val)
-                                   <*> (show <$> evalDeep val')
-
 readCharFromPort :: PrimitiveFunc
 readCharFromPort = (liftError .) $ oneArg $ \val ->
   makeIO . liftIO . liftM Char . hGetChar <$> fromPortValue val
 
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = (liftError .) $ oneArg $ \val ->
-  makeIO . liftIO . liftM makeStringValue . hGetLine <$> fromPortValue val
+  makeIO . liftIO . liftM makeEgisonString . hGetLine <$> fromPortValue val
 
 flushPort :: PrimitiveFunc
 flushPort = (liftError .) $ oneArg $ \val ->
@@ -516,7 +496,7 @@ isEOFPort = (liftError .) $ oneArg $ \val ->
 
 readFile' :: PrimitiveFunc
 readFile' =  (liftError .) $ oneArg $ \val ->
-  makeIO . liftIO . liftM makeStringValue . readFile <$> fromStringValue val
+  makeIO . liftIO . liftM makeEgisonString . readFile <$> fromStringValue val
   
 randRange :: PrimitiveFunc
 randRange = (liftError .) $ twoArgs $ \val val' ->

@@ -11,6 +11,7 @@ import Control.Monad.Trans.Maybe
 
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
+import Data.Foldable (toList)
 import Data.Traversable (mapM)
 import Data.IORef
 import Data.List
@@ -71,7 +72,7 @@ evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
-evalExpr _ (StringExpr s) = return $ Value $ makeStringValue s
+evalExpr _ (StringExpr s) = return $ Value $ makeEgisonString s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (RationalExpr x) = return . Value $ Rational x
 evalExpr _ (IntegerExpr i) = return . Value $ Integer i
@@ -103,8 +104,8 @@ evalExpr env (ArrayExpr exprs) = do
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
-  keyVals <- mapM (evalExpr' env) keyExprs
-  keys <- liftError $ mapM makeKey keyVals
+  keyWhnfs <- mapM (evalExpr env) keyExprs
+  keys <- mapM makeHashKey keyWhnfs
   refs <- mapM (newThunk env) exprs
   case head keys of
     IntKey _ -> do
@@ -115,6 +116,18 @@ evalExpr env (HashExpr assocs) = do
       let keys' = map (\key -> case key of
                                  StrKey s -> s) keys
       return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
+ where
+  makeHashKey :: WHNFData -> EgisonM EgisonHashKey
+  makeHashKey (Value val) =
+    case val of
+      Integer i -> return (IntKey i)
+      Collection _ -> do
+        str <- fromStringValue $ Value val
+        return $ StrKey $ B.pack str
+      _ -> throwError $ TypeMismatch "integer or string" $ Value val
+  makeHashKey whnf = do
+    str <- fromStringValue whnf
+    return $ StrKey $ B.pack str
 
 evalExpr env (IndexedExpr expr indices) = do
   array <- evalExpr env expr
@@ -144,12 +157,12 @@ evalExpr env (IndexedExpr expr indices) = do
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
   refArray (Value (StrHash hash)) (index:indices) = do
-    key <- liftError $ fromStringValue $ Value index
+    key <- fromStringValue $ Value index
     case HL.lookup (B.pack key) hash of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IStrHash hash)) (index:indices) = do
-    key <- liftError $ fromStringValue $ Value index
+    key <- fromStringValue $ Value index
     case HL.lookup (B.pack key) hash of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
@@ -421,10 +434,10 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func
     
     LoopPat name (LoopRangeConstant start end) pat pat' -> do
-      startNum' <- evalExpr' env' start
-      startNum <- extractInteger startNum'
-      endNum' <- evalExpr' env' end
-      endNum <- extractInteger endNum'
+      startNum' <- evalExpr env' start
+      startNum <- liftError $ fromIntegerValue startNum'
+      endNum' <- evalExpr env' end
+      endNum <- liftError $ fromIntegerValue endNum'
       if startNum > endNum
         then do
           return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
@@ -433,8 +446,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           let loops' = LoopContextConstant (name, startNumRef) endNum pat pat' : loops
           return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
     LoopPat name (LoopRangeVariable start lastNumPat) pat pat' -> do
-      startNum' <- evalExpr' env' start
-      startNum <- extractInteger startNum'
+      startNum' <- evalExpr env' start
+      startNum <- liftError $ fromIntegerValue startNum'
       startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
       lastNumRef <- liftIO . newIORef . WHNF $ Value $ Integer (startNum - 1)
       return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value Something) : MAtom pat' target matcher : trees),
@@ -443,8 +456,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopContextConstant (name, startNumRef) endNum pat pat' : loops -> do
-          startNum' <- evalRef' startNumRef
-          startNum <- extractInteger startNum'
+          startNum' <- evalRef startNumRef
+          startNum <- liftError $ fromIntegerValue startNum'
           let nextNum = startNum + 1
           if nextNum > endNum
             then return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
@@ -453,8 +466,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               let loops' = LoopContextConstant (name, nextNumRef) endNum pat pat' : loops 
               return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
         LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops -> do
-          startNum' <- evalRef' startNumRef
-          startNum <- extractInteger startNum'
+          startNum' <- evalRef startNumRef
+          startNum <- liftError $ fromIntegerValue startNum'
           let nextNum = startNum + 1
           nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
           let loops' = LoopContextVariable (name, nextNumRef) lastNumPat pat pat' : loops 
@@ -630,7 +643,7 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
   (++) <$> primitiveDataPatternMatch pattern init
        <*> primitiveDataPatternMatch pattern' last
 primitiveDataPatternMatch (PDConstantPat expr) ref = do
-  target <- lift (evalRef ref) >>= either (const matchFail) return . fromPrimitiveValue
+  target <- lift (evalRef ref) >>= either (const matchFail) return . fromBuiltinValue
   isEqual <- lift $ (==) <$> evalExpr' nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
 
@@ -725,3 +738,16 @@ fromCollection coll@(Intermediate (ICollection _)) =
         (head, tail) <- fromJust <$> runMaybeT (unconsCollection ref)
         return $ MCons head (fromCollection' tail)
 fromCollection val = throwError $ TypeMismatch "collection" val
+
+--
+-- String
+--
+fromStringValue :: WHNFData -> EgisonM String
+fromStringValue (Value (Collection seq)) = do
+  let ls = toList seq
+  mapM (\val -> case val of
+                  Char c -> return c
+                  _ -> throwError $ TypeMismatch "char" (Value val))
+       ls
+fromStringValue whnf@(Intermediate (ICollection _)) = evalDeep whnf >>= fromStringValue . Value
+fromStringValue whnf = throwError $ TypeMismatch "string" whnf
