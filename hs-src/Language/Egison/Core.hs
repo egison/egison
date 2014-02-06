@@ -86,8 +86,7 @@ evalExpr env (InductiveDataExpr name exprs) =
 
 evalExpr _ (TupleExpr []) = return . Value $ Tuple []
 evalExpr env (TupleExpr [expr]) = evalExpr env expr
-evalExpr env (TupleExpr exprs) =
-  Intermediate . ITuple <$> mapM (newThunk env) exprs 
+evalExpr env (TupleExpr exprs) = Intermediate . ITuple <$> mapM (newThunk env) exprs
 
 evalExpr env (CollectionExpr inners) =
   if Sq.null inners then
@@ -122,11 +121,11 @@ evalExpr env (HashExpr assocs) = do
     case val of
       Integer i -> return (IntKey i)
       Collection _ -> do
-        str <- fromStringValue $ Value val
+        str <- fromStringWHNF $ Value val
         return $ StrKey $ B.pack str
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
   makeHashKey whnf = do
-    str <- fromStringValue whnf
+    str <- fromStringWHNF whnf
     return $ StrKey $ B.pack str
 
 evalExpr env (IndexedExpr expr indices) = do
@@ -137,32 +136,32 @@ evalExpr env (IndexedExpr expr indices) = do
   refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
   refArray val [] = return val 
   refArray (Value (Array array)) (index:indices) = do
-    i <- (liftError . liftM fromInteger . fromIntegerValue) (Value index)
+    i <- (liftError . liftM fromInteger . fromIntegerWHNF) (Value index)
     case IntMap.lookup i array of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IArray array)) (index:indices) = do
-    i <- (liftError . liftM fromInteger . fromIntegerValue) (Value index)
+    i <- (liftError . liftM fromInteger . fromIntegerWHNF) (Value index)
     case IntMap.lookup i array of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
   refArray (Value (IntHash hash)) (index:indices) = do
-    key <- liftError $ fromIntegerValue $ Value index
+    key <- liftError $ fromIntegerWHNF $ Value index
     case HL.lookup key hash of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IIntHash hash)) (index:indices) = do
-    key <- liftError $ fromIntegerValue $ Value index
+    key <- liftError $ fromIntegerWHNF $ Value index
     case HL.lookup key hash of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
   refArray (Value (StrHash hash)) (index:indices) = do
-    key <- fromStringValue $ Value index
+    key <- fromStringWHNF $ Value index
     case HL.lookup (B.pack key) hash of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IStrHash hash)) (index:indices) = do
-    key <- fromStringValue $ Value index
+    key <- fromStringWHNF $ Value index
     case HL.lookup (B.pack key) hash of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
@@ -172,7 +171,7 @@ evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
 evalExpr env (IfExpr test expr expr') = do
-  test <- evalExpr env test >>= liftError . fromBoolValue
+  test <- evalExpr env test >>= liftError . fromBoolWHNF
   evalExpr env $ if test then expr else expr'
 
 evalExpr env (LetExpr bindings expr) =
@@ -311,6 +310,7 @@ evalDeep (Intermediate (IIntHash refs)) = do
 evalDeep (Intermediate (IStrHash refs)) = do
   refs' <- mapM evalRef' refs
   return $ StrHash refs'
+evalDeep (Intermediate (ITuple [ref])) = evalRef' ref
 evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
 evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef' . Sq.fromList)
 
@@ -334,7 +334,7 @@ applyFunc val _ = throwError $ TypeMismatch "function" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name size expr = do  
-  size' <- evalExpr env size >>= either throwError (return . fromInteger) . fromIntegerValue
+  size' <- evalExpr env size >>= either throwError (return . fromInteger) . fromIntegerWHNF
   elems <- mapM genElem (enumFromTo 1 size')
   return $ Intermediate $ IArray $ IntMap.fromList elems
   where
@@ -435,9 +435,9 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     
     LoopPat name (LoopRangeConstant start end) pat pat' -> do
       startNum' <- evalExpr env' start
-      startNum <- liftError $ fromIntegerValue startNum'
+      startNum <- liftError $ fromIntegerWHNF startNum'
       endNum' <- evalExpr env' end
-      endNum <- liftError $ fromIntegerValue endNum'
+      endNum <- liftError $ fromIntegerWHNF endNum'
       if startNum > endNum
         then do
           return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
@@ -447,7 +447,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
     LoopPat name (LoopRangeVariable start lastNumPat) pat pat' -> do
       startNum' <- evalExpr env' start
-      startNum <- liftError $ fromIntegerValue startNum'
+      startNum <- liftError $ fromIntegerWHNF startNum'
       startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
       lastNumRef <- liftIO . newIORef . WHNF $ Value $ Integer (startNum - 1)
       return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value Something) : MAtom pat' target matcher : trees),
@@ -457,7 +457,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopContextConstant (name, startNumRef) endNum pat pat' : loops -> do
           startNum' <- evalRef startNumRef
-          startNum <- liftError $ fromIntegerValue startNum'
+          startNum <- liftError $ fromIntegerWHNF startNum'
           let nextNum = startNum + 1
           if nextNum > endNum
             then return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
@@ -467,7 +467,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
         LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops -> do
           startNum' <- evalRef startNumRef
-          startNum <- liftError $ fromIntegerValue startNum'
+          startNum <- liftError $ fromIntegerWHNF startNum'
           let nextNum = startNum + 1
           nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
           let loops' = LoopContextVariable (name, nextNumRef) lastNumPat pat pat' : loops 
@@ -491,7 +491,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     PredPat pred -> do
       func <- evalExpr env' pred
       arg <- evalRef target
-      result <- applyFunc func arg >>= liftError . fromBoolValue
+      result <- applyFunc func arg >>= liftError . fromBoolWHNF
       if result then return $ msingleton $ (MState env loops bindings trees)
                 else return MNil
     LetPat bindings' pattern ->
@@ -522,7 +522,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             WildCard -> return $ msingleton $ MState env loops bindings trees
             PatVar name -> return $ msingleton $ MState env loops ((name, target):bindings) trees
             IndexedPat (PatVar name) indices -> do
-              indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerValue) indices
+              indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerWHNF) indices
               case lookup name bindings of
                 Just ref -> do
                   obj <- evalRef ref >>= flip updateArray indices >>= newEvaluatedThunk
@@ -575,7 +575,7 @@ processMState' (MState env loops bindings ((MNode penv state@(MState env' loops'
               let env'' = extendEnv env' (bindings' ++ map (\lc -> case lc of
                                                                      (LoopContextConstant binding _ _ _) -> binding
                                                                      (LoopContextVariable binding _ _ _) -> binding) loops')
-              indices <- mapM (evalExpr env'' >=> liftError . liftM fromInteger . fromIntegerValue) indices
+              indices <- mapM (evalExpr env'' >=> liftError . liftM fromInteger . fromIntegerWHNF) indices
               let pattern' = IndexedPat pattern $ map IntegerExpr indices
               return $ msingleton $ MState env loops bindings (MAtom pattern' target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name
@@ -643,7 +643,7 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
   (++) <$> primitiveDataPatternMatch pattern init
        <*> primitiveDataPatternMatch pattern' last
 primitiveDataPatternMatch (PDConstantPat expr) ref = do
-  target <- lift (evalRef ref) >>= either (const matchFail) return . fromBuiltinValue
+  target <- lift (evalRef ref) >>= either (const matchFail) return . fromBuiltinWHNF
   isEqual <- lift $ (==) <$> evalExpr' nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
 
@@ -742,12 +742,23 @@ fromCollection val = throwError $ TypeMismatch "collection" val
 --
 -- String
 --
-fromStringValue :: WHNFData -> EgisonM String
-fromStringValue (Value (Collection seq)) = do
+fromStringWHNF :: WHNFData -> EgisonM String
+fromStringWHNF (Value (Collection seq)) = do
   let ls = toList seq
   mapM (\val -> case val of
                   Char c -> return c
                   _ -> throwError $ TypeMismatch "char" (Value val))
        ls
-fromStringValue whnf@(Intermediate (ICollection _)) = evalDeep whnf >>= fromStringValue . Value
-fromStringValue whnf = throwError $ TypeMismatch "string" whnf
+fromStringWHNF (Value (Tuple [val])) = fromStringWHNF (Value val)
+fromStringWHNF whnf@(Intermediate (ICollection _)) = evalDeep whnf >>= fromStringWHNF . Value
+fromStringWHNF whnf = throwError $ TypeMismatch "string" whnf
+
+fromStringValue :: EgisonValue -> EgisonM String
+fromStringValue (Collection seq) = do
+  let ls = toList seq
+  mapM (\val -> case val of
+                  Char c -> return c
+                  _ -> throwError $ TypeMismatch "char" (Value val))
+       ls
+fromStringValue (Tuple [val]) = fromStringValue val
+fromStringValue val = throwError $ TypeMismatch "string" (Value val)

@@ -51,33 +51,31 @@ primitiveEnvNoIO = do
   return $ extendEnv nullEnv bindings
 
 {-# INLINE noArg #-}
-noArg :: (MonadError EgisonError m) =>
-         m EgisonValue ->
-         EgisonValue -> m EgisonValue
+noArg :: EgisonM EgisonValue ->
+         EgisonValue -> EgisonM EgisonValue
 noArg f = \args -> case fromTupleValue args of 
                      [] -> f
                      vals -> throwError $ ArgumentsNum 0 $ length vals
 
 {-# INLINE oneArg #-}
-oneArg :: (MonadError EgisonError m) =>
-          (WHNFData -> m EgisonValue) ->
-          EgisonValue -> m EgisonValue
-oneArg f = \args -> f (Value args)
+oneArg :: (EgisonValue -> EgisonM EgisonValue) ->
+          EgisonValue -> EgisonM EgisonValue
+oneArg f = \args -> case args of
+                      (Tuple [val]) -> f val
+                      _ -> f args
 
 {-# INLINE twoArgs #-}
-twoArgs :: (MonadError EgisonError m) =>
-           (WHNFData -> WHNFData -> m EgisonValue) ->
-           EgisonValue -> m EgisonValue
+twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) ->
+           EgisonValue -> EgisonM EgisonValue
 twoArgs f = \args -> case fromTupleValue args of 
-                       [val, val'] -> f (Value val) (Value val')
+                       [val, val'] -> f val val'
                        vals -> throwError $ ArgumentsNum 2 $ length vals
 
 {-# INLINE threeArgs #-}
-threeArgs :: (MonadError EgisonError m) =>
-             (WHNFData -> WHNFData -> WHNFData -> m EgisonValue) ->
-             EgisonValue -> m EgisonValue
+threeArgs :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) ->
+             EgisonValue -> EgisonM EgisonValue
 threeArgs f = \args -> case fromTupleValue args of 
-                         [val, val', val''] -> f (Value val) (Value val') (Value val'')
+                         [val, val', val''] -> f val val' val''
                          vals -> throwError $ ArgumentsNum 3 $ length vals
 
 --
@@ -136,7 +134,7 @@ primitives = [ ("+", plus)
                
              , ("stoi", stringToInteger)
                
-             , ("read", read')
+--             , ("read", read')
              , ("show", show')
                
              , ("assert", assert)
@@ -152,198 +150,222 @@ primitives = [ ("+", plus)
              ]
 
 integerUnaryOp :: (Integer -> Integer) -> PrimitiveFunc
-integerUnaryOp op = (liftError .) $ oneArg $ \val ->
-  Integer . op <$> fromIntegerValue val
-
+integerUnaryOp op = oneArg $ \val -> do
+  i <- liftError $ fromIntegerValue val
+  return $ Integer $ op i
+  
 integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
-integerBinaryOp op = (liftError .) $ twoArgs $ \val val' ->
-  (Integer .) . op <$> fromIntegerValue val
-                   <*> fromIntegerValue val'
+integerBinaryOp op = twoArgs $ \val val' -> do
+  i <- liftError $ fromIntegerValue val
+  i' <- liftError $ fromIntegerValue val'
+  return $ Integer $ op i i'
 
 integerBinaryPred :: (Integer -> Integer -> Bool) -> PrimitiveFunc
-integerBinaryPred pred = (liftError .) $ twoArgs $ \val val' ->
-  (Bool .) . pred <$> fromIntegerValue val
-                  <*> fromIntegerValue val'
+integerBinaryPred pred = twoArgs $ \val val' -> do
+  i <- liftError $ fromIntegerValue val
+  i' <- liftError $ fromIntegerValue val'
+  return $ Bool $ pred i i'
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
-floatUnaryOp op = (liftError .) $ oneArg $ \val ->
-  Float . op <$> fromFloatValue val
+floatUnaryOp op = oneArg $ \val -> do
+  f <- liftError $ fromFloatValue val
+  return $ Float $ op f
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
-floatBinaryOp op = (liftError .) $ twoArgs $ \val val' ->
-  (Float .) . op <$> fromFloatValue val
-                 <*> fromFloatValue val'
+floatBinaryOp op = twoArgs $ \val val' -> do
+  f <- liftError $ fromFloatValue val
+  f' <- liftError $ fromFloatValue val'
+  return $ Float $ op f f'
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
-floatBinaryPred pred = (liftError .) $ twoArgs $ \val val' ->
-  (Bool .) . pred <$> fromFloatValue val
-                  <*> fromFloatValue val'
+floatBinaryPred pred = twoArgs $ \val val' -> do
+  f <- liftError $ fromFloatValue val
+  f' <- liftError $ fromFloatValue val'
+  return $ Bool $ pred f f'
 
-floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
-floatToIntegerOp op = (liftError .) $ oneArg $ \val ->
-  Integer . op <$> fromFloatValue val
-
-integerToFloat :: PrimitiveFunc
-integerToFloat = (liftError .) $ oneArg $ \val ->
-  Float . fromInteger <$> fromIntegerValue val
-
-rationalToFloat :: PrimitiveFunc
-rationalToFloat = (liftError .) $ oneArg $ \val ->
-  Float . fromRational <$> fromRationalValue val
-
-integerToString :: PrimitiveFunc
-integerToString = (liftError .) $ oneArg $ \val ->
-   makeEgisonString . show <$> fromIntegerValue val
-
-stringToInteger :: PrimitiveFunc
-stringToInteger = (liftError .) $ oneArg $ \val -> do
-   numStr <- fromStringValue val
-   return $ Integer (read numStr :: Integer)
-
-show' :: PrimitiveFunc
-show'= (liftError .) $ oneArg $ \val ->
-   return $ makeEgisonString $ show val
-
-eq :: PrimitiveFunc
-eq = (liftError .) $ twoArgs $ \val val' ->
-  (Bool .) . (==) <$> fromBuiltinValue val
-                  <*> fromBuiltinValue val'
-
-lt :: PrimitiveFunc
-lt = (liftError .) $ twoArgs lt'
- where
-  lt' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i < i'
-  lt' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i < f
-  lt' (Value (Float f)) (Value (Integer i)) = return $ Bool $ f < fromInteger i
-  lt' (Value (Float f)) (Value (Float f')) = return $ Bool $ f < f'
-  lt' (Value (Integer _)) val = throwError $ TypeMismatch "number" val
-  lt' (Value (Float _)) val = throwError $ TypeMismatch "number" val
-  lt' val _ = throwError $ TypeMismatch "number" val
-
-lte :: PrimitiveFunc
-lte = (liftError .) $ twoArgs lte'
- where
-  lte' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i <= i'
-  lte' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i <= f
-  lte' (Value (Float f)) (Value (Integer i)) = return $ Bool $ f <= fromInteger i
-  lte' (Value (Float f)) (Value (Float f')) = return $ Bool $ f <= f'
-  lte' (Value (Integer _)) val = throwError $ TypeMismatch "number" val
-  lte' (Value (Float _)) val = throwError $ TypeMismatch "number" val
-  lte' val _ = throwError $ TypeMismatch "number" val
-
-gt :: PrimitiveFunc
-gt = (liftError .) $ twoArgs gt'
- where
-  gt' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i > i'
-  gt' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i > f
-  gt' (Value (Float f)) (Value (Integer i)) = return $ Bool $ f > fromInteger i
-  gt' (Value (Float f)) (Value (Float f')) = return $ Bool $ f > f'
-  gt' (Value (Integer _)) val = throwError $ TypeMismatch "number" val
-  gt' (Value (Float _)) val = throwError $ TypeMismatch "number" val
-  gt' val _ = throwError $ TypeMismatch "number" val
-
-gte :: PrimitiveFunc
-gte = (liftError .) $ twoArgs gte'
- where
-  gte' (Value (Integer i)) (Value (Integer i')) = return $ Bool $ i >= i'
-  gte' (Value (Integer i)) (Value (Float f)) = return $ Bool $ fromInteger i >= f
-  gte' (Value (Float f)) (Value (Integer i)) = return $ Bool $ f >= fromInteger i
-  gte' (Value (Float f)) (Value (Float f')) = return $ Bool $ f >= f'
-  gte' (Value (Integer _)) val = throwError $ TypeMismatch "number" val
-  gte' (Value (Float _)) val = throwError $ TypeMismatch "number" val
-  gte' val _ = throwError $ TypeMismatch "number" val
-
+--
+-- Arith
+--
 plus :: PrimitiveFunc
-plus = (liftError .) $ twoArgs plus'
+plus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
-  plus' (Value (Integer x)) (Value (Integer x')) = return $ Integer $ (x + x')
-  plus' (Value (Integer i)) val = plus' (Value (Rational (i % 1))) val
-  plus' val (Value (Integer i)) = plus' val (Value (Rational (i % 1)))
-  plus' (Value (Rational x)) (Value (Rational x')) = let y = (x + x') in
-                                                      if denominator y == 1
-                                                        then return $ Integer $ numerator y
-                                                        else return $ Rational y
-  plus' (Value (Float f)) (Value (Float f')) = return $ Float $ f + f'
-  plus' (Value (Rational i)) (Value (Float f)) = return $ Float $ (fromRational i) + f
-  plus' (Value (Float f)) (Value (Rational i)) = return $ Float $ f + (fromRational i)
-  plus' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
-  plus' (Value (Float _)) val = throwError $ TypeMismatch "number" val
-  plus' val _ = throwError $ TypeMismatch "number" val
+  numberBinaryOp' (Integer i)  (Integer i')  = return $ Integer $ (+) i  i'
+  numberBinaryOp' (Integer i)  val           = numberBinaryOp' (Rational (i % 1)) val
+  numberBinaryOp' val          (Integer i)   = numberBinaryOp' val (Rational (i % 1)) 
+  numberBinaryOp' (Rational r) (Rational r') = let y = (+) r r' in
+                                                 if denominator y == 1
+                                                   then return $ Integer $ numerator y
+                                                   else return $ Rational y
+  numberBinaryOp' (Rational r) (Float f)     = numberBinaryOp' (Float (fromRational r)) (Float f)
+  numberBinaryOp' (Float f)    (Rational r)  = numberBinaryOp' (Float f) (Float (fromRational r))
+  numberBinaryOp' (Float f)    (Float f')    = return $ Float $ (+) f f'
+  numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
 minus :: PrimitiveFunc
-minus = (liftError .) $ twoArgs minus'
+minus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
-  minus' (Value (Integer x)) (Value (Integer x')) = return $ Integer $ (x - x')
-  minus' (Value (Integer i)) val = minus' (Value (Rational (i % 1))) val
-  minus' val (Value (Integer i)) = minus' val (Value (Rational (i % 1)))
-  minus' (Value (Rational x)) (Value (Rational x')) = let y = (x - x') in
-                                                      if denominator y == 1
-                                                        then return $ Integer $ numerator y
-                                                        else return $ Rational y
-  minus' (Value (Float f)) (Value (Float f')) = return $ Float $ f - f'
-  minus' (Value (Rational i)) (Value (Float f)) = return $ Float $ (fromRational i) - f
-  minus' (Value (Float f)) (Value (Rational i)) = return $ Float $ f - (fromRational i)
-  minus' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
-  minus' (Value (Float _)) val = throwError $ TypeMismatch "number" val
-  minus' val _ = throwError $ TypeMismatch "number" val
+  numberBinaryOp' (Integer i)  (Integer i')  = return $ Integer $ (-) i  i'
+  numberBinaryOp' (Integer i)  val           = numberBinaryOp' (Rational (i % 1)) val
+  numberBinaryOp' val          (Integer i)   = numberBinaryOp' val (Rational (i % 1)) 
+  numberBinaryOp' (Rational r) (Rational r') = let y = (-) r r' in
+                                                 if denominator y == 1
+                                                   then return $ Integer $ numerator y
+                                                   else return $ Rational y
+  numberBinaryOp' (Rational r) (Float f)     = numberBinaryOp' (Float (fromRational r)) (Float f)
+  numberBinaryOp' (Float f)    (Rational r)  = numberBinaryOp' (Float f) (Float (fromRational r))
+  numberBinaryOp' (Float f)    (Float f')    = return $ Float $ (-) f f'
+  numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
 multiply :: PrimitiveFunc
-multiply = (liftError .) $ twoArgs multiply'
+multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
-  multiply' (Value (Integer x)) (Value (Integer x')) = return $ Integer $ (x * x')
-  multiply' (Value (Integer i)) val = multiply' (Value (Rational (i % 1))) val
-  multiply' val (Value (Integer i)) = multiply' val (Value (Rational (i % 1)))
-  multiply' (Value (Rational x)) (Value (Rational x')) = let y = (x * x') in
-                                                      if denominator y == 1
-                                                        then return $ Integer $ numerator y
-                                                        else return $ Rational y
-  multiply' (Value (Float f)) (Value (Float f')) = return $ Float $ f * f'
-  multiply' (Value (Rational i)) (Value (Float f)) = return $ Float $ (fromRational i) * f
-  multiply' (Value (Float f)) (Value (Rational i)) = return $ Float $ f * (fromRational i)
-  multiply' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
-  multiply' (Value (Float _)) val = throwError $ TypeMismatch "number" val
-  multiply' val _ = throwError $ TypeMismatch "number" val
+  numberBinaryOp' (Integer i)  (Integer i')  = return $ Integer $ (*) i  i'
+  numberBinaryOp' (Integer i)  val           = numberBinaryOp' (Rational (i % 1)) val
+  numberBinaryOp' val          (Integer i)   = numberBinaryOp' val (Rational (i % 1)) 
+  numberBinaryOp' (Rational r) (Rational r') = let y = (*) r r' in
+                                                 if denominator y == 1
+                                                   then return $ Integer $ numerator y
+                                                   else return $ Rational y
+  numberBinaryOp' (Rational r) (Float f)     = numberBinaryOp' (Float (fromRational r)) (Float f)
+  numberBinaryOp' (Float f)    (Rational r)  = numberBinaryOp' (Float f) (Float (fromRational r))
+  numberBinaryOp' (Float f)    (Float f')    = return $ Float $ (*) f f'
+  numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
 divide :: PrimitiveFunc
-divide = (liftError .) $ twoArgs divide'
+divide = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
-  divide' (Value (Integer x)) (Value (Integer x')) = return $ Rational $ (x % x')
-  divide' (Value (Integer i)) val = divide' (Value (Rational (i % 1))) val
-  divide' val (Value (Integer i)) = divide' val (Value (Rational (i % 1)))
-  divide' (Value (Rational x)) (Value (Rational x')) =
-    let m = numerator x' in
-    let n = denominator x' in
-    let y = (x * (n % m)) in
+  numberBinaryOp' (Integer i)  (Integer i')  = return $ Rational $ (%) i  i'
+  numberBinaryOp' (Integer i)  val           = numberBinaryOp' (Rational (i % 1)) val
+  numberBinaryOp' val          (Integer i)   = numberBinaryOp' val (Rational (i % 1)) 
+  numberBinaryOp' (Rational r) (Rational r') =
+    let m = numerator r' in
+    let n = denominator r' in
+    let y = (r * (n % m)) in
       if denominator y == 1
         then return $ Integer $ numerator y
         else return $ Rational y
-  divide' (Value (Rational x)) (Value (Float f)) = return $ Float $ (fromRational x) / f
-  divide' (Value (Float f)) (Value (Rational x)) = return $ Float $ f / (fromRational x)
-  divide' (Value (Rational _)) val = throwError $ TypeMismatch "number" val
-  divide' (Value (Float f)) (Value (Float f')) = return $ Float $ f / f'
-  divide' (Value (Float _)) val = throwError $ TypeMismatch "number" val
-  divide' val _ = throwError $ TypeMismatch "number" val
+  numberBinaryOp' (Rational r) (Float f)    = numberBinaryOp' (Float (fromRational r)) (Float f)
+  numberBinaryOp' (Float f)    (Rational r) = numberBinaryOp' (Float f) (Float (fromRational r))
+  numberBinaryOp' (Float f)    (Float f')   = return $ Float $ (/) f f'
+  numberBinaryOp' (Rational _) val          = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float _)    val          = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' val          _            = throwError $ TypeMismatch "number" (Value val)
 
 divideInverse :: PrimitiveFunc
-divideInverse = (liftError .) $ oneArg $ divideInverse'
+divideInverse =  oneArg $ divideInverse'
  where
-  divideInverse' (Value (Rational rat)) = do
+  divideInverse' (Rational rat) = do
     return $ Tuple [Integer (numerator rat), Integer (denominator rat)]
-  divideInverse' (Value (Integer x)) = do
+  divideInverse' (Integer x) = do
     return $ Tuple [Integer x, Integer 1]
-  divideInverse' val = throwError $ TypeMismatch "rational" val
+  divideInverse' val = throwError $ TypeMismatch "rational" (Value val)
+
+--
+-- Pred
+--
+eq :: PrimitiveFunc
+eq = twoArgs $ \val val' ->
+  return $ Bool $ val == val'
+
+lt :: PrimitiveFunc
+lt = twoArgs $ \val val' -> numberBinaryPred' val val'
+ where
+  numberBinaryPred' (Integer i)  (Integer i')  = return $ Bool $ (<) i  i'
+  numberBinaryPred' (Integer i)  val           = numberBinaryPred' (Rational (i % 1)) val
+  numberBinaryPred' val          (Integer i)   = numberBinaryPred' val (Rational (i % 1)) 
+  numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (<) r r'
+  numberBinaryPred' (Rational r) (Float f)     = numberBinaryPred' (Float (fromRational r)) (Float f)
+  numberBinaryPred' (Float f)    (Rational r)  = numberBinaryPred' (Float f) (Float (fromRational r))
+  numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (<) f f'
+  numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  
+lte :: PrimitiveFunc
+lte = twoArgs $ \val val' -> numberBinaryPred' val val'
+ where
+  numberBinaryPred' (Integer i)  (Integer i')  = return $ Bool $ (<=) i  i'
+  numberBinaryPred' (Integer i)  val           = numberBinaryPred' (Rational (i % 1)) val
+  numberBinaryPred' val          (Integer i)   = numberBinaryPred' val (Rational (i % 1)) 
+  numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (<=) r r'
+  numberBinaryPred' (Rational r) (Float f)     = numberBinaryPred' (Float (fromRational r)) (Float f)
+  numberBinaryPred' (Float f)    (Rational r)  = numberBinaryPred' (Float f) (Float (fromRational r))
+  numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (<=) f f'
+  numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  
+gt :: PrimitiveFunc
+gt = twoArgs $ \val val' -> numberBinaryPred' val val'
+ where
+  numberBinaryPred' (Integer i)  (Integer i')  = return $ Bool $ (>) i  i'
+  numberBinaryPred' (Integer i)  val           = numberBinaryPred' (Rational (i % 1)) val
+  numberBinaryPred' val          (Integer i)   = numberBinaryPred' val (Rational (i % 1)) 
+  numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (>) r r'
+  numberBinaryPred' (Rational r) (Float f)     = numberBinaryPred' (Float (fromRational r)) (Float f)
+  numberBinaryPred' (Float f)    (Rational r)  = numberBinaryPred' (Float f) (Float (fromRational r))
+  numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (>) f f'
+  numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  
+gte :: PrimitiveFunc
+gte = twoArgs $ \val val' -> numberBinaryPred' val val'
+ where
+  numberBinaryPred' (Integer i)  (Integer i')  = return $ Bool $ (>=) i  i'
+  numberBinaryPred' (Integer i)  val           = numberBinaryPred' (Rational (i % 1)) val
+  numberBinaryPred' val          (Integer i)   = numberBinaryPred' val (Rational (i % 1)) 
+  numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (>=) r r'
+  numberBinaryPred' (Rational r) (Float f)     = numberBinaryPred' (Float (fromRational r)) (Float f)
+  numberBinaryPred' (Float f)    (Rational r)  = numberBinaryPred' (Float f) (Float (fromRational r))
+  numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (>=) f f'
+  numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  
+--
+-- Transform
+--
+integerToFloat :: PrimitiveFunc
+integerToFloat = oneArg $ \val -> do
+  i <- liftError $ fromIntegerValue val
+  return $ Float $ fromInteger i
+
+rationalToFloat :: PrimitiveFunc
+rationalToFloat = oneArg $ \val -> do
+  r <- liftError $ fromRationalValue val
+  return $ Float $ fromRational r
+
+floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
+floatToIntegerOp op = oneArg $ \val -> do
+  f <- liftError $ fromFloatValue val
+  return $ Integer $ op f
+
+show' :: PrimitiveFunc
+show'= oneArg $ \val ->
+   return $ makeEgisonString $ show val
+
+stringToInteger :: PrimitiveFunc
+stringToInteger = oneArg $ \val -> do
+   numStr <- fromStringValue val
+   return $ Integer (read numStr :: Integer)
+
 
 assert ::  PrimitiveFunc
-assert = (liftError .) $ twoArgs $ \label test -> do
-  test <- fromBoolValue test
+assert = twoArgs $ \label test -> do
+  test <- liftError $ fromBoolValue test
   if test
     then return $ Bool True
     else throwError $ Assertion $ show label
 
 assertEqual :: PrimitiveFunc
 assertEqual = threeArgs $ \label actual expected -> do
-  actual <- evalDeep actual
-  expected <- evalDeep expected
   if actual == expected
     then return $ Bool True
     else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
@@ -417,7 +439,6 @@ ioPrimitives = [
                , ("read-line-from-port", readLineFromPort)
                , ("write-char-to-port", writeCharToPort)
                , ("write-string-to-port", writeStringToPort)
-               , ("write-to-port", writeToPort)
                  
                , ("eof?", isEOFStdin)
                , ("flush", flushStdout)
@@ -435,69 +456,85 @@ makeIO' :: EgisonM () -> EgisonValue
 makeIO' m = IOFunc $ m >> return (Value $ Tuple [World, Tuple []])
 
 return' :: PrimitiveFunc
-return' = oneArg $ return . makeIO . evalDeep
+return' = oneArg $ \val -> return $ makeIO $ return val
 
 makePort :: IOMode -> PrimitiveFunc
-makePort mode = (liftError .) $ oneArg $ \val -> do
-  filename <- fromStringValue val 
-  return . makeIO . liftIO $ Port <$> openFile filename mode
+makePort mode = oneArg $ \val -> do
+  filename <- fromStringValue val
+  port <- liftIO $ openFile filename mode
+  return $ makeIO $ return (Port port)
 
 closePort :: PrimitiveFunc
-closePort = (liftError .) $ oneArg $ \val ->
-  makeIO' . liftIO . hClose <$> fromPortValue val
+closePort = oneArg $ \val -> do
+  port <- liftError $ fromPortValue val
+  return $ makeIO' $ liftIO $ hClose port
 
 writeChar :: PrimitiveFunc
-writeChar = (liftError .) $ oneArg $ \val ->
-  makeIO' . liftIO . putChar <$> fromCharValue val
+writeChar = oneArg $ \val -> do
+  c <- liftError $ fromCharValue val
+  return $ makeIO' $ liftIO $ putChar c
+
+writeCharToPort :: PrimitiveFunc
+writeCharToPort = twoArgs $ \val val' -> do
+  port <- liftError $ fromPortValue val
+  c <- liftError $ fromCharValue val'
+  return $ makeIO' $ liftIO $ hPutChar port c
 
 writeString :: PrimitiveFunc
-writeString = (liftError .) $ oneArg $ \val ->
-  makeIO' . liftIO . putStr <$> fromStringValue val
-
-writeToStdout :: PrimitiveFunc
-writeToStdout = oneArg $ \val ->
-  makeIO' . liftIO . putStr . show <$> evalDeep val
-
-readChar :: PrimitiveFunc
-readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
-
-readLine :: PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ liftM makeEgisonString getLine
+writeString = oneArg $ \val -> do
+  s <- fromStringValue val
+  return $ makeIO' $ liftIO $ putStr s
+  
+writeStringToPort :: PrimitiveFunc
+writeStringToPort = twoArgs $ \val val' -> do
+  port <- liftError $ fromPortValue val
+  s <- fromStringValue val'
+  return $ makeIO' $ liftIO $ hPutStr port s
 
 flushStdout :: PrimitiveFunc
 flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
 
+flushPort :: PrimitiveFunc
+flushPort = oneArg $ \val -> do
+  port <- liftError $ fromPortValue val
+  return $ makeIO' $ liftIO $ hFlush port
+
+readChar :: PrimitiveFunc
+readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
+
+readCharFromPort :: PrimitiveFunc
+readCharFromPort = oneArg $ \val -> do
+  port <- liftError $ fromPortValue val
+  c <- liftIO $ hGetChar port
+  return $ makeIO $ return (Char c)
+
+readLine :: PrimitiveFunc
+readLine = noArg $ return $ makeIO $ liftIO $ liftM makeEgisonString getLine
+
+readLineFromPort :: PrimitiveFunc
+readLineFromPort = oneArg $ \val -> do
+  port <- liftError $ fromPortValue val
+  s <- liftIO $ hGetLine port
+  return $ makeIO $ return $ makeEgisonString s
+
+readFile' :: PrimitiveFunc
+readFile' =  oneArg $ \val -> do
+  filename <- fromStringValue val
+  s <- liftIO $ readFile filename
+  return $ makeIO $ return $ makeEgisonString s
+  
 isEOFStdin :: PrimitiveFunc
 isEOFStdin = noArg $ return $ makeIO $ liftIO $ liftM Bool isEOF
 
-writeCharToPort :: PrimitiveFunc
-writeCharToPort = (liftError .) $ twoArgs $ \val val' ->
-  ((makeIO' . liftIO) .) . hPutChar <$> fromPortValue val <*> fromCharValue val'
-
-writeStringToPort :: PrimitiveFunc
-writeStringToPort = (liftError .) $ twoArgs $ \val val' ->
-  ((makeIO' . liftIO) .) . hPutStr <$> fromPortValue val <*> fromStringValue val'
-
-readCharFromPort :: PrimitiveFunc
-readCharFromPort = (liftError .) $ oneArg $ \val ->
-  makeIO . liftIO . liftM Char . hGetChar <$> fromPortValue val
-
-readLineFromPort :: PrimitiveFunc
-readLineFromPort = (liftError .) $ oneArg $ \val ->
-  makeIO . liftIO . liftM makeEgisonString . hGetLine <$> fromPortValue val
-
-flushPort :: PrimitiveFunc
-flushPort = (liftError .) $ oneArg $ \val ->
-  makeIO' . liftIO . hFlush <$> fromPortValue val
-
 isEOFPort :: PrimitiveFunc
-isEOFPort = (liftError .) $ oneArg $ \val ->
-  makeIO . liftIO . liftM Bool . hIsEOF <$> fromPortValue val
+isEOFPort = oneArg $ \val -> do
+  port <- liftError $ fromPortValue val
+  b <- liftIO $ hIsEOF port
+  return $ makeIO $ return (Bool b)
 
-readFile' :: PrimitiveFunc
-readFile' =  (liftError .) $ oneArg $ \val ->
-  makeIO . liftIO . liftM makeEgisonString . readFile <$> fromStringValue val
-  
 randRange :: PrimitiveFunc
-randRange = (liftError .) $ twoArgs $ \val val' ->
-  return . makeIO . liftIO . liftM Integer . getStdRandom . randomR =<< liftM2 (,) (fromIntegerValue val) (fromIntegerValue val')
+randRange = twoArgs $ \val val' -> do
+  i <- liftError $ fromIntegerValue val
+  i' <- liftError $ fromIntegerValue val'
+  n <- liftIO $ getStdRandom $ randomR (i, i')
+  return $ makeIO $ return (Integer n)
