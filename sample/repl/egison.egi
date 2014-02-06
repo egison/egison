@@ -1,0 +1,12 @@
+(define $main
+  (lambda [$args]
+    (do {[(repl primitive-env)]}
+      [])))
+
+(define $repl
+  (lambda [$env]
+    (do {[$line (read-line)]
+         [[$new-env $ret] (return (eval env line))]
+         [(print ret)]
+         [(repl new-env)]}
+      [])))
