@@ -1,5 +1,21 @@
 {-# Language FlexibleInstances, GeneralizedNewtypeDeriving #-}
-module Language.Egison.Desugar where
+
+{- |
+Module      : Language.Egison.Desugar
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This module provide desugar functions.
+-}
+
+module Language.Egison.Desugar
+    (
+      DesugarM
+    , runDesugarM
+    , desugarTopExpr
+    , desugar
+    ) where
+
 import Control.Applicative (Applicative)
 import Control.Applicative ((<$>), (<*>), (<*), (*>), pure)
 import qualified Data.Sequence as Sq

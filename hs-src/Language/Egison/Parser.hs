@@ -1,15 +1,24 @@
 {-# LANGUAGE TupleSections #-}
+
+{- |
+Module      : Language.Egison.Parser
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This module provide Egison parser.
+-}
+
 module Language.Egison.Parser 
-       ( readTopExprs
+       (
+       -- * Parse a string
+         readTopExprs
        , readTopExpr
        , readExprs
        , readExpr
-       , loadFile
+       -- * Parse a file
        , loadLibraryFile
-       , parseTopExprs
-       , parseTopExpr
-       , parseExprs
-       , parseExpr ) where
+       , loadFile
+       ) where
 
 import Prelude hiding (mapM)
 import Control.Monad.Identity hiding (mapM)
@@ -36,12 +45,6 @@ import qualified Text.Parsec.Token as P
 import Language.Egison.Types
 import Language.Egison.Desugar
 import Paths_egison (getDataFileName)
-  
-doParse :: Parser a -> String -> Either EgisonError a
-doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
-  where
-    fromParsecError :: ParseError -> EgisonError
-    fromParsecError = Parser . show
 
 readTopExprs :: String -> EgisonM [EgisonTopExpr]
 readTopExprs = liftEgisonM . runDesugarM . either throwError (mapM desugarTopExpr) . parseTopExprs
@@ -55,6 +58,11 @@ readExprs = liftEgisonM . runDesugarM . either throwError (mapM desugar) . parse
 readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
+-- |Load a libary file
+loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
+loadLibraryFile file = liftIO (getDataFileName file) >>= loadFile
+
+-- |Load a file
 loadFile :: FilePath -> EgisonM [EgisonTopExpr]
 loadFile file = do
   doesExist <- liftIO $ doesFileExist file
@@ -70,9 +78,15 @@ loadFile file = do
   shebang ('#':'!':cs) = ';':'#':'!':cs
   shebang cs = cs
 
+--
+-- Parser
+--
 
-loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadLibraryFile file = liftIO (getDataFileName file) >>= loadFile
+doParse :: Parser a -> String -> Either EgisonError a
+doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
+  where
+    fromParsecError :: ParseError -> EgisonError
+    fromParsecError = Parser . show
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ whiteSpace >> endBy topExpr whiteSpace
@@ -89,7 +103,6 @@ parseExpr = doParse $ whiteSpace >> expr
 --
 -- Expressions
 --
-
 topExpr :: Parser EgisonTopExpr
 topExpr = parens (defineExpr
               <|> testExpr
