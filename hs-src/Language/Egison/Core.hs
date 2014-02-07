@@ -47,6 +47,7 @@ import Data.Maybe
 
 import qualified Data.HashMap.Lazy as HL
 
+import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -677,7 +678,7 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
   (++) <$> primitiveDataPatternMatch pattern init
        <*> primitiveDataPatternMatch pattern' last
 primitiveDataPatternMatch (PDConstantPat expr) ref = do
-  target <- lift (evalRef ref) >>= either (const matchFail) return . fromBuiltinWHNF
+  target <- lift (evalRef ref) >>= either (const matchFail) return . extractPrimitiveValue
   isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
 
@@ -794,3 +795,18 @@ fromStringValue (Collection seq) = do
        ls
 fromStringValue (Tuple [val]) = fromStringValue val
 fromStringValue val = throwError $ TypeMismatch "string" (Value val)
+
+--
+-- Util
+--
+data EgisonHashKey =
+    IntKey Integer
+  | StrKey ByteString
+
+extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
+extractPrimitiveValue (Value val@(Char _)) = return val
+extractPrimitiveValue (Value val@(Bool _)) = return val
+extractPrimitiveValue (Value val@(Integer _)) = return val
+extractPrimitiveValue (Value val@(Float _)) = return val
+extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
+

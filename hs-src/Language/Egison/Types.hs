@@ -26,7 +26,6 @@ module Language.Egison.Types
     , EgisonValue (..)
     , Matcher (..)
     , PrimitiveFunc (..)
-    , EgisonHashKey  (..) -- TODO ?
     , Egison (..)
     , fromMatcherValue
     -- * Internal data
@@ -36,7 +35,6 @@ module Language.Egison.Types
     , Intermediate (..)
     , Inner (..)
     , EgisonWHNF (..)
-    , fromBuiltinWHNF -- TODO ?
     -- * Environment
     , Env (..)
     , Var (..)
@@ -243,10 +241,6 @@ data EgisonValue =
 
 type Matcher = (Env, MatcherInfo)
 type PrimitiveFunc = EgisonValue -> EgisonM EgisonValue
-
-data EgisonHashKey =
-    IntKey Integer
-  | StrKey ByteString
 
 instance Show EgisonValue where
   show (Char c) = "'" ++ [c] ++ "'"
@@ -475,16 +469,6 @@ fromPortWHNF whnf = throwError $ TypeMismatch "port" whnf
 fromMatcherWHNF :: WHNFData -> Either EgisonError Matcher
 fromMatcherWHNF (Value (Matcher matcher)) = return matcher
 fromMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
-
---
---
---
-fromBuiltinWHNF :: WHNFData -> Either EgisonError EgisonValue
-fromBuiltinWHNF (Value val@(Char _)) = return val
-fromBuiltinWHNF (Value val@(Bool _)) = return val
-fromBuiltinWHNF (Value val@(Integer _)) = return val
-fromBuiltinWHNF (Value val@(Float _)) = return val
-fromBuiltinWHNF whnf = throwError $ TypeMismatch "primitive value" whnf
 
 --
 -- Environment
