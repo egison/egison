@@ -39,16 +39,16 @@ main = do args <- getArgs
             Options {optPrompt = prompt, optShowBanner = bannerFlag} -> do
               case nonOpts of
                 [] -> do
-                  env <- primitiveEnv >>= loadCoreLibraries
+                  env <- initialEnv
                   when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
                 (file:args) -> do
                   case opts of
                     Options {optLoadOnly = True} -> do
-                      env <- primitiveEnvNoIO >>= loadCoreLibraries
+                      env <- initialEnvNoIO
                       result <- evalEgisonTopExprs env [LoadFile file]
                       either print (const $ return ()) result
                     Options {optLoadOnly = False} -> do
-                      env <- primitiveEnv >>= loadCoreLibraries
+                      env <- initialEnv
                       result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (Sq.fromList (map (ElementExpr . StringExpr) args))))]
                       either print (const $ return ()) result
 

@@ -18,9 +18,11 @@ module Language.Egison
        , runEgisonTopExpr
        , runEgisonTopExprs
        -- * Load Egison files
-       , loadCoreLibraries
        , loadEgisonLibrary
        , loadEgisonFile
+       -- * Environment
+       , initialEnv
+       , initialEnvNoIO
        -- * Information
        , version
        ) where
@@ -65,29 +67,44 @@ runEgisonTopExpr env input = fromEgisonM $ readTopExpr input >>= evalTopExpr env
 runEgisonTopExprs :: Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExprs env input = fromEgisonM $ readTopExprs input >>= evalTopExprs env
 
-loadCoreLibraries :: Env -> IO Env
-loadCoreLibraries env = do
-  ret <- evalEgisonTopExprs env $ map Load libraries
+-- |load an Egison file
+loadEgisonFile :: Env -> FilePath -> IO (Either EgisonError Env)
+loadEgisonFile env path = evalEgisonTopExpr env (LoadFile path)
+
+-- |load an Egison library
+loadEgisonLibrary :: Env -> FilePath -> IO (Either EgisonError Env)
+loadEgisonLibrary env path = evalEgisonTopExpr env (Load path)
+
+-- |Environment that contains core libraries
+initialEnv :: IO Env
+initialEnv = do
+  env <- primitiveEnv
+  ret <- evalEgisonTopExprs env $ map Load coreLibraries
   case ret of
     Left err -> do
       print . show $ err
       return env
     Right env' -> return env'
-  where
-    libraries :: [String]
-    libraries = [ "lib/core/base.egi"
-                , "lib/core/collection.egi"
-                , "lib/core/order.egi"
-                , "lib/core/number.egi"
-                , "lib/core/natural-number.egi"
-                , "lib/core/string.egi"
-                , "lib/core/database.egi"
-                , "lib/core/io.egi"
-                 ]
 
-loadEgisonFile :: Env -> FilePath -> IO (Either EgisonError Env)
-loadEgisonFile env path = evalEgisonTopExpr env (LoadFile path)
+-- |Environment that contains core libraries without IO primitives
+initialEnvNoIO :: IO Env
+initialEnvNoIO = do
+  env <- primitiveEnvNoIO 
+  ret <- evalEgisonTopExprs env $ map Load coreLibraries
+  case ret of
+    Left err -> do
+      print . show $ err
+      return env
+    Right env' -> return env'
 
-loadEgisonLibrary :: Env -> FilePath -> IO (Either EgisonError Env)
-loadEgisonLibrary env path = evalEgisonTopExpr env (Load path)
-
+coreLibraries :: [String]
+coreLibraries =
+  [ "lib/core/base.egi"
+  , "lib/core/collection.egi"
+  , "lib/core/order.egi"
+  , "lib/core/number.egi"
+  , "lib/core/natural-number.egi"
+  , "lib/core/string.egi"
+  , "lib/core/database.egi"
+  , "lib/core/io.egi"
+  ]
