@@ -200,7 +200,7 @@ evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
 evalExpr env (IfExpr test expr expr') = do
-  test <- evalExpr env test >>= liftError . fromBoolWHNF
+  test <- evalExpr env test >>= fromWHNF
   evalExpr env $ if test then expr else expr'
 
 evalExpr env (LetExpr bindings expr) =

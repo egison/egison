@@ -1,7 +1,79 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
              TypeFamilies #-}
-module Language.Egison.Types where
+{- |
+Module      : Language.Egison.Types
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This module contains type definitions of Egison Data.
+-}
+
+module Language.Egison.Types
+    (
+    -- * Egison expressions
+      EgisonTopExpr (..)
+    , EgisonExpr (..)
+    , EgisonPattern (..)
+    , InnerExpr (..)
+    , BindingExpr (..)
+    , MatchClause (..)
+    , MatcherInfo (..)
+    , LoopRange (..)
+    , PrimitivePatPattern (..)
+    , PrimitiveDataPattern (..)
+    -- * Egison values
+    , EgisonValue (..)
+    , Matcher (..)
+    , PrimitiveFunc (..)
+    , EgisonHashKey  (..) -- TODO ?
+    , Egison (..)
+    , fromMatcherValue
+    -- * Internal data
+    , Object (..)
+    , ObjectRef (..)
+    , WHNFData (..)
+    , Intermediate (..)
+    , Inner (..)
+    , EgisonWHNF (..)
+    , fromBuiltinWHNF -- TODO ?
+    -- * Environment
+    , Env (..)
+    , Var (..)
+    , Binding (..)
+    , nullEnv
+    , extendEnv
+    , refVar
+    -- * Pattern matching
+    , PMMode (..)
+    , MatchingState (..)
+    , MatchingTree (..)
+    , PatternBinding (..)
+    , LoopContext (..)
+    -- * Errors
+    , EgisonError (..)
+    , liftError
+    -- * Monads
+    , FreshT (..)
+    , Fresh (..)
+    , MonadFresh (..)
+    , runFreshT
+    , EgisonM (..)
+    , runEgisonM
+    , liftEgisonM
+    , MatchM (..)
+    , matchFail
+    , MList (..)
+    , fromList
+    , fromSeq
+    , fromMList
+    , msingleton
+    , mfoldr
+    , mappend
+    , mconcat
+    , mmap
+    , mfor
+    ) where
 
 import Prelude hiding (foldr)
 
@@ -90,6 +162,11 @@ data EgisonExpr =
   | UndefinedExpr
  deriving (Show)
 
+data InnerExpr =
+    ElementExpr EgisonExpr
+  | SubCollectionExpr EgisonExpr
+ deriving (Show)
+
 type BindingExpr = ([String], EgisonExpr)
 type MatchClause = (EgisonPattern, EgisonExpr)
 type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
@@ -132,11 +209,6 @@ data PrimitiveDataPattern =
   | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
   | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
   | PDConstantPat EgisonExpr
- deriving (Show)
-
-data InnerExpr =
-    ElementExpr EgisonExpr
-  | SubCollectionExpr EgisonExpr
  deriving (Show)
 
 --
@@ -415,8 +487,8 @@ fromBuiltinWHNF whnf = throwError $ TypeMismatch "primitive value" whnf
 -- Environment
 --
 
-type Var = String
 type Env = [HashMap Var ObjectRef]
+type Var = String
 type Binding = (Var, ObjectRef)
 
 nullEnv :: Env

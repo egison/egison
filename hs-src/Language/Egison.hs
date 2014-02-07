@@ -106,4 +106,3 @@ runEgisonTopExpr env input = modifyCounter $ runEgisonM $ readTopExpr input >>= 
 
 runEgisonTopExprs :: Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExprs env input = modifyCounter $ runEgisonM $ readTopExprs input >>= evalTopExprs env
-

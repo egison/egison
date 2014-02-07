@@ -1,4 +1,13 @@
 {-# Language FlexibleContexts #-}
+
+{- |
+Module      : Language.Egison.Primitives
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This module provides primitive functions in Egison.
+-}
+
 module Language.Egison.Primitives (primitiveEnv, primitiveEnvNoIO) where
 
 import Control.Arrow
