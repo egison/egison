@@ -1,8 +1,18 @@
-module Language.Egison.Util where
+
+{- |
+Module      : Language.Egison.Util
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This module provides utility functions.
+-}
+
+module Language.Egison.Util (completeEgison) where
 
 import Data.List
 import System.Console.Haskeline hiding (handle, catch, throwTo)
 
+-- |Complete Egison keywords
 completeEgison :: Monad m => CompletionFunc m
 completeEgison arg@((')':_), _) = completeParen arg
 completeEgison arg@(('>':_), _) = completeParen arg
