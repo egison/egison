@@ -57,6 +57,7 @@ module Language.Egison.Types
     , EgisonM (..)
     , runEgisonM
     , liftEgisonM
+    , fromEgisonM
     , FreshT (..)
     , Fresh (..)
     , MonadFresh (..)
@@ -105,6 +106,8 @@ import System.IO
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.Ratio
+
+import System.IO.Unsafe (unsafePerformIO)
 
 --
 -- Expressions
@@ -576,6 +579,24 @@ liftEgisonM m = EgisonM $ ErrorT $ FreshT $ do
   put s'
   return $ either throwError return $ a   
   
+fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
+fromEgisonM = modifyCounter . runEgisonM
+
+counter :: IORef Int
+counter = unsafePerformIO (newIORef 0)
+
+readCounter :: IO Int
+readCounter = readIORef counter
+
+updateCounter :: Int -> IO ()
+updateCounter = writeIORef counter
+
+modifyCounter :: FreshT IO a -> IO a
+modifyCounter m = do
+  seed <- readCounter
+  (result, seed) <- runFreshT seed m 
+  updateCounter seed
+  return result  
 
 newtype FreshT m a = FreshT { unFreshT :: StateT Int m a }
   deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans)

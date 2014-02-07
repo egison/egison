@@ -37,20 +37,20 @@ main = do args <- getArgs
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
             Options {optPrompt = prompt, optShowBanner = bannerFlag} -> do
-                case nonOpts of
-                    [] -> do
-                        env <- primitiveEnv >>= loadLibraries
-                        when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
-                    (file:args) -> do
-                        case opts of
-                          Options {optLoadOnly = True} -> do
-                            env <- primitiveEnvNoIO >>= loadLibraries
-                            result <- evalEgisonTopExprs env [LoadFile file]
-                            either print (const $ return ()) result
-                          Options {optLoadOnly = False} -> do
-                            env <- primitiveEnv >>= loadLibraries
-                            result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (Sq.fromList (map (ElementExpr . StringExpr) args))))]
-                            either print (const $ return ()) result
+              case nonOpts of
+                [] -> do
+                  env <- primitiveEnv >>= loadCoreLibraries
+                  when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
+                (file:args) -> do
+                  case opts of
+                    Options {optLoadOnly = True} -> do
+                      env <- primitiveEnvNoIO >>= loadCoreLibraries
+                      result <- evalEgisonTopExprs env [LoadFile file]
+                      either print (const $ return ()) result
+                    Options {optLoadOnly = False} -> do
+                      env <- primitiveEnv >>= loadCoreLibraries
+                      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (Sq.fromList (map (ElementExpr . StringExpr) args))))]
+                      either print (const $ return ()) result
 
 data Options = Options {
     optShowVersion :: Bool,
@@ -151,7 +151,7 @@ repl env prompt = do
             Left err | show err =~ "unexpected end of input" -> do
               loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
             Left err | show err =~ "expecting (top-level|\"define\")" -> do
-              result <- liftIO $ handle onAbort $ fromEgisonM (readExpr newInput) >>= either (return . Left) (evalEgisonExpr env)
+              result <- liftIO $ handle onAbort $ runEgisonExpr env newInput
               case result of
                 Left err | show err =~ "unexpected end of input" -> do
                   loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
