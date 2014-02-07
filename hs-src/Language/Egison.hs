@@ -1,10 +1,17 @@
+{- |
+Module      : Language.Egison
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This is the top module of Egison.
+-}
 
 module Language.Egison
        ( module Language.Egison.Types
        , module Language.Egison.Parser
        , module Language.Egison.Primitives
        , version
-       , counter --danger
+--       , counter --danger
        , fromEgisonM
        , loadLibraries
        , loadPrimitives
@@ -99,3 +106,4 @@ runEgisonTopExpr env input = modifyCounter $ runEgisonM $ readTopExpr input >>= 
 
 runEgisonTopExprs :: Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExprs env input = modifyCounter $ runEgisonM $ readTopExprs input >>= evalTopExprs env
+

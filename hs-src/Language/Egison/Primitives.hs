@@ -53,7 +53,7 @@ primitiveEnvNoIO = do
 {-# INLINE noArg #-}
 noArg :: EgisonM EgisonValue ->
          EgisonValue -> EgisonM EgisonValue
-noArg f = \args -> case fromTupleValue args of 
+noArg f = \args -> case tupleToList args of 
                      [] -> f
                      vals -> throwError $ ArgumentsNum 0 $ length vals
 
@@ -67,16 +67,20 @@ oneArg f = \args -> case args of
 {-# INLINE twoArgs #-}
 twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) ->
            EgisonValue -> EgisonM EgisonValue
-twoArgs f = \args -> case fromTupleValue args of 
+twoArgs f = \args -> case tupleToList args of 
                        [val, val'] -> f val val'
                        vals -> throwError $ ArgumentsNum 2 $ length vals
 
 {-# INLINE threeArgs #-}
 threeArgs :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) ->
              EgisonValue -> EgisonM EgisonValue
-threeArgs f = \args -> case fromTupleValue args of 
+threeArgs f = \args -> case tupleToList args of 
                          [val, val', val''] -> f val val' val''
                          vals -> throwError $ ArgumentsNum 3 $ length vals
+
+tupleToList :: EgisonValue -> [EgisonValue]
+tupleToList (Tuple vals) = vals
+tupleToList val = [val]
 
 --
 -- Constants
@@ -151,36 +155,36 @@ primitives = [ ("+", plus)
 
 integerUnaryOp :: (Integer -> Integer) -> PrimitiveFunc
 integerUnaryOp op = oneArg $ \val -> do
-  i <- liftError $ fromIntegerValue val
+  i <- fromEgison val
   return $ Integer $ op i
   
 integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
 integerBinaryOp op = twoArgs $ \val val' -> do
-  i <- liftError $ fromIntegerValue val
-  i' <- liftError $ fromIntegerValue val'
+  i <- fromEgison val
+  i' <- fromEgison val'
   return $ Integer $ op i i'
 
 integerBinaryPred :: (Integer -> Integer -> Bool) -> PrimitiveFunc
 integerBinaryPred pred = twoArgs $ \val val' -> do
-  i <- liftError $ fromIntegerValue val
-  i' <- liftError $ fromIntegerValue val'
+  i <- fromEgison val
+  i' <- fromEgison val'
   return $ Bool $ pred i i'
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
 floatUnaryOp op = oneArg $ \val -> do
-  f <- liftError $ fromFloatValue val
+  f <- fromEgison val
   return $ Float $ op f
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp op = twoArgs $ \val val' -> do
-  f <- liftError $ fromFloatValue val
-  f' <- liftError $ fromFloatValue val'
+  f <- fromEgison val
+  f' <- fromEgison val'
   return $ Float $ op f f'
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' -> do
-  f <- liftError $ fromFloatValue val
-  f' <- liftError $ fromFloatValue val'
+  f <- fromEgison val
+  f' <- fromEgison val'
   return $ Bool $ pred f f'
 
 --
@@ -334,17 +338,17 @@ gte = twoArgs $ \val val' -> numberBinaryPred' val val'
 --
 integerToFloat :: PrimitiveFunc
 integerToFloat = oneArg $ \val -> do
-  i <- liftError $ fromIntegerValue val
+  i <- fromEgison val
   return $ Float $ fromInteger i
 
 rationalToFloat :: PrimitiveFunc
 rationalToFloat = oneArg $ \val -> do
-  r <- liftError $ fromRationalValue val
+  r <- fromEgison val
   return $ Float $ fromRational r
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
-  f <- liftError $ fromFloatValue val
+  f <- fromEgison val
   return $ Integer $ op f
 
 show' :: PrimitiveFunc
@@ -353,13 +357,13 @@ show'= oneArg $ \val ->
 
 stringToInteger :: PrimitiveFunc
 stringToInteger = oneArg $ \val -> do
-   numStr <- fromStringValue val
+   numStr <- fromEgison val
    return $ Integer (read numStr :: Integer)
 
 
 assert ::  PrimitiveFunc
 assert = twoArgs $ \label test -> do
-  test <- liftError $ fromBoolValue test
+  test <- fromEgison test
   if test
     then return $ Bool True
     else throwError $ Assertion $ show label
@@ -460,35 +464,35 @@ return' = oneArg $ \val -> return $ makeIO $ return val
 
 makePort :: IOMode -> PrimitiveFunc
 makePort mode = oneArg $ \val -> do
-  filename <- fromStringValue val
+  filename <- fromEgison val
   port <- liftIO $ openFile filename mode
   return $ makeIO $ return (Port port)
 
 closePort :: PrimitiveFunc
 closePort = oneArg $ \val -> do
-  port <- liftError $ fromPortValue val
+  port <- fromEgison val
   return $ makeIO' $ liftIO $ hClose port
 
 writeChar :: PrimitiveFunc
 writeChar = oneArg $ \val -> do
-  c <- liftError $ fromCharValue val
+  c <- fromEgison val
   return $ makeIO' $ liftIO $ putChar c
 
 writeCharToPort :: PrimitiveFunc
 writeCharToPort = twoArgs $ \val val' -> do
-  port <- liftError $ fromPortValue val
-  c <- liftError $ fromCharValue val'
+  port <- fromEgison val
+  c <- fromEgison val'
   return $ makeIO' $ liftIO $ hPutChar port c
 
 writeString :: PrimitiveFunc
 writeString = oneArg $ \val -> do
-  s <- fromStringValue val
+  s <- fromEgison val
   return $ makeIO' $ liftIO $ putStr s
   
 writeStringToPort :: PrimitiveFunc
 writeStringToPort = twoArgs $ \val val' -> do
-  port <- liftError $ fromPortValue val
-  s <- fromStringValue val'
+  port <- fromEgison val
+  s <- fromEgison val'
   return $ makeIO' $ liftIO $ hPutStr port s
 
 flushStdout :: PrimitiveFunc
@@ -496,7 +500,7 @@ flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
 
 flushPort :: PrimitiveFunc
 flushPort = oneArg $ \val -> do
-  port <- liftError $ fromPortValue val
+  port <- fromEgison val
   return $ makeIO' $ liftIO $ hFlush port
 
 readChar :: PrimitiveFunc
@@ -504,7 +508,7 @@ readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
 
 readCharFromPort :: PrimitiveFunc
 readCharFromPort = oneArg $ \val -> do
-  port <- liftError $ fromPortValue val
+  port <- fromEgison val
   c <- liftIO $ hGetChar port
   return $ makeIO $ return (Char c)
 
@@ -513,13 +517,13 @@ readLine = noArg $ return $ makeIO $ liftIO $ liftM makeEgisonString getLine
 
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = oneArg $ \val -> do
-  port <- liftError $ fromPortValue val
+  port <- fromEgison val
   s <- liftIO $ hGetLine port
   return $ makeIO $ return $ makeEgisonString s
 
 readFile' :: PrimitiveFunc
 readFile' =  oneArg $ \val -> do
-  filename <- fromStringValue val
+  filename <- fromEgison val
   s <- liftIO $ readFile filename
   return $ makeIO $ return $ makeEgisonString s
   
@@ -528,13 +532,13 @@ isEOFStdin = noArg $ return $ makeIO $ liftIO $ liftM Bool isEOF
 
 isEOFPort :: PrimitiveFunc
 isEOFPort = oneArg $ \val -> do
-  port <- liftError $ fromPortValue val
+  port <- fromEgison val
   b <- liftIO $ hIsEOF port
   return $ makeIO $ return (Bool b)
 
 randRange :: PrimitiveFunc
 randRange = twoArgs $ \val val' -> do
-  i <- liftError $ fromIntegerValue val
-  i' <- liftError $ fromIntegerValue val'
+  i <- fromEgison val
+  i' <- fromEgison val'
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return (Integer n)

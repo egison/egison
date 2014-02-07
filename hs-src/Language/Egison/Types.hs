@@ -1,5 +1,6 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
-             MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable #-}
+             MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
+             TypeFamilies #-}
 module Language.Egison.Types where
 
 import Prelude hiding (foldr)
@@ -217,8 +218,36 @@ instance Eq EgisonValue where
  _ == _ = False
 
 --
--- Extract data from EgisonValue
+-- Egison data and Haskell data
 --
+class Egison a where
+  toEgison :: a -> EgisonValue
+  fromEgison :: EgisonValue -> EgisonM a
+
+instance Egison Char where
+  toEgison c = Char c
+  fromEgison = liftError . fromCharValue
+
+instance Egison Bool where
+  toEgison b = Bool b
+  fromEgison = liftError . fromBoolValue
+
+instance Egison Integer where
+  toEgison i = Integer i
+  fromEgison = liftError . fromIntegerValue
+
+instance Egison Rational where
+  toEgison r = Rational r
+  fromEgison = liftError . fromRationalValue
+
+instance Egison Double where
+  toEgison f = Float f
+  fromEgison = liftError . fromFloatValue
+
+instance Egison Handle where
+  toEgison h = Port h
+  fromEgison = liftError . fromPortValue
+
 fromCharValue :: EgisonValue -> Either EgisonError Char
 fromCharValue (Char c) = return c
 fromCharValue val = throwError $ TypeMismatch "char" (Value val)
@@ -227,13 +256,13 @@ fromBoolValue :: EgisonValue -> Either EgisonError Bool
 fromBoolValue (Bool b) = return b
 fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
 
-fromRationalValue :: EgisonValue -> Either EgisonError Rational
-fromRationalValue (Rational x) = return x
-fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
-
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
 fromIntegerValue (Integer i) = return i
 fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
+
+fromRationalValue :: EgisonValue -> Either EgisonError Rational
+fromRationalValue (Rational x) = return x
+fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
 
 fromFloatValue :: EgisonValue -> Either EgisonError Double
 fromFloatValue (Float f) = return f
@@ -243,13 +272,44 @@ fromPortValue :: EgisonValue -> Either EgisonError Handle
 fromPortValue (Port handle) = return handle
 fromPortValue val = throwError $ TypeMismatch "port" (Value val)
 
+-- TODO : write instance declaration for Matcher
 fromMatcherValue :: EgisonValue -> Either EgisonError Matcher
 fromMatcherValue (Matcher matcher) = return matcher
 fromMatcherValue val = throwError $ TypeMismatch "matcher" (Value val)
 
-fromTupleValue :: EgisonValue -> [EgisonValue]
-fromTupleValue (Tuple vals) = vals
-fromTupleValue val = [val]
+instance (Egison a) => Egison [a] where
+  toEgison xs = Collection $ Sq.fromList (map toEgison xs)
+  fromEgison (Collection seq) = mapM fromEgison (toList seq)
+  fromEgison val = liftError $ throwError $ TypeMismatch "collection" (Value val)
+
+instance Egison () where
+  toEgison () = Tuple []
+  fromEgison (Tuple []) = return ()
+  fromEgison val = liftError $ throwError $ TypeMismatch "zero element tuple" (Value val)
+
+instance (Egison a, Egison b) => Egison (a, b) where
+  toEgison (x, y) = Tuple [toEgison x, toEgison y]
+  fromEgison (Tuple (x:y:[])) = (liftM2 (,)) (fromEgison x) (fromEgison y)
+  fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
+
+instance (Egison a, Egison b, Egison c) => Egison (a, b, c) where
+  toEgison (x, y, z) = Tuple [toEgison x, toEgison y, toEgison z]
+  fromEgison (Tuple (x:y:z:[])) = do
+    x' <- fromEgison x
+    y' <- fromEgison y
+    z' <- fromEgison z
+    return (x', y', z')
+  fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
+
+instance (Egison a, Egison b, Egison c, Egison d) => Egison (a, b, c, d) where
+  toEgison (x, y, z, w) = Tuple [toEgison x, toEgison y, toEgison z, toEgison w]
+  fromEgison (Tuple (x:y:z:w:[])) = do
+    x' <- fromEgison x
+    y' <- fromEgison y
+    z' <- fromEgison z
+    w' <- fromEgison w
+    return (x', y', z', w')
+  fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
 
 --
 -- Internal Data

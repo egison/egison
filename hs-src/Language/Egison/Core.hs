@@ -1,5 +1,32 @@
 {-# Language TupleSections #-}
-module Language.Egison.Core where
+
+{- |
+Module      : Language.Egison.Core
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This module provides functions to evaluate various objects.
+-}
+
+module Language.Egison.Core
+    (
+    -- * Egison code evaluation
+      evalTopExprs
+    , evalTopExpr
+    , evalExpr
+    , evalExpr'
+    , evalRef
+    , evalRef'
+    , evalDeep
+    , applyFunc
+    -- * Environment
+    , recursiveBind
+    -- * Pattern matching
+    , patternMatch
+    -- * Utiltiy functions
+    , fromStringWHNF
+    , fromStringValue
+    ) where
 
 import Prelude hiding (mapM)
 
@@ -57,18 +84,20 @@ evalTopExprs env exprs = do
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
 evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
-evalTopExpr env (Define name expr) = recursiveBind env [(name, expr)]
-evalTopExpr env (Test expr) = do
+evalTopExpr env topExpr = evalTopExpr' env topExpr >>= return . snd
+
+evalTopExpr' :: Env -> EgisonTopExpr -> EgisonM (String, Env)
+evalTopExpr' env (Define name expr) = recursiveBind env [(name, expr)] >>= return . ((,) "")
+evalTopExpr' env (Test expr) = do
   val <- evalExpr' env expr
-  liftIO $ print val
-  return env
-evalTopExpr env (Execute expr) = do
+  return ((show val), env)
+evalTopExpr' env (Execute expr) = do
   io <- evalExpr env expr
   case io of
-    Value (IOFunc m) -> m >> return env
+    Value (IOFunc m) -> m >> return ("", env)
     _ -> throwError $ TypeMismatch "io" io
-evalTopExpr env (Load file) = loadLibraryFile file >>= evalTopExprs env
-evalTopExpr env (LoadFile file) = loadFile file >>= evalTopExprs env
+evalTopExpr' env (Load file) = loadLibraryFile file >>= evalTopExprs env >>= return . ((,) "")
+evalTopExpr' env (LoadFile file) = loadFile file >>= evalTopExprs env >>= return . ((,) "")
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
@@ -758,7 +787,3 @@ fromStringValue (Collection seq) = do
        ls
 fromStringValue (Tuple [val]) = fromStringValue val
 fromStringValue val = throwError $ TypeMismatch "string" (Value val)
-
---
--- Repl
---
