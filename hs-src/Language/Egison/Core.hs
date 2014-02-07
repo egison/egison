@@ -69,7 +69,7 @@ evalTopExprs :: Env -> [EgisonTopExpr] -> EgisonM Env
 evalTopExprs env exprs = do
   (bindings, rest) <- collectDefs exprs [] []
   env <- recursiveBind env bindings
-  forM_ rest $ evalTopExpr env
+  forM_ rest $ evalTopExpr' env
   return env
  where
   collectDefs (expr:exprs) bindings rest =
@@ -85,20 +85,26 @@ evalTopExprs env exprs = do
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
 evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
-evalTopExpr env topExpr = evalTopExpr' env topExpr >>= return . snd
+evalTopExpr env topExpr = evalTopExpr'' env topExpr >>= return . snd
 
-evalTopExpr' :: Env -> EgisonTopExpr -> EgisonM (String, Env)
-evalTopExpr' env (Define name expr) = recursiveBind env [(name, expr)] >>= return . ((,) "")
-evalTopExpr' env (Test expr) = do
+evalTopExpr' :: Env -> EgisonTopExpr -> EgisonM Env
+evalTopExpr' env topExpr = do
+  ret <- evalTopExpr'' env topExpr
+  liftIO $ putStrLn $ fst ret
+  return $ snd ret
+
+evalTopExpr'' :: Env -> EgisonTopExpr -> EgisonM (String, Env)
+evalTopExpr'' env (Define name expr) = recursiveBind env [(name, expr)] >>= return . ((,) "")
+evalTopExpr'' env (Test expr) = do
   val <- evalExprDeep env expr
   return ((show val), env)
-evalTopExpr' env (Execute expr) = do
+evalTopExpr'' env (Execute expr) = do
   io <- evalExpr env expr
   case io of
     Value (IOFunc m) -> m >> return ("", env)
     _ -> throwError $ TypeMismatch "io" io
-evalTopExpr' env (Load file) = loadLibraryFile file >>= evalTopExprs env >>= return . ((,) "")
-evalTopExpr' env (LoadFile file) = loadFile file >>= evalTopExprs env >>= return . ((,) "")
+evalTopExpr'' env (Load file) = loadLibraryFile file >>= evalTopExprs env >>= return . ((,) "")
+evalTopExpr'' env (LoadFile file) = loadFile file >>= evalTopExprs env >>= return . ((,) "")
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
