@@ -382,7 +382,7 @@ generateArray env name size expr = do
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
-      ref <- liftIO $ newIORef (WHNF . Value . Integer $ i)
+      ref <- newEvaluatedThunk (Value . Integer $ i)
       return $ extendEnv env [(name, ref)]
 
 newThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
@@ -479,14 +479,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         then do
           return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
         else do
-          startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
+          startNumRef <- newEvaluatedThunk $ Value $ Integer startNum
           let loops' = LoopContextConstant (name, startNumRef) endNum pat pat' : loops
           return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
     LoopPat name (LoopRangeVariable start lastNumPat) pat pat' -> do
       startNum' <- evalExpr env' start
       startNum <- fromWHNF startNum'
-      startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
-      lastNumRef <- liftIO . newIORef . WHNF $ Value $ Integer (startNum - 1)
+      startNumRef <- newEvaluatedThunk $ Value $ Integer startNum
+      lastNumRef <- newEvaluatedThunk $ Value $ Integer (startNum - 1)
       return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value Something) : MAtom pat' target matcher : trees),
                          MState env (LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops) bindings (MAtom pat target matcher : trees)]
     ContPat ->
@@ -499,14 +499,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           if nextNum > endNum
             then return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
             else do
-              nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
+              nextNumRef <- newEvaluatedThunk $ Value $ Integer nextNum
               let loops' = LoopContextConstant (name, nextNumRef) endNum pat pat' : loops 
               return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
         LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops -> do
           startNum' <- evalRef startNumRef
           startNum <- fromWHNF startNum'
           let nextNum = startNum + 1
-          nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
+          nextNumRef <- newEvaluatedThunk $ Value $ Integer nextNum
           let loops' = LoopContextVariable (name, nextNumRef) lastNumPat pat pat' : loops 
           return $ fromList [MState env loops bindings (MAtom lastNumPat startNumRef (Value Something) : MAtom pat' target matcher : trees),
                              MState env loops' bindings (MAtom pat target matcher : trees)]
