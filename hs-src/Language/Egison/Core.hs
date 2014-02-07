@@ -101,7 +101,7 @@ evalTopExpr' env (LoadFile file) = loadFile file >>= evalTopExprs env >>= return
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
-evalExpr _ (StringExpr s) = return $ Value $ makeEgisonString s
+evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (RationalExpr x) = return . Value $ Rational x
 evalExpr _ (IntegerExpr i) = return . Value $ Integer i
@@ -165,22 +165,22 @@ evalExpr env (IndexedExpr expr indices) = do
   refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
   refArray val [] = return val 
   refArray (Value (Array array)) (index:indices) = do
-    i <- (liftError . liftM fromInteger . fromIntegerWHNF) (Value index)
+    i <- (liftM fromInteger . fromEgison) index
     case IntMap.lookup i array of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IArray array)) (index:indices) = do
-    i <- (liftError . liftM fromInteger . fromIntegerWHNF) (Value index)
+    i <- (liftM fromInteger . fromEgison) index
     case IntMap.lookup i array of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
   refArray (Value (IntHash hash)) (index:indices) = do
-    key <- liftError $ fromIntegerWHNF $ Value index
+    key <- fromEgison index
     case HL.lookup key hash of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IIntHash hash)) (index:indices) = do
-    key <- liftError $ fromIntegerWHNF $ Value index
+    key <- fromEgison index
     case HL.lookup key hash of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
@@ -363,7 +363,7 @@ applyFunc val _ = throwError $ TypeMismatch "function" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name size expr = do  
-  size' <- evalExpr env size >>= either throwError (return . fromInteger) . fromIntegerWHNF
+  size' <- evalExpr env size >>= fromWHNF >>= return . fromInteger
   elems <- mapM genElem (enumFromTo 1 size')
   return $ Intermediate $ IArray $ IntMap.fromList elems
   where
@@ -464,9 +464,9 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     
     LoopPat name (LoopRangeConstant start end) pat pat' -> do
       startNum' <- evalExpr env' start
-      startNum <- liftError $ fromIntegerWHNF startNum'
+      startNum <- fromWHNF startNum'
       endNum' <- evalExpr env' end
-      endNum <- liftError $ fromIntegerWHNF endNum'
+      endNum <- fromWHNF endNum'
       if startNum > endNum
         then do
           return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
@@ -476,7 +476,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
     LoopPat name (LoopRangeVariable start lastNumPat) pat pat' -> do
       startNum' <- evalExpr env' start
-      startNum <- liftError $ fromIntegerWHNF startNum'
+      startNum <- fromWHNF startNum'
       startNumRef <- liftIO . newIORef . WHNF $ Value $ Integer startNum
       lastNumRef <- liftIO . newIORef . WHNF $ Value $ Integer (startNum - 1)
       return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value Something) : MAtom pat' target matcher : trees),
@@ -486,7 +486,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopContextConstant (name, startNumRef) endNum pat pat' : loops -> do
           startNum' <- evalRef startNumRef
-          startNum <- liftError $ fromIntegerWHNF startNum'
+          startNum <- fromWHNF startNum'
           let nextNum = startNum + 1
           if nextNum > endNum
             then return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
@@ -496,7 +496,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
         LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops -> do
           startNum' <- evalRef startNumRef
-          startNum <- liftError $ fromIntegerWHNF startNum'
+          startNum <- fromWHNF startNum'
           let nextNum = startNum + 1
           nextNumRef <- liftIO . newIORef . WHNF $ Value $ Integer nextNum
           let loops' = LoopContextVariable (name, nextNumRef) lastNumPat pat pat' : loops 
@@ -518,7 +518,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     PredPat pred -> do
       func <- evalExpr env' pred
       arg <- evalRef target
-      result <- applyFunc func arg >>= liftError . fromBoolWHNF
+      result <- applyFunc func arg >>= fromWHNF
       if result then return $ msingleton $ (MState env loops bindings trees)
                 else return MNil
     LetPat bindings' pattern ->
@@ -549,7 +549,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             WildCard -> return $ msingleton $ MState env loops bindings trees
             PatVar name -> return $ msingleton $ MState env loops ((name, target):bindings) trees
             IndexedPat (PatVar name) indices -> do
-              indices <- mapM (evalExpr env' >=> liftError . liftM fromInteger . fromIntegerWHNF) indices
+              indices <- mapM (evalExpr env' >=> liftM fromInteger . fromWHNF) indices
               case lookup name bindings of
                 Just ref -> do
                   obj <- evalRef ref >>= flip updateArray indices >>= newEvaluatedThunk
@@ -602,7 +602,7 @@ processMState' (MState env loops bindings ((MNode penv state@(MState env' loops'
               let env'' = extendEnv env' (bindings' ++ map (\lc -> case lc of
                                                                      (LoopContextConstant binding _ _ _) -> binding
                                                                      (LoopContextVariable binding _ _ _) -> binding) loops')
-              indices <- mapM (evalExpr env'' >=> liftError . liftM fromInteger . fromIntegerWHNF) indices
+              indices <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
               let pattern' = IndexedPat pattern $ map IntegerExpr indices
               return $ msingleton $ MState env loops bindings (MAtom pattern' target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
             Nothing -> throwError $ UnboundVariable name

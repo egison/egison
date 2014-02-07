@@ -248,35 +248,6 @@ instance Egison Handle where
   toEgison h = Port h
   fromEgison = liftError . fromPortValue
 
-fromCharValue :: EgisonValue -> Either EgisonError Char
-fromCharValue (Char c) = return c
-fromCharValue val = throwError $ TypeMismatch "char" (Value val)
-
-fromBoolValue :: EgisonValue -> Either EgisonError Bool
-fromBoolValue (Bool b) = return b
-fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
-
-fromIntegerValue :: EgisonValue -> Either EgisonError Integer
-fromIntegerValue (Integer i) = return i
-fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
-
-fromRationalValue :: EgisonValue -> Either EgisonError Rational
-fromRationalValue (Rational x) = return x
-fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
-
-fromFloatValue :: EgisonValue -> Either EgisonError Double
-fromFloatValue (Float f) = return f
-fromFloatValue val = throwError $ TypeMismatch "float" (Value val)
-
-fromPortValue :: EgisonValue -> Either EgisonError Handle
-fromPortValue (Port handle) = return handle
-fromPortValue val = throwError $ TypeMismatch "port" (Value val)
-
--- TODO : write instance declaration for Matcher
-fromMatcherValue :: EgisonValue -> Either EgisonError Matcher
-fromMatcherValue (Matcher matcher) = return matcher
-fromMatcherValue val = throwError $ TypeMismatch "matcher" (Value val)
-
 instance (Egison a) => Egison [a] where
   toEgison xs = Collection $ Sq.fromList (map toEgison xs)
   fromEgison (Collection seq) = mapM fromEgison (toList seq)
@@ -310,6 +281,35 @@ instance (Egison a, Egison b, Egison c, Egison d) => Egison (a, b, c, d) where
     w' <- fromEgison w
     return (x', y', z', w')
   fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
+
+fromCharValue :: EgisonValue -> Either EgisonError Char
+fromCharValue (Char c) = return c
+fromCharValue val = throwError $ TypeMismatch "char" (Value val)
+
+fromBoolValue :: EgisonValue -> Either EgisonError Bool
+fromBoolValue (Bool b) = return b
+fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
+
+fromIntegerValue :: EgisonValue -> Either EgisonError Integer
+fromIntegerValue (Integer i) = return i
+fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
+
+fromRationalValue :: EgisonValue -> Either EgisonError Rational
+fromRationalValue (Rational x) = return x
+fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
+
+fromFloatValue :: EgisonValue -> Either EgisonError Double
+fromFloatValue (Float f) = return f
+fromFloatValue val = throwError $ TypeMismatch "float" (Value val)
+
+fromPortValue :: EgisonValue -> Either EgisonError Handle
+fromPortValue (Port handle) = return handle
+fromPortValue val = throwError $ TypeMismatch "port" (Value val)
+
+-- TODO : write instance declaration for Matcher
+fromMatcherValue :: EgisonValue -> Either EgisonError Matcher
+fromMatcherValue (Matcher matcher) = return matcher
+fromMatcherValue val = throwError $ TypeMismatch "matcher" (Value val)
 
 --
 -- Internal Data
@@ -349,6 +349,30 @@ instance Show WHNFData where
 --
 -- Extract data from WHNF
 --
+class EgisonWHNF a where
+  fromWHNF :: WHNFData -> EgisonM a
+  
+instance EgisonWHNF Char where
+  fromWHNF = liftError . fromCharWHNF
+  
+instance EgisonWHNF Bool where
+  fromWHNF = liftError . fromBoolWHNF
+  
+instance EgisonWHNF Integer where
+  fromWHNF = liftError . fromIntegerWHNF
+  
+instance EgisonWHNF Rational where
+  fromWHNF = liftError . fromRationalWHNF
+  
+instance EgisonWHNF Double where
+  fromWHNF = liftError . fromFloatWHNF
+  
+instance EgisonWHNF Handle where
+  fromWHNF = liftError . fromPortWHNF
+  
+instance EgisonWHNF Matcher where
+  fromWHNF = liftError . fromMatcherWHNF
+  
 fromCharWHNF :: WHNFData -> Either EgisonError Char
 fromCharWHNF (Value (Char c)) = return c
 fromCharWHNF whnf = throwError $ TypeMismatch "char" whnf
@@ -357,13 +381,13 @@ fromBoolWHNF :: WHNFData -> Either EgisonError Bool
 fromBoolWHNF (Value (Bool b)) = return b
 fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
 
-fromRationalWHNF :: WHNFData -> Either EgisonError Rational
-fromRationalWHNF (Value (Rational x)) = return x
-fromRationalWHNF whnf = throwError $ TypeMismatch "rational" whnf
-
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
 fromIntegerWHNF (Value (Integer i)) = return i
 fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
+
+fromRationalWHNF :: WHNFData -> Either EgisonError Rational
+fromRationalWHNF (Value (Rational x)) = return x
+fromRationalWHNF whnf = throwError $ TypeMismatch "rational" whnf
 
 fromFloatWHNF :: WHNFData -> Either EgisonError Double
 fromFloatWHNF (Value (Float f)) = return f
@@ -377,18 +401,15 @@ fromMatcherWHNF :: WHNFData -> Either EgisonError Matcher
 fromMatcherWHNF (Value (Matcher matcher)) = return matcher
 fromMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
 
+--
+--
+--
 fromBuiltinWHNF :: WHNFData -> Either EgisonError EgisonValue
 fromBuiltinWHNF (Value val@(Char _)) = return val
 fromBuiltinWHNF (Value val@(Bool _)) = return val
 fromBuiltinWHNF (Value val@(Integer _)) = return val
 fromBuiltinWHNF (Value val@(Float _)) = return val
 fromBuiltinWHNF whnf = throwError $ TypeMismatch "primitive value" whnf
-
---
--- String
---
-makeEgisonString :: String -> EgisonValue
-makeEgisonString str = Collection $ Sq.fromList $ map Char str
 
 --
 -- Environment

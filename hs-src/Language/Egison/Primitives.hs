@@ -353,7 +353,7 @@ floatToIntegerOp op = oneArg $ \val -> do
 
 show' :: PrimitiveFunc
 show'= oneArg $ \val ->
-   return $ makeEgisonString $ show val
+   return $ toEgison $ show val
 
 stringToInteger :: PrimitiveFunc
 stringToInteger = oneArg $ \val -> do
@@ -513,19 +513,19 @@ readCharFromPort = oneArg $ \val -> do
   return $ makeIO $ return (Char c)
 
 readLine :: PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ liftM makeEgisonString getLine
+readLine = noArg $ return $ makeIO $ liftIO $ liftM toEgison getLine
 
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = oneArg $ \val -> do
   port <- fromEgison val
   s <- liftIO $ hGetLine port
-  return $ makeIO $ return $ makeEgisonString s
+  return $ makeIO $ return $ toEgison s
 
 readFile' :: PrimitiveFunc
 readFile' =  oneArg $ \val -> do
   filename <- fromEgison val
   s <- liftIO $ readFile filename
-  return $ makeIO $ return $ makeEgisonString s
+  return $ makeIO $ return $ toEgison s
   
 isEOFStdin :: PrimitiveFunc
 isEOFStdin = noArg $ return $ makeIO $ liftIO $ liftM Bool isEOF
