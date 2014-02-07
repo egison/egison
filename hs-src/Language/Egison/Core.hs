@@ -13,11 +13,12 @@ module Language.Egison.Core
     -- * Egison code evaluation
       evalTopExprs
     , evalTopExpr
+    , evalTopExpr'
     , evalExpr
-    , evalExpr'
+    , evalExprDeep
     , evalRef
-    , evalRef'
-    , evalDeep
+    , evalRefDeep
+    , evalWHNF
     , applyFunc
     -- * Environment
     , recursiveBind
@@ -89,7 +90,7 @@ evalTopExpr env topExpr = evalTopExpr' env topExpr >>= return . snd
 evalTopExpr' :: Env -> EgisonTopExpr -> EgisonM (String, Env)
 evalTopExpr' env (Define name expr) = recursiveBind env [(name, expr)] >>= return . ((,) "")
 evalTopExpr' env (Test expr) = do
-  val <- evalExpr' env expr
+  val <- evalExprDeep env expr
   return ((show val), env)
 evalTopExpr' env (Execute expr) = do
   io <- evalExpr env expr
@@ -159,7 +160,7 @@ evalExpr env (HashExpr assocs) = do
 
 evalExpr env (IndexedExpr expr indices) = do
   array <- evalExpr env expr
-  indices <- mapM (evalExpr' env) indices
+  indices <- mapM (evalExprDeep env) indices
   refArray array indices
  where
   refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
@@ -244,7 +245,7 @@ evalExpr env (IoExpr expr) = do
   io <- evalExpr env expr
   case io of
     Value (IOFunc m) -> do
-      val <- m >>= evalDeep
+      val <- m >>= evalWHNF
       case val of
         Tuple [_, val'] -> return $ Value val'
     _ -> throwError $ TypeMismatch "io" io
@@ -299,8 +300,8 @@ evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
-evalExpr' :: Env -> EgisonExpr -> EgisonM EgisonValue
-evalExpr' env expr = evalExpr env expr >>= evalDeep
+evalExprDeep :: Env -> EgisonExpr -> EgisonM EgisonValue
+evalExprDeep env expr = evalExpr env expr >>= evalWHNF
 
 evalRef :: ObjectRef -> EgisonM WHNFData
 evalRef ref = do
@@ -312,36 +313,36 @@ evalRef ref = do
       writeThunk ref val
       return val
 
-evalRef' :: ObjectRef -> EgisonM EgisonValue
-evalRef' ref = do
+evalRefDeep :: ObjectRef -> EgisonM EgisonValue
+evalRefDeep ref = do
   obj <- liftIO $ readIORef ref
   case obj of
     WHNF (Value val) -> return val
     WHNF val -> do
-      val <- evalDeep val
+      val <- evalWHNF val
       writeThunk ref $ Value val
       return val
     Thunk thunk -> do
-      val <- thunk >>= evalDeep
+      val <- thunk >>= evalWHNF
       writeThunk ref $ Value val
       return val
 
-evalDeep :: WHNFData -> EgisonM EgisonValue
-evalDeep (Value val) = return val
-evalDeep (Intermediate (IInductiveData name refs)) =
-  InductiveData name <$> mapM evalRef' refs
-evalDeep (Intermediate (IArray refs)) = do
-  refs' <- mapM evalRef' $ IntMap.elems refs
+evalWHNF :: WHNFData -> EgisonM EgisonValue
+evalWHNF (Value val) = return val
+evalWHNF (Intermediate (IInductiveData name refs)) =
+  InductiveData name <$> mapM evalRefDeep refs
+evalWHNF (Intermediate (IArray refs)) = do
+  refs' <- mapM evalRefDeep $ IntMap.elems refs
   return $ Array $ IntMap.fromList $ zip (enumFromTo 1 (IntMap.size refs)) refs'
-evalDeep (Intermediate (IIntHash refs)) = do
-  refs' <- mapM evalRef' refs
+evalWHNF (Intermediate (IIntHash refs)) = do
+  refs' <- mapM evalRefDeep refs
   return $ IntHash refs'
-evalDeep (Intermediate (IStrHash refs)) = do
-  refs' <- mapM evalRef' refs
+evalWHNF (Intermediate (IStrHash refs)) = do
+  refs' <- mapM evalRefDeep refs
   return $ StrHash refs'
-evalDeep (Intermediate (ITuple [ref])) = evalRef' ref
-evalDeep (Intermediate (ITuple refs)) = Tuple <$> mapM evalRef' refs
-evalDeep coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRef' . Sq.fromList)
+evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
+evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
+evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 applyFunc :: WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc (Value (Func env [name] body)) arg = do
@@ -353,7 +354,7 @@ applyFunc (Value (Func env names body)) arg = do
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNum (length names) (length refs)
 applyFunc (Value (PrimitiveFunc func)) arg = do
-  arg' <- evalDeep arg
+  arg' <- evalWHNF arg
   liftM Value . func $ arg'
 applyFunc (Value (IOFunc m)) arg = do
   case arg of
@@ -541,8 +542,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         _ -> -- Value Something -> -- for tupple patterns
           case pattern of
             ValuePat valExpr -> do
-              val <- evalExpr' env' valExpr
-              tgtVal <- evalRef' target
+              val <- evalExprDeep env' valExpr
+              tgtVal <- evalRefDeep target
               if val == tgtVal
                 then return $ msingleton $ MState env loops bindings trees
                 else return MNil
@@ -671,7 +672,7 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
        <*> primitiveDataPatternMatch pattern' last
 primitiveDataPatternMatch (PDConstantPat expr) ref = do
   target <- lift (evalRef ref) >>= either (const matchFail) return . fromBuiltinWHNF
-  isEqual <- lift $ (==) <$> evalExpr' nullEnv expr <*> pure target
+  isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
 
 expandCollection :: WHNFData -> EgisonM (Seq Inner)
@@ -775,7 +776,7 @@ fromStringWHNF (Value (Collection seq)) = do
                   _ -> throwError $ TypeMismatch "char" (Value val))
        ls
 fromStringWHNF (Value (Tuple [val])) = fromStringWHNF (Value val)
-fromStringWHNF whnf@(Intermediate (ICollection _)) = evalDeep whnf >>= fromStringWHNF . Value
+fromStringWHNF whnf@(Intermediate (ICollection _)) = evalWHNF whnf >>= fromStringWHNF . Value
 fromStringWHNF whnf = throwError $ TypeMismatch "string" whnf
 
 fromStringValue :: EgisonValue -> EgisonM String

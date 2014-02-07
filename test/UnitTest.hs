@@ -25,7 +25,7 @@ runTestCase file = TestLabel file . TestCase $ do
     exprs <- loadFile file
     let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
     env' <- recursiveBind env bindings
-    forM_ tests $ evalExpr' env'
+    forM_ tests $ evalExprDeep env'
       where
         assertEgisonM :: EgisonM a -> Assertion
         assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")

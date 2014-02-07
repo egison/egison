@@ -54,13 +54,13 @@ module Language.Egison.Types
     , EgisonError (..)
     , liftError
     -- * Monads
+    , EgisonM (..)
+    , runEgisonM
+    , liftEgisonM
     , FreshT (..)
     , Fresh (..)
     , MonadFresh (..)
     , runFreshT
-    , EgisonM (..)
-    , runEgisonM
-    , liftEgisonM
     , MatchM (..)
     , matchFail
     , MList (..)
@@ -562,6 +562,21 @@ liftError = either throwError return
 -- Monads
 --
 
+newtype EgisonM a = EgisonM {
+    unEgisonM :: ErrorT EgisonError (FreshT IO) a
+  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
+
+runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
+runEgisonM = runErrorT . unEgisonM
+
+liftEgisonM :: Fresh (Either EgisonError a) -> EgisonM a
+liftEgisonM m = EgisonM $ ErrorT $ FreshT $ do
+  s <- get
+  (a, s') <- return $ runFresh s m
+  put s'
+  return $ either throwError return $ a   
+  
+
 newtype FreshT m a = FreshT { unFreshT :: StateT Int m a }
   deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans)
 
@@ -603,20 +618,7 @@ runFreshT seed = flip (runStateT . unFreshT) seed
 runFresh :: Int -> Fresh a -> (a, Int)
 runFresh seed m = runIdentity $ flip runStateT seed $ unFreshT m
 
-newtype EgisonM a = EgisonM {
-    unEgisonM :: ErrorT EgisonError (FreshT IO) a
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
 
-runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
-runEgisonM = runErrorT . unEgisonM
-
-liftEgisonM :: Fresh (Either EgisonError a) -> EgisonM a
-liftEgisonM m = EgisonM $ ErrorT $ FreshT $ do
-  s <- get
-  (a, s') <- return $ runFresh s m
-  put s'
-  return $ either throwError return $ a   
-  
 type MatchM = MaybeT EgisonM
 
 matchFail :: MatchM a

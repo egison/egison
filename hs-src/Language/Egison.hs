@@ -93,7 +93,7 @@ loadEgisonLibrary :: Env -> FilePath -> IO (Either EgisonError Env)
 loadEgisonLibrary env path = modifyCounter $ runEgisonM $ loadLibraryFile path >>= evalTopExprs env
 
 evalEgisonExpr :: Env -> EgisonExpr -> IO (Either EgisonError EgisonValue)
-evalEgisonExpr env expr = modifyCounter $ runEgisonM $ evalExpr' env expr
+evalEgisonExpr env expr = modifyCounter $ runEgisonM $ evalExprDeep env expr
 
 evalEgisonTopExpr :: Env -> EgisonTopExpr -> IO (Either EgisonError Env)
 evalEgisonTopExpr env exprs = modifyCounter $ runEgisonM $ evalTopExpr env exprs
