@@ -128,47 +128,35 @@ onAbort e = do
 repl :: Env -> String -> IO ()
 repl env prompt = do
   home <- getHomeDirectory
-  liftIO (runInputT (settings home) $ (loop env prompt ""))
-  where
-    settings :: MonadIO m => FilePath -> Settings m
-    settings home = do
-      setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
+  liftIO $ runInputT (settings home) $ loop env
+ where
+  settings :: MonadIO m => FilePath -> Settings m
+  settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
     
-    loop :: Env -> String -> String -> InputT IO ()
-    loop env prompt' rest = do
-      _ <- liftIO $ installHandler keyboardSignal (Catch (do {putStr "^C"; hFlush stdout})) Nothing
-      input <- getInputLine prompt'
-      tid <- liftIO $ myThreadId
-      _ <- liftIO $ installHandler keyboardSignal (Catch (throwTo tid UserInterruption)) Nothing
-      case input of
-        Nothing -> return () 
-        Just "quit" -> return () 
-        Just "" ->
-          case rest of
-            "" -> loop env prompt rest
-            _ -> loop env (take (length prompt) (repeat ' ')) rest
-        Just input' -> do
-          let newInput = rest ++ input'
-          result <- liftIO $ handle onAbort $ runEgisonTopExpr env newInput
-          case result of
-            Left err | show err =~ "unexpected end of input" -> do
-              loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
-            Left err | show err =~ "expecting (top-level|\"define\")" -> do
-              result <- liftIO $ handle onAbort $ runEgisonExpr env newInput
-              case result of
-                Left err | show err =~ "unexpected end of input" -> do
-                  loop env (take (length prompt) (repeat ' ')) $ newInput ++ "\n"
-                Left err -> do
-                  liftIO $ putStrLn $ show err
-                  loop env prompt ""
-                Right val -> do
-                  liftIO $ putStrLn $ show val
-                  loop env prompt ""
-            Left err -> do
-              liftIO $ putStrLn $ show err
-              loop env prompt ""
-            Right env' ->
-              loop env' prompt ""
+  loop :: Env -> InputT IO ()
+  loop env = do
+    _ <- liftIO $ installHandler keyboardSignal (Catch (do {putStr "^C"; hFlush stdout})) Nothing
+    input <- getEgisonExpr prompt
+    tid <- liftIO $ myThreadId
+    _ <- liftIO $ installHandler keyboardSignal (Catch (throwTo tid UserInterruption)) Nothing
+    case input of
+      Nothing -> return ()
+      Just (Left topExpr) -> do
+        result <- liftIO $ handle onAbort $ evalEgisonTopExpr env topExpr
+        case result of
+          Left err -> do
+            liftIO $ putStrLn $ show err
+            loop env
+          Right env' -> loop env'
+      Just (Right expr) -> do
+        result <- liftIO $ handle onAbort $ evalEgisonExpr env expr
+        case result of
+          Left err -> do
+            liftIO $ putStrLn $ show err
+            loop env
+          Right val -> do
+            liftIO $ putStrLn $ show val
+            loop env
 
 
 getEgisonExpr :: String -> InputT IO (Maybe (Either EgisonTopExpr EgisonExpr))
