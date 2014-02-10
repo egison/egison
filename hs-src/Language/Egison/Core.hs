@@ -360,9 +360,7 @@ applyFunc (Value (Func env names body)) arg = do
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNum (length names) (length refs)
-applyFunc (Value (PrimitiveFunc func)) arg = do
-  arg' <- evalWHNF arg
-  liftM Value . func $ arg'
+applyFunc (Value (PrimitiveFunc func)) arg = func arg
 applyFunc (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m

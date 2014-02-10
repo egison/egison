@@ -20,7 +20,7 @@ main = do
 
 runTestCase :: FilePath -> Test
 runTestCase file = TestLabel file . TestCase $ do
-  env <- primitiveEnv >>= loadCoreLibraries
+  env <- initialEnv
   assertEgisonM $ do
     exprs <- loadFile file
     let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs

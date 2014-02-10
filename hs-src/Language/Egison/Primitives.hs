@@ -29,6 +29,8 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
 
+import Control.Monad
+
 {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
 --}  -- for 'egison-sqlite'
@@ -36,8 +38,6 @@ import qualified Database.SQLite3 as SQLite
 {--  -- for 'egison-mysql'
 import qualified Database.MySQL.Base as MySQL
 --}  -- for 'egison-mysql'
-
-import Control.Monad
 
 import Language.Egison.Types
 import Language.Egison.Parser
@@ -60,36 +60,42 @@ primitiveEnvNoIO = do
   return $ extendEnv nullEnv bindings
 
 {-# INLINE noArg #-}
-noArg :: EgisonM EgisonValue ->
-         EgisonValue -> EgisonM EgisonValue
-noArg f = \args -> case tupleToList args of 
-                     [] -> f
-                     vals -> throwError $ ArgumentsNum 0 $ length vals
+noArg :: EgisonM EgisonValue -> PrimitiveFunc
+noArg f = \args -> do
+  args' <- tupleToList args
+  case args' of 
+    [] -> f >>= return . Value
+    _ -> throwError $ ArgumentsNum 0 $ length args'
 
 {-# INLINE oneArg #-}
-oneArg :: (EgisonValue -> EgisonM EgisonValue) ->
-          EgisonValue -> EgisonM EgisonValue
-oneArg f = \args -> case args of
-                      (Tuple [val]) -> f val
-                      _ -> f args
+oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+oneArg f = \args -> do
+  args' <- evalWHNF args
+  f args' >>= return . Value
 
 {-# INLINE twoArgs #-}
-twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) ->
-           EgisonValue -> EgisonM EgisonValue
-twoArgs f = \args -> case tupleToList args of 
-                       [val, val'] -> f val val'
-                       vals -> throwError $ ArgumentsNum 2 $ length vals
+twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+twoArgs f = \args -> do
+  args' <- tupleToList args
+  case args' of 
+    [val, val'] -> f val val' >>= return . Value
+    _ -> throwError $ ArgumentsNum 2 $ length args'
 
 {-# INLINE threeArgs #-}
-threeArgs :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) ->
-             EgisonValue -> EgisonM EgisonValue
-threeArgs f = \args -> case tupleToList args of 
-                         [val, val', val''] -> f val val' val''
-                         vals -> throwError $ ArgumentsNum 3 $ length vals
+threeArgs :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+threeArgs f = \args -> do
+  args' <- tupleToList args
+  case args' of 
+    [val, val', val''] -> f val val' val'' >>= return . Value
+    _ -> throwError $ ArgumentsNum 3 $ length args'
 
-tupleToList :: EgisonValue -> [EgisonValue]
-tupleToList (Tuple vals) = vals
-tupleToList val = [val]
+tupleToList :: WHNFData -> EgisonM [EgisonValue]
+tupleToList whnf = do
+  val <- evalWHNF whnf
+  return $ tupleToList' val
+ where
+  tupleToList' (Tuple vals) = vals
+  tupleToList' val = [val]
 
 --
 -- Constants
@@ -147,9 +153,15 @@ primitives = [ ("+", plus)
              , ("rtof", rationalToFloat)
                
              , ("stoi", stringToInteger)
-               
+
              , ("read", read')
              , ("show", show')
+
+             , ("empty?", isEmpty')
+             , ("car", car')
+             , ("cdr", cdr')
+             , ("rac", rac')
+             , ("rdc", rdc')
                
              , ("assert", assert)
              , ("assert-equal", assertEqual)
@@ -370,16 +382,32 @@ floatToIntegerOp op = oneArg $ \val -> do
   f <- fromEgison val
   return $ Integer $ op f
 
+stringToInteger :: PrimitiveFunc
+stringToInteger = oneArg $ \val -> do
+  numStr <- fromEgison val
+  return $ Integer (read numStr :: Integer)
+
 read' :: PrimitiveFunc
 read'= oneArg $ \val -> fromStringValue val >>= readExpr >>= evalExprDeep nullEnv
 
 show' :: PrimitiveFunc
 show'= oneArg $ \val -> return $ toEgison $ show val
 
-stringToInteger :: PrimitiveFunc
-stringToInteger = oneArg $ \val -> do
-  numStr <- fromEgison val
-  return $ Integer (read numStr :: Integer)
+
+isEmpty' :: PrimitiveFunc
+isEmpty' = undefined
+
+car' :: PrimitiveFunc
+car' = undefined
+
+cdr' :: PrimitiveFunc
+cdr' = undefined
+
+rac' :: PrimitiveFunc
+rac' = undefined
+
+rdc' :: PrimitiveFunc
+rdc' = undefined
 
 
 assert ::  PrimitiveFunc

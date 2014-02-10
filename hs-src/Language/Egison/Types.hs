@@ -240,7 +240,7 @@ data EgisonValue =
   | EOF
 
 type Matcher = (Env, MatcherInfo)
-type PrimitiveFunc = EgisonValue -> EgisonM EgisonValue
+type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 instance Show EgisonValue where
   show (Char c) = "'" ++ [c] ++ "'"
