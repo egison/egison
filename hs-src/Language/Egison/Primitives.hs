@@ -157,11 +157,13 @@ primitives = [ ("+", plus)
              , ("read", read')
              , ("show", show')
 
+{--
              , ("empty?", isEmpty')
              , ("car", car')
              , ("cdr", cdr')
              , ("rac", rac')
              , ("rdc", rdc')
+--}
                
              , ("assert", assert)
              , ("assert-equal", assertEqual)
@@ -393,7 +395,7 @@ read'= oneArg $ \val -> fromStringValue val >>= readExpr >>= evalExprDeep nullEn
 show' :: PrimitiveFunc
 show'= oneArg $ \val -> return $ toEgison $ show val
 
-
+{--
 isEmpty' :: PrimitiveFunc
 isEmpty' = undefined
 
@@ -408,7 +410,7 @@ rac' = undefined
 
 rdc' :: PrimitiveFunc
 rdc' = undefined
-
+--}
 
 assert ::  PrimitiveFunc
 assert = twoArgs $ \label test -> do

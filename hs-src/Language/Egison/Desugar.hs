@@ -122,12 +122,11 @@ desugar (MatchLambdaExpr matcher clauses) = do
   clauses' <- desugarMatchClauses clauses
   return $ LambdaExpr [name] (MatchExpr (VarExpr name) matcher' clauses')
 
-desugar (ArrayRefExpr (VarExpr name) (TupleExpr nums)) =
-  desugar $ IndexedExpr (VarExpr name) nums
-  
 desugar (ArrayRefExpr expr nums) =
-  desugar $ ArrayRefExpr expr (TupleExpr [nums])
-
+  case nums of
+    (TupleExpr nums') -> desugar $ IndexedExpr expr nums'
+    _ -> desugar $ IndexedExpr expr [nums]
+  
 desugar (IndexedExpr expr indices) = 
   IndexedExpr <$> desugar expr <*> (mapM desugar indices)
 

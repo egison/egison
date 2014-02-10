@@ -1,11 +1,87 @@
 Name:                egison
-Version:             3.2.14
+Version:             3.2.15
 Synopsis:            Programming language with non-linear pattern-matching against unfree data types
-Description:         An interpreter for Egison, the programming langugage that realized non-linear pattern-matching with unfree data types.
-                     With Egison, you can represent pattern-matching with unfree data types intuitively,
-                     especially for collection data, such as lists, multisets, sets.
-                     You can find Egison programs in "lib/" and "sample/" directories.
-                     This package also include Emacs Lisp file "egison-mode.el" in "elisp/" directory.
+Description:
+  An interpreter for Egison, the programming langugage that realized non-linear pattern-matching against unfree data types.
+  With Egison, you can represent pattern-matching against unfree data types intuitively,
+  especially for collection data, such as lists, multisets, sets.
+  You can find Egison programs in "lib/" and "sample/" directories.
+  This package also include Emacs Lisp file "egison-mode.el" in "elisp/" directory.
+  .
+  The following code is the program that determins poker-hands written in Egison.
+  All hands are expressed in a single pattern.
+  .
+  >(define $poker-hands
+  >  (lambda [$cs]
+  >    (match cs (multiset card)
+  >      {[<cons <card $s $n>
+  >         <cons <card ,s ,(- n 1)>
+  >          <cons <card ,s ,(- n 2)>
+  >           <cons <card ,s ,(- n 3)>
+  >            <cons <card ,s ,(- n 4)>
+  >             <nil>>>>>>
+  >        <Straight-Flush>]
+  >       [<cons <card _ $n>
+  >         <cons <card _ ,n>
+  >          <cons <card _ ,n>
+  >            <cons <card _ ,n>
+  >              <cons _
+  >                <nil>>>>>>
+  >        <Four-of-Kind>]
+  >       [<cons <card _ $m>
+  >         <cons <card _ ,m>
+  >          <cons <card _ ,m>
+  >           <cons <card _ $n>
+  >            <cons <card _ ,n>
+  >              <nil>>>>>>
+  >        <Full-House>]
+  >       [<cons <card $s _>
+  >         <cons <card ,s _>
+  >           <cons <card ,s _>
+  >             <cons <card ,s _>
+  >               <cons <card ,s _>
+  >                 <nil>>>>>>
+  >        <Flush>]
+  >       [<cons <card _ $n>
+  >         <cons <card _ ,(- n 1)>
+  >          <cons <card _ ,(- n 2)>
+  >           <cons <card _ ,(- n 3)>
+  >            <cons <card _ ,(- n 4)>
+  >             <nil>>>>>>
+  >        <Straight>]
+  >       [<cons <card _ $n>
+  >         <cons <card _ ,n>
+  >          <cons <card _ ,n>
+  >           <cons _
+  >            <cons _
+  >             <nil>>>>>>
+  >        <Three-of-Kind>]
+  >       [<cons <card _ $m>
+  >         <cons <card _ ,m>
+  >          <cons <card _ $n>
+  >            <cons <card _ ,n>
+  >             <cons _
+  >               <nil>>>>>>
+  >        <Two-Pair>]
+  >       [<cons <card _ $n>
+  >         <cons <card _ ,n>
+  >          <cons _
+  >           <cons _
+  >            <cons _
+  >             <nil>>>>>>
+  >        <One-Pair>]
+  >       [<cons _
+  >         <cons _
+  >          <cons _
+  >           <cons _
+  >            <cons _
+  >             <nil>>>>>>
+  >        <Nothing>]})))
+  .  
+  The pattern-matching of Egison is very powerful.
+  We can use it for pattern-matching against graphs, too.
+  Egison is not popular at all now.
+  Please help us to make Egison popular.
 Homepage:            http://www.egison.org
 License:             MIT
 License-file:        LICENSE

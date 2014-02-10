@@ -43,7 +43,7 @@ Enjoy!
 ### Demonstration
 
 We can do non-linear pattern-matching against unfree data types with Egison.
-Following code is the program that determins poker-hands written in Egison.
+The following code is the program that determins poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
 ```
