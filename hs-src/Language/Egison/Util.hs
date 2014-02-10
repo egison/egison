@@ -1,4 +1,3 @@
-
 {- |
 Module      : Language.Egison.Util
 Copyright   : Satoshi Egi
