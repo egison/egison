@@ -4,20 +4,19 @@ import Prelude hiding (catch)
 import Control.Exception ( SomeException(..),
                            AsyncException(..),
                            catch, handle, throw)
-import System.Posix.Signals
 import Control.Concurrent
-
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad.Error
 
 import Data.List
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
-
-import Data.Version
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
-import Text.Regex.Posix
+
+import Data.Version
+
+import System.Posix.Signals
 
 import System.Environment
 import System.Directory (getHomeDirectory)
@@ -26,6 +25,7 @@ import System.Console.Haskeline hiding (handle, catch, throwTo)
 import System.Console.GetOpt
 import System.Exit (ExitCode (..), exitWith, exitFailure)
 import System.IO
+
 import Language.Egison
 import Language.Egison.Util
 
@@ -159,30 +159,3 @@ repl env prompt = do
             loop env
 
 
-getEgisonExpr :: String -> InputT IO (Maybe (Either EgisonTopExpr EgisonExpr))
-getEgisonExpr prompt = getEgisonExpr' ""
- where
-  getEgisonExpr' :: String -> InputT IO (Maybe (Either EgisonTopExpr EgisonExpr))
-  getEgisonExpr' prev = do
-    mLine <- case prev of
-               "" -> getInputLine prompt
-               _ -> getInputLine $ take (length prompt ) (repeat ' ')
-    case mLine of
-      Nothing -> return Nothing
-      Just line -> do
-        let input = prev ++ line
-        case parseTopExpr input of
-          Left err | show err =~ "unexpected end of input" -> do
-            getEgisonExpr' input
-          Left err | show err =~ "expecting (top-level|\"define\")" ->
-            case parseExpr input of
-              Left err | show err =~ "unexpected end of input" -> do
-                getEgisonExpr' input
-              Left err -> do
-                liftIO $ putStrLn $ show err
-                getEgisonExpr prompt
-              Right expr -> return $ Just $ Right expr
-          Left err -> do
-            liftIO $ putStrLn $ show err
-            getEgisonExpr prompt
-          Right topExpr -> return $ Just $ Left topExpr
