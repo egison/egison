@@ -107,7 +107,8 @@ primitives = [ ("+", plus)
              , ("-", minus)
              , ("*", multiply)
              , ("/", divide)
-             , ("/-inverse", divideInverse)
+             , ("numerator", numerator')
+             , ("denominator", denominator')
                
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
@@ -270,14 +271,23 @@ divide = twoArgs $ \val val' -> numberBinaryOp' val val'
   numberBinaryOp' (Float _)    val          = throwError $ TypeMismatch "number" (Value val)
   numberBinaryOp' val          _            = throwError $ TypeMismatch "number" (Value val)
 
-divideInverse :: PrimitiveFunc
-divideInverse =  oneArg $ divideInverse'
+numerator' :: PrimitiveFunc
+numerator' =  oneArg $ numerator''
  where
-  divideInverse' (Rational rat) = do
-    return $ Tuple [Integer (numerator rat), Integer (denominator rat)]
-  divideInverse' (Integer x) = do
-    return $ Tuple [Integer x, Integer 1]
-  divideInverse' val = throwError $ TypeMismatch "rational" (Value val)
+  numerator'' (Rational rat) = do
+    return $ Integer (numerator rat)
+  numerator'' (Integer x) = do
+    return $ Integer x
+  numerator'' val = throwError $ TypeMismatch "rational" (Value val)
+
+denominator' :: PrimitiveFunc
+denominator' =  oneArg $ denominator''
+ where
+  denominator'' (Rational rat) = do
+    return $ Integer (denominator rat)
+  denominator'' (Integer x) = do
+    return $ Integer 1
+  denominator'' val = throwError $ TypeMismatch "rational" (Value val)
 
 --
 -- Pred
