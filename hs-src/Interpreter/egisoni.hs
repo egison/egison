@@ -169,3 +169,32 @@ repl env prompt = do
               loop env prompt ""
             Right env' ->
               loop env' prompt ""
+
+
+getEgisonExpr :: String -> InputT IO (Maybe (Either EgisonTopExpr EgisonExpr))
+getEgisonExpr prompt = getEgisonExpr' ""
+ where
+  getEgisonExpr' :: String -> InputT IO (Maybe (Either EgisonTopExpr EgisonExpr))
+  getEgisonExpr' prev = do
+    mLine <- case prev of
+               "" -> getInputLine prompt
+               _ -> getInputLine $ take (length prompt ) (repeat ' ')
+    case mLine of
+      Nothing -> return Nothing
+      Just line -> do
+        let input = prev ++ line
+        case parseTopExpr input of
+          Left err | show err =~ "unexpected end of input" -> do
+            getEgisonExpr' input
+          Left err | show err =~ "expecting (top-level|\"define\")" ->
+            case parseExpr input of
+              Left err | show err =~ "unexpected end of input" -> do
+                getEgisonExpr' input
+              Left err -> do
+                liftIO $ putStrLn $ show err
+                getEgisonExpr prompt
+              Right expr -> return $ Just $ Right expr
+          Left err -> do
+            liftIO $ putStrLn $ show err
+            getEgisonExpr prompt
+          Right topExpr -> return $ Just $ Left topExpr

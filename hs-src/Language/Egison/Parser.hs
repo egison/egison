@@ -15,6 +15,10 @@ module Language.Egison.Parser
        , readTopExpr
        , readExprs
        , readExpr
+       , parseTopExprs
+       , parseTopExpr
+       , parseExprs
+       , parseExpr
        -- * Parse a file
        , loadLibraryFile
        , loadFile
@@ -58,6 +62,18 @@ readExprs = liftEgisonM . runDesugarM . either throwError (mapM desugar) . parse
 readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
+parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
+parseTopExprs = doParse $ whiteSpace >> endBy topExpr whiteSpace
+
+parseTopExpr :: String -> Either EgisonError EgisonTopExpr
+parseTopExpr = doParse $ whiteSpace >> topExpr
+
+parseExprs :: String -> Either EgisonError [EgisonExpr]
+parseExprs = doParse $ whiteSpace >> endBy expr whiteSpace
+
+parseExpr :: String -> Either EgisonError EgisonExpr
+parseExpr = doParse $ whiteSpace >> expr
+
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
 loadLibraryFile file = liftIO (getDataFileName file) >>= loadFile
@@ -87,18 +103,6 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
   where
     fromParsecError :: ParseError -> EgisonError
     fromParsecError = Parser . show
-
-parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = doParse $ whiteSpace >> endBy topExpr whiteSpace
-
-parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = doParse $ whiteSpace >> topExpr
-
-parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = doParse $ whiteSpace >> endBy expr whiteSpace
-
-parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = doParse $ whiteSpace >> expr
 
 --
 -- Expressions
