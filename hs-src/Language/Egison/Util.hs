@@ -27,7 +27,7 @@ completeEgison arg@([], _) = (completeWord Nothing "" completeNothing) arg
 completeEgison arg@(_, _) = (completeWord Nothing " \t[]{}$," completeEgisonKeyword) arg
 
 completeAfterOpenParen :: Monad m => String -> m [Completion]
-completeAfterOpenParen str = return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) egisonKeywordsAfterOpenParen
+completeAfterOpenParen str = return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) $ egisonPrimitivesAfterOpenParen ++ egisonKeywordsAfterOpenParen
 
 completeAfterOpenCons :: Monad m => String -> m [Completion]
 completeAfterOpenCons str = return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) egisonKeywordsAfterOpenCons
@@ -38,12 +38,13 @@ completeNothing _ = return []
 completeEgisonKeyword :: Monad m => String -> m [Completion]
 completeEgisonKeyword str = return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) egisonKeywords
 
+egisonPrimitivesAfterOpenParen = map ((:) '(') $ ["+", "-", "*", "/", "numerator", "denominator", "modulo", "quotient", "remainder", "neg", "abs", "eq?", "lt?", "lte?", "gt?", "gte?", "round", "floor", "ceiling", "truncate", "sqrt", "exp", "log", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "itof", "rtof", "stoi", "read", "show", "assert", "assert-equal"]
 egisonKeywordsAfterOpenParen = map ((:) '(') $ ["define", "let", "letrec", "lambda", "match", "match-all", "match-lambda", "matcher", "algebraic-data-matcher", "pattern-function", "if", "loop", "io", "do"]
                             ++ ["id", "or", "and", "not", "char", "eq?/m", "compose", "compose3", "list", "map", "between", "repeat1", "repeat", "filter", "separate", "concat", "foldr", "foldl", "map2", "zip", "empty?", "member?", "member?/m", "include?", "include?/m", "any", "all", "length", "count", "count/m", "car", "cdr", "rac", "rdc", "nth", "take", "drop", "while", "reverse", "multiset", "add", "add/m", "delete-first", "delete-first/m", "delete", "delete/m", "difference", "difference/m", "union", "union/m", "intersect", "intersect/m", "set", "unique", "unique/m", "print", "print-to-port", "each", "pure-rand", "fib", "fact", "divisor?", "gcd", "primes", "find-factor", "prime-factorization", "p-f", "min", "max", "min-and-max", "power", "mod", "qsort", "intersperse", "intercalate", "split", "split/m"]
 egisonKeywordsAfterOpenCons = map ((:) '<') ["nil", "cons", "join", "snoc", "nioj"]
 egisonKeywordsInNeutral = ["something"]
                        ++ ["bool", "string", "integer", "nats", "primes"]
-egisonKeywords = egisonKeywordsAfterOpenParen ++ egisonKeywordsAfterOpenCons ++ egisonKeywordsInNeutral
+egisonKeywords = egisonPrimitivesAfterOpenParen ++ egisonKeywordsAfterOpenParen ++ egisonKeywordsAfterOpenCons ++ egisonKeywordsInNeutral
 
 completeParen :: Monad m => CompletionFunc m
 completeParen (lstr, _) = case (closeParen lstr) of
