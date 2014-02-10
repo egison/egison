@@ -28,25 +28,27 @@
 
      "\\<loop\\>"
      "\\<match\\>"
-     "\\<match-all\\>"
-     "\\<matcher\\>"
-     "\\<algebraic-data-matcher\\>"
      "\\<match-lambda\\>"
+     "\\<match-all\\>"
+     "\\<match-all-lambda\\>"
+     "\\<next-match\\>"
+     "\\<next-match-lambda\\>"
+     "\\<next-match-all\\>"
+     "\\<next-match-all-lambda\\>"
+     "\\<next-matcher\\>"
+     "\\<algebraic-data-matcher\\>"
      "\\<pattern-function\\>"
 
      "\\<do\\>"
+     "\\<io\\>"
 
      "\\<undefined\\>"
      "\\<something\\>"
      
      "\\\.\\\.\\\."
      "\\\,"
-     "\\\!"
-     "`"
-     "\\\~"
      "\\\#"
      "|"
-     "%"
      "\\\&"
      "@"
      "\\<_\\>"
@@ -135,12 +137,18 @@
         ((equal "array-ref" name) 2)
         ((equal "loop" name) 2)
         ((equal "match" name) 2)
+        ((equal "match-lambda" name) 2)
         ((equal "match-all" name) 2)
+        ((equal "match-all-lambda" name) 2)
+        ((equal "next-match" name) 2)
+        ((equal "next-match-lambda" name) 2)
+        ((equal "next-match-all" name) 2)
+        ((equal "next-match-all-lambda" name) 2)
         ((equal "matcher" name) 2)
         ((equal "algebraic-data-matcher" name) 2)
-        ((equal "match-lambda" name) 2)
         ((equal "pattern-function" name) 2)
         ((equal "do" name) 2)
+        ((equal "io" name) 2)
         ))
 
 (defun egison-indent-line ()
