@@ -7,15 +7,7 @@
 ;;;
 ;;; Integers
 ;;;
-(define $integer
-  (matcher
-    {[,$n []
-      {[$tgt (if (eq? tgt n)
-                 {[]}
-                 {})]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+(define $integer buildin-data-matcher)
 
 (define $compare-integer
   (lambda [$m $n]
@@ -66,8 +58,8 @@
     (matcher
       {[,$n []
         {[$tgt (if (eq? (modulo tgt m) (modulo n m))
-                   {[]}
-                   {})]}]
+                 {[]}
+                 {})]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -75,13 +67,7 @@
 ;;
 ;; Float Numbers
 ;;
-(define $float
-  (matcher
-    {[,$d []
-      {[$tgt (if (eq? tgt d) {[]} {})]}]
-     [$ [something]
-      {[$tgt {tgt}]}]
-     }))
+(define $float buildin-data-matcher)
 
 (define $compare-float
   (lambda [$d1 $d2]

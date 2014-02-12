@@ -31,11 +31,7 @@
      "\\<match-lambda\\>"
      "\\<match-all\\>"
      "\\<match-all-lambda\\>"
-     "\\<next-match\\>"
-     "\\<next-match-lambda\\>"
-     "\\<next-match-all\\>"
-     "\\<next-match-all-lambda\\>"
-     "\\<next-matcher\\>"
+     "\\<matcher\\>"
      "\\<algebraic-data-matcher\\>"
      "\\<pattern-function\\>"
 
@@ -140,10 +136,6 @@
         ((equal "match-lambda" name) 2)
         ((equal "match-all" name) 2)
         ((equal "match-all-lambda" name) 2)
-        ((equal "next-match" name) 2)
-        ((equal "next-match-lambda" name) 2)
-        ((equal "next-match-all" name) 2)
-        ((equal "next-match-all-lambda" name) 2)
         ((equal "matcher" name) 2)
         ((equal "algebraic-data-matcher" name) 2)
         ((equal "pattern-function" name) 2)

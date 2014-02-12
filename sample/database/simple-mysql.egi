@@ -1,7 +1,0 @@
-;;
-;; Simple test query
-;;
-
-(test (simple-select {"to_id"} "edge" {["from_id" (itos 40)]}))
-
-(test (pure-mysql "graph" (simple-select {"to_id"} "edge" {["from_id" (itos 40)]})))

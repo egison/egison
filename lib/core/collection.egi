@@ -9,37 +9,32 @@
   (lambda [$a]
     (matcher
       {[,$val []
-        {[$tgt (match [val tgt] [(list a) (list a)]
-                 {[[<nil> <nil>] {[]}]
-                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
-                  [[_ _] {}]})]}]
-       [<nil> []
-        {[{} {[]}]
-         [_ {}]}]
-       [<cons $ $> [a (list a)]
-        {[{$x @$xs} {[x xs]}]
-         [_ {}]}]
-       [<snoc $ $> [a (list a)]
-        {[{@$xs $x} {[x xs]}]
-         [_ {}]}]
+        (lambda [$tgt] (match [val tgt] [(ordered-list a) (ordered-list a)]
+                         {[[<nil> <nil>] {[]}]
+                          [[<cons $x $xs> <cons ,x ,xs>] {[]}]
+                          [[_ _] {}]}))]
+       [<nil> [] (lambda [$tgt] (if (empty? tgt) {[]} {}))]
+       [<cons $ $> [a (list a)] (lambda $tgt (if (empty? tgt) {} {(uncons tgt)}))]
+       [<snoc $ $> [a (list a)] (lambda $tgt (if (empty? tgt) {} {(unsnoc tgt)}))]
        [<join ,$pxs $> [(list a)]
-        {[$tgt (match-all [pxs tgt] [(list a) (list a)]
-                 [[(loop $i [1 $n] <cons $xa_i ...> <nil>)
-                   (loop $i [1 ,n] <cons ,xa_i ...> $rs)]
-                  rs])]}]
+        (lambda [$tgt] (match-all [pxs tgt] [(list a) (list a)]
+                         [[(loop $i [1 $n] <cons $xa_i ...> <nil>)
+                           (loop $i [1 ,n] <cons ,xa_i ...> $rs)]
+                          rs]))]
        [<join $ $> [(list a) (list a)]
-        {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+        (match-all-lambda (list a)
+          [(loop $i [1 $n] <cons $xa_i ...> $rs)
+           [(map (lambda [$i] xa_i) (between 1 n)) rs]])]
        [<nioj ,$pxs $> [(list a)]
-        {[$tgt (match-all [pxs tgt] [(list a) (list a)]
-                 [[(loop $i [1 $n] <snoc $xa_i ...> <nil>)
-                   (loop $i [1 ,n] <snoc ,xa_i ...> $rs)]
-                  rs])]}]
+        (lambda [$tgt] (match-all [pxs tgt] [(list a) (list a)]
+                         [[(loop $i [1 $n] <snoc $xa_i ...> <nil>)
+                           (loop $i [1 ,n] <snoc ,xa_i ...> $rs)]
+                          rs]))]
        [<nioj $ $> [(list a) (list a)]
-        {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+        (match-all-lambda (list a)
+          [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]
        [$ [something]
-        {[$tgt {tgt}]}]
+        (lambda [$tgt] {tgt})]
        })))
 
 (define $string (list char))
@@ -270,26 +265,17 @@
   (lambda [$a]
     (matcher
       {[,$val []
-        {[$tgt (match [val tgt] [(list a) (multiset a)]
-                 {[[<nil> <nil>] {[]}]
-                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
-                  [[_ _] {}]})]}]
+        (lambda [$tgt] (match [val tgt] [(list a) (multiset a)]
+                         {[[<nil> <nil>] {[]}]
+                          [[<cons $x $xs> <cons ,x ,xs>] {[]}]
+                          [[_ _] {}]})]]
        [<nil> []
-        {[{} {[]}]
-         [_ {}]}]
-       [<cons ,$px $> [(multiset a)]
-        {[$tgt (match tgt (list a)
-                 {[<join $hs <cons ,px $ts>> {{@hs @ts}}]
-                  [_ {}]})]}]
-       [<cons $ $> [a (multiset a)]
-        {[$tgt (match-all tgt (list a)
-                 [<join $hs <cons $x $ts>> [x {@hs @ts}]])]}]
-       [<join ,$pxs $> [(multiset a)]
-        {[$tgt {(difference/m a tgt pxs)}]}]
+        (lambda [$tgt] (if (empty? tgt) {[]} {}))]
+       [<cons $px $> [(multiset a)]
+        (match-all-lambda (list a) [<join $hs <cons px $ts>> {@hs @ts}])]
        [$ [something]
-        {[$tgt {tgt}]}]
+        (lambda [$tgt] {tgt})]
        })))
-
 ;;
 ;; multiset operation (Don't use multiset matcher)
 ;;
@@ -376,17 +362,11 @@
   (lambda [$a]
     (matcher
       {[<nil> []
-        {[{} {[]}]
-         [_ {}]}]
-       [<cons ,$px $> [(set a)]
-        {[$tgt (match tgt (list a)
-                 {[<join _ <cons ,px _>> {tgt}]
-                  [_ {}]})]}]
-       [<cons $ $> [a (set a)]
-        {[$tgt (match-all tgt (list a)
-                 [<join _ <cons $x _>> [x tgt]])]}]
+        (lambda [$tgt] (if (empty? tgt) {[]} {}))]
+       [<cons $px $> [(set a)]
+        (lambda [$tgt] (match-all tgt (list a) [<join _ <cons px _>> tgt]))]
        [$ [something]
-        {[$tgt {tgt}]}]
+        (lambda [$tgt] {tgt})]
        })))
 
 ;;
