@@ -1,5 +1,5 @@
 (test (assert "bool's value pattern"
-        (match [#t #f] bool
+        (match [#t #f] [bool bool]
           {[[,#t ,#f] #t]
            [_ #f]})))
 

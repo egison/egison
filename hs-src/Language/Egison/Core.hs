@@ -507,6 +507,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     TuplePat patterns -> do
       targets <- evalRef target >>= fromTuple
       matchers <- fromTuple matcher >>= mapM evalRef
+      if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
+      if not (length patterns == length matchers) then throwError $ ArgumentsNum (length patterns) (length matchers) else return ()
       let trees' = zipWith3 MAtom patterns targets matchers ++ trees
       return $ msingleton $ MState env loops bindings trees'
     AndPat patterns ->

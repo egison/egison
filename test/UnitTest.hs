@@ -35,5 +35,3 @@ runTestCase file = TestLabel file . TestCase $ do
         collectDefsAndTests (Test expr) (bindings, tests) =
           (bindings, expr : tests)
         collectDefsAndTests _ r = r
-  
- 
