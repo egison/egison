@@ -2,17 +2,17 @@
 ;; Base.egi
 ;;
 
-(define $buildin-data-matcher
-  (matcher
-    {[,$val []
-      (lambda [$tgt] (if (eq? val tgt) {[]} {}))]
-     [$ [something]
-      (lambda [$tgt] {tgt})]
-     }))
-
 (define $id (lambda [$x] x))
 
-(define $bool buildin-data-matcher)
+(define $bool
+  (matcher
+    {[,$val []
+      {[$tgt (if (eq? val tgt)
+                 {[]}
+                 {})]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
 
 (define $or
   (lambda [$b1 $b2]
@@ -32,7 +32,15 @@
       {[,#t #f]
        [,#f #t]})))
 
-(define $char buildin-data-matcher)
+(define $char
+  (matcher
+    {[,$c []
+      {[$tgt (if (eq? tgt c)
+                 {[]}
+                 {})]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
 
 (define $eq?/m
   (lambda [$a $x $y]

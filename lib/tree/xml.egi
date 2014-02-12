@@ -1,0 +1,27 @@
+(define $xml
+  (matcher
+    {[,$val []
+      {[$tgt (match [val tgt] [xml xml]
+               {[[<leaf $tag $text> <leaf ,tag ,text>] {[]}]
+                [[<lnode $tag $xs> <lnode ,tag ,xs>] {[]}]
+                [[_ _] {}]})]}]
+     [<leaf $ $> [string string]
+      {[<Leaf $tag $text> {[tag text]}]
+       [_ {}]}]
+     [<lnode $ $> [string (list xml)] ; Node whose children are seen as a list.
+      {[<Node $tag $cs> {[tag cs]}]
+       [_ {}]}]
+     [<mnode $ $> [string (multiset xml)] ; Node whose children are seen as a multiset.
+      {[<Node $tag $cs> {[tag cs]}]
+       [_ {}]}]
+     [<descendant $> xml
+      {[$x {x @(all-descendants x)}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $all-descendants
+  (lambda [$x]
+    (match x xml
+      {[<leaf _ _> {}]
+       [<lnode _ $cs> {@cs @(concat (map all-descendants cs))}]})))
