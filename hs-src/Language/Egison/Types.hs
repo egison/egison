@@ -174,7 +174,6 @@ type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, Eg
 data EgisonPattern =
     WildCard
   | PatVar String
-  | VarPat String
   | ValuePat EgisonExpr
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
@@ -184,9 +183,10 @@ data EgisonPattern =
   | OrPat [EgisonPattern]
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
-  | ApplyPat EgisonExpr [EgisonPattern]
   | LoopPat String LoopRange EgisonPattern EgisonPattern
   | ContPat
+  | ApplyPat EgisonExpr [EgisonPattern]
+  | VarPat String
  deriving (Show)
 
 data LoopRange =

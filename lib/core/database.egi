@@ -33,3 +33,8 @@
       (match (loop-fn wheres) (list string)
         {[<nil> ""]
          [<cons $wc $wcs> {@"where " @(intercalate " and " {wc @wcs})}]}))))
+
+;;
+;; for SQLite
+;;
+(define $pure-sqlite (lambda [$q] (io (sqlite q))))

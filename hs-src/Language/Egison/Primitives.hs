@@ -33,13 +33,9 @@ import Data.Maybe
 
 import Control.Monad
 
-{--  -- for 'egison-sqlite'
+-- {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
---}  -- for 'egison-sqlite'
-
-{--  -- for 'egison-mysql'
-import qualified Database.MySQL.Base as MySQL
---}  -- for 'egison-mysql'
+-- --}  -- for 'egison-sqlite'
 
 import Language.Egison.Types
 import Language.Egison.Parser
@@ -165,14 +161,6 @@ primitives = [ ("+", plus)
                
              , ("assert", assert)
              , ("assert-equal", assertEqual)
-
-{-- -- for 'egison-sqlite'
-             , ("pure-sqlite", pureSQLite)
---} -- for 'egison-sqlite'
-
-{-- -- for 'egison-mysql'
-             , ("pure-mysql", pureMySQL)
---} -- for 'egison-mysql'
              ]
 
 integerUnaryOp :: (Integer -> Integer) -> PrimitiveFunc
@@ -428,54 +416,6 @@ assertEqual = threeArgs $ \label actual expected -> do
     then return $ Bool True
     else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
                                   "\n but found: " ++ show actual
-{-- -- for 'egison-sqlite'
-pureSQLite :: PrimitiveFunc
-pureSQLite  = (liftError .) $ twoArgs $ \val val' -> do
-  dbName <- fromStringValue val
-  qStr <- fromStringValue val'
-  let ret = unsafePerformIO $ query' (T.pack dbName) $ T.pack qStr
-  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map makeEgisonString r)) ret
- where
-  query' :: T.Text -> T.Text -> IO [[String]]
-  query' dbName q = do
-    db <- SQLite.open dbName
-    rowsRef <- newIORef []
-    SQLite.execWithCallback db q (\_ _ mcs -> do
-                                    row <- forM mcs (\mcol -> case mcol of
-                                                              Just col ->  return $ T.unpack col
-                                                              Nothing -> return "null")
-                                    rows <- readIORef rowsRef
-                                    writeIORef rowsRef (row:rows))
-    SQLite.close db
-    ret <- readIORef rowsRef
-    return $ reverse ret
---} -- for 'egison-sqlite'
-
-{--  -- for 'egison-mysql'
-pureMySQL :: PrimitiveFunc
-pureMySQL = (liftError .) $ twoArgs $ \val val' -> do
-  dbName <- fromStringValue val
-  qStr <- fromStringValue val'
-  let ret = unsafePerformIO $ query' dbName $ BC.pack qStr
-  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map makeEgisonString r)) ret
- where
-  query' :: String -> ByteString -> IO [[String]]
-  query' dbName q = do
-    conn <- MySQL.connect MySQL.defaultConnectInfo { MySQL.connectDatabase = dbName }
-    MySQL.query conn q
-    ret <- MySQL.storeResult conn
-    fetchAllRows ret
-  fetchAllRows :: MySQL.Result -> IO [[String]]
-  fetchAllRows ret = do
-    row <- MySQL.fetchRow ret
-    case row of
-      [] -> return []
-      _ -> do row' <- forM row (\mcol -> case mcol of
-                                           Just col ->  return $ BC.unpack col
-                                           Nothing -> return "null")
-              rows' <- fetchAllRows ret
-              return $ row':rows'
---}  -- for 'egison-mysql'
 
 --
 -- IO Primitives
@@ -596,3 +536,27 @@ randRange = twoArgs $ \val val' -> do
   i' <- fromEgison val'
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return (Integer n)
+
+-- {-- -- for 'egison-sqlite'
+sqlite :: PrimitiveFunc
+sqlite  = twoArgs $ \val val' -> do
+  dbName <- fromEgison val
+  qStr <- fromEgison val'
+  ret <- liftIO $ query' (T.pack dbName) $ T.pack qStr
+  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map toEgison r)) ret
+ where
+  query' :: T.Text -> T.Text -> IO [[String]]
+  query' dbName q = do
+    db <- SQLite.open dbName
+    rowsRef <- newIORef []
+    SQLite.execWithCallback db q (\_ _ mcs -> do
+                                    row <- forM mcs (\mcol -> case mcol of
+                                                              Just col ->  return $ T.unpack col
+                                                              Nothing -> return "null")
+                                    rows <- readIORef rowsRef
+                                    writeIORef rowsRef (row:rows))
+    SQLite.close db
+    ret <- readIORef rowsRef
+    return $ reverse ret
+-- --} -- for 'egison-sqlite'
+
