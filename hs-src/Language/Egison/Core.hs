@@ -761,6 +761,7 @@ fromCollection (Value (Collection vals)) =
 fromCollection coll@(Intermediate (ICollection _)) =
   newEvaluatedThunk coll >>= fromCollection'
  where
+  fromCollection' :: ObjectRef -> EgisonM (MList EgisonM ObjectRef)
   fromCollection' ref = do
     isEmpty <- isEmptyCollection ref
     if isEmpty
