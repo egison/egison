@@ -36,25 +36,24 @@ main = do args <- getArgs
           case opts of
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
-            Options {optPrompt = prompt, optShowBanner = bannerFlag} -> do
+            Options {optPrompt = prompt, optShowBanner = bannerFlag, optNoIO = noIOFlag} -> do
+              env <-if noIOFlag then initialEnvNoIO else initialEnv
               case nonOpts of
                 [] -> do
-                  env <- initialEnv
                   when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
                 (file:args) -> do
                   case opts of
                     Options {optLoadOnly = True} -> do
-                      env <- initialEnvNoIO
                       result <- evalEgisonTopExprs env [LoadFile file]
                       either print (const $ return ()) result
                     Options {optLoadOnly = False} -> do
-                      env <- initialEnv
                       result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (Sq.fromList (map (ElementExpr . StringExpr) args))))]
                       either print (const $ return ()) result
 
 data Options = Options {
     optShowVersion :: Bool,
     optShowHelp :: Bool,
+    optNoIO :: Bool,
     optShowBanner :: Bool,
     optLoadOnly :: Bool,
     optPrompt :: String
@@ -64,6 +63,7 @@ defaultOptions :: Options
 defaultOptions = Options {
     optShowVersion = False,
     optShowHelp = False,
+    optNoIO = False,
     optShowBanner = True,
     optLoadOnly = False,
     optPrompt = "> "
@@ -76,6 +76,9 @@ options = [
     "show version number",
   Option ['h', '?'] ["help"]
     (NoArg (\opts -> opts {optShowHelp = True}))
+    "show usage information",
+  Option [] ["no-io"]
+    (NoArg (\opts -> opts {optNoIO = True}))
     "show usage information",
   Option [] ["no-banner"]
     (NoArg (\opts -> opts {optShowBanner = False}))
@@ -96,6 +99,7 @@ printHelp = do
   putStrLn "Options:"
   putStrLn "  --help                Display this information"
   putStrLn "  --version             Display egison version information"
+  putStrLn "  --no-io               No IO primitives"
   putStrLn "  --no-banner           Don't show banner"
   putStrLn "  --load                Don't execute main function"
   putStrLn "  --prompt string       Set prompt of the interpreter"

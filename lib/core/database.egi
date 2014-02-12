@@ -37,4 +37,4 @@
 ;;
 ;; for SQLite
 ;;
-(define $pure-sqlite (lambda [$q] (io (sqlite q))))
+(define $pure-sqlite (lambda [$db $q] (io (sqlite db q))))

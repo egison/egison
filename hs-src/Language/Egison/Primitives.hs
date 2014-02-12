@@ -445,6 +445,7 @@ ioPrimitives = [
                , ("read-file", readFile')
                  
                , ("rand", randRange)
+               , ("sqlite", sqlite)
                ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
@@ -543,7 +544,7 @@ sqlite  = twoArgs $ \val val' -> do
   dbName <- fromEgison val
   qStr <- fromEgison val'
   ret <- liftIO $ query' (T.pack dbName) $ T.pack qStr
-  return $ Collection $ Sq.fromList $ map (\r -> Tuple (map toEgison r)) ret
+  return $ makeIO $ return $ Collection $ Sq.fromList $ map (\r -> Tuple (map toEgison r)) ret
  where
   query' :: T.Text -> T.Text -> IO [[String]]
   query' dbName q = do
