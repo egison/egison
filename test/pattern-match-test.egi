@@ -86,6 +86,11 @@
          {[(& $a (let {[$n (length a)]} _)) [a n]]})
         [{1 2 3} 3]))
 
+(test (assert-equal "tupple patterns"
+        (match-all [1 2] [integer integer]
+          [[$m $n] [m n]])
+        {[1 2]}))
+
 (define $twin
   (pattern-function [$pat1 $pat2]
     <cons (& pat1 $x) <cons ,x pat2>>))
@@ -134,25 +139,6 @@
   (lambda [$a]
     (algebraic-data-matcher
       {<leaf> <node (tree a) a (tree a)>}))) 
-
-#| above is equivalent to:
-(define $tree
-  (lambda [$a]
-    (matcher
-      {[,$val []
-        {[$tgt (match [tgt val] [(tree a) (tree a)]
-                 {[[<leaf> <leaf>] {[]}]
-                  [[<node $t1 $x $t2> <node ,t1 ,x ,t2>] {[]}]
-                  [_ {}]})]}]
-       [<leaf> []
-        {[<Leaf> {[]}]
-         [_ {}]}]
-       [<node $ $ $> [(tree a) a (tree a)]
-        {[<Node $t1 $x $t2> {[t1 x t2]}]
-         [_ {}]}]
-       [$ [something]
-        {[$tgt {tgt}]}]})))
-|#
 
 (define $insert
   (lambda [$n $t]
