@@ -24,7 +24,6 @@ module Language.Egison.Types
     , PrimitiveDataPattern (..)
     -- * Egison values
     , EgisonValue (..)
-    , Matcher (..)
     , PrimitiveFunc (..)
     , Egison (..)
     -- * Internal data
@@ -238,8 +237,6 @@ data EgisonValue =
   | Undefined
   | EOF
 
-type Matcher = EgisonValue
-
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 instance Show EgisonValue where
@@ -393,7 +390,7 @@ data WHNFData =
 data Intermediate =
     IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
-  | ICollection (Seq Inner)
+  | ICollection (IORef (Seq Inner))
   | IArray (IntMap ObjectRef)
   | IIntHash (HashMap Integer ObjectRef)
   | IStrHash (HashMap ByteString ObjectRef)
