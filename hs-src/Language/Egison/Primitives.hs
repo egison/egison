@@ -402,13 +402,18 @@ isEmpty' whnf = do
 
 uncons' :: PrimitiveFunc
 uncons' whnf = do
-  (carObjRef, cdrObjRef) <- fromJust <$> runMaybeT (unconsCollection whnf)
-  return $ Intermediate $ ITuple [carObjRef, cdrObjRef]
+  mRet <- runMaybeT (unconsCollection whnf)
+  case mRet of
+    Just (carObjRef, cdrObjRef) -> return $ Intermediate $ ITuple [carObjRef, cdrObjRef]
+    Nothing -> throwError $ Default $ "cannot uncons collection"
+
 
 unsnoc' :: PrimitiveFunc
 unsnoc' whnf = do
-  (racObjRef, rdcObjRef) <- fromJust <$> runMaybeT (unsnocCollection whnf)
-  return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
+  mRet <- runMaybeT (unsnocCollection whnf)
+  case mRet of
+    Just (racObjRef, rdcObjRef) -> return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
+    Nothing -> throwError $ Default $ "cannot unsnoc collection"
 
 assert ::  PrimitiveFunc
 assert = twoArgs $ \label test -> do
