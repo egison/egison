@@ -145,7 +145,7 @@
     (match t (tree integer)
       {[<leaf> <Node <Leaf> n <Leaf>>]
        [<node $t1 $m $t2>
-        (match (compare-integer n m) ordering
+        (match (compare n m) ordering
           {[<less> <Node (insert n t1) m t2>]
            [<equal> <Node t1 n t2>]
            [<greater> <Node t1 m (insert n t2)>]})]})))
@@ -155,7 +155,7 @@
     (match t (tree integer)
       {[<leaf> #f]
        [<node $t1 $m $t2>
-        (match (compare-integer n m) ordering
+        (match (compare n m) ordering
           {[<less> (member? n t1)]
            [<equal> #t]
            [<greater> (member? n t2)]})]})))

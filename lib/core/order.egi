@@ -8,24 +8,32 @@
   (algebraic-data-matcher 
     {<less> <equal> <greater>}))
 
+(define $compare
+  (lambda [$m $n]
+    (if (lt? m n)
+        <Less>
+        (if (eq? m n)
+            <Equal>
+            <Greater>))))
+
 (define $split-by-ordering
-  (lambda [$compare]
+  (lambda [$compare-fn]
     (lambda [$xs $p]
       (match xs (list something)
         {[<nil> [{} {} {}]]
          [<cons $x $rs>
-          (let {[[$ys1 $ys2 $ys3] ((split-by-ordering compare) rs p)]}
-            (match (compare x p) ordering
+          (let {[[$ys1 $ys2 $ys3] ((split-by-ordering compare-fn) rs p)]}
+            (match (compare-fn x p) ordering
               {[<less> [{x @ys1} ys2 ys3]]
                [<equal> [ys1 {x @ys2} ys3]]
                [<greater> [ys1 ys2 {x @ys3}]]}))]}))))
 
 (define $qsort
-  (lambda [$compare]
+  (lambda [$compare-fn]
     (match-lambda (list something)
       {[<nil> {}]
        [<cons $x <nil>> {x}]
        [$xs (let {[$n (length xs)]}
               (let {[$p (nth (quotient n 2) xs)]}
-                (let {[[$ys1 $ys2 $ys3] ((split-by-ordering compare) xs p)]}
-                  {@((qsort compare) ys1) @ys2 @((qsort compare) ys3)})))]})))
+                (let {[[$ys1 $ys2 $ys3] ((split-by-ordering compare-fn) xs p)]}
+                  {@((qsort compare-fn) ys1) @ys2 @((qsort compare-fn) ys3)})))]})))
