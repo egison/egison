@@ -124,11 +124,6 @@
 ;;
 ;; Simple predicate
 ;;
-(define $empty?
-  (match-lambda (list something)
-   {[<nil> #t]
-    [<cons _ _> #f]}))
-
 (define $member?
   (lambda [$x $ys]
     (match ys (list something)
