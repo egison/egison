@@ -87,9 +87,9 @@
         [{1 2 3} 3]))
 
 (test (assert-equal "tupple patterns"
-        (match-all [1 2] [integer integer]
-          [[$m $n] [m n]])
-        {[1 2]}))
+        (match-all [1 [2 3]] [integer [integer integer]]
+          [[$m [$n $w]] [m n w]])
+        {[1 2 3]}))
 
 (define $twin
   (pattern-function [$pat1 $pat2]

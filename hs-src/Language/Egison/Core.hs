@@ -539,7 +539,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env loops bindings trees'
             
-        _ -> -- Value Something -> -- for tupple patterns
+        Value Something ->
           case pattern of
             ValuePat valExpr -> do
               val <- evalExprDeep env' valExpr
