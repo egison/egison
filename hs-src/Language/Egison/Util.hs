@@ -32,11 +32,11 @@ getEgisonExpr prompt = getEgisonExpr' ""
         let input = prev ++ line
         case parseTopExpr input of
           Left err | show err =~ "unexpected end of input" -> do
-            getEgisonExpr' input
+            getEgisonExpr' $ input ++ "\n"
           Left err | show err =~ "expecting (top-level|\"define\")" ->
             case parseExpr input of
               Left err | show err =~ "unexpected end of input" -> do
-                getEgisonExpr' input
+                getEgisonExpr' $ input ++ "\n"
               Left err -> do
                 liftIO $ putStrLn $ show err
                 getEgisonExpr prompt
