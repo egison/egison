@@ -154,8 +154,9 @@ expr' = (try constantExpr
                          <|> ioExpr
                          <|> matchAllExpr
                          <|> matchExpr
-                         <|> matcherExpr
+                         <|> matchAllLambdaExpr
                          <|> matchLambdaExpr
+                         <|> matcherExpr
                          <|> applyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
@@ -198,6 +199,9 @@ matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> matchClause
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
+
+matchAllLambdaExpr :: Parser EgisonExpr
+matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> matchClause
 
 matchLambdaExpr :: Parser EgisonExpr
 matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$> expr <*> matchClauses
@@ -481,8 +485,9 @@ reservedKeywords =
   , "let"
   , "loop"
   , "match-all"
-  , "match-lambda"
   , "match"
+  , "match-all-lambda"
+  , "match-lambda"
   , "matcher"
   , "do"
   , "io"

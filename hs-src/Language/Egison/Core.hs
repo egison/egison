@@ -286,7 +286,7 @@ evalExpr env (ApplyExpr func arg) = do
   arg <- evalExpr env arg
   applyFunc func arg
 
-evalExpr env (MatcherExpr info) = return $ Value $ Matcher (env, info)
+evalExpr env (MatcherExpr info) = return $ Value $ Matcher $ UserMatcher env info
 
 evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (size:[])) expr) =
   generateArray env name size expr
@@ -303,7 +303,7 @@ evalExpr env (ArraySizeExpr expr) =
     arraySize (Value (Array vals))         = return . Value . Integer . toInteger $ IntMap.size vals
     arraySize val                          = throwError $ TypeMismatch "array" val
 
-evalExpr _ SomethingExpr = return $ Value Something
+evalExpr _ SomethingExpr = return $ Value $ Matcher Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
@@ -482,7 +482,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       startNum <- evalExpr env' start >>= fromWHNF
       startNumRef <- newEvaluatedThunk $ Value $ Integer startNum
       lastNumRef <- newEvaluatedThunk $ Value $ Integer (startNum - 1)
-      return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value Something) : MAtom pat' target matcher : trees),
+      return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value (Matcher Something)) : MAtom pat' target matcher : trees),
                          MState env (LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops) bindings (MAtom pat target matcher : trees)]
     ContPat ->
       case loops of
@@ -501,7 +501,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           let nextNum = startNum + 1
           nextNumRef <- newEvaluatedThunk $ Value $ Integer nextNum
           let loops' = LoopContextVariable (name, nextNumRef) lastNumPat pat pat' : loops 
-          return $ fromList [MState env loops bindings (MAtom lastNumPat startNumRef (Value Something) : MAtom pat' target matcher : trees),
+          return $ fromList [MState env loops bindings (MAtom lastNumPat startNumRef (Value (Matcher Something)) : MAtom pat' target matcher : trees),
                              MState env loops' bindings (MAtom pat target matcher : trees)]
           
     TuplePat patterns -> do
@@ -532,7 +532,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
          >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))
     _ ->
       case matcher of
-        Value (Matcher matcher) -> do
+        Value (Matcher matcher@(UserMatcher _ _)) -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTuple
@@ -612,7 +612,7 @@ processMState' (MState env loops bindings ((MNode penv state@(MState env' loops'
 
 inductiveMatch :: Env -> EgisonPattern -> ObjectRef -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [WHNFData])
-inductiveMatch env pattern target (matcherEnv, clauses) = do
+inductiveMatch env pattern target (UserMatcher matcherEnv clauses) = do
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
   tryPPMatchClause (pat, matchers, clauses) cont = do

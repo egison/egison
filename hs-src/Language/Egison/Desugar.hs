@@ -116,6 +116,12 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       matchingFailure :: EgisonExpr
       matchingFailure = CollectionExpr Sq.empty
 
+desugar (MatchAllLambdaExpr matcher clause) = do
+  name <- fresh
+  matcher' <- desugar matcher
+  clause' <- desugarMatchClause clause
+  return $ LambdaExpr [name] (MatchAllExpr (VarExpr name) matcher' clause')
+
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
   matcher' <- desugar matcher

@@ -145,6 +145,7 @@ data EgisonExpr =
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr MatchClause
   | MatchLambdaExpr EgisonExpr [MatchClause]
+  | MatchAllLambdaExpr EgisonExpr MatchClause
 
   | MatcherExpr MatcherInfo
   
@@ -158,7 +159,6 @@ data EgisonExpr =
   | ArraySizeExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 
-  | ValueExpr EgisonValue
   | SomethingExpr
   | UndefinedExpr
  deriving (Show)
@@ -235,11 +235,12 @@ data EgisonValue =
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
   | Port Handle
-  | Something
   | Undefined
   | EOF
 
-type Matcher = (Env, MatcherInfo)
+data Matcher =
+    Something
+  | UserMatcher Env MatcherInfo
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 instance Show EgisonValue where
@@ -270,7 +271,6 @@ instance Show EgisonValue where
   show (PrimitiveFunc _) = "#<primitive-function>"
   show (IOFunc _) = "#<io-function>"
   show (Port _) = "#<port>"
-  show Something = "something"
   show Undefined = "undefined"
   show World = "#<world>"
   show EOF = "#<eof>"
