@@ -25,7 +25,7 @@ module Language.Egison.Core
     -- * Pattern matching
     , patternMatch
     -- * Utiltiy functions
-    , fromStringWHNF
+    , evalStringWHNF
     , fromStringValue
     ) where
 
@@ -159,11 +159,11 @@ evalExpr env (HashExpr assocs) = do
     case val of
       Integer i -> return (IntKey i)
       Collection _ -> do
-        str <- fromStringWHNF $ Value val
+        str <- evalStringWHNF $ Value val
         return $ StrKey $ B.pack str
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
   makeHashKey whnf = do
-    str <- fromStringWHNF whnf
+    str <- evalStringWHNF whnf
     return $ StrKey $ B.pack str
 
 evalExpr env (IndexedExpr expr indices) = do
@@ -194,12 +194,12 @@ evalExpr env (IndexedExpr expr indices) = do
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
   refArray (Value (StrHash hash)) (index:indices) = do
-    key <- fromStringWHNF $ Value index
+    key <- evalStringWHNF $ Value index
     case HL.lookup (B.pack key) hash of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IStrHash hash)) (index:indices) = do
-    key <- fromStringWHNF $ Value index
+    key <- evalStringWHNF $ Value index
     case HL.lookup (B.pack key) hash of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
@@ -260,7 +260,7 @@ evalExpr env (IoExpr expr) = do
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newObjectRef env target
-  matcher <- evalExpr env matcher
+  matcher <- evalExpr env matcher >>= evalMatcherWHNF
   result <- patternMatch BFSMode env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
@@ -274,7 +274,7 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
 
 evalExpr env (MatchExpr target matcher clauses) = do
   target <- newObjectRef env target
-  matcher <- evalExpr env matcher
+  matcher <- evalExpr env matcher >>= evalMatcherWHNF
   let tryMatchClause (pattern, expr) cont = do
         result <- patternMatch BFSMode env pattern target matcher
         case result of
@@ -384,6 +384,9 @@ generateArray env name size expr = do
       ref <- newEvalutedObjectRef (Value . Integer $ i)
       return $ extendEnv env [(name, ref)]
 
+newThunk :: Env -> EgisonExpr -> Object
+newThunk env expr = Thunk $ evalExpr env expr
+
 newObjectRef :: Env -> EgisonExpr -> EgisonM ObjectRef
 newObjectRef env expr = liftIO . newIORef . Thunk $ evalExpr env expr
 
@@ -408,7 +411,7 @@ recursiveBind env bindings = do
 -- Pattern Match
 --
 
-patternMatch :: PMMode -> Env -> EgisonPattern -> ObjectRef -> WHNFData ->
+patternMatch :: PMMode -> Env -> EgisonPattern -> ObjectRef -> Matcher ->
                 EgisonM (MList EgisonM [Binding]) 
 patternMatch mode env pattern target matcher =
   processMState mode (MState env [] [] [MAtom pattern target matcher]) >>= (processMStates mode) . (:[])
@@ -483,7 +486,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       startNum <- evalExpr env' start >>= fromWHNF
       startNumRef <- newEvalutedObjectRef $ Value $ Integer startNum
       lastNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
-      return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value Something) : MAtom pat' target matcher : trees),
+      return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef Something : MAtom pat' target matcher : trees),
                          MState env (LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops) bindings (MAtom pat target matcher : trees)]
     ContPat ->
       case loops of
@@ -502,12 +505,12 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           let nextNum = startNum + 1
           nextNumRef <- newEvalutedObjectRef $ Value $ Integer nextNum
           let loops' = LoopContextVariable (name, nextNumRef) lastNumPat pat pat' : loops 
-          return $ fromList [MState env loops bindings (MAtom lastNumPat startNumRef (Value Something) : MAtom pat' target matcher : trees),
+          return $ fromList [MState env loops bindings (MAtom lastNumPat startNumRef Something : MAtom pat' target matcher : trees),
                              MState env loops' bindings (MAtom pat target matcher : trees)]
           
     TuplePat patterns -> do
       targets <- evalRef target >>= fromTuple
-      matchers <- fromTuple matcher >>= mapM evalRef
+      let matchers = fromTupleValue matcher
       if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
       if not (length patterns == length matchers) then throwError $ ArgumentsNum (length patterns) (length matchers) else return ()
       let trees' = zipWith3 MAtom patterns targets matchers ++ trees
@@ -535,14 +538,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
          >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))
     _ ->
       case matcher of
-        Value matcher@(UserMatcher _ _) -> do
+        matcher@(UserMatcher _ _) -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTuple
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env loops bindings trees'
             
-        Value Something ->
+        Something ->
           case pattern of
             ValuePat valExpr -> do
               val <- evalExprDeep env' valExpr
@@ -613,8 +616,8 @@ processMState' (MState env loops bindings ((MNode penv state@(MState env' loops'
         _ -> processMState' state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
     _ -> processMState' state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
 
-inductiveMatch :: Env -> EgisonPattern -> ObjectRef -> EgisonValue ->
-                  EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [WHNFData])
+inductiveMatch :: Env -> EgisonPattern -> ObjectRef -> Matcher ->
+                  EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
 inductiveMatch env pattern target (UserMatcher matcherEnv clauses) = do
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
@@ -623,7 +626,7 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) = do
     case result of
       Just (patterns, bindings) -> do
         targetss <- foldr tryPDMatchClause failPDPatternMatch clauses
-        matchers <- evalExpr matcherEnv matchers >>= fromTuple >>= mapM evalRef
+        matchers <- evalExpr matcherEnv matchers >>= evalMatcherWHNF >>= (return . fromTupleValue)
         return (patterns, targetss, matchers)
        where
         tryPDMatchClause (pat, expr) cont = do
@@ -754,6 +757,10 @@ fromTuple (Intermediate (ITuple refs)) = return refs
 fromTuple (Value (Tuple vals)) = mapM (newEvalutedObjectRef . Value) vals
 fromTuple val = return <$> newEvalutedObjectRef val
 
+fromTupleValue :: EgisonValue -> [EgisonValue]
+fromTupleValue (Tuple vals) = vals
+fromTupleValue val = [val]
+
 fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
 fromCollection (Value (Collection vals)) =
   if Sq.null vals then return MNil
@@ -769,21 +776,31 @@ fromCollection coll@(Intermediate (ICollection _)) =
       else do
         (head, tail) <- fromJust <$> runMaybeT (unconsCollection ref)
         return $ MCons head (fromCollection' tail)
-fromCollection val = throwError $ TypeMismatch "collection" val
+fromCollection whnf = throwError $ TypeMismatch "collection" whnf
 
 --
 -- String
 --
-fromStringWHNF :: WHNFData -> EgisonM String
-fromStringWHNF (Value (Collection seq)) = do
+evalStringWHNF :: WHNFData -> EgisonM String
+evalStringWHNF (Value (Collection seq)) = do
   let ls = toList seq
   mapM (\val -> case val of
                   Char c -> return c
                   _ -> throwError $ TypeMismatch "char" (Value val))
        ls
-fromStringWHNF (Value (Tuple [val])) = fromStringWHNF (Value val)
-fromStringWHNF whnf@(Intermediate (ICollection _)) = evalWHNF whnf >>= fromStringWHNF . Value
-fromStringWHNF whnf = throwError $ TypeMismatch "string" whnf
+evalStringWHNF (Value (Tuple [val])) = evalStringWHNF (Value val)
+evalStringWHNF whnf@(Intermediate (ICollection _)) = evalWHNF whnf >>= evalStringWHNF . Value
+evalStringWHNF whnf = throwError $ TypeMismatch "string" whnf
+
+evalMatcherWHNF :: WHNFData -> EgisonM Matcher
+evalMatcherWHNF (Value matcher@Something) = return matcher
+evalMatcherWHNF (Value matcher@(UserMatcher _ _)) = return matcher
+evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
+evalMatcherWHNF (Intermediate (ITuple refs)) = do
+  whnfs <- mapM evalRef refs
+  ms <- mapM evalMatcherWHNF whnfs
+  return $ Tuple ms
+evalMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
 
 fromStringValue :: EgisonValue -> EgisonM String
 fromStringValue (Collection seq) = do

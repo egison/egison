@@ -24,6 +24,7 @@ module Language.Egison.Types
     , PrimitiveDataPattern (..)
     -- * Egison values
     , EgisonValue (..)
+    , Matcher (..)
     , PrimitiveFunc (..)
     , Egison (..)
     -- * Internal data
@@ -236,6 +237,8 @@ data EgisonValue =
   | Something
   | Undefined
   | EOF
+
+type Matcher = EgisonValue
 
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
@@ -483,7 +486,7 @@ data PMMode = BFSMode | DFSMode
 data MatchingState = MState Env [LoopContext] [Binding] [MatchingTree]
 
 data MatchingTree =
-    MAtom EgisonPattern ObjectRef WHNFData
+    MAtom EgisonPattern ObjectRef Matcher
   | MNode [PatternBinding] MatchingState
 
 type PatternBinding = (Var, EgisonPattern)
