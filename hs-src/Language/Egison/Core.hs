@@ -24,6 +24,10 @@ module Language.Egison.Core
     , recursiveBind
     -- * Pattern matching
     , patternMatch
+    -- * Collection
+    , isEmptyCollection
+    , unconsCollection
+    , unsnocCollection
     -- * Utiltiy functions
     , evalStringWHNF
     , fromStringValue

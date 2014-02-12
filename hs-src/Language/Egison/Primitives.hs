@@ -13,6 +13,7 @@ module Language.Egison.Primitives (primitiveEnv, primitiveEnvNoIO) where
 import Control.Arrow
 import Control.Applicative
 import Control.Monad.Error
+import Control.Monad.Trans.Maybe
 
 import Data.IORef
 import qualified Data.Array as A
@@ -28,6 +29,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
+import Data.Maybe
 
 import Control.Monad
 
@@ -157,13 +159,9 @@ primitives = [ ("+", plus)
              , ("read", read')
              , ("show", show')
 
-{--
              , ("empty?", isEmpty')
-             , ("car", car')
-             , ("cdr", cdr')
-             , ("rac", rac')
-             , ("rdc", rdc')
---}
+             , ("uncons", uncons')
+             , ("unsnoc", unsnoc')
                
              , ("assert", assert)
              , ("assert-equal", assertEqual)
@@ -395,22 +393,22 @@ read'= oneArg $ \val -> fromStringValue val >>= readExpr >>= evalExprDeep nullEn
 show' :: PrimitiveFunc
 show'= oneArg $ \val -> return $ toEgison $ show val
 
-{--
 isEmpty' :: PrimitiveFunc
-isEmpty' = undefined
+isEmpty' whnf = do
+  b <- isEmptyCollection whnf
+  if b
+    then return $ Value $ Bool True
+    else return $ Value $ Bool False
 
-car' :: PrimitiveFunc
-car' = undefined
+uncons' :: PrimitiveFunc
+uncons' whnf = do
+  (carObjRef, cdrObjRef) <- fromJust <$> runMaybeT (unconsCollection whnf)
+  return $ Intermediate $ ITuple [carObjRef, cdrObjRef]
 
-cdr' :: PrimitiveFunc
-cdr' = undefined
-
-rac' :: PrimitiveFunc
-rac' = undefined
-
-rdc' :: PrimitiveFunc
-rdc' = undefined
---}
+unsnoc' :: PrimitiveFunc
+unsnoc' whnf = do
+  (racObjRef, rdcObjRef) <- fromJust <$> runMaybeT (unsnocCollection whnf)
+  return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
 
 assert ::  PrimitiveFunc
 assert = twoArgs $ \label test -> do
