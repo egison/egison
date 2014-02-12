@@ -388,6 +388,7 @@ data Object =
     Thunk (EgisonM WHNFData)
   | WHNF WHNFData
 
+-- |For memoization
 type ObjectRef = IORef Object
 
 data WHNFData =
@@ -629,7 +630,7 @@ type MatchM = MaybeT EgisonM
 matchFail :: MatchM a
 matchFail = MaybeT $ return Nothing
 
-data MList m a = MNil | MCons a (m (MList m a))  
+data MList m a = MNil | MCons a (m (MList m a))
 
 fromList :: Monad m => [a] -> MList m a
 fromList = foldr f MNil
