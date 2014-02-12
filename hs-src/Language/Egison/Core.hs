@@ -119,11 +119,11 @@ evalExpr env (VarExpr name) = refVar env name >>= evalRef
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
-  Intermediate . IInductiveData name <$> mapM (newThunk env) exprs 
+  Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs 
 
 evalExpr _ (TupleExpr []) = return . Value $ Tuple []
 evalExpr env (TupleExpr [expr]) = evalExpr env expr
-evalExpr env (TupleExpr exprs) = Intermediate . ITuple <$> mapM (newThunk env) exprs
+evalExpr env (TupleExpr exprs) = Intermediate . ITuple <$> mapM (newObjectRef env) exprs
 
 evalExpr env (CollectionExpr inners) =
   if Sq.null inners then
@@ -132,18 +132,18 @@ evalExpr env (CollectionExpr inners) =
     Intermediate . ICollection <$> (mapM fromInnerExpr inners >>= liftIO . newIORef)
     where
       fromInnerExpr :: InnerExpr -> EgisonM Inner
-      fromInnerExpr (ElementExpr expr) = IElement <$> newThunk env expr
-      fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newThunk env expr
+      fromInnerExpr (ElementExpr expr) = IElement <$> newObjectRef env expr
+      fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
 
 evalExpr env (ArrayExpr exprs) = do
-  ref' <- mapM (newThunk env) exprs
+  ref' <- mapM (newObjectRef env) exprs
   return . Intermediate . IArray $ IntMap.fromList $ zip (enumFromTo 1 (length exprs)) ref'
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
   keyWhnfs <- mapM (evalExpr env) keyExprs
   keys <- mapM makeHashKey keyWhnfs
-  refs <- mapM (newThunk env) exprs
+  refs <- mapM (newObjectRef env) exprs
   case head keys of
     IntKey _ -> do
       let keys' = map (\key -> case key of
@@ -217,7 +217,7 @@ evalExpr env (LetExpr bindings expr) =
  where
   extractBindings :: BindingExpr -> EgisonM [Binding]
   extractBindings ([name], expr) =
-    makeBindings [name] . (:[]) <$> newThunk env expr
+    makeBindings [name] . (:[]) <$> newObjectRef env expr
   extractBindings (names, expr) =
     makeBindings names <$> (evalExpr env expr >>= fromTuple)
 
@@ -259,8 +259,7 @@ evalExpr env (IoExpr expr) = do
     _ -> throwError $ TypeMismatch "io" io
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
-  target <- newThunk env target
-  
+  target <- newObjectRef env target
   matcher <- evalExpr env matcher
   result <- patternMatch BFSMode env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
@@ -268,13 +267,13 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
   fromMList MNil = return . Value $ Collection Sq.empty
   fromMList (MCons val m) = do
-    head <- IElement <$> newEvaluatedThunk val
+    head <- IElement <$> newEvalutedObjectRef val
     tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
     seqRef <- liftIO . newIORef $ Sq.fromList [head, tail]
     return . Intermediate $ ICollection $ seqRef
 
 evalExpr env (MatchExpr target matcher clauses) = do
-  target <- newThunk env target
+  target <- newObjectRef env target
   matcher <- evalExpr env matcher
   let tryMatchClause (pattern, expr) cont = do
         result <- patternMatch BFSMode env pattern target matcher
@@ -319,7 +318,7 @@ evalRef ref = do
     WHNF val -> return val
     Thunk thunk -> do
       val <- thunk
-      writeThunk ref val
+      writeObjectRef ref val
       return val
 
 evalRefDeep :: ObjectRef -> EgisonM EgisonValue
@@ -329,11 +328,11 @@ evalRefDeep ref = do
     WHNF (Value val) -> return val
     WHNF val -> do
       val <- evalWHNF val
-      writeThunk ref $ Value val
+      writeObjectRef ref $ Value val
       return val
     Thunk thunk -> do
       val <- thunk >>= evalWHNF
-      writeThunk ref $ Value val
+      writeObjectRef ref $ Value val
       return val
 
 evalWHNF :: WHNFData -> EgisonM EgisonValue
@@ -355,7 +354,7 @@ evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalR
 
 applyFunc :: WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc (Value (Func env [name] body)) arg = do
-  ref <- newEvaluatedThunk arg
+  ref <- newEvalutedObjectRef arg
   evalExpr (extendEnv env $ makeBindings [name] [ref]) body
 applyFunc (Value (Func env names body)) arg = do
   refs <- fromTuple arg
@@ -377,22 +376,22 @@ generateArray env name size expr = do
   where
     genElem :: Int -> EgisonM (Int, ObjectRef)
     genElem i = do env <- bindEnv env name $ toInteger i
-                   val <- evalExpr env expr >>= newEvaluatedThunk                   
+                   val <- evalExpr env expr >>= newEvalutedObjectRef                   
                    return (i, val)
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
-      ref <- newEvaluatedThunk (Value . Integer $ i)
+      ref <- newEvalutedObjectRef (Value . Integer $ i)
       return $ extendEnv env [(name, ref)]
 
-newThunk :: Env -> EgisonExpr -> EgisonM ObjectRef
-newThunk env expr = liftIO . newIORef . Thunk $ evalExpr env expr
+newObjectRef :: Env -> EgisonExpr -> EgisonM ObjectRef
+newObjectRef env expr = liftIO . newIORef . Thunk $ evalExpr env expr
 
-writeThunk :: ObjectRef -> WHNFData -> EgisonM ()
-writeThunk ref val = liftIO . writeIORef ref $ WHNF val
+writeObjectRef :: ObjectRef -> WHNFData -> EgisonM ()
+writeObjectRef ref val = liftIO . writeIORef ref $ WHNF val
 
-newEvaluatedThunk :: WHNFData -> EgisonM ObjectRef
-newEvaluatedThunk = liftIO . newIORef . WHNF
+newEvalutedObjectRef :: WHNFData -> EgisonM ObjectRef
+newEvalutedObjectRef = liftIO . newIORef . WHNF
 
 makeBindings :: [String] -> [ObjectRef] -> [Binding]
 makeBindings = zip
@@ -400,7 +399,7 @@ makeBindings = zip
 recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
-  refs <- replicateM (length bindings) $ newThunk nullEnv UndefinedExpr
+  refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
   zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr) refs exprs
   return env'
@@ -477,13 +476,13 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         then do
           return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
         else do
-          startNumRef <- newEvaluatedThunk $ Value $ Integer startNum
+          startNumRef <- newEvalutedObjectRef $ Value $ Integer startNum
           let loops' = LoopContextConstant (name, startNumRef) endNum pat pat' : loops
           return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
     LoopPat name (LoopRangeVariable start lastNumPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
-      startNumRef <- newEvaluatedThunk $ Value $ Integer startNum
-      lastNumRef <- newEvaluatedThunk $ Value $ Integer (startNum - 1)
+      startNumRef <- newEvalutedObjectRef $ Value $ Integer startNum
+      lastNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
       return $ fromList [MState env loops bindings (MAtom lastNumPat lastNumRef (Value Something) : MAtom pat' target matcher : trees),
                          MState env (LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops) bindings (MAtom pat target matcher : trees)]
     ContPat ->
@@ -495,13 +494,13 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           if nextNum > endNum
             then return $ msingleton $ MState env loops bindings (MAtom pat' target matcher : trees)
             else do
-              nextNumRef <- newEvaluatedThunk $ Value $ Integer nextNum
+              nextNumRef <- newEvalutedObjectRef $ Value $ Integer nextNum
               let loops' = LoopContextConstant (name, nextNumRef) endNum pat pat' : loops 
               return $ msingleton $ MState env loops' bindings (MAtom pat target matcher : trees)
         LoopContextVariable (name, startNumRef) lastNumPat pat pat' : loops -> do
           startNum <- evalRef startNumRef >>= fromWHNF
           let nextNum = startNum + 1
-          nextNumRef <- newEvaluatedThunk $ Value $ Integer nextNum
+          nextNumRef <- newEvalutedObjectRef $ Value $ Integer nextNum
           let loops' = LoopContextVariable (name, nextNumRef) lastNumPat pat pat' : loops 
           return $ fromList [MState env loops bindings (MAtom lastNumPat startNumRef (Value Something) : MAtom pat' target matcher : trees),
                              MState env loops' bindings (MAtom pat target matcher : trees)]
@@ -528,7 +527,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                 else return MNil
     LetPat bindings' pattern ->
       let extractBindings ([name], expr) =
-            makeBindings [name] . (:[]) <$> newThunk env' expr
+            makeBindings [name] . (:[]) <$> newObjectRef env' expr
           extractBindings (names, expr) =
             makeBindings names <$> (evalExpr env' expr >>= fromTuple)
       in
@@ -557,10 +556,10 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               indices <- mapM (evalExpr env' >=> liftM fromInteger . fromWHNF) indices
               case lookup name bindings of
                 Just ref -> do
-                  obj <- evalRef ref >>= flip updateArray indices >>= newEvaluatedThunk
+                  obj <- evalRef ref >>= flip updateArray indices >>= newEvalutedObjectRef
                   return $ msingleton $ MState env loops (subst name obj bindings) trees
                 Nothing  -> do
-                  obj <- updateArray (Value $ Array IntMap.empty) indices >>= newEvaluatedThunk
+                  obj <- updateArray (Value $ Array IntMap.empty) indices >>= newEvalutedObjectRef
                   return $ msingleton $ MState env loops ((name, obj):bindings) trees
                where
                 updateArray :: WHNFData -> [Int] -> EgisonM WHNFData
@@ -568,17 +567,17 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                   return . Intermediate . IArray $ IntMap.insert index target ary
                 updateArray (Intermediate (IArray ary)) (index:indices) = do
                   val <- maybe (return $ Value $ Array IntMap.empty) evalRef $ IntMap.lookup index ary
-                  ref <- updateArray val indices >>= newEvaluatedThunk
+                  ref <- updateArray val indices >>= newEvalutedObjectRef
                   return . Intermediate . IArray $ IntMap.insert index ref ary
                 updateArray (Value (Array ary)) [index] = do
                   keys <- return $ IntMap.keys ary
-                  vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
+                  vals <- mapM (newEvalutedObjectRef . Value) $ IntMap.elems ary
                   return . Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys vals)
                 updateArray (Value (Array ary)) (index:indices) = do
                   let val = Value $ fromMaybe (Array IntMap.empty) $ IntMap.lookup index ary
-                  ref <- updateArray val indices >>= newEvaluatedThunk
+                  ref <- updateArray val indices >>= newEvalutedObjectRef
                   keys <- return $ IntMap.keys ary
-                  vals <- mapM (newEvaluatedThunk . Value) $ IntMap.elems ary
+                  vals <- mapM (newEvalutedObjectRef . Value) $ IntMap.elems ary
                   return . Intermediate . IArray $ IntMap.insert index ref (IntMap.fromList $ zip keys vals)
                 updateArray _ _ = do
                   throwError $ strMsg "expected array value"
@@ -643,7 +642,7 @@ primitivePatPatternMatch :: Env -> PrimitivePatPattern -> EgisonPattern ->
 primitivePatPatternMatch _ PPWildCard _ = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
 primitivePatPatternMatch env (PPValuePat name) (ValuePat expr) = do
-  ref <- lift $ newThunk env expr
+  ref <- lift $ newObjectRef env expr
   return ([], [(name, ref)])
 primitivePatPatternMatch env (PPInductivePat name patterns) (InductivePat name' exprs)
   | name == name' =
@@ -660,7 +659,7 @@ primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
     Intermediate (IInductiveData name' refs) | name == name' ->
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
     Value (InductiveData name' vals) | name == name' -> do
-      refs <- lift $ mapM (newEvaluatedThunk . Value) vals
+      refs <- lift $ mapM (newEvalutedObjectRef . Value) vals
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
     _ -> matchFail
 primitiveDataPatternMatch PDEmptyPat ref = do
@@ -681,7 +680,7 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
 
 expandCollection :: WHNFData -> EgisonM (Seq Inner)
 expandCollection (Value (Collection vals)) =
-  mapM (liftM IElement . newEvaluatedThunk . Value) vals
+  mapM (liftM IElement . newEvalutedObjectRef . Value) vals
 expandCollection (Intermediate (ICollection innersRef)) = liftIO $ readIORef innersRef
 expandCollection val = throwError $ TypeMismatch "collection" val
 
@@ -709,15 +708,15 @@ unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
     case Sq.viewl col of
       EmptyL -> matchFail
       val :< vals ->
-        lift $ (,) <$> newEvaluatedThunk (Value val)
-                   <*> newEvaluatedThunk (Value $ Collection vals)
+        lift $ (,) <$> newEvalutedObjectRef (Value val)
+                   <*> newEvalutedObjectRef (Value $ Collection vals)
   unconsCollection' coll@(Intermediate (ICollection innersRef)) = do
     inners <- liftIO $ readIORef innersRef
     case Sq.viewl inners of
       EmptyL -> matchFail
       (IElement ref') :< tInners -> do
         tInnersRef <- liftIO $ newIORef tInners
-        lift $ (ref', ) <$> newEvaluatedThunk (Intermediate $ ICollection tInnersRef)
+        lift $ (ref', ) <$> newEvalutedObjectRef (Intermediate $ ICollection tInnersRef)
       (ISubCollection ref') :< tInners -> do
         hInners <- lift $ evalRef ref' >>= expandCollection
         liftIO $ writeIORef innersRef (hInners >< tInners)
@@ -732,15 +731,15 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
    case Sq.viewr col of
      EmptyR -> matchFail
      vals :> val ->
-       lift $ (,) <$> newEvaluatedThunk (Value $ Collection vals)
-                  <*> newEvaluatedThunk (Value val)
+       lift $ (,) <$> newEvalutedObjectRef (Value $ Collection vals)
+                  <*> newEvalutedObjectRef (Value val)
   unsnocCollection' coll@(Intermediate (ICollection innersRef)) = do
     inners <- liftIO $ readIORef innersRef
     case Sq.viewr inners of
       EmptyR -> matchFail
       hInners :> (IElement ref') -> do
         hInnersRef <- liftIO $ newIORef hInners
-        lift $ (, ref') <$> newEvaluatedThunk (Intermediate $ ICollection hInnersRef)
+        lift $ (, ref') <$> newEvalutedObjectRef (Intermediate $ ICollection hInnersRef)
       hInners :> (ISubCollection ref') -> do
         tInners <- lift $ evalRef ref' >>= expandCollection
         liftIO $ writeIORef innersRef (hInners >< tInners)
@@ -752,15 +751,15 @@ unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
 --
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
-fromTuple (Value (Tuple vals)) = mapM (newEvaluatedThunk . Value) vals
-fromTuple val = return <$> newEvaluatedThunk val
+fromTuple (Value (Tuple vals)) = mapM (newEvalutedObjectRef . Value) vals
+fromTuple val = return <$> newEvalutedObjectRef val
 
 fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
 fromCollection (Value (Collection vals)) =
   if Sq.null vals then return MNil
-                  else fromSeq <$> mapM (newEvaluatedThunk . Value) vals
+                  else fromSeq <$> mapM (newEvalutedObjectRef . Value) vals
 fromCollection coll@(Intermediate (ICollection _)) =
-  newEvaluatedThunk coll >>= fromCollection'
+  newEvalutedObjectRef coll >>= fromCollection'
  where
   fromCollection' :: ObjectRef -> EgisonM (MList EgisonM ObjectRef)
   fromCollection' ref = do
