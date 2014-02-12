@@ -27,7 +27,6 @@ module Language.Egison.Types
     , Matcher (..)
     , PrimitiveFunc (..)
     , Egison (..)
-    , fromMatcherValue
     -- * Internal data
     , Object (..)
     , ObjectRef (..)
@@ -229,18 +228,18 @@ data EgisonValue =
   | Array (IntMap EgisonValue)
   | IntHash (HashMap Integer EgisonValue)
   | StrHash (HashMap ByteString EgisonValue)
-  | Matcher Matcher
+  | UserMatcher Env MatcherInfo
   | Func Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
   | Port Handle
+  | Something
   | Undefined
   | EOF
 
-data Matcher =
-    Something
-  | UserMatcher Env MatcherInfo
+type Matcher = EgisonValue
+
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 instance Show EgisonValue where
@@ -265,12 +264,13 @@ instance Show EgisonValue where
   show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ B.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (Matcher _) = "#<matcher>"
+  show (UserMatcher _ _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc _) = "#<primitive-function>"
   show (IOFunc _) = "#<io-function>"
   show (Port _) = "#<port>"
+  show Something = "something"
   show Undefined = "undefined"
   show World = "#<world>"
   show EOF = "#<eof>"
@@ -375,11 +375,6 @@ fromPortValue :: EgisonValue -> Either EgisonError Handle
 fromPortValue (Port handle) = return handle
 fromPortValue val = throwError $ TypeMismatch "port" (Value val)
 
--- TODO : write instance declaration for Matcher
-fromMatcherValue :: EgisonValue -> Either EgisonError Matcher
-fromMatcherValue (Matcher matcher) = return matcher
-fromMatcherValue val = throwError $ TypeMismatch "matcher" (Value val)
-
 --
 -- Internal Data
 --
@@ -440,9 +435,6 @@ instance EgisonWHNF Double where
 instance EgisonWHNF Handle where
   fromWHNF = liftError . fromPortWHNF
   
-instance EgisonWHNF Matcher where
-  fromWHNF = liftError . fromMatcherWHNF
-  
 fromCharWHNF :: WHNFData -> Either EgisonError Char
 fromCharWHNF (Value (Char c)) = return c
 fromCharWHNF whnf = throwError $ TypeMismatch "char" whnf
@@ -466,10 +458,6 @@ fromFloatWHNF whnf = throwError $ TypeMismatch "float" whnf
 fromPortWHNF :: WHNFData -> Either EgisonError Handle
 fromPortWHNF (Value (Port handle)) = return handle
 fromPortWHNF whnf = throwError $ TypeMismatch "port" whnf
-
-fromMatcherWHNF :: WHNFData -> Either EgisonError Matcher
-fromMatcherWHNF (Value (Matcher matcher)) = return matcher
-fromMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
 
 --
 -- Environment
