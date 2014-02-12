@@ -657,8 +657,8 @@ primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Bindin
 primitiveDataPatternMatch PDWildCard _ = return []
 primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
-  val <- lift $ evalRef ref
-  case val of
+  whnf <- lift $ evalRef ref
+  case whnf of
     Intermediate (IInductiveData name' refs) | name == name' ->
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
     Value (InductiveData name' vals) | name == name' -> do
@@ -666,14 +666,17 @@ primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
     _ -> matchFail
 primitiveDataPatternMatch PDEmptyPat ref = do
-  isEmpty <- lift $ isEmptyCollection ref
+  whnf <- lift $ evalRef ref
+  isEmpty <- lift $ isEmptyCollection whnf
   if isEmpty then return [] else matchFail
 primitiveDataPatternMatch (PDConsPat pattern pattern') ref = do
-  (head, tail) <- unconsCollection ref
+  whnf <- lift $ evalRef ref
+  (head, tail) <- unconsCollection whnf
   (++) <$> primitiveDataPatternMatch pattern head
        <*> primitiveDataPatternMatch pattern' tail
 primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
-  (init, last) <- unsnocCollection ref
+  whnf <- lift $ evalRef ref
+  (init, last) <- unsnocCollection whnf
   (++) <$> primitiveDataPatternMatch pattern init
        <*> primitiveDataPatternMatch pattern' last
 primitiveDataPatternMatch (PDConstantPat expr) ref = do
@@ -687,67 +690,58 @@ expandCollection (Value (Collection vals)) =
 expandCollection (Intermediate (ICollection innersRef)) = liftIO $ readIORef innersRef
 expandCollection val = throwError $ TypeMismatch "collection" val
 
-isEmptyCollection :: ObjectRef -> EgisonM Bool
-isEmptyCollection ref = evalRef ref >>= isEmptyCollection'
- where
-  isEmptyCollection' :: WHNFData -> EgisonM Bool
-  isEmptyCollection' (Value (Collection col)) = return $ Sq.null col
-  isEmptyCollection' coll@(Intermediate (ICollection innersRef)) = do
-    inners <- liftIO $ readIORef innersRef
-    case Sq.viewl inners of
-      EmptyL -> return True
-      (ISubCollection ref') :< tInners -> do
-        hInners <- evalRef ref' >>= expandCollection
-        liftIO $ writeIORef innersRef (hInners >< tInners)
-        isEmptyCollection' coll
-      _ -> return False
-  isEmptyCollection' _ = return False
+isEmptyCollection :: WHNFData -> EgisonM Bool
+isEmptyCollection (Value (Collection col)) = return $ Sq.null col
+isEmptyCollection coll@(Intermediate (ICollection innersRef)) = do
+  inners <- liftIO $ readIORef innersRef
+  case Sq.viewl inners of
+    EmptyL -> return True
+    (ISubCollection ref') :< tInners -> do
+      hInners <- evalRef ref' >>= expandCollection
+      liftIO $ writeIORef innersRef (hInners >< tInners)
+      isEmptyCollection coll
+    _ -> return False
+isEmptyCollection _ = return False
 
-unconsCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
-unconsCollection ref = lift (evalRef ref) >>= unconsCollection'
- where
-  unconsCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
-  unconsCollection' (Value (Collection col)) =
-    case Sq.viewl col of
-      EmptyL -> matchFail
-      val :< vals ->
-        lift $ (,) <$> newEvalutedObjectRef (Value val)
-                   <*> newEvalutedObjectRef (Value $ Collection vals)
-  unconsCollection' coll@(Intermediate (ICollection innersRef)) = do
-    inners <- liftIO $ readIORef innersRef
-    case Sq.viewl inners of
-      EmptyL -> matchFail
-      (IElement ref') :< tInners -> do
-        tInnersRef <- liftIO $ newIORef tInners
-        lift $ (ref', ) <$> newEvalutedObjectRef (Intermediate $ ICollection tInnersRef)
-      (ISubCollection ref') :< tInners -> do
-        hInners <- lift $ evalRef ref' >>= expandCollection
-        liftIO $ writeIORef innersRef (hInners >< tInners)
-        unconsCollection' coll
-  unconsCollection' _ = matchFail
+unconsCollection :: WHNFData -> MatchM (ObjectRef, ObjectRef)
+unconsCollection (Value (Collection col)) =
+  case Sq.viewl col of
+    EmptyL -> matchFail
+    val :< vals ->
+      lift $ (,) <$> newEvalutedObjectRef (Value val)
+                 <*> newEvalutedObjectRef (Value $ Collection vals)
+unconsCollection coll@(Intermediate (ICollection innersRef)) = do
+  inners <- liftIO $ readIORef innersRef
+  case Sq.viewl inners of
+    EmptyL -> matchFail
+    (IElement ref') :< tInners -> do
+      tInnersRef <- liftIO $ newIORef tInners
+      lift $ (ref', ) <$> newEvalutedObjectRef (Intermediate $ ICollection tInnersRef)
+    (ISubCollection ref') :< tInners -> do
+      hInners <- lift $ evalRef ref' >>= expandCollection
+      liftIO $ writeIORef innersRef (hInners >< tInners)
+      unconsCollection coll
+unconsCollection _ = matchFail
 
-unsnocCollection :: ObjectRef -> MatchM (ObjectRef, ObjectRef)
-unsnocCollection ref = lift (evalRef ref) >>= unsnocCollection'
- where
-  unsnocCollection' :: WHNFData -> MatchM (ObjectRef, ObjectRef)
-  unsnocCollection' (Value (Collection col)) =
-   case Sq.viewr col of
-     EmptyR -> matchFail
-     vals :> val ->
-       lift $ (,) <$> newEvalutedObjectRef (Value $ Collection vals)
-                  <*> newEvalutedObjectRef (Value val)
-  unsnocCollection' coll@(Intermediate (ICollection innersRef)) = do
-    inners <- liftIO $ readIORef innersRef
-    case Sq.viewr inners of
-      EmptyR -> matchFail
-      hInners :> (IElement ref') -> do
-        hInnersRef <- liftIO $ newIORef hInners
-        lift $ (, ref') <$> newEvalutedObjectRef (Intermediate $ ICollection hInnersRef)
-      hInners :> (ISubCollection ref') -> do
-        tInners <- lift $ evalRef ref' >>= expandCollection
-        liftIO $ writeIORef innersRef (hInners >< tInners)
-        unsnocCollection' coll
-  unsnocCollection' _ = matchFail
+unsnocCollection :: WHNFData -> MatchM (ObjectRef, ObjectRef)
+unsnocCollection (Value (Collection col)) =
+  case Sq.viewr col of
+    EmptyR -> matchFail
+    vals :> val ->
+      lift $ (,) <$> newEvalutedObjectRef (Value $ Collection vals)
+                 <*> newEvalutedObjectRef (Value val)
+unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
+  inners <- liftIO $ readIORef innersRef
+  case Sq.viewr inners of
+    EmptyR -> matchFail
+    hInners :> (IElement ref') -> do
+      hInnersRef <- liftIO $ newIORef hInners
+      lift $ (, ref') <$> newEvalutedObjectRef (Intermediate $ ICollection hInnersRef)
+    hInners :> (ISubCollection ref') -> do
+      tInners <- lift $ evalRef ref' >>= expandCollection
+      liftIO $ writeIORef innersRef (hInners >< tInners)
+      unsnocCollection coll
+unsnocCollection _ = matchFail
 
 --
 -- Util
@@ -765,17 +759,14 @@ fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
 fromCollection (Value (Collection vals)) =
   if Sq.null vals then return MNil
                   else fromSeq <$> mapM (newEvalutedObjectRef . Value) vals
-fromCollection coll@(Intermediate (ICollection _)) =
-  newEvalutedObjectRef coll >>= fromCollection'
- where
-  fromCollection' :: ObjectRef -> EgisonM (MList EgisonM ObjectRef)
-  fromCollection' ref = do
-    isEmpty <- isEmptyCollection ref
-    if isEmpty
-      then return MNil
-      else do
-        (head, tail) <- fromJust <$> runMaybeT (unconsCollection ref)
-        return $ MCons head (fromCollection' tail)
+fromCollection whnf@(Intermediate (ICollection _)) = do
+  isEmpty <- isEmptyCollection whnf
+  if isEmpty
+    then return MNil
+    else do
+      (head, tail) <- fromJust <$> runMaybeT (unconsCollection whnf)
+      tail' <- evalRef tail
+      return $ MCons head (fromCollection tail')
 fromCollection whnf = throwError $ TypeMismatch "collection" whnf
 
 --
