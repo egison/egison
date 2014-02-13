@@ -39,7 +39,7 @@
 
 (define $divisor?
   (lambda [$n $d]
-    (eq-i? 0 (remainder n d))))
+    (eq? 0 (remainder n d))))
       
 
 (define $gcd
