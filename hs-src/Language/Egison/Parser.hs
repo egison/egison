@@ -157,6 +157,7 @@ expr' = (try constantExpr
                          <|> matchAllLambdaExpr
                          <|> matchLambdaExpr
                          <|> matcherExpr
+                         <|> matcherDFSExpr
                          <|> applyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
@@ -214,6 +215,9 @@ matchClause = brackets $ (,) <$> pattern <*> expr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
+
+matcherDFSExpr :: Parser EgisonExpr
+matcherDFSExpr = keywordMatcher >> MatcherDFSExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
 ppMatchClauses = braces $ sepEndBy ppMatchClause whiteSpace
@@ -489,6 +493,7 @@ reservedKeywords =
   , "match-all-lambda"
   , "match-lambda"
   , "matcher"
+  , "matcher-dfs"
   , "do"
   , "io"
   , "algebraic-data-matcher"
@@ -538,14 +543,12 @@ keywordMatchAllLambda       = reserved "match-all-lambda"
 keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "match-lambda"
 keywordMatcher              = reserved "matcher"
+keywordMatcherDFS           = reserved "matcher-dfs"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
---keywordisEmpty              = reserved "empty?"
---keywordUnCons               = reserved "uncons"
---keywordUnSnoc               = reserved "unsnoc"
 keywordGenerateArray        = reserved "generate-array"
 keywordArraySize            = reserved "array-size"
 keywordArrayRef             = reserved "array-ref"

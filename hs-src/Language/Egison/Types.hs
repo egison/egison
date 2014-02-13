@@ -43,6 +43,7 @@ module Language.Egison.Types
     , refVar
     -- * Pattern matching
     , PMMode (..)
+    , pmMode
     , MatchingState (..)
     , MatchingTree (..)
     , PatternBinding (..)
@@ -147,6 +148,7 @@ data EgisonExpr =
   | MatchAllLambdaExpr EgisonExpr MatchClause
 
   | MatcherExpr MatcherInfo
+  | MatcherDFSExpr MatcherInfo
   
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
@@ -228,7 +230,7 @@ data EgisonValue =
   | Array (IntMap EgisonValue)
   | IntHash (HashMap Integer EgisonValue)
   | StrHash (HashMap ByteString EgisonValue)
-  | UserMatcher Env MatcherInfo
+  | UserMatcher Env PMMode MatcherInfo
   | Func Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc PrimitiveFunc
@@ -264,7 +266,7 @@ instance Show EgisonValue where
   show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ B.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (UserMatcher _ _) = "#<matcher>"
+  show (UserMatcher _ _ _) = "#<matcher>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc _) = "#<primitive-function>"
@@ -482,6 +484,10 @@ refVar env var = maybe (throwError $ UnboundVariable var) return
 --
 
 data PMMode = BFSMode | DFSMode
+
+pmMode :: Matcher -> PMMode
+pmMode (UserMatcher _ mode _) = mode
+pmMode Something = BFSMode
 
 data MatchingState = MState Env [LoopContext] [Binding] [MatchingTree]
 

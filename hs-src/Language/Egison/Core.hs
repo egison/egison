@@ -265,7 +265,7 @@ evalExpr env (IoExpr expr) = do
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- newObjectRef env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  result <- patternMatch BFSMode env pattern target matcher
+  result <- patternMatch (pmMode matcher) env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
@@ -280,7 +280,7 @@ evalExpr env (MatchExpr target matcher clauses) = do
   target <- newObjectRef env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
   let tryMatchClause (pattern, expr) cont = do
-        result <- patternMatch BFSMode env pattern target matcher
+        result <- patternMatch (pmMode matcher) env pattern target matcher
         case result of
           MCons bindings _ -> evalExpr (extendEnv env bindings) expr
           MNil -> cont
@@ -291,7 +291,8 @@ evalExpr env (ApplyExpr func arg) = do
   arg <- evalExpr env arg
   applyFunc func arg
 
-evalExpr env (MatcherExpr info) = return $ Value $ UserMatcher env info
+evalExpr env (MatcherExpr info) = return $ Value $ UserMatcher env BFSMode info
+evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
 
 evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (size:[])) expr) =
   generateArray env name size expr
@@ -542,7 +543,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
          >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))
     _ ->
       case matcher of
-        matcher@(UserMatcher _ _) -> do
+        matcher@(UserMatcher _ _ _) -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTuple
@@ -622,7 +623,7 @@ processMState' (MState env loops bindings ((MNode penv state@(MState env' loops'
 
 inductiveMatch :: Env -> EgisonPattern -> ObjectRef -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
-inductiveMatch env pattern target (UserMatcher matcherEnv clauses) = do
+inductiveMatch env pattern target (UserMatcher matcherEnv _ clauses) = do
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
   tryPPMatchClause (pat, matchers, clauses) cont = do
@@ -789,7 +790,7 @@ evalStringWHNF whnf = throwError $ TypeMismatch "string" whnf
 
 evalMatcherWHNF :: WHNFData -> EgisonM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher
-evalMatcherWHNF (Value matcher@(UserMatcher _ _)) = return matcher
+evalMatcherWHNF (Value matcher@(UserMatcher _ _ _)) = return matcher
 evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
 evalMatcherWHNF (Intermediate (ITuple refs)) = do
   whnfs <- mapM evalRef refs
