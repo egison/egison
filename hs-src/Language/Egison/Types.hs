@@ -42,6 +42,7 @@ module Language.Egison.Types
     , extendEnv
     , refVar
     -- * Pattern matching
+    , Match
     , PMMode (..)
     , pmMode
     , MatchingState (..)
@@ -482,6 +483,8 @@ refVar env var = maybe (throwError $ UnboundVariable var) return
 --
 -- Pattern Match
 --
+
+type Match = [Binding]
 
 data PMMode = BFSMode | DFSMode
 
