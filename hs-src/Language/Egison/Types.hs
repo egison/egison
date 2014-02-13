@@ -487,6 +487,7 @@ data PMMode = BFSMode | DFSMode
 
 pmMode :: Matcher -> PMMode
 pmMode (UserMatcher _ mode _) = mode
+pmMode (Tuple _) = BFSMode
 pmMode Something = BFSMode
 
 data MatchingState = MState Env [LoopContext] [Binding] [MatchingTree]
