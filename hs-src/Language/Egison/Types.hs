@@ -382,12 +382,12 @@ fromPortValue val = throwError $ TypeMismatch "port" (Value val)
 -- Internal Data
 --
 
+-- |For memoization
+type ObjectRef = IORef Object
+
 data Object =
     Thunk (EgisonM WHNFData)
   | WHNF WHNFData
-
--- |For memoization
-type ObjectRef = IORef Object
 
 data WHNFData =
     Intermediate Intermediate
@@ -468,6 +468,10 @@ fromPortWHNF :: WHNFData -> Either EgisonError Handle
 fromPortWHNF (Value (Port handle)) = return handle
 fromPortWHNF whnf = throwError $ TypeMismatch "port" whnf
 
+class (EgisonWHNF a) => EgisonObject a where
+  toObject :: a -> Object
+  toObject = WHNF . toWHNF
+  
 --
 -- Environment
 --
