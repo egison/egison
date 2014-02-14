@@ -429,21 +429,24 @@ processMStates streams = do
  where
   processMStates' :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
   processMStates' MNil = return []
-  processMStates' stream@(MCons state stream') = do
+  processMStates' stream@(MCons state _) = do
     case topMAtom state of
-      Nothing -> do
-        newStream <- processMState state
-        newStream' <- stream'
-        return [newStream, newStream']
+      Nothing -> processMStatesBFS stream
       Just matom -> do
         case pmMode (getMatcher matom) of
-          DFSMode -> do
-            nextSream <- processMStatesDFS stream
-            return [nextSream]
-          BFSMode -> do
-            newStream <- processMState state
-            newStream' <- stream'
-            return [newStream, newStream']
+          DFSMode -> processMStatesDFS stream
+          BFSMode -> processMStatesBFS stream
+  processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+  processMStatesDFS (MCons state stream) = do
+    stream' <- processMState state
+    newStream <- mappend stream' stream
+    return [newStream]
+  processMStatesBFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+  processMStatesBFS (MCons state stream) = do
+    newStream <- processMState state
+    newStream' <- stream
+    return [newStream, newStream']
+
 
 extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
 extractMatches = extractMatches' ([], [])
@@ -454,11 +457,6 @@ extractMatches = extractMatches' ([], [])
     states' <- states
     extractMatches' (xs ++ [bindings], ys ++ [states']) rest
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
-
-processMStatesDFS :: MList EgisonM MatchingState -> EgisonM (MList EgisonM MatchingState)
-processMStatesDFS (MCons state stream) = do
-  newStream <- processMState state
-  mappend newStream stream
 
 topMAtom :: MatchingState -> Maybe MatchingTree
 topMAtom (MState _ _ _ (mAtom@(MAtom _ _ _):_)) = return mAtom
