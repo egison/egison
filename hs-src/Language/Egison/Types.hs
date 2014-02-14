@@ -414,11 +414,17 @@ instance Show WHNFData where
   show (Intermediate (IIntHash _)) = "{|...|}" 
   show (Intermediate (IStrHash _)) = "{|...|}" 
 
+instance Show Object where
+  show (Thunk _) = "#<thunk>"
+  show (WHNF whnf) = show whnf
+
 --
 -- Extract data from WHNF
 --
-class EgisonWHNF a where
+class (Egison a) => EgisonWHNF a where
+  toWHNF :: a -> WHNFData
   fromWHNF :: WHNFData -> EgisonM a
+  toWHNF = Value . toEgison
   
 instance EgisonWHNF Char where
   fromWHNF = liftError . fromCharWHNF
