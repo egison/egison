@@ -16,12 +16,11 @@ import Control.Monad.Error (liftIO)
 import Language.Egison.Types
 import Language.Egison.Parser
 
-
 -- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExpr :: String -> InputT IO (Maybe (Either EgisonTopExpr EgisonExpr))
+getEgisonExpr :: String -> InputT IO (Maybe (Either (String, EgisonTopExpr) (String, EgisonExpr)))
 getEgisonExpr prompt = getEgisonExpr' ""
  where
-  getEgisonExpr' :: String -> InputT IO (Maybe (Either EgisonTopExpr EgisonExpr))
+  getEgisonExpr' :: String -> InputT IO (Maybe (Either (String, EgisonTopExpr) (String, EgisonExpr)))
   getEgisonExpr' prev = do
     mLine <- case prev of
                "" -> getInputLine prompt
@@ -40,11 +39,11 @@ getEgisonExpr prompt = getEgisonExpr' ""
               Left err -> do
                 liftIO $ putStrLn $ show err
                 getEgisonExpr prompt
-              Right expr -> return $ Just $ Right expr
+              Right expr -> return $ Just $ Right (input, expr)
           Left err -> do
             liftIO $ putStrLn $ show err
             getEgisonExpr prompt
-          Right topExpr -> return $ Just $ Left topExpr
+          Right topExpr -> return $ Just $ Left (input, topExpr)
 
 
 -- |Complete Egison keywords

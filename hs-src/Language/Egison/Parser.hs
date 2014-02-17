@@ -48,10 +48,10 @@ import Language.Egison.Desugar
 import Paths_egison (getDataFileName)
 
 readTopExprs :: String -> EgisonM [EgisonTopExpr]
-readTopExprs = liftEgisonM . runDesugarM . either throwError (mapM desugarTopExpr) . parseTopExprs
+readTopExprs = either throwError (mapM desugarTopExpr) . parseTopExprs
 
 readTopExpr :: String -> EgisonM EgisonTopExpr
-readTopExpr = liftEgisonM . runDesugarM . either throwError desugarTopExpr . parseTopExpr
+readTopExpr = either throwError desugarTopExpr . parseTopExpr
 
 readExprs :: String -> EgisonM [EgisonExpr]
 readExprs = liftEgisonM . runDesugarM . either throwError (mapM desugar) . parseExprs

@@ -20,6 +20,7 @@ import System.Exit (ExitCode (..), exitWith, exitFailure)
 import System.IO
 
 import Language.Egison
+import Language.Egison.Desugar
 import Language.Egison.Util
 
 main :: IO ()
@@ -119,9 +120,7 @@ showByebyeMessage = do
   exitWith ExitSuccess
 
 onAbort :: EgisonError -> IO (Either EgisonError a)
-onAbort e = do
-  let x = show e
-  return $ Left e
+onAbort e = return $ Left e
 
 repl :: Env -> String -> IO ()
 repl env prompt = do
@@ -139,15 +138,15 @@ repl env prompt = do
     _ <- liftIO $ installHandler keyboardSignal (Catch (throwTo tid UserInterruption)) Nothing
     case input of
       Nothing -> return ()
-      Just (Left topExpr) -> do
-        result <- liftIO $ handle onAbort $ evalEgisonTopExpr env topExpr
+      Just (Left (topExpr, _)) -> do
+        result <- liftIO $ handle onAbort $ runEgisonTopExpr env topExpr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
             loop env
           Right env' -> loop env'
-      Just (Right expr) -> do
-        result <- liftIO $ handle onAbort $ evalEgisonExpr env expr
+      Just (Right (expr, _)) -> do
+        result <- liftIO $ handle onAbort $ runEgisonExpr env expr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
