@@ -24,9 +24,7 @@ import qualified Data.Set as S
 import Data.Set (Set)
 import Data.Char (toUpper)
 import Control.Monad.Error
-import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Identity
 import Language.Egison.Types
 
 type Subst = [(String, EgisonExpr)]

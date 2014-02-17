@@ -31,11 +31,9 @@ import Control.Monad.State hiding (mapM)
 import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
 import System.Directory (doesFileExist)
-import System.IO
 
 import qualified Data.Sequence as Sq
 import Data.Either
-import Data.Set (Set)
 import Data.Char (isLower, isUpper)
 import qualified Data.Set as Set
 import Data.Traversable (mapM)
@@ -43,7 +41,6 @@ import Data.Ratio
 
 import Text.Parsec
 import Text.Parsec.String
-import Text.Parsec.Combinator
 import qualified Text.Parsec.Token as P
 
 import Language.Egison.Types

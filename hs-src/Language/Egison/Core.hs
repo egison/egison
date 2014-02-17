@@ -46,25 +46,19 @@ import qualified Data.Sequence as Sq
 import Data.Foldable (toList)
 import Data.Traversable (mapM)
 import Data.IORef
-import Data.List
 import Data.Maybe
 
 import qualified Data.HashMap.Lazy as HL
 
 import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
 
-import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 
-import System.Directory (doesFileExist)
 
 import Language.Egison.Types
 import Language.Egison.Parser
-import Language.Egison.Desugar
-import Paths_egison (getDataFileName)
 
 --
 -- Evaluator
@@ -625,7 +619,6 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
             _ -> throwError $ strMsg "something can only match with a pattern variable"
 
---        _ -> throwError $ TypeMismatch "matcher" matcher
 processMState' (MState env loops bindings ((MNode penv (MState _ _ _ [])):trees)) = return $ msingleton $ MState env loops bindings trees
 processMState' (MState env loops bindings ((MNode penv state@(MState env' loops' bindings' (tree:trees')):trees))) = do
   case tree of
@@ -849,4 +842,3 @@ extractPrimitiveValue (Value val@(Bool _)) = return val
 extractPrimitiveValue (Value val@(Integer _)) = return val
 extractPrimitiveValue (Value val@(Float _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
-

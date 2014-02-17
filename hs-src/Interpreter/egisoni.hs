@@ -1,17 +1,10 @@
 module Main where
 
-import Prelude hiding (catch)
-import Control.Exception ( SomeException(..),
-                           AsyncException(..),
-                           catch, handle, throw)
+import Control.Exception (handle)
 import Control.Concurrent
-import Control.Applicative ((<$>), (<*>))
 import Control.Monad.Error
 
-import Data.List
-import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
-import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 
 import Data.Version
@@ -118,11 +111,12 @@ showBanner = do
   putStrLn $ "Welcome to Egison Interpreter!"
   putStrLn $ "** Info **"
   putStrLn $ "We can use a \'Tab\' key to complete keywords on the interpreter."
-  putStrLn $ "If we type a \'Tab\' key after after a closed parenthesis, the next closed parenthesis will be completed."
+  putStrLn $ "If we type a \'Tab\' key after a closed parenthesis, the next closed parenthesis will be completed."
 
 showByebyeMessage :: IO ()
 showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
+  exitWith ExitSuccess
 
 onAbort :: EgisonError -> IO (Either EgisonError a)
 onAbort e = do
@@ -161,5 +155,4 @@ repl env prompt = do
           Right val -> do
             liftIO $ putStrLn $ show val
             loop env
-
 

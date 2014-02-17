@@ -11,12 +11,10 @@ This module provides primitive functions in Egison.
 module Language.Egison.Primitives (primitiveEnv, primitiveEnvNoIO) where
 
 import Control.Arrow
-import Control.Applicative
 import Control.Monad.Error
 import Control.Monad.Trans.Maybe
 
 import Data.IORef
-import qualified Data.Array as A
 import Data.Ratio
 
 import System.IO
@@ -24,14 +22,7 @@ import System.Random
 
 import qualified Data.Sequence as Sq
 
-import System.IO.Unsafe
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
-import Data.Maybe
-
-import Control.Monad
 
 -- {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite

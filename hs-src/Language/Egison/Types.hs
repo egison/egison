@@ -97,7 +97,6 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
 import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
 
@@ -375,7 +374,7 @@ fromFloatValue (Float f) = return f
 fromFloatValue val = throwError $ TypeMismatch "float" (Value val)
 
 fromPortValue :: EgisonValue -> Either EgisonError Handle
-fromPortValue (Port handle) = return handle
+fromPortValue (Port h) = return h
 fromPortValue val = throwError $ TypeMismatch "port" (Value val)
 
 --
@@ -465,7 +464,7 @@ fromFloatWHNF (Value (Float f)) = return f
 fromFloatWHNF whnf = throwError $ TypeMismatch "float" whnf
 
 fromPortWHNF :: WHNFData -> Either EgisonError Handle
-fromPortWHNF (Value (Port handle)) = return handle
+fromPortWHNF (Value (Port h)) = return h
 fromPortWHNF whnf = throwError $ TypeMismatch "port" whnf
 
 class (EgisonWHNF a) => EgisonObject a where
@@ -533,7 +532,7 @@ data EgisonError =
   deriving Typeable
     
 instance Show EgisonError where
-  show (Parser error) = "Parse error at: " ++ error
+  show (Parser err) = "Parse error at: " ++ err
   show (UnboundVariable var) = "Unbound variable: " ++ var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
