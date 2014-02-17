@@ -13,6 +13,7 @@ module Language.Egison.Desugar
       DesugarM
     , runDesugarM
     , desugarTopExpr
+    , desugarExpr
     , desugar
     ) where
 
@@ -35,15 +36,17 @@ newtype DesugarM a = DesugarM { unDesugarM :: ReaderT Subst (ErrorT EgisonError 
 runDesugarM :: DesugarM a -> Fresh (Either EgisonError a)
 runDesugarM = runErrorT . flip runReaderT [] . unDesugarM
 
-desugarTopExpr :: EgisonTopExpr -> DesugarM EgisonTopExpr
+desugarTopExpr :: EgisonTopExpr -> EgisonM EgisonTopExpr
 desugarTopExpr (Define name expr) = do
-  expr' <- desugar expr
+  expr' <- liftEgisonM $ runDesugarM $ desugar expr
   return (Define name expr')
 desugarTopExpr (Test expr) = do
-  expr' <- desugar expr
+  expr' <- liftEgisonM $ runDesugarM $ desugar expr
   return (Test expr')
 desugarTopExpr expr = return expr
 
+desugarExpr :: EgisonExpr -> EgisonM EgisonExpr
+desugarExpr expr = liftEgisonM $ runDesugarM $ desugar expr
 
 desugar :: EgisonExpr -> DesugarM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do
@@ -200,6 +203,18 @@ desugar (ApplyExpr (VarExpr "+") expr) = do
   case expr' of
     args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "+") args
     (TupleExpr args) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "+"), (IntegerExpr 0), (CollectionExpr (map ElementExpr args))])
+
+desugar (ApplyExpr (VarExpr "-") expr) = do
+  expr' <- desugar expr
+  case expr' of
+    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "-") args
+    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "-"), x, (CollectionExpr (map ElementExpr args))])
+
+desugar (ApplyExpr (VarExpr "*") expr) = do
+  expr' <- desugar expr
+  case expr' of
+    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "*") args
+    (TupleExpr args) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "*"), (IntegerExpr 1), (CollectionExpr (map ElementExpr args))])
 
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
