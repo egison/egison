@@ -436,17 +436,18 @@ processMStates streams = do
         case pmMode (getMatcher matom) of
           DFSMode -> processMStatesDFS stream
           BFSMode -> processMStatesBFS stream
-  processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
-  processMStatesDFS (MCons state stream) = do
-    stream' <- processMState state
-    newStream <- mappend stream' stream
-    return [newStream]
-  processMStatesBFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
-  processMStatesBFS (MCons state stream) = do
-    newStream <- processMState state
-    newStream' <- stream
-    return [newStream, newStream']
-
+          
+processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+processMStatesDFS (MCons state stream) = do
+  stream' <- processMState state
+  newStream <- mappend stream' stream
+  return [newStream]
+  
+processMStatesBFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+processMStatesBFS (MCons state stream) = do
+  newStream <- processMState state
+  newStream' <- stream
+  return [newStream, newStream']
 
 extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
 extractMatches = extractMatches' ([], [])
