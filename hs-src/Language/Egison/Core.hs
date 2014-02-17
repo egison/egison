@@ -286,7 +286,7 @@ evalExpr env (ApplyExpr func arg) = do
   arg <- evalExpr env arg
   applyFunc func arg
 
-evalExpr env (MatcherExpr info) = return $ Value $ UserMatcher env BFSMode info
+evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
 evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
 
 evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (size:[])) expr) =

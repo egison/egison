@@ -61,7 +61,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         body <- mapM genMatcherClause patterns
         footer <- genSomethingClause
         clauses <- return $ [main] ++ body ++ [footer]
-        return $ MatcherExpr clauses
+        return $ MatcherDFSExpr clauses
         
       genMainClause :: [(String, [EgisonExpr])] -> EgisonExpr -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genMainClause patterns matcher = do

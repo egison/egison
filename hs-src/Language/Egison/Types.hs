@@ -147,7 +147,12 @@ data EgisonExpr =
   | MatchLambdaExpr EgisonExpr [MatchClause]
   | MatchAllLambdaExpr EgisonExpr MatchClause
 
-  | MatcherExpr MatcherInfo
+  | NextMatchExpr EgisonExpr EgisonExpr [MatchClause]
+  | NextMatchAllExpr EgisonExpr EgisonExpr MatchClause
+  | NextMatchLambdaExpr EgisonExpr [MatchClause]
+  | NextMatchAllLambdaExpr EgisonExpr MatchClause
+
+  | MatcherBFSExpr MatcherInfo
   | MatcherDFSExpr MatcherInfo
   
   | DoExpr [BindingExpr] EgisonExpr

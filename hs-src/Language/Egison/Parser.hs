@@ -153,7 +153,12 @@ expr' = (try constantExpr
                          <|> matchExpr
                          <|> matchAllLambdaExpr
                          <|> matchLambdaExpr
+                         <|> nextMatchAllExpr
+                         <|> nextMatchExpr
+                         <|> nextMatchAllLambdaExpr
+                         <|> nextMatchLambdaExpr
                          <|> matcherExpr
+                         <|> matcherBFSExpr
                          <|> matcherDFSExpr
                          <|> applyExpr
                          <|> algebraicDataMatcherExpr
@@ -204,6 +209,18 @@ matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> ma
 matchLambdaExpr :: Parser EgisonExpr
 matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$> expr <*> matchClauses
 
+nextMatchAllExpr :: Parser EgisonExpr
+nextMatchAllExpr = keywordNextMatchAll >> NextMatchAllExpr <$> expr <*> expr <*> matchClause
+
+nextMatchExpr :: Parser EgisonExpr
+nextMatchExpr = keywordNextMatch >> NextMatchExpr <$> expr <*> expr <*> matchClauses
+
+nextMatchAllLambdaExpr :: Parser EgisonExpr
+nextMatchAllLambdaExpr = keywordNextMatchAllLambda >> NextMatchAllLambdaExpr <$> expr <*> matchClause
+
+nextMatchLambdaExpr :: Parser EgisonExpr
+nextMatchLambdaExpr = keywordNextMatchLambda >> NextMatchLambdaExpr <$> expr <*> matchClauses
+
 matchClauses :: Parser [MatchClause]
 matchClauses = braces $ sepEndBy matchClause whiteSpace
 
@@ -211,10 +228,13 @@ matchClause :: Parser MatchClause
 matchClause = brackets $ (,) <$> pattern <*> expr
 
 matcherExpr :: Parser EgisonExpr
-matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
+matcherExpr = keywordMatcher >> MatcherBFSExpr <$> ppMatchClauses
+
+matcherBFSExpr :: Parser EgisonExpr
+matcherBFSExpr = keywordMatcherBFS >> MatcherBFSExpr <$> ppMatchClauses
 
 matcherDFSExpr :: Parser EgisonExpr
-matcherDFSExpr = keywordMatcher >> MatcherDFSExpr <$> ppMatchClauses
+matcherDFSExpr = keywordMatcherDFS >> MatcherDFSExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
 ppMatchClauses = braces $ sepEndBy ppMatchClause whiteSpace
@@ -490,13 +510,11 @@ reservedKeywords =
   , "match-all-lambda"
   , "match-lambda"
   , "matcher"
+  , "matcher-bfs"
   , "matcher-dfs"
   , "do"
   , "io"
   , "algebraic-data-matcher"
---  , "empty?"
---  , "uncons"
---  , "unsnoc"
   , "generate-array"
   , "array-size"
   , "array-ref"
@@ -539,7 +557,12 @@ keywordMatchAll             = reserved "match-all"
 keywordMatchAllLambda       = reserved "match-all-lambda"
 keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "match-lambda"
+keywordNextMatchAll         = reserved "next-match-all"
+keywordNextMatchAllLambda   = reserved "next-match-all-lambda"
+keywordNextMatch            = reserved "next-match"
+keywordNextMatchLambda      = reserved "next-match-lambda"
 keywordMatcher              = reserved "matcher"
+keywordMatcherBFS           = reserved "matcher-bfs"
 keywordMatcherDFS           = reserved "matcher-dfs"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
