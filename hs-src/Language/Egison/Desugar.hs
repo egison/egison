@@ -87,7 +87,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMatcherClause pattern = do
         (ppat, matchers) <- genPrimitivePatPat pattern
         (dpat, body)     <- genPrimitiveDataPat pattern
-        return (ppat, TupleExpr matchers, [(dpat, CollectionExpr (Sq.singleton . ElementExpr . TupleExpr $ body)), (PDWildCard, matchingFailure)])
+        return (ppat, TupleExpr matchers, [(dpat, CollectionExpr [ElementExpr . TupleExpr $ body]), (PDWildCard, matchingFailure)])
         
         where
           genPrimitivePatPat :: (String, [EgisonExpr]) -> DesugarM (PrimitivePatPattern, [EgisonExpr])
@@ -106,13 +106,13 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       
       genSomethingClause :: DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genSomethingClause = 
-        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr . Sq.singleton $ ElementExpr (VarExpr "tgt"))])
+        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr [ElementExpr (VarExpr "tgt")])])
     
       matchingSuccess :: EgisonExpr
-      matchingSuccess = CollectionExpr . Sq.singleton. ElementExpr $ TupleExpr []
+      matchingSuccess = CollectionExpr [ElementExpr $ TupleExpr []]
 
       matchingFailure :: EgisonExpr
-      matchingFailure = CollectionExpr Sq.empty
+      matchingFailure = CollectionExpr []
 
 desugar (MatchAllLambdaExpr matcher clause) = do
   name <- fresh
@@ -142,17 +142,17 @@ desugar (TupleExpr exprs) = do
   exprs' <- mapM desugar exprs
   return $ TupleExpr exprs'
 
-desugar expr@(CollectionExpr seq) =
-  case Sq.viewl seq of
-    EmptyL -> return expr
-    ElementExpr seqHead :< seqTail -> do
-      seqHead' <- desugar seqHead
-      (CollectionExpr seqTail') <- desugar (CollectionExpr seqTail)
-      return $ CollectionExpr (ElementExpr seqHead' <| seqTail')
-    SubCollectionExpr seqHead :< seqTail -> do
-      seqHead' <- desugar seqHead
-      (CollectionExpr seqTail') <- desugar (CollectionExpr seqTail)
-      return $ CollectionExpr (SubCollectionExpr seqHead' <| seqTail')
+desugar expr@(CollectionExpr []) = return expr
+
+desugar (CollectionExpr ((ElementExpr elm):inners)) = do
+      elm' <- desugar elm
+      (CollectionExpr inners') <- desugar (CollectionExpr inners)
+      return $ CollectionExpr (ElementExpr elm':inners')
+
+desugar (CollectionExpr ((SubCollectionExpr sub):inners)) = do
+      sub' <- desugar sub
+      (CollectionExpr inners') <- desugar (CollectionExpr inners)
+      return $ CollectionExpr (SubCollectionExpr sub':inners')
 
 desugar (LambdaExpr names expr) = do
   expr' <- desugar expr
@@ -195,6 +195,12 @@ desugar (DoExpr binds expr) = do
   expr' <- desugar expr
   return $ DoExpr binds' expr'
   
+desugar (ApplyExpr (VarExpr "+") expr) = do
+  expr' <- desugar expr
+  case expr' of
+    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "+") args
+    (TupleExpr args) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "+"), (IntegerExpr 0), (CollectionExpr (map ElementExpr args))])
+
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1

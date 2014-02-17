@@ -40,7 +40,7 @@ main = do args <- getArgs
                       result <- evalEgisonTopExprs env [LoadFile file]
                       either print (const $ return ()) result
                     Options {optLoadOnly = False} -> do
-                      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (Sq.fromList (map (ElementExpr . StringExpr) args))))]
+                      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (map (ElementExpr . StringExpr) args)))]
                       either print (const $ return ()) result
 
 data Options = Options {

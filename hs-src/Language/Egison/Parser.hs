@@ -172,7 +172,7 @@ tupleExpr :: Parser EgisonExpr
 tupleExpr = brackets $ TupleExpr <$> sepEndBy expr whiteSpace
 
 collectionExpr :: Parser EgisonExpr
-collectionExpr = braces $ CollectionExpr . Sq.fromList <$> sepEndBy innerExpr whiteSpace
+collectionExpr = braces $ CollectionExpr <$> sepEndBy innerExpr whiteSpace
  where
   innerExpr :: Parser InnerExpr
   innerExpr = (char '@' >> SubCollectionExpr <$> expr)

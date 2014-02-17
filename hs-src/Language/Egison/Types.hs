@@ -131,7 +131,7 @@ data EgisonExpr =
   | IndexedExpr EgisonExpr [EgisonExpr]
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
-  | CollectionExpr (Seq InnerExpr)
+  | CollectionExpr [InnerExpr]
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
 

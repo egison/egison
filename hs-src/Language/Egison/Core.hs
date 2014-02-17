@@ -123,15 +123,16 @@ evalExpr _ (TupleExpr []) = return . Value $ Tuple []
 evalExpr env (TupleExpr [expr]) = evalExpr env expr
 evalExpr env (TupleExpr exprs) = Intermediate . ITuple <$> mapM (newObjectRef env) exprs
 
-evalExpr env (CollectionExpr inners) =
-  if Sq.null inners then
-    return . Value $ Collection Sq.empty
-  else
-    Intermediate . ICollection <$> (mapM fromInnerExpr inners >>= liftIO . newIORef)
-    where
-      fromInnerExpr :: InnerExpr -> EgisonM Inner
-      fromInnerExpr (ElementExpr expr) = IElement <$> newObjectRef env expr
-      fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
+evalExpr _ (CollectionExpr []) = return . Value $ Collection Sq.empty
+
+evalExpr env (CollectionExpr inners) = do
+  inners' <- mapM fromInnerExpr inners
+  innersSeq <- liftIO $ newIORef $ Sq.fromList inners'
+  return $ Intermediate $ ICollection innersSeq
+ where
+  fromInnerExpr :: InnerExpr -> EgisonM Inner
+  fromInnerExpr (ElementExpr expr) = IElement <$> newObjectRef env expr
+  fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
 
 evalExpr env (ArrayExpr exprs) = do
   ref' <- mapM (newObjectRef env) exprs
