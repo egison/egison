@@ -202,7 +202,7 @@ desugar (ApplyExpr (VarExpr "+") expr) = do
   expr' <- desugar expr
   case expr' of
     args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "+") args
-    (TupleExpr args) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "+"), (IntegerExpr 0), (CollectionExpr (map ElementExpr args))])
+    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "+"), x, (CollectionExpr (map ElementExpr args))])
 
 desugar (ApplyExpr (VarExpr "-") expr) = do
   expr' <- desugar expr
@@ -214,7 +214,7 @@ desugar (ApplyExpr (VarExpr "*") expr) = do
   expr' <- desugar expr
   case expr' of
     args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "*") args
-    (TupleExpr args) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "*"), (IntegerExpr 1), (CollectionExpr (map ElementExpr args))])
+    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "*"), x, (CollectionExpr (map ElementExpr args))])
 
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
