@@ -391,7 +391,7 @@ newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr
 
 newObjectRef :: Env -> EgisonExpr -> EgisonM ObjectRef
-newObjectRef env expr = liftIO . newIORef . Thunk $ evalExpr env expr
+newObjectRef env expr = liftIO $ newIORef $ newThunk env expr
 
 writeObjectRef :: ObjectRef -> WHNFData -> EgisonM ()
 writeObjectRef ref val = liftIO . writeIORef ref $ WHNF val
