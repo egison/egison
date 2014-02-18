@@ -593,7 +593,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                 Just ref -> do
                   obj <- evalRef ref >>= updateHash indices >>= newEvalutedObjectRef
                   return $ msingleton $ MState env loops (subst name obj bindings) trees
-                Nothing  -> do
+                Nothing  -> do -- throwError $ strMsg "Cannot reach here!\nIndexed-patttern-variable does not initialized."
                   obj <- updateHash indices (Intermediate . IIntHash $ HL.empty) >>= newEvalutedObjectRef
                   return $ msingleton $ MState env loops ((name,obj):bindings) trees
                where

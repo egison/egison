@@ -223,6 +223,14 @@ desugar (ApplyExpr expr0 expr1) = do
 
 desugar (VarExpr name) = do
   asks $ maybe (VarExpr name) id . lookup name
+
+desugar (MatcherBFSExpr matcherInfo) = do
+  matcherInfo' <- desugarMatcherInfo matcherInfo
+  return $ MatcherBFSExpr matcherInfo'
+  
+desugar (MatcherDFSExpr matcherInfo) = do
+  matcherInfo' <- desugarMatcherInfo matcherInfo
+  return $ MatcherDFSExpr matcherInfo'
   
 desugar expr = return expr
 
@@ -301,3 +309,18 @@ desugarMatchClauses (clause:rest) = do
   rest'   <- desugarMatchClauses rest
   return $ clause' : rest'
 desugarMatchClauses [] = return []
+
+desugarMatcherInfo :: MatcherInfo -> DesugarM MatcherInfo
+desugarMatcherInfo [] = return []
+desugarMatcherInfo ((pp, matcher, pds):matcherInfo) = do
+  matcher' <- desugar matcher
+  pds' <- desugarPrimitiveDataMatchClauses pds
+  matcherInfo' <- desugarMatcherInfo matcherInfo
+  return $ (pp, matcher', pds'):matcherInfo'
+
+desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, EgisonExpr)] -> DesugarM [(PrimitiveDataPattern, EgisonExpr)]
+desugarPrimitiveDataMatchClauses [] = return []
+desugarPrimitiveDataMatchClauses ((pd, expr):pds) = do
+  expr' <- desugar expr
+  pds' <- desugarPrimitiveDataMatchClauses pds
+  return $ (pd, expr'):pds'
