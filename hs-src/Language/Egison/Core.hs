@@ -420,10 +420,8 @@ patternMatch env pattern target matcher = processMStates [msingleton $ MState en
 processMStates :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
 processMStates [] = return MNil
 processMStates streams = do
-  (matches, streams') <- extractMatches streams
-  nextStreamss <- mapM processMStates' streams'
-  let nextStreams = concat nextStreamss
-  mappend (fromList matches) $ processMStates nextStreams
+  (matches, streams') <- mapM processMStates' streams >>= extractMatches . concat
+  mappend (fromList matches) $ processMStates streams'
  where
   processMStates' :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
   processMStates' MNil = return []
