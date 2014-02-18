@@ -1,5 +1,6 @@
 module Main where
 
+import Prelude hiding ( catch )
 import Control.Exception ( AsyncException(..), catch )
 import Control.Monad.Error
 
