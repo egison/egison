@@ -427,9 +427,9 @@ processMStates streams = do
  where
   processMStates' :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
   processMStates' MNil = return []
-  processMStates' stream@(MCons state _) = do
+  processMStates' stream@(MCons state _) =
     case topMAtom state of
-      Nothing -> processMStatesBFS stream
+      Nothing -> processMStatesDFS stream
       Just matom -> do
         case pmMode (getMatcher matom) of
           DFSMode -> processMStatesDFS stream

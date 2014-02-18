@@ -7,7 +7,7 @@
 ;;;
 (define $list
   (lambda [$a]
-    (matcher
+    (matcher-bfs
       {[,$val []
         {[$tgt (match [val tgt] [(list a) (list a)]
                  {[[<nil> <nil>] {[]}]
@@ -37,6 +37,43 @@
                   rs])]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
+                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))
+
+(define $flist
+  (lambda [$a]
+    (matcher-dfs
+      {[,$val []
+        {[$tgt (match [val tgt] [(flist a) (flist a)]
+                 {[[<nil> <nil>] {[]}]
+                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
+                  [[_ _] {}]})]}]
+       [<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<cons $ $> [a (flist a)]
+        {[{$x @$xs} {[x xs]}]
+         [_ {}]}]
+       [<snoc $ $> [a (flist a)]
+        {[{@$xs $x} {[x xs]}]
+         [_ {}]}]
+       [<join ,$pxs $> [(flist a)]
+        {[$tgt (match-all [pxs tgt] [(flist a) (flist a)]
+                 [[(loop $i [1 $n] <cons $xa_i ...> <nil>)
+                   (loop $i [1 ,n] <cons ,xa_i ...> $rs)]
+                  rs])]}]
+       [<join $ $> [(flist a) (flist a)]
+        {[$tgt (match-all tgt (flist a)
+                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+       [<nioj ,$pxs $> [(flist a)]
+        {[$tgt (match-all [pxs tgt] [(flist a) (flist a)]
+                 [[(loop $i [1 $n] <snoc $xa_i ...> <nil>)
+                   (loop $i [1 ,n] <snoc ,xa_i ...> $rs)]
+                  rs])]}]
+       [<nioj $ $> [(flist a) (flist a)]
+        {[$tgt (match-all tgt (flist a)
                  [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
        [$ [something]
         {[$tgt {tgt}]}]

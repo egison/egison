@@ -36,6 +36,9 @@
      "\\<next-match-all\\>"
      "\\<next-match-all-lambda\\>"
      "\\<next-matcher\\>"
+     "\\<matcher\\>"
+     "\\<matcher-bfs\\>"
+     "\\<matcher-dfs\\>"
      "\\<algebraic-data-matcher\\>"
      "\\<pattern-function\\>"
 
@@ -145,6 +148,8 @@
         ((equal "next-match-all" name) 2)
         ((equal "next-match-all-lambda" name) 2)
         ((equal "matcher" name) 2)
+        ((equal "matcher-bfs" name) 2)
+        ((equal "matcher-dfs" name) 2)
         ((equal "algebraic-data-matcher" name) 2)
         ((equal "pattern-function" name) 2)
         ((equal "do" name) 2)

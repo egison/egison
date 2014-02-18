@@ -3,7 +3,7 @@
 ;;
 
 (define $buildin-data-matcher
-  (matcher
+  (matcher-dfs
     {[,$val []
       {[$tgt (if (eq? val tgt)
                  {[]}

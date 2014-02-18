@@ -271,7 +271,8 @@ instance Show EgisonValue where
   show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ B.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (UserMatcher _ _ _) = "#<matcher>"
+  show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
+  show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc _) = "#<primitive-function>"
@@ -506,23 +507,27 @@ refVar env var = maybe (throwError $ UnboundVariable var) return
 type Match = [Binding]
 
 data PMMode = BFSMode | DFSMode
+ deriving (Show)
 
 pmMode :: Matcher -> PMMode
 pmMode (UserMatcher _ mode _) = mode
-pmMode (Tuple _) = BFSMode
-pmMode Something = BFSMode
+pmMode (Tuple _) = DFSMode
+pmMode Something = DFSMode
 
 data MatchingState = MState Env [LoopContext] [Binding] [MatchingTree]
+ deriving (Show)
 
 data MatchingTree =
     MAtom EgisonPattern ObjectRef Matcher
   | MNode [PatternBinding] MatchingState
+ deriving (Show)
 
 type PatternBinding = (Var, EgisonPattern)
 
 data LoopContext =
     LoopContextConstant Binding Integer EgisonPattern EgisonPattern
   | LoopContextVariable Binding EgisonPattern EgisonPattern EgisonPattern
+ deriving (Show)
 
 --
 -- Errors
