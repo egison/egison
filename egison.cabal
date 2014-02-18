@@ -36,7 +36,7 @@ Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.eg
 
 source-repository head
   type: git
-  location: https://github.com/egisatoshi/egison3.git
+  location: https://github.com/egisatoshi/egison.git
   
 Library
   Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, strict-io, bytestring, text, regex-posix, direct-sqlite
