@@ -1,15 +1,14 @@
 module Main where
 
-import Control.Exception (handle)
+import Control.Exception ( SomeException(..),
+                           AsyncException(..)
+                         , catch, handle, throw)
 import Control.Concurrent
 import Control.Monad.Error
 
-import qualified Data.Sequence as Sq
 import Data.ByteString.Lazy.Char8 ()
 
 import Data.Version
-
-import System.Posix.Signals
 
 import System.Environment
 import System.Directory (getHomeDirectory)
@@ -20,7 +19,6 @@ import System.Exit (ExitCode (..), exitWith, exitFailure)
 import System.IO
 
 import Language.Egison
-import Language.Egison.Desugar
 import Language.Egison.Util
 
 main :: IO ()
@@ -122,36 +120,40 @@ showByebyeMessage = do
 onAbort :: EgisonError -> IO (Either EgisonError a)
 onAbort e = return $ Left e
 
+
 repl :: Env -> String -> IO ()
 repl env prompt = do
-  home <- getHomeDirectory
-  liftIO $ runInputT (settings home) $ loop env
+  loop env
  where
   settings :: MonadIO m => FilePath -> Settings m
   settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
     
-  loop :: Env -> InputT IO ()
-  loop env = do
-    _ <- liftIO $ installHandler keyboardSignal (Catch (do {putStr "^C"; hFlush stdout})) Nothing
-    input <- getEgisonExpr prompt
-    tid <- liftIO $ myThreadId
-    _ <- liftIO $ installHandler keyboardSignal (Catch (throwTo tid UserInterruption)) Nothing
+  loop :: Env -> IO ()
+  loop env = (do 
+    home <- getHomeDirectory
+    input <- liftIO $ runInputT (settings home) $ getEgisonExpr prompt
     case input of
       Nothing -> return ()
       Just (Left (topExpr, _)) -> do
-        result <- liftIO $ handle onAbort $ runEgisonTopExpr env topExpr
+        result <- liftIO $ runEgisonTopExpr env topExpr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
             loop env
           Right env' -> loop env'
       Just (Right (expr, _)) -> do
-        result <- liftIO $ handle onAbort $ runEgisonExpr env expr
+        result <- liftIO $ runEgisonExpr env expr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
             loop env
           Right val -> do
             liftIO $ putStrLn $ show val
-            loop env
-
+            loop env)
+    `catch`
+    (\e -> case e of
+             UserInterrupt -> putStrLn "" >> loop env
+             StackOverflow -> putStrLn "Stack over flow!" >> loop env
+             HeapOverflow -> putStrLn "Heap over flow!" >> loop env
+             _ -> putStrLn "error!" >> loop env
+     )
