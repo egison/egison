@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.2.20
+Version:             3.2.21
 Synopsis:            Programming language with non-linear pattern-matching against unfree data types
 Description:
   An interpreter for Egison, the programming langugage that realized non-linear pattern-matching against unfree data types.
