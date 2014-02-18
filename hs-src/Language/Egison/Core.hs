@@ -143,15 +143,18 @@ evalExpr env (HashExpr assocs) = do
   keyWhnfs <- mapM (evalExpr env) keyExprs
   keys <- mapM makeHashKey keyWhnfs
   refs <- mapM (newObjectRef env) exprs
-  case head keys of
-    IntKey _ -> do
-      let keys' = map (\key -> case key of
-                                 IntKey i -> i) keys
+  case keys of
+    [] -> do
+      let keys' = map (\key -> case key of IntKey i -> i) keys
       return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
-    StrKey _ -> do
-      let keys' = map (\key -> case key of
-                                 StrKey s -> s) keys
-      return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
+    _ ->
+     case head keys of
+       IntKey _ -> do
+         let keys' = map (\key -> case key of IntKey i -> i) keys
+         return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
+       StrKey _ -> do
+          let keys' = map (\key -> case key of StrKey s -> s) keys
+          return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
  where
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
@@ -202,7 +205,7 @@ evalExpr env (IndexedExpr expr indices) = do
     case HL.lookup (B.pack key) hash of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
-  refArray val _ = throwError $ TypeMismatch "array" val
+  refArray val _ = throwError $ TypeMismatch "array or hash" val
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
@@ -588,31 +591,24 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               indices <- mapM (evalExpr env' >=> liftM fromInteger . fromWHNF) indices
               case lookup name bindings of
                 Just ref -> do
-                  obj <- evalRef ref >>= flip updateArray indices >>= newEvalutedObjectRef
+                  obj <- evalRef ref >>= updateHash indices >>= newEvalutedObjectRef
                   return $ msingleton $ MState env loops (subst name obj bindings) trees
                 Nothing  -> do
-                  obj <- updateArray (Value $ Array IntMap.empty) indices >>= newEvalutedObjectRef
-                  return $ msingleton $ MState env loops ((name, obj):bindings) trees
+                  obj <- updateHash indices (Intermediate . IIntHash $ HL.empty) >>= newEvalutedObjectRef
+                  return $ msingleton $ MState env loops ((name,obj):bindings) trees
                where
-                updateArray :: WHNFData -> [Int] -> EgisonM WHNFData
-                updateArray (Intermediate (IArray ary)) [index] =
-                  return . Intermediate . IArray $ IntMap.insert index target ary
-                updateArray (Intermediate (IArray ary)) (index:indices) = do
-                  val <- maybe (return $ Value $ Array IntMap.empty) evalRef $ IntMap.lookup index ary
-                  ref <- updateArray val indices >>= newEvalutedObjectRef
-                  return . Intermediate . IArray $ IntMap.insert index ref ary
-                updateArray (Value (Array ary)) [index] = do
-                  keys <- return $ IntMap.keys ary
-                  vals <- mapM (newEvalutedObjectRef . Value) $ IntMap.elems ary
-                  return . Intermediate . IArray $ IntMap.insert index target (IntMap.fromList $ zip keys vals)
-                updateArray (Value (Array ary)) (index:indices) = do
-                  let val = Value $ fromMaybe (Array IntMap.empty) $ IntMap.lookup index ary
-                  ref <- updateArray val indices >>= newEvalutedObjectRef
-                  keys <- return $ IntMap.keys ary
-                  vals <- mapM (newEvalutedObjectRef . Value) $ IntMap.elems ary
-                  return . Intermediate . IArray $ IntMap.insert index ref (IntMap.fromList $ zip keys vals)
-                updateArray _ _ = do
-                  throwError $ strMsg "expected array value"
+                updateHash :: [Integer] -> WHNFData -> EgisonM WHNFData
+                updateHash [index] (Intermediate (IIntHash hash)) = do
+                  return . Intermediate . IIntHash $ HL.insert index target hash
+                updateHash (index:indices) (Intermediate (IIntHash hash)) = do
+                  val <- maybe (return $ Intermediate $ IIntHash HL.empty) evalRef $ HL.lookup index hash
+                  ref <- updateHash indices val >>= newEvalutedObjectRef
+                  return . Intermediate . IIntHash $ HL.insert index ref hash
+                updateHash indices (Value (IntHash hash)) = do
+                  keys <- return $ HL.keys hash
+                  vals <- mapM (newEvalutedObjectRef . Value) $ HL.elems hash
+                  updateHash indices (Intermediate $ IIntHash $ HL.fromList $ zip keys vals)
+                updateHash _ v = throwError $ strMsg $ "expected hash value: " ++ show v
                 subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
                                          | otherwise = (k', v'):(subst k nv xs)
@@ -620,7 +616,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
             _ -> throwError $ strMsg "something can only match with a pattern variable"
 
-processMState' (MState env loops bindings ((MNode penv (MState _ _ _ [])):trees)) = return $ msingleton $ MState env loops bindings trees
+processMState' (MState env loops bindings ((MNode _ (MState _ _ _ [])):trees)) = return $ msingleton $ MState env loops bindings trees
 processMState' (MState env loops bindings ((MNode penv state@(MState env' loops' bindings' (tree:trees')):trees))) = do
   case tree of
     MAtom pattern target matcher -> do

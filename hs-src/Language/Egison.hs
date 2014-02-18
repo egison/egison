@@ -27,10 +27,6 @@ module Language.Egison
        , version
        ) where
 
-import Control.Applicative ((<$>), (<*>))
-import Control.Monad.Error
-
-import Data.IORef
 import Data.Version
 import qualified Paths_egison as P
 

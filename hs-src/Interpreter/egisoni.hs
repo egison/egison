@@ -1,9 +1,6 @@
 module Main where
 
-import Control.Exception ( SomeException(..),
-                           AsyncException(..)
-                         , catch, handle, throw)
-import Control.Concurrent
+import Control.Exception ( AsyncException(..), catch )
 import Control.Monad.Error
 
 import Data.ByteString.Lazy.Char8 ()
@@ -16,7 +13,6 @@ import System.FilePath ((</>))
 import System.Console.Haskeline hiding (handle, catch, throwTo)
 import System.Console.GetOpt
 import System.Exit (ExitCode (..), exitWith, exitFailure)
-import System.IO
 
 import Language.Egison
 import Language.Egison.Util

@@ -245,7 +245,7 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName _ = S.empty
    
    makeBinding :: String -> BindingExpr
-   makeBinding name = ([name], ArrayExpr [])
+   makeBinding name = ([name], HashExpr [])
 
 desugarPattern' :: EgisonPattern -> DesugarM EgisonPattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr

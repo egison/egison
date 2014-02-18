@@ -289,8 +289,10 @@ instance Eq EgisonValue where
  (Float f) == (Float f') = f == f'
  (InductiveData name vals) == (InductiveData name' vals') = name == name' && vals == vals'
  (Tuple vals) == (Tuple vals') = vals == vals'
- (Array vals) == (Array vals') = vals == vals'
  (Collection vals) == (Collection vals') = vals == vals'
+ (Array vals) == (Array vals') = vals == vals'
+ (IntHash vals) == (IntHash vals') = vals == vals'
+ (StrHash vals) == (StrHash vals') = vals == vals'
  _ == _ = False
 
 --
@@ -421,6 +423,9 @@ instance Show WHNFData where
 instance Show Object where
   show (Thunk _) = "#<thunk>"
   show (WHNF whnf) = show whnf
+
+instance Show ObjectRef where
+  show _ = "#<ref>"
 
 --
 -- Extract data from WHNF
