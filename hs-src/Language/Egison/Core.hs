@@ -516,21 +516,29 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
   case pattern of
     NotPat _ -> throwError $ EgisonBug "should not reach here (not pattern)"
     VarPat _ -> throwError $ strMsg "cannot use variable except in pattern function"
-    LetPat bindings' pattern ->
+
+    LetPat bindings' pattern' ->
       let extractBindings ([name], expr) =
             makeBindings [name] . (:[]) <$> newObjectRef env' expr
           extractBindings (names, expr) =
             makeBindings names <$> (evalExpr env' expr >>= fromTuple)
       in
        liftM concat (mapM extractBindings bindings')
-         >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))
+         >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern' target matcher):trees))
+    PredPat predicate -> do
+      func <- evalExpr env' predicate
+      arg <- evalRef target
+      result <- applyFunc func arg >>= fromWHNF
+      if result then return $ msingleton $ (MState env loops bindings trees)
+                else return MNil
+
     ApplyPat func args -> do
-      func <- evalExpr env' func
-      case func of
+      func' <- evalExpr env' func
+      case func' of
         Value (PatternFunc env'' names expr) ->
           let penv = zip names args
           in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
-        _ -> throwError $ TypeMismatch "pattern constructor" func
+        _ -> throwError $ TypeMismatch "pattern constructor" func'
     
     LoopPat name (LoopRangeConstant start end) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
@@ -569,17 +577,11 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                              MState env loops' bindings (MAtom pat target matcher : trees)]
           
     AndPat patterns ->
-      let trees' = map (\pattern -> MAtom pattern target matcher) patterns ++ trees
+      let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
       in return $ msingleton $ MState env loops bindings trees'
     OrPat patterns ->
-      return $ fromList $ flip map patterns $ \pattern ->
-        MState env loops bindings (MAtom pattern target matcher : trees)
-    PredPat pred -> do
-      func <- evalExpr env' pred
-      arg <- evalRef target
-      result <- applyFunc func arg >>= fromWHNF
-      if result then return $ msingleton $ (MState env loops bindings trees)
-                else return MNil
+      return $ fromList $ flip map patterns $ \pat ->
+        MState env loops bindings (MAtom pat target matcher : trees)
 
     _ ->
       case matcher of
