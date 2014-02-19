@@ -581,18 +581,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       if result then return $ msingleton $ (MState env loops bindings trees)
                 else return MNil
 
-    TuplePat patterns -> do
-      targets <- evalRef target >>= fromTuple
-      let matchers = fromTupleValue matcher
-      if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
-      if not (length patterns == length matchers) then throwError $ ArgumentsNum (length patterns) (length matchers) else return ()
-      let trees' = zipWith3 MAtom patterns targets matchers ++ trees
-      return $ msingleton $ MState env loops bindings trees'
-
     _ ->
       case matcher of
-        Tuple matchers -> do undefined
-
         UserMatcher _ _ _ -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
@@ -600,6 +590,25 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env loops bindings trees'
             
+        Tuple matchers -> do
+          case pattern of
+            ValuePat valExpr -> do
+              val <- evalExprDeep env' valExpr
+              tgtVal <- evalRefDeep target
+              if val == tgtVal
+                then return $ msingleton $ MState env loops bindings trees
+                else return MNil
+            WildCard -> return $ msingleton $ MState env loops bindings trees
+            PatVar _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target Something):trees)
+            IndexedPat _ _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target Something):trees)
+            TuplePat patterns -> do
+              targets <- evalRef target >>= fromTuple
+              if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
+              if not (length patterns == length matchers) then throwError $ ArgumentsNum (length patterns) (length matchers) else return ()
+              let trees' = zipWith3 MAtom patterns targets matchers ++ trees
+              return $ msingleton $ MState env loops bindings trees'
+            _ ->  throwError $ strMsg $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
+
         Something ->
           case pattern of
             ValuePat valExpr -> do
@@ -616,7 +625,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                 Just ref -> do
                   obj <- evalRef ref >>= updateHash indices >>= newEvalutedObjectRef
                   return $ msingleton $ MState env loops (subst name obj bindings) trees
-                Nothing  -> do -- throwError $ strMsg "Cannot reach here!\nIndexed-patttern-variable does not initialized."
+                Nothing  -> do
                   obj <- updateHash indices (Intermediate . IIntHash $ HL.empty) >>= newEvalutedObjectRef
                   return $ msingleton $ MState env loops ((name,obj):bindings) trees
                where
@@ -638,7 +647,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                 subst _ _ [] = []
             IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
             _ -> throwError $ strMsg "something can only match with a pattern variable"
-        _ ->  throwError $ strMsg $ "cannot reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
+        _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
 inductiveMatch :: Env -> EgisonPattern -> ObjectRef -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
