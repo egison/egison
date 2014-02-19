@@ -542,7 +542,7 @@ data EgisonError =
   | Match String
   | Parser String
   | Desugar String
-  | UserInterruption
+  | EgisonBug String
   | Default String
   deriving Typeable
     
@@ -556,7 +556,7 @@ instance Show EgisonError where
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
   show (Desugar message) = "Error: " ++ message
-  show UserInterruption = "Aborted: User interruption"
+  show (EgisonBug message) = "Egison Error: " ++ message
   show (Default message) = "Error: " ++ message
 
 instance Exception EgisonError

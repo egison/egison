@@ -483,9 +483,9 @@ processMState state = do
     in (MState env loops bindings [MNode penv state1], MState env loops bindings (MNode penv state2 : trees))
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
-processMState' (MState _ _ _ []) = throwError $ strMsg "should not reach here"
+processMState' (MState _ _ _ []) = throwError $ EgisonBug "should not reach here (empty matching-state)"
 
-processMState' (MState _ _ _ ((MNode _ (MState _ _ _ [])):_)) = throwError $ strMsg "should not reach here"
+processMState' (MState _ _ _ ((MNode _ (MState _ _ _ [])):_)) = throwError $ EgisonBug "should not reach here (empty matching-node)"
 
 processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) = do
   case lookup name penv of
@@ -514,7 +514,7 @@ processMState' (MState env loops bindings ((MNode penv state):trees)) = do
 processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnvForNonLinearPatterns env bindings loops
   case pattern of
-    NotPat _ -> throwError $ strMsg "should not reach here (not pattern)"
+    NotPat _ -> throwError $ EgisonBug "should not reach here (not pattern)"
     VarPat _ -> throwError $ strMsg "cannot use variable except in pattern function"
     LetPat bindings' pattern ->
       let extractBindings ([name], expr) =
