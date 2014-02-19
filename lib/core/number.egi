@@ -64,6 +64,10 @@
   (lambda [$n]
     (eq? 1 (modulo n 2))))
 
+(define $between?
+  (lambda [$m $n $x]
+    (and (lte? m x) (lte? x n))))
+
 ;;
 ;; Float Numbers
 ;;

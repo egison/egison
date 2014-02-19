@@ -650,6 +650,10 @@ matchFail = MaybeT $ return Nothing
 
 data MList m a = MNil | MCons a (m (MList m a))
 
+instance Show (MList m a) where
+  show MNil = "MNil"
+  show (MCons _ _) = "(MCons ... ...)"
+
 fromList :: Monad m => [a] -> MList m a
 fromList = foldr f MNil
  where f x xs = MCons x $ return xs

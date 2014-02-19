@@ -555,9 +555,17 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             (False, MNil) -> return $ msingleton $ MState env ((LoopContext (name, nextNumRef) (False, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)
             (True, MNil) -> case mCdrPat of
                               Nothing -> return MNil
-                              Just cdrPat -> return $ msingleton $ MState env ((LoopContext (name, nextNumRef) (False, cdrPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)
-            (_, MCons _ _) -> return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
-                                                 MState env ((LoopContext (name, nextNumRef) (True, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
+                              Just cdrPat -> do
+                                let (carPat', _) = unconsOrPattern cdrPat
+                                matches' <- patternMatch env' carPat' startNumRef Something
+                                case matches' of
+                                  MNil -> return $ msingleton $ MState env ((LoopContext (name, nextNumRef) (False, cdrPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)
+                                  MCons _ _ -> do
+                                    return $ fromList [MState env loops' bindings ((MAtom cdrPat startNumRef Something):(MAtom pat' target matcher):trees),
+                                                       MState env ((LoopContext (name, nextNumRef) (True, cdrPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
+            (_, MCons _ _) -> do
+              return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
+                                 MState env ((LoopContext (name, nextNumRef) (True, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
       in return $ msingleton $ MState env loops bindings trees'
