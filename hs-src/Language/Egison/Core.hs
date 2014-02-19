@@ -38,7 +38,7 @@ import Prelude hiding (mapM)
 import Control.Arrow
 import Control.Applicative
 import Control.Monad.Error hiding (mapM)
-import Control.Monad.State hiding (mapM)
+import Control.Monad.State hiding (mapM, state)
 import Control.Monad.Trans.Maybe
 
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
@@ -472,14 +472,14 @@ processMState state = do
  where
   isNotPat :: MatchingState -> Bool
   isNotPat (MState _ _ _ ((MAtom (NotPat _) _ _) : _)) = True
-  isNotPat (MState _ _ _ ((MNode _ state) : _)) = isNotPat state
+  isNotPat (MState _ _ _ ((MNode _ state') : _)) = isNotPat state'
   isNotPat _ = False
 
   splitMState :: MatchingState -> (MatchingState, MatchingState)
   splitMState (MState env loops bindings ((MAtom (NotPat pattern) target matcher) : trees)) =
     (MState env loops bindings [MAtom pattern target matcher], MState env loops bindings trees)
-  splitMState (MState env loops bindings ((MNode penv state) : trees)) =
-    let (state1, state2) = splitMState state
+  splitMState (MState env loops bindings ((MNode penv state') : trees)) =
+    let (state1, state2) = splitMState state'
     in (MState env loops bindings [MNode penv state1], MState env loops bindings (MNode penv state2 : trees))
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
