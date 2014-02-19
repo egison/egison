@@ -496,11 +496,11 @@ processMState' (MState env loops bindings (MNode penv (MState env' loops' bindin
     Nothing -> throwError $ UnboundVariable name
 
 processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' ((MAtom (IndexedPat (VarPat name) indices) target matcher):trees')):trees)) = do
-  let env'' = extendEnvForNonLinearPatterns env' bindings loops'
   case lookup name penv of
     Just pattern -> do
-      indices <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map IntegerExpr indices
+      let env'' = extendEnvForNonLinearPatterns env' bindings loops'
+      indices' <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
+      let pattern' = IndexedPat pattern $ map IntegerExpr indices'
       case trees' of
         [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):trees)
         _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
