@@ -487,13 +487,43 @@ processMState state = do
     in (MState env loops bindings [MNode penv state1], MState env loops bindings (MNode penv state2 : trees))
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
-processMState' state@(MState _ _ _ []) = throwError $ strMsg "should not reach here"
+processMState' (MState _ _ _ []) = throwError $ strMsg "should not reach here"
+
+processMState' (MState env loops bindings ((MNode _ (MState _ _ _ [])):trees)) = return $ msingleton $ MState env loops bindings trees
+
+processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' (MAtom (VarPat name) target matcher:trees')):trees)) = do
+  case lookup name penv of
+    Just pattern ->
+      case trees' of
+        [] -> return $ msingleton $ MState env loops bindings (MAtom pattern target matcher:trees)
+        _ -> return $ msingleton $ MState env loops bindings (MAtom pattern target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
+    Nothing -> throwError $ UnboundVariable name
+
+processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' ((MAtom (IndexedPat (VarPat name) indices) target matcher):trees')):trees)) = do
+  let env'' = extendEnvForNonLinearPatterns env' bindings loops'
+  case lookup name penv of
+    Just pattern -> do
+      indices <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
+      let pattern' = IndexedPat pattern $ map IntegerExpr indices
+      return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
+    Nothing -> throwError $ UnboundVariable name
+
+processMState' (MState env loops bindings ((MNode penv state):trees)) = do
+  processMState' state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
+
 processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)) = do
-  let env' = extendEnv env (bindings ++ map (\lc -> case lc of
-                                                      (LoopContextConstant binding _ _ _) -> binding
-                                                      (LoopContextVariable binding _ _ _) -> binding) loops)
+  let env' = extendEnvForNonLinearPatterns env bindings loops
   case pattern of
+    NotPat _ -> throwError $ strMsg "should not reach here (not pattern)"
     VarPat _ -> throwError $ strMsg "cannot use variable except in pattern function"
+    LetPat bindings' pattern ->
+      let extractBindings ([name], expr) =
+            makeBindings [name] . (:[]) <$> newObjectRef env' expr
+          extractBindings (names, expr) =
+            makeBindings names <$> (evalExpr env' expr >>= fromTuple)
+      in
+       liftM concat (mapM extractBindings bindings')
+         >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))
     ApplyPat func args -> do
       func <- evalExpr env' func
       case func of
@@ -538,6 +568,19 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           return $ fromList [MState env loops bindings (MAtom lastNumPat startNumRef Something : MAtom pat' target matcher : trees),
                              MState env loops' bindings (MAtom pat target matcher : trees)]
           
+    AndPat patterns ->
+      let trees' = map (\pattern -> MAtom pattern target matcher) patterns ++ trees
+      in return $ msingleton $ MState env loops bindings trees'
+    OrPat patterns ->
+      return $ fromList $ flip map patterns $ \pattern ->
+        MState env loops bindings (MAtom pattern target matcher : trees)
+    PredPat pred -> do
+      func <- evalExpr env' pred
+      arg <- evalRef target
+      result <- applyFunc func arg >>= fromWHNF
+      if result then return $ msingleton $ (MState env loops bindings trees)
+                else return MNil
+
     TuplePat patterns -> do
       targets <- evalRef target >>= fromTuple
       let matchers = fromTupleValue matcher
@@ -545,30 +588,12 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       if not (length patterns == length matchers) then throwError $ ArgumentsNum (length patterns) (length matchers) else return ()
       let trees' = zipWith3 MAtom patterns targets matchers ++ trees
       return $ msingleton $ MState env loops bindings trees'
-    AndPat patterns ->
-      let trees' = map (\pattern -> MAtom pattern target matcher) patterns ++ trees
-      in return $ msingleton $ MState env loops bindings trees'
-    OrPat patterns ->
-      return $ fromList $ flip map patterns $ \pattern ->
-        MState env loops bindings (MAtom pattern target matcher : trees)
-    NotPat pattern -> throwError $ strMsg "should not reach here (cut pattern)"
-    PredPat pred -> do
-      func <- evalExpr env' pred
-      arg <- evalRef target
-      result <- applyFunc func arg >>= fromWHNF
-      if result then return $ msingleton $ (MState env loops bindings trees)
-                else return MNil
-    LetPat bindings' pattern ->
-      let extractBindings ([name], expr) =
-            makeBindings [name] . (:[]) <$> newObjectRef env' expr
-          extractBindings (names, expr) =
-            makeBindings names <$> (evalExpr env' expr >>= fromTuple)
-      in
-       liftM concat (mapM extractBindings bindings')
-         >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern target matcher):trees))
+
     _ ->
       case matcher of
-        matcher@(UserMatcher _ _ _) -> do
+        Tuple matchers -> do undefined
+
+        UserMatcher _ _ _ -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTuple
@@ -613,29 +638,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                 subst _ _ [] = []
             IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
             _ -> throwError $ strMsg "something can only match with a pattern variable"
-
-processMState' (MState env loops bindings ((MNode _ (MState _ _ _ [])):trees)) = return $ msingleton $ MState env loops bindings trees
-processMState' (MState env loops bindings ((MNode penv state@(MState env' loops' bindings' (tree:trees')):trees))) = do
-  case tree of
-    MAtom pattern target matcher -> do
-      case pattern of
-        VarPat name ->
-          case lookup name penv of
-            Just pattern ->
-              return $ msingleton $ MState env loops bindings (MAtom pattern target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
-            Nothing -> throwError $ UnboundVariable name
-        IndexedPat (VarPat name) indices ->
-          case lookup name penv of
-            Just pattern -> do
-              let env'' = extendEnv env' (bindings' ++ map (\lc -> case lc of
-                                                                     (LoopContextConstant binding _ _ _) -> binding
-                                                                     (LoopContextVariable binding _ _ _) -> binding) loops')
-              indices <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
-              let pattern' = IndexedPat pattern $ map IntegerExpr indices
-              return $ msingleton $ MState env loops bindings (MAtom pattern' target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
-            Nothing -> throwError $ UnboundVariable name
-        _ -> processMState' state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
-    _ -> processMState' state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
+        _ ->  throwError $ strMsg $ "cannot reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
 inductiveMatch :: Env -> EgisonPattern -> ObjectRef -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
@@ -763,6 +766,12 @@ unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
       liftIO $ writeIORef innersRef (hInners >< tInners)
       unsnocCollection coll
 unsnocCollection _ = matchFail
+
+extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopContext] -> Env
+extendEnvForNonLinearPatterns env bindings loops =
+   extendEnv env (bindings ++ map (\lc -> case lc of
+                                            (LoopContextConstant binding _ _ _) -> binding
+                                            (LoopContextVariable binding _ _ _) -> binding) loops)
 
 --
 -- Util
