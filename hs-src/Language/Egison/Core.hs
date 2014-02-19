@@ -426,12 +426,9 @@ processMStates streams = do
 processMStates' :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
 processMStates' MNil = return []
 processMStates' stream@(MCons state _) =
-  case topMAtom state of
-    Nothing -> processMStatesDFS stream
-    Just matom -> do
-      case pmMode (getMatcher matom) of
-        DFSMode -> processMStatesDFS stream
-        BFSMode -> processMStatesBFS stream
+  case pmMode (getMatcher (topMAtom state)) of
+    DFSMode -> processMStatesDFS stream
+    BFSMode -> processMStatesBFS stream
 
 extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
 extractMatches = extractMatches' ([], [])
@@ -455,10 +452,9 @@ processMStatesBFS (MCons state stream) = do
   newStream' <- stream
   return [newStream, newStream']
 
-topMAtom :: MatchingState -> Maybe MatchingTree
-topMAtom (MState _ _ _ (mAtom@(MAtom _ _ _):_)) = return mAtom
+topMAtom :: MatchingState -> MatchingTree
+topMAtom (MState _ _ _ (mAtom@(MAtom _ _ _):_)) = mAtom
 topMAtom (MState _ _ _ ((MNode _ mstate):_)) = topMAtom mstate
-topMAtom (MState _ _ _ _) = Nothing
 
 getMatcher :: MatchingTree -> Matcher
 getMatcher (MAtom _ _ matcher) = matcher
@@ -489,7 +485,7 @@ processMState state = do
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState' (MState _ _ _ []) = throwError $ strMsg "should not reach here"
 
-processMState' (MState env loops bindings ((MNode _ (MState _ _ _ [])):trees)) = return $ msingleton $ MState env loops bindings trees
+processMState' (MState _ _ _ ((MNode _ (MState _ _ _ [])):_)) = throwError $ strMsg "should not reach here"
 
 processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) = do
   case lookup name penv of
@@ -511,7 +507,9 @@ processMState' (MState env loops bindings (MNode penv (MState env' loops' bindin
     Nothing -> throwError $ UnboundVariable name
 
 processMState' (MState env loops bindings ((MNode penv state):trees)) = do
-  processMState' state >>= mmap (return . MState env loops bindings . (: trees) . MNode penv)
+  processMState' state >>= mmap (\state' -> case state' of
+                                              MState _ _ _ [] -> return $ MState env loops bindings trees
+                                              _ -> (return . MState env loops bindings . (: trees) . MNode penv) state')
 
 processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)) = do
   let env' = extendEnvForNonLinearPatterns env bindings loops
