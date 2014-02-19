@@ -592,13 +592,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             
         Tuple matchers -> do
           case pattern of
-            ValuePat valExpr -> do
-              val <- evalExprDeep env' valExpr
-              tgtVal <- evalRefDeep target
-              if val == tgtVal
-                then return $ msingleton $ MState env loops bindings trees
-                else return MNil
-            WildCard -> return $ msingleton $ MState env loops bindings trees
+            ValuePat _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target Something):trees)
+            WildCard -> return $ msingleton $ MState env loops bindings ((MAtom pattern target Something):trees)
             PatVar _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target Something):trees)
             IndexedPat _ _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target Something):trees)
             TuplePat patterns -> do

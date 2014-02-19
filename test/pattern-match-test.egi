@@ -163,3 +163,8 @@
         (let {[$t (foldr insert <Leaf> {4 1 2 4 3})]}
           [(member? 1 t) (member? 0 t)])
         [#t #f]))
+
+(test (assert-equal "tuple pattern"
+        (match-all {[1 1] [2 2]} (multiset [integer integer]) [<cons [$x ,x] _> x])
+        {1 2}))
+
