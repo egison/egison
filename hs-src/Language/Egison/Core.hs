@@ -541,17 +541,15 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     
     LoopPat name (LoopRange start endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
-      startNumRef <- newEvalutedObjectRef $ Value $ Integer startNum
-      lastNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
-      return $ fromList [MState env loops bindings ((MAtom endPat lastNumRef Something):(MAtom pat' target matcher):trees),
-                         MState env ((LoopContext (name, startNumRef) endPat pat pat'):loops) bindings ((MAtom pat target matcher):trees)]
+      startNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
+      return $ msingleton $ MState env ((LoopContext (name, startNumRef) endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopContext (name, startNumRef) endPat pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
-          let nextNum = startNum + 1
-          nextNumRef <- newEvalutedObjectRef $ Value $ Integer nextNum
+          nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
+          let (carPat, mCdrPat) = unconsPattern endPat
           return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
                              MState env ((LoopContext (name, nextNumRef) endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
           
