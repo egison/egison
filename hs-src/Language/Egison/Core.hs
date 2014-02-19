@@ -505,7 +505,9 @@ processMState' (MState env loops bindings (MNode penv (MState env' loops' bindin
     Just pattern -> do
       indices <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
       let pattern' = IndexedPat pattern $ map IntegerExpr indices
-      return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
+      case trees' of
+        [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):trees)
+        _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
     Nothing -> throwError $ UnboundVariable name
 
 processMState' (MState env loops bindings ((MNode penv state):trees)) = do
