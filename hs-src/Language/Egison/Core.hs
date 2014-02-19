@@ -539,7 +539,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func'
     
-    LoopPat name (LoopRange start endPat) pat pat' -> do
+    LoopPat _ name (LoopRange start endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
       startNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
       return $ msingleton $ MState env ((LoopContext (name, startNumRef) (False, endPat) pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)

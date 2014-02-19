@@ -426,7 +426,13 @@ applyPat :: Parser EgisonPattern
 applyPat = ApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
 
 loopPat :: Parser EgisonPattern
-loopPat = keywordLoop >> LoopPat <$> varName <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
+loopPat = keywordLoop >> LoopPat SmartMode <$> varName <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
+
+naiveLoopPat :: Parser EgisonPattern
+naiveLoopPat = keywordNaiveLoop >> LoopPat NaiveMode <$> varName <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
+
+smartLoopPat :: Parser EgisonPattern
+smartLoopPat = keywordSmartLoop >> LoopPat SmartMode <$> varName <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
 loopRange :: Parser LoopRange
 loopRange = brackets $ LoopRange  <$> expr <*> pattern
@@ -552,6 +558,8 @@ keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
 keywordLoop                 = reserved "loop"
+keywordNaiveLoop            = reserved "naive-loop"
+keywordSmartLoop            = reserved "smart-loop"
 keywordMatchAll             = reserved "match-all"
 keywordMatchAllLambda       = reserved "match-all-lambda"
 keywordMatch                = reserved "match"

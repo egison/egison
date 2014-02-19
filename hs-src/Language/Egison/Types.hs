@@ -19,6 +19,7 @@ module Language.Egison.Types
     , BindingExpr (..)
     , MatchClause (..)
     , MatcherInfo (..)
+    , LoopMode (..)
     , LoopRange (..)
     , PrimitivePatPattern (..)
     , PrimitiveDataPattern (..)
@@ -190,10 +191,13 @@ data EgisonPattern =
   | OrPat [EgisonPattern]
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
-  | LoopPat String LoopRange EgisonPattern EgisonPattern
+  | LoopPat LoopMode String LoopRange EgisonPattern EgisonPattern
   | ContPat
   | ApplyPat EgisonExpr [EgisonPattern]
   | VarPat String
+ deriving (Show)
+
+data LoopMode = NaiveMode | SmartMode
  deriving (Show)
 
 data LoopRange = LoopRange EgisonExpr EgisonPattern
