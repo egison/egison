@@ -196,9 +196,7 @@ data EgisonPattern =
   | VarPat String
  deriving (Show)
 
-data LoopRange =
-    LoopRangeConstant EgisonExpr EgisonExpr
-  | LoopRangeVariable EgisonExpr EgisonPattern
+data LoopRange = LoopRange EgisonExpr EgisonPattern
  deriving (Show)
 
 data PrimitivePatPattern =
@@ -524,9 +522,7 @@ data MatchingTree =
 
 type PatternBinding = (Var, EgisonPattern)
 
-data LoopContext =
-    LoopContextConstant Binding Integer EgisonPattern EgisonPattern
-  | LoopContextVariable Binding EgisonPattern EgisonPattern EgisonPattern
+data LoopContext = LoopContext Binding EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
 
 --

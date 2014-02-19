@@ -276,13 +276,10 @@ desugarPattern' (OrPat patterns)  =
 desugarPattern' pattern = return pattern
 
 desugarLoopRange :: LoopRange -> DesugarM LoopRange
-desugarLoopRange (LoopRangeConstant expr1 expr2) = do
-  expr1' <- desugar expr1
-  expr2' <- desugar expr2
-  return $ LoopRangeConstant expr1' expr2'
-desugarLoopRange (LoopRangeVariable expr1 name) = do
-  expr1' <- desugar expr1
-  return $ LoopRangeVariable expr1' name
+desugarLoopRange (LoopRange expr pattern) = do
+  expr' <- desugar expr
+  pattern' <- desugarPattern pattern
+  return $ LoopRange expr' pattern'
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
 desugarBinding (name, expr) = do

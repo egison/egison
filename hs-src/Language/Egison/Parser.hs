@@ -429,8 +429,7 @@ loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> LoopPat <$> varName <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
 loopRange :: Parser LoopRange
-loopRange = brackets ((try $ LoopRangeConstant <$> expr <*> (reservedOp "," >> expr))
-                      <|> LoopRangeVariable  <$> expr <*> pattern)
+loopRange = brackets $ LoopRange  <$> expr <*> pattern
 
 -- Constants
 
