@@ -491,12 +491,12 @@ processMState' (MState _ _ _ []) = throwError $ strMsg "should not reach here"
 
 processMState' (MState env loops bindings ((MNode _ (MState _ _ _ [])):trees)) = return $ msingleton $ MState env loops bindings trees
 
-processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' (MAtom (VarPat name) target matcher:trees')):trees)) = do
+processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) = do
   case lookup name penv of
     Just pattern ->
       case trees' of
-        [] -> return $ msingleton $ MState env loops bindings (MAtom pattern target matcher:trees)
-        _ -> return $ msingleton $ MState env loops bindings (MAtom pattern target matcher:MNode penv (MState env' loops' bindings' trees'):trees)
+        [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern target matcher):trees)
+        _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
     Nothing -> throwError $ UnboundVariable name
 
 processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' ((MAtom (IndexedPat (VarPat name) indices) target matcher):trees')):trees)) = do
