@@ -542,17 +542,19 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     LoopPat name (LoopRange start endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
       startNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
-      return $ msingleton $ MState env ((LoopContext (name, startNumRef) endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+      return $ msingleton $ MState env ((LoopContext (name, startNumRef) (False, endPat) pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
-        LoopContext (name, startNumRef) endPat pat pat' : loops' -> do
+        LoopContext (name, startNumRef) (matched, endPat) pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
           nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
-          let (carPat, mCdrPat) = unconsPattern endPat
-          return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
-                             MState env ((LoopContext (name, nextNumRef) endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
-          
+          matches <- patternMatch env' endPat startNumRef Something
+          case (matched, matches) of
+            (False, MNil) -> return $ msingleton $ MState env ((LoopContext (name, nextNumRef) (False, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)
+            (True, MNil) -> return $ MNil
+            (_, MCons _ _) -> return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
+                                                 MState env ((LoopContext (name, nextNumRef) (True, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
       in return $ msingleton $ MState env loops bindings trees'
@@ -753,18 +755,15 @@ unsnocCollection _ = matchFail
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopContext] -> Env
 extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopContext binding _ _ _) -> binding) loops
 
-unconsPattern :: EgisonPattern -> (EgisonPattern, Maybe EgisonPattern)
-unconsPattern (OrPat [pat]) = unconsPattern pat
-unconsPattern (OrPat (pat:pats)) = let (pat',mpat'') = unconsPattern pat in
-                                     case mpat'' of
-                                       Just pat'' -> (pat', Just (OrPat (pat'':pats)))
-                                       Nothing -> (pat', Just (OrPat pats))
-unconsPattern (AndPat [pat]) = unconsPattern pat
-unconsPattern (AndPat (pat:pats)) = let (pat',mpat'') = unconsPattern pat in
+unconsOrPattern :: EgisonPattern -> (EgisonPattern, Maybe EgisonPattern)
+unconsOrPattern (OrPat [pat]) = (pat, Nothing)
+unconsOrPattern (OrPat (pat:pats)) = (pat, Just (OrPat pats))
+unconsOrPattern (AndPat [pat]) = unconsOrPattern pat
+unconsOrPattern (AndPat (pat:pats)) = let (pat',mpat'') = unconsOrPattern pat in
                                      case mpat'' of
                                        Just pat'' -> (pat', Just (AndPat (pat'':pats)))
                                        Nothing -> (pat', Just (AndPat pats))
-unconsPattern pat = (pat, Nothing)
+unconsOrPattern pat = (pat, Nothing)
 
 --
 -- Util
