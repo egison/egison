@@ -384,6 +384,8 @@ pattern' = wildCard
                     <|> orPat
                     <|> applyPat
                     <|> loopPat
+                    <|> naiveLoopPat
+                    <|> smartLoopPat
                     <|> letPat)
 
 wildCard :: Parser EgisonPattern
@@ -510,6 +512,8 @@ reservedKeywords =
   , "letrec"
   , "let"
   , "loop"
+  , "naive-loop"
+  , "smart-loop"
   , "match-all"
   , "match"
   , "match-all-lambda"

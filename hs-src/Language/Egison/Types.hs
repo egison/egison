@@ -526,7 +526,7 @@ data MatchingTree =
 
 type PatternBinding = (Var, EgisonPattern)
 
-data LoopContext = LoopContext Binding (Bool, EgisonPattern) EgisonPattern EgisonPattern
+data LoopContext = LoopContext LoopMode Binding (Bool, EgisonPattern) EgisonPattern EgisonPattern
  deriving (Show)
 
 --
