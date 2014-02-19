@@ -471,10 +471,9 @@ processMState state = do
     else processMState' state
  where
   isNotPat :: MatchingState -> Bool
-  isNotPat (MState _ _ _ ((MAtom (NotPat _) _ _) : _)) = True
-  isNotPat (MState _ _ _ ((MNode _ state') : _)) = isNotPat state'
-  isNotPat _ = False
-
+  isNotPat state = case topMAtom state of
+                     MAtom (NotPat _) _ _ -> True
+                     _ -> False
   splitMState :: MatchingState -> (MatchingState, MatchingState)
   splitMState (MState env loops bindings ((MAtom (NotPat pattern) target matcher) : trees)) =
     (MState env loops bindings [MAtom pattern target matcher], MState env loops bindings trees)
