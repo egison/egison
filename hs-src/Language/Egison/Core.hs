@@ -549,10 +549,13 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         LoopContext (name, startNumRef) (matched, endPat) pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
           nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
-          matches <- patternMatch env' endPat startNumRef Something
+          let (carPat, mCdrPat) = unconsOrPattern endPat
+          matches <- patternMatch env' carPat startNumRef Something
           case (matched, matches) of
             (False, MNil) -> return $ msingleton $ MState env ((LoopContext (name, nextNumRef) (False, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)
-            (True, MNil) -> return $ MNil
+            (True, MNil) -> case mCdrPat of
+                              Nothing -> return MNil
+                              Just cdrPat -> return $ msingleton $ MState env ((LoopContext (name, nextNumRef) (False, cdrPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)
             (_, MCons _ _) -> return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
                                                  MState env ((LoopContext (name, nextNumRef) (True, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
     AndPat patterns ->
@@ -756,13 +759,17 @@ extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopContext] -> Env
 extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopContext binding _ _ _) -> binding) loops
 
 unconsOrPattern :: EgisonPattern -> (EgisonPattern, Maybe EgisonPattern)
+unconsOrPattern (LetPat bindings pat) = let (pat',mpat'') = unconsOrPattern pat in
+                                          case mpat'' of
+                                            Just pat'' -> (LetPat bindings pat', Just (LetPat bindings pat''))
+                                            Nothing -> (LetPat bindings pat', Nothing)
 unconsOrPattern (OrPat [pat]) = (pat, Nothing)
 unconsOrPattern (OrPat (pat:pats)) = (pat, Just (OrPat pats))
 unconsOrPattern (AndPat [pat]) = unconsOrPattern pat
 unconsOrPattern (AndPat (pat:pats)) = let (pat',mpat'') = unconsOrPattern pat in
-                                     case mpat'' of
-                                       Just pat'' -> (pat', Just (AndPat (pat'':pats)))
-                                       Nothing -> (pat', Just (AndPat pats))
+                                        case mpat'' of
+                                          Just pat'' -> (AndPat (pat':pats), Just (AndPat (pat'':pats)))
+                                          Nothing -> (AndPat (pat':pats), Nothing)
 unconsOrPattern pat = (pat, Nothing)
 
 --

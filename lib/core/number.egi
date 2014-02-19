@@ -56,6 +56,14 @@
         {[$tgt {tgt}]}]
        })))
 
+(define $even?
+  (lambda [$n]
+    (eq? 0 (modulo n 2))))
+
+(define $odd?
+  (lambda [$n]
+    (eq? 1 (modulo n 2))))
+
 ;;
 ;; Float Numbers
 ;;
