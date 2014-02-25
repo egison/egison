@@ -30,7 +30,7 @@ Welcome to Egison Interpreter!
 Leaving Egison Interpreter.
 ```
 
-If you are a begginer of Egison, it would be better to install `egison-tutorial`.
+If you are a begginer of Egison, it would be better to install [`egison-tutorial`](https://github.com/egisatoshi/egison-tutorial).
 
 ```
 % cabal update
