@@ -114,10 +114,6 @@ showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
   exitWith ExitSuccess
 
-onAbort :: EgisonError -> IO (Either EgisonError a)
-onAbort e = return $ Left e
-
-
 repl :: Env -> String -> IO ()
 repl env prompt = do
   loop env

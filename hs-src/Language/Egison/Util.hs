@@ -6,7 +6,7 @@ Licence     : MIT
 This module provides utility functions.
 -}
 
-module Language.Egison.Util (getEgisonExpr, completeEgison) where
+module Language.Egison.Util (getEgisonExpr, getEgisonExpr', completeEgison) where
 
 import Data.List
 import Text.Regex.Posix
@@ -18,33 +18,36 @@ import Language.Egison.Parser
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
 getEgisonExpr :: String -> InputT IO (Maybe (Either (String, EgisonTopExpr) (String, EgisonExpr)))
-getEgisonExpr prompt = getEgisonExpr' ""
- where
-  getEgisonExpr' :: String -> InputT IO (Maybe (Either (String, EgisonTopExpr) (String, EgisonExpr)))
-  getEgisonExpr' prev = do
-    mLine <- case prev of
-               "" -> getInputLine prompt
-               _ -> getInputLine $ take (length prompt ) (repeat ' ')
-    case mLine of
-      Nothing -> return Nothing
-      Just line -> do
-        let input = prev ++ line
-        case parseTopExpr input of
-          Left err | show err =~ "unexpected end of input" -> do
-            getEgisonExpr' $ input ++ "\n"
-          Left err | show err =~ "expecting (top-level|\"define\")" ->
-            case parseExpr input of
-              Left err | show err =~ "unexpected end of input" -> do
-                getEgisonExpr' $ input ++ "\n"
-              Left err -> do
-                liftIO $ putStrLn $ show err
-                getEgisonExpr prompt
-              Right expr -> return $ Just $ Right (input, expr)
-          Left err -> do
-            liftIO $ putStrLn $ show err
-            getEgisonExpr prompt
-          Right topExpr -> return $ Just $ Left (input, topExpr)
+getEgisonExpr prompt = getEgisonExpr' prompt ""
 
+getEgisonExpr' :: String -> String -> InputT IO (Maybe (Either (String, EgisonTopExpr) (String, EgisonExpr)))
+getEgisonExpr' prompt prev = do
+  mLine <- case prev of
+             "" -> getInputLine prompt
+             _ -> getInputLine $ take (length prompt) (repeat ' ')
+  case mLine of
+    Nothing -> return Nothing
+    Just [] -> do
+      if null prev
+        then getEgisonExpr prompt
+        else getEgisonExpr' prompt prev
+    Just line -> do
+      let input = prev ++ line
+      case parseTopExpr input of
+        Left err | show err =~ "unexpected end of input" -> do
+          getEgisonExpr' prompt $ input ++ "\n"
+        Left err | show err =~ "expecting (top-level|\"define\")" ->
+          case parseExpr input of
+            Left err | show err =~ "unexpected end of input" -> do
+              getEgisonExpr' prompt $ input ++ "\n"
+            Left err -> do
+              liftIO $ putStrLn $ show err
+              getEgisonExpr prompt
+            Right expr -> return $ Just $ Right (input, expr)
+        Left err -> do
+          liftIO $ putStrLn $ show err
+          getEgisonExpr prompt
+        Right topExpr -> return $ Just $ Left (input, topExpr)
 
 -- |Complete Egison keywords
 completeEgison :: Monad m => CompletionFunc m
