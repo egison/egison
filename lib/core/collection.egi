@@ -231,6 +231,9 @@
 ;;
 ;; Simple accessors
 ;;
+(define $cons
+  (lambda [$x $xs] {x @xs}))
+
 (define $car
   (lambda [$xs]
     (match xs (list something)
