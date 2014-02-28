@@ -15,18 +15,10 @@
 ; test 'pairs'
 (test (take 100 pairs))
 
-; infinite list of pythagoras numbers
-(define $pyths (map (lambda [$m $n] (+ (power m 2) (power n 2))) pairs))
+; first 100 prime numbers
+(test (take 100 primes))
 
-; test 'pyths'
-(test (take 100 pyths))
+; enumerate first 100 twin primes
+(test (take 100 (match-all primes (list integer) [<join _ <cons $p <cons ,(+ p 2) _>>> [p (+ p 2)]])))
 
-; function that enumerates all common elements between two lists
-(define $commons
-  (lambda [$xs $ys]
-    (match-all [xs ys] [(multiset integer) (multiset integer)]
-      [[<cons $c _> <cons ,c _>]
-       c])))
 
-; test 'commons'
-(test (commons (take 100 primes) (take 300 pyths)))
