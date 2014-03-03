@@ -30,7 +30,7 @@ Welcome to Egison Interpreter!
 Leaving Egison Interpreter.
 ```
 
-If you are a begginer of Egison, it would be better to install [`egison-tutorial`](https://github.com/egisatoshi/egison-tutorial).
+If you are a beginner of Egison, it would be better to install [`egison-tutorial`](https://github.com/egisatoshi/egison-tutorial).
 
 ```
 % cabal update
@@ -65,7 +65,7 @@ Enjoy!
 ### Demonstration
 
 We can do non-linear pattern-matching against unfree data types with Egison.
-The following code is the program that determins poker-hands written in Egison.
+The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
 ```
