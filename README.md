@@ -1,6 +1,6 @@
 ## The Programming Language Egison
 
-Egison is the pattern-matching oriented pure functional programming langauge.
+Egison is the pattern-matching oriented pure functional programming language.
 Egison is the world's first programming language that can pattern-match against sets.
 This is the repository of the interpreter of Egison.
 
