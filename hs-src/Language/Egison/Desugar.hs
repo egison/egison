@@ -246,7 +246,7 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (TuplePat patterns) = collectNames patterns
    collectName (InductivePat _ patterns) = collectNames patterns
    collectName (ApplyPat _ patterns) = collectNames patterns
-   collectName (LoopPat _ _ _ pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
+   collectName (LoopPat _ _ pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
    collectName (LetPat _ pattern) = collectName pattern
    collectName (IndexedPat (PatVar name) _) = S.singleton name
    collectName (OrPat patterns) = collectNames patterns
@@ -267,8 +267,8 @@ desugarPattern' (IndexedPat pattern exprs) =
   IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs
 desugarPattern' (ApplyPat expr patterns) =
   ApplyPat <$> desugar expr <*> mapM desugarPattern' patterns 
-desugarPattern' (LoopPat mode name range pattern1 pattern2) =
-  LoopPat mode name <$> desugarLoopRange range <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
+desugarPattern' (LoopPat name range pattern1 pattern2) =
+  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (LetPat binds pattern) = do
   LetPat <$> desugarBindings binds <*> desugarPattern' pattern
 desugarPattern' (OrPat patterns)  = 
@@ -276,10 +276,11 @@ desugarPattern' (OrPat patterns)  =
 desugarPattern' pattern = return pattern
 
 desugarLoopRange :: LoopRange -> DesugarM LoopRange
-desugarLoopRange (LoopRange expr pattern) = do
-  expr' <- desugar expr
+desugarLoopRange (LoopRange sExpr eExpr pattern) = do
+  sExpr' <- desugar sExpr
+  eExpr' <- desugar eExpr
   pattern' <- desugarPattern pattern
-  return $ LoopRange expr' pattern'
+  return $ LoopRange sExpr' eExpr' pattern'
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
 desugarBinding (name, expr) = do

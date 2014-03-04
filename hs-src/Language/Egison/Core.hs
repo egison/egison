@@ -539,39 +539,36 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func'
     
-    LoopPat loopMode name (LoopRange start endPat) pat pat' -> do
+    LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
       startNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
-      return $ msingleton $ MState env ((LoopContext loopMode (name, startNumRef) (False, endPat) pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+      ends' <- evalExpr env' ends
+      if isPrimitiveValue ends'
+        then do 
+          endsRef <- newEvalutedObjectRef ends'
+          inners <- liftIO $ newIORef $ Sq.fromList [IElement endsRef]
+          endsRef' <- liftIO $ newIORef (WHNF (Intermediate (ICollection inners)))
+          return $ msingleton $ MState env ((LoopContext (name, startNumRef) endsRef' endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+        else do
+          endsRef <- newEvalutedObjectRef ends'
+          return $ msingleton $ MState env ((LoopContext (name, startNumRef) endsRef endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
-        LoopContext SmartMode (name, startNumRef) (matched, endPat) pat pat' : loops' -> do
+        LoopContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
           nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
-          let (carPat, mCdrPat) = unconsOrPattern endPat
-          matches <- patternMatch env' carPat startNumRef Something
-          case (matched, matches) of
-            (False, MNil) -> return $ msingleton $ MState env ((LoopContext SmartMode (name, nextNumRef) (False, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)
-            (True, MNil) -> case mCdrPat of
-                              Nothing -> return MNil
-                              Just cdrPat -> do
-                                let (carPat', _) = unconsOrPattern cdrPat
-                                matches' <- patternMatch env' carPat' startNumRef Something
-                                case matches' of
-                                  MNil -> return $ msingleton $ MState env ((LoopContext SmartMode (name, nextNumRef) (False, cdrPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)
-                                  MCons _ _ -> do
-                                    return $ fromList [MState env loops' bindings ((MAtom cdrPat startNumRef Something):(MAtom pat' target matcher):trees),
-                                                       MState env ((LoopContext SmartMode (name, nextNumRef) (True, cdrPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
-            (_, MCons _ _) -> do
-              return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
-                                 MState env ((LoopContext SmartMode (name, nextNumRef) (True, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
-        LoopContext NaiveMode (name, startNumRef) (matched, endPat) pat pat' : loops' -> do
-          startNum <- evalRef startNumRef >>= fromWHNF
-          nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
-          return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
-                             MState env ((LoopContext NaiveMode (name, nextNumRef) (True, endPat) pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
-
+          ends <- evalRef endsRef
+          b <- isEmptyCollection ends
+          if b
+            then return MNil
+            else do
+              (carEndsRef, cdrEndsRef) <- fromJust <$> runMaybeT (unconsCollection ends)
+              carEndsNum <- evalRef carEndsRef >>= fromWHNF
+              if startNum == carEndsNum
+                then return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
+                                        MState env ((LoopContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
+                else return $ fromList [MState env ((LoopContext (name, nextNumRef) endsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
       in return $ msingleton $ MState env loops bindings trees'
@@ -770,21 +767,7 @@ unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
 unsnocCollection _ = matchFail
 
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopContext] -> Env
-extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopContext _ binding _ _ _) -> binding) loops
-
-unconsOrPattern :: EgisonPattern -> (EgisonPattern, Maybe EgisonPattern)
-unconsOrPattern (LetPat bindings pat) = let (pat',mpat'') = unconsOrPattern pat in
-                                          case mpat'' of
-                                            Just pat'' -> (LetPat bindings pat', Just (LetPat bindings pat''))
-                                            Nothing -> (LetPat bindings pat', Nothing)
-unconsOrPattern (OrPat [pat]) = (pat, Nothing)
-unconsOrPattern (OrPat (pat:pats)) = (pat, Just (OrPat pats))
-unconsOrPattern (AndPat [pat]) = unconsOrPattern pat
-unconsOrPattern (AndPat (pat:pats)) = let (pat',mpat'') = unconsOrPattern pat in
-                                        case mpat'' of
-                                          Just pat'' -> (AndPat (pat':pats), Just (AndPat (pat'':pats)))
-                                          Nothing -> (AndPat (pat':pats), Nothing)
-unconsOrPattern pat = (pat, Nothing)
+extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopContext binding _ _ _ _) -> binding) loops
 
 --
 -- Util
@@ -859,3 +842,10 @@ extractPrimitiveValue (Value val@(Bool _)) = return val
 extractPrimitiveValue (Value val@(Integer _)) = return val
 extractPrimitiveValue (Value val@(Float _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
+
+isPrimitiveValue :: WHNFData -> Bool
+isPrimitiveValue (Value (Char _)) = True
+isPrimitiveValue (Value (Bool _)) = True
+isPrimitiveValue (Value (Integer _)) = True
+isPrimitiveValue (Value (Float _)) = True
+isPrimitiveValue _ = False
