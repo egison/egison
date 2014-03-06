@@ -1,0 +1,5 @@
+; enumerate first 100 pairs of numbers
+(test (take 100 (match-all nats (set integer) [<cons $x <cons $y _>> [x y]])))
+
+; enumerate first 100 twin primes using non-linear patterns against the infinite list of prime numbers
+(test (take 100 (match-all primes (list integer) [<join _ <cons $p <cons ,(+ p 2) _>>> [p (+ p 2)]])))
