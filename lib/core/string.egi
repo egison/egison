@@ -23,7 +23,7 @@
 (define $palindrome?
   (lambda [$str]
     (match str string
-      {[(loop $i [1 (from 0) $n]
+      {[(loop $i [1 $n]
           <cons $c_i <snoc ,c_i ...>>
           (| <nil> <cons $cm <nil>>))
         #t]

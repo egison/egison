@@ -45,8 +45,8 @@
   (lambda [$n]
     (match-all (between 1 n) (multiset integer)
       [<cons $a_1
-             (loop $i [2 ,n]
-                   <cons (loop $i1 [1 ,(- i 1)]
+             (loop $i [2 n]
+                   <cons (loop $i1 [1 (- i 1)]
                                (& ^,(- a_i1 (- i i1))
                                   ^,(+ a_i1 (- i i1))
                                   ...)

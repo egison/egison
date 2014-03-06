@@ -92,7 +92,7 @@
 (define $pfs-n
   (lambda [$n]
     (match-all p-fs (list [integer (list integer)])
-      [<join _ <cons [$m (loop $i [1 {n} _] <cons $p_i ...> <nil>)] _>> [m (map (lambda [$i] p_i) (between 1 n))]])))
+      [<join _ <cons [$m (loop $i [1 n] <cons $p_i ...> <nil>)] _>> [m (map (lambda [$i] p_i) (between 1 n))]])))
 
 (define $prime?
   (lambda [$n]

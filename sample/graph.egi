@@ -76,9 +76,9 @@
 (test (let {[$n 3]}
         (match-all graph-data2 (graph integer)
           [<cons <edge $x_1 $x_2>
-                 (loop $i [3 ,n]
+                 (loop $i [3 n]
                    <cons <edge ,x_1 $x_i>
-                         (loop $j [2 ,(- i 1)]
+                         (loop $j [2 (- i 1)]
                            <cons <edge ,x_j ,x_i> ...>
                            ...)
                          _>

@@ -18,7 +18,7 @@
 (test (let {[$n 2]}
         (take 5 (match-all sum-of-squares (list [integer integer integer])
                   [<join _ <cons [$x_1 $y_1 $c]
-                    (loop $i [2 ,n]
+                    (loop $i [2 n]
                       <join _ <cons [$x_i $y_i ,c] ...>>
                       _)>>
                    (map (lambda [$i] [x_i y_i c]) (between 1 n))]))))
