@@ -155,6 +155,7 @@ primitives = [ ("+", plus)
              , ("rational?", isRational)
              , ("float?", isFloat)
              , ("char?", isChar)
+             , ("tuple?", isTuple)
              , ("collection?", isCollection)
 
              , ("assert", assert)
@@ -421,6 +422,11 @@ isFloat _ = return $ Value $ Bool False
 isChar :: PrimitiveFunc
 isChar (Value (Char _)) = return $ Value $ Bool True
 isChar _ = return $ Value $ Bool False
+
+isTuple :: PrimitiveFunc
+isTuple (Value (Tuple _)) = return $ Value $ Bool True
+isTuple (Intermediate (ITuple _)) = return $ Value $ Bool True
+isTuple _ = return $ Value $ Bool False
 
 isCollection :: PrimitiveFunc
 isCollection (Value (Collection _)) = return $ Value $ Bool True
