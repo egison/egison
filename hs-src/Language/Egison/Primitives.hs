@@ -155,7 +155,6 @@ primitives = [ ("+", plus)
              , ("rational?", isRational)
              , ("float?", isFloat)
              , ("char?", isChar)
-             , ("string?", isString)
              , ("collection?", isCollection)
 
              , ("assert", assert)
@@ -404,25 +403,29 @@ unsnoc' whnf = do
 -- Typing
 
 isBool :: PrimitiveFunc
-isBool = undefined
+isBool (Value (Bool _)) = return $ Value $ Bool True
+isBool _ = return $ Value $ Bool False
 
 isInteger :: PrimitiveFunc
-isInteger = undefined
+isInteger (Value (Integer _)) = return $ Value $ Bool True
+isInteger _ = return $ Value $ Bool False
 
 isRational :: PrimitiveFunc
-isRational = undefined
+isRational (Value (Rational _)) = return $ Value $ Bool True
+isRational _ = return $ Value $ Bool False
 
 isFloat :: PrimitiveFunc
-isFloat = undefined
+isFloat (Value (Float _)) = return $ Value $ Bool True
+isFloat _ = return $ Value $ Bool False
 
 isChar :: PrimitiveFunc
-isChar = undefined
-
-isString :: PrimitiveFunc
-isString = undefined
+isChar (Value (Char _)) = return $ Value $ Bool True
+isChar _ = return $ Value $ Bool False
 
 isCollection :: PrimitiveFunc
-isCollection = undefined
+isCollection (Value (Collection _)) = return $ Value $ Bool True
+isCollection (Intermediate (ICollection _)) = return $ Value $ Bool True
+isCollection _ = return $ Value $ Bool False
 
 -- Test
 
