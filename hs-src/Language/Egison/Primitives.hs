@@ -149,7 +149,14 @@ primitives = [ ("+", plus)
              , ("empty?", isEmpty')
              , ("uncons", uncons')
              , ("unsnoc", unsnoc')
-               
+
+             , ("bool?", isBool)
+             , ("integer?", isInteger)
+             , ("rational?", isRational)
+             , ("float?", isFloat)
+             , ("char?", isChar)
+             , ("collection?", isCollection)
+
              , ("assert", assert)
              , ("assert-equal", assertEqual)
              ]
@@ -386,13 +393,41 @@ uncons' whnf = do
     Just (carObjRef, cdrObjRef) -> return $ Intermediate $ ITuple [carObjRef, cdrObjRef]
     Nothing -> throwError $ Default $ "cannot uncons collection"
 
-
 unsnoc' :: PrimitiveFunc
 unsnoc' whnf = do
   mRet <- runMaybeT (unsnocCollection whnf)
   case mRet of
     Just (racObjRef, rdcObjRef) -> return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
     Nothing -> throwError $ Default $ "cannot unsnoc collection"
+
+-- Typing
+
+isBool :: PrimitiveFunc
+isBool (Value (Bool _)) = return $ Value $ Bool True
+isBool _ = return $ Value $ Bool False
+
+isInteger :: PrimitiveFunc
+isInteger (Value (Integer _)) = return $ Value $ Bool True
+isInteger _ = return $ Value $ Bool False
+
+isRational :: PrimitiveFunc
+isRational (Value (Rational _)) = return $ Value $ Bool True
+isRational _ = return $ Value $ Bool False
+
+isFloat :: PrimitiveFunc
+isFloat (Value (Float _)) = return $ Value $ Bool True
+isFloat _ = return $ Value $ Bool False
+
+isChar :: PrimitiveFunc
+isChar (Value (Char _)) = return $ Value $ Bool True
+isChar _ = return $ Value $ Bool False
+
+isCollection :: PrimitiveFunc
+isCollection (Value (Collection _)) = return $ Value $ Bool True
+isCollection (Intermediate (ICollection _)) = return $ Value $ Bool True
+isCollection _ = return $ Value $ Bool False
+
+-- Test
 
 assert ::  PrimitiveFunc
 assert = twoArgs $ \label test -> do
