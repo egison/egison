@@ -149,7 +149,15 @@ primitives = [ ("+", plus)
              , ("empty?", isEmpty')
              , ("uncons", uncons')
              , ("unsnoc", unsnoc')
-               
+
+             , ("bool?", isBool)
+             , ("integer?", isInteger)
+             , ("rational?", isRational)
+             , ("float?", isFloat)
+             , ("char?", isChar)
+             , ("string?", isString)
+             , ("collection?", isCollection)
+
              , ("assert", assert)
              , ("assert-equal", assertEqual)
              ]
@@ -386,13 +394,37 @@ uncons' whnf = do
     Just (carObjRef, cdrObjRef) -> return $ Intermediate $ ITuple [carObjRef, cdrObjRef]
     Nothing -> throwError $ Default $ "cannot uncons collection"
 
-
 unsnoc' :: PrimitiveFunc
 unsnoc' whnf = do
   mRet <- runMaybeT (unsnocCollection whnf)
   case mRet of
     Just (racObjRef, rdcObjRef) -> return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
     Nothing -> throwError $ Default $ "cannot unsnoc collection"
+
+-- Typing
+
+isBool :: PrimitiveFunc
+isBool = undefined
+
+isInteger :: PrimitiveFunc
+isInteger = undefined
+
+isRational :: PrimitiveFunc
+isRational = undefined
+
+isFloat :: PrimitiveFunc
+isFloat = undefined
+
+isChar :: PrimitiveFunc
+isChar = undefined
+
+isString :: PrimitiveFunc
+isString = undefined
+
+isCollection :: PrimitiveFunc
+isCollection = undefined
+
+-- Test
 
 assert ::  PrimitiveFunc
 assert = twoArgs $ \label test -> do
