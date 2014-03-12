@@ -1,4 +1,4 @@
-## The Programming Language Egison
+## The Egison Programming Language
 
 Egison is the pattern-matching oriented pure functional programming language.
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
