@@ -149,3 +149,14 @@ Please help us to make Egison popular.
 % cabal install --enable-tests
 % cabal test
 ```
+### Acknowledgement
+
+I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the base of the interpreter.
+
+### Licence
+
+Copyright (c) 2011-2014, Satoshi Egi
+
+Egison is release under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
+
+I used [husk-scheme]([http://justinethier.github.io/husk-scheme/) as reference to implement the base part of the previous version of the interpreter.
