@@ -292,7 +292,16 @@
         {[$tgt (match-all tgt (list a)
                  [<join $hs <cons $x $ts>> [x {@hs @ts}]])]}]
        [<join ,$pxs $> [(multiset a)]
-        {[$tgt {(difference/m a tgt pxs)}]}]
+        {[$tgt (match [pxs tgt] [(list a) (multiset a)]
+                 {[[(loop $i [1 $n] <cons $x_i ...> <nil>)
+                    (loop $i [1 n] <cons ,x_i ...> $rs)]
+                   {rs}]
+                  [_ {}]})]}]
+       [<join $ $> [(multiset a) (multiset a)]
+        {[$tgt (match-all tgt (list a)
+                 [(loop $i [1 $n] <join $rs_i <cons $x_i ...>> $ts)
+                  [(map (lambda [$i] x_i) (between 1 n))
+                   (concat {@(map (lambda [$i] rs_i) (between 1 n)) ts})]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -392,6 +401,16 @@
        [<cons $ $> [a (set a)]
         {[$tgt (match-all tgt (list a)
                  [<join _ <cons $x _>> [x tgt]])]}]
+       [<join ,$pxs $> [(set a)]
+        {[$tgt (match [pxs tgt] [(list a) (set a)]
+                 {[[(loop $i [1 $n] <cons $x_i ...> <nil>)
+                    (loop $i [1 n] <cons ,x_i ...> _)]
+                   {tgt}]
+                  [_ {}]})]}]
+       [<join $ $> [(set a) (set a)]
+        {[$tgt (match-all tgt (multiset a)
+                 [(loop $i [1 $n] <cons $x_i ...> _)
+                  [(map (lambda [$i] x_i) (between 1 n)) tgt]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
