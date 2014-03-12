@@ -105,9 +105,10 @@ showBanner = do
   putStrLn $ "Egison Version " ++ showVersion version ++ " (C) 2011-2014 Satoshi Egi"
   putStrLn $ "http://www.egison.org"
   putStrLn $ "Welcome to Egison Interpreter!"
-  putStrLn $ "** Info **"
+  putStrLn $ "** Information **"
   putStrLn $ "We can use a \'Tab\' key to complete keywords on the interpreter."
   putStrLn $ "If we type a \'Tab\' key after a closed parenthesis, the next closed parenthesis will be completed."
+  putStrLn $ "*****************"
 
 showByebyeMessage :: IO ()
 showByebyeMessage = do
