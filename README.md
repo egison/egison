@@ -64,7 +64,7 @@ Enjoy!
 
 ### Demonstration
 
-We can do non-linear pattern-matching against unfree data types with Egison.
+We can do non-linear pattern-matching with backtracking in Egison.
 The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
@@ -153,7 +153,7 @@ Please help us to make Egison popular.
 
 I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the base of the interpreter.
 
-### Licence
+### License
 
 Copyright (c) 2011-2014, Satoshi Egi
 
