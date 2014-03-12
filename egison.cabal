@@ -7,7 +7,7 @@ Description:
   We can find Egison programs in @lib@ and @sample@ directories.
   This package also include Emacs Lisp file @egison-mode.el@ in @elisp@ directory.
   .
-  The following code is the program that determins poker-hands written in Egison.
+  The following code is the program that determines poker-hands written in Egison.
   All hands are expressed in a single pattern.
   We can run this code online at <http://www.egison.org/demonstrations/poker-hands.html>.
   .
