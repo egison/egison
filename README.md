@@ -23,7 +23,7 @@ Now, you can try Egison.
 
 ```
 % egison
-Egison Version X.X.X(C) 2011-2013 Satoshi Egi
+Egison Version X.X.X(C) 2011-2014 Satoshi Egi
 http://www.egison.org
 Welcome to Egison Interpreter!
 > ^D
