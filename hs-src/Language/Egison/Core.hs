@@ -775,7 +775,7 @@ extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
 fromTuple (Value (Tuple vals)) = mapM (newEvalutedObjectRef . Value) vals
-fromTuple val = return <$> newEvalutedObjectRef val
+fromTuple whnf = return <$> newEvalutedObjectRef whnf
 
 fromTupleValue :: EgisonValue -> [EgisonValue]
 fromTupleValue (Tuple vals) = vals

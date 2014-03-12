@@ -424,9 +424,31 @@ isChar (Value (Char _)) = return $ Value $ Bool True
 isChar _ = return $ Value $ Bool False
 
 isTuple :: PrimitiveFunc
-isTuple (Value (Tuple _)) = return $ Value $ Bool True
-isTuple (Intermediate (ITuple _)) = return $ Value $ Bool True
-isTuple _ = return $ Value $ Bool False
+isTuple args = do
+  args' <- fromTuple args
+  case args' of
+    ((Value (Integer n)):whnf:[]) -> isTuple' n whnf
+    (whnf:_) -> throwError $ TypeMismatch "number" whnf
+ where
+  fromTuple :: WHNFData -> EgisonM [WHNFData]
+  fromTuple (Intermediate (ITuple refs)) = do
+    objs <- liftIO $ mapM readIORef refs
+    mapM (\obj -> case obj of
+                    Thunk thunk -> thunk
+                    WHNF whnf -> return whnf) objs
+  fromTuple (Value (Tuple vals)) = return $ map Value vals
+  fromTuple whnf = return [whnf]
+  isTuple' :: Integer -> WHNFData -> EgisonM WHNFData
+  isTuple' n (Value (Tuple vals)) =
+    if n == ((fromIntegral (length vals)) :: Integer)
+      then return $ Value $ Bool True
+      else return $ Value $ Bool False
+  isTuple' n (Intermediate (ITuple refs)) =
+    if n == ((fromIntegral (length refs)) :: Integer)
+      then return $ Value $ Bool True
+      else return $ Value $ Bool False
+  isTuple' 1 _ = return $ Value $ Bool True
+  isTuple' _ _ = return $ Value $ Bool False
 
 isCollection :: PrimitiveFunc
 isCollection (Value (Collection _)) = return $ Value $ Bool True
