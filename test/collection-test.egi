@@ -49,6 +49,36 @@
           {[<nioj ,{3} $ns> ns]})
         {1 2}))
 
+(test (assert-equal "multiset's join"
+        (match-all {1 2 3} (multiset integer)
+          [<join $xs $ys> [xs ys]])
+        {[{} {1 2 3}] [{1} {2 3}] [{2} {1 3}] [{3} {1 2}] [{1 2} {3}] [{1 3} {2}] [{2 3} {1}] [{1 2 3} {}]}))
+
+(test (assert-equal "multiset's join with value pattern 1"
+        (match-all {1 2 3} (multiset integer)
+          [<join ,{1 3} $ys> ys])
+          {{2}}))
+
+(test (assert-equal "multiset's join with value pattern 2"
+        (match-all {1 2 3} (multiset integer)
+          [<join ,{1 5 3} $ys> ys])
+          {}))
+
+(test (assert-equal "set's join"
+        (match-all {1 2 3} (set integer)
+          [<join $xs $ys> [xs ys]])
+        {[{} {1 2 3}] [{1} {1 2 3}] [{2} {1 2 3}] [{3} {1 2 3}] [{1 2} {1 2 3}] [{1 3} {1 2 3}] [{2 1} {1 2 3}] [{2 3} {1 2 3}] [{3 1} {1 2 3}] [{1 2 3} {1 2 3}] [{3 2} {1 2 3}] [{1 3 2} {1 2 3}] [{2 1 3} {1 2 3}] [{2 3 1} {1 2 3}] [{3 1 2} {1 2 3}] [{3 2 1} {1 2 3}]}))
+
+(test (assert-equal "set's join with value pattern 1"
+        (match-all {1 2 3} (set integer)
+          [<join ,{1 3} $ys> ys])
+          {{1 2 3}}))
+
+(test (assert-equal "set's join with value pattern 2"
+        (match-all {1 2 3} (set integer)
+          [<join ,{1 5 3} $ys> ys])
+          {}))
+
 (test (assert-equal "map"
         (map (* $ 2) {1 2 3})
         {2 4 6}))
