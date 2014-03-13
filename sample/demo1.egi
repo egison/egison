@@ -1,4 +1,4 @@
-;; Extract all twin primes with non-linear pattern-matching against the infinite list of prime numbers
+;; Extract all twin primes from the infinite list of prime numbers with pattern-matching!
 (define $twin-primes
   (match-all primes (list integer)
     [<join _ <cons $p <cons ,(+ p 2) _>>>
