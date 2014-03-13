@@ -128,22 +128,13 @@ repl env prompt = do
     input <- liftIO $ runInputT (settings home) $ getEgisonExpr prompt
     case input of
       Nothing -> return ()
-      Just (Left (topExpr, _)) -> do
+      Just (topExpr, _) -> do
         result <- liftIO $ runEgisonTopExpr env topExpr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
             loop env
-          Right env' -> loop env'
-      Just (Right (expr, _)) -> do
-        result <- liftIO $ runEgisonExpr env expr
-        case result of
-          Left err -> do
-            liftIO $ putStrLn $ show err
-            loop env
-          Right val -> do
-            liftIO $ putStrLn $ show val
-            loop env)
+          Right env' -> loop env')
     `catch`
     (\e -> case e of
              UserInterrupt -> putStrLn "" >> loop env

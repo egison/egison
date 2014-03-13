@@ -17,10 +17,10 @@ import Language.Egison.Types
 import Language.Egison.Parser
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExpr :: String -> InputT IO (Maybe (Either (String, EgisonTopExpr) (String, EgisonExpr)))
+getEgisonExpr :: String -> InputT IO (Maybe (String, EgisonTopExpr))
 getEgisonExpr prompt = getEgisonExpr' prompt ""
 
-getEgisonExpr' :: String -> String -> InputT IO (Maybe (Either (String, EgisonTopExpr) (String, EgisonExpr)))
+getEgisonExpr' :: String -> String -> InputT IO (Maybe (String, EgisonTopExpr))
 getEgisonExpr' prompt prev = do
   mLine <- case prev of
              "" -> getInputLine prompt
@@ -36,24 +36,16 @@ getEgisonExpr' prompt prev = do
       case parseTopExpr input of
         Left err | show err =~ "unexpected end of input" -> do
           getEgisonExpr' prompt $ input ++ "\n"
-        Left err | show err =~ "expecting (top-level|\"define\")" ->
-          case parseExpr input of
-            Left err | show err =~ "unexpected end of input" -> do
-              getEgisonExpr' prompt $ input ++ "\n"
-            Left err -> do
-              liftIO $ putStrLn $ show err
-              getEgisonExpr prompt
-            Right expr -> return $ Just $ Right (input, expr)
         Left err -> do
           liftIO $ putStrLn $ show err
           getEgisonExpr prompt
-        Right topExpr -> return $ Just $ Left (input, topExpr)
+        Right topExpr -> return $ Just (input, topExpr)
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExprOrNewLine :: String -> InputT IO (Either (Maybe String) (Either (String, EgisonTopExpr) (String, EgisonExpr)))
+getEgisonExprOrNewLine :: String -> InputT IO (Either (Maybe String) (String, EgisonTopExpr))
 getEgisonExprOrNewLine prompt = getEgisonExprOrNewLine' prompt ""
 
-getEgisonExprOrNewLine' :: String -> String -> InputT IO (Either (Maybe String) (Either (String, EgisonTopExpr) (String, EgisonExpr)))
+getEgisonExprOrNewLine' :: String -> String -> InputT IO (Either (Maybe String) (String, EgisonTopExpr))
 getEgisonExprOrNewLine' prompt prev = do
   mLine <- case prev of
              "" -> getInputLine prompt
@@ -66,18 +58,10 @@ getEgisonExprOrNewLine' prompt prev = do
       case parseTopExpr input of
         Left err | show err =~ "unexpected end of input" -> do
           getEgisonExprOrNewLine' prompt $ input ++ "\n"
-        Left err | show err =~ "expecting (top-level|\"define\")" ->
-          case parseExpr input of
-            Left err | show err =~ "unexpected end of input" -> do
-              getEgisonExprOrNewLine' prompt $ input ++ "\n"
-            Left err -> do
-              liftIO $ putStrLn $ show err
-              getEgisonExprOrNewLine prompt
-            Right expr -> return $ Right $ Right (input, expr)
         Left err -> do
           liftIO $ putStrLn $ show err
           getEgisonExprOrNewLine prompt
-        Right topExpr -> return $ Right $ Left (input, topExpr)
+        Right topExpr -> return $ Right (input, topExpr)
 
 -- |Complete Egison keywords
 completeEgison :: Monad m => CompletionFunc m
