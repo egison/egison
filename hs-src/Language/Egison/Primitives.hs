@@ -157,6 +157,8 @@ primitives = [ ("+", plus)
              , ("char?", isChar)
              , ("tuple?", isTuple)
              , ("collection?", isCollection)
+             , ("array?", isArray)
+             , ("hash?", isHash)
 
              , ("assert", assert)
              , ("assert-equal", assertEqual)
@@ -412,6 +414,7 @@ isInteger (Value (Integer _)) = return $ Value $ Bool True
 isInteger _ = return $ Value $ Bool False
 
 isRational :: PrimitiveFunc
+isRational (Value (Integer _)) = return $ Value $ Bool True
 isRational (Value (Rational _)) = return $ Value $ Bool True
 isRational _ = return $ Value $ Bool False
 
@@ -454,6 +457,18 @@ isCollection :: PrimitiveFunc
 isCollection (Value (Collection _)) = return $ Value $ Bool True
 isCollection (Intermediate (ICollection _)) = return $ Value $ Bool True
 isCollection _ = return $ Value $ Bool False
+
+isArray :: PrimitiveFunc
+isArray (Value (Array _)) = return $ Value $ Bool True
+isArray (Intermediate (IArray _)) = return $ Value $ Bool True
+isArray _ = return $ Value $ Bool False
+
+isHash :: PrimitiveFunc
+isHash (Value (IntHash _)) = return $ Value $ Bool True
+isHash (Value (StrHash _)) = return $ Value $ Bool True
+isHash (Intermediate (IIntHash _)) = return $ Value $ Bool True
+isHash (Intermediate (IStrHash _)) = return $ Value $ Bool True
+isHash _ = return $ Value $ Bool False
 
 -- Test
 

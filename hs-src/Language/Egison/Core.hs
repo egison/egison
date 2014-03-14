@@ -175,12 +175,12 @@ evalExpr env (IndexedExpr expr indices) = do
   refArray val [] = return val 
   refArray (Value (Array array)) (index:indices) = do
     i <- (liftM fromInteger . fromEgison) index
-    case IntMap.lookup i array of
+    case IntMap.lookup (i + 1) array of
       Just val -> refArray (Value val) indices
       Nothing -> return $ Value Undefined
   refArray (Intermediate (IArray array)) (index:indices) = do
     i <- (liftM fromInteger . fromEgison) index
-    case IntMap.lookup i array of
+    case IntMap.lookup (i + 1) array of
       Just ref -> evalRef ref >>= flip refArray indices
       Nothing -> return $ Value Undefined
   refArray (Value (IntHash hash)) (index:indices) = do
