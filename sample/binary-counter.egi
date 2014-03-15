@@ -1,0 +1,3 @@
+(define $bc (match-all {0 1} (set integer) [(loop $i [1 $n] <cons $x_i ...> _) (map (lambda [$i] x_i) (between 1 n))]))
+
+(take 30 bc)
