@@ -29,7 +29,7 @@ main = do args <- getArgs
               env <-if noIOFlag then initialEnvNoIO else initialEnv
               case nonOpts of
                 [] -> do
-                  when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
+                  when bannerFlag showBanner >> repl noIOFlag env prompt >> when bannerFlag showByebyeMessage
                 (file:args) -> do
                   case opts of
                     Options {optLoadOnly = True} -> do
@@ -115,8 +115,8 @@ showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
   exitWith ExitSuccess
 
-repl :: Env -> String -> IO ()
-repl env prompt = do
+repl :: Bool -> Env -> String -> IO ()
+repl noIOFlag env prompt = do
   loop env
  where
   settings :: MonadIO m => FilePath -> Settings m
@@ -126,9 +126,15 @@ repl env prompt = do
   loop env = (do 
     home <- getHomeDirectory
     input <- liftIO $ runInputT (settings home) $ getEgisonExpr prompt
-    case input of
-      Nothing -> return ()
-      Just (topExpr, _) -> do
+    case (noIOFlag, input) of
+      (_, Nothing) -> return ()
+      (True, Just (_, (LoadFile _))) -> do
+        putStrLn "error: No IO support"
+        loop env
+      (True, Just (_, (Load _))) -> do
+        putStrLn "error: No IO support"
+        loop env
+      (_, Just (topExpr, _)) -> do
         result <- liftIO $ runEgisonTopExpr env topExpr
         case result of
           Left err -> do
