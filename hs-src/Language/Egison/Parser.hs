@@ -60,7 +60,10 @@ readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = doParse $ whiteSpace >> endBy topExpr whiteSpace
+parseTopExprs = doParse $ do
+  ret <- whiteSpace >> endBy topExpr whiteSpace
+  eof
+  return ret
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
 parseTopExpr = doParse $ do
@@ -69,7 +72,10 @@ parseTopExpr = doParse $ do
   return ret
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = doParse $ whiteSpace >> endBy expr whiteSpace
+parseExprs = doParse $ do
+  ret <- whiteSpace >> endBy expr whiteSpace
+  eof
+  return ret
 
 parseExpr :: String -> Either EgisonError EgisonExpr
 parseExpr = doParse $ do
