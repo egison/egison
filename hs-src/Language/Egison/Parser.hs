@@ -63,13 +63,19 @@ parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ whiteSpace >> endBy topExpr whiteSpace
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = doParse $ whiteSpace >> topExpr
+parseTopExpr = doParse $ do
+  ret <- whiteSpace >> topExpr
+  whiteSpace >> eof
+  return ret
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
 parseExprs = doParse $ whiteSpace >> endBy expr whiteSpace
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = doParse $ whiteSpace >> expr
+parseExpr = doParse $ do
+  ret <- whiteSpace >> expr
+  whiteSpace >> eof
+  return ret
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
