@@ -12,6 +12,7 @@ module Language.Egison.Core
     (
     -- * Egison code evaluation
       evalTopExprs
+    , evalTopExprsNoIO
     , evalTopExpr
     , evalExpr
     , evalExprDeep
@@ -79,6 +80,21 @@ evalTopExprs env exprs = do
       LoadFile file -> do
         exprs' <- loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
+      _ -> collectDefs exprs bindings (expr : rest)
+  collectDefs [] bindings rest = return (bindings, reverse rest)
+
+evalTopExprsNoIO :: Env -> [EgisonTopExpr] -> EgisonM Env
+evalTopExprsNoIO env exprs = do
+  (bindings, rest) <- collectDefs exprs [] []
+  env <- recursiveBind env bindings
+  forM_ rest $ evalTopExpr env
+  return env
+ where
+  collectDefs (expr:exprs) bindings rest =
+    case expr of
+      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
+      Load _ -> throwError $ strMsg "No IO support"
+      LoadFile _ -> throwError $ strMsg "No IO support"
       _ -> collectDefs exprs bindings (expr : rest)
   collectDefs [] bindings rest = return (bindings, reverse rest)
 

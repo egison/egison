@@ -26,14 +26,17 @@ main = do args <- getArgs
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
             Options {optPrompt = prompt, optShowBanner = bannerFlag, optNoIO = noIOFlag} -> do
-              env <-if noIOFlag then initialEnvNoIO else initialEnv
+              env <- if noIOFlag then initialEnvNoIO else initialEnv
               case nonOpts of
                 [] -> do
                   when bannerFlag showBanner >> repl noIOFlag env prompt >> when bannerFlag showByebyeMessage
                 (file:args) -> do
                   case opts of
                     Options {optLoadOnly = True} -> do
-                      result <- evalEgisonTopExprs env [LoadFile file]
+                      result <- if noIOFlag
+                                  then do input <- readFile file
+                                          runEgisonTopExprsNoIO env input
+                                  else evalEgisonTopExprs env [LoadFile file]
                       either print (const $ return ()) result
                     Options {optLoadOnly = False} -> do
                       result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (map (ElementExpr . StringExpr) args)))]
