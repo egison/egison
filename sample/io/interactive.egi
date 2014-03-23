@@ -1,11 +1,9 @@
 (define $repl
   (lambda []
-    (do {[(write-string "input: ")]
+    (do {[(write "input: ")]
          [(flush)]
-         [$input (read)]
+         [$input (read-line)]
          [(write input)]
-         [(print "")]
-         [(write (take 3 input))]
          [(print "")]
          [(repl)]
          }

@@ -500,12 +500,12 @@ ioPrimitives = [
                , ("read-char", readChar)
                , ("read-line", readLine)
                , ("write-char", writeChar)
-               , ("write-string", writeString)
+               , ("write", writeString)
                  
                , ("read-char-from-port", readCharFromPort)
                , ("read-line-from-port", readLineFromPort)
                , ("write-char-to-port", writeCharToPort)
-               , ("write-string-to-port", writeStringToPort)
+               , ("write-to-port", writeStringToPort)
                  
                , ("eof?", isEOFStdin)
                , ("flush", flushStdout)
