@@ -117,12 +117,12 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 -- Expressions
 --
 topExpr :: Parser EgisonTopExpr
-topExpr = try (parens (defineExpr
+topExpr = try (Test <$> expr)
+      <|> try (parens (defineExpr
                    <|> testExpr
                    <|> executeExpr
                    <|> loadFileExpr
                    <|> loadExpr))
-      <|> Test <$> expr
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
