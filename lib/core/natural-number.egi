@@ -96,4 +96,6 @@
 
 (define $prime?
   (lambda [$n]
-    (eq? (rac (while (lte? $ n) primes)) n)))
+    (if (eq? n 1)
+      #f
+      (eq? (rac (while (lte? $ n) primes)) n))))
