@@ -4,9 +4,9 @@ Egison is the pattern-matching oriented pure functional programming language.
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
-For more information, visit [Egison web site](http://www.egison.org).
+For more information, visit [Egison website](http://www.egison.org).
 
-If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.org/~egi/) or tweet to [@__Egi](https://twitter.com/__Egi) or [@Egison_Lang](https://twitter.com/Egison_Lang).
+If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.org/~egi/) or tweet to [@Egison_Lang](https://twitter.com/Egison_Lang).
 
 ### Getting Started!
 
