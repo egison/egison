@@ -64,7 +64,8 @@ Enjoy!
 
 ### Demonstration
 
-We can do non-linear pattern-matching with backtracking in Egison.
+We can do non-linear pattern-matching against unfree data types in Egison.
+An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
 The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
@@ -151,7 +152,7 @@ Please help us to make Egison popular.
 ```
 ### Acknowledgement
 
-I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the base of the interpreter.
+I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the interpreter.
 
 ### License
 
