@@ -236,6 +236,7 @@ data EgisonValue =
   | StrHash (HashMap ByteString EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
   | Func Env [String] EgisonExpr
+  | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
