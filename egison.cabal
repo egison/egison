@@ -5,7 +5,7 @@ Description:
   An interpreter for Egison, the programming langugage that realized non-linear pattern-matching against unfree data types.
   With Egison, we can directly represent pattern-matching against a wide range of data types such as lists, multisets, sets, trees and graphs.
   We can find Egison programs in @lib@ and @sample@ directories.
-  This package also include Emacs Lisp file @egison-mode.el@ in @elisp@ directory.
+  This package also include Emacs Lisp file @elisp/egison-mode.el@.
   .
   The following code is the program that determines poker-hands written in Egison.
   All hands are expressed in a single pattern.
