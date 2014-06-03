@@ -5,9 +5,4 @@
        [[_ ,0] 1]
        [[_ _] (foldl + 0 (map proc (map (lambda [$y1] [(- x 1) y1]) (between 0 y))))]})))
 
-(test (proc 2 2))
-(test (proc 7 7))
-(test (proc 7 7))
-(test (proc 8 8))
-(test (proc 8 8))
 (test (proc 20 20))

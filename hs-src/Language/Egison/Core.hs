@@ -189,8 +189,6 @@ evalExpr env (IndexedExpr expr indices) = do
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
 
-evalExpr env (MemoizedLambdaExpr names expr) = undefined
-
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
 evalExpr env (IfExpr test expr expr') = do
@@ -270,7 +268,22 @@ evalExpr env (MatchExpr target matcher clauses) = do
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg
-  applyFunc func arg
+  case func of
+    Value (MemoizedFunc ref hashRef env names body) -> do
+      indices <- evalWHNF arg
+      indices' <- mapM fromEgison $ fromTupleValue indices
+      hash <- liftIO $ readIORef hashRef
+      case HL.lookup indices' hash of
+        Just objRef -> do
+          evalRef objRef
+        Nothing -> do
+          whnf <- applyFunc (Value (Func env names body)) arg
+          retRef <- newEvalutedObjectRef whnf
+          hash <- liftIO $ readIORef hashRef
+          liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+          writeObjectRef ref (Value (MemoizedFunc ref hashRef env names body))
+          return whnf
+    _ -> applyFunc func arg
 
 evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
 evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
@@ -352,13 +365,7 @@ applyFunc (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc hash@(Intermediate (IIntHash _)) arg = do
-  indices <- evalWHNF arg
-  refArray hash $ fromTupleValue indices
-applyFunc hash@(Value (IntHash _)) arg = do
-  indices <- evalWHNF arg
-  refArray hash $ fromTupleValue indices
-applyFunc val _ = throwError $ TypeMismatch "function or hash" val
+applyFunc val _ = throwError $ TypeMismatch "function" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name size expr = do  
@@ -430,7 +437,13 @@ recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
-  zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr) refs exprs
+  zipWithM_ (\ref expr ->
+               case expr of
+                 MemoizedLambdaExpr names body -> do
+                   hashRef <- liftIO $ newIORef HL.empty
+                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
+                 _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
+            refs exprs
   return env'
 
 --
