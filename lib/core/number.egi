@@ -15,7 +15,7 @@
       {[<cons $n <nil>> n]
        [<cons $n $rs>
         (let {[$r (min rs)]}
-          (match (compare-integer n r) ordering
+          (match (compare n r) ordering
             {[<less> n]
              [_ r]}))]})))
 
@@ -25,7 +25,7 @@
       {[<cons $n <nil>> n]
        [<cons $n $rs>
         (let {[$r (max rs)]}
-          (match (compare-integer n r) ordering
+          (match (compare n r) ordering
             {[<greater> n]
              [_ r]}))]})))
 
@@ -35,9 +35,9 @@
       {[<cons $n <nil>> [n n]]
        [<cons $n $rs>
         (let {[[$min-n $max-n] (min-and-max rs)]}
-          (match (compare-integer n min-n) ordering
+          (match (compare n min-n) ordering
             {[<less> [n max-n]]
-             [_ (match (compare-integer n max-n) ordering
+             [_ (match (compare n max-n) ordering
                   {[<greater> [min-n n]]
                    [_ [min-n max-n]]})]}))]})))
 

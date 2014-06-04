@@ -1,9 +1,9 @@
 Name:                egison
 Version:             3.3.4
-Synopsis:            Programming language with non-linear pattern-matching with backtracking
+Synopsis:            Programming language with non-linear pattern-matching against unfree data
 Description:
-  An interpreter for Egison, the programming langugage that realized non-linear pattern-matching with backtracking.
-  With Egison, we can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
+  An interpreter for Egison, the programming langugage that realized non-linear pattern-matching against unfree data types.
+  With Egison, we can directly represent pattern-matching against a wide range of data types such as lists, multisets, sets, trees and graphs.
   We can find Egison programs in @lib@ and @sample@ directories.
   This package also include Emacs Lisp file @egison-mode.el@ in @elisp@ directory.
   .
@@ -14,7 +14,10 @@ Description:
   <<http://www.egison.org/images/poker-hands.png>>
   .
   The pattern-matching of Egison is very powerful.
-  We can use it for pattern-matching against graphs, too.
+  Please view and try more demonstrations.
+  .
+  <http://www.egison.org/demonstrations/>
+  .  
   Egison is not popular at all now.
   Please help us to make Egison popular.
 Homepage:            http://www.egison.org

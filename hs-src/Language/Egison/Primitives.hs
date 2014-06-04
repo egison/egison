@@ -255,9 +255,9 @@ multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
 divide :: PrimitiveFunc
 divide = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
-  numberBinaryOp' (Integer i)  (Integer i')  = return $ Rational $ (%) i  i'
+  numberBinaryOp' (Integer i)  (Integer i')  = numberBinaryOp' (Rational (i % 1)) (Rational (i' % 1))
   numberBinaryOp' (Integer i)  val           = numberBinaryOp' (Rational (i % 1)) val
-  numberBinaryOp' val          (Integer i)   = numberBinaryOp' val (Rational (i % 1)) 
+  numberBinaryOp' val          (Integer i)   = numberBinaryOp' val (Rational (i % 1))
   numberBinaryOp' (Rational r) (Rational r') =
     let m = numerator r' in
     let n = denominator r' in

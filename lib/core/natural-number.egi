@@ -12,7 +12,7 @@
       {[0 {[]}]
        [_ {}]}]
      [<s $> nat
-      {[$tgt (match (compare-integer tgt 0) ordering
+      {[$tgt (match (compare tgt 0) ordering
                {[<greater> {(- tgt 1)}]
                 [_ {}]})]}]
      [$ [something]
