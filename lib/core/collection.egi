@@ -195,6 +195,16 @@
     (length (match-all xs (list a)
               [<join _ <cons ,x _>> x]))))
 
+(define $frequency
+  (lambda [$xs]
+    (let {[$us (unique xs)]}
+      (map (lambda [$u] [u (count u xs)]) us))))
+
+(define $frequency/m
+  (lambda [$a $xs]
+    (let {[$us (unique/m a xs)]}
+      (map (lambda [$u] [u (count/m a u xs)]) us))))
+
 ;;
 ;; Simple accessors
 ;;
