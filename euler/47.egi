@@ -1,0 +1,5 @@
+(test (car (match-all (map (compose p-f (compose unique length)) (cdr nats)) (list integer)
+             [<join $xs <cons ,3 <cons ,3 <cons ,3 _>>>> (+ 2 (length xs))])))
+
+(test (car (match-all (map (compose p-f (compose unique length)) (cdr nats)) (list integer)
+             [<join $xs <cons ,4 <cons ,4 <cons ,4 <cons ,4 _>>>>> (+ 2 (length xs))])))

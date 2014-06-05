@@ -6,5 +6,3 @@ exp/
 tmp/
 .cabal-sandbox
 cabal.sandbox.config
-sqlite
-euler

@@ -1,0 +1,14 @@
+(define $multiset-union/m
+  (lambda [$a]
+    (lambda [$xs $ys]
+      (match [xs ys] [(list a) (multiset a)]
+        {[[<nil> _] ys]
+         [[_ <nil>] xs]
+         [[<cons $x $xs1> <cons ,x $ys1>]
+          {x @((multiset-union/m a) xs1 ys1)}]
+         [[<cons $x $xs1> _]
+          {x @((multiset-union/m a) xs1 ys)}]
+         }))))
+
+(test (foldl * 1 (foldl (multiset-union/m integer) {} (map p-f (between 1 10)))))
+(test (foldl * 1 (foldl (multiset-union/m integer) {} (map p-f (between 1 20)))))
