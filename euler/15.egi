@@ -1,0 +1,13 @@
+(define $proc
+  (lambda [$x $y]
+    (if (lte? x y)
+      (proc1 x y)
+      (proc1 y x))))
+
+(define $proc1
+  (lambda [$x $y]
+    (match [x y] [integer integer]
+      {[[,0 _] 1]
+       [[_ _] (foldl + 0 (map proc1 (map (lambda [$y1] [(- x 1) y1]) (between 0 y))))]})))
+
+;(test (proc 20 20))
