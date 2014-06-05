@@ -1,0 +1,16 @@
+(define $year1 {31 28 31 30 31 30 31 31 30 31 30 31})
+(define $year2 {31 29 31 30 31 30 31 31 30 31 30 31})
+
+(define $four-years1 {@year1 @year1 @year1 @year2})
+(define $four-years2 {@year1 @year1 @year1 @year1})
+
+(define $repeat-times
+  (lambda [$n $xs]
+    (concat (map (lambda [$k] xs) (between 1 n)))))
+
+(define $handred-years {@year2 @(repeat-times 24 four-years1) @four-years2})
+
+(test handred-years)
+(test (scanl (compose + (modulo $ 7)) 0 handred-years))
+(test (rdc (drop 12 (scanl (compose + (modulo $ 7)) 0 handred-years))))
+(test (frequency (rdc (drop 12 (scanl (compose + (modulo $ 7)) 0 handred-years)))))

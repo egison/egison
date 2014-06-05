@@ -1,12 +1,3 @@
-(define $nperm
-  (lambda [$n $r]
-    (foldl * 1 (between (- n (- r 1)) n))))
-
-(define $ncomb
-  (lambda [$n $r]
-    (/ (nperm n r)
-       (fact r))))
-
 (define $x 12345)
 (define $y 6789)
 
