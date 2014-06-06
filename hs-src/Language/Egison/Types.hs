@@ -136,6 +136,7 @@ data EgisonExpr =
   | HashExpr [(EgisonExpr, EgisonExpr)]
 
   | LambdaExpr [String] EgisonExpr
+  | MemoizedLambdaExpr [String] EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr

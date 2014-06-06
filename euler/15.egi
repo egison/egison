@@ -1,10 +1,5 @@
-(define $memoize2
-  (lambda [$proc $x $y]
-    (lambda [$x $y]
-      
-
 (define $proc
-  (lambda [$x $y]
+  (memoized-lambda [$x $y]
     (match [x y] [integer integer]
       {[[,0 _] 1]
        [[_ ,0] 1]

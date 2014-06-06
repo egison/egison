@@ -18,6 +18,7 @@
      "\\<load-file\\>"
 
      "\\<lambda\\>"
+     "\\<memoized-lambda\\>"
      "\\<let\\>"
      "\\<letrec\\>"
      "\\<if\\>"
@@ -131,6 +132,7 @@
         ((equal "load-file" name) 2)
         ((equal "execute" name) 2)
         ((equal "lambda" name) 2)
+        ((equal "memoized-lambda" name) 2)
         ((equal "let" name) 2)
         ((equal "letrec" name) 2)
         ((equal "if" name) 2)

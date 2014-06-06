@@ -186,42 +186,11 @@ evalExpr env (IndexedExpr expr indices) = do
   array <- evalExpr env expr
   indices <- mapM (evalExprDeep env) indices
   refArray array indices
- where
-  refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
-  refArray val [] = return val 
-  refArray (Value (Array array)) (index:indices) = do
-    i <- (liftM fromInteger . fromEgison) index
-    case IntMap.lookup (i + 1) array of
-      Just val -> refArray (Value val) indices
-      Nothing -> return $ Value Undefined
-  refArray (Intermediate (IArray array)) (index:indices) = do
-    i <- (liftM fromInteger . fromEgison) index
-    case IntMap.lookup (i + 1) array of
-      Just ref -> evalRef ref >>= flip refArray indices
-      Nothing -> return $ Value Undefined
-  refArray (Value (IntHash hash)) (index:indices) = do
-    key <- fromEgison index
-    case HL.lookup key hash of
-      Just val -> refArray (Value val) indices
-      Nothing -> return $ Value Undefined
-  refArray (Intermediate (IIntHash hash)) (index:indices) = do
-    key <- fromEgison index
-    case HL.lookup key hash of
-      Just ref -> evalRef ref >>= flip refArray indices
-      Nothing -> return $ Value Undefined
-  refArray (Value (StrHash hash)) (index:indices) = do
-    key <- evalStringWHNF $ Value index
-    case HL.lookup (B.pack key) hash of
-      Just val -> refArray (Value val) indices
-      Nothing -> return $ Value Undefined
-  refArray (Intermediate (IStrHash hash)) (index:indices) = do
-    key <- evalStringWHNF $ Value index
-    case HL.lookup (B.pack key) hash of
-      Just ref -> evalRef ref >>= flip refArray indices
-      Nothing -> return $ Value Undefined
-  refArray val _ = throwError $ TypeMismatch "array or hash" val
 
-evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
+evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
+
+evalExpr env (MemoizedLambdaExpr names expr) = undefined
+
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
 evalExpr env (IfExpr test expr expr') = do
@@ -383,7 +352,13 @@ applyFunc (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc val _ = throwError $ TypeMismatch "function" val
+applyFunc hash@(Intermediate (IIntHash _)) arg = do
+  indices <- evalWHNF arg
+  refArray hash $ fromTupleValue indices
+applyFunc hash@(Value (IntHash _)) arg = do
+  indices <- evalWHNF arg
+  refArray hash $ fromTupleValue indices
+applyFunc val _ = throwError $ TypeMismatch "function or hash" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name size expr = do  
@@ -400,6 +375,40 @@ generateArray env name size expr = do
     bindEnv env name i = do
       ref <- newEvalutedObjectRef (Value . Integer $ i)
       return $ extendEnv env [(name, ref)]
+
+refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
+refArray val [] = return val 
+refArray (Value (Array array)) (index:indices) = do
+  i <- (liftM fromInteger . fromEgison) index
+  case IntMap.lookup (i + 1) array of
+    Just val -> refArray (Value val) indices
+    Nothing -> return $ Value Undefined
+refArray (Intermediate (IArray array)) (index:indices) = do
+  i <- (liftM fromInteger . fromEgison) index
+  case IntMap.lookup (i + 1) array of
+    Just ref -> evalRef ref >>= flip refArray indices
+    Nothing -> return $ Value Undefined
+refArray (Value (IntHash hash)) (index:indices) = do
+  key <- fromEgison index
+  case HL.lookup key hash of
+    Just val -> refArray (Value val) indices
+    Nothing -> return $ Value Undefined
+refArray (Intermediate (IIntHash hash)) (index:indices) = do
+  key <- fromEgison index
+  case HL.lookup key hash of
+    Just ref -> evalRef ref >>= flip refArray indices
+    Nothing -> return $ Value Undefined
+refArray (Value (StrHash hash)) (index:indices) = do
+  key <- evalStringWHNF $ Value index
+  case HL.lookup (B.pack key) hash of
+    Just val -> refArray (Value val) indices
+    Nothing -> return $ Value Undefined
+refArray (Intermediate (IStrHash hash)) (index:indices) = do
+  key <- evalStringWHNF $ Value index
+  case HL.lookup (B.pack key) hash of
+    Just ref -> evalRef ref >>= flip refArray indices
+    Nothing -> return $ Value Undefined
+refArray val _ = throwError $ TypeMismatch "array or hash" val
 
 newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr
