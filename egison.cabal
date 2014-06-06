@@ -9,6 +9,7 @@ Description:
   .
   The following code is the program that determines poker-hands written in Egison.
   All hands are expressed in a single pattern.
+  Isn't it exciting?
   We can run this code online at <http://www.egison.org/demonstrations/poker-hands.html>.
   .
   <<http://www.egison.org/images/poker-hands.png>>
