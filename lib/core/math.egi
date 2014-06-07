@@ -1,8 +1,20 @@
-(define $permutation-count
+;;;;;
+;;;;; Math
+;;;;;
+
+(define $fact
+  (lambda [$n]
+    (letrec {[$fact1 (lambda [$n $ret]
+                       (match n [nat]
+                         {[<o> ret]
+                          [<s $n1> (fact1 n1 (* n ret))]}))]}
+      (fact1 n 1))))
+
+(define $perm
   (lambda [$n $r]
     (foldl * 1 (between (- n (- r 1)) n))))
 
-(define $combination-count
+(define $comb
   (lambda [$n $r]
-    (/ (permutation-count n r)
+    (/ (perm n r)
        (fact r))))
