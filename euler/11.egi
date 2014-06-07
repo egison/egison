@@ -30,6 +30,13 @@
              [[<cons $x _> <cons ,(- s x) _>] (array-ref xss [x (- s x)])]))
          (take (+ m n -1) nats0))))
 
+(define $diags-rev
+  (lambda [$xss $m $n]
+    (map (lambda [$s]
+           (match-all [(take m nats0) (take n nats0)] [(set integer) (set integer)]
+             [[<cons $x _> <cons ,(- s x) _>] (array-ref xss [(- m x 1) (- s x)])]))
+         (take (+ m n -1) nats0))))
+
 (define $max0
   (lambda [$xs]
     (match xs (list something)
@@ -48,6 +55,8 @@
 
 (define $proc
   (lambda [$xss]
-    (max {(proc1 (diags xss 20 20))})))
+    (max {(proc1 (diags xss 20 20))
+          (proc1 (diags-rev xss 20 20))
+          })))
 
 (test (proc xss))
