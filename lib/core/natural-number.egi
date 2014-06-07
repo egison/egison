@@ -29,19 +29,10 @@
                          }))]}
       (fib1 n 1 1))))
 
-(define $fact
-  (lambda [$n]
-    (letrec {[$fact1 (lambda [$n $ret]
-                       (match n [nat]
-                         {[<o> ret]
-                          [<s $n1> (fact1 n1 (* n ret))]}))]}
-      (fact1 n 1))))
-
 (define $divisor?
   (lambda [$n $d]
     (eq? 0 (remainder n d))))
       
-
 (define $gcd
   (lambda [$ns]
     (match ns (multiset integer)
