@@ -1,0 +1,20 @@
+(define $collatz
+  (lambda [$n]
+    (if (even? n)
+      (/ n 2)
+      (+ (* 3 n) 1))))
+
+(define $proc1
+  (memoized-lambda [$n]
+    (if (eq? n 1)
+      1
+      (+ 1 (proc1 (collatz n))))))
+
+(define $proc
+  (lambda [$n]
+    (let {[$ret (map proc1 (take n nats))]}
+      [(max ret) ret])))
+
+(test (max (map proc1 (take 100000 nats))))
+
+;(test (proc 1000000))
