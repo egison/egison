@@ -11,23 +11,11 @@
 
 (define $min
   (lambda [$ns]
-    (match ns (list integer)
-      {[<cons $n <nil>> n]
-       [<cons $n $rs>
-        (let {[$r (min rs)]}
-          (match (compare n r) ordering
-            {[<less> n]
-             [_ r]}))]})))
+    (foldl (lambda [$x $y] (if (lt? x y) x y)) (car ns) (cdr ns))))
 
 (define $max
   (lambda [$ns]
-    (match ns (list integer)
-      {[<cons $n <nil>> n]
-       [<cons $n $rs>
-        (let {[$r (max rs)]}
-          (match (compare n r) ordering
-            {[<greater> n]
-             [_ r]}))]})))
+    (foldl (lambda [$x $y] (if (gt? x y) x y)) (car ns) (cdr ns))))
 
 (define $min-and-max
   (lambda [$ns]
