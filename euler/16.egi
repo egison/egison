@@ -1,1 +1,0 @@
-(test (foldl + 0 (map (compose (lambda [$x] {x}) read) (show (power 2 1000)))))

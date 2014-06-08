@@ -1,1 +1,0 @@
-(test (map (power $ 5) (between 0 9)))
