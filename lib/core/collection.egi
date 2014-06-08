@@ -111,15 +111,13 @@
   (lambda [$fn $init $ls]
     (match ls (list something)
       {[<nil> init]
-       [<cons $x $xs> (let {[$y (fn init x)]}
-                        (foldl fn y xs))]})))
+       [<cons $x $xs> (foldl fn (fn init x) xs)]})))
 
 (define $scanl
   (lambda [$fn $init $ls]
     {init @(match ls (list something)
              {[<nil> {}]
-              [<cons $x $xs> (let {[$y (fn init x)]}
-                               (scanl fn y xs))]})}))
+              [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
 
 (define $map2
   (lambda [$fn $xs $ys]

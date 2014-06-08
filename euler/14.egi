@@ -6,15 +6,19 @@
 
 (define $proc1
   (memoized-lambda [$n]
-    (if (eq? n 1)
-      1
-      (+ 1 (proc1 (collatz n))))))
+    (letrec {[$looper (lambda [$r $n]
+                        (if (eq? n 1)
+                          (+ 1 r)
+                          (looper (+ 1 r) (collatz n))))]}
+      (looper 0 n))))
 
 (define $proc
   (lambda [$n]
     (let {[$ret (map proc1 (take n nats))]}
       [(max ret) ret])))
 
-(test (max (map proc1 (take 100000 nats))))
+(define $main
+  (lambda [$args]
+    (do {[(each print (map show (map proc1 (take 1000000 nats))))]}
+      [])))
 
-;(test (proc 1000000))
