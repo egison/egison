@@ -1,0 +1,7 @@
+(define $ps (while (lt? $ 1000000) primes))
+
+(take 100 ps)
+(take 1000 ps)
+(take 10000 ps)
+(take 30000 ps)
+

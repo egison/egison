@@ -1,0 +1,3 @@
+(test (power 10 25))
+
+(test (power 2 83))
