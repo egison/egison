@@ -178,8 +178,8 @@
       {[<nil> #t]
        [<cons $x $rs>
         (if (pred x)
-            #f
-            (all pred rs))]})))
+            (all pred rs)
+            #f)]})))
 
 ;;
 ;; Counting

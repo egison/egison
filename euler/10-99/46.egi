@@ -1,0 +1,16 @@
+(load "lib/math/prime.egi")
+
+(define $sqrt?
+  (lambda [$n]
+    (all even? (map (lambda [$x $y] y) (frequency (p-f n))))))
+
+(define $proc
+  (lambda [$n]
+    (if (or (even? n) (prime? n))
+      #t
+      (any (lambda [$p] (sqrt? (/ (- n p) 2)))
+           (while (lt? $ n) (cdr primes))))))
+
+(test (io (each (compose show print) (while (lambda [$n $b] b) (map (lambda [$n] [n (proc n)]) (map (lambda [$n] (+ (* 2 n) 1)) nats))))))
+;(test (car (filter (lambda [$n] (not (proc n)))  (map (* $ 2) nats))))
+
