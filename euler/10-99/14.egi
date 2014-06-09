@@ -17,8 +17,10 @@
     (let {[$ret (map proc1 (take n nats))]}
       [(max ret) ret])))
 
-(define $main
-  (lambda [$args]
-    (do {[(each print (map show (map proc1 (take 1000000 nats))))]}
-      [])))
+;(define $main
+;  (lambda [$args]
+;    (do {[(each print (map show (map proc1 (take 1000000 nats))))]}
+;      [])))
+
+(test (proc 1000000))
 

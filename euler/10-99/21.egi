@@ -9,5 +9,9 @@
     (if (eq? d (proc2 d))
       #f
       (eq? d (proc2 (proc2 d))))))
-    
-(test (foldl + 0 (filter proc1 (take 10000 nats))))
+
+(define $main
+  (lambda [$arg]
+    (do {[(each print (filter proc1 (take 10000 nats)))]}
+      [])))
+;(test (foldl + 0 (filter proc1 (take 10000 nats))))
