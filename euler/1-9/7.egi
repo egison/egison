@@ -1,0 +1,3 @@
+(load "lib/math/prime.egi")
+
+(test (nth 10001 primes))

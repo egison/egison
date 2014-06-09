@@ -1,0 +1,53 @@
+(define $proc2-1
+  (lambda [$c]
+    (match c char
+      {[,'1' "one"]
+       [,'2' "two"]
+       [,'3' "three"]
+       [,'4' "four"]
+       [,'5' "five"]
+       [,'6' "six"]
+       [,'7' "seven"]
+       [,'8' "eight"]
+       [,'9' "nine"]})))
+
+(define $proc2-2
+  (lambda [$c]
+    (match c char
+      {[,'2' "twenty"]
+       [,'3' "thirty"]
+       [,'4' "forty"]
+       [,'5' "fifty"]
+       [,'6' "sixty"]
+       [,'7' "seventy"]
+       [,'8' "eighty"]
+       [,'9' "ninety"]})))
+
+(define $proc3
+  (lambda [$c]
+    (match c char
+      {[,'1' "eleven"]
+       [,'2' "twelve"]
+       [,'3' "thirteen"]
+       [,'4' "fourteen"]
+       [,'5' "fifteen"]
+       [,'6' "sixteen"]
+       [,'7' "seventeen"]
+       [,'8' "eighteen"]
+       [,'9' "nineteen"]})))
+
+(define $proc1
+  (lambda [$n]
+    (match (show n) (list char)
+      {[<cons $x0 <nil>> (proc2-1 x0)]
+       [<cons ,'1' <cons ,'0' <nil>>> "ten"]
+       [<cons ,'1' <cons $x0 <nil>>> (proc3 x0)]
+       [<cons $x1 <cons ,'0' <nil>>> (proc2-2 x1)]
+       [<cons $x1 <cons $x0 <nil>>> {@(proc2-2 x1) @" " @(proc2-1 x0)}]
+       [<cons $x2 <cons ,'0' <cons ,'0' <nil>>>> {@(proc2-1 x2) @" handred"}]
+       [<cons $x2 <cons $x1 <cons $x0 <nil>>>> {@(proc2-1 x2) @" handred and " @(proc1 (read {x1 x0}))}]
+       [_ "one thousand"]})))
+
+(test (length (delete ' ' (concat (map proc1 (between 1 1000))))))
+
+       

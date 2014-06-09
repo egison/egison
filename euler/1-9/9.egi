@@ -1,0 +1,3 @@
+(test (car (match-all (between 1 1000) (list integer)
+             [<join _ (& <cons $a _> <join _ <cons $b <join _ <cons (& ,(+ (power a 2) (power b 2)) ,(- 1000 a b) $c) _>>>>)>
+              (* a b c)])))

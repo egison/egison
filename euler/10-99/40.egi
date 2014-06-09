@@ -1,0 +1,5 @@
+(define $ds {9 @(map (lambda [$n] (* n (- (power 10 n) 1 (power 10 (- n 1))))) (cdr nats))})
+
+(take 10 ds)
+
+
