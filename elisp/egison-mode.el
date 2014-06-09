@@ -19,6 +19,7 @@
 
      "\\<lambda\\>"
      "\\<memoized-lambda\\>"
+     "\\<memoize\\>"
      "\\<let\\>"
      "\\<letrec\\>"
      "\\<if\\>"

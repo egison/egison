@@ -158,6 +158,7 @@ expr' = (try constantExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
+                         <|> memoizeExpr
                          <|> patternFunctionExpr
                          <|> letRecExpr
                          <|> letExpr
@@ -299,6 +300,9 @@ lambdaExpr = keywordLambda >> LambdaExpr <$> varNames <*> expr
 
 memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
+
+memoizeExpr :: Parser EgisonExpr
+memoizeExpr = keywordMemoize >> MemoizeExpr <$> expr
 
 patternFunctionExpr :: Parser EgisonExpr
 patternFunctionExpr = keywordPatternFunction >> PatternFunctionExpr <$> varNames <*> pattern
@@ -524,6 +528,7 @@ reservedKeywords =
   , "apply"
   , "lambda"
   , "memoized-lambda"
+  , "memoize"
   , "pattern-function"
   , "letrec"
   , "let"
@@ -573,6 +578,7 @@ keywordElse                 = reserved "else"
 keywordApply                = reserved "apply"
 keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoized-lambda"
+keywordMemoize             = reserved "memoize"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"

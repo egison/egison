@@ -442,6 +442,9 @@ recursiveBind env bindings = do
                  MemoizedLambdaExpr names body -> do
                    hashRef <- liftIO $ newIORef HL.empty
                    liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
+                 MemoizeExpr fnExpr -> do
+                   hashRef <- liftIO $ newIORef HL.empty
+                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' ["arg"] (ApplyExpr fnExpr (VarExpr "arg"))
                  _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
             refs exprs
   return env'
