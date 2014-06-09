@@ -137,6 +137,7 @@ data EgisonExpr =
 
   | LambdaExpr [String] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr
+  | MemoizeExpr EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
