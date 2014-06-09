@@ -54,7 +54,7 @@ noArg f = \args -> do
   args' <- tupleToList args
   case args' of 
     [] -> f >>= return . Value
-    _ -> throwError $ ArgumentsNum 0 $ length args'
+    _ -> throwError $ ArgumentsNumPrimitive 0 $ length args'
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -68,7 +68,7 @@ twoArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
     [val, val'] -> f val val' >>= return . Value
-    _ -> throwError $ ArgumentsNum 2 $ length args'
+    _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
 {-# INLINE threeArgs #-}
 threeArgs :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -76,7 +76,7 @@ threeArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
     [val, val', val''] -> f val val' val'' >>= return . Value
-    _ -> throwError $ ArgumentsNum 3 $ length args'
+    _ -> throwError $ ArgumentsNumPrimitive 3 $ length args'
 
 tupleToList :: WHNFData -> EgisonM [EgisonValue]
 tupleToList whnf = do

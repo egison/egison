@@ -534,6 +534,8 @@ data LoopContext = LoopContext Binding ObjectRef EgisonPattern EgisonPattern Egi
 data EgisonError =
     UnboundVariable Var
   | TypeMismatch String WHNFData
+  | ArgumentsNumWithNames [String] Int Int
+  | ArgumentsNumPrimitive Int Int
   | ArgumentsNum Int Int
   | NotImplemented String
   | Assertion String
@@ -549,8 +551,12 @@ instance Show EgisonError where
   show (UnboundVariable var) = "Unbound variable: " ++ var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
+  show (ArgumentsNumWithNames names expected got) = "Wrong number of arguments: " ++ show names ++ ": expected " ++
+                                                    show expected ++ ", but got " ++  show got
+  show (ArgumentsNumPrimitive expected got) = "Wrong number of arguments for a primitive function: expected " ++
+                                              show expected ++ ", but got " ++  show got
   show (ArgumentsNum expected got) = "Wrong number of arguments: expected " ++
-                                     show expected ++ ", but got " ++  show got
+                                      show expected ++ ", but got " ++  show got
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
   show (Desugar message) = "Error: " ++ message

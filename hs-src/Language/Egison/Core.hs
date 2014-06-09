@@ -359,7 +359,7 @@ applyFunc (Value (Func env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
-    else throwError $ ArgumentsNum (length names) (length refs)
+    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
 applyFunc (Value (PrimitiveFunc func)) arg = func arg
 applyFunc (Value (IOFunc m)) arg = do
   case arg of
