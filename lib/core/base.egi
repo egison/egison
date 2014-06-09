@@ -51,3 +51,8 @@
   (lambda [$f $g $h]
     (lambda $x
       (apply h (apply g (apply f x))))))
+
+(define $memoize
+  (lambda [$fn]
+    (memoized-lambda $arg
+      (fn arg))))
