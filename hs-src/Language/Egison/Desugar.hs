@@ -161,6 +161,10 @@ desugar (LambdaExpr names expr) = do
   expr' <- desugar expr
   return $ LambdaExpr names expr'
 
+desugar (MemoizedLambdaExpr names expr) = do
+  expr' <- desugar expr
+  return $ MemoizedLambdaExpr names expr'
+
 desugar (PatternFunctionExpr names pattern) = do
   pattern' <- desugarPattern pattern
   return $ PatternFunctionExpr names pattern'
