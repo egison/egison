@@ -53,6 +53,7 @@ Library
                    Language.Egison.Primitives
                    Language.Egison.Util
   Other-modules:   Paths_egison
+  ghc-prof-options:   -prof -auto-all
 
 Test-Suite test
   Type:           exitcode-stdio-1.0
@@ -73,3 +74,4 @@ Executable egison
   Build-depends:       egison, base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, filepath, strict-io, bytestring
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
+  ghc-prof-options:   -prof -auto-all
