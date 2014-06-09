@@ -6,3 +6,4 @@ exp/
 tmp/
 .cabal-sandbox
 cabal.sandbox.config
+egison.prof

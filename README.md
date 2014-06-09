@@ -144,12 +144,22 @@ We can use it for pattern-matching against graphs or tree-structures such as XML
 Egison is not famous at all now.
 Please help us to make Egison popular.
 
-### How to test (for developer)
+### How to test (for developers)
 
 ```
 % cabal install --enable-tests
 % cabal test
 ```
+
+### How to profile (for developers)
+
+```
+% sudo apt-get install haskell-platform-doc haskell-platform-prof
+% cabal install --enable-library-profiling --enable-executable-profiling
+% egison +RTS -p -RTS -l sample/sequence.egi
+% cat egison.prof
+```
+
 ### Acknowledgement
 
 I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the interpreter.
