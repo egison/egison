@@ -4,32 +4,34 @@
 (define $triplets (match-all (between 0 4) (set integer)
                     [<cons $x <cons $y <cons (& $z ,(- 4 (+ x y))) _>>> [x y z]]))
 
+(define $proc2 (modulo $ 1000000007))
+
 (define $proc1
   (memoized-lambda [$n $c3 $c2 $c1 $c0]
     (match [c3 c2 c1 c0] [integer integer integer integer]
       {[[,0 ,0 ,0 ,(* 4 n)] 1]
-       [[_ _ _ ?(gt? $ (* 4 (- n 1)))] 0]
-       [[(& ^,0 $d1) ,0 ,0 _] (* (perm d1 4) (proc1 n (- d1 4) 4 0 c0))]
-       [[,0 (& ^,0 $d1) ,0 _] (* (perm d1 4) (proc1 n 0 (- d1 4) 4 c0))]
-       [[,0 ,0 (& ^,0 $d1) _] (* (perm d1 4) (proc1 n 0 0 (- d1 4) (+ c0 4)))]
+       [[(& ^,0 $d1) ,0 ,0 _] (proc2 (* (proc1 n (- d1 4) 4 0 c0)))]
+       [[,0 (& ^,0 $d1) ,0 _] (proc2 (* (comb d1 4) (fact 4) (proc1 n 0 (- d1 4) 4 c0)))]
+       [[,0 ,0 (& ^,0 $d1) _] (proc2 (* (comb d1 4) (fact 4) (proc1 n 0 0 (- d1 4) (+ c0 4))))]
        [[(& ^,0 $d1) (& ^,0 $d2) ,0 _]
-        (foldl + 0 (map (lambda [$x $y] (foldl * 1 {(perm d1 x) (perm d2 y) (proc1 n (- d1 x) (- (+ d2 x) y) y c0)}))
-                        (filter (lambda [$x $y] (and (lte? x d1) (lte? y d2))) twins)))]
+        (proc2 (foldl + 0 (map (lambda [$x $y] (proc2 (* (comb 4 x) (comb d2 y) (fact y) (proc1 n (- d1 x) (- (+ d2 x) y) y c0))))
+                               (filter (lambda [$x $y] (and (lte? x d1) (lte? y d2))) twins))))]
        [[(& ^,0 $d1) ,0 (& ^,0 $d2) _]
-        (foldl + 0 (map (lambda [$x $y] (foldl * 1 {(perm d1 x) (perm d2 y) (proc1 n (- d1 x) x (- d2 y) (+ c0 y))}))
-                        (filter (lambda [$x $y] (and (lte? x d1) (lte? y d2))) twins)))]
+        (proc2 (foldl + 0 (map (lambda [$x $y] (proc2 (* (comb 4 x) (comb d2 y) (fact y) (proc1 n (- d1 x) x (- d2 y) (+ c0 y)))))
+                               (filter (lambda [$x $y] (and (lte? x d1) (lte? y d2))) twins))))]
        [[,0 (& ^,0 $d1) (& ^,0 $d2) _]
-        (foldl + 0 (map (lambda [$x $y] (foldl * 1 {(perm d1 x) (perm d2 y) (proc1 n 0 (- d1 x) (- (+ d2 x) y) (+ c0 y))}))
-                        (filter (lambda [$x $y] (and (lte? x d1) (lte? y d2))) twins)))]
+        (proc2 (foldl + 0 (map (lambda [$x $y] (proc2 (* (comb 4 x) (comb d1 x) (comb d2 y) (fact x) (fact y) (proc1 n 0 (- d1 x) (- (+ d2 x) y) (+ c0 y)))))
+                               (filter (lambda [$x $y] (and (lte? x d1) (lte? y d2))) twins))))]
        [[(& ^,0 $d1) (& ^,0 $d2) (& ^,0 $d3) _]
-        (foldl + 0 (map (lambda [$x $y $z] (foldl * 1 {(perm d1 x) (perm d2 y) (perm d3 z) (proc1 n (- d1 x) (- (+ d2 x) y) (- (+ d3 y) z) (+ c0 z))}))
-                        (filter (lambda [$x $y $z] (and (lte? x d1) (and (lte? y d2) (lte? z d3)))) triplets)))]
+        (proc2 (foldl + 0 (map (lambda [$x $y $z] (proc2 (* (comb 4 x) (comb (- 4 x) y) (comb d2 y) (comb d3 z) (fact y) (fact z) (proc1 n (- d1 x) (- (+ d2 x) y) (- (+ d3 y) z) (+ c0 z)))))
+                               (filter (lambda [$x $y $z] (and (lte? x d1) (and (lte? y d2) (lte? z d3)))) triplets))))]
        })))
 
 (define $proc
   (lambda [$n]
-    (/ (proc1 n (* 4 n) 0 0 0) (fact (* 4 n)))))
+    (proc1 n (* 4 n) 0 0 0)))
 
 (test (proc 1))
 (test (proc 2))
-(test (modulo (proc 2) 1000000007))
+(test (proc 50))
+
