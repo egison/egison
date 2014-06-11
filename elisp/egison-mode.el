@@ -23,6 +23,7 @@
      "\\<let\\>"
      "\\<letrec\\>"
      "\\<if\\>"
+     "\\<seq\\>"
      "\\<apply\\>"
      "\\<generate-array\\>"
      "\\<array-size\\>"
