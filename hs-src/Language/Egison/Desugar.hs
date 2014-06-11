@@ -206,6 +206,10 @@ desugar (DoExpr binds expr) = do
   expr' <- desugar expr
   return $ DoExpr binds' expr'
   
+desugar (IoExpr expr) = do
+  expr' <- desugar expr
+  return $ IoExpr expr'
+  
 desugar (ApplyExpr (VarExpr "+") expr) = do
   expr' <- desugar expr
   case expr' of
