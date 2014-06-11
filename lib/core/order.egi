@@ -16,6 +16,24 @@
             <Equal>
             <Greater>))))
 
+(define $min
+  (lambda [$ns]
+    (foldl' (lambda [$x $y] (if (lt? x y) x y)) (car ns) (cdr ns))))
+
+(define $max
+  (lambda [$ns]
+    (foldl' (lambda [$x $y] (if (gt? x y) x y)) (car ns) (cdr ns))))
+
+(define $min-and-max
+  (lambda [$ns]
+    (foldl' (lambda [$ret $x]
+              (match ret [integer integer]
+                {[[$min $max] (if (lt? x min) [x max]
+                                (if (gt? x max) [min x]
+                                  [min max]))]}))
+           [(car ns) (car ns)]
+           (cdr ns))))
+
 (define $split-by-ordering
   (lambda [$xs $p]
     (match xs (list something)
