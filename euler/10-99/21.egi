@@ -1,10 +1,7 @@
 (load "lib/math/prime.egi")
+(load "lib/math/euler.egi")
 
-(define $proc2
-  (memoized-lambda [$d]
-    (foldl + 0
-           (unique (match-all (p-f d) (multiset integer)
-                     [<join $ps ^<nil>> (foldl * 1 ps)])))))
+(define $proc2 (memoize sum-of-proper-divisors))
 
 (define $proc1
   (memoized-lambda [$d]

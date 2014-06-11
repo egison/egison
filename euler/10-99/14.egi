@@ -12,14 +12,4 @@
                           (looper (+ 1 r) (collatz n))))]}
       (looper 0 n))))
 
-;(test (io (each (compose show print) (filter (lambda [$x $y] (gte? y 400)) (zip (map (- 1000001 $) (take 1000000 nats)) (map proc1 (map (- 1000001 $) (take 1000000 nats))))))))
-
-
-(define $ret
-  (lambda [$n]
-    (if (eq? n 1)
-      {1}
-      {n @(ret (collatz n))})))
-
-(test (io (each (compose show print) (ret 997823))))
-;(test (take 3 (ret 997823)))
+(test (io (each (compose show print) (filter (lambda [$x $y] (gte? y 400)) (zip (map (- 1000001 $) (take 1000000 nats)) (map proc1 (map (- 1000001 $) (take 1000000 nats))))))))

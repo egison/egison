@@ -1,0 +1,35 @@
+(load "lib/math/prime.egi")
+(load "lib/math/euler.egi")
+
+(define $n 1000000)
+
+(define $proc3 (memoize sum-of-proper-divisors))
+
+(define $ds (generate-array [$i] [n] (proc3 i)))
+
+(define $proc2 (lambda [$i] (array-ref ds (- i 1))))
+
+(define $proc1
+  (lambda [$x]
+    (letrec {[$looper (lambda [$ls $x]
+                        (if (or (gt? x n) (or (eq? x 1) (member? x ls)))
+                          {@ls x}
+                          (looper {@ls x} (proc2 x))))]}
+      (looper {} x))))
+
+(define $proc
+  (lambda [$x]
+    (let {[$ls (proc1 x)]}
+      (if (eq? (rac ls) x)
+        (- (length ls) 1)
+        0))))
+
+(test (io (each (compose show print) (proc1 100))))
+(test (io (each (compose show print) (proc1 220))))
+(test (io (each (compose show print) (proc1 12496))))
+
+(test (proc 1))
+(test (proc 220))
+(test (proc 12496))
+
+(test (max (map proc (take n nats))))
