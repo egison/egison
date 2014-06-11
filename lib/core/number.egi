@@ -19,15 +19,13 @@
 
 (define $min-and-max
   (lambda [$ns]
-    (match ns (list integer)
-      {[<cons $n <nil>> [n n]]
-       [<cons $n $rs>
-        (let {[[$min-n $max-n] (min-and-max rs)]}
-          (match (compare n min-n) ordering
-            {[<less> [n max-n]]
-             [_ (match (compare n max-n) ordering
-                  {[<greater> [min-n n]]
-                   [_ [min-n max-n]]})]}))]})))
+    (foldl' (lambda [$ret $x]
+              (match ret [integer integer]
+                {[[$min $max] (if (lt? x min) [x max]
+                                (if (gt? x max) [min x]
+                                  [min max]))]}))
+           [(car ns) (car ns)]
+           (cdr ns))))
 
 (define $power
   (lambda [$x $n]
