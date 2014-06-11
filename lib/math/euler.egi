@@ -1,0 +1,11 @@
+;;;;;
+;;;;; Functions to solve Project Euler
+;;;;;
+
+(define $sum-of-positive-divisors
+  (lambda [$n]
+    (foldl' * 1 (map (lambda [$p $c] (/ (- (power p (+ c 1)) 1) (- p 1))) (frequency (p-f n))))))
+
+(define $sum-of-proper-divisors
+  (lambda [$n]
+    (- (sum-of-positive-divisors n) n)))
