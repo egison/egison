@@ -5,22 +5,21 @@
       (+ (* 3 n) 1))))
 
 (define $proc1
-  (memoized-lambda [$n]
+  (lambda [$n]
     (letrec {[$looper (lambda [$r $n]
                         (if (eq? n 1)
                           (+ 1 r)
                           (looper (+ 1 r) (collatz n))))]}
       (looper 0 n))))
 
-(define $proc
+;(test (io (each (compose show print) (filter (lambda [$x $y] (gte? y 400)) (zip (map (- 1000001 $) (take 1000000 nats)) (map proc1 (map (- 1000001 $) (take 1000000 nats))))))))
+
+
+(define $ret
   (lambda [$n]
-    (let {[$ret (map proc1 (take n nats))]}
-      [(max ret) ret])))
+    (if (eq? n 1)
+      {1}
+      {n @(ret (collatz n))})))
 
-;(define $main
-;  (lambda [$args]
-;    (do {[(each print (map show (map proc1 (take 1000000 nats))))]}
-;      [])))
-
-(test (proc 1000000))
-
+(test (io (each (compose show print) (ret 997823))))
+;(test (take 3 (ret 997823)))
