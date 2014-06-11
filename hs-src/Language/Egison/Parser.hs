@@ -175,6 +175,7 @@ expr' = (try constantExpr
                          <|> matcherExpr
                          <|> matcherBFSExpr
                          <|> matcherDFSExpr
+                         <|> seqExpr
                          <|> applyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
@@ -337,6 +338,9 @@ varName = char '$' >> ident
 
 ioExpr :: Parser EgisonExpr
 ioExpr = keywordIo >> IoExpr <$> expr
+
+seqExpr :: Parser EgisonExpr
+seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
 
 applyExpr :: Parser EgisonExpr
 applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr) 
@@ -525,6 +529,7 @@ reservedKeywords =
   , "load-file"
   , "load"
   , "if"
+  , "seq"
   , "apply"
   , "lambda"
   , "memoized-lambda"
@@ -575,6 +580,7 @@ keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
+keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoized-lambda"

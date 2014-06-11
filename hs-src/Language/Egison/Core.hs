@@ -265,6 +265,10 @@ evalExpr env (MatchExpr target matcher clauses) = do
           MNil -> cont
   foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
 
+evalExpr env (SeqExpr expr1 expr2) = do
+  evalExprDeep env expr1
+  evalExpr env expr2
+
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg

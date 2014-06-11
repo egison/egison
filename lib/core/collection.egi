@@ -113,6 +113,14 @@
       {[<nil> init]
        [<cons $x $xs> (foldl fn (fn init x) xs)]})))
 
+(define $foldl'
+  (lambda [$fn $init $ls]
+    (match ls (list something)
+      {[<nil> init]
+       [<cons $x $xs>
+        (let {[$z (fn init x)]}
+          (seq z (foldl' fn z xs)))]})))
+
 (define $scanl
   (lambda [$fn $init $ls]
     {init @(match ls (list something)

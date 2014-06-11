@@ -210,6 +210,11 @@ desugar (IoExpr expr) = do
   expr' <- desugar expr
   return $ IoExpr expr'
   
+desugar (SeqExpr expr0 expr1) = do
+  expr0' <- desugar expr0
+  expr1' <- desugar expr1
+  return $ SeqExpr expr0' expr1'
+
 desugar (ApplyExpr (VarExpr "+") expr) = do
   expr' <- desugar expr
   case expr' of

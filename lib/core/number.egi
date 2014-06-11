@@ -11,11 +11,11 @@
 
 (define $min
   (lambda [$ns]
-    (foldl (lambda [$x $y] (if (lt? x y) x y)) (car ns) (cdr ns))))
+    (foldl' (lambda [$x $y] (if (lt? x y) x y)) (car ns) (cdr ns))))
 
 (define $max
   (lambda [$ns]
-    (foldl (lambda [$x $y] (if (gt? x y) x y)) (car ns) (cdr ns))))
+    (foldl' (lambda [$x $y] (if (gt? x y) x y)) (car ns) (cdr ns))))
 
 (define $min-and-max
   (lambda [$ns]

@@ -160,6 +160,7 @@ data EgisonExpr =
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
     
+  | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
 
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
