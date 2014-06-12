@@ -1,4 +1,4 @@
-## The Egison Programming Language
+# The Egison Programming Language
 
 Egison is the pattern-matching oriented pure functional programming language.
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
@@ -8,7 +8,7 @@ For more information, visit [Egison website](http://www.egison.org).
 
 If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.org/~egi/) or tweet to [@Egison_Lang](https://twitter.com/Egison_Lang).
 
-### Getting Started!
+## Getting Started!
 
 At first, you should install [Haskell Platform](http://www.haskell.org/platform/).
 
@@ -62,7 +62,7 @@ Examples:
 
 Enjoy!
 
-### Demonstration
+## Demonstration
 
 We can do non-linear pattern-matching against unfree data types in Egison.
 An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
@@ -144,14 +144,14 @@ We can use it for pattern-matching against graphs or tree-structures such as XML
 Egison is not famous at all now.
 Please help us to make Egison popular.
 
-### How to test (for developers)
+## How to Run Test
 
 ```
 % cabal install --enable-tests
 % cabal test
 ```
 
-### How to profile (for developers)
+## How to Profile the Interepreter
 
 ```
 % sudo apt-get install haskell-platform-doc haskell-platform-prof
@@ -160,11 +160,11 @@ Please help us to make Egison popular.
 % cat egison.prof
 ```
 
-### Acknowledgement
+## Acknowledgement
 
 I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the interpreter.
 
-### License
+## License
 
 Copyright (c) 2011-2014, Satoshi Egi
 
