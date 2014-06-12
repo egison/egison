@@ -141,8 +141,6 @@ primitives = [ ("+", plus)
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
                
-             , ("stoi", stringToInteger)
-
              , ("read", read')
              , ("show", show')
 
@@ -370,11 +368,6 @@ floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
   f <- fromEgison val
   return $ Integer $ op f
-
-stringToInteger :: PrimitiveFunc
-stringToInteger = oneArg $ \val -> do
-  numStr <- fromEgison val
-  return $ Integer (read numStr :: Integer)
 
 read' :: PrimitiveFunc
 read'= oneArg $ \val -> fromStringValue val >>= readExpr >>= evalExprDeep nullEnv
