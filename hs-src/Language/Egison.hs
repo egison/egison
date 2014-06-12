@@ -104,7 +104,6 @@ coreLibraries =
   , "lib/core/collection.egi"
   , "lib/core/order.egi"
   , "lib/core/number.egi"
-  , "lib/core/natural-number.egi"
   , "lib/core/math.egi"
   , "lib/core/string.egi"
   , "lib/core/database.egi"
