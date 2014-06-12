@@ -1,0 +1,13 @@
+(define $d 1000000)
+
+(define $proc
+  (lambda [$n]
+    (if (odd? n)
+      (if (lt? (comb n (/ (- n 1) 2)) d)
+        0
+        (- (+ n 1) (* 2 (length (while (lt? $ d) (map (lambda [$r] (comb n r)) (between 0 n)))))))
+      (if (lt? (comb n (/ n 2)) d)
+        0
+        (- (+ n 1) (* 2 (length (while (lt? $ d) (map (lambda [$r] (comb n r)) (between 0 n))))))))))
+
+(test (foldl + 0 (map proc (between 1 100))))
