@@ -138,6 +138,15 @@
   (lambda [$xs $ys]
     (map2 (lambda [$x $y] [x y]) xs ys)))
 
+(define $find-cycle
+  (lambda [$fn $init]
+    (letrec {[$looper (lambda [$xs $x]
+                        (let {[$y (fn x)]}
+                          (if (eq? y init)
+                            xs
+                            (looper {@xs y} y))))]}
+      (looper {init} init))))
+
 ;;
 ;; Simple predicate
 ;;
@@ -194,9 +203,7 @@
 ;;
 (define $length
   (lambda [$xs]
-    (match xs (list something)
-      {[<nil> 0]
-       [<cons _ $rs> (+ 1 (length rs))]})))
+    (foldl' (lambda [$x $y] (+ x 1)) 0 xs)))
 
 (define $count
   (lambda [$x $xs]

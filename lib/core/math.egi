@@ -5,9 +5,9 @@
 (define $fact
   (lambda [$n]
     (letrec {[$fact1 (lambda [$n $ret]
-                       (match n [nat]
-                         {[<o> ret]
-                          [<s $n1> (fact1 n1 (* n ret))]}))]}
+                       (match n integer
+                         {[,0 ret]
+                          [_ (fact1 (- n 1) (* n ret))]}))]}
       (fact1 n 1))))
 
 (define $perm
