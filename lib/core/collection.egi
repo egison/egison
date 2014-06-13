@@ -297,8 +297,8 @@
   (lambda [$xs]
     (match xs (list something)
       {[<nil> {}]
-       [<cons $x $rs>
-        {@(reverse rs) x}]})))
+       [<snoc $x $rs>
+        {x @(reverse rs)}]})))
 
 ;;;
 ;;; Multiset
