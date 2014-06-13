@@ -1,0 +1,29 @@
+(define $s
+  (lambda [$b $n]
+    (foldl' * 1 (while (lte? $ b) (p-f n)))))
+
+(test (s 17 2496144))
+
+(define $proc
+  (lambda [$n $r]
+    (foldl' + 0
+           (match-all (frequency (p-f (comb n r))) (list [integer integer])
+             [(loop $i [1 $k]
+                <cons [$p_i $c_i] ...>
+                <cons [$p_(+ k 1) $c_(+ k 1)] _>)
+              (if (eq? k 0)
+                p_(+ k 1)
+                (* (- p_(+ k 1) p_k)
+                   (foldl' * 1 (map (lambda [$i] (power p_i c_i)) (between 1 k)))))]))))
+
+(define $proc'
+  (lambda [$n $r]
+    (match-all (frequency (p-f (comb n r))) (list [integer integer])
+      [(loop $i [1 $k]
+         <cons [$p_i $c_i] ...>
+         <cons [$p_(+ k 1) $c_(+ k 1)] _>)
+       [k p c]])))
+
+(test (p-f (comb 11 2)))
+(test (proc' 11 2))
+(test (proc 11 2))
