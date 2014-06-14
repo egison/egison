@@ -20,6 +20,8 @@
 
 ;(test (zip (take 1000 nats) (map p (take 1000 nats))))
 
-;(test (length (filter p (take 10000 nats))))
-(test (length (filter p (take 10000000 nats))))
+;(test (length (filter p (take 1000 nats))))
+;(test (length (filter p (take 10000000 nats))))
+;(test (foldl' (lambda [$ret $n] (if (p n) (+ ret 1) ret)) 0 (take 1000 nats)))
+(test (foldl' (lambda [$ret $n] (if (p n) (+ ret 1) ret)) 0 (take 10000000 nats)))
 
