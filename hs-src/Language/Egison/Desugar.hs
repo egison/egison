@@ -137,6 +137,10 @@ desugar (ArrayRefExpr expr nums) =
 desugar (IndexedExpr expr indices) = 
   IndexedExpr <$> desugar expr <*> (mapM desugar indices)
 
+desugar (ArrayBoundsExpr expr) = do
+  expr' <- desugar expr
+  return $ ArrayBoundsExpr expr'
+
 desugar (InductiveDataExpr name exprs) = do 
   exprs' <- mapM desugar exprs
   return $ InductiveDataExpr name exprs'
