@@ -149,7 +149,7 @@ evalExpr env (CollectionExpr inners) = do
 
 evalExpr env (ArrayExpr exprs) = do
   refs' <- mapM (newObjectRef env) exprs
-  return . Intermediate . IArray $ Array.listArray (0, (toInteger (length exprs)) - 1) refs'
+  return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -373,8 +373,8 @@ applyFunc val _ = throwError $ TypeMismatch "function" val
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name sizeExpr expr = do
   size <- evalExpr env sizeExpr >>= fromWHNF >>= return . fromInteger
-  elems <- mapM genElem (enumFromTo 0 (size - 1))
-  return $ Intermediate $ IArray $ Array.listArray (0, (size - 1)) elems
+  elems <- mapM genElem (enumFromTo 1 size)
+  return $ Intermediate $ IArray $ Array.listArray (1, size) elems
   where
     genElem :: Integer -> EgisonM ObjectRef
     genElem i = do env' <- bindEnv env name $ toInteger i
