@@ -89,6 +89,7 @@ import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 
 import Data.Monoid (Monoid)
+import qualified Data.Array as Array
 import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
 import Data.Foldable (foldr, toList)
@@ -101,8 +102,6 @@ import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
 
 import System.IO
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import Data.Ratio
 
 import System.IO.Unsafe (unsafePerformIO)
@@ -233,7 +232,7 @@ data EgisonValue =
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
   | Collection (Seq EgisonValue)
-  | Array (IntMap EgisonValue)
+  | Array (Array.Array Integer EgisonValue)
   | IntHash (HashMap Integer EgisonValue)
   | StrHash (HashMap ByteString EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
@@ -270,7 +269,7 @@ instance Show EgisonValue where
                                      isChar :: EgisonValue -> Bool
                                      isChar (Char _) = True
                                      isChar _ = False
-  show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
+  show (Array vals) = "[|" ++ unwords (map show $ Array.elems vals) ++ "|]"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ B.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
@@ -406,7 +405,7 @@ data Intermediate =
     IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
   | ICollection (IORef (Seq Inner))
-  | IArray (IntMap ObjectRef)
+  | IArray (Array.Array Integer ObjectRef)
   | IIntHash (HashMap Integer ObjectRef)
   | IStrHash (HashMap ByteString ObjectRef)
 

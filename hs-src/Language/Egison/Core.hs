@@ -48,14 +48,13 @@ import Data.Traversable (mapM)
 import Data.IORef
 import Data.Maybe
 
+import Data.Array ((!))
+import qualified Data.Array as Array
 import qualified Data.HashMap.Lazy as HL
 
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
-
-import qualified Data.IntMap as IntMap
-
 
 import Language.Egison.Types
 import Language.Egison.Parser
@@ -149,8 +148,8 @@ evalExpr env (CollectionExpr inners) = do
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
 
 evalExpr env (ArrayExpr exprs) = do
-  ref' <- mapM (newObjectRef env) exprs
-  return . Intermediate . IArray $ IntMap.fromList $ zip (enumFromTo 1 (length exprs)) ref'
+  refs' <- mapM (newObjectRef env) exprs
+  return . Intermediate . IArray $ Array.listArray (0, (toInteger (length exprs)) - 1) refs'
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -303,8 +302,8 @@ evalExpr env (ArraySizeExpr expr) =
   evalExpr env expr >>= arraySize
   where
     arraySize :: WHNFData -> EgisonM WHNFData
-    arraySize (Intermediate (IArray vals)) = return . Value . Integer . toInteger $ IntMap.size vals
-    arraySize (Value (Array vals))         = return . Value . Integer . toInteger $ IntMap.size vals
+    arraySize (Intermediate (IArray vals)) = return . Value . Integer . (\(a, b) -> b - a + 1) $ Array.bounds vals
+    arraySize (Value (Array vals))         = return . Value . Integer . (\(a, b) -> b - a + 1) $ Array.bounds vals
     arraySize val                          = throwError $ TypeMismatch "array" val
 
 evalExpr _ SomethingExpr = return $ Value Something
@@ -343,8 +342,8 @@ evalWHNF (Value val) = return val
 evalWHNF (Intermediate (IInductiveData name refs)) =
   InductiveData name <$> mapM evalRefDeep refs
 evalWHNF (Intermediate (IArray refs)) = do
-  refs' <- mapM evalRefDeep $ IntMap.elems refs
-  return $ Array $ IntMap.fromList $ zip (enumFromTo 1 (IntMap.size refs)) refs'
+  refs' <- mapM evalRefDeep $ Array.elems refs
+  return $ Array $ Array.listArray (Array.bounds refs) refs'
 evalWHNF (Intermediate (IIntHash refs)) = do
   refs' <- mapM evalRefDeep refs
   return $ IntHash refs'
@@ -375,12 +374,11 @@ generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name size expr = do  
   size' <- evalExpr env size >>= fromWHNF >>= return . fromInteger
   elems <- mapM genElem (enumFromTo 1 size')
-  return $ Intermediate $ IArray $ IntMap.fromList elems
+  return $ Intermediate $ IArray $ Array.listArray (0, size' - 1) elems
   where
-    genElem :: Int -> EgisonM (Int, ObjectRef)
-    genElem i = do env <- bindEnv env name $ toInteger i
-                   val <- evalExpr env expr >>= newEvalutedObjectRef                   
-                   return (i, val)
+    genElem :: Integer -> EgisonM ObjectRef
+    genElem i = do env' <- bindEnv env name $ toInteger i
+                   newObjectRef env' expr
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
@@ -391,14 +389,15 @@ refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val 
 refArray (Value (Array array)) (index:indices) = do
   i <- (liftM fromInteger . fromEgison) index
-  case IntMap.lookup (i + 1) array of
-    Just val -> refArray (Value val) indices
-    Nothing -> return $ Value Undefined
+  if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
+    then refArray (Value (array ! i)) indices
+    else return  $ Value Undefined
 refArray (Intermediate (IArray array)) (index:indices) = do
   i <- (liftM fromInteger . fromEgison) index
-  case IntMap.lookup (i + 1) array of
-    Just ref -> evalRef ref >>= flip refArray indices
-    Nothing -> return $ Value Undefined
+  if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
+    then let ref = array ! i in
+           evalRef ref >>= flip refArray indices
+    else return  $ Value Undefined
 refArray (Value (IntHash hash)) (index:indices) = do
   key <- fromEgison index
   case HL.lookup key hash of
