@@ -291,20 +291,20 @@ evalExpr env (ApplyExpr func arg) = do
 evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
 evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
 
-evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (size:[])) expr) =
-  generateArray env name size expr
-evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (size:ys)) expr) = 
-  generateArray env name size (GenerateArrayExpr xs (TupleExpr ys) expr)
+evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (sizeExpr:[])) expr) =
+  generateArray env name sizeExpr expr
+evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (sizeExpr:ys)) expr) = 
+  generateArray env name sizeExpr (GenerateArrayExpr xs (TupleExpr ys) expr)
 evalExpr env (GenerateArrayExpr names size expr) = 
   evalExpr env (GenerateArrayExpr names (TupleExpr [size]) expr)
 
-evalExpr env (ArraySizeExpr expr) = 
-  evalExpr env expr >>= arraySize
+evalExpr env (ArrayBoundsExpr expr) = 
+  evalExpr env expr >>= arrayBounds
   where
-    arraySize :: WHNFData -> EgisonM WHNFData
-    arraySize (Intermediate (IArray vals)) = return . Value . Integer . (\(a, b) -> b - a + 1) $ Array.bounds vals
-    arraySize (Value (Array vals))         = return . Value . Integer . (\(a, b) -> b - a + 1) $ Array.bounds vals
-    arraySize val                          = throwError $ TypeMismatch "array" val
+    arrayBounds :: WHNFData -> EgisonM WHNFData
+    arrayBounds (Intermediate (IArray arr)) = return . Value . toEgison $ Array.bounds arr
+    arrayBounds (Value (Array arr))         = return . Value . toEgison $ Array.bounds arr
+    arrayBounds val                          = throwError $ TypeMismatch "array" val
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
@@ -371,10 +371,10 @@ applyFunc (Value (IOFunc m)) arg = do
 applyFunc val _ = throwError $ TypeMismatch "function" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
-generateArray env name size expr = do  
-  size' <- evalExpr env size >>= fromWHNF >>= return . fromInteger
-  elems <- mapM genElem (enumFromTo 1 size')
-  return $ Intermediate $ IArray $ Array.listArray (0, size' - 1) elems
+generateArray env name sizeExpr expr = do
+  size <- evalExpr env sizeExpr >>= fromWHNF >>= return . fromInteger
+  elems <- mapM genElem (enumFromTo 0 (size - 1))
+  return $ Intermediate $ IArray $ Array.listArray (0, (size - 1)) elems
   where
     genElem :: Integer -> EgisonM ObjectRef
     genElem i = do env' <- bindEnv env name $ toInteger i
