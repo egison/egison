@@ -51,7 +51,7 @@
 (test (let {[$s 1]}
         (match-all graph-data1 (graph integer)
           [<cons <edge ,s $x>
-                 ^<cons <edge ,x ,x>
+                 ^<cons <edge ,x ,s>
                         _>>
            x])))
 
