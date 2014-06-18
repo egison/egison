@@ -5,7 +5,7 @@
                         (do {[$eof (eof?)]
                              [(unless eof
                                 (do {[$line (read-line)]
-                                     [(write-string line)]
+                                     [(write line)]
                                      [(write-char '\n')]
                                      [iter]}
                                   []))]}
@@ -22,7 +22,7 @@
                      (do {[$eof (eof-port? port)]
                           [(unless eof
                              (do {[$line (read-line-from-port port)]
-                                  [(write-string line)]
+                                  [(write line)]
                                   [(write-char '\n')]
                                   [iter]}
                                []))]}

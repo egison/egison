@@ -12,6 +12,7 @@ module Language.Egison.Core
     (
     -- * Egison code evaluation
       evalTopExprs
+    , evalTopExprsNoIO
     , evalTopExpr
     , evalExpr
     , evalExprDeep
@@ -47,14 +48,13 @@ import Data.Traversable (mapM)
 import Data.IORef
 import Data.Maybe
 
+import Data.Array ((!))
+import qualified Data.Array as Array
 import qualified Data.HashMap.Lazy as HL
 
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
-
-import qualified Data.IntMap as IntMap
-
 
 import Language.Egison.Types
 import Language.Egison.Parser
@@ -79,6 +79,21 @@ evalTopExprs env exprs = do
       LoadFile file -> do
         exprs' <- loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
+      _ -> collectDefs exprs bindings (expr : rest)
+  collectDefs [] bindings rest = return (bindings, reverse rest)
+
+evalTopExprsNoIO :: Env -> [EgisonTopExpr] -> EgisonM Env
+evalTopExprsNoIO env exprs = do
+  (bindings, rest) <- collectDefs exprs [] []
+  env <- recursiveBind env bindings
+  forM_ rest $ evalTopExpr env
+  return env
+ where
+  collectDefs (expr:exprs) bindings rest =
+    case expr of
+      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
+      Load _ -> throwError $ strMsg "No IO support"
+      LoadFile _ -> throwError $ strMsg "No IO support"
       _ -> collectDefs exprs bindings (expr : rest)
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
@@ -133,8 +148,8 @@ evalExpr env (CollectionExpr inners) = do
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
 
 evalExpr env (ArrayExpr exprs) = do
-  ref' <- mapM (newObjectRef env) exprs
-  return . Intermediate . IArray $ IntMap.fromList $ zip (enumFromTo 1 (length exprs)) ref'
+  refs' <- mapM (newObjectRef env) exprs
+  return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -170,42 +185,9 @@ evalExpr env (IndexedExpr expr indices) = do
   array <- evalExpr env expr
   indices <- mapM (evalExprDeep env) indices
   refArray array indices
- where
-  refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
-  refArray val [] = return val 
-  refArray (Value (Array array)) (index:indices) = do
-    i <- (liftM fromInteger . fromEgison) index
-    case IntMap.lookup (i + 1) array of
-      Just val -> refArray (Value val) indices
-      Nothing -> return $ Value Undefined
-  refArray (Intermediate (IArray array)) (index:indices) = do
-    i <- (liftM fromInteger . fromEgison) index
-    case IntMap.lookup (i + 1) array of
-      Just ref -> evalRef ref >>= flip refArray indices
-      Nothing -> return $ Value Undefined
-  refArray (Value (IntHash hash)) (index:indices) = do
-    key <- fromEgison index
-    case HL.lookup key hash of
-      Just val -> refArray (Value val) indices
-      Nothing -> return $ Value Undefined
-  refArray (Intermediate (IIntHash hash)) (index:indices) = do
-    key <- fromEgison index
-    case HL.lookup key hash of
-      Just ref -> evalRef ref >>= flip refArray indices
-      Nothing -> return $ Value Undefined
-  refArray (Value (StrHash hash)) (index:indices) = do
-    key <- evalStringWHNF $ Value index
-    case HL.lookup (B.pack key) hash of
-      Just val -> refArray (Value val) indices
-      Nothing -> return $ Value Undefined
-  refArray (Intermediate (IStrHash hash)) (index:indices) = do
-    key <- evalStringWHNF $ Value index
-    case HL.lookup (B.pack key) hash of
-      Just ref -> evalRef ref >>= flip refArray indices
-      Nothing -> return $ Value Undefined
-  refArray val _ = throwError $ TypeMismatch "array or hash" val
 
-evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr 
+evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
+
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
 evalExpr env (IfExpr test expr expr') = do
@@ -282,28 +264,47 @@ evalExpr env (MatchExpr target matcher clauses) = do
           MNil -> cont
   foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
 
+evalExpr env (SeqExpr expr1 expr2) = do
+  evalExprDeep env expr1
+  evalExpr env expr2
+
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg
-  applyFunc func arg
+  case func of
+    Value (MemoizedFunc ref hashRef env names body) -> do
+      indices <- evalWHNF arg
+      indices' <- mapM fromEgison $ fromTupleValue indices
+      hash <- liftIO $ readIORef hashRef
+      case HL.lookup indices' hash of
+        Just objRef -> do
+          evalRef objRef
+        Nothing -> do
+          whnf <- applyFunc (Value (Func env names body)) arg
+          retRef <- newEvalutedObjectRef whnf
+          hash <- liftIO $ readIORef hashRef
+          liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+          writeObjectRef ref (Value (MemoizedFunc ref hashRef env names body))
+          return whnf
+    _ -> applyFunc func arg
 
 evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
 evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
 
-evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (size:[])) expr) =
-  generateArray env name size expr
-evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (size:ys)) expr) = 
-  generateArray env name size (GenerateArrayExpr xs (TupleExpr ys) expr)
+evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (sizeExpr:[])) expr) =
+  generateArray env name sizeExpr expr
+evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (sizeExpr:ys)) expr) = 
+  generateArray env name sizeExpr (GenerateArrayExpr xs (TupleExpr ys) expr)
 evalExpr env (GenerateArrayExpr names size expr) = 
   evalExpr env (GenerateArrayExpr names (TupleExpr [size]) expr)
 
-evalExpr env (ArraySizeExpr expr) = 
-  evalExpr env expr >>= arraySize
+evalExpr env (ArrayBoundsExpr expr) = 
+  evalExpr env expr >>= arrayBounds
   where
-    arraySize :: WHNFData -> EgisonM WHNFData
-    arraySize (Intermediate (IArray vals)) = return . Value . Integer . toInteger $ IntMap.size vals
-    arraySize (Value (Array vals))         = return . Value . Integer . toInteger $ IntMap.size vals
-    arraySize val                          = throwError $ TypeMismatch "array" val
+    arrayBounds :: WHNFData -> EgisonM WHNFData
+    arrayBounds (Intermediate (IArray arr)) = return . Value . toEgison $ Array.bounds arr
+    arrayBounds (Value (Array arr))         = return . Value . toEgison $ Array.bounds arr
+    arrayBounds val                          = throwError $ TypeMismatch "array" val
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
@@ -341,8 +342,8 @@ evalWHNF (Value val) = return val
 evalWHNF (Intermediate (IInductiveData name refs)) =
   InductiveData name <$> mapM evalRefDeep refs
 evalWHNF (Intermediate (IArray refs)) = do
-  refs' <- mapM evalRefDeep $ IntMap.elems refs
-  return $ Array $ IntMap.fromList $ zip (enumFromTo 1 (IntMap.size refs)) refs'
+  refs' <- mapM evalRefDeep $ Array.elems refs
+  return $ Array $ Array.listArray (Array.bounds refs) refs'
 evalWHNF (Intermediate (IIntHash refs)) = do
   refs' <- mapM evalRefDeep refs
   return $ IntHash refs'
@@ -361,7 +362,7 @@ applyFunc (Value (Func env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
-    else throwError $ ArgumentsNum (length names) (length refs)
+    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
 applyFunc (Value (PrimitiveFunc func)) arg = func arg
 applyFunc (Value (IOFunc m)) arg = do
   case arg of
@@ -370,20 +371,54 @@ applyFunc (Value (IOFunc m)) arg = do
 applyFunc val _ = throwError $ TypeMismatch "function" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
-generateArray env name size expr = do  
-  size' <- evalExpr env size >>= fromWHNF >>= return . fromInteger
-  elems <- mapM genElem (enumFromTo 1 size')
-  return $ Intermediate $ IArray $ IntMap.fromList elems
+generateArray env name sizeExpr expr = do
+  size <- evalExpr env sizeExpr >>= fromWHNF >>= return . fromInteger
+  elems <- mapM genElem (enumFromTo 1 size)
+  return $ Intermediate $ IArray $ Array.listArray (1, size) elems
   where
-    genElem :: Int -> EgisonM (Int, ObjectRef)
-    genElem i = do env <- bindEnv env name $ toInteger i
-                   val <- evalExpr env expr >>= newEvalutedObjectRef                   
-                   return (i, val)
+    genElem :: Integer -> EgisonM ObjectRef
+    genElem i = do env' <- bindEnv env name $ toInteger i
+                   newObjectRef env' expr
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
       ref <- newEvalutedObjectRef (Value . Integer $ i)
       return $ extendEnv env [(name, ref)]
+
+refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
+refArray val [] = return val 
+refArray (Value (Array array)) (index:indices) = do
+  i <- (liftM fromInteger . fromEgison) index
+  if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
+    then refArray (Value (array ! i)) indices
+    else return  $ Value Undefined
+refArray (Intermediate (IArray array)) (index:indices) = do
+  i <- (liftM fromInteger . fromEgison) index
+  if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
+    then let ref = array ! i in
+           evalRef ref >>= flip refArray indices
+    else return  $ Value Undefined
+refArray (Value (IntHash hash)) (index:indices) = do
+  key <- fromEgison index
+  case HL.lookup key hash of
+    Just val -> refArray (Value val) indices
+    Nothing -> return $ Value Undefined
+refArray (Intermediate (IIntHash hash)) (index:indices) = do
+  key <- fromEgison index
+  case HL.lookup key hash of
+    Just ref -> evalRef ref >>= flip refArray indices
+    Nothing -> return $ Value Undefined
+refArray (Value (StrHash hash)) (index:indices) = do
+  key <- evalStringWHNF $ Value index
+  case HL.lookup (B.pack key) hash of
+    Just val -> refArray (Value val) indices
+    Nothing -> return $ Value Undefined
+refArray (Intermediate (IStrHash hash)) (index:indices) = do
+  key <- evalStringWHNF $ Value index
+  case HL.lookup (B.pack key) hash of
+    Just ref -> evalRef ref >>= flip refArray indices
+    Nothing -> return $ Value Undefined
+refArray val _ = throwError $ TypeMismatch "array or hash" val
 
 newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr
@@ -405,7 +440,16 @@ recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
-  zipWithM_ (\ref expr -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr) refs exprs
+  zipWithM_ (\ref expr ->
+               case expr of
+                 MemoizedLambdaExpr names body -> do
+                   hashRef <- liftIO $ newIORef HL.empty
+                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
+                 MemoizeExpr fnExpr -> do
+                   hashRef <- liftIO $ newIORef HL.empty
+                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' ["arg"] (ApplyExpr fnExpr (VarExpr "arg"))
+                 _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
+            refs exprs
   return env'
 
 --

@@ -111,8 +111,21 @@
   (lambda [$fn $init $ls]
     (match ls (list something)
       {[<nil> init]
-       [<cons $x $xs> (let {[$y (fn init x)]}
-                        (foldl fn y xs))]})))
+       [<cons $x $xs> (foldl fn (fn init x) xs)]})))
+
+(define $foldl'
+  (lambda [$fn $init $ls]
+    (match ls (list something)
+      {[<nil> init]
+       [<cons $x $xs>
+        (let {[$z (fn init x)]}
+          (seq z (foldl' fn z xs)))]})))
+
+(define $scanl
+  (lambda [$fn $init $ls]
+    {init @(match ls (list something)
+             {[<nil> {}]
+              [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
 
 (define $map2
   (lambda [$fn $xs $ys]
@@ -124,6 +137,15 @@
 (define $zip
   (lambda [$xs $ys]
     (map2 (lambda [$x $y] [x y]) xs ys)))
+
+(define $find-cycle
+  (lambda [$fn $init]
+    (letrec {[$looper (lambda [$xs $x]
+                        (let {[$y (fn x)]}
+                          (if (eq? y init)
+                            xs
+                            (looper {@xs y} y))))]}
+      (looper {init} init))))
 
 ;;
 ;; Simple predicate
@@ -173,17 +195,15 @@
       {[<nil> #t]
        [<cons $x $rs>
         (if (pred x)
-            #f
-            (all pred rs))]})))
+            (all pred rs)
+            #f)]})))
 
 ;;
 ;; Counting
 ;;
 (define $length
   (lambda [$xs]
-    (match xs (list something)
-      {[<nil> 0]
-       [<cons _ $rs> (+ 1 (length rs))]})))
+    (foldl' (lambda [$x $y] (+ x 1)) 0 xs)))
 
 (define $count
   (lambda [$x $xs]
@@ -194,6 +214,16 @@
   (lambda [$a $x $xs]
     (length (match-all xs (list a)
               [<join _ <cons ,x _>> x]))))
+
+(define $frequency
+  (lambda [$xs]
+    (let {[$us (unique xs)]}
+      (map (lambda [$u] [u (count u xs)]) us))))
+
+(define $frequency/m
+  (lambda [$a $xs]
+    (let {[$us (unique/m a xs)]}
+      (map (lambda [$u] [u (count/m a u xs)]) us))))
 
 ;;
 ;; Simple accessors
@@ -267,8 +297,8 @@
   (lambda [$xs]
     (match xs (list something)
       {[<nil> {}]
-       [<cons $x $rs>
-        {@(reverse rs) x}]})))
+       [<snoc $x $rs>
+        {x @(reverse rs)}]})))
 
 ;;;
 ;;; Multiset

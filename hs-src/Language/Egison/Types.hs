@@ -89,6 +89,7 @@ import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 
 import Data.Monoid (Monoid)
+import qualified Data.Array as Array
 import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
 import Data.Foldable (foldr, toList)
@@ -101,8 +102,6 @@ import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
 
 import System.IO
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import Data.Ratio
 
 import System.IO.Unsafe (unsafePerformIO)
@@ -136,6 +135,8 @@ data EgisonExpr =
   | HashExpr [(EgisonExpr, EgisonExpr)]
 
   | LambdaExpr [String] EgisonExpr
+  | MemoizedLambdaExpr [String] EgisonExpr
+  | MemoizeExpr EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
@@ -158,11 +159,12 @@ data EgisonExpr =
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
     
+  | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
 
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
   | GenerateArrayExpr [String] EgisonExpr EgisonExpr
-  | ArraySizeExpr EgisonExpr
+  | ArrayBoundsExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 
   | SomethingExpr
@@ -230,11 +232,12 @@ data EgisonValue =
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
   | Collection (Seq EgisonValue)
-  | Array (IntMap EgisonValue)
+  | Array (Array.Array Integer EgisonValue)
   | IntHash (HashMap Integer EgisonValue)
   | StrHash (HashMap ByteString EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
   | Func Env [String] EgisonExpr
+  | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
@@ -266,7 +269,7 @@ instance Show EgisonValue where
                                      isChar :: EgisonValue -> Bool
                                      isChar (Char _) = True
                                      isChar _ = False
-  show (Array vals) = "[|" ++ unwords (map show $ IntMap.elems vals) ++ "|]"
+  show (Array vals) = "[|" ++ unwords (map show $ Array.elems vals) ++ "|]"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ B.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
@@ -402,7 +405,7 @@ data Intermediate =
     IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
   | ICollection (IORef (Seq Inner))
-  | IArray (IntMap ObjectRef)
+  | IArray (Array.Array Integer ObjectRef)
   | IIntHash (HashMap Integer ObjectRef)
   | IStrHash (HashMap ByteString ObjectRef)
 
@@ -532,6 +535,8 @@ data LoopContext = LoopContext Binding ObjectRef EgisonPattern EgisonPattern Egi
 data EgisonError =
     UnboundVariable Var
   | TypeMismatch String WHNFData
+  | ArgumentsNumWithNames [String] Int Int
+  | ArgumentsNumPrimitive Int Int
   | ArgumentsNum Int Int
   | NotImplemented String
   | Assertion String
@@ -547,8 +552,12 @@ instance Show EgisonError where
   show (UnboundVariable var) = "Unbound variable: " ++ var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
+  show (ArgumentsNumWithNames names expected got) = "Wrong number of arguments: " ++ show names ++ ": expected " ++
+                                                    show expected ++ ", but got " ++  show got
+  show (ArgumentsNumPrimitive expected got) = "Wrong number of arguments for a primitive function: expected " ++
+                                              show expected ++ ", but got " ++  show got
   show (ArgumentsNum expected got) = "Wrong number of arguments: expected " ++
-                                     show expected ++ ", but got " ++  show got
+                                      show expected ++ ", but got " ++  show got
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
   show (Desugar message) = "Error: " ++ message

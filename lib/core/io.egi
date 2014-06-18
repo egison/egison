@@ -7,15 +7,15 @@
 ;;;
 (define $print
   (lambda [$x]
-    (do {[(write-string x)]
-         [(write-string "\n")]
+    (do {[(write x)]
+         [(write "\n")]
          }
         [])))
 
 (define $print-to-port
   (lambda [$port $x]
-    (do {[(write-string-to-port port x)]
-         [(write-string-to-port port "\n")]
+    (do {[(write-to-port port x)]
+         [(write-to-port port "\n")]
          }
         [])))
 

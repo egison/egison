@@ -3,16 +3,16 @@
     (match xs (list something)
       {[<nil> (do {} [])]
        [<cons $x $rs>
-        (do {[(write-string x)]
-             [(write-string "\n")]
+        (do {[(write x)]
+             [(write "\n")]
              [(write-each rs)]
              }
           [])]})))
 
 (define $main
   (lambda [$argv]
-    (do {[(write-string "argv: ")]
+    (do {[(write "argv: ")]
          [(write argv)]
-         [(write-string "\n")]
+         [(write "\n")]
          [(write-each argv)]}
       [])))

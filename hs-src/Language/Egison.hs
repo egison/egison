@@ -17,6 +17,7 @@ module Language.Egison
        , runEgisonExpr
        , runEgisonTopExpr
        , runEgisonTopExprs
+       , runEgisonTopExprsNoIO
        -- * Load Egison files
        , loadEgisonLibrary
        , loadEgisonFile
@@ -63,6 +64,10 @@ runEgisonTopExpr env input = fromEgisonM $ readTopExpr input >>= evalTopExpr env
 runEgisonTopExprs :: Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExprs env input = fromEgisonM $ readTopExprs input >>= evalTopExprs env
 
+-- |eval Egison top expressions without IO. Input is a Haskell string.
+runEgisonTopExprsNoIO :: Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExprsNoIO env input = fromEgisonM $ readTopExprs input >>= evalTopExprsNoIO env
+
 -- |load an Egison file
 loadEgisonFile :: Env -> FilePath -> IO (Either EgisonError Env)
 loadEgisonFile env path = evalEgisonTopExpr env (LoadFile path)
@@ -99,7 +104,7 @@ coreLibraries =
   , "lib/core/collection.egi"
   , "lib/core/order.egi"
   , "lib/core/number.egi"
-  , "lib/core/natural-number.egi"
+  , "lib/core/math.egi"
   , "lib/core/string.egi"
   , "lib/core/database.egi"
   , "lib/core/io.egi"

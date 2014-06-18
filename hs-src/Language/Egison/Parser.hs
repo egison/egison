@@ -60,16 +60,28 @@ readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = doParse $ whiteSpace >> endBy topExpr whiteSpace
+parseTopExprs = doParse $ do
+  ret <- whiteSpace >> endBy topExpr whiteSpace
+  eof
+  return ret
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = doParse $ whiteSpace >> topExpr
+parseTopExpr = doParse $ do
+  ret <- whiteSpace >> topExpr
+  whiteSpace >> eof
+  return ret
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = doParse $ whiteSpace >> endBy expr whiteSpace
+parseExprs = doParse $ do
+  ret <- whiteSpace >> endBy expr whiteSpace
+  eof
+  return ret
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = doParse $ whiteSpace >> expr
+parseExpr = doParse $ do
+  ret <- whiteSpace >> expr
+  whiteSpace >> eof
+  return ret
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
@@ -105,12 +117,12 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 -- Expressions
 --
 topExpr :: Parser EgisonTopExpr
-topExpr = try (parens (defineExpr
+topExpr = try (Test <$> expr)
+      <|> try (parens (defineExpr
                    <|> testExpr
                    <|> executeExpr
                    <|> loadFileExpr
                    <|> loadExpr))
-      <|> Test <$> expr
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
@@ -145,6 +157,8 @@ expr' = (try constantExpr
              <|> collectionExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
+                         <|> memoizedLambdaExpr
+                         <|> memoizeExpr
                          <|> patternFunctionExpr
                          <|> letRecExpr
                          <|> letExpr
@@ -161,6 +175,7 @@ expr' = (try constantExpr
                          <|> matcherExpr
                          <|> matcherBFSExpr
                          <|> matcherDFSExpr
+                         <|> seqExpr
                          <|> applyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
@@ -284,6 +299,12 @@ ifExpr = keywordIf >> IfExpr <$> expr <*> expr <*> expr
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = keywordLambda >> LambdaExpr <$> varNames <*> expr
 
+memoizedLambdaExpr :: Parser EgisonExpr
+memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
+
+memoizeExpr :: Parser EgisonExpr
+memoizeExpr = keywordMemoize >> MemoizeExpr <$> expr
+
 patternFunctionExpr :: Parser EgisonExpr
 patternFunctionExpr = keywordPatternFunction >> PatternFunctionExpr <$> varNames <*> pattern
 
@@ -317,6 +338,9 @@ varName = char '$' >> ident
 
 ioExpr :: Parser EgisonExpr
 ioExpr = keywordIo >> IoExpr <$> expr
+
+seqExpr :: Parser EgisonExpr
+seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
 
 applyExpr :: Parser EgisonExpr
 applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr) 
@@ -360,7 +384,7 @@ generateArrayExpr :: Parser EgisonExpr
 generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> varNames <*> expr <*> expr
 
 arraySizeExpr :: Parser EgisonExpr
-arraySizeExpr = keywordArraySize >> ArraySizeExpr <$> expr
+arraySizeExpr = keywordArrayBounds >> ArrayBoundsExpr <$> expr
 
 arrayRefExpr :: Parser EgisonExpr
 arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
@@ -492,7 +516,7 @@ egisonDef =
                 , P.caseSensitive      = True }
  where
   symbol1 = oneOf "+-*/="
-  symbol2 = symbol1 <|> oneOf "!?"
+  symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
@@ -505,8 +529,11 @@ reservedKeywords =
   , "load-file"
   , "load"
   , "if"
+  , "seq"
   , "apply"
   , "lambda"
+  , "memoized-lambda"
+  , "memoize"
   , "pattern-function"
   , "letrec"
   , "let"
@@ -522,7 +549,7 @@ reservedKeywords =
   , "io"
   , "algebraic-data-matcher"
   , "generate-array"
-  , "array-size"
+  , "array-bounds"
   , "array-ref"
   , "something"
   , "undefined"]
@@ -553,8 +580,11 @@ keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
+keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordLambda               = reserved "lambda"
+keywordMemoizedLambda       = reserved "memoized-lambda"
+keywordMemoize             = reserved "memoize"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
@@ -576,7 +606,7 @@ keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
 keywordGenerateArray        = reserved "generate-array"
-keywordArraySize            = reserved "array-size"
+keywordArrayBounds          = reserved "array-bounds"
 keywordArrayRef             = reserved "array-ref"
 
 sign :: Num a => Parser (a -> a)

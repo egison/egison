@@ -137,6 +137,10 @@ desugar (ArrayRefExpr expr nums) =
 desugar (IndexedExpr expr indices) = 
   IndexedExpr <$> desugar expr <*> (mapM desugar indices)
 
+desugar (ArrayBoundsExpr expr) = do
+  expr' <- desugar expr
+  return $ ArrayBoundsExpr expr'
+
 desugar (InductiveDataExpr name exprs) = do 
   exprs' <- mapM desugar exprs
   return $ InductiveDataExpr name exprs'
@@ -160,6 +164,14 @@ desugar (CollectionExpr ((SubCollectionExpr sub):inners)) = do
 desugar (LambdaExpr names expr) = do
   expr' <- desugar expr
   return $ LambdaExpr names expr'
+
+desugar (MemoizedLambdaExpr names expr) = do
+  expr' <- desugar expr
+  return $ MemoizedLambdaExpr names expr'
+
+desugar (MemoizeExpr expr) = do
+  expr' <- desugar expr
+  return $ MemoizeExpr expr'
 
 desugar (PatternFunctionExpr names pattern) = do
   pattern' <- desugarPattern pattern
@@ -198,6 +210,15 @@ desugar (DoExpr binds expr) = do
   expr' <- desugar expr
   return $ DoExpr binds' expr'
   
+desugar (IoExpr expr) = do
+  expr' <- desugar expr
+  return $ IoExpr expr'
+  
+desugar (SeqExpr expr0 expr1) = do
+  expr0' <- desugar expr0
+  expr1' <- desugar expr1
+  return $ SeqExpr expr0' expr1'
+
 desugar (ApplyExpr (VarExpr "+") expr) = do
   expr' <- desugar expr
   case expr' of

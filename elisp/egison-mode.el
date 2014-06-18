@@ -18,9 +18,12 @@
      "\\<load-file\\>"
 
      "\\<lambda\\>"
+     "\\<memoized-lambda\\>"
+     "\\<memoize\\>"
      "\\<let\\>"
      "\\<letrec\\>"
      "\\<if\\>"
+     "\\<seq\\>"
      "\\<apply\\>"
      "\\<generate-array\\>"
      "\\<array-size\\>"
@@ -131,6 +134,7 @@
         ((equal "load-file" name) 2)
         ((equal "execute" name) 2)
         ((equal "lambda" name) 2)
+        ((equal "memoized-lambda" name) 2)
         ((equal "let" name) 2)
         ((equal "letrec" name) 2)
         ((equal "if" name) 2)
@@ -187,7 +191,7 @@
   (set (make-local-variable 'font-lock-defaults)
        '((egison-font-lock-keywords
           egison-font-lock-keywords-1 egison-font-lock-keywords-2)
-         nil t (("+-*/=?%:_" . "w") ("<" . "(") (">" . ")"))
+         nil t (("+-*/=?%:_'" . "w") ("<" . "(") (">" . ")"))
          ))
   (set (make-local-variable 'indent-line-function) 'egison-indent-line)
   (set (make-local-variable 'comment-start) ";")

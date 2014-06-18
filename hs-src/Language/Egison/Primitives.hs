@@ -54,7 +54,7 @@ noArg f = \args -> do
   args' <- tupleToList args
   case args' of 
     [] -> f >>= return . Value
-    _ -> throwError $ ArgumentsNum 0 $ length args'
+    _ -> throwError $ ArgumentsNumPrimitive 0 $ length args'
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -68,7 +68,7 @@ twoArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
     [val, val'] -> f val val' >>= return . Value
-    _ -> throwError $ ArgumentsNum 2 $ length args'
+    _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
 {-# INLINE threeArgs #-}
 threeArgs :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -76,7 +76,7 @@ threeArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
     [val, val', val''] -> f val val' val'' >>= return . Value
-    _ -> throwError $ ArgumentsNum 3 $ length args'
+    _ -> throwError $ ArgumentsNumPrimitive 3 $ length args'
 
 tupleToList :: WHNFData -> EgisonM [EgisonValue]
 tupleToList whnf = do
@@ -141,8 +141,6 @@ primitives = [ ("+", plus)
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
                
-             , ("stoi", stringToInteger)
-
              , ("read", read')
              , ("show", show')
 
@@ -255,9 +253,9 @@ multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
 divide :: PrimitiveFunc
 divide = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
-  numberBinaryOp' (Integer i)  (Integer i')  = return $ Rational $ (%) i  i'
+  numberBinaryOp' (Integer i)  (Integer i')  = numberBinaryOp' (Rational (i % 1)) (Rational (i' % 1))
   numberBinaryOp' (Integer i)  val           = numberBinaryOp' (Rational (i % 1)) val
-  numberBinaryOp' val          (Integer i)   = numberBinaryOp' val (Rational (i % 1)) 
+  numberBinaryOp' val          (Integer i)   = numberBinaryOp' val (Rational (i % 1))
   numberBinaryOp' (Rational r) (Rational r') =
     let m = numerator r' in
     let n = denominator r' in
@@ -370,11 +368,6 @@ floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
   f <- fromEgison val
   return $ Integer $ op f
-
-stringToInteger :: PrimitiveFunc
-stringToInteger = oneArg $ \val -> do
-  numStr <- fromEgison val
-  return $ Integer (read numStr :: Integer)
 
 read' :: PrimitiveFunc
 read'= oneArg $ \val -> fromStringValue val >>= readExpr >>= evalExprDeep nullEnv
@@ -500,12 +493,12 @@ ioPrimitives = [
                , ("read-char", readChar)
                , ("read-line", readLine)
                , ("write-char", writeChar)
-               , ("write-string", writeString)
+               , ("write", writeString)
                  
                , ("read-char-from-port", readCharFromPort)
                , ("read-line-from-port", readLineFromPort)
                , ("write-char-to-port", writeCharToPort)
-               , ("write-string-to-port", writeStringToPort)
+               , ("write-to-port", writeStringToPort)
                  
                , ("eof?", isEOFStdin)
                , ("flush", flushStdout)

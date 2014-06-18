@@ -6,4 +6,4 @@ exp/
 tmp/
 .cabal-sandbox
 cabal.sandbox.config
-sqlite
+egison.prof

@@ -1,0 +1,20 @@
+;;;;;
+;;;;; Math
+;;;;;
+
+(define $fact
+  (lambda [$n]
+    (letrec {[$fact1 (lambda [$n $ret]
+                       (match n integer
+                         {[,0 ret]
+                          [_ (fact1 (- n 1) (* n ret))]}))]}
+      (fact1 n 1))))
+
+(define $perm
+  (lambda [$n $r]
+    (foldl * 1 (between (- n (- r 1)) n))))
+
+(define $comb
+  (lambda [$n $r]
+    (/ (perm n r)
+       (fact r))))
