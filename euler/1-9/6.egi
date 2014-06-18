@@ -1,0 +1,2 @@
+(test (- (power (foldl + 0 (between 1 100)) 2)
+         (foldl + 0 (map (power $ 2) (between 1 100)))))

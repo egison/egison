@@ -12,16 +12,16 @@
 (test (assert-equal "generate-array test 1"
        (generate-array [$x] [5] x)
        [| 1 2 3 4 5 |]
-      )) 
+      ))
 
 (test (assert-equal "generate-array test 2"
        (generate-array [$x $y] [5 5] y)
-       [| [| 1 2 3 4 5 |]
-          [| 1 2 3 4 5 |]
-          [| 1 2 3 4 5 |]
-          [| 1 2 3 4 5 |]
-          [| 1 2 3 4 5 |]|]
-      ))
+       [|[|1 2 3 4 5|]
+         [|1 2 3 4 5|]
+         [|1 2 3 4 5|]
+         [|1 2 3 4 5|]
+         [|1 2 3 4 5|]|]
+       ))
 
 (test (assert-equal "generate-array test 3"
        (generate-array [$m $n] [3 3] (+ (* 10 m) n))
@@ -30,17 +30,13 @@
          [|31 32 33|]|]
        ))
 
-
 (test (assert-equal "array-size test"
-       (array-size [| 1 2 3 |]) 
-       3
+       (array-bounds [| 1 2 3 |]) 
+       [1 3]
       ))
 
 (test (assert-equal "array access"
         (let {[$a (generate-array [$x $y $z] [3 3 3]
                     (+ (+ (* 100 x) (* 10 y)) z))]}
-          a_0_1_2)
+          a_1_2_3)
         123))
-
-
-

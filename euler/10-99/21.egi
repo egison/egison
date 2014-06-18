@@ -1,0 +1,15 @@
+(load "lib/math/prime.egi")
+(load "lib/math/euler.egi")
+
+(define $proc2 (memoize sum-of-proper-divisors))
+
+(define $proc1
+  (memoized-lambda [$d]
+    (if (eq? d (proc2 d))
+      #f
+      (eq? d (proc2 (proc2 d))))))
+
+(test (proc2 220))
+(test (proc2 284))
+(test (io (each (compose show print) (map (lambda [$n] [n (proc1 n)]) (cdr (take 10000 nats))))))
+(test (foldl + 0 (filter proc1 (cdr (take 10000 nats)))))

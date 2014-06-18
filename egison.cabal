@@ -1,20 +1,24 @@
 Name:                egison
-Version:             3.3.2
-Synopsis:            Programming language with non-linear pattern-matching with backtracking
+Version:             3.3.7
+Synopsis:            Programming language with non-linear pattern-matching against unfree data
 Description:
-  An interpreter for Egison, the programming langugage that realized non-linear pattern-matching with backtracking.
-  With Egison, we can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
+  An interpreter for Egison, the programming langugage that realized non-linear pattern-matching against unfree data types.
+  With Egison, we can directly represent pattern-matching against a wide range of data types such as lists, multisets, sets, trees and graphs.
   We can find Egison programs in @lib@ and @sample@ directories.
-  This package also include Emacs Lisp file @egison-mode.el@ in @elisp@ directory.
+  This package also include Emacs Lisp file @elisp/egison-mode.el@.
   .
   The following code is the program that determines poker-hands written in Egison.
   All hands are expressed in a single pattern.
+  Isn't it exciting?
   We can run this code online at <http://www.egison.org/demonstrations/poker-hands.html>.
   .
   <<http://www.egison.org/images/poker-hands.png>>
   .
   The pattern-matching of Egison is very powerful.
-  We can use it for pattern-matching against graphs, too.
+  Please view and try more demonstrations.
+  .
+  <http://www.egison.org/demonstrations/>
+  .  
   Egison is not popular at all now.
   Please help us to make Egison popular.
 Homepage:            http://www.egison.org
@@ -28,8 +32,8 @@ Cabal-version:       >=1.8
 
 Extra-Source-Files:  benchmark/Benchmark.hs
 
-Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.egi lib/core/number.egi lib/core/natural-number.egi lib/core/string.egi lib/core/database.egi lib/core/io.egi
-                     lib/tree/xml.egi lib/math/prime.egi
+Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.egi lib/core/number.egi lib/core/math.egi lib/core/string.egi lib/core/database.egi lib/core/io.egi
+                     lib/tree/xml.egi lib/math/prime.egi lib/math/euler.egi
                      sample/*.egi sample/io/*.egi sample/io/*.egi
                      elisp/egison-mode.el
 
@@ -49,6 +53,7 @@ Library
                    Language.Egison.Primitives
                    Language.Egison.Util
   Other-modules:   Paths_egison
+  ghc-prof-options:   -prof -auto-all
 
 Test-Suite test
   Type:           exitcode-stdio-1.0
@@ -69,3 +74,4 @@ Executable egison
   Build-depends:       egison, base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, filepath, strict-io, bytestring
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
+  ghc-prof-options:   -prof -auto-all

@@ -1,14 +1,14 @@
-## The Egison Programming Language
+# The Egison Programming Language
 
 Egison is the pattern-matching oriented pure functional programming language.
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
-For more information, visit [Egison web site](http://www.egison.org).
+For more information, visit [Egison website](http://www.egison.org).
 
-If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.org/~egi/) or tweet to [@__Egi](https://twitter.com/__Egi) or [@Egison_Lang](https://twitter.com/Egison_Lang).
+If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.org/~egi/) or tweet to [@Egison_Lang](https://twitter.com/Egison_Lang).
 
-### Getting Started!
+## Getting Started!
 
 At first, you should install [Haskell Platform](http://www.haskell.org/platform/).
 
@@ -62,9 +62,10 @@ Examples:
 
 Enjoy!
 
-### Demonstration
+## Demonstration
 
-We can do non-linear pattern-matching with backtracking in Egison.
+We can do non-linear pattern-matching against unfree data types in Egison.
+An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
 The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
@@ -143,20 +144,30 @@ We can use it for pattern-matching against graphs or tree-structures such as XML
 Egison is not famous at all now.
 Please help us to make Egison popular.
 
-### How to test (for developer)
+## How to Run Test
 
 ```
 % cabal install --enable-tests
 % cabal test
 ```
-### Acknowledgement
 
-I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the base of the interpreter.
+## How to Profile the Interepreter
 
-### License
+```
+% sudo apt-get install haskell-platform-doc haskell-platform-prof
+% cabal install --enable-library-profiling --enable-executable-profiling
+% egison +RTS -p -RTS -l sample/sequence.egi
+% cat egison.prof
+```
+
+## Acknowledgement
+
+I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the interpreter.
+
+## License
 
 Copyright (c) 2011-2014, Satoshi Egi
 
-Egison is release under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
+Egison is released under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
 
 I used [husk-scheme](http://justinethier.github.io/husk-scheme/) by Justin Ethier as reference to implement the base part of the previous version of the interpreter.

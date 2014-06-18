@@ -1,0 +1,4 @@
+(load "lib/math/prime.egi")
+
+(test (p-f 600851475143))
+(test (max (p-f 600851475143)))

@@ -1,0 +1,7 @@
+(define $d 10000000000)
+
+(define $n 7830457)
+
+(define $x 28433)
+
+(test (modulo (+ 1 (* x (modulo (power (modulo (power 2 10000) d) 783) d) (modulo (power 2 457) d))) d))

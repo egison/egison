@@ -26,14 +26,17 @@ main = do args <- getArgs
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
             Options {optPrompt = prompt, optShowBanner = bannerFlag, optNoIO = noIOFlag} -> do
-              env <-if noIOFlag then initialEnvNoIO else initialEnv
+              env <- if noIOFlag then initialEnvNoIO else initialEnv
               case nonOpts of
                 [] -> do
-                  when bannerFlag showBanner >> repl env prompt >> when bannerFlag showByebyeMessage
+                  when bannerFlag showBanner >> repl noIOFlag env prompt >> when bannerFlag showByebyeMessage
                 (file:args) -> do
                   case opts of
                     Options {optLoadOnly = True} -> do
-                      result <- evalEgisonTopExprs env [LoadFile file]
+                      result <- if noIOFlag
+                                  then do input <- readFile file
+                                          runEgisonTopExprsNoIO env input
+                                  else evalEgisonTopExprs env [LoadFile file]
                       either print (const $ return ()) result
                     Options {optLoadOnly = False} -> do
                       result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (map (ElementExpr . StringExpr) args)))]
@@ -115,8 +118,8 @@ showByebyeMessage = do
   putStrLn $ "Leaving Egison Interpreter."
   exitWith ExitSuccess
 
-repl :: Env -> String -> IO ()
-repl env prompt = do
+repl :: Bool -> Env -> String -> IO ()
+repl noIOFlag env prompt = do
   loop env
  where
   settings :: MonadIO m => FilePath -> Settings m
@@ -126,9 +129,15 @@ repl env prompt = do
   loop env = (do 
     home <- getHomeDirectory
     input <- liftIO $ runInputT (settings home) $ getEgisonExpr prompt
-    case input of
-      Nothing -> return ()
-      Just (topExpr, _) -> do
+    case (noIOFlag, input) of
+      (_, Nothing) -> return ()
+      (True, Just (_, (LoadFile _))) -> do
+        putStrLn "error: No IO support"
+        loop env
+      (True, Just (_, (Load _))) -> do
+        putStrLn "error: No IO support"
+        loop env
+      (_, Just (topExpr, _)) -> do
         result <- liftIO $ runEgisonTopExpr env topExpr
         case result of
           Left err -> do

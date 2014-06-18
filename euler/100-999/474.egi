@@ -1,0 +1,12 @@
+(define $d 12500)
+
+(define $proc1
+  (lambda [$r $n]
+    (modulo (power r n) d)))
+
+(define $proc
+  (lambda [$r]
+    (find-cycle (lambda [$n] (* r n)) r)))
+
+(test (proc1 3 2500))
+(test (take 10 (proc 3)))

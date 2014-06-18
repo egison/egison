@@ -34,11 +34,11 @@
 
 (define $repl
   (lambda []
-    (do {[(write-string "egison-ime: ")]
+    (do {[(write "egison-ime: ")]
          [(flush)]
          [$stext (read-line)]
          [(write (let {[[$l $stext2] (parse-sentence stext)]} stext2))]
-         [(write-string "\n")]
+         [(write "\n")]
          [(repl)]}
       [])))
 

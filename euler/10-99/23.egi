@@ -1,0 +1,12 @@
+(load "lib/math/prime.egi")
+(load "lib/math/euler.egi")
+
+(define $d 28123)
+
+(define $abundant?
+  (lambda [$n]
+    (gt? (sum-of-proper-divisors n) n)))
+
+(define $abundants (filter abundant? (take d nats)))
+
+(test (io (each (compose show print) (map (modulo $ 16) abundants))))

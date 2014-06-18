@@ -1,0 +1,5 @@
+(define $fib-naive
+  (memoized-lambda [$n]
+    (if (lte? n 1)
+      1
+      (+ (fib-naive (- n 1)) (fib-naive (- n 2))))))

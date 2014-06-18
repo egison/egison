@@ -1,0 +1,21 @@
+;; Naive implementation
+#|
+(test (car (match-all (map (compose p-f (compose unique length)) (cdr nats)) (list integer)
+             [<join $xs <cons ,3 <cons ,3 <cons ,3 _>>>> (+ 2 (length xs))])))
+
+(test (car (match-all (map (compose p-f (compose unique length)) (cdr nats)) (list integer)
+             [<join $xs <cons ,4 <cons ,4 <cons ,4 <cons ,4 _>>>>> (+ 2 (length xs))])))
+|#      
+
+(define $proc2
+  (lambda [$n]
+    (let {[$primes1 (while (lt? $ n) (cdr primes))]}
+      (qsort (concat (map (lambda [$p] (while (lt? $ n) (map (lambda [$i] (power p i)) nats))) primes1))))))
+
+(define $proc1
+  (lambda [$n] 
+    (qsort (match-all (proc2 n) (list integer)
+             [<join _ <cons $x <join _ <cons $y <join _ <cons $z _>>>>>>
+              (* x y z)]))))
+
+(test (proc1 100))

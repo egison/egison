@@ -1,0 +1,27 @@
+(define $f
+  (lambda [$n]
+    (foldl' + 0 (map (power $ 2) (map (compose (lambda [$n] {n}) read) (show n))))))
+
+(define $d (generate-array [$i] [567] (p-naive i)))
+
+(define $p-naive
+  (lambda [$n]
+    (match n integer
+      {[,1 #f]
+       [,89 #t]
+       [_ (p-naive (f n))]})))
+
+(define $p
+  (lambda [$n]
+    (match n integer
+      {[,1 #f]
+       [,89 #t]
+       [_ (array-ref d (f n))]})))
+
+;(test (zip (take 1000 nats) (map p (take 1000 nats))))
+
+;(test (length (filter p (take 1000 nats))))
+;(test (length (filter p (take 10000000 nats))))
+;(test (foldl' (lambda [$ret $n] (if (p n) (+ ret 1) ret)) 0 (take 1000 nats)))
+(test (foldl' (lambda [$ret $n] (if (p n) (+ ret 1) ret)) 0 (take 10000000 nats)))
+

@@ -1,0 +1,15 @@
+(define $collatz
+  (lambda [$n]
+    (if (even? n)
+      (/ n 2)
+      (+ (* 3 n) 1))))
+
+(define $proc1
+  (lambda [$n]
+    (letrec {[$looper (lambda [$r $n]
+                        (if (eq? n 1)
+                          (+ 1 r)
+                          (looper (+ 1 r) (collatz n))))]}
+      (looper 0 n))))
+
+(test (io (each (compose show print) (filter (lambda [$x $y] (gte? y 400)) (zip (map (- 1000001 $) (take 1000000 nats)) (map proc1 (map (- 1000001 $) (take 1000000 nats))))))))
