@@ -151,7 +151,7 @@ Please help us to make Egison popular.
 % cabal test
 ```
 
-## How to Profile the Interepreter
+## How to Profile the Interpreter
 
 ```
 % sudo apt-get install haskell-platform-doc haskell-platform-prof
