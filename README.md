@@ -199,9 +199,9 @@ The advantage of Egison is that it is the world's first programming language tha
 
 Furthermore, Egison realized the following feature.
 
-* non-linear pattern-matching with **lexical scoping**
+* Non-linear pattern-matching with **lexical scoping**
 
-Please see the [Pattern-Matching Mechanism](http://www.egison.org/manual/mechanism.html) section in Egison website.
+The [Pattern-Matching Mechanism](http://www.egison.org/manual/mechanism.html) section in Egison developer's manual explains how we realized that.
 
 ## Note for Developers
 
