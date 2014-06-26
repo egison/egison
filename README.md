@@ -194,7 +194,7 @@ There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPat
 
 The advantage of Egison is that it realized **all of the following features** at the same time.
 
-* Modularization of the way of pattern-matching
+* Modularization of the way of pattern-matching for each data type
 * Pattern-matching with multiple results (backtracking)
 * Non-linear pattern-matching
 
