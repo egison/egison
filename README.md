@@ -1,6 +1,6 @@
 # The Egison Programming Language
 
-Egison is the pattern-matching oriented pure functional programming language.
+Egison is the **pattern-matching-oriented** purely functional programming language.
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
@@ -187,14 +187,16 @@ We can use it for pattern-matching against graphs or tree-structures such as XML
 Egison is not famous at all now.
 Please help us to make Egison popular.
 
-## How to Run Test
+## Note for Developers
+
+### How to Run Test
 
 ```
 % cabal install --enable-tests
 % cabal test
 ```
 
-## How to Profile the Interpreter
+### How to Profile the Interpreter
 
 ```
 % sudo apt-get install haskell-platform-doc haskell-platform-prof
