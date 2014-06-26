@@ -187,6 +187,22 @@ We can use it for pattern-matching against graphs or tree-structures such as XML
 Egison is not famous at all now.
 Please help us to make Egison popular.
 
+## Comparison with Related Work
+
+There are [a lot of existing work for pattern-matching](https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork).
+
+The advantage of Egison is that it is the world's first programming language that realized **all of the following features** at the same time.
+
+* Modularization of the way of pattern-matching.
+* Pattern-matching with backtracking
+* Non-linear pattern-matching
+
+Furthermore, Egison realized the following feature.
+
+* non-linear pattern-matching with **lexical scoping**
+
+Please see the [Pattern-Matching Mechanism](http://www.egison.org/manual/mechanism.html) section in Egison website.
+
 ## Note for Developers
 
 ### How to Run Test
