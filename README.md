@@ -62,10 +62,29 @@ Examples:
 
 Enjoy!
 
-## Demonstration
+## Demonstrations
 
 We can do non-linear pattern-matching against unfree data types in Egison.
 An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
+
+### Twin Primes
+
+We can use pattern-matching for enumeration.
+The following code enumerates all twin primes from the infinite list of prime numbers with pattern-matching!
+
+```
+(define $twin-primes
+  (match-all primes (list integer)
+    [<join _ <cons $p <cons ,(+ p 2) _>>>
+     [p (+ p 2)]]))
+
+;; Enumerate first 10 twin primes
+(take 10 twin-primes)
+;=>{[3 5] [5 7] [11 13] [17 19] [29 31] [41 43] [59 61] [71 73] [101 103] [107 109]}
+```
+
+### Poker Hands
+
 The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
@@ -136,6 +155,30 @@ All hands are expressed in a single pattern.
             <cons _
              <nil>>>>>>
         <Nothing>]})))
+
+(poker-hands {<Card <Club> 12>
+              <Card <Club> 10>
+              <Card <Club> 13>
+              <Card <Club> 1>
+              <Card <Club> 11>});=><Straight-Flush>
+
+(poker-hands {<Card <Diamond> 1>
+              <Card <Club> 2>
+              <Card <Club> 1>
+              <Card <Heart> 1>
+              <Card <Diamond> 2>});=><Full-House>
+
+(poker-hands {<Card <Diamond> 4>
+              <Card <Club> 2>
+              <Card <Club> 5>
+              <Card <Heart> 1>
+              <Card <Diamond> 3>});=><Straight>
+
+(poker-hands {<Card <Diamond> 4>
+              <Card <Club> 10>
+              <Card <Club> 5>
+              <Card <Heart> 1>
+              <Card <Diamond> 3>});=><Nothing>
 ```
 
 Isn't it exciting?
