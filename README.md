@@ -52,7 +52,7 @@ Choose a section to learn.
 (1-6): 5
 ====================
 We can write a pattern-matching against infinite lists even if that has infinite results.
-Note that Egison really enumurate all pairs of two natural numbers in the following example.
+Note that Egison really enumerates all pairs of two natural numbers in the following example.
 
 Examples:
   (take 10 (match-all nats (set integer) [<cons $m <cons $n _>> [m n]]))
@@ -66,6 +66,7 @@ Enjoy!
 
 We can do non-linear pattern-matching against unfree data types in Egison.
 An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
+It enables us to write more elegant programs.
 
 ### Twin Primes
 
@@ -196,6 +197,8 @@ The advantage of Egison is that it realized **all of the following features** at
 * Modularization of the way of pattern-matching
 * Pattern-matching with multiple results (backtracking)
 * Non-linear pattern-matching
+
+It enables us to express non-linear pattern-matching against unfree data types intuitively as above demonstrations.
 
 Furthermore, Egison realized the following feature. We can even modularize patterns like functions keeping above features.
 
