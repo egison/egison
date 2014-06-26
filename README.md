@@ -4,13 +4,13 @@ Egison is the **pattern-matching-oriented** purely functional programming langua
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
-For more information, visit [Egison website](http://www.egison.org).
+For more information, visit <a target="_blank" href="http://www.egison.org">Egison website</a>.
 
-If you get interested in Egison, please mail to [Satoshi Egi](http://www.egison.org/~egi/) or tweet to [@Egison_Lang](https://twitter.com/Egison_Lang).
+If you get interested in Egison, please mail to <a target="_blank" href="http://www.egison.org/~egi/">Satoshi Egi</a> or tweet to <a target="_blank" href="https://twitter.com/Egison_Lang">@Egison_Lang</a>.
 
 ## Getting Started!
 
-At first, you should install [Haskell Platform](http://www.haskell.org/platform/).
+At first, you should install <a target="_blank" href="http://www.haskell.org/platform/">Haskell Platform</a>.
 
 After you installed Haskell Platform, run the following commands on the terminal.
 
@@ -30,7 +30,7 @@ Welcome to Egison Interpreter!
 Leaving Egison Interpreter.
 ```
 
-If you are a beginner of Egison, it would be better to install [`egison-tutorial`](https://github.com/egisatoshi/egison-tutorial).
+If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egisatoshi/egison-tutorial">`egison-tutorial`</a>.
 
 ```
 % cabal update
@@ -189,19 +189,19 @@ Please help us to make Egison popular.
 
 ## Comparison with Related Work
 
-There are [a lot of existing work for pattern-matching](https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork).
+There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
 
 The advantage of Egison is that it is the world's first programming language that realized **all of the following features** at the same time.
 
-* Modularization of the way of pattern-matching.
-* Pattern-matching with backtracking
+* Modularization of the way of pattern-matching
+* Pattern-matching with multiple results (backtracking)
 * Non-linear pattern-matching
 
-Furthermore, Egison realized the following feature.
+Furthermore, Egison realized the following feature. We can even modularize patterns like functions keeping above features.
 
 * Non-linear pattern-matching with **lexical scoping**
 
-The [Pattern-Matching Mechanism](http://www.egison.org/manual/mechanism.html) section in Egison developer's manual explains how we realized that.
+The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we realized that.
 
 ## Note for Developers
 
