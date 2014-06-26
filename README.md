@@ -191,7 +191,7 @@ Please help us to make Egison popular.
 
 There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
 
-The advantage of Egison is that it is the world's first programming language that realized **all of the following features** at the same time.
+The advantage of Egison is that it realized **all of the following features** at the same time.
 
 * Modularization of the way of pattern-matching
 * Pattern-matching with multiple results (backtracking)
