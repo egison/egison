@@ -361,8 +361,9 @@ integerToFloat = oneArg $ \val -> do
 
 rationalToFloat :: PrimitiveFunc
 rationalToFloat = oneArg $ \val -> do
-  r <- fromEgison val
-  return $ Float $ fromRational r
+  case val of
+    Integer i -> return $ Float $ fromInteger i
+    Rational r -> return $ Float $ fromRational r
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
