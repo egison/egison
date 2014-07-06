@@ -1,6 +1,6 @@
 ;;;
 ;;;
-;;; Graph demonstartion
+;;; Graph demonstration
 ;;;
 ;;;
 
@@ -47,7 +47,7 @@
 ;;
 ;; Demonstration code
 ;;
-;; find all nodes who have an edege from 's' but not have an edge to 's'
+;; find all nodes who have an edge from 's' but not have an edge to 's'
 (test (let {[$s 1]}
         (match-all graph-data1 (graph integer)
           [<cons <edge ,s $x>
@@ -55,7 +55,7 @@
                         _>>
            x])))
 
-;; find all nodes in two path from 's'
+;; find all nodes in two paths from 's'
 (test (let {[$s 1]}
         (match-all graph-data1 (graph integer)
           [<cons <edge (& ,s $x_1) $x_2>
