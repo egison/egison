@@ -206,6 +206,8 @@ Furthermore, Egison realized the following feature. We can even modularize patte
 
 The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we realized that.
 
+Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
+
 ## Note for Developers
 
 ### How to Run Test
