@@ -1,12 +1,13 @@
 # The Egison Programming Language
 
-Egison is the **pattern-matching-oriented** purely functional programming language.
+Egison is the **pattern-matching-oriented**, purely functional programming language.
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
 For more information, visit <a target="_blank" href="http://www.egison.org">Egison website</a>.
+You can try Egison online!
 
-If you get interested in Egison, please mail to <a target="_blank" href="http://www.egison.org/~egi/">Satoshi Egi</a> or tweet to <a target="_blank" href="https://twitter.com/Egison_Lang">@Egison_Lang</a>.
+If you get interested in Egison, please contact <a target="_blank" href="http://www.egison.org/~egi/">Satoshi Egi</a> or tweet to <a target="_blank" href="https://twitter.com/Egison_Lang">@Egison_Lang</a>.
 
 ## Getting Started!
 
