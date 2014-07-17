@@ -13,5 +13,12 @@
 ;; Enumerate first 10 twin primes
 (test (take 10 twin-primes))
 
-;; Enumerate first 100 twin primes
-(test (take 100 twin-primes))
+;; Extract all prime-triplets from the infinite list of prime numbers with pattern-matching!
+(define $prime-triplets
+  (match-all primes (list integer)
+    [<join _ <cons $n <cons (& $m (| ,(+ n 2) ,(+ n 4))) <cons ,(+ n 6) _>>>>
+     [n m (+ n 6)]]))
+
+;; Enumerate first 10 twin primes
+(test (take 10 prime-triplets))
+
