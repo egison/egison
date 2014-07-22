@@ -77,30 +77,6 @@
   (lambda [$xs]
     {@xs @(repeat xs)}))
 
-(define $filter
-  (lambda [$pred $xs]
-    (match xs (list something)
-      {[<nil> {}]
-       [<cons $x $rs>
-        (if (pred x)
-            {x @(filter pred rs)}
-            (filter pred rs))]})))
-
-(define $separate
-  (lambda [$pred $ls]
-    (letrec {[$helper (lambda [$ls $xs $ys]
-                        (match ls (list something)
-                          {[<nil> [xs ys]]
-                           [<cons (& ?pred $l) $rs> (helper rs {l @xs} ys)]
-                           [<cons $l $rs> (helper rs xs {l @ys})]}))]}
-      (helper ls {} {}))))
-
-(define $concat
-  (lambda [$xss]
-    (match xss (list something)
-      {[<nil> {}]
-       [<cons $xs $rss> {@xs @(concat rss)}]})))
-
 (define $foldr
   (lambda [$fn $init $ls]
     (match ls (list something)
@@ -120,6 +96,27 @@
        [<cons $x $xs>
         (let {[$z (fn init x)]}
           (seq z (foldl' fn z xs)))]})))
+
+(define $filter
+  (lambda [$pred $xs]
+    (foldr (lambda [$y $ys] (if (pred y) {y @ys} ys))
+           {}
+           xs)))
+
+(define $separate
+  (lambda [$pred $ls]
+    (letrec {[$helper (lambda [$ls $xs $ys]
+                        (match ls (list something)
+                          {[<nil> [xs ys]]
+                           [<cons (& ?pred $l) $rs> (helper rs {l @xs} ys)]
+                           [<cons $l $rs> (helper rs xs {l @ys})]}))]}
+      (helper ls {} {}))))
+
+(define $concat
+  (lambda [$xss]
+    (foldr (lambda [$xs $rs] {@xs @rs})
+           {}
+           xss)))
 
 (define $scanl
   (lambda [$fn $init $ls]
