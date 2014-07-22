@@ -109,8 +109,8 @@ showBanner = do
   putStrLn $ "http://www.egison.org"
   putStrLn $ "Welcome to Egison Interpreter!"
   putStrLn $ "** Information **"
-  putStrLn $ "We can use a \'Tab\' key to complete keywords on the interpreter."
-  putStrLn $ "If we type a \'Tab\' key after a closed parenthesis, the next closed parenthesis will be completed."
+  putStrLn $ "We can use the tab key to complete keywords on the interpreter."
+  putStrLn $ "If we press the tab key after a closed parenthesis, the next closed parenthesis will be completed."
   putStrLn $ "*****************"
 
 showByebyeMessage :: IO ()
