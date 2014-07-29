@@ -1,5 +1,4 @@
 (define $main
   (lambda [$argv]
     (do {[$content (read-file (car argv))]
-         [(write content)]}
-        [])))
+         [(write content)]})))

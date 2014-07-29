@@ -1,4 +1,4 @@
 (define $main
   (lambda [$argv]
-    (do {[(each print (map itos primes))]}
-      [])))
+    (each print (map show primes))))
+
