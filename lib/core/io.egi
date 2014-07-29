@@ -3,21 +3,39 @@
 ;;;;;
 
 ;;;
+;;; Basic
+;;;
+(define $nop
+  (return []))
+
+;;;
 ;;; IO
 ;;;
 (define $print
   (lambda [$x]
     (do {[(write x)]
          [(write "\n")]
-         }
-        [])))
+         })))
 
 (define $print-to-port
   (lambda [$port $x]
     (do {[(write-to-port port x)]
          [(write-to-port port "\n")]
-         }
-        [])))
+         })))
+
+(define $interact
+  (lambda [$proc]
+    (letrec {[$interact2
+              (lambda [$xs]
+                (do {[$eof (eof?)]
+                     [(if eof
+                        (do {[(proc xs)]})
+                        (do {[$c (read-char)]
+                             [(match c char
+                                {[,'\n' (do {[(proc {@xs c})]
+                                             [(interact2 {})]})]
+                                 [_ (do {[(interact2 {@xs c})]})]})]}))]}))]}
+      (do {[(interact2 {})]}))))
 
 ;;;
 ;;; Collection
@@ -25,12 +43,11 @@
 (define $each
   (lambda [$proc $xs]
     (match xs (list something)
-      {[<nil> (do {} [])]
+      {[<nil> (do {})]
        [<cons $x $rs>
         (do {[(proc x)]
              [(each proc rs)]
-             }
-          [])]})))
+             })]})))
 
 ;;;
 ;;; Others
