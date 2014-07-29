@@ -21,14 +21,14 @@
   (lambda [$fn]
     (letrec {[$interact2
               (lambda [$xs]
-                (do {[$eof (eof?)]
-                     [(if eof
-                        (write (fn xs))
-                        (do {[$c (read-char)]
-                             [(match c char
-                                {[,'\n' (do {[(write (fn {@xs c}))]}
-                                          (interact2 {}))]
-                                 [_ (interact2 {@xs c})]})]}))]}))]}
+                (do {[$eof (eof?)]}
+                  (if eof
+                    (write (fn xs))
+                    (do {[$c (read-char)]}
+                      (match c char
+                        {[,'\n' (do {[(write (fn {@xs c}))]}
+                                  (interact2 {}))]
+                         [_ (interact2 {@xs c})]})))))]}
       (interact2 {}))))
 
 ;;;
