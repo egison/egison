@@ -24,17 +24,17 @@
          })))
 
 (define $interact
-  (lambda [$proc]
+  (lambda [$fn]
     (letrec {[$interact2
               (lambda [$xs]
                 (do {[$eof (eof?)]
                      [(if eof
-                        (do {[(proc xs)]})
+                        (write (fn xs))
                         (do {[$c (read-char)]
                              [(match c char
-                                {[,'\n' (do {[(proc {@xs c})]
+                                {[,'\n' (do {[(write (fn {@xs c}))]
                                              [(interact2 {})]})]
-                                 [_ (do {[(interact2 {@xs c})]})]})]}))]}))]}
+                                 [_ (interact2 {@xs c})]})]}))]}))]}
       (interact2 {}))))
 
 ;;;
