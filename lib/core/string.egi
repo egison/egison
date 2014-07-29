@@ -15,6 +15,12 @@
         (helper x))
       #f)))
 
+(define $chop
+  (lambda [$xs]
+    (match xs string
+      {[<snoc (| ,'\n' ,' ') $ys> (chop ys)]
+       [_ xs]})))
+
 (define $intersperse
   (lambda [$in $ws]
     (foldl (lambda [$s1 $s2] {@s1 in s2}) {(car ws)} (cdr ws))))
