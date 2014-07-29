@@ -12,6 +12,7 @@ module Language.Egison.Core
     (
     -- * Egison code evaluation
       evalTopExprs
+    , evalTopExprsTestOnly
     , evalTopExprsNoIO
     , evalTopExpr
     , evalExpr
@@ -79,7 +80,28 @@ evalTopExprs env exprs = do
       LoadFile file -> do
         exprs' <- loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
-      _ -> collectDefs exprs bindings (expr : rest)
+      Execute _ -> collectDefs exprs bindings (expr : rest)
+      _ -> collectDefs exprs bindings rest
+  collectDefs [] bindings rest = return (bindings, reverse rest)
+
+evalTopExprsTestOnly :: Env -> [EgisonTopExpr] -> EgisonM Env
+evalTopExprsTestOnly env exprs = do
+  (bindings, rest) <- collectDefs exprs [] []
+  env <- recursiveBind env bindings
+  forM_ rest $ evalTopExpr env
+  return env
+ where
+  collectDefs (expr:exprs) bindings rest =
+    case expr of
+      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
+      Load file -> do
+        exprs' <- loadLibraryFile file
+        collectDefs (exprs' ++ exprs) bindings rest
+      LoadFile file -> do
+        exprs' <- loadFile file
+        collectDefs (exprs' ++ exprs) bindings rest
+      Test _ -> collectDefs exprs bindings (expr : rest)
+      _ -> collectDefs exprs bindings rest
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
 evalTopExprsNoIO :: Env -> [EgisonTopExpr] -> EgisonM Env
