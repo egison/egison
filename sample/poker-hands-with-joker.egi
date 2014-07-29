@@ -1,0 +1,120 @@
+;;;
+;;;
+;;; Poker-hands demonstration
+;;;
+;;;
+
+;;
+;; Matcher definitions
+;;
+(define $suit
+  (algebraic-data-matcher
+    {<spade> <heart> <club> <diamond>}))
+
+(define $card
+  (matcher
+    {[<card $ $> [suit (mod 13)]
+      {[<Card $x $y> {[x y]}]
+       [<Joker> (match-all [{<Spade> <Heart> <Club> <Diamond>} (between 1 13)] [(set suit) (set integer)]
+                  [[<cons $s _> <cons $n _>] [s n]])]}]
+     [<joker> []
+      {[<Joker> {[]}]}]
+     [$ [something] {[$tgt {tgt}]}]}))
+
+;;
+;; A function that determins poker-hands
+;;
+(define $poker-hands
+  (lambda [$cs]
+    (match cs (multiset card)
+      {[<cons <card $s $n>
+         <cons <card ,s ,(- n 1)>
+          <cons <card ,s ,(- n 2)>
+           <cons <card ,s ,(- n 3)>
+            <cons <card ,s ,(- n 4)>
+             <nil>>>>>>
+        <Straight-Flush>]
+       [<cons <card _ $n>
+         <cons <card _ ,n>
+          <cons <card _ ,n>
+            <cons <card _ ,n>
+              <cons _
+                <nil>>>>>>
+        <Four-of-Kind>]
+       [<cons <card _ $m>
+         <cons <card _ ,m>
+          <cons <card _ ,m>
+           <cons <card _ $n>
+            <cons <card _ ,n>
+              <nil>>>>>>
+        <Full-House>]
+       [<cons <card $s _>
+         <cons <card ,s _>
+           <cons <card ,s _>
+             <cons <card ,s _>
+               <cons <card ,s _>
+                 <nil>>>>>>
+        <Flush>]
+       [<cons <card _ $n>
+         <cons <card _ ,(- n 1)>
+          <cons <card _ ,(- n 2)>
+           <cons <card _ ,(- n 3)>
+            <cons <card _ ,(- n 4)>
+             <nil>>>>>>
+        <Straight>]
+       [<cons <card _ $n>
+         <cons <card _ ,n>
+          <cons <card _ ,n>
+           <cons _
+            <cons _
+             <nil>>>>>>
+        <Three-of-Kind>]
+       [<cons <card _ $m>
+         <cons <card _ ,m>
+          <cons <card _ $n>
+            <cons <card _ ,n>
+             <cons _
+               <nil>>>>>>
+        <Two-Pair>]
+       [<cons <card _ $n>
+         <cons <card _ ,n>
+          <cons _
+           <cons _
+            <cons _
+             <nil>>>>>>
+        <One-Pair>]
+       [<cons _
+         <cons _
+          <cons _
+           <cons _
+            <cons _
+             <nil>>>>>>
+        <Nothing>]})))
+
+;;
+;; Demonstration code
+;;
+(test (poker-hands {<Card <Club> 12>
+                    <Card <Club> 10>
+                    <Joker>
+                    <Card <Club> 1>
+                    <Card <Club> 11>}))
+
+(test (poker-hands {<Card <Diamond> 1>
+                    <Card <Club> 2>
+                    <Joker>
+                    <Card <Heart> 1>
+                    <Card <Diamond> 2>}))
+
+(test (poker-hands {<Card <Diamond> 4>
+                    <Card <Club> 2>
+                    <Joker>
+                    <Card <Heart> 1>
+                    <Card <Diamond> 3>}))
+
+(test (poker-hands {<Card <Diamond> 4>
+                    <Card <Club> 10>
+                    <Joker>
+                    <Card <Heart> 1>
+                    <Card <Diamond> 3>}))
+
