@@ -6,10 +6,8 @@
                              [(unless eof
                                 (do {[$line (read-line)]
                                      [(write line)]
-                                     [(write-char '\n')]
-                                     [iter]}
-                                  []))]}
-                          [])]}
+                                     [(write-char '\n')]}
+                                  iter))]})]}
                 iter)]
        [_ (cat-files argv)]})))
 
