@@ -246,7 +246,7 @@ evalExpr env (LetRecExpr bindings expr) =
   genVar = modify (1+) >> gets (('#':) . show)
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
-  let body = foldr genLet (TupleExpr [VarExpr "#1", expr]) bindings
+  let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings
   applyFunc (Value $ Func env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =

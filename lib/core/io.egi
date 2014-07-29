@@ -3,12 +3,6 @@
 ;;;;;
 
 ;;;
-;;; Basic
-;;;
-(define $nop
-  (return []))
-
-;;;
 ;;; IO
 ;;;
 (define $print
@@ -32,8 +26,8 @@
                         (write (fn xs))
                         (do {[$c (read-char)]
                              [(match c char
-                                {[,'\n' (do {[(write (fn {@xs c}))]
-                                             [(interact2 {})]})]
+                                {[,'\n' (do {[(write (fn {@xs c}))]}
+                                          (interact2 {}))]
                                  [_ (interact2 {@xs c})]})]}))]}))]}
       (interact2 {}))))
 
@@ -45,9 +39,8 @@
     (match xs (list something)
       {[<nil> (do {})]
        [<cons $x $rs>
-        (do {[(proc x)]
-             [(each proc rs)]
-             })]})))
+        (do {[(proc x)]}
+          (each proc rs))]})))
 
 ;;;
 ;;; Others
