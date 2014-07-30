@@ -18,22 +18,22 @@
          })))
 
 (define $each-line
-  (lambda [$fn]
+  (lambda [$proc]
     (do {[$eof (eof?)]}
       (if eof
         (return [])
         (do {[$line (read-line)]
-             [(print (fn line))]}
-          (each-line fn))))))
+             [(proc line)]}
+          (each-line proc))))))
 
 (define $each-line-from-port
-  (lambda [$port $fn]
+  (lambda [$port $proc]
     (do {[$eof (eof-port? port)]}
       (if eof
         (return [])
         (do {[$line (read-line-from-port port)]
-             [(print (fn line))]}
-          (each-line-from-port port fn))))))
+             [(proc line)]}
+          (each-line-from-port port proc))))))
 
 ;;;
 ;;; Collection
