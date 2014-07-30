@@ -1,42 +1,15 @@
 (define $main
-  (lambda [$argv]
-    (match argv (list string)
-      {[<nil> (letrec {[$iter
-                        (do {[$eof (eof?)]
-                             [(unless eof
-                                (do {[$line (read-line)]
-                                     [(write line)]
-                                     [(write-char '\n')]}
-                                  iter))]})]}
-                iter)]
-       [_ (cat-files argv)]})))
+  (lambda [$args]
+    (match args (list string)
+      {[<nil> (each-line id)]
+       [_ (each-files args)]})))
 
-(define $cat-files
-  (match-lambda (list string)
-    {[<nil> nop]
-     [<cons $file $files>
-      (do {[$port (open-input-file file)]
-           [(letrec {[$iter
-                     (do {[$eof (eof-port? port)]
-                          [(unless eof
-                             (do {[$line (read-line-from-port port)]
-                                  [(write line)]
-                                  [(write-char '\n')]
-                                  [iter]}
-                               []))]}
-                       [])]}
-              iter)]
-           [(close-input-port port)]
-           [(cat-files files)]}
-        [])]}))
-
-(define $nop
-  (return []))
-
-(define $when
-  (lambda [$cond $action]
-    (if cond action nop)))
-
-(define $unless
-  (lambda [$cond $action]
-    (when (not cond) action)))
+(define $each-files
+  (lambda [$files]
+    (match files (list string)
+      {[<nil> (return [])]
+       [<cons $file $rest>
+        (do {[$port (open-input-file file)]
+             [(each-line-from-port port id)]
+             [(close-input-port port)]}
+          (each-files rest))]})))

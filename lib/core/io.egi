@@ -17,19 +17,23 @@
          [(write-to-port port "\n")]
          })))
 
-(define $interact
+(define $each-line
   (lambda [$fn]
-    (letrec {[$interact2
-              (lambda [$xs]
-                (do {[$eof (eof?)]}
-                  (if eof
-                    (write (fn xs))
-                    (do {[$c (read-char)]}
-                      (match c char
-                        {[,'\n' (do {[(write (fn {@xs c}))]}
-                                  (interact2 {}))]
-                         [_ (interact2 {@xs c})]})))))]}
-      (interact2 {}))))
+    (do {[$eof (eof?)]}
+      (if eof
+        (return [])
+        (do {[$line (read-line)]
+             [(print (fn line))]}
+          (each-line fn))))))
+
+(define $each-line-from-port
+  (lambda [$port $fn]
+    (do {[$eof (eof-port? port)]}
+      (if eof
+        (return [])
+        (do {[$line (read-line-from-port port)]
+             [(print (fn line))]}
+          (each-line-from-port port fn))))))
 
 ;;;
 ;;; Collection
