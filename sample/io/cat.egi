@@ -2,9 +2,9 @@
   (lambda [$args]
     (match args (list string)
       {[<nil> (each-line id)]
-       [_ (each-files args)]})))
+       [_ (each-file args)]})))
 
-(define $each-files
+(define $each-file
   (lambda [$files]
     (match files (list string)
       {[<nil> (return [])]
@@ -12,4 +12,4 @@
         (do {[$port (open-input-file file)]
              [(each-line-from-port port id)]
              [(close-input-port port)]}
-          (each-files rest))]})))
+          (each-file rest))]})))
