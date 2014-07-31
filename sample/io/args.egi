@@ -8,8 +8,8 @@
           (write-each rs))]})))
 
 (define $main
-  (lambda [$argv]
-    (do {[(write "argv: ")]
-         [(write (show argv))]
+  (lambda [$args]
+    (do {[(write "args: ")]
+         [(write (show args))]
          [(write "\n")]
-         [(write-each argv)]})))
+         [(write-each args)]})))
