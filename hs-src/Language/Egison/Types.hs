@@ -26,7 +26,7 @@ module Language.Egison.Types
     , EgisonValue (..)
     , Matcher (..)
     , PrimitiveFunc (..)
-    , Egison (..)
+    , EgisonData (..)
     -- * Internal data
     , Object (..)
     , ObjectRef (..)
@@ -96,10 +96,6 @@ import Data.Foldable (foldr, toList)
 import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-
-import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Lazy.Char8 ()
-import qualified Data.ByteString.Lazy.Char8 as B
 
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -238,7 +234,7 @@ data EgisonValue =
   | Collection (Seq EgisonValue)
   | Array (Array.Array Integer EgisonValue)
   | IntHash (HashMap Integer EgisonValue)
-  | StrHash (HashMap ByteString EgisonValue)
+  | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
   | Func Env [String] EgisonExpr
   | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
@@ -267,16 +263,10 @@ instance Show EgisonValue where
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
   show (Collection vals) = if Sq.null vals
                              then "{}"
-                             else if all isChar (toList vals)
-                                    then "\"" ++ map (\(Char c) -> c) (toList vals) ++ "\""
-                                    else "{" ++ unwords (map show (toList vals)) ++ "}"
-                                   where
-                                     isChar :: EgisonValue -> Bool
-                                     isChar (Char _) = True
-                                     isChar _ = False
+                             else "{" ++ unwords (map show (toList vals)) ++ "}"
   show (Array vals) = "[|" ++ unwords (map show $ Array.elems vals) ++ "|]"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ B.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
+  show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
@@ -307,54 +297,54 @@ instance Eq EgisonValue where
 --
 -- Egison data and Haskell data
 --
-class Egison a where
+class EgisonData a where
   toEgison :: a -> EgisonValue
   fromEgison :: EgisonValue -> EgisonM a
 
-instance Egison Char where
+instance EgisonData Char where
   toEgison c = Char c
   fromEgison = liftError . fromCharValue
 
-instance Egison Text where
+instance EgisonData Text where
   toEgison str = String str
   fromEgison = liftError . fromStringValue
 
-instance Egison Bool where
+instance EgisonData Bool where
   toEgison b = Bool b
   fromEgison = liftError . fromBoolValue
 
-instance Egison Integer where
+instance EgisonData Integer where
   toEgison i = Integer i
   fromEgison = liftError . fromIntegerValue
 
-instance Egison Rational where
+instance EgisonData Rational where
   toEgison r = Rational r
   fromEgison = liftError . fromRationalValue
 
-instance Egison Double where
+instance EgisonData Double where
   toEgison f = Float f
   fromEgison = liftError . fromFloatValue
 
-instance Egison Handle where
+instance EgisonData Handle where
   toEgison h = Port h
   fromEgison = liftError . fromPortValue
 
-instance (Egison a) => Egison [a] where
+instance (EgisonData a) => EgisonData [a] where
   toEgison xs = Collection $ Sq.fromList (map toEgison xs)
   fromEgison (Collection seq) = mapM fromEgison (toList seq)
   fromEgison val = liftError $ throwError $ TypeMismatch "collection" (Value val)
 
-instance Egison () where
+instance EgisonData () where
   toEgison () = Tuple []
   fromEgison (Tuple []) = return ()
   fromEgison val = liftError $ throwError $ TypeMismatch "zero element tuple" (Value val)
 
-instance (Egison a, Egison b) => Egison (a, b) where
+instance (EgisonData a, EgisonData b) => EgisonData (a, b) where
   toEgison (x, y) = Tuple [toEgison x, toEgison y]
   fromEgison (Tuple (x:y:[])) = (liftM2 (,)) (fromEgison x) (fromEgison y)
   fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
 
-instance (Egison a, Egison b, Egison c) => Egison (a, b, c) where
+instance (EgisonData a, EgisonData b, EgisonData c) => EgisonData (a, b, c) where
   toEgison (x, y, z) = Tuple [toEgison x, toEgison y, toEgison z]
   fromEgison (Tuple (x:y:z:[])) = do
     x' <- fromEgison x
@@ -363,7 +353,7 @@ instance (Egison a, Egison b, Egison c) => Egison (a, b, c) where
     return (x', y', z')
   fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
 
-instance (Egison a, Egison b, Egison c, Egison d) => Egison (a, b, c, d) where
+instance (EgisonData a, EgisonData b, EgisonData c, EgisonData d) => EgisonData (a, b, c, d) where
   toEgison (x, y, z, w) = Tuple [toEgison x, toEgison y, toEgison z, toEgison w]
   fromEgison (Tuple (x:y:z:w:[])) = do
     x' <- fromEgison x
@@ -422,7 +412,7 @@ data Intermediate =
   | ICollection (IORef (Seq Inner))
   | IArray (Array.Array Integer ObjectRef)
   | IIntHash (HashMap Integer ObjectRef)
-  | IStrHash (HashMap ByteString ObjectRef)
+  | IStrHash (HashMap Text ObjectRef)
 
 data Inner =
     IElement ObjectRef
@@ -447,7 +437,7 @@ instance Show ObjectRef where
 --
 -- Extract data from WHNF
 --
-class (Egison a) => EgisonWHNF a where
+class (EgisonData a) => EgisonWHNF a where
   toWHNF :: a -> WHNFData
   fromWHNF :: WHNFData -> EgisonM a
   toWHNF = Value . toEgison
