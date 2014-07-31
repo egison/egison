@@ -141,6 +141,12 @@ primitives = [ ("+", plus)
                
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
+
+             , ("pack", pack)
+             , ("unpack", unpack)
+             , ("length-string", lengthString)
+             , ("append-string", appendString)
+             , ("split-string", splitString)
                
              , ("read", read')
              , ("show", show')
@@ -154,6 +160,7 @@ primitives = [ ("+", plus)
              , ("rational?", isRational)
              , ("float?", isFloat)
              , ("char?", isChar)
+             , ("string?", isString)
              , ("tuple?", isTuple)
              , ("collection?", isCollection)
              , ("array?", isArray)
@@ -365,11 +372,46 @@ rationalToFloat = oneArg $ \val -> do
   case val of
     Integer i -> return $ Float $ fromInteger i
     Rational r -> return $ Float $ fromRational r
+    _ -> throwError $ TypeMismatch "integer of rational number" (Value val)
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
   f <- fromEgison val
   return $ Integer $ op f
+
+--
+-- String
+--
+pack :: PrimitiveFunc
+pack = oneArg $ \val -> do
+  str <- packStringValue val
+  return $ String str
+
+unpack :: PrimitiveFunc
+unpack = oneArg $ \val -> do
+  case val of
+    String str -> return $ toEgison (T.unpack str)
+    _ -> throwError $ TypeMismatch "string" (Value val)
+
+lengthString :: PrimitiveFunc
+lengthString = oneArg $ \val -> do
+  case val of
+    String str -> return . Integer . toInteger $ T.length str
+    _ -> throwError $ TypeMismatch "string" (Value val)
+
+appendString :: PrimitiveFunc
+appendString = twoArgs $ \val1 val2 -> do
+  case (val1, val2) of
+    (String str1, String str2) -> return . String $ T.append str1 str2
+    (String _, _) -> throwError $ TypeMismatch "string" (Value val2)
+    (_, _) -> throwError $ TypeMismatch "string" (Value val1)
+
+splitString :: PrimitiveFunc
+splitString = twoArgs $ \pat src -> do
+  case (pat, src) of
+    (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
+    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
+    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
 
 read' :: PrimitiveFunc
 read'= oneArg $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
@@ -377,6 +419,9 @@ read'= oneArg $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep 
 show' :: PrimitiveFunc
 show'= oneArg $ \val -> return $ toEgison $ T.pack $ show val
 
+--
+-- Collection
+--
 isEmpty' :: PrimitiveFunc
 isEmpty' whnf = do
   b <- isEmptyCollection whnf
@@ -420,6 +465,10 @@ isFloat _ = return $ Value $ Bool False
 isChar :: PrimitiveFunc
 isChar (Value (Char _)) = return $ Value $ Bool True
 isChar _ = return $ Value $ Bool False
+
+isString :: PrimitiveFunc
+isString (Value (String _)) = return $ Value $ Bool True
+isString _ = return $ Value $ Bool False
 
 isTuple :: PrimitiveFunc
 isTuple args = do
