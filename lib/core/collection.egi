@@ -110,6 +110,12 @@
                            [<cons $l $rs> (helper rs xs {l @ys})]}))]}
       (helper ls {} {}))))
 
+(define $append
+  (lambda [$xs $ys]
+    (if (string? xs)
+      (append-string xs ys)
+      {@xs @ys})))
+
 (define $concat
   (lambda [$xss]
     (foldr (lambda [$xs $rs] {@xs @rs})
@@ -198,7 +204,9 @@
 ;;
 (define $length
   (lambda [$xs]
-    (foldl' (lambda [$x $y] (+ x 1)) 0 xs)))
+    (if (string? xs)
+      (length-string xs)
+      (foldl' (lambda [$x $y] (+ x 1)) 0 xs))))
 
 (define $count
   (lambda [$x $xs]
@@ -303,9 +311,11 @@
 
 (define $split
   (lambda [$in $ls]
-    (match ls (list something)
-      {[<join $xs <join ,in $rs>> {xs @(split in rs)}]
-       [_ {ls}]})))
+    (if (string? ls)
+      (split-string in ls)
+      (match ls (list something)
+        {[<join $xs <join ,in $rs>> {xs @(split in rs)}]
+         [_ {ls}]}))))
 
 (define $split/m
   (lambda [$a $in $ls]
