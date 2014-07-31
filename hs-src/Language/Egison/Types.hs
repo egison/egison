@@ -101,6 +101,9 @@ import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
 
+import Data.Text (Text)
+import qualified Data.Text as T
+
 import System.IO
 import Data.Ratio
 
@@ -121,7 +124,7 @@ data EgisonTopExpr =
 
 data EgisonExpr =
     CharExpr Char
-  | StringExpr String
+  | StringExpr Text
   | BoolExpr Bool
   | RationalExpr Rational
   | IntegerExpr Integer
@@ -225,6 +228,7 @@ data PrimitiveDataPattern =
 data EgisonValue =
     World
   | Char Char
+  | String Text
   | Bool Bool
   | Rational Rational
   | Integer Integer
@@ -252,6 +256,7 @@ type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 instance Show EgisonValue where
   show (Char c) = "'" ++ [c] ++ "'"
+  show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"
   show (Rational x) = show (numerator x) ++ "/" ++ show (denominator x)
@@ -275,6 +280,7 @@ instance Show EgisonValue where
   show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
+  show (MemoizedFunc _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc _) = "#<primitive-function>"
   show (IOFunc _) = "#<io-function>"
@@ -286,6 +292,7 @@ instance Show EgisonValue where
 
 instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
+ (String str) == (String str') = str == str'
  (Bool b) == (Bool b') = b == b'
  (Integer i) == (Integer i') = i == i'
  (Float f) == (Float f') = f == f'
@@ -307,6 +314,10 @@ class Egison a where
 instance Egison Char where
   toEgison c = Char c
   fromEgison = liftError . fromCharValue
+
+instance Egison Text where
+  toEgison str = String str
+  fromEgison = liftError . fromStringValue
 
 instance Egison Bool where
   toEgison b = Bool b
@@ -365,6 +376,10 @@ instance (Egison a, Egison b, Egison c, Egison d) => Egison (a, b, c, d) where
 fromCharValue :: EgisonValue -> Either EgisonError Char
 fromCharValue (Char c) = return c
 fromCharValue val = throwError $ TypeMismatch "char" (Value val)
+
+fromStringValue :: EgisonValue -> Either EgisonError Text
+fromStringValue (String str) = return str
+fromStringValue val = throwError $ TypeMismatch "string" (Value val)
 
 fromBoolValue :: EgisonValue -> Either EgisonError Bool
 fromBoolValue (Bool b) = return b
@@ -440,6 +455,9 @@ class (Egison a) => EgisonWHNF a where
 instance EgisonWHNF Char where
   fromWHNF = liftError . fromCharWHNF
   
+instance EgisonWHNF Text where
+  fromWHNF = liftError . fromStringWHNF
+  
 instance EgisonWHNF Bool where
   fromWHNF = liftError . fromBoolWHNF
   
@@ -458,6 +476,10 @@ instance EgisonWHNF Handle where
 fromCharWHNF :: WHNFData -> Either EgisonError Char
 fromCharWHNF (Value (Char c)) = return c
 fromCharWHNF whnf = throwError $ TypeMismatch "char" whnf
+
+fromStringWHNF :: WHNFData -> Either EgisonError Text
+fromStringWHNF (Value (String str)) = return str
+fromStringWHNF whnf = throwError $ TypeMismatch "string" whnf
 
 fromBoolWHNF :: WHNFData -> Either EgisonError Bool
 fromBoolWHNF (Value (Bool b)) = return b

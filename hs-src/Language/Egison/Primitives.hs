@@ -23,6 +23,7 @@ import System.Random
 import qualified Data.Sequence as Sq
 
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 -- {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
@@ -371,10 +372,10 @@ floatToIntegerOp op = oneArg $ \val -> do
   return $ Integer $ op f
 
 read' :: PrimitiveFunc
-read'= oneArg $ \val -> fromStringValue val >>= readExpr >>= evalExprDeep nullEnv
+read'= oneArg $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
 
 show' :: PrimitiveFunc
-show'= oneArg $ \val -> return $ toEgison $ show val
+show'= oneArg $ \val -> return $ toEgison $ T.pack $ show val
 
 isEmpty' :: PrimitiveFunc
 isEmpty' whnf = do
@@ -545,13 +546,13 @@ writeCharToPort = twoArgs $ \val val' -> do
 writeString :: PrimitiveFunc
 writeString = oneArg $ \val -> do
   s <- fromEgison val
-  return $ makeIO' $ liftIO $ putStr s
+  return $ makeIO' $ liftIO $ T.putStr s
   
 writeStringToPort :: PrimitiveFunc
 writeStringToPort = twoArgs $ \val val' -> do
   port <- fromEgison val
   s <- fromEgison val'
-  return $ makeIO' $ liftIO $ hPutStr port s
+  return $ makeIO' $ liftIO $ T.hPutStr port s
 
 flushStdout :: PrimitiveFunc
 flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
@@ -571,18 +572,18 @@ readCharFromPort = oneArg $ \val -> do
   return $ makeIO $ return (Char c)
 
 readLine :: PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ liftM toEgison getLine
+readLine = noArg $ return $ makeIO $ liftIO $ liftM toEgison T.getLine
 
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = oneArg $ \val -> do
   port <- fromEgison val
-  s <- liftIO $ hGetLine port
+  s <- liftIO $ T.hGetLine port
   return $ makeIO $ return $ toEgison s
 
 readFile' :: PrimitiveFunc
 readFile' =  oneArg $ \val -> do
   filename <- fromEgison val
-  s <- liftIO $ readFile filename
+  s <- liftIO $ T.readFile filename
   return $ makeIO $ return $ toEgison s
   
 isEOFStdin :: PrimitiveFunc
@@ -623,4 +624,3 @@ sqlite  = twoArgs $ \val val' -> do
     ret <- readIORef rowsRef
     return $ reverse ret
 -- --} -- for 'egison-sqlite'
-

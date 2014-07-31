@@ -31,7 +31,7 @@ module Language.Egison.Core
     , unsnocCollection
     -- * Utiltiy functions
     , evalStringWHNF
-    , fromStringValue
+    , packStringValue
     ) where
 
 import Prelude hiding (mapM)
@@ -56,6 +56,9 @@ import qualified Data.HashMap.Lazy as HL
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy.Char8 as B
+
+import Data.Text (Text)
+import qualified Data.Text as T
 
 import Language.Egison.Types
 import Language.Egison.Parser
@@ -833,6 +836,16 @@ unsnocCollection _ = matchFail
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopContext] -> Env
 extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopContext binding _ _ _ _) -> binding) loops
 
+evalMatcherWHNF :: WHNFData -> EgisonM Matcher
+evalMatcherWHNF (Value matcher@Something) = return matcher
+evalMatcherWHNF (Value matcher@(UserMatcher _ _ _)) = return matcher
+evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
+evalMatcherWHNF (Intermediate (ITuple refs)) = do
+  whnfs <- mapM evalRef refs
+  ms <- mapM evalMatcherWHNF whnfs
+  return $ Tuple ms
+evalMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
+
 --
 -- Util
 --
@@ -873,25 +886,16 @@ evalStringWHNF (Value (Tuple [val])) = evalStringWHNF (Value val)
 evalStringWHNF whnf@(Intermediate (ICollection _)) = evalWHNF whnf >>= evalStringWHNF . Value
 evalStringWHNF whnf = throwError $ TypeMismatch "string" whnf
 
-evalMatcherWHNF :: WHNFData -> EgisonM Matcher
-evalMatcherWHNF (Value matcher@Something) = return matcher
-evalMatcherWHNF (Value matcher@(UserMatcher _ _ _)) = return matcher
-evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
-evalMatcherWHNF (Intermediate (ITuple refs)) = do
-  whnfs <- mapM evalRef refs
-  ms <- mapM evalMatcherWHNF whnfs
-  return $ Tuple ms
-evalMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
-
-fromStringValue :: EgisonValue -> EgisonM String
-fromStringValue (Collection seq) = do
+packStringValue :: EgisonValue -> EgisonM Text
+packStringValue (Collection seq) = do
   let ls = toList seq
-  mapM (\val -> case val of
-                  Char c -> return c
-                  _ -> throwError $ TypeMismatch "char" (Value val))
-       ls
-fromStringValue (Tuple [val]) = fromStringValue val
-fromStringValue val = throwError $ TypeMismatch "string" (Value val)
+  str <- mapM (\val -> case val of
+                         Char c -> return c
+                         _ -> throwError $ TypeMismatch "char" (Value val))
+              ls
+  return $ T.pack str
+packStringValue (Tuple [val]) = packStringValue val
+packStringValue val = throwError $ TypeMismatch "string" (Value val)
 
 --
 -- Util
