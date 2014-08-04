@@ -2,48 +2,10 @@
 ;;; String.egi
 ;;;
 
-(define $string?
-  (lambda [$x]
-    (if (collection? x)
-      (letrec {[$helper (lambda [$cs]
-                          (match cs (list something)
-                            {[<nil> #t]
-                             [<cons $c $rs>
-                              (if (char? c)
-                                (helper rs)
-                                #f)]}))]}
-        (helper x))
-      #f)))
+(define $string buildin-data-matcher)
 
 (define $chop
   (lambda [$xs]
     (match xs string
       {[<snoc (| ,'\n' ,' ') $ys> (chop ys)]
        [_ xs]})))
-
-(define $intersperse
-  (lambda [$in $ws]
-    (foldl (lambda [$s1 $s2] {@s1 in s2}) {(car ws)} (cdr ws))))
-
-(define $intercalate (compose intersperse concat))
-
-(define $split
-  (lambda [$in $ls]
-    (match ls (list something)
-      {[<join $xs <join ,in $rs>> {xs @(split in rs)}]
-       [_ {ls}]})))
-
-(define $split/m
-  (lambda [$a $in $ls]
-    (match ls (list a)
-      {[<join $xs <join ,in $rs>> {xs @(split/m $a in rs)}]
-       [_ {ls}]})))
-
-(define $palindrome?
-  (lambda [$str]
-    (match str string
-      {[(loop $i [1 $n]
-          <cons $c_i <snoc ,c_i ...>>
-          (| <nil> <cons $cm <nil>>))
-        #t]
-       [_ #f]})))
