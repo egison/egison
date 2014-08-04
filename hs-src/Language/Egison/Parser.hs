@@ -43,6 +43,8 @@ import Text.Parsec
 import Text.Parsec.String
 import qualified Text.Parsec.Token as P
 
+import qualified Data.Text as T
+
 import Language.Egison.Types
 import Language.Egison.Desugar
 import Paths_egison (getDataFileName)
@@ -479,7 +481,7 @@ charExpr :: Parser EgisonExpr
 charExpr = CharExpr <$> charLiteral
 
 stringExpr :: Parser EgisonExpr
-stringExpr = StringExpr <$> stringLiteral
+stringExpr = StringExpr . T.pack <$> stringLiteral
 
 boolExpr :: Parser EgisonExpr
 boolExpr = BoolExpr <$> boolLiteral

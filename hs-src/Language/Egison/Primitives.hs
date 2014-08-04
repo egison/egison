@@ -23,6 +23,7 @@ import System.Random
 import qualified Data.Sequence as Sq
 
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 -- {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
@@ -140,6 +141,12 @@ primitives = [ ("+", plus)
                
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
+
+             , ("pack", pack)
+             , ("unpack", unpack)
+             , ("length-string", lengthString)
+             , ("append-string", appendString)
+             , ("split-string", splitString)
                
              , ("read", read')
              , ("show", show')
@@ -153,6 +160,7 @@ primitives = [ ("+", plus)
              , ("rational?", isRational)
              , ("float?", isFloat)
              , ("char?", isChar)
+             , ("string?", isString)
              , ("tuple?", isTuple)
              , ("collection?", isCollection)
              , ("array?", isArray)
@@ -364,18 +372,56 @@ rationalToFloat = oneArg $ \val -> do
   case val of
     Integer i -> return $ Float $ fromInteger i
     Rational r -> return $ Float $ fromRational r
+    _ -> throwError $ TypeMismatch "integer of rational number" (Value val)
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
   f <- fromEgison val
   return $ Integer $ op f
 
+--
+-- String
+--
+pack :: PrimitiveFunc
+pack = oneArg $ \val -> do
+  str <- packStringValue val
+  return $ String str
+
+unpack :: PrimitiveFunc
+unpack = oneArg $ \val -> do
+  case val of
+    String str -> return $ toEgison (T.unpack str)
+    _ -> throwError $ TypeMismatch "string" (Value val)
+
+lengthString :: PrimitiveFunc
+lengthString = oneArg $ \val -> do
+  case val of
+    String str -> return . Integer . toInteger $ T.length str
+    _ -> throwError $ TypeMismatch "string" (Value val)
+
+appendString :: PrimitiveFunc
+appendString = twoArgs $ \val1 val2 -> do
+  case (val1, val2) of
+    (String str1, String str2) -> return . String $ T.append str1 str2
+    (String _, _) -> throwError $ TypeMismatch "string" (Value val2)
+    (_, _) -> throwError $ TypeMismatch "string" (Value val1)
+
+splitString :: PrimitiveFunc
+splitString = twoArgs $ \pat src -> do
+  case (pat, src) of
+    (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
+    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
+    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+
 read' :: PrimitiveFunc
-read'= oneArg $ \val -> fromStringValue val >>= readExpr >>= evalExprDeep nullEnv
+read'= oneArg $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
 
 show' :: PrimitiveFunc
-show'= oneArg $ \val -> return $ toEgison $ show val
+show'= oneArg $ \val -> return $ toEgison $ T.pack $ show val
 
+--
+-- Collection
+--
 isEmpty' :: PrimitiveFunc
 isEmpty' whnf = do
   b <- isEmptyCollection whnf
@@ -419,6 +465,10 @@ isFloat _ = return $ Value $ Bool False
 isChar :: PrimitiveFunc
 isChar (Value (Char _)) = return $ Value $ Bool True
 isChar _ = return $ Value $ Bool False
+
+isString :: PrimitiveFunc
+isString (Value (String _)) = return $ Value $ Bool True
+isString _ = return $ Value $ Bool False
 
 isTuple :: PrimitiveFunc
 isTuple args = do
@@ -545,13 +595,13 @@ writeCharToPort = twoArgs $ \val val' -> do
 writeString :: PrimitiveFunc
 writeString = oneArg $ \val -> do
   s <- fromEgison val
-  return $ makeIO' $ liftIO $ putStr s
+  return $ makeIO' $ liftIO $ T.putStr s
   
 writeStringToPort :: PrimitiveFunc
 writeStringToPort = twoArgs $ \val val' -> do
   port <- fromEgison val
   s <- fromEgison val'
-  return $ makeIO' $ liftIO $ hPutStr port s
+  return $ makeIO' $ liftIO $ T.hPutStr port s
 
 flushStdout :: PrimitiveFunc
 flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
@@ -571,18 +621,18 @@ readCharFromPort = oneArg $ \val -> do
   return $ makeIO $ return (Char c)
 
 readLine :: PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ liftM toEgison getLine
+readLine = noArg $ return $ makeIO $ liftIO $ liftM toEgison T.getLine
 
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = oneArg $ \val -> do
   port <- fromEgison val
-  s <- liftIO $ hGetLine port
+  s <- liftIO $ T.hGetLine port
   return $ makeIO $ return $ toEgison s
 
 readFile' :: PrimitiveFunc
 readFile' =  oneArg $ \val -> do
   filename <- fromEgison val
-  s <- liftIO $ readFile filename
+  s <- liftIO $ T.readFile filename
   return $ makeIO $ return $ toEgison s
   
 isEOFStdin :: PrimitiveFunc
@@ -623,4 +673,3 @@ sqlite  = twoArgs $ \val val' -> do
     ret <- readIORef rowsRef
     return $ reverse ret
 -- --} -- for 'egison-sqlite'
-

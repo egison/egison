@@ -1,0 +1,20 @@
+
+(test (assert-equal "hash-literal"
+       {| [1 11] [2 12] [3 13] [4 14] [5 15] |}
+       {| [1 11] [2 12] [3 13] [4 14] [5 15] |}
+      ))
+
+(test (assert-equal "empty hash-literal"
+       {[||]}
+       {[||]}
+      ))
+
+(test (assert-equal "hash access"
+       {| [1 11] [2 12] [3 13] [4 14] [5 15] |}_3
+       13
+      ))
+
+(test (assert-equal "string hash access"
+       {| ["1" 11] ["2" 12] ["3" 13] ["4" 14] ["5" 15] |}_"3"
+       13
+      ))
