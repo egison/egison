@@ -118,7 +118,7 @@ options = [
 
 printHelp :: IO ()
 printHelp = do
-  putStrLn "Usage: egison [option]"
+  putStrLn "Usage: egison [options]"
   putStrLn "       egison [options] file"
   putStrLn ""
   putStrLn "Options:"

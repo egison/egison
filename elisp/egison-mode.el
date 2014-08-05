@@ -11,6 +11,7 @@
 (defconst egison-font-lock-keywords-1
   (eval-when-compile
     (list
+     "\\<module\\>"
      "\\<define\\>"
      "\\<test\\>"
      "\\<execute\\>"
@@ -128,7 +129,8 @@
         0))))
 
 (defun keyword-indent-point (name)
-  (cond ((equal "define" name) 2)
+  (cond ((equal "module" name) 2)
+        ((equal "define" name) 2)
         ((equal "test" name) 2)
         ((equal "load" name) 2)
         ((equal "load-file" name) 2)
