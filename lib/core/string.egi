@@ -2,10 +2,26 @@
 ;;; String.egi
 ;;;
 
-(define $string buildin-data-matcher)
+(define $length
+  (lambda [$xs]
+    (length-string xs)))
+
+(define $split
+  (lambda [$in $ls]
+    (split-string in ls)))
 
 (define $chop
   (lambda [$xs]
     (match xs string
       {[<snoc (| ,'\n' ,' ') $ys> (chop ys)]
        [_ xs]})))
+
+(define $append
+  (lambda [$xs $ys]
+    (append-string xs ys)))
+
+(define $concat
+  (lambda [$xss]
+    (foldr (lambda [$xs $rs] (append xs rs))
+           ""
+           xss)))

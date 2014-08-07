@@ -36,6 +36,8 @@
 
 (define $char buildin-data-matcher)
 
+(define $string buildin-data-matcher)
+
 (define $eq?/m
   (lambda [$a $x $y]
     (match x a
