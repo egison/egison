@@ -186,7 +186,11 @@ expr' = (try constantExpr
              <?> "expression")
 
 varExpr :: Parser EgisonExpr
-varExpr = VarExpr <$> ident
+varExpr = try ((VarExpr Nothing) <$> ident)
+      <|> do modName <- upperName
+             char '.'
+             varName <- ident
+             return $ VarExpr (Just modName) varName
 
 inductiveDataExpr :: Parser EgisonExpr
 inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr whiteSpace
@@ -317,7 +321,7 @@ letExpr :: Parser EgisonExpr
 letExpr = keywordLet >> LetExpr <$> bindings <*> expr
 
 doExpr :: Parser EgisonExpr
-doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr "return") (TupleExpr [])) expr
+doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr Nothing "return") (TupleExpr [])) expr
 
 statements :: Parser [BindingExpr]
 statements = braces $ sepEndBy statement whiteSpace
@@ -356,7 +360,7 @@ applyExpr' = do
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let genVar = modify (1+) >> gets (VarExpr . ('#':) . show)
+        let genVar = modify (1+) >> gets ((VarExpr Nothing) . ('#':) . show)
             args' = evalState (mapM (either (const genVar) return) args) 0
         in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
       | all (not . null) vars ->
@@ -364,7 +368,7 @@ applyExpr' = do
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
-               let args' = map (either (VarExpr . ('#':)) id) args
+               let args' = map (either ((VarExpr Nothing) . ('#':)) id) args
                in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
@@ -462,7 +466,7 @@ loopRange = brackets (try (do s <- expr
                               return (LoopRange s e ep))
                  <|> (do s <- expr
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
+                         return (LoopRange s (ApplyExpr (VarExpr Nothing "from") (ApplyExpr (VarExpr Nothing "-") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 -- Constants
 

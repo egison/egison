@@ -111,6 +111,5 @@ coreLibraries =
   , "lib/core/number.egi"
   , "lib/core/math.egi"
   , "lib/core/string.egi"
-  , "lib/core/database.egi"
   , "lib/core/io.egi"
   ]
