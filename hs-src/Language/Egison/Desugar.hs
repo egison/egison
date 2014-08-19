@@ -51,7 +51,7 @@ desugarExpr expr = liftEgisonM $ runDesugarM $ desugar expr
 desugar :: EgisonExpr -> DesugarM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- fresh
-  matcherRef <- return $ VarExpr matcherName
+  matcherRef <- return $ VarExpr Nothing matcherName
   matcher <- genMatcherClauses patterns matcherRef
   return $ LetRecExpr [([matcherName], matcher)] matcherRef
     where
@@ -67,7 +67,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", TupleExpr []
-               ,[(PDPatVar "tgt", (MatchExpr (TupleExpr [(VarExpr "val"), (VarExpr "tgt")]) 
+               ,[(PDPatVar "tgt", (MatchExpr (TupleExpr [(VarExpr Nothing "val"), (VarExpr Nothing "tgt")]) 
                                              (TupleExpr [matcher, matcher]) 
                                              clauses))])
         where
@@ -84,7 +84,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genMatchingPattern (name, patterns) = do
             names <- mapM (const fresh) patterns
             return $ ((InductivePat name (map PatVar names))  
-                     ,(InductivePat name (map (ValuePat . VarExpr) names)))
+                     ,(InductivePat name (map (ValuePat . VarExpr Nothing) names)))
           
       genMatcherClause :: (String, [EgisonExpr]) -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genMatcherClause pattern = do
@@ -101,7 +101,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitiveDataPat :: (String, [EgisonExpr]) -> DesugarM (PrimitiveDataPattern, [EgisonExpr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const fresh) patterns 
-            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map VarExpr patterns')
+            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map (VarExpr Nothing) patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
@@ -109,7 +109,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       
       genSomethingClause :: DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genSomethingClause = 
-        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr [ElementExpr (VarExpr "tgt")])])
+        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr [ElementExpr (VarExpr Nothing "tgt")])])
     
       matchingSuccess :: EgisonExpr
       matchingSuccess = CollectionExpr [ElementExpr $ TupleExpr []]
@@ -121,13 +121,13 @@ desugar (MatchAllLambdaExpr matcher clause) = do
   name <- fresh
   matcher' <- desugar matcher
   clause' <- desugarMatchClause clause
-  return $ LambdaExpr [name] (MatchAllExpr (VarExpr name) matcher' clause')
+  return $ LambdaExpr [name] (MatchAllExpr (VarExpr Nothing name) matcher' clause')
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
   matcher' <- desugar matcher
   clauses' <- desugarMatchClauses clauses
-  return $ LambdaExpr [name] (MatchExpr (VarExpr name) matcher' clauses')
+  return $ LambdaExpr [name] (MatchExpr (VarExpr Nothing name) matcher' clauses')
 
 desugar (ArrayRefExpr expr nums) =
   case nums of
@@ -219,31 +219,31 @@ desugar (SeqExpr expr0 expr1) = do
   expr1' <- desugar expr1
   return $ SeqExpr expr0' expr1'
 
-desugar (ApplyExpr (VarExpr "+") expr) = do
+desugar (ApplyExpr (VarExpr Nothing "+") expr) = do
   expr' <- desugar expr
   case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "+") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "+"), x, (CollectionExpr (map ElementExpr args))])
+    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr Nothing "+") args
+    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr Nothing "foldl") (TupleExpr [(VarExpr Nothing "+"), x, (CollectionExpr (map ElementExpr args))])
 
-desugar (ApplyExpr (VarExpr "-") expr) = do
+desugar (ApplyExpr (VarExpr Nothing "-") expr) = do
   expr' <- desugar expr
   case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "-") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "-"), x, (CollectionExpr (map ElementExpr args))])
+    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr Nothing "-") args
+    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr Nothing "foldl") (TupleExpr [(VarExpr Nothing "-"), x, (CollectionExpr (map ElementExpr args))])
 
-desugar (ApplyExpr (VarExpr "*") expr) = do
+desugar (ApplyExpr (VarExpr Nothing "*") expr) = do
   expr' <- desugar expr
   case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "*") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "*"), x, (CollectionExpr (map ElementExpr args))])
+    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr Nothing "*") args
+    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr Nothing "foldl") (TupleExpr [(VarExpr Nothing "*"), x, (CollectionExpr (map ElementExpr args))])
 
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
   return $ ApplyExpr expr0' expr1'
 
-desugar (VarExpr name) = do
-  asks $ maybe (VarExpr name) id . lookup name
+desugar (VarExpr Nothing name) = do
+  asks $ maybe (VarExpr Nothing name) id . lookup name
 
 desugar (MatcherBFSExpr matcherInfo) = do
   matcherInfo' <- desugarMatcherInfo matcherInfo

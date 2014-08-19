@@ -125,7 +125,7 @@ data EgisonExpr =
   | RationalExpr Rational
   | IntegerExpr Integer
   | FloatExpr Double
-  | VarExpr String
+  | VarExpr (Maybe String) String
   | IndexedExpr EgisonExpr [EgisonExpr]
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]

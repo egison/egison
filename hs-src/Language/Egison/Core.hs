@@ -146,7 +146,7 @@ evalExpr _ (RationalExpr x) = return . Value $ Rational x
 evalExpr _ (IntegerExpr i) = return . Value $ Integer i
 evalExpr _ (FloatExpr d) = return . Value $ Float d
 
-evalExpr env (VarExpr name) = refVar env name >>= evalRef
+evalExpr env (VarExpr Nothing name) = refVar env name >>= evalRef
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
@@ -228,24 +228,24 @@ evalExpr env (LetRecExpr bindings expr) =
   extractBindings (names, expr) = do
     var <- genVar
     let k = length names
-        target = VarExpr var
+        target = VarExpr Nothing var
         matcher = TupleExpr $ replicate k SomethingExpr
         nth n =
           let pattern = TuplePat $ flip map [1..k] $ \i ->
                 if i == n then PatVar "#_" else WildCard
-          in MatchExpr target matcher [(pattern, VarExpr "#_")]
+          in MatchExpr target matcher [(pattern, VarExpr Nothing "#_")]
     return ((var, expr) : map (second nth) (zip names [1..]))
 
   genVar :: State Int String
   genVar = modify (1+) >> gets (('#':) . show)
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
-  let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings
+  let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr Nothing "#1"]) bindings
   applyFunc (Value $ Func env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
-    LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1"])] $
-    LetExpr [(names, VarExpr "#2")] expr'
+    LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr Nothing "#1"])] $
+    LetExpr [(names, VarExpr Nothing "#2")] expr'
 
 evalExpr env (IoExpr expr) = do
   io <- evalExpr env expr
@@ -463,7 +463,7 @@ recursiveBind env bindings = do
                    liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
                  MemoizeExpr fnExpr -> do
                    hashRef <- liftIO $ newIORef HL.empty
-                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' ["arg"] (ApplyExpr fnExpr (VarExpr "arg"))
+                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' ["arg"] (ApplyExpr fnExpr (VarExpr Nothing "arg"))
                  _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
             refs exprs
   return env'
