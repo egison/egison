@@ -113,6 +113,7 @@ data EgisonTopExpr =
     Define String EgisonExpr
   | Test EgisonExpr
   | Execute EgisonExpr
+  | Module String [(String, Maybe String, Maybe [String])] (Maybe [String])
     -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
@@ -500,7 +501,7 @@ class (EgisonWHNF a) => EgisonObject a where
 --
 
 type Env = [HashMap Var ObjectRef]
-type Var = String
+type Var = (Maybe String, String)
 type Binding = (Var, ObjectRef)
 
 nullEnv :: Env
@@ -561,7 +562,8 @@ data EgisonError =
     
 instance Show EgisonError where
   show (Parser err) = "Parse error at: " ++ err
-  show (UnboundVariable var) = "Unbound variable: " ++ var
+  show (UnboundVariable (Nothing, var)) = "Unbound variable: " ++ var
+  show (UnboundVariable (Just modName, var)) = "Unbound variable: " ++ modName ++ "." ++ var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
   show (ArgumentsNumWithNames names expected got) = "Wrong number of arguments: " ++ show names ++ ": expected " ++

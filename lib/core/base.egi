@@ -1,6 +1,14 @@
-;;
-;; Base.egi
-;;
+(module $Base
+  {}
+  {buildin-data-matcher
+   id
+   bool
+   or and not char
+   char
+   eq?/m
+   compose
+   compose3
+   })
 
 (define $buildin-data-matcher
   (matcher-dfs
@@ -35,8 +43,6 @@
        [,#f #t]})))
 
 (define $char buildin-data-matcher)
-
-(define $string buildin-data-matcher)
 
 (define $eq?/m
   (lambda [$a $x $y]

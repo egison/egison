@@ -1,6 +1,15 @@
-;;;
-;;; String.egi
-;;;
+(module $String
+  {}
+  {string
+   length
+   split
+   chop
+   append
+   concat})
+
+(define $string
+  (matcher
+    {}))
 
 (define $length
   (lambda [$xs]
