@@ -188,9 +188,9 @@ expr' = (try constantExpr
 varExpr :: Parser EgisonExpr
 varExpr = try ((VarExpr Nothing) <$> ident)
       <|> do modName <- upperName
-             char '.'
-             varName <- ident
-             return $ VarExpr (Just modName) varName
+             _ <- char '.'
+             name <- ident
+             return $ VarExpr (Just modName) name
 
 inductiveDataExpr :: Parser EgisonExpr
 inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr whiteSpace

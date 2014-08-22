@@ -1,7 +1,7 @@
 (define $write-each
   (lambda [$xs]
     (match xs (list something)
-      {[<nil> (do {} [])]
+      {[<nil> (do {} (return []))]
        [<cons $x $rs>
         (do {[(write x)]
              [(write "\n")]}
@@ -11,5 +11,5 @@
   (lambda [$args]
     (do {[(write "args: ")]
          [(write (show args))]
-         [(write "\n")]
-         [(write-each args)]})))
+         [(write "\n")]}
+      (write-each args))))

@@ -1,6 +1,17 @@
-;;;;;
-;;;;; Collection.egi
-;;;;;
+(module $Collection
+  {}
+  {list
+   map between from
+   repeat1 repeat foldr foldl foldl' filter separate append concat scanl map2 zip find-cycle
+   member? member?/m include? include?/m any all
+   length count count/m frequency frequency/m
+   cons car cdr rac rdc nth take-and-drop take drop while
+   reverse intersperse intercalate split split/m
+   multiset
+   add add/m delete-first delete-first/m delete delete/m difference difference/m union union/m intersect intersect/m
+   set
+   unique unique/m
+   })
 
 ;;;
 ;;; List

@@ -146,7 +146,8 @@ evalExpr _ (RationalExpr x) = return . Value $ Rational x
 evalExpr _ (IntegerExpr i) = return . Value $ Integer i
 evalExpr _ (FloatExpr d) = return . Value $ Float d
 
-evalExpr env (VarExpr Nothing name) = refVar env name >>= evalRef
+evalExpr env (VarExpr Nothing name) = refVar env (Nothing, name) >>= evalRef
+evalExpr env (VarExpr (Just modName) name) = refVar env (Just modName, name) >>= evalRef
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
@@ -399,7 +400,7 @@ generateArray env name sizeExpr expr = do
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
       ref <- newEvalutedObjectRef (Value . Integer $ i)
-      return $ extendEnv env [(name, ref)]
+      return $ extendEnv env [((Nothing, name), ref)]
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val 
@@ -449,7 +450,7 @@ newEvalutedObjectRef :: WHNFData -> EgisonM ObjectRef
 newEvalutedObjectRef = liftIO . newIORef . WHNF
 
 makeBindings :: [String] -> [ObjectRef] -> [Binding]
-makeBindings = zip
+makeBindings names refs = zip (map (\name -> (Nothing, name)) names) refs
 
 recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
@@ -545,15 +546,15 @@ processMState' (MState _ _ _ []) = throwError $ EgisonBug "should not reach here
 processMState' (MState _ _ _ ((MNode _ (MState _ _ _ [])):_)) = throwError $ EgisonBug "should not reach here (empty matching-node)"
 
 processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) = do
-  case lookup name penv of
+  case lookup (Nothing, name) penv of
     Just pattern ->
       case trees' of
         [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern target matcher):trees)
         _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
-    Nothing -> throwError $ UnboundVariable name
+    Nothing -> throwError $ UnboundVariable (Nothing, name)
 
 processMState' (MState env loops bindings (MNode penv (MState env' loops' bindings' ((MAtom (IndexedPat (VarPat name) indices) target matcher):trees')):trees)) = do
-  case lookup name penv of
+  case lookup (Nothing, name) penv of
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
       indices' <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
@@ -561,7 +562,7 @@ processMState' (MState env loops bindings (MNode penv (MState env' loops' bindin
       case trees' of
         [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):trees)
         _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
-    Nothing -> throwError $ UnboundVariable name
+    Nothing -> throwError $ UnboundVariable (Nothing, name)
 
 processMState' (MState env loops bindings ((MNode penv state):trees)) = do
   processMState' state >>= mmap (\state' -> case state' of
@@ -593,7 +594,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       func' <- evalExpr env' func
       case func' of
         Value (PatternFunc env'' names expr) ->
-          let penv = zip names args
+          let penv = zip (map (\name -> (Nothing,name)) names) args
           in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func'
     
@@ -606,10 +607,10 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           endsRef <- newEvalutedObjectRef ends'
           inners <- liftIO $ newIORef $ Sq.fromList [IElement endsRef]
           endsRef' <- liftIO $ newIORef (WHNF (Intermediate (ICollection inners)))
-          return $ msingleton $ MState env ((LoopContext (name, startNumRef) endsRef' endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+          return $ msingleton $ MState env ((LoopContext ((Nothing, name), startNumRef) endsRef' endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
         else do
           endsRef <- newEvalutedObjectRef ends'
-          return $ msingleton $ MState env ((LoopContext (name, startNumRef) endsRef endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+          return $ msingleton $ MState env ((LoopContext ((Nothing, name), startNumRef) endsRef endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
@@ -666,16 +667,16 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                 then return $ msingleton $ MState env loops bindings trees
                 else return MNil
             WildCard -> return $ msingleton $ MState env loops bindings trees
-            PatVar name -> return $ msingleton $ MState env loops ((name, target):bindings) trees
+            PatVar name -> return $ msingleton $ MState env loops (((Nothing, name), target):bindings) trees
             IndexedPat (PatVar name) indices -> do
               indices <- mapM (evalExpr env' >=> liftM fromInteger . fromWHNF) indices
-              case lookup name bindings of
+              case lookup (Nothing, name) bindings of
                 Just ref -> do
                   obj <- evalRef ref >>= updateHash indices >>= newEvalutedObjectRef
-                  return $ msingleton $ MState env loops (subst name obj bindings) trees
-                Nothing  -> do
+                  return $ msingleton $ MState env loops (subst (Nothing, name) obj bindings) trees
+                Nothing -> do
                   obj <- updateHash indices (Intermediate . IIntHash $ HL.empty) >>= newEvalutedObjectRef
-                  return $ msingleton $ MState env loops ((name,obj):bindings) trees
+                  return $ msingleton $ MState env loops (((Nothing,name),obj):bindings) trees
                where
                 updateHash :: [Integer] -> WHNFData -> EgisonM WHNFData
                 updateHash [index] (Intermediate (IIntHash hash)) = do
@@ -727,7 +728,7 @@ primitivePatPatternMatch _ PPWildCard _ = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
 primitivePatPatternMatch env (PPValuePat name) (ValuePat expr) = do
   ref <- lift $ newObjectRef env expr
-  return ([], [(name, ref)])
+  return ([], [((Nothing, name), ref)])
 primitivePatPatternMatch env (PPInductivePat name patterns) (InductivePat name' exprs)
   | name == name' =
     (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
@@ -736,7 +737,7 @@ primitivePatPatternMatch _ _ _ = matchFail
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _ = return []
-primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
+primitiveDataPatternMatch (PDPatVar name) ref = return [((Nothing, name), ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
