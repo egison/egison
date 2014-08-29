@@ -1,5 +1,5 @@
 (module $Collection
-  {}
+  {"lib/core/base.egi"}
   {list
    map between from
    repeat1 repeat foldr foldl foldl' filter separate append concat scanl map2 zip find-cycle
