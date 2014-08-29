@@ -1,7 +1,8 @@
-(module $Order
-  {}
-  {ordering compare min max min-and-max split-by-ordering qsort
-   })
+;;;;;
+;;;;;
+;;;;; Order
+;;;;;
+;;;;;
 
 (define $ordering
   (algebraic-data-matcher 

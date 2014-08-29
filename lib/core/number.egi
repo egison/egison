@@ -1,11 +1,8 @@
-(module $Number
-  {"lib/core/collection.egi"
-   "lib/core/ordering.egi"
-   }
-  {nat fib divisor? gcd nats nats0 primes find-factor prime-factorization p-f pfs pfs-n prime?
-   integer power mod even? odd? between?
-   float
-   })
+;;;;;
+;;;;;
+;;;;; Number
+;;;;;
+;;;;;
 
 ;;;
 ;;; Natural Numbers

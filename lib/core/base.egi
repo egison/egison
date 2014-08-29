@@ -1,14 +1,8 @@
-(module $Base
-  {}
-  {buildin-data-matcher
-   id
-   bool
-   or and not char
-   char
-   eq?/m
-   compose
-   compose3
-   })
+;;;;;
+;;;;;
+;;;;; Base
+;;;;;
+;;;;;
 
 (define $buildin-data-matcher
   (matcher-dfs

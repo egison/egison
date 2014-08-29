@@ -144,7 +144,6 @@ primitives = [ ("+", plus)
 
              , ("pack", pack)
              , ("unpack", unpack)
-             , ("uncons-string", unconsString)
              , ("length-string", lengthString)
              , ("append-string", appendString)
              , ("split-string", splitString)
@@ -394,14 +393,6 @@ unpack = oneArg $ \val -> do
     String str -> return $ toEgison (T.unpack str)
     _ -> throwError $ TypeMismatch "string" (Value val)
 
-unconsString :: PrimitiveFunc
-unconsString = oneArg $ \val -> do
-  case val of
-    String str -> case T.uncons str of
-                    Just (c, rest) ->  return $ Tuple [Char c, String rest]
-                    Nothing -> throwError $ Defalut "Tried to unsnoc empty string"
-    _ -> throwError $ TypeMismatch "string" (Value val)
-
 lengthString :: PrimitiveFunc
 lengthString = oneArg $ \val -> do
   case val of
@@ -582,7 +573,7 @@ return' = oneArg $ \val -> return $ makeIO $ return val
 makePort :: IOMode -> PrimitiveFunc
 makePort mode = oneArg $ \val -> do
   filename <- fromEgison val
-  port <- liftIO $ openFile filename mode
+  port <- liftIO $ openFile (T.unpack filename) mode
   return $ makeIO $ return (Port port)
 
 closePort :: PrimitiveFunc
