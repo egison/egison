@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.3.10
+Version:             3.3.11
 Synopsis:            Programming language with non-linear pattern-matching against unfree data
 Description:
   An interpreter for Egison, the programming langugage that realized non-linear pattern-matching against unfree data types.
@@ -19,7 +19,7 @@ Description:
   .
   <http://www.egison.org/demonstrations/>
   .  
-  Egison is not popular at all now.
+  Egison makes programming dramatically simple.
   Please help us to make Egison popular.
 Homepage:            http://www.egison.org
 License:             MIT
@@ -32,7 +32,7 @@ Cabal-version:       >=1.8
 
 Extra-Source-Files:  benchmark/Benchmark.hs
 
-Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.egi lib/core/number.egi lib/core/math.egi lib/core/string.egi lib/core/database.egi lib/core/io.egi
+Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.egi lib/core/number.egi lib/core/math.egi lib/core/database.egi lib/core/io.egi lib/string/string.egi 
                      lib/tree/xml.egi lib/math/prime.egi lib/math/euler.egi
                      sample/*.egi sample/io/*.egi sample/io/*.egi
                      elisp/egison-mode.el
