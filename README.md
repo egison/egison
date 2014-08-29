@@ -238,3 +238,7 @@ Copyright (c) 2011-2014, Satoshi Egi
 Egison is released under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
 
 I used [husk-scheme](http://justinethier.github.io/husk-scheme/) by Justin Ethier as reference to implement the base part of the previous version of the interpreter.
+
+## Sponsors
+
+Egison is sponsored by [Rakuten, Inc.](http://global.rakuten.com/corp/) and [Rakuten Institute of Technology](http://rit.rakuten.co.jp/).
