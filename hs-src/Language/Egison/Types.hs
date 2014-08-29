@@ -110,11 +110,9 @@ import System.IO.Unsafe (unsafePerformIO)
 --
 
 data EgisonTopExpr =
-    Define String EgisonExpr
+    Module String [(String, Maybe String, Maybe [String])] (Maybe [String])
+  | Define String EgisonExpr
   | Test EgisonExpr
-  | Execute EgisonExpr
-  | Module String [(String, Maybe String, Maybe [String])] (Maybe [String])
-    -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
  deriving (Show)

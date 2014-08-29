@@ -78,7 +78,6 @@ evalTopExprs env exprs = do
       LoadFile file -> do
         exprs' <- loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
-      Execute _ -> collectDefs exprs bindings (expr : rest)
       _ -> collectDefs exprs bindings rest
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
@@ -130,11 +129,6 @@ evalTopExpr' env (Define name expr) = recursiveBind env [(name, expr)] >>= retur
 evalTopExpr' env (Test expr) = do
   val <- evalExprDeep env expr
   return (Just (show val), env)
-evalTopExpr' env (Execute expr) = do
-  io <- evalExpr env expr
-  case io of
-    Value (IOFunc m) -> m >> return (Nothing, env)
-    _ -> throwError $ TypeMismatch "io" io
 evalTopExpr' env (Load file) = loadLibraryFile file >>= evalTopExprs env >>= return . ((,) Nothing)
 evalTopExpr' env (LoadFile file) = loadFile file >>= evalTopExprs env >>= return . ((,) Nothing)
 
