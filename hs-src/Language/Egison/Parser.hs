@@ -120,21 +120,41 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 --
 topExpr :: Parser EgisonTopExpr
 topExpr = try (Test <$> expr)
-      <|> try (parens (defineExpr
+      <|> try (parens (moduleExpr
+                   <|> defineExpr
                    <|> testExpr
-                   <|> executeExpr
                    <|> loadFileExpr
                    <|> loadExpr))
       <?> "top-level expression"
+
+moduleExpr :: Parser EgisonTopExpr
+moduleExpr = keywordModule >> Module <$> varName <*> importModules <*> option Nothing (Just <$> exportVars)
+
+importModules :: Parser [(String, Maybe String, Maybe [String])]
+importModules = braces $ sepEndBy importModule whiteSpace
+
+importModule :: Parser (String, Maybe String, Maybe [String])
+importModule = try (do modName <- ident
+                       return (modName, Nothing, Nothing))
+           <|> try (brackets $ do modName <- ident
+                                  modVars <- importVars
+                                  return (modName, Nothing, Just modVars))
+           <|> try (brackets $ do aliasName <- varName
+                                  brackets $ do modName <- ident
+                                                modVars <- importVars
+                                                return (modName, Just aliasName, Just modVars))
+
+importVars :: Parser [String]
+importVars = braces $ sepEndBy ident whiteSpace
+
+exportVars :: Parser [String]
+exportVars = importVars
 
 defineExpr :: Parser EgisonTopExpr
 defineExpr = keywordDefine >> Define <$> varName <*> expr
 
 testExpr :: Parser EgisonTopExpr
 testExpr = keywordTest >> Test <$> expr
-
-executeExpr :: Parser EgisonTopExpr
-executeExpr = keywordExecute >> Execute <$> expr
 
 loadFileExpr :: Parser EgisonTopExpr
 loadFileExpr = keywordLoadFile >> LoadFile <$> stringLiteral
@@ -529,11 +549,11 @@ lexer = P.makeTokenParser egisonDef
 
 reservedKeywords :: [String]
 reservedKeywords = 
-  [ "define"
+  [ "moudle"
+  , "define"
   , "test"
-  , "execute"
-  , "load-file"
   , "load"
+  , "load-file"
   , "if"
   , "seq"
   , "apply"
@@ -578,11 +598,11 @@ reserved = P.reserved lexer
 reservedOp :: String -> Parser ()
 reservedOp = P.reservedOp lexer
 
+keywordModule               = reserved "module"
 keywordDefine               = reserved "define"
 keywordTest                 = reserved "test"
-keywordExecute              = reserved "execute"
-keywordLoadFile             = reserved "load-file"
 keywordLoad                 = reserved "load"
+keywordLoadFile             = reserved "load-file"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
@@ -590,7 +610,7 @@ keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoized-lambda"
-keywordMemoize             = reserved "memoize"
+keywordMemoize              = reserved "memoize"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
