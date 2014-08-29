@@ -1,11 +1,8 @@
-(module $IO
-  {"lib/core/base.egi"
-   "lib/core/collection.egi"
-   }
-  {print print-to-port each-line each-line-from-port
-   each
-   pure-rand
-   })
+;;;;;;
+;;;;;;
+;;;;;; IO
+;;;;;;
+;;;;;;
 
 ;;;
 ;;; IO

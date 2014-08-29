@@ -120,41 +120,21 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 --
 topExpr :: Parser EgisonTopExpr
 topExpr = try (Test <$> expr)
-      <|> try (parens (moduleExpr
-                   <|> defineExpr
+      <|> try (parens (defineExpr
                    <|> testExpr
+                   <|> executeExpr
                    <|> loadFileExpr
                    <|> loadExpr))
       <?> "top-level expression"
-
-moduleExpr :: Parser EgisonTopExpr
-moduleExpr = keywordModule >> Module <$> varName <*> importModules <*> option Nothing (Just <$> exportVars)
-
-importModules :: Parser [(String, Maybe String, Maybe [String])]
-importModules = braces $ sepEndBy importModule whiteSpace
-
-importModule :: Parser (String, Maybe String, Maybe [String])
-importModule = try (do modName <- ident
-                       return (modName, Nothing, Nothing))
-           <|> try (brackets $ do modName <- ident
-                                  modVars <- importVars
-                                  return (modName, Nothing, Just modVars))
-           <|> try (brackets $ do aliasName <- varName
-                                  brackets $ do modName <- ident
-                                                modVars <- importVars
-                                                return (modName, Just aliasName, Just modVars))
-
-importVars :: Parser [String]
-importVars = braces $ sepEndBy ident whiteSpace
-
-exportVars :: Parser [String]
-exportVars = importVars
 
 defineExpr :: Parser EgisonTopExpr
 defineExpr = keywordDefine >> Define <$> varName <*> expr
 
 testExpr :: Parser EgisonTopExpr
 testExpr = keywordTest >> Test <$> expr
+
+executeExpr :: Parser EgisonTopExpr
+executeExpr = keywordExecute >> Execute <$> expr
 
 loadFileExpr :: Parser EgisonTopExpr
 loadFileExpr = keywordLoadFile >> LoadFile <$> stringLiteral
@@ -206,11 +186,7 @@ expr' = (try constantExpr
              <?> "expression")
 
 varExpr :: Parser EgisonExpr
-varExpr = try ((VarExpr Nothing) <$> ident)
-      <|> do modName <- upperName
-             _ <- char '.'
-             name <- ident
-             return $ VarExpr (Just modName) name
+varExpr = VarExpr <$> ident
 
 inductiveDataExpr :: Parser EgisonExpr
 inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr whiteSpace
@@ -341,7 +317,7 @@ letExpr :: Parser EgisonExpr
 letExpr = keywordLet >> LetExpr <$> bindings <*> expr
 
 doExpr :: Parser EgisonExpr
-doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr Nothing "return") (TupleExpr [])) expr
+doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr "return") (TupleExpr [])) expr
 
 statements :: Parser [BindingExpr]
 statements = braces $ sepEndBy statement whiteSpace
@@ -380,7 +356,7 @@ applyExpr' = do
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let genVar = modify (1+) >> gets ((VarExpr Nothing) . ('#':) . show)
+        let genVar = modify (1+) >> gets (VarExpr . ('#':) . show)
             args' = evalState (mapM (either (const genVar) return) args) 0
         in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
       | all (not . null) vars ->
@@ -388,7 +364,7 @@ applyExpr' = do
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
-               let args' = map (either ((VarExpr Nothing) . ('#':)) id) args
+               let args' = map (either (VarExpr . ('#':)) id) args
                in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
@@ -486,7 +462,7 @@ loopRange = brackets (try (do s <- expr
                               return (LoopRange s e ep))
                  <|> (do s <- expr
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr Nothing "from") (ApplyExpr (VarExpr Nothing "-") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
+                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 -- Constants
 
@@ -542,18 +518,18 @@ egisonDef =
                 , P.caseSensitive      = True }
  where
   symbol1 = oneOf "+-*/="
-  symbol2 = symbol1 <|> oneOf "'!?"
+  symbol2 = symbol1 <|> oneOf "'!?."
 
 lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
 
 reservedKeywords :: [String]
 reservedKeywords = 
-  [ "moudle"
-  , "define"
+  [ "define"
   , "test"
-  , "load"
+  , "execute"
   , "load-file"
+  , "load"
   , "if"
   , "seq"
   , "apply"
@@ -598,11 +574,11 @@ reserved = P.reserved lexer
 reservedOp :: String -> Parser ()
 reservedOp = P.reservedOp lexer
 
-keywordModule               = reserved "module"
 keywordDefine               = reserved "define"
 keywordTest                 = reserved "test"
-keywordLoad                 = reserved "load"
+keywordExecute              = reserved "execute"
 keywordLoadFile             = reserved "load-file"
+keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
@@ -610,7 +586,7 @@ keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoized-lambda"
-keywordMemoize              = reserved "memoize"
+keywordMemoize             = reserved "memoize"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"

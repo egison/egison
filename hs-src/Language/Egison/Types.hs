@@ -110,9 +110,10 @@ import System.IO.Unsafe (unsafePerformIO)
 --
 
 data EgisonTopExpr =
-    Module String [(String, Maybe String, Maybe [String])] (Maybe [String])
-  | Define String EgisonExpr
+    Define String EgisonExpr
   | Test EgisonExpr
+  | Execute EgisonExpr
+    -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
  deriving (Show)
@@ -124,7 +125,7 @@ data EgisonExpr =
   | RationalExpr Rational
   | IntegerExpr Integer
   | FloatExpr Double
-  | VarExpr (Maybe String) String
+  | VarExpr String
   | IndexedExpr EgisonExpr [EgisonExpr]
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
@@ -499,7 +500,7 @@ class (EgisonWHNF a) => EgisonObject a where
 --
 
 type Env = [HashMap Var ObjectRef]
-type Var = (Maybe String, String)
+type Var = String
 type Binding = (Var, ObjectRef)
 
 nullEnv :: Env
@@ -560,8 +561,7 @@ data EgisonError =
     
 instance Show EgisonError where
   show (Parser err) = "Parse error at: " ++ err
-  show (UnboundVariable (Nothing, var)) = "Unbound variable: " ++ var
-  show (UnboundVariable (Just modName, var)) = "Unbound variable: " ++ modName ++ "." ++ var
+  show (UnboundVariable var) = "Unbound variable: " ++ var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
   show (ArgumentsNumWithNames names expected got) = "Wrong number of arguments: " ++ show names ++ ": expected " ++

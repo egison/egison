@@ -1,7 +1,8 @@
-(module $math
-  {"lib/core/collection.egi"
-   "lib/core/number.egi"}
-  {fact perm comb})
+;;;;;
+;;;;;
+;;;;; Math
+;;;;;
+;;;;;
 
 (define $fact
   (lambda [$n]

@@ -1,12 +1,8 @@
-(module $String
-  {["lib/core/collection.egi" {list}]
-   [$C ["lib/core/collection.egi" {map car cdr}]]}
-  {string
-   length
-   split
-   chop
-   append
-   concat})
+;;;;;
+;;;;;
+;;;;; String
+;;;;;
+;;;;;
 
 (define $string
   (matcher
@@ -15,29 +11,26 @@
                 {[]}
                 {})]}]
      [<nil> []
-      {[,"" {[]}]
-       [_ {}]}]
+      {[$tgt (if (eq? "" tgt)
+               {[]}
+               {})]}]
      [<cons $ $> [char string]
-      {[,"" {}]
-       [$tgt {(unsnoc-string tgt)}]}]
+      {[$tgt (if (eq? "" tgt)
+               {}
+               {(unsnoc-string tgt)})]}]
      [<join $ <cons ,$px $>> [string string]
       {[$tgt (match-all (split (pack {px}) tgt) (list string)
-               [<join $xs $ys> [(append (C.car xs) (concat (C.map (append (pack {px}) $) (C.cdr xs))))
-                                (append (C.car ys) (concat (C.map (append (pack {px}) $) (C.cdr ys))))
+               [<join $xs $ys> [(S.append (car xs) (S.concat (map (S.append (pack {px}) $) (cdr xs))))
+                                (S.append (car ys) (S.concat (map (S.append (pack {px}) $) (cdr ys))))
                                 ]])]}]
      [<join $ <join ,$pxs $>> [string string]
       {[$tgt (match-all (split-string tgt) (list string)
-               [<join $xs $ys> [(append (C.car xs) (concat (C.map (append px $) (C.cdr xs))))
-                                (append (C.car ys) (concat (C.map (append px $) (C.cdr ys))))
-                                ]])]}]}))
-
-(define $length
-  (lambda [$xs]
-    (length-string xs)))
-
-(define $split
-  (lambda [$in $ls]
-    (split-string in ls)))
+               [<join $xs $ys> [(S.append (car xs) (S.concat (map (S.append px $) (cdr xs))))
+                                (S.append (car ys) (S.concat (map (S.append px $) (cdr ys))))
+                                ]])]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
 
 (define $chop
   (lambda [$xs]
@@ -45,12 +38,26 @@
       {[<snoc (| ,'\n' ,' ') $ys> (chop ys)]
        [_ xs]})))
 
-(define $append
+;;;
+;;; String as Collection
+;;;
+
+(define $S.length
+  (lambda [$xs]
+    (length-string xs)))
+
+(define $S.split
+  (lambda [$in $ls]
+    (split-string in ls)))
+
+(define $S.append
   (lambda [$xs $ys]
     (append-string xs ys)))
 
-(define $concat
+(define $S.concat
   (lambda [$xss]
-    (foldr (lambda [$xs $rs] (append xs rs))
+    (foldr (lambda [$xs $rs] (S.append xs rs))
            ""
            xss)))
+
+(define $S.intercalate (compose intersperse S.concat))

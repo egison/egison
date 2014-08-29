@@ -1,8 +1,0 @@
-(module $Core
-  {"lib/core/base.egi"
-   "lib/core/collection.egi"
-   "lib/core/order.egi"
-   "lib/core/number.egi"
-   "lib/core/math.egi"
-   "lib/core/io.egi"
-   })
