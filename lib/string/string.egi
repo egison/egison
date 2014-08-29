@@ -1,0 +1,56 @@
+(module $String
+  {["lib/core/collection.egi" {list}]
+   [$C ["lib/core/collection.egi" {map car cdr}]]}
+  {string
+   length
+   split
+   chop
+   append
+   concat})
+
+(define $string
+  (matcher
+    {[,$val []
+      {[$tgt  (if (eq? val tgt)
+                {[]}
+                {})]}]
+     [<nil> []
+      {[,"" {[]}]
+       [_ {}]}]
+     [<cons $ $> [char string]
+      {[,"" {}]
+       [$tgt {(unsnoc-string tgt)}]}]
+     [<join $ <cons ,$px $>> [string string]
+      {[$tgt (match-all (split (pack {px}) tgt) (list string)
+               [<join $xs $ys> [(append (C.car xs) (concat (C.map (append (pack {px}) $) (C.cdr xs))))
+                                (append (C.car ys) (concat (C.map (append (pack {px}) $) (C.cdr ys))))
+                                ]])]}]
+     [<join $ <join ,$pxs $>> [string string]
+      {[$tgt (match-all (split-string tgt) (list string)
+               [<join $xs $ys> [(append (C.car xs) (concat (C.map (append px $) (C.cdr xs))))
+                                (append (C.car ys) (concat (C.map (append px $) (C.cdr ys))))
+                                ]])]}]}))
+
+(define $length
+  (lambda [$xs]
+    (length-string xs)))
+
+(define $split
+  (lambda [$in $ls]
+    (split-string in ls)))
+
+(define $chop
+  (lambda [$xs]
+    (match xs string
+      {[<snoc (| ,'\n' ,' ') $ys> (chop ys)]
+       [_ xs]})))
+
+(define $append
+  (lambda [$xs $ys]
+    (append-string xs ys)))
+
+(define $concat
+  (lambda [$xss]
+    (foldr (lambda [$xs $rs] (append xs rs))
+           ""
+           xss)))
