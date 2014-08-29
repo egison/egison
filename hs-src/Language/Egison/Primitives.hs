@@ -144,6 +144,7 @@ primitives = [ ("+", plus)
 
              , ("pack", pack)
              , ("unpack", unpack)
+             , ("uncons-string", unconsString)
              , ("length-string", lengthString)
              , ("append-string", appendString)
              , ("split-string", splitString)
@@ -391,6 +392,14 @@ unpack :: PrimitiveFunc
 unpack = oneArg $ \val -> do
   case val of
     String str -> return $ toEgison (T.unpack str)
+    _ -> throwError $ TypeMismatch "string" (Value val)
+
+unconsString :: PrimitiveFunc
+unconsString = oneArg $ \val -> do
+  case val of
+    String str -> case T.uncons str of
+                    Just (c, rest) ->  return $ Tuple [Char c, String rest]
+                    Nothing -> throwError $ Default "Tried to unsnoc empty string"
     _ -> throwError $ TypeMismatch "string" (Value val)
 
 lengthString :: PrimitiveFunc
