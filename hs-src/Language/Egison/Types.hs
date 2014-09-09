@@ -163,7 +163,7 @@ data EgisonExpr =
 
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
   | GenerateArrayExpr [String] EgisonExpr EgisonExpr
-  | ArrayBoundsExpr EgisonExpr
+  | ArraySizeExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 
   | SomethingExpr
