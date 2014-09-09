@@ -323,7 +323,9 @@ statements :: Parser [BindingExpr]
 statements = braces $ sepEndBy statement whiteSpace
 
 statement :: Parser BindingExpr
-statement = try binding <|> brackets (([],) <$> expr)
+statement = try binding
+        <|> try (brackets (([],) <$> expr))
+        <|> (([],) <$> expr)
 
 bindings :: Parser [BindingExpr]
 bindings = braces $ sepEndBy binding whiteSpace
