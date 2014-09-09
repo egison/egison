@@ -386,7 +386,7 @@ generateArrayExpr :: Parser EgisonExpr
 generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> varNames <*> expr <*> expr
 
 arraySizeExpr :: Parser EgisonExpr
-arraySizeExpr = keywordArrayBounds >> ArrayBoundsExpr <$> expr
+arraySizeExpr = keywordArraySize >> ArraySizeExpr <$> expr
 
 arrayRefExpr :: Parser EgisonExpr
 arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
@@ -551,7 +551,7 @@ reservedKeywords =
   , "io"
   , "algebraic-data-matcher"
   , "generate-array"
-  , "array-bounds"
+  , "array-size"
   , "array-ref"
   , "something"
   , "undefined"]
@@ -608,7 +608,7 @@ keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
 keywordGenerateArray        = reserved "generate-array"
-keywordArrayBounds          = reserved "array-bounds"
+keywordArraySize            = reserved "array-size"
 keywordArrayRef             = reserved "array-ref"
 
 sign :: Num a => Parser (a -> a)
