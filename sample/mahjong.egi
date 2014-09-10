@@ -15,9 +15,9 @@
   (algebraic-data-matcher
     {<ton> <nan> <sha> <pe> <haku> <hatsu> <chun>}))
 
-(define $hai
+(define $tile
   (algebraic-data-matcher
-    {<num suit integer> <ji honor>}))
+    {<num suit integer> <hnr honor>}))
 
 ;;
 ;; Pattern modularizations
@@ -46,7 +46,7 @@
 ;; A function that determins whether the hand is finished or not.
 ;;
 (define $agari?
-  (match-lambda (multiset hai)
+  (match-lambda (multiset tile)
     {[(twin $th_1
        (| (shuntsu $sh_1 (| (shuntsu $sh_2 (| (shuntsu $sh_3 (| (shuntsu $sh_4 <nil>)
                                                                 (kohtsu $kh_1 <nil>)))
@@ -60,13 +60,13 @@
 ;;
 ;; Demonstration code
 ;;
-(test (agari? {<Ji <Haku>> <Ji <Haku>>
+(test (agari? {<Hnr <Haku>> <Hnr <Haku>>
                <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
                <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
                <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
                <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
 
-(test (agari? {<Ji <Haku>> <Ji <Haku>>
+(test (agari? {<Hnr <Haku>> <Hnr <Haku>>
                <Num <Pin> 1> <Num <Pin> 3> <Num <Pin> 4>
                <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
                <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
