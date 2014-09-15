@@ -16,7 +16,7 @@
     {<card suit (mod 13)>}))
 
 ;;
-;; A function that determins poker-hands
+;; A function that determines poker-hands
 ;;
 (define $poker-hands
   (lambda [$cs]

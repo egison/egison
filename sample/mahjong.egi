@@ -20,7 +20,7 @@
     {<num suit integer> <hnr honor>}))
 
 ;;
-;; Pattern modularizations
+;; Pattern modularization
 ;;
 (define $twin
   (pattern-function [$pat1 $pat2]
@@ -43,9 +43,9 @@
        pat2>>>))
 
 ;;
-;; A function that determins whether the hand is finished or not.
+;; A function that determines whether the hand is completed or not.
 ;;
-(define $agari?
+(define $complete?
   (match-lambda (multiset tile)
     {[(twin $th_1
        (| (shuntsu $sh_1 (| (shuntsu $sh_2 (| (shuntsu $sh_3 (| (shuntsu $sh_4 <nil>)
@@ -60,13 +60,13 @@
 ;;
 ;; Demonstration code
 ;;
-(test (agari? {<Hnr <Haku>> <Hnr <Haku>>
+(test (complete? {<Hnr <Haku>> <Hnr <Haku>>
                <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
                <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
                <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
                <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
 
-(test (agari? {<Hnr <Haku>> <Hnr <Haku>>
+(test (complete? {<Hnr <Haku>> <Hnr <Haku>>
                <Num <Pin> 1> <Num <Pin> 3> <Num <Pin> 4>
                <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
                <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
