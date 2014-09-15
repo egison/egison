@@ -1,4 +1,4 @@
-{-# Language TupleSections #-}
+{-# Language TupleSections, ViewPatterns #-}
 
 {- |
 Module      : Language.Egison.Core
@@ -488,12 +488,23 @@ processMStates' stream@(MCons state _) =
     DFSMode -> processMStatesDFS stream
     BFSMode -> processMStatesBFS stream
 
+gatherBindings :: MatchingState -> Maybe [Binding]
+gatherBindings (MState _ _ bindings []) = return bindings
+gatherBindings (MState _ _ bindings trees) = (bindings ++) <$> gatherBindings' trees
+  where gatherBindings' :: [MatchingTree] -> Maybe [Binding]
+        gatherBindings' [] = return []
+        gatherBindings' (MAtom _ _ _ : _) = Nothing
+        gatherBindings' (MNode _ state : rest) = do
+          bs1 <- gatherBindings' rest
+          bs2 <- gatherBindings state
+          return $ bs2 ++ bs1
+
 extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
 extractMatches = extractMatches' ([], [])
  where
   extractMatches' :: ([Match], [MList EgisonM MatchingState]) -> [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
   extractMatches' (xs, ys) [] = return (xs, ys)
-  extractMatches' (xs, ys) ((MCons (MState _ _ bindings []) states):rest) = do
+  extractMatches' (xs, ys) ((MCons (gatherBindings -> Just bindings) states):rest) = do
     states' <- states
     extractMatches' (xs ++ [bindings], ys ++ [states']) rest
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
