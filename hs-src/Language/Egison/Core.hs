@@ -490,14 +490,11 @@ processMStates' stream@(MCons state _) =
 
 gatherBindings :: MatchingState -> Maybe [Binding]
 gatherBindings (MState _ _ bindings []) = return bindings
-gatherBindings (MState _ _ bindings trees) = (bindings ++) <$> gatherBindings' trees
-  where gatherBindings' :: [MatchingTree] -> Maybe [Binding]
-        gatherBindings' [] = return []
-        gatherBindings' (MAtom _ _ _ : _) = Nothing
-        gatherBindings' (MNode _ state : rest) = do
-          bs1 <- gatherBindings' rest
-          bs2 <- gatherBindings state
-          return $ bs2 ++ bs1
+gatherBindings (MState _ _ bindings trees) = isResolved trees >> return bindings
+  where isResolved :: [MatchingTree] -> Maybe ()
+        isResolved [] = return ()
+        isResolved (MAtom _ _ _ : _) = Nothing
+        isResolved (MNode _ state : rest) = gatherBindings state >> isResolved rest
 
 extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
 extractMatches = extractMatches' ([], [])
