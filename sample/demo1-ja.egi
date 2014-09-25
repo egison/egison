@@ -1,4 +1,4 @@
-;; 素数の無限列から全ての双子素数をパターンマッチにより抽出
+;; 素数の無限リストから全ての双子素数をパターンマッチにより抽出
 (define $twin-primes
   (match-all primes (list integer)
     [<join _ <cons $p <cons ,(+ p 2) _>>>
