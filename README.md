@@ -60,7 +60,7 @@ Examples:
 ====================
 >
 ```
-
+We can try it also <a target="_blank" href="http://try.egison.org">online</a>.
 Enjoy!
 
 ## Demonstrations
