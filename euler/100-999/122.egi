@@ -1,0 +1,26 @@
+(define $g
+  (memoized-lambda [$n]
+    (match n integer
+      {[,1 0]
+       [_ (min (map (lambda [$x] (+ 1 (g x) (g (- n x)))) (between 1 (- n 1))))]})))
+
+(g 1)
+(g 2)
+(g 3)
+(g 4)
+(g 15)
+;(io (each (compose show print) (map g (between 1 200))))
+
+
+1 2 4 8 16 32 64 128
+1 2 3 6 12 24 48 96
+1 2 4 5 10 20 40 80
+1 2 4 8 
+
+199
+
+198/2 99
+196/4 49
+
+1 2 4 8 16 32 64 128 192 3   7   199
+1 2 3 6 12 24 48 96  192 198 199

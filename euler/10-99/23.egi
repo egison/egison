@@ -9,4 +9,4 @@
 
 (define $abundants (filter abundant? (take d nats)))
 
-(test (io (each (compose show print) (map (modulo $ 16) abundants))))
+(test (io (each (compose show print) (map (modulo $ 16) (take 100 abundants)))))
