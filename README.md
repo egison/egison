@@ -205,7 +205,7 @@ Furthermore, Egison realizes the following feature. We can even modularize patte
 
 * Non-linear pattern-matching with **lexical scoping**
 
-The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we realized that.
+The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we realizes that.
 
 Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
 
