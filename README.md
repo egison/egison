@@ -193,7 +193,7 @@ Please help us to make Egison popular.
 
 There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
 
-The advantage of Egison is that it realized **all of the following features** at the same time.
+The advantage of Egison is that it realizes **all of the following features** at the same time.
 
 * Modularization of the way of pattern-matching for each data type
 * Pattern-matching with multiple results (backtracking)
@@ -201,7 +201,7 @@ The advantage of Egison is that it realized **all of the following features** at
 
 It enables us to express non-linear pattern-matching against unfree data types intuitively as above demonstrations.
 
-Furthermore, Egison realized the following feature. We can even modularize patterns like functions keeping above features.
+Furthermore, Egison realizes the following feature. We can even modularize patterns like functions keeping above features.
 
 * Non-linear pattern-matching with **lexical scoping**
 
