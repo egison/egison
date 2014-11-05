@@ -45,6 +45,10 @@
 ;;; String as Collection
 ;;;
 
+(define $S.empty?
+  (lambda [$xs]
+    (eq? xs "")))
+
 (define $S.map
   (lambda [$f $xs]
     (pack (map f (unpack xs)))))
