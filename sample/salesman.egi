@@ -1,0 +1,36 @@
+;;;
+;;; Travelling Salesman Problem
+;;;
+
+(define $station string)  ; 駅は文字列として表現
+(define $price   integer) ; 運賃は整数値として表現
+(define $graph   (multiset [station (multiset [station price])])) ; 運賃グラフのマッチャー
+
+(define $graph-data ; 運賃データ
+  {
+   ["東京"   {             ["新宿" 200] ["渋谷" 200] ["三鷹" 390] ["錦糸町" 160] ["北千住" 220]}]
+   ["新宿"   {["東京" 200]              ["渋谷" 160] ["三鷹" 220] ["錦糸町" 220] ["北千住" 310]}]
+   ["渋谷"   {["東京" 200] ["新宿" 160]              ["三鷹" 310] ["錦糸町" 220] ["北千住" 310]}]
+   ["三鷹"   {["東京" 390] ["新宿" 220] ["渋谷" 310]              ["錦糸町" 470] ["北千住" 550]}]
+   ["錦糸町" {["東京" 160] ["新宿" 220] ["渋谷" 220] ["三鷹" 470]                ["北千住" 220]}]
+   ["北千住" {["東京" 220] ["新宿" 310] ["渋谷" 310] ["三鷹" 550] ["錦糸町" 220]               }]
+   })
+
+(define $trips ; 全ての経路をパターンマッチを用いて列挙
+  (match-all graph-data graph
+    [<cons [,"東京" <cons [$s_1 $p_1] _>]
+           (loop $i [2 5]
+             <cons [,s_(- i 1) <cons [$s_i $p_i] _>]
+                   ...>
+             <cons [,s_5 <cons [(& ,"東京" $s_6) $p_6] _>]
+                   _>)>
+     [(sum (map (lambda [$i] p_i) (between 1 6)))
+      s]]))
+
+(define $main
+  (lambda [$args]
+    (do {[(print "経路一覧:")]
+         [(each (compose show print) trips)]                       ; 全ての経路を出力
+         [(write "最安値:")]
+         [(print (show (min (map (lambda [$x $y] x) trips))))]}))) ; 最安値を出力
+

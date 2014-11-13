@@ -75,8 +75,6 @@
         {[$tgt {tgt}]}]
        })))
 
-(define $list' ordered-list)
-
 ;;
 ;; Helper function for List matcher, be careful for recursive calls
 ;;
@@ -116,11 +114,7 @@
       {[<nil> init]
        [<cons $x $xs> (fn x (foldr fn init xs))]})))
 
-(define $foldl-naive
-  (lambda [$fn $init $ls]
-    (match ls (list something)
-      {[<nil> init]
-       [<cons $x $xs> (foldl fn (fn init x) xs)]})))
+(define $foldl foldl')
 
 (define $foldl'
   (lambda [$fn $init $ls]
@@ -130,7 +124,11 @@
         (let {[$z (fn init x)]}
           (seq z (foldl' fn z xs)))]})))
 
-(define $foldl foldl')
+(define $foldl-naive
+  (lambda [$fn $init $ls]
+    (match ls (list something)
+      {[<nil> init]
+       [<cons $x $xs> (foldl fn (fn init x) xs)]})))
 
 (define $filter
   (lambda [$pred $xs]
