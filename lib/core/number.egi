@@ -120,6 +120,10 @@
   (lambda [$m $n $x]
     (and (lte? m x) (lte? x n))))
 
+(define $sum
+  (lambda [$xs]
+    (foldl' + 0 xs)))
+
 ;;;
 ;;; Float Numbers
 ;;;
