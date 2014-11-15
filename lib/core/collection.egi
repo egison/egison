@@ -130,6 +130,14 @@
       {[<nil> init]
        [<cons $x $xs> (foldl fn (fn init x) xs)]})))
 
+(define $enumerate
+  (lambda [$fn $init $ls]
+    (match ls (list something)
+      {[<nil> {}]
+       [<cons $x $xs>
+        (let {[$ret (fn init x)]}
+          {ret @(enumerate fn ret xs)})]})))
+
 (define $filter
   (lambda [$pred $xs]
     (foldr (lambda [$y $ys] (if (pred y) {y @ys} ys))

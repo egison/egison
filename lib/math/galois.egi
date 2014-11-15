@@ -1,0 +1,93 @@
+;;;
+;;; Group Theory
+;;;
+
+(define $group (set G.element))
+
+(define $G.element (list integer))
+
+(define $G.multiply
+  (lambda [$e1 $e2]
+    (map (lambda [$x] (nth x e1)) e2)))
+
+(define $G.power
+  (lambda [$e $n]
+    (if (eq? n 1)
+      e
+      (G.multiply (G.power e (- n 1)) e))))
+
+(define $G.reverse
+  (lambda [$e]
+    (map (lambda [$x $y] x)
+         (qsort/f (match-lambda [[integer integer] [integer integer]] {[[[_ $m] [_ $n]] (compare m n)]})
+                  (zip (between 1 (length e)) e)))))
+
+(define $G.id? (lambda [$e] (eq? e (between 1 (length e)))))
+
+(define $unit-group? (match-lambda (list something) {[<cons _ <nil>> #t] [_ #f]}))
+
+(define $G.eq? (eq?/m (multiset G.element) $ $))
+
+(define $G.group?
+  (lambda [$g]
+    (all id
+         (match-all g group
+           [<cons $e1 <cons $e2 _>>
+            (member? (G.multiply e1 e2) g)]))))
+
+(define $gen-symmetric-group
+  (lambda [$n]
+    (match-all (between 1 n) (multiset integer)
+      [(loop $i [1 n] <cons $a_i ...> <nil>)
+       (map (lambda [$i] a_i) (between 1 n))])))
+
+(define $s3 (gen-symmetric-group 3))
+(define $s4 (gen-symmetric-group 4))
+(define $s5 (gen-symmetric-group 5))
+
+(define $normal-subgroup?
+  (lambda [$h $g]
+    (all id
+         (map (lambda [$x]
+                (G.eq? (map (G.multiply x $) h)
+                       (map (G.multiply $ x) h)))
+              g))))
+
+(define $gen-cyclic-group
+  (lambda [$e]
+    {@(while (lambda [$e] (not (G.id? e))) (map (G.power e $) nats)) (between 1 (length e))}))
+
+(define $cyclic-groups
+  (lambda [$g]
+    (unique/m (multiset G.element)
+              (map (gen-cyclic-group $)
+                   g))))
+
+(define $origins
+  (lambda [$g]
+    (filter (lambda [$e] (not (G.id? e)))
+            (map car (cyclic-groups g)))))
+
+(define $gen-group-from-origins
+  (lambda [$os]
+    (car (match-all
+           (enumerate (lambda [$os $es] (unique {@es @(concat (map (lambda [$o] (map (G.multiply $ o) es)) os))})) os (repeat1 os))
+           (list G.element)
+           [<join _ <cons $g <cons ,g _>>> g]))))
+
+(define $gen-subgroups2
+  (lambda [$g]
+    (match-all (origins g) (list G.element)
+      [<join _ <cons $e1 <join _ <cons $e2 _>>>> (let {[$g2 (gen-group-from-origins {e1 e2})]}
+                                                   [(normal-subgroup? g2 g) g2])])))
+
+;;
+;; Naive implementations
+;;
+(define $subgroups
+  (lambda [$g]
+    (filter G.group? (match-all g (multiset something) [<join $g1 _> g1]))))
+
+(define $normal-subgroups
+  (lambda [$g]
+    (filter (normal-subgroup? $ g) (subgroups g))))
