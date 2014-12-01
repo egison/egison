@@ -4,7 +4,7 @@
 ;;;;;
 ;;;;;
 
-(define $buildin-data-matcher
+(define $builtin-data-matcher
   (matcher-dfs
     {[,$val []
       {[$tgt (if (eq? val tgt)
@@ -16,7 +16,7 @@
   
 (define $id (lambda [$x] x))
 
-(define $bool buildin-data-matcher)
+(define $bool builtin-data-matcher)
 
 (define $or
   (lambda [$b1 $b2]
@@ -36,7 +36,7 @@
       {[,#t #f]
        [,#f #t]})))
 
-(define $char buildin-data-matcher)
+(define $char builtin-data-matcher)
 
 (define $eq?/m
   (lambda [$a $x $y]
