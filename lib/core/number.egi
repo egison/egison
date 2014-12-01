@@ -91,7 +91,7 @@
 ;;;
 ;;; Integers
 ;;;
-(define $integer buildin-data-matcher)
+(define $integer builtin-data-matcher)
 
 (define $power
   (lambda [$x $n]
@@ -127,4 +127,4 @@
 ;;;
 ;;; Float Numbers
 ;;;
-(define $float buildin-data-matcher)
+(define $float builtin-data-matcher)
