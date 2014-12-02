@@ -71,7 +71,7 @@
 (define $gen-group-from-origins
   (lambda [$os]
     (car (match-all
-           (enumerate (lambda [$os $es] (unique {@es @(concat (map (lambda [$o] (map (G.multiply $ o) es)) os))})) os (repeat1 os))
+           (scanl (lambda [$os $es] (unique {@es @(concat (map (lambda [$o] (map (G.multiply $ o) es)) os))})) os (repeat1 os))
            (list G.element)
            [<join _ <cons $g <cons ,g _>>> g]))))
 
