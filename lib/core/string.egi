@@ -49,6 +49,16 @@
   (lambda [$xs]
     (eq? xs "")))
 
+(define $S.car
+  (lambda [$xs]
+    (match xs string
+      {[<cons $x _> x]})))
+
+(define $S.cdr
+  (lambda [$xs]
+    (match xs string
+      {[<cons _ $r> r]})))
+
 (define $S.map
   (lambda [$f $xs]
     (pack (map f (unpack xs)))))
