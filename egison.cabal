@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.3.17
+Version:             3.4.0
 Synopsis:            Programming language with non-linear pattern-matching against unfree data
 Description:
   An interpreter for Egison, the programming langugage that realized non-linear pattern-matching against unfree data types.
@@ -33,7 +33,6 @@ Cabal-version:       >=1.8
 Extra-Source-Files:  benchmark/Benchmark.hs
 
 Data-files:          lib/core/*.egi
-                     lib/tree/xml.egi lib/math/prime.egi lib/math/euler.egi
                      sample/*.egi sample/io/*.egi
                      elisp/egison-mode.el
 
