@@ -25,9 +25,9 @@ import qualified Data.Sequence as Sq
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
--- {--  -- for 'egison-sqlite'
+ {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
--- --}  -- for 'egison-sqlite'
+ --}  -- for 'egison-sqlite'
 
 import Language.Egison.Types
 import Language.Egison.Parser
@@ -567,7 +567,7 @@ ioPrimitives = [
                , ("read-file", readFile')
                  
                , ("rand", randRange)
-               , ("sqlite", sqlite)
+--               , ("sqlite", sqlite)
                ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
@@ -660,7 +660,7 @@ randRange = twoArgs $ \val val' -> do
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return (Integer n)
 
--- {-- -- for 'egison-sqlite'
+ {-- -- for 'egison-sqlite'
 sqlite :: PrimitiveFunc
 sqlite  = twoArgs $ \val val' -> do
   dbName <- fromEgison val
@@ -681,4 +681,4 @@ sqlite  = twoArgs $ \val val' -> do
     SQLite.close db
     ret <- readIORef rowsRef
     return $ reverse ret
--- --} -- for 'egison-sqlite'
+ --} -- for 'egison-sqlite'
