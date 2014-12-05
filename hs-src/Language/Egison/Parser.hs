@@ -30,7 +30,7 @@ import Control.Monad.Error hiding (mapM)
 import Control.Monad.State hiding (mapM)
 import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, getHomeDirectory)
 
 import qualified Data.Sequence as Sq
 import Data.Either
@@ -44,6 +44,7 @@ import Text.Parsec.String
 import qualified Text.Parsec.Token as P
 
 import qualified Data.Text as T
+import Text.Regex.Posix
 
 import Language.Egison.Types
 import Language.Egison.Desugar
@@ -87,7 +88,11 @@ parseExpr = doParse $ do
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadLibraryFile file = liftIO (getDataFileName file) >>= loadFile
+loadLibraryFile file =
+  if file =~ "^lib/core"
+    then liftIO (getDataFileName file) >>= loadFile
+    else do homeDir <- liftIO $ getHomeDirectory
+            loadFile $ homeDir ++ "/.egison/" ++ file
 
 -- |Load a file
 loadFile :: FilePath -> EgisonM [EgisonTopExpr]
