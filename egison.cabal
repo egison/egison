@@ -32,9 +32,9 @@ Cabal-version:       >=1.8
 
 Extra-Source-Files:  benchmark/Benchmark.hs
 
-Data-files:          lib/core/base.egi lib/core/collection.egi lib/core/order.egi lib/core/number.egi lib/core/math.egi lib/core/database.egi lib/core/io.egi lib/core/string.egi lib/string/japanese.egi
+Data-files:          lib/core/*.egi
                      lib/tree/xml.egi lib/math/prime.egi lib/math/euler.egi
-                     sample/*.egi sample/io/*.egi sample/io/*.egi
+                     sample/*.egi sample/io/*.egi
                      elisp/egison-mode.el
 
 source-repository head
