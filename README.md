@@ -5,11 +5,8 @@ We can directly represent pattern-matching against lists, multisets, sets, trees
 This is the repository of the interpreter of Egison.
 
 For more information, visit <a target="_blank" href="http://www.egison.org">Egison website</a>.
-You can try Egison online!
 
-If you get interested in Egison, please contact <a target="_blank" href="http://www.egison.org/~egi/">Satoshi Egi</a> or tweet to <a target="_blank" href="https://twitter.com/Egison_Lang">@Egison_Lang</a>.
-
-## Demonstrations
+## Pattern-Matching Demonstrations
 
 We can do non-linear pattern-matching against unfree data types in Egison.
 An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
@@ -34,6 +31,8 @@ All hands are expressed in a single pattern.
 <hr/>
 
 ### Mahjong
+
+We can write a pattern even against mahjong tiles.
 
 <hr/>
 <img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/mahjong.png" />
@@ -140,6 +139,14 @@ Enjoy!
 % egison +RTS -p -RTS -l sample/sequence.egi
 % cat egison.prof
 ```
+
+## Community
+
+We have <a target="_blank" href="http://www.egison.org/community.html">a mailing list</a>.
+Please join us!
+
+We are on <a target="_blank" href="https://twitter.com/Egison_Lang">Twitter</a>.
+Please follow us.
 
 ## Acknowledgement
 
