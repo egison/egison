@@ -9,60 +9,6 @@ You can try Egison online!
 
 If you get interested in Egison, please contact <a target="_blank" href="http://www.egison.org/~egi/">Satoshi Egi</a> or tweet to <a target="_blank" href="https://twitter.com/Egison_Lang">@Egison_Lang</a>.
 
-## Getting Started!
-
-At first, you should install <a target="_blank" href="http://www.haskell.org/platform/">Haskell Platform</a>.
-
-After you installed Haskell Platform, run the following commands on the terminal.
-
-```
-% cabal update
-% cabal install egison
-```
-
-Now, you can try Egison.
-
-```
-% egison
-Egison Version X.X.X(C) 2011-2014 Satoshi Egi
-http://www.egison.org
-Welcome to Egison Interpreter!
-> ^D
-Leaving Egison Interpreter.
-```
-
-If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egisatoshi/egison-tutorial">`egison-tutorial`</a>.
-
-```
-% cabal update
-% cabal install egison-tutorial
-% egison-tutorial
-Egison Tutorial for Version X.X.X (C) 2013-2014 Satoshi Egi
-http://www.egison.org
-Welcome to Egison Tutorial!
-==============================
-List of sections in the tutorial
-1: Calculate numbers
-2: Basics of functional programming
-3: Define your own functions
-4: Basic of pattern-matching
-5: Pattern-matching against infinite collections
-6: Writing scripts in Egison
-==============================
-Choose a section to learn.
-(1-6): 5
-====================
-We can write a pattern-matching against infinite lists even if that has infinite results.
-Note that Egison really enumerates all pairs of two natural numbers in the following example.
-
-Examples:
-  (take 10 (match-all nats (set integer) [<cons $m <cons $n _>> [m n]]))
-====================
->
-```
-We can try it also <a target="_blank" href="http://try.egison.org">online</a>.
-Enjoy!
-
 ## Demonstrations
 
 We can do non-linear pattern-matching against unfree data types in Egison.
@@ -116,6 +62,66 @@ Furthermore, Egison realizes the following feature. We can even modularize patte
 The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we realizes that.
 
 Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
+
+## Installation
+
+At first, you should install <a target="_blank" href="http://www.haskell.org/platform/">Haskell Platform</a>.
+
+After you installed Haskell Platform, run the following commands on the terminal.
+
+```
+% cabal update
+% cabal install egison
+```
+
+Now, you can try Egison.
+
+```
+% egison
+Egison Version X.X.X(C) 2011-2014 Satoshi Egi
+http://www.egison.org
+Welcome to Egison Interpreter!
+> ^D
+Leaving Egison Interpreter.
+```
+
+If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egisatoshi/egison-tutorial">`egison-tutorial`</a>.
+
+```
+% cabal update
+% cabal install egison-tutorial
+% egison-tutorial
+Egison Tutorial Version 3.3.6 (C) 2013-2014 Satoshi Egi
+Welcome to Egison Tutorial!
+** Information **
+We can use a 'Tab' key to complete keywords on the interpreter.
+If we type a 'Tab' key after a closed parenthesis, the next closed parenthesis will be completed.
+*****************
+==============================
+List of sections in the tutorial.
+1: Calculate numbers                             (10 minutes)
+2: Basics of functional programming              (10 minutes)
+3: Basics of pattern-matching                    (10 minutes)
+4: Pattern-matching against infinite collections (5 minutes)
+==============================
+Choose a section to learn.
+(1-4): 1
+====================
+We can do arithmetic operations with '+', '-', '*', '/', 'modulo' and 'power'.
+
+Examples:
+  (+ 1 2)
+  (- 30 15)
+  (* 10 20)
+  (/ 20 5)
+  (modulo 17 4)
+  (power 2 10)
+====================
+>
+```
+
+We can try it also <a target="_blank" href="http://try.egison.org">online</a>.
+Enjoy!
 
 ## Note for Developers
 
