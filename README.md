@@ -4,13 +4,13 @@ Egison is the **pattern-matching-oriented**, purely functional programming langu
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
-For more information, visit <a target="_blank" href="http://www.egison.org">Egison website</a>.
+For more information, visit <a target="_blank" href="http://www.egison.org">our website</a>.
 
-## Pattern-Matching Demonstrations
+## Non-Linear Pattern-Matching against Unfree Data Types
 
 We can do non-linear pattern-matching against unfree data types in Egison.
 An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
-It enables us to write more elegant programs.
+It enables us to write elegant programs.
 
 ### Twin Primes
 
@@ -33,9 +33,19 @@ All hands are expressed in a single pattern.
 ### Mahjong
 
 We can write a pattern even against mahjong tiles.
+We modularize patterns to represent complex mahjong hands.
 
 <hr/>
 <img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/mahjong.png" />
+<hr/>
+
+### Graphs
+
+We can pattern-match against graphs.
+We can write program to solve the travelling salesman problem in a single pattern-matching expression.
+
+<hr/>
+<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/salesman.png" />
 <hr/>
 
 Isn't it exciting?
