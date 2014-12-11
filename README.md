@@ -74,120 +74,22 @@ It enables us to write more elegant programs.
 We can use pattern-matching for enumeration.
 The following code enumerates all twin primes from the infinite list of prime numbers with pattern-matching!
 
-```
-(define $twin-primes
-  (match-all primes (list integer)
-    [<join _ <cons $p <cons ,(+ p 2) _>>>
-     [p (+ p 2)]]))
-
-;; Enumerate first 10 twin primes
-(take 10 twin-primes)
-;=>{[3 5] [5 7] [11 13] [17 19] [29 31] [41 43] [59 61] [71 73] [101 103] [107 109]}
-```
+<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/twin-primes.png" />
 
 ### Poker Hands
 
 The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
-```
-(define $poker-hands
-  (lambda [$cs]
-    (match cs (multiset card)
-      {[<cons <card $s $n>
-         <cons <card ,s ,(- n 1)>
-          <cons <card ,s ,(- n 2)>
-           <cons <card ,s ,(- n 3)>
-            <cons <card ,s ,(- n 4)>
-             <nil>>>>>>
-        <Straight-Flush>]
-       [<cons <card _ $n>
-         <cons <card _ ,n>
-          <cons <card _ ,n>
-            <cons <card _ ,n>
-              <cons _
-                <nil>>>>>>
-        <Four-of-Kind>]
-       [<cons <card _ $m>
-         <cons <card _ ,m>
-          <cons <card _ ,m>
-           <cons <card _ $n>
-            <cons <card _ ,n>
-              <nil>>>>>>
-        <Full-House>]
-       [<cons <card $s _>
-         <cons <card ,s _>
-           <cons <card ,s _>
-             <cons <card ,s _>
-               <cons <card ,s _>
-                 <nil>>>>>>
-        <Flush>]
-       [<cons <card _ $n>
-         <cons <card _ ,(- n 1)>
-          <cons <card _ ,(- n 2)>
-           <cons <card _ ,(- n 3)>
-            <cons <card _ ,(- n 4)>
-             <nil>>>>>>
-        <Straight>]
-       [<cons <card _ $n>
-         <cons <card _ ,n>
-          <cons <card _ ,n>
-           <cons _
-            <cons _
-             <nil>>>>>>
-        <Three-of-Kind>]
-       [<cons <card _ $m>
-         <cons <card _ ,m>
-          <cons <card _ $n>
-            <cons <card _ ,n>
-             <cons _
-               <nil>>>>>>
-        <Two-Pair>]
-       [<cons <card _ $n>
-         <cons <card _ ,n>
-          <cons _
-           <cons _
-            <cons _
-             <nil>>>>>>
-        <One-Pair>]
-       [<cons _
-         <cons _
-          <cons _
-           <cons _
-            <cons _
-             <nil>>>>>>
-        <Nothing>]})))
+<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/poker-hands.png" />
 
-(poker-hands {<Card <Club> 12>
-              <Card <Club> 10>
-              <Card <Club> 13>
-              <Card <Club> 1>
-              <Card <Club> 11>});=><Straight-Flush>
+### Mahjong
 
-(poker-hands {<Card <Diamond> 1>
-              <Card <Club> 2>
-              <Card <Club> 1>
-              <Card <Heart> 1>
-              <Card <Diamond> 2>});=><Full-House>
-
-(poker-hands {<Card <Diamond> 4>
-              <Card <Club> 2>
-              <Card <Club> 5>
-              <Card <Heart> 1>
-              <Card <Diamond> 3>});=><Straight>
-
-(poker-hands {<Card <Diamond> 4>
-              <Card <Club> 10>
-              <Card <Club> 5>
-              <Card <Heart> 1>
-              <Card <Diamond> 3>});=><Nothing>
-```
+<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/mahjong.png" />
 
 Isn't it exciting?
 The pattern-matching of Egison is very powerful.
-We can use it for pattern-matching against graphs or tree-structures such as XML.
-Egison is not famous at all now.
-Please help us to make Egison popular.
+We can use it for pattern-matching also against graphs and tree-structures such as XML.
 
 ## Comparison with Related Work
 
