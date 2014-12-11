@@ -74,18 +74,24 @@ It enables us to write more elegant programs.
 We can use pattern-matching for enumeration.
 The following code enumerates all twin primes from the infinite list of prime numbers with pattern-matching!
 
+<hr/>
 <img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/twin-primes.png" />
+<hr/>
 
 ### Poker Hands
 
 The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
+<hr/>
 <img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/poker-hands.png" />
+<hr/>
 
 ### Mahjong
 
+<hr/>
 <img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/mahjong.png" />
+<hr/>
 
 Isn't it exciting?
 The pattern-matching of Egison is very powerful.
