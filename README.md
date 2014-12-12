@@ -4,12 +4,75 @@ Egison is the **pattern-matching-oriented**, purely functional programming langu
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
-For more information, visit <a target="_blank" href="http://www.egison.org">Egison website</a>.
-You can try Egison online!
+For more information, visit <a target="_blank" href="http://www.egison.org">our website</a>.
 
-If you get interested in Egison, please contact <a target="_blank" href="http://www.egison.org/~egi/">Satoshi Egi</a> or tweet to <a target="_blank" href="https://twitter.com/Egison_Lang">@Egison_Lang</a>.
+## Non-Linear Pattern-Matching against Unfree Data Types
 
-## Getting Started!
+We can do non-linear pattern-matching against unfree data types in Egison.
+An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
+It enables us to write elegant programs.
+
+### Twin Primes
+
+We can use pattern-matching for enumeration.
+The following code enumerates all twin primes from the infinite list of prime numbers with pattern-matching!
+
+<hr/>
+<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/twin-primes.png" />
+<hr/>
+
+### Poker Hands
+
+The following code is the program that determines poker-hands written in Egison.
+All hands are expressed in a single pattern.
+
+<hr/>
+<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/poker-hands.png" />
+<hr/>
+
+### Mahjong
+
+We can write a pattern even against mahjong tiles.
+We modularize patterns to represent complex mahjong hands.
+
+<hr/>
+<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/mahjong.png" />
+<hr/>
+
+### Graphs
+
+We can pattern-match against graphs.
+We can write program to solve the travelling salesman problem in a single pattern-matching expression.
+
+<hr/>
+<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/salesman.png" />
+<hr/>
+
+Isn't it exciting?
+The pattern-matching of Egison is very powerful.
+We can use it for pattern-matching also against graphs and tree-structures such as XML.
+
+## Comparison with Related Work
+
+There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
+
+The advantage of Egison is that it realizes **all of the following features** at the same time.
+
+* Modularization of the way of pattern-matching for each data type
+* Pattern-matching with multiple results (backtracking)
+* Non-linear pattern-matching
+
+It enables us to express non-linear pattern-matching against unfree data types intuitively as above demonstrations.
+
+Furthermore, Egison realizes the following feature. We can even modularize patterns like functions keeping above features.
+
+* Non-linear pattern-matching with **lexical scoping**
+
+The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we realizes that.
+
+Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
+
+## Installation
 
 At first, you should install <a target="_blank" href="http://www.haskell.org/platform/">Haskell Platform</a>.
 
@@ -37,177 +100,37 @@ If you are a beginner of Egison, it would be better to install <a target="_blank
 % cabal update
 % cabal install egison-tutorial
 % egison-tutorial
-Egison Tutorial for Version X.X.X (C) 2013-2014 Satoshi Egi
-http://www.egison.org
+Egison Tutorial Version 3.3.6 (C) 2013-2014 Satoshi Egi
 Welcome to Egison Tutorial!
+** Information **
+We can use a 'Tab' key to complete keywords on the interpreter.
+If we type a 'Tab' key after a closed parenthesis, the next closed parenthesis will be completed.
+*****************
 ==============================
-List of sections in the tutorial
-1: Calculate numbers
-2: Basics of functional programming
-3: Define your own functions
-4: Basic of pattern-matching
-5: Pattern-matching against infinite collections
-6: Writing scripts in Egison
+List of sections in the tutorial.
+1: Calculate numbers                             (10 minutes)
+2: Basics of functional programming              (10 minutes)
+3: Basics of pattern-matching                    (10 minutes)
+4: Pattern-matching against infinite collections (5 minutes)
 ==============================
 Choose a section to learn.
-(1-6): 5
+(1-4): 1
 ====================
-We can write a pattern-matching against infinite lists even if that has infinite results.
-Note that Egison really enumerates all pairs of two natural numbers in the following example.
+We can do arithmetic operations with '+', '-', '*', '/', 'modulo' and 'power'.
 
 Examples:
-  (take 10 (match-all nats (set integer) [<cons $m <cons $n _>> [m n]]))
+  (+ 1 2)
+  (- 30 15)
+  (* 10 20)
+  (/ 20 5)
+  (modulo 17 4)
+  (power 2 10)
 ====================
 >
 ```
+
 We can try it also <a target="_blank" href="http://try.egison.org">online</a>.
 Enjoy!
-
-## Demonstrations
-
-We can do non-linear pattern-matching against unfree data types in Egison.
-An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
-It enables us to write more elegant programs.
-
-### Twin Primes
-
-We can use pattern-matching for enumeration.
-The following code enumerates all twin primes from the infinite list of prime numbers with pattern-matching!
-
-```
-(define $twin-primes
-  (match-all primes (list integer)
-    [<join _ <cons $p <cons ,(+ p 2) _>>>
-     [p (+ p 2)]]))
-
-;; Enumerate first 10 twin primes
-(take 10 twin-primes)
-;=>{[3 5] [5 7] [11 13] [17 19] [29 31] [41 43] [59 61] [71 73] [101 103] [107 109]}
-```
-
-### Poker Hands
-
-The following code is the program that determines poker-hands written in Egison.
-All hands are expressed in a single pattern.
-
-```
-(define $poker-hands
-  (lambda [$cs]
-    (match cs (multiset card)
-      {[<cons <card $s $n>
-         <cons <card ,s ,(- n 1)>
-          <cons <card ,s ,(- n 2)>
-           <cons <card ,s ,(- n 3)>
-            <cons <card ,s ,(- n 4)>
-             <nil>>>>>>
-        <Straight-Flush>]
-       [<cons <card _ $n>
-         <cons <card _ ,n>
-          <cons <card _ ,n>
-            <cons <card _ ,n>
-              <cons _
-                <nil>>>>>>
-        <Four-of-Kind>]
-       [<cons <card _ $m>
-         <cons <card _ ,m>
-          <cons <card _ ,m>
-           <cons <card _ $n>
-            <cons <card _ ,n>
-              <nil>>>>>>
-        <Full-House>]
-       [<cons <card $s _>
-         <cons <card ,s _>
-           <cons <card ,s _>
-             <cons <card ,s _>
-               <cons <card ,s _>
-                 <nil>>>>>>
-        <Flush>]
-       [<cons <card _ $n>
-         <cons <card _ ,(- n 1)>
-          <cons <card _ ,(- n 2)>
-           <cons <card _ ,(- n 3)>
-            <cons <card _ ,(- n 4)>
-             <nil>>>>>>
-        <Straight>]
-       [<cons <card _ $n>
-         <cons <card _ ,n>
-          <cons <card _ ,n>
-           <cons _
-            <cons _
-             <nil>>>>>>
-        <Three-of-Kind>]
-       [<cons <card _ $m>
-         <cons <card _ ,m>
-          <cons <card _ $n>
-            <cons <card _ ,n>
-             <cons _
-               <nil>>>>>>
-        <Two-Pair>]
-       [<cons <card _ $n>
-         <cons <card _ ,n>
-          <cons _
-           <cons _
-            <cons _
-             <nil>>>>>>
-        <One-Pair>]
-       [<cons _
-         <cons _
-          <cons _
-           <cons _
-            <cons _
-             <nil>>>>>>
-        <Nothing>]})))
-
-(poker-hands {<Card <Club> 12>
-              <Card <Club> 10>
-              <Card <Club> 13>
-              <Card <Club> 1>
-              <Card <Club> 11>});=><Straight-Flush>
-
-(poker-hands {<Card <Diamond> 1>
-              <Card <Club> 2>
-              <Card <Club> 1>
-              <Card <Heart> 1>
-              <Card <Diamond> 2>});=><Full-House>
-
-(poker-hands {<Card <Diamond> 4>
-              <Card <Club> 2>
-              <Card <Club> 5>
-              <Card <Heart> 1>
-              <Card <Diamond> 3>});=><Straight>
-
-(poker-hands {<Card <Diamond> 4>
-              <Card <Club> 10>
-              <Card <Club> 5>
-              <Card <Heart> 1>
-              <Card <Diamond> 3>});=><Nothing>
-```
-
-Isn't it exciting?
-The pattern-matching of Egison is very powerful.
-We can use it for pattern-matching against graphs or tree-structures such as XML.
-Egison is not famous at all now.
-Please help us to make Egison popular.
-
-## Comparison with Related Work
-
-There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
-
-The advantage of Egison is that it realizes **all of the following features** at the same time.
-
-* Modularization of the way of pattern-matching for each data type
-* Pattern-matching with multiple results (backtracking)
-* Non-linear pattern-matching
-
-It enables us to express non-linear pattern-matching against unfree data types intuitively as above demonstrations.
-
-Furthermore, Egison realizes the following feature. We can even modularize patterns like functions keeping above features.
-
-* Non-linear pattern-matching with **lexical scoping**
-
-The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we realizes that.
-
-Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
 
 ## Note for Developers
 
@@ -226,6 +149,14 @@ Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper o
 % egison +RTS -p -RTS -l sample/sequence.egi
 % cat egison.prof
 ```
+
+## Community
+
+We have <a target="_blank" href="http://www.egison.org/community.html">a mailing list</a>.
+Please join us!
+
+We are on <a target="_blank" href="https://twitter.com/Egison_Lang">Twitter</a>.
+Please follow us.
 
 ## Acknowledgement
 
