@@ -234,6 +234,7 @@ data EgisonValue =
   | Collection (Seq EgisonValue)
   | Array (Array.Array Integer EgisonValue)
   | IntHash (HashMap Integer EgisonValue)
+  | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
   | Func Env [String] EgisonExpr
@@ -266,6 +267,7 @@ instance Show EgisonValue where
                              else "{" ++ unwords (map show (toList vals)) ++ "}"
   show (Array vals) = "[|" ++ unwords (map show $ Array.elems vals) ++ "|]"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
+  show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
@@ -291,6 +293,7 @@ instance Eq EgisonValue where
  (Collection vals) == (Collection vals') = vals == vals'
  (Array vals) == (Array vals') = vals == vals'
  (IntHash vals) == (IntHash vals') = vals == vals'
+ (CharHash vals) == (CharHash vals') = vals == vals'
  (StrHash vals) == (StrHash vals') = vals == vals'
  _ == _ = False
 
@@ -412,6 +415,7 @@ data Intermediate =
   | ICollection (IORef (Seq Inner))
   | IArray (Array.Array Integer ObjectRef)
   | IIntHash (HashMap Integer ObjectRef)
+  | ICharHash (HashMap Char ObjectRef)
   | IStrHash (HashMap Text ObjectRef)
 
 data Inner =
@@ -425,6 +429,7 @@ instance Show WHNFData where
   show (Intermediate (ICollection _)) = "{...}"
   show (Intermediate (IArray _)) = "[|...|]" 
   show (Intermediate (IIntHash _)) = "{|...|}" 
+  show (Intermediate (ICharHash _)) = "{|...|}" 
   show (Intermediate (IStrHash _)) = "{|...|}" 
 
 instance Show Object where

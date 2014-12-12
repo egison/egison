@@ -48,6 +48,10 @@
 
 (define $nats0 {0 @nats})
 
+(define $odds {1 @(map (+ $ 2) odds)})
+
+(define $evens {2 @(map (+ $ 2) odds)})
+
 (define $primes
   (letrec {[$next-primes
             (lambda [$primes1 $k]
