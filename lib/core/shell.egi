@@ -1,0 +1,7 @@
+(define $stdin
+  (letrec {[$stdin'
+            (lambda []
+              (if (io (eof?))
+                {}
+                {(io (read-line)) @(stdin')}))]}
+    (stdin')))

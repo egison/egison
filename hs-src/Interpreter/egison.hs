@@ -25,7 +25,7 @@ main = do args <- getArgs
           case opts of
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
-            Options {optEvalString = mExpr, optExecuteString = mCmd, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optNoIO = noIOFlag} -> do
+            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optNoIO = noIOFlag} -> do
               env <- if noIOFlag then initialEnvNoIO else initialEnv
               result <- evalEgisonTopExprs env (map LoadFile loadFiles)
               case result of
@@ -41,26 +41,30 @@ main = do args <- getArgs
                       case mCmd of
                         Just cmd -> runEgisonTopExpr env ("(execute " ++ cmd ++ ")") >> return ()
                         Nothing ->
-                          case nonOpts of
-                            [] -> do
-                              when bannerFlag showBanner >> repl noIOFlag env prompt >> when bannerFlag showByebyeMessage
-                            (file:args) -> do
-                              case opts of
-                                Options {optTestOnly = True} -> do
-                                  result <- if noIOFlag
-                                              then do input <- readFile file
-                                                      runEgisonTopExprsNoIO env input
-                                              else evalEgisonTopExprsTestOnly env [LoadFile file]
-                                  either print (const $ return ()) result
-                                Options {optTestOnly = False} -> do
-                                  result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
-                                  either print (const $ return ()) result
+                          case mSub of
+                            Just sub -> runEgisonTopExpr env ("(execute (each print " ++ sub ++ "))") >> return ()
+                            Nothing ->
+                              case nonOpts of
+                                [] -> do
+                                  when bannerFlag showBanner >> repl noIOFlag env prompt >> when bannerFlag showByebyeMessage
+                                (file:args) -> do
+                                  case opts of
+                                    Options {optTestOnly = True} -> do
+                                      result <- if noIOFlag
+                                                  then do input <- readFile file
+                                                          runEgisonTopExprsNoIO env input
+                                                  else evalEgisonTopExprsTestOnly env [LoadFile file]
+                                      either print (const $ return ()) result
+                                    Options {optTestOnly = False} -> do
+                                      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
+                                      either print (const $ return ()) result
 
 data Options = Options {
     optShowVersion :: Bool,
     optShowHelp :: Bool,
     optEvalString :: Maybe String,
     optExecuteString :: Maybe String,
+    optSubstituteString :: Maybe String,
     optLoadFiles :: [String],
     optNoIO :: Bool,
     optShowBanner :: Bool,
@@ -74,6 +78,7 @@ defaultOptions = Options {
     optShowHelp = False,
     optEvalString = Nothing,
     optExecuteString = Nothing,
+    optSubstituteString = Nothing,
     optLoadFiles = [],
     optNoIO = False,
     optShowBanner = True,
@@ -113,7 +118,15 @@ options = [
   Option ['p'] ["prompt"]
     (ReqArg (\prompt opts -> opts {optPrompt = prompt})
             "String")
-    "set prompt string"
+    "set prompt string",
+  Option ['s'] ["substitute"]
+    (ReqArg (\expr opts -> opts {optLoadFiles = optLoadFiles opts ++ ["lib/core/shell.egi"], optSubstituteString = Just expr})
+            "String")
+    "substitute strings",
+  Option ['f'] ["filter"]
+    (ReqArg (\expr opts -> opts {optLoadFiles = optLoadFiles opts ++ ["lib/core/shell.egi"], optSubstituteString = Just ("(filter " ++ expr ++ " stdin)")})
+            "String")
+    "filter strings"
   ]
 
 printHelp :: IO ()
