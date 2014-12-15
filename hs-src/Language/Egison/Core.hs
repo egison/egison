@@ -185,6 +185,9 @@ evalExpr env (HashExpr assocs) = do
        IntKey _ -> do
          let keys' = map (\key -> case key of IntKey i -> i) keys
          return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
+       CharKey _ -> do
+         let keys' = map (\key -> case key of CharKey c -> c) keys
+         return . Intermediate . ICharHash $ HL.fromList $ zip keys' refs
        StrKey _ -> do
           let keys' = map (\key -> case key of StrKey s -> s) keys
           return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
@@ -193,6 +196,7 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey (Value val) =
     case val of
       Integer i -> return (IntKey i)
+      Char c -> return (CharKey c)
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
   makeHashKey whnf = throwError $ TypeMismatch "integer or string" $ whnf
@@ -384,6 +388,9 @@ evalWHNF (Intermediate (IArray refs)) = do
 evalWHNF (Intermediate (IIntHash refs)) = do
   refs' <- mapM evalRefDeep refs
   return $ IntHash refs'
+evalWHNF (Intermediate (ICharHash refs)) = do
+  refs' <- mapM evalRefDeep refs
+  return $ CharHash refs'
 evalWHNF (Intermediate (IStrHash refs)) = do
   refs' <- mapM evalRefDeep refs
   return $ StrHash refs'
@@ -441,6 +448,16 @@ refArray (Value (IntHash hash)) (index:indices) = do
     Just val -> refArray (Value val) indices
     Nothing -> return $ Value Undefined
 refArray (Intermediate (IIntHash hash)) (index:indices) = do
+  key <- fromEgison index
+  case HL.lookup key hash of
+    Just ref -> evalRef ref >>= flip refArray indices
+    Nothing -> return $ Value Undefined
+refArray (Value (CharHash hash)) (index:indices) = do
+  key <- fromEgison index
+  case HL.lookup key hash of
+    Just val -> refArray (Value val) indices
+    Nothing -> return $ Value Undefined
+refArray (Intermediate (ICharHash hash)) (index:indices) = do
   key <- fromEgison index
   case HL.lookup key hash of
     Just ref -> evalRef ref >>= flip refArray indices
@@ -911,6 +928,7 @@ packStringValue val = throwError $ TypeMismatch "string" (Value val)
 --
 data EgisonHashKey =
     IntKey Integer
+  | CharKey Char
   | StrKey Text
 
 extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
