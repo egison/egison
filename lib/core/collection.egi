@@ -26,10 +26,10 @@
          [_ {}]}]
        [<join $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -48,10 +48,10 @@
        [<join $ <cons ,$px $>> [(ordered-list a) (ordered-list a)]
         {[{} {}]
          [$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons (& ?(lt? $ px) $xa_i) ...> <cons ,px $rs>) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+                 [(loop $i [1 $n] <cons (& ?(lt? $ px) $xa_i) ...> <cons ,px $rs>) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
        [<join $ $> [(ordered-list a) (ordered-list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
        [<cons ,$px $> [(ordered-list a)]
         {[{$x @$xs} (if (gt? x px)
                       {}
@@ -62,7 +62,7 @@
          [_ {}]}]
        [<nioj $ $> [(ordered-list a) (ordered-list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(map (lambda [$i] xa_i) (between 1 n)) rs]])]}]
+                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
        [<snoc ,$px $> [a (ordered-list a)]
         {[{@$xs $x} (if (lt? x px)
                       {}

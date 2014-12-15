@@ -284,6 +284,27 @@ evalExpr env (SeqExpr expr1 expr2) = do
   evalExprDeep env expr1
   evalExpr env expr2
 
+evalExpr env@(loopCxts, frames) (LoopExpr name (LoopRange start end WildCard) expr1 expr2) = do
+  startNum <- evalExpr env start >>= fromWHNF
+  startNumRef <- newEvalutedObjectRef $ Value $ Integer startNum
+  end' <- evalExpr env end
+  endRef <- newEvalutedObjectRef end'
+  endNum <- evalRef endRef >>= fromWHNF
+  if startNum > endNum
+    then evalExpr (loopCxts, frames) expr2
+    else evalExpr (((LoopExprContext (name, startNumRef) endRef expr1 expr2):loopCxts), frames) expr1
+
+evalExpr env@(loopCxts, frames) ContExpr = do
+  case loopCxts of
+    [] -> throwError $ strMsg "cannot use cont expr except in loop expr"
+    ((LoopExprContext (name, startNumRef) endRef expr1 expr2):loopCxts') -> do
+      startNum <- evalRef startNumRef >>= fromWHNF
+      nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
+      endNum <- evalRef endRef >>= fromWHNF
+      if startNum >= endNum
+       then evalExpr (loopCxts', frames) expr2
+       else evalExpr (((LoopExprContext (name, nextNumRef) endRef expr1 expr2):loopCxts'), frames) expr1
+
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg
@@ -614,14 +635,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           endsRef <- newEvalutedObjectRef ends'
           inners <- liftIO $ newIORef $ Sq.fromList [IElement endsRef]
           endsRef' <- liftIO $ newIORef (WHNF (Intermediate (ICollection inners)))
-          return $ msingleton $ MState env ((LoopContext (name, startNumRef) endsRef' endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+          return $ msingleton $ MState env ((LoopPatContext (name, startNumRef) endsRef' endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
         else do
           endsRef <- newEvalutedObjectRef ends'
-          return $ msingleton $ MState env ((LoopContext (name, startNumRef) endsRef endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+          return $ msingleton $ MState env ((LoopPatContext (name, startNumRef) endsRef endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
     ContPat ->
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
-        LoopContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
+        LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
           nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
           ends <- evalRef endsRef
@@ -633,8 +654,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               carEndsNum <- evalRef carEndsRef >>= fromWHNF
               if startNum == carEndsNum
                 then return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
-                                        MState env ((LoopContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
-                else return $ fromList [MState env ((LoopContext (name, nextNumRef) endsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
+                                        MState env ((LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
+                else return $ fromList [MState env ((LoopPatContext (name, nextNumRef) endsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
       in return $ msingleton $ MState env loops bindings trees'
@@ -832,8 +853,8 @@ unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
       unsnocCollection coll
 unsnocCollection _ = matchFail
 
-extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopContext] -> Env
-extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopContext binding _ _ _ _) -> binding) loops
+extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
+extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopPatContext binding _ _ _ _) -> binding) loops
 
 evalMatcherWHNF :: WHNFData -> EgisonM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher

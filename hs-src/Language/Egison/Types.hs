@@ -1,6 +1,6 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
-             TypeFamilies #-}
+             TypeFamilies, TupleSections #-}
 {- |
 Module      : Language.Egison.Types
 Copyright   : Satoshi Egi
@@ -41,6 +41,7 @@ module Language.Egison.Types
     , nullEnv
     , extendEnv
     , refVar
+    , LoopExprContext (..)
     -- * Pattern matching
     , Match
     , PMMode (..)
@@ -48,7 +49,7 @@ module Language.Egison.Types
     , MatchingState (..)
     , MatchingTree (..)
     , PatternBinding (..)
-    , LoopContext (..)
+    , LoopPatContext (..)
     -- * Errors
     , EgisonError (..)
     , liftError
@@ -159,6 +160,8 @@ data EgisonExpr =
   | IoExpr EgisonExpr
     
   | SeqExpr EgisonExpr EgisonExpr
+  | LoopExpr String LoopRange EgisonExpr EgisonExpr
+  | ContExpr
   | ApplyExpr EgisonExpr EgisonExpr
 
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
@@ -499,19 +502,22 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-type Env = [HashMap Var ObjectRef]
+type Env = ([LoopExprContext], [HashMap Var ObjectRef])
 type Var = String
 type Binding = (Var, ObjectRef)
 
 nullEnv :: Env
-nullEnv = []
+nullEnv = ([], [])
 
 extendEnv :: Env -> [Binding] -> Env
-extendEnv env = (: env) . HashMap.fromList
+extendEnv env = ([],) . (: (snd env)) . HashMap.fromList
 
 refVar :: Env -> Var -> EgisonM ObjectRef
 refVar env var = maybe (throwError $ UnboundVariable var) return
-                       (msum $ map (HashMap.lookup var) env)
+                       (msum $ map (HashMap.lookup var) (snd (extendEnv env (map (\(LoopExprContext binding _ _ _) -> binding) (fst env)))))
+
+data LoopExprContext = LoopExprContext Binding ObjectRef EgisonExpr EgisonExpr
+ deriving (Show)
 
 --
 -- Pattern Match
@@ -527,7 +533,7 @@ pmMode (UserMatcher _ mode _) = mode
 pmMode (Tuple _) = DFSMode
 pmMode Something = DFSMode
 
-data MatchingState = MState Env [LoopContext] [Binding] [MatchingTree]
+data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree]
  deriving (Show)
 
 data MatchingTree =
@@ -537,7 +543,7 @@ data MatchingTree =
 
 type PatternBinding = (Var, EgisonPattern)
 
-data LoopContext = LoopContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
+data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
 
 --

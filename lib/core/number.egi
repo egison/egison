@@ -122,7 +122,7 @@
 
 (define $sum
   (lambda [$xs]
-    (foldl' + 0 xs)))
+    (foldl + 0 xs)))
 
 ;;;
 ;;; Float Numbers

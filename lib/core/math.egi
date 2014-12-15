@@ -6,11 +6,7 @@
 
 (define $fact
   (lambda [$n]
-    (letrec {[$fact1 (lambda [$n $ret]
-                       (match n integer
-                         {[,0 ret]
-                          [_ (fact1 (- n 1) (* n ret))]}))]}
-      (fact1 n 1))))
+    (foldl * 1 (between 1 n))))
 
 (define $perm
   (lambda [$n $r]

@@ -190,8 +190,10 @@ integerBinaryPred pred = twoArgs $ \val val' -> do
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
 floatUnaryOp op = oneArg $ \val -> do
-  f <- fromEgison val
-  return $ Float $ op f
+  case val of
+    (Float f) -> return $ Float $ op f
+    (Integer i) -> return $ Float $ op (fromIntegral i)
+    (Rational r) -> return $ Float $ op (fromRational r)
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp op = twoArgs $ \val val' -> do
