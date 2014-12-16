@@ -27,6 +27,7 @@ module Language.Egison.Types
     , Matcher (..)
     , PrimitiveFunc (..)
     , EgisonData (..)
+    , showTSV
     -- * Internal data
     , Object (..)
     , ObjectRef (..)
@@ -284,6 +285,10 @@ instance Show EgisonValue where
   show Undefined = "undefined"
   show World = "#<world>"
   show EOF = "#<eof>"
+
+showTSV :: EgisonValue -> String
+showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map show vals)
+showTSV val = show val
 
 instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'

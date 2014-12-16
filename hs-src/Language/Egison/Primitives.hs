@@ -150,7 +150,9 @@ primitives = [ ("+", plus)
              , ("split-string", splitString)
                
              , ("read", read')
+             , ("read-tsv", readTSV)
              , ("show", show')
+             , ("show-tsv", showTSV')
 
              , ("empty?", isEmpty')
              , ("uncons", uncons')
@@ -427,8 +429,17 @@ splitString = twoArgs $ \pat src -> do
 read' :: PrimitiveFunc
 read'= oneArg $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
 
+readTSV :: PrimitiveFunc
+readTSV= oneArg $ \val -> do rets <- fromEgison val >>= readExprs . T.unpack >>= mapM (evalExprDeep nullEnv)
+                             case rets of
+                               [ret] -> return ret
+                               _ -> return (Tuple rets)
+
 show' :: PrimitiveFunc
 show'= oneArg $ \val -> return $ toEgison $ T.pack $ show val
+
+showTSV' :: PrimitiveFunc
+showTSV'= oneArg $ \val -> return $ toEgison $ T.pack $ showTSV val
 
 --
 -- Collection

@@ -39,10 +39,16 @@ main = do args <- getArgs
                         Right val -> putStrLn $ show val
                     Nothing ->
                       case mCmd of
-                        Just cmd -> runEgisonTopExpr env ("(execute " ++ cmd ++ ")") >> return ()
+                        Just cmd -> do cmdRet <- runEgisonTopExpr env ("(execute " ++ cmd ++ ")")
+                                       case cmdRet of
+                                         Left err -> putStrLn $ show err
+                                         _ -> return ()
                         Nothing ->
                           case mSub of
-                            Just sub -> runEgisonTopExpr env ("(execute (each print " ++ sub ++ "))") >> return ()
+                            Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose show-tsv print) (" ++ sub ++ " SH.input)))")
+                                           case cmdRet of
+                                             Left err -> putStrLn $ show err
+                                             _ -> return ()
                             Nothing ->
                               case nonOpts of
                                 [] -> do
@@ -120,11 +126,15 @@ options = [
             "String")
     "set prompt string",
   Option ['s'] ["substitute"]
-    (ReqArg (\expr opts -> opts {optLoadFiles = optLoadFiles opts ++ ["lib/core/shell.egi"], optSubstituteString = Just expr})
+    (ReqArg (\expr opts -> opts {optSubstituteString = Just expr})
             "String")
     "substitute strings",
+  Option ['m'] ["map"]
+    (ReqArg (\expr opts -> opts {optSubstituteString = Just ("(map " ++ expr ++ " $)")})
+            "String")
+    "filter strings",
   Option ['f'] ["filter"]
-    (ReqArg (\expr opts -> opts {optLoadFiles = optLoadFiles opts ++ ["lib/core/shell.egi"], optSubstituteString = Just ("(filter " ++ expr ++ " stdin)")})
+    (ReqArg (\expr opts -> opts {optSubstituteString = Just ("(filter " ++ expr ++ " $)")})
             "String")
     "filter strings"
   ]
