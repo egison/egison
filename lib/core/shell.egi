@@ -1,7 +1,14 @@
-(define $stdin
-  (letrec {[$stdin'
+(define $SH.input
+  (letrec {[$input'
             (lambda []
               (if (io (eof?))
                 {}
-                {(io (read-line)) @(stdin')}))]}
-    (stdin')))
+                {(io (TSV.read-line)) @(input')}))]}
+    (input')))
+
+(define $TSV.read-line
+  (lambda []
+    (do {[$line (read-line)]}
+      (return (read-tsv line)))))
+
+(define $TSV.show (show-tsv $))

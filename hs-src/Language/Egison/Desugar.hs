@@ -43,6 +43,9 @@ desugarTopExpr (Define name expr) = do
 desugarTopExpr (Test expr) = do
   expr' <- liftEgisonM $ runDesugarM $ desugar expr
   return (Test expr')
+desugarTopExpr (Execute expr) = do
+  expr' <- liftEgisonM $ runDesugarM $ desugar expr
+  return (Execute expr')
 desugarTopExpr expr = return expr
 
 desugarExpr :: EgisonExpr -> EgisonM EgisonExpr
