@@ -99,6 +99,7 @@ import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
+import Data.List (intercalate)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -287,7 +288,8 @@ instance Show EgisonValue where
   show EOF = "#<eof>"
 
 showTSV :: EgisonValue -> String
-showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map show vals)
+showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)
+showTSV (Collection vals) = intercalate "\t" (map showTSV (toList vals))
 showTSV val = show val
 
 instance Eq EgisonValue where

@@ -14,6 +14,7 @@ import System.FilePath ((</>))
 import System.Console.Haskeline hiding (handle, catch, throwTo)
 import System.Console.GetOpt
 import System.Exit (ExitCode (..), exitWith, exitFailure)
+import Data.Foldable (toList)
 
 import Language.Egison
 import Language.Egison.Util
@@ -25,18 +26,23 @@ main = do args <- getArgs
           case opts of
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
-            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optNoIO = noIOFlag} -> do
+            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag} -> do
               env <- if noIOFlag then initialEnvNoIO else initialEnv
               result <- evalEgisonTopExprs env (map LoadFile loadFiles)
               case result of
                 Left err -> putStrLn $ show err
                 Right env -> do
                   case mExpr of
-                    Just expr -> do
-                      ret <- runEgisonExpr env expr
-                      case ret of
-                        Left err -> putStrLn $ show err
-                        Right val -> putStrLn $ show val
+                    Just expr ->
+                      if tsvFlag
+                        then do ret <- runEgisonTopExprs env ("(execute (each (compose show-tsv print) " ++ expr ++ "))")
+                                case ret of
+                                  Left err -> putStrLn $ show err
+                                  Right val -> return ()
+                        else do ret <- runEgisonExpr env expr
+                                case ret of
+                                  Left err -> putStrLn $ show err
+                                  Right val -> putStrLn $ show val
                     Nothing ->
                       case mCmd of
                         Just cmd -> do cmdRet <- runEgisonTopExpr env ("(execute " ++ cmd ++ ")")
@@ -72,6 +78,7 @@ data Options = Options {
     optExecuteString :: Maybe String,
     optSubstituteString :: Maybe String,
     optLoadFiles :: [String],
+    optTsvOutput :: Bool,
     optNoIO :: Bool,
     optShowBanner :: Bool,
     optTestOnly :: Bool,
@@ -86,6 +93,7 @@ defaultOptions = Options {
     optExecuteString = Nothing,
     optSubstituteString = Nothing,
     optLoadFiles = [],
+    optTsvOutput = False,
     optNoIO = False,
     optShowBanner = True,
     optTestOnly = False,
@@ -100,6 +108,9 @@ options = [
   Option ['h', '?'] ["help"]
     (NoArg (\opts -> opts {optShowHelp = True}))
     "show usage information",
+  Option [] ["tsv"]
+    (NoArg (\opts -> opts {optTsvOutput = True}))
+    "output in tsv format",
   Option ['e'] ["eval"]
     (ReqArg (\expr opts -> opts {optEvalString = Just expr})
             "String")
@@ -143,18 +154,29 @@ printHelp :: IO ()
 printHelp = do
   putStrLn "Usage: egison [options]"
   putStrLn "       egison [options] file"
+  putStrLn "       egison [options] expr"
   putStrLn ""
-  putStrLn "Options:"
+  putStrLn "Global Options:"
   putStrLn "  --help, -h                 Display this information"
   putStrLn "  --version, -v              Display egison version information"
-  putStrLn "  --eval, -e string          Evaluate the argument string"
-  putStrLn "  --command, -c string       Execute the argument string"
-  putStrLn "  --load-file, -l string     Load the argument file"
-  putStrLn "  --test, -t                 Run only test expressions"
-  putStrLn "  --prompt string            Set prompt of the interpreter"
-  putStrLn "  --no-banner                Don't show banner"
+  putStrLn ""
+  putStrLn "  --load-file, -l file       Load the argument file"
   putStrLn "  --no-io                    Prohibit all IO primitives"
   putStrLn ""
+  putStrLn "Options as an interactive interpreter:"
+  putStrLn "  --prompt string            Set prompt of the interpreter"
+  putStrLn "  --no-banner                Don't show banner"
+  putStrLn ""
+  putStrLn "Options to handle Egison program file:"
+  putStrLn "  --test, -t file            Run only test expressions"
+  putStrLn ""
+  putStrLn "Options as a shell command:"
+  putStrLn "  --eval, -e expr            Evaluate the argument expression"
+  putStrLn "  --command, -c expr         Execute the argument expression"
+  putStrLn ""
+  putStrLn "  --substitute, -s expr      Substitute input using the argument expression"
+  putStrLn "  --map, -m expr             Substitute each line of input using the argument expression"
+  putStrLn "  --filter, -f expr          Filter each line of input using the argument predicate"
   exitWith ExitSuccess
 
 printVersionNumber :: IO ()

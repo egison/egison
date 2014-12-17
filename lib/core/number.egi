@@ -132,3 +132,43 @@
 ;;; Float Numbers
 ;;;
 (define $float builtin-data-matcher)
+
+;;;
+;;; Decimal Fractions
+;;;
+(define $decimal (algebraic-data-matcher {<df integer (list integer)>}))
+(define $decimal' (algebraic-data-matcher {<df' integer (list integer) (list integer)>}))
+
+(define $rtod-helper
+  (lambda [$m $n]
+    (let {[$q (quotient (* m 10) n)]
+          [$r (remainder (* m 10) n)]}
+      {[q r] @(rtod-helper r n)})))
+
+(define $rtod
+  (lambda [$x]
+    (let {[$m (numerator x)]
+          [$n (denominator x)]}
+      (let {[$q (quotient m n)]
+            [$r (remainder m n)]}
+          <Df q (map (lambda [$x $y] x) (rtod-helper r n))>))))
+
+(define $rtod'
+  (lambda [$x]
+    (let {[$m (numerator x)]
+          [$n (denominator x)]}
+      (let {[$q (quotient m n)]
+            [$r (remainder m n)]}
+        (let {[[$s $c] (match (rtod-helper r n) (list [integer integer])
+                         {[<join $s <cons $x <join $c <cons ,x _>>>> [s {x @c}]]})]}
+          <Df' q (map (lambda [$x $y] x) s) (map (lambda [$x $y] x) c)>)))))
+
+(define $show-decimal
+  (lambda [$n $x]
+    (match (rtod x) decimal
+      {[<df $q $sc> (foldl S.append (S.append (show q) ".") (map show (take n sc)))]})))
+
+(define $show-decimal'
+  (lambda [$x]
+    (match (rtod' x) decimal'
+      {[<df' $q $s $c> (foldl S.append "" {(S.append (show q) ".") @(map show s) " " @(map show c) " ..."})]})))

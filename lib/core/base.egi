@@ -16,7 +16,9 @@
   
 (define $id (lambda [$x] x))
 
-(define $bool builtin-data-matcher)
+(define $fst (lambda [$x $y] x))
+
+(define $snd (lambda [$x $y] y))(define $bool builtin-data-matcher)
 
 (define $or
   (lambda [$b1 $b2]
