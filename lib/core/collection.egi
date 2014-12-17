@@ -381,7 +381,7 @@
        })))
 
 ;;
-;; multiset operation (Don't use multiset matcher)
+;; multiset operation
 ;;
 (define $add
   (lambda [$x $xs]

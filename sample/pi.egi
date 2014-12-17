@@ -1,0 +1,23 @@
+(define $pi
+  (lambda [$n]
+    (/ 4
+       (+ 1
+          (foldr (lambda [$x $r]
+                   (/ (power x 2)
+                      (+ (+ (* x 2) 1)
+                         r)))
+                 0
+                 (take n nats))))))
+
+(test (pi 5))
+(test (rtod' (pi 5)))
+(test (show-decimal' (pi 5)))
+(test (pi 6))
+(test (rtod' (pi 6)))
+(test (show-decimal' (pi 6)))
+(test (pi 7))
+(test (show-decimal 10 (pi 7)))
+(test (pi 100))
+(test (rtof (pi 100)))
+(test (show-decimal 100 (pi 100)))
+
