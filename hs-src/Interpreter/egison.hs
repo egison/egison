@@ -14,7 +14,6 @@ import System.FilePath ((</>))
 import System.Console.Haskeline hiding (handle, catch, throwTo)
 import System.Console.GetOpt
 import System.Exit (ExitCode (..), exitWith, exitFailure)
-import Data.Foldable (toList)
 
 import Language.Egison
 import Language.Egison.Util
@@ -26,9 +25,9 @@ main = do args <- getArgs
           case opts of
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
-            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag} -> do
+            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag} -> do
               env <- if noIOFlag then initialEnvNoIO else initialEnv
-              result <- evalEgisonTopExprs env (map LoadFile loadFiles)
+              result <- evalEgisonTopExprs env $ (map Load loadLibs) ++ (map LoadFile loadFiles)
               case result of
                 Left err -> putStrLn $ show err
                 Right env -> do
@@ -38,7 +37,7 @@ main = do args <- getArgs
                         then do ret <- runEgisonTopExprs env ("(execute (each (compose show-tsv print) " ++ expr ++ "))")
                                 case ret of
                                   Left err -> putStrLn $ show err
-                                  Right val -> return ()
+                                  Right _ -> return ()
                         else do ret <- runEgisonExpr env expr
                                 case ret of
                                   Left err -> putStrLn $ show err
@@ -77,6 +76,7 @@ data Options = Options {
     optEvalString :: Maybe String,
     optExecuteString :: Maybe String,
     optSubstituteString :: Maybe String,
+    optLoadLibs :: [String],
     optLoadFiles :: [String],
     optTsvOutput :: Bool,
     optNoIO :: Bool,
@@ -92,6 +92,7 @@ defaultOptions = Options {
     optEvalString = Nothing,
     optExecuteString = Nothing,
     optSubstituteString = Nothing,
+    optLoadLibs = [],
     optLoadFiles = [],
     optTsvOutput = False,
     optNoIO = False,
@@ -108,7 +109,7 @@ options = [
   Option ['h', '?'] ["help"]
     (NoArg (\opts -> opts {optShowHelp = True}))
     "show usage information",
-  Option [] ["tsv"]
+  Option ['T'] ["tsv"]
     (NoArg (\opts -> opts {optTsvOutput = True}))
     "output in tsv format",
   Option ['e'] ["eval"]
@@ -119,10 +120,14 @@ options = [
     (ReqArg (\expr opts -> opts {optExecuteString = Just expr})
             "String")
     "execute the argument string",
+  Option ['L'] ["load-library"]
+    (ReqArg (\d opts -> opts {optLoadLibs = optLoadLibs opts ++ [d]})
+            "[String]")
+    "load library",
   Option ['l'] ["load-file"]
     (ReqArg (\d opts -> opts {optLoadFiles = optLoadFiles opts ++ [d]})
             "[String]")
-    "load files",
+    "load file",
   Option [] ["no-io"]
     (NoArg (\opts -> opts {optNoIO = True}))
     "prohibit all io primitives",
