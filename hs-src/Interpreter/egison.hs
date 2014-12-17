@@ -14,6 +14,7 @@ import System.FilePath ((</>))
 import System.Console.Haskeline hiding (handle, catch, throwTo)
 import System.Console.GetOpt
 import System.Exit (ExitCode (..), exitWith, exitFailure)
+import System.IO
 
 import Language.Egison
 import Language.Egison.Util
@@ -36,28 +37,28 @@ main = do args <- getArgs
                       if tsvFlag
                         then do ret <- runEgisonTopExprs env ("(execute (each (compose show-tsv print) " ++ expr ++ "))")
                                 case ret of
-                                  Left err -> putStrLn $ show err
+                                  Left err -> hPutStrLn stderr $ show err
                                   Right _ -> return ()
                         else do ret <- runEgisonExpr env expr
                                 case ret of
-                                  Left err -> putStrLn $ show err
-                                  Right val -> putStrLn $ show val
+                                  Left err -> hPutStrLn stderr (show err) >> exitFailure
+                                  Right val -> putStrLn (show val) >> exitWith ExitSuccess
                     Nothing ->
                       case mCmd of
                         Just cmd -> do cmdRet <- runEgisonTopExpr env ("(execute " ++ cmd ++ ")")
                                        case cmdRet of
-                                         Left err -> putStrLn $ show err
-                                         _ -> return ()
+                                         Left err -> putStrLn (show err) >> exitFailure
+                                         _ -> exitWith ExitSuccess
                         Nothing ->
                           case mSub of
                             Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose show-tsv print) (" ++ sub ++ " SH.input)))")
                                            case cmdRet of
-                                             Left err -> putStrLn $ show err
-                                             _ -> return ()
+                                             Left err -> putStrLn (show err) >> exitFailure
+                                             _ -> exitWith ExitSuccess
                             Nothing ->
                               case nonOpts of
                                 [] -> do
-                                  when bannerFlag showBanner >> repl noIOFlag env prompt >> when bannerFlag showByebyeMessage
+                                  when bannerFlag showBanner >> repl noIOFlag env prompt >> when bannerFlag showByebyeMessage >> exitWith ExitSuccess
                                 (file:args) -> do
                                   case opts of
                                     Options {optTestOnly = True} -> do
@@ -201,9 +202,7 @@ showBanner = do
 --  putStrLn $ "*****************"
 
 showByebyeMessage :: IO ()
-showByebyeMessage = do
-  putStrLn $ "Leaving Egison Interpreter."
-  exitWith ExitSuccess
+showByebyeMessage = putStrLn $ "Leaving Egison Interpreter."
 
 repl :: Bool -> Env -> String -> IO ()
 repl noIOFlag env prompt = do
