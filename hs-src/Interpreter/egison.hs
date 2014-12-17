@@ -165,6 +165,7 @@ printHelp = do
   putStrLn "  --help, -h                 Display this information"
   putStrLn "  --version, -v              Display egison version information"
   putStrLn ""
+  putStrLn "  --load-library, -L file    Load the argument library"
   putStrLn "  --load-file, -l file       Load the argument file"
   putStrLn "  --no-io                    Prohibit all IO primitives"
   putStrLn ""
