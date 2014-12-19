@@ -231,17 +231,23 @@
 ;;
 (define $length
   (lambda [$xs]
-    (foldl' (lambda [$x $y] (+ x 1)) 0 xs)))
+    (foldl (lambda [$r $x] (+ r 1)) 0 xs)))
 
 (define $count
   (lambda [$x $xs]
-    (length (match-all xs (list something)
-              [<join _ <cons ,x _>> x]))))
+    (foldl (match-lambda [something something]
+             {[[$r ,x] (+ r 1)]
+              [[$r $y] r]})
+           0
+           xs)))
 
 (define $count/m
   (lambda [$a $x $xs]
-    (length (match-all xs (list a)
-              [<join _ <cons ,x _>> x]))))
+    (foldl (match-lambda [a a]
+             {[[$r ,x] (+ r 1)]
+              [[$r $y] r]})
+           0
+           xs)))
 
 (define $frequency
   (lambda [$xs]
