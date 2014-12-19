@@ -1,14 +1,37 @@
 (define $SH.input
-  (letrec {[$input'
-            (lambda []
-              (if (io (eof?))
-                {}
-                {(io (TSV.read-line)) @(input')}))]}
-    (input')))
+  (lambda [$opts]
+    (if (io (eof?))
+      {}
+      {(io (TSV.read-line opts)) @(SH.input opts)})))
 
 (define $TSV.read-line
-  (lambda []
+  (lambda [$opts]
     (do {[$line (read-line)]}
-      (return (read-tsv line)))))
+      (let {[$fs (S.split "\t" line)]}
+        (letrec {[$fn (match-lambda [(list (list integer)) (list string)]
+                        {[[<nil> $fs] fs]
+                         [[<cons <cons $m <nil>> $opts'>
+                           <join (& $hs ?(lambda [$hs] (eq? (- m 1) (length hs))))
+                            <cons $mf <nil>>>]
+                          (fn opts' {@hs (S.concat {"{" mf "}"})})]
+                         [[<cons <cons $m <nil>> $opts'>
+                           <join (& $hs ?(lambda [$hs] (eq? (- m 1) (length hs))))
+                            <cons $mf <snoc $tf $ms>>>]
+                          (fn opts' {@hs (S.append "{" mf) @ms (S.append tf "}")})]
+                         [[<cons <cons $m <cons ,m <nil>>> $opts'>
+                           <join (& $hs ?(lambda [$hs] (eq? (- m 1) (length hs))))
+                            <cons $mf $ts>>]
+                          (fn opts' {@hs (S.concat {"{" mf "}"}) @ts})]
+                         [[<cons <cons $m <cons $n <nil>>> $opts'>
+                           <join (& $hs ?(lambda [$hs] (eq? (- m 1) (length hs))))
+                            <cons $mf <join (& $ms ?(lambda [$ms] (eq? (- n m 1) (length ms))))
+                             <cons $nf $ts>>>>]
+                          (fn opts' {@hs (S.append "{" mf) @ms (S.append nf "}") @ts})]
+                         [[<cons <cons $m <cons _ <nil>>> $opts'>
+                           _]
+                          (fn {{m} @opts'} fs)]
+                         [[_ _] fs]
+                         })]}
+          (return (read-tsv (S.intercalate "\t" (fn opts fs)))))))))
 
 (define $TSV.show (show-tsv $))

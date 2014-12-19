@@ -5,6 +5,8 @@ import Control.Exception ( AsyncException(..), catch )
 import Control.Monad.Error
 
 import qualified Data.Text as T
+import Data.Char
+import Data.List (intercalate)
 
 import Data.Version
 
@@ -26,10 +28,10 @@ main = do args <- getArgs
           case opts of
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
-            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag} -> do
-              env <- if noIOFlag then initialEnvNoIO else initialEnv
-              result <- evalEgisonTopExprs env $ (map Load loadLibs) ++ (map LoadFile loadFiles)
-              case result of
+            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optFieldInfo = fieldInfo, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag} -> do
+              coreEnv <- if noIOFlag then initialEnvNoIO else initialEnv
+              mEnv <- evalEgisonTopExprs coreEnv $ (map Load loadLibs) ++ (map LoadFile loadFiles)
+              case mEnv of
                 Left err -> putStrLn $ show err
                 Right env -> do
                   case mExpr of
@@ -51,7 +53,7 @@ main = do args <- getArgs
                                          _ -> exitWith ExitSuccess
                         Nothing ->
                           case mSub of
-                            Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose show-tsv print) (" ++ sub ++ " SH.input)))")
+                            Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose show-tsv print) (" ++ sub ++ " (SH.input {" ++ intercalate " " fieldInfo ++  "}))))")
                                            case cmdRet of
                                              Left err -> putStrLn (show err) >> exitFailure
                                              _ -> exitWith ExitSuccess
@@ -77,6 +79,7 @@ data Options = Options {
     optEvalString :: Maybe String,
     optExecuteString :: Maybe String,
     optSubstituteString :: Maybe String,
+    optFieldInfo :: [String],
     optLoadLibs :: [String],
     optLoadFiles :: [String],
     optTsvOutput :: Bool,
@@ -93,6 +96,7 @@ defaultOptions = Options {
     optEvalString = Nothing,
     optExecuteString = Nothing,
     optSubstituteString = Nothing,
+    optFieldInfo = [],
     optLoadLibs = [],
     optLoadFiles = [],
     optTsvOutput = False,
@@ -153,8 +157,21 @@ options = [
   Option ['f'] ["filter"]
     (ReqArg (\expr opts -> opts {optSubstituteString = Just ("(filter " ++ expr ++ " $)")})
             "String")
-    "filter strings"
+    "filter strings",
+  Option ['F'] ["--field"]
+    (ReqArg (\d opts -> opts {optFieldInfo = optFieldInfo opts ++ [(readFieldOption d)]})
+            "String")
+    "field information"
   ]
+
+readFieldOption :: String -> String
+readFieldOption str =
+   let (s, rs) = span isDigit str in
+   case rs of
+     ',':rs' -> let (e, opts) = span isDigit rs' in
+                case opts of
+                  ['c'] -> "{" ++ s ++ " " ++ e ++ "}"
+     ['c'] -> "{" ++ s ++ "}"
 
 printHelp :: IO ()
 printHelp = do
