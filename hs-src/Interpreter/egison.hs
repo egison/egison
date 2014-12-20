@@ -52,7 +52,7 @@ main = do args <- getArgs
                                          _ -> exitWith ExitSuccess
                         Nothing ->
                           case mSub of
-                            Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose show-tsv print) (" ++ sub ++ " (SH.input {" ++ intercalate " " (map fst fieldInfo) ++  "} {" ++ intercalate " " (map snd fieldInfo) ++  "}))))")
+                            Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if tsvFlag then "show-tsv" else "show") ++ " print) (" ++ sub ++ " (SH.input {" ++ intercalate " " (map fst fieldInfo) ++  "} {" ++ intercalate " " (map snd fieldInfo) ++  "}))))")
                                            case cmdRet of
                                              Left err -> putStrLn (show err) >> exitFailure
                                              _ -> exitWith ExitSuccess
