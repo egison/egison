@@ -1,6 +1,5 @@
 module Main where
 
-import Prelude hiding ( catch )
 import Control.Exception ( AsyncException(..), catch )
 import Control.Monad.Error
 
@@ -53,7 +52,7 @@ main = do args <- getArgs
                                          _ -> exitWith ExitSuccess
                         Nothing ->
                           case mSub of
-                            Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose show-tsv print) (" ++ sub ++ " (SH.input {" ++ intercalate " " fieldInfo ++  "}))))")
+                            Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose show-tsv print) (" ++ sub ++ " (SH.input {" ++ intercalate " " (map fst fieldInfo) ++  "} {" ++ intercalate " " (map snd fieldInfo) ++  "}))))")
                                            case cmdRet of
                                              Left err -> putStrLn (show err) >> exitFailure
                                              _ -> exitWith ExitSuccess
@@ -79,7 +78,7 @@ data Options = Options {
     optEvalString :: Maybe String,
     optExecuteString :: Maybe String,
     optSubstituteString :: Maybe String,
-    optFieldInfo :: [String],
+    optFieldInfo :: [(String, String)],
     optLoadLibs :: [String],
     optLoadFiles :: [String],
     optTsvOutput :: Bool,
@@ -164,14 +163,20 @@ options = [
     "field information"
   ]
 
-readFieldOption :: String -> String
+readFieldOption :: String -> (String, String)
 readFieldOption str =
    let (s, rs) = span isDigit str in
    case rs of
      ',':rs' -> let (e, opts) = span isDigit rs' in
                 case opts of
-                  ['c'] -> "{" ++ s ++ " " ++ e ++ "}"
-     ['c'] -> "{" ++ s ++ "}"
+                  ['s'] -> ("{" ++ s ++ " " ++ e ++ "}", "{}")
+                  ['c'] -> ("{}", "{" ++ s ++ " " ++ e ++ "}")
+                  ['s', 'c'] -> ("{" ++ s ++ " " ++ e ++ "}", "{" ++ s ++ " " ++ e ++ "}")
+                  ['c', 's'] -> ("{" ++ s ++ " " ++ e ++ "}", "{" ++ s ++ " " ++ e ++ "}")
+     ['s'] -> ("{" ++ s ++ "}", "{}")
+     ['c'] -> ("{}", "{" ++ s ++ "}")
+     ['s', 'c'] -> ("{" ++ s ++ "}", "{" ++ s ++ "}")
+     ['c', 's'] -> ("{" ++ s ++ "}", "{" ++ s ++ "}")
 
 printHelp :: IO ()
 printHelp = do
