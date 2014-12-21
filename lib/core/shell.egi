@@ -1,8 +1,9 @@
-(define $SH.input
+(define $SH.gen-input
   (lambda [$sopts $copts]
     (if (io (eof?))
       {}
-      {(io (TSV.read-line sopts copts)) @(SH.input sopts copts)})))
+      (let {[$x (io (TSV.read-line sopts copts))]}
+        (seq x {x @(SH.gen-input sopts copts)})))))
 
 (define $TSV.read-line
   (lambda [$sopts $copts]
