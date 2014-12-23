@@ -86,12 +86,11 @@
 
 (define $between
   (lambda [$s $e]
-    (if (gt? (+ s 10) e)
-      (if (gt? s e)
-        {}
-        {s @(between (+ s 1) e)})
-      {s (+ s 1) (+ s 2) (+ s 3) (+ s 4) (+ s 5) (+ s 6) (+ s 7) (+ s 8) (+ s 9) (+ s 10) @(between (+ s 11) e)})
-    ))
+    (if (eq? s e)
+      {s}
+      (if (lt? s e)
+        {s @(between (+ s 1) e)}
+        {s @(between (- s 1) e)}))))
 
 (define $from
   (lambda [$s]
