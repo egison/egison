@@ -55,3 +55,7 @@
   (lambda [$f $g $h]
     (lambda $x
       (apply h (apply g (apply f x))))))
+
+(define $ref
+  (lambda [$xa $i]
+    (array-ref xa i)))
