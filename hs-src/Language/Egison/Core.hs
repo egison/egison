@@ -288,27 +288,6 @@ evalExpr env (SeqExpr expr1 expr2) = do
   evalExprDeep env expr1
   evalExpr env expr2
 
-evalExpr env@(loopCxts, frames) (LoopExpr name (LoopRange start end WildCard) expr1 expr2) = do
-  startNum <- evalExpr env start >>= fromWHNF
-  startNumRef <- newEvalutedObjectRef $ Value $ Integer startNum
-  end' <- evalExpr env end
-  endRef <- newEvalutedObjectRef end'
-  endNum <- evalRef endRef >>= fromWHNF
-  if startNum > endNum
-    then evalExpr (loopCxts, frames) expr2
-    else evalExpr (((LoopExprContext (name, startNumRef) endRef expr1 expr2):loopCxts), frames) expr1
-
-evalExpr env@(loopCxts, frames) ContExpr = do
-  case loopCxts of
-    [] -> throwError $ strMsg "cannot use cont expr except in loop expr"
-    ((LoopExprContext (name, startNumRef) endRef expr1 expr2):loopCxts') -> do
-      startNum <- evalRef startNumRef >>= fromWHNF
-      nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
-      endNum <- evalRef endRef >>= fromWHNF
-      if startNum >= endNum
-       then evalExpr (loopCxts', frames) expr2
-       else evalExpr (((LoopExprContext (name, nextNumRef) endRef expr1 expr2):loopCxts'), frames) expr1
-
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg
