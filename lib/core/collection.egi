@@ -26,10 +26,12 @@
          [_ {}]}]
        [<join $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
+                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                                                         rs]])]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
+                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                                                         rs]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -48,10 +50,12 @@
        [<join $ <cons ,$px $>> [(ordered-list a) (ordered-list a)]
         {[{} {}]
          [$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons (& ?(lt? $ px) $xa_i) ...> <cons ,px $rs>) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
+                 [(loop $i [1 $n] <cons (& ?(lt? $ px) $xa_i) ...> <cons ,px $rs>) [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                                                                                    rs]])]}]
        [<join $ $> [(ordered-list a) (ordered-list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
+                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                                                         rs]])]}]
        [<cons ,$px $> [(ordered-list a)]
         {[{$x @$xs} (if (gt? x px)
                       {}
@@ -62,7 +66,8 @@
          [_ {}]}]
        [<nioj $ $> [(ordered-list a) (ordered-list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(loop $i [1 n] {xa_i @...} {}) rs]])]}]
+                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                                                         rs]])]}]
        [<snoc ,$px $> [a (ordered-list a)]
         {[{@$xs $x} (if (lt? x px)
                       {}
@@ -90,7 +95,7 @@
       {s}
       (if (lt? s e)
         {s @(between (+ s 1) e)}
-        {s @(between (- s 1) e)}))))
+        {}))))
 
 (define $from
   (lambda [$s]

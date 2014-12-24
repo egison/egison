@@ -42,7 +42,6 @@ module Language.Egison.Types
     , nullEnv
     , extendEnv
     , refVar
-    , LoopExprContext (..)
     -- * Pattern matching
     , Match
     , PMMode (..)
@@ -162,7 +161,6 @@ data EgisonExpr =
   | IoExpr EgisonExpr
     
   | SeqExpr EgisonExpr EgisonExpr
-  | LoopExpr String LoopRange EgisonExpr EgisonExpr
   | ContExpr
   | ApplyExpr EgisonExpr EgisonExpr
 
@@ -514,22 +512,19 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-type Env = ([LoopExprContext], [HashMap Var ObjectRef])
+type Env = [HashMap Var ObjectRef]
 type Var = String
 type Binding = (Var, ObjectRef)
 
 nullEnv :: Env
-nullEnv = ([], [])
+nullEnv = []
 
 extendEnv :: Env -> [Binding] -> Env
-extendEnv env = ([],) . (: (snd env)) . HashMap.fromList
+extendEnv env = (: env) . HashMap.fromList
 
 refVar :: Env -> Var -> EgisonM ObjectRef
 refVar env var = maybe (throwError $ UnboundVariable var) return
-                       (msum $ map (HashMap.lookup var) (snd (extendEnv env (map (\(LoopExprContext binding _ _ _) -> binding) (fst env)))))
-
-data LoopExprContext = LoopExprContext Binding ObjectRef EgisonExpr EgisonExpr
- deriving (Show)
+                       (msum $ map (HashMap.lookup var) env)
 
 --
 -- Pattern Match

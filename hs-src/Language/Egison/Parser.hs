@@ -184,7 +184,6 @@ expr' = (try constantExpr
                          <|> matcherBFSExpr
                          <|> matcherDFSExpr
                          <|> seqExpr
-                         <|> loopExpr
                          <|> applyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
@@ -352,9 +351,6 @@ ioExpr = keywordIo >> IoExpr <$> expr
 
 seqExpr :: Parser EgisonExpr
 seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
-
-loopExpr :: Parser EgisonExpr
-loopExpr = keywordLoop >> LoopExpr <$> varName <*> loopRange <*> expr <*> expr
 
 contExpr :: Parser EgisonExpr
 contExpr = reservedOp "..." >> pure ContExpr
