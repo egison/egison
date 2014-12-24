@@ -137,7 +137,6 @@ Enjoy!
 ### How to Run Test
 
 ```
-% cabal install --enable-tests
 % cabal test
 ```
 
