@@ -169,7 +169,7 @@ evalExpr env (CollectionExpr inners) = do
 
 evalExpr env (ArrayExpr exprs) = do
   refs' <- mapM (newObjectRef env) exprs
-  return . Intermediate . IArray $ Array.listArray (0, toInteger ((length exprs) - 1)) refs'
+  return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -322,8 +322,8 @@ evalExpr env (ArraySizeExpr expr) =
   evalExpr env expr >>= arraySize
   where
     arraySize :: WHNFData -> EgisonM WHNFData
-    arraySize (Intermediate (IArray arr)) = return . Value . toEgison $ (snd $ Array.bounds arr) + 1
-    arraySize (Value (Array arr))         = return . Value . toEgison $ (snd $ Array.bounds arr) + 1
+    arraySize (Intermediate (IArray arr)) = return . Value . toEgison $ snd $ Array.bounds arr
+    arraySize (Value (Array arr))         = return . Value . toEgison $ snd $ Array.bounds arr
     arraySize val                          = throwError $ TypeMismatch "array" val
 
 evalExpr _ SomethingExpr = return $ Value Something
@@ -397,7 +397,7 @@ generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name sizeExpr expr = do
   size <- evalExpr env sizeExpr >>= fromWHNF >>= return . fromInteger
   elems <- mapM genElem (enumFromTo 1 size)
-  return $ Intermediate $ IArray $ Array.listArray (0, size - 1) elems
+  return $ Intermediate $ IArray $ Array.listArray (1, size) elems
   where
     genElem :: Integer -> EgisonM ObjectRef
     genElem i = do env' <- bindEnv env name $ toInteger i
