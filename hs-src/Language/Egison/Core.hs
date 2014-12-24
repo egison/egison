@@ -203,8 +203,8 @@ evalExpr env (HashExpr assocs) = do
 
 evalExpr env (IndexedExpr expr indices) = do
   array <- evalExpr env expr
-  indices <- mapM (evalExprDeep env) indices
-  refArray array indices
+  indices' <- mapM (evalExprDeep env) indices
+  refArray array indices'
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
 
