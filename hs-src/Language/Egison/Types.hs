@@ -295,6 +295,7 @@ instance Eq EgisonValue where
  (String str) == (String str') = str == str'
  (Bool b) == (Bool b') = b == b'
  (Integer i) == (Integer i') = i == i'
+ (Rational r) == (Rational r') = r == r'
  (Float f) == (Float f') = f == f'
  (InductiveData name vals) == (InductiveData name' vals') = name == name' && vals == vals'
  (Tuple vals) == (Tuple vals') = vals == vals'

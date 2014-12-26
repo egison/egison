@@ -1,0 +1,179 @@
+(assert "list's value pattern"
+  (match {1 2 3} (list integer)
+    {[,{@{@{1}} @{2 @{3}}} #t]
+     [_ #f]}))
+
+(assert-equal "list's cons"
+  (match {1 2 3} (list integer)
+    {[<cons $n $ns> [n ns]]})
+  [1 {2 3}])
+
+(assert-equal "list's cons with value pattern"
+  (match {1 2 3} (list integer)
+    {[<cons ,1 $ns> ns]})
+  {2 3})
+
+(assert-equal "list's snoc"
+  (match {1 2 3} (list integer)
+    {[<snoc $n $ns> [n ns]]})
+  [3 {1 2}])
+
+(assert-equal "list's snoc with value pattern"
+  (match {1 2 3} (list integer)
+    {[<snoc ,3 $ns> ns]})
+  {1 2})
+
+(assert-equal "list's join"
+  (match-all {1 2 3} (list integer)
+    [<join $xs $ys> [xs ys]])
+  {[{} {1 2 3}]
+   [{1} {2 3}]
+   [{1 2} {3}]
+   [{1 2 3} {}]})
+
+(assert-equal "list's join with value pattern"
+  (match {1 2 3} (list integer)
+    {[<join ,{1} $ns> ns]})
+  {2 3})
+
+(assert-equal "list's nioj"
+  (match-all {1 2 3} (list integer)
+    [<nioj $xs $ys> [xs ys]])
+  {[{} {1 2 3}]
+   [{3} {1 2}]
+   [{3 2} {1}]
+   [{3 2 1} {}]})
+
+(assert-equal "list's nioj with value pattern"
+  (match {1 2 3} (list integer)
+    {[<nioj ,{3} $ns> ns]})
+  {1 2})
+
+(assert-equal "multiset's join"
+  (match-all {1 2 3} (multiset integer)
+    [<join $xs $ys> [xs ys]])
+  {[{} {1 2 3}] [{1} {2 3}] [{2} {1 3}] [{3} {1 2}] [{1 2} {3}] [{1 3} {2}] [{2 3} {1}] [{1 2 3} {}]})
+
+(assert-equal "multiset's join with value pattern 1"
+  (match-all {1 2 3} (multiset integer)
+    [<join ,{1 3} $ys> ys])
+  {{2}})
+
+(assert-equal "multiset's join with value pattern 2"
+  (match-all {1 2 3} (multiset integer)
+    [<join ,{1 5 3} $ys> ys])
+  {})
+
+(assert-equal "set's join"
+  (match-all {1 2 3} (set integer)
+    [<join $xs $ys> [xs ys]])
+  {[{} {1 2 3}] [{1} {1 2 3}] [{2} {1 2 3}] [{3} {1 2 3}] [{1 2} {1 2 3}] [{1 3} {1 2 3}] [{2 1} {1 2 3}] [{2 3} {1 2 3}] [{3 1} {1 2 3}] [{1 2 3} {1 2 3}] [{3 2} {1 2 3}] [{1 3 2} {1 2 3}] [{2 1 3} {1 2 3}] [{2 3 1} {1 2 3}] [{3 1 2} {1 2 3}] [{3 2 1} {1 2 3}]})
+
+(assert-equal "set's join with value pattern 1"
+  (match-all {1 2 3} (set integer)
+    [<join ,{1 3} $ys> ys])
+  {{1 2 3}})
+
+(assert-equal "set's join with value pattern 2"
+  (match-all {1 2 3} (set integer)
+    [<join ,{1 5 3} $ys> ys])
+  {})
+
+(assert-equal "map"
+  (map (* $ 2) {1 2 3})
+  {2 4 6})
+
+(assert-equal "foldr"
+  (foldr (lambda [$n $ns] {n @ns}) {} {1 2 3})
+  {1 2 3})
+
+(assert-equal "foldl"
+  (foldl (lambda [$ns $n] {n @ns}) {} {1 2 3})
+  {3 2 1})
+
+(assert-equal "filter"
+  (let {[$odd? (lambda [$n] (eq? (modulo n 2) 1))]}
+    (filter odd? {1 2 3}))
+  {1 3})
+
+(assert-equal "delete-first/m"
+  (delete-first/m integer 2 {1 2 3 2})
+  {1 3 2})
+
+(assert-equal "delete/m"
+  (delete/m integer 2 {1 2 3 1 2 3})
+  {1 3 1 3})
+
+(assert-equal "difference/m"
+  (difference/m integer {1 2 3} {1 3})
+  {2})
+
+(assert-equal "length"
+  (length {1 2 3})
+  3)
+
+(assert-equal "car"
+  (car {1 2 3})
+  1)
+
+(assert-equal "cdr"
+  (cdr {1 2 3})
+  {2 3})
+
+(assert-equal "rac"
+  (rac {1 2 3})
+  3)
+
+(assert-equal "rdc"
+  (rdc {1 2 3})
+  {1 2})
+
+(assert-equal "nth"
+  (nth 1 {1 2 3})
+  1)
+
+(assert-equal "take"
+  (take 2 {1 2 3})
+  {1 2})
+
+(assert-equal "drop"
+  (drop 2 {1 2 3})
+  {3})
+
+(assert-equal "reverse"
+  (reverse {1 2 3})
+  {3 2 1})
+
+(assert-equal "concat"
+  (concat {{1 2} {3 4 5}})
+  {1 2 3 4 5})
+
+(assert "multiset's value pattern"
+  (match {1 1 1 2 3} (multiset integer)
+    {[,{@{@{1}} @{2 @{1 3}} 1} #t]
+     [_ #f]}))
+
+(assert-equal "multiset's cons"
+  (match-all {1 2 3} (multiset integer)
+    [<cons $n $ns> [n ns]])
+  {[1 {2 3}] [2 {1 3}] [3 {1 2}]})
+
+(assert-equal "multiset's cons with value pattern"
+  (match {1 2 3} (multiset integer)
+    {[<cons ,2 $ns> ns]})
+  {1 3})
+
+(assert-equal "multiset's join with value pattern"
+  (match {1 2 3} (multiset integer)
+    {[<join ,{1} $ns> ns]})
+  {2 3})
+
+(assert-equal "set's cons"
+  (match-all {1 2 3} (set integer)
+    [<cons $n $ns> [n ns]])
+  {[1 {1 2 3}] [2 {1 2 3}] [3 {1 2 3}]})
+
+(assert-equal "set's cons with value pattern"
+  (match {1 2 3} (set integer)
+    {[<cons ,2 $ns> ns]})
+  {1 2 3})

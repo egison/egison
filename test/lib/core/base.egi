@@ -3,13 +3,13 @@
           {[[,#t ,#f] #t]
            [_ #f]})))
 
-(test (assert-equal "and"
-        [(and #t #t) (and #t #f) (and #f #t) (and #f #f)]
-        [#t #f #f #f]))
-
 (test (assert-equal "or"
         [(or #t #t) (or #t #f) (or #f #t) (or #f #f)]
         [#t #t #t #f]))
+
+(test (assert-equal "and"
+        [(and #t #t) (and #t #f) (and #f #t) (and #f #f)]
+        [#t #f #f #f]))
 
 (test (assert-equal "not"
         [(not #t) (not #f)]
@@ -18,11 +18,6 @@
 (test (assert "char's value pattern"
         (match 'a' char
           {[,'a' #t]
-           [_ #f]})))
-
-(test (assert "string's value pattern"
-        (match "abc" string
-          {[,"abc" #t]
            [_ #f]})))
 
 (test (assert "integer's value pattern"
