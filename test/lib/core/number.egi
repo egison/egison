@@ -1,0 +1,51 @@
+(assert-equal "nats"
+  (take 10 nats)
+  {1 2 3 4 5 6 7 8 9 10})
+
+(assert-equal "nats0"
+  (take 10 nats0)
+  {0 1 2 3 4 5 6 7 8 9})
+
+(assert-equal "odds"
+  (take 10 odds)
+  {1 3 5 7 9 11 13 15 17 19})
+
+(assert-equal "evens"
+  (take 10 evens)
+  {2 4 6 8 10 12 14 16 18 20})
+
+(assert-equal "p-f"
+  (p-f 100)
+  {2 2 5 5})
+
+(assert-equal "primes"
+  (take 10 primes)
+  {2 3 5 7 11 13 17 19 23 29})
+
+(assert-equal "power"
+  (power 2 10)
+  1024)
+
+(assert-equal "fib"
+  (fib 10)
+  89)
+
+(assert-equal "fibs"
+  (take 10 fibs)
+  {1 1 2 3 5 8 13 21 34 55})
+
+(assert-equal "divisor?"
+  (divisor? 10 5)
+  #t)
+
+(assert-equal "gcd"
+  (gcd {10 20 5 40})
+  5)
+
+(assert-equal "show-decimal"
+  (show-decimal 100 12059970005544541658496968575791460958842706458496548591362444428906196499421973001746065700042304190032996970705788029894656/3838807679844812409282786273009291519627438604992653223722422384053523818146349222546734500273190341235133597206458872792375)
+  "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679")
+
+(assert-equal "show-decimal'"
+  (show-decimal' 1/3)
+  "0. 3 ...")
