@@ -1,47 +1,47 @@
-(test (assert "bool's value pattern"
-        (match [#t #f] [bool bool]
-          {[[,#t ,#f] #t]
-           [_ #f]})))
+(assert "bool's value pattern"
+  (match [#t #f] [bool bool]
+    {[[,#t ,#f] #t]
+     [_ #f]}))
 
-(test (assert-equal "or"
-        [(or #t #t) (or #t #f) (or #f #t) (or #f #f)]
-        [#t #t #t #f]))
+(assert-equal "or"
+  [(or #t #t) (or #t #f) (or #f #t) (or #f #f)]
+  [#t #t #t #f])
 
-(test (assert-equal "and"
-        [(and #t #t) (and #t #f) (and #f #t) (and #f #f)]
-        [#t #f #f #f]))
+(assert-equal "and"
+  [(and #t #t) (and #t #f) (and #f #t) (and #f #f)]
+  [#t #f #f #f])
 
-(test (assert-equal "not"
-        [(not #t) (not #f)]
-        [#f #t]))
+(assert-equal "not"
+  [(not #t) (not #f)]
+  [#f #t])
 
-(test (assert "char's value pattern"
-        (match 'a' char
-          {[,'a' #t]
-           [_ #f]})))
+(assert "char's value pattern"
+  (match 'a' char
+    {[,'a' #t]
+     [_ #f]}))
 
-(test (assert "integer's value pattern"
-        (match 10 char
-          {[,10 #t]
-           [_ #f]})))
+(assert "integer's value pattern"
+  (match 10 char
+    {[,10 #t]
+     [_ #f]}))
 
-(test (assert "float's value pattern"
-        (match 0.1 char
-          {[,0.1 #t]
-           [_ #f]})))
+(assert "float's value pattern"
+  (match 0.1 char
+    {[,0.1 #t]
+     [_ #f]}))
 
-(test (assert-equal "less than predicate"
-        [(lt? 0.1 1) (lt? 1 0.1) (lt? 1 1)]
-        [#t #f #f]))
+(assert-equal "less than predicate"
+  [(lt? 0.1 1) (lt? 1 0.1) (lt? 1 1)]
+  [#t #f #f])
 
-(test (assert-equal "less than or equal predicate"
-        [(lte? 0.1 1) (lte? 1 0.1) (lte? 1 1)]
-        [#t #f #t]))
+(assert-equal "less than or equal predicate"
+  [(lte? 0.1 1) (lte? 1 0.1) (lte? 1 1)]
+  [#t #f #t])
 
-(test (assert-equal "greater than predicate"
-        [(gt? 0.1 1) (gt? 1 0.1) (gt? 1 1)]
-        [#f #t #f]))
+(assert-equal "greater than predicate"
+  [(gt? 0.1 1) (gt? 1 0.1) (gt? 1 1)]
+  [#f #t #f])
 
-(test (assert-equal "greater than or equal predicate"
-        [(gte? 0.1 1) (gte? 1 0.1) (gte? 1 1)]
-        [#f #t #t]))
+(assert-equal "greater than or equal predicate"
+  [(gte? 0.1 1) (gte? 1 0.1) (gte? 1 1)]
+  [#f #t #t])
