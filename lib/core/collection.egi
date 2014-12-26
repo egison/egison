@@ -83,12 +83,6 @@
 ;;
 ;; Helper function for List matcher, be careful for recursive calls
 ;;
-(define $map
-  (lambda [$fn $xs]
-    (match xs (list something)
-      {[<nil> {}]
-       [<cons $x $rs> {(fn x) @(map fn rs)}]})))
-
 (define $between
   (lambda [$s $e]
     (if (eq? s e)
@@ -101,23 +95,15 @@
   (lambda [$s]
     {s (+ s 1) (+ s 2) (+ s 3) (+ s 4) (+ s 5) (+ s 6) (+ s 7) (+ s 8) (+ s 9) (+ s 10) @(from (+ s 11))}))
 
-;;
-;; list functions
-;;
-(define $repeat1
-  (lambda [$x]
-    {x @(repeat1 x)}))
-
-(define $repeat
-  (lambda [$xs]
-    {@xs @(repeat xs)}))
-
 (define $foldr
   (lambda [$fn $init $ls]
     (match ls (list something)
       {[<nil> init]
        [<cons $x $xs> (fn x (foldr fn init xs))]})))
 
+;;
+;; list functions
+;;
 (define $foldl foldl')
 
 (define $foldl'
@@ -127,6 +113,26 @@
        [<cons $x $xs>
         (let {[$z (fn init x)]}
           (seq z (foldl' fn z xs)))]})))
+
+(define $map
+  (lambda [$fn $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs> {(fn x) @(map fn rs)}]})))
+
+(define $scanl
+  (lambda [$fn $init $ls]
+    {init @(match ls (list something)
+             {[<nil> {}]
+              [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
+
+(define $repeat1
+  (lambda [$x]
+    {x @(repeat1 x)}))
+
+(define $repeat
+  (lambda [$xs]
+    {@xs @(repeat xs)}))
 
 (define $filter
   (lambda [$pred $xs]
@@ -152,12 +158,6 @@
     (foldr (lambda [$xs $rs] {@xs @rs})
            {}
            xss)))
-
-(define $scanl
-  (lambda [$fn $init $ls]
-    {init @(match ls (list something)
-             {[<nil> {}]
-              [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
 
 (define $map2
   (lambda [$fn $xs $ys]
