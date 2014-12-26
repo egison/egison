@@ -14,11 +14,7 @@
       {[$tgt {tgt}]}]
      }))
   
-(define $id (lambda [$x] x))
-
-(define $fst (lambda [$x $y] x))
-
-(define $snd (lambda [$x $y] y))(define $bool builtin-data-matcher)
+(define $bool builtin-data-matcher)
 
 (define $or
   (lambda [$b1 $b2]
@@ -45,6 +41,12 @@
     (match x a
       {[,y #t]
        [_ #f]})))
+
+(define $id (lambda [$x] x))
+
+(define $fst (lambda [$x $y] x))
+
+(define $snd (lambda [$x $y] y))
 
 (define $compose
   (lambda [$f $g]

@@ -1,0 +1,5 @@
+(test (assert "string's value pattern"
+        (match "abc" string
+          {[,"abc" #t]
+           [_ #f]})))
+

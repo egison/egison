@@ -48,6 +48,7 @@
 
      "\\<do\\>"
      "\\<io\\>"
+     "\\<seq\\>"
 
      "\\<undefined\\>"
      "\\<something\\>"
@@ -59,6 +60,9 @@
      "\\\&"
      "@"
      "\\<_\\>"
+
+     "\\<assert\\>"
+     "\\<assert-equal\\>"
      ))
   "Subdued expressions to highlight in Egison modes.")
 
@@ -160,6 +164,8 @@
         ((equal "pattern-function" name) 2)
         ((equal "do" name) 2)
         ((equal "io" name) 2)
+        ((equal "assert" name) 2)
+        ((equal "assert-equal" name) 2)
         ))
 
 (defun egison-indent-line ()
