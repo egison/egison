@@ -30,7 +30,7 @@
                                                          rs]])]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(foldr (lambda [$i $r] {@r xa_i}) {} (between 1 n))
                                                          rs]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
