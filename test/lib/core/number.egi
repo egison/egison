@@ -50,6 +50,17 @@
   (gcd {10 20 5 40})
   5)
 
+(assert-equal "fact"
+  (fact 10)
+  3628800)
+
+(assert-equal "perm"
+  (perm 5 2)
+  20)
+
+(assert-equal "comb"
+  (comb 5 2)
+  10)
 (assert-equal "rtod'"
   (rtod' 6/35)
   <Df' 0 {1} {7 1 4 2 8 5}>)
