@@ -190,3 +190,20 @@
   (lambda [$x]
     (match (rtod' x) decimal'
       {[<df' $q $s $c> (foldl S.append "" {(S.append (show q) ".") @(map show s) " " @(map show c) " ..."})]})))
+
+;;;
+;;; Continued Fraction
+;;;
+(define $regular-continued-fraction
+  (lambda [$as]
+    (+ (car as)
+       (foldr (lambda [$a $r] (/ 1 (+ a r)))
+              0
+              (cdr as)))))
+
+
+(define $continued-fraction
+  (match-lambda [(list integer) (list integer)]
+    {[[<cons $a $as> <cons $b $bs>]
+      (+ a (/ b (continued-fraction as bs)))]
+     [[<cons $a <nil>> <nil>] a]}))
