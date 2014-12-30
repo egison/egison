@@ -2,46 +2,10 @@
   (fact 10)
   3628800)
 
-(assert-equal "fact for negative"
-  (fact -10)
-  1)
-
-(assert-equal "fact for float"
-  (fact 10.5)
-  3628800)
-
-(assert-equal "fact for negative float"
-  (fact -10.5)
-  1)
-
 (assert-equal "perm"
   (perm 5 2)
   20)
 
-(assert-equal "perm, first arg is negative"
-  (perm -1 3)
-  -6)
-
-(assert-equal "perm, second arg is negative"
-  (perm 3 -3)
-  1)
-
-(assert-equal "perm, both args are negative"
-  (perm -4 -2)
-  1)
-
 (assert-equal "comb"
   (comb 5 2)
   10)
-
-(assert-equal "comb, first arg is negative"
-  (comb -4 2)
-  10)
-
-(assert-equal "comb, second arg is negative"
-  (comb 3 -3)
-  1)
-
-(assert-equal "comb, both args are negative"
-  (comb -4 -2)
-  1)
