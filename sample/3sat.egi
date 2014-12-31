@@ -1,0 +1,37 @@
+(define $clause.satisfy?
+  (lambda [$c $a]
+    (let {[$p (lambda [$i $b] (if b a_i (not a_i)))]}
+      (any p c))))
+
+(define $w4
+  (lambda [$n]
+    (generate-array [$i] n (R.car {#t #f}))))
+
+(define $random-walk-3-sat
+  (lambda [$f $n $R]
+    (letrec {[$rw3sat.loop
+              (match-lambda [integer integer something]
+                {[[,0 ,0  _] "おそらく充足不可能である"]
+                 [[,0 $r  _] (rw3sat.loop (* n 3) (- r 1) (w4 n))]
+                 [[$k $r $a] 
+                  (match (randomize f) (multiset (R.multiset [integer bool]))
+                    {[<cons (& ^?(clause.satisfy? $ a) <cons [$x _] _>) _> (rw3sat.loop (- k 1) r (generate-array [$i] n (if (eq? i x) (not a_i) a_i)))]
+                     [_ "充足可能である"]
+                     })]})]}
+      (rw3sat.loop (* n 3) R (w4 n)))))
+
+(define $p1 {[1 #t] [2 #t] [3 #t]})
+(define $p2 {[4 #t] [2 #t] [3 #f]})
+(define $p3 {[1 #f] [4 #t] [3 #t]})
+(define $p4 {[1 #f] [4 #f] [2 #t]})
+(define $p5 {[4 #f] [2 #f] [3 #t]})
+(define $p6 {[1 #f] [2 #f] [3 #f]})
+(define $p7 {[1 #t] [4 #f] [3 #f]})
+(define $p8 {[1 #t] [4 #t] [2 #f]})
+
+(define $f {p1 p2 p3 p4 p5 p6 p7 p8})
+;(define $f {p1 p2 p3 p4 p5 p6 p8})
+
+(define $main
+  (lambda [$args]
+    (print (random-walk-3-sat f 4 3))))
