@@ -30,6 +30,21 @@
         {[$tgt {tgt}]}]
        })))
 
+(define $R.uncons
+  (lambda [$xs]
+    (car (match-all xs (R.multiset something)
+           [<cons $x $rs> [x rs]]))))
+
+(define $R.car
+  (lambda [$xs]
+    (car (match-all xs (R.multiset something)
+           [<cons $x $rs> x]))))
+
+(define $R.cdr
+  (lambda [$xs]
+    (car (match-all xs (R.multiset something)
+           [<cons $x $rs> rs]))))
+
 (define $R.set
   (lambda [$a]
     (matcher
