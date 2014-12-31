@@ -1,0 +1,44 @@
+;;;;;
+;;;;; Random
+;;;;;
+
+(define $pure-rand
+  (lambda [$s $e]
+    (io (rand s e))))
+
+(define $randomize
+  (lambda [$xs]
+    (letrec {[$randomize'
+              (lambda [$xs $n]
+                (if (eq? n 0)
+                  {}
+                  (let {[$r (pure-rand 1 n)]}
+                    (let {[$x (nth r xs)]}
+                    {x @(randomize' (delete-first x xs) (- n 1))}))))]}
+      (randomize' xs (length xs)))))
+
+(define $R.multiset
+  (lambda [$a]
+    (matcher
+      {[<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<cons $ $> [a (R.multiset a)]
+        {[$tgt (randomize (match-all tgt (multiset a)
+                            [<cons $x $rs> [x rs]]))]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))
+
+(define $R.set
+  (lambda [$a]
+    (matcher
+      {[<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<cons $ $> [a (R.multiset a)]
+        {[$tgt (randomize (match-all tgt (set a)
+                            [<cons $x _> [x tgt]]))]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))

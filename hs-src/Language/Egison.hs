@@ -110,5 +110,6 @@ coreLibraries =
   , "lib/core/order.egi"
   , "lib/core/number.egi"
   , "lib/core/io.egi"
+  , "lib/core/random.egi"
   , "lib/core/string.egi"
   ]
