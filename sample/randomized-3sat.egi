@@ -36,5 +36,6 @@
 (define $p1 {c1 c2 c3 c4 c5 c6 c7 c8})
 (define $p2 {c1 c2 c3 c4 c5 c6 c8})
 
-(R.sat-solver p1 4 3)
-(R.sat-solver p2 4 3)
+(R.sat-solver p1 4 3);=><Nothing>
+(R.sat-solver p2 4 3);=><Just [|#f #f #t #t|]>, sometimes <Nothing>
+
