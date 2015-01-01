@@ -2,7 +2,7 @@
 ;;; Randomized 3-SAT
 ;;;
 
-(define $clause.satisfy?
+(define $clause-satisfy?
   (lambda [$c $a]
     (any (lambda [$i $b] (if b a_i (not a_i))) c)))
 
@@ -16,7 +16,7 @@
      [[$f $n ,0 $r _] (random-walk-3sat f n (* n 3) (- r 1) (random-assign n))]
      [[$f $n $k $r $a]
       (match (randomize f) (multiset (R.multiset [integer bool]))
-        {[<cons (& ^?(clause.satisfy? $ a) <cons [$x _] _>) _>
+        {[<cons (& ^?(clause-satisfy? $ a) <cons [$x _] _>) _>
           (random-walk-3sat f n (- k 1) r (generate-array [$i] n (if (eq? i x) (not a_i) a_i)))]
          [_ <Just a>]})]}))
 

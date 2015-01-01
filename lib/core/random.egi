@@ -15,7 +15,11 @@
                   (let {[$r (pure-rand 1 n)]}
                     (let {[$x (nth r xs)]}
                     {x @(randomize' (delete-first x xs) (- n 1))}))))]}
-      (randomize' xs (length xs)))))
+      (randomize' xs (length xs)))))    
+
+(define $R.between
+  (lambda [$s $e]
+    (randomize (between s e))))
 
 (define $R.multiset
   (lambda [$a]
@@ -24,8 +28,11 @@
         {[{} {[]}]
          [_ {}]}]
        [<cons $ $> [a (R.multiset a)]
-        {[$tgt (randomize (match-all tgt (multiset a)
-                            [<cons $x $rs> [x rs]]))]}]
+        {[$tgt (map (lambda [$i]
+                      (match tgt (list a)
+                        {[(loop $j [1 (- i 1)] <cons $xa_j ...> <cons $x $ts>)
+                          [x {@(map (lambda [$j] xa_j) (between 1 (- i 1))) @ts}]]}))
+                    (R.between 1 (length tgt)))]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -52,8 +59,11 @@
         {[{} {[]}]
          [_ {}]}]
        [<cons $ $> [a (R.multiset a)]
-        {[$tgt (randomize (match-all tgt (set a)
-                            [<cons $x _> [x tgt]]))]}]
+        {[$tgt (map (lambda [$i]
+                      (match tgt (list a)
+                        {[(loop $j [1 (- i 1)] <cons _ ...> <cons $x _>)
+                          [x tgt]]}))
+                    (R.between 1 (length tgt)))]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
