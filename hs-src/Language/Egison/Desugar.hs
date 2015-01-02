@@ -366,8 +366,8 @@ desugarPrimitiveDataMatchClauses ((pd, expr):pds) = do
   return $ (pd, expr'):pds'
 
 gatherPartialVars :: EgisonExpr -> Set Integer
+gatherPartialVars (PartialVarExpr n) = S.singleton n
 gatherPartialVars (InductiveDataExpr _ exprs) = S.unions (map gatherPartialVars exprs)
 gatherPartialVars (TupleExpr exprs) = S.unions (map gatherPartialVars exprs)
 gatherPartialVars (ApplyExpr fnExpr argExprs) = S.union (gatherPartialVars fnExpr) (gatherPartialVars argExprs)
-gatherPartialVars (PartialVarExpr n) = S.singleton n
 gatherPartialVars _ = S.empty
