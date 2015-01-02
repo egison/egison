@@ -169,13 +169,9 @@
     (map2 (lambda [$x $y] [x y]) xs ys)))
 
 (define $find-cycle
-  (lambda [$fn $init]
-    (letrec {[$looper (lambda [$xs $x]
-                        (let {[$y (fn x)]}
-                          (if (eq? y init)
-                            xs
-                            (looper {@xs y} y))))]}
-      (looper {init} init))))
+  (lambda [$xs]
+    (match xs (list something)
+      {[<join $s <cons $x <join $c <cons ,x _>>>> [s {x @c}]]})))
 
 ;;
 ;; Simple predicate
