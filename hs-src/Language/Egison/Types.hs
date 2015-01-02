@@ -164,7 +164,7 @@ data EgisonExpr =
   | SeqExpr EgisonExpr EgisonExpr
   | ContExpr
   | ApplyExpr EgisonExpr EgisonExpr
-  | PartialExpr EgisonExpr
+  | PartialExpr Integer EgisonExpr
   | PartialVarExpr Integer
 
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
