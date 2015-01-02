@@ -104,15 +104,13 @@
 ;;
 ;; list functions
 ;;
-(define $foldl foldl')
-
-(define $foldl'
+(define $foldl
   (lambda [$fn $init $ls]
     (match ls (list something)
       {[<nil> init]
        [<cons $x $xs>
         (let {[$z (fn init x)]}
-          (seq z (foldl' fn z xs)))]})))
+          (seq z (foldl fn z xs)))]})))
 
 (define $map
   (lambda [$fn $xs]
