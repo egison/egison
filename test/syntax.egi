@@ -354,3 +354,22 @@
   {| ["1" 11] ["2" 12] ["3" 13] ["4" 14] ["5" 15] |}_"3"
   13
   )
+
+;;;
+;;; Partial Application
+;;;
+(assert-equal "partial application '$'"
+  ((+ $ $) 1 2)
+  3)
+
+(assert-equal "partial application '$' with index"
+  ((- $2 $1) 1 2)
+  1)
+
+(assert-equal "partial application '#'"
+  (2#(+ (* 10 %1) %2) 1 2)
+  12)
+
+(assert-equal "recursive partial application '#'"
+  (take 10 (1#{%1 @(# (* %1 2))} 2))
+  {2 4 8 16 32 64 128 256 512 1024})

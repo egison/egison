@@ -159,6 +159,7 @@ expr' = (try partialExpr
              <|> try constantExpr
              <|> try partialVarExpr
              <|> contExpr
+             <|> recVarExpr
              <|> try varExpr
              <|> inductiveDataExpr
              <|> try arrayExpr
@@ -360,6 +361,9 @@ seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
 
 contExpr :: Parser EgisonExpr
 contExpr = reservedOp "..." >> pure ContExpr
+
+recVarExpr :: Parser EgisonExpr
+recVarExpr = reservedOp "#" >> pure RecVarExpr
 
 applyExpr :: Parser EgisonExpr
 applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr) 

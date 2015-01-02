@@ -263,11 +263,13 @@ desugar (MatcherDFSExpr matcherInfo) = do
   
 desugar (PartialVarExpr n) = return $ VarExpr $ "::" ++ show n
 
+desugar RecVarExpr = return $ VarExpr "::"
+
 desugar (PartialExpr n expr) = do
   expr' <- desugar expr
   if n == 0
-    then return $ LambdaExpr [] expr'
-    else return $ LambdaExpr (annonVars (fromIntegral n)) expr'
+    then return $ LetRecExpr [(["::"], LambdaExpr [] expr')] (LambdaExpr [] expr')
+    else return $ LetRecExpr [(["::"], LambdaExpr (annonVars (fromIntegral n)) expr')] (LambdaExpr (annonVars (fromIntegral n)) expr')
  where
   annonVars n = take n $ map (((++) "::") . show) [1..]
 
