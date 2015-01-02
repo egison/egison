@@ -156,6 +156,8 @@ expr = do expr <- expr'
 
 expr' :: Parser EgisonExpr
 expr' = (try constantExpr
+             <|> try partialExpr
+             <|> try partialVarExpr
              <|> contExpr
              <|> try varExpr
              <|> inductiveDataExpr
@@ -371,7 +373,7 @@ applyExpr' = do
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let genVar = modify (1+) >> gets (VarExpr . ('#':) . show)
+        let genVar = modify (1+) >> gets (VarExpr . (':':) . show)
             args' = evalState (mapM (either (const genVar) return) args) 0
         in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
       | all (not . null) vars ->
@@ -379,7 +381,7 @@ applyExpr' = do
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
-               let args' = map (either (VarExpr . ('#':)) id) args
+               let args' = map (either (VarExpr . (':':)) id) args
                in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
@@ -388,7 +390,13 @@ applyExpr' = do
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  annonVars n = take n $ map (('#':) . show) [1..]
+  annonVars n = take n $ map ((':':) . show) [1..]
+
+partialExpr :: Parser EgisonExpr
+partialExpr = char '#' >> PartialExpr <$> expr
+
+partialVarExpr :: Parser EgisonExpr
+partialVarExpr = char '%' >> PartialVarExpr <$> integerLiteral
 
 algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = keywordAlgebraicDataMatcher
