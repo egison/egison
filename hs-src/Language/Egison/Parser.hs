@@ -155,8 +155,8 @@ expr = do expr <- expr'
           option expr $ IndexedExpr expr <$> many1 (try $ char '_' >> expr')
 
 expr' :: Parser EgisonExpr
-expr' = (try constantExpr
-             <|> try partialExpr
+expr' = (try partialExpr
+             <|> try constantExpr
              <|> try partialVarExpr
              <|> contExpr
              <|> try varExpr
@@ -393,7 +393,9 @@ applyExpr' = do
   annonVars n = take n $ map ((':':) . show) [1..]
 
 partialExpr :: Parser EgisonExpr
-partialExpr = char '#' >> PartialExpr <$> expr
+partialExpr = PartialExpr <$> read <$> index <*> (char '#' >> expr)
+ where
+  index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
 
 partialVarExpr :: Parser EgisonExpr
 partialVarExpr = char '%' >> PartialVarExpr <$> integerLiteral

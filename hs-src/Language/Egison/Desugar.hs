@@ -261,18 +261,15 @@ desugar (MatcherDFSExpr matcherInfo) = do
   matcherInfo' <- desugarMatcherInfo matcherInfo
   return $ MatcherDFSExpr matcherInfo'
   
-desugar (PartialExpr expr) = do
-  let ns = gatherPartialVars expr
-  let n = S.size ns
-  if n > 0 && S.findMin ns == 1 && S.findMax ns == (fromIntegral n)
-    then do expr' <- desugar expr
-            return $ LambdaExpr (annonVars n) expr'
-    else fail "invalid partial application"
- where
-  annonVars n = take n $ map (((++) "::") . show) [1..]
-
 desugar (PartialVarExpr n) = return $ VarExpr $ "::" ++ show n
 
+desugar (PartialExpr n expr) = do
+  expr' <- desugar expr
+  if n == 0
+    then return $ LambdaExpr [] expr'
+    else return $ LambdaExpr (annonVars (fromIntegral n)) expr'
+ where
+  annonVars n = take n $ map (((++) "::") . show) [1..]
 
 desugar expr = return expr
 
@@ -364,10 +361,3 @@ desugarPrimitiveDataMatchClauses ((pd, expr):pds) = do
   expr' <- desugar expr
   pds' <- desugarPrimitiveDataMatchClauses pds
   return $ (pd, expr'):pds'
-
-gatherPartialVars :: EgisonExpr -> Set Integer
-gatherPartialVars (PartialVarExpr n) = S.singleton n
-gatherPartialVars (InductiveDataExpr _ exprs) = S.unions (map gatherPartialVars exprs)
-gatherPartialVars (TupleExpr exprs) = S.unions (map gatherPartialVars exprs)
-gatherPartialVars (ApplyExpr fnExpr argExprs) = S.union (gatherPartialVars fnExpr) (gatherPartialVars argExprs)
-gatherPartialVars _ = S.empty
