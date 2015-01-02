@@ -62,6 +62,10 @@
       (+ x y)))
   3)
 
+(assert-equal "let* binding"
+  (let* {[$x 1] [$y (+ x 1)]} y)
+  2)
+
 (assert-equal "letrec binding"
   (letrec {[[$x $y] t]
            [$t [1 2]]}
