@@ -170,6 +170,7 @@ expr' = (try constantExpr
                          <|> patternFunctionExpr
                          <|> letRecExpr
                          <|> letExpr
+                         <|> letStarExpr
                          <|> doExpr
                          <|> ioExpr
                          <|> matchAllExpr
@@ -321,6 +322,9 @@ letRecExpr =  keywordLetRec >> LetRecExpr <$> bindings <*> expr
 
 letExpr :: Parser EgisonExpr
 letExpr = keywordLet >> LetExpr <$> bindings <*> expr
+
+letStarExpr :: Parser EgisonExpr
+letStarExpr = keywordLetStar >> LetStarExpr <$> bindings <*> expr
 
 doExpr :: Parser EgisonExpr
 doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr "return") (TupleExpr [])) expr
@@ -550,6 +554,7 @@ reservedKeywords =
   , "pattern-function"
   , "letrec"
   , "let"
+  , "let*"
   , "loop"
   , "match-all"
   , "match"
@@ -601,6 +606,7 @@ keywordMemoize             = reserved "memoize"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
+keywordLetStar              = reserved "let*"
 keywordLoop                 = reserved "loop"
 keywordMatchAll             = reserved "match-all"
 keywordMatchAllLambda       = reserved "match-all-lambda"

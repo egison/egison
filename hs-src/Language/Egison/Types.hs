@@ -141,8 +141,9 @@ data EgisonExpr =
   | PatternFunctionExpr [String] EgisonPattern
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
-  | LetExpr [BindingExpr] EgisonExpr
   | LetRecExpr [BindingExpr] EgisonExpr
+  | LetExpr [BindingExpr] EgisonExpr
+  | LetStarExpr [BindingExpr] EgisonExpr
 
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr MatchClause

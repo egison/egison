@@ -12,8 +12,8 @@
 
 (define $random-walk-3sat
   (match-lambda [something integer integer integer something]
-    {[[$p _ ,0 ,0 _] <Nothing>]
-     [[$p $n ,0 $r _] (R.sat-solver p n (- r 1))]
+    {[[$p  _ ,0 ,0  _] <Nothing>]
+     [[$p $n ,0 $r  _] (R.sat-solver p n (- r 1))]
      [[$p $n $k $r $a]
       (match (randomize p) (multiset (R.multiset [integer bool]))
         {[<cons (& ^?(clause-satisfy? $ a) <cons [$x _] _>) _>
@@ -37,5 +37,5 @@
 (define $p2 {c1 c2 c3 c4 c5 c6 c8})
 
 (R.sat-solver p1 4 3);=><Nothing>
-(R.sat-solver p2 4 3);=><Just [|#f #f #t #t|]>, sometimes <Nothing>
+(R.sat-solver p2 4 3);=><Just [|#f #f #t #t|]>, <Just [|#f #t #t #t|]>, or sometimes <Nothing>
 

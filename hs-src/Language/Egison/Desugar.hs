@@ -186,16 +186,21 @@ desugar (IfExpr expr0 expr1 expr2) = do
   expr2' <- desugar expr2
   return $ IfExpr expr0' expr1' expr2'
   
-desugar (LetExpr binds expr) = do
-  binds' <- desugarBindings binds
-  expr' <- desugar expr
-  return $ LetExpr binds' expr'
-
 desugar (LetRecExpr binds expr) = do
   binds' <- desugarBindings binds
   expr' <- desugar expr
   return $ LetRecExpr binds' expr'
   
+desugar (LetExpr binds expr) = do
+  binds' <- desugarBindings binds
+  expr' <- desugar expr
+  return $ LetExpr binds' expr'
+
+desugar (LetStarExpr binds expr) = do
+  binds' <- desugarBindings binds
+  expr' <- desugar expr
+  return $ foldr (\bind ret -> LetExpr [bind] ret) expr' binds'
+
 desugar (MatchExpr expr0 expr1 clauses) = do  
   expr0' <- desugar expr0
   expr1' <- desugar expr1
