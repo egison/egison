@@ -1,6 +1,6 @@
 (define $f
   (lambda [$n]
-    (foldl' + 0 (map (power $ 2) (map (compose (lambda [$n] {n}) read) (show n))))))
+    (foldl + 0 (map (power $ 2) (map (compose (lambda [$n] {n}) read) (show n))))))
 
 (define $d (generate-array [$i] [567] (p-naive i)))
 
@@ -22,6 +22,6 @@
 
 ;(test (length (filter p (take 1000 nats))))
 ;(test (length (filter p (take 10000000 nats))))
-;(test (foldl' (lambda [$ret $n] (if (p n) (+ ret 1) ret)) 0 (take 1000 nats)))
-(test (foldl' (lambda [$ret $n] (if (p n) (+ ret 1) ret)) 0 (take 10000000 nats)))
+;(test (foldl (lambda [$ret $n] (if (p n) (+ ret 1) ret)) 0 (take 1000 nats)))
+(test (foldl (lambda [$ret $n] (if (p n) (+ ret 1) ret)) 0 (take 10000000 nats)))
 
