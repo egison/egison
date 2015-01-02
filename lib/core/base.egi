@@ -42,11 +42,11 @@
       {[,y #t]
        [_ #f]})))
 
-(define $id (lambda [$x] x))
+(define $id 1#%1)
 
-(define $fst (lambda [$x $y] x))
+(define $fst 2#%1)
 
-(define $snd (lambda [$x $y] y))
+(define $snd 2#%2)
 
 (define $compose
   (lambda [$f $g]
