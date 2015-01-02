@@ -1,0 +1,13 @@
+;;;;;
+;;;;;
+;;;;; Array
+;;;;;
+;;;;;
+
+(define $A.map
+  (lambda [$f $a]
+    (generate-array [$i] (array-size a) (f a_i))))
+
+(define $A.update
+  (lambda [$f $i $a]
+    (generate-array [$j] (array-size a) (if (eq? j i) (f a_j) a_j))))
