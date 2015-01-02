@@ -72,6 +72,7 @@
    (eval-when-compile
      (list
       (cons "\\\$\\\w*" font-lock-variable-name-face)
+      (cons "\\\%\\\w*" font-lock-variable-name-face)
       )))
   "Gaudy expressions to highlight in Egison modes.")
 
