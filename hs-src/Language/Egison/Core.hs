@@ -719,6 +719,11 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                                          | otherwise = (k', v'):(subst k nv xs)
                 subst _ _ [] = []
             IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
+            TuplePat patterns -> do
+              targets <- evalRef target >>= fromTuple
+              if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
+              let trees' = zipWith3 MAtom patterns targets (take (length patterns) (repeat Something)) ++ trees
+              return $ msingleton $ MState env loops bindings trees'
             _ -> throwError $ strMsg "something can only match with a pattern variable"
         _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
