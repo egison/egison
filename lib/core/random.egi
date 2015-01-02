@@ -12,10 +12,10 @@
               (lambda [$xs $n]
                 (if (eq? n 0)
                   {}
-                  (let {[$r (pure-rand 1 n)]}
-                    (let {[$x (nth r xs)]}
-                    {x @(randomize' (delete-first x xs) (- n 1))}))))]}
-      (randomize' xs (length xs)))))    
+                  (let* {[$r (pure-rand 1 n)]
+                         [$x (nth r xs)]}
+                    {x @(randomize' (delete-first x xs) (- n 1))})))]}
+      (randomize' xs (length xs)))))
 
 (define $R.between
   (lambda [$s $e]
