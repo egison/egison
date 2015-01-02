@@ -165,21 +165,20 @@
 
 (define $rtod
   (lambda [$x]
-    (let {[$m (numerator x)]
-          [$n (denominator x)]}
-      (let {[$q (quotient m n)]
-            [$r (remainder m n)]}
-          <Df q (map (lambda [$x $y] x) (rtod-helper r n))>))))
+    (let* {[$m (numerator x)]
+           [$n (denominator x)]
+           [$q (quotient m n)]
+           [$r (remainder m n)]}
+      <Df q (map (lambda [$x $y] x) (rtod-helper r n))>)))
 
 (define $rtod'
   (lambda [$x]
-    (let {[$m (numerator x)]
-          [$n (denominator x)]}
-      (let {[$q (quotient m n)]
-            [$r (remainder m n)]}
-        (let {[[$s $c] (match (rtod-helper r n) (list [integer integer])
-                         {[<join $s <cons $x <join $c <cons ,x _>>>> [s {x @c}]]})]}
-          <Df' q (map (lambda [$x $y] x) s) (map (lambda [$x $y] x) c)>)))))
+    (let* {[$m (numerator x)]
+           [$n (denominator x)]
+           [$q (quotient m n)]
+           [$r (remainder m n)]
+           [[$s $c] (find-cycle (rtod-helper r n))]}
+      <Df' q (map (lambda [$x $y] x) s) (map fst c)>)))
 
 (define $show-decimal
   (lambda [$n $x]

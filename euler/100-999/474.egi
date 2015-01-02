@@ -6,7 +6,7 @@
 
 (define $proc
   (lambda [$r]
-    (find-cycle (lambda [$n] (* r n)) r)))
+    (snd (find-cycle (scanl * r (repeat1 r))))))
 
 (test (proc1 3 2500))
 (test (take 10 (proc 3)))
