@@ -169,7 +169,7 @@
            [$n (denominator x)]
            [$q (quotient m n)]
            [$r (remainder m n)]}
-      <Df q (map (lambda [$x $y] x) (rtod-helper r n))>)))
+      <Df q (map fst (rtod-helper r n))>)))
 
 (define $rtod'
   (lambda [$x]
@@ -178,7 +178,7 @@
            [$q (quotient m n)]
            [$r (remainder m n)]
            [[$s $c] (find-cycle (rtod-helper r n))]}
-      <Df' q (map (lambda [$x $y] x) s) (map fst c)>)))
+      <Df' q (map fst s) (map fst c)>)))
 
 (define $show-decimal
   (lambda [$n $x]
