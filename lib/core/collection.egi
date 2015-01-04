@@ -81,31 +81,8 @@
        })))
 
 ;;
-;; Simple accessors
+;; Accessors
 ;;
-(define $cons
-  (lambda [$x $xs] {x @xs}))
-
-(define $car
-  (lambda [$xs]
-    (match xs (list something)
-      {[<cons $x _> x]})))
-
-(define $cdr
-  (lambda [$xs]
-    (match xs (list something)
-      {[<cons _ $ys> ys]})))
-
-(define $rac
-  (lambda [$xs]
-    (match xs (list something)
-      {[<snoc $x _> x]})))
-
-(define $rdc
-  (lambda [$xs]
-    (match xs (list something)
-      {[<snoc _ $ys> ys]})))
-
 (define $nth
   (lambda [$n $xs]
     (match xs (list something)
@@ -146,6 +123,32 @@
             {})]})))
 
 ;;
+;; cons, car, cdr
+;;
+(define $cons
+  (lambda [$x $xs] {x @xs}))
+
+(define $car
+  (lambda [$xs]
+    (match xs (list something)
+      {[<cons $x _> x]})))
+
+(define $cdr
+  (lambda [$xs]
+    (match xs (list something)
+      {[<cons _ $ys> ys]})))
+
+(define $rac
+  (lambda [$xs]
+    (match xs (list something)
+      {[<snoc $x _> x]})))
+
+(define $rdc
+  (lambda [$xs]
+    (match xs (list something)
+      {[<snoc _ $ys> ys]})))
+
+;;
 ;; list functions
 ;;
 (define $map
@@ -171,15 +174,6 @@
            {}
            xs)))
 
-(define $separate
-  (lambda [$pred $ls]
-    (letrec {[$helper (lambda [$ls $xs $ys]
-                        (match ls (list something)
-                          {[<nil> [xs ys]]
-                           [<cons (& ?pred $l) $rs> (helper rs {l @xs} ys)]
-                           [<cons $l $rs> (helper rs xs {l @ys})]}))]}
-      (helper ls {} {}))))
-
 ; Note. `foldr` is used in the definition of the list matcher.
 (define $foldr
   (lambda [$fn $init $ls]
@@ -200,14 +194,6 @@
     {init @(match ls (list something)
              {[<nil> {}]
               [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
-
-(define $repeat1
-  (lambda [$x]
-    {x @(repeat1 x)}))
-
-(define $repeat
-  (lambda [$xs]
-    {@xs @(repeat xs)}))
 
 (define $append
   (lambda [$xs $ys]
@@ -250,6 +236,14 @@
   (lambda [$xs]
     (match xs (list something)
       {[<join $s <cons $x <join $c <cons ,x _>>>> [s {x @c}]]})))
+
+(define $repeat1
+  (lambda [$x]
+    {x @(repeat1 x)}))
+
+(define $repeat
+  (lambda [$xs]
+    {@xs @(repeat xs)}))
 
 ;;
 ;; Simple predicate
