@@ -81,183 +81,6 @@
        })))
 
 ;;
-;; Helper function for List matcher, be careful for recursive calls
-;;
-(define $between
-  (lambda [$s $e]
-    (if (eq? s e)
-      {s}
-      (if (lt? s e)
-        {s @(between (+ s 1) e)}
-        {}))))
-
-(define $from
-  (lambda [$s]
-    {s (+ s 1) (+ s 2) (+ s 3) (+ s 4) (+ s 5) (+ s 6) (+ s 7) (+ s 8) (+ s 9) (+ s 10) @(from (+ s 11))}))
-
-(define $foldr
-  (lambda [$fn $init $ls]
-    (match ls (list something)
-      {[<nil> init]
-       [<cons $x $xs> (fn x (foldr fn init xs))]})))
-
-;;
-;; list functions
-;;
-(define $foldl
-  (lambda [$fn $init $ls]
-    (match ls (list something)
-      {[<nil> init]
-       [<cons $x $xs>
-        (let {[$z (fn init x)]}
-          (seq z (foldl fn z xs)))]})))
-
-(define $map
-  (lambda [$fn $xs]
-    (match xs (list something)
-      {[<nil> {}]
-       [<cons $x $rs> {(fn x) @(map fn rs)}]})))
-
-(define $scanl
-  (lambda [$fn $init $ls]
-    {init @(match ls (list something)
-             {[<nil> {}]
-              [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
-
-(define $repeat1
-  (lambda [$x]
-    {x @(repeat1 x)}))
-
-(define $repeat
-  (lambda [$xs]
-    {@xs @(repeat xs)}))
-
-(define $filter
-  (lambda [$pred $xs]
-    (foldr (lambda [$y $ys] (if (pred y) {y @ys} ys))
-           {}
-           xs)))
-
-(define $separate
-  (lambda [$pred $ls]
-    (letrec {[$helper (lambda [$ls $xs $ys]
-                        (match ls (list something)
-                          {[<nil> [xs ys]]
-                           [<cons (& ?pred $l) $rs> (helper rs {l @xs} ys)]
-                           [<cons $l $rs> (helper rs xs {l @ys})]}))]}
-      (helper ls {} {}))))
-
-(define $append
-  (lambda [$xs $ys]
-    {@xs @ys}))
-
-(define $concat
-  (lambda [$xss]
-    (foldr (lambda [$xs $rs] {@xs @rs})
-           {}
-           xss)))
-
-(define $map2
-  (lambda [$fn $xs $ys]
-    (match [xs ys] [(list something) (list something)]
-      {[[<nil> <nil>] {}]
-       [[<cons $x $xs2> <cons $y $ys2>]
-        {(fn x y) @(map2 fn xs2 ys2)}]})))
-
-(define $zip
-  (lambda [$xs $ys]
-    (map2 (lambda [$x $y] [x y]) xs ys)))
-
-(define $find-cycle
-  (lambda [$xs]
-    (match xs (list something)
-      {[<join $s <cons $x <join $c <cons ,x _>>>> [s {x @c}]]})))
-
-;;
-;; Simple predicate
-;;
-(define $member?
-  (lambda [$x $ys]
-    (match ys (list something)
-      {[<join _ <cons ,x _>> #t]
-       [_ #f]})))
-
-(define $member?/m
-  (lambda [$a $x $ys]
-    (match ys (list a)
-      {[<join _ <cons ,x _>> #t]
-       [_ #f]})))
-
-(define $include?
-  (lambda [$a $xs $ys]
-    (match xs (list something)
-      {[<nil> #t]
-       [<cons $x $rest>
-        (if (member? x ys)
-          (include? rest ys)
-          #f)]})))
-
-(define $include?/m
-  (lambda [$a $xs $ys]
-    (match xs (list something)
-      {[<nil> #t]
-       [<cons $x $rest>
-        (if (member?/m a x ys)
-          (include?/m a rest ys)
-          #f)]})))
-
-(define $any
-  (lambda [$pred $xs]
-    (match xs (list something)
-      {[<nil> #f]
-       [<cons $x $rs>
-        (if (pred x)
-            #t
-            (any pred rs))]})))
-
-(define $all
-  (lambda [$pred $xs]
-    (match xs (list something)
-      {[<nil> #t]
-       [<cons $x $rs>
-        (if (pred x)
-            (all pred rs)
-            #f)]})))
-
-;;
-;; Counting
-;;
-(define $length
-  (lambda [$xs]
-    (foldl (lambda [$r $x] (+ r 1)) 0 xs)))
-
-(define $count
-  (lambda [$x $xs]
-    (foldl (match-lambda [something something]
-             {[[$r ,x] (+ r 1)]
-              [[$r $y] r]})
-           0
-           xs)))
-
-(define $count/m
-  (lambda [$a $x $xs]
-    (foldl (match-lambda [a a]
-             {[[$r ,x] (+ r 1)]
-              [[$r $y] r]})
-           0
-           xs)))
-
-(define $frequency
-  (lambda [$xs]
-    (let {[$us (unique xs)]}
-      (map (lambda [$u] [u (count u xs)]) us))))
-
-(define $frequency/m
-  (lambda [$a $xs]
-    (let {[$us (unique/m a xs)]}
-      (map (lambda [$u] [u (count/m a u xs)]) us))))
-
-;;
 ;; Simple accessors
 ;;
 (define $cons
@@ -323,8 +146,79 @@
             {})]})))
 
 ;;
-;; Others
+;; list functions
 ;;
+(define $map
+  (lambda [$fn $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs> {(fn x) @(map fn rs)}]})))
+
+(define $map2
+  (lambda [$fn $xs $ys]
+    (match [xs ys] [(list something) (list something)]
+      {[[<nil> <nil>] {}]
+       [[<cons $x $xs2> <cons $y $ys2>]
+        {(fn x y) @(map2 fn xs2 ys2)}]})))
+
+(define $zip
+  (lambda [$xs $ys]
+    (map2 (lambda [$x $y] [x y]) xs ys)))
+
+(define $filter
+  (lambda [$pred $xs]
+    (foldr (lambda [$y $ys] (if (pred y) {y @ys} ys))
+           {}
+           xs)))
+
+(define $separate
+  (lambda [$pred $ls]
+    (letrec {[$helper (lambda [$ls $xs $ys]
+                        (match ls (list something)
+                          {[<nil> [xs ys]]
+                           [<cons (& ?pred $l) $rs> (helper rs {l @xs} ys)]
+                           [<cons $l $rs> (helper rs xs {l @ys})]}))]}
+      (helper ls {} {}))))
+
+; Note. `foldr` is used in the definition of the list matcher.
+(define $foldr
+  (lambda [$fn $init $ls]
+    (match ls (list something)
+      {[<nil> init]
+       [<cons $x $xs> (fn x (foldr fn init xs))]})))
+
+(define $foldl
+  (lambda [$fn $init $ls]
+    (match ls (list something)
+      {[<nil> init]
+       [<cons $x $xs>
+        (let {[$z (fn init x)]}
+          (seq z (foldl fn z xs)))]})))
+
+(define $scanl
+  (lambda [$fn $init $ls]
+    {init @(match ls (list something)
+             {[<nil> {}]
+              [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
+
+(define $repeat1
+  (lambda [$x]
+    {x @(repeat1 x)}))
+
+(define $repeat
+  (lambda [$xs]
+    {@xs @(repeat xs)}))
+
+(define $append
+  (lambda [$xs $ys]
+    {@xs @ys}))
+
+(define $concat
+  (lambda [$xss]
+    (foldr (lambda [$xs $rs] {@xs @rs})
+           {}
+           xss)))
+
 (define $reverse
   (lambda [$xs]
     (match xs (list something)
@@ -351,6 +245,93 @@
     (match ls (list a)
       {[<join $xs <join ,in $rs>> {xs @(split/m $a in rs)}]
        [_ {ls}]})))
+
+(define $find-cycle
+  (lambda [$xs]
+    (match xs (list something)
+      {[<join $s <cons $x <join $c <cons ,x _>>>> [s {x @c}]]})))
+
+;;
+;; Simple predicate
+;;
+(define $member?
+  (lambda [$x $ys]
+    (match ys (list something)
+      {[<join _ <cons ,x _>> #t]
+       [_ #f]})))
+
+(define $member?/m
+  (lambda [$a $x $ys]
+    (match ys (list a)
+      {[<join _ <cons ,x _>> #t]
+       [_ #f]})))
+
+;;
+;; Counting
+;;
+(define $length
+  (lambda [$xs]
+    (foldl (lambda [$r $x] (+ r 1)) 0 xs)))
+
+(define $count
+  (lambda [$x $xs]
+    (foldl (match-lambda [something something]
+             {[[$r ,x] (+ r 1)]
+              [[$r $y] r]})
+           0
+           xs)))
+
+(define $count/m
+  (lambda [$a $x $xs]
+    (foldl (match-lambda [a a]
+             {[[$r ,x] (+ r 1)]
+              [[$r $y] r]})
+           0
+           xs)))
+
+(define $frequency
+  (lambda [$xs]
+    (let {[$us (unique xs)]}
+      (map (lambda [$u] [u (count u xs)]) us))))
+
+(define $frequency/m
+  (lambda [$a $xs]
+    (let {[$us (unique/m a xs)]}
+      (map (lambda [$u] [u (count/m a u xs)]) us))))
+
+;;
+;; Others
+;;
+(define $any
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> #f]
+       [<cons $x $rs>
+        (if (pred x)
+            #t
+            (any pred rs))]})))
+
+(define $all
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> #t]
+       [<cons $x $rs>
+        (if (pred x)
+            (all pred rs)
+            #f)]})))
+
+(define $from
+  (lambda [$s]
+    {s (+ s 1) (+ s 2) (+ s 3) (+ s 4) (+ s 5) (+ s 6) (+ s 7) (+ s 8) (+ s 9) (+ s 10) @(from (+ s 11))}))
+
+; Note. `between` is used in the definition of the list matcher.
+(define $between
+  (lambda [$s $e]
+    (if (eq? s e)
+      {s}
+      (if (lt? s e)
+        {s @(between (+ s 1) e)}
+        {}))))
 
 ;;;
 ;;; Multiset
