@@ -16,6 +16,6 @@
 (test (calculate-napier 8))
 (test (calculate-napier 9))
 (test (calculate-napier 10))
+(test (rtof (calculate-napier 10)))
 (test (rtof (calculate-napier 100)))
-(test (rtof (calculate-napier 1000)))
-(test (rtof (calculate-napier 2000)))
+(test (rtof (calculate-napier 200)))
