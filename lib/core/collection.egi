@@ -151,6 +151,10 @@
 ;;
 ;; list functions
 ;;
+(define $length
+  (lambda [$xs]
+    (foldl (lambda [$r $x] (+ r 1)) 0 xs)))
+
 (define $map
   (lambda [$fn $xs]
     (match xs (list something)
@@ -229,7 +233,7 @@
 (define $split/m
   (lambda [$a $in $ls]
     (match ls (list a)
-      {[<join $xs <join ,in $rs>> {xs @(split/m $a in rs)}]
+      {[<join $xs <join ,in $rs>> {xs @(split/m a in rs)}]
        [_ {ls}]})))
 
 (define $find-cycle
@@ -237,74 +241,17 @@
     (match xs (list something)
       {[<join $s <cons $x <join $c <cons ,x _>>>> [s {x @c}]]})))
 
-(define $repeat1
-  (lambda [$x]
-    {x @(repeat1 x)}))
-
 (define $repeat
   (lambda [$xs]
     {@xs @(repeat xs)}))
 
-;;
-;; Simple predicate
-;;
-(define $member?
-  (lambda [$x $ys]
-    (match ys (list something)
-      {[<join _ <cons ,x _>> #t]
-       [_ #f]})))
-
-(define $member?/m
-  (lambda [$a $x $ys]
-    (match ys (list a)
-      {[<join _ <cons ,x _>> #t]
-       [_ #f]})))
-
-;;
-;; Counting
-;;
-(define $length
-  (lambda [$xs]
-    (foldl (lambda [$r $x] (+ r 1)) 0 xs)))
-
-(define $count
-  (lambda [$x $xs]
-    (foldl (match-lambda [something something]
-             {[[$r ,x] (+ r 1)]
-              [[$r $y] r]})
-           0
-           xs)))
-
-(define $count/m
-  (lambda [$a $x $xs]
-    (foldl (match-lambda [a a]
-             {[[$r ,x] (+ r 1)]
-              [[$r $y] r]})
-           0
-           xs)))
-
-(define $frequency
-  (lambda [$xs]
-    (let {[$us (unique xs)]}
-      (map (lambda [$u] [u (count u xs)]) us))))
-
-(define $frequency/m
-  (lambda [$a $xs]
-    (let {[$us (unique/m a xs)]}
-      (map (lambda [$u] [u (count/m a u xs)]) us))))
+(define $repeat1
+  (lambda [$x]
+    {x @(repeat1 x)}))
 
 ;;
 ;; Others
 ;;
-(define $any
-  (lambda [$pred $xs]
-    (match xs (list something)
-      {[<nil> #f]
-       [<cons $x $rs>
-        (if (pred x)
-            #t
-            (any pred rs))]})))
-
 (define $all
   (lambda [$pred $xs]
     (match xs (list something)
@@ -313,6 +260,15 @@
         (if (pred x)
             (all pred rs)
             #f)]})))
+
+(define $any
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> #f]
+       [<cons $x $rs>
+        (if (pred x)
+            #t
+            (any pred rs))]})))
 
 (define $from
   (lambda [$s]
@@ -416,14 +372,14 @@
 
 (define $union
   (lambda [$xs $ys]
-    {xs
+    {@xs
      @(match-all [ys xs] [(multiset something) (multiset something)]
         [[<cons $y _> ^<cons ,y _>] y])
      }))
 
 (define $union/m
   (lambda [$a $xs $ys]
-    {xs
+    {@xs
      @(match-all [ys xs] [(multiset a) (multiset a)]
         [[<cons $y _> ^<cons ,y _>] y])
      }))
@@ -437,6 +393,50 @@
   (lambda [$a $xs $ys]
     (match-all [xs ys] [(multiset a) (multiset a)]
       [[<cons $x _> <cons ,x _>] x])))
+
+;;
+;; Simple predicate
+;;
+(define $member?
+  (lambda [$x $ys]
+    (match ys (list something)
+      {[<join _ <cons ,x _>> #t]
+       [_ #f]})))
+
+(define $member?/m
+  (lambda [$a $x $ys]
+    (match ys (list a)
+      {[<join _ <cons ,x _>> #t]
+       [_ #f]})))
+
+;;
+;; Counting
+;;
+(define $count
+  (lambda [$x $xs]
+    (foldl (match-lambda [something something]
+             {[[$r ,x] (+ r 1)]
+              [[$r $y] r]})
+           0
+           xs)))
+
+(define $count/m
+  (lambda [$a $x $xs]
+    (foldl (match-lambda [a a]
+             {[[$r ,x] (+ r 1)]
+              [[$r $y] r]})
+           0
+           xs)))
+
+(define $frequency
+  (lambda [$xs]
+    (let {[$us (unique xs)]}
+      (map (lambda [$u] [u (count u xs)]) us))))
+
+(define $frequency/m
+  (lambda [$a $xs]
+    (let {[$us (unique/m a xs)]}
+      (map (lambda [$u] [u (count/m a u xs)]) us))))
 
 ;;;
 ;;; Set
