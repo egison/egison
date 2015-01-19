@@ -15,33 +15,13 @@
      }))
   
 (define $bool builtin-data-matcher)
-
-(define $or
-  (lambda [$b1 $b2]
-    (if b1
-        #t
-        b2)))
-
-(define $and
-  (lambda [$b1 $b2]
-    (if b1
-        b2
-        #f)))
-
-(define $not
-  (lambda [$b]
-    (match b bool
-      {[,#t #f]
-       [,#f #t]})))
-
 (define $char builtin-data-matcher)
+(define $integer builtin-data-matcher)
+(define $float builtin-data-matcher)
 
-(define $eq?/m
-  (lambda [$a $x $y]
-    (match x a
-      {[,y #t]
-       [_ #f]})))
-
+;;
+;; Utility
+;;
 (define $id 1#%1)
 
 (define $fst 2#%1)
@@ -61,3 +41,30 @@
 (define $ref
   (lambda [$xa $i]
     (array-ref xa i)))
+
+(define $eq?/m
+  (lambda [$a $x $y]
+    (match x a
+      {[,y #t]
+       [_ #f]})))
+
+;;
+;; Boolean
+;;
+(define $and
+  (lambda [$b1 $b2]
+    (if b1
+        b2
+        #f)))
+
+(define $or
+  (lambda [$b1 $b2]
+    (if b1
+        #t
+        b2)))
+
+(define $not
+  (lambda [$b]
+    (match b bool
+      {[,#t #f]
+       [,#f #t]})))

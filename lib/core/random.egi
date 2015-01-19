@@ -52,6 +52,8 @@
     (car (match-all xs (R.multiset something)
            [<cons $x $rs> rs]))))
 
+(define $sample R.car)
+
 (define $R.set
   (lambda [$a]
     (matcher

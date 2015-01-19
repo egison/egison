@@ -10,6 +10,16 @@
     {[,{@{@{1}} @{2 @{3}}} #t]
      [_ #f]}))
 
+(assert "list's nil - case 1"
+  (match {} (list integer)
+    {[<nil> #t]
+     [_ #f]}))
+
+(assert "list's nil - case 2"
+  (match {1} (list integer)
+    {[<nil> #f]
+     [_ #t]}))
+
 (assert-equal "list's cons"
   (match {1 2 3} (list integer)
     {[<cons $n $ns> [n ns]]})
@@ -59,20 +69,15 @@
 ;;;
 ;;; Multiset Pattern-Matching
 ;;;
-(assert-equal "multiset's join"
-  (match-all {1 2 3} (multiset integer)
-    [<join $xs $ys> [xs ys]])
-  {[{} {1 2 3}] [{1} {2 3}] [{2} {1 3}] [{3} {1 2}] [{1 2} {3}] [{1 3} {2}] [{2 3} {1}] [{1 2 3} {}]})
+(assert "multiset's nil - case 1"
+  (match {} (multiset integer)
+    {[<nil> #t]
+     [_ #f]}))
 
-(assert-equal "multiset's join with value pattern 1"
-  (match-all {1 2 3} (multiset integer)
-    [<join ,{1 3} $ys> ys])
-  {{2}})
-
-(assert-equal "multiset's join with value pattern 2"
-  (match-all {1 2 3} (multiset integer)
-    [<join ,{1 5 3} $ys> ys])
-  {})
+(assert "multiset's nil - case 2"
+  (match {1} (multiset integer)
+    {[<nil> #f]
+     [_ #t]}))
 
 (assert "multiset's value pattern"
   (match {1 1 1 2 3} (multiset integer)
@@ -89,14 +94,39 @@
     {[<cons ,2 $ns> ns]})
   {1 3})
 
-(assert-equal "multiset's join with value pattern"
+(assert-equal "multiset's join"
+  (match-all {1 2 3} (multiset integer)
+    [<join $xs $ys> [xs ys]])
+  {[{} {1 2 3}] [{1} {2 3}] [{2} {1 3}] [{3} {1 2}] [{1 2} {3}] [{1 3} {2}] [{2 3} {1}] [{1 2 3} {}]})
+
+(assert-equal "multiset's join with value pattern - case 1"
   (match {1 2 3} (multiset integer)
     {[<join ,{1} $ns> ns]})
   {2 3})
 
+(assert-equal "multiset's join with value pattern - case 2"
+  (match-all {1 2 3} (multiset integer)
+    [<join ,{1 3} $ys> ys])
+  {{2}})
+
+(assert-equal "multiset's join with value pattern - case 3"
+  (match-all {1 2 3} (multiset integer)
+    [<join ,{1 5 3} $ys> ys])
+  {})
+
 ;;;
 ;;; Set Pattern-Matching
 ;;;;
+(assert "set's nil - case 1"
+  (match {} (set integer)
+    {[<nil> #t]
+     [_ #f]}))
+
+(assert "set's nil - case 2"
+  (match {1} (set integer)
+    {[<nil> #f]
+     [_ #t]}))
+
 (assert-equal "set's cons"
   (match-all {1 2 3} (set integer)
     [<cons $n $ns> [n ns]])

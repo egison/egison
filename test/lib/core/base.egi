@@ -1,19 +1,10 @@
+;;
+;; Matchers
+;;
 (assert "bool's value pattern"
   (match [#t #f] [bool bool]
     {[[,#t ,#f] #t]
      [_ #f]}))
-
-(assert-equal "or"
-  [(or #t #t) (or #t #f) (or #f #t) (or #f #f)]
-  [#t #t #t #f])
-
-(assert-equal "and"
-  [(and #t #t) (and #t #f) (and #f #t) (and #f #f)]
-  [#t #f #f #f])
-
-(assert-equal "not"
-  [(not #t) (not #f)]
-  [#f #t])
 
 (assert "char's value pattern"
   (match 'a' char
@@ -30,18 +21,48 @@
     {[,0.1 #t]
      [_ #f]}))
 
-(assert-equal "less than predicate"
-  [(lt? 0.1 1) (lt? 1 0.1) (lt? 1 1)]
-  [#t #f #f])
+;;
+;; Utility
+;;
+(assert-equal "id"
+  (id 1)
+  1)
 
-(assert-equal "less than or equal predicate"
-  [(lte? 0.1 1) (lte? 1 0.1) (lte? 1 1)]
-  [#t #f #t])
+(assert-equal "fst"
+  (fst [1 2])
+  1)
 
-(assert-equal "greater than predicate"
-  [(gt? 0.1 1) (gt? 1 0.1) (gt? 1 1)]
-  [#f #t #f])
+(assert-equal "snd"
+  (snd [1 2])
+  2)
 
-(assert-equal "greater than or equal predicate"
-  [(gte? 0.1 1) (gte? 1 0.1) (gte? 1 1)]
-  [#f #t #t])
+(assert-equal "compose"
+  ((compose fst snd) [[1 2] 3])
+  2)
+
+(assert-equal "compose3"
+  ((compose3 fst snd fst) [[1 [2 3]] 4])
+  2)
+
+(assert-equal "ref"
+  (ref [| 1 2 3 |] 2)
+  2)
+
+(assert-equal "eq?/m"
+  (eq?/m integer 1 1)
+  #t)
+
+;;
+;; Boolean
+;;
+(assert-equal "and"
+  [(and #t #t) (and #t #f) (and #f #t) (and #f #f)]
+  [#t #f #f #f])
+
+(assert-equal "or"
+  [(or #t #t) (or #t #f) (or #f #t) (or #f #f)]
+  [#t #t #t #f])
+
+(assert-equal "not"
+  [(not #t) (not #f)]
+  [#f #t])
