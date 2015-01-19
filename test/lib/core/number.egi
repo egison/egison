@@ -1,3 +1,6 @@
+;;
+;; Sequences
+;;
 (assert-equal "nats"
   (take 10 nats)
   {1 2 3 4 5 6 7 8 9 10})
@@ -14,37 +17,48 @@
   (take 10 evens)
   {2 4 6 8 10 12 14 16 18 20})
 
-(assert-equal "p-f"
-  (p-f 100)
-  {2 2 5 5})
-
 (assert-equal "primes"
   (take 10 primes)
   {2 3 5 7 11 13 17 19 23 29})
 
-(assert-equal "power"
-  (power 2 10)
-  1024)
-
-(assert-equal "sum"
-  (sum (take 5 nats))
-  15)
-
-(assert-equal "product"
-  (product (take 5 nats))
-  120)
-
-(assert-equal "fib"
-  (fib 10)
-  89)
-
-(assert-equal "fibs"
-  (take 10 fibs)
-  {1 1 2 3 5 8 13 21 34 55})
-
+;;
+;; Natural numbers
+;;
 (assert-equal "divisor?"
   (divisor? 10 5)
   #t)
+
+(assert-equal "find-factor"
+  (find-factor 100)
+  2)
+
+(assert-equal "p-f"
+  (p-f 100)
+  {2 2 5 5})
+
+(assert-equal "even? - case 1"
+  (even? 4)
+  #t)
+
+(assert-equal "even? - case 2"
+  (even? 5)
+  #f)
+
+(assert-equal "odd? - case 1"
+  (odd? 3)
+  #t)
+
+(assert-equal "odd? - case 2"
+  (odd? 4)
+  #f)
+
+(assert-equal "prime? - case 1"
+  (prime? 17)
+  #t)
+
+(assert-equal "prime? - case 2"
+  (prime? 18)
+  #f)
 
 (assert-equal "gcd"
   (gcd {10 20 5 40})
@@ -61,13 +75,32 @@
 (assert-equal "comb"
   (comb 5 2)
   10)
+
+;;
+;; Integers
+;;
+(assert-equal "power"
+  (power 2 10)
+  1024)
+
+(assert-equal "sum"
+  (sum (take 5 nats))
+  15)
+
+(assert-equal "product"
+  (product (take 5 nats))
+  120)
+
+;;
+;; Dicimal fractions
+;;
 (assert-equal "rtod'"
   (rtod' 6/35)
   <Df' 0 {1} {7 1 4 2 8 5}>)
 
 (assert-equal "show-decimal"
-  (show-decimal 100 12059970005544541658496968575791460958842706458496548591362444428906196499421973001746065700042304190032996970705788029894656/3838807679844812409282786273009291519627438604992653223722422384053523818146349222546734500273190341235133597206458872792375)
-  "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679")
+  (show-decimal 10 1/3)
+  "0.3333333333")
 
 (assert-equal "show-decimal'"
   (show-decimal' 1/3)

@@ -35,16 +35,9 @@
       {[$tgt {tgt}]}]
      }))
 
-(define $chop
-  (lambda [$xs]
-    (match xs string
-      {[<snoc (| ,'\n' ,' ') $ys> (chop ys)]
-       [_ xs]})))
-
 ;;;
-;;; String as Collection
+;;; String as collection
 ;;;
-
 (define $S.empty?
   (lambda [$xs]
     (eq? xs "")))
@@ -83,6 +76,9 @@
 
 (define $S.intercalate (compose intersperse S.concat))
 
+;;
+;; Alphabet
+;;
 (define $alphabet?
   (match-lambda char
     {[,'a' #t] [,'b' #t] [,'c' #t] [,'d' #t] [,'e' #t]

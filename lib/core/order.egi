@@ -34,27 +34,27 @@
            [(car ns) (car ns)]
            (cdr ns))))
 
-(define $split-by-ordering (split-by-ordering/f compare $ $))
+(define $split-by-ordering (split-by-ordering/fn compare $ $))
 
-(define $split-by-ordering/f
+(define $split-by-ordering/fn
   (lambda [$f $p $xs]
     (match xs (list something)
       {[<nil> [{} {} {}]]
        [<cons $x $rs>
-        (let {[[$ys1 $ys2 $ys3] (split-by-ordering/f f p rs)]}
+        (let {[[$ys1 $ys2 $ys3] (split-by-ordering/fn f p rs)]}
           (match (f x p) ordering
             {[<less> [{x @ys1} ys2 ys3]]
              [<equal> [ys1 {x @ys2} ys3]]
              [<greater> [ys1 ys2 {x @ys3}]]}))]})))
 
-(define $qsort (qsort/f compare $))
+(define $qsort (qsort/fn compare $))
 
-(define $qsort/f
+(define $qsort/fn
   (lambda [$f $xs]
     (match xs (list something)
       {[<nil> {}]
        [<cons $x <nil>> {x}]
        [_ (let* {[$n (length xs)]
                  [$p (nth (quotient n 2) xs)]
-                 [[$ys1 $ys2 $ys3] (split-by-ordering/f f p xs)]}
-            {@(qsort/f f ys1) @ys2 @(qsort/f f ys3)})]})))
+                 [[$ys1 $ys2 $ys3] (split-by-ordering/fn f p xs)]}
+            {@(qsort/fn f ys1) @ys2 @(qsort/fn f ys3)})]})))
