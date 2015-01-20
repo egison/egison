@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.5.3
+Version:             3.5.4
 Synopsis:            Programming language with non-linear pattern-matching against unfree data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
@@ -24,7 +24,7 @@ Description:
   The following code is the program that determines poker-hands written in Egison.
   All hands are expressed in a single pattern.
   .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/poker-hands.png">>
+  <<https://raw.githubusercontent.com/egison/egison/master/images/poker-hands.png>>
   .
   /Mahjong/
   .
