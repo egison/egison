@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.5.4
+Version:             3.5.5
 Synopsis:            Programming language with non-linear pattern-matching against unfree data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
@@ -17,28 +17,28 @@ Description:
   We can use pattern-matching for enumeration.
   The following code enumerates all twin primes from the infinite list of prime numbers with pattern-matching!
   .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/twin-primes.png>>
+  <<https://raw.githubusercontent.com/egison/egison/master/images/twin-primes-w700.png>>
   .
   /Poker Hands/
   .
   The following code is the program that determines poker-hands written in Egison.
   All hands are expressed in a single pattern.
   .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/poker-hands.png>>
+  <<https://raw.githubusercontent.com/egison/egison/master/images/poker-hands-w700.png>>
   .
   /Mahjong/
   .
   We can write a pattern even against mahjong tiles.
   We modularize patterns to represent complex mahjong hands.
   .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/mahjong.png>>
+  <<https://raw.githubusercontent.com/egison/egison/master/images/mahjong-w700.png>>
   .
   /Graphs/
   .
   We can pattern-match against graphs.
   We can write program to solve the travelling salesman problem in a single pattern-matching expression.
   .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/salesman.png>>
+  <<https://raw.githubusercontent.com/egison/egison/master/images/salesman-w700.png>>
   .
   Aren't thsese exciting?
   We can run these demonstrations on our website!
