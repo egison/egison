@@ -48,7 +48,7 @@ We can write program to solve the travelling salesman problem in a single patter
 <img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/salesman.png" />
 <hr/>
 
-Isn't it exciting?
+Aren't these exciting?
 The pattern-matching of Egison is very powerful.
 We can use it for pattern-matching also against graphs and tree-structures such as XML.
 

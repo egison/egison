@@ -29,7 +29,25 @@
     (foldl (lambda [$ret $x]
              (match ret [integer integer]
                {[[$min $max] (if (lt? x min) [x max]
-                               (if (gt? x max) [min x]
+                               (if (gt? x min) [min x]
+                                 [min max]))]}))
+           [(car ns) (car ns)]
+           (cdr ns))))
+
+(define $min/fn
+  (lambda [$compare $ns]
+    (foldl 2#(if (eq? (compare %1 %2) <Less>) %1 %2) (car ns) (cdr ns))))
+
+(define $max/fn
+  (lambda [$compare $ns]
+    (foldl 2#(if (eq? (compare %1 %2) <Greater>) %1 %2) (car ns) (cdr ns))))
+
+(define $min-and-max/fn
+  (lambda [$compare $ns]
+    (foldl (lambda [$ret $x]
+             (match ret [integer integer]
+               {[[$min $max] (if (eq? (compare x min) <Less>) [x max]
+                               (if (eq? (compare x min) <Greater>) [min x]
                                  [min max]))]}))
            [(car ns) (car ns)]
            (cdr ns))))
