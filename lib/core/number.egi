@@ -134,12 +134,12 @@
       {[q r] @(rtod-helper r n)})))
 
 (define $rtod
-  (lambda [$x]
+  (lambda [$c $x]
     (let* {[$m (numerator x)]
            [$n (denominator x)]
            [$q (quotient m n)]
            [$r (remainder m n)]}
-      <Df q (map fst (rtod-helper r n))>)))
+      <Df q (take c (map fst (rtod-helper r n)))>)))
 
 (define $rtod'
   (lambda [$x]
@@ -151,9 +151,9 @@
       <Df' q (map fst s) (map fst c)>)))
 
 (define $show-decimal
-  (lambda [$n $x]
-    (match (rtod x) decimal
-      {[<df $q $sc> (foldl S.append (S.append (show q) ".") (map show (take n sc)))]})))
+  (lambda [$c $x]
+    (match (rtod c x) decimal
+      {[<df $q $sc> (foldl S.append (S.append (show q) ".") (map show sc))]})))
 
 (define $show-decimal'
   (lambda [$x]
