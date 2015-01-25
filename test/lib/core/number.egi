@@ -1,4 +1,30 @@
 ;;
+;; Matcher
+;;
+(assert-equal "nat's o - case 1"
+  (match 0 nat
+    {[<o> #t]
+     [_ #f]})
+  #t)
+
+(assert-equal "nat's o - case 2"
+  (match 1 nat
+    {[<o> #t]
+     [_ #f]})
+  #f)
+
+(assert-equal "nat's s - case 1"
+  (match 10 nat
+    {[<s $n> n]})
+  9)
+
+(assert-equal "nat's s - case 2"
+  (match 0 nat
+    {[<s <o>> #t]
+     [_ #f]})
+  #f)
+
+;;
 ;; Sequences
 ;;
 (assert-equal "nats"
