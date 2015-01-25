@@ -212,7 +212,8 @@
 
 (assert-equal "map2"
   (map2 (* $ $) {1 2 3} {10 20 30})
-  {10 40 90})
+  {10 40 90}
+  )
 
 (assert-equal "zip"
   (zip {1 2 3} {10 20 30})
@@ -303,13 +304,6 @@
   {2 3 4 5})
 
 ;;
-;; Count
-;;
-(assert-equal "length"
-  (length {1 2 3})
-  3)
-
-;;
 ;; Multiset Functions
 ;;
 (assert-equal "add - case 1"
@@ -335,6 +329,10 @@
 (assert-equal "delete-first/m"
   (delete-first/m integer 2 {1 2 3 2})
   {1 3 2})
+
+(assert-equal "delete"
+  (delete 2 {1 2 3 1 2 3})
+  {1 3 1 3})
 
 (assert-equal "delete/m"
   (delete/m integer 2 {1 2 3 1 2 3})
