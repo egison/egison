@@ -1,26 +1,53 @@
 Name:                egison
-Version:             3.5.3
+Version:             3.5.5
 Synopsis:            Programming language with non-linear pattern-matching against unfree data
 Description:
-  An interpreter for Egison, the programming langugage that realized non-linear pattern-matching against unfree data types.
-  With Egison, we can directly represent pattern-matching against a wide range of data types such as lists, multisets, sets, trees and graphs.
+  An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
+  We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
+  .
   We can find Egison programs in @lib@ and @sample@ directories.
   This package also include Emacs Lisp file @elisp/egison-mode.el@.
   .
+  We can do non-linear pattern-matching against unfree data types in Egison.
+  An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
+  It enables us to write elegant programs.
+  .
+  /Twin Primes/
+  .
+  We can use pattern-matching for enumeration.
+  The following code enumerates all twin primes from the infinite list of prime numbers with pattern-matching!
+  .
+  <<https://raw.githubusercontent.com/egison/egison/master/images/twin-primes-w700.png>>
+  .
+  /Poker Hands/
+  .
   The following code is the program that determines poker-hands written in Egison.
   All hands are expressed in a single pattern.
-  Isn't it exciting?
-  We can run this code online at <http://www.egison.org/demonstrations/poker-hands.html>.
   .
-  <<http://www.egison.org/images/poker-hands.png>>
+  <<https://raw.githubusercontent.com/egison/egison/master/images/poker-hands-w700.png>>
   .
-  The pattern-matching of Egison is very powerful.
-  Please view and try more demonstrations.
+  /Mahjong/
   .
-  <http://www.egison.org/demonstrations/>
+  We can write a pattern even against mahjong tiles.
+  We modularize patterns to represent complex mahjong hands.
+  .
+  <<https://raw.githubusercontent.com/egison/egison/master/images/mahjong-w700.png>>
+  .
+  /Graphs/
+  .
+  We can pattern-match against graphs.
+  We can write program to solve the travelling salesman problem in a single pattern-matching expression.
+  .
+  <<https://raw.githubusercontent.com/egison/egison/master/images/salesman-w700.png>>
+  .
+  Aren't thsese exciting?
+  We can run these demonstrations on our website!
+  Please view and try more demonstrations!
+  .
+  <http://www.egison.org>
   .  
   Egison makes programming dramatically simple.
-  Please try Egison.
+  Please enjoy Egison!
 Homepage:            http://www.egison.org
 License:             MIT
 License-file:        LICENSE
