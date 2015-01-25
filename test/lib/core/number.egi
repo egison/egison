@@ -36,20 +36,20 @@
   (p-f 100)
   {2 2 5 5})
 
-(assert-equal "even? - case 1"
-  (even? 4)
-  #t)
-
-(assert-equal "even? - case 2"
-  (even? 5)
-  #f)
-
 (assert-equal "odd? - case 1"
   (odd? 3)
   #t)
 
 (assert-equal "odd? - case 2"
   (odd? 4)
+  #f)
+
+(assert-equal "even? - case 1"
+  (even? 4)
+  #t)
+
+(assert-equal "even? - case 2"
+  (even? 5)
   #f)
 
 (assert-equal "prime? - case 1"
