@@ -124,9 +124,6 @@
 ;;;
 ;;; Decimal Fractions
 ;;;
-(define $decimal (algebraic-data-matcher {<df integer (list integer)>}))
-(define $decimal' (algebraic-data-matcher {<df' integer (list integer) (list integer)>}))
-
 (define $rtod-helper
   (lambda [$m $n]
     (let {[$q (quotient (* m 10) n)]
@@ -139,7 +136,7 @@
            [$n (denominator x)]
            [$q (quotient m n)]
            [$r (remainder m n)]}
-      <Df q (take c (map fst (rtod-helper r n)))>)))
+      [q (take c (map fst (rtod-helper r n)))])))
 
 (define $rtod'
   (lambda [$x]
@@ -148,17 +145,17 @@
            [$q (quotient m n)]
            [$r (remainder m n)]
            [[$s $c] (find-cycle (rtod-helper r n))]}
-      <Df' q (map fst s) (map fst c)>)))
+      [q (map fst s) (map fst c)])))
 
 (define $show-decimal
   (lambda [$c $x]
-    (match (rtod c x) decimal
-      {[<df $q $sc> (foldl S.append (S.append (show q) ".") (map show sc))]})))
+    (match (rtod c x) [integer (list integer)]
+      {[[$q $sc] (foldl S.append (S.append (show q) ".") (map show sc))]})))
 
 (define $show-decimal'
   (lambda [$x]
-    (match (rtod' x) decimal'
-      {[<df' $q $s $c> (foldl S.append "" {(S.append (show q) ".") @(map show s) " " @(map show c) " ..."})]})))
+    (match (rtod' x) [integer (list integer) (list integer)]
+      {[[$q $s $c] (foldl S.append "" {(S.append (show q) ".") @(map show s) " " @(map show c) " ..."})]})))
 
 ;;;
 ;;; Continued Fraction
