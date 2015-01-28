@@ -122,11 +122,11 @@
 ;;
 (assert-equal "rtod"
   (rtod 10 6/35)
-  <Df 0 {1 7 1 4 2 8 5 7 1 4}>)
+  [0 {1 7 1 4 2 8 5 7 1 4}])
 
 (assert-equal "rtod'"
   (rtod' 6/35)
-  <Df' 0 {1} {7 1 4 2 8 5}>)
+  [0 {1} {7 1 4 2 8 5}])
 
 (assert-equal "show-decimal"
   (show-decimal 10 6/35)
