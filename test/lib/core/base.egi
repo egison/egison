@@ -12,12 +12,12 @@
      [_ #f]}))
 
 (assert "integer's value pattern"
-  (match 10 char
+  (match 10 integer
     {[,10 #t]
      [_ #f]}))
 
 (assert "float's value pattern"
-  (match 0.1 char
+  (match 0.1 float
     {[,0.1 #t]
      [_ #f]}))
 
@@ -53,7 +53,7 @@
   #t)
 
 ;;
-;; Boolean
+;; Booleans
 ;;
 (assert-equal "and"
   [(and #t #t) (and #t #f) (and #f #t) (and #f #f)]
