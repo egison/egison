@@ -22,6 +22,7 @@ import System.Random
 
 import qualified Data.Sequence as Sq
 
+import Data.Char (ord, chr)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -141,6 +142,8 @@ primitives = [ ("+", plus)
                
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
+             , ("ctoi", charToInteger)
+             , ("itoc", integerToChar)
 
              , ("pack", pack)
              , ("unpack", unpack)
@@ -378,6 +381,18 @@ rationalToFloat = oneArg $ \val -> do
     Integer i -> return $ Float $ fromInteger i
     Rational r -> return $ Float $ fromRational r
     _ -> throwError $ TypeMismatch "integer of rational number" (Value val)
+
+charToInteger :: PrimitiveFunc
+charToInteger = oneArg $ \val -> do
+  case val of
+    Char c -> return $ Integer $ fromIntegral $ ord c
+    _ -> throwError $ TypeMismatch "character" (Value val)
+
+integerToChar :: PrimitiveFunc
+integerToChar = oneArg $ \val -> do
+  case val of
+    Integer i -> return $ Char $ chr $ fromIntegral i
+    _ -> throwError $ TypeMismatch "character" (Value val)
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
