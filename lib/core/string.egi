@@ -42,6 +42,10 @@
   (lambda [$xs]
     (eq? xs "")))
 
+(define $S.cons
+  (lambda [$x $xs]
+    (append-string (pack {x}) xs)))
+
 (define $S.car
   (lambda [$xs]
     (match xs string
