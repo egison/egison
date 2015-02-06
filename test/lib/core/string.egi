@@ -72,7 +72,7 @@
   "Lisp,Haskell,Egison")
 
 ;;
-;; Alphabet
+;; Characters
 ;;
 (assert-equal "alphabet?"
   (alphabet? 'a')
