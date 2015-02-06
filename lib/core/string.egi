@@ -56,6 +56,11 @@
     (match xs string
       {[<cons _ $r> r]})))
 
+(define $S.rac
+  (lambda [$str]
+    (match str string
+      {[<join _ <cons $c <nil>>> c]})))
+
 (define $S.map
   (lambda [$f $xs]
     (pack (map f (unpack xs)))))
@@ -83,6 +88,11 @@
 ;;
 ;; Alphabet
 ;;
+(define $C.between?
+  (lambda [$c $c1 $c2]
+    (and (gte? (ctoi c) (ctoi c1))
+         (lte? (ctoi c) (ctoi c2)))))
+
 (define $alphabet?
   (match-lambda char
     {[,'a' #t] [,'b' #t] [,'c' #t] [,'d' #t] [,'e' #t]
