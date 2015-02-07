@@ -301,19 +301,18 @@ desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
 desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
 desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
+desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
+desugarPattern' (OrderedOrPat [])  = return WildCard
+desugarPattern' (OrderedOrPat (pattern:patterns)) = do
+  pattern' <- desugarPattern pattern
+  pattern'' <- desugarPattern (OrderedOrPat patterns)
+  return $ OrPat [pattern', AndPat [(NotPat pattern'), pattern'']]
 desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
-desugarPattern' (InductivePat name patterns) =
-  InductivePat name <$> mapM desugarPattern' patterns
-desugarPattern' (IndexedPat pattern exprs) =
-  IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs
-desugarPattern' (ApplyPat expr patterns) =
-  ApplyPat <$> desugar expr <*> mapM desugarPattern' patterns 
-desugarPattern' (LoopPat name range pattern1 pattern2) =
-  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (LetPat binds pattern) = do
-  LetPat <$> desugarBindings binds <*> desugarPattern' pattern
-desugarPattern' (OrPat patterns)  = 
-  OrPat <$> mapM desugarPattern' patterns
+desugarPattern' (InductivePat name patterns) = InductivePat name <$> mapM desugarPattern' patterns
+desugarPattern' (IndexedPat pattern exprs) = IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs
+desugarPattern' (ApplyPat expr patterns) = ApplyPat <$> desugar expr <*> mapM desugarPattern' patterns 
+desugarPattern' (LoopPat name range pattern1 pattern2) =  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
+desugarPattern' (LetPat binds pattern) = LetPat <$> desugarBindings binds <*> desugarPattern' pattern
 desugarPattern' pattern = return pattern
 
 desugarLoopRange :: LoopRange -> DesugarM LoopRange
