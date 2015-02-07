@@ -437,6 +437,7 @@ pattern' = wildCard
             <|> inductivePat
             <|> contPat
             <|> parens (andPat
+                    <|> orderedOrPat
                     <|> orPat
                     <|> applyPat
                     <|> loopPat
@@ -477,6 +478,9 @@ andPat = reservedOp "&" >> AndPat <$> sepEndBy pattern whiteSpace
 
 orPat :: Parser EgisonPattern
 orPat = reservedOp "|" >> OrPat <$> sepEndBy pattern whiteSpace
+
+orderedOrPat :: Parser EgisonPattern
+orderedOrPat = reservedOp "|*" >> OrderedOrPat <$> sepEndBy pattern whiteSpace
 
 applyPat :: Parser EgisonPattern
 applyPat = ApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
@@ -592,6 +596,7 @@ reservedOperators =
   , "_"
   , "&"
   , "|"
+  , "|*"
   , "^"
   , ","
   , "."
