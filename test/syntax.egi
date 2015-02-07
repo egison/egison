@@ -157,6 +157,10 @@
     {[(|) #f]
      [_ #t]}))
 
+(assert-equal "ordered or pattern"
+  (match {1 2 3 4 5} (list integer) {[<join (|* ,{2} ,{1 2 3} ,{1}) $xs> xs]})
+  {4 5})
+
 (assert "not pattern"
   (match 1 integer
     {[^,1 #f]
