@@ -3,13 +3,3 @@
     (match args (list string)
       {[<nil> (each-line print)]
        [_ (each-file args)]})))
-
-(define $each-file
-  (lambda [$files]
-    (match files (list string)
-      {[<nil> (return [])]
-       [<cons $file $rest>
-        (do {[$port (open-input-file file)]
-             [(each-line-from-port port print)]
-             [(close-input-port port)]}
-          (each-file rest))]})))

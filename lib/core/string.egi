@@ -80,6 +80,11 @@
 
 (define $S.intercalate (compose intersperse S.concat))
 
+(define $S.replace
+  (lambda [$before $after $str]
+    (S.intercalate after (S.split before str))))
+    
+
 ;;
 ;; Alphabet
 ;;
