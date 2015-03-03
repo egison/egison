@@ -196,6 +196,7 @@ data EgisonPattern =
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
+  | OrderedOrPat [EgisonPattern]
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | LoopPat String LoopRange EgisonPattern EgisonPattern
