@@ -43,6 +43,10 @@
   (S.cdr "Egison")
   "gison")
 
+(assert-equal "S.rac"
+  (S.rac "Egison")
+  'n')
+
 (assert-equal "S.map"
   (S.map id "Egison")
   "Egison")
@@ -68,7 +72,7 @@
   "Lisp,Haskell,Egison")
 
 ;;
-;; Alphabet
+;; Characters
 ;;
 (assert-equal "alphabet?"
   (alphabet? 'a')
