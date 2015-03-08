@@ -56,19 +56,14 @@ We can use it for pattern-matching also against graphs and tree-structures such 
 
 There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
 
-The advantage of Egison is that it realizes **all of the following features** at the same time.
+The advantage of Egison is that it achieves **all of the following features** at the same time.
 
 * Modularization of the way of pattern-matching for each data type
 * Pattern-matching with multiple results (backtracking)
-* Non-linear pattern-matching
-
-It enables us to express non-linear pattern-matching against non-free data types intuitively as above demonstrations.
-
-Furthermore, Egison realizes the following feature. We can even modularize patterns like functions keeping above features.
-
 * Non-linear pattern-matching with **lexical scoping**
+* Parametric polymorphism of pattern-constructors
 
-The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we realizes that.
+The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we achieve that.
 
 Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
 
