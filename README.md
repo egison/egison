@@ -6,10 +6,10 @@ This is the repository of the interpreter of Egison.
 
 For more information, visit <a target="_blank" href="http://www.egison.org">our website</a>.
 
-## Non-Linear Pattern-Matching against Unfree Data Types
+## Non-Linear Pattern-Matching against Non-Free Data Types
 
-We can do non-linear pattern-matching against unfree data types in Egison.
-An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
+We can do non-linear pattern-matching against non-free data types in Egison.
+An non-free data type is a data type whose data have no canonical form, a standard way to represent that object.
 It enables us to write elegant programs.
 
 ### Twin Primes
@@ -62,7 +62,7 @@ The advantage of Egison is that it realizes **all of the following features** at
 * Pattern-matching with multiple results (backtracking)
 * Non-linear pattern-matching
 
-It enables us to express non-linear pattern-matching against unfree data types intuitively as above demonstrations.
+It enables us to express non-linear pattern-matching against non-free data types intuitively as above demonstrations.
 
 Furthermore, Egison realizes the following feature. We can even modularize patterns like functions keeping above features.
 
