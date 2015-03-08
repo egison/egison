@@ -158,7 +158,7 @@ I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for the
 
 ## License
 
-Copyright (c) 2011-2014, Satoshi Egi
+Copyright (c) 2011-2015, Satoshi Egi
 
 Egison is released under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
 
