@@ -1,3 +1,32 @@
-(test (power 10 25))
+(define $b
+  (lambda [$n $k]
+    (match [n k] [integer integer]
+      {[[_ ,0] {n}]
+       [[?(gte? $ (power 2 k)) _]
+        {@(b (- n (power 2 k)) (- k 1)) 1}]
+       [[_ _]
+        {@(b n (- k 1)) 0}]})))
 
-(test (power 2 83))
+(define $h
+  (lambda [$xs]
+    {@(match-all xs (list integer)
+        [(loop $i [1 $n] <cons ,0 ...> <cons (& ^,0 $x) $ts>) n])
+     @(match-all xs (list integer)
+        [<join _ <cons ^,0 (loop $i [1 $n] <cons ,0 ...> <cons (& ^,0 $x) $ts>)>> n])}))
+
+(define $g
+  (lambda [$xs]
+    (match xs (list integer)
+      {[<cons $x <nil>> (+ x 1)]
+       [<cons $x <cons $y $ts>>
+        (+ (g {y @ts})
+           (* x (g {(+ y 1) @ts})))]})))
+
+(define $f
+  (lambda [$xs]
+    (g (h xs))))
+
+(h (b 10 3));{1 1}
+(f (b 10 3))
+(h (b (power 10 25) 83));=>{25 1 2 1 2 4 1 0 1 1 0 1 4 3 1 2 3 9 4}
+(f (b (power 10 25) 83))

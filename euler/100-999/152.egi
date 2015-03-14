@@ -1,0 +1,31 @@
+(define $ps {2 3 5 7 13})
+
+(define $f
+  (lambda [$xs]
+    (foldl (lambda [$r $x] (+ r (/ 1 (power x 2)))) 0 xs)))
+
+(define $g
+  (memoized-lambda [$n]
+    (map 2#%1
+         (filter 2#(not (eq? 0 (remainder (denominator %2) n)))
+                 (match-all (filter 1#(include? (while (lte? $ n) ps) (unique (p-f %1))) (while (lt? $ 80) (map (* n $) nats))) (multiset integer)
+                   [<join $xs _> [xs (f xs)]])))))
+
+(define $h
+  (lambda [$n $ms]
+    (if (empty? ms)
+      (g n)
+      (map 2#%1
+           (filter 2#(not (eq? 0 (remainder (denominator %2) n)))
+                   (match-all (filter 1#(include? (while (lte? $ n) ps) (unique (p-f %1))) (while (lt? $ 80) (map (* n $) nats))) (multiset integer)
+                     [<join $xs _> [(unique (qsort (append ms xs))) (f (append (filter 1#(eq? 0 (modulo %1 n)) ms) xs))]]))))))
+
+(define $b
+  (lambda [$x]
+    (if (eq? x 0)
+      {}
+      (let {[$n (length (p-f (denominator x)))]}
+        {@(b (/ (- (numerator x) 1) (denominator x))) n}))))
+
+(io (each (compose show print) (map 2#(qsort {@(map 1#(power 2 (/ %1 2)) %1) @%2}) (filter 2#(all even? %1) (map 1#[(b (- 1/2 (f %1))) %1] (concat (map (h 3 $) (concat (map (h 5 $) (concat (map (h 7 $) (h 13 {}))))))))))))
+;=>{2 3 4 6 8 9 12 15 18 20 24 30 40 72} ...

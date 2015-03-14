@@ -359,6 +359,24 @@
       {[<nil> xs]
        [<cons $y $rs> (difference/m a (delete-first/m a y xs) rs)]})))
 
+(define $include?
+  (lambda [$xs $ys]
+    (match ys (list something)
+      {[<nil> #t]
+       [<cons $y $rs>
+        (if (member? y xs)
+          (include? (delete-first y xs) rs)
+          #f)]})))
+
+(define $include?/m
+  (lambda [$a $xs $ys]
+    (match ys (list a)
+      {[<nil> #t]
+       [<cons $y $rs>
+        (if (member?/a y xs)
+          (include?/m a (delete-first y xs) rs)
+          #f)]})))
+
 (define $union
   (lambda [$xs $ys]
     {@xs
