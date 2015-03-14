@@ -1,0 +1,2 @@
+(io (each (compose show print) (zip (reverse (take 999 nats)) (map 3#(length %3) (map rtod' (map (/ 1 $) (reverse (take 999 nats))))))))
+
