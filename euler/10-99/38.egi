@@ -1,6 +1,6 @@
 (define $proc2
   (lambda [$n]
-    (concat (map (compose (* $ (+ 9000 n)) show) {1 2}))))
+    (concat (map (compose3 (* $ (+ 9000 n)) show unpack) {1 2}))))
   
 (define $proc1
   (lambda [$n]
@@ -10,6 +10,6 @@
 
 (define $proc
   (lambda []
-    (proc2 (car (filter proc1 (reverse (take 1000 nats0)))))))
+    (pack (proc2 (car (filter proc1 (reverse (take 1000 nats0))))))))
 
 (test (proc))

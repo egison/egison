@@ -1,0 +1,25 @@
+(define $pence
+  (matcher
+    {[<nil> []
+      {[$tgt (if (eq? tgt 0)
+               {[]}
+               {})]}]
+     [<coin ,$n $ $> [integer pence]
+      {[$tgt (map (lambda [$x] [x (- tgt (* n x))]) (between 0 (quotient tgt n)))]}]
+     }))
+
+(define $ret
+  (match-all 200 pence
+    [<coin ,200 $x_1
+      <coin ,100 $x_2
+       <coin ,50 $x_3
+        <coin ,20 $x_4
+         <coin ,10 $x_5
+          <coin ,5 $x_6
+           <coin ,2 $x_7
+            <coin ,1 $x_8
+             <nil>>>>>>>>>
+     (zip {200 100 50 20 10 5 2 1} (map (ref x $) (between 1 8)))]))
+
+(io (each (compose show print) ret))
+(length ret)

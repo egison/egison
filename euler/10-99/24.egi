@@ -23,4 +23,4 @@
       {[[<nil> <nil>] {}]
        [[<cons $x $rxs> <cons ,(nth (+ x 1) ns) $rns>] {(nth (+ x 1) ns) @(proc rxs rns)}]})))
 
-(test (proc (proc1 (- 1000000 1)) (between 0 9)))
+(proc (proc1 (- 1000000 1)) (between 0 9))

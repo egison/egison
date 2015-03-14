@@ -4,13 +4,13 @@
       1
       (+ (fib (- n 1)) (fib (- n 2))))))
 
-(define $x (length (while (lt? $ 1000) (map (compose show length) (map fib (map (* $ 100) nats))))))
-(define $y (length (while (lt? $ 1000) (map (compose show length) (map fib (between 4700 4800))))))
+(define $x (length (while (lt? $ 1000) (map (compose3 show unpack length) (map fib (map (* $ 100) nats))))))
+(define $y (length (while (lt? $ 1000) (map (compose3 show unpack length) (map fib (between 4700 4800))))))
 
 (test (fib (+ (* 100 x) (- y 1))))
-(test (length (show (fib (+ (* 100 x) (- y 1))))))
+(test (length (unpack (show (fib (+ (* 100 x) (- y 1)))))))
 
 (test (fib (+ (* 100 x) y)))
-(test (length (show (fib (+ (* 100 x) y)))))
+(test (length (unpack (show (fib (+ (* 100 x) y))))))
 
 (test (+ (* 100 x) y))

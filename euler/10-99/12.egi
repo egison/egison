@@ -1,16 +1,7 @@
-(define $sact
-  (memoized-lambda [$n]
-    (if (eq? n 0)
-      0
-      (+ n (sact (- n 1))))))
+(define $pfs (map p-f (cdr nats)))
 
-(define $sacts (map sact nats))
-
-(define $proc1
-  (lambda [$n]
-    (foldl * 1 (map (lambda [$a $b] (+ b 1)) (frequency (p-f n))))))
-
-(define $rets (map proc1 sacts))
-
-(test (sact (+ 1 (length (while (lt? $ 100) rets)))))
-(test (sact (+ 1 (length (while (lt? $ 500) rets)))))
+(car (filter 2#(gte? %2 500)
+             (match-all pfs (list something)
+               [<join _ <cons $xs <cons $ys _>>>
+                [(foldl * 1 (delete-first 2 {@xs @ys})) (foldl * 1 (map 2#(+ %2 1) (frequency (delete-first 2 {@xs @ys}))))]])
+             ))

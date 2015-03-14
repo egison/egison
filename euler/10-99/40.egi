@@ -1,5 +1,27 @@
-(define $ds {9 @(map (lambda [$n] (* n (- (power 10 n) 1 (power 10 (- n 1))))) (cdr nats))})
+(load "lib/math/project-euler.egi")
+
+(define $ds' {9 @(map (lambda [$n] (* n
+                                     (- (power 10 n)
+                                        (power 10 (- n 1)))))
+                     (cdr nats))})
+
+(take 10 ds')
+
+(define $ds (zip nats (scanl + 0 ds')))
 
 (take 10 ds)
 
+(define $f
+  (lambda [$n]
+    (let {[[$k $i $r] (let* {[[$k $x] (rac (while 2#(lt? %2 n) ds))]
+                             [$i (- n x)]}
+                        (if (eq? (remainder i k) 0)
+                          [k (- (quotient i k) 1) k]
+                          [k (quotient i k) (remainder i k)]))]}
+;      (num-to-digits (+ (power 10 (- k 1)) i)))))
+      (nth r (num-to-digits (+ (power 10 (- k 1)) i))))))
 
+(map f (between 1 1000))
+
+(take 7 (map (power 10 $) {0 @nats}))
+(product (take 7 (map f (map (power 10 $) {0 @nats}))))

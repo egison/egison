@@ -38,16 +38,14 @@
 
 (define $proc1
   (lambda [$n]
-    (match (show n) (list char)
+    (match (unpack (show n)) (list char)
       {[<cons $x0 <nil>> (proc2-1 x0)]
        [<cons ,'1' <cons ,'0' <nil>>> "ten"]
        [<cons ,'1' <cons $x0 <nil>>> (proc3 x0)]
        [<cons $x1 <cons ,'0' <nil>>> (proc2-2 x1)]
-       [<cons $x1 <cons $x0 <nil>>> {@(proc2-2 x1) @" " @(proc2-1 x0)}]
-       [<cons $x2 <cons ,'0' <cons ,'0' <nil>>>> {@(proc2-1 x2) @" handred"}]
-       [<cons $x2 <cons $x1 <cons $x0 <nil>>>> {@(proc2-1 x2) @" handred and " @(proc1 (read {x1 x0}))}]
+       [<cons $x1 <cons $x0 <nil>>> (S.concat {(proc2-2 x1) " " (proc2-1 x0)})]
+       [<cons $x2 <cons ,'0' <cons ,'0' <nil>>>> (S.concat {(proc2-1 x2) " handred"})]
+       [<cons $x2 <cons $x1 <cons $x0 <nil>>>> (S.concat {(proc2-1 x2) " handred and " (proc1 (read (pack {x1 x0})))})]
        [_ "one thousand"]})))
 
-(test (length (delete ' ' (concat (map proc1 (between 1 1000))))))
-
-       
+(length (delete ' ' (unpack (S.concat (map proc1 (between 1 1000))))))

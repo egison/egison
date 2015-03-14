@@ -1,27 +1,13 @@
-(define $pence
-  (matcher
-    {[<nil> []
-      {[$tgt (if (eq? tgt 0)
-               {[]}
-               {})]}]
-     [<coin ,$n $ $> [integer pence]
-      {[$tgt (map (lambda [$x] [x (- tgt (* n x))]) (between 0 (quotient tgt n)))]}]
-     }))
+(define $coins {1 2 5 10 20 50 100 200})
 
-(define $ret
-  (match-all 30 pence
-    [<coin ,200 $x_1
-      <coin ,100 $y_2
-       <coin ,50 $y_3
-        <coin ,20 $y_4
-         <coin ,10 $y_5
-          <coin ,5 $y_6
-           <coin ,2 $y_7
-            <coin ,1 $y_8
-             <nil>>>>>>>>>
-     x]))
+(define $f
+  (memoized-lambda [$n $m]
+    (match [n m] [integer integer]
+      {[[$n ,1] 1]
+       [[$n $m]
+        (sum (map 1#(f (- n %1) (match coins (list integer) {[<join _ <cons $k <cons ,m _>>> k]}))
+                  (while (lte? $ n) (map (* $ m) {0 @nats}))))]})))
 
-(test ret)
-(test (length ret))
-
-
+(f 20 200)
+(f 30 200)
+(f 200 200)

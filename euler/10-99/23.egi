@@ -1,5 +1,5 @@
 (load "lib/math/prime.egi")
-(load "lib/math/euler.egi")
+(load "lib/math/project-euler.egi")
 
 (define $d 28123)
 
