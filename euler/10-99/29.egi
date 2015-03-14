@@ -1,0 +1,29 @@
+(define $pows (map 1#(while (lte? $ 100) (map (power %1 $) nats)) (between 2 10)))
+
+pows
+(length (unique (qsort (concat pows))))
+(define $c (* 99 (- 99 (length (unique (qsort (concat pows)))))))
+
+(define $c2
+  (length (unique (qsort {@(between 2 100)
+                          @(map (* 2 $) (between 2 100))}))))
+
+(define $c4
+  (length (unique (qsort {@(between 2 100)
+                          @(map (* 2 $) (between 2 100))
+                          @(map (* 3 $) (between 2 100))
+                          @(map (* 4 $) (between 2 100))}))))
+
+(define $c6
+  (length (unique (qsort {@(between 2 100)
+                          @(map (* 2 $) (between 2 100))
+                          @(map (* 3 $) (between 2 100))
+                          @(map (* 4 $) (between 2 100))
+                          @(map (* 5 $) (between 2 100))
+                          @(map (* 6 $) (between 2 100))}))))
+
+c2
+c4
+c6
+
+(+ c c6 c4 (* c2 4))

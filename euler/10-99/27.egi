@@ -1,0 +1,21 @@
+(define $f
+  (lambda [$a $b $n]
+    (+ (power n 2)
+       (* a n)
+       b)))
+
+(define $cs
+  (lambda [$n]
+    (concat (map (lambda [$p]
+                   (map 1#[%1 p] (filter (lambda [$o] (prime? (+ 1 o p))) {@(map neg (while (lt? $ n) odds)) @(while (lt? $ n) odds)})))
+                 {@(map neg (while (lt? $ n) primes)) @(while (lt? $ n) primes)}))))
+
+(define $g
+  (lambda [$a $b]
+    (+ 2 (length (while prime? (map (f a b $) (cdr nats)))))))
+
+(define $cs1000 (cs 1000))
+(define $cs100 (cs 100))
+
+(io (each (compose show print) (filter 2#(gte? %2 50) (zip cs1000 (map g cs1000)))))
+;(io (each (compose show print) (filter 2#(gte? %2 10) (zip cs100 (map g cs100)))))

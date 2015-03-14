@@ -1,0 +1,6 @@
+(define $f
+  (lambda [$n]
+    (let {[$m (power n 2)]}
+      (- (* 4 m) (* 6 (- n 1))))))
+
+(foldl + 1 (map f (cdr (while (lte? $ 1001) odds))))
