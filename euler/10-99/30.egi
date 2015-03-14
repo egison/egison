@@ -1,1 +1,42 @@
-(test (map (power $ 5) (between 0 9)))
+(define $k 5)
+
+(zip (between 0 9) (map (power $ k) (between 0 9)))
+
+(define $f'
+  (lambda [$xs]
+    (qsort (map 1#(read (pack {%1}))
+                (unpack (show (sum (map (power $ k) xs))))))))
+
+(define $f
+  (lambda [$xs]
+    (eq? (qsort xs) (f' xs))))
+
+(define $c2
+  (match-all (reverse (between 0 2)) (list integer)
+    [(loop $i [1 3] <join _ (& <cons $x_i _> ...)> _)
+     (map (ref x $) (between 1 2))]))
+
+(define $c3
+  (match-all (reverse (between 0 3)) (list integer)
+    [(loop $i [1 3] <join _ (& <cons $x_i _> ...)> _)
+     (map (ref x $) (between 1 3))]))
+
+(define $c4
+  (match-all (reverse (between 0 6)) (list integer)
+    [(loop $i [1 4] <join _ (& <cons $x_i _> ...)> _)
+     (map (ref x $) (between 1 4))]))
+
+(define $c5
+  (match-all (reverse (between 0 9)) (list integer)
+    [<join _ (& <cons (& ?(gte? $ 5) $x_1) (loop $i [2 5] <join _ (& <cons $x_i _> ...)> _)>)>
+     (map (ref x $) (between 1 5))]))
+
+(define $c6
+  (match-all (reverse (between 0 9)) (list integer)
+    [<join _ (& <cons (& ?(gte? $ 7) $x_1) (loop $i [2 6] <join _ (& <cons $x_i _> ...)> _)>)>
+     (map (ref x $) (between 1 6))]))
+
+(map 1#(sum (map (power $ 5) %1)) {{5 4 1 1} {5 4 1 0} {8 7 5 4 4} {9 7 7 2 2} {9 8 4 3 0}})
+(sum {4151 4150 54748 92727 93084})
+(io (each (compose show print) {@(filter f c2) @(filter f c3)  @(filter f c4) @(filter f c5) @(filter f c6)}))
+
