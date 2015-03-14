@@ -1,6 +1,6 @@
 Name:                egison
 Version:             3.5.6
-Synopsis:            Programming language with non-linear pattern-matching against unfree data
+Synopsis:            Programming language with non-linear pattern-matching against non-free data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
   We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
@@ -8,8 +8,8 @@ Description:
   We can find Egison programs in @lib@ and @sample@ directories.
   This package also include Emacs Lisp file @elisp/egison-mode.el@.
   .
-  We can do non-linear pattern-matching against unfree data types in Egison.
-  An unfree data type is a data type whose data have no canonical form, a standard way to represent that object.
+  We can do non-linear pattern-matching against non-free data types in Egison.
+  An non-free data type is a data type whose data have no canonical form, a standard way to represent that object.
   It enables us to write elegant programs.
   .
   /Twin Primes/

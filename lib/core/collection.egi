@@ -11,10 +11,7 @@
   (lambda [$a]
     (matcher
       {[,$val []
-        {[$tgt (match [val tgt] [(list a) (list a)]
-                 {[[<nil> <nil>] {[]}]
-                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
-                  [[_ _] {}]})]}]
+        {[$tgt (if (eq? val tgt) {[]} {})]}]
        [<nil> []
         {[{} {[]}]
          [_ {}]}]
@@ -36,28 +33,25 @@
         {[$tgt {tgt}]}]
        })))
 
-(define $ordered-list
+(define $sorted-list
   (lambda [$a]
     (matcher
       {[,$val []
-        {[$tgt (match [val tgt] [(ordered-list a) (ordered-list a)]
-                 {[[<nil> <nil>] {[]}]
-                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
-                  [[_ _] {}]})]}]
+        {[$tgt (if (eq? val tgt) {[]} {})]}]
        [<nil> []
         {[{} {[]}]
          [_ {}]}]
-       [<join $ <cons ,$px $>> [(ordered-list a) (ordered-list a)]
+       [<join $ <cons ,$px $>> [(sorted-list a) (sorted-list a)]
         {[$tgt (match-all tgt (list a)
                  [(loop $i [1 $n] <cons (& ?(lt? $ px) $xa_i) ...> <cons ,px $rs>)
-                  [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                  [(map (lambda [$i] (ref xa i)) (between 1 n))
                    rs]])]}]
-       [<join $ $> [(ordered-list a) (ordered-list a)]
+       [<join $ $> [(sorted-list a) (sorted-list a)]
         {[$tgt (match-all tgt (list a)
                  [(loop $i [1 $n] <cons $xa_i ...> $rs)
-                  [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                  [(map (lambda [$i] (ref xa i)) (between 1 n))
                    rs]])]}]
-       [<cons $ $> [a (ordered-list a)]
+       [<cons $ $> [a (sorted-list a)]
         {[{$x @$xs} {[x xs]}]
          [_ {}]}]
        [$ [something]
