@@ -1,3 +1,13 @@
-(test (car (match-all (between 1 1000) (list integer)
-             [<join _ (& <cons $a _> <join _ <cons $b <join _ <cons (& ,(+ (power a 2) (power b 2)) ,(- 1000 a b) $c) _>>>>)>
-              (* a b c)])))
+;(test (car (match-all (between 1 1000) (list integer)
+;             [<join _ (& <cons $a _> <join _ <cons $b <join _ <cons (& ,(+ (power a 2) (power b 2)) ,(- 1000 a b) $c) _>>>>)>
+;              (* a b c)])))
+
+(define $cs
+  (concat (map (lambda [$c]
+                 (if (lte? c (quotient (- 1000 c) 2))
+                   {}
+                   (map (lambda [$a] [a (- 1000 a c) c])
+                        (between (max {(- 1000 (* 2 c)) 1}) (quotient (- 1000 c) 2)))))
+               (reverse (while (lte? $ 1000) odds)))))
+
+(3#(* %1 %2 %3) (car (filter 3#(eq? (+ (power %1 2) (power %2 2)) (power %3 2)) cs)))

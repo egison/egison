@@ -1,1 +1,1 @@
-(test (foldl + 0 (filter even? (while (lt? $ 4000000) (map fib nats)))))
+(foldl + 0 (filter even? (while (lt? $ 4000000) fibs)))

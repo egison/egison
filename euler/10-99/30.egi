@@ -37,8 +37,5 @@
     [<join _ (& <cons (& ?(gte? $ 7) $x_1) _> (loop $i [2 6] <join _ (& <cons $x_i _> ...)> _))>
      (map (ref x $) (between 1 6))]))
 
-(map 1#(sum (map (power $ 5) %1)) {{5 4 1 1} {5 4 1 0} {8 7 5 4 4} {9 7 7 2 2} {9 8 4 3 0} {9 9 9 7 4 1}})
-(sum (map 1#(sum (map (power $ 5) %1)) {{5 4 1 1} {5 4 1 0} {8 7 5 4 4} {9 7 7 2 2} {9 8 4 3 0} {9 9 9 7 4 1}}))
-
 (io (each (compose show print) {@(filter f c2) @(filter f c3)  @(filter f c4) @(filter f c5) @(filter f c6)}))
 

@@ -1,5 +1,4 @@
 ;; Install https://github.com/egison-libs/prime-numbers
 (load "lib/math/prime.egi")
 
-(test (p-f 600851475143))
-(test (max (p-f 600851475143)))
+(sum (while (lt? $ 2000000) primes))

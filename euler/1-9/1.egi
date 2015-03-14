@@ -1,0 +1,1 @@
+(sum (filter 1#(or (divisor? %1 3) (divisor? %1 5)) (between 1 999)))
