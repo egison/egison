@@ -71,9 +71,11 @@
 
 (define $prime?
   (lambda [$n]
-    (if (eq? n 1)
-      #f
-      (eq? (rac (while (lte? $ n) primes)) n))))
+    (match n integer
+      {[,0 #f]
+       [,1 #f]
+       [?(gte? $ 2) (eq? (rac (while (lte? $ n) primes)) n)]
+       [_ (prime? (neg n))]})))
 
 (define $gcd
   (lambda [$ns]
