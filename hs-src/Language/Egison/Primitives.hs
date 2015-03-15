@@ -669,7 +669,7 @@ readLineFromPort = oneArg $ \val -> do
 readFile' :: PrimitiveFunc
 readFile' =  oneArg $ \val -> do
   filename <- fromEgison val
-  s <- liftIO $ T.readFile filename
+  s <- liftIO $ T.readFile $ T.unpack filename
   return $ makeIO $ return $ toEgison s
   
 isEOFStdin :: PrimitiveFunc

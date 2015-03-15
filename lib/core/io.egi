@@ -39,27 +39,14 @@
           (each-line-from-port port proc))))))
 
 (define $each-file
-  (lambda [$files]
+  (lambda [$files $proc]
     (match files (list string)
       {[<nil> (return [])]
        [<cons $file $rest>
         (do {[$port (open-input-file file)]
-             [(each-line-from-port port print)]
+             [(each-line-from-port port proc)]
              [(close-input-port port)]}
-          (each-file rest))]})))
-
-(define $read-file
-  (lambda [$file]
-    (letrec {[$read-file-content (lambda [$port $ret]
-                                   (do {[$eof (eof-port? port)]}
-                                     (if eof
-                                       (return ret)
-                                       (do {[$line (read-line-from-port port)]
-                                            [$ret2 (read-file-content port (S.concat {ret "\n" line}))]}
-                                         (return ret2)))))]}
-      (do {[$port (open-input-file file)]
-           [$content (read-file-content port "")]}
-        (return content)))))
+          (each-file rest proc))]})))
 
 ;;;
 ;;; Collection
