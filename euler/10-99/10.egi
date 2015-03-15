@@ -1,4 +1,7 @@
 ;; Install https://github.com/egison-libs/prime-numbers
-(load "lib/math/prime.egi")
+(load "lib/math/prime-numbers.egi")
 
-(sum (while (lt? $ 2000000) primes))
+(define $x (take-and-drop 100000 primes-under-two-million))
+
+(+ (sum (2#%1 x)) (sum (2#%2 x)))
+

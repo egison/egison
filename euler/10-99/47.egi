@@ -13,9 +13,9 @@
       (qsort (concat (map (lambda [$p] (while (lt? $ n) (map (lambda [$i] (power p i)) nats))) primes1))))))
 
 (define $proc1
-  (lambda [$n] 
+  (lambda [$n]
     (qsort (match-all (proc2 n) (list integer)
-             [<join _ <cons $x <join _ <cons $y <join _ <cons $z _>>>>>>
-              (* x y z)]))))
+             [<join _ <cons $x <join _ <cons $y <join _ <cons $z <join _ <cons $w _>>>>>>>>
+              (* x y z w)]))))
 
-(test (proc1 100))
+(match-all (proc1 100) (list integer) [<join _ <cons $x <cons ,(+ x 2) _>>> [x (+ x 2) [(p-f x) (p-f (+ x 2))]]])
