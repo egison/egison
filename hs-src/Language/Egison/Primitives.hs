@@ -16,6 +16,7 @@ import Control.Monad.Trans.Maybe
 
 import Data.IORef
 import Data.Ratio
+import Text.Regex.TDFA
 
 import System.IO
 import System.Random
@@ -24,6 +25,7 @@ import qualified Data.Sequence as Sq
 
 import Data.Char (ord, chr)
 import qualified Data.Text as T
+import Data.Text (Text)
 import qualified Data.Text.IO as T
 
  {--  -- for 'egison-sqlite'
@@ -151,6 +153,7 @@ primitives = [ ("+", plus)
              , ("length-string", lengthString)
              , ("append-string", appendString)
              , ("split-string", splitString)
+             , ("regex", regexString)
                
              , ("read", read')
              , ("read-tsv", readTSV)
@@ -440,6 +443,24 @@ splitString = twoArgs $ \pat src -> do
     (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
     (String _, _) -> throwError $ TypeMismatch "string" (Value src)
     (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+
+regexString :: PrimitiveFunc
+regexString = twoArgs $ \pat src -> do
+  case (pat, src) of
+    (String patStr, String srcStr) -> do
+      let (a, b, c) = (((T.unpack srcStr) =~ (T.unpack patStr)) :: (String, String, String))
+      if b == ""
+        then return . Collection . Sq.fromList $ []
+        else return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
+    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
+    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+
+--regexStringMatch :: PrimitiveFunc
+--regexStringMatch = twoArgs $ \pat src -> do
+--  case (pat, src) of
+--    (String patStr, String srcStr) -> return . Bool $ (((T.unpack srcStr) =~ (T.unpack patStr)) :: Bool)
+--    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
+--    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
 
 read' :: PrimitiveFunc
 read'= oneArg $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv

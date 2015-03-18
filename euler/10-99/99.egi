@@ -1004,8 +1004,7 @@
   (lambda [$m $n]
     (* (log (+ m 0.0)) n)))
 
-(define $ret (map proc1 ds))
+(define $ret (zip (take (length ds) nats) (map proc1 ds)))
 
-(test (max ret))
-
-(test (io (each print (map show ret))))
+(length ds)
+(max/fn 2#(compare (2#%2 %1) (2#%2 %2)) ret)

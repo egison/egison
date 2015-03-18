@@ -103,15 +103,15 @@
 (define $proc1
   (memoized-lambda [$d $x]
     (match [d x] [integer integer]
-      {[[,0 ,0] mss_0_0]
-       [[_ ,0] (+ (proc1 (- d 1) 0) mss_d_0)]
-       [[_ ,d] (+ (proc1 (- d 1) (- d 1)) mss_d_d)]
-       [[_ _] (if (gt? (proc1 (- d 1) (- x 1)) (proc1 (- d 1) x))
+      {[[,1 ,1] mss_1_1]
+       [[_  ,1] (+ (proc1 (- d 1) 1) mss_d_1)]
+       [[_  ,d] (+ (proc1 (- d 1) (- d 1)) mss_d_d)]
+       [[_  _] (if (gt? (proc1 (- d 1) (- x 1)) (proc1 (- d 1) x))
                 (+ (proc1 (- d 1) (- x 1)) mss_d_x)
                 (+ (proc1 (- d 1) x) mss_d_x))]})))
 
 (define $proc
   (lambda [$d]
-    (max (map (proc1 (- d 1) $) (take (- d 1) nats0)))))
+    (max (map (proc1 d $) (take (- d 1) nats)))))
 
 (test (proc (array-size mss)))

@@ -1,0 +1,12 @@
+(load "lib/math/project-euler.egi")
+
+(define $g
+  (lambda [$n]
+    (digits-to-num {@(num-to-digits n) @(reverse (num-to-digits n))})))
+
+(define $f
+  (lambda [$n]
+    (let {[$m (g n)]}
+      (any (divisor? m $) (between (+ n 1) 999)))))
+
+(car (filter f (reverse (between 100 999))))

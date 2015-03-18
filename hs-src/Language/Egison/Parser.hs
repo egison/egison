@@ -44,7 +44,7 @@ import Text.Parsec.String
 import qualified Text.Parsec.Token as P
 
 import qualified Data.Text as T
-import Text.Regex.Posix
+import Text.Regex.TDFA
 
 import Language.Egison.Types
 import Language.Egison.Desugar
@@ -431,6 +431,7 @@ pattern' = wildCard
             <|> patVar
             <|> varPat
             <|> valuePat
+            <|> regexPat
             <|> predPat
             <|> notPat
             <|> tuplePat
@@ -454,6 +455,9 @@ varPat = VarPat <$> ident
 
 valuePat :: Parser EgisonPattern
 valuePat = reservedOp "," >> ValuePat <$> expr
+
+regexPat :: Parser EgisonPattern
+regexPat = reservedOp "~" >> RegexPat <$> expr
 
 predPat :: Parser EgisonPattern
 predPat = reservedOp "?" >> PredPat <$> expr

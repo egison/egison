@@ -1,6 +1,8 @@
+(load "lib/math/project-euler.egi")
+
 (define $f
   (lambda [$n]
-    (foldl + 0 (map (power $ 2) (map (compose (lambda [$n] {n}) read) (show n))))))
+    (sum (map (power $ 2) (num-to-digits n)))))
 
 (define $d (generate-array [$i] [567] (p-naive i)))
 

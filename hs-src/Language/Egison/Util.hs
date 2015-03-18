@@ -9,7 +9,7 @@ This module provides utility functions.
 module Language.Egison.Util (getEgisonExpr, getEgisonExprOrNewLine, completeEgison) where
 
 import Data.List
-import Text.Regex.Posix
+import Text.Regex.TDFA
 import System.Console.Haskeline hiding (handle, catch, throwTo)
 import Control.Monad.Error (liftIO)
 
