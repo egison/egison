@@ -190,6 +190,7 @@ data EgisonPattern =
     WildCard
   | PatVar String
   | ValuePat EgisonExpr
+  | RegexPat EgisonExpr
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
   | LetPat [BindingExpr] EgisonPattern
