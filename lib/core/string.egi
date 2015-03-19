@@ -10,6 +10,8 @@
       {[$tgt  (if (eq? val tgt)
                 {[]}
                 {})]}]
+     [<regex-cg ,$regexpr $ $ $> [string (list string) string]
+      {[$tgt (regex-cg regexpr tgt)]}]
      [<regex ,$regexpr $ $ $> [string string string]
       {[$tgt (regex regexpr tgt)]}]
      [<nil> []

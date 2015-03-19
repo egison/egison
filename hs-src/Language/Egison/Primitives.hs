@@ -154,6 +154,7 @@ primitives = [ ("+", plus)
              , ("append-string", appendString)
              , ("split-string", splitString)
              , ("regex", regexString)
+             , ("regex-cg", regexStringCaptureGroup)
                
              , ("read", read')
              , ("read-tsv", readTSV)
@@ -452,6 +453,18 @@ regexString = twoArgs $ \pat src -> do
       if b == ""
         then return . Collection . Sq.fromList $ []
         else return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
+    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
+    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+
+regexStringCaptureGroup :: PrimitiveFunc
+regexStringCaptureGroup = twoArgs $ \pat src -> do
+  case (pat, src) of
+    (String patStr, String srcStr) -> do
+      let ret = (((T.unpack srcStr) =~ (T.unpack patStr)) :: [[String]])
+      case ret of 
+        [] -> return . Collection . Sq.fromList $ []
+        ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
+                         return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
     (String _, _) -> throwError $ TypeMismatch "string" (Value src)
     (_, _) -> throwError $ TypeMismatch "string" (Value pat)
 
