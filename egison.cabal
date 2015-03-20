@@ -100,4 +100,5 @@ Executable egison
   Build-depends:       egison, base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, filepath, strict-io, text, regex-tdfa
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
+  ghc-options:  -rtsopts -threaded
   ghc-prof-options:   -prof -auto-all
