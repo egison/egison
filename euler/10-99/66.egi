@@ -1,0 +1,26 @@
+(define $cs (merge (map (power $ 2) nats) (map 1#(* 2 (power %1 2)) nats)))
+
+(define $f
+  (lambda [$d]
+    (if (prime? d)
+      (car (filter (lambda [$x] (square? (/ (* (+ x 1) (- x 1)) d)))
+                   (match (concat (map 1#{(- %1 1) (+ %1 1)} (map (* d $) cs))) (list integer)
+                     {[<cons ,1 $rs> rs]
+                      [$xs xs]})))
+      (car (filter (lambda [$x] (square? (/ (* (+ x 1) (- x 1)) d)))
+                   (match (concat (map 1#{(- %1 1) (+ %1 1)} (map (* (rac (p-f d)) $) nats))) (list integer)
+                     {[<cons ,1 $rs> rs]
+                      [$xs xs]}))))))
+
+;(define $ret (map 1#[%1 (f %1)] (filter 1#(not (square? %1)) (between 2 1000))))
+(define $ret (map 1#[%1 (f %1)] (filter 1#(not (square? %1)) (while (lt? $ 1000) primes))))
+
+(io (each (compose show print) ret))
+(max/fn 2#(compare (2#%2 %1) (2#%2 %2)) ret)
+
+
+;y^2 = (x^2 - 1) / d -> y^2 = (x + 1)(x - 1) / d 
+
+;a^2 - d * b^2 = 2  -> b^2 = (a^2 + 2) / d   where x + 1 = a^2, x - 1 = d * b^2
+;a^2 - d * b^2 = -2 -> b^2 = (a^2 - 2) / d   where x - 1 = a^2, x + 1 = d * b^2
+

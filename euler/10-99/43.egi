@@ -1,0 +1,8 @@
+(load "lib/math/project-euler.egi")
+
+d_4 {0 2 4 6 8}
+d_6 {0 5}
+
+(define $f
+  (lambda [$n]
+    (reminder (digits-to-num d_(- n 2) d_(- n 1) 0) (nth (- n 2) primes))

@@ -1,0 +1,14 @@
+(define $f
+  (lambda [$x]
+    (let {[$n (floor (sqrt x))]}
+      (eq? (* n (+ n 1)) x))))
+
+(define $n (power 10 12))
+;(define $n 100)
+(define $x (floor (sqrt (itof (+ (quotient n 3) 1)))))
+(define $xs {x @(map (+ 1 $) xs)})
+(define $ys (map 1#(* %1 (+ %1 1)) xs))
+(io (each (compose show print) (while 3#(not %1) (map 2#[(f %2) %1 %2] (map 1#[%1 (* 2 %1)] ys)))))
+;[#f 10973004065256 21946008130512]
+;[#f 10973010690362 21946021380724]
+;[]

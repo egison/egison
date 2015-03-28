@@ -1,7 +1,5 @@
-(define $ps (while (lt? $ 1000000) primes))
+(load "lib/math/prime-numbers.egi")
 
-(take 100 ps)
-(take 1000 ps)
-(take 10000 ps)
-(take 30000 ps)
+(define $n 1000000)
 
+(io (each (compose show print) (map 1#(rac (filter 2#(prime? %2) (zip nats (while (lt? $ n) (cdr (scanl + 0 (drop %1 primes))))))) (between 0 100))))

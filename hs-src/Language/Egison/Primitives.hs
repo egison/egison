@@ -16,10 +16,12 @@ import Control.Monad.Trans.Maybe
 
 import Data.IORef
 import Data.Ratio
+import Data.Foldable (toList)
 import Text.Regex.TDFA
 
 import System.IO
 import System.Random
+import System.Process
 
 import qualified Data.Sequence as Sq
 
@@ -155,6 +157,8 @@ primitives = [ ("+", plus)
              , ("split-string", splitString)
              , ("regex", regexString)
              , ("regex-cg", regexStringCaptureGroup)
+
+             , ("read-process", readProcess')
                
              , ("read", read')
              , ("read-tsv", readTSV)
@@ -474,6 +478,16 @@ regexStringCaptureGroup = twoArgs $ \pat src -> do
 --    (String patStr, String srcStr) -> return . Bool $ (((T.unpack srcStr) =~ (T.unpack patStr)) :: Bool)
 --    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
 --    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+
+readProcess' :: PrimitiveFunc
+readProcess' = threeArgs $ \cmd args input -> do
+  case (cmd, args, input) of
+    (String cmdStr, Collection argStrs, String inputStr) -> do
+      outputStr <- liftIO $ readProcess (T.unpack cmdStr) (map (\arg -> case arg of
+                                                                          String argStr -> T.unpack argStr)
+                                                                (toList argStrs)) (T.unpack inputStr)
+      return (String (T.pack outputStr))
+    (_, _, _) -> throwError $ TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input]))
 
 read' :: PrimitiveFunc
 read'= oneArg $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
