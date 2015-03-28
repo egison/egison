@@ -142,7 +142,8 @@
 (define $map2
   (lambda [$fn $xs $ys]
     (match [xs ys] [(list something) (list something)]
-      {[[<nil> <nil>] {}]
+      {[[<nil> _] {}]
+       [[_ <nil>] {}]
        [[<cons $x $xs2> <cons $y $ys2>]
         {(fn x y) @(map2 fn xs2 ys2)}]})))
 
@@ -234,6 +235,14 @@
 (define $repeat1
   (lambda [$x]
     {x @(repeat1 x)}))
+
+(define $merge
+  (lambda [$xs $ys]
+    (match [xs ys] [(list something) (list something)]
+      {[[<nil> _] ys]
+       [[_ <nil>] xs]
+       [[<cons $x $txs> <cons ?(gte? $ x) _>] {x @(merge txs ys)}]
+       [[_ <cons $y $tys>] {y @(merge xs tys)}]})))
 
 ;;
 ;; Others

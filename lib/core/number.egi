@@ -32,19 +32,12 @@
 
 (define $fibs {1 1 @(map2 + fibs (cdr fibs))})
 
-(define $primes
-  (letrec {[$next-primes
-            (lambda [$primes1 $k]
-              (let {[$primes2 (while (lte? $ (floor (sqrt (itof (* 6 (+ k 1)))))) primes1)]}
-                (match [(any (lambda [$p] (eq? (remainder (+ (* 6 k) 1) p) 0)) primes2)
-                        (any (lambda [$p] (eq? (remainder (+ (* 6 k) 5) p) 0)) primes2)]
-                  [bool bool]
-                  {[[,#f ,#f] {(+ (* 6 k) 1) (+ (* 6 k) 5) @(next-primes {@primes1 (+ (* 6 k) 1) (+ (* 6 k) 5)} (+ k 1))}]
-                   [[,#f ,#t] {(+ (* 6 k) 1) @(next-primes {@primes1 (+ (* 6 k) 1)} (+ k 1))}]
-                   [[,#t ,#f] {(+ (* 6 k) 5) @(next-primes {@primes1 (+ (* 6 k) 5)} (+ k 1))}]
-                   [[,#t ,#t] (next-primes primes1 (+ k 1))]
-                   })))]}
-    {2 3 5 @(next-primes {2 3 5} 1)}))
+(define $prime?
+  (lambda [$n]
+    (not (any 1#(eq? (remainder n %1) 0)
+              (while (lte? $ (floor (sqrt (itof n)))) primes)))))
+
+(define $primes {2 @(filter prime? (drop 2 nats))})
 
 (define $divisor?
   (lambda [$n $d]
@@ -71,13 +64,10 @@
   (lambda [$n]
     (eq? 1 (modulo n 2))))
 
-(define $prime?
+(define $square?
   (lambda [$n]
-    (match n integer
-      {[,0 #f]
-       [,1 #f]
-       [?(gte? $ 2) (eq? (rac (while (lte? $ n) primes)) n)]
-       [_ (prime? (neg n))]})))
+    (let {[$x (round (sqrt n))]}
+      (eq? n (power x 2)))))
 
 (define $gcd
   (lambda [$ns]
@@ -177,3 +167,7 @@
     {[[<cons $a $as> <cons $b $bs>]
       (+ a (/ b (continued-fraction as bs)))]
      [[<cons $a <nil>> <nil>] a]}))
+
+(define $regular-continued-fraction-of-sqrt
+  (lambda [$n]
+    undefined))
