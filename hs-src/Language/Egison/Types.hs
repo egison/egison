@@ -76,7 +76,7 @@ module Language.Egison.Types
     , mfor
     ) where
 
-import Prelude hiding (foldr)
+import Prelude hiding (foldr, mappend, mconcat)
 
 import Control.Exception
 import Data.Typeable
