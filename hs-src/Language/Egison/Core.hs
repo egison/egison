@@ -33,7 +33,7 @@ module Language.Egison.Core
     , packStringValue
     ) where
 
-import Prelude hiding (mapM)
+import Prelude hiding (mapM, mappend)
 
 import Control.Arrow
 import Control.Applicative
