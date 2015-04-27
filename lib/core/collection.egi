@@ -488,7 +488,7 @@
                   {[<nil> ys]
                    [<cons $x $rs>
                     (if (member? x ys)
-                      (loop-fn rs ys)
+                      (loop-fn (delete x rs) ys)
                       (loop-fn rs {@ys x}))]}))]}
       (loop-fn xs {}))))
 
@@ -500,6 +500,6 @@
                   {[<nil> ys]
                    [<cons $x $rs>
                     (if (member?/m a x ys)
-                      (loop-fn rs ys)
+                      (loop-fn (delete/m a x rs) ys)
                       (loop-fn rs {@ys x}))]}))]}
       (loop-fn xs {}))))
