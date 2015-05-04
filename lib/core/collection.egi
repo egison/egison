@@ -100,6 +100,33 @@
             {x @(while pred rs)}
             {})]})))
 
+(define $while-by
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs>
+        (if (pred x)
+            {x @(while-by pred rs)}
+            {x})]})))
+
+(define $until
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs>
+        (if (not (pred x))
+            {x @(until pred rs)}
+            {})]})))
+
+(define $until-by
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs>
+        (if (not (pred x))
+            {x @(until-by pred rs)}
+            {x})]})))
+
 ;;
 ;; cons, car, cdr
 ;;
@@ -379,7 +406,7 @@
     (match ys (list a)
       {[<nil> #t]
        [<cons $y $rs>
-        (if (member?/a y xs)
+        (if (member?/m a y xs)
           (include?/m a (delete-first y xs) rs)
           #f)]})))
 
@@ -457,7 +484,12 @@
 (define $set
   (lambda [$a]
     (matcher
-      {[<nil> []
+      {[,$val []
+        {[$tgt (match [val tgt] [(list a) (multiset a)]
+                 {[[<nil> <nil>] {[]}]
+                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
+                  [[_ _] {}]})]}]
+       [<nil> []
         {[{} {[]}]
          [_ {}]}]
        [<cons $ $> [a (set a)]
