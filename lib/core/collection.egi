@@ -370,15 +370,15 @@
   (lambda [$x $xs]
     (match xs (list something)
       {[<nil> {}]
-       [<cons ,x $rs> (delete x rs)]
-       [<cons $y $rs> {y @(delete x rs)}]})))
+       [<join $hs <cons ,x $ts>> {@hs @(delete x ts)}]
+       [_ xs]})))
 
 (define $delete/m
   (lambda [$a $x $xs]
     (match xs (list a)
       {[<nil> {}]
-       [<cons ,x $rs> (delete/m a x rs)]
-       [<cons $y $rs> {y @(delete/m a x rs)}]})))
+       [<join $hs <cons ,x $ts>> {@hs @(delete/m a x ts)}]
+       [_ xs]})))
 
 (define $difference
   (lambda [$xs $ys]
@@ -502,10 +502,11 @@
                    {tgt}]
                   [_ {}]})]}]
        [<join $ $> [(set a) (set a)]
-        {[$tgt (match-all tgt (multiset a)
-                 [(loop $i [1 $n] <cons $x_i ...> _)
-                  [(map (lambda [$i] x_i) (between 1 n)) tgt]])]}]
-       [$ [something]
+       {[$tgt (match-all tgt (list a)
+                 [(loop $i [1 $n] <join $rs_i <cons $x_i ...>> $ts)
+                  [(map (lambda [$i] x_i) (between 1 n))
+                   tgt]])]}]
+        [$ [something]
         {[$tgt {tgt}]}]
        })))
 
@@ -514,24 +515,15 @@
 ;;
 (define $unique
   (lambda [$xs]
-    (letrec {[$loop-fn
-              (lambda [$xs $ys]
-                (match xs (list something)
-                  {[<nil> ys]
-                   [<cons $x $rs>
-                    (if (member? x ys)
-                      (loop-fn (delete x rs) ys)
-                      (loop-fn rs {@ys x}))]}))]}
-      (loop-fn xs {}))))
+    (match-all (sort xs) (list something)
+      [<join _ <cons $x ^<cons ,x _>>> x])))
 
 (define $unique/m
   (lambda [$a $xs]
     (letrec {[$loop-fn
               (lambda [$xs $ys]
-                (match xs (list something)
-                  {[<nil> ys]
-                   [<cons $x $rs>
-                    (if (member?/m a x ys)
-                      (loop-fn (delete/m a x rs) ys)
-                      (loop-fn rs {@ys x}))]}))]}
+                (match [xs ys] [(list a) (multiset a)]
+                  {[[<nil> _] ys]
+                   [[<cons $x $rs> <cons ,x _>] (loop-fn rs ys)]
+                   [[<cons $x $rs>  _] (loop-fn rs {@ys x})]}))]}
       (loop-fn xs {}))))

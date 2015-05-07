@@ -34,10 +34,10 @@
   (min-and-max/fn compare {10 20 5 20 30})
   [5 30])
 
-(assert-equal "qsort"
-  (qsort {10 20 5 20 30})
+(assert-equal "sort"
+  (sort {10 20 5 20 30})
   {5 10 20 20 30})
 
-(assert-equal "qsort/fn"
-  (qsort/fn compare {10 20 5 20 30})
+(assert-equal "sort/fn"
+  (sort/fn compare {10 20 5 20 30})
   {5 10 20 20 30})

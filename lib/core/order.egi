@@ -10,11 +10,22 @@
 
 (define $compare
   (lambda [$m $n]
-    (if (lt? m n)
+    (if (collection? m)
+      (compare-c m n)
+      (if (lt? m n)
         <Less>
         (if (eq? m n)
-            <Equal>
-            <Greater>))))
+          <Equal>
+          <Greater>)))))
+
+(define $compare-c
+  (lambda [$c1 $c2]
+    (match [c1 c2] [(list something) (list something)]
+      {[[<nil> <nil>] <Equal>]
+       [[<nil> _] <Less>]
+       [[_ <nil>] <Greater>]
+       [[<cons $x $xs> <cons ,x $ys>] (compare-c xs ys)]
+       [[<cons $x _> <cons $y _>] (compare x y)]})))
 
 (define $min
   (lambda [$ns]
@@ -65,9 +76,9 @@
              [<equal> [ys1 {x @ys2} ys3]]
              [<greater> [ys1 ys2 {x @ys3}]]}))]})))
 
-(define $qsort (qsort/fn compare $))
+(define $sort (sort/fn compare $))
 
-(define $qsort/fn
+(define $sort/fn
   (lambda [$f $xs]
     (match xs (list something)
       {[<nil> {}]
@@ -75,4 +86,4 @@
        [_ (let* {[$n (length xs)]
                  [$p (nth (quotient n 2) xs)]
                  [[$ys1 $ys2 $ys3] (split-by-ordering/fn f p xs)]}
-            {@(qsort/fn f ys1) @ys2 @(qsort/fn f ys3)})]})))
+            {@(sort/fn f ys1) @ys2 @(sort/fn f ys3)})]})))
