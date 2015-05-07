@@ -287,7 +287,8 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (TuplePat patterns) = collectNames patterns
    collectName (InductivePat _ patterns) = collectNames patterns
    collectName (ApplyPat _ patterns) = collectNames patterns
-   collectName (LoopPat _ _ pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
+   collectName (LoopPat _ (LoopRange _ _ endNumPat) pattern1 pattern2) = collectName endNumPat `S.union` collectName pattern1 `S.union` collectName pattern2
+--   collectName (LoopPat _ (LoopRange _ _ endNumPat) pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
    collectName (LetPat _ pattern) = collectName pattern
    collectName (IndexedPat (PatVar name) _) = S.singleton name
    collectName (OrPat patterns) = collectNames patterns
@@ -304,8 +305,8 @@ desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
 desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
 desugarPattern' (OrderedOrPat [])  = return (NotPat WildCard)
 desugarPattern' (OrderedOrPat (pattern:patterns)) = do
-  pattern' <- desugarPattern pattern
-  pattern'' <- desugarPattern (OrderedOrPat patterns)
+  pattern' <- desugarPattern' pattern
+  pattern'' <- desugarPattern' (OrderedOrPat patterns)
   return $ OrPat [pattern', AndPat [(NotPat pattern'), pattern'']]
 desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
 desugarPattern' (InductivePat name patterns) = InductivePat name <$> mapM desugarPattern' patterns
@@ -319,7 +320,7 @@ desugarLoopRange :: LoopRange -> DesugarM LoopRange
 desugarLoopRange (LoopRange sExpr eExpr pattern) = do
   sExpr' <- desugar sExpr
   eExpr' <- desugar eExpr
-  pattern' <- desugarPattern pattern
+  pattern' <- desugarPattern' pattern
   return $ LoopRange sExpr' eExpr' pattern'
 
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
