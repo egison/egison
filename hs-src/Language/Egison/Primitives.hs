@@ -236,50 +236,50 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
 plus :: PrimitiveFunc
 plus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
+  numberBinaryOp' (Number x y) (Number x' y') = return $ Number (x + x') (y + y')
+  numberBinaryOp' (Number x y) (Rational r)  = return $ Number (x + r) y
+  numberBinaryOp' (Rational r) (Number x y)  = return $ Number (r + x) y
   numberBinaryOp' (Rational r) (Rational r') = return $ Rational (r + r')
-  numberBinaryOp' (Rational r) (Float f)     = numberBinaryOp' (Float (fromRational r)) (Float f)
-  numberBinaryOp' (Float f)    (Rational r)  = numberBinaryOp' (Float f) (Float (fromRational r))
   numberBinaryOp' (Float f)    (Float f')    = return $ Float (f + f')
   numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
 minus :: PrimitiveFunc
 minus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
+  numberBinaryOp' (Number x y) (Number x' y') = return $ Number (x - x') (y - y')
+  numberBinaryOp' (Number x y) (Rational r)  = return $ Number (x - r) y
+  numberBinaryOp' (Rational r) (Number x y)  = return $ Number (r - x) y
   numberBinaryOp' (Rational r) (Rational r') = return $ Rational (r - r')
-  numberBinaryOp' (Rational r) (Float f)     = numberBinaryOp' (Float (fromRational r)) (Float f)
-  numberBinaryOp' (Float f)    (Rational r)  = numberBinaryOp' (Float f) (Float (fromRational r))
   numberBinaryOp' (Float f)    (Float f')    = return $ Float (f - f')
   numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
 multiply :: PrimitiveFunc
 multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
+  numberBinaryOp' (Number x y) (Number x' y') = return $ Number (x * x' - y * y') (x * y' + x' * y)
+  numberBinaryOp' (Number x y) (Rational r)  = return $ Number (x * r) (y * r)
+  numberBinaryOp' (Rational r) (Number x y)  = return $ Number (r * x) (r * y)
   numberBinaryOp' (Rational r) (Rational r') = return $ Rational (r * r')
-  numberBinaryOp' (Rational r) (Float f)     = numberBinaryOp' (Float (fromRational r)) (Float f)
-  numberBinaryOp' (Float f)    (Rational r)  = numberBinaryOp' (Float f) (Float (fromRational r))
   numberBinaryOp' (Float f)    (Float f')    = return $ Float (f * f')
   numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
 divide :: PrimitiveFunc
 divide = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
-  numberBinaryOp' (Rational r) (Rational r') =
-    let m = numerator r' in
-    let n = denominator r' in
-    let y = (r * (n % m)) in
-      return $ Rational y
-  numberBinaryOp' (Rational r) (Float f)    = numberBinaryOp' (Float (fromRational r)) (Float f)
-  numberBinaryOp' (Float f)    (Rational r) = numberBinaryOp' (Float f) (Float (fromRational r))
-  numberBinaryOp' (Float f)    (Float f')   = return $ Float $ (/) f f'
-  numberBinaryOp' (Rational _) val          = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' (Float _)    val          = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' val          _            = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Number x y) (Number x' y') = numberBinaryOp' (Number (x * x' + y * y') (x' * y - x * y')) (Rational (x' * x' + y' * y'))
+  numberBinaryOp' (Rational x) (Number x' y') = numberBinaryOp' (Number x 0) (Number x' y')
+  numberBinaryOp' (Number x y) (Rational r)   = return $ Number (x / r) (y / r)
+  numberBinaryOp' (Rational r) (Rational r')  = return $ Rational (r / r')
+  numberBinaryOp' (Float f)    (Float f')     = return $ Float (f / f')
+  numberBinaryOp' (Rational _) val            = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float _)    val            = throwError $ TypeMismatch "float" (Value val)
+  numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg $ numerator''
@@ -306,44 +306,36 @@ lt :: PrimitiveFunc
 lt = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
   numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (<) r r'
-  numberBinaryPred' (Rational r) (Float f)     = numberBinaryPred' (Float (fromRational r)) (Float f)
-  numberBinaryPred' (Float f)    (Rational r)  = numberBinaryPred' (Float f) (Float (fromRational r))
   numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (<) f f'
   numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 lte :: PrimitiveFunc
 lte = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
   numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (<=) r r'
-  numberBinaryPred' (Rational r) (Float f)     = numberBinaryPred' (Float (fromRational r)) (Float f)
-  numberBinaryPred' (Float f)    (Rational r)  = numberBinaryPred' (Float f) (Float (fromRational r))
   numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (<=) f f'
   numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gt :: PrimitiveFunc
 gt = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
   numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (>) r r'
-  numberBinaryPred' (Rational r) (Float f)     = numberBinaryPred' (Float (fromRational r)) (Float f)
-  numberBinaryPred' (Float f)    (Rational r)  = numberBinaryPred' (Float f) (Float (fromRational r))
   numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (>) f f'
   numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gte :: PrimitiveFunc
 gte = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
   numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (>=) r r'
-  numberBinaryPred' (Rational r) (Float f)     = numberBinaryPred' (Float (fromRational r)) (Float f)
-  numberBinaryPred' (Float f)    (Rational r)  = numberBinaryPred' (Float f) (Float (fromRational r))
   numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (>=) f f'
   numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 --

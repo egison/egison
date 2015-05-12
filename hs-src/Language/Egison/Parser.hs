@@ -535,7 +535,7 @@ numberExpr = do
                             <|> try (do y <- rationalLiteral
                                         char 'i'
                                         return (0,y))
-  return $ TupleExpr [RationalExpr x, RationalExpr y]
+  return $ NumberExpr x y
 
 rationalExpr :: Parser EgisonExpr
 rationalExpr = do
