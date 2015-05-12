@@ -235,6 +235,7 @@ data EgisonValue =
   | Char Char
   | String Text
   | Bool Bool
+  | Number Rational Rational
   | Rational Rational
   | Float Double
   | InductiveData String [EgisonValue]
@@ -264,6 +265,9 @@ instance Show EgisonValue where
   show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"
+  show (Number x 0) = show (Rational x)
+  show (Number 0 y) = show (Rational y) ++ "i"
+  show (Number x y) = show (Rational x) ++ (if y > 0 then "+" else "") ++ show (Rational y) ++ "i"
   show (Rational r) = if denominator r == 1
                          then show (numerator r)
                          else show (numerator r) ++ "/" ++ show (denominator r)
