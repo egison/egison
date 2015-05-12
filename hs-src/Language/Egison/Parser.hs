@@ -499,7 +499,7 @@ loopRange = brackets (try (do s <- expr
                               return (LoopRange s e ep))
                  <|> (do s <- expr
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
+                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (RationalExpr (1 % 1))]))) ep)))
 
 -- Constants
 
@@ -508,8 +508,8 @@ constantExpr =  charExpr
                  <|> stringExpr
                  <|> boolExpr
                  <|> try floatExpr
-                 <|> try rationalExpr
-                 <|> integerExpr
+                 <|> try numberExpr
+                 <|> rationalExpr
                  <|> (keywordSomething *> pure SomethingExpr)
                  <|> (keywordUndefined *> pure UndefinedExpr)
                  <?> "constant"
@@ -526,15 +526,34 @@ boolExpr = BoolExpr <$> boolLiteral
 floatExpr :: Parser EgisonExpr
 floatExpr = FloatExpr <$> floatLiteral
 
+numberExpr :: Parser EgisonExpr
+numberExpr = do
+  (x,y) <- P.lexeme lexer $ try (do x <- rationalLiteral
+                                    y <- sign' <*> positiveRationalLiteral
+                                    char 'i'
+                                    return (x,y))
+                            <|> try (do y <- rationalLiteral
+                                        char 'i'
+                                        return (0,y))
+  return $ TupleExpr [RationalExpr x, RationalExpr y]
+
 rationalExpr :: Parser EgisonExpr
 rationalExpr = do
-  m <- integerLiteral
-  char '/'
-  n <- naturalLiteral
-  return $ RationalExpr (m % n)
+  r <- P.lexeme lexer $ rationalLiteral
+  return $ RationalExpr r
 
-integerExpr :: Parser EgisonExpr
-integerExpr = IntegerExpr <$> integerLiteral
+rationalLiteral :: Parser Rational
+rationalLiteral = sign <*> positiveRationalLiteral
+
+positiveRationalLiteral :: Parser Rational
+positiveRationalLiteral = do
+  (x,y) <- try (do x <- read <$> many1 digit
+                   char '/'
+                   y <- read <$> many1 digit
+                   return (x,y))
+           <|> try (do x <- read <$> many1 digit
+                       return (x,1))
+  return $ x % y
 
 --
 -- Tokens
@@ -655,6 +674,10 @@ sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)
    <|> (char '+' >> return id)
    <|> return id
+
+sign' :: Num a => Parser (a -> a)
+sign' = (char '-' >> return negate)
+    <|> (char '+' >> return id)
 
 naturalLiteral :: Parser Integer
 naturalLiteral = P.natural lexer

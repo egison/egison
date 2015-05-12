@@ -43,6 +43,7 @@ import Control.Monad.Trans.Maybe
 
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
+import Data.Ratio
 import Data.Foldable (toList)
 import Data.Traversable (mapM)
 import Data.IORef
@@ -143,7 +144,6 @@ evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (RationalExpr x) = return . Value $ Rational x
-evalExpr _ (IntegerExpr i) = return . Value $ Integer i
 evalExpr _ (FloatExpr d) = return . Value $ Float d
 
 evalExpr env (VarExpr name) = refVar env name >>= evalRef
@@ -195,7 +195,7 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
     case val of
-      Integer i -> return (IntKey i)
+      Rational r -> return (IntKey (numerator r))
       Char c -> return (CharKey c)
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
@@ -293,8 +293,9 @@ evalExpr env (ApplyExpr func arg) = do
   arg <- evalExpr env arg
   case func of
     Value (MemoizedFunc ref hashRef env names body) -> do
-      indices <- evalWHNF arg
-      indices' <- mapM fromEgison $ fromTupleValue indices
+      ind <- evalWHNF arg
+      indices <- mapM fromEgison $ fromTupleValue ind
+      let indices' = map numerator indices
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices' hash of
         Just objRef -> do
@@ -322,9 +323,9 @@ evalExpr env (ArraySizeExpr expr) =
   evalExpr env expr >>= arraySize
   where
     arraySize :: WHNFData -> EgisonM WHNFData
-    arraySize (Intermediate (IArray arr)) = return . Value . toEgison $ snd $ Array.bounds arr
-    arraySize (Value (Array arr))         = return . Value . toEgison $ snd $ Array.bounds arr
-    arraySize val                          = throwError $ TypeMismatch "array" val
+    arraySize (Intermediate (IArray arr)) = return . Value . toEgison $ (snd (Array.bounds arr)) % 1
+    arraySize (Value (Array arr))         = return . Value . toEgison $ (snd (Array.bounds arr)) % 1
+    arraySize val                         = throwError $ TypeMismatch "array" val
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
@@ -395,7 +396,7 @@ applyFunc val _ = throwError $ TypeMismatch "function" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name sizeExpr expr = do
-  size <- evalExpr env sizeExpr >>= fromWHNF >>= return . fromInteger
+  size <- evalExpr env sizeExpr >>= fromWHNF >>= return . fromInteger . numerator
   elems <- mapM genElem (enumFromTo 1 size)
   return $ Intermediate $ IArray $ Array.listArray (1, size) elems
   where
@@ -405,29 +406,29 @@ generateArray env name sizeExpr expr = do
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
-      ref <- newEvalutedObjectRef (Value . Integer $ i)
+      ref <- newEvalutedObjectRef (Value . Rational $ i % 1)
       return $ extendEnv env [(name, ref)]
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val 
 refArray (Value (Array array)) (index:indices) = do
-  i <- (liftM fromInteger . fromEgison) index
+  i <- (liftM (fromInteger . numerator) . fromEgison) index
   if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
     then refArray (Value (array ! i)) indices
     else return  $ Value Undefined
 refArray (Intermediate (IArray array)) (index:indices) = do
-  i <- (liftM fromInteger . fromEgison) index
+  i <- (liftM (fromInteger . numerator) . fromEgison) index
   if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
     then let ref = array ! i in
            evalRef ref >>= flip refArray indices
     else return  $ Value Undefined
 refArray (Value (IntHash hash)) (index:indices) = do
-  key <- fromEgison index
+  key <- numerator <$> fromEgison index
   case HL.lookup key hash of
     Just val -> refArray (Value val) indices
     Nothing -> return $ Value Undefined
 refArray (Intermediate (IIntHash hash)) (index:indices) = do
-  key <- fromEgison index
+  key <- numerator <$> fromEgison index
   case HL.lookup key hash of
     Just ref -> evalRef ref >>= flip refArray indices
     Nothing -> return $ Value Undefined
@@ -581,8 +582,8 @@ processMState' (MState env loops bindings (MNode penv (MState env' loops' bindin
   case lookup name penv of
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
-      indices' <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map IntegerExpr indices'
+      indices' <- mapM (evalExpr env'' >=> liftM (fromInteger . numerator) . fromWHNF) indices
+      let pattern' = IndexedPat pattern $ map (\i -> RationalExpr (i % 1)) indices'
       case trees' of
         [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):trees)
         _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
@@ -624,7 +625,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
-      startNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
+      startNumRef <- newEvalutedObjectRef $ Value $ Rational (startNum - 1)
       ends' <- evalExpr env' ends
       if isPrimitiveValue ends'
         then do 
@@ -640,7 +641,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
-          nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
+          nextNumRef <- newEvalutedObjectRef $ Value $ Rational (startNum + 1)
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
           if b
@@ -693,7 +694,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             WildCard -> return $ msingleton $ MState env loops bindings trees
             PatVar name -> return $ msingleton $ MState env loops ((name, target):bindings) trees
             IndexedPat (PatVar name) indices -> do
-              indices <- mapM (evalExpr env' >=> liftM fromInteger . fromWHNF) indices
+              indices <- mapM (evalExpr env' >=> liftM (fromInteger . numerator) . fromWHNF) indices
               case lookup name bindings of
                 Just ref -> do
                   obj <- evalRef ref >>= updateHash indices >>= newEvalutedObjectRef
@@ -918,13 +919,13 @@ data EgisonHashKey =
 extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
-extractPrimitiveValue (Value val@(Integer _)) = return val
+extractPrimitiveValue (Value val@(Rational _)) = return val
 extractPrimitiveValue (Value val@(Float _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
 
 isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _)) = True
 isPrimitiveValue (Value (Bool _)) = True
-isPrimitiveValue (Value (Integer _)) = True
+isPrimitiveValue (Value (Rational _)) = True
 isPrimitiveValue (Value (Float _)) = True
 isPrimitiveValue _ = False
