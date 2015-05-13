@@ -144,7 +144,6 @@ evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (NumberExpr x y) = return . Value $ Number x y
-evalExpr _ (RationalExpr x) = return . Value $ Rational x
 evalExpr _ (FloatExpr d) = return . Value $ Float d
 
 evalExpr env (VarExpr name) = refVar env name >>= evalRef
@@ -196,7 +195,7 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
     case val of
-      Rational _ -> fromEgison val >>= (return . IntKey)
+      Number _ _ -> fromEgison val >>= (return . IntKey)
       Char c -> return (CharKey c)
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
@@ -406,7 +405,7 @@ generateArray env name sizeExpr expr = do
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
-      ref <- newEvalutedObjectRef (Value . Rational $ i % 1)
+      ref <- newEvalutedObjectRef (Value (Number (i % 1) 0))
       return $ extendEnv env [(name, ref)]
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
@@ -583,7 +582,7 @@ processMState' (MState env loops bindings (MNode penv (MState env' loops' bindin
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
       indices' <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map (\i -> RationalExpr (i % 1)) indices'
+      let pattern' = IndexedPat pattern $ map (\i -> NumberExpr (i % 1) 0) indices'
       case trees' of
         [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):trees)
         _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
@@ -625,7 +624,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
-      startNumRef <- newEvalutedObjectRef $ Value $ Rational (startNum - 1)
+      startNumRef <- newEvalutedObjectRef $ Value $ Number (startNum - 1) 0
       ends' <- evalExpr env' ends
       if isPrimitiveValue ends'
         then do 
@@ -641,7 +640,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
-          nextNumRef <- newEvalutedObjectRef $ Value $ Rational (startNum + 1)
+          nextNumRef <- newEvalutedObjectRef $ Value $ Number (startNum + 1) 0
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
           if b
@@ -919,13 +918,13 @@ data EgisonHashKey =
 extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
-extractPrimitiveValue (Value val@(Rational _)) = return val
+extractPrimitiveValue (Value val@(Number _ _)) = return val
 extractPrimitiveValue (Value val@(Float _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
 
 isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _)) = True
 isPrimitiveValue (Value (Bool _)) = True
-isPrimitiveValue (Value (Rational _)) = True
+isPrimitiveValue (Value (Number _ _)) = True
 isPrimitiveValue (Value (Float _)) = True
 isPrimitiveValue _ = False

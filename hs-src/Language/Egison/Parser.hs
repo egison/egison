@@ -499,7 +499,7 @@ loopRange = brackets (try (do s <- expr
                               return (LoopRange s e ep))
                  <|> (do s <- expr
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (RationalExpr (1 % 1))]))) ep)))
+                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (NumberExpr (1 % 1) 0)]))) ep)))
 
 -- Constants
 
@@ -509,7 +509,6 @@ constantExpr =  charExpr
                  <|> boolExpr
                  <|> try floatExpr
                  <|> try numberExpr
-                 <|> rationalExpr
                  <|> (keywordSomething *> pure SomethingExpr)
                  <|> (keywordUndefined *> pure UndefinedExpr)
                  <?> "constant"
@@ -535,12 +534,9 @@ numberExpr = do
                             <|> try (do y <- rationalLiteral
                                         char 'i'
                                         return (0,y))
+                            <|> try (do x <- rationalLiteral
+                                        return (x,0))
   return $ NumberExpr x y
-
-rationalExpr :: Parser EgisonExpr
-rationalExpr = do
-  r <- P.lexeme lexer $ rationalLiteral
-  return $ RationalExpr r
 
 rationalLiteral :: Parser Rational
 rationalLiteral = sign <*> positiveRationalLiteral
