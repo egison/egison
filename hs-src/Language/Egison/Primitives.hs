@@ -172,6 +172,7 @@ primitives = [ ("+", plus)
              , ("bool?", isBool)
              , ("integer?", isInteger)
              , ("rational?", isRational)
+             , ("number?", isNumber)
              , ("float?", isFloat)
              , ("char?", isChar)
              , ("string?", isString)
@@ -483,7 +484,7 @@ isBool (Value (Bool _)) = return $ Value $ Bool True
 isBool _ = return $ Value $ Bool False
 
 isInteger :: PrimitiveFunc
-isInteger (Value (Number x _)) = if (denominator x) == 1
+isInteger (Value (Number x 0)) = if (denominator x) == 1
                                    then return $ Value $ Bool True
                                    else return $ Value $ Bool False
 isInteger _ = return $ Value $ Bool False
