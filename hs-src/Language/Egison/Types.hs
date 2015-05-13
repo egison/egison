@@ -125,7 +125,6 @@ data EgisonExpr =
   | StringExpr Text
   | BoolExpr Bool
   | NumberExpr Rational Rational
-  | RationalExpr Rational
   | FloatExpr Double
   | VarExpr String
   | IndexedExpr EgisonExpr [EgisonExpr]
@@ -236,7 +235,6 @@ data EgisonValue =
   | String Text
   | Bool Bool
   | Number Rational Rational
-  | Rational Rational
   | Float Double
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
@@ -265,12 +263,9 @@ instance Show EgisonValue where
   show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"
-  show (Number x 0) = show (Rational x)
-  show (Number 0 y) = show (Rational y) ++ "i"
-  show (Number x y) = show (Rational x) ++ (if y > 0 then "+" else "") ++ show (Rational y) ++ "i"
-  show (Rational r) = if denominator r == 1
-                         then show (numerator r)
-                         else show (numerator r) ++ "/" ++ show (denominator r)
+  show (Number x 0) = showRational x
+  show (Number 0 y) = showRational y ++ "i"
+  show (Number x y) = showRational x ++ (if y > 0 then "+" else "") ++ showRational y ++ "i"
   show (Float f) = show f
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
@@ -295,6 +290,11 @@ instance Show EgisonValue where
   show World = "#<world>"
   show EOF = "#<eof>"
 
+showRational r =
+  if denominator r == 1
+    then show (numerator r)
+    else show (numerator r) ++ "/" ++ show (denominator r)
+
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)
 showTSV (Collection vals) = intercalate "\t" (map showTSV (toList vals))
@@ -304,9 +304,9 @@ instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
  (String str) == (String str') = str == str'
  (Bool b) == (Bool b') = b == b'
- (Rational r) == (Rational r') = r == r'
+ (Number x y) == (Number x' y') = (x == x') && (y == y')
  (Float f) == (Float f') = f == f'
- (InductiveData name vals) == (InductiveData name' vals') = name == name' && vals == vals'
+ (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
  (Tuple vals) == (Tuple vals') = vals == vals'
  (Collection vals) == (Collection vals') = vals == vals'
  (Array vals) == (Array vals') = vals == vals'
@@ -335,11 +335,11 @@ instance EgisonData Bool where
   fromEgison = liftError . fromBoolValue
 
 instance EgisonData Integer where
-  toEgison i = Rational (i % 1)
+  toEgison i = Number (i % 1) 0
   fromEgison = liftError . fromIntegerValue
 
 instance EgisonData Rational where
-  toEgison r = Rational r
+  toEgison r = Number r 0
   fromEgison = liftError . fromRationalValue
 
 instance EgisonData Double where
@@ -397,13 +397,13 @@ fromBoolValue (Bool b) = return b
 fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
 
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
-fromIntegerValue (Rational r) = if (denominator r) == 1
-                                  then return (numerator r)
-                                  else throwError $ TypeMismatch "integer" (Value (Rational r))
+fromIntegerValue (Number x 0) = if (denominator x) == 1
+                                  then return (numerator x)
+                                  else throwError $ TypeMismatch "integer" (Value (Number x 0))
 fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
 
 fromRationalValue :: EgisonValue -> Either EgisonError Rational
-fromRationalValue (Rational x) = return x
+fromRationalValue (Number x 0) = return x
 fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
 
 fromFloatValue :: EgisonValue -> Either EgisonError Double
@@ -501,13 +501,13 @@ fromBoolWHNF (Value (Bool b)) = return b
 fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
 
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
-fromIntegerWHNF (Value (Rational r)) = if (denominator r) == 1
-                                         then return (numerator r)
-                                         else throwError $ TypeMismatch "integer" (Value (Rational r))
+fromIntegerWHNF (Value (Number x 0)) = if (denominator x) == 1
+                                         then return (numerator x)
+                                         else throwError $ TypeMismatch "integer" (Value (Number x 0))
 fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
 
 fromRationalWHNF :: WHNFData -> Either EgisonError Rational
-fromRationalWHNF (Value (Rational x)) = return x
+fromRationalWHNF (Value (Number x 0)) = return x
 fromRationalWHNF whnf = throwError $ TypeMismatch "rational" whnf
 
 fromFloatWHNF :: WHNFData -> Either EgisonError Double

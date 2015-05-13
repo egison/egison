@@ -186,13 +186,13 @@ primitives = [ ("+", plus)
 rationalUnaryOp :: (Rational -> Rational) -> PrimitiveFunc
 rationalUnaryOp op = oneArg $ \val -> do
   r <- fromEgison val
-  return $ Rational $ op r
+  return $ Number (op r) 0
   
 rationalBinaryOp :: (Rational -> Rational -> Rational) -> PrimitiveFunc
 rationalBinaryOp op = twoArgs $ \val val' -> do
   r <- fromEgison val
   r' <- fromEgison val'
-  return $ Rational $ op r r'
+  return $ Number (op r r') 0
 
 rationalBinaryPred :: (Rational -> Rational -> Bool) -> PrimitiveFunc
 rationalBinaryPred pred = twoArgs $ \val val' -> do
@@ -204,7 +204,7 @@ integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
 integerBinaryOp op = twoArgs $ \val val' -> do
   i <- fromEgison val
   i' <- fromEgison val'
-  return $ Rational $ (op i i') % 1
+  return $ Number ((op i i') % 1) 0
 
 integerBinaryPred :: (Integer -> Integer -> Bool) -> PrimitiveFunc
 integerBinaryPred pred = twoArgs $ \val val' -> do
@@ -216,7 +216,7 @@ floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
 floatUnaryOp op = oneArg $ \val -> do
   case val of
     (Float f) -> return $ Float $ op f
-    (Rational r) -> return $ Float $ op (fromRational r)
+    (Number r _) -> return $ Float $ op (fromRational r)
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp op = twoArgs $ \val val' -> do
@@ -237,11 +237,8 @@ plus :: PrimitiveFunc
 plus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
   numberBinaryOp' (Number x y) (Number x' y') = return $ Number (x + x') (y + y')
-  numberBinaryOp' (Number x y) (Rational r)  = return $ Number (x + r) y
-  numberBinaryOp' (Rational r) (Number x y)  = return $ Number (r + x) y
-  numberBinaryOp' (Rational r) (Rational r') = return $ Rational (r + r')
   numberBinaryOp' (Float f)    (Float f')    = return $ Float (f + f')
-  numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
@@ -249,11 +246,8 @@ minus :: PrimitiveFunc
 minus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
   numberBinaryOp' (Number x y) (Number x' y') = return $ Number (x - x') (y - y')
-  numberBinaryOp' (Number x y) (Rational r)  = return $ Number (x - r) y
-  numberBinaryOp' (Rational r) (Number x y)  = return $ Number (r - x) y
-  numberBinaryOp' (Rational r) (Rational r') = return $ Rational (r - r')
   numberBinaryOp' (Float f)    (Float f')    = return $ Float (f - f')
-  numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
@@ -261,38 +255,32 @@ multiply :: PrimitiveFunc
 multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
   numberBinaryOp' (Number x y) (Number x' y') = return $ Number (x * x' - y * y') (x * y' + x' * y)
-  numberBinaryOp' (Number x y) (Rational r)  = return $ Number (x * r) (y * r)
-  numberBinaryOp' (Rational r) (Number x y)  = return $ Number (r * x) (r * y)
-  numberBinaryOp' (Rational r) (Rational r') = return $ Rational (r * r')
   numberBinaryOp' (Float f)    (Float f')    = return $ Float (f * f')
-  numberBinaryOp' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryOp' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
 
 divide :: PrimitiveFunc
 divide = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
-  numberBinaryOp' (Number x y) (Number x' y') = numberBinaryOp' (Number (x * x' + y * y') (x' * y - x * y')) (Rational (x' * x' + y' * y'))
-  numberBinaryOp' (Rational x) (Number x' y') = numberBinaryOp' (Number x 0) (Number x' y')
-  numberBinaryOp' (Number x y) (Rational r)   = return $ Number (x / r) (y / r)
-  numberBinaryOp' (Rational r) (Rational r')  = return $ Rational (r / r')
+  numberBinaryOp' (Number x y) (Number x' y') = return $ Number ((x * x' + y * y') / (x' * x' + y' * y')) ((x' * y - x * y') / (x' * x' + y' * y'))
   numberBinaryOp' (Float f)    (Float f')     = return $ Float (f / f')
-  numberBinaryOp' (Rational _) val            = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Number _ _) val            = throwError $ TypeMismatch "number" (Value val)
   numberBinaryOp' (Float _)    val            = throwError $ TypeMismatch "float" (Value val)
   numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg $ numerator''
  where
-  numerator'' (Rational rat) = do
-    return $ Rational $ (numerator rat) % 1
+  numerator'' (Number rat 0) = do
+    return $ Number ((numerator rat) % 1) 0
   numerator'' val = throwError $ TypeMismatch "rational" (Value val)
 
 denominator' :: PrimitiveFunc
 denominator' =  oneArg $ denominator''
  where
-  denominator'' (Rational rat) = do
-    return $ Rational $ (denominator rat) % 1
+  denominator'' (Number rat 0) = do
+    return $ Number ((denominator rat) % 1) 0
   denominator'' val = throwError $ TypeMismatch "rational" (Value val)
 
 --
@@ -305,36 +293,36 @@ eq = twoArgs $ \val val' ->
 lt :: PrimitiveFunc
 lt = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
-  numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (<) r r'
+  numberBinaryPred' (Number r 0) (Number r' 0) = return $ Bool $ (<) r r'
   numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (<) f f'
-  numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 lte :: PrimitiveFunc
 lte = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
-  numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (<=) r r'
+  numberBinaryPred' (Number r 0) (Number r' 0) = return $ Bool $ (<=) r r'
   numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (<=) f f'
-  numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gt :: PrimitiveFunc
 gt = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
-  numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (>) r r'
+  numberBinaryPred' (Number r 0) (Number r' 0) = return $ Bool $ (>) r r'
   numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (>) f f'
-  numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gte :: PrimitiveFunc
 gte = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
-  numberBinaryPred' (Rational r) (Rational r') = return $ Bool $ (>=) r r'
+  numberBinaryPred' (Number r 0) (Number r' 0) = return $ Bool $ (>=) r r'
   numberBinaryPred' (Float f)    (Float f')    = return $ Bool $ (>=) f f'
-  numberBinaryPred' (Rational _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryPred' (Float _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
@@ -347,25 +335,25 @@ integerToFloat = rationalToFloat
 rationalToFloat :: PrimitiveFunc
 rationalToFloat = oneArg $ \val -> do
   case val of
-    Rational r -> return $ Float $ fromRational r
+    (Number r 0) -> return $ Float $ fromRational r
     _ -> throwError $ TypeMismatch "integer of rational number" (Value val)
 
 charToInteger :: PrimitiveFunc
 charToInteger = oneArg $ \val -> do
   case val of
-    Char c -> return $ Rational $ (fromIntegral $ ord c) % 1
+    Char c -> return $ Number ((fromIntegral $ ord c) % 1) 0
     _ -> throwError $ TypeMismatch "character" (Value val)
 
 integerToChar :: PrimitiveFunc
 integerToChar = oneArg $ \val -> do
   case val of
-    Rational r -> return $ Char $ chr $ fromIntegral (numerator r)
-    _ -> throwError $ TypeMismatch "character" (Value val)
+    (Number r 0) -> return $ Char $ chr $ fromIntegral (numerator r)
+    _ -> throwError $ TypeMismatch "integer" (Value val)
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
   f <- fromEgison val
-  return $ Rational $ (op f) % 1
+  return $ Number ((op f) % 1) 0
 
 --
 -- String
@@ -392,7 +380,7 @@ unconsString = oneArg $ \val -> do
 lengthString :: PrimitiveFunc
 lengthString = oneArg $ \val -> do
   case val of
-    String str -> return . (\x -> Rational (x % 1)) . toInteger $ T.length str
+    String str -> return . (\x -> Number (x % 1) 0) . toInteger $ T.length str
     _ -> throwError $ TypeMismatch "string" (Value val)
 
 appendString :: PrimitiveFunc
@@ -495,12 +483,18 @@ isBool (Value (Bool _)) = return $ Value $ Bool True
 isBool _ = return $ Value $ Bool False
 
 isInteger :: PrimitiveFunc
-isInteger (Value (Rational _)) = return $ Value $ Bool True
+isInteger (Value (Number x _)) = if (denominator x) == 1
+                                   then return $ Value $ Bool True
+                                   else return $ Value $ Bool False
 isInteger _ = return $ Value $ Bool False
 
 isRational :: PrimitiveFunc
-isRational (Value (Rational _)) = return $ Value $ Bool True
+isRational (Value (Number _ 0)) = return $ Value $ Bool True
 isRational _ = return $ Value $ Bool False
+
+isNumber :: PrimitiveFunc
+isNumber (Value (Number _ _)) = return $ Value $ Bool True
+isNumber _ = return $ Value $ Bool False
 
 isFloat :: PrimitiveFunc
 isFloat (Value (Float _)) = return $ Value $ Bool True
@@ -666,7 +660,7 @@ randRange = twoArgs $ \val val' -> do
   i <- fromEgison val
   i' <- fromEgison val'
   n <- liftIO $ getStdRandom $ randomR (i, i')
-  return $ makeIO $ return $ Rational (n % 1)
+  return $ makeIO $ return $ Number (n % 1) 0
 
  {-- -- for 'egison-sqlite'
 sqlite :: PrimitiveFunc
