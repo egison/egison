@@ -334,6 +334,10 @@ instance EgisonData Bool where
   toEgison b = Bool b
   fromEgison = liftError . fromBoolValue
 
+instance EgisonData Integer where
+  toEgison i = Rational (i % 1)
+  fromEgison = liftError . fromIntegerValue
+
 instance EgisonData Rational where
   toEgison r = Rational r
   fromEgison = liftError . fromRationalValue
@@ -393,7 +397,9 @@ fromBoolValue (Bool b) = return b
 fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
 
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
-fromIntegerValue (Rational r) = return (numerator r)
+fromIntegerValue (Rational r) = if (denominator r) == 1
+                                  then return (numerator r)
+                                  else throwError $ TypeMismatch "integer" (Value (Rational r))
 fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
 
 fromRationalValue :: EgisonValue -> Either EgisonError Rational
@@ -470,6 +476,9 @@ instance EgisonWHNF Text where
 instance EgisonWHNF Bool where
   fromWHNF = liftError . fromBoolWHNF
   
+instance EgisonWHNF Integer where
+  fromWHNF = liftError . fromIntegerWHNF
+  
 instance EgisonWHNF Rational where
   fromWHNF = liftError . fromRationalWHNF
   
@@ -492,7 +501,9 @@ fromBoolWHNF (Value (Bool b)) = return b
 fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
 
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
-fromIntegerWHNF (Value (Rational r)) = return (numerator r)
+fromIntegerWHNF (Value (Rational r)) = if (denominator r) == 1
+                                         then return (numerator r)
+                                         else throwError $ TypeMismatch "integer" (Value (Rational r))
 fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
 
 fromRationalWHNF :: WHNFData -> Either EgisonError Rational
