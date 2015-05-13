@@ -202,15 +202,15 @@ rationalBinaryPred pred = twoArgs $ \val val' -> do
 
 integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
 integerBinaryOp op = twoArgs $ \val val' -> do
-  r <- fromEgison val
-  r' <- fromEgison val'
-  return $ Rational $ (op (numerator r) (numerator r') % 1)
+  i <- fromEgison val
+  i' <- fromEgison val'
+  return $ Rational $ (op i i') % 1
 
 integerBinaryPred :: (Integer -> Integer -> Bool) -> PrimitiveFunc
 integerBinaryPred pred = twoArgs $ \val val' -> do
-  r <- fromEgison val
-  r' <- fromEgison val'
-  return $ Bool $ pred (numerator r) (numerator r')
+  i <- fromEgison val
+  i' <- fromEgison val'
+  return $ Bool $ pred i i'
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
 floatUnaryOp op = oneArg $ \val -> do
@@ -663,9 +663,9 @@ isEOFPort = oneArg $ \val -> do
 
 randRange :: PrimitiveFunc
 randRange = twoArgs $ \val val' -> do
-  r <- fromEgison val
-  r' <- fromEgison val'
-  n <- liftIO $ getStdRandom $ randomR ((numerator r), (numerator r'))
+  i <- fromEgison val
+  i' <- fromEgison val'
+  n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return $ Rational (n % 1)
 
  {-- -- for 'egison-sqlite'
