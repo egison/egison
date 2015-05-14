@@ -499,7 +499,7 @@ loopRange = brackets (try (do s <- expr
                               return (LoopRange s e ep))
                  <|> (do s <- expr
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (NumberExpr (1 % 1) 0)]))) ep)))
+                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (NumberExpr (1, 0) (1, 0))]))) ep)))
 
 -- Constants
 
@@ -536,20 +536,14 @@ numberExpr = do
                                         return (0,y))
                             <|> try (do x <- rationalLiteral
                                         return (x,0))
-  return $ NumberExpr x y
+  return $ NumberExpr (x, y) (1, 0)
 
-rationalLiteral :: Parser Rational
-rationalLiteral = sign <*> positiveRationalLiteral
+-- TODO
+integerLiteral :: Parser Rational
+integerLiteral = sign <*> positiveRationalLiteral
 
-positiveRationalLiteral :: Parser Rational
-positiveRationalLiteral = do
-  (x,y) <- try (do x <- read <$> many1 digit
-                   char '/'
-                   y <- read <$> many1 digit
-                   return (x,y))
-           <|> try (do x <- read <$> many1 digit
-                       return (x,1))
-  return $ x % y
+positiveIntegerLiteral :: Parser Integer
+positiveIntegerLiteral = read <$> many1 digit 
 
 --
 -- Tokens
