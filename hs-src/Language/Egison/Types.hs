@@ -124,7 +124,7 @@ data EgisonExpr =
     CharExpr Char
   | StringExpr Text
   | BoolExpr Bool
-  | NumberExpr Rational Rational
+  | NumberExpr (Integer, Integer) (Integer, Integer)
   | FloatExpr Double
   | VarExpr String
   | IndexedExpr EgisonExpr [EgisonExpr]
@@ -234,7 +234,7 @@ data EgisonValue =
   | Char Char
   | String Text
   | Bool Bool
-  | Number Rational Rational
+  | Number (Integer, Integer) (Integer, Integer)
   | Float Double
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
@@ -263,9 +263,9 @@ instance Show EgisonValue where
   show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"
-  show (Number x 0) = showRational x
-  show (Number 0 y) = showRational y ++ "i"
-  show (Number x y) = showRational x ++ (if y > 0 then "+" else "") ++ showRational y ++ "i"
+  show (Number (x,0) (x',0)) = show x ++ "/" ++ show x'
+  show (Number (0,y) (x',0)) = show y ++ "i" ++ "/" ++ show x'
+  show (Number (x,y) (x',y')) = show x ++ (if y > 0 then "+" else "") ++ show y ++ "i" ++"/" ++ show x' ++ (if y' > 0 then "+" else "") ++ show y'
   show (Float f) = show f
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
@@ -304,7 +304,7 @@ instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
  (String str) == (String str') = str == str'
  (Bool b) == (Bool b') = b == b'
- (Number x y) == (Number x' y') = (x == x') && (y == y')
+ (Number (x1,y1) (x1',y1')) == (Number (x2,y2) (x2',y2')) = (x1 == x2) && (y1 == y2) && (x1' == x2') && (y1' == y2')
  (Float f) == (Float f') = f == f'
  (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
  (Tuple vals) == (Tuple vals') = vals == vals'
@@ -335,11 +335,11 @@ instance EgisonData Bool where
   fromEgison = liftError . fromBoolValue
 
 instance EgisonData Integer where
-  toEgison i = Number (i % 1) 0
+  toEgison i = Number (i, 0) (1, 0)
   fromEgison = liftError . fromIntegerValue
 
 instance EgisonData Rational where
-  toEgison r = Number r 0
+  toEgison r = Number ((numerator r), 0) ((denominator r), 0)
   fromEgison = liftError . fromRationalValue
 
 instance EgisonData Double where
@@ -397,13 +397,11 @@ fromBoolValue (Bool b) = return b
 fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
 
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
-fromIntegerValue (Number x 0) = if (denominator x) == 1
-                                  then return (numerator x)
-                                  else throwError $ TypeMismatch "integer" (Value (Number x 0))
+fromIntegerValue (Number (x, 0) (1, 0)) = return x
 fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
 
 fromRationalValue :: EgisonValue -> Either EgisonError Rational
-fromRationalValue (Number x 0) = return x
+fromRationalValue (Number (x, 0) (y, 0)) = return (x % y)
 fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
 
 fromFloatValue :: EgisonValue -> Either EgisonError Double
@@ -501,13 +499,11 @@ fromBoolWHNF (Value (Bool b)) = return b
 fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
 
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
-fromIntegerWHNF (Value (Number x 0)) = if (denominator x) == 1
-                                         then return (numerator x)
-                                         else throwError $ TypeMismatch "integer" (Value (Number x 0))
+fromIntegerWHNF (Value (Number (x, 0) (1, 0))) = return x
 fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
 
 fromRationalWHNF :: WHNFData -> Either EgisonError Rational
-fromRationalWHNF (Value (Number x 0)) = return x
+fromRationalWHNF (Value (Number (x, 0) (y, 0))) = return (x % y)
 fromRationalWHNF whnf = throwError $ TypeMismatch "rational" whnf
 
 fromFloatWHNF :: WHNFData -> Either EgisonError Double
