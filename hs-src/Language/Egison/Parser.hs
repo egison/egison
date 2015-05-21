@@ -527,20 +527,29 @@ floatExpr = FloatExpr <$> floatLiteral
 
 numberExpr :: Parser EgisonExpr
 numberExpr = do
-  (x,y) <- P.lexeme lexer $ try (do x <- rationalLiteral
-                                    y <- sign' <*> positiveRationalLiteral
+  (m,n) <- P.lexeme lexer $ try (do m <- gaussianIntegerLiteral
+                                    char '/'
+                                    n <- gaussianIntegerLiteral
+                                    return (m,n))
+                            <|> try (do m <- gaussianIntegerLiteral
+                                        return (m,(1,0)))
+  return $ NumberExpr m n
+
+gaussianIntegerLiteral :: Parser (Integer, Integer)
+gaussianIntegerLiteral = do
+  (x,y) <- P.lexeme lexer $ try (do x <- integerLiteral'
+                                    y <- sign' <*> positiveIntegerLiteral
                                     char 'i'
                                     return (x,y))
-                            <|> try (do y <- rationalLiteral
+                            <|> try (do y <- integerLiteral'
                                         char 'i'
                                         return (0,y))
-                            <|> try (do x <- rationalLiteral
+                            <|> try (do x <- integerLiteral'
                                         return (x,0))
-  return $ NumberExpr (x, y) (1, 0)
+  return (x,y)
 
--- TODO
-integerLiteral :: Parser Rational
-integerLiteral = sign <*> positiveRationalLiteral
+integerLiteral' :: Parser Integer
+integerLiteral' = sign <*> positiveIntegerLiteral
 
 positiveIntegerLiteral :: Parser Integer
 positiveIntegerLiteral = read <$> many1 digit 

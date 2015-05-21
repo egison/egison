@@ -28,6 +28,13 @@ module Language.Egison.Types
     , PrimitiveFunc (..)
     , EgisonData (..)
     , showTSV
+    , addInteger
+    , subInteger
+    , mulInteger
+    , addInteger'
+    , subInteger'
+    , mulInteger'
+    , reduceFraction
     -- * Internal data
     , Object (..)
     , ObjectRef (..)
@@ -263,9 +270,8 @@ instance Show EgisonValue where
   show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"
-  show (Number (x,0) (x',0)) = show x ++ "/" ++ show x'
-  show (Number (0,y) (x',0)) = show y ++ "i" ++ "/" ++ show x'
-  show (Number (x,y) (x',y')) = show x ++ (if y > 0 then "+" else "") ++ show y ++ "i" ++"/" ++ show x' ++ (if y' > 0 then "+" else "") ++ show y'
+  show (Number x (1,0)) = showInteger' x
+  show (Number x y) = showInteger' x ++ "/" ++ showInteger' y
   show (Float f) = show f
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
@@ -290,10 +296,39 @@ instance Show EgisonValue where
   show World = "#<world>"
   show EOF = "#<eof>"
 
-showRational r =
-  if denominator r == 1
-    then show (numerator r)
-    else show (numerator r) ++ "/" ++ show (denominator r)
+addInteger :: EgisonValue -> EgisonValue -> EgisonValue
+addInteger (Number (x,y) (1,0)) (Number (x',y') (1,0)) = Number ((x+x'),(y+y')) (1,0)
+
+subInteger :: EgisonValue -> EgisonValue -> EgisonValue
+subInteger (Number (x,y) (1,0)) (Number (x',y') (1,0)) = Number ((x-x'),(y-y')) (1,0)
+
+mulInteger :: EgisonValue -> EgisonValue -> EgisonValue
+mulInteger (Number (x,y) (1,0)) (Number (x',y') (1,0)) = Number ((x*x'-y*y'),(x*y'+x'*y)) (1,0)
+
+addInteger' :: (Integer, Integer) -> (Integer, Integer) -> (Integer, Integer)
+addInteger' (x,y) (x',y') = ((x+x'),(y+y'))
+
+subInteger' :: (Integer, Integer) -> (Integer, Integer) -> (Integer, Integer)
+subInteger' (x,y) (x',y') = ((x-x'),(y-y'))
+
+mulInteger' :: (Integer, Integer) -> (Integer, Integer) -> (Integer, Integer)
+mulInteger' (x,y) (x',y') = ((x*x'-y*y'),(x*y'+x'*y))
+
+showInteger' :: (Integer, Integer) -> String
+showInteger' (x,0) = show x
+showInteger' (0,y) = show y ++ "i"
+showInteger' (x,y) = show x ++ (if y > 0 then "+" else "") ++ show y ++ "i"
+
+reduceFraction :: EgisonValue -> EgisonValue
+reduceFraction (Number (x,y) (x',y'))
+    | x' < 0  = let m = negate (foldl gcd x [y, x', y']) in
+                  Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
+    | x' > 0  = let m = foldl gcd x [y, x', y'] in
+                  Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
+    | x' == 0 && y' < 0  = let m = negate (foldl gcd x [y, x', y']) in
+                             Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
+    | x' == 0 && y' > 0  = let m = foldl gcd x [y, x', y'] in
+                             Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
 
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)
