@@ -143,7 +143,7 @@ evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
-evalExpr _ (NumberExpr x y) = return . Value $ Number x y
+evalExpr _ (NumberExpr x y) = return . Value $ reduceFraction (Number x y)
 evalExpr _ (FloatExpr d) = return . Value $ Float d
 
 evalExpr env (VarExpr name) = refVar env name >>= evalRef
@@ -405,7 +405,7 @@ generateArray env name sizeExpr expr = do
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
-      ref <- newEvalutedObjectRef (Value (Number (i % 1) 0))
+      ref <- newEvalutedObjectRef (Value (Number (i,0) (1,0)))
       return $ extendEnv env [(name, ref)]
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
@@ -582,7 +582,7 @@ processMState' (MState env loops bindings (MNode penv (MState env' loops' bindin
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
       indices' <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map (\i -> NumberExpr (i % 1) 0) indices'
+      let pattern' = IndexedPat pattern $ map (\i -> NumberExpr (i,0) (1,0)) indices'
       case trees' of
         [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):trees)
         _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
@@ -624,7 +624,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
-      startNumRef <- newEvalutedObjectRef $ Value $ Number (startNum - 1) 0
+      startNumRef <- newEvalutedObjectRef $ Value $ Number ((startNum - 1),0) (1,0)
       ends' <- evalExpr env' ends
       if isPrimitiveValue ends'
         then do 
@@ -640,7 +640,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
-          nextNumRef <- newEvalutedObjectRef $ Value $ Number (startNum + 1) 0
+          nextNumRef <- newEvalutedObjectRef $ Value $ Number ((startNum + 1),0) (1,0)
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
           if b
