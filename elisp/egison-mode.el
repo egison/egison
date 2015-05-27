@@ -212,6 +212,7 @@
   )
 
 
+;;;###autoload
 (defun egison-mode ()
   "Major mode for editing Egison code.
 
