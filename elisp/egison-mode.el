@@ -213,8 +213,8 @@
 
 (defvar egison-mode-syntax-table
   (let ((egison-mode-syntax-table (make-syntax-table)))
-    (modify-syntax-entry ?< "(" egison-mode-syntax-table)
-    (modify-syntax-entry ?> ")" egison-mode-syntax-table)
+    (modify-syntax-entry ?< "(>" egison-mode-syntax-table)
+    (modify-syntax-entry ?> ")<" egison-mode-syntax-table)
     (modify-syntax-entry ?\; "<" egison-mode-syntax-table)
     (modify-syntax-entry ?\n ">" egison-mode-syntax-table)
     (modify-syntax-entry ?\? "w" egison-mode-syntax-table)
