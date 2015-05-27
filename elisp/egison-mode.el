@@ -241,4 +241,6 @@ See `run-hooks'."
   :type 'hook
   :group 'egison)
 
+(provide 'egison-mode)
+
 ;;; egison-mode.el ends here
