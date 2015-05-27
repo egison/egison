@@ -80,44 +80,44 @@
   "Default expressions to highlight in Egison modes.")
 
 
-(defun open-paren-p ()
+(defun egison-open-paren-p ()
   (let ((c (string-to-char (thing-at-point 'char))))
     (or (eq c 40) (eq c 60) (eq c 91) (eq c 123))))
 
-(defun close-paren-p ()
+(defun egison-close-paren-p ()
   (let ((c (string-to-char (thing-at-point 'char))))
     (or (eq c 41) (eq c 62) (eq c 93) (eq c 125))))
 
-(defun last-unclosed-paren ()
+(defun egison-last-unclosed-paren ()
   (save-excursion
     (let ((pc 0))
       (while (<= pc 0)
         (if (bobp)
             (setq pc 2)
           (backward-char)
-          (if (open-paren-p)
+          (if (egison-open-paren-p)
               (progn
                 (setq pc (+ pc 1))
                 (if (and (= pc 0) (= (current-column) 0))
                     (setq pc 2)))
-            (if (close-paren-p)
+            (if (egison-close-paren-p)
                 (setq pc (- pc 1))))))
       (if (= pc 2)
           nil
         (point)))))
 
-(defun indent-point ()
+(defun egison-indent-point ()
   (save-excursion
     (beginning-of-line)
-    (let ((p (last-unclosed-paren)))
+    (let ((p (egison-last-unclosed-paren)))
       (if p
           (progn
-            (goto-char (last-unclosed-paren))
+            (goto-char (egison-last-unclosed-paren))
             (let ((cp (current-column)))
               (cond ((eq (string-to-char (thing-at-point 'char)) 40)
                      (forward-char)
                      (let* ((op (current-word))
-                            (ip (keyword-indent-point op)))
+                            (ip (egison-keyword-indent-point op)))
                        (if ip
                            (+ ip cp)
                          (progn (forward-sexp)
@@ -134,7 +134,7 @@
                     (t (+ 1 cp)))))
         0))))
 
-(defun keyword-indent-point (name)
+(defun egison-keyword-indent-point (name)
   (cond ((equal "module" name) 2)
         ((equal "define" name) 2)
         ((equal "test" name) 2)
@@ -174,7 +174,7 @@
 (defun egison-indent-line ()
   "indent current line as Egison code."
   (interactive)
-  (indent-line-to (indent-point)))
+  (indent-line-to (egison-indent-point)))
 
 
 (defvar egison-mode-map
@@ -197,7 +197,7 @@
   ;; (copy-syntax-table lisp-mode-syntax-table)
   "Syntax table for Egison mode")
 
-(defun egison-mode-variables ()
+(defun egison-mode-set-variables ()
   (set-syntax-table egison-mode-syntax-table)
   (set (make-local-variable 'font-lock-defaults)
        '((egison-font-lock-keywords
@@ -226,7 +226,7 @@ if that value is non-nil."
   (use-local-map egison-mode-map)
   (setq major-mode 'egison-mode)
   (setq mode-name "Egison")
-  (egison-mode-variables)
+  (egison-mode-set-variables)
   (run-mode-hooks 'egison-mode-hook))
 
 
