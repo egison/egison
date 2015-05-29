@@ -1,0 +1,27 @@
+;;;;;
+;;;;; Binomial Distribution(Tossing Coin)
+;;;;;
+
+; all results when tossing fair coin 3 times
+(define $event-space
+  (match-all {{0 1} {0 1} {0 1}} (list (multiset integer))
+    [<cons <cons $t1 _>
+      <cons <cons $t2 _>
+        <cons <cons $t3 _> _>>> {(+ t1 (+ t2 t3))}]))
+
+; choose a event from event-space by random
+(define $trial (lambda [] (nth (pure-rand 1 (power 2 3)) event-space)))
+
+(define $binomial-distribution
+  (lambda [$n $p]
+    (lambda [$k] (*
+      (comb n k)
+      (*
+        (power p k)
+        (power (- 1 p) (- n k))
+      )
+    ))))
+
+(define $mass-function (binomial-distribution 3 0.5))
+
+(mass-function (nth 1 (trial)))
