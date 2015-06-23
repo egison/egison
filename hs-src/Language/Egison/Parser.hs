@@ -523,7 +523,10 @@ boolExpr :: Parser EgisonExpr
 boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
-floatExpr = FloatExpr <$> floatLiteral
+floatExpr = do
+  x <- floatLiteral
+  y <- return 0
+  return $ FloatExpr x y
 
 numberExpr :: Parser EgisonExpr
 numberExpr = do

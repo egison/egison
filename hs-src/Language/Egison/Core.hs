@@ -144,7 +144,7 @@ evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (NumberExpr x y) = return . Value $ reduceFraction (Number x y)
-evalExpr _ (FloatExpr d) = return . Value $ Float d
+evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 
 evalExpr env (VarExpr name) = refVar env name >>= evalRef
 
@@ -919,12 +919,12 @@ extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
 extractPrimitiveValue (Value val@(Number _ _)) = return val
-extractPrimitiveValue (Value val@(Float _)) = return val
+extractPrimitiveValue (Value val@(Float _ _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
 
 isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _)) = True
 isPrimitiveValue (Value (Bool _)) = True
 isPrimitiveValue (Value (Number _ _)) = True
-isPrimitiveValue (Value (Float _)) = True
+isPrimitiveValue (Value (Float _ _)) = True
 isPrimitiveValue _ = False
