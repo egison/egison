@@ -43,7 +43,7 @@
     (eq? 0 (remainder n d))))
 
 (define $find-factor
-  (lambda [$n]
+  (memoized-lambda [$n]
     (match (while (lte? $ (floor (sqrt (itof n)))) primes) (list integer)
       {[<join _ <cons (& ?(divisor? n $) $x) _>> x]
        [_ n]})))
