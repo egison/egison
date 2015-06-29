@@ -263,14 +263,6 @@
   (lambda [$x]
     {x @(repeat1 x)}))
 
-(define $merge
-  (lambda [$xs $ys]
-    (match [xs ys] [(list something) (list something)]
-      {[[<nil> _] ys]
-       [[_ <nil>] xs]
-       [[<cons $x $txs> <cons ?(gte? $ x) _>] {x @(merge txs ys)}]
-       [[_ <cons $y $tys>] {y @(merge xs tys)}]})))
-
 ;;
 ;; Others
 ;;

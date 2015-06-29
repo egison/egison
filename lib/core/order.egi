@@ -87,3 +87,20 @@
                  [$p (nth (quotient n 2) xs)]
                  [[$ys1 $ys2 $ys3] (split-by-ordering/fn f p xs)]}
             {@(sort/fn f ys1) @ys2 @(sort/fn f ys3)})]})))
+
+(define $merge
+  (lambda [$xs $ys]
+    (match [xs ys] [(list something) (list something)]
+      {[[<nil> _] ys]
+       [[_ <nil>] xs]
+       [[<cons $x $txs> <cons ?(gte? $ x) _>] {x @(merge txs ys)}]
+       [[_ <cons $y $tys>] {y @(merge xs tys)}]})))
+
+(define $merge/fn
+  (lambda [$f $xs $ys]
+    (match [xs ys] [(list something) (list something)]
+      {[[<nil> _] ys]
+       [[_ <nil>] xs]
+       [[<cons $x $txs> <cons ?1#(eq? (f %1 x) <Greater>) _>] {x @(merge txs ys)}]
+       [[_ <cons $y $tys>] {y @(merge xs tys)}]})))
+

@@ -4,7 +4,7 @@
 ;;;;;
 ;;;;;
 
-(define $builtin-data-matcher
+(define $eq
   (matcher-dfs
     {[,$val []
       {[$tgt (if (eq? val tgt)
@@ -14,10 +14,10 @@
       {[$tgt {tgt}]}]
      }))
   
-(define $bool builtin-data-matcher)
-(define $char builtin-data-matcher)
-(define $integer builtin-data-matcher)
-(define $float builtin-data-matcher)
+(define $bool eq)
+(define $char eq)
+(define $integer eq)
+(define $float eq)
 
 ;;
 ;; Utility
