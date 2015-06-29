@@ -308,6 +308,21 @@ evalExpr env (ApplyExpr func arg) = do
           return whnf
     _ -> applyFunc func arg
 
+evalExpr env (MemoizeExpr memoizeFrame expr) = do
+  mapM (\(x, y, z) -> do x' <- evalExprDeep env x
+                         case x' of
+                           (MemoizedFunc ref hashRef env' names body) -> do
+                             indices <- evalExprDeep env y
+                             indices' <- mapM fromEgison $ fromTupleValue indices
+                             hash <- liftIO $ readIORef hashRef
+                             ret <- evalExprDeep env z
+                             retRef <- newEvalutedObjectRef (Value ret)
+                             liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+                             writeObjectRef ref (Value (MemoizedFunc ref hashRef env' names body))
+                           _ -> throwError $ TypeMismatch "memoized-function" (Value x'))
+       memoizeFrame
+  evalExpr env expr
+
 evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
 evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
 
@@ -478,9 +493,6 @@ recursiveBind env bindings = do
                  MemoizedLambdaExpr names body -> do
                    hashRef <- liftIO $ newIORef HL.empty
                    liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
-                 MemoizeExpr fnExpr -> do
-                   hashRef <- liftIO $ newIORef HL.empty
-                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' ["arg"] (ApplyExpr fnExpr (VarExpr "arg"))
                  _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
             refs exprs
   return env'

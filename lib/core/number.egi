@@ -34,8 +34,7 @@
 
 (define $prime?
   (lambda [$n]
-    (not (any 1#(eq? (remainder n %1) 0)
-              (while (lte? $ (floor (sqrt (itof n)))) primes)))))
+    (eq? n (find-factor n))))
 
 (define $primes {2 @(filter prime? (drop 2 nats))})
 
@@ -45,8 +44,9 @@
 
 (define $find-factor
   (lambda [$n]
-    (match primes (list integer)
-      {[<join _ <cons (& ?(divisor? n $) $x) _>> x]})))
+    (match (while (lte? $ (floor (sqrt (itof n)))) primes) (list integer)
+      {[<join _ <cons (& ?(divisor? n $) $x) _>> x]
+       [_ n]})))
 
 (define $prime-factorization
   (match-lambda integer

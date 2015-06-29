@@ -315,7 +315,13 @@ memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
 
 memoizeExpr :: Parser EgisonExpr
-memoizeExpr = keywordMemoize >> MemoizeExpr <$> expr
+memoizeExpr = keywordMemoize >> MemoizeExpr <$> memoizeFrame <*> expr
+
+memoizeFrame :: Parser [(EgisonExpr, EgisonExpr, EgisonExpr)]
+memoizeFrame = braces $ sepEndBy memoizeBinding whiteSpace
+
+memoizeBinding :: Parser (EgisonExpr, EgisonExpr, EgisonExpr)
+memoizeBinding = brackets $ (,,) <$> expr <*> expr <*> expr
 
 patternFunctionExpr :: Parser EgisonExpr
 patternFunctionExpr = keywordPatternFunction >> PatternFunctionExpr <$> varNames <*> pattern
@@ -646,7 +652,7 @@ keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoized-lambda"
-keywordMemoize             = reserved "memoize"
+keywordMemoize              = reserved "memoize"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"

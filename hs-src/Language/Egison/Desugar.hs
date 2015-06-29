@@ -172,9 +172,14 @@ desugar (MemoizedLambdaExpr names expr) = do
   expr' <- desugar expr
   return $ MemoizedLambdaExpr names expr'
 
-desugar (MemoizeExpr expr) = do
+desugar (MemoizeExpr memoizeBindings expr) = do
+  memoizeBindings' <- mapM (\(x,y,z) -> do x' <- desugar x
+                                           y' <- desugar y
+                                           z' <- desugar z
+                                           return (x',y',z'))
+                           memoizeBindings
   expr' <- desugar expr
-  return $ MemoizeExpr expr'
+  return $ MemoizeExpr memoizeBindings' expr'
 
 desugar (PatternFunctionExpr names pattern) = do
   pattern' <- desugarPattern pattern
