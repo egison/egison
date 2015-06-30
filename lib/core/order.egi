@@ -88,6 +88,10 @@
                  [[$ys1 $ys2 $ys3] (split-by-ordering/fn f p xs)]}
             {@(sort/fn f ys1) @ys2 @(sort/fn f ys3)})]})))
 
+(define $sort-strings
+  (lambda [$xs]
+    (sort/fn 2#(compare-c (map ctoi (unpack %1)) (map ctoi (unpack %2))) xs)))
+
 (define $merge
   (lambda [$xs $ys]
     (match [xs ys] [(list something) (list something)]
