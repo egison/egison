@@ -56,6 +56,14 @@
 
 (define $p-f prime-factorization)
 
+(define $n-adic
+  (lambda [$n $x]
+    (if (eq? x 0)
+      {}
+      (let {[$q (quotient x n)]
+            [$r (remainder x n)]}
+        {@(n-adic n q) r}))))
+
 (define $even?
   (lambda [$n]
     (eq? 0 (modulo n 2))))
@@ -114,17 +122,6 @@
 (define $product
   (lambda [$xs]
     (foldl * 1 xs)))
-
-;;;
-;;; Base
-;;;
-(define $base
-  (lambda [$n $x]
-    (if (eq? x 0)
-      {}
-      (let {[$q (quotient x n)]
-            [$r (remainder x n)]}
-        {@(base n q) r}))))
 
 ;;;
 ;;; Decimal Fractions
