@@ -91,41 +91,50 @@
           {[<cons _ $xs> (drop (- n 1) xs)]
            [<nil> {}]}))))
 
-(define $while
+(define $take-while
   (lambda [$pred $xs]
     (match xs (list something)
       {[<nil> {}]
        [<cons $x $rs>
         (if (pred x)
-            {x @(while pred rs)}
+            {x @(take-while pred rs)}
             {})]})))
 
-(define $while-by
+(define $take-while-by
   (lambda [$pred $xs]
     (match xs (list something)
       {[<nil> {}]
        [<cons $x $rs>
         (if (pred x)
-            {x @(while-by pred rs)}
+            {x @(take-while-by pred rs)}
             {x})]})))
 
-(define $until
+(define $taile-until
   (lambda [$pred $xs]
     (match xs (list something)
       {[<nil> {}]
        [<cons $x $rs>
         (if (not (pred x))
-            {x @(until pred rs)}
+            {x @(take-until pred rs)}
             {})]})))
 
-(define $until-by
+(define $take-until-by
   (lambda [$pred $xs]
     (match xs (list something)
       {[<nil> {}]
        [<cons $x $rs>
         (if (not (pred x))
-            {x @(until-by pred rs)}
+            {x @(take-until-by pred rs)}
             {x})]})))
+
+(define $drop-while
+  (lambda [$pred $xs]
+    (match xs (list something)
+      {[<nil> {}]
+       [<cons $x $rs>
+        (if (pred x)
+            (drop-while pred rs)
+            xs)]})))
 
 ;;
 ;; cons, car, cdr
