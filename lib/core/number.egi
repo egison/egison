@@ -116,6 +116,17 @@
     (foldl * 1 xs)))
 
 ;;;
+;;; Base
+;;;
+(define $base
+  (lambda [$n $x]
+    (if (eq? x 0)
+      {}
+      (let {[$q (quotient x n)]
+            [$r (remainder x n)]}
+        {@(base n q) r}))))
+
+;;;
 ;;; Decimal Fractions
 ;;;
 (define $rtod-helper
