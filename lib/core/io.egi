@@ -20,6 +20,12 @@
          [(write-to-port port "\n")]
          })))
 
+(define $display (compose show print))
+
+(define $display-to-port
+  (lambda [$port $x]
+    (print-to-port port $ (show x))))
+
 (define $each-line
   (lambda [$proc]
     (do {[$eof (eof?)]}
