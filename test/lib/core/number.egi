@@ -137,14 +137,22 @@
   "0.1 714285 ...")
 
 (assert-equal "regular-continued-fraction sqrt of 2"
-  (rtof (regular-continued-fraction {1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2}))
+  (rtof (regular-continued-fraction 1 {2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2}))
   1.4142135623730951)
 
 (assert-equal "regular-continued-fraction pi"
-  (rtof (regular-continued-fraction {3 7 15 1 292 1 1 1 2 1 3 1 14 2 1 1 2 2 2 2 1 84 2 1 1 15 3 13}))
+  (rtof (regular-continued-fraction 3 {7 15 1 292 1 1 1 2 1 3 1 14 2 1 1 2 2 2 2 1 84 2 1 1 15 3 13}))
   3.141592653589793)
 
 (assert-equal "continued-fraction pi"
-  (rtof (continued-fraction {3 7 15 1 292 1 1 1 2 1 3 1 14 2 1 1 2 2 2 2 1 84 2 1 1 15 3 13}
-                            {1 1 1  1 1   1 1 1 1 1 1 1 1  1 1 1 1 1 1 1 1 1  1 1 1 1  1}))
+  (rtof (continued-fraction 3 {7 15 1 292 1 1 1 2 1 3 1 14 2 1 1 2 2 2 2 1 84 2 1 1 15 3 13}
+                              {1 1  1 1   1 1 1 1 1 1 1 1  1 1 1 1 1 1 1 1 1  1 1 1 1  1 1}))
   3.141592653589793)
+
+(assert-equal "regular-continued-fraction-of-sqrt case 1"
+  (2#[%1 (take 10 %2)] (regular-continued-fraction-of-sqrt 2))
+  [1 {2 2 2 2 2 2 2 2 2 2}])
+  
+(assert-equal "regular-continued-fraction-of-sqrt case 2"
+  (rtof (regular-continued-fraction (2#[%1 (take 100 %2)] (regular-continued-fraction-of-sqrt 2))))
+  1.4142135623730951)

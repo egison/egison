@@ -163,19 +163,31 @@
 ;;; Continued Fraction
 ;;;
 (define $regular-continued-fraction
-  (lambda [$as]
-    (+ (car as)
+  (lambda [$n $as]
+    (+ n
        (foldr (lambda [$a $r] (/ 1 (+ a r)))
               0
-              (cdr as)))))
-
+              as))))
 
 (define $continued-fraction
-  (match-lambda [(list integer) (list integer)]
-    {[[<cons $a $as> <cons $b $bs>]
-      (+ a (/ b (continued-fraction as bs)))]
-     [[<cons $a <nil>> <nil>] a]}))
+  (lambda [$n $as $bs]
+    (match [as bs] [(list integer) (list integer)]
+      {[[<cons $a $as> <cons $b $bs>]
+        (+ n (/ b (continued-fraction a as bs)))]
+       [[<nil> <nil>] n]})))
 
 (define $regular-continued-fraction-of-sqrt
-  (lambda [$n]
-    undefined))
+  (lambda [$m]
+    (let* {[$n (floor (sqrt m))]
+           [$x (- m (power n 2))]}
+      ; n+rt(m)-n
+      ; n+(rt(m)-n)*(rt(m)+n)/(rt(m)+n)
+      ; n+x/(rt(m)+n)
+      [n (regular-continued-fraction-of-sqrt' m (/ n x) (/ 1 x))])))
+
+(define $regular-continued-fraction-of-sqrt'
+  (lambda [$m $a $b] ; a+b*rt(m)
+    (let* {[$n (floor (+ (rtof a) (* (rtof b) (sqrt m))))]
+           [$x (- m (power n 2))]
+           [$y (- (power (- n a) 2) (* b b m))]}
+      {n @(regular-continued-fraction-of-sqrt' m (/ (- a n) y) (neg (/ b y)))})))
