@@ -133,12 +133,12 @@
       {[q r] @(rtod-helper r n)})))
 
 (define $rtod
-  (lambda [$c $x]
+  (lambda [$x]
     (let* {[$m (numerator x)]
            [$n (denominator x)]
            [$q (quotient m n)]
            [$r (remainder m n)]}
-      [q (take c (map fst (rtod-helper r n)))])))
+      [q (map fst (rtod-helper r n))])))
 
 (define $rtod'
   (lambda [$x]
@@ -151,7 +151,7 @@
 
 (define $show-decimal
   (lambda [$c $x]
-    (match (rtod c x) [integer (list integer)]
+    (match (2#[%1 (take c %2)] (rtod x)) [integer (list integer)]
       {[[$q $sc] (foldl S.append (S.append (show q) ".") (map show sc))]})))
 
 (define $show-decimal'
@@ -176,6 +176,15 @@
         (+ n (/ b (continued-fraction a as bs)))]
        [[<nil> <nil>] n]})))
 
+(define $regular-continued-fraction-of-sqrt-helper
+  (lambda [$m $a $b] ; a+b*rt(m)
+    (let* {[$n (floor (+ (rtof a) (* (rtof b) (sqrt m))))]
+           [$x (- m (power n 2))]}
+      (if (eq? x 0)
+        {[a b n]}
+        (let {[$y (- (power (- n a) 2) (* b b m))]}
+          {[a b n] @(regular-continued-fraction-of-sqrt-helper m (/ (- a n) y) (neg (/ b y)))})))))
+
 (define $regular-continued-fraction-of-sqrt
   (lambda [$m]
     (let* {[$n (floor (sqrt m))]
@@ -183,11 +192,16 @@
       ; n+rt(m)-n
       ; n+(rt(m)-n)*(rt(m)+n)/(rt(m)+n)
       ; n+x/(rt(m)+n)
-      [n (regular-continued-fraction-of-sqrt' m (/ n x) (/ 1 x))])))
+      (if (eq? x 0)
+        [n {} {}]
+        [n (map 3#%3 (regular-continued-fraction-of-sqrt-helper m (/ n x) (/ 1 x)))]))))
 
 (define $regular-continued-fraction-of-sqrt'
-  (lambda [$m $a $b] ; a+b*rt(m)
-    (let* {[$n (floor (+ (rtof a) (* (rtof b) (sqrt m))))]
-           [$x (- m (power n 2))]
-           [$y (- (power (- n a) 2) (* b b m))]}
-      {n @(regular-continued-fraction-of-sqrt' m (/ (- a n) y) (neg (/ b y)))})))
+  (lambda [$m]
+    (let* {[$n (floor (sqrt m))]
+           [$x (- m (power n 2))]}
+      (if (eq? x 0)
+        [n {} {}]
+        (let {[[$s $c] (find-cycle (regular-continued-fraction-of-sqrt-helper m (/ n x) (/ 1 x)))]}
+          [n (map 3#%3 s) (map 3#%3 c)])))))
+

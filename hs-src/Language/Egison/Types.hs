@@ -329,6 +329,7 @@ reduceFraction (Number (x,y) (x',y'))
                              Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
     | x' == 0 && y' > 0  = let m = foldl gcd x [y, x', y'] in
                              Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
+    | x' == 0 && y' == 0 = Number (1,0) (0,0)
 
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)

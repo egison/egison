@@ -121,7 +121,7 @@
 ;; Dicimal fractions
 ;;
 (assert-equal "rtod"
-  (rtod 10 6/35)
+  (2#[%1 (take 10 %2)] (rtod 6/35))
   [0 {1 7 1 4 2 8 5 7 1 4}])
 
 (assert-equal "rtod'"
