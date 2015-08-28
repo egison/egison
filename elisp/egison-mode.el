@@ -69,6 +69,7 @@
      "\\<next-match-all-lambda\\>"
      "\\<next-matcher\\>"
      "\\<matcher\\>"
+     "\\<self\\>"
      "\\<matcher-bfs\\>"
      "\\<matcher-dfs\\>"
      "\\<algebraic-data-matcher\\>"
