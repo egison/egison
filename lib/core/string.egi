@@ -6,11 +6,7 @@
 
 (define $string
   (matcher
-    {[,$val []
-      {[$tgt  (if (eq? val tgt)
-                {[]}
-                {})]}]
-     [<regex-cg ,$regexpr $ $ $> [string (list string) string]
+    {[<regex-cg ,$regexpr $ $ $> [string (list string) string]
       {[$tgt (regex-cg regexpr tgt)]}]
      [<regex ,$regexpr $ $ $> [string string string]
       {[$tgt (regex regexpr tgt)]}]
@@ -35,6 +31,10 @@
      [<join $ $> [string string]
       {[$tgt (match-all tgt string
                  [(loop $i [1 $n] <cons $xa_i ...> $rs) [(pack (map (lambda [$i] xa_i) (between 1 n))) rs]])]}]
+     [,$val []
+      {[$tgt  (if (eq? val tgt)
+                {[]}
+                {})]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))

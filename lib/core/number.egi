@@ -9,15 +9,15 @@
 ;;;
 (define $nat
   (matcher
-    {[,$n []
-      {[$tgt (if (eq? tgt n) {[]} {})]}]
-     [<o> []
+    {[<o> []
       {[0 {[]}]
        [_ {}]}]
      [<s $> nat
       {[$tgt (match (compare tgt 0) ordering
                {[<greater> {(- tgt 1)}]
                 [_ {}]})]}]
+     [,$n []
+      {[$tgt (if (eq? tgt n) {[]} {})]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))

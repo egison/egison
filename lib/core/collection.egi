@@ -10,9 +10,7 @@
 (define $list
   (lambda [$a]
     (matcher
-      {[,$val []
-        {[$tgt (if (eq? val tgt) {[]} {})]}]
-       [<nil> []
+      {[<nil> []
         {[{} {[]}]
          [_ {}]}]
        [<cons $ $> [a (list a)]
@@ -29,6 +27,8 @@
         {[$tgt (match-all tgt (list a)
                  [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(foldr (lambda [$i $r] {@r xa_i}) {} (between 1 n))
                                                          rs]])]}]
+       [,$val []
+        {[$tgt (if (eq? val tgt) {[]} {})]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -36,9 +36,7 @@
 (define $sorted-list
   (lambda [$a]
     (matcher
-      {[,$val []
-        {[$tgt (if (eq? val tgt) {[]} {})]}]
-       [<nil> []
+      {[<nil> []
         {[{} {[]}]
          [_ {}]}]
        [<join $ <cons ,$px $>> [(sorted-list a) (sorted-list a)]
@@ -54,6 +52,8 @@
        [<cons $ $> [a (sorted-list a)]
         {[{$x @$xs} {[x xs]}]
          [_ {}]}]
+       [,$val []
+        {[$tgt (if (eq? val tgt) {[]} {})]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -312,12 +312,7 @@
 (define $multiset
   (lambda [$a]
     (matcher
-      {[,$val []
-        {[$tgt (match [val tgt] [(list a) (multiset a)]
-                 {[[<nil> <nil>] {[]}]
-                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
-                  [[_ _] {}]})]}]
-       [<nil> []
+      {[<nil> []
         {[{} {[]}]
          [_ {}]}]
        [<cons $ $> [a (multiset a)]
@@ -334,6 +329,11 @@
                  [(loop $i [1 $n] <join $rs_i <cons $x_i ...>> $ts)
                   [(map (lambda [$i] x_i) (between 1 n))
                    (concat {@(map (lambda [$i] rs_i) (between 1 n)) ts})]])]}]
+       [,$val []
+        {[$tgt (match [val tgt] [(list a) (multiset a)]
+                 {[[<nil> <nil>] {[]}]
+                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
+                  [[_ _] {}]})]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -485,12 +485,7 @@
 (define $set
   (lambda [$a]
     (matcher
-      {[,$val []
-        {[$tgt (match [val tgt] [(list a) (multiset a)]
-                 {[[<nil> <nil>] {[]}]
-                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
-                  [[_ _] {}]})]}]
-       [<nil> []
+      {[<nil> []
         {[{} {[]}]
          [_ {}]}]
        [<cons $ $> [a (set a)]
@@ -507,7 +502,12 @@
                  [(loop $i [1 $n] <join $rs_i <cons $x_i ...>> $ts)
                   [(map (lambda [$i] x_i) (between 1 n))
                    tgt]])]}]
-        [$ [something]
+       [,$val []
+        {[$tgt (match [val tgt] [(list a) (multiset a)]
+                 {[[<nil> <nil>] {[]}]
+                  [[<cons $x $xs> <cons ,x ,xs>] {[]}]
+                  [[_ _] {}]})]}]
+       [$ [something]
         {[$tgt {tgt}]}]
        })))
 
