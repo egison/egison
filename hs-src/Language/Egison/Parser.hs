@@ -530,8 +530,10 @@ boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
 floatExpr = do
-  x <- floatLiteral
-  y <- return 0
+  (x,y) <- P.lexeme lexer $ try (do x <- floatLiteral'
+                                    y <- sign' <*> positiveFloatLiteral
+                                    char 'i'
+                                    return (x,y))
   return $ FloatExpr x y
 
 numberExpr :: Parser EgisonExpr
@@ -561,7 +563,18 @@ integerLiteral' :: Parser Integer
 integerLiteral' = sign <*> positiveIntegerLiteral
 
 positiveIntegerLiteral :: Parser Integer
-positiveIntegerLiteral = read <$> many1 digit 
+positiveIntegerLiteral = read <$> many1 digit
+
+positiveFloatLiteral :: Parser Double
+positiveFloatLiteral = do
+  n <- positiveIntegerLiteral
+  char '.'
+  m <- positiveIntegerLiteral
+  let l = m % (10 ^ (fromIntegral (length (show m))))
+  return (fromRational ((fromIntegral n) + l) :: Double)
+
+floatLiteral' :: Parser Double
+floatLiteral' = sign <*> positiveFloatLiteral
 
 --
 -- Tokens
