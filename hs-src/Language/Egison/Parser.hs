@@ -534,6 +534,11 @@ floatExpr = do
                                     y <- sign' <*> positiveFloatLiteral
                                     char 'i'
                                     return (x,y))
+                            <|> try (do y <- floatLiteral'
+                                        char 'i'
+                                        return (0,y))
+                            <|> try (do x <- floatLiteral'
+                                        return (x,0))
   return $ FloatExpr x y
 
 numberExpr :: Parser EgisonExpr
@@ -569,8 +574,9 @@ positiveFloatLiteral :: Parser Double
 positiveFloatLiteral = do
   n <- positiveIntegerLiteral
   char '.'
-  m <- positiveIntegerLiteral
-  let l = m % (10 ^ (fromIntegral (length (show m))))
+  mStr <- many1 digit
+  let m = read mStr
+  let l = m % (10 ^ (fromIntegral (length mStr)))
   return (fromRational ((fromIntegral n) + l) :: Double)
 
 floatLiteral' :: Parser Double
