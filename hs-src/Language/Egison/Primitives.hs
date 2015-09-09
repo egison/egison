@@ -262,10 +262,10 @@ multiply :: PrimitiveFunc
 multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
   numberBinaryOp' (Number x y) (Number x' y') = return $ reduceFraction $ Number (mulInteger' x x') (mulInteger' y y')
-  numberBinaryOp' (Float x y)  (Float x' y')  = return $ Float (x * x' - y * y') (x * y' + x' * y)
-  numberBinaryOp' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (Float x y)  (Float x' y')  = return $ Float (x * x' - y * y')  (x * y' + x' * y) 
+  numberBinaryOp' val          (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
+  numberBinaryOp' (Float x y)  val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
+  numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 
 divide :: PrimitiveFunc
 divide = twoArgs $ \val val' -> numberBinaryOp' val val'
@@ -367,15 +367,16 @@ truncate' = oneArg $ \val -> numberUnaryOp' val
 --
 -- Transform
 --
+numberToFloat' :: EgisonValue -> EgisonValue
+numberToFloat' (Number (x,y) (d,0)) = Float (fromRational (x % d)) (fromRational (y % d))
+
 integerToFloat :: PrimitiveFunc
 integerToFloat = rationalToFloat
 
 rationalToFloat :: PrimitiveFunc
-rationalToFloat = oneArg $ \val -> do
+rationalToFloat = oneArg $ \val ->
   case val of
-    n@(Number (_,0) (_,0)) -> do
-      r <- fromEgison n
-      return $ Float (fromRational r) 0
+    Number (x,y) (d,0) -> return $ numberToFloat' val
     _ -> throwError $ TypeMismatch "integer of rational number" (Value val)
 
 charToInteger :: PrimitiveFunc
