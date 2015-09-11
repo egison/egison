@@ -111,6 +111,7 @@ import qualified Data.Text as T
 
 import System.IO
 import Data.Ratio
+import Numeric
 
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -272,7 +273,7 @@ instance Show EgisonValue where
   show (Bool False) = "#f"
   show (Number (x,y) (1,0)) = showComplex x y
   show (Number (x,y) (x',y')) = showComplex x y ++ "/" ++ showComplex x' y'
-  show (Float x y) = showComplex x y
+  show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
@@ -318,6 +319,11 @@ showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
 showComplex 0 y = show y ++ "i"
 showComplex x y = show x ++ (if y > 0 then "+" else "") ++ show y ++ "i"
+
+showComplexFloat :: Double -> Double -> String
+showComplexFloat x 0.0 = showFFloat Nothing x ""
+showComplexFloat 0.0 y = showFFloat Nothing y "i"
+showComplexFloat x y = (showFFloat Nothing x "") ++ (if y > 0 then "+" else "") ++ (showFFloat Nothing y "i")
 
 reduceFraction :: EgisonValue -> EgisonValue
 reduceFraction (Number (x,y) (x',y'))

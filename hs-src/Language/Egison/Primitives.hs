@@ -245,18 +245,20 @@ plus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
   numberBinaryOp' (Number x y) (Number x' y') = return $ reduceFraction $ Number (addInteger' (mulInteger' x y') (mulInteger' x' y)) (mulInteger' y y')
   numberBinaryOp' (Float x y)  (Float x' y')  = return $ Float (x + x') (y + y')
-  numberBinaryOp' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' val          (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
+  numberBinaryOp' (Float x y)  val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
+  numberBinaryOp' (Number _ _) val'           = throwError $ TypeMismatch "number" (Value val')
+  numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 
 minus :: PrimitiveFunc
 minus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
   numberBinaryOp' (Number x y) (Number x' y') = return $ reduceFraction $ Number (subInteger' (mulInteger' x y') (mulInteger' x' y)) (mulInteger' y y')
   numberBinaryOp' (Float x y)  (Float x' y')  = return $ Float (x - x') (y - y')
-  numberBinaryOp' (Number _ _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  numberBinaryOp' val          _             = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' val          (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
+  numberBinaryOp' (Float x y)  val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
+  numberBinaryOp' (Number _ _) val'           = throwError $ TypeMismatch "number" (Value val')
+  numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 
 multiply :: PrimitiveFunc
 multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
@@ -265,6 +267,7 @@ multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
   numberBinaryOp' (Float x y)  (Float x' y')  = return $ Float (x * x' - y * y')  (x * y' + x' * y) 
   numberBinaryOp' val          (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)  val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
+  numberBinaryOp' (Number _ _) val'           = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 
 divide :: PrimitiveFunc
@@ -272,8 +275,9 @@ divide = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
   numberBinaryOp' (Number x y) (Number x' y') = return $ reduceFraction $ Number (mulInteger' x y') (mulInteger' y x')
   numberBinaryOp' (Float f 0)    (Float f' 0) = return $ Float (f / f') 0
-  numberBinaryOp' (Number _ _) val            = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryOp' (Float _ _)  val            = throwError $ TypeMismatch "float" (Value val)
+  numberBinaryOp' val          (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
+  numberBinaryOp' (Float x y)  val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
+  numberBinaryOp' (Number _ _) val'           = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 
 numerator' :: PrimitiveFunc
