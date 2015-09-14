@@ -113,7 +113,9 @@
 
 (define $power
   (lambda [$x $n]
-    (foldl * 1 (take n (repeat1 x)))))
+    (if (integer? n)
+      (foldl * 1 (take n (repeat1 x)))
+      (exp' x n))))
 
 (define $sum
   (lambda [$xs]
@@ -122,6 +124,13 @@
 (define $product
   (lambda [$xs]
     (foldl * 1 xs)))
+
+;;;
+;;; Floats
+;;;
+(define $exp'
+  (lambda [$x $y]
+    (exp (* (log x) y))))
 
 ;;;
 ;;; Decimal Fractions

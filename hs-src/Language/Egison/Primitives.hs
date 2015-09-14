@@ -97,7 +97,8 @@ tupleToList whnf = do
 --
 
 constants :: [(String, EgisonValue)]
-constants = [ ("pi", Float 3.141592653589793 0) ]
+constants = [ ("pi", Float 3.141592653589793 0)
+             ,("e" , Float 2.718281828459045 0) ]
 
 --
 -- Primitives
@@ -224,6 +225,7 @@ floatUnaryOp op = oneArg $ \val -> do
     n@(Number _ _) -> do
       r <- fromEgison n
       return $ Float (op (fromRational r)) 0
+    _ -> throwError $ TypeMismatch "number" (Value val)
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp op = twoArgs $ \val val' -> do
