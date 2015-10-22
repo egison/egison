@@ -189,7 +189,7 @@
       {[[<nil> _ _] {}]
        [[_ <nil> _] {}]
        [[_ _ <nil>] {}]
-       [[<cons $x $xs2> <cons $y $ys2> <cons $z $zs>]
+       [[<cons $x $xs2> <cons $y $ys2> <cons $z $zs2>]
         {(fn x y z) @(map3 fn xs2 ys2 zs2)}]})))
 
 (define $map4
@@ -199,7 +199,7 @@
        [[_ <nil> _ _] {}]
        [[_ _ <nil> _] {}]
        [[_ _ _ <nil>] {}]
-       [[<cons $x $xs2> <cons $y $ys2> <cons $z $zs> <cons $w $ws>]
+       [[<cons $x $xs2> <cons $y $ys2> <cons $z $zs2> <cons $w $ws2>]
         {(fn x y z w) @(map4 fn xs2 ys2 zs2 ws2)}]})))
 
 (define $filter
