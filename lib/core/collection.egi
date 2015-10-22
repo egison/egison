@@ -218,7 +218,7 @@
 
 (define $zip4
   (lambda [$xs $ys $zs $ws]
-    (map4 (lambda [$x $y $z $w] [x y]) xs ys zs ws)))
+    (map4 (lambda [$x $y $z $w] [x y z w]) xs ys zs ws)))
 
 (define $lookup
   (lambda [$k $ls]
