@@ -185,7 +185,7 @@
 
 (define $map3
   (lambda [$fn $xs $ys $zs]
-    (match [xs ys] [(list something) (list something)]
+    (match [xs ys zs] [(list something) (list something) (list something)]
       {[[<nil> _ _] {}]
        [[_ <nil> _] {}]
        [[_ _ <nil>] {}]
@@ -193,8 +193,8 @@
         {(fn x y z) @(map3 fn xs2 ys2 zs2)}]})))
 
 (define $map4
-  (lambda [$fn $xs $ys $zs]
-    (match [xs ys] [(list something) (list something)]
+  (lambda [$fn $xs $ys $zs $ws]
+    (match [xs ys zs ws] [(list something) (list something) (list something) (list something)]
       {[[<nil> _ _ _] {}]
        [[_ <nil> _ _] {}]
        [[_ _ <nil> _] {}]
@@ -218,7 +218,7 @@
 
 (define $zip4
   (lambda [$xs $ys $zs $ws]
-    (map2 (lambda [$x $y $z $w] [x y]) xs ys zs ws)))
+    (map4 (lambda [$x $y $z $w] [x y]) xs ys zs ws)))
 
 (define $lookup
   (lambda [$k $ls]
