@@ -114,7 +114,9 @@
 (define $power
   (lambda [$x $n]
     (if (integer? n)
-      (foldl * 1 (take n (repeat1 x)))
+      (if (gte? n 0)
+        (foldl * 1 (take n (repeat1 x)))
+        (/ 1 (foldl * 1 (take (neg n) (repeat1 x)))))
       (exp' x n))))
 
 (define $sum

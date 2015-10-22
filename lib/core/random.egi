@@ -2,6 +2,10 @@
 ;;;;; Random
 ;;;;;
 
+(define $rands
+  (lambda [$s $e]
+    {(pure-rand s e) @(rands s e)}))
+
 (define $pure-rand
   (lambda [$s $e]
     (io (rand s e))))
