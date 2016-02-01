@@ -1,0 +1,14 @@
+;;;;;
+;;;;;
+;;;;; Tensor
+;;;;;
+;;;;;
+
+(define $tensor? array?)
+
+(define $tensor-size
+  (lambda [$t]
+    (if (tensor? t)
+      {(array-size t) @(tensor-size t_1)}
+      {})))
+      

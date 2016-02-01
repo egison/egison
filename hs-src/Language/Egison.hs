@@ -112,5 +112,6 @@ coreLibraries =
   , "lib/core/io.egi"
   , "lib/core/random.egi"
   , "lib/core/array.egi"
+  , "lib/core/tensor.egi"
   , "lib/core/string.egi"
   ]
