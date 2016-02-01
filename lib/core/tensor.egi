@@ -11,4 +11,3 @@
     (if (tensor? t)
       {(array-size t) @(tensor-size t_1)}
       {})))
-      
