@@ -29,9 +29,10 @@ module Language.Egison.Types
     , TermExpr (..)
     , SymbolExpr (..)
     , mathPlus
-    , mathPlus'
     , mathMult
-    , mathMult'
+    , mathNegate
+    , mathNumerator
+    , mathDenominator
     , Matcher (..)
     , PrimitiveFunc (..)
     , EgisonData (..)
@@ -294,11 +295,11 @@ mathMult' (Plus []) (Plus _) = Plus []
 mathMult' (Plus _) (Plus []) = Plus []
 mathMult' (Plus ts1) (Plus ts2) = foldl mathPlus' (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
 
-mathNeg :: MathExpr -> MathExpr
-mathNeg (Div m n) = Div (mathNeg' m) n
+mathNegate :: MathExpr -> MathExpr
+mathNegate (Div m n) = Div (mathNegate' m) n
 
-mathNeg' :: PolyExpr -> PolyExpr
-mathNeg' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
+mathNegate' :: PolyExpr -> PolyExpr
+mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
 
 mathNumerator :: MathExpr -> MathExpr
 mathNumerator (Div m _) = Div m (Plus [(Term 1 [])])
