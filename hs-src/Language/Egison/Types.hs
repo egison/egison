@@ -410,6 +410,10 @@ instance EgisonData Integer where
   toEgison i = Integer i
   fromEgison = liftError . fromIntegerValue
 
+instance EgisonData Rational where
+  toEgison r = MathExpr (Div (Plus [(Term (numerator r) [])]) (Plus [(Term (denominator r) [])]))
+  fromEgison = liftError . fromRationalValue
+
 instance EgisonData Double where
   toEgison f = Float f 0
   fromEgison = liftError . fromFloatValue
@@ -467,6 +471,10 @@ fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
 fromIntegerValue (Integer x) = return x
 fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
+
+fromRationalValue :: EgisonValue -> Either EgisonError Rational
+fromRationalValue (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return (x % y)
+fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
 
 fromFloatValue :: EgisonValue -> Either EgisonError Double
 fromFloatValue (Float f 0) = return f

@@ -145,7 +145,7 @@ evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
-evalExpr _ (NumberExpr x y) = return . Value $ reduceFraction (Number x y)
+evalExpr _ (IntegerExpr x) = return . Value $ Integer x
 evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
@@ -201,7 +201,7 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
     case val of
-      Number _ _ -> fromEgison val >>= (return . IntKey)
+      Integer _ -> fromEgison val >>= (return . IntKey)
       Char c -> return (CharKey c)
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
@@ -343,8 +343,8 @@ evalExpr env (ArraySizeExpr expr) =
   evalExpr env expr >>= arraySize
   where
     arraySize :: WHNFData -> EgisonM WHNFData
-    arraySize (Intermediate (IArray arr)) = return . Value . toEgison $ (snd (Array.bounds arr)) % 1
-    arraySize (Value (Array arr))         = return . Value . toEgison $ (snd (Array.bounds arr)) % 1
+    arraySize (Intermediate (IArray arr)) = return . Value . toEgison $ (snd (Array.bounds arr))
+    arraySize (Value (Array arr))         = return . Value . toEgison $ (snd (Array.bounds arr))
     arraySize val                         = throwError $ TypeMismatch "array" val
 
 evalExpr _ SomethingExpr = return $ Value Something
@@ -426,7 +426,7 @@ generateArray env name sizeExpr expr = do
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
-      ref <- newEvalutedObjectRef (Value (Number (i,0) (1,0)))
+      ref <- newEvalutedObjectRef (Value (Integer i))
       return $ extendEnv env [(name, ref)]
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
@@ -600,7 +600,7 @@ processMState' (MState env loops bindings (MNode penv (MState env' loops' bindin
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
       indices' <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map (\i -> NumberExpr (i,0) (1,0)) indices'
+      let pattern' = IndexedPat pattern $ map (\i -> IntegerExpr i) indices'
       case trees' of
         [] -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):trees)
         _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState env' loops' bindings' trees')):trees)
@@ -642,7 +642,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
-      startNumRef <- newEvalutedObjectRef $ Value $ Number ((startNum - 1),0) (1,0)
+      startNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
       ends' <- evalExpr env' ends
       if isPrimitiveValue ends'
         then do 
@@ -658,7 +658,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
-          nextNumRef <- newEvalutedObjectRef $ Value $ Number ((startNum + 1),0) (1,0)
+          nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
           if b
@@ -938,13 +938,13 @@ data EgisonHashKey =
 extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
-extractPrimitiveValue (Value val@(Number _ _)) = return val
+extractPrimitiveValue (Value val@(Integer _)) = return val
 extractPrimitiveValue (Value val@(Float _ _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
 
 isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _)) = True
 isPrimitiveValue (Value (Bool _)) = True
-isPrimitiveValue (Value (Number _ _)) = True
+isPrimitiveValue (Value (Integer _)) = True
 isPrimitiveValue (Value (Float _ _)) = True
 isPrimitiveValue _ = False
