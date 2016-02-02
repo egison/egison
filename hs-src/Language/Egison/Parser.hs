@@ -547,7 +547,7 @@ floatExpr = do
 
 integerExpr :: Parser EgisonExpr
 integerExpr = do
-  n <- integerLiteral'
+  n <- P.lexeme lexer $ integerLiteral'
   return $ IntegerExpr n
 
 integerLiteral' :: Parser Integer
