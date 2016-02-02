@@ -28,6 +28,8 @@ module Language.Egison.Types
     , PolyExpr (..)
     , TermExpr (..)
     , SymbolExpr (..)
+    , symbolMathExpr
+    , mathExprToEgisonValue
     , mathPlus
     , mathMult
     , mathNegate
@@ -281,6 +283,21 @@ data SymbolExpr =
     Symbol String Integer
  deriving (Eq)
 
+symbolMathExpr :: String -> EgisonValue
+symbolMathExpr name = (MathExpr (Div (Plus [(Term 1 [(Symbol name 1)])]) (Plus [(Term 1 [])])))
+
+mathExprToEgisonValue :: MathExpr -> EgisonValue
+mathExprToEgisonValue (Div p1 p2) = InductiveData "Div" [(polyExprToEgisonValue p1), (polyExprToEgisonValue p2)]
+
+polyExprToEgisonValue :: PolyExpr -> EgisonValue
+polyExprToEgisonValue (Plus ts) = InductiveData "Poly" [Collection (Sq.fromList (map termExprtoEgisonValue ts))]
+
+termExprtoEgisonValue :: TermExpr -> EgisonValue
+termExprtoEgisonValue (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprtoEgisonValue xs))]
+
+symbolExprtoEgisonValue :: SymbolExpr -> EgisonValue
+symbolExprtoEgisonValue (Symbol x n) = InductiveData "Symbol" [symbolMathExpr x, toEgison n]
+
 mathPlus :: MathExpr -> MathExpr -> MathExpr
 mathPlus (Div m1 n1) (Div m2 n2) = Div (mathPlus' (mathMult' m1 n2) (mathMult' m2 n1)) (mathMult' n1 n2)
 
@@ -288,7 +305,10 @@ mathPlus' :: PolyExpr -> PolyExpr -> PolyExpr
 mathPlus' (Plus ts1) (Plus ts2) = Plus (mathFold [] (ts1 ++ ts2))
  where
   mathFold :: [TermExpr] -> [TermExpr] -> [TermExpr]
-  mathFold ret [] = filter (\(Term a _) -> a /= 0) ret
+  mathFold ret [] = filter (\t -> case t of
+                                    (Term 0 (_:_)) -> False
+                                    _ -> True)
+                           ret
   mathFold ret ((Term a xs):ts) =
     if all (\(Term _ ys) -> xs /= ys) ret
       then mathFold (ret ++ [(Term a xs)]) ts
@@ -400,6 +420,7 @@ instance Eq EgisonValue where
  (CharHash vals) == (CharHash vals') = vals == vals'
  (StrHash vals) == (StrHash vals') = vals == vals'
  _ == _ = False
+
 
 --
 -- Egison data and Haskell data

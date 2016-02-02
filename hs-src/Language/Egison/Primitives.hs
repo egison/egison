@@ -111,6 +111,7 @@ primitives = [ ("+", plus)
              , ("/", divide)
              , ("numerator", numerator')
              , ("denominator", denominator')
+             , ("math-expr", mathExpr)
              , ("real-part", realPart)
              , ("imaginary-part", imaginaryPart)
                
@@ -290,6 +291,12 @@ denominator' =  oneArg $ denominator''
  where
   denominator'' (MathExpr m) = return $ MathExpr (mathDenominator m)
   denominator'' val = throwError $ TypeMismatch "rational" (Value val)
+
+mathExpr :: PrimitiveFunc
+mathExpr = oneArg $ mathExpr'
+ where
+  mathExpr' (MathExpr m) = return $ mathExprToEgisonValue m
+  mathExpr' val = throwError $ TypeMismatch "number" (Value val)
 
 realPart :: PrimitiveFunc
 realPart =  oneArg $ realPart'
