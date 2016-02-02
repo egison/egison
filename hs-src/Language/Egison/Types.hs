@@ -285,7 +285,18 @@ mathPlus :: MathExpr -> MathExpr -> MathExpr
 mathPlus (Div m1 n1) (Div m2 n2) = Div (mathPlus' (mathMult' m1 n2) (mathMult' m2 n1)) (mathMult' n1 n2)
 
 mathPlus' :: PolyExpr -> PolyExpr -> PolyExpr
-mathPlus' (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
+mathPlus' (Plus ts1) (Plus ts2) = Plus (mathFold [] (ts1 ++ ts2))
+ where
+  mathFold :: [TermExpr] -> [TermExpr] -> [TermExpr]
+  mathFold ret [] = filter (\(Term a _) -> a /= 0) ret
+  mathFold ret ((Term a xs):ts) =
+    if all (\(Term _ ys) -> xs /= ys) ret
+      then mathFold (ret ++ [(Term a xs)]) ts
+      else mathFold (map (\(Term b ys) -> if xs == ys
+                                            then (Term (a + b) xs)
+                                            else (Term b ys))
+                         ret)
+                    ts
 
 mathMult :: MathExpr -> MathExpr -> MathExpr
 mathMult (Div m1 n1) (Div m2 n2) = Div (mathMult' m1 m2) (mathMult' n1 n2)
