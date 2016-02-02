@@ -145,7 +145,7 @@ evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
-evalExpr _ (IntegerExpr x) = return . Value $ Integer x
+evalExpr _ (IntegerExpr x) = return . Value $ MathExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])]))
 evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
@@ -201,7 +201,7 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
     case val of
-      Integer _ -> fromEgison val >>= (return . IntKey)
+      MathExpr _ -> fromEgison val >>= (return . IntKey)
       Char c -> return (CharKey c)
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
@@ -426,7 +426,7 @@ generateArray env name sizeExpr expr = do
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
-      ref <- newEvalutedObjectRef (Value (Integer i))
+      ref <- newEvalutedObjectRef (Value (MathExpr (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))))
       return $ extendEnv env [(name, ref)]
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
@@ -642,7 +642,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF
-      startNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum - 1)
+      startNumRef <- newEvalutedObjectRef $ Value $ MathExpr (Div (Plus [(Term (startNum - 1) [])]) (Plus [(Term 1 [])]))
       ends' <- evalExpr env' ends
       if isPrimitiveValue ends'
         then do 
@@ -658,7 +658,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNum <- evalRef startNumRef >>= fromWHNF
-          nextNumRef <- newEvalutedObjectRef $ Value $ Integer (startNum + 1)
+          nextNumRef <- newEvalutedObjectRef $ Value $ MathExpr (Div (Plus [(Term (startNum + 1) [])]) (Plus [(Term 1 [])]))
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
           if b
@@ -938,13 +938,13 @@ data EgisonHashKey =
 extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
-extractPrimitiveValue (Value val@(Integer _)) = return val
+extractPrimitiveValue (Value val@(MathExpr _)) = return val
 extractPrimitiveValue (Value val@(Float _ _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
 
 isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _)) = True
 isPrimitiveValue (Value (Bool _)) = True
-isPrimitiveValue (Value (Integer _)) = True
+isPrimitiveValue (Value (MathExpr _)) = True
 isPrimitiveValue (Value (Float _ _)) = True
 isPrimitiveValue _ = False

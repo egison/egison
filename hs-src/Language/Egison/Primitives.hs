@@ -191,14 +191,14 @@ rationalUnaryOp :: (Rational -> Rational) -> PrimitiveFunc
 rationalUnaryOp op = oneArg $ \val -> do
   r <- fromEgison val
   let r' =  op r
-  return $ Number ((numerator r'), 0) ((denominator r'), 0)
+  return $ toEgison r'
   
 rationalBinaryOp :: (Rational -> Rational -> Rational) -> PrimitiveFunc
 rationalBinaryOp op = twoArgs $ \val val' -> do
   r <- fromEgison val :: EgisonM Rational
   r' <- fromEgison val' :: EgisonM Rational
   let r'' = (op r r'')
-  return $ Number ((numerator r''), 0) ((denominator r''), 0)
+  return $ toEgison r''
 
 rationalBinaryPred :: (Rational -> Rational -> Bool) -> PrimitiveFunc
 rationalBinaryPred pred = twoArgs $ \val val' -> do
@@ -210,7 +210,7 @@ integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
 integerBinaryOp op = twoArgs $ \val val' -> do
   i <- fromEgison val
   i' <- fromEgison val'
-  return $ Number ((op i i'), 0) (1, 0)
+  return $ toEgison (op i i')
 
 integerBinaryPred :: (Integer -> Integer -> Bool) -> PrimitiveFunc
 integerBinaryPred pred = twoArgs $ \val val' -> do
@@ -222,7 +222,7 @@ floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
 floatUnaryOp op = oneArg $ \val -> do
   case val of
     (Float f 0) -> return $ Float (op f) 0
-    n@(Number _ _) -> do
+    n@(MathExpr _ _) -> do
       r <- fromEgison n
       return $ Float (op (fromRational r)) 0
     _ -> throwError $ TypeMismatch "number" (Value val)

@@ -244,7 +244,6 @@ data EgisonValue =
   | Char Char
   | String Text
   | Bool Bool
-  | Integer Integer
   | MathExpr MathExpr
   | Float Double Double
   | InductiveData String [EgisonValue]
@@ -267,15 +266,19 @@ data EgisonValue =
 
 data MathExpr =
     Div PolyExpr PolyExpr
+ deriving (Eq)
 
 data PolyExpr =
     Plus [TermExpr]
+ deriving (Eq)
 
 data TermExpr =
     Term Integer [SymbolExpr]
+ deriving (Eq)
 
 data SymbolExpr =
     Symbol String Integer
+ deriving (Eq)
 
 mathPlus :: MathExpr -> MathExpr -> MathExpr
 mathPlus (Div m1 n1) (Div m2 n2) = Div (mathPlus' (mathMult' m1 n2) (mathMult' m2 n1)) (mathMult' n1 n2)
@@ -312,7 +315,6 @@ instance Show EgisonValue where
   show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"
-  show (Integer x) = show x
   show (MathExpr mExpr) = show mExpr
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
@@ -376,7 +378,7 @@ instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
  (String str) == (String str') = str == str'
  (Bool b) == (Bool b') = b == b'
- (Integer x) == (Integer y) = (x == y)
+ (MathExpr x) == (MathExpr y) = (x == y)
  (Float x y) == (Float x' y') = (x == x') && (y == y')
  (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
  (Tuple vals) == (Tuple vals') = vals == vals'
@@ -407,7 +409,7 @@ instance EgisonData Bool where
   fromEgison = liftError . fromBoolValue
 
 instance EgisonData Integer where
-  toEgison i = Integer i
+  toEgison i = MathExpr (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))
   fromEgison = liftError . fromIntegerValue
 
 instance EgisonData Rational where
@@ -469,7 +471,7 @@ fromBoolValue (Bool b) = return b
 fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
 
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
-fromIntegerValue (Integer x) = return x
+fromIntegerValue (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])]))) = return x
 fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
 
 fromRationalValue :: EgisonValue -> Either EgisonError Rational
@@ -568,7 +570,7 @@ fromBoolWHNF (Value (Bool b)) = return b
 fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
 
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
-fromIntegerWHNF (Value (Integer x)) = return x
+fromIntegerWHNF (Value (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])])))) = return x
 fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
 
 fromFloatWHNF :: WHNFData -> Either EgisonError Double
