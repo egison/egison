@@ -24,6 +24,14 @@ module Language.Egison.Types
     , PrimitiveDataPattern (..)
     -- * Egison values
     , EgisonValue (..)
+    , MathExpr (..)
+    , PolyExpr (..)
+    , TermExpr (..)
+    , SymbolExpr (..)
+    , mathPlus
+    , mathPlus'
+    , mathMult
+    , mathMult'
     , Matcher (..)
     , PrimitiveFunc (..)
     , EgisonData (..)
@@ -97,6 +105,7 @@ import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 
 import Data.Monoid (Monoid)
+import qualified Data.HashMap.Lazy as HL
 import qualified Data.Array as Array
 import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
@@ -243,6 +252,7 @@ data EgisonValue =
   | String Text
   | Bool Bool
   | Number (Integer, Integer) (Integer, Integer)
+  | MathExpr MathExpr
   | Float Double Double
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
@@ -262,6 +272,32 @@ data EgisonValue =
   | Undefined
   | EOF
 
+data MathExpr =
+    Div PolyExpr PolyExpr
+
+data PolyExpr =
+    Plus [TermExpr]
+
+data TermExpr =
+    Term Integer [SymbolExpr]
+
+data SymbolExpr =
+    Symbol String Integer
+
+mathPlus :: MathExpr -> MathExpr -> MathExpr
+mathPlus (Div m1 n1) (Div m2 n2) = Div (mathPlus' (mathMult' m1 n2) (mathMult' m2 n1)) (mathMult' n1 n2)
+
+mathPlus' :: PolyExpr -> PolyExpr -> PolyExpr
+mathPlus' (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
+
+mathMult :: MathExpr -> MathExpr -> MathExpr
+mathMult (Div m1 n1) (Div m2 n2) = Div (mathMult' m1 m2) (mathMult' n1 n2)
+
+mathMult' :: PolyExpr -> PolyExpr -> PolyExpr
+mathMult' (Plus []) (Plus _) = Plus []
+mathMult' (Plus _) (Plus []) = Plus []
+mathMult' (Plus ts1) (Plus ts2) = foldl mathPlus' (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
+
 type Matcher = EgisonValue
 
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
@@ -273,6 +309,7 @@ instance Show EgisonValue where
   show (Bool False) = "#f"
   show (Number (x,y) (1,0)) = showComplex x y
   show (Number (x,y) (x',y')) = showComplex x y ++ "/" ++ showComplex x' y'
+  show (MathExpr mExpr) = show mExpr
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
@@ -296,6 +333,25 @@ instance Show EgisonValue where
   show Undefined = "undefined"
   show World = "#<world>"
   show EOF = "#<eof>"
+
+instance Show MathExpr where
+  show (Div p1 (Plus [(Term 1 [])])) = show p1
+  show (Div p1 p2) = "(/ " ++ show p1 ++ " " ++ show p2 ++ ")"
+
+instance Show PolyExpr where
+  show (Plus []) = "0"
+  show (Plus [t]) = show t
+  show (Plus ts) = "(+ " ++ unwords (map show ts)  ++ ")"
+
+instance Show TermExpr where
+  show (Term a []) = show a
+  show (Term 1 [x]) = show x
+  show (Term 1 xs) = "(* " ++ unwords (map show xs) ++ ")"
+  show (Term a xs) = "(* " ++ show a ++ " " ++ unwords (map show xs) ++ ")"
+
+instance Show SymbolExpr where
+  show (Symbol s 1) = s
+  show (Symbol s n) = s ++ "^" ++ show n
 
 addInteger :: EgisonValue -> EgisonValue -> EgisonValue
 addInteger (Number (x,y) (1,0)) (Number (x',y') (1,0)) = Number ((x+x'),(y+y')) (1,0)

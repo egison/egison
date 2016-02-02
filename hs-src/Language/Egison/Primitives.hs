@@ -249,6 +249,7 @@ plus = twoArgs $ \val val' -> numberBinaryOp' val val'
   numberBinaryOp' (Float x y)  (Float x' y')  = return $ Float (x + x') (y + y')
   numberBinaryOp' val          (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)  val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
+  numberBinaryOp' (MathExpr m1) (MathExpr m2) = return $ MathExpr (mathPlus m1 m2)
   numberBinaryOp' (Number _ _) val'           = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 
@@ -269,6 +270,7 @@ multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
   numberBinaryOp' (Float x y)  (Float x' y')  = return $ Float (x * x' - y * y')  (x * y' + x' * y) 
   numberBinaryOp' val          (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)  val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
+  numberBinaryOp' (MathExpr m1) (MathExpr m2) = return $ MathExpr (mathMult m1 m2)
   numberBinaryOp' (Number _ _) val'           = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val          _              = throwError $ TypeMismatch "number" (Value val)
 

@@ -49,9 +49,11 @@ import Data.Traversable (mapM)
 import Data.IORef
 import Data.Maybe
 
+import qualified Data.HashMap.Lazy as HL
 import Data.Array ((!))
 import qualified Data.Array as Array
-import qualified Data.HashMap.Lazy as HL
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -146,7 +148,11 @@ evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (NumberExpr x y) = return . Value $ reduceFraction (Number x y)
 evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 
-evalExpr env (VarExpr name) = refVar env name >>= evalRef
+evalExpr env (VarExpr name) = refVar' env name >>= evalRef
+ where
+  refVar' :: Env -> Var -> EgisonM ObjectRef
+  refVar' env var = maybe (newEvalutedObjectRef (Value (MathExpr (Div (Plus [(Term 1 [(Symbol var 1)])]) (Plus [(Term 1 [])]))))) return
+                          (msum $ map (HashMap.lookup var) env)
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
