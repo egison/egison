@@ -547,6 +547,7 @@ floatExpr = do
 
 numberExpr :: Parser EgisonExpr
 numberExpr = do
+  string "0d"
   (m,n) <- P.lexeme lexer $ try (do m <- gaussianIntegerLiteral
                                     char '/'
                                     n <- gaussianIntegerLiteral
