@@ -36,13 +36,6 @@ module Language.Egison.Types
     , PrimitiveFunc (..)
     , EgisonData (..)
     , showTSV
-    , addInteger
-    , subInteger
-    , mulInteger
-    , addInteger'
-    , subInteger'
-    , mulInteger'
-    , reduceFraction
     -- * Internal data
     , Object (..)
     , ObjectRef (..)
@@ -141,7 +134,7 @@ data EgisonExpr =
     CharExpr Char
   | StringExpr Text
   | BoolExpr Bool
-  | NumberExpr (Integer, Integer) (Integer, Integer)
+  | IntegerExpr Integer
   | FloatExpr Double Double
   | VarExpr String
   | IndexedExpr EgisonExpr [EgisonExpr]
@@ -251,7 +244,7 @@ data EgisonValue =
   | Char Char
   | String Text
   | Bool Bool
-  | Number (Integer, Integer) (Integer, Integer)
+  | Integer Integer
   | MathExpr MathExpr
   | Float Double Double
   | InductiveData String [EgisonValue]
@@ -319,8 +312,7 @@ instance Show EgisonValue where
   show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"
-  show (Number (x,y) (1,0)) = showComplex x y
-  show (Number (x,y) (x',y')) = showComplex x y ++ "/" ++ showComplex x' y'
+  show (Integer x) = show x
   show (MathExpr mExpr) = show mExpr
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
@@ -365,24 +357,6 @@ instance Show SymbolExpr where
   show (Symbol s 1) = s
   show (Symbol s n) = s ++ "^" ++ show n
 
-addInteger :: EgisonValue -> EgisonValue -> EgisonValue
-addInteger (Number (x,y) (1,0)) (Number (x',y') (1,0)) = Number ((x+x'),(y+y')) (1,0)
-
-subInteger :: EgisonValue -> EgisonValue -> EgisonValue
-subInteger (Number (x,y) (1,0)) (Number (x',y') (1,0)) = Number ((x-x'),(y-y')) (1,0)
-
-mulInteger :: EgisonValue -> EgisonValue -> EgisonValue
-mulInteger (Number (x,y) (1,0)) (Number (x',y') (1,0)) = Number ((x*x'-y*y'),(x*y'+x'*y)) (1,0)
-
-addInteger' :: (Integer, Integer) -> (Integer, Integer) -> (Integer, Integer)
-addInteger' (x,y) (x',y') = ((x+x'),(y+y'))
-
-subInteger' :: (Integer, Integer) -> (Integer, Integer) -> (Integer, Integer)
-subInteger' (x,y) (x',y') = ((x-x'),(y-y'))
-
-mulInteger' :: (Integer, Integer) -> (Integer, Integer) -> (Integer, Integer)
-mulInteger' (x,y) (x',y') = ((x*x'-y*y'),(x*y'+x'*y))
-
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
 showComplex 0 y = show y ++ "i"
@@ -393,18 +367,6 @@ showComplexFloat x 0.0 = showFFloat Nothing x ""
 showComplexFloat 0.0 y = showFFloat Nothing y "i"
 showComplexFloat x y = (showFFloat Nothing x "") ++ (if y > 0 then "+" else "") ++ (showFFloat Nothing y "i")
 
-reduceFraction :: EgisonValue -> EgisonValue
-reduceFraction (Number (x,y) (x',y'))
-    | x' < 0  = let m = negate (foldl gcd x [y, x', y']) in
-                  Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
-    | x' > 0  = let m = foldl gcd x [y, x', y'] in
-                  Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
-    | x' == 0 && y' < 0  = let m = negate (foldl gcd x [y, x', y']) in
-                             Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
-    | x' == 0 && y' > 0  = let m = foldl gcd x [y, x', y'] in
-                             Number (x `quot` m, y `quot` m) (x' `quot` m, y' `quot` m)
-    | x' == 0 && y' == 0 = Number (1,0) (0,0)
-
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)
 showTSV (Collection vals) = intercalate "\t" (map showTSV (toList vals))
@@ -414,7 +376,7 @@ instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
  (String str) == (String str') = str == str'
  (Bool b) == (Bool b') = b == b'
- (Number (x1,y1) (x1',y1')) == (Number (x2,y2) (x2',y2')) = (x1 == x2) && (y1 == y2) && (x1' == x2') && (y1' == y2')
+ (Integer x) == (Integer y) = (x == y)
  (Float x y) == (Float x' y') = (x == x') && (y == y')
  (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
  (Tuple vals) == (Tuple vals') = vals == vals'
@@ -445,12 +407,8 @@ instance EgisonData Bool where
   fromEgison = liftError . fromBoolValue
 
 instance EgisonData Integer where
-  toEgison i = Number (i, 0) (1, 0)
+  toEgison i = Integer i
   fromEgison = liftError . fromIntegerValue
-
-instance EgisonData Rational where
-  toEgison r = Number ((numerator r), 0) ((denominator r), 0)
-  fromEgison = liftError . fromRationalValue
 
 instance EgisonData Double where
   toEgison f = Float f 0
@@ -507,12 +465,8 @@ fromBoolValue (Bool b) = return b
 fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
 
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
-fromIntegerValue (Number (x, 0) (1, 0)) = return x
+fromIntegerValue (Integer x) = return x
 fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
-
-fromRationalValue :: EgisonValue -> Either EgisonError Rational
-fromRationalValue (Number (x, 0) (y, 0)) = return (x % y)
-fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
 
 fromFloatValue :: EgisonValue -> Either EgisonError Double
 fromFloatValue (Float f 0) = return f
@@ -587,9 +541,6 @@ instance EgisonWHNF Bool where
 instance EgisonWHNF Integer where
   fromWHNF = liftError . fromIntegerWHNF
   
-instance EgisonWHNF Rational where
-  fromWHNF = liftError . fromRationalWHNF
-  
 instance EgisonWHNF Double where
   fromWHNF = liftError . fromFloatWHNF
   
@@ -609,12 +560,8 @@ fromBoolWHNF (Value (Bool b)) = return b
 fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
 
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
-fromIntegerWHNF (Value (Number (x, 0) (1, 0))) = return x
+fromIntegerWHNF (Value (Integer x)) = return x
 fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
-
-fromRationalWHNF :: WHNFData -> Either EgisonError Rational
-fromRationalWHNF (Value (Number (x, 0) (y, 0))) = return (x % y)
-fromRationalWHNF whnf = throwError $ TypeMismatch "rational" whnf
 
 fromFloatWHNF :: WHNFData -> Either EgisonError Double
 fromFloatWHNF (Value (Float f 0)) = return f

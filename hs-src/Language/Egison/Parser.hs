@@ -509,7 +509,7 @@ loopRange = brackets (try (do s <- expr
                               return (LoopRange s e ep))
                  <|> (do s <- expr
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (NumberExpr (1, 0) (1, 0))]))) ep)))
+                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 -- Constants
 
@@ -518,7 +518,7 @@ constantExpr =  charExpr
                  <|> stringExpr
                  <|> boolExpr
                  <|> try floatExpr
-                 <|> try numberExpr
+                 <|> try integerExpr
                  <|> (keywordSomething *> pure SomethingExpr)
                  <|> (keywordUndefined *> pure UndefinedExpr)
                  <?> "constant"
@@ -545,29 +545,10 @@ floatExpr = do
                                         return (x,0))
   return $ FloatExpr x y
 
-numberExpr :: Parser EgisonExpr
-numberExpr = do
-  string "0d"
-  (m,n) <- P.lexeme lexer $ try (do m <- gaussianIntegerLiteral
-                                    char '/'
-                                    n <- gaussianIntegerLiteral
-                                    return (m,n))
-                            <|> try (do m <- gaussianIntegerLiteral
-                                        return (m,(1,0)))
-  return $ NumberExpr m n
-
-gaussianIntegerLiteral :: Parser (Integer, Integer)
-gaussianIntegerLiteral = do
-  (x,y) <- P.lexeme lexer $ try (do x <- integerLiteral'
-                                    y <- sign' <*> positiveIntegerLiteral
-                                    char 'i'
-                                    return (x,y))
-                            <|> try (do y <- integerLiteral'
-                                        char 'i'
-                                        return (0,y))
-                            <|> try (do x <- integerLiteral'
-                                        return (x,0))
-  return (x,y)
+integerExpr :: Parser EgisonExpr
+integerExpr = do
+  n <- integerLiteral'
+  return $ IntegerExpr n
 
 integerLiteral' :: Parser Integer
 integerLiteral' = sign <*> positiveIntegerLiteral
