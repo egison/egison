@@ -145,7 +145,7 @@ evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
-evalExpr _ (IntegerExpr x) = return . Value $ MathExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])]))
+evalExpr _ (IntegerExpr x) = return . Value $ toEgison x
 evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
@@ -426,7 +426,7 @@ generateArray env name sizeExpr expr = do
     
     bindEnv :: Env -> String -> Integer -> EgisonM Env
     bindEnv env name i = do
-      ref <- newEvalutedObjectRef (Value (MathExpr (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))))
+      ref <- newEvalutedObjectRef (Value (toEgison i))
       return $ extendEnv env [(name, ref)]
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
@@ -641,8 +641,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func'
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
-      startNum <- evalExpr env' start >>= fromWHNF
-      startNumRef <- newEvalutedObjectRef $ Value $ MathExpr (Div (Plus [(Term (startNum - 1) [])]) (Plus [(Term 1 [])]))
+      startNum <- evalExpr env' start >>= fromWHNF :: (EgisonM Integer)
+      startNumRef <- newEvalutedObjectRef $ Value $ toEgison (startNum - 1)
       ends' <- evalExpr env' ends
       if isPrimitiveValue ends'
         then do 
@@ -657,8 +657,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
-          startNum <- evalRef startNumRef >>= fromWHNF
-          nextNumRef <- newEvalutedObjectRef $ Value $ MathExpr (Div (Plus [(Term (startNum + 1) [])]) (Plus [(Term 1 [])]))
+          startNum <- evalRef startNumRef >>= fromWHNF :: (EgisonM Integer)
+          nextNumRef <- newEvalutedObjectRef $ Value $ toEgison (startNum + 1)
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
           if b

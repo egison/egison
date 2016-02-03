@@ -368,14 +368,16 @@ gte = twoArgs $ \val val' -> numberBinaryPred' val val'
 truncate' :: PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
+  numberUnaryOp' (MathExpr (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
   numberUnaryOp' (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return $ toEgison (quot x y)
-  numberUnaryOp' (Float x y)           = return $ MathExpr (Div (Plus [(Term (truncate x) [])]) (Plus [(Term (truncate y) [])]))
+  numberUnaryOp' (Float x _)           = return $ toEgison ((truncate x) :: Integer)
   numberUnaryOp' val                   = throwError $ TypeMismatch "ratinal or float" (Value val)
 
 --
 -- Transform
 --
 numberToFloat' :: EgisonValue -> EgisonValue
+numberToFloat' (MathExpr (Div (Plus []) _)) = Float 0 0
 numberToFloat' (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = Float (fromRational (x % y)) 0
 
 integerToFloat :: PrimitiveFunc
@@ -384,7 +386,8 @@ integerToFloat = rationalToFloat
 rationalToFloat :: PrimitiveFunc
 rationalToFloat = oneArg $ \val ->
   case val of
-    (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) -> return $ numberToFloat' val
+    (MathExpr (Div (Plus []) _)) -> return $ numberToFloat' val
+    (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])]))) -> return $ numberToFloat' val
     _ -> throwError $ TypeMismatch "integer of rational number" (Value val)
 
 charToInteger :: PrimitiveFunc
@@ -398,7 +401,9 @@ charToInteger = oneArg $ \val -> do
 integerToChar :: PrimitiveFunc
 integerToChar = oneArg $ \val -> do
   case val of
-    (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])]))) -> return $ Char $ chr $ fromIntegral x
+    (MathExpr _) -> do
+       i <- fromEgison val :: EgisonM Integer
+       return $ Char $ chr $ fromIntegral i
     _ -> throwError $ TypeMismatch "integer" (Value val)
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
@@ -534,10 +539,12 @@ isBool (Value (Bool _)) = return $ Value $ Bool True
 isBool _ = return $ Value $ Bool False
 
 isInteger :: PrimitiveFunc
+isInteger (Value (MathExpr (Div (Plus []) (Plus [(Term 1 [])])))) = return $ Value $ Bool True
 isInteger (Value (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term 1 [])])))) = return $ Value $ Bool True
 isInteger _ = return $ Value $ Bool False
 
 isRational :: PrimitiveFunc
+isRational (Value (MathExpr (Div (Plus []) (Plus [(Term _ [])])))) = return $ Value $ Bool True
 isRational (Value (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])])))) = return $ Value $ Bool True
 isRational _ = return $ Value $ Bool False
 
