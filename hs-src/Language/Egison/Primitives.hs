@@ -97,8 +97,10 @@ tupleToList whnf = do
 --
 
 constants :: [(String, EgisonValue)]
-constants = [ ("pi", Float 3.141592653589793 0)
-             ,("e" , Float 2.718281828459045 0) ]
+constants = [
+--              ("pi", Float 3.141592653589793 0)
+--             ,("e" , Float 2.718281828459045 0)
+              ]
 
 --
 -- Primitives
