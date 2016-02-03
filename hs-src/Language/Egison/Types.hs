@@ -339,13 +339,15 @@ mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
                        ret)
                   ts
   foldSymbolExpr :: [SymbolExpr] -> [SymbolExpr]
-  foldSymbolExpr xs = foldSymbolExpr' (sortSymbolExpr xs)
-  foldSymbolExpr' [] = []
-  foldSymbolExpr' [s] = [s]
-  foldSymbolExpr' ((Symbol x m):(Symbol y n):ts) =
-    if x == y
-      then foldSymbolExpr ((Symbol x (m + n)):ts)
-      else (Symbol x m):(foldSymbolExpr ((Symbol y n):ts))
+  foldSymbolExpr xs = foldSymbolExpr' [] xs
+  foldSymbolExpr' ret [] = ret
+  foldSymbolExpr' ret ((Symbol x n):ts) =
+    if all (\(Symbol y _) -> x /= y) ret
+      then foldSymbolExpr' (ret ++ [Symbol x n]) ts
+      else foldSymbolExpr' (map (\(Symbol y n') -> if x == y
+                                                     then (Symbol y (n + n'))
+                                                     else (Symbol y n'))
+                                ret) ts
   p :: [SymbolExpr] -> [SymbolExpr] -> Bool
   p xs ys = (sortSymbolExpr xs) == (sortSymbolExpr ys)
   sortSymbolExpr :: [SymbolExpr] -> [SymbolExpr]
