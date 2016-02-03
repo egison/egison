@@ -301,7 +301,7 @@ symbolExprToEgisonValue (Symbol x n) = InductiveData "Symbol" [symbolMathExpr x,
 
 mathNormalize :: MathExpr -> MathExpr
 mathNormalize mExpr =
-  mathReduceFraction $ mathSortTerms $ mathRemoveZero mExpr
+  mathReduceFraction $ mathRemoveZero $ mathFold mExpr
 
 mathRemoveZero :: MathExpr -> MathExpr
 mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
@@ -310,25 +310,6 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
     case ts1' of
       [] -> Div (Plus []) (Plus [Term 1 []])
       _ -> Div (Plus ts1') (Plus ts2')
-
-mathSortTerms :: MathExpr -> MathExpr
-mathSortTerms (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
- where
-  f :: [TermExpr] -> [TermExpr]
-  f ts = sortBy g ts
-  g :: TermExpr -> TermExpr -> Ordering
-  g (Term _ xs) (Term _ ys) =
-    let xs' = sort (map (\(Symbol x _) -> x) xs) in
-    let ys' = sort (map (\(Symbol x _) -> x) ys) in
-      h xs' ys'
-  h :: [String] -> [String] -> Ordering
-  h [] [] = EQ
-  h [] _ = LT
-  h _ [] = GT
-  h (x:xs) (y:ys) = case compare x y of
-                      LT -> LT
-                      GT -> GT
-                      EQ -> h xs ys
 
 mathReduceFraction :: MathExpr -> MathExpr
 mathReduceFraction (Div (Plus []) (Plus ts2)) = Div (Plus []) (Plus ts2)
@@ -341,22 +322,42 @@ mathReduceFraction (Div (Plus ts1) (Plus ts2)) =
   let us2 = map (\(Term a xs) -> Term (a `quot` d) xs) ts2 in
     Div (Plus us1) (Plus us2)
 
+mathFold :: MathExpr -> MathExpr
+mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
+ where
+  mFold :: [TermExpr] -> [TermExpr]
+  mFold ts = mFold' [] ts
+  mFold' :: [TermExpr] -> [TermExpr] -> [TermExpr]
+  mFold' ret [] = ret
+  mFold' ret ((Term a xs):ts) =
+    let xs' = foldSymbolExpr xs in
+    if all (\(Term _ ys) -> not (p xs' ys)) ret
+      then mFold' (ret ++ [(Term a xs')]) ts
+      else mFold' (map (\(Term b ys) -> if p xs' ys
+                                          then (Term (a + b) ys)
+                                          else (Term b ys))
+                       ret)
+                  ts
+  foldSymbolExpr :: [SymbolExpr] -> [SymbolExpr]
+  foldSymbolExpr xs = foldSymbolExpr' (sortSymbolExpr xs)
+  foldSymbolExpr' [] = []
+  foldSymbolExpr' [s] = [s]
+  foldSymbolExpr' ((Symbol x m):(Symbol y n):ts) =
+    if x == y
+      then foldSymbolExpr ((Symbol x (m + n)):ts)
+      else (Symbol x m):(foldSymbolExpr ((Symbol y n):ts))
+  p :: [SymbolExpr] -> [SymbolExpr] -> Bool
+  p xs ys = (sortSymbolExpr xs) == (sortSymbolExpr ys)
+  sortSymbolExpr :: [SymbolExpr] -> [SymbolExpr]
+  sortSymbolExpr xs = sortBy h xs
+  h :: SymbolExpr -> SymbolExpr -> Ordering
+  h (Symbol x _) (Symbol y _) = compare x y
+
 mathPlus :: MathExpr -> MathExpr -> MathExpr
 mathPlus (Div m1 n1) (Div m2 n2) = mathNormalize $ Div (mathPlus' (mathMult' m1 n2) (mathMult' m2 n1)) (mathMult' n1 n2)
 
 mathPlus' :: PolyExpr -> PolyExpr -> PolyExpr
-mathPlus' (Plus ts1) (Plus ts2) = Plus (mathFold [] (ts1 ++ ts2))
- where
-  mathFold :: [TermExpr] -> [TermExpr] -> [TermExpr]
-  mathFold ret [] = ret
-  mathFold ret ((Term a xs):ts) =
-    if all (\(Term _ ys) -> xs /= ys) ret
-      then mathFold (ret ++ [(Term a xs)]) ts
-      else mathFold (map (\(Term b ys) -> if xs == ys
-                                            then (Term (a + b) xs)
-                                            else (Term b ys))
-                         ret)
-                    ts
+mathPlus' (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
 
 mathMult :: MathExpr -> MathExpr -> MathExpr
 mathMult (Div m1 n1) (Div m2 n2) = mathNormalize $ Div (mathMult' m1 m2) (mathMult' n1 n2)
