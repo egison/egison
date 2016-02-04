@@ -151,8 +151,8 @@ exprs :: Parser [EgisonExpr]
 exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
-expr = do expr <- expr'
-          option expr $ IndexedExpr expr <$> many1 (try $ char '_' >> expr')
+expr = P.lexeme lexer (do expr0 <- expr'
+                          option expr0 $ IndexedExpr expr0 <$> many1 (try $ char '_' >> expr'))
 
 expr' :: Parser EgisonExpr
 expr' = (try partialExpr
@@ -216,13 +216,13 @@ arrayExpr :: Parser EgisonExpr
 arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr whiteSpace
   where
     lp = P.lexeme lexer (string "[|")
-    rp = P.lexeme lexer (string "|]")
+    rp = string "|]"
 
 hashExpr :: Parser EgisonExpr
 hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
   where
     lp = P.lexeme lexer (string "{|")
-    rp = P.lexeme lexer (string "|}")
+    rp = string "|}"
     pairExpr :: Parser (EgisonExpr, EgisonExpr)
     pairExpr = brackets $ (,) <$> expr <*> expr
 
@@ -269,7 +269,7 @@ ppMatchClauses :: Parser MatcherInfo
 ppMatchClauses = braces $ sepEndBy ppMatchClause whiteSpace
 
 ppMatchClause :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
-ppMatchClause = brackets $ (,,) <$> pppattern <*> expr <*> pdMatchClauses
+ppMatchClause = brackets $ (,,) <$> ppPattern <*> expr <*> pdMatchClauses
 
 pdMatchClauses :: Parser [(PrimitiveDataPattern, EgisonExpr)]
 pdMatchClauses = braces $ sepEndBy pdMatchClause whiteSpace
@@ -277,27 +277,30 @@ pdMatchClauses = braces $ sepEndBy pdMatchClause whiteSpace
 pdMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
 pdMatchClause = brackets $ (,) <$> pdPattern <*> expr
 
-pppattern :: Parser PrimitivePatPattern
-pppattern = ppWildCard
-                 <|> pppatVar
-                 <|> ppValuePat
-                 <|> ppInductivePat
-                 <?> "primitive-pattren-pattern"
+ppPattern :: Parser PrimitivePatPattern
+ppPattern = P.lexeme lexer (ppWildCard
+                        <|> ppPatVar
+                        <|> ppValuePat
+                        <|> ppInductivePat
+                        <?> "primitive-pattren-pattern")
                        
 ppWildCard :: Parser PrimitivePatPattern
 ppWildCard = reservedOp "_" *> pure PPWildCard
 
-pppatVar :: Parser PrimitivePatPattern
-pppatVar = reservedOp "$" *> pure PPPatVar
+ppPatVar :: Parser PrimitivePatPattern
+ppPatVar = reservedOp "$" *> pure PPPatVar
 
 ppValuePat :: Parser PrimitivePatPattern
 ppValuePat = string ",$" >> PPValuePat <$> ident
 
 ppInductivePat :: Parser PrimitivePatPattern
-ppInductivePat = angles (PPInductivePat <$> lowerName <*> sepEndBy pppattern whiteSpace)
+ppInductivePat = angles (PPInductivePat <$> lowerName <*> sepEndBy ppPattern whiteSpace)
 
 pdPattern :: Parser PrimitiveDataPattern
-pdPattern = reservedOp "_" *> pure PDWildCard
+pdPattern = P.lexeme lexer $ pdPattern'
+
+pdPattern' :: Parser PrimitiveDataPattern
+pdPattern' = reservedOp "_" *> pure PDWildCard
                     <|> (char '$' >> PDPatVar <$> ident)
                     <|> braces ((PDConsPat <$> pdPattern <*> (char '@' *> pdPattern))
                             <|> (PDSnocPat <$> (char '@' *> pdPattern) <*> pdPattern) 
@@ -433,8 +436,8 @@ arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
 -- Patterns
 
 pattern :: Parser EgisonPattern
-pattern = do pattern <- pattern'
-             option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr')
+pattern = P.lexeme lexer (do pattern <- pattern'
+                             option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr'))
 
 pattern' :: Parser EgisonPattern
 pattern' = wildCard
@@ -458,7 +461,7 @@ wildCard :: Parser EgisonPattern
 wildCard = reservedOp "_" >> pure WildCard
 
 patVar :: Parser EgisonPattern
-patVar = P.lexeme lexer $ PatVar <$> varName
+patVar = PatVar <$> varName
 
 varPat :: Parser EgisonPattern
 varPat = VarPat <$> ident
@@ -534,20 +537,20 @@ boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
 floatExpr = do
-  (x,y) <- P.lexeme lexer $ try (do x <- floatLiteral'
-                                    y <- sign' <*> positiveFloatLiteral
-                                    char 'i'
-                                    return (x,y))
-                            <|> try (do y <- floatLiteral'
-                                        char 'i'
-                                        return (0,y))
-                            <|> try (do x <- floatLiteral'
-                                        return (x,0))
+  (x,y) <- try (do x <- floatLiteral'
+                   y <- sign' <*> positiveFloatLiteral
+                   char 'i'
+                   return (x,y))
+            <|> try (do y <- floatLiteral'
+                        char 'i'
+                        return (0,y))
+            <|> try (do x <- floatLiteral'
+                        return (x,0))
   return $ FloatExpr x y
 
 integerExpr :: Parser EgisonExpr
 integerExpr = do
-  n <- P.lexeme lexer $ integerLiteral'
+  n <- integerLiteral'
   return $ IntegerExpr n
 
 integerLiteral' :: Parser Integer
@@ -710,7 +713,7 @@ charLiteral :: Parser Char
 charLiteral = P.charLiteral lexer
 
 boolLiteral :: Parser Bool
-boolLiteral = P.lexeme lexer $ char '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
+boolLiteral = char '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
 
 whiteSpace :: Parser ()
 whiteSpace = P.whiteSpace lexer
@@ -740,17 +743,23 @@ ident :: Parser String
 ident = P.identifier lexer
     <|> try ((:) <$> char '+' <*> ident)
     <|> try ((:) <$> char '-' <*> ident)
-    <|> (P.lexeme lexer $ string "+")
-    <|> (P.lexeme lexer $ string "-")
+--    <|> (P.lexeme lexer $ string "+")
+--    <|> (P.lexeme lexer $ string "-")
 
 upperName :: Parser String
-upperName = P.lexeme lexer $ (:) <$> upper <*> option "" ident
+upperName = P.lexeme lexer $ upperName'
+
+upperName' :: Parser String
+upperName' = (:) <$> upper <*> option "" ident
  where
   upper :: Parser Char 
   upper = satisfy isUpper
 
 lowerName :: Parser String
-lowerName = P.lexeme lexer $ (:) <$> lower <*> option "" ident
+lowerName = P.lexeme lexer $ lowerName'
+
+lowerName' :: Parser String
+lowerName' = (:) <$> lower <*> option "" ident
  where
   lower :: Parser Char 
   lower = satisfy isLower
