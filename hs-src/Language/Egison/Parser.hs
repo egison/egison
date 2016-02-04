@@ -588,9 +588,9 @@ egisonDef =
                 , P.reservedOpNames    = reservedOperators
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
- where
-  symbol1 = oneOf "+-*/="
-  symbol2 = symbol1 <|> oneOf "'!?."
+
+symbol1 = oneOf "+-*/="
+symbol2 = symbol1 <|> oneOf "'!?."
 
 lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
@@ -741,10 +741,6 @@ dot = P.dot lexer
 
 ident :: Parser String
 ident = P.identifier lexer
-    <|> try ((:) <$> char '+' <*> ident)
-    <|> try ((:) <$> char '-' <*> ident)
---    <|> (P.lexeme lexer $ string "+")
---    <|> (P.lexeme lexer $ string "-")
 
 upperName :: Parser String
 upperName = P.lexeme lexer $ upperName'
