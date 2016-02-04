@@ -29,7 +29,8 @@ module Language.Egison.Types
     , TermExpr (..)
     , SymbolExpr (..)
     , symbolMathExpr
-    , mathExprToEgisonValue
+    , mathExprToEgison
+    , egisonToMathExpr
     , mathNormalize
     , mathPlus
     , mathMult
@@ -282,22 +283,39 @@ data TermExpr =
 
 data SymbolExpr =
     Symbol String Integer
+  | AppFun String EgisonValue MathExpr
  deriving (Eq)
 
 symbolMathExpr :: String -> EgisonValue
 symbolMathExpr name = (MathExpr (Div (Plus [(Term 1 [(Symbol name 1)])]) (Plus [(Term 1 [])])))
 
-mathExprToEgisonValue :: MathExpr -> EgisonValue
-mathExprToEgisonValue (Div p1 p2) = InductiveData "Div" [(polyExprToEgisonValue p1), (polyExprToEgisonValue p2)]
+mathExprToEgison :: MathExpr -> EgisonValue
+mathExprToEgison (Div p1 p2) = InductiveData "Div" [(polyExprToEgison p1), (polyExprToEgison p2)]
 
-polyExprToEgisonValue :: PolyExpr -> EgisonValue
-polyExprToEgisonValue (Plus ts) = InductiveData "Poly" [Collection (Sq.fromList (map termExprtoEgisonValue ts))]
+polyExprToEgison :: PolyExpr -> EgisonValue
+polyExprToEgison (Plus ts) = InductiveData "Poly" [Collection (Sq.fromList (map termExprToEgison ts))]
 
-termExprtoEgisonValue :: TermExpr -> EgisonValue
-termExprtoEgisonValue (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprToEgisonValue xs))]
+termExprToEgison :: TermExpr -> EgisonValue
+termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprToEgison xs))]
 
-symbolExprToEgisonValue :: SymbolExpr -> EgisonValue
-symbolExprToEgisonValue (Symbol x n) = InductiveData "Symbol" [symbolMathExpr x, toEgison n]
+symbolExprToEgison :: SymbolExpr -> EgisonValue
+symbolExprToEgison (Symbol x n) = InductiveData "Symbol" [toEgison x, toEgison n]
+
+egisonToMathExpr :: EgisonValue -> EgisonM MathExpr
+egisonToMathExpr (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
+egisonToMathExpr val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
+
+egisonToPolyExpr :: EgisonValue -> EgisonM PolyExpr
+egisonToPolyExpr (InductiveData "Poly" [Collection ts]) = Plus <$> mapM egisonToTermExpr (toList ts)
+egisonToPolyExpr val = liftError $ throwError $ TypeMismatch "math poly expression" (Value val)
+
+egisonToTermExpr :: EgisonValue -> EgisonM TermExpr
+egisonToTermExpr (InductiveData "Term" [n, Collection ts]) = Term <$> fromEgison n <*> mapM egisonToSymbolExpr (toList ts)
+egisonToTermExpr val = liftError $ throwError $ TypeMismatch "math term expression" (Value val)
+
+egisonToSymbolExpr :: EgisonValue -> EgisonM SymbolExpr
+egisonToSymbolExpr (InductiveData "Symbol" [x, n]) = Symbol <$> fromEgison x <*> fromEgison n
+egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize :: MathExpr -> MathExpr
 mathNormalize mExpr =
@@ -459,6 +477,7 @@ instance Show TermExpr where
 instance Show SymbolExpr where
   show (Symbol s 1) = s
   show (Symbol s n) = s ++ "^" ++ show n
+  show (AppFun s _ mExpr) = "(" ++ s ++ " " ++ show mExpr ++ ")"
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x

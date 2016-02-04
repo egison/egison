@@ -113,10 +113,12 @@
 
 (define $power
   (lambda [$x $n]
-    (if (integer? n)
-      (if (gte? n 0)
-        (foldl * 1 (take n (repeat1 x)))
-        (/ 1 (foldl * 1 (take (neg n) (repeat1 x)))))
+    (if (rational? n)
+      (if (integer? n)
+        (if (gte? n 0)
+          (foldl * 1 (take n (repeat1 x)))
+          (/ 1 (foldl * 1 (take (neg n) (repeat1 x)))))
+        "error")
       (exp' x n))))
 
 (define $sum
