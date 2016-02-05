@@ -12,7 +12,7 @@
 
 (define $math-expr'
   (matcher
-    {[<div $ $> [poly-expr poly-expr]
+    {[<div $ $> [poly-expr' poly-expr']
       {[<Div $p1 $p2> {[p1 p2]}]
        [_ {}]}]
      [$ [something]
@@ -21,29 +21,53 @@
 
 (define $poly-expr
   (matcher
+    {[$ [poly-expr']
+      {[$tgt {(from-math-expr tgt)}]}]
+     }))
+
+(define $poly-expr'
+  (matcher
     {[<plus $> [(multiset term-expr)]
       {[<Plus $ts> {ts}]
+       [<Div <Plus $ts> _> {ts}]
        [_ {}]}]
      [$ [something]
-      {[$tgt {tgt}]}]
+      {[<Div $tgt _> {tgt}]
+       [$tgt {tgt}]}]
      }))
 
 (define $term-expr
   (matcher
+    {[$ [term-expr']
+      {[$tgt {(from-math-expr tgt)}]}]
+     }))
+
+(define $term-expr'
+  (matcher
     {[<term $ $> [integer (multiset symbol-expr)]
       {[<Term $n $xs> {[n xs]}]
+       [<Div <Plus {<Term $n $xs> @{}}> _> {[n xs]}]
        [_ {}]}]
      [$ [something]
-      {[$tgt {tgt}]}]
+      {[<Div <Plus {$tgt @{}}> _> {tgt}]
+       [$tgt {tgt}]}]
      }))
 
 (define $symbol-expr
   (matcher
+    {[$ [symbol-expr']
+      {[$tgt {(from-math-expr tgt)}]}]
+     }))
+
+(define $symbol-expr'
+  (matcher
     {[<symbol $ $> [string integer]
       {[<Symbol $v $n> {[v n]}]
+       [<Div <Plus {<Term 1 {<Symbol $v $n> @{}}> @{}}> _> {[v n]}]
        [_ {}]}]
      [$ [something]
-      {[$tgt {tgt}]}]
+      {[<Div <Plus {<Term 1 {$tgt @{}}> @{}}> _> {tgt}]
+       [$tgt {tgt}]}]
      }))
 
 (define $term-rewriting-rules {[(power i 2) -1]})
@@ -54,9 +78,9 @@
 
 (define $rewrite-term'
   (lambda [$rules $term]
-    (match rules (list something)
-      {[<nil> (to-math-expr <Div <Plus {term}> <Plus {<Term 1 {}>}>>)]
-       [<cons $rule $next-rules> (rewrite-term' next-rules (rewrite-term'' rule term))]
+    (match [rules term] [(list [something something]) term-expr]
+      {[[<nil> $t] (to-math-expr <Div <Plus {t}> <Plus {<Term 1 {}>}>>)]
+       [[<cons [$s $mexpr] $next-rules> _] (rewrite-term' next-rules (rewrite-term'' s mexpr term))]
        })))
 
 (define $rewrite-term''
@@ -64,6 +88,6 @@
     {[[<symbol $v $n> $mexpr <term $a <cons <symbol ,v $k> $xs>>]
       (* (to-math-expr <Div <Plus {<Term a {<Symbol v (modulo k n)> @xs}>}> <Plus {<Term 1 {}>}>>)
          (power mexpr (quotient k n)))]
-     [[_ _ $t] 
-      (to-math-expr <Div <Plus {term}> <Plus {<Term 1 {}>}>>)]}))
+     [[_ _ $t]
+      (to-math-expr <Div <Plus {t}> <Plus {<Term 1 {}>}>>)]}))
 
