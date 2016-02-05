@@ -32,6 +32,7 @@ module Language.Egison.Types
     , mathExprToEgison
     , egisonToMathExpr
     , mathNormalize
+    , mathNormalize'
     , mathPlus
     , mathMult
     , mathNegate
@@ -317,9 +318,22 @@ egisonToSymbolExpr :: EgisonValue -> EgisonM SymbolExpr
 egisonToSymbolExpr (InductiveData "Symbol" [x, n]) = Symbol <$> fromEgison x <*> fromEgison n
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
-mathNormalize :: MathExpr -> MathExpr
-mathNormalize mExpr =
-  mathReduceSymbolFraction $ mathReduceFraction $ mathRemoveZero $ mathFold mExpr
+mathNormalize :: MathExpr -> EgisonM MathExpr
+mathNormalize mExpr = f mExpr >>= mathRewriteTerm >>= f
+ where
+  f mExpr = mathSortSymbols (mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold mExpr)))) >>= mathSortTerms
+  
+mathNormalize' :: MathExpr -> MathExpr
+mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold mExpr)))
+
+mathSortTerms :: MathExpr -> EgisonM MathExpr
+mathSortTerms mExpr = return mExpr
+
+mathSortSymbols :: MathExpr -> EgisonM MathExpr
+mathSortSymbols mExpr = return mExpr
+
+mathRewriteTerm :: MathExpr -> EgisonM MathExpr
+mathRewriteTerm mExpr = return mExpr
 
 mathRemoveZero :: MathExpr -> MathExpr
 mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
@@ -399,13 +413,13 @@ mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
   h :: SymbolExpr -> SymbolExpr -> Ordering
   h (Symbol x _) (Symbol y _) = compare x y
 
-mathPlus :: MathExpr -> MathExpr -> MathExpr
+mathPlus :: MathExpr -> MathExpr -> EgisonM MathExpr
 mathPlus (Div m1 n1) (Div m2 n2) = mathNormalize $ Div (mathPlus' (mathMult' m1 n2) (mathMult' m2 n1)) (mathMult' n1 n2)
 
 mathPlus' :: PolyExpr -> PolyExpr -> PolyExpr
 mathPlus' (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
 
-mathMult :: MathExpr -> MathExpr -> MathExpr
+mathMult :: MathExpr -> MathExpr -> EgisonM MathExpr
 mathMult (Div m1 n1) (Div m2 n2) = mathNormalize $ Div (mathMult' m1 m2) (mathMult' n1 n2)
 
 mathMult' :: PolyExpr -> PolyExpr -> PolyExpr
@@ -530,12 +544,12 @@ instance EgisonData Bool where
   fromEgison = liftError . fromBoolValue
 
 instance EgisonData Integer where
-  toEgison 0 = MathExpr $ mathNormalize (Div (Plus []) (Plus [(Term 1 [])]))
-  toEgison i = MathExpr $ mathNormalize (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))
+  toEgison 0 = MathExpr $ mathNormalize' (Div (Plus []) (Plus [(Term 1 [])]))
+  toEgison i = MathExpr $ mathNormalize' (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))
   fromEgison = liftError . fromIntegerValue
 
 instance EgisonData Rational where
-  toEgison r = MathExpr $ mathNormalize (Div (Plus [(Term (numerator r) [])]) (Plus [(Term (denominator r) [])]))
+  toEgison r = MathExpr $ mathNormalize' (Div (Plus [(Term (numerator r) [])]) (Plus [(Term (denominator r) [])]))
   fromEgison = liftError . fromRationalValue
 
 instance EgisonData Double where
