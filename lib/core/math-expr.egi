@@ -1,0 +1,69 @@
+;;;;;
+;;;;;
+;;;;; Mathematics Expressions
+;;;;;
+;;;;;
+
+(define $math-expr
+  (matcher
+    {[$ [math-expr']
+      {[$tgt {(from-math-expr tgt)}]}]
+     }))
+
+(define $math-expr'
+  (matcher
+    {[<div $ $> [poly-expr poly-expr]
+      {[<Div $p1 $p2> {[p1 p2]}]
+       [_ {}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $poly-expr
+  (matcher
+    {[<plus $> [(multiset term-expr)]
+      {[<Plus $ts> {ts}]
+       [_ {}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $term-expr
+  (matcher
+    {[<term $ $> [integer (multiset symbol-expr)]
+      {[<Term $n $xs> {[n xs]}]
+       [_ {}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $symbol-expr
+  (matcher
+    {[<symbol $ $> [string integer]
+      {[<Symbol $v $n> {[v n]}]
+       [_ {}]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
+(define $term-rewriting-rules {[(power i 2) -1]})
+
+(define $rewrite-term
+  (lambda [$term]
+    (rewrite-term' term-rewriting-rules term)))
+
+(define $rewrite-term'
+  (lambda [$rules $term]
+    (match rules (list something)
+      {[<nil> (to-math-expr <Div <Plus {term}> <Plus {<Term 1 {}>}>>)]
+       [<cons $rule $next-rules> (rewrite-term' next-rules (rewrite-term'' rule term))]
+       })))
+
+(define $rewrite-term''
+  (match-lambda [symbol-expr something term-expr]
+    {[[<symbol $v $n> $mexpr <term $a <cons <symbol ,v $k> $xs>>]
+      (* (to-math-expr <Div <Plus {<Term a {<Symbol v (modulo k n)> @xs}>}> <Plus {<Term 1 {}>}>>)
+         (power mexpr (quotient k n)))]
+     [[_ _ $t] 
+      (to-math-expr <Div <Plus {term}> <Plus {<Term 1 {}>}>>)]}))
+

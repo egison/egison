@@ -31,13 +31,11 @@ module Language.Egison.Types
     , symbolMathExpr
     , mathExprToEgison
     , egisonToMathExpr
-    , mathNormalize
     , mathNormalize'
-    , mathPlus
-    , mathMult
-    , mathNegate
-    , mathNumerator
-    , mathDenominator
+    , mathFold
+    , mathRemoveZero
+    , mathReduceFraction
+    , mathReduceSymbolFraction
     , Matcher (..)
     , PrimitiveFunc (..)
     , EgisonData (..)
@@ -294,20 +292,20 @@ mathExprToEgison :: MathExpr -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [(polyExprToEgison p1), (polyExprToEgison p2)]
 
 polyExprToEgison :: PolyExpr -> EgisonValue
-polyExprToEgison (Plus ts) = InductiveData "Poly" [Collection (Sq.fromList (map termExprToEgison ts))]
+polyExprToEgison (Plus ts) = InductiveData "Plus" [Collection (Sq.fromList (map termExprToEgison ts))]
 
 termExprToEgison :: TermExpr -> EgisonValue
 termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprToEgison xs))]
 
 symbolExprToEgison :: SymbolExpr -> EgisonValue
-symbolExprToEgison (Symbol x n) = InductiveData "Symbol" [toEgison x, toEgison n]
+symbolExprToEgison (Symbol x n) = InductiveData "Symbol" [toEgison (T.pack x), toEgison n]
 
 egisonToMathExpr :: EgisonValue -> EgisonM MathExpr
 egisonToMathExpr (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
 egisonToMathExpr val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
 
 egisonToPolyExpr :: EgisonValue -> EgisonM PolyExpr
-egisonToPolyExpr (InductiveData "Poly" [Collection ts]) = Plus <$> mapM egisonToTermExpr (toList ts)
+egisonToPolyExpr (InductiveData "Plus" [Collection ts]) = Plus <$> mapM egisonToTermExpr (toList ts)
 egisonToPolyExpr val = liftError $ throwError $ TypeMismatch "math poly expression" (Value val)
 
 egisonToTermExpr :: EgisonValue -> EgisonM TermExpr
@@ -315,37 +313,13 @@ egisonToTermExpr (InductiveData "Term" [n, Collection ts]) = Term <$> fromEgison
 egisonToTermExpr val = liftError $ throwError $ TypeMismatch "math term expression" (Value val)
 
 egisonToSymbolExpr :: EgisonValue -> EgisonM SymbolExpr
-egisonToSymbolExpr (InductiveData "Symbol" [x, n]) = Symbol <$> fromEgison x <*> fromEgison n
+egisonToSymbolExpr (InductiveData "Symbol" [x, n]) = do
+  x' <- fromEgison x
+  Symbol (T.unpack x') <$> (fromEgison n)
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
-mathNormalize :: MathExpr -> EgisonM MathExpr
-mathNormalize mExpr = f mExpr >>= mathRewriteTerm >>= f
- where
-  f mExpr = mathSortSymbols (mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold mExpr)))) >>= mathSortTerms
-  
 mathNormalize' :: MathExpr -> MathExpr
 mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold mExpr)))
-
-mathSortTerms :: MathExpr -> EgisonM MathExpr
-mathSortTerms mExpr = return mExpr
-
-mathSortSymbols :: MathExpr -> EgisonM MathExpr
-mathSortSymbols mExpr = return mExpr
-
-mathRewriteTerm :: MathExpr -> EgisonM MathExpr
-mathRewriteTerm (Div (Plus ts1) (Plus ts2)) = do
-  ms1 <- mapM mathRewriteTerm' ts1
-  let m1 = foldl mathPlus' (Div (Plus []) (Plus [Term 1 []])) ms1
-  ms2 <- mapM mathRewriteTerm' ts2
-  let m2 = foldl mathPlus' (Div (Plus []) (Plus [Term 1 []])) ms2
-  case m2 of
-    (Div p1 p2) -> return $ mathMult' m1 (Div p2 p1)
-
-mathRewriteTerm' :: TermExpr -> EgisonM MathExpr
-mathRewriteTerm' (Term a [(Symbol "i" n)]) = if (n `mod` 2) == 0
-                                               then return $ Div (Plus [Term (a * ((negate 1) ^ (n `div` 2))) []]) (Plus [Term 1 []])
-                                               else return $ Div (Plus [Term (a * ((negate 1) ^ (n `div` 2))) [Symbol "i" 1]]) (Plus [Term 1 []])
-mathRewriteTerm' (Term a xs) = return $ Div (Plus [Term a xs]) (Plus [Term 1 []])
 
 mathRemoveZero :: MathExpr -> MathExpr
 mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
@@ -424,38 +398,6 @@ mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
   sortSymbolExpr xs = sortBy h xs
   h :: SymbolExpr -> SymbolExpr -> Ordering
   h (Symbol x _) (Symbol y _) = compare x y
-
-mathPlus :: MathExpr -> MathExpr -> EgisonM MathExpr
-mathPlus m1 m2 = mathNormalize $ mathPlus' m1 m2
-
-mathPlus' :: MathExpr -> MathExpr -> MathExpr
-mathPlus' (Div m1 n1) (Div m2 n2) = Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
-
-mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
-mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
-
-mathMult :: MathExpr -> MathExpr -> EgisonM MathExpr
-mathMult m1 m2 = mathNormalize $ mathMult' m1 m2
-
-mathMult' :: MathExpr -> MathExpr -> MathExpr
-mathMult' (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
-
-mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
-mathMultPoly (Plus []) (Plus _) = Plus []
-mathMultPoly (Plus _) (Plus []) = Plus []
-mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
-
-mathNegate :: MathExpr -> MathExpr
-mathNegate (Div m n) = Div (mathNegate' m) n
-
-mathNegate' :: PolyExpr -> PolyExpr
-mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
-
-mathNumerator :: MathExpr -> MathExpr
-mathNumerator (Div m _) = Div m (Plus [(Term 1 [])])
-
-mathDenominator :: MathExpr -> MathExpr
-mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
 
 type Matcher = EgisonValue
 

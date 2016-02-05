@@ -105,7 +105,8 @@ initialEnvNoIO = do
 
 coreLibraries :: [String]
 coreLibraries =
-  [ "lib/core/base.egi"
+  [ "lib/core/math-expr.egi"
+  , "lib/core/base.egi"
   , "lib/core/collection.egi"
   , "lib/core/order.egi"
   , "lib/core/number.egi"
