@@ -333,7 +333,19 @@ mathSortSymbols :: MathExpr -> EgisonM MathExpr
 mathSortSymbols mExpr = return mExpr
 
 mathRewriteTerm :: MathExpr -> EgisonM MathExpr
-mathRewriteTerm mExpr = return mExpr
+mathRewriteTerm (Div (Plus ts1) (Plus ts2)) = do
+  ms1 <- mapM mathRewriteTerm' ts1
+  let m1 = foldl mathPlus' (Div (Plus []) (Plus [Term 1 []])) ms1
+  ms2 <- mapM mathRewriteTerm' ts2
+  let m2 = foldl mathPlus' (Div (Plus []) (Plus [Term 1 []])) ms2
+  case m2 of
+    (Div p1 p2) -> return $ mathMult' m1 (Div p2 p1)
+
+mathRewriteTerm' :: TermExpr -> EgisonM MathExpr
+mathRewriteTerm' (Term a [(Symbol "i" n)]) = if (n `mod` 2) == 0
+                                               then return $ Div (Plus [Term (a * ((negate 1) ^ (n `div` 2))) []]) (Plus [Term 1 []])
+                                               else return $ Div (Plus [Term (a * ((negate 1) ^ (n `div` 2))) [Symbol "i" 1]]) (Plus [Term 1 []])
+mathRewriteTerm' (Term a xs) = return $ Div (Plus [Term a xs]) (Plus [Term 1 []])
 
 mathRemoveZero :: MathExpr -> MathExpr
 mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
@@ -414,18 +426,24 @@ mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
   h (Symbol x _) (Symbol y _) = compare x y
 
 mathPlus :: MathExpr -> MathExpr -> EgisonM MathExpr
-mathPlus (Div m1 n1) (Div m2 n2) = mathNormalize $ Div (mathPlus' (mathMult' m1 n2) (mathMult' m2 n1)) (mathMult' n1 n2)
+mathPlus m1 m2 = mathNormalize $ mathPlus' m1 m2
 
-mathPlus' :: PolyExpr -> PolyExpr -> PolyExpr
-mathPlus' (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
+mathPlus' :: MathExpr -> MathExpr -> MathExpr
+mathPlus' (Div m1 n1) (Div m2 n2) = Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
+
+mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
+mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
 
 mathMult :: MathExpr -> MathExpr -> EgisonM MathExpr
-mathMult (Div m1 n1) (Div m2 n2) = mathNormalize $ Div (mathMult' m1 m2) (mathMult' n1 n2)
+mathMult m1 m2 = mathNormalize $ mathMult' m1 m2
 
-mathMult' :: PolyExpr -> PolyExpr -> PolyExpr
-mathMult' (Plus []) (Plus _) = Plus []
-mathMult' (Plus _) (Plus []) = Plus []
-mathMult' (Plus ts1) (Plus ts2) = foldl mathPlus' (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
+mathMult' :: MathExpr -> MathExpr -> MathExpr
+mathMult' (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
+
+mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
+mathMultPoly (Plus []) (Plus _) = Plus []
+mathMultPoly (Plus _) (Plus []) = Plus []
+mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
 
 mathNegate :: MathExpr -> MathExpr
 mathNegate (Div m n) = Div (mathNegate' m) n
