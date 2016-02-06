@@ -780,9 +780,6 @@ mathRewriteTerm (Div (Plus ts1) (Plus ts2)) = do
     (Div p1 p2) -> return $ mathMult' m1 (Div p2 p1)
 
 mathRewriteTerm' :: TermExpr -> EgisonM MathExpr
-mathRewriteTerm' (Term a [(Symbol "i" n)]) = if (n `mod` 2) == 0
-                                               then return $ Div (Plus [Term (a * ((negate 1) ^ (n `div` 2))) []]) (Plus [Term 1 []])
-                                               else return $ Div (Plus [Term (a * ((negate 1) ^ (n `div` 2))) [Symbol "i" 1]]) (Plus [Term 1 []])
 mathRewriteTerm' (Term a xs) = return $ Div (Plus [Term a xs]) (Plus [Term 1 []])
 
 mathPlus :: MathExpr -> MathExpr -> EgisonM MathExpr

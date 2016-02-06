@@ -44,7 +44,7 @@
 
 (define $term-expr'
   (matcher
-    {[<term $ $> [integer (multiset symbol-expr)]
+    {[<term $ $> [integer (multiset symbol-expr')]
       {[<Term $n $xs> {[n xs]}]
        [<Div <Plus {<Term $n $xs> @{}}> _> {[n xs]}]
        [_ {}]}]
@@ -86,8 +86,11 @@
 (define $rewrite-term''
   (match-lambda [symbol-expr something term-expr]
     {[[<symbol $v $n> $mexpr <term $a <cons <symbol ,v $k> $xs>>]
-      (* (to-math-expr <Div <Plus {<Term a {<Symbol v (modulo k n)> @xs}>}> <Plus {<Term 1 {}>}>>)
-         (power mexpr (quotient k n)))]
+      (if (divisor? k n)
+        (* (to-math-expr <Div <Plus {<Term a xs>}> <Plus {<Term 1 {}>}>>)
+           (power mexpr (quotient k n)))
+        (* (to-math-expr <Div <Plus {<Term a {<Symbol v (modulo k n)> @xs}>}> <Plus {<Term 1 {}>}>>)
+           (power mexpr (quotient k n))))]
      [[_ _ $t]
       (to-math-expr <Div <Plus {t}> <Plus {<Term 1 {}>}>>)]}))
 
