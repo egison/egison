@@ -70,7 +70,7 @@
        [$tgt {tgt}]}]
      }))
 
-(define $term-rewriting-rules {[(power i 2) -1]})
+(define $term-rewriting-rules {[(power i 2) -1] [(power w 3) 1]})
 
 (define $rewrite-term
   (lambda [$term]
@@ -93,4 +93,3 @@
            (power mexpr (quotient k n))))]
      [[_ _ $t]
       (to-math-expr <Div <Plus {t}> <Plus {<Term 1 {}>}>>)]}))
-
