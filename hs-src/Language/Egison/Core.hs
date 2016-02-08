@@ -208,7 +208,7 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
     case val of
-      MathExpr _ -> fromEgison val >>= (return . IntKey)
+      MathExpr _ _ -> fromEgison val >>= (return . IntKey)
       Char c -> return (CharKey c)
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
@@ -359,7 +359,11 @@ evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
 evalExprDeep :: Env -> EgisonExpr -> EgisonM EgisonValue
-evalExprDeep env expr = evalExpr env expr >>= evalWHNF
+evalExprDeep env expr = do
+  val <- evalExpr env expr >>= evalWHNF
+  case val of
+    (MathExpr True mexpr) -> mathNormalize env mexpr >>= return . (MathExpr False)
+    _ -> return val
 
 evalRef :: ObjectRef -> EgisonM WHNFData
 evalRef ref = do
@@ -945,14 +949,14 @@ data EgisonHashKey =
 extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
-extractPrimitiveValue (Value val@(MathExpr _)) = return val
+extractPrimitiveValue (Value val@(MathExpr _ _)) = return val
 extractPrimitiveValue (Value val@(Float _ _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
 
 isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _)) = True
 isPrimitiveValue (Value (Bool _)) = True
-isPrimitiveValue (Value (MathExpr _)) = True
+isPrimitiveValue (Value (MathExpr _ _)) = True
 isPrimitiveValue (Value (Float _ _)) = True
 isPrimitiveValue _ = False
 
@@ -962,8 +966,19 @@ isPrimitiveValue _ = False
 --
 
 mathNormalize :: Env -> MathExpr -> EgisonM MathExpr
-mathNormalize env mExpr = (mathSortSymbols env mExpr) >>= (mathSortTerms env) >>= (return . mathNormalize')
+mathNormalize env mExpr = mathRewrite env (mathNormalize' mExpr) >>= (mathSortSymbols env) >>= (mathSortTerms env)
   
+mathRewrite :: Env -> MathExpr -> EgisonM MathExpr
+mathRewrite env mExpr = do
+  fn <- evalExpr env (VarExpr "rewrite-math-expr-with-rules")
+  mExpr' <- newEvalutedObjectRef ((Value . (MathExpr False)) mExpr)
+  ruls <- evalExpr env (VarExpr "term-rewriting-rules") >>= newEvalutedObjectRef
+  let arg = (Intermediate . ITuple) [mExpr', ruls]
+  mExpr'' <- applyFunc fn arg
+  ret <- evalWHNF mExpr''
+  case ret of
+    MathExpr False ret' -> return ret'
+
 mathSortTerms :: Env -> MathExpr -> EgisonM MathExpr
 mathSortTerms env mExpr = return mExpr
 
