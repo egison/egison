@@ -6,6 +6,14 @@
 
 (define $term-rewriting-rules {[(power i 2) -1] [(power w 2) (+ (* -1 w) -1)]})
 
+(define $rewrite-math-expr-with-rules
+  (lambda [$mexpr $rules]
+    (match rules (list [something something])
+      {[<nil> mexpr]
+       [<cons [$sym $mexpr2] $rests>
+        (rewrite-math-expr-with-rules (rewrite-math-expr-with-a-rule mexpr sym mexpr2)
+                                      rests)]})))
+
 (define $rewrite-math-expr-with-a-rule
   (lambda [$mexpr $sym $mexpr2]
     (match mexpr math-expr
