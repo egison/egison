@@ -302,6 +302,13 @@ symbolExprToEgison (Symbol x n) = InductiveData "Symbol" [toEgison (T.pack x), t
 
 egisonToMathExpr :: EgisonValue -> EgisonM MathExpr
 egisonToMathExpr (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
+egisonToMathExpr p1@(InductiveData "Plus" _) = Div <$> egisonToPolyExpr p1 <*> (return (Plus [(Term 1 [])]))
+egisonToMathExpr t1@(InductiveData "Term" _) = do
+  t1' <- egisonToTermExpr t1
+  return $ Div (Plus [t1']) (Plus [(Term 1 [])])
+egisonToMathExpr s1@(InductiveData "Symbol" _) = do
+  s1' <- egisonToSymbolExpr s1
+  return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
 egisonToMathExpr val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
 
 egisonToPolyExpr :: EgisonValue -> EgisonM PolyExpr

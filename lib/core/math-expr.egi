@@ -7,65 +7,69 @@
 (define $math-expr
   (matcher
     {[$ [math-expr']
-      {[$tgt {(from-math-expr tgt)}]}]
+      {[<Div $p1 $p2> {<Div p1 p2>}]
+       [$tgt {(from-math-expr tgt)}]}]
      }))
 
 (define $math-expr'
   (matcher
-    {[<div $ $> [poly-expr' poly-expr']
+    {[<div $ $> [poly-expr poly-expr]
       {[<Div $p1 $p2> {[p1 p2]}]
        [_ {}]}]
      [$ [something]
-      {[$tgt {tgt}]}]
+      {[$tgt {(to-math-expr tgt)}]}]
      }))
 
 (define $poly-expr
   (matcher
     {[$ [poly-expr']
-      {[$tgt {(from-math-expr tgt)}]}]
+      {[<Plus $ts> {<Plus ts>}]
+       [<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {<Plus ts>}]
+       [$tgt {(from-math-expr tgt)}]}]
      }))
 
 (define $poly-expr'
   (matcher
     {[<plus $> [(multiset term-expr)]
       {[<Plus $ts> {ts}]
-       [<Div <Plus $ts> _> {ts}]
+       [<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {ts}]
        [_ {}]}]
      [$ [something]
-      {[<Div $tgt _> {tgt}]
-       [$tgt {tgt}]}]
+      {[$tgt {(to-math-expr tgt)}]}]
      }))
 
 (define $term-expr
   (matcher
     {[$ [term-expr']
-      {[$tgt {(from-math-expr tgt)}]}]
+      {[<Term $n $xs> {<Term n xs>}]
+       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {<Term n xs>}]
+       [$tgt {(from-math-expr tgt)}]}]
      }))
 
 (define $term-expr'
   (matcher
-    {[<term $ $> [integer (multiset symbol-expr')]
+    {[<term $ $> [integer (multiset symbol-expr)]
       {[<Term $n $xs> {[n xs]}]
-       [<Div <Plus {<Term $n $xs> @{}}> _> {[n xs]}]
+       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n xs]}]
        [_ {}]}]
      [$ [something]
-      {[<Div <Plus {$tgt @{}}> _> {tgt}]
-       [$tgt {tgt}]}]
+      {[$tgt {(to-math-expr tgt)}]}]
      }))
 
 (define $symbol-expr
   (matcher
     {[$ [symbol-expr']
-      {[$tgt {(from-math-expr tgt)}]}]
+      {[<Symbol $v $n> {<Symbol v n>}]
+       [<Div <Plus {<Term 1 {<Symbol $v $n> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Symbol v n>}]
+       [$tgt {(from-math-expr tgt)}]}]
      }))
 
 (define $symbol-expr'
   (matcher
     {[<symbol $ $> [string integer]
       {[<Symbol $v $n> {[v n]}]
-       [<Div <Plus {<Term 1 {<Symbol $v $n> @{}}> @{}}> _> {[v n]}]
+       [<Div <Plus {<Term 1 {<Symbol $v $n> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v n]}]
        [_ {}]}]
      [$ [something]
-      {[<Div <Plus {<Term 1 {$tgt @{}}> @{}}> _> {tgt}]
-       [$tgt {tgt}]}]
+      {[$tgt {(to-math-expr tgt)}]}]
      }))
