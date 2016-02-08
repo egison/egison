@@ -442,14 +442,14 @@
   (lambda [$xs $ys]
     {@xs
      @(match-all [ys xs] [(multiset something) (multiset something)]
-        [[<cons $y _> ^<cons ,y _>] y])
+        [[<cons $y _> !<cons ,y _>] y])
      }))
 
 (define $union/m
   (lambda [$a $xs $ys]
     {@xs
      @(match-all [ys xs] [(multiset a) (multiset a)]
-        [[<cons $y _> ^<cons ,y _>] y])
+        [[<cons $y _> !<cons ,y _>] y])
      }))
 
 (define $intersect
@@ -544,7 +544,7 @@
 (define $unique
   (lambda [$xs]
     (match-all (sort xs) (list something)
-      [<join _ <cons $x ^<cons ,x _>>> x])))
+      [<join _ <cons $x !<cons ,x _>>> x])))
 
 (define $unique/m
   (lambda [$a $xs]

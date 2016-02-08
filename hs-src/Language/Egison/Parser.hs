@@ -479,7 +479,7 @@ letPat :: Parser EgisonPattern
 letPat = keywordLet >> LetPat <$> bindings <*> pattern
 
 notPat :: Parser EgisonPattern
-notPat = reservedOp "^" >> NotPat <$> pattern
+notPat = reservedOp "!" >> NotPat <$> pattern
 
 tuplePat :: Parser EgisonPattern
 tuplePat = brackets $ TuplePat <$> sepEndBy pattern whiteSpace
@@ -634,10 +634,11 @@ reservedOperators :: [String]
 reservedOperators = 
   [ "$"
   , "_"
+  , "^"
   , "&"
   , "|"
   , "|*"
-  , "^"
+  , "!"
   , ","
   , "."
   , "@"

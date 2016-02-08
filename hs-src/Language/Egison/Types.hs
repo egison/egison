@@ -142,6 +142,7 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr String
   | IndexedExpr EgisonExpr [EgisonExpr]
+  | PowerExpr EgisonExpr [EgisonExpr]
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]

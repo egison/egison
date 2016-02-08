@@ -16,7 +16,7 @@
      [[$p $n ,0 $r  _] (R.sat-solver p n (- r 1))]
      [[$p $n $k $r $a]
       (match (randomize p) (multiset (R.multiset [integer bool]))
-        {[<cons (& ^?(clause-satisfy? $ a) <cons [$i _] _>) _>
+        {[<cons (& !?(clause-satisfy? $ a) <cons [$i _] _>) _>
           (random-walk-3sat p n (- k 1) r (A.update not i a))]
          [_ <Just a>]})]}))
 

@@ -20,12 +20,12 @@
                {(uncons-string tgt)})]}]
      [<join $ <cons ,$px $>> [string string]
       {[$tgt (match-all (S.split (pack {px}) tgt) (list string)
-               [<join (& ^<nil> $xs) (& ^<nil> $ys)> [(S.intercalate (pack {px}) xs)
+               [<join (& !<nil> $xs) (& !<nil> $ys)> [(S.intercalate (pack {px}) xs)
                                 (S.intercalate (pack {px}) ys)
                                 ]])]}]
      [<join $ <join ,$pxs $>> [string string]
       {[$tgt (match-all (S.split pxs tgt) (list string)
-               [<join (& ^<nil> $xs) (& ^<nil> $ys)> [(S.intercalate pxs xs)
+               [<join (& !<nil> $xs) (& !<nil> $ys)> [(S.intercalate pxs xs)
                                 (S.intercalate pxs ys)
                                 ]])]}]
      [<join $ $> [string string]

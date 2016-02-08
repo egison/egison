@@ -168,12 +168,12 @@
 
 (assert "not pattern"
   (match 1 integer
-    {[^,1 #f]
-     [^,2 #t]}))
+    {[!,1 #f]
+     [!,2 #t]}))
 
 (assert-equal "not pattern"
   (match-all {1 2 2 3 3 3} (multiset integer)
-    [<cons $n ^<cons ,n _>> n])
+    [<cons $n !<cons ,n _>> n])
   {1})
 
 (assert "predicate pattern"

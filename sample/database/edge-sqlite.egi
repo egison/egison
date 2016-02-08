@@ -54,7 +54,7 @@
 ; not followed back
 (test (match-all edge-data edge-table
         [<cons <edge ,40 $m>
-               ^<cons <edge ,m ,40>
+               !<cons <edge ,m ,40>
                      _>>
          [40 m]]))
 
