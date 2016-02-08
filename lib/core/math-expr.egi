@@ -49,8 +49,8 @@
 (define $term-expr'
   (matcher
     {[<term $ $> [integer (multiset symbol-expr)]
-      {[<Term $n $xs> {[n xs]}]
-       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n xs]}]
+      {[<Term $n $xs> {[n (map to-math-expr xs)]}]
+       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map to-math-expr xs)]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr tgt)}]}]

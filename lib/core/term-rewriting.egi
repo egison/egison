@@ -25,7 +25,7 @@
     (match [sym term] [symbol-expr term-expr]
       {
        [[<symbol $v $n> <term $a <cons <symbol ,v (& ?(gte? $ n) $k)> $xs>>]
-        (rewrite-math-expr-with-a-rule (* (to-math-expr <Term a {<Symbol v (modulo k n)> @xs}>)
+        (rewrite-math-expr-with-a-rule (* (foldl * (to-math-expr <Term a {<Symbol v (modulo k n)>}>) xs)
                                           (power mexpr (quotient k n)))
                                        sym mexpr)]
        [[_ $t]
