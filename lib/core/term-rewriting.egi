@@ -4,7 +4,7 @@
 ;;;;;
 ;;;;;
 
-(define $term-rewriting-rules {[(*' i i) -1] [(*' w w w) 1] [(*' w w) (+' (*' -1 w) -1)]})
+(define $term-rewriting-rules {[(*' i i) -1] [(*' w w w) 1] [(*' w w) (+ (* -1 w) -1)]})
 
 (define $rewrite-math-expr-with-rules
   (lambda [$mexpr $rules]
