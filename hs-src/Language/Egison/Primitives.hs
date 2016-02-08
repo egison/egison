@@ -116,8 +116,6 @@ primitives = [ ("+", plus)
              , ("denominator", denominator')
              , ("from-math-expr", fromMathExpr)
              , ("to-math-expr", toMathExpr)
-             , ("real-part", realPart)
-             , ("imaginary-part", imaginaryPart)
                
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
@@ -135,6 +133,8 @@ primitives = [ ("+", plus)
              , ("floor",    floatToIntegerOp floor)
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", truncate')
+             , ("real-part", realPart)
+             , ("imaginary-part", imaginaryPart)
                
              , ("sqrt", floatUnaryOp sqrt)
              , ("exp", floatUnaryOp exp)
@@ -307,18 +307,6 @@ toMathExpr = oneArg $ toMathExpr'
  where
   toMathExpr' val = egisonToMathExpr val >>= return . MathExpr . mathNormalize'
 
-realPart :: PrimitiveFunc
-realPart =  oneArg $ realPart'
- where
-  realPart' (Float x y) = return $ Float x 0
-  realPart' val = throwError $ TypeMismatch "float" (Value val)
-
-imaginaryPart :: PrimitiveFunc
-imaginaryPart =  oneArg $ imaginaryPart'
- where
-  realPart' (Float _ y) = return $ Float y 0
-  imaginaryPart' val = throwError $ TypeMismatch "float" (Value val)
-
 --
 -- Pred
 --
@@ -381,6 +369,18 @@ truncate' = oneArg $ \val -> numberUnaryOp' val
   numberUnaryOp' (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return $ toEgison (quot x y)
   numberUnaryOp' (Float x _)           = return $ toEgison ((truncate x) :: Integer)
   numberUnaryOp' val                   = throwError $ TypeMismatch "ratinal or float" (Value val)
+
+realPart :: PrimitiveFunc
+realPart =  oneArg $ realPart'
+ where
+  realPart' (Float x y) = return $ Float x 0
+  realPart' val = throwError $ TypeMismatch "float" (Value val)
+
+imaginaryPart :: PrimitiveFunc
+imaginaryPart =  oneArg $ imaginaryPart'
+ where
+  realPart' (Float _ y) = return $ Float y 0
+  imaginaryPart' val = throwError $ TypeMismatch "float" (Value val)
 
 --
 -- Transform
