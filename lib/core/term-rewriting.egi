@@ -1,0 +1,18 @@
+;;;;;
+;;;;;
+;;;;; Term Rewriting
+;;;;;
+;;;;;
+
+(define $term-rewriting-rules {[(power i 2) -1] [(power w 2) (- 0 (+ w 1))]})
+
+(define $rewrite-term-with-rule
+  (lambda [$term $sym $mexpr]
+    (match [sym term] [symbol-expr term-expr]
+      {[[<symbol $v $n> <term $a <cons <symbol ,v $k> $xs>>]
+        [#f
+         (* (to-math-expr <Div <Plus {<Term a {<Symbol v (modulo k n)> @xs}>}> <Plus {<Term 1 {}>}>>)
+            (power mexpr (quotient k n)))]]
+       [[_ _]
+        [#t
+         (to-math-expr <Div <Plus {term}> <Plus {<Term 1 {}>}>>)]]})))

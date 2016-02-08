@@ -319,7 +319,13 @@ egisonToSymbolExpr (InductiveData "Symbol" [x, n]) = do
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: MathExpr -> MathExpr
-mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold mExpr)))
+mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr))))
+
+mathRemoveZeroSymbol :: MathExpr -> MathExpr
+mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
+  let ts1' = map (\(Term a xs) -> Term a (filter (\(Symbol _ k) -> k /= 0) xs)) ts1 in
+  let ts2' = map (\(Term a xs) -> Term a (filter (\(Symbol _ k) -> k /= 0) xs)) ts2 in
+    Div (Plus ts1') (Plus ts2')
 
 mathRemoveZero :: MathExpr -> MathExpr
 mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
