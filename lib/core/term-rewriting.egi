@@ -18,15 +18,15 @@
     (match pexpr poly-expr
       {[<plus $ts>
         (let {[$ret (map (rewrite-term-with-a-rule $ sym mexpr) ts)]}
-          (foldl + 0 (map 2#%2 ret)))]})))
+          (foldl + 0 ret))]})))
 
 (define $rewrite-term-with-a-rule
   (lambda [$term $sym $mexpr]
     (match [sym term] [symbol-expr term-expr]
-      {[[<symbol $v $n> <term $a <cons <symbol ,v $k> $xs>>]
-        [#f
-         (* (to-math-expr <Div <Plus {<Term a {<Symbol v (modulo k n)> @xs}>}> <Plus {<Term 1 {}>}>>)
-            (power mexpr (quotient k n)))]]
-       [[_ _]
-        [#t
-         (to-math-expr <Div <Plus {term}> <Plus {<Term 1 {}>}>>)]]})))
+      {
+       [[<symbol $v $n> <term $a <cons <symbol ,v (& ?(gte? $ n) $k)> $xs>>]
+        (rewrite-math-expr-with-a-rule (* (to-math-expr <Term a {<Symbol v (modulo k n)> @xs}>)
+                                          (power mexpr (quotient k n)))
+                                       sym mexpr)]
+       [[_ $t]
+        t]})))
