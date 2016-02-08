@@ -8,11 +8,13 @@
 
 (define $rewrite-math-expr-with-rules
   (lambda [$mexpr $rules]
-    (match rules (list [something something])
-      {[<nil> mexpr]
-       [<cons [$sym $mexpr2] $rests>
-        (rewrite-math-expr-with-rules (rewrite-math-expr-with-a-rule mexpr sym mexpr2)
-                                      rests)]})))
+    (if (number? mexpr)
+      (match rules (list [something something])
+        {[<nil> mexpr]
+         [<cons [$sym $mexpr2] $rests>
+          (rewrite-math-expr-with-rules (rewrite-math-expr-with-a-rule mexpr sym mexpr2)
+                                        rests)]})
+      mexpr)))
 
 (define $rewrite-math-expr-with-a-rule
   (lambda [$mexpr $sym $mexpr2]

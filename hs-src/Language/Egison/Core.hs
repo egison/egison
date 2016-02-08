@@ -258,7 +258,7 @@ evalExpr env (LetRecExpr bindings expr) =
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
   let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings
-  applyFunc env (Value $ Func env ["#1"] body) $ Value World
+  applyFunc (Value $ Func env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
     LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1"])] $
@@ -313,13 +313,13 @@ evalExpr env (ApplyExpr func arg) = do
         Just objRef -> do
           evalRef objRef
         Nothing -> do
-          whnf <- applyFunc env (Value (Func env names body)) arg
+          whnf <- applyFunc (Value (Func env names body)) arg
           retRef <- newEvalutedObjectRef whnf
           hash <- liftIO $ readIORef hashRef
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg
+    _ -> applyFunc func arg
 
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
   mapM (\(x, y, z) -> do x' <- evalExprDeep env x
@@ -405,25 +405,21 @@ evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
 evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
-applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
-applyFunc _ (Value (Func env [name] body)) arg = do
+applyFunc :: WHNFData -> WHNFData -> EgisonM WHNFData
+applyFunc (Value (Func env [name] body)) arg = do
   ref <- newEvalutedObjectRef arg
   evalExpr (extendEnv env $ makeBindings [name] [ref]) body
-applyFunc _ (Value (Func env names body)) arg = do
+applyFunc (Value (Func env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
-applyFunc env (Value (PrimitiveFunc func)) arg = do
-  whnf <- func arg
-  case whnf of
-    (Value (MathExpr mExpr)) -> mathNormalize env mExpr >>= (return . Value . MathExpr)
-    _ -> return whnf
-applyFunc _ (Value (IOFunc m)) arg = do
+applyFunc (Value (PrimitiveFunc func)) arg = func arg
+applyFunc (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc _ val _ = throwError $ TypeMismatch "function" val
+applyFunc val _ = throwError $ TypeMismatch "function" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name sizeExpr expr = do
@@ -639,7 +635,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     PredPat predicate -> do
       func <- evalExpr env' predicate
       arg <- evalRef target
-      result <- applyFunc env func arg >>= fromWHNF
+      result <- applyFunc func arg >>= fromWHNF
       if result then return $ msingleton $ (MState env loops bindings trees)
                 else return MNil
 
@@ -966,19 +962,13 @@ isPrimitiveValue _ = False
 --
 
 mathNormalize :: Env -> MathExpr -> EgisonM MathExpr
-mathNormalize env mExpr = f mExpr >>= (mathRewriteMathExpr env) >>= f
- where
-  f mExpr = (mathSortSymbols env) (mathNormalize' mExpr) >>= (mathSortTerms env)
+mathNormalize env mExpr = (mathSortSymbols env mExpr) >>= (mathSortTerms env) >>= (return . mathNormalize')
   
 mathSortTerms :: Env -> MathExpr -> EgisonM MathExpr
 mathSortTerms env mExpr = return mExpr
 
 mathSortSymbols :: Env -> MathExpr -> EgisonM MathExpr
 mathSortSymbols env mExpr = return mExpr
-
-mathRewriteMathExpr :: Env -> MathExpr -> EgisonM MathExpr
-mathRewriteMathExpr env (Div (Plus ts1) (Plus ts2)) = do
-  return (Div (Plus ts1) (Plus ts2))
 
 --
 --  Arithmetic operations

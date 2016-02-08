@@ -253,7 +253,7 @@ plus = twoArgs $ \val val' -> numberBinaryOp' val val'
   numberBinaryOp' (Float x y)   (Float x' y') = return $ Float (x + x') (y + y')
   numberBinaryOp' val           (Float x' y') = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)   val'          = numberBinaryOp' (Float x y) (numberToFloat' val')
-  numberBinaryOp' (MathExpr m1) (MathExpr m2) = return $ MathExpr (mathPlus m1 m2)
+  numberBinaryOp' (MathExpr m1) (MathExpr m2) = return $ MathExpr (mathNormalize' (mathPlus m1 m2))
   numberBinaryOp' (MathExpr _)  val'          = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val           _             = throwError $ TypeMismatch "number" (Value val)
 
@@ -261,7 +261,7 @@ minus :: PrimitiveFunc
 minus = twoArgs $ \val val' -> numberBinaryOp' val val'
  where
   numberBinaryOp' (Float x y)   (Float x' y') = return $ Float (x - x') (y - y')
-  numberBinaryOp' (MathExpr m1) (MathExpr m2) = return $ MathExpr (mathPlus m1 (mathNegate m2))
+  numberBinaryOp' (MathExpr m1) (MathExpr m2) = return $ MathExpr (mathNormalize' (mathPlus m1 (mathNegate m2)))
   numberBinaryOp' _              val          = throwError $ TypeMismatch "number" (Value val)
 
 multiply :: PrimitiveFunc
@@ -270,7 +270,7 @@ multiply = twoArgs $ \val val' -> numberBinaryOp' val val'
   numberBinaryOp' (Float x y)   (Float x' y') = return $ Float (x * x' - y * y')  (x * y' + x' * y) 
   numberBinaryOp' val           (Float x' y') = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)   val'          = numberBinaryOp' (Float x y) (numberToFloat' val')
-  numberBinaryOp' (MathExpr m1) (MathExpr m2) = return $ MathExpr (mathMult m1 m2)
+  numberBinaryOp' (MathExpr m1) (MathExpr m2) = return $ MathExpr (mathNormalize' (mathMult m1 m2))
   numberBinaryOp' (MathExpr _)  val'          = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val           _             = throwError $ TypeMismatch "number" (Value val)
 
@@ -280,7 +280,7 @@ divide = twoArgs $ \val val' -> numberBinaryOp' val val'
   numberBinaryOp' (Float f 0)    (Float f' 0)          = return $ Float (f / f') 0
   numberBinaryOp' val          (Float x' y')           = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)  val'                    = numberBinaryOp' (Float x y) (numberToFloat' val')
-  numberBinaryOp' (MathExpr m1) (MathExpr (Div p1 p2)) = return $ MathExpr (mathMult m1 (Div p2 p1))
+  numberBinaryOp' (MathExpr m1) (MathExpr (Div p1 p2)) = return $ MathExpr (mathNormalize' (mathMult m1 (Div p2 p1)))
   numberBinaryOp' (MathExpr _) val'                    = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val          _                       = throwError $ TypeMismatch "number" (Value val)
 
@@ -305,7 +305,7 @@ fromMathExpr = oneArg $ fromMathExpr'
 toMathExpr :: PrimitiveFunc
 toMathExpr = oneArg $ toMathExpr'
  where
-  toMathExpr' val = egisonToMathExpr val >>= return . MathExpr
+  toMathExpr' val = egisonToMathExpr val >>= return . MathExpr . mathNormalize'
 
 realPart :: PrimitiveFunc
 realPart =  oneArg $ realPart'
