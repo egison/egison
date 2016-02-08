@@ -258,7 +258,7 @@ evalExpr env (LetRecExpr bindings expr) =
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
   let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings
-  applyFunc (Value $ Func env ["#1"] body) $ Value World
+  applyFunc env (Value $ Func env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
     LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1"])] $
@@ -313,13 +313,13 @@ evalExpr env (ApplyExpr func arg) = do
         Just objRef -> do
           evalRef objRef
         Nothing -> do
-          whnf <- applyFunc (Value (Func env names body)) arg
+          whnf <- applyFunc env (Value (Func env names body)) arg
           retRef <- newEvalutedObjectRef whnf
           hash <- liftIO $ readIORef hashRef
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc ref hashRef env names body))
           return whnf
-    _ -> applyFunc func arg
+    _ -> applyFunc env func arg
 
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
   mapM (\(x, y, z) -> do x' <- evalExprDeep env x
@@ -359,11 +359,7 @@ evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
 
 evalExprDeep :: Env -> EgisonExpr -> EgisonM EgisonValue
-evalExprDeep env expr = do
-  val <- evalExpr env expr >>= evalWHNF
-  case val of
-    (MathExpr True mexpr) -> mathNormalize env mexpr >>= return . (MathExpr False)
-    _ -> return val
+evalExprDeep env expr = evalExpr env expr >>= evalWHNF
 
 evalRef :: ObjectRef -> EgisonM WHNFData
 evalRef ref = do
@@ -409,21 +405,27 @@ evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
 evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
-applyFunc :: WHNFData -> WHNFData -> EgisonM WHNFData
-applyFunc (Value (Func env [name] body)) arg = do
+applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
+applyFunc _ (Value (Func env [name] body)) arg = do
   ref <- newEvalutedObjectRef arg
   evalExpr (extendEnv env $ makeBindings [name] [ref]) body
-applyFunc (Value (Func env names body)) arg = do
+applyFunc _ (Value (Func env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
-applyFunc (Value (PrimitiveFunc func)) arg = func arg
-applyFunc (Value (IOFunc m)) arg = do
+applyFunc env (Value (PrimitiveFunc func)) arg = do
+  whnf <- func arg
+  case whnf of
+    (Value (MathExpr True (Div (Plus []) (Plus [(Term _ [])])))) -> return whnf
+    (Value (MathExpr True (Div (Plus [(Term _ [])]) (Plus [(Term _ [])])))) -> return whnf
+    (Value (MathExpr True mExpr)) -> mathNormalize env mExpr >>= return . Value . (MathExpr False)
+    _ -> return whnf
+applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc val _ = throwError $ TypeMismatch "function" val
+applyFunc _ val _ = throwError $ TypeMismatch "function" val
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name sizeExpr expr = do
@@ -639,7 +641,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
     PredPat predicate -> do
       func <- evalExpr env' predicate
       arg <- evalRef target
-      result <- applyFunc func arg >>= fromWHNF
+      result <- applyFunc env func arg >>= fromWHNF
       if result then return $ msingleton $ (MState env loops bindings trees)
                 else return MNil
 
@@ -974,7 +976,7 @@ mathRewrite env mExpr = do
   mExpr' <- newEvalutedObjectRef ((Value . (MathExpr False)) mExpr)
   ruls <- evalExpr env (VarExpr "term-rewriting-rules") >>= newEvalutedObjectRef
   let arg = (Intermediate . ITuple) [mExpr', ruls]
-  mExpr'' <- applyFunc fn arg
+  mExpr'' <- applyFunc env fn arg
   ret <- evalWHNF mExpr''
   case ret of
     MathExpr False ret' -> return ret'

@@ -4,16 +4,18 @@
 ;;;;;
 ;;;;;
 
-(define $term-rewriting-rules {[(*' i i) -1] [(*' w w w) 1] [(*' w w) (+ (* -1 w) -1)]})
+(define $term-rewriting-rules {[(*' i i) -1] [(*' w w w) 1] [(*' w w) (+' (*' -1 w) -1)]})
 
 (define $rewrite-math-expr-with-rules
   (lambda [$mexpr $rules]
     (if (number? mexpr)
-      (match rules (list [something something])
-        {[<nil> mexpr]
-         [<cons [$sym $mexpr2] $rests>
-          (rewrite-math-expr-with-rules (rewrite-math-expr-with-a-rule mexpr sym mexpr2)
-                                        rests)]})
+      (if (rational? mexpr)
+        mexpr
+        (match rules (list [something something])
+          {[<nil> mexpr]
+           [<cons [$sym $mexpr2] $rests>
+            (rewrite-math-expr-with-rules (rewrite-math-expr-with-a-rule mexpr sym mexpr2)
+                                          rests)]}))
       mexpr)))
 
 (define $rewrite-math-expr-with-a-rule
@@ -35,8 +37,8 @@
     (match [sym term] [symbol-expr term-expr]
       {
        [[<symbol $v $n> <term $a <cons <symbol ,v (& ?(gte? $ n) $k)> $xs>>]
-        (rewrite-math-expr-with-a-rule (*' (foldl *' (to-math-expr <Term a {<Symbol v (modulo k n)>}>) xs)
-                                          (power mexpr (quotient k n)))
+        (rewrite-math-expr-with-a-rule (*' (foldl *' (to-math-expr' <Term a {<Symbol v (modulo k n)>}>) xs)
+                                          (foldl *' 1 (take (quotient k n) (repeat1 mexpr))))
                                        sym mexpr)]
        [[_ $t]
         t]})))
