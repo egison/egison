@@ -121,6 +121,12 @@
         "error")
       (exp' x n))))
 
+(define $** power)
+
+(define $**'
+  (lambda [$x $n]
+    (foldl *' 1 (take n (repeat1 x)))))
+
 (define $sum
   (lambda [$xs]
     (foldl + 0 xs)))
