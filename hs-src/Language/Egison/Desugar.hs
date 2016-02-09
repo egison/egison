@@ -140,6 +140,11 @@ desugar (ArrayRefExpr expr nums) =
 desugar (IndexedExpr expr indices) = 
   IndexedExpr <$> desugar expr <*> (mapM desugar indices)
 
+desugar (PowerExpr expr1 expr2) = do
+  expr1' <- desugar expr1
+  expr2' <- desugar expr2
+  return $ ApplyExpr (VarExpr "power") (TupleExpr [expr1', expr2'])
+
 desugar (ArraySizeExpr expr) = do
   expr' <- desugar expr
   return $ ArraySizeExpr expr'
