@@ -69,7 +69,7 @@ Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper o
 
 ## Installation
 
-At first, you should install <a target="_blank" href="http://www.haskell.org/platform/">Haskell Platform</a>.
+At first, you should install <a target="_blank" href="https://www.haskell.org/platform/">Haskell Platform</a>.
 
 After you installed Haskell Platform, run the following commands on the terminal.
 
@@ -89,7 +89,7 @@ Welcome to Egison Interpreter!
 Leaving Egison Interpreter.
 ```
 
-If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egisatoshi/egison-tutorial">`egison-tutorial`</a>.
+If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egison/egison-tutorial">`egison-tutorial`</a>.
 
 ```
 % cabal update
