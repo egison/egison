@@ -85,14 +85,6 @@ threeArgs f = \args -> do
     [val, val', val''] -> f val val' val'' >>= return . Value
     _ -> throwError $ ArgumentsNumPrimitive 3 $ length args'
 
-tupleToList :: WHNFData -> EgisonM [EgisonValue]
-tupleToList whnf = do
-  val <- evalWHNF whnf
-  return $ tupleToList' val
- where
-  tupleToList' (Tuple vals) = vals
-  tupleToList' val = [val]
-
 --
 -- Constants
 --

@@ -61,6 +61,8 @@
     {[$ [symbol-expr']
       {[<Symbol $v $n> {<Symbol v n>}]
        [<Div <Plus {<Term 1 {<Symbol $v $n> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Symbol v n>}]
+       [<Func $v $mexprs $n> {<Func v mexprs n>}]
+       [<Div <Plus {<Term 1 {<Func $v $mexprs $n> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Func v mexprs n>}]
        [$tgt {(from-math-expr tgt)}]}]
      }))
 
@@ -69,6 +71,10 @@
     {[<symbol $ $> [string integer]
       {[<Symbol $v $n> {[v n]}]
        [<Div <Plus {<Term 1 {<Symbol $v $n> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v n]}]
+       [_ {}]}]
+     [<func $ $ $> [string (list math-expr) integer]
+      {[<Func $v $mexprs $n> [v mexprs n]]
+       [<Div <Plus {<Term 1 {<Func $v $mexprs $n> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v mexprs n]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]

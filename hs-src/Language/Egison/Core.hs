@@ -29,6 +29,8 @@ module Language.Egison.Core
     , isEmptyCollection
     , unconsCollection
     , unsnocCollection
+    -- * Tuple
+    , tupleToList
     -- * Utiltiy functions
     , packStringValue
     -- * Math functions
@@ -417,6 +419,7 @@ applyFunc _ (Value (Func env names body)) arg = do
 applyFunc env (Value (PrimitiveFunc func)) arg = do
   whnf <- func arg
   case whnf of
+    -- If the return value is a rational number, we do not pass it to `mathNormalize`.
     (Value (MathExpr True (Div (Plus []) (Plus [(Term _ [])])))) -> return whnf
     (Value (MathExpr True (Div (Plus [(Term _ [])]) (Plus [(Term _ [])])))) -> return whnf
     (Value (MathExpr True mExpr)) -> mathNormalize env mExpr >>= return . Value . (MathExpr False)
@@ -425,7 +428,14 @@ applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc _ val _ = throwError $ TypeMismatch "function" val
+applyFunc env (Value (MathExpr _ (Div (Plus [(Term 1 [(Symbol name 1)])]) (Plus [(Term 1 [])])))) arg = do
+  args <- tupleToList arg
+  mExprs <- mapM p args
+  return (Value (MathExpr False (Div (Plus [(Term 1 [(AppFun name mExprs 1)])]) (Plus [(Term 1 [])]))))
+ where
+  p val@(MathExpr _ mExpr) = return mExpr
+  p val = throwError $ TypeMismatch "math expression" (Value val)
+applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
 
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name sizeExpr expr = do
@@ -925,6 +935,14 @@ fromCollection whnf@(Intermediate (ICollection _)) = do
       tail' <- evalRef tail
       return $ MCons head (fromCollection tail')
 fromCollection whnf = throwError $ TypeMismatch "collection" whnf
+
+tupleToList :: WHNFData -> EgisonM [EgisonValue]
+tupleToList whnf = do
+  val <- evalWHNF whnf
+  return $ tupleToList' val
+ where
+  tupleToList' (Tuple vals) = vals
+  tupleToList' val = [val]
 
 --
 -- String

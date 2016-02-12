@@ -301,7 +301,7 @@ termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.
 
 symbolExprToEgison :: SymbolExpr -> EgisonValue
 symbolExprToEgison (Symbol x n) = InductiveData "Symbol" [toEgison (T.pack x), toEgison n]
-symbolExprToEgison (AppFun name mExprs n) = InductiveData "AppFun" [toEgison (T.pack name), Collection (Sq.fromList (map mathExprToEgison mExprs)), toEgison n]
+symbolExprToEgison (AppFun name mExprs n) = InductiveData "Func" [toEgison (T.pack name), Collection (Sq.fromList (map mathExprToEgison mExprs)), toEgison n]
 
 egisonToMathExpr :: EgisonValue -> EgisonM MathExpr
 egisonToMathExpr (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -310,6 +310,9 @@ egisonToMathExpr t1@(InductiveData "Term" _) = do
   t1' <- egisonToTermExpr t1
   return $ Div (Plus [t1']) (Plus [(Term 1 [])])
 egisonToMathExpr s1@(InductiveData "Symbol" _) = do
+  s1' <- egisonToSymbolExpr s1
+  return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
+egisonToMathExpr s1@(InductiveData "Func" _) = do
   s1' <- egisonToSymbolExpr s1
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
 egisonToMathExpr val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
@@ -326,7 +329,7 @@ egisonToSymbolExpr :: EgisonValue -> EgisonM SymbolExpr
 egisonToSymbolExpr (InductiveData "Symbol" [x, n]) = do
   x' <- fromEgison x
   Symbol (T.unpack x') <$> (fromEgison n)
-egisonToSymbolExpr (InductiveData "AppFun" [name, (Collection mExprs), n]) = do
+egisonToSymbolExpr (InductiveData "Func" [name, (Collection mExprs), n]) = do
   name' <- fromEgison name
   mExprs' <- mapM egisonToMathExpr (toList mExprs)
   n' <- fromEgison n
@@ -412,19 +415,36 @@ mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
   foldSymbolExpr :: [SymbolExpr] -> [SymbolExpr]
   foldSymbolExpr xs = foldSymbolExpr' [] xs
   foldSymbolExpr' ret [] = ret
-  foldSymbolExpr' ret ((Symbol x n):ts) =
-    if all (\(Symbol y _) -> x /= y) ret
-      then foldSymbolExpr' (ret ++ [Symbol x n]) ts
-      else foldSymbolExpr' (map (\(Symbol y n') -> if x == y
-                                                     then (Symbol y (n + n'))
-                                                     else (Symbol y n'))
+  foldSymbolExpr' ret (xn:ts) =
+    if (any (sameSymbol xn) ret)
+      then foldSymbolExpr' (map (addPower xn)
                                 ret) ts
+      else foldSymbolExpr' (ret ++ [xn]) ts
+
+  sameSymbol :: SymbolExpr -> SymbolExpr -> Bool
+  sameSymbol (Symbol x _) (Symbol y _) = x == y
+  sameSymbol (AppFun x mExpr _) (AppFun y mExpr' _) = (x == y && mExpr == mExpr')
+  sameSymbol _ _ = False
+
+  addPower :: SymbolExpr -> SymbolExpr -> SymbolExpr
+  addPower (Symbol x n) (Symbol y n') = if x == y 
+                                          then (Symbol y (n + n'))
+                                          else (Symbol y n')
+  addPower (Symbol x n) _ = (Symbol x n)
+  addPower (AppFun x mExpr n) (AppFun y mExpr' n') = if (x == y && mExpr == mExpr')
+                                                       then (AppFun y mExpr' (n + n'))
+                                                       else (AppFun y mExpr' n')
+  addPower (AppFun x mExpr n) _ = (AppFun x mExpr n)
+
   p :: [SymbolExpr] -> [SymbolExpr] -> Bool
   p xs ys = (sortSymbolExpr xs) == (sortSymbolExpr ys)
   sortSymbolExpr :: [SymbolExpr] -> [SymbolExpr]
   sortSymbolExpr xs = sortBy h xs
   h :: SymbolExpr -> SymbolExpr -> Ordering
   h (Symbol x _) (Symbol y _) = compare x y
+  h (Symbol x _) (AppFun y _ _) = compare x y
+  h (AppFun x _ _) (Symbol y _) = compare x y
+  h (AppFun x _ _) (AppFun y _ _) = compare x y
 
 type Matcher = EgisonValue
 
