@@ -283,7 +283,7 @@ data TermExpr =
 
 data SymbolExpr =
     Symbol String Integer
-  | AppFun String EgisonValue [MathExpr] Integer
+  | AppFun String [MathExpr] Integer
  deriving (Eq)
 
 
@@ -301,7 +301,7 @@ termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.
 
 symbolExprToEgison :: SymbolExpr -> EgisonValue
 symbolExprToEgison (Symbol x n) = InductiveData "Symbol" [toEgison (T.pack x), toEgison n]
-symbolExprToEgison (AppFun name fn mExprs n) = InductiveData "AppFun" [toEgison (T.pack name), fn, Collection (Sq.fromList (map mathExprToEgison mExprs)), toEgison n]
+symbolExprToEgison (AppFun name mExprs n) = InductiveData "AppFun" [toEgison (T.pack name), Collection (Sq.fromList (map mathExprToEgison mExprs)), toEgison n]
 
 egisonToMathExpr :: EgisonValue -> EgisonM MathExpr
 egisonToMathExpr (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -326,11 +326,11 @@ egisonToSymbolExpr :: EgisonValue -> EgisonM SymbolExpr
 egisonToSymbolExpr (InductiveData "Symbol" [x, n]) = do
   x' <- fromEgison x
   Symbol (T.unpack x') <$> (fromEgison n)
-egisonToSymbolExpr (InductiveData "AppFun" [name, fn, (Collection mExprs), n]) = do
+egisonToSymbolExpr (InductiveData "AppFun" [name, (Collection mExprs), n]) = do
   name' <- fromEgison name
   mExprs' <- mapM egisonToMathExpr (toList mExprs)
   n' <- fromEgison n
-  return $ AppFun (T.unpack name') fn mExprs' n'
+  return $ AppFun (T.unpack name') mExprs' n'
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: MathExpr -> MathExpr
@@ -338,8 +338,12 @@ mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZ
 
 mathRemoveZeroSymbol :: MathExpr -> MathExpr
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
-  let ts1' = map (\(Term a xs) -> Term a (filter (\(Symbol _ k) -> k /= 0) xs)) ts1 in
-  let ts2' = map (\(Term a xs) -> Term a (filter (\(Symbol _ k) -> k /= 0) xs)) ts2 in
+  let p x = case x of
+              (Symbol _ 0) -> False
+              (AppFun _ _ 0) -> False
+              _ -> True in
+  let ts1' = map (\(Term a xs) -> Term a (filter p xs)) ts1 in
+  let ts2' = map (\(Term a xs) -> Term a (filter p xs)) ts2 in
     Div (Plus ts1') (Plus ts2')
 
 mathRemoveZero :: MathExpr -> MathExpr
@@ -371,6 +375,8 @@ mathReduceSymbolFraction (Div (Plus ts) (Plus ((Term a xs):[]))) = f xs [] ts
       if n > k
         then f xs (ret ++ [Symbol x (n - k)]) (h x k ts)
         else f xs ret (h x n ts)
+  f ((AppFun x mExprs n):xs) ret ts =
+    f xs (ret ++ [(AppFun x mExprs n)]) ts
   g :: String -> [TermExpr] -> Integer
   g x ts = minimum (map (\(Term _ xs) -> g' x xs) ts)
   g' :: String -> [SymbolExpr] -> Integer
@@ -472,8 +478,8 @@ instance Show TermExpr where
 instance Show SymbolExpr where
   show (Symbol s 1) = s
   show (Symbol s n) = s ++ "^" ++ show n
-  show (AppFun s _ mExpr 1) = "(" ++ s ++ " " ++ show mExpr ++ ")"
-  show (AppFun s _ mExpr n) = "(" ++ s ++ " " ++ show mExpr ++ ")" ++ "^" ++ show n
+  show (AppFun s mExprs 1) = "(" ++ s ++ " " ++ unwords (map show mExprs) ++ ")"
+  show (AppFun s mExprs n) = "(" ++ s ++ " " ++ unwords (map show mExprs) ++ ")" ++ "^" ++ show n
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
