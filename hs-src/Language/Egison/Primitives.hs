@@ -133,21 +133,21 @@ primitives = [ ("+", plus)
              , ("real-part", realPart)
              , ("imaginary-part", imaginaryPart)
                
-             , ("sqrt", floatUnaryOp sqrt)
-             , ("exp", floatUnaryOp exp)
-             , ("log", floatUnaryOp log)
-             , ("sin", floatUnaryOp sin)
-             , ("cos", floatUnaryOp cos)
-             , ("tan", floatUnaryOp tan)
-             , ("asin", floatUnaryOp asin)
-             , ("acos", floatUnaryOp acos)
-             , ("atan", floatUnaryOp atan)
-             , ("sinh", floatUnaryOp sinh)
-             , ("cosh", floatUnaryOp cosh)
-             , ("tanh", floatUnaryOp tanh)
-             , ("asinh", floatUnaryOp asinh)
-             , ("acosh", floatUnaryOp acosh)
-             , ("atanh", floatUnaryOp atanh)
+             , ("sqrt", floatUnaryOp "sqrt" sqrt)
+             , ("exp", floatUnaryOp "exp" exp)
+             , ("log", floatUnaryOp "log" log)
+             , ("sin", floatUnaryOp "sin" sin)
+             , ("cos", floatUnaryOp "cos" cos)
+             , ("tan", floatUnaryOp "tan" tan)
+             , ("asin", floatUnaryOp "asin" asin)
+             , ("acos", floatUnaryOp "acos" acos)
+             , ("atan", floatUnaryOp "atan" atan)
+             , ("sinh", floatUnaryOp "sinh" sinh)
+             , ("cosh", floatUnaryOp "cosh" cosh)
+             , ("tanh", floatUnaryOp "tanh" tanh)
+             , ("asinh", floatUnaryOp "asinh" asinh)
+             , ("acosh", floatUnaryOp "acosh" acosh)
+             , ("atanh", floatUnaryOp "atanh" atanh)
                
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
@@ -220,20 +220,18 @@ integerBinaryPred pred = twoArgs $ \val val' -> do
   i' <- fromEgison val'
   return $ Bool $ pred i i'
 
-floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
-floatUnaryOp op = oneArg $ \val -> do
+floatUnaryOp :: String -> (Double -> Double) -> PrimitiveFunc
+floatUnaryOp name op = oneArg $ \val -> do
   case val of
     (Float f 0) -> return $ Float (op f) 0
-    n@(MathExpr _) -> do
-      r <- fromEgison n
-      return $ Float (op (fromRational r)) 0
+    (MathExpr mExpr) -> return $ MathExpr (Div (Plus [(Term 1 [(AppFun name [mExpr] 1)])]) (Plus [(Term 1 [])]))
     _ -> throwError $ TypeMismatch "number" (Value val)
 
-floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
-floatBinaryOp op = twoArgs $ \val val' -> do
-  f <- fromEgison val
-  f' <- fromEgison val'
-  return $ Float (op f f') 0
+floatBinaryOp :: String -> (Double -> Double -> Double) -> PrimitiveFunc
+floatBinaryOp name op = twoArgs $ \val val' -> do
+  case (val, val') of
+    ((Float f 0), (Float f' 0)) -> return $ Float (op f f') 0
+    ((MathExpr mExpr), (MathExpr mExpr')) -> return $ MathExpr (Div (Plus [(Term 1 [(AppFun name [mExpr, mExpr'] 1)])]) (Plus [(Term 1 [])]))
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' -> do
@@ -416,7 +414,7 @@ rationalToFloat = oneArg $ \val ->
   case val of
     (MathExpr (Div (Plus []) _)) -> return $ numberToFloat' val
     (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])]))) -> return $ numberToFloat' val
-    _ -> throwError $ TypeMismatch "integer of rational number" (Value val)
+    _ -> throwError $ TypeMismatch "integer or rational number" (Value val)
 
 charToInteger :: PrimitiveFunc
 charToInteger = oneArg $ \val -> do
