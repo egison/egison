@@ -426,7 +426,8 @@ applyFunc env (Value (MathExpr (Div (Plus [(Term 1 [(Symbol name 1)])]) (Plus [(
   mExprs <- mapM p args
   return (Value (MathExpr (Div (Plus [(Term 1 [(AppFun name mExprs 1)])]) (Plus [(Term 1 [])]))))
  where
-  p val@(MathExpr mExpr) = return mExpr
+  p :: EgisonValue -> EgisonM MathExpr
+  p (MathExpr mExpr) = return mExpr
   p val = throwError $ TypeMismatch "math expression" (Value val)
 applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
 
