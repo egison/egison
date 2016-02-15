@@ -161,7 +161,7 @@ evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
   refVar' env var = maybe (newEvalutedObjectRef (Value (symbolMathExpr var))) return
-                          (msum $ map (HashMap.lookup var) env)
+                          (refVar env var)
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =

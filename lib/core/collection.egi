@@ -365,6 +365,40 @@
         {[$tgt {tgt}]}]
        })))
 
+(define $assoc-multiset
+  (lambda [$a]
+    (matcher
+      {[<nil> []
+        {[{} {[]}]
+         [_ {}]}]
+       [<cons ,$x $> [(assoc-multiset a)]
+        {[$tgt (match-all tgt (list [a integer])
+                 [<join $hs <cons [,x $n] $ts>>
+                  (if (eq? n 1)
+                    {@hs @ts}
+                    {@hs [x (- n 1)] @ts})])]}]
+       [<cons $ $> [a (assoc-multiset a)]
+        {[$tgt (match-all tgt (list [a integer])
+                 [<join $hs <cons [$x $n] $ts>>
+                  (if (eq? n 1)
+                    [x {@hs @ts}]
+                    [x {@hs [x (- n 1)] @ts}])])]}]
+       [<ncons ,$n ,$x $> [(assoc-multiset a)]
+        {[$tgt (match-all tgt (list [a integer])
+                 [<join $hs <cons [,x (& ?(gte? $ n) $k)] $ts>>
+                  (if (eq? (- k n) 0)
+                    {@hs @ts}
+                    {@hs [x (- k n)] @ts})])]}]
+       [<ncons ,$n $ $> [a (assoc-multiset a)]
+        {[$tgt (match-all tgt (list [a integer])
+                 [<join $hs <cons [$x (& ?(gte? $ n) $k)] $ts>>
+                  (if (eq? (- k n) 0)
+                    [x {@hs @ts}]
+                    [x {@hs [x (- k n)] @ts}])])]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))
+
 ;;
 ;; multiset operation
 ;;
