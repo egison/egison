@@ -224,14 +224,14 @@ floatUnaryOp :: String -> (Double -> Double) -> PrimitiveFunc
 floatUnaryOp name op = oneArg $ \val -> do
   case val of
     (Float f 0) -> return $ Float (op f) 0
-    (MathExpr mExpr) -> return $ MathExpr (Div (Plus [(Term 1 [(AppFun name [mExpr] 1)])]) (Plus [(Term 1 [])]))
+    (MathExpr mExpr) -> return $ MathExpr (Div (Plus [(Term 1 [(Apply name [mExpr], 1)])]) (Plus [(Term 1 [])]))
     _ -> throwError $ TypeMismatch "number" (Value val)
 
 floatBinaryOp :: String -> (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp name op = twoArgs $ \val val' -> do
   case (val, val') of
     ((Float f 0), (Float f' 0)) -> return $ Float (op f f') 0
-    ((MathExpr mExpr), (MathExpr mExpr')) -> return $ MathExpr (Div (Plus [(Term 1 [(AppFun name [mExpr, mExpr'] 1)])]) (Plus [(Term 1 [])]))
+    ((MathExpr mExpr), (MathExpr mExpr')) -> return $ MathExpr (Div (Plus [(Term 1 [(Apply name [mExpr, mExpr'], 1)])]) (Plus [(Term 1 [])]))
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' -> do
@@ -315,9 +315,11 @@ fromMathExpr = oneArg $ fromMathExpr'
   fromMathExpr' val = throwError $ TypeMismatch "number" (Value val)
 
 toMathExpr :: PrimitiveFunc
-toMathExpr = oneArg $ toMathExpr'
- where
-  toMathExpr' val = egisonToMathExpr val >>= return . MathExpr . mathNormalize'
+toMathExpr env args = do
+  args' <- tupleToList args
+  case args' of 
+    [val] -> egisonToMathExpr val >>= mathNormalize env >>= return . Value . MathExpr
+    _ -> throwError $ ArgumentsNumPrimitive 1 $ length args'
 
 toMathExpr2 :: PrimitiveFunc
 toMathExpr2 = oneArg $ toMathExpr'

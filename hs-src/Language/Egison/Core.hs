@@ -421,10 +421,10 @@ applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc env (Value (MathExpr (Div (Plus [(Term 1 [(Symbol name 1)])]) (Plus [(Term 1 [])])))) arg = do
+applyFunc env (Value (MathExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM p args
-  return (Value (MathExpr (Div (Plus [(Term 1 [(AppFun name mExprs 1)])]) (Plus [(Term 1 [])]))))
+  return (Value (MathExpr (Div (Plus [(Term 1 [(Apply name mExprs, 1)])]) (Plus [(Term 1 [])]))))
  where
   p :: EgisonValue -> EgisonM MathExpr
   p (MathExpr mExpr) = return mExpr

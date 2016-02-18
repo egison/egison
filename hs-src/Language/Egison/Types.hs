@@ -278,17 +278,17 @@ data PolyExpr =
  deriving (Eq)
 
 data TermExpr =
-    Term Integer [SymbolExpr]
+    Term Integer [(SymbolExpr, Integer)]
  deriving (Eq)
 
 data SymbolExpr =
-    Symbol String Integer
-  | AppFun String [MathExpr] Integer
+    Symbol String
+  | Apply String [MathExpr]
  deriving (Eq)
 
 
 symbolMathExpr :: String -> EgisonValue
-symbolMathExpr name = (MathExpr (Div (Plus [(Term 1 [(Symbol name 1)])]) (Plus [(Term 1 [])])))
+symbolMathExpr name = (MathExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))
 
 mathExprToEgison :: MathExpr -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [(polyExprToEgison p1), (polyExprToEgison p2)]
@@ -299,9 +299,9 @@ polyExprToEgison (Plus ts) = InductiveData "Plus" [Collection (Sq.fromList (map 
 termExprToEgison :: TermExpr -> EgisonValue
 termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprToEgison xs))]
 
-symbolExprToEgison :: SymbolExpr -> EgisonValue
-symbolExprToEgison (Symbol x n) = InductiveData "Symbol" [toEgison (T.pack x), toEgison n]
-symbolExprToEgison (AppFun name mExprs n) = InductiveData "Func" [toEgison (T.pack name), Collection (Sq.fromList (map mathExprToEgison mExprs)), toEgison n]
+symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
+symbolExprToEgison (Symbol x, n) = Tuple [InductiveData "Symbol" [toEgison (T.pack x)], toEgison n]
+symbolExprToEgison (Apply name mExprs, n) = Tuple [InductiveData "Apply" [toEgison (T.pack name), Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 
 egisonToMathExpr :: EgisonValue -> EgisonM MathExpr
 egisonToMathExpr (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -312,7 +312,7 @@ egisonToMathExpr t1@(InductiveData "Term" _) = do
 egisonToMathExpr s1@(InductiveData "Symbol" _) = do
   s1' <- egisonToSymbolExpr s1
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
-egisonToMathExpr s1@(InductiveData "Func" _) = do
+egisonToMathExpr s1@(InductiveData "Apply" _) = do
   s1' <- egisonToSymbolExpr s1
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
 egisonToMathExpr val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
@@ -325,15 +325,16 @@ egisonToTermExpr :: EgisonValue -> EgisonM TermExpr
 egisonToTermExpr (InductiveData "Term" [n, Collection ts]) = Term <$> fromEgison n <*> mapM egisonToSymbolExpr (toList ts)
 egisonToTermExpr val = liftError $ throwError $ TypeMismatch "math term expression" (Value val)
 
-egisonToSymbolExpr :: EgisonValue -> EgisonM SymbolExpr
-egisonToSymbolExpr (InductiveData "Symbol" [x, n]) = do
+egisonToSymbolExpr :: EgisonValue -> EgisonM (SymbolExpr, Integer)
+egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x], n]) = do
   x' <- fromEgison x
-  Symbol (T.unpack x') <$> (fromEgison n)
-egisonToSymbolExpr (InductiveData "Func" [name, (Collection mExprs), n]) = do
+  n' <- fromEgison n
+  return (Symbol (T.unpack x'), n')
+egisonToSymbolExpr (Tuple [InductiveData "Apply" [name, (Collection mExprs)], n]) = do
   name' <- fromEgison name
   mExprs' <- mapM egisonToMathExpr (toList mExprs)
   n' <- fromEgison n
-  return $ AppFun (T.unpack name') mExprs' n'
+  return (Apply (T.unpack name') mExprs', n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: MathExpr -> MathExpr
@@ -342,8 +343,7 @@ mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZ
 mathRemoveZeroSymbol :: MathExpr -> MathExpr
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
   let p x = case x of
-              (Symbol _ 0) -> False
-              (AppFun _ _ 0) -> False
+              (_, 0) -> False
               _ -> True in
   let ts1' = map (\(Term a xs) -> Term a (filter p xs)) ts1 in
   let ts2' = map (\(Term a xs) -> Term a (filter p xs)) ts2 in
@@ -371,27 +371,27 @@ mathReduceFraction (Div (Plus ts1) (Plus ts2)) =
 mathReduceSymbolFraction :: MathExpr -> MathExpr
 mathReduceSymbolFraction (Div (Plus ts) (Plus ((Term a xs):[]))) = f xs [] ts
  where
-  f :: [SymbolExpr] -> [SymbolExpr] -> [TermExpr] -> MathExpr
+  f :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [TermExpr] -> MathExpr
   f [] ret ts = Div (Plus ts) (Plus [Term a ret])
-  f ((Symbol x n):xs) ret ts =
+  f ((Symbol x, n):xs) ret ts =
     let k = g x ts in
       if n > k
-        then f xs (ret ++ [Symbol x (n - k)]) (h x k ts)
+        then f xs (ret ++ [(Symbol x, (n - k))]) (h x k ts)
         else f xs ret (h x n ts)
-  f ((AppFun x mExprs n):xs) ret ts =
-    f xs (ret ++ [(AppFun x mExprs n)]) ts
+  f ((Apply x mExprs, n):xs) ret ts =
+    f xs (ret ++ [(Apply x mExprs, n)]) ts
   g :: String -> [TermExpr] -> Integer
   g x ts = minimum (map (\(Term _ xs) -> g' x xs) ts)
-  g' :: String -> [SymbolExpr] -> Integer
+  g' :: String -> [(SymbolExpr, Integer)] -> Integer
   g' x [] = 0
-  g' x ((Symbol y n):xs) = if x == y
+  g' x ((Symbol y, n):xs) = if x == y
                              then n
                              else g' x xs
   h :: String -> Integer -> [TermExpr] -> [TermExpr]
-  h x k ts = map (\(Term a xs) -> Term a (filter (\(Symbol y n) -> n /= 0)
-                                                 (map (\(Symbol y n) -> if x == y
-                                                                          then Symbol y (n - k)
-                                                                          else Symbol y n)
+  h x k ts = map (\(Term a xs) -> Term a (filter (\(Symbol y, n) -> n /= 0)
+                                                 (map (\(Symbol y, n) -> if x == y
+                                                                          then (Symbol y, (n - k))
+                                                                          else (Symbol y, n))
                                                       xs)))
                  ts
 mathReduceSymbolFraction mExpr = mExpr
@@ -412,7 +412,7 @@ mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
                                           else (Term b ys))
                        ret)
                   ts
-  foldSymbolExpr :: [SymbolExpr] -> [SymbolExpr]
+  foldSymbolExpr :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
   foldSymbolExpr xs = foldSymbolExpr' [] xs
   foldSymbolExpr' ret [] = ret
   foldSymbolExpr' ret (xn:ts) =
@@ -421,30 +421,32 @@ mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
                                 ret) ts
       else foldSymbolExpr' (ret ++ [xn]) ts
 
-  sameSymbol :: SymbolExpr -> SymbolExpr -> Bool
-  sameSymbol (Symbol x _) (Symbol y _) = x == y
-  sameSymbol (AppFun x mExpr _) (AppFun y mExpr' _) = (x == y && mExpr == mExpr')
+  sameSymbol :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> Bool
+  sameSymbol (Symbol x, _) (Symbol y, _) = x == y
+  sameSymbol (Apply x mExpr, _) (Apply y mExpr', _) = (x == y && mExpr == mExpr')
   sameSymbol _ _ = False
 
-  addPower :: SymbolExpr -> SymbolExpr -> SymbolExpr
-  addPower (Symbol x n) (Symbol y n') = if x == y 
-                                          then (Symbol y (n + n'))
-                                          else (Symbol y n')
-  addPower (Symbol x n) _ = (Symbol x n)
-  addPower (AppFun x mExpr n) (AppFun y mExpr' n') = if (x == y && mExpr == mExpr')
-                                                       then (AppFun y mExpr' (n + n'))
-                                                       else (AppFun y mExpr' n')
-  addPower (AppFun x mExpr n) _ = (AppFun x mExpr n)
+  addPower :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (SymbolExpr, Integer)
+  addPower (Symbol x, n) (Symbol y, n') = if x == y 
+                                          then (Symbol y, (n + n'))
+                                          else (Symbol y, n')
+  addPower (Symbol x, n) _ = (Symbol x, n)
+  addPower (Apply x mExpr, n) (Apply y mExpr', n') = if (x == y && mExpr == mExpr')
+                                                       then (Apply y mExpr', (n + n'))
+                                                       else (Apply y mExpr', n')
+  addPower (Apply x mExpr, n) _ = (Apply x mExpr, n)
 
-  p :: [SymbolExpr] -> [SymbolExpr] -> Bool
+  p :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> Bool
   p xs ys = (sortSymbolExpr xs) == (sortSymbolExpr ys)
-  sortSymbolExpr :: [SymbolExpr] -> [SymbolExpr]
+  sortSymbolExpr :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
   sortSymbolExpr xs = sortBy h xs
-  h :: SymbolExpr -> SymbolExpr -> Ordering
-  h (Symbol x _) (Symbol y _) = compare x y
-  h (Symbol x _) (AppFun y _ _) = compare x y
-  h (AppFun x _ _) (Symbol y _) = compare x y
-  h (AppFun x _ _) (AppFun y _ _) = compare x y
+  h :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> Ordering
+  h (x, _) (y, _) = h' x y
+  h' :: SymbolExpr -> SymbolExpr -> Ordering
+  h' (Symbol x) (Symbol y) = compare x y
+  h' (Symbol x) (Apply y _) = compare x y
+  h' (Apply x _) (Symbol y) = compare x y
+  h' (Apply x _) (Apply y _) = compare x y
 
 type Matcher = EgisonValue
 
@@ -491,15 +493,17 @@ instance Show PolyExpr where
 
 instance Show TermExpr where
   show (Term a []) = show a
-  show (Term 1 [x]) = show x
-  show (Term 1 xs) = "(* " ++ unwords (map show xs) ++ ")"
-  show (Term a xs) = "(* " ++ show a ++ " " ++ unwords (map show xs) ++ ")"
+  show (Term 1 [x]) = showPoweredSymbol x
+  show (Term 1 xs) = "(* " ++ unwords (map showPoweredSymbol xs) ++ ")"
+  show (Term a xs) = "(* " ++ show a ++ " " ++ unwords (map showPoweredSymbol xs) ++ ")"
+
+showPoweredSymbol :: (SymbolExpr, Integer) -> String
+showPoweredSymbol (x, 1) = show x
+showPoweredSymbol (x, n) = show x ++ "^" ++ show n
 
 instance Show SymbolExpr where
-  show (Symbol s 1) = s
-  show (Symbol s n) = s ++ "^" ++ show n
-  show (AppFun s mExprs 1) = "(" ++ s ++ " " ++ unwords (map show mExprs) ++ ")"
-  show (AppFun s mExprs n) = "(" ++ s ++ " " ++ unwords (map show mExprs) ++ ")" ++ "^" ++ show n
+  show (Symbol s) = s
+  show (Apply s mExprs) = "(" ++ s ++ " " ++ unwords (map show mExprs) ++ ")"
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x

@@ -53,7 +53,7 @@
      "\\<let\\*\\>"
      "\\<if\\>"
      "\\<seq\\>"
-     "\\<apply\\>"
+;     "\\<apply\\>"
      "\\<generate-array\\>"
      "\\<array-size\\>"
      "\\<array-ref\\>"
