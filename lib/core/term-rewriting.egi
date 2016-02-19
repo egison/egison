@@ -14,21 +14,28 @@
     (if (number? mexpr)
       (if (rational? mexpr)
         mexpr
-        (map-terms rewrite1 mexpr))
+        (map-terms rewrite2 (map-terms rewrite1 mexpr)))
       mexpr)))
 
 (define $map-terms
   (lambda [$fn $mexpr]
     (match mexpr math-expr
       {[<div <plus $ts1> <plus $ts2>>
-        (/' (foldl +' 0 (map (compose fn to-math-expr) ts1))
-            (foldl +' 0 (map (compose fn to-math-expr) ts2)))]})))
+        (/' (foldl +' 0 (map fn ts1))
+            (foldl +' 0 (map fn ts2)))]})))
 
 (define $rewrite1
   (lambda [$term]
     (match term term-expr
       {[<term $a <ncons (& ?even? $k) <symbol ,"i"> $ts>>
-        <Term (* (** -1 (quotient k 2)) a) ts>]
+        (*' (**' -1 (quotient k 2)) (to-math-expr' <Term a ts>))]
        [<term $a <ncons $k <symbol ,"i"> $ts>>
-        <Term (* (** -1 (quotient k 2)) a) {[<Symbol "i"> 1] @ts}>]
-       [_ term]})))
+        (*' (**' -1 (quotient k 2)) (to-math-expr' <Term a {[<Symbol "i"> 1] @ts}>))]
+       [_ (to-math-expr' term)]})))
+
+(define $rewrite2
+  (lambda [$term]
+    (match term term-expr
+      {[<term $a <cons <apply ,"sqrt" <cons $x <nil>>> <cons <apply ,"sqrt" <cons $y <nil>>> $ts>>>
+        (*' (sqrt (* x y)) (to-math-expr' <Term a ts>))]
+       [_ (to-math-expr' term)]})))
