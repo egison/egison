@@ -223,6 +223,8 @@ evalExpr env (IndexedExpr expr indices) = do
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
 
+evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
+
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
 evalExpr env (IfExpr test expr expr') = do
@@ -416,12 +418,17 @@ applyFunc _ (Value (Func env names body)) arg = do
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
-applyFunc env (Value (PrimitiveFunc func)) arg = func env arg
+applyFunc env (Value (Macro names body)) arg = do
+  refs <- fromTuple arg
+  if length names == length refs
+    then evalExpr (extendEnv env $ makeBindings names refs) body
+    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+applyFunc _ (Value (PrimitiveFunc func)) arg = func arg
 applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc env (Value (MathExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) arg = do
+applyFunc _ (Value (MathExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM p args
   return (Value (MathExpr (Div (Plus [(Term 1 [(Apply name mExprs, 1)])]) (Plus [(Term 1 [])]))))

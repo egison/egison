@@ -152,6 +152,7 @@ data EgisonExpr =
   | LambdaExpr [String] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr
   | MemoizeExpr [(EgisonExpr, EgisonExpr, EgisonExpr)] EgisonExpr
+  | MacroExpr [String] EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern
   
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
@@ -261,6 +262,7 @@ data EgisonValue =
   | UserMatcher Env PMMode MatcherInfo
   | Func Env [String] EgisonExpr
   | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
+  | Macro [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
@@ -450,7 +452,7 @@ mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
 
 type Matcher = EgisonValue
 
-type PrimitiveFunc = Env -> WHNFData -> EgisonM WHNFData
+type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 instance Show EgisonValue where
   show (Char c) = "'" ++ [c] ++ "'"
@@ -473,6 +475,7 @@ instance Show EgisonValue where
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
   show (MemoizedFunc _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
+  show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc _) = "#<primitive-function>"
   show (IOFunc _) = "#<io-function>"

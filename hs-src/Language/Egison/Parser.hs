@@ -171,6 +171,7 @@ expr' = (try partialExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
                          <|> memoizeExpr
+                         <|> macroExpr
                          <|> patternFunctionExpr
                          <|> letRecExpr
                          <|> letExpr
@@ -327,6 +328,9 @@ memoizeFrame = braces $ sepEndBy memoizeBinding whiteSpace
 
 memoizeBinding :: Parser (EgisonExpr, EgisonExpr, EgisonExpr)
 memoizeBinding = brackets $ (,,) <$> expr <*> expr <*> expr
+
+macroExpr :: Parser EgisonExpr
+macroExpr = keywordMacro >> MacroExpr <$> varNames <*> expr
 
 patternFunctionExpr :: Parser EgisonExpr
 patternFunctionExpr = keywordPatternFunction >> PatternFunctionExpr <$> varNames <*> pattern
@@ -609,6 +613,7 @@ reservedKeywords =
   , "lambda"
   , "memoized-lambda"
   , "memoize"
+  , "macro"
   , "pattern-function"
   , "letrec"
   , "let"
@@ -664,6 +669,7 @@ keywordApply                = reserved "apply"
 keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoized-lambda"
 keywordMemoize              = reserved "memoize"
+keywordMacro                = reserved "macro"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
@@ -686,7 +692,7 @@ keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
 keywordGenerateArray        = reserved "generate-array"
-keywordGenerateTensor        = reserved "generate-tensor"
+keywordGenerateTensor       = reserved "generate-tensor"
 keywordArraySize            = reserved "array-size"
 keywordArrayRef             = reserved "array-ref"
 

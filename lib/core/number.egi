@@ -51,6 +51,7 @@
 (define $prime-factorization
   (match-lambda integer
     {[,1 {}]
+     [(& ?(lt? $ 0) $n) {-1 @(prime-factorization (neg n))}]
      [$n (let {[$p (find-factor n)]}
            {p @(prime-factorization (quotient n p))})]}))
 
@@ -141,6 +142,27 @@
 (define $exp'
   (lambda [$x $y]
     (exp (* (log x) y))))
+
+;;;
+;;; Arithmetic Functions
+;;;
+
+(define $sqrt
+  (lambda [$n]
+    (if (integer? n)
+      (letrec {[$f (lambda [$xs]
+                     (match xs (list integer)
+                       {[<nil> [1 1]]
+                        [<cons $p <cons ,p $rs>>
+                         (let {[$ret (f rs)]}
+                           [(*' p (2#%1 ret)) (2#%2 ret)])]
+                        [<cons $p $rs>
+                         (let {[$ret (f rs)]}
+                           [(2#%1 ret) (* p (2#%2 ret))])]}))]}
+        (match (f (p-f n)) [integer integer]
+          {[[$n ,1] n]
+           [[$n $m] (*' n (sqrt' m))]}))
+      (sqrt' n))))
 
 ;;;
 ;;; Decimal Fractions

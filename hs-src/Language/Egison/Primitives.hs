@@ -57,7 +57,7 @@ primitiveEnvNoIO = do
 
 {-# INLINE noArg #-}
 noArg :: EgisonM EgisonValue -> PrimitiveFunc
-noArg f = \_ args -> do
+noArg f = \args -> do
   args' <- tupleToList args
   case args' of 
     [] -> f >>= return . Value
@@ -65,13 +65,13 @@ noArg f = \_ args -> do
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-oneArg f = \_ args -> do
+oneArg f = \args -> do
   args' <- evalWHNF args
   f args' >>= return . Value
 
 {-# INLINE twoArgs #-}
 twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-twoArgs f = \_ args -> do
+twoArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
     [val, val'] -> f val val' >>= return . Value
@@ -79,7 +79,7 @@ twoArgs f = \_ args -> do
 
 {-# INLINE threeArgs #-}
 threeArgs :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-threeArgs f = \_ args -> do
+threeArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
     [val, val', val''] -> f val val' val'' >>= return . Value
@@ -104,15 +104,15 @@ primitives = [ ("+", plus)
              , ("-", minus)
              , ("*", multiply)
              , ("/", divide)
-             , ("+'", plus2)
-             , ("-'", minus2)
-             , ("*'", multiply2)
-             , ("/'", divide2)
+             , ("+'", plus)
+             , ("-'", minus)
+             , ("*'", multiply)
+             , ("/'", divide)
              , ("numerator", numerator')
              , ("denominator", denominator')
              , ("from-math-expr", fromMathExpr)
              , ("to-math-expr", toMathExpr)
-             , ("to-math-expr'", toMathExpr2)
+             , ("to-math-expr'", toMathExpr)
                
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
@@ -134,6 +134,7 @@ primitives = [ ("+", plus)
              , ("imaginary-part", imaginaryPart)
                
              , ("sqrt", floatUnaryOp "sqrt" sqrt)
+             , ("sqrt'", floatUnaryOp "sqrt" sqrt)
              , ("exp", floatUnaryOp "exp" exp)
              , ("log", floatUnaryOp "log" log)
              , ("sin", floatUnaryOp "sin" sin)
@@ -244,21 +245,7 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
 --
 
 numberBinaryOp :: (MathExpr -> MathExpr -> MathExpr) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
-numberBinaryOp mOp fOp env args = do
-  args' <- tupleToList args
-  case args' of 
-    [val, val'] -> numberBinaryOp' val val' >>= return . Value
-    _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
- where
-  numberBinaryOp' f@(Float _ _) f'@(Float _ _) = return $ fOp f f'
-  numberBinaryOp' val           (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
-  numberBinaryOp' (Float x y)   val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
-  numberBinaryOp' (MathExpr m1) (MathExpr m2)  = mathNormalize env (mOp m1 m2) >>= return . MathExpr
-  numberBinaryOp' (MathExpr _)  val'           = throwError $ TypeMismatch "number" (Value val')
-  numberBinaryOp' val           _              = throwError $ TypeMismatch "number" (Value val)
-
-numberBinaryOp2 :: (MathExpr -> MathExpr -> MathExpr) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
-numberBinaryOp2 mOp fOp env args = do
+numberBinaryOp mOp fOp args = do
   args' <- tupleToList args
   case args' of 
     [val, val'] -> numberBinaryOp' val val' >>= return . Value
@@ -284,18 +271,6 @@ multiply = numberBinaryOp mathMult (\(Float x y) (Float x' y') -> Float (x * x' 
 divide :: PrimitiveFunc
 divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (y * y + y' * y')) ((y * x' - x * y') / (y * y + y' * y')))
 
-plus2 :: PrimitiveFunc
-plus2 = numberBinaryOp2 mathPlus (\(Float x y) (Float x' y') -> Float (x + x')  (y + y'))
-
-minus2 :: PrimitiveFunc
-minus2 = numberBinaryOp2 (\m1 m2 -> mathPlus m1 (mathNegate m2)) (\(Float x y) (Float x' y') -> Float (x - x')  (y - y'))
-
-multiply2 :: PrimitiveFunc
-multiply2 = numberBinaryOp2 mathMult (\(Float x y) (Float x' y') -> Float (x * x' - y * y')  (x * y' + x' * y))
-
-divide2 :: PrimitiveFunc
-divide2 = numberBinaryOp2 (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (y * y + y' * y')) ((y * x' - x * y') / (y * y + y' * y')))
-
 numerator' :: PrimitiveFunc
 numerator' =  oneArg $ numerator''
  where
@@ -315,14 +290,7 @@ fromMathExpr = oneArg $ fromMathExpr'
   fromMathExpr' val = throwError $ TypeMismatch "number" (Value val)
 
 toMathExpr :: PrimitiveFunc
-toMathExpr env args = do
-  args' <- tupleToList args
-  case args' of 
-    [val] -> egisonToMathExpr val >>= mathNormalize env >>= return . Value . MathExpr
-    _ -> throwError $ ArgumentsNumPrimitive 1 $ length args'
-
-toMathExpr2 :: PrimitiveFunc
-toMathExpr2 = oneArg $ toMathExpr'
+toMathExpr = oneArg $ toMathExpr'
  where
   toMathExpr' val = egisonToMathExpr val >>= return . MathExpr . mathNormalize'
 
@@ -540,21 +508,21 @@ showTSV'= oneArg $ \val -> return $ toEgison $ T.pack $ showTSV val
 -- Collection
 --
 isEmpty' :: PrimitiveFunc
-isEmpty' _ whnf = do
+isEmpty' whnf = do
   b <- isEmptyCollection whnf
   if b
     then return $ Value $ Bool True
     else return $ Value $ Bool False
 
 uncons' :: PrimitiveFunc
-uncons' _ whnf = do
+uncons' whnf = do
   mRet <- runMaybeT (unconsCollection whnf)
   case mRet of
     Just (carObjRef, cdrObjRef) -> return $ Intermediate $ ITuple [carObjRef, cdrObjRef]
     Nothing -> throwError $ Default $ "cannot uncons collection"
 
 unsnoc' :: PrimitiveFunc
-unsnoc' _ whnf = do
+unsnoc' whnf = do
   mRet <- runMaybeT (unsnocCollection whnf)
   case mRet of
     Just (racObjRef, rdcObjRef) -> return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
@@ -563,55 +531,55 @@ unsnoc' _ whnf = do
 -- Typing
 
 isBool :: PrimitiveFunc
-isBool _ (Value (Bool _)) = return $ Value $ Bool True
-isBool _ _ = return $ Value $ Bool False
+isBool (Value (Bool _)) = return $ Value $ Bool True
+isBool _ = return $ Value $ Bool False
 
 isInteger :: PrimitiveFunc
-isInteger _ (Value (MathExpr (Div (Plus []) (Plus [(Term 1 [])])))) = return $ Value $ Bool True
-isInteger _ (Value (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term 1 [])])))) = return $ Value $ Bool True
-isInteger _ _ = return $ Value $ Bool False
+isInteger (Value (MathExpr (Div (Plus []) (Plus [(Term 1 [])])))) = return $ Value $ Bool True
+isInteger (Value (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term 1 [])])))) = return $ Value $ Bool True
+isInteger _ = return $ Value $ Bool False
 
 isRational :: PrimitiveFunc
-isRational _ (Value (MathExpr (Div (Plus []) (Plus [(Term _ [])])))) = return $ Value $ Bool True
-isRational _ (Value (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])])))) = return $ Value $ Bool True
-isRational _ _ = return $ Value $ Bool False
+isRational (Value (MathExpr (Div (Plus []) (Plus [(Term _ [])])))) = return $ Value $ Bool True
+isRational (Value (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])])))) = return $ Value $ Bool True
+isRational _ = return $ Value $ Bool False
 
 isNumber :: PrimitiveFunc
-isNumber _ (Value (MathExpr _)) = return $ Value $ Bool True
-isNumber _ _ = return $ Value $ Bool False
+isNumber (Value (MathExpr _)) = return $ Value $ Bool True
+isNumber _ = return $ Value $ Bool False
 
 isFloat :: PrimitiveFunc
-isFloat _ (Value (Float _ 0)) = return $ Value $ Bool True
-isFloat _ _ = return $ Value $ Bool False
+isFloat (Value (Float _ 0)) = return $ Value $ Bool True
+isFloat _ = return $ Value $ Bool False
 
 isComplex :: PrimitiveFunc
-isComplex _ (Value (Float _ _)) = return $ Value $ Bool True
-isComplex _ _ = return $ Value $ Bool False
+isComplex (Value (Float _ _)) = return $ Value $ Bool True
+isComplex _ = return $ Value $ Bool False
 
 isChar :: PrimitiveFunc
-isChar _ (Value (Char _)) = return $ Value $ Bool True
-isChar _ _ = return $ Value $ Bool False
+isChar (Value (Char _)) = return $ Value $ Bool True
+isChar _ = return $ Value $ Bool False
 
 isString :: PrimitiveFunc
-isString _ (Value (String _)) = return $ Value $ Bool True
-isString _ _ = return $ Value $ Bool False
+isString (Value (String _)) = return $ Value $ Bool True
+isString _ = return $ Value $ Bool False
 
 isCollection :: PrimitiveFunc
-isCollection _ (Value (Collection _)) = return $ Value $ Bool True
-isCollection _ (Intermediate (ICollection _)) = return $ Value $ Bool True
-isCollection _ _ = return $ Value $ Bool False
+isCollection (Value (Collection _)) = return $ Value $ Bool True
+isCollection (Intermediate (ICollection _)) = return $ Value $ Bool True
+isCollection _ = return $ Value $ Bool False
 
 isArray :: PrimitiveFunc
-isArray _ (Value (Array _)) = return $ Value $ Bool True
-isArray _ (Intermediate (IArray _)) = return $ Value $ Bool True
-isArray _ _ = return $ Value $ Bool False
+isArray (Value (Array _)) = return $ Value $ Bool True
+isArray (Intermediate (IArray _)) = return $ Value $ Bool True
+isArray _ = return $ Value $ Bool False
 
 isHash :: PrimitiveFunc
-isHash _ (Value (IntHash _)) = return $ Value $ Bool True
-isHash _ (Value (StrHash _)) = return $ Value $ Bool True
-isHash _ (Intermediate (IIntHash _)) = return $ Value $ Bool True
-isHash _ (Intermediate (IStrHash _)) = return $ Value $ Bool True
-isHash _ _ = return $ Value $ Bool False
+isHash (Value (IntHash _)) = return $ Value $ Bool True
+isHash (Value (StrHash _)) = return $ Value $ Bool True
+isHash (Intermediate (IIntHash _)) = return $ Value $ Bool True
+isHash (Intermediate (IStrHash _)) = return $ Value $ Bool True
+isHash _ = return $ Value $ Bool False
 
 -- Test
 
