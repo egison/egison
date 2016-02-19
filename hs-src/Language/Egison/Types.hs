@@ -235,6 +235,7 @@ data PrimitiveDataPattern =
     PDWildCard
   | PDPatVar String
   | PDInductivePat String [PrimitiveDataPattern]
+  | PDTuplePat [PrimitiveDataPattern]
   | PDEmptyPat
   | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
   | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
@@ -312,10 +313,10 @@ egisonToMathExpr t1@(InductiveData "Term" _) = do
   t1' <- egisonToTermExpr t1
   return $ Div (Plus [t1']) (Plus [(Term 1 [])])
 egisonToMathExpr s1@(InductiveData "Symbol" _) = do
-  s1' <- egisonToSymbolExpr s1
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 ::Integer)])
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
 egisonToMathExpr s1@(InductiveData "Apply" _) = do
-  s1' <- egisonToSymbolExpr s1
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
 egisonToMathExpr val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
 

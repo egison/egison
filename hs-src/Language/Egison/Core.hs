@@ -820,6 +820,15 @@ primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
       refs <- lift $ mapM (newEvalutedObjectRef . Value) vals
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
     _ -> matchFail
+primitiveDataPatternMatch (PDTuplePat patterns) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Intermediate (ITuple refs) ->
+      concat <$> zipWithM primitiveDataPatternMatch patterns refs
+    Value (Tuple vals) -> do
+      refs <- lift $ mapM (newEvalutedObjectRef . Value) vals
+      concat <$> zipWithM primitiveDataPatternMatch patterns refs
+    _ -> matchFail
 primitiveDataPatternMatch PDEmptyPat ref = do
   whnf <- lift $ evalRef ref
   isEmpty <- lift $ isEmptyCollection whnf

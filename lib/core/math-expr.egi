@@ -49,8 +49,8 @@
 (define $term-expr'
   (matcher
     {[<term $ $> [integer (assoc-multiset symbol-expr)]
-      {[<Term $n $xs> {[n (map to-math-expr' xs)]}]
-       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map to-math-expr' xs)]}]
+      {[<Term $n $xs> {[n xs]}]
+       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n xs]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
@@ -60,9 +60,9 @@
   (matcher
     {[$ [symbol-expr']
       {[<Symbol $v> {<Symbol v>}]
-       [<Div <Plus {<Term 1 {<Symbol $v> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Symbol v>}]
+       [<Div <Plus {<Term 1 {[<Symbol $v> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Symbol v>}]
        [<Apply $v $mexprs> {<Apply v mexprs>}]
-       [<Div <Plus {<Term 1 {<Apply $v $mexprs> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Apply v mexprs>}]
+       [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Apply v mexprs>}]
        [$tgt {(from-math-expr tgt)}]}]
      }))
 
@@ -70,11 +70,11 @@
   (matcher
     {[<symbol $> [string]
       {[<Symbol $v> {v}]
-       [<Div <Plus {<Term 1 {<Symbol $v> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
+       [<Div <Plus {<Term 1 {[<Symbol $v> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
        [_ {}]}]
      [<apply $ $> [string (list math-expr)]
       {[<Apply $v $mexprs> [v mexprs]]
-       [<Div <Plus {<Term 1 {<Apply $v $mexprs> @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v mexprs]}]
+       [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v mexprs]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
