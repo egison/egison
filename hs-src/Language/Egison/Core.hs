@@ -411,6 +411,9 @@ applyFunc _ (Value (Func env names body)) arg = do
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+applyFunc env (Value (Macro [name] body)) arg = do
+  ref <- newEvalutedObjectRef arg
+  evalExpr (extendEnv env $ makeBindings [name] [ref]) body
 applyFunc env (Value (Macro names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
