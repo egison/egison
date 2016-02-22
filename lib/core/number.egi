@@ -112,22 +112,6 @@
         {[$tgt {tgt}]}]
        })))
 
-(define $power
-  (lambda [$x $n]
-    (if (rational? n)
-      (if (integer? n)
-        (if (gte? n 0)
-          (foldl * 1 (take n (repeat1 x)))
-          (/ 1 (foldl * 1 (take (neg n) (repeat1 x)))))
-        "error")
-      (exp' x n))))
-
-(define $** power)
-
-(define $**'
-  (lambda [$x $n]
-    (foldl *' 1 (take n (repeat1 x)))))
-
 (define $sum
   (lambda [$xs]
     (foldl + 0 xs)))
@@ -139,34 +123,9 @@
 ;;;
 ;;; Floats
 ;;;
-(define $exp'
+(define $exp2
   (lambda [$x $y]
     (exp (* (log x) y))))
-
-;;;
-;;; Arithmetic Functions
-;;;
-
-(define $sqrt
-  (lambda [$n]
-    (if (rational? n)
-      (letrec {[$f (lambda [$xs]
-                     (match xs (list integer)
-                       {[<nil> [1 1]]
-                        [<cons $p <cons ,p $rs>>
-                         (let {[$ret (f rs)]}
-                           [(*' p (2#%1 ret)) (2#%2 ret)])]
-                        [<cons $p $rs>
-                         (let {[$ret (f rs)]}
-                           [(2#%1 ret) (* p (2#%2 ret))])]}))]}
-        (letrec {[$g (lambda [$n]
-                       (match (f (p-f n)) [integer integer]
-                         {[[$n ,1] n]
-                          [[$n $m] (*' n (sqrt' m))]}))]}
-          (if (gt? n 0)
-            (/' (g (numerator n)) (g (denominator n)))
-            (*' (/' (g (numerator (abs n))) (g (denominator n))) i))))
-      (sqrt' n))))
 
 ;;;
 ;;; Decimal Fractions
