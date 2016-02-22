@@ -33,13 +33,6 @@ module Language.Egison.Core
     , tupleToList
     -- * Utiltiy functions
     , packStringValue
-    -- * Math functions
-    , mathNormalize
-    , mathPlus
-    , mathMult
-    , mathNegate
-    , mathNumerator
-    , mathDenominator
     ) where
 
 import Prelude hiding (mapM, mappend)
@@ -989,60 +982,3 @@ isPrimitiveValue (Value (Bool _)) = True
 isPrimitiveValue (Value (MathExpr _)) = True
 isPrimitiveValue (Value (Float _ _)) = True
 isPrimitiveValue _ = False
-
-
---
--- Functions for MathExpr
---
-
-mathNormalize :: Env -> MathExpr -> EgisonM MathExpr
-mathNormalize _ mExpr@(Div (Plus []) (Plus [(Term _ [])])) = return (mathNormalize' mExpr)
-mathNormalize _ mExpr@(Div (Plus [(Term _ [])]) (Plus [(Term _ [])])) = return (mathNormalize' mExpr)
-mathNormalize env mExpr = mathRewrite env (mathNormalize' mExpr) >>= (mathSortSymbols env) >>= (mathSortTerms env)
-  
-mathRewrite :: Env -> MathExpr -> EgisonM MathExpr
-mathRewrite env mExpr = do
-  fn <- evalExpr env (VarExpr "rewrite-math-expr-with-rules")
-  mExpr' <- newEvalutedObjectRef ((Value . MathExpr) mExpr)
-  ruls <- evalExpr env (VarExpr "term-rewriting-rules") >>= newEvalutedObjectRef
-  let arg = (Intermediate . ITuple) [mExpr', ruls]
-  mExpr'' <- applyFunc env fn arg
-  ret <- evalWHNF mExpr''
-  case ret of
-    MathExpr ret' -> return ret'
-
-mathSortTerms :: Env -> MathExpr -> EgisonM MathExpr
-mathSortTerms env mExpr = return mExpr
-
-mathSortSymbols :: Env -> MathExpr -> EgisonM MathExpr
-mathSortSymbols env mExpr = return mExpr
-
---
---  Arithmetic operations
---
-
-mathPlus :: MathExpr -> MathExpr -> MathExpr
-mathPlus (Div m1 n1) (Div m2 n2) = Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
-
-mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
-mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
-
-mathMult :: MathExpr -> MathExpr -> MathExpr
-mathMult (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
-
-mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
-mathMultPoly (Plus []) (Plus _) = Plus []
-mathMultPoly (Plus _) (Plus []) = Plus []
-mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
-
-mathNegate :: MathExpr -> MathExpr
-mathNegate (Div m n) = Div (mathNegate' m) n
-
-mathNegate' :: PolyExpr -> PolyExpr
-mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
-
-mathNumerator :: MathExpr -> MathExpr
-mathNumerator (Div m _) = Div m (Plus [(Term 1 [])])
-
-mathDenominator :: MathExpr -> MathExpr
-mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])

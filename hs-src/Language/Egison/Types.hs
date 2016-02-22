@@ -32,10 +32,16 @@ module Language.Egison.Types
     , mathExprToEgison
     , egisonToMathExpr
     , mathNormalize'
-    , mathFold
+    , mathSymbolFold
+    , mathTermFold
     , mathRemoveZero
     , mathReduceFraction
     , mathReduceSymbolFraction
+    , mathPlus
+    , mathMult
+    , mathNegate
+    , mathNumerator
+    , mathDenominator
     , Matcher (..)
     , PrimitiveFunc (..)
     , EgisonData (..)
@@ -341,7 +347,8 @@ egisonToSymbolExpr (Tuple [InductiveData "Apply" [name, (Collection mExprs)], n]
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: MathExpr -> MathExpr
-mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr))))
+--mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr))))
+mathNormalize' mExpr = (mathTermFold (mathSymbolFold (mathTermFold mExpr)))
 
 mathRemoveZeroSymbol :: MathExpr -> MathExpr
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
@@ -399,57 +406,81 @@ mathReduceSymbolFraction (Div (Plus ts) (Plus ((Term a xs):[]))) = f xs [] ts
                  ts
 mathReduceSymbolFraction mExpr = mExpr
 
-mathFold :: MathExpr -> MathExpr
-mathFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (mFold ts1)) (Plus (mFold ts2))
+mathSymbolFold :: MathExpr -> MathExpr
+mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f ts2))
  where
-  mFold :: [TermExpr] -> [TermExpr]
-  mFold ts = mFold' [] ts
-  mFold' :: [TermExpr] -> [TermExpr] -> [TermExpr]
-  mFold' ret [] = ret
-  mFold' ret ((Term a xs):ts) =
-    let xs' = foldSymbolExpr xs in
-    if all (\(Term _ ys) -> not (p xs' ys)) ret
-      then mFold' (ret ++ [(Term a xs')]) ts
-      else mFold' (map (\(Term b ys) -> if p xs' ys
-                                          then (Term (a + b) ys)
-                                          else (Term b ys))
-                       ret)
-                  ts
-  foldSymbolExpr :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
-  foldSymbolExpr xs = foldSymbolExpr' [] xs
-  foldSymbolExpr' ret [] = ret
-  foldSymbolExpr' ret (xn:ts) =
-    if (any (sameSymbol xn) ret)
-      then foldSymbolExpr' (map (addPower xn)
-                                ret) ts
-      else foldSymbolExpr' (ret ++ [xn]) ts
+  f :: TermExpr -> TermExpr
+  f (Term a xs) = Term a (g [] xs)
+  g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
+  g ret [] = ret
+  g ret ((x, n):xs) =
+    if (any (p (x, n)) ret)
+      then g (map (h (x, n)) ret) xs
+      else g (ret ++ [(x, n)]) xs
+  p :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> Bool
+  p (x, _) (y, _) = x == y
+  h :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (SymbolExpr, Integer)
+  h (x, n) (y, m) = if x == y
+                     then (y, n + m)
+                     else (y, n)
 
-  sameSymbol :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> Bool
-  sameSymbol (Symbol x, _) (Symbol y, _) = x == y
-  sameSymbol (Apply x mExpr, _) (Apply y mExpr', _) = (x == y && mExpr == mExpr')
-  sameSymbol _ _ = False
-
-  addPower :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (SymbolExpr, Integer)
-  addPower (Symbol x, n) (Symbol y, n') = if x == y 
-                                          then (Symbol y, (n + n'))
-                                          else (Symbol y, n')
-  addPower (Symbol x, n) _ = (Symbol x, n)
-  addPower (Apply x mExpr, n) (Apply y mExpr', n') = if (x == y && mExpr == mExpr')
-                                                       then (Apply y mExpr', (n + n'))
-                                                       else (Apply y mExpr', n')
-  addPower (Apply x mExpr, n) _ = (Apply x mExpr, n)
-
+mathTermFold :: MathExpr -> MathExpr
+mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
+ where
+  f :: [TermExpr] -> [TermExpr]
+  f ts = f' [] ts
+  f' :: [TermExpr] -> [TermExpr] -> [TermExpr]
+  f' ret [] = ret
+  f' ret ((Term a xs):ts) =
+    if any (\(Term _ ys) -> (p xs ys)) ret
+      then f' (map (g (Term a xs)) ret) ts
+      else f' (ret ++ [(Term a xs)]) ts
+  g :: TermExpr -> TermExpr -> TermExpr
+  g (Term a xs) (Term b ys) = if p xs ys
+                                then (Term (a + b) xs)
+                                else Term b ys
   p :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> Bool
-  p xs ys = (sortSymbolExpr xs) == (sortSymbolExpr ys)
-  sortSymbolExpr :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
-  sortSymbolExpr xs = sortBy h xs
-  h :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> Ordering
-  h (x, _) (y, _) = h' x y
-  h' :: SymbolExpr -> SymbolExpr -> Ordering
-  h' (Symbol x) (Symbol y) = compare x y
-  h' (Symbol x) (Apply y _) = compare x y
-  h' (Apply x _) (Symbol y) = compare x y
-  h' (Apply x _) (Apply y _) = compare x y
+  p [] [] = True
+  p ((x, n):xs) ys =
+    let (b, ys') = q (x, n) [] ys in
+      if b 
+        then p xs ys'
+        else False
+  q :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Bool, [(SymbolExpr, Integer)])
+  q _ _ [] = (False, [])
+  q (x, n) ret ((y, m):ys) = if (x == y) && (n == m)
+                               then (True, (ret ++ ys))
+                               else q (x, n) (ret ++ [(y, m)]) ys
+
+--
+--  Arithmetic operations
+--
+
+mathPlus :: MathExpr -> MathExpr -> MathExpr
+mathPlus (Div m1 n1) (Div m2 n2) = Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
+
+mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
+mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
+
+mathMult :: MathExpr -> MathExpr -> MathExpr
+mathMult (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
+
+mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
+mathMultPoly (Plus []) (Plus _) = Plus []
+mathMultPoly (Plus _) (Plus []) = Plus []
+mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
+
+mathNegate :: MathExpr -> MathExpr
+mathNegate (Div m n) = Div (mathNegate' m) n
+
+mathNegate' :: PolyExpr -> PolyExpr
+mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
+
+mathNumerator :: MathExpr -> MathExpr
+mathNumerator (Div m _) = Div m (Plus [(Term 1 [])])
+
+mathDenominator :: MathExpr -> MathExpr
+mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
 
 type Matcher = EgisonValue
 
