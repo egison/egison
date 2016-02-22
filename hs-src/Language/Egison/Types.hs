@@ -32,6 +32,7 @@ module Language.Egison.Types
     , mathExprToEgison
     , egisonToMathExpr
     , mathNormalize'
+    , mathFold
     , mathSymbolFold
     , mathTermFold
     , mathRemoveZero
@@ -347,8 +348,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Apply" [name, (Collection mExprs)], n]
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: MathExpr -> MathExpr
---mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr))))
-mathNormalize' mExpr = (mathTermFold (mathSymbolFold (mathTermFold mExpr)))
+mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr))))
 
 mathRemoveZeroSymbol :: MathExpr -> MathExpr
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
@@ -406,6 +406,9 @@ mathReduceSymbolFraction (Div (Plus ts) (Plus ((Term a xs):[]))) = f xs [] ts
                  ts
 mathReduceSymbolFraction mExpr = mExpr
 
+mathFold :: MathExpr -> MathExpr
+mathFold mExpr = (mathTermFold (mathSymbolFold (mathTermFold mExpr)))
+
 mathSymbolFold :: MathExpr -> MathExpr
 mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f ts2))
  where
@@ -421,8 +424,8 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
   p (x, _) (y, _) = x == y
   h :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (SymbolExpr, Integer)
   h (x, n) (y, m) = if x == y
-                     then (y, n + m)
-                     else (y, n)
+                     then (y, m + n)
+                     else (y, m)
 
 mathTermFold :: MathExpr -> MathExpr
 mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
@@ -441,6 +444,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
                                 else Term b ys
   p :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> Bool
   p [] [] = True
+  p [] _ = False
   p ((x, n):xs) ys =
     let (b, ys') = q (x, n) [] ys in
       if b 

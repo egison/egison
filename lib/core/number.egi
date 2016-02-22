@@ -149,7 +149,7 @@
 
 (define $sqrt
   (lambda [$n]
-    (if (integer? n)
+    (if (rational? n)
       (letrec {[$f (lambda [$xs]
                      (match xs (list integer)
                        {[<nil> [1 1]]
@@ -159,9 +159,13 @@
                         [<cons $p $rs>
                          (let {[$ret (f rs)]}
                            [(2#%1 ret) (* p (2#%2 ret))])]}))]}
-        (match (f (p-f n)) [integer integer]
-          {[[$n ,1] n]
-           [[$n $m] (*' n (sqrt' m))]}))
+        (letrec {[$g (lambda [$n]
+                       (match (f (p-f n)) [integer integer]
+                         {[[$n ,1] n]
+                          [[$n $m] (*' n (sqrt' m))]}))]}
+          (if (gt? n 0)
+            (/' (g (numerator n)) (g (denominator n)))
+            (*' (/' (g (numerator (abs n))) (g (denominator n))) i))))
       (sqrt' n))))
 
 ;;;
