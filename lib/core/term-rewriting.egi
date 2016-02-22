@@ -28,14 +28,14 @@
   (lambda [$term]
     (match term term-expr
       {[<term $a <ncons (& ?even? $k) <symbol ,"i"> $ts>>
-        (*' (**' -1 (quotient k 2)) (to-math-expr' <Term a ts>))]
+        (*' a (**' -1 (quotient k 2)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [<term $a <ncons $k <symbol ,"i"> $ts>>
-        (*' (**' -1 (quotient k 2)) (to-math-expr' <Term a {[<Symbol "i"> 1] @ts}>))]
-       [_ (to-math-expr' term)]})))
+        (*' a (**' -1 (quotient k 2)) i (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+       [_ term]})))
 
 (define $rewrite2
   (lambda [$term]
     (match term term-expr
       {[<term $a <cons <apply ,"sqrt" <cons $x <nil>>> <cons <apply ,"sqrt" <cons $y <nil>>> $ts>>>
-        (*' (sqrt (* x y)) (to-math-expr' <Term a ts>))]
-       [_ (to-math-expr' term)]})))
+        (*' a (sqrt (*' x y)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+       [_ term]})))

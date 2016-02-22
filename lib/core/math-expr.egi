@@ -31,8 +31,8 @@
 (define $poly-expr'
   (matcher
     {[<plus $> [(multiset term-expr)]
-      {[<Plus $ts> {ts}]
-       [<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {ts}]
+      {[<Plus $ts> {(map to-math-expr' ts)}]
+       [<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {(map to-math-expr' ts)}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
@@ -49,8 +49,8 @@
 (define $term-expr'
   (matcher
     {[<term $ $> [integer (assoc-multiset symbol-expr)]
-      {[<Term $n $xs> {[n xs]}]
-       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n xs]}]
+      {[<Term $n $xs> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
+       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
@@ -74,7 +74,7 @@
        [_ {}]}]
      [<apply $ $> [string (list math-expr)]
       {[<Apply $v $mexprs> [v mexprs]]
-       [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v (map to-math-expr mexprs)]}]
+       [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v (map to-math-expr' mexprs)]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
