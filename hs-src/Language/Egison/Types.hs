@@ -779,27 +779,20 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-data Env = Env TermOrderRule SymbolOrderRule RewriteRule [HashMap Var ObjectRef]
+data Env = Env [HashMap Var ObjectRef]
  deriving (Show)
 
 type Var = String
 type Binding = (Var, ObjectRef)
 
-type TermOrderRule = [String]
-type SymbolOrderRule = [String]
-type RewriteRule = [(EgisonPattern, EgisonExpr)]
-
 nullEnv :: Env
-nullEnv = Env [] [] [] []
+nullEnv = Env []
 
 extendEnv :: Env -> [Binding] -> Env
-extendEnv (Env tr sr rr env) = (Env tr sr rr) . (: env) . HashMap.fromList
+extendEnv (Env env) = Env . (: env) . HashMap.fromList
 
 refVar :: Env -> Var -> Maybe ObjectRef
-refVar (Env _ _ _ env) var = msum $ map (HashMap.lookup var) env
-
-getRewriteRule :: Env -> RewriteRule
-getRewriteRule (Env _ _ r _) = r
+refVar (Env env) var = msum $ map (HashMap.lookup var) env
 
 --
 -- Pattern Match

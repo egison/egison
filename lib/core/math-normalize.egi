@@ -5,6 +5,9 @@
 ;;;;;
 
 ;(set-term-rewriting-rule {[(* (sqrt $x) (sqrt $y)) (sqrt (* x y))]
+;                          [(rt n x)^n x]
+;                          [w^3 1]
+;                          [w^2 (- w -1)]
 ;                          [i^2 -1]})
 
 (define $math-normalize
@@ -12,7 +15,7 @@
     (if (number? mexpr)
       (if (rational? mexpr)
         mexpr
-        (map-terms rewrite-rule-sqrt (map-terms rewrite-rule-i mexpr)))
+        (map-terms rewrite-rule-rt (map-terms rewrite-rule-sqrt (map-terms rewrite-rule-i mexpr))))
       mexpr)))
 
 (define $map-terms
@@ -36,4 +39,11 @@
     (match term term-expr
       {[<term $a <cons <apply ,"sqrt" <cons $x <nil>>> <cons <apply ,"sqrt" <cons $y <nil>>> $ts>>>
         (*' a (sqrt (*' x y)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+       [_ term]})))
+
+(define $rewrite-rule-rt
+  (lambda [$term]
+    (match term term-expr
+      {[<term $a <cons <apply ,"rt" <cons $n <cons $x <nil>>>> <cons <apply ,"rt" <cons ,n <cons $y <nil>>>> $ts>>>
+        (*' a (rt n (*' x y)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [_ term]})))
