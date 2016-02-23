@@ -383,25 +383,23 @@ mathReduceSymbolFraction (Div (Plus ts) (Plus ((Term a xs):[]))) = f xs [] ts
  where
   f :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [TermExpr] -> MathExpr
   f [] ret ts = Div (Plus ts) (Plus [Term a ret])
-  f ((Symbol x, n):xs) ret ts =
+  f ((x, n):xs) ret ts =
     let k = g x ts in
       if n > k
-        then f xs (ret ++ [(Symbol x, (n - k))]) (h x k ts)
+        then f xs (ret ++ [(x, (n - k))]) (h x k ts)
         else f xs ret (h x n ts)
-  f ((Apply x mExprs, n):xs) ret ts =
-    f xs (ret ++ [(Apply x mExprs, n)]) ts
-  g :: String -> [TermExpr] -> Integer
+  g :: SymbolExpr -> [TermExpr] -> Integer
   g x ts = minimum (map (\(Term _ xs) -> g' x xs) ts)
-  g' :: String -> [(SymbolExpr, Integer)] -> Integer
+  g' :: SymbolExpr -> [(SymbolExpr, Integer)] -> Integer
   g' x [] = 0
-  g' x ((Symbol y, n):xs) = if x == y
-                             then n
-                             else g' x xs
-  h :: String -> Integer -> [TermExpr] -> [TermExpr]
-  h x k ts = map (\(Term a xs) -> Term a (filter (\(Symbol y, n) -> n /= 0)
-                                                 (map (\(Symbol y, n) -> if x == y
-                                                                          then (Symbol y, (n - k))
-                                                                          else (Symbol y, n))
+  g' x ((y, n):xs) = if x == y
+                       then n
+                       else g' x xs
+  h :: SymbolExpr -> Integer -> [TermExpr] -> [TermExpr]
+  h x k ts = map (\(Term a xs) -> Term a (filter (\(y, n) -> n /= 0)
+                                                 (map (\(y, n) -> if x == y
+                                                                    then (y, (n - k))
+                                                                    else (y, n))
                                                       xs)))
                  ts
 mathReduceSymbolFraction mExpr = mExpr
