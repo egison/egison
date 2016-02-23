@@ -112,14 +112,6 @@
         {[$tgt {tgt}]}]
        })))
 
-(define $sum
-  (lambda [$xs]
-    (foldl + 0 xs)))
-
-(define $product
-  (lambda [$xs]
-    (foldl * 1 xs)))
-
 ;;;
 ;;; Floats
 ;;;

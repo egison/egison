@@ -440,7 +440,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
       else f' (ret ++ [(Term a xs)]) ts
   g :: TermExpr -> TermExpr -> TermExpr
   g (Term a xs) (Term b ys) = if p xs ys
-                                then (Term (a + b) xs)
+                                then (Term (a + b) ys)
                                 else Term b ys
   p :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> Bool
   p [] [] = True

@@ -12,13 +12,29 @@
 (define $* (macro [$arg] (math-normalize (apply *' arg))))
 (define $/ (macro [$arg] (math-normalize (apply /' arg))))
 
+(define $sum
+  (lambda [$xs]
+    (foldl + 0 xs)))
+
+(define $sum'
+  (lambda [$xs]
+    (foldl +' 0 xs)))
+
+(define $product
+  (lambda [$xs]
+    (foldl * 1 xs)))
+
+(define $product'
+  (lambda [$xs]
+    (foldl *' 1 xs)))
+
 (define $power
   (lambda [$x $n]
     (foldl * 1 (take n (repeat1 x)))))
 
 (define $power'
   (lambda [$x $n]
-    (foldl * 1 (take n (repeat1 x)))))
+    (foldl *' 1 (take n (repeat1 x)))))
 
 (define $**
   (lambda [$x $n]
@@ -71,3 +87,23 @@
     (if (rational? x)
       (rt 2 x)
       (sqrt' x))))
+
+(define $rt-of-unity rtu)
+
+(define $rtu
+  (lambda [$n]
+    (rtu' n)))
+
+(define $rtu'
+  (lambda [$n]
+    (if (integer? n)
+      (match n integer
+        {[,1 1]
+         [,2 -1]
+         [,3 w]
+         [,4 i]
+         [_ (to-math-expr' <Apply "rtu" (map from-math-expr {n})>)]
+         })
+      (to-math-expr' <Apply "rtu" (map from-math-expr {n})>))))
+
+

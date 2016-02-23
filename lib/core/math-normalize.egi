@@ -4,10 +4,11 @@
 ;;;;;
 ;;;;;
 
-;(set-term-rewriting-rule {[(* (sqrt $x) (sqrt $y)) (sqrt (* x y))]
-;                          [(rt n x)^n x]
+;(set-term-rewriting-rule {[(* (rt $n $x) (rt ,n $y)) (rt n (* x y))]
+;                          [(* (sqrt $x) (sqrt $y)) (sqrt (* x y))]
+;                          [(rtu $n)^,n 1]
 ;                          [w^3 1]
-;                          [w^2 (- w -1)]
+;                          [w^2 (- -1 w)]
 ;                          [i^2 -1]})
 
 (define $math-normalize
@@ -15,7 +16,12 @@
     (if (number? mexpr)
       (if (rational? mexpr)
         mexpr
-        (map-terms rewrite-rule-rt (map-terms rewrite-rule-sqrt (map-terms rewrite-rule-i mexpr))))
+        (map-terms rewrite-rule-rt
+                   (map-terms rewrite-rule-sqrt
+                              (map-terms rewrite-rule-rtu
+                                         (map-terms rewrite-rule-w
+                                                    (map-terms rewrite-rule-i mexpr)))))
+        )
       mexpr)))
 
 (define $map-terms
@@ -32,6 +38,22 @@
         (*' a (**' -1 (quotient k 2)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [<term $a <ncons $k <symbol ,"i"> $ts>>
         (*' a (**' -1 (quotient k 2)) i (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+       [_ term]})))
+
+(define $rewrite-rule-rtu
+  (lambda [$term]
+    (match term term-expr
+      {[<term $a <ncons $k <apply ,"rtu" <cons (& ?(gte? k $) $n) <nil>>> $ts>>
+        (*' a (**' (rtu n) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+       [_ term]})))
+
+(define $rewrite-rule-w
+  (lambda [$term]
+    (match term term-expr
+      {[<term $a <ncons (& ?(gte? $ 3) $k) <symbol ,"w"> $ts>>
+        (*' a (**' w (remainder k 3)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+       [<term $a <ncons ,2 <symbol ,"w"> $ts>>
+        (*' a (- -1 w) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [_ term]})))
 
 (define $rewrite-rule-sqrt
