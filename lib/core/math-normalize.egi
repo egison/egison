@@ -4,8 +4,8 @@
 ;;;;;
 ;;;;;
 
-;(set-term-rewriting-rule {[(* (rt $n $x) (rt ,n $y)) (rt n (* x y))]
-;                          [(* (sqrt $x) (sqrt $y)) (sqrt (* x y))]
+;(set-term-rewriting-rule {[(rt $n $x)^,n x]
+;                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y))))]
 ;                          [(rtu $n)^,n 1]
 ;                          [w^3 1]
 ;                          [w^2 (- -1 w)]
@@ -40,13 +40,6 @@
         (*' a (**' -1 (quotient k 2)) i (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [_ term]})))
 
-(define $rewrite-rule-rtu
-  (lambda [$term]
-    (match term term-expr
-      {[<term $a <ncons $k <apply ,"rtu" <cons (& ?(gte? k $) $n) <nil>>> $ts>>
-        (*' a (**' (rtu n) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
-       [_ term]})))
-
 (define $rewrite-rule-w
   (lambda [$term]
     (match term term-expr
@@ -56,16 +49,24 @@
         (*' a (- -1 w) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [_ term]})))
 
+(define $rewrite-rule-rtu
+  (lambda [$term]
+    (match term term-expr
+      {[<term $a <ncons $k <apply ,"rtu" <cons (& ?(gte? k $) $n) <nil>>> $ts>>
+        (*' a (**' (rtu n) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+       [_ term]})))
+
 (define $rewrite-rule-sqrt
   (lambda [$term]
     (match term term-expr
       {[<term $a <cons <apply ,"sqrt" <cons $x <nil>>> <cons <apply ,"sqrt" <cons $y <nil>>> $ts>>>
-        (*' a (sqrt (*' x y)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+        (let {[$d (gcd {x y})]}
+          (*' a d (sqrt (/ x d)) (sqrt (/ y d)) (foldl *' 1 (map 2#(**' %1 %2) ts))))]
        [_ term]})))
 
 (define $rewrite-rule-rt
   (lambda [$term]
     (match term term-expr
-      {[<term $a <cons <apply ,"rt" <cons $n <cons $x <nil>>>> <cons <apply ,"rt" <cons ,n <cons $y <nil>>>> $ts>>>
-        (*' a (rt n (*' x y)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+      {[<term $a <ncons $k <apply ,"rt" <cons (& ?(gte? k $) $n) <cons $x <nil>>>> $ts>>
+        (*' a (**' x (quotient k n)) (**' (rt n x) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [_ term]})))
