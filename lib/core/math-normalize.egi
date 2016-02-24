@@ -60,7 +60,7 @@
   (lambda [$term]
     (match term term-expr
       {[<term $a <cons <apply ,"sqrt" <cons $x <nil>>> <cons <apply ,"sqrt" <cons $y <nil>>> $ts>>>
-        (let {[$d (gcd {x y})]}
+        (let {[$d (gcd x y)]}
           (*' a d (sqrt (/ x d)) (sqrt (/ y d)) (foldl *' 1 (map 2#(**' %1 %2) ts))))]
        [_ term]})))
 

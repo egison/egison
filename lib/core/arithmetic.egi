@@ -116,3 +116,17 @@
   (lambda [$a $b $c]
     [(/ (+ (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))
      (/ (- (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))]))
+
+(define $gcd
+  (lambda [$x $y]
+    (match [x y] [term-expr term-expr]
+      {[[<term $a $xs> <term $b $ys>]
+        (* (gcd' a b) (foldl *' 1 (map 2#(**' %1 %2) xs)))]})))
+
+(define $gcd'
+  (lambda [$x $y]
+    (match [x y] [integer integer]
+      {[[,0 _] y]
+       [[_ ,0] x]
+       [[_ ?(gte? $ x)] (gcd' (modulo y x) x)]
+       [[_ _] (gcd' y x)]})))

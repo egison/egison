@@ -78,13 +78,6 @@
     (let {[$x (round (sqrt n))]}
       (eq? n (power x 2)))))
 
-(define $gcd
-  (lambda [$ns]
-    (match ns (multiset integer)
-      {[<cons $n <nil>> n]
-       [<cons (& ,(min ns) $m) $rs>
-        (gcd {m @(delete 0 (map (lambda [$r] (modulo r m)) rs))})]})))
-
 (define $fact
   (lambda [$n]
     (foldl * 1 (between 1 n))))

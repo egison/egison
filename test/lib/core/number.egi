@@ -87,7 +87,7 @@
   #f)
 
 (assert-equal "gcd"
-  (gcd {10 20 5 40})
+  (gcd 15 40)
   5)
 
 (assert-equal "fact"

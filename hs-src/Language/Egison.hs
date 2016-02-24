@@ -110,6 +110,7 @@ coreLibraries =
   , "lib/core/arithmetic.egi"
   , "lib/core/base.egi"
   , "lib/core/collection.egi"
+  , "lib/core/assoc.egi"
   , "lib/core/order.egi"
   , "lib/core/number.egi"
   , "lib/core/io.egi"
