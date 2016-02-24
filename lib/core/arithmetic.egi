@@ -114,8 +114,8 @@
 
 (define $q-f
   (lambda [$a $b $c]
-    [(/ (+ (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))
-     (/ (- (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))]))
+    {(/ (+ (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))
+     (/ (- (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))}))
 
 (define $gcd
   (lambda [$x $y]
