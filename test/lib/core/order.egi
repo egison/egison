@@ -11,28 +11,20 @@
   <Less>)
 
 (assert-equal "min"
-  (min {10 20 5 20 30})
+  (min 20 5)
   5)
 
 (assert-equal "min/fn"
-  (min/fn compare {10 20 5 20 30})
+  (min/fn compare 20 5)
   5)
 
 (assert-equal "max"
-  (max {10 20 5 20 30})
+  (max 5 30)
   30)
 
 (assert-equal "max/fn"
-  (max/fn compare {10 20 5 20 30})
+  (max/fn compare 5 30)
   30)
-
-(assert-equal "min-and-max"
-  (min-and-max {10 20 5 20 30})
-  [5 30])
-
-(assert-equal "min-and-max/fn"
-  (min-and-max/fn compare {10 20 5 20 30})
-  [5 30])
 
 (assert-equal "sort"
   (sort {10 20 5 20 30})
