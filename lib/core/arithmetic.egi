@@ -121,7 +121,7 @@
   (lambda [$x $y]
     (match [x y] [term-expr term-expr]
       {[[<term $a $xs> <term $b $ys>]
-        (* (gcd' a b) (foldl *' 1 (map 2#(**' %1 %2) xs)))]})))
+        (* (gcd' a b) (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys))))]})))
 
 (define $gcd'
   (lambda [$x $y]

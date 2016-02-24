@@ -79,3 +79,19 @@
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
      }))
+
+(define $symbol?
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<div <plus <cons <term ,1 <cons <symbol _> <nil>>> <nil>>>
+             <plus <cons <term ,1 <nil>> <nil>>>>
+        #t]
+       [_ #f]})))
+
+(define $term?
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<div <plus <cons <term _ _> <nil>>>
+             <plus <cons <term _ _> <nil>>>>
+        #t]
+       [_ #f]})))
