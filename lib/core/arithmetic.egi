@@ -56,12 +56,33 @@
         (/' 1 (**' x (neg n))))
       (to-math-expr' <Apply "**" (map from-math-expr {x n})>))))
 
+(define $gcd
+  (lambda [$x $y]
+    (match [x y] [term-expr term-expr]
+      {[[<term $a $xs> <term $b $ys>]
+        (* (gcd' a b) (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys))))]})))
+
+(define $gcd'
+  (lambda [$x $y]
+    (match [x y] [integer integer]
+      {[[,0 _] y]
+       [[_ ,0] x]
+       [[_ ?(gte? $ x)] (gcd' (modulo y x) x)]
+       [[_ _] (gcd' y x)]})))
+
 (define $rt
   (lambda [$n $x]
-    (if (and (integer? n) (rational? x))
-      (match [n x] [integer integer]
-        {[[_ ,0] 0]
-         [[_ _] (rt' n x)]})
+    (if (integer? n)
+      (match x math-expr
+        {[,0 0]
+         [?monomial? (rt' n x)]
+         [<div <plus $xs> <plus $ys>>
+          (let {[$xd (reduce gcd xs)]
+                [$yd (reduce gcd ys)]}
+            (let {[[$a $r] (from-monomial (rt' n (/ xd yd)))]}
+              (*' a
+                 (rt'' n (*' (** r 2) (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
+                 )))]})
       (rt'' n x))))
 
 (define $rt'
@@ -73,12 +94,12 @@
                        (let {[$ret (f rs)]}
                          [(*' (**' p (quotient k n)) (2#%1 ret)) (*' (**' p (remainder k n)) (2#%2 ret))])]}))]}
       (letrec {[$g (lambda [$x]
-                     (match (f (to-assoc (p-f x))) [integer integer]
-                       {[[$x ,1] x]
-                        [[$y $z] (*' y (rt'' n z))]}))]}
-        (if (gt? x 0)
-          (/' (g (numerator x)) (g (denominator x)))
-          (*' (/' (g (numerator (abs x))) (g (denominator x))) i))))))
+                     (match x term-expr
+                       {[<term $a $xs>
+                         (match (f {@(to-assoc (p-f (abs a))) @xs}) [math-expr math-expr]
+                           {[[$x ,1] (if (lt? a 0) (*' i x) x)]
+                            [[$y $z] (if (lt? a 0) (*' i y (rt'' n z)) (*' y (rt'' n z)))]})]}))]}
+        (/' (g (numerator x)) (g (denominator x)))))))
 
 (define $rt''
   (lambda [$n $x]
@@ -118,17 +139,3 @@
   (lambda [$a $b $c]
     {(/ (+ (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))
      (/ (- (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))}))
-
-(define $gcd
-  (lambda [$x $y]
-    (match [x y] [term-expr term-expr]
-      {[[<term $a $xs> <term $b $ys>]
-        (* (gcd' a b) (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys))))]})))
-
-(define $gcd'
-  (lambda [$x $y]
-    (match [x y] [integer integer]
-      {[[,0 _] y]
-       [[_ ,0] x]
-       [[_ ?(gte? $ x)] (gcd' (modulo y x) x)]
-       [[_ _] (gcd' y x)]})))

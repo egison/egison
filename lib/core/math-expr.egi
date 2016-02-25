@@ -6,7 +6,11 @@
 
 (define $math-expr
   (matcher
-    {[$ [math-expr']
+    {[,$val []
+      {[$tgt (if (eq? val tgt)
+               {[]}
+               {})]}]
+     [$ [math-expr']
       {[<Div $p1 $p2> {<Div p1 p2>}]
        [$tgt {(from-math-expr tgt)}]}]
      }))
@@ -88,10 +92,19 @@
         #t]
        [_ #f]})))
 
-(define $term?
+(define $monomial?
   (lambda [$mexpr]
     (match mexpr math-expr
       {[<div <plus <cons <term _ _> <nil>>>
              <plus <cons <term _ _> <nil>>>>
         #t]
        [_ #f]})))
+
+(define $from-monomial
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<div <plus <cons <term $a $xs> <nil>>>
+             <plus <cons <term $b $ys> <nil>>>>
+        [(/ a b)
+         (/ (foldl *' 1 (map 2#(**' %1 %2) xs))
+            (foldl *' 1 (map 2#(**' %1 %2) ys)))]]})))

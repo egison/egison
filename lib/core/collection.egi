@@ -240,6 +240,10 @@
         (let {[$z (fn init x)]}
           (seq z (foldl fn z xs)))]})))
 
+(define $reduce
+  (lambda [$fn $ls]
+    (foldl fn (car ls) (cdr ls))))
+
 (define $scanl
   (lambda [$fn $init $ls]
     {init @(match ls (list something)
