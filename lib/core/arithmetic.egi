@@ -62,7 +62,7 @@
       (match [n x] [integer integer]
         {[[_ ,0] 0]
          [[_ _] (rt' n x)]})
-      (to-math-expr' <Apply "rt" (map from-math-expr {n x})>))))
+      (rt'' n x))))
 
 (define $rt'
   (lambda [$n $x]
