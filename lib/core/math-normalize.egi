@@ -60,9 +60,7 @@
   (lambda [$term]
     (match term term-expr
       {[<term $a <cons <apply ,"sqrt" <cons $x <nil>>> <cons <apply ,"sqrt" <cons ,x <nil>>> $ts>>>
-        (*' a x (foldl *' 1 (map 2#(**' %1 %2) ts)))]
-;       [<term $a <cons <apply ,"sqrt" <cons (& ?integer? $x) <nil>>> <cons <apply ,"sqrt" <cons $y <nil>>> (& !<cons <apply ,"sqrt" _> _> $ts)>>>
-;        (*' a (sqrt (* x y)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+        (* a x (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [<term $a <cons <apply ,"sqrt" <cons (& ?monomial? $x) <nil>>> <cons <apply ,"sqrt" <cons (& ?monomial? $y) <nil>>> $ts>>>
         (let {[[$a1 $xs1] (from-monomial x)]
               [[$a2 $xs2] (from-monomial y)]}
@@ -70,7 +68,7 @@
                 [$ad2 (gcd (denominator a1) (denominator a2))]
                 [$xd1 (gcd (numerator xs1) (numerator xs2))]
                 [$xd2 (gcd (denominator xs1) (denominator xs2))]}
-            (*' a
+            (* a
                (/ (* ad1 xd1) (* ad2 xd2))
                (sqrt (/ (* a1 a2) (** (/ ad1 ad2) 2)))
                (sqrt (/ (/ x a1) (/ xd1 xd2)))
@@ -78,8 +76,11 @@
                (foldl *' 1 (map 2#(**' %1 %2) ts)))))]
        [_ term]})))
 
-;(/ (+ -1 (sqrt 5) (* (sqrt (+ 10 (* 2 (sqrt 5)))) i)) 4)
-;(/ (+ -2 (* -2 (sqrt 5)) (* -1 (sqrt (+ -10 (* -2 (sqrt 5))))) (sqrt (+ -50 (* -10 (sqrt 5))))) 8)
+;z   = (/ (+ -1 (sqrt 5) (* i (sqrt (+ 10 (* 2 (sqrt 5)))))) 4)
+;z^2 = (/ (+ -2 (* -2 (sqrt 5)) (* -1 i (sqrt (+ 10 (* 2 (sqrt 5))))) (* i (sqrt 5) (sqrt (+ 10 (* 2 (sqrt 5)))))) 8)
+;z^3 = (/ (+ -2 (* i (sqrt (+ 10 (* 2 (sqrt 5))))) (* -1 i (sqrt 5) (sqrt (+ 10 (* 2 (sqrt 5))))) (* -2 (sqrt 5))) 8)
+;z^4 = (/ (+ -1 (* -1 i (sqrt (+ 10 (* 2 (sqrt 5))))) (sqrt 5)) 4)
+;z^5 = 1
 
 (define $rewrite-rule-rt
   (lambda [$term]
