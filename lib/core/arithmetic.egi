@@ -152,6 +152,7 @@
            [[_ <apply ,"log" <cons $y <nil>>>] (* (/ 1 y) (d/d y x))]
            [[_ <apply ,"cos" <cons $y <nil>>>] (* (sin y) (d/d y x))]
            [[_ <apply ,"sin" <cons $y <nil>>>] (* -1 (cos y) (d/d y x))]
+           [[_ <apply ,"sqrt" <cons $y <nil>>>] (* (/ 1 (* 2 (sqrt y))) (d/d y x))]
            })]
        [?term? 
         (match [x f] [symbol-expr term-expr]
