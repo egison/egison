@@ -269,7 +269,7 @@ multiply :: PrimitiveFunc
 multiply = numberBinaryOp mathMult (\(Float x y) (Float x' y') -> Float (x * x' - y * y')  (x * y' + x' * y))
 
 divide :: PrimitiveFunc
-divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (y * y + y' * y')) ((y * x' - x * y') / (y * y + y' * y')))
+divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y')))
 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg $ numerator''
