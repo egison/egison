@@ -143,22 +143,26 @@
 
 (define $d/d
   (lambda [$f $x]
-    (match [x f] [symbol-expr term-expr]
-      {[[<symbol $xname> <term ,1 <ncons $n <symbol ,xname> <nil>>>]
-        (* n (** x (- n 1)))]
-       [[<symbol $xname> <term ,1 <ncons _ <symbol !,xname> <nil>>>]
-        0]
-       [[_ <term ,1 <cons <apply ,"cos" <cons ,x <nil>>> <nil>>>]
-        (sin x)]
-       [[_ <term ,1 <cons <apply ,"cos" <cons !,x <nil>>> <nil>>>]
-        0]
-       [[_ <term ,1 <cons <apply ,"sin" <cons ,x <nil>>> <nil>>>]
-        (* -1 (cos x))]
-       [[_ <term ,1 <cons <apply ,"sin" <cons !,x <nil>>> <nil>>>]
-        0]
-       [[<symbol $xname> <term $a <cons $fx $ts>>]
-        (+ (* (d/d fx x)
-              a (foldl *' 1 (map 2#(**' %1 %2) ts)))
-           (* fx
-              (d/d (*  a (foldl *' 1 (map 2#(**' %1 %2) ts))) x)))]
-       })))
+    (if (monomial? x)
+      (if (symbol? x)
+        undefined
+        (match [x f] [symbol-expr term-expr]
+          {[[<symbol $xname> <term ,1 <ncons $n <symbol ,xname> <nil>>>]
+            (* n (** x (- n 1)))]
+           [[<symbol $xname> <term ,1 <ncons _ <symbol !,xname> <nil>>>]
+            0]
+           [[_ <term ,1 <cons <apply ,"cos" <cons ,x <nil>>> <nil>>>]
+            (sin x)]
+           [[_ <term ,1 <cons <apply ,"cos" <cons !,x <nil>>> <nil>>>]
+            0]
+           [[_ <term ,1 <cons <apply ,"sin" <cons ,x <nil>>> <nil>>>]
+            (* -1 (cos x))]
+           [[_ <term ,1 <cons <apply ,"sin" <cons !,x <nil>>> <nil>>>]
+            0]
+           [[<symbol $xname> <term $a <cons $fx $ts>>]
+            (+ (* (d/d fx x)
+                  a (foldl *' 1 (map 2#(**' %1 %2) ts)))
+               (* fx
+                  (d/d (*  a (foldl *' 1 (map 2#(**' %1 %2) ts))) x)))]
+           }))
+      undefined)))
