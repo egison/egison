@@ -4,7 +4,6 @@
 ;;;;;
 ;;;;;
 
-
 (define $to-math-expr (macro [$arg] (math-normalize (apply to-math-expr' arg))))
 
 (define $+ (macro [$arg] (math-normalize (apply +' arg))))
