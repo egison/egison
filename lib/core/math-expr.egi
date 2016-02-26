@@ -92,6 +92,30 @@
         #t]
        [_ #f]})))
 
+(define $simple-term?
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<div <plus <cons <term ,1 <cons _ <nil>>> <nil>>>
+             <plus <cons <term ,1 <nil>> <nil>>>>
+        #t]
+       [_ #f]})))
+
+(define $term?
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<div <plus <cons _ <nil>>>
+             <plus <cons <term ,1 <nil>> <nil>>>>
+        #t]
+       [_ #f]})))
+
+(define $polynomial?
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<div _
+             <plus <cons <term ,1 <nil>> <nil>>>>
+        #t]
+       [_ #f]})))
+
 (define $monomial?
   (lambda [$mexpr]
     (match mexpr math-expr
