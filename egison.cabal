@@ -59,7 +59,7 @@ Cabal-version:       >=1.8
 
 Extra-Source-Files:  benchmark/Benchmark.hs
 
-Data-files:          lib/core/*.egi
+Data-files:          lib/core/*.egi lib/math/*.egi
                      sample/*.egi sample/io/*.egi
                      elisp/egison-mode.el
 

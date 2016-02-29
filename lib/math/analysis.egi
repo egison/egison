@@ -1,0 +1,44 @@
+;;;;;
+;;;;;
+;;;;; Mathematical Analysis
+;;;;;
+;;;;;
+
+(define $d/d
+  (lambda [$f $x]
+    (match f math-expr
+      {[?simple-term?
+        (match [x f] [symbol-expr symbol-expr]
+          {[[<symbol $name> <symbol !,name>] 0]
+           [[<symbol $name> <symbol ,name>] 1]
+           [[_ <apply ,"exp" <cons $y <nil>>>] (* (exp y) (d/d y x))]
+           [[_ <apply ,"log" <cons $y <nil>>>] (* (/ 1 y) (d/d y x))]
+           [[_ <apply ,"cos" <cons $y <nil>>>] (* (sin y) (d/d y x))]
+           [[_ <apply ,"sin" <cons $y <nil>>>] (* -1 (cos y) (d/d y x))]
+           [[_ <apply ,"sqrt" <cons $y <nil>>>] (* (/ 1 (* 2 (sqrt y))) (d/d y x))]
+           })]
+       [?term? 
+        (match [x f] [symbol-expr term-expr]
+          {[[_ <term _ <nil>>]
+            0]
+           [[_ <term ,1 <ncons $n $s <nil>>>]
+            (* n (** s (- n 1)) (d/d s x))]
+           [[_ <term $a <cons $fx $ts>>]
+            (+ (* (d/d fx x)
+                  a (foldl *' 1 (map 2#(**' %1 %2) ts)))
+               (* fx
+                  (d/d (*  a (foldl *' 1 (map 2#(**' %1 %2) ts))) x)))]
+           })]
+       [?polynomial?
+        (match [x f] [symbol-expr poly-expr]
+          {[[_ <plus $ts>]
+            (sum (map (d/d $ x) ts))]
+           })]
+       [_ 
+        (match [x f] [symbol-expr math-expr]
+          {[[_ <div $p1 $p2>]
+            (let {[$p1' (d/d p1 x)]
+                  [$p2' (d/d p2 x)]}
+              (/ (- (* p1' p2) (* p2' p1)) (** p2 2)))]
+           })]
+       })))

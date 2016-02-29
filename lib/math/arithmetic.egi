@@ -1,0 +1,70 @@
+;;;;;
+;;;;;
+;;;;; Arithmetic Operation
+;;;;;
+;;;;;
+
+(define $to-math-expr (macro [$arg] (math-normalize (apply to-math-expr' arg))))
+
+(define $+ (macro [$arg] (math-normalize (apply +' arg))))
+(define $- (macro [$arg] (math-normalize (apply -' arg))))
+(define $* (macro [$arg] (math-normalize (apply *' arg))))
+(define $/ (macro [$arg] (math-normalize (apply /' arg))))
+
+(define $sum
+  (lambda [$xs]
+    (foldl + 0 xs)))
+
+(define $sum'
+  (lambda [$xs]
+    (foldl +' 0 xs)))
+
+(define $product
+  (lambda [$xs]
+    (foldl * 1 xs)))
+
+(define $product'
+  (lambda [$xs]
+    (foldl *' 1 xs)))
+
+(define $power
+  (lambda [$x $n]
+    (foldl * 1 (take n (repeat1 x)))))
+
+(define $power'
+  (lambda [$x $n]
+    (foldl *' 1 (take n (repeat1 x)))))
+
+(define $**
+  (lambda [$x $n]
+    (if (rational? n)
+      (if (gte? n 0)
+        (if (integer? n)
+          (power x n)
+          (to-math-expr <Apply "**" (map from-math-expr {x n})>))
+        (/ 1 (** x (neg n))))
+      (to-math-expr <Apply "**" (map from-math-expr {x n})>))))
+
+(define $**'
+  (lambda [$x $n]
+    (if (rational? n)
+      (if (gte? n 0)
+        (if (integer? n)
+          (power' x n)
+          (to-math-expr' <Apply "**" (map from-math-expr {x n})>))
+        (/' 1 (**' x (neg n))))
+      (to-math-expr' <Apply "**" (map from-math-expr {x n})>))))
+
+(define $gcd
+  (lambda [$x $y]
+    (match [x y] [term-expr term-expr]
+      {[[<term $a $xs> <term $b $ys>]
+        (* (gcd' (abs a) (abs b)) (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys))))]})))
+
+(define $gcd'
+  (lambda [$x $y]
+    (match [x y] [integer integer]
+      {[[,0 _] y]
+       [[_ ,0] x]
+       [[_ ?(gte? $ x)] (gcd' (modulo y x) x)]
+       [[_ _] (gcd' y x)]})))
