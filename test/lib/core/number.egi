@@ -86,14 +86,6 @@
   (prime? 18)
   #f)
 
-(assert-equal "gcd"
-  (gcd 15 40)
-  5)
-
-(assert-equal "fact"
-  (fact 10)
-  3628800)
-
 (assert-equal "perm"
   (perm 5 2)
   20)
@@ -102,20 +94,14 @@
   (comb 5 2)
   10)
 
-;;
-;; Integers
-;;
-(assert-equal "power"
-  (power 2 10)
-  1024)
+(assert-equal "n-adic - case 1"
+  (n-adic 10 123)
+  {1 2 3})
 
-(assert-equal "sum"
-  (sum (take 5 nats))
-  15)
+(assert-equal "n-adic - case 2"
+  (n-adic 2 10)
+  {1 0 1 0})
 
-(assert-equal "product"
-  (product (take 5 nats))
-  120)
 
 ;;
 ;; Dicimal fractions

@@ -12,6 +12,7 @@
           {[[<symbol $name> <symbol !,name>] 0]
            [[<symbol $name> <symbol ,name>] 1]
            [[_ <apply ,"exp" <cons $y <nil>>>] (* (exp y) (d/d y x))]
+           [[_ <apply ,"**" <cons $a <cons $y <nil>>>>] (* (** a y) (log a) (d/d y x))]
            [[_ <apply ,"log" <cons $y <nil>>>] (* (/ 1 y) (d/d y x))]
            [[_ <apply ,"cos" <cons $y <nil>>>] (* (sin y) (d/d y x))]
            [[_ <apply ,"sin" <cons $y <nil>>>] (* -1 (cos y) (d/d y x))]
@@ -42,3 +43,7 @@
               (/ (- (* p1' p2) (* p2' p1)) (** p2 2)))]
            })]
        })))
+
+(define $d/dx (d/d $ x)) ; just a syntax sugar
+(define $d/dy (d/d $ y)) ; just a syntax sugar
+(define $d/dz (d/d $ z)) ; just a syntax sugar

@@ -1,0 +1,7 @@
+;;;;;
+;;;;;
+;;;;; Mathematical Functions
+;;;;;
+;;;;;
+
+(define $sigmoid (lambda [$z] (/ 1 (+ 1 (exp (* -1 z))))))

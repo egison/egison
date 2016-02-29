@@ -57,14 +57,6 @@
 
 (define $p-f prime-factorization)
 
-(define $n-adic
-  (lambda [$n $x]
-    (if (eq? x 0)
-      {}
-      (let {[$q (quotient x n)]
-            [$r (remainder x n)]}
-        {@(n-adic n q) r}))))
-
 (define $even?
   (lambda [$n]
     (eq? 0 (modulo n 2))))
@@ -72,11 +64,6 @@
 (define $odd?
   (lambda [$n]
     (eq? 1 (modulo n 2))))
-
-(define $square?
-  (lambda [$n]
-    (let {[$x (round (sqrt n))]}
-      (eq? n (power x 2)))))
 
 (define $fact
   (lambda [$n]
@@ -90,6 +77,14 @@
   (lambda [$n $r]
     (/ (perm n r)
        (fact r))))
+
+(define $n-adic
+  (lambda [$n $x]
+    (if (eq? x 0)
+      {}
+      (let {[$q (quotient x n)]
+            [$r (remainder x n)]}
+        {@(n-adic n q) r}))))
 
 ;;;
 ;;; Integers

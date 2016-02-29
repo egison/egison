@@ -108,6 +108,7 @@ coreLibraries =
   [ "lib/math/expression.egi"
   , "lib/math/normalize.egi"
   , "lib/math/arithmetic.egi"
+  , "lib/math/functions.egi"
   , "lib/math/algebra.egi"
   , "lib/math/analysis.egi"
   , "lib/core/base.egi"

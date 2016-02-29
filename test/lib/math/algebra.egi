@@ -1,0 +1,7 @@
+(assert-equal "q-f - case 1"
+  (q-f 1 2 1)
+  {-1 -1})
+
+(assert-equal "q-f - case 2"
+  (q-f 1 1 -1)
+  {(/ (+ -1 (sqrt 5)) 2) (/ (+ -1 (* -1 (sqrt 5))) 2)})
