@@ -4,4 +4,12 @@
 ;;;;;
 ;;;;;
 
-(define $sigmoid (lambda [$z] (/ 1 (+ 1 (exp (* -1 z))))))
+(define $sigmoid
+  (lambda [$z]
+    (/ 1 (+ 1 (exp (* -1 z))))))
+
+(define $kronecker-delta
+  (lambda [$i $j]
+    (if (eq? i j)
+      1
+      0)))
