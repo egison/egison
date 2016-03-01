@@ -658,7 +658,9 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         Value (PatternFunc env'' names expr) ->
           let penv = zip names args
           in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
-        _ -> throwError $ TypeMismatch "pattern constructor" func'
+        _ -> case func of
+               VarExpr name -> return $ msingleton $ (MState env loops bindings ((MAtom (InductivePat "apply" [(ValuePat (StringExpr (T.pack name))), (toListPat args)]) target matcher):trees))
+               _ -> throwError $ TypeMismatch "pattern constructor" func'
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF :: (EgisonM Integer)
@@ -919,6 +921,10 @@ evalMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
 --
 -- Util
 --
+toListPat :: [EgisonPattern] -> EgisonPattern
+toListPat [] = InductivePat "nil" []
+toListPat (pat:pats) = InductivePat "cons" [pat, (toListPat pats)]
+
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
 fromTuple (Value (Tuple vals)) = mapM (newEvalutedObjectRef . Value) vals

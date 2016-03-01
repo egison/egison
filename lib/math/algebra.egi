@@ -4,6 +4,10 @@
 ;;;;;
 ;;;;;
 
+;;;
+;;; Root
+;;;
+
 (define $rt
   (lambda [$n $x]
     (if (integer? n)
@@ -66,6 +70,33 @@
          [_ (to-math-expr' <Apply "rtu" (map from-math-expr {n})>)]
          })
       (to-math-expr' <Apply "rtu" (map from-math-expr {n})>))))
+
+;;;
+;;; Inverse
+;;;
+
+(define $inverse
+  (lambda [$t $x $f]
+    (match f math-expr
+      {[?simple-term?
+        (match f symbol-expr
+          {[,x t]
+           [(exp ,x) (log t)]
+           [(log ,x) (exp t)]
+           [(sqrt ,x) (** t 2)]
+           [(cos ,x) (acos t)]
+           [(sin ,x) (asin t)]
+           [(acos ,x) (cos t)]
+           [(asin ,x) (sin t)]
+           [_ undefined]
+           })]
+       [_ undefined]})))
+
+;(inverse t x (id x)) ;=> t
+;(inverse t x ((/ 1 $) x)) ;=> (/ 1 t)
+;(inverse t x ((+ $ 3) x)) ;=> (- t 3)
+;(inverse t x ((+ x y)) ;=> (- t y)
+
 
 ;;;
 ;;; Quadratic Equations
