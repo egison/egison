@@ -26,7 +26,11 @@
 
 (define $poly-expr
   (matcher
-    {[$ [poly-expr']
+    {[,$val []
+      {[$tgt (if (eq? val tgt)
+               {[]}
+               {})]}]
+     [$ [poly-expr']
       {[<Plus $ts> {<Plus ts>}]
        [<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {<Plus ts>}]
        [$tgt {(from-math-expr tgt)}]}]
@@ -44,7 +48,11 @@
 
 (define $term-expr
   (matcher
-    {[$ [term-expr']
+    {[,$val []
+      {[$tgt (if (eq? val tgt)
+               {[]}
+               {})]}]
+     [$ [term-expr']
       {[<Term $n $xs> {<Term n xs>}]
        [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {<Term n xs>}]
        [$tgt {(from-math-expr tgt)}]}]
@@ -62,7 +70,11 @@
 
 (define $symbol-expr
   (matcher
-    {[$ [symbol-expr']
+    {[,$val []
+      {[$tgt (if (eq? val tgt)
+                 {[]}
+                 {})]}]
+     [$ [symbol-expr']
       {[<Symbol $v> {<Symbol v>}]
        [<Div <Plus {<Term 1 {[<Symbol $v> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Symbol v>}]
        [<Apply $v $mexprs> {<Apply v mexprs>}]
