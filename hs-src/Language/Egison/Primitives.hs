@@ -175,16 +175,16 @@ primitives = [ ("+", plus)
              , ("uncons", uncons')
              , ("unsnoc", unsnoc')
 
-             , ("bool?", isBool)
-             , ("integer?", isInteger)
-             , ("rational?", isRational)
-             , ("number?", isNumber)
-             , ("float?", isFloat)
-             , ("char?", isChar)
-             , ("string?", isString)
-             , ("collection?", isCollection)
-             , ("array?", isArray)
-             , ("hash?", isHash)
+             , ("bool?", isBool')
+             , ("integer?", isInteger')
+             , ("rational?", isRational')
+             , ("number?", isNumber')
+             , ("float?", isFloat')
+             , ("char?", isChar')
+             , ("string?", isString')
+             , ("collection?", isCollection')
+             , ("array?", isArray')
+             , ("hash?", isHash')
 
              , ("assert", assert)
              , ("assert-equal", assertEqual)
@@ -527,59 +527,6 @@ unsnoc' whnf = do
   case mRet of
     Just (racObjRef, rdcObjRef) -> return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
     Nothing -> throwError $ Default $ "cannot unsnoc collection"
-
--- Typing
-
-isBool :: PrimitiveFunc
-isBool (Value (Bool _)) = return $ Value $ Bool True
-isBool _ = return $ Value $ Bool False
-
-isInteger :: PrimitiveFunc
-isInteger (Value (MathExpr (Div (Plus []) (Plus [(Term 1 [])])))) = return $ Value $ Bool True
-isInteger (Value (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term 1 [])])))) = return $ Value $ Bool True
-isInteger _ = return $ Value $ Bool False
-
-isRational :: PrimitiveFunc
-isRational (Value (MathExpr (Div (Plus []) (Plus [(Term _ [])])))) = return $ Value $ Bool True
-isRational (Value (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])])))) = return $ Value $ Bool True
-isRational _ = return $ Value $ Bool False
-
-isNumber :: PrimitiveFunc
-isNumber (Value (MathExpr _)) = return $ Value $ Bool True
-isNumber _ = return $ Value $ Bool False
-
-isFloat :: PrimitiveFunc
-isFloat (Value (Float _ 0)) = return $ Value $ Bool True
-isFloat _ = return $ Value $ Bool False
-
-isComplex :: PrimitiveFunc
-isComplex (Value (Float _ _)) = return $ Value $ Bool True
-isComplex _ = return $ Value $ Bool False
-
-isChar :: PrimitiveFunc
-isChar (Value (Char _)) = return $ Value $ Bool True
-isChar _ = return $ Value $ Bool False
-
-isString :: PrimitiveFunc
-isString (Value (String _)) = return $ Value $ Bool True
-isString _ = return $ Value $ Bool False
-
-isCollection :: PrimitiveFunc
-isCollection (Value (Collection _)) = return $ Value $ Bool True
-isCollection (Intermediate (ICollection _)) = return $ Value $ Bool True
-isCollection _ = return $ Value $ Bool False
-
-isArray :: PrimitiveFunc
-isArray (Value (Array _)) = return $ Value $ Bool True
-isArray (Intermediate (IArray _)) = return $ Value $ Bool True
-isArray _ = return $ Value $ Bool False
-
-isHash :: PrimitiveFunc
-isHash (Value (IntHash _)) = return $ Value $ Bool True
-isHash (Value (StrHash _)) = return $ Value $ Bool True
-isHash (Intermediate (IIntHash _)) = return $ Value $ Bool True
-isHash (Intermediate (IStrHash _)) = return $ Value $ Bool True
-isHash _ = return $ Value $ Bool False
 
 -- Test
 

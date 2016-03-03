@@ -93,6 +93,22 @@ module Language.Egison.Types
     , mconcat
     , mmap
     , mfor
+    -- * Typing
+    , isBool
+    , isInteger
+    , isRational
+    , isNumber
+    , isBool'
+    , isInteger'
+    , isRational'
+    , isNumber'
+    , isFloat'
+    , isComplex'
+    , isChar'
+    , isString'
+    , isCollection'
+    , isArray'
+    , isHash'
     ) where
 
 import Prelude hiding (foldr, mappend, mconcat)
@@ -985,3 +1001,70 @@ mmap f = mfoldr g $ return MNil
 
 mfor :: Monad m => MList m a -> (a -> m b) -> m (MList m b)
 mfor = flip mmap
+
+-- Typing
+
+isBool :: EgisonValue -> Bool
+isBool (Bool _) = True
+isBool _ = False
+
+isBool' :: PrimitiveFunc
+isBool' (Value val) = return $ Value $ Bool $ isBool val
+
+isInteger :: EgisonValue -> Bool
+isInteger (MathExpr (Div (Plus []) (Plus [(Term 1 [])]))) = True
+isInteger (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term 1 [])]))) = True
+isInteger _ = False
+
+isInteger' :: PrimitiveFunc
+isInteger' (Value val) = return $ Value $ Bool $ isInteger val
+
+isRational :: EgisonValue -> Bool
+isRational (MathExpr (Div (Plus []) (Plus [(Term _ [])]))) = True
+isRational (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])]))) = True
+isRational _ = False
+
+isRational' :: PrimitiveFunc
+isRational' (Value val) = return $ Value $ Bool $ isRational val
+
+isNumber :: EgisonValue -> Bool
+isNumber (MathExpr _) = True
+isNumber _ = False
+
+isNumber' :: PrimitiveFunc
+isNumber' (Value val) = return $ Value $ Bool $ isNumber val
+isNumber' _ = return $ Value $ Bool False
+
+isFloat' :: PrimitiveFunc
+isFloat' (Value (Float _ 0)) = return $ Value $ Bool True
+isFloat' _ = return $ Value $ Bool False
+
+isComplex' :: PrimitiveFunc
+isComplex' (Value (Float _ _)) = return $ Value $ Bool True
+isComplex' _ = return $ Value $ Bool False
+
+isChar' :: PrimitiveFunc
+isChar' (Value (Char _)) = return $ Value $ Bool True
+isChar' _ = return $ Value $ Bool False
+
+isString' :: PrimitiveFunc
+isString' (Value (String _)) = return $ Value $ Bool True
+isString' _ = return $ Value $ Bool False
+
+isCollection' :: PrimitiveFunc
+isCollection' (Value (Collection _)) = return $ Value $ Bool True
+isCollection' (Intermediate (ICollection _)) = return $ Value $ Bool True
+isCollection' _ = return $ Value $ Bool False
+
+isArray' :: PrimitiveFunc
+isArray' (Value (Array _)) = return $ Value $ Bool True
+isArray' (Intermediate (IArray _)) = return $ Value $ Bool True
+isArray' _ = return $ Value $ Bool False
+
+isHash' :: PrimitiveFunc
+isHash' (Value (IntHash _)) = return $ Value $ Bool True
+isHash' (Value (StrHash _)) = return $ Value $ Bool True
+isHash' (Intermediate (IIntHash _)) = return $ Value $ Bool True
+isHash' (Intermediate (IStrHash _)) = return $ Value $ Bool True
+isHash' _ = return $ Value $ Bool False
+

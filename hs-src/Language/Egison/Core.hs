@@ -21,6 +21,9 @@ module Language.Egison.Core
     , evalRefDeep
     , evalWHNF
     , applyFunc
+    -- * Array
+    , refArray
+    , arraySize
     -- * Environment
     , recursiveBind
     -- * Pattern matching
@@ -345,11 +348,6 @@ evalExpr env (GenerateArrayExpr names size expr) =
 
 evalExpr env (ArraySizeExpr expr) = 
   evalExpr env expr >>= arraySize
-  where
-    arraySize :: WHNFData -> EgisonM WHNFData
-    arraySize (Intermediate (IArray arr)) = return . Value . toEgison $ (snd (Array.bounds arr))
-    arraySize (Value (Array arr))         = return . Value . toEgison $ (snd (Array.bounds arr))
-    arraySize val                         = throwError $ TypeMismatch "array" val
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
@@ -437,8 +435,8 @@ applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
 generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
 generateArray env name sizeExpr expr = do
   size <- evalExpr env sizeExpr >>= fromWHNF >>= return . fromInteger
-  elems <- mapM genElem (enumFromTo 1 size)
-  return $ Intermediate $ IArray $ Array.listArray (1, size) elems
+  elms <- mapM genElem (enumFromTo 1 size)
+  return $ Intermediate $ IArray $ Array.listArray (1, size) elms
   where
     genElem :: Integer -> EgisonM ObjectRef
     genElem i = do env' <- bindEnv env name $ toInteger i
@@ -452,16 +450,34 @@ generateArray env name sizeExpr expr = do
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val 
 refArray (Value (Array array)) (index:indices) = do
-  i <- (liftM fromInteger . fromEgison) index
-  if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
-    then refArray (Value (array ! i)) indices
-    else return  $ Value Undefined
+  if isInteger index
+    then do i <- (liftM fromInteger . fromEgison) index
+            if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
+              then refArray (Value (array ! i)) indices
+              else return  $ Value Undefined
+    else case index of
+           (MathExpr (Div (Plus [(Term 1 [(Symbol var, 1)])]) (Plus [(Term 1 [])]))) -> do
+             let (_,size) = Array.bounds array
+             elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
+             elmRefs <- mapM newEvalutedObjectRef elms
+             return $ Intermediate $ IArray $ Array.listArray (1, size) elmRefs
+           _  -> throwError $ TypeMismatch "integer or symbol" (Value index)
 refArray (Intermediate (IArray array)) (index:indices) = do
-  i <- (liftM fromInteger . fromEgison) index
-  if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
-    then let ref = array ! i in
-           evalRef ref >>= flip refArray indices
-    else return  $ Value Undefined
+  if isInteger index
+    then do i <- (liftM fromInteger . fromEgison) index
+            if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
+              then let ref = array ! i in
+                   evalRef ref >>= flip refArray indices
+              else return  $ Value Undefined
+    else case index of
+           (MathExpr (Div (Plus [(Term 1 [(Symbol var, 1)])]) (Plus [(Term 1 [])]))) -> do
+             let (_,size) = Array.bounds array
+             let refs = Array.elems array
+             arrs <- mapM evalRef refs
+             elms <- mapM (\arr -> refArray arr indices) arrs
+             elmRefs <- mapM newEvalutedObjectRef elms
+             return $ Intermediate $ IArray $ Array.listArray (1, size) elmRefs
+           _  -> throwError $ TypeMismatch "integer or symbol" (Value index)
 refArray (Value (IntHash hash)) (index:indices) = do
   key <- fromEgison index
   case HL.lookup key hash of
@@ -493,6 +509,14 @@ refArray (Intermediate (IStrHash hash)) (index:indices) = do
     Just ref -> evalRef ref >>= flip refArray indices
     Nothing -> return $ Value Undefined
 refArray val _ = throwError $ TypeMismatch "array or hash" val
+
+arraySize :: WHNFData -> EgisonM WHNFData
+arraySize val = arraySize' val >>= return . Value . toEgison
+
+arraySize' :: WHNFData -> EgisonM Integer
+arraySize' (Intermediate (IArray arr)) = return (snd (Array.bounds arr))
+arraySize' (Value (Array arr))         = return (snd (Array.bounds arr))
+arraySize' val                         = throwError $ TypeMismatch "array" val
 
 newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr
