@@ -28,6 +28,9 @@ module Language.Egison.Types
     , PolyExpr (..)
     , TermExpr (..)
     , SymbolExpr (..)
+    , TensorExpr (..)
+    , MultTensorExpr (..)
+    , SymbolTensorExpr (..)
     , symbolScalarExpr
     , mathExprToEgison
     , egisonToScalarExpr
@@ -530,6 +533,7 @@ instance Show EgisonValue where
   show (Bool True) = "#t"
   show (Bool False) = "#f"
   show (ScalarExpr mExpr) = show mExpr
+  show (TensorExpr tExpr) = show tExpr
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"

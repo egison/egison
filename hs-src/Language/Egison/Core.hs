@@ -213,9 +213,17 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey whnf = throwError $ TypeMismatch "integer or string" $ whnf
 
 evalExpr env (IndexedExpr expr indices) = do
-  array <- evalExpr env expr
+  tensor <- evalExpr env expr
   indices' <- mapM (evalExprDeep env) indices
-  refArray array indices'
+  case tensor of
+    (Value (ScalarExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) -> do
+      indices'' <- mapM extract indices'
+      return $ Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])])) [(TSymbol name indices'')])] (Div (Plus []) (Plus [(Term 1 [])]))))
+    _ -> refArray tensor indices'
+ where
+  extract :: EgisonValue -> EgisonM ScalarExpr
+  extract (ScalarExpr s) = return s
+  extract val = throwError $ TypeMismatch "scalar expression" (Value val)
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
 
