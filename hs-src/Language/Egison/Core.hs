@@ -156,7 +156,7 @@ evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
-  refVar' env var = maybe (newEvalutedObjectRef (Value (symbolMathExpr var))) return
+  refVar' env var = maybe (newEvalutedObjectRef (Value (symbolScalarExpr var))) return
                           (refVar env var)
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
@@ -206,7 +206,7 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
     case val of
-      MathExpr _ -> fromEgison val >>= (return . IntKey)
+      ScalarExpr _ -> fromEgison val >>= (return . IntKey)
       Char c -> return (CharKey c)
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
@@ -422,13 +422,13 @@ applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc _ (Value (MathExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) arg = do
+applyFunc _ (Value (ScalarExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM p args
-  return (Value (MathExpr (Div (Plus [(Term 1 [(Apply name mExprs, 1)])]) (Plus [(Term 1 [])]))))
+  return (Value (ScalarExpr (Div (Plus [(Term 1 [(Apply name mExprs, 1)])]) (Plus [(Term 1 [])]))))
  where
-  p :: EgisonValue -> EgisonM MathExpr
-  p (MathExpr mExpr) = return mExpr
+  p :: EgisonValue -> EgisonM ScalarExpr
+  p (ScalarExpr mExpr) = return mExpr
   p val = throwError $ TypeMismatch "math expression" (Value val)
 applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
 
@@ -456,7 +456,7 @@ refArray (Value (Array array)) (index:indices) = do
               then refArray (Value (array ! i)) indices
               else return  $ Value Undefined
     else case index of
-           (MathExpr (Div (Plus [(Term 1 [(Symbol var, 1)])]) (Plus [(Term 1 [])]))) -> do
+           (ScalarExpr (Div (Plus [(Term 1 [(Symbol var, 1)])]) (Plus [(Term 1 [])]))) -> do
              let (_,size) = Array.bounds array
              elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
              elmRefs <- mapM newEvalutedObjectRef elms
@@ -470,7 +470,7 @@ refArray (Intermediate (IArray array)) (index:indices) = do
                    evalRef ref >>= flip refArray indices
               else return  $ Value Undefined
     else case index of
-           (MathExpr (Div (Plus [(Term 1 [(Symbol var, 1)])]) (Plus [(Term 1 [])]))) -> do
+           (ScalarExpr (Div (Plus [(Term 1 [(Symbol var, 1)])]) (Plus [(Term 1 [])]))) -> do
              let (_,size) = Array.bounds array
              let refs = Array.elems array
              arrs <- mapM evalRef refs
@@ -1005,13 +1005,13 @@ data EgisonHashKey =
 extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
-extractPrimitiveValue (Value val@(MathExpr _)) = return val
+extractPrimitiveValue (Value val@(ScalarExpr _)) = return val
 extractPrimitiveValue (Value val@(Float _ _)) = return val
 extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
 
 isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _)) = True
 isPrimitiveValue (Value (Bool _)) = True
-isPrimitiveValue (Value (MathExpr _)) = True
+isPrimitiveValue (Value (ScalarExpr _)) = True
 isPrimitiveValue (Value (Float _ _)) = True
 isPrimitiveValue _ = False

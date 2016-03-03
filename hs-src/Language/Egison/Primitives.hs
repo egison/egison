@@ -110,9 +110,9 @@ primitives = [ ("+", plus)
              , ("/'", divide)
              , ("numerator", numerator')
              , ("denominator", denominator')
-             , ("from-math-expr", fromMathExpr)
-             , ("to-math-expr", toMathExpr)
-             , ("to-math-expr'", toMathExpr)
+             , ("from-math-expr", fromScalarExpr)
+             , ("to-math-expr", toScalarExpr)
+             , ("to-math-expr'", toScalarExpr)
                
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
@@ -225,14 +225,14 @@ floatUnaryOp :: String -> (Double -> Double) -> PrimitiveFunc
 floatUnaryOp name op = oneArg $ \val -> do
   case val of
     (Float f 0) -> return $ Float (op f) 0
-    (MathExpr mExpr) -> return $ MathExpr (Div (Plus [(Term 1 [(Apply name [mExpr], 1)])]) (Plus [(Term 1 [])]))
+    (ScalarExpr mExpr) -> return $ ScalarExpr (Div (Plus [(Term 1 [(Apply name [mExpr], 1)])]) (Plus [(Term 1 [])]))
     _ -> throwError $ TypeMismatch "number" (Value val)
 
 floatBinaryOp :: String -> (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp name op = twoArgs $ \val val' -> do
   case (val, val') of
     ((Float f 0), (Float f' 0)) -> return $ Float (op f f') 0
-    ((MathExpr mExpr), (MathExpr mExpr')) -> return $ MathExpr (Div (Plus [(Term 1 [(Apply name [mExpr, mExpr'], 1)])]) (Plus [(Term 1 [])]))
+    ((ScalarExpr mExpr), (ScalarExpr mExpr')) -> return $ ScalarExpr (Div (Plus [(Term 1 [(Apply name [mExpr, mExpr'], 1)])]) (Plus [(Term 1 [])]))
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' -> do
@@ -244,7 +244,7 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
 -- Arith
 --
 
-numberBinaryOp :: (MathExpr -> MathExpr -> MathExpr) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
+numberBinaryOp :: (ScalarExpr -> ScalarExpr -> ScalarExpr) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
 numberBinaryOp mOp fOp args = do
   args' <- tupleToList args
   case args' of 
@@ -254,8 +254,8 @@ numberBinaryOp mOp fOp args = do
   numberBinaryOp' f@(Float _ _) f'@(Float _ _) = return $ fOp f f'
   numberBinaryOp' val           (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)   val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
-  numberBinaryOp' (MathExpr m1) (MathExpr m2)  = (return . MathExpr . mathNormalize') (mOp m1 m2)
-  numberBinaryOp' (MathExpr _)  val'           = throwError $ TypeMismatch "number" (Value val')
+  numberBinaryOp' (ScalarExpr m1) (ScalarExpr m2)  = (return . ScalarExpr . mathNormalize') (mOp m1 m2)
+  numberBinaryOp' (ScalarExpr _)  val'           = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val           _              = throwError $ TypeMismatch "number" (Value val)
 
 
@@ -274,25 +274,25 @@ divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg $ numerator''
  where
-  numerator'' (MathExpr m) = return $ MathExpr (mathNumerator m)
+  numerator'' (ScalarExpr m) = return $ ScalarExpr (mathNumerator m)
   numerator'' val = throwError $ TypeMismatch "rational" (Value val)
 
 denominator' :: PrimitiveFunc
 denominator' =  oneArg $ denominator''
  where
-  denominator'' (MathExpr m) = return $ MathExpr (mathDenominator m)
+  denominator'' (ScalarExpr m) = return $ ScalarExpr (mathDenominator m)
   denominator'' val = throwError $ TypeMismatch "rational" (Value val)
 
-fromMathExpr :: PrimitiveFunc
-fromMathExpr = oneArg $ fromMathExpr'
+fromScalarExpr :: PrimitiveFunc
+fromScalarExpr = oneArg $ fromScalarExpr'
  where
-  fromMathExpr' (MathExpr m) = return $ mathExprToEgison m
-  fromMathExpr' val = throwError $ TypeMismatch "number" (Value val)
+  fromScalarExpr' (ScalarExpr m) = return $ mathExprToEgison m
+  fromScalarExpr' val = throwError $ TypeMismatch "number" (Value val)
 
-toMathExpr :: PrimitiveFunc
-toMathExpr = oneArg $ toMathExpr'
+toScalarExpr :: PrimitiveFunc
+toScalarExpr = oneArg $ toScalarExpr'
  where
-  toMathExpr' val = egisonToMathExpr val >>= return . MathExpr . mathNormalize'
+  toScalarExpr' val = egisonToScalarExpr val >>= return . ScalarExpr . mathNormalize'
 
 --
 -- Pred
@@ -304,56 +304,56 @@ eq = twoArgs $ \val val' ->
 lt :: PrimitiveFunc
 lt = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
-  numberBinaryPred' m@(MathExpr _) n@(MathExpr _) = do
+  numberBinaryPred' m@(ScalarExpr _) n@(ScalarExpr _) = do
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (<) r r'
   numberBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<) f f'
-  numberBinaryPred' (MathExpr _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (ScalarExpr _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 lte :: PrimitiveFunc
 lte = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
-  numberBinaryPred' m@(MathExpr _) n@(MathExpr _) = do
+  numberBinaryPred' m@(ScalarExpr _) n@(ScalarExpr _) = do
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (<=) r r'
   numberBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<=) f f'
-  numberBinaryPred' (MathExpr _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (ScalarExpr _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gt :: PrimitiveFunc
 gt = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
-  numberBinaryPred' m@(MathExpr _) n@(MathExpr _) = do
+  numberBinaryPred' m@(ScalarExpr _) n@(ScalarExpr _) = do
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (>) r r'
   numberBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (>) f f'
-  numberBinaryPred' (MathExpr _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (ScalarExpr _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gte :: PrimitiveFunc
 gte = twoArgs $ \val val' -> numberBinaryPred' val val'
  where
-  numberBinaryPred' m@(MathExpr _) n@(MathExpr _) = do
+  numberBinaryPred' m@(ScalarExpr _) n@(ScalarExpr _) = do
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (>=) r r'
   numberBinaryPred' (Float f 0)    (Float f' 0)  = return $ Bool $ (>=) f f'
-  numberBinaryPred' (MathExpr _) val           = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryPred' (ScalarExpr _) val           = throwError $ TypeMismatch "number" (Value val)
   numberBinaryPred' (Float _ _)    val           = throwError $ TypeMismatch "float" (Value val)
   numberBinaryPred' val            _             = throwError $ TypeMismatch "number" (Value val)
   
 truncate' :: PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
-  numberUnaryOp' (MathExpr (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
-  numberUnaryOp' (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return $ toEgison (quot x y)
+  numberUnaryOp' (ScalarExpr (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
+  numberUnaryOp' (ScalarExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return $ toEgison (quot x y)
   numberUnaryOp' (Float x _)           = return $ toEgison ((truncate x) :: Integer)
   numberUnaryOp' val                   = throwError $ TypeMismatch "ratinal or float" (Value val)
 
@@ -373,8 +373,8 @@ imaginaryPart =  oneArg $ imaginaryPart'
 -- Transform
 --
 numberToFloat' :: EgisonValue -> EgisonValue
-numberToFloat' (MathExpr (Div (Plus []) _)) = Float 0 0
-numberToFloat' (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = Float (fromRational (x % y)) 0
+numberToFloat' (ScalarExpr (Div (Plus []) _)) = Float 0 0
+numberToFloat' (ScalarExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = Float (fromRational (x % y)) 0
 
 integerToFloat :: PrimitiveFunc
 integerToFloat = rationalToFloat
@@ -382,8 +382,8 @@ integerToFloat = rationalToFloat
 rationalToFloat :: PrimitiveFunc
 rationalToFloat = oneArg $ \val ->
   case val of
-    (MathExpr (Div (Plus []) _)) -> return $ numberToFloat' val
-    (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])]))) -> return $ numberToFloat' val
+    (ScalarExpr (Div (Plus []) _)) -> return $ numberToFloat' val
+    (ScalarExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])]))) -> return $ numberToFloat' val
     _ -> throwError $ TypeMismatch "integer or rational number" (Value val)
 
 charToInteger :: PrimitiveFunc
@@ -397,7 +397,7 @@ charToInteger = oneArg $ \val -> do
 integerToChar :: PrimitiveFunc
 integerToChar = oneArg $ \val -> do
   case val of
-    (MathExpr _) -> do
+    (ScalarExpr _) -> do
        i <- fromEgison val :: EgisonM Integer
        return $ Char $ chr $ fromIntegral i
     _ -> throwError $ TypeMismatch "integer" (Value val)

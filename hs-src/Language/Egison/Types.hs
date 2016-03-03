@@ -24,13 +24,13 @@ module Language.Egison.Types
     , PrimitiveDataPattern (..)
     -- * Egison values
     , EgisonValue (..)
-    , MathExpr (..)
+    , ScalarExpr (..)
     , PolyExpr (..)
     , TermExpr (..)
     , SymbolExpr (..)
-    , symbolMathExpr
+    , symbolScalarExpr
     , mathExprToEgison
-    , egisonToMathExpr
+    , egisonToScalarExpr
     , mathNormalize'
     , mathFold
     , mathSymbolFold
@@ -273,7 +273,8 @@ data EgisonValue =
   | Char Char
   | String Text
   | Bool Bool
-  | MathExpr MathExpr
+  | ScalarExpr ScalarExpr
+  | TensorExpr TensorExpr
   | Float Double Double
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
@@ -294,7 +295,11 @@ data EgisonValue =
   | Undefined
   | EOF
 
-data MathExpr =
+--
+-- Scalars
+--
+
+data ScalarExpr =
     Div PolyExpr PolyExpr
  deriving (Eq)
 
@@ -308,14 +313,14 @@ data TermExpr =
 
 data SymbolExpr =
     Symbol String
-  | Apply String [MathExpr]
+  | Apply String [ScalarExpr]
  deriving (Eq)
 
 
-symbolMathExpr :: String -> EgisonValue
-symbolMathExpr name = (MathExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))
+symbolScalarExpr :: String -> EgisonValue
+symbolScalarExpr name = (ScalarExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))
 
-mathExprToEgison :: MathExpr -> EgisonValue
+mathExprToEgison :: ScalarExpr -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [(polyExprToEgison p1), (polyExprToEgison p2)]
 
 polyExprToEgison :: PolyExpr -> EgisonValue
@@ -328,19 +333,19 @@ symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
 symbolExprToEgison (Symbol x, n) = Tuple [InductiveData "Symbol" [toEgison (T.pack x)], toEgison n]
 symbolExprToEgison (Apply name mExprs, n) = Tuple [InductiveData "Apply" [toEgison (T.pack name), Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 
-egisonToMathExpr :: EgisonValue -> EgisonM MathExpr
-egisonToMathExpr (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
-egisonToMathExpr p1@(InductiveData "Plus" _) = Div <$> egisonToPolyExpr p1 <*> (return (Plus [(Term 1 [])]))
-egisonToMathExpr t1@(InductiveData "Term" _) = do
+egisonToScalarExpr :: EgisonValue -> EgisonM ScalarExpr
+egisonToScalarExpr (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
+egisonToScalarExpr p1@(InductiveData "Plus" _) = Div <$> egisonToPolyExpr p1 <*> (return (Plus [(Term 1 [])]))
+egisonToScalarExpr t1@(InductiveData "Term" _) = do
   t1' <- egisonToTermExpr t1
   return $ Div (Plus [t1']) (Plus [(Term 1 [])])
-egisonToMathExpr s1@(InductiveData "Symbol" _) = do
+egisonToScalarExpr s1@(InductiveData "Symbol" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 ::Integer)])
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
-egisonToMathExpr s1@(InductiveData "Apply" _) = do
+egisonToScalarExpr s1@(InductiveData "Apply" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
-egisonToMathExpr val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
+egisonToScalarExpr val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
 
 egisonToPolyExpr :: EgisonValue -> EgisonM PolyExpr
 egisonToPolyExpr (InductiveData "Plus" [Collection ts]) = Plus <$> mapM egisonToTermExpr (toList ts)
@@ -357,15 +362,15 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x], n]) = do
   return (Symbol (T.unpack x'), n')
 egisonToSymbolExpr (Tuple [InductiveData "Apply" [name, (Collection mExprs)], n]) = do
   name' <- fromEgison name
-  mExprs' <- mapM egisonToMathExpr (toList mExprs)
+  mExprs' <- mapM egisonToScalarExpr (toList mExprs)
   n' <- fromEgison n
   return (Apply (T.unpack name') mExprs', n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
-mathNormalize' :: MathExpr -> MathExpr
+mathNormalize' :: ScalarExpr -> ScalarExpr
 mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr))))
 
-mathRemoveZeroSymbol :: MathExpr -> MathExpr
+mathRemoveZeroSymbol :: ScalarExpr -> ScalarExpr
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
   let p x = case x of
               (_, 0) -> False
@@ -374,7 +379,7 @@ mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
   let ts2' = map (\(Term a xs) -> Term a (filter p xs)) ts2 in
     Div (Plus ts1') (Plus ts2')
 
-mathRemoveZero :: MathExpr -> MathExpr
+mathRemoveZero :: ScalarExpr -> ScalarExpr
 mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
   let ts1' = filter (\(Term a _) -> a /= 0) ts1 in
   let ts2' = filter (\(Term a _) -> a /= 0) ts2 in
@@ -382,7 +387,7 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
       [] -> Div (Plus []) (Plus [Term 1 []])
       _ -> Div (Plus ts1') (Plus ts2')
 
-mathReduceFraction :: MathExpr -> MathExpr
+mathReduceFraction :: ScalarExpr -> ScalarExpr
 mathReduceFraction (Div (Plus []) (Plus ts2)) = Div (Plus []) (Plus ts2)
 mathReduceFraction (Div (Plus [Term a xs]) (Plus [])) = Div (Plus [Term 1 xs]) (Plus [])
 mathReduceFraction (Div (Plus ts1) (Plus ts2)) =
@@ -393,10 +398,10 @@ mathReduceFraction (Div (Plus ts1) (Plus ts2)) =
   let us2 = map (\(Term a xs) -> Term (a `quot` d) xs) ts2 in
     Div (Plus us1) (Plus us2)
 
-mathReduceSymbolFraction :: MathExpr -> MathExpr
+mathReduceSymbolFraction :: ScalarExpr -> ScalarExpr
 mathReduceSymbolFraction (Div (Plus ts) (Plus ((Term a xs):[]))) = f xs [] ts
  where
-  f :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [TermExpr] -> MathExpr
+  f :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [TermExpr] -> ScalarExpr
   f [] ret ts = Div (Plus ts) (Plus [Term a ret])
   f ((x, n):xs) ret ts =
     let k = g x ts in
@@ -419,10 +424,10 @@ mathReduceSymbolFraction (Div (Plus ts) (Plus ((Term a xs):[]))) = f xs [] ts
                  ts
 mathReduceSymbolFraction mExpr = mExpr
 
-mathFold :: MathExpr -> MathExpr
+mathFold :: ScalarExpr -> ScalarExpr
 mathFold mExpr = (mathTermFold (mathSymbolFold (mathTermFold mExpr)))
 
-mathSymbolFold :: MathExpr -> MathExpr
+mathSymbolFold :: ScalarExpr -> ScalarExpr
 mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f ts2))
  where
   f :: TermExpr -> TermExpr
@@ -440,7 +445,7 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
                      then (y, m + n)
                      else (y, m)
 
-mathTermFold :: MathExpr -> MathExpr
+mathTermFold :: ScalarExpr -> ScalarExpr
 mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
  where
   f :: [TermExpr] -> [TermExpr]
@@ -470,16 +475,32 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
                                else q (x, n) (ret ++ [(y, m)]) ys
 
 --
+-- Tensors
+--
+
+data TensorExpr =
+    TPlus [MultTensorExpr] ScalarExpr
+ deriving (Eq)
+
+data MultTensorExpr =
+    TMult ScalarExpr [SymbolTensorExpr]
+ deriving (Eq)
+
+data SymbolTensorExpr =
+    TSymbol String [ScalarExpr]
+ deriving (Eq)
+
+--
 --  Arithmetic operations
 --
 
-mathPlus :: MathExpr -> MathExpr -> MathExpr
+mathPlus :: ScalarExpr -> ScalarExpr -> ScalarExpr
 mathPlus (Div m1 n1) (Div m2 n2) = Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
 
 mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
 mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
 
-mathMult :: MathExpr -> MathExpr -> MathExpr
+mathMult :: ScalarExpr -> ScalarExpr -> ScalarExpr
 mathMult (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
 
 mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
@@ -487,16 +508,16 @@ mathMultPoly (Plus []) (Plus _) = Plus []
 mathMultPoly (Plus _) (Plus []) = Plus []
 mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
 
-mathNegate :: MathExpr -> MathExpr
+mathNegate :: ScalarExpr -> ScalarExpr
 mathNegate (Div m n) = Div (mathNegate' m) n
 
 mathNegate' :: PolyExpr -> PolyExpr
 mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
 
-mathNumerator :: MathExpr -> MathExpr
+mathNumerator :: ScalarExpr -> ScalarExpr
 mathNumerator (Div m _) = Div m (Plus [(Term 1 [])])
 
-mathDenominator :: MathExpr -> MathExpr
+mathDenominator :: ScalarExpr -> ScalarExpr
 mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
 
 type Matcher = EgisonValue
@@ -508,7 +529,7 @@ instance Show EgisonValue where
   show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"
-  show (MathExpr mExpr) = show mExpr
+  show (ScalarExpr mExpr) = show mExpr
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
@@ -534,7 +555,7 @@ instance Show EgisonValue where
   show World = "#<world>"
   show EOF = "#<eof>"
 
-instance Show MathExpr where
+instance Show ScalarExpr where
   show (Div p1 (Plus [(Term 1 [])])) = show p1
   show (Div p1 p2) = "(/ " ++ show p1 ++ " " ++ show p2 ++ ")"
 
@@ -567,6 +588,22 @@ showComplexFloat x 0.0 = showFFloat Nothing x ""
 showComplexFloat 0.0 y = showFFloat Nothing y "i"
 showComplexFloat x y = (showFFloat Nothing x "") ++ (if y > 0 then "+" else "") ++ (showFFloat Nothing y "i")
 
+instance Show TensorExpr where
+  show (TPlus [mT] (Div (Plus []) (Plus [(Term 1 [])]))) = show mT
+  show (TPlus mTs (Div (Plus []) (Plus [(Term 1 [])]))) = "(+ " ++ unwords (map show mTs) ++ ")"
+  show (TPlus mTs s) = "(+ " ++ unwords (map show mTs) ++ " " ++ show s ++ ")"
+
+instance Show MultTensorExpr where
+  show (TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])])) [sT]) = show sT
+  show (TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])])) sTs) = "(* " ++ unwords (map show sTs) ++ ")"
+  show (TMult s sTs) = "(* " ++ show s ++ " " ++ unwords (map show sTs) ++ ")"
+
+instance Show SymbolTensorExpr where
+  show (TSymbol name indices) = name ++ unwords' (map show indices)
+   where
+    unwords' [] = ""
+    unwords' (x:xs) = "_" ++ x ++ unwords' xs
+
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)
 showTSV (Collection vals) = intercalate "\t" (map showTSV (toList vals))
@@ -576,7 +613,8 @@ instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
  (String str) == (String str') = str == str'
  (Bool b) == (Bool b') = b == b'
- (MathExpr x) == (MathExpr y) = (x == y)
+ (ScalarExpr x) == (ScalarExpr y) = (x == y)
+ (TensorExpr x) == (TensorExpr y) = (x == y)
  (Float x y) == (Float x' y') = (x == x') && (y == y')
  (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
  (Tuple vals) == (Tuple vals') = vals == vals'
@@ -586,7 +624,6 @@ instance Eq EgisonValue where
  (CharHash vals) == (CharHash vals') = vals == vals'
  (StrHash vals) == (StrHash vals') = vals == vals'
  _ == _ = False
-
 
 --
 -- Egison data and Haskell data
@@ -608,12 +645,12 @@ instance EgisonData Bool where
   fromEgison = liftError . fromBoolValue
 
 instance EgisonData Integer where
-  toEgison 0 = MathExpr $ mathNormalize' (Div (Plus []) (Plus [(Term 1 [])]))
-  toEgison i = MathExpr $ mathNormalize' (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))
+  toEgison 0 = ScalarExpr $ mathNormalize' (Div (Plus []) (Plus [(Term 1 [])]))
+  toEgison i = ScalarExpr $ mathNormalize' (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))
   fromEgison = liftError . fromIntegerValue
 
 instance EgisonData Rational where
-  toEgison r = MathExpr $ mathNormalize' (Div (Plus [(Term (numerator r) [])]) (Plus [(Term (denominator r) [])]))
+  toEgison r = ScalarExpr $ mathNormalize' (Div (Plus [(Term (numerator r) [])]) (Plus [(Term (denominator r) [])]))
   fromEgison = liftError . fromRationalValue
 
 instance EgisonData Double where
@@ -671,13 +708,13 @@ fromBoolValue (Bool b) = return b
 fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
 
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
-fromIntegerValue (MathExpr (Div (Plus []) (Plus [(Term 1 [])]))) = return 0
-fromIntegerValue (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])]))) = return x
+fromIntegerValue (ScalarExpr (Div (Plus []) (Plus [(Term 1 [])]))) = return 0
+fromIntegerValue (ScalarExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])]))) = return x
 fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
 
 fromRationalValue :: EgisonValue -> Either EgisonError Rational
-fromRationalValue (MathExpr (Div (Plus []) _)) = return 0
-fromRationalValue (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return (x % y)
+fromRationalValue (ScalarExpr (Div (Plus []) _)) = return 0
+fromRationalValue (ScalarExpr (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return (x % y)
 fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
 
 fromFloatValue :: EgisonValue -> Either EgisonError Double
@@ -772,8 +809,8 @@ fromBoolWHNF (Value (Bool b)) = return b
 fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
 
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
-fromIntegerWHNF (Value (MathExpr (Div (Plus []) (Plus [(Term 1 [])])))) = return 0
-fromIntegerWHNF (Value (MathExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])])))) = return x
+fromIntegerWHNF (Value (ScalarExpr (Div (Plus []) (Plus [(Term 1 [])])))) = return 0
+fromIntegerWHNF (Value (ScalarExpr (Div (Plus [(Term x [])]) (Plus [(Term 1 [])])))) = return x
 fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
 
 fromFloatWHNF :: WHNFData -> Either EgisonError Double
@@ -1011,23 +1048,23 @@ isBool' :: PrimitiveFunc
 isBool' (Value val) = return $ Value $ Bool $ isBool val
 
 isInteger :: EgisonValue -> Bool
-isInteger (MathExpr (Div (Plus []) (Plus [(Term 1 [])]))) = True
-isInteger (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term 1 [])]))) = True
+isInteger (ScalarExpr (Div (Plus []) (Plus [(Term 1 [])]))) = True
+isInteger (ScalarExpr (Div (Plus [(Term _ [])]) (Plus [(Term 1 [])]))) = True
 isInteger _ = False
 
 isInteger' :: PrimitiveFunc
 isInteger' (Value val) = return $ Value $ Bool $ isInteger val
 
 isRational :: EgisonValue -> Bool
-isRational (MathExpr (Div (Plus []) (Plus [(Term _ [])]))) = True
-isRational (MathExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])]))) = True
+isRational (ScalarExpr (Div (Plus []) (Plus [(Term _ [])]))) = True
+isRational (ScalarExpr (Div (Plus [(Term _ [])]) (Plus [(Term _ [])]))) = True
 isRational _ = False
 
 isRational' :: PrimitiveFunc
 isRational' (Value val) = return $ Value $ Bool $ isRational val
 
 isNumber :: EgisonValue -> Bool
-isNumber (MathExpr _) = True
+isNumber (ScalarExpr _) = True
 isNumber _ = False
 
 isNumber' :: PrimitiveFunc
