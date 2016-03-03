@@ -200,7 +200,6 @@ data EgisonExpr =
   | IoExpr EgisonExpr
     
   | SeqExpr EgisonExpr EgisonExpr
-  | ContExpr
   | ApplyExpr EgisonExpr EgisonExpr
   | PartialExpr Integer EgisonExpr
   | PartialVarExpr Integer

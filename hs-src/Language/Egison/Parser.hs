@@ -159,7 +159,6 @@ expr' :: Parser EgisonExpr
 expr' = (try partialExpr
              <|> try constantExpr
              <|> try partialVarExpr
-             <|> contExpr
              <|> recVarExpr
              <|> try varExpr
              <|> inductiveDataExpr
@@ -375,9 +374,6 @@ ioExpr = keywordIo >> IoExpr <$> expr
 seqExpr :: Parser EgisonExpr
 seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
 
-contExpr :: Parser EgisonExpr
-contExpr = reservedOp "..." >> pure ContExpr
-
 recVarExpr :: Parser EgisonExpr
 recVarExpr = reservedOp "#" >> pure RecVarExpr
 
@@ -447,6 +443,7 @@ pattern = P.lexeme lexer (do pattern <- pattern'
 
 pattern' :: Parser EgisonPattern
 pattern' = wildCard
+            <|> contPat
             <|> patVar
             <|> varPat
             <|> valuePat
@@ -455,7 +452,6 @@ pattern' = wildCard
             <|> notPat
             <|> tuplePat
             <|> inductivePat
-            <|> contPat
             <|> parens (andPat
                     <|> orderedOrPat
                     <|> orPat
@@ -494,7 +490,7 @@ inductivePat :: Parser EgisonPattern
 inductivePat = angles $ InductivePat <$> lowerName <*> sepEndBy pattern whiteSpace
 
 contPat :: Parser EgisonPattern
-contPat = reservedOp "..." >> pure ContPat
+contPat = keywordCont >> pure ContPat
 
 andPat :: Parser EgisonPattern
 andPat = reservedOp "&" >> AndPat <$> sepEndBy pattern whiteSpace
@@ -595,8 +591,8 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
 
-symbol1 = oneOf "+-*/="
-symbol2 = symbol1 <|> oneOf "'!?."
+symbol1 = oneOf "+-*/=."
+symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
@@ -647,7 +643,6 @@ reservedOperators =
   , "|*"
   , "!"
   , ","
-  , "."
   , "@"
   , "..."]
 
@@ -676,6 +671,7 @@ keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
 keywordLetStar              = reserved "let*"
 keywordLoop                 = reserved "loop"
+keywordCont                 = reserved "..."
 keywordMatchAll             = reserved "match-all"
 keywordMatchAllLambda       = reserved "match-all-lambda"
 keywordMatch                = reserved "match"
