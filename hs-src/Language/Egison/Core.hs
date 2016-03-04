@@ -240,7 +240,7 @@ evalExpr env (IndexedExpr expr indices) = do
                 return $ Value $ ScalarExpr (tref' indices'' (Tensor ns xs))
         else do indices'' <- mapM extract indices'
                 return $ (Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
-                                                           [(TData (Tensor ns xs) (Just indices''))])]
+                                                           [(TData (tref indices'' (Tensor ns xs)) Nothing)])]
                                                    (Div (Plus []) (Plus [(Term 1 [])])))))
     _ -> refArray tensor indices'
  where

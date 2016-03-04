@@ -525,25 +525,29 @@ tref' ms (Tensor ns xs) = tref'' ms ns xs
       let ys = take w (drop (w * (fromIntegral (m - 1))) xs) in
         tref'' ms ns ys
 
-tref :: [(Maybe Integer)] -> (Tensor a) -> (Tensor a)
-tref ms (Tensor ns xs) = let rns = filterJust ms in
+tref :: [ScalarExpr] -> (Tensor a) -> (Tensor a)
+tref ms (Tensor ns xs) = let rns = map snd (filter (\(m,_) -> (isSymbol (ScalarExpr m))) (zip ms ns)) in
                          let rxs = tsub' ms ns xs in
                            Tensor rns rxs
  where
-  filterJust :: [(Maybe Integer)] -> [Integer]
-  filterJust [] = []
-  filterJust (Nothing:ms) = filterJust ms
-  filterJust ((Just x):ms) = x:(filterJust ms)
-  tsub' :: [(Maybe Integer)] -> [Integer] -> [a] -> [a]
-  tsub' [] [] [] = []
-  tsub' (Nothing:ms) (n:ns) xs =
-    let w = fromIntegral (product ns) in
-    let yss = split w xs in
-      concat (map (\ys -> tsub' ms ns ys) yss)
+  tsub' :: [ScalarExpr] -> [Integer] -> [a] -> [a]
+  tsub' [] [] rs = rs
+  tsub' (m:ms) (n:ns) xs =
+    if isSymbol (ScalarExpr m)
+      then let w = fromIntegral (product ns) in
+           let yss = split w xs in
+             concat (map (\ys -> tsub' ms ns ys) yss)
+      else let i = extractInteger m in
+           let w = fromIntegral (product ns) in
+           let ys = take w (drop (w * (fromIntegral (i - 1))) xs) in
+             tsub' ms ns ys
   split :: Int -> [a] -> [[a]]
   split _ [] = [[]]
   split w xs = let (hs, ts) = splitAt w xs in
                  hs:(split w ts)
+  extractInteger :: ScalarExpr -> Integer
+  extractInteger (Div (Plus []) (Plus [(Term 1 [])])) = 0
+  extractInteger (Div (Plus [(Term i [])]) (Plus [(Term 1 [])])) = i
 
 --
 --  Arithmetic operations
@@ -1133,6 +1137,10 @@ isNumber' :: PrimitiveFunc
 isNumber' (Value val) = return $ Value $ Bool $ isNumber val
 isNumber' _ = return $ Value $ Bool False
 
+isSymbol :: EgisonValue -> Bool
+isSymbol (ScalarExpr (Div (Plus [(Term 1 [(Symbol _, 1)])]) (Plus [(Term 1 [])]))) = True
+isSymbol _ = False
+
 isFloat' :: PrimitiveFunc
 isFloat' (Value (Float _ 0)) = return $ Value $ Bool True
 isFloat' _ = return $ Value $ Bool False
@@ -1165,4 +1173,3 @@ isHash' (Value (StrHash _)) = return $ Value $ Bool True
 isHash' (Intermediate (IIntHash _)) = return $ Value $ Bool True
 isHash' (Intermediate (IStrHash _)) = return $ Value $ Bool True
 isHash' _ = return $ Value $ Bool False
-
