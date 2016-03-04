@@ -31,6 +31,12 @@ module Language.Egison.Types
     , TensorExpr (..)
     , MultTensorExpr (..)
     , SymbolTensorExpr (..)
+    , Tensor (..)
+    , tmap
+    , tmap2
+    , tref
+    , tref'
+    , makeTensor
     , symbolScalarExpr
     , mathExprToEgison
     , egisonToScalarExpr
@@ -174,6 +180,7 @@ data EgisonExpr =
   | CollectionExpr [InnerExpr]
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
+  | InitTensorExpr EgisonExpr EgisonExpr
 
   | LambdaExpr [String] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr
@@ -491,7 +498,52 @@ data MultTensorExpr =
 
 data SymbolTensorExpr =
     TSymbol String [ScalarExpr]
+  | TData (Tensor ScalarExpr) (Maybe [ScalarExpr])
  deriving (Eq)
+
+data Tensor a = Tensor [Integer] [a]
+ deriving (Eq)
+
+makeTensor :: [Integer] -> [ScalarExpr] -> TensorExpr
+makeTensor ns xs = TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                 [(TData (Tensor ns xs) Nothing)])]
+                         (Div (Plus []) (Plus [(Term 1 [])]))
+
+tmap :: (a -> a) -> (Tensor a) -> (Tensor a)
+tmap f (Tensor ns xs) = Tensor ns (map f xs)
+
+tmap2 :: (a -> a -> a) -> (Tensor a) -> (Tensor a) -> (Tensor a)
+tmap2 f (Tensor ns1 xs1) (Tensor _ xs2) = Tensor ns1 (map (\(x,y) -> f x y) (zip xs1 xs2))
+
+tref' :: [Integer] -> (Tensor a) -> a
+tref' ms (Tensor ns xs) = tref'' ms ns xs
+ where
+  tref'' :: [Integer] -> [Integer] -> [a] -> a
+  tref'' [m] [_] xs = xs !! (fromIntegral (m - 1))
+  tref'' (m:ms) (_:ns) xs =
+    let w = fromIntegral (product ns) in
+      let ys = take w (drop (w * (fromIntegral (m - 1))) xs) in
+        tref'' ms ns ys
+
+tref :: [(Maybe Integer)] -> (Tensor a) -> (Tensor a)
+tref ms (Tensor ns xs) = let rns = filterJust ms in
+                         let rxs = tsub' ms ns xs in
+                           Tensor rns rxs
+ where
+  filterJust :: [(Maybe Integer)] -> [Integer]
+  filterJust [] = []
+  filterJust (Nothing:ms) = filterJust ms
+  filterJust ((Just x):ms) = x:(filterJust ms)
+  tsub' :: [(Maybe Integer)] -> [Integer] -> [a] -> [a]
+  tsub' [] [] [] = []
+  tsub' (Nothing:ms) (n:ns) xs =
+    let w = fromIntegral (product ns) in
+    let yss = split w xs in
+      concat (map (\ys -> tsub' ms ns ys) yss)
+  split :: Int -> [a] -> [[a]]
+  split _ [] = [[]]
+  split w xs = let (hs, ts) = splitAt w xs in
+                 hs:(split w ts)
 
 --
 --  Arithmetic operations
@@ -603,10 +655,16 @@ instance Show MultTensorExpr where
   show (TMult s sTs) = "(* " ++ show s ++ " " ++ unwords (map show sTs) ++ ")"
 
 instance Show SymbolTensorExpr where
+  show (TData xs Nothing) = show xs
+  show (TData xs (Just indices)) = show xs ++ unwords' (map show indices)
   show (TSymbol name indices) = name ++ unwords' (map show indices)
-   where
-    unwords' [] = ""
-    unwords' (x:xs) = "_" ++ x ++ unwords' xs
+
+unwords' [] = ""
+unwords' (x:xs) = "_" ++ x ++ unwords' xs
+
+instance Show (Tensor ScalarExpr) where
+  show (Tensor ns xs) =  "(| {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} |)"
+
 
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)

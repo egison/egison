@@ -182,6 +182,19 @@ evalExpr env (ArrayExpr exprs) = do
   refs' <- mapM (newObjectRef env) exprs
   return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
+evalExpr env (InitTensorExpr nsExpr xsExpr) = do
+  nsWhnf <- evalExpr env nsExpr
+  ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
+  xsWhnf <- evalExpr env xsExpr
+  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarExpr
+  if product ns == toInteger (length xs)
+    then return $ Value $ TensorExpr $ makeTensor ns xs
+    else throwError $ Default "inconsistent tensor size"
+ where
+  toScalarExpr :: WHNFData -> EgisonM ScalarExpr
+  toScalarExpr (Value (ScalarExpr x)) = return x
+  toScalarExpr val = throwError $ TypeMismatch "integer or string" $ val
+
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
   keyWhnfs <- mapM (evalExpr env) keyExprs
@@ -219,6 +232,16 @@ evalExpr env (IndexedExpr expr indices) = do
     (Value (ScalarExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) -> do
       indices'' <- mapM extract indices'
       return $ Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])])) [(TSymbol name indices'')])] (Div (Plus []) (Plus [(Term 1 [])]))))
+    (Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                      [(TData (Tensor ns xs) Nothing)])]
+                              (Div (Plus []) (Plus [(Term 1 [])]))))) -> do
+      if all (\x -> isInteger x) indices'
+        then do indices'' <- ((mapM fromEgison indices') :: EgisonM [Integer])
+                return $ Value $ ScalarExpr (tref' indices'' (Tensor ns xs))
+        else do indices'' <- mapM extract indices'
+                return $ (Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                                           [(TData (Tensor ns xs) (Just indices''))])]
+                                                   (Div (Plus []) (Plus [(Term 1 [])])))))
     _ -> refArray tensor indices'
  where
   extract :: EgisonValue -> EgisonM ScalarExpr

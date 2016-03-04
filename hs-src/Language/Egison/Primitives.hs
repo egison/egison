@@ -244,8 +244,8 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
 -- Arith
 --
 
-numberBinaryOp :: (ScalarExpr -> ScalarExpr -> ScalarExpr) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
-numberBinaryOp mOp fOp args = do
+numberBinaryOp :: (ScalarExpr -> ScalarExpr -> ScalarExpr) -> (EgisonValue -> EgisonValue -> EgisonValue) -> (ScalarExpr -> TensorExpr -> EgisonM TensorExpr) -> (TensorExpr -> ScalarExpr -> EgisonM TensorExpr) -> (TensorExpr -> TensorExpr -> EgisonM TensorExpr) -> PrimitiveFunc
+numberBinaryOp mOp fOp stOp tsOp ttOp args = do
   args' <- tupleToList args
   case args' of 
     [val, val'] -> numberBinaryOp' val val' >>= return . Value
@@ -254,22 +254,24 @@ numberBinaryOp mOp fOp args = do
   numberBinaryOp' f@(Float _ _) f'@(Float _ _) = return $ fOp f f'
   numberBinaryOp' val           (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)   val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
-  numberBinaryOp' (ScalarExpr m1) (ScalarExpr m2)  = (return . ScalarExpr . mathNormalize') (mOp m1 m2)
+  numberBinaryOp' (ScalarExpr m1) (ScalarExpr m2) = (return . ScalarExpr . mathNormalize') (mOp m1 m2)
+  numberBinaryOp' (ScalarExpr m1) (TensorExpr m2) = stOp m1 m2 >>= return . TensorExpr
+  numberBinaryOp' (TensorExpr m1) (ScalarExpr m2) = tsOp m1 m2 >>= return . TensorExpr
+  numberBinaryOp' (TensorExpr m1) (TensorExpr m2) = ttOp m1 m2 >>= return . TensorExpr
   numberBinaryOp' (ScalarExpr _)  val'           = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val           _              = throwError $ TypeMismatch "number" (Value val)
 
-
 plus :: PrimitiveFunc
-plus = numberBinaryOp mathPlus (\(Float x y) (Float x' y') -> Float (x + x')  (y + y'))
+plus = numberBinaryOp mathPlus (\(Float x y) (Float x' y') -> Float (x + x')  (y + y')) undefined undefined undefined
 
 minus :: PrimitiveFunc
-minus = numberBinaryOp (\m1 m2 -> mathPlus m1 (mathNegate m2)) (\(Float x y) (Float x' y') -> Float (x - x')  (y - y'))
+minus = numberBinaryOp (\m1 m2 -> mathPlus m1 (mathNegate m2)) (\(Float x y) (Float x' y') -> Float (x - x')  (y - y')) undefined undefined undefined
 
 multiply :: PrimitiveFunc
-multiply = numberBinaryOp mathMult (\(Float x y) (Float x' y') -> Float (x * x' - y * y')  (x * y' + x' * y))
+multiply = numberBinaryOp mathMult (\(Float x y) (Float x' y') -> Float (x * x' - y * y')  (x * y' + x' * y)) undefined undefined undefined
 
 divide :: PrimitiveFunc
-divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y')))
+divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y'))) undefined undefined undefined
 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg $ numerator''

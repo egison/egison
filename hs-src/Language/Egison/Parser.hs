@@ -163,6 +163,7 @@ expr' = (try partialExpr
              <|> try varExpr
              <|> inductiveDataExpr
              <|> try arrayExpr
+             <|> try initTensorExpr
              <|> try tupleExpr
              <|> try hashExpr
              <|> collectionExpr
@@ -218,6 +219,12 @@ arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr whiteSpace
   where
     lp = P.lexeme lexer (string "[|")
     rp = string "|]"
+
+initTensorExpr :: Parser EgisonExpr
+initTensorExpr = between lp rp $ InitTensorExpr <$> expr <*> expr
+  where
+    lp = P.lexeme lexer (string "(|")
+    rp = string "|)"
 
 hashExpr :: Parser EgisonExpr
 hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
