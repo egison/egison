@@ -107,6 +107,7 @@ module Language.Egison.Types
     , isInteger
     , isRational
     , isNumber
+    , isSymbol
     , isBool'
     , isInteger'
     , isRational'
