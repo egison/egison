@@ -36,6 +36,8 @@ module Language.Egison.Types
     , tmap2
     , tref
     , tref'
+    , tSize
+    , tToList
     , makeTensor
     , symbolScalarExpr
     , mathExprToEgison
@@ -220,6 +222,7 @@ data EgisonExpr =
 
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
   | GenerateArrayExpr [String] EgisonExpr EgisonExpr
+  | GenerateTensorExpr [String] EgisonExpr EgisonExpr
   | ArraySizeExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 
@@ -551,6 +554,12 @@ tref ms (Tensor ns xs) = let rns = map snd (filter (\(m,_) -> (isSymbol (ScalarE
   extractInteger :: ScalarExpr -> Integer
   extractInteger (Div (Plus []) (Plus [(Term 1 [])])) = 0
   extractInteger (Div (Plus [(Term i [])]) (Plus [(Term 1 [])])) = i
+
+tSize :: (Tensor a) -> [Integer]
+tSize (Tensor ns _) = ns
+
+tToList :: (Tensor a) -> [a]
+tToList (Tensor _ xs) = xs
 
 --
 --  Arithmetic operations

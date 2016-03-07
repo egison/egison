@@ -32,8 +32,9 @@ module Language.Egison.Core
     , isEmptyCollection
     , unconsCollection
     , unsnocCollection
-    -- * Tuple
+    -- * Tuple, Collection
     , tupleToList
+    , collectionToList
     -- * Utiltiy functions
     , packStringValue
     ) where
@@ -376,6 +377,21 @@ evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (sizeExpr:ys)) expr) =
   generateArray env name sizeExpr (GenerateArrayExpr xs (TupleExpr ys) expr)
 evalExpr env (GenerateArrayExpr names size expr) = 
   evalExpr env (GenerateArrayExpr names (TupleExpr [size]) expr)
+
+evalExpr env (GenerateTensorExpr names size expr) = do
+  size' <- evalExpr env size
+  size'' <- tupleToList size'
+  ns <- (mapM fromEgison size'') :: EgisonM [Integer]
+  fn <- evalExpr env (LambdaExpr names expr)
+  xs <-  mapM (\ms -> applyFunc env fn (Value (Tuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (generateIndex ns))
+  return $ Value (TensorExpr (makeTensor ns xs))
+ where
+  generateIndex :: [Integer] -> [[Integer]]
+  generateIndex [] = [[]]
+  generateIndex (n:ns) = concat (map (\i -> (map (\is -> i:is) (generateIndex ns))) [1..n])
+  extractScalar :: EgisonValue -> EgisonM ScalarExpr
+  extractScalar (ScalarExpr x) = return x
+  extractScalar x = throwError $ TypeMismatch "scalar expression" (Value x)
 
 evalExpr env (ArraySizeExpr expr) = 
   evalExpr env expr >>= arraySize
@@ -1010,6 +1026,13 @@ tupleToList whnf = do
  where
   tupleToList' (Tuple vals) = vals
   tupleToList' val = [val]
+
+collectionToList :: WHNFData -> EgisonM [EgisonValue]
+collectionToList whnf = do
+  val <- evalWHNF whnf
+  return $ collectionToList' val
+ where
+  collectionToList' (Collection sq) = toList sq
 
 --
 -- String

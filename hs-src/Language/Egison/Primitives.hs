@@ -149,7 +149,10 @@ primitives = [ ("+", plus)
              , ("asinh", floatUnaryOp "asinh" asinh)
              , ("acosh", floatUnaryOp "acosh" acosh)
              , ("atanh", floatUnaryOp "atanh" atanh)
-               
+
+             , ("tensor-size", tensorSize)
+             , ("tensor-to-list", tensorToList)               
+
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
              , ("ctoi", charToInteger)
@@ -368,8 +371,28 @@ realPart =  oneArg $ realPart'
 imaginaryPart :: PrimitiveFunc
 imaginaryPart =  oneArg $ imaginaryPart'
  where
-  realPart' (Float _ y) = return $ Float y 0
+  imaginaryPart' (Float _ y) = return $ Float y 0
   imaginaryPart' val = throwError $ TypeMismatch "float" (Value val)
+
+--
+-- Tensor
+--
+
+tensorSize :: PrimitiveFunc
+tensorSize = oneArg $ tensorSize'
+ where
+  tensorSize' (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                         [(TData (Tensor ns _) _)])]
+                                 (Div (Plus []) (Plus [(Term 1 [])])))) = return . Collection . Sq.fromList $ map toEgison ns
+  tensorSize' val = throwError $ TypeMismatch "tensor data" (Value val)
+
+tensorToList :: PrimitiveFunc
+tensorToList = oneArg $ tensorToList'
+ where
+  tensorToList' (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                           [(TData (Tensor _ xs) _)])]
+                                   (Div (Plus []) (Plus [(Term 1 [])])))) = return . Collection . Sq.fromList $ map ScalarExpr xs
+  tensorToList' val = throwError $ TypeMismatch "tensor data" (Value val)
 
 --
 -- Transform
