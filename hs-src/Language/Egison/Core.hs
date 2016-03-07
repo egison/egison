@@ -233,8 +233,11 @@ evalExpr env (IndexedExpr expr indices) = do
     (Value (ScalarExpr (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) -> do
       indices'' <- mapM extract indices'
       return $ Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])])) [(TSymbol name indices'')])] (Div (Plus []) (Plus [(Term 1 [])]))))
+    (Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])])) [(TSymbol name _)])] (Div (Plus []) (Plus [(Term 1 [])]))))) -> do
+      indices'' <- mapM extract indices'
+      return $ Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])])) [(TSymbol name indices'')])] (Div (Plus []) (Plus [(Term 1 [])]))))
     (Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
-                                      [(TData (Tensor ns xs) Nothing)])]
+                                      [(TData (Tensor ns xs) _)])]
                               (Div (Plus []) (Plus [(Term 1 [])]))))) -> do
       if all (\x -> isInteger x) indices'
         then do indices'' <- ((mapM fromEgison indices') :: EgisonM [Integer])
