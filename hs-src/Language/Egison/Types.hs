@@ -106,14 +106,16 @@ module Language.Egison.Types
     , isBool
     , isInteger
     , isRational
-    , isNumber
     , isSymbol
+    , isNumber
+    , isTensor
     , isBool'
     , isInteger'
     , isRational'
     , isNumber'
     , isFloat'
     , isComplex'
+    , isTensor'
     , isChar'
     , isString'
     , isCollection'
@@ -1130,6 +1132,10 @@ isRational _ = False
 isRational' :: PrimitiveFunc
 isRational' (Value val) = return $ Value $ Bool $ isRational val
 
+isSymbol :: EgisonValue -> Bool
+isSymbol (ScalarExpr (Div (Plus [(Term 1 [(Symbol _, 1)])]) (Plus [(Term 1 [])]))) = True
+isSymbol _ = False
+
 isNumber :: EgisonValue -> Bool
 isNumber (ScalarExpr _) = True
 isNumber _ = False
@@ -1138,9 +1144,13 @@ isNumber' :: PrimitiveFunc
 isNumber' (Value val) = return $ Value $ Bool $ isNumber val
 isNumber' _ = return $ Value $ Bool False
 
-isSymbol :: EgisonValue -> Bool
-isSymbol (ScalarExpr (Div (Plus [(Term 1 [(Symbol _, 1)])]) (Plus [(Term 1 [])]))) = True
-isSymbol _ = False
+isTensor :: EgisonValue -> Bool
+isTensor (TensorExpr _) = True
+isTensor _ = False
+
+isTensor' :: PrimitiveFunc
+isTensor' (Value val) = return $ Value $ Bool $ isTensor val
+isTensor' _ = return $ Value $ Bool False
 
 isFloat' :: PrimitiveFunc
 isFloat' (Value (Float _ 0)) = return $ Value $ Bool True
