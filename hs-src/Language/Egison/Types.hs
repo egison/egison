@@ -39,6 +39,7 @@ module Language.Egison.Types
     , tSize
     , tToList
     , makeTensor
+    , tensorIndices
     , symbolScalarExpr
     , mathExprToEgison
     , egisonToScalarExpr
@@ -514,6 +515,10 @@ makeTensor :: [Integer] -> [ScalarExpr] -> TensorExpr
 makeTensor ns xs = TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
                                  [(TData (Tensor ns xs) Nothing)])]
                          (Div (Plus []) (Plus [(Term 1 [])]))
+
+tensorIndices :: [Integer] -> [[Integer]]
+tensorIndices [] = [[]]
+tensorIndices (n:ns) = concat (map (\i -> (map (\is -> i:is) (tensorIndices ns))) [1..n])
 
 tmap :: (a -> a) -> (Tensor a) -> (Tensor a)
 tmap f (Tensor ns xs) = Tensor ns (map f xs)

@@ -383,12 +383,9 @@ evalExpr env (GenerateTensorExpr names size expr) = do
   size'' <- tupleToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env (LambdaExpr names expr)
-  xs <-  mapM (\ms -> applyFunc env fn (Value (Tuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (generateIndex ns))
+  xs <-  mapM (\ms -> applyFunc env fn (Value (Tuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (tensorIndices ns))
   return $ Value (TensorExpr (makeTensor ns xs))
  where
-  generateIndex :: [Integer] -> [[Integer]]
-  generateIndex [] = [[]]
-  generateIndex (n:ns) = concat (map (\i -> (map (\is -> i:is) (generateIndex ns))) [1..n])
   extractScalar :: EgisonValue -> EgisonM ScalarExpr
   extractScalar (ScalarExpr x) = return x
   extractScalar x = throwError $ TypeMismatch "scalar expression" (Value x)

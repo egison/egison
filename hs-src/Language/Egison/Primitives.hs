@@ -113,7 +113,7 @@ primitives = [ ("+", plus)
              , ("from-math-expr", fromScalarExpr)
              , ("to-math-expr", toScalarExpr)
              , ("to-math-expr'", toScalarExpr)
-               
+
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
              , ("remainder", integerBinaryOp rem)
@@ -150,6 +150,9 @@ primitives = [ ("+", plus)
              , ("acosh", floatUnaryOp "acosh" acosh)
              , ("atanh", floatUnaryOp "atanh" atanh)
 
+             , (".", tensorProd)
+             , (".'", tensorProd)
+             , ("tensor-index", tensorIndex)
              , ("tensor-size", tensorSize)
              , ("tensor-to-list", tensorToList)               
 
@@ -377,6 +380,42 @@ imaginaryPart =  oneArg $ imaginaryPart'
 --
 -- Tensor
 --
+
+tensorContract :: PrimitiveFunc
+tensorContract = oneArg $ tensorContract'
+ where
+  tensorContract' (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                             [(TData (Tensor ns xs) (Just ms))])]
+                                     (Div (Plus []) (Plus [(Term 1 [])])))) = undefined
+  tensorContract' val = throwError $ TypeMismatch "tensor data with index" (Value val)
+
+tensorProd :: PrimitiveFunc
+tensorProd = twoArgs $ tensorProd'
+ where
+  tensorProd' (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                         [(TData (Tensor ns1 xs1) (Just ms1))])]
+                                 (Div (Plus []) (Plus [(Term 1 [])]))))
+              (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                         [(TData (Tensor ns2 xs2) (Just ms2))])]
+                                 (Div (Plus []) (Plus [(Term 1 [])])))) =
+    return (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                      [(TData (Tensor (ns1 ++ ns2) (map (\is -> let is1 = take (length ns1) is in
+                                                                                let is2 = take (length ns2) (drop (length ns1) is) in
+                                                                                  (mathMult (tref' is1 (Tensor ns1 xs1)) (tref' is2 (Tensor ns2 xs2)))
+                                                                         ) (tensorIndices (ns1 ++ ns2)))) (Just (ms1 ++ ms2)))])]
+                              (Div (Plus []) (Plus [(Term 1 [])]))))
+  tensorProd' val1 val2 = throwError $ TypeMismatch "tensor data with index" (Value (Tuple [val1, val2]))
+
+tensorIndex :: PrimitiveFunc
+tensorIndex = oneArg $ tensorIndex'
+ where
+  tensorIndex' (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                          [(TData (Tensor _ _) (Just ms))])]
+                                  (Div (Plus []) (Plus [(Term 1 [])])))) = return . Collection . Sq.fromList $ map ScalarExpr ms
+  tensorIndex' (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                          [(TSymbol _ ms)])]
+                                  (Div (Plus []) (Plus [(Term 1 [])])))) = return . Collection . Sq.fromList $ map ScalarExpr ms
+  tensorIndex' val = throwError $ TypeMismatch "tensor with index" (Value val)
 
 tensorSize :: PrimitiveFunc
 tensorSize = oneArg $ tensorSize'
