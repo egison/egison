@@ -381,8 +381,10 @@ evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (sizeExpr:ys)) expr) =
 evalExpr env (GenerateArrayExpr names size expr) = 
   evalExpr env (GenerateArrayExpr names (TupleExpr [size]) expr)
 
-evalExpr env (GenerateTensorExpr names size expr) = do
-  size' <- evalExpr env size
+evalExpr env (GenerateTensorExpr [] _ expr) = evalExpr env expr
+
+evalExpr env (GenerateTensorExpr names sizeExpr expr) = do
+  size' <- evalExpr env sizeExpr
   size'' <- tupleToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env (LambdaExpr names expr)
