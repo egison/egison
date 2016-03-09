@@ -192,6 +192,7 @@ data EgisonExpr =
   | LambdaExpr [String] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr
   | MemoizeExpr [(EgisonExpr, EgisonExpr, EgisonExpr)] EgisonExpr
+  | CambdaExpr String EgisonExpr
   | MacroExpr [String] EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern
   
@@ -303,6 +304,7 @@ data EgisonValue =
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
   | Func Env [String] EgisonExpr
+  | CFunc Env String EgisonExpr
   | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | Macro [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
@@ -637,6 +639,7 @@ instance Show EgisonValue where
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
   show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
   show (MemoizedFunc _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
+  show (CFunc _ name _) = "(cambda " ++ name ++ " ...)"
   show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc _) = "#<primitive-function>"

@@ -255,6 +255,8 @@ evalExpr env (IndexedExpr expr indices) = do
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
 
+evalExpr env (CambdaExpr name expr) = return . Value $ CFunc env name expr
+
 evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
@@ -462,6 +464,13 @@ applyFunc _ (Value (Func env names body)) arg = do
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+applyFunc _ (Value (CFunc env name body)) arg = do
+  refs <- fromTuple arg
+  seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
+  col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection $ seqRef
+  if length refs > 0
+    then evalExpr (extendEnv env $ makeBindings [name] [col]) body
+    else throwError $ ArgumentsNumWithNames [name] 1 0
 applyFunc env (Value (Macro [name] body)) arg = do
   ref <- newEvalutedObjectRef arg
   evalExpr (extendEnv env $ makeBindings [name] [ref]) body
