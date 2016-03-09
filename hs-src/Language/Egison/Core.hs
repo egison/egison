@@ -230,12 +230,6 @@ evalExpr env (IndexedExpr expr indices) = do
   tensor <- evalExpr env expr
   indices' <- mapM (evalExprDeep env) indices
   case tensor of
-    (Value (ScalarData (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) -> do
-      indices'' <- mapM extract indices'
-      return $ Value (TensorData (TSymbol name indices''))
-    (Value (TensorData (TSymbol name _))) -> do
-      indices'' <- mapM extract indices'
-      return $ Value (TensorData (TSymbol name indices''))
     (Value (TensorData (TData (Tensor ns xs) _))) -> do
       indices'' <- mapM extract indices'
       tCheckIndex indices'' ns

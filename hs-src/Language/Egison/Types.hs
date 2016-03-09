@@ -30,8 +30,9 @@ module Language.Egison.Types
     , SymbolExpr (..)
     , TensorData (..)
     , Tensor (..)
-    , tmap
-    , tmap2
+    , scalarToTensor
+    , tMap
+    , tMap2
     , tCheckIndex
     , tref
     , tref'
@@ -496,13 +497,16 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
 -- Tensors
 --
 
-data TensorData =
-    TSymbol String [ScalarData]
-  | TData (Tensor ScalarData) (Maybe [ScalarData])
+data TensorData = TData (Tensor ScalarData) (Maybe [ScalarData])
  deriving (Eq)
 
 data Tensor a = Tensor [Integer] [a]
  deriving (Eq)
+
+scalarToTensor :: [Integer] -> ScalarData -> TensorData
+scalarToTensor ns x = makeTensor ns (map (\ms -> if all (\m -> m == (head ms)) (tail ms)
+                                                   then x
+                                                   else (Div (Plus []) (Plus [(Term 1 [])]))) (tensorIndices ns))
 
 makeTensor :: [Integer] -> [ScalarData] -> TensorData
 makeTensor ns xs = TData (Tensor ns xs) Nothing
@@ -511,11 +515,26 @@ tensorIndices :: [Integer] -> [[Integer]]
 tensorIndices [] = [[]]
 tensorIndices (n:ns) = concat (map (\i -> (map (\is -> i:is) (tensorIndices ns))) [1..n])
 
-tmap :: (a -> a) -> (Tensor a) -> (Tensor a)
-tmap f (Tensor ns xs) = Tensor ns (map f xs)
+tMap :: (ScalarData -> ScalarData) -> TensorData -> TensorData
+tMap f (TData (Tensor ns xs) js) = TData (Tensor ns (map f xs)) js
 
-tmap2 :: (a -> a -> a) -> (Tensor a) -> (Tensor a) -> (Tensor a)
-tmap2 f (Tensor ns1 xs1) (Tensor _ xs2) = Tensor ns1 (map (\(x,y) -> f x y) (zip xs1 xs2))
+tMap2 :: (ScalarData -> ScalarData -> ScalarData) -> TensorData -> TensorData -> EgisonM TensorData
+tMap2 f (TData t1@(Tensor ns1 xs1) (Just js1)) (TData t2@(Tensor ns2 xs2) (Just js2)) = do
+  ys <- mapM (\is -> do is' <- transIndex js1 js2 is
+                        return (f (tref' is t1) (tref' is' t2)))
+             (tensorIndices ns1)
+  return $ makeTensor ns1 ys
+
+transIndex :: [ScalarData] -> [ScalarData] -> [Integer] -> EgisonM [Integer]
+transIndex [] [] [] = return []
+transIndex (j1:js1) js2 is = do
+  let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
+  if tjs2 == []
+    then throwError $ InconsistentTensorIndex -- TODO: new ErrorType
+    else do let n = (length hjs2) + 1
+            rs <- transIndex js1 (hjs2 ++ (tail tjs2)) ((take (n - 1) is) ++ (drop n is))
+            return ((is !! (n - 1)):rs)
+transIndex _ _ _ = throwError $ InconsistentTensorSize
 
 tCheckIndex :: [ScalarData] -> [Integer] -> EgisonM ()
 tCheckIndex [] [] = return ()
@@ -560,8 +579,8 @@ tref ms (Tensor ns xs) = let rns = map snd (filter (\(m,_) -> (isSymbol (ScalarD
   extractInteger (Div (Plus []) (Plus [(Term 1 [])])) = 0
   extractInteger (Div (Plus [(Term i [])]) (Plus [(Term 1 [])])) = i
 
-tSize :: (Tensor a) -> [Integer]
-tSize (Tensor ns _) = ns
+tSize :: TensorData -> [Integer]
+tSize (TData (Tensor ns _) _) = ns
 
 tToList :: (Tensor a) -> [a]
 tToList (Tensor _ xs) = xs
@@ -571,13 +590,13 @@ tToList (Tensor _ xs) = xs
 --
 
 mathPlus :: ScalarData -> ScalarData -> ScalarData
-mathPlus (Div m1 n1) (Div m2 n2) = Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
+mathPlus (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
 
 mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
 mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
 
 mathMult :: ScalarData -> ScalarData -> ScalarData
-mathMult (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
+mathMult (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
 
 mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
 mathMultPoly (Plus []) (Plus _) = Plus []
@@ -669,7 +688,6 @@ showComplexFloat x y = showFFloat Nothing x "" ++ if y > 0 then "+" else "" ++ s
 instance Show TensorData where
   show (TData xs Nothing) = show xs
   show (TData xs (Just indices)) = show xs ++ unwords' (map show indices)
-  show (TSymbol name indices) = name ++ unwords' (map show indices)
 
 unwords' [] = ""
 unwords' (x:xs) = "_" ++ x ++ unwords' xs
@@ -956,6 +974,7 @@ data EgisonError =
   | ArgumentsNumPrimitive Int Int
   | ArgumentsNum Int Int
   | InconsistentTensorSize
+  | InconsistentTensorIndex
   | TensorIndexOutOfBounds Integer Integer
   | NotImplemented String
   | Assertion String
@@ -978,6 +997,7 @@ instance Show EgisonError where
   show (ArgumentsNum expected got) = "Wrong number of arguments: expected " ++
                                       show expected ++ ", but got " ++  show got
   show InconsistentTensorSize = "Inconsistent tensor size"
+  show InconsistentTensorIndex = "Inconsistent tensor index"
   show (TensorIndexOutOfBounds m n) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message

@@ -250,34 +250,34 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
 -- Arith
 --
 
-numberBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> (EgisonValue -> EgisonValue -> EgisonValue) -> (ScalarData -> TensorData -> EgisonM TensorData) -> (TensorData -> ScalarData -> EgisonM TensorData) -> (TensorData -> TensorData -> EgisonM TensorData) -> PrimitiveFunc
-numberBinaryOp mOp fOp stOp tsOp ttOp args = do
+numberBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
+numberBinaryOp mOp fOp args = do
   args' <- tupleToList args
   case args' of 
     [val, val'] -> numberBinaryOp' val val' >>= return . Value
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
  where
-  numberBinaryOp' f@(Float _ _) f'@(Float _ _) = return $ fOp f f'
-  numberBinaryOp' val           (Float x' y')  = numberBinaryOp' (numberToFloat' val) (Float x' y')
-  numberBinaryOp' (Float x y)   val'           = numberBinaryOp' (Float x y) (numberToFloat' val')
+  numberBinaryOp' f@(Float _ _)   f'@(Float _ _)  = return $ fOp f f'
+  numberBinaryOp' val             (Float x' y')   = numberBinaryOp' (numberToFloat' val) (Float x' y')
+  numberBinaryOp' (Float x y)     val'            = numberBinaryOp' (Float x y) (numberToFloat' val')
   numberBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
-  numberBinaryOp' (ScalarData m1) (TensorData m2) = stOp m1 m2 >>= return . TensorData
-  numberBinaryOp' (TensorData m1) (ScalarData m2) = tsOp m1 m2 >>= return . TensorData
-  numberBinaryOp' (TensorData m1) (TensorData m2) = ttOp m1 m2 >>= return . TensorData
-  numberBinaryOp' (ScalarData _)  val'           = throwError $ TypeMismatch "number" (Value val')
-  numberBinaryOp' val           _              = throwError $ TypeMismatch "number" (Value val)
+  numberBinaryOp' (ScalarData m1) (TensorData t2) = (tMap2 mOp (scalarToTensor (tSize t2) m1) t2) >>= return . TensorData
+  numberBinaryOp' (TensorData t1) (ScalarData m2) = (tMap2 mOp t1 (scalarToTensor (tSize t1) m2)) >>= return . TensorData
+  numberBinaryOp' (TensorData t1) (TensorData t2) = (tMap2 mOp t1 t2) >>= return . TensorData
+  numberBinaryOp' (ScalarData _)  val'            = throwError $ TypeMismatch "number" (Value val')
+  numberBinaryOp' val             _               = throwError $ TypeMismatch "number" (Value val)
 
 plus :: PrimitiveFunc
-plus = numberBinaryOp mathPlus (\(Float x y) (Float x' y') -> Float (x + x')  (y + y')) undefined undefined undefined
+plus = numberBinaryOp mathPlus (\(Float x y) (Float x' y') -> Float (x + x')  (y + y'))
 
 minus :: PrimitiveFunc
-minus = numberBinaryOp (\m1 m2 -> mathPlus m1 (mathNegate m2)) (\(Float x y) (Float x' y') -> Float (x - x')  (y - y')) undefined undefined undefined
+minus = numberBinaryOp (\m1 m2 -> mathPlus m1 (mathNegate m2)) (\(Float x y) (Float x' y') -> Float (x - x')  (y - y'))
 
 multiply :: PrimitiveFunc
-multiply = numberBinaryOp mathMult (\(Float x y) (Float x' y') -> Float (x * x' - y * y')  (x * y' + x' * y)) undefined undefined undefined
+multiply = numberBinaryOp mathMult (\(Float x y) (Float x' y') -> Float (x * x' - y * y')  (x * y' + x' * y))
 
 divide :: PrimitiveFunc
-divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y'))) undefined undefined undefined
+divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y')))
 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg $ numerator''
@@ -396,7 +396,6 @@ tensorIndex :: PrimitiveFunc
 tensorIndex = oneArg $ tensorIndex'
  where
   tensorIndex' (TensorData (TData (Tensor _ _) (Just ms))) = return . Collection . Sq.fromList $ map ScalarData ms
-  tensorIndex' (TensorData (TSymbol _ ms)) = return . Collection . Sq.fromList $ map ScalarData ms
   tensorIndex' val = throwError $ TypeMismatch "tensor with index" (Value val)
 
 tensorSize :: PrimitiveFunc
