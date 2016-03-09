@@ -190,7 +190,7 @@ evalExpr env (InitTensorExpr nsExpr xsExpr) = do
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarExpr
   if product ns == toInteger (length xs)
     then return $ Value $ TensorExpr $ makeTensor ns xs
-    else throwError $ Default "inconsistent tensor size"
+    else throwError $ InconsistentTensorSize
  where
   toScalarExpr :: WHNFData -> EgisonM ScalarExpr
   toScalarExpr (Value (ScalarExpr x)) = return x
@@ -239,13 +239,14 @@ evalExpr env (IndexedExpr expr indices) = do
     (Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
                                       [(TData (Tensor ns xs) _)])]
                               (Div (Plus []) (Plus [(Term 1 [])]))))) -> do
+      indices'' <- mapM extract indices'
+      tCheckIndex indices'' ns
       if all (\x -> isInteger x) indices'
         then do indices'' <- ((mapM fromEgison indices') :: EgisonM [Integer])
                 return $ Value $ ScalarExpr (tref' indices'' (Tensor ns xs))
-        else do indices'' <- mapM extract indices'
-                return $ (Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
-                                                           [(TData (tref indices'' (Tensor ns xs)) (Just (filter (isSymbol . ScalarExpr) indices'')))])]
-                                                   (Div (Plus []) (Plus [(Term 1 [])])))))
+        else return $ Value (TensorExpr (TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
+                                                       [(TData (tref indices'' (Tensor ns xs)) (Just (filter (isSymbol . ScalarExpr) indices'')))])]
+                                               (Div (Plus []) (Plus [(Term 1 [])]))))
     _ -> refArray tensor indices'
  where
   extract :: EgisonValue -> EgisonM ScalarExpr
@@ -381,15 +382,18 @@ evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (sizeExpr:ys)) expr) =
 evalExpr env (GenerateArrayExpr names size expr) = 
   evalExpr env (GenerateArrayExpr names (TupleExpr [size]) expr)
 
-evalExpr env (GenerateTensorExpr [] _ expr) = evalExpr env expr
+evalExpr env (GenerateTensorExpr [] (TupleExpr []) expr) = evalExpr env expr
+evalExpr env (GenerateTensorExpr [] sizExpr expr) = throwError $ InconsistentTensorSize
 
 evalExpr env (GenerateTensorExpr names sizeExpr expr) = do
   size' <- evalExpr env sizeExpr
   size'' <- tupleToList size'
-  ns <- (mapM fromEgison size'') :: EgisonM [Integer]
-  fn <- evalExpr env (LambdaExpr names expr)
-  xs <-  mapM (\ms -> applyFunc env fn (Value (Tuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (tensorIndices ns))
-  return $ Value (TensorExpr (makeTensor ns xs))
+  if (length names) == (length size'')
+    then do ns <- (mapM fromEgison size'') :: EgisonM [Integer]
+            fn <- evalExpr env (LambdaExpr names expr)
+            xs <-  mapM (\ms -> applyFunc env fn (Value (Tuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (tensorIndices ns))
+            return $ Value (TensorExpr (makeTensor ns xs))
+    else throwError $ InconsistentTensorSize
  where
   extractScalar :: EgisonValue -> EgisonM ScalarExpr
   extractScalar (ScalarExpr x) = return x

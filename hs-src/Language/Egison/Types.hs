@@ -34,6 +34,7 @@ module Language.Egison.Types
     , Tensor (..)
     , tmap
     , tmap2
+    , tCheckIndex
     , tref
     , tref'
     , tSize
@@ -511,6 +512,11 @@ data SymbolTensorExpr =
 data Tensor a = Tensor [Integer] [a]
  deriving (Eq)
 
+scalarToTensor :: [Integer] -> ScalarExpr -> TensorExpr
+scalarToTensor ns x = makeTensor ns (map (\ms -> if all (\m -> m == (head ms)) (tail ms)
+                                                   then x
+                                                   else (Div (Plus []) (Plus [(Term 1 [])]))) (tensorIndices ns))
+
 makeTensor :: [Integer] -> [ScalarExpr] -> TensorExpr
 makeTensor ns xs = TPlus [(TMult (Div (Plus [(Term 1 [])]) (Plus [(Term 1 [])]))
                                  [(TData (Tensor ns xs) Nothing)])]
@@ -526,15 +532,24 @@ tmap f (Tensor ns xs) = Tensor ns (map f xs)
 tmap2 :: (a -> a -> a) -> (Tensor a) -> (Tensor a) -> (Tensor a)
 tmap2 f (Tensor ns1 xs1) (Tensor _ xs2) = Tensor ns1 (map (\(x,y) -> f x y) (zip xs1 xs2))
 
+tCheckIndex :: [ScalarExpr] -> [Integer] -> EgisonM ()
+tCheckIndex [] [] = return ()
+tCheckIndex ((Div (Plus [(Term m [])]) (Plus [(Term 1 [])])):ms) (n:ns) =
+  if (0 < m) && (m <= n)
+    then tCheckIndex ms ns
+    else throwError $ TensorIndexOutOfBounds m n
+tCheckIndex ((Div (Plus [(Term 1 [(Symbol _, 1)])]) (Plus [(Term 1 [])])):ms) (n:ns) = tCheckIndex ms ns
+tCheckIndex (m:_) _ = throwError $ TypeMismatch "symbol or natural number" (Value (ScalarExpr m))
+
 tref' :: [Integer] -> (Tensor a) -> a
 tref' ms (Tensor ns xs) = tref'' ms ns xs
  where
   tref'' :: [Integer] -> [Integer] -> [a] -> a
-  tref'' [m] [_] xs = xs !! (fromIntegral (m - 1))
-  tref'' (m:ms) (_:ns) xs =
+  tref'' [m] [n] xs = xs !! (fromIntegral (m - 1))
+  tref'' (m:ms) (n:ns) xs =
     let w = fromIntegral (product ns) in
-      let ys = take w (drop (w * (fromIntegral (m - 1))) xs) in
-        tref'' ms ns ys
+    let ys = take w (drop (w * (fromIntegral (m - 1))) xs) in
+      tref'' ms ns ys
 
 tref :: [ScalarExpr] -> (Tensor a) -> (Tensor a)
 tref ms (Tensor ns xs) = let rns = map snd (filter (\(m,_) -> (isSymbol (ScalarExpr m))) (zip ms ns)) in
@@ -964,6 +979,8 @@ data EgisonError =
   | ArgumentsNumWithNames [String] Int Int
   | ArgumentsNumPrimitive Int Int
   | ArgumentsNum Int Int
+  | InconsistentTensorSize
+  | TensorIndexOutOfBounds Integer Integer
   | NotImplemented String
   | Assertion String
   | Match String
@@ -984,6 +1001,8 @@ instance Show EgisonError where
                                               show expected ++ ", but got " ++  show got
   show (ArgumentsNum expected got) = "Wrong number of arguments: expected " ++
                                       show expected ++ ", but got " ++  show got
+  show InconsistentTensorSize = "Inconsistent tensor size"
+  show (TensorIndexOutOfBounds m n) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
   show (Desugar message) = "Error: " ++ message
