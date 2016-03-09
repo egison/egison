@@ -251,6 +251,18 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
 -- Arith
 --
 
+numberUnaryOp :: (ScalarData -> ScalarData) -> (EgisonValue -> EgisonValue) -> PrimitiveFunc
+numberUnaryOp mOp fOp arg = do
+  arg' <- tupleToList arg
+  case arg' of 
+    [val] -> numberUnaryOp' val >>= return . Value
+    _ -> throwError $ ArgumentsNumPrimitive 1 $ length arg'
+ where
+  numberUnaryOp' f@(Float _ _)  = return $ fOp f
+  numberUnaryOp' (ScalarData m) = (return . ScalarData . mathNormalize') (mOp m)
+  numberUnaryOp' (TensorData t) = (tMap mOp t) >>= return . TensorData
+  numberUnaryOp' val            = throwError $ TypeMismatch "number" (Value val)
+
 numberBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
 numberBinaryOp mOp fOp args = do
   args' <- tupleToList args
