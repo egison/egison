@@ -233,6 +233,7 @@ floatUnaryOp name op = oneArg $ \val -> do
   case val of
     (Float f 0) -> return $ Float (op f) 0
     (ScalarData mExpr) -> return $ ScalarData (Div (Plus [(Term 1 [(Apply name [mExpr], 1)])]) (Plus [(Term 1 [])]))
+    (TensorData t) -> (tMap (\mExpr -> (Div (Plus [(Term 1 [(Apply name [mExpr], 1)])]) (Plus [(Term 1 [])]))) t) >>= return . TensorData
     _ -> throwError $ TypeMismatch "number" (Value val)
 
 floatBinaryOp :: String -> (Double -> Double -> Double) -> PrimitiveFunc
