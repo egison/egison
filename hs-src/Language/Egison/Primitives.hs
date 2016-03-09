@@ -191,6 +191,7 @@ primitives = [ ("+", plus)
              , ("collection?", isCollection')
              , ("array?", isArray')
              , ("hash?", isHash')
+             , ("tensor?", isTensor')
 
              , ("assert", assert)
              , ("assert-equal", assertEqual)

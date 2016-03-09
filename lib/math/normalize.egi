@@ -13,16 +13,18 @@
 
 (define $math-normalize
   (lambda [$mexpr]
-    (if (number? mexpr)
-      (if (rational? mexpr)
-        mexpr
-        (map-terms rewrite-rule-rt
-                   (map-terms rewrite-rule-sqrt
-                              (map-terms rewrite-rule-rtu
-                                         (map-terms rewrite-rule-w
-                                                    (map-terms rewrite-rule-i mexpr
-                                                               ))))))
-      mexpr)))
+    (if (tensor? mexpr)
+      (tensor-map math-normalize mexpr)
+      (if (number? mexpr)
+        (if (rational? mexpr)
+          mexpr
+          (map-terms rewrite-rule-rt
+                     (map-terms rewrite-rule-sqrt
+                                (map-terms rewrite-rule-rtu
+                                           (map-terms rewrite-rule-w
+                                                      (map-terms rewrite-rule-i mexpr
+                                                                 ))))))
+        mexpr))))
 
 (define $map-terms
   (lambda [$fn $mexpr]

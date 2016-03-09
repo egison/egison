@@ -10,6 +10,7 @@
 (define $- (macro [$arg] (math-normalize (apply -' arg))))
 (define $* (macro [$arg] (math-normalize (apply *' arg))))
 (define $/ (macro [$arg] (math-normalize (apply /' arg))))
+(define $. (macro [$arg] (math-normalize (apply .' arg))))
 
 (define $sum
   (lambda [$xs]
