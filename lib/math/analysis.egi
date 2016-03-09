@@ -18,7 +18,7 @@
            [[_ (sin $y)] (* -1 (cos y) (d/d y x))]
            [[_ (sqrt $y)] (* (/ 1 (* 2 (sqrt y))) (d/d y x))]
            })]
-       [?term? 
+       [?term?
         (match [x f] [symbol-expr term-expr]
           {[[_ <term _ <nil>>]
             0]

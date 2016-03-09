@@ -186,6 +186,14 @@ desugar (MemoizeExpr memoizeBindings expr) = do
   expr' <- desugar expr
   return $ MemoizeExpr memoizeBindings' expr'
 
+desugar (CambdaExpr name expr) = do
+  expr' <- desugar expr
+  return $ CambdaExpr name expr'
+
+--desugar (MacroExpr names expr) = do
+--  expr' <- desugar expr
+--  return $ MacroExpr names expr'
+
 desugar (PatternFunctionExpr names pattern) = do
   pattern' <- desugarPattern pattern
   return $ PatternFunctionExpr names pattern'
@@ -236,6 +244,11 @@ desugar (SeqExpr expr0 expr1) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
   return $ SeqExpr expr0' expr1'
+
+desugar (GenerateTensorExpr fnExpr sizeExpr) = do
+  fnExpr' <- desugar fnExpr
+  sizeExpr' <- desugar sizeExpr
+  return $ GenerateTensorExpr fnExpr' sizeExpr'
 
 desugar (ApplyExpr (VarExpr "+") expr) = do
   expr' <- desugar expr
