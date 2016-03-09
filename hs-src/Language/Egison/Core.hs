@@ -237,7 +237,7 @@ evalExpr env (IndexedExpr expr indices) = do
         then do indices'' <- ((mapM fromEgison indices') :: EgisonM [Integer])
                 return $ Value $ ScalarData (tref' indices'' (Tensor ns xs))
         else do ret <- tContract (TData (tref indices'' (Tensor ns xs)) (Just (filter (isSymbol . ScalarData) indices'')))
-                return $ Value (TensorData ret)
+                return $ Value ret
     _ -> refArray tensor indices'
  where
   extract :: EgisonValue -> EgisonM ScalarData

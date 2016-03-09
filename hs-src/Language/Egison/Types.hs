@@ -576,21 +576,23 @@ transIndex (j1:js1) js2 is = do
             return ((is !! (n - 1)):rs)
 transIndex _ _ _ = throwError $ InconsistentTensorSize
 
-tContract :: TensorData -> EgisonM TensorData
+tContract :: TensorData -> EgisonM EgisonValue
 tContract (TData t@(Tensor ns xs) (Just js)) = do
   case (findPairs js) of
-    [] -> return (TData (Tensor ns xs) (Just js))
+    [] -> return $ TensorData (TData (Tensor ns xs) (Just js))
     ((hs,ms,ts):_) -> do
       let hn = (length hs) + 1
       let mn = (length (hs ++ ms)) + 2
-      liftIO $ putStrLn $ show (hn, mn, ns)
       if (ns !! (hn - 1)) == (ns !! (mn - 1))
         then do
           let n = ns !! (hn - 1)
-          return $ TData (tSum (map (\i -> (tref (hs ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ms
-                                                     ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ts) t))
-                               [1..n]))
-                         (Just (hs ++ ms ++ ts))
+          let ret = TData (tSum (map (\i -> (tref (hs ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ms
+                                                      ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ts) t))
+                                     [1..n]))
+                          (Just (hs ++ ms ++ ts))
+          case ret of
+            (TData (Tensor [] [x]) (Just [])) -> return $ ScalarData x
+            _ -> return $ TensorData ret
         else throwError $ InconsistentTensorIndex
  where
   findPairs :: [ScalarData] -> [([ScalarData], [ScalarData], [ScalarData])]
