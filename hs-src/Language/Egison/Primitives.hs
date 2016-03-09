@@ -385,11 +385,12 @@ tensorProd :: PrimitiveFunc
 tensorProd = twoArgs $ tensorProd'
  where
   tensorProd' (TensorData (TData (Tensor ns1 xs1) (Just ms1)))
-              (TensorData (TData (Tensor ns2 xs2) (Just ms2))) =
-    return (TensorData (TData (Tensor (ns1 ++ ns2) (map (\is -> let is1 = take (length ns1) is in
-                                                                let is2 = take (length ns2) (drop (length ns1) is) in
-                                                                  (mathMult (tref' is1 (Tensor ns1 xs1)) (tref' is2 (Tensor ns2 xs2)))
-                                                         ) (tensorIndices (ns1 ++ ns2)))) (Just (ms1 ++ ms2))))
+              (TensorData (TData (Tensor ns2 xs2) (Just ms2))) = do
+    ret <- tContract (TData (Tensor (ns1 ++ ns2) (map (\is -> let is1 = take (length ns1) is in
+                                                              let is2 = take (length ns2) (drop (length ns1) is) in
+                                                                (mathMult (tref' is1 (Tensor ns1 xs1)) (tref' is2 (Tensor ns2 xs2)))
+                                                       ) (tensorIndices (ns1 ++ ns2)))) (Just (ms1 ++ ms2)))
+    return (TensorData ret)
   tensorProd' val1 val2 = throwError $ TypeMismatch "tensor data with index" (Value (Tuple [val1, val2]))
 
 tensorIndex :: PrimitiveFunc

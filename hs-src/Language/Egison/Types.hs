@@ -34,6 +34,7 @@ module Language.Egison.Types
     , tMap
     , tMap2
     , tCheckIndex
+    , tContract
     , tref
     , tref'
     , tSize
@@ -494,6 +495,36 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
                                else q (x, n) (ret ++ [(y, m)]) ys
 
 --
+--  Arithmetic operations
+--
+
+mathPlus :: ScalarData -> ScalarData -> ScalarData
+mathPlus (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
+
+mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
+mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
+
+mathMult :: ScalarData -> ScalarData -> ScalarData
+mathMult (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
+
+mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
+mathMultPoly (Plus []) (Plus _) = Plus []
+mathMultPoly (Plus _) (Plus []) = Plus []
+mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
+
+mathNegate :: ScalarData -> ScalarData
+mathNegate (Div m n) = Div (mathNegate' m) n
+
+mathNegate' :: PolyExpr -> PolyExpr
+mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
+
+mathNumerator :: ScalarData -> ScalarData
+mathNumerator (Div m _) = Div m (Plus [(Term 1 [])])
+
+mathDenominator :: ScalarData -> ScalarData
+mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
+
+--
 -- Tensors
 --
 
@@ -515,8 +546,8 @@ tensorIndices :: [Integer] -> [[Integer]]
 tensorIndices [] = [[]]
 tensorIndices (n:ns) = concat (map (\i -> (map (\is -> i:is) (tensorIndices ns))) [1..n])
 
-tMap :: (ScalarData -> ScalarData) -> TensorData -> TensorData
-tMap f (TData (Tensor ns xs) js) = TData (Tensor ns (map f xs)) js
+tMap :: (ScalarData -> ScalarData) -> TensorData -> EgisonM TensorData
+tMap f (TData (Tensor ns xs) js) = return $ TData (Tensor ns (map f xs)) js
 
 tMap2 :: (ScalarData -> ScalarData -> ScalarData) -> TensorData -> TensorData -> EgisonM TensorData
 tMap2 f (TData t1@(Tensor ns1 xs1) (Just js1)) (TData t2@(Tensor ns2 xs2) (Just js2)) = do
@@ -524,17 +555,56 @@ tMap2 f (TData t1@(Tensor ns1 xs1) (Just js1)) (TData t2@(Tensor ns2 xs2) (Just 
                         return (f (tref' is t1) (tref' is' t2)))
              (tensorIndices ns1)
   return $ makeTensor ns1 ys
+tMap2 _ _ _ = throwError $ InconsistentTensorIndex -- TODO : new error type
+
+tSum :: [Tensor ScalarData] -> (Tensor ScalarData)
+tSum (t:ts) = tSum' t ts
+ where
+  tSum' :: (Tensor ScalarData) -> [Tensor ScalarData] -> (Tensor ScalarData)
+  tSum' (Tensor ns xs) [] = Tensor ns xs
+  tSum' (Tensor ns xs) ((Tensor _ xs1):ts) =
+    tSum' (Tensor ns (map (\(x,y) -> mathNormalize' (mathPlus x y)) (zip xs xs1))) ts
 
 transIndex :: [ScalarData] -> [ScalarData] -> [Integer] -> EgisonM [Integer]
 transIndex [] [] [] = return []
 transIndex (j1:js1) js2 is = do
   let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
   if tjs2 == []
-    then throwError $ InconsistentTensorIndex -- TODO: new ErrorType
+    then throwError $ InconsistentTensorIndex
     else do let n = (length hjs2) + 1
             rs <- transIndex js1 (hjs2 ++ (tail tjs2)) ((take (n - 1) is) ++ (drop n is))
             return ((is !! (n - 1)):rs)
 transIndex _ _ _ = throwError $ InconsistentTensorSize
+
+tContract :: TensorData -> EgisonM TensorData
+tContract (TData t@(Tensor ns xs) (Just js)) = do
+  case (findPairs js) of
+    [] -> return (TData (Tensor ns xs) (Just js))
+    ((hs,ms,ts):_) -> do
+      let hn = (length hs) + 1
+      let mn = (length (hs ++ ms)) + 2
+      liftIO $ putStrLn $ show (hn, mn, ns)
+      if (ns !! (hn - 1)) == (ns !! (mn - 1))
+        then do
+          let n = ns !! (hn - 1)
+          return $ TData (tSum (map (\i -> (tref (hs ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ms
+                                                     ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ts) t))
+                               [1..n]))
+                         (Just (hs ++ ms ++ ts))
+        else throwError $ InconsistentTensorIndex
+ where
+  findPairs :: [ScalarData] -> [([ScalarData], [ScalarData], [ScalarData])]
+  findPairs xs = findPairs' [] xs
+  findPairs' :: [ScalarData] -> [ScalarData] -> [([ScalarData], [ScalarData], [ScalarData])]
+  findPairs' _ [] = []
+  findPairs' hs (x:xs) = (findPairs'' hs x xs) ++ (findPairs' (hs ++ [x]) xs)
+  findPairs'' :: [ScalarData] -> ScalarData -> [ScalarData] -> [([ScalarData], [ScalarData], [ScalarData])]
+  findPairs'' hs x xs =
+    let (hxs, txs) = break (\e -> e == x) xs in
+    if txs == []
+      then []
+      else [(hs, hxs, (tail txs))]
+tContract (TData _ Nothing) = throwError $ InconsistentTensorIndex -- TODO : new error type
 
 tCheckIndex :: [ScalarData] -> [Integer] -> EgisonM ()
 tCheckIndex [] [] = return ()
@@ -584,36 +654,6 @@ tSize (TData (Tensor ns _) _) = ns
 
 tToList :: (Tensor a) -> [a]
 tToList (Tensor _ xs) = xs
-
---
---  Arithmetic operations
---
-
-mathPlus :: ScalarData -> ScalarData -> ScalarData
-mathPlus (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathPlusPoly (mathMultPoly m1 n2) (mathMultPoly m2 n1)) (mathMultPoly n1 n2)
-
-mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
-mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
-
-mathMult :: ScalarData -> ScalarData -> ScalarData
-mathMult (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
-
-mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
-mathMultPoly (Plus []) (Plus _) = Plus []
-mathMultPoly (Plus _) (Plus []) = Plus []
-mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
-
-mathNegate :: ScalarData -> ScalarData
-mathNegate (Div m n) = Div (mathNegate' m) n
-
-mathNegate' :: PolyExpr -> PolyExpr
-mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
-
-mathNumerator :: ScalarData -> ScalarData
-mathNumerator (Div m _) = Div m (Plus [(Term 1 [])])
-
-mathDenominator :: ScalarData -> ScalarData
-mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
 
 type Matcher = EgisonValue
 
