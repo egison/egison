@@ -3,3 +3,11 @@
 ;;;;; Tensor
 ;;;;;
 ;;;;;
+
+(define $unit-tensor
+  (lambda [$ns]
+    (generate-tensor kronecker-delta ns)))
+
+(define $scalar-to-tensor
+  (lambda [$x $ns]
+    (tensor-map (* $ x) (unit-tensor ns))))

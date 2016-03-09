@@ -48,6 +48,7 @@
      "\\<lambda\\>"
      "\\<memoized-lambda\\>"
      "\\<memoize\\>"
+     "\\<cambda\\>"
      "\\<let\\>"
      "\\<letrec\\>"
      "\\<let\\*\\>"
@@ -171,6 +172,8 @@
         ((equal "load-file" name) 2)
         ((equal "execute" name) 2)
         ((equal "lambda" name) 2)
+        ((equal "cambda" name) 2)
+        ((equal "macro" name) 2)
         ((equal "memoized-lambda" name) 2)
         ((equal "memoize" name) 2)
         ((equal "letrec" name) 2)

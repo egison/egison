@@ -9,7 +9,5 @@
     (/ 1 (+ 1 (exp (* -1 z))))))
 
 (define $kronecker-delta
-  (lambda [$i $j]
-    (if (eq? i j)
-      1
-      0)))
+  (cambda $js
+    (if (all (eq? $ (car js)) (cdr js)) 1 0)))

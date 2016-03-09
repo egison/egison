@@ -225,7 +225,7 @@ data EgisonExpr =
 
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
   | GenerateArrayExpr [String] EgisonExpr EgisonExpr
-  | GenerateTensorExpr [String] EgisonExpr EgisonExpr
+  | GenerateTensorExpr EgisonExpr EgisonExpr
   | ArraySizeExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 

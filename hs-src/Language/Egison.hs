@@ -111,6 +111,7 @@ coreLibraries =
   , "lib/math/functions.egi"
   , "lib/math/algebra.egi"
   , "lib/math/analysis.egi"
+  , "lib/math/tensor.egi"
   , "lib/core/base.egi"
   , "lib/core/collection.egi"
   , "lib/core/assoc.egi"

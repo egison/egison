@@ -438,7 +438,7 @@ generateArrayExpr :: Parser EgisonExpr
 generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> varNames <*> expr <*> expr
 
 generateTensorExpr :: Parser EgisonExpr
-generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> varNames <*> expr <*> expr
+generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> expr
 
 arraySizeExpr :: Parser EgisonExpr
 arraySizeExpr = keywordArraySize >> ArraySizeExpr <$> expr
