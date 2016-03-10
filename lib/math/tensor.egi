@@ -17,3 +17,11 @@
     (init-tensor (tensor-size t)
                  (map f (tensor-to-list t))
                  (tensor-index t))))
+
+(define $M.*
+  (cambda $ms
+    (foldl M.*' (car ms) (cdr ms))))
+
+(define $M.*'
+  (lambda [$m1 $m2]
+    (. m1_i_j m2_j_k)))
