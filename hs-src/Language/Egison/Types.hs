@@ -115,6 +115,7 @@ module Language.Egison.Types
     , isSymbol
     , isNumber
     , isTensor
+    , isTensorWithIndex
     , isBool'
     , isInteger'
     , isRational'
@@ -122,6 +123,7 @@ module Language.Egison.Types
     , isFloat'
     , isComplex'
     , isTensor'
+    , isTensorWithIndex'
     , isChar'
     , isString'
     , isCollection'
@@ -531,7 +533,8 @@ mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
 -- Tensors
 --
 
-data TensorData = TData (Tensor ScalarData) (Maybe [ScalarData])
+data TensorData =
+    TData (Tensor ScalarData) (Maybe [ScalarData])
  deriving (Eq)
 
 data Tensor a = Tensor [Integer] [a]
@@ -1242,6 +1245,14 @@ isTensor _ = False
 isTensor' :: PrimitiveFunc
 isTensor' (Value val) = return $ Value $ Bool $ isTensor val
 isTensor' _ = return $ Value $ Bool False
+
+isTensorWithIndex :: EgisonValue -> Bool
+isTensorWithIndex (TensorData (TData (Tensor _ _) (Just ms))) = True
+isTensorWithIndex _ = False
+
+isTensorWithIndex' :: PrimitiveFunc
+isTensorWithIndex' (Value val) = return $ Value $ Bool $ isTensorWithIndex val
+isTensorWithIndex' _ = return $ Value $ Bool False
 
 isFloat' :: PrimitiveFunc
 isFloat' (Value (Float _ 0)) = return $ Value $ Bool True

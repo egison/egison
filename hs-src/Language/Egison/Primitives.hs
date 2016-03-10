@@ -192,6 +192,7 @@ primitives = [ ("+", plus)
              , ("array?", isArray')
              , ("hash?", isHash')
              , ("tensor?", isTensor')
+             , ("tensor-with-index?", isTensorWithIndex')
 
              , ("assert", assert)
              , ("assert-equal", assertEqual)

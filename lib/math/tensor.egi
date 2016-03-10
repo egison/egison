@@ -4,19 +4,27 @@
 ;;;;;
 ;;;;;
 
+(define $tensor-map
+  (lambda [$f $t]
+    (if (tensor-with-index? t)
+      (init-tensor (tensor-size t)
+                   (map f (tensor-to-list t))
+                   (tensor-index t))
+      (| (tensor-size t)
+                   (map f (tensor-to-list t)) |))))
+
+(define $clear-index
+  (lambda [$t]
+    (| (tensor-size t)
+       (tensor-to-list t) |)))
+
 (define $unit-tensor
   (lambda [$ns]
     (generate-tensor kronecker-delta ns)))
 
 (define $scalar-to-tensor
   (lambda [$x $ns]
-    (tensor-map (* $ x) (unit-tensor ns))))
-
-(define $tensor-map
-  (lambda [$f $t]
-    (init-tensor (tensor-size t)
-                 (map f (tensor-to-list t))
-                 (tensor-index t))))
+    (* x (unit-tensor ns))))
 
 (define $M.*
   (cambda $ms
@@ -24,4 +32,4 @@
 
 (define $M.*'
   (lambda [$m1 $m2]
-    (. m1_i_j m2_j_k)))
+    (clear-index (. m1_i_j m2_j_k))))
