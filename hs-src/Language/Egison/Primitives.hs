@@ -275,8 +275,8 @@ numberBinaryOp mOp fOp args = do
   numberBinaryOp' val             (Float x' y')   = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)     val'            = numberBinaryOp' (Float x y) (numberToFloat' val')
   numberBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
-  numberBinaryOp' (ScalarData m1) (TensorData t2) = (tMap2 mOp (scalarToTensor (tSize t2) m1) t2) >>= return . TensorData
-  numberBinaryOp' (TensorData t1) (ScalarData m2) = (tMap2 mOp t1 (scalarToTensor (tSize t1) m2)) >>= return . TensorData
+  numberBinaryOp' (ScalarData m1) (TensorData t2) = (tMap2 mOp (scalarToTensor (tSize t2) m1 (tIndex t2)) t2) >>= return . TensorData
+  numberBinaryOp' (TensorData t1) (ScalarData m2) = (tMap2 mOp t1 (scalarToTensor (tSize t1) m2 (tIndex t1))) >>= return . TensorData
   numberBinaryOp' (TensorData t1) (TensorData t2) = (tMap2 mOp t1 t2) >>= return . TensorData
   numberBinaryOp' (ScalarData _)  val'            = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val             _               = throwError $ TypeMismatch "number" (Value val)

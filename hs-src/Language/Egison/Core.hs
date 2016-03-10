@@ -189,7 +189,7 @@ evalExpr env (TensorExpr nsExpr xsExpr) = do
   xsWhnf <- evalExpr env xsExpr
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
   if product ns == toInteger (length xs)
-    then return $ Value $ TensorData (makeTensor ns xs)
+    then return $ Value $ TensorData (makeTensor ns xs Nothing)
     else throwError $ InconsistentTensorSize
  where
   toScalarData :: WHNFData -> EgisonM ScalarData
@@ -381,7 +381,7 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
   xs <-  mapM (\ms -> applyFunc env fn (Value (Tuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (tensorIndices ns))
-  return $ Value (TensorData (makeTensor ns xs))
+  return $ Value (TensorData (makeTensor ns xs Nothing))
  where
   extractScalar :: EgisonValue -> EgisonM ScalarData
   extractScalar (ScalarData x) = return x

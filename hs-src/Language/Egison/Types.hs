@@ -30,6 +30,7 @@ module Language.Egison.Types
     , SymbolExpr (..)
     , TensorData (..)
     , Tensor (..)
+    , scalarToUnitTensor
     , scalarToTensor
     , tMap
     , tMap2
@@ -39,6 +40,7 @@ module Language.Egison.Types
     , tref'
     , tSize
     , tToList
+    , tIndex
     , makeTensor
     , tensorIndices
     , symbolScalarData
@@ -534,13 +536,17 @@ data TensorData = TData (Tensor ScalarData) (Maybe [ScalarData])
 data Tensor a = Tensor [Integer] [a]
  deriving (Eq)
 
-scalarToTensor :: [Integer] -> ScalarData -> TensorData
-scalarToTensor ns x = makeTensor ns (map (\ms -> if all (\m -> m == (head ms)) (tail ms)
-                                                   then x
-                                                   else (Div (Plus []) (Plus [(Term 1 [])]))) (tensorIndices ns))
+scalarToUnitTensor :: [Integer] -> ScalarData -> (Maybe [ScalarData]) -> TensorData
+scalarToUnitTensor ns x js = makeTensor ns (map (\ms -> if all (\m -> m == (head ms)) (tail ms)
+                                                         then x
+                                                         else (Div (Plus []) (Plus [(Term 1 [])]))) (tensorIndices ns))
+                                                js
 
-makeTensor :: [Integer] -> [ScalarData] -> TensorData
-makeTensor ns xs = TData (Tensor ns xs) Nothing
+scalarToTensor :: [Integer] -> ScalarData -> (Maybe [ScalarData]) -> TensorData
+scalarToTensor ns x js = makeTensor ns (map (\ms -> x) (tensorIndices ns)) js
+
+makeTensor :: [Integer] -> [ScalarData] -> (Maybe [ScalarData]) -> TensorData
+makeTensor ns xs js = TData (Tensor ns xs) js
 
 tensorIndices :: [Integer] -> [[Integer]]
 tensorIndices [] = [[]]
@@ -551,11 +557,15 @@ tMap f (TData (Tensor ns xs) js) = return $ TData (Tensor ns (map f xs)) js
 
 tMap2 :: (ScalarData -> ScalarData -> ScalarData) -> TensorData -> TensorData -> EgisonM TensorData
 tMap2 f (TData t1@(Tensor ns1 xs1) (Just js1)) (TData t2@(Tensor ns2 xs2) (Just js2)) = do
-  ys <- mapM (\is -> do is' <- transIndex js1 js2 is
-                        return (f (tref' is t1) (tref' is' t2)))
-             (tensorIndices ns1)
-  return $ makeTensor ns1 ys
-tMap2 _ _ _ = throwError $ InconsistentTensorIndex -- TODO : new error type
+  ns2' <- transIndex js1 js2 ns2
+  if ns1 == ns2'
+    then do ys <- mapM (\is -> do is' <- transIndex js1 js2 is
+                                  return (f (tref' is t1) (tref' is' t2)))
+                       (tensorIndices ns1)
+            return $ makeTensor ns1 ys (Just js1)
+    else throwError $ InconsistentTensorSize
+tMap2 _ t1 t2 = do
+  throwError $ InconsistentTensorIndex -- TODO : new error type
 
 tSum :: [Tensor ScalarData] -> (Tensor ScalarData)
 tSum (t:ts) = tSum' t ts
@@ -656,6 +666,9 @@ tSize (TData (Tensor ns _) _) = ns
 
 tToList :: (Tensor a) -> [a]
 tToList (Tensor _ xs) = xs
+
+tIndex :: TensorData -> Maybe [ScalarData]
+tIndex (TData (Tensor _ _) js) = js
 
 type Matcher = EgisonValue
 
