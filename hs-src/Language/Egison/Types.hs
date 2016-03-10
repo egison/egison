@@ -564,6 +564,12 @@ tMap2 f (TData t1@(Tensor ns1 xs1) (Just js1)) (TData t2@(Tensor ns2 xs2) (Just 
                        (tensorIndices ns1)
             return $ makeTensor ns1 ys (Just js1)
     else throwError $ InconsistentTensorSize
+tMap2 f (TData t1@(Tensor ns1 xs1) Nothing) (TData t2@(Tensor ns2 xs2) Nothing) = do
+  if ns1 == ns2
+    then do ys <- mapM (\is -> return (f (tref' is t1) (tref' is t2)))
+                       (tensorIndices ns1)
+            return $ makeTensor ns1 ys Nothing
+    else throwError $ InconsistentTensorSize
 tMap2 _ t1 t2 = do
   throwError $ InconsistentTensorIndex -- TODO : new error type
 
