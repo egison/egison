@@ -157,7 +157,7 @@ evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
-  refVar' env var = maybe (newEvalutedObjectRef (Value (symbolScalarData var))) return
+  refVar' env var = maybe (newEvalutedObjectRef (Value (symbolScalarData var []))) return
                           (refVar env var)
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
@@ -245,6 +245,9 @@ evalExpr env (IndexedExpr expr indices) = do
   tensor <- evalExpr env expr
   indices' <- mapM (evalExprDeep env) indices
   case tensor of
+    (Value (ScalarData (Div (Plus [(Term 1 [(Symbol name [], 1)])]) (Plus [(Term 1 [])])))) -> do
+      js <- (mapM fromEgison indices') :: EgisonM [Integer]
+      return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol name js, 1)])]) (Plus [(Term 1 [])])))
     (Value (TensorData (TData (Tensor ns xs) _))) -> do
       indices'' <- mapM extract indices'
       tCheckIndex indices'' ns
@@ -485,7 +488,7 @@ applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc _ (Value (ScalarData (Div (Plus [(Term 1 [(Symbol name, 1)])]) (Plus [(Term 1 [])])))) arg = do
+applyFunc _ (Value (ScalarData (Div (Plus [(Term 1 [(Symbol name [], 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM p args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply name mExprs, 1)])]) (Plus [(Term 1 [])]))))
@@ -519,7 +522,7 @@ refArray (Value (Array array)) (index:indices) = do
               then refArray (Value (array ! i)) indices
               else return  $ Value Undefined
     else case index of
-           (ScalarData (Div (Plus [(Term 1 [(Symbol var, 1)])]) (Plus [(Term 1 [])]))) -> do
+           (ScalarData (Div (Plus [(Term 1 [(Symbol var [], 1)])]) (Plus [(Term 1 [])]))) -> do
              let (_,size) = Array.bounds array
              elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
              elmRefs <- mapM newEvalutedObjectRef elms
@@ -533,7 +536,7 @@ refArray (Intermediate (IArray array)) (index:indices) = do
                    evalRef ref >>= flip refArray indices
               else return  $ Value Undefined
     else case index of
-           (ScalarData (Div (Plus [(Term 1 [(Symbol var, 1)])]) (Plus [(Term 1 [])]))) -> do
+           (ScalarData (Div (Plus [(Term 1 [(Symbol var [], 1)])]) (Plus [(Term 1 [])]))) -> do
              let (_,size) = Array.bounds array
              let refs = Array.elems array
              arrs <- mapM evalRef refs
