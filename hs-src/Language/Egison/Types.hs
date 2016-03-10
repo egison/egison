@@ -190,6 +190,7 @@ data EgisonExpr =
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | TensorExpr EgisonExpr EgisonExpr
+  | InitTensorExpr EgisonExpr EgisonExpr EgisonExpr
 
   | LambdaExpr [String] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr

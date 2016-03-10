@@ -195,6 +195,7 @@ expr' = (try partialExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
                          <|> generateTensorExpr
+                         <|> initTensorExpr
                          <|> arraySizeExpr
                          <|> arrayRefExpr)
              <?> "expression")
@@ -440,6 +441,9 @@ generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> varNames <*> e
 generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> expr
 
+initTensorExpr :: Parser EgisonExpr
+initTensorExpr = keywordInitTensor >> InitTensorExpr <$> expr <*> expr <*> expr
+
 arraySizeExpr :: Parser EgisonExpr
 arraySizeExpr = keywordArraySize >> ArraySizeExpr <$> expr
 
@@ -640,6 +644,7 @@ reservedKeywords =
   , "algebraic-data-matcher"
   , "generate-array"
   , "generate-tensor"
+  , "init-tensor"
   , "array-size"
   , "array-ref"
   , "something"
@@ -702,9 +707,10 @@ keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
 keywordGenerateArray        = reserved "generate-array"
-keywordGenerateTensor       = reserved "generate-tensor"
 keywordArraySize            = reserved "array-size"
 keywordArrayRef             = reserved "array-ref"
+keywordGenerateTensor       = reserved "generate-tensor"
+keywordInitTensor           = reserved "init-tensor"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

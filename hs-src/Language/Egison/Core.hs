@@ -196,6 +196,21 @@ evalExpr env (TensorExpr nsExpr xsExpr) = do
   toScalarData (Value (ScalarData x)) = return x
   toScalarData val = throwError $ TypeMismatch "integer or string" $ val
 
+evalExpr env (InitTensorExpr nsExpr xsExpr jsExpr) = do
+  nsWhnf <- evalExpr env nsExpr
+  ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
+  xsWhnf <- evalExpr env xsExpr
+  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
+  jsWhnf <- evalExpr env jsExpr
+  js <- fromCollection jsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
+  if product ns == toInteger (length xs)
+    then return $ Value $ TensorData (makeTensor ns xs (Just js))
+    else throwError $ InconsistentTensorSize
+ where
+  toScalarData :: WHNFData -> EgisonM ScalarData
+  toScalarData (Value (ScalarData x)) = return x
+  toScalarData val = throwError $ TypeMismatch "integer or string" $ val
+
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
   keyWhnfs <- mapM (evalExpr env) keyExprs

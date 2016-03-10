@@ -13,7 +13,7 @@
     (tensor-map (* $ x) (unit-tensor ns))))
 
 (define $tensor-map
-  (lambda [$fn $t]
-    (| (tensor-size t)
-       (map fn (tensor-to-list t))
-       |)))
+  (lambda [$f $t]
+    (init-tensor (tensor-size t)
+                 (map f (tensor-to-list t))
+                 (tensor-index t))))
