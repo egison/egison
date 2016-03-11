@@ -63,15 +63,23 @@
       (to-math-expr' <Apply "**" (map from-math-expr {x n})>))))
 
 (define $gcd
+  (cambda $xs
+    (foldl b.gcd (car xs) (cdr xs))))
+
+(define $gcd'
+  (cambda $xs
+    (foldl b.gcd' (car xs) (cdr xs))))
+
+(define $b.gcd
   (lambda [$x $y]
     (match [x y] [term-expr term-expr]
       {[[<term $a $xs> <term $b $ys>]
-        (* (gcd' (abs a) (abs b)) (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys))))]})))
+        (* (b.gcd' (abs a) (abs b)) (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys))))]})))
 
-(define $gcd'
+(define $b.gcd'
   (lambda [$x $y]
     (match [x y] [integer integer]
       {[[,0 _] y]
        [[_ ,0] x]
-       [[_ ?(gte? $ x)] (gcd' (modulo y x) x)]
-       [[_ _] (gcd' y x)]})))
+       [[_ ?(gte? $ x)] (b.gcd' (modulo y x) x)]
+       [[_ _] (b.gcd' y x)]})))

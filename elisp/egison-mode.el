@@ -49,6 +49,7 @@
      "\\<memoized-lambda\\>"
      "\\<memoize\\>"
      "\\<cambda\\>"
+     "\\<macro\\>"
      "\\<let\\>"
      "\\<letrec\\>"
      "\\<let\\*\\>"
