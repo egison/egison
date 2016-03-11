@@ -6,6 +6,12 @@
 
 (define $to-math-expr (macro [$arg] (math-normalize (apply to-math-expr' arg))))
 
+(define $+' (cambda $xs (foldl b.+' (car xs) (cdr xs))))
+(define $-' (cambda $xs (foldl b.-' (car xs) (cdr xs))))
+(define $*' (cambda $xs (foldl b.*' (car xs) (cdr xs))))
+(define $/' b./')
+(define $.' (cambda $xs (foldl b..' (car xs) (cdr xs))))
+
 (define $+ (macro [$arg] (math-normalize (apply +' arg))))
 (define $- (macro [$arg] (math-normalize (apply -' arg))))
 (define $* (macro [$arg] (math-normalize (apply *' arg))))

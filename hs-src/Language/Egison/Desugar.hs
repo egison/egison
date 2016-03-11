@@ -250,42 +250,6 @@ desugar (GenerateTensorExpr fnExpr sizeExpr) = do
   sizeExpr' <- desugar sizeExpr
   return $ GenerateTensorExpr fnExpr' sizeExpr'
 
-desugar (ApplyExpr (VarExpr "+") expr) = do
-  expr' <- desugar expr
-  case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "+") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "+"), x, (CollectionExpr (map ElementExpr args))])
-
-desugar (ApplyExpr (VarExpr "-") expr) = do
-  expr' <- desugar expr
-  case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "-") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "-"), x, (CollectionExpr (map ElementExpr args))])
-
-desugar (ApplyExpr (VarExpr "*") expr) = do
-  expr' <- desugar expr
-  case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "*") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "*"), x, (CollectionExpr (map ElementExpr args))])
-
-desugar (ApplyExpr (VarExpr "+'") expr) = do
-  expr' <- desugar expr
-  case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "+'") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "+'"), x, (CollectionExpr (map ElementExpr args))])
-
-desugar (ApplyExpr (VarExpr "-'") expr) = do
-  expr' <- desugar expr
-  case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "-'") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "-'"), x, (CollectionExpr (map ElementExpr args))])
-
-desugar (ApplyExpr (VarExpr "*'") expr) = do
-  expr' <- desugar expr
-  case expr' of
-    args@(TupleExpr (_:_:[])) -> return $ ApplyExpr (VarExpr "*'") args
-    (TupleExpr (x:args)) -> return $ ApplyExpr (VarExpr "foldl") (TupleExpr [(VarExpr "*'"), x, (CollectionExpr (map ElementExpr args))])
-
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1

@@ -91,8 +91,8 @@ threeArgs f = \args -> do
 
 constants :: [(String, EgisonValue)]
 constants = [
---              ("pi", Float 3.141592653589793 0)
---             ,("e" , Float 2.718281828459045 0)
+              ("f.pi", Float 3.141592653589793 0)
+             ,("f.e" , Float 2.718281828459045 0)
               ]
 
 --
@@ -100,14 +100,14 @@ constants = [
 --
 
 primitives :: [(String, PrimitiveFunc)]
-primitives = [ ("+", plus)
-             , ("-", minus)
-             , ("*", multiply)
-             , ("/", divide)
-             , ("+'", plus)
-             , ("-'", minus)
-             , ("*'", multiply)
-             , ("/'", divide)
+primitives = [ ("b.+", plus)
+             , ("b.-", minus)
+             , ("b.*", multiply)
+             , ("b./", divide)
+             , ("b.+'", plus)
+             , ("b.-'", minus)
+             , ("b.*'", multiply)
+             , ("b./'", divide)
              , ("numerator", numerator')
              , ("denominator", denominator')
              , ("from-math-expr", fromScalarData)
@@ -150,11 +150,11 @@ primitives = [ ("+", plus)
              , ("acosh", floatUnaryOp "acosh" acosh)
              , ("atanh", floatUnaryOp "atanh" atanh)
 
-             , (".", tensorProd)
-             , (".'", tensorProd)
+             , ("b..", tensorProd)
+             , ("b..'", tensorProd)
              , ("tensor-index", tensorIndex)
              , ("tensor-size", tensorSize)
-             , ("tensor-to-list", tensorToList)               
+             , ("tensor-to-list", tensorToList)
 
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
