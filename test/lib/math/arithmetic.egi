@@ -25,3 +25,11 @@
 (assert-equal "gcd"
   (gcd 15 40)
   5)
+
+(assert-equal "sqrt - case 1"
+  (sqrt (/ (* 50 x^2) y))
+  (/ (* 5 x (sqrt (* 2 y))) y))
+
+(assert-equal "sqrt - case 2"
+  (* (sqrt (* 3 x)) (sqrt (* 2 y)))
+  (* (sqrt 6) (sqrt x) (sqrt y)))

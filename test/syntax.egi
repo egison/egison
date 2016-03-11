@@ -342,6 +342,17 @@
   123)
 
 ;;;
+;;; Tensor
+;;;
+(assert-equal "generate-tensor - case 1"
+  (generate-tensor kronecker-delta {3})
+  (| {3} {1 1 1} |))
+
+(assert-equal "generate-tensor - case 2"
+  (generate-tensor kronecker-delta { 2 2 2 2 })
+  (| {2 2 2 2} {1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1} |))
+
+;;;
 ;;; Hash
 ;;;
 (assert-equal "hash-literal"

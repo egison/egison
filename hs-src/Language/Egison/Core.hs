@@ -398,7 +398,7 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size'' <- collectionToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
-  xs <-  mapM (\ms -> applyFunc env fn (Value (Tuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (tensorIndices ns))
+  xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (tensorIndices ns))
   return $ Value (TensorData (makeTensor ns xs Nothing))
  where
   extractScalar :: EgisonValue -> EgisonM ScalarData
@@ -1052,6 +1052,11 @@ collectionToList whnf = do
   return $ collectionToList' val
  where
   collectionToList' (Collection sq) = toList sq
+
+makeTuple :: [EgisonValue] -> EgisonValue
+makeTuple [] = Tuple []
+makeTuple [x] = x
+makeTuple xs = Tuple xs
 
 --
 -- String
