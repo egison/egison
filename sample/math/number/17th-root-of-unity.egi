@@ -1,0 +1,13 @@
+;;;
+;;;
+;;;
+
+(define $y1 (nth 1 (q-f 1 1 -4)))
+(define $y2 (nth 2 (q-f 1 1 -4)))
+
+(define $b1 (nth 1 (q-f 1 (* -1 y1) -1)))
+(define $b2 (nth 2 (q-f 1 (* -1 y1) -1)))
+(define $b3 (nth 1 (q-f 1 (* -1 y2) -1)))
+(define $b4 (nth 2 (q-f 1 (* -1 y2) -1)))
+
+(define $z (car (q-f 1 (* -1 b1) b3)))
