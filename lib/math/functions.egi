@@ -6,28 +6,28 @@
 
 (define $log
   (lambda [$x]
-    (if (number? x)
+    (if (float? x)
+      (b.log x)
       (match x math-expr
         {[,1 0]
          [,e 1]
-         [_ (b.log x)]})
-      (b.log x))))
+         [_ (to-math-expr <Apply log (map from-math-expr {x})>)]}))))
 
 (define $cos
   (lambda [$x]
-    (if (number? x)
+    (if (float? x)
+      (b.cos x)
       (match x math-expr
         {[,0 1]
-         [_ (b.cos x)]})
-      (b.cos x))))
+         [_ (b.cos x)]}))))
 
 (define $sin
   (lambda [$x]
-    (if (number? x)
+    (if (float? x)
+      (b.sin x)
       (match x math-expr
         {[,0 0]
-         [_ (b.sin x)]})
-      (b.sin x))))
+         [_ (b.sin x)]}))))
 
 (define $sigmoid
   (lambda [$z]

@@ -78,6 +78,7 @@ evalTopExprs env exprs = do
   forM_ rest $ evalTopExpr env
   return env
  where
+  collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
@@ -98,6 +99,7 @@ evalTopExprsTestOnly env exprs = do
   forM_ rest $ evalTopExpr env
   return env
  where
+  collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
@@ -118,6 +120,7 @@ evalTopExprsNoIO env exprs = do
   forM_ rest $ evalTopExpr env
   return env
  where
+  collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
@@ -262,9 +265,9 @@ evalExpr env (IndexedExpr expr indices) = do
   extract (ScalarData s) = return s
   extract val = throwError $ TypeMismatch "scalar expression" (Value val)
 
-evalExpr env (LambdaExpr names expr) = return . Value $ Func env names expr
+evalExpr env (LambdaExpr names expr) = return . Value $ Func Nothing env names expr
 
-evalExpr env (CambdaExpr name expr) = return . Value $ CFunc env name expr
+evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name expr
 
 evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
@@ -305,7 +308,7 @@ evalExpr env (LetRecExpr bindings expr) =
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
   let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings
-  applyFunc env (Value $ Func env ["#1"] body) $ Value World
+  applyFunc env (Value $ Func Nothing env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
     LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1"])] $
@@ -360,7 +363,7 @@ evalExpr env (ApplyExpr func arg) = do
         Just objRef -> do
           evalRef objRef
         Nothing -> do
-          whnf <- applyFunc env (Value (Func env names body)) arg
+          whnf <- applyFunc env (Value (Func Nothing env names body)) arg
           retRef <- newEvalutedObjectRef whnf
           hash <- liftIO $ readIORef hashRef
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
@@ -490,15 +493,15 @@ evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
-applyFunc _ (Value (Func env [name] body)) arg = do
+applyFunc _ (Value (Func _ env [name] body)) arg = do
   ref <- newEvalutedObjectRef arg
   evalExpr (extendEnv env $ makeBindings [name] [ref]) body
-applyFunc _ (Value (Func env names body)) arg = do
+applyFunc _ (Value (Func _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
-applyFunc _ (Value (CFunc env name body)) arg = do
+applyFunc _ (Value (CFunc _ env name body)) arg = do
   refs <- fromTuple arg
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection $ seqRef
@@ -518,10 +521,10 @@ applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc _ (Value (ScalarData (Div (Plus [(Term 1 [(Symbol name [], 1)])]) (Plus [(Term 1 [])])))) arg = do
+applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol name [], 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM p args
-  return (Value (ScalarData (Div (Plus [(Term 1 [(Apply name mExprs, 1)])]) (Plus [(Term 1 [])]))))
+  return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
  where
   p :: EgisonValue -> EgisonM ScalarData
   p (ScalarData mExpr) = return mExpr

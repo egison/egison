@@ -133,22 +133,22 @@ primitives = [ ("b.+", plus)
              , ("real-part", realPart)
              , ("imaginary-part", imaginaryPart)
                
-             , ("b.sqrt", floatUnaryOp "sqrt" sqrt)
-             , ("b.sqrt'", floatUnaryOp "sqrt" sqrt)
-             , ("b.exp", floatUnaryOp "exp" exp)
-             , ("b.log", floatUnaryOp "log" log)
-             , ("b.sin", floatUnaryOp "sin" sin)
-             , ("b.cos", floatUnaryOp "cos" cos)
-             , ("b.tan", floatUnaryOp "tan" tan)
-             , ("b.asin", floatUnaryOp "asin" asin)
-             , ("b.acos", floatUnaryOp "acos" acos)
-             , ("b.atan", floatUnaryOp "atan" atan)
-             , ("b.sinh", floatUnaryOp "sinh" sinh)
-             , ("b.cosh", floatUnaryOp "cosh" cosh)
-             , ("b.tanh", floatUnaryOp "tanh" tanh)
-             , ("b.asinh", floatUnaryOp "asinh" asinh)
-             , ("b.acosh", floatUnaryOp "acosh" acosh)
-             , ("b.atanh", floatUnaryOp "atanh" atanh)
+             , ("b.sqrt", floatUnaryOp sqrt)
+             , ("b.sqrt'", floatUnaryOp sqrt)
+             , ("b.exp", floatUnaryOp exp)
+             , ("b.log", floatUnaryOp log)
+             , ("b.sin", floatUnaryOp sin)
+             , ("b.cos", floatUnaryOp cos)
+             , ("b.tan", floatUnaryOp tan)
+             , ("b.asin", floatUnaryOp asin)
+             , ("b.acos", floatUnaryOp acos)
+             , ("b.atan", floatUnaryOp atan)
+             , ("b.sinh", floatUnaryOp sinh)
+             , ("b.cosh", floatUnaryOp cosh)
+             , ("b.tanh", floatUnaryOp tanh)
+             , ("b.asinh", floatUnaryOp asinh)
+             , ("b.acosh", floatUnaryOp acosh)
+             , ("b.atanh", floatUnaryOp atanh)
 
              , ("b..", tensorProd)
              , ("b..'", tensorProd)
@@ -229,18 +229,17 @@ integerBinaryPred pred = twoArgs $ \val val' -> do
   i' <- fromEgison val'
   return $ Bool $ pred i i'
 
-floatUnaryOp :: String -> (Double -> Double) -> PrimitiveFunc
-floatUnaryOp name op = oneArg $ \val -> do
+floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
+floatUnaryOp op = oneArg $ \val -> do
   case val of
     (Float f 0) -> return $ Float (op f) 0
-    (ScalarData mExpr) -> return $ ScalarData (Div (Plus [(Term 1 [(Apply name [mExpr], 1)])]) (Plus [(Term 1 [])]))
-    _ -> throwError $ TypeMismatch "number" (Value val)
+    _ -> throwError $ TypeMismatch "float" (Value val)
 
-floatBinaryOp :: String -> (Double -> Double -> Double) -> PrimitiveFunc
-floatBinaryOp name op = twoArgs $ \val val' -> do
+floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
+floatBinaryOp op = twoArgs $ \val val' -> do
   case (val, val') of
     ((Float f 0), (Float f' 0)) -> return $ Float (op f f') 0
-    ((ScalarData mExpr), (ScalarData mExpr')) -> return $ ScalarData (Div (Plus [(Term 1 [(Apply name [mExpr, mExpr'], 1)])]) (Plus [(Term 1 [])]))
+    _ -> throwError $ TypeMismatch "float" (Value val)
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' -> do

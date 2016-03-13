@@ -310,8 +310,8 @@ data EgisonValue =
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
-  | Func Env [String] EgisonExpr
-  | CFunc Env String EgisonExpr
+  | Func (Maybe String) Env [String] EgisonExpr
+  | CFunc (Maybe String) Env String EgisonExpr
   | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | Macro [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
@@ -340,7 +340,7 @@ data TermExpr =
 
 data SymbolExpr =
     Symbol String [Integer]
-  | Apply String [ScalarData]
+  | Apply EgisonValue [ScalarData]
  deriving (Eq)
 
 
@@ -358,7 +358,7 @@ termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.
 
 symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
 symbolExprToEgison (Symbol x js, n) = Tuple [InductiveData "Symbol" [toEgison (T.pack x), toEgison js], toEgison n]
-symbolExprToEgison (Apply name mExprs, n) = Tuple [InductiveData "Apply" [toEgison (T.pack name), Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
+symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -388,11 +388,10 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, js], n]) = do
   js' <- fromEgison js
   n' <- fromEgison n
   return (Symbol (T.unpack x') js', n')
-egisonToSymbolExpr (Tuple [InductiveData "Apply" [name, (Collection mExprs)], n]) = do
-  name' <- fromEgison name
+egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, (Collection mExprs)], n]) = do
   mExprs' <- mapM egisonToScalarData (toList mExprs)
   n' <- fromEgison n
-  return (Apply (T.unpack name') mExprs', n')
+  return (Apply fn mExprs', n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -709,9 +708,11 @@ instance Show EgisonValue where
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
-  show (Func _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
+  show (Func Nothing _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
+  show (Func (Just name) _ _ _) = name
+  show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
+  show (CFunc (Just name) _ _ _) = name
   show (MemoizedFunc _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
-  show (CFunc _ name _) = "(cambda " ++ name ++ " ...)"
   show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
@@ -744,7 +745,7 @@ showPoweredSymbol (x, n) = show x ++ "^" ++ show n
 instance Show SymbolExpr where
   show (Symbol s []) = s
   show (Symbol s js) = s ++ unwords' (map show js)
-  show (Apply s mExprs) = "(" ++ s ++ " " ++ unwords (map show mExprs) ++ ")"
+  show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
@@ -788,8 +789,10 @@ instance Eq EgisonValue where
  (StrHash vals) == (StrHash vals') = vals == vals'
  (PrimitiveFunc name1 _) == (PrimitiveFunc name2 _) = name1 == name2
  -- Temporary: searching a better solution
- (Func _ xs1 expr1) == (Func _ xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
- (CFunc _ x1 expr1) == (CFunc _ x2 expr2) = (x1 == x2) && (expr1 == expr2)
+ (Func Nothing _ xs1 expr1) == (Func Nothing _ xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
+ (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
+ (CFunc Nothing _ x1 expr1) == (CFunc Nothing _ x2 expr2) = (x1 == x2) && (expr1 == expr2)
+ (CFunc (Just name1) _ _ _) == (CFunc (Just name2) _ _ _) = name1 == name2
  (Macro xs1 expr1) == (Macro xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
  _ == _ = False
 
