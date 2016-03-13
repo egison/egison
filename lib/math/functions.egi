@@ -11,7 +11,7 @@
         {[,1 0]
          [,e 1]
          [_ (b.log x)]})
-      (b.sin x))))
+      (b.log x))))
 
 (define $cos
   (lambda [$x]
