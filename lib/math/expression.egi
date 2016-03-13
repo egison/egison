@@ -88,9 +88,10 @@
       {[<Symbol $v> {v}]
        [<Div <Plus {<Term 1 {[<Symbol $v> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
        [_ {}]}]
-     [<apply $ $> [string (list math-expr)]
+     [<apply $ $> [something (list math-expr)]
       {[<Apply $v $mexprs> [v mexprs]]
-       [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v (map to-math-expr' mexprs)]}]
+       [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}>
+             <Plus {<Term 1 {}> @{}}>> {[v (map to-math-expr' mexprs)]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]

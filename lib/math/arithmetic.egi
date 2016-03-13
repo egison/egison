@@ -54,9 +54,9 @@
       (if (gte? n 0)
         (if (integer? n)
           (power x n)
-          (to-math-expr <Apply "**" (map from-math-expr {x n})>))
+          (to-math-expr <Apply ** (map from-math-expr {x n})>))
         (/ 1 (** x (neg n))))
-      (to-math-expr <Apply "**" (map from-math-expr {x n})>))))
+      (to-math-expr <Apply ** (map from-math-expr {x n})>))))
 
 (define $**'
   (lambda [$x $n]
@@ -64,9 +64,9 @@
       (if (gte? n 0)
         (if (integer? n)
           (power' x n)
-          (to-math-expr' <Apply "**" (map from-math-expr {x n})>))
+          (to-math-expr' <Apply ** (map from-math-expr {x n})>))
         (/' 1 (**' x (neg n))))
-      (to-math-expr' <Apply "**" (map from-math-expr {x n})>))))
+      (to-math-expr' <Apply ** (map from-math-expr {x n})>))))
 
 (define $gcd
   (cambda $xs

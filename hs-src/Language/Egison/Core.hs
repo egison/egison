@@ -355,7 +355,7 @@ evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg
   case func of
-    Value (MemoizedFunc ref hashRef env names body) -> do
+    Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
       hash <- liftIO $ readIORef hashRef
@@ -367,21 +367,21 @@ evalExpr env (ApplyExpr func arg) = do
           retRef <- newEvalutedObjectRef whnf
           hash <- liftIO $ readIORef hashRef
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-          writeObjectRef ref (Value (MemoizedFunc ref hashRef env names body))
+          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
     _ -> applyFunc env func arg
 
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
   mapM (\(x, y, z) -> do x' <- evalExprDeep env x
                          case x' of
-                           (MemoizedFunc ref hashRef env' names body) -> do
+                           (MemoizedFunc name ref hashRef env' names body) -> do
                              indices <- evalExprDeep env y
                              indices' <- mapM fromEgison $ fromTupleValue indices
                              hash <- liftIO $ readIORef hashRef
                              ret <- evalExprDeep env z
                              retRef <- newEvalutedObjectRef (Value ret)
                              liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-                             writeObjectRef ref (Value (MemoizedFunc ref hashRef env' names body))
+                             writeObjectRef ref (Value (MemoizedFunc name ref hashRef env' names body))
                            _ -> throwError $ TypeMismatch "memoized-function" (Value x'))
        memoizeFrame
   evalExpr env expr
@@ -637,13 +637,21 @@ recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
-  zipWithM_ (\ref expr ->
+  zipWithM_ (\ref (name,expr) ->
                case expr of
                  MemoizedLambdaExpr names body -> do
                    hashRef <- liftIO $ newIORef HL.empty
-                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
+                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc (Just name) ref hashRef env' names body
+                 LambdaExpr args body -> do
+                   whnf <- evalExpr env' expr
+                   case whnf of
+                     (Value (Func _ env args body)) -> liftIO . writeIORef ref . WHNF $ (Value (Func (Just name) env args body))
+                 CambdaExpr arg body -> do
+                   whnf <- evalExpr env' expr
+                   case whnf of
+                     (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ (Value (CFunc (Just name) env arg body))
                  _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
-            refs exprs
+            refs bindings
   return env'
 
 --
@@ -782,7 +790,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           let penv = zip names args
           in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
         _ -> case func of
-               VarExpr name -> return $ msingleton $ (MState env loops bindings ((MAtom (InductivePat "apply" [(ValuePat (StringExpr (T.pack name))), (toListPat args)]) target matcher):trees))
+               VarExpr name -> return $ msingleton $ (MState env loops bindings ((MAtom (InductivePat "apply" [(ValuePat (VarExpr name)), (toListPat args)]) target matcher):trees))
                _ -> throwError $ TypeMismatch "pattern constructor" func'
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do

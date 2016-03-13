@@ -19,7 +19,7 @@
       (b.cos x)
       (match x math-expr
         {[,0 1]
-         [_ (b.cos x)]}))))
+         [_ (to-math-expr <Apply cos (map from-math-expr {x})>)]}))))
 
 (define $sin
   (lambda [$x]
@@ -27,7 +27,7 @@
       (b.sin x)
       (match x math-expr
         {[,0 0]
-         [_ (b.sin x)]}))))
+         [_ (to-math-expr <Apply sin (map from-math-expr {x})>)]}))))
 
 (define $sigmoid
   (lambda [$z]

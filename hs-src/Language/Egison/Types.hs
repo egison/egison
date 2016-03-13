@@ -312,7 +312,7 @@ data EgisonValue =
   | UserMatcher Env PMMode MatcherInfo
   | Func (Maybe String) Env [String] EgisonExpr
   | CFunc (Maybe String) Env String EgisonExpr
-  | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
+  | MemoizedFunc (Maybe String) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | Macro [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
@@ -712,7 +712,8 @@ instance Show EgisonValue where
   show (Func (Just name) _ _ _) = name
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   show (CFunc (Just name) _ _ _) = name
-  show (MemoizedFunc _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
+  show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
+  show (MemoizedFunc (Just name) _ _ _ names _) = name
   show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
