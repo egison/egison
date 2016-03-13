@@ -351,6 +351,25 @@ evalExpr env (SeqExpr expr1 expr2) = do
   evalExprDeep env expr1
   evalExpr env expr2
 
+evalExpr env (CApplyExpr func arg) = do
+  func <- evalExpr env func
+  args <- evalExpr env arg >>= collectionToList
+  case func of
+    Value (MemoizedFunc name ref hashRef env names body) -> do
+      indices' <- mapM fromEgison args
+      hash <- liftIO $ readIORef hashRef
+      case HL.lookup indices' hash of
+        Just objRef -> do
+          evalRef objRef
+        Nothing -> do
+          whnf <- applyFunc env (Value (Func Nothing env names body)) (Value (makeTuple args))
+          retRef <- newEvalutedObjectRef whnf
+          hash <- liftIO $ readIORef hashRef
+          liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
+          return whnf
+    _ -> applyFunc env func (Value (makeTuple args))
+
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg

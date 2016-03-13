@@ -266,6 +266,11 @@ desugar (ApplyExpr expr0 expr1) = do
   expr1' <- desugar expr1
   return $ ApplyExpr expr0' expr1'
 
+desugar (CApplyExpr expr0 expr1) = do
+  expr0' <- desugar expr0
+  expr1' <- desugar expr1
+  return $ CApplyExpr expr0' expr1'
+
 desugar (VarExpr name) = do
   asks $ maybe (VarExpr name) id . lookup name
 

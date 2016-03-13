@@ -192,6 +192,7 @@ expr' = (try partialExpr
                          <|> matcherDFSExpr
                          <|> seqExpr
                          <|> applyExpr
+                         <|> cApplyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
                          <|> arraySizeExpr
@@ -391,6 +392,9 @@ seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
 
 recVarExpr :: Parser EgisonExpr
 recVarExpr = reservedOp "#" >> pure RecVarExpr
+
+cApplyExpr :: Parser EgisonExpr
+cApplyExpr = (keywordCApply >> CApplyExpr <$> expr <*> expr) 
 
 applyExpr :: Parser EgisonExpr
 applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr) 
@@ -631,6 +635,7 @@ reservedKeywords =
   , "if"
   , "seq"
   , "apply"
+  , "capply"
   , "lambda"
   , "memoized-lambda"
   , "memoize"
@@ -690,6 +695,7 @@ keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
 keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
+keywordCApply               = reserved "capply"
 keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoized-lambda"
 keywordMemoize              = reserved "memoize"
