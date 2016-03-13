@@ -4,6 +4,31 @@
 ;;;;;
 ;;;;;
 
+(define $log
+  (lambda [$x]
+    (if (number? x)
+      (match x math-expr
+        {[,1 0]
+         [,e 1]
+         [_ (b.log x)]})
+      (b.sin x))))
+
+(define $cos
+  (lambda [$x]
+    (if (number? x)
+      (match x math-expr
+        {[,0 1]
+         [_ (b.cos x)]})
+      (b.cos x))))
+
+(define $sin
+  (lambda [$x]
+    (if (number? x)
+      (match x math-expr
+        {[,0 0]
+         [_ (b.sin x)]})
+      (b.sin x))))
+
 (define $sigmoid
   (lambda [$z]
     (/ 1 (+ 1 (exp (* -1 z))))))

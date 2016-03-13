@@ -41,7 +41,7 @@ import Language.Egison.Core
 
 primitiveEnv :: IO Env
 primitiveEnv = do
-  let ops = map (second PrimitiveFunc) (primitives ++ ioPrimitives)
+  let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) (primitives ++ ioPrimitives)
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (name, ref)
@@ -49,7 +49,7 @@ primitiveEnv = do
 
 primitiveEnvNoIO :: IO Env
 primitiveEnvNoIO = do
-  let ops = map (second PrimitiveFunc) primitives
+  let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) primitives
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (name, ref)
@@ -133,22 +133,22 @@ primitives = [ ("b.+", plus)
              , ("real-part", realPart)
              , ("imaginary-part", imaginaryPart)
                
-             , ("sqrt", floatUnaryOp "sqrt" sqrt)
-             , ("sqrt'", floatUnaryOp "sqrt" sqrt)
-             , ("exp", floatUnaryOp "exp" exp)
-             , ("log", floatUnaryOp "log" log)
-             , ("sin", floatUnaryOp "sin" sin)
-             , ("cos", floatUnaryOp "cos" cos)
-             , ("tan", floatUnaryOp "tan" tan)
-             , ("asin", floatUnaryOp "asin" asin)
-             , ("acos", floatUnaryOp "acos" acos)
-             , ("atan", floatUnaryOp "atan" atan)
-             , ("sinh", floatUnaryOp "sinh" sinh)
-             , ("cosh", floatUnaryOp "cosh" cosh)
-             , ("tanh", floatUnaryOp "tanh" tanh)
-             , ("asinh", floatUnaryOp "asinh" asinh)
-             , ("acosh", floatUnaryOp "acosh" acosh)
-             , ("atanh", floatUnaryOp "atanh" atanh)
+             , ("b.sqrt", floatUnaryOp "sqrt" sqrt)
+             , ("b.sqrt'", floatUnaryOp "sqrt" sqrt)
+             , ("b.exp", floatUnaryOp "exp" exp)
+             , ("b.log", floatUnaryOp "log" log)
+             , ("b.sin", floatUnaryOp "sin" sin)
+             , ("b.cos", floatUnaryOp "cos" cos)
+             , ("b.tan", floatUnaryOp "tan" tan)
+             , ("b.asin", floatUnaryOp "asin" asin)
+             , ("b.acos", floatUnaryOp "acos" acos)
+             , ("b.atan", floatUnaryOp "atan" atan)
+             , ("b.sinh", floatUnaryOp "sinh" sinh)
+             , ("b.cosh", floatUnaryOp "cosh" cosh)
+             , ("b.tanh", floatUnaryOp "tanh" tanh)
+             , ("b.asinh", floatUnaryOp "asinh" asinh)
+             , ("b.acosh", floatUnaryOp "acosh" acosh)
+             , ("b.atanh", floatUnaryOp "atanh" atanh)
 
              , ("b..", tensorProd)
              , ("b..'", tensorProd)

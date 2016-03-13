@@ -513,7 +513,7 @@ applyFunc env (Value (Macro names body)) arg = do
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
-applyFunc _ (Value (PrimitiveFunc func)) arg = func arg
+applyFunc _ (Value (PrimitiveFunc _ func)) arg = func arg
 applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m

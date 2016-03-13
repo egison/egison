@@ -175,7 +175,7 @@ data EgisonTopExpr =
     -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
- deriving (Show)
+ deriving (Show, Eq)
 
 data EgisonExpr =
     CharExpr Char
@@ -238,12 +238,12 @@ data EgisonExpr =
 
   | SomethingExpr
   | UndefinedExpr
- deriving (Show)
+ deriving (Show, Eq)
 
 data InnerExpr =
     ElementExpr EgisonExpr
   | SubCollectionExpr EgisonExpr
- deriving (Show)
+ deriving (Show, Eq)
 
 type BindingExpr = ([String], EgisonExpr)
 type MatchClause = (EgisonPattern, EgisonExpr)
@@ -267,17 +267,17 @@ data EgisonPattern =
   | ContPat
   | ApplyPat EgisonExpr [EgisonPattern]
   | VarPat String
- deriving (Show)
+ deriving (Show, Eq)
 
 data LoopRange = LoopRange EgisonExpr EgisonExpr EgisonPattern
- deriving (Show)
+ deriving (Show, Eq)
 
 data PrimitivePatPattern =
     PPWildCard
   | PPPatVar
   | PPValuePat String
   | PPInductivePat String [PrimitivePatPattern]
- deriving (Show)
+ deriving (Show, Eq)
 
 data PrimitiveDataPattern =
     PDWildCard
@@ -288,7 +288,7 @@ data PrimitiveDataPattern =
   | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
   | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
   | PDConstantPat EgisonExpr
- deriving (Show)
+ deriving (Show, Eq)
 
 --
 -- Values
@@ -315,7 +315,7 @@ data EgisonValue =
   | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | Macro [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
-  | PrimitiveFunc PrimitiveFunc
+  | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
   | Port Handle
   | Something
@@ -714,7 +714,7 @@ instance Show EgisonValue where
   show (CFunc _ name _) = "(cambda " ++ name ++ " ...)"
   show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
-  show (PrimitiveFunc _) = "#<primitive-function>"
+  show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   show (IOFunc _) = "#<io-function>"
   show (Port _) = "#<port>"
   show Something = "something"
@@ -786,6 +786,11 @@ instance Eq EgisonValue where
  (IntHash vals) == (IntHash vals') = vals == vals'
  (CharHash vals) == (CharHash vals') = vals == vals'
  (StrHash vals) == (StrHash vals') = vals == vals'
+ (PrimitiveFunc name1 _) == (PrimitiveFunc name2 _) = name1 == name2
+ -- Temporary: searching a better solution
+ (Func _ xs1 expr1) == (Func _ xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
+ (CFunc _ x1 expr1) == (CFunc _ x2 expr2) = (x1 == x2) && (expr1 == expr2)
+ (Macro xs1 expr1) == (Macro xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
  _ == _ = False
 
 --

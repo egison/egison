@@ -45,13 +45,15 @@
       {[[,2 _] (to-math-expr' <Apply "sqrt" (map from-math-expr {x})>)]
        [[_ _] (to-math-expr' <Apply "rt" (map from-math-expr {n x})>)]})))
 
-(define $sqrt
+(define $sqrt (macro [$x] (math-normalize (sqrt' x))))
+
+(define $sqrt'
   (lambda [$x]
     (if (number? x)
       (let {[$m (numerator x)]
             [$n (denominator x)]}
         (/ (rt 2 (* m n)) n))
-      (sqrt' x))))
+      (b.sqrt x))))
 
 (define $rt-of-unity rtu)
 
