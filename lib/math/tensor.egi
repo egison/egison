@@ -4,6 +4,14 @@
 ;;;;;
 ;;;;;
 
+(define $T.map
+  (lambda [$fn $t]
+    (tensor-map fn t)))
+
+(define $T.map2
+  (lambda [$fn $t1 $t2]
+    (tensor-map2 fn t1 t2)))
+
 (define $clear-index
   (lambda [$t]
     (| (tensor-size t)
@@ -16,7 +24,6 @@
 (define $scalar-to-tensor
   (lambda [$x $ns]
     (* x (unit-tensor ns))))
-
 
 ;;
 ;; Vectors
