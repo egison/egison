@@ -192,7 +192,6 @@ data EgisonExpr =
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | TensorExpr EgisonExpr EgisonExpr
-  | InitTensorExpr EgisonExpr EgisonExpr EgisonExpr
 
   | LambdaExpr [String] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr
@@ -218,6 +217,7 @@ data EgisonExpr =
 
   | MatcherBFSExpr MatcherInfo
   | MatcherDFSExpr MatcherInfo
+  | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
   
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
@@ -228,11 +228,13 @@ data EgisonExpr =
   | PartialVarExpr Integer
   | RecVarExpr
 
-  | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
   | GenerateArrayExpr [String] EgisonExpr EgisonExpr
-  | GenerateTensorExpr EgisonExpr EgisonExpr
   | ArraySizeExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
+  | GenerateTensorExpr EgisonExpr EgisonExpr
+  | InitTensorExpr EgisonExpr EgisonExpr EgisonExpr
+  | TensorMapExpr EgisonExpr EgisonExpr
+  | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
 
   | SomethingExpr
   | UndefinedExpr
@@ -557,21 +559,23 @@ tensorIndices :: [Integer] -> [[Integer]]
 tensorIndices [] = [[]]
 tensorIndices (n:ns) = concat (map (\i -> (map (\is -> i:is) (tensorIndices ns))) [1..n])
 
-tMap :: (ScalarData -> ScalarData) -> TensorData -> EgisonM TensorData
-tMap f (TData (Tensor ns xs) js) = return $ TData (Tensor ns (map f xs)) js
+tMap :: (ScalarData -> EgisonM ScalarData) -> TensorData -> EgisonM TensorData
+tMap f (TData (Tensor ns xs) js) = do
+  xs' <- mapM f xs
+  return $ TData (Tensor ns xs') js
 
-tMap2 :: (ScalarData -> ScalarData -> ScalarData) -> TensorData -> TensorData -> EgisonM TensorData
+tMap2 :: (ScalarData -> ScalarData -> EgisonM ScalarData) -> TensorData -> TensorData -> EgisonM TensorData
 tMap2 f (TData t1@(Tensor ns1 xs1) (Just js1)) (TData t2@(Tensor ns2 xs2) (Just js2)) = do
   ns2' <- transIndex js1 js2 ns2
   if ns1 == ns2'
     then do ys <- mapM (\is -> do is' <- transIndex js1 js2 is
-                                  return (f (tref' is t1) (tref' is' t2)))
+                                  f (tref' is t1) (tref' is' t2))
                        (tensorIndices ns1)
             return $ makeTensor ns1 ys (Just js1)
     else throwError $ InconsistentTensorSize
 tMap2 f (TData t1@(Tensor ns1 xs1) Nothing) (TData t2@(Tensor ns2 xs2) Nothing) = do
   if ns1 == ns2
-    then do ys <- mapM (\is -> return (f (tref' is t1) (tref' is t2)))
+    then do ys <- mapM (\is -> f (tref' is t1) (tref' is t2))
                        (tensorIndices ns1)
             return $ makeTensor ns1 ys Nothing
     else throwError $ InconsistentTensorSize

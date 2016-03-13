@@ -250,6 +250,17 @@ desugar (GenerateTensorExpr fnExpr sizeExpr) = do
   sizeExpr' <- desugar sizeExpr
   return $ GenerateTensorExpr fnExpr' sizeExpr'
 
+desugar (TensorMapExpr fnExpr tExpr) = do
+  fnExpr' <- desugar fnExpr
+  tExpr' <- desugar tExpr
+  return $ TensorMapExpr fnExpr' tExpr'
+
+desugar (TensorMap2Expr fnExpr t1Expr t2Expr) = do
+  fnExpr' <- desugar fnExpr
+  t1Expr' <- desugar t1Expr
+  t2Expr' <- desugar t2Expr
+  return $ TensorMap2Expr fnExpr' t1Expr' t2Expr'
+
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1

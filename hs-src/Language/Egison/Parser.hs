@@ -194,10 +194,13 @@ expr' = (try partialExpr
                          <|> applyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
+                         <|> arraySizeExpr
+                         <|> arrayRefExpr
                          <|> generateTensorExpr
                          <|> initTensorExpr
-                         <|> arraySizeExpr
-                         <|> arrayRefExpr)
+                         <|> tensorMapExpr
+                         <|> tensorMap2Expr
+                         )
              <?> "expression")
 
 varExpr :: Parser EgisonExpr
@@ -438,17 +441,23 @@ algebraicDataMatcherExpr = keywordAlgebraicDataMatcher
 generateArrayExpr :: Parser EgisonExpr
 generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> varNames <*> expr <*> expr
 
+arraySizeExpr :: Parser EgisonExpr
+arraySizeExpr = keywordArraySize >> ArraySizeExpr <$> expr
+
+arrayRefExpr :: Parser EgisonExpr
+arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
+
 generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> expr
 
 initTensorExpr :: Parser EgisonExpr
 initTensorExpr = keywordInitTensor >> InitTensorExpr <$> expr <*> expr <*> expr
 
-arraySizeExpr :: Parser EgisonExpr
-arraySizeExpr = keywordArraySize >> ArraySizeExpr <$> expr
+tensorMapExpr :: Parser EgisonExpr
+tensorMapExpr = keywordTensorMap >> TensorMapExpr <$> expr <*> expr
 
-arrayRefExpr :: Parser EgisonExpr
-arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
+tensorMap2Expr :: Parser EgisonExpr
+tensorMap2Expr = keywordTensorMap2 >> TensorMap2Expr <$> expr <*> expr <*> expr
 
 -- Patterns
 
@@ -643,10 +652,12 @@ reservedKeywords =
   , "io"
   , "algebraic-data-matcher"
   , "generate-array"
-  , "generate-tensor"
-  , "init-tensor"
   , "array-size"
   , "array-ref"
+  , "generate-tensor"
+  , "init-tensor"
+  , "tensor-map"
+  , "tensor-map2"
   , "something"
   , "undefined"]
   
@@ -711,6 +722,8 @@ keywordArraySize            = reserved "array-size"
 keywordArrayRef             = reserved "array-ref"
 keywordGenerateTensor       = reserved "generate-tensor"
 keywordInitTensor           = reserved "init-tensor"
+keywordTensorMap            = reserved "tensor-map"
+keywordTensorMap2           = reserved "tensor-map2"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

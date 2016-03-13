@@ -234,7 +234,6 @@ floatUnaryOp name op = oneArg $ \val -> do
   case val of
     (Float f 0) -> return $ Float (op f) 0
     (ScalarData mExpr) -> return $ ScalarData (Div (Plus [(Term 1 [(Apply name [mExpr], 1)])]) (Plus [(Term 1 [])]))
-    (TensorData t) -> (tMap (\mExpr -> (Div (Plus [(Term 1 [(Apply name [mExpr], 1)])]) (Plus [(Term 1 [])]))) t) >>= return . TensorData
     _ -> throwError $ TypeMismatch "number" (Value val)
 
 floatBinaryOp :: String -> (Double -> Double -> Double) -> PrimitiveFunc
@@ -262,7 +261,6 @@ numberUnaryOp mOp fOp arg = do
  where
   numberUnaryOp' f@(Float _ _)  = return $ fOp f
   numberUnaryOp' (ScalarData m) = (return . ScalarData . mathNormalize') (mOp m)
-  numberUnaryOp' (TensorData t) = (tMap mOp t) >>= return . TensorData
   numberUnaryOp' val            = throwError $ TypeMismatch "number" (Value val)
 
 numberBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
@@ -276,9 +274,6 @@ numberBinaryOp mOp fOp args = do
   numberBinaryOp' val             (Float x' y')   = numberBinaryOp' (numberToFloat' val) (Float x' y')
   numberBinaryOp' (Float x y)     val'            = numberBinaryOp' (Float x y) (numberToFloat' val')
   numberBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
-  numberBinaryOp' (ScalarData m1) (TensorData t2) = (tMap (mOp m1) t2) >>= return . TensorData
-  numberBinaryOp' (TensorData t1) (ScalarData m2) = (tMap (\m1 -> mOp m1 m2) t1) >>= return . TensorData
-  numberBinaryOp' (TensorData t1) (TensorData t2) = (tMap2 mOp t1 t2) >>= return . TensorData
   numberBinaryOp' (ScalarData _)  val'            = throwError $ TypeMismatch "number" (Value val')
   numberBinaryOp' val             _               = throwError $ TypeMismatch "number" (Value val)
 

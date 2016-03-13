@@ -4,15 +4,6 @@
 ;;;;;
 ;;;;;
 
-(define $tensor-map
-  (lambda [$f $t]
-    (if (tensor-with-index? t)
-      (init-tensor (tensor-size t)
-                   (map f (tensor-to-list t))
-                   (tensor-index t))
-      (| (tensor-size t)
-                   (map f (tensor-to-list t)) |))))
-
 (define $clear-index
   (lambda [$t]
     (| (tensor-size t)

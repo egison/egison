@@ -393,6 +393,9 @@ evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (sizeExpr:ys)) expr) =
 evalExpr env (GenerateArrayExpr names size expr) = 
   evalExpr env (GenerateArrayExpr names (TupleExpr [size]) expr)
 
+evalExpr env (ArraySizeExpr expr) = 
+  evalExpr env expr >>= arraySize
+
 evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size' <- evalExpr env sizeExpr
   size'' <- collectionToList size'
@@ -405,8 +408,35 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   extractScalar (ScalarData x) = return x
   extractScalar x = throwError $ TypeMismatch "scalar expression" (Value x)
 
-evalExpr env (ArraySizeExpr expr) = 
-  evalExpr env expr >>= arraySize
+evalExpr env (TensorMapExpr fnExpr tExpr) = do
+  fn <- evalExpr env fnExpr
+  tVal <- evalExpr env tExpr
+  case tVal of
+    Value (TensorData t) -> do
+      tMap (applyScalarFunc env fn) t >>= (return . Value . TensorData)
+    _ -> throwError $ TypeMismatch "tensor" tVal
+ where
+  applyScalarFunc :: Env -> WHNFData -> ScalarData -> EgisonM ScalarData
+  applyScalarFunc env fn s = applyFunc env fn (Value (ScalarData s)) >>= extractScalar
+  extractScalar :: WHNFData -> EgisonM ScalarData
+  extractScalar (Value (ScalarData x)) = return x
+  extractScalar x = throwError $ TypeMismatch "scalar expression" x
+
+evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
+  fn <- evalExpr env fnExpr
+  t1Val <- evalExpr env t1Expr
+  t2Val <- evalExpr env t2Expr
+  case (t1Val, t2Val) of
+    (Value (TensorData t1), Value (TensorData t2)) -> do
+      tMap2 (applyScalarFunc env fn) t1 t2 >>= (return . Value . TensorData)
+    (Value (TensorData _), _) -> throwError $ TypeMismatch "tensor" t1Val
+    _ -> throwError $ TypeMismatch "tensor" t2Val
+ where
+  applyScalarFunc :: Env -> WHNFData -> ScalarData -> ScalarData -> EgisonM ScalarData
+  applyScalarFunc env fn s1 s2 = applyFunc env fn (Value (Tuple [(ScalarData s1), (ScalarData s2)])) >>= extractScalar
+  extractScalar :: WHNFData -> EgisonM ScalarData
+  extractScalar (Value (ScalarData x)) = return x
+  extractScalar x = throwError $ TypeMismatch "scalar expression" x
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
