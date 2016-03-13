@@ -22,7 +22,8 @@
                      (map-terms rewrite-rule-sqrt
                                 (map-terms rewrite-rule-rtu
                                            (map-terms rewrite-rule-w
-                                                      (map-terms rewrite-rule-i mexpr
+                                                      (map-terms rewrite-rule-i
+                                                                 mexpr
                                                                  ))))))
         mexpr))))
 

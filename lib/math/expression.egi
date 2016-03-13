@@ -163,10 +163,10 @@
                      (*' a (foldl *' 1 (map 2#(match %1 symbol-expr
                                                 {[<symbol _> (**' (fn %1) %2)]
                                                  [<apply $g $args>
-                                                  (to-math-expr' <Apply g (map from-math-expr (map (map-symbols fn $) args))>)
+                                                  (** (fn (to-math-expr' <Apply g (map from-math-expr (map (map-symbols fn $) args))>))
+                                                      %2)
                                                   ]})
-                                            xs)))]})
-                 )
+                                            xs)))]}))
                mexpr)))
 
 ;;;
