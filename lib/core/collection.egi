@@ -250,6 +250,10 @@
              {[<nil> {}]
               [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
 
+(define $iterate
+  (lambda [$fn $x]
+    {x @(map fn (iterate fn x))}))
+
 (define $append
   (lambda [$xs $ys]
     {@xs @ys}))

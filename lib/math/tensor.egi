@@ -25,6 +25,10 @@
   (lambda [$x $ns]
     (* x (unit-tensor ns))))
 
+(define $zero-tensor
+  (lambda [$ns]
+    (generate-tensor (cambda $ns 0) ns)))
+
 ;;
 ;; Vectors
 ;;

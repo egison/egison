@@ -144,3 +144,47 @@
         [(/ a b)
          (/ (foldl *' 1 (map 2#(**' %1 %2) xs))
             (foldl *' 1 (map 2#(**' %1 %2) ys)))]]})))
+
+;;
+;; Map
+;;
+(define $map-terms
+  (lambda [$fn $mexpr]
+    (match mexpr math-expr
+      {[<div <plus $ts1> <plus $ts2>>
+        (/' (foldl +' 0 (map fn ts1))
+            (foldl +' 0 (map fn ts2)))]})))
+
+(define $map-symbols
+  (lambda [$fn $mexpr]
+    (map-terms (lambda [$term]
+                 (match term term-expr
+                   {[<term $a $xs>
+                     (*' a (foldl *' 1 (map 2#(match %1 symbol-expr
+                                                {[<symbol _> (**' (fn %1) %2)]
+                                                 [<apply $g $args>
+                                                  (to-math-expr' <Apply g (map from-math-expr (map (map-symbols fn $) args))>)
+                                                  ]})
+                                            xs)))]})
+                 )
+               mexpr)))
+
+;;;
+;;; Substitute
+;;;
+(define $substitute
+  (lambda [$ls $mexpr]
+    (match ls (list [symbol-expr math-expr])
+      {[<nil> mexpr]
+       [<cons [$x $a] $rs>
+        (substitute rs (substitute' x a mexpr))]})))
+
+(define $substitute'
+  (lambda [$x $a $mexpr]
+    (map-symbols (rewrite-symbol x a $) mexpr)))
+
+(define $rewrite-symbol 
+  (lambda [$x $a $sexpr]
+    (match sexpr symbol-expr
+      {[,x a]
+       [_ sexpr]})))

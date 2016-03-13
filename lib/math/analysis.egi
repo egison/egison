@@ -65,3 +65,12 @@
 (define $Sd'
   (lambda [$x $f]
     (to-math-expr <Apply "Sd" (map from-math-expr {x f})>)))
+
+(define $taylor
+  (lambda [$f $x]
+    (lambda [$a]
+      (map2 *
+            (map (** (- x a) $) nats0)
+            (map2 /
+                  (map (substitute {[x a]} $) (iterate (d/d $ x) f))
+                  (map fact nats0))))))
