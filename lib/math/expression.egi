@@ -175,10 +175,12 @@
 ;;;
 (define $substitute
   (lambda [$ls $mexpr]
-    (match ls (list [symbol-expr math-expr])
-      {[<nil> mexpr]
-       [<cons [$x $a] $rs>
-        (substitute rs (substitute' x a mexpr))]})))
+    (if (tensor? mexpr)
+      (tensor-map (substitute ls $) mexpr)
+      (match ls (list [symbol-expr math-expr])
+        {[<nil> mexpr]
+         [<cons [$x $a] $rs>
+          (substitute rs (substitute' x a mexpr))]}))))
 
 (define $substitute'
   (lambda [$x $a $mexpr]
@@ -189,3 +191,31 @@
     (match sexpr symbol-expr
       {[,x a]
        [_ sexpr]})))
+
+(define $contain-term?
+  (lambda [$x $term]
+    (any (contain-symbol? x $)
+         (match-all term term-expr
+           [<term _ <ncons _ $sym _>> sym]))))
+
+(define $contain-symbol?
+  (lambda [$x $sym]
+    (match sym symbol-expr
+      {[,x #t]
+       [<apply _ _> #f]
+       [_ #f]
+       })))
+
+;;;
+;;; Coefficient
+;;;
+(define $coefficient
+  (lambda [$x $poly]
+    (match x term-expr
+      {[<term ,1 <ncons $n $x <nil>>>
+        (sum (match-all poly math-expr
+               [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> <plus ,{1}>>
+                (if (eq? n k)
+                  (foldl *' a (map 2#(**' %1 %2) ts))
+                  0)]))]
+       [_ undefined]})))

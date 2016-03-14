@@ -19,10 +19,10 @@
            [[_ (sqrt $y)] (* (/ 1 (* 2 (sqrt y))) (d/d y x))]
            })]
        [?term?
-        (match [x f] [symbol-expr term-expr]
-          {[[_ <term _ <nil>>]
+        (match f term-expr
+          {[<term _ <nil>>
             0]
-           [[_ <term $a <ncons $n $fx $ts>>]
+           [<term $a <ncons $n $fx $ts>>
             (+ (* a
                   (* n (** fx (- n 1)) (d/d fx x))
                   (foldl *' 1 (map 2#(**' %1 %2) ts)))
@@ -31,13 +31,13 @@
                   (d/d (foldl *' 1 (map 2#(**' %1 %2) ts)) x)))]
            })]
        [?polynomial?
-        (match [x f] [symbol-expr poly-expr]
-          {[[_ <plus $ts>]
+        (match f poly-expr
+          {[<plus $ts>
             (sum (map (d/d $ x) ts))]
            })]
-       [_ 
-        (match [x f] [symbol-expr math-expr]
-          {[[_ <div $p1 $p2>]
+       [_
+        (match f math-expr
+          {[<div $p1 $p2>
             (let {[$p1' (d/d p1 x)]
                   [$p2' (d/d p2 x)]}
               (/ (- (* p1' p2) (* p2' p1)) (** p2 2)))]
@@ -58,13 +58,14 @@
            [[_ <apply ,exp <cons ,x <nil>>>] f]
            [[_ <apply ,cos <cons ,x <nil>>>] (sin x)]
            [[_ <apply ,sin <cons ,x <nil>>>] (* -1 (cos x))]
+           [[_ <apply ,log <cons ,x <nil>>>] (* -1 (cos x))]
            [[_ _] (Sd' x f)]
            })]
        [_ (Sd' x f)]})))
 
 (define $Sd'
   (lambda [$x $f]
-    (to-math-expr <Apply "Sd" (map from-math-expr {x f})>)))
+    (to-math-expr <Apply Sd (map from-math-expr {x f})>)))
 
 (define $taylor-expansion
   (lambda [$f $x $a]

@@ -23,11 +23,30 @@
 
 (define $scalar-to-tensor
   (lambda [$x $ns]
-    (* x (unit-tensor ns))))
+    (T.map (* x $) (unit-tensor ns))))
 
 (define $zero-tensor
   (lambda [$ns]
     (generate-tensor (cambda $ns 0) ns)))
+
+(define $T.unit (unit-tensor $))
+(define $T.zero (zero-tensor $))
+
+;;
+;; Arithmetic
+;;
+(define $T.arith
+  (lambda [$op]
+    (lambda [$t1 $t2]
+      (match [(tensor? t1) (tensor? t2)] [bool bool]
+        {[[,#t ,#t] (T.map2 op t1 t2)]
+         [[,#t ,#f] (T.map2 op t1 (scalar-to-tensor t2 (tensor-size t1)))]
+         [[,#f ,#t] (T.map2 op (scalar-to-tensor t1 (tensor-size t2)) t2)]
+         }))))
+
+(define $T.+ (T.arith +))
+(define $T.- (T.arith -))
+(define $T.* (T.arith *))
 
 ;;
 ;; Vectors
@@ -46,3 +65,38 @@
 (define $M.*'
   (lambda [$m1 $m2]
     (clear-index (. m1_i_j m2_j_k))))
+
+;;
+;; Linear algebra
+;;
+(define $M.LU
+  (lambda [$x]
+    (match (tensor-size x) (list integer)
+      {[<cons ,2 <cons ,2 <nil>>>
+        (let* {[$L (generate-tensor 2#(match (compare %1 %2) ordering {[<less> 0] [<equal> 1] [<greater> b_%1_%2]}) {2 2})]
+               [$U (generate-tensor 2#(match (compare %1 %2) ordering {[<greater> 0] [_ c_%1_%2]}) {2 2})]
+               [$m (M.* L U)]
+               [$ret (solve [m_1_1 x_1_1 c_1_1] [m_1_2 x_1_2 c_1_2]
+                            [m_2_1 x_2_1 b_2_1] [m_2_2 x_2_2 c_2_2])]}
+          [(substitute ret L) (substitute ret U)])]
+       [<cons ,3 <cons ,3 <nil>>>
+        (let* {[$L (generate-tensor 2#(match (compare %1 %2) ordering {[<less> 0] [<equal> 1] [<greater> b_%1_%2]}) {3 3})]
+               [$U (generate-tensor 2#(match (compare %1 %2) ordering {[<greater> 0] [_ c_%1_%2]}) {3 3})]
+               [$m (M.* L U)]
+               [$ret (solve [m_1_1 x_1_1 c_1_1] [m_1_2 x_1_2 c_1_2] [m_1_3 x_1_3 c_1_3]
+                            [m_2_1 x_2_1 b_2_1] [m_2_2 x_2_2 c_2_2] [m_2_3 x_2_3 c_2_3]
+                            [m_3_1 x_3_1 b_3_1] [m_3_2 x_3_2 b_3_2] [m_3_3 x_3_3 c_3_3])]}
+          [(substitute ret L) (substitute ret U)])]
+       [_ undefined]})))
+
+(define $M.determinant
+  (lambda [$m]
+    (match (tensor-size m) (list integer)
+      {[<cons ,2 <cons ,2 <nil>>>
+        (- (* m_1_1 m_2_2) (* m_1_2 m_2_1))]
+       [<cons ,3 <cons ,3 <nil>>>
+        (let {[$U (snd (M.LU m))]}
+          (* U_1_1 U_2_2 U_3_3))]
+       [_ undefined]})))
+
+(define $M.det M.determinant)

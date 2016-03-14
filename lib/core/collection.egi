@@ -208,6 +208,10 @@
            {}
            xs)))
 
+(define $partition
+  (lambda [$pred $xs]
+    [(filter pred xs) (filter 1#(not (pred %1)) xs)]))
+
 (define $zip
   (lambda [$xs $ys]
     (map2 (lambda [$x $y] [x y]) xs ys)))

@@ -29,9 +29,54 @@
         {[,0 0]
          [_ (to-math-expr <Apply sin (map from-math-expr {x})>)]}))))
 
+(define $tan
+  (lambda [$x]
+    (if (float? x)
+      (b.tan x)
+      (match x math-expr
+        {[,0 0]
+         [_ (to-math-expr <Apply tan (map from-math-expr {x})>)]}))))
+
+(define $cosh
+  (lambda [$x]
+    (if (float? x)
+      (b.cosh x)
+      (match x math-expr
+        {[,0 1]
+         [_ (to-math-expr <Apply cosh (map from-math-expr {x})>)]}))))
+
+(define $sinh
+  (lambda [$x]
+    (if (float? x)
+      (b.sinh x)
+      (match x math-expr
+        {[,0 0]
+         [_ (to-math-expr <Apply sinh (map from-math-expr {x})>)]}))))
+
+(define $tanh
+  (lambda [$x]
+    (if (float? x)
+      (b.tanh x)
+      (match x math-expr
+        {[,0 0]
+         [_ (to-math-expr <Apply tanh (map from-math-expr {x})>)]}))))
+
+
+(define $sinc
+  (lambda [$x]
+    (if (float? x)
+      (if (eq? x 0.0)
+        1.0
+        (/ (b.sin x) x))
+      (match x math-expr
+        {[,0 1]
+         [_ (/ (sin x) x)]}))))
+
+
 (define $sigmoid
   (lambda [$z]
     (/ 1 (+ 1 (exp (* -1 z))))))
+
 
 (define $kronecker-delta
   (cambda $js

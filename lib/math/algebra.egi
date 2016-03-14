@@ -45,9 +45,7 @@
       {[[,2 _] (to-math-expr' <Apply sqrt (map from-math-expr {x})>)]
        [[_ _] (to-math-expr' <Apply rt (map from-math-expr {n x})>)]})))
 
-(define $sqrt (macro [$x] (math-normalize (sqrt' x))))
-
-(define $sqrt'
+(define $sqrt
   (lambda [$x]
     (if (number? x)
       (let {[$m (numerator x)]
@@ -90,23 +88,70 @@
            [(sin ,x) (asin t)]
            [(acos ,x) (cos t)]
            [(asin ,x) (sin t)]
-           [_ undefined]
+           [_ (inverse' t x f)]
            })]
-       [_ undefined]})))
+       [?term?
+        (match f term-expr
+          {[<term ,1 <ncons $n ,x <nil>>> (rt n t)]
+           [<term ,1 <ncons $n $fx <nil>>>
+            (inverse' t x fx)
+            ]
+           [<term $a $fxs> (inverse (/ t a) x (foldl *' 1 (map 2#(**' %1 %2) fxs)))]
+           })]
+       [_ (inverse'' t x f)]})))
 
-;(inverse t x (id x)) ;=> t
-;(inverse t x ((/ 1 $) x)) ;=> (/ 1 t)
-;(inverse t x ((+ $ 3) x)) ;=> (- t 3)
-;(inverse t x ((+ x y)) ;=> (- t y)
+(define $inverse'
+  (lambda [$t $x $f]
+    (to-math-expr <Apply inverse (map from-math-expr {t x f})>)))
 
+(define $solve1
+  (lambda [$f $expr $x]
+    (match f math-expr
+      {[?simple-term?
+        (match f symbol-expr
+          {[,x expr]
+           [_ (solve1' f expr x)]})]
+       [?term?
+        (match f term-expr
+          {[<term $a $syms>
+            (let {[[$xs $cs] (partition 2#(contain-symbol? x %1) syms)]}
+              (solve1 (foldl *' 1 (map 2#(**' %1 %2) xs))
+                      (/ expr (* a (foldl *' 1 (map 2#(**' %1 %2) cs))))
+                      x))]
+           [_ (solve1' f expr x)]})]
+       [?polynomial?
+        (match f poly-expr
+          {[<plus $ts>
+            (let* {[[$fxs $cs] (partition (contain-term? x $) ts)]
+                   [$a (coefficient x (sum fxs))]}
+              (solve1 x (/ (- expr (sum cs)) a) x))]})]
+       [_
+        (match f math-expr
+          {[<div $p1 $p2>
+            (solve1 p1 (* p2 expr) x)]})]
+       })))
+
+(define $solve1'
+  (lambda [$f $expr $x]
+    (to-math-expr <Apply solve1 (map from-math-expr {f expr x})>)))
+
+(define $solve
+  (cambda $eqs
+    (solve' eqs {})))
+
+(define $solve'
+  (lambda [$eqs $rets]
+    (match eqs (list [math-expr math-expr symbol-expr])
+      {[<nil> rets]
+       [<cons [$f $expr $x] $rs>
+        (solve' rs {@rets [x (solve1 (substitute rets f) (substitute rets expr) x)]})]})))
 
 ;;;
 ;;; Quadratic Equations
 ;;;
-
 (define $quadratic-formula q-f)
 
 (define $q-f
   (lambda [$a $b $c]
-    {(/ (+ (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))
-     (/ (- (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))}))
+    [(/ (+ (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))
+     (/ (- (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))]))
