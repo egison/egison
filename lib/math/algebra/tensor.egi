@@ -46,7 +46,6 @@
 
 (define $T.+ (T.arith +))
 (define $T.- (T.arith -))
-(define $T.* (T.arith *))
 
 ;;
 ;; Vectors
