@@ -20,21 +20,19 @@
            })]
        [?term?
         (match f term-expr
-          {[<term _ <nil>>
-            0]
+          {[<term _ <nil>> 0]
+           [<term ,1 <ncons $n $fx <nil>>> (* n (** fx (- n 1)) (d/d fx x))]
            [<term $a <ncons $n $fx $ts>>
             (+ (* a
-                  (* n (** fx (- n 1)) (d/d fx x))
+                  (d/d (** fx n) x)
                   (foldl *' 1 (map 2#(**' %1 %2) ts)))
                (* a
-                  fx
+                  (** fx n)
                   (d/d (foldl *' 1 (map 2#(**' %1 %2) ts)) x)))]
            })]
        [?polynomial?
         (match f poly-expr
-          {[<plus $ts>
-            (sum (map (d/d $ x) ts))]
-           })]
+          {[<plus $ts> (sum (map (d/d $ x) ts))]})]
        [_
         (match f math-expr
           {[<div $p1 $p2>
@@ -51,9 +49,7 @@
 (define $taylor-expansion
   (lambda [$f $x $a]
     (map2 *
-          (map (** (- x a) $) nats0)
-          (map2 /
-                (map (substitute {[x a]} $) (iterate (d/d $ x) f))
-                (map fact nats0)))))
+          (map 1#(/ (** (- x a) %1) (fact %1)) nats0)
+          (map (substitute {[x a]} $) (iterate (d/d $ x) f)))))
 
 (define $maclaurin-expansion (taylor-expansion $ $ 0))

@@ -18,7 +18,7 @@
 (define $math-expr'
   (matcher
     {[<div $ $> [poly-expr poly-expr]
-      {[<Div $p1 $p2> {[p1 p2]}]
+      {[<Div $p1 $p2> {[(to-math-expr' p1) (to-math-expr' p2)]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]

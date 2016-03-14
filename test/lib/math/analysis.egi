@@ -18,6 +18,10 @@
   (d/d (d/d (log x) x) x)
   (/ -1 x^2))
 
+(assert-equal "d/d - case 6"
+  (d/d (* (** x 2) (cos x)) x)
+  (+ (* 2 x (cos x)) (* -1 x^2 (sin x))))
+
 (assert-equal "tailor-expansion - case 1"
   (take 8 (taylor-expansion (** e (* i x)) x 0))
   {1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6) (/ x^4 24) (/ (* i x^5) 120) (/ (* -1 x^6) 720) (/ (* -1 i x^7) 5040)})
