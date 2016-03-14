@@ -75,16 +75,16 @@
         (let* {[$L (generate-tensor 2#(match (compare %1 %2) ordering {[<less> 0] [<equal> 1] [<greater> b_%1_%2]}) {2 2})]
                [$U (generate-tensor 2#(match (compare %1 %2) ordering {[<greater> 0] [_ c_%1_%2]}) {2 2})]
                [$m (M.* L U)]
-               [$ret (solve [m_1_1 x_1_1 c_1_1] [m_1_2 x_1_2 c_1_2]
-                            [m_2_1 x_2_1 b_2_1] [m_2_2 x_2_2 c_2_2])]}
+               [$ret (solve {[m_1_1 x_1_1 c_1_1] [m_1_2 x_1_2 c_1_2]
+                             [m_2_1 x_2_1 b_2_1] [m_2_2 x_2_2 c_2_2]})]}
           [(substitute ret L) (substitute ret U)])]
        [<cons ,3 <cons ,3 <nil>>>
         (let* {[$L (generate-tensor 2#(match (compare %1 %2) ordering {[<less> 0] [<equal> 1] [<greater> b_%1_%2]}) {3 3})]
                [$U (generate-tensor 2#(match (compare %1 %2) ordering {[<greater> 0] [_ c_%1_%2]}) {3 3})]
                [$m (M.* L U)]
-               [$ret (solve [m_1_1 x_1_1 c_1_1] [m_1_2 x_1_2 c_1_2] [m_1_3 x_1_3 c_1_3]
-                            [m_2_1 x_2_1 b_2_1] [m_2_2 x_2_2 c_2_2] [m_2_3 x_2_3 c_2_3]
-                            [m_3_1 x_3_1 b_3_1] [m_3_2 x_3_2 b_3_2] [m_3_3 x_3_3 c_3_3])]}
+               [$ret (solve {[m_1_1 x_1_1 c_1_1] [m_1_2 x_1_2 c_1_2] [m_1_3 x_1_3 c_1_3]
+                             [m_2_1 x_2_1 b_2_1] [m_2_2 x_2_2 c_2_2] [m_2_3 x_2_3 c_2_3]
+                             [m_3_1 x_3_1 b_3_1] [m_3_2 x_3_2 b_3_2] [m_3_3 x_3_3 c_3_3]})]}
           [(substitute ret L) (substitute ret U)])]
        [_ undefined]})))
 

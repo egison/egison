@@ -210,21 +210,21 @@
 ;;; Coefficient
 ;;;
 (define $coefficients
-  (lambda [$x $poly]
+  (lambda [$poly $x]
     (let {[$m (capply max (match-all poly math-expr
                             [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> <plus ,{1}>> k]))]}
-      (map (coefficient $ x poly) (between 0 m))))) 
+      (map (coefficient poly x $) (between 0 m)))))
 
 (define $coefficient
-  (lambda [$m $x $poly]
+  (lambda [$poly $x $m]
     (if (eq? m 0)
       (sum (match-all poly math-expr
              [<div <plus <cons <term $a (& !<cons ,x _> $ts)> _>> <plus ,{1}>>
               (foldl *' a (map 2#(**' %1 %2) ts))]))
-      (coefficient' m x poly))))
+      (coefficient' poly x m))))
 
 (define $coefficient'
-  (lambda [$m $x $poly]
+  (lambda [$poly $x $m]
     (sum (match-all poly math-expr
            [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> <plus ,{1}>>
             (if (eq? m k)

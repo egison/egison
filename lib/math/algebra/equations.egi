@@ -23,7 +23,7 @@
         (match f poly-expr
           {[<plus $ts>
             (let* {[[$fxs $cs] (partition (contain-term? x $) ts)]
-                   [$a (coefficient 1 x (sum fxs))]}
+                   [$a (coefficient (sum fxs) x 1)]}
               (solve1 x (/ (- expr (sum cs)) a) x))]})]
        [_
         (match f math-expr
@@ -36,7 +36,7 @@
     (to-math-expr <Apply solve1 (map from-math-expr {f expr x})>)))
 
 (define $solve
-  (cambda $eqs
+  (lambda [$eqs]
     (solve' eqs {})))
 
 (define $solve'
@@ -58,6 +58,6 @@
 
 (define $q-f'
   (lambda [$f $x]
-    (match (coefficients x f) (list math-expr)
+    (match (coefficients f x) (list math-expr)
       {[<cons $a_0 <cons $a_1 <cons $a_2>>>
         (q-f a_2 a_1 a_0)]})))
