@@ -14,8 +14,8 @@
            [[_ (exp $y)] (* (exp y) (d/d y x))]
            [[_ (** $a $y)] (* (** a y) (log a) (d/d y x))]
            [[_ (log $y)] (* (/ 1 y) (d/d y x))]
-           [[_ (cos $y)] (* (sin y) (d/d y x))]
-           [[_ (sin $y)] (* -1 (cos y) (d/d y x))]
+           [[_ (cos $y)] (* (* -1 (sin y)) (d/d y x))]
+           [[_ (sin $y)] (* (cos y) (d/d y x))]
            [[_ (sqrt $y)] (* (/ 1 (* 2 (sqrt y))) (d/d y x))]
            })]
        [?term?
