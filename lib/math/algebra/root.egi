@@ -1,0 +1,72 @@
+;;;;;
+;;;;;
+;;;;; Algebra
+;;;;;
+;;;;;
+
+;;;
+;;; Root
+;;;
+
+(define $rt
+  (lambda [$n $x]
+    (if (integer? n)
+      (match x math-expr
+        {[,0 0]
+         [?monomial? (rt' n x)]
+         [<div <plus $xs> <plus $ys>>
+          (let {[$xd (reduce gcd xs)]
+                [$yd (reduce gcd ys)]}
+            (let {[[$a $r] (from-monomial (rt' n (/ xd yd)))]}
+              (*' a
+                 (rt'' n (*' (** r 2) (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
+                 )))]})
+      (rt'' n x))))
+
+(define $rt'
+  (lambda [$n $x]
+    (letrec {[$f (lambda [$xs]
+                   (match xs (assoc-multiset integer)
+                     {[<nil> [1 1]]
+                      [<ncons $k $p $rs>
+                       (let {[$ret (f rs)]}
+                         [(*' (**' p (quotient k n)) (2#%1 ret)) (*' (**' p (remainder k n)) (2#%2 ret))])]}))]}
+      (letrec {[$g (lambda [$x]
+                     (match x term-expr
+                       {[<term $a $xs>
+                         (match (f {@(to-assoc (p-f (abs a))) @xs}) [math-expr math-expr]
+                           {[[$x ,1] (if (lt? a 0) (*' i x) x)]
+                            [[$y $z] (if (lt? a 0) (*' i y (rt'' n z)) (*' y (rt'' n z)))]})]}))]}
+        (/' (g (numerator x)) (g (denominator x)))))))
+
+(define $rt''
+  (lambda [$n $x]
+    (match [n x] [integer integer]
+      {[[,2 _] (to-math-expr' <Apply sqrt (map from-math-expr {x})>)]
+       [[_ _] (to-math-expr' <Apply rt (map from-math-expr {n x})>)]})))
+
+(define $sqrt
+  (lambda [$x]
+    (if (number? x)
+      (let {[$m (numerator x)]
+            [$n (denominator x)]}
+        (/ (rt 2 (* m n)) n))
+      (b.sqrt x))))
+
+(define $rt-of-unity rtu)
+
+(define $rtu
+  (lambda [$n]
+    (rtu' n)))
+
+(define $rtu'
+  (lambda [$n]
+    (if (integer? n)
+      (match n integer
+        {[,1 1]
+         [,2 -1]
+         [,3 w]
+         [,4 i]
+         [_ (to-math-expr' <Apply rtu (map from-math-expr {n})>)]
+         })
+      (to-math-expr' <Apply rtu (map from-math-expr {n})>))))
