@@ -252,7 +252,12 @@
 
 (define $iterate
   (lambda [$fn $x]
-    {x @(map fn (iterate fn x))}))
+    (let* {[$nx1 (fn x)]
+           [$nx2 (fn nx1)]
+           [$nx3 (fn nx2)]
+           [$nx4 (fn nx3)]
+           [$nx5 (fn nx4)]}
+      {x nx1 nx2 nx3 nx4 @(iterate fn nx5)})))
 
 (define $append
   (lambda [$xs $ys]

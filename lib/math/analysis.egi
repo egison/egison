@@ -22,13 +22,13 @@
         (match [x f] [symbol-expr term-expr]
           {[[_ <term _ <nil>>]
             0]
-           [[_ <term ,1 <ncons $n $s <nil>>>]
-            (* n (** s (- n 1)) (d/d s x))]
-           [[_ <term $a <cons $fx $ts>>]
-            (+ (* (d/d fx x)
-                  a (foldl *' 1 (map 2#(**' %1 %2) ts)))
-               (* fx
-                  (d/d (*  a (foldl *' 1 (map 2#(**' %1 %2) ts))) x)))]
+           [[_ <term $a <ncons $n $fx $ts>>]
+            (+ (* a
+                  (* n (** fx (- n 1)) (d/d fx x))
+                  (foldl *' 1 (map 2#(**' %1 %2) ts)))
+               (* a
+                  fx
+                  (d/d (foldl *' 1 (map 2#(**' %1 %2) ts)) x)))]
            })]
        [?polynomial?
         (match [x f] [symbol-expr poly-expr]
@@ -55,9 +55,9 @@
         (match [x f] [symbol-expr symbol-expr]
           {[[<symbol $name> <symbol !,name>] (* f x)]
            [[<symbol $name> <symbol ,name>] (* (/ 1 2) x^2)]
-           [[_ <apply ,"exp" <cons ,x <nil>>>] f]
-           [[_ <apply ,"cos" <cons ,x <nil>>>] (sin x)]
-           [[_ <apply ,"sin" <cons ,x <nil>>>] (* -1 (cos x))]
+           [[_ <apply ,exp <cons ,x <nil>>>] f]
+           [[_ <apply ,cos <cons ,x <nil>>>] (sin x)]
+           [[_ <apply ,sin <cons ,x <nil>>>] (* -1 (cos x))]
            [[_ _] (Sd' x f)]
            })]
        [_ (Sd' x f)]})))
@@ -66,7 +66,7 @@
   (lambda [$x $f]
     (to-math-expr <Apply "Sd" (map from-math-expr {x f})>)))
 
-(define $taylor
+(define $taylor-expansion
   (lambda [$f $x $a]
     (map2 *
           (map (** (- x a) $) nats0)
@@ -74,4 +74,4 @@
                 (map (substitute {[x a]} $) (iterate (d/d $ x) f))
                 (map fact nats0)))))
 
-(define $maclaurin (taylor $ $ 0))
+(define $maclaurin-expansion (taylor-expansion $ $ 0))
