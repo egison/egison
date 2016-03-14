@@ -123,7 +123,7 @@
         (match f poly-expr
           {[<plus $ts>
             (let* {[[$fxs $cs] (partition (contain-term? x $) ts)]
-                   [$a (coefficient x (sum fxs))]}
+                   [$a (coefficient 1 x (sum fxs))]}
               (solve1 x (/ (- expr (sum cs)) a) x))]})]
        [_
         (match f math-expr

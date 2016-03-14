@@ -209,13 +209,24 @@
 ;;;
 ;;; Coefficient
 ;;;
-(define $coefficient
+(define $coefficients
   (lambda [$x $poly]
-    (match x term-expr
-      {[<term ,1 <ncons $n $x <nil>>>
-        (sum (match-all poly math-expr
-               [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> <plus ,{1}>>
-                (if (eq? n k)
-                  (foldl *' a (map 2#(**' %1 %2) ts))
-                  0)]))]
-       [_ undefined]})))
+    (let {[$m (capply max (match-all poly math-expr
+                            [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> <plus ,{1}>> k]))]}
+      (map (coefficient $ x poly) (between 0 m))))) 
+
+(define $coefficient
+  (lambda [$m $x $poly]
+    (if (eq? m 0)
+      (sum (match-all poly math-expr
+             [<div <plus <cons <term $a (& !<cons ,x _> $ts)> _>> <plus ,{1}>>
+              (foldl *' a (map 2#(**' %1 %2) ts))]))
+      (coefficient' m x poly))))
+
+(define $coefficient'
+  (lambda [$m $x $poly]
+    (sum (match-all poly math-expr
+           [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> <plus ,{1}>>
+            (if (eq? m k)
+              (foldl *' a (map 2#(**' %1 %2) ts))
+              0)]))))

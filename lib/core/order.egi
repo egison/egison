@@ -27,11 +27,11 @@
        [[<cons $x $xs> <cons ,x $ys>] (compare-c xs ys)]
        [[<cons $x _> <cons $y _>] (compare x y)]})))
 
-(define $min
+(define $b.min
   (lambda [$x $y]
     (if (lt? x y) x y)))
 
-(define $max
+(define $b.max
   (lambda [$x $y]
     (if (gt? x y) x y)))
 
@@ -42,6 +42,9 @@
 (define $max/fn
   (lambda [$compare $x $y]
     (if (eq? (compare x y) <Greater>) x y)))
+
+(define $min (cambda $xs (foldl b.min (car xs) (cdr xs))))
+(define $max (cambda $xs (foldl b.max (car xs) (cdr xs))))
 
 (define $split-by-ordering (split-by-ordering/fn compare $ $))
 
