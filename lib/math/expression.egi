@@ -210,23 +210,25 @@
 ;;; Coefficient
 ;;;
 (define $coefficients
-  (lambda [$poly $x]
-    (let {[$m (capply max (match-all poly math-expr
-                            [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> <plus ,{1}>> k]))]}
-      (map (coefficient poly x $) (between 0 m)))))
+  (lambda [$f $x]
+    (let {[$m (capply max (match-all f math-expr
+                            [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> _> k]))]}
+      (map (coefficient f x $) (between 0 m)))))
 
 (define $coefficient
-  (lambda [$poly $x $m]
+  (lambda [$f $x $m]
     (if (eq? m 0)
-      (sum (match-all poly math-expr
-             [<div <plus <cons <term $a (& !<cons ,x _> $ts)> _>> <plus ,{1}>>
-              (foldl *' a (map 2#(**' %1 %2) ts))]))
-      (coefficient' poly x m))))
+      (/ (sum (match-all f math-expr
+                [<div <plus <cons <term $a (& !<cons ,x _> $ts)> _>> _>
+                 (foldl *' a (map 2#(**' %1 %2) ts))]))
+         (denominator f))
+      (coefficient' f x m))))
 
 (define $coefficient'
-  (lambda [$poly $x $m]
-    (sum (match-all poly math-expr
-           [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> <plus ,{1}>>
-            (if (eq? m k)
-              (foldl *' a (map 2#(**' %1 %2) ts))
-              0)]))))
+  (lambda [$f $x $m]
+    (/ (sum (match-all f math-expr
+              [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> _>
+               (if (eq? m k)
+                 (foldl *' a (map 2#(**' %1 %2) ts))
+                 0)]))
+       (denominator f))))

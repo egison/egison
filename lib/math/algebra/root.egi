@@ -19,7 +19,7 @@
                 [$yd (reduce gcd ys)]}
             (let {[[$a $r] (from-monomial (rt' n (/ xd yd)))]}
               (*' a
-                 (rt'' n (*' (** r 2) (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
+                 (rt'' n (*' (** r n) (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
                  )))]})
       (rt'' n x))))
 
@@ -35,8 +35,8 @@
                      (match x term-expr
                        {[<term $a $xs>
                          (match (f {@(to-assoc (p-f (abs a))) @xs}) [math-expr math-expr]
-                           {[[$x ,1] (if (lt? a 0) (*' i x) x)]
-                            [[$y $z] (if (lt? a 0) (*' i y (rt'' n z)) (*' y (rt'' n z)))]})]}))]}
+                           {[[$x ,1] (if (lt? a 0) (*' (rtm1 n) x) x)]
+                            [[$y $z] (if (lt? a 0) (*' (rtm1 n) y (rt'' n z)) (*' y (rt'' n z)))]})]}))]}
         (/' (g (numerator x)) (g (denominator x)))))))
 
 (define $rt''
@@ -44,6 +44,14 @@
     (match [n x] [integer integer]
       {[[,2 _] (to-math-expr' <Apply sqrt (map from-math-expr {x})>)]
        [[_ _] (to-math-expr' <Apply rt (map from-math-expr {n x})>)]})))
+
+(define $rtm1
+  (lambda [$n]
+    (match n integer
+      {[,1 -1]
+       [,2 i]
+       [?odd? -1]
+       [_ undefined]})))
 
 (define $sqrt
   (lambda [$x]

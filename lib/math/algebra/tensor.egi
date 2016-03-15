@@ -88,14 +88,59 @@
           [(substitute ret L) (substitute ret U)])]
        [_ undefined]})))
 
+;;
+;; Determinant
+;;
+(define $even-and-odd-permutations
+  (lambda [$n]
+    (match n integer
+      {[,2 [{{1 2}} {{2 1}}]]
+       [_ (let* {[[$es $os] (even-and-odd-permutations (- n 1))]
+                 [$es' (map 1#{@%1 n} es)]
+                 [$os' (map 1#{@%1 n} os)]}
+            [{@es'
+              @(concat (map (lambda [$i] (map (permutate i n $) os')) (between 1 (- n 1))))
+              }
+             {@os'
+              @(concat (map (lambda [$i] (map (permutate i n $) es')) (between 1 (- n 1))))
+              }
+             ]
+            )]})))
+
+(define $permutate
+  (lambda [$x $y $xs]
+    (match xs (list eq)
+      {[<join $hs <cons ,x <join $ms <cons ,y $ts>>>>
+        {@hs y @ms x @ts}]
+       [<join $hs <cons ,y <join $ms <cons ,x $ts>>>>
+        {@hs x @ms y @ts}]})))
+
 (define $M.determinant
   (lambda [$m]
     (match (tensor-size m) (list integer)
-      {[<cons ,2 <cons ,2 <nil>>>
-        (- (* m_1_1 m_2_2) (* m_1_2 m_2_1))]
-       [<cons ,3 <cons ,3 <nil>>>
-        (let {[$U (snd (M.LU m))]}
-          (* U_1_1 U_2_2 U_3_3))]
+      {[<cons $n <cons ,n <nil>>>
+        (let {[[$es $os] (even-and-odd-permutations n)]}
+          (- (sum (map (lambda [$e]
+                         (product (map2 (lambda [$i $j] m_i_j)
+                                        (between 1 n)
+                                        e)))
+                       es))
+             (sum (map (lambda [$o]
+                         (product (map2 (lambda [$i $j] m_i_j)
+                                        (between 1 n)
+                                        o)))
+                       os))))]
        [_ undefined]})))
 
 (define $M.det M.determinant)
+
+;;;
+;;; Eigenvalue
+;;;
+(define $M.eigenvalue
+  (lambda [$m]
+    (match (tensor-size m) (list integer)
+      {[<cons ,2 <cons ,2 <nil>>>
+        (q-f (M.det (T.- m (scalar-to-tensor x {2 2}))) x)
+        ]
+       [_ undefined]})))

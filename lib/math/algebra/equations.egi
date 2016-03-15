@@ -52,12 +52,38 @@
 (define $quadratic-formula q-f)
 
 (define $q-f
+  (lambda [$f $x]
+    (match (coefficients f x) (list math-expr)
+      {[<cons $a_0 <cons $a_1 <cons $a_2 <nil>>>>
+        (q-f' a_2 a_1 a_0)]})))
+
+(define $q-f'
   (lambda [$a $b $c]
     [(/ (+ (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))
      (/ (- (* -1 b) (sqrt (- (** b 2) (* 4 a c)))) (* 2 a))]))
 
-(define $q-f'
+;;;
+;;; Cubic Equations
+;;;
+(define $cubic-formula c-f)
+
+(define $c-f
   (lambda [$f $x]
     (match (coefficients f x) (list math-expr)
-      {[<cons $a_0 <cons $a_1 <cons $a_2>>>
-        (q-f a_2 a_1 a_0)]})))
+      {[<cons $a_0 <cons $a_1 <cons $a_2 <cons $a_3 <nil>>>>>
+        (c-f' a_3 a_2 a_1 a_0)]})))
+
+(define $c-f'
+  (lambda [$a $b $c $d]
+    (match [a b c d] [math-expr math-expr math-expr math-expr]
+      {[[,1 ,0 $p $q]
+        (let {[[$u3 $v3] (q-f' 1 q (/ (* -1 p^3) 27))]}
+          [(+ (rt 3 u3) (rt 3 v3))
+           (+ (* w (rt 3 u3)) (* w^2 (rt 3 v3)))
+           (+ (* w^2 (rt 3 u3)) (* w (rt 3 v3)))]
+          )]
+       [[,1 $a2 $a1 $a0]
+        (let {[[$y1 $y2 $y3] (c-f' 1 0 (- a1 (/ a2^2 3)) (+ a0 (* (/ -1 3) a1 a2) (* (/ 2 27) a2^3)))]}
+          [(- y1 (/ a2 3)) (- y2 (/ a2 3)) (- y3 (/ a2 3))]
+          )]
+       [[_ _ _ _] (c-f' 1 (/ b a) (/ c a) (/ d a))]})))
