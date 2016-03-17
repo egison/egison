@@ -65,6 +65,13 @@
   (lambda [$m1 $m2]
     (clear-index (. m1_i_j m2_j_k))))
 
+(define $M.inverse
+  (lambda [$m]
+    (match (tensor-size m) (list integer)
+      {[<cons ,2 <cons ,2 <nil>>>
+        (T.map (/ $ (M.det m)) (| {2 2} {m_2_2 (* -1 m_1_2) (* -1 m_2_1) m_1_1} |))]
+       [_ undefined]})))
+
 ;;
 ;; Linear algebra
 ;;
@@ -137,10 +144,20 @@
 ;;;
 ;;; Eigenvalue
 ;;;
-(define $M.eigenvalue
+(define $M.eigenvalues
   (lambda [$m]
     (match (tensor-size m) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
-        (q-f (M.det (T.- m (scalar-to-tensor x {2 2}))) x)
+        (let {[[$e1 $e2] (q-f (M.det (T.- m (scalar-to-tensor x {2 2}))) x)]}
+          {e1 e2})]
+       [_ undefined]})))
+
+(define $M.eigenvectors
+  (lambda [$m]
+    (match (tensor-size m) (list integer)
+      {[<cons ,2 <cons ,2 <nil>>>
+        (let {[[$e1 $e2] (q-f (M.det (T.- m (scalar-to-tensor x {2 2}))) x)]}
+          {[e1 (clear-index (T.- m (scalar-to-tensor e1 {2 2}))_i_1)]
+           [e2 (clear-index (T.- m (scalar-to-tensor e2 {2 2}))_i_1)]})
         ]
        [_ undefined]})))

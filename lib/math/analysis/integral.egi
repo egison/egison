@@ -11,13 +11,34 @@
         (match [x f] [symbol-expr symbol-expr]
           {[[<symbol $name> <symbol !,name>] (* f x)]
            [[<symbol $name> <symbol ,name>] (* (/ 1 2) x^2)]
-           [[_ <apply ,exp <cons ,x <nil>>>] f]
-           [[_ <apply ,cos <cons ,x <nil>>>] (sin x)]
-           [[_ <apply ,sin <cons ,x <nil>>>] (* -1 (cos x))]
-           [[_ <apply ,log <cons ,x <nil>>>] (* -1 (cos x))]
+           [[_ (exp ,x)] f]
+           [[_ (exp $y)] (substitute {[t y]} (Sd t (* (exp t) (d/d (inverse t x y) t))))]
+           [[_ (cos ,x)] (sin x)]
+           [[_ (sin ,x)] (* -1 (cos x))]
+           [[_ (log ,x)] (multSd x 1 (log x))]
            [[_ _] (Sd' x f)]
            })]
-       [_ (Sd' x f)]})))
+       [?term?
+        (match f term-expr
+          {[<term $a <nil>> (* a x)]
+           [<term $a <cons $g <nil>>> (* a (Sd x g))]
+           [_ (Sd' x f)]
+           })]
+       [?polynomial?
+        (match f poly-expr
+          {[<plus $ts> (sum (map (Sd x $) ts))]})]
+       [_
+        (match f math-expr
+          {[<div $p1 (& ?integer? $a)>
+            (/ (Sd x p1) a)]
+           [_ (Sd' x f)]})]
+       })))
+
+(define $multSd
+  (lambda [$x $f $g]
+    (let {[$F (Sd x f)]}
+      (- (* F g)
+         (Sd x (* F (d/d g x)))))))
 
 (define $Sd'
   (lambda [$x $f]
