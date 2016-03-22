@@ -20,8 +20,14 @@
            })]
        [?term?
         (match f term-expr
-          {[<term $a <nil>> (* a x)]
-           [_ (Sd' x f)]
+          {[<term $a <ncons $n ,x $ts>>
+            (let {[$b (foldl *' a (map 2#(**' %1 %2) ts))]}
+              (if (contain-symbol? x b)
+                (Sd' x f)
+                (/ (* b (** x (+ n 1))) (+ n 1))))]
+           [_ (if (contain-symbol? x f)
+                (Sd' x f)
+                (* f x))]
            })]
        [?polynomial?
         (match f poly-expr

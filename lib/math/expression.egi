@@ -210,20 +210,6 @@
       {[,x a]
        [_ sexpr]})))
 
-(define $contain-term?
-  (lambda [$x $term]
-    (any (contain-symbol? x $)
-         (match-all term term-expr
-           [<term _ <ncons _ $sym _>> sym]))))
-
-(define $contain-symbol?
-  (lambda [$x $sym]
-    (match sym symbol-expr
-      {[,x #t]
-       [<apply _ _> #f]
-       [_ #f]
-       })))
-
 ;;;
 ;;; Coefficient
 ;;;
