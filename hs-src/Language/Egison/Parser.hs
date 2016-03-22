@@ -483,9 +483,16 @@ pattern' = wildCard
             <|> parens (andPat
                     <|> orderedOrPat
                     <|> orPat
-                    <|> applyPat
                     <|> loopPat
-                    <|> letPat)
+                    <|> letPat
+                    <|> try dApplyPat
+                    <|> try pApplyPat
+                    )
+
+pattern'' :: Parser EgisonPattern
+pattern'' = wildCard
+            <|> patVar
+            <|> valuePat
 
 wildCard :: Parser EgisonPattern
 wildCard = reservedOp "_" >> pure WildCard
@@ -497,7 +504,7 @@ varPat :: Parser EgisonPattern
 varPat = VarPat <$> ident
 
 valuePat :: Parser EgisonPattern
-valuePat = reservedOp "," >> ValuePat <$> expr
+valuePat = char ',' >> ValuePat <$> expr
 
 regexPat :: Parser EgisonPattern
 regexPat = reservedOp "~" >> RegexPat <$> expr
@@ -529,8 +536,11 @@ orPat = reservedOp "|" >> OrPat <$> sepEndBy pattern whiteSpace
 orderedOrPat :: Parser EgisonPattern
 orderedOrPat = reservedOp "|*" >> OrderedOrPat <$> sepEndBy pattern whiteSpace
 
-applyPat :: Parser EgisonPattern
-applyPat = ApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
+pApplyPat :: Parser EgisonPattern
+pApplyPat = PApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
+
+dApplyPat :: Parser EgisonPattern
+dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace 
 
 loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> LoopPat <$> varName <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
@@ -676,6 +686,7 @@ reservedOperators =
   , "|*"
   , "!"
   , ","
+  , "~"
   , "@"
   , "..."]
 

@@ -6,34 +6,7 @@
 
 (define $solve1
   (lambda [$f $expr $x]
-    (match f math-expr
-      {[?simple-term?
-        (match f symbol-expr
-          {[,x expr]
-           [_ (solve1' f expr x)]})]
-       [?term?
-        (match f term-expr
-          {[<term $a $syms>
-            (let {[[$xs $cs] (partition 2#(contain-symbol? x %1) syms)]}
-              (solve1 (foldl *' 1 (map 2#(**' %1 %2) xs))
-                      (/ expr (* a (foldl *' 1 (map 2#(**' %1 %2) cs))))
-                      x))]
-           [_ (solve1' f expr x)]})]
-       [?polynomial?
-        (match f poly-expr
-          {[<plus $ts>
-            (let* {[[$fxs $cs] (partition (contain-term? x $) ts)]
-                   [$a (coefficient (sum fxs) x 1)]}
-              (solve1 x (/ (- expr (sum cs)) a) x))]})]
-       [_
-        (match f math-expr
-          {[<div $p1 $p2>
-            (solve1 p1 (* p2 expr) x)]})]
-       })))
-
-(define $solve1'
-  (lambda [$f $expr $x]
-    (to-math-expr <Apply solve1 (map from-math-expr {f expr x})>)))
+    (inverse expr f x)))
 
 (define $solve
   (lambda [$eqs]

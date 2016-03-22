@@ -266,7 +266,8 @@ data EgisonPattern =
   | InductivePat String [EgisonPattern]
   | LoopPat String LoopRange EgisonPattern EgisonPattern
   | ContPat
-  | ApplyPat EgisonExpr [EgisonPattern]
+  | PApplyPat EgisonExpr [EgisonPattern]
+  | DApplyPat EgisonPattern [EgisonPattern]
   | VarPat String
  deriving (Show, Eq)
 

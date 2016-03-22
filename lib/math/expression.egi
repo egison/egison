@@ -52,6 +52,10 @@
       {[$tgt (if (eq? val tgt)
                {[]}
                {})]}]
+     [<mult ,$val $> [term-expr]
+      {[$tgt (if (term? (/ tgt val))
+               {(/ tgt val)}
+               {})]}]
      [$ [term-expr']
       {[<Term $n $xs> {<Term n xs>}]
        [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {<Term n xs>}]
@@ -88,7 +92,7 @@
       {[<Symbol $v> {v}]
        [<Div <Plus {<Term 1 {[<Symbol $v> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
        [_ {}]}]
-     [<apply $ $> [something (list math-expr)]
+     [<apply $ $> [eq (list math-expr)]
       {[<Apply $v $mexprs> [v mexprs]]
        [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}>
              <Plus {<Term 1 {}> @{}}>> {[v (map to-math-expr' mexprs)]}]
@@ -170,6 +174,20 @@
                                             xs)))]}))
                mexpr)))
 
+(define $contain-symbol?
+  (lambda [$x $mexpr]
+    (any id (match mexpr math-expr
+              {[<div <plus $ts1> <plus $ts2>>
+                (map (lambda [$term]
+                       (match term term-expr
+                         {[<term _ $xs>
+                           (any id (map 2#(match %1 symbol-expr
+                                            {[,x #t]
+                                             [<apply _ $args> (any id (map (contain-symbol? x $) args))]
+                                             [_ #f]})
+                                        xs))]}))
+                     {@ts1 @ts2})]}))))
+
 ;;;
 ;;; Substitute
 ;;;
@@ -211,8 +229,8 @@
 ;;;
 (define $coefficients
   (lambda [$f $x]
-    (let {[$m (capply max (match-all f math-expr
-                            [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> _> k]))]}
+    (let {[$m (capply max {0 @(match-all f math-expr
+                                [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> _> k])})]}
       (map (coefficient f x $) (between 0 m)))))
 
 (define $coefficient

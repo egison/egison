@@ -2,31 +2,43 @@
 ;;;;; Inverse
 ;;;;;
 
+; (inverse t (* a x^2) x)
+; t = (* a x^2)
+; x = (sqrt (/ t a))
+
 (define $inverse
-  (lambda [$t $x $f]
+  (lambda [$t $f $x]
     (match f math-expr
       {[?simple-term?
         (match f symbol-expr
           {[,x t]
-           [(exp ,x) (log t)]
-           [(log ,x) (exp t)]
-           [(sqrt ,x) (** t 2)]
-           [(cos ,x) (acos t)]
-           [(sin ,x) (asin t)]
-           [(acos ,x) (cos t)]
-           [(asin ,x) (sin t)]
-           [_ (inverse' t x f)]
+           [(,exp ,x) (log t)]
+           [(,log ,x) (exp t)]
+           [(,sqrt ,x) (** t 2)]
+           [(,cos ,x) (acos t)]
+           [(,sin ,x) (asin t)]
+           [(,acos ,x) (cos t)]
+           [(,asin ,x) (sin t)]
+           [_ (inverse' t f x)]
            })]
        [?term?
         (match f term-expr
           {[<term ,1 <ncons $n ,x <nil>>> (rt n t)]
-           [<term ,1 <ncons $n $fx <nil>>>
-            (inverse' t x fx)
-            ]
-           [<term $a $fxs> (inverse (/ t a) x (foldl *' 1 (map 2#(**' %1 %2) fxs)))]
-           })]
-       [_ (inverse'' t x f)]})))
+           [<term _ <ncons $n ,x _>>
+            (let {[$a (/ f (** x n))]}
+              (inverse (/ t a) (/ f a) x))]
+           [_ (inverse' t f x)]})]
+       [?polynomial?
+        (match (coefficients f x) (list math-expr)
+          {[<cons $c (loop $i [1 $n] <cons ,0 ...> <cons $a <nil>>)>
+            (inverse (/ (- t c) a) (** x (+ n 1)) x)]
+           [_ (inverse' t f x)]})]
+       [_
+        (match f math-expr
+          {[<div $p1 $p2>
+            (inverse (* p2 t) p1 x)]})]
+       [_ (inverse' t f x)]})))
 
 (define $inverse'
-  (lambda [$t $x $f]
-    (to-math-expr <Apply inverse (map from-math-expr {t x f})>)))
+  (lambda [$t $f $x]
+    (to-math-expr <Apply inverse (map from-math-expr {t f x})>)))

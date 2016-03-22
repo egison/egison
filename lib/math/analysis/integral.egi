@@ -11,17 +11,16 @@
         (match [x f] [symbol-expr symbol-expr]
           {[[<symbol $name> <symbol !,name>] (* f x)]
            [[<symbol $name> <symbol ,name>] (* (/ 1 2) x^2)]
-           [[_ (exp ,x)] f]
-           [[_ (exp $y)] (substitute {[t y]} (Sd t (* (exp t) (d/d (inverse t x y) t))))]
-           [[_ (cos ,x)] (sin x)]
-           [[_ (sin ,x)] (* -1 (cos x))]
-           [[_ (log ,x)] (multSd x 1 (log x))]
+           [[_ (,exp ,x)] (exp x)]
+           [[_ (,cos ,x)] (sin x)]
+           [[_ (,sin ,x)] (* -1 (cos x))]
+           [[_ (,log ,x)] (multSd x 1 (log x))]
+           [[_ ($f $y)] (substitute {[t y]} (Sd t (* (f t) (d/d (inverse t y x) t))))]
            [[_ _] (Sd' x f)]
            })]
        [?term?
         (match f term-expr
           {[<term $a <nil>> (* a x)]
-           [<term $a <cons $g <nil>>> (* a (Sd x g))]
            [_ (Sd' x f)]
            })]
        [?polynomial?
@@ -29,9 +28,10 @@
           {[<plus $ts> (sum (map (Sd x $) ts))]})]
        [_
         (match f math-expr
-          {[<div $p1 (& ?integer? $a)>
-            (/ (Sd x p1) a)]
-           [_ (Sd' x f)]})]
+          {[<div $p1 $p2>
+            (match (coefficients p2 x) (list math-expr)
+              {[<cons $a <nil>> (/ (Sd x p1) a)]
+               [_ (Sd' x f)]})]})]
        })))
 
 (define $multSd

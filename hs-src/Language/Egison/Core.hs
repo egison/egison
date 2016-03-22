@@ -785,7 +785,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
   let env' = extendEnvForNonLinearPatterns env bindings loops
   case pattern of
     NotPat _ -> throwError $ EgisonBug "should not reach here (not pattern)"
-    VarPat _ -> throwError $ strMsg "cannot use variable except in pattern function"
+    VarPat _ -> throwError $ strMsg $ "cannot use variable except in pattern function:" ++ show pattern
 
     LetPat bindings' pattern' ->
       let extractBindings ([name], expr) =
@@ -802,15 +802,17 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       if result then return $ msingleton $ (MState env loops bindings trees)
                 else return MNil
 
-    ApplyPat func args -> do
+    PApplyPat func args -> do
+      liftIO $ putStrLn "here"
       func' <- evalExpr env' func
       case func' of
         Value (PatternFunc env'' names expr) ->
           let penv = zip names args
           in return $ msingleton $ MState env loops bindings (MNode penv (MState env'' [] [] [MAtom expr target matcher]) : trees)
-        _ -> case func of
-               VarExpr name -> return $ msingleton $ (MState env loops bindings ((MAtom (InductivePat "apply" [(ValuePat (VarExpr name)), (toListPat args)]) target matcher):trees))
-               _ -> throwError $ TypeMismatch "pattern constructor" func'
+        _ -> throwError $ TypeMismatch "pattern constructor" func'
+
+    DApplyPat func args -> do
+      return $ msingleton $ (MState env loops bindings ((MAtom (InductivePat "apply" [func, (toListPat args)]) target matcher):trees))
     
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF :: (EgisonM Integer)

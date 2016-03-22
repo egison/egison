@@ -11,12 +11,12 @@
         (match [x f] [symbol-expr symbol-expr]
           {[[<symbol $name> <symbol !,name>] 0]
            [[<symbol $name> <symbol ,name>] 1]
-           [[_ (exp $y)] (* (exp y) (d/d y x))]
-           [[_ (** $a $y)] (* (** a y) (log a) (d/d y x))]
-           [[_ (log $y)] (* (/ 1 y) (d/d y x))]
-           [[_ (cos $y)] (* (* -1 (sin y)) (d/d y x))]
-           [[_ (sin $y)] (* (cos y) (d/d y x))]
-           [[_ (sqrt $y)] (* (/ 1 (* 2 (sqrt y))) (d/d y x))]
+           [[_ (,exp $y)] (* (exp y) (d/d y x))]
+           [[_ (,** $a $y)] (* (** a y) (log a) (d/d y x))]
+           [[_ (,log $y)] (* (/ 1 y) (d/d y x))]
+           [[_ (,cos $y)] (* (* -1 (sin y)) (d/d y x))]
+           [[_ (,sin $y)] (* (cos y) (d/d y x))]
+           [[_ (,sqrt $y)] (* (/ 1 (* 2 (sqrt y))) (d/d y x))]
            })]
        [?term?
         (match f term-expr

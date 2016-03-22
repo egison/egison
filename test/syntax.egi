@@ -231,7 +231,6 @@
       {[(twin $n $ns) [n ns]]}))
   [1 {1 2 3}])
 
-
 (assert-equal "recursive pattern function call"
   (letrec {[$repeat (pattern-function [$pat]
                       (| <nil>

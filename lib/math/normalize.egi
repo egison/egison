@@ -48,16 +48,16 @@
 (define $rewrite-rule-rtu
   (lambda [$term]
     (match term term-expr
-      {[<term $a <ncons $k (rtu (& ?(gte? k $) $n)) $ts>>
+      {[<term $a <ncons $k (,rtu (& ?(gte? k $) $n)) $ts>>
         (*' a (**' (rtu n) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [_ term]})))
 
 (define $rewrite-rule-sqrt
   (lambda [$term]
     (match term term-expr
-      {[<term $a <cons (sqrt $x) <cons (sqrt ,x) $ts>>>
+      {[<term $a <cons (,sqrt $x) <cons (,sqrt ,x) $ts>>>
         (* a x (foldl *' 1 (map 2#(**' %1 %2) ts)))]
-       [<term $a <cons (sqrt (& ?term? $x)) <cons (sqrt (& ?term? $y)) $ts>>>
+       [<term $a <cons (,sqrt (& ?term? $x)) <cons (,sqrt (& ?term? $y)) $ts>>>
         (let* {[$d (gcd x y)]
                [[$a1 $x1] (from-monomial (/ x d))]
                [[$a2 $y1] (from-monomial (/ y d))]}
@@ -69,6 +69,6 @@
 (define $rewrite-rule-rt
   (lambda [$term]
     (match term term-expr
-      {[<term $a <ncons $k (rt (& ?(gte? k $) $n) $x) $ts>>
+      {[<term $a <ncons $k (,rt (& ?(gte? k $) $n) $x) $ts>>
         (*' a (**' x (quotient k n)) (**' (rt n x) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [_ term]})))
