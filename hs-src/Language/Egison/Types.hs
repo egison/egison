@@ -418,11 +418,16 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
 
 mathReduceFraction :: ScalarData -> ScalarData
 mathReduceFraction (Div (Plus []) (Plus ts2)) = Div (Plus []) (Plus ts2)
-mathReduceFraction (Div (Plus [Term a xs]) (Plus [])) = Div (Plus [Term 1 xs]) (Plus [])
+mathReduceFraction (Div (Plus ts1) (Plus [])) = Div (Plus ts1) (Plus [])
 mathReduceFraction (Div (Plus ts1) (Plus ts2)) =
   let as1 = map (\(Term a _) -> a) ts1 in
   let as2 = map (\(Term a _) -> a) ts2 in
-  let d = foldl gcd (head as1) ((tail as1) ++ as2) in
+  let flg = case as2 of
+              [a2] -> if a2 < 0
+                        then -1
+                        else 1
+              _ -> 1 in
+  let d = (foldl gcd (head as1) ((tail as1) ++ as2)) * flg in
   let us1 = map (\(Term a xs) -> Term (a `quot` d) xs) ts1 in
   let us2 = map (\(Term a xs) -> Term (a `quot` d) xs) ts2 in
     Div (Plus us1) (Plus us2)

@@ -1,0 +1,47 @@
+;;;;;
+;;;;; Complex Integration
+;;;;;
+
+(define $C1 (dSd x 0 a x))
+(define $C2 (dSd y 0 b (* i (- a (* i y)))))
+
+(define $C2' (dSd y 0 b (* i (* -1 (* i y)))))
+(define $C1' (dSd x 0 a (- x (* i b))))
+
+C1 ;=>(/ a^2 2)
+C2 ;=>(/ (+ (* 2 i a b) b^2) 2)
+
+C2';=>(/ b^2 2)
+C1';=>(/ (+ a^2 (* -2 i b a)) 2)
+
+(+ C1 C2);=>(/ (+ a^2 (* 2 i a b) b^2) 2)
+(+ C2' C1');=>(/ (+ b^2 a^2 (* -2 i b a)) 2)
+
+(- (+ C1 C2)
+   (+ C2' C1'))
+;=>(* 2 i a b)
+
+
+(define $D1 (dSd x 0 a x))
+(define $D2 (dSd y 0 b (* i (+ a (* i y)))))
+
+(define $D2' (dSd y 0 b (* i (* i y))))
+(define $D1' (dSd x 0 a (+ x (* i b))))
+
+D1 ;=>(/ a^2 2)
+D2 ;=>(/ (+ (* 2 i a b) (* -1 b^2)) 2)
+
+D2';=>(/ (* -1 b^2) 2)
+D1';=>(/ (+ a^2 (* 2 i b a)) 2)
+
+(- (+ D1 D2)
+   (+ D2' D1'))
+;=>0
+
+(define $E (dSd t 0 (* 2 pi) (* r (** e (* -1 i t)) i r (** e (* i t)))))
+
+E;=>(* 2 i r^2 pi)
+
+(define $F (dSd t 0 (* 2 pi) (exp (* i t))))
+
+F;=>0

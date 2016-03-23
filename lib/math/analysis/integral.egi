@@ -15,7 +15,9 @@
            [[_ (,cos ,x)] (sin x)]
            [[_ (,sin ,x)] (* -1 (cos x))]
            [[_ (,log ,x)] (multSd x 1 (log x))]
-           [[_ ($f $y)] (substitute {[t y]} (Sd t (* (f t) (d/d (inverse t y x) t))))]
+           [[_ ($f $y)] (substitute {[tmpvar y]} (Sd tmpvar (* (f tmpvar) (d/d (inverse tmpvar y x) tmpvar))))]
+           [[_ (,** $a ,x)] (/ (** a x) (log a))]
+           [[_ (,** $a $y)] (substitute {[tmpvar y]} (Sd tmpvar (* (** a tmpvar) (d/d (inverse tmpvar y x) tmpvar))))]
            [[_ _] (Sd' x f)]
            })]
        [?term?
@@ -25,10 +27,12 @@
               (if (contain-symbol? x b)
                 (Sd' x f)
                 (/ (* b (** x (+ n 1))) (+ n 1))))]
-           [_ (if (contain-symbol? x f)
-                (Sd' x f)
-                (* f x))]
-           })]
+           [<term $a $ts>
+            (let {[[$fxs $cs] (partition (contain-symbol? x $) (from-assoc ts))]}
+              (match fxs (list math-expr)
+                {[<nil> (* f x)]
+                 [<cons $fx <nil>> (* a (Sd x fx) (foldl *' 1 cs))]
+                 [_ (Sd' x f)]}))]})]
        [?polynomial?
         (match f poly-expr
           {[<plus $ts> (sum (map (Sd x $) ts))]})]
@@ -49,3 +53,9 @@
 (define $Sd'
   (lambda [$x $f]
     (to-math-expr <Apply Sd (map from-math-expr {x f})>)))
+
+(define $dSd
+  (lambda [$x $a $b $f]
+    (let {[$F (Sd x f)]}
+      (- (substitute {[x b]} F)
+         (substitute {[x a]} F)))))

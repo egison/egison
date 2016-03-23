@@ -115,6 +115,7 @@
       {[<div <plus <cons <term ,1 <cons _ <nil>>> <nil>>>
              <plus <cons <term ,1 <nil>> <nil>>>>
         #t]
+       [,0 #t]
        [_ #f]})))
 
 (define $term?
@@ -123,6 +124,7 @@
       {[<div <plus <cons _ <nil>>>
              <plus <cons <term ,1 <nil>> <nil>>>>
         #t]
+       [,0 #t]
        [_ #f]})))
 
 (define $polynomial?
@@ -131,6 +133,7 @@
       {[<div _
              <plus <cons <term ,1 <nil>> <nil>>>>
         #t]
+       [,0 #t]
        [_ #f]})))
 
 (define $monomial?
@@ -139,6 +142,7 @@
       {[<div <plus <cons <term _ _> <nil>>>
              <plus <cons <term _ _> <nil>>>>
         #t]
+       [,0 #t]
        [_ #f]})))
 
 (define $from-monomial

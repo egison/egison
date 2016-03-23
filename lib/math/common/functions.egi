@@ -4,6 +4,18 @@
 ;;;;;
 ;;;;;
 
+(define $exp
+  (lambda [$x]
+    (if (float? x)
+      (b.exp x)
+      (if (term? x)
+        (match x term-expr
+          {[,0 1]
+           [,1 e]
+           [<term $a <cons ,i <cons ,pi <nil>>>> (** -1 a)]
+           [_ (to-math-expr <Apply exp (map from-math-expr {x})>)]})
+        (to-math-expr <Apply exp (map from-math-expr {x})>)))))
+
 (define $log
   (lambda [$x]
     (if (float? x)
@@ -19,6 +31,7 @@
       (b.cos x)
       (match x math-expr
         {[,0 1]
+         [,(* 2 pi) 1]
          [_ (to-math-expr <Apply cos (map from-math-expr {x})>)]}))))
 
 (define $sin
