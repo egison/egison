@@ -122,6 +122,5 @@ coreLibraries =
   , "lib/core/number.egi"
   , "lib/core/io.egi"
   , "lib/core/random.egi"
-  , "lib/core/array.egi"
   , "lib/core/string.egi"
   ]

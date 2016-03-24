@@ -408,12 +408,11 @@ evalExpr env (MemoizeExpr memoizeFrame expr) = do
 evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
 evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
 
-evalExpr env (GenerateArrayExpr (name:[]) (TupleExpr (sizeExpr:[])) expr) =
-  generateArray env name sizeExpr expr
-evalExpr env (GenerateArrayExpr (name:xs) (TupleExpr (sizeExpr:ys)) expr) = 
-  generateArray env name sizeExpr (GenerateArrayExpr xs (TupleExpr ys) expr)
-evalExpr env (GenerateArrayExpr names size expr) = 
-  evalExpr env (GenerateArrayExpr names (TupleExpr [size]) expr)
+evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
+  fN <- (evalExpr env fstExpr >>= fromWHNF) :: EgisonM Integer
+  eN <- (evalExpr env lstExpr >>= fromWHNF) :: EgisonM Integer
+  xs <- mapM (\n -> (newObjectRef env (ApplyExpr fnExpr (IntegerExpr n)))) [fN..eN]
+  return $ Intermediate $ IArray $ Array.listArray (fN, eN) xs
 
 evalExpr env (ArraySizeExpr expr) = 
   evalExpr env expr >>= arraySize
@@ -549,21 +548,6 @@ applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol name [], 1)])]) (
   p (ScalarData mExpr) = return mExpr
   p val = throwError $ TypeMismatch "math expression" (Value val)
 applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
-
-generateArray :: Env -> String -> EgisonExpr -> EgisonExpr -> EgisonM WHNFData
-generateArray env name sizeExpr expr = do
-  size <- evalExpr env sizeExpr >>= fromWHNF >>= return . fromInteger
-  elms <- mapM genElem (enumFromTo 1 size)
-  return $ Intermediate $ IArray $ Array.listArray (1, size) elms
-  where
-    genElem :: Integer -> EgisonM ObjectRef
-    genElem i = do env' <- bindEnv env name $ toInteger i
-                   newObjectRef env' expr
-    
-    bindEnv :: Env -> String -> Integer -> EgisonM Env
-    bindEnv env name i = do
-      ref <- newEvalutedObjectRef (Value (toEgison i))
-      return $ extendEnv env [(name, ref)]
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val 
@@ -803,7 +787,6 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                 else return MNil
 
     PApplyPat func args -> do
-      liftIO $ putStrLn "here"
       func' <- evalExpr env' func
       case func' of
         Value (PatternFunc env'' names expr) ->

@@ -229,9 +229,10 @@ data EgisonExpr =
   | PartialVarExpr Integer
   | RecVarExpr
 
-  | GenerateArrayExpr [String] EgisonExpr EgisonExpr
+  | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
   | ArraySizeExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
+
   | GenerateTensorExpr EgisonExpr EgisonExpr
   | InitTensorExpr EgisonExpr EgisonExpr EgisonExpr
   | TensorMapExpr EgisonExpr EgisonExpr

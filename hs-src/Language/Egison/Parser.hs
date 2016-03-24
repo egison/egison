@@ -443,7 +443,12 @@ algebraicDataMatcherExpr = keywordAlgebraicDataMatcher
     inductivePat' = angles $ (,) <$> lowerName <*> sepEndBy expr whiteSpace
 
 generateArrayExpr :: Parser EgisonExpr
-generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> varNames <*> expr <*> expr
+generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> expr <*> arrayRange
+
+arrayRange :: Parser (EgisonExpr, EgisonExpr)
+arrayRange = brackets (do s <- expr
+                          e <- expr
+                          return (s, e))
 
 arraySizeExpr :: Parser EgisonExpr
 arraySizeExpr = keywordArraySize >> ArraySizeExpr <$> expr
