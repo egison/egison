@@ -230,7 +230,7 @@ data EgisonExpr =
   | RecVarExpr
 
   | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
-  | ArraySizeExpr EgisonExpr
+  | ArrayBoundsExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 
   | GenerateTensorExpr EgisonExpr EgisonExpr

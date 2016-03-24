@@ -57,7 +57,7 @@
      "\\<seq\\>"
 ;     "\\<apply\\>"
      "\\<generate-array\\>"
-     "\\<array-size\\>"
+     "\\<array-bounds\\>"
      "\\<array-ref\\>"
 
      "\\<loop\\>"

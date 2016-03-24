@@ -145,9 +145,9 @@ desugar (PowerExpr expr1 expr2) = do
   expr2' <- desugar expr2
   return $ ApplyExpr (VarExpr "**'") (TupleExpr [expr1', expr2'])
 
-desugar (ArraySizeExpr expr) = do
+desugar (ArrayBoundsExpr expr) = do
   expr' <- desugar expr
-  return $ ArraySizeExpr expr'
+  return $ ArrayBoundsExpr expr'
 
 desugar (InductiveDataExpr name exprs) = do 
   exprs' <- mapM desugar exprs

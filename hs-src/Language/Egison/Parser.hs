@@ -195,7 +195,7 @@ expr' = (try partialExpr
                          <|> cApplyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
-                         <|> arraySizeExpr
+                         <|> arrayBoundsExpr
                          <|> arrayRefExpr
                          <|> generateTensorExpr
                          <|> initTensorExpr
@@ -450,8 +450,8 @@ arrayRange = brackets (do s <- expr
                           e <- expr
                           return (s, e))
 
-arraySizeExpr :: Parser EgisonExpr
-arraySizeExpr = keywordArraySize >> ArraySizeExpr <$> expr
+arrayBoundsExpr :: Parser EgisonExpr
+arrayBoundsExpr = keywordArrayBounds >> ArrayBoundsExpr <$> expr
 
 arrayRefExpr :: Parser EgisonExpr
 arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
@@ -672,7 +672,7 @@ reservedKeywords =
   , "io"
   , "algebraic-data-matcher"
   , "generate-array"
-  , "array-size"
+  , "array-bounds"
   , "array-ref"
   , "generate-tensor"
   , "init-tensor"
@@ -740,7 +740,7 @@ keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
 keywordGenerateArray        = reserved "generate-array"
-keywordArraySize            = reserved "array-size"
+keywordArrayBounds          = reserved "array-bounds"
 keywordArrayRef             = reserved "array-ref"
 keywordGenerateTensor       = reserved "generate-tensor"
 keywordInitTensor           = reserved "init-tensor"

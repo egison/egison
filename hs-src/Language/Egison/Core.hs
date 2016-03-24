@@ -23,7 +23,7 @@ module Language.Egison.Core
     , applyFunc
     -- * Array
     , refArray
-    , arraySize
+    , arrayBounds
     -- * Environment
     , recursiveBind
     -- * Pattern matching
@@ -414,8 +414,8 @@ evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
   xs <- mapM (\n -> (newObjectRef env (ApplyExpr fnExpr (IntegerExpr n)))) [fN..eN]
   return $ Intermediate $ IArray $ Array.listArray (fN, eN) xs
 
-evalExpr env (ArraySizeExpr expr) = 
-  evalExpr env expr >>= arraySize
+evalExpr env (ArrayBoundsExpr expr) = 
+  evalExpr env expr >>= arrayBounds
 
 evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size' <- evalExpr env sizeExpr
@@ -612,13 +612,13 @@ refArray (Intermediate (IStrHash hash)) (index:indices) = do
     Nothing -> return $ Value Undefined
 refArray val _ = throwError $ TypeMismatch "array or hash" val
 
-arraySize :: WHNFData -> EgisonM WHNFData
-arraySize val = arraySize' val >>= return . Value . toEgison
+arrayBounds :: WHNFData -> EgisonM WHNFData
+arrayBounds val = arrayBounds' val >>= return . Value
 
-arraySize' :: WHNFData -> EgisonM Integer
-arraySize' (Intermediate (IArray arr)) = return (snd (Array.bounds arr))
-arraySize' (Value (Array arr))         = return (snd (Array.bounds arr))
-arraySize' val                         = throwError $ TypeMismatch "array" val
+arrayBounds' :: WHNFData -> EgisonM EgisonValue
+arrayBounds' (Intermediate (IArray arr)) = return $ Tuple [(toEgison (fst (Array.bounds arr))), (toEgison (snd (Array.bounds arr)))]
+arrayBounds' (Value (Array arr))         = return $ Tuple [(toEgison (fst (Array.bounds arr))), (toEgison (snd (Array.bounds arr)))]
+arrayBounds' val                         = throwError $ TypeMismatch "array" val
 
 newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr
