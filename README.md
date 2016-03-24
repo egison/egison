@@ -69,7 +69,13 @@ Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper o
 
 ## Installation
 
-At first, you should install <a target="_blank" href="https://www.haskell.org/platform/">Haskell Platform</a>.
+If you are using Linux, please install `libncurses-dev` at first.
+
+```
+% sudo apt-get install libncurses-dev # on Debian
+```
+
+To complile Egison, you also need to install <a target="_blank" href="https://www.haskell.org/platform/">Haskell Platform</a>.
 
 After you installed Haskell Platform, run the following commands on the terminal.
 
@@ -126,6 +132,179 @@ Examples:
 
 We can try it also <a target="_blank" href="http://try.egison.org">online</a>.
 Enjoy!
+
+## Egison as a Computer Algebra System
+
+### Symbolic Algebra
+
+Unbound variables are treated as symbols.
+
+```
+> x
+x
+> (** (+ x y) 2)
+(+ x^2 (* 2 x y) y^2)
+> (** (+ x y) 10)
+(+ x^10 (* 10 x^9 y) (* 45 x^8 y^2) (* 120 x^7 y^3) (* 210 x^6 y^4) (* 252 x^5 y^5) (* 210 x^4 y^6) (* 120 x^3 y^7) (* 45 x^2 y^8) (* 10 x y^9) y^10)
+```
+
+We can handle algebraic numbers, too.
+
+* [Definition of `sqrt` in `root.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/root.egi)
+
+```
+> (sqrt x)
+(sqrt x)
+> (sqrt 2)
+(sqrt 2)
+> (sqrt 4)
+2
+> (+ x (sqrt y))
+(+ x (sqrt y))
+```
+
+### Complex Numbers
+
+The symbol `i` is defined to rewrite `i^2` to `-1` in Egison library.
+
+* [Rewriting rule for `i` in `normalize.egi`](https://github.com/egison/egison/blob/master/lib/math/normalize.egi)
+
+```
+> (* i i)
+-1
+> (* (+ 1 (* 1 i))  (+ 1 (* 1 i)))
+(* 2 i)
+> (** (+ 1 (* 1 i)) 10)
+(* 32 i)
+> (* (+ x (* y i))  (+ x (* y i)))
+(+ x^2 (* 2 i x y) (* -1 y^2))
+```
+
+### Square Root
+
+The rewriting rule for `sqrt` is also defined in Egison library.
+
+* [Rewriting rule for `sqrt` in `normalize.egi`](https://github.com/egison/egison/blob/master/lib/math/normalize.egi)
+
+```
+> (* (sqrt 2) (sqrt 2))
+2
+> (* (sqrt 6) (sqrt 10))
+(* 2 (sqrt 15))
+> (sqrt x)
+(sqrt x)
+> (* (sqrt (* x y)) (sqrt (* 2 x)))
+(* x (sqrt 2) (sqrt y))
+```
+
+### The 5th Roots of Unity
+
+The following is a sample to calculate the 5th roots of unity.
+
+* [Definition of `q-f` in `equations.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/equations.egi)
+
+```
+> (q-f 1 1 -1)
+[(/ (+ -1 (sqrt 5)) 2) (/ (+ -1 (* -1 (sqrt 5))) 2)]
+> (define $t (fst (q-f 1 1 -1)))
+> (q-f 1 (* -1 t) 1)
+[(/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4) (/ (+ -1 (sqrt 5) (* -1 (sqrt (+ -10 (* -2 (sqrt 5)))))) 4)]
+> (define $z (fst (q-f 1 (* -1 t) 1)))
+> z
+(/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4)
+> (** z 5)
+1
+```
+
+### Differentiation
+
+We can implement differentiation easily in Egison.
+
+* [Definition of `d/d` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
+
+```
+> (d/d (** x 3) x)
+(* 3 x^2)
+> (d/d (** e (* i x)) x)
+(* i (** e (* i x)))
+> (d/d (d/d (log x) x) x)
+(/ -1 x^2)
+> (d/d (* (cos x) (sin x)) x)
+(+ (* -1 (sin x)^2) (cos x)^2)
+```
+
+### Taylor Expansion
+
+The following sample executes Taylor expansion on Egison.
+We verify [Euler's formula](https://en.wikipedia.org/wiki/Euler%27s_formula) in the following sample.
+
+* [Definition of `taylor-expansion` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
+
+```
+> (take 8 (taylor-expansion (** e (* i x)) x 0))
+{1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6) (/ x^4 24) (/ (* i x^5) 120) (/ (* -1 x^6) 720) (/ (* -1 i x^7) 5040)}
+> (take 8 (taylor-expansion (cos x) x 0))
+{1 0 (/ (* -1 x^2) 2) 0 (/ x^4 24) 0 (/ (* -1 x^6) 720) 0}
+> (take 8 (taylor-expansion (* i (sin x)) x 0))
+{0 (* i x) 0 (/ (* -1 i x^3) 6) 0 (/ (* i x^5) 120) 0 (/ (* -1 i x^7) 5040)}
+> (take 8 (map2 + (taylor-expansion (cos x) x 0) (taylor-expansion (* i (sin x)) x 0)))
+{1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6) (/ x^4 24) (/ (* i x^5) 120) (/ (* -1 x^6) 720) (/ (* -1 i x^7) 5040)}
+```
+
+### Vector and Matrix
+
+We support tesnsor algebra.
+We use [Einstein notation](https://en.wikipedia.org/wiki/Einstein_notation) to express arithmetic operations between tensors.
+
+A tensor is expressed by enclosing its dimensions and elements with `(|` and `|)`.
+
+```
+(| <dimensions> <elements> |)
+```
+
+
+```
+> (define $V1 (| {3} {x_1 x_2 x_3} |))
+> (define $V2 (| {3} {y_1 y_2 y_3} |))
+> (. V1_i V2_i)
+(+ (* x_1 y_1) (* x_2 y_2) (* x_3 y_3))
+> (. V1_i V2_j)
+(| {3 3} {(* x_1 y_1) (* x_1 y_2) (* x_1 y_3) (* x_2 y_1) (* x_2 y_2) (* x_2 y_3) (* x_3 y_1) (* x_3 y_2) (* x_3 y_3)} |)_i_j
+```
+
+```
+> (define $M1 (generate-tensor 2#x_%1_%2 {2 2}))
+> (define $M2 (generate-tensor 2#y_%1_%2 {2 2}))
+> M1
+(| {2 2} {x_1_1 x_1_2 x_2_1 x_2_2} |)
+> M2
+(| {2 2} {y_1_1 y_1_2 y_2_1 y_2_2} |)
+> M1_i_1
+(| {2} {x_1_1 x_2_1} |)_i
+> M1_1_j
+(| {2} {x_1_1 x_1_2} |)_j
+> (. M1_i_j M2_j_k)
+(| {2 2} {(+ (* x_1_1 y_1_1) (* x_1_2 y_2_1)) (+ (* x_1_1 y_1_2) (* x_1_2 y_2_2)) (+ (* x_2_1 y_1_1) (* x_2_2 y_2_1)) (+ (* x_2_1 y_1_2) (* x_2_2 y_2_2))} |)_i_k
+> (. M1_i_j M2_k_l)
+(| {2 2 2 2} {(* x_1_1 y_1_1) (* x_1_1 y_1_2) (* x_1_1 y_2_1) (* x_1_1 y_2_2) (* x_1_2 y_1_1) (* x_1_2 y_1_2) (* x_1_2 y_2_1) (* x_1_2 y_2_2) (* x_2_1 y_1_1) (* x_2_1 y_1_2) (* x_2_1 y_2_1) (* x_2_1 y_2_2) (* x_2_2 y_1_1) (* x_2_2 y_1_2) (* x_2_2 y_2_1) (* x_2_2 y_2_2)} |)_i_j_k_l
+```
+
+Addition of tensors and arithmetic between a scalar and a tensor are expressed as follow.
+
+* [tensor.egi](https://github.com/egison/egison/blob/master/lib/math/algebra/tensor.egi)
+
+```
+> (define $X (generate-tensor 2#x_%1_%2 {2 2}))
+> (define $Y (generate-tensor 2#y_%1_%2 {2 2}))
+> X
+(| {2 2} {x_1_1 x_1_2 x_2_1 x_2_2} |)
+> Y
+(| {2 2} {y_1_1 y_1_2 y_2_1 y_2_2} |)
+> (T.map2 + X_i_j  Y_j_i)
+(| {2 2} {(+ x_1_1 y_1_1) (+ x_1_2 y_2_1) (+ x_2_1 y_1_2) (+ x_2_2 y_2_2)} |)_i_j
+> (T.+ X 100)
+(| {2 2} {(+ x_1_1 100) x_1_2 x_2_1 (+ x_2_2 100)} |)
+```
 
 ## Note for Developers
 
