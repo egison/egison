@@ -123,15 +123,15 @@ The rewriting rule for `sqrt` is also defined in Egison library.
 
 The following is a sample to calculate the 5th roots of unity.
 
-* [Definition of `q-f` in `equations.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/equations.egi)
+* [Definition of `q-f'` in `equations.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/equations.egi)
 
 ```
-> (q-f 1 1 -1)
+> (q-f' 1 1 -1)
 [(/ (+ -1 (sqrt 5)) 2) (/ (+ -1 (* -1 (sqrt 5))) 2)]
-> (define $t (fst (q-f 1 1 -1)))
-> (q-f 1 (* -1 t) 1)
+> (define $t (fst (q-f' 1 1 -1)))
+> (q-f' 1 (* -1 t) 1)
 [(/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4) (/ (+ -1 (sqrt 5) (* -1 (sqrt (+ -10 (* -2 (sqrt 5)))))) 4)]
-> (define $z (fst (q-f 1 (* -1 t) 1)))
+> (define $z (fst (q-f' 1 (* -1 t) 1)))
 > z
 (/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4)
 > (** z 5)
