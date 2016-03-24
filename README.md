@@ -52,88 +52,10 @@ Aren't these exciting?
 The pattern-matching of Egison is very powerful.
 We can use it for pattern-matching also against graphs and tree-structures such as XML.
 
-## Comparison with Related Work
-
-There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
-
-The advantage of Egison is that it achieves **all of the following features** at the same time.
-
-* Modularization of the way of pattern-matching for each data type
-* Pattern-matching with multiple results (backtracking)
-* Non-linear pattern-matching with **lexical scoping**
-* Parametric polymorphism of pattern-constructors
-
-The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we achieve that.
-
-Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
-
-## Installation
-
-If you are using Linux, please install `libncurses-dev` at first.
-
-```
-% sudo apt-get install libncurses-dev # on Debian
-```
-
-To complile Egison, you also need to install <a target="_blank" href="https://www.haskell.org/platform/">Haskell Platform</a>.
-
-After you installed Haskell Platform, run the following commands on the terminal.
-
-```
-% cabal update
-% cabal install egison
-```
-
-Now, you can try Egison.
-
-```
-% egison
-Egison Version X.X.X(C) 2011-2014 Satoshi Egi
-http://www.egison.org
-Welcome to Egison Interpreter!
-> ^D
-Leaving Egison Interpreter.
-```
-
-If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egison/egison-tutorial">`egison-tutorial`</a>.
-
-```
-% cabal update
-% cabal install egison-tutorial
-% egison-tutorial
-Egison Tutorial Version 3.3.6 (C) 2013-2014 Satoshi Egi
-Welcome to Egison Tutorial!
-** Information **
-We can use a 'Tab' key to complete keywords on the interpreter.
-If we type a 'Tab' key after a closed parenthesis, the next closed parenthesis will be completed.
-*****************
-==============================
-List of sections in the tutorial.
-1: Calculate numbers                             (10 minutes)
-2: Basics of functional programming              (10 minutes)
-3: Basics of pattern-matching                    (10 minutes)
-4: Pattern-matching against infinite collections (5 minutes)
-==============================
-Choose a section to learn.
-(1-4): 1
-====================
-We can do arithmetic operations with '+', '-', '*', '/', 'modulo' and 'power'.
-
-Examples:
-  (+ 1 2)
-  (- 30 15)
-  (* 10 20)
-  (/ 20 5)
-  (modulo 17 4)
-  (power 2 10)
-====================
->
-```
-
-We can try it also <a target="_blank" href="http://try.egison.org">online</a>.
-Enjoy!
-
 ## Egison as a Computer Algebra System
+
+As an application of Egison, we implemented a computer algebra system on Egison.
+The most part of this computer algebra system is written in Egison and extensible in Egison.
 
 ### Symbolic Algebra
 
@@ -305,6 +227,87 @@ Addition of tensors and arithmetic between a scalar and a tensor are expressed a
 > (T.+ X 100)
 (| {2 2} {(+ x_1_1 100) x_1_2 x_2_1 (+ x_2_2 100)} |)
 ```
+
+## Comparison with Related Work
+
+There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
+
+The advantage of Egison is that it achieves **all of the following features** at the same time.
+
+* Modularization of the way of pattern-matching for each data type
+* Pattern-matching with multiple results (backtracking)
+* Non-linear pattern-matching with **lexical scoping**
+* Parametric polymorphism of pattern-constructors
+
+The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we achieve that.
+
+Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
+
+## Installation
+
+If you are using Linux, please install `libncurses-dev` at first.
+
+```
+% sudo apt-get install libncurses-dev # on Debian
+```
+
+To compile Egison, you also need to install <a target="_blank" href="https://www.haskell.org/platform/">Haskell Platform</a>.
+
+After you installed Haskell Platform, run the following commands on the terminal.
+
+```
+% cabal update
+% cabal install egison
+```
+
+Now, you can try Egison.
+
+```
+% egison
+Egison Version X.X.X(C) 2011-2014 Satoshi Egi
+http://www.egison.org
+Welcome to Egison Interpreter!
+> ^D
+Leaving Egison Interpreter.
+```
+
+If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egison/egison-tutorial">`egison-tutorial`</a>.
+
+```
+% cabal update
+% cabal install egison-tutorial
+% egison-tutorial
+Egison Tutorial Version 3.3.6 (C) 2013-2014 Satoshi Egi
+Welcome to Egison Tutorial!
+** Information **
+We can use a 'Tab' key to complete keywords on the interpreter.
+If we type a 'Tab' key after a closed parenthesis, the next closed parenthesis will be completed.
+*****************
+==============================
+List of sections in the tutorial.
+1: Calculate numbers                             (10 minutes)
+2: Basics of functional programming              (10 minutes)
+3: Basics of pattern-matching                    (10 minutes)
+4: Pattern-matching against infinite collections (5 minutes)
+==============================
+Choose a section to learn.
+(1-4): 1
+====================
+We can do arithmetic operations with '+', '-', '*', '/', 'modulo' and 'power'.
+
+Examples:
+  (+ 1 2)
+  (- 30 15)
+  (* 10 20)
+  (/ 20 5)
+  (modulo 17 4)
+  (power 2 10)
+====================
+>
+```
+
+We can try it also <a target="_blank" href="http://try.egison.org">online</a>.
+Enjoy!
 
 ## Note for Developers
 
