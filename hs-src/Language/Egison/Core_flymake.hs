@@ -947,9 +947,9 @@ primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Intermediate (IInductiveData name' refs) | name == name' ->
+    Intermediate (IInductiveData name' refs) | name == name' && length patterns == length refs ->
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
-    Value (InductiveData name' vals) | name == name' -> do
+    Value (InductiveData name' vals) | name == name' && length patterns == length vals -> do
       refs <- lift $ mapM (newEvalutedObjectRef . Value) vals
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
     _ -> matchFail
