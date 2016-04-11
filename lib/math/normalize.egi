@@ -20,12 +20,33 @@
           mexpr
           (map-terms rewrite-rule-rt
                      (map-terms rewrite-rule-sqrt
-                                (map-terms rewrite-rule-rtu
-                                           (map-terms rewrite-rule-w
-                                                      (map-terms rewrite-rule-i
-                                                                 mexpr
-                                                                 ))))))
+                                (map-polys rewrite-rule-rtu-plus
+                                                  (map-terms rewrite-rule-rtu
+                                                             (map-polys rewrite-rule-w-plus
+                                                                        (map-terms rewrite-rule-w
+                                                                                   (map-terms rewrite-rule-i
+                                                                                              mexpr
+                                                                                              ))))))))
         mexpr))))
+
+(define $rewrite-rule-rtu-plus
+  (lambda [$poly]
+    (match poly poly-expr
+      {[<plus <cons <term $a <cons (,rtu $n) $ts>>
+                    (loop $i [2 ,(- n 1)]
+                      <cons <term ,a <ncons ,i ,(rtu n) ,ts>> ...>
+                      $rs)>>
+        (foldl +' (* -1 a (foldl *' 1 (map 2#(**' %1 %2) ts))) rs)]
+       [_ poly]})))
+
+(define $rewrite-rule-w-plus
+  (lambda [$poly]
+    (match poly poly-expr
+      {[<plus <cons <term $a <cons ,w $ts>>
+                    <cons <term ,a <ncons ,2 ,w ,ts>>
+                          $rs>>>
+        (foldl +' (* -1 a (foldl *' 1 (map 2#(**' %1 %2) ts))) rs)]
+       [_ poly]})))
 
 (define $rewrite-rule-i
   (lambda [$term]
@@ -41,8 +62,6 @@
     (match term term-expr
       {[<term $a <ncons (& ?(gte? $ 3) $k) ,w $ts>>
         (*' a (**' w (remainder k 3)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
-       [<term $a <ncons ,2 ,w $ts>>
-        (*' a (- -1 w) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
        [_ term]})))
 
 (define $rewrite-rule-rtu

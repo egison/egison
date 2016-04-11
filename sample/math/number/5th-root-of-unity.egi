@@ -11,12 +11,10 @@
 (define $b12 (- a12 a11))
 
 (define $b10' -1);-1
-;(define $b11' (sqrt (* -1 b11 b12)));(sqrt 5)
-(define $b11' (sqrt 5))
+(define $b11' (sqrt (** b11 2)));(sqrt 5)
 
 (define $a11' (/ (+ b10' b11') 2));(/ (+ -1 (sqrt 5)) 2)
 (define $a12' (/ (- b10' b11') 2));(/ (+ -1 (* -1 (sqrt 5))) 2)
-
 
 (define $a21 (- z^1 z^4))
 (define $a22 (- z^2 z^3))
@@ -36,3 +34,15 @@
 (define $z1' (/ (+ a11' a21') 2))
 
 z1';(/ (+ -1 (sqrt 5) (sqrt (+ -5 (* -2 (sqrt 5)))) (sqrt (+ -5 (* 2 (sqrt 5))))) 4)
+
+(** (+ (sqrt (+ -5 (* -2 (sqrt 5)))) (sqrt (+ -5 (* 2 (sqrt 5))))) 2)
+;(+ -10 (* 2 (sqrt (+ -5 (* -2 (sqrt 5)))) (sqrt (+ -5 (* 2 (sqrt 5))))))
+
+(* (+ -5 (* -2 (sqrt 5))) (+ -5 (* 2 (sqrt 5))));5
+
+; z1' is equal to
+(/ (+ -1
+      (sqrt 5) 
+      (+ -10 (* -2 (sqrt 5)))
+      )
+   4)

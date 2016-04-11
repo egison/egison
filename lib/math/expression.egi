@@ -157,6 +157,12 @@
 ;;
 ;; Map
 ;;
+(define $map-polys
+  (lambda [$fn $mexpr]
+    (match mexpr math-expr
+      {[<div $p1 $p2>
+        (/' (fn p1) (fn p2))]})))
+
 (define $map-terms
   (lambda [$fn $mexpr]
     (match mexpr math-expr
