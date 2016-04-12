@@ -7,9 +7,9 @@
 (define $a12 (+ z^2 z^5))
 (define $a13 (+ z^3 z^4))
 
-(define $b10 (+ a11 a12 a13))
+(define $b10 (+ a11 a12 a13));-1
 
-(define $b10' -1);-1
+(define $b10' -1)
 
 (define $b11 (+ a11 (* w a12) (* w^2 a13)))
 (define $b12 (+ a13 (* w a11) (* w^2 a12)));(* w b11)
@@ -45,4 +45,3 @@ z1'
                   (rt 3 (+ -7 (* -21 w^2))))))
       )
    6)
-
