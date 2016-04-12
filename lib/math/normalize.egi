@@ -20,13 +20,13 @@
           mexpr
           (map-terms rewrite-rule-rt
                      (map-terms rewrite-rule-sqrt
-                                (map-polys rewrite-rule-rtu-plus
+;                                (map-polys rewrite-rule-rtu-plus
                                                   (map-terms rewrite-rule-rtu
                                                              (map-polys rewrite-rule-w-plus
                                                                         (map-terms rewrite-rule-w
                                                                                    (map-terms rewrite-rule-i
                                                                                               mexpr
-                                                                                              ))))))))
+                                                                                              )))))))
         mexpr))))
 
 (define $rewrite-rule-rtu-plus
