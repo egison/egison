@@ -1,8 +1,5 @@
 (define $t (fst (q-f' 1 1 1)))
-(define $z (3#%1 (c-f' 1 0 0 t)))
+(define $z (rt 3 t))
 
 t;(/ (+ -1 (* i (sqrt 3))) 2)
-z;(+ (rt 3 (/ (+ 1 (* -1 i (sqrt 3)) (sqrt (+ -2 (* -2 i (sqrt 3))))) 4)) (rt 3 (/ (+ 1 (* -1 i (sqrt 3)) (* -1 (sqrt (+ -2 (* -2 i (sqrt 3)))))) 4)))
-
-(+ (rt 3 (/ (+ 1 (* -1 i (sqrt 3)) (sqrt (+ -2 (* -2 i (sqrt 3))))) 4))
-   (rt 3 (/ (+ 1 (* -1 i (sqrt 3)) (* -1 (sqrt (+ -2 (* -2 i (sqrt 3)))))) 4)))
+z;(rt 3 (/ (+ -1 (* i (sqrt 3))) 2))
