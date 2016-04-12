@@ -49,7 +49,11 @@
 (define $c-f'
   (lambda [$a $b $c $d]
     (match [a b c d] [math-expr math-expr math-expr math-expr]
-      {[[,1 ,0 $p $q]
+      {[[,1 ,0 ,0 $a]
+        [(rt 3 a)
+         (* w (rt 3 a))
+         (* w^2 (rt 3 a))]]
+       [[,1 ,0 $p $q]
         (let {[[$u3 $v3] (q-f' 1 q (/ (* -1 p^3) 27))]}
           [(+ (rt 3 u3) (rt 3 v3))
            (+ (* w (rt 3 u3)) (* w^2 (rt 3 v3)))
