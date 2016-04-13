@@ -21,7 +21,7 @@
  [(+ 10 (* 10 w)) 100]
  }
 
-(filter 3#(prime? %3) (map 2#[(+ %1 (* w %2)) (* (+ %1 (* w %2)) (+ %1 (* w^2 %2)))] (match-all (take 10 nats) (set integer) [<cons $x <cons $y _>> [x y]])))
+(filter 2#(prime? %2) (map 2#[(+ %1 (* w %2)) (* (+ %1 (* w %2)) (+ %1 (* w^2 %2)))] (match-all (take 10 nats) (set integer) [<cons $x <cons $y _>> [x y]])))
 
 {[(+ 1 w) 1]
  [(+ 1 (* 2 w)) 3] [(+ 2 w) 3]
