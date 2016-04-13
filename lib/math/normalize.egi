@@ -20,32 +20,34 @@
           mexpr
           (map-terms rewrite-rule-rt
                      (map-terms rewrite-rule-sqrt
-;                                (map-polys rewrite-rule-rtu-plus
+                                (map-polys rewrite-rule-rtu-plus
                                                   (map-terms rewrite-rule-rtu
                                                              (map-polys rewrite-rule-w-plus
                                                                         (map-terms rewrite-rule-w
                                                                                    (map-terms rewrite-rule-i
                                                                                               mexpr
-                                                                                              )))))))
+                                                                                              ))))))))
         mexpr))))
 
 (define $rewrite-rule-rtu-plus
   (lambda [$poly]
     (match poly poly-expr
-      {[<plus <cons <term $a <cons (,rtu $n) $ts>>
+      {[<plus <cons <term $a <ncons $k (,rtu (& ,(+ k 1) $n)) $ts>>
                     (loop $i [2 ,(- n 1)]
-                      <cons <term ,a <ncons ,i ,(rtu n) ,ts>> ...>
+                      <cons <term ,a <ncons ,(- n i) ,(rtu n) ,ts>> ...>
                       $rs)>>
-        (foldl +' (* -1 a (foldl *' 1 (map 2#(**' %1 %2) ts))) rs)]
+        (foldl +' (foldl *' (* -1 a) (map 2#(**' %1 %2) ts)) rs)]
        [_ poly]})))
 
 (define $rewrite-rule-w-plus
   (lambda [$poly]
     (match poly poly-expr
-      {[<plus <cons <term $a <cons ,w $ts>>
-                    <cons <term ,a <ncons ,2 ,w ,ts>>
+      {[<plus <cons <term $a <ncons ,2 ,w $ts>>
+                    <cons <term $b <ncons ,1 ,w ,ts>>
                           $rs>>>
-        (foldl +' (* -1 a (foldl *' 1 (map 2#(**' %1 %2) ts))) rs)]
+        (foldl +' (+ (* -1 a (foldl *' 1 (map 2#(**' %1 %2) ts)))
+                     (* (- b a) w (foldl *' 1 (map 2#(**' %1 %2) ts)))
+                     ) rs)]
        [_ poly]})))
 
 (define $rewrite-rule-i
