@@ -1,0 +1,11 @@
+(take 8 (taylor-expansion (** e (* i x)) x 0))
+;{1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6) (/ x^4 24) (/ (* i x^5) 120) (/ (* -1 x^6) 720) (/ (* -1 i x^7) 5040)}
+
+(take 8 (taylor-expansion (cos x) x 0))
+;{1 0 (/ (* -1 x^2) 2) 0 (/ x^4 24) 0 (/ (* -1 x^6) 720) 0}
+
+(take 8 (taylor-expansion (* i (sin x)) x 0))
+;{0 (* i x) 0 (/ (* -1 i x^3) 6) 0 (/ (* i x^5) 120) 0 (/ (* -1 i x^7) 5040)}
+
+(take 8 (map2 + (taylor-expansion (cos x) x 0) (taylor-expansion (* i (sin x)) x 0)))
+;{1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6) (/ x^4 24) (/ (* i x^5) 120) (/ (* -1 x^6) 720) (/ (* -1 i x^7) 5040)}
