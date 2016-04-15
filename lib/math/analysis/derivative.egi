@@ -4,52 +4,63 @@
 ;;;;;
 ;;;;;
 
-(define $d/d
+(define $∂/∂
   (lambda [$f $x]
     (match f math-expr
       {[?simple-term?
         (match [x f] [symbol-expr symbol-expr]
           {[[<symbol $name> <symbol !,name>] 0]
            [[<symbol $name> <symbol ,name>] 1]
-           [[_ (,exp $g)] (* (exp g) (d/d g x))]
-           [[_ (,** $g $h)] (* f (d/d (* (log g) h) x))]
-           [[_ (,log $g)] (* (/ 1 g) (d/d g x))]
-           [[_ (,cos $g)] (* (* -1 (sin g)) (d/d g x))]
-           [[_ (,sin $g)] (* (cos g) (d/d g x))]
-           [[_ (,sqrt $g)] (* (/ 1 (* 2 (sqrt g))) (d/d g x))]
+           [[_ (,exp $g)] (* (exp g) (∂/∂ g x))]
+           [[_ (,** $g $h)] (* f (∂/∂ (* (log g) h) x))]
+           [[_ (,log $g)] (* (/ 1 g) (∂/∂ g x))]
+           [[_ (,cos $g)] (* (* -1 (sin g)) (∂/∂ g x))]
+           [[_ (,sin $g)] (* (cos g) (∂/∂ g x))]
+           [[_ (,sqrt $g)] (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
            })]
        [?term?
         (match f term-expr
-          {[<term _ <nil>> 0]
-           [<term ,1 <ncons $n $fx <nil>>> (* n (** fx (- n 1)) (d/d fx x))]
+          {[,0 0]
+           [<term _ <nil>> 0]
+           [<term ,1 <ncons $n $fx <nil>>> (* n (** fx (- n 1)) (∂/∂ fx x))]
            [<term $a <ncons $n $fx $ts>>
             (+ (* a
-                  (d/d (** fx n) x)
+                  (∂/∂ (** fx n) x)
                   (foldl *' 1 (map 2#(**' %1 %2) ts)))
                (* a
                   (** fx n)
-                  (d/d (foldl *' 1 (map 2#(**' %1 %2) ts)) x)))]
+                  (∂/∂ (foldl *' 1 (map 2#(**' %1 %2) ts)) x)))]
            })]
        [?polynomial?
         (match f poly-expr
-          {[<plus $ts> (sum (map (d/d $ x) ts))]})]
+          {[<plus $ts> (sum (map (∂/∂ $ x) ts))]})]
        [_
         (match f math-expr
           {[<div $p1 $p2>
-            (let {[$p1' (d/d p1 x)]
-                  [$p2' (d/d p2 x)]}
+            (let {[$p1' (∂/∂ p1 x)]
+                  [$p2' (∂/∂ p2 x)]}
               (/ (- (* p1' p2) (* p2' p1)) (** p2 2)))]
            })]
        })))
 
-(define $d/dx (d/d $ x)) ; just a syntax sugar
-(define $d/dy (d/d $ y)) ; just a syntax sugar
-(define $d/dz (d/d $ z)) ; just a syntax sugar
+(define $∂/∂x (∂/∂ $ x)) ; just a syntax sugar
+(define $∂/∂y (∂/∂ $ y)) ; just a syntax sugar
+(define $∂/∂z (∂/∂ $ z)) ; just a syntax sugar
+
+(define $d/d ∂/∂)
+(define $d/dx (∂/∂ $ x)) ; just a syntax sugar
+(define $d/dy (∂/∂ $ y)) ; just a syntax sugar
+(define $d/dz (∂/∂ $ z)) ; just a syntax sugar
+
+(define $dP/dP ∂/∂)
+(define $dP/dPx (∂/∂ $ x)) ; just a syntax sugar
+(define $dP/dPy (∂/∂ $ y)) ; just a syntax sugar
+(define $dP/dPz (∂/∂ $ z)) ; just a syntax sugar
 
 (define $taylor-expansion
   (lambda [$f $x $a]
     (map2 *
           (map 1#(/ (** (- x a) %1) (fact %1)) nats0)
-          (map (substitute {[x a]} $) (iterate (d/d $ x) f)))))
+          (map (substitute {[x a]} $) (iterate (∂/∂ $ x) f)))))
 
 (define $maclaurin-expansion (taylor-expansion $ $ 0))

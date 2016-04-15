@@ -115,7 +115,6 @@
       {[<div <plus <cons <term ,1 <cons _ <nil>>> <nil>>>
              <plus <cons <term ,1 <nil>> <nil>>>>
         #t]
-       [,0 #t]
        [_ #f]})))
 
 (define $term?
