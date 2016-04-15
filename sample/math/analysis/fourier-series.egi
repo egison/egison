@@ -1,0 +1,18 @@
+(define $f (lambda [$x] x))
+
+(define $multSd
+  (lambda [$x $f $G]
+    (let {[$F (Sd x f)]}
+      (- (* F G)
+         (Sd x (* f (d/d G x)))))))
+
+(multSd x (cos x) (f x));(+ (* (sin x) x) (* -1 (sin x)))
+(multSd x (sin x) (f x));(+ (* -1 (cos x) x) (cos x))
+(multSd x (cos (* 2 x)) (f x));(/ (+ (* (sin (* 2 x)) x) (* -1 (sin (* 2 x)))) 2)
+(multSd x (sin (* 2 x)) (f x));(/ (+ (* -1 (cos (* 2 x)) x) (cos (* 2 x))) 2)
+
+(multSd x (cos (* n x)) (f x));(/ (+ (* (sin (* n x)) x) (* -1 (sin (* n x)))) n)
+(multSd x (sin (* n x)) (f x));(/ (+ (* -1 (cos (* n x)) x) (cos (* n x))) n)
+
+(substitute {[x pi]} (/ (+ (* -1 (cos (* n x)) x) (cos (* n x))) n))
+(substitute {[x (* -1 pi)]} (/ (+ (* -1 (cos (* n x)) x) (cos (* n x))) n))

@@ -31,7 +31,9 @@
       (b.cos x)
       (match x math-expr
         {[,0 1]
-         [,(* 2 pi) 1]
+         [,(* (/ 1 2) pi) 0]
+         [,pi 1]
+         [,(* (/ 3 2) pi) 0]
          [_ (to-math-expr <Apply cos (map from-math-expr {x})>)]}))))
 
 (define $sin

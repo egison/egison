@@ -1,0 +1,24 @@
+(define $f
+  (lambda [$z]
+    (/ (+ (* a z) b) (+ (* c z) d))))
+
+(define $f1
+  (lambda [$z]
+    (+ z (/ d c))))
+
+(define $f2
+  (lambda [$z]
+    (/ 1 z)))
+
+(define $f3
+  (lambda [$z]
+    (* (/ (* -1 (- (* a d) (* b c)))
+          c^2) 
+       z)))
+
+(define $f4
+  (lambda [$z]
+    (+ z (/ a c))))
+
+(f4 (f3 (f2 (f1 z))))
+;(/ (+ (* b c^3) (* a c^3 z)) (+ (* c^4 z) (* c^3 d)))

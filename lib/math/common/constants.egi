@@ -1,0 +1,7 @@
+;;;;;
+;;;;;
+;;;;; Mathematical Constants
+;;;;;
+;;;;;
+
+(define $pi π)
