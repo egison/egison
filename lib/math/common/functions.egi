@@ -31,9 +31,8 @@
       (b.cos x)
       (match x math-expr
         {[,0 1]
-         [,(* (/ 1 2) π) 0]
-         [,π 1]
-         [,(* (/ 3 2) π) 0]
+         [<div <plus <cons <term $n <cons ,π <nil>>> <nil>>> ,1> (** -1 (+ (abs n) 1))]
+         [<div <plus <cons <term _ <cons ,π <nil>>> <nil>>> ,2> 0]
          [_ (to-math-expr <Apply cos (map from-math-expr {x})>)]}))))
 
 (define $sin
@@ -42,6 +41,8 @@
       (b.sin x)
       (match x math-expr
         {[,0 0]
+         [<div <plus <cons <term _ <cons ,π <nil>>> <nil>>> ,1> 0]
+         [<div <plus <cons <term $n <cons ,π <nil>>> <nil>>> ,2> (** -1 (/ (- (abs n) 1) 2))]
          [_ (to-math-expr <Apply sin (map from-math-expr {x})>)]}))))
 
 (define $tan
