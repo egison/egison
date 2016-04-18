@@ -16,18 +16,23 @@
 
 
 (define $as (map (lambda [$n] (let {[$F (multSd x (cos (* n x)) (f x))]}
-                                (- (substitute {[x π]} F) (substitute {[x (* -1 π)]} F))))
+                                (/ (- (substitute {[x π]} F) (substitute {[x (* -1 π)]} F))
+                                   π)))
                  nats))
 (take 10 as)
 ;{0 0 0 0 0 0 0 0 0 0}
 
 (define $bs (map (lambda [$n] (let {[$F (multSd x (sin (* n x)) (f x))]}
-                                (- (substitute {[x π]} F) (substitute {[x (* -1 π)]} F))))
+                                (/ (- (substitute {[x π]} F) (substitute {[x (* -1 π)]} F))
+                                   π)))
                  (take 10 nats)))
 (take 10 bs)
-;{(* -2 π) π (/ (* -2 π) 3) (/ π 2) (/ (* -2 π) 5) (/ π 3) (/ (* -2 π) 7) (/ π 4) (/ (* -2 π) 9) (/ π 5)}
+;{-2 1 (/ -2 3) (/ 1 2) (/ -2 5) (/ 1 3) (/ -2 7) (/ 1 4) (/ -2 9) (/ 1 5)}
 
-(take 10 (map (* $ (/ 1 (* 2 π))) bs))
-;{-1 (/ 1 2) (/ -1 3) (/ 1 4) (/ -1 5) (/ 1 6) (/ -1 7) (/ 1 8) (/ -1 9) (/ 1 10)}
+(define $Fs (map (lambda [$k $b] (* b (sin (* k x)))) (zip nats bs)))
 
-;(/ 4 π) = (+ -1 (/ 1 2) (/ -1 3) (/ 1 4) (/ -1 5) (/ 1 6) (/ -1 7) (/ 1 8) (/ -1 9) (/ 1 10) ...)
+(take 10 (map (substitute {[x (/ π 2)]} $) Fs))
+;{-2 0 (/ 2 3) 0 (/ -2 5) 0 (/ 2 7) 0 (/ -2 9) 0} ; = (/ π 2)
+
+(map (/ $ 2) (take 10 (map (substitute {[x (/ π 2)]} $) Fs)))
+;{-1 0 (/ 1 3) 0 (/ -1 5) 0 (/ 1 7) 0 (/ -1 9) 0} ; = (/ π 4)
