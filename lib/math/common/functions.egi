@@ -31,7 +31,7 @@
       (b.cos x)
       (match x math-expr
         {[,0 1]
-         [<div <plus <cons <term $n <cons ,π <nil>>> <nil>>> ,1> (** -1 (+ (abs n) 1))]
+         [<div <plus <cons <term $n <cons ,π <nil>>> <nil>>> ,1> (** -1 (abs n))]
          [<div <plus <cons <term _ <cons ,π <nil>>> <nil>>> ,2> 0]
          [_ (to-math-expr <Apply cos (map from-math-expr {x})>)]}))))
 
