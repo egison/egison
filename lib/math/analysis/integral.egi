@@ -39,7 +39,7 @@
        [_
         (match f math-expr
           {[<div $p1 $p2>
-            (match (coefficients p2 x) (list math-expr)
+            (match (coefficients x p2) (list math-expr)
               {[<cons $a <nil>> (/ (Sd x p1) a)]
                [_ (Sd' x f)]})]})]
        })))

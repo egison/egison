@@ -230,22 +230,22 @@
 ;;; Coefficient
 ;;;
 (define $coefficients
-  (lambda [$f $x]
+  (lambda [$x $f]
     (let {[$m (capply max {0 @(match-all f math-expr
                                 [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> _> k])})]}
-      (map (coefficient f x $) (between 0 m)))))
+      (map (coefficient x $ f) (between 0 m)))))
 
 (define $coefficient
-  (lambda [$f $x $m]
+  (lambda [$x $m $f]
     (if (eq? m 0)
       (/ (sum (match-all f math-expr
                 [<div <plus <cons <term $a (& !<cons ,x _> $ts)> _>> _>
                  (foldl *' a (map 2#(**' %1 %2) ts))]))
          (denominator f))
-      (coefficient' f x m))))
+      (coefficient' x m f))))
 
 (define $coefficient'
-  (lambda [$f $x $m]
+  (lambda [$x $m $f]
     (/ (sum (match-all f math-expr
               [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> _>
                (if (eq? m k)

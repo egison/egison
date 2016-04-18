@@ -29,7 +29,7 @@
               (inverse (/ t a) (/ f a) x))]
            [_ (inverse' t f x)]})]
        [?polynomial?
-        (match (coefficients f x) (list math-expr)
+        (match (coefficients x f) (list math-expr)
           {[<cons $c (loop $i [1 $n] <cons ,0 ...> <cons $a <nil>>)>
             (inverse (/ (- t c) a) (** x (+ n 1)) x)]
            [_ (inverse' t f x)]})]

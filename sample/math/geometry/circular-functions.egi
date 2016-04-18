@@ -1,0 +1,37 @@
+(coefficients i (* (+ (cos α) (* i (sin α))) (+ (cos β) (* i (sin β)))))
+;{(+ (* (cos α) (cos β)) (* -1 (sin α) (sin β))) (+ (* (cos α) (sin β)) (* (sin α) (cos β)))}
+
+;(cos (+ α β)) = (+ (* (cos α) (cos β)) (* -1 (sin α) (sin β)))
+;(sin (+ α β)) = (+ (* (cos α) (sin β)) (* (sin α) (cos β)))
+
+
+(coefficients i (* (+ (cos α) (* i (sin α))) (- (cos β) (* i (sin β)))))
+;{(+ (* (cos α) (cos β)) (* (sin α) (sin β))) (+ (* -1 (cos α) (sin β)) (* (sin α) (cos β)))}
+
+;(cos (- α β)) = (+ (* (cos α) (cos β)) (* (sin α) (sin β)))
+;(sin (- α β)) = (+ (* -1 (cos α) (sin β)) (* (sin α) (cos β)))
+
+
+(coefficients i (+ (* (+ (cos α) (* i (sin α))) (+ (cos β) (* i (sin β))))
+                   (* (+ (cos α) (* i (sin α))) (- (cos β) (* i (sin β))))))
+;{(* 2 (cos α) (cos β)) (* 2 (sin α) (cos β))}
+
+;(* (cos α) (cos β)) = (* (/ 1 2) (+ (cos (+ α β)) (cos (- α β))))
+;(* (sin α) (cos β)) = (* (/ 1 2) (+ (sin (+ α β)) (sin (- α β))))
+
+
+(coefficients i (- (* (+ (cos α) (* i (sin α))) (+ (cos β) (* i (sin β))))
+                   (* (+ (cos α) (* i (sin α))) (- (cos β) (* i (sin β))))))
+;{(* -2 (sin α) (sin β)) (* 2 (cos α) (sin β))}
+
+;(* (sin α) (sin β)) = (* (/ -1 2) (- (cos (+ α β)) (cos (- α β))))
+;(* (cos α) (sin β)) = (* (/  1 2) (- (sin (+ α β)) (sin (- α β))))
+
+
+(coefficients i (** (+ (cos α) (* i (sin α))) 3))
+;{(+ (cos α)^3 (* -3 (cos α) (sin α)^2)) (+ (* 3 (cos α)^2 (sin α)) (* -1 (sin α)^3))}
+
+;(cos (* 3 α)) = (+ (cos α)^3 (* -3 (cos α) (sin α)^2))
+;              = (+ (* 4 (cos α)^3) (* -3 (cos α)))
+;(sin (* 3 α)) = (+ (* 3 (cos α)^2 (sin α)) (* -1 (sin α)^3))
+;              = (+ (* -4 (sin α)^3 (* 3 (sin α))))
