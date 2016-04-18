@@ -428,7 +428,8 @@ mathDivide (Div (Plus ts1) (Plus [(Term a xs)])) =
   g' (x, n) ((y, m):ys) = do
     if (x == y && n <= m)
       then Just ((y, (m - n)):ys)
-      else Nothing
+      else do ys' <- g' (x,n) ys
+              return ((y,m):ys')
 mathDivide (Div (Plus ts1) (Plus ts2)) = (Div (Plus ts1) (Plus ts2))
 
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
