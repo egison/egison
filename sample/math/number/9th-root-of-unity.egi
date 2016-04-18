@@ -14,15 +14,21 @@
 (define $b12 (+ a13 (* w a11) (* w^2 a12)));(* w b11)
 (define $b13 (+ a12 (* w a13) (* w^2 a11)));(* w^2 b11)
 
-;(** b11 3);(* 27 w)
-(define $b11' (* 3 (rt 3 w)))
+;(define $b11' (rt 3 (** b11 3)))
+(define $b11' (* 3 (rt 3 w)));Calculate manually
+;(** b11 3)
+;=>(+ (* 18 w) (* 9 (rtu 9)^6) (* 9 (rtu 9)^6 w^2) (* 9 (rtu 9)^3) (* 9 (rtu 9)^3 w^2))
+;=>(* 27 w)
 
 (define $b14 (+ a11 (* w a13) (* w^2 a12)))
 (define $b15 (+ a12 (* w a11) (* w^2 a13)));(* w b14)
 (define $b16 (+ a13 (* w a12) (* w^2 a11)));(* w^2 b14)
 
-;(** b14 3);(* 27 w^2)
-(define $b14' (* 3 (rt 3 w^2)))
+;(define $b14' (rt 3 (** b14 3)))
+(define $b14' (* 3 (rt 3 w^2)));Caluculate manually
+;(** b14 3)
+;=>(+ (* 18 w^2) (* 9 (rtu 9)^6) (* 9 (rtu 9)^6 w) (* 9 (rtu 9)^3) (* 9 (rtu 9)^3 w))
+;=>(* 27 w^2)
 
 (define $a11' (/ (+ b10' b11' b14') 3))
 a11'
