@@ -27,6 +27,9 @@
 (define $b22 (- a22 a21))
 
 (define $b20' (rt 3 (** b20 3)))
+;(define $b21' (rt 3 (** b21 3)))
+;(** b21 3)
+;(+ (* 8 (rtu 7)) (* 8 (rtu 7)^2) (* -5 (rtu 7)^3) (* 5 (rtu 7)^4) (* -8 (rtu 7)^5) (* -8 (rtu 7)^6) (* 3 (rtu 7) w) (* 3 (rtu 7)^2 w) (* -3 (rtu 7)^5 w) (* -3 (rtu 7)^6 w) (* 3 (rtu 7)^3 w^2) (* -3 (rtu 7)^4 w^2))
 (define $b21' (rt 3 (+ (* 5 a11') (* -5 a12') (* w^2 -3 a11') (* w^2 3 a12'))));Calculate manually
 
 (define $a21' (/ (+ b20' b21') 2))
@@ -41,6 +44,9 @@
 (define $b32 (- a32 a31))
 
 (define $b30' (rt 3 (** b30 3)))
+;(define $b31' (rt 3 (** b31 3)))
+;(** b31 3)
+;(+ (* 5 (rtu 7)) (* 8 (rtu 7)^2) (* -5 (rtu 7)^3) (* 5 (rtu 7)^4) (* -8 (rtu 7)^5) (* -5 (rtu 7)^6) (* -3 (rtu 7) w) (* 3 (rtu 7)^3 w) (* -3 (rtu 7)^4 w) (* 3 (rtu 7)^6 w) (* 3 (rtu 7)^2 w^2) (* -3 (rtu 7)^5 w^2))
 (define $b31' (rt 3 (+ (* 5 a11') (* -5 a12') (* w -3 a11') (* w 3 a12'))));Calculate manually
 
 (define $a31' (/ (+ b30' b31') 2))
