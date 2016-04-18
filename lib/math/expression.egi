@@ -135,6 +135,13 @@
        [,0 #t]
        [_ #f]})))
 
+(define $from-polynomial
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<div <plus $ts>
+             <plus <cons <term ,1 <nil>> <nil>>>>
+        ts]})))
+
 (define $monomial?
   (lambda [$mexpr]
     (match mexpr math-expr

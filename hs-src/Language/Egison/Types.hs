@@ -51,8 +51,7 @@ module Language.Egison.Types
     , mathSymbolFold
     , mathTermFold
     , mathRemoveZero
-    , mathReduceFraction
-    , mathReduceSymbolFraction
+    , mathDivide
     , mathPlus
     , mathMult
     , mathNegate
@@ -398,7 +397,39 @@ egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, (Collection mExprs)], n]) 
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
-mathNormalize' mExpr = mathReduceSymbolFraction (mathReduceFraction (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr))))
+mathNormalize' mExpr = mathDivide (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr)))
+
+mathDivide :: ScalarData -> ScalarData
+mathDivide (Div (Plus ts1) (Plus [])) = (Div (Plus ts1) (Plus []))
+mathDivide (Div (Plus []) (Plus ts2)) = (Div (Plus []) (Plus ts2))
+mathDivide (Div (Plus ts1) (Plus [(Term a xs)])) =
+  case f (Term a xs) ts1 of
+    Nothing -> (Div (Plus ts1) (Plus [(Term a xs)]))
+    Just ts1' -> (Div (Plus ts1') (Plus [(Term 1 [])]))
+ where
+  f :: TermExpr -> [TermExpr] -> Maybe [TermExpr]
+  f _ [] = Just []
+  f t1 (t:ts) = do t' <- f' t1 t
+                   ts' <- f t1 ts
+                   return (t':ts')
+  f' :: TermExpr -> TermExpr -> Maybe TermExpr
+  f' (Term a xs) (Term b ys) =
+    if b `mod` a == 0
+      then do ys' <- g xs ys
+              return (Term (b `quot` a) ys')
+      else Nothing
+  g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> Maybe [(SymbolExpr, Integer)]
+  g [] ys = Just ys
+  g ((x,n):xs) ys = do
+    ys' <- g' (x,n) ys
+    g xs ys'
+  g' :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> Maybe [(SymbolExpr, Integer)]
+  g' (x, n) [] = Nothing
+  g' (x, n) ((y, m):ys) = do
+    if (x == y && n <= m)
+      then Just ((y, (m - n)):ys)
+      else Nothing
+mathDivide (Div (Plus ts1) (Plus ts2)) = (Div (Plus ts1) (Plus ts2))
 
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
@@ -416,48 +447,6 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
     case ts1' of
       [] -> Div (Plus []) (Plus [Term 1 []])
       _ -> Div (Plus ts1') (Plus ts2')
-
-mathReduceFraction :: ScalarData -> ScalarData
-mathReduceFraction (Div (Plus []) (Plus ts2)) = Div (Plus []) (Plus ts2)
-mathReduceFraction (Div (Plus ts1) (Plus [])) = Div (Plus ts1) (Plus [])
-mathReduceFraction (Div (Plus ts1) (Plus ts2)) =
-  let as1 = map (\(Term a _) -> a) ts1 in
-  let as2 = map (\(Term a _) -> a) ts2 in
-  let flg = case as2 of
-              [a2] -> if a2 < 0
-                        then -1
-                        else 1
-              _ -> 1 in
-  let d = (foldl gcd (head as1) ((tail as1) ++ as2)) * flg in
-  let us1 = map (\(Term a xs) -> Term (a `quot` d) xs) ts1 in
-  let us2 = map (\(Term a xs) -> Term (a `quot` d) xs) ts2 in
-    Div (Plus us1) (Plus us2)
-
-mathReduceSymbolFraction :: ScalarData -> ScalarData
-mathReduceSymbolFraction (Div (Plus ts) (Plus ((Term a xs):[]))) = f xs [] ts
- where
-  f :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [TermExpr] -> ScalarData
-  f [] ret ts = Div (Plus ts) (Plus [Term a ret])
-  f ((x, n):xs) ret ts =
-    let k = g x ts in
-      if n > k
-        then f xs (ret ++ [(x, (n - k))]) (h x k ts)
-        else f xs ret (h x n ts)
-  g :: SymbolExpr -> [TermExpr] -> Integer
-  g x ts = minimum (map (\(Term _ xs) -> g' x xs) ts)
-  g' :: SymbolExpr -> [(SymbolExpr, Integer)] -> Integer
-  g' x [] = 0
-  g' x ((y, n):xs) = if x == y
-                       then n
-                       else g' x xs
-  h :: SymbolExpr -> Integer -> [TermExpr] -> [TermExpr]
-  h x k ts = map (\(Term a xs) -> Term a (filter (\(y, n) -> n /= 0)
-                                                 (map (\(y, n) -> if x == y
-                                                                    then (y, (n - k))
-                                                                    else (y, n))
-                                                      xs)))
-                 ts
-mathReduceSymbolFraction mExpr = mExpr
 
 mathFold :: ScalarData -> ScalarData
 mathFold mExpr = (mathTermFold (mathSymbolFold (mathTermFold mExpr)))

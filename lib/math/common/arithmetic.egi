@@ -21,8 +21,16 @@
 (define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))
 (define $- (cambda $xs (foldl b.- (car xs) (cdr xs))))
 (define $* (cambda $xs (foldl b.* (car xs) (cdr xs))))
-(define $/ b./)
+(define $/ (lambda [$x $y] (reduce-fraction (b./ x y))))
 (define $. (cambda $xs (foldl b.. (car xs) (cdr xs))))
+
+(define $reduce-fraction
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<div <plus $ts1>
+             <plus $ts2>>
+        (let {[$d (foldl gcd (car ts2) {@(cdr ts2) @ts1})]}
+          (/' (sum (map (/' $ d) ts1)) (sum (map (/' $ d) ts2))))]})))
 
 (define $sum
   (lambda [$xs]
