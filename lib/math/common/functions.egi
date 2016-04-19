@@ -97,3 +97,9 @@
 (define $kronecker-delta
   (cambda $js
     (if (all (eq? $ (car js)) (cdr js)) 1 0)))
+
+(define $euler-totient-function
+  (lambda [$n]
+    (* n
+       (product (map (lambda [$p] (- 1 (/ 1 p)))
+                     (unique (p-f n)))))))
