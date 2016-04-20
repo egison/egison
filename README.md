@@ -4,7 +4,7 @@ Egison is the **pattern-matching-oriented**, purely functional programming langu
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
-For more information, visit <a target="_blank" href="http://www.egison.org">our website</a>.
+For more information, visit <a target="_blank" href="https://www.egison.org">our website</a>.
 
 ## Non-Linear Pattern-Matching against Non-Free Data Types
 
@@ -228,6 +228,12 @@ Addition of tensors and arithmetic between a scalar and a tensor are expressed a
 (| {2 2} {(+ x_1_1 100) x_1_2 x_2_1 (+ x_2_2 100)} |)
 ```
 
+### Egison Math Notebook
+
+Here are more samples.
+
+* [Egison Math Notebook](https://www.egison.org/math/)
+
 ## Comparison with Related Work
 
 There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
@@ -239,7 +245,7 @@ The advantage of Egison is that it achieves **all of the following features** at
 * Non-linear pattern-matching with **lexical scoping**
 * Parametric polymorphism of pattern-constructors
 
-The <a target="_blank" href="http://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we achieve that.
+The <a target="_blank" href="https://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we achieve that.
 
 Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
 
@@ -265,7 +271,7 @@ Now, you can try Egison.
 ```
 % egison
 Egison Version X.X.X(C) 2011-2014 Satoshi Egi
-http://www.egison.org
+https://www.egison.org
 Welcome to Egison Interpreter!
 > ^D
 Leaving Egison Interpreter.
@@ -328,7 +334,7 @@ Enjoy!
 
 ## Community
 
-We have <a target="_blank" href="http://www.egison.org/community.html">a mailing list</a>.
+We have <a target="_blank" href="https://www.egison.org/community.html">a mailing list</a>.
 Please join us!
 
 We are on <a target="_blank" href="https://twitter.com/Egison_Lang">Twitter</a>.
