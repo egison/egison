@@ -16,7 +16,7 @@
 (assert-equal "string's cons"
   (match-all "abc" string
     [<cons $x $xs> [x xs]])
-  {['a' "bc"]})
+  {[c#a "bc"]})
 
 (assert-equal "string's join"
   (match-all "abc" string
@@ -37,7 +37,7 @@
 
 (assert-equal "S.car"
   (S.car "Egison")
-  'E')
+  c#E)
 
 (assert-equal "S.cdr"
   (S.cdr "Egison")
@@ -45,7 +45,7 @@
 
 (assert-equal "S.rac"
   (S.rac "Egison")
-  'n')
+  c#n)
 
 (assert-equal "S.map"
   (S.map id "Egison")
@@ -75,7 +75,7 @@
 ;; Characters
 ;;
 (assert-equal "alphabet?"
-  (alphabet? 'a')
+  (alphabet? c#a)
   #t)
 
 (assert-equal "alphabets?"
@@ -83,9 +83,9 @@
   #t)
 
 (assert-equal "upper-case"
-  (upper-case 'e')
-  'E')
+  (upper-case c#e)
+  c#E)
 
 (assert-equal "lower-case"
-  (lower-case 'E')
-  'e')
+  (lower-case c#E)
+  c#e)

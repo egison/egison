@@ -562,9 +562,9 @@ loopRange = brackets (try (do s <- expr
 -- Constants
 
 constantExpr :: Parser EgisonExpr
-constantExpr =  charExpr
-                 <|> stringExpr
+constantExpr = stringExpr
                  <|> boolExpr
+                 <|> try charExpr
                  <|> try floatExpr
                  <|> try integerExpr
                  <|> (keywordSomething *> pure SomethingExpr)
@@ -768,8 +768,10 @@ floatLiteral = sign <*> P.float lexer
 stringLiteral :: Parser String
 stringLiteral = P.stringLiteral lexer
 
+--charLiteral :: Parser Char
+--charLiteral = P.charLiteral lexer
 charLiteral :: Parser Char
-charLiteral = P.charLiteral lexer
+charLiteral = string "c#" >> anyChar
 
 boolLiteral :: Parser Bool
 boolLiteral = char '#' >> (char 't' *> pure True <|> char 'f' *> pure False)

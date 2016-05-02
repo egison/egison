@@ -6,8 +6,8 @@
 ;;; Primitive Data
 ;;;
 (assert-equal "char literal"
-  'a'
-  'a')
+  c#a
+  c#a)
 
 (assert-equal "string literal"
   "abc\n"

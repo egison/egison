@@ -5,7 +5,7 @@
 ;;;;;
 
 ;(set-term-rewriting-rule {[(rt $n $x)^,n x]
-;                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y))))]
+;                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y)^2)))]
 ;                          [(rtu $n)^,n 1]
 ;                          [w^3 1]
 ;                          [w^2 (- -1 w)]

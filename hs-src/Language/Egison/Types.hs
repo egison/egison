@@ -687,7 +687,7 @@ type Matcher = EgisonValue
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 instance Show EgisonValue where
-  show (Char c) = "'" ++ [c] ++ "'"
+  show (Char c) = "c#" ++ [c]
   show (String str) = "\"" ++ T.unpack str ++ "\""
   show (Bool True) = "#t"
   show (Bool False) = "#f"

@@ -7,8 +7,8 @@
      [_ #f]}))
 
 (assert "char's value pattern"
-  (match 'a' char
-    {[,'a' #t]
+  (match c#a char
+    {[,c#a #t]
      [_ #f]}))
 
 (assert "integer's value pattern"
