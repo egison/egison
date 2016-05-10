@@ -134,11 +134,11 @@ desugar (MatchLambdaExpr matcher clauses) = do
 
 desugar (ArrayRefExpr expr nums) =
   case nums of
-    (TupleExpr nums') -> desugar $ IndexedExpr expr nums'
-    _ -> desugar $ IndexedExpr expr [nums]
+    (TupleExpr nums') -> desugar $ IndexedExpr expr (map Subscript nums')
+    _ -> desugar $ IndexedExpr expr [Subscript nums]
   
 desugar (IndexedExpr expr indices) = 
-  IndexedExpr <$> desugar expr <*> (mapM desugar indices)
+  IndexedExpr <$> desugar expr <*> (mapM desugarIndex indices)
 
 desugar (PowerExpr expr1 expr2) = do
   expr1' <- desugar expr1
@@ -301,6 +301,10 @@ desugar (PartialExpr n expr) = do
   annonVars n = take n $ map (((++) "::") . show) [1..]
 
 desugar expr = return expr
+
+desugarIndex :: Index EgisonExpr -> DesugarM (Index EgisonExpr)
+desugarIndex (Superscript expr) = desugar expr >>= return . Superscript
+desugarIndex (Subscript expr) = desugar expr >>= return . Subscript
 
 desugarPattern :: EgisonPattern -> DesugarM EgisonPattern
 desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern) <$> desugarPattern' pattern 

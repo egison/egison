@@ -153,7 +153,7 @@ exprs = endBy expr whiteSpace
 expr :: Parser EgisonExpr
 expr = P.lexeme lexer (do expr0 <- expr'
                           expr1 <- option expr0 $ PowerExpr expr0 <$> (try $ char '^' >> expr')
-                          option expr1 $ IndexedExpr expr1 <$> many1 (try $ char '_' >> expr'))
+                          option expr1 $ IndexedExpr expr1 <$> many1 (try (char '_' >> expr' >>= return . Subscript) <|> try (char '~' >> expr' >>= return . Superscript)))
 
 expr' :: Parser EgisonExpr
 expr' = (try partialExpr
@@ -480,7 +480,6 @@ pattern' = wildCard
             <|> patVar
             <|> varPat
             <|> valuePat
-            <|> regexPat
             <|> predPat
             <|> notPat
             <|> tuplePat
@@ -510,9 +509,6 @@ varPat = VarPat <$> ident
 
 valuePat :: Parser EgisonPattern
 valuePat = char ',' >> ValuePat <$> expr
-
-regexPat :: Parser EgisonPattern
-regexPat = reservedOp "~" >> RegexPat <$> expr
 
 predPat :: Parser EgisonPattern
 predPat = reservedOp "?" >> PredPat <$> expr

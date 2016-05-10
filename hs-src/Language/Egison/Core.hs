@@ -160,7 +160,7 @@ evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
-  refVar' env var = maybe (newEvalutedObjectRef (Value (symbolScalarData var []))) return
+  refVar' env var = maybe (newEvalutedObjectRef (Value (symbolScalarData var))) return
                           (refVar env var)
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
@@ -246,17 +246,22 @@ evalExpr env (HashExpr assocs) = do
 
 evalExpr env (IndexedExpr expr indices) = do
   tensor <- evalExpr env expr
-  indices' <- mapM (evalExprDeep env) indices
+  js <- mapM (\i -> case i of
+                      Superscript n -> evalExprDeep env n >>= extract >>= return . Superscript
+                      Subscript n -> evalExprDeep env n >>= extract >>= return . Subscript
+              ) indices
+  let indices'' = map (\j -> case j of
+                              Superscript k -> k
+                              Subscript k -> k) js
+  let indices' = map (\j -> ScalarData j) indices''
   case tensor of
     (Value (ScalarData (Div (Plus [(Term 1 [(Symbol name [], 1)])]) (Plus [(Term 1 [])])))) -> do
-      js <- (mapM fromEgison indices') :: EgisonM [Integer]
       return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol name js, 1)])]) (Plus [(Term 1 [])])))
     (Value (TensorData (TData (Tensor ns xs) _))) -> do
-      indices'' <- mapM extract indices'
       tCheckIndex indices'' ns
       if all (\x -> isInteger x) indices'
-        then do indices'' <- ((mapM fromEgison indices') :: EgisonM [Integer])
-                return $ Value $ ScalarData (tref' indices'' (Tensor ns xs))
+        then do indices''' <- ((mapM fromEgison indices') :: EgisonM [Integer])
+                return $ Value $ ScalarData (tref' indices''' (Tensor ns xs))
         else do ret <- tContract (TData (tref indices'' (Tensor ns xs)) (Just (filter (isSymbol . ScalarData) indices'')))
                 return $ Value ret
     _ -> refArray tensor indices'
