@@ -19,6 +19,8 @@
            [[_ (,sqrt $g)] (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
            [[_ <apply $g <cons ,x <nil>>>]
             (to-math-expr <Apply (to-math-expr <Div <Plus {<Term 1 {[<Symbol (S.append (symbol-name g) "'") {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>>) (map from-math-expr {x})>)]
+           [[_ <apply $g (& <join _ <cons ,x _>> $args)>]
+            (to-math-expr <Apply (to-math-expr <Div <Plus {<Term 1 {[<Symbol (symbol-name g) {@(symbol-indices g) <Sub x>}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>>) (map from-math-expr args)>)]
            })]
        [?term?
         (match f term-expr

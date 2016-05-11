@@ -1,0 +1,44 @@
+(define $v1 (| {3} {1 0 (d/d (f x y) x)} |))
+(define $v2 (| {3} {0 1 (d/d (f x y) y)} |))
+
+(define $vector-product
+  (lambda [$a $b]
+    (| {3}
+       {(- (* a_2 b_3)  (* a_3 b_2))
+        (- (* a_3 b_1)  (* a_1 b_3))
+        (- (* a_1 b_2)  (* a_2 b_1))} |)))
+
+(define $v3 (vector-product v1 v2))
+
+v3
+
+(define $e3 (T.map (/ $ (sqrt (V.* v3 v3))) v3))
+
+e3
+
+(define $E (V.* v1 v1))
+(define $F (V.* v1 v2))
+(define $G (V.* v2 v2))
+
+E
+F
+G
+
+(define $L (V.* (T.map (d/d $ x) v1) e3))
+(define $M (V.* (T.map (d/d $ y) v1) e3))
+;(define $M (V.* (T.map (d/d $ x) v2) e3))
+(define $N (V.* (T.map (d/d $ y) v2) e3))
+
+L
+M
+N
+
+(define $K (/ (- (* L N) (** M 2))
+              (- (* E G) (** F 2))))
+
+(define $H (/ (+ (* E N) (* G L) (* -2 F M))
+              (* 2 (- (* E G) (** F 2)))))
+
+
+K
+H
