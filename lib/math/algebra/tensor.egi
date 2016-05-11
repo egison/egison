@@ -52,7 +52,7 @@
 ;;
 (define $V.*
   (lambda [$v1 $v2]
-    (. v1_i v2_i)))
+    (. v1~i v2_i)))
 
 ;;
 ;; Matrices
@@ -63,7 +63,7 @@
 
 (define $M.*'
   (lambda [$m1 $m2]
-    (clear-index (. m1_i_j m2_j_k))))
+    (clear-index (. m1~i~j m2_j_k))))
 
 (define $M.inverse
   (lambda [$m]

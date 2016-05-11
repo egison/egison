@@ -460,7 +460,7 @@ generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> expr
 
 initTensorExpr :: Parser EgisonExpr
-initTensorExpr = keywordInitTensor >> InitTensorExpr <$> expr <*> expr <*> expr
+initTensorExpr = keywordInitTensor >> InitTensorExpr <$> expr <*> expr <*> expr <*> expr
 
 tensorMapExpr :: Parser EgisonExpr
 tensorMapExpr = keywordTensorMap >> TensorMapExpr <$> expr <*> expr

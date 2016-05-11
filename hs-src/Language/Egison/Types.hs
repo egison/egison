@@ -42,6 +42,7 @@ module Language.Egison.Types
     , tSize
     , tToList
     , tIndex
+    , initTensor
     , makeTensor
     , tensorIndices
     , symbolScalarData
@@ -234,7 +235,7 @@ data EgisonExpr =
   | ArrayRefExpr EgisonExpr EgisonExpr
 
   | GenerateTensorExpr EgisonExpr EgisonExpr
-  | InitTensorExpr EgisonExpr EgisonExpr EgisonExpr
+  | InitTensorExpr EgisonExpr EgisonExpr EgisonExpr EgisonExpr
   | TensorMapExpr EgisonExpr EgisonExpr
   | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
 
@@ -546,22 +547,25 @@ mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
 --
 
 data TensorData =
-    TData (Tensor ScalarData) (Maybe [ScalarData])
+    TData (Tensor ScalarData) (Maybe [Index ScalarData])
  deriving (Eq)
 
 data Tensor a = Tensor [Integer] [a]
  deriving (Eq)
 
-scalarToUnitTensor :: [Integer] -> ScalarData -> (Maybe [ScalarData]) -> TensorData
+scalarToUnitTensor :: [Integer] -> ScalarData -> (Maybe [Index ScalarData]) -> TensorData
 scalarToUnitTensor ns x js = makeTensor ns (map (\ms -> if all (\m -> m == (head ms)) (tail ms)
                                                          then x
                                                          else (Div (Plus []) (Plus [(Term 1 [])]))) (tensorIndices ns))
                                                 js
 
-scalarToTensor :: [Integer] -> ScalarData -> (Maybe [ScalarData]) -> TensorData
+scalarToTensor :: [Integer] -> ScalarData -> (Maybe [Index ScalarData]) -> TensorData
 scalarToTensor ns x js = makeTensor ns (map (\ms -> x) (tensorIndices ns)) js
 
-makeTensor :: [Integer] -> [ScalarData] -> (Maybe [ScalarData]) -> TensorData
+initTensor :: [Integer] -> [ScalarData] -> [ScalarData] -> [ScalarData] -> TensorData
+initTensor ns xs sup sub = TData (Tensor ns xs) (Just ((map Superscript sup) ++ (map Subscript sub)))
+
+makeTensor :: [Integer] -> [ScalarData] -> (Maybe [Index ScalarData]) -> TensorData
 makeTensor ns xs js = TData (Tensor ns xs) js
 
 tensorIndices :: [Integer] -> [[Integer]]
@@ -599,7 +603,7 @@ tSum (t:ts) = tSum' t ts
   tSum' (Tensor ns xs) ((Tensor _ xs1):ts) =
     tSum' (Tensor ns (map (\(x,y) -> mathNormalize' (mathPlus x y)) (zip xs xs1))) ts
 
-transIndex :: [ScalarData] -> [ScalarData] -> [Integer] -> EgisonM [Integer]
+transIndex :: [Index ScalarData] -> [Index ScalarData] -> [Integer] -> EgisonM [Integer]
 transIndex [] [] [] = return []
 transIndex (j1:js1) js2 is = do
   let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
@@ -620,8 +624,8 @@ tContract (TData t@(Tensor ns xs) (Just js)) = do
       if (ns !! (hn - 1)) == (ns !! (mn - 1))
         then do
           let n = ns !! (hn - 1)
-          let ret = TData (tSum (map (\i -> (tref (hs ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ms
-                                                      ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ts) t))
+          let ret = TData (tSum (map (\i -> (tref (map extract hs ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ map extract ms
+                                                      ++ [(Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ map extract ts) t))
                                      [1..n]))
                           (Just (hs ++ ms ++ ts))
           case ret of
@@ -629,17 +633,24 @@ tContract (TData t@(Tensor ns xs) (Just js)) = do
             _ -> return $ TensorData ret
         else throwError $ InconsistentTensorIndex
  where
-  findPairs :: [ScalarData] -> [([ScalarData], [ScalarData], [ScalarData])]
+  findPairs :: [Index ScalarData] -> [([Index ScalarData], [Index ScalarData], [Index ScalarData])]
   findPairs xs = findPairs' [] xs
-  findPairs' :: [ScalarData] -> [ScalarData] -> [([ScalarData], [ScalarData], [ScalarData])]
+  findPairs' :: [Index ScalarData] -> [Index ScalarData] -> [([Index ScalarData], [Index ScalarData], [Index ScalarData])]
   findPairs' _ [] = []
   findPairs' hs (x:xs) = (findPairs'' hs x xs) ++ (findPairs' (hs ++ [x]) xs)
-  findPairs'' :: [ScalarData] -> ScalarData -> [ScalarData] -> [([ScalarData], [ScalarData], [ScalarData])]
+  findPairs'' :: [Index ScalarData] -> Index ScalarData -> [Index ScalarData] -> [([Index ScalarData], [Index ScalarData], [Index ScalarData])]
   findPairs'' hs x xs =
-    let (hxs, txs) = break (\e -> e == x) xs in
+    let (hxs, txs) = break (\e -> p e x) xs in
     if txs == []
       then []
       else [(hs, hxs, (tail txs))]
+  p :: Index ScalarData -> Index ScalarData -> Bool
+  p (Superscript i) (Subscript j) = i == j
+  p (Subscript i) (Superscript j) = i == j
+  p _ _ = False
+  extract :: Index ScalarData -> ScalarData
+  extract (Superscript k) = k
+  extract (Subscript k) = k
 tContract (TData _ Nothing) = throwError $ InconsistentTensorIndex -- TODO : new error type
 
 tCheckIndex :: [ScalarData] -> [Integer] -> EgisonM ()
@@ -691,7 +702,7 @@ tSize (TData (Tensor ns _) _) = ns
 tToList :: (Tensor a) -> [a]
 tToList (Tensor _ xs) = xs
 
-tIndex :: TensorData -> Maybe [ScalarData]
+tIndex :: TensorData -> Maybe [Index ScalarData]
 tIndex (TData (Tensor _ _) js) = js
 
 type Matcher = EgisonValue

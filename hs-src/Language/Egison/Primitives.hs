@@ -405,7 +405,7 @@ tensorProd = twoArgs $ tensorProd'
 tensorIndex :: PrimitiveFunc
 tensorIndex = oneArg $ tensorIndex'
  where
-  tensorIndex' (TensorData (TData (Tensor _ _) (Just ms))) = return . Collection . Sq.fromList $ map ScalarData ms
+--  tensorIndex' (TensorData (TData (Tensor _ _) (Just ms))) = return . Collection . Sq.fromList $ map ScalarData ms
   tensorIndex' val = throwError $ TypeMismatch "tensor with index" (Value val)
 
 tensorSize :: PrimitiveFunc

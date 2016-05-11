@@ -199,15 +199,17 @@ evalExpr env (TensorExpr nsExpr xsExpr) = do
   toScalarData (Value (ScalarData x)) = return x
   toScalarData val = throwError $ TypeMismatch "integer or string" $ val
 
-evalExpr env (InitTensorExpr nsExpr xsExpr jsExpr) = do
+evalExpr env (InitTensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
   xsWhnf <- evalExpr env xsExpr
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
-  jsWhnf <- evalExpr env jsExpr
-  js <- fromCollection jsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
+  supWhnf <- evalExpr env supExpr
+  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
+  subWhnf <- evalExpr env subExpr
+  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
   if product ns == toInteger (length xs)
-    then return $ Value $ TensorData (makeTensor ns xs (Just js))
+    then return $ Value $ TensorData (initTensor ns xs sup sub)
     else throwError $ InconsistentTensorSize
  where
   toScalarData :: WHNFData -> EgisonM ScalarData
@@ -262,13 +264,16 @@ evalExpr env (IndexedExpr expr indices) = do
       if all (\x -> isInteger x) indices'
         then do indices''' <- ((mapM fromEgison indices') :: EgisonM [Integer])
                 return $ Value $ ScalarData (tref' indices''' (Tensor ns xs))
-        else do ret <- tContract (TData (tref indices'' (Tensor ns xs)) (Just (filter (isSymbol . ScalarData) indices'')))
+        else do ret <- tContract (TData (tref indices'' (Tensor ns xs)) (Just (filter p js)))
                 return $ Value ret
     _ -> refArray tensor indices'
  where
   extract :: EgisonValue -> EgisonM ScalarData
   extract (ScalarData s) = return s
   extract val = throwError $ TypeMismatch "scalar expression" (Value val)
+  p :: Index ScalarData -> Bool
+  p (Superscript k) = isSymbol (ScalarData k)
+  p (Subscript k) = isSymbol (ScalarData k)
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func Nothing env names expr
 
