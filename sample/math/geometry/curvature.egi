@@ -1,0 +1,45 @@
+(define $d/dt (d/d $ t))
+
+(define $ds/dt (sqrt (+ (d/dt (x t))^2 (d/dt (y t))^2)))
+
+ds/dt;(sqrt (+ (x' t)^2 (y' t)^2))
+
+(define $dt/ds (/ 1 ds/dt))
+
+dt/ds;(/ 1 (sqrt (+ (x' t)^2 (y' t)^2)))
+
+(define $e1 [(* (d/dt (x t)) dt/ds)
+             (* (d/dt (y t)) dt/ds)])
+
+e1
+;[(/ (x' t)
+;    (sqrt (+ (x' t)^2 (y' t)^2)))
+; (/ (y' t)
+;    (sqrt (+ (x' t)^2 (y' t)^2)))]
+
+(define $e2 [(* -1 (d/dt (y t)) dt/ds)
+             (* (d/dt (x t)) dt/ds)])
+
+e2
+;[(/ (* -1 (y' t))
+;    (sqrt (+ (x' t)^2 (y' t)^2)))
+; (/ (x' t)
+;    (sqrt (+ (x' t)^2 (y' t)^2)))]
+
+(define $de1/ds [(* (d/dt (fst e1)) dt/ds)
+                 (* (d/dt (snd e1)) dt/ds)])
+
+de1/ds
+;[(/ (+ (* (y' t)^2 (x'' t))
+;       (* -1 (y' t) (y'' t) (x' t)))
+;    (+ (x' t)^4 (* 2 (y' t)^2 (x' t)^2) (y' t)^4))
+; (/ (+ (* (x' t)^2 (y'' t))
+;       (* -1 (x' t) (x'' t) (y' t)))
+;    (+ (x' t)^4 (* 2 (y' t)^2 (x' t)^2) (y' t)^4))]
+
+(define $K (/ (fst de1/ds) (fst e2)))
+
+K
+;(/ (+ (* (y' t) (x'' t) (sqrt (+ (x' t)^2 (y' t)^2)))
+;      (* -1 (y'' t) (x' t) (sqrt (+ (x' t)^2 (y' t)^2))))
+;   (+ (* -1 (x' t)^4) (* -2 (y' t)^2 (x' t)^2) (* -1 (y' t)^4)))
