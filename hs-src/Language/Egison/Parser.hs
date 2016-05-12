@@ -621,7 +621,7 @@ egisonDef =
   P.LanguageDef { P.commentStart       = "#|"
                 , P.commentEnd         = "|#"
                 , P.commentLine        = ";"
-                , P.identStart         = letter <|> symbol1
+                , P.identStart         = letter <|> symbol1 <|> symbol0
                 , P.identLetter        = letter <|> digit <|> symbol2
                 , P.opStart            = symbol1
                 , P.opLetter           = symbol1
@@ -630,6 +630,7 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
 
+symbol0 = oneOf "^"
 symbol1 = oneOf "+-*/=.∂"
 symbol2 = symbol1 <|> oneOf "'!?"
 

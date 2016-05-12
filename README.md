@@ -188,7 +188,7 @@ A tensor is expressed by enclosing its dimensions and elements with `(|` and `|)
 ```
 > (define $V1 (| {3} {x_1 x_2 x_3} |))
 > (define $V2 (| {3} {y_1 y_2 y_3} |))
-> (. V1_i V2_i)
+> (. V1~i V2_i)
 (+ (* x_1 y_1) (* x_2 y_2) (* x_3 y_3))
 > (. V1_i V2_j)
 (| {3 3} {(* x_1 y_1) (* x_1 y_2) (* x_1 y_3) (* x_2 y_1) (* x_2 y_2) (* x_2 y_3) (* x_3 y_1) (* x_3 y_2) (* x_3 y_3)} |)_i_j
