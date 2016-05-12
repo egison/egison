@@ -305,7 +305,7 @@ ppPatVar :: Parser PrimitivePatPattern
 ppPatVar = reservedOp "$" *> pure PPPatVar
 
 ppValuePat :: Parser PrimitivePatPattern
-ppValuePat = string ",$" >> PPValuePat <$> ident
+ppValuePat = reservedOp ",$" >> PPValuePat <$> ident
 
 ppInductivePat :: Parser PrimitivePatPattern
 ppInductivePat = angles (PPInductivePat <$> lowerName <*> sepEndBy ppPattern whiteSpace)
@@ -511,13 +511,13 @@ valuePat :: Parser EgisonPattern
 valuePat = char ',' >> ValuePat <$> expr
 
 predPat :: Parser EgisonPattern
-predPat = reservedOp "?" >> PredPat <$> expr
+predPat = char '?' >> PredPat <$> expr
 
 letPat :: Parser EgisonPattern
 letPat = keywordLet >> LetPat <$> bindings <*> pattern
 
 notPat :: Parser EgisonPattern
-notPat = reservedOp "!" >> NotPat <$> pattern
+notPat = char '!' >> NotPat <$> pattern
 
 tuplePat :: Parser EgisonPattern
 tuplePat = brackets $ TuplePat <$> sepEndBy pattern whiteSpace
@@ -681,15 +681,16 @@ reservedKeywords =
 reservedOperators :: [String]
 reservedOperators = 
   [ "$"
+  , ",$"
   , "_"
   , "^"
   , "&"
   , "|"
   , "|*"
-  , "!"
-  , ","
-  , "~"
-  , "@"
+--  , "~"
+--  , "!"
+--  , ","
+--  , "@"
   , "..."]
 
 reserved :: String -> Parser ()
