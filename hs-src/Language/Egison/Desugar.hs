@@ -300,6 +300,10 @@ desugar (PartialExpr n expr) = do
  where
   annonVars n = take n $ map (((++) "::") . show) [1..]
 
+desugar (QuoteExpr expr) = do
+  expr' <- desugar expr
+  return $ QuoteExpr expr'
+
 desugar expr = return expr
 
 desugarIndex :: Index EgisonExpr -> DesugarM (Index EgisonExpr)

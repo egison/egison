@@ -219,6 +219,8 @@ data EgisonExpr =
   | MatcherBFSExpr MatcherInfo
   | MatcherDFSExpr MatcherInfo
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
+
+  | QuoteExpr EgisonExpr
   
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
@@ -325,6 +327,7 @@ data EgisonValue =
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
+  | Quote EgisonValue
   | Port Handle
   | Something
   | Undefined

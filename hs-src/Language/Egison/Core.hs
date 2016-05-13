@@ -157,6 +157,12 @@ evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (IntegerExpr x) = return . Value $ toEgison x
 evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 
+evalExpr env (QuoteExpr expr) = do
+  whnf <- evalExpr env expr
+  case whnf of
+    Value val -> return . Value $ Quote val
+    _ -> throwError $ TypeMismatch "value in quote" $ whnf
+
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
@@ -549,15 +555,20 @@ applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
+applyFunc _ (Value (Quote fn)) arg = do
+  args <- tupleToList arg
+  mExprs <- mapM extractScalar args
+  return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
 applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _, 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
-  mExprs <- mapM p args
+  mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
- where
-  p :: EgisonValue -> EgisonM ScalarData
-  p (ScalarData mExpr) = return mExpr
-  p val = throwError $ TypeMismatch "math expression" (Value val)
 applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
+
+
+extractScalar :: EgisonValue -> EgisonM ScalarData
+extractScalar (ScalarData mExpr) = return mExpr
+extractScalar val = throwError $ TypeMismatch "math expression" (Value val)
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val 

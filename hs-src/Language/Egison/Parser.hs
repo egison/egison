@@ -167,6 +167,7 @@ expr' = (try partialExpr
              <|> try tupleExpr
              <|> try hashExpr
              <|> collectionExpr
+             <|> quoteExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
@@ -239,6 +240,9 @@ hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
     rp = string "|}"
     pairExpr :: Parser (EgisonExpr, EgisonExpr)
     pairExpr = brackets $ (,) <$> expr <*> expr
+
+quoteExpr :: Parser EgisonExpr
+quoteExpr = char '\'' >> QuoteExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
 matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> matchClause
@@ -687,6 +691,7 @@ reservedOperators =
   , "&"
   , "|"
   , "|*"
+--  , "'"
 --  , "~"
 --  , "!"
 --  , ","
