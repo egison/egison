@@ -13,8 +13,8 @@
           {[,0 1]
            [,1 e]
            [<term $a <cons ,i <cons ,pi <nil>>>> (** -1 a)]
-           [_ (to-math-expr <Apply exp (map from-math-expr {x})>)]})
-        (to-math-expr <Apply exp (map from-math-expr {x})>)))))
+           [_ ('exp x)]})
+        ('exp x)))))
 
 (define $log
   (lambda [$x]
@@ -23,7 +23,7 @@
       (match x math-expr
         {[,1 0]
          [,e 1]
-         [_ (to-math-expr <Apply log (map from-math-expr {x})>)]}))))
+         [_ ('log x)]}))))
 
 (define $cos
   (lambda [$x]
@@ -33,7 +33,7 @@
         {[,0 1]
          [<div <plus <cons <term $n <cons ,π <nil>>> <nil>>> ,1> (** -1 (abs n))]
          [<div <plus <cons <term _ <cons ,π <nil>>> <nil>>> ,2> 0]
-         [_ (to-math-expr <Apply cos (map from-math-expr {x})>)]}))))
+         [_ ('cos x)]}))))
 
 (define $sin
   (lambda [$x]
@@ -43,7 +43,7 @@
         {[,0 0]
          [<div <plus <cons <term _ <cons ,π <nil>>> <nil>>> ,1> 0]
          [<div <plus <cons <term $n <cons ,π <nil>>> <nil>>> ,2> (** -1 (/ (- (abs n) 1) 2))]
-         [_ (to-math-expr <Apply sin (map from-math-expr {x})>)]}))))
+         [_ ('sin x)]}))))
 
 (define $tan
   (lambda [$x]
@@ -51,7 +51,7 @@
       (b.tan x)
       (match x math-expr
         {[,0 0]
-         [_ (to-math-expr <Apply tan (map from-math-expr {x})>)]}))))
+         [_ ('tan x)]}))))
 
 (define $cosh
   (lambda [$x]
@@ -59,7 +59,7 @@
       (b.cosh x)
       (match x math-expr
         {[,0 1]
-         [_ (to-math-expr <Apply cosh (map from-math-expr {x})>)]}))))
+         [_ ('cosh x)]}))))
 
 (define $sinh
   (lambda [$x]
@@ -67,7 +67,7 @@
       (b.sinh x)
       (match x math-expr
         {[,0 0]
-         [_ (to-math-expr <Apply sinh (map from-math-expr {x})>)]}))))
+         [_ ('sinh x)]}))))
 
 (define $tanh
   (lambda [$x]
@@ -75,7 +75,7 @@
       (b.tanh x)
       (match x math-expr
         {[,0 0]
-         [_ (to-math-expr <Apply tanh (map from-math-expr {x})>)]}))))
+         [_ ('tanh x)]}))))
 
 
 (define $sinc
