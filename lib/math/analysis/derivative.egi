@@ -17,8 +17,7 @@
        [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
        [(,sin $g) (* (cos g) (∂/∂ g x))]
        [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
-       [<apply $g <cons ,x <nil>>> ('(add-prime g) x)]
-       [<apply $g (& <join _ <cons ,x _>> $args)> (capply '(add-subscript g x) args)]
+       [<apply $g <cons $h <nil>>> (* ('(add-prime g) h) (∂/∂ h x))]
        [<apply $g $args>
         (sum (map (lambda [$t] (* ('∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]
