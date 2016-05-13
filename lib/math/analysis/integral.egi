@@ -35,7 +35,7 @@
                  [_ (Sd' x f)]}))]})]
        [?polynomial?
         (match f poly-expr
-          {[<plus $ts> (sum (map (Sd x $) ts))]})]
+          {[<poly $ts> (sum (map (Sd x $) ts))]})]
        [_
         (match f math-expr
           {[<div $p1 $p2>

@@ -14,7 +14,7 @@
       (match x math-expr
         {[,0 0]
          [?monomial? (rt' n x)]
-         [<div <plus $xs> <plus $ys>>
+         [<div <poly $xs> <poly $ys>>
           (let {[$xd (reduce gcd xs)]
                 [$yd (reduce gcd ys)]}
             (let {[[$a $r] (from-monomial (rt' n (/ xd yd)))]}

@@ -24,10 +24,10 @@
     {[<div $ $> [math-expr math-expr]
       {[<Div $p1 $p2> {[(to-math-expr' p1) (to-math-expr' p2)]}]
        [_ {}]}]
-     [<plus $> [(multiset math-expr)]
+     [<poly $> [(multiset math-expr)]
       {[<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {(map to-math-expr' ts)}]
        [_ {}]}]
-     [<poly $> [term-exprs]
+     [<plus $> [term-exprs]
       {[<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {(map to-math-expr' ts)}]
        [_ {}]}]
      [<term $ $> [integer (assoc-multiset math-expr)]
@@ -100,21 +100,15 @@
 (define $polynomial?
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<plus _> #t]
+      {[<poly _> #t]
        [,0 #t]
        [_ #f]})))
-
-(define $from-polynomial
-  (lambda [$mexpr]
-    (match mexpr math-expr
-      {[<plus $ts>
-        ts]})))
 
 (define $monomial?
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <plus <cons <term _ _> <nil>>>
-             <plus <cons <term _ _> <nil>>>>
+      {[<div <poly <cons <term _ _> <nil>>>
+             <poly <cons <term _ _> <nil>>>>
         #t]
        [,0 #t]
        [_ #f]})))
@@ -122,8 +116,8 @@
 (define $from-monomial
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <plus <cons <term $a $xs> <nil>>>
-             <plus <cons <term $b $ys> <nil>>>>
+      {[<div <poly <cons <term $a $xs> <nil>>>
+             <poly <cons <term $b $ys> <nil>>>>
         [(/ a b)
          (/ (foldl *' 1 (map 2#(**' %1 %2) xs))
             (foldl *' 1 (map 2#(**' %1 %2) ys)))]]})))
@@ -140,7 +134,7 @@
 (define $map-terms
   (lambda [$fn $mexpr]
     (match mexpr math-expr
-      {[<div <plus $ts1> <plus $ts2>>
+      {[<div <poly $ts1> <poly $ts2>>
         (/' (foldl +' 0 (map fn ts1))
             (foldl +' 0 (map fn ts2)))]})))
 
@@ -161,7 +155,7 @@
 (define $contain-symbol?
   (lambda [$x $mexpr]
     (any id (match mexpr math-expr
-              {[<div <plus $ts1> <plus $ts2>>
+              {[<div <poly $ts1> <poly $ts2>>
                 (map (lambda [$term]
                        (match term term-expr
                          {[<term _ $xs>
@@ -200,14 +194,14 @@
 (define $coefficients
   (lambda [$x $f]
     (let {[$m (capply max {0 @(match-all f math-expr
-                                [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> _> k])})]}
+                                [<div <poly <cons <term $a <ncons $k ,x $ts>> _>> _> k])})]}
       (map (coefficient x $ f) (between 0 m)))))
 
 (define $coefficient
   (lambda [$x $m $f]
     (if (eq? m 0)
       (/ (sum (match-all f math-expr
-                [<div <plus <cons <term $a (& !<cons ,x _> $ts)> _>> _>
+                [<div <poly <cons <term $a (& !<cons ,x _> $ts)> _>> _>
                  (foldl *' a (map 2#(**' %1 %2) ts))]))
          (denominator f))
       (coefficient' x m f))))
@@ -215,7 +209,7 @@
 (define $coefficient'
   (lambda [$x $m $f]
     (/ (sum (match-all f math-expr
-              [<div <plus <cons <term $a <ncons $k ,x $ts>> _>> _>
+              [<div <poly <cons <term $a <ncons $k ,x $ts>> _>> _>
                (if (eq? m k)
                  (foldl *' a (map 2#(**' %1 %2) ts))
                  0)]))

@@ -31,8 +31,8 @@
       (b.cos x)
       (match x math-expr
         {[,0 1]
-         [<div <plus <cons <term $n <cons ,π <nil>>> <nil>>> ,1> (** -1 (abs n))]
-         [<div <plus <cons <term _ <cons ,π <nil>>> <nil>>> ,2> 0]
+         [<div <poly <cons <term $n <cons ,π <nil>>> <nil>>> ,1> (** -1 (abs n))]
+         [<div <poly <cons <term _ <cons ,π <nil>>> <nil>>> ,2> 0]
          [_ ('cos x)]}))))
 
 (define $sin
@@ -41,8 +41,8 @@
       (b.sin x)
       (match x math-expr
         {[,0 0]
-         [<div <plus <cons <term _ <cons ,π <nil>>> <nil>>> ,1> 0]
-         [<div <plus <cons <term $n <cons ,π <nil>>> <nil>>> ,2> (** -1 (/ (- (abs n) 1) 2))]
+         [<div <poly <cons <term _ <cons ,π <nil>>> <nil>>> ,1> 0]
+         [<div <poly <cons <term $n <cons ,π <nil>>> <nil>>> ,2> (** -1 (/ (- (abs n) 1) 2))]
          [_ ('sin x)]}))))
 
 (define $tan

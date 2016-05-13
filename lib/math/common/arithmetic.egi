@@ -43,8 +43,8 @@
     (if (float? mexpr)
       mexpr
       (match mexpr math-expr
-        {[<div <plus $ts1>
-               <plus $ts2>>
+        {[<div <poly $ts1>
+               <poly $ts2>>
           (let {[$d (capply gcd {@ts2 @ts1})]}
             (/' (sum' (map (/' $ d) ts1)) (sum' (map (/' $ d) ts2))))]}))))
 
