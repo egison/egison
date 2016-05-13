@@ -12,18 +12,22 @@
                {})]}]
      [$ [math-expr']
       {[<Div $p1 $p2> {<Div p1 p2>}]
+       [<Plus $ts> {<Plus ts>}]
+       [<Term $n $xs> {<Term n xs>}]
+       [<Symbol $v $js> {<Symbol v js>}]
+       [<Apply $f $args> {<Apply f args>}]
        [$tgt {(from-math-expr tgt)}]}]
      }))
 
 (define $math-expr'
   (matcher
-    {[<div $ $> [poly-expr poly-expr]
+    {[<div $ $> [math-expr math-expr]
       {[<Div $p1 $p2> {[(to-math-expr' p1) (to-math-expr' p2)]}]
        [_ {}]}]
-     [<plus $> [(multiset term-expr)]
+     [<plus $> [(multiset math-expr)]
       {[<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {(map to-math-expr' ts)}]
        [_ {}]}]
-     [<term $ $> [integer (assoc-multiset symbol-expr)]
+     [<term $ $> [integer (assoc-multiset math-expr)]
       {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
        [_ {}]}]
      [<symbol $> [string]
@@ -41,143 +45,54 @@
       {[$tgt {(to-math-expr' tgt)}]}]
      }))
 
-(define $poly-expr
-  (matcher
-    {[,$val []
-      {[$tgt (if (eq? val tgt)
-               {[]}
-               {})]}]
-     [$ [poly-expr']
-      {[<Plus $ts> {<Plus ts>}]
-       [<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {<Plus ts>}]
-       [$tgt {(from-math-expr tgt)}]}]
-     }))
-
-(define $poly-expr'
-  (matcher
-    {[<plus $> [(multiset term-expr)]
-      {[<Plus $ts> {(map to-math-expr' ts)}]
-       [<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {(map to-math-expr' ts)}]
-       [_ {}]}]
-     [$ [something]
-      {[$tgt {(to-math-expr' tgt)}]}]
-     }))
-
-(define $term-expr
-  (matcher
-    {[,$val []
-      {[$tgt (if (eq? val tgt)
-               {[]}
-               {})]}]
-     [<mult ,$val $> [term-expr]
-      {[$tgt (if (term? (/ tgt val))
-               {(/ tgt val)}
-               {})]}]
-     [$ [term-expr']
-      {[<Term $n $xs> {<Term n xs>}]
-       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {<Term n xs>}]
-       [$tgt {(from-math-expr tgt)}]}]
-     }))
-
-(define $term-expr'
-  (matcher
-    {[<term $ $> [integer (assoc-multiset symbol-expr)]
-      {[<Term $n $xs> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
-       [<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
-       [_ {}]}]
-     [$ [something]
-      {[$tgt {(to-math-expr' tgt)}]}]
-     }))
-
-(define $symbol-expr
-  (matcher
-    {[,$val []
-      {[$tgt (if (eq? val tgt)
-                 {[]}
-                 {})]}]
-     [$ [symbol-expr']
-      {[<Symbol $v> {<Symbol v>}]
-       [<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Symbol v>}]
-       [<Apply $v $mexprs> {<Apply v mexprs>}]
-       [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {<Apply v mexprs>}]
-       [$tgt {(from-math-expr tgt)}]}]
-     }))
-
-(define $symbol-expr'
-  (matcher
-    {[<symbol $> [string]
-      {[<Symbol $v {}> {v}]
-       [<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
-       [_ {}]}]
-     [<symbol $ $> [string (list something)]
-      {[<Symbol $v $js> {[v js]}]
-       [<Div <Plus {<Term 1 {[<Symbol $v $js> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v js]}]
-       [_ {}]}]
-     [<apply $ $> [eq (list math-expr)]
-      {[<Apply $v $mexprs> [v mexprs]]
-       [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}>
-             <Plus {<Term 1 {}> @{}}>>
-        {[v (map to-math-expr' mexprs)]}]
-       [_ {}]}]
-     [$ [something]
-      {[$tgt {(to-math-expr' tgt)}]}]
-     }))
+(define $poly-expr math-expr)
+(define $term-expr math-expr)
+(define $symbol-expr math-expr)
 
 (define $symbol?
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <plus <cons <term ,1 <cons <symbol _> <nil>>> <nil>>>
-             <plus <cons <term ,1 <nil>> <nil>>>>
-        #t]
+      {[<symbol _> #t]
        [_ #f]})))
 
 (define $symbol-name
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <plus <cons <term ,1 <cons <symbol $name _> <nil>>> <nil>>>
-             <plus <cons <term ,1 <nil>> <nil>>>>
-        name]
+      {[<symbol $name _> name]
        [_ undefined]})))
 
 (define $symbol-indices
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <plus <cons <term ,1 <cons <symbol _ $js> <nil>>> <nil>>>
-             <plus <cons <term ,1 <nil>> <nil>>>>
-        js]
+      {[<symbol _ $js> js]
        [_ undefined]})))
 
-(define $simple-term?
+(define $apply?
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <plus <cons <term ,1 <cons _ <nil>>> <nil>>>
-             <plus <cons <term ,1 <nil>> <nil>>>>
-        #t]
+      {[<apply _ _> #t]
        [_ #f]})))
+
+(define $simple-term? 1#(or (symbol? %1) (apply? %1)))
 
 (define $term?
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <plus <cons _ <nil>>>
-             <plus <cons <term ,1 <nil>> <nil>>>>
-        #t]
+      {[<term _ _> #t]
        [,0 #t]
        [_ #f]})))
 
 (define $polynomial?
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div _
-             <plus <cons <term ,1 <nil>> <nil>>>>
-        #t]
+      {[<plus _> #t]
        [,0 #t]
        [_ #f]})))
 
 (define $from-polynomial
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <plus $ts>
-             <plus <cons <term ,1 <nil>> <nil>>>>
+      {[<plus $ts>
         ts]})))
 
 (define $monomial?

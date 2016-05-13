@@ -32,7 +32,7 @@
 
 (define $rewrite-rule-rtu-plus
   (lambda [$poly]
-    (match poly poly-expr
+    (match poly math-expr
       {[<plus <cons <term $a <ncons $k (,rtu (& ,(+ k 1) $n)) $ts>>
                     (loop $i [2 ,(- n 1)]
                       <cons <term ,a <ncons ,(- n i) ,(rtu n) ,ts>> ...>
@@ -42,7 +42,7 @@
 
 (define $rewrite-rule-w-plus
   (lambda [$poly]
-    (match poly poly-expr
+    (match poly math-expr
       {[<plus <cons <term $a <ncons ,2 ,w $ts>>
                     <cons <term $b <ncons ,1 ,w ,ts>>
                           $rs>>>
