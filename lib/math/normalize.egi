@@ -33,22 +33,22 @@
 (define $rewrite-rule-rtu-plus
   (lambda [$poly]
     (match poly math-expr
-      {[<plus <cons <term $a <ncons $k (,rtu (& ,(+ k 1) $n)) $ts>>
+      {[<poly <cons <term $a <ncons $k (,rtu (& ,(+ k 1) $n)) $ts>>
                     (loop $i [2 ,(- n 1)]
                       <cons <term ,a <ncons ,(- n i) ,(rtu n) ,ts>> ...>
-                      $rs)>>
-        (foldl + (foldl *' (* -1 a) (map 2#(**' %1 %2) ts)) rs)]
+                      $r)>>
+        (+ (foldl *' (* -1 a) (map 2#(**' %1 %2) ts)) r)]
        [_ poly]})))
 
 (define $rewrite-rule-w-plus
   (lambda [$poly]
     (match poly math-expr
-      {[<plus <cons <term $a <ncons ,2 ,w $ts>>
+      {[<poly <cons <term $a <ncons ,2 ,w $ts>>
                     <cons <term $b <ncons ,1 ,w ,ts>>
-                          $rs>>>
-        (foldl + (+ (* -1 a (foldl *' 1 (map 2#(**' %1 %2) ts)))
-                    (* (- b a) w (foldl *' 1 (map 2#(**' %1 %2) ts)))
-                    ) rs)]
+                          $r>>>
+        (+ (* -1 a (foldl *' 1 (map 2#(**' %1 %2) ts)))
+           (* (- b a) w (foldl *' 1 (map 2#(**' %1 %2) ts)))
+           r)]
        [_ poly]})))
 
 (define $rewrite-rule-i
