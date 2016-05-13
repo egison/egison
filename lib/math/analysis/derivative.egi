@@ -21,9 +21,10 @@
        [<apply $g $args>
         (sum (map (lambda [$t] (* ('∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]
-       ; term
+       ; term (constant)
        [,0 0]
        [<term _ <nil>> 0]
+       ; term (multiplication)
        [<term ,1 <ncons $n $fx <nil>>> (* n (** fx (- n 1)) (∂/∂ fx x))]
        [<term $a <ncons $n $fx $ts>>
         (+ (* a
