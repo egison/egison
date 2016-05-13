@@ -20,6 +20,23 @@
     {[<div $ $> [poly-expr poly-expr]
       {[<Div $p1 $p2> {[(to-math-expr' p1) (to-math-expr' p2)]}]
        [_ {}]}]
+     [<plus $> [(multiset term-expr)]
+      {[<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {(map to-math-expr' ts)}]
+       [_ {}]}]
+     [<term $ $> [integer (assoc-multiset symbol-expr)]
+      {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
+       [_ {}]}]
+     [<symbol $> [string]
+      {[<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
+       [_ {}]}]
+     [<symbol $ $> [string (list something)]
+      {[<Div <Plus {<Term 1 {[<Symbol $v $js> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v js]}]
+       [_ {}]}]
+     [<apply $ $> [eq (list math-expr)]
+      {[<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}>
+             <Plus {<Term 1 {}> @{}}>> 
+        {[v (map to-math-expr' mexprs)]}]
+       [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
      }))
@@ -99,7 +116,8 @@
      [<apply $ $> [eq (list math-expr)]
       {[<Apply $v $mexprs> [v mexprs]]
        [<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}>
-             <Plus {<Term 1 {}> @{}}>> {[v (map to-math-expr' mexprs)]}]
+             <Plus {<Term 1 {}> @{}}>>
+        {[v (map to-math-expr' mexprs)]}]
        [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
