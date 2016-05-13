@@ -170,6 +170,10 @@ primitives = [ ("b.+", plus)
              , ("regex", regexString)
              , ("regex-cg", regexStringCaptureGroup)
 
+             , ("add-prime", addPrime)
+             , ("add-subscript", addSubscript)
+             , ("add-superscript", addSuperscript)
+
              , ("read-process", readProcess')
                
              , ("read", read')
@@ -529,6 +533,30 @@ regexStringCaptureGroup = twoArgs $ \pat src -> do
 --    (String patStr, String srcStr) -> return . Bool $ (((T.unpack srcStr) =~ (T.unpack patStr)) :: Bool)
 --    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
 --    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+
+addPrime :: PrimitiveFunc
+addPrime = oneArg $ \sym -> do
+  case sym of
+    ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol (name ++ "'") is, 1)])]) (Plus [(Term 1 [])])))
+    _ ->  throwError $ TypeMismatch "symbol" (Value sym)
+
+addSubscript :: PrimitiveFunc
+addSubscript = twoArgs $ \fn sub -> do
+  case (fn, sub) of
+    (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
+     ScalarData s@(Div (Plus [(Term 1 [(Symbol _ [], 1)])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol name (is ++ [Subscript s]), 1)])]) (Plus [(Term 1 [])])))
+    (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
+     _) -> throwError $ TypeMismatch "symbol" (Value sub)
+    _ ->  throwError $ TypeMismatch "symbol" (Value fn)
+
+addSuperscript :: PrimitiveFunc
+addSuperscript = twoArgs $ \fn sub -> do
+  case (fn, sub) of
+    (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
+     ScalarData s@(Div (Plus [(Term 1 [(Symbol _ [], 1)])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol name (is ++ [Superscript s]), 1)])]) (Plus [(Term 1 [])])))
+    (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
+     _) -> throwError $ TypeMismatch "symbol" (Value sub)
+    _ ->  throwError $ TypeMismatch "symbol" (Value fn)
 
 readProcess' :: PrimitiveFunc
 readProcess' = threeArgs $ \cmd args input -> do

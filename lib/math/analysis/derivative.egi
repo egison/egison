@@ -17,10 +17,8 @@
            [[_ (,cos $g)] (* (* -1 (sin g)) (∂/∂ g x))]
            [[_ (,sin $g)] (* (cos g) (∂/∂ g x))]
            [[_ (,sqrt $g)] (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
-           [[_ <apply $g <cons ,x <nil>>>]
-            (to-math-expr <Apply (to-math-expr <Div <Plus {<Term 1 {[<Symbol (S.append (symbol-name g) "'") {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>>) (map from-math-expr {x})>)]
-           [[_ <apply $g (& <join _ <cons ,x _>> $args)>]
-            (to-math-expr <Apply (to-math-expr <Div <Plus {<Term 1 {[<Symbol (symbol-name g) {@(symbol-indices g) <Sub x>}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>>) (map from-math-expr args)>)]
+           [[_ <apply $g <cons ,x <nil>>>] ('(add-prime g) x)]
+           [[_ <apply $g (& <join _ <cons ,x _>> $args)>] (capply '(add-subscript g x) args)]
            })]
        [?term?
         (match f term-expr
