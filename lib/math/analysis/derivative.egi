@@ -19,6 +19,9 @@
            [[_ (,sqrt $g)] (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
            [[_ <apply $g <cons ,x <nil>>>] ('(add-prime g) x)]
            [[_ <apply $g (& <join _ <cons ,x _>> $args)>] (capply '(add-subscript g x) args)]
+           [[_ <apply $g $args>]
+            (sum (map (lambda [$t] (* ('∂/∂ (capply g args) t) (∂/∂ t x)))
+                      args))]
            })]
        [?term?
         (match f term-expr
