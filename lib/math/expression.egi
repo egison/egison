@@ -27,14 +27,14 @@
      [<poly $> [(multiset math-expr)]
       {[<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {(map to-math-expr' ts)}]
        [_ {}]}]
-     [<plus $> [term-exprs]
+     [<plus $> [plus-expr]
       {[<Div <Plus $ts> <Plus {<Term 1 {}> @{}}>> {(to-math-expr' <Div <Plus ts> <Plus {<Term 1 {}>}>>)}]
        [_ {}]}]
      [<term $ $> [integer (assoc-multiset math-expr)]
       {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
        [_ {}]}]
-     [<mult $ $> [integer symbol-exprs]
-      {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map 2#(**' %1 %2) xs)]}]
+     [<mult $ $> [integer mult-expr]
+      {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (prod' (map 2#(**' %1 %2) xs))]}]
        [_ {}]}]
      [<symbol $> [string]
       {[<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
@@ -55,24 +55,24 @@
 (define $term-expr math-expr)
 (define $symbol-expr math-expr)
 
-(define $term-exprs
+(define $plus-expr
   (matcher
     {[<nil> []
       {[{} {[]}]
        [_ {}]}]
-     [<cons $ $> [math-expr term-exprs]
+     [<cons $ $> [math-expr plus-expr]
       {[$tgt (match-all tgt math-expr
                [<poly <cons $t $ts>> [t (sum' ts)]])]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))
 
-(define $symbol-exprs
+(define $mult-expr
   (matcher
     {[<nil> []
       {[{} {[]}]
        [_ {}]}]
-     [<cons $ $> [math-expr symbol-exprs]
+     [<cons $ $> [math-expr mult-expr]
       {[$tgt (match-all tgt (multiset math-expr)
                [<cons $t $ts> [t (prod' ts)]])]}]
      [$ [something]
