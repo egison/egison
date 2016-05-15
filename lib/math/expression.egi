@@ -34,7 +34,7 @@
       {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
        [_ {}]}]
      [<mult $ $> [integer mult-expr]
-      {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (prod' (map 2#(**' %1 %2) xs))]}]
+      {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (product' (map 2#(**' (to-math-expr' %1) %2) xs))]}]
        [_ {}]}]
      [<symbol $> [string]
       {[<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
@@ -73,8 +73,19 @@
       {[{} {[]}]
        [_ {}]}]
      [<cons $ $> [math-expr mult-expr]
-      {[$tgt (match-all tgt (multiset math-expr)
-               [<cons $t $ts> [t (prod' ts)]])]}]
+      {[$tgt (match tgt math-expr
+               {[<term _ $xs>
+                 (match-all xs (assoc-multiset math-expr)
+                   [<cons $x $rs>
+                    [x (product' (map 2#(**' %1 %2) rs))]])]
+                [_ {}]})]}]
+     [<ncons $ $ $> [integer math-expr mult-expr]
+      {[$tgt (match tgt math-expr
+               {[<term _ $xs>
+                 (match-all xs (list [math-expr integer])
+                   [<join $hs <cons [$x $n] $ts>>
+                    [n x (product' (map 2#(**' %1 %2) {@hs @ts}))]])]
+                [_ {}]})]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))

@@ -26,13 +26,17 @@
        [<term _ <nil>> 0]
        ; term (multiplication)
        [<term ,1 <ncons $n $fx <nil>>> (* n (** fx (- n 1)) (∂/∂ fx x))]
-       [<term $a <ncons $n $fx $ts>>
-        (+ (* a
-              (∂/∂ (** fx n) x)
-              (foldl *' 1 (map 2#(**' %1 %2) ts)))
-           (* a
-              (** fx n)
-              (∂/∂ (foldl *' 1 (map 2#(**' %1 %2) ts)) x)))]
+;       [<term $a <ncons $n $fx $ts>>
+;        (+ (* a
+;              (∂/∂ (** fx n) x)
+;              (foldl *' 1 (map 2#(**' %1 %2) ts)))
+;           (* a
+;              (** fx n)
+;              (∂/∂ (foldl *' 1 (map 2#(**' %1 %2) ts)) x)))]
+       [<term _ _>
+        (sum (match-all f math-expr
+               [<mult $a <ncons $n $y $r>>
+                (* a (∂/∂ (** y n) x) r)]))]
        ; polynomial
        [<poly $ts> (sum (map (∂/∂ $ x) ts))]
        ; quotient
