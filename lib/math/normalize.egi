@@ -37,7 +37,7 @@
                     (loop $i [2 ,(- n 1)]
                       <cons <term ,a <ncons ,(- n i) ,(rtu n) ,ts>> ...>
                       $r)>>
-        (+ (foldl *' (* -1 a) (map 2#(**' %1 %2) ts)) r)]
+        (rewrite-rule-rtu-plus (+' r (foldl *' (* -1 a) (map 2#(**' %1 %2) ts))))]
        [_ poly]})))
 
 (define $rewrite-rule-w-plus
@@ -46,9 +46,10 @@
       {[<plus <cons <term $a <ncons ,2 ,w $ts>>
                     <cons <term $b <ncons ,1 ,w ,ts>>
                           $r>>>
-        (+ (* -1 a (foldl *' 1 (map 2#(**' %1 %2) ts)))
-           (* (- b a) w (foldl *' 1 (map 2#(**' %1 %2) ts)))
-           r)]
+        (rewrite-rule-w-plus (+' r
+                                 (*' -1 a (foldl *' 1 (map 2#(**' %1 %2) ts)))
+                                 (*' (- b a) w (foldl *' 1 (map 2#(**' %1 %2) ts)))
+                                 ))]
        [_ poly]})))
 
 (define $rewrite-rule-i
@@ -71,26 +72,26 @@
   (lambda [$term]
     (match term term-expr
       {[<term $a <ncons $k (,rtu (& ?(gte? k $) $n)) $ts>>
-        (*' a (**' (rtu n) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+        (rewrite-rule-rtu (*' a (**' (rtu n) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts))))]
        [_ term]})))
 
 (define $rewrite-rule-sqrt
   (lambda [$term]
     (match term term-expr
       {[<term $a <cons (,sqrt $x) <cons (,sqrt ,x) $ts>>>
-        (* a x (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+        (rewrite-rule-sqrt (*' a x (foldl *' 1 (map 2#(**' %1 %2) ts))))]
        [<term $a <cons (,sqrt (& ?term? $x)) <cons (,sqrt (& ?term? $y)) $ts>>>
         (let* {[$d (gcd x y)]
                [[$a1 $x1] (from-monomial (/ x d))]
                [[$a2 $y1] (from-monomial (/ y d))]}
-            (*' a d
-               (sqrt (*' a1 a2)) (sqrt x1) (sqrt y1)
-               (foldl *' 1 (map 2#(**' %1 %2) ts))))]
+          (*' a d
+             (sqrt (*' a1 a2)) (sqrt x1) (sqrt y1)
+             (foldl *' 1 (map 2#(**' %1 %2) ts))))]
        [_ term]})))
 
 (define $rewrite-rule-rt
   (lambda [$term]
     (match term term-expr
       {[<term $a <ncons $k (,rt (& ?(gte? k $) $n) $x) $ts>>
-        (*' a (**' x (quotient k n)) (**' (rt n x) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts)))]
+        (rewrite-rule-rt (*' a (**' x (quotient k n)) (**' (rt n x) (remainder k n)) (foldl *' 1 (map 2#(**' %1 %2) ts))))]
        [_ term]})))

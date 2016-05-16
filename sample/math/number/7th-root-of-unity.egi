@@ -7,21 +7,27 @@
 (define $a12 (+ z^2 z^5))
 (define $a13 (+ z^3 z^4))
 
-(define $b10 (+ a11 a12 a13));-1
+(define $b10 (+ a11 a12 a13))
 
-(define $b10' -1)
+(define $b10' b10)
+
+b10';-1
 
 (define $b11 (+ a11 (* w a12) (* w^2 a13)))
 (define $b12 (+ a13 (* w a11) (* w^2 a12)));(* w b11)
 (define $b13 (+ a12 (* w a13) (* w^2 a11)));(* w^2 b11)
 
-(define $b11' (rt 3 (* b11 b12 b13)));(rt 3 (+ 14 (* 21 w)))
+(define $b11' (rt 3 (* b11 b12 b13)))
+
+b11';(rt 3 (+ 14 (* 21 w)))
 
 (define $b14 (+ a11 (* w a13) (* w^2 a12)))
 (define $b15 (+ a12 (* w a11) (* w^2 a13)));(* w b14)
 (define $b16 (+ a13 (* w a12) (* w^2 a11)));(* w^2 b14)
 
-(define $b14' (rt 3 (* b14 b15 b16)));(rt 3 (+ -7 (* -21 w)))
+(define $b14' (rt 3 (* b14 b15 b16)))
+
+b14';(rt 3 (+ -7 (* -21 w)))
 
 (define $a11' (/ (+ b10' b11' b14') 3))
 

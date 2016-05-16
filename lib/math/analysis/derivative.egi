@@ -35,8 +35,8 @@
 ;              (∂/∂ (foldl *' 1 (map 2#(**' %1 %2) ts)) x)))]
        [<term _ _>
         (sum (match-all f math-expr
-               [<mult $a <ncons $n $y $r>>
-                (* a (∂/∂ (** y n) x) r)]))]
+               [<mult $a <jncons $n $y $l $r>>
+                (* a l (∂/∂ (** y n) x) r)]))]
        ; polynomial
        [<poly $ts> (sum (map (∂/∂ $ x) ts))]
        ; quotient
