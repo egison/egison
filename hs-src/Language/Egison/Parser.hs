@@ -557,7 +557,7 @@ loopRange = brackets (try (do s <- expr
                               return (LoopRange s e ep))
                  <|> (do s <- expr
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
+                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 -- Constants
 
