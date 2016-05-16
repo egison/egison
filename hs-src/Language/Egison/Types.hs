@@ -114,13 +114,13 @@ module Language.Egison.Types
     , isInteger
     , isRational
     , isSymbol
-    , isNumber
+    , isScalar
     , isTensor
     , isTensorWithIndex
     , isBool'
     , isInteger'
     , isRational'
-    , isNumber'
+    , isScalar'
     , isFloat'
     , isComplex'
     , isTensor'
@@ -1270,13 +1270,13 @@ isSymbol :: EgisonValue -> Bool
 isSymbol (ScalarData (Div (Plus [(Term 1 [(Symbol _ _, 1)])]) (Plus [(Term 1 [])]))) = True
 isSymbol _ = False
 
-isNumber :: EgisonValue -> Bool
-isNumber (ScalarData _) = True
-isNumber _ = False
+isScalar :: EgisonValue -> Bool
+isScalar (ScalarData _) = True
+isScalar _ = False
 
-isNumber' :: PrimitiveFunc
-isNumber' (Value val) = return $ Value $ Bool $ isNumber val
-isNumber' _ = return $ Value $ Bool False
+isScalar' :: PrimitiveFunc
+isScalar' (Value val) = return $ Value $ Bool $ isScalar val
+isScalar' _ = return $ Value $ Bool False
 
 isTensor :: EgisonValue -> Bool
 isTensor (TensorData _) = True

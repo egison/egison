@@ -55,7 +55,7 @@
 
 (define $sqrt
   (lambda [$x]
-    (if (number? x)
+    (if (scalar? x)
       (let {[$m (numerator x)]
             [$n (denominator x)]}
         (/ (rt 2 (* m n)) n))

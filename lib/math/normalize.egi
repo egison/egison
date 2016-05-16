@@ -16,7 +16,7 @@
   (lambda [$mexpr]
     (if (tensor? mexpr)
       (tensor-map math-normalize mexpr)
-      (if (number? mexpr)
+      (if (scalar? mexpr)
         (if (rational? mexpr)
           mexpr
           (map-polys rewrite-rule-rtu-plus
