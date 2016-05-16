@@ -64,3 +64,13 @@
        [<cons $x $rs>
         (do {[(proc x)]}
           (each proc rs))]})))
+
+;;;
+;;; Debug
+;;;
+(define $debug
+  (macro [$expr]
+    (io (do {[(print (show expr))]}
+          (return expr)))))
+             
+    
