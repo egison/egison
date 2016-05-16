@@ -4,13 +4,16 @@
 ;;;;;
 ;;;;;
 
-;(set-term-rewriting-rule {[(rt $n $x)^,n x]
-;                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y)^2)))]
-;                          [(rtu $n)^,n 1]
+;(set-term-rewriting-rule {
 ;                          [(+ (rtu $n) (rtu ,n)^2 ... (rtu ,n)^,n) -1]
-;                          [w^3 1]
 ;                          [(+ w w^2) -1]
-;                          [i^2 -1]})
+;                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y)^2)))]
+;                          [(rt $n $x)^,n x]
+;                          [(sqrt $x)^2 x]
+;                          [(rtu $n)^,n 1]
+;                          [w^3 1]
+;                          [i^2 -1]
+;                          })
 
 (define $math-normalize
   (lambda [$mexpr]
@@ -26,8 +29,7 @@
                                                       (map-terms rewrite-rule-rtu
                                                                  (map-terms rewrite-rule-w
                                                                             (map-terms rewrite-rule-i
-                                                                                        mexpr
-                                                                                       ))))))))
+                                                                                       mexpr))))))))
         mexpr))))
 
 (define $rewrite-rule-rtu-plus
@@ -55,7 +57,8 @@
 (define $rewrite-rule-i
   (lambda [$term]
     (match term math-expr
-      {[<mult $a <ncons (& ?even? $k) ,i $r>>
+      {
+       [<mult $a <ncons (& ?even? $k) ,i $r>>
         (*' a (**' -1 (quotient k 2)) r)]
        [<mult $a <ncons $k ,i $r>>
         (*' a (**' -1 (quotient k 2)) i r)]

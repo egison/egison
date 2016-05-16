@@ -11,12 +11,7 @@
                {[]}
                {})]}]
      [$ [math-expr']
-      {[<Div $p1 $p2> {<Div p1 p2>}]
-       [<Plus $ts> {<Plus ts>}]
-       [<Term $n $xs> {<Term n xs>}]
-       [<Symbol $v $js> {<Symbol v js>}]
-       [<Apply $f $args> {<Apply f args>}]
-       [$tgt {(from-math-expr tgt)}]}]
+      {[$tgt {(from-math-expr tgt)}]}]
      }))
 
 (define $math-expr'
@@ -70,8 +65,9 @@
 (define $mult-expr
   (matcher
     {[<nil> []
-      {[{} {[]}]
-       [_ {}]}]
+      {[$tgt (match tgt math-expr
+               {[,0 {[]}]
+                [_ {}]})]}]
      [<cons $ $> [math-expr mult-expr]
       {[$tgt (match tgt math-expr
                {[<term _ $xs>
@@ -90,23 +86,14 @@
       {[$tgt {tgt}]}]
      }))
 
+;;
+;; Predicate
+;;
 (define $symbol?
   (lambda [$mexpr]
     (match mexpr math-expr
       {[<symbol _> #t]
        [_ #f]})))
-
-(define $symbol-name
-  (lambda [$mexpr]
-    (match mexpr math-expr
-      {[<symbol $name _> name]
-       [_ undefined]})))
-
-(define $symbol-indices
-  (lambda [$mexpr]
-    (match mexpr math-expr
-      {[<symbol _ $js> js]
-       [_ undefined]})))
 
 (define $apply?
   (lambda [$mexpr]
@@ -138,6 +125,22 @@
         #t]
        [,0 #t]
        [_ #f]})))
+
+;;
+;; Accessor
+;;
+
+(define $symbol-name
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<symbol $name _> name]
+       [_ undefined]})))
+
+(define $symbol-indices
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<symbol _ $js> js]
+       [_ undefined]})))
 
 (define $from-monomial
   (lambda [$mexpr]
@@ -172,8 +175,8 @@
                      (*' a (foldl *' 1 (map 2#(match %1 symbol-expr
                                                 {[<symbol _> (**' (fn %1) %2)]
                                                  [<apply $g $args>
-                                                  (** (fn (capply g (map (map-symbols fn $) args)))
-                                                      %2)
+                                                  (**' (fn (capply g (map (map-symbols fn $) args)))
+                                                       %2)
                                                   ]})
                                             xs)))]}))
                mexpr)))
