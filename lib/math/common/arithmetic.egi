@@ -86,13 +86,15 @@
 
 (define $**'
   (lambda [$x $n]
-    (if (rational? n)
-      (if (gte? n 0)
-        (if (integer? n)
-          (power' x n)
-          ('**' x n))
-        (/' 1 (**' x (neg n))))
-      ('**' x n))))
+    (if (eq? x e)
+      (exp n)
+      (if (rational? n)
+        (if (gte? n 0)
+          (if (integer? n)
+            (power' x n)
+            ('** x n))
+          (/' 1 (**' x (neg n))))
+        ('** x n)))))
 
 (define $gcd
   (cambda $xs
