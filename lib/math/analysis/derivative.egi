@@ -19,7 +19,6 @@
        [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
        [<apply $g <cons $h <nil>>> (* ('(add-prime g) h) (∂/∂ h x))]
        [<apply $g (& $args <join $hs <cons ,x _>>)> (* (capply '(add-subscript g (+ (length hs) 1)) args))]
-;       [<apply ,∂/∂ _> ('∂/∂ f x)]
        [<apply $g $args>
         (sum (map (lambda [$t] (* (∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]
@@ -72,13 +71,17 @@
 
 (define $multivariate-taylor-expansion
   (lambda [$f $xs $as]
-    (map2 *
-          (map 1#(/ 1 (fact %1)) nats0)
-          (map (compose (substitute (zip xs as) $) 
-                        (map-symbols (match-lambda [symbol-expr]
-                                       {[<symbol ,"h" <cons <sub $i> <nil>>>
-                                         (- (nth i xs) (nth i as))]
-                                        [$sym sym]})
-                                     $))
-               (iterate (compose (∇ $ xs) (V.* (generate-tensor 1#h_%1 {(length xs)}) $)) f)))))
+    (let* {[$n (length xs)]
+           [$hs (map 1#h_%1 (between 1 n))]
+           [$hv (| {n} hs |)]
+           [$xas (map 1#(- (nth %1 xs) (nth %1 as)) (between 1 n))]}
+      (map2 *
+            (map 1#(/ 1 (fact %1)) nats0)
+            (map (substitute {@(zip xs as)
+                              @(zip hs xas)}
+                             $)
+                 (iterate (compose (∇ $ xs) (V.* hv $)) f))))))
 
+(define $multivariate-maclaurin-expansion
+  (lambda [$f $xs]
+    (multivariate-taylor-expansion f xs (take (length xs) (repeat1 0)))))

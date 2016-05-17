@@ -56,6 +56,7 @@
      "\\<if\\>"
      "\\<seq\\>"
 ;     "\\<apply\\>"
+     "\\<capply\\>"
      "\\<generate-array\\>"
      "\\<array-bounds\\>"
      "\\<array-ref\\>"
