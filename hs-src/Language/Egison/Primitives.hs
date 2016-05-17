@@ -546,14 +546,18 @@ addSubscript = twoArgs $ \fn sub -> do
     (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
      ScalarData s@(Div (Plus [(Term 1 [(Symbol _ [], 1)])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol name (is ++ [Subscript s]), 1)])]) (Plus [(Term 1 [])])))
     (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
-     _) -> throwError $ TypeMismatch "symbol" (Value sub)
-    _ ->  throwError $ TypeMismatch "symbol" (Value fn)
+     ScalarData s@(Div (Plus [(Term _ [])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol name (is ++ [Subscript s]), 1)])]) (Plus [(Term 1 [])])))
+    (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
+     _) -> throwError $ TypeMismatch "symbol or integer" (Value sub)
+    _ ->  throwError $ TypeMismatch "symbol or integer" (Value fn)
 
 addSuperscript :: PrimitiveFunc
 addSuperscript = twoArgs $ \fn sub -> do
   case (fn, sub) of
     (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
      ScalarData s@(Div (Plus [(Term 1 [(Symbol _ [], 1)])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol name (is ++ [Superscript s]), 1)])]) (Plus [(Term 1 [])])))
+    (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
+     ScalarData s@(Div (Plus [(Term _ [])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol name (is ++ [Superscript s]), 1)])]) (Plus [(Term 1 [])])))
     (ScalarData (Div (Plus [(Term 1 [(Symbol name is, 1)])]) (Plus [(Term 1 [])])),
      _) -> throwError $ TypeMismatch "symbol" (Value sub)
     _ ->  throwError $ TypeMismatch "symbol" (Value fn)

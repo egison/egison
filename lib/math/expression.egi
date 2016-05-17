@@ -34,7 +34,7 @@
      [<symbol $> [string]
       {[<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
        [_ {}]}]
-     [<symbol $ $> [string (list something)]
+     [<symbol $ $> [string (list index-expr)]
       {[<Div <Plus {<Term 1 {[<Symbol $v $js> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v js]}]
        [_ {}]}]
      [<apply $ $> [eq (list math-expr)]
@@ -45,6 +45,10 @@
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
      }))
+
+(define $index-expr
+  (algebraic-data-matcher
+    {<sub math-expr> <sup math-expr>}))
 
 (define $poly-expr math-expr)
 (define $term-expr math-expr)
@@ -173,7 +177,7 @@
                  (match term term-expr
                    {[<term $a $xs>
                      (*' a (foldl *' 1 (map 2#(match %1 symbol-expr
-                                                {[<symbol _> (**' (fn %1) %2)]
+                                                {[<symbol _ _> (**' (fn %1) %2)]
                                                  [<apply $g $args>
                                                   (**' (fn (capply g (map (map-symbols fn $) args)))
                                                        %2)

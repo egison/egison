@@ -18,9 +18,10 @@
        [(,sin $g) (* (cos g) (∂/∂ g x))]
        [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
        [<apply $g <cons $h <nil>>> (* ('(add-prime g) h) (∂/∂ h x))]
-       [<apply ,∂/∂ _> ('∂/∂ f x)]
+       [<apply $g (& $args <join $hs <cons ,x _>>)> (* (capply '(add-subscript g (+ (length hs) 1)) args))]
+;       [<apply ,∂/∂ _> ('∂/∂ f x)]
        [<apply $g $args>
-        (sum (map (lambda [$t] (* ('∂/∂ (capply g args) t) (∂/∂ t x)))
+        (sum (map (lambda [$t] (* (∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]
        ; term (constant)
        [,0 0]
@@ -60,3 +61,24 @@
           (map (substitute {[x a]} $) (iterate (∂/∂ $ x) f)))))
 
 (define $maclaurin-expansion (taylor-expansion $ $ 0))
+
+(define $∇
+  (lambda [$f $xs]
+    (generate-tensor
+      1#(∂/∂ f (nth %1 xs))
+      {(length xs)})))
+
+(define $nabla ∇)
+
+(define $multivariate-taylor-expansion
+  (lambda [$f $xs $as]
+    (map2 *
+          (map 1#(/ 1 (fact %1)) nats0)
+          (map (compose (substitute (zip xs as) $) 
+                        (map-symbols (match-lambda [symbol-expr]
+                                       {[<symbol ,"h" <cons <sub $i> <nil>>>
+                                         (- (nth i xs) (nth i as))]
+                                        [$sym sym]})
+                                     $))
+               (iterate (compose (∇ $ xs) (V.* (generate-tensor 1#h_%1 {(length xs)}) $)) f)))))
+
