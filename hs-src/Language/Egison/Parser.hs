@@ -635,7 +635,7 @@ egisonDef =
                 , P.caseSensitive      = True }
 
 symbol0 = oneOf "^"
-symbol1 = oneOf "+-*/=.∂"
+symbol1 = oneOf "+-*/=.∂∇"
 symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity

@@ -59,6 +59,8 @@
      "\\<generate-array\\>"
      "\\<array-bounds\\>"
      "\\<array-ref\\>"
+     "\\<generate-tensor\\>"
+     "\\<tensor-map\\>"
 
      "\\<loop\\>"
      "\\<match\\>"
@@ -185,6 +187,8 @@
         ((equal "generate-array" name) 2)
         ((equal "array-size" name) 2)
         ((equal "array-ref" name) 2)
+        ((equal "generate-tensor" name) 2)
+        ((equal "tensor-map" name) 2)
         ((equal "loop" name) 2)
         ((equal "match" name) 2)
         ((equal "match-lambda" name) 2)
