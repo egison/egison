@@ -77,9 +77,8 @@
            [$xas (map2 - xs as)]}
       (map2 *
             (map 1#(/ 1 (fact %1)) nats0)
-            (map (substitute {@(zip xs as)
-                              @(zip hs xas)}
-                             $)
+            (map (compose (substitute (zip xs as) $)
+                          (substitute (zip hs xas) $))
                  (iterate (compose (∇ $ xs) (V.* hv $)) f))))))
 
 (define $multivariate-maclaurin-expansion
