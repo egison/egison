@@ -17,13 +17,11 @@
 
 (define $math-normalize
   (lambda [$mexpr]
-    (if (float? mexpr)
-      mexpr
-      (match mexpr math-expr
-        {[?tensor? (tensor-map math-normalize mexpr)]
-         [?rational? mexpr]
-         [?scalar? (apply-all-rewrite-rules mexpr)]
-         [_ mexpr]}))))
+    (match mexpr math-expr
+      {[?tensor? (tensor-map math-normalize mexpr)]
+       [?rational? mexpr]
+       [?scalar? (apply-all-rewrite-rules mexpr)]
+       [_ mexpr]})))
 
 (define $apply-all-rewrite-rules
   (compose (map-terms rewrite-rule-i $)
