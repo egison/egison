@@ -11,14 +11,8 @@
        [,x 1]
        [<symbol _ _> 0]
        ; function application
-       [(,exp $g) (* (exp g) (∂/∂ g x))]
-       [(,** $g $h) (* f (∂/∂ (* (log g) h) x))]
-       [(,log $g) (* (/ 1 g) (∂/∂ g x))]
-       [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
-       [(,sin $g) (* (cos g) (∂/∂ g x))]
-       [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
-       [<apply $g <cons $h <nil>>> (* ('(add-prime g) h) (∂/∂ h x))]
-       [<apply $g (& $args <join $hs <cons ,x _>>)> (* (capply '(add-subscript g (+ (length hs) 1)) args))]
+       [<apply _ <cons _ <nil>>> (d/d f x)]
+       [<apply $g (& $args <join $hs <cons ,x _>>)> ('∂/∂ (capply 'g args) x)]
        [<apply $g $args>
         (sum (map (lambda [$t] (* (∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]
@@ -43,7 +37,19 @@
 (define $∂/∂y (∂/∂ $ y)) ; just a syntax sugar
 (define $∂/∂z (∂/∂ $ z)) ; just a syntax sugar
 
-(define $d/d ∂/∂)
+(define $d/d
+  (lambda [$f $x]
+    (match f math-expr
+      {[(,exp $g) (* (exp g) (∂/∂ g x))]
+       [(,** $g $h) (* f (∂/∂ (* (log g) h) x))]
+       [(,log $g) (* (/ 1 g) (∂/∂ g x))]
+       [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
+       [(,sin $g) (* (cos g) (∂/∂ g x))]
+       [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
+       [<apply $g <cons $h <nil>>> (* ('d/d ('g h) h) (∂/∂ h x))]
+       [_ (∂/∂ f x)] ; just for convenience
+       })))
+
 (define $d/dx (∂/∂ $ x)) ; just a syntax sugar
 (define $d/dy (∂/∂ $ y)) ; just a syntax sugar
 (define $d/dz (∂/∂ $ z)) ; just a syntax sugar
