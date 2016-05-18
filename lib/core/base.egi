@@ -28,15 +28,15 @@
 
 (define $snd 2#%2)
 
-(define $compose
+(define $b.compose
   (lambda [$f $g]
     (lambda $x
       (apply g (apply f x)))))
 
-(define $compose3
-  (lambda [$f $g $h]
+(define $compose
+  (cambda $fs
     (lambda $x
-      (apply h (apply g (apply f x))))))
+      (foldl 2#(%2 %1) x fs))))
 
 (define $ref
   (lambda [$xa $i]

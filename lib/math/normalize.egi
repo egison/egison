@@ -22,15 +22,17 @@
       (if (scalar? mexpr)
         (if (rational? mexpr)
           mexpr
-          (map-polys rewrite-rule-rtu-plus
-                     (map-polys rewrite-rule-w-plus
-                                (map-terms rewrite-rule-rt
-                                           (map-terms rewrite-rule-sqrt
-                                                      (map-terms rewrite-rule-rtu
-                                                                 (map-terms rewrite-rule-w
-                                                                            (map-terms rewrite-rule-i
-                                                                                       mexpr))))))))
+          (rewrite-rule-all mexpr))
         mexpr))))
+
+(define $rewrite-rule-all
+  (compose (map-terms rewrite-rule-i $)
+           (map-terms rewrite-rule-w $)
+           (map-terms rewrite-rule-rtu $)
+           (map-terms rewrite-rule-sqrt $)
+           (map-terms rewrite-rule-rt $)
+           (map-polys rewrite-rule-w-plus $)
+           (map-polys rewrite-rule-rtu-plus $)))
 
 (define $rewrite-rule-rtu-plus
   (lambda [$poly]

@@ -36,12 +36,12 @@
   (snd [1 2])
   2)
 
-(assert-equal "compose"
+(assert-equal "compose - case 1"
   ((compose fst snd) [[1 2] 3])
   2)
 
-(assert-equal "compose3"
-  ((compose3 fst snd fst) [[1 [2 3]] 4])
+(assert-equal "compose - case 2"
+  ((compose fst snd fst) [[1 [2 3]] 4])
   2)
 
 (assert-equal "ref"
