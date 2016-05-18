@@ -20,8 +20,7 @@
     (match mexpr math-expr
       {[?tensor? (tensor-map math-normalize mexpr)]
        [?rational? mexpr]
-       [?scalar? (apply-all-rewrite-rules mexpr)]
-       [_ mexpr]})))
+       [_ (apply-all-rewrite-rules mexpr)]})))
 
 (define $apply-all-rewrite-rules
   (compose (map-terms rewrite-rule-i $)
