@@ -335,7 +335,7 @@ data EgisonValue =
   | EOF
 
 --
--- Scalars
+-- Scalar and Tensor Types
 --
 
 data ScalarData =
@@ -354,6 +354,17 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
  deriving (Eq)
+
+data TensorData =
+    TData (Tensor ScalarData) (Maybe [Index ScalarData])
+ deriving (Eq)
+
+data Tensor a = Tensor [Integer] [a]
+ deriving (Eq)
+
+--
+-- Scalars
+--
 
 symbolScalarData :: String -> String -> EgisonValue
 symbolScalarData id name = ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))
@@ -550,13 +561,6 @@ mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
 --
 -- Tensors
 --
-
-data TensorData =
-    TData (Tensor ScalarData) (Maybe [Index ScalarData])
- deriving (Eq)
-
-data Tensor a = Tensor [Integer] [a]
- deriving (Eq)
 
 scalarToUnitTensor :: [Integer] -> ScalarData -> (Maybe [Index ScalarData]) -> TensorData
 scalarToUnitTensor ns x js = makeTensor ns (map (\ms -> if all (\m -> m == (head ms)) (tail ms)
