@@ -205,6 +205,7 @@ data EgisonExpr =
   | LetRecExpr [BindingExpr] EgisonExpr
   | LetExpr [BindingExpr] EgisonExpr
   | LetStarExpr [BindingExpr] EgisonExpr
+  | WithSymbolsExpr [String] EgisonExpr
 
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr MatchClause
@@ -354,8 +355,8 @@ data SymbolExpr =
   | Apply EgisonValue [ScalarData]
  deriving (Eq)
 
-symbolScalarData :: String -> EgisonValue
-symbolScalarData name = ScalarData (Div (Plus [(Term 1 [(Symbol "" name [], 1)])]) (Plus [(Term 1 [])]))
+symbolScalarData :: String -> String -> EgisonValue
+symbolScalarData id name = ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))
 
 mathExprToEgison :: ScalarData -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [(polyExprToEgison p1), (polyExprToEgison p2)]

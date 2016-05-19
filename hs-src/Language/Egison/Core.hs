@@ -166,7 +166,7 @@ evalExpr env (QuoteExpr expr) = do
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
-  refVar' env var = maybe (newEvalutedObjectRef (Value (symbolScalarData var))) return
+  refVar' env var = maybe (newEvalutedObjectRef (Value (symbolScalarData "" var))) return
                           (refVar env var)
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
@@ -321,6 +321,12 @@ evalExpr env (LetRecExpr bindings expr) =
 
   genVar :: State Int String
   genVar = modify (1+) >> gets (('#':) . show)
+
+evalExpr env (WithSymbolsExpr vars expr) = do
+  symId <- fresh
+  syms <- mapM (\var -> (newEvalutedObjectRef (Value (symbolScalarData symId var)))) vars
+  let bindings = zip vars syms
+  evalExpr (extendEnv env bindings) expr
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
   let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings

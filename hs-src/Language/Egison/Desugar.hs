@@ -219,6 +219,10 @@ desugar (LetStarExpr binds expr) = do
   expr' <- desugar expr
   return $ foldr (\bind ret -> LetExpr [bind] ret) expr' binds'
 
+desugar (WithSymbolsExpr vars expr) = do
+  expr' <- desugar expr
+  return $ WithSymbolsExpr vars expr'
+
 desugar (MatchExpr expr0 expr1 clauses) = do  
   expr0' <- desugar expr0
   expr1' <- desugar expr1

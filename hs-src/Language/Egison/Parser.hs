@@ -178,6 +178,7 @@ expr' = (try partialExpr
                          <|> letRecExpr
                          <|> letExpr
                          <|> letStarExpr
+                         <|> withSymbolsExpr
                          <|> doExpr
                          <|> ioExpr
                          <|> matchAllExpr
@@ -363,6 +364,9 @@ letExpr = keywordLet >> LetExpr <$> bindings <*> expr
 
 letStarExpr :: Parser EgisonExpr
 letStarExpr = keywordLetStar >> LetStarExpr <$> bindings <*> expr
+
+withSymbolsExpr :: Parser EgisonExpr
+withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> (braces $ sepEndBy ident whiteSpace) <*> expr
 
 doExpr :: Parser EgisonExpr
 doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr "return") (TupleExpr [])) expr
@@ -661,6 +665,7 @@ reservedKeywords =
   , "letrec"
   , "let"
   , "let*"
+  , "with-symbols"
   , "loop"
   , "match-all"
   , "match"
@@ -724,6 +729,7 @@ keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
 keywordLetStar              = reserved "let*"
+keywordWithSymbols          = reserved "with-symbols"
 keywordLoop                 = reserved "loop"
 keywordCont                 = reserved "..."
 keywordMatchAll             = reserved "match-all"
