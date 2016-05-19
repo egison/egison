@@ -335,7 +335,7 @@ data EgisonValue =
   | EOF
 
 --
--- Scalars
+-- Scalar and Tensor Types
 --
 
 data ScalarData =
@@ -354,6 +354,17 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
  deriving (Eq)
+
+data TensorData =
+    TData (Tensor ScalarData) (Maybe [Index ScalarData])
+ deriving (Eq)
+
+data Tensor a = Tensor [Integer] [a]
+ deriving (Eq)
+
+--
+-- Scalars
+--
 
 symbolScalarData :: String -> String -> EgisonValue
 symbolScalarData id name = ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))
@@ -551,13 +562,6 @@ mathDenominator (Div _ n) = Div n (Plus [(Term 1 [])])
 -- Tensors
 --
 
-data TensorData =
-    TData (Tensor ScalarData) (Maybe [Index ScalarData])
- deriving (Eq)
-
-data Tensor a = Tensor [Integer] [a]
- deriving (Eq)
-
 scalarToUnitTensor :: [Integer] -> ScalarData -> (Maybe [Index ScalarData]) -> TensorData
 scalarToUnitTensor ns x js = makeTensor ns (map (\ms -> if all (\m -> m == (head ms)) (tail ms)
                                                          then x
@@ -728,7 +732,7 @@ instance Show EgisonValue where
   show (Collection vals) = if Sq.null vals
                              then "{}"
                              else "{" ++ unwords (map show (toList vals)) ++ "}"
-  show (Array vals) = "[|" ++ unwords (map show $ Array.elems vals) ++ "|]"
+  show (Array vals) = "(|" ++ unwords (map show $ Array.elems vals) ++ "|)"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
@@ -793,7 +797,7 @@ instance Show TensorData where
   show (TData xs (Just indices)) = show xs ++ concat (map show indices)
 
 instance Show (Tensor ScalarData) where
-  show (Tensor ns xs) =  "(| {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} |)"
+  show (Tensor ns xs) =  "[| {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} |]"
 
 
 showTSV :: EgisonValue -> String
@@ -957,7 +961,7 @@ instance Show WHNFData where
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
-  show (Intermediate (IArray _)) = "[|...|]" 
+  show (Intermediate (IArray _)) = "(|...|)" 
   show (Intermediate (IIntHash _)) = "{|...|}" 
   show (Intermediate (ICharHash _)) = "{|...|}" 
   show (Intermediate (IStrHash _)) = "{|...|}" 

@@ -80,7 +80,7 @@
     (with-symbols {h}
       (let* {[$n (length xs)]
              [$hs (map 1#h_%1 (between 1 n))]
-             [$hv (| {n} hs |)]
+             [$hv [| {n} hs |]]
              [$xas (map2 - xs as)]}
         (map2 *
               (map 1#(/ 1 (fact %1)) nats0)
