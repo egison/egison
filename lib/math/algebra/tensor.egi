@@ -14,8 +14,8 @@
 
 (define $clear-index
   (lambda [$t]
-    (| (tensor-size t)
-       (tensor-to-list t) |)))
+    [| (tensor-size t)
+       (tensor-to-list t) |]))
 
 (define $unit-tensor
   (lambda [$ns]
@@ -69,7 +69,7 @@
   (lambda [$m]
     (match (tensor-size m) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
-        (T.map (/ $ (M.det m)) (| {2 2} {m_2_2 (* -1 m_1_2) (* -1 m_2_1) m_1_1} |))]
+        (T.map (/ $ (M.det m)) [| {2 2} {m_2_2 (* -1 m_1_2) (* -1 m_2_1) m_1_1} |])]
        [_ undefined]})))
 
 ;;

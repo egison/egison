@@ -732,7 +732,7 @@ instance Show EgisonValue where
   show (Collection vals) = if Sq.null vals
                              then "{}"
                              else "{" ++ unwords (map show (toList vals)) ++ "}"
-  show (Array vals) = "[|" ++ unwords (map show $ Array.elems vals) ++ "|]"
+  show (Array vals) = "(|" ++ unwords (map show $ Array.elems vals) ++ "|)"
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
@@ -797,7 +797,7 @@ instance Show TensorData where
   show (TData xs (Just indices)) = show xs ++ concat (map show indices)
 
 instance Show (Tensor ScalarData) where
-  show (Tensor ns xs) =  "(| {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} |)"
+  show (Tensor ns xs) =  "[| {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} |]"
 
 
 showTSV :: EgisonValue -> String
@@ -961,7 +961,7 @@ instance Show WHNFData where
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
-  show (Intermediate (IArray _)) = "[|...|]" 
+  show (Intermediate (IArray _)) = "(|...|)" 
   show (Intermediate (IIntHash _)) = "{|...|}" 
   show (Intermediate (ICharHash _)) = "{|...|}" 
   show (Intermediate (IStrHash _)) = "{|...|}" 

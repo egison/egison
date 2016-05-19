@@ -225,14 +225,14 @@ collectionExpr = braces $ CollectionExpr <$> sepEndBy innerExpr whiteSpace
 arrayExpr :: Parser EgisonExpr
 arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr whiteSpace
   where
-    lp = P.lexeme lexer (string "[|")
-    rp = string "|]"
+    lp = P.lexeme lexer (string "(|")
+    rp = string "|)"
 
 tensorExpr :: Parser EgisonExpr
 tensorExpr = between lp rp $ TensorExpr <$> expr <*> expr
   where
-    lp = P.lexeme lexer (string "(|")
-    rp = string "|)"
+    lp = P.lexeme lexer (string "[|")
+    rp = string "|]"
 
 hashExpr :: Parser EgisonExpr
 hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
