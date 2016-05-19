@@ -263,8 +263,8 @@ evalExpr env (IndexedExpr expr indices) = do
                               Subscript k -> k) js
   let indices' = map (\j -> ScalarData j) indices''
   case tensor of
-    (Value (ScalarData (Div (Plus [(Term 1 [(Symbol name [], 1)])]) (Plus [(Term 1 [])])))) -> do
-      return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol name js, 1)])]) (Plus [(Term 1 [])])))
+    (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
+      return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js, 1)])]) (Plus [(Term 1 [])])))
     (Value (TensorData (TData (Tensor ns xs) _))) -> do
       tCheckIndex indices'' ns
       if all (\x -> isInteger x) indices'
@@ -559,7 +559,7 @@ applyFunc _ (Value (Quote fn)) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
-applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _, 1)])]) (Plus [(Term 1 [])])))) arg = do
+applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
@@ -579,7 +579,7 @@ refArray (Value (Array array)) (index:indices) = do
               then refArray (Value (array ! i)) indices
               else return  $ Value Undefined
     else case index of
-           (ScalarData (Div (Plus [(Term 1 [(Symbol var [], 1)])]) (Plus [(Term 1 [])]))) -> do
+           (ScalarData (Div (Plus [(Term 1 [(Symbol _ _ [], 1)])]) (Plus [(Term 1 [])]))) -> do
              let (_,size) = Array.bounds array
              elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
              elmRefs <- mapM newEvalutedObjectRef elms
@@ -593,7 +593,7 @@ refArray (Intermediate (IArray array)) (index:indices) = do
                    evalRef ref >>= flip refArray indices
               else return  $ Value Undefined
     else case index of
-           (ScalarData (Div (Plus [(Term 1 [(Symbol var [], 1)])]) (Plus [(Term 1 [])]))) -> do
+           (ScalarData (Div (Plus [(Term 1 [(Symbol _ _ [], 1)])]) (Plus [(Term 1 [])]))) -> do
              let (_,size) = Array.bounds array
              let refs = Array.elems array
              arrs <- mapM evalRef refs

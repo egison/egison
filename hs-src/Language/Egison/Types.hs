@@ -350,12 +350,12 @@ data TermExpr =
  deriving (Eq)
 
 data SymbolExpr =
-    Symbol String [Index ScalarData]
+    Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
  deriving (Eq)
 
 symbolScalarData :: String -> EgisonValue
-symbolScalarData name = ScalarData (Div (Plus [(Term 1 [(Symbol name [], 1)])]) (Plus [(Term 1 [])]))
+symbolScalarData name = ScalarData (Div (Plus [(Term 1 [(Symbol "" name [], 1)])]) (Plus [(Term 1 [])]))
 
 mathExprToEgison :: ScalarData -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [(polyExprToEgison p1), (polyExprToEgison p2)]
@@ -367,7 +367,7 @@ termExprToEgison :: TermExpr -> EgisonValue
 termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprToEgison xs))]
 
 symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
-symbolExprToEgison (Symbol x js, n) = Tuple [InductiveData "Symbol" [toEgison (T.pack x), Collection (Sq.fromList (map (\j -> case j of
+symbolExprToEgison (Symbol _ x js, n) = Tuple [InductiveData "Symbol" [toEgison (T.pack x), Collection (Sq.fromList (map (\j -> case j of
                                                                                                                                 Superscript k -> InductiveData "Sup" [ScalarData k]
                                                                                                                                 Subscript k -> InductiveData "Sub" [ScalarData k]
                                                                                                                      ) js))], toEgison n]
@@ -405,7 +405,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, (Collection seq)], n]) = d
                          _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
                ) js
   n' <- fromEgison n
-  return (Symbol (T.unpack x') js', n')
+  return (Symbol "" (T.unpack x') js', n')
 egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, (Collection mExprs)], n]) = do
   mExprs' <- mapM egisonToScalarData (toList mExprs)
   n' <- fromEgison n
@@ -662,7 +662,7 @@ tCheckIndex ((Div (Plus [(Term m [])]) (Plus [(Term 1 [])])):ms) (n:ns) =
   if (0 < m) && (m <= n)
     then tCheckIndex ms ns
     else throwError $ TensorIndexOutOfBounds m n
-tCheckIndex (Div (Plus [(Term 1 [(Symbol _ _, 1)])]) (Plus [(Term 1 [])]):ms) (n:ns) = tCheckIndex ms ns
+tCheckIndex (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])]):ms) (n:ns) = tCheckIndex ms ns
 tCheckIndex (m:_) _ = throwError $ TypeMismatch "symbol or natural number" (Value (ScalarData m))
 
 tref' :: [Integer] -> (Tensor a) -> a
@@ -768,8 +768,8 @@ showPoweredSymbol (x, 1) = show x
 showPoweredSymbol (x, n) = show x ++ "^" ++ show n
 
 instance Show SymbolExpr where
-  show (Symbol s []) = s
-  show (Symbol s js) = s ++ concat (map show js)
+  show (Symbol _ s []) = s
+  show (Symbol _ s js) = s ++ concat (map show js)
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
 
 instance (Show a) => Show (Index a) where
@@ -1267,7 +1267,7 @@ isRational' :: PrimitiveFunc
 isRational' (Value val) = return $ Value $ Bool $ isRational val
 
 isSymbol :: EgisonValue -> Bool
-isSymbol (ScalarData (Div (Plus [(Term 1 [(Symbol _ _, 1)])]) (Plus [(Term 1 [])]))) = True
+isSymbol (ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])]))) = True
 isSymbol _ = False
 
 isScalar :: EgisonValue -> Bool
