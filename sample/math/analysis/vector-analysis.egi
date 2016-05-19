@@ -1,0 +1,128 @@
+;;
+;; Tensor
+;;
+
+[| x |]
+;=>
+x
+
+(+ 1 [|1 2 3|])
+;=>
+[|2 3 4|]
+
+(+ [|1 2 3|] 1)
+;=>
+[|2 3 4|]
+
+(∂/∂ [|(f x) (g x)|] x)
+;=>
+[|(f_1 x) (g_1 x)|]
+
+(+ [|1 2 3|] [|1 2 3|])
+;=>
+[|2 4 6|]
+
+(+ [|100 200 300|]_i
+   [|[|1 2 3|]
+     [|10 20 30|]|]_i_j)
+;=>
+[|[|101 202 303|]
+  [|110 220 330|]|]_i_j
+
+(+ [|[|11 12|]
+     [|21 22|]
+     [|31 32|]|]_i_j
+   [|100 200 300|]_j)
+;=>
+[|[|101 112|]
+  [|221 222|]
+  [|331 332|]|]_i_j
+
+(+ [|100 200 300|]_j
+   [|[|11 12|]
+     [|21 22|]
+     [|31 32|]|]_i_j)
+;=>
+[|[|111 221 331|]
+  [|112 222 332|]|]_i_j
+
+(apply [|(∂/∂ $ x) (∂/∂ $ y)|] (f x y))
+;=>
+[|(f_1 x y) (f_2 x y)|]
+
+;;
+;; Derivative
+;;
+
+(f x y z)
+
+(∂/∂ (f x y z) x)
+;=>
+(f_1 x y z)
+
+(∂/∂ (f x y z) [|x y z|])
+;=>
+[|(f_1 x y z) (f_2 x y z) (f_3 x y z)|]
+
+;;
+;; Nabla
+;;
+(define $∇ ∂/∂)
+
+(∇ (f x y z)) [|x y z|])
+;=>
+[|(f_1 x y z) (f_2 x y z) (f_3 x y z)|]
+
+(∇ [|(f1 x y z) (f2 x y z) (f3 x y z)|] [|x y z|])
+;=>
+[|(f1_1 x y z) (f2_2 x y z) (f3_3 x y z)|]
+
+(∇ [|(f1 x y z) (f2 x y z) (f3 x y z)|]_i [|x y z|]_j)
+;=>
+[|[|(f1_1 x y z) (f1_2 x y z) (f1_3 x y z)|]
+  [|(f2_1 x y z) (f2_2 x y z) (f2_3 x y z)|]
+  [|(f3_1 x y z) (f3_2 x y z) (f3_3 x y z)|]
+  |]_i_j
+
+(with-symbols {i j}
+  (∇ [|(f1 x y z) (f2 x y z) (f3 x y z)|]_i [|x y z|]_j))
+;=>
+[|[|(f1_1 x y z) (f1_2 x y z) (f1_3 x y z)|]
+  [|(f2_1 x y z) (f2_2 x y z) (f2_3 x y z)|]
+  [|(f3_1 x y z) (f3_2 x y z) (f3_3 x y z)|]
+  |]
+
+;;
+;; Divergence
+;;
+
+(define $div (compose ∇ T.sum))
+
+(div [|(f x y z) (g x y z) (h x y z)|] [|x y z|])
+;=>
+(+ (f_1 x y z) (g_2 x y z) (h_3 x y z))
+
+;;
+;; Taylor Expansion
+;;
+
+(define $multivariate-taylor-expansion
+  (lambda [|$f $xs $as|]
+    (with-symbols {h}
+      (let {[|$hs (generate-tensor 1#h_%1 (tensor-size xs))|]}
+        (map2 *
+              (map 1#(/ 1 (fact %1)) nats0)
+              (map (compose (substitute xs as $)
+                            (substitute hs (- xs as) $))
+                   (iterate (compose (∇ $ xs) (V.* hs $)) f)))))))
+
+(take 3 (multivariate-taylor-expansion (f x y) [|x y|] [|0 0|]))
+;=>
+{(f 0 0)
+ (+ (* x (f_1 0 0))
+    (* y (f_2 0 0)))
+ (/ (+ (* x^2 (f_1_1 0 0))
+       (* x y (f_2_1 0 0))
+       (* y x (f_1_2 0 0))
+       (* y^2 (f_2_2 0 0)))
+    2)}
