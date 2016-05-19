@@ -368,10 +368,10 @@ termExprToEgison :: TermExpr -> EgisonValue
 termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprToEgison xs))]
 
 symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
-symbolExprToEgison (Symbol _ x js, n) = Tuple [InductiveData "Symbol" [toEgison (T.pack x), Collection (Sq.fromList (map (\j -> case j of
-                                                                                                                                Superscript k -> InductiveData "Sup" [ScalarData k]
-                                                                                                                                Subscript k -> InductiveData "Sub" [ScalarData k]
-                                                                                                                     ) js))], toEgison n]
+symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolScalarData id x, Collection (Sq.fromList (map (\j -> case j of
+                                                                                                                                     Superscript k -> InductiveData "Sup" [ScalarData k]
+                                                                                                                                     Subscript k -> InductiveData "Sub" [ScalarData k]
+                                                                                                                             ) js))], toEgison n]
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
@@ -398,7 +398,6 @@ egisonToTermExpr val = liftError $ throwError $ TypeMismatch "math term expressi
 
 egisonToSymbolExpr :: EgisonValue -> EgisonM (SymbolExpr, Integer)
 egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, (Collection seq)], n]) = do
-  x' <- fromEgison x
   let js = toList seq
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
@@ -406,7 +405,9 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, (Collection seq)], n]) = d
                          _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
                ) js
   n' <- fromEgison n
-  return (Symbol "" (T.unpack x') js', n')
+  case x of
+    (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))) ->
+      return (Symbol id name js', n')
 egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, (Collection mExprs)], n]) = do
   mExprs' <- mapM egisonToScalarData (toList mExprs)
   n' <- fromEgison n
@@ -769,7 +770,7 @@ showPoweredSymbol (x, 1) = show x
 showPoweredSymbol (x, n) = show x ++ "^" ++ show n
 
 instance Show SymbolExpr where
-  show (Symbol _ s []) = s
+  show (Symbol id s []) = id ++ ":" ++ s
   show (Symbol _ s js) = s ++ concat (map show js)
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
 

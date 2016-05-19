@@ -31,10 +31,10 @@
      [<mult $ $> [integer mult-expr]
       {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (product' (map 2#(**' (to-math-expr' %1) %2) xs))]}]
        [_ {}]}]
-     [<symbol $> [string]
+     [<symbol $> [eq]
       {[<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
        [_ {}]}]
-     [<symbol $ $> [string (list index-expr)]
+     [<symbol $ $> [eq (list index-expr)]
       {[<Div <Plus {<Term 1 {[<Symbol $v $js> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v js]}]
        [_ {}]}]
      [<apply $ $> [eq (list math-expr)]
@@ -134,11 +134,11 @@
 ;; Accessor
 ;;
 
-(define $symbol-name
-  (lambda [$mexpr]
-    (match mexpr math-expr
-      {[<symbol $name _> name]
-       [_ undefined]})))
+;(define $symbol-name
+;  (lambda [$mexpr]
+;    (match mexpr math-expr
+;      {[<symbol $name _> name]
+;       [_ undefined]})))
 
 (define $symbol-indices
   (lambda [$mexpr]
