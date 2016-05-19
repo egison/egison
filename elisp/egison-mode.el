@@ -53,6 +53,7 @@
      "\\<let\\>"
      "\\<letrec\\>"
      "\\<let\\*\\>"
+     "\\<with-symbols\\>"
      "\\<if\\>"
      "\\<seq\\>"
 ;     "\\<apply\\>"
@@ -183,6 +184,7 @@
         ((equal "letrec" name) 2)
         ((equal "let" name) 2)
         ((equal "let*" name) 2)
+        ((equal "with-symbols" name) 2)
         ((equal "if" name) 2)
         ((equal "apply" name) 2)
         ((equal "generate-array" name) 2)

@@ -770,7 +770,7 @@ showPoweredSymbol (x, 1) = show x
 showPoweredSymbol (x, n) = show x ++ "^" ++ show n
 
 instance Show SymbolExpr where
-  show (Symbol id s []) = id ++ ":" ++ s
+  show (Symbol _ s []) = s
   show (Symbol _ s js) = s ++ concat (map show js)
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
 
