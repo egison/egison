@@ -200,10 +200,6 @@ evalExpr env (TensorExpr nsExpr xsExpr) = do
   if product ns == toInteger (length xs)
     then return $ Value $ TensorData (makeTensor ns xs Nothing)
     else throwError $ InconsistentTensorSize
- where
-  toScalarData :: WHNFData -> EgisonM ScalarData
-  toScalarData (Value (ScalarData x)) = return x
-  toScalarData val = throwError $ TypeMismatch "integer or string" $ val
 
 evalExpr env (InitTensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
@@ -217,10 +213,6 @@ evalExpr env (InitTensorExpr nsExpr xsExpr supExpr subExpr) = do
   if product ns == toInteger (length xs)
     then return $ Value $ TensorData (initTensor ns xs sup sub)
     else throwError $ InconsistentTensorSize
- where
-  toScalarData :: WHNFData -> EgisonM ScalarData
-  toScalarData (Value (ScalarData x)) = return x
-  toScalarData val = throwError $ TypeMismatch "integer or string" $ val
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -255,8 +247,8 @@ evalExpr env (HashExpr assocs) = do
 evalExpr env (IndexedExpr expr indices) = do
   tensor <- evalExpr env expr
   js <- mapM (\i -> case i of
-                      Superscript n -> evalExprDeep env n >>= extract >>= return . Superscript
-                      Subscript n -> evalExprDeep env n >>= extract >>= return . Subscript
+                      Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
+                      Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
               ) indices
   let indices'' = map (\j -> case j of
                               Superscript k -> k
@@ -274,9 +266,6 @@ evalExpr env (IndexedExpr expr indices) = do
                 return $ Value ret
     _ -> refArray tensor indices'
  where
-  extract :: EgisonValue -> EgisonM ScalarData
-  extract (ScalarData s) = return s
-  extract val = throwError $ TypeMismatch "scalar expression" (Value val)
   p :: Index ScalarData -> Bool
   p (Superscript k) = isSymbol (ScalarData k)
   p (Subscript k) = isSymbol (ScalarData k)
@@ -446,10 +435,6 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   fn <- evalExpr env fnExpr
   xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms)) >>= evalWHNF >>= extractScalar) (map (\ms -> map toEgison ms) (tensorIndices ns))
   return $ Value (TensorData (makeTensor ns xs Nothing))
- where
-  extractScalar :: EgisonValue -> EgisonM ScalarData
-  extractScalar (ScalarData x) = return x
-  extractScalar x = throwError $ TypeMismatch "scalar expression" (Value x)
 
 evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
@@ -460,10 +445,7 @@ evalExpr env (TensorMapExpr fnExpr tExpr) = do
     _ -> throwError $ TypeMismatch "tensor" tVal
  where
   applyScalarFunc :: Env -> WHNFData -> ScalarData -> EgisonM ScalarData
-  applyScalarFunc env fn s = applyFunc env fn (Value (ScalarData s)) >>= extractScalar
-  extractScalar :: WHNFData -> EgisonM ScalarData
-  extractScalar (Value (ScalarData x)) = return x
-  extractScalar x = throwError $ TypeMismatch "scalar expression" x
+  applyScalarFunc env fn s = applyFunc env fn (Value (ScalarData s)) >>= toScalarData
 
 evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
   fn <- evalExpr env fnExpr
@@ -476,10 +458,7 @@ evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
     _ -> throwError $ TypeMismatch "tensor" t2Val
  where
   applyScalarFunc :: Env -> WHNFData -> ScalarData -> ScalarData -> EgisonM ScalarData
-  applyScalarFunc env fn s1 s2 = applyFunc env fn (Value (Tuple [(ScalarData s1), (ScalarData s2)])) >>= extractScalar
-  extractScalar :: WHNFData -> EgisonM ScalarData
-  extractScalar (Value (ScalarData x)) = return x
-  extractScalar x = throwError $ TypeMismatch "scalar expression" x
+  applyScalarFunc env fn s1 s2 = applyFunc env fn (Value (Tuple [(ScalarData s1), (ScalarData s2)])) >>= toScalarData
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
@@ -571,10 +550,13 @@ applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Pl
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
 applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
 
-
 extractScalar :: EgisonValue -> EgisonM ScalarData
 extractScalar (ScalarData mExpr) = return mExpr
 extractScalar val = throwError $ TypeMismatch "math expression" (Value val)
+
+toScalarData :: WHNFData -> EgisonM ScalarData
+toScalarData (Value (ScalarData x)) = return x
+toScalarData val = throwError $ TypeMismatch "integer or string" $ val
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val 
