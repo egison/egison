@@ -35,7 +35,7 @@
     (reduce-fraction (math-normalize (b./' x1 x2)))))
 
 (define $b..' b.*')
-(define $b.. (macro [$x1 $x2] (math-normalize (b..' x1 x2))))
+(define $b.. (compose b.*' 1#(tensor-map (compose math-normalize reduce-fraction) %1)))
 
 (define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))
 (define $- (cambda $xs (foldl b.- (car xs) (cdr xs))))

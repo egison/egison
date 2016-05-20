@@ -440,24 +440,28 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
 
 evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
-  tVal <- evalExpr env tExpr
-  case tVal of
+  whnf <- evalExpr env tExpr
+  case whnf of
     Value (Tensor ns xs js) -> do
       tMap (applyFunc' env fn) (Tensor ns xs js) >>= return . Value
-    _ -> throwError $ TypeMismatch "tensor" tVal
+    _ -> applyFunc env fn whnf
  where
   applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
   applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
 
 evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
   fn <- evalExpr env fnExpr
-  t1Val <- evalExpr env t1Expr
-  t2Val <- evalExpr env t2Expr
-  case (t1Val, t2Val) of
+  whnf1 <- evalExpr env t1Expr
+  whnf2 <- evalExpr env t2Expr
+  case (whnf1, whnf2) of
     (Value t1@(Tensor _ _ _), Value t2@(Tensor _ _ _)) -> do
       tMap2 (applyFunc' env fn) t1 t2 >>= return . Value
-    (Value (Tensor _ _ _), _) -> throwError $ TypeMismatch "tensor" t1Val
-    _ -> throwError $ TypeMismatch "tensor" t2Val
+    (Value (Tensor _ _ _), _) -> throwError $ TypeMismatch "tensor in tensor-map2" whnf1
+    (_, Value (Tensor _ _ _)) -> throwError $ TypeMismatch "tensor in tensor-map2" whnf2
+    _ -> do
+      ref1 <- newEvaluatedObjectRef whnf1
+      ref2 <- newEvaluatedObjectRef whnf2
+      applyFunc env fn $ Intermediate $ ITuple [ref1, ref2]
  where
   applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
   applyFunc' env fn x y = applyFunc env fn (Value (Tuple [x, y])) >>= evalWHNF

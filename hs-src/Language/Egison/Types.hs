@@ -634,7 +634,6 @@ transIndex _ _ _ = throwError $ InconsistentTensorSize
 
 tProduct :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
 tProduct f (Tensor ns1 xs1 (Just ms1)) (Tensor ns2 xs2 (Just ms2)) = do
-  liftIO $ putStrLn "here: tProduct"
   xs' <- mapM (\is -> do let is1 = take (length ns1) is
                          let is2 = take (length ns2) (drop (length ns1) is)
                          let x1 = tref' is1 (Tensor ns1 xs1 Nothing)
@@ -642,7 +641,6 @@ tProduct f (Tensor ns1 xs1 (Just ms1)) (Tensor ns2 xs2 (Just ms2)) = do
                          f x1 x2) (tensorIndices (ns1 ++ ns2))
   tContract (Tensor (ns1 ++ ns2) xs' (Just (ms1 ++ ms2)))
 tProduct f (Tensor ns1 xs1 Nothing) (Tensor ns2 xs2 Nothing) = do
-  liftIO $ putStrLn "here2: tProduct"
   xs' <- mapM (\is -> do let is1 = take (length ns1) is
                          let is2 = take (length ns2) (drop (length ns1) is)
                          let x1 = tref' is1 (Tensor ns1 xs1 Nothing)
@@ -687,6 +685,7 @@ tContract t@(Tensor ns xs (Just js)) = do
   extract (Superscript k) = k
   extract (Subscript k) = k
 tContract t@(Tensor _ _ Nothing) = return t
+tContract val = return val
 
 tCheckIndex :: [ScalarData] -> [Integer] -> EgisonM ()
 tCheckIndex [] [] = return ()
