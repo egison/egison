@@ -34,6 +34,7 @@
   (lambda [$x1 $x2]
     (reduce-fraction (math-normalize (b./' x1 x2)))))
 
+(define $b..' b.*')
 (define $b.. (macro [$x1 $x2] (math-normalize (b..' x1 x2))))
 
 (define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))

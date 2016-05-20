@@ -68,9 +68,9 @@ oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 oneArg f = \arg -> do
   arg' <- evalWHNF arg
   case arg' of
-    (TensorData (TData (Tensor ns ds) js)) -> do
-      ds' <- mapM (\d -> f (ScalarData d)) ds >>= mapM extractScalar
-      return (Value (TensorData (TData (Tensor ns ds') js)))
+    (Tensor ns ds js) -> do
+      ds' <- mapM (\d -> f d) ds
+      return (Value (Tensor ns ds' js))
     _ -> f arg' >>= return . Value
 
 {-# INLINE oneArg' #-}
@@ -85,12 +85,14 @@ twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 twoArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
-    [TensorData (TData (Tensor ns ds) js), val] -> do
-      ds' <- mapM (\d -> f (ScalarData d) val) ds >>= mapM extractScalar
-      return (Value (TensorData (TData (Tensor ns ds') js)))
-    [val, TensorData (TData (Tensor ns ds) js)] -> do
-      ds' <- mapM (\d -> f val (ScalarData d)) ds >>= mapM extractScalar
-      return (Value (TensorData (TData (Tensor ns ds') js)))
+    [t1@(Tensor _ _ _), t2@(Tensor _ _ _)] -> do
+      tProduct f t1 t2 >>= return . Value
+    [(Tensor ns ds js), val] -> do
+      ds' <- mapM (\d -> f d val) ds
+      return (Value (Tensor ns ds' js))
+    [val, (Tensor ns ds js)] -> do
+      ds' <- mapM (\d -> f val d) ds
+      return (Value (Tensor ns ds' js))
     [val, val'] -> f val val' >>= return . Value
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
@@ -179,8 +181,6 @@ primitives = [ ("b.+", plus)
              , ("b.acosh", floatUnaryOp acosh)
              , ("b.atanh", floatUnaryOp atanh)
 
-             , ("b..", tensorProd)
-             , ("b..'", tensorProd)
              , ("tensor-index", tensorIndex)
              , ("tensor-size", tensorSize)
              , ("tensor-to-list", tensorToList)
@@ -405,18 +405,6 @@ imaginaryPart =  oneArg $ imaginaryPart'
 -- Tensor
 --
 
-tensorProd :: PrimitiveFunc
-tensorProd = twoArgs' $ tensorProd'
- where
-  tensorProd' (TensorData (TData (Tensor ns1 xs1) (Just ms1)))
-              (TensorData (TData (Tensor ns2 xs2) (Just ms2))) = do
-    ret <- tContract (TData (Tensor (ns1 ++ ns2) (map (\is -> let is1 = take (length ns1) is in
-                                                              let is2 = take (length ns2) (drop (length ns1) is) in
-                                                                (mathMult (tref' is1 (Tensor ns1 xs1)) (tref' is2 (Tensor ns2 xs2)))
-                                                       ) (tensorIndices (ns1 ++ ns2)))) (Just (ms1 ++ ms2)))
-    return ret
-  tensorProd' val1 val2 = throwError $ TypeMismatch "tensor data with index" (Value (Tuple [val1, val2]))
-
 tensorIndex :: PrimitiveFunc
 tensorIndex = oneArg' $ tensorIndex'
  where
@@ -426,13 +414,13 @@ tensorIndex = oneArg' $ tensorIndex'
 tensorSize :: PrimitiveFunc
 tensorSize = oneArg' $ tensorSize'
  where
-  tensorSize' (TensorData (TData (Tensor ns _) _)) = return . Collection . Sq.fromList $ map toEgison ns
+  tensorSize' (Tensor ns _ _) = return . Collection . Sq.fromList $ map toEgison ns
   tensorSize' val = throwError $ TypeMismatch "tensor data" (Value val)
 
 tensorToList :: PrimitiveFunc
 tensorToList = oneArg' $ tensorToList'
  where
-  tensorToList' (TensorData (TData (Tensor _ xs) _)) = return . Collection . Sq.fromList $ map ScalarData xs
+  tensorToList' (Tensor _ xs _) = return . Collection . Sq.fromList $ xs
   tensorToList' val = throwError $ TypeMismatch "tensor data" (Value val)
 
 --
