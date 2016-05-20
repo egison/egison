@@ -14,30 +14,26 @@
 
 (define $b.+
   (lambda [$x1 $x2]
-    (if (or (float? x1) (float? x1))
-      (b.+' x1 x2)
-      (match [x1 x2] [math-expr math-expr]
-        {[[<div $p1 (& !,1 $p2)> <div $q1 ,p2>]
-          (b./ (b.+ p1 q1) p2)]
-         [[_ _] (reduce-fraction (math-normalize (b.+' x1 x2)))]}))))
+    (match [x1 x2] [math-expr math-expr]
+      {[[<div $p1 (& !,1 $p2)> <div $q1 ,p2>]
+        (b./ (b.+ p1 q1) p2)]
+       [[_ _] (reduce-fraction (math-normalize (b.+' x1 x2)))]})))
+
 (define $b.-
   (lambda [$x1 $x2]
-    (if (or (float? x1) (float? x1))
-      (b.-' x1 x2)
-      (match [x1 x2] [math-expr math-expr]
-        {[[<div $p1 (& !,1 $p2)> <div $q1 ,p2>]
-          (b./ (b.- p1 q1) p2)]
-         [[_ _] (reduce-fraction (math-normalize (b.-' x1 x2)))]}))))
+    (match [x1 x2] [math-expr math-expr]
+      {[[<div $p1 (& !,1 $p2)> <div $q1 ,p2>]
+        (b./ (b.- p1 q1) p2)]
+       [[_ _] (reduce-fraction (math-normalize (b.-' x1 x2)))]})))
+
 (define $b.*
   (lambda [$x1 $x2]
-    (if (or (float? x1) (float? x1))
-      (b.*' x1 x2)
-      (reduce-fraction (math-normalize (b.*' x1 x2))))))
+    (reduce-fraction (math-normalize (b.*' x1 x2)))))
+
 (define $b./
   (lambda [$x1 $x2]
-    (if (or (float? x1) (float? x1))
-      (b./' x1 x2)
-      (reduce-fraction (math-normalize (b./' x1 x2))))))
+    (reduce-fraction (math-normalize (b./' x1 x2)))))
+
 (define $b.. (macro [$x1 $x2] (math-normalize (b..' x1 x2))))
 
 (define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))
@@ -48,13 +44,11 @@
 
 (define $reduce-fraction
   (lambda [$mexpr]
-    (if (float? mexpr)
-      mexpr
-      (match mexpr math-expr
-        {[<div <poly $ts1>
-               <poly $ts2>>
-          (let {[$d (capply gcd {@ts2 @ts1})]}
-            (/' (sum' (map (/' $ d) ts1)) (sum' (map (/' $ d) ts2))))]}))))
+    (match mexpr math-expr
+      {[<div <poly $ts1>
+             <poly $ts2>>
+        (let {[$d (capply gcd {@ts2 @ts1})]}
+          (/' (sum' (map (/' $ d) ts1)) (sum' (map (/' $ d) ts2))))]})))
 
 (define $sum
   (lambda [$xs]

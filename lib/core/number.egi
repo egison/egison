@@ -162,7 +162,7 @@
 
 (define $regular-continued-fraction-of-sqrt-helper
   (lambda [$m $a $b] ; a+b*rt(m)
-    (let* {[$n (floor (+ (rtof a) (* (rtof b) (sqrt (rtof m)))))]
+    (let* {[$n (floor (f.+ (rtof a) (f.* (rtof b) (sqrt (rtof m)))))]
            [$x (- m (power n 2))]}
       (if (eq? x 0)
         {[a b n]}

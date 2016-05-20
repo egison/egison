@@ -65,13 +65,38 @@ noArg f = \args -> do
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-oneArg f = \args -> do
-  args' <- evalWHNF args
-  f args' >>= return . Value
+oneArg f = \arg -> do
+  arg' <- evalWHNF arg
+  case arg' of
+    (TensorData (TData (Tensor ns ds) js)) -> do
+      ds' <- mapM (\d -> f (ScalarData d)) ds >>= mapM extractScalar
+      return (Value (TensorData (TData (Tensor ns ds') js)))
+    _ -> f arg' >>= return . Value
+
+{-# INLINE oneArg' #-}
+oneArg' :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+oneArg' f = \arg -> do
+  arg' <- evalWHNF arg
+  case arg' of
+    _ -> f arg' >>= return . Value
 
 {-# INLINE twoArgs #-}
 twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 twoArgs f = \args -> do
+  args' <- tupleToList args
+  case args' of 
+    [TensorData (TData (Tensor ns ds) js), val] -> do
+      ds' <- mapM (\d -> f (ScalarData d) val) ds >>= mapM extractScalar
+      return (Value (TensorData (TData (Tensor ns ds') js)))
+    [val, TensorData (TData (Tensor ns ds) js)] -> do
+      ds' <- mapM (\d -> f val (ScalarData d)) ds >>= mapM extractScalar
+      return (Value (TensorData (TData (Tensor ns ds') js)))
+    [val, val'] -> f val val' >>= return . Value
+    _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
+
+{-# INLINE twoArgs' #-}
+twoArgs' :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+twoArgs' f = \args -> do
   args' <- tupleToList args
   case args' of 
     [val, val'] -> f val val' >>= return . Value
@@ -108,6 +133,10 @@ primitives = [ ("b.+", plus)
              , ("b.-'", minus)
              , ("b.*'", multiply)
              , ("b./'", divide)
+             , ("f.+", floatBinaryOp (+))
+             , ("f.-", floatBinaryOp (-))
+             , ("f.*", floatBinaryOp (*))
+             , ("f./", floatBinaryOp (/))
              , ("numerator", numerator')
              , ("denominator", denominator')
              , ("from-math-expr", fromScalarData)
@@ -255,42 +284,24 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
 -- Arith
 --
 
-numberUnaryOp :: (ScalarData -> ScalarData) -> (EgisonValue -> EgisonValue) -> PrimitiveFunc
-numberUnaryOp mOp fOp arg = do
-  arg' <- tupleToList arg
-  case arg' of 
-    [val] -> numberUnaryOp' val >>= return . Value
-    _ -> throwError $ ArgumentsNumPrimitive 1 $ length arg'
+scalarBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> PrimitiveFunc
+scalarBinaryOp mOp = twoArgs $ \val val' -> do
+  scalarBinaryOp' val val'
  where
-  numberUnaryOp' f@(Float _ _)  = return $ fOp f
-  numberUnaryOp' (ScalarData m) = (return . ScalarData . mathNormalize') (mOp m)
-  numberUnaryOp' val            = throwError $ TypeMismatch "number" (Value val)
-
-numberBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> (EgisonValue -> EgisonValue -> EgisonValue) -> PrimitiveFunc
-numberBinaryOp mOp fOp args = do
-  args' <- tupleToList args
-  case args' of 
-    [val, val'] -> numberBinaryOp' val val' >>= return . Value
-    _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
- where
-  numberBinaryOp' f@(Float _ _)   f'@(Float _ _)  = return $ fOp f f'
-  numberBinaryOp' val             (Float x' y')   = numberBinaryOp' (numberToFloat' val) (Float x' y')
-  numberBinaryOp' (Float x y)     val'            = numberBinaryOp' (Float x y) (numberToFloat' val')
-  numberBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
-  numberBinaryOp' (ScalarData _)  val'            = throwError $ TypeMismatch "number" (Value val')
-  numberBinaryOp' val             _               = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
+  scalarBinaryOp' val             _               = throwError $ TypeMismatch "number" (Value val)
 
 plus :: PrimitiveFunc
-plus = numberBinaryOp mathPlus (\(Float x y) (Float x' y') -> Float (x + x')  (y + y'))
+plus = scalarBinaryOp mathPlus
 
 minus :: PrimitiveFunc
-minus = numberBinaryOp (\m1 m2 -> mathPlus m1 (mathNegate m2)) (\(Float x y) (Float x' y') -> Float (x - x')  (y - y'))
+minus = scalarBinaryOp (\m1 m2 -> mathPlus m1 (mathNegate m2))
 
 multiply :: PrimitiveFunc
-multiply = numberBinaryOp mathMult (\(Float x y) (Float x' y') -> Float (x * x' - y * y')  (x * y' + x' * y))
+multiply = scalarBinaryOp mathMult
 
 divide :: PrimitiveFunc
-divide = numberBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1)) (\(Float x y) (Float x' y') -> Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y')))
+divide = scalarBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1))
 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg $ numerator''
@@ -323,52 +334,52 @@ eq = twoArgs $ \val val' ->
   return $ Bool $ val == val'
 
 lt :: PrimitiveFunc
-lt = twoArgs $ \val val' -> numberBinaryPred' val val'
+lt = twoArgs $ \val val' -> scalarBinaryPred' val val'
  where
-  numberBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
+  scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (<) r r'
-  numberBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<) f f'
-  numberBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<) f f'
+  scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
+  scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 lte :: PrimitiveFunc
-lte = twoArgs $ \val val' -> numberBinaryPred' val val'
+lte = twoArgs $ \val val' -> scalarBinaryPred' val val'
  where
-  numberBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
+  scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (<=) r r'
-  numberBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<=) f f'
-  numberBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<=) f f'
+  scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
+  scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gt :: PrimitiveFunc
-gt = twoArgs $ \val val' -> numberBinaryPred' val val'
+gt = twoArgs $ \val val' -> scalarBinaryPred' val val'
  where
-  numberBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
+  scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (>) r r'
-  numberBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (>) f f'
-  numberBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  numberBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (>) f f'
+  scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
+  scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gte :: PrimitiveFunc
-gte = twoArgs $ \val val' -> numberBinaryPred' val val'
+gte = twoArgs $ \val val' -> scalarBinaryPred' val val'
  where
-  numberBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
+  scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (>=) r r'
-  numberBinaryPred' (Float f 0)    (Float f' 0)  = return $ Bool $ (>=) f f'
-  numberBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
-  numberBinaryPred' (Float _ _)    val           = throwError $ TypeMismatch "float" (Value val)
-  numberBinaryPred' val            _             = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (Float f 0)    (Float f' 0)  = return $ Bool $ (>=) f f'
+  scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (Float _ _)    val           = throwError $ TypeMismatch "float" (Value val)
+  scalarBinaryPred' val            _             = throwError $ TypeMismatch "number" (Value val)
   
 truncate' :: PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
@@ -395,7 +406,7 @@ imaginaryPart =  oneArg $ imaginaryPart'
 --
 
 tensorProd :: PrimitiveFunc
-tensorProd = twoArgs $ tensorProd'
+tensorProd = twoArgs' $ tensorProd'
  where
   tensorProd' (TensorData (TData (Tensor ns1 xs1) (Just ms1)))
               (TensorData (TData (Tensor ns2 xs2) (Just ms2))) = do
@@ -407,19 +418,19 @@ tensorProd = twoArgs $ tensorProd'
   tensorProd' val1 val2 = throwError $ TypeMismatch "tensor data with index" (Value (Tuple [val1, val2]))
 
 tensorIndex :: PrimitiveFunc
-tensorIndex = oneArg $ tensorIndex'
+tensorIndex = oneArg' $ tensorIndex'
  where
 --  tensorIndex' (TensorData (TData (Tensor _ _) (Just ms))) = return . Collection . Sq.fromList $ map ScalarData ms
   tensorIndex' val = throwError $ TypeMismatch "tensor with index" (Value val)
 
 tensorSize :: PrimitiveFunc
-tensorSize = oneArg $ tensorSize'
+tensorSize = oneArg' $ tensorSize'
  where
   tensorSize' (TensorData (TData (Tensor ns _) _)) = return . Collection . Sq.fromList $ map toEgison ns
   tensorSize' val = throwError $ TypeMismatch "tensor data" (Value val)
 
 tensorToList :: PrimitiveFunc
-tensorToList = oneArg $ tensorToList'
+tensorToList = oneArg' $ tensorToList'
  where
   tensorToList' (TensorData (TData (Tensor _ xs) _)) = return . Collection . Sq.fromList $ map ScalarData xs
   tensorToList' val = throwError $ TypeMismatch "tensor data" (Value val)

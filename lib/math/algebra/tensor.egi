@@ -12,11 +12,6 @@
   (lambda [$fn $t1 $t2]
     (tensor-map2 fn t1 t2)))
 
-(define $clear-index
-  (lambda [$t]
-    [| (tensor-size t)
-       (tensor-to-list t) |]))
-
 (define $unit-tensor
   (lambda [$ns]
     (generate-tensor kronecker-delta ns)))
@@ -33,26 +28,12 @@
 (define $T.zero (zero-tensor $))
 
 ;;
-;; Arithmetic
-;;
-(define $T.arith
-  (lambda [$op]
-    (lambda [$t1 $t2]
-      (match [(tensor? t1) (tensor? t2)] [bool bool]
-        {[[,#t ,#t] (T.map2 op t1 t2)]
-         [[,#t ,#f] (T.map2 op t1 (scalar-to-tensor t2 (tensor-size t1)))]
-         [[,#f ,#t] (T.map2 op (scalar-to-tensor t1 (tensor-size t2)) t2)]
-         }))))
-
-(define $T.+ (T.arith +))
-(define $T.- (T.arith -))
-
-;;
 ;; Vectors
 ;;
 (define $V.*
   (lambda [$v1 $v2]
-    (. v1~i v2_i)))
+    (with-symbols {i}
+      (. v1~i v2_i))))
 
 ;;
 ;; Matrices
@@ -63,7 +44,8 @@
 
 (define $M.*'
   (lambda [$m1 $m2]
-    (clear-index (. m1~i~j m2_j_k))))
+    (with-symbols {i j k}
+      (. m1~i~j m2_j_k))))
 
 (define $M.inverse
   (lambda [$m]

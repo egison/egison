@@ -37,6 +37,8 @@ module Language.Egison.Core
     , collectionToList
     -- * Utiltiy functions
     , packStringValue
+    , extractScalar
+    , extarctScalar'
     ) where
 
 import Prelude hiding (mapM, mappend)
@@ -196,7 +198,7 @@ evalExpr env (TensorExpr nsExpr xsExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
   xsWhnf <- evalExpr env xsExpr
-  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
+  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM extarctScalar'
   if product ns == toInteger (length xs)
     then return $ Value $ TensorData (makeTensor ns xs Nothing)
     else throwError $ InconsistentTensorSize
@@ -205,11 +207,11 @@ evalExpr env (InitTensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
   xsWhnf <- evalExpr env xsExpr
-  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
+  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM extarctScalar'
   supWhnf <- evalExpr env supExpr
-  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
+  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRef >>= mapM extarctScalar'
   subWhnf <- evalExpr env subExpr
-  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRef >>= mapM toScalarData
+  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRef >>= mapM extarctScalar'
   if product ns == toInteger (length xs)
     then return $ Value $ TensorData (initTensor ns xs sup sub)
     else throwError $ InconsistentTensorSize
@@ -315,7 +317,11 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   symId <- fresh
   syms <- mapM (\var -> (newEvaluatedObjectRef (Value (symbolScalarData symId var)))) vars
   let bindings = zip vars syms
-  evalExpr (extendEnv env bindings) expr
+  ret <- evalExpr (extendEnv env bindings) expr
+  case ret of
+    -- TODO: check symbols
+    (Value (TensorData (TData (Tensor ns xs) js))) -> return (Value (TensorData (TData (Tensor ns xs) Nothing)))
+    _ -> return ret
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
   let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings
@@ -445,7 +451,7 @@ evalExpr env (TensorMapExpr fnExpr tExpr) = do
     _ -> throwError $ TypeMismatch "tensor" tVal
  where
   applyScalarFunc :: Env -> WHNFData -> ScalarData -> EgisonM ScalarData
-  applyScalarFunc env fn s = applyFunc env fn (Value (ScalarData s)) >>= toScalarData
+  applyScalarFunc env fn s = applyFunc env fn (Value (ScalarData s)) >>= extarctScalar'
 
 evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
   fn <- evalExpr env fnExpr
@@ -458,7 +464,7 @@ evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
     _ -> throwError $ TypeMismatch "tensor" t2Val
  where
   applyScalarFunc :: Env -> WHNFData -> ScalarData -> ScalarData -> EgisonM ScalarData
-  applyScalarFunc env fn s1 s2 = applyFunc env fn (Value (Tuple [(ScalarData s1), (ScalarData s2)])) >>= toScalarData
+  applyScalarFunc env fn s1 s2 = applyFunc env fn (Value (Tuple [(ScalarData s1), (ScalarData s2)])) >>= extarctScalar'
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
@@ -554,9 +560,9 @@ extractScalar :: EgisonValue -> EgisonM ScalarData
 extractScalar (ScalarData mExpr) = return mExpr
 extractScalar val = throwError $ TypeMismatch "math expression" (Value val)
 
-toScalarData :: WHNFData -> EgisonM ScalarData
-toScalarData (Value (ScalarData x)) = return x
-toScalarData val = throwError $ TypeMismatch "integer or string" $ val
+extarctScalar' :: WHNFData -> EgisonM ScalarData
+extarctScalar' (Value (ScalarData x)) = return x
+extarctScalar' val = throwError $ TypeMismatch "integer or string" $ val
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val 
