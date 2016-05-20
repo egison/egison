@@ -330,7 +330,7 @@ toScalarData = oneArg $ toScalarData'
 -- Pred
 --
 eq :: PrimitiveFunc
-eq = twoArgs $ \val val' ->
+eq = twoArgs' $ \val val' ->
   return $ Bool $ val == val'
 
 lt :: PrimitiveFunc

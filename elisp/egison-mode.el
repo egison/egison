@@ -61,6 +61,7 @@
      "\\<generate-array\\>"
      "\\<array-bounds\\>"
      "\\<array-ref\\>"
+     "\\<tensor\\>"
      "\\<generate-tensor\\>"
      "\\<tensor-map\\>"
 

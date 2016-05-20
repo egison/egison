@@ -194,20 +194,19 @@ evalExpr env (ArrayExpr exprs) = do
   refs' <- mapM (newObjectRef env) exprs
   return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
-evalExpr env (TensorExpr nsExpr xsExpr) = do
-  nsWhnf <- evalExpr env nsExpr
-  ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
-  xsWhnf <- evalExpr env xsExpr
-  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef >>= mapM extractScalar'
-  if product ns == toInteger (length xs)
-    then return $ Value $ TensorData (makeTensor ns xs Nothing)
-    else throwError $ InconsistentTensorSize
-
 evalExpr env (VectorExpr exprs) = do
-  xs <- mapM (evalExprDeep env) exprs >>= mapM extractScalar
-  return $ Value $ TensorData (makeTensor [fromIntegral (length xs)] xs Nothing)
+  vals <- mapM (evalExprDeep env) exprs
+  case vals of
+    ((TensorData (TData (Tensor ns _) _)):_) -> do
+      let ds = concat $ map (\t -> case t of
+                                     (TensorData (TData (Tensor _ ds) _)) -> ds)
+                            vals
+      return $ Value $ TensorData (TData (Tensor ((fromIntegral (length vals)):ns) ds) Nothing)
+    _ -> do
+      xs <- mapM extractScalar vals
+      return $ Value $ TensorData (makeTensor [fromIntegral (length xs)] xs Nothing)
 
-evalExpr env (InitTensorExpr nsExpr xsExpr supExpr subExpr) = do
+evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
   xsWhnf <- evalExpr env xsExpr

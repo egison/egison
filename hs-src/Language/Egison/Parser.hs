@@ -163,7 +163,6 @@ expr' = (try partialExpr
              <|> try varExpr
              <|> inductiveDataExpr
              <|> try arrayExpr
-             <|> try tensorExpr
              <|> try vectorExpr
              <|> try tupleExpr
              <|> try hashExpr
@@ -201,7 +200,7 @@ expr' = (try partialExpr
                          <|> arrayBoundsExpr
                          <|> arrayRefExpr
                          <|> generateTensorExpr
-                         <|> initTensorExpr
+                         <|> tensorExpr
                          <|> tensorMapExpr
                          <|> tensorMap2Expr
                          )
@@ -228,12 +227,6 @@ arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr whiteSpace
   where
     lp = P.lexeme lexer (string "(|")
     rp = string "|)"
-
-tensorExpr :: Parser EgisonExpr
-tensorExpr = between lp rp $ TensorExpr <$> expr <*> expr
-  where
-    lp = P.lexeme lexer (string "[|")
-    rp = string "|]"
 
 vectorExpr :: Parser EgisonExpr
 vectorExpr = between lp rp $ VectorExpr <$> sepEndBy expr whiteSpace
@@ -474,8 +467,8 @@ arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
 generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> expr
 
-initTensorExpr :: Parser EgisonExpr
-initTensorExpr = keywordInitTensor >> InitTensorExpr <$> expr <*> expr <*> expr <*> expr
+tensorExpr :: Parser EgisonExpr
+tensorExpr = keywordTensor >> TensorExpr <$> expr <*> expr <*> option (CollectionExpr []) expr <*> option (CollectionExpr []) expr
 
 tensorMapExpr :: Parser EgisonExpr
 tensorMapExpr = keywordTensorMap >> TensorMapExpr <$> expr <*> expr
@@ -688,7 +681,7 @@ reservedKeywords =
   , "array-bounds"
   , "array-ref"
   , "generate-tensor"
-  , "init-tensor"
+  , "tensor"
   , "tensor-map"
   , "tensor-map2"
   , "something"
@@ -759,7 +752,7 @@ keywordGenerateArray        = reserved "generate-array"
 keywordArrayBounds          = reserved "array-bounds"
 keywordArrayRef             = reserved "array-ref"
 keywordGenerateTensor       = reserved "generate-tensor"
-keywordInitTensor           = reserved "init-tensor"
+keywordTensor               = reserved "tensor"
 keywordTensorMap            = reserved "tensor-map"
 keywordTensorMap2           = reserved "tensor-map2"
 

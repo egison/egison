@@ -192,7 +192,6 @@ data EgisonExpr =
   | CollectionExpr [InnerExpr]
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
-  | TensorExpr EgisonExpr EgisonExpr
   | VectorExpr [EgisonExpr]
 
   | LambdaExpr [String] EgisonExpr
@@ -239,7 +238,7 @@ data EgisonExpr =
   | ArrayRefExpr EgisonExpr EgisonExpr
 
   | GenerateTensorExpr EgisonExpr EgisonExpr
-  | InitTensorExpr EgisonExpr EgisonExpr EgisonExpr EgisonExpr
+  | TensorExpr EgisonExpr EgisonExpr EgisonExpr EgisonExpr
   | TensorMapExpr EgisonExpr EgisonExpr
   | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
 
@@ -799,7 +798,11 @@ instance Show TensorData where
 
 instance Show (Tensor ScalarData) where
   show (Tensor [_] xs) =  "[| " ++ unwords (map show xs) ++ " |]"
-  show (Tensor ns xs) =  "[| {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} |]"
+  show (Tensor [i, k] xs) =  "[| " ++ f (fromIntegral i) xs ++ "|]"
+   where
+    f i [] = ""
+    f i xs = "[| " ++ unwords (map show (take i xs)) ++ " |] " ++ f i (drop i xs)
+  show (Tensor ns xs) =  "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} )"
 
 
 showTSV :: EgisonValue -> String
@@ -812,7 +815,7 @@ instance Eq EgisonValue where
  (String str) == (String str') = str == str'
  (Bool b) == (Bool b') = b == b'
  (ScalarData x) == (ScalarData y) = (x == y)
- (TensorData x) == (TensorData y) = (x == y)
+ (TensorData (TData (Tensor js xs) _)) == (TensorData (TData (Tensor js' xs') _)) = (js == js') && (xs == xs')
  (Float x y) == (Float x' y') = (x == x') && (y == y')
  (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
  (Tuple vals) == (Tuple vals') = vals == vals'
