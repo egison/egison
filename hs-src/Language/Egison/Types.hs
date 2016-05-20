@@ -193,6 +193,7 @@ data EgisonExpr =
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | TensorExpr EgisonExpr EgisonExpr
+  | VectorExpr [EgisonExpr]
 
   | LambdaExpr [String] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr
@@ -797,6 +798,7 @@ instance Show TensorData where
   show (TData xs (Just indices)) = show xs ++ concat (map show indices)
 
 instance Show (Tensor ScalarData) where
+  show (Tensor [_] xs) =  "[| " ++ unwords (map show xs) ++ " |]"
   show (Tensor ns xs) =  "[| {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} |]"
 
 
