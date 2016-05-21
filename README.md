@@ -178,55 +178,41 @@ We verify [Euler's formula](https://en.wikipedia.org/wiki/Euler%27s_formula) in 
 We support tesnsor algebra.
 We use [Einstein notation](https://en.wikipedia.org/wiki/Einstein_notation) to express arithmetic operations between tensors.
 
-A tensor is expressed by enclosing its dimensions and elements with `(|` and `|)`.
+A vector and matrix is expressed by enclosing its elements with `(|` and `|)`.
+
+A tensor of higher order than 2 is expressed by a `tensor` expression whose arguments are its dimensions and elements.
 
 ```
-(| <dimensions> <elements> |)
+(tensor <dimensions> <elements>)
 ```
 
-
 ```
-> (define $V1 (| {3} {x_1 x_2 x_3} |))
-> (define $V2 (| {3} {y_1 y_2 y_3} |))
+> (define $V1 [| x_1 x_2 x_3 |])
+> (define $V2 [| y_1 y_2 y_3 |])
 > (. V1~i V2_i)
 (+ (* x_1 y_1) (* x_2 y_2) (* x_3 y_3))
-> (. V1_i V2_j)
-(| {3 3} {(* x_1 y_1) (* x_1 y_2) (* x_1 y_3) (* x_2 y_1) (* x_2 y_2) (* x_2 y_3) (* x_3 y_1) (* x_3 y_2) (* x_3 y_3)} |)_i_j
+> (. V1~i V2_j)
+[| [| (* x_1 y_1) (* x_1 y_2) (* x_1 y_3) |] [| (* x_2 y_1) (* x_2 y_2) (* x_2 y_3) |] [| (* x_3 y_1) (* x_3 y_2) (* x_3 y_3) |] |]~i_j
 ```
 
 ```
 > (define $M1 (generate-tensor 2#x_%1_%2 {2 2}))
 > (define $M2 (generate-tensor 2#y_%1_%2 {2 2}))
 > M1
-(| {2 2} {x_1_1 x_1_2 x_2_1 x_2_2} |)
+[| [| x_1_1 x_1_2 |] [| x_2_1 x_2_2 |] |]
 > M2
-(| {2 2} {y_1_1 y_1_2 y_2_1 y_2_2} |)
+[| [| y_1_1 y_1_2 |] [| y_2_1 y_2_2 |] |]
 > M1_i_1
-(| {2} {x_1_1 x_2_1} |)_i
+[| x_1_1 x_2_1 |]_i
 > M1_1_j
-(| {2} {x_1_1 x_1_2} |)_j
+[| x_1_1 x_1_2 |]_j
 > (. M1_i_j M2_j_k)
-(| {2 2} {(+ (* x_1_1 y_1_1) (* x_1_2 y_2_1)) (+ (* x_1_1 y_1_2) (* x_1_2 y_2_2)) (+ (* x_2_1 y_1_1) (* x_2_2 y_2_1)) (+ (* x_2_1 y_1_2) (* x_2_2 y_2_2))} |)_i_k
+(tensor {2 2 2 2} {(* x_1_1 y_1_1) (* x_1_1 y_1_2) (* x_1_1 y_2_1) (* x_1_1 y_2_2) (* x_1_2 y_1_1) (* x_1_2 y_1_2) (* x_1_2 y_2_1) (* x_1_2 y_2_2) (* x_2_1 y_1_1) (* x_2_1 y_1_2) (* x_2_1 y_2_1) (* x_2_1 y_2_2) (* x_2_2 y_1_1) (* x_2_2 y_1_2) (* x_2_2 y_2_1) (* x_2_2 y_2_2)} )_i_j_j_k
 > (. M1_i_j M2_k_l)
-(| {2 2 2 2} {(* x_1_1 y_1_1) (* x_1_1 y_1_2) (* x_1_1 y_2_1) (* x_1_1 y_2_2) (* x_1_2 y_1_1) (* x_1_2 y_1_2) (* x_1_2 y_2_1) (* x_1_2 y_2_2) (* x_2_1 y_1_1) (* x_2_1 y_1_2) (* x_2_1 y_2_1) (* x_2_1 y_2_2) (* x_2_2 y_1_1) (* x_2_2 y_1_2) (* x_2_2 y_2_1) (* x_2_2 y_2_2)} |)_i_j_k_l
+(tensor {2 2 2 2} {(* x_1_1 y_1_1) (* x_1_1 y_1_2) (* x_1_1 y_2_1) (* x_1_1 y_2_2) (* x_1_2 y_1_1) (* x_1_2 y_1_2) (* x_1_2 y_2_1) (* x_1_2 y_2_2) (* x_2_1 y_1_1) (* x_2_1 y_1_2) (* x_2_1 y_2_1) (* x_2_1 y_2_2) (* x_2_2 y_1_1) (* x_2_2 y_1_2) (* x_2_2 y_2_1) (* x_2_2 y_2_2)} )_i_j_k_l
 ```
-
-Addition of tensors and arithmetic between a scalar and a tensor are expressed as follow.
 
 * [tensor.egi](https://github.com/egison/egison/blob/master/lib/math/algebra/tensor.egi)
-
-```
-> (define $X (generate-tensor 2#x_%1_%2 {2 2}))
-> (define $Y (generate-tensor 2#y_%1_%2 {2 2}))
-> X
-(| {2 2} {x_1_1 x_1_2 x_2_1 x_2_2} |)
-> Y
-(| {2 2} {y_1_1 y_1_2 y_2_1 y_2_2} |)
-> (T.map2 + X_i_j  Y_j_i)
-(| {2 2} {(+ x_1_1 y_1_1) (+ x_1_2 y_2_1) (+ x_2_1 y_1_2) (+ x_2_2 y_2_2)} |)_i_j
-> (T.+ X 100)
-(| {2 2} {(+ x_1_1 100) x_1_2 x_2_1 (+ x_2_2 100)} |)
-```
 
 ### Egison Math Notebook
 
