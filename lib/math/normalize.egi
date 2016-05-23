@@ -18,8 +18,8 @@
 (define $math-normalize
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[(& ?rational? $x) x]
-       [_ (apply-all-rewrite-rules mexpr)]})))
+      {[(& ?rational? $mexpr) mexpr]
+       [$mexpr (apply-all-rewrite-rules mexpr)]})))
 
 (define $apply-all-rewrite-rules
   (compose (map-terms rewrite-rule-i $)
