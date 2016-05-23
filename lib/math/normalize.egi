@@ -18,8 +18,7 @@
 (define $math-normalize
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[?tensor? (tensor-map math-normalize mexpr)]
-       [?rational? mexpr]
+      {[(& ?rational? $x) x]
        [_ (apply-all-rewrite-rules mexpr)]})))
 
 (define $apply-all-rewrite-rules

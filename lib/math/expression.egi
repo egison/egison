@@ -134,12 +134,6 @@
 ;; Accessor
 ;;
 
-;(define $symbol-name
-;  (lambda [$mexpr]
-;    (match mexpr math-expr
-;      {[<symbol $name _> name]
-;       [_ undefined]})))
-
 (define $symbol-indices
   (lambda [$mexpr]
     (match mexpr math-expr

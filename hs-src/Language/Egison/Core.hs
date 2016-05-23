@@ -339,9 +339,15 @@ evalExpr env (IoExpr expr) = do
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  result <- patternMatch env pattern target matcher
-  mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
+  case target of
+    (Value (Tensor ns xs js)) -> do
+      xs' <- mapM (f matcher) (map Value xs) >>= mapM evalWHNF
+      return . Value $ Tensor ns xs' js
+    _ -> f matcher target
  where
+  f matcher target = do
+    result <- patternMatch env pattern target matcher
+    mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
   fromMList MNil = return . Value $ Collection Sq.empty
   fromMList (MCons val m) = do
@@ -353,12 +359,19 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
 evalExpr env (MatchExpr target matcher clauses) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  let tryMatchClause (pattern, expr) cont = do
-        result <- patternMatch env pattern target matcher
-        case result of
-          MCons bindings _ -> evalExpr (extendEnv env bindings) expr
-          MNil -> cont
-  foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
+  case target of
+    (Value (Tensor ns xs js)) -> do
+      xs' <- mapM (f matcher) (map Value xs) >>= mapM evalWHNF
+      return . Value $ Tensor ns xs' js
+    _ -> f matcher target
+ where
+  f matcher target = do
+      let tryMatchClause (pattern, expr) cont = do
+            result <- patternMatch env pattern target matcher
+            case result of
+              MCons bindings _ -> evalExpr (extendEnv env bindings) expr
+              MNil -> cont
+      foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
 
 evalExpr env (SeqExpr expr1 expr2) = do
   evalExprDeep env expr1
@@ -1116,9 +1129,11 @@ tupleToList whnf = do
 collectionToList :: WHNFData -> EgisonM [EgisonValue]
 collectionToList whnf = do
   val <- evalWHNF whnf
-  return $ collectionToList' val
+  collectionToList' val
  where
-  collectionToList' (Collection sq) = toList sq
+  collectionToList' :: EgisonValue -> EgisonM [EgisonValue]
+  collectionToList' (Collection sq) = return $ toList sq
+  collectionToList' val = throwError $ TypeMismatch "collection" (Value val)
 
 makeTuple :: [EgisonValue] -> EgisonValue
 makeTuple [] = Tuple []

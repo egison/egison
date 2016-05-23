@@ -11,12 +11,12 @@
        [,x 1]
        [<symbol _ _> 0]
        ; function application
-       [<apply _ <cons _ <nil>>> (d/d f x)]
-       [<apply $g (& $args <join $hs <cons ,x _>>)>
+       [<apply (& ?scalar? $g) (& $args <join $hs <cons ,x _>>)>
         (capply '(add-subscript g (+ (length hs) 1)) args)]
-       [<apply $g $args>
+       [<apply (& ?scalar? $g) $args>
         (sum (map (lambda [$t] (* (∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]
+       [<apply _ _> (d/d f x)]
        ; term (constant)
        [,0 0]
        [<term _ <nil>> 0]
@@ -44,20 +44,10 @@
        [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
        [(,sin $g) (* (cos g) (∂/∂ g x))]
        [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
-       [<apply $g <cons $h <nil>>>
-        (* (capply '(add-subscript g 1) args) (∂/∂ h x))]
-       [_ (∂/∂ f x)] ; just for convenience
+       [_ (∂/∂ f x)]
        })))
 
-(define $dP/dP ∂/∂)
-
-(define $∂/∂x (∂/∂ $ x)) ; just a syntax sugar
-(define $∂/∂y (∂/∂ $ y)) ; just a syntax sugar
-(define $∂/∂z (∂/∂ $ z)) ; just a syntax sugar
-
-(define $d/dx (∂/∂ $ x)) ; just a syntax sugar
-(define $d/dy (∂/∂ $ y)) ; just a syntax sugar
-(define $d/dz (∂/∂ $ z)) ; just a syntax sugar
+(define $pd/pd ∂/∂)
 
 (define $taylor-expansion
   (lambda [$f $x $a]
