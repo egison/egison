@@ -623,7 +623,7 @@ transIndex (j1:js1) js2 is = do
     then throwError $ InconsistentTensorIndex
     else do let n = (length hjs2) + 1
             rs <- transIndex js1 (hjs2 ++ (tail tjs2)) ((take (n - 1) is) ++ (drop n is))
-            return ((is !! (n - 1)):rs)
+            return ((nth (fromIntegral n) is):rs)
 transIndex _ _ _ = throwError $ InconsistentTensorSize
 
 tMap :: (EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonM EgisonValue
@@ -644,18 +644,15 @@ tMap2 _ t1 t2 = do
   throwError $ InconsistentTensorIndex -- TODO : new error type
 
 tSum :: [EgisonValue] -> EgisonM EgisonValue
-tSum (t:ts) = tSum' t ts
- where
-  tSum' :: EgisonValue -> [EgisonValue] -> EgisonM EgisonValue
-  tSum' val [] = return $ val
-  tSum' (Tensor ns xs _) ((Tensor _ ys _):ts) = do
-    xs' <- mapM extractScalar xs
-    ys' <- mapM extractScalar ys
-    tSum' (Tensor ns (map (\(x,y) -> ScalarData (mathNormalize' (mathPlus x y))) (zip xs' ys')) []) ts
-  tSum' x (y:ys) = do
-    x' <- extractScalar x
-    y' <- extractScalar y
-    tSum' (ScalarData (mathNormalize' (mathPlus x' y'))) ys
+tSum [t] = return t
+tSum ((Tensor ns xs _):(Tensor _ ys _):ts) = do
+  xs' <- mapM extractScalar xs
+  ys' <- mapM extractScalar ys
+  tSum ((Tensor ns (map (\(x,y) -> ScalarData (mathNormalize' (mathPlus x y))) (zip xs' ys')) []):ts)
+tSum (x:y:ys) = do
+  x' <- extractScalar x
+  y' <- extractScalar y
+  tSum ((ScalarData (mathNormalize' (mathPlus x' y'))):ys)
 
 tProduct :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
 tProduct f (Tensor ns1 xs1 js1) (Tensor ns2 xs2 js2) = do
