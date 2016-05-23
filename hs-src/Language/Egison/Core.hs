@@ -387,6 +387,9 @@ evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func
   arg <- evalExpr env arg
   case func of
+    Value (Tensor ns fs js) -> do
+      xs <- mapM (\f -> applyFunc env (Value f) arg >>= evalWHNF) fs
+      return (Value (Tensor ns xs js))
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
