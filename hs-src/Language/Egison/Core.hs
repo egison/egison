@@ -337,7 +337,7 @@ evalExpr env (IoExpr expr) = do
     _ -> throwError $ TypeMismatch "io" io
 
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
-  target <- newObjectRef env target
+  target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
   result <- patternMatch env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
@@ -351,7 +351,7 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
     return . Intermediate $ ICollection $ seqRef
 
 evalExpr env (MatchExpr target matcher clauses) = do
-  target <- newObjectRef env target
+  target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
   let tryMatchClause (pattern, expr) cont = do
         result <- patternMatch env pattern target matcher
@@ -671,7 +671,7 @@ recursiveBind env bindings = do
 -- Pattern Match
 --
 
-patternMatch :: Env -> EgisonPattern -> ObjectRef -> Matcher -> EgisonM (MList EgisonM Match) 
+patternMatch :: Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match) 
 patternMatch env pattern target matcher = processMStates [msingleton $ MState env [] [] [MAtom pattern target matcher]]
 
 processMStates :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
@@ -791,7 +791,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
          >>= (\b -> return $ msingleton $ MState env loops (b ++ bindings) ((MAtom pattern' target matcher):trees))
     PredPat predicate -> do
       func <- evalExpr env' predicate
-      arg <- evalRef target
+      let arg = target
       result <- applyFunc env func arg >>= fromWHNF
       if result then return $ msingleton $ (MState env loops bindings trees)
                 else return MNil
@@ -824,7 +824,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       case loops of
         [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
-          startNum <- evalRef startNumRef >>= fromWHNF :: (EgisonM Integer)
+          startNumWhnf <- evalRef startNumRef
+          startNum <- fromWHNF startNumWhnf :: (EgisonM Integer)
           nextNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum + 1)
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
@@ -836,7 +837,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               if startNum > carEndsNum
                 then return MNil
                 else if startNum == carEndsNum
-                       then return $ fromList [MState env loops' bindings ((MAtom endPat startNumRef Something):(MAtom pat' target matcher):trees),
+                       then return $ fromList [MState env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees),
                                                MState env ((LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
                        else return $ fromList [MState env ((LoopPatContext (name, nextNumRef) endsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
     AndPat patterns ->
@@ -851,7 +852,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
         UserMatcher _ _ _ -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
-            targets <- evalRef ref >>= fromTuple
+            targets <- evalRef ref >>= fromTupleWHNF
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
             return $ MState env loops bindings trees'
             
@@ -862,7 +863,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             PatVar _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target Something):trees)
             IndexedPat _ _ -> return $ msingleton $ MState env loops bindings ((MAtom pattern target Something):trees)
             TuplePat patterns -> do
-              targets <- evalRef target >>= fromTuple
+              targets <- fromTupleWHNF target
               if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
               if not (length patterns == length matchers) then throwError $ ArgumentsNum (length patterns) (length matchers) else return ()
               let trees' = zipWith3 MAtom patterns targets matchers ++ trees
@@ -873,12 +874,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           case pattern of
             ValuePat valExpr -> do
               val <- evalExprDeep env' valExpr
-              tgtVal <- evalRefDeep target
+              tgtVal <- evalWHNF target
               if val == tgtVal
                 then return $ msingleton $ MState env loops bindings trees
                 else return MNil
             WildCard -> return $ msingleton $ MState env loops bindings trees
-            PatVar name -> return $ msingleton $ MState env loops ((name, target):bindings) trees
+            PatVar name -> do
+              targetRef <- newEvaluatedObjectRef target
+              return $ msingleton $ MState env loops ((name, targetRef):bindings) trees
             IndexedPat (PatVar name) indices -> do
               indices <- mapM (evalExpr env' >=> liftM fromInteger . fromWHNF) indices
               case lookup name bindings of
@@ -891,7 +894,8 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                where
                 updateHash :: [Integer] -> WHNFData -> EgisonM WHNFData
                 updateHash [index] (Intermediate (IIntHash hash)) = do
-                  return . Intermediate . IIntHash $ HL.insert index target hash
+                  targetRef <- newEvaluatedObjectRef target
+                  return . Intermediate . IIntHash $ HL.insert index targetRef hash
                 updateHash (index:indices) (Intermediate (IIntHash hash)) = do
                   val <- maybe (return $ Intermediate $ IIntHash HL.empty) evalRef $ HL.lookup index hash
                   ref <- updateHash indices val >>= newEvaluatedObjectRef
@@ -907,14 +911,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                 subst _ _ [] = []
             IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
             TuplePat patterns -> do
-              targets <- evalRef target >>= fromTuple
+              targets <- fromTupleWHNF target
               if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
               let trees' = zipWith3 MAtom patterns targets (take (length patterns) (repeat Something)) ++ trees
               return $ msingleton $ MState env loops bindings trees'
             _ -> throwError $ strMsg "something can only match with a pattern variable"
         _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
-inductiveMatch :: Env -> EgisonPattern -> ObjectRef -> Matcher ->
+inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
 inductiveMatch env pattern target (UserMatcher matcherEnv _ clauses) = do
   foldr tryPPMatchClause failPPPatternMatch clauses
@@ -951,43 +955,46 @@ primitivePatPatternMatch env (PPInductivePat name patterns) (InductivePat name' 
   | otherwise = matchFail
 primitivePatPatternMatch _ _ _ = matchFail
 
-primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
+primitiveDataPatternMatch :: PrimitiveDataPattern -> WHNFData -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _ = return []
-primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
-primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
-  whnf <- lift $ evalRef ref
+primitiveDataPatternMatch (PDPatVar name) whnf = do
+  ref <- lift $ newEvaluatedObjectRef whnf
+  return [(name, ref)]
+primitiveDataPatternMatch (PDInductivePat name patterns) whnf = do
   case whnf of
-    Intermediate (IInductiveData name' refs) | name == name' ->
-      concat <$> zipWithM primitiveDataPatternMatch patterns refs
+    Intermediate (IInductiveData name' refs) | name == name' -> do
+      whnfs <- lift $ mapM evalRef refs
+      concat <$> zipWithM primitiveDataPatternMatch patterns whnfs
     Value (InductiveData name' vals) | name == name' -> do
-      refs <- lift $ mapM (newEvaluatedObjectRef . Value) vals
-      concat <$> zipWithM primitiveDataPatternMatch patterns refs
+      let whnfs = map Value vals
+      concat <$> zipWithM primitiveDataPatternMatch patterns whnfs
     _ -> matchFail
-primitiveDataPatternMatch (PDTuplePat patterns) ref = do
-  whnf <- lift $ evalRef ref
+primitiveDataPatternMatch (PDTuplePat patterns) whnf = do
   case whnf of
-    Intermediate (ITuple refs) ->
-      concat <$> zipWithM primitiveDataPatternMatch patterns refs
+    Intermediate (ITuple refs) -> do
+      whnfs <- lift $ mapM evalRef refs
+      concat <$> zipWithM primitiveDataPatternMatch patterns whnfs
     Value (Tuple vals) -> do
-      refs <- lift $ mapM (newEvaluatedObjectRef . Value) vals
-      concat <$> zipWithM primitiveDataPatternMatch patterns refs
+      let whnfs = map Value vals
+      concat <$> zipWithM primitiveDataPatternMatch patterns whnfs
     _ -> matchFail
-primitiveDataPatternMatch PDEmptyPat ref = do
-  whnf <- lift $ evalRef ref
+primitiveDataPatternMatch PDEmptyPat whnf = do
   isEmpty <- lift $ isEmptyCollection whnf
   if isEmpty then return [] else matchFail
-primitiveDataPatternMatch (PDConsPat pattern pattern') ref = do
-  whnf <- lift $ evalRef ref
+primitiveDataPatternMatch (PDConsPat pattern pattern') whnf = do
   (head, tail) <- unconsCollection whnf
-  (++) <$> primitiveDataPatternMatch pattern head
-       <*> primitiveDataPatternMatch pattern' tail
-primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
-  whnf <- lift $ evalRef ref
+  head' <- lift $ evalRef head
+  tail' <- lift $ evalRef tail
+  (++) <$> primitiveDataPatternMatch pattern head'
+       <*> primitiveDataPatternMatch pattern' tail'
+primitiveDataPatternMatch (PDSnocPat pattern pattern') whnf = do
   (init, last) <- unsnocCollection whnf
-  (++) <$> primitiveDataPatternMatch pattern init
-       <*> primitiveDataPatternMatch pattern' last
-primitiveDataPatternMatch (PDConstantPat expr) ref = do
-  target <- lift (evalRef ref) >>= either (const matchFail) return . extractPrimitiveValue
+  init' <- lift $ evalRef init
+  last' <- lift $ evalRef last
+  (++) <$> primitiveDataPatternMatch pattern init'
+       <*> primitiveDataPatternMatch pattern' last'
+primitiveDataPatternMatch (PDConstantPat expr) whnf = do
+  target <- (either (const matchFail) return . extractPrimitiveValue) whnf
   isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
 
@@ -1074,6 +1081,11 @@ fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
 fromTuple (Value (Tuple vals)) = mapM (newEvaluatedObjectRef . Value) vals
 fromTuple whnf = return <$> newEvaluatedObjectRef whnf
+
+fromTupleWHNF :: WHNFData -> EgisonM [WHNFData]
+fromTupleWHNF (Intermediate (ITuple refs)) = mapM evalRef refs
+fromTupleWHNF (Value (Tuple vals)) = return $ map Value vals
+fromTupleWHNF whnf = return [whnf]
 
 fromTupleValue :: EgisonValue -> [EgisonValue]
 fromTupleValue (Tuple vals) = vals

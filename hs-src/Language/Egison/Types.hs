@@ -1069,7 +1069,7 @@ data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree]
  deriving (Show)
 
 data MatchingTree =
-    MAtom EgisonPattern ObjectRef Matcher
+    MAtom EgisonPattern WHNFData Matcher
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
