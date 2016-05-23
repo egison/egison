@@ -1,4 +1,3 @@
-
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
              TypeFamilies, TupleSections #-}
@@ -24,14 +23,17 @@ module Language.Egison.Types
     , LoopRange (..)
     , PrimitivePatPattern (..)
     , PrimitiveDataPattern (..)
+    , Matcher (..)
+    , PrimitiveFunc (..)
+    , EgisonData (..)
+    , showTSV
     -- * Egison values
     , EgisonValue (..)
     , ScalarData (..)
     , PolyExpr (..)
     , TermExpr (..)
     , SymbolExpr (..)
-    , scalarToUnitTensor
-    , scalarToTensor
+    -- * Tensor
     , tMap
     , tMap2
     , tCheckIndex
@@ -43,8 +45,8 @@ module Language.Egison.Types
     , tToList
     , tIndex
     , initTensor
-    , makeTensor
     , tensorIndices
+    -- * Scalar
     , symbolScalarData
     , mathExprToEgison
     , egisonToScalarData
@@ -61,10 +63,6 @@ module Language.Egison.Types
     , mathDenominator
     , extractScalar
     , extractScalar'
-    , Matcher (..)
-    , PrimitiveFunc (..)
-    , EgisonData (..)
-    , showTSV
     -- * Internal data
     , Object (..)
     , ObjectRef (..)
@@ -569,24 +567,23 @@ extractScalar' val = throwError $ TypeMismatch "integer or string" $ val
 -- Tensors
 --
 
-scalarToUnitTensor :: [Integer] -> ScalarData -> (Maybe [Index ScalarData]) -> EgisonValue
-scalarToUnitTensor ns x js = makeTensor ns (map (\ms -> if all (\m -> m == (head ms)) (tail ms)
-                                                         then ScalarData x
-                                                         else ScalarData (Div (Plus []) (Plus [(Term 1 [])]))) (tensorIndices ns))
-                                                js
-
-scalarToTensor :: [Integer] -> ScalarData -> (Maybe [Index ScalarData]) -> EgisonValue
-scalarToTensor ns x js = makeTensor ns (map (\ms -> ScalarData x) (tensorIndices ns)) js
-
 initTensor :: [Integer] -> [EgisonValue] -> [ScalarData] -> [ScalarData] -> EgisonValue
 initTensor ns xs sup sub = Tensor ns xs (Just ((map Superscript sup) ++ (map Subscript sub)))
-
-makeTensor :: [Integer] -> [EgisonValue] -> (Maybe [Index ScalarData]) -> EgisonValue
-makeTensor ns xs js = Tensor ns xs js
 
 tensorIndices :: [Integer] -> [[Integer]]
 tensorIndices [] = [[]]
 tensorIndices (n:ns) = concat (map (\i -> (map (\is -> i:is) (tensorIndices ns))) [1..n])
+
+transIndex :: [Index ScalarData] -> [Index ScalarData] -> [Integer] -> EgisonM [Integer]
+transIndex [] [] [] = return []
+transIndex (j1:js1) js2 is = do
+  let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
+  if tjs2 == []
+    then throwError $ InconsistentTensorIndex
+    else do let n = (length hjs2) + 1
+            rs <- transIndex js1 (hjs2 ++ (tail tjs2)) ((take (n - 1) is) ++ (drop n is))
+            return ((is !! (n - 1)):rs)
+transIndex _ _ _ = throwError $ InconsistentTensorSize
 
 tMap :: (EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonM EgisonValue
 tMap f (Tensor ns xs js) = do
@@ -600,13 +597,13 @@ tMap2 f t1@(Tensor ns1 xs1 (Just js1)) t2@(Tensor ns2 xs2 (Just js2)) = do
     then do ys <- mapM (\is -> do is' <- transIndex js1 js2 is
                                   f (tref' is t1) (tref' is' t2))
                        (tensorIndices ns1)
-            return $ makeTensor ns1 ys (Just js1)
+            return $ Tensor ns1 ys (Just js1)
     else throwError $ InconsistentTensorSize
 tMap2 f t1@(Tensor ns1 xs1 Nothing) t2@(Tensor ns2 xs2 Nothing) = do
   if ns1 == ns2
     then do ys <- mapM (\is -> f (tref' is t1) (tref' is t2))
                        (tensorIndices ns1)
-            return $ makeTensor ns1 ys Nothing
+            return $ Tensor ns1 ys Nothing
     else throwError $ InconsistentTensorSize
 tMap2 _ t1 t2 = do
   throwError $ InconsistentTensorIndex -- TODO : new error type
@@ -620,17 +617,6 @@ tSum (t:ts) = tSum' t ts
     xs' <- mapM extractScalar xs
     ys' <- mapM extractScalar ys
     tSum' (Tensor ns (map (\(x,y) -> ScalarData (mathNormalize' (mathPlus x y))) (zip xs' ys')) Nothing) ts
-
-transIndex :: [Index ScalarData] -> [Index ScalarData] -> [Integer] -> EgisonM [Integer]
-transIndex [] [] [] = return []
-transIndex (j1:js1) js2 is = do
-  let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
-  if tjs2 == []
-    then throwError $ InconsistentTensorIndex
-    else do let n = (length hjs2) + 1
-            rs <- transIndex js1 (hjs2 ++ (tail tjs2)) ((take (n - 1) is) ++ (drop n is))
-            return ((is !! (n - 1)):rs)
-transIndex _ _ _ = throwError $ InconsistentTensorSize
 
 tProduct :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
 tProduct f (Tensor ns1 xs1 (Just ms1)) (Tensor ns2 xs2 (Just ms2)) = do

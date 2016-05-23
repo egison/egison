@@ -94,7 +94,7 @@ x
 ;; Divergence
 ;;
 
-(define $div (compose ∇ T.sum))
+(define $div (compose ∇ (trace + $)))
 
 (div [|(f x y z) (g x y z) (h x y z)|] [|x y z|])
 ;=>
