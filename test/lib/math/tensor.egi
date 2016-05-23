@@ -17,3 +17,24 @@
 (assert-equal "Matrix * - case 2"
   (M.* [| [| 1 1 |] [| 0 1 |] |] [| [| 1 1 |] [| 0 1 |] |] [| [| 1 1 |] [| 0 1 |] |])
   [| [| 1 3 |] [| 0 1 |] |])
+
+(assert-equal "Tensor '+' - case 1"
+  (+ 1 [|1 2 3|])
+  [|2 3 4|])
+
+(assert-equal "Tensor '+' - case 2"
+  (+ [|1 2 3|] 1)
+  [|2 3 4|])
+
+(assert-equal "Tensor ∂/∂ - case 1"
+  (∂/∂ [|(f x) (g x)|] x)
+  [|(f_1 x) (g_1 x)|])
+
+;(assert-equal "Tensor ∂/∂ - case 2"
+;  (∂/∂ (f x y z) [|x y z|])
+;  [|(f_1 x y z) (f_2 x y z) (f_3 x y z)|])
+
+(assert-equal "Tensor ∂/∂ - case 3"
+  (apply [|(∂/∂ $ x) (∂/∂ $ y)|] (f x y))
+  [|(f_1 x y) (f_2 x y)|])
+

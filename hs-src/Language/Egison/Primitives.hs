@@ -104,9 +104,9 @@ twoArgs' f = \args -> do
     [val, val'] -> f val val' >>= return . Value
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
-{-# INLINE threeArgs #-}
-threeArgs :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-threeArgs f = \args -> do
+{-# INLINE threeArgs' #-}
+threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+threeArgs' f = \args -> do
   args' <- tupleToList args
   case args' of 
     [val, val', val''] -> f val val' val'' >>= return . Value
@@ -562,7 +562,7 @@ addSuperscript = twoArgs $ \fn sub -> do
     _ ->  throwError $ TypeMismatch "symbol" (Value fn)
 
 readProcess' :: PrimitiveFunc
-readProcess' = threeArgs $ \cmd args input -> do
+readProcess' = threeArgs' $ \cmd args input -> do
   case (cmd, args, input) of
     (String cmdStr, Collection argStrs, String inputStr) -> do
       outputStr <- liftIO $ readProcess (T.unpack cmdStr) (map (\arg -> case arg of
@@ -613,14 +613,14 @@ unsnoc' whnf = do
 -- Test
 
 assert ::  PrimitiveFunc
-assert = twoArgs $ \label test -> do
+assert = twoArgs' $ \label test -> do
   test <- fromEgison test
   if test
     then return $ Bool True
     else throwError $ Assertion $ show label
 
 assertEqual :: PrimitiveFunc
-assertEqual = threeArgs $ \label actual expected -> do
+assertEqual = threeArgs' $ \label actual expected -> do
   if actual == expected
     then return $ Bool True
     else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
@@ -664,37 +664,37 @@ makeIO' :: EgisonM () -> EgisonValue
 makeIO' m = IOFunc $ m >> return (Value $ Tuple [World, Tuple []])
 
 return' :: PrimitiveFunc
-return' = oneArg $ \val -> return $ makeIO $ return val
+return' = oneArg' $ \val -> return $ makeIO $ return val
 
 makePort :: IOMode -> PrimitiveFunc
-makePort mode = oneArg $ \val -> do
+makePort mode = oneArg' $ \val -> do
   filename <- fromEgison val
   port <- liftIO $ openFile (T.unpack filename) mode
   return $ makeIO $ return (Port port)
 
 closePort :: PrimitiveFunc
-closePort = oneArg $ \val -> do
+closePort = oneArg' $ \val -> do
   port <- fromEgison val
   return $ makeIO' $ liftIO $ hClose port
 
 writeChar :: PrimitiveFunc
-writeChar = oneArg $ \val -> do
+writeChar = oneArg' $ \val -> do
   c <- fromEgison val
   return $ makeIO' $ liftIO $ putChar c
 
 writeCharToPort :: PrimitiveFunc
-writeCharToPort = twoArgs $ \val val' -> do
+writeCharToPort = twoArgs' $ \val val' -> do
   port <- fromEgison val
   c <- fromEgison val'
   return $ makeIO' $ liftIO $ hPutChar port c
 
 writeString :: PrimitiveFunc
-writeString = oneArg $ \val -> do
+writeString = oneArg' $ \val -> do
   s <- fromEgison val
   return $ makeIO' $ liftIO $ T.putStr s
   
 writeStringToPort :: PrimitiveFunc
-writeStringToPort = twoArgs $ \val val' -> do
+writeStringToPort = twoArgs' $ \val val' -> do
   port <- fromEgison val
   s <- fromEgison val'
   return $ makeIO' $ liftIO $ T.hPutStr port s
@@ -703,7 +703,7 @@ flushStdout :: PrimitiveFunc
 flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
 
 flushPort :: PrimitiveFunc
-flushPort = oneArg $ \val -> do
+flushPort = oneArg' $ \val -> do
   port <- fromEgison val
   return $ makeIO' $ liftIO $ hFlush port
 
@@ -711,7 +711,7 @@ readChar :: PrimitiveFunc
 readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
 
 readCharFromPort :: PrimitiveFunc
-readCharFromPort = oneArg $ \val -> do
+readCharFromPort = oneArg' $ \val -> do
   port <- fromEgison val
   c <- liftIO $ hGetChar port
   return $ makeIO $ return (Char c)
@@ -720,13 +720,13 @@ readLine :: PrimitiveFunc
 readLine = noArg $ return $ makeIO $ liftIO $ liftM toEgison T.getLine
 
 readLineFromPort :: PrimitiveFunc
-readLineFromPort = oneArg $ \val -> do
+readLineFromPort = oneArg' $ \val -> do
   port <- fromEgison val
   s <- liftIO $ T.hGetLine port
   return $ makeIO $ return $ toEgison s
 
 readFile' :: PrimitiveFunc
-readFile' =  oneArg $ \val -> do
+readFile' =  oneArg' $ \val -> do
   filename <- fromEgison val
   s <- liftIO $ T.readFile $ T.unpack filename
   return $ makeIO $ return $ toEgison s
@@ -735,13 +735,13 @@ isEOFStdin :: PrimitiveFunc
 isEOFStdin = noArg $ return $ makeIO $ liftIO $ liftM Bool isEOF
 
 isEOFPort :: PrimitiveFunc
-isEOFPort = oneArg $ \val -> do
+isEOFPort = oneArg' $ \val -> do
   port <- fromEgison val
   b <- liftIO $ hIsEOF port
   return $ makeIO $ return (Bool b)
 
 randRange :: PrimitiveFunc
-randRange = twoArgs $ \val val' -> do
+randRange = twoArgs' $ \val val' -> do
   i <- fromEgison val :: EgisonM Integer
   i' <- fromEgison val' :: EgisonM Integer
   n <- liftIO $ getStdRandom $ randomR (i, i')
@@ -749,7 +749,7 @@ randRange = twoArgs $ \val val' -> do
 
  {-- -- for 'egison-sqlite'
 sqlite :: PrimitiveFunc
-sqlite  = twoArgs $ \val val' -> do
+sqlite  = twoArgs' $ \val val' -> do
   dbName <- fromEgison val
   qStr <- fromEgison val'
   ret <- liftIO $ query' (T.pack dbName) $ T.pack qStr
