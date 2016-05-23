@@ -199,9 +199,9 @@ evalExpr env (VectorExpr exprs) = do
       let ds = concat $ map (\t -> case t of
                                      (Tensor _ ds _) -> ds)
                             vals
-      return $ Value $ Tensor ((fromIntegral (length vals)):ns) ds Nothing
+      return $ Value $ Tensor ((fromIntegral (length vals)):ns) ds []
     _ -> do
-      return $ Value $ Tensor [fromIntegral (length vals)] vals Nothing
+      return $ Value $ Tensor [fromIntegral (length vals)] vals []
 
 evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
@@ -263,8 +263,8 @@ evalExpr env (IndexedExpr expr indices) = do
       tCheckIndex indices'' ns
       if all (\x -> isInteger x) indices'
         then do indices''' <- ((mapM fromEgison indices') :: EgisonM [Integer])
-                return $ Value $ tref' indices''' (Tensor ns xs Nothing)
-        else do ret <- tContract (tref indices'' (Tensor ns xs (Just js)))
+                return $ Value $ tref' indices''' (Tensor ns xs [])
+        else do ret <- tContract (tref indices'' (Tensor ns xs js))
                 return . Value $ ret
     _ -> refArray tensor indices'
 
@@ -316,7 +316,7 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   ret <- evalExpr (extendEnv env bindings) expr
   case ret of
     -- TODO: check symbols
-    (Value (Tensor ns xs js)) -> return (Value (Tensor ns xs Nothing))
+    (Value (Tensor ns xs js)) -> return (Value (Tensor ns xs []))
     _ -> return ret
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
@@ -436,7 +436,7 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
   xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms)) >>= evalWHNF) (map (\ms -> map toEgison ms) (tensorIndices ns))
-  return $ Value (Tensor ns xs Nothing)
+  return $ Value (Tensor ns xs [])
 
 evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr

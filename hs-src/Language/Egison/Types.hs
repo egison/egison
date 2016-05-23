@@ -311,7 +311,7 @@ data EgisonValue =
   | String Text
   | Bool Bool
   | ScalarData ScalarData
-  | Tensor [Integer] [EgisonValue] (Maybe [Index ScalarData])
+  | Tensor [Integer] [EgisonValue] [Index ScalarData]
   | Float Double Double
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
@@ -568,7 +568,7 @@ extractScalar' val = throwError $ TypeMismatch "integer or string" $ val
 --
 
 initTensor :: [Integer] -> [EgisonValue] -> [ScalarData] -> [ScalarData] -> EgisonValue
-initTensor ns xs sup sub = Tensor ns xs (Just ((map Superscript sup) ++ (map Subscript sub)))
+initTensor ns xs sup sub = Tensor ns xs ((map Superscript sup) ++ (map Subscript sub))
 
 tensorIndices :: [Integer] -> [[Integer]]
 tensorIndices [] = [[]]
@@ -591,19 +591,13 @@ tMap f (Tensor ns xs js) = do
   return $ Tensor ns xs' js
 
 tMap2 :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
-tMap2 f t1@(Tensor ns1 xs1 (Just js1)) t2@(Tensor ns2 xs2 (Just js2)) = do
+tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
   ns2' <- transIndex js1 js2 ns2
   if ns1 == ns2'
     then do ys <- mapM (\is -> do is' <- transIndex js1 js2 is
                                   f (tref' is t1) (tref' is' t2))
                        (tensorIndices ns1)
-            return $ Tensor ns1 ys (Just js1)
-    else throwError $ InconsistentTensorSize
-tMap2 f t1@(Tensor ns1 xs1 Nothing) t2@(Tensor ns2 xs2 Nothing) = do
-  if ns1 == ns2
-    then do ys <- mapM (\is -> f (tref' is t1) (tref' is t2))
-                       (tensorIndices ns1)
-            return $ Tensor ns1 ys Nothing
+            return $ Tensor ns1 ys js1
     else throwError $ InconsistentTensorSize
 tMap2 _ t1 t2 = do
   throwError $ InconsistentTensorIndex -- TODO : new error type
@@ -612,32 +606,25 @@ tSum :: [EgisonValue] -> EgisonM EgisonValue
 tSum (t:ts) = tSum' t ts
  where
   tSum' :: EgisonValue -> [EgisonValue] -> EgisonM EgisonValue
-  tSum' (Tensor ns xs _) [] = return $ Tensor ns xs Nothing
+  tSum' (Tensor ns xs _) [] = return $ Tensor ns xs []
   tSum' (Tensor ns xs _) ((Tensor _ ys _):ts) = do
     xs' <- mapM extractScalar xs
     ys' <- mapM extractScalar ys
-    tSum' (Tensor ns (map (\(x,y) -> ScalarData (mathNormalize' (mathPlus x y))) (zip xs' ys')) Nothing) ts
+    tSum' (Tensor ns (map (\(x,y) -> ScalarData (mathNormalize' (mathPlus x y))) (zip xs' ys')) []) ts
 
 tProduct :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
-tProduct f (Tensor ns1 xs1 (Just ms1)) (Tensor ns2 xs2 (Just ms2)) = do
+tProduct f (Tensor ns1 xs1 js1) (Tensor ns2 xs2 js2) = do
   xs' <- mapM (\is -> do let is1 = take (length ns1) is
                          let is2 = take (length ns2) (drop (length ns1) is)
-                         let x1 = tref' is1 (Tensor ns1 xs1 Nothing)
-                         let x2 = tref' is2 (Tensor ns2 xs2 Nothing)
+                         let x1 = tref' is1 (Tensor ns1 xs1 js1)
+                         let x2 = tref' is2 (Tensor ns2 xs2 js2)
                          f x1 x2) (tensorIndices (ns1 ++ ns2))
-  tContract (Tensor (ns1 ++ ns2) xs' (Just (ms1 ++ ms2)))
-tProduct f (Tensor ns1 xs1 Nothing) (Tensor ns2 xs2 Nothing) = do
-  xs' <- mapM (\is -> do let is1 = take (length ns1) is
-                         let is2 = take (length ns2) (drop (length ns1) is)
-                         let x1 = tref' is1 (Tensor ns1 xs1 Nothing)
-                         let x2 = tref' is2 (Tensor ns2 xs2 Nothing)
-                         f x1 x2) (tensorIndices (ns1 ++ ns2))
-  return $ Tensor (ns1 ++ ns2) xs' Nothing
+  tContract (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
 
 tContract :: EgisonValue -> EgisonM EgisonValue
-tContract t@(Tensor ns xs (Just js)) = do
+tContract t@(Tensor ns xs js) = do
   case (findPairs js) of
-    [] -> return $ Tensor ns xs (Just js)
+    [] -> return $ Tensor ns xs js
     ((hs,ms,ts):_) -> do
       let hn = (length hs) + 1
       let mn = (length (hs ++ ms)) + 2
@@ -649,7 +636,7 @@ tContract t@(Tensor ns xs (Just js)) = do
                            [1..n])
           case ret of
             (Tensor [] [x] _) -> return x
-            (Tensor ns' xs' _) -> tContract (Tensor ns' xs' (Just (hs ++ ms ++ ts)))
+            (Tensor ns' xs' _) -> tContract (Tensor ns' xs' (hs ++ ms ++ ts))
         else throwError $ InconsistentTensorIndex
  where
   findPairs :: [Index ScalarData] -> [([Index ScalarData], [Index ScalarData], [Index ScalarData])]
@@ -670,7 +657,7 @@ tContract t@(Tensor ns xs (Just js)) = do
   extract :: Index ScalarData -> ScalarData
   extract (Superscript k) = k
   extract (Subscript k) = k
-tContract t@(Tensor _ _ Nothing) = return t
+tContract t@(Tensor _ _ []) = return t
 tContract val = return val
 
 tCheckIndex :: [ScalarData] -> [Integer] -> EgisonM ()
@@ -683,21 +670,23 @@ tCheckIndex (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])]):ms) 
 tCheckIndex (m:_) _ = throwError $ TypeMismatch "symbol or natural number" (Value (ScalarData m))
 
 tref' :: [Integer] -> EgisonValue -> EgisonValue
-tref' ms (Tensor ns xs _) = tref'' ms ns xs
- where
-  tref'' :: [Integer] -> [Integer] -> [a] -> a
-  tref'' [m] [n] xs = xs !! (fromIntegral (m - 1))
-  tref'' (m:ms) (n:ns) xs =
-    let w = fromIntegral (product ns) in
-    let ys = take w (drop (w * (fromIntegral (m - 1))) xs) in
-      tref'' ms ns ys
+tref' [] (Tensor [] [x] _) = x
+tref' [] val = val
+tref' (m:ms) (Tensor (n:ns) xs []) =
+  let w = fromIntegral (product ns) in
+  let ys = take w (drop (w * (fromIntegral (m - 1))) xs) in
+    tref' ms (Tensor ns ys [])
+tref' (m:ms) (Tensor (n:ns) xs (_:js)) =
+  let w = fromIntegral (product ns) in
+  let ys = take w (drop (w * (fromIntegral (m - 1))) xs) in
+    tref' ms (Tensor ns ys js)
 
 tref :: [ScalarData] -> EgisonValue -> EgisonValue
 tref ms (Tensor ns xs js) = let rns = map snd (filter (\(m,_) -> (isSymbol (ScalarData m))) (zip ms ns)) in
                             let rxs = tsub' ms ns xs in
                             case js of
-                              Nothing -> Tensor rns rxs Nothing
-                              (Just js') -> Tensor rns rxs (Just (filter p js'))
+                              [] -> Tensor rns rxs []
+                              js' -> Tensor rns rxs (filter p js')
  where
   tsub' :: [ScalarData] -> [Integer] -> [a] -> [a]
   tsub' [] [] rs = rs
@@ -727,7 +716,7 @@ tSize (Tensor ns _ _) = ns
 tToList :: EgisonValue -> [EgisonValue]
 tToList (Tensor _ xs _) = xs
 
-tIndex :: EgisonValue -> Maybe [Index ScalarData]
+tIndex :: EgisonValue -> [Index ScalarData]
 tIndex (Tensor _ _ js) = js
 
 type Matcher = EgisonValue
@@ -740,18 +729,12 @@ instance Show EgisonValue where
   show (Bool True) = "#t"
   show (Bool False) = "#f"
   show (ScalarData mExpr) = show mExpr
-  show (Tensor [_] xs Nothing) = "[| " ++ unwords (map show xs) ++ " |]"
-  show (Tensor [_] xs (Just js)) = "[| " ++ unwords (map show xs) ++ " |]" ++ concat (map show js)
-  show (Tensor [i, k] xs Nothing) = "[| " ++ f (fromIntegral i) xs ++ "|]"
+  show (Tensor [_] xs js) = "[| " ++ unwords (map show xs) ++ " |]" ++ concat (map show js)
+  show (Tensor [i, k] xs js) = "[| " ++ f (fromIntegral i) xs ++ "|]" ++ concat (map show js)
    where
     f i [] = ""
     f i xs = "[| " ++ unwords (map show (take i xs)) ++ " |] " ++ f i (drop i xs)
-  show (Tensor [i, k] xs (Just js)) = "[| " ++ f (fromIntegral i) xs ++ "|]" ++ concat (map show js)
-   where
-    f i [] = ""
-    f i xs = "[| " ++ unwords (map show (take i xs)) ++ " |] " ++ f i (drop i xs)
-  show (Tensor ns xs Nothing) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} )"
-  show (Tensor ns xs (Just js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} )" ++ concat (map show js)
+  show (Tensor ns xs js) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} )" ++ concat (map show js)
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
@@ -1312,7 +1295,7 @@ isTensor' (Value val) = return $ Value $ Bool $ isTensor val
 isTensor' _ = return $ Value $ Bool False
 
 isTensorWithIndex :: EgisonValue -> Bool
-isTensorWithIndex (Tensor _ _ (Just _)) = True
+isTensorWithIndex (Tensor _ _ (_:_)) = True
 isTensorWithIndex _ = False
 
 isTensorWithIndex' :: PrimitiveFunc
