@@ -1,8 +1,7 @@
 ;;
 ;; Tensor
 ;;
-
-[| x |]
+[|x|]
 ;=>
 x
 
@@ -45,7 +44,6 @@ x
 ;;
 ;; Derivative
 ;;
-
 (∂/∂ (f x y z) x)
 ;=>
 (f_1 x y z)
@@ -90,11 +88,30 @@ x
   [|(f3_1 x y z) (f3_2 x y z) (f3_3 x y z)|]
   |]
 
+
+;;
+;; Contraction
+;;
+(contract + (* [|1 2 3|]~i [|10 20 30|]_i))
+;=>
+140
+
+(define $V.* 2#(contract + (* %1~i %2_i)))
+
+(V.* [|1 2 3|]~i [|10 20 30|]_i)
+;=>
+140
+
+(define $trace (lambda [$t] (contract + t~i_i)))
+
+(trace [|[|10 20 30|] [|20 40 60|] [|30 60 90|]|])
+;=>
+140
+
 ;;
 ;; Divergence
 ;;
-
-(define $div (compose ∇ (trace + $)))
+(define $div (compose ∇ (trace $)))
 
 (div [|(f x y z) (g x y z) (h x y z)|] [|x y z|])
 ;=>

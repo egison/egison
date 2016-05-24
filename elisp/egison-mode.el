@@ -245,7 +245,7 @@
   (set (make-local-variable 'font-lock-defaults)
        '((egison-font-lock-keywords
           egison-font-lock-keywords-1 egison-font-lock-keywords-2)
-         nil t (("+-*/=?%:_.'∂∇α-ωΑ-Ω" . "w") ("<" . "(") (">" . ")"))
+         nil t (("+-*/=?%:_~.'∂∇α-ωΑ-Ω" . "w") ("<" . "(") (">" . ")"))
          ))
   (set (make-local-variable 'indent-line-function) 'egison-indent-line)
   (set (make-local-variable 'comment-start) ";")
