@@ -44,6 +44,7 @@ module Language.Egison.Types
     , tMap
     , tProduct
     , tContract
+    , tContract'
     , tConcat
     , tConcat'
     -- * Scalar
@@ -610,7 +611,6 @@ tensorIndices (n:ns) = concat (map (\i -> (map (\is -> i:is) (tensorIndices ns))
 
 transIndex :: [Index ScalarData] -> [Index ScalarData] -> [Integer] -> EgisonM [Integer]
 transIndex [] [] is = return is
-transIndex _ [] is = return is
 transIndex (j1:js1) js2 is = do
   let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
   if tjs2 == []
@@ -619,6 +619,12 @@ transIndex (j1:js1) js2 is = do
             rs <- transIndex js1 (hjs2 ++ (tail tjs2)) ((take (n - 1) is) ++ (drop n is))
             return ((nth (fromIntegral n) is):rs)
 transIndex _ _ _ = throwError $ InconsistentTensorSize
+
+tTranspose :: [Index ScalarData] -> EgisonValue -> EgisonM EgisonValue
+tTranspose is t@(Tensor ns xs js) = do
+  ns' <- transIndex js is ns
+  xs' <- mapM (transIndex is js) (tensorIndices ns') >>= mapM (flip tIntRef t)
+  return $ Tensor ns' xs' is
 
 tMap :: (EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonM EgisonValue
 tMap f (Tensor ns xs js) = do
@@ -674,7 +680,7 @@ tContract' t@(Tensor ns xs js) = do
       xs' <- mapM (\i -> (tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
                                     ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t))
                   [1..(ns !! m)]
-      tConcat (js !! m) xs' >>= tContract'
+      tConcat (js !! m) xs' >>= tTranspose (hjs ++ [js !! m] ++ mjs ++ tjs) >>= tContract'
  where
   p :: Index ScalarData -> Index ScalarData -> Bool
   p (Superscript i) (Superscript j) = i == j
