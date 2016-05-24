@@ -667,30 +667,16 @@ tProduct f (Tensor ns1 xs1 js1) (Tensor ns2 xs2 js2) = do
 
 tContract :: EgisonValue -> EgisonM [EgisonValue]
 tContract t@(Tensor ns xs js) = do
-  case (findPairs js) of
-    [] -> return [Tensor ns xs js]
-    ((hs,ms,ts):_) -> do
-      let hn = (length hs) + 1
-      let mn = (length (hs ++ ms)) + 2
-      if (ns !! (hn - 1)) == (ns !! (mn - 1))
-        then do
-          let n = ns !! (hn - 1)
-          return $ map (\i -> (tref (hs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ms
-                                        ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ts) t))
-                       [1..n]
-        else throwError $ InconsistentTensorIndex
+  case findPairs p js of
+    [] -> return [t]
+    ((m,n):_) -> do
+      let ns' = (ns !! m):removePairs (m,n) ns
+      let js' = (js !! m):removePairs (m,n) js
+      let (hjs, mjs, tjs) = removePairs' (m,n) js
+      return $ map (\i -> (tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
+                                     ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t))
+                    [1..(ns !! m)]
  where
-  findPairs :: [Index ScalarData] -> [([Index ScalarData], [Index ScalarData], [Index ScalarData])]
-  findPairs xs = findPairs' [] xs
-  findPairs' :: [Index ScalarData] -> [Index ScalarData] -> [([Index ScalarData], [Index ScalarData], [Index ScalarData])]
-  findPairs' _ [] = []
-  findPairs' hs (x:xs) = (findPairs'' hs x xs) ++ (findPairs' (hs ++ [x]) xs)
-  findPairs'' :: [Index ScalarData] -> Index ScalarData -> [Index ScalarData] -> [([Index ScalarData], [Index ScalarData], [Index ScalarData])]
-  findPairs'' hs x xs =
-    let (hxs, txs) = break (\e -> p e x) xs in
-    if txs == []
-      then []
-      else [(hs, hxs, (tail txs))]
   p :: Index ScalarData -> Index ScalarData -> Bool
   p (Superscript i) (Subscript j) = i == j
   p (Subscript i) (Superscript j) = i == j
@@ -699,7 +685,6 @@ tContract val = return [val]
 
 tContract' :: EgisonValue -> EgisonM EgisonValue
 tContract' t@(Tensor ns xs js) = do
-  liftIO $ putStrLn (show (findPairs p js))
   case findPairs p js of
     [] -> return t
     ((m,n):_) -> do
