@@ -468,23 +468,6 @@ evalExpr env (TensorMapExpr fnExpr tExpr) = do
   applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
   applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
 
-evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
-  fn <- evalExpr env fnExpr
-  whnf1 <- evalExpr env t1Expr
-  whnf2 <- evalExpr env t2Expr
-  case (whnf1, whnf2) of
-    (Value t1@(Tensor _ _ _), Value t2@(Tensor _ _ _)) -> do
-      tMap2 (applyFunc' env fn) t1 t2 >>= return . Value
-    (Value (Tensor _ _ _), _) -> throwError $ TypeMismatch "tensor in tensor-map2" whnf1
-    (_, Value (Tensor _ _ _)) -> throwError $ TypeMismatch "tensor in tensor-map2" whnf2
-    _ -> do
-      ref1 <- newEvaluatedObjectRef whnf1
-      ref2 <- newEvaluatedObjectRef whnf2
-      applyFunc env fn $ Intermediate $ ITuple [ref1, ref2]
- where
-  applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
-  applyFunc' env fn x y = applyFunc env fn (Value (Tuple [x, y])) >>= evalWHNF
-
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)

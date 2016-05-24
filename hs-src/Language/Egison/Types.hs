@@ -42,7 +42,6 @@ module Language.Egison.Types
     , tref
     , tensorIndices
     , tMap
-    , tMap2
     , tProduct
     , tContract
     -- * Scalar
@@ -240,7 +239,6 @@ data EgisonExpr =
   | TensorExpr EgisonExpr EgisonExpr EgisonExpr EgisonExpr
   | TensorContractExpr EgisonExpr EgisonExpr
   | TensorMapExpr EgisonExpr EgisonExpr
-  | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
 
   | SomethingExpr
   | UndefinedExpr
@@ -625,20 +623,6 @@ tMap f (Tensor ns xs js) = do
   xs' <- mapM f xs
   return $ Tensor ns xs' js
 
-tMap2 :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
-tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
-  ns2' <- transIndex js1 js2 ns2
-  if ns1 == ns2'
-    then do ys <- mapM (\is -> do is' <- transIndex js1 js2 is
-                                  x1 <- tIntRef is t1
-                                  x2 <- tIntRef is' t2
-                                  f x1 x2)
-                       (tensorIndices ns1)
-            return $ Tensor ns1 ys js1
-    else throwError $ InconsistentTensorSize
-tMap2 _ t1 t2 = do
-  throwError $ InconsistentTensorIndex -- TODO : new error type
-
 tSum :: [EgisonValue] -> EgisonM EgisonValue
 tSum [t] = return t
 tSum ((Tensor ns xs _):(Tensor _ ys _):ts) = do
@@ -729,12 +713,12 @@ removePairs (m, n) xs =
     hs ++ ms ++ ts
 
 removePairs' :: (Int, Int) -> [a] -> ([a],[a],[a])
-removePairs' (m, n) xs = -- (0,1) [i i]
+removePairs' (m, n) xs =           -- (0,1) [i i]
   let (hms, tts) = splitAt n xs in -- [i] [i]
-  let ts = tail tts in -- []
+  let ts = tail tts in             -- []
   let (hs, tms) = splitAt m hms in -- [] [i]
-  let ms = tail tms in -- []
-    (hs, ms, ts) -- [] [] []
+  let ms = tail tms in             -- []
+    (hs, ms, ts)                   -- [] [] []
 --
 --
 --
