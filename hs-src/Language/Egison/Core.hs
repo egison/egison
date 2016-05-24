@@ -252,20 +252,15 @@ evalExpr env (IndexedExpr expr indices) = do
                       Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
                       Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
               ) indices
-  let indices'' = map (\j -> case j of
-                              Superscript k -> k
-                              Subscript k -> k) js
-  let indices' = map (\j -> ScalarData j) indices''
   case tensor of
     (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
       return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js, 1)])]) (Plus [(Term 1 [])])))
     (Value (Tensor ns xs _)) -> do
-      tCheckIndex indices'' ns
-      if all (\x -> isInteger x) indices'
-        then do indices''' <- ((mapM fromEgison indices') :: EgisonM [Integer])
-                tIntRef indices''' (Tensor ns xs []) >>= return . Value
-        else tref js (Tensor ns xs js) >>= return . Value
-    _ -> refArray tensor indices'
+      tref js (Tensor ns xs js) >>= return . Value
+    _ -> refArray tensor (map (\j -> case j of
+                                       Superscript k -> ScalarData k
+                                       Subscript k -> ScalarData k) js)
+
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func Nothing env names expr
 

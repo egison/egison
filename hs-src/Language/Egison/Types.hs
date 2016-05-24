@@ -38,7 +38,6 @@ module Language.Egison.Types
     , tSize
     , tToList
     , tIndex
-    , tCheckIndex
     , tIntRef
     , tref
     , tensorIndices
@@ -580,22 +579,15 @@ tToList (Tensor _ xs _) = xs
 tIndex :: EgisonValue -> [Index ScalarData]
 tIndex (Tensor _ _ js) = js
 
-tCheckIndex :: [ScalarData] -> [Integer] -> EgisonM ()
-tCheckIndex [] _ = return ()
-tCheckIndex _ [] = throwError $ strMsg "More indices than the order of the tensor"
-tCheckIndex ((Div (Plus [(Term m [])]) (Plus [(Term 1 [])])):ms) (n:ns) =
-  if (0 < m) && (m <= n)
-    then tCheckIndex ms ns
-    else throwError $ TensorIndexOutOfBounds m n
-tCheckIndex (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])]):ms) (n:ns) = tCheckIndex ms ns
-tCheckIndex (m:_) _ = throwError $ TypeMismatch "symbol or natural number" (Value (ScalarData m))
-
 tIntRef' :: Integer -> EgisonValue -> EgisonM EgisonValue
 tIntRef' i (Tensor [_] xs _) = return $ nth i xs
 tIntRef' i (Tensor (n:ns) xs js) =
-  let w = fromIntegral (product ns) in
-  let ys = take w (drop (w * (fromIntegral (i - 1))) xs) in
-    return $ Tensor ns ys (cdr js)
+  if (0 < i) && (i <= n)
+   then let w = fromIntegral (product ns) in
+        let ys = take w (drop (w * (fromIntegral (i - 1))) xs) in
+          return $ Tensor ns ys (cdr js)
+   else throwError $ TensorIndexOutOfBounds i n
+tIntRef' i _ = throwError $ strMsg "More indices than the order of the tensor"
  
 tIntRef :: [Integer] -> EgisonValue -> EgisonM EgisonValue
 tIntRef [] (Tensor [] [x] _) = return x
