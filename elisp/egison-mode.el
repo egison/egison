@@ -63,6 +63,7 @@
      "\\<array-ref\\>"
      "\\<tensor\\>"
      "\\<generate-tensor\\>"
+     "\\<contract\\>"
      "\\<tensor-map\\>"
 
      "\\<loop\\>"

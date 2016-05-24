@@ -13,11 +13,3 @@
 (assert-equal "greater than or equal predicate"
   [(gte? 0.1 1.0) (gte? 1.0 0.1) (gte? 1.0 1.0)]
   [#f #t #t])
-
-(assert-equal "symbolic-algbra - case 1"
-  (** (+ x y) 2)
-  (+ x^2 (* 2 x y) y^2))
-
-(assert-equal "symbolic-algbra - case 2"
-  (** (+ x y) 4)
-  (+ x^4 (* 4 x^3 y) (* 6 x^2 y^2) (* 4 x y^3) y^4))

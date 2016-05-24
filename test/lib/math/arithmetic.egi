@@ -7,20 +7,16 @@
   120)
 
 (assert-equal "power"
-  (power 2 10)
-  1024)
+  (power 2 5)
+  32)
 
 (assert-equal "** - case 1"
-  (power 2 10)
-  1024)
+  (power x 3)
+  x^3)
 
 (assert-equal "** - case 2"
-  (power x 10)
-  x^10)
-
-(assert-equal "** - case 3"
-  (power (sqrt 2) 10)
-  32)
+  (power (sqrt 2) 4)
+  4)
 
 (assert-equal "gcd"
   (gcd 15 40)
