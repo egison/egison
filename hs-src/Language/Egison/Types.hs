@@ -590,26 +590,26 @@ tCheckIndex ((Div (Plus [(Term m [])]) (Plus [(Term 1 [])])):ms) (n:ns) =
 tCheckIndex (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])]):ms) (n:ns) = tCheckIndex ms ns
 tCheckIndex (m:_) _ = throwError $ TypeMismatch "symbol or natural number" (Value (ScalarData m))
 
-tIntRef' :: Integer -> EgisonValue -> EgisonValue
-tIntRef' i (Tensor [_] xs _) = nth i xs
+tIntRef' :: Integer -> EgisonValue -> EgisonM EgisonValue
+tIntRef' i (Tensor [_] xs _) = return $ nth i xs
 tIntRef' i (Tensor (n:ns) xs js) =
   let w = fromIntegral (product ns) in
   let ys = take w (drop (w * (fromIntegral (i - 1))) xs) in
-    Tensor ns ys (cdr js)
+    return $ Tensor ns ys (cdr js)
  
-tIntRef :: [Integer] -> EgisonValue -> EgisonValue
-tIntRef [] (Tensor [] [x] _) = x
-tIntRef [] t = t
-tIntRef (m:ms) t = tIntRef ms (tIntRef' m t)
+tIntRef :: [Integer] -> EgisonValue -> EgisonM EgisonValue
+tIntRef [] (Tensor [] [x] _) = return x
+tIntRef [] t = return t
+tIntRef (m:ms) t = tIntRef' m t >>= tIntRef ms 
 
-tref :: [Index ScalarData] -> EgisonValue -> EgisonValue
-tref [] (Tensor [] [x] _) = x
-tref [] t = t
-tref ((Subscript (Div (Plus [(Term m [])]) (Plus [(Term 1 [])]))):ms) t = tref ms (tIntRef' m t)
-tref ((Superscript (Div (Plus [(Term m [])]) (Plus [(Term 1 [])]))):ms) t = tref ms (tIntRef' m t)
-tref (s:ms) (Tensor (n:ns) xs js) =
-  let yss = split (product ns) xs in
-  let ts = map (\ys -> tref ms (Tensor ns ys (cdr js))) yss in
+tref :: [Index ScalarData] -> EgisonValue -> EgisonM EgisonValue
+tref [] (Tensor [] [x] _) = return x
+tref [] t = return t
+tref ((Subscript (Div (Plus [(Term m [])]) (Plus [(Term 1 [])]))):ms) t = tIntRef' m t >>= tref ms
+tref ((Superscript (Div (Plus [(Term m [])]) (Plus [(Term 1 [])]))):ms) t = tIntRef' m t >>= tref ms
+tref (s:ms) (Tensor (n:ns) xs js) = do
+  let yss = split (product ns) xs
+  ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
   tConcat s ts
 
 tensorIndices :: [Integer] -> [[Integer]]
@@ -638,7 +638,9 @@ tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
   ns2' <- transIndex js1 js2 ns2
   if ns1 == ns2'
     then do ys <- mapM (\is -> do is' <- transIndex js1 js2 is
-                                  f (tIntRef is t1) (tIntRef is' t2))
+                                  x1 <- tIntRef is t1
+                                  x2 <- tIntRef is' t2
+                                  f x1 x2)
                        (tensorIndices ns1)
             return $ Tensor ns1 ys js1
     else throwError $ InconsistentTensorSize
@@ -660,8 +662,8 @@ tProduct :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -
 tProduct f (Tensor ns1 xs1 js1) (Tensor ns2 xs2 js2) = do
   xs' <- mapM (\is -> do let is1 = take (length ns1) is
                          let is2 = take (length ns2) (drop (length ns1) is)
-                         let x1 = tIntRef is1 (Tensor ns1 xs1 js1)
-                         let x2 = tIntRef is2 (Tensor ns2 xs2 js2)
+                         x1 <- tIntRef is1 (Tensor ns1 xs1 js1)
+                         x2 <- tIntRef is2 (Tensor ns2 xs2 js2)
                          f x1 x2) (tensorIndices (ns1 ++ ns2))
   tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
 
@@ -673,9 +675,9 @@ tContract t@(Tensor ns xs js) = do
       let ns' = (ns !! m):removePairs (m,n) ns
       let js' = (js !! m):removePairs (m,n) js
       let (hjs, mjs, tjs) = removePairs' (m,n) js
-      return $ map (\i -> (tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
-                                     ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t))
-                    [1..(ns !! m)]
+      mapM (\i -> tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
+                            ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t)
+           [1..(ns !! m)]
  where
   p :: Index ScalarData -> Index ScalarData -> Bool
   p (Superscript i) (Subscript j) = i == j
@@ -691,10 +693,10 @@ tContract' t@(Tensor ns xs js) = do
       let ns' = (ns !! m):removePairs (m,n) ns
       let js' = (js !! m):removePairs (m,n) js
       let (hjs, mjs, tjs) = removePairs' (m,n) js
-      let xs' = map (\i -> (tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
-                                      ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t))
-                    [1..(ns !! m)]
-      tContract' $ tConcat (js !! m) xs'
+      xs' <- mapM (\i -> (tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
+                                    ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t))
+                  [1..(ns !! m)]
+      tConcat (js !! m) xs' >>= tContract'
  where
   p :: Index ScalarData -> Index ScalarData -> Bool
   p (Superscript i) (Superscript j) = i == j
@@ -716,10 +718,10 @@ split _ [] = []
 split w xs = let (hs, ts) = splitAt (fromIntegral w) xs in
                hs:(split w ts)
 
-tConcat :: Index ScalarData -> [EgisonValue] -> EgisonValue
+tConcat :: Index ScalarData -> [EgisonValue] -> EgisonM EgisonValue
 tConcat s (t:ts)
-  | isScalar t = Tensor [fromIntegral (length (t:ts))] (t:ts) [s]
-  | isTensor t = Tensor ((fromIntegral (length (t:ts))):(tSize t)) (concat (map tToList (t:ts))) (s:(tIndex t))
+  | isScalar t = return $ Tensor [fromIntegral (length (t:ts))] (t:ts) [s]
+  | isTensor t = return $ Tensor ((fromIntegral (length (t:ts))):(tSize t)) (concat (map tToList (t:ts))) (s:(tIndex t))
 
 findPairs :: (a -> a -> Bool) -> [a] -> [(Int, Int)]
 findPairs p xs = reverse $ findPairs' 0 p xs

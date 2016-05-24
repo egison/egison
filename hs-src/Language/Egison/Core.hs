@@ -263,8 +263,8 @@ evalExpr env (IndexedExpr expr indices) = do
       tCheckIndex indices'' ns
       if all (\x -> isInteger x) indices'
         then do indices''' <- ((mapM fromEgison indices') :: EgisonM [Integer])
-                return $ Value $ tIntRef indices''' (Tensor ns xs [])
-        else do return . Value $ tref js (Tensor ns xs js)
+                tIntRef indices''' (Tensor ns xs []) >>= return . Value
+        else tref js (Tensor ns xs js) >>= return . Value
     _ -> refArray tensor indices'
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func Nothing env names expr
