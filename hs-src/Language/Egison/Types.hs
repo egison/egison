@@ -44,6 +44,8 @@ module Language.Egison.Types
     , tMap
     , tProduct
     , tContract
+    , tConcat
+    , tConcat'
     -- * Scalar
     , symbolScalarData
     , mathExprToEgison
@@ -699,6 +701,11 @@ tConcat s (t:ts)
   | isScalar t = return $ Tensor [fromIntegral (length (t:ts))] (t:ts) [s]
   | isTensor t = return $ Tensor ((fromIntegral (length (t:ts))):(tSize t)) (concat (map tToList (t:ts))) (s:(tIndex t))
 
+tConcat' :: [EgisonValue] -> EgisonM EgisonValue
+tConcat' (t:ts)
+  | isScalar t = return $ Tensor [fromIntegral (length (t:ts))] (t:ts) []
+  | isTensor t = return $ Tensor ((fromIntegral (length (t:ts))):(tSize t)) (concat (map tToList (t:ts))) []
+
 findPairs :: (a -> a -> Bool) -> [a] -> [(Int, Int)]
 findPairs p xs = reverse $ findPairs' 0 p xs
 findPairs' :: Int -> (a -> a -> Bool) -> [a] -> [(Int, Int)]
@@ -734,10 +741,10 @@ instance Show EgisonValue where
   show (Bool False) = "#f"
   show (ScalarData mExpr) = show mExpr
   show (Tensor [_] xs js) = "[| " ++ unwords (map show xs) ++ " |]" ++ concat (map show js)
-  show (Tensor [i, k] xs js) = "[| " ++ f (fromIntegral i) xs ++ "|]" ++ concat (map show js)
+  show (Tensor [i, j] xs js) = "[| " ++ f (fromIntegral j) xs ++ "|]" ++ concat (map show js)
    where
-    f i [] = ""
-    f i xs = "[| " ++ unwords (map show (take i xs)) ++ " |] " ++ f i (drop i xs)
+    f j [] = ""
+    f j xs = "[| " ++ unwords (map show (take j xs)) ++ " |] " ++ f j (drop j xs)
   show (Tensor ns xs js) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show xs) ++ "} )" ++ concat (map show js)
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"

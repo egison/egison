@@ -196,10 +196,7 @@ evalExpr env (VectorExpr exprs) = do
   vals <- mapM (evalExprDeep env) exprs
   case vals of
     ((Tensor ns _ _):_) -> do
-      let ds = concat $ map (\t -> case t of
-                                     (Tensor _ ds _) -> ds)
-                            vals
-      return $ Value $ Tensor ((fromIntegral (length vals)):ns) ds []
+      tConcat' vals >>= return . Value
     _ -> do
       return $ Value $ Tensor [fromIntegral (length vals)] vals []
 
