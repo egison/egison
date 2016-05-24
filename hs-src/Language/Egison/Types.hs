@@ -155,7 +155,7 @@ import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import Data.List (intercalate, sort, sortBy)
+import Data.List (intercalate, sort, sortBy, findIndex, splitAt)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -239,6 +239,7 @@ data EgisonExpr =
 
   | GenerateTensorExpr EgisonExpr EgisonExpr
   | TensorExpr EgisonExpr EgisonExpr EgisonExpr EgisonExpr
+  | TensorContractExpr EgisonExpr EgisonExpr
   | TensorMapExpr EgisonExpr EgisonExpr
   | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
 
@@ -616,7 +617,8 @@ tensorIndices [] = [[]]
 tensorIndices (n:ns) = concat (map (\i -> (map (\is -> i:is) (tensorIndices ns))) [1..n])
 
 transIndex :: [Index ScalarData] -> [Index ScalarData] -> [Integer] -> EgisonM [Integer]
-transIndex [] [] [] = return []
+transIndex [] [] is = return is
+transIndex _ [] is = return is
 transIndex (j1:js1) js2 is = do
   let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
   if tjs2 == []
@@ -661,24 +663,21 @@ tProduct f (Tensor ns1 xs1 js1) (Tensor ns2 xs2 js2) = do
                          let x1 = tIntRef is1 (Tensor ns1 xs1 js1)
                          let x2 = tIntRef is2 (Tensor ns2 xs2 js2)
                          f x1 x2) (tensorIndices (ns1 ++ ns2))
-  tContract (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
+  tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
 
-tContract :: EgisonValue -> EgisonM EgisonValue
+tContract :: EgisonValue -> EgisonM [EgisonValue]
 tContract t@(Tensor ns xs js) = do
   case (findPairs js) of
-    [] -> return $ Tensor ns xs js
+    [] -> return [Tensor ns xs js]
     ((hs,ms,ts):_) -> do
       let hn = (length hs) + 1
       let mn = (length (hs ++ ms)) + 2
       if (ns !! (hn - 1)) == (ns !! (mn - 1))
         then do
           let n = ns !! (hn - 1)
-          ret <- tSum (map (\i -> (tref (hs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ms
-                                            ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ts) t))
-                           [1..n])
-          case ret of
-            (Tensor ns' xs' _) -> tContract (Tensor ns' xs' (hs ++ ms ++ ts))
-            _ -> return ret
+          return $ map (\i -> (tref (hs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ms
+                                        ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ ts) t))
+                       [1..n]
         else throwError $ InconsistentTensorIndex
  where
   findPairs :: [Index ScalarData] -> [([Index ScalarData], [Index ScalarData], [Index ScalarData])]
@@ -696,7 +695,27 @@ tContract t@(Tensor ns xs js) = do
   p (Superscript i) (Subscript j) = i == j
   p (Subscript i) (Superscript j) = i == j
   p _ _ = False
-tContract val = return val
+tContract val = return [val]
+
+tContract' :: EgisonValue -> EgisonM EgisonValue
+tContract' t@(Tensor ns xs js) = do
+  liftIO $ putStrLn (show (findPairs p js))
+  case findPairs p js of
+    [] -> return t
+    ((m,n):_) -> do
+      let ns' = (ns !! m):removePairs (m,n) ns
+      let js' = (js !! m):removePairs (m,n) js
+      let (hjs, mjs, tjs) = removePairs' (m,n) js
+      let xs' = map (\i -> (tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
+                                      ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t))
+                    [1..(ns !! m)]
+      tContract' $ tConcat (js !! m) xs'
+ where
+  p :: Index ScalarData -> Index ScalarData -> Bool
+  p (Superscript i) (Superscript j) = i == j
+  p (Subscript i) (Subscript j) = i == j
+  p _ _ = False
+tContract' val = return val
 
 -- utility functions for tensors
 
@@ -717,6 +736,26 @@ tConcat s (t:ts)
   | isScalar t = Tensor [fromIntegral (length (t:ts))] (t:ts) [s]
   | isTensor t = Tensor ((fromIntegral (length (t:ts))):(tSize t)) (concat (map tToList (t:ts))) (s:(tIndex t))
 
+findPairs :: (a -> a -> Bool) -> [a] -> [(Int, Int)]
+findPairs p xs = reverse $ findPairs' 0 p xs
+findPairs' :: Int -> (a -> a -> Bool) -> [a] -> [(Int, Int)]
+findPairs' _ _ [] = []
+findPairs' m p (x:xs) = case findIndex (p x) xs of
+                    Just i -> (m, m + i + 1):(findPairs' (m + 1) p xs)
+                    Nothing -> findPairs' (m + 1) p xs
+
+removePairs :: (Int, Int) -> [a] -> [a]
+removePairs (m, n) xs =
+  let (hs, ms, ts) = removePairs' (m, n) xs in
+    hs ++ ms ++ ts
+
+removePairs' :: (Int, Int) -> [a] -> ([a],[a],[a])
+removePairs' (m, n) xs = -- (0,1) [i i]
+  let (hms, tts) = splitAt n xs in -- [i] [i]
+  let ts = tail tts in -- []
+  let (hs, tms) = splitAt m hms in -- [] [i]
+  let ms = tail tms in -- []
+    (hs, ms, ts) -- [] [] []
 --
 --
 --

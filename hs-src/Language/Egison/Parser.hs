@@ -201,6 +201,7 @@ expr' = (try partialExpr
                          <|> arrayRefExpr
                          <|> generateTensorExpr
                          <|> tensorExpr
+                         <|> tensorContractExpr
                          <|> tensorMapExpr
                          <|> tensorMap2Expr
                          )
@@ -470,6 +471,9 @@ generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> ex
 tensorExpr :: Parser EgisonExpr
 tensorExpr = keywordTensor >> TensorExpr <$> expr <*> expr <*> option (CollectionExpr []) expr <*> option (CollectionExpr []) expr
 
+tensorContractExpr :: Parser EgisonExpr
+tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr <*> expr
+
 tensorMapExpr :: Parser EgisonExpr
 tensorMapExpr = keywordTensorMap >> TensorMapExpr <$> expr <*> expr
 
@@ -682,6 +686,7 @@ reservedKeywords =
   , "array-ref"
   , "generate-tensor"
   , "tensor"
+  , "contract"
   , "tensor-map"
   , "tensor-map2"
   , "something"
@@ -753,6 +758,7 @@ keywordArrayBounds          = reserved "array-bounds"
 keywordArrayRef             = reserved "array-ref"
 keywordGenerateTensor       = reserved "generate-tensor"
 keywordTensor               = reserved "tensor"
+keywordTensorContract       = reserved "contract"
 keywordTensorMap            = reserved "tensor-map"
 keywordTensorMap2           = reserved "tensor-map2"
 

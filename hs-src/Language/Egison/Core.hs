@@ -264,8 +264,7 @@ evalExpr env (IndexedExpr expr indices) = do
       if all (\x -> isInteger x) indices'
         then do indices''' <- ((mapM fromEgison indices') :: EgisonM [Integer])
                 return $ Value $ tIntRef indices''' (Tensor ns xs [])
-        else do ret <- tContract (tref js (Tensor ns xs js))
-                return . Value $ ret
+        else do return . Value $ tref js (Tensor ns xs js)
     _ -> refArray tensor indices'
 
 evalExpr env (LambdaExpr names expr) = return . Value $ Func Nothing env names expr
@@ -453,6 +452,15 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   fn <- evalExpr env fnExpr
   xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms)) >>= evalWHNF) (map (\ms -> map toEgison ms) (tensorIndices ns))
   return $ Value (Tensor ns xs [])
+
+evalExpr env (TensorContractExpr fnExpr tExpr) = do
+  fn <- evalExpr env fnExpr
+  whnf <- evalExpr env tExpr
+  case whnf of
+    Value t@(Tensor _ _ _) -> do
+      ts <- tContract t
+      applyFunc env fn (Value (Tuple ts))
+    _ -> return whnf
 
 evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr

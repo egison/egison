@@ -260,6 +260,11 @@ desugar (GenerateTensorExpr fnExpr sizeExpr) = do
   sizeExpr' <- desugar sizeExpr
   return $ GenerateTensorExpr fnExpr' sizeExpr'
 
+desugar (TensorContractExpr fnExpr tExpr) = do
+  fnExpr' <- desugar fnExpr
+  tExpr' <- desugar tExpr
+  return $ TensorContractExpr fnExpr' tExpr'
+
 desugar (TensorMapExpr fnExpr tExpr) = do
   fnExpr' <- desugar fnExpr
   tExpr' <- desugar tExpr
