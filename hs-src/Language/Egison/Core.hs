@@ -197,6 +197,7 @@ evalExpr env (VectorExpr exprs) = do
   case vals of
     ((Tensor ns _ _):_) -> do
       tConcat' vals >>= return . Value
+    [val] -> return $ Value val
     _ -> do
       return $ Value $ Tensor [fromIntegral (length vals)] vals []
 
