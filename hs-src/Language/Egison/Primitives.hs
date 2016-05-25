@@ -85,6 +85,8 @@ twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 twoArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
+    [t1@(Tensor _ _ []), t2@(Tensor _ _ [])] -> do
+      tSum f t1 t2 >>= return . Value
     [t1@(Tensor _ _ _), t2@(Tensor _ _ _)] -> do
       tProduct f t1 t2 >>= return . Value
     [(Tensor ns ds js), val] -> do

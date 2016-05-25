@@ -42,6 +42,7 @@ module Language.Egison.Types
     , tref
     , tensorIndices
     , tMap
+    , tSum
     , tProduct
     , tContract
     , tContract'
@@ -631,16 +632,14 @@ tMap f (Tensor ns xs js) = do
   xs' <- mapM f xs
   return $ Tensor ns xs' js
 
-tSum :: [EgisonValue] -> EgisonM EgisonValue
-tSum [t] = return t
-tSum ((Tensor ns xs _):(Tensor _ ys _):ts) = do
-  xs' <- mapM extractScalar xs
-  ys' <- mapM extractScalar ys
-  tSum ((Tensor ns (map (\(x,y) -> ScalarData (mathNormalize' (mathPlus x y))) (zip xs' ys')) []):ts)
-tSum (x:y:ys) = do
-  x' <- extractScalar x
-  y' <- extractScalar y
-  tSum ((ScalarData (mathNormalize' (mathPlus x' y'))):ys)
+tSum :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
+tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
+  t2' <- tTranspose js1 t2
+  case t2' of
+    (Tensor ns2 xs2 _)
+      | ns2 == ns1 -> do ys <- mapM (\(x1,x2) -> f x1 x2) (zip xs1 xs2)
+                         return (Tensor ns1 ys js1)
+      | otherwise -> throwError $ InconsistentTensorSize
 
 tProduct :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
 tProduct f (Tensor ns1 xs1 js1) (Tensor ns2 xs2 js2) = do
