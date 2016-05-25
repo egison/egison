@@ -718,13 +718,13 @@ split w xs = let (hs, ts) = splitAt (fromIntegral w) xs in
 
 tConcat :: Index ScalarData -> [EgisonValue] -> EgisonM EgisonValue
 tConcat s (t:ts)
-  | isScalar t = return $ Tensor [fromIntegral (length (t:ts))] (t:ts) [s]
   | isTensor t = return $ Tensor ((fromIntegral (length (t:ts))):(tSize t)) (concat (map tToList (t:ts))) (s:(tIndex t))
+  | otherwise = return $ Tensor [fromIntegral (length (t:ts))] (t:ts) [s]
 
 tConcat' :: [EgisonValue] -> EgisonM EgisonValue
 tConcat' (t:ts)
-  | isScalar t = return $ Tensor [fromIntegral (length (t:ts))] (t:ts) []
   | isTensor t = return $ Tensor ((fromIntegral (length (t:ts))):(tSize t)) (concat (map tToList (t:ts))) []
+  | otherwise = return $ Tensor [fromIntegral (length (t:ts))] (t:ts) []
 
 findPairs :: (a -> a -> Bool) -> [a] -> [(Int, Int)]
 findPairs p xs = reverse $ findPairs' 0 p xs
