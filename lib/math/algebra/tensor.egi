@@ -4,13 +4,7 @@
 ;;;;;
 ;;;;;
 
-(define $T.map
-  (lambda [$fn $t]
-    (tensor-map fn t)))
-
-(define $T.map2
-  (lambda [$fn $t1 $t2]
-    (tensor-map2 fn t1 t2)))
+(define $trace (lambda [$t] (contract + t~i_i)))
 
 (define $unit-tensor
   (lambda [$ns]
@@ -18,14 +12,11 @@
 
 (define $scalar-to-tensor
   (lambda [$x $ns]
-    (T.map (* x $) (unit-tensor ns))))
+    (* x (unit-tensor ns))))
 
 (define $zero-tensor
   (lambda [$ns]
-    (generate-tensor (cambda $ns 0) ns)))
-
-(define $T.unit (unit-tensor $))
-(define $T.zero (zero-tensor $))
+    (generate-tensor 1#0 ns)))
 
 ;;
 ;; Vectors

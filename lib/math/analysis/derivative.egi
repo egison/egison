@@ -57,27 +57,38 @@
 
 (define $maclaurin-expansion (taylor-expansion $ $ 0))
 
-(define $∇
-  (lambda [$f $xs]
-    (generate-tensor
-      1#(∂/∂ f (nth %1 xs))
-      {(length xs)})))
-
+(define $∇ ∂/∂)
 (define $nabla ∇)
+
+(define $div (compose ∇ (trace $)))
 
 (define $multivariate-taylor-expansion
   (lambda [$f $xs $as]
     (with-symbols {h}
-      (let* {[$n (length xs)]
-             [$hs (map 1#h_%1 (between 1 n))]
-             [$hv (tensor {n} hs)]
-             [$xas (map2 - xs as)]}
+      (let {[$hs (generate-tensor 1#h_%1 (tensor-size xs))]}
         (map2 *
               (map 1#(/ 1 (fact %1)) nats0)
-              (map (compose (substitute (zip xs as) $)
-                            (substitute (zip hs xas) $))
-                   (iterate (compose (∇ $ xs) (V.* hv $)) f)))))))
+              (map (compose (new-substitute xs as $)
+                            (new-substitute hs (- xs as) $))
+                   (iterate (compose (∇ $ xs) (V.* hs $)) f)))))))
+
+(define $new-substitute
+  (lambda [$xs $ys $mexpr]
+    (substitute (zip (tensor-to-list xs) (tensor-to-list ys)) mexpr)))
+
+;(define $multivariate-taylor-expansion
+;  (lambda [$f $xs $as]
+;    (with-symbols {h}
+;      (let* {[$n (length xs)]
+;             [$hs (map 1#h_%1 (between 1 n))]
+;             [$hv (tensor {n} hs)]
+;             [$xas (map2 - xs as)]}
+;        (map2 *
+;              (map 1#(/ 1 (fact %1)) nats0)
+;              (map (compose (substitute (zip xs as) $)
+;                            (substitute (zip hs xas) $))
+;                   (iterate (compose (∇ $ xs) (V.* hv $)) f)))))))
 
 (define $multivariate-maclaurin-expansion
   (lambda [$f $xs]
-    (multivariate-taylor-expansion f xs (take (length xs) (repeat1 0)))))
+    (multivariate-taylor-expansion f xs (generate-tensor 1#0 (tensor-size xs)))))
