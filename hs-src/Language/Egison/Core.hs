@@ -262,8 +262,8 @@ evalExpr env (IndexedExpr expr indices) = do
 
 evalExpr env (LambdaExpr names expr) = do
   names' <- mapM (\name -> case name of
-                             (ScalarArg name') -> return name'
-                             (TensorArg _) -> throwError $ EgisonBug "tensor-arg remained") names
+                             (TensorArg name') -> return name'
+                             (ScalarArg _) -> throwError $ EgisonBug "scalar-arg remained") names
   return . Value $ Func Nothing env names' expr
 
 evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name expr
@@ -337,15 +337,9 @@ evalExpr env (IoExpr expr) = do
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  case target of
-    (Value (Tensor ns xs js)) -> do
-      xs' <- mapM (f matcher) (map Value xs) >>= mapM evalWHNF
-      return . Value $ Tensor ns xs' js
-    _ -> f matcher target
+  result <- patternMatch env pattern target matcher
+  mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
-  f matcher target = do
-    result <- patternMatch env pattern target matcher
-    mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
   fromMList MNil = return . Value $ Collection Sq.empty
   fromMList (MCons val m) = do
@@ -357,11 +351,7 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
 evalExpr env (MatchExpr target matcher clauses) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  case target of
-    (Value (Tensor ns xs js)) -> do
-      xs' <- mapM (f matcher) (map Value xs) >>= mapM evalWHNF
-      return . Value $ Tensor ns xs' js
-    _ -> f matcher target
+  f matcher target
  where
   f matcher target = do
       let tryMatchClause (pattern, expr) cont = do

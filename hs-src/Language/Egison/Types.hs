@@ -640,7 +640,7 @@ tMap f (Tensor ns xs js) = do
   xs' <- mapM f xs
   case xs' of
     ((Tensor ns1 _ js1):_) ->
-      return $ Tensor (ns ++ ns1) (concat (map (\(Tensor _ xs1 _) -> xs1) xs')) (js ++ js1)
+      tContract' $ Tensor (ns ++ ns1) (concat (map (\(Tensor _ xs1 _) -> xs1) xs')) (js ++ js1)
     _ -> return $ Tensor ns xs' js
 
 tSum :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue

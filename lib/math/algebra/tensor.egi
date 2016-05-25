@@ -4,7 +4,7 @@
 ;;;;;
 ;;;;;
 
-(define $trace (lambda [$t] (contract + t~i_i)))
+(define $trace (lambda [%t] (contract + t~i_i)))
 
 (define $unit-tensor
   (lambda [$ns]
@@ -22,7 +22,7 @@
 ;; Vectors
 ;;
 (define $V.*
-  (lambda [$v1 $v2]
+  (lambda [%v1 %v2]
     (with-symbols {i}
       (. v1~i v2_i))))
 
@@ -34,12 +34,12 @@
     (foldl M.*' (car ms) (cdr ms))))
 
 (define $M.*'
-  (lambda [$m1 $m2]
+  (lambda [%m1 %m2]
     (with-symbols {i j k}
       (. m1~i~j m2_j_k))))
 
 (define $M.inverse
-  (lambda [$m]
+  (lambda [%m]
     (match (tensor-size m) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
         (T.map (/ $ (M.det m)) (tensor {2 2} {m_2_2 (* -1 m_1_2) (* -1 m_2_1) m_1_1}))]
@@ -49,7 +49,7 @@
 ;; Linear algebra
 ;;
 (define $M.LU
-  (lambda [$x]
+  (lambda [%x]
     (match (tensor-size x) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
         (let* {[$L (generate-tensor 2#(match (compare %1 %2) ordering {[<less> 0] [<equal> 1] [<greater> b_%1_%2]}) {2 2})]
@@ -96,7 +96,7 @@
         {@hs x @ms y @ts}]})))
 
 (define $M.determinant
-  (lambda [$m]
+  (lambda [%m]
     (match (tensor-size m) (list integer)
       {[<cons $n <cons ,n <nil>>>
         (let {[[$es $os] (even-and-odd-permutations n)]}
@@ -118,7 +118,7 @@
 ;;; Eigenvalue
 ;;;
 (define $M.eigenvalues
-  (lambda [$m]
+  (lambda [%m]
     (match (tensor-size m) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
         (let {[[$e1 $e2] (q-f (M.det (T.- m (scalar-to-tensor x {2 2}))) x)]}
@@ -126,7 +126,7 @@
        [_ undefined]})))
 
 (define $M.eigenvectors
-  (lambda [$m]
+  (lambda [%m]
     (match (tensor-size m) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
         (let {[[$e1 $e2] (q-f (M.det (T.- m (scalar-to-tensor x {2 2}))) x)]}

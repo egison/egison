@@ -21,11 +21,11 @@
          [_ {}]}]
        [<join $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(foldr (lambda [$i $r] {xa_i @r}) {} (between 1 n))
+                 [(loop $i [1 $n] <cons $xa_i ...> $rs) [(foldr (lambda [%i %r] {xa_i @r}) {} (between 1 n))
                                                          rs]])]}]
        [<nioj $ $> [(list a) (list a)]
         {[$tgt (match-all tgt (list a)
-                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(foldr (lambda [$i $r] {@r xa_i}) {} (between 1 n))
+                 [(loop $i [1 $n] <snoc $xa_i ...> $rs) [(foldr (lambda [%i %r] {@r xa_i}) {} (between 1 n))
                                                          rs]])]}]
        [,$val []
         {[$tgt (if (eq? val tgt) {[]} {})]}]
@@ -204,7 +204,7 @@
 
 (define $filter
   (lambda [$pred $xs]
-    (foldr (lambda [$y $ys] (if (pred y) {y @ys} ys))
+    (foldr (lambda [%y %ys] (if (pred y) {y @ys} ys))
            {}
            xs)))
 
@@ -231,13 +231,13 @@
 
 ; Note. `foldr` is used in the definition of the list matcher.
 (define $foldr
-  (lambda [$fn $init $ls]
+  (lambda [$fn %init %ls]
     (match ls (list something)
       {[<nil> init]
        [<cons $x $xs> (fn x (foldr fn init xs))]})))
 
 (define $foldl
-  (lambda [$fn $init $ls]
+  (lambda [$fn %init %ls]
     (match ls (list something)
       {[<nil> init]
        [<cons $x $xs>
@@ -245,17 +245,17 @@
           (seq z (foldl fn z xs)))]})))
 
 (define $reduce
-  (lambda [$fn $ls]
+  (lambda [$fn %ls]
     (foldl fn (car ls) (cdr ls))))
 
 (define $scanl
-  (lambda [$fn $init $ls]
+  (lambda [$fn %init %ls]
     {init @(match ls (list something)
              {[<nil> {}]
               [<cons $x $xs> (scanl fn (fn init x) xs)]})}))
 
 (define $iterate
-  (lambda [$fn $x]
+  (lambda [$fn %x]
     (let* {[$nx1 (fn x)]
            [$nx2 (fn nx1)]
            [$nx3 (fn nx2)]
@@ -269,7 +269,7 @@
 
 (define $concat
   (lambda [$xss]
-    (foldr (lambda [$xs $rs] {@xs @rs})
+    (foldr (lambda [%xs %rs] {@xs @rs})
            {}
            xss)))
 

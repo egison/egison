@@ -123,15 +123,11 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
 desugar (MatchAllLambdaExpr matcher clause) = do
   name <- fresh
-  matcher' <- desugar matcher
-  clause' <- desugarMatchClause clause
-  return $ LambdaExpr [ScalarArg name] (MatchAllExpr (VarExpr name) matcher' clause')
+  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr (VarExpr name) matcher clause)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
-  matcher' <- desugar matcher
-  clauses' <- desugarMatchClauses clauses
-  return $ LambdaExpr [ScalarArg name] (MatchExpr (VarExpr name) matcher' clauses')
+  desugar $ LambdaExpr [TensorArg name] (MatchExpr (VarExpr name) matcher clauses)
 
 desugar (ArrayRefExpr expr nums) =
   case nums of
@@ -171,15 +167,15 @@ desugar (CollectionExpr ((SubCollectionExpr sub):inners)) = do
       return $ CollectionExpr (SubCollectionExpr sub':inners')
 
 desugar (LambdaExpr names expr) = do
-  let (hnames, tnames) = span (\name -> case name of
-                                          ScalarArg _ -> True
-                                          TensorArg _ -> False) names
-  case tnames of
+  let (rtnames, rhnames) = span (\name -> case name of
+                                          TensorArg _ -> True
+                                          ScalarArg _ -> False) (reverse names)
+  case rhnames of
     [] -> do expr' <- desugar expr
              return $ LambdaExpr names expr'
-    (TensorArg tname:tnames') ->
-      desugar $ LambdaExpr (hnames ++ [ScalarArg tname] ++ tnames')
-                           (TensorMapExpr (LambdaExpr [ScalarArg tname] expr) (VarExpr tname))
+    (ScalarArg rhname:rhnames') ->
+      desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
+                           (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (VarExpr rhname))
 
 desugar (MemoizedLambdaExpr names expr) = do
   expr' <- desugar expr
@@ -308,10 +304,9 @@ desugar (PartialVarExpr n) = return $ VarExpr $ "::" ++ show n
 desugar RecVarExpr = return $ VarExpr "::"
 
 desugar (PartialExpr n expr) = do
-  expr' <- desugar expr
   if n == 0
-    then return $ LetRecExpr [(["::"], LambdaExpr [] expr')] (LambdaExpr [] expr')
-    else return $ LetRecExpr [(["::"], LambdaExpr (map ScalarArg (annonVars (fromIntegral n))) expr')] (LambdaExpr (map ScalarArg (annonVars (fromIntegral n))) expr')
+    then desugar $ LetRecExpr [(["::"], LambdaExpr [] expr)] (LambdaExpr [] expr)
+    else desugar $ LetRecExpr [(["::"], LambdaExpr (map TensorArg (annonVars (fromIntegral n))) expr)] (LambdaExpr (map TensorArg (annonVars (fromIntegral n))) expr)
  where
   annonVars n = take n $ map (((++) "::") . show) [1..]
 
