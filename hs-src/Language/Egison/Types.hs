@@ -632,7 +632,10 @@ tTranspose is t@(Tensor ns xs js) = do
 tMap :: (EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonM EgisonValue
 tMap f (Tensor ns xs js) = do
   xs' <- mapM f xs
-  return $ Tensor ns xs' js
+  case xs' of
+    ((Tensor ns1 _ js1):_) ->
+      return $ Tensor (ns ++ ns1) (concat (map (\(Tensor _ xs1 _) -> xs1) xs')) (js ++ js1)
+    _ -> return $ Tensor ns xs' js
 
 tSum :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
 tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
