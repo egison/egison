@@ -22,6 +22,7 @@ import Control.Applicative ((<$>), (<*>), (<*), (*>), pure)
 import qualified Data.Sequence as Sq
 import Data.Sequence (ViewL(..), (<|))
 import qualified Data.Set as S
+import Data.List (span)
 import Data.Set (Set)
 import Data.Char (toUpper)
 import Control.Monad.Error
@@ -124,13 +125,13 @@ desugar (MatchAllLambdaExpr matcher clause) = do
   name <- fresh
   matcher' <- desugar matcher
   clause' <- desugarMatchClause clause
-  return $ LambdaExpr [name] (MatchAllExpr (VarExpr name) matcher' clause')
+  return $ LambdaExpr [ScalarArg name] (MatchAllExpr (VarExpr name) matcher' clause')
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
   matcher' <- desugar matcher
   clauses' <- desugarMatchClauses clauses
-  return $ LambdaExpr [name] (MatchExpr (VarExpr name) matcher' clauses')
+  return $ LambdaExpr [ScalarArg name] (MatchExpr (VarExpr name) matcher' clauses')
 
 desugar (ArrayRefExpr expr nums) =
   case nums of
@@ -170,8 +171,15 @@ desugar (CollectionExpr ((SubCollectionExpr sub):inners)) = do
       return $ CollectionExpr (SubCollectionExpr sub':inners')
 
 desugar (LambdaExpr names expr) = do
-  expr' <- desugar expr
-  return $ LambdaExpr names expr'
+  let (hnames, tnames) = span (\name -> case name of
+                                          ScalarArg _ -> True
+                                          TensorArg _ -> False) names
+  case tnames of
+    [] -> do expr' <- desugar expr
+             return $ LambdaExpr names expr'
+    (TensorArg tname:tnames') ->
+      desugar $ LambdaExpr (hnames ++ [ScalarArg tname] ++ tnames')
+                           (TensorMapExpr (LambdaExpr [ScalarArg tname] expr) (VarExpr tname))
 
 desugar (MemoizedLambdaExpr names expr) = do
   expr' <- desugar expr
@@ -303,7 +311,7 @@ desugar (PartialExpr n expr) = do
   expr' <- desugar expr
   if n == 0
     then return $ LetRecExpr [(["::"], LambdaExpr [] expr')] (LambdaExpr [] expr')
-    else return $ LetRecExpr [(["::"], LambdaExpr (annonVars (fromIntegral n)) expr')] (LambdaExpr (annonVars (fromIntegral n)) expr')
+    else return $ LetRecExpr [(["::"], LambdaExpr (map ScalarArg (annonVars (fromIntegral n))) expr')] (LambdaExpr (map ScalarArg (annonVars (fromIntegral n))) expr')
  where
   annonVars n = take n $ map (((++) "::") . show) [1..]
 

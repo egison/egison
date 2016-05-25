@@ -260,7 +260,11 @@ evalExpr env (IndexedExpr expr indices) = do
                                        Subscript k -> ScalarData k) js)
 
 
-evalExpr env (LambdaExpr names expr) = return . Value $ Func Nothing env names expr
+evalExpr env (LambdaExpr names expr) = do
+  names' <- mapM (\name -> case name of
+                             (ScalarArg name') -> return name'
+                             (TensorArg _) -> throwError $ EgisonBug "tensor-arg remained") names
+  return . Value $ Func Nothing env names' expr
 
 evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name expr
 

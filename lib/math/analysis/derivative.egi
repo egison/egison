@@ -5,7 +5,7 @@
 ;;;;;
 
 (define $∂/∂
-  (lambda [$f $x]
+  (lambda [%f %x]
     (match f math-expr
       {; symbol
        [,x 1]

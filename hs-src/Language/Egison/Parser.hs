@@ -334,7 +334,7 @@ ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <*> expr <*> expr
 
 lambdaExpr :: Parser EgisonExpr
-lambdaExpr = keywordLambda >> LambdaExpr <$> varNames <*> expr
+lambdaExpr = keywordLambda >> LambdaExpr <$> argNames <*> expr
 
 memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
@@ -396,6 +396,14 @@ varNames = return <$> varName
 varName :: Parser String
 varName = char '$' >> ident
 
+argNames :: Parser [Arg]
+argNames = return <$> argName
+            <|> brackets (sepEndBy argName whiteSpace) 
+
+argName :: Parser Arg
+argName = try (char '$' >> ident >>= return . ScalarArg)
+      <|> try (char '%' >> ident >>= return . TensorArg)
+
 ioExpr :: Parser EgisonExpr
 ioExpr = keywordIo >> IoExpr <$> expr
 
@@ -422,14 +430,14 @@ applyExpr' = do
     _ | all null vars ->
         let genVar = modify (1+) >> gets (VarExpr . (':':) . show)
             args' = evalState (mapM (either (const genVar) return) args) 0
-        in return . LambdaExpr (annonVars $ length vars) . ApplyExpr func $ TupleExpr args'
+        in return . LambdaExpr (map ScalarArg (annonVars $ length vars)) . ApplyExpr func $ TupleExpr args'
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
                let args' = map (either (VarExpr . (':':)) id) args
-               in return . LambdaExpr (annonVars n) . ApplyExpr func $ TupleExpr args'
+               in return . LambdaExpr (map ScalarArg (annonVars n)) . ApplyExpr func $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where

@@ -15,6 +15,7 @@ module Language.Egison.Types
       EgisonTopExpr (..)
     , EgisonExpr (..)
     , EgisonPattern (..)
+    , Arg (..)
     , Index (..)
     , InnerExpr (..)
     , BindingExpr (..)
@@ -196,7 +197,7 @@ data EgisonExpr =
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | VectorExpr [EgisonExpr]
 
-  | LambdaExpr [String] EgisonExpr
+  | LambdaExpr [Arg] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr
   | MemoizeExpr [(EgisonExpr, EgisonExpr, EgisonExpr)] EgisonExpr
   | CambdaExpr String EgisonExpr
@@ -248,6 +249,11 @@ data EgisonExpr =
   | SomethingExpr
   | UndefinedExpr
  deriving (Show, Eq)
+
+data Arg =
+    ScalarArg String
+  | TensorArg String
+ deriving (Eq)
 
 data Index a =
     Subscript a
@@ -769,14 +775,14 @@ instance Show EgisonValue where
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
-  show (Func Nothing _ names _) = "(lambda [" ++ unwords names ++ "] ...)"
+  show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
   show (Func (Just name) _ _ _) = name
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   show (CFunc (Just name) _ _ _) = name
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
   show (MemoizedFunc (Just name) _ _ _ names _) = name
-  show (Func Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
-  show (Func (Just name) _ _ _) = name
+  show (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
+  show (Proc (Just name) _ _ _) = name
   show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
@@ -786,6 +792,11 @@ instance Show EgisonValue where
   show Undefined = "undefined"
   show World = "#<world>"
   show EOF = "#<eof>"
+
+instance Show Arg where
+  show (ScalarArg name) = "$" ++ name
+  show (TensorArg name) = "%" ++ name
+
 
 instance Show ScalarData where
   show (Div p1 (Plus [(Term 1 [])])) = show p1
