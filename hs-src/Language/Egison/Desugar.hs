@@ -190,6 +190,10 @@ desugar (CambdaExpr name expr) = do
   expr' <- desugar expr
   return $ CambdaExpr name expr'
 
+desugar (ProcedureExpr names expr) = do
+  expr' <- desugar expr
+  return $ ProcedureExpr names expr'
+
 --desugar (MacroExpr names expr) = do
 --  expr' <- desugar expr
 --  return $ MacroExpr names expr'

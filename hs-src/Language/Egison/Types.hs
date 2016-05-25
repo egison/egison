@@ -200,6 +200,7 @@ data EgisonExpr =
   | MemoizedLambdaExpr [String] EgisonExpr
   | MemoizeExpr [(EgisonExpr, EgisonExpr, EgisonExpr)] EgisonExpr
   | CambdaExpr String EgisonExpr
+  | ProcedureExpr [String] EgisonExpr
   | MacroExpr [String] EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern
   
@@ -326,6 +327,7 @@ data EgisonValue =
   | Func (Maybe String) Env [String] EgisonExpr
   | CFunc (Maybe String) Env String EgisonExpr
   | MemoizedFunc (Maybe String) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
+  | Proc (Maybe String) Env [String] EgisonExpr
   | Macro [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
@@ -770,6 +772,8 @@ instance Show EgisonValue where
   show (CFunc (Just name) _ _ _) = name
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
   show (MemoizedFunc (Just name) _ _ _ names _) = name
+  show (Func Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
+  show (Func (Just name) _ _ _) = name
   show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"

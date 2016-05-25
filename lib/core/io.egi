@@ -8,14 +8,14 @@
 ;;; IO
 ;;;
 (define $print
-  (lambda [$x]
+  (procedure [$x]
     (do {[(write x)]
          [(write "\n")]
          [(flush)]
          })))
 
 (define $print-to-port
-  (lambda [$port $x]
+  (procedure [$port $x]
     (do {[(write-to-port port x)]
          [(write-to-port port "\n")]
          })))
@@ -23,11 +23,11 @@
 (define $display (compose show print))
 
 (define $display-to-port
-  (lambda [$port $x]
+  (procedure [$port $x]
     (print-to-port port $ (show x))))
 
 (define $each-line
-  (lambda [$proc]
+  (procedure [$proc]
     (do {[$eof (eof?)]}
       (if eof
         (return [])
@@ -36,7 +36,7 @@
           (each-line proc))))))
 
 (define $each-line-from-port
-  (lambda [$port $proc]
+  (procedure [$port $proc]
     (do {[$eof (eof-port? port)]}
       (if eof
         (return [])
@@ -45,7 +45,7 @@
           (each-line-from-port port proc))))))
 
 (define $each-file
-  (lambda [$files $proc]
+  (procedure [$files $proc]
     (match files (list string)
       {[<nil> (return [])]
        [<cons $file $rest>
@@ -58,7 +58,7 @@
 ;;; Collection
 ;;;
 (define $each
-  (lambda [$proc $xs]
+  (procedure [$proc $xs]
     (match xs (list something)
       {[<nil> (do {})]
        [<cons $x $rs>

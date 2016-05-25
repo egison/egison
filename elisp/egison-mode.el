@@ -49,6 +49,7 @@
      "\\<memoized-lambda\\>"
      "\\<memoize\\>"
      "\\<cambda\\>"
+     "\\<procedure\\>"
      "\\<macro\\>"
      "\\<let\\>"
      "\\<letrec\\>"
@@ -180,6 +181,7 @@
         ((equal "execute" name) 2)
         ((equal "lambda" name) 2)
         ((equal "cambda" name) 2)
+        ((equal "procedure" name) 2)
         ((equal "macro" name) 2)
         ((equal "memoized-lambda" name) 2)
         ((equal "memoize" name) 2)

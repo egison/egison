@@ -264,6 +264,8 @@ evalExpr env (LambdaExpr names expr) = return . Value $ Func Nothing env names e
 
 evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name expr
 
+evalExpr env (ProcedureExpr names expr) = return . Value $ Proc Nothing env names expr
+
 evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
@@ -522,6 +524,14 @@ applyFunc _ (Value (Func _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
   evalExpr (extendEnv env $ makeBindings [name] [ref]) body
 applyFunc _ (Value (Func _ env names body)) arg = do
+  refs <- fromTuple arg
+  if length names == length refs
+    then evalExpr (extendEnv env $ makeBindings names refs) body
+    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+applyFunc _ (Value (Proc _ env [name] body)) arg = do
+  ref <- newEvaluatedObjectRef arg
+  evalExpr (extendEnv env $ makeBindings [name] [ref]) body
+applyFunc _ (Value (Proc _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings names refs) body
