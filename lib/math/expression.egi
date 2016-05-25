@@ -198,12 +198,10 @@
 ;;;
 (define $substitute
   (lambda [$ls $mexpr]
-    (if (tensor? mexpr)
-      (tensor-map (substitute ls $) mexpr)
-      (match ls (list [symbol-expr math-expr])
-        {[<nil> mexpr]
-         [<cons [$x $a] $rs>
-          (substitute rs (substitute' x a mexpr))]}))))
+    (match ls (list [symbol-expr math-expr])
+      {[<nil> mexpr]
+       [<cons [$x $a] $rs>
+        (substitute rs (substitute' x a mexpr))]})))
 
 (define $substitute'
   (lambda [$x $a $mexpr]
@@ -214,6 +212,10 @@
     (match sexpr symbol-expr
       {[,x a]
        [_ sexpr]})))
+
+(define $V.substitute
+  (lambda [%xs %ys $mexpr]
+    (substitute (zip (tensor-to-list xs) (tensor-to-list ys)) mexpr)))
 
 ;;;
 ;;; Coefficient

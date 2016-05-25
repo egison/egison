@@ -4,8 +4,6 @@
 ;;;;;
 ;;;;;
 
-(define $trace (lambda [%t] (contract + t~i_i)))
-
 (define $unit-tensor
   (lambda [$ns]
     (generate-tensor kronecker-delta ns)))
@@ -44,6 +42,8 @@
       {[<cons ,2 <cons ,2 <nil>>>
         (T.map (/ $ (M.det m)) (tensor {2 2} {m_2_2 (* -1 m_1_2) (* -1 m_2_1) m_1_1}))]
        [_ undefined]})))
+
+(define $trace (lambda [%t] (contract + t~i_i)))
 
 ;;
 ;; Linear algebra

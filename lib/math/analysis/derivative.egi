@@ -68,13 +68,9 @@
       (let {[$hs (generate-tensor 1#h_%1 (tensor-size xs))]}
         (map2 *
               (map 1#(/ 1 (fact %1)) nats0)
-              (map (compose (new-substitute xs as $)
-                            (new-substitute hs (- xs as) $))
+              (map (compose (V.substitute xs as $)
+                            (V.substitute hs (- xs as) $))
                    (iterate (compose (∇ $ xs) (V.* hs $)) f)))))))
-
-(define $new-substitute
-  (lambda [%xs %ys $mexpr]
-    (substitute (zip (tensor-to-list xs) (tensor-to-list ys)) mexpr)))
 
 (define $multivariate-maclaurin-expansion
   (lambda [$f $xs]
