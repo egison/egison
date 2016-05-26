@@ -181,7 +181,6 @@ primitives = [ ("b.+", plus)
              , ("b.acosh", floatUnaryOp acosh)
              , ("b.atanh", floatUnaryOp atanh)
 
-             , ("tensor-index", tensorIndex)
              , ("tensor-size", tensorSize)
              , ("tensor-to-list", tensorToList)
 
@@ -405,23 +404,17 @@ imaginaryPart =  oneArg $ imaginaryPart'
 -- Tensor
 --
 
-tensorIndex :: PrimitiveFunc
-tensorIndex = oneArg' $ tensorIndex'
- where
---  tensorIndex' (TensorData (TData (Tensor _ _) (Just ms))) = return . Collection . Sq.fromList $ map ScalarData ms
-  tensorIndex' val = throwError $ TypeMismatch "tensor with index" (Value val)
-
 tensorSize :: PrimitiveFunc
 tensorSize = oneArg' $ tensorSize'
  where
   tensorSize' (Tensor ns _ _) = return . Collection . Sq.fromList $ map toEgison ns
-  tensorSize' val = throwError $ TypeMismatch "tensor data" (Value val)
+  tensorSize' _ = return . Collection $ Sq.empty
 
 tensorToList :: PrimitiveFunc
 tensorToList = oneArg' $ tensorToList'
  where
   tensorToList' (Tensor _ xs _) = return . Collection . Sq.fromList $ xs
-  tensorToList' val = throwError $ TypeMismatch "tensor data" (Value val)
+  tensorToList' _ = return . Collection $ Sq.empty
 
 --
 -- Transform
