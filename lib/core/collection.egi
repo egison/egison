@@ -309,11 +309,11 @@
                        [hs {x @ms}]])])))))
 
 (define $repeat
-  (lambda [$xs]
+  (lambda [%xs]
     {@xs @(repeat xs)}))
 
 (define $repeat1
-  (lambda [$x]
+  (lambda [%x]
     {x @(repeat1 x)}))
 
 ;;

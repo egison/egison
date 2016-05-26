@@ -22,13 +22,15 @@
        [$mexpr (apply-all-rewrite-rules mexpr)]})))
 
 (define $apply-all-rewrite-rules
-  (compose (map-terms rewrite-rule-i $)
+  (compose
+           (map-terms rewrite-rule-i $)
            (map-terms rewrite-rule-w $)
            (map-terms rewrite-rule-rtu $)
            (map-terms rewrite-rule-sqrt $)
            (map-terms rewrite-rule-rt $)
            (map-polys rewrite-rule-w-plus $)
-           (map-polys rewrite-rule-rtu-plus $)))
+           (map-polys rewrite-rule-rtu-plus $)
+           ))
 
 (define $rewrite-rule-i
   (lambda [$term]
