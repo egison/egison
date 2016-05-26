@@ -1,93 +1,60 @@
 ;;
 ;; Tensor
 ;;
-[|x|]
-;=>
-x
+[| x |]
+;=>x
 
-(+ 1 [|1 2 3|])
-;=>
-[|2 3 4|]
+(+ 1 [| 1 2 3 |])
+;=>[|2 3 4|]
 
-(+ [|1 2 3|] 1)
-;=>
-[|2 3 4|]
+(+ [| 1 2 3 |] 1)
+;=>[|2 3 4|]
 
-(+ [|1 2 3|] [|1 2 3|])
-;=>
-[|2 4 6|]
+(+ [| 1 2 3 |]_i [| 1 2 3 |]_i)
+;=>[|2 4 6|]_i
 
-(+ [|100 200 300|]_j
-   [|[|1 2 3|]
-     [|10 20 30|]|]_i_j)
-;=>
-[|[|101 202 303|]
-  [|110 220 330|]|]_i_j
+(+ [| 100 200 300 |]_i
+   [|[| 1 2 3 |]
+     [| 10 20 30 |]|]_j_i)
+;=>[| [| 101 110 |] [| 202 220 |] [| 303 330 |] |]_i_j
 
-(+ [|[|11 12|]
-     [|21 22|]
-     [|31 32|]|]_i_j
-   [|100 200 300|]_i)
-;=>
-[|[|101 112|]
-  [|221 222|]
-  [|331 332|]|]_i_j
+(+ [|[| 11 12 |]
+     [| 21 22 |]
+     [| 31 32 |]|]_i_j
+   [| 100 200 300 |]_i)
+;=>[| [| 111 112 |] [| 221 222 |] [| 331 332 |] |]_i_j
 
-(+ [|100 200 300|]_i
-   [|[|11 12|]
-     [|21 22|]
-     [|31 32|]|]_i_j)
-;=>
-[|[|111 221 331|]
-  [|112 222 332|]|]_i_j
+(+ [| 100 200 300 |]_i
+   [|[| 11 12 |]
+     [| 21 22 |]
+     [| 31 32 |]|]_i_j)
+;=>[| [| 111 112 |] [| 221 222 |] [| 331 332 |] |]_i_j
 
 ;;
 ;; Derivative
 ;;
 (∂/∂ (f x y z) x)
-;=>
-(f_1 x y z)
+;=>(f_1 x y z)
 
-(∂/∂ [|(f x) (g x)|] x)
-;=>
-[|(f_1 x) (g_1 x)|]
+(∂/∂ [| (f x) (g x) |] x)
+;=>[| (f_1 x) (g_1 x) |]
 
-(∂/∂ (f x y z) [|x y z|])
-;=>
-[|(f_1 x y z) (f_2 x y z) (f_3 x y z)|]
+(∂/∂ (f x y z) [| x y z |])
+;=>[| (f_1 x y z) (f_2 x y z) (f_3 x y z) |]
 
-(apply [|(∂/∂ $ x) (∂/∂ $ y)|] (f x y))
-;=>
-[|(f_1 x y) (f_2 x y)|]
+([| (∂/∂ $ x) (∂/∂ $ y) |] (f x y))
+;=>[| (f_1 x y) (f_2 x y) |]
 
 ;;
 ;; Nabla
 ;;
 (define $∇ ∂/∂)
 
-(∇ (f x y z)) [|x y z|])
-;=>
-[|(f_1 x y z) (f_2 x y z) (f_3 x y z)|]
+(∇ (f x y) [| x y |])
+;=>[| (f_1 x y) (f_2 x y) |]
 
-(∇ [|(f1 x y z) (f2 x y z) (f3 x y z)|] [|x y z|])
-;=>
-[|(f1_1 x y z) (f2_2 x y z) (f3_3 x y z)|]
-
-(∇ [|(f1 x y z) (f2 x y z) (f3 x y z)|]_i [|x y z|]_j)
-;=>
-[|[|(f1_1 x y z) (f1_2 x y z) (f1_3 x y z)|]
-  [|(f2_1 x y z) (f2_2 x y z) (f2_3 x y z)|]
-  [|(f3_1 x y z) (f3_2 x y z) (f3_3 x y z)|]
-  |]_i_j
-
-(with-symbols {i j}
-  (∇ [|(f1 x y z) (f2 x y z) (f3 x y z)|]_i [|x y z|]_j))
-;=>
-[|[|(f1_1 x y z) (f1_2 x y z) (f1_3 x y z)|]
-  [|(f2_1 x y z) (f2_2 x y z) (f2_3 x y z)|]
-  [|(f3_1 x y z) (f3_2 x y z) (f3_3 x y z)|]
-  |]
-
+(∇ [| (f x y) (g x y) |] [| x y |])
+;=>[| [| (f_1 x y) (f_2 x y) |] [| (g_1 x y) (g_2 x y) |] |]
 
 ;;
 ;; Contraction
@@ -96,13 +63,7 @@ x
 ;=>
 140
 
-(define $V.* 2#(contract + (* %1~i %2_i)))
-
-(V.* [|1 2 3|]~i [|10 20 30|]_i)
-;=>
-140
-
-(define $trace (lambda [$t] (contract + t~i_i)))
+(define $trace (lambda [%t] (with-symbols {i} (contract + t~i_i))))
 
 (trace [|[|10 20 30|] [|20 40 60|] [|30 60 90|]|])
 ;=>
@@ -113,31 +74,36 @@ x
 ;;
 (define $div (compose ∇ (trace $)))
 
-(div [|(f x y z) (g x y z) (h x y z)|] [|x y z|])
-;=>
-(+ (f_1 x y z) (g_2 x y z) (h_3 x y z))
+(div [| (f x y z) (g x y z) (h x y z) |] [| x y z |])
+;=>(+ (f_1 x y z) (g_2 x y z) (h_3 x y z))
 
 ;;
 ;; Taylor Expansion
 ;;
-
-(define $multivariate-taylor-expansion
-  (lambda [$f $xs $as]
+(define $taylor-expansion
+  (lambda [%f %xs %as]
     (with-symbols {h}
       (let {[$hs (generate-tensor 1#h_%1 (tensor-size xs))]}
         (map2 *
               (map 1#(/ 1 (fact %1)) nats0)
-              (map (compose (substitute xs as $)
-                            (substitute hs (- xs as) $))
+              (map (compose (V.substitute xs as $)
+                            (V.substitute hs (with-symbols {i} (- xs_i as_i)) $))
                    (iterate (compose (∇ $ xs) (V.* hs $)) f)))))))
 
-(take 3 (multivariate-taylor-expansion (f x y) [|x y|] [|0 0|]))
+(take 3 (taylor-expansion (f x) x 0))
 ;=>
-{(f 0 0)
- (+ (* x (f_1 0 0))
-    (* y (f_2 0 0)))
- (/ (+ (* x^2 (f_1_1 0 0))
-       (* x y (f_2_1 0 0))
-       (* y x (f_1_2 0 0))
-       (* y^2 (f_2_2 0 0)))
-    2)}
+;{(f 0)
+; (* x (f_1 0))
+; (/ (* x^2 (f_1_1 0))
+;    2)}
+
+(take 3 (taylor-expansion (f x y) [| x y |] [| 0 0 |]))
+;=>
+;{(f 0 0)
+; (+ (* x (f_1 0 0))
+;    (* y (f_2 0 0)))
+; (/ (+ (* x^2 (f_1_1 0 0))
+;       (* x y (f_2_1 0 0))
+;       (* y x (f_1_2 0 0))
+;       (* y^2 (f_2_2 0 0)))
+;    2)}
