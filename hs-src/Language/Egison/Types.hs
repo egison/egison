@@ -613,6 +613,7 @@ tref (s:ms) (Tensor (n:ns) xs js) = do
   let yss = split (product ns) xs
   ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
   tConcat s ts
+tref _ t = throwError $ strMsg "More indices than the order of the tensor"
 
 tensorIndices :: [Integer] -> [[Integer]]
 tensorIndices [] = [[]]
