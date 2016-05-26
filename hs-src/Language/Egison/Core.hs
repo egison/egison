@@ -1,5 +1,3 @@
-
-
 {-# Language TupleSections, ViewPatterns #-}
 
 {- |
@@ -255,6 +253,8 @@ evalExpr env (IndexedExpr expr indices) = do
   case tensor of
     (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
       return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js, 1)])]) (Plus [(Term 1 [])])))
+    (Value (ScalarData _)) -> do
+      return $ tensor
     (Value (Tensor ns xs _)) -> do
       tref js (Tensor ns xs js) >>= return . Value
     _ -> refArray tensor (map (\j -> case j of
@@ -316,6 +316,8 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   ret <- evalExpr (extendEnv env bindings) expr
   case ret of
     -- TODO: check symbols
+    (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js, 1)])]) (Plus [(Term 1 [])])))) ->
+      return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))
     (Value (Tensor ns xs js)) -> return (Value (Tensor ns xs []))
     _ -> return ret
 
@@ -441,7 +443,9 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
   xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms)) >>= evalWHNF) (map (\ms -> map toEgison ms) (tensorIndices ns))
-  return $ Value (Tensor ns xs [])
+  case (ns, xs) of
+    ([1], x:[]) -> return $ Value x
+    _ -> return $ Value (Tensor ns xs [])
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
