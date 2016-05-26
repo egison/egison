@@ -639,12 +639,7 @@ tMap :: (EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonM EgisonVal
 tMap f (Tensor ns xs js) = do
   xs' <- mapM f xs
   case xs' of
-    ((Tensor ns1 _ js1):_)
-      | ns == ns1 && js == [] && js1 == [] -> do
-        let t = Tensor (ns ++ ns1) (concat (map (\(Tensor _ xs1 _) -> xs1) xs')) (js ++ js1)
-        xs' <- mapM (flip tIntRef t) $ map (\is -> is ++ is) (tensorIndices ns)
-        return $ Tensor ns xs' []
-      | otherwise -> tContract' $ Tensor (ns ++ ns1) (concat (map (\(Tensor _ xs1 _) -> xs1) xs')) (js ++ js1)
+    ((Tensor ns1 _ js1):_) -> tContract' $ Tensor (ns ++ ns1) (concat (map (\(Tensor _ xs1 _) -> xs1) xs')) (js ++ js1)
     _ -> return $ Tensor ns xs' js
 
 tSum :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
