@@ -49,21 +49,13 @@
 
 (define $pd/pd ∂/∂)
 
-(define $taylor-expansion
-  (lambda [$f $x $a]
-    (map2 *
-          (map 1#(/ (** (- x a) %1) (fact %1)) nats0)
-          (map (substitute {[x a]} $) (iterate (∂/∂ $ x) f)))))
-
-(define $maclaurin-expansion (taylor-expansion $ $ 0))
-
 (define $∇ ∂/∂)
 (define $nabla ∇)
 
 (define $grad ∇)
 (define $div (compose ∇ (trace $)))
 
-(define $multivariate-taylor-expansion
+(define $taylor-expansion
   (lambda [%f %xs %as]
     (with-symbols {h}
       (let {[$hs (generate-tensor 1#h_%1 (tensor-size xs))]}
@@ -73,6 +65,6 @@
                             (V.substitute hs (with-symbols {i} (- xs_i as_i)) $))
                    (iterate (compose (∇ $ xs) (V.* hs $)) f)))))))
 
-(define $multivariate-maclaurin-expansion
+(define $maclaurin-expansion
   (lambda [$f $xs]
     (multivariate-taylor-expansion f xs (tensor-map 1#0 xs))))
