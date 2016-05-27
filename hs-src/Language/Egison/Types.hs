@@ -355,17 +355,36 @@ data ScalarData =
 
 data PolyExpr =
     Plus [TermExpr]
- deriving (Eq)
 
 data TermExpr =
     Term Integer [(SymbolExpr, Integer)]
- deriving (Eq)
 
 data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
  deriving (Eq)
+
+instance Eq PolyExpr where
+  (Plus []) == (Plus []) = True
+  (Plus (x:xs)) == (Plus ys) =
+    case findIndex ((==) x) ys of
+      Just i -> let (hs, _:ts) = splitAt i ys in
+                  (Plus xs) == (Plus (hs ++ ts))
+      Nothing -> False
+  _ == _ = False
+
+instance Eq TermExpr where
+  (Term a []) == (Term b [])
+    | a /= b =  False
+    | otherwise = True
+  (Term a (x:xs)) == (Term b ys)
+    | a /= b =  False
+    | otherwise = case findIndex ((==) x) ys of
+                    Just i -> let (hs, _:ts) = splitAt i ys in
+                                (Term a xs) == (Term b (hs ++ ts))
+                    Nothing -> False
+  _ == _ = False
 
 --
 -- Scalars
