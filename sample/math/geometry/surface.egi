@@ -1,43 +1,71 @@
-(define $v1 (| {3} {1 0 (d/d (f x y) x)} |))
-(define $v2 (| {3} {0 1 (d/d (f x y) y)} |))
+(define $v1 [| 1 0 (d/d (f x y) x) |])
+(define $v2 [| 0 1 (d/d (f x y) y) |])
+
+v1;[| 1 0 (f_1 x y) |]
+v2;[| 0 1 (f_2 x y) |]
 
 (define $vector-product
-  (lambda [$a $b]
-    (| {3}
-       {(- (* a_2 b_3)  (* a_3 b_2))
-        (- (* a_3 b_1)  (* a_1 b_3))
-        (- (* a_1 b_2)  (* a_2 b_1))} |)))
+  (lambda [%a %b]
+    [|(- (* a_2 b_3)  (* a_3 b_2))
+      (- (* a_3 b_1)  (* a_1 b_3))
+      (- (* a_1 b_2)  (* a_2 b_1))|]))
 
 (define $v3 (vector-product v1 v2))
 
-v3
+v3;[| (* -1 (f_1 x y)) (* -1 (f_2 x y)) 1 |]
 
-(define $e3 (T.map (/ $ (sqrt (V.* v3 v3))) v3))
+(define $e3 (/ v3 (sqrt (V.* v3 v3))))
 
 e3
+;[|(/ (* -1 (f_1 x y))
+;     (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))
+;  (/ (* -1 (f_2 x y))
+;     (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))
+;  (/ 1
+;     (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))|]
 
 (define $E (V.* v1 v1))
 (define $F (V.* v1 v2))
 (define $G (V.* v2 v2))
 
-E
-F
-G
+E;(+ 1 (f_1 x y)^2)
+F;(* (f_1 x y) (f_2 x y)
+G;(+ 1 (f_2 x y)^2)
 
-(define $L (V.* (T.map (d/d $ x) v1) e3))
-(define $M (V.* (T.map (d/d $ y) v1) e3))
-;(define $M (V.* (T.map (d/d $ x) v2) e3))
-(define $N (V.* (T.map (d/d $ y) v2) e3))
+(define $L (V.* (∂/∂ v1 x) e3))
+(define $M (V.* (∂/∂ v1 y) e3))
+;(define $M (V.* (∂/∂ v2 x) e3))
+(define $N (V.* (∂/∂ v2 y) e3))
 
-L
-M
-N
+L;(/ (f_1_1 x y) (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))
+M;(/ (f_1_2 x y) (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))
+N;(/ (f_2_2 x y) (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))
 
-(define $K (/ (- (* L N) (** M 2))
+(define $E' ('+ 1 (f_1 x y)^2))
+(define $F' (* (f_1 x y) (f_2 x y)))
+(define $G' ('+ 1 (f_2 x y)^2))
+
+(define $L' (/ (f_1_1 x y) (sqrt ('+ (f_1 x y)^2 (f_2 x y)^2 1))))
+(define $M' (/ (f_1_2 x y) (sqrt ('+ (f_1 x y)^2 (f_2 x y)^2 1))))
+(define $N' (/ (f_2_2 x y) (sqrt ('+ (f_1 x y)^2 (f_2 x y)^2 1))))
+
+(define $K (/ (- (* L' N') (** M' 2))
               (- (* E G) (** F 2))))
-
-(define $H (/ (+ (* E N) (* G L) (* -2 F M))
+(define $H (/ (+ (* E N') (* G L') (* -2 F M'))
               (* 2 (- (* E G) (** F 2)))))
 
-K
-H
+;; Temporary
+
+(define $X ('+ (f_1 x y)^2 (f_2 x y)^2 1))
+
+(define $K' (/ (- (* L' N') (** M' 2)) X))
+(define $H' (/ (+ (* E' N') (* G' L') (* -2 F' M')) (* 2 X)))
+
+K'
+;(/ (+ (* (f_1_1 x y) (f_2_2 x y)) (* -1 (f_1_2 x y)^2))
+;   (+ (f_1 x y)^2 (f_2 x y)^2 1)^2)
+H'
+;(/ (+ (* (+ 1 (f_1 x y)^2) (f_2_2 x y))
+;      (* (+ 1 (f_2 x y)^2) (f_1_1 x y))
+;      (* -2 (f_1 x y) (f_2 x y) (f_1_2 x y)))
+;   (* 2 (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)) (+ (f_1 x y)^2 (f_2 x y)^2 1)))
