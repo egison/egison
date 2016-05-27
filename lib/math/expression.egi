@@ -173,8 +173,11 @@
                      (*' a (foldl *' 1 (map 2#(match %1 symbol-expr
                                                 {[<symbol _ _> (**' (fn %1) %2)]
                                                  [<apply $g $args>
-                                                  (**' (fn (capply g (map (map-symbols fn $) args)))
-                                                       %2)
+                                                  (let {[$args'(map (map-symbols fn $) args)]}
+                                                    (if (eq? args args')
+                                                      %1
+                                                      (**' (fn (capply g args'))
+                                                          %2)))
                                                   ]})
                                             xs)))]}))
                mexpr)))
