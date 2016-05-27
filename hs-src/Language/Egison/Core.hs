@@ -315,11 +315,46 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   let bindings = zip vars syms
   ret <- evalExpr (extendEnv env bindings) expr
   case ret of
-    -- TODO: check symbols
-    (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js, 1)])]) (Plus [(Term 1 [])])))) ->
-      return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))
-    (Value (Tensor ns xs js)) -> return (Value (Tensor ns xs []))
+    (Value val) -> removeVarsFromIndices symId val >>= return . Value
     _ -> return ret
+ where
+  removeVarsFromIndices :: String -> EgisonValue -> EgisonM EgisonValue
+  removeVarsFromIndices symId (Tensor ns xs js) = do
+    xs' <- mapM (removeVarsFromIndices symId) xs
+    js' <- removeVars symId js
+    return (Tensor ns xs' js')
+  removeVarsFromIndices symId (ScalarData s) = f symId s >>= return . ScalarData
+  f :: String -> ScalarData -> EgisonM ScalarData
+  f symId (Div (Plus ts1) (Plus ts2)) = do
+    ts1' <- mapM (g symId) ts1
+    ts2' <- mapM (g symId) ts2
+    return (Div (Plus ts1') (Plus ts2'))
+  g :: String -> TermExpr -> EgisonM TermExpr
+  g symId (Term a xns) = do
+    let (xs, ns) = unzip xns
+    xs' <- mapM (h symId) xs
+    return (Term a (zip xs' ns))
+  h :: String -> SymbolExpr -> EgisonM SymbolExpr
+  h symId (Symbol id name js) = do
+    js' <- removeVars symId js
+    return (Symbol id name js')
+  h symId (Apply fn xs) = do
+    xs' <- mapM (f symId) xs
+    return (Apply fn xs')
+  removeVars :: String -> [Index ScalarData] -> EgisonM [Index ScalarData]
+  removeVars _ [] = return []
+  removeVars symId ((Subscript (Div (Plus [Term 1 [(Symbol id name is,1)]]) (Plus [Term 1 []]))):js)
+    | symId == id = return []
+    | otherwise = do js' <- removeVars symId js
+                     return $ (Subscript (Div (Plus [Term 1 [(Symbol id name is,1)]]) (Plus [Term 1 []]))):js'
+  removeVars symId ((Superscript (Div (Plus [Term 1 [(Symbol id name is,1)]]) (Plus [Term 1 []]))):js)
+    | symId == id = return []
+    | otherwise = do js' <- removeVars symId js
+                     return $ (Superscript (Div (Plus [Term 1 [(Symbol id name is,1)]]) (Plus [Term 1 []]))):js'
+  removeVars symId (j:js) = do
+    js' <- removeVars symId js
+    return $ j:js'
+    
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
   let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings
