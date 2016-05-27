@@ -175,7 +175,7 @@
                                                  [<apply $g $args>
                                                   (let {[$args'(map (map-symbols fn $) args)]}
                                                     (if (eq? args args')
-                                                      %1
+                                                      (**' %1 %2)
                                                       (**' (fn (capply g args'))
                                                           %2)))
                                                   ]})
