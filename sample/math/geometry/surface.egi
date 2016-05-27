@@ -14,7 +14,7 @@ v2;[| 0 1 (f_2 x y) |]
 
 v3;[| (* -1 (f_1 x y)) (* -1 (f_2 x y)) 1 |]
 
-(define $e3 (/ v3 (sqrt (V.* v3 v3))))
+(define $e3 (/ v3 (sqrt '(V.* v3 v3))))
 
 e3
 ;[|(/ (* -1 (f_1 x y))
@@ -41,18 +41,10 @@ L;(/ (f_1_1 x y) (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))
 M;(/ (f_1_2 x y) (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))
 N;(/ (f_2_2 x y) (sqrt (+ (f_1 x y)^2 (f_2 x y)^2 1)))
 
-(define $E' ('+ 1 (f_1 x y)^2))
-(define $F' (* (f_1 x y) (f_2 x y)))
-(define $G' ('+ 1 (f_2 x y)^2))
-
-(define $L' (/ (f_1_1 x y) (sqrt ('+ (f_1 x y)^2 (f_2 x y)^2 1))))
-(define $M' (/ (f_1_2 x y) (sqrt ('+ (f_1 x y)^2 (f_2 x y)^2 1))))
-(define $N' (/ (f_2_2 x y) (sqrt ('+ (f_1 x y)^2 (f_2 x y)^2 1))))
-
-(define $K (/ (- (* L' N') (** M' 2))
-              (- (* E G) (** F 2))))
-(define $H (/ (+ (* E N') (* G L') (* -2 F M'))
-              (* 2 (- (* E G) (** F 2)))))
+(define $K (/ (- (* L N) (** M 2))
+              '(- (* E G) (** F 2))))
+(define $H (/ (+ (* 'E N) (* G L) (* -2 'F M))
+              (* 2 '(- (* E G) (** F 2)))))
 
 ;; Temporary
 

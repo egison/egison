@@ -42,8 +42,8 @@
 (define $rt''
   (lambda [$n $x]
     (match [n x] [integer integer]
-      {[[,2 _] ('sqrt x)]
-       [[_ _] ('rt n x)]})))
+      {[[,2 _] (`sqrt x)]
+       [[_ _] (`rt n x)]})))
 
 (define $rtm1
   (lambda [$n]
@@ -75,6 +75,6 @@
          [,2 -1]
          [,3 w]
          [,4 i]
-         [_ ('rtu n)]
+         [_ (`rtu n)]
          })
-      ('rtu n))))
+      (`rtu n))))

@@ -157,7 +157,7 @@ evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (IntegerExpr x) = return . Value $ toEgison x
 evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 
-evalExpr env (QuoteExpr expr) = do
+evalExpr env (QuoteFunctionExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
     Value val -> return . Value $ Quote val

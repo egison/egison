@@ -13,8 +13,8 @@
           {[,0 1]
            [,1 e]
            [<mult $a ,(* i pi)> (** -1 a)]
-           [_ ('exp x)]})
-        ('exp x)))))
+           [_ (`exp x)]})
+        (`exp x)))))
 
 (define $log
   (lambda [$x]
@@ -23,7 +23,7 @@
       (match x math-expr
         {[,1 0]
          [,e 1]
-         [_ ('log x)]}))))
+         [_ (`log x)]}))))
 
 (define $cos
   (lambda [$x]
@@ -33,7 +33,7 @@
         {[,0 1]
          [<term $n <cons ,π <nil>>> (** -1 (abs n))]
          [<div <mult _ ,π> ,2> 0]
-         [_ ('cos x)]}))))
+         [_ (`cos x)]}))))
 
 (define $sin
   (lambda [$x]
@@ -43,7 +43,7 @@
         {[,0 0]
          [<mult _ ,π> 0]
          [<div <mult $n ,π> ,2> (** -1 (/ (- (abs n) 1) 2))]
-         [_ ('sin x)]}))))
+         [_ (`sin x)]}))))
 
 (define $tan
   (lambda [$x]
@@ -51,7 +51,7 @@
       (b.tan x)
       (match x math-expr
         {[,0 0]
-         [_ ('tan x)]}))))
+         [_ (`tan x)]}))))
 
 (define $cosh
   (lambda [$x]
@@ -59,7 +59,7 @@
       (b.cosh x)
       (match x math-expr
         {[,0 1]
-         [_ ('cosh x)]}))))
+         [_ (`cosh x)]}))))
 
 (define $sinh
   (lambda [$x]
@@ -67,7 +67,7 @@
       (b.sinh x)
       (match x math-expr
         {[,0 0]
-         [_ ('sinh x)]}))))
+         [_ (`sinh x)]}))))
 
 (define $tanh
   (lambda [$x]
@@ -75,7 +75,7 @@
       (b.tanh x)
       (match x math-expr
         {[,0 0]
-         [_ ('tanh x)]}))))
+         [_ (`tanh x)]}))))
 
 (define $sinc
   (lambda [$x]

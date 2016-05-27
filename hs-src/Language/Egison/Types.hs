@@ -226,6 +226,7 @@ data EgisonExpr =
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
 
   | QuoteExpr EgisonExpr
+  | QuoteFunctionExpr EgisonExpr
   
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr

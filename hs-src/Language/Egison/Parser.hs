@@ -169,6 +169,7 @@ expr' = (try partialExpr
              <|> try hashExpr
              <|> collectionExpr
              <|> quoteExpr
+             <|> quoteFunctionExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
@@ -246,6 +247,9 @@ hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
 
 quoteExpr :: Parser EgisonExpr
 quoteExpr = char '\'' >> QuoteExpr <$> expr
+
+quoteFunctionExpr :: Parser EgisonExpr
+quoteFunctionExpr = char '`' >> QuoteFunctionExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
 matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> matchClause

@@ -83,9 +83,9 @@
         (if (gte? n 0)
           (if (integer? n)
             (power x n)
-            ('** x n))
+            (`** x n))
           (/ 1 (** x (neg n))))
-        ('** x n)))))
+        (`** x n)))))
 
 (define $**'
   (lambda [$x $n]
@@ -95,9 +95,9 @@
         (if (gte? n 0)
           (if (integer? n)
             (power' x n)
-            ('** x n))
+            (`** x n))
           (/' 1 (**' x (neg n))))
-        ('** x n)))))
+        (`** x n)))))
 
 (define $gcd
   (cambda $xs

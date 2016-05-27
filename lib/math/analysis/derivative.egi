@@ -12,7 +12,7 @@
        [<symbol _ _> 0]
        ; function application
        [<apply (& ?scalar? $g) (& $args <join $hs <cons ,x _>>)>
-        (capply '(add-subscript g (+ (length hs) 1)) args)]
+        (capply `(add-subscript g (+ (length hs) 1)) args)]
        [<apply (& ?scalar? $g) $args>
         (sum (map (lambda [$t] (* (∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]

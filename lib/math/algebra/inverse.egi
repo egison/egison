@@ -27,14 +27,14 @@
            [<term _ <ncons $n ,x _>>
             (let {[$a (/ f (** x n))]}
               (inverse (/ t a) (/ f a) x))]
-           [_ ('inverse t f x)]})]
+           [_ (`inverse t f x)]})]
        [?polynomial?
         (match (coefficients x f) (list math-expr)
           {[<cons $c (loop $i [1 $n] <cons ,0 ...> <cons $a <nil>>)>
             (inverse (/ (- t c) a) (** x (+ n 1)) x)]
-           [_ ('inverse t f x)]})]
+           [_ (`inverse t f x)]})]
        [_
         (match f math-expr
           {[<div $p1 $p2>
             (inverse (* p2 t) p1 x)]})]
-       [_ ('inverse t f x)]})))
+       [_ (`inverse t f x)]})))
