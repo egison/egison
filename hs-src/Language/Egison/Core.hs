@@ -343,14 +343,14 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     return (Apply fn xs')
   removeVars :: String -> [Index ScalarData] -> EgisonM [Index ScalarData]
   removeVars _ [] = return []
-  removeVars symId ((Subscript (Div (Plus [Term 1 [(Symbol id name is,1)]]) (Plus [Term 1 []]))):js)
+  removeVars symId ((Subscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js)
     | symId == id = return []
     | otherwise = do js' <- removeVars symId js
-                     return $ (Subscript (Div (Plus [Term 1 [(Symbol id name is,1)]]) (Plus [Term 1 []]))):js'
-  removeVars symId ((Superscript (Div (Plus [Term 1 [(Symbol id name is,1)]]) (Plus [Term 1 []]))):js)
+                     return $ (Subscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js'
+  removeVars symId ((Superscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js)
     | symId == id = return []
     | otherwise = do js' <- removeVars symId js
-                     return $ (Superscript (Div (Plus [Term 1 [(Symbol id name is,1)]]) (Plus [Term 1 []]))):js'
+                     return $ (Superscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js'
   removeVars symId (j:js) = do
     js' <- removeVars symId js
     return $ j:js'

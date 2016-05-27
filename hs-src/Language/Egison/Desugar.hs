@@ -166,6 +166,10 @@ desugar (CollectionExpr ((SubCollectionExpr sub):inners)) = do
       (CollectionExpr inners') <- desugar (CollectionExpr inners)
       return $ CollectionExpr (SubCollectionExpr sub':inners')
 
+desugar (VectorExpr exprs) = do
+  exprs' <- mapM desugar exprs
+  return $ VectorExpr exprs'
+
 desugar (LambdaExpr names expr) = do
   let (rtnames, rhnames) = span (\name -> case name of
                                           TensorArg _ -> True

@@ -642,6 +642,7 @@ tMap f (Tensor ns xs js) = do
   case xs' of
     ((Tensor ns1 _ js1):_) -> tContract' $ Tensor (ns ++ ns1) (concat (map (\(Tensor _ xs1 _) -> xs1) xs')) (js ++ js1)
     _ -> return $ Tensor ns xs' js
+tMap f val = f val
 
 tSum :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
 tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
@@ -796,7 +797,6 @@ instance Show EgisonValue where
 instance Show Arg where
   show (ScalarArg name) = "$" ++ name
   show (TensorArg name) = "%" ++ name
-
 
 instance Show ScalarData where
   show (Div p1 (Plus [(Term 1 [])])) = show p1

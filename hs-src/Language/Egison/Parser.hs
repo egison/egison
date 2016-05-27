@@ -430,14 +430,14 @@ applyExpr' = do
     _ | all null vars ->
         let genVar = modify (1+) >> gets (VarExpr . (':':) . show)
             args' = evalState (mapM (either (const genVar) return) args) 0
-        in return . LambdaExpr (map TensorArg (annonVars $ length vars)) . ApplyExpr func $ TupleExpr args'
+        in return . LambdaExpr (map ScalarArg (annonVars $ length vars)) . ApplyExpr func $ TupleExpr args'
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
                let args' = map (either (VarExpr . (':':)) id) args
-               in return . LambdaExpr (map TensorArg (annonVars n)) . ApplyExpr func $ TupleExpr args'
+               in return . LambdaExpr (map ScalarArg (annonVars n)) . ApplyExpr func $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
