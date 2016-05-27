@@ -157,11 +157,17 @@ evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (IntegerExpr x) = return . Value $ toEgison x
 evalExpr _ (FloatExpr x y) = return . Value $ Float x y
 
+evalExpr env (QuoteExpr expr) = do
+  whnf <- evalExpr env expr
+  case whnf of
+    Value (ScalarData s) -> return . Value $ ScalarData $ Div (Plus [Term 1 [(Quote s, 1)]]) (Plus [Term 1 []])
+    _ -> throwError $ TypeMismatch "scalar in quote" $ whnf
+
 evalExpr env (QuoteFunctionExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value val -> return . Value $ Quote val
-    _ -> throwError $ TypeMismatch "value in quote" $ whnf
+    Value val -> return . Value $ QuotedFunc val
+    _ -> throwError $ TypeMismatch "value in quote-function" $ whnf
 
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
@@ -341,6 +347,9 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   h symId (Apply fn xs) = do
     xs' <- mapM (f symId) xs
     return (Apply fn xs')
+  h symId (Quote x) = do
+    x' <- f symId x
+    return (Quote x')
   removeVars :: String -> [Index ScalarData] -> EgisonM [Index ScalarData]
   removeVars _ [] = return []
   removeVars symId ((Subscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js)
@@ -590,7 +599,7 @@ applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
-applyFunc _ (Value (Quote fn)) arg = do
+applyFunc _ (Value (QuotedFunc fn)) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))

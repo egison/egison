@@ -339,7 +339,7 @@ data EgisonValue =
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
-  | Quote EgisonValue
+  | QuotedFunc EgisonValue
   | Port Handle
   | Something
   | Undefined
@@ -364,6 +364,7 @@ data TermExpr =
 data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
+  | Quote ScalarData
  deriving (Eq)
 
 --
@@ -388,6 +389,7 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                                                                                                                      Subscript k -> InductiveData "Sub" [ScalarData k]
                                                                                                                              ) js))], toEgison n]
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
+symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -399,6 +401,9 @@ egisonToScalarData s1@(InductiveData "Symbol" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 ::Integer)])
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
 egisonToScalarData s1@(InductiveData "Apply" _) = do
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
+  return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
+egisonToScalarData s1@(InductiveData "Quote" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
 egisonToScalarData val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
@@ -427,6 +432,10 @@ egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, (Collection mExprs)], n]) 
   mExprs' <- mapM egisonToScalarData (toList mExprs)
   n' <- fromEgison n
   return (Apply fn mExprs', n')
+egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
+  mExpr' <- egisonToScalarData mExpr
+  n' <- fromEgison n
+  return (Quote mExpr', n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -822,6 +831,7 @@ instance Show SymbolExpr where
   show (Symbol _ s []) = s
   show (Symbol _ s js) = s ++ concat (map show js)
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
+  show (Quote mExprs) = "'" ++ show mExprs
 
 instance (Show a) => Show (Index a) where
   show (Superscript i) = "~" ++ show i
