@@ -864,7 +864,9 @@ showComplex x y = show x ++ (if y > 0 then "+" else "") ++ show y ++ "i"
 showComplexFloat :: Double -> Double -> String
 showComplexFloat x 0.0 = showFFloat Nothing x ""
 showComplexFloat 0.0 y = showFFloat Nothing y "i"
-showComplexFloat x y = showFFloat Nothing x "" ++ if y > 0 then "+" else "" ++ showFFloat Nothing y "i"
+showComplexFloat x y = showFFloat Nothing x "" ++ if y > 0
+                                                    then "+" ++ showFFloat Nothing y "i"
+                                                    else showFFloat Nothing y "i"
 
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)

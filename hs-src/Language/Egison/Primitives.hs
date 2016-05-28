@@ -135,10 +135,10 @@ primitives = [ ("b.+", plus)
              , ("b.-'", minus)
              , ("b.*'", multiply)
              , ("b./'", divide)
-             , ("f.+", floatBinaryOp (+))
-             , ("f.-", floatBinaryOp (-))
-             , ("f.*", floatBinaryOp (*))
-             , ("f./", floatBinaryOp (/))
+             , ("f.+", floatPlus)
+             , ("f.-", floatMinus)
+             , ("f.*", floatMult)
+             , ("f./", floatDivide)
              , ("numerator", numerator')
              , ("denominator", denominator')
              , ("from-math-expr", fromScalarData)
@@ -278,6 +278,31 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
   f <- fromEgison val
   f' <- fromEgison val'
   return $ Bool $ pred f f'
+
+floatPlus :: PrimitiveFunc
+floatPlus = twoArgs $ \val val' -> do
+  case (val, val') of
+    ((Float x y), (Float x' y')) -> return $ Float (x + x')  (y + y')
+    _ -> throwError $ TypeMismatch "float" (Value val)
+
+floatMinus :: PrimitiveFunc
+floatMinus = twoArgs $ \val val' -> do
+  case (val, val') of
+    ((Float x y), (Float x' y')) -> return $ Float (x - x')  (y - y')
+    _ -> throwError $ TypeMismatch "float" (Value val)
+
+floatMult :: PrimitiveFunc
+floatMult = twoArgs $ \val val' -> do
+  case (val, val') of
+    ((Float x y), (Float x' y')) -> return $ Float (x * x' - y * y')  (x * y' + x' * y)
+    _ -> throwError $ TypeMismatch "float" (Value val)
+
+floatDivide :: PrimitiveFunc
+floatDivide = twoArgs $ \val val' -> do
+  case (val, val') of
+    ((Float x y), (Float x' y')) -> return $ Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y'))
+    _ -> throwError $ TypeMismatch "float" (Value val)
+
 
 --
 -- Arith
