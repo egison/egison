@@ -1,9 +1,4 @@
-(define $apply-all-rewrite-rules
-  (compose
-           (map-polys rewrite-rule-cos-sin-plus $)
-           ))
-
-(define $p [|θ φ r|])
+(define $x [|θ φ r|])
 
 (define $e [|[|(* r (cos θ) (cos φ))
                (* r (cos θ) (sin φ))
@@ -21,7 +16,7 @@
 
 (define $Γ (generate-tensor
              3#(with-symbols {j}
-                 (* (/ 1 2) (. rg~%1~j (+ (∂/∂ g_j_%3 p_%2) (∂/∂ g_j_%2 p_%3) (* -1 (∂/∂ g_%2_%3 p_j))))))
+                 (* (/ 1 2) (. rg~%1~j (+ (∂/∂ g_j_%3 x_%2) (∂/∂ g_j_%2 x_%3) (* -1 (∂/∂ g_%2_%3 x_j))))))
              {2 2 2}))
 (define $Gamma Γ)
 
@@ -29,10 +24,8 @@
 
 (define $R (generate-tensor
              4#(with-symbols {j}
-                 (+ (* -1 (∂/∂ Γ~%1_%2_%4 p_%3))
-                    (∂/∂ Γ~%1_%2_%3 p_%4)
-                    (* -1 (. Γ~j_%2_%4 Γ~%1_j_%3))
-                    (. Γ~j_%2_%3 Γ~%1_j_%4)
+                 (+ (- (∂/∂ Γ~%1_%2_%3 x_%4) (∂/∂ Γ~%1_%2_%4 x_%3))
+                    (- (. Γ~j_%2_%3 Γ~%1_j_%4) (. Γ~j_%2_%4 Γ~%1_j_%3))
                     ))
              {2 2 2 2}))
 
