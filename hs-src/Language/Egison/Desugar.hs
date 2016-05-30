@@ -170,6 +170,11 @@ desugar (VectorExpr exprs) = do
   exprs' <- mapM desugar exprs
   return $ VectorExpr exprs'
 
+desugar (TensorExpr nsExpr xsExpr supExpr subExpr) = do
+  nsExpr' <- desugar nsExpr
+  xsExpr' <- desugar xsExpr
+  return $ TensorExpr nsExpr' xsExpr' supExpr subExpr
+
 desugar (LambdaExpr names expr) = do
   let (rtnames, rhnames) = span (\name -> case name of
                                           TensorArg _ -> True

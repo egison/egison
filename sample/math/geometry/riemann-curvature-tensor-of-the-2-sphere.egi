@@ -1,0 +1,47 @@
+(define $apply-all-rewrite-rules
+  (compose
+           (map-polys rewrite-rule-cos-sin-plus $)
+           ))
+
+(define $p [|θ φ r|])
+
+(define $e [|[|(* r (cos θ) (cos φ))
+               (* r (cos θ) (sin φ))
+               (* -1 r (sin θ))|]
+             [|(* -1 r (sin θ) (sin φ))
+               (* r (sin θ) (cos φ))
+               0|]
+             [|(* (sin θ) (cos φ))
+               (* (sin θ) (sin φ))
+               (cos θ)|]|])
+
+;(define $g (generate-tensor 2#(V.* e_%1 e_%2) {3 3}))
+(define $g [| [| r^2 0 0 |] [| 0 (* r^2 (sin θ)^2) 0 |] [| 0 0 1 |] |])
+(define $rg [| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 1 |] |])
+
+(define $Γ (generate-tensor
+             3#(with-symbols {j}
+                 (* (/ 1 2) (. rg~%1~j (+ (∂/∂ g_j_%3 p_%2) (∂/∂ g_j_%2 p_%3) (* -1 (∂/∂ g_%2_%3 p_j))))))
+             {2 2 2}))
+(define $Gamma Γ)
+
+Γ;(tensor {2 2 2} {0 0 0 (* -1 (sin θ) (cos θ)) 0 (/ (cos θ) (sin θ)) (/ (cos θ) (sin θ)) 0} )
+
+(define $R (generate-tensor
+             4#(with-symbols {j}
+                 (+ (* -1 (∂/∂ Γ~%1_%2_%4 p_%3))
+                    (∂/∂ Γ~%1_%2_%3 p_%4)
+                    (* -1 (. Γ~j_%2_%4 Γ~%1_j_%3))
+                    (. Γ~j_%2_%3 Γ~%1_j_%4)
+                    ))
+             {2 2 2 2}))
+
+R;(tensor {2 2 2 2} {0 0 0 0 0 (* -1 (sin θ)^2) (sin θ)^2 0 0 1 -1 0 0 0 0 0} )
+
+(define $Ricci (with-symbols {i j k} (contract + R~i_j_k_i)))
+
+Ricci;[| [| 1 0 |] [| 0 (sin θ)^2 |] |]
+
+(define $curveture-scalar (with-symbols {j k} (. (generate-tensor 2#rg_%1_%2 {2 2})~j~k Ricci_j_k)))
+
+curveture-scalar;(/ 2 r^2)

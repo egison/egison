@@ -699,9 +699,11 @@ tContract t@(Tensor ns xs js) = do
       let ns' = (ns !! m):removePairs (m,n) ns
       let js' = (js !! m):removePairs (m,n) js
       let (hjs, mjs, tjs) = removePairs' (m,n) js
-      mapM (\i -> tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
-                            ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t)
-           [1..(ns !! m)]
+      ts <- mapM (\i -> tref (hjs ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ mjs
+                                  ++ [Subscript (Div (Plus [(Term i [])]) (Plus [(Term 1 [])]))] ++ tjs) t)
+                 [1..(ns !! m)]
+      tss <- mapM tContract ts
+      return $ concat tss
  where
   p :: Index ScalarData -> Index ScalarData -> Bool
   p (Superscript i) (Subscript j) = i == j

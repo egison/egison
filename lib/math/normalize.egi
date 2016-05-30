@@ -5,6 +5,7 @@
 ;;;;;
 
 ;(set-term-rewriting-rule {
+;                          [(+ (cos $θ)^2 (sin ,θ)^2) 1]
 ;                          [(+ (rtu $n) (rtu ,n)^2 ... (rtu ,n)^,n) -1]
 ;                          [(+ w w^2) -1]
 ;                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y)^2)))]
@@ -30,6 +31,7 @@
            (map-terms rewrite-rule-rt $)
            (map-polys rewrite-rule-w-plus $)
            (map-polys rewrite-rule-rtu-plus $)
+           (map-polys rewrite-rule-cos-sin-plus $)
            ))
 
 (define $rewrite-rule-i
@@ -97,4 +99,25 @@
                       <cons <mult ,a <ncons ,(- n i) ,(rtu n) ,mr>> ...>
                       $pr)>>
         (rewrite-rule-rtu-plus (+' pr (*' -1 a mr)))]
+       [_ poly]})))
+
+(define $rewrite-rule-cos-sin-plus
+  (lambda [$poly]
+    (match poly math-expr
+      {[<plus <cons <mult $a <ncons ,2 (,cos $θ) $mr>>
+                    <cons <mult ,a <ncons ,2 ,(sin θ) ,mr>>
+                          $pr>>>
+        (rewrite-rule-w-plus (+' pr
+                                 (*' a mr)
+                                ))]
+       [<plus <cons <mult $a $mr>
+                    <cons <mult ,(* -1 a) <ncons ,2 (,sin $θ) ,mr>>
+                          $pr>>>
+        (rewrite-rule-w-plus (+' (*' a (cos θ)^2 mr)
+                                 ))]
+       [<plus <cons <mult $a $mr>
+                    <cons <mult ,(* -1 a) <ncons ,2 (,cos $θ) ,mr>>
+                          $pr>>>
+        (rewrite-rule-w-plus (+' (*' a (sin θ)^2)
+                                 ))]
        [_ poly]})))
