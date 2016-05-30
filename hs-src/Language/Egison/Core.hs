@@ -262,7 +262,7 @@ evalExpr env (IndexedExpr expr indices) = do
     (Value (ScalarData _)) -> do
       return $ tensor
     (Value (Tensor ns xs _)) -> do
-      tref js (Tensor ns xs js) >>= return . Value
+      tref js (Tensor ns xs js) >>= tContract' >>= return . Value
     _ -> refArray tensor (map (\j -> case j of
                                        Superscript k -> ScalarData k
                                        Subscript k -> ScalarData k) js)
