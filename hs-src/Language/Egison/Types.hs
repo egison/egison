@@ -76,6 +76,7 @@ module Language.Egison.Types
     -- * Environment
     , Env (..)
     , Var (..)
+    , IndexType (..)
     , Binding (..)
     , nullEnv
     , extendEnv
@@ -173,7 +174,7 @@ import System.IO.Unsafe (unsafePerformIO)
 --
 
 data EgisonTopExpr =
-    Define String EgisonExpr
+    Define Var EgisonExpr
   | Test EgisonExpr
   | Execute EgisonExpr
     -- temporary : we will replace load to import and export
@@ -1102,11 +1103,22 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-data Env = Env [HashMap Var ObjectRef]
+data Env = Env [HashMap String ObjectRef]
  deriving (Show)
 
-type Var = String
-type Binding = (Var, ObjectRef)
+data Var = Var String [IndexType]
+ deriving (Eq)
+type Binding = (String, ObjectRef)
+
+data IndexType = Sup | Sub
+ deriving (Eq)
+
+instance Show Var where
+  show (Var x is) = x ++ concat (map show is)
+
+instance Show IndexType where
+  show Sup = "~"
+  show Sub = "_"
 
 nullEnv :: Env
 nullEnv = Env []
@@ -1114,7 +1126,7 @@ nullEnv = Env []
 extendEnv :: Env -> [Binding] -> Env
 extendEnv (Env env) = Env . (: env) . HashMap.fromList
 
-refVar :: Env -> Var -> Maybe ObjectRef
+refVar :: Env -> String -> Maybe ObjectRef
 refVar (Env env) var = msum $ map (HashMap.lookup var) env
 
 --
@@ -1139,7 +1151,7 @@ data MatchingTree =
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
-type PatternBinding = (Var, EgisonPattern)
+type PatternBinding = (String, EgisonPattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
@@ -1149,7 +1161,7 @@ data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPatte
 --
 
 data EgisonError =
-    UnboundVariable Var
+    UnboundVariable String
   | TypeMismatch String WHNFData
   | ArgumentsNumWithNames [String] Int Int
   | ArgumentsNumPrimitive Int Int
@@ -1168,7 +1180,7 @@ data EgisonError =
     
 instance Show EgisonError where
   show (Parser err) = "Parse error at: " ++ err
-  show (UnboundVariable var) = "Unbound variable: " ++ var
+  show (UnboundVariable var) = "Unbound variable: " ++ show var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
   show (ArgumentsNumWithNames names expected got) = "Wrong number of arguments: " ++ show names ++ ": expected " ++

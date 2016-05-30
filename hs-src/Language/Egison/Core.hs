@@ -81,7 +81,7 @@ evalTopExprs env exprs = do
   collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
-      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
+      Define name expr -> collectDefs exprs ((show name, expr) : bindings) rest
       Load file -> do
         exprs' <- loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
@@ -102,7 +102,7 @@ evalTopExprsTestOnly env exprs = do
   collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
-      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
+      Define name expr -> collectDefs exprs ((show name, expr) : bindings) rest
       Load file -> do
         exprs' <- loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
@@ -123,7 +123,7 @@ evalTopExprsNoIO env exprs = do
   collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
-      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
+      Define name expr -> collectDefs exprs ((show name, expr) : bindings) rest
       Load _ -> throwError $ strMsg "No IO support"
       LoadFile _ -> throwError $ strMsg "No IO support"
       _ -> collectDefs exprs bindings (expr : rest)
@@ -138,7 +138,7 @@ evalTopExpr env topExpr = do
   return $ snd ret
 
 evalTopExpr' :: Env -> EgisonTopExpr -> EgisonM (Maybe String, Env)
-evalTopExpr' env (Define name expr) = recursiveBind env [(name, expr)] >>= return . ((,) Nothing)
+evalTopExpr' env (Define name expr) = recursiveBind env [(show name, expr)] >>= return . ((,) Nothing)
 evalTopExpr' env (Test expr) = do
   val <- evalExprDeep env expr
   return (Just (show val), env)
@@ -171,7 +171,7 @@ evalExpr env (QuoteFunctionExpr expr) = do
 
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
-  refVar' :: Env -> Var -> EgisonM ObjectRef
+  refVar' :: Env -> String -> EgisonM ObjectRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" var))) return
                           (refVar env var)
 
@@ -251,7 +251,13 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey whnf = throwError $ TypeMismatch "integer or string" $ whnf
 
 evalExpr env (IndexedExpr expr indices) = do
-  tensor <- evalExpr env expr
+  tensor <- case expr of
+              (VarExpr var) -> do
+                let mObjRef = refVar env (show (Var var (map f indices)))
+                case mObjRef of
+                  (Just objRef) -> evalRef objRef
+                  Nothing -> evalExpr env expr
+              _ -> evalExpr env expr
   js <- mapM (\i -> case i of
                       Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
                       Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
@@ -266,7 +272,10 @@ evalExpr env (IndexedExpr expr indices) = do
     _ -> refArray tensor (map (\j -> case j of
                                        Superscript k -> ScalarData k
                                        Subscript k -> ScalarData k) js)
-
+ where
+  f :: Index a -> IndexType
+  f (Superscript _) = Sup
+  f (Subscript _) = Sub
 
 evalExpr env (LambdaExpr names expr) = do
   names' <- mapM (\name -> case name of

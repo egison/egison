@@ -14,11 +14,11 @@
 ;; Metric tensor
 ;;
 
-(define $g (generate-tensor 2#(V.* e_%1 e_%2) {3 3}))
-(define $rg (/ 1 g))
+(define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {3 3}))
+(define $g~~ (with-symbols {i j} (/ 1 g_i_j)))
 
-g;[| [| r^2 0 0 |] [| 0 (* r^2 (sin θ)^2) 0 |] [| 0 0 1 |] |]
-rg;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 1 |] |])
+(with-symbols {i j} g_i_j);[| [| r^2 0 0 |] [| 0 (* r^2 (sin θ)^2) 0 |] [| 0 0 1 |] |]
+(with-symbols {i j} g~i~j);[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 1 |] |])
 
 ;;
 ;; Christoffel symbols
@@ -26,7 +26,7 @@ rg;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 1 |] |])
 
 (define $Γ (generate-tensor
              3#(with-symbols {j}
-                 (* (/ 1 2) (. rg~%1~j (+ (∂/∂ g_j_%3 x_%2) (∂/∂ g_j_%2 x_%3) (* -1 (∂/∂ g_%2_%3 x_j))))))
+                 (* (/ 1 2) (. g~%1~j (+ (∂/∂ g_j_%3 x_%2) (∂/∂ g_j_%2 x_%3) (* -1 (∂/∂ g_%2_%3 x_j))))))
              {2 2 2}))
 
 Γ;(tensor {2 2 2} {0 0 0 (* -1 (sin θ) (cos θ)) 0 (/ (cos θ) (sin θ)) (/ (cos θ) (sin θ)) 0} )
@@ -56,6 +56,6 @@ Ric;[| [| 1 0 |] [| 0 (sin θ)^2 |] |]
 ;; Scalar curvature
 ;;
 
-(define $scalar-curvature (with-symbols {j k} (. (generate-tensor 2#rg_%1_%2 {2 2})~j~k Ric_j_k)))
+(define $scalar-curvature (with-symbols {j k} (. (generate-tensor 2#g~%1~%2 {2 2})~j~k Ric_j_k)))
 
 scalar-curvature;(/ 2 r^2)

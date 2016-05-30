@@ -133,7 +133,7 @@ topExpr = try (Test <$> expr)
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = keywordDefine >> Define <$> varName <*> expr
+defineExpr = keywordDefine >> Define <$> varNameWithIndexType <*> expr
 
 testExpr :: Parser EgisonTopExpr
 testExpr = keywordTest >> Test <$> expr
@@ -400,6 +400,17 @@ varNames = return <$> varName
 
 varName :: Parser String
 varName = char '$' >> ident
+
+varNameWithIndexType :: Parser Var
+varNameWithIndexType = P.lexeme lexer (do
+  char '$'
+  name <- ident
+  is <- many indexType
+  return $ Var name is)
+
+indexType :: Parser IndexType
+indexType = try (char '~' >> return Sup)
+        <|> try (char '_' >> return Sub)
 
 argNames :: Parser [Arg]
 argNames = return <$> argName
