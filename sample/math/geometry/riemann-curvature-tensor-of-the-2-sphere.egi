@@ -8,6 +8,10 @@
              (* r (sin θ) (sin φ))
              (* r (cos θ))|])
 
+;;
+;; Local coordinates
+;;
+
 (define $e ((∂/∂ p $) x))
 e
 ;[|[| (* r (cos θ) (cos φ)) (* -1 r (sin θ) (sin φ)) (* (sin θ) (cos φ)) |]
