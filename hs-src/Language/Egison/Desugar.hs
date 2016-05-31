@@ -137,6 +137,9 @@ desugar (ArrayRefExpr expr nums) =
 desugar (IndexedExpr expr indices) = 
   IndexedExpr <$> desugar expr <*> (mapM desugarIndex indices)
 
+desugar (UnitIndexedExpr expr indices) = 
+  UnitIndexedExpr <$> desugar expr <*> return indices
+
 desugar (PowerExpr expr1 expr2) = do
   expr1' <- desugar expr1
   expr2' <- desugar expr2
@@ -310,12 +313,10 @@ desugar (MatcherDFSExpr matcherInfo) = do
   
 desugar (PartialVarExpr n) = return $ VarExpr $ "::" ++ show n
 
-desugar RecVarExpr = return $ VarExpr "::"
-
 desugar (PartialExpr n expr) = do
   if n == 0
-    then desugar $ LetRecExpr [(["::"], LambdaExpr [] expr)] (LambdaExpr [] expr)
-    else desugar $ LetRecExpr [(["::"], LambdaExpr (map TensorArg (annonVars (fromIntegral n))) expr)] (LambdaExpr (map TensorArg (annonVars (fromIntegral n))) expr)
+    then desugar $ LetRecExpr [(["::0"], LambdaExpr [] expr)] (LambdaExpr [] expr)
+    else desugar $ LetRecExpr [(["::0"], LambdaExpr (map TensorArg (annonVars (fromIntegral n))) expr)] (LambdaExpr (map TensorArg (annonVars (fromIntegral n))) expr)
  where
   annonVars n = take n $ map (((++) "::") . show) [1..]
 

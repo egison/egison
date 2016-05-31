@@ -15,42 +15,42 @@
 ;;
 
 (define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {3 3}))
-(define $g~~ (with-symbols {i j} (/ 1 g_i_j)))
+(define $g~~ (/ 1 g_#_#))
 
-(with-symbols {i j} g_i_j);[| [| r^2 0 0 |] [| 0 (* r^2 (sin θ)^2) 0 |] [| 0 0 1 |] |]
-(with-symbols {i j} g~i~j);[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 1 |] |])
+g_#_#;[| [| r^2 0 0 |] [| 0 (* r^2 (sin θ)^2) 0 |] [| 0 0 1 |] |]
+g~#~#;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 1 |] |]
 
 ;;
 ;; Christoffel symbols
 ;;
 
-(define $Γ (generate-tensor
+(define $Γ~__ (generate-tensor
              3#(with-symbols {j}
                  (* (/ 1 2) (. g~%1~j (+ (∂/∂ g_j_%3 x_%2) (∂/∂ g_j_%2 x_%3) (* -1 (∂/∂ g_%2_%3 x_j))))))
              {2 2 2}))
 
-Γ;(tensor {2 2 2} {0 0 0 (* -1 (sin θ) (cos θ)) 0 (/ (cos θ) (sin θ)) (/ (cos θ) (sin θ)) 0} )
+Γ~#_#_#;(tensor {2 2 2} {0 0 0 (* -1 (sin θ) (cos θ)) 0 (/ (cos θ) (sin θ)) (/ (cos θ) (sin θ)) 0} )
 
 ;;
 ;; Riemann curvature tensor
 ;;
 
-(define $R (generate-tensor
+(define $R~___ (generate-tensor
              4#(with-symbols {j}
                  (+ (- (∂/∂ Γ~%1_%2_%3 x_%4) (∂/∂ Γ~%1_%2_%4 x_%3))
                     (- (. Γ~j_%2_%3 Γ~%1_j_%4) (. Γ~j_%2_%4 Γ~%1_j_%3))
                     ))
              {2 2 2 2}))
 
-R;(tensor {2 2 2 2} {0 0 0 0 0 (* -1 (sin θ)^2) (sin θ)^2 0 0 1 -1 0 0 0 0 0} )
+R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (* -1 (sin θ)^2) (sin θ)^2 0 0 1 -1 0 0 0 0 0} )
 
 ;;
 ;; Ricci curvature
 ;;
 
-(define $Ric (with-symbols {i j k} (contract + R~i_j_k_i)))
+(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
 
-Ric;[| [| 1 0 |] [| 0 (sin θ)^2 |] |]
+Ric_#_#;[| [| 1 0 |] [| 0 (sin θ)^2 |] |]
 
 ;;
 ;; Scalar curvature

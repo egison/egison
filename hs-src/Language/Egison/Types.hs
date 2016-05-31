@@ -855,10 +855,6 @@ instance Show SymbolExpr where
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
 
-instance (Show a) => Show (Index a) where
-  show (Superscript i) = "~" ++ show i
-  show (Subscript i) = "_" ++ show i
-
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
 showComplex 0 y = show y ++ "i"
@@ -1112,6 +1108,18 @@ type Binding = (String, ObjectRef)
 
 instance Show Var where
   show (Var x is) = x ++ concat (map show is)
+
+instance Show (Index ()) where
+  show (Superscript ()) = "~"
+  show (Subscript ()) = "_"
+
+instance Show (Index EgisonExpr) where
+  show (Superscript i) = "~" ++ show i
+  show (Subscript i) = "_" ++ show i
+
+instance Show (Index ScalarData) where
+  show (Superscript i) = "~" ++ show i
+  show (Subscript i) = "_" ++ show i
 
 nullEnv :: Env
 nullEnv = Env []
