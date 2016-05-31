@@ -188,8 +188,8 @@ data EgisonExpr =
   | IntegerExpr Integer
   | FloatExpr Double Double
   | VarExpr String
+  | FreshVarExpr
   | IndexedExpr EgisonExpr [Index EgisonExpr]
-  | UnitIndexedExpr EgisonExpr [Index ()]
   | PowerExpr EgisonExpr EgisonExpr
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
@@ -850,6 +850,7 @@ showPoweredSymbol (x, 1) = show x
 showPoweredSymbol (x, n) = show x ++ "^" ++ show n
 
 instance Show SymbolExpr where
+  show (Symbol _ (':':':':':':_) []) = "#"
   show (Symbol _ s []) = s
   show (Symbol _ s js) = s ++ concat (map show js)
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"

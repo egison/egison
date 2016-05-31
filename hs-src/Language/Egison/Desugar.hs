@@ -137,9 +137,6 @@ desugar (ArrayRefExpr expr nums) =
 desugar (IndexedExpr expr indices) = 
   IndexedExpr <$> desugar expr <*> (mapM desugarIndex indices)
 
-desugar (UnitIndexedExpr expr indices) = 
-  UnitIndexedExpr <$> desugar expr <*> return indices
-
 desugar (PowerExpr expr1 expr2) = do
   expr1' <- desugar expr1
   expr2' <- desugar expr2
@@ -302,6 +299,10 @@ desugar (CApplyExpr expr0 expr1) = do
 
 desugar (VarExpr name) = do
   asks $ maybe (VarExpr name) id . lookup name
+
+desugar FreshVarExpr = do
+  id <- fresh
+  return (VarExpr (":::" ++ id))
 
 desugar (MatcherBFSExpr matcherInfo) = do
   matcherInfo' <- desugarMatcherInfo matcherInfo

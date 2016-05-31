@@ -175,14 +175,6 @@ evalExpr env (VarExpr name) = refVar' env name >>= evalRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" var))) return
                           (refVar env var)
 
-evalExpr env (UnitIndexedExpr (VarExpr name) is) = refVar' env (name ++ concat (map show is)) >>= evalRef
- where
-  refVar' :: Env -> String -> EgisonM ObjectRef
-  refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" var))) return
-                          (refVar env var)
-
-evalExpr env (UnitIndexedExpr _ _) = throwError $ EgisonBug "unit index expression not with var expression"
-
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
   Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs 

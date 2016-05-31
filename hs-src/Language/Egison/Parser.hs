@@ -153,16 +153,14 @@ exprs = endBy expr whiteSpace
 expr :: Parser EgisonExpr
 expr = P.lexeme lexer (do expr0 <- expr'
                           expr1 <- option expr0 $ IndexedExpr expr0 <$> many1 (try (char '_' >> expr' >>= return . Subscript) <|> try (char '~' >> expr' >>= return . Superscript))
-                          expr2 <- case expr1 of
-                                     (VarExpr var) -> option expr1 $ UnitIndexedExpr expr1 <$> many1 (try (string "_#" >> return (Subscript ())) <|> try (string "~#" >> return (Superscript ())))
-                                     _ -> return expr1
-                          option expr2 $ PowerExpr expr2 <$> (try $ char '^' >> expr'))
+                          option expr1 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
                           
 
 expr' :: Parser EgisonExpr
 expr' = (try partialExpr
              <|> try constantExpr
              <|> try partialVarExpr
+             <|> try freshVarExpr
              <|> try varExpr
              <|> inductiveDataExpr
              <|> try arrayExpr
@@ -213,6 +211,9 @@ expr' = (try partialExpr
 
 varExpr :: Parser EgisonExpr
 varExpr = VarExpr <$> ident
+
+freshVarExpr :: Parser EgisonExpr
+freshVarExpr = char '#' >> return FreshVarExpr
 
 inductiveDataExpr :: Parser EgisonExpr
 inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr whiteSpace

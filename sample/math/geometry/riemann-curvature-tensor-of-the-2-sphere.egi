@@ -1,3 +1,7 @@
+;;;
+;;; Polar coordinates
+;;;
+
 (define $x [|θ φ r|])
 
 (define $e [|[|(* r (cos θ) (cos φ))
@@ -15,7 +19,7 @@
 ;;
 
 (define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {3 3}))
-(define $g~~ (/ 1 g_#_#))
+(define $g~~ (with-symbols {i j} (/ (unit-tensor {3 3})_i_j g_i_j)))
 
 g_#_#;[| [| r^2 0 0 |] [| 0 (* r^2 (sin θ)^2) 0 |] [| 0 0 1 |] |]
 g~#~#;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 1 |] |]
