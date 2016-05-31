@@ -408,9 +408,9 @@ varNameWithIndexType = P.lexeme lexer (do
   is <- many indexType
   return $ Var name is)
 
-indexType :: Parser IndexType
-indexType = try (char '~' >> return Sup)
-        <|> try (char '_' >> return Sub)
+indexType :: Parser (Index ())
+indexType = try (char '~' >> return (Superscript ()))
+        <|> try (char '_' >> return (Subscript ()))
 
 argNames :: Parser [Arg]
 argNames = return <$> argName

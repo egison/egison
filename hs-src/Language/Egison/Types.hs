@@ -76,7 +76,6 @@ module Language.Egison.Types
     -- * Environment
     , Env (..)
     , Var (..)
-    , IndexType (..)
     , Binding (..)
     , nullEnv
     , extendEnv
@@ -190,6 +189,7 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr String
   | IndexedExpr EgisonExpr [Index EgisonExpr]
+  | UnitIndexedExpr EgisonExpr [Index ()]
   | PowerExpr EgisonExpr EgisonExpr
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
@@ -1106,19 +1106,12 @@ class (EgisonWHNF a) => EgisonObject a where
 data Env = Env [HashMap String ObjectRef]
  deriving (Show)
 
-data Var = Var String [IndexType]
+data Var = Var String [Index ()]
  deriving (Eq)
 type Binding = (String, ObjectRef)
 
-data IndexType = Sup | Sub
- deriving (Eq)
-
 instance Show Var where
   show (Var x is) = x ++ concat (map show is)
-
-instance Show IndexType where
-  show Sup = "~"
-  show Sub = "_"
 
 nullEnv :: Env
 nullEnv = Env []

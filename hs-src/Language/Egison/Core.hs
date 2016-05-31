@@ -273,9 +273,9 @@ evalExpr env (IndexedExpr expr indices) = do
                                        Superscript k -> ScalarData k
                                        Subscript k -> ScalarData k) js)
  where
-  f :: Index a -> IndexType
-  f (Superscript _) = Sup
-  f (Subscript _) = Sub
+  f :: Index a -> Index ()
+  f (Superscript _) = Superscript ()
+  f (Subscript _) = Subscript ()
 
 evalExpr env (LambdaExpr names expr) = do
   names' <- mapM (\name -> case name of
