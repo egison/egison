@@ -1,8 +1,8 @@
 ; We can bound f to a specific function.
 ; (define $f (lambda [$x $y] (+ (** x 2) (** y 2))))
 
-(define $v1 [| 1 0 (d/d (f x y) x) |])
-(define $v2 [| 0 1 (d/d (f x y) y) |])
+(define $v1 [| 1 0 (∂/∂ (f x y) x) |])
+(define $v2 [| 0 1 (∂/∂ (f x y) y) |])
 
 v1;[| 1 0 (f_1 x y) |]
 v2;[| 0 1 (f_2 x y) |]
