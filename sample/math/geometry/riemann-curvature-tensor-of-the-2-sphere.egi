@@ -14,9 +14,9 @@
 
 (define $e ((∂/∂ p $) x))
 e
-;[|[| (* r (cos θ) (cos φ)) (* -1 r (sin θ) (sin φ)) (* (sin θ) (cos φ)) |]
-;  [| (* r (cos θ) (sin φ)) (* r (sin θ) (cos φ)) (* (sin θ) (sin φ)) |]
-;  [| (* -1 r (sin θ)) 0 (cos θ) |] |]
+;[|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ))|]
+;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0|]
+;  [|(* (sin θ) (cos φ)) (* (sin θ) (sin φ)) (cos θ)|]|]
 
 ;;
 ;; Metric tensor
