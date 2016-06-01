@@ -25,6 +25,7 @@ import System.Random
 import System.Process
 
 import qualified Data.Sequence as Sq
+import qualified Data.Vector as V
 
 import Data.Char (ord, chr)
 import qualified Data.Text as T
@@ -438,7 +439,7 @@ tensorSize = oneArg' $ tensorSize'
 tensorToList :: PrimitiveFunc
 tensorToList = oneArg' $ tensorToList'
  where
-  tensorToList' (Tensor _ xs _) = return . Collection . Sq.fromList $ xs
+  tensorToList' (Tensor _ xs _) = return . Collection . Sq.fromList $ V.toList xs
   tensorToList' x = return . Collection $ Sq.fromList $ [x]
 
 --

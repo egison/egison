@@ -58,6 +58,7 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HL
 import Data.Array ((!))
 import qualified Data.Array as Array
+import qualified Data.Vector as V
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
@@ -205,7 +206,7 @@ evalExpr env (VectorExpr exprs) = do
       tConcat' vals >>= return . Value
     [val] -> return $ Value val
     _ -> do
-      return $ Value $ Tensor [fromIntegral (length vals)] vals []
+      return $ Value $ Tensor [fromIntegral (length vals)] (V.fromList vals) []
 
 evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
@@ -498,7 +499,7 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms)) >>= evalWHNF) (map (\ms -> map toEgison ms) (tensorIndices ns))
   case (ns, xs) of
     ([1], x:[]) -> return $ Value x
-    _ -> return $ Value (Tensor ns xs [])
+    _ -> return $ Value (Tensor ns (V.fromList xs) [])
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
