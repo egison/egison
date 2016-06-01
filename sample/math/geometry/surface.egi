@@ -7,13 +7,7 @@
 v1;[| 1 0 (f_1 x y) |]
 v2;[| 0 1 (f_2 x y) |]
 
-(define $vector-product
-  (lambda [%a %b]
-    [|(- (* a_2 b_3)  (* a_3 b_2))
-      (- (* a_3 b_1)  (* a_1 b_3))
-      (- (* a_1 b_2)  (* a_2 b_1))|]))
-
-(define $v3 (vector-product v1 v2))
+(define $v3 (cross-product v1 v2))
 
 v3;[| (* -1 (f_1 x y)) (* -1 (f_2 x y)) 1 |]
 
