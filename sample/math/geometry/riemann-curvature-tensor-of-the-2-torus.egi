@@ -1,0 +1,97 @@
+;;;
+;;; Coordinates for Torus
+;;;
+
+(define $x [|θ φ|])
+
+(define $X [|(* (+ (* a (cos θ)) b) (cos φ)) ; = x
+             (* (+ (* a (cos θ)) b) (sin φ)) ; = y
+             (* a (sin θ))                   ; = z
+             |])
+
+;;
+;; Local coordinates
+;;
+
+(define $e ((∂/∂ X~# $) x~#))
+e
+;
+
+;;
+;; Metric tensor
+;;
+
+(define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {2 2}))
+(define $g~~ (with-symbols {i j} (/ (unit-tensor {2 2})_i_j g_i_j)))
+
+g_#_#;
+g~#~#;
+
+;;
+;; Christoffel symbols
+;;
+
+(define $Γ~__ (generate-tensor
+                3#(with-symbols {j}
+                    (* (/ 1 2) (. g~%1~j (+ (∂/∂ g_j_%3 x~%2) (∂/∂ g_j_%2 x~%3) (* -1 (∂/∂ g_%2_%3 x~j))))))
+                {2 2 2}))
+
+Γ~#_#_#;
+Γ~1_#_#;
+Γ~2_#_#;
+
+;;
+;; Riemann curvature tensor
+;;
+
+(define $R~___ (generate-tensor
+                 4#(with-symbols {j}
+                     (+ (- (∂/∂ Γ~%1_%2_%3 x~%4) (∂/∂ Γ~%1_%2_%4 x~%3))
+                        (- (. Γ~j_%2_%3 Γ~%1_j_%4) (. Γ~j_%2_%4 Γ~%1_j_%3))
+                        ))
+                 {2 2 2 2}))
+
+R~#_#_#_#;
+R~1_1_#_#;
+R~1_2_#_#;
+R~2_1_#_#;
+R~2_2_#_#;
+
+(define $R____ (with-symbols {i} (. g_i_# R~i_#_#_#)))
+
+R_#_#_#_#;
+R_1_1_#_#;
+R_1_2_#_#;
+R_2_1_#_#;
+R_2_2_#_#;
+
+;;
+;; Ricci curvature
+;;
+
+(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
+
+Ric_#_#;
+
+;;
+;; Scalar curvature
+;;
+
+(define $scalar-curvature (with-symbols {j k} (. (generate-tensor 2#g~%1~%2 {2 2})~j~k Ric_j_k)))
+
+scalar-curvature;
+
+;;
+;; Covariant derivative of Riemann curvature tensor
+;;
+
+(define $∇R_____
+  (with-symbols {i j k l m n}
+    (- (∂/∂ R_i_j_k_l x_m)
+       (. Γ~n_m_i R_n_j_k_l)
+       (. Γ~n_m_j R_i_n_k_l)
+       (. Γ~n_m_k R_i_j_n_l)
+       (. Γ~n_m_l R_i_j_k_n))))
+
+∇R_#_#_#_#_#
+;
