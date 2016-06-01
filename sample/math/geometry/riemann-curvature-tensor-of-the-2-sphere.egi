@@ -85,7 +85,7 @@ Ric_#_#;[| [| 1 0 |] [| 0 (sin θ)^2 |] |]_#_#
 scalar-curvature;(/ 2 r^2)
 
 ;;
-;; Covariant derivative
+;; Covariant derivative of Riemann curvature tensor
 ;;
 
 (define $∇R_____
