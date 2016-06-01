@@ -2,7 +2,7 @@
 ;;; Polar coordinates
 ;;;
 
-(define $x [|θ φ r|])
+(define $x [|θ φ|])
 
 (define $X [|(* r (sin θ) (cos φ)) ; = x
              (* r (sin θ) (sin φ)) ; = y
@@ -90,7 +90,7 @@ scalar-curvature;(/ 2 r^2)
 
 (define $∇R_____
   (with-symbols {i j k l m n}
-    (- (∂/∂ R_i_j_k_l [|x~1 x~2|]_m)
+    (- (∂/∂ R_i_j_k_l x_m)
        (. Γ~n_m_i R_n_j_k_l)
        (. Γ~n_m_j R_i_n_k_l)
        (. Γ~n_m_k R_i_j_n_l)
