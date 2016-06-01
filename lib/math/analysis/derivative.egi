@@ -39,11 +39,11 @@
     (match f math-expr
       {; function application
        [(,exp $g) (* (exp g) (∂/∂ g x))]
-       [(,** $g $h) (* f (∂/∂ (* (log g) h) x))]
        [(,log $g) (* (/ 1 g) (∂/∂ g x))]
        [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
        [(,sin $g) (* (cos g) (∂/∂ g x))]
        [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
+       [(,** $g $h) (* f (∂/∂ (* (log g) h) x))]
        [_ (∂/∂ f x)]
        })))
 
