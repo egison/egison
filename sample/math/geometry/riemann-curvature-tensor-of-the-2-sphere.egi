@@ -5,8 +5,8 @@
 (define $x [|θ φ r|])
 
 (define $X [|(* r (sin θ) (cos φ)) ; = x
-             (* r (sin θ) (sin φ))  ; = y
-             (* r (cos θ))          ; = z
+             (* r (sin θ) (sin φ)) ; = y
+             (* r (cos θ))         ; = z
              |])
 
 ;;
