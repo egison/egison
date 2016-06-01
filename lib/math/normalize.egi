@@ -4,17 +4,17 @@
 ;;;;;
 ;;;;;
 
-(set-term-rewriting-rule {
-                          [(+ (cos $θ)^2 (sin ,θ)^2) 1]
-                          [(+ (rtu $n) (rtu ,n)^2 ... (rtu ,n)^,n) -1]
-                          [(+ w w^2) -1]
-                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y)^2)))]
-                          [(rt $n $x)^,n x]
-                          [(sqrt $x)^2 x]
-                          [(rtu $n)^,n 1]
-                          [w^3 1]
-                          [i^2 -1]
-                          })
+;(set-term-rewriting-rule {
+;                          [(+ (cos $θ)^2 (sin ,θ)^2) 1]
+;                          [(+ (rtu $n) (rtu ,n)^2 ... (rtu ,n)^,n) -1]
+;                          [(+ w w^2) -1]
+;                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y)^2)))]
+;                          [(rt $n $x)^,n x]
+;                          [(sqrt $x)^2 x]
+;                          [(rtu $n)^,n 1]
+;                          [w^3 1]
+;                          [i^2 -1]
+;                          })
 
 (define $math-normalize
   (lambda [$mexpr]
@@ -24,13 +24,13 @@
 
 (define $apply-all-rewrite-rules
   (compose
-;           (map-terms rewrite-rule-i $)
-;           (map-terms rewrite-rule-w $)
-;           (map-terms rewrite-rule-rtu $)
-;           (map-terms rewrite-rule-sqrt $)
-;           (map-terms rewrite-rule-rt $)
-;           (map-polys rewrite-rule-w-plus $)
-;           (map-polys rewrite-rule-rtu-plus $)
+           (map-terms rewrite-rule-i $)
+           (map-terms rewrite-rule-w $)
+           (map-terms rewrite-rule-rtu $)
+           (map-terms rewrite-rule-sqrt $)
+           (map-terms rewrite-rule-rt $)
+           (map-polys rewrite-rule-w-plus $)
+           (map-polys rewrite-rule-rtu-plus $)
            (map-polys rewrite-rule-cos-sin-plus $)
            ))
 
