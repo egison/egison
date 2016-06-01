@@ -13,9 +13,15 @@
 ;; Local coordinates
 ;;
 
-(define $e ((∂/∂ X~# $) x~#))
-e
-;
+;(define $e ((∂/∂ X~# $) x~#))
+;e
+;[|[| (* -1 a (sin θ) (cos φ)) (* -1 a (sin θ) (sin φ)) (* a (cos θ)) |]
+;  [| (+ (* -1 a (cos θ) (sin φ)) (* -1 b (sin φ))) (+ (* a (cos θ) (cos φ)) (* b (cos φ))) 0 |]
+;  |]
+(define $e 
+  [|[| (* -1 a (sin θ) (cos φ)) (* -1 a (sin θ) (sin φ)) (* a (cos θ)) |]
+    [| (* -1 '(+ (* a (cos θ)) b) (sin φ)) (* '(+ (* a (cos θ)) b) (cos φ)) 0 |]
+    |])
 
 ;;
 ;; Metric tensor
@@ -24,8 +30,8 @@ e
 (define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {2 2}))
 (define $g~~ (with-symbols {i j} (/ (unit-tensor {2 2})_i_j g_i_j)))
 
-g_#_#;
-g~#~#;
+g_#_#;[| [| a^2 0 |] [| 0 (+ (* 2 a (cos θ) b) b^2 (* a^2 (cos θ)^2)) |] |]_#_#
+g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 (+ (* 2 a (cos θ) b) b^2 (* a^2 (cos θ)^2))) |] |]~#~#
 
 ;;
 ;; Christoffel symbols
@@ -36,9 +42,9 @@ g~#~#;
                     (* (/ 1 2) (. g~%1~j (+ (∂/∂ g_j_%3 x~%2) (∂/∂ g_j_%2 x~%3) (* -1 (∂/∂ g_%2_%3 x~j))))))
                 {2 2 2}))
 
-Γ~#_#_#;
-Γ~1_#_#;
-Γ~2_#_#;
+Γ~#_#_#;(tensor {2 2 2} {0 0 0 (/ (+ (* (sin θ) b) (* a (cos θ) (sin θ))) a) 0 (/ (+ (* -1 a (sin θ) b) (* -1 a^2 (cos θ) (sin θ))) (+ (* 2 a (cos θ) b) b^2 (* a^2 (cos θ)^2))) (/ (+ (* -1 a (sin θ) b) (* -1 a^2 (cos θ) (sin θ))) (+ (* 2 a (cos θ) b) b^2 (* a^2 (cos θ)^2))) 0} )~#_#_#
+Γ~1_#_#;[| [| 0 0 |] [| 0 (/ (+ (* (sin θ) b) (* a (cos θ) (sin θ))) a) |] |]_#_#
+Γ~2_#_#;[| [| 0 (/ (+ (* -1 a (sin θ) b) (* -1 a^2 (cos θ) (sin θ))) (+ (* 2 a (cos θ) b) b^2 (* a^2 (cos θ)^2))) |] [| (/ (+ (* -1 a (sin θ) b) (* -1 a^2 (cos θ) (sin θ))) (+ (* 2 a (cos θ) b) b^2 (* a^2 (cos θ)^2))) 0 |] |]_#_#
 
 ;;
 ;; Riemann curvature tensor
@@ -51,15 +57,15 @@ g~#~#;
                         ))
                  {2 2 2 2}))
 
-R~#_#_#_#;
-R~1_1_#_#;
+R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (/ (+ (* -3 (cos θ)^2 b^2 a) (* -1 (cos θ) b^3) (* -3 (cos θ)^3 b a^2) (* -1 a^3 (cos θ)^4)) (+ (* 2 a^2 (cos θ) b) (* a b^2) (* a^3 (cos θ)^2))) (/ (+ (* 3 (cos θ)^2 b^2 a) (* (cos θ) b^3) (* 3 (cos θ)^3 b a^2) (* a^3 (cos θ)^4)) (+ (* 2 a^2 (cos θ) b) (* a b^2) (* a^3 (cos θ)^2))) 0 0 (/ (+ (* 3 a^2 (cos θ)^2 b^2) (* a (cos θ) b^3) (* 3 a^3 (cos θ)^3 b) (* a^4 (cos θ)^4)) (+ (* 6 a^2 (cos θ)^2 b^2) (* 4 a (cos θ) b^3) (* 4 a^3 (cos θ)^3 b) b^4 (* a^4 (cos θ)^4))) (/ (+ (* -3 a^2 (cos θ)^2 b^2) (* -1 a (cos θ) b^3) (* -3 a^3 (cos θ)^3 b) (* -1 a^4 (cos θ)^4)) (+ (* 6 a^2 (cos θ)^2 b^2) (* 4 a (cos θ) b^3) (* 4 a^3 (cos θ)^3 b) b^4 (* a^4 (cos θ)^4))) 0 0 0 0 0} )~#_#_#_#
+R~1_1_#_#;[| [| 0 0 |] [| 0 0 |] |]_#_#
 R~1_2_#_#;
 R~2_1_#_#;
 R~2_2_#_#;
 
 (define $R____ (with-symbols {i} (. g_i_# R~i_#_#_#)))
 
-R_#_#_#_#;
+R_#_#_#_#;[| [| 0 0 |] [| 0 0 |] |]_#_#
 R_1_1_#_#;
 R_1_2_#_#;
 R_2_1_#_#;
@@ -79,7 +85,7 @@ Ric_#_#;
 
 (define $scalar-curvature (with-symbols {j k} (. (generate-tensor 2#g~%1~%2 {2 2})~j~k Ric_j_k)))
 
-scalar-curvature;
+scalar-curvature;(/ (+ (* 6 a (cos θ)^2 b^2) (* 2 (cos θ) b^3) (* 6 a^2 (cos θ)^3 b) (* 2 a^3 (cos θ)^4)) (+ (* 6 a^3 (cos θ)^2 b^2) (* 4 a^2 (cos θ) b^3) (* 4 a^4 (cos θ)^3 b) (* a b^4) (* a^5 (cos θ)^4)))
 
 ;;
 ;; Covariant derivative of Riemann curvature tensor
