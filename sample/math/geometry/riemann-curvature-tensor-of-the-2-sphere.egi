@@ -5,15 +5,15 @@
 (define $x [|θ φ r|])
 
 (define $X [|(* r (sin θ) (cos φ)) ; = x
-             (* r (sin θ) (sin φ)) ; = y
-             (* r (cos θ))         ; = z
+             (* r (sin θ) (sin φ))  ; = y
+             (* r (cos θ))          ; = z
              |])
 
 ;;
 ;; Local coordinates
 ;;
 
-(define $e ((∂/∂ X $) x))
+(define $e ((∂/∂ X~# $) x~#))
 e
 ;[|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ))|]
 ;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0|]
@@ -36,7 +36,7 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 
 (define $Γ~__ (generate-tensor
                 3#(with-symbols {j}
-                    (* (/ 1 2) (. g~%1~j (+ (∂/∂ g_j_%3 x_%2) (∂/∂ g_j_%2 x_%3) (* -1 (∂/∂ g_%2_%3 x_j))))))
+                    (* (/ 1 2) (. g~%1~j (+ (∂/∂ g_j_%3 x~%2) (∂/∂ g_j_%2 x~%3) (* -1 (∂/∂ g_%2_%3 x~j))))))
                 {2 2 2}))
 
 Γ~#_#_#;(tensor {2 2 2} {0 0 0 (* -1 (sin θ) (cos θ)) 0 (/ (cos θ) (sin θ)) (/ (cos θ) (sin θ)) 0} )~#_#_#
@@ -49,7 +49,7 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 
 (define $R~___ (generate-tensor
                  4#(with-symbols {j}
-                     (+ (- (∂/∂ Γ~%1_%2_%3 x_%4) (∂/∂ Γ~%1_%2_%4 x_%3))
+                     (+ (- (∂/∂ Γ~%1_%2_%3 x~%4) (∂/∂ Γ~%1_%2_%4 x~%3))
                         (- (. Γ~j_%2_%3 Γ~%1_j_%4) (. Γ~j_%2_%4 Γ~%1_j_%3))
                         ))
                  {2 2 2 2}))
@@ -90,7 +90,7 @@ scalar-curvature;(/ 2 r^2)
 
 (define $∇R_____
   (with-symbols {i j k l m n}
-    (- (∂/∂ R_i_j_k_l [|x_1 x_2|]_m)
+    (- (∂/∂ R_i_j_k_l [|x~1 x~2|]_m)
        (. Γ~n_m_i R_n_j_k_l)
        (. Γ~n_m_j R_i_n_k_l)
        (. Γ~n_m_k R_i_j_n_l)
