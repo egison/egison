@@ -115,6 +115,8 @@ coreLibraries =
   , "lib/math/algebra/inverse.egi"
   , "lib/math/analysis/derivative.egi"
   , "lib/math/analysis/integral.egi"
+  , "lib/math/algebra/vector.egi"
+  , "lib/math/algebra/matrix.egi"
   , "lib/math/algebra/tensor.egi"
   , "lib/core/base.egi"
   , "lib/core/collection.egi"
