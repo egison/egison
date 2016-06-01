@@ -4,15 +4,16 @@
 
 (define $x [|θ φ r|])
 
-(define $p [|(* r (sin θ) (cos φ))
-             (* r (sin θ) (sin φ))
-             (* r (cos θ))|])
+(define $X [|(* r (sin θ) (cos φ)) ; = x
+             (* r (sin θ) (sin φ)) ; = y
+             (* r (cos θ))         ; = z
+             |])
 
 ;;
 ;; Local coordinates
 ;;
 
-(define $e ((∂/∂ p $) x))
+(define $e ((∂/∂ X $) x))
 e
 ;[|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ))|]
 ;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0|]
