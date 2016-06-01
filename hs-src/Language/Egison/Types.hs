@@ -43,6 +43,7 @@ module Language.Egison.Types
     , tref
     , tensorIndices
     , tMap
+    , tMapN
     , tSum
     , tProduct
     , tContract
@@ -681,6 +682,12 @@ tMap f (Tensor ns xs js) = do
     (Tensor ns1 _ js1) -> tContract' $ Tensor (ns ++ ns1) (V.concat (V.toList (V.map (\(Tensor _ xs1 _) -> xs1) xs'))) (js ++ js1)
     _ -> return $ Tensor ns xs' js
 tMap f val = f val
+
+tMapN :: ([EgisonValue] -> EgisonM EgisonValue) -> [EgisonValue] -> EgisonM EgisonValue
+tMapN f ts@((Tensor ns xs js):_) = do
+  xs' <- mapM (\is -> mapM (tIntRef is) ts >>= f) (tensorIndices ns)
+  return $ Tensor ns (V.fromList xs') js
+tMapN f xs = f xs
 
 tSum :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
 tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do

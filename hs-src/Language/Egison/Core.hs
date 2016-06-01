@@ -507,8 +507,11 @@ evalExpr env (TensorContractExpr fnExpr tExpr) = do
   case whnf of
     Value t@(Tensor _ _ _) -> do
       ts <- tContract t
-      applyFunc env fn (Value (Tuple ts))
+      tMapN (\xs -> applyFunc' env fn (Tuple xs)) ts >>= return . Value
     _ -> return whnf
+ where
+  applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
+  applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
 
 evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
