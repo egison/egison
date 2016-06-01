@@ -1,0 +1,16 @@
+;;
+;; Vectors
+;;
+
+(define $dot-product
+  (lambda [%v1 %v2]
+    (with-symbols {i}
+      (. v1~i v2_i))))
+
+(define $V.* dot-product)
+
+(define $cross-product
+  (lambda [%a %b]
+    [|(- (* a_2 b_3)  (* a_3 b_2))
+      (- (* a_3 b_1)  (* a_1 b_3))
+      (- (* a_1 b_2)  (* a_2 b_1))|]))

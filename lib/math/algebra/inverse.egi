@@ -2,6 +2,12 @@
 ;;;;; Inverse
 ;;;;;
 
+(inverse (f x) x)
+(f~-1 x)
+
+(inverse (** x 2) x)
+;(sqrt x)
+
 ; (inverse t (* a x^2) x)
 ; t = (* a x^2)
 ; x = (sqrt (/ t a))
