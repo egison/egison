@@ -663,7 +663,7 @@ transIndex _ _ _ = throwError $ InconsistentTensorSize
 tTranspose :: [Index ScalarData] -> EgisonValue -> EgisonM EgisonValue
 tTranspose is t@(Tensor ns xs js) = do
   ns' <- transIndex js is ns
-  xs' <- mapM (transIndex is js) (tensorIndices ns') >>= mapM (flip tIntRef t)
+  xs' <- mapM (transIndex js is) (tensorIndices ns') >>= mapM (flip tIntRef t)
   return $ Tensor ns' xs' is
 
 tMap :: (EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonM EgisonValue
@@ -684,11 +684,11 @@ tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
       | otherwise -> throwError $ InconsistentTensorSize
 
 tProduct :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> EgisonValue -> EgisonValue -> EgisonM EgisonValue
-tProduct f (Tensor ns1 xs1 js1) (Tensor ns2 xs2 js2) = do
+tProduct f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
   xs' <- mapM (\is -> do let is1 = take (length ns1) is
                          let is2 = take (length ns2) (drop (length ns1) is)
-                         x1 <- tIntRef is1 (Tensor ns1 xs1 js1)
-                         x2 <- tIntRef is2 (Tensor ns2 xs2 js2)
+                         x1 <- tIntRef is1 t1
+                         x2 <- tIntRef is2 t2
                          f x1 x2) (tensorIndices (ns1 ++ ns2))
   tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
 

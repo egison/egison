@@ -83,3 +83,18 @@ Ric_#_#;[| [| 1 0 |] [| 0 (sin θ)^2 |] |]_#_#
 (define $scalar-curvature (with-symbols {j k} (. (generate-tensor 2#g~%1~%2 {2 2})~j~k Ric_j_k)))
 
 scalar-curvature;(/ 2 r^2)
+
+;;
+;; Covariant derivative
+;;
+
+(define $∇R_____
+  (with-symbols {i j k l m n}
+    (- (∂/∂ R_i_j_k_l [|x_1 x_2|]_m)
+       (. Γ~n_m_i R_n_j_k_l)
+       (. Γ~n_m_j R_i_n_k_l)
+       (. Γ~n_m_k R_i_j_n_l)
+       (. Γ~n_m_l R_i_j_k_n))))
+
+∇R_#_#_#_#_#
+;(tensor {2 2 2 2 2} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )_#_#_#_#_#
