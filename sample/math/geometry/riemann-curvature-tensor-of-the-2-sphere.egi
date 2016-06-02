@@ -80,7 +80,7 @@ Ric_#_#;[| [| 1 0 |] [| 0 (sin θ)^2 |] |]_#_#
 ;; Scalar curvature
 ;;
 
-(define $scalar-curvature (with-symbols {j k} (. (generate-tensor 2#g~%1~%2 {2 2})~j~k Ric_j_k)))
+(define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
 
 scalar-curvature;(/ 2 r^2)
 

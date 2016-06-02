@@ -52,7 +52,6 @@ module Language.Egison.Types
     , tContract'
     , tConcat
     , tConcat'
-    , getTensor
     -- * Scalar
     , symbolScalarData
     , mathExprToEgison
@@ -411,6 +410,17 @@ instance HasTensor EgisonValue where
   fromTensor t@(Tensor _ _ _) = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
+  toTensor x = return $ Scalar x
+
+instance HasTensor WHNFData where
+  tensorElems (Intermediate (ITensor (Tensor _ xs _))) = xs
+  fromTensor (Tensor [] xs []) =
+    if V.length xs == 1
+      then return $ V.head xs
+      else throwError $ InconsistentTensorIndex
+  fromTensor t@(Tensor _ _ _) = return $ Intermediate $ ITensor t
+  fromTensor (Scalar x) = return x
+  toTensor (Intermediate (ITensor t)) = return t
   toTensor x = return $ Scalar x
 
 --
@@ -803,11 +813,6 @@ getScalar :: (Tensor a) -> EgisonM a
 getScalar (Scalar x) = return x
 getScalar _ = throwError $ strMsg "Inconsitent Tensor order"
 
-getTensor :: EgisonValue -> EgisonM (Tensor EgisonValue)
-getTensor (TensorData t) = return t
-getTensor _ = throwError $ strMsg "inconsistent Tensor order"
-
-
 findPairs :: (a -> a -> Bool) -> [a] -> [(Int, Int)]
 findPairs p xs = reverse $ findPairs' 0 p xs
 findPairs' :: Int -> (a -> a -> Bool) -> [a] -> [(Int, Int)]
@@ -1074,7 +1079,7 @@ data Intermediate =
   | IIntHash (HashMap Integer ObjectRef)
   | ICharHash (HashMap Char ObjectRef)
   | IStrHash (HashMap Text ObjectRef)
-  | ITensor (Tensor ObjectRef)
+  | ITensor (Tensor WHNFData)
 
 data Inner =
     IElement ObjectRef
@@ -1089,6 +1094,7 @@ instance Show WHNFData where
   show (Intermediate (IIntHash _)) = "{|...|}" 
   show (Intermediate (ICharHash _)) = "{|...|}" 
   show (Intermediate (IStrHash _)) = "{|...|}" 
+  show (Intermediate (ITensor _)) = "[|...|]" 
 
 instance Show Object where
   show (Thunk _) = "#<thunk>"

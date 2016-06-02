@@ -200,25 +200,25 @@ evalExpr env (ArrayExpr exprs) = do
   return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env (VectorExpr exprs) = do
-  vals <- mapM (evalExprDeep env) exprs
-  case vals of
-    ((TensorData (Tensor _ _ _)):_) -> do
-      mapM getTensor vals >>= tConcat' >>= fromTensor >>= return . Value
-    [val] -> return $ Value val
+  whnfs <- mapM (evalExpr env) exprs
+  case whnfs of
+    [whnf] -> return $ whnf
+    ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
+      mapM toTensor whnfs >>= tConcat' >>= fromTensor
     _ -> do
-      fromTensor (Tensor [fromIntegral (length vals)] (V.fromList vals) []) >>= return . Value 
+      fromTensor (Tensor [fromIntegral (length whnfs)] (V.fromList whnfs) [])
 
 evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
   xsWhnf <- evalExpr env xsExpr
-  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRefDeep
+  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
   supWhnf <- evalExpr env supExpr
   sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRef >>= mapM extractScalar'
   subWhnf <- evalExpr env subExpr
   sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRef >>= mapM extractScalar'
   if product ns == toInteger (length xs)
-    then fromTensor (initTensor ns xs sup sub) >>= return . Value
+    then fromTensor (initTensor ns xs sup sub)
     else throwError $ InconsistentTensorSize
 
 evalExpr env (HashExpr assocs) = do
@@ -270,6 +270,8 @@ evalExpr env (IndexedExpr expr indices) = do
       return $ tensor
     (Value (TensorData (Tensor ns xs _))) -> do
       tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+    (Intermediate (ITensor (Tensor ns xs _))) -> do
+      tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
     _ -> refArray tensor (map (\j -> case j of
                                        Superscript k -> ScalarData k
                                        Subscript k -> ScalarData k) js)
@@ -329,10 +331,13 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   symId <- fresh
   syms <- mapM (\var -> (newEvaluatedObjectRef (Value (symbolScalarData symId var)))) vars
   let bindings = zip vars syms
-  ret <- evalExpr (extendEnv env bindings) expr
-  case ret of
+  whnf <- evalExpr (extendEnv env bindings) expr
+  case whnf of
     (Value val) -> removeVarsFromIndices symId val >>= return . Value
-    _ -> return ret
+    (Intermediate (ITensor (Tensor ns xs js))) -> do
+      js' <- removeVars symId js
+      return (Intermediate (ITensor (Tensor ns xs js')))
+    _ -> return whnf
  where
   removeVarsFromIndices :: String -> EgisonValue -> EgisonM EgisonValue
   removeVarsFromIndices symId (TensorData (Tensor ns xs js)) = do
@@ -449,6 +454,8 @@ evalExpr env (ApplyExpr func arg) = do
   case func of
     Value (TensorData t@(Tensor ns fs js)) -> do
       tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value
+    Intermediate (ITensor t@(Tensor ns fs js)) -> do
+      tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
@@ -497,16 +504,20 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size'' <- collectionToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
-  xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms)) >>= evalWHNF) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+  xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
   case (ns, xs) of
-    ([1], x:[]) -> return $ Value x
-    _ -> fromTensor (Tensor ns (V.fromList xs) []) >>= return . Value 
+    ([1], x:[]) -> return $ x
+    _ -> fromTensor (Tensor ns (V.fromList xs) [])
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
   whnf <- evalExpr env tExpr
   case whnf of
-    Value (TensorData t@(Tensor _ _ _)) -> do
+    (Intermediate (ITensor t@(Tensor _ _ _))) -> do
+      ts <- tContract t
+      tMapN (\xs -> do xs' <- mapM newEvaluatedObjectRef xs
+                       applyFunc env fn (Intermediate (ITuple xs'))) ts >>= fromTensor
+    (Value (TensorData t@(Tensor _ _ _))) -> do
       ts <- tContract t
       tMapN (\xs -> applyFunc' env fn (Tuple xs)) ts >>= fromTensor >>= return . Value
     _ -> return whnf
@@ -518,6 +529,8 @@ evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
   whnf <- evalExpr env tExpr
   case whnf of
+    Intermediate (ITensor (Tensor ns xs js)) -> do
+      tMap (applyFunc env fn) (Tensor ns xs js) >>= fromTensor
     Value (TensorData (Tensor ns xs js)) -> do
       tMap (applyFunc' env fn) (Tensor ns xs js) >>= fromTensor >>= return . Value
     _ -> applyFunc env fn whnf
@@ -574,6 +587,9 @@ evalWHNF (Intermediate (IStrHash refs)) = do
   return $ StrHash refs'
 evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
 evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
+evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
+  vals <- mapM evalWHNF whnfs
+  return $ TensorData $ Tensor ns vals js
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
