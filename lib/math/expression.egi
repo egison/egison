@@ -42,6 +42,11 @@
              <Plus {<Term 1 {}> @{}}>> 
         {[v (map to-math-expr' mexprs)]}]
        [_ {}]}]
+     [<quote $> [math-expr]
+      {[<Div <Plus {<Term 1 {[<Quote $mexpr> 1] @{}}> @{}}>
+             <Plus {<Term 1 {}> @{}}>>
+        {(to-math-expr' mexpr)}]
+       [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
      }))

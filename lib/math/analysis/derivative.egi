@@ -7,7 +7,9 @@
 (define $∂/∂
   (lambda [$f $x]
     (match f math-expr
-      {; symbol
+      {; quote
+       [<quote $g> (∂/∂ g x)]
+       ; symbol
        [,x 1]
        [<symbol _ _> 0]
        ; function application
