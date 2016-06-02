@@ -106,5 +106,5 @@ scalar-curvature;(/ (* 2 (cos θ)) (* a '(+ (* a (cos θ)) b)))
 ;; Second Bianchi identity
 ;;
 
-(with-symbols {k l m} (+ ∇R_#_#_k_l_m ∇R_#_#_l_m_k ∇R_#_#_m_k_l))
+(with-symbols {i j k l m} (+ ∇R_i_j_k_l_m ∇R_i_j_l_m_k ∇R_i_j_m_k_l))
 ;(tensor {2 2 2 2 2} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )
