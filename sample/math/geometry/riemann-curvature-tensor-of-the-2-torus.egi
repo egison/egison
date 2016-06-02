@@ -4,24 +4,20 @@
 
 (define $x [|θ φ|])
 
-(define $X [|(* (+ (* a (cos θ)) b) (cos φ)) ; = x
-             (* (+ (* a (cos θ)) b) (sin φ)) ; = y
-             (* a (sin θ))                   ; = z
+(define $X [|(* '(+ (* a (cos θ)) b) (cos φ)) ; = x
+             (* '(+ (* a (cos θ)) b) (sin φ)) ; = y
+             (* a (sin θ))                    ; = z
              |])
 
 ;;
 ;; Local coordinates
 ;;
 
-;(define $e ((∂/∂ X~# $) x~#))
-;e
+(define $e ((∂/∂ X~# $) x~#))
+e
 ;[|[| (* -1 a (sin θ) (cos φ)) (* -1 a (sin θ) (sin φ)) (* a (cos θ)) |]
-;  [| (+ (* -1 a (cos θ) (sin φ)) (* -1 b (sin φ))) (+ (* a (cos θ) (cos φ)) (* b (cos φ))) 0 |]
-;  |]
-(define $e 
-  [|[| (* -1 a (sin θ) (cos φ)) (* -1 a (sin θ) (sin φ)) (* a (cos θ)) |]
-    [| (* -1 '(+ (* a (cos θ)) b) (sin φ)) (* '(+ (* a (cos θ)) b) (cos φ)) 0 |]
-    |])
+;  [| (* -1 '(+ (* a (cos θ)) b) (sin φ)) (* '(+ (* a (cos θ)) b) (cos φ)) 0 |]
+;  |]~#~#
 
 ;;
 ;; Metric tensor
