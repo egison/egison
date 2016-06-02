@@ -562,15 +562,11 @@ evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
       ys <- V.mapM (\x -> (applyFunc'' env fn whnf x)) xs
       return $ Intermediate (ITensor (Tensor ns ys js))
     (Value (TensorData (Tensor ns xs js)), whnf) -> do
-      xs' <- V.mapM (newEvaluatedObjectRef . Value) xs
-      yRef <- newEvaluatedObjectRef whnf
-      ys <- V.mapM (\x -> applyFunc env fn (Intermediate (ITuple [x, yRef]))) xs'
-      return $ Intermediate $ ITensor $ Tensor ns ys js
+      ys <- V.mapM (\x -> (applyFunc'' env fn (Value x) whnf)) xs
+      return $ Intermediate (ITensor (Tensor ns ys js))
     (whnf, Value (TensorData (Tensor ns xs js))) -> do
-      xs' <- V.mapM (newEvaluatedObjectRef . Value) xs
-      yRef <- newEvaluatedObjectRef whnf
-      ys <- V.mapM (\x -> applyFunc env fn (Intermediate (ITuple [x, yRef]))) xs'
-      return $ Intermediate $ ITensor $ Tensor ns ys js
+      ys <- V.mapM (\x -> (applyFunc'' env fn whnf (Value x))) xs
+      return $ Intermediate (ITensor (Tensor ns ys js))
     _ -> applyFunc'' env fn whnf1 whnf2
  where
   applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
