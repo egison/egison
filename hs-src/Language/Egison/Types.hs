@@ -41,10 +41,10 @@ module Language.Egison.Types
     , tSize
     , tToList
     , tIndex
-    , tIntRef
     , tref
     , enumTensorIndices
     , tMap
+    , tMap2
     , tMapN
     , tSum
     , tProduct
@@ -162,7 +162,7 @@ import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import Data.List (intercalate, sort, sortBy, findIndex, splitAt)
+import Data.List (intercalate, sort, sortBy, findIndex, splitAt, (\\), elem, deleteBy)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -251,6 +251,7 @@ data EgisonExpr =
   | TensorExpr EgisonExpr EgisonExpr EgisonExpr EgisonExpr
   | TensorContractExpr EgisonExpr EgisonExpr
   | TensorMapExpr EgisonExpr EgisonExpr
+  | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
 
   | SomethingExpr
   | UndefinedExpr
@@ -648,15 +649,19 @@ initTensor ns xs sup sub = Tensor ns (V.fromList xs) ((map Superscript sup) ++ (
 
 tSize :: (Tensor a) -> [Integer]
 tSize (Tensor ns _ _) = ns
+tSize (Scalar _) = []
 
 tToList :: (Tensor a) -> [a]
 tToList (Tensor _ xs _) = V.toList xs
+tToList (Scalar x) = [x]
 
 tToVector :: (Tensor a) -> V.Vector a
 tToVector (Tensor _ xs _) = xs
+tToVector (Scalar x) = V.fromList [x]
 
 tIndex :: (Tensor a) -> [Index ScalarData]
 tIndex (Tensor _ _ js) = js
+tIndex (Scalar _) = []
 
 tIntRef' :: HasTensor a => Integer -> (Tensor a) -> EgisonM a
 tIntRef' i (Tensor [_] xs _) = fromTensor $ Scalar $ xs V.! (fromIntegral (i - 1))
@@ -668,11 +673,11 @@ tIntRef' i (Tensor (n:ns) xs js) =
    else throwError $ TensorIndexOutOfBounds i n
 tIntRef' i _ = throwError $ strMsg "More indices than the order of the tensor"
  
-tIntRef :: HasTensor a => [Integer] -> (Tensor a) -> EgisonM a
+tIntRef :: HasTensor a => [Integer] -> (Tensor a) -> EgisonM (Tensor a)
 tIntRef [] (Tensor [] xs _)
-  | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
+  | V.length xs == 1 = return $ Scalar (xs V.! 0)
   | otherwise = throwError $ EgisonBug "sevaral elements in scalar tensor"
-tIntRef [] t = fromTensor t
+tIntRef [] t = return t
 tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms 
 
 tref :: HasTensor a => [Index ScalarData] -> (Tensor a) -> EgisonM a
@@ -706,7 +711,7 @@ transIndex _ _ _ = throwError $ InconsistentTensorSize
 tTranspose :: HasTensor a => [Index ScalarData] -> (Tensor a) -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns xs js) = do
   ns' <- transIndex js is ns
-  xs' <- mapM (transIndex js is) (enumTensorIndices ns') >>= mapM (flip tIntRef t) >>= return . V.fromList
+  xs' <- mapM (transIndex js is) (enumTensorIndices ns') >>= mapM (flip tIntRef t) >>= mapM fromTensor >>= return . V.fromList
   return $ Tensor ns' xs' is
 
 tMap :: HasTensor a => (a -> EgisonM a) -> (Tensor a) -> EgisonM (Tensor a)
@@ -721,9 +726,34 @@ tMap f (Scalar x) = f x >>= return . Scalar
 
 tMapN :: HasTensor a => ([a] -> EgisonM a) -> [Tensor a] -> EgisonM (Tensor a)
 tMapN f ts@((Tensor ns xs js):_) = do
-  xs' <- mapM (\is -> mapM (tIntRef is) ts >>= f) (enumTensorIndices ns)
+  xs' <- mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
   return $ Tensor ns (V.fromList xs') js
-tMapN f xs = mapM getScalar xs >>= f >>= return . Scalar
+tMapN f xs = mapM fromTensor xs >>= f >>= return . Scalar
+
+tMap2 :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
+tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
+  let (cjs, tjs1, tjs2) = h js1 js2
+  t1' <- tTranspose (cjs ++ tjs1) t1
+  t2' <- tTranspose (cjs ++ tjs2) t2
+  let cns = take (length cjs) (tSize t1')
+  rts1 <- mapM (flip tIntRef t1') (enumTensorIndices cns)
+  rts2 <- mapM (flip tIntRef t2') (enumTensorIndices cns)
+  rts' <- mapM (\(t1, t2) -> tProduct f t1 t2) (zip rts1 rts2)
+  let ret = Tensor (cns ++ (tSize (head rts'))) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
+  tTranspose (uniq (js1 ++ js2)) ret
+ where
+  h :: [Index ScalarData] -> [Index ScalarData] -> ([Index ScalarData], [Index ScalarData], [Index ScalarData])
+  h js1 js2 = let cjs = filter (\j -> elem j js2) js1 in
+                (cjs, js1 \\ cjs, js2 \\ cjs)
+  uniq :: [Index ScalarData] -> [Index ScalarData]
+  uniq [] = []
+  uniq (x:xs) = x:(uniq (deleteBy p x xs))
+  p (Superscript i) (Superscript j) = i == j
+  p (Subscript i) (Subscript j) = i == j
+  p _ _ = False
+tMap2 f t@(Tensor _ _ _) (Scalar x) = tMap (flip f x) t
+tMap2 f (Scalar x) t@(Tensor _ _ _) = tMap (f x) t
+tMap2 f (Scalar x1) (Scalar x2) = f x1 x2 >>= return . Scalar
 
 tSum :: HasTensor a => (a -> a -> EgisonM a) -> (Tensor a) -> (Tensor a) -> EgisonM (Tensor a)
 tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
@@ -738,10 +768,17 @@ tProduct :: HasTensor a => (a -> a -> EgisonM a) -> (Tensor a) -> (Tensor a) -> 
 tProduct f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
   xs' <- mapM (\is -> do let is1 = take (length ns1) is
                          let is2 = take (length ns2) (drop (length ns1) is)
-                         x1 <- tIntRef is1 t1
-                         x2 <- tIntRef is2 t2
+                         x1 <- tIntRef is1 t1 >>= fromTensor
+                         x2 <- tIntRef is2 t2 >>= fromTensor
                          f x1 x2) (enumTensorIndices (ns1 ++ ns2)) >>= return . V.fromList
   tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
+tProduct f (Scalar x) (Tensor ns xs js) = do
+  xs' <- mapM (f x) xs
+  return $ Tensor ns xs' js
+tProduct f (Tensor ns xs js) (Scalar x) = do
+  xs' <- mapM (flip f x) xs
+  return $ Tensor ns xs' js
+tProduct f (Scalar x1) (Scalar x2) = f x1 x2 >>= return . Scalar
 
 tContract :: HasTensor a => (Tensor a) -> EgisonM [Tensor a]
 tContract t@(Tensor ns xs js) = do

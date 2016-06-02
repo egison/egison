@@ -177,14 +177,21 @@ desugar (TensorExpr nsExpr xsExpr supExpr subExpr) = do
 
 desugar (LambdaExpr names expr) = do
   let (rtnames, rhnames) = span (\name -> case name of
-                                          TensorArg _ -> True
-                                          ScalarArg _ -> False) (reverse names)
+                                            TensorArg _ -> True
+                                            ScalarArg _ -> False) (reverse names)
   case rhnames of
     [] -> do expr' <- desugar expr
              return $ LambdaExpr names expr'
-    (ScalarArg rhname:rhnames') ->
-      desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
-                           (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (VarExpr rhname))
+    (ScalarArg rhname:rhnames') -> do
+      let (rtnames2, rhnames2) = span (\name -> case name of
+                                                TensorArg _ -> True
+                                                ScalarArg _ -> False) rhnames'
+      case rhnames2 of
+        [] -> desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
+                          (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (VarExpr rhname))
+        (ScalarArg rhname2:rhnames2') ->
+          desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2] ++ rtnames2 ++ [TensorArg rhname] ++ reverse rtnames)
+                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (VarExpr rhname2) (VarExpr rhname))
 
 desugar (MemoizedLambdaExpr names expr) = do
   expr' <- desugar expr
@@ -286,6 +293,12 @@ desugar (TensorMapExpr fnExpr tExpr) = do
   fnExpr' <- desugar fnExpr
   tExpr' <- desugar tExpr
   return $ TensorMapExpr fnExpr' tExpr'
+
+desugar (TensorMap2Expr fnExpr t1Expr t2Expr) = do
+  fnExpr' <- desugar fnExpr
+  t1Expr' <- desugar t1Expr
+  t2Expr' <- desugar t2Expr
+  return $ TensorMap2Expr fnExpr' t1Expr' t2Expr'
 
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0

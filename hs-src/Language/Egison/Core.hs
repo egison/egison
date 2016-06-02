@@ -529,14 +529,57 @@ evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
   whnf <- evalExpr env tExpr
   case whnf of
-    Intermediate (ITensor (Tensor ns xs js)) -> do
-      tMap (applyFunc env fn) (Tensor ns xs js) >>= fromTensor
-    Value (TensorData (Tensor ns xs js)) -> do
-      tMap (applyFunc' env fn) (Tensor ns xs js) >>= fromTensor >>= return . Value
+    Intermediate (ITensor t) -> do
+      tMap (applyFunc env fn) t >>= fromTensor
+    Value (TensorData t) -> do
+      tMap (applyFunc' env fn) t >>= fromTensor >>= return . Value
     _ -> applyFunc env fn whnf
  where
   applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
   applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
+
+evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
+  fn <- evalExpr env fnExpr
+  whnf1 <- evalExpr env t1Expr
+  whnf2 <- evalExpr env t2Expr
+  case (whnf1, whnf2) of
+    -- both of arguments are tensors
+    (Intermediate (ITensor t1), Intermediate (ITensor t2)) -> do
+      tMap2 (applyFunc'' env fn) t1 t2 >>= fromTensor
+    (Intermediate (ITensor t), Value (TensorData (Tensor ns xs js))) -> do
+      let xs' = V.map Value xs
+      tMap2 (applyFunc'' env fn) t (Tensor ns xs' js) >>= fromTensor
+    (Value (TensorData (Tensor ns xs js)), Intermediate (ITensor t)) -> do
+      let xs' = V.map Value xs
+      tMap2 (applyFunc'' env fn) (Tensor ns xs' js) t >>= fromTensor
+    (Value (TensorData t1), Value (TensorData t2)) -> do
+      tMap2 (\x y -> applyFunc' env fn (Tuple [x, y])) t1 t2 >>= fromTensor >>= return . Value
+    -- an argument is scalar
+    (Intermediate (ITensor (Tensor ns xs js)), whnf) -> do
+      ys <- V.mapM (\x -> (applyFunc'' env fn x whnf)) xs
+      return $ Intermediate (ITensor (Tensor ns ys js))
+    (whnf, Intermediate (ITensor (Tensor ns xs js))) -> do
+      ys <- V.mapM (\x -> (applyFunc'' env fn whnf x)) xs
+      return $ Intermediate (ITensor (Tensor ns ys js))
+    (Value (TensorData (Tensor ns xs js)), whnf) -> do
+      xs' <- V.mapM (newEvaluatedObjectRef . Value) xs
+      yRef <- newEvaluatedObjectRef whnf
+      ys <- V.mapM (\x -> applyFunc env fn (Intermediate (ITuple [x, yRef]))) xs'
+      return $ Intermediate $ ITensor $ Tensor ns ys js
+    (whnf, Value (TensorData (Tensor ns xs js))) -> do
+      xs' <- V.mapM (newEvaluatedObjectRef . Value) xs
+      yRef <- newEvaluatedObjectRef whnf
+      ys <- V.mapM (\x -> applyFunc env fn (Intermediate (ITuple [x, yRef]))) xs'
+      return $ Intermediate $ ITensor $ Tensor ns ys js
+    _ -> applyFunc'' env fn whnf1 whnf2
+ where
+  applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
+  applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
+  applyFunc'' :: Env -> WHNFData -> WHNFData -> WHNFData -> EgisonM WHNFData
+  applyFunc'' env fn x y = do
+    xRef <- newEvaluatedObjectRef x
+    yRef <- newEvaluatedObjectRef y
+    applyFunc env fn (Intermediate (ITuple [xRef, yRef]))
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
