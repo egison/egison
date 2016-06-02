@@ -69,9 +69,9 @@ oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 oneArg f = \arg -> do
   arg' <- evalWHNF arg
   case arg' of
-    (Tensor ns ds js) -> do
+    (TensorData (Tensor ns ds js)) -> do
       ds' <- mapM (\d -> f d) ds
-      return (Value (Tensor ns ds' js))
+      fromTensor (Tensor ns ds' js) >>= return . Value 
     _ -> f arg' >>= return . Value
 
 {-# INLINE oneArg' #-}
@@ -86,14 +86,14 @@ twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 twoArgs f = \args -> do
   args' <- tupleToList args
   case args' of 
-    [t1@(Tensor _ _ _), t2@(Tensor _ _ _)] -> do
-      tProduct f t1 t2 >>= return . Value
-    [(Tensor ns ds js), val] -> do
+    [(TensorData t1@(Tensor _ _ _)), (TensorData t2@(Tensor _ _ _))] -> do
+      tProduct f t1 t2 >>= fromTensor >>= return . Value
+    [(TensorData(Tensor ns ds js)), val] -> do
       ds' <- mapM (\d -> f d val) ds
-      return (Value (Tensor ns ds' js))
-    [val, (Tensor ns ds js)] -> do
+      fromTensor (Tensor ns ds' js) >>= return . Value 
+    [val, (TensorData (Tensor ns ds js))] -> do
       ds' <- mapM (\d -> f val d) ds
-      return (Value (Tensor ns ds' js))
+      fromTensor (Tensor ns ds' js) >>= return . Value 
     [val, val'] -> f val val' >>= return . Value
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
@@ -433,13 +433,13 @@ imaginaryPart =  oneArg $ imaginaryPart'
 tensorSize :: PrimitiveFunc
 tensorSize = oneArg' $ tensorSize'
  where
-  tensorSize' (Tensor ns _ _) = return . Collection . Sq.fromList $ map toEgison ns
+  tensorSize' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
   tensorSize' _ = return . Collection $ Sq.fromList $ [toEgison (1 :: Integer)]
 
 tensorToList :: PrimitiveFunc
 tensorToList = oneArg' $ tensorToList'
  where
-  tensorToList' (Tensor _ xs _) = return . Collection . Sq.fromList $ V.toList xs
+  tensorToList' (TensorData (Tensor _ xs _)) = return . Collection . Sq.fromList $ V.toList xs
   tensorToList' x = return . Collection $ Sq.fromList $ [x]
 
 --
