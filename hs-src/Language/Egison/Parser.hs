@@ -137,7 +137,7 @@ defineExpr :: Parser EgisonTopExpr
 defineExpr = keywordDefine >> Define <$> varNameWithIndexType <*> expr
 
 redefineExpr :: Parser EgisonTopExpr
-redefineExpr = keywordRedefine >> Redefine <$> varNameWithIndexType <*> expr
+redefineExpr = (keywordRedefine <|> keywordSet) >> Redefine <$> varNameWithIndexType <*> expr
 
 testExpr :: Parser EgisonTopExpr
 testExpr = keywordTest >> Test <$> expr
@@ -685,6 +685,7 @@ reservedKeywords :: [String]
 reservedKeywords = 
   [ "define"
   , "redefine"
+  , "set!"
   , "test"
   , "execute"
   , "load-file"
@@ -750,6 +751,7 @@ reservedOp = P.reservedOp lexer
 
 keywordDefine               = reserved "define"
 keywordRedefine             = reserved "redefine"
+keywordSet                  = reserved "set!"
 keywordTest                 = reserved "test"
 keywordExecute              = reserved "execute"
 keywordLoadFile             = reserved "load-file"

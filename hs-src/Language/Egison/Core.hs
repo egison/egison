@@ -111,6 +111,7 @@ evalTopExprsTestOnly env exprs = do
         exprs' <- loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
       Test _ -> collectDefs exprs bindings (expr : rest)
+      Redefine _ _ -> collectDefs exprs bindings (expr : rest)
       _ -> collectDefs exprs bindings rest
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
