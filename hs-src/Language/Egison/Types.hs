@@ -178,6 +178,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 data EgisonTopExpr =
     Define Var EgisonExpr
+  | Redefine Var EgisonExpr
   | Test EgisonExpr
   | Execute EgisonExpr
     -- temporary : we will replace load to import and export
