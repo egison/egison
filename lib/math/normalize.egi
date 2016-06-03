@@ -20,49 +20,100 @@
   (lambda [$mexpr]
     (match mexpr math-expr
       {[(& ?rational? $mexpr) mexpr]
-       [$mexpr (apply-all-rewrite-rules mexpr)]})))
+       [$mexpr (apply-rewrite-rules mexpr)]})))
 
-(define $apply-all-rewrite-rules
-  (compose
-           (map-terms rewrite-rule-i $)
-           (map-terms rewrite-rule-w $)
-           (map-terms rewrite-rule-rtu $)
-           (map-terms rewrite-rule-sqrt $)
-           (map-terms rewrite-rule-rt $)
-           (map-polys rewrite-rule-w-plus $)
-           (map-polys rewrite-rule-rtu-plus $)
-           (map-polys rewrite-rule-cos-sin-plus $)
-           ))
+(define $apply-rewrite-rules
+  ((capply compose rewrite-rules) $))
 
-(define $rewrite-rule-i
+(define $rewrite-rules
+  {
+   rewrite-rule-for-rtu
+   rewrite-rule-for-rt
+   rewrite-rule-for-cos-and-sin
+   })
+
+;;
+;; i
+;;
+
+(define $rewrite-rule-for-i (map-terms rewrite-rule-for-i-term $))
+
+(define $rewrite-rule-for-i-term
   (lambda [$term]
     (match term math-expr
-      {
-       [<mult $a <ncons (& ?even? $k) ,i $r>>
+      {[<mult $a <ncons (& ?even? $k) ,i $r>>
         (*' a (**' -1 (quotient k 2)) r)]
        [<mult $a <ncons $k ,i $r>>
         (*' a (**' -1 (quotient k 2)) i r)]
        [_ term]})))
 
-(define $rewrite-rule-w
+;;
+;; w
+;;
+
+(define $rewrite-rule-for-w
+  (compose (map-terms rewrite-rule-for-w-term $)
+           (map-polys rewrite-rule-for-w-poly $)))
+
+(define $rewrite-rule-for-w-term
   (lambda [$term]
     (match term math-expr
       {[<mult $a <ncons (& ?(gte? $ 3) $k) ,w $r>>
         (*' a (**' w (remainder k 3)) r)]
        [_ term]})))
 
-(define $rewrite-rule-rtu
+(define $rewrite-rule-for-w-poly
+  (lambda [$poly]
+    (match poly math-expr
+      {[<plus <cons <mult $a <ncons ,2 ,w $mr>>
+                    <cons <mult $b <ncons ,1 ,w ,mr>>
+                          $pr>>>
+        (rewrite-rule-for-w-poly (+' pr
+                                    (*' -1 a mr)
+                                    (*' (- b a) w mr)
+                                    ))]
+       [_ poly]})))
+
+;;
+;; rtu (include i and w)
+;;
+
+(define $rewrite-rule-for-rtu
+  (compose (map-terms rewrite-rule-for-i-term $)
+           (map-terms rewrite-rule-for-w-term $)
+           (map-terms rewrite-rule-for-rtu-term $)
+           (map-polys rewrite-rule-for-w-poly $)
+           (map-polys rewrite-rule-for-rtu-poly $)
+           ))
+
+(define $rewrite-rule-for-rtu-term
   (lambda [$term]
     (match term math-expr
       {[<mult $a <ncons $k (,rtu (& ?(gte? k $) $n)) $r>>
         (*' a (**' (rtu n) (remainder k n)) r)]
        [_ term]})))
 
-(define $rewrite-rule-sqrt
+(define $rewrite-rule-for-rtu-poly
+  (lambda [$poly]
+    (match poly math-expr
+      {[<plus <cons <mult $a <ncons $k (,rtu (& ,(+ k 1) $n)) $mr>>
+                    (loop $i [2 ,(- n 1)]
+                      <cons <mult ,a <ncons ,(- n i) ,(rtu n) ,mr>> ...>
+                      $pr)>>
+        (rewrite-rule-for-rtu-poly (+' pr (*' -1 a mr)))]
+       [_ poly]})))
+
+;;
+;; sqrt
+;;
+
+(define $rewrite-rule-for-sqrt (map-terms rewrite-rule-for-sqrt-term $))
+
+(define $rewrite-rule-for-sqrt-term
   (lambda [$term]
     (match term math-expr
       {[<mult $a <cons (,sqrt $x) <cons (,sqrt ,x) $r>>>
-        (rewrite-rule-sqrt (*' a x r))]
+        (rewrite-rule-for-sqrt-term (*' a x r))]
        [<mult $a <cons (,sqrt (& ?term? $x)) <cons (,sqrt (& ?term? $y)) $r>>>
         (let* {[$d (gcd x y)]
                [[$a1 $x1] (from-monomial (/ x d))]
@@ -72,52 +123,44 @@
              r))]
        [_ term]})))
 
-(define $rewrite-rule-rt
+;;
+;; rt (include sqrt)
+;;
+
+(define $rewrite-rule-for-rt
+  (compose (map-terms rewrite-rule-for-sqrt-term $)
+           (map-terms rewrite-rule-for-rt-term $)))
+
+(define $rewrite-rule-for-rt-term
   (lambda [$term]
     (match term math-expr
       {[<mult $a <ncons $k (,rt (& ?(gte? k $) $n) $x) $r>>
         (*' a (**' x (quotient k n)) (**' (rt n x) (remainder k n)) r)]
        [_ term]})))
 
-(define $rewrite-rule-w-plus
-  (lambda [$poly]
-    (match poly math-expr
-      {[<plus <cons <mult $a <ncons ,2 ,w $mr>>
-                    <cons <mult $b <ncons ,1 ,w ,mr>>
-                          $pr>>>
-        (rewrite-rule-w-plus (+' pr
-                                 (*' -1 a mr)
-                                 (*' (- b a) w mr)
-                                 ))]
-       [_ poly]})))
+;;
+;; cos, sin
+;;
 
-(define $rewrite-rule-rtu-plus
-  (lambda [$poly]
-    (match poly math-expr
-      {[<plus <cons <mult $a <ncons $k (,rtu (& ,(+ k 1) $n)) $mr>>
-                    (loop $i [2 ,(- n 1)]
-                      <cons <mult ,a <ncons ,(- n i) ,(rtu n) ,mr>> ...>
-                      $pr)>>
-        (rewrite-rule-rtu-plus (+' pr (*' -1 a mr)))]
-       [_ poly]})))
+(define $rewrite-rule-for-cos-and-sin (map-polys rewrite-rule-for-cos-and-sin-poly $))
 
-(define $rewrite-rule-cos-sin-plus
+(define $rewrite-rule-for-cos-and-sin-poly
   (lambda [$poly]
     (match poly math-expr
       {[<plus <cons <mult $a <ncons ,2 (,cos $θ) $mr>>
                     <cons <mult ,a <ncons ,2 ,(sin θ) ,mr>>
                           $pr>>>
-        (rewrite-rule-cos-sin-plus (+' pr
-                                 (*' a mr)
-                                ))]
+        (rewrite-rule-for-cos-and-sin-poly (+' pr
+                                              (*' a mr)
+                                              ))]
        [<plus <cons <mult $a $mr>
                     <cons <mult ,(* -1 a) <ncons ,2 (,sin $θ) ,mr>>
                           $pr>>>
-        (rewrite-rule-cos-sin-plus (+' (*' a (cos θ)^2 mr)
-                                 ))]
+        (rewrite-rule-for-cos-and-sin-poly (+' (*' a (cos θ)^2 mr)
+                                              ))]
        [<plus <cons <mult $a $mr>
                     <cons <mult ,(* -1 a) <ncons ,2 (,cos $θ) ,mr>>
                           $pr>>>
-        (rewrite-rule-cos-sin-plus (+' (*' a (sin θ)^2)
-                                 ))]
+        (rewrite-rule-for-cos-and-sin-poly (+' (*' a (sin θ)^2)
+                                              ))]
        [_ poly]})))
