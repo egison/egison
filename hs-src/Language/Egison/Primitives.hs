@@ -182,8 +182,8 @@ primitives = [ ("b.+", plus)
              , ("b.acosh", floatUnaryOp acosh)
              , ("b.atanh", floatUnaryOp atanh)
 
-             , ("tensor-size", tensorSize)
-             , ("tensor-to-list", tensorToList)
+             , ("tensor-size", tensorSize')
+             , ("tensor-to-list", tensorToList')
 
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
@@ -430,17 +430,17 @@ imaginaryPart =  oneArg $ imaginaryPart'
 -- Tensor
 --
 
-tensorSize :: PrimitiveFunc
-tensorSize = oneArg' $ tensorSize'
+tensorSize' :: PrimitiveFunc
+tensorSize' = oneArg' $ tensorSize''
  where
-  tensorSize' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
-  tensorSize' _ = return . Collection $ Sq.fromList $ [toEgison (1 :: Integer)]
+  tensorSize'' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
+  tensorSize'' _ = return . Collection $ Sq.fromList $ [toEgison (1 :: Integer)]
 
-tensorToList :: PrimitiveFunc
-tensorToList = oneArg' $ tensorToList'
+tensorToList' :: PrimitiveFunc
+tensorToList' = oneArg' $ tensorToList''
  where
-  tensorToList' (TensorData (Tensor _ xs _)) = return . Collection . Sq.fromList $ V.toList xs
-  tensorToList' x = return . Collection $ Sq.fromList $ [x]
+  tensorToList'' (TensorData (Tensor _ xs _)) = return . Collection . Sq.fromList $ V.toList xs
+  tensorToList'' x = return . Collection $ Sq.fromList $ [x]
 
 --
 -- Transform
