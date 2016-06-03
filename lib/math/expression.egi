@@ -101,7 +101,13 @@
 (define $symbol?
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<symbol _> #t]
+      {[<symbol _ _> #t]
+       [_ #f]})))
+
+(define $tensor-symbol?
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[<symbol _ <join _ <cons (| <sub ?symbol?> <sup ?symbol?>) _>>> #t]
        [_ #f]})))
 
 (define $apply?

@@ -34,14 +34,11 @@
   (lambda [$x1 $x2]
     (reduce-fraction (math-normalize (b./' x1 x2)))))
 
-(define $b..' (lambda [%t1 %t2] (contract +' (*' t1 t2))))
-(define $b.. (lambda [%t1 %t2] (contract + (* t1 t2))))
-
 (define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))
 (define $- (cambda $xs (foldl b.- (car xs) (cdr xs))))
 (define $* (cambda $xs (foldl b.* (car xs) (cdr xs))))
 (define $/ b./)
-(define $. (cambda $xs (foldl b.. (car xs) (cdr xs))))
+
 
 (define $reduce-fraction
   (lambda [$mexpr]

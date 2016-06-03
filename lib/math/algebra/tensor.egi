@@ -16,3 +16,11 @@
   (lambda [$ns]
     (generate-tensor 1#0 ns)))
 
+(define $b..' (lambda [%t1 %t2] (contract +' (*' t1 t2))))
+(define $b.. (lambda [%t1 %t2] (contract + (* t1 t2))))
+
+(define $.
+  (cambda $xs
+    (match xs (list something)
+      {[<join _ <cons (& ?scalar? ?tensor-symbol?) _>> (capply `. xs)]
+       [_ (foldl b.. (car xs) (cdr xs))]})))
