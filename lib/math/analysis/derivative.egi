@@ -7,9 +7,7 @@
 (define $∂/∂
   (lambda [$f $x]
     (match f math-expr
-      {; quote
-       [<quote $g> (∂/∂ g x)]
-       ; symbol
+      {; symbol
        [,x 1]
        [<symbol _ _> 0]
        ; function application
@@ -34,6 +32,8 @@
         (let {[$p1' (∂/∂ p1 x)]
               [$p2' (∂/∂ p2 x)]}
           (/ (- (* p1' p2) (* p2' p1)) (** p2 2)))]
+       ; quote
+       [<quote $g> (∂/∂ g x)]
        })))
 
 (define $d/d
