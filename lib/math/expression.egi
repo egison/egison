@@ -62,12 +62,13 @@
 (define $plus-expr
   (matcher
     {[<nil> []
-      {[{} {[]}]
-       [_ {}]}]
+      {[$tgt (if (eq? tgt 0)
+               {[]}
+               {})]}]
      [<cons $ $> [math-expr plus-expr]
       {[$tgt (match-all tgt math-expr
                [<poly <cons $t $ts>> [t (sum' ts)]])]}]
-     [$ [something]
+     [$ [math-expr]
       {[$tgt {tgt}]}]
      }))
 
@@ -91,7 +92,7 @@
                    [<join $hs <cons [$x $n] $ts>>
                     [n x (product' (map 2#(**' %1 %2) {@hs @ts}))]])]
                 [_ {}]})]}]
-     [$ [something]
+     [$ [math-expr]
       {[$tgt {tgt}]}]
      }))
 

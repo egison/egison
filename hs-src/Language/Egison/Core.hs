@@ -946,7 +946,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
 
     DApplyPat func args -> do
       return $ msingleton $ (MState env loops bindings ((MAtom (InductivePat "apply" [func, (toListPat args)]) target matcher):trees))
-    
+
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF :: (EgisonM Integer)
       startNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum - 1)

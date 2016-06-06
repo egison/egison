@@ -533,8 +533,12 @@ pattern' = wildCard
                     <|> orPat
                     <|> loopPat
                     <|> letPat
+                    <|> try divPat
+                    <|> try plusPat
+                    <|> try multPat
                     <|> try dApplyPat
                     <|> try pApplyPat
+--                    <|> powerPat
                     )
 
 pattern'' :: Parser EgisonPattern
@@ -598,6 +602,22 @@ loopRange = brackets (try (do s <- expr
                  <|> (do s <- expr
                          ep <- option WildCard pattern
                          return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
+
+divPat :: Parser EgisonPattern
+divPat = reservedOp "/" >> DivPat <$> pattern <*> pattern
+
+plusPat :: Parser EgisonPattern
+plusPat = reservedOp "+" >> PlusPat <$> sepEndBy pattern whiteSpace
+
+multPat :: Parser EgisonPattern
+multPat = reservedOp "*" >> MultPat <$> sepEndBy powerPat whiteSpace
+
+powerPat :: Parser EgisonPattern
+powerPat = try (do pat1 <- pattern
+                   char '^'
+                   pat2 <- pattern
+                   return $ PowerPat pat1 pat2)
+       <|> pattern
 
 -- Constants
 

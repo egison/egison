@@ -365,6 +365,10 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (LetPat _ pattern) = collectName pattern
    collectName (IndexedPat (PatVar name) _) = S.singleton name
    collectName (OrPat patterns) = collectNames patterns
+   collectName (DivPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
+   collectName (PlusPat patterns) = collectNames patterns
+   collectName (MultPat patterns) = collectNames patterns
+   collectName (PowerPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
    collectName _ = S.empty
    
    makeBinding :: String -> BindingExpr
@@ -388,6 +392,26 @@ desugarPattern' (PApplyPat expr patterns) = PApplyPat <$> desugar expr <*> mapM 
 desugarPattern' (DApplyPat pattern patterns) = DApplyPat <$> desugarPattern' pattern <*> mapM desugarPattern' patterns 
 desugarPattern' (LoopPat name range pattern1 pattern2) =  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (LetPat binds pattern) = LetPat <$> desugarBindings binds <*> desugarPattern' pattern
+desugarPattern' (DivPat pattern1 pattern2) = do
+  pat1' <- desugarPattern' pattern1
+  pat2' <- desugarPattern' pattern2
+  return $ InductivePat "div" [pat1', pat2']
+desugarPattern' (PlusPat patterns) = do
+  pats' <- mapM desugarPattern' patterns
+  case (reverse pats') of
+    [] -> return $ InductivePat "plus" [ValuePat (IntegerExpr 0)]
+    lp:hps ->
+      return $ InductivePat "plus" [foldr (\p r -> InductivePat "cons" [p, r]) lp (reverse hps)]
+desugarPattern' (MultPat (intPat:patterns)) = do
+  intPat' <- desugarPattern' intPat
+  pats' <- mapM desugarPattern' patterns
+  case (reverse pats') of
+    [] -> return $ InductivePat "mult" [intPat', ValuePat (IntegerExpr 1)]
+    lp:hps ->
+      return $ InductivePat "mult" [intPat', foldr (\p r -> case p of
+                                                              (PowerPat p1 p2) -> InductivePat "ncons" [p2, p1, r]
+                                                              _ -> InductivePat "cons" [p, r]) lp (reverse hps)]
+desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' pattern = return pattern
 
 desugarLoopRange :: LoopRange -> DesugarM LoopRange

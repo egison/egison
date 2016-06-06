@@ -20,6 +20,8 @@
        ; term (constant)
        [,0 0]
        [<term _ <nil>> 0]
+       ; quote
+       [<quote $g> (∂/∂ g x)]
        ; term (multiplication)
        [<term ,1 <ncons $n $fx <nil>>> (* n (** fx (- n 1)) (∂/∂ fx x))]
        [<mult $a <ncons $n $fx $r>>
@@ -32,8 +34,6 @@
         (let {[$p1' (∂/∂ p1 x)]
               [$p2' (∂/∂ p2 x)]}
           (/ (- (* p1' p2) (* p2' p1)) (** p2 2)))]
-       ; quote
-       [<quote $g> (∂/∂ g x)]
        })))
 
 (define $d/d

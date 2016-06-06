@@ -293,8 +293,13 @@ data EgisonPattern =
   | LoopPat String LoopRange EgisonPattern EgisonPattern
   | ContPat
   | PApplyPat EgisonExpr [EgisonPattern]
-  | DApplyPat EgisonPattern [EgisonPattern]
   | VarPat String
+  -- For symbolic computing
+  | DApplyPat EgisonPattern [EgisonPattern]
+  | DivPat EgisonPattern EgisonPattern
+  | PlusPat [EgisonPattern]
+  | MultPat [EgisonPattern]
+  | PowerPat EgisonPattern EgisonPattern
  deriving (Show, Eq)
 
 data LoopRange = LoopRange EgisonExpr EgisonExpr EgisonPattern
