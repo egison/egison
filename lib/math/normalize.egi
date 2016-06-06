@@ -150,17 +150,13 @@
       {[<plus <cons <mult $a <ncons ,2 (,cos $θ) $mr>>
                     <cons <mult ,a <ncons ,2 ,(sin θ) ,mr>>
                           $pr>>>
-        (rewrite-rule-for-cos-and-sin-poly (+' pr
-                                              (*' a mr)
-                                              ))]
+        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a mr)))]
        [<plus <cons <mult $a $mr>
-                    <cons <mult ,(* -1 a) <ncons ,2 (,sin $θ) ,mr>>
+                    <cons <mult ,(*' -1 a) <ncons ,2 (,sin $θ) ,mr>>
                           $pr>>>
-        (rewrite-rule-for-cos-and-sin-poly (+' (*' a (cos θ)^2 mr)
-                                              ))]
+        (rewrite-rule-for-cos-and-sin-poly (+' (*' a (cos θ)^2 mr)))]
        [<plus <cons <mult $a $mr>
-                    <cons <mult ,(* -1 a) <ncons ,2 (,cos $θ) ,mr>>
+                    <cons <mult ,(*' -1 a) <ncons ,2 (,cos $θ) ,mr>>
                           $pr>>>
-        (rewrite-rule-for-cos-and-sin-poly (+' (*' a (sin θ)^2)
-                                              ))]
+        (rewrite-rule-for-cos-and-sin-poly (+' (*' a (sin θ)^2)))]
        [_ poly]})))
