@@ -19,18 +19,18 @@
        [<apply _ _> (d/d f x)]
        ; term (constant)
        [,0 0]
-       [<term _ <nil>> 0]
+       [(* _ ,1) 0]
        ; quote
        [<quote $g> (∂/∂ g x)]
        ; term (multiplication)
-       [<term ,1 <ncons $n $fx <nil>>> (* n (** fx (- n 1)) (∂/∂ fx x))]
-       [<mult $a <ncons $n $fx $r>>
+       [(* ,1 $fx^$n) (* n (** fx (- n 1)) (∂/∂ fx x))]
+       [(* $a $fx^$n $r)
         (+ (* a (∂/∂ (**' fx n) x) r)
            (* a (**' fx n) (∂/∂ r x)))]
        ; polynomial
        [<poly $ts> (sum (map (∂/∂ $ x) ts))]
        ; quotient
-       [<div $p1 $p2>
+       [(/ $p1 $p2)
         (let {[$p1' (∂/∂ p1 x)]
               [$p2' (∂/∂ p2 x)]}
           (/ (- (* p1' p2) (* p2' p1)) (** p2 2)))]
