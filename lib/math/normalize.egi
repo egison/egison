@@ -160,3 +160,16 @@
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' (*' a (sin θ)^2)))]
        [_ poly]})))
+
+;;
+;; d
+;;
+
+(define $rewrite-rule-for-d (map-terms rewrite-rule-for-d-term $))
+
+(define $rewrite-rule-for-d-term
+  (lambda [$term]
+    (match term math-expr
+      {[(* _ (,d _) (,d _) _)
+        0]
+       [_ term]})))
