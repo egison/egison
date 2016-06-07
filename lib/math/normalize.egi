@@ -44,7 +44,7 @@
       {[(* $a ,i^(& ?even? $k) $r)
         (*' a (**' -1 (quotient k 2)) r)]
        [(* $a ,i^$k $r)
-        (*' a (**' -1 (quotient k 2)) i r)]
+        (*' a (**' -1 (quotient k 2)) r i)]
        [_ term]})))
 
 ;;
@@ -59,7 +59,7 @@
   (lambda [$term]
     (match term math-expr
       {[(* $a ,w^(& ?(gte? $ 3) $k) $r)
-        (*' a (**' w (remainder k 3)) r)]
+        (*' a r (**' w (remainder k 3)))]
        [_ term]})))
 
 (define $rewrite-rule-for-w-poly
@@ -70,7 +70,7 @@
            $pr)
         (rewrite-rule-for-w-poly (+' pr
                                     (*' -1 a mr)
-                                    (*' (- b a) w mr)
+                                    (*' (- b a) mr w)
                                     ))]
        [_ poly]})))
 
