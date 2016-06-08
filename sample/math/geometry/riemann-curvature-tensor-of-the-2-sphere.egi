@@ -31,13 +31,27 @@ g_#_#;[| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |]_#_#
 g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 
 ;;
-;; Christoffel symbols
+;; Christoffel symbols of the first kind
 ;;
 
-(define $Γ~__ (generate-tensor
-                3#(with-symbols {j}
-                    (* (/ 1 2) (. g~%1~j (+ (∂/∂ g_j_%3 x_%2) (∂/∂ g_j_%2 x_%3) (* -1 (∂/∂ g_%2_%3 x_j))))))
-                {2 2 2}))
+(define $Γ___
+  (with-symbols {j k l}
+    (* (/ 1 2)
+       (+ (∂/∂ g_j_l x_k)
+          (∂/∂ g_j_k x_l)
+          (* -1 (∂/∂ g_k_l x_j))))))
+
+Γ_#_#_#;(tensor {2 2 2} {0 0 0 (* -1 r^2 (sin θ) (cos θ)) 0 (* r^2 (sin θ) (cos θ)) (* r^2 (sin θ) (cos θ)) 0} )_#_#_#
+Γ_1_#_#;[| [| 0 0 |] [| 0 (* -1 r^2 (sin θ) (cos θ)) |] |]_#_#
+Γ_2_#_#;[| [| 0 (* r^2 (sin θ) (cos θ)) |] [| (* r^2 (sin θ) (cos θ)) 0 |] |]_#_#
+
+;;
+;; Christoffel symbols of the sedond kind
+;;
+
+(define $Γ~__
+  (with-symbols {i j k l}
+    (. g~i~j Γ_j_k_l)))
 
 Γ~#_#_#;(tensor {2 2 2} {0 0 0 (* -1 (sin θ) (cos θ)) 0 (/ (cos θ) (sin θ)) (/ (cos θ) (sin θ)) 0} )~#_#_#
 Γ~1_#_#;[| [| 0 0 |] [| 0 (* -1 (sin θ) (cos θ)) |] |]_#_#
@@ -47,12 +61,10 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 ;; Riemann curvature tensor
 ;;
 
-(define $R~___ (generate-tensor
-                 4#(with-symbols {j}
-                     (+ (- (∂/∂ Γ~%1_%2_%3 x_%4) (∂/∂ Γ~%1_%2_%4 x_%3))
-                        (- (. Γ~j_%2_%3 Γ~%1_j_%4) (. Γ~j_%2_%4 Γ~%1_j_%3))
-                        ))
-                 {2 2 2 2}))
+(define $R~___
+  (with-symbols {i j k l m}
+    (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
+       (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k)))))
 
 R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (* -1 (sin θ)^2) (sin θ)^2 0 0 1 -1 0 0 0 0 0} )~#_#_#_#
 R~1_1_#_#;[| [| 0 0 |] [| 0 0 |] |]_#_#
