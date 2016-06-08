@@ -17,11 +17,11 @@
         (sum (map (lambda [$t] (* (∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]
        [<apply _ _> (d/d f x)]
+       ; quote
+       [<quote $g> (∂/∂ g x)]
        ; term (constant)
        [,0 0]
        [(* _ ,1) 0]
-       ; quote
-       [<quote $g> (∂/∂ g x)]
        ; term (multiplication)
        [(* ,1 $fx^$n) (* n (** fx (- n 1)) (∂/∂ fx x))]
        [(* $a $fx^$n $r)
