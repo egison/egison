@@ -4,32 +4,19 @@
 ;;;;;
 ;;;;;
 
-;(set-term-rewriting-rule {
-;                          [(+ (cos $θ)^2 (sin ,θ)^2) 1]
-;                          [(+ (rtu $n) (rtu ,n)^2 ... (rtu ,n)^,n) -1]
-;                          [(+ w w^2) -1]
-;                          [(* (sqrt $x) (sqrt $y)) (* (gcd x y) (sqrt (/ (* x y) (gcd x y)^2)))]
-;                          [(rt $n $x)^,n x]
-;                          [(sqrt $x)^2 x]
-;                          [(rtu $n)^,n 1]
-;                          [w^3 1]
-;                          [i^2 -1]
-;                          })
-
 (define $math-normalize
-  (lambda [$mexpr]
-    (match mexpr math-expr
-      {[(& ?rational? $mexpr) mexpr]
-       [$mexpr (apply-rewrite-rules mexpr)]})))
-
-(define $apply-rewrite-rules
-  ((capply compose rewrite-rules) $))
+  (lambda [$fn $x1 $x2]
+    ((capply compose (map 3#%1 (filter 3#(or (%2 x1) (%3 x2)) rewrite-rules))) (fn x1 x2))))
 
 (define $rewrite-rules
   {
-   rewrite-rule-for-rtu
-   rewrite-rule-for-rt
-   rewrite-rule-for-cos-and-sin
+   [id 1##t 1##t]
+;   [rewrite-rule-for-i 1##f (contain-symbol? i $)]
+;   [rewrite-rule-for-w 1##f (contain-symbol? w $)]
+   [rewrite-rule-for-rtu 1##f 1#(or (contain-symbol? i %1) (contain-symbol? w %1) (contain-function? rtu %1))]
+;   [rewrite-rule-for-sqrt 1##f (contain-function? sqrt $)]
+   [rewrite-rule-for-rt 1##f 1#(or (contain-function? sqrt %1) (contain-function? rt %1))]
+   [rewrite-rule-for-cos-and-sin 1#(or (contain-function? cos %1) (contain-function? sin %1)) 1#(or (contain-function? cos %1) (contain-function? sin %1))]
    })
 
 ;;

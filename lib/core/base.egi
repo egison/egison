@@ -51,13 +51,16 @@
 ;;
 ;; Boolean
 ;;
-(define $and
+(define $and (cambda $bs (foldl b.and #t bs)))
+(define $or (cambda $bs (foldl b.or #f bs)))
+
+(define $b.and
   (lambda [$b1 $b2]
     (if b1
         b2
         #f)))
 
-(define $or
+(define $b.or
   (lambda [$b1 $b2]
     (if b1
         #t
