@@ -6,26 +6,30 @@
 
 (define $math-normalize
   (lambda [$fn $x1 $x2]
-    ((capply compose (map 3#%1 (filter 3#(or (%2 x1) (%3 x2)) rewrite-rules))) (fn x1 x2))))
+    ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (fn x1 x2))))
 
 (define $rewrite-rules
   {
-   [id 1##t 1##t]
-;   [rewrite-rule-for-i 1##f (contain-symbol? i $)]
-;   [rewrite-rule-for-w 1##f (contain-symbol? w $)]
-   [rewrite-rule-for-rtu 1##f 1#(or (contain-symbol? i %1) (contain-symbol? w %1) (contain-function? rtu %1))]
-;   [rewrite-rule-for-sqrt 1##f (contain-function? sqrt $)]
-   [rewrite-rule-for-rt 1##f 1#(or (contain-function? sqrt %1) (contain-function? rt %1))]
-   [rewrite-rule-for-cos-and-sin 1#(or (contain-function? cos %1) (contain-function? sin %1)) 1#(or (contain-function? cos %1) (contain-function? sin %1))]
+   [id 2##t]
+   [rewrite-rule-for-i 2#(and (contain-symbol? i %1) (contain-symbol? i %2))]
+   [rewrite-rule-for-w-term 2#(and (contain-symbol? w %1) (contain-symbol? w %2))]
+   [rewrite-rule-for-rtu-term 2#(and (contain-function? rtu %1) (contain-function? rtu %2))]
+   [rewrite-rule-for-w-poly 2#(and (contain-symbol? w %1) (contain-symbol? w %2))]
+   [rewrite-rule-for-rtu-poly 2#(and (contain-function? rtu %1) (contain-function? rtu %2))]
+   [rewrite-rule-for-sqrt 2#(and (contain-function? sqrt %1) (contain-function? sqrt %2))]
+   [rewrite-rule-for-rt 2#(and (contain-function? rt %1) (contain-function? rt %2))]
+   [rewrite-rule-for-cos-and-sin 2#(or (contain-function? cos %1) (contain-function? sin %1) (contain-function? cos %2) (contain-function? sin %2))]
    })
 
 ;;
 ;; i
 ;;
 
-(define $rewrite-rule-for-i (map-terms rewrite-rule-for-i-term $))
+(define $rewrite-rule-for-i rewrite-rule-for-i-term)
 
-(define $rewrite-rule-for-i-term
+(define $rewrite-rule-for-i-term (map-terms rewrite-rule-for-i-term' $))
+
+(define $rewrite-rule-for-i-term'
   (lambda [$term]
     (match term math-expr
       {[(* $a ,i^(& ?even? $k) $r)
@@ -39,26 +43,29 @@
 ;;
 
 (define $rewrite-rule-for-w
-  (compose (map-terms rewrite-rule-for-w-term $)
-           (map-polys rewrite-rule-for-w-poly $)))
+  (compose rewrite-rule-for-w-term
+           rewrite-rule-for-w-poly $))
 
-(define $rewrite-rule-for-w-term
+(define $rewrite-rule-for-w-term (map-terms rewrite-rule-for-w-term' $))
+(define $rewrite-rule-for-w-poly (map-polys rewrite-rule-for-w-poly' $))
+
+(define $rewrite-rule-for-w-term'
   (lambda [$term]
     (match term math-expr
       {[(* $a ,w^(& ?(gte? $ 3) $k) $r)
         (*' a r (**' w (remainder k 3)))]
        [_ term]})))
 
-(define $rewrite-rule-for-w-poly
+(define $rewrite-rule-for-w-poly'
   (lambda [$poly]
     (match poly math-expr
       {[(+ (* $a ,w^,2 $mr)
            (* $b ,w ,mr)
            $pr)
-        (rewrite-rule-for-w-poly (+' pr
-                                    (*' -1 a mr)
-                                    (*' (- b a) mr w)
-                                    ))]
+        (rewrite-rule-for-w-poly' (+' pr
+                                     (*' -1 a mr)
+                                     (*' (- b a) mr w)
+                                     ))]
        [_ poly]})))
 
 ;;
@@ -66,28 +73,29 @@
 ;;
 
 (define $rewrite-rule-for-rtu
-  (compose (map-terms rewrite-rule-for-i-term $)
-           (map-terms rewrite-rule-for-w-term $)
+  (compose 
            (map-terms rewrite-rule-for-rtu-term $)
-           (map-polys rewrite-rule-for-w-poly $)
            (map-polys rewrite-rule-for-rtu-poly $)
            ))
 
-(define $rewrite-rule-for-rtu-term
+(define $rewrite-rule-for-rtu-term (map-terms rewrite-rule-for-rtu-term' $))
+(define $rewrite-rule-for-rtu-poly (map-polys rewrite-rule-for-rtu-poly' $))
+
+(define $rewrite-rule-for-rtu-term'
   (lambda [$term]
     (match term math-expr
       {[(* $a (,rtu (& ?(gte? k $) $n))^$k $r)
         (*' a (**' (rtu n) (remainder k n)) r)]
        [_ term]})))
 
-(define $rewrite-rule-for-rtu-poly
+(define $rewrite-rule-for-rtu-poly'
   (lambda [$poly]
     (match poly math-expr
       {[(+ (* $a (,rtu (& ,(+ k 1) $n))^$k $mr)
            (loop $i [2 ,(- n 1)]
              (+ (* ,a ,(rtu n)^,(- n i) ,mr) ...)
              $pr))
-        (rewrite-rule-for-rtu-poly (+' pr (*' -1 a mr)))]
+        (rewrite-rule-for-rtu-poly' (+' pr (*' -1 a mr)))]
        [_ poly]})))
 
 ;;
@@ -115,8 +123,7 @@
 ;;
 
 (define $rewrite-rule-for-rt
-  (compose (map-terms rewrite-rule-for-sqrt-term $)
-           (map-terms rewrite-rule-for-rt-term $)))
+  (map-terms rewrite-rule-for-rt-term $))
 
 (define $rewrite-rule-for-rt-term
   (lambda [$term]
