@@ -55,7 +55,6 @@
 (define $nabla ∇)
 
 (define $grad ∇)
-(define $div (compose ∇ (trace $)))
 
 (define $taylor-expansion
   (lambda [%f %xs %as]
