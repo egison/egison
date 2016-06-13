@@ -91,7 +91,7 @@
 (define $rewrite-rule-for-rtu-poly'
   (lambda [$poly]
     (match poly math-expr
-      {[(+ (* $a (,rtu (& ,(+ k 1) $n))^$k $mr)
+      {[(+ (* $a (,rtu $n)^,(- n 1) $mr)
            (loop $i [2 ,(- n 1)]
              (+ (* ,a ,(rtu n)^,(- n i) ,mr) ...)
              $pr))
@@ -128,7 +128,7 @@
 (define $rewrite-rule-for-rt-term
   (lambda [$term]
     (match term math-expr
-      {[(* $a (,rt (& ?(gte? k $) $n) $x)^$k $r)
+      {[(* $a (,rt $n $x)^(& ?(gte? $ n) $k) $r)
         (*' a (**' x (quotient k n)) (**' (rt n x) (remainder k n)) r)]
        [_ term]})))
 
