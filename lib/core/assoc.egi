@@ -35,14 +35,14 @@
                  {[<cons [$x ,1] $rs> {[x rs]}]
                   [<cons [$x $n] $rs> {[x {[x (- n 1)] @rs}]}]
                   [_ {}]})]}]
-       [<ncons ,$k $ $> [a (assoc-list a)]
+       [<ncons $ ,$k $> [a (assoc-list a)]
         {[$tgt (match tgt (list [something integer])
                  {[<cons [$x ,k] $rs> {[x rs]}]
                   [<cons [$x (& ?(gt? $ k) $n)] $rs> {[x {[x (- n k)] @rs}]}]
                   [_ {}]})]}]
-       [<ncons $ $ $> [integer a (assoc-list a)]
+       [<ncons $ $ $> [a integer (assoc-list a)]
         {[$tgt (match tgt (list [something integer])
-                 {[<cons [$x $k] $rs> {[k x rs]}]
+                 {[<cons [$x $k] $rs> {[x k rs]}]
                   [_ {}]})]}]
        [,$val []
         {[$tgt (if (eq? val tgt) {[]} {})]}]
@@ -72,26 +72,26 @@
                   (if (eq? n 1)
                     [x {@hs @ts}]
                     [x {@hs [x (- n 1)] @ts}])])]}]
-       [<ncons ,$n ,$x $> [(assoc-multiset a)]
+       [<ncons ,$x ,$n $> [(assoc-multiset a)]
         {[$tgt (match-all tgt (list [a integer])
                  [<join $hs <cons [,x (& ?(gte? $ n) $k)] $ts>>
                   (if (eq? (- k n) 0)
                     {@hs @ts}
                     {@hs [x (- k n)] @ts})])]}]
-       [<ncons ,$n $ $> [a (assoc-multiset a)]
+       [<ncons $ ,$n $> [a (assoc-multiset a)]
         {[$tgt (match-all tgt (list [a integer])
                  [<join $hs <cons [$x (& ?(gte? $ n) $k)] $ts>>
                   (if (eq? (- k n) 0)
                     [x {@hs @ts}]
                     [x {@hs [x (- k n)] @ts}])])]}]
-       [<ncons $ ,$x $> [integer (assoc-multiset a)]
+       [<ncons ,$x $ $> [integer (assoc-multiset a)]
         {[$tgt (match-all tgt (list [a integer])
                  [<join $hs <cons [,x $n] $ts>>
                   [n {@hs @ts}]])]}]
-       [<ncons $ $ $> [integer a (assoc-multiset a)]
+       [<ncons $ $ $> [a integer (assoc-multiset a)]
         {[$tgt (match-all tgt (list [a integer])
                  [<join $hs <cons [$x $n] $ts>>
-                  [n x {@hs @ts}]])]}]
+                  [x n {@hs @ts}]])]}]
        [$ [something]
         {[$tgt {tgt}]}]
        })))
@@ -99,9 +99,9 @@
 (define $AC.intersect
   (lambda [$xs $ys]
     (match-all [xs ys] [(assoc-multiset something) (assoc-multiset something)]
-      [[<ncons $m $x _> <ncons $n ,x _>] [x (min m n)]])))
+      [[<ncons $x $m _> <ncons ,x $n _>] [x (min m n)]])))
 
 (define $AC.intersect/m
   (lambda [$a $xs $ys]
     (match-all [xs ys] [(assoc-multiset a) (assoc-multiset a)]
-      [[<ncons $m $x _> <ncons $n ,x _>] [x (min m n)]])))
+      [[<ncons $x $m _> <ncons ,x $n _>] [x (min m n)]])))

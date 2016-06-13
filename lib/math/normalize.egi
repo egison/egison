@@ -84,7 +84,7 @@
 (define $rewrite-rule-for-rtu-term'
   (lambda [$term]
     (match term math-expr
-      {[(* $a (,rtu (& ?(gte? k $) $n))^$k $r)
+      {[(* $a (,rtu $n)^(& ?(gte? $ n) $k) $r)
         (*' a (**' (rtu n) (remainder k n)) r)]
        [_ term]})))
 

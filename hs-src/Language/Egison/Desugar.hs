@@ -410,10 +410,10 @@ desugarPattern' (MultPat (intPat:patterns)) = do
     lp:hps ->
       return $ InductivePat "mult" [intPat',
                                     foldr (\p r -> case p of
-                                                     (PowerPat p1 p2) -> InductivePat "ncons" [p2, p1, r]
+                                                     (PowerPat p1 p2) -> InductivePat "ncons" [p1, p2, r]
                                                      _ -> InductivePat "cons" [p, r])
                                           (case lp of
-                                             (PowerPat p1 p2) -> InductivePat "ncons" [p2, p1, ValuePat (IntegerExpr 1)]
+                                             (PowerPat p1 p2) -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
                                              _ -> lp)
                                           (reverse hps)]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2

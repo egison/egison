@@ -85,12 +85,12 @@
                    [<cons $x $rs>
                     [x (product' (map 2#(**' %1 %2) rs))]])]
                 [_ {}]})]}]
-     [<ncons $ $ $> [integer math-expr mult-expr]
+     [<ncons $ $ $> [math-expr integer mult-expr]
       {[$tgt (match tgt math-expr
                {[<term _ $xs>
                  (match-all xs (list [math-expr integer])
                    [<join $hs <cons [$x $n] $ts>>
-                    [n x (product' (map 2#(**' %1 %2) {@hs @ts}))]])]
+                    [x n (product' (map 2#(**' %1 %2) {@hs @ts}))]])]
                 [_ {}]})]}]
      [$ [math-expr]
       {[$tgt {tgt}]}]
@@ -254,7 +254,7 @@
 (define $coefficients
   (lambda [$x $f]
     (let {[$m (capply max {0 @(match-all f math-expr
-                                [<div <poly <cons <term $a <ncons $k ,x $ts>> _>> _> k])})]}
+                                [<div <poly <cons <term $a <ncons ,x $k $ts>> _>> _> k])})]}
       (map (coefficient x $ f) (between 0 m)))))
 
 (define $coefficient
@@ -269,7 +269,7 @@
 (define $coefficient'
   (lambda [$x $m $f]
     (/ (sum (match-all f math-expr
-              [<div <poly <cons <term $a <ncons $k ,x $ts>> _>> _>
+              [<div <poly <cons <term $a <ncons ,x $k $ts>> _>> _>
                (if (eq? m k)
                  (foldl *' a (map 2#(**' %1 %2) ts))
                  0)]))

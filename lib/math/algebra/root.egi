@@ -28,7 +28,7 @@
     (letrec {[$f (lambda [$xs]
                    (match xs (assoc-multiset integer)
                      {[<nil> [1 1]]
-                      [<ncons $k $p $rs>
+                      [<ncons $p $k $rs>
                        (let {[$ret (f rs)]}
                          [(*' (**' p (quotient k n)) (2#%1 ret)) (*' (**' p (remainder k n)) (2#%2 ret))])]}))]}
       (letrec {[$g (lambda [$x]
