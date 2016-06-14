@@ -19,6 +19,7 @@
    [rewrite-rule-for-sqrt 2#(and (contain-function? sqrt %1) (contain-function? sqrt %2))]
    [rewrite-rule-for-rt 2#(and (contain-function? rt %1) (contain-function? rt %2))]
    [rewrite-rule-for-cos-and-sin 2#(or (contain-function? cos %1) (contain-function? sin %1) (contain-function? cos %2) (contain-function? sin %2))]
+;   [rewrite-rule-for-∂/∂ 2#(and (contain-function-with-index? %1) (contain-function-with-index? %2))]
    })
 
 ;;
@@ -167,3 +168,19 @@
       {[(* _ (,d _) (,d _) _)
         0]
        [_ term]})))
+
+;;
+;; ∂/∂
+;;
+
+(define $rewrite-rule-for-∂/∂ (map-polys rewrite-rule-for-∂/∂-poly $))
+
+(define $rewrite-rule-for-∂/∂-poly
+  (lambda [$poly]
+    (match poly math-expr
+      {[(+ (* $a <apply (& $g <symbol $f $subs>) $args>^$n $mr)
+           (* $b <apply <symbol ,f ?1#(eq?/m (multiset something) subs %1)> ,args>^,n ,mr)
+           $pr)
+        (+ (* (+ a b) (`g args)^n mr)
+           pr)]
+       [_ poly]})))
