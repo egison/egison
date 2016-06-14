@@ -9,14 +9,19 @@
     (match f math-expr
       {; symbol
        [,x 1]
-       [<symbol _ _> 0]
+       [?symbol? 0]
        ; function application
-       [<apply (& ?scalar? $g) (& $args <join $hs <cons ,x _>>)>
+       [(,exp $g) (* (exp g) (∂/∂ g x))]
+       [(,log $g) (* (/ 1 g) (∂/∂ g x))]
+       [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
+       [(,sin $g) (* (cos g) (∂/∂ g x))]
+       [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
+       [(,** $g $h) (* f (∂/∂ (* (log g) h) x))]
+       [<apply $g (& $args <join $hs <cons ,x _>>)>
         (capply `(add-subscript g (+ (length hs) 1)) args)]
-       [<apply (& ?scalar? $g) $args>
+       [<apply $g $args>
         (sum (map (lambda [$t] (* (∂/∂ (capply g args) t) (∂/∂ t x)))
                   args))]
-       [<apply _ _> (d/d f x)]
        ; quote
        [<quote $g> (∂/∂ g x)]
        ; term (constant)
@@ -36,19 +41,7 @@
           (/ (- (* p1' p2) (* p2' p1)) (** p2 2)))]
        })))
 
-(define $d/d
-  (lambda [$f $x]
-    (match f math-expr
-      {; function application
-       [(,exp $g) (* (exp g) (∂/∂ g x))]
-       [(,log $g) (* (/ 1 g) (∂/∂ g x))]
-       [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
-       [(,sin $g) (* (cos g) (∂/∂ g x))]
-       [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
-       [(,** $g $h) (* f (∂/∂ (* (log g) h) x))]
-       [_ (∂/∂ f x)]
-       })))
-
+(define $d/d ∂/∂)
 (define $pd/pd ∂/∂)
 
 (define $∇ ∂/∂)
