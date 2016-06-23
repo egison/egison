@@ -20,7 +20,7 @@
        [<apply $g (& $args <join $hs <cons ,x _>>)>
         (capply `(add-subscript g (+ (length hs) 1)) args)]
        [<apply $g $args>
-        (sum (map (lambda [$t] (* (∂/∂ (capply g args) t) (∂/∂ t x)))
+        (sum (map 1#(* (∂/∂ (capply g args) %1) (∂/∂ %1 x))
                   args))]
        ; quote
        [<quote $g> (∂/∂ g x)]

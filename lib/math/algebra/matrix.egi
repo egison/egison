@@ -8,8 +8,8 @@
 
 (define $M.*'
   (lambda [%m1 %m2]
-    (with-symbols {i j k}
-      (. m1~i~j m2_j_k))))
+    (with-symbols {j}
+      (. m1~#~j m2_j))))
 
 (define $M.inverse
   (lambda [%m]
