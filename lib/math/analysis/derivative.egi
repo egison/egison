@@ -60,5 +60,5 @@
                    (iterate (compose 1#(∇ %1 xs) 1#(V.* hs %1)) f)))))))
 
 (define $maclaurin-expansion
-  (lambda [$f $xs]
+  (lambda [%f %xs]
     (multivariate-taylor-expansion f xs (tensor-map 1#0 xs))))

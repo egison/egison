@@ -55,4 +55,4 @@
                            })]}
           (return (read-tsv (S.intercalate "\t" (fn-c copts (fn-s sopts fs))))))))))
 
-(define $TSV.show (show-tsv $))
+(define $TSV.show show-tsv)

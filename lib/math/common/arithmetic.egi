@@ -107,13 +107,15 @@
 (define $b.gcd
   (lambda [$x $y]
     (match [x y] [term-expr term-expr]
-      {[[<term $a $xs> <term $b $ys>]
+      {[[_ ,0] x]
+       [[,0 _] y]
+       [[<term $a $xs> <term $b $ys>]
         (*' (b.gcd' (abs a) (abs b)) (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys))))]})))
 
 (define $b.gcd'
   (lambda [$x $y]
     (match [x y] [integer integer]
-      {[[,0 _] y]
-       [[_ ,0] x]
+      {[[_ ,0] x]
+       [[,0 _] y]
        [[_ ?(gte? $ x)] (b.gcd' (modulo y x) x)]
        [[_ _] (b.gcd' y x)]})))
