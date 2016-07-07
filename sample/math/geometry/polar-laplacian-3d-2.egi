@@ -1,0 +1,94 @@
+;;;
+;;; Polar coordinates
+;;;
+
+(define $x [|r θ φ|])
+
+(define $X [|(* r (sin θ) (cos φ)) ; = x
+             (* r (sin θ) (sin φ)) ; = y
+             (* r (cos θ))         ; = z
+             |])
+
+;;
+;; Local coordinates
+;;
+
+(define $e ((∂/∂ X~# $) x_#))
+e
+
+;;
+;; Metric tensor
+;;
+
+(define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {3 3}))
+(define $g~~ (with-symbols {i j} (/ (unit-tensor {3 3})_i_j g_i_j)))
+
+g_#_#;
+g~#~#;
+
+;;
+;; Christoffel symbols of the first kind
+;;
+
+(define $Γ___
+  (with-symbols {j k l}
+    (* (/ 1 2)
+       (+ (∂/∂ g_j_l x_k)
+          (∂/∂ g_j_k x_l)
+          (* -1 (∂/∂ g_k_l x_j))))))
+
+Γ_#_#_#;
+Γ_1_#_#;
+Γ_2_#_#;
+Γ_3_#_#;
+
+;;
+;; Christoffel symbols of the sedond kind
+;;
+
+(define $Γ~__
+  (with-symbols {i j k l}
+    (. g~i~j Γ_j_k_l)))
+
+Γ~#_#_#;
+Γ~1_#_#;
+Γ~2_#_#;
+Γ~3_#_#;
+
+;;
+;; Covariant derivative
+;;
+
+(define $∇u
+  (with-symbols {i}
+    (∂/∂ (u X_1 X_2 X_3) x_i)))
+∇u
+;[| (+ (* (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ) (cos φ)) (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ) (sin φ)) (* (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos θ)))
+;   (+ (* (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (cos θ) (cos φ)) (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (cos θ) (sin φ)) (* -1 (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ)))
+;   (+ (* -1 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (sin φ)) (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (cos φ))) |]
+
+(define $Δu
+  (with-symbols {i j k}
+    (. g~i~j
+         (+ (∂/∂ ∇u_j x_i)
+            (. Γ~k_i_j ∇u_k)))))
+Δu
+;(/ (+ (* (u_1_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos φ)^2 r^2)
+;      (* (u_1_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin φ) (cos φ) r^2)
+;      (* (u_2_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos φ) (sin φ) r^2)
+;      (* (u_2_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin φ)^2 r^2)
+;      (* (u_3_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2)
+;      -1)
+    ;   r^2)
+
+(/ (+ (* -3 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ)^2 (cos φ))
+      (* -3 (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ)^2 (sin φ))
+      (* -2 (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos θ) (sin θ))
+      (* -1 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos φ))
+      (* -1 (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin φ))
+      (* -1 (cos θ)^2 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos φ))
+      (* -1 (cos θ)^2 (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin φ))
+      (* (u_1_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ))
+      (* (u_2_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ)))
+      (* (u_3_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ))
+   (* r (sin θ)))
