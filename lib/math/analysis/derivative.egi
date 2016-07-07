@@ -17,11 +17,9 @@
        [(,sin $g) (* (cos g) (∂/∂ g x))]
        [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
        [(,** $g $h) (* f (∂/∂ (* (log g) h) x))]
-       [<apply $g (& $args <join $hs <cons ,x _>>)>
-        (capply `(add-subscript g (+ (length hs) 1)) args)]
        [<apply $g $args>
-        (sum (map 1#(* (∂/∂ (capply g args) %1) (∂/∂ %1 x))
-                  args))]
+        (sum (map 2#(* (capply `(add-subscript g %1) args) (∂/∂ %2 x))
+                  (zip nats args)))]
        ; quote
        [<quote $g> (∂/∂ g x)]
        ; term (constant)

@@ -341,6 +341,10 @@ desugar (QuoteExpr expr) = do
   expr' <- desugar expr
   return $ QuoteExpr expr'
 
+desugar (QuoteFunctionExpr expr) = do
+  expr' <- desugar expr
+  return $ QuoteFunctionExpr expr'
+
 desugar expr = return expr
 
 desugarIndex :: Index EgisonExpr -> DesugarM (Index EgisonExpr)

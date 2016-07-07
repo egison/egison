@@ -1,0 +1,61 @@
+(define $x (* r (sin θ) (cos φ)))
+(define $y (* r (sin θ) (sin φ)))
+(define $z (* r (cos θ)))
+
+(define $u-r (∂/∂ (u x y z) r))
+u-r
+;(+ (* (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ) (cos φ))
+;   (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ) (sin φ))
+;   (* (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos θ)))
+
+(define $u-r-r (∂/∂ (∂/∂ (u x y z) r) r))
+u-r-r
+;(+ (* (u_1_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ)^2 (cos φ)^2)
+;   (* (u_1_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ)^2 (sin φ) (cos φ))
+;   (* (u_1_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos θ) (sin θ) (cos φ))
+;   (* (u_2_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ)^2 (cos φ) (sin φ))
+;   (* (u_2_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ)^2 (sin φ)^2)
+;   (* (u_2_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos θ) (sin θ) (sin φ))
+;   (* (u_3_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ) (cos φ) (cos θ))
+;   (* (u_3_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ) (sin φ) (cos θ))
+;   (* (u_3_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos θ)^2))
+
+(define $u-θ (∂/∂ (u x y z) θ))
+u-θ
+;(+ (* (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (cos θ) (cos φ))
+;   (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (cos θ) (sin φ))
+;   (* -1 (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ)))
+
+(define $u-θ-θ (∂/∂ (∂/∂ (u x y z) θ) θ))
+u-θ-θ
+;(+ (* (u_1_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (cos θ)^2 (cos φ)^2)
+;   (* (u_1_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (cos θ)^2 (sin φ) (cos φ))
+;   (* -1 (u_1_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (sin θ) (cos θ) (cos φ))
+;   (* -1 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (cos φ))
+;   (* (u_2_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (cos θ)^2 (cos φ) (sin φ))
+;   (* (u_2_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (cos θ)^2 (sin φ)^2)
+;   (* -1 (u_2_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (sin θ) (cos θ) (sin φ))
+;   (* -1 (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (sin φ))
+;   (* -1 (u_3_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (cos θ) (cos φ) (sin θ))
+;   (* -1 (u_3_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (cos θ) (sin φ) (sin θ))
+;   (* (u_3_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (sin θ)^2)
+;   (* -1 (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (cos θ)))
+
+(define $u-φ (∂/∂ (u x y z) φ))
+u-φ
+;(+ (* -1 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (sin φ))
+;   (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (cos φ)))
+
+(define $u-φ-φ (∂/∂ (∂/∂ (u x y z) φ) φ))
+u-φ-φ
+;(+ (* (u_1_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (sin θ)^2 (sin φ)^2)
+;   (* -1 (u_1_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (sin θ)^2 (cos φ) (sin φ))
+;   (* -1 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (cos φ))
+;   (* -1 (u_2_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (sin θ)^2 (sin φ) (cos φ))
+;   (* (u_2_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2 (sin θ)^2 (cos φ)^2)
+;   (* -1 (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (sin φ)))
+
+(+ u-r-r (* (/ 2 r) u-r) (* (/ 1 (** r 2)) u-θ-θ) (* (/ (cos θ) (* (** r 2) (sin θ))) u-θ) (* (/ 1 (** (* r (sin θ)) 2)) u-φ-φ))
+;(+ (u_3_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ)))
+;   (u_1_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ)))
+;   (u_2_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))))
