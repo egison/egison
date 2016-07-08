@@ -59,26 +59,21 @@ g~#~#;
 ;; Covariant derivative
 ;;
 
-; 1
+; (1)
 
-(define $tmp1 (. g~i~j (∂/∂ (∂/∂ (f r θ φ) x_j) x_i)))
-(define $tmp2 (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ φ) x_k)))
-tmp1;(/ (+ (* (f_1_1 r θ φ) r^2 (sin θ)^2) (* (f_2_2 r θ φ) (sin θ)^2) (f_3_3 r θ φ)) (* r^2 (sin θ)^2))
-tmp2;(/ (+ (* -2 (f_1 r θ φ) r (sin θ)) (* -1 (cos θ) (f_2 r θ φ))) (* r^2 (sin θ)))
-(- tmp1 tmp2)
+(. g~i~j (∂/∂ (∂/∂ (f r θ φ) x_j) x_i))
+;(/ (+ (* (f_1_1 r θ φ) r^2 (sin θ)^2) (* (f_2_2 r θ φ) (sin θ)^2) (f_3_3 r θ φ)) (* r^2 (sin θ)^2))
+(. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ φ) x_k))
+;(/ (+ (* -2 (f_1 r θ φ) r (sin θ)) (* -1 (cos θ) (f_2 r θ φ))) (* r^2 (sin θ)))
+
+(- (. g~i~j (∂/∂ (∂/∂ (f r θ φ) x_j) x_i))
+   (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ φ) x_k)))
 ;(/ (+ (* (f_1_1 r θ φ) r^2 (sin θ)^2) (* (f_2_2 r θ φ) (sin θ)^2) (f_3_3 r θ φ) (* 2 (f_1 r θ φ) r (sin θ)^2) (* (cos θ) (f_2 r θ φ) (sin θ))) (* r^2 (sin θ)^2))
 
-; 2
+; (2)
 
 (define $sqrt-g (sqrt (M.det g_#_#)))
 sqrt-g;(* r^2 (sin θ))
 
 (/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ φ) x_j))) x_i)) sqrt-g)
 ;(/ (+ (* 2 r (sin θ)^2 (f_1 r θ φ)) (* r^2 (sin θ)^2 (f_1_1 r θ φ)) (* (cos θ) (f_2 r θ φ) (sin θ)) (* (sin θ)^2 (f_2_2 r θ φ)) (f_3_3 r θ φ)) (* (sin θ)^2 r^2))
-
-
-
-
-
-
-
