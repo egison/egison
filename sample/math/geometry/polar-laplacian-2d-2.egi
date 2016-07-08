@@ -1,0 +1,76 @@
+;;;
+;;; Polar coordinates
+;;;
+
+(define $x [|r θ|])
+
+(define $X [|(* r (cos θ)) ; = x
+             (* r (sin θ)) ; = y
+             |])
+
+;;
+;; Local coordinates
+;;
+
+(define $e ((∂/∂ X~# $) x_#))
+e
+;[| [| (cos θ) (sin θ) |] [| (* -1 r (sin θ)) (* r (cos θ)) |] |]
+
+;;
+;; Metric tensor
+;;
+
+(define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {2 2}))
+(define $g~~ (with-symbols {i j} (/ (unit-tensor {2 2})_i_j g_i_j)))
+
+g_#_#;[| [| 1 0 |] [| 0 r^2 |] |]_#_#
+g~#~#;[| [| 1 0 |] [| 0 (/ 1 r^2) |] |]~#~#
+
+;;
+;; Christoffel symbols of the first kind
+;;
+
+(define $Γ___
+  (with-symbols {j k l}
+    (* (/ 1 2)
+       (+ (∂/∂ g_j_l x_k)
+          (∂/∂ g_j_k x_l)
+          (* -1 (∂/∂ g_k_l x_j))))))
+
+Γ_#_#_#;(tensor {2 2 2} {0 0 0 (* -1 r) 0 r r 0} )_#_#_#
+Γ_1_#_#;[| [| 0 0 |] [| 0 (* -1 r) |] |]_#_#
+Γ_2_#_#;[| [| 0 r |] [| r 0 |] |]_#_#
+
+;;
+;; Christoffel symbols of the sedond kind
+;;
+
+(define $Γ~__
+  (with-symbols {i j k l}
+    (. g~i~j Γ_j_k_l)))
+
+Γ~#_#_#;(tensor {2 2 2} {0 0 0 (* -1 r) 0 (/ 1 r) (/ 1 r) 0} )~#_#_#
+Γ~1_#_#;[| [| 0 0 |] [| 0 (* -1 r) |] |]_#_#
+Γ~2_#_#;[| [| 0 (/ 1 r) |] [| (/ 1 r) 0 |] |]_#_#
+
+;;
+;; Laplacian
+;;
+
+; 1
+
+(define $tmp1 (. g~i~j (∂/∂ (∂/∂ (f r θ) x_j) x_i)))
+(define $tmp2 (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ) x_k)))
+tmp1;(/ (+ (* (f_1_1 r θ) r^2) (f_2_2 r θ)) r^2)
+tmp2;(/ (* -1 (f_1 r θ)) r)
+(- tmp1 tmp2)
+;(/ (+ (* (f_1_1 r θ) r^2) (f_2_2 r θ) (* (f_1 r θ) r)) r^2)
+
+
+; 2
+
+(define $sqrt-g (sqrt (M.det g_#_#)))
+sqrt-g;r
+
+(/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ) x_j))) x_i)) sqrt-g)
+;(/ (+ (* (f_1 r θ) r) (* r^2 (f_1_1 r θ)) (f_2_2 r θ)) r^2)

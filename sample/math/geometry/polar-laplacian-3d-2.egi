@@ -59,36 +59,26 @@ g~#~#;
 ;; Covariant derivative
 ;;
 
-(define $∇u
-  (with-symbols {i}
-    (∂/∂ (u X_1 X_2 X_3) x_i)))
-∇u
-;[| (+ (* (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ) (cos φ)) (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ) (sin φ)) (* (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos θ)))
-;   (+ (* (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (cos θ) (cos φ)) (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (cos θ) (sin φ)) (* -1 (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ)))
-;   (+ (* -1 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (sin φ)) (* (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ) (cos φ))) |]
+; 1
 
-(define $Δu
-  (with-symbols {i j k}
-    (. g~i~j
-         (+ (∂/∂ ∇u_j x_i)
-            (. Γ~k_i_j ∇u_k)))))
-Δu
-;(/ (+ (* (u_1_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos φ)^2 r^2)
-;      (* (u_1_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin φ) (cos φ) r^2)
-;      (* (u_2_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos φ) (sin φ) r^2)
-;      (* (u_2_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin φ)^2 r^2)
-;      (* (u_3_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r^2)
-;      -1)
-    ;   r^2)
+(define $tmp1 (. g~i~j (∂/∂ (∂/∂ (f r θ φ) x_j) x_i)))
+(define $tmp2 (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ φ) x_k)))
+tmp1;(/ (+ (* (f_1_1 r θ φ) r^2 (sin θ)^2) (* (f_2_2 r θ φ) (sin θ)^2) (f_3_3 r θ φ)) (* r^2 (sin θ)^2))
+tmp2;(/ (+ (* -2 (f_1 r θ φ) r (sin θ)) (* -1 (cos θ) (f_2 r θ φ))) (* r^2 (sin θ)))
+(- tmp1 tmp2)
+;(/ (+ (* (f_1_1 r θ φ) r^2 (sin θ)^2) (* (f_2_2 r θ φ) (sin θ)^2) (f_3_3 r θ φ) (* 2 (f_1 r θ φ) r (sin θ)^2) (* (cos θ) (f_2 r θ φ) (sin θ))) (* r^2 (sin θ)^2))
 
-(/ (+ (* -3 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ)^2 (cos φ))
-      (* -3 (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin θ)^2 (sin φ))
-      (* -2 (u_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos θ) (sin θ))
-      (* -1 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos φ))
-      (* -1 (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin φ))
-      (* -1 (cos θ)^2 (u_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (cos φ))
-      (* -1 (cos θ)^2 (u_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) (sin φ))
-      (* (u_1_1 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ))
-      (* (u_2_2 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ)))
-      (* (u_3_3 (* r (sin θ) (cos φ)) (* r (sin θ) (sin φ)) (* r (cos θ))) r (sin θ))
-   (* r (sin θ)))
+; 2
+
+(define $sqrt-g (sqrt (M.det g_#_#)))
+sqrt-g;(* r^2 (sin θ))
+
+(/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ φ) x_j))) x_i)) sqrt-g)
+;(/ (+ (* 2 r (sin θ)^2 (f_1 r θ φ)) (* r^2 (sin θ)^2 (f_1_1 r θ φ)) (* (cos θ) (f_2 r θ φ) (sin θ)) (* (sin θ)^2 (f_2_2 r θ φ)) (f_3_3 r θ φ)) (* (sin θ)^2 r^2))
+
+
+
+
+
+
+
