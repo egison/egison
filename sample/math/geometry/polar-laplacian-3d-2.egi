@@ -59,7 +59,7 @@ g~#~#;[| [| 1 0 0 |] [| 0 (/ 1 r^2) 0 |] [| 0 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#
 Γ~3_#_#;[| [| 0 0 (/ 1 r) |] [| 0 0 (/ (cos θ) (sin θ)) |] [| (/ 1 r) (/ (cos θ) (sin θ)) 0 |] |]_#_#
 
 ;;
-;; Covariant derivative
+;; Laplacian
 ;;
 
 ; (1)
@@ -69,8 +69,9 @@ g~#~#;[| [| 1 0 0 |] [| 0 (/ 1 r^2) 0 |] [| 0 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#
 (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ φ) x_k))
 ;(/ (+ (* -2 (f_1 r θ φ) r (sin θ)) (* -1 (cos θ) (f_2 r θ φ))) (* r^2 (sin θ)))
 
-(- (. g~i~j (∂/∂ (∂/∂ (f r θ φ) x_j) x_i))
-   (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ φ) x_k)))
+(define $Laplacian-1 (- (. g~i~j (∂/∂ (∂/∂ (f r θ φ) x_j) x_i))
+                        (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ φ) x_k))))
+Laplacian-1
 ;(/ (+ (* (f_1_1 r θ φ) r^2 (sin θ)^2) (* (f_2_2 r θ φ) (sin θ)^2) (f_3_3 r θ φ) (* 2 (f_1 r θ φ) r (sin θ)^2) (* (cos θ) (f_2 r θ φ) (sin θ))) (* r^2 (sin θ)^2))
 
 ; (2)
@@ -78,5 +79,6 @@ g~#~#;[| [| 1 0 0 |] [| 0 (/ 1 r^2) 0 |] [| 0 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#
 (define $sqrt-g (sqrt (M.det g_#_#)))
 sqrt-g;(* r^2 (sin θ))
 
-(/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ φ) x_j))) x_i)) sqrt-g)
+(define $Laplacian-2 (/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ φ) x_j))) x_i)) sqrt-g))
+Laplacian-2
 ;(/ (+ (* 2 r (sin θ)^2 (f_1 r θ φ)) (* r^2 (sin θ)^2 (f_1_1 r θ φ)) (* (cos θ) (f_2 r θ φ) (sin θ)) (* (sin θ)^2 (f_2_2 r θ φ)) (f_3_3 r θ φ)) (* (sin θ)^2 r^2))

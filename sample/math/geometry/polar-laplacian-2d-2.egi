@@ -54,7 +54,7 @@ g~#~#;[| [| 1 0 |] [| 0 (/ 1 r^2) |] |]~#~#
 Γ~2_#_#;[| [| 0 (/ 1 r) |] [| (/ 1 r) 0 |] |]_#_#
 
 ;;
-;; Laplacian
+;; Derive Laplacian
 ;;
 
 ; (1)
@@ -64,8 +64,9 @@ g~#~#;[| [| 1 0 |] [| 0 (/ 1 r^2) |] |]~#~#
 (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ) x_k))
 ;(/ (* -1 (f_1 r θ)) r)
 
-(- (. g~i~j (∂/∂ (∂/∂ (f r θ) x_j) x_i))
-   (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ) x_k)))
+(define $Laplacian-1 (- (. g~i~j (∂/∂ (∂/∂ (f r θ) x_j) x_i))
+                        (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ) x_k))))
+Laplacian-1
 ;(/ (+ (* (f_1_1 r θ) r^2) (f_2_2 r θ) (* (f_1 r θ) r)) r^2)
 
 ; (2)
@@ -73,5 +74,6 @@ g~#~#;[| [| 1 0 |] [| 0 (/ 1 r^2) |] |]~#~#
 (define $sqrt-g (sqrt (M.det g_#_#)))
 sqrt-g;r
 
-(/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ) x_j))) x_i)) sqrt-g)
+(define $Laplacian-2 (/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ) x_j))) x_i)) sqrt-g))
+Laplacian-2
 ;(/ (+ (* (f_1 r θ) r) (* r^2 (f_1_1 r θ)) (f_2_2 r θ)) r^2)
