@@ -42,7 +42,7 @@ g~#~#;[| [| 1 0 |] [| 0 (/ 1 r^2) |] |]~#~#
 Γ_2_#_#;[| [| 0 r |] [| r 0 |] |]_#_#
 
 ;;
-;; Christoffel symbols of the sedond kind
+;; Christoffel symbols of the second kind
 ;;
 
 (define $Γ~__

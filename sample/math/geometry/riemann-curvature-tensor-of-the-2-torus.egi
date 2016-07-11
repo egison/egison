@@ -45,7 +45,7 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 Γ_2_#_#;[| [| 0 (* -1 '(+ (* a (cos θ)) b) a (sin θ)) |] [| (* -1 '(+ (* a (cos θ)) b) a (sin θ)) 0 |] |]_#_#
 
 ;;
-;; Christoffel symbols of the sedond kind
+;; Christoffel symbols of the second kind
 ;;
 
 (define $Γ~__
