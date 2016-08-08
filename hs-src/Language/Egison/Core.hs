@@ -178,6 +178,8 @@ evalExpr env (VarExpr name) = refVar' env name >>= evalRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" var))) return
                           (refVar env var)
 
+evalExpr env (PartialVarExpr n) = evalExpr env (VarExpr ("::" ++ show n))
+
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
   Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs 
@@ -287,6 +289,8 @@ evalExpr env (LambdaExpr names expr) = do
                              (TensorArg name') -> return name'
                              (ScalarArg _) -> throwError $ EgisonBug "scalar-arg remained") names
   return . Value $ Func Nothing env names' expr
+
+evalExpr env (PartialExpr n expr) = return . Value $ PartialFunc env n expr
 
 evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name expr
 
@@ -634,6 +638,11 @@ evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
+applyFunc _ (Value (PartialFunc env n body)) arg = do
+  refs <- fromTuple arg
+  if n == fromIntegral (length refs)
+    then evalExpr (extendEnv env $ makeBindings (map (\n -> "::" ++ show n) [1..n]) refs) body
+    else throwError $ ArgumentsNumWithNames ["partial"] (fromIntegral n) (length refs)
 applyFunc _ (Value (Func _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
   evalExpr (extendEnv env $ makeBindings [name] [ref]) body

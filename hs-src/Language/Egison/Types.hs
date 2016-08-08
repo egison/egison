@@ -256,7 +256,7 @@ data EgisonExpr =
 
   | SomethingExpr
   | UndefinedExpr
- deriving (Show, Eq)
+ deriving (Eq)
 
 data Arg =
     ScalarArg String
@@ -344,6 +344,7 @@ data EgisonValue =
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
   | Func (Maybe String) Env [String] EgisonExpr
+  | PartialFunc Env Integer EgisonExpr
   | CFunc (Maybe String) Env String EgisonExpr
   | MemoizedFunc (Maybe String) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | Proc (Maybe String) Env [String] EgisonExpr
@@ -921,6 +922,21 @@ type Matcher = EgisonValue
 
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
+instance Show EgisonExpr where
+  show (CharExpr c) = "c#" ++ [c]
+  show (StringExpr str) = "\"" ++ T.unpack str ++ "\""
+  show (BoolExpr True) = "#t"
+  show (BoolExpr False) = "#f"
+  show (IntegerExpr n) = show n
+  show (FloatExpr x y) = showComplexFloat x y
+  show (VarExpr name) = name
+  show (PartialVarExpr n) = "%" ++ show n
+
+  show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
+  show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
+  show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
+
+
 instance Show EgisonValue where
   show (Char c) = "c#" ++ [c]
   show (String str) = "\"" ++ T.unpack str ++ "\""
@@ -949,6 +965,7 @@ instance Show EgisonValue where
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
   show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
   show (Func (Just name) _ _ _) = name
+  show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   show (CFunc (Just name) _ _ _) = name
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"

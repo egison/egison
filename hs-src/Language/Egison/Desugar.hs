@@ -328,14 +328,11 @@ desugar (MatcherDFSExpr matcherInfo) = do
   matcherInfo' <- desugarMatcherInfo matcherInfo
   return $ MatcherDFSExpr matcherInfo'
   
-desugar (PartialVarExpr n) = return $ VarExpr $ "::" ++ show n
+desugar (PartialVarExpr n) = return $ PartialVarExpr n
 
 desugar (PartialExpr n expr) = do
-  if n == 0
-    then desugar $ LetRecExpr [(["::0"], LambdaExpr [] expr)] (LambdaExpr [] expr)
-    else desugar $ LetRecExpr [(["::0"], LambdaExpr (map TensorArg (annonVars (fromIntegral n))) expr)] (LambdaExpr (map TensorArg (annonVars (fromIntegral n))) expr)
- where
-  annonVars n = take n $ map (((++) "::") . show) [1..]
+  expr' <- desugar expr
+  return $ LetRecExpr [(["::0"], PartialExpr n expr')] (VarExpr "::0")
 
 desugar (QuoteExpr expr) = do
   expr' <- desugar expr
