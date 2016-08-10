@@ -480,7 +480,7 @@ algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = keywordAlgebraicDataMatcher
                                 >> braces (AlgebraicDataMatcherExpr <$> sepEndBy1 inductivePat' whiteSpace)
   where
-    inductivePat' :: Parser (String, [EgisonExpr]) 
+    inductivePat' :: Parser (String, [EgisonExpr])
     inductivePat' = angles $ (,) <$> lowerName <*> sepEndBy expr whiteSpace
 
 generateArrayExpr :: Parser EgisonExpr
