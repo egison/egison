@@ -218,9 +218,9 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   xsWhnf <- evalExpr env xsExpr
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
   supWhnf <- evalExpr env supExpr
-  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRef >>= mapM extractScalar'
+  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
   subWhnf <- evalExpr env subExpr
-  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRef >>= mapM extractScalar'
+  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
   if product ns == toInteger (length xs)
     then fromTensor (initTensor ns xs sup sub)
     else throwError $ InconsistentTensorSize
@@ -264,12 +264,16 @@ evalExpr env (IndexedExpr expr indices) = do
                   Nothing -> evalExpr env expr
               _ -> evalExpr env expr
   js <- mapM (\i -> case i of
-                      Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
-                      Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
+                      Superscript n -> evalExprDeep env n >>= return . Superscript
+                      Subscript n -> evalExprDeep env n >>= return . Subscript
+              ) indices
+  js2 <- mapM (\i -> case i of
+                       Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
+                       Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
               ) indices
   case tensor of
     (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
-      return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js, 1)])]) (Plus [(Term 1 [])])))
+      return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js2, 1)])]) (Plus [(Term 1 [])])))
     (Value (ScalarData _)) -> do
       return $ tensor
     (Value (TensorData (Tensor ns xs _))) -> do
@@ -278,7 +282,7 @@ evalExpr env (IndexedExpr expr indices) = do
       tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
     _ -> refArray tensor (map (\j -> case j of
                                        Superscript k -> ScalarData k
-                                       Subscript k -> ScalarData k) js)
+                                       Subscript k -> ScalarData k) js2)
  where
   f :: Index a -> Index ()
   f (Superscript _) = Superscript ()
@@ -364,24 +368,29 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     return (Term a (zip xs' ns))
   h :: String -> SymbolExpr -> EgisonM SymbolExpr
   h symId (Symbol id name js) = do
-    js' <- removeVars symId js
-    return (Symbol id name js')
+    js' <- removeVars symId (map (\j -> case j of
+                                          Superscript i -> Superscript (ScalarData i)
+                                          Subscript i -> Subscript (ScalarData i)) js)
+    let js'' = map (\j -> case j of
+                            Superscript (ScalarData i) -> Superscript i
+                            Subscript (ScalarData i) -> Subscript i) js'
+    return (Symbol id name js'')
   h symId (Apply fn xs) = do
     xs' <- mapM (f symId) xs
     return (Apply fn xs')
   h symId (Quote x) = do
     x' <- f symId x
     return (Quote x')
-  removeVars :: String -> [Index ScalarData] -> EgisonM [Index ScalarData]
+  removeVars :: String -> [Index EgisonValue] -> EgisonM [Index EgisonValue]
   removeVars _ [] = return []
-  removeVars symId ((Subscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js)
+  removeVars symId ((Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js)
     | symId == id = return []
     | otherwise = do js' <- removeVars symId js
-                     return $ (Subscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js'
-  removeVars symId ((Superscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js)
+                     return $ (Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js'
+  removeVars symId ((Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js)
     | symId == id = return []
     | otherwise = do js' <- removeVars symId js
-                     return $ (Superscript (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))):js'
+                     return $ (Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js'
   removeVars symId (j:js) = do
     js' <- removeVars symId js
     return $ j:js'
