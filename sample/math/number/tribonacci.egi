@@ -23,16 +23,16 @@ B
 (M.* A B)
 ;[| 1 1 0 |]
 
-(M.* A A B)
+(M.* (M.power A 2) B)
 ;[| 2 1 1 |]~#
 
-(M.* A A A B)
+(M.* (M.power A 3) B)
 ;[| 4 2 1 |]~#
 
-(M.* A A A A B)
+(M.* (M.power A 4) B)
 ;[| 7 4 2 |]~#
 
-(M.* A A A A A B)
+(M.* (M.power A 5) B)
 ;[| 13 7 4 |]~#
 
 (M.* (M.power A 100) B)
