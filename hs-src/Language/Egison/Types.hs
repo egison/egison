@@ -703,6 +703,14 @@ tref [] (Tensor [] xs _)
 tref [] t = fromTensor t
 tref ((Subscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
 tref ((Superscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref ((Subscript (Tuple [ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])), ScalarData (Div (Plus [(Term n [])]) (Plus [(Term 1 [])]))])):ms) t = do
+  ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
+  symId <- fresh
+  tConcat (Subscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
+tref ((Superscript (Tuple [ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])), ScalarData (Div (Plus [(Term n [])]) (Plus [(Term 1 [])]))])):ms) t = do
+  ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
+  symId <- fresh
+  tConcat (Superscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
 tref (s:ms) (Tensor (n:ns) xs js) = do
   let yss = split (product ns) xs
   ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
