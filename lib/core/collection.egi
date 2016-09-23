@@ -263,6 +263,15 @@
            [$nx5 (fn nx4)]}
       {x nx1 nx2 nx3 nx4 @(iterate fn nx5)})))
 
+(define $repeated-squaring
+  (lambda [$fn %x $n]
+    (match n integer
+      {[,1 x]
+       [?even? (let {[$y (repeated-squaring fn x (quotient n 2))]}
+                 (fn y y))]
+       [?odd? (let {[$y (repeated-squaring fn x (quotient n 2))]}
+                (fn (fn y y) x))]})))
+
 (define $append
   (lambda [$xs $ys]
     {@xs @ys}))

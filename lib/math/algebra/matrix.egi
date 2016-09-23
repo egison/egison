@@ -13,13 +13,8 @@
 
 (define $M.power
   (lambda [%m $n]
-    (match n integer
-      {[,1 m]
-       [?even? (let {[$x (M.power m (quotient n 2))]}
-                 (M.* x x))]
-       [?odd? (let {[$x (M.power m (quotient n 2))]}
-                (M.* x x m))]})))
-
+    (repeated-squaring M.* m n)))
+                       
 (define $M.inverse
   (lambda [%m]
     (match (tensor-size m) (list integer)
