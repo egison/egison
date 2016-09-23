@@ -4,12 +4,21 @@
 
 (define $M.*
   (cambda $ms
-    (foldl M.*' (car ms) (cdr ms))))
+    (foldl M.b.* (car ms) (cdr ms))))
 
-(define $M.*'
+(define $M.b.*
   (lambda [%m1 %m2]
     (with-symbols {j}
       (. m1~#~j m2_j))))
+
+(define $M.*'
+  (cambda $ms
+    (foldl M.b.*' (car ms) (cdr ms))))
+
+(define $M.b.*'
+  (lambda [%m1 %m2]
+    (with-symbols {j}
+      (.' m1~#~j m2_j))))
 
 (define $M.power
   (lambda [%m $n]
