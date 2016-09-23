@@ -404,6 +404,7 @@ instance Eq TermExpr where
 data Tensor a =
     Tensor [Integer] (V.Vector a) [Index EgisonValue]
   | Scalar a
+ deriving (Show)
 
 class HasTensor a where
   tensorElems :: a -> V.Vector a
@@ -847,7 +848,6 @@ tProduct f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2) (enumTensorIndices cns1)
       let ret = Tensor (cns1 ++ (tSize (head rts'))) (V.concat (map tToVector rts')) ((map g cjs1) ++ tIndex (head rts'))
-      -- liftIO $ putStrLn ((show (cns1 ++ (tSize (head rts')))) ++ " " ++ (show (V.length (V.concat (map tToVector rts')))) ++ " " ++ (show ((map g cjs1) ++ tIndex (head rts'))))
       tTranspose ((map g cjs1) ++ tjs1 ++ tjs2) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
