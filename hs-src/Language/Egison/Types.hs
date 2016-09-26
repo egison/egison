@@ -52,6 +52,8 @@ module Language.Egison.Types
     , tContract'
     , tConcat
     , tConcat'
+    , tClearIndex
+    , tClearIndex'
     -- * Scalar
     , symbolScalarData
     , mathExprToEgison
@@ -932,6 +934,20 @@ tConcat' ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') []
 
+tClearIndex :: HasTensor a => Tensor a -> Tensor a
+tClearIndex (Tensor ns xs js) = Tensor ns xs (tClearIndex' js)
+tClearIndex s@(Scalar _) = s
+
+tClearIndex' :: [Index EgisonValue] -> [Index EgisonValue]
+tClearIndex' js = reverse (g (reverse js))
+ where
+  g :: [Index EgisonValue] -> [Index EgisonValue]
+  g [] = []
+  g ((Superscript (ScalarData (Div (Plus [(Term 1 [(Symbol _ (':':':':':':_) [], 1)])]) (Plus [(Term 1 [])])))):js) = g js
+  g ((Subscript (ScalarData (Div (Plus [(Term 1 [(Symbol _ (':':':':':':_) [], 1)])]) (Plus [(Term 1 [])])))):js) = g js
+  g ((SupSubscript (ScalarData (Div (Plus [(Term 1 [(Symbol _ (':':':':':':_) [], 1)])]) (Plus [(Term 1 [])])))):js) = g js
+  g js = js
+
 getScalar :: (Tensor a) -> EgisonM a
 getScalar (Scalar x) = return x
 getScalar _ = throwError $ strMsg "Inconsitent Tensor order"
@@ -987,12 +1003,12 @@ instance Show EgisonValue where
   show (Bool False) = "#f"
   show (ScalarData mExpr) = show mExpr
 --  show (TensorData (Scalar x)) = "invalid scalar:" ++ show x
-  show (TensorData (Tensor [_] xs js)) = "[| " ++ unwords (map show (V.toList xs)) ++ " |]" ++ concat (map show js)
-  show (TensorData (Tensor [i, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concat (map show js)
+  show (TensorData (Tensor [_] xs js)) = "[| " ++ unwords (map show (V.toList xs)) ++ " |]" ++ concat (map show (tClearIndex' js))
+  show (TensorData (Tensor [i, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concat (map show (tClearIndex' js))
    where
     f j [] = ""
     f j xs = "[| " ++ unwords (map show (take j xs)) ++ " |] " ++ f j (drop j xs)
-  show (TensorData (Tensor ns xs js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show (V.toList xs)) ++ "} )" ++ concat (map show js)
+  show (TensorData (Tensor ns xs js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show (V.toList xs)) ++ "} )" ++ concat (map show (tClearIndex' js))
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
