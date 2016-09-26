@@ -6,7 +6,9 @@
 
 (define $math-normalize
   (lambda [$fn $x1 $x2]
-    ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (fn x1 x2))))
+    (if (and (integer? x1) (integer? x2))
+      (fn x1 x2)
+      ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (fn x1 x2)))))
 
 (define $rewrite-rules
   {
