@@ -347,6 +347,7 @@ desugar expr = return expr
 desugarIndex :: Index EgisonExpr -> DesugarM (Index EgisonExpr)
 desugarIndex (Superscript expr) = desugar expr >>= return . Superscript
 desugarIndex (Subscript expr) = desugar expr >>= return . Subscript
+desugarIndex (SupSubscript expr) = desugar expr >>= return . SupSubscript
 
 desugarPattern :: EgisonPattern -> DesugarM EgisonPattern
 desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern) <$> desugarPattern' pattern 

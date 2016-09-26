@@ -266,12 +266,14 @@ evalExpr env (IndexedExpr expr indices) = do
   js <- mapM (\i -> case i of
                       Superscript n -> evalExprDeep env n >>= return . Superscript
                       Subscript n -> evalExprDeep env n >>= return . Subscript
+                      SupSubscript n -> evalExprDeep env n >>= return . SupSubscript
               ) indices
   case tensor of
     (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
       js2 <- mapM (\i -> case i of
                            Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
                            Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
+                           SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
                   ) indices
       return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js2, 1)])]) (Plus [(Term 1 [])])))
     (Value (ScalarData _)) -> do
@@ -284,14 +286,18 @@ evalExpr env (IndexedExpr expr indices) = do
       js2 <- mapM (\i -> case i of
                            Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
                            Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
+                           SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
                   ) indices
       refArray tensor (map (\j -> case j of
                                     Superscript k -> ScalarData k
-                                    Subscript k -> ScalarData k) js2)
+                                    Subscript k -> ScalarData k
+                                    SupSubscript k -> ScalarData k
+                            ) js2)
  where
   f :: Index a -> Index ()
   f (Superscript _) = Superscript ()
   f (Subscript _) = Subscript ()
+  f (SupSubscript _) = SupSubscript ()
 
 evalExpr env (LambdaExpr names expr) = do
   names' <- mapM (\name -> case name of
@@ -375,10 +381,14 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   h symId (Symbol id name js) = do
     js' <- removeVars symId (map (\j -> case j of
                                           Superscript i -> Superscript (ScalarData i)
-                                          Subscript i -> Subscript (ScalarData i)) js)
+                                          Subscript i -> Subscript (ScalarData i)
+                                          SupSubscript i -> SupSubscript (ScalarData i)
+                                  )js)
     let js'' = map (\j -> case j of
                             Superscript (ScalarData i) -> Superscript i
-                            Subscript (ScalarData i) -> Subscript i) js'
+                            Subscript (ScalarData i) -> Subscript i
+                            SupSubscript (ScalarData i) -> SupSubscript i
+                    ) js'
     return (Symbol id name js'')
   h symId (Apply fn xs) = do
     xs' <- mapM (f symId) xs
@@ -396,6 +406,10 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     | symId == id = return []
     | otherwise = do js' <- removeVars symId js
                      return $ (Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js'
+  removeVars symId ((SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js)
+    | symId == id = return []
+    | otherwise = do js' <- removeVars symId js
+                     return $ (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js'
   removeVars symId (j:js) = do
     js' <- removeVars symId js
     return $ j:js'
