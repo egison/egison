@@ -356,14 +356,14 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   case whnf of
     (Value val) -> removeVarsFromIndices symId val >>= return . Value
     (Intermediate (ITensor (Tensor ns xs js))) -> do
-      js' <- removeVars symId js
+      js' <- removeVars symId (tClearIndex' js)
       return (Intermediate (ITensor (Tensor ns xs js')))
     _ -> return whnf
  where
   removeVarsFromIndices :: String -> EgisonValue -> EgisonM EgisonValue
   removeVarsFromIndices symId (TensorData (Tensor ns xs js)) = do
     xs' <- mapM (removeVarsFromIndices symId) xs
-    js' <- removeVars symId js
+    js' <- removeVars symId (tClearIndex' js)
     fromTensor (Tensor ns xs' js')
   removeVarsFromIndices symId (ScalarData s) = f symId s >>= return . ScalarData
   removeVarsFromIndices _ val = return val
