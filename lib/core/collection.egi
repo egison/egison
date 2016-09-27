@@ -532,6 +532,14 @@
     (let {[$us (unique/m a xs)]}
       (map (lambda [$u] [u (count/m a u xs)]) us))))
 
+;;
+;; Index
+;;
+(define $elemIndices
+  (lambda [$x $xs]
+    (match-all xs (list something)
+      [<join $hs <cons ,x _>> (+ 1 (length hs))])))
+
 ;;;
 ;;; Set
 ;;;

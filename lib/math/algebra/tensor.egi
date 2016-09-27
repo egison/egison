@@ -24,3 +24,14 @@
     (match xs (list something)
       {[<join _ <cons (& ?scalar? ?tensor-symbol?) _>> (capply `. xs)]
        [_ (foldl b.. (car xs) (cdr xs))]})))
+
+(define $T.+
+  (lambda [%t1 %t2]
+    (tensor (tensor-size t1)
+            (map2 + (tensor-to-list t1) (tensor-to-list t2)))))
+
+
+(define $T.-
+  (lambda [%t1 %t2]
+    (tensor (tensor-size t1)
+            (map2 - (tensor-to-list t1) (tensor-to-list t2)))))

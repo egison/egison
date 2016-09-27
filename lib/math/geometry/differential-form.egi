@@ -18,3 +18,27 @@
        [[<join $hs <cons (,d $y) <join $ms <cons (,d $x) $ts>>>> <join _ <cons ,x <join _ <cons ,y _>>>>]
         (*' -1 (capply ^ {@hs (`d x) @ms (`d y) @ts}))]
        [[_ _] (capply `^ xs)]})))
+
+(define $wedge-to-tensor
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {; term (multiplication)
+       [(* $a (,d $x) $r)
+        (generate-tensor
+          (match-lambda integer
+            {[,(car (elemIndices x coordinates)) (* a r)]
+             [_ 0]})
+          {(length coordinates)})~#]
+       [(* $a (,^ (,d $x) (,d $y)) $r)
+        (generate-tensor
+          (match-lambda [integer integer]
+            {[[,(car (elemIndices x coordinates)) ,(car (elemIndices y coordinates))] (* a r)]
+             [[,(car (elemIndices y coordinates)) ,(car (elemIndices x coordinates))] (* -1 (* a r))]
+             [[_ _] 0]})
+          {(length coordinates) (length coordinates)})~#~#]
+       [(* $a (,^ $dx $dy $dz) $r)
+        undefined]
+       [(* $a $r) (* a r)]
+       [<poly $ts> (capply M.+ (map (wedge-to-tensor $) ts))]
+       [_ undefined]
+       })))
