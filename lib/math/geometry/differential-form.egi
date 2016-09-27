@@ -1,0 +1,20 @@
+(define $d
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {[(& ?symbol? ?(member? $ coordinates) $x) (`d x)]
+       ; term (multiplication)
+       [(* $a (,d $x) $r) (sum (map 1#(* (∂/∂ (* a r) %1) (^ (`d %1) (`d x))) coordinates))]
+       [(* $a (,^ $dx $dy) $r) (sum (map 1#(* (∂/∂ (* a r) %1) (^ (`d %1) dx dy)) coordinates))]
+       [(* $a (,^ $dx $dy $dz) $r) (sum (map 1#(* (∂/∂ (* a r) %1) (^ (`d %1) dx dy dz)) coordinates))]
+       [(* $a $r) (sum (map 1#(* (∂/∂ mexpr %1) (`d %1)) coordinates))]
+       [<poly $ts> (sum (map (d $) ts))]
+       [_ undefined]
+       })))
+
+(define $^
+  (cambda $xs
+    (match [xs coordinates] [(list math-expr) (list math-expr)]
+      {[[<join _ <cons $dx <join _ <cons ,dx _>>>> _] 0]
+       [[<join $hs <cons (,d $y) <join $ms <cons (,d $x) $ts>>>> <join _ <cons ,x <join _ <cons ,y _>>>>]
+        (*' -1 (capply ^ {@hs (`d x) @ms (`d y) @ts}))]
+       [[_ _] (capply `^ xs)]})))

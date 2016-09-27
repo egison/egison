@@ -33,6 +33,19 @@
 
 (define $trace (lambda [%t] (with-symbols {i} (contract + t~i_i))))
 
+(define $matrix
+  (matcher
+    {[<quad-cons $ $ $ $> [math-expr matrix matrix matrix]
+      {[$tgt (match (tensor-size tgt) (list integer)
+               {[<cons $m <cons $n _>>
+                 {[tgt_1_1 tgt_1_[2 n] tgt_[2 m]_1 tgt_[2 m]_[2 n]]}]
+                [_ {}]})]}]
+     [,$val []
+      {[$tgt (if (eq? val tgt) {[]} {})]}]
+     [$ [something]
+      {[$tgt {tgt}]}]
+     }))
+
 ;;
 ;; Determinant
 ;;
