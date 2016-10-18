@@ -24,6 +24,11 @@
   (lambda [%m $n]
     (repeated-squaring M.* m n)))
                        
+(define $M.comm
+  (lambda [%m1 %m2]
+    (with-symbols {i j k}
+      (- (. m1~i~j m2_j_k) (. m2~i~j m1_j_k)))))
+
 (define $M.inverse
   (lambda [%m]
     (match (tensor-size m) (list integer)

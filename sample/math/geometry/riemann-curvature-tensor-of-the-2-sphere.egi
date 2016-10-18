@@ -57,6 +57,18 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 Γ~1_#_#;[| [| 0 0 |] [| 0 (* -1 (sin θ) (cos θ)) |] |]_#_#
 Γ~2_#_#;[| [| 0 (/ (cos θ) (sin θ)) |] [| (/ (cos θ) (sin θ)) 0 |] |]_#_#
 
+
+;;
+;; Covariant derivative of metric tensor
+;;
+(define $∇g___
+  (with-symbols {i j m n}
+    (- (∂/∂ g_i_j x_m)
+       (. Γ~n_m_i g_n_j)
+       (. Γ~n_m_j g_i_n))))
+
+∇g_#_#_#;=>(tensor {2 2 2} {0 0 0 0 0 0 0 0} )
+
 ;;
 ;; Riemann curvature tensor
 ;;
