@@ -13,31 +13,55 @@
     (if (integer? n)
       (match x math-expr
         {[,0 0]
-         [?monomial? (rt' n x)]
+         [?monomial? (rt-monomial n x)]
          [<div <poly $xs> <poly $ys>>
           (let {[$xd (reduce gcd xs)]
                 [$yd (reduce gcd ys)]}
-            (let {[[$a $r] (from-monomial (rt' n (/ xd yd)))]}
+            (let {[[$a $r] (from-monomial (rt-monomial n (/ xd yd)))]}
               (*' a
                  (rt'' n (*' (** r n) (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
                  )))]})
       (rt'' n x))))
 
-(define $rt'
+(define $rt-monomial
+  (lambda [$n $x]
+    (/ (rt-term n (* (numerator x)
+                     (** (denominator x) (- n 1))))
+       (denominator x))))
+
+(define $rt-term
+  (lambda [$n $x]
+    (match x math-expr
+      {[(* $a (,sqrt $b)) (rt (* n 2) (*' (**' a 2) b))]
+       [(* $a (,rt $n' $b)) (rt (* n n') (*' (**' a n') b))]
+       [_ (rt-term1 n x)]
+       })))
+
+(define $rt-term1
+  (lambda [$n $x]
+    (match x term-expr
+      {[<term $a _>
+        (if (lt? a 0)
+          (*' (rtm1 n) (rt-positive-term n (abs x)))
+          (rt-positive-term n x))]})))
+
+(define $rt-positive-term
   (lambda [$n $x]
     (letrec {[$f (lambda [$xs]
-                   (match xs (assoc-multiset integer)
+                   (match xs (assoc-multiset math-expr)
                      {[<nil> [1 1]]
                       [<ncons $p $k $rs>
-                       (let {[$ret (f rs)]}
-                         [(*' (**' p (quotient k n)) (2#%1 ret)) (*' (**' p (remainder k n)) (2#%2 ret))])]}))]}
-      (letrec {[$g (lambda [$x]
-                     (match x term-expr
-                       {[<term $a $xs>
-                         (match (f {@(to-assoc (p-f (abs a))) @xs}) [math-expr math-expr]
-                           {[[$x ,1] (if (lt? a 0) (*' (rtm1 n) x) x)]
-                            [[$y $z] (if (lt? a 0) (*' (rtm1 n) y (rt'' n z)) (*' y (rt'' n z)))]})]}))]}
-        (/' (g (numerator x)) (g (denominator x)))))))
+                       (let {[[$a $b] (f rs)]}
+                         [(*' (**' p (quotient k n)) a) (*' (**' p (remainder k n)) b)])]}))]
+             [$g (lambda [$n $x]
+                   (let {[$d (match x term-expr
+                               {[<term $m $xs> (gcd n (reduce gcd (map 2#%2 {@(to-assoc (p-f m)) @xs})))]})]}
+                     (rt'' (/ n d) (rt d x))))]}
+      (match x term-expr
+        {[<term $m $xs>
+          (match (f {@(to-assoc (p-f (abs m))) @xs}) [integer integer]
+            {[[$a ,1] a]
+             [[$a $b] (*' a (g n b))]})]}))))
 
 (define $rt''
   (lambda [$n $x]
