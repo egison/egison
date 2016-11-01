@@ -31,21 +31,22 @@
 
 (define $rt-term
   (lambda [$n $x]
-    (match x math-expr
-      {[(* $a (,sqrt $b)) (rt (* n 2) (*' (**' a 2) b))]
-       [(* $a (,rt $n' $b)) (rt (* n n') (*' (**' a n') b))]
-       [_ (rt-term1 n x)]
-       })))
-
-(define $rt-term1
-  (lambda [$n $x]
     (match x term-expr
       {[<term $a _>
         (if (lt? a 0)
-          (*' (rtm1 n) (rt-positive-term n (abs x)))
+          (*' (rtm1 n) (rt-positive-term n (* -1 x)))
           (rt-positive-term n x))]})))
 
 (define $rt-positive-term
+  (lambda [$n $x]
+    (match [n x] [math-expr math-expr]
+      {[[,3 (* $a ,i $r)] (* -1 i (rt 3 (*' a r)))]
+       [[_ (* $a (,sqrt $b) $r)] (*' (rt (* n 2) (*' (**' a 2) b)) (rt n r))]
+       [[_ (* $a (,rt $n' $b) $r)] (*' (rt (* n n') (*' (**' a n') b)) (rt n r))]
+       [[_ _] (rt-positive-term1 n x)]
+       })))
+
+(define $rt-positive-term1
   (lambda [$n $x]
     (letrec {[$f (lambda [$xs]
                    (match xs (assoc-multiset math-expr)
