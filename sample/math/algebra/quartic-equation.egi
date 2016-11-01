@@ -1,22 +1,25 @@
-(define $quartic-formula qu-f)
+(define $quartic-formula qt-f)
 
-(define $qu-f
+(define $qt-f
   (lambda [$f $x]
     (match (coefficients x f) (list math-expr)
       {[<cons $a_0 <cons $a_1 <cons $a_2 <cons $a_3 <cons $a_4 <nil>>>>>>
-        (qu-f' a_4 a_3 a_2 a_1 a_0)]})))
+        (qt-f' a_4 a_3 a_2 a_1 a_0)]})))
 
-(define $qu-f'
+(define $qt-f'
   (lambda [$a $b $c $d $e]
-    (match [a b c d e] [math-expr math-expr math-expr math-expr math-expr]
+    (match (debug [a b c d e]) [math-expr math-expr math-expr math-expr math-expr]
       {[[,1 ,0 $p ,0 $q]
         undefined]
        [[,1 ,0 $p (& !,0 $q) $r]
         (let {[$u (3#%1 (c-f (+ (* u (+ p u)^2) (* -4 r u) (* -1 q^2)) u))]}
           [(q-f (+ y^2 (/ (+ p u) 2) (* (sqrt u) (- y (/ q (* 2 u))))) y)
            (q-f (+ y^2 (/ (+ p u) 2) (* -1 (sqrt u) (- y (/ q (* 2 u))))) y)])]
-       [[_ _ _ _ _] (qu-f' 1 (/ b a) (/ c a) (/ d a) (/ e a))]})))
+       [[,1 _ _ _ _] (with-symbols {x y} (qt-f (substitute {[x (- y (/ b 4))]} (+ x^4 (* b x^3) (* c x^2) (* d x) e)) y))]
+       [[_ _ _ _ _] (qt-f' 1 (/ b a) (/ c a) (/ d a) (/ e a))]})))
 
 (define $w (/ (+ -1 (* i (sqrt 3))) 2))
 
-(qu-f' 1 0 0 1 0)
+;(qt-f' 1 0 0 1 0)
+
+(qt-f' 1 b c d e)
