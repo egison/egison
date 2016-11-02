@@ -8,18 +8,27 @@
 
 (define $qt-f'
   (lambda [$a $b $c $d $e]
-    (match (debug [a b c d e]) [math-expr math-expr math-expr math-expr math-expr]
+    (match [a b c d e] [math-expr math-expr math-expr math-expr math-expr]
       {[[,1 ,0 $p ,0 $q]
-        undefined]
-       [[,1 ,0 $p (& !,0 $q) $r]
-        (let {[$u (3#%1 (c-f (+ (* u (+ p u)^2) (* -4 r u) (* -1 q^2)) u))]}
-          [(q-f (+ y^2 (/ (+ p u) 2) (* (sqrt u) (- y (/ q (* 2 u))))) y)
-           (q-f (+ y^2 (/ (+ p u) 2) (* -1 (sqrt u) (- y (/ q (* 2 u))))) y)])]
-       [[,1 _ _ _ _] (with-symbols {x y} (qt-f (substitute {[x (- y (/ b 4))]} (+ x^4 (* b x^3) (* c x^2) (* d x) e)) y))]
+        (let* {[[$s1 $s2] (q-f' 1 p q)]
+               [[$r1 $r2] (q-f' 1 0 (* -1 s1))]
+               [[$r3 $r4] (q-f' 1 0 (* -1 s2))]}
+          [r1 r2 r3 r4])]
+       [[,1 ,0 $p $q $r]
+        (let* {[$u (3#%1 (with-symbols {u} (c-f (+ (* u (+ p u)^2) (* -4 r u) (* -1 q^2)) u)))]
+               [[$r1 $r2] (q-f (+ y^2 (/ (+ p u) 2) (* (sqrt u) (- y (/ q (* 2 u))))) y)]
+               [[$r3 $r4] (q-f (+ y^2 (/ (+ p u) 2) (* -1 (sqrt u) (- y (/ q (* 2 u))))) y)]}
+          [r1 r2 r3 r4])]
+       [[,1 _ _ _ _]
+        (4#[(- %1 (/ b 4)) (- %2 (/ b 4)) (- %3 (/ b 4)) (- %4 (/ b 4))]
+           (with-symbols {x y}
+             (qt-f (substitute {[x (- y (/ b 4))]} (+ x^4 (* b x^3) (* c x^2) (* d x) e)) y)))]
        [[_ _ _ _ _] (qt-f' 1 (/ b a) (/ c a) (/ d a) (/ e a))]})))
 
 (define $w (/ (+ -1 (* i (sqrt 3))) 2))
 
-;(qt-f' 1 0 0 1 0)
+(qt-f' 1 0 0 1 0)
+;=>[0 -1 (/ (+ 1 (* i (sqrt 3))) 2) (/ (+ 1 (* -1 i (sqrt 3))) 2)]
 
-(qt-f' 1 b c d e)
+(qt-f' 1 0 2 0 1)
+;=>[i (* -1 i) i (* -1 i)]
