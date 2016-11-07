@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.6.0
+Version:             3.6.1
 Synopsis:            Programming language with non-linear pattern-matching against non-free data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
@@ -79,7 +79,7 @@ Library
                    Language.Egison.Primitives
                    Language.Egison.Util
   Other-modules:   Paths_egison
-  ghc-prof-options:   -prof -auto-all
+  ghc-prof-options:   --enable-profiling -auto-all
 
 Test-Suite test
   Type:           exitcode-stdio-1.0
@@ -101,4 +101,4 @@ Executable egison
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
   ghc-options:  -rtsopts -threaded
-  ghc-prof-options:   -prof -auto-all
+  ghc-prof-options:   --enable-profiling -auto-all
