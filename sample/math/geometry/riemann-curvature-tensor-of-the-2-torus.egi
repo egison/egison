@@ -57,6 +57,17 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 Γ~2_#_#;[| [| 0 (/ (* -1 a (sin θ)) '(+ (* a (cos θ)) b)) |] [| (/ (* -1 a (sin θ)) '(+ (* a (cos θ)) b)) 0 |] |]_#_#
 
 ;;
+;; Covariant derivative of metric tensor
+;;
+(define $∇g___
+  (with-symbols {i j m n}
+    (- (∂/∂ g_i_j x_m)
+       (. Γ~n_m_i g_n_j)
+       (. Γ~n_m_j g_i_n))))
+
+∇g_#_#_#;=>(tensor {2 2 2} {0 0 0 0 0 0 0 0} )
+
+;;
 ;; Riemann curvature tensor
 ;;
 
@@ -64,10 +75,6 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
   (with-symbols {i j k l m}
     (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
        (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k)))))
-
-
-
-
 
 R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (/ (* -1 '(+ (* a (cos θ)) b) (cos θ)) a) (/ (* '(+ (* a (cos θ)) b) (cos θ)) a) 0 0 (/ (* a (cos θ)) '(+ (* a (cos θ)) b)) (/ (* -1 a (cos θ)) '(+ (* a (cos θ)) b)) 0 0 0 0 0} )~#_#_#_#
 R~#_#_1_1;[| [| 0 0 |] [| 0 0 |] |]~#_#
