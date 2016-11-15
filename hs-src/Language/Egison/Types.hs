@@ -831,7 +831,7 @@ tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
   t2' <- tTranspose js1 t2
   case t2' of
     (Tensor ns2 xs2 _)
-      | ns2 == ns1 -> do ys <- mapM (\(x1,x2) -> f x1 x2) (V.zip xs1 xs2)
+      | ns2 == ns1 -> do ys <- V.mapM (\(x1,x2) -> f x1 x2) (V.zip xs1 xs2)
                          return (Tensor ns1 ys js1)
       | otherwise -> throwError $ InconsistentTensorSize
 
@@ -871,10 +871,10 @@ tProduct f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
   g (Superscript i) = (SupSubscript i)
   g (Subscript i) = (SupSubscript i)
 tProduct f (Scalar x) (Tensor ns xs js) = do
-  xs' <- mapM (f x) xs
+  xs' <- V.mapM (f x) xs
   return $ Tensor ns xs' js
 tProduct f (Tensor ns xs js) (Scalar x) = do
-  xs' <- mapM (flip f x) xs
+  xs' <- V.mapM (flip f x) xs
   return $ Tensor ns xs' js
 tProduct f (Scalar x1) (Scalar x2) = f x1 x2 >>= return . Scalar
 

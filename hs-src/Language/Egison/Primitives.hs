@@ -70,7 +70,7 @@ oneArg f = \arg -> do
   arg' <- evalWHNF arg
   case arg' of
     (TensorData (Tensor ns ds js)) -> do
-      ds' <- mapM (\d -> f d) ds
+      ds' <- V.mapM (\d -> f d) ds
       fromTensor (Tensor ns ds' js) >>= return . Value 
     _ -> f arg' >>= return . Value
 
@@ -89,10 +89,10 @@ twoArgs f = \args -> do
     [(TensorData t1@(Tensor _ _ _)), (TensorData t2@(Tensor _ _ _))] -> do
       tProduct f t1 t2 >>= fromTensor >>= return . Value
     [(TensorData(Tensor ns ds js)), val] -> do
-      ds' <- mapM (\d -> f d val) ds
+      ds' <- V.mapM (\d -> f d val) ds
       fromTensor (Tensor ns ds' js) >>= return . Value 
     [val, (TensorData (Tensor ns ds js))] -> do
-      ds' <- mapM (\d -> f val d) ds
+      ds' <- V.mapM (\d -> f val d) ds
       fromTensor (Tensor ns ds' js) >>= return . Value 
     [val, val'] -> f val val' >>= return . Value
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
