@@ -54,13 +54,13 @@
 
 (assert-equal "Tensor ∂/∂ - case 1"
   (∂/∂ [|(f x) (g x)|] x)
-  [|(f_1 x) (g_1 x)|])
+  [|(f|1 x) (g|1 x)|])
 
 (assert-equal "Tensor ∂/∂ - case 2"
   (∂/∂ (f x y z) [|x y z|])
-  [|(f_1 x y z) (f_2 x y z) (f_3 x y z)|])
+  [|(f|1 x y z) (f|2 x y z) (f|3 x y z)|])
 
 (assert-equal "Tensor ∂/∂ - case 3"
   (apply [|(∂/∂ $ x) (∂/∂ $ y)|] (f x y))
-  [|(f_1 x y) (f_2 x y)|])
+  [|(f|1 x y) (f|2 x y)|])
 

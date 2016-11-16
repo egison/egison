@@ -259,9 +259,7 @@ evalExpr env (UserIndexedExpr expr indices) = do
   val <- evalExprDeep env expr
   js <- mapM (\i -> case i of
                       Userscript n -> evalExprDeep env n >>= return . Userscript) indices
-  case val of
-    (UserIndexedData val' is') -> return $ Value $ UserIndexedData val' (is' ++ js)
-    _ -> return $ Value $ UserIndexedData val js
+  return $ Value $ UserIndexedData val js
 
 evalExpr env (IndexedExpr expr indices) = do
   tensor <- case expr of
@@ -720,10 +718,6 @@ applyFunc _ (Value (QuotedFunc fn)) arg = do
   mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
 applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])])))) arg = do
-  args <- tupleToList arg
-  mExprs <- mapM extractScalar args
-  return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
-applyFunc _ (Value fn@(UserIndexedData _ _)) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))

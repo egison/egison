@@ -1111,7 +1111,6 @@ instance Eq EgisonValue where
  (CharHash vals) == (CharHash vals') = vals == vals'
  (StrHash vals) == (StrHash vals') = vals == vals'
  (PrimitiveFunc name1 _) == (PrimitiveFunc name2 _) = name1 == name2
- (UserIndexedData val is) == (UserIndexedData val' is') = (val == val') && (is == is')
  -- Temporary: searching a better solution
  (Func Nothing _ xs1 expr1) == (Func Nothing _ xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
  (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2

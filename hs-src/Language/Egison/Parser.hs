@@ -156,8 +156,11 @@ exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
 expr = P.lexeme lexer (do expr0 <- expr'
-                          expr1 <- option expr0 $ IndexedExpr expr0 <$> many1 (try (char '_' >> expr' >>= return . Subscript) <|> try (char '~' >> expr' >>= return . Superscript) <|> try (string "~_" >> expr' >>= return . SupSubscript))
-                          option expr1 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
+                          expr1 <- option expr0 $ IndexedExpr expr0 <$> many1 (try (char '_' >> expr' >>= return . Subscript)
+                                                                           <|> try (char '~' >> expr' >>= return . Superscript)
+                                                                           <|> try (string "~_" >> expr' >>= return . SupSubscript))
+                          expr2 <- option expr1 $ UserIndexedExpr expr1 <$> many1 (try $ char '|' >> expr' >>= return . Userscript)
+                          option expr2 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
                           
 
 expr' :: Parser EgisonExpr
