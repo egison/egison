@@ -35,4 +35,4 @@ sqrt-g;r
 
 (define $Laplacian (/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ) x_j))) x_i)) sqrt-g))
 Laplacian
-;(/ (+ (* (f_1 r θ) r) (* r^2 (f_1_1 r θ)) (f_2_2 r θ)) r^2)
+;(/ (+ (* (f|1 r θ) r) (* r^2 (f|1|1 r θ)) (f|2|2 r θ)) r^2)

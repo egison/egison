@@ -38,4 +38,4 @@ sqrt-g;(* r^2 (sin θ))
 
 (define $Laplacian (/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ φ) x_j))) x_i)) sqrt-g))
 Laplacian
-;(/ (+ (* 2 r (sin θ)^2 (f_1 r θ φ)) (* r^2 (sin θ)^2 (f_1_1 r θ φ)) (* (cos θ) (f_2 r θ φ) (sin θ)) (* (sin θ)^2 (f_2_2 r θ φ)) (f_3_3 r θ φ)) (* (sin θ)^2 r^2))
+;(/ (+ (* 2 r (sin θ)^2 (f|1 r θ φ)) (* r^2 (sin θ)^2 (f|1|1 r θ φ)) (* (cos θ) (f|2 r θ φ) (sin θ)) (* (sin θ)^2 (f|2|2 r θ φ)) (f|3|3 r θ φ)) (* (sin θ)^2 r^2))
