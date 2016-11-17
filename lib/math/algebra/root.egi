@@ -17,9 +17,9 @@
          [<div <poly $xs> <poly $ys>>
           (let {[$xd (reduce gcd xs)]
                 [$yd (reduce gcd ys)]}
-            (let {[[$a $r] (from-monomial (rt-monomial n (/ xd yd)))]}
-              (*' a
-                 (rt'' n (*' (** r n) (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
+            (let {[$d (rt-monomial n (/ xd yd))]}
+              (*' d
+                 (rt'' n (*' (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
                  )))]})
       (rt'' n x))))
 

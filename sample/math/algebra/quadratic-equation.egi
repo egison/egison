@@ -1,0 +1,36 @@
+(define $quadratic-formula q-f)
+
+(define $q-f
+  (lambda [$f $x]
+    (match (coefficients f x) (list math-expr)
+      {[<cons $a_0 <cons $a_1 <cons $a_2 <nil>>>>
+        (q-f' a_2 a_1 a_0)]})))
+
+(define $q-f'
+  (lambda [$a $b $c]
+    (match [a b c] [math-expr math-expr math-expr]
+      {[[,1 ,0 _]
+        [(sqrt (* -1 c)) (* -1 (sqrt (* -1 c)))]]
+       [[,1 _ _]
+        (2#[(+ (* -1 (/ b 2)) %1) (+ (* -1 (/ b 2)) %2)]
+           (with-symbols {x y}
+             (q-f (substitute {[x (- y (/ b 2))]} (+ x^2 (* b x) c)) y)))]
+       [[_ _ _] (q-f' 1 (/ b a) (/ c a))]})))
+
+
+(q-f (+ x^2 x 1) x)
+;=>
+;[(/ (+ -1 (* i (sqrt 3))) 2)
+; (/ (+ -1 (* -1 i (sqrt 3))) 2)]
+
+(q-f (+ (* a x^2) (* b x) c) x)
+;=>
+;[(/ (+ (* -1 b) (sqrt (+ b^2 (* -4 c a))))
+;    (* 2 a))
+; (/ (+ (* -1 b) (* -1 (sqrt (+ b^2 (* -4 c a)))))
+;    (* 2 a))]
+
+(q-f (+ (* a x^2) (* 2 b x) c) x)
+;=>
+;[(/ (+ (* -1 b) (sqrt (+ b^2 (* -1 c a)))) a)
+; (/ (+ (* -1 b) (* -1 (sqrt (+ b^2 (* -1 c a))))) a)]
