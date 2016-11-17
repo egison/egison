@@ -2,7 +2,7 @@
 
 (define $qt-f
   (lambda [$f $x]
-    (match (coefficients x f) (list math-expr)
+    (match (coefficients f x) (list math-expr)
       {[<cons $a_0 <cons $a_1 <cons $a_2 <cons $a_3 <cons $a_4 <nil>>>>>>
         (qt-f' a_4 a_3 a_2 a_1 a_0)]})))
 

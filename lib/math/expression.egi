@@ -274,19 +274,19 @@
   (lambda [$x $f]
     (let {[$m (capply max {0 @(match-all f math-expr
                                 [<div <poly <cons <term $a <ncons ,x $k $ts>> _>> _> k])})]}
-      (map (coefficient x $ f) (between 0 m)))))
+      (map (coefficient f x $) (between 0 m)))))
 
 (define $coefficient
-  (lambda [$x $m $f]
+  (lambda [$f $x $m]
     (if (eq? m 0)
       (/ (sum (match-all f math-expr
                 [<div <poly <cons <term $a (& !<cons ,x _> $ts)> _>> _>
                  (foldl *' a (map 2#(**' %1 %2) ts))]))
          (denominator f))
-      (coefficient' x m f))))
+      (coefficient' f x m))))
 
 (define $coefficient'
-  (lambda [$x $m $f]
+  (lambda [$f $x $m]
     (/ (sum (match-all f math-expr
               [<div <poly <cons <term $a <ncons ,x $k $ts>> _>> _>
                (if (eq? m k)
