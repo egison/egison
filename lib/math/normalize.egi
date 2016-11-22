@@ -111,7 +111,7 @@
   (lambda [$term]
     (match term math-expr
       {[(* $a (,sqrt $x) (,sqrt ,x) $r)
-        (rewrite-rule-for-sqrt-term (*' a x r))]
+        (rewrite-rule-for-sqrt (*' a x r))]
        [(* $a (,sqrt (& ?term? $x)) (,sqrt (& ?term? $y)) $r)
         (let* {[$d (gcd x y)]
                [[$a1 $x1] (from-monomial (/ x d))]
