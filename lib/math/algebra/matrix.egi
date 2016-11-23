@@ -143,3 +143,13 @@
                              [m_3_1 x_3_1 b_3_1] [m_3_2 x_3_2 b_3_2] [m_3_3 x_3_3 c_3_3]})]}
           [(substitute ret L) (substitute ret U)])]
        [_ undefined]})))
+
+;;
+;; Utility
+;;
+
+(define $generate-matrix-from-expr
+  (lambda [$f $xs]
+    (generate-tensor
+      2#(coefficient2 f (nth %1 xs) (nth %2 xs))
+      {(length xs) (length xs)})))

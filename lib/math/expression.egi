@@ -293,3 +293,11 @@
                  (foldl *' a (map 2#(**' %1 %2) ts))
                  0)]))
        (denominator f))))
+
+(define $coefficient2
+  (lambda [$f $x $y]
+    (/ (sum (match-all f math-expr
+              [<div <poly <cons <term $a <cons ,x <cons ,y $ts>>> _>> _>
+               (foldl *' a (map 2#(**' %1 %2) ts))
+               ]))
+       (denominator f))))
