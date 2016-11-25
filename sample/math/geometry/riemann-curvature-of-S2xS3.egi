@@ -20,7 +20,6 @@
 (define $w (lambda [$y] (/ (* 2 '(- a y^2)) '(- 1 y))))
 (define $q (lambda [$y]  (/ '(+ a (* -3 y^2) (* 2 y^3)) '(- a y^2))))
 
-
 ;;
 ;; Metric tensor
 ;;
