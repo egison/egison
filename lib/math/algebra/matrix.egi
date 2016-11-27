@@ -45,11 +45,38 @@
                {[<cons $m <cons $n _>>
                  {[tgt_1_1 tgt_1_[2 n] tgt_[2 m]_1 tgt_[2 m]_[2 n]]}]
                 [_ {}]})]}]
+     [<cons ,$i ,$j $ $ $ $ $> [math-expr matrix matrix matrix matrix]
+      {[$tgt
+        (let* {[$ns (tensor-size tgt)]
+               [$m (nth 1 ns)]
+               [$n (nth 2 ns)]}
+          {[tgt_i_j
+            tgt_[1 (- i 1)]_[1 (- j 1)]
+            tgt_[1 (- i 1)]_[(+ j 1) n]
+            tgt_[(+ i 1) m]_[1 (- j 1)]
+            tgt_[(+ i 1) m]_[(+ j 1) n]
+            ]})]}]
      [,$val []
       {[$tgt (if (eq? val tgt) {[]} {})]}]
      [$ [something]
       {[$tgt {tgt}]}]
      }))
+
+(define $quad-cons
+  (lambda [%A %B %C %D]
+    (let* {[$ms (debug (tensor-size A))]
+           [$ns (tensor-size D)]
+           [$m1 (nth 1 ms)]
+           [$m2 (nth 2 ms)]
+           [$n1 (nth 1 ns)]
+           [$n2 (nth 2 ns)]}
+      (generate-tensor
+        2#(match [%1 %2] [integer integer]
+            {[[?(lte? $ m1) ?(lte? $ m2)] A_%1_%2]
+             [[?(lte? $ m1) _] B_(- %1 m1)_%2]
+             [[_ ?(lte? $ m2)] C_%1_(- %2 m2)]
+             [[_ _] D_(- %1 m1)_(- %2 m2)]})
+        {(+ m1 n1) (+ m2 n2)}))))
 
 ;;
 ;; Determinant
