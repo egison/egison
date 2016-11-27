@@ -426,10 +426,10 @@ instance HasTensor EgisonValue where
   tensorElems (TensorData (Tensor _ xs _)) = xs
   tensorSize (TensorData (Tensor ns _ _)) = ns
   tensorIndices (TensorData (Tensor _ _ js)) = js
-  fromTensor (Tensor [] xs []) =
-    if V.length xs == 1
-      then return $ V.head xs
-      else throwError $ InconsistentTensorIndex
+--  fromTensor (Tensor [] xs []) =
+--    if V.length xs == 1
+--      then return $ V.head xs
+--      else throwError $ InconsistentTensorIndex
   fromTensor t@(Tensor _ _ _) = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
@@ -440,10 +440,10 @@ instance HasTensor WHNFData where
   tensorElems (Intermediate (ITensor (Tensor _ xs _))) = xs
   tensorSize (Intermediate (ITensor (Tensor ns _ _))) = ns
   tensorIndices (Intermediate (ITensor (Tensor _ _ js))) = js
-  fromTensor (Tensor [] xs []) =
-    if V.length xs == 1
-      then return $ V.head xs
-      else throwError $ InconsistentTensorIndex
+--  fromTensor (Tensor [] xs []) =
+--    if V.length xs == 1
+--      then return $ V.head xs
+--      else throwError $ InconsistentTensorIndex
   fromTensor t@(Tensor _ _ _) = return $ Intermediate $ ITensor t
   fromTensor (Scalar x) = return x
   toTensor (Intermediate (ITensor t)) = return t
@@ -714,15 +714,21 @@ tref [] t = fromTensor t
 tref ((Subscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
 tref ((Superscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
 tref ((SupSubscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref ((Subscript (Tuple [ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])), ScalarData (Div (Plus [(Term n [])]) (Plus [(Term 1 [])]))])):ms) t = do
+tref ((Subscript (Tuple [mVal, nVal])):ms) t = do
+  m <- fromEgison mVal
+  n <- fromEgison nVal
   ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
   symId <- fresh
   tConcat (Subscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
-tref ((Superscript (Tuple [ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])), ScalarData (Div (Plus [(Term n [])]) (Plus [(Term 1 [])]))])):ms) t = do
+tref ((Superscript (Tuple [mVal, nVal])):ms) t = do
+  m <- fromEgison mVal
+  n <- fromEgison nVal
   ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
   symId <- fresh
   tConcat (Superscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
-tref ((SupSubscript (Tuple [ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])), ScalarData (Div (Plus [(Term n [])]) (Plus [(Term 1 [])]))])):ms) t = do
+tref ((SupSubscript (Tuple [mVal, nVal])):ms) t = do
+  m <- fromEgison mVal
+  n <- fromEgison nVal
   ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
   symId <- fresh
   tConcat (SupSubscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
@@ -929,13 +935,18 @@ split w xs
                  hs:(split w ts)
 
 tConcat :: HasTensor a => Index EgisonValue -> [Tensor a] -> EgisonM (Tensor a)
+tConcat s ((Tensor ns@(0:_) _ js):_) = do
+  return $ Tensor (0:ns) V.empty (s:js)
 tConcat s ts@((Tensor ns _ js):_) = return $ Tensor ((fromIntegral (length ts)):ns) (V.concat (map tToVector ts)) (s:js)
 tConcat s ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') [s]
 
 tConcat' :: HasTensor a => [Tensor a] -> EgisonM (Tensor a)
-tConcat' ts@((Tensor ns _ _):_) = return $ Tensor ((fromIntegral (length ts)):ns) (V.concat (map tToVector ts)) []
+tConcat' ((Tensor ns@(0:_) _ _):_) = do
+  return $ Tensor (0:ns) V.empty []
+tConcat' ts@((Tensor ns v _):_) = do
+  return $ Tensor ((fromIntegral (length ts)):ns) (V.concat (map tToVector ts)) []
 tConcat' ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') []
@@ -1010,6 +1021,7 @@ instance Show EgisonValue where
   show (ScalarData mExpr) = show mExpr
 --  show (TensorData (Scalar x)) = "invalid scalar:" ++ show x
   show (TensorData (Tensor [_] xs js)) = "[| " ++ unwords (map show (V.toList xs)) ++ " |]" ++ concat (map show js)
+  show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concat (map show js)
   show (TensorData (Tensor [i, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concat (map show js)
    where
     f j [] = ""
@@ -1258,7 +1270,8 @@ instance Show WHNFData where
   show (Intermediate (IIntHash _)) = "{|...|}" 
   show (Intermediate (ICharHash _)) = "{|...|}" 
   show (Intermediate (IStrHash _)) = "{|...|}" 
-  show (Intermediate (ITensor _)) = "[|...|]" 
+--  show (Intermediate (ITensor _)) = "[|...|]" 
+  show (Intermediate (ITensor (Tensor ns xs _))) = "[|" ++ show (length ns) ++ show (V.length xs) ++ "|]" 
 
 instance Show Object where
   show (Thunk _) = "#<thunk>"
