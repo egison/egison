@@ -206,7 +206,7 @@ evalExpr env (ArrayExpr exprs) = do
 evalExpr env (VectorExpr exprs) = do
   whnfs <- mapM (evalExpr env) exprs
   case whnfs of
-    [whnf] -> return $ whnf
+--    [whnf] -> return $ whnf
     ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
       mapM toTensor whnfs >>= tConcat' >>= fromTensor
     _ -> do
