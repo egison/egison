@@ -33,8 +33,8 @@ g_#_#
 ;  [| 0 0 (/ (* -2 '(+ a (* -2 y) y^2) (cos θ)) (* 3 '(+ 1 (* -1 y)))) (/ (* 2 '(+ a (* -2 y) y^2)) (* 3 '(+ 1 (* -1 y)))) (/ (* 2 '(+ a (* -1 y^2))) '(+ 1 (* -1 y))) |]
    ;  |]
 
-;(define $g~~ (M.inverse g_#_#))
-
+(define $g~~ (M.inverse g_#_#))
+g~#~#
 
 ;;
 ;; Christoffel symbols of the first kind
@@ -86,10 +86,4 @@ R~#_#_2_2
 
 Ric_#_#
 
-;;
-;; Scalar curvature
-;;
-
-(define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
-
-scalar-curvature
+(with-symbols {i j} (- Ric_i_j (* 4 g_i_j)))
