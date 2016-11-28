@@ -718,25 +718,32 @@ tref ((Subscript (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
   if m > n
-    then do t2 <- (tref ms (Tensor (take (length is) (repeat 0)) V.empty [])) :: EgisonM (Tensor a)
-            symId <- fresh
-            case t2 of
-              (Tensor ns _ js) -> fromTensor (Tensor (0:ns) V.empty ((Subscript (symbolScalarData "" (":::" ++ symId))):js))
-    else do ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
-            symId <- fresh
-            tConcat (Subscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
-tref ((Superscript (Tuple [mVal, nVal])):ms) t = do
+    then do
+      fromTensor (Tensor (take (length is) (repeat 0)) V.empty [])
+    else do
+      ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
+      symId <- fresh
+      tConcat (Subscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
+tref ((Superscript (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
-  ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
-  symId <- fresh
-  tConcat (Superscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
-tref ((SupSubscript (Tuple [mVal, nVal])):ms) t = do
+  if m > n
+    then do
+      fromTensor (Tensor (take (length is) (repeat 0)) V.empty [])
+    else do
+      ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
+      symId <- fresh
+      tConcat (Superscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
+tref ((SupSubscript (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
-  ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
-  symId <- fresh
-  tConcat (SupSubscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
+  if m > n
+    then do
+      fromTensor (Tensor (take (length is) (repeat 0)) V.empty [])
+    else do
+      ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
+      symId <- fresh
+      tConcat (SupSubscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
 tref (s:ms) (Tensor (n:ns) xs js) = do
   let yss = split (product ns) xs
   ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
