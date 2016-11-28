@@ -714,12 +714,17 @@ tref [] t = fromTensor t
 tref ((Subscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
 tref ((Superscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
 tref ((SupSubscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref ((Subscript (Tuple [mVal, nVal])):ms) t = do
+tref ((Subscript (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
-  ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
-  symId <- fresh
-  tConcat (Subscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
+  if m > n
+    then do t2 <- (tref ms (Tensor (take (length is) (repeat 0)) V.empty [])) :: EgisonM (Tensor a)
+            symId <- fresh
+            case t2 of
+              (Tensor ns _ js) -> fromTensor (Tensor (0:ns) V.empty ((Subscript (symbolScalarData "" (":::" ++ symId))):js))
+    else do ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
+            symId <- fresh
+            tConcat (Subscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
 tref ((Superscript (Tuple [mVal, nVal])):ms) t = do
   m <- fromEgison mVal
   n <- fromEgison nVal
