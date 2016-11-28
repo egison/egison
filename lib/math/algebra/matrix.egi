@@ -31,10 +31,14 @@
 
 (define $M.inverse
   (lambda [%m]
-    (match (tensor-size m) (list integer)
-      {[<cons ,2 <cons ,2 <nil>>>
-        (T.map (/ $ (M.det m)) (tensor {2 2} {m_2_2 (* -1 m_1_2) (* -1 m_2_1) m_1_1}))]
-       [_ undefined]})))
+    (let {[$d (M.det m)]}
+      (generate-tensor
+        2#(match m matrix
+            {[<cons ,%2 ,%1 _ $A $B $C $D>
+              (if (even? (+ %1 %2))
+                (/ (M.det (quad-cons A B C D)) d)
+                (* -1 (/ (M.det (quad-cons A B C D)) d)))]})
+        (tensor-size m)))))
 
 (define $trace (lambda [%t] (with-symbols {i} (contract + t~i_i))))
 
@@ -64,17 +68,22 @@
 
 (define $quad-cons
   (lambda [%A %B %C %D]
-    (let* {[$ms (tensor-size A)]
-           [$ns (tensor-size D)]
-           [$m1 (nth 1 ms)]
-           [$m2 (nth 2 ms)]
-           [$n1 (nth 1 ns)]
-           [$n2 (nth 2 ns)]}
+    (let* {[$as (tensor-size A)]
+           [$a1 (nth 1 as)] [$a2 (nth 2 as)]
+           [$bs (tensor-size B)]
+           [$b1 (nth 1 bs)] [$b2 (nth 2 bs)]
+           [$cs (tensor-size C)]
+           [$c1 (nth 1 cs)] [$c2 (nth 2 cs)]
+           [$ds (tensor-size D)]
+           [$d1 (nth 1 ds)] [$d2 (nth 2 ds)]
+           [$m1 (max a1 b1)] [$m2 (max a2 c2)]
+           [$n1 (max c1 d1)] [$n2 (max b2 d2)]
+           }
       (generate-tensor
         2#(match [%1 %2] [integer integer]
-            {[[?(lte? $ m1) ?(lte? $ m2)] A_%1_%2]
-             [[?(lte? $ m1) _] B_%1_(- %2 m2)]
-             [[_ ?(lte? $ m2)] C_(- %1 m1)_%2]
+            {[[?(lte? $ a1) ?(lte? $ a2)] A_%1_%2]
+             [[?(lte? $ m1) _] B_%1_(- %2 a2)]
+             [[_ ?(lte? $ m2)] C_(- %1 a1)_%2]
              [[_ _] D_(- %1 m1)_(- %2 m2)]})
         {(+ m1 n1) (+ m2 n2)}))))
 
@@ -85,7 +94,8 @@
 (define $even-and-odd-permutations
   (lambda [$n]
     (match n integer
-      {[,2 [{{1 2}} {{2 1}}]]
+      {[,1 [{{1}} {}]]
+       [,2 [{{1 2}} {{2 1}}]]
        [_ (let* {[[$es $os] (even-and-odd-permutations (- n 1))]
                  [$es' (map 1#{@%1 n} es)]
                  [$os' (map 1#{@%1 n} os)]}
