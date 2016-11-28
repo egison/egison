@@ -24,7 +24,7 @@ e
 ;;
 
 (define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {2 2}))
-(define $g~~ (with-symbols {i j} (/ (unit-tensor {2 2})_i_j g_i_j)))
+(define $g~~ (M.inverse g_#_#))
 
 g_#_#;[| [| a^2 0 |] [| 0 '(+ (* a (cos θ)) b)^2 |] |]_#_#
 g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#

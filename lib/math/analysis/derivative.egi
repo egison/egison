@@ -21,7 +21,11 @@
         (sum (map 2#(* (capply `g|%1 args) (∂/∂ %2 x))
                   (zip nats args)))]
        ; quote
-       [<quote $g> (∂/∂ g x)]
+       [<quote $g>
+        (let {[$g' (∂/∂ g x)]}
+          (if (term? g')
+            g'
+            'g'))]
        ; term (constant)
        [,0 0]
        [(* _ ,1) 0]

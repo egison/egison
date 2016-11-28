@@ -185,7 +185,7 @@
 ;; Utility
 ;;
 
-(define $generate-matrix-from-expr
+(define $generate-matrix-from-quadratic-expr
   (lambda [$f $xs]
     (generate-tensor
       2#(coefficient2 f (nth %1 xs) (nth %2 xs))
