@@ -36,8 +36,8 @@
         2#(match m matrix
             {[<cons ,%2 ,%1 _ $A $B $C $D>
               (if (even? (+ %1 %2))
-                (/ (M.det (quad-cons A B C D)) d)
-                (* -1 (/ (M.det (quad-cons A B C D)) d)))]})
+                (/ (M.det (M.join A B C D)) d)
+                (* -1 (/ (M.det (M.join A B C D)) d)))]})
         (tensor-size m)))))
 
 (define $trace (lambda [%t] (with-symbols {i} (contract + t~i_i))))
@@ -66,7 +66,7 @@
       {[$tgt {tgt}]}]
      }))
 
-(define $quad-cons
+(define $M.join
   (lambda [%A %B %C %D]
     (let* {[$as (tensor-size A)]
            [$a1 (nth 1 as)] [$a2 (nth 2 as)]
