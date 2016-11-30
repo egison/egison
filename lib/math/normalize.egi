@@ -6,10 +6,15 @@
 
 (define $math-normalize
   (lambda [$fn $x1 $x2]
-    (if (and (integer? x1) (integer? x2))
+    (if (or (integer? x1) (integer? x2))
       (fn x1 x2)
 ;      (fn x1 x2))))
-      ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (fn x1 x2)))))
+      (let* {[$tmp (fn  x1 x2)]
+             [$ret ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) tmp)]}
+        ret))))
+;        (if (eq? tmp ret)
+;          ret
+;          (debug ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (debug tmp))))))))
 
 (define $rewrite-rules
   {
@@ -21,7 +26,7 @@
    [rewrite-rule-for-rtu-poly 2#(and (contain-function? rtu %1) (contain-function? rtu %2))]
    [rewrite-rule-for-sqrt 2#(and (contain-function? sqrt %1) (contain-function? sqrt %2))]
    [rewrite-rule-for-rt 2#(and (contain-function? rt %1) (contain-function? rt %2))]
-   [rewrite-rule-for-cos-and-sin 2#(or (contain-function? cos %1) (contain-function? sin %1) (contain-function? cos %2) (contain-function? sin %2))]
+   [rewrite-rule-for-cos-and-sin 2#(and (or (contain-function? cos %1) (contain-function? sin %1)) (or (contain-function? cos %2) (contain-function? sin %2)))]
    [rewrite-rule-for-∂/∂ 2#(and (contain-function-with-index? %1) (contain-function-with-index? %2))]
    })
 
