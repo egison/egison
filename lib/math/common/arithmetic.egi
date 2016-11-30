@@ -24,7 +24,7 @@
     (match [x1 x2] [math-expr math-expr]
       {[[<div $p1 (& !,1 $p2)> <div $q1 ,p2>]
         (b./ (b.- p1 q1) p2)]
-       [[_ _] (reduce-fraction (math-normalize b.-' x1 x2))]})))
+       [[_ _] (reduce-fraction (math-normalize b.+' x1 (b.*' -1 x2)))]})))
 
 (define $b.*
   (lambda [$x1 $x2]
@@ -32,7 +32,7 @@
 
 (define $b./
   (lambda [$x1 $x2]
-    (reduce-fraction (math-normalize b./' x1 x2))))
+    (reduce-fraction (math-normalize b.*' x1 (b./' 1 x2)))))
 
 (define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))
 (define $- (cambda $xs (foldl b.- (car xs) (cdr xs))))
@@ -45,8 +45,12 @@
     (match mexpr math-expr
       {[<div <poly $ts1>
              <poly $ts2>>
-        (let {[$d (capply gcd {@ts2 @ts1})]}
-          (/' (sum' (map (/' $ d) ts1)) (sum' (map (/' $ d) ts2))))]})))
+        (let* {[$d1 (capply gcd ts1)]
+               [$d2 (capply gcd ts2)]
+               [$d (capply gcd {@ts1 @ts2})]}
+          (if (eq? (-' (sum' (map (/' $ d1) ts1)) (sum' (map (/' $ d2) ts2))) 0)
+            (/' (/' d1 d) (/' d2 d))
+            (/' (sum' (map (/' $ d) ts1)) (sum' (map (/' $ d) ts2)))))]})))
 
 (define $sum
   (lambda [$xs]
