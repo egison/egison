@@ -153,6 +153,7 @@ import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
+import qualified Control.Monad.Parallel as P
 
 import Data.Monoid (Monoid)
 import qualified Data.HashMap.Lazy as HL
@@ -1482,8 +1483,8 @@ liftError = either throwError return
 --
 
 newtype EgisonM a = EgisonM {
-    unEgisonM :: ErrorT EgisonError (FreshT IO) a
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
+    unEgisonM :: (ErrorT EgisonError (FreshT IO) a)
+  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh, P.MonadParallel)
 
 runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
 runEgisonM = runErrorT . unEgisonM
@@ -1515,7 +1516,7 @@ modifyCounter m = do
   return result  
 
 newtype FreshT m a = FreshT { unFreshT :: StateT Int m a }
-  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans)
+  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans, P.MonadParallel)
 
 type Fresh = FreshT Identity
 
@@ -1548,6 +1549,9 @@ instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
 
 instance MonadIO (FreshT IO) where
   liftIO = lift
+
+instance (P.MonadParallel m, Error e) => P.MonadParallel (ErrorT e m)
+instance (P.MonadParallel m) => P.MonadParallel (StateT s m)
 
 runFreshT :: Monad m => Int -> FreshT m a -> m (a, Int)
 runFreshT seed = flip (runStateT . unFreshT) seed

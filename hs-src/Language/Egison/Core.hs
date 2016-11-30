@@ -46,6 +46,7 @@ import Control.Applicative
 import Control.Monad.Error hiding (mapM)
 import Control.Monad.State hiding (mapM, state)
 import Control.Monad.Trans.Maybe
+import qualified Control.Monad.Parallel as P
 
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
@@ -670,8 +671,8 @@ evalWHNF (Intermediate (IStrHash refs)) = do
 evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
 evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
 evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
-  vals <- mapM evalWHNF whnfs
-  return $ TensorData $ Tensor ns vals js
+  vals <- P.mapM evalWHNF (V.toList whnfs)
+  return $ TensorData $ Tensor ns (V.fromList vals) js
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
