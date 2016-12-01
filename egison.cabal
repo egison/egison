@@ -79,8 +79,8 @@ Library
                    Language.Egison.Primitives
                    Language.Egison.Util
   Other-modules:   Paths_egison
-  ghc-options:  -O3 -threaded -rtsopts
-  ghc-prof-options:   --enable-profiling -auto-all
+  ghc-options:  -O3
+  ghc-prof-options:   -prof -auto-all
 
 Test-Suite test
   Type:           exitcode-stdio-1.0
@@ -102,4 +102,4 @@ Executable egison
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
   ghc-options:  -O3 -threaded -rtsopts
-  ghc-prof-options:   --enable-profiling -auto-all
+  ghc-prof-options:   -prof -auto-all

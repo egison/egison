@@ -313,7 +313,8 @@ Enjoy!
 
 ```
 % sudo apt-get install haskell-platform-doc haskell-platform-prof
-% cabal install --enable-library-profiling --enable-executable-profiling
+% cabal sandbox init
+% cabal install --enable-profiling
 % egison +RTS -p -RTS -l sample/sequence.egi
 % cat egison.prof
 ```

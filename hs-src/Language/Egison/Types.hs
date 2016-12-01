@@ -153,7 +153,7 @@ import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
-import qualified Control.Monad.Parallel as P
+import qualified Control.Monad.Parallel as MP
 
 import Data.Monoid (Monoid)
 import qualified Data.HashMap.Lazy as HL
@@ -427,10 +427,6 @@ instance HasTensor EgisonValue where
   tensorElems (TensorData (Tensor _ xs _)) = xs
   tensorSize (TensorData (Tensor ns _ _)) = ns
   tensorIndices (TensorData (Tensor _ _ js)) = js
---  fromTensor (Tensor [] xs []) =
---    if V.length xs == 1
---      then return $ V.head xs
---      else throwError $ InconsistentTensorIndex
   fromTensor t@(Tensor _ _ _) = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
@@ -441,10 +437,6 @@ instance HasTensor WHNFData where
   tensorElems (Intermediate (ITensor (Tensor _ xs _))) = xs
   tensorSize (Intermediate (ITensor (Tensor ns _ _))) = ns
   tensorIndices (Intermediate (ITensor (Tensor _ _ js))) = js
---  fromTensor (Tensor [] xs []) =
---    if V.length xs == 1
---      then return $ V.head xs
---      else throwError $ InconsistentTensorIndex
   fromTensor t@(Tensor _ _ _) = return $ Intermediate $ ITensor t
   fromTensor (Scalar x) = return x
   toTensor (Intermediate (ITensor t)) = return t
@@ -1484,7 +1476,8 @@ liftError = either throwError return
 
 newtype EgisonM a = EgisonM {
     unEgisonM :: (ErrorT EgisonError (FreshT IO) a)
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh, P.MonadParallel)
+  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh, MP.MonadParallel)
+--  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
 
 runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
 runEgisonM = runErrorT . unEgisonM
@@ -1516,7 +1509,8 @@ modifyCounter m = do
   return result  
 
 newtype FreshT m a = FreshT { unFreshT :: StateT Int m a }
-  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans, P.MonadParallel)
+  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans, MP.MonadParallel)
+--  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans)
 
 type Fresh = FreshT Identity
 
@@ -1550,8 +1544,8 @@ instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
 instance MonadIO (FreshT IO) where
   liftIO = lift
 
-instance (P.MonadParallel m, Error e) => P.MonadParallel (ErrorT e m)
-instance (P.MonadParallel m) => P.MonadParallel (StateT s m)
+instance (MP.MonadParallel m, Error e) => MP.MonadParallel (ErrorT e m)
+instance (MP.MonadParallel m) => MP.MonadParallel (StateT s m)
 
 runFreshT :: Monad m => Int -> FreshT m a -> m (a, Int)
 runFreshT seed = flip (runStateT . unFreshT) seed
