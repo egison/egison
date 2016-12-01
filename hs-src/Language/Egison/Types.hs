@@ -766,7 +766,7 @@ tTranspose is t@(Tensor ns xs js) = do
 
 tMap :: HasTensor a => (a -> EgisonM a) -> (Tensor a) -> EgisonM (Tensor a)
 tMap f (Tensor ns xs js) = do
-  xs' <- V.mapM f xs
+  xs' <- MP.mapM f (V.toList xs) >>= return . V.fromList
   t <- toTensor (V.head xs')
   case t of
     (Tensor ns1 _ js1) ->
@@ -776,9 +776,9 @@ tMap f (Scalar x) = f x >>= return . Scalar
 
 tMapN :: HasTensor a => ([a] -> EgisonM a) -> [Tensor a] -> EgisonM (Tensor a)
 tMapN f ts@((Tensor ns xs js):_) = do
-  xs' <- mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
+  xs' <- MP.mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
   return $ Tensor ns (V.fromList xs') js
-tMapN f xs = mapM fromTensor xs >>= f >>= return . Scalar
+tMapN f xs = MP.mapM fromTensor xs >>= f >>= return . Scalar
 
 tMap2 :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
 tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
@@ -788,7 +788,7 @@ tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
   let cns = take (length cjs) (tSize t1')
   rts1 <- mapM (flip tIntRef t1') (enumTensorIndices cns)
   rts2 <- mapM (flip tIntRef t2') (enumTensorIndices cns)
-  rts' <- mapM (\(t1, t2) -> tProduct f t1 t2) (zip rts1 rts2)
+  rts' <- MP.mapM (\(t1, t2) -> tProduct f t1 t2) (zip rts1 rts2)
   let ret = Tensor (cns ++ (tSize (head rts'))) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
   tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
  where
