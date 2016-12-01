@@ -46,7 +46,7 @@ import Control.Applicative
 import Control.Monad.Error hiding (mapM)
 import Control.Monad.State hiding (mapM, state)
 import Control.Monad.Trans.Maybe
-import qualified Control.Monad.Parallel as P
+import qualified Control.Monad.Parallel as MP
 
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
@@ -207,7 +207,6 @@ evalExpr env (ArrayExpr exprs) = do
 evalExpr env (VectorExpr exprs) = do
   whnfs <- mapM (evalExpr env) exprs
   case whnfs of
---    [whnf] -> return $ whnf
     ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
       ret <- mapM toTensor whnfs >>= tConcat' >>= fromTensor
       return ret
@@ -278,31 +277,32 @@ evalExpr env (IndexedExpr expr indices) = do
                       Subscript n -> evalExprDeep env n >>= return . Subscript
                       SupSubscript n -> evalExprDeep env n >>= return . SupSubscript
               ) indices
-  case tensor of
-    (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
-      js2 <- mapM (\i -> case i of
-                           Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
-                           Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
-                           SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
-                  ) indices
-      return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js2, 1)])]) (Plus [(Term 1 [])])))
-    (Value (ScalarData _)) -> do
-      return $ tensor
-    (Value (TensorData (Tensor ns xs _))) -> do
-      tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
-    (Intermediate (ITensor (Tensor ns xs _))) -> do
-      tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-    _ -> do
-      js2 <- mapM (\i -> case i of
-                           Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
-                           Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
-                           SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
-                  ) indices
-      refArray tensor (map (\j -> case j of
-                                    Superscript k -> ScalarData k
-                                    Subscript k -> ScalarData k
-                                    SupSubscript k -> ScalarData k
-                            ) js2)
+  ret <- case tensor of
+      (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
+        js2 <- mapM (\i -> case i of
+                             Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
+                             Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
+                             SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
+                    ) indices
+        return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js2, 1)])]) (Plus [(Term 1 [])])))
+      (Value (ScalarData _)) -> do
+        return $ tensor
+      (Value (TensorData (Tensor ns xs _))) -> do
+        tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+      (Intermediate (ITensor (Tensor ns xs _))) -> do
+        tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
+      _ -> do
+        js2 <- mapM (\i -> case i of
+                             Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
+                             Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
+                             SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
+                    ) indices
+        refArray tensor (map (\j -> case j of
+                                      Superscript k -> ScalarData k
+                                      Subscript k -> ScalarData k
+                                      SupSubscript k -> ScalarData k
+                              ) js2)
+  return ret
  where
   f :: Index a -> Index ()
   f (Superscript _) = Superscript ()
@@ -671,9 +671,16 @@ evalWHNF (Intermediate (IStrHash refs)) = do
 evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
 evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
 evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
-  vals <- P.mapM evalWHNF (V.toList whnfs)
+  vals <- MP.mapM evalWHNF (V.toList whnfs)
   return $ TensorData $ Tensor ns (V.fromList vals) js
+--  vals <- mapM evalWHNF whnfs
+--  return $ TensorData $ Tensor ns vals js
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
+
+fib :: Integer -> Integer
+fib 0 = 1
+fib 1 = 1
+fib n = (fib (n - 1)) + (fib (n - 2))
 
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc _ (Value (PartialFunc env n body)) arg = do
