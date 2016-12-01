@@ -205,7 +205,7 @@ evalExpr env (ArrayExpr exprs) = do
   return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env (VectorExpr exprs) = do
-  whnfs <- mapM (evalExpr env) exprs
+  whnfs <- MP.mapM (evalExpr env) exprs
   case whnfs of
     ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
       ret <- mapM toTensor whnfs >>= tConcat' >>= fromTensor
@@ -217,7 +217,7 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
   xsWhnf <- evalExpr env xsExpr
-  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
+  xs <- fromCollection xsWhnf >>= fromMList >>= MP.mapM evalRef
   supWhnf <- evalExpr env supExpr
   sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
   subWhnf <- evalExpr env subExpr
@@ -548,7 +548,7 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size'' <- collectionToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
-  xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+  xs <-  MP.mapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
   case (ns, xs) of
     ([1], x:[]) -> return $ x
     _ -> fromTensor (Tensor ns (V.fromList xs) [])
