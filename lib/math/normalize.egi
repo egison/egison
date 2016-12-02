@@ -31,7 +31,7 @@
    [rewrite-rule-for-rtu-poly 2#(and (contain-function? rtu %1) (contain-function? rtu %2))]
    [rewrite-rule-for-sqrt 2#(and (contain-function? sqrt %1) (contain-function? sqrt %2))]
    [rewrite-rule-for-rt 2#(and (contain-function? rt %1) (contain-function? rt %2))]
-   [rewrite-rule-for-cos-and-sin 2#(and (or (contain-function? cos %1) (contain-function? sin %1)) (or (contain-function? cos %2) (contain-function? sin %2)))]
+   [rewrite-rule-for-cos-and-sin 2#(or (or (contain-function? cos %1) (contain-function? sin %1)) (or (contain-function? cos %2) (contain-function? sin %2)))]
    [rewrite-rule-for-∂/∂ 2#(and (contain-function-with-index? %1) (contain-function-with-index? %2))]
    })
 
@@ -198,11 +198,11 @@
        [(+ (* $a $mr)
            (* ,(*' -1 a) (,sin $θ)^,2 ,mr)
            $pr)
-        (rewrite-rule-for-cos-and-sin-poly (+' (*' a (cos θ)^2 mr)))]
+        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (cos θ)^2 mr)))]
        [(+ (* $a $mr)
            (* ,(*' -1 a) (,cos $θ)^,2 ,mr)
            $pr)
-        (rewrite-rule-for-cos-and-sin-poly (+' (*' a (sin θ)^2)))]
+        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (sin θ)^2 mr)))]
        [_ poly]})))
 
 ;;
