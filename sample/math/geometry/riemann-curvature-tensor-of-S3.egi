@@ -26,9 +26,10 @@ e
 
 (define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {3 3}))
 (define $g~~ (M.inverse g_#_#))
+g_#_#;[| [| r^2 0 0 |] [| 0 (* r^2 (sin θ)^2) 0 |] [| 0 0 (* r^2 (sin θ)^2 (sin φ)^2) |] |]_#_#
+g~#~#;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 (/ 1 (* r^2 (sin θ)^2 (sin φ)^2)) |] |]~#~#
 
-g_#_#;[| [| r^2 (+ (* -1 (sin ψ)^2) (* r^2 (cos θ) (sin φ) (sin ψ)^2 (sin θ) (cos φ))) 0 |] [| (+ (* -1 (sin ψ)^2) (* r^2 (sin θ) (cos φ) (sin ψ)^2 (cos θ) (sin φ))) (* r^2 (sin θ)^2) 0 |] [| 0 0 (* r^2 (sin θ)^2 (sin φ)^2) |] |]_#_#
-g~#~#;[| [| (/ (* r^2 (sin θ)^2) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (sin ψ)^2 (* -1 r^2 (cos θ) (sin φ) (sin ψ)^2 (sin θ) (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) 0 |] [| (/ (+ (sin ψ)^2 (* -1 r^2 (sin θ) (cos φ) (sin ψ)^2 (cos θ) (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ r^2 (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) 0 |] [| 0 0 (/ 1 (* r^2 (sin θ)^2 (sin φ)^2)) |] |]~#~#
+(with-symbols {i j k} (. g~i~j g_j_k));[| [| 1 0 0 |] [| 0 1 0 |] [| 0 0 1 |] |]
 
 ;;
 ;; Christoffel symbols of the first kind
@@ -41,10 +42,10 @@ g~#~#;[| [| (/ (* r^2 (sin θ)^2) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (
           (∂/∂ g_j_k x_l)
           (* -1 (∂/∂ g_k_l x_j))))))
 
-Γ_#_#_#;(tensor {3 3 3} {0 0 0 0 (+ (* r^2 (cos θ) (cos φ)^2 (sin ψ)^2 (sin θ)) (* -1 r^2 (cos θ) (sin φ)^2 (sin ψ)^2 (sin θ)) (* -1 r^2 (sin θ) (cos θ))) (+ (* -1 (sin ψ) (cos ψ)) (* r^2 (cos θ) (sin φ) (sin ψ) (cos ψ) (sin θ) (cos φ))) 0 (+ (* -1 (sin ψ) (cos ψ)) (* r^2 (cos θ) (sin φ) (sin ψ) (cos ψ) (sin θ) (cos φ))) (* -1 r^2 (sin θ) (cos θ) (sin φ)^2) (+ (* r^2 (cos θ)^2 (cos φ) (sin ψ)^2 (sin φ)) (* -1 r^2 (sin θ)^2 (cos φ) (sin ψ)^2 (sin φ))) (* r^2 (sin θ) (cos θ)) (+ (* -1 (sin ψ) (cos ψ)) (* r^2 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (* r^2 (sin θ) (cos θ)) 0 0 (+ (* -1 (sin ψ) (cos ψ)) (* r^2 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) 0 (* -1 r^2 (sin θ)^2 (sin φ) (cos φ)) 0 (+ (* (sin ψ) (cos ψ)) (* -1 r^2 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (* r^2 (sin θ) (cos θ) (sin φ)^2) (+ (* (sin ψ) (cos ψ)) (* -1 r^2 (cos θ) (sin φ) (sin ψ) (cos ψ) (sin θ) (cos φ))) 0 (* r^2 (sin θ)^2 (sin φ) (cos φ)) (* r^2 (sin θ) (cos θ) (sin φ)^2) (* r^2 (sin θ)^2 (sin φ) (cos φ)) 0} )_#_#_#
-Γ_1_#_#;[| [| 0 0 0 |] [| 0 (+ (* r^2 (cos θ) (cos φ)^2 (sin ψ)^2 (sin θ)) (* -1 r^2 (cos θ) (sin φ)^2 (sin ψ)^2 (sin θ)) (* -1 r^2 (sin θ) (cos θ))) (+ (* -1 (sin ψ) (cos ψ)) (* r^2 (cos θ) (sin φ) (sin ψ) (cos ψ) (sin θ) (cos φ))) |] [| 0 (+ (* -1 (sin ψ) (cos ψ)) (* r^2 (cos θ) (sin φ) (sin ψ) (cos ψ) (sin θ) (cos φ))) (* -1 r^2 (sin θ) (cos θ) (sin φ)^2) |] |]_#_#
-Γ_2_#_#;[| [| (+ (* r^2 (cos θ)^2 (cos φ) (sin ψ)^2 (sin φ)) (* -1 r^2 (sin θ)^2 (cos φ) (sin ψ)^2 (sin φ))) (* r^2 (sin θ) (cos θ)) (+ (* -1 (sin ψ) (cos ψ)) (* r^2 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) |] [| (* r^2 (sin θ) (cos θ)) 0 0 |] [| (+ (* -1 (sin ψ) (cos ψ)) (* r^2 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) 0 (* -1 r^2 (sin θ)^2 (sin φ) (cos φ)) |] |]_#_#
-Γ_3_#_#;[| [| 0 (+ (* (sin ψ) (cos ψ)) (* -1 r^2 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (* r^2 (sin θ) (cos θ) (sin φ)^2) |] [| (+ (* (sin ψ) (cos ψ)) (* -1 r^2 (cos θ) (sin φ) (sin ψ) (cos ψ) (sin θ) (cos φ))) 0 (* r^2 (sin θ)^2 (sin φ) (cos φ)) |] [| (* r^2 (sin θ) (cos θ) (sin φ)^2) (* r^2 (sin θ)^2 (sin φ) (cos φ)) 0 |] |]_#_#
+Γ_#_#_#;(tensor {3 3 3} {0 0 0 0 (/ (* -1 r^2 (sin (* 2 θ))) 2) 0 0 0 (/ (* -1 r^2 (sin (* 2 θ)) (sin φ)^2) 2) 0 (/ (* r^2 (sin (* 2 θ))) 2) 0 (/ (* r^2 (sin (* 2 θ))) 2) 0 0 0 0 (/ (* -1 r^2 (sin θ)^2 (sin (* 2 φ))) 2) 0 0 (/ (* r^2 (sin (* 2 θ)) (sin φ)^2) 2) 0 0 (/ (* r^2 (sin θ)^2 (sin (* 2 φ))) 2) (/ (* r^2 (sin (* 2 θ)) (sin φ)^2) 2) (/ (* r^2 (sin θ)^2 (sin (* 2 φ))) 2) 0} )_#_#_#
+Γ_1_#_#;[| [| 0 0 0 |] [| 0 (/ (* -1 r^2 (sin (* 2 θ))) 2) 0 |] [| 0 0 (/ (* -1 r^2 (sin (* 2 θ)) (sin φ)^2) 2) |] |]_#_#
+Γ_2_#_#;[| [| 0 (/ (* r^2 (sin (* 2 θ))) 2) 0 |] [| (/ (* r^2 (sin (* 2 θ))) 2) 0 0 |] [| 0 0 (/ (* -1 r^2 (sin θ)^2 (sin (* 2 φ))) 2) |] |]_#_#
+Γ_3_#_#;[| [| 0 0 (/ (* r^2 (sin (* 2 θ)) (sin φ)^2) 2) |] [| 0 0 (/ (* r^2 (sin θ)^2 (sin (* 2 φ))) 2) |] [| (/ (* r^2 (sin (* 2 θ)) (sin φ)^2) 2) (/ (* r^2 (sin θ)^2 (sin (* 2 φ))) 2) 0 |] |]_#_#
 
 ;;
 ;; Christoffel symbols of the second kind
@@ -54,10 +55,10 @@ g~#~#;[| [| (/ (* r^2 (sin θ)^2) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (
   (with-symbols {i j k l}
     (. g~i~j Γ_j_k_l)))
 
-Γ~#_#_#;(tensor {3 3 3} {(/ (+ (* (sin ψ)^4 r^2 (cos θ)^2 (cos φ) (sin φ)) (* -1 (sin ψ)^4 r^2 (sin θ)^2 (cos φ) (sin φ)) (* -1 r^4 (cos θ)^3 (sin φ)^2 (sin ψ)^4 (sin θ) (cos φ)^2) (* r^4 (cos θ) (sin φ)^2 (sin ψ)^4 (sin θ)^3 (cos φ)^2)) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* (sin ψ)^2 r^2 (sin θ) (cos θ)) (* -1 r^4 (cos θ)^2 (sin φ) (sin ψ)^2 (sin θ)^2 (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^3 (cos ψ)) (* 2 (sin ψ)^3 r^2 (sin θ) (cos φ) (cos ψ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^3 (sin θ)^2 (cos φ)^2 (cos ψ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* (sin ψ)^2 r^2 (sin θ) (cos θ)) (* -1 r^4 (cos θ)^2 (sin φ) (sin ψ)^2 (sin θ)^2 (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* r^4 (sin θ)^3 (cos θ) (cos φ)^2 (sin ψ)^2) (* -1 r^4 (sin θ)^3 (cos θ) (sin φ)^2 (sin ψ)^2) (* -1 r^4 (sin θ)^3 (cos θ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^2 (sin θ)^2 (sin ψ) (cos ψ)) (* r^4 (sin θ)^3 (cos θ) (sin φ) (sin ψ) (cos ψ) (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^3 (cos ψ)) (* 2 (sin ψ)^3 r^2 (sin θ) (cos φ) (cos ψ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^3 (sin θ)^2 (cos φ)^2 (cos ψ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^2 (sin θ)^2 (sin ψ) (cos ψ)) (* r^4 (sin θ)^3 (cos θ) (sin φ) (sin ψ) (cos ψ) (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^4 (sin θ)^3 (cos θ) (sin φ)^2) (* -1 (sin ψ)^2 r^2 (sin θ)^2 (sin φ) (cos φ)) (* r^4 (cos θ) (sin φ)^2 (sin ψ)^2 (sin θ)^3 (cos φ)^2)) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* r^4 (cos θ)^2 (cos φ) (sin ψ)^2 (sin φ)) (* -1 r^4 (sin θ)^2 (cos φ) (sin ψ)^2 (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (* r^4 (sin θ) (cos θ)) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^2 (sin ψ) (cos ψ)) (* r^4 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (* r^4 (sin θ) (cos θ)) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* (sin ψ)^4 r^2 (cos θ) (cos φ)^2 (sin θ)) (* -1 (sin ψ)^4 r^2 (cos θ) (sin φ)^2 (sin θ)) (* -1 (sin ψ)^2 r^2 (sin θ) (cos θ)) (* -1 r^4 (sin θ)^2 (cos φ)^3 (sin ψ)^4 (cos θ)^2 (sin φ)) (* r^4 (sin θ)^2 (cos φ) (sin ψ)^4 (cos θ)^2 (sin φ)^3) (* r^4 (sin θ)^2 (cos φ) (sin ψ)^2 (cos θ)^2 (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^3 (cos ψ)) (* 2 (sin ψ)^3 r^2 (cos θ) (sin φ) (cos ψ) (sin θ) (cos φ)) (* -1 r^4 (sin θ)^2 (cos φ)^2 (sin ψ)^3 (cos θ)^2 (sin φ)^2 (cos ψ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^2 (sin ψ) (cos ψ)) (* r^4 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^3 (cos ψ)) (* 2 (sin ψ)^3 r^2 (cos θ) (sin φ) (cos ψ) (sin θ) (cos φ)) (* -1 r^4 (sin θ)^2 (cos φ)^2 (sin ψ)^3 (cos θ)^2 (sin φ)^2 (cos ψ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^2 r^2 (sin θ) (cos θ) (sin φ)^2) (* r^4 (sin θ)^2 (cos φ) (sin ψ)^2 (cos θ)^2 (sin φ)^3) (* -1 r^4 (sin θ)^2 (sin φ) (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) 0 (/ (+ (* (sin ψ) (cos ψ)) (* -1 r^2 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (* r^2 (sin θ)^2 (sin φ)^2)) (/ (cos θ) (sin θ)) (/ (+ (* (sin ψ) (cos ψ)) (* -1 r^2 (cos θ) (sin φ) (sin ψ) (cos ψ) (sin θ) (cos φ))) (* r^2 (sin θ)^2 (sin φ)^2)) 0 (/ (cos φ) (sin φ)) (/ (cos θ) (sin θ)) (/ (cos φ) (sin φ)) 0} )~#_#_#
-Γ~1_#_#;[| [| (/ (+ (* (sin ψ)^4 r^2 (cos θ)^2 (cos φ) (sin φ)) (* -1 (sin ψ)^4 r^2 (sin θ)^2 (cos φ) (sin φ)) (* -1 r^4 (cos θ)^3 (sin φ)^2 (sin ψ)^4 (sin θ) (cos φ)^2) (* r^4 (cos θ) (sin φ)^2 (sin ψ)^4 (sin θ)^3 (cos φ)^2)) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* (sin ψ)^2 r^2 (sin θ) (cos θ)) (* -1 r^4 (cos θ)^2 (sin φ) (sin ψ)^2 (sin θ)^2 (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^3 (cos ψ)) (* 2 (sin ψ)^3 r^2 (sin θ) (cos φ) (cos ψ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^3 (sin θ)^2 (cos φ)^2 (cos ψ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) |] [| (/ (+ (* (sin ψ)^2 r^2 (sin θ) (cos θ)) (* -1 r^4 (cos θ)^2 (sin φ) (sin ψ)^2 (sin θ)^2 (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* r^4 (sin θ)^3 (cos θ) (cos φ)^2 (sin ψ)^2) (* -1 r^4 (sin θ)^3 (cos θ) (sin φ)^2 (sin ψ)^2) (* -1 r^4 (sin θ)^3 (cos θ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^2 (sin θ)^2 (sin ψ) (cos ψ)) (* r^4 (sin θ)^3 (cos θ) (sin φ) (sin ψ) (cos ψ) (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) |] [| (/ (+ (* -1 (sin ψ)^3 (cos ψ)) (* 2 (sin ψ)^3 r^2 (sin θ) (cos φ) (cos ψ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^3 (sin θ)^2 (cos φ)^2 (cos ψ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^2 (sin θ)^2 (sin ψ) (cos ψ)) (* r^4 (sin θ)^3 (cos θ) (sin φ) (sin ψ) (cos ψ) (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^4 (sin θ)^3 (cos θ) (sin φ)^2) (* -1 (sin ψ)^2 r^2 (sin θ)^2 (sin φ) (cos φ)) (* r^4 (cos θ) (sin φ)^2 (sin ψ)^2 (sin θ)^3 (cos φ)^2)) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) |] |]_#_#
-Γ~2_#_#;[| [| (/ (+ (* r^4 (cos θ)^2 (cos φ) (sin ψ)^2 (sin φ)) (* -1 r^4 (sin θ)^2 (cos φ) (sin ψ)^2 (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (* r^4 (sin θ) (cos θ)) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 r^2 (sin ψ) (cos ψ)) (* r^4 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) |] [| (/ (* r^4 (sin θ) (cos θ)) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* (sin ψ)^4 r^2 (cos θ) (cos φ)^2 (sin θ)) (* -1 (sin ψ)^4 r^2 (cos θ) (sin φ)^2 (sin θ)) (* -1 (sin ψ)^2 r^2 (sin θ) (cos θ)) (* -1 r^4 (sin θ)^2 (cos φ)^3 (sin ψ)^4 (cos θ)^2 (sin φ)) (* r^4 (sin θ)^2 (cos φ) (sin ψ)^4 (cos θ)^2 (sin φ)^3) (* r^4 (sin θ)^2 (cos φ) (sin ψ)^2 (cos θ)^2 (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^3 (cos ψ)) (* 2 (sin ψ)^3 r^2 (cos θ) (sin φ) (cos ψ) (sin θ) (cos φ)) (* -1 r^4 (sin θ)^2 (cos φ)^2 (sin ψ)^3 (cos θ)^2 (sin φ)^2 (cos ψ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) |] [| (/ (+ (* -1 r^2 (sin ψ) (cos ψ)) (* r^4 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^3 (cos ψ)) (* 2 (sin ψ)^3 r^2 (cos θ) (sin φ) (cos ψ) (sin θ) (cos φ)) (* -1 r^4 (sin θ)^2 (cos φ)^2 (sin ψ)^3 (cos θ)^2 (sin φ)^2 (cos ψ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) (/ (+ (* -1 (sin ψ)^2 r^2 (sin θ) (cos θ) (sin φ)^2) (* r^4 (sin θ)^2 (cos φ) (sin ψ)^2 (cos θ)^2 (sin φ)^3) (* -1 r^4 (sin θ)^2 (sin φ) (cos φ))) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (sin ψ)^4 r^2 (sin θ) (cos φ) (cos θ) (sin φ)) (* -1 r^4 (cos θ)^2 (sin φ)^2 (sin ψ)^4 (sin θ)^2 (cos φ)^2))) |] |]_#_#
-Γ~3_#_#;[| [| 0 (/ (+ (* (sin ψ) (cos ψ)) (* -1 r^2 (sin θ) (cos φ) (sin ψ) (cos ψ) (cos θ) (sin φ))) (* r^2 (sin θ)^2 (sin φ)^2)) (/ (cos θ) (sin θ)) |] [| (/ (+ (* (sin ψ) (cos ψ)) (* -1 r^2 (cos θ) (sin φ) (sin ψ) (cos ψ) (sin θ) (cos φ))) (* r^2 (sin θ)^2 (sin φ)^2)) 0 (/ (cos φ) (sin φ)) |] [| (/ (cos θ) (sin θ)) (/ (cos φ) (sin φ)) 0 |] |]_#_#
+Γ~#_#_#;(tensor {3 3 3} {0 0 0 0 (/ (* -1 (sin (* 2 θ))) 2) 0 0 0 (/ (* -1 (sin (* 2 θ)) (sin φ)^2) 2) 0 (/ (sin (* 2 θ)) (* 2 (sin θ)^2)) 0 (/ (sin (* 2 θ)) (* 2 (sin θ)^2)) 0 0 0 0 (/ (* -1 (sin (* 2 φ))) 2) 0 0 (/ (sin (* 2 θ)) (* 2 (sin θ)^2)) 0 0 (/ (sin (* 2 φ)) (* 2 (sin φ)^2)) (/ (sin (* 2 θ)) (* 2 (sin θ)^2)) (/ (sin (* 2 φ)) (* 2 (sin φ)^2)) 0} )~#_#_#
+Γ~1_#_#;[| [| 0 0 0 |] [| 0 (/ (* -1 (sin (* 2 θ))) 2) 0 |] [| 0 0 (/ (* -1 (sin (* 2 θ)) (sin φ)^2) 2) |] |]_#_#
+Γ~2_#_#;[| [| 0 (/ (sin (* 2 θ)) (* 2 (sin θ)^2)) 0 |] [| (/ (sin (* 2 θ)) (* 2 (sin θ)^2)) 0 0 |] [| 0 0 (/ (* -1 (sin (* 2 φ))) 2) |] |]_#_#
+Γ~3_#_#;[| [| 0 0 (/ (sin (* 2 θ)) (* 2 (sin θ)^2)) |] [| 0 0 (/ (sin (* 2 φ)) (* 2 (sin φ)^2)) |] [| (/ (sin (* 2 θ)) (* 2 (sin θ)^2)) (/ (sin (* 2 φ)) (* 2 (sin φ)^2)) 0 |] |]_#_#
 
 ;;
 ;; Covariant derivative of metric tensor
@@ -68,23 +69,20 @@ g~#~#;[| [| (/ (* r^2 (sin θ)^2) (+ (* r^4 (sin θ)^2) (* -1 (sin ψ)^4) (* 2 (
        (. Γ~n_m_i g_n_j)
        (. Γ~n_m_j g_i_n))))
 
-∇g_#_#_#
-;(tensor {3 3 3} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )_#_#_#
+∇g_#_#_#;(tensor {3 3 3} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )_#_#_#
 
 ;;
 ;; Riemann curvature tensor
 ;;
 
 (define $R~___
-  (with-symbols {i j k l m}
-    (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
-       (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k)))))
+  (let {[$A (with-symbols {i j k l m} (∂/∂ Γ~i_j_k x_l))]
+        [$B (with-symbols {i j k l m} (. Γ~m_j_k Γ~i_m_l))]}
+    (with-symbols {i j k l m}
+      (+ (- A~i_j_k_l A~i_j_l_k)
+         (- B_j_k~i_l B_j_l~i_k)))))
 
 R~#_#_#_#
-
-(define $R____ (with-symbols {i} (. g_i_# R~i_#_#_#)))
-
-R_#_#_#_#
 
 ;;
 ;; Ricci curvature
@@ -92,7 +90,7 @@ R_#_#_#_#
 
 (define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
 
-Ric_#_#
+Ric_#_#;[| [| (/ (+ (* -4 (cos (* 2 θ)) (sin θ)^2) (sin (* 2 θ))^2) (* 2 (sin θ)^4)) 0 0 |] [| 0 (/ (+ (* -4 (cos (* 2 θ)) (sin φ)^4) (* -4 (cos (* 2 φ)) (sin φ)^2) (sin (* 2 φ))^2) (* 4 (sin φ)^4)) 0 |] [| 0 0 (/ (+ (* -4 (cos (* 2 θ)) (sin φ)^4) (* -4 (cos (* 2 φ)) (sin φ)^2) (sin (* 2 φ))^2) (* 4 (sin φ)^2)) |] |]_#_#
 
 ;;
 ;; Scalar curvature
@@ -100,18 +98,4 @@ Ric_#_#
 
 (define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
 
-scalar-curvature
-
-;;
-;; Covariant derivative of Riemann curvature tensor
-;;
-
-(define $∇R_____
-  (with-symbols {i j k l m n}
-    (- (∂/∂ R_i_j_k_l x_m)
-       (. Γ~n_m_i R_n_j_k_l)
-       (. Γ~n_m_j R_i_n_k_l)
-       (. Γ~n_m_k R_i_j_n_l)
-       (. Γ~n_m_l R_i_j_k_n))))
-
-∇R_#_#_#_#_#
+scalar-curvature;(/ (+ (* -8 (cos (* 2 θ)) (sin θ)^2 (sin φ)^4) (* (sin (* 2 θ))^2 (sin φ)^4) (* -4 (cos (* 2 φ)) (sin φ)^2 (sin θ)^2) (* (sin (* 2 φ))^2 (sin θ)^2)) (* 2 r^2 (sin θ)^4 (sin φ)^4))

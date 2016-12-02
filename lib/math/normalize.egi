@@ -8,13 +8,18 @@
   (lambda [$fn $x1 $x2]
     (if (or (integer? x1) (integer? x2))
       (fn x1 x2)
+
 ;      (fn x1 x2))))
+      
+;      (let* {[$tmp (fn x1 x2)]
+;             [$ret ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) tmp)]}
+;        (if (eq? tmp ret)
+;          ret
+;          (debug ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (debug ((debug fn) x1 x2)))))))))
+
       (let* {[$tmp (fn  x1 x2)]
              [$ret ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) tmp)]}
         ret))))
-;        (if (eq? tmp ret)
-;          ret
-;          (debug ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (debug tmp))))))))
 
 (define $rewrite-rules
   {
@@ -145,7 +150,36 @@
 ;; cos, sin
 ;;
 
-(define $rewrite-rule-for-cos-and-sin (map-polys rewrite-rule-for-cos-and-sin-poly $))
+(define $rewrite-rule-for-cos-and-sin 1#(rewrite-rule-for-cos-and-sin-expr (map-polys rewrite-rule-for-cos-and-sin-poly %1)))
+
+(define $rewrite-rule-for-cos-and-sin-expr
+  (lambda [$expr]
+    (match [expr expr] [math-expr math-expr]
+      {[[<div (+ (* $a (,cos $θ) $mr)
+                 $pr1)
+              $pr2>
+         (| <div (+ (* _ (| (,cos ,(/ θ 2)) (,sin ,(/ θ 2))) _) _) _>
+            <div _ (+ (* _ (| (,cos ,(/ θ 2)) (,sin ,(/ θ 2))) _) _)>)]
+        (rewrite-rule-for-cos-and-sin-expr (/' (+' (*' a (-' (cos (/ θ 2))^2 (sin (/ θ 2))^2) mr) pr1) pr2))]
+       [[<div (+ (* $a (,sin $θ) $mr)
+                 $pr1)
+              $pr2>
+         (| <div (+ (* _ (| (,cos ,(/ θ 2)) (,sin ,(/ θ 2))) _) _) _>
+            <div _ (+ (* _ (| (,cos ,(/ θ 2)) (,sin ,(/ θ 2))) _) _)>)]
+        (rewrite-rule-for-cos-and-sin-expr (/' (+' (*' (*' a 2) (*' (cos (/ θ 2)) (sin (/ θ 2))) mr) pr1) pr2))]
+       [[<div $pr2
+              (+ (* $a (,cos $θ) $mr)
+                 $pr1)>
+         (| <div (+ (* _ (| (,cos ,(/ θ 2)) (,sin ,(/ θ 2))) _) _) _>
+            <div _ (+ (* _ (| (,cos ,(/ θ 2)) (,sin ,(/ θ 2))) _) _)>)]
+        (rewrite-rule-for-cos-and-sin-expr (/' pr2 (+' (*' a (-' (cos (/ θ 2))^2 (sin (/ θ 2))^2) mr) pr1)))]
+       [[<div $pr2
+              (+ (* $a (,sin $θ) $mr)
+                 $pr1)>
+         (| <div (+ (* _ (| (,cos ,(/ θ 2)) (,sin ,(/ θ 2))) _) _) _>
+            <div _ (+ (* _ (| (,cos ,(/ θ 2)) (,sin ,(/ θ 2))) _) _)>)]
+        (rewrite-rule-for-cos-and-sin-expr (/' pr2 (+' (*' (*' a 2) (*' (cos (/ θ 2)) (sin (/ θ 2))) mr) pr1)))]
+       [_ expr]})))
 
 (define $rewrite-rule-for-cos-and-sin-poly
   (lambda [$poly]
@@ -154,6 +188,13 @@
            (* ,a (,sin ,θ)^,2 ,mr)
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a mr)))]
+       [(+ (* $a (,cos $θ)^,2 $mr)
+           (* ,(* -1 a) (,sin ,θ)^,2 ,mr)
+           $pr)
+        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (cos (* 2 θ)) mr)))]
+       [(+ (* $a (,cos $θ) (,sin ,θ) $mr)
+           $pr)
+        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (/ a 2) (sin (* 2 θ)) mr)))]
        [(+ (* $a $mr)
            (* ,(*' -1 a) (,sin $θ)^,2 ,mr)
            $pr)
