@@ -196,13 +196,17 @@
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (/ a 2) (sin (* 2 θ)) mr)))]
        [(+ (* $a $mr)
-           (* ,(*' -1 a) (,sin $θ)^,2 ,mr)
+           (* ,(* -1 a) (,sin $θ)^,2 ,mr)
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (cos θ)^2 mr)))]
        [(+ (* $a $mr)
-           (* ,(*' -1 a) (,cos $θ)^,2 ,mr)
+           (* ,(* -1 a) (,cos $θ)^,2 ,mr)
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (sin θ)^2 mr)))]
+       [(+ (* $a $mr)
+           (* ,(* -1 a) (,cos $θ) ,mr)
+           $pr)
+        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (* 2 a) (sin (/ θ 2))^2 mr)))]
        [_ poly]})))
 
 ;;

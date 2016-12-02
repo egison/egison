@@ -74,7 +74,7 @@ g~#~#;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 (/ 1 (* r
 ;;
 ;; Riemann curvature tensor
 ;;
-"start"
+
 (define $R~___
   (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
      (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k))))
