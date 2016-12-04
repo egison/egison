@@ -150,7 +150,8 @@
 ;; cos, sin
 ;;
 
-(define $rewrite-rule-for-cos-and-sin 1#(rewrite-rule-for-cos-and-sin-expr (map-polys rewrite-rule-for-cos-and-sin-poly %1)))
+;(define $rewrite-rule-for-cos-and-sin 1#(rewrite-rule-for-cos-and-sin-expr (map-polys rewrite-rule-for-cos-and-sin-poly %1)))
+(define $rewrite-rule-for-cos-and-sin 1#(map-polys rewrite-rule-for-cos-and-sin-poly %1))
 
 (define $rewrite-rule-for-cos-and-sin-expr
   (lambda [$expr]
@@ -188,13 +189,13 @@
            (* ,a (,sin ,θ)^,2 ,mr)
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a mr)))]
-       [(+ (* $a (,cos $θ)^,2 $mr)
-           (* ,(* -1 a) (,sin ,θ)^,2 ,mr)
-           $pr)
-        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (cos (* 2 θ)) mr)))]
-       [(+ (* $a (,cos $θ) (,sin ,θ) $mr)
-           $pr)
-        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (/ a 2) (sin (* 2 θ)) mr)))]
+;       [(+ (* $a (,cos $θ)^,2 $mr)
+;           (* ,(* -1 a) (,sin ,θ)^,2 ,mr)
+;           $pr)
+;        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (cos (* 2 θ)) mr)))]
+;       [(+ (* $a (,cos $θ) (,sin ,θ) $mr)
+;           $pr)
+;        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (/ a 2) (sin (* 2 θ)) mr)))]
        [(+ (* $a $mr)
            (* ,(* -1 a) (,sin $θ)^,2 ,mr)
            $pr)
@@ -204,10 +205,10 @@
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (sin θ)^2 mr)))]
        ; (- 1 (cos (* 2 θ))) = (* 2 (sin θ)^2)
-       [(+ (* $a $mr)
-           (* ,(* -1 a) (,cos $θ) ,mr)
-           $pr)
-        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (* 2 a) (sin (/ θ 2))^2 mr)))]
+;       [(+ (* $a $mr)
+;           (* ,(* -1 a) (,cos $θ) ,mr)
+;           $pr)
+;        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (* 2 a) (sin (/ θ 2))^2 mr)))]
        [_ poly]})))
 
 ;;
