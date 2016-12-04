@@ -85,6 +85,13 @@
                    [<cons $x $rs>
                     [x (product' (map 2#(**' %1 %2) rs))]])]
                 [_ {}]})]}]
+     [<ncons $ ,$k $> [math-expr mult-expr]
+      {[$tgt (match tgt math-expr
+               {[<term _ $xs>
+                 (match-all xs (list [math-expr integer])
+                   [<join $hs <cons [$x (& ?(gte? $ k) $n)] $ts>>
+                    [x (product' (map 2#(**' %1 %2) {@hs [x (- n k)] @ts}))]])]
+                [_ {}]})]}]
      [<ncons $ $ $> [math-expr integer mult-expr]
       {[$tgt (match tgt math-expr
                {[<term _ $xs>

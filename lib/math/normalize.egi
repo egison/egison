@@ -203,6 +203,7 @@
            (* ,(* -1 a) (,cos $θ)^,2 ,mr)
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (sin θ)^2 mr)))]
+       ; (- 1 (cos (* 2 θ))) = (* 2 (sin θ)^2)
        [(+ (* $a $mr)
            (* ,(* -1 a) (,cos $θ) ,mr)
            $pr)
