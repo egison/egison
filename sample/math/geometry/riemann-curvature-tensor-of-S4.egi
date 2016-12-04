@@ -1,0 +1,133 @@
+;;;
+;;; Polar coordinates
+;;;
+
+(define $x [|θ φ ψ η|])
+
+(define $X [|(* r (cos θ))
+             (* r (sin θ) (cos φ))
+             (* r (sin θ) (sin φ) (cos ψ))
+             (* r (sin θ) (sin φ) (sin ψ))
+             (* r (sin θ) (sin φ) (sin ψ) (cos η))
+             (* r (sin θ) (sin φ) (sin ψ) (sin η))
+             |])
+
+;;
+;; Local coordinates
+;;
+
+(define $e ((∂/∂ X~# $) x_#))
+e
+;
+
+;;
+;; Metric tensor
+;;
+
+(define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {4 4}))
+(define $g~~ (M.inverse g_#_#))
+g_#_#;
+g~#~#;
+
+(with-symbols {i j k} (. g~i~j g_j_k));
+
+;;
+;; Christoffel symbols of the first kind
+;;
+
+(define $Γ___
+  (with-symbols {j k l}
+    (* (/ 1 2)
+       (+ (∂/∂ g_j_l x_k)
+          (∂/∂ g_j_k x_l)
+          (* -1 (∂/∂ g_k_l x_j))))))
+
+Γ_#_#_#;
+Γ_1_#_#;
+Γ_2_#_#;
+Γ_3_#_#;
+
+;;
+;; Christoffel symbols of the second kind
+;;
+
+(define $Γ~__
+  (with-symbols {i j k l}
+    (. g~i~j Γ_j_k_l)))
+
+Γ~#_#_#;
+Γ~1_#_#;
+Γ~2_#_#;
+Γ~3_#_#;
+
+;;
+;; Covariant derivative of metric tensor
+;;
+(define $∇g___
+  (with-symbols {i j m n}
+    (- (∂/∂ g_i_j x_m)
+       (. Γ~n_m_i g_n_j)
+       (. Γ~n_m_j g_i_n))))
+
+∇g_#_#_#;
+
+;;
+;; Riemann curvature tensor
+;;
+
+(define $R~___
+  (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
+     (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k))))
+
+R~#_#_#_#;
+R~#_#_1_1;
+R~#_#_1_2;
+R~#_#_1_3;
+R~#_#_2_1;
+R~#_#_2_2;
+R~#_#_2_3;
+R~#_#_3_1;
+R~#_#_3_2;
+R~#_#_3_3;
+
+(define $R____ (with-symbols {i} (. g_i_# R~i_#_#_#)))
+
+R_#_#_#_#;
+
+;;
+;; Ricci curvature
+;;
+
+(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
+
+Ric_#_#;
+
+;;
+;; Scalar curvature
+;;
+
+(define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
+
+scalar-curvature;
+
+(define $∇Ric___
+  (with-symbols {i j k l m n}
+    (- (∂/∂ Ric_i_j x_m)
+       (. Γ~n_m_i Ric_n_j)
+       (. Γ~n_m_j Ric_i_n)
+       )))
+
+∇Ric_#_#_#
+;
+
+(define $∇R_____
+  (with-symbols {i j k l m n}
+    (- (∂/∂ R_i_j_k_l x_m)
+       (. Γ~n_m_i R_n_j_k_l)
+       (. Γ~n_m_j R_i_n_k_l)
+       (. Γ~n_m_k R_i_j_n_l)
+       (. Γ~n_m_l R_i_j_k_n))))
+
+∇R_#_#_#_#_#
+;
+

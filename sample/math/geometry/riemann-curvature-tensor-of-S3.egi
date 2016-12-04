@@ -100,7 +100,7 @@ R_#_#_#_#;(tensor {3 3 3 3} {0 0 0 0 0 0 0 0 0 0 (* -1 r^2 (sin θ)^2) 0 (* r^2 
 
 (define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
 
-Ric_#_#;[| [| 2 0 0 |] [| 0 (* 2 (sin θ)^2) 0 |] [| 0 0 (+ (sin φ)^2 (* -1 (cos (* 2 θ)) (sin φ)^2)) |] |]_#_#
+Ric_#_#;[| [| 2 0 0 |] [| 0 (* 2 (sin θ)^2) 0 |] [| 0 0 (* 2 (sin θ)^2 (sin φ)^2) |] |]_#_#
 
 ;;
 ;; Scalar curvature
@@ -109,6 +109,24 @@ Ric_#_#;[| [| 2 0 0 |] [| 0 (* 2 (sin θ)^2) 0 |] [| 0 0 (+ (sin φ)^2 (* -1 (co
 (define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
 
 scalar-curvature;(/ 6 r^2)
+
+;;
+;; Covariant derivative of Ricci curvature
+;;
+
+(define $∇Ric___
+  (with-symbols {i j k l m n}
+    (- (∂/∂ Ric_i_j x_m)
+       (. Γ~n_m_i Ric_n_j)
+       (. Γ~n_m_j Ric_i_n)
+       )))
+
+∇Ric_#_#_#
+;(tensor {3 3 3} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )_#_#_#
+
+;;
+;; Covariant derivative of Riemann curvature
+;;
 
 (define $∇R_____
   (with-symbols {i j k l m n}
@@ -119,14 +137,5 @@ scalar-curvature;(/ 6 r^2)
        (. Γ~n_m_l R_i_j_k_n))))
 
 ∇R_#_#_#_#_#
-;
+;(tensor {3 3 3 3 3} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )_#_#_#_#_#
 
-(define $∇Ric___
-  (with-symbols {i j k l m n}
-    (- (∂/∂ Ric_i_j x_m)
-       (. Γ~n_m_i Ric_n_j)
-       (. Γ~n_m_j Ric_i_n)
-       )))
-
-∇Ric_#_#_#
-;
