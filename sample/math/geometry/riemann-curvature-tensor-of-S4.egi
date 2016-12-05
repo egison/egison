@@ -119,6 +119,10 @@ Ric_#_#;[| [| 3 0 0 0 |] [| 0 (* 3 (sin θ)^2) 0 0 |] [| 0 0 (* 3 (sin θ)^2 (si
 
 scalar-curvature;(/ 12 r^2)
 
+;;
+;; Covariant derivative of Ricci curvature
+;;
+
 (define $∇Ric___
   (with-symbols {i j k l m n}
     (- (∂/∂ Ric_i_j x_m)
