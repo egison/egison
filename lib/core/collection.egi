@@ -359,6 +359,18 @@
         {s @(between (+ s 1) e)}
         {}))))
 
+(define $L./
+  (lambda [$xs $ys]
+    (if (lt? (length xs) (length ys))
+      [{} xs]
+      (match [ys xs] [(list math-expr) (list math-expr)]
+        {
+         [[<cons $y $yrs> <cons $x $xrs>]
+          (let {[[$zs $rs] (L./ {@(map2 - (take (length yrs) xrs) (map (* $ (/ x y)) yrs))
+                                 @(drop (length yrs) xrs)} ys)]}
+            [{(/ x y) @zs} rs])]
+         }))))
+
 ;;;
 ;;; Multiset
 ;;;
