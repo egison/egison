@@ -281,7 +281,7 @@
        [?symbol? mexpr]
        ; function application
        [<apply $g $args>
-        ((expand-all g) (map expand-all args))]
+        (capply g (map expand-all args))]
        ; quote
        [<quote $g> g]
        ; term (multiplication)
