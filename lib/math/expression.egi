@@ -249,6 +249,10 @@
                                         xs))]}))
                      {@ts1 @ts2})]}))))
   
+(define $find-symbols-from-poly
+  (lambda [$poly]
+    (match-all poly math-expr
+      [<poly <cons <term _ <cons (& <symbol _> $s) _>> _>> s])))
 
 ;;;
 ;;; Substitute
@@ -294,6 +298,28 @@
         (let {[$p1' (expand-all p1)]
               [$p2' (expand-all p2)]}
           (/ p1' p2'))]
+       })))
+
+(define $expand-all'
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {
+       [?symbol? mexpr]
+       ; function application
+       [<apply $g $args>
+        (capply g (map expand-all' args))]
+       ; quote
+       [<quote $g> g]
+       ; term (multiplication)
+       [<term $a $ps>
+        (*' a (product' (map 2#(**' (expand-all' %1) (expand-all' %2)) ps)))]
+       ; polynomial
+       [<poly $ts> (sum' (map (expand-all' $) ts))]
+       ; quotient
+       [(/ $p1 $p2)
+        (let {[$p1' (expand-all' p1)]
+              [$p2' (expand-all' p2)]}
+          (/' p1' p2'))]
        })))
 
 ;;;
