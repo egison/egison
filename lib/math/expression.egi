@@ -274,6 +274,28 @@
   (lambda [%xs %ys $mexpr]
     (substitute (zip (tensor-to-list xs) (tensor-to-list ys)) mexpr)))
 
+(define $expand-all
+  (lambda [$mexpr]
+    (match mexpr math-expr
+      {
+       [?symbol? mexpr]
+       ; function application
+       [<apply $g $args>
+        ((expand-all g) (map expand-all args))]
+       ; quote
+       [<quote $g> g]
+       ; term (multiplication)
+       [<term $a $ps>
+        (* a (product (map 2#(** (expand-all %1) (expand-all %2)) ps)))]
+       ; polynomial
+       [<poly $ts> (sum (map (expand-all $) ts))]
+       ; quotient
+       [(/ $p1 $p2)
+        (let {[$p1' (expand-all p1)]
+              [$p2' (expand-all p2)]}
+          (/ p1' p2'))]
+       })))
+
 ;;;
 ;;; Coefficient
 ;;;
