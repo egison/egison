@@ -23,7 +23,7 @@
        ; quote
        [<quote $g>
         (let {[$g' (∂/∂ g x)]}
-          (if (term? g')
+          (if (monomial? g')
             g'
             'g'))]
        ; term (constant)
