@@ -119,7 +119,8 @@
 (define $M.determinant
   (lambda [%m]
     (match (tensor-size m) (list integer)
-      {[<cons $n <cons ,n <nil>>>
+      {[<cons ,0 <cons ,0 <nil>>> 1]
+       [<cons $n <cons ,n <nil>>>
         (let {[[$es $os] (even-and-odd-permutations n)]}
           (- (sum (map (lambda [$e]
                          (product (map2 (lambda [$i $j] m_i_j)
