@@ -111,34 +111,11 @@ scalar-curvature
 ;      )
 ;   (+ (a w)^2 (* -1 (a w)^2 K r^2)))
 
+;;
+;; Result of manual reduction of scalar-curvature
+;;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+;(/ (+ (* 6  (a|1 w)^2)
+;      (* 6  (a w) (a|1|1 w))
+;      (* 6  K))
+;   (*  (a w)^2))
