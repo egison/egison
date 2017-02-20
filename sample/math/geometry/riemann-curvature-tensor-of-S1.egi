@@ -5,7 +5,7 @@
 (define $x [|θ|])
 
 (define $X [|(* r (sin θ)) ; = x
-             (* r (cos θ)) ; = 6
+             (* r (cos θ)) ; = y
              |])
 
 ;;
