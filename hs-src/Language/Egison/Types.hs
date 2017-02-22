@@ -1109,8 +1109,8 @@ showComplexFloat x y = showFFloat Nothing x "" ++ if y > 0
                                                     else showFFloat Nothing y "i"
 
 showTSV :: EgisonValue -> String
-showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map showTSV vals)
-showTSV (Collection vals) = intercalate "\t" (map showTSV (toList vals))
+showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map show vals)
+showTSV (Collection vals) = intercalate "\t" (map show (toList vals))
 showTSV val = show val
 
 instance Eq EgisonValue where
