@@ -454,9 +454,10 @@ applyExpr' = do
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let genVar = modify (1+) >> gets (VarExpr . (':':) . show)
-            args' = evalState (mapM (either (const genVar) return) args) 0
-        in return . LambdaExpr (map ScalarArg (annonVars $ length vars)) . ApplyExpr func $ TupleExpr args'
+        let args' = rights args
+            args'' = map f (zip args (annonVars (length args)))
+            args''' = map (VarExpr . (either id id)) args''
+        in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
@@ -472,6 +473,8 @@ applyExpr' = do
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   annonVars n = take n $ map ((':':) . show) [1..]
+  f ((Left arg), var) = Left var
+  f ((Right arg), var) = Right var
 
 partialExpr :: Parser EgisonExpr
 partialExpr = PartialExpr <$> read <$> index <*> (char '#' >> expr)

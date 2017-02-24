@@ -43,7 +43,8 @@
 (define $reduce-fraction
   (lambda [$mexpr]
     (match mexpr math-expr
-      {[<div <poly $ts1>
+      {[,0 0]
+       [<div <poly $ts1>
              <poly $ts2>>
         (let* {[$d1 (capply gcd ts1)]
                [$d2 (capply gcd ts2)]

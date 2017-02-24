@@ -12,7 +12,7 @@
 ;; Local coordinates
 ;;
 
-(define $e ((∂/∂ X~# $) x_#))
+(define $e ((flip ∂/∂) x~# X_#))
 e;[| [| (* r (cos θ)) (* -1 r (sin θ)) |] |]_#~#
 
 ;;
