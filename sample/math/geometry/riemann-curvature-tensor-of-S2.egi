@@ -19,8 +19,6 @@ e
 ;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]
 ;  |]_#~#
 
-
-
 ;;
 ;; Metric tensor
 ;;

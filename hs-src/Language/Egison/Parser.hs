@@ -455,7 +455,7 @@ applyExpr' = do
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
         let args' = rights args
-            args'' = map f (zip args (annonVars (length args)))
+            args'' = map f (zip args (annonVars 1 (length args)))
             args''' = map (VarExpr . (either id id)) args''
         in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
       | all (not . null) vars ->
@@ -463,8 +463,10 @@ applyExpr' = do
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
-               let args' = map (either (VarExpr . (':':)) id) args
-               in return . LambdaExpr (map ScalarArg (annonVars n)) . ApplyExpr func $ TupleExpr args'
+               let args' = rights args
+                   args'' = map g (zip args (annonVars (n + 1) (length args)))
+                   args''' = map (VarExpr . (either id id)) args''
+               in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
@@ -472,9 +474,11 @@ applyExpr' = do
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  annonVars n = take n $ map ((':':) . show) [1..]
-  f ((Left arg), var) = Left var
-  f ((Right arg), var) = Right var
+  annonVars m n = take n $ map ((':':) . show) [m..]
+  f ((Left _), var) = Left var
+  f ((Right _), var) = Right var
+  g ((Left arg), _) = Left (':':arg)
+  g ((Right _), var) = Right var
 
 partialExpr :: Parser EgisonExpr
 partialExpr = PartialExpr <$> read <$> index <*> (char '#' >> expr)
