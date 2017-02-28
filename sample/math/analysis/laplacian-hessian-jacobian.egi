@@ -1,6 +1,6 @@
-(define $paras [| x y z |]) 
+(define $parameters [| x y z |]) 
 
-(define $∂ (∂/∂ $ paras))
+(define $∂ (∂/∂ $ parameters))
 
 (∂_i [| x^2 y^2 z^2 |]_i)
 ;[| (* 2 x) (* 2 y) (* 2 z) |]_i
