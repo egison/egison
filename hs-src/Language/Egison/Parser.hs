@@ -454,16 +454,19 @@ applyExpr' = do
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let genVar = modify (1+) >> gets (VarExpr . (':':) . show)
-            args' = evalState (mapM (either (const genVar) return) args) 0
-        in return . LambdaExpr (map ScalarArg (annonVars $ length vars)) . ApplyExpr func $ TupleExpr args'
+        let args' = rights args
+            args'' = map f (zip args (annonVars 1 (length args)))
+            args''' = map (VarExpr . (either id id)) args''
+        in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
-               let args' = map (either (VarExpr . (':':)) id) args
-               in return . LambdaExpr (map ScalarArg (annonVars n)) . ApplyExpr func $ TupleExpr args'
+               let args' = rights args
+                   args'' = map g (zip args (annonVars (n + 1) (length args)))
+                   args''' = map (VarExpr . (either id id)) args''
+               in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
@@ -471,7 +474,11 @@ applyExpr' = do
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  annonVars n = take n $ map ((':':) . show) [1..]
+  annonVars m n = take n $ map ((':':) . show) [m..]
+  f ((Left _), var) = Left var
+  f ((Right _), var) = Right var
+  g ((Left arg), _) = Left (':':arg)
+  g ((Right _), var) = Right var
 
 partialExpr :: Parser EgisonExpr
 partialExpr = PartialExpr <$> read <$> index <*> (char '#' >> expr)

@@ -5,14 +5,22 @@
 (define $x [|θ|])
 
 (define $X [|(* r (sin θ)) ; = x
+<<<<<<< HEAD
              (* r (cos θ)) ; = y
+=======
+             (* r (cos θ)) ; = 6
+>>>>>>> 822e909bb49ac1af3c200fb94c3adf85f83a19a0
              |])
 
 ;;
 ;; Local coordinates
 ;;
 
+<<<<<<< HEAD
 (define $e ((∂/∂ X~# $) x_#))
+=======
+(define $e ((flip ∂/∂) x~# X_#))
+>>>>>>> 822e909bb49ac1af3c200fb94c3adf85f83a19a0
 e;[| [| (* r (cos θ)) (* -1 r (sin θ)) |] |]_#~#
 
 ;;

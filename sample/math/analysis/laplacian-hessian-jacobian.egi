@@ -1,0 +1,33 @@
+(define $parameters [| x y z |]) 
+
+(define $∂ (∂/∂ $ parameters))
+
+(∂_i [| x^2 y^2 z^2 |]_i)
+;[| (* 2 x) (* 2 y) (* 2 z) |]_i
+
+(∂_i [| x^2 y^2 z^2 |]_j)
+;[| [| (* 2 x) 0 0 |] [| 0 (* 2 y) 0 |] [| 0 0 (* 2 z) |] |]_i_j
+
+(define $Δ
+  (lambda [%f]
+    (with-symbols {i}
+      (contract + (∂~i (∂_i f))))))
+
+(define $Hessian
+  (lambda [%f]
+    (with-symbols {i j}
+      (∂_i (∂_j f)))))
+
+(define $Jacobian
+  (lambda [%v]
+    (with-symbols {i j}
+      (M.det (∂_i v_j)))))
+
+(Δ (+ x^2 y^2 z^2))
+;6
+
+(Hessian (+ x^2 y^2 z^2))
+;[| [| 2 0 0 |] [| 0 2 0 |] [| 0 0 2 |] |]
+
+(Jacobian [| x^2 y^2 z^2 |])
+;(* 8 x y z)
