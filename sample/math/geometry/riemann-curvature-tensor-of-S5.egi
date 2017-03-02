@@ -177,8 +177,5 @@ scalar-curvature;(/ 20 r^2)
 (let* {[[$es $os] (even-and-odd-permutations 5)]
        [$es' (map 1#(lambda [$i] (nth i %1)) es)]
        [$os' (map 1#(lambda [$i] (nth i %1)) os)]}
-  (sum (map (lambda [$s $t $u]
-              (- (sum (map (lambda [$σ] (* R_u_1_s_(σ 1) R_s_t_(σ 3)_(σ 2) R_t_u_(σ 5)_(σ 4))) es'))
-                 (sum (map (lambda [$σ] (* R_u_1_s_(σ 1) R_s_t_(σ 3)_(σ 2) R_t_u_(σ 5)_(σ 4))) os'))))
-            (match-all (between 1 5) (set integer) [<cons $s <cons $t <cons $u _>>> [s t u]]))))
-;0
+  (- (sum (map (lambda [$σ] (debug (. R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4)))) es'))
+     (sum (map (lambda [$σ] (debug (. R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4)))) os'))))
