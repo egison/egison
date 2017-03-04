@@ -25,7 +25,8 @@
         (let {[$g' (∂/∂ g x)]}
           (if (monomial? g')
             g'
-            'g'))]
+            (let {[$d (capply gcd (from-poly g'))]}
+              (*' d '(map-poly (/' $ d) g')))))]
        ; term (constant)
        [,0 0]
        [(* _ ,1) 0]
