@@ -401,8 +401,19 @@ instance Eq TermExpr where
   (Term a []) == (Term b [])
     | a /= b =  False
     | otherwise = True
+  (Term a (((Quote x),n):xs)) == (Term b ys)
+    | (a /= b) && (a /= (negate b)) =  False
+    | otherwise = case findIndex ((==) ((Quote x),n)) ys of
+                    Just i -> let (hs, _:ts) = splitAt i ys in
+                                (Term a xs) == (Term b (hs ++ ts))
+                    Nothing -> case findIndex ((==) ((Quote (mathNegate x)),n)) ys of
+                                 Just i -> let (hs, _:ts) = splitAt i ys in
+                                             if even n
+                                               then (Term a xs) == (Term b (hs ++ ts))
+                                               else (Term (negate a) xs) == (Term b (hs ++ ts))
+                                 Nothing -> False
   (Term a (x:xs)) == (Term b ys)
-    | a /= b =  False
+    | (a /= b) && (a /= (negate b)) =  False
     | otherwise = case findIndex ((==) x) ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 (Term a xs) == (Term b (hs ++ ts))
@@ -574,19 +585,26 @@ mathSymbolFold :: ScalarData -> ScalarData
 mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f ts2))
  where
   f :: TermExpr -> TermExpr
-  f (Term a xs) = Term a (g [] xs)
-  g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
+  f (Term a xs) = let (ys, sgns) = unzip $ g [] xs
+                    in Term ((product sgns) * a) ys
+  g :: [((SymbolExpr, Integer),Integer)] -> [(SymbolExpr, Integer)] -> [((SymbolExpr, Integer),Integer)]
   g ret [] = ret
   g ret ((x, n):xs) =
     if (any (p (x, n)) ret)
       then g (map (h (x, n)) ret) xs
-      else g (ret ++ [(x, n)]) xs
-  p :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> Bool
-  p (x, _) (y, _) = x == y
-  h :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (SymbolExpr, Integer)
-  h (x, n) (y, m) = if x == y
-                     then (y, m + n)
-                     else (y, m)
+      else g (ret ++ [((x, n), 1)]) xs
+  p :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> Bool
+  p ((Quote x), _) (((Quote y), _),_) = (x == y) || ((mathNegate x) == y)
+  p (x, _) ((y, _),_) = x == y
+  h :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> ((SymbolExpr, Integer), Integer)
+  h ((Quote x), n) (((Quote y), m), sgn) = if x == y
+                                      then (((Quote y), m + n), sgn)
+                                      else if x == (mathNegate y)
+                                            then if even n then (((Quote y), m + n), sgn) else (((Quote y), m + n), -1 * sgn)
+                                            else (((Quote y), m), sgn)
+  h (x, n) ((y, m), sgn) = if x == y
+                             then ((y, m + n), sgn)
+                             else ((y, m), sgn)
 
 mathTermFold :: ScalarData -> ScalarData
 mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
@@ -596,25 +614,32 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
   f' :: [TermExpr] -> [TermExpr] -> [TermExpr]
   f' ret [] = ret
   f' ret ((Term a xs):ts) =
-    if any (\(Term _ ys) -> (p xs ys)) ret
+    if any (\(Term _ ys) -> (fst (p 1 xs ys))) ret
       then f' (map (g (Term a xs)) ret) ts
       else f' (ret ++ [(Term a xs)]) ts
   g :: TermExpr -> TermExpr -> TermExpr
-  g (Term a xs) (Term b ys) = if p xs ys
-                                then (Term (a + b) ys)
-                                else Term b ys
-  p :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> Bool
-  p [] [] = True
-  p [] _ = False
-  p ((x, n):xs) ys =
-    let (b, ys') = q (x, n) [] ys in
+  g (Term a xs) (Term b ys) = let (c, sgn) = p 1 xs ys in
+                                if c
+                                  then (Term ((sgn * a) + b) ys)
+                                  else Term b ys
+  p :: Integer -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Bool, Integer)
+  p sgn [] [] = (True, sgn)
+  p sgn [] _ = (False, 0)
+  p sgn ((x, n):xs) ys =
+    let (b, ys', sgn2) = q (x, n) [] ys in
       if b 
-        then p xs ys'
-        else False
-  q :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Bool, [(SymbolExpr, Integer)])
-  q _ _ [] = (False, [])
+        then p (sgn * sgn2) xs ys'
+        else (False, 0)
+  q :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Bool, [(SymbolExpr, Integer)], Integer)
+  q _ _ [] = (False, [], 1)
+  q ((Quote x), n) ret (((Quote y), m):ys) = if (x == y) && (n == m)
+                                               then (True, (ret ++ ys), 1)
+                                               else if ((mathNegate x) == y) && (n == m)
+                                                      then if even n then (True, (ret ++ ys), 1) else (True, (ret ++ ys), -1)
+                                                      else q ((Quote x), n) (ret ++ [((Quote y), m)]) ys
+  q ((Quote x), n) ret ((y,m):ys) = q ((Quote x), n) (ret ++ [(y, m)]) ys
   q (x, n) ret ((y, m):ys) = if (x == y) && (n == m)
-                               then (True, (ret ++ ys))
+                               then (True, (ret ++ ys), 1)
                                else q (x, n) (ret ++ [(y, m)]) ys
 
 --
