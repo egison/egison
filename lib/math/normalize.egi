@@ -7,20 +7,20 @@
 (define $math-normalize
   (lambda [$fn $x1 $x2]
 ;    (if (or (and (integer? x1) (integer? x2)) (eq? fn b.*'))
-;    (if (or (integer? x1) (integer? x2))
-    (if (and (integer? x1) (integer? x2))
+    (if (or (integer? x1) (integer? x2))
+;    (if (and (integer? x1) (integer? x2))
       (fn x1 x2)
 
 ;      (fn x1 x2))))
       
 ;      (let* {[$tmp (fn x1 x2)]
-;             [$ret ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) tmp)]}
+;             [$ret ((capply compose (map 2#%1 (filter 2#(%2 fn x1 x2) rewrite-rules))) tmp)]}
 ;        (if (eq? tmp ret)
 ;          ret
-;          (debug ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (debug ((debug fn) x1 x2)))))))))
+;          (debug ((capply compose (map 2#%1 (filter 2#(%2 fn x1 x2) rewrite-rules))) (debug ((debug fn) x1 x2)))))))))
 
 ;      (let* {[$tmp ((debug fn) (debug x1) (debug x2))]
-;             [$ret ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) tmp)]}
+;             [$ret ((capply compose (map 2#%1 (filter 2#(%2 fn x1 x2) rewrite-rules))) tmp)]}
 ;        (if (debug (eq? tmp ret))
 ;          (debug ret)
 ;          (debug ret))))))
