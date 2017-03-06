@@ -245,6 +245,22 @@
                                         xs))]}))
                      {@ts1 @ts2})]}))))
 
+(define $contain-function-with-order?
+  (lambda [$f $n $mexpr]
+    (any id (match mexpr math-expr
+              {[<div <poly $ts1> <poly $ts2>>
+                (map (lambda [$term]
+                       (match term term-expr
+                         {[<term _ $xs>
+                           (any id (map 2#(match %1 symbol-expr
+                                            {[<apply $g $args>
+                                              (if (and (eq? f g) (gte? %2 n))
+                                                #t
+                                                (any id (map (contain-function-with-order? f n $) args)))]
+                                             [_ #f]})
+                                        xs))]}))
+                     {@ts1 @ts2})]}))))
+
 (define $contain-function-with-index?
   (lambda [$mexpr]
     (any id (match mexpr math-expr

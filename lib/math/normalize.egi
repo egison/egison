@@ -6,7 +6,9 @@
 
 (define $math-normalize
   (lambda [$fn $x1 $x2]
-    (if (or (integer? x1) (integer? x2))
+;    (if (or (and (integer? x1) (integer? x2)) (eq? fn b.*'))
+;    (if (or (integer? x1) (integer? x2))
+    (if (and (integer? x1) (integer? x2))
       (fn x1 x2)
 
 ;      (fn x1 x2))))
@@ -17,7 +19,13 @@
 ;          ret
 ;          (debug ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) (debug ((debug fn) x1 x2)))))))))
 
-      (let* {[$tmp (fn  x1 x2)]
+;      (let* {[$tmp ((debug fn) (debug x1) (debug x2))]
+;             [$ret ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) tmp)]}
+;        (if (debug (eq? tmp ret))
+;          (debug ret)
+;          (debug ret))))))
+
+      (let* {[$tmp (fn x1 x2)]
              [$ret ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) tmp)]}
         ret))))
 
@@ -31,7 +39,8 @@
    [rewrite-rule-for-rtu-poly 2#(and (contain-function? rtu %1) (contain-function? rtu %2))]
    [rewrite-rule-for-sqrt 2#(and (contain-function? sqrt %1) (contain-function? sqrt %2))]
    [rewrite-rule-for-rt 2#(and (contain-function? rt %1) (contain-function? rt %2))]
-   [rewrite-rule-for-cos-and-sin 2#(or (or (contain-function? cos %1) (contain-function? sin %1)) (or (contain-function? cos %2) (contain-function? sin %2)))]
+   [rewrite-rule-for-cos-and-sin 2#(or (or (contain-function-with-order? cos 2 %1) (contain-function-with-order? sin 2 %1)) (or (contain-function-with-order? cos 2 %2) (contain-function-with-order? sin 2 %2)))]
+;   [rewrite-rule-for-cos-and-sin 2#(or (or (contain-function? cos %1) (contain-function? sin %1)) (or (contain-function? cos %2) (contain-function? sin %2)))]
    [rewrite-rule-for-∂/∂ 2#(and (contain-function-with-index? %1) (contain-function-with-index? %2))]
    })
 
