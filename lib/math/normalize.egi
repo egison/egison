@@ -26,22 +26,22 @@
 ;          (debug ret))))))
 
       (let* {[$tmp (fn x1 x2)]
-             [$ret ((capply compose (map 2#%1 (filter 2#(%2 x1 x2) rewrite-rules))) tmp)]}
+             [$ret ((capply compose (map 2#%1 (filter 2#(%2 fn x1 x2) rewrite-rules))) tmp)]}
         ret))))
 
 (define $rewrite-rules
   {
-   [id 2##t]
-   [rewrite-rule-for-i 2#(and (contain-symbol? i %1) (contain-symbol? i %2))]
-   [rewrite-rule-for-w-term 2#(and (contain-symbol? w %1) (contain-symbol? w %2))]
-   [rewrite-rule-for-rtu-term 2#(and (contain-function? rtu %1) (contain-function? rtu %2))]
-   [rewrite-rule-for-w-poly 2#(and (contain-symbol? w %1) (contain-symbol? w %2))]
-   [rewrite-rule-for-rtu-poly 2#(and (contain-function? rtu %1) (contain-function? rtu %2))]
-   [rewrite-rule-for-sqrt 2#(and (contain-function? sqrt %1) (contain-function? sqrt %2))]
-   [rewrite-rule-for-rt 2#(and (contain-function? rt %1) (contain-function? rt %2))]
-   [rewrite-rule-for-cos-and-sin 2#(or (or (contain-function-with-order? cos 2 %1) (contain-function-with-order? sin 2 %1)) (or (contain-function-with-order? cos 2 %2) (contain-function-with-order? sin 2 %2)))]
-;   [rewrite-rule-for-cos-and-sin 2#(or (or (contain-function? cos %1) (contain-function? sin %1)) (or (contain-function? cos %2) (contain-function? sin %2)))]
-   [rewrite-rule-for-∂/∂ 2#(and (contain-function-with-index? %1) (contain-function-with-index? %2))]
+   [id 3##t]
+   [rewrite-rule-for-i 3#(and (contain-symbol? i %2) (contain-symbol? i %3))]
+   [rewrite-rule-for-w-term 3#(and (contain-symbol? w %2) (contain-symbol? w %3))]
+   [rewrite-rule-for-rtu-term 3#(and (contain-function? rtu %2) (contain-function? rtu %3))]
+   [rewrite-rule-for-w-poly 3#(and (contain-symbol? w %2) (contain-symbol? w %3))]
+   [rewrite-rule-for-rtu-poly 3#(and (contain-function? rtu %2) (contain-function? rtu %3))]
+   [rewrite-rule-for-sqrt 3#(and (contain-function? sqrt %2) (contain-function? sqrt %3))]
+   [rewrite-rule-for-rt 3#(and (contain-function? rt %2) (contain-function? rt %3))]
+   [rewrite-rule-for-cos-and-sin 3#(and (eq? %1 b.+') (or (or (contain-function-with-order? cos 2 %2) (contain-function-with-order? sin 2 %2)) (or (contain-function-with-order? cos 2 %3) (contain-function-with-order? sin 2 %3))))]
+;   [rewrite-rule-for-cos-and-sin 3#(or (or (contain-function? cos %2) (contain-function? sin %2)) (or (contain-function? cos %3) (contain-function? sin %3)))]
+   [rewrite-rule-for-∂/∂ 3#(and (contain-function-with-index? %2) (contain-function-with-index? %3))]
    })
 
 ;;
