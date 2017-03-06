@@ -35,6 +35,8 @@ g~#~#
        (+ (∂/∂ g_j_l x_k)
           (∂/∂ g_j_k x_l)
           (* -1 (∂/∂ g_k_l x_j))))))
+Γ_#_#_#
+;
 
 ;;
 ;; Christoffel symbols of the second kind
@@ -43,6 +45,8 @@ g~#~#
 (define $Γ~__
   (with-symbols {i j k l}
     (. g~i~j Γ_j_k_l)))
+Γ~#_#_#
+;
 
 ;;
 ;; Riemann curvature tensor
@@ -58,6 +62,8 @@ g~#~#
 ;;
 
 (define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
+Ric_#_#
+;
 
 (expand-all' (with-symbols {i j} (-' Ric_i_j (*' 4 g_i_j))))
 ;[| [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] |]

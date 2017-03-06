@@ -528,39 +528,59 @@ egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expr
 mathNormalize' :: ScalarData -> ScalarData
 mathNormalize' mExpr = mathDivide (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr)))
 
+termsGcd :: [TermExpr] -> TermExpr
+termsGcd (t:ts) = f t ts
+ where
+  f :: TermExpr -> [TermExpr] -> TermExpr
+  f ret [] =  ret
+  f (Term a xs) ((Term b ys):ts) =
+    f (Term (gcd a b) (g xs ys)) ts
+  g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
+  g [] ys = []
+  g ((x, n):xs) ys = let (z, m) = h (x, n) ys in
+    if m == 0 then g xs ys else ((z, m):(g xs ys))
+  h :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> (SymbolExpr, Integer)
+  h (x, n) [] = (x, 0)
+  h ((Quote x), n) (((Quote y), m):ys) = if x == y
+                                        then ((Quote x), (min n m))
+                                        else if x == (mathNegate y)
+                                             then ((Quote x), (min n m))
+                                             else h ((Quote x), n) ys
+  h (x, n) ((y, m):ys) = if x == y
+                         then (x, (min n m))
+                         else h (x, n) ys
+
 mathDivide :: ScalarData -> ScalarData
 mathDivide (Div (Plus ts1) (Plus [])) = (Div (Plus ts1) (Plus []))
 mathDivide (Div (Plus []) (Plus ts2)) = (Div (Plus []) (Plus ts2))
-mathDivide (Div (Plus ts1) (Plus [(Term a xs)])) =
-  case f (Term a xs) ts1 of
-    Nothing -> (Div (Plus ts1) (Plus [(Term a xs)]))
-    Just ts1' -> (Div (Plus ts1') (Plus [(Term 1 [])]))
- where
-  f :: TermExpr -> [TermExpr] -> Maybe [TermExpr]
-  f _ [] = Just []
-  f t1 (t:ts) = do t' <- f' t1 t
-                   ts' <- f t1 ts
-                   return (t':ts')
-  f' :: TermExpr -> TermExpr -> Maybe TermExpr
-  f' (Term a xs) (Term b ys) =
-    if b `mod` a == 0
-      then do ys' <- g xs ys
-              return (Term (b `quot` a) ys')
-      else Nothing
-  g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> Maybe [(SymbolExpr, Integer)]
-  g [] ys = Just ys
-  g ((x,n):xs) ys = do
-    ys' <- g' (x,n) ys
-    g xs ys'
-  g' :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> Maybe [(SymbolExpr, Integer)]
-  g' (x, n) [] = Nothing
-  g' (x, n) ((y, m):ys) = do
-    if (x == y && n <= m)
-      then Just ((y, (m - n)):ys)
-      else do ys' <- g' (x,n) ys
-              return ((y,m):ys')
-mathDivide (Div (Plus ts1) (Plus ts2)) = (Div (Plus ts1) (Plus ts2))
+mathDivide (Div (Plus ts1) (Plus ts2)) =
+  let z = termsGcd (ts1 ++ ts2) in
+  case z of
+    (Term 1 []) -> (Div (Plus ts1) (Plus ts2))
+    _ -> (Div (Plus (map (\t -> mathDivideTerm t z) ts1)) (Plus (map (\t -> mathDivideTerm t z) ts2)))
 
+mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
+mathDivideTerm (Term a xs) (Term b ys) =
+  let (sgn, zs) = f 1 xs ys in
+  (Term (sgn * (div a b)) zs)
+ where
+  f :: Integer -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Integer, [(SymbolExpr, Integer)])
+  f sgn xs [] = (sgn, xs)
+  f sgn xs ((y, n):ys) =
+    let (sgns, zs) = unzip (map (\(x, m) -> (g (x, m) (y, n))) xs) in
+    f (sgn * (product sgns)) zs ys
+  g :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (Integer, (SymbolExpr, Integer))
+  g ((Quote x), n) ((Quote y), m) =
+    if x == y
+    then (1, ((Quote x), (n - m)))
+    else if x == (mathNegate y)
+         then if even m then (1, ((Quote x), (n - m))) else (-1, ((Quote x), (n - m)))
+         else (1, ((Quote x), n))
+  g (x, n) (y, m) =
+    if x == y
+    then (1, (x, (n - m)))
+    else (1, (x, n))
+              
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
   let p x = case x of
@@ -654,6 +674,9 @@ mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
 
 mathMult :: ScalarData -> ScalarData -> ScalarData
 mathMult (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
+
+mathMult' :: ScalarData -> ScalarData -> ScalarData
+mathMult' (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
 
 mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
 mathMultPoly (Plus []) (Plus _) = Plus []
