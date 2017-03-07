@@ -44,6 +44,26 @@
    [rewrite-rule-for-∂/∂ 3#(and (contain-function-with-index? %2) (contain-function-with-index? %3))]
    })
 
+(define $math-normalize1
+  (lambda [$x]
+    (if (integer? x)
+      x
+      (let {[$ret ((capply compose (map 2#%1 (filter 2#(%2 x) rewrite-rules1))) x)]}
+        ret))))
+
+(define $rewrite-rules1
+  {
+   [id 1##t]
+   [rewrite-rule-for-i 1#(contain-symbol? i %1)]
+   [rewrite-rule-for-w-term 1#(contain-symbol? w %1)]
+   [rewrite-rule-for-rtu-term 1#(contain-function? rtu %1)]
+   [rewrite-rule-for-w-poly 1#(contain-symbol? w %1)]
+   [rewrite-rule-for-rtu-poly 1#(contain-function? rtu %1)]
+   [rewrite-rule-for-sqrt 1#(contain-function? sqrt %1)]
+   [rewrite-rule-for-rt 1#(contain-function? rt %1)]
+   [rewrite-rule-for-cos-and-sin 1#(or (contain-function-with-order? cos 2 %1) (contain-function-with-order? sin 2 %1))]
+   })
+
 ;;
 ;; i
 ;;

@@ -34,7 +34,8 @@
   (lambda [$x1 $x2]
     (reduce-fraction (math-normalize b.*' x1 (b./' 1 x2)))))
 
-(define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))
+(define $+ (cambda $xs (math-normalize1 (capply +' xs))))
+;(define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))
 (define $- (cambda $xs (foldl b.- (car xs) (cdr xs))))
 (define $* (cambda $xs (foldl b.* (car xs) (cdr xs))))
 (define $/ b./)
@@ -67,7 +68,9 @@
 
 (define $sum
   (lambda [$xs]
-    (foldl + 0 xs)))
+    (if (empty? xs)
+      0
+      (capply + xs))))
 
 (define $sum'
   (lambda [$xs]
@@ -75,7 +78,9 @@
 
 (define $product
   (lambda [$xs]
-    (foldl * 1 xs)))
+    (if (empty? xs)
+      1
+      (capply * xs))))
 
 (define $product'
   (lambda [$xs]
