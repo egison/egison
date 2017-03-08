@@ -95,9 +95,10 @@
 (define $rewrite-rule-for-rtu-poly'
   (lambda [$poly]
     (match poly math-expr
-      {[(+ (* $a (,rtu $n)^,(- n 1) $mr)
+      {
+       [(+ (* $a (,rtu $n)^,1 $mr)
            (loop $i [2 ,(- n 1)]
-             (+ (* ,a ,(rtu n)^,(- n i) ,mr) ...)
+             (+ (* ,a ,(rtu n)^,i ,mr) ...)
              $pr))
         (rewrite-rule-for-rtu-poly' (+' pr (*' -1 a mr)))]
        [_ poly]})))
