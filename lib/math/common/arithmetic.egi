@@ -102,4 +102,3 @@
            [[$zs $rs] (L./ as bs)]}
       [(sum' (map2 2#(*' %1 (**' x %2)) (reverse zs) nats0))
        (sum' (map2 2#(*' %1 (**' x %2)) (reverse rs) nats0))])))
-        
