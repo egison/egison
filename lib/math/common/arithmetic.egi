@@ -35,9 +35,8 @@
     (reduce-fraction (math-normalize b.*' x1 (b./' 1 x2)))))
 
 (define $+ (cambda $xs (math-normalize1 (capply +' xs))))
-;(define $+ (cambda $xs (foldl b.+ (car xs) (cdr xs))))
-(define $- (cambda $xs (foldl b.- (car xs) (cdr xs))))
-(define $* (cambda $xs (foldl b.* (car xs) (cdr xs))))
+(define $- (cambda $xs (math-normalize1 (capply -' xs))))
+(define $* (cambda $xs (math-normalize1 (capply *' xs))))
 (define $/ b./)
 
 

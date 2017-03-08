@@ -39,8 +39,8 @@
    [rewrite-rule-for-rtu-poly 3#(and (contain-function? rtu %2) (contain-function? rtu %3))]
    [rewrite-rule-for-sqrt 3#(and (contain-function? sqrt %2) (contain-function? sqrt %3))]
    [rewrite-rule-for-rt 3#(and (contain-function? rt %2) (contain-function? rt %3))]
-   [rewrite-rule-for-cos-and-sin 3#(and (eq? %1 b.+') (or (or (contain-function-with-order? cos 2 %2) (contain-function-with-order? sin 2 %2)) (or (contain-function-with-order? cos 2 %3) (contain-function-with-order? sin 2 %3))))]
-;   [rewrite-rule-for-cos-and-sin 3#(or (or (contain-function? cos %2) (contain-function? sin %2)) (or (contain-function? cos %3) (contain-function? sin %3)))]
+;   [rewrite-rule-for-cos-and-sin 3#(and (eq? %1 b.+') (or (or (contain-function-with-order? cos 2 %2) (contain-function-with-order? sin 2 %2)) (or (contain-function-with-order? cos 2 %3) (contain-function-with-order? sin 2 %3))))]
+   [rewrite-rule-for-cos-to-sin 3#(or (contain-function-with-order? cos 2 %2) (contain-function-with-order? cos 2 %3))]
    [rewrite-rule-for-∂/∂ 3#(and (contain-function-with-index? %2) (contain-function-with-index? %3))]
    })
 
@@ -61,7 +61,8 @@
    [rewrite-rule-for-rtu-poly 1#(contain-function? rtu %1)]
    [rewrite-rule-for-sqrt 1#(contain-function? sqrt %1)]
    [rewrite-rule-for-rt 1#(contain-function? rt %1)]
-   [rewrite-rule-for-cos-and-sin 1#(or (contain-function-with-order? cos 2 %1) (contain-function-with-order? sin 2 %1))]
+;   [rewrite-rule-for-cos-and-sin 1#(or (contain-function-with-order? cos 2 %1) (contain-function-with-order? sin 2 %1))]
+   [rewrite-rule-for-cos-to-sin 1#(contain-function-with-order? cos 2 %1)]
    })
 
 ;;
@@ -238,6 +239,16 @@
 ;           (* ,(* -1 a) (,cos $θ) ,mr)
 ;           $pr)
 ;        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (* 2 a) (sin (/ θ 2))^2 mr)))]
+       [_ poly]})))
+
+(define $rewrite-rule-for-cos-to-sin 1#(map-polys rewrite-rule-for-cos-to-sin-poly %1))
+
+(define $rewrite-rule-for-cos-to-sin-poly
+  (lambda [$poly]
+    (match poly math-expr
+      {[(+ (* $a (,cos $θ)^,2 $mr)
+           $pr)
+        (rewrite-rule-for-cos-to-sin-poly (+' pr (*' a (-' 1 (sin θ)^2) mr)))]
        [_ poly]})))
 
 ;;
