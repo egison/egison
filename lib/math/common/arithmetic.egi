@@ -4,8 +4,7 @@
 ;;;;;
 ;;;;;
 
-;(define $to-math-expr (macro [$arg] (math-normalize b.+ 0 (apply to-math-expr' arg))))
-(define $to-math-expr (macro [$arg] (math-normalize * (apply to-math-expr' arg))))
+(define $to-math-expr (macro [$arg] (math-normalize1 (apply to-math-expr' arg))))
 
 (define $+' (cambda $xs (foldl b.+' (car xs) (cdr xs))))
 (define $-' (cambda $xs (foldl b.-' (car xs) (cdr xs))))
@@ -13,31 +12,9 @@
 (define $/' b./')
 (define $.' (cambda $xs (foldl b..' (car xs) (cdr xs))))
 
-(define $b.+
-  (lambda [$x1 $x2]
-    (match [x1 x2] [math-expr math-expr]
-      {[[<div $p1 (& !,1 $p2)> <div $q1 ,p2>]
-        (b./ (b.+ p1 q1) p2)]
-       [[_ _] (reduce-fraction (math-normalize b.+' x1 x2))]})))
-
-(define $b.-
-  (lambda [$x1 $x2]
-    (match [x1 x2] [math-expr math-expr]
-      {[[<div $p1 (& !,1 $p2)> <div $q1 ,p2>]
-        (b./ (b.- p1 q1) p2)]
-       [[_ _] (reduce-fraction (math-normalize b.+' x1 (b.*' -1 x2)))]})))
-
-(define $b.*
-  (lambda [$x1 $x2]
-    (reduce-fraction (math-normalize b.*' x1 x2))))
-
-(define $b./
-  (lambda [$x1 $x2]
-    (reduce-fraction (math-normalize b.*' x1 (b./' 1 x2)))))
-
-(define $+ (cambda $xs (math-normalize1 + (capply +' xs))))
-(define $- (cambda $xs (math-normalize1 + (capply -' xs))))
-(define $* (cambda $xs (math-normalize1 * (capply *' xs))))
+(define $+ (cambda $xs (math-normalize1 (capply +' xs))))
+(define $- (cambda $xs (math-normalize1 (capply -' xs))))
+(define $* (cambda $xs (math-normalize1 (capply *' xs))))
 (define $/ b./)
 
 (define $reduce-fraction id)
@@ -64,7 +41,7 @@
 
 (define $power
   (lambda [$x $n]
-    (math-normalize1 * (power' x n))))
+    (math-normalize1 (power' x n))))
 
 (define $power'
   (lambda [$x $n]
