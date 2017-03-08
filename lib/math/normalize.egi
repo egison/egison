@@ -202,15 +202,14 @@
 ;        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' (* 2 a) (sin (/ θ 2))^2 mr)))]
        [_ poly]})))
 
-(define $rewrite-rule-for-cos-to-sin 1#(map-polys rewrite-rule-for-cos-to-sin-poly %1))
+(define $rewrite-rule-for-cos-to-sin 1#(map-terms rewrite-rule-for-cos-to-sin-term' %1))
 
-(define $rewrite-rule-for-cos-to-sin-poly
-  (lambda [$poly]
-    (match poly math-expr
-      {[(+ (* $a (,cos $θ)^,2 $mr)
-           $pr)
-        (rewrite-rule-for-cos-to-sin-poly (+' pr (*' a (-' 1 (sin θ)^2) mr)))]
-       [_ poly]})))
+(define $rewrite-rule-for-cos-to-sin-term'
+  (lambda [$term]
+    (match term math-expr
+      {[(* $a (,cos $θ)^,2 $mr)
+        (*' a (-' 1 (sin θ)^2) (rewrite-rule-for-cos-to-sin-term' mr))]
+       [_ term]})))
 
 ;;
 ;; d
