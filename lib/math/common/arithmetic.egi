@@ -4,7 +4,8 @@
 ;;;;;
 ;;;;;
 
-(define $to-math-expr (macro [$arg] (math-normalize b.+ 0 (apply to-math-expr' arg))))
+;(define $to-math-expr (macro [$arg] (math-normalize b.+ 0 (apply to-math-expr' arg))))
+(define $to-math-expr (macro [$arg] (math-normalize * (apply to-math-expr' arg))))
 
 (define $+' (cambda $xs (foldl b.+' (car xs) (cdr xs))))
 (define $-' (cambda $xs (foldl b.-' (car xs) (cdr xs))))
@@ -34,36 +35,12 @@
   (lambda [$x1 $x2]
     (reduce-fraction (math-normalize b.*' x1 (b./' 1 x2)))))
 
-(define $+ (cambda $xs (math-normalize1 (capply +' xs))))
-(define $- (cambda $xs (math-normalize1 (capply -' xs))))
-(define $* (cambda $xs (math-normalize1 (capply *' xs))))
+(define $+ (cambda $xs (math-normalize1 + (capply +' xs))))
+(define $- (cambda $xs (math-normalize1 + (capply -' xs))))
+(define $* (cambda $xs (math-normalize1 * (capply *' xs))))
 (define $/ b./)
 
-
-(define $reduce-fraction
-  (lambda [$mexpr]
-    (match mexpr math-expr
-      {[,0 0]
-       [<div <poly $ts1>
-             <poly $ts2>>
-        (let* {[$d1 (capply gcd ts1)]
-               [$d2 (capply gcd ts2)]
-               [$d (capply gcd {@ts1 @ts2})]}
-          (if (eq? (-' (sum' (map (/' $ d1) ts1)) (sum' (map (/' $ d2) ts2))) 0)
-            (/' (/' d1 d) (/' d2 d))
-            (/' (sum' (map (/' $ d) ts1)) (sum' (map (/' $ d) ts2)))))]})))
-
-;            (let* {[$e1 (expand-all' (sum' (map (/' $ d) ts1)))]
-;                   [$qexprs (match-all (/' d2 d) math-expr
-;                              [<term _ <cons <quote $qexpr> _>> qexpr])]
-;                   [$dps (filter 1#(eq? 0 (2#%2 (P./ e1 %1 (car (find-symbols-from-poly %1)))))
-;                                 qexprs)]}
-;              (if (eq? dps {})
-;                (/' (sum' (map (/' $ d) ts1)) (sum' (map (/' $ d) ts2)))
-;                (let {[$dp (car dps)]}
-;                  (reduce-fraction (/' (2#%1 (P./ e1 dp (car (find-symbols-from-poly dp))))
-;                                       (sum' (map (/' $ (*' d 'dp)) ts2))))
-;                  )))))]})))
+(define $reduce-fraction id)
 
 (define $sum
   (lambda [$xs]
@@ -87,7 +64,7 @@
 
 (define $power
   (lambda [$x $n]
-    (foldl * 1 (take n (repeat1 x)))))
+    (math-normalize1 * (power' x n))))
 
 (define $power'
   (lambda [$x $n]
