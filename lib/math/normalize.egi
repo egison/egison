@@ -62,7 +62,7 @@
    [rewrite-rule-for-sqrt 2#(and (eq? %1 *) (contain-function? sqrt %2))]
    [rewrite-rule-for-rt 2#(and (eq? %1 *) (contain-function? rt %2))]
 ;   [rewrite-rule-for-cos-and-sin 2#(or (contain-function-with-order? cos 2 %2) (contain-function-with-order? sin 2 %2))]
-   [rewrite-rule-for-cos-to-sin 2#(and (eq? %1 *) (contain-function-with-order? cos 2 %2))]
+   [rewrite-rule-for-cos-to-sin 2#(contain-function-with-order? cos 2 %2)]
    })
 
 ;;
