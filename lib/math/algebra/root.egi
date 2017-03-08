@@ -14,13 +14,14 @@
       (match x math-expr
         {[,0 0]
          [?monomial? (rt-monomial n x)]
-         [<div <poly $xs> <poly $ys>>
-          (let {[$xd (reduce gcd xs)]
-                [$yd (reduce gcd ys)]}
-            (let {[$d (rt-monomial n (/ xd yd))]}
-              (*' d
-                 (rt'' n (*' (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
-                 )))]})
+;         [<div <poly $xs> <poly $ys>>
+;          (let {[$xd (reduce gcd xs)]
+;                [$yd (reduce gcd ys)]}
+;            (let {[$d (rt-monomial n (/ xd yd))]}
+;              (*' d
+;                 (rt'' n (*' (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
+;                 )))]
+         [_ (rt'' n x)]})
       (rt'' n x))))
 
 (define $rt-monomial
