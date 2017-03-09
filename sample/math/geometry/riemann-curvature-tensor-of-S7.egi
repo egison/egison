@@ -1,0 +1,96 @@
+;;;
+;;; Polar coordinates
+;;;
+
+(define $x [|α β γ δ ε ζ η|])
+
+(define $X [|(* r (cos α))
+             (* r (sin α) (cos β))
+             (* r (sin α) (sin β) (cos γ))
+             (* r (sin α) (sin β) (sin γ) (cos δ))
+             (* r (sin α) (sin β) (sin γ) (sin δ) (cos ε))
+             (* r (sin α) (sin β) (sin γ) (sin δ) (sin ε) (cos ζ))
+             (* r (sin α) (sin β) (sin γ) (sin δ) (sin ε) (sin ζ) (cos η))
+             (* r (sin α) (sin β) (sin γ) (sin δ) (sin ε) (sin ζ) (sin η))
+             |])
+
+;;
+;; Local coordinates
+;;
+
+(define $e ((flip ∂/∂) x~# X_#))
+e
+
+;;
+;; Metric tensor
+;;
+
+(define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {7 7}))
+(define $g~~ (M.inverse g_#_#))
+g_#_#;[| [| r^2 0 0 0 0 0 0 |] [| 0 (* r^2 (sin α)^2) 0 0 0 0 0 |] [| 0 0 (* r^2 (sin α)^2 (sin β)^2) 0 0 0 0 |] [| 0 0 0 (* r^2 (sin α)^2 (sin β)^2 (sin γ)^2) 0 0 0 |] [| 0 0 0 0 (* r^2 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2) 0 0 |] [| 0 0 0 0 0 (* r^2 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2 (sin ε)^2) 0 |] [| 0 0 0 0 0 0 (* r^2 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2 (sin ε)^2 (sin ζ)^2) |] |]_#_#
+g~#~#;[| [| (/ 1 r^2) 0 0 0 0 0 0 |] [| 0 (/ 1 (* r^2 (sin α)^2)) 0 0 0 0 0 |] [| 0 0 (/ 1 (* r^2 (sin α)^2 (sin β)^2)) 0 0 0 0 |] [| 0 0 0 (/ 1 (* r^2 (sin α)^2 (sin β)^2 (sin γ)^2)) 0 0 0 |] [| 0 0 0 0 (/ 1 (* r^2 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2)) 0 0 |] [| 0 0 0 0 0 (/ 1 (* r^2 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2 (sin ε)^2)) 0 |] [| 0 0 0 0 0 0 (/ 1 (* r^2 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2 (sin ε)^2 (sin ζ)^2)) |] |]~#~#
+
+(with-symbols {i j k} (. g~i~j g_j_k))
+;[| [| 1 0 0 0 0 0 0 |] [| 0 1 0 0 0 0 0 |] [| 0 0 1 0 0 0 0 |] [| 0 0 0 1 0 0 0 |] [| 0 0 0 0 1 0 0 |] [| 0 0 0 0 0 1 0 |] [| 0 0 0 0 0 0 1 |] |]
+
+;;
+;; Christoffel symbols of the first kind
+;;
+
+(define $Γ___
+  (with-symbols {j k l}
+    (* (/ 1 2)
+       (+ (∂/∂ g_j_l x_k)
+          (∂/∂ g_j_k x_l)
+          (* -1 (∂/∂ g_k_l x_j))))))
+
+;;
+;; Christoffel symbols of the second kind
+;;
+
+(define $Γ~__
+  (with-symbols {i j k l}
+    (. g~i~j Γ_j_k_l)))
+
+;;
+;; Riemann curvature tensor
+;;
+
+(define $R~___
+  (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
+     (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k))))
+
+;;
+;; Ricci curvature
+;;
+
+(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
+
+Ric_#_#;
+;[|[| 6 0 0 0 0 0 0 |]
+;  [| 0 (* 6 (sin α)^2) 0 0 0 0 0 |]
+;  [| 0 0 (* 6 (sin α)^2 (sin β)^2) 0 0 0 0 |]
+;  [| 0 0 0 (* 6 (sin α)^2 (sin β)^2 (sin γ)^2) 0 0 0 |]
+;  [| 0 0 0 0 (* 6 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2) 0 0 |]
+;  [| 0 0 0 0 0 (* 6 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2 (sin ε)^2) 0 |]
+;  [| 0 0 0 0 0 0 (* 6 (sin α)^2 (sin β)^2 (sin γ)^2 (sin δ)^2 (sin ε)^2 (sin ζ)^2) |]
+;  |]_#_#
+
+;;
+;; Scalar curvature
+;;
+
+(define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
+
+scalar-curvature;(/ 42 r^2)
+
+;;
+;; Wodzicki-Chern-Simons form
+;;
+
+(let* {[[$es $os] (even-and-odd-permutations 7)]
+       [$es' (map 1#(lambda [$i] (nth i %1)) es)]
+       [$os' (map 1#(lambda [$i] (nth i %1)) os)]}
+  (- (sum (map (lambda [$σ] (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) es'))
+     (sum (map (lambda [$σ] (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) os'))))
+;0
