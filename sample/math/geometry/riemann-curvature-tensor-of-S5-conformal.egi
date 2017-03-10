@@ -84,6 +84,7 @@ Ric_#_#
 (define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
 
 scalar-curvature
+;(/ (+ (* -4 (a|2|2 θ φ ψ η δ) (a θ φ ψ η δ) (sin φ)^2 (sin ψ)^2 (sin η)^2) (* -4 (a|1|1 θ φ ψ η δ) (sin θ)^2 (a θ φ ψ η δ) (sin φ)^2 (sin ψ)^2 (sin η)^2) (* (a|1 θ φ ψ η δ)^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2) (* -16 (a|1 θ φ ψ η δ) (a θ φ ψ η δ) (cos θ) (sin θ) (sin φ)^2 (sin ψ)^2 (sin η)^2) (a|5 θ φ ψ η δ)^2 (* 20 (sin θ)^2 (a θ φ ψ η δ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2) (* -4 (a|3|3 θ φ ψ η δ) (a θ φ ψ η δ) (sin ψ)^2 (sin η)^2) (* -12 (a|2 θ φ ψ η δ) (a θ φ ψ η δ) (cos φ) (sin φ) (sin ψ)^2 (sin η)^2) (* -4 (a|4|4 θ φ ψ η δ) (a θ φ ψ η δ) (sin η)^2) (* -8 (a|3 θ φ ψ η δ) (a θ φ ψ η δ) (cos ψ) (sin ψ) (sin η)^2) (* -4 (a|5|5 θ φ ψ η δ) (a θ φ ψ η δ)) (* (a|2 θ φ ψ η δ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2) (* (a|3 θ φ ψ η δ)^2 (sin ψ)^2 (sin η)^2) (* (a|4 θ φ ψ η δ)^2 (sin η)^2) (* -4 (a|4 θ φ ψ η δ) (a θ φ ψ η δ) (cos η) (sin η))) (* (a θ φ ψ η δ)^3 r^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2))
 
 ;;
 ;; Wodzicki-Chern-Simons form
@@ -92,8 +93,6 @@ scalar-curvature
 (let* {[[$es $os] (even-and-odd-permutations 5)]
        [$es' (map 1#(lambda [$i] (nth i %1)) es)]
        [$os' (map 1#(lambda [$i] (nth i %1)) os)]}
-  (- (sum (map (lambda [$σ] (debug (. R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4)))) es'))
-     (sum (map (lambda [$σ] (debug (. R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4)))) os'))))
-;  (- (sum (map (lambda [$σ] (. R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es'))
-;     (sum (map (lambda [$σ] (. R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os'))))
+  (- (sum' (map (lambda [$σ] (.' R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es'))
+     (sum' (map (lambda [$σ] (.' R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os'))))
 ;0
