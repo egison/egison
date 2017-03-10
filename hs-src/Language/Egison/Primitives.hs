@@ -145,6 +145,8 @@ primitives = [ ("b.+", plus)
              , ("from-math-expr", fromScalarData)
              , ("to-math-expr", toScalarData)
              , ("to-math-expr'", toScalarData)
+             , ("decons-user-scripts", deconsUserScripts)
+             , ("append-user-scripts", appendUserScripts)
 
              , ("modulo",    integerBinaryOp mod)
              , ("quotient",   integerBinaryOp quot)
@@ -351,6 +353,18 @@ toScalarData = oneArg $ toScalarData'
  where
   toScalarData' val = egisonToScalarData val >>= return . ScalarData . mathNormalize'
 
+appendUserScripts :: PrimitiveFunc
+appendUserScripts = twoArgs $ appendUserScripts'
+ where
+  appendUserScripts' v (Collection is) = do
+    let is' = map Userscript (toList is)
+    return $ UserIndexedData v is'
+
+deconsUserScripts :: PrimitiveFunc
+deconsUserScripts = oneArg $ deconsUserScripts'
+ where
+  deconsUserScripts' (UserIndexedData v is) = return $ Tuple [v, Collection (Sq.fromList (map (\(Userscript i) -> i) is))]
+  deconsUserScripts' v = return $ Tuple [v, Collection (Sq.fromList [])]
 --
 -- Pred
 --
