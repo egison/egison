@@ -1,5 +1,5 @@
 ;;;
-;;; Polar coordinates
+;;; Parameters
 ;;;
 
 (define $x [|α β γ|])
