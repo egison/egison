@@ -105,7 +105,6 @@ scalar-curvature
                       (- (. Ric~i_k g_j_l) (. Ric~i_l g_j_k))))
        (* (/ scalar-curvature 12) (- (. δ~i_k g_j_l) (. δ~i_l g_j_k))))))
 
-"weyl"
 C~#_#_#_#
 
 ;;
@@ -117,4 +116,4 @@ C~#_#_#_#
        [$os' (map 1#(lambda [$i] (nth i %1)) os)]}
   (- (sum' (map (lambda [$σ] (.' C~u_1_s_(σ 1) C~s_t_(σ 3)_(σ 2) C~t_u_(σ 5)_(σ 4))) es'))
      (sum' (map (lambda [$σ] (.' C~u_1_s_(σ 1) C~s_t_(σ 3)_(σ 2) C~t_u_(σ 5)_(σ 4))) os'))))
-;
+;0
