@@ -19,6 +19,8 @@
 (define $b..' (lambda [%t1 %t2] (contract +' (*' t1 t2))))
 (define $b.. (lambda [%t1 %t2] (contract + (* t1 t2))))
 
+(define $.' (cambda $xs (foldl b..' (car xs) (cdr xs))))
+
 (define $.
   (cambda $xs
     (match xs (list something)

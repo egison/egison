@@ -10,12 +10,16 @@
 (define $-' (cambda $xs (foldl b.-' (car xs) (cdr xs))))
 (define $*' (cambda $xs (foldl b.*' (car xs) (cdr xs))))
 (define $/' b./')
-(define $.' (cambda $xs (foldl b..' (car xs) (cdr xs))))
 
 (define $+ (cambda $xs (math-normalize1 (capply +' xs))))
 (define $- (cambda $xs (math-normalize1 (capply -' xs))))
 (define $* (cambda $xs (math-normalize1 (capply *' xs))))
 (define $/ b./)
+
+;(define $+ +')
+;(define $- -')
+;(define $* *')
+;(define $/ b./')
 
 (define $reduce-fraction id)
 
