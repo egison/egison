@@ -13,9 +13,6 @@
 g_#_#
 g~#~#
 
-;(with-symbols {i j k} (. g~i~j g_j_k))
-;[| [| 1 0 0 0 0 |] [| 0 1 0 0 0 |] [| 0 0 1 0 0 |] [| 0 0 0 1 0 |] [| 0 0 0 0 1 |] |]
-
 ;;
 ;; Christoffel symbols of the first kind
 ;;
