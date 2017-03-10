@@ -9,7 +9,7 @@
 ;;
 
 (define $g__ (generate-tensor 2#(* (a α β γ) (G_%1_%2 α β γ)) {3 3}))
-(define $g~~ (M.inverse g_#_#))
+(define $g~~ (generate-tensor 2#(* (/ 1 (a α β γ)) (G~%1~%2 α β γ)) {3 3}))
 g_#_#
 g~#~#
 

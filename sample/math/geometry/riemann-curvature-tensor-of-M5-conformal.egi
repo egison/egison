@@ -9,11 +9,11 @@
 ;;
 
 (define $g__ (generate-tensor 2#(* (a α β γ δ ε) (G_%1_%2 α β γ δ ε)) {5 5}))
-(define $g~~ (M.inverse g_#_#))
+(define $g~~ (generate-tensor 2#(* (/ 1 (a α β γ δ ε)) (G~%1~%2 α β γ δ ε)) {5 5}))
 g_#_#
 g~#~#
 
-(with-symbols {i j k} (. g~i~j g_j_k))
+;(with-symbols {i j k} (. g~i~j g_j_k))
 ;[| [| 1 0 0 0 0 |] [| 0 1 0 0 0 |] [| 0 0 1 0 0 |] [| 0 0 0 1 0 |] [| 0 0 0 0 1 |] |]
 
 ;;
