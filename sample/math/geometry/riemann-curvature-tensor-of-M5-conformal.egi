@@ -8,7 +8,7 @@
 ;; Metric tensor
 ;;
 
-(define $g__ (generate-tensor 2#(* (a α β γ δ ε) G_%1_%2) {5 5}))
+(define $g__ (generate-tensor 2#(* (a α β γ δ ε) (G_%1_%2 α β γ δ ε)) {5 5}))
 (define $g~~ (M.inverse g_#_#))
 g_#_#
 g~#~#
@@ -48,22 +48,6 @@ g~#~#
      (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k))))
 
 R~#_#_#_#
-
-;;
-;; Ricci curvature
-;;
-
-(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
-
-Ric_#_#
-
-;;
-;; Scalar curvature
-;;
-
-(define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
-
-scalar-curvature
 
 ;;
 ;; Wodzicki-Chern-Simons form

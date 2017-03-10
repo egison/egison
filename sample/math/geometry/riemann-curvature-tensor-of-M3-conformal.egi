@@ -8,7 +8,7 @@
 ;; Metric tensor
 ;;
 
-(define $g__ (generate-tensor 2#(* (a α β γ δ ε) G_%1_%2) {3 3}))
+(define $g__ (generate-tensor 2#(* (a α β γ) (G_%1_%2 α β γ)) {3 3}))
 (define $g~~ (M.inverse g_#_#))
 g_#_#
 g~#~#
