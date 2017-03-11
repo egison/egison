@@ -10,6 +10,9 @@
              (* r (sin θ) (sin φ) (sin ψ))
              |])
 
+x~#
+X_#
+((flip ∂/∂) x~# X_#)
 ;;
 ;; Local basis
 ;;
@@ -35,12 +38,11 @@ g~#~#;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 (/ 1 (* r
 ;; Christoffel symbols of the first kind
 ;;
 
-(define $Γ___
-  (with-symbols {j k l}
-    (* (/ 1 2)
-       (+ (∂/∂ g_j_k x_l)
-          (∂/∂ g_j_l x_k)
-          (* -1 (∂/∂ g_k_l x_j))))))
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_k x_l)
+        (∂/∂ g_j_l x_k)
+        (* -1 (∂/∂ g_k_l x_j)))))
 
 Γ_1_#_#;[| [| 0 0 0 |] [| 0 (* -1 r^2 (sin θ) (cos θ)) 0 |] [| 0 0 (* -1 r^2 (sin θ) (cos θ) (sin φ)^2) |] |]_#_#
 Γ_2_#_#;[| [| 0 (* r^2 (sin θ) (cos θ)) 0 |] [| (* r^2 (sin θ) (cos θ)) 0 0 |] [| 0 0 (* -1 r^2 (sin θ)^2 (sin φ) (cos φ)) |] |]_#_#
@@ -50,8 +52,8 @@ g~#~#;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 (/ 1 (* r
 ;; Christoffel symbols of the second kind
 ;;
 
-(define $Γ~__
-  (with-symbols {i j k l}
+(define $Γ~i_k_l
+  (with-symbols {j}
     (. g~i~j Γ_j_k_l)))
 
 Γ~1_#_#;[| [| 0 0 0 |] [| 0 (* -1 (sin θ) (cos θ)) 0 |] [| 0 0 (* -1 (sin θ) (cos θ) (sin φ)^2) |] |]_#_#
@@ -62,11 +64,9 @@ g~#~#;[| [| (/ 1 r^2) 0 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) 0 |] [| 0 0 (/ 1 (* r
 ;; Riemann curvature tensor
 ;;
 
-(define $R~___
-  (with-symbols {i j k l}
-    (+ (generate-tensor 4#0 {3 3 3 3})~i_j_l_k
-       (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
-       (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k)))))
+(define $R~i_j_l_k
+  (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
+     (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k))))
 
 R~#_#_1_1;
 R~#_#_1_2;
@@ -109,4 +109,4 @@ scalar-curvature;(/ 6 r^2)
           (- (. Ric_k_l g_i_m) (. Ric_k_m g_i_l)))
        (* (/ scalar-curvature 2) (- (. g_i_l g_k_m) (. g_i_m g_k_l))))))
 
-W_#_#_#_#
+C_#_#_#_#

@@ -125,8 +125,8 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 --
 topExpr :: Parser EgisonTopExpr
 topExpr = try (Test <$> expr)
-      <|> try (parens (defineExpr
-                   <|> redefineExpr
+      <|> try defineExpr
+      <|> try (parens (redefineExpr
                    <|> testExpr
                    <|> executeExpr
                    <|> loadFileExpr
@@ -134,11 +134,18 @@ topExpr = try (Test <$> expr)
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = try (keywordDefine >> Define <$> varNameWithIndexType <*> expr)
-             <|> (do keywordDefine
-                     (VarWithIndices name is) <- varNameWithIndices
-                     body <- expr
-                     return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body)))
+defineExpr = try (parens (keywordDefine >> Define <$> varNameWithIndexType <*> expr))
+         <|> try (parens (do keywordDefine
+                             (VarWithIndices name is) <- varNameWithIndices
+                             body <- expr
+                             return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
+--defineExpr = try 
+--                 (do keywordDefine
+--                     (VarWithIndices name is) <- varNameWithIndices
+--                     body <- expr
+--                     return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body)))
+--            <|> (keywordDefine >> Define <$> varNameWithIndexType <*> expr)
+--defineExpr = (keywordDefine >> Define <$> varNameWithIndexType <*> expr)
  where
   f (Superscript _) = Superscript ()
   f (Subscript _) = Subscript ()
