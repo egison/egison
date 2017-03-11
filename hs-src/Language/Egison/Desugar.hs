@@ -303,6 +303,11 @@ desugar (TensorMap2Expr fnExpr t1Expr t2Expr) = do
   t2Expr' <- desugar t2Expr
   return $ TensorMap2Expr fnExpr' t1Expr' t2Expr'
 
+desugar (TransposeExpr vars expr) = do
+  vars' <- desugar vars
+  expr' <- desugar expr
+  return $ TransposeExpr vars' expr'
+
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1

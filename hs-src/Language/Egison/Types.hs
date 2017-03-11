@@ -44,6 +44,7 @@ module Language.Egison.Types
     , tIndex
     , tref
     , enumTensorIndices
+    , tTranspose'
     , tMap
     , tMap2
     , tMapN
@@ -166,7 +167,7 @@ import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import Data.List (intercalate, sort, sortBy, findIndex, splitAt, (\\), elem, delete, deleteBy, any)
+import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -258,6 +259,7 @@ data EgisonExpr =
   | TensorContractExpr EgisonExpr EgisonExpr
   | TensorMapExpr EgisonExpr EgisonExpr
   | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
+  | TransposeExpr EgisonExpr EgisonExpr
 
   | SomethingExpr
   | UndefinedExpr
@@ -815,6 +817,22 @@ tTranspose is t@(Tensor ns xs js) = do
   ns' <- transIndex js is ns
   xs' <- mapM (transIndex js is) (enumTensorIndices ns') >>= mapM (flip tIntRef t) >>= mapM fromTensor >>= return . V.fromList
   return $ Tensor ns' xs' is
+
+tTranspose' :: HasTensor a => [EgisonValue] -> (Tensor a) -> EgisonM (Tensor a)
+tTranspose' is t@(Tensor ns xs js) = do
+  is' <- g is js
+  tTranspose is' t
+ where
+  f :: (Index EgisonValue) -> EgisonValue
+  f (Subscript i) = i
+  f (Superscript i) = i
+  f (SupSubscript i) = i
+  g :: [EgisonValue] -> [Index EgisonValue] -> EgisonM [Index EgisonValue]
+  g [] js = return []
+  g (i:is) js = case find (\j -> i == (f j)) js of
+                  Nothing ->  throwError $ InconsistentTensorIndex
+                  (Just j') -> do js' <- g is js
+                                  return $ j':js'
 
 tMap :: HasTensor a => (a -> EgisonM a) -> (Tensor a) -> EgisonM (Tensor a)
 tMap f (Tensor ns xs js) = do

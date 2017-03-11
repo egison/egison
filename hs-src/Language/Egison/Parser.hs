@@ -216,6 +216,7 @@ expr' = (try partialExpr
                          <|> tensorContractExpr
                          <|> tensorMapExpr
                          <|> tensorMap2Expr
+                         <|> transposeExpr
                          )
              <?> "expression")
 
@@ -524,6 +525,9 @@ tensorMapExpr = keywordTensorMap >> TensorMapExpr <$> expr <*> expr
 tensorMap2Expr :: Parser EgisonExpr
 tensorMap2Expr = keywordTensorMap2 >> TensorMap2Expr <$> expr <*> expr <*> expr
 
+transposeExpr :: Parser EgisonExpr
+transposeExpr = keywordTranspose >> TransposeExpr <$> expr <*> expr
+
 -- Patterns
 
 pattern :: Parser EgisonPattern
@@ -756,6 +760,7 @@ reservedKeywords =
   , "contract"
   , "tensor-map"
   , "tensor-map2"
+  , "transpose"
   , "something"
   , "undefined"]
   
@@ -831,6 +836,7 @@ keywordTensor               = reserved "tensor"
 keywordTensorContract       = reserved "contract"
 keywordTensorMap            = reserved "tensor-map"
 keywordTensorMap2           = reserved "tensor-map2"
+keywordTranspose            = reserved "transpose"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

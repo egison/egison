@@ -358,6 +358,18 @@ evalExpr env (LetRecExpr bindings expr) =
   genVar :: State Int String
   genVar = modify (1+) >> gets (('#':) . show)
 
+evalExpr env (TransposeExpr vars expr) = do
+  syms <- evalExpr env vars >>= collectionToList
+  whnf <- evalExpr env expr
+  case whnf of
+    (Intermediate (ITensor t)) -> do
+      t' <- tTranspose' syms t
+      return (Intermediate (ITensor t'))
+    (Value (TensorData t)) -> do
+      t' <- tTranspose' syms t
+      return (Value (TensorData t'))
+    _ -> return whnf
+
 evalExpr env (WithSymbolsExpr vars expr) = do
   symId <- fresh
   syms <- mapM (\var -> (newEvaluatedObjectRef (Value (symbolScalarData symId var)))) vars
