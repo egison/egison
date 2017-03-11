@@ -83,6 +83,7 @@ module Language.Egison.Types
     -- * Environment
     , Env (..)
     , Var (..)
+    , VarWithIndices (..)
     , Binding (..)
     , nullEnv
     , extendEnv
@@ -1421,13 +1422,24 @@ data Var = Var String [Index ()]
  deriving (Eq)
 type Binding = (String, ObjectRef)
 
+data VarWithIndices = VarWithIndices String [Index String]
+ deriving (Eq)
+
 instance Show Var where
   show (Var x is) = x ++ concat (map show is)
+
+instance Show VarWithIndices where
+  show (VarWithIndices x is) = x ++ concat (map show is)
 
 instance Show (Index ()) where
   show (Superscript ()) = "~"
   show (Subscript ()) = "_"
   show (SupSubscript ()) = "~_"
+
+instance Show (Index String) where
+  show (Superscript s) = "~" ++ s
+  show (Subscript s) = "_" ++ s
+  show (SupSubscript s) = "~_" ++ s
 
 instance Show (Index EgisonExpr) where
   show (Superscript i) = "~" ++ show i

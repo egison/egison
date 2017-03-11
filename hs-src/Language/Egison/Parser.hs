@@ -134,7 +134,21 @@ topExpr = try (Test <$> expr)
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = keywordDefine >> Define <$> varNameWithIndexType <*> expr
+defineExpr = try (keywordDefine >> Define <$> varNameWithIndexType <*> expr)
+             <|> (do keywordDefine
+                     (VarWithIndices name is) <- varNameWithIndices
+                     body <- expr
+                     return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body)))
+ where
+  f (Superscript _) = Superscript ()
+  f (Subscript _) = Subscript ()
+  f (SupSubscript _) = SupSubscript ()
+  g (Superscript i) = i
+  g (Subscript i) = i
+  g (SupSubscript i) = i
+  h (Superscript i) = (VarExpr i)
+  h (Subscript i) = (VarExpr i)
+  h (SupSubscript i) = (VarExpr i)
 
 redefineExpr :: Parser EgisonTopExpr
 redefineExpr = (keywordRedefine <|> keywordSet) >> Redefine <$> varNameWithIndexType <*> expr
@@ -425,6 +439,17 @@ varNameWithIndexType = P.lexeme lexer (do
 indexType :: Parser (Index ())
 indexType = try (char '~' >> return (Superscript ()))
         <|> try (char '_' >> return (Subscript ()))
+
+varNameWithIndices :: Parser VarWithIndices
+varNameWithIndices = P.lexeme lexer (do
+  char '$'
+  name <- ident
+  is <- many indexForVar
+  return $ VarWithIndices name is)
+
+indexForVar :: Parser (Index String)
+indexForVar = try (char '~' >> Superscript <$> ident)
+        <|> try (char '_' >> Subscript <$> ident)
 
 argNames :: Parser [Arg]
 argNames = return <$> argName
