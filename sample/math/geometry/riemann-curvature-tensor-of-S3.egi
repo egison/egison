@@ -10,9 +10,6 @@
              (* r (sin θ) (sin φ) (sin ψ))
              |])
 
-x~#
-X_#
-((flip ∂/∂) x~# X_#)
 ;;
 ;; Local basis
 ;;
@@ -99,14 +96,14 @@ Ric_#_#;[| [| 2 0 0 |] [| 0 (* 2 (sin θ)^2) 0 |] [| 0 0 (* 2 (sin θ)^2 (sin φ
 scalar-curvature;(/ 6 r^2)
 
 ;;
-;; Weyl curvature tensor
+;; Conformal curvature tensor
 ;;
 
-(define $C____
-  (with-symbols {i j k l m}
-    (+ (. R_i_k_l_m)
-       (+ (- (. Ric_i_m g_k_l) (. Ric_i_l g_k_m))
-          (- (. Ric_k_l g_i_m) (. Ric_k_m g_i_l)))
-       (* (/ scalar-curvature 2) (- (. g_i_l g_k_m) (. g_i_m g_k_l))))))
+(define $C_i_k_l_m
+  (+ (. R_i_k_l_m)
+     (+ (- (. Ric_i_m g_k_l) (. Ric_i_l g_k_m))
+        (- (. Ric_k_l g_i_m) (. Ric_k_m g_i_l)))
+     (* (/ scalar-curvature 2) (- (. g_i_l g_k_m) (. g_i_m g_k_l)))))
 
 C_#_#_#_#
+;(tensor {3 3 3 3} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )_#_#_#_#

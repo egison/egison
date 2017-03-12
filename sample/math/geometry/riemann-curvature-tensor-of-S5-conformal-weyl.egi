@@ -1,5 +1,5 @@
 ;;;
-;;; Polar coordinates
+;;; Parameters
 ;;;
 
 (define $x [|θ φ ψ η ζ|])
@@ -13,7 +13,7 @@
              |])
 
 ;;
-;; Local coordinates
+;; Local basis
 ;;
 
 (define $e ((flip ∂/∂) x~# X_#))
@@ -45,34 +45,33 @@ g~#~#
 ;; Christoffel symbols of the first kind
 ;;
 
-(define $Γ___
-  (with-symbols {j k l}
-    (* (/ 1 2)
-       (+ (∂/∂ g_j_l x_k)
-          (∂/∂ g_j_k x_l)
-          (* -1 (∂/∂ g_k_l x_j))))))
-
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_k x_l)
+        (∂/∂ g_j_l x_k)
+        (* -1 (∂/∂ g_k_l x_j)))))
 Γ_#_#_#
 
 ;;
 ;; Christoffel symbols of the second kind
 ;;
 
-(define $Γ~__
-  (with-symbols {i j k l}
+(define $Γ~i_k_l
+  (with-symbols {j}
     (. g~i~j Γ_j_k_l)))
-
 Γ~#_#_#
 
 ;;
 ;; Riemann curvature tensor
 ;;
 
-(define $R~___
+(define $R~i_j_l_k
   (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
      (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k))))
 
 R~#_#_#_#
+
+(define $R_i_j_l_k (with-symbols {m} (. g_i_m R~m_j_k_l)))
 
 ;;
 ;; Ricci curvature
@@ -111,16 +110,15 @@ scalar-curvature
 ;;
 ;; Weyl curvature tensor
 ;;
-(define $δ [| [| 1 0 0 0 0 |] [| 0 1 0 0 0 |] [| 0 0 1 0 0 |] [| 0 0 0 1 0 |] [| 0 0 0 0 1 |] |])
-(define $Ric~_ (with-symbols {i k h} (. g~i~h Ric_k_h)))
+(define $C_i_k_l_m
+  (+ (. R_i_k_l_m)
+     (+ (- (. Ric_i_m g_k_l) (. Ric_i_l g_k_m))
+        (- (. Ric_k_l g_i_m) (. Ric_k_m g_i_l)))
+     (* (/ scalar-curvature 2) (- (. g_i_l g_k_m) (. g_i_m g_k_l)))))
 
-(define $C~___
-  (with-symbols {i j k l}
-    (+ R~i_j_k_l
-       (* (/ -1 3) (+ (- (. δ~i_k Ric_j_l) (. δ~i_l Ric_j_k))
-                      (- (. Ric~i_k g_j_l) (. Ric~i_l g_j_k))))
-       (* (/ scalar-curvature 12) (- (. δ~i_k g_j_l) (. δ~i_l g_j_k))))))
+C_#_#_#_#
 
+(define $C~j_k_l_m (with-symbols {i} (. g~i~j C_i_k_l_m)))
 C~#_#_#_#
 
 ;;
