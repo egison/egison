@@ -100,7 +100,7 @@ scalar-curvature
 ;   (* (a θ φ ψ η δ)^4 r^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2))
 
 ;;
-;; Wodzicki-Chern-Simons form
+;; Wodzicki-Chern-Simons class
 ;;
 
 (let* {[[$es $os] (even-and-odd-permutations 5)]

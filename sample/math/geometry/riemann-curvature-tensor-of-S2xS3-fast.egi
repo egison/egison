@@ -60,7 +60,7 @@ Ric_#_#
 ;[| [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] |]
 
 ;;
-;; Wodzicki-Chern-Simons form
+;; Wodzicki-Chern-Simons class
 ;;
 
 (define $ret (let* {[[$es $os] (even-and-odd-permutations 5)]

@@ -47,7 +47,7 @@ g~#~#
 R~#_#_#_#
 
 ;;
-;; Wodzicki-Chern-Simons form
+;; Wodzicki-Chern-Simons class
 ;;
 
 (let* {[[$es $os] (even-and-odd-permutations 5)]

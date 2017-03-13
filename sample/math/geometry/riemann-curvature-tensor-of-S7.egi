@@ -82,7 +82,7 @@ Ric_#_#;
 scalar-curvature;(/ 42 r^2)
 
 ;;
-;; Wodzicki-Chern-Simons form
+;; Wodzicki-Chern-Simons class
 ;;
 
 (let* {[[$es $os] (even-and-odd-permutations 7)]
