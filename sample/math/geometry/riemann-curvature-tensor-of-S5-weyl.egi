@@ -1,5 +1,5 @@
 ;;;
-;;; Polar coordinates
+;;; Parameters
 ;;;
 
 (define $x [|θ φ ψ η ζ|])
@@ -13,7 +13,7 @@
              |])
 
 ;;
-;; Local coordinates
+;; Local basis
 ;;
 
 (define $e ((flip ∂/∂) x~# X_#))

@@ -1,5 +1,5 @@
 ;;;
-;;; Polar coordinates
+;;; Parameters
 ;;;
 
 (define $x [|θ φ ψ η δ|])
@@ -13,7 +13,7 @@
              |])
 
 ;;
-;; Local coordinates
+;; Local basis
 ;;
 
 (define $e ((flip ∂/∂) x~# X_#))
@@ -28,29 +28,23 @@ e
 ;; Metric tensor
 ;;
 
-(define $g__ (generate-tensor 2#(* (a θ φ ψ η δ) (V.* e_%1 e_%2)) {5 5}))
+(define $g__ (generate-tensor 2#(* (a θ φ ψ η δ)^2 (V.* e_%1 e_%2)) {5 5}))
 (define $g~~ (M.inverse g_#_#))
 g_#_#
-;[|[| (* (a θ φ ψ η δ) r^2) 0 0 0 0 |]
-;  [| 0 (* (a θ φ ψ η δ) r^2 (sin θ)^2) 0 0 0 |]
-;  [| 0 0 (* (a θ φ ψ η δ) r^2 (sin θ)^2 (sin φ)^2) 0 0 |]
-;  [| 0 0 0 (* (a θ φ ψ η δ) r^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2) 0 |]
-;  [| 0 0 0 0 (* (a θ φ ψ η δ) r^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2) |]|]_#_#
 g~#~#
 
 (with-symbols {i j k} (. g~i~j g_j_k))
-;[| [| 1 0 0 0 0 |] [| 0 1 0 0 0 |] [| 0 0 1 0 0 |] [| 0 0 0 1 0 |] [| 0 0 0 0 1 |] |]
+;
 
 ;;
 ;; Christoffel symbols of the first kind
 ;;
 
-(define $Γ___
-  (with-symbols {j k l}
-    (* (/ 1 2)
-       (+ (∂/∂ g_j_l x_k)
-          (∂/∂ g_j_k x_l)
-          (* -1 (∂/∂ g_k_l x_j))))))
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_l x_k)
+        (∂/∂ g_j_k x_l)
+        (* -1 (∂/∂ g_k_l x_j)))))
 
 Γ_#_#_#
 
@@ -58,9 +52,7 @@ g~#~#
 ;; Christoffel symbols of the second kind
 ;;
 
-(define $Γ~__
-  (with-symbols {i j k l}
-    (. g~i~j Γ_j_k_l)))
+(define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
 
 Γ~#_#_#
 
@@ -68,9 +60,9 @@ g~#~#
 ;; Riemann curvature tensor
 ;;
 
-(define $R~___
-  (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
-     (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k))))
+(define $R~i_j_k_l
+  (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+     (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l))))
 
 R~#_#_#_#
 
@@ -78,7 +70,7 @@ R~#_#_#_#
 ;; Ricci curvature
 ;;
 
-(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
+(define $Ric__ (with-symbols {i} (contract + R~i_#_i_#)))
 
 Ric_#_#
 
@@ -89,7 +81,23 @@ Ric_#_#
 (define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
 
 scalar-curvature
-;(/ (+ (* -4 (a|2|2 θ φ ψ η δ) (a θ φ ψ η δ) (sin φ)^2 (sin ψ)^2 (sin η)^2) (* -4 (a|1|1 θ φ ψ η δ) (sin θ)^2 (a θ φ ψ η δ) (sin φ)^2 (sin ψ)^2 (sin η)^2) (* (a|1 θ φ ψ η δ)^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2) (* -16 (a|1 θ φ ψ η δ) (a θ φ ψ η δ) (cos θ) (sin θ) (sin φ)^2 (sin ψ)^2 (sin η)^2) (a|5 θ φ ψ η δ)^2 (* 20 (sin θ)^2 (a θ φ ψ η δ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2) (* -4 (a|3|3 θ φ ψ η δ) (a θ φ ψ η δ) (sin ψ)^2 (sin η)^2) (* -12 (a|2 θ φ ψ η δ) (a θ φ ψ η δ) (cos φ) (sin φ) (sin ψ)^2 (sin η)^2) (* -4 (a|4|4 θ φ ψ η δ) (a θ φ ψ η δ) (sin η)^2) (* -8 (a|3 θ φ ψ η δ) (a θ φ ψ η δ) (cos ψ) (sin ψ) (sin η)^2) (* -4 (a|5|5 θ φ ψ η δ) (a θ φ ψ η δ)) (* (a|2 θ φ ψ η δ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2) (* (a|3 θ φ ψ η δ)^2 (sin ψ)^2 (sin η)^2) (* (a|4 θ φ ψ η δ)^2 (sin η)^2) (* -4 (a|4 θ φ ψ η δ) (a θ φ ψ η δ) (cos η) (sin η))) (* (a θ φ ψ η δ)^3 r^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2))
+;(/ (+ (* 20 (a θ φ ψ η δ)^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2)
+;      (* -8 (a|1|1 θ φ ψ η δ) (a θ φ ψ η δ) (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2)
+;      (* -8 (a|2|2 θ φ ψ η δ) (a θ φ ψ η δ) (sin φ)^2 (sin ψ)^2 (sin η)^2)
+;      (* -8 (a|3|3 θ φ ψ η δ) (a θ φ ψ η δ) (sin ψ)^2 (sin η)^2)
+;      (* -8 (a|4|4 θ φ ψ η δ) (a θ φ ψ η δ) (sin η)^2)
+;      (* -8 (a|5|5 θ φ ψ η δ) (a θ φ ψ η δ))
+;      (* -4 (a|1 θ φ ψ η δ)^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2)
+;      (* -4 (a|2 θ φ ψ η δ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2)
+;      (* -4 (a|3 θ φ ψ η δ)^2 (sin ψ)^2 (sin η)^2)
+;      (* -4 (a|4 θ φ ψ η δ)^2 (sin η)^2)
+;      (* -4 (a|5 θ φ ψ η δ)^2)
+;      (* -32 (a|1 θ φ ψ η δ) (a θ φ ψ η δ) (cos θ) (sin θ) (sin φ)^2 (sin ψ)^2 (sin η)^2)
+;      (* -24 (a|2 θ φ ψ η δ) (a θ φ ψ η δ) (cos φ) (sin φ) (sin ψ)^2 (sin η)^2)
+;      (* -16 (a|3 θ φ ψ η δ) (a θ φ ψ η δ) (cos ψ) (sin ψ) (sin η)^2)
+;      (* -8 (a|4 θ φ ψ η δ) (a θ φ ψ η δ) (cos η) (sin η))
+;      )
+;   (* (a θ φ ψ η δ)^4 r^2 (sin θ)^2 (sin φ)^2 (sin ψ)^2 (sin η)^2))
 
 ;;
 ;; Wodzicki-Chern-Simons form
@@ -101,3 +109,6 @@ scalar-curvature
   (- (sum' (map (lambda [$σ] (.' R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es'))
      (sum' (map (lambda [$σ] (.' R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os'))))
 ;0
+
+
+

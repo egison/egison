@@ -10,7 +10,7 @@
              |])
 
 ;;
-;; Local coordinates
+;; Local basis
 ;;
 
 (define $e ((flip ∂/∂) x~# X_#))
@@ -33,12 +33,11 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 ;; Christoffel symbols of the first kind
 ;;
 
-(define $Γ___
-  (with-symbols {j k l}
-    (* (/ 1 2)
-       (+ (∂/∂ g_j_k x_l)
-          (∂/∂ g_j_l x_k)
-          (* -1 (∂/∂ g_k_l x_j))))))
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_l x_k)
+        (∂/∂ g_j_k x_l)
+        (* -1 (∂/∂ g_k_l x_j)))))
 
 Γ_#_#_#;(tensor {2 2 2} {0 0 0 (* '(+ (* a (cos θ)) b) a (sin θ)) 0 (* -1 '(+ (* a (cos θ)) b) a (sin θ)) (* -1 '(+ (* a (cos θ)) b) a (sin θ)) 0} )_#_#_#
 Γ_1_#_#;[| [| 0 0 |] [| 0 (* '(+ (* a (cos θ)) b) a (sin θ)) |] |]_#_#
@@ -48,9 +47,7 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 ;; Christoffel symbols of the second kind
 ;;
 
-(define $Γ~__
-  (with-symbols {i j k l}
-    (. g~i~j Γ_j_k_l)))
+(define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
 
 Γ~#_#_#;(tensor {2 2 2} {0 0 0 (/ (* '(+ (* a (cos θ)) b) (sin θ)) a) 0 (/ (* -1 a (sin θ)) '(+ (* a (cos θ)) b)) (/ (* -1 a (sin θ)) '(+ (* a (cos θ)) b)) 0} )~#_#_#
 Γ~1_#_#;[| [| 0 0 |] [| 0 (/ (* '(+ (* a (cos θ)) b) (sin θ)) a) |] |]_#_#
@@ -71,30 +68,29 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 ;; Riemann curvature tensor
 ;;
 
-(define $R~___
-  (with-symbols {i j k l m}
-    (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
-       (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k)))))
+(define $R~i_j_k_l
+  (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+     (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l))))
 
-R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (/ (* -1 '(+ (* a (cos θ)) b) (cos θ)) a) (/ (* '(+ (* a (cos θ)) b) (cos θ)) a) 0 0 (/ (* a (cos θ)) '(+ (* a (cos θ)) b)) (/ (* -1 a (cos θ)) '(+ (* a (cos θ)) b)) 0 0 0 0 0} )~#_#_#_#
+R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (/ (* '(+ (* a (cos θ)) b) (cos θ)) a) (/ (* -1 '(+ (* a (cos θ)) b) (cos θ)) a) 0 0 (/ (* -1 a (cos θ)) '(+ (* a (cos θ)) b)) (/ (* a (cos θ)) '(+ (* a (cos θ)) b)) 0 0 0 0 0} )~#_#_#_#
 R~#_#_1_1;[| [| 0 0 |] [| 0 0 |] |]~#_#
-R~#_#_1_2;[| [| 0 (/ (* -1 '(+ (* a (cos θ)) b) (cos θ)) a) |] [| (/ (* a (cos θ)) '(+ (* a (cos θ)) b)) 0 |] |]~#_#
-R~#_#_2_1;[| [| 0 (/ (* '(+ (* a (cos θ)) b) (cos θ)) a) |] [| (/ (* -1 a (cos θ)) '(+ (* a (cos θ)) b)) 0 |] |]~#_#
+R~#_#_1_2;[| [| 0 (/ (* '(+ (* a (cos θ)) b) (cos θ)) a) |] [| (/ (* -1 a (cos θ)) '(+ (* a (cos θ)) b)) 0 |] |]~#_#
+R~#_#_2_1;[| [| 0 (/ (* -1 '(+ (* a (cos θ)) b) (cos θ)) a) |] [| (/ (* a (cos θ)) '(+ (* a (cos θ)) b)) 0 |] |]~#_#
 R~#_#_2_2;[| [| 0 0 |] [| 0 0 |] |]~#_#
 
 (define $R____ (with-symbols {i} (. g_i_# R~i_#_#_#)))
 
-R_#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (* -1 a '(+ (* a (cos θ)) b) (cos θ)) (* a '(+ (* a (cos θ)) b) (cos θ)) 0 0 (* '(+ (* a (cos θ)) b) a (cos θ)) (* -1 '(+ (* a (cos θ)) b) a (cos θ)) 0 0 0 0 0} )_#_#_#_#
+R_#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (* a '(+ (* a (cos θ)) b) (cos θ)) (* -1 a '(+ (* a (cos θ)) b) (cos θ)) 0 0 (* -1 '(+ (* a (cos θ)) b) a (cos θ)) (* '(+ (* a (cos θ)) b) a (cos θ)) 0 0 0 0 0} )_#_#_#_#
 R_#_#_1_1;[| [| 0 0 |] [| 0 0 |] |]_#_#
-R_#_#_1_2;[| [| 0 (* -1 a '(+ (* a (cos θ)) b) (cos θ)) |] [| (* '(+ (* a (cos θ)) b) a (cos θ)) 0 |] |]_#_#
-R_#_#_2_1;[| [| 0 (* a '(+ (* a (cos θ)) b) (cos θ)) |] [| (* -1 '(+ (* a (cos θ)) b) a (cos θ)) 0 |] |]_#_#
+R_#_#_1_2;[| [| 0 (* a '(+ (* a (cos θ)) b) (cos θ)) |] [| (* -1 '(+ (* a (cos θ)) b) a (cos θ)) 0 |] |]_#_#
+R_#_#_2_1;[| [| 0 (* -1 a '(+ (* a (cos θ)) b) (cos θ)) |] [| (* '(+ (* a (cos θ)) b) a (cos θ)) 0 |] |]_#_#
 R_#_#_2_2;[| [| 0 0 |] [| 0 0 |] |]_#_#
 
 ;;
 ;; Ricci curvature
 ;;
 
-(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
+(define $Ric__ (with-symbols {i} (contract + R~i_#_i_#)))
 
 Ric_#_#;[| [| (/ (* a (cos θ)) '(+ (* a (cos θ)) b)) 0 |] [| 0 (/ (* '(+ (* a (cos θ)) b) (cos θ)) a) |] |]_#_#
 
@@ -119,7 +115,7 @@ scalar-curvature;(/ (* 2 (cos θ)) (* a '(+ (* a (cos θ)) b)))
        (. Γ~n_m_l R_i_j_k_n))))
 
 ∇R_#_#_#_#_#
-;(tensor {2 2 2 2 2} {0 0 0 0 0 0 0 0 0 0 (+ (* a '(+ (* a (cos θ)) b) (sin θ)) (* -1 a^2 (sin θ) (cos θ))) 0 (+ (* -1 a '(+ (* a (cos θ)) b) (sin θ)) (* a^2 (sin θ) (cos θ))) 0 0 0 0 0 (+ (* -1 '(+ (* a (cos θ)) b) a (sin θ)) (* a^2 (sin θ) (cos θ))) 0 (+ (* '(+ (* a (cos θ)) b) a (sin θ)) (* -1 a^2 (sin θ) (cos θ))) 0 0 0 0 0 0 0 0 0 0 0} )_#_#_#_#_#
+;(tensor {2 2 2 2 2} {0 0 0 0 0 0 0 0 0 0 (+ (* -1 a '(+ (* a (cos θ)) b) (sin θ)) (* a^2 (sin θ) (cos θ))) 0 (+ (* a '(+ (* a (cos θ)) b) (sin θ)) (* -1 a^2 (sin θ) (cos θ))) 0 0 0 0 0 (+ (* '(+ (* a (cos θ)) b) a (sin θ)) (* -1 a^2 (sin θ) (cos θ))) 0 (+ (* -1 '(+ (* a (cos θ)) b) a (sin θ)) (* a^2 (sin θ) (cos θ))) 0 0 0 0 0 0 0 0 0 0 0} )_#_#_#_#_#
 
 ;;
 ;; Second Bianchi identity
