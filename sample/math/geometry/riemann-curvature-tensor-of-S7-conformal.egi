@@ -75,6 +75,6 @@ scalar-curvature
 ;;
 
 (let {[[$es $os] (even-and-odd-permutations 7)]}
-  (- (sum (map (lambda [$σ] (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) es))
-     (sum (map (lambda [$σ] (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) os))))
+  (- (sum (map (lambda [$σ] (debug (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6)))) es))
+     (sum (map (lambda [$σ] (debug (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) os)))))
 ;
