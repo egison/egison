@@ -67,27 +67,16 @@ Ric_#_#
 (define $ret (let* {[[$es $os] (even-and-odd-permutations 5)]
                     [$es' (map 1#(lambda [$i] (nth i %1)) es)]
                     [$os' (map 1#(lambda [$i] (nth i %1)) os)]}
-               [(map (lambda [$σ] (debug (.' (debug R~u_5_s_(σ 1)) (debug R~s_t_(σ 3)_(σ 2)) (debug R~t_u_(σ 5)_(σ 4))))) es')
-                (map (lambda [$σ] (debug (.' (debug R~u_5_s_(σ 1)) (debug R~s_t_(σ 3)_(σ 2)) (debug R~t_u_(σ 5)_(σ 4))))) os')]))
-;               [(map (lambda [$σ] (. R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es')
-;                (map (lambda [$σ] (. R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os')]))
-;               [(map (lambda [$σ] (.' R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es')
-;                (map (lambda [$σ] (.' R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os')]))
-;               [(map (lambda [$σ] (debug (. (debug R~u_5_s_(σ 1)) (debug R~s_t_(σ 3)_(σ 2)) (debug R~t_u_(σ 5)_(σ 4))))) es')
-;                (map (lambda [$σ] (debug (. (debug R~u_5_s_(σ 1)) (debug R~s_t_(σ 3)_(σ 2)) (debug R~t_u_(σ 5)_(σ 4))))) os')]))
-;  (- (sum (map (lambda [$σ] (. R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es'))
-;     (sum (map (lambda [$σ] (. R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os'))))
-;  (- (sum (map (lambda [$σ] (debug (.' (debug R~u_5_s_(σ 1)) (debug R~s_t_(σ 3)_(σ 2)) (debug R~t_u_(σ 5)_(σ 4))))) es'))
-;     (sum (map (lambda [$σ] (debug (.' (debug R~u_5_s_(σ 1)) (debug R~s_t_(σ 3)_(σ 2)) (debug R~t_u_(σ 5)_(σ 4))))) os'))))
+               (- (sum' (map (lambda [$σ] (debug (.' R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4)))) es'))
+                  (sum' (map (lambda [$σ] (debug (.' R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4)))) os')))))
 
-;(define $ret2 (- (sum (2#%1 ret)) (sum (2#%2 ret))))
-(define $ret2 (- (debug (sum' (2#%1 ret))) (debug (sum' (2#%2 ret)))))
+ret
 
-"ret2"
+(define $ret2 (/ (expand-all' (numerator ret)) (denominator ret)))
+
 ret2
 
-(/' (expand-all' (numerator ret2)) (denominator ret2))
+(define $ret3 (/ (2#%1 (P./ (numerator ret2) (* (+ 1 (* -1 y))^3 (+ a (* -1 y^2))^5) y))
+                 (/ (denominator ret2) (* '(+ 1 (* -1 y))^3 '(+ a (* -1 y^2))^5))))
 
-;(expand-all' (-' ret2 (/ (* 32 (+ 1 (* -1 a))^2 y (sin θ)) (* 3 (+ 1 (* -1 y))^5))))
-
-; should return  (/ (* 32 (+ 1 (* -1 a))^2 y (sin θ)) (* 3 (+ 1 (* -1 y))^5))
+ret3
