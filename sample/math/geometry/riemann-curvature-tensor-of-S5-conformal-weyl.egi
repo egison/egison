@@ -119,9 +119,7 @@ C~#_#_#_#
 ;; Wodzicki-Chern-Simons class
 ;;
 
-(let* {[[$es $os] (even-and-odd-permutations 5)]
-       [$es' (map 1#(lambda [$i] (nth i %1)) es)]
-       [$os' (map 1#(lambda [$i] (nth i %1)) os)]}
-  (- (sum' (map (lambda [$σ] (.' C~u_1_s_(σ 1) C~s_t_(σ 3)_(σ 2) C~t_u_(σ 5)_(σ 4))) es'))
-     (sum' (map (lambda [$σ] (.' C~u_1_s_(σ 1) C~s_t_(σ 3)_(σ 2) C~t_u_(σ 5)_(σ 4))) os'))))
+(let {[[$es $os] (even-and-odd-permutations 5)]}
+  (- (sum' (map (lambda [$σ] (.' C~u_1_s_(σ 1) C~s_t_(σ 3)_(σ 2) C~t_u_(σ 5)_(σ 4))) es))
+     (sum' (map (lambda [$σ] (.' C~u_1_s_(σ 1) C~s_t_(σ 3)_(σ 2) C~t_u_(σ 5)_(σ 4))) os))))
 ;0

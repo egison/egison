@@ -85,9 +85,7 @@ scalar-curvature;(/ 42 r^2)
 ;; Wodzicki-Chern-Simons class
 ;;
 
-(let* {[[$es $os] (even-and-odd-permutations 7)]
-       [$es' (map 1#(lambda [$i] (nth i %1)) es)]
-       [$os' (map 1#(lambda [$i] (nth i %1)) os)]}
-  (- (sum (map (lambda [$σ] (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) es'))
-     (sum (map (lambda [$σ] (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) os'))))
+(let {[[$es $os] (even-and-odd-permutations 7)]}
+  (- (sum (map (lambda [$σ] (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) es))
+     (sum (map (lambda [$σ] (. R~v_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4) R~u_v_(σ 7)_(σ 6))) os))))
 ;0

@@ -93,10 +93,16 @@
 
 (define $even-and-odd-permutations
   (lambda [$n]
+    (let {[[$es $os] (even-and-odd-permutations' n)]}
+      [(map 1#(lambda [$i] (nth i %1)) es)
+       (map 1#(lambda [$i] (nth i %1)) os)])))
+
+(define $even-and-odd-permutations'
+  (lambda [$n]
     (match n integer
       {[,1 [{{1}} {}]]
        [,2 [{{1 2}} {{2 1}}]]
-       [_ (let* {[[$es $os] (even-and-odd-permutations (- n 1))]
+       [_ (let* {[[$es $os] (even-and-odd-permutations' (- n 1))]
                  [$es' (map 1#{@%1 n} es)]
                  [$os' (map 1#{@%1 n} os)]}
             [{@es'
@@ -121,7 +127,7 @@
     (match (tensor-size m) (list integer)
       {[<cons ,0 <cons ,0 <nil>>> 1]
        [<cons $n <cons ,n <nil>>>
-        (let {[[$es $os] (even-and-odd-permutations n)]}
+        (let {[[$es $os] (even-and-odd-permutations' n)]}
           (- (sum (map (lambda [$e]
                          (product (map2 (lambda [$i $j] m_i_j)
                                         (between 1 n)
