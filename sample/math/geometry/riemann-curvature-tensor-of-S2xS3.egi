@@ -1,5 +1,5 @@
 ;;
-;; Parameter
+;; Parameters
 ;;
 
 (define $x [| φ θ ψ y α |])
@@ -23,38 +23,37 @@ g~#~#
 ;; Christoffel symbols of the first kind
 ;;
 
-(define $Γ___
-  (with-symbols {j k l}
-    (* (/ 1 2)
-       (+ (∂/∂ g_j_l x_k)
-          (∂/∂ g_j_k x_l)
-          (* -1 (∂/∂ g_k_l x_j))))))
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_l x_k)
+        (∂/∂ g_j_k x_l)
+        (* -1 (∂/∂ g_k_l x_j)))))
+
 Γ_#_#_#
 
 ;;
 ;; Christoffel symbols of the second kind
 ;;
 
-(define $Γ~__
-  (with-symbols {i j k l}
-    (. g~i~j Γ_j_k_l)))
+(define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
+
 Γ~#_#_#
 
 ;;
 ;; Riemann curvature tensor
 ;;
 
-(define $R~___
-  (with-symbols {i j k l m}
-    (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
-       (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k)))))
+(define $R~i_j_k_l
+  (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+     (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l))))
+
 R~#_#_#_#
 
 ;;
 ;; Ricci curvature
 ;;
 
-(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
+(define $Ric__ (with-symbols {i} (contract + R~i_#_i_#)))
 Ric_#_#
 
 (expand-all' (with-symbols {i j} (-' Ric_i_j (*' 4 g_i_j))))
@@ -79,4 +78,5 @@ ret2
                  (/ (denominator ret2) (* '(+ 1 (* -1 y))^3 '(+ a (* -1 y^2))^5))))
 
 ret3
-;(/ (+ (* -128 a (sin θ) y) (* 64 a^2 (sin θ) y) (* 64 (sin θ) y)) (* 3 '(+ 1 (* -1 y))^5))
+;;(/ (+ (* 128 a (sin θ) y) (* -64 a^2 (sin θ) y) (* -64 (sin θ) y)) (* 3 '(+ 1 (* -1 y))^5))
+

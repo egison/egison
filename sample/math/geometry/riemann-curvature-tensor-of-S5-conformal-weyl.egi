@@ -66,6 +66,8 @@ g~#~#
 
 R~#_#_#_#
 
+(define $R____ (with-symbols {i} (. g_i_# R~i_#_#_#)))
+
 ;;
 ;; Ricci curvature
 ;;
