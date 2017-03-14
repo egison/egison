@@ -52,10 +52,10 @@ g~#~#;[| [| (/ 1 r^2) |] |]~#~#
 ;; Riemann curvature tensor
 ;;
 
-(define $R~___
-  (with-symbols {i j k l m}
-    (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
-       (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k)))))
+(define $R~i_j_k_l
+  (with-symbols {m}
+    (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+       (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
 
 R~#_#_#_#;(tensor {1 1 1 1} {0} )~#_#_#_#
 

@@ -44,8 +44,9 @@ g~#~#
 ;;
 
 (define $R~i_j_k_l
-  (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
-     (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l))))
+  (with-symbols {m}
+    (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+       (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
 
 R~#_#_#_#
 
@@ -64,17 +65,17 @@ Ric_#_#
 ;;
 
 (define $ret (let {[[$es $os] (even-and-odd-permutations 5)]}
-               (- (sum (map (lambda [$σ] (. R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es))
-                  (sum (map (lambda [$σ] (. R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os)))))
+               (/ (- (sum (map (lambda [$σ] (. R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es))
+                     (sum (map (lambda [$σ] (. R~u_5_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os)))
+                  (* 2 (fact 5)))))
 
 (define $ret2 (/ (expand-all' (numerator ret)) (denominator ret)))
 
 ret2
-;(/ (+ (* -128 a^6 y (sin θ)) (* 832 a^5 y^3 (sin θ)) (* -2240 a^4 y^5 (sin θ)) (* 3200 a^3 y^7 (sin θ)) (* -2560 a^2 y^9 (sin θ)) (* 1088 a y^11 (sin θ)) (* 384 a^6 y^2 (sin θ)) (* -1984 a^5 y^4 (sin θ)) (* 4160 a^4 y^6 (sin θ)) (* -4480 a^3 y^8 (sin θ)) (* 2560 a^2 y^10 (sin θ)) (* -704 a y^12 (sin θ)) (* -704 a^6 y^3 (sin θ)) (* 2560 a^5 y^5 (sin θ)) (* -4480 a^4 y^7 (sin θ)) (* 4160 a^3 y^9 (sin θ)) (* -1984 a^2 y^11 (sin θ)) (* 384 a y^13 (sin θ)) (* 1088 a^6 y^4 (sin θ)) (* -2560 a^5 y^6 (sin θ)) (* 3200 a^4 y^8 (sin θ)) (* -2240 a^3 y^10 (sin θ)) (* 832 a^2 y^12 (sin θ)) (* -128 a y^14 (sin θ)) (* -960 a^6 y^5 (sin θ)) (* 1920 a^5 y^7 (sin θ)) (* -1920 a^4 y^9 (sin θ)) (* 960 a^3 y^11 (sin θ)) (* -192 a^2 y^13 (sin θ)) (* 320 a^6 y^6 (sin θ)) (* -640 a^5 y^8 (sin θ)) (* 640 a^4 y^10 (sin θ)) (* -320 a^3 y^12 (sin θ)) (* 64 a^2 y^14 (sin θ)) (* 64 y^14 (sin θ)) (* 64 a^7 y (sin θ)) (* -192 a^7 y^2 (sin θ)) (* 192 a^7 y^3 (sin θ)) (* -64 a^7 y^4 (sin θ)) (* -192 a^5 (sin θ) y^2) (* 960 a^4 (sin θ) y^4) (* -1920 a^3 (sin θ) y^6) (* 1920 a^2 y^8 (sin θ)) (* -960 a y^10 (sin θ)) (* -320 y^3 a^4 (sin θ)) (* 640 y^5 a^3 (sin θ)) (* -640 y^7 a^2 (sin θ)) (* 320 y^9 a (sin θ)) (* -64 y^11 (sin θ)) (* 192 y^12 (sin θ)) (* 64 a^5 y (sin θ)) (* -192 y^13 (sin θ))) (* 3 '(+ 1 (* -1 y))^8 '(+ a (* -1 y^2))^5))
+;
 
 (define $ret3 (/ (2#%1 (P./ (numerator ret2) (* (+ 1 (* -1 y))^3 (+ a (* -1 y^2))^5) y))
                  (/ (denominator ret2) (* '(+ 1 (* -1 y))^3 '(+ a (* -1 y^2))^5))))
 
 ret3
-;;(/ (+ (* 128 a (sin θ) y) (* -64 a^2 (sin θ) y) (* -64 (sin θ) y)) (* 3 '(+ 1 (* -1 y))^5))
-
+;(/ (+ (* 8 a (sin θ) y) (* -4 a^2 (sin θ) y) (* -4 (sin θ) y)) (* 45 '(+ 1 (* -1 y))^5))

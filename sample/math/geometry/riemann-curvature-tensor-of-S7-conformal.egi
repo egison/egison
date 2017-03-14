@@ -51,8 +51,9 @@ g~#~#;
 ;;
 
 (define $R~i_j_k_l
-  (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
-     (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l))))
+  (with-symbols {m}
+    (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+       (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
 
 ;;
 ;; Ricci curvature
