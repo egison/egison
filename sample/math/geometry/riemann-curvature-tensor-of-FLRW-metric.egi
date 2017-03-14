@@ -31,12 +31,11 @@ g~#~#
 ;; Christoffel symbols of the first kind
 ;;
 
-(define $Γ___
-  (with-symbols {j k l}
-    (* (/ 1 2)
-       (+ (∂/∂ g_j_l x_k)
-          (∂/∂ g_j_k x_l)
-          (* -1 (∂/∂ g_k_l x_j))))))
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_k x_l)
+        (∂/∂ g_j_l x_k)
+        (* -1 (∂/∂ g_k_l x_j)))))
 
 Γ_1_#_#;[| [| 0 0 0 0 |] [| 0 (/ (* -1 (a w) (a|1 w)) '(+ 1 (* -1 K r^2))) 0 0 |] [| 0 0 (* -1 (a w) (a|1 w) r^2) 0 |] [| 0 0 0 (* -1 (a w) (a|1 w) r^2 (sin θ)^2) |] |]_#_#
 Γ_2_#_#;[| [| 0 (/ (* (a w) (a|1 w)) '(+ 1 (* -1 K r^2))) 0 0 |] [| (/ (* (a w) (a|1 w)) '(+ 1 (* -1 K r^2))) (/ (* K r (a w)^2) '(+ 1 (* -1 K r^2))^2) 0 0 |] [| 0 0 (* -1 (a w)^2 r) 0 |] [| 0 0 0 (* -1 (a w)^2 r (sin θ)^2) |] |]_#_#
@@ -47,9 +46,7 @@ g~#~#
 ;; Christoffel symbols of the second kind
 ;;
 
-(define $Γ~__
-  (with-symbols {i j k l}
-    (. g~i~j Γ_j_k_l)))
+(define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
 
 Γ~1_#_#;[| [| 0 0 0 0 |] [| 0 (/ (* (a w) (a|1 w)) '(+ 1 (* -1 K r^2))) 0 0 |] [| 0 0 (* (a w) (a|1 w) r^2) 0 |] [| 0 0 0 (* (a w) (a|1 w) r^2 (sin θ)^2) |] |]_#_#
 Γ~2_#_#;[| [| 0 (/ (* -1 (a|1 w)) (* -1 (a w))) 0 0 |] [| (/ (* -1 (a|1 w)) (* -1 (a w))) (/ (* -1 K r) (* -1 '(+ 1 (* -1 K r^2)))) 0 0 |] [| 0 0 (* -1 '(+ 1 (* -1 K r^2)) r) 0 |] [| 0 0 0 (* -1 '(+ 1 (* -1 K r^2)) r (sin θ)^2) |] |]_#_#
@@ -60,9 +57,9 @@ g~#~#
 ;; Riemann curvature tensor
 ;;
 
-(define $R~___
-  (expand-all (+ (- (∂/∂ Γ~i_j_k x_l) (∂/∂ Γ~i_j_l x_k))
-                 (- (. Γ~m_j_k Γ~i_m_l) (. Γ~m_j_l Γ~i_m_k)))))
+(define $R~i_j_k_l
+  (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+     (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l))))
 
 R~#_#_1_1;[| [| 0 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] |]~#_#
 R~#_#_1_2;[| [| 0 (/ (* (a w) (a|1|1 w)) (+ -1 (* K r^2))) 0 0 |] [| (/ (* -1 (a|1|1 w)) (a w)) 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] |]~#_#
@@ -85,7 +82,7 @@ R~#_#_4_4;[| [| 0 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] |]~#_#
 ;; Ricci curvature
 ;;
 
-(define $Ric__ (with-symbols {i j k} (contract + R~i_j_k_i)))
+(define $Ric__ (with-symbols {i} (contract + R~i_#_i_#)))
 
 Ric_1_#;[| (/ (* -3 (a|1|1 w)) (a w)) 0 0 0 |]_#
 Ric_2_#;[| 0 (/ (+ (* -1 (a w) (a|1|1 w)) (* -2 (a|1 w)^2) (* -2 K)) (+ -1 (* K r^2))) 0 0 |]_#
@@ -96,26 +93,8 @@ Ric_4_#;[| 0 0 0 (+ (* (a w) (a|1|1 w) r^2 (sin θ)^2) (* 2 K r^2 (sin θ)^2) (*
 ;; Scalar curvature
 ;;
 
-(define $scalar-curvature (with-symbols {j k} (. g~j~k Ric_j_k)))
+(define $scalar-curvature (with-symbols {j k} (expand-all' (. g~j~k Ric_j_k))))
 
 scalar-curvature
-;(/ (+ (* 5 (a|1|1 w) (a w))
-;      (* -5 (a|1|1 w) (a w) K r^2)
-;      (* '(+ 1 (* -1 K r^2)) (a w) (a|1|1 w))
-;      (* 2 '(+ 1 (* -1 K r^2)) (a|1 w)^2)
-;      (* 2 '(+ 1 (* -1 K r^2)) K)
-;      (* 4 K)
-;      (* -4 K^2 r^2)
-;      (* 4 (a|1 w)^2)
-;      (* -4 (a|1 w)^2 K r^2)
-;      )
-;   (+ (a w)^2 (* -1 (a w)^2 K r^2)))
-
-;;
-;; Result of manual reduction of scalar-curvature
-;;
-
-;(/ (+ (* 6  (a|1 w)^2)
-;      (* 6  (a w) (a|1|1 w))
-;      (* 6  K))
-;   (*  (a w)^2))
+;(/ (+ (* 6 (a|1|1 w) (a w)) (* 6 (a|1 w)^2) (* 6 K))
+;   (a w)^2)
