@@ -1574,13 +1574,13 @@ liftEgisonM m = EgisonM $ ErrorT $ FreshT $ do
 fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
 fromEgisonM = modifyCounter . runEgisonM
 
-counter :: IORef Int
-counter = unsafePerformIO (newIORef 0)
+counter :: IORef (Int, Int)
+counter = unsafePerformIO (newIORef (0, 0))
 
-readCounter :: IO Int
+readCounter :: IO (Int, Int)
 readCounter = readIORef counter
 
-updateCounter :: Int -> IO ()
+updateCounter :: (Int, Int) -> IO ()
 updateCounter = writeIORef counter
 
 modifyCounter :: FreshT IO a -> IO a
@@ -1590,8 +1590,8 @@ modifyCounter m = do
   updateCounter seed
   return result  
 
-newtype FreshT m a = FreshT { unFreshT :: StateT Int m a }
-  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans, MP.MonadParallel)
+newtype FreshT m a = FreshT { unFreshT :: StateT (Int, Int) m a }
+  deriving (Functor, Applicative, Monad, MonadState (Int, Int), MonadTrans, MP.MonadParallel)
 --  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans)
 
 type Fresh = FreshT Identity
@@ -1600,8 +1600,8 @@ class (Applicative m, Monad m) => MonadFresh m where
   fresh :: m String
 
 instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
-  fresh = FreshT $ do counter <- get; modify (+ 1)
-                      return $ "$_" ++ show counter
+  fresh = FreshT $ do (x, y) <- get; modify (\(x,y) -> (x + 1, y))
+                      return $ "$_" ++ (show x) ++ (show y)
 
 instance (MonadError e m) => MonadError e (FreshT m) where
   throwError = lift . throwError
@@ -1629,10 +1629,10 @@ instance MonadIO (FreshT IO) where
 instance (MP.MonadParallel m, Error e) => MP.MonadParallel (ErrorT e m)
 instance (MP.MonadParallel m) => MP.MonadParallel (StateT s m)
 
-runFreshT :: Monad m => Int -> FreshT m a -> m (a, Int)
+runFreshT :: Monad m => (Int, Int) -> FreshT m a -> m (a, (Int, Int))
 runFreshT seed = flip (runStateT . unFreshT) seed
 
-runFresh :: Int -> Fresh a -> (a, Int)
+runFresh :: (Int, Int) -> Fresh a -> (a, (Int, Int))
 runFresh seed m = runIdentity $ flip runStateT seed $ unFreshT m
 
 
