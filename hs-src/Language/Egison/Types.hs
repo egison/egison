@@ -149,7 +149,7 @@ import Control.Exception
 import Data.Typeable
 
 import Control.Applicative
-import Control.Monad.Error
+import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
@@ -745,7 +745,7 @@ tIntRef' i (Tensor (n:ns) xs js) =
         let ys = V.take w (V.drop (w * (fromIntegral (i - 1))) xs) in
           fromTensor $ Tensor ns ys (cdr js)
    else throwError $ TensorIndexOutOfBounds i n
-tIntRef' i _ = throwError $ strMsg "More indices than the order of the tensor"
+tIntRef' i _ = throwError $ Default "More indices than the order of the tensor"
  
 tIntRef :: HasTensor a => [Integer] -> (Tensor a) -> EgisonM (Tensor a)
 tIntRef [] (Tensor [] xs _)
@@ -796,7 +796,7 @@ tref (s:ms) (Tensor (n:ns) xs js) = do
   let yss = split (product ns) xs
   ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
   mapM toTensor ts >>= tConcat s >>= fromTensor
-tref _ t = throwError $ strMsg "More indices than the order of the tensor"
+tref _ t = throwError $ Default "More indices than the order of the tensor"
 
 enumTensorIndices :: [Integer] -> [[Integer]]
 enumTensorIndices [] = [[]]
@@ -1043,7 +1043,7 @@ tClearIndex' js = reverse (g (reverse js))
 
 getScalar :: (Tensor a) -> EgisonM a
 getScalar (Scalar x) = return x
-getScalar _ = throwError $ strMsg "Inconsitent Tensor order"
+getScalar _ = throwError $ Default "Inconsitent Tensor order"
 
 findPairs :: (a -> a -> Bool) -> [a] -> [(Int, Int)]
 findPairs p xs = reverse $ findPairs' 0 p xs
@@ -1545,10 +1545,6 @@ instance Show EgisonError where
 
 instance Exception EgisonError
 
-instance Error EgisonError where
-  noMsg = Default "An error has occurred"
-  strMsg = Default
-
 liftError :: (MonadError e m) => Either e a -> m a
 liftError = either throwError return
 
@@ -1557,15 +1553,15 @@ liftError = either throwError return
 --
 
 newtype EgisonM a = EgisonM {
-    unEgisonM :: (ErrorT EgisonError (FreshT IO) a)
+    unEgisonM :: (ExceptT EgisonError (FreshT IO) a)
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh, MP.MonadParallel)
 --  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
 
 runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
-runEgisonM = runErrorT . unEgisonM
+runEgisonM = runExceptT . unEgisonM
 
 liftEgisonM :: Fresh (Either EgisonError a) -> EgisonM a
-liftEgisonM m = EgisonM $ ErrorT $ FreshT $ do
+liftEgisonM m = EgisonM $ ExceptT $ FreshT $ do
   s <- get
   (a, s') <- return $ runFresh s m
   put s'
@@ -1614,7 +1610,7 @@ instance (MonadState s m) => MonadState s (FreshT m) where
 instance (MonadFresh m) => MonadFresh (StateT s m) where
   fresh = lift $ fresh
 
-instance (MonadFresh m, Error e) => MonadFresh (ErrorT e m) where
+instance (MonadFresh m) => MonadFresh (ExceptT e m) where
   fresh = lift $ fresh
 
 instance (MonadFresh m, Monoid e) => MonadFresh (ReaderT e m) where
@@ -1626,7 +1622,6 @@ instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
 instance MonadIO (FreshT IO) where
   liftIO = lift
 
-instance (MP.MonadParallel m, Error e) => MP.MonadParallel (ErrorT e m)
 instance (MP.MonadParallel m) => MP.MonadParallel (StateT s m)
 
 runFreshT :: Monad m => (Int, Int) -> FreshT m a -> m (a, (Int, Int))

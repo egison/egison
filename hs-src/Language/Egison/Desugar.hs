@@ -25,17 +25,17 @@ import qualified Data.Set as S
 import Data.List (span)
 import Data.Set (Set)
 import Data.Char (toUpper)
-import Control.Monad.Error
+import Control.Monad.Except
 import Control.Monad.Reader
 import Language.Egison.Types
 
 type Subst = [(String, EgisonExpr)]
 
-newtype DesugarM a = DesugarM { unDesugarM :: ReaderT Subst (ErrorT EgisonError Fresh) a }
+newtype DesugarM a = DesugarM { unDesugarM :: ReaderT Subst (ExceptT EgisonError Fresh) a }
   deriving (Functor, Applicative, Monad, MonadError EgisonError, MonadFresh, MonadReader Subst)
 
 runDesugarM :: DesugarM a -> Fresh (Either EgisonError a)
-runDesugarM = runErrorT . flip runReaderT [] . unDesugarM
+runDesugarM = runExceptT . flip runReaderT [] . unDesugarM
 
 desugarTopExpr :: EgisonTopExpr -> EgisonM EgisonTopExpr
 desugarTopExpr (Define name expr) = do

@@ -11,7 +11,7 @@ module Language.Egison.Util (getEgisonExpr, getEgisonExprOrNewLine, completeEgis
 import Data.List
 import Text.Regex.TDFA
 import System.Console.Haskeline hiding (handle, catch, throwTo)
-import Control.Monad.Error (liftIO)
+import Control.Monad.Except (liftIO)
 
 import Language.Egison.Types
 import Language.Egison.Parser

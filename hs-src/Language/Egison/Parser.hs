@@ -26,7 +26,7 @@ module Language.Egison.Parser
 
 import Prelude hiding (mapM)
 import Control.Monad.Identity hiding (mapM)
-import Control.Monad.Error hiding (mapM)
+import Control.Monad.Except hiding (mapM)
 import Control.Monad.State hiding (mapM)
 import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
@@ -98,7 +98,7 @@ loadLibraryFile file =
 loadFile :: FilePath -> EgisonM [EgisonTopExpr]
 loadFile file = do
   doesExist <- liftIO $ doesFileExist file
-  unless doesExist $ throwError $ strMsg ("file does not exist: " ++ file)
+  unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
   input <- liftIO $ readFile file
   exprs <- readTopExprs $ shebang input
   concat <$> mapM  recursiveLoad exprs

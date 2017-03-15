@@ -43,7 +43,7 @@ import Prelude hiding (mapM, mappend)
 
 import Control.Arrow
 import Control.Applicative
-import Control.Monad.Error hiding (mapM)
+import Control.Monad.Except hiding (mapM)
 import Control.Monad.State hiding (mapM, state)
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Parallel as MP
@@ -127,8 +127,8 @@ evalTopExprsNoIO env exprs = do
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((show name, expr) : bindings) rest
-      Load _ -> throwError $ strMsg "No IO support"
-      LoadFile _ -> throwError $ strMsg "No IO support"
+      Load _ -> throwError $ Default "No IO support"
+      LoadFile _ -> throwError $ Default "No IO support"
       _ -> collectDefs exprs bindings (expr : rest)
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
@@ -479,7 +479,7 @@ evalExpr env (MatchExpr target matcher clauses) = do
             case result of
               MCons bindings _ -> evalExpr (extendEnv env bindings) expr
               MNil -> cont
-      foldr tryMatchClause (throwError $ strMsg "failed pattern match") clauses
+      foldr tryMatchClause (throwError $ Default "failed pattern match") clauses
 
 evalExpr env (SeqExpr expr1 expr2) = do
   evalExprDeep env expr1
@@ -989,7 +989,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
   let env' = extendEnvForNonLinearPatterns env bindings loops
   case pattern of
     NotPat _ -> throwError $ EgisonBug "should not reach here (not pattern)"
-    VarPat _ -> throwError $ strMsg $ "cannot use variable except in pattern function:" ++ show pattern
+    VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ show pattern
 
     LetPat bindings' pattern' ->
       let extractBindings ([name], expr) =
@@ -1032,7 +1032,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
           return $ msingleton $ MState env ((LoopPatContext (name, startNumRef) endsRef endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
     ContPat ->
       case loops of
-        [] -> throwError $ strMsg "cannot use cont pattern except in loop pattern"
+        [] -> throwError $ Default "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNumWhnf <- evalRef startNumRef
           startNum <- fromWHNF startNumWhnf :: (EgisonM Integer)
@@ -1078,7 +1078,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
               if not (length patterns == length matchers) then throwError $ ArgumentsNum (length patterns) (length matchers) else return ()
               let trees' = zipWith3 MAtom patterns targets matchers ++ trees
               return $ msingleton $ MState env loops bindings trees'
-            _ ->  throwError $ strMsg $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
+            _ ->  throwError $ Default $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
         Something ->
           case pattern of
@@ -1114,18 +1114,18 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
                   keys <- return $ HL.keys hash
                   vals <- mapM (newEvaluatedObjectRef . Value) $ HL.elems hash
                   updateHash indices (Intermediate $ IIntHash $ HL.fromList $ zip keys vals)
-                updateHash _ v = throwError $ strMsg $ "expected hash value: " ++ show v
+                updateHash _ v = throwError $ Default $ "expected hash value: " ++ show v
                 subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
                                          | otherwise = (k', v'):(subst k nv xs)
                 subst _ _ [] = []
-            IndexedPat pattern indices -> throwError $ strMsg ("invalid indexed-pattern: " ++ show pattern) 
+            IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern) 
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
               if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
               let trees' = zipWith3 MAtom patterns targets (take (length patterns) (repeat Something)) ++ trees
               return $ msingleton $ MState env loops bindings trees'
-            _ -> throwError $ strMsg "something can only match with a pattern variable"
+            _ -> throwError $ Default "something can only match with a pattern variable"
         _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
@@ -1149,8 +1149,8 @@ inductiveMatch env pattern target (UserMatcher matcherEnv _ clauses) = do
               evalExpr env expr >>= fromCollection
             _ -> cont
       _ -> cont
-  failPPPatternMatch = throwError $ strMsg "failed primitive pattern pattern match"
-  failPDPatternMatch = throwError $ strMsg "failed primitive data pattern match"
+  failPPPatternMatch = throwError $ Default "failed primitive pattern pattern match"
+  failPDPatternMatch = throwError $ Default "failed primitive data pattern match"
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> EgisonPattern ->
                             MatchM ([EgisonPattern], [Binding])

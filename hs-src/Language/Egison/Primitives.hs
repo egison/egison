@@ -11,7 +11,7 @@ This module provides primitive functions in Egison.
 module Language.Egison.Primitives (primitiveEnv, primitiveEnvNoIO) where
 
 import Control.Arrow
-import Control.Monad.Error
+import Control.Monad.Except
 import Control.Monad.Trans.Maybe
 import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
 
