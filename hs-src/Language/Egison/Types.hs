@@ -101,6 +101,7 @@ module Language.Egison.Types
     , liftError
     -- * Monads
     , EgisonM (..)
+    , parallelMapM
     , runEgisonM
     , liftEgisonM
     , fromEgisonM
@@ -146,6 +147,7 @@ module Language.Egison.Types
 import Prelude hiding (foldr, mappend, mconcat)
 
 import Control.Exception
+import Control.Parallel
 import Data.Typeable
 
 import Control.Applicative
@@ -155,7 +157,6 @@ import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
-import qualified Control.Monad.Parallel as MP
 
 import Data.Monoid (Monoid)
 import qualified Data.HashMap.Lazy as HL
@@ -837,7 +838,7 @@ tTranspose' is t@(Tensor ns xs js) = do
 
 tMap :: HasTensor a => (a -> EgisonM a) -> (Tensor a) -> EgisonM (Tensor a)
 tMap f (Tensor ns xs js) = do
-  xs' <- MP.mapM f (V.toList xs) >>= return . V.fromList
+  xs' <- parallelMapM f (V.toList xs) >>= return . V.fromList
   t <- toTensor (V.head xs')
   case t of
     (Tensor ns1 _ js1) ->
@@ -847,9 +848,9 @@ tMap f (Scalar x) = f x >>= return . Scalar
 
 tMapN :: HasTensor a => ([a] -> EgisonM a) -> [Tensor a] -> EgisonM (Tensor a)
 tMapN f ts@((Tensor ns xs js):_) = do
-  xs' <- MP.mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
+  xs' <- parallelMapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
   return $ Tensor ns (V.fromList xs') js
-tMapN f xs = MP.mapM fromTensor xs >>= f >>= return . Scalar
+tMapN f xs = parallelMapM fromTensor xs >>= f >>= return . Scalar
 
 tMap2 :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
 tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
@@ -859,7 +860,7 @@ tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
   let cns = take (length cjs) (tSize t1')
   rts1 <- mapM (flip tIntRef t1') (enumTensorIndices cns)
   rts2 <- mapM (flip tIntRef t2') (enumTensorIndices cns)
-  rts' <- MP.mapM (\(t1, t2) -> tProduct f t1 t2) (zip rts1 rts2)
+  rts' <- parallelMapM (\(t1, t2) -> tProduct f t1 t2) (zip rts1 rts2)
   let ret = Tensor (cns ++ (tSize (head rts'))) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
   tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
  where
@@ -1554,8 +1555,23 @@ liftError = either throwError return
 
 newtype EgisonM a = EgisonM {
     unEgisonM :: (ExceptT EgisonError (FreshT IO) a)
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh, MP.MonadParallel)
---  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
+  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
+
+parallelMapM :: (a -> EgisonM b) -> [a] -> EgisonM [b]
+parallelMapM f [] = return []
+parallelMapM f (x:xs) = do
+    let y = unsafePerformEgison (0,1) $ f x
+    let ys = unsafePerformEgison (0,1) $ parallelMapM f xs
+    y `par` (ys `pseq` return (y:ys))
+
+unsafePerformEgison :: (Int, Int) -> EgisonM a -> a
+unsafePerformEgison (x, y) ma =
+  let ((Right ret), _) = unsafePerformIO $ runFreshT (x, y + 1) $ runEgisonM ma in
+  ret
+--    f' :: (Either EgisonError a) -> (Either EgisonError b) -> EgisonM c
+--    f' (Right x) (Right y) = f x y
+--    f' (Left e) _ = liftError (Left e)
+--    f' _ (Left e) = liftError (Left e)
 
 runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
 runEgisonM = runExceptT . unEgisonM
@@ -1587,8 +1603,7 @@ modifyCounter m = do
   return result  
 
 newtype FreshT m a = FreshT { unFreshT :: StateT (Int, Int) m a }
-  deriving (Functor, Applicative, Monad, MonadState (Int, Int), MonadTrans, MP.MonadParallel)
---  deriving (Functor, Applicative, Monad, MonadState Int, MonadTrans)
+  deriving (Functor, Applicative, Monad, MonadState (Int, Int), MonadTrans)
 
 type Fresh = FreshT Identity
 
@@ -1621,8 +1636,6 @@ instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
 
 instance MonadIO (FreshT IO) where
   liftIO = lift
-
-instance (MP.MonadParallel m) => MP.MonadParallel (StateT s m)
 
 runFreshT :: Monad m => (Int, Int) -> FreshT m a -> m (a, (Int, Int))
 runFreshT seed = flip (runStateT . unFreshT) seed

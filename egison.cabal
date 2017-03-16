@@ -68,7 +68,7 @@ source-repository head
   location: https://github.com/egison/egison.git
   
 Library
-  Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, text, regex-tdfa, process, vector, monad-parallel
+  Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, text, regex-tdfa, process, vector, parallel
   Hs-Source-Dirs:  hs-src
   Exposed-Modules:
                    Language.Egison
@@ -79,7 +79,7 @@ Library
                    Language.Egison.Primitives
                    Language.Egison.Util
   Other-modules:   Paths_egison
-  ghc-options:  -O3
+  ghc-options:  -O3 -threaded
 
 Test-Suite test
   Type:           exitcode-stdio-1.0

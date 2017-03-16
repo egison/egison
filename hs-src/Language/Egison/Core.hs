@@ -46,7 +46,6 @@ import Control.Applicative
 import Control.Monad.Except hiding (mapM)
 import Control.Monad.State hiding (mapM, state)
 import Control.Monad.Trans.Maybe
-import qualified Control.Monad.Parallel as MP
 
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
@@ -205,7 +204,7 @@ evalExpr env (ArrayExpr exprs) = do
   return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env (VectorExpr exprs) = do
-  whnfs <- MP.mapM (evalExpr env) exprs
+  whnfs <- parallelMapM (evalExpr env) exprs
   case whnfs of
     ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
       ret <- mapM toTensor whnfs >>= tConcat' >>= fromTensor
@@ -217,7 +216,7 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
   xsWhnf <- evalExpr env xsExpr
-  xs <- fromCollection xsWhnf >>= fromMList >>= MP.mapM evalRef
+  xs <- fromCollection xsWhnf >>= fromMList >>= parallelMapM evalRef
   supWhnf <- evalExpr env supExpr
   sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
   subWhnf <- evalExpr env subExpr
@@ -560,7 +559,7 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size'' <- collectionToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
-  xs <-  MP.mapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+  xs <-  parallelMapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
   case (ns, xs) of
     ([1], x:[]) -> return $ x
     _ -> fromTensor (Tensor ns (V.fromList xs) [])
@@ -683,7 +682,7 @@ evalWHNF (Intermediate (IStrHash refs)) = do
 evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
 evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
 evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
-  vals <- MP.mapM evalWHNF (V.toList whnfs)
+  vals <- parallelMapM evalWHNF (V.toList whnfs)
   return $ TensorData $ Tensor ns (V.fromList vals) js
 --  vals <- mapM evalWHNF whnfs
 --  return $ TensorData $ Tensor ns vals js
