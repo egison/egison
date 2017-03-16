@@ -204,7 +204,7 @@ evalExpr env (ArrayExpr exprs) = do
   return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env (VectorExpr exprs) = do
-  whnfs <- parallelMapM (evalExpr env) exprs
+  whnfs <- mapM (evalExpr env) exprs
   case whnfs of
     ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
       ret <- mapM toTensor whnfs >>= tConcat' >>= fromTensor
@@ -216,7 +216,7 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
   xsWhnf <- evalExpr env xsExpr
-  xs <- fromCollection xsWhnf >>= fromMList >>= parallelMapM evalRef
+  xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
   supWhnf <- evalExpr env supExpr
   sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
   subWhnf <- evalExpr env subExpr
@@ -559,7 +559,7 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size'' <- collectionToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
-  xs <-  parallelMapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+  xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
   case (ns, xs) of
     ([1], x:[]) -> return $ x
     _ -> fromTensor (Tensor ns (V.fromList xs) [])
@@ -632,6 +632,19 @@ evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
     yRef <- newEvaluatedObjectRef y
     applyFunc env fn (Intermediate (ITuple [xRef, yRef]))
 
+evalExpr env (ParExpr expr1 expr2) = undefined
+evalExpr env (PseqExpr expr1 expr2) = undefined
+
+evalExpr env (PmapExpr fnExpr cExpr) = do
+  fn <- evalExpr env fnExpr
+  xs <- evalExpr env cExpr >>= collectionToList
+  ys <- parallelMapM (applyFunc' env fn) xs
+  return $ Value $ Collection (Sq.fromList ys)
+ where
+  applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
+  applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
+  
+
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
@@ -682,7 +695,7 @@ evalWHNF (Intermediate (IStrHash refs)) = do
 evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
 evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
 evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
-  vals <- parallelMapM evalWHNF (V.toList whnfs)
+  vals <- mapM evalWHNF (V.toList whnfs)
   return $ TensorData $ Tensor ns (V.fromList vals) js
 --  vals <- mapM evalWHNF whnfs
 --  return $ TensorData $ Tensor ns vals js
