@@ -216,7 +216,7 @@ printVersionNumber = do
 
 showBanner :: IO ()
 showBanner = do
-  putStrLn $ "Egison Version " ++ showVersion version ++ " (C) 2011-2016 Satoshi Egi"
+  putStrLn $ "Egison Version " ++ showVersion version ++ " (C) 2011-2017 Satoshi Egi"
   putStrLn $ "https://www.egison.org"
   putStrLn $ "Welcome to Egison Interpreter!"
 --  putStrLn $ "** Information **"
