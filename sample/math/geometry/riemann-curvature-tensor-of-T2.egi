@@ -33,11 +33,11 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 ;; Christoffel symbols of the first kind
 ;;
 
-(define $Γ_j_k_l
+(define $Γ_i_j_k
   (* (/ 1 2)
-     (+ (∂/∂ g_j_l x_k)
-        (∂/∂ g_j_k x_l)
-        (* -1 (∂/∂ g_k_l x_j)))))
+     (+ (∂/∂ g_i_j x_k)
+        (∂/∂ g_i_k x_j)
+        (* -1 (∂/∂ g_j_k x_i)))))
 
 Γ_#_#_#;(tensor {2 2 2} {0 0 0 (* '(+ (* a (cos θ)) b) a (sin θ)) 0 (* -1 '(+ (* a (cos θ)) b) a (sin θ)) (* -1 '(+ (* a (cos θ)) b) a (sin θ)) 0} )_#_#_#
 Γ_1_#_#;[| [| 0 0 |] [| 0 (* '(+ (* a (cos θ)) b) a (sin θ)) |] |]_#_#

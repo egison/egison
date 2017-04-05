@@ -1,0 +1,10 @@
+(define $mickey'
+  (lambda [$cs]
+    (match cs (list char)
+      {[<snoc $z <snoc $y <snoc $x (& <snoc _ _> $hs)>>>
+        {@(mickey' hs) c#, x y z}]
+       [_ cs]})))
+
+(define $mickey (lambda [$s] (pack (mickey' (unpack s)))))
+
+(mickey "10000000000")
