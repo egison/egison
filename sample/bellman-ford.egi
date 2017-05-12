@@ -7,7 +7,6 @@
     [| 99 64 48 59 0 9 |]
     [| 65 31 28 29 9 0 |]|])
 
-
 (define $G.* (lambda [%t1 %t2] (with-symbols {i} (contract min (+ t1~#_i t2~i_#)))))
 
 (match (iterate (lambda [%P] (G.* P A)) A) (list something)
