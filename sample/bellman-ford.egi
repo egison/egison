@@ -1,4 +1,4 @@
-; initiate a graph in a matrix
+; initiate a distance graph
 (define $A
   [|[| 0 19 36 66 99 65 |]
     [| 19 0 25 59 64 31 |]
