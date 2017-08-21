@@ -448,7 +448,7 @@ tensorSize' :: PrimitiveFunc
 tensorSize' = oneArg' $ tensorSize''
  where
   tensorSize'' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
-  tensorSize'' _ = return . Collection $ Sq.fromList $ [toEgison (1 :: Integer)]
+  tensorSize'' _ = return . Collection $ Sq.fromList $ []
 
 tensorToList' :: PrimitiveFunc
 tensorToList' = oneArg' $ tensorToList''

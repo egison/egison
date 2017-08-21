@@ -1,0 +1,21 @@
+(define $n 3)
+
+(define $params [| x y z |])
+
+(define $d
+  (lambda [%X]
+    (generate-tensor
+      (cambda $is
+        (sum (map (lambda [$p $i $ys]
+                    (* (** -1 (+ 1 p)) (∂/∂ (ref X ys) params_i)))
+                  (match-all (zip nats is) (list [integer integer]) [<join $hs <cons [$p $i] $ts>> [p i (map 2#%2 {@hs @ts})]]))))
+      {n @(tensor-size X)})))
+
+(d (f x y z))
+;[| (f|1 x y z) (f|2 x y z) (f|3 x y z) |]
+
+(d [| (f x y z) (g x y z) (h x y z) |])
+;[| [| 0 (+ (g|1 x y z) (* -1 (f|2 x y z))) (+ (h|1 x y z) (* -1 (f|3 x y z))) |] [| (+ (f|2 x y z) (* -1 (g|1 x y z))) 0 (+ (h|2 x y z) (* -1 (g|3 x y z))) |] [| (+ (f|3 x y z) (* -1 (h|1 x y z))) (+ (g|3 x y z) (* -1 (h|2 x y z))) 0 |] |]
+
+(d (d (f x y z)))
+;[| [| 0 0 0 |] [| 0 0 0 |] [| 0 0 0 |] |]

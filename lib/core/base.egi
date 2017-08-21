@@ -41,7 +41,7 @@
 (define $flip (lambda [$fn] (lambda [$x $y] (fn y x))))
 
 (define $ref
-  (lambda [$xa $is]
+  (lambda [%xa $is]
     (match is (list integer)
       {[<nil> xa]
        [<cons $i $rs> (ref (array-ref xa i) rs)]})))
