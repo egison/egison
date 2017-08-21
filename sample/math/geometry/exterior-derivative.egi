@@ -6,16 +6,40 @@
   (lambda [%X]
     (generate-tensor
       (cambda $is
-        (sum (map (lambda [$p $i $ys]
-                    (* (** -1 (+ 1 p)) (∂/∂ (ref X ys) params_i)))
-                  (match-all (zip nats is) (list [integer integer]) [<join $hs <cons [$p $i] $ts>> [p i (map 2#%2 {@hs @ts})]]))))
+        (/ (sum (map (lambda [$p $i $ys]
+                       (* (** -1 (+ 1 p)) (∂/∂ (ref X ys) params_i)))
+                     (match-all (zip nats is) (list [integer integer]) [<join $hs <cons [$p $i] $ts>> [p i (map 2#%2 {@hs @ts})]])))
+           (length is)))
       {n @(tensor-size X)})))
 
 (d (f x y z))
 ;[| (f|1 x y z) (f|2 x y z) (f|3 x y z) |]
 
-(d [| (f x y z) (g x y z) (h x y z) |])
-;[| [| 0 (+ (g|1 x y z) (* -1 (f|2 x y z))) (+ (h|1 x y z) (* -1 (f|3 x y z))) |] [| (+ (f|2 x y z) (* -1 (g|1 x y z))) 0 (+ (h|2 x y z) (* -1 (g|3 x y z))) |] [| (+ (f|3 x y z) (* -1 (h|1 x y z))) (+ (g|3 x y z) (* -1 (h|2 x y z))) 0 |] |]
-
 (d (d (f x y z)))
 ;[| [| 0 0 0 |] [| 0 0 0 |] [| 0 0 0 |] |]
+
+(d [| (f x y z) (g x y z) (h x y z) |])
+;[| [| 0 (/ (+ (g|1 x y z) (* -1 (f|2 x y z))) 2) (/ (+ (h|1 x y z) (* -1 (f|3 x y z))) 2) |]
+;   [| (/ (+ (f|2 x y z) (* -1 (g|1 x y z))) 2) 0 (/ (+ (h|2 x y z) (* -1 (g|3 x y z))) 2) |]
+;   [| (/ (+ (f|3 x y z) (* -1 (h|1 x y z))) 2) (/ (+ (g|3 x y z) (* -1 (h|2 x y z))) 2) 0 |] |]
+
+(d (d [| (f x y z) (g x y z) (h x y z) |]))
+;(tensor {3 3 3} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )
+
+(d [| [| 0 (f x y z) (g x y z) |] [| (* -1 (f x y z)) 0 (h x y z) |] [| (* -1 (g x y z)) (* -1 (h x y z)) 0 |] |])
+;(tensor {3 3 3} {0 0 0 0 0 (/ (+ (h|1 x y z) (* -1 (g|2 x y z)) (f|3 x y z)) 3) 0 (/ (+ (* -1 (h|1 x y z)) (* -1 (f|3 x y z)) (g|2 x y z)) 3) 0 0 0 (/ (+ (g|2 x y z) (* -1 (h|1 x y z)) (* -1 (f|3 x y z))) 3) 0 0 0 (/ (+ (* -1 (g|2 x y z)) (f|3 x y z) (h|1 x y z)) 3) 0 0 0 (/ (+ (f|3 x y z) (h|1 x y z) (* -1 (g|2 x y z))) 3) 0 (/ (+ (* -1 (f|3 x y z)) (g|2 x y z) (* -1 (h|1 x y z))) 3) 0 0 0 0 0} )
+
+(define $Wedge
+  (lambda [%X %Y]
+    (with-symbols {i j}
+      (/ (- (. X Y)_i_j (. Y X)_i_j)
+         (fact (+ (length (tensor-size X)) (length (tensor-size Y))))))))
+  
+(Wedge (d (f x y z)) (d (g x y z)))
+;[| [| 0 (/ (+ (* (f|1 x y z) (g|2 x y z)) (* -1 (g|1 x y z) (f|2 x y z))) 2) (/ (+ (* (f|1 x y z) (g|3 x y z)) (* -1 (g|1 x y z) (f|3 x y z))) 2) |]
+;   [| (/ (+ (* (f|2 x y z) (g|1 x y z)) (* -1 (g|2 x y z) (f|1 x y z))) 2) 0 (/ (+ (* (f|2 x y z) (g|3 x y z)) (* -1 (g|2 x y z) (f|3 x y z))) 2) |]
+;   [| (/ (+ (* (f|3 x y z) (g|1 x y z)) (* -1 (g|3 x y z) (f|1 x y z))) 2) (/ (+ (* (f|3 x y z) (g|2 x y z)) (* -1 (g|3 x y z) (f|2 x y z))) 2) 0 |] |]
+
+(define $Hodge
+  (lambda [%X]
+    undefined))
