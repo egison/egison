@@ -876,11 +876,15 @@ removeDFscripts (Value (TensorData (Tensor s xs is))) = do
 removeDFscripts whnf = return whnf
 
 tMap :: HasTensor a => (a -> EgisonM a) -> (Tensor a) -> EgisonM (Tensor a)
-tMap f (Tensor ns xs js) = do
+tMap f (Tensor ns xs js') = do
+  let k = fromIntegral $ (length ns) - (length js')
+  let js = (js' ++ (map (DFscript 0) [1..k]))
   xs' <- mapM f (V.toList xs) >>= return . V.fromList
   t <- toTensor (V.head xs')
   case t of
-    (Tensor ns1 _ js1) ->
+    (Tensor ns1 _ js1') -> do
+      let k1 = fromIntegral $ (length ns1) - (length js1')
+      let js1 = (js1' ++ (map (DFscript 0) [1..k1]))
       tContract' $ Tensor (ns ++ ns1) (V.concat (V.toList (V.map tensorElems xs'))) (js ++ js1)
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = f x >>= return . Scalar
@@ -892,7 +896,11 @@ tMapN f ts@((Tensor ns xs js):_) = do
 tMapN f xs = mapM fromTensor xs >>= f >>= return . Scalar
 
 tMap2 :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
-tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
+tMap2 f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
+  let k1 = fromIntegral $ (length ns1) - (length js1')
+  let js1 = (js1' ++ (map (DFscript 0) [1..k1]))
+  let k2 = fromIntegral $ (length ns2) - (length js2')
+  let js2 = (js2' ++ (map (DFscript 0) [1..k2]))
   let (cjs, tjs1, tjs2) = h js1 js2
   t1' <- tTranspose (cjs ++ tjs1) t1
   t2' <- tTranspose (cjs ++ tjs2) t2
@@ -964,7 +972,11 @@ tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
       | otherwise -> throwError $ InconsistentTensorSize
 
 tProduct :: HasTensor a => (a -> a -> EgisonM a) -> (Tensor a) -> (Tensor a) -> EgisonM (Tensor a)
-tProduct f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
+tProduct f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
+  let k1 = fromIntegral $ (length ns1) - (length js1')
+  let js1 = (js1' ++ (map (DFscript 0) [1..k1]))
+  let k2 = fromIntegral $ (length ns2) - (length js2')
+  let js2 = (js2' ++ (map (DFscript 0) [1..k2]))
   let (cjs1, cjs2, tjs1, tjs2) = h js1 js2
   case cjs1 of
     [] -> do

@@ -276,6 +276,7 @@ evalExpr env (IndexedExpr expr indices) = do
                       Subscript n -> evalExprDeep env n >>= return . Subscript
                       SupSubscript n -> evalExprDeep env n >>= return . SupSubscript
               ) indices
+  
   ret <- case tensor of
       (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
         js2 <- mapM (\i -> case i of
@@ -505,9 +506,10 @@ evalExpr env (CApplyExpr func arg) = do
 
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
-  arg <- evalExpr env arg >>= fromTupleWHNF
-  let k = fromIntegral (length arg)
-  arg <-  mapM (\(_,j) -> appendDFscripts 0 j) (zip [1..k] arg) >>= makeITuple
+  arg <- evalExpr env arg
+--  arg <- evalExpr env arg >>= fromTupleWHNF
+--  let k = fromIntegral (length arg)
+--  arg <-  mapM (\(_,j) -> appendDFscripts 0 j) (zip [1..k] arg) >>= makeITuple
   case func of
     Value (TensorData t@(Tensor ns fs js)) -> do
       tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value
@@ -527,7 +529,7 @@ evalExpr env (ApplyExpr func arg) = do
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg >>= removeDFscripts
+    _ -> applyFunc env func arg --  >>= removeDFscripts
 
 evalExpr env (WedgeApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
@@ -553,7 +555,7 @@ evalExpr env (WedgeApplyExpr func arg) = do
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg >>= removeDFscripts
+    _ -> applyFunc env func arg -- >>= removeDFscripts
 
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
   mapM (\(x, y, z) -> do x' <- evalExprDeep env x
