@@ -285,7 +285,7 @@ data Index a =
     Subscript a
   | Superscript a
   | SupSubscript a
---  | DFscript Integer -- DifferentialForm
+  | DFscript Integer Integer -- DifferentialForm
  deriving (Eq)
 
 data UserIndex a = Userscript a
@@ -849,33 +849,31 @@ tTranspose' is t@(Tensor ns xs js) = do
                   (Just j') -> do js' <- g is js
                                   return $ j':js'
 
-appendDFscripts :: String -> WHNFData -> EgisonM WHNFData
-appendDFscripts symId (Intermediate (ITensor (Tensor s xs is))) = do
+appendDFscripts :: Integer -> WHNFData -> EgisonM WHNFData
+appendDFscripts id (Intermediate (ITensor (Tensor s xs is))) = do
   let k = fromIntegral ((length s) - (length is))
-  return $ Intermediate (ITensor (Tensor s xs (is ++ (map Subscript (map (symbolScalarData symId) (map (\i -> "d" ++ i) (map show [1..k])))))))
---  return $ Intermediate (ITensor (Tensor s xs (is ++ (map DFscript [1..k]))))
-appendDFscripts symId (Value (TensorData (Tensor s xs is))) = do
+  return $ Intermediate (ITensor (Tensor s xs (is ++ (map (DFscript id) [1..k]))))
+appendDFscripts id (Value (TensorData (Tensor s xs is))) = do
   let k = fromIntegral ((length s) - (length is))
-  return $ Value (TensorData (Tensor s xs (is ++ (map Subscript (map (symbolScalarData symId) (map (\i -> "d" ++ i) (map show [1..k])))))))
---  return $ Value (TensorData (Tensor s xs (is ++ (map DFscript [1..k]))))
+  return $ Value (TensorData (Tensor s xs (is ++ (map (DFscript id) [1..k]))))
 appendDFscripts _ whnf = return whnf
 
-removeDFscripts :: String -> WHNFData -> EgisonM WHNFData
-removeDFscripts symId (Intermediate (ITensor (Tensor s xs is))) = do
+removeDFscripts :: WHNFData -> EgisonM WHNFData
+removeDFscripts (Intermediate (ITensor (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
   (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
   return (Intermediate (ITensor (Tensor s ys js)))
  where
-  isDF (Subscript sym) = (symId == (getSymId sym))
+  isDF (DFscript _ _) = True
   isDF _ = False
-removeDFscripts symId (Value (TensorData (Tensor s xs is))) = do
+removeDFscripts (Value (TensorData (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
   (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
   return (Value (TensorData (Tensor s ys js)))
  where
-  isDF (Subscript sym) = (symId == (getSymId sym))
+  isDF (DFscript _ _) = True
   isDF _ = False
-removeDFscripts symId whnf = return whnf
+removeDFscripts whnf = return whnf
 
 tMap :: HasTensor a => (a -> EgisonM a) -> (Tensor a) -> EgisonM (Tensor a)
 tMap f (Tensor ns xs js) = do
@@ -1034,6 +1032,7 @@ tContract' t@(Tensor ns xs js) = do
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Superscript j) = i == j
   p (Subscript i) (Subscript j) = i == j
+  p (DFscript i1 j1) (DFscript i2 j2) = (i1 == i2) && (j1 == j2)
   p _ _ = False
 tContract' val = return val
 
@@ -1477,27 +1476,31 @@ instance Show (Index ()) where
   show (Superscript ()) = "~"
   show (Subscript ()) = "_"
   show (SupSubscript ()) = "~_"
---  show (DFscript _) = ""
+  show (DFscript _ _) = ""
 
 instance Show (Index String) where
   show (Superscript s) = "~" ++ s
   show (Subscript s) = "_" ++ s
   show (SupSubscript s) = "~_" ++ s
+  show (DFscript _ _) = ""
 
 instance Show (Index EgisonExpr) where
   show (Superscript i) = "~" ++ show i
   show (Subscript i) = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
+  show (DFscript _ _) = ""
 
 instance Show (Index ScalarData) where
   show (Superscript i) = "~" ++ show i
   show (Subscript i) = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
+  show (DFscript _ _) = ""
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = "~" ++ show i
   show (Subscript i) = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
+  show (DFscript i j) = "_d" ++ show i ++ show j
 
 instance Show (UserIndex EgisonExpr) where
   show (Userscript i) = "|" ++ show i
