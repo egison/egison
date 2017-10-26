@@ -1,0 +1,15 @@
+(define $d
+  (lambda [%X]
+    !(∂ X)))
+
+(define $wedge
+  (lambda [%X %Y]
+    !(. X Y)))
+
+(define $Lie.wedge
+  (lambda [%X %Y]
+    (- !(. X Y) !(. Y X))))
+
+(define $Ω~i_j (with-symbols {k} (+ (d ω~i_j) (wedge ω~i_k ω~k_j))))
+
+(define $Ω~i_j (with-symbols {k} (+ (d ω~i_j) (* (/ 1 2) (Lie.wedge ω~i_k ω~k_j)))))
