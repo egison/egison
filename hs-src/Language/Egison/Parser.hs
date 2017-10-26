@@ -200,6 +200,7 @@ expr' = (try partialExpr
              <|> collectionExpr
 --             <|> quoteExpr
              <|> quoteFunctionExpr
+             <|> wedgeExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
@@ -285,6 +286,9 @@ hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
 
 quoteExpr :: Parser EgisonExpr
 quoteExpr = char '\'' >> QuoteExpr <$> expr
+
+wedgeExpr :: Parser EgisonExpr
+wedgeExpr = char '!' >> WedgeExpr <$> expr
 
 quoteFunctionExpr :: Parser EgisonExpr
 quoteFunctionExpr = char '`' >> QuoteFunctionExpr <$> expr

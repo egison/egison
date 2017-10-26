@@ -504,8 +504,8 @@ evalExpr env (CApplyExpr func arg) = do
     _ -> applyFunc env func (Value (makeTuple args))
 
 evalExpr env (ApplyExpr func arg) = do
-  func <- evalExpr env func
-  arg <- evalExpr env arg
+  func <- evalExpr env func >>= appendDFscripts "df"
+  arg <- evalExpr env arg >>= fromTupleWHNF >>= mapM (appendDFscripts "df") >>= makeITuple
   case func of
     Value (TensorData t@(Tensor ns fs js)) -> do
       tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value
@@ -525,7 +525,31 @@ evalExpr env (ApplyExpr func arg) = do
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg
+    _ -> applyFunc env func arg >>= removeDFscripts "df"
+
+evalExpr env (WedgeApplyExpr func arg) = do
+  func <- evalExpr env func >>= appendDFscripts "df"
+  arg <- evalExpr env arg >>= fromTupleWHNF >>= mapM (appendDFscripts "df") >>= makeITuple
+  case func of
+    Value (TensorData t@(Tensor ns fs js)) -> do
+      tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value
+    Intermediate (ITensor t@(Tensor ns fs js)) -> do
+      tMap (\f -> applyFunc env f arg) t >>= fromTensor
+    Value (MemoizedFunc name ref hashRef env names body) -> do
+      indices <- evalWHNF arg
+      indices' <- mapM fromEgison $ fromTupleValue indices
+      hash <- liftIO $ readIORef hashRef
+      case HL.lookup indices' hash of
+        Just objRef -> do
+          evalRef objRef
+        Nothing -> do
+          whnf <- applyFunc env (Value (Func Nothing env names body)) arg
+          retRef <- newEvaluatedObjectRef whnf
+          hash <- liftIO $ readIORef hashRef
+          liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
+          return whnf
+    _ -> applyFunc env func arg >>= removeDFscripts "df"
 
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
   mapM (\(x, y, z) -> do x' <- evalExprDeep env x
@@ -1348,6 +1372,11 @@ makeTuple :: [EgisonValue] -> EgisonValue
 makeTuple [] = Tuple []
 makeTuple [x] = x
 makeTuple xs = Tuple xs
+
+makeITuple :: [WHNFData] -> EgisonM WHNFData
+makeITuple [] = return $ Intermediate (ITuple [])
+makeITuple [x] = return $ x
+makeITuple xs = mapM newEvaluatedObjectRef xs >>= (return . Intermediate . ITuple)
 
 --
 -- String

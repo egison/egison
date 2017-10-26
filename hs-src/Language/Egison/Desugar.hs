@@ -362,6 +362,11 @@ desugar (QuoteFunctionExpr expr) = do
   expr' <- desugar expr
   return $ QuoteFunctionExpr expr'
 
+desugar (WedgeExpr (ApplyExpr expr0 expr1)) = do
+  expr0' <- desugar expr0
+  expr1' <- desugar expr1
+  return $ WedgeApplyExpr expr0' expr1'
+
 desugar expr = return expr
 
 desugarIndex :: Index EgisonExpr -> DesugarM (Index EgisonExpr)
