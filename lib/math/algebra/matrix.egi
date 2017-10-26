@@ -9,7 +9,7 @@
 (define $M.b.*
   (lambda [%m1 %m2]
     (with-symbols {j}
-      (. m1~#~j m2_j))))
+      (. m1~#~j m2_j_#))))
 
 (define $M.*'
   (cambda $ms
