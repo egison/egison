@@ -529,7 +529,7 @@ evalExpr env (ApplyExpr func arg) = do
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg --  >>= removeDFscripts
+    _ -> applyFunc env func arg >>= removeDFscripts
 
 evalExpr env (WedgeApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
@@ -555,7 +555,7 @@ evalExpr env (WedgeApplyExpr func arg) = do
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg -- >>= removeDFscripts
+    _ -> applyFunc env func arg >>= removeDFscripts
 
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
   mapM (\(x, y, z) -> do x' <- evalExprDeep env x
