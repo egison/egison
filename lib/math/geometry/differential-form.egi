@@ -1,44 +1,18 @@
 (define $d
-  (lambda [$mexpr]
-    (match mexpr math-expr
-      {[(& ?symbol? ?(member? $ coordinates) $x) (`d x)]
-       ; term (multiplication)
-       [(* $a (,d $x) $r) (sum (map 1#(* (∂/∂ (* a r) %1) (^ (`d %1) (`d x))) coordinates))]
-       [(* $a (,^ $dx $dy) $r) (sum (map 1#(* (∂/∂ (* a r) %1) (^ (`d %1) dx dy)) coordinates))]
-       [(* $a (,^ $dx $dy $dz) $r) (sum (map 1#(* (∂/∂ (* a r) %1) (^ (`d %1) dx dy dz)) coordinates))]
-       [(* $a $r) (sum (map 1#(* (∂/∂ mexpr %1) (`d %1)) coordinates))]
-       [<poly $ts> (sum (map (d $) ts))]
-       [_ undefined]
-       })))
+  (lambda [%X]
+    !(∂ X)))
 
-(define $^
-  (cambda $xs
-    (match [xs coordinates] [(list math-expr) (list math-expr)]
-      {[[<join _ <cons $dx <join _ <cons ,dx _>>>> _] 0]
-       [[<join $hs <cons (,d $y) <join $ms <cons (,d $x) $ts>>>> <join _ <cons ,x <join _ <cons ,y _>>>>]
-        (*' -1 (capply ^ {@hs (`d x) @ms (`d y) @ts}))]
-       [[_ _] (capply `^ xs)]})))
+(define $wedge
+  (lambda [%X %Y]
+    !(. X Y)))
 
-(define $wedge-to-tensor
-  (lambda [$mexpr]
-    (match mexpr math-expr
-      {; term (multiplication)
-       [(* $a (,d $x) $r)
-        (generate-tensor
-          (match-lambda integer
-            {[,(car (elemIndices x coordinates)) (* a r)]
-             [_ 0]})
-          {(length coordinates)})~#]
-       [(* $a (,^ (,d $x) (,d $y)) $r)
-        (generate-tensor
-          (match-lambda [integer integer]
-            {[[,(car (elemIndices x coordinates)) ,(car (elemIndices y coordinates))] (* a r)]
-             [[,(car (elemIndices y coordinates)) ,(car (elemIndices x coordinates))] (* -1 (* a r))]
-             [[_ _] 0]})
-          {(length coordinates) (length coordinates)})~#~#]
-       [(* $a (,^ $dx $dy $dz) $r)
-        undefined]
-       [(* $a $r) (* a r)]
-       [<poly $ts> (capply M.+ (map (wedge-to-tensor $) ts))]
-       [_ undefined]
-       })))
+(define $Lie.wedge
+  (lambda [%X %Y]
+    (- !(. X Y) !(. Y X))))
+
+;(define $hodge
+;  (lambda [%A]
+;    (* (sqrt (abs (det g_#_#)))
+;       (foldl . ε_i.1..._i.n A_j.1..._j.k
+;              (map (lambda [$l] g~i.l~j.l) (between 1 k))))
+;    ))

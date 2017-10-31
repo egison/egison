@@ -100,3 +100,29 @@
     (* n
        (product (map (lambda [$p] (- 1 (/ 1 p)))
                      (unique (p-f n)))))))
+
+(define $ε
+  (lambda [$n]
+    (let {[[$es $os] (even-and-odd-permutations' n)]}
+      (generate-tensor
+        (cambda $is
+          (if (member? is es)
+            1
+            (if (member? is os)
+              -1
+              0)))
+        (take n (repeat1 n))))))
+
+(define $ε'
+  (lambda [$n $k]
+    (let {[[$es $os] (even-and-odd-permutations' n)]}
+      (generate-tensor
+        (cambda $is
+          (match (drop k is) (list integer)
+            {[<join _ <cons $x <join _ <cons ?1#(lt? %1 x) _>>>> 0]
+             [_ (if (member? is es)
+                  1
+                  (if (member? is os)
+                    -1
+                    0))]}))
+        (take n (repeat1 n))))))
