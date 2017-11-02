@@ -512,7 +512,7 @@ evalExpr env (ApplyExpr func arg) = do
 --  arg <-  mapM (\(_,j) -> appendDFscripts 0 j) (zip [1..k] arg) >>= makeITuple
   case func of
     Value (TensorData t@(Tensor ns fs js)) -> do
-      tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value
+      tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value >>= removeDFscripts
     Intermediate (ITensor t@(Tensor ns fs js)) -> do
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
