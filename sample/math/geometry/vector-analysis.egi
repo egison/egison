@@ -1,16 +1,8 @@
-(define $tensor-order
-  (lambda [%A]
-    (length (tensor-size A))))
-
 (define $g [| [| 1 0 0 |] [| 0 1 0 |] [| 0 0 1 |] |])
 
 (define $d
   (lambda [%X]
     !((flip ∂/∂) [| x y z |] X)))
-
-(define $wedge
-  (lambda [%X %Y]
-    !(. X Y)))
 
 (define $hodge0
   (lambda [%A]
@@ -72,13 +64,13 @@
 ;[| [| (* 2 x) 0 0 |] [| 0 (* 2 y) 0 |] [| 0 0 (* 2 z) |] |]
 
 (div [| (** x 2) (** y 2) (** z 2) |])
-;(+ (* 2 z) (* 2 y) (* 2 x))
+;(+ (* -2 z) (* -2 y) (* -2 x))
 
 (rot [| (* x 2) (* y 2) (* z 2) |])
 ;[| [| 2 0 0 |] [| 0 2 0 |] [| 0 0 2 |] |]
 
 (div [| (* x 2) (* y 2) (* z 2) |])
-;6
+;-6
 
 (Δ (+ (** x 2) (** y 2) (** z 2)))
-;6
+;-6

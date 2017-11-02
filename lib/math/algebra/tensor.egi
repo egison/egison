@@ -4,6 +4,10 @@
 ;;;;;
 ;;;;;
 
+(define $tensor-order
+  (lambda [%A]
+    (length (tensor-size A))))
+
 (define $unit-tensor
   (lambda [$ns]
     (generate-tensor kronecker-delta ns)))

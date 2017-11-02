@@ -1,6 +1,6 @@
-(define $d
-  (lambda [%X]
-    !(∂ X)))
+;(define $d
+;  (lambda [%X]
+;    !(∂ X)))
 
 (define $wedge
   (lambda [%X %Y]
