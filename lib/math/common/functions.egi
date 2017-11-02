@@ -4,6 +4,18 @@
 ;;;;;
 ;;;;;
 
+(define $abs
+  (lambda [$x]
+    (if (rational? x)
+      (b.abs x)
+      x)))
+
+(define $neg
+  (lambda [$x]
+    (if (rational? x)
+      (b.neg x)
+      (* -1 x))))
+
 (define $exp
   (lambda [$x]
     (if (float? x)
@@ -102,7 +114,7 @@
                      (unique (p-f n)))))))
 
 (define $ε
-  (lambda [$n]
+  (memoized-lambda [$n]
     (let {[[$es $os] (even-and-odd-permutations' n)]}
       (generate-tensor
         (cambda $is
@@ -114,7 +126,7 @@
         (take n (repeat1 n))))))
 
 (define $ε'
-  (lambda [$n $k]
+  (memoized-lambda [$n $k]
     (let {[[$es $os] (even-and-odd-permutations' n)]}
       (generate-tensor
         (cambda $is

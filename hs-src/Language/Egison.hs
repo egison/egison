@@ -118,6 +118,7 @@ coreLibraries =
   , "lib/math/algebra/vector.egi"
   , "lib/math/algebra/matrix.egi"
   , "lib/math/algebra/tensor.egi"
+  , "lib/math/geometry/differential-form.egi"
   , "lib/core/base.egi"
   , "lib/core/collection.egi"
   , "lib/core/assoc.egi"
