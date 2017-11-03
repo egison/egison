@@ -64,19 +64,8 @@
 
 (define $normalize2
   (lambda [%A]
-    (with-symbols {i1 i2 i3 i4 j1 j2}
-      (. (/ 1 4) (ε 4)~i1~i2~i3~i4 A_i1_i2 (ε 4)_i3_i4_j1_j2))))
-
-(define $normalize3
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 i4 j1 j2 j3}
-      (. (/ 1 6) (ε 4)~i1~i2~i3~i4 A_i1_i2_i3 (ε 4)_i4_j1_j2_j3))))
-
-;(normalize2 (wedge [| 1 0 0 0 |] [| 0 1 0 0 |]))
-
-;(normalize2 (wedge [| 0 0 1 0 |] [| 0 0 0 1 |]))
-
-;(normalize3 (wedge [| 1 0 0 0 |] (wedge [| 0 1 0 0 |] [| 0 0 1 0 |])))
+    (with-symbols {t1 t2}
+      (- A_t1_t2 A_t2_t1))))
 
 ; *(dt^dx) = -dy^dz
 (hodge (wedge [| 1 0 0 0 |] [| 0 1 0 0 |]))
@@ -86,14 +75,11 @@
 (hodge (wedge [| 0 0 1 0 |] [| 0 0 0 1 |]))
 ;[| [| 0 1 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] |]
 
-;(normalize2 (d [| (φ t x y z) (Ax t x y z) (Ay t x y z) (Az t x y z) |]))
+(normalize2 (d [| (φ t x y z) (Ax t x y z) (Ay t x y z) (Az t x y z) |]))
 ;[|[| 0 (+ (Ax|1 t x y z) (* -1 (φ|2 t x y z))) (+ (Ay|1 t x y z) (* -1 (φ|3 t x y z))) (+ (Az|1 t x y z) (* -1 (φ|4 t x y z))) |]
-;  [| (+ (* -1 (Ax|1 t x y z)) (φ|2 t x y z)) 0 (+ (Ay|2 t x y z) (* -1 (Ax|3 t x y z))) (+ (Az|2 t x y z) (* -1 (Ax|4 t x y z))) |]
-;  [| (+ (* -1 (Ay|1 t x y z)) (φ|3 t x y z)) (+ (* -1 (Ay|2 t x y z)) (Ax|3 t x y z)) 0 (+ (Az|3 t x y z) (* -1 (Ay|4 t x y z))) |]
-;  [| (+ (* -1 (Az|1 t x y z)) (φ|4 t x y z)) (+ (* -1 (Az|2 t x y z)) (Ax|4 t x y z)) (+ (* -1 (Az|3 t x y z)) (Ay|4 t x y z)) 0 |] |]
-
-;(normalize3 (d (d [| (φ t x y z) (Ax t x y z) (Ay t x y z) (Az t x y z) |])))
-;(tensor {4 4 4} {0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0} )
+;  [| (+ (φ|2 t x y z) (* -1 (Ax|1 t x y z))) 0 (+ (Ay|2 t x y z) (* -1 (Ax|3 t x y z))) (+ (Az|2 t x y z) (* -1 (Ax|4 t x y z))) |]
+;  [| (+ (φ|3 t x y z) (* -1 (Ay|1 t x y z))) (+ (Ax|3 t x y z) (* -1 (Ay|2 t x y z))) 0 (+ (Az|3 t x y z) (* -1 (Ay|4 t x y z))) |]
+;  [| (+ (φ|4 t x y z) (* -1 (Az|1 t x y z))) (+ (Ax|4 t x y z) (* -1 (Az|2 t x y z))) (+ (Ay|4 t x y z) (* -1 (Az|3 t x y z))) 0 |]|]
 
 (define $F
   [|[| 0 (Ex t x y z) (Ey t x y z) (Ez t x y z) |]
@@ -102,8 +88,11 @@
     [| (* -1 (Ez t x y z)) (By t x y z) (* -1 (Bx t x y z)) 0 |]
     |])
 
-;(normalize3 (d F))
-;(tensor {4 4 4} {0 0 0 0 0 0 (/ (+ (* -1 (Bz|1 t x y z)) (Ey|2 t x y z) (* -1 (Ex|3 t x y z))) 3) (/ (+ (By|1 t x y z) (Ez|2 t x y z) (* -1 (Ex|4 t x y z))) 3) 0 (/ (+ (Bz|1 t x y z) (* -1 (Ey|2 t x y z)) (Ex|3 t x y z)) 3) 0 (/ (+ (* -1 (Bx|1 t x y z)) (Ez|3 t x y z) (* -1 (Ey|4 t x y z))) 3) 0 (/ (+ (* -1 (By|1 t x y z)) (* -1 (Ez|2 t x y z)) (Ex|4 t x y z)) 3) (/ (+ (Bx|1 t x y z) (* -1 (Ez|3 t x y z)) (Ey|4 t x y z)) 3) 0 0 0 (/ (+ (Bz|1 t x y z) (* -1 (Ey|2 t x y z)) (Ex|3 t x y z)) 3) (/ (+ (* -1 (By|1 t x y z)) (* -1 (Ez|2 t x y z)) (Ex|4 t x y z)) 3) 0 0 0 0 (/ (+ (* -1 (Bz|1 t x y z)) (Ey|2 t x y z) (* -1 (Ex|3 t x y z))) 3) 0 0 (/ (+ (* -1 (Bx|2 t x y z)) (* -1 (By|3 t x y z)) (* -1 (Bz|4 t x y z))) 3) (/ (+ (By|1 t x y z) (Ez|2 t x y z) (* -1 (Ex|4 t x y z))) 3) 0 (/ (+ (Bx|2 t x y z) (By|3 t x y z) (Bz|4 t x y z)) 3) 0 0 (/ (+ (* -1 (Bz|1 t x y z)) (Ey|2 t x y z) (* -1 (Ex|3 t x y z))) 3) 0 (/ (+ (Bx|1 t x y z) (* -1 (Ez|3 t x y z)) (Ey|4 t x y z)) 3) (/ (+ (Bz|1 t x y z) (* -1 (Ey|2 t x y z)) (Ex|3 t x y z)) 3) 0 0 (/ (+ (Bx|2 t x y z) (By|3 t x y z) (Bz|4 t x y z)) 3) 0 0 0 0 (/ (+ (* -1 (Bx|1 t x y z)) (Ez|3 t x y z) (* -1 (Ey|4 t x y z))) 3) (/ (+ (* -1 (Bx|2 t x y z)) (* -1 (By|3 t x y z)) (* -1 (Bz|4 t x y z))) 3) 0 0 0 (/ (+ (By|1 t x y z) (Ez|2 t x y z) (* -1 (Ex|4 t x y z))) 3) (/ (+ (* -1 (Bx|1 t x y z)) (Ez|3 t x y z) (* -1 (Ey|4 t x y z))) 3) 0 (/ (+ (* -1 (By|1 t x y z)) (* -1 (Ez|2 t x y z)) (Ex|4 t x y z)) 3) 0 (/ (+ (* -1 (Bx|2 t x y z)) (* -1 (By|3 t x y z)) (* -1 (Bz|4 t x y z))) 3) 0 (/ (+ (Bx|1 t x y z) (* -1 (Ez|3 t x y z)) (Ey|4 t x y z)) 3) (/ (+ (Bx|2 t x y z) (By|3 t x y z) (Bz|4 t x y z)) 3) 0 0 0 0 0 0} )
+(hodge (d F))
+;[|(+ (* -2 (Bz|4 t x y z)) (* -2 (By|3 t x y z)) (* -2 (Bx|2 t x y z)))
+;  (+ (* -2 (Ey|4 t x y z)) (* 2 (Ez|3 t x y z)) (* -2 (Bx|1 t x y z)))
+;  (+ (* 2 (Ex|4 t x y z)) (* -2 (Ez|2 t x y z)) (* -2 (By|1 t x y z)))
+;  (+ (* -2 (Ex|3 t x y z)) (* 2 (Ey|2 t x y z)) (* -2 (Bz|1 t x y z)))|]
 
 ;(∇ B) = 0
 ;(rot x E) = ∂t B
@@ -111,11 +100,10 @@
 ;(rot z E) = ∂t B
 
 (δ F)
-;[|(+ (* 12 (Ez|4 t x y z)) (* 12 (Ey|3 t x y z)) (* 12 (Ex|2 t x y z)))
-;  (+ (* -12 (By|4 t x y z)) (* 12 (Bz|3 t x y z)) (* 12 (Ex|1 t x y z)))
-;  (+ (* 12 (Bx|4 t x y z)) (* -12 (Bz|2 t x y z)) (* 12 (Ey|1 t x y z)))
-;  (+ (* -12 (Bx|3 t x y z)) (* 12 (By|2 t x y z)) (* 12 (Ez|1 t x y z)))
-;  |]
+;[|(+ (* -2 (Ez|4 t x y z)) (* -2 (Ey|3 t x y z)) (* -2 (Ex|2 t x y z)))
+;  (+ (* 2 (By|4 t x y z)) (* -2 (Bz|3 t x y z)) (* -2 (Ex|1 t x y z)))
+;  (+ (* -2 (Bx|4 t x y z)) (* 2 (Bz|2 t x y z)) (* -2 (Ey|1 t x y z)))
+;  (+ (* 2 (Bx|3 t x y z)) (* -2 (By|2 t x y z)) (* -2 (Ez|1 t x y z)))|]
 
 ;(∇ E) = 0
 ;(rot x B) = ∂t E
