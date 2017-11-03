@@ -972,12 +972,14 @@ tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
       | otherwise -> throwError $ InconsistentTensorSize
 
 tProduct :: HasTensor a => (a -> a -> EgisonM a) -> (Tensor a) -> (Tensor a) -> EgisonM (Tensor a)
-tProduct f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
+tProduct f t1''@(Tensor ns1 xs1 js1') t2''@(Tensor ns2 xs2 js2') = do
   let k1 = fromIntegral $ (length ns1) - (length js1')
   let js1 = (js1' ++ (map (DFscript 0) [1..k1]))
   let k2 = fromIntegral $ (length ns2) - (length js2')
   let js2 = (js2' ++ (map (DFscript 0) [1..k2]))
   let (cjs1, cjs2, tjs1, tjs2) = h js1 js2
+  let t1 = (Tensor ns1 xs1 js1)
+  let t2 = (Tensor ns2 xs2 js2)
   case cjs1 of
     [] -> do
       xs' <- mapM (\is -> do let is1 = take (length ns1) is
@@ -995,7 +997,8 @@ tProduct f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2) (enumTensorIndices cns1)
       let ret = Tensor (cns1 ++ (tSize (head rts'))) (V.concat (map tToVector rts')) ((map g cjs1) ++ tIndex (head rts'))
-      tTranspose ((map g cjs1) ++ tjs1 ++ tjs2) ret
+      ret2 <- tTranspose (uniq ((map g cjs1) ++ tjs1 ++ tjs2)) ret
+      return ret2
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in
@@ -1010,6 +1013,9 @@ tProduct f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
   g :: Index EgisonValue -> Index EgisonValue
   g (Superscript i) = (SupSubscript i)
   g (Subscript i) = (SupSubscript i)
+  uniq :: [Index EgisonValue] -> [Index EgisonValue]
+  uniq [] = []
+  uniq (x:xs) = x:(uniq (delete x xs))
 tProduct f (Scalar x) (Tensor ns xs js) = do
   xs' <- V.mapM (f x) xs
   return $ Tensor ns xs' js

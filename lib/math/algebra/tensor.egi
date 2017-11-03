@@ -18,7 +18,7 @@
 
 (define $zero-tensor
   (lambda [$ns]
-    (generate-tensor 1#0 ns)))
+    (generate-tensor (cambda $xs 0) ns)))
 
 (define $b..' (lambda [%t1 %t2] (contract +' (*' t1 t2))))
 (define $b.. (lambda [%t1 %t2] (contract + (* t1 t2))))

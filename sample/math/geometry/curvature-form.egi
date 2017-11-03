@@ -1,15 +1,45 @@
+;;
+;; Metric tensor
+;;
+
+(define $x [| θ φ |])
+
+(define $g__ [| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |])
+(define $g~~ [| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |])
+
+;;
+;; Connection form
+;;
+
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_l x_k)
+        (∂/∂ g_j_k x_l)
+        (* -1 (∂/∂ g_k_l x_j)))))
+
+(define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
+
+(define $ω Γ~#_#_#)
+
+;;
+;; Curvature form
+;;
+
 (define $d
-  (lambda [%X]
-    !(∂ X)))
+  (lambda [%A]
+    !((flip ∂/∂) x A)))
 
-(define $wedge
-  (lambda [%X %Y]
-    !(. X Y)))
+(define $Ω
+  (with-symbols {i j}
+    (+ (d ω~i_j)
+       (wedge ω~i_k ω~k_j))))
 
-(define $Lie.wedge
-  (lambda [%X %Y]
-    (- !(. X Y) !(. Y X))))
+Ω;(tensor {2 2 2 2} {0 0 0 (+ -1 (sin θ)^2) 0 (+ -1 (* 2 (sin θ)^2)) (+ -1 (sin θ)^2) 0 0 -1 0 0 -1 0 0 (+ -1 (sin θ)^2)} )
 
-(define $Ω~i_j (with-symbols {k} (+ (d ω~i_j) (wedge ω~i_k ω~k_j))))
+(define $Ω2 (with-symbols {i j t1 t2} (- Ω~i_j_t1_t2 Ω~i_j_t2_t1)))
 
-(define $Ω~i_j (with-symbols {k} (+ (d ω~i_j) (* (/ 1 2) (Lie.wedge ω~i_k ω~k_j)))))
+Ω2;(tensor {2 2 2 2} {0 0 0 0 0 (sin θ)^2 (* -1 (sin θ)^2) 0 0 -1 1 0 0 0 0 0} )
+(+ (zero-tensor {2 2 2 2})~i_j_k_l Ω2~i_j_l_k);
+
+(tensor {2 2 2 2} {0 0 0 0 0 (* -1 (sin θ)^2) (sin θ)^2 0 0 1 -1 0 0 0 0 0} )~#_#_#_#
+;R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (* -1 (sin θ)^2) (sin θ)^2 0 0 1 -1 0 0 0 0 0} )~#_#_#_#
