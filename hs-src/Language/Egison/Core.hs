@@ -263,7 +263,7 @@ evalExpr env (UserIndexedExpr expr indices) = do
     (UserIndexedData val' is') -> return $ Value $ UserIndexedData val' (is' ++ js)
     _ -> return $ Value $ UserIndexedData val js
 
-evalExpr env (IndexedExpr expr indices) = do
+evalExpr env (IndexedExpr False expr indices) = do
   tensor <- case expr of
               (VarExpr var) -> do
                 let mObjRef = refVar env (show (Var var (map f indices)))
@@ -302,6 +302,54 @@ evalExpr env (IndexedExpr expr indices) = do
                                       Subscript k -> ScalarData k
                                       SupSubscript k -> ScalarData k
                               ) js2)
+  return ret
+ where
+  f :: Index a -> Index ()
+  f (Superscript _) = Superscript ()
+  f (Subscript _) = Subscript ()
+  f (SupSubscript _) = SupSubscript ()
+
+evalExpr env (SubrefsExpr expr jsExpr) = do
+  js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Subscript)
+  tensor <- case expr of
+              (VarExpr var) -> do
+                let mObjRef = refVar env (show (Var var (take (length js) (repeat (Subscript ())))))
+                case mObjRef of
+                  (Just objRef) -> evalRef objRef
+                  Nothing -> evalExpr env expr
+              _ -> evalExpr env expr
+  ret <- case tensor of
+      (Value (ScalarData _)) -> do
+        return $ tensor
+      (Value (TensorData (Tensor ns xs is))) -> do
+        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+      (Intermediate (ITensor (Tensor ns xs is))) -> do
+        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+      _ -> throwError $ NotImplemented "subrefs"
+  return ret
+ where
+  f :: Index a -> Index ()
+  f (Superscript _) = Superscript ()
+  f (Subscript _) = Subscript ()
+  f (SupSubscript _) = SupSubscript ()
+
+evalExpr env (SuprefsExpr expr jsExpr) = do
+  js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Superscript)
+  tensor <- case expr of
+              (VarExpr var) -> do
+                let mObjRef = refVar env (show (Var var (take (length js) (repeat (Superscript ())))))
+                case mObjRef of
+                  (Just objRef) -> evalRef objRef
+                  Nothing -> evalExpr env expr
+              _ -> evalExpr env expr
+  ret <- case tensor of
+      (Value (ScalarData _)) -> do
+        return $ tensor
+      (Value (TensorData (Tensor ns xs is))) -> do
+        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+      (Intermediate (ITensor (Tensor ns xs is))) -> do
+        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+      _ -> throwError $ NotImplemented "suprefs"
   return ret
  where
   f :: Index a -> Index ()

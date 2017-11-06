@@ -177,7 +177,7 @@ exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
 expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
-                          expr1 <- option expr0 $ IndexedExpr expr0 <$> many1 (try (char '_' >> expr' >>= return . Subscript)
+                          expr1 <- option expr0 $ IndexedExpr False expr0 <$> many1 (try (char '_' >> expr' >>= return . Subscript)
                                                                            <|> try (char '~' >> expr' >>= return . Superscript)
                                                                            <|> try (string "~_" >> expr' >>= return . SupSubscript))
                           expr2 <- option expr1 $ UserIndexedExpr expr1 <$> many1 (try $ char '|' >> expr' >>= return . Userscript)
@@ -242,6 +242,8 @@ expr' = (try partialExpr
                          <|> parExpr
                          <|> pseqExpr
                          <|> pmapExpr
+                         <|> subrefsExpr
+                         <|> suprefsExpr
                          )
              <?> "expression")
 
@@ -576,6 +578,12 @@ pseqExpr = keywordPseq >> PseqExpr <$> expr <*> expr
 pmapExpr :: Parser EgisonExpr
 pmapExpr = keywordPmap >> PmapExpr <$> expr <*> expr
 
+subrefsExpr :: Parser EgisonExpr
+subrefsExpr = keywordSubrefs >> SubrefsExpr <$> expr <*> expr
+
+suprefsExpr :: Parser EgisonExpr
+suprefsExpr = keywordSuprefs >> SuprefsExpr <$> expr <*> expr
+
 -- Patterns
 
 pattern :: Parser EgisonPattern
@@ -812,6 +820,8 @@ reservedKeywords =
   , "par"
   , "pseq"
   , "pmap"
+  , "subrefs"
+  , "suprefs"
   , "something"
   , "undefined"]
   
@@ -891,6 +901,8 @@ keywordTranspose            = reserved "transpose"
 keywordPar                  = reserved "par"
 keywordPseq                 = reserved "pseq"
 keywordPmap                 = reserved "pmap"
+keywordSubrefs              = reserved "subrefs"
+keywordSuprefs              = reserved "suprefs"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

@@ -1,44 +1,28 @@
+(define $N 3)
+
 (define $g [| [| 1 0 0 |] [| 0 1 0 |] [| 0 0 1 |] |])
 
 (define $d
   (lambda [%X]
     !((flip ∂/∂) [| x y z |] X)))
 
-(define $hodge0
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 j1}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 3 0)_i1_i2_i3 A)))))
-
-(define $hodge1
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 j1}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 3 1)_i1_i2_i3 A_j1 g~i1~j1)))))
-
-(define $hodge2
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 j1 j2}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 3 2)_i1_i2_i3 A_j1_j2 g~i1~j1 g~i2~j2)))))
-
-(define $hodge3
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 j1 j2 j3}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 3 3)_i1_i2_i3 A_j1_j2_j3 g~i1~j1 g~i2~j2 g~i3~j3)))))
+(define $df-order tensor-order)
 
 (define $hodge
   (lambda [%A]
-    (match (tensor-order A) integer
-      {[,0 (hodge0 A)]
-       [,1 (hodge1 A)]
-       [,2 (hodge2 A)]
-       [,3 (hodge3 A)]})))
+    (let {[$k (df-order A)]}
+      (with-symbols {i j}
+        (* (sqrt (abs (M.det g_#_#)))
+           (foldl . (. (subrefs (ε' N k) (map 1#i_%1 (between 1 N)))
+                       (subrefs A (map 1#j_%1 (between 1 k))))
+                  (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
 
 (define $δ
   (lambda [%A]
-    (hodge (d (hodge A)))))
+    (let {[$r (df-order A)]}
+      (* (** -1 (+ (* N r) 1))
+         (hodge (d (hodge A)))))))
+
 
 (define $grad d)
 (define $rot d)
@@ -64,13 +48,13 @@
 ;[| [| (* 2 x) 0 0 |] [| 0 (* 2 y) 0 |] [| 0 0 (* 2 z) |] |]
 
 (div [| (** x 2) (** y 2) (** z 2) |])
-;(+ (* -2 z) (* -2 y) (* -2 x))
+;(+ (* 2 z) (* 2 y) (* 2 x))
 
 (rot [| (* x 2) (* y 2) (* z 2) |])
 ;[| [| 2 0 0 |] [| 0 2 0 |] [| 0 0 2 |] |]
 
 (div [| (* x 2) (* y 2) (* z 2) |])
-;-6
+;6
 
 (Δ (+ (** x 2) (** y 2) (** z 2)))
-;-6
+;6

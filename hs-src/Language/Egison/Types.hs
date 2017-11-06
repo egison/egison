@@ -203,7 +203,9 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr String
   | FreshVarExpr
-  | IndexedExpr EgisonExpr [Index EgisonExpr]
+  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]
+  | SubrefsExpr EgisonExpr EgisonExpr
+  | SuprefsExpr EgisonExpr EgisonExpr
   | UserIndexedExpr EgisonExpr [UserIndex EgisonExpr]
   | PowerExpr EgisonExpr EgisonExpr
   | InductiveDataExpr String [EgisonExpr]
