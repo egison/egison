@@ -6,8 +6,6 @@
   (lambda [%X]
     !((flip ∂/∂) [| x y z |] X)))
 
-(define $df-order tensor-order)
-
 (define $hodge
   (lambda [%A]
     (let {[$k (df-order A)]}
@@ -22,7 +20,6 @@
     (let {[$r (df-order A)]}
       (* (** -1 (+ (* N r) 1))
          (hodge (d (hodge A)))))))
-
 
 (define $grad d)
 (define $rot d)

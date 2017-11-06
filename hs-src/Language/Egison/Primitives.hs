@@ -186,6 +186,7 @@ primitives = [ ("b.+", plus)
 
              , ("tensor-size", tensorSize')
              , ("tensor-to-list", tensorToList')
+             , ("df-order", dfOrder')
 
              , ("itof", integerToFloat)
              , ("rtof", rationalToFloat)
@@ -455,6 +456,12 @@ tensorToList' = oneArg' $ tensorToList''
  where
   tensorToList'' (TensorData (Tensor _ xs _)) = return . Collection . Sq.fromList $ V.toList xs
   tensorToList'' x = return . Collection $ Sq.fromList $ [x]
+
+dfOrder' :: PrimitiveFunc
+dfOrder' = oneArg' $ dfOrder''
+ where
+  dfOrder'' (TensorData (Tensor ns _ is)) = return (toEgison ((fromIntegral ((length ns) - (length is))) :: Integer))
+  dfOrder'' _ = return (toEgison (0 :: Integer))
 
 --
 -- Transform

@@ -6,54 +6,20 @@
   (lambda [%X]
     !((flip ∂/∂) [| t x y z |] X)))
 
-(define $hodge0
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 i4 j1}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 4 0)_i1_i2_i3_i4 A)))))
-
-(define $hodge1
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 i4 j1}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 4 1)_i1_i2_i3_i4 A_j1 g~i1~j1)))))
-
-(define $hodge2
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 i4 j1 j2}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 4 2)_i1_i2_i3_i4 A_j1_j2 g~i1~j1 g~i2~j2)))))
-
-(define $hodge3
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 i4 j1 j2 j3}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 4 3)_i1_i2_i3_i4 A_j1_j2_j3 g~i1~j1 g~i2~j2 g~i3~j3)))))
-
-(define $hodge4
-  (lambda [%A]
-    (with-symbols {i1 i2 i3 i4 j1 j2 j3}
-      (* (sqrt (abs (M.det g_#_#)))
-         (. (ε' 4 4)_i1_i2_i3_i4 A_j1_j2_j3_j4 g~i1~j1 g~i2~j2 g~i3~j3 g~i4~j4)))))
-
 (define $hodge
   (lambda [%A]
-    (match (tensor-order A) integer
-      {[,0 (hodge0 A)]
-       [,1 (hodge1 A)]
-       [,2 (hodge2 A)]
-       [,3 (hodge3 A)]
-       [,4 (hodge4 A)]})))
+    (let {[$k (df-order A)]}
+      (with-symbols {i j}
+        (* (sqrt (abs (M.det g_#_#)))
+           (foldl . (. (subrefs (ε' N k) (map 1#i_%1 (between 1 N)))
+                       (subrefs A (map 1#j_%1 (between 1 k))))
+                  (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
 
 (define $δ
   (lambda [%A]
-    (let {[$r (tensor-order A)]}
+    (let {[$r (df-order A)]}
       (* (** -1 (+ (* N r) 1))
          (hodge (d (hodge A)))))))
-
-(define $grad d)
-(define $rot d)
-(define $div δ)
 
 (define $Δ
   (lambda [%A]
