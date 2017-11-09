@@ -1,0 +1,74 @@
+;;; Parameters
+
+(define $x [| θ φ |])
+
+(define $X [|(* r (sin θ) (cos φ)) ; = x
+             (* r (sin θ) (sin φ)) ; = y
+             (* r (cos θ))         ; = z
+             |])
+
+;;; Local basis
+
+(define $e ((flip ∂/∂) x~# X_#))
+e
+;[|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
+;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]
+;  |]_#~#
+
+;;; Metric tensor
+
+(define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {2 2}))
+(define $g~~ (M.inverse g_#_#))
+
+;;; Christoffel symbols
+
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_l x_k)
+        (∂/∂ g_j_k x_l)
+        (* -1 (∂/∂ g_k_l x_j)))))
+
+(define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
+
+;;; Connection form
+
+(define $d
+  (lambda [%A]
+    !((flip ∂/∂) x A)))
+
+(define $ω0 Γ~#_#_#)
+ω0~#_#_1;[| [| 0 0 |] [| 0 (/ (cos θ) (sin θ)) |] |]~#_#
+ω0~#_#_2;[| [| 0 (* -1 (sin θ) (cos θ)) |] [| (/ (cos θ) (sin θ)) 0 |] |]~#_#
+
+(define $A [|[| (/ 1 r) 0 |] [| 0 (/ 1 (* r (sin θ))) |]|])
+
+(define $ω (+ (. (M.inverse A)~i_j ω0~j_k A~k_l) (. (M.inverse A)~i_j (d A~j_l))))
+ω~#_#_1;[| [| 0 0 |] [| 0 0 |] |]~#_#
+ω~#_#_2;[| [| 0 (* -1 (cos θ)) |] [| (cos θ) 0 |] |]~#_#
+
+;;; Curvature form
+
+(define $wedge
+  (lambda [%X %Y]
+    !(. X Y)))
+
+(define $Ω'
+  (with-symbols {i j}
+    (+ (d ω~i_j)
+       (wedge ω~i_k ω~k_j))))
+
+(define $Ω
+  (with-symbols {i j t1 t2}
+    (- Ω'~i_j_t1_t2 Ω'~i_j_t2_t1)))
+
+Ω~#_#_1_2;[| [| 0 (sin θ) |] [| (* -1 (sin θ)) 0 |] |]~#_#
+Ω~#_#_2_1;[| [| 0 (* -1 (sin θ)) |] [| (sin θ) 0 |] |]~#_#
+
+Ω~1_2;[| [| 0 (sin θ) |] [| (* -1 (sin θ)) 0 |] |]
+Ω~2_1;[| [| 0 (* -1 (sin θ)) |] [| (sin θ) 0 |] |]
+
+;;; Euler form
+
+(define $euler-form (* (/ 1 (* 4 π)) (- Ω~1_2 Ω~2_1)))
+
+euler-form;[| [| 0 (/ (sin θ) (* 2 π)) |] [| (/ (* -1 (sin θ)) (* 2 π)) 0 |] |]
