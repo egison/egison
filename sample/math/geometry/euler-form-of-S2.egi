@@ -20,6 +20,9 @@ e
 (define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {2 2}))
 (define $g~~ (M.inverse g_#_#))
 
+g_#_#;[| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |]_#_#
+g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
+
 ;;; Christoffel symbols
 
 (define $Γ_j_k_l
@@ -72,3 +75,9 @@ e
 (define $euler-form (* (/ 1 (* 4 π)) (- Ω~1_2 Ω~2_1)))
 
 euler-form;[| [| 0 (/ (sin θ) (* 2 π)) |] [| (/ (* -1 (sin θ)) (* 2 π)) 0 |] |]
+
+; ∫ dθ dφ (/ (sin θ) (* 2 π))
+; = ∫ dθ (sin θ)
+; = [ (* -1 (cos θ)) ] 0-π
+; = (cos 0) - (cos π)
+; = 2
