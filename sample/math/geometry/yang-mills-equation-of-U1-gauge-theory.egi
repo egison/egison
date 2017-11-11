@@ -23,7 +23,7 @@
 
 (define $Δ
   (lambda [%A]
-    (match (tensor-order A) integer
+    (match (dfr-order A) integer
       {[,0 (δ (d A))]
        [,4 (d (δ A))]
        [_ (+ (d (δ A)) (δ (d A)))]})))

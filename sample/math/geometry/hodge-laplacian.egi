@@ -1,0 +1,43 @@
+;;;
+;;; Polar coordinates
+;;;
+
+(define $N 2)
+
+(define $x [|r θ|])
+
+(define $g__ [| [| 1 0 |] [| 0 r^2 |] |])
+(define $g~~ (M.inverse g_#_#))
+
+;;
+;;
+;;
+
+(define $d
+  (lambda [%X]
+    !((flip ∂/∂) x X)))
+
+(define $hodge
+  (lambda [%A]
+    (let {[$k (df-order A)]}
+      (with-symbols {i j}
+        (* (sqrt (abs (M.det g_#_#)))
+           (foldl . (. (subrefs A (map 1#j_%1 (between 1 k)))
+                       (subrefs (ε' N k) (map 1#i_%1 (between 1 N))))
+                  (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
+
+(define $δ
+  (lambda [%A]
+    (let {[$r (df-order A)]}
+      (* (** -1 (+ (* N r) 1))
+         (hodge (d (hodge A)))))))
+
+(define $Δ
+  (lambda [%A]
+    (match (df-order A) integer
+      {[,0 (δ (d A))]
+       [,2 (d (δ A))]
+       [_ (+ (d (δ A)) (δ (d A)))]})))
+
+(Δ (f r θ))
+;(/ (+ (* -1 (f|2|2 r θ)) (* -1 r (f|1 r θ)) (* -1 r^2 (f|1|1 r θ))) r^2)
