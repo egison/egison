@@ -639,7 +639,6 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   fn <- evalExpr env fnExpr
   xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
   case (ns, xs) of
-    ([1], x:[]) -> return $ x
     _ -> fromTensor (Tensor ns (V.fromList xs) [])
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do

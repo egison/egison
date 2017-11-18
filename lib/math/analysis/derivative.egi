@@ -52,11 +52,15 @@
 
 (define $grad ∇)
 
+;(define $taylor-expansion
+;  (lambda [$f $x $a]
+;    (map2 *
+;          (map 1#(/ (** (- x a) %1) (fact %1)) nats0)
+           ;          (map (substitute {[x a]} $) (iterate (∂/∂ $ x) f)))))
+
 (define $taylor-expansion
   (lambda [$f $x $a]
-    (map2 *
-          (map 1#(/ (** (- x a) %1) (fact %1)) nats0)
-          (map (substitute {[x a]} $) (iterate (∂/∂ $ x) f)))))
+    (multivariate-taylor-expansion f [| x |] [| a |])))
 
 (define $maclaurin-expansion (taylor-expansion $ $ 0))
 

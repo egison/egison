@@ -44,9 +44,9 @@
   ((compose fst snd fst) [[1 [2 3]] 4])
   2)
 
-(assert-equal "ref"
-  (ref (| 1 2 3 |) 2)
-  2)
+;(assert-equal "ref"
+;  (ref (| 1 2 3 |) 2)
+;  2)
 
 (assert-equal "eq?/m"
   (eq?/m integer 1 1)
