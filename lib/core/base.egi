@@ -41,8 +41,10 @@
 (define $flip (lambda [$fn] (lambda [$x $y] (fn y x))))
 
 (define $ref
-  (lambda [$xa $i]
-    (array-ref xa i)))
+  (lambda [%xa $is]
+    (match is (list integer)
+      {[<nil> xa]
+       [<cons $i $rs> (ref (array-ref xa i) rs)]})))
 
 (define $eq?/m
   (lambda [$a $x $y]

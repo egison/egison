@@ -45,6 +45,8 @@ module Language.Egison.Types
     , tref
     , enumTensorIndices
     , tTranspose'
+    , appendDFscripts
+    , removeDFscripts
     , tMap
     , tMap2
     , tMapN
@@ -169,7 +171,7 @@ import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any)
+import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -201,7 +203,9 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr String
   | FreshVarExpr
-  | IndexedExpr EgisonExpr [Index EgisonExpr]
+  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]
+  | SubrefsExpr EgisonExpr EgisonExpr
+  | SuprefsExpr EgisonExpr EgisonExpr
   | UserIndexedExpr EgisonExpr [UserIndex EgisonExpr]
   | PowerExpr EgisonExpr EgisonExpr
   | InductiveDataExpr String [EgisonExpr]
@@ -242,6 +246,9 @@ data EgisonExpr =
   | QuoteExpr EgisonExpr
   | QuoteFunctionExpr EgisonExpr
   
+  | WedgeExpr EgisonExpr
+  | WedgeApplyExpr EgisonExpr EgisonExpr
+
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
     
@@ -280,6 +287,7 @@ data Index a =
     Subscript a
   | Superscript a
   | SupSubscript a
+  | DFscript Integer Integer -- DifferentialForm
  deriving (Eq)
 
 data UserIndex a = Userscript a
@@ -468,6 +476,9 @@ instance HasTensor WHNFData where
 
 symbolScalarData :: String -> String -> EgisonValue
 symbolScalarData id name = ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))
+
+getSymId :: EgisonValue -> String
+getSymId (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))) = id
 
 mathExprToEgison :: ScalarData -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [(polyExprToEgison p1), (polyExprToEgison p2)]
@@ -840,12 +851,42 @@ tTranspose' is t@(Tensor ns xs js) = do
                   (Just j') -> do js' <- g is js
                                   return $ j':js'
 
+appendDFscripts :: Integer -> WHNFData -> EgisonM WHNFData
+appendDFscripts id (Intermediate (ITensor (Tensor s xs is))) = do
+  let k = fromIntegral ((length s) - (length is))
+  return $ Intermediate (ITensor (Tensor s xs (is ++ (map (DFscript id) [1..k]))))
+appendDFscripts id (Value (TensorData (Tensor s xs is))) = do
+  let k = fromIntegral ((length s) - (length is))
+  return $ Value (TensorData (Tensor s xs (is ++ (map (DFscript id) [1..k]))))
+appendDFscripts _ whnf = return whnf
+
+removeDFscripts :: WHNFData -> EgisonM WHNFData
+removeDFscripts (Intermediate (ITensor (Tensor s xs is))) = do
+  let (ds, js) = partition isDF is
+  (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
+  return (Intermediate (ITensor (Tensor s ys js)))
+ where
+  isDF (DFscript _ _) = True
+  isDF _ = False
+removeDFscripts (Value (TensorData (Tensor s xs is))) = do
+  let (ds, js) = partition isDF is
+  (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
+  return (Value (TensorData (Tensor s ys js)))
+ where
+  isDF (DFscript _ _) = True
+  isDF _ = False
+removeDFscripts whnf = return whnf
+
 tMap :: HasTensor a => (a -> EgisonM a) -> (Tensor a) -> EgisonM (Tensor a)
-tMap f (Tensor ns xs js) = do
+tMap f (Tensor ns xs js') = do
+  let k = fromIntegral $ (length ns) - (length js')
+  let js = (js' ++ (map (DFscript 0) [1..k]))
   xs' <- mapM f (V.toList xs) >>= return . V.fromList
   t <- toTensor (V.head xs')
   case t of
-    (Tensor ns1 _ js1) ->
+    (Tensor ns1 _ js1') -> do
+      let k1 = fromIntegral $ (length ns1) - (length js1')
+      let js1 = (js1' ++ (map (DFscript 0) [1..k1]))
       tContract' $ Tensor (ns ++ ns1) (V.concat (V.toList (V.map tensorElems xs'))) (js ++ js1)
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = f x >>= return . Scalar
@@ -857,7 +898,11 @@ tMapN f ts@((Tensor ns xs js):_) = do
 tMapN f xs = mapM fromTensor xs >>= f >>= return . Scalar
 
 tMap2 :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
-tMap2 f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
+tMap2 f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
+  let k1 = fromIntegral $ (length ns1) - (length js1')
+  let js1 = (js1' ++ (map (DFscript 0) [1..k1]))
+  let k2 = fromIntegral $ (length ns2) - (length js2')
+  let js2 = (js2' ++ (map (DFscript 0) [1..k2]))
   let (cjs, tjs1, tjs2) = h js1 js2
   t1' <- tTranspose (cjs ++ tjs1) t1
   t2' <- tTranspose (cjs ++ tjs2) t2
@@ -929,8 +974,14 @@ tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
       | otherwise -> throwError $ InconsistentTensorSize
 
 tProduct :: HasTensor a => (a -> a -> EgisonM a) -> (Tensor a) -> (Tensor a) -> EgisonM (Tensor a)
-tProduct f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
+tProduct f t1''@(Tensor ns1 xs1 js1') t2''@(Tensor ns2 xs2 js2') = do
+  let k1 = fromIntegral $ (length ns1) - (length js1')
+  let js1 = (js1' ++ (map (DFscript 0) [1..k1]))
+  let k2 = fromIntegral $ (length ns2) - (length js2')
+  let js2 = (js2' ++ (map (DFscript 0) [1..k2]))
   let (cjs1, cjs2, tjs1, tjs2) = h js1 js2
+  let t1 = (Tensor ns1 xs1 js1)
+  let t2 = (Tensor ns2 xs2 js2)
   case cjs1 of
     [] -> do
       xs' <- mapM (\is -> do let is1 = take (length ns1) is
@@ -948,7 +999,8 @@ tProduct f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2) (enumTensorIndices cns1)
       let ret = Tensor (cns1 ++ (tSize (head rts'))) (V.concat (map tToVector rts')) ((map g cjs1) ++ tIndex (head rts'))
-      tTranspose ((map g cjs1) ++ tjs1 ++ tjs2) ret
+      ret2 <- tTranspose (uniq ((map g cjs1) ++ tjs1 ++ tjs2)) ret
+      return ret2
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in
@@ -963,6 +1015,9 @@ tProduct f t1@(Tensor ns1 xs1 js1) t2@(Tensor ns2 xs2 js2) = do
   g :: Index EgisonValue -> Index EgisonValue
   g (Superscript i) = (SupSubscript i)
   g (Subscript i) = (SupSubscript i)
+  uniq :: [Index EgisonValue] -> [Index EgisonValue]
+  uniq [] = []
+  uniq (x:xs) = x:(uniq (delete x xs))
 tProduct f (Scalar x) (Tensor ns xs js) = do
   xs' <- V.mapM (f x) xs
   return $ Tensor ns xs' js
@@ -997,6 +1052,7 @@ tContract' t@(Tensor ns xs js) = do
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Superscript j) = i == j
   p (Subscript i) (Subscript j) = i == j
+  p (DFscript i1 j1) (DFscript i2 j2) = (i1 == i2) && (j1 == j2)
   p _ _ = False
 tContract' val = return val
 
@@ -1440,26 +1496,31 @@ instance Show (Index ()) where
   show (Superscript ()) = "~"
   show (Subscript ()) = "_"
   show (SupSubscript ()) = "~_"
+  show (DFscript _ _) = ""
 
 instance Show (Index String) where
   show (Superscript s) = "~" ++ s
   show (Subscript s) = "_" ++ s
   show (SupSubscript s) = "~_" ++ s
+  show (DFscript _ _) = ""
 
 instance Show (Index EgisonExpr) where
   show (Superscript i) = "~" ++ show i
   show (Subscript i) = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
+  show (DFscript _ _) = ""
 
 instance Show (Index ScalarData) where
   show (Superscript i) = "~" ++ show i
   show (Subscript i) = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
+  show (DFscript _ _) = ""
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = "~" ++ show i
   show (Subscript i) = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
+  show (DFscript i j) = "_d" ++ show i ++ show j
 
 instance Show (UserIndex EgisonExpr) where
   show (Userscript i) = "|" ++ show i

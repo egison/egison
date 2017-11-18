@@ -1,4 +1,4 @@
-; initiate a graph in a matrix
+; initiate a distance graph
 (define $A
   [|[| 0 19 36 66 99 65 |]
     [| 19 0 25 59 64 31 |]
@@ -6,7 +6,6 @@
     [| 66 59 84 0 59 29 |]
     [| 99 64 48 59 0 9 |]
     [| 65 31 28 29 9 0 |]|])
-
 
 (define $G.* (lambda [%t1 %t2] (with-symbols {i} (contract min (+ t1~#_i t2~i_#)))))
 

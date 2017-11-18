@@ -263,7 +263,7 @@ evalExpr env (UserIndexedExpr expr indices) = do
     (UserIndexedData val' is') -> return $ Value $ UserIndexedData val' (is' ++ js)
     _ -> return $ Value $ UserIndexedData val js
 
-evalExpr env (IndexedExpr expr indices) = do
+evalExpr env (IndexedExpr False expr indices) = do
   tensor <- case expr of
               (VarExpr var) -> do
                 let mObjRef = refVar env (show (Var var (map f indices)))
@@ -276,6 +276,7 @@ evalExpr env (IndexedExpr expr indices) = do
                       Subscript n -> evalExprDeep env n >>= return . Subscript
                       SupSubscript n -> evalExprDeep env n >>= return . SupSubscript
               ) indices
+  
   ret <- case tensor of
       (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
         js2 <- mapM (\i -> case i of
@@ -301,6 +302,54 @@ evalExpr env (IndexedExpr expr indices) = do
                                       Subscript k -> ScalarData k
                                       SupSubscript k -> ScalarData k
                               ) js2)
+  return ret
+ where
+  f :: Index a -> Index ()
+  f (Superscript _) = Superscript ()
+  f (Subscript _) = Subscript ()
+  f (SupSubscript _) = SupSubscript ()
+
+evalExpr env (SubrefsExpr expr jsExpr) = do
+  js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Subscript)
+  tensor <- case expr of
+              (VarExpr var) -> do
+                let mObjRef = refVar env (show (Var var (take (length js) (repeat (Subscript ())))))
+                case mObjRef of
+                  (Just objRef) -> evalRef objRef
+                  Nothing -> evalExpr env expr
+              _ -> evalExpr env expr
+  ret <- case tensor of
+      (Value (ScalarData _)) -> do
+        return $ tensor
+      (Value (TensorData (Tensor ns xs is))) -> do
+        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+      (Intermediate (ITensor (Tensor ns xs is))) -> do
+        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+      _ -> throwError $ NotImplemented "subrefs"
+  return ret
+ where
+  f :: Index a -> Index ()
+  f (Superscript _) = Superscript ()
+  f (Subscript _) = Subscript ()
+  f (SupSubscript _) = SupSubscript ()
+
+evalExpr env (SuprefsExpr expr jsExpr) = do
+  js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Superscript)
+  tensor <- case expr of
+              (VarExpr var) -> do
+                let mObjRef = refVar env (show (Var var (take (length js) (repeat (Superscript ())))))
+                case mObjRef of
+                  (Just objRef) -> evalRef objRef
+                  Nothing -> evalExpr env expr
+              _ -> evalExpr env expr
+  ret <- case tensor of
+      (Value (ScalarData _)) -> do
+        return $ tensor
+      (Value (TensorData (Tensor ns xs is))) -> do
+        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+      (Intermediate (ITensor (Tensor ns xs is))) -> do
+        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+      _ -> throwError $ NotImplemented "suprefs"
   return ret
  where
   f :: Index a -> Index ()
@@ -504,8 +553,37 @@ evalExpr env (CApplyExpr func arg) = do
     _ -> applyFunc env func (Value (makeTuple args))
 
 evalExpr env (ApplyExpr func arg) = do
-  func <- evalExpr env func
+  func <- evalExpr env func >>= appendDFscripts 0
   arg <- evalExpr env arg
+--  arg <- evalExpr env arg >>= fromTupleWHNF
+--  let k = fromIntegral (length arg)
+--  arg <-  mapM (\(_,j) -> appendDFscripts 0 j) (zip [1..k] arg) >>= makeITuple
+  case func of
+    Value (TensorData t@(Tensor ns fs js)) -> do
+      tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value >>= removeDFscripts
+    Intermediate (ITensor t@(Tensor ns fs js)) -> do
+      tMap (\f -> applyFunc env f arg) t >>= fromTensor
+    Value (MemoizedFunc name ref hashRef env names body) -> do
+      indices <- evalWHNF arg
+      indices' <- mapM fromEgison $ fromTupleValue indices
+      hash <- liftIO $ readIORef hashRef
+      case HL.lookup indices' hash of
+        Just objRef -> do
+          evalRef objRef
+        Nothing -> do
+          whnf <- applyFunc env (Value (Func Nothing env names body)) arg
+          retRef <- newEvaluatedObjectRef whnf
+          hash <- liftIO $ readIORef hashRef
+          liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
+          return whnf
+    _ -> applyFunc env func arg >>= removeDFscripts
+
+evalExpr env (WedgeApplyExpr func arg) = do
+  func <- evalExpr env func >>= appendDFscripts 0
+  arg <- evalExpr env arg >>= fromTupleWHNF
+  let k = fromIntegral (length arg)
+  arg <-  mapM (\(i,j) -> appendDFscripts i j) (zip [1..k] arg) >>= makeITuple
   case func of
     Value (TensorData t@(Tensor ns fs js)) -> do
       tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value
@@ -525,7 +603,7 @@ evalExpr env (ApplyExpr func arg) = do
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg
+    _ -> applyFunc env func arg >>= removeDFscripts
 
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
   mapM (\(x, y, z) -> do x' <- evalExprDeep env x
@@ -1348,6 +1426,11 @@ makeTuple :: [EgisonValue] -> EgisonValue
 makeTuple [] = Tuple []
 makeTuple [x] = x
 makeTuple xs = Tuple xs
+
+makeITuple :: [WHNFData] -> EgisonM WHNFData
+makeITuple [] = return $ Intermediate (ITuple [])
+makeITuple [x] = return $ x
+makeITuple xs = mapM newEvaluatedObjectRef xs >>= (return . Intermediate . ITuple)
 
 --
 -- String

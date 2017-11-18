@@ -1,0 +1,77 @@
+(define $N 4)
+
+(define $g [| [| -1 0 0 0 |] [| 0 1 0 0 |] [| 0 0 1 0 |] [| 0 0 0 1 |] |])
+
+(define $d
+  (lambda [%X]
+    !((flip ∂/∂) [| t x y z |] X)))
+
+(define $hodge
+  (lambda [%A]
+    (let {[$k (df-order A)]}
+      (with-symbols {i j}
+        (* (sqrt (abs (M.det g_#_#)))
+           (foldl . (. (subrefs A (map 1#j_%1 (between 1 k)))
+                       (subrefs (ε' N k) (map 1#i_%1 (between 1 N))))
+                  (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
+
+(define $δ
+  (lambda [%A]
+    (let {[$r (df-order A)]}
+      (* (** -1 (+ (* N r) 1))
+         (hodge (d (hodge A)))))))
+
+(define $Δ
+  (lambda [%A]
+    (match (dfr-order A) integer
+      {[,0 (δ (d A))]
+       [,4 (d (δ A))]
+       [_ (+ (d (δ A)) (δ (d A)))]})))
+
+(define $normalize2
+  (lambda [%A]
+    (with-symbols {t1 t2}
+      (- A_t1_t2 A_t2_t1))))
+
+; *(dt^dx) = -dy^dz
+(hodge (wedge [| 1 0 0 0 |] [| 0 1 0 0 |]))
+;[| [| 0 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 -1 |] [| 0 0 0 0 |] |]
+
+; *(dy^dz) = dt^dx
+(hodge (wedge [| 0 0 1 0 |] [| 0 0 0 1 |]))
+;[| [| 0 1 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] |]
+
+(normalize2 (d [| (φ t x y z) (Ax t x y z) (Ay t x y z) (Az t x y z) |]))
+;[|[| 0 (+ (Ax|1 t x y z) (* -1 (φ|2 t x y z))) (+ (Ay|1 t x y z) (* -1 (φ|3 t x y z))) (+ (Az|1 t x y z) (* -1 (φ|4 t x y z))) |]
+;  [| (+ (φ|2 t x y z) (* -1 (Ax|1 t x y z))) 0 (+ (Ay|2 t x y z) (* -1 (Ax|3 t x y z))) (+ (Az|2 t x y z) (* -1 (Ax|4 t x y z))) |]
+;  [| (+ (φ|3 t x y z) (* -1 (Ay|1 t x y z))) (+ (Ax|3 t x y z) (* -1 (Ay|2 t x y z))) 0 (+ (Az|3 t x y z) (* -1 (Ay|4 t x y z))) |]
+;  [| (+ (φ|4 t x y z) (* -1 (Az|1 t x y z))) (+ (Ax|4 t x y z) (* -1 (Az|2 t x y z))) (+ (Ay|4 t x y z) (* -1 (Az|3 t x y z))) 0 |]|]
+
+(define $F
+  [|[| 0 (Ex t x y z) (Ey t x y z) (Ez t x y z) |]
+    [| (* -1 (Ex t x y z)) 0 (Bz t x y z) (* -1 (By t x y z)) |]
+    [| (* -1 (Ey t x y z)) (* -1 (Bz t x y z)) 0 (Bx t x y z) |]
+    [| (* -1 (Ez t x y z)) (By t x y z) (* -1 (Bx t x y z)) 0 |]
+    |])
+
+(hodge (d F))
+;[|(+ (* -2 (Bz|4 t x y z)) (* -2 (By|3 t x y z)) (* -2 (Bx|2 t x y z)))
+;  (+ (* -2 (Ey|4 t x y z)) (* 2 (Ez|3 t x y z)) (* -2 (Bx|1 t x y z)))
+;  (+ (* 2 (Ex|4 t x y z)) (* -2 (Ez|2 t x y z)) (* -2 (By|1 t x y z)))
+;  (+ (* -2 (Ex|3 t x y z)) (* 2 (Ey|2 t x y z)) (* -2 (Bz|1 t x y z)))|]
+
+;(∇ B) = 0
+;(rot x E) = ∂t B
+;(rot y E) = ∂t B
+;(rot z E) = ∂t B
+
+(δ F)
+;[|(+ (* -2 (Ez|4 t x y z)) (* -2 (Ey|3 t x y z)) (* -2 (Ex|2 t x y z)))
+;  (+ (* 2 (By|4 t x y z)) (* -2 (Bz|3 t x y z)) (* -2 (Ex|1 t x y z)))
+;  (+ (* -2 (Bx|4 t x y z)) (* 2 (Bz|2 t x y z)) (* -2 (Ey|1 t x y z)))
+;  (+ (* 2 (Bx|3 t x y z)) (* -2 (By|2 t x y z)) (* -2 (Ez|1 t x y z)))|]
+
+;(∇ E) = 0
+;(rot x B) = ∂t E
+;(rot y B) = ∂t E
+;(rot z B) = ∂t E

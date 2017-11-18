@@ -134,11 +134,17 @@ desugar (MatchLambdaExpr matcher clauses) = do
 
 desugar (ArrayRefExpr expr nums) =
   case nums of
-    (TupleExpr nums') -> desugar $ IndexedExpr expr (map Subscript nums')
-    _ -> desugar $ IndexedExpr expr [Subscript nums]
+    (TupleExpr nums') -> desugar $ IndexedExpr False expr (map Subscript nums')
+    _ -> desugar $ IndexedExpr False expr [Subscript nums]
   
-desugar (IndexedExpr expr indices) = 
-  IndexedExpr <$> desugar expr <*> (mapM desugarIndex indices)
+desugar (IndexedExpr b expr indices) = 
+  IndexedExpr b <$> desugar expr <*> (mapM desugarIndex indices)
+
+desugar (SubrefsExpr expr1 expr2) = 
+  SubrefsExpr <$> desugar expr1 <*> desugar expr2
+
+desugar (SuprefsExpr expr1 expr2) = 
+  SuprefsExpr <$> desugar expr1 <*> desugar expr2
 
 desugar (PowerExpr expr1 expr2) = do
   expr1' <- desugar expr1
@@ -361,6 +367,11 @@ desugar (QuoteExpr expr) = do
 desugar (QuoteFunctionExpr expr) = do
   expr' <- desugar expr
   return $ QuoteFunctionExpr expr'
+
+desugar (WedgeExpr (ApplyExpr expr0 expr1)) = do
+  expr0' <- desugar expr0
+  expr1' <- desugar expr1
+  return $ WedgeApplyExpr expr0' expr1'
 
 desugar expr = return expr
 
