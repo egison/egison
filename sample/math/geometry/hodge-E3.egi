@@ -1,0 +1,22 @@
+(define $N 3)
+(define $params [| x y z |])
+(define $g [| [| 1 0 0 |] [| 0 1 0 |] [| 0 0 1 |] |])
+
+(define $hodge
+  (lambda [%A]
+    (let {[$k (df-order A)]}
+      (with-symbols {i j}
+        (* (sqrt (abs (M.det g_#_#)))
+           (foldl . (. (subrefs A (map 1#j_%1 (between 1 k)))
+                                                              (subrefs (ε' N k) (map 1#i_%1 (between 1 N))))
+                  (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
+
+(define $dx [| 1 0 0 |])
+(define $dy [| 0 1 0 |])
+(define $dz [| 0 0 1 |])
+
+(hodge dx)
+;[| [| 0 0 0 |] [| 0 0 1 |] [| 0 0 0 |] |] = (wedge dy dz)
+
+(hodge (wedge dx dy))
+;[| 0 0 1 |] = dz

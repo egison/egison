@@ -1,0 +1,43 @@
+;;; Parameters and metrics
+
+(define $N 2)
+
+(define $params [|x y|])
+
+(define $g__ [| [| (G_1_1 x y) (G_1_2 x y) |] [| (G_2_1 x y) (G_2_2 x y) |] |])
+(define $g~~ [| [| (G~1~1 x y) (G~1~2 x y) |] [| (G~2~1 x y) (G~2~2 x y) |] |])
+
+;;; Hodge Laplacian
+
+(define $d
+  (lambda [%X]
+    !((flip ∂/∂) params X)))
+
+(define $hodge
+  (lambda [%A]
+    (let {[$k (df-order A)]}
+      (with-symbols {i j}
+        (* (sqrt (abs (M.det g_#_#)))
+           (foldl . (. (subrefs A (map 1#j_%1 (between 1 k)))
+                       (subrefs (ε' N k) (map 1#i_%1 (between 1 N))))
+                  (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
+
+(define $δ
+  (lambda [%A]
+    (let {[$r (df-order A)]}
+      (* (** -1 (+ (* N r) 1))
+         (hodge (d (hodge A)))))))
+
+(define $Δ
+  (lambda [%A]
+    (match (df-order A) integer
+      {[,0 (δ (d A))]
+       [,2 (d (δ A))]
+       [_ (+ (d (δ A)) (δ (d A)))]})))
+
+(d (f x y))
+(hodge (d (f x y)))
+(d (hodge (d (f x y))))
+(δ (d (f x y)))
+(Δ (f x y))
+;
