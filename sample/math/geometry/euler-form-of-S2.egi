@@ -55,30 +55,20 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
   (lambda [%X %Y]
     !(. X Y)))
 
-(define $Ω'
-  (with-symbols {i j}
-    (+ (d ω~i_j)
-       (wedge ω~i_k ω~k_j))))
-
 (define $Ω
-  (with-symbols {i j t1 t2}
-    (- Ω'~i_j_t1_t2 Ω'~i_j_t2_t1)))
-
+  (with-symbols {i j}
+    (df-normalize (+ (d ω~i_j)
+                     (wedge ω~i_k ω~k_j)))))
 Ω~#_#_1_2;[| [| 0 (sin θ) |] [| (* -1 (sin θ)) 0 |] |]~#_#
 Ω~#_#_2_1;[| [| 0 (* -1 (sin θ)) |] [| (sin θ) 0 |] |]~#_#
-
 Ω~1_2;[| [| 0 (sin θ) |] [| (* -1 (sin θ)) 0 |] |]
 Ω~2_1;[| [| 0 (* -1 (sin θ)) |] [| (sin θ) 0 |] |]
 
 ;;; Euler form
 
-(define $euler-form (* (/ 1 (* 4 π)) (- Ω~1_2 Ω~2_1)))
+(define $euler-form (* (/ 1 (* 2 π)) (- Ω~1_2 Ω~2_1)))
 
 euler-form;[| [| 0 (/ (sin θ) (* 2 π)) |] [| (/ (* -1 (sin θ)) (* 2 π)) 0 |] |]
 
-; χ(S^2)
-; = ∫ dθ dφ (/ (sin θ) (* 2 π))
-; = ∫ dθ (sin θ)
-; = [ (* -1 (cos θ)) ] 0-π
-; = (cos 0) - (cos π)
-; = 2
+; χ(S^2) = ∫ dθ dφ (/ (sin θ) (* 2 π)) = ∫ dθ (sin θ)
+; = [ (* -1 (cos θ)) ] 0-π = (cos 0) - (cos π) = 2

@@ -41,7 +41,7 @@
 (hodge (wedge [| 0 0 1 0 |] [| 0 0 0 1 |]))
 ;[| [| 0 1 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] [| 0 0 0 0 |] |]
 
-(normalize2 (d [| (φ t x y z) (Ax t x y z) (Ay t x y z) (Az t x y z) |]))
+(df-normalize (d [| (φ t x y z) (Ax t x y z) (Ay t x y z) (Az t x y z) |]))
 ;[|[| 0 (+ (Ax|1 t x y z) (* -1 (φ|2 t x y z))) (+ (Ay|1 t x y z) (* -1 (φ|3 t x y z))) (+ (Az|1 t x y z) (* -1 (φ|4 t x y z))) |]
 ;  [| (+ (φ|2 t x y z) (* -1 (Ax|1 t x y z))) 0 (+ (Ay|2 t x y z) (* -1 (Ax|3 t x y z))) (+ (Az|2 t x y z) (* -1 (Ax|4 t x y z))) |]
 ;  [| (+ (φ|3 t x y z) (* -1 (Ay|1 t x y z))) (+ (Ax|3 t x y z) (* -1 (Ay|2 t x y z))) 0 (+ (Az|3 t x y z) (* -1 (Ay|4 t x y z))) |]
