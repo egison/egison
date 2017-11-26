@@ -88,11 +88,12 @@ parseExpr = doParse $ do
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadLibraryFile file =
-  if file =~ "^lib/"
-    then liftIO (getDataFileName file) >>= loadFile
-    else do homeDir <- liftIO $ getHomeDirectory
-            loadFile $ homeDir ++ "/.egison/" ++ file
+loadLibraryFile file = do
+  homeDir <- liftIO $ getHomeDirectory
+  doesExist <- liftIO $ doesFileExist $ homeDir ++ "/.egison/" ++ file
+  if doesExist
+    then loadFile $ homeDir ++ "/.egison/" ++ file
+    else liftIO (getDataFileName file) >>= loadFile
 
 -- |Load a file
 loadFile :: FilePath -> EgisonM [EgisonTopExpr]

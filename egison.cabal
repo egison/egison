@@ -101,4 +101,3 @@ Executable egison
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
   ghc-options:  -O3 -threaded -eventlog -rtsopts
-  ghc-prof-options:   -auto-all
