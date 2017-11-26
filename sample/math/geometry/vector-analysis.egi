@@ -29,7 +29,7 @@
   (lambda [%A]
     (match (tensor-order A) integer
       {[,0 (δ (d A))]
-       [,3 (d (δ A))]
+       [,N (d (δ A))]
        [_ (+ (d (δ A)) (δ (d A)))]})))
 
 (grad (+ (** x 2) (** y 2) (** z 2)))

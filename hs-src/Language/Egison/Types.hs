@@ -44,6 +44,7 @@ module Language.Egison.Types
     , tIndex
     , tref
     , enumTensorIndices
+    , tTranspose
     , tTranspose'
     , appendDFscripts
     , removeDFscripts
@@ -56,8 +57,6 @@ module Language.Egison.Types
     , tContract'
     , tConcat
     , tConcat'
-    , tClearIndex
-    , tClearIndex'
     -- * Scalar
     , symbolScalarData
     , mathExprToEgison
@@ -1087,20 +1086,6 @@ tConcat' ts@((Tensor ns v _):_) = do
 tConcat' ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') []
-
-tClearIndex :: HasTensor a => Tensor a -> Tensor a
-tClearIndex (Tensor ns xs js) = Tensor ns xs (tClearIndex' js)
-tClearIndex s@(Scalar _) = s
-
-tClearIndex' :: [Index EgisonValue] -> [Index EgisonValue]
-tClearIndex' js = reverse (g (reverse js))
- where
-  g :: [Index EgisonValue] -> [Index EgisonValue]
-  g [] = []
-  g ((Superscript (ScalarData (Div (Plus [(Term 1 [(Symbol _ (':':':':':':_) [], 1)])]) (Plus [(Term 1 [])])))):js) = g js
-  g ((Subscript (ScalarData (Div (Plus [(Term 1 [(Symbol _ (':':':':':':_) [], 1)])]) (Plus [(Term 1 [])])))):js) = g js
-  g ((SupSubscript (ScalarData (Div (Plus [(Term 1 [(Symbol _ (':':':':':':_) [], 1)])]) (Plus [(Term 1 [])])))):js) = g js
-  g js = js
 
 getScalar :: (Tensor a) -> EgisonM a
 getScalar (Scalar x) = return x

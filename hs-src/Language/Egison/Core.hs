@@ -47,6 +47,7 @@ import Control.Monad.Except hiding (mapM)
 import Control.Monad.State hiding (mapM, state)
 import Control.Monad.Trans.Maybe
 
+import Data.List (partition)
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
 import Data.Ratio
@@ -424,65 +425,32 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   let bindings = zip vars syms
   whnf <- evalExpr (extendEnv env bindings) expr
   case whnf of
-    (Value val) -> removeVarsFromIndices symId val >>= return . Value
+    (Value (TensorData (Tensor ns xs js))) -> do
+      removeTmpscripts symId (Value (TensorData (Tensor ns xs js)))
     (Intermediate (ITensor (Tensor ns xs js))) -> do
-      js' <- removeVars symId (tClearIndex' js)
-      return (Intermediate (ITensor (Tensor ns xs js')))
+      removeTmpscripts symId (Intermediate (ITensor (Tensor ns xs js)))
     _ -> return whnf
  where
-  removeVarsFromIndices :: String -> EgisonValue -> EgisonM EgisonValue
-  removeVarsFromIndices symId (TensorData (Tensor ns xs js)) = do
-    xs' <- mapM (removeVarsFromIndices symId) xs
-    js' <- removeVars symId (tClearIndex' js)
-    fromTensor (Tensor ns xs' js')
-  removeVarsFromIndices symId (ScalarData s) = f symId s >>= return . ScalarData
-  removeVarsFromIndices _ val = return val
-  f :: String -> ScalarData -> EgisonM ScalarData
-  f symId (Div (Plus ts1) (Plus ts2)) = do
-    ts1' <- mapM (g symId) ts1
-    ts2' <- mapM (g symId) ts2
-    return (Div (Plus ts1') (Plus ts2'))
-  g :: String -> TermExpr -> EgisonM TermExpr
-  g symId (Term a xns) = do
-    let (xs, ns) = unzip xns
-    xs' <- mapM (h symId) xs
-    return (Term a (zip xs' ns))
-  h :: String -> SymbolExpr -> EgisonM SymbolExpr
-  h symId (Symbol id name js) = do
-    js' <- removeVars symId (map (\j -> case j of
-                                          Superscript i -> Superscript (ScalarData i)
-                                          Subscript i -> Subscript (ScalarData i)
-                                          SupSubscript i -> SupSubscript (ScalarData i)
-                                  )js)
-    let js'' = map (\j -> case j of
-                            Superscript (ScalarData i) -> Superscript i
-                            Subscript (ScalarData i) -> Subscript i
-                            SupSubscript (ScalarData i) -> SupSubscript i
-                    ) js'
-    return (Symbol id name js'')
-  h symId (Apply fn xs) = do
-    xs' <- mapM (f symId) xs
-    return (Apply fn xs')
-  h symId (Quote x) = do
-    x' <- f symId x
-    return (Quote x')
-  removeVars :: String -> [Index EgisonValue] -> EgisonM [Index EgisonValue]
-  removeVars _ [] = return []
-  removeVars symId ((Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js)
-    | symId == id = return []
-    | otherwise = do js' <- removeVars symId js
-                     return $ (Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js'
-  removeVars symId ((Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js)
-    | symId == id = return []
-    | otherwise = do js' <- removeVars symId js
-                     return $ (Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js'
-  removeVars symId ((SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js)
-    | symId == id = return []
-    | otherwise = do js' <- removeVars symId js
-                     return $ (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))):js'
-  removeVars symId (j:js) = do
-    js' <- removeVars symId js
-    return $ j:js'
+  isTmpSymbol :: String -> (Index EgisonValue) -> Bool
+  isTmpSymbol symId (Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
+    | symId == id = True
+    | otherwise = False
+  isTmpSymbol symId (Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
+    | symId == id = True
+    | otherwise = False
+  isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
+    | symId == id = True
+    | otherwise = False
+  removeTmpscripts :: String -> WHNFData -> EgisonM WHNFData
+  removeTmpscripts symId (Intermediate (ITensor (Tensor s xs is))) = do
+    let (ds, js) = partition (isTmpSymbol symId) is
+    (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
+    return (Intermediate (ITensor (Tensor s ys js)))
+  removeTmpscripts symId (Value (TensorData (Tensor s xs is))) = do
+    let (ds, js) = partition (isTmpSymbol symId) is
+    (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
+    return (Value (TensorData (Tensor s ys js)))
+  removeDFscripts _ whnf = return whnf
     
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
