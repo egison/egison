@@ -147,47 +147,47 @@
 (define $rewrite-rule-for-cos-and-sin-expr
   (lambda [$expr]
     (match [expr expr] [math-expr math-expr]
-      {[[<div (+ (* $a (,cos $慮) $mr)
+      {[[<div (+ (* $a (,cos $x) $mr)
                  $pr1)
               $pr2>
-         (| <div (+ (* _ (| (,cos ,(/ 慮 2)) (,sin ,(/ 慮 2))) _) _) _>
-            <div _ (+ (* _ (| (,cos ,(/ 慮 2)) (,sin ,(/ 慮 2))) _) _)>)]
-        (rewrite-rule-for-cos-and-sin-expr (/' (+' (*' a (-' (cos (/ 慮 2))^2 (sin (/ 慮 2))^2) mr) pr1) pr2))]
-       [[<div (+ (* $a (,sin $慮) $mr)
+         (| <div (+ (* _ (| (,cos ,(/ x 2)) (,sin ,(/ x 2))) _) _) _>
+            <div _ (+ (* _ (| (,cos ,(/ x 2)) (,sin ,(/ x 2))) _) _)>)]
+        (rewrite-rule-for-cos-and-sin-expr (/' (+' (*' a (-' (cos (/ x 2))^2 (sin (/ x 2))^2) mr) pr1) pr2))]
+       [[<div (+ (* $a (,sin $x) $mr)
                  $pr1)
               $pr2>
-         (| <div (+ (* _ (| (,cos ,(/ 慮 2)) (,sin ,(/ 慮 2))) _) _) _>
-            <div _ (+ (* _ (| (,cos ,(/ 慮 2)) (,sin ,(/ 慮 2))) _) _)>)]
-        (rewrite-rule-for-cos-and-sin-expr (/' (+' (*' (*' a 2) (*' (cos (/ 慮 2)) (sin (/ 慮 2))) mr) pr1) pr2))]
+         (| <div (+ (* _ (| (,cos ,(/ x 2)) (,sin ,(/ x 2))) _) _) _>
+            <div _ (+ (* _ (| (,cos ,(/ x 2)) (,sin ,(/ x 2))) _) _)>)]
+        (rewrite-rule-for-cos-and-sin-expr (/' (+' (*' (*' a 2) (*' (cos (/ x 2)) (sin (/ x 2))) mr) pr1) pr2))]
        [[<div $pr2
-              (+ (* $a (,cos $慮) $mr)
+              (+ (* $a (,cos $x) $mr)
                  $pr1)>
-         (| <div (+ (* _ (| (,cos ,(/ 慮 2)) (,sin ,(/ 慮 2))) _) _) _>
-            <div _ (+ (* _ (| (,cos ,(/ 慮 2)) (,sin ,(/ 慮 2))) _) _)>)]
-        (rewrite-rule-for-cos-and-sin-expr (/' pr2 (+' (*' a (-' (cos (/ 慮 2))^2 (sin (/ 慮 2))^2) mr) pr1)))]
+         (| <div (+ (* _ (| (,cos ,(/ x 2)) (,sin ,(/ x 2))) _) _) _>
+            <div _ (+ (* _ (| (,cos ,(/ x 2)) (,sin ,(/ x 2))) _) _)>)]
+        (rewrite-rule-for-cos-and-sin-expr (/' pr2 (+' (*' a (-' (cos (/ x 2))^2 (sin (/ x 2))^2) mr) pr1)))]
        [[<div $pr2
-              (+ (* $a (,sin $慮) $mr)
+              (+ (* $a (,sin $x) $mr)
                  $pr1)>
-         (| <div (+ (* _ (| (,cos ,(/ 慮 2)) (,sin ,(/ 慮 2))) _) _) _>
-            <div _ (+ (* _ (| (,cos ,(/ 慮 2)) (,sin ,(/ 慮 2))) _) _)>)]
-        (rewrite-rule-for-cos-and-sin-expr (/' pr2 (+' (*' (*' a 2) (*' (cos (/ 慮 2)) (sin (/ 慮 2))) mr) pr1)))]
+         (| <div (+ (* _ (| (,cos ,(/ x 2)) (,sin ,(/ x 2))) _) _) _>
+            <div _ (+ (* _ (| (,cos ,(/ x 2)) (,sin ,(/ x 2))) _) _)>)]
+        (rewrite-rule-for-cos-and-sin-expr (/' pr2 (+' (*' (*' a 2) (*' (cos (/ x 2)) (sin (/ x 2))) mr) pr1)))]
        [_ expr]})))
 
 (define $rewrite-rule-for-cos-and-sin-poly
   (lambda [$poly]
     (match poly math-expr
-      {[(+ (* $a (,cos $慮)^,2 $mr)
-           (* ,a (,sin ,慮)^,2 ,mr)
+      {[(+ (* $a (,cos $x)^,2 $mr)
+           (* ,a (,sin ,x)^,2 ,mr)
            $pr)
         (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a mr)))]
        [(+ (* $a $mr)
-           (* ,(* -1 a) (,sin $慮)^,2 ,mr)
+           (* ,(* -1 a) (,sin $x)^,2 ,mr)
            $pr)
-        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (cos 慮)^2 mr)))]
+        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (cos x)^2 mr)))]
        [(+ (* $a $mr)
-           (* ,(* -1 a) (,cos $慮)^,2 ,mr)
+           (* ,(* -1 a) (,cos $x)^,2 ,mr)
            $pr)
-        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (sin 慮)^2 mr)))]
+        (rewrite-rule-for-cos-and-sin-poly (+' pr (*' a (sin x)^2 mr)))]
        [_ poly]})))
 
 (define $rewrite-rule-for-cos-to-sin 1#(map-terms rewrite-rule-for-cos-to-sin-term' %1))
