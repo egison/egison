@@ -195,8 +195,8 @@
 (define $rewrite-rule-for-cos-to-sin-term'
   (lambda [$term]
     (match term math-expr
-      {[(* $a (,cos $θ)^,2 $mr)
-        (*' a (-' 1 (sin θ)^2) (rewrite-rule-for-cos-to-sin-term' mr))]
+      {[(* $a (,cos $x)^,2 $mr)
+        (*' a (-' 1 (sin x)^2) (rewrite-rule-for-cos-to-sin-term' mr))]
        [_ term]})))
 
 ;;
@@ -231,8 +231,8 @@
 (define $rewrite-rule-for-cos-to-sin-term'
   (lambda [$term]
     (match term math-expr
-      {[(* $a (,cos $θ)^,2 $mr)
-        (*' a (-' 1 (sin θ)^2) (rewrite-rule-for-cos-to-sin-term' mr))]
+      {[(* $a (,cos $x)^,2 $mr)
+        (*' a (-' 1 (sin x)^2) (rewrite-rule-for-cos-to-sin-term' mr))]
        [_ term]})))
 
 ;;
