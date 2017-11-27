@@ -143,6 +143,7 @@ module Language.Egison.Types
     , isCollection'
     , isArray'
     , isHash'
+    , readUTF8File
     ) where
 
 import Prelude hiding (foldr, mappend, mconcat)
@@ -1822,3 +1823,9 @@ isHash' (Value (StrHash _)) = return $ Value $ Bool True
 isHash' (Intermediate (IIntHash _)) = return $ Value $ Bool True
 isHash' (Intermediate (IStrHash _)) = return $ Value $ Bool True
 isHash' _ = return $ Value $ Bool False
+
+readUTF8File :: FilePath -> (IO String)
+readUTF8File name = do
+  h <- openFile name ReadMode
+  hSetEncoding h utf8
+  hGetContents h

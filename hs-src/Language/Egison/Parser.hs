@@ -100,7 +100,7 @@ loadFile :: FilePath -> EgisonM [EgisonTopExpr]
 loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
-  input <- liftIO $ readFile file
+  input <- liftIO $ readUTF8File file
   exprs <- readTopExprs $ shebang input
   concat <$> mapM  recursiveLoad exprs
  where
