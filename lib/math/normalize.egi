@@ -213,12 +213,12 @@
        [_ term]})))
 
 ;;
-;; ∂/∂
+;; d/d
 ;;
 
-(define $rewrite-rule-for-∂/∂ (map-polys rewrite-rule-for-∂/∂-poly $))
+(define $rewrite-rule-for-d/d (map-polys rewrite-rule-for-d/d-poly $))
 
-(define $rewrite-rule-for-∂/∂-poly
+(define $rewrite-rule-for-d/d-poly
   (lambda [$poly]
     (match poly math-expr
       {[(+ (* $a <apply (& $g <symbol $f $subs>) $args>^$n $mr)
@@ -249,12 +249,12 @@
        [_ term]})))
 
 ;;
-;; ∂/∂
+;; d/d
 ;;
 
-(define $rewrite-rule-for-∂/∂ (map-polys rewrite-rule-for-∂/∂-poly $))
+(define $rewrite-rule-for-d/d (map-polys rewrite-rule-for-d/d-poly $))
 
-(define $rewrite-rule-for-∂/∂-poly
+(define $rewrite-rule-for-d/d-poly
   (lambda [$poly]
     (match poly math-expr
       {[(+ (* $a <apply (& $g <symbol $f $subs>) $args>^$n $mr)
