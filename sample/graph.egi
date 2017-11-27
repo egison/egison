@@ -80,7 +80,6 @@
                    <cons <edge ,x_1 $x_i>
                          (loop $j [2 (- i 1)]
                            <cons <edge ,x_j ,x_i> ...>
-                           ...)
-                         _>
+                           ...)>
                    _)>
            x])))
