@@ -427,7 +427,7 @@ truncate' = oneArg $ \val -> numberUnaryOp' val
   numberUnaryOp' (ScalarData (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
   numberUnaryOp' (ScalarData (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return $ toEgison (quot x y)
   numberUnaryOp' (Float x _)           = return $ toEgison ((truncate x) :: Integer)
-  numberUnaryOp' val                   = throwError $ TypeMismatch "ratinal or float" (Value val)
+  numberUnaryOp' val                   = throwError $ TypeMismatch "rational or float" (Value val)
 
 realPart :: PrimitiveFunc
 realPart =  oneArg $ realPart'
