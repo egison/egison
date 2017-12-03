@@ -317,6 +317,7 @@ scalarBinaryOp mOp = twoArgs $ \val val' -> do
   scalarBinaryOp' val val'
  where
   scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
+  scalarBinaryOp' (ScalarData _)  val             = throwError $ TypeMismatch "number" (Value val)
   scalarBinaryOp' val             _               = throwError $ TypeMismatch "number" (Value val)
 
 plus :: PrimitiveFunc
