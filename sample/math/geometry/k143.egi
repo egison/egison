@@ -1,0 +1,27 @@
+(define $params [| r θ |])
+
+(define $d
+  (lambda [%X]
+    !((flip ∂/∂) params X)))
+
+(define $wedge
+  (lambda [%X %Y]
+    !(. X Y)))
+
+(define $u
+  (lambda [$r $θ]
+    (* r (** e (* 2 π i θ)))))
+
+(define $u'
+  (lambda [$r $θ]
+    (* r (** e (* -2 π i θ)))))
+
+(d (u r θ))
+;[| (exp (* 2 π θ i)) (* 2 r (exp (* 2 π θ i)) π i) |]
+
+(d (u' r θ))
+;;[| (exp (* -2 π θ i)) (* -2 r (exp (* -2 π θ i)) π i) |]
+
+(df-normalize (wedge (d (u r θ))
+                     (d (u' r θ))))
+;[| [| 0 (* -2 (exp (* 2 π θ i)) r (exp (* -2 π θ i)) π i) |] [| (* 2 r (exp (* 2 π θ i)) π (exp (* -2 π θ i)) i) 0 |] |]
