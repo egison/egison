@@ -17,6 +17,8 @@
    [rewrite-rule-for-i 1#(contain-symbol? i %1)]
    [rewrite-rule-for-w-term 1#(contain-symbol? w %1)]
    [rewrite-rule-for-rtu-term 1#(contain-function? rtu %1)]
+   [rewrite-rule-for-exp-term 1#(contain-function? exp %1)]
+   [rewrite-rule-for-**-term 1#(contain-function? ** %1)]
    [rewrite-rule-for-w-poly 1#(contain-symbol? w %1)]
    [rewrite-rule-for-rtu-poly 1#(contain-function? rtu %1)]
    [rewrite-rule-for-sqrt 1#(contain-function? sqrt %1)]
@@ -135,6 +137,36 @@
     (match term math-expr
       {[(* $a (,rt $n $x)^(& ?(gte? $ n) $k) $r)
         (*' a (**' x (quotient k n)) (**' (rt n x) (remainder k n)) r)]
+       [_ term]})))
+
+;;
+;; exp
+;;
+
+(define $rewrite-rule-for-exp (map-terms rewrite-rule-for-exp-term $))
+
+(define $rewrite-rule-for-exp-term
+  (lambda [$term]
+    (match term math-expr
+      {[(* $a (,exp $x)^(& ?(gte? $ 2) $n) $r)
+        (rewrite-rule-for-exp (*' a (exp (* x n)) r))]
+       [(* $a (,exp $x) (,exp $y) $r)
+        (rewrite-rule-for-exp (*' a (exp (+ x y)) r))]
+       [_ term]})))
+
+;;
+;; exp
+;;
+
+(define $rewrite-rule-for-** (map-terms rewrite-rule-for-**-term $))
+
+(define $rewrite-rule-for-**-term
+  (lambda [$term]
+    (match term math-expr
+      {[(* $a (,** $x $y)^(& ?(gte? $ 2) $n) $r)
+        (rewrite-rule-for-** (*' a (** x (* y n)) r))]
+       [(* $a (,** $x $y) (,** ,x $z) $r)
+        (rewrite-rule-for-** (*' a (** x (+ y z)) r))]
        [_ term]})))
 
 ;;
