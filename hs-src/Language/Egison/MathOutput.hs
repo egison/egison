@@ -31,6 +31,7 @@ data MathExpr = Atom String
               | Tensor [MathExpr] [MathIndex]
               | Tuple [MathExpr]
               | Collection [MathExpr]
+              | Exp MathExpr
               deriving (Eq) 
 
 data MathIndex = Super MathExpr
@@ -71,6 +72,7 @@ showMathExprAsciiMath (Tensor lvs mis)
   | otherwise = "(" ++ (showMathExprAsciiMathArg lvs) ++ ")_(" ++ (showMathExprAsciiMathIndices (filter isSub mis)) ++ ")^(" ++ (showMathExprAsciiMathIndices (filter (not . isSub) mis)) ++ ")"
 showMathExprAsciiMath (Tuple lvs) = "(" ++ showMathExprAsciiMathArg lvs ++ ")"
 showMathExprAsciiMath (Collection lvs) = "{" ++ showMathExprAsciiMathArg lvs ++ "}"
+showMathExprAsciiMath (Exp x) = "e^" ++ showMathExprAsciiMath x
 
 isSub :: MathIndex -> Bool
 isSub x = case x of
@@ -122,6 +124,7 @@ showMathExprLatex (Tensor lvs mis) = case (head lvs) of
                                        _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors lvs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
 showMathExprLatex (Tuple lvs) = "(" ++ showMathExprLatexArg lvs ", " ++ ")"
 showMathExprLatex (Collection lvs) = "{" ++ showMathExprLatexArg lvs ", " ++ "}"
+showMathExprLatex (Exp x) = "e^" ++ showMathExprLatex x
 
 showMathExprLatex' :: MathExpr -> String
 showMathExprLatex' (Plus lvs) = "(" ++ showMathExprLatex (Plus lvs) ++ ")"
@@ -229,9 +232,18 @@ parseCollection = do
     char '}'
     return $ Collection xs
 
+parseExp :: Parser MathExpr
+parseExp = do
+    string "(exp"
+    spaces
+    x <- parseAtom
+    char ')'
+    return $ Exp x
+
 parseExpr' :: Parser MathExpr
 parseExpr' = parseNegativeAtom
          <|> parseAtom
+         <|> parseExp
          <|> try parsePlus
          <|> try parseMultiply
          <|> try parseFunction
