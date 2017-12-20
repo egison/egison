@@ -103,6 +103,7 @@ showMathIndexLatex (Super a) = showMathExprLatex a
 showMathIndexLatex (Sub a) = showMathExprLatex a
 
 showMathExprLatex :: MathExpr -> String
+showMathExprLatex (Atom "#") = ""
 showMathExprLatex (Atom func) = func
 showMathExprLatex (NegativeAtom func) = "-" ++ func
 showMathExprLatex (Plus []) = ""
@@ -126,9 +127,7 @@ showMathExprLatex (Tensor lvs mis) = case (head lvs) of
                                        _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors lvs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
 showMathExprLatex (Tuple lvs) = "(" ++ showMathExprLatexArg lvs ", " ++ ")"
 showMathExprLatex (Collection lvs) = "{" ++ showMathExprLatexArg lvs ", " ++ "}"
-showMathExprLatex (Exp (Atom x)) = "e^" ++ showMathExprAsciiMath (Atom x)
-showMathExprLatex (Exp (NegativeAtom x)) = "e^" ++ showMathExprAsciiMath (NegativeAtom x)
-showMathExprLatex (Exp x) = "e^(" ++ showMathExprAsciiMath x ++ ")"
+showMathExprLatex (Exp x) = "e^{" ++ showMathExprAsciiMath x ++ "}"
 
 showMathExprLatex' :: MathExpr -> String
 showMathExprLatex' (Plus lvs) = "(" ++ showMathExprLatex (Plus lvs) ++ ")"
