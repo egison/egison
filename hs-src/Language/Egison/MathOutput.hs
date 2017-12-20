@@ -20,7 +20,7 @@ mathExprToAsciiMath input = case parse parseExpr "math-expr" input of
 mathExprToLatex :: String -> String
 mathExprToLatex input = case parse parseExpr "math-expr" input of
     Left err -> "[#f " ++ input ++ "]"
-    Right val -> "[#t \"" ++ (showMathExprAsciiMath val) ++ "\"]"
+    Right val -> "[#t \"" ++ (showMathExprLatex val) ++ "\"]"
 
 data MathExpr = Atom String
               | NegativeAtom String
