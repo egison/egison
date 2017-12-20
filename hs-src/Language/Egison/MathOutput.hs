@@ -88,8 +88,9 @@ showMathExprLatex (Multiply []) = ""
 showMathExprLatex (Multiply [a]) = showMathExprLatex a
 showMathExprLatex (Multiply lvs) = (showMathExprLatex' (head lvs)) ++ " " ++ (showMathExprLatex (Multiply (tail lvs)))
 showMathExprLatex (Power lv1 lv2) = (showMathExprLatex lv1) ++ "^" ++ (showMathExprLatex lv2)
-showMathExprLatex (Func (Atom "sqrt") lvs) = "\\sqrt{" ++ (showMathExprLatexArg lvs) ++ "}"
-showMathExprLatex (Func (Atom "/") lvs) = "\\frac{" ++ (showMathExprLatex (lvs !! 0)) ++ "}{" ++ (showMathExprLatex (lvs !! 1)) ++ "}"
+showMathExprLatex (Func (Atom "sqrt") [x]) = "\\sqrt{" ++ (showMathExprLatex x) ++ "}"
+showMathExprLatex (Func (Atom "rt") [x, y]) = "\\sqrt[" ++ (showMathExprLatex x) ++ "]{" ++ (showMathExprLatex y) ++ "}"
+showMathExprLatex (Func (Atom "/") [x, y]) = "\\frac{" ++ (showMathExprLatex x) ++ "}{" ++ (showMathExprLatex y) ++ "}"
 showMathExprLatex (Func f lvs) = (showMathExprLatex f) ++ "(" ++ (showMathExprLatexArg lvs) ++ ")"
 showMathExprLatex (Tensor lvs us ds)
     | us == [] = "(" ++ (showMathExprLatexArg lvs) ++ ")"
