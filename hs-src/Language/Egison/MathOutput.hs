@@ -103,7 +103,7 @@ showMathIndexLatex (Super a) = showMathExprLatex a
 showMathIndexLatex (Sub a) = showMathExprLatex a
 
 showMathExprLatex :: MathExpr -> String
-showMathExprLatex (Atom "#") = ""
+showMathExprLatex (Atom "#") = "\\#"
 showMathExprLatex (Atom a) = a
 showMathExprLatex (NegativeAtom a) = "-" ++ a
 showMathExprLatex (Plus []) = ""
