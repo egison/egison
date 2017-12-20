@@ -15,6 +15,7 @@ module Language.Egison.Core
     , evalTopExprsTestOnly
     , evalTopExprsNoIO
     , evalTopExpr
+    , evalTopExpr'
     , evalExpr
     , evalExprDeep
     , evalRef

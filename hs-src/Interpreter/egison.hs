@@ -20,6 +20,7 @@ import System.IO
 
 import Language.Egison
 import Language.Egison.Util
+import Language.Egison.MathOutput
 
 main :: IO ()
 main = do args <- getArgs
@@ -28,7 +29,7 @@ main = do args <- getArgs
           case opts of
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
-            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optFieldInfo = fieldInfo, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag} -> do
+            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optFieldInfo = fieldInfo, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag, optMathExpr = mathExprLang} -> do
               coreEnv <- if noIOFlag then initialEnvNoIO else initialEnv
               mEnv <- evalEgisonTopExprs coreEnv $ (map Load loadLibs) ++ (map LoadFile loadFiles)
               case mEnv of
@@ -60,7 +61,7 @@ main = do args <- getArgs
                             Nothing ->
                               case nonOpts of
                                 [] -> do
-                                  when bannerFlag showBanner >> repl noIOFlag env prompt >> when bannerFlag showByebyeMessage >> exitWith ExitSuccess
+                                  when bannerFlag showBanner >> repl noIOFlag mathExprLang env prompt >> when bannerFlag showByebyeMessage >> exitWith ExitSuccess
                                 (file:args) -> do
                                   case opts of
                                     Options {optTestOnly = True} -> do
@@ -86,7 +87,8 @@ data Options = Options {
     optNoIO :: Bool,
     optShowBanner :: Bool,
     optTestOnly :: Bool,
-    optPrompt :: String
+    optPrompt :: String,
+    optMathExpr :: Maybe String
     }
 
 defaultOptions :: Options
@@ -103,7 +105,8 @@ defaultOptions = Options {
     optNoIO = False,
     optShowBanner = True,
     optTestOnly = False,
-    optPrompt = "> "
+    optPrompt = "> ",
+    optMathExpr = Nothing
     }
 
 options :: [OptDescr (Options -> Options)]
@@ -161,7 +164,11 @@ options = [
   Option ['F'] ["--field"]
     (ReqArg (\d opts -> opts {optFieldInfo = optFieldInfo opts ++ [(readFieldOption d)]})
             "String")
-    "field information"
+    "field information",
+  Option ['M'] ["math"]
+    (ReqArg (\lang opts -> opts {optMathExpr = Just lang})
+            "String")
+    "output in LaTeX format"
   ]
 
 readFieldOption :: String -> (String, String)
@@ -227,8 +234,8 @@ showBanner = do
 showByebyeMessage :: IO ()
 showByebyeMessage = putStrLn $ "Leaving Egison Interpreter."
 
-repl :: Bool -> Env -> String -> IO ()
-repl noIOFlag env prompt = do
+repl :: Bool -> (Maybe String) -> Env -> String -> IO ()
+repl noIOFlag mathExprLang env prompt = do
   loop env
  where
   settings :: MonadIO m => FilePath -> Settings m
@@ -247,12 +254,18 @@ repl noIOFlag env prompt = do
         putStrLn "error: No IO support"
         loop env
       (_, Just (topExpr, _)) -> do
-        result <- liftIO $ runEgisonTopExpr env topExpr
+        result <- liftIO $ runEgisonTopExpr' env topExpr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
             loop env
-          Right env' -> loop env')
+          Right (Nothing, env') -> loop env'
+          Right (Just output, env') ->
+            case mathExprLang of
+              Nothing -> putStrLn output >> loop env'
+              (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop env'
+              (Just "latex") -> putStrLn (mathExprToLatex output) >> loop env'
+             )
     `catch`
     (\e -> case e of
              UserInterrupt -> putStrLn "" >> loop env
