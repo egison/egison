@@ -243,7 +243,7 @@ parseExp = do
 parseExpr' :: Parser MathExpr
 parseExpr' = parseNegativeAtom
          <|> parseAtom
-         <|> parseExp
+         <|> try parseExp
          <|> try parsePlus
          <|> try parseMultiply
          <|> try parseFunction
