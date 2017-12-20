@@ -104,17 +104,20 @@ showMathIndexLatex (Sub a) = showMathExprLatex a
 
 showMathExprLatex :: MathExpr -> String
 showMathExprLatex (Atom "#") = ""
-showMathExprLatex (Atom func) = func
-showMathExprLatex (NegativeAtom func) = "-" ++ func
+showMathExprLatex (Atom a) = a
+showMathExprLatex (NegativeAtom a) = "-" ++ a
 showMathExprLatex (Plus []) = ""
-showMathExprLatex (Plus [a]) = showMathExprLatex a
-showMathExprLatex (Plus lvs) = case (lvs !! 1) of
-                                 NegativeAtom na -> (showMathExprLatex (head lvs)) ++ " - " ++ na ++ (showMathExprLatex (Plus $ tail $ tail lvs))
-                                 Plus (NegativeAtom na:rest) -> (showMathExprLatex (head lvs)) ++ " - " ++ na ++ " + " ++ (showMathExprLatex (Plus $ rest ++ (tail $ tail lvs)))
-                                 Multiply (NegativeAtom na:rest) -> (showMathExprLatex (head lvs)) ++ " - " ++ na ++ " " ++ (showMathExprLatex (Plus $ rest ++ (tail $ tail lvs)))
-                                 _ -> (showMathExprLatex (head lvs)) ++ " + " ++ (showMathExprLatex (Plus $ tail lvs))
+showMathExprLatex (Plus [x]) = showMathExprLatex x
+showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexPlus xs
+ where
+  showMathExprLatexPlus [] = ""
+  showMathExprLatexPlus ((NegativeAtom a):xs) = " - " ++ showMathExprLatex (Atom a) ++ showMathExprLatexPlus xs
+  showMathExprLatexPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExprLatex (Multiply (Atom a:ys)) ++ showMathExprLatexPlus xs
+  showMathExprLatexPlus ((Plus ys):xs) = " + (" ++ showMathExprLatex (Plus ys) ++ ")" ++ showMathExprLatexPlus xs
+  showMathExprLatexPlus (x:xs) = " + " ++ showMathExprLatex x ++ showMathExprLatexPlus xs
 showMathExprLatex (Multiply []) = ""
 showMathExprLatex (Multiply [a]) = showMathExprLatex a
+showMathExprLatex (Multiply ((Atom "1"):lvs)) = showMathExprLatex (Multiply lvs)
 showMathExprLatex (Multiply ((NegativeAtom "1"):lvs)) = "-" ++ (showMathExprLatex (Multiply lvs))
 showMathExprLatex (Multiply lvs) = (showMathExprLatex' (head lvs)) ++ " " ++ (showMathExprLatex (Multiply (tail lvs)))
 showMathExprLatex (Power lv1 lv2) = (showMathExprLatex lv1) ++ "^" ++ (showMathExprLatex lv2)
