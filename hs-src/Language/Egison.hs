@@ -17,6 +17,7 @@ module Language.Egison
        , evalEgisonTopExprsTestOnly
        , runEgisonExpr
        , runEgisonTopExpr
+       , runEgisonTopExpr'
        , runEgisonTopExprs
        , runEgisonTopExprsNoIO
        -- * Load Egison files
@@ -64,6 +65,10 @@ runEgisonExpr env input = fromEgisonM $ readExpr input >>= evalExprDeep env
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr :: Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExpr env input = fromEgisonM $ readTopExpr input >>= evalTopExpr env
+
+-- |eval an Egison top expression. Input is a Haskell string.
+runEgisonTopExpr' :: Env -> String -> IO (Either EgisonError (Maybe String, Env))
+runEgisonTopExpr' env input = fromEgisonM $ readTopExpr input >>= evalTopExpr' env
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: Env -> String -> IO (Either EgisonError Env)

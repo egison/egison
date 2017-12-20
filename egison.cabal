@@ -78,6 +78,7 @@ Library
                    Language.Egison.Parser
                    Language.Egison.Primitives
                    Language.Egison.Util
+                   Language.Egison.MathOutput
   Other-modules:   Paths_egison
   ghc-options:  -O3
 
