@@ -15,12 +15,12 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 mathExprToAsciiMath :: String -> String
 mathExprToAsciiMath input = case parse parseExpr "math-expr" input of
                               Left err -> "[#f " ++ input ++ "]"
-                              Right val -> "[#t \"" ++ (showMathExprAsciiMath val) ++ "\"]"
+                              Right val -> "[#t \"" ++ showMathExprAsciiMath val ++ "\"]"
 
 mathExprToLatex :: String -> String
 mathExprToLatex input = case parse parseExpr "math-expr" input of
                           Left err -> "[#f " ++ input ++ "]"
-                          Right val -> "[#t \"" ++ (showMathExprLatex val) ++ "\"]"
+                          Right val -> "[#t \"" ++ showMathExprLatex val ++ "\"]"
 
 data MathExpr = Atom String
               | NegativeAtom String
@@ -51,25 +51,25 @@ showMathExprAsciiMath (Atom func) = func
 showMathExprAsciiMath (NegativeAtom func) = "-" ++ func
 showMathExprAsciiMath (Plus []) = ""
 showMathExprAsciiMath (Plus [a]) = showMathExprAsciiMath a
-showMathExprAsciiMath (Plus lvs) = case (lvs !! 1) of
-                                     NegativeAtom na -> (showMathExprAsciiMath (head lvs)) ++ " - " ++ na ++ (showMathExprAsciiMath (Plus $ tail $ tail lvs))
-                                     Plus (NegativeAtom na:rest) -> (showMathExprAsciiMath (head lvs)) ++ " - " ++ na ++ " + " ++ (showMathExprAsciiMath (Plus $ rest ++ (tail $ tail lvs)))
-                                     Multiply (NegativeAtom na:rest) -> (showMathExprAsciiMath (head lvs)) ++ " - " ++ na ++ " " ++ (showMathExprAsciiMath (Plus $ rest ++ (tail $ tail lvs)))
-                                     _ -> (showMathExprAsciiMath (head lvs)) ++ " + " ++ (showMathExprAsciiMath (Plus $ tail lvs))
+showMathExprAsciiMath (Plus lvs) = case lvs !! 1 of
+                                     NegativeAtom na -> showMathExprAsciiMath (head lvs) ++ " - " ++ na ++ showMathExprAsciiMath (Plus $ tail $ tail lvs)
+                                     Plus (NegativeAtom na:rest) -> showMathExprAsciiMath (head lvs) ++ " - " ++ na ++ " + " ++ showMathExprAsciiMath (Plus $ rest ++ tail (tail lvs))
+                                     Multiply (NegativeAtom na:rest) -> showMathExprAsciiMath (head lvs) ++ " - " ++ na ++ " " ++ showMathExprAsciiMath (Plus $ rest ++ tail (tail lvs))
+                                     _ -> showMathExprAsciiMath (head lvs) ++ " + " ++ showMathExprAsciiMath (Plus $ tail lvs)
 showMathExprAsciiMath (Multiply []) = ""
 showMathExprAsciiMath (Multiply [a]) = showMathExprAsciiMath a
-showMathExprAsciiMath (Multiply ((NegativeAtom "1"):lvs)) = "-" ++ (showMathExprAsciiMath (Multiply lvs))
-showMathExprAsciiMath (Multiply lvs) = (showMathExprAsciiMath' (head lvs)) ++ " " ++ (showMathExprAsciiMath (Multiply (tail lvs)))
-showMathExprAsciiMath (Power lv1 lv2) = (showMathExprAsciiMath lv1) ++ "^" ++ (showMathExprAsciiMath lv2)
+showMathExprAsciiMath (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprAsciiMath (Multiply lvs)
+showMathExprAsciiMath (Multiply lvs) = showMathExprAsciiMath' (head lvs) ++ " " ++ showMathExprAsciiMath (Multiply (tail lvs))
+showMathExprAsciiMath (Power lv1 lv2) = showMathExprAsciiMath lv1 ++ "^" ++ showMathExprAsciiMath lv2
 showMathExprAsciiMath (Func f lvs) = case f of
-                                       Atom "/" -> if (length lvs) == 2 then "frac{" ++ (showMathExprAsciiMath (lvs !! 0)) ++ "}{" ++ (showMathExprAsciiMath (lvs !! 1)) ++ "}"
-                                                                        else (showMathExprAsciiMath f) ++ "(" ++ (showMathExprAsciiMathArg lvs) ++ ")"
-                                       _ -> (showMathExprAsciiMath f) ++ "(" ++ (showMathExprAsciiMathArg lvs) ++ ")"
+                                       Atom "/" -> if length lvs == 2 then "frac{" ++ showMathExprAsciiMath (head lvs) ++ "}{" ++ showMathExprAsciiMath (lvs !! 1) ++ "}"
+                                                                        else showMathExprAsciiMath f ++ "(" ++ showMathExprAsciiMathArg lvs ++ ")"
+                                       _ -> showMathExprAsciiMath f ++ "(" ++ showMathExprAsciiMathArg lvs ++ ")"
 showMathExprAsciiMath (Tensor lvs mis)
-  | mis == [] = "(" ++ (showMathExprAsciiMathArg lvs) ++ ")"
-  | filter isSub mis == [] = "(" ++ (showMathExprAsciiMathArg lvs) ++ ")^(" ++ (showMathExprAsciiMathIndices mis) ++ ")"
-  | filter (not . isSub) mis == [] = "(" ++ (showMathExprAsciiMathArg lvs) ++ ")_(" ++ (showMathExprAsciiMathIndices mis) ++ ")"
-  | otherwise = "(" ++ (showMathExprAsciiMathArg lvs) ++ ")_(" ++ (showMathExprAsciiMathIndices (filter isSub mis)) ++ ")^(" ++ (showMathExprAsciiMathIndices (filter (not . isSub) mis)) ++ ")"
+  | null mis = "(" ++ showMathExprAsciiMathArg lvs ++ ")"
+  | not (any isSub mis) = "(" ++ showMathExprAsciiMathArg lvs ++ ")^(" ++ showMathExprAsciiMathIndices mis ++ ")"
+  | not (any (not . isSub) mis) = "(" ++ showMathExprAsciiMathArg lvs ++ ")_(" ++ showMathExprAsciiMathIndices mis ++ ")"
+  | otherwise = "(" ++ showMathExprAsciiMathArg lvs ++ ")_(" ++ showMathExprAsciiMathIndices (filter isSub mis) ++ ")^(" ++ showMathExprAsciiMathIndices (filter (not . isSub) mis) ++ ")"
 showMathExprAsciiMath (Tuple lvs) = "(" ++ showMathExprAsciiMathArg lvs ++ ")"
 showMathExprAsciiMath (Collection lvs) = "{" ++ showMathExprAsciiMathArg lvs ++ "}"
 showMathExprAsciiMath (Exp x) = "e^" ++ showMathExprAsciiMath x
@@ -86,11 +86,11 @@ showMathExprAsciiMath' val = showMathExprAsciiMath val
 showMathExprAsciiMathArg :: [MathExpr] -> String
 showMathExprAsciiMathArg [] = ""
 showMathExprAsciiMathArg [a] = showMathExprAsciiMath a
-showMathExprAsciiMathArg lvs = (showMathExprAsciiMath (head lvs)) ++ ", " ++ (showMathExprAsciiMathArg $ tail lvs)
+showMathExprAsciiMathArg lvs = showMathExprAsciiMath (head lvs) ++ ", " ++ (showMathExprAsciiMathArg (tail lvs))
 
 showMathExprAsciiMathIndices :: [MathIndex] -> String
 showMathExprAsciiMathIndices [a] = showMathIndexAsciiMath a
-showMathExprAsciiMathIndices lvs = (showMathIndexAsciiMath (head lvs)) ++ (showMathExprAsciiMathIndices $ tail lvs)
+showMathExprAsciiMathIndices lvs = showMathIndexAsciiMath (head lvs) ++ showMathExprAsciiMathIndices (tail lvs)
 
 --
 -- Show (Latex)
@@ -105,21 +105,21 @@ showMathExprLatex (Atom func) = func
 showMathExprLatex (NegativeAtom func) = "-" ++ func
 showMathExprLatex (Plus []) = ""
 showMathExprLatex (Plus [a]) = showMathExprLatex a
-showMathExprLatex (Plus lvs) = case (lvs !! 1) of
-                                 NegativeAtom na -> (showMathExprLatex (head lvs)) ++ " - " ++ na ++ (showMathExprLatex (Plus $ tail $ tail lvs))
-                                 Plus (NegativeAtom na:rest) -> (showMathExprLatex (head lvs)) ++ " - " ++ na ++ " + " ++ (showMathExprLatex (Plus $ rest ++ (tail $ tail lvs)))
-                                 Multiply (NegativeAtom na:rest) -> (showMathExprLatex (head lvs)) ++ " - " ++ na ++ " " ++ (showMathExprLatex (Plus $ rest ++ (tail $ tail lvs)))
-                                 _ -> (showMathExprLatex (head lvs)) ++ " + " ++ (showMathExprLatex (Plus $ tail lvs))
+showMathExprLatex (Plus lvs) = case lvs !! 1 of
+                                 NegativeAtom na -> showMathExprLatex (head lvs) ++ " - " ++ na ++ showMathExprLatex (Plus $ tail $ tail lvs)
+                                 Plus (NegativeAtom na:rest) -> showMathExprLatex (head lvs) ++ " - " ++ na ++ " + " ++ showMathExprLatex (Plus $ rest ++ tail (tail lvs))
+                                 Multiply (NegativeAtom na:rest) -> showMathExprLatex (head lvs) ++ " - " ++ na ++ " " ++ showMathExprLatex (Plus $ rest ++ tail (tail lvs))
+                                 _ -> showMathExprLatex (head lvs) ++ " + " ++ showMathExprLatex (Plus $ tail lvs)
 showMathExprLatex (Multiply []) = ""
 showMathExprLatex (Multiply [a]) = showMathExprLatex a
-showMathExprLatex (Multiply ((NegativeAtom "1"):lvs)) = "-" ++ (showMathExprLatex (Multiply lvs))
-showMathExprLatex (Multiply lvs) = (showMathExprLatex' (head lvs)) ++ " " ++ (showMathExprLatex (Multiply (tail lvs)))
-showMathExprLatex (Power lv1 lv2) = (showMathExprLatex lv1) ++ "^" ++ (showMathExprLatex lv2)
-showMathExprLatex (Func (Atom "sqrt") [x]) = "\\sqrt{" ++ (showMathExprLatex x) ++ "}"
-showMathExprLatex (Func (Atom "rt") [x, y]) = "\\sqrt[" ++ (showMathExprLatex x) ++ "]{" ++ (showMathExprLatex y) ++ "}"
-showMathExprLatex (Func (Atom "/") [x, y]) = "\\frac{" ++ (showMathExprLatex x) ++ "}{" ++ (showMathExprLatex y) ++ "}"
-showMathExprLatex (Func f lvs) = (showMathExprLatex f) ++ "(" ++ (showMathExprLatexArg lvs ", ") ++ ")"
-showMathExprLatex (Tensor lvs mis) = case (head lvs) of
+showMathExprLatex (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprLatex (Multiply lvs)
+showMathExprLatex (Multiply lvs) = showMathExprLatex' (head lvs) ++ " " ++ showMathExprLatex (Multiply (tail lvs))
+showMathExprLatex (Power lv1 lv2) = showMathExprLatex lv1 ++ "^" ++ showMathExprLatex lv2
+showMathExprLatex (Func (Atom "sqrt") [x]) = "\\sqrt{" ++ showMathExprLatex x ++ "}"
+showMathExprLatex (Func (Atom "rt") [x, y]) = "\\sqrt[" ++ showMathExprLatex x ++ "]{" ++ showMathExprLatex y ++ "}"
+showMathExprLatex (Func (Atom "/") [x, y]) = "\\frac{" ++ showMathExprLatex x ++ "}{" ++ showMathExprLatex y ++ "}"
+showMathExprLatex (Func f lvs) = showMathExprLatex f ++ "(" ++ showMathExprLatexArg lvs ", " ++ ")"
+showMathExprLatex (Tensor lvs mis) = case head lvs of
                                        Tensor _ _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors lvs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
                                        _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors lvs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
 showMathExprLatex (Tuple lvs) = "(" ++ showMathExprLatexArg lvs ", " ++ ")"
@@ -133,20 +133,20 @@ showMathExprLatex' val = showMathExprLatex val
 showMathExprLatexArg :: [MathExpr] -> String -> String
 showMathExprLatexArg [] _ = ""
 showMathExprLatexArg [a] _ = showMathExprLatex a
-showMathExprLatexArg lvs s = (showMathExprLatex (head lvs)) ++ s ++ (showMathExprLatexArg  (tail lvs) s)
+showMathExprLatexArg lvs s = showMathExprLatex (head lvs) ++ s ++ showMathExprLatexArg  (tail lvs) s
 
 showMathExprLatexIndices :: [MathIndex] -> String
 showMathExprLatexIndices [a] = showMathIndexLatex a
-showMathExprLatexIndices lvs = (showMathIndexLatex (head lvs)) ++ (showMathExprLatexIndices $ tail lvs)
+showMathExprLatexIndices lvs = showMathIndexLatex (head lvs) ++ showMathExprLatexIndices (tail lvs)
 
 showMathExprLatexScript :: [MathIndex] -> String
 showMathExprLatexScript [] = ""
-showMathExprLatexScript lvs = if (isSub (head lvs)) then let (a, b) = span isSub lvs in "_{" ++ (showMathExprLatexIndices a) ++ "}" ++ showMathExprLatexScript b
-                                                             else let (a, b) = span (not . isSub) lvs in "^{" ++ (showMathExprLatexIndices a) ++ "}" ++ showMathExprLatexScript b
+showMathExprLatexScript lvs = if isSub (head lvs) then let (a, b) = span isSub lvs in "_{" ++ showMathExprLatexIndices a ++ "}" ++ showMathExprLatexScript b
+                                                           else let (a, b) = break isSub lvs in "^{" ++ showMathExprLatexIndices a ++ "}" ++ showMathExprLatexScript b
 
 showMathExprLatexVectors :: [MathExpr] -> String
 showMathExprLatexVectors [] = ""
-showMathExprLatexVectors ((Tensor lvs []):r) = showMathExprLatexArg lvs " & " ++ " \\\\ " ++ showMathExprLatexVectors r
+showMathExprLatexVectors (Tensor lvs []:r) = showMathExprLatexArg lvs " & " ++ " \\\\ " ++ showMathExprLatexVectors r
 showMathExprLatexVectors lvs = showMathExprLatexArg lvs " \\\\ " ++ "\\\\ "
 
 --
@@ -166,7 +166,7 @@ parseAtom :: Parser MathExpr
 parseAtom = do 
     first <- letter <|> symbol <|> digit
     rest <- many (letter <|> digit <|> symbol)
-    let atom = [first] ++ rest
+    let atom = first : rest
     return $ Atom atom
 
 parseNegativeAtom :: Parser MathExpr
@@ -174,14 +174,14 @@ parseNegativeAtom = do
     char '-'
     first <- letter <|> symbol <|> digit
     rest <- many (letter <|> digit <|> symbol)
-    let atom = [first] ++ rest
+    let atom = first : rest
     return $ NegativeAtom atom
 
 parseList :: Parser [MathExpr]
 parseList = sepEndBy parseExpr spaces
 
 parseScript :: Parser MathIndex
-parseScript = (char '_' >> parseExpr >>= return . Sub) <|> (char '~' >> parseExpr >>= return . Super)
+parseScript = (Sub <$> (char '_' >> parseExpr)) <|> (Super <$> (char '_' >> parseExpr))
 
 parsePlus :: Parser MathExpr
 parsePlus = do
@@ -215,7 +215,7 @@ parseTensor = do
     xs <- parseList
     spaces0
     string "|]"
-    ys <- many $ parseScript
+    ys <- many  parseScript
     return $ Tensor xs ys
 
 parseTuple :: Parser MathExpr
@@ -254,4 +254,4 @@ parseExpr' = parseNegativeAtom
 parseExpr :: Parser MathExpr
 parseExpr = do
     x <- parseExpr'
-    option x  $ Power x <$> (try $ char '^' >> parseExpr')
+    option x  $ Power x <$> try (char '^' >> parseExpr')
