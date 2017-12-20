@@ -29,6 +29,8 @@ data MathExpr = Atom String
               | Power MathExpr MathExpr
               | Func MathExpr [MathExpr]
               | Tensor [MathExpr] [MathIndex]
+              | Tuple [MathExpr]
+              | Collection [MathExpr]
               deriving (Eq) 
 
 data MathIndex = Super MathExpr
@@ -67,6 +69,8 @@ showMathExprAsciiMath (Tensor lvs mis)
   | filter isSub mis == [] = "(" ++ (showMathExprAsciiMathArg lvs) ++ ")^(" ++ (showMathExprAsciiMathIndices mis) ++ ")"
   | filter (not . isSub) mis == [] = "(" ++ (showMathExprAsciiMathArg lvs) ++ ")_(" ++ (showMathExprAsciiMathIndices mis) ++ ")"
   | otherwise = "(" ++ (showMathExprAsciiMathArg lvs) ++ ")_(" ++ (showMathExprAsciiMathIndices (filter isSub mis)) ++ ")^(" ++ (showMathExprAsciiMathIndices (filter (not . isSub) mis)) ++ ")"
+showMathExprAsciiMath (Tuple lvs) = "(" ++ showMathExprAsciiMathArg lvs ++ ")"
+showMathExprAsciiMath (Collection lvs) = "{" ++ showMathExprAsciiMathArg lvs ++ "}"
 
 isSub :: MathIndex -> Bool
 isSub x = case x of
@@ -113,10 +117,11 @@ showMathExprLatex (Func (Atom "sqrt") [x]) = "\\sqrt{" ++ (showMathExprLatex x) 
 showMathExprLatex (Func (Atom "rt") [x, y]) = "\\sqrt[" ++ (showMathExprLatex x) ++ "]{" ++ (showMathExprLatex y) ++ "}"
 showMathExprLatex (Func (Atom "/") [x, y]) = "\\frac{" ++ (showMathExprLatex x) ++ "}{" ++ (showMathExprLatex y) ++ "}"
 showMathExprLatex (Func f lvs) = (showMathExprLatex f) ++ "(" ++ (showMathExprLatexArg lvs ", ") ++ ")"
-    -- \begin{pmatrix} 10 & 20 & 30 \\ 20 & 40 & 60 \\ 30 & 60 & 90 \\ \end{pmatrix}_{ij}
 showMathExprLatex (Tensor lvs mis) = case (head lvs) of
-                                       Tensor _ _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors lvs ++ " \\end{pmatrix}" ++ showMathExprLatexScript mis
-                                       _ -> " "
+                                       Tensor _ _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors lvs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
+                                       _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors lvs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
+showMathExprLatex (Tuple lvs) = "(" ++ showMathExprLatexArg lvs ", " ++ ")"
+showMathExprLatex (Collection lvs) = "{" ++ showMathExprLatexArg lvs ", " ++ "}"
 
 showMathExprLatex' :: MathExpr -> String
 showMathExprLatex' (Plus lvs) = "(" ++ showMathExprLatex (Plus lvs) ++ ")"
@@ -139,6 +144,7 @@ showMathExprLatexScript lvs = if (isSub (head lvs)) then let (a, b) = span isSub
 showMathExprLatexVectors :: [MathExpr] -> String
 showMathExprLatexVectors [] = ""
 showMathExprLatexVectors ((Tensor lvs []):r) = showMathExprLatexArg lvs " & " ++ " \\\\ " ++ showMathExprLatexVectors r
+showMathExprLatexVectors lvs = showMathExprLatexArg lvs " \\\\ " ++ "\\\\ "
 
 --
 -- Parser
@@ -209,6 +215,20 @@ parseTensor = do
     ys <- many $ parseScript
     return $ Tensor xs ys
 
+parseTuple :: Parser MathExpr
+parseTuple = do
+    char '['
+    xs <- parseList
+    char ']'
+    return $ Tuple xs
+
+parseCollection :: Parser MathExpr
+parseCollection = do
+    char '{'
+    xs <- parseList
+    char '}'
+    return $ Collection xs
+
 parseExpr' :: Parser MathExpr
 parseExpr' = parseNegativeAtom
          <|> parseAtom
@@ -216,6 +236,8 @@ parseExpr' = parseNegativeAtom
          <|> try parseMultiply
          <|> try parseFunction
          <|> try parseTensor
+         <|> try parseTuple
+         <|> try parseCollection
 
 parseExpr :: Parser MathExpr
 parseExpr = do
