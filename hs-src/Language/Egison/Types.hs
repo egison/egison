@@ -46,6 +46,7 @@ module Language.Egison.Types
     , enumTensorIndices
     , tTranspose
     , tTranspose'
+    , tFlipIndices
     , appendDFscripts
     , removeDFscripts
     , tMap
@@ -273,6 +274,7 @@ data EgisonExpr =
   | TensorMapExpr EgisonExpr EgisonExpr
   | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
   | TransposeExpr EgisonExpr EgisonExpr
+  | FlipIndicesExpr EgisonExpr
 
   | SomethingExpr
   | UndefinedExpr
@@ -280,6 +282,7 @@ data EgisonExpr =
 
 data Arg =
     ScalarArg String
+  | InvertedScalarArg String
   | TensorArg String
  deriving (Eq)
 
@@ -851,6 +854,14 @@ tTranspose' is t@(Tensor ns xs js) = do
                   (Just j') -> do js' <- g is js
                                   return $ j':js'
 
+tFlipIndices :: HasTensor a => (Tensor a) -> EgisonM (Tensor a)
+tFlipIndices (Tensor ns xs js) = do
+  return $ Tensor ns xs (map flipIndex js)
+ where
+  flipIndex (Subscript i) = Superscript i
+  flipIndex (Superscript i) = Subscript i
+  flipIndex x = x
+
 appendDFscripts :: Integer -> WHNFData -> EgisonM WHNFData
 appendDFscripts id (Intermediate (ITensor (Tensor s xs is))) = do
   let k = fromIntegral ((length s) - (length is))
@@ -1186,6 +1197,7 @@ instance Show EgisonValue where
 
 instance Show Arg where
   show (ScalarArg name) = "$" ++ name
+  show (InvertedScalarArg name) = "*$" ++ name
   show (TensorArg name) = "%" ++ name
 
 instance Show ScalarData where

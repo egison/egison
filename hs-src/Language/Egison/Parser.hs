@@ -474,6 +474,7 @@ argNames = return <$> argName
 
 argName :: Parser Arg
 argName = try (char '$' >> ident >>= return . ScalarArg)
+      <|> try (string "*$" >> ident >>= return . InvertedScalarArg)
       <|> try (char '%' >> ident >>= return . TensorArg)
 
 ioExpr :: Parser EgisonExpr
