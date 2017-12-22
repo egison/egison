@@ -6,11 +6,16 @@ Licence     : MIT
 This module provides utility functions.
 -}
 
-module Language.Egison.MathOutput (mathExprToAsciiMath, mathExprToLatex) where
+module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex) where
 
 import Control.Monad
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
+
+mathExprToHaskell :: String -> String
+mathExprToHaskell input = case parse parseExpr "math-expr" input of
+                            Left err -> input
+                            Right val -> "#haskell\"" ++ show val ++ "\""
 
 mathExprToAsciiMath :: String -> String
 mathExprToAsciiMath input = case parse parseExpr "math-expr" input of
@@ -32,11 +37,12 @@ data MathExpr = Atom String
               | Tuple [MathExpr]
               | Collection [MathExpr]
               | Exp MathExpr
-              deriving (Eq) 
+              | Quote MathExpr
+              deriving (Eq, Show)
 
 data MathIndex = Super MathExpr
               | Sub MathExpr
-              deriving (Eq)
+              deriving (Eq, Show)
 
 --
 -- Show (AsciiMath)
@@ -125,6 +131,7 @@ showMathExprLatex (Tensor lvs mis) = case head lvs of
 showMathExprLatex (Tuple lvs) = "(" ++ showMathExprLatexArg lvs ", " ++ ")"
 showMathExprLatex (Collection lvs) = "{" ++ showMathExprLatexArg lvs ", " ++ "}"
 showMathExprLatex (Exp x) = "e^{" ++ showMathExprLatex x ++ "}"
+showMathExprLatex (Quote x) = "(" ++ showMathExprLatex x ++ ")"
 
 showMathExprLatex' :: MathExpr -> String
 showMathExprLatex' (Plus lvs) = "(" ++ showMathExprLatex (Plus lvs) ++ ")"
@@ -240,9 +247,16 @@ parseExp = do
     char ')'
     return $ Exp x
 
+parseQuote :: Parser MathExpr
+parseQuote = do
+    char '\''
+    x <- parseExpr'
+    return $ Quote x
+
 parseExpr' :: Parser MathExpr
 parseExpr' = parseNegativeAtom
          <|> parseAtom
+         <|> parseQuote
          <|> try parseExp
          <|> try parsePlus
          <|> try parseMultiply

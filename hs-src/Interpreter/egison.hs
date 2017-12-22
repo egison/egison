@@ -263,6 +263,7 @@ repl noIOFlag mathExprLang env prompt = do
           Right (Just output, env') ->
             case mathExprLang of
               Nothing -> putStrLn output >> loop env'
+              (Just "haskell") -> putStrLn (mathExprToHaskell output) >> loop env'
               (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop env'
               (Just "latex") -> putStrLn (mathExprToLatex output) >> loop env'
              )
