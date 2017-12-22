@@ -187,10 +187,14 @@ desugar (TensorExpr nsExpr xsExpr supExpr subExpr) = do
 desugar (LambdaExpr names expr) = do
   let (rtnames, rhnames) = span (\name -> case name of
                                             TensorArg _ -> True
+                                            InvertedScalarArg _ -> False
                                             ScalarArg _ -> False) (reverse names)
   case rhnames of
     [] -> do expr' <- desugar expr
              return $ LambdaExpr names expr'
+    (InvertedScalarArg rhname:rhnames') -> do
+      desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
+                  (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (FlipIndicesExpr (VarExpr rhname)))
     (ScalarArg rhname:rhnames') -> do
       let (rtnames2, rhnames2) = span (\name -> case name of
                                                 TensorArg _ -> True
@@ -313,6 +317,10 @@ desugar (TransposeExpr vars expr) = do
   vars' <- desugar vars
   expr' <- desugar expr
   return $ TransposeExpr vars' expr'
+
+desugar (FlipIndicesExpr expr) = do
+  expr' <- desugar expr
+  return $ FlipIndicesExpr expr'
 
 desugar (ParExpr expr1 expr2) = do
   expr1' <- desugar expr1

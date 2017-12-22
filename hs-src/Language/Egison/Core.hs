@@ -420,6 +420,17 @@ evalExpr env (TransposeExpr vars expr) = do
       return (Value (TensorData t'))
     _ -> return whnf
 
+evalExpr env (FlipIndicesExpr expr) = do
+  whnf <- evalExpr env expr
+  case whnf of
+    (Intermediate (ITensor t)) -> do
+      t' <- tFlipIndices t
+      return (Intermediate (ITensor t'))
+    (Value (TensorData t)) -> do
+      t' <- tFlipIndices t
+      return (Value (TensorData t'))
+    _ -> return whnf
+
 evalExpr env (WithSymbolsExpr vars expr) = do
   symId <- fresh
   syms <- mapM (\var -> (newEvaluatedObjectRef (Value (symbolScalarData symId var)))) vars
