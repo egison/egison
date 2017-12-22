@@ -38,6 +38,7 @@ data MathExpr = Atom String
               | Collection [MathExpr]
               | Exp MathExpr
               | Quote MathExpr
+              | Partial String [String]
               deriving (Eq, Show)
 
 data MathIndex = Super MathExpr
@@ -177,8 +178,9 @@ parseAtom = do
     first <- letter <|> symbol <|> digit
     rest <- many (letter <|> digit <|> symbol)
     let atom = first : rest
-    return $ Atom atom
-
+    option (Atom atom) $ do is <- many1 (char '|' >> many digit)
+                            return $ Partial atom is
+  
 parseNegativeAtom :: Parser MathExpr
 parseNegativeAtom = do
     char '-'
@@ -271,4 +273,4 @@ parseExpr' = parseNegativeAtom
 parseExpr :: Parser MathExpr
 parseExpr = do
     x <- parseExpr'
-    option x  $ Power x <$> try (char '^' >> parseExpr')
+    option x $ Power x <$> try (char '^' >> parseExpr')
