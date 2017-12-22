@@ -15,12 +15,12 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 mathExprToAsciiMath :: String -> String
 mathExprToAsciiMath input = case parse parseExpr "math-expr" input of
                               Left err -> input
-                              Right val -> "a#\"" ++ showMathExprAsciiMath val ++ "\""
+                              Right val -> "#asciimath\"" ++ showMathExprAsciiMath val ++ "\""
 
 mathExprToLatex :: String -> String
 mathExprToLatex input = case parse parseExpr "math-expr" input of
                           Left err -> input
-                          Right val -> "l#\"" ++ showMathExprLatex val ++ "\""
+                          Right val -> "#latex|" ++ showMathExprLatex val ++ "|#"
 
 data MathExpr = Atom String
               | NegativeAtom String
