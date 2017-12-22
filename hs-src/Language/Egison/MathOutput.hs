@@ -56,12 +56,13 @@ showMathExprAsciiMath :: MathExpr -> String
 showMathExprAsciiMath (Atom func) = func
 showMathExprAsciiMath (NegativeAtom func) = "-" ++ func
 showMathExprAsciiMath (Plus []) = ""
-showMathExprAsciiMath (Plus [a]) = showMathExprAsciiMath a
-showMathExprAsciiMath (Plus lvs) = case lvs !! 1 of
-                                     NegativeAtom na -> showMathExprAsciiMath (head lvs) ++ " - " ++ na ++ showMathExprAsciiMath (Plus $ tail $ tail lvs)
-                                     Plus (NegativeAtom na:rest) -> showMathExprAsciiMath (head lvs) ++ " - " ++ na ++ " + " ++ showMathExprAsciiMath (Plus $ rest ++ tail (tail lvs))
-                                     Multiply (NegativeAtom na:rest) -> showMathExprAsciiMath (head lvs) ++ " - " ++ na ++ " " ++ showMathExprAsciiMath (Plus $ rest ++ tail (tail lvs))
-                                     _ -> showMathExprAsciiMath (head lvs) ++ " + " ++ showMathExprAsciiMath (Plus $ tail lvs)
+showMathExprAsciiMath (Plus (x:xs)) = showMathExprAsciiMath x ++ showMathExprAsciiMathForPlus xs
+ where
+  showMathExprAsciiMathForPlus :: [MathExpr] -> String
+  showMathExprAsciiMathForPlus [] = ""
+  showMathExprAsciiMathForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprAsciiMath (Multiply ((Atom a):ys)) ++ " " ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus (x:xs) = showMathExprAsciiMath x ++ " + " ++ showMathExprAsciiMathForPlus xs
 showMathExprAsciiMath (Multiply []) = ""
 showMathExprAsciiMath (Multiply [a]) = showMathExprAsciiMath a
 showMathExprAsciiMath (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprAsciiMath (Multiply lvs)
@@ -110,14 +111,16 @@ showMathExprLatex :: MathExpr -> String
 showMathExprLatex (Atom func) = func
 showMathExprLatex (NegativeAtom func) = "-" ++ func
 showMathExprLatex (Plus []) = ""
-showMathExprLatex (Plus [a]) = showMathExprLatex a
-showMathExprLatex (Plus lvs) = case lvs !! 1 of
-                                 NegativeAtom na -> showMathExprLatex (head lvs) ++ " - " ++ na ++ showMathExprLatex (Plus $ tail $ tail lvs)
-                                 Plus (NegativeAtom na:rest) -> showMathExprLatex (head lvs) ++ " - " ++ na ++ " + " ++ showMathExprLatex (Plus $ rest ++ tail (tail lvs))
-                                 Multiply (NegativeAtom na:rest) -> showMathExprLatex (head lvs) ++ " - " ++ na ++ " " ++ showMathExprLatex (Plus $ rest ++ tail (tail lvs))
-                                 _ -> showMathExprLatex (head lvs) ++ " + " ++ showMathExprLatex (Plus $ tail lvs)
+showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlus xs
+ where
+  showMathExprLatexForPlus :: [MathExpr] -> String
+  showMathExprLatexForPlus [] = ""
+  showMathExprLatexForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprLatexForPlus xs
+  showMathExprLatexForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprLatex (Multiply ((Atom a):ys)) ++ " " ++ showMathExprLatexForPlus xs
+  showMathExprLatexForPlus (x:xs) = showMathExprLatex x ++ " + " ++ showMathExprLatexForPlus xs
 showMathExprLatex (Multiply []) = ""
 showMathExprLatex (Multiply [a]) = showMathExprLatex a
+showMathExprLatex (Multiply (Atom "1":lvs)) = showMathExprLatex (Multiply lvs)
 showMathExprLatex (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprLatex (Multiply lvs)
 showMathExprLatex (Multiply lvs) = showMathExprLatex' (head lvs) ++ " " ++ showMathExprLatex (Multiply (tail lvs))
 showMathExprLatex (Power lv1 lv2) = showMathExprLatex lv1 ++ "^" ++ showMathExprLatex lv2
