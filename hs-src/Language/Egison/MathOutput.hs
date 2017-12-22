@@ -236,7 +236,7 @@ parseExp :: Parser MathExpr
 parseExp = do
     string "(exp"
     spaces
-    x <- parseAtom
+    x <- parseExpr
     char ')'
     return $ Exp x
 
