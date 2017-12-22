@@ -106,6 +106,7 @@ showMathExprAsciiMathIndices lvs = showMathIndexAsciiMath (head lvs) ++ showMath
 
 showMathExprLatex :: MathExpr -> String
 showMathExprLatex (Atom a) = a
+showMathExprLatex (Partial a is) = a ++ "_{" ++ concat is ++ "}"
 showMathExprLatex (NegativeAtom a) = "-" ++ a
 showMathExprLatex (Plus []) = ""
 showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlus xs
