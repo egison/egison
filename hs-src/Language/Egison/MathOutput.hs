@@ -141,18 +141,19 @@ showMathExprLatexArg [] _ = ""
 showMathExprLatexArg [a] _ = showMathExprLatex a
 showMathExprLatexArg lvs s = showMathExprLatex (head lvs) ++ s ++ showMathExprLatexArg  (tail lvs) s
 
-showMathExprLatexIndices :: [MathIndex] -> String
-showMathExprLatexIndices [a] = showMathIndexLatex a
-showMathExprLatexIndices lvs = showMathIndexLatex (head lvs) ++ showMathExprLatexIndices (tail lvs)
+showMathExprLatexSuper :: MathIndex -> String
+showMathExprLatexSuper (Super (Atom "#")) = "\\#"
+showMathExprLatexSuper (Super x) = showMathExprLatex x
+showMathExprLatexSuper (Sub x) = "\\;"
 
-showMathIndexLatex :: MathIndex -> String
-showMathIndexLatex (Super a) = showMathExprLatex a
-showMathIndexLatex (Sub a) = showMathExprLatex a
+showMathExprLatexSub :: MathIndex -> String
+showMathExprLatexSub (Sub (Atom "#")) = "\\#"
+showMathExprLatexSub (Sub x) = showMathExprLatex x
+showMathExprLatexSub (Super x) = "\\;"
 
 showMathExprLatexScript :: [MathIndex] -> String
 showMathExprLatexScript [] = ""
-showMathExprLatexScript lvs = if isSub (head lvs) then let (a, b) = span isSub lvs in "_{" ++ showMathExprLatexIndices a ++ "}" ++ showMathExprLatexScript b
-                                                           else let (a, b) = break isSub lvs in "^{" ++ showMathExprLatexIndices a ++ "}" ++ showMathExprLatexScript b
+showMathExprLatexScript is = "_{" ++ concat (map showMathExprLatexSub is) ++ "}^{" ++ concat (map showMathExprLatexSuper is) ++ "}"
 
 showMathExprLatexVectors :: [MathExpr] -> String
 showMathExprLatexVectors [] = ""
@@ -191,7 +192,7 @@ parseList :: Parser [MathExpr]
 parseList = sepEndBy parseExpr spaces
 
 parseScript :: Parser MathIndex
-parseScript = (Sub <$> (char '_' >> parseExpr)) <|> (Super <$> (char '_' >> parseExpr))
+parseScript = (Sub <$> (char '_' >> parseExpr)) <|> (Super <$> (char '~' >> parseExpr))
 
 parsePlus :: Parser MathExpr
 parsePlus = do
