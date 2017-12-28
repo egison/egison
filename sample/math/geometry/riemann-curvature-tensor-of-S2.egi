@@ -13,17 +13,17 @@
 ;; Local basis
 ;;
 
-(define $e ((flip ∂/∂) x~# X_#))
-e
+(define $e_i_j (∂/∂ X_j x_i))
+e_i_j
 ;[|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
 ;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]
-;  |]_#~#
+;  |]_#_#
 
 ;;
 ;; Metric tensor
 ;;
 
-(define $g__ (generate-tensor 2#(V.* e_%1 e_%2) {2 2}))
+(define $g__ (generate-tensor 2#(V.* e_%1_# e_%2_#) {2 2}))
 (define $g~~ (M.inverse g_#_#))
 
 g_#_#;[| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |]_#_#
@@ -35,9 +35,9 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 
 (define $Γ_j_k_l
   (* (/ 1 2)
-     (+ (∂/∂ g_j_l x_k)
-        (∂/∂ g_j_k x_l)
-        (* -1 (∂/∂ g_k_l x_j)))))
+     (+ (∂/∂ g_j_l x~k)
+        (∂/∂ g_j_k x~l)
+        (* -1 (∂/∂ g_k_l x~j)))))
 
 Γ_#_#_#;(tensor {2 2 2} {0 0 0 (* -1 r^2 (sin θ) (cos θ)) 0 (* r^2 (sin θ) (cos θ)) (* r^2 (sin θ) (cos θ)) 0} )_#_#_#
 Γ_1_#_#;[| [| 0 0 |] [| 0 (* -1 r^2 (sin θ) (cos θ)) |] |]_#_#
@@ -58,7 +58,7 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 ;;
 (define $∇g___
   (with-symbols {i j m n}
-    (- (∂/∂ g_i_j x_m)
+    (- (∂/∂ g_i_j x~m)
        (. Γ~n_m_i g_n_j)
        (. Γ~n_m_j g_i_n))))
 
@@ -70,7 +70,7 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 
 (define $R~i_j_k_l
   (with-symbols {m}
-    (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+    (+ (- (∂/∂ Γ~i_j_l x~k) (∂/∂ Γ~i_j_k x~l))
        (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
 
 R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (sin θ)^2 (* -1 (sin θ)^2) 0 0 -1 1 0 0 0 0 0} )~#_#_#_#
@@ -109,7 +109,7 @@ scalar-curvature;(/ 2 r^2)
 
 (define $∇R_____
   (with-symbols {i j k l m n}
-    (- (∂/∂ R_i_j_k_l x_m)
+    (- (∂/∂ R_i_j_k_l x~m)
        (. Γ~n_m_i R_n_j_k_l)
        (. Γ~n_m_j R_i_n_k_l)
        (. Γ~n_m_k R_i_j_n_l)
