@@ -9,9 +9,9 @@
 
 (define $Γ_j_k_l
   (* (/ 1 2)
-     (+ (∂/∂ g_j_l x~k)
-        (∂/∂ g_j_k x~l)
-        (* -1 (∂/∂ g_k_l x~j)))))
+     (+ (∂/∂ g_j_l x_k)
+        (∂/∂ g_j_k x_l)
+        (* -1 (∂/∂ g_k_l x_j)))))
 
 (define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
 
@@ -19,7 +19,7 @@
 
 (define $R~i_j_k_l
   (with-symbols {m}
-    (+ (- (∂/∂ Γ~i_j_l x~k) (∂/∂ Γ~i_j_k x~l))
+    (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
        (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
 
 R~#_#_1_1;[| [| 0 0 |] [| 0 0 |] |]~#_#
@@ -33,13 +33,18 @@ R~#_#_2_2;[| [| 0 0 |] [| 0 0 |] |]~#_#
 
 ;;; Curvature form
 
+(define $wedge
+  (lambda [%X %Y]
+    !(. X Y)))
+
 (define $d
   (lambda [%A]
     !((flip ∂/∂) x A)))
 
-(define $wedge
-  (lambda [%X %Y]
-    !(. X Y)))
+(define $D
+  (lambda [%A]
+    (with-symbols {i j}
+      (+ (d A) (wedge ω~i_j A)))))
 
 (define $Ω
   (with-symbols {i j}

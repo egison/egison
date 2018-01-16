@@ -13,7 +13,7 @@
 ;; Local coordinates
 ;;
 
-(define $e ((∂/∂ X~# $) x_#))
+(define $e ((∂/∂ X_# $) x~#))
 e
 ;[|[| (* (sin θ) (cos φ)) (* (sin θ) (sin φ)) (cos θ) |]
 ;  [| (* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
@@ -36,6 +36,6 @@ g~#~#;[| [| 1 0 0 |] [| 0 (/ 1 r^2) 0 |] [| 0 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#
 (define $sqrt-g (sqrt (M.det g_#_#)))
 sqrt-g;(* r^2 (sin θ))
 
-(define $Laplacian (/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ φ) x_j))) x_i)) sqrt-g))
+(define $Laplacian (/ (contract + (∂/∂ (* sqrt-g (. g~i~j (∂/∂ (f r θ φ) x~j))) x~i)) sqrt-g))
 Laplacian
 ;(/ (+ (* 2 r (sin θ)^2 (f|1 r θ φ)) (* r^2 (sin θ)^2 (f|1|1 r θ φ)) (* (cos θ) (f|2 r θ φ) (sin θ)) (* (sin θ)^2 (f|2|2 r θ φ)) (f|3|3 r θ φ)) (* (sin θ)^2 r^2))

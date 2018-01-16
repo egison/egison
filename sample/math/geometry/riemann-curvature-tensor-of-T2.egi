@@ -35,9 +35,9 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 
 (define $Γ_i_j_k
   (* (/ 1 2)
-     (+ (∂/∂ g_i_j x_k)
-        (∂/∂ g_i_k x_j)
-        (* -1 (∂/∂ g_j_k x_i)))))
+     (+ (∂/∂ g_i_j x~k)
+        (∂/∂ g_i_k x~j)
+        (* -1 (∂/∂ g_j_k x~i)))))
 
 Γ_#_#_#;(tensor {2 2 2} {0 0 0 (* '(+ (* a (cos θ)) b) a (sin θ)) 0 (* -1 '(+ (* a (cos θ)) b) a (sin θ)) (* -1 '(+ (* a (cos θ)) b) a (sin θ)) 0} )_#_#_#
 Γ_1_#_#;[| [| 0 0 |] [| 0 (* '(+ (* a (cos θ)) b) a (sin θ)) |] |]_#_#
@@ -58,7 +58,7 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 ;;
 (define $∇g___
   (with-symbols {i j m n}
-    (- (∂/∂ g_i_j x_m)
+    (- (∂/∂ g_i_j x~m)
        (. Γ~n_m_i g_n_j)
        (. Γ~n_m_j g_i_n))))
 
@@ -70,7 +70,7 @@ g~#~#;[| [| (/ 1 a^2) 0 |] [| 0 (/ 1 '(+ (* a (cos θ)) b)^2) |] |]~#~#
 
 (define $R~i_j_k_l
   (with-symbols {m}
-    (+ (- (∂/∂ Γ~i_j_l x_k) (∂/∂ Γ~i_j_k x_l))
+    (+ (- (∂/∂ Γ~i_j_l x~k) (∂/∂ Γ~i_j_k x~l))
        (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
 
 R~#_#_#_#;(tensor {2 2 2 2} {0 0 0 0 0 (/ (* '(+ (* a (cos θ)) b) (cos θ)) a) (/ (* -1 '(+ (* a (cos θ)) b) (cos θ)) a) 0 0 (/ (* -1 a (cos θ)) '(+ (* a (cos θ)) b)) (/ (* a (cos θ)) '(+ (* a (cos θ)) b)) 0 0 0 0 0} )~#_#_#_#
@@ -109,7 +109,7 @@ scalar-curvature;(/ (* 2 (cos θ)) (* a '(+ (* a (cos θ)) b)))
 
 (define $∇R_____
   (with-symbols {i j k l m n}
-    (- (∂/∂ R_i_j_k_l x_m)
+    (- (∂/∂ R_i_j_k_l x~m)
        (. Γ~n_m_i R_n_j_k_l)
        (. Γ~n_m_j R_i_n_k_l)
        (. Γ~n_m_k R_i_j_n_l)

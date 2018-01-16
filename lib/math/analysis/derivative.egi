@@ -13,10 +13,11 @@
        ; function application
        [(,exp $g) (* (exp g) (∂/∂ g x))]
        [(,log $g) (* (/ 1 g) (∂/∂ g x))]
-       [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
-       [(,sin $g) (* (cos g) (∂/∂ g x))]
        [(,sqrt $g) (* (/ 1 (* 2 (sqrt g))) (∂/∂ g x))]
        [(,** $g $h) (* f (∂/∂ (* (log g) h) x))]
+       [(,cos $g) (* (* -1 (sin g)) (∂/∂ g x))]
+       [(,sin $g) (* (cos g) (∂/∂ g x))]
+       [(,arccos $g) (* (/ 1 (sqrt (- 1 (** g 2)))) (∂/∂ g x))]
        [<apply $g $args>
         (sum (map 2#(* (capply `(add-user-script g %1) args) (∂/∂ %2 x))
                   (zip nats args)))]
