@@ -13,7 +13,7 @@
 ;; Local basis
 ;;
 
-(define $e_i_j (∂/∂ X_j x_i))
+(define $e_i_j (∂/∂ X_j x~i))
 e_i_j
 ;[|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
 ;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]

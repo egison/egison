@@ -12,7 +12,7 @@
 ;; Local coordinates
 ;;
 
-(define $e ((∂/∂ X~# $) x_#))
+(define $e ((∂/∂ X_# $) x~#))
 e
 ;[| [| (cos θ) (sin θ) |] [| (* -1 r (sin θ)) (* r (cos θ)) |] |]
 
@@ -33,9 +33,9 @@ g~#~#;[| [| 1 0 |] [| 0 (/ 1 r^2) |] |]~#~#
 (define $Γ___
   (with-symbols {j k l}
     (* (/ 1 2)
-       (+ (∂/∂ g_j_l x_k)
-          (∂/∂ g_j_k x_l)
-          (* -1 (∂/∂ g_k_l x_j))))))
+       (+ (∂/∂ g_j_l x~k)
+          (∂/∂ g_j_k x~l)
+          (* -1 (∂/∂ g_k_l x~j))))))
 
 Γ_#_#_#;(tensor {2 2 2} {0 0 0 (* -1 r) 0 r r 0} )_#_#_#
 Γ_1_#_#;[| [| 0 0 |] [| 0 (* -1 r) |] |]_#_#
@@ -57,12 +57,12 @@ g~#~#;[| [| 1 0 |] [| 0 (/ 1 r^2) |] |]~#~#
 ;; Derive Laplacian
 ;;
 
-(. g~i~j (∂/∂ (∂/∂ (f r θ) x_j) x_i))
+(. g~i~j (∂/∂ (∂/∂ (f r θ) x~j) x~i))
 ;(/ (+ (* (f|1|1 r θ) r^2) (f|2|2 r θ)) r^2)
-(. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ) x_k))
+(. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ) x~k))
 ;(/ (* -1 (f|1 r θ)) r)
 
-(define $Laplacian (- (. g~i~j (∂/∂ (∂/∂ (f r θ) x_j) x_i))
-                        (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ) x_k))))
+(define $Laplacian (- (. g~i~j (∂/∂ (∂/∂ (f r θ) x~j) x~i))
+                        (. (. g~i~j Γ~k_i_j) (∂/∂ (f r θ) x~k))))
 Laplacian
 ;(/ (+ (* (f|1|1 r θ) r^2) (f|2|2 r θ) (* (f|1 r θ) r)) r^2)

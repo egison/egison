@@ -38,7 +38,7 @@
     (lambda $x
       (foldl 2#(%2 %1) x fs))))
 
-(define $flip (lambda [$fn] (lambda [%x %y] (fn y x))))
+(define $flip (lambda [$fn] (lambda [$x $y] (fn y x))))
 
 (define $ref
   (lambda [%xa $is]
