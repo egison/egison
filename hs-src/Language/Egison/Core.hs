@@ -533,16 +533,9 @@ evalExpr env (CApplyExpr func arg) = do
     _ -> applyFunc env func (Value (makeTuple args))
 
 evalExpr env (ApplyExpr func arg) = do
-  func <- evalExpr env func >>= appendDFscripts 0
+  func <- evalExpr env func
   arg <- evalExpr env arg
---  arg <- evalExpr env arg >>= fromTupleWHNF
---  let k = fromIntegral (length arg)
---  arg <-  mapM (\(_,j) -> appendDFscripts 0 j) (zip [1..k] arg) >>= makeITuple
   case func of
-    Value (TensorData t@(Tensor ns fs js)) -> do
-      tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value >>= removeDFscripts
-    Intermediate (ITensor t@(Tensor ns fs js)) -> do
-      tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
@@ -557,7 +550,33 @@ evalExpr env (ApplyExpr func arg) = do
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg >>= removeDFscripts
+    _ -> applyFunc env func arg
+-- evalExpr env (ApplyExpr func arg) = do
+--   func <- evalExpr env func >>= appendDFscripts 0
+--   arg <- evalExpr env arg
+-- --  arg <- evalExpr env arg >>= fromTupleWHNF
+-- --  let k = fromIntegral (length arg)
+-- --  arg <-  mapM (\(_,j) -> appendDFscripts 0 j) (zip [1..k] arg) >>= makeITuple
+--   case func of
+--     Value (TensorData t@(Tensor ns fs js)) -> do
+--       tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value >>= removeDFscripts
+--     Intermediate (ITensor t@(Tensor ns fs js)) -> do
+--       tMap (\f -> applyFunc env f arg) t >>= fromTensor
+--     Value (MemoizedFunc name ref hashRef env names body) -> do
+--       indices <- evalWHNF arg
+--       indices' <- mapM fromEgison $ fromTupleValue indices
+--       hash <- liftIO $ readIORef hashRef
+--       case HL.lookup indices' hash of
+--         Just objRef -> do
+--           evalRef objRef
+--         Nothing -> do
+--           whnf <- applyFunc env (Value (Func Nothing env names body)) arg
+--           retRef <- newEvaluatedObjectRef whnf
+--           hash <- liftIO $ readIORef hashRef
+--           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+--           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
+--           return whnf
+--     _ -> applyFunc env func arg >>= removeDFscripts
 
 evalExpr env (WedgeApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
@@ -758,12 +777,29 @@ evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
 --  return $ TensorData $ Tensor ns vals js
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
-fib :: Integer -> Integer
-fib 0 = 1
-fib 1 = 1
-fib n = (fib (n - 1)) + (fib (n - 2))
-
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
+applyFunc env (Value (TensorData (Tensor s1 t1 i1))) (Value (TensorData (Tensor s2 t2 i2))) = do
+    if (length s1) > (length i1) && (length s2) > (length i2)
+       then do
+            symId <- fresh
+            symName <- fresh
+            subj <- return . Subscript $ symbolScalarData symId symName
+            supj <- return . Superscript $ symbolScalarData symId symName
+            dot <- evalExpr env (VarExpr ".")
+            applyFunc env dot (Value (Tuple [(TensorData (Tensor s1 t1 (i1 ++ [supj]))), (TensorData (Tensor s2 t2 (i2 ++ [subj])))]))
+       else throwError $ Default "applyfunc"
+
+applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) (Intermediate (ITensor (Tensor s2 t2 i2))) = do
+    if (length s1) > (length i1) && (length s2) > (length i2)
+       then do
+            symId <- fresh
+            symName <- fresh
+            subj <- return . Subscript $ symbolScalarData symId symName
+            supj <- return . Superscript $ symbolScalarData symId symName
+            dot <- evalExpr env (VarExpr ".")
+            makeITuple (map Intermediate [(ITensor (Tensor s1 t1 (i1 ++ [supj]))), (ITensor (Tensor s2 t2 (i2 ++ [subj])))]) >>= applyFunc env dot 
+       else throwError $ Default "applyfunc"
+
 applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
   if n == fromIntegral (length refs)
