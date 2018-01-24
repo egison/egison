@@ -777,29 +777,49 @@ evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
 --  return $ TensorData $ Tensor ns vals js
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
+addscript :: (Index EgisonValue, Tensor a) -> Tensor a
+addscript (subj, (Tensor s t i)) = (Tensor s t (i ++ [subj]))
+
+valuetoTensor1 :: WHNFData -> Tensor EgisonValue
+valuetoTensor1 (Value (TensorData t)) = t
+
+valuetoTensor2 :: WHNFData -> Tensor WHNFData
+valuetoTensor2 (Intermediate (ITensor t)) = t
+
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
-applyFunc env (Value (TensorData (Tensor s1 t1 i1))) (Value (TensorData (Tensor s2 t2 i2))) = do
-    if (length s1) > (length i1) && (length s2) > (length i2)
+applyFunc env (Value (TensorData (Tensor s1 t1 i1))) (Value (Tuple tds)) = do
+    if (length s1) > (length i1) && (foldr (\(TensorData (Tensor s t i)) acc -> acc && ((length s) > (length i))) True tds)
        then do
             symId <- fresh
-            symName <- fresh
-            subj <- return . Subscript $ symbolScalarData symId symName
-            supj <- return . Superscript $ symbolScalarData symId symName
+            let argnum = length tds
+                subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+                supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
             dot <- evalExpr env (VarExpr ".")
-            applyFunc env dot (Value (Tuple [(TensorData (Tensor s1 t1 (i1 ++ [supj]))), (TensorData (Tensor s2 t2 (i2 ++ [subj])))]))
+            applyFunc env dot (Value (Tuple ((TensorData (Tensor s1 t1 (i1 ++ supjs))):(map (TensorData . addscript) (zip subjs $ map (valuetoTensor1 . Value) tds)))))
        else throwError $ Default "applyfunc"
 
-applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) (Intermediate (ITensor (Tensor s2 t2 i2))) = do
-    if (length s1) > (length i1) && (length s2) > (length i2)
+applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
+    tds <- fromTupleWHNF tds
+    if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
        then do
             symId <- fresh
-            symName <- fresh
-            subj <- return . Subscript $ symbolScalarData symId symName
-            supj <- return . Superscript $ symbolScalarData symId symName
+            let argnum = length tds
+                subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+                supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
             dot <- evalExpr env (VarExpr ".")
-            makeITuple (map Intermediate [(ITensor (Tensor s1 t1 (i1 ++ [supj]))), (ITensor (Tensor s2 t2 (i2 ++ [subj])))]) >>= applyFunc env dot 
+            makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):(map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot 
        else throwError $ Default "applyfunc"
-
+-- applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) (Intermediate (ITensor (Tensor s2 t2 i2))) = do
+--     if (length s1) > (length i1) && (length s2) > (length i2)
+--        then do
+--             symId <- fresh
+--             symName <- fresh
+--             subj <- return . Subscript $ symbolScalarData symId symName
+--             supj <- return . Superscript $ symbolScalarData symId symName
+--             dot <- evalExpr env (VarExpr ".")
+--             makeITuple (map Intermediate [(ITensor (Tensor s1 t1 (i1 ++ [supj]))), (ITensor (Tensor s2 t2 (i2 ++ [subj])))]) >>= applyFunc env dot 
+--        else throwError $ Default "applyfunc"
+--
 applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
   if n == fromIntegral (length refs)
