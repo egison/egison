@@ -377,3 +377,14 @@
 (assert-equal "recursive partial application '#'"
   (take 10 (1#{%1 @(%0 (* %1 2))} 2))
   {2 4 8 16 32 64 128 256 512 1024})
+
+(assert-equal "double inverted index"
+  (let {[($f (lambda [*$x *$y] (+ x y)))]}
+    [(f [|1 2 3|]_i [|10 20 30|]_j)])
+  [[| [| 11 21 31 |] [| 12 22 32 |] [| 13 23 33 |] |]~i~j])
+
+(assert-equal "single inverted index"
+  (let {[($g (lambda [$x *$y] (+ x y)))]}
+    [(f [|1 2 3|]_i [|10 20 30|]_j)])
+  [[| [| 11 21 31 |] [| 12 22 32 |] [| 13 23 33 |] |]_i~j])
+
