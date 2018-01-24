@@ -809,17 +809,7 @@ applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
             dot <- evalExpr env (VarExpr ".")
             makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):(map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot 
        else throwError $ Default "applyfunc"
--- applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) (Intermediate (ITensor (Tensor s2 t2 i2))) = do
---     if (length s1) > (length i1) && (length s2) > (length i2)
---        then do
---             symId <- fresh
---             symName <- fresh
---             subj <- return . Subscript $ symbolScalarData symId symName
---             supj <- return . Superscript $ symbolScalarData symId symName
---             dot <- evalExpr env (VarExpr ".")
---             makeITuple (map Intermediate [(ITensor (Tensor s1 t1 (i1 ++ [supj]))), (ITensor (Tensor s2 t2 (i2 ++ [subj])))]) >>= applyFunc env dot 
---        else throwError $ Default "applyfunc"
---
+
 applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
   if n == fromIntegral (length refs)
