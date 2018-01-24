@@ -56,7 +56,7 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
     !(. X Y)))
 
 (define $Ω
-  (with-symbols {i j}
+  (with-symbols {i j k}
     (df-normalize (+ (d ω~i_j)
                      (wedge ω~i_k ω~k_j)))))
 Ω~#_#_1_2;[| [| 0 (sin θ) |] [| (* -1 (sin θ)) 0 |] |]~#_#

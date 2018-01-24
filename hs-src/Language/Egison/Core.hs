@@ -550,7 +550,7 @@ evalExpr env (ApplyExpr func arg) = do
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
-    _ -> applyFunc env func arg
+    _ -> applyFunc env func arg >>= removeDFscripts
 -- evalExpr env (ApplyExpr func arg) = do
 --   func <- evalExpr env func >>= appendDFscripts 0
 --   arg <- evalExpr env arg
