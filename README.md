@@ -1,6 +1,6 @@
 # The Egison Programming Language
 
-Egison is the **pattern-matching-oriented**, purely functional programming language.
+Egison is the pattern-matching-oriented purely functional programming language.
 We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
 This is the repository of the interpreter of Egison.
 
@@ -173,52 +173,102 @@ We verify [Euler's formula](https://en.wikipedia.org/wiki/Euler%27s_formula) in 
 {1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6) (/ x^4 24) (/ (* i x^5) 120) (/ (* -1 x^6) 720) (/ (* -1 i x^7) 5040)}
 ```
 
-### Vector and Matrix
+### Tensor Index Notation
 
-We support tesnsor algebra.
-We use [Einstein notation](https://en.wikipedia.org/wiki/Einstein_notation) to express arithmetic operations between tensors.
+Egison supports tesnsor index notation.
+We can use [Einstein notation](https://en.wikipedia.org/wiki/Einstein_notation) to express arithmetic operations between tensors.
 
-A vector and matrix is expressed by enclosing its elements with `(|` and `|)`.
-
-A tensor of higher order than 2 is expressed by a `tensor` expression whose arguments are its dimensions and elements.
+The method for importing tensor index notation into programming is discussed in [Egison tensor paper](https://arxiv.org/abs/1702.06343).
 
 ```
-(tensor <dimensions> <elements>)
+;; Parameters
+(define $x [|θ φ|])
+
+(define $X [|(* r (sin θ) (cos φ)) ; = x
+             (* r (sin θ) (sin φ)) ; = y
+             (* r (cos θ))         ; = z
+             |])
+
+;; Local basis
+(define $e_i_j (∂/∂ X_j x~i))
+e_i_j
+;[|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
+;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]
+;  |]_#_#
+
+;; Metric tensor
+(define $g__ (generate-tensor 2#(V.* e_%1_# e_%2_#) {2 2}))
+(define $g~~ (M.inverse g_#_#))
+
+g_#_#;[| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |]_#_#
+g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
+
+;; Christoffel symbols
+(define $Γ_j_k_l
+  (* (/ 1 2)
+     (+ (∂/∂ g_j_l x~k)
+        (∂/∂ g_j_k x~l)
+        (* -1 (∂/∂ g_k_l x~j)))))
+
+(define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
+
+Γ~1_#_#;[| [| 0 0 |] [| 0 (* -1 (sin θ) (cos θ)) |] |]_#_#
+Γ~2_#_#;[| [| 0 (/ (cos θ) (sin θ)) |] [| (/ (cos θ) (sin θ)) 0 |] |]_#_#
+
+;; Riemann curvature tensor
+(define $R~i_j_k_l
+  (with-symbols {m}
+      (+ (- (∂/∂ Γ~i_j_l x~k) (∂/∂ Γ~i_j_k x~l))
+             (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
+
+R~#_#_1_1;[| [| 0 0 |] [| 0 0 |] |]~#_#
+R~#_#_1_2;[| [| 0 (sin θ)^2 |] [| -1 0 |] |]~#_#
+R~#_#_2_1;[| [| 0 (* -1 (sin θ)^2) |] [| 1 0 |] |]~#_#
+R~#_#_2_2;[| [| 0 0 |] [| 0 0 |] |]~#_#
 ```
 
-```
-> (define $V1 [| x_1 x_2 x_3 |])
-> (define $V2 [| y_1 y_2 y_3 |])
-> (. V1~i V2_i)
-(+ (* x_1 y_1) (* x_2 y_2) (* x_3 y_3))
-> (. V1~i V2_j)
-[| [| (* x_1 y_1) (* x_1 y_2) (* x_1 y_3) |] [| (* x_2 y_1) (* x_2 y_2) (* x_2 y_3) |] [| (* x_3 y_1) (* x_3 y_2) (* x_3 y_3) |] |]~i_j
-```
+### Differential Forms
+
+By designing the index completion rules for omitted indices, we can use the above notation to express a calculation handling the differential forms.
 
 ```
-> (define $M1 (generate-tensor 2#x_%1_%2 {2 2}))
-> (define $M2 (generate-tensor 2#y_%1_%2 {2 2}))
-> M1
-[| [| x_1_1 x_1_2 |] [| x_2_1 x_2_2 |] |]
-> M2
-[| [| y_1_1 y_1_2 |] [| y_2_1 y_2_2 |] |]
-> M1_i_1
-[| x_1_1 x_2_1 |]_i
-> M1_1_j
-[| x_1_1 x_1_2 |]_j
-> (. M1_i_j M2_j_k)
-(tensor {2 2 2 2} {(* x_1_1 y_1_1) (* x_1_1 y_1_2) (* x_1_1 y_2_1) (* x_1_1 y_2_2) (* x_1_2 y_1_1) (* x_1_2 y_1_2) (* x_1_2 y_2_1) (* x_1_2 y_2_2) (* x_2_1 y_1_1) (* x_2_1 y_1_2) (* x_2_1 y_2_1) (* x_2_1 y_2_2) (* x_2_2 y_1_1) (* x_2_2 y_1_2) (* x_2_2 y_2_1) (* x_2_2 y_2_2)} )_i_j_j_k
-> (. M1_i_j M2_k_l)
-(tensor {2 2 2 2} {(* x_1_1 y_1_1) (* x_1_1 y_1_2) (* x_1_1 y_2_1) (* x_1_1 y_2_2) (* x_1_2 y_1_1) (* x_1_2 y_1_2) (* x_1_2 y_2_1) (* x_1_2 y_2_2) (* x_2_1 y_1_1) (* x_2_1 y_1_2) (* x_2_1 y_2_1) (* x_2_1 y_2_2) (* x_2_2 y_1_1) (* x_2_2 y_1_2) (* x_2_2 y_2_1) (* x_2_2 y_2_2)} )_i_j_k_l
+;; Parameters and metric tensor
+(define $x [| θ φ |])
+
+(define $g__ [| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |])
+(define $g~~ [| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |])
+
+;; Christoffel symbols
+(define $Γ_i_j_k
+  (* (/ 1 2)
+     (+ (∂/∂ g_i_k x~j)
+        (∂/∂ g_i_j x~k)
+        (* -1 (∂/∂ g_j_k x~i)))))
+
+(define $Γ~i_j_k (with-symbols {m} (. g~i~m Γ_m_j_k)))
+
+;; Connection form
+(define $ω~i_j (with-symbols {k} Γ~i_j_k))
+
+;; Curvature form
+(define $d
+  (lambda [%A]
+      !((flip ∂/∂) x A)))
+
+(define $wedge
+  (lambda [%X %Y]
+      !(. X Y)))
+
+(define $Ω~i_j (with-symbols {k}
+  (df-normalize (+ (d ω~i_j)
+                     (wedge ω~i_k ω~k_j)))))
 ```
 
-* [tensor.egi](https://github.com/egison/egison/blob/master/lib/math/algebra/tensor.egi)
-
-### Egison Math Notebook
+### Egison Mathematics Notebook
 
 Here are more samples.
 
-* [Egison Math Notebook](https://www.egison.org/math/)
+* [Egison Mathematics Notebook](https://www.egison.org/math/)
 
 ## Comparison with Related Work
 
@@ -269,7 +319,7 @@ If you are a beginner of Egison, it would be better to install <a target="_blank
 % cabal update
 % cabal install egison-tutorial
 % egison-tutorial
-Egison Tutorial Version 3.3.6 (C) 2013-2014 Satoshi Egi
+Egison Tutorial Version 3.7.4 (C) 2013-2017 Satoshi Egi
 Welcome to Egison Tutorial!
 ** Information **
 We can use a 'Tab' key to complete keywords on the interpreter.
@@ -277,13 +327,16 @@ If we type a 'Tab' key after a closed parenthesis, the next closed parenthesis w
 *****************
 ==============================
 List of sections in the tutorial.
-1: Calculate numbers                             (10 minutes)
-2: Basics of functional programming              (10 minutes)
-3: Basics of pattern-matching                    (10 minutes)
-4: Pattern-matching against infinite collections (5 minutes)
+1: Calculate numbers
+2: Basics of functional programming
+3: Basics of pattern-matching
+4: Pattern-matching against various data types
+5: Symbolic computation
+6: Differential geometry: tensor analysis
+7: Differential geometry: differential forms
 ==============================
 Choose a section to learn.
-(1-4): 1
+(1-7): 1
 ====================
 We can do arithmetic operations with '+', '-', '*', '/', 'modulo' and 'power'.
 
@@ -298,7 +351,7 @@ Examples:
 >
 ```
 
-We can try it also <a target="_blank" href="http://try.egison.org">online</a>.
+We can try it also <a target="_blank" href="https://try.egison.org">online</a>.
 Enjoy!
 
 ## Note for Developers
