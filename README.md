@@ -180,6 +180,9 @@ We can use [Einstein notation](https://en.wikipedia.org/wiki/Einstein_notation) 
 
 The method for importing tensor index notation into programming is discussed in [Egison tensor paper](https://arxiv.org/abs/1702.06343).
 
+The following sample is from [Riemann Curvature Tensor of S2 - Egison Mathematics Notebook](https://www.egison.org/math/riemann-curvature-tensor-of-S2.html).
+
+
 ```
 ;; Parameters
 (define $x [|θ φ|])
@@ -218,8 +221,8 @@ g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 ;; Riemann curvature tensor
 (define $R~i_j_k_l
   (with-symbols {m}
-      (+ (- (∂/∂ Γ~i_j_l x~k) (∂/∂ Γ~i_j_k x~l))
-             (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
+    (+ (- (∂/∂ Γ~i_j_l x~k) (∂/∂ Γ~i_j_k x~l))
+       (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
 
 R~#_#_1_1;[| [| 0 0 |] [| 0 0 |] |]~#_#
 R~#_#_1_2;[| [| 0 (sin θ)^2 |] [| -1 0 |] |]~#_#
@@ -230,6 +233,8 @@ R~#_#_2_2;[| [| 0 0 |] [| 0 0 |] |]~#_#
 ### Differential Forms
 
 By designing the index completion rules for omitted indices, we can use the above notation to express a calculation handling the differential forms.
+
+The following sample is from [Curvature Form - Egison Mathematics Notebook](https://www.egison.org/math/curvature-form.html).
 
 ```
 ;; Parameters and metric tensor
@@ -253,15 +258,15 @@ By designing the index completion rules for omitted indices, we can use the abov
 ;; Curvature form
 (define $d
   (lambda [%A]
-      !((flip ∂/∂) x A)))
+    !((flip ∂/∂) x A)))
 
 (define $wedge
   (lambda [%X %Y]
-      !(. X Y)))
+    !(. X Y)))
 
 (define $Ω~i_j (with-symbols {k}
   (df-normalize (+ (d ω~i_j)
-                     (wedge ω~i_k ω~k_j)))))
+                   (wedge ω~i_k ω~k_j)))))
 ```
 
 ### Egison Mathematics Notebook
