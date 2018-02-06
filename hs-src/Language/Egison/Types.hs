@@ -290,6 +290,7 @@ data Index a =
     Subscript a
   | Superscript a
   | SupSubscript a
+  | MultiSubscipt a a
   | DFscript Integer Integer -- DifferentialForm
  deriving (Eq)
 
