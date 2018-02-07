@@ -137,7 +137,6 @@ desugar (ArrayRefExpr expr nums) =
     (TupleExpr nums') -> desugar $ IndexedExpr False expr (map Subscript nums')
     _ -> desugar $ IndexedExpr False expr [Subscript nums]
 
--- (subrefs A (map (lambda [$k] i_k) (between 1 n)))
 desugar (IndexedExpr b expr [MultiSubscipt x y]) = case (x, y) of
                                                      (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr expr (ApplyExpr (VarExpr "between") (TupleExpr [x, y]))
                                                      (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) 
