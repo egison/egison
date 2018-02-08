@@ -60,9 +60,9 @@
   (∂/∂ (f x y z) [|x y z|])
   [|(f|1 x y z) (f|2 x y z) (f|3 x y z)|])
 
-(assert-equal "Tensor ∂/∂ - case 3"
-  (apply [|(∂/∂ $ x) (∂/∂ $ y)|] (f x y))
-  [|(f|1 x y) (f|2 x y)|])
+;(assert-equal "Tensor ∂/∂ - case 3"
+;  (apply [|(∂/∂ $ x) (∂/∂ $ y)|] (f x y))
+;  [|(f|1 x y) (f|2 x y)|])
 
 (assert-equal "vector field application"
   ([| [| 1 0 |] [| 1 0 |] |] [| 10 0 |] [| 100 0 |])
