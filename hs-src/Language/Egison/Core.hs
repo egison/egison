@@ -274,9 +274,9 @@ evalExpr env (IndexedExpr False expr indices) = do
                   Nothing -> evalExpr env expr
               _ -> evalExpr env expr
   js <- mapM (\i -> case i of
-                             Superscript n -> evalExprDeep env n >>= return . Superscript
-                             Subscript n -> evalExprDeep env n >>= return . Subscript
-                             SupSubscript n -> evalExprDeep env n >>= return . SupSubscript
+                      Superscript n -> evalExprDeep env n >>= return . Superscript
+                      Subscript n -> evalExprDeep env n >>= return . Subscript
+                      SupSubscript n -> evalExprDeep env n >>= return . SupSubscript
               ) indices
   
   ret <- case tensor of
