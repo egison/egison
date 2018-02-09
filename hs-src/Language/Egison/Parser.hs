@@ -183,7 +183,13 @@ expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
                                                                                          e1 <- expr'
                                                                                          string "..._"
                                                                                          e2 <- expr'
-                                                                                         return $ MultiSubscipt e1 e2)
+                                                                                         return $ MultiSubscript e1 e2)
+                                                                           <|> try (do
+                                                                                     char '~' 
+                                                                                     e1 <- expr'
+                                                                                     string "...~"
+                                                                                     e2 <- expr'
+                                                                                     return $ MultiSuperscript e1 e2)
                                                                            <|> try (char '_' >> expr' >>= return . Subscript)
                                                                            <|> try (char '~' >> expr' >>= return . Superscript)
                                                                            <|> try (string "~_" >> expr' >>= return . SupSubscript))

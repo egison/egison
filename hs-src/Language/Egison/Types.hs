@@ -290,7 +290,8 @@ data Index a =
     Subscript a
   | Superscript a
   | SupSubscript a
-  | MultiSubscipt a a
+  | MultiSubscript a a
+  | MultiSuperscript a a
   | DFscript Integer Integer -- DifferentialForm
  deriving (Eq)
 
@@ -1516,8 +1517,12 @@ instance Show (Index ScalarData) where
   show (DFscript _ _) = ""
 
 instance Show (Index EgisonValue) where
-  show (Superscript i) = "~" ++ show i
-  show (Subscript i) = "_" ++ show i
+  show (Superscript i) = case i of
+                            ScalarData _ -> "~[" ++ show i ++ "]"
+                            _ -> "~" ++ show i
+  show (Subscript i) = case i of
+                            ScalarData _ -> "_[" ++ show i ++ "]"
+                            _ -> "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript i j) = "_d" ++ show i ++ show j
 
