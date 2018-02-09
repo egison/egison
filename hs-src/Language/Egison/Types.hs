@@ -780,9 +780,15 @@ tref [] (Tensor [] xs _)
   | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
   | otherwise = throwError $ EgisonBug "sevaral elements in scalar tensor"
 tref [] t = fromTensor t
-tref ((Subscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref ((Superscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref ((SupSubscript (ScalarData (Div (Plus [(Term m [])]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref ((Subscript (ScalarData (Div (Plus xs) (Plus [(Term 1 [])])))):ms) t = case xs of
+                                                                              [Term m []] -> tIntRef' m t >>= toTensor >>= tref ms
+                                                                              [] -> tIntRef' 0 t >>= toTensor >>= tref ms
+tref ((Superscript (ScalarData (Div (Plus xs) (Plus [(Term 1 [])])))):ms) t = case xs of
+                                                                              [Term m []] -> tIntRef' m t >>= toTensor >>= tref ms
+                                                                              [] -> tIntRef' 0 t >>= toTensor >>= tref ms
+tref ((SupSubscript (ScalarData (Div (Plus xs) (Plus [(Term 1 [])])))):ms) t = case xs of
+                                                                              [Term m []] -> tIntRef' m t >>= toTensor >>= tref ms
+                                                                              [] -> tIntRef' 0 t >>= toTensor >>= tref ms
 tref ((Subscript (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
