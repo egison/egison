@@ -141,16 +141,25 @@ desugar (IndexedExpr b expr indices) = case indices of
                                          [MultiSubscript x y] -> case (x, y) of
                                                                  (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr expr (ApplyExpr (VarExpr "between") (TupleExpr [x, y]))
                                                                  (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) 
-                                                                    -> return $ SubrefsExpr expr (ApplyExpr (VarExpr "map") 
-                                                                                        (TupleExpr [(LambdaExpr [TensorArg "k"] (IndexedExpr b1 e1 [(Subscript $ VarExpr "k")])),
+                                                                    -> do
+                                                                        k <- fresh
+                                                                        return $ SubrefsExpr expr (ApplyExpr (VarExpr "map") 
+                                                                                        (TupleExpr [(LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [(Subscript $ VarExpr k)])),
                                                                                                                 (ApplyExpr (VarExpr "between") (TupleExpr [(fromIndexToExpr n1), (fromIndexToExpr n2)]))]))
                                          [MultiSuperscript x y] -> case (x, y) of
                                                                  (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr expr (ApplyExpr (VarExpr "between") (TupleExpr [x, y]))
                                                                  (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) 
-                                                                    -> return $ SuprefsExpr expr (ApplyExpr (VarExpr "map") 
-                                                                                        (TupleExpr [(LambdaExpr [TensorArg "k"] (IndexedExpr b1 e1 [(Subscript $ VarExpr "k")])),
+                                                                    -> do
+                                                                        k <- fresh
+                                                                        return $ SuprefsExpr expr (ApplyExpr (VarExpr "map") 
+                                                                                        (TupleExpr [(LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [(Subscript $ VarExpr k)])),
                                                                                                                 (ApplyExpr (VarExpr "between") (TupleExpr [(fromIndexToExpr n1), (fromIndexToExpr n2)]))]))
                                          _ -> IndexedExpr b <$> desugar expr <*> (mapM desugarIndex indices)
+                                         where
+                                            fromIndexToExpr :: Index EgisonExpr -> EgisonExpr
+                                            fromIndexToExpr (Subscript a) = a
+                                            fromIndexToExpr (Superscript a) = a
+                                            fromIndexToExpr (SupSubscript a) = a
 
 desugar (SubrefsExpr expr1 expr2) = 
   SubrefsExpr <$> desugar expr1 <*> desugar expr2
@@ -407,11 +416,6 @@ desugar (WedgeExpr (ApplyExpr expr0 expr1)) = do
   return $ WedgeApplyExpr expr0' expr1'
 
 desugar expr = return expr
-
-fromIndexToExpr :: Index EgisonExpr -> EgisonExpr
-fromIndexToExpr (Subscript a) = a
-fromIndexToExpr (Superscript a) = a
-fromIndexToExpr (SupSubscript a) = a
 
 desugarIndex :: Index EgisonExpr -> DesugarM (Index EgisonExpr)
 desugarIndex (Superscript expr) = desugar expr >>= return . Superscript

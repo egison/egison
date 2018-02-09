@@ -1518,11 +1518,11 @@ instance Show (Index ScalarData) where
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
-                            ScalarData _ -> "~[" ++ show i ++ "]"
-                            _ -> "~" ++ show i
+                         ScalarData (Div (Plus [(Term 1 [(Symbol id name (a:indices), 1)])]) (Plus [(Term 1 [])])) -> "~[" ++ show i ++ "]"
+                         _ -> "~" ++ show i
   show (Subscript i) = case i of
-                            ScalarData _ -> "_[" ++ show i ++ "]"
-                            _ -> "_" ++ show i
+                         ScalarData (Div (Plus [(Term 1 [(Symbol id name (a:indices), 1)])]) (Plus [(Term 1 [])])) -> "_[" ++ show i ++ "]"
+                         _ -> "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript i j) = "_d" ++ show i ++ show j
 
