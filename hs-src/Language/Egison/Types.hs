@@ -212,7 +212,6 @@ data EgisonExpr =
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]
-  -- | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | VectorExpr [EgisonExpr]
 
@@ -260,7 +259,6 @@ data EgisonExpr =
   | PartialVarExpr Integer
   | RecVarExpr
 
-  -- | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
   | ArrayBoundsExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 

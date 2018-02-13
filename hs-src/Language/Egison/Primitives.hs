@@ -58,59 +58,57 @@ primitiveEnvNoIO = do
 
 {-# INLINE noArg #-}
 noArg :: EgisonM EgisonValue -> PrimitiveFunc
-noArg f = \args -> do
-  args' <- tupleToList args
-  case args' of 
-    [] -> f >>= return . Value
-    _ -> throwError $ ArgumentsNumPrimitive 0 $ length args'
+noArg f args = do
+    args' <- tupleToList args
+    case args' of
+      [] -> Value <$> f
+      _ -> throwError $ ArgumentsNumPrimitive 0 $ length args'
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-oneArg f = \arg -> do
+oneArg f arg = do
   arg' <- evalWHNF arg
   case arg' of
     (TensorData (Tensor ns ds js)) -> do
-      ds' <- V.mapM (\d -> f d) ds
-      fromTensor (Tensor ns ds' js) >>= return . Value 
-    _ -> f arg' >>= return . Value
+      ds' <- V.mapM f ds
+      Value <$> fromTensor (Tensor ns ds' js)
+    _ -> Value <$> f arg'
 
 {-# INLINE oneArg' #-}
 oneArg' :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-oneArg' f = \arg -> do
+oneArg' f arg = do
   arg' <- evalWHNF arg
-  case arg' of
-    _ -> f arg' >>= return . Value
+  Value <$> f arg'
 
 {-# INLINE twoArgs #-}
 twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-twoArgs f = \args -> do
+twoArgs f args = do
   args' <- tupleToList args
   case args' of 
-    [(TensorData t1@(Tensor _ _ _)), (TensorData t2@(Tensor _ _ _))] -> do
-      tProduct f t1 t2 >>= fromTensor >>= return . Value
-    [(TensorData(Tensor ns ds js)), val] -> do
+    [TensorData t1@(Tensor _ _ _), TensorData t2@(Tensor _ _ _)] -> Value <$> (tProduct f t1 t2 >>= fromTensor)
+    [TensorData(Tensor ns ds js), val] -> do
       ds' <- V.mapM (\d -> f d val) ds
-      fromTensor (Tensor ns ds' js) >>= return . Value 
-    [val, (TensorData (Tensor ns ds js))] -> do
+      Value <$> fromTensor (Tensor ns ds' js)
+    [val, TensorData (Tensor ns ds js)] -> do
       ds' <- V.mapM (\d -> f val d) ds
-      fromTensor (Tensor ns ds' js) >>= return . Value 
-    [val, val'] -> f val val' >>= return . Value
+      Value <$> fromTensor (Tensor ns ds' js)
+    [val, val'] -> Value <$> f val val'
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
 {-# INLINE twoArgs' #-}
 twoArgs' :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-twoArgs' f = \args -> do
+twoArgs' f args = do
   args' <- tupleToList args
   case args' of 
-    [val, val'] -> f val val' >>= return . Value
+    [val, val'] -> Value <$> f val val'
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
 {-# INLINE threeArgs' #-}
 threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
-threeArgs' f = \args -> do
+threeArgs' f args = do
   args' <- tupleToList args
   case args' of 
-    [val, val', val''] -> f val val' val'' >>= return . Value
+    [val, val', val''] -> Value <$> f val val' val''
     _ -> throwError $ ArgumentsNumPrimitive 3 $ length args'
 
 --
@@ -244,7 +242,7 @@ rationalBinaryOp :: (Rational -> Rational -> Rational) -> PrimitiveFunc
 rationalBinaryOp op = twoArgs $ \val val' -> do
   r <- fromEgison val :: EgisonM Rational
   r' <- fromEgison val' :: EgisonM Rational
-  let r'' = (op r r'')
+  let r'' = op r r''
   return $ toEgison r''
 
 rationalBinaryPred :: (Rational -> Rational -> Bool) -> PrimitiveFunc
@@ -266,16 +264,14 @@ integerBinaryPred pred = twoArgs $ \val val' -> do
   return $ Bool $ pred i i'
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
-floatUnaryOp op = oneArg $ \val -> do
-  case val of
-    (Float f 0) -> return $ Float (op f) 0
-    _ -> throwError $ TypeMismatch "float" (Value val)
+floatUnaryOp op = oneArg $ \val -> case val of
+                                     (Float f 0) -> return $ Float (op f) 0
+                                     _ -> throwError $ TypeMismatch "float" (Value val)
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
-floatBinaryOp op = twoArgs $ \val val' -> do
-  case (val, val') of
-    ((Float f 0), (Float f' 0)) -> return $ Float (op f f') 0
-    _ -> throwError $ TypeMismatch "float" (Value val)
+floatBinaryOp op = twoArgs $ \val val' -> case (val, val') of
+                                            (Float f 0, Float f' 0) -> return $ Float (op f f') 0
+                                            _ -> throwError $ TypeMismatch "float" (Value val)
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' -> do
@@ -284,28 +280,24 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
   return $ Bool $ pred f f'
 
 floatPlus :: PrimitiveFunc
-floatPlus = twoArgs $ \val val' -> do
-  case (val, val') of
-    ((Float x y), (Float x' y')) -> return $ Float (x + x')  (y + y')
-    _ -> throwError $ TypeMismatch "float" (Value val)
+floatPlus = twoArgs $ \val val' -> case (val, val') of
+                                     (Float x y, Float x' y') -> return $ Float (x + x')  (y + y')
+                                     _ -> throwError $ TypeMismatch "float" (Value val)
 
 floatMinus :: PrimitiveFunc
-floatMinus = twoArgs $ \val val' -> do
-  case (val, val') of
-    ((Float x y), (Float x' y')) -> return $ Float (x - x')  (y - y')
-    _ -> throwError $ TypeMismatch "float" (Value val)
+floatMinus = twoArgs $ \val val' -> case (val, val') of
+                                      (Float x y, Float x' y') -> return $ Float (x - x')  (y - y')
+                                      _ -> throwError $ TypeMismatch "float" (Value val)
 
 floatMult :: PrimitiveFunc
-floatMult = twoArgs $ \val val' -> do
-  case (val, val') of
-    ((Float x y), (Float x' y')) -> return $ Float (x * x' - y * y')  (x * y' + x' * y)
-    _ -> throwError $ TypeMismatch "float" (Value val)
+floatMult = twoArgs $ \val val' -> case (val, val') of
+                                     (Float x y, Float x' y') -> return $ Float (x * x' - y * y')  (x * y' + x' * y)
+                                     _ -> throwError $ TypeMismatch "float" (Value val)
 
 floatDivide :: PrimitiveFunc
-floatDivide = twoArgs $ \val val' -> do
-  case (val, val') of
-    ((Float x y), (Float x' y')) -> return $ Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y'))
-    _ -> throwError $ TypeMismatch "float" (Value val)
+floatDivide = twoArgs $ \val val' -> case (val, val') of
+                                       (Float x y, Float x' y') -> return $ Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y'))
+                                       _ -> throwError $ TypeMismatch "float" (Value val)
 
 
 --
@@ -313,8 +305,7 @@ floatDivide = twoArgs $ \val val' -> do
 --
 
 scalarBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> PrimitiveFunc
-scalarBinaryOp mOp = twoArgs $ \val val' -> do
-  scalarBinaryOp' val val'
+scalarBinaryOp mOp = twoArgs $ \val val' -> scalarBinaryOp' val val'
  where
   scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
   scalarBinaryOp' val             _               = throwError $ TypeMismatch "number" (Value val)
@@ -332,37 +323,37 @@ divide :: PrimitiveFunc
 divide = scalarBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1))
 
 numerator' :: PrimitiveFunc
-numerator' =  oneArg $ numerator''
+numerator' =  oneArg numerator''
  where
   numerator'' (ScalarData m) = return $ ScalarData (mathNumerator m)
   numerator'' val = throwError $ TypeMismatch "rational" (Value val)
 
 denominator' :: PrimitiveFunc
-denominator' =  oneArg $ denominator''
+denominator' =  oneArg denominator''
  where
   denominator'' (ScalarData m) = return $ ScalarData (mathDenominator m)
   denominator'' val = throwError $ TypeMismatch "rational" (Value val)
 
 fromScalarData :: PrimitiveFunc
-fromScalarData = oneArg $ fromScalarData'
+fromScalarData = oneArg fromScalarData'
  where
   fromScalarData' (ScalarData m) = return $ mathExprToEgison m
   fromScalarData' val = throwError $ TypeMismatch "number" (Value val)
 
 toScalarData :: PrimitiveFunc
-toScalarData = oneArg $ toScalarData'
+toScalarData = oneArg toScalarData'
  where
-  toScalarData' val = egisonToScalarData val >>= return . ScalarData . mathNormalize'
+  toScalarData' val = (ScalarData . mathNormalize') <$> egisonToScalarData val
 
 appendUserScripts :: PrimitiveFunc
-appendUserScripts = twoArgs $ appendUserScripts'
+appendUserScripts = twoArgs appendUserScripts'
  where
   appendUserScripts' v (Collection is) = do
     let is' = map Userscript (toList is)
     return $ UserIndexedData v is'
 
 deconsUserScripts :: PrimitiveFunc
-deconsUserScripts = oneArg $ deconsUserScripts'
+deconsUserScripts = oneArg deconsUserScripts'
  where
   deconsUserScripts' (UserIndexedData v is) = return $ Tuple [v, Collection (Sq.fromList (map (\(Userscript i) -> i) is))]
   deconsUserScripts' v = return $ Tuple [v, Collection (Sq.fromList [])]
@@ -425,18 +416,18 @@ truncate' :: PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
   numberUnaryOp' (ScalarData (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
-  numberUnaryOp' (ScalarData (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = return $ toEgison (quot x y)
-  numberUnaryOp' (Float x _)           = return $ toEgison ((truncate x) :: Integer)
+  numberUnaryOp' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return $ toEgison (quot x y)
+  numberUnaryOp' (Float x _)           = return $ toEgison (truncate x :: Integer)
   numberUnaryOp' val                   = throwError $ TypeMismatch "rational or float" (Value val)
 
 realPart :: PrimitiveFunc
-realPart =  oneArg $ realPart'
+realPart =  oneArg realPart'
  where
   realPart' (Float x y) = return $ Float x 0
   realPart' val = throwError $ TypeMismatch "float" (Value val)
 
 imaginaryPart :: PrimitiveFunc
-imaginaryPart =  oneArg $ imaginaryPart'
+imaginaryPart =  oneArg imaginaryPart'
  where
   imaginaryPart' (Float _ y) = return $ Float y 0
   imaginaryPart' val = throwError $ TypeMismatch "float" (Value val)
@@ -446,21 +437,21 @@ imaginaryPart =  oneArg $ imaginaryPart'
 --
 
 tensorSize' :: PrimitiveFunc
-tensorSize' = oneArg' $ tensorSize''
+tensorSize' = oneArg' tensorSize''
  where
   tensorSize'' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
-  tensorSize'' _ = return . Collection $ Sq.fromList $ []
+  tensorSize'' _ = return . Collection $ Sq.fromList []
 
 tensorToList' :: PrimitiveFunc
-tensorToList' = oneArg' $ tensorToList''
+tensorToList' = oneArg' tensorToList''
  where
   tensorToList'' (TensorData (Tensor _ xs _)) = return . Collection . Sq.fromList $ V.toList xs
-  tensorToList'' x = return . Collection $ Sq.fromList $ [x]
+  tensorToList'' x = return . Collection $ Sq.fromList [x]
 
 dfOrder' :: PrimitiveFunc
-dfOrder' = oneArg' $ dfOrder''
+dfOrder' = oneArg' dfOrder''
  where
-  dfOrder'' (TensorData (Tensor ns _ is)) = return (toEgison ((fromIntegral ((length ns) - (length is))) :: Integer))
+  dfOrder'' (TensorData (Tensor ns _ is)) = return (toEgison (fromIntegral (length ns - length is) :: Integer))
   dfOrder'' _ = return (toEgison (0 :: Integer))
 
 --
@@ -468,7 +459,7 @@ dfOrder' = oneArg' $ dfOrder''
 --
 numberToFloat' :: EgisonValue -> EgisonValue
 numberToFloat' (ScalarData (Div (Plus []) _)) = Float 0 0
-numberToFloat' (ScalarData (Div (Plus [(Term x [])]) (Plus [(Term y [])]))) = Float (fromRational (x % y)) 0
+numberToFloat' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = Float (fromRational (x % y)) 0
 
 integerToFloat :: PrimitiveFunc
 integerToFloat = rationalToFloat
@@ -477,24 +468,22 @@ rationalToFloat :: PrimitiveFunc
 rationalToFloat = oneArg $ \val ->
   case val of
     (ScalarData (Div (Plus []) _)) -> return $ numberToFloat' val
-    (ScalarData (Div (Plus [(Term _ [])]) (Plus [(Term _ [])]))) -> return $ numberToFloat' val
+    (ScalarData (Div (Plus [Term _ []]) (Plus [Term _ []]))) -> return $ numberToFloat' val
     _ -> throwError $ TypeMismatch "integer or rational number" (Value val)
 
 charToInteger :: PrimitiveFunc
-charToInteger = oneArg $ \val -> do
-  case val of
-    Char c -> do
-      let i = fromIntegral $ ord c :: Integer
-      return $ toEgison i
-    _ -> throwError $ TypeMismatch "character" (Value val)
+charToInteger = oneArg $ \val -> case val of
+                                   Char c -> do
+                                     let i = fromIntegral $ ord c :: Integer
+                                     return $ toEgison i
+                                   _ -> throwError $ TypeMismatch "character" (Value val)
 
 integerToChar :: PrimitiveFunc
-integerToChar = oneArg $ \val -> do
-  case val of
-    (ScalarData _) -> do
-       i <- fromEgison val :: EgisonM Integer
-       return $ Char $ chr $ fromIntegral i
-    _ -> throwError $ TypeMismatch "integer" (Value val)
+integerToChar = oneArg $ \val -> case val of
+                                   (ScalarData _) -> do
+                                      i <- fromEgison val :: EgisonM Integer
+                                      return $ Char $ chr $ fromIntegral i
+                                   _ -> throwError $ TypeMismatch "integer" (Value val)
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
@@ -510,61 +499,54 @@ pack = oneArg $ \val -> do
   return $ String str
 
 unpack :: PrimitiveFunc
-unpack = oneArg $ \val -> do
-  case val of
-    String str -> return $ toEgison (T.unpack str)
-    _ -> throwError $ TypeMismatch "string" (Value val)
+unpack = oneArg $ \val -> case val of
+                            String str -> return $ toEgison (T.unpack str)
+                            _ -> throwError $ TypeMismatch "string" (Value val)
 
 unconsString :: PrimitiveFunc
-unconsString = oneArg $ \val -> do
-  case val of
-    String str -> case T.uncons str of
-                    Just (c, rest) ->  return $ Tuple [Char c, String rest]
-                    Nothing -> throwError $ Default "Tried to unsnoc empty string"
-    _ -> throwError $ TypeMismatch "string" (Value val)
+unconsString = oneArg $ \val -> case val of
+                                  String str -> case T.uncons str of
+                                                  Just (c, rest) ->  return $ Tuple [Char c, String rest]
+                                                  Nothing -> throwError $ Default "Tried to unsnoc empty string"
+                                  _ -> throwError $ TypeMismatch "string" (Value val)
 
 lengthString :: PrimitiveFunc
-lengthString = oneArg $ \val -> do
-  case val of
-    String str -> return . (\x -> toEgison x) . toInteger $ T.length str
-    _ -> throwError $ TypeMismatch "string" (Value val)
+lengthString = oneArg $ \val -> case val of
+                                  String str -> return . toEgison . toInteger $ T.length str
+                                  _ -> throwError $ TypeMismatch "string" (Value val)
 
 appendString :: PrimitiveFunc
-appendString = twoArgs $ \val1 val2 -> do
-  case (val1, val2) of
-    (String str1, String str2) -> return . String $ T.append str1 str2
-    (String _, _) -> throwError $ TypeMismatch "string" (Value val2)
-    (_, _) -> throwError $ TypeMismatch "string" (Value val1)
+appendString = twoArgs $ \val1 val2 -> case (val1, val2) of
+                                         (String str1, String str2) -> return . String $ T.append str1 str2
+                                         (String _, _) -> throwError $ TypeMismatch "string" (Value val2)
+                                         (_, _) -> throwError $ TypeMismatch "string" (Value val1)
 
 splitString :: PrimitiveFunc
-splitString = twoArgs $ \pat src -> do
-  case (pat, src) of
-    (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
-    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
-    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+splitString = twoArgs $ \pat src -> case (pat, src) of
+                                      (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
+                                      (String _, _) -> throwError $ TypeMismatch "string" (Value src)
+                                      (_, _) -> throwError $ TypeMismatch "string" (Value pat)
 
 regexString :: PrimitiveFunc
-regexString = twoArgs $ \pat src -> do
-  case (pat, src) of
-    (String patStr, String srcStr) -> do
-      let (a, b, c) = (((T.unpack srcStr) =~ (T.unpack patStr)) :: (String, String, String))
-      if b == ""
-        then return . Collection . Sq.fromList $ []
-        else return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
-    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
-    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+regexString = twoArgs $ \pat src -> case (pat, src) of
+                                      (String patStr, String srcStr) -> do
+                                        let (a, b, c) = (T.unpack srcStr =~ T.unpack patStr) :: (String, String, String)
+                                        if b == ""
+                                          then return . Collection . Sq.fromList $ []
+                                          else return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
+                                      (String _, _) -> throwError $ TypeMismatch "string" (Value src)
+                                      (_, _) -> throwError $ TypeMismatch "string" (Value pat)
 
 regexStringCaptureGroup :: PrimitiveFunc
-regexStringCaptureGroup = twoArgs $ \pat src -> do
-  case (pat, src) of
-    (String patStr, String srcStr) -> do
-      let ret = (((T.unpack srcStr) =~ (T.unpack patStr)) :: [[String]])
-      case ret of 
-        [] -> return . Collection . Sq.fromList $ []
-        ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
-                         return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
-    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
-    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+regexStringCaptureGroup = twoArgs $ \pat src -> case (pat, src) of
+                                                  (String patStr, String srcStr) -> do
+                                                    let ret = (T.unpack srcStr =~ T.unpack patStr) :: [[String]]
+                                                    case ret of 
+                                                      [] -> return . Collection . Sq.fromList $ []
+                                                      ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
+                                                                       return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
+                                                  (String _, _) -> throwError $ TypeMismatch "string" (Value src)
+                                                  (_, _) -> throwError $ TypeMismatch "string" (Value pat)
 
 --regexStringMatch :: PrimitiveFunc
 --regexStringMatch = twoArgs $ \pat src -> do
@@ -574,42 +556,38 @@ regexStringCaptureGroup = twoArgs $ \pat src -> do
 --    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
 
 addPrime :: PrimitiveFunc
-addPrime = oneArg $ \sym -> do
-  case sym of
-    ScalarData (Div (Plus [(Term 1 [(Symbol id name is, 1)])]) (Plus [(Term 1 [])])) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol id (name ++ "'") is, 1)])]) (Plus [(Term 1 [])])))
-    _ ->  throwError $ TypeMismatch "symbol" (Value sym)
+addPrime = oneArg $ \sym -> case sym of
+                              ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id (name ++ "'") is, 1)]]) (Plus [Term 1 []])))
+                              _ ->  throwError $ TypeMismatch "symbol" (Value sym)
 
 addSubscript :: PrimitiveFunc
-addSubscript = twoArgs $ \fn sub -> do
-  case (fn, sub) of
-    (ScalarData (Div (Plus [(Term 1 [(Symbol id name is, 1)])]) (Plus [(Term 1 [])])),
-     ScalarData s@(Div (Plus [(Term 1 [(Symbol _ _ [], 1)])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol id name (is ++ [Subscript s]), 1)])]) (Plus [(Term 1 [])])))
-    (ScalarData (Div (Plus [(Term 1 [(Symbol id name is, 1)])]) (Plus [(Term 1 [])])),
-     ScalarData s@(Div (Plus [(Term _ [])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol id name (is ++ [Subscript s]), 1)])]) (Plus [(Term 1 [])])))
-    (ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])])),
-     _) -> throwError $ TypeMismatch "symbol or integer" (Value sub)
-    _ ->  throwError $ TypeMismatch "symbol or integer" (Value fn)
+addSubscript = twoArgs $ \fn sub -> case (fn, sub) of
+                                      (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
+                                       ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
+                                      (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
+                                       ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
+                                      (ScalarData (Div (Plus [Term 1 [(Symbol _ _ _, 1)]]) (Plus [Term 1 []])),
+                                       _) -> throwError $ TypeMismatch "symbol or integer" (Value sub)
+                                      _ ->  throwError $ TypeMismatch "symbol or integer" (Value fn)
 
 addSuperscript :: PrimitiveFunc
-addSuperscript = twoArgs $ \fn sub -> do
-  case (fn, sub) of
-    (ScalarData (Div (Plus [(Term 1 [(Symbol id name is, 1)])]) (Plus [(Term 1 [])])),
-     ScalarData s@(Div (Plus [(Term 1 [(Symbol _ _ [], 1)])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol id name (is ++ [Superscript s]), 1)])]) (Plus [(Term 1 [])])))
-    (ScalarData (Div (Plus [(Term 1 [(Symbol id name is, 1)])]) (Plus [(Term 1 [])])),
-     ScalarData s@(Div (Plus [(Term _ [])]) (Plus [(Term 1 [])]))) -> return (ScalarData (Div (Plus [(Term 1 [(Symbol id name (is ++ [Superscript s]), 1)])]) (Plus [(Term 1 [])])))
-    (ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])])),
-     _) -> throwError $ TypeMismatch "symbol" (Value sub)
-    _ ->  throwError $ TypeMismatch "symbol" (Value fn)
+addSuperscript = twoArgs $ \fn sub -> case (fn, sub) of
+                                        (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
+                                         ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
+                                        (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
+                                         ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
+                                        (ScalarData (Div (Plus [Term 1 [(Symbol _ _ _, 1)]]) (Plus [Term 1 []])),
+                                         _) -> throwError $ TypeMismatch "symbol" (Value sub)
+                                        _ ->  throwError $ TypeMismatch "symbol" (Value fn)
 
 readProcess' :: PrimitiveFunc
-readProcess' = threeArgs' $ \cmd args input -> do
-  case (cmd, args, input) of
-    (String cmdStr, Collection argStrs, String inputStr) -> do
-      outputStr <- liftIO $ readProcess (T.unpack cmdStr) (map (\arg -> case arg of
-                                                                          String argStr -> T.unpack argStr)
-                                                                (toList argStrs)) (T.unpack inputStr)
-      return (String (T.pack outputStr))
-    (_, _, _) -> throwError $ TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input]))
+readProcess' = threeArgs' $ \cmd args input -> case (cmd, args, input) of
+                                                 (String cmdStr, Collection argStrs, String inputStr) -> do
+                                                   outputStr <- liftIO $ readProcess (T.unpack cmdStr) (map (\arg -> case arg of
+                                                                                                                       String argStr -> T.unpack argStr)
+                                                                                                             (toList argStrs)) (T.unpack inputStr)
+                                                   return (String (T.pack outputStr))
+                                                 (_, _, _) -> throwError $ TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input]))
 
 read' :: PrimitiveFunc
 read'= oneArg' $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
@@ -641,14 +619,14 @@ uncons' whnf = do
   mRet <- runMaybeT (unconsCollection whnf)
   case mRet of
     Just (carObjRef, cdrObjRef) -> return $ Intermediate $ ITuple [carObjRef, cdrObjRef]
-    Nothing -> throwError $ Default $ "cannot uncons collection"
+    Nothing -> throwError $ Default "cannot uncons collection"
 
 unsnoc' :: PrimitiveFunc
 unsnoc' whnf = do
   mRet <- runMaybeT (unsnocCollection whnf)
   case mRet of
     Just (racObjRef, rdcObjRef) -> return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
-    Nothing -> throwError $ Default $ "cannot unsnoc collection"
+    Nothing -> throwError $ Default "cannot unsnoc collection"
 
 -- Test
 
@@ -660,11 +638,10 @@ assert = twoArgs' $ \label test -> do
     else throwError $ Assertion $ show label
 
 assertEqual :: PrimitiveFunc
-assertEqual = threeArgs' $ \label actual expected -> do
-  if actual == expected
-    then return $ Bool True
-    else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
-                                  "\n but found: " ++ show actual
+assertEqual = threeArgs' $ \label actual expected -> if actual == expected
+                                                       then return $ Bool True
+                                                       else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
+                                                                                      "\n but found: " ++ show actual
 
 --
 -- IO Primitives

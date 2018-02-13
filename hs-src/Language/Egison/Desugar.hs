@@ -320,12 +320,6 @@ desugar (SeqExpr expr0 expr1) = do
   expr1' <- desugar expr1
   return $ SeqExpr expr0' expr1'
 
--- desugar (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
---   fnExpr' <- desugar fnExpr
---   fstExpr' <- desugar fstExpr
---   lstExpr' <- desugar lstExpr
---   return $ GenerateArrayExpr fnExpr' (fstExpr', lstExpr')
-
 desugar (GenerateTensorExpr fnExpr sizeExpr) = do
   fnExpr' <- desugar fnExpr
   sizeExpr' <- desugar sizeExpr
@@ -436,7 +430,6 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (PApplyPat _ patterns) = collectNames patterns
    collectName (DApplyPat _ patterns) = collectNames patterns
    collectName (LoopPat _ (LoopRange _ _ endNumPat) pattern1 pattern2) = collectName endNumPat `S.union` collectName pattern1 `S.union` collectName pattern2
---   collectName (LoopPat _ (LoopRange _ _ endNumPat) pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
    collectName (LetPat _ pattern) = collectName pattern
    collectName (IndexedPat (PatVar name) _) = S.singleton name
    collectName (OrPat patterns) = collectNames patterns
