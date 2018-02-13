@@ -201,10 +201,6 @@ evalExpr env (CollectionExpr inners) = do
   fromInnerExpr (ElementExpr expr) = IElement <$> newObjectRef env expr
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
 
--- evalExpr env (ArrayExpr exprs) = do
---   refs' <- mapM (newObjectRef env) exprs
---   return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
-
 evalExpr env (VectorExpr exprs) = do
   whnfs <- mapM (evalExpr env) exprs
   case whnfs of
@@ -622,12 +618,6 @@ evalExpr env (MemoizeExpr memoizeFrame expr) = do
 evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
 evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
 
--- evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
---   fN <- (evalExpr env fstExpr >>= fromWHNF) :: EgisonM Integer
---   eN <- (evalExpr env lstExpr >>= fromWHNF) :: EgisonM Integer
---   xs <- mapM (\n -> (newObjectRef env (ApplyExpr fnExpr (IntegerExpr n)))) [fN..eN]
---   return $ Intermediate $ IArray $ Array.listArray (fN, eN) xs
-
 evalExpr env (ArrayBoundsExpr expr) = 
   evalExpr env expr >>= arrayBounds
 
@@ -773,8 +763,6 @@ evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
 evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
   vals <- mapM evalWHNF (V.toList whnfs)
   return $ TensorData $ Tensor ns (V.fromList vals) js
---  vals <- mapM evalWHNF whnfs
---  return $ TensorData $ Tensor ns vals js
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 addscript :: (Index EgisonValue, Tensor a) -> Tensor a
