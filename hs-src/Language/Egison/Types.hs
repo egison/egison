@@ -212,6 +212,7 @@ data EgisonExpr =
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]
+  | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | VectorExpr [EgisonExpr]
 
@@ -259,6 +260,7 @@ data EgisonExpr =
   | PartialVarExpr Integer
   | RecVarExpr
 
+  | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
   | ArrayBoundsExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
 
@@ -758,8 +760,8 @@ tIndex (Scalar _) = []
 
 tIntRef' :: HasTensor a => Integer -> (Tensor a) -> EgisonM a
 tIntRef' i (Tensor [ary] xs _) = let n = fromIntegral (length [ary]) in
-                                     if (0 < i) && (i <= n) then fromTensor $ Scalar $ xs V.! (fromIntegral (i - 1)) 
-                                                            else throwError $ TensorIndexOutOfBounds i (n + 1)
+                                     if (0 < i) && (i <= (n + 3)) then fromTensor $ Scalar $ xs V.! (fromIntegral (i - 1)) 
+                                                                  else throwError $ TensorIndexOutOfBounds i (n + 3)
 tIntRef' i (Tensor (n:ns) xs js) =
   if (0 < i) && (i <= n)
    then let w = fromIntegral (product ns) in
@@ -780,15 +782,12 @@ tref [] (Tensor [] xs _)
   | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
   | otherwise = throwError $ EgisonBug "sevaral elements in scalar tensor"
 tref [] t = fromTensor t
-tref ((Subscript (ScalarData (Div (Plus xs) (Plus [(Term 1 [])])))):ms) t = case xs of
-                                                                              [Term m []] -> tIntRef' m t >>= toTensor >>= tref ms
-                                                                              [] -> tIntRef' 0 t >>= toTensor >>= tref ms
-tref ((Superscript (ScalarData (Div (Plus xs) (Plus [(Term 1 [])])))):ms) t = case xs of
-                                                                              [Term m []] -> tIntRef' m t >>= toTensor >>= tref ms
-                                                                              [] -> tIntRef' 0 t >>= toTensor >>= tref ms
-tref ((SupSubscript (ScalarData (Div (Plus xs) (Plus [(Term 1 [])])))):ms) t = case xs of
-                                                                              [Term m []] -> tIntRef' m t >>= toTensor >>= tref ms
-                                                                              [] -> tIntRef' 0 t >>= toTensor >>= tref ms
+tref ((Subscript (ScalarData (Div (Plus [Term m []]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref ((Subscript (ScalarData (Div (Plus []) (Plus [(Term 1 [])])))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
+tref ((Superscript (ScalarData (Div (Plus [Term m []]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref ((Superscript (ScalarData (Div (Plus []) (Plus [(Term 1 [])])))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
+tref ((SupSubscript (ScalarData (Div (Plus [Term m []]) (Plus [(Term 1 [])])))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref ((SupSubscript (ScalarData (Div (Plus []) (Plus [(Term 1 [])])))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
 tref ((Subscript (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
