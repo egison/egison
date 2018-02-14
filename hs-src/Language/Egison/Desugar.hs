@@ -320,6 +320,12 @@ desugar (SeqExpr expr0 expr1) = do
   expr1' <- desugar expr1
   return $ SeqExpr expr0' expr1'
 
+desugar (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
+  fnExpr' <- desugar fnExpr
+  fstExpr' <- desugar fstExpr
+  lstExpr' <- desugar lstExpr
+  return $ GenerateArrayExpr fnExpr' (fstExpr', lstExpr')
+
 desugar (GenerateTensorExpr fnExpr sizeExpr) = do
   fnExpr' <- desugar fnExpr
   sizeExpr' <- desugar sizeExpr

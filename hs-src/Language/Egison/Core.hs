@@ -200,6 +200,10 @@ evalExpr env (CollectionExpr inners) = do
   fromInnerExpr :: InnerExpr -> EgisonM Inner
   fromInnerExpr (ElementExpr expr) = IElement <$> newObjectRef env expr
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
+ 
+evalExpr env (ArrayExpr exprs) = do
+  refs' <- mapM (newObjectRef env) exprs
+  return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env (VectorExpr exprs) = do
   whnfs <- mapM (evalExpr env) exprs
@@ -617,6 +621,12 @@ evalExpr env (MemoizeExpr memoizeFrame expr) = do
 
 evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
 evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
+ 
+evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
+  fN <- (evalExpr env fstExpr >>= fromWHNF) :: EgisonM Integer
+  eN <- (evalExpr env lstExpr >>= fromWHNF) :: EgisonM Integer
+  xs <- mapM (\n -> (newObjectRef env (ApplyExpr fnExpr (IntegerExpr n)))) [fN..eN]
+  return $ Intermediate $ IArray $ Array.listArray (fN, eN) xs
 
 evalExpr env (ArrayBoundsExpr expr) = 
   evalExpr env expr >>= arrayBounds
