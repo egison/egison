@@ -311,7 +311,7 @@ evalExpr env (IndexedExpr False expr indices) = do
   f (Subscript _) = Subscript ()
   f (SupSubscript _) = SupSubscript ()
 
-evalExpr env (SubrefsExpr expr jsExpr) = do
+evalExpr env (SubrefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Subscript)
   tensor <- case expr of
               (VarExpr var) -> do
@@ -324,9 +324,11 @@ evalExpr env (SubrefsExpr expr jsExpr) = do
       (Value (ScalarData _)) -> do
         return $ tensor
       (Value (TensorData (Tensor ns xs is))) -> do
-        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
       (Intermediate (ITensor (Tensor ns xs is))) -> do
-        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
+                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
       _ -> throwError $ NotImplemented "subrefs"
   return ret
  where
@@ -335,7 +337,7 @@ evalExpr env (SubrefsExpr expr jsExpr) = do
   f (Subscript _) = Subscript ()
   f (SupSubscript _) = SupSubscript ()
 
-evalExpr env (SuprefsExpr expr jsExpr) = do
+evalExpr env (SuprefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Superscript)
   tensor <- case expr of
               (VarExpr var) -> do
@@ -348,9 +350,11 @@ evalExpr env (SuprefsExpr expr jsExpr) = do
       (Value (ScalarData _)) -> do
         return $ tensor
       (Value (TensorData (Tensor ns xs is))) -> do
-        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
       (Intermediate (ITensor (Tensor ns xs is))) -> do
-        tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
+                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
       _ -> throwError $ NotImplemented "suprefs"
   return ret
  where
@@ -374,6 +378,8 @@ evalExpr env (ProcedureExpr names expr) = return . Value $ Proc Nothing env name
 evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
+
+-- evalExpr env (FunctionExpr args) = return . Value $ map (evalExpr env) args
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
