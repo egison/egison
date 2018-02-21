@@ -205,8 +205,8 @@ data EgisonExpr =
   | VarExpr String
   | FreshVarExpr
   | IndexedExpr Bool EgisonExpr [Index EgisonExpr]
-  | SubrefsExpr EgisonExpr EgisonExpr
-  | SuprefsExpr EgisonExpr EgisonExpr
+  | SubrefsExpr Bool EgisonExpr EgisonExpr
+  | SuprefsExpr Bool EgisonExpr EgisonExpr
   | UserIndexedExpr EgisonExpr [UserIndex EgisonExpr]
   | PowerExpr EgisonExpr EgisonExpr
   | InductiveDataExpr String [EgisonExpr]
@@ -275,6 +275,8 @@ data EgisonExpr =
   | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
   | TransposeExpr EgisonExpr EgisonExpr
   | FlipIndicesExpr EgisonExpr
+
+  -- | FunctionExpr [EgisonExpr]
 
   | SomethingExpr
   | UndefinedExpr
@@ -385,6 +387,7 @@ data EgisonValue =
   | IOFunc (EgisonM WHNFData)
   | QuotedFunc EgisonValue
   | Port Handle
+  -- | FunctionData [EgisonValue]
   | Something
   | Undefined
   | EOF

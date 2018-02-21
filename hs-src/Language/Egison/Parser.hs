@@ -214,6 +214,7 @@ expr' = (try partialExpr
 --             <|> quoteExpr
              <|> quoteFunctionExpr
              <|> wedgeExpr
+             -- <|> functionIndexExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
@@ -304,6 +305,12 @@ quoteExpr = char '\'' >> QuoteExpr <$> expr
 
 wedgeExpr :: Parser EgisonExpr
 wedgeExpr = char '!' >> WedgeExpr <$> expr
+
+-- functionIndexExpr :: Parser EgisonExpr
+-- functionIndexExpr = between lp rp $ FunctionExpr <$> sepEndBy expr whiteSpace
+--   where
+--     lp = P.lexeme lexer (string "function [")
+--     rp = char ']'
 
 quoteFunctionExpr :: Parser EgisonExpr
 quoteFunctionExpr = char '`' >> QuoteFunctionExpr <$> expr
@@ -593,10 +600,12 @@ pmapExpr :: Parser EgisonExpr
 pmapExpr = keywordPmap >> PmapExpr <$> expr <*> expr
 
 subrefsExpr :: Parser EgisonExpr
-subrefsExpr = keywordSubrefs >> SubrefsExpr <$> expr <*> expr
+subrefsExpr = (keywordSubrefs >> SubrefsExpr False <$> expr <*> expr)
+               <|> (keywordSubrefsNew >> SubrefsExpr True <$> expr <*> expr)
 
 suprefsExpr :: Parser EgisonExpr
-suprefsExpr = keywordSuprefs >> SuprefsExpr <$> expr <*> expr
+suprefsExpr = (keywordSuprefs >> SuprefsExpr False <$> expr <*> expr)
+               <|> (keywordSuprefsNew >> SuprefsExpr True <$> expr <*> expr)
 
 -- Patterns
 
@@ -835,7 +844,9 @@ reservedKeywords =
   , "pseq"
   , "pmap"
   , "subrefs"
+  , "subrefs!"
   , "suprefs"
+  , "suprefs!"
   , "something"
   , "undefined"]
   
@@ -916,7 +927,9 @@ keywordPar                  = reserved "par"
 keywordPseq                 = reserved "pseq"
 keywordPmap                 = reserved "pmap"
 keywordSubrefs              = reserved "subrefs"
+keywordSubrefsNew           = reserved "subrefs!"
 keywordSuprefs              = reserved "suprefs"
+keywordSuprefsNew           = reserved "suprefs!"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)
