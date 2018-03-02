@@ -171,10 +171,11 @@ import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
 import Data.Foldable (foldr, toList)
 import Data.IORef
+import Data.Hashable (Hashable)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition, intersperse)
+import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition, intercalate, elemIndex)
 import Data.List.Split (splitOn)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -300,7 +301,7 @@ data Index a =
   | DFscript Integer Integer -- DifferentialForm
  deriving (Eq)
 
-data UserIndex a = Userscript a
+newtype UserIndex a = Userscript a
  deriving (Eq)
 
 data InnerExpr =
@@ -308,13 +309,13 @@ data InnerExpr =
   | SubCollectionExpr EgisonExpr
  deriving (Show, Eq)
 
-type BindingExpr = ([String], EgisonExpr)
+type BindingExpr = ([Var], EgisonExpr)
 type MatchClause = (EgisonPattern, EgisonExpr)
 type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
 
 data EgisonPattern =
     WildCard
-  | PatVar String
+  | PatVar Var
   | ValuePat EgisonExpr
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
@@ -325,7 +326,7 @@ data EgisonPattern =
   | OrderedOrPat [EgisonPattern]
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
-  | LoopPat String LoopRange EgisonPattern EgisonPattern
+  | LoopPat Var LoopRange EgisonPattern EgisonPattern
   | ContPat
   | PApplyPat EgisonExpr [EgisonPattern]
   | VarPat String
@@ -379,10 +380,10 @@ data EgisonValue =
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env PMMode MatcherInfo
-  | Func (Maybe String) Env [String] EgisonExpr
+  | Func (Maybe Var) Env [String] EgisonExpr
   | PartialFunc Env Integer EgisonExpr
-  | CFunc (Maybe String) Env String EgisonExpr
-  | MemoizedFunc (Maybe String) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
+  | CFunc (Maybe Var) Env String EgisonExpr
+  | MemoizedFunc (Maybe Var) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | Proc (Maybe String) Env [String] EgisonExpr
   | Macro [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
@@ -403,7 +404,7 @@ data ScalarData =
     Div PolyExpr PolyExpr
  deriving (Eq)
 
-data PolyExpr =
+newtype PolyExpr =
     Plus [TermExpr]
 
 data TermExpr =
@@ -418,9 +419,9 @@ data SymbolExpr =
 instance Eq PolyExpr where
   (Plus []) == (Plus []) = True
   (Plus (x:xs)) == (Plus ys) =
-    case findIndex ((==) x) ys of
+    case elemIndex x ys of
       Just i -> let (hs, _:ts) = splitAt i ys in
-                  (Plus xs) == (Plus (hs ++ ts))
+                  Plus xs == Plus (hs ++ ts)
       Nothing -> False
   _ == _ = False
 
@@ -428,22 +429,22 @@ instance Eq TermExpr where
   (Term a []) == (Term b [])
     | a /= b =  False
     | otherwise = True
-  (Term a (((Quote x),n):xs)) == (Term b ys)
-    | (a /= b) && (a /= (negate b)) =  False
-    | otherwise = case findIndex ((==) ((Quote x),n)) ys of
+  (Term a ((Quote x, n):xs)) == (Term b ys)
+    | (a /= b) && (a /= negate b) =  False
+    | otherwise = case elemIndex (Quote x, n) ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
-                                (Term a xs) == (Term b (hs ++ ts))
-                    Nothing -> case findIndex ((==) ((Quote (mathNegate x)),n)) ys of
+                                Term a xs == Term b (hs ++ ts)
+                    Nothing -> case elemIndex (Quote (mathNegate x), n) ys of
                                  Just i -> let (hs, _:ts) = splitAt i ys in
                                              if even n
-                                               then (Term a xs) == (Term b (hs ++ ts))
-                                               else (Term (negate a) xs) == (Term b (hs ++ ts))
+                                               then Term a xs == Term b (hs ++ ts)
+                                               else Term (negate a) xs == Term b (hs ++ ts)
                                  Nothing -> False
   (Term a (x:xs)) == (Term b ys)
-    | (a /= b) && (a /= (negate b)) =  False
-    | otherwise = case findIndex ((==) x) ys of
+    | (a /= b) && (a /= negate b) =  False
+    | otherwise = case elemIndex x ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
-                                (Term a xs) == (Term b (hs ++ ts))
+                                Term a xs == Term b (hs ++ ts)
                     Nothing -> False
   _ == _ = False
 
@@ -457,7 +458,7 @@ class HasTensor a where
   tensorElems :: a -> V.Vector a
   tensorSize :: a -> [Integer]
   tensorIndices :: a -> [Index EgisonValue]
-  fromTensor :: (Tensor a) -> EgisonM a
+  fromTensor :: Tensor a -> EgisonM a
   toTensor :: a -> EgisonM (Tensor a)
   undef :: a
 
@@ -465,7 +466,7 @@ instance HasTensor EgisonValue where
   tensorElems (TensorData (Tensor _ xs _)) = xs
   tensorSize (TensorData (Tensor ns _ _)) = ns
   tensorIndices (TensorData (Tensor _ _ js)) = js
-  fromTensor t@(Tensor _ _ _) = return $ TensorData t
+  fromTensor t@Tensor{} = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
   toTensor x = return $ Scalar x
@@ -475,7 +476,7 @@ instance HasTensor WHNFData where
   tensorElems (Intermediate (ITensor (Tensor _ xs _))) = xs
   tensorSize (Intermediate (ITensor (Tensor ns _ _))) = ns
   tensorIndices (Intermediate (ITensor (Tensor _ _ js))) = js
-  fromTensor t@(Tensor _ _ _) = return $ Intermediate $ ITensor t
+  fromTensor t@Tensor{} = return $ Intermediate $ ITensor t
   fromTensor (Scalar x) = return x
   toTensor (Intermediate (ITensor t)) = return t
   toTensor x = return $ Scalar x
@@ -486,13 +487,13 @@ instance HasTensor WHNFData where
 --
 
 symbolScalarData :: String -> String -> EgisonValue
-symbolScalarData id name = ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))
+symbolScalarData id name = ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))
 
 getSymId :: EgisonValue -> String
-getSymId (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))) = id
+getSymId (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) = id
 
 mathExprToEgison :: ScalarData -> EgisonValue
-mathExprToEgison (Div p1 p2) = InductiveData "Div" [(polyExprToEgison p1), (polyExprToEgison p2)]
+mathExprToEgison (Div p1 p2) = InductiveData "Div" [polyExprToEgison p1, polyExprToEgison p2]
 
 polyExprToEgison :: PolyExpr -> EgisonValue
 polyExprToEgison (Plus ts) = InductiveData "Plus" [Collection (Sq.fromList (map termExprToEgison ts))]
@@ -510,19 +511,19 @@ symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEg
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
-egisonToScalarData p1@(InductiveData "Plus" _) = Div <$> egisonToPolyExpr p1 <*> (return (Plus [(Term 1 [])]))
+egisonToScalarData p1@(InductiveData "Plus" _) = Div <$> egisonToPolyExpr p1 <*> return (Plus [Term 1 []])
 egisonToScalarData t1@(InductiveData "Term" _) = do
   t1' <- egisonToTermExpr t1
-  return $ Div (Plus [t1']) (Plus [(Term 1 [])])
+  return $ Div (Plus [t1']) (Plus [Term 1 []])
 egisonToScalarData s1@(InductiveData "Symbol" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 ::Integer)])
-  return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
+  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
 egisonToScalarData s1@(InductiveData "Apply" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
+  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
 egisonToScalarData s1@(InductiveData "Quote" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ Div (Plus [(Term 1 [s1'])]) (Plus [(Term 1 [])])
+  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
 egisonToScalarData val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
 
 egisonToPolyExpr :: EgisonValue -> EgisonM PolyExpr
@@ -534,7 +535,7 @@ egisonToTermExpr (InductiveData "Term" [n, Collection ts]) = Term <$> fromEgison
 egisonToTermExpr val = liftError $ throwError $ TypeMismatch "math term expression" (Value val)
 
 egisonToSymbolExpr :: EgisonValue -> EgisonM (SymbolExpr, Integer)
-egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, (Collection seq)], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
   let js = toList seq
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
@@ -543,9 +544,9 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, (Collection seq)], n]) = d
                ) js
   n' <- fromEgison n
   case x of
-    (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])]))) ->
+    (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) ->
       return (Symbol id name js', n')
-egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, (Collection mExprs)], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, Collection mExprs], n]) = do
   mExprs' <- mapM egisonToScalarData (toList mExprs)
   n' <- fromEgison n
   return (Apply fn mExprs', n')
@@ -563,15 +564,15 @@ termsGcd (t:ts) = f t ts
  where
   f :: TermExpr -> [TermExpr] -> TermExpr
   f ret [] =  ret
-  f (Term a xs) ((Term b ys):ts) =
+  f (Term a xs) (Term b ys:ts) =
     f (Term (gcd a b) (g xs ys)) ts
   g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
   g [] ys = []
   g ((x, n):xs) ys = let (z, m) = h (x, n) ys in
-    if m == 0 then g xs ys else ((z, m):(g xs ys))
+    if m == 0 then g xs ys else (z, m):g xs ys
   h :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> (SymbolExpr, Integer)
   h (x, n) [] = (x, 0)
-  h ((Quote x), n) (((Quote y), m):ys) = if x == y
+  h (Quote x, n) ((Quote y, m):ys) = if x == y
                                         then ((Quote x), (min n m))
                                         else if x == (mathNegate y)
                                              then ((Quote x), (min n m))
@@ -1189,12 +1190,12 @@ instance Show EgisonValue where
   show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
   show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
   show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
-  show (Func (Just name) _ _ _) = name
+  show (Func (Just name) _ _ _) = show name
   show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
-  show (CFunc (Just name) _ _ _) = name
+  show (CFunc (Just name) _ _ _) = show name
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
-  show (MemoizedFunc (Just name) _ _ _ names _) = name
+  show (MemoizedFunc (Just name) _ _ _ names _) = show name
   show (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
   show (Proc (Just name) _ _ _) = name
   show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
@@ -1467,8 +1468,8 @@ fromBoolWHNF (Value (Bool b)) = return b
 fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
 
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
-fromIntegerWHNF (Value (ScalarData (Div (Plus []) (Plus [(Term 1 [])])))) = return 0
-fromIntegerWHNF (Value (ScalarData (Div (Plus [(Term x [])]) (Plus [(Term 1 [])])))) = return x
+fromIntegerWHNF (Value (ScalarData (Div (Plus []) (Plus [Term 1 []])))) = return 0
+fromIntegerWHNF (Value (ScalarData (Div (Plus [Term x []]) (Plus [Term 1 []])))) = return x
 fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
 
 fromFloatWHNF :: WHNFData -> Either EgisonError Double
@@ -1487,27 +1488,27 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-data Env = Env [HashMap String ObjectRef]
+newtype Env = Env [HashMap Var ObjectRef]
  deriving (Show)
 
-data Var = Var [String]
- deriving (Eq)
+newtype Var = Var [String]
+ deriving (Eq, Hashable)
 
 data VarWithIndexType = VarWithIndexType String [Index ()]
  deriving (Eq)
-type Binding = (String, ObjectRef)
+type Binding = (Var, ObjectRef)
 
 data VarWithIndices = VarWithIndices String [Index String]
  deriving (Eq)
 
 instance Show Var where
-  show (Var xs) = concat (intersperse "." xs)
+  show (Var xs) = intercalate "." xs
 
 instance Show VarWithIndexType where
-  show (VarWithIndexType x is) = x ++ concat (map show is)
+  show (VarWithIndexType x is) = x ++ concatMap show is
 
 instance Show VarWithIndices where
-  show (VarWithIndices x is) = x ++ concat (map show is)
+  show (VarWithIndices x is) = x ++ concatMap show is
 
 instance Show (Index ()) where
   show (Superscript ()) = "~"
@@ -1535,10 +1536,10 @@ instance Show (Index ScalarData) where
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
-                         ScalarData (Div (Plus [(Term 1 [(Symbol id name (a:indices), 1)])]) (Plus [(Term 1 [])])) -> "~[" ++ show i ++ "]"
+                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "~[" ++ show i ++ "]"
                          _ -> "~" ++ show i
   show (Subscript i) = case i of
-                         ScalarData (Div (Plus [(Term 1 [(Symbol id name (a:indices), 1)])]) (Plus [(Term 1 [])])) -> "_[" ++ show i ++ "]"
+                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
                          _ -> "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript i j) = "_d" ++ show i ++ show j
@@ -1558,7 +1559,7 @@ nullEnv = Env []
 extendEnv :: Env -> [Binding] -> Env
 extendEnv (Env env) = Env . (: env) . HashMap.fromList
 
-refVar :: Env -> String -> Maybe ObjectRef
+refVar :: Env -> Var -> Maybe ObjectRef
 refVar (Env env) var = msum $ map (HashMap.lookup var) env
 
 --
@@ -1640,7 +1641,7 @@ liftError = either throwError return
 --
 
 newtype EgisonM a = EgisonM {
-    unEgisonM :: (ExceptT EgisonError (FreshT IO) a)
+    unEgisonM :: ExceptT EgisonError (FreshT IO) a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
 
 parallelMapM :: (a -> EgisonM b) -> [a] -> EgisonM [b]
