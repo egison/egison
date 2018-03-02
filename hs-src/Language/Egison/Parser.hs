@@ -179,23 +179,28 @@ exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
 expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
-                          expr1 <- option expr0 $ IndexedExpr False expr0 <$> many1 (try (do
-                                                                                         char '_' 
-                                                                                         e1 <- expr'
-                                                                                         string "..._"
-                                                                                         e2 <- expr'
-                                                                                         return $ MultiSubscript e1 e2)
-                                                                           <|> try (do
-                                                                                     char '~' 
-                                                                                     e1 <- expr'
-                                                                                     string "...~"
-                                                                                     e2 <- expr'
-                                                                                     return $ MultiSuperscript e1 e2)
-                                                                           <|> try (char '_' >> expr' >>= return . Subscript)
-                                                                           <|> try (char '~' >> expr' >>= return . Superscript)
-                                                                           <|> try (string "~_" >> expr' >>= return . SupSubscript))
+                          expr1 <- option expr0 $ try (do string "..."
+                                                          IndexedExpr False expr0 <$> parseindex)
+                                                  <|> IndexedExpr True expr0 <$> parseindex
                           expr2 <- option expr1 $ UserIndexedExpr expr1 <$> many1 (try $ char '|' >> expr' >>= return . Userscript)
                           option expr2 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
+                            where parseindex :: Parser [Index EgisonExpr]
+                                  parseindex = many1 (try (do
+                                                               char '_' 
+                                                               e1 <- expr'
+                                                               string "..._"
+                                                               e2 <- expr'
+                                                               return $ MultiSubscript e1 e2)
+                                                 <|> try (do
+                                                           char '~' 
+                                                           e1 <- expr'
+                                                           string "...~"
+                                                           e2 <- expr'
+                                                           return $ MultiSuperscript e1 e2)
+                                                 <|> try (char '_' >> expr' >>= return . Subscript)
+                                                 <|> try (char '~' >> expr' >>= return . Superscript)
+                                                 <|> try (string "~_" >> expr' >>= return . SupSubscript))
+
 
 quoteExpr' :: Parser EgisonExpr
 quoteExpr' = char '\'' >> QuoteExpr <$> expr'
@@ -264,6 +269,10 @@ expr' = (try partialExpr
 
 varExpr :: Parser EgisonExpr
 varExpr = VarExpr <$> identVar
+  where identVar :: Parser Var
+        identVar = do
+          x <- ident
+          return $ stringToVar x
 
 freshVarExpr :: Parser EgisonExpr
 freshVarExpr = char '#' >> return FreshVarExpr
@@ -791,7 +800,7 @@ egisonDef =
                 , P.caseSensitive      = True }
 
 symbol0 = oneOf "^"
-symbol1 = oneOf "+-*/=.∂∇"
+symbol1 = oneOf "+-*/.=∂∇"
 symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity
@@ -988,11 +997,6 @@ dot = P.dot lexer
 ident :: Parser String
 ident = P.identifier lexer
 
-identVar :: Parser Var
-identVar = do
-  x <- ident
-  let ls = splitOn "." x in if ls == [""] then return $ Var ["."]
-                                          else return $ Var ls
 upperName :: Parser String
 upperName = P.lexeme lexer $ upperName'
 

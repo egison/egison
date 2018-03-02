@@ -265,7 +265,7 @@ evalExpr env (UserIndexedExpr expr indices) = do
     (UserIndexedData val' is') -> return $ Value $ UserIndexedData val' (is' ++ js)
     _ -> return $ Value $ UserIndexedData val js
 
-evalExpr env (IndexedExpr False expr indices) = do
+evalExpr env (IndexedExpr bool expr indices) = do
   tensor <- case expr of
               (VarExpr var) -> do
                 let mObjRef = refVar env (show (VarWithIndexType (show var) (map f indices)))
@@ -289,10 +289,12 @@ evalExpr env (IndexedExpr False expr indices) = do
         return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js2, 1)])]) (Plus [(Term 1 [])])))
       (Value (ScalarData _)) -> do
         return $ tensor
-      (Value (TensorData (Tensor ns xs _))) -> do
-        tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
-      (Intermediate (ITensor (Tensor ns xs _))) -> do
-        tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
+      (Value (TensorData (Tensor ns xs is))) -> do
+        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
+      (Intermediate (ITensor (Tensor ns xs is))) -> do
+        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
+                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
       _ -> do
         js2 <- mapM (\i -> case i of
                              Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
