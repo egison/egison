@@ -58,7 +58,7 @@ desugarExpr expr = liftEgisonM $ runDesugarM $ desugar expr
 desugar :: EgisonExpr -> DesugarM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- fresh
-  matcherRef <- return $ VarExpr matcherName
+  matcherRef <- return $ VarExpr $ stringToVar matcherName
   matcher <- genMatcherClauses patterns matcherRef
   return $ LetRecExpr [([matcherName], matcher)] matcherRef
     where
@@ -74,7 +74,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", TupleExpr []
-               ,[(PDPatVar "tgt", (MatchExpr (TupleExpr [(VarExpr "val"), (VarExpr "tgt")]) 
+               ,[(PDPatVar "tgt", (MatchExpr (TupleExpr [(VarExpr $ stringToVar "val"), (VarExpr $ stringToVar "tgt")]) 
                                              (TupleExpr [matcher, matcher]) 
                                              clauses))])
         where
@@ -89,8 +89,8 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         
           genMatchingPattern :: (String, [EgisonExpr]) -> DesugarM (EgisonPattern, EgisonPattern)
           genMatchingPattern (name, patterns) = do
-            names <- mapM (const fresh) patterns
-            return $ ((InductivePat name (map PatVar names))  
+            names <- mapM (const freshV) patterns
+            return $ ((InductivePat name (map PatVar $ map show names))  
                      ,(InductivePat name (map (ValuePat . VarExpr) names)))
           
       genMatcherClause :: (String, [EgisonExpr]) -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
@@ -107,8 +107,8 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           
           genPrimitiveDataPat :: (String, [EgisonExpr]) -> DesugarM (PrimitiveDataPattern, [EgisonExpr])
           genPrimitiveDataPat (name, patterns) = do
-            patterns' <- mapM (const fresh) patterns 
-            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map VarExpr patterns')
+            patterns' <- mapM (const freshV) patterns 
+            return (PDInductivePat (capitalize name) $ map PDPatVar $ map show patterns', map VarExpr patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
@@ -116,7 +116,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       
       genSomethingClause :: DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genSomethingClause = 
-        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr [ElementExpr (VarExpr "tgt")])])
+        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr [ElementExpr (VarExpr $ stringToVar "tgt")])])
     
       matchingSuccess :: EgisonExpr
       matchingSuccess = CollectionExpr [ElementExpr $ TupleExpr []]
@@ -126,11 +126,11 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
 desugar (MatchAllLambdaExpr matcher clause) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr (VarExpr name) matcher clause)
+  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr (VarExpr $ stringToVar name) matcher clause)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchExpr (VarExpr name) matcher clauses)
+  desugar $ LambdaExpr [TensorArg name] (MatchExpr (VarExpr $ stringToVar name) matcher clauses)
 
 desugar (ArrayRefExpr expr nums) =
   case nums of
@@ -139,21 +139,21 @@ desugar (ArrayRefExpr expr nums) =
 
 desugar (IndexedExpr b expr indices) = case indices of
                                          [MultiSubscript x y] -> case (x, y) of
-                                                                 (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr False expr (ApplyExpr (VarExpr "between") (TupleExpr [x, y]))
+                                                                 (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr False expr (ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [x, y]))
                                                                  (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) 
                                                                     -> do
                                                                         k <- fresh
-                                                                        return $ SubrefsExpr False expr (ApplyExpr (VarExpr "map") 
-                                                                                        (TupleExpr [(LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [(Subscript $ VarExpr k)])),
-                                                                                                                (ApplyExpr (VarExpr "between") (TupleExpr [(fromIndexToExpr n1), (fromIndexToExpr n2)]))]))
+                                                                        return $ SubrefsExpr False expr (ApplyExpr (VarExpr $ stringToVar "map") 
+                                                                                        (TupleExpr [(LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [(Subscript $ VarExpr $ stringToVar k)])),
+                                                                                                                (ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [(fromIndexToExpr n1), (fromIndexToExpr n2)]))]))
                                          [MultiSuperscript x y] -> case (x, y) of
-                                                                 (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr False expr (ApplyExpr (VarExpr "between") (TupleExpr [x, y]))
+                                                                 (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr False expr (ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [x, y]))
                                                                  (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) 
                                                                     -> do
                                                                         k <- fresh
-                                                                        return $ SuprefsExpr False expr (ApplyExpr (VarExpr "map") 
-                                                                                        (TupleExpr [(LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [(Subscript $ VarExpr k)])),
-                                                                                                                (ApplyExpr (VarExpr "between") (TupleExpr [(fromIndexToExpr n1), (fromIndexToExpr n2)]))]))
+                                                                        return $ SuprefsExpr False expr (ApplyExpr (VarExpr $ stringToVar "map") 
+                                                                                        (TupleExpr [(LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [(Subscript $ VarExpr $ stringToVar k)])),
+                                                                                                                (ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [(fromIndexToExpr n1), (fromIndexToExpr n2)]))]))
                                          _ -> IndexedExpr b <$> desugar expr <*> (mapM desugarIndex indices)
                                          where
                                             fromIndexToExpr :: Index EgisonExpr -> EgisonExpr
@@ -170,7 +170,7 @@ desugar (SuprefsExpr bool expr1 expr2) =
 desugar (PowerExpr expr1 expr2) = do
   expr1' <- desugar expr1
   expr2' <- desugar expr2
-  return $ ApplyExpr (VarExpr "**") (TupleExpr [expr1', expr2'])
+  return $ ApplyExpr (VarExpr $ stringToVar "**") (TupleExpr [expr1', expr2'])
 
 desugar (ArrayBoundsExpr expr) = do
   expr' <- desugar expr
@@ -218,13 +218,13 @@ desugar (LambdaExpr names expr) = do
                                                 _ -> False) rhnames'
       case rhnames2 of
         [] -> desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
-                          (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (FlipIndicesExpr (VarExpr rhname)))
+                          (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (FlipIndicesExpr (VarExpr $ stringToVar rhname)))
         (ScalarArg rhname2:rhnames2') ->
           desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2] ++ rtnames2 ++ [TensorArg rhname] ++ reverse rtnames)
-                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (VarExpr rhname2) (FlipIndicesExpr (VarExpr rhname)))
+                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (VarExpr $ stringToVar rhname2) (FlipIndicesExpr (VarExpr $ stringToVar rhname)))
         (InvertedScalarArg rhname2:rhnames2') ->
           desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2] ++ rtnames2 ++ [TensorArg rhname] ++ reverse rtnames)
-                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (FlipIndicesExpr (VarExpr rhname2)) (FlipIndicesExpr (VarExpr rhname)))
+                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (FlipIndicesExpr (VarExpr $ stringToVar rhname2)) (FlipIndicesExpr (VarExpr $ stringToVar rhname)))
 
     (ScalarArg rhname:rhnames') -> do
       let (rtnames2, rhnames2) = span (\name -> case name of
@@ -232,13 +232,13 @@ desugar (LambdaExpr names expr) = do
                                                 _ -> False) rhnames'
       case rhnames2 of
         [] -> desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
-                          (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (VarExpr rhname))
+                          (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (VarExpr $ stringToVar rhname))
         (ScalarArg rhname2:rhnames2') ->
           desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2] ++ rtnames2 ++ [TensorArg rhname] ++ reverse rtnames)
-                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (VarExpr rhname2) (VarExpr rhname))
+                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (VarExpr $ stringToVar rhname2) (VarExpr $ stringToVar rhname))
         (InvertedScalarArg rhname2:rhnames2') ->
           desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2] ++ rtnames2 ++ [TensorArg rhname] ++ reverse rtnames)
-                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (FlipIndicesExpr (VarExpr rhname2)) (VarExpr rhname))
+                      (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (FlipIndicesExpr (VarExpr $ stringToVar rhname2)) (VarExpr $ stringToVar rhname))
 
 desugar (MemoizedLambdaExpr names expr) = do
   expr' <- desugar expr
@@ -382,11 +382,11 @@ desugar (CApplyExpr expr0 expr1) = do
   return $ CApplyExpr expr0' expr1'
 
 desugar (VarExpr name) = do
-  asks $ maybe (VarExpr name) id . lookup name
+  asks $ maybe (VarExpr name) id . lookup (show name)
 
 desugar FreshVarExpr = do
   id <- fresh
-  return (VarExpr (":::" ++ id))
+  return (VarExpr $ stringToVar (":::" ++ id))
 
 desugar (MatcherBFSExpr matcherInfo) = do
   matcherInfo' <- desugarMatcherInfo matcherInfo
@@ -400,7 +400,7 @@ desugar (PartialVarExpr n) = return $ PartialVarExpr n
 
 desugar (PartialExpr n expr) = do
   expr' <- desugar expr
-  return $ LetRecExpr [(["::0"], PartialExpr n expr')] (VarExpr "::0")
+  return $ LetRecExpr [(["::0"], PartialExpr n expr')] (VarExpr $ stringToVar "::0")
 
 desugar (QuoteExpr expr) = do
   expr' <- desugar expr

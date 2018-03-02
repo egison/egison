@@ -174,13 +174,13 @@ evalExpr env (QuoteFunctionExpr expr) = do
     Value val -> return . Value $ QuotedFunc val
     _ -> throwError $ TypeMismatch "value in quote-function" $ whnf
 
-evalExpr env (VarExpr name) = refVar' env name >>= evalRef
+evalExpr env (VarExpr name) = refVar' env (show name) >>= evalRef
  where
   refVar' :: Env -> String -> EgisonM ObjectRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" var))) return
                           (refVar env var)
 
-evalExpr env (PartialVarExpr n) = evalExpr env (VarExpr ("::" ++ show n))
+evalExpr env (PartialVarExpr n) = evalExpr env (VarExpr $ stringToVar ("::" ++ show n))
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
@@ -268,7 +268,7 @@ evalExpr env (UserIndexedExpr expr indices) = do
 evalExpr env (IndexedExpr False expr indices) = do
   tensor <- case expr of
               (VarExpr var) -> do
-                let mObjRef = refVar env (show (Var var (map f indices)))
+                let mObjRef = refVar env (show (VarWithIndexType (show var) (map f indices)))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing -> evalExpr env expr
@@ -315,7 +315,7 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Subscript)
   tensor <- case expr of
               (VarExpr var) -> do
-                let mObjRef = refVar env (show (Var var (take (length js) (repeat (Subscript ())))))
+                let mObjRef = refVar env (show (VarWithIndexType (show var) (take (length js) (repeat (Subscript ())))))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing -> evalExpr env expr
@@ -341,7 +341,7 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Superscript)
   tensor <- case expr of
               (VarExpr var) -> do
-                let mObjRef = refVar env (show (Var var (take (length js) (repeat (Superscript ())))))
+                let mObjRef = refVar env (show (VarWithIndexType (show var) (take (length js) (repeat (Superscript ())))))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing -> evalExpr env expr
@@ -403,12 +403,12 @@ evalExpr env (LetRecExpr bindings expr) =
   extractBindings (names, expr) = do
     var <- genVar
     let k = length names
-        target = VarExpr var
+        target = VarExpr $ stringToVar var
         matcher = TupleExpr $ replicate k SomethingExpr
         nth n =
           let pattern = TuplePat $ flip map [1..k] $ \i ->
                 if i == n then PatVar "#_" else WildCard
-          in MatchExpr target matcher [(pattern, VarExpr "#_")]
+          in MatchExpr target matcher [(pattern, VarExpr $ stringToVar "#_")]
     return ((var, expr) : map (second nth) (zip names [1..]))
 
   genVar :: State Int String
@@ -472,12 +472,12 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
-  let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr "#1"]) bindings
+  let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr $ stringToVar "#1"]) bindings
   applyFunc env (Value $ Func Nothing env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
-    LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr "#1"])] $
-    LetExpr [(names, VarExpr "#2")] expr'
+    LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr $ stringToVar "#1"])] $
+    LetExpr [(names, VarExpr $ stringToVar "#2")] expr'
 
 evalExpr env (IoExpr expr) = do
   io <- evalExpr env expr
@@ -796,7 +796,7 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
             let argnum = length tds
                 subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
                 supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-            dot <- evalExpr env (VarExpr ".")
+            dot <- evalExpr env (VarExpr $ stringToVar ".")
             makeITuple ((Value (TensorData (Tensor s1 t1 (i1 ++ supjs)))):(map Intermediate (map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
        else throwError $ Default "applyfunc"
 
@@ -808,7 +808,7 @@ applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
             let argnum = length tds
                 subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
                 supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-            dot <- evalExpr env (VarExpr ".")
+            dot <- evalExpr env (VarExpr $ stringToVar ".")
             makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):(map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
        else throwError $ Default "applyfunc"
 

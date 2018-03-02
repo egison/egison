@@ -85,6 +85,7 @@ module Language.Egison.Types
     -- * Environment
     , Env (..)
     , Var (..)
+    , VarWithIndexType (..)
     , VarWithIndices (..)
     , Binding (..)
     , nullEnv
@@ -145,6 +146,7 @@ module Language.Egison.Types
     , isArray'
     , isHash'
     , readUTF8File
+    , stringToVar
     ) where
 
 import Prelude hiding (foldr, mappend, mconcat)
@@ -172,7 +174,8 @@ import Data.IORef
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition)
+import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition, intersperse)
+import Data.List.Split (splitOn)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -187,8 +190,8 @@ import System.IO.Unsafe (unsafePerformIO)
 --
 
 data EgisonTopExpr =
-    Define Var EgisonExpr
-  | Redefine Var EgisonExpr
+    Define VarWithIndexType EgisonExpr
+  | Redefine VarWithIndexType EgisonExpr
   | Test EgisonExpr
   | Execute EgisonExpr
     -- temporary : we will replace load to import and export
@@ -202,7 +205,7 @@ data EgisonExpr =
   | BoolExpr Bool
   | IntegerExpr Integer
   | FloatExpr Double Double
-  | VarExpr String
+  | VarExpr Var
   | FreshVarExpr
   | IndexedExpr Bool EgisonExpr [Index EgisonExpr]
   | SubrefsExpr Bool EgisonExpr EgisonExpr
@@ -1149,7 +1152,7 @@ instance Show EgisonExpr where
   show (BoolExpr False) = "#f"
   show (IntegerExpr n) = show n
   show (FloatExpr x y) = showComplexFloat x y
-  show (VarExpr name) = name
+  show (VarExpr name) = show name
   show (PartialVarExpr n) = "%" ++ show n
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
@@ -1487,7 +1490,10 @@ class (EgisonWHNF a) => EgisonObject a where
 data Env = Env [HashMap String ObjectRef]
  deriving (Show)
 
-data Var = Var String [Index ()]
+data Var = Var [String]
+ deriving (Eq)
+
+data VarWithIndexType = VarWithIndexType String [Index ()]
  deriving (Eq)
 type Binding = (String, ObjectRef)
 
@@ -1495,7 +1501,10 @@ data VarWithIndices = VarWithIndices String [Index String]
  deriving (Eq)
 
 instance Show Var where
-  show (Var x is) = x ++ concat (map show is)
+  show (Var xs) = concat (intersperse "." xs)
+
+instance Show VarWithIndexType where
+  show (VarWithIndexType x is) = x ++ concat (map show is)
 
 instance Show VarWithIndices where
   show (VarWithIndices x is) = x ++ concat (map show is)
@@ -1686,11 +1695,13 @@ type Fresh = FreshT Identity
 
 class (Applicative m, Monad m) => MonadFresh m where
   fresh :: m String
+  freshV :: m Var
 
 instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
   fresh = FreshT $ do (x, y) <- get; modify (\(x,y) -> (x + 1, y))
                       return $ "$_" ++ (show x) ++ (show y)
-
+  freshV = FreshT $ do (x, y) <- get; modify (\(x,y) -> (x + 1, y))
+                       return $ Var ["$_" ++ (show x) ++ (show y)]
 instance (MonadError e m) => MonadError e (FreshT m) where
   throwError = lift . throwError
   catchError m h = FreshT $ catchError (unFreshT m) (unFreshT . h)
@@ -1701,15 +1712,19 @@ instance (MonadState s m) => MonadState s (FreshT m) where
 
 instance (MonadFresh m) => MonadFresh (StateT s m) where
   fresh = lift $ fresh
+  freshV = lift $ freshV
 
 instance (MonadFresh m) => MonadFresh (ExceptT e m) where
   fresh = lift $ fresh
+  freshV = lift $ freshV
 
 instance (MonadFresh m, Monoid e) => MonadFresh (ReaderT e m) where
   fresh = lift $ fresh
+  freshV = lift $ freshV
 
 instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
   fresh = lift $ fresh
+  freshV = lift $ freshV
 
 instance MonadIO (FreshT IO) where
   liftIO = lift
@@ -1855,3 +1870,6 @@ readUTF8File name = do
   h <- openFile name ReadMode
   hSetEncoding h utf8
   hGetContents h
+
+stringToVar :: String -> Var
+stringToVar name = Var $ splitOn "." name
