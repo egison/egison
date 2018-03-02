@@ -1,5 +1,0 @@
-(assert-equal "append indices with ..."
-  (show (let {[$A (generate-tensor 2#1 {2 2})]
-              [$f (lambda [%B] B..._j)]}
-          (f A_i)))
-  (show [| [| 1 1 |] [| 1 1 |] |]_i_j))
