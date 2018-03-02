@@ -57,8 +57,8 @@ desugarExpr expr = liftEgisonM $ runDesugarM $ desugar expr
 
 desugar :: EgisonExpr -> DesugarM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do
-  matcherName <- fresh
-  matcherRef <- return $ VarExpr $ stringToVar matcherName
+  matcherName <- freshV
+  matcherRef <- return $ VarExpr matcherName
   matcher <- genMatcherClauses patterns matcherRef
   return $ LetRecExpr [([matcherName], matcher)] matcherRef
     where
@@ -90,7 +90,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genMatchingPattern :: (String, [EgisonExpr]) -> DesugarM (EgisonPattern, EgisonPattern)
           genMatchingPattern (name, patterns) = do
             names <- mapM (const freshV) patterns
-            return $ ((InductivePat name (map PatVar $ map show names))  
+            return $ ((InductivePat name (map PatVar names))  
                      ,(InductivePat name (map (ValuePat . VarExpr) names)))
           
       genMatcherClause :: (String, [EgisonExpr]) -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
@@ -404,7 +404,7 @@ desugar (PartialVarExpr n) = return $ PartialVarExpr n
 
 desugar (PartialExpr n expr) = do
   expr' <- desugar expr
-  return $ LetRecExpr [(["::0"], PartialExpr n expr')] (VarExpr $ stringToVar "::0")
+  return $ LetRecExpr [([stringToVar "::0"], PartialExpr n expr')] (VarExpr $ stringToVar "::0")
 
 desugar (QuoteExpr expr) = do
   expr' <- desugar expr
@@ -441,7 +441,7 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (DApplyPat _ patterns) = collectNames patterns
    collectName (LoopPat _ (LoopRange _ _ endNumPat) pattern1 pattern2) = collectName endNumPat `S.union` collectName pattern1 `S.union` collectName pattern2
    collectName (LetPat _ pattern) = collectName pattern
-   collectName (IndexedPat (PatVar name) _) = S.singleton name
+   collectName (IndexedPat (PatVar name) _) = S.singleton $ show name
    collectName (OrPat patterns) = collectNames patterns
    collectName (DivPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
    collectName (PlusPat patterns) = collectNames patterns
@@ -450,7 +450,7 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName _ = S.empty
    
    makeBinding :: String -> BindingExpr
-   makeBinding name = ([name], HashExpr [])
+   makeBinding name = ([stringToVar name], HashExpr [])
 
 desugarPattern' :: EgisonPattern -> DesugarM EgisonPattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr

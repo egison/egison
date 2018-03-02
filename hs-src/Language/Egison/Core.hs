@@ -81,10 +81,10 @@ evalTopExprs env exprs = do
   forM_ rest $ evalTopExpr env
   return env
  where
-  collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
+  collectDefs :: [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
-      Define name expr -> collectDefs exprs ((show name, expr) : bindings) rest
+      Define name expr -> collectDefs exprs (((stringToVar $ show name), expr) : bindings) rest
       Load file -> do
         exprs' <- loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
@@ -102,10 +102,10 @@ evalTopExprsTestOnly env exprs = do
   forM_ rest $ evalTopExpr env
   return env
  where
-  collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
+  collectDefs :: [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
-      Define name expr -> collectDefs exprs ((show name, expr) : bindings) rest
+      Define name expr -> collectDefs exprs (((stringToVar $ show name), expr) : bindings) rest
       Load file -> do
         exprs' <- loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
@@ -124,10 +124,10 @@ evalTopExprsNoIO env exprs = do
   forM_ rest $ evalTopExpr env
   return env
  where
-  collectDefs :: [EgisonTopExpr] -> [(String, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(String, EgisonExpr)], [EgisonTopExpr])
+  collectDefs :: [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
-      Define name expr -> collectDefs exprs ((show name, expr) : bindings) rest
+      Define name expr -> collectDefs exprs (((stringToVar $ show name), expr) : bindings) rest
       Load _ -> throwError $ Default "No IO support"
       LoadFile _ -> throwError $ Default "No IO support"
       _ -> collectDefs exprs bindings (expr : rest)
@@ -142,8 +142,8 @@ evalTopExpr env topExpr = do
   return $ snd ret
 
 evalTopExpr' :: Env -> EgisonTopExpr -> EgisonM (Maybe String, Env)
-evalTopExpr' env (Define name expr) = recursiveBind env [(show name, expr)] >>= return . ((,) Nothing)
-evalTopExpr' env (Redefine name expr) = recursiveRebind env (show name, expr) >>= return . ((,) Nothing)
+evalTopExpr' env (Define name expr) = recursiveBind env [((stringToVar $ show name), expr)] >>= return . ((,) Nothing)
+evalTopExpr' env (Redefine name expr) = recursiveRebind env ((stringToVar $ show name), expr) >>= return . ((,) Nothing)
 evalTopExpr' env (Test expr) = do
   val <- evalExprDeep env expr
   return (Just (show val), env)
@@ -174,10 +174,10 @@ evalExpr env (QuoteFunctionExpr expr) = do
     Value val -> return . Value $ QuotedFunc val
     _ -> throwError $ TypeMismatch "value in quote-function" $ whnf
 
-evalExpr env (VarExpr name) = refVar' env (show name) >>= evalRef
+evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
-  refVar' :: Env -> String -> EgisonM ObjectRef
-  refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" var))) return
+  refVar' :: Env -> Var -> EgisonM ObjectRef
+  refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" $ show var))) return
                           (refVar env var)
 
 evalExpr env (PartialVarExpr n) = evalExpr env (VarExpr $ stringToVar ("::" ++ show n))
@@ -268,7 +268,7 @@ evalExpr env (UserIndexedExpr expr indices) = do
 evalExpr env (IndexedExpr bool expr indices) = do
   tensor <- case expr of
               (VarExpr var) -> do
-                let mObjRef = refVar env (show (VarWithIndexType (show var) (map f indices)))
+                let mObjRef = refVar env ((stringToVar . show) (VarWithIndexType (show var) (map f indices)))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing -> evalExpr env expr
@@ -317,7 +317,7 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Subscript)
   tensor <- case expr of
               (VarExpr var) -> do
-                let mObjRef = refVar env (show (VarWithIndexType (show var) (take (length js) (repeat (Subscript ())))))
+                let mObjRef = refVar env ((stringToVar . show) (VarWithIndexType (show var) (take (length js) (repeat (Subscript ())))))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing -> evalExpr env expr
@@ -343,7 +343,7 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Superscript)
   tensor <- case expr of
               (VarExpr var) -> do
-                let mObjRef = refVar env (show (VarWithIndexType (show var) (take (length js) (repeat (Superscript ())))))
+                let mObjRef = refVar env ((stringToVar . show) (VarWithIndexType (show var) (take (length js) (repeat (Superscript ())))))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing -> evalExpr env expr
@@ -400,21 +400,21 @@ evalExpr env (LetRecExpr bindings expr) =
   let bindings' = evalState (concat <$> mapM extractBindings bindings) 0
   in recursiveBind env bindings' >>= flip evalExpr expr 
  where
-  extractBindings :: BindingExpr -> State Int [(String, EgisonExpr)]
+  extractBindings :: BindingExpr -> State Int [(Var, EgisonExpr)]
   extractBindings ([name], expr) = return [(name, expr)]
   extractBindings (names, expr) = do
     var <- genVar
     let k = length names
-        target = VarExpr $ stringToVar var
+        target = VarExpr var
         matcher = TupleExpr $ replicate k SomethingExpr
         nth n =
           let pattern = TuplePat $ flip map [1..k] $ \i ->
-                if i == n then PatVar "#_" else WildCard
+                if i == n then PatVar (stringToVar "#_") else WildCard
           in MatchExpr target matcher [(pattern, VarExpr $ stringToVar "#_")]
     return ((var, expr) : map (second nth) (zip names [1..]))
 
-  genVar :: State Int String
-  genVar = modify (1+) >> gets (('#':) . show)
+  genVar :: State Int Var
+  genVar = modify (1+) >> gets (stringToVar . ('#':) . show)
 
 evalExpr env (TransposeExpr vars expr) = do
   syms <- evalExpr env vars >>= collectionToList
@@ -442,7 +442,7 @@ evalExpr env (FlipIndicesExpr expr) = do
 evalExpr env (WithSymbolsExpr vars expr) = do
   symId <- fresh
   syms <- mapM (\var -> (newEvaluatedObjectRef (Value (symbolScalarData symId var)))) vars
-  let bindings = zip vars syms
+  let bindings = zip (map stringToVar vars) syms
   whnf <- evalExpr (extendEnv env bindings) expr
   case whnf of
     (Value (TensorData (Tensor ns xs js))) -> do
@@ -478,7 +478,7 @@ evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
   applyFunc env (Value $ Func Nothing env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
-    LetExpr [(["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr $ stringToVar "#1"])] $
+    LetExpr [(map stringToVar ["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr $ stringToVar "#1"])] $
     LetExpr [(names, VarExpr $ stringToVar "#2")] expr'
 
 evalExpr env (IoExpr expr) = do
@@ -817,38 +817,38 @@ applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
 applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
   if n == fromIntegral (length refs)
-    then evalExpr (extendEnv env $ makeBindings (map (\n -> "::" ++ show n) [1..n]) refs) body
+    then evalExpr (extendEnv env $ makeBindings (map (\n -> (stringToVar $ "::" ++ show n)) [1..n]) refs) body
     else throwError $ ArgumentsNumWithNames ["partial"] (fromIntegral n) (length refs)
 applyFunc _ (Value (Func _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
-  evalExpr (extendEnv env $ makeBindings [name] [ref]) body
+  evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
 applyFunc _ (Value (Func _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
-    then evalExpr (extendEnv env $ makeBindings names refs) body
+    then evalExpr (extendEnv env $ makeBindings' names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
 applyFunc _ (Value (Proc _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
-  evalExpr (extendEnv env $ makeBindings [name] [ref]) body
+  evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
 applyFunc _ (Value (Proc _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
-    then evalExpr (extendEnv env $ makeBindings names refs) body
+    then evalExpr (extendEnv env $ makeBindings' names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
 applyFunc _ (Value (CFunc _ env name body)) arg = do
   refs <- fromTuple arg
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection $ seqRef
   if length refs > 0
-    then evalExpr (extendEnv env $ makeBindings [name] [col]) body
+    then evalExpr (extendEnv env $ makeBindings' [name] [col]) body
     else throwError $ ArgumentsNumWithNames [name] 1 0
 applyFunc env (Value (Macro [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
-  evalExpr (extendEnv env $ makeBindings [name] [ref]) body
+  evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
 applyFunc env (Value (Macro names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
-    then evalExpr (extendEnv env $ makeBindings names refs) body
+    then evalExpr (extendEnv env $ makeBindings' names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
 applyFunc _ (Value (PrimitiveFunc _ func)) arg = func arg
 applyFunc _ (Value (IOFunc m)) arg = do
@@ -952,10 +952,13 @@ writeObjectRef ref val = liftIO . writeIORef ref $ WHNF val
 newEvaluatedObjectRef :: WHNFData -> EgisonM ObjectRef
 newEvaluatedObjectRef = liftIO . newIORef . WHNF
 
-makeBindings :: [String] -> [ObjectRef] -> [Binding]
+makeBindings :: [Var] -> [ObjectRef] -> [Binding]
 makeBindings = zip
 
-recursiveBind :: Env -> [(String, EgisonExpr)] -> EgisonM Env
+makeBindings' :: [String] -> [ObjectRef] -> [Binding]
+makeBindings' xs = zip (map stringToVar xs)
+
+recursiveBind :: Env -> [(Var, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
@@ -977,10 +980,10 @@ recursiveBind env bindings = do
             refs bindings
   return env'
 
-recursiveRebind :: Env -> (String, EgisonExpr) -> EgisonM Env
+recursiveRebind :: Env -> (Var, EgisonExpr) -> EgisonM Env
 recursiveRebind env (name, expr) = do
   case refVar env name of
-    Nothing -> throwError $ UnboundVariable name
+    Nothing -> throwError $ UnboundVariable $ show name
     Just ref -> case expr of
                   MemoizedLambdaExpr names body -> do
                     hashRef <- liftIO $ newIORef HL.empty
@@ -1277,7 +1280,7 @@ primitivePatPatternMatch _ PPWildCard _ = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
 primitivePatPatternMatch env (PPValuePat name) (ValuePat expr) = do
   ref <- lift $ newObjectRef env expr
-  return ([], [(name, ref)])
+  return ([], [(stringToVar name, ref)])
 primitivePatPatternMatch env (PPInductivePat name patterns) (InductivePat name' exprs)
   | name == name' && length patterns == length exprs =
     (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
@@ -1288,7 +1291,7 @@ primitiveDataPatternMatch :: PrimitiveDataPattern -> WHNFData -> MatchM [Binding
 primitiveDataPatternMatch PDWildCard _ = return []
 primitiveDataPatternMatch (PDPatVar name) whnf = do
   ref <- lift $ newEvaluatedObjectRef whnf
-  return [(name, ref)]
+  return [(stringToVar name, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) whnf = do
   case whnf of
     Intermediate (IInductiveData name' refs) | name == name' -> do

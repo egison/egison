@@ -269,10 +269,6 @@ expr' = (try partialExpr
 
 varExpr :: Parser EgisonExpr
 varExpr = VarExpr <$> identVar
-  where identVar :: Parser Var
-        identVar = do
-          x <- ident
-          return $ stringToVar x
 
 freshVarExpr :: Parser EgisonExpr
 freshVarExpr = char '#' >> return FreshVarExpr
@@ -466,14 +462,22 @@ bindings :: Parser [BindingExpr]
 bindings = braces $ sepEndBy binding whiteSpace
 
 binding :: Parser BindingExpr
-binding = brackets $ (,) <$> varNames <*> expr
+binding = brackets $ (,) <$> varNames' <*> expr
 
 varNames :: Parser [String]
 varNames = return <$> varName
             <|> brackets (sepEndBy varName whiteSpace) 
 
+varNames' :: Parser [Var]
+varNames' = do
+  xs <- varNames
+  return $ map stringToVar xs
+
 varName :: Parser String
 varName = char '$' >> ident
+
+varName' :: Parser Var
+varName' = char '$' >> identVar
 
 varNameWithIndexType :: Parser VarWithIndexType
 varNameWithIndexType = P.lexeme lexer (do
@@ -655,7 +659,7 @@ wildCard :: Parser EgisonPattern
 wildCard = reservedOp "_" >> pure WildCard
 
 patVar :: Parser EgisonPattern
-patVar = PatVar <$> varName
+patVar = PatVar <$> varName'
 
 varPat :: Parser EgisonPattern
 varPat = VarPat <$> ident
@@ -697,7 +701,7 @@ dApplyPat :: Parser EgisonPattern
 dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace 
 
 loopPat :: Parser EgisonPattern
-loopPat = keywordLoop >> LoopPat <$> varName <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
+loopPat = keywordLoop >> LoopPat <$> varName' <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
 loopRange :: Parser LoopRange
 loopRange = brackets (try (do s <- expr
@@ -996,6 +1000,11 @@ dot = P.dot lexer
 
 ident :: Parser String
 ident = P.identifier lexer
+
+identVar :: Parser Var
+identVar = do
+  x <- ident
+  return $ stringToVar x
 
 upperName :: Parser String
 upperName = P.lexeme lexer $ upperName'
