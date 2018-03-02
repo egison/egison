@@ -38,6 +38,7 @@ import Data.Char (isLower, isUpper)
 import qualified Data.Set as Set
 import Data.Traversable (mapM)
 import Data.Ratio
+import Data.List.Split (splitOn)
 
 import Text.Parsec
 import Text.Parsec.String
@@ -139,7 +140,7 @@ defineExpr = try (parens (keywordDefine >> Define <$> varNameWithIndexType <*> e
          <|> try (parens (do keywordDefine
                              (VarWithIndices name is) <- varNameWithIndices
                              body <- expr
-                             return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
+                             return $ Define (VarWithIndexType name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
 --defineExpr = try 
 --                 (do keywordDefine
 --                     (VarWithIndices name is) <- varNameWithIndices
@@ -154,9 +155,9 @@ defineExpr = try (parens (keywordDefine >> Define <$> varNameWithIndexType <*> e
   g (Superscript i) = i
   g (Subscript i) = i
   g (SupSubscript i) = i
-  h (Superscript i) = (VarExpr i)
-  h (Subscript i) = (VarExpr i)
-  h (SupSubscript i) = (VarExpr i)
+  h (Superscript i) = (VarExpr $ stringToVar i)
+  h (Subscript i) = (VarExpr $ stringToVar i)
+  h (SupSubscript i) = (VarExpr $ stringToVar i)
 
 redefineExpr :: Parser EgisonTopExpr
 redefineExpr = (keywordRedefine <|> keywordSet) >> Redefine <$> varNameWithIndexType <*> expr
@@ -262,7 +263,7 @@ expr' = (try partialExpr
              <?> "expression")
 
 varExpr :: Parser EgisonExpr
-varExpr = VarExpr <$> ident
+varExpr = VarExpr <$> identVar
 
 freshVarExpr :: Parser EgisonExpr
 freshVarExpr = char '#' >> return FreshVarExpr
@@ -442,7 +443,7 @@ withSymbolsExpr :: Parser EgisonExpr
 withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> (braces $ sepEndBy ident whiteSpace) <*> expr
 
 doExpr :: Parser EgisonExpr
-doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr "return") (TupleExpr [])) expr
+doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr $ stringToVar "return") (TupleExpr [])) expr
 
 statements :: Parser [BindingExpr]
 statements = braces $ sepEndBy statement whiteSpace
@@ -465,12 +466,12 @@ varNames = return <$> varName
 varName :: Parser String
 varName = char '$' >> ident
 
-varNameWithIndexType :: Parser Var
+varNameWithIndexType :: Parser VarWithIndexType
 varNameWithIndexType = P.lexeme lexer (do
   char '$'
   name <- ident
   is <- many indexType
-  return $ Var name is)
+  return $ VarWithIndexType name is)
 
 indexType :: Parser (Index ())
 indexType = try (char '~' >> return (Superscript ()))
@@ -519,7 +520,7 @@ applyExpr' = do
     _ | all null vars ->
         let args' = rights args
             args'' = map f (zip args (annonVars 1 (length args)))
-            args''' = map (VarExpr . (either id id)) args''
+            args''' = map (VarExpr . stringToVar . (either id id)) args''
         in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
@@ -528,7 +529,7 @@ applyExpr' = do
              then
                let args' = rights args
                    args'' = map g (zip args (annonVars (n + 1) (length args)))
-                   args''' = map (VarExpr . (either id id)) args''
+                   args''' = map (VarExpr . stringToVar . (either id id)) args''
                in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
@@ -696,7 +697,7 @@ loopRange = brackets (try (do s <- expr
                               return (LoopRange s e ep))
                  <|> (do s <- expr
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr "from") (ApplyExpr (VarExpr "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
+                         return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 divPat :: Parser EgisonPattern
 divPat = reservedOp "/" >> DivPat <$> pattern <*> pattern
@@ -987,6 +988,11 @@ dot = P.dot lexer
 ident :: Parser String
 ident = P.identifier lexer
 
+identVar :: Parser Var
+identVar = do
+  x <- ident
+  let ls = splitOn "." x in if ls == [""] then return $ Var ["."]
+                                          else return $ Var ls
 upperName :: Parser String
 upperName = P.lexeme lexer $ upperName'
 

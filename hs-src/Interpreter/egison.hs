@@ -71,7 +71,7 @@ main = do args <- getArgs
                                                   else evalEgisonTopExprsTestOnly env [LoadFile file]
                                       either print (const $ return ()) result
                                     Options {optTestOnly = False} -> do
-                                      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
+                                      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
                                       either print (const $ return ()) result
 
 data Options = Options {
