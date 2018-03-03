@@ -7,8 +7,8 @@
     (let {[$k (df-order A)]}
       (with-symbols {i j}
         (* (sqrt (abs (M.det g_#_#)))
-           (foldl . (. A..._[j_1]..._[j_k]
-                       (ε' N k)_[i_1]..._[i_N])
+           (foldl . (. (ε' N k)_[i_1]..._[i_N]
+                       A..._[j_1]..._[j_k])
                   (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
 
 (define $dx [| 1 0 0 |])

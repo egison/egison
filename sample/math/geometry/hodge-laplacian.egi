@@ -18,8 +18,8 @@
     (let {[$k (df-order A)]}
       (with-symbols {i j}
         (* (sqrt (abs (M.det g_#_#)))
-           (foldl . (. (subrefs A (map 1#j_%1 (between 1 k)))
-                       (subrefs (ε' N k) (map 1#i_%1 (between 1 N))))
+           (foldl . (. (ε' N k)_[i_1]..._[i_N]
+                       A..._[j_1]..._[j_k])
                   (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
 
 (define $δ
