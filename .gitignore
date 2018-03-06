@@ -8,3 +8,4 @@ tmp/
 cabal.sandbox.config
 egison.prof
 euler/
+test.egi

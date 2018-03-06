@@ -280,7 +280,7 @@ data EgisonExpr =
   | TransposeExpr EgisonExpr EgisonExpr
   | FlipIndicesExpr EgisonExpr
 
-  -- | FunctionExpr [EgisonExpr]
+  | FunctionExpr [EgisonExpr]
 
   | SomethingExpr
   | UndefinedExpr
@@ -391,7 +391,7 @@ data EgisonValue =
   | IOFunc (EgisonM WHNFData)
   | QuotedFunc EgisonValue
   | Port Handle
-  -- | FunctionData [EgisonValue]
+  | FunctionData [EgisonValue]
   | Something
   | Undefined
   | EOF
@@ -1185,6 +1185,7 @@ instance Show EgisonValue where
   show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   show (CFunc (Just name) _ _ _) = show name
+  show (FunctionData args) = "function"
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
   show (MemoizedFunc (Just name) _ _ _ names _) = show name
   show (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
