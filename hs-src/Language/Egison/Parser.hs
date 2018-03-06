@@ -141,13 +141,6 @@ defineExpr = try (parens (keywordDefine >> Define <$> varNameWithIndexType <*> e
                              (VarWithIndices name is) <- varNameWithIndices
                              body <- expr
                              return $ Define (VarWithIndexType name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
---defineExpr = try 
---                 (do keywordDefine
---                     (VarWithIndices name is) <- varNameWithIndices
---                     body <- expr
---                     return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body)))
---            <|> (keywordDefine >> Define <$> varNameWithIndexType <*> expr)
---defineExpr = (keywordDefine >> Define <$> varNameWithIndexType <*> expr)
  where
   f (Superscript _) = Superscript ()
   f (Subscript _) = Subscript ()
@@ -220,7 +213,7 @@ expr' = (try partialExpr
 --             <|> quoteExpr
              <|> quoteFunctionExpr
              <|> wedgeExpr
-             -- <|> functionIndexExpr
+             <|> functionWithArgExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
@@ -312,11 +305,11 @@ quoteExpr = char '\'' >> QuoteExpr <$> expr
 wedgeExpr :: Parser EgisonExpr
 wedgeExpr = char '!' >> WedgeExpr <$> expr
 
--- functionIndexExpr :: Parser EgisonExpr
--- functionIndexExpr = between lp rp $ FunctionExpr <$> sepEndBy expr whiteSpace
---   where
---     lp = P.lexeme lexer (string "function [")
---     rp = char ']'
+functionWithArgExpr :: Parser EgisonExpr
+functionWithArgExpr = keywordFunction >> (between lp rp $ FunctionExpr <$> sepEndBy expr whiteSpace)
+  where
+    lp = P.lexeme lexer (char '[')
+    rp = char ']'
 
 quoteFunctionExpr :: Parser EgisonExpr
 quoteFunctionExpr = char '`' >> QuoteFunctionExpr <$> expr
@@ -861,6 +854,7 @@ reservedKeywords =
   , "subrefs!"
   , "suprefs"
   , "suprefs!"
+  , "function"
   , "something"
   , "undefined"]
   
@@ -944,6 +938,7 @@ keywordSubrefs              = reserved "subrefs"
 keywordSubrefsNew           = reserved "subrefs!"
 keywordSuprefs              = reserved "suprefs"
 keywordSuprefsNew           = reserved "suprefs!"
+keywordFunction             = reserved "function"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

@@ -47,6 +47,9 @@
              <Plus {<Term 1 {}> @{}}>>
         {(to-math-expr' mexpr)}]
        [_ {}]}]
+     [<function $> [math-expr]
+      {[<Function $args> {args}]
+       [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
      }))
