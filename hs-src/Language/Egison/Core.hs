@@ -381,9 +381,7 @@ evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
-evalExpr env (FunctionExpr args) = do
-  args' <- mapM (\a -> (evalExpr env a) >>= evalWHNF) args
-  return . Value $ FunctionData args'
+evalExpr env (FunctionExpr args) = return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData args, 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
@@ -869,6 +867,7 @@ applyFunc _ (Value fn@(UserIndexedData _ _)) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
+-- applyFunc _ x@(Value (ScalarData (Div (Plus [(Term 1 [(FunctionData args, 1)])]) (Plus [(Term 1 [])])))) arg = return x
 applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData

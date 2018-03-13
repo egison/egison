@@ -177,7 +177,7 @@ import qualified Data.HashMap.Strict as HashMap
 
 import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition, intercalate, elemIndex)
 import Data.List.Split (splitOn)
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import qualified Data.Text as T
 
 import System.IO
@@ -280,7 +280,7 @@ data EgisonExpr =
   | TransposeExpr EgisonExpr EgisonExpr
   | FlipIndicesExpr EgisonExpr
 
-  | FunctionExpr [EgisonExpr]
+  | FunctionExpr [String]
 
   | SomethingExpr
   | UndefinedExpr
@@ -391,7 +391,6 @@ data EgisonValue =
   | IOFunc (EgisonM WHNFData)
   | QuotedFunc EgisonValue
   | Port Handle
-  | FunctionData [EgisonValue]
   | Something
   | Undefined
   | EOF
@@ -414,6 +413,7 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
+  | FunctionData [String]
  deriving (Eq)
 
 instance Eq PolyExpr where
@@ -508,6 +508,7 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                                                                                                              ) js))], toEgison n]
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
+symbolExprToEgison (FunctionData args, n) = Tuple [InductiveData "Function" (map (String . (T.pack)) args), toEgison n]
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -522,6 +523,9 @@ egisonToScalarData s1@(InductiveData "Apply" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
 egisonToScalarData s1@(InductiveData "Quote" _) = do
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
+  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
+egisonToScalarData s1@(InductiveData "Function" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
 egisonToScalarData val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
@@ -554,6 +558,9 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
+egisonToSymbolExpr (Tuple [InductiveData "Function" args, n]) = do
+  n' <- fromEgison n
+  return (FunctionData (map show args), n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -1146,6 +1153,7 @@ instance Show EgisonExpr where
   show (FloatExpr x y) = showComplexFloat x y
   show (VarExpr name) = show name
   show (PartialVarExpr n) = "%" ++ show n
+  show (FunctionExpr args) = "function [" ++ unwords args ++ "]"
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
@@ -1185,7 +1193,6 @@ instance Show EgisonValue where
   show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   show (CFunc (Just name) _ _ _) = show name
-  show (FunctionData args) = "function"
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
   show (MemoizedFunc (Just name) _ _ _ names _) = show name
   show (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
@@ -1231,6 +1238,7 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
+  show (FunctionData args) = "function [" ++ unwords args ++ "]"
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x

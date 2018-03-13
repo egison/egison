@@ -273,10 +273,6 @@ desugar (PatternFunctionExpr names pattern) = do
   pattern' <- desugarPattern pattern
   return $ PatternFunctionExpr names pattern'
 
-desugar (FunctionExpr xs) = do
-  xs' <- mapM desugar xs
-  return $ FunctionExpr xs'
-
 desugar (IfExpr expr0 expr1 expr2) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
