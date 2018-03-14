@@ -174,7 +174,13 @@ evalExpr env (QuoteFunctionExpr expr) = do
     Value val -> return . Value $ QuotedFunc val
     _ -> throwError $ TypeMismatch "value in quote-function" $ whnf
 
-evalExpr env (VarExpr name) = refVar' env name >>= evalRef
+evalExpr env (VarExpr name) = do
+  x <- refVar' env name >>= evalRef
+  return (case x of
+            Value (ScalarData (Div (Plus [Term 1 [(FunctionData ms args, 1)]]) p)) -> case ms of
+                                                                                        Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) args, 1)]]) p)
+                                                                                        Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData ms args, 1)]]) p)
+            _ -> x)
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" $ show var))) return
@@ -381,7 +387,7 @@ evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
-evalExpr env (FunctionExpr args) = return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData args, 1)]]) (Plus [Term 1 []]))
+evalExpr env (FunctionExpr args) = return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing args, 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF

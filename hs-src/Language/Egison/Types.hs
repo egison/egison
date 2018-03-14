@@ -413,7 +413,7 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
-  | FunctionData [String]
+  | FunctionData (Maybe String) [String]
  deriving (Eq)
 
 instance Eq PolyExpr where
@@ -508,7 +508,9 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                                                                                                              ) js))], toEgison n]
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
-symbolExprToEgison (FunctionData args, n) = Tuple [InductiveData "Function" (map (String . (T.pack)) args), toEgison n]
+symbolExprToEgison (FunctionData ms args, n) = case ms of
+                                                 Just name -> Tuple [InductiveData "Function" [(String $ (T.pack) name), Collection (Sq.fromList (map (String . (T.pack)) args))], toEgison n]
+                                                 Nothing -> Tuple [InductiveData "Function" [(String $ (T.pack) ""), Collection (Sq.fromList (map (String . (T.pack)) args))], toEgison n]
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -558,9 +560,11 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
-egisonToSymbolExpr (Tuple [InductiveData "Function" args, n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), args], n]) = do
   n' <- fromEgison n
-  return (FunctionData (map show args), n')
+  return (let (Collection seq) = args in case (show name) of
+              "" -> (FunctionData Nothing (map show $ toList seq), n')
+              s -> (FunctionData (Just s) (map show $ toList seq), n'))
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -1238,7 +1242,9 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData args) = "function [" ++ unwords args ++ "]"
+  show (FunctionData ms args) = case ms of
+                                  Nothing -> "(function [" ++ unwords args ++ "])"
+                                  Just name -> name
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
