@@ -213,7 +213,6 @@ expr' = (try partialExpr
 --             <|> quoteExpr
              <|> quoteFunctionExpr
              <|> wedgeExpr
-             <|> functionWithArgExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
@@ -257,6 +256,7 @@ expr' = (try partialExpr
                          <|> pmapExpr
                          <|> subrefsExpr
                          <|> suprefsExpr
+                         <|> functionWithArgExpr
                          )
              <?> "expression")
 
