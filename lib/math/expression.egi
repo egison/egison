@@ -47,6 +47,9 @@
              <Plus {<Term 1 {}> @{}}>>
         {(to-math-expr' mexpr)}]
        [_ {}]}]
+     [<func $ $> [string (list string)]
+      {[<Div <Plus {<Term 1 {[<Function $name $args> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[name args]}]
+       [_ {}]}]
      [$ [something]
       {[$tgt {(to-math-expr' tgt)}]}]
      }))

@@ -177,7 +177,7 @@ import qualified Data.HashMap.Strict as HashMap
 
 import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition, intercalate, elemIndex)
 import Data.List.Split (splitOn)
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import qualified Data.Text as T
 
 import System.IO
@@ -280,7 +280,7 @@ data EgisonExpr =
   | TransposeExpr EgisonExpr EgisonExpr
   | FlipIndicesExpr EgisonExpr
 
-  -- | FunctionExpr [EgisonExpr]
+  | FunctionExpr [String]
 
   | SomethingExpr
   | UndefinedExpr
@@ -391,7 +391,6 @@ data EgisonValue =
   | IOFunc (EgisonM WHNFData)
   | QuotedFunc EgisonValue
   | Port Handle
-  -- | FunctionData [EgisonValue]
   | Something
   | Undefined
   | EOF
@@ -414,6 +413,7 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
+  | FunctionData (Maybe String) [String]
  deriving (Eq)
 
 instance Eq PolyExpr where
@@ -508,6 +508,9 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                                                                                                              ) js))], toEgison n]
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
+symbolExprToEgison (FunctionData ms args, n) = case ms of
+                                                 Just name -> Tuple [InductiveData "Function" [(String $ (T.pack) name), Collection (Sq.fromList (map (String . (T.pack)) args))], toEgison n]
+                                                 Nothing -> Tuple [InductiveData "Function" [(String $ (T.pack) ""), Collection (Sq.fromList (map (String . (T.pack)) args))], toEgison n]
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -522,6 +525,9 @@ egisonToScalarData s1@(InductiveData "Apply" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
 egisonToScalarData s1@(InductiveData "Quote" _) = do
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
+  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
+egisonToScalarData s1@(InductiveData "Function" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
 egisonToScalarData val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
@@ -554,6 +560,11 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
+egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), args], n]) = do
+  n' <- fromEgison n
+  return (let (Collection seq) = args in case (show name) of
+              "" -> (FunctionData Nothing (map show $ toList seq), n')
+              s -> (FunctionData (Just s) (map show $ toList seq), n'))
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -1146,6 +1157,7 @@ instance Show EgisonExpr where
   show (FloatExpr x y) = showComplexFloat x y
   show (VarExpr name) = show name
   show (PartialVarExpr n) = "%" ++ show n
+  show (FunctionExpr args) = "function [" ++ unwords args ++ "]"
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
@@ -1230,6 +1242,9 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
+  show (FunctionData ms args) = case ms of
+                                  Nothing -> "(function [" ++ unwords args ++ "])"
+                                  Just name -> name
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x

@@ -10,6 +10,8 @@
       {; symbol
        [,x 1]
        [?symbol? 0]
+       ; function expression
+       [<func $name $args> (if (any (eq? $ (show x)) args) (add-user-script f x) 0)]
        ; function application
        [(,exp $g) (* (exp g) (∂/∂ g x))]
        [(,log $g) (* (/ 1 g) (∂/∂ g x))]
