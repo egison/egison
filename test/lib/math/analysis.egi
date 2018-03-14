@@ -33,3 +33,8 @@
 (assert-equal "multivariate-tailor-expansion - case 2"
   (take 3 (multivariate-taylor-expansion (** e (+ x y)) [| x y |] [| 0 0 |]))
   {1 (+ x y) (/ (+ x^2 (* 2 x y) y^2) 2)})
+
+(assert-equal "function expr"
+  (let {[$f (function [x y])]}
+    (d/d f y))
+  (f|y))
