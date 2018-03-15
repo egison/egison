@@ -562,7 +562,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   return (Quote mExpr', n')
 egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), args], n]) = do
   n' <- fromEgison n
-  return (let (Collection seq) = args in case (show name) of
+  return (let (Collection seq) = args in case (T.unpack name) of
               "" -> (FunctionData Nothing (toList seq), n')
               s -> (FunctionData (Just s) (toList seq), n'))
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
