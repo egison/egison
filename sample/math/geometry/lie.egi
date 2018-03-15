@@ -26,9 +26,26 @@
        [,N (d (Y X))]
        [_ (+ (d (Y X)) ((d Y) X))]})))
 
-(define $*ρ (df-normalize (hodge (ρ t x y z))))
+(define $ρ (function [t x y z]))
 
-(define $u [| (u1 t x y z) (u2 t x y z) (u3 t x y z) |])
+(define $*ρ (df-normalize (hodge ρ)))
+
+(define $u1 (function [t x y z]))
+(define $u2 (function [t x y z]))
+(define $u3 (function [t x y z]))
+
+(define $u [| u1 u2 u3 |])
+
+
+;(∂/∂ ρ x)
+;(hodge ρ)
+;*ρ
+
+(/ (d/d ρ x) 3)
+
+(d ρ)
+(d (/ ρ 3))
+(d *ρ)
 
 (df-normalize (Lie u *ρ))
 ;(tensor {3 3 3} {0 0 0 0 0 (/ (+ (* (ρ|2 t x y z) (u1 t x y z)) (* (ρ t x y z) (u1|2 t x y z)) (* (ρ|3 t x y z) (u2 t x y z)) (* (ρ t x y z) (u2|3 t x y z)) (* (ρ|4 t x y z) (u3 t x y z)) (* (ρ t x y z) (u3|4 t x y z))) 18) 0 (/ (+ (* -1 (ρ|2 t x y z) (u1 t x y z)) (* -1 (ρ t x y z) (u1|2 t x y z)) (* -1 (ρ|4 t x y z) (u3 t x y z)) (* -1 (ρ t x y z) (u3|4 t x y z)) (* -1 (ρ|3 t x y z) (u2 t x y z)) (* -1 (ρ t x y z) (u2|3 t x y z))) 18) 0 0 0 (/ (+ (* -1 (ρ|3 t x y z) (u2 t x y z)) (* -1 (ρ t x y z) (u2|3 t x y z)) (* -1 (ρ|2 t x y z) (u1 t x y z)) (* -1 (ρ t x y z) (u1|2 t x y z)) (* -1 (ρ|4 t x y z) (u3 t x y z)) (* -1 (ρ t x y z) (u3|4 t x y z))) 18) 0 0 0 (/ (+ (* (ρ|3 t x y z) (u2 t x y z)) (* (ρ t x y z) (u2|3 t x y z)) (* (ρ|4 t x y z) (u3 t x y z)) (* (ρ t x y z) (u3|4 t x y z)) (* (ρ|2 t x y z) (u1 t x y z)) (* (ρ t x y z) (u1|2 t x y z))) 18) 0 0 0 (/ (+ (* (ρ|4 t x y z) (u3 t x y z)) (* (ρ t x y z) (u3|4 t x y z)) (* (ρ|2 t x y z) (u1 t x y z)) (* (ρ t x y z) (u1|2 t x y z)) (* (ρ|3 t x y z) (u2 t x y z)) (* (ρ t x y z) (u2|3 t x y z))) 18) 0 (/ (+ (* -1 (ρ|4 t x y z) (u3 t x y z)) (* -1 (ρ t x y z) (u3|4 t x y z)) (* -1 (ρ|3 t x y z) (u2 t x y z)) (* -1 (ρ t x y z) (u2|3 t x y z)) (* -1 (ρ|2 t x y z) (u1 t x y z)) (* -1 (ρ t x y z) (u1|2 t x y z))) 18) 0 0 0 0 0} )

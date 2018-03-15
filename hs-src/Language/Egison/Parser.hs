@@ -175,8 +175,7 @@ expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
                           expr1 <- option expr0 $ try (do string "..."
                                                           IndexedExpr False expr0 <$> parseindex)
                                                   <|> IndexedExpr True expr0 <$> parseindex
-                          expr2 <- option expr1 $ UserIndexedExpr expr1 <$> many1 (try $ char '|' >> expr' >>= return . Userscript)
-                          option expr2 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
+                          option expr1 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
                             where parseindex :: Parser [Index EgisonExpr]
                                   parseindex = many1 (try (do
                                                                char '_' 
@@ -256,6 +255,7 @@ expr' = (try partialExpr
                          <|> pmapExpr
                          <|> subrefsExpr
                          <|> suprefsExpr
+                         <|> userrefsExpr
                          <|> functionWithArgExpr
                          )
              <?> "expression")
@@ -614,6 +614,10 @@ suprefsExpr :: Parser EgisonExpr
 suprefsExpr = (keywordSuprefs >> SuprefsExpr False <$> expr <*> expr)
                <|> (keywordSuprefsNew >> SuprefsExpr True <$> expr <*> expr)
 
+userrefsExpr :: Parser EgisonExpr
+userrefsExpr = (keywordUserrefs >> UserrefsExpr False <$> expr <*> expr)
+                <|> (keywordUserrefsNew >> UserrefsExpr True <$> expr <*> expr)
+
 -- Patterns
 
 pattern :: Parser EgisonPattern
@@ -854,6 +858,8 @@ reservedKeywords =
   , "subrefs!"
   , "suprefs"
   , "suprefs!"
+  , "user-refs"
+  , "user-refs!"
   , "function"
   , "something"
   , "undefined"]
@@ -938,6 +944,8 @@ keywordSubrefs              = reserved "subrefs"
 keywordSubrefsNew           = reserved "subrefs!"
 keywordSuprefs              = reserved "suprefs"
 keywordSuprefsNew           = reserved "suprefs!"
+keywordUserrefs             = reserved "user-refs"
+keywordUserrefsNew          = reserved "user-refs!"
 keywordFunction             = reserved "function"
 
 sign :: Num a => Parser (a -> a)
