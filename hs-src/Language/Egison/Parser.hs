@@ -306,7 +306,7 @@ wedgeExpr :: Parser EgisonExpr
 wedgeExpr = char '!' >> WedgeExpr <$> expr
 
 functionWithArgExpr :: Parser EgisonExpr
-functionWithArgExpr = keywordFunction >> (between lp rp $ FunctionExpr <$> sepEndBy ident whiteSpace)
+functionWithArgExpr = keywordFunction >> (between lp rp $ FunctionExpr <$> sepEndBy expr whiteSpace)
   where
     lp = P.lexeme lexer (char '[')
     rp = char ']'

@@ -387,7 +387,9 @@ evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
-evalExpr env (FunctionExpr args) = return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing args, 1)]]) (Plus [Term 1 []]))
+evalExpr env (FunctionExpr args) = do
+  args' <- mapM (\arg -> evalExprDeep env arg) args
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing args', 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
