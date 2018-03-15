@@ -177,9 +177,9 @@ evalExpr env (QuoteFunctionExpr expr) = do
 evalExpr env (VarExpr name) = do
   x <- refVar' env name >>= evalRef
   return (case x of
-            Value (ScalarData (Div (Plus [Term 1 [(FunctionData ms args, 1)]]) p)) -> case ms of
-                                                                                        Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) args, 1)]]) p)
-                                                                                        Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData ms args, 1)]]) p)
+            Value (ScalarData (Div (Plus [Term 1 [(FunctionData ms args js, 1)]]) p)) -> case ms of
+                                                                                        Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) args js, 1)]]) p)
+                                                                                        Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData ms args js, 1)]]) p)
             _ -> x)
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
@@ -262,14 +262,6 @@ evalExpr env (HashExpr assocs) = do
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
   makeHashKey whnf = throwError $ TypeMismatch "integer or string" $ whnf
-
-evalExpr env (UserIndexedExpr expr indices) = do
-  val <- evalExprDeep env expr
-  js <- mapM (\i -> case i of
-                      Userscript n -> evalExprDeep env n >>= return . Userscript) indices
-  case val of
-    (UserIndexedData val' is') -> return $ Value $ UserIndexedData val' (is' ++ js)
-    _ -> return $ Value $ UserIndexedData val js
 
 evalExpr env (IndexedExpr bool expr indices) = do
   tensor <- case expr of
@@ -371,6 +363,15 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
   f (Subscript _) = Subscript ()
   f (SupSubscript _) = SupSubscript ()
 
+evalExpr env (UserrefsExpr bool expr jsExpr) = do
+  val <- evalExprDeep env expr
+  js <- evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar >>= return . (map Userscript)
+  ret <- case val of
+      (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js, 1)]]) (Plus [Term 1 []])))
+      (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) args (is ++ js), 1)]]) (Plus [Term 1 []])))
+      _ -> throwError $ NotImplemented "user-refs"
+  return ret
+
 evalExpr env (LambdaExpr names expr) = do
   names' <- mapM (\name -> case name of
                              (TensorArg name') -> return name'
@@ -389,7 +390,7 @@ evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc 
 
 evalExpr env (FunctionExpr args) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing args', 1)]]) (Plus [Term 1 []]))
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing args' [], 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
@@ -868,10 +869,6 @@ applyFunc _ (Value (QuotedFunc fn)) arg = do
   mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
 applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])])))) arg = do
-  args <- tupleToList arg
-  mExprs <- mapM extractScalar args
-  return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
-applyFunc _ (Value fn@(UserIndexedData _ _)) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))

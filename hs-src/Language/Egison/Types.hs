@@ -17,7 +17,6 @@ module Language.Egison.Types
     , EgisonPattern (..)
     , Arg (..)
     , Index (..)
-    , UserIndex (..)
     , InnerExpr (..)
     , BindingExpr (..)
     , MatchClause (..)
@@ -211,7 +210,7 @@ data EgisonExpr =
   | IndexedExpr Bool EgisonExpr [Index EgisonExpr]
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
-  | UserIndexedExpr EgisonExpr [UserIndex EgisonExpr]
+  | UserrefsExpr Bool EgisonExpr EgisonExpr
   | PowerExpr EgisonExpr EgisonExpr
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
@@ -299,9 +298,7 @@ data Index a =
   | MultiSubscript a a
   | MultiSuperscript a a
   | DFscript Integer Integer -- DifferentialForm
- deriving (Eq)
-
-newtype UserIndex a = Userscript a
+  | Userscript a
  deriving (Eq)
 
 data InnerExpr =
@@ -370,7 +367,6 @@ data EgisonValue =
   | Bool Bool
   | ScalarData ScalarData
   | TensorData (Tensor EgisonValue)
-  | UserIndexedData EgisonValue [UserIndex EgisonValue]
   | Float Double Double
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
@@ -413,7 +409,7 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
-  | FunctionData (Maybe String) [EgisonValue]
+  | FunctionData (Maybe String) [EgisonValue] [Index ScalarData]
  deriving (Eq)
 
 instance Eq PolyExpr where
@@ -502,15 +498,24 @@ termExprToEgison :: TermExpr -> EgisonValue
 termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprToEgison xs))]
 
 symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
-symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolScalarData id x, Collection (Sq.fromList (map (\j -> case j of
-                                                                                                                                 Superscript k -> InductiveData "Sup" [ScalarData k]
-                                                                                                                                 Subscript k -> InductiveData "Sub" [ScalarData k]
-                                                                                                                             ) js))], toEgison n]
+symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolScalarData id x, f js], toEgison n]
+ where
+  f js = Collection (Sq.fromList (map (\j -> case j of
+                                               Superscript k -> InductiveData "Sup" [ScalarData k]
+                                               Subscript k -> InductiveData "Sub" [ScalarData k]
+                                               Userscript k -> InductiveData "User" [ScalarData k]
+                                      ) js))
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
-symbolExprToEgison (FunctionData ms args, n) = case ms of
-                                                 Just name -> Tuple [InductiveData "Function" [(String $ (T.pack) name), Collection (Sq.fromList args)], toEgison n]
-                                                 Nothing -> Tuple [InductiveData "Function" [(String $ (T.pack) ""), Collection (Sq.fromList args)], toEgison n]
+symbolExprToEgison (FunctionData ms args js, n) = case ms of
+                                                    Just name -> Tuple [InductiveData "Function" [(String $ (T.pack) name), Collection (Sq.fromList args), f js], toEgison n]
+                                                    Nothing -> Tuple [InductiveData "Function" [(String $ (T.pack) ""), Collection (Sq.fromList args), f js], toEgison n]
+ where
+  f js = Collection (Sq.fromList (map (\j -> case j of
+                                               Superscript k -> InductiveData "Sup" [ScalarData k]
+                                               Subscript k -> InductiveData "Sub" [ScalarData k]
+                                               Userscript k -> InductiveData "User" [ScalarData k]
+                                      ) js))
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -546,6 +551,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
                          InductiveData "Sub" [ScalarData k] -> return (Subscript k)
+                         InductiveData "User" [ScalarData k] -> return (Userscript k)
                          _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
                ) js
   n' <- fromEgison n
@@ -560,11 +566,18 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
-egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), args], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), args, Collection seq], n]) = do
+  let js = toList seq
+  js' <- mapM (\j -> case j of
+                         InductiveData "Sup" [ScalarData k] -> return (Superscript k)
+                         InductiveData "Sub" [ScalarData k] -> return (Subscript k)
+                         InductiveData "User" [ScalarData k] -> return (Userscript k)
+                         _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
+               ) js
   n' <- fromEgison n
   return (let (Collection seq) = args in case (T.unpack name) of
-              "" -> (FunctionData Nothing (toList seq), n')
-              s -> (FunctionData (Just s) (toList seq), n'))
+              "" -> (FunctionData Nothing (toList seq) js', n')
+              s -> (FunctionData (Just s) (toList seq) js', n'))
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -1178,7 +1191,6 @@ instance Show EgisonValue where
     f j [] = ""
     f j xs = "[| " ++ unwords (map show (take j xs)) ++ " |] " ++ f j (drop j xs)
   show (TensorData (Tensor ns xs js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show (V.toList xs)) ++ "} )" ++ concatMap show js
-  show (UserIndexedData x js) = show x ++ concatMap show js
   show (Float x y) = showComplexFloat x y
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
@@ -1242,9 +1254,9 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData ms args) = case ms of
-                                  Nothing -> "(function [" ++ unwords (map show args) ++ "])"
-                                  Just name -> name
+  show (FunctionData ms args js) = case ms of
+                                  Nothing -> "(function [" ++ unwords (map show args) ++ "])" ++ concatMap show js
+                                  Just name -> name ++ concatMap show js
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
@@ -1278,7 +1290,6 @@ instance Eq EgisonValue where
  (CharHash vals) == (CharHash vals') = vals == vals'
  (StrHash vals) == (StrHash vals') = vals == vals'
  (PrimitiveFunc name1 _) == (PrimitiveFunc name2 _) = name1 == name2
- (UserIndexedData val is) == (UserIndexedData val' is') = (val == val') && (is == is')
  -- Temporary: searching a better solution
  (Func Nothing _ xs1 expr1) == (Func Nothing _ xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
  (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
@@ -1521,24 +1532,28 @@ instance Show (Index ()) where
   show (Subscript ()) = "_"
   show (SupSubscript ()) = "~_"
   show (DFscript _ _) = ""
+  show (Userscript _) = "|"
 
 instance Show (Index String) where
   show (Superscript s) = "~" ++ s
   show (Subscript s) = "_" ++ s
   show (SupSubscript s) = "~_" ++ s
   show (DFscript _ _) = ""
+  show (Userscript i) = "|" ++ show i
 
 instance Show (Index EgisonExpr) where
   show (Superscript i) = "~" ++ show i
   show (Subscript i) = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript _ _) = ""
+  show (Userscript i) = "|" ++ show i
 
 instance Show (Index ScalarData) where
   show (Superscript i) = "~" ++ show i
   show (Subscript i) = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript _ _) = ""
+  show (Userscript i) = "|" ++ show i
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
@@ -1549,15 +1564,9 @@ instance Show (Index EgisonValue) where
                          _ -> "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript i j) = "_d" ++ show i ++ show j
-
-instance Show (UserIndex EgisonExpr) where
-  show (Userscript i) = "|" ++ show i
-
-instance Show (UserIndex ScalarData) where
-  show (Userscript i) = "|" ++ show i
-
-instance Show (UserIndex EgisonValue) where
-  show (Userscript i) = "|" ++ show i
+  show (Userscript i) = case i of
+                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+                         _ -> "|" ++ show i
 
 nullEnv :: Env
 nullEnv = Env []
