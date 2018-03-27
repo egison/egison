@@ -409,7 +409,7 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
-  | FunctionData (Maybe String) [EgisonValue] [Index ScalarData]
+  | FunctionData (Maybe String) [String] [EgisonValue] [Index ScalarData] -- fnname argnames arg indices
  deriving (Eq)
 
 instance Eq PolyExpr where
@@ -507,15 +507,16 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                       ) js))
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
-symbolExprToEgison (FunctionData ms args js, n) = case ms of
-                                                    Just name -> Tuple [InductiveData "Function" [(String $ (T.pack) name), Collection (Sq.fromList args), f js], toEgison n]
-                                                    Nothing -> Tuple [InductiveData "Function" [(String $ (T.pack) ""), Collection (Sq.fromList args), f js], toEgison n]
+symbolExprToEgison (FunctionData fn argnames args js, n) = Tuple [InductiveData "Function" [maybeToString fn, Collection (Sq.fromList $ map (String . T.pack) argnames), Collection (Sq.fromList args), f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map (\j -> case j of
                                                Superscript k -> InductiveData "Sup" [ScalarData k]
                                                Subscript k -> InductiveData "Sub" [ScalarData k]
                                                Userscript k -> InductiveData "User" [ScalarData k]
                                       ) js))
+  maybeToString x = case x of
+                      Just xx -> String $ (T.pack xx)
+                      Nothing -> String $ (T.pack "")
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -566,7 +567,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
-egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), args, Collection seq], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), (Collection argnames), (Collection args), Collection seq], n]) = do
   let js = toList seq
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
@@ -575,9 +576,10 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), args, Collec
                          _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
                ) js
   n' <- fromEgison n
-  return (let (Collection seq) = args in case (T.unpack name) of
-              "" -> (FunctionData Nothing (toList seq) js', n')
-              s -> (FunctionData (Just s) (toList seq) js', n'))
+  let argnames' = map (\(String name) -> T.unpack name) $ toList argnames
+  return (FunctionData (stringToMaybe name) argnames' (toList args) js', n')
+ where
+   stringToMaybe x = let s = (T.unpack x) in if (s == "") then Nothing else Just s
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -1254,8 +1256,8 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData ms args js) = case ms of
-                                  Nothing -> "(function [" ++ unwords (map show args) ++ "])" ++ concatMap show js
+  show (FunctionData ms argnames args js) = case ms of
+                                  Nothing -> "(function [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
                                   Just name -> name ++ concatMap show js
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String

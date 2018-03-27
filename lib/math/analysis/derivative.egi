@@ -11,7 +11,8 @@
        [,x 1]
        [?symbol? 0]
        ; function expression
-       [<func $name $args> (if (any (eq? $ x) args) (user-refs f {x}) 0)]
+       [<func _ _ <join _ <cons ,x _>>> (user-refs f {x})]
+       [<func _ $argnames $args> (sum (map2 (lambda [$s $r] (* (user-refs f {(read s)}) (∂/∂ r x))) argnames args))]
        ; function application
        [(,exp $g) (* (exp g) (∂/∂ g x))]
        [(,log $g) (* (/ 1 g) (∂/∂ g x))]
@@ -21,7 +22,7 @@
        [(,sin $g) (* (cos g) (∂/∂ g x))]
        [(,arccos $g) (* (/ 1 (sqrt (- 1 (** g 2)))) (∂/∂ g x))]
        [<apply $g $args>
-        (sum (map 2#(* (capply `(add-user-script g %1) args) (∂/∂ %2 x))
+        (sum (map 2#(* (capply `(user-refs g {%1}) args) (∂/∂ %2 x))
                   (zip nats args)))]
        ; quote
        [<quote $g>
