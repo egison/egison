@@ -177,9 +177,9 @@ evalExpr env (QuoteFunctionExpr expr) = do
 evalExpr env (VarExpr name) = do
   x <- refVar' env name >>= evalRef
   return (case x of
-            Value (ScalarData (Div (Plus [Term 1 [(FunctionData ms args js, 1)]]) p)) -> case ms of
-                                                                                        Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) args js, 1)]]) p)
-                                                                                        Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData ms args js, 1)]]) p)
+            Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) -> case fn of
+                                                                                                    Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) argnames args js, 1)]]) p)
+                                                                                                    Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
             _ -> x)
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
@@ -368,7 +368,7 @@ evalExpr env (UserrefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar >>= return . (map Userscript)
   ret <- case val of
       (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js, 1)]]) (Plus [Term 1 []])))
-      (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) args (is ++ js), 1)]]) (Plus [Term 1 []])))
+      (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
       _ -> throwError $ NotImplemented "user-refs"
   return ret
 
@@ -390,7 +390,7 @@ evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc 
 
 evalExpr env (FunctionExpr args) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing args' [], 1)]]) (Plus [Term 1 []]))
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing (map show args) args' [], 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
