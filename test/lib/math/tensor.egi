@@ -52,13 +52,13 @@
        [|10 20 30|]|]_i_j)
   [| [| 101 110 |] [| 202 220 |] [| 303 330 |] |]_j_i)
 
-(assert-equal "Tensor ∂/∂ - case 1"
-  (∂/∂ [|(f x) (g x)|] x)
-  [|(f|1 x) (g|1 x)|])
+;(assert-equal "Tensor ∂/∂ - case 1"
+;  (∂/∂ [|(f x) (g x)|] x)
+;  [|(f|1 x) (g|1 x)|])
 
-(assert-equal "Tensor ∂/∂ - case 2"
-  (∂/∂ (f x y z) [|x y z|])
-  [|(f|1 x y z) (f|2 x y z) (f|3 x y z)|])
+;(assert-equal "Tensor ∂/∂ - case 2"
+;  (∂/∂ (f x y z) [|x y z|])
+;  [|(f|1 x y z) (f|2 x y z) (f|3 x y z)|])
 
 ;(assert-equal "Tensor ∂/∂ - case 3"
 ;  (apply [|(∂/∂ $ x) (∂/∂ $ y)|] (f x y))
