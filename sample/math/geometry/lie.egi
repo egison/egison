@@ -33,30 +33,17 @@
 (define $ρ (function [t x y z]))
 (define $*ρ (df-normalize (hodge ρ)))
 
-(define $u1 (function [t x y z]))
-(define $u2 (function [t x y z]))
-(define $u3 (function [t x y z]))
-(define $u [| u1 u2 u3 |])
-
-
-;(∂/∂ ρ x)
-;(hodge ρ)
-;(/ (d/d ρ x) 3)
-;(d ρ)
-;(d (/ ρ 3))
-;(hodge ρ)
-
-(df-normalize (Lie u *ρ))
-(df-normalize (∂/∂ *ρ t))
+(define $ux (function [t x y z]))
+(define $uy (function [t x y z]))
+(define $uz (function [t x y z]))
+(define $u [| ux uy uz |])
 
 (df-normalize (+ (∂/∂ *ρ t) (Lie u *ρ)))
-;(tensor {3 3 3} {0 0 0 0 0 (/ (+ (* 3 (ρ|1 t x y z)) (* (ρ|2 t x y z) (u1 t x y z)) (* (ρ t x y z) (u1|2 t x y z)) (* (ρ|3 t x y z) (u2 t x y z)) (* (ρ t x y z) (u2|3 t x y z)) (* (ρ|4 t x y z) (u3 t x y z)) (* (ρ t x y z) (u3|4 t x y z))) 18) 0 (/ (+ (* -3 (ρ|1 t x y z)) (* -1 (ρ|2 t x y z) (u1 t x y z)) (* -1 (ρ t x y z) (u1|2 t x y z)) (* -1 (ρ|4 t x y z) (u3 t x y z)) (* -1 (ρ t x y z) (u3|4 t x y z)) (* -1 (ρ|3 t x y z) (u2 t x y z)) (* -1 (ρ t x y z) (u2|3 t x y z))) 18) 0 0 0 (/ (+ (* -3 (ρ|1 t x y z)) (* -1 (ρ|3 t x y z) (u2 t x y z)) (* -1 (ρ t x y z) (u2|3 t x y z)) (* -1 (ρ|2 t x y z) (u1 t x y z)) (* -1 (ρ t x y z) (u1|2 t x y z)) (* -1 (ρ|4 t x y z) (u3 t x y z)) (* -1 (ρ t x y z) (u3|4 t x y z))) 18) 0 0 0 (/ (+ (* 3 (ρ|1 t x y z)) (* (ρ|3 t x y z) (u2 t x y z)) (* (ρ t x y z) (u2|3 t x y z)) (* (ρ|4 t x y z) (u3 t x y z)) (* (ρ t x y z) (u3|4 t x y z)) (* (ρ|2 t x y z) (u1 t x y z)) (* (ρ t x y z) (u1|2 t x y z))) 18) 0 0 0 (/ (+ (* 3 (ρ|1 t x y z)) (* (ρ|4 t x y z) (u3 t x y z)) (* (ρ t x y z) (u3|4 t x y z)) (* (ρ|2 t x y z) (u1 t x y z)) (* (ρ t x y z) (u1|2 t x y z)) (* (ρ|3 t x y z) (u2 t x y z)) (* (ρ t x y z) (u2|3 t x y z))) 18) 0 (/ (+ (* -3 (ρ|1 t x y z)) (* -1 (ρ|4 t x y z) (u3 t x y z)) (* -1 (ρ t x y z) (u3|4 t x y z)) (* -1 (ρ|3 t x y z) (u2 t x y z)) (* -1 (ρ t x y z) (u2|3 t x y z)) (* -1 (ρ|2 t x y z) (u1 t x y z)) (* -1 (ρ t x y z) (u1|2 t x y z))) 18) 0 0 0 0 0} )
+;(tensor {3 3 3} {0 0 0 0 0 (/ (+ ρ|t (* ux|x ρ) (* ux ρ|x) (* uy|y ρ) (* uy ρ|y) (* uz|z ρ) (* uz ρ|z)) 6) 0 (/ (+ (* -1 ρ|t) (* -1 ux|x ρ) (* -1 ux ρ|x) (* -1 uz|z ρ) (* -1 uz ρ|z) (* -1 uy|y ρ) (* -1 uy ρ|y)) 6) 0 0 0 (/ (+ (* -1 ρ|t) (* -1 uy|y ρ) (* -1 uy ρ|y) (* -1 ux|x ρ) (* -1 ux ρ|x) (* -1 uz|z ρ) (* -1 uz ρ|z)) 6) 0 0 0 (/ (+ ρ|t (* uy|y ρ) (* uy ρ|y) (* uz|z ρ) (* uz ρ|z) (* ux|x ρ) (* ux ρ|x)) 6) 0 0 0 (/ (+ ρ|t (* uz|z ρ) (* uz ρ|z) (* ux|x ρ) (* ux ρ|x) (* uy|y ρ) (* uy ρ|y)) 6) 0 (/ (+ (* -1 ρ|t) (* -1 uz|z ρ) (* -1 uz ρ|z) (* -1 uy|y ρ) (* -1 uy ρ|y) (* -1 ux|x ρ) (* -1 ux ρ|x)) 6) 0 0 0 0 0} )
 
-;(/ (+ (* 3 (ρ|1 t x y z))
-;      (* (ρ|2 t x y z) (u1 t x y z))
-;      (* (ρ t x y z) (u1|2 t x y z))
-;      (* (ρ|3 t x y z) (u2 t x y z))
-;      (* (ρ t x y z) (u2|3 t x y z))
-;      (* (ρ|4 t x y z) (u3 t x y z))
-;      (* (ρ t x y z) (u3|4 t x y z))
-;      ) 18)
+(df-normalize (+ (∂/∂ *ρ t) (Lie u *ρ)))_1_2_3
+;(/ (+ ρ|t
+;      (* ux|x ρ) (* ux ρ|x)
+;      (* uy|y ρ) (* uy ρ|y)
+;      (* uz|z ρ) (* uz ρ|z))
+;   6)
