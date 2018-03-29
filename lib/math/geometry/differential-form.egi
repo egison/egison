@@ -14,3 +14,14 @@
 (define $Lie.wedge
   (lambda [%X %Y]
     (- !(. X Y) !(. Y X))))
+
+(define $ι
+  (lambda [%X %Y]
+    (* (df-order Y) (. X~i (df-normalize Y_i)))))
+
+(define $Lie
+  (lambda [%X %Y]
+    (match (df-order Y) integer
+      {[,0 (ι X (d Y))]
+       [,N (d (ι X Y))]
+       [_ (+ (ι X (d Y)) (d (ι X Y)))]})))
