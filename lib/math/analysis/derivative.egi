@@ -11,7 +11,6 @@
        [,x 1]
        [?symbol? 0]
        ; function expression
-       [<func _ _ <join _ <cons ,x _>>> (user-refs f {x})]
        [<func _ $argnames $args> (sum (map2 (lambda [$s $r] (* (user-refs f {(read s)}) (∂/∂ r x))) argnames args))]
        ; function application
        [(,exp $g) (* (exp g) (∂/∂ g x))]
