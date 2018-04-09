@@ -25,6 +25,7 @@
    [rewrite-rule-for-rt 1#(contain-function? rt %1)]
 ;   [rewrite-rule-for-cos-and-sin 1#(or (contain-function-with-order? cos 2 %1) (contain-function-with-order? sin 2 %1))]
    [rewrite-rule-for-cos-to-sin 1#(contain-function-with-order? cos 2 %1)]
+;   [rewrite-rule-for-d/d 1##t]
    })
 
 ;;
@@ -155,7 +156,7 @@
        [_ term]})))
 
 ;;
-;; exp
+;; **
 ;;
 
 (define $rewrite-rule-for-** (map-terms rewrite-rule-for-**-term $))
@@ -253,45 +254,12 @@
 (define $rewrite-rule-for-d/d-poly
   (lambda [$poly]
     (match poly math-expr
-      {[(+ (* $a <apply (& $g <symbol $f $subs>) $args>^$n $mr)
-           (* $b <apply <symbol ,f ?1#(eq?/m (multiset something) subs %1)> ,args>^,n ,mr)
+      {
+;       [(+ (* $a <apply $g $args>^$n $mr)
+       [(+ (* $a <apply (& $g <symbol $f $subs>) $args>^$n $mr)
+;           (* $b <apply <symbol ,f ?1#(eq?/m (multiset something) subs %1)> ,args>^,n ,mr)
            $pr)
-        (+ (* (+ a b) (`g args)^n mr)
-           pr)]
-              [_ poly]})))
-
-(define $rewrite-rule-for-cos-to-sin-term'
-  (lambda [$term]
-    (match term math-expr
-      {[(* $a (,cos $x)^,2 $mr)
-        (*' a (-' 1 (sin x)^2) (rewrite-rule-for-cos-to-sin-term' mr))]
-       [_ term]})))
-
-;;
-;; d
-;;
-
-(define $rewrite-rule-for-d (map-terms rewrite-rule-for-d-term $))
-
-(define $rewrite-rule-for-d-term
-  (lambda [$term]
-    (match term math-expr
-      {[(* _ (,d _) (,d _) _)
-        0]
-       [_ term]})))
-
-;;
-;; d/d
-;;
-
-(define $rewrite-rule-for-d/d (map-polys rewrite-rule-for-d/d-poly $))
-
-(define $rewrite-rule-for-d/d-poly
-  (lambda [$poly]
-    (match poly math-expr
-      {[(+ (* $a <apply (& $g <symbol $f $subs>) $args>^$n $mr)
-           (* $b <apply <symbol ,f ?1#(eq?/m (multiset something) subs %1)> ,args>^,n ,mr)
-           $pr)
-        (+ (* (+ a b) (`g args)^n mr)
-           pr)]
-              [_ poly]})))
+        pr]
+;       (+ (*' (+ a b) (`g args)^n mr)
+;          pr)]
+       [_ poly]})))

@@ -31,9 +31,9 @@
      [<mult $ $> [integer mult-expr]
       {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (product' (map 2#(**' (to-math-expr' %1) %2) xs))]}]
        [_ {}]}]
-     [<symbol $> [eq]
-      {[<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
-       [_ {}]}]
+;     [<symbol $> [eq]
+;      {[<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
+;       [_ {}]}]
      [<symbol $ $> [eq (list index-expr)]
       {[<Div <Plus {<Term 1 {[<Symbol $v $js> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[v js]}]
        [_ {}]}]
@@ -56,7 +56,7 @@
 
 (define $index-expr
   (algebraic-data-matcher
-    {<sub math-expr> <sup math-expr>}))
+     {<sub math-expr> <sup math-expr> <user math-expr>}))
 
 (define $poly-expr math-expr)
 (define $term-expr math-expr)
@@ -285,7 +285,7 @@
 (define $find-symbols-from-poly
   (lambda [$poly]
     (match-all poly math-expr
-      [<poly <cons <term _ <cons (& <symbol _> $s) _>> _>> s])))
+      [<poly <cons <term _ <cons (& <symbol _ _> $s) _>> _>> s])))
 
 ;;;
 ;;; Substitute

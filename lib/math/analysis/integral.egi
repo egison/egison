@@ -9,7 +9,7 @@
     (match f math-expr
       {; symbols
        [,x (* (/ 1 2) x^2)]
-       [<symbol _> (* f x)]
+       [<symbol _ _> (* f x)]
        ; function application
        [(,exp ,x) (exp x)]
        [(,cos ,x) (sin x)]
