@@ -17,7 +17,8 @@
 
 (define $ι
   (lambda [%X %Y]
-    (* (df-order Y) (. X~i (df-normalize Y_i)))))
+    (with-symbols {i}
+      (* (df-order Y) (. X...~i (df-normalize Y..._i))))))
 
 (define $Lie
   (lambda [%X %Y]
