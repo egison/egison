@@ -1,0 +1,44 @@
+;;; Parameters and metrics
+
+(define $N 3)
+
+(define $params [| x y z |])
+
+(define $g__ [| [| 1 0 0 |] [| 0 1 0 |] [| 0 0 1 |] |])
+(define $g~~ (M.inverse g_#_#))
+
+;;; Hodge Laplacian
+
+(define $d
+  (lambda [%X]
+    !((flip ∂/∂) params X)))
+
+(define $hodge
+  (lambda [%A]
+    (let {[$k (df-order A)]}
+      (with-symbols {i j}
+        (* (sqrt (abs (M.det g_#_#)))
+           (foldl . (. (ε' N k)_[i_1]..._[i_N]
+                       A..._[j_1]..._[j_k])
+                  (map 1#g~[i_%1]~[j_%1] (between 1 k))))))))
+
+(define $δ
+  (lambda [%A]
+    (let {[$r (df-order A)]}
+      (* (** -1 (+ (* N r) 1))
+         (hodge (d (hodge A)))))))
+
+(define $Δ
+  (lambda [%A]
+    (match (df-order A) integer
+      {[,0 (δ (d A))]
+       [,3 (d (δ A))]
+       [_ (+ (d (δ A)) (δ (d A)))]})))
+
+(define $ux (function [t x y z]))
+(define $uy (function [t x y z]))
+(define $uz (function [t x y z]))
+(define $u [| ux uy uz |])
+
+(Δ u)
+;[| (+ ux|x|x ux|z|z ux|y|y) (+ uy|y|y uy|z|z uy|x|x) (+ uz|z|z uz|y|y uz|x|x) |]

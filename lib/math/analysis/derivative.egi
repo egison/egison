@@ -11,7 +11,7 @@
        [,x 1]
        [?symbol? 0]
        ; function expression
-       [<func _ $argnames $args> (sum (map2 (lambda [$s $r] (* (user-refs f {(read s)}) (∂/∂ r x))) argnames args))]
+       [<func _ $argnames $args _> (sum (map2 (lambda [$s $r] (* (user-refs f {(read s)}) (∂/∂ r x))) argnames args))]
        ; function application
        [(,exp $g) (* (exp g) (∂/∂ g x))]
        [(,log $g) (* (/ 1 g) (∂/∂ g x))]

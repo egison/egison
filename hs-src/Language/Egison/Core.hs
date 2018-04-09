@@ -367,7 +367,7 @@ evalExpr env (UserrefsExpr bool expr jsExpr) = do
   val <- evalExprDeep env expr
   js <- evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar >>= return . (map Userscript)
   ret <- case val of
-      (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js, 1)]]) (Plus [Term 1 []])))
+      (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
       (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
       _ -> throwError $ NotImplemented "user-refs"
   return ret
