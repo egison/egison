@@ -9,3 +9,5 @@ cabal.sandbox.config
 egison.prof
 euler/
 test.egi
+stack.yaml
+.stack-work
