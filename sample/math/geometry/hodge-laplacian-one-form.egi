@@ -42,3 +42,11 @@
 
 (Δ u)
 ;[| (+ ux|x|x ux|z|z ux|y|y) (+ uy|y|y uy|z|z uy|x|x) (+ uz|z|z uz|y|y uz|x|x) |]
+
+(define $vx (function [t x y z]))
+(define $vy (function [t x y z]))
+(define $vz (function [t x y z]))
+(define $v [|[| 0 vz (* -1 vy) |] [| (* -1 vz) 0 vx |] [| vy (* -1 vx) 0 |]|])
+
+(df-normalize (Δ v))
+;[| [| 0 (+ vz|x|x vz|z|z vz|y|y) (+ (* -1 vy|x|x) (* -1 vy|y|y) (* -1 vy|z|z)) |] [| (+ (* -1 vz|y|y) (* -1 vz|x|x) (* -1 vz|z|z)) 0 (+ vx|y|y vx|x|x vx|z|z) |] [| (+ vy|z|z vy|x|x vy|y|y) (+ (* -1 vx|z|z) (* -1 vx|y|y) (* -1 vx|x|x)) 0 |] |]
