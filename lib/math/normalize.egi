@@ -258,7 +258,7 @@
        [(+ (* $a (& $f <func $g _ $arg $js>)^$n $mr)
            (* $b <func ,g _ ,arg ?1#(eq?/m (multiset something) js %1)>^,n ,mr)
            $pr)
-       (+ (*' (+ a b) f^n mr) pr)]
+       (rewrite-rule-for-d/d-poly (+' (*' (+ a b) f^n mr) pr))]
 ;       [(+ (* $a <apply (& ?scalar? $g <symbol $f $subs>) $args>^$n $mr)
 ;           (* $b <apply (& ?scalar? <symbol ,f ?1#(eq?/m (multiset something) subs %1)>) ,args>^,n ,mr)
 ;           $pr)
