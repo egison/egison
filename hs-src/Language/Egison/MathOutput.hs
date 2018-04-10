@@ -180,7 +180,7 @@ parseAtom = do
     first <- letter <|> symbol <|> digit
     rest <- many (letter <|> digit <|> symbol)
     let atom = first : rest
-    option (Atom atom) $ do is <- many1 (char '|' >> many digit)
+    option (Atom atom) $ do is <- many1 (char '|' >> many (letter <|> digit <|> symbol))
                             return $ Partial atom is
   
 parseNegativeAtom :: Parser MathExpr
