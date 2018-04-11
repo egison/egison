@@ -38,7 +38,7 @@ data MathExpr = Atom String [MathIndex]
               | Collection [MathExpr]
               | Exp MathExpr
               | Quote MathExpr
-              | Partial String [String]
+              | Partial MathExpr [MathExpr]
               deriving (Eq, Show)
 
 data MathIndex = Super MathExpr
@@ -108,12 +108,12 @@ showMathExprLatex :: MathExpr -> String
 showMathExprLatex (Atom a []) = a
 showMathExprLatex (Atom a xs) = a ++ showMathExprLatexScript xs
 showMathExprLatex (Partial f xs) = "\\frac{" ++ convertToPartial (f, length xs) ++ "}{" ++ showPartial xs ++ "}"
-                                         where showPartial :: [String] -> String
+                                         where showPartial :: [MathExpr] -> String
                                                showPartial xs = let lx = elemCount xs in convertToPartial (head lx) ++ foldr (\x acc -> " " ++ convertToPartial x ++ acc) "" (tail lx)
 
-                                               convertToPartial :: (String, Int) -> String
-                                               convertToPartial (x, 1) = "\\partial " ++ x
-                                               convertToPartial (x, n) = "\\partial^" ++ show n ++ " " ++ x
+                                               convertToPartial :: (MathExpr, Int) -> String
+                                               convertToPartial (x, 1) = "\\partial " ++ showMathExprLatex x
+                                               convertToPartial (x, n) = "\\partial^" ++ show n ++ " " ++ showMathExprLatex x
 showMathExprLatex (NegativeAtom a) = "-" ++ a
 showMathExprLatex (Plus []) = ""
 showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlus xs
@@ -188,8 +188,13 @@ parseAtom = do
     rest <- many (letter <|> digit <|> symbol)
     let atom = first : rest
     ys <- many parseScript
-    option (Atom atom ys) $ do is <- many1 (char '|' >> many (letter <|> digit <|> symbol))
-                               return $ Partial atom is
+    return $ Atom atom ys
+
+parsePartial :: Parser MathExpr
+parsePartial = do
+    xs <- parseAtom
+    is <- many1 (char '|' >> parseAtom)
+    return $ Partial xs is
   
 parseNegativeAtom :: Parser MathExpr
 parseNegativeAtom = do
@@ -203,7 +208,7 @@ parseList :: Parser [MathExpr]
 parseList = sepEndBy parseExpr spaces
 
 parseScript :: Parser MathIndex
-parseScript = (Sub <$> (char '_' >> parseExpr)) <|> (Super <$> (char '~' >> parseExpr))
+parseScript = (Sub <$> (char '_' >> parseAtom)) <|> (Super <$> (char '~' >> parseAtom))
 
 parsePlus :: Parser MathExpr
 parsePlus = do
@@ -270,6 +275,7 @@ parseQuote = do
 
 parseExpr' :: Parser MathExpr
 parseExpr' = parseNegativeAtom
+         <|> try parsePartial
          <|> parseAtom
          <|> parseQuote
          <|> try parseExp
