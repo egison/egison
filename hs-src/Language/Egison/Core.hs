@@ -398,7 +398,7 @@ evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
-evalExpr env (FunctionExpr args mName) = do
+evalExpr env (FunctionExpr mName args) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
   return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData mName (map show args) args' [], 1)]]) (Plus [Term 1 []]))
 
