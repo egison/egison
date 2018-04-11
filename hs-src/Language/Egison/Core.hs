@@ -398,9 +398,19 @@ evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
-evalExpr env (FunctionExpr mName args) = do
+evalExpr env (FunctionExpr args) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData mName (map show args) args' [], 1)]]) (Plus [Term 1 []]))
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing (map show args) args' [], 1)]]) (Plus [Term 1 []]))
+
+evalExpr env (SymbolicTensorExpr args sizeExpr name) = do
+  args' <- mapM (\arg -> evalExprDeep env arg) args
+  size' <- evalExpr env sizeExpr
+  size'' <- collectionToList size'
+  ns <- (mapM fromEgison size'') :: EgisonM [Integer]
+  let xs = map (\ms -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just (name ++ concat (map (\m -> "_" ++ m) (map show ms)))) (map show args) args' [], 1)]]) (Plus [Term 1 []])))
+               (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+  case (ns, xs) of
+    _ -> fromTensor (Tensor ns (V.fromList xs) [])
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
