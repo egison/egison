@@ -311,7 +311,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
                    Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) ->
                      case fn of
                        Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show var ++ concat (map show indices)) argnames args js, 1)]]) p)
-                       Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ s ++ concat (map show indices)) argnames args js, 1)]]) p)
+                       Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
                    _ -> ret
                _ -> ret
   return ret2
