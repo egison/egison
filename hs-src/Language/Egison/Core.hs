@@ -177,9 +177,10 @@ evalExpr env (QuoteFunctionExpr expr) = do
 evalExpr env (VarExpr name) = do
   x <- refVar' env name >>= evalRef
   return (case x of
-            Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) -> case fn of
-                                                                                                    Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) argnames args js, 1)]]) p)
-                                                                                                    Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
+            Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) ->
+              case fn of
+                Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) argnames args js, 1)]]) p)
+                Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
             _ -> x)
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
@@ -304,7 +305,16 @@ evalExpr env (IndexedExpr bool expr indices) = do
                                       Subscript k -> ScalarData k
                                       SupSubscript k -> ScalarData k
                               ) js2)
-  return ret
+  let ret2 = case expr of
+               (VarExpr var) -> do
+                 case ret of
+                   Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) ->
+                     case fn of
+                       Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show var ++ concat (map show indices)) argnames args js, 1)]]) p)
+                       Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
+                   _ -> ret
+               _ -> ret
+  return ret2
  where
   f :: Index a -> Index ()
   f (Superscript _) = Superscript ()
