@@ -106,7 +106,13 @@ showMathExprAsciiMathIndices lvs = showMathIndexAsciiMath (head lvs) ++ showMath
 
 showMathExprLatex :: MathExpr -> String
 showMathExprLatex (Atom a) = a
-showMathExprLatex (Partial a is) = a ++ "_{" ++ concat is ++ "}"
+showMathExprLatex (Partial f xs) = "\\frac{" ++ convertToPartial (f, length xs) ++ "}{" ++ showPartial xs ++ "}"
+                                         where showPartial :: [String] -> String
+                                               showPartial xs = let lx = elemCount xs in convertToPartial (head lx) ++ foldr (\x acc -> " " ++ convertToPartial x ++ acc) "" (tail lx)
+
+                                               convertToPartial :: (String, Int) -> String
+                                               convertToPartial (x, 1) = "\\partial " ++ x
+                                               convertToPartial (x, n) = "\\partial^" ++ show n ++ " " ++ x
 showMathExprLatex (NegativeAtom a) = "-" ++ a
 showMathExprLatex (Plus []) = ""
 showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlus xs
@@ -276,3 +282,7 @@ parseExpr :: Parser MathExpr
 parseExpr = do
     x <- parseExpr'
     option x $ Power x <$> try (char '^' >> parseExpr')
+
+elemCount :: Eq a => [a] -> [(a, Int)]
+elemCount [] = []
+elemCount (x:xs) = (x, (length $ filter (== x) xs) + 1) : elemCount (filter (/= x) xs)
