@@ -279,7 +279,7 @@ data EgisonExpr =
   | TransposeExpr EgisonExpr EgisonExpr
   | FlipIndicesExpr EgisonExpr
 
-  | FunctionExpr [EgisonExpr]
+  | FunctionExpr [EgisonExpr] (Maybe String) 
 
   | SomethingExpr
   | UndefinedExpr
@@ -1172,7 +1172,8 @@ instance Show EgisonExpr where
   show (FloatExpr x y) = showComplexFloat x y
   show (VarExpr name) = show name
   show (PartialVarExpr n) = "%" ++ show n
-  show (FunctionExpr args) = "function [" ++ unwords (map show args) ++ "]"
+  show (FunctionExpr args Nothing) = "(function [" ++ unwords (map show args) ++ "])"
+  show (FunctionExpr args (Just name)) = "(function [" ++ unwords (map show args) ++ "]" ++ name ++ ")"
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
