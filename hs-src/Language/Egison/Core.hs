@@ -1001,6 +1001,11 @@ recursiveBind env bindings = do
                    whnf <- evalExpr env' expr
                    case whnf of
                      (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ (Value (CFunc (Just name) env arg body))
+                 FunctionExpr args -> do
+                   whnf <- evalExpr env expr
+                   case whnf of
+                     Value (ScalarData (Div (Plus [Term 1 [(FunctionData Nothing argnames args js, 1)]]) p)) -> do
+                       liftIO . writeIORef ref . WHNF $ Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) argnames args js, 1)]]) p)
                  _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
             refs bindings
   return env'
