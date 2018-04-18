@@ -419,14 +419,14 @@
       {@xs x})))
 
 (define $delete-first
-  (lambda [$x $xs]
+  (lambda [%x $xs]
     (match xs (list something)
       {[<nil> {}]
        [<cons ,x $rs> rs]
        [<cons $y $rs> {y @(delete-first x rs)}]})))
 
 (define $delete-first/m
-  (lambda [$a $x $xs]
+  (lambda [$a %x $xs]
     (match xs (list a)
       {[<nil> {}]
        [<cons ,x $rs> rs]
@@ -587,10 +587,15 @@
 ;;
 ;; set operation
 ;;
-(define $unique
+(define $fast-unique
   (lambda [$xs]
     (match-all (sort xs) (list something)
       [<join _ <cons $x !<cons ,x _>>> x])))
+
+(define $unique
+  (lambda [$xs]
+    (match-all xs (list something)
+      [<join _ <cons $x !<join _ <cons ,x _>>>> x])))
 
 (define $unique/m
   (lambda [$a $xs]
