@@ -164,7 +164,9 @@
 (define $rewrite-rule-for-**-term
   (lambda [$term]
     (match term math-expr
-      {[(* $a (,** $x $y)^(& ?(gte? $ 2) $n) $r)
+      {[(* $a (,** ,1 _)^_ $r)
+        (rewrite-rule-for-** (*' a r))]
+       [(* $a (,** $x $y)^(& ?(gte? $ 2) $n) $r)
         (rewrite-rule-for-** (*' a (** x (* y n)) r))]
        [(* $a (,** $x $y) (,** ,x $z) $r)
         (rewrite-rule-for-** (*' a (** x (+ y z)) r))]
