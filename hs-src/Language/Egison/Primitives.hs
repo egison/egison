@@ -348,11 +348,11 @@ toScalarData = oneArg toScalarData'
 -- Pred
 --
 eq :: PrimitiveFunc
-eq = twoArgs $ \val val' ->
+eq = twoArgs' $ \val val' ->
   return $ Bool $ val == val'
 
 lt :: PrimitiveFunc
-lt = twoArgs $ \val val' -> scalarBinaryPred' val val'
+lt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
  where
   scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
     r <- fromEgison m :: EgisonM Rational
@@ -364,7 +364,7 @@ lt = twoArgs $ \val val' -> scalarBinaryPred' val val'
   scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 lte :: PrimitiveFunc
-lte = twoArgs $ \val val' -> scalarBinaryPred' val val'
+lte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
  where
   scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
     r <- fromEgison m :: EgisonM Rational
@@ -376,7 +376,7 @@ lte = twoArgs $ \val val' -> scalarBinaryPred' val val'
   scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gt :: PrimitiveFunc
-gt = twoArgs $ \val val' -> scalarBinaryPred' val val'
+gt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
  where
   scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
     r <- fromEgison m :: EgisonM Rational
@@ -388,7 +388,7 @@ gt = twoArgs $ \val val' -> scalarBinaryPred' val val'
   scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
   
 gte :: PrimitiveFunc
-gte = twoArgs $ \val val' -> scalarBinaryPred' val val'
+gte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
  where
   scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
     r <- fromEgison m :: EgisonM Rational
