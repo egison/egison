@@ -167,7 +167,7 @@
 ;;
 (define $length
   (lambda [$xs]
-    (foldl (lambda [$r $x] (+ r 1)) 0 xs)))
+    (foldl 2#(+ %1 1) 0 xs)))
 
 (define $map
   (lambda [$fn $xs]
