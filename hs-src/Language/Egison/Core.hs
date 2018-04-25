@@ -1020,10 +1020,7 @@ recursiveBind env bindings = do
                                              ScalarData (Div (Plus [Term 1 [(FunctionData Nothing argnames args js, 1)]]) p) -> ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ nameString ++ (concatMap (\(i, m) -> i ++ m) $ zip indexList (map show ms))) argnames args js, 1)]]) p)
                                              _ -> x) $ zip xs (map (\ms -> map toEgison ms) (enumTensorIndices ns))
                       modifyTensorName' :: [WHNFData] -> [Integer] -> [WHNFData]
-                      modifyTensorName' xs ns = do
-                          map (\(x, ms) -> case x of
-                                             Value (ScalarData (Div (Plus [Term 1 [(FunctionData Nothing argnames args js, 1)]]) p)) -> Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ nameString ++ (concatMap (\(i, m) -> i ++ m) $ zip indexList (map show ms))) argnames args js, 1)]]) p))
-                                             _ -> x) $ zip xs (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+                      modifyTensorName' xs ns = map Value (modifyTensorName (map (\(Value x) -> x) xs) ns)
                     
                  _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
             refs bindings
