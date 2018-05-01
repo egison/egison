@@ -594,8 +594,8 @@
 
 (define $unique
   (lambda [$xs]
-    (match-all xs (list something)
-      [<join _ <cons $x !<join _ <cons ,x _>>>> x])))
+    (reverse (match-all (reverse xs) (list something)
+      [<join _ <cons $x !<join _ <cons ,x _>>>> x]))))
 
 (define $unique/m
   (lambda [$a $xs]
