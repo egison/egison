@@ -190,6 +190,13 @@ parseAtom = do
     ys <- many parseScript
     return $ Atom atom ys
 
+parseAtom' :: Parser MathExpr
+parseAtom' = do 
+    first <- letter <|> symbol <|> digit
+    rest <- many (letter <|> digit <|> symbol)
+    let atom = first : rest
+    return $ Atom atom []
+
 parsePartial :: Parser MathExpr
 parsePartial = do
     xs <- parseAtom
@@ -208,7 +215,7 @@ parseList :: Parser [MathExpr]
 parseList = sepEndBy parseExpr spaces
 
 parseScript :: Parser MathIndex
-parseScript = (Sub <$> (char '_' >> parseAtom)) <|> (Super <$> (char '~' >> parseAtom))
+parseScript = (Sub <$> (char '_' >> parseAtom')) <|> (Super <$> (char '~' >> parseAtom'))
 
 parsePlus :: Parser MathExpr
 parsePlus = do
