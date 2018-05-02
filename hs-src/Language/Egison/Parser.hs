@@ -210,7 +210,7 @@ expr' = (try partialExpr
              <|> try hashExpr
              <|> collectionExpr
 --             <|> quoteExpr
-             <|> quoteFunctionExpr
+             <|> quoteSymbolExpr
              <|> wedgeExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
@@ -315,8 +315,8 @@ functionWithArgExpr = keywordFunction >> FunctionExpr <$> (between lp rp $ sepEn
 symbolicTensorExpr :: Parser EgisonExpr
 symbolicTensorExpr = keywordSymbolicTensor >> SymbolicTensorExpr <$> (brackets $ sepEndBy expr whiteSpace) <*> expr <*> ident
 
-quoteFunctionExpr :: Parser EgisonExpr
-quoteFunctionExpr = char '`' >> QuoteFunctionExpr <$> expr
+quoteSymbolExpr :: Parser EgisonExpr
+quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
 matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> matchClause
