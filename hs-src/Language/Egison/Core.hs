@@ -1002,12 +1002,12 @@ recursiveBind env bindings = do
                    case whnf of
                      (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ (Value (CFunc (Just name) env arg body))
                  FunctionExpr args -> do
-                   whnf <- evalExpr env expr
+                   whnf <- evalExpr env' expr
                    case whnf of
                      Value (ScalarData (Div (Plus [Term 1 [(FunctionData Nothing argnames args js, 1)]]) p)) -> do
                        liftIO . writeIORef ref . WHNF $ Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) argnames args js, 1)]]) p)
                  GenerateTensorExpr _ _ -> do
-                   whnf <- evalExpr env expr
+                   whnf <- evalExpr env' expr
                    case whnf of
                      Value (TensorData (Tensor ns xs js)) -> do
                          liftIO . writeIORef ref . WHNF $ Value $ TensorData $ Tensor ns (V.fromList $ modifyTensorName (V.toList xs) ns) js
