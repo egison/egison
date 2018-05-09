@@ -409,7 +409,7 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
-  | FunctionData (Maybe String) [String] [EgisonValue] [Index ScalarData] -- fnname argnames arg indices
+  | FunctionData (Maybe EgisonValue) [EgisonValue] [EgisonValue] [Index ScalarData] -- fnname argnames arg indices
  deriving (Eq)
 
 instance Eq PolyExpr where
@@ -515,8 +515,8 @@ symbolExprToEgison (FunctionData fn argnames args js, n) = Tuple [InductiveData 
                                                Userscript k -> InductiveData "User" [ScalarData k]
                                       ) js))
   maybeToString x = case x of
-                      Just xx -> String $ (T.pack xx)
-                      Nothing -> String $ (T.pack "")
+                      Just xx -> xx
+                      Nothing -> symbolScalarData "" (T.pack "")
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
