@@ -1510,7 +1510,7 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-newtype Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndeices)
+data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
  deriving (Show)
 
 newtype Var = Var [String]
@@ -1577,7 +1577,7 @@ nullEnv :: Env
 nullEnv = Env [] Nothing
 
 extendEnv :: Env -> [Binding] -> Env
-extendEnv (Env env idx) = Env $ (: env) . HashMap.fromList idx
+extendEnv (Env env idx) bdg = Env ((: env) $ HashMap.fromList bdg) idx
 
 refVar :: Env -> Var -> Maybe ObjectRef
 refVar (Env env idx) var = msum $ map (HashMap.lookup var) env
