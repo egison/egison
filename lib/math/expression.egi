@@ -47,7 +47,7 @@
              <Plus {<Term 1 {}> @{}}>>
         {(to-math-expr' mexpr)}]
        [_ {}]}]
-     [<func $ $ $ $> [string (list string) (list math-expr) (list index-expr)]
+     [<func $ $ $ $> [math-expr (list math-expr) (list math-expr) (list index-expr)]
       {[<Div <Plus {<Term 1 {[<Function $name $argnames $args $js> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {[name argnames args js]}]
        [_ {}]}]
      [$ [something]
