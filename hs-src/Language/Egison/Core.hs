@@ -180,7 +180,7 @@ evalExpr env (VarExpr name) = do
   return (case x of
             Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) ->
               case fn of
-                Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) argnames args js, 1)]]) p)
+                Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show name) argnames args js, 1)]]) p)
                 Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
             _ -> x)
  where
@@ -311,7 +311,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
                  case ret of
                    Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) ->
                      case fn of
-                       Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show var ++ concat (map show indices)) argnames args js, 1)]]) p)
+                       Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show var ++ concat (map show indices)) argnames args js, 1)]]) p)
                        Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
                    _ -> ret
                _ -> ret
@@ -401,14 +401,14 @@ evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc 
 
 evalExpr env (FunctionExpr args) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing (map show args) args' [], 1)]]) (Plus [Term 1 []]))
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData Nothing (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (SymbolicTensorExpr args sizeExpr name) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
   size' <- evalExpr env sizeExpr
   size'' <- collectionToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
-  let xs = map (\ms -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just (name ++ concat (map (\m -> "_" ++ m) (map show ms)))) (map show args) args' [], 1)]]) (Plus [Term 1 []])))
+  let xs = map (\ms -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" (name ++ concat (map (\m -> "_" ++ m) (map show ms)))) (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []])))
                (map (\ms -> map toEgison ms) (enumTensorIndices ns))
   fromTensor (Tensor ns (V.fromList xs) [])
 
@@ -1001,7 +1001,7 @@ recursiveBind env bindings = do
                    whnf <- evalExpr env' expr
                    case whnf of
                      Value (ScalarData (Div (Plus [Term 1 [(FunctionData Nothing argnames args js, 1)]]) p)) -> do
-                       liftIO . writeIORef ref . WHNF $ Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ show name) argnames args js, 1)]]) p)
+                     liftIO . writeIORef ref . WHNF $ Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" (show name)) argnames args js, 1)]]) p)
                  GenerateTensorExpr _ _ -> do
                    whnf <- evalExpr env' expr
                    case whnf of
@@ -1013,7 +1013,7 @@ recursiveBind env bindings = do
                       modifyTensorName :: [EgisonValue] -> [Integer]-> [EgisonValue]
                       modifyTensorName xs ns = do
                           map (\(x, ms) -> case x of
-                                             ScalarData (Div (Plus [Term 1 [(FunctionData Nothing argnames args js, 1)]]) p) -> ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ nameString ++ (concatMap (\(i, m) -> i ++ m) $ zip indexList (map show ms))) argnames args js, 1)]]) p)
+                                             ScalarData (Div (Plus [Term 1 [(FunctionData Nothing argnames args js, 1)]]) p) -> ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ nameString ++ (concatMap (\(i, m) -> i ++ m) $ zip indexList (map show ms))) argnames args js, 1)]]) p)
                                              _ -> x) $ zip xs (map (\ms -> map toEgison ms) (enumTensorIndices ns))
                       modifyTensorName' :: [WHNFData] -> [Integer] -> [WHNFData]
                       modifyTensorName' xs ns = map Value (modifyTensorName (map (\(Value x) -> x) xs) ns)

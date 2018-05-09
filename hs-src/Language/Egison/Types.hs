@@ -488,6 +488,9 @@ symbolScalarData id name = ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)
 getSymId :: EgisonValue -> String
 getSymId (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) = id
 
+getSymName :: EgisonValue -> String
+getSymName (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) = name
+
 mathExprToEgison :: ScalarData -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [polyExprToEgison p1, polyExprToEgison p2]
 
@@ -507,16 +510,16 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                       ) js))
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
-symbolExprToEgison (FunctionData fn argnames args js, n) = Tuple [InductiveData "Function" [maybeToString fn, Collection (Sq.fromList $ map (String . T.pack) argnames), Collection (Sq.fromList args), f js], toEgison n]
+symbolExprToEgison (FunctionData fn argnames args js, n) = Tuple [InductiveData "Function" [maybeToScalar fn, Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map (\j -> case j of
                                                Superscript k -> InductiveData "Sup" [ScalarData k]
                                                Subscript k -> InductiveData "Sub" [ScalarData k]
                                                Userscript k -> InductiveData "User" [ScalarData k]
                                       ) js))
-  maybeToString x = case x of
+  maybeToScalar x = case x of
                       Just xx -> xx
-                      Nothing -> symbolScalarData "" (T.pack "")
+                      Nothing -> symbolScalarData "" ""
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -567,7 +570,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
-egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), (Collection argnames), (Collection args), Collection seq], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Function" [name, (Collection argnames), (Collection args), Collection seq], n]) = do
   let js = toList seq
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
@@ -576,10 +579,8 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), (Collection 
                          _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
                ) js
   n' <- fromEgison n
-  let argnames' = map (\(String name) -> T.unpack name) $ toList argnames
-  return (FunctionData (stringToMaybe name) argnames' (toList args) js', n')
- where
-   stringToMaybe x = let s = (T.unpack x) in if (s == "") then Nothing else Just s
+  let name' = if (getSymName name == "") then Nothing else Just name
+  return (FunctionData name' (toList argnames) (toList args) js', n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -1257,7 +1258,7 @@ instance Show SymbolExpr where
   show (Quote mExprs) = "'" ++ show mExprs
   show (FunctionData ms argnames args js) = case ms of
                                   Nothing -> "(function [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
-                                  Just name -> name ++ concatMap show js
+                                  Just name -> show name ++ concatMap show js
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
