@@ -401,10 +401,13 @@ evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc 
 
 evalExpr env (FunctionExpr name args) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
-  let name' = case name of
-                Nothing -> Nothing
-                Just s -> Just $ symbolScalarData "" $ show s
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData name' (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []]))
+  case name of
+    Just s -> return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show s) (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []]))
+    Nothing -> case getNamefromEnv env of
+                 Just vi -> return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show vi) (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []]))
+                 Nothing -> throwError $ Default "function symbol is not bound to a variable" 
+  
+    where getNamefromEnv (Env ev idx) = idx
 
 evalExpr env (SymbolicTensorExpr args sizeExpr name) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
@@ -987,7 +990,6 @@ recursiveBind env bindings = do
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
   zipWithM_ (\ref (name,expr) -> do
-               let (nameString:indexList) = filter (/="") $ split (oneOf "~_") $ show name
                case expr of
                  MemoizedLambdaExpr names body -> do
                    hashRef <- liftIO $ newIORef HL.empty
