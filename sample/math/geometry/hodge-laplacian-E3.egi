@@ -2,16 +2,16 @@
 
 (define $N 2)
 
-(define $x [|r θ|])
+(define $params [|x y|])
 
-(define $g__ [| [| 1 0 |] [| 0 r^2 |] |])
+(define $g__ [| [| 1 0 |] [| 0 1 |] |])
 (define $g~~ (M.inverse g_#_#))
 
 ;;; Hodge Laplacian
 
 (define $d
   (lambda [%X]
-    !((flip ∂/∂) x X)))
+    !((flip ∂/∂) params X)))
 
 (define $hodge
   (lambda [%A]
@@ -35,19 +35,19 @@
        [,2 (d (δ A))]
        [_ (+ (d (δ A)) (δ (d A)))]})))
 
-(define $f (function [r θ]))
+(define $f (function [x y]))
 
 (d f)
-;[| f|r f|θ |]
+;[| f|x f|y |]
 
 (hodge (d f))
-;[| (/ (* -1 f|θ) r) (* r f|r) |]
+;[| (* -1 f|y) f|x |]
 
 (d (hodge (d f)))
-;[| [| (/ (+ (* -1 f|θ|r r) f|θ) r^2) (+ f|r (* r f|r|r)) |] [| (/ (* -1 f|θ|θ) r) (* r f|r|θ) |] |]
+;[| [| (* -1 f|y|x) f|x|x |] [| (* -1 f|y|y) f|x|y |] |]
 
 (hodge (d (hodge (d f))))
-;(/ (+ f|θ|θ (* r f|r) (* r^2 f|r|r)) r^2)
+;(+ f|y|y f|x|x)
 
 (Δ f)
-;(/ (+ (* -1 f|θ|θ) (* -1 r f|r) (* -1 r^2 f|r|r)) r^2)
+;(+ (* -1 f|y|y) (* -1 f|x|x))
