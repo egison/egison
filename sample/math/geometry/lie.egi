@@ -34,17 +34,15 @@
 (define $ρ (function [t x y z]))
 (define $*ρ (df-normalize (hodge ρ)))
 
-(define $ux (function [t x y z]))
-(define $uy (function [t x y z]))
-(define $uz (function [t x y z]))
-(define $u [| ux uy uz |])
+(define $u_ (generate-tensor 1#(function [t x y z]) {3}))
+(define $u [| u_1 u_2 u_3 |])
 
 (df-normalize (+ (∂/∂ *ρ t) (Lie u *ρ)))
-;(tensor {3 3 3} {0 0 0 0 0 (/ (+ ρ|t (* ux|x ρ) (* ux ρ|x) (* uy|y ρ) (* uy ρ|y) (* uz|z ρ) (* uz ρ|z)) 6) 0 (/ (+ (* -1 ρ|t) (* -1 ux|x ρ) (* -1 ux ρ|x) (* -1 uz|z ρ) (* -1 uz ρ|z) (* -1 uy|y ρ) (* -1 uy ρ|y)) 6) 0 0 0 (/ (+ (* -1 ρ|t) (* -1 uy|y ρ) (* -1 uy ρ|y) (* -1 ux|x ρ) (* -1 ux ρ|x) (* -1 uz|z ρ) (* -1 uz ρ|z)) 6) 0 0 0 (/ (+ ρ|t (* uy|y ρ) (* uy ρ|y) (* uz|z ρ) (* uz ρ|z) (* ux|x ρ) (* ux ρ|x)) 6) 0 0 0 (/ (+ ρ|t (* uz|z ρ) (* uz ρ|z) (* ux|x ρ) (* ux ρ|x) (* uy|y ρ) (* uy ρ|y)) 6) 0 (/ (+ (* -1 ρ|t) (* -1 uz|z ρ) (* -1 uz ρ|z) (* -1 uy|y ρ) (* -1 uy ρ|y) (* -1 ux|x ρ) (* -1 ux ρ|x)) 6) 0 0 0 0 0} )
+;(tensor {3 3 3} {0 0 0 0 0 (/ (+ ρ|t (* u_1|x ρ) (* u_1 ρ|x) (* u_2|y ρ) (* u_2 ρ|y) (* u_3|z ρ) (* u_3 ρ|z)) 6) 0 (/ (+ (* -1 ρ|t) (* -1 u_1|x ρ) (* -1 u_1 ρ|x) (* -1 u_3|z ρ) (* -1 u_3 ρ|z) (* -1 u_2|y ρ) (* -1 u_2 ρ|y)) 6) 0 0 0 (/ (+ (* -1 ρ|t) (* -1 u_2|y ρ) (* -1 u_2 ρ|y) (* -1 u_1|x ρ) (* -1 u_1 ρ|x) (* -1 u_3|z ρ) (* -1 u_3 ρ|z)) 6) 0 0 0 (/ (+ ρ|t (* u_2|y ρ) (* u_2 ρ|y) (* u_3|z ρ) (* u_3 ρ|z) (* u_1|x ρ) (* u_1 ρ|x)) 6) 0 0 0 (/ (+ ρ|t (* u_3|z ρ) (* u_3 ρ|z) (* u_1|x ρ) (* u_1 ρ|x) (* u_2|y ρ) (* u_2 ρ|y)) 6) 0 (/ (+ (* -1 ρ|t) (* -1 u_3|z ρ) (* -1 u_3 ρ|z) (* -1 u_2|y ρ) (* -1 u_2 ρ|y) (* -1 u_1|x ρ) (* -1 u_1 ρ|x)) 6) 0 0 0 0 0} )
 
 (df-normalize (+ (∂/∂ *ρ t) (Lie u *ρ)))_1_2_3
 ;(/ (+ ρ|t
-;      (* ux|x ρ) (* ux ρ|x)
-;      (* uy|y ρ) (* uy ρ|y)
-;      (* uz|z ρ) (* uz ρ|z))
+;      (* u_1|x ρ) (* u_1 ρ|x)
+;      (* u_2|y ρ) (* u_2 ρ|y)
+;      (* u_3|z ρ) (* u_3 ρ|z))
 ;   6)
