@@ -281,7 +281,7 @@ data EgisonExpr =
   | TransposeExpr EgisonExpr EgisonExpr
   | FlipIndicesExpr EgisonExpr
 
-  | FunctionExpr (Maybe Var) [EgisonExpr]
+  | FunctionExpr [EgisonExpr]
   | SymbolicTensorExpr [EgisonExpr] EgisonExpr String
 
   | SomethingExpr
@@ -1176,8 +1176,7 @@ instance Show EgisonExpr where
   show (FloatExpr x y) = showComplexFloat x y
   show (VarExpr name) = show name
   show (PartialVarExpr n) = "%" ++ show n
-  show (FunctionExpr Nothing args) = "(function [" ++ unwords (map show args) ++ "])"
-  show (FunctionExpr (Just name) args) = show name
+  show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
@@ -1510,17 +1509,15 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
+data Env = Env [HashMap VarWithIndexType ObjectRef] (Maybe VarWithIndices)
  deriving (Show)
 
-newtype Var = Var [String]
+newtype Var = Var [String] [Index ()]
  deriving (Eq, Hashable)
 
-data VarWithIndexType = VarWithIndexType String [Index ()]
- deriving (Eq)
 type Binding = (Var, ObjectRef)
 
-data VarWithIndices = VarWithIndices String [Index String]
+data VarWithIndices = VarWithIndices [String] [Index String]
  deriving (Eq)
 
 instance Show Var where

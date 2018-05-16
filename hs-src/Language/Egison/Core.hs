@@ -82,10 +82,10 @@ evalTopExprs env exprs = do
   forM_ rest $ evalTopExpr env
   return env
  where
-  collectDefs :: [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
+  collectDefs :: [EgisonTopExpr] -> [(VarWithIndexType, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
   collectDefs (expr:exprs) bindings rest =
     case expr of
-      Define name expr -> collectDefs exprs (((stringToVar $ show name), expr) : bindings) rest
+      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
       Load file -> do
         exprs' <- loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
@@ -399,15 +399,11 @@ evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
-evalExpr env (FunctionExpr name args) = do
+evalExpr (Env frame Nothing) (FunctionExpr args) = throwError $ Default "function symbol is not bound to a variable" 
+
+evalExpr (Env frame (Just name)) (FunctionExpr args) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
-  case name of
-    Just s -> return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show s) (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []]))
-    Nothing -> case getNamefromEnv env of
-                 Just vi -> return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show vi) (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []]))
-                 Nothing -> throwError $ Default "function symbol is not bound to a variable" 
-  
-    where getNamefromEnv (Env ev idx) = idx
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show name) (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (SymbolicTensorExpr args sizeExpr name) = do
   args' <- mapM (\arg -> evalExprDeep env arg) args
@@ -679,8 +675,19 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size'' <- collectionToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   fn <- evalExpr env fnExpr
-  xs <-  mapM (\ms -> applyFunc env fn (Value (makeTuple ms))) (map (\ms -> map toEgison ms) (enumTensorIndices ns))
-  fromTensor (Tensor ns (V.fromList xs) [])
+  let Env frame maybe_vwi = env
+  case maybe_vwi of
+    Nothing -> throwError $ Default "function symbol is not bound to a variable"
+    Just (VarWithIndices nameString indexList) -> do
+      -- liftIO $ putStrLn $ show $ VarWithIndices nameString $ changeIndexList indexList ((map (\ms -> map toEgison ms) (enumTensorIndices ns)) !! 1)
+      xs <- mapM (\ms -> applyFunc (Env frame (Just $ VarWithIndices nameString $ changeIndexList indexList ms)) fn (Value (makeTuple ms))) 
+                    (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+      fromTensor (Tensor ns (V.fromList xs) [])
+ where 
+   changeIndexList :: [Index String] -> [EgisonValue] -> [Index String]
+   changeIndexList idxlist ms = map (\(i, m) -> case i of
+                                                  Superscript s -> Superscript (s ++ m)
+                                                  Subscript s -> Subscript (s ++ m)) $ zip idxlist (map show ms)
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
@@ -988,7 +995,11 @@ recursiveBind :: Env -> [(Var, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
-  let env' = extendEnv env $ makeBindings names refs
+  let (Env frame _) = extendEnv env $ makeBindings names refs
+  let (nameString:indexList) = filter (/="") $ split (oneOf "~_") $ show name
+  let indexList' = map (\x -> case x of
+                                     "~" -> Superscript ""
+                                     "_" -> Subscript "") indexList
   zipWithM_ (\ref (name,expr) -> do
                case expr of
                  MemoizedLambdaExpr names body -> do
@@ -1002,24 +1013,17 @@ recursiveBind env bindings = do
                    whnf <- evalExpr env' expr
                    case whnf of
                      (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ (Value (CFunc (Just name) env arg body))
-                 FunctionExpr Nothing args -> do
-                   liftIO . writeIORef ref . Thunk $ evalExpr env' $ FunctionExpr (Just name) args
+                 FunctionExpr args -> do
+                   let Env frame _ = env'
+                   let (nameString:indexList) = filter (/="") $ split (oneOf "~_") $ show name
+                   liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ VarWithIndices "piyo" [])) $ FunctionExpr (Just name) args
                  GenerateTensorExpr _ _ -> do
-                   whnf <- evalExpr env' expr
-                   case whnf of
-                     Value (TensorData (Tensor ns xs js)) -> do
-                         liftIO . writeIORef ref . WHNF $ Value $ TensorData $ Tensor ns (V.fromList $ modifyTensorName (V.toList xs) ns) js
-                     Intermediate (ITensor (Tensor ns xs js)) -> do
-                         liftIO . writeIORef ref . WHNF $ Intermediate $ ITensor $ Tensor ns (V.fromList $ modifyTensorName' (V.toList xs) ns) js
-                    where 
-                      modifyTensorName :: [EgisonValue] -> [Integer]-> [EgisonValue]
-                      modifyTensorName xs ns = do
-                          map (\(x, ms) -> case x of
-                                             ScalarData (Div (Plus [Term 1 [(FunctionData Nothing argnames args js, 1)]]) p) -> ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ nameString ++ (concatMap (\(i, m) -> i ++ m) $ zip indexList (map show ms))) argnames args js, 1)]]) p)
-                                             _ -> x) $ zip xs (map (\ms -> map toEgison ms) (enumTensorIndices ns))
-                      modifyTensorName' :: [WHNFData] -> [Integer] -> [WHNFData]
-                      modifyTensorName' xs ns = map Value (modifyTensorName (map (\(Value x) -> x) xs) ns)
-                    
+                   let Env frame _ = env'
+                   let (nameString:indexList) = filter (/="") $ split (oneOf "~_") $ show name
+                   let indexList' = map (\x -> case x of
+                                                 "~" -> Superscript ""
+                                                 "_" -> Subscript "") indexList
+                   liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ VarWithIndices nameString indexList')) $ expr
                  _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
             refs bindings
   return env'
