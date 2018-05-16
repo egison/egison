@@ -86,7 +86,6 @@ module Language.Egison.Types
     -- * Environment
     , Env (..)
     , Var (..)
-    , VarWithIndexType (..)
     , VarWithIndices (..)
     , Binding (..)
     , nullEnv
@@ -192,8 +191,8 @@ import System.IO.Unsafe (unsafePerformIO)
 --
 
 data EgisonTopExpr =
-    Define VarWithIndexType EgisonExpr
-  | Redefine VarWithIndexType EgisonExpr
+    Define Var EgisonExpr
+  | Redefine Var EgisonExpr
   | Test EgisonExpr
   | Execute EgisonExpr
     -- temporary : we will replace load to import and export
@@ -1509,25 +1508,25 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-data Env = Env [HashMap VarWithIndexType ObjectRef] (Maybe VarWithIndices)
+data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
  deriving (Show)
 
-newtype Var = Var [String] [Index ()]
- deriving (Eq, Hashable)
-
-type Binding = (Var, ObjectRef)
+data Var = Var [String] [Index ()]
+ deriving (Eq)
 
 data VarWithIndices = VarWithIndices [String] [Index String]
  deriving (Eq)
 
-instance Show Var where
-  show (Var xs) = intercalate "." xs
+type Binding = (Var, ObjectRef)
 
-instance Show VarWithIndexType where
-  show (VarWithIndexType x is) = x ++ concatMap show is
+instance Hashable Var where
+  hashWithSalt s (Var xs is) = s + hash xs + hash is
+
+instance Show Var where
+  show (Var xs is) = intercalate "." xs ++ concatMap show is
 
 instance Show VarWithIndices where
-  show (VarWithIndices x is) = x ++ concatMap show is
+  show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
 
 instance Show (Index ()) where
   show (Superscript ()) = "~"
@@ -1719,7 +1718,7 @@ instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
   fresh = FreshT $ do (x, y) <- get; modify (\(x,y) -> (x + 1, y))
                       return $ "$_" ++ show x ++ show y
   freshV = FreshT $ do (x, y) <- get; modify (\(x,y) -> (x + 1, y))
-                       return $ Var ["$_" ++ show x ++ show y]
+                       return $ Var ["$_" ++ show x ++ show y] []
 instance (MonadError e m) => MonadError e (FreshT m) where
   throwError = lift . throwError
   catchError m h = FreshT $ catchError (unFreshT m) (unFreshT . h)
@@ -1890,4 +1889,4 @@ readUTF8File name = do
   hGetContents h
 
 stringToVar :: String -> Var
-stringToVar name = Var $ splitOn "." name
+stringToVar name = Var (splitOn "." name) []
