@@ -147,6 +147,7 @@ module Language.Egison.Types
     , isHash'
     , readUTF8File
     , stringToVar
+    , varToVarWithIndices
     ) where
 
 import Prelude hiding (foldr, mappend, mconcat)
@@ -210,7 +211,7 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr Var
   | FreshVarExpr
-  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]
+  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]  -- True -> delete old index and append new one
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
   | UserrefsExpr Bool EgisonExpr EgisonExpr
@@ -1183,7 +1184,6 @@ instance Show EgisonExpr where
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
   show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
 
-
 instance Show EgisonValue where
   show (Char c) = "c#" ++ [c]
   show (String str) = "\"" ++ T.unpack str ++ "\""
@@ -1892,3 +1892,11 @@ readUTF8File name = do
 
 stringToVar :: String -> Var
 stringToVar name = Var (splitOn "." name) []
+
+varToVarWithIndices :: Var -> VarWithIndices
+varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
+ where 
+   f :: Index () -> Index String
+   f (Superscript ()) = Superscript ""
+   f (Subscript ()) = Subscript ""
+   f (SupSubscript ()) = SupSubscript ""
