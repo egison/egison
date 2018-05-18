@@ -1,6 +1,6 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
-             TypeFamilies, TupleSections #-}
+             TypeFamilies, TupleSections, DeriveGeneric #-}
 {- |
 Module      : Language.Egison.Types
 Copyright   : Satoshi Egi
@@ -186,6 +186,8 @@ import Numeric
 
 import System.IO.Unsafe (unsafePerformIO)
 
+import GHC.Generics (Generic)
+
 --
 -- Expressions
 --
@@ -301,7 +303,7 @@ data Index a =
   | MultiSuperscript a a
   | DFscript Integer Integer -- DifferentialForm
   | Userscript a
- deriving (Eq)
+ deriving (Eq, Generic)
 
 data InnerExpr =
     ElementExpr EgisonExpr
@@ -1512,15 +1514,15 @@ data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
  deriving (Show)
 
 data Var = Var [String] [Index ()]
- deriving (Eq)
+  deriving (Eq, Generic)
 
 data VarWithIndices = VarWithIndices [String] [Index String]
  deriving (Eq)
 
-type Binding = (Var, ObjectRef)
+instance Hashable (Index ())
+instance Hashable Var
 
-instance Hashable Var where
-  hashWithSalt s (Var xs is) = s + hash xs + hash is
+type Binding = (Var, ObjectRef)
 
 instance Show Var where
   show (Var xs is) = intercalate "." xs ++ concatMap show is
