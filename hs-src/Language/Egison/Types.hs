@@ -1,6 +1,6 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
-             TypeFamilies, TupleSections #-}
+             TypeFamilies, TupleSections, DeriveGeneric #-}
 {- |
 Module      : Language.Egison.Types
 Copyright   : Satoshi Egi
@@ -147,6 +147,7 @@ module Language.Egison.Types
     , isHash'
     , readUTF8File
     , stringToVar
+    , varToVarWithIndices
     ) where
 
 import Prelude hiding (foldr, mappend, mconcat)
@@ -186,6 +187,8 @@ import Numeric
 
 import System.IO.Unsafe (unsafePerformIO)
 
+import GHC.Generics (Generic)
+
 --
 -- Expressions
 --
@@ -208,7 +211,7 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr Var
   | FreshVarExpr
-  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]
+  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]  -- True -> delete old index and append new one
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
   | UserrefsExpr Bool EgisonExpr EgisonExpr
@@ -301,7 +304,7 @@ data Index a =
   | MultiSuperscript a a
   | DFscript Integer Integer -- DifferentialForm
   | Userscript a
- deriving (Eq)
+ deriving (Eq, Generic)
 
 data InnerExpr =
     ElementExpr EgisonExpr
@@ -1181,7 +1184,6 @@ instance Show EgisonExpr where
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
   show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
 
-
 instance Show EgisonValue where
   show (Char c) = "c#" ++ [c]
   show (String str) = "\"" ++ T.unpack str ++ "\""
@@ -1512,15 +1514,15 @@ data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
  deriving (Show)
 
 data Var = Var [String] [Index ()]
- deriving (Eq)
+  deriving (Eq, Generic)
 
 data VarWithIndices = VarWithIndices [String] [Index String]
  deriving (Eq)
 
-type Binding = (Var, ObjectRef)
+instance Hashable (Index ())
+instance Hashable Var
 
-instance Hashable Var where
-  hashWithSalt s (Var xs is) = s + hash xs + hash is
+type Binding = (Var, ObjectRef)
 
 instance Show Var where
   show (Var xs is) = intercalate "." xs ++ concatMap show is
@@ -1890,3 +1892,11 @@ readUTF8File name = do
 
 stringToVar :: String -> Var
 stringToVar name = Var (splitOn "." name) []
+
+varToVarWithIndices :: Var -> VarWithIndices
+varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
+ where 
+   f :: Index () -> Index String
+   f (Superscript ()) = Superscript ""
+   f (Subscript ()) = Subscript ""
+   f (SupSubscript ()) = SupSubscript ""
