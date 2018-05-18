@@ -674,12 +674,14 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size' <- evalExpr env sizeExpr
   size'' <- collectionToList size'
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
-  fn <- evalExpr env fnExpr
   let Env frame maybe_vwi = env
   case maybe_vwi of
     Nothing -> throwError $ Default "function symbol is not bound to a variable"
     Just (VarWithIndices nameString indexList) -> do
-      xs <- mapM (\ms -> applyFunc (Env frame (Just $ VarWithIndices nameString $ changeIndexList indexList ms)) fn (Value (makeTuple ms))) 
+      xs <- mapM (\ms -> do
+        let env' = Env frame (Just $ VarWithIndices nameString $ changeIndexList indexList ms)
+        fn <- evalExpr env' fnExpr
+        applyFunc env fn (Value (makeTuple ms))) 
                     (map (\ms -> map toEgison ms) (enumTensorIndices ns))
       fromTensor (Tensor ns (V.fromList xs) [])
  where 
