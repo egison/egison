@@ -267,7 +267,7 @@ evalExpr env (HashExpr assocs) = do
 
 evalExpr env (IndexedExpr bool expr indices) = do
   tensor <- case expr of
-              VarExpr (Var xs is) -> do                
+              VarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ (map f indices))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
