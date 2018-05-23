@@ -423,7 +423,9 @@ evalExpr env (LetExpr bindings expr) =
  where
   extractBindings :: BindingExpr -> EgisonM [Binding]
   extractBindings ([name], expr) =
-    makeBindings [name] . (:[]) <$> newObjectRef env expr
+    case expr of
+      FunctionExpr args -> let Env frame _ = env in makeBindings [name] . (:[]) <$> newObjectRef (Env frame (Just $ varToVarWithIndices name)) expr
+      _ -> makeBindings [name] . (:[]) <$> newObjectRef env expr
   extractBindings (names, expr) =
     makeBindings names <$> (evalExpr env expr >>= fromTuple)
 
