@@ -1,6 +1,6 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
-             TypeFamilies, TupleSections #-}
+             TypeFamilies, TupleSections, DeriveGeneric #-}
 {- |
 Module      : Language.Egison.Types
 Copyright   : Satoshi Egi
@@ -59,6 +59,8 @@ module Language.Egison.Types
     , tConcat'
     -- * Scalar
     , symbolScalarData
+    , getSymId
+    , getSymName
     , mathExprToEgison
     , egisonToScalarData
     , mathNormalize'
@@ -84,7 +86,6 @@ module Language.Egison.Types
     -- * Environment
     , Env (..)
     , Var (..)
-    , VarWithIndexType (..)
     , VarWithIndices (..)
     , Binding (..)
     , nullEnv
@@ -146,6 +147,7 @@ module Language.Egison.Types
     , isHash'
     , readUTF8File
     , stringToVar
+    , varToVarWithIndices
     ) where
 
 import Prelude hiding (foldr, mappend, mconcat)
@@ -185,13 +187,15 @@ import Numeric
 
 import System.IO.Unsafe (unsafePerformIO)
 
+import GHC.Generics (Generic)
+
 --
 -- Expressions
 --
 
 data EgisonTopExpr =
-    Define VarWithIndexType EgisonExpr
-  | Redefine VarWithIndexType EgisonExpr
+    Define Var EgisonExpr
+  | Redefine Var EgisonExpr
   | Test EgisonExpr
   | Execute EgisonExpr
     -- temporary : we will replace load to import and export
@@ -207,7 +211,7 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr Var
   | FreshVarExpr
-  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]
+  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]  -- True -> delete old index and append new one
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
   | UserrefsExpr Bool EgisonExpr EgisonExpr
@@ -248,7 +252,7 @@ data EgisonExpr =
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
 
   | QuoteExpr EgisonExpr
-  | QuoteFunctionExpr EgisonExpr
+  | QuoteSymbolExpr EgisonExpr
   
   | WedgeExpr EgisonExpr
   | WedgeApplyExpr EgisonExpr EgisonExpr
@@ -300,7 +304,7 @@ data Index a =
   | MultiSuperscript a a
   | DFscript Integer Integer -- DifferentialForm
   | Userscript a
- deriving (Eq)
+ deriving (Eq, Generic)
 
 data InnerExpr =
     ElementExpr EgisonExpr
@@ -410,7 +414,7 @@ data SymbolExpr =
     Symbol String String [Index ScalarData] -- ID, Name, Indices
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
-  | FunctionData (Maybe String) [String] [EgisonValue] [Index ScalarData] -- fnname argnames arg indices
+  | FunctionData (Maybe EgisonValue) [EgisonValue] [EgisonValue] [Index ScalarData] -- fnname argnames arg indices
  deriving (Eq)
 
 instance Eq PolyExpr where
@@ -489,6 +493,9 @@ symbolScalarData id name = ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)
 getSymId :: EgisonValue -> String
 getSymId (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) = id
 
+getSymName :: EgisonValue -> String
+getSymName (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) = name
+
 mathExprToEgison :: ScalarData -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [polyExprToEgison p1, polyExprToEgison p2]
 
@@ -508,16 +515,15 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                       ) js))
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
-symbolExprToEgison (FunctionData fn argnames args js, n) = Tuple [InductiveData "Function" [maybeToString fn, Collection (Sq.fromList $ map (String . T.pack) argnames), Collection (Sq.fromList args), f js], toEgison n]
+symbolExprToEgison (FunctionData name argnames args js, n) = case name of
+                                                               Nothing -> Tuple [InductiveData "Function" [symbolScalarData "" "", Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
+                                                               Just name' -> Tuple [InductiveData "Function" [name', Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map (\j -> case j of
                                                Superscript k -> InductiveData "Sup" [ScalarData k]
                                                Subscript k -> InductiveData "Sub" [ScalarData k]
                                                Userscript k -> InductiveData "User" [ScalarData k]
                                       ) js))
-  maybeToString x = case x of
-                      Just xx -> String $ (T.pack xx)
-                      Nothing -> String $ (T.pack "")
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -568,7 +574,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
-egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), (Collection argnames), (Collection args), Collection seq], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Function" [name, (Collection argnames), (Collection args), Collection seq], n]) = do
   let js = toList seq
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
@@ -577,10 +583,10 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [(String name), (Collection 
                          _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
                ) js
   n' <- fromEgison n
-  let argnames' = map (\(String name) -> T.unpack name) $ toList argnames
-  return (FunctionData (stringToMaybe name) argnames' (toList args) js', n')
- where
-   stringToMaybe x = let s = (T.unpack x) in if (s == "") then Nothing else Just s
+  let name' = case getSymName name of
+                "" -> Nothing
+                s -> Just $ name
+  return (FunctionData name' (toList argnames) (toList args) js', n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -1179,7 +1185,6 @@ instance Show EgisonExpr where
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
   show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
 
-
 instance Show EgisonValue where
   show (Char c) = "c#" ++ [c]
   show (String str) = "\"" ++ T.unpack str ++ "\""
@@ -1257,9 +1262,8 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData ms argnames args js) = case ms of
-                                  Nothing -> "(function [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
-                                  Just name -> name ++ concatMap show js
+  show (FunctionData Nothing argnames args js) = "(function [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
+  show (FunctionData (Just name) argnames args js) = show name ++ concatMap show js
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
 showComplex x 0 = show x
@@ -1508,27 +1512,25 @@ class (EgisonWHNF a) => EgisonObject a where
 -- Environment
 --
 
-newtype Env = Env [HashMap Var ObjectRef]
+data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
  deriving (Show)
 
-newtype Var = Var [String]
- deriving (Eq, Hashable)
+data Var = Var [String] [Index ()]
+  deriving (Eq, Generic)
 
-data VarWithIndexType = VarWithIndexType String [Index ()]
+data VarWithIndices = VarWithIndices [String] [Index String]
  deriving (Eq)
+
+instance Hashable (Index ())
+instance Hashable Var
+
 type Binding = (Var, ObjectRef)
 
-data VarWithIndices = VarWithIndices String [Index String]
- deriving (Eq)
-
 instance Show Var where
-  show (Var xs) = intercalate "." xs
-
-instance Show VarWithIndexType where
-  show (VarWithIndexType x is) = x ++ concatMap show is
+  show (Var xs is) = intercalate "." xs ++ concatMap show is
 
 instance Show VarWithIndices where
-  show (VarWithIndices x is) = x ++ concatMap show is
+  show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
 
 instance Show (Index ()) where
   show (Superscript ()) = "~"
@@ -1572,13 +1574,13 @@ instance Show (Index EgisonValue) where
                          _ -> "|" ++ show i
 
 nullEnv :: Env
-nullEnv = Env []
+nullEnv = Env [] Nothing
 
 extendEnv :: Env -> [Binding] -> Env
-extendEnv (Env env) = Env . (: env) . HashMap.fromList
+extendEnv (Env env idx) bdg = Env ((: env) $ HashMap.fromList bdg) idx
 
 refVar :: Env -> Var -> Maybe ObjectRef
-refVar (Env env) var = msum $ map (HashMap.lookup var) env
+refVar (Env env idx) var = msum $ map (HashMap.lookup var) env
 
 --
 -- Pattern Match
@@ -1720,7 +1722,7 @@ instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
   fresh = FreshT $ do (x, y) <- get; modify (\(x,y) -> (x + 1, y))
                       return $ "$_" ++ show x ++ show y
   freshV = FreshT $ do (x, y) <- get; modify (\(x,y) -> (x + 1, y))
-                       return $ Var ["$_" ++ show x ++ show y]
+                       return $ Var ["$_" ++ show x ++ show y] []
 instance (MonadError e m) => MonadError e (FreshT m) where
   throwError = lift . throwError
   catchError m h = FreshT $ catchError (unFreshT m) (unFreshT . h)
@@ -1891,4 +1893,12 @@ readUTF8File name = do
   hGetContents h
 
 stringToVar :: String -> Var
-stringToVar name = Var $ splitOn "." name
+stringToVar name = Var (splitOn "." name) []
+
+varToVarWithIndices :: Var -> VarWithIndices
+varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
+ where 
+   f :: Index () -> Index String
+   f (Superscript ()) = Superscript ""
+   f (Subscript ()) = Subscript ""
+   f (SupSubscript ()) = SupSubscript ""
