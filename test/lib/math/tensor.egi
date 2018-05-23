@@ -74,14 +74,14 @@
           (f A_i)))
   (show [| [| 1 1 |] [| 1 1 |] |]_i_j))
 
-;(assert-equal "generate_tensor by using function expr"
-;  (letrec {[$g__ (generate-tensor
-;                    (match-lambda [integer integer]
-;                      {[[$n ,n] (function [x y z])]
-;                       [[_ _] 0]})
-;                    {3 3})]
-;           [$g [| [| g_1_1 0 0 |]
-;                  [| 0 g_2_2 0 |]
-;                  [| 0 0 g_3_3 |] |]]}
-;     (d/d g x))
-;  ([| [| g_1_1|x 0 0 |] [| 0 g_2_2|x 0 |] [| 0 0 g_3_3|x |] |]))
+(assert-equal "generate_tensor by using function expr"
+  (letrec {[$g__ (generate-tensor
+                    (match-lambda [integer integer]
+                      {[[$n ,n] (function [x y z])]
+                       [[_ _] 0]})
+                    {3 3})]
+           [$g [| [| g_1_1 0 0 |]
+                  [| 0 g_2_2 0 |]
+                  [| 0 0 g_3_3 |] |]]}
+     (d/d g x))
+  ([| [| g_1_1|x 0 0 |] [| 0 g_2_2|x 0 |] [| 0 0 g_3_3|x |] |]))
