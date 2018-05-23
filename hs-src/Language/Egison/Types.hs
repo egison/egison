@@ -390,6 +390,7 @@ data EgisonValue =
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
+  | QuotedFunc EgisonValue
   | Port Handle
   | Something
   | Undefined
@@ -1224,6 +1225,7 @@ instance Show EgisonValue where
   show (PatternFunc _ _ _) = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   show (IOFunc _) = "#<io-function>"
+  show (QuotedFunc _) = "#<quoted-function>"
   show (Port _) = "#<port>"
   show Something = "something"
   show Undefined = "undefined"

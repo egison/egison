@@ -4,6 +4,7 @@
 Module      : Language.Egison.Parser
 Copyright   : Satoshi Egi
 Licence     : MIT
+
 This module provide Egison parser.
 -}
 
