@@ -172,7 +172,7 @@ evalExpr env (QuoteExpr expr) = do
 evalExpr env (QuoteSymbolExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value val -> return . Value $ symbolScalarData "" $ show val
+    Value val -> return . Value $ QuotedFunc val
     _ -> throwError $ TypeMismatch "value in quote-function" $ whnf
 
 evalExpr env (VarExpr name) = do
@@ -896,6 +896,10 @@ applyFunc _ (Value (IOFunc m)) arg = do
   case arg of
      Value World -> m
      _ -> throwError $ TypeMismatch "world" arg
+applyFunc _ (Value (QuotedFunc fn)) arg = do
+  args <- tupleToList arg
+  mExprs <- mapM extractScalar args
+  return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
 applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
