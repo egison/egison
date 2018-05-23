@@ -421,7 +421,7 @@ memoizeBinding :: Parser (EgisonExpr, EgisonExpr, EgisonExpr)
 memoizeBinding = brackets $ (,,) <$> expr <*> expr <*> expr
 
 cambdaExpr :: Parser EgisonExpr
-cambdaExpr = keywordCambda >> CambdaExpr <$> varName <*> expr
+cambdaExpr = keywordCambda >> char '$' >> CambdaExpr <$> ident <*> expr
 
 procedureExpr :: Parser EgisonExpr
 procedureExpr = keywordProcedure >> ProcedureExpr <$> varNames <*> expr
@@ -462,19 +462,12 @@ binding :: Parser BindingExpr
 binding = brackets $ (,) <$> varNames' <*> expr
 
 varNames :: Parser [String]
-varNames = return <$> varName
-            <|> brackets (sepEndBy varName whiteSpace) 
+varNames = return <$> (char '$' >> ident)
+            <|> brackets (sepEndBy (char '$' >> ident) whiteSpace) 
 
 varNames' :: Parser [Var]
-varNames' = do
-  xs <- varNames
-  return $ map stringToVar xs
-
-varName :: Parser String
-varName = char '$' >> ident
-
-varName' :: Parser Var
-varName' = char '$' >> identVar
+varNames' = return <$> varNameWithIndexType
+            <|> brackets (sepEndBy varNameWithIndexType whiteSpace)
 
 varNameWithIndexType :: Parser Var
 varNameWithIndexType = P.lexeme lexer (do
@@ -660,7 +653,7 @@ wildCard :: Parser EgisonPattern
 wildCard = reservedOp "_" >> pure WildCard
 
 patVar :: Parser EgisonPattern
-patVar = PatVar <$> varName'
+patVar = char '$' >> PatVar <$> identVar
 
 varPat :: Parser EgisonPattern
 varPat = VarPat <$> ident
@@ -702,7 +695,7 @@ dApplyPat :: Parser EgisonPattern
 dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace 
 
 loopPat :: Parser EgisonPattern
-loopPat = keywordLoop >> LoopPat <$> varName' <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
+loopPat = keywordLoop >> char '$' >> LoopPat <$> identVar <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
 loopRange :: Parser LoopRange
 loopRange = brackets (try (do s <- expr
