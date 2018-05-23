@@ -410,9 +410,9 @@ desugar (QuoteExpr expr) = do
   expr' <- desugar expr
   return $ QuoteExpr expr'
 
-desugar (QuoteFunctionExpr expr) = do
+desugar (QuoteSymbolExpr expr) = do
   expr' <- desugar expr
-  return $ QuoteFunctionExpr expr'
+  return $ QuoteSymbolExpr expr'
 
 desugar (WedgeExpr (ApplyExpr expr0 expr1)) = do
   expr0' <- desugar expr0

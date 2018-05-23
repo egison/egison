@@ -140,7 +140,7 @@ defineExpr = try (parens (keywordDefine >> Define <$> varNameWithIndexType <*> e
          <|> try (parens (do keywordDefine
                              (VarWithIndices name is) <- varNameWithIndices
                              body <- expr
-                             return $ Define (VarWithIndexType name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
+                             return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
  where
   f (Superscript _) = Superscript ()
   f (Subscript _) = Subscript ()
@@ -210,7 +210,7 @@ expr' = (try partialExpr
              <|> try hashExpr
              <|> collectionExpr
 --             <|> quoteExpr
-             <|> quoteFunctionExpr
+             <|> quoteSymbolExpr
              <|> wedgeExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
@@ -315,8 +315,8 @@ functionWithArgExpr = keywordFunction >> FunctionExpr <$> (between lp rp $ sepEn
 symbolicTensorExpr :: Parser EgisonExpr
 symbolicTensorExpr = keywordSymbolicTensor >> SymbolicTensorExpr <$> (brackets $ sepEndBy expr whiteSpace) <*> expr <*> ident
 
-quoteFunctionExpr :: Parser EgisonExpr
-quoteFunctionExpr = char '`' >> QuoteFunctionExpr <$> expr
+quoteSymbolExpr :: Parser EgisonExpr
+quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
 matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> matchClause
@@ -476,12 +476,12 @@ varName = char '$' >> ident
 varName' :: Parser Var
 varName' = char '$' >> identVar
 
-varNameWithIndexType :: Parser VarWithIndexType
+varNameWithIndexType :: Parser Var
 varNameWithIndexType = P.lexeme lexer (do
   char '$'
   name <- ident
   is <- many indexType
-  return $ VarWithIndexType name is)
+  return $ Var (splitOn "." name) is)
 
 indexType :: Parser (Index ())
 indexType = try (char '~' >> return (Superscript ()))
@@ -492,7 +492,7 @@ varNameWithIndices = P.lexeme lexer (do
   char '$'
   name <- ident
   is <- many indexForVar
-  return $ VarWithIndices name is)
+  return $ VarWithIndices (splitOn "." name) is)
 
 indexForVar :: Parser (Index String)
 indexForVar = try (char '~' >> Superscript <$> ident)
