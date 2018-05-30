@@ -277,6 +277,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
                       Superscript n -> evalExprDeep env n >>= return . Superscript
                       Subscript n -> evalExprDeep env n >>= return . Subscript
                       SupSubscript n -> evalExprDeep env n >>= return . SupSubscript
+                      Userscript n -> evalExprDeep env n >>= return . Userscript
               ) indices
   
   ret <- case tensor of
@@ -285,6 +286,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
                              Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
                              Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
                              SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
+                             Userscript n -> evalExprDeep env n >>= extractScalar >>= return . Userscript
                     ) indices
         return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js2, 1)])]) (Plus [(Term 1 [])])))
       (Value (ScalarData _)) -> do
@@ -300,11 +302,13 @@ evalExpr env (IndexedExpr bool expr indices) = do
                              Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
                              Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
                              SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
+                             Userscript n -> evalExprDeep env n >>= extractScalar >>= return . Userscript
                     ) indices
         refArray tensor (map (\j -> case j of
                                       Superscript k -> ScalarData k
                                       Subscript k -> ScalarData k
                                       SupSubscript k -> ScalarData k
+                                      Userscript k -> ScalarData k
                               ) js2)
   let ret2 = case expr of
                (VarExpr var) -> do
@@ -321,6 +325,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
   f (Superscript _) = Superscript ()
   f (Subscript _) = Subscript ()
   f (SupSubscript _) = SupSubscript ()
+  f (Userscript _) = Userscript ()
 
 evalExpr env (SubrefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Subscript)
@@ -347,6 +352,7 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
   f (Superscript _) = Superscript ()
   f (Subscript _) = Subscript ()
   f (SupSubscript _) = SupSubscript ()
+  f (Userscript _) = Userscript ()
 
 evalExpr env (SuprefsExpr bool expr jsExpr) = do
   js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Superscript)
@@ -373,6 +379,7 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
   f (Superscript _) = Superscript ()
   f (Subscript _) = Subscript ()
   f (SupSubscript _) = SupSubscript ()
+  f (Userscript _) = Userscript ()
 
 evalExpr env (UserrefsExpr bool expr jsExpr) = do
   val <- evalExprDeep env expr
@@ -492,6 +499,9 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     | symId == id = True
     | otherwise = False
   isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
+    | symId == id = True
+    | otherwise = False
+  isTmpSymbol symId (Userscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
     | symId == id = True
     | otherwise = False
   removeTmpscripts :: String -> WHNFData -> EgisonM WHNFData
