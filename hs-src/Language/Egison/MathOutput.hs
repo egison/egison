@@ -109,11 +109,15 @@ showMathExprLatex (Atom a []) = a
 showMathExprLatex (Atom a xs) = a ++ showMathExprLatexScript xs
 showMathExprLatex (Partial f xs) = "\\frac{" ++ convertToPartial (f, length xs) ++ "}{" ++ showPartial xs ++ "}"
                                          where showPartial :: [MathExpr] -> String
-                                               showPartial xs = let lx = elemCount xs in convertToPartial (head lx) ++ foldr (\x acc -> " " ++ convertToPartial x ++ acc) "" (tail lx)
+                                               showPartial xs = let lx = elemCount xs in convertToPartial2 (head lx) ++ foldr (\x acc -> " " ++ convertToPartial2 x ++ acc) "" (tail lx)
 
                                                convertToPartial :: (MathExpr, Int) -> String
                                                convertToPartial (x, 1) = "\\partial " ++ showMathExprLatex x
                                                convertToPartial (x, n) = "\\partial^" ++ show n ++ " " ++ showMathExprLatex x
+
+                                               convertToPartial2 :: (MathExpr, Int) -> String
+                                               convertToPartial2 (x, 1) = "\\partial " ++ showMathExprLatex x
+                                               convertToPartial2 (x, n) = "\\partial " ++ showMathExprLatex x ++ "^"  ++ show n
 showMathExprLatex (NegativeAtom a) = "-" ++ a
 showMathExprLatex (Plus []) = ""
 showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlus xs
