@@ -191,7 +191,8 @@ expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
                                                            return $ MultiSuperscript e1 e2)
                                                  <|> try (char '_' >> expr' >>= return . Subscript)
                                                  <|> try (char '~' >> expr' >>= return . Superscript)
-                                                 <|> try (string "~_" >> expr' >>= return . SupSubscript))
+                                                 <|> try (string "~_" >> expr' >>= return . SupSubscript)
+                                                 <|> try (char '|' >> expr' >>= return . Userscript))
 
 
 quoteExpr' :: Parser EgisonExpr
@@ -847,7 +848,6 @@ reservedOperators =
   , "_"
   , "^"
   , "&"
-  , "|"
   , "|*"
 --  , "'"
 --  , "~"
@@ -987,16 +987,16 @@ identVar = P.lexeme lexer (do
   is <- many indexType
   return $ Var (splitOn "." name) is)
 
+identVarWithoutIndex :: Parser Var
+identVarWithoutIndex = do
+    x <- ident
+    return $ stringToVar x
+
 identVarWithIndices :: Parser VarWithIndices
 identVarWithIndices = P.lexeme lexer (do
   name <- ident
   is <- many indexForVar
   return $ VarWithIndices (splitOn "." name) is)
-
-identVarWithoutIndex :: Parser Var
-identVarWithoutIndex = do
-    x <- ident
-    return $ stringToVar x
 
 indexForVar :: Parser (Index String)
 indexForVar = try (char '~' >> Superscript <$> ident)
