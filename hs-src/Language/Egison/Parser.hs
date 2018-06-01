@@ -172,19 +172,18 @@ exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
 expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
-                          expr1 <- option expr0 $ try (do string "..."
-                                                          IndexedExpr False expr0 <$> parseindex)
+                          expr1 <- option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
                                                   <|> IndexedExpr True expr0 <$> parseindex
                           option expr1 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
                             where parseindex :: Parser [Index EgisonExpr]
                                   parseindex = many1 (try (do
-                                                               char '_' 
-                                                               e1 <- expr'
-                                                               string "..._"
-                                                               e2 <- expr'
-                                                               return $ MultiSubscript e1 e2)
+                                                           char '_' 
+                                                           e1 <- expr'
+                                                           string "..._"
+                                                           e2 <- expr'
+                                                           return $ MultiSubscript e1 e2)
                                                  <|> try (do
-                                                           char '~' 
+                                                           char '~'
                                                            e1 <- expr'
                                                            string "...~"
                                                            e2 <- expr'

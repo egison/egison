@@ -289,8 +289,14 @@ evalExpr env (IndexedExpr bool expr indices) = do
                              Userscript n -> evalExprDeep env n >>= extractScalar >>= return . Userscript
                     ) indices
         return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js2, 1)])]) (Plus [(Term 1 [])])))
-      (Value (ScalarData _)) -> do
-        return $ tensor
+      (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js', 1)])]) (Plus [(Term 1 [])])))) -> do
+        js2 <- mapM (\i -> case i of
+                             Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
+                             Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
+                             SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
+                             Userscript n -> evalExprDeep env n >>= extractScalar >>= return . Userscript
+                    ) indices
+        return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name (js' ++ js2), 1)])]) (Plus [(Term 1 [])])))
       (Value (TensorData (Tensor ns xs is))) -> do
         if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
                 else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value

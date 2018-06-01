@@ -1180,6 +1180,8 @@ instance Show EgisonExpr where
   show (VarExpr name) = show name
   show (PartialVarExpr n) = "%" ++ show n
   show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
+  show (IndexedExpr b expr idxs) = show expr ++ concatMap show idxs
+  show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
