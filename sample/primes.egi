@@ -10,7 +10,7 @@
     [<join _ <cons $p <cons ,(+ p 2) _>>>
      [p (+ p 2)]]))
 
-;; Enumerate first 10 twin primes
+;; Enumerate the first 10 twin primes
 (take 10 twin-primes)
 
 ;; Extract all prime-triplets from the infinite list of prime numbers with pattern-matching!
@@ -21,6 +21,6 @@
                <cons ,(+ p 6) _>>>>
      [p m (+ p 6)]]))
 
-;; Enumerate first 10 twin primes
+;; Enumerate the first 10 prime triplets
 (take 10 prime-triplets)
 
