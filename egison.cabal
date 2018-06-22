@@ -85,8 +85,8 @@ Library
 Test-Suite test
   Type:           exitcode-stdio-1.0
   Hs-Source-Dirs: test
-  Main-Is:        UnitTest.hs
-  Build-Depends: egison, base >= 4.0 && < 5, transformers, mtl, Glob, HUnit, test-framework, test-framework-hunit
+  Main-Is:        Test.hs
+  Build-Depends: egison, base >= 4.0 && < 5, transformers, mtl, Glob, HUnit, test-framework, test-framework-hunit, filepath
   Other-modules:   Paths_egison
 
 Benchmark benchmark
