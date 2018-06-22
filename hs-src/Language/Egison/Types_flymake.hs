@@ -956,8 +956,8 @@ tMap2 f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
   let k2 = fromIntegral $ length ns2 - length js2'
   let js2 = js2' ++ map (DFscript 0) [1..k2]
   let (cjs, tjs1, tjs2) = h js1 js2
-  t1' <- tTranspose (cjs ++ tjs1) (Tensor ns1 xs1 js1)
-  t2' <- tTranspose (cjs ++ tjs2) (Tensor ns2 xs2 js2)
+  t1' <- tTranspose (cjs ++ tjs1) t1
+  t2' <- tTranspose (cjs ++ tjs2) t2
   let cns = take (length cjs) (tSize t1')
   rts1 <- mapM (`tIntRef` t1') (enumTensorIndices cns)
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
