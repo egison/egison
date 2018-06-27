@@ -2,6 +2,7 @@ module Main where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.IO.Class
 import Data.IORef
 import Data.List
 
@@ -19,8 +20,10 @@ import Language.Egison
 import UnitTest
 
 main = do
-  unitTestCases <- glob "test/[^answer]**/*.egi"
-  sampleTestCases <- glob "test/answer/**/*.egi"
+  -- unitTestCases <- glob "test/[^answer]**/*.egi"
+  unitTestCases <- return []
+  -- sampleTestCases <- glob "test/answer/**/*.egi"
+  sampleTestCases <- glob "test/answer/sample/math/geometry/*.egi"
   defaultMain $ hUnitTestToTests $ test $ map runUnitTestCase unitTestCases ++ map runSampleTestCase sampleTestCases
 
 runSampleTestCase :: FilePath -> Test
