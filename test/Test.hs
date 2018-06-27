@@ -15,12 +15,16 @@ import Language.Egison.Core
 import Language.Egison.Primitives
 import Language.Egison
 
-main = do
-  testCases <- glob "sample/pi.egi"
-  defaultMain $ hUnitTestToTests $ test $ map runTestCase testCases
+import UnitTest
 
-runTestCase :: FilePath -> Test
-runTestCase file = TestLabel file . TestCase $ do
+main = do
+  unitTestCases <- glob "test/**/*.egi"
+  defaultMain $ hUnitTestToTests $ test $ map runUnitTestCase unitTestCases
+  sampleTestCases <- glob "sample/*.egi"
+  defaultMain $ hUnitTestToTests $ test $ map runSampleTestCase sampleTestCases
+
+runSampleTestCase :: FilePath -> Test
+runSampleTestCase file = TestLabel file . TestCase $ do
   env <- initialEnv
   let directory_path = takeDirectory file
   answers <- readFile (replaceDirectory file ("test/answer/" ++ directory_path))
@@ -34,7 +38,7 @@ runTestCase file = TestLabel file . TestCase $ do
         assertEgisonM answers m = fromEgisonM m >>= assertString . either show (f answers)
     
         collectDefsAndTests (Define name expr) (bindings, tests) =
-          (((stringToVar $ show name), expr) : bindings, tests)
+          ((stringToVar $ show name, expr) : bindings, tests)
         collectDefsAndTests (Test expr) (bindings, tests) =
           (bindings, expr : tests)
         collectDefsAndTests _ r = r
