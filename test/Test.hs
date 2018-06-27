@@ -3,12 +3,13 @@ module Main where
 import Control.Applicative
 import Control.Monad
 import Data.IORef
+import Data.List
 
 import Test.Framework (defaultMain)
 import Test.Framework.Providers.HUnit (hUnitTestToTests)
 import Test.HUnit
 import System.FilePath.Glob (glob)
-import System.FilePath (takeDirectory, replaceDirectory)
+import System.FilePath (takeDirectory, replaceDirectory, splitPath)
 
 import Language.Egison.Types
 import Language.Egison.Core
@@ -18,23 +19,23 @@ import Language.Egison
 import UnitTest
 
 main = do
-  unitTestCases <- glob "test/**/*.egi"
-  defaultMain $ hUnitTestToTests $ test $ map runUnitTestCase unitTestCases
-  sampleTestCases <- glob "sample/*.egi"
-  defaultMain $ hUnitTestToTests $ test $ map runSampleTestCase sampleTestCases
+  unitTestCases <- glob "test/[^answer]**/*.egi"
+  sampleTestCases <- glob "test/answer/**/*.egi"
+  defaultMain $ hUnitTestToTests $ test $ map runUnitTestCase unitTestCases ++ map runSampleTestCase sampleTestCases
 
 runSampleTestCase :: FilePath -> Test
 runSampleTestCase file = TestLabel file . TestCase $ do
   env <- initialEnv
   let directory_path = takeDirectory file
-  answers <- readFile (replaceDirectory file ("test/answer/" ++ directory_path))
+  answers <- readFile file
   assertEgisonM (lines answers) $ do
-    exprs <- loadFile file
+    exprs <- loadFile (replaceDirectory file $ concat $ drop 2 $ splitPath directory_path)
     let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
     env' <- recursiveBind env bindings
-    forM tests $ evalExprDeep env'
+    vals <- forM tests (evalExprDeep env')
+    return $ zip tests vals
       where
-        assertEgisonM :: [String] -> EgisonM [EgisonValue] -> Assertion
+        assertEgisonM :: [String] -> EgisonM [(EgisonExpr, EgisonValue)] -> Assertion
         assertEgisonM answers m = fromEgisonM m >>= assertString . either show (f answers)
     
         collectDefsAndTests (Define name expr) (bindings, tests) =
@@ -43,9 +44,10 @@ runSampleTestCase file = TestLabel file . TestCase $ do
           (bindings, expr : tests)
         collectDefsAndTests _ r = r
 
-        f :: [String] -> [EgisonValue] -> String
+        f :: [String] -> [(EgisonExpr, EgisonValue)] -> String
         f answers ls = g answers ls 0
-        g x y i = if (x !! i) == show (y !! i) 
+        g x y i = let (e, v) = unzip y in
+                  if (x !! i) == show (v !! i)
                      then (if i < (length y - 1) then g x y (i + 1)
                                                  else "")
-                     else "failed " ++ show i ++ "\n expected: " ++ (x !! i) ++ "\n but found: " ++ show (y !! i)
+                     else "failed " ++ show (e !! i) ++ "\n expected: " ++ (x !! i) ++ "\n but found: " ++ show (v !! i)
