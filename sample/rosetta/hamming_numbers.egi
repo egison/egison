@@ -1,0 +1,10 @@
+(define $hamming {1 @(union (map (* 2 $) hamming) (union (map (* 3 $) hamming) (map (* 5 $) hamming)))})
+
+(define $union 
+  (match-lambda [(list integer) (list integer)]
+                {[[<cons $x $xs> (& <cons ?(gt? $ x) _> $b)] {x @(union xs b)}]
+                 [[<cons $x $xs> <cons ?(eq? $ x) $ys>] {x @(union xs ys)}]
+                 [[(& <cons $x _> $a) <cons (& ?(lt? $ x) $y) $ys>] {y @(union a ys)}]
+                 }))
+
+(take 20 hamming)
