@@ -1,0 +1,2 @@
+(/ (+ -1 (sqrt 17) (* (sqrt 2) (sqrt (+ 17 (* -1 (sqrt 17))))) (* 2 (sqrt (+ 17 (* 3 (sqrt 17)) (* -1 (sqrt 2) (sqrt (+ 17 (* -1 (sqrt 17))))) (* -2 (sqrt 2) (sqrt (+ 17 (sqrt 17)))))))) 8)
+(/ (+ -1 (sqrt 17) (* (sqrt 2) (sqrt (+ 17 (* -1 (sqrt 17))))) (* 2 (sqrt (+ 17 (* 3 (sqrt 17)) (* -1 (sqrt 2) (sqrt (+ 17 (* -1 (sqrt 17))))) (* -2 (sqrt 2) (sqrt (+ 17 (sqrt 17)))))))) 8)

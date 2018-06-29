@@ -1186,6 +1186,7 @@ instance Show EgisonExpr where
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
   show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
+  show _ = "(not supported)"
 
 instance Show EgisonValue where
   show (Char c) = "c#" ++ [c]
@@ -1582,7 +1583,7 @@ extendEnv :: Env -> [Binding] -> Env
 extendEnv (Env env idx) bdg = Env ((: env) $ HashMap.fromList bdg) idx
 
 refVar :: Env -> Var -> Maybe ObjectRef
-refVar (Env env idx) var = msum $ map (HashMap.lookup var) env
+refVar (Env env _) var = msum $ map (HashMap.lookup var) env
 
 --
 -- Pattern Match
