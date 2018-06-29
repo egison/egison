@@ -24,7 +24,7 @@ runUnitTestCase file = TestLabel file . TestCase $ do
         assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")
     
         collectDefsAndTests (Define name expr) (bindings, tests) =
-          ((stringToVar $ show name, expr) : bindings, tests)
+          ((name, expr) : bindings, tests)
         collectDefsAndTests (Test expr) (bindings, tests) =
           (bindings, expr : tests)
         collectDefsAndTests _ r = r
