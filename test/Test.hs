@@ -20,10 +20,8 @@ import Language.Egison
 import UnitTest
 
 main = do
-  -- unitTestCases <- glob "test/[^answer]**/*.egi"
-  unitTestCases <- return []
-  -- sampleTestCases <- glob "test/answer/**/*.egi"
-  sampleTestCases <- glob "test/answer/sample/math/geometry/*.egi"
+  unitTestCases <- glob "test/[^answer]**/*.egi"
+  sampleTestCases <- glob "test/answer/**/*.egi"
   defaultMain $ hUnitTestToTests $ test $ map runUnitTestCase unitTestCases ++ map runSampleTestCase sampleTestCases
 
 runSampleTestCase :: FilePath -> Test
@@ -42,7 +40,7 @@ runSampleTestCase file = TestLabel file . TestCase $ do
         assertEgisonM answers m = fromEgisonM m >>= assertString . either show (f answers)
     
         collectDefsAndTests (Define name expr) (bindings, tests) =
-          ((stringToVar $ show name, expr) : bindings, tests)
+          ((name, expr) : bindings, tests)
         collectDefsAndTests (Test expr) (bindings, tests) =
           (bindings, expr : tests)
         collectDefsAndTests _ r = r
