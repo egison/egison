@@ -1,9 +1,10 @@
 (define $blocks {{"B" "O"} {"X" "K"} {"D" "Q"} {"C" "P"} {"N" "A"} {"G" "T"} {"R" "E"} {"T" "G"} {"Q" "D"} {"F" "S"} {"J" "W"} {"H" "U"} {"V" "I"} {"A" "N"} {"O" "B"} {"E" "R"} {"F" "S"} {"L" "Y"} {"P" "C"} {"Z" "M"}})
 
-(define $abc [$blocks $word] 
-  (match blocks (multiset (set char))
-    {[(loop $i [1 (length word)]
-       <cons <cons ,word_i _> ...> _) #t]
-     [_ #f]}))
+(define $abc
+  (lambda [$blocks $word]
+    (match blocks (multiset (set char))
+      {[(loop $i [1 (length word)]
+         <cons <cons ,word_i _> ...> _) #t]
+       [_ #f]})))
 
-(map (lambda [$w] (abc w) {"" "A" "BARK" "BoOK" "TrEAT" "COmMoN" "SQUAD" "conFUsE"}))
+(map (lambda [$w] (abc blocks w)) {"" "A" "BARK" "BoOK" "TrEAT" "COmMoN" "SQUAD" "conFUsE"})
