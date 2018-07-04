@@ -4,26 +4,15 @@
   (lambda [$l1 $l2]
     (sum (map2 (lambda [$x $y] (if (eq? x y) 1 0)) l1 l2))))
 
-(define $swapShuffle
-  (lambda [$lref $lst $i]
-    (if (eq? i (- (length lref) 1)
-          lst 
-          (match (drop (+ i 1) lst) string
-            {[<join $xs (& !<cons lref_i _> $ys)>
-                (swapShuffle lref {@(take (- i 1) lst) (car ys) @xs lref_i @(cdr ys)} (+ i 1))]
-             [_ (swapShuffle lref lst (+ i 1))]})
-          ))))
-
-(define $shuffle (lambda [$lst] (swapShuffle lst lst 0)))
-
-(map (lambda [$text]
-       (let {[$new (shuffle text)]}
-         (S.concat {text " " new " " (show (shufflingQuality text new))}))) texts)
-
 (define $shuffle 
   (lambda [$lst] 
    (match [lst lst] [(list char) (multiset char)]
      {[[(loop $i [1 (length lst)]
-             <cons $x_i ...>)
-        (loop $j [1 (length lst)]
-             (& <cons (|. !,x_i ,x_i) ...> $y_j))] y]})))
+             <cons $x_i ...> _)
+        (loop $i [1 (length lst)]
+             <cons (& (|* !,x_i ,x_i) $y_i) ...> _)] (pack (map 1#y_%1 (between 1 (length lst))))]})))
+
+(map (lambda [$text]
+       (let {[$new (shuffle (unpack text))]}
+         (S.concat {text " " new " " (show (shufflingQuality text new))}))) texts)
+
