@@ -1204,12 +1204,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             then return MNil
             else do
               (carEndsRef, cdrEndsRef) <- fromJust <$> runMaybeT (unconsCollection ends)
+              b2 <- evalRef cdrEndsRef >>= isEmptyCollection
               carEndsNum <- evalRef carEndsRef >>= fromWHNF
               if startNum > carEndsNum
                 then return MNil
                 else if startNum == carEndsNum
-                       then return $ fromList [MState env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees),
-                                               MState env ((LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
+                       then if b2
+                              then return $ fromList [MState env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees)]
+                              else return $ fromList [MState env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees), MState env ((LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
                        else return $ fromList [MState env ((LoopPatContext (name, nextNumRef) endsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
