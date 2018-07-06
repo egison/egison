@@ -590,9 +590,13 @@ evalExpr env (CApplyExpr func arg) = do
     _ -> applyFunc env func (Value (makeTuple args))
 
 evalExpr env (ApplyExpr func arg) = do
-  func <- evalExpr env func
+  func <- evalExpr env func >>= appendDFscripts 0
   arg <- evalExpr env arg
   case func of
+    Value (TensorData t@(Tensor ns fs js)) -> do
+      tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value >>= removeDFscripts
+    Intermediate (ITensor t@(Tensor ns fs js)) -> do
+      tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
@@ -608,32 +612,6 @@ evalExpr env (ApplyExpr func arg) = do
           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
           return whnf
     _ -> applyFunc env func arg >>= removeDFscripts
--- evalExpr env (ApplyExpr func arg) = do
---   func <- evalExpr env func >>= appendDFscripts 0
---   arg <- evalExpr env arg
--- --  arg <- evalExpr env arg >>= fromTupleWHNF
--- --  let k = fromIntegral (length arg)
--- --  arg <-  mapM (\(_,j) -> appendDFscripts 0 j) (zip [1..k] arg) >>= makeITuple
---   case func of
---     Value (TensorData t@(Tensor ns fs js)) -> do
---       tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value >>= removeDFscripts
---     Intermediate (ITensor t@(Tensor ns fs js)) -> do
---       tMap (\f -> applyFunc env f arg) t >>= fromTensor
---     Value (MemoizedFunc name ref hashRef env names body) -> do
---       indices <- evalWHNF arg
---       indices' <- mapM fromEgison $ fromTupleValue indices
---       hash <- liftIO $ readIORef hashRef
---       case HL.lookup indices' hash of
---         Just objRef -> do
---           evalRef objRef
---         Nothing -> do
---           whnf <- applyFunc env (Value (Func Nothing env names body)) arg
---           retRef <- newEvaluatedObjectRef whnf
---           hash <- liftIO $ readIORef hashRef
---           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
---           writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
---           return whnf
---     _ -> applyFunc env func arg >>= removeDFscripts
 
 evalExpr env (WedgeApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
@@ -1226,12 +1204,14 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
             then return MNil
             else do
               (carEndsRef, cdrEndsRef) <- fromJust <$> runMaybeT (unconsCollection ends)
+              b2 <- evalRef cdrEndsRef >>= isEmptyCollection
               carEndsNum <- evalRef carEndsRef >>= fromWHNF
               if startNum > carEndsNum
                 then return MNil
                 else if startNum == carEndsNum
-                       then return $ fromList [MState env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees),
-                                               MState env ((LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
+                       then if b2
+                              then return $ fromList [MState env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees)]
+                              else return $ fromList [MState env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees), MState env ((LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
                        else return $ fromList [MState env ((LoopPatContext (name, nextNumRef) endsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
