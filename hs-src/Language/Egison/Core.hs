@@ -1183,7 +1183,7 @@ processMState' (MState env loops bindings ((MAtom pattern target matcher):trees)
       startNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum - 1)
       ends' <- evalExpr env' ends
       if isPrimitiveValue ends'
-        then do 
+        then do
           endsRef <- newEvaluatedObjectRef ends'
           inners <- liftIO $ newIORef $ Sq.fromList [IElement endsRef]
           endsRef' <- liftIO $ newIORef (WHNF (Intermediate (ICollection inners)))
