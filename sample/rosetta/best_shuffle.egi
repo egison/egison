@@ -2,7 +2,7 @@
 
 (define $shufflingQuality 
   (lambda [$l1 $l2]
-    (sum (map2 (lambda [$x $y] (if (eq? x y) 1 0)) l1 l2))))
+    (sum (map2 (lambda [$x $y] (if (eq? x y) 1 0)) (unpack l1) (unpack l2)))))
 
 (define $shuffle 
   (lambda [$lst] 
