@@ -325,7 +325,8 @@ data EgisonPattern =
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
-  | OrderedOrPat [EgisonPattern]
+  | OrderedOrPat' [EgisonPattern]
+  | OrderedOrPat String [EgisonPattern]   -- string for id
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | LoopPat Var LoopRange EgisonPattern EgisonPattern
@@ -1599,7 +1600,7 @@ pmMode (UserMatcher _ mode _) = mode
 pmMode (Tuple _) = DFSMode
 pmMode Something = DFSMode
 
-data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree]
+data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree] (HashMap String [Int])   -- last param is to OrderedOrPat
  deriving (Show)
 
 data MatchingTree =
