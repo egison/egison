@@ -326,7 +326,7 @@ data EgisonPattern =
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
   | OrderedOrPat' [EgisonPattern]
-  | OrderedOrPat String [EgisonPattern]   -- string for id
+  | OrderedOrPat String EgisonPattern EgisonPattern   -- string for id
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | LoopPat Var LoopRange EgisonPattern EgisonPattern
