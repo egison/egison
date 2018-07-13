@@ -95,8 +95,9 @@ module Language.Egison.Types
     , Match
     , PMMode (..)
     , pmMode
-    , MatchingState (..)
+    , MState (..)
     , MatchingTree (..)
+    , MatchingState (..)
     , PatternBinding (..)
     , LoopPatContext (..)
     -- * Errors
@@ -1600,13 +1601,16 @@ pmMode (UserMatcher _ mode _) = mode
 pmMode (Tuple _) = DFSMode
 pmMode Something = DFSMode
 
-data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree] (HashMap String [Int])   -- last param is to OrderedOrPat
+data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree]
  deriving (Show)
 
 data MatchingTree =
     MAtom EgisonPattern WHNFData Matcher
-  | MNode [PatternBinding] MatchingState
+  | MNode [PatternBinding] MatchingStates
  deriving (Show)
+
+-- type MatchingStates = (String, [(MList EgisonM MatchingState, Int)])
+type MatchingStates = (String, [[MList EgisonM MatchingState]])
 
 type PatternBinding = (String, EgisonPattern)
 
