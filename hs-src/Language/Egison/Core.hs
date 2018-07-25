@@ -48,7 +48,7 @@ import Control.Monad.Except hiding (mapM)
 import Control.Monad.State hiding (mapM, state)
 import Control.Monad.Trans.Maybe
 
-import Data.List (partition)
+import Data.List (partition, last)
 import Data.List.Split (split, oneOf)
 import Data.Sequence (Seq, ViewL(..), ViewR(..), (><))
 import qualified Data.Sequence as Sq
@@ -1047,32 +1047,34 @@ patternMatch env pattern target matcher = do
   id <- fresh
   return $ processMStates [(id, (msingleton (MState env [] [] [MAtom pattern target matcher]), 0))]
 
--- processMStates :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
-processMStatesAll :: [MatchingStates] -> EgisonM (MList EgisonM Match)
+processMStatesAll :: MatchingStates -> EgisonM (MList EgisonM Match)
 processMStatesAll [] = return MNil
 processMStatesAll streams = do
   (matches, streams') <- processMStatesOne streams
-  mappend matches $ processMStatesAll streams'
-  -- (matches, streams') <- mapM processMStates' streams >>= extractMatches . concat
-  -- mappend (fromList matches) $ processMStates streams'
+  matches' <- mapM (\oTree -> processMStatesAll $ MatchingStates oTree^.tree []) $ reverse streams'^.orderedOrTrees
+  mappend matches $ mconcat $ fromList matches'
 
-processMStatesOne :: [MatchingStates] -> EgisonM (MList EgisonM Match, [MatchingStates])
-processMStatesOne ((id, stream) : rest) = do
-  (matches, streams') <- mapM (processMStates' id) stream >>= extractMatches . concatStates
- where concatStates :: [[MatchingStates]] -> [MatchingStates]
-       concatStates statesList = do
-         let first, second = foldr (\(states, (acc1, acc2)) ->
-                                       let f, s = List.break (\(i, _) -> i == id) states 
-                                       in (f:acc1, s:acc2)) ([], []) statesList
-                                       -- daitai first ++ second
+processMStatesOne :: MatchingStates -> EgisonM (MList EgisonM Match, MatchingStates)
+processMStatesOne streams = do
+  (matches, streams') <- processMStates streams >>= extractMatches
+  mappend (fromList matches) $ processMStates streams'
 
 -- processMStates' :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
-processMStates' :: String -> (Mlist EgisonM MatchingState, Int) -> EgisonM [MatchingStates]
-processMStates' (MNil, _) = return []
-processMStates' id (stream@(MCons state _), n) =
-  case pmMode (getMatcher (topMAtom state)) of
-    DFSMode -> processMStatesDFS id stream n
-    BFSMode -> processMStatesBFS id stream n
+processMStates :: MatchingStates -> EgisonM MatchingStates
+processMStates streams = do
+  let former = init $ streams^.normalTree
+  let node:rest = last $ streams^.normalTree
+  case node of
+    (MNil, _) = return $ processMStates streams&normalTree.~(former ++ rest)
+    (stream@(MCons state _)) =
+      case pmMode (getMatcher (topMAtom state)) of
+        DFSMode -> processMStatesDFS stream
+        BFSMode -> processMStatesBFS stream
+-- processMStates' (MNil, _) = return []
+-- processMStates' id (stream@(MCons state _), n) =
+--   case pmMode (getMatcher (topMAtom state)) of
+--     DFSMode -> processMStatesDFS id stream n
+--     BFSMode -> processMStatesBFS id stream n
 
 gatherBindings :: MatchingState -> Maybe [Binding]
 gatherBindings (MState _ _ bindings []) = return bindings
@@ -1083,10 +1085,10 @@ gatherBindings (MState _ _ bindings trees) = isResolved trees >> return bindings
         isResolved (MNode _ state : rest) = gatherBindings state >> isResolved rest
 
 -- extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
-extractMatches :: MatchingList -> EgisonM ([Match], MatchingList)
+extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
 extractMatches = extractMatches' ([], [])
  where
-  extractMatches' :: ([Match], MatchingList) -> MathingList -> EgisonM ([Match], MatchingList)
+  extractMatches' :: ([Match], [MList EgisonM MatchingState]) -> MathingList -> EgisonM ([Match], [MList EgisonM MatchingState])
   extractMatches' (xs, ys) [] = return (xs, ys)
   extractMatches' (xs, ys) ((MCons (gatherBindings -> Just bindings) states):rest) = do
     states' <- states

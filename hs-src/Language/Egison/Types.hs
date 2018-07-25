@@ -155,6 +155,7 @@ import Prelude hiding (foldr, mappend, mconcat)
 
 import Control.Exception
 import Control.Parallel
+import Control.Lens
 import Data.Typeable
 
 import Control.Applicative
@@ -1609,8 +1610,12 @@ data MatchingTree =
   | MNode [PatternBinding] MatchingStates
  deriving (Show)
 
--- type MatchingStates = (String, [(MList EgisonM MatchingState, Int)])
-type MatchingStates = (String, [[MList EgisonM MatchingState]])
+data OrderedOrTree = OrderedOrTree { _id :: String, _tree :: [[MList EgisonM MatchingState]] }
+data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
+                                       _orderedOrTrees :: [OrderedOrTree]
+                                      }
+makeLneses ''OrderedOrTree
+makeLenses ''MatchingStates
 
 type PatternBinding = (String, EgisonPattern)
 
