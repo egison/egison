@@ -1,6 +1,6 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
-             TypeFamilies, TupleSections, DeriveGeneric #-}
+             TypeFamilies, TupleSections, DeriveGeneric, TemplateHaskell #-}
 {- |
 Module      : Language.Egison.Types
 Copyright   : Satoshi Egi
@@ -95,9 +95,10 @@ module Language.Egison.Types
     , Match
     , PMMode (..)
     , pmMode
-    , MState (..)
     , MatchingTree (..)
     , MatchingState (..)
+    , OrderedOrTree (..)
+    , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
     -- * Errors
@@ -155,7 +156,7 @@ import Prelude hiding (foldr, mappend, mconcat)
 
 import Control.Exception
 import Control.Parallel
-import Control.Lens
+import Control.Lens (makeLenses)
 import Data.Typeable
 
 import Control.Applicative
@@ -1607,15 +1608,13 @@ data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree]
 
 data MatchingTree =
     MAtom EgisonPattern WHNFData Matcher
-  | MNode [PatternBinding] MatchingStates
+  | MNode [PatternBinding] MatchingState
  deriving (Show)
 
 data OrderedOrTree = OrderedOrTree { _id :: String, _tree :: [[MList EgisonM MatchingState]] }
 data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
                                        _orderedOrTrees :: [OrderedOrTree]
                                       }
-makeLneses ''OrderedOrTree
-makeLenses ''MatchingStates
 
 type PatternBinding = (String, EgisonPattern)
 
@@ -1915,3 +1914,6 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f (Superscript ()) = Superscript ""
    f (Subscript ()) = Subscript ""
    f (SupSubscript ()) = SupSubscript ""
+
+makeLenses ''OrderedOrTree
+makeLenses ''MatchingStates
