@@ -1049,16 +1049,14 @@ patternMatch :: Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList Eg
 patternMatch env pattern target matcher = processMStatesAll MatchingStates { _normalTree = [[(msingleton (MState env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = [] }
 
 processMStatesAll :: MatchingStates -> EgisonM (MList EgisonM Match)
-processMStatesAll streams
-  | null (streams ^. normalTree) = return MNil
-  | otherwise = do
-    (matches, oots) <- processMStatesOne 0 streams
-    matches' <- mapM (\oTree -> processMStatesAll $ MatchingStates { _normalTree = oTree ^. ooTree, _orderedOrTrees = [] }) $ reverse oots
-    mappend matches $ mconcat $ fromList matches'
+processMStatesAll streams = do
+  (matches, oots) <- processMStatesOne 0 streams
+  matches' <- mapM (\oTree -> processMStatesAll $ MatchingStates { _normalTree = oTree ^. ooTree, _orderedOrTrees = [] }) $ reverse oots
+  mappend matches $ mconcat $ fromList matches'
 
 processMStatesOne :: Int -> MatchingStates -> EgisonM (MList EgisonM Match, [OrderedOrTree])
 processMStatesOne depth streams
-  | null ((streams ^. normalTree) !! depth) = return (MNil, streams ^. orderedOrTrees)
+  | length (streams ^. normalTree) <= depth = return (MNil, streams ^. orderedOrTrees)
   | otherwise = do
       mss <- processMStates depth streams
       (matches, streams') <- extractMatches (depth + 1) mss
@@ -1073,7 +1071,7 @@ processMStates depth streams = do
           Nothing -> acc ++ [ootree]
           Just n -> let (f, s) = splitAt n acc in
                     f ++ [mergeOOT (head s) ootree] ++ tail s) (streams ^. orderedOrTrees) orderedorlist
-  let nt = mergeNT (depth + 1) (streams ^. normalTree) nextlist
+  let nt = mergeNT (depth + 1) nextlist $ changeNT depth [] (streams ^. normalTree) 
   processMStates (depth + 1) $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots }
  where
   concatTuple (a, b) = (concat a, concat b)
@@ -1085,10 +1083,15 @@ processMStates depth streams = do
   zip' l1 l2 = let n = length l1 - length l2 in
                    if n > 0 then zip l1 (l2 ++ replicate n [])
                             else zip (l1 ++ replicate (-n) []) l2
-  mergeNT :: Int -> [[MList EgisonM MatchingState]] -> [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]]
-  mergeNT depth oldnt nodes = if depth < length oldnt 
+  mergeNT :: Int -> [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
+  mergeNT depth nodes oldnt = if depth < length oldnt 
                                  then let (f, s) = splitAt depth oldnt in
                                           f ++ [head s ++ nodes] ++ tail s
+                                 else oldnt ++ (replicate (depth - length oldnt - 1) []) ++ [nodes]
+  changeNT :: Int -> [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
+  changeNT depth nodes oldnt = if depth < length oldnt 
+                                 then let (f, s) = splitAt depth oldnt in
+                                          f ++ [nodes] ++ tail s
                                  else oldnt ++ (replicate (depth - length oldnt - 1) []) ++ [nodes]
 
 gatherBindings :: MatchingState -> Maybe [Binding]
