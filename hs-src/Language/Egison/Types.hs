@@ -101,6 +101,11 @@ module Language.Egison.Types
     , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
+    -- * makeLenses
+    , normalTree
+    , orderedOrTrees
+    , ooId
+    , ooTree
     -- * Errors
     , EgisonError (..)
     , liftError
@@ -1611,7 +1616,7 @@ data MatchingTree =
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
-data OrderedOrTree = OrderedOrTree { _id :: String, _tree :: [[MList EgisonM MatchingState]] }
+data OrderedOrTree = OrderedOrTree { _ooId :: String, _ooTree :: [[MList EgisonM MatchingState]] }
 data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
                                        _orderedOrTrees :: [OrderedOrTree]
                                       }
