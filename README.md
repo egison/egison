@@ -387,11 +387,11 @@ Please follow us.
 
 ## Acknowledgement
 
-I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara and Kentaro Honda for their help to implement the interpreter.
+I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara, Kentaro Honda, and Mayuko kori for their help to implement the interpreter.
 
 ## License
 
-Copyright (c) 2011-2016, Satoshi Egi
+Copyright (c) 2011-2018, Satoshi Egi
 
 Egison is released under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
 
