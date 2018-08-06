@@ -1046,22 +1046,20 @@ recursiveRebind env (name, expr) = do
 --
 
 patternMatch :: Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
-patternMatch env pattern target matcher = processMStatesAll MatchingStates { _normalTree = [[(msingleton (MState env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = [] }
+patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _normalTree = [[(msingleton (MState env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = [] }
 
-processMStatesAll :: MatchingStates -> EgisonM (MList EgisonM Match)
-processMStatesAll streams = do
-  (matches, oots) <- processMStatesOne 0 streams
-  matches' <- mapM (\oTree -> processMStatesAll $ MatchingStates { _normalTree = oTree ^. ooTree, _orderedOrTrees = [] }) $ reverse oots
-  mappend matches $ mconcat $ fromList matches'
-
-processMStatesOne :: Int -> MatchingStates -> EgisonM (MList EgisonM Match, [OrderedOrTree])
-processMStatesOne depth streams
-  | length (streams ^. normalTree) <= depth = return (MNil, streams ^. orderedOrTrees)
-  | otherwise = do
-      mss <- processMStates depth streams
-      (matches, streams') <- extractMatches (depth + 1) mss
-      (match, oots) <- processMStatesOne (depth + 1) streams'
-      (flip (,) oots) <$> mappend (fromList matches) (return match)
+processMStatesAll :: Int -> MatchingStates -> EgisonM (MList EgisonM Match)
+processMStatesAll depth streams = do
+  (matches, streams') <- if length (streams ^. normalTree) <= depth
+                            then return (MNil, streams)
+                            else do mss <- processMStates depth streams
+                                    (\(a, b) -> (fromList a, b)) <$> extractMatches (depth + 1) mss
+  let oots = streams' ^. orderedOrTrees
+  if null (streams' ^. normalTree)
+     then if null oots
+             then return matches
+             else mappend matches $ processMStatesAll 0 $ MatchingStates { _normalTree = (last oots) ^. ooTree, _orderedOrTrees = init oots }
+     else mappend matches $ processMStatesAll (depth+1) streams'
 
 processMStates :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStates depth streams = do
@@ -1163,7 +1161,7 @@ processMState state@(MState _ _ _ l) = do
   case topMAtom state of
     MAtom (NotPat _) _ _ -> do
       let (state1, state2) = splitMState state
-      result <- processMStatesAll $ MatchingStates { _normalTree = [[msingleton state1]], _orderedOrTrees = [] }
+      result <- processMStatesAll 0 $ MatchingStates { _normalTree = [[msingleton state1]], _orderedOrTrees = [] }
       case result of
         MNil -> return $ msingleton state2
         _    -> return MNil
