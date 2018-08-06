@@ -1191,6 +1191,7 @@ instance Show EgisonExpr where
   show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
   show (IndexedExpr b expr idxs) = show expr ++ concatMap show idxs
   show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
+  show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
@@ -1617,9 +1618,11 @@ data MatchingTree =
  deriving (Show)
 
 data OrderedOrTree = OrderedOrTree { _ooId :: String, _ooTree :: [[MList EgisonM MatchingState]] }
+ deriving (Show)
+
 data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
                                        _orderedOrTrees :: [OrderedOrTree]
-                                      }
+                                      } deriving (Show)
 
 type PatternBinding = (String, EgisonPattern)
 
