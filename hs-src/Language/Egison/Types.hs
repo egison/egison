@@ -335,7 +335,7 @@ data EgisonPattern =
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
   | OrderedOrPat' [EgisonPattern]
-  | OrderedOrPat String EgisonPattern EgisonPattern
+  | OrderedOrPat Id EgisonPattern EgisonPattern
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | LoopPat Var LoopRange EgisonPattern EgisonPattern
@@ -421,7 +421,7 @@ data TermExpr =
     Term Integer [(SymbolExpr, Integer)]
 
 data SymbolExpr =
-    Symbol String String [Index ScalarData] -- ID, Name, Indices
+    Symbol Id String [Index ScalarData]
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
   | FunctionData (Maybe EgisonValue) [EgisonValue] [EgisonValue] [Index ScalarData] -- fnname argnames arg indices
@@ -1539,6 +1539,8 @@ instance Hashable (Index ())
 instance Hashable Var
 
 type Binding = (Var, ObjectRef)
+
+type Id = String
 
 instance Show Var where
   show (Var xs is) = intercalate "." xs ++ concatMap show is
