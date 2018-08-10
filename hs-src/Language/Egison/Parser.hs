@@ -664,7 +664,7 @@ orPat :: Parser EgisonPattern
 orPat = reservedOp "|" >> OrPat <$> sepEndBy pattern whiteSpace
 
 orderedOrPat :: Parser EgisonPattern
-orderedOrPat = reservedOp "|*" >> OrderedOrPat <$> sepEndBy pattern whiteSpace
+orderedOrPat = reservedOp "|*" >> OrderedOrPat' <$> sepEndBy pattern whiteSpace
 
 pApplyPat :: Parser EgisonPattern
 pApplyPat = PApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
