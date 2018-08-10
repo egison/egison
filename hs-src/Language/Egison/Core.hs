@@ -1114,13 +1114,12 @@ extractMatches depth streams
 
 processMStatesDorB :: Int -> MList EgisonM MatchingState -> EgisonM ([OrderedOrTree], [(MList EgisonM MatchingState)])
 processMStatesDorB _ MNil = return ([], [])
-processMStatesDorB depth stream@(MCons state _) = do
-  liftIO $ putStrLn $ debug state
+processMStatesDorB depth stream@(MCons state stream') = do
   case topMAtom state of
     MAtom (OrderedOrPat id _ _) _ _ -> do
       let (state1, state2) = splitMStateOO state
-      stream' <- processMState state1
-      return ([OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[msingleton state2]]}], [stream'])
+      stream'' <- processMState state1 >>= flip mappend stream'
+      return ([OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[msingleton state2]]}], [stream''])
     _ -> case pmMode (getMatcher (topMAtom state)) of
            DFSMode -> ((,) []) <$> processMStatesDFS stream
            BFSMode -> ((,) []) <$> processMStatesBFS stream
