@@ -459,11 +459,8 @@ desugarPattern' (PredPat expr) = PredPat <$> desugar expr
 desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
 desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
 desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
-desugarPattern' (OrderedOrPat [])  = return (NotPat WildCard)
-desugarPattern' (OrderedOrPat (pattern:patterns)) = do
-  pattern' <- desugarPattern' pattern
-  pattern'' <- desugarPattern' (OrderedOrPat patterns)
-  return $ OrPat [pattern', AndPat [(NotPat pattern'), pattern'']]
+desugarPattern' (OrderedOrPat' [pat1, pat2])  = OrderedOrPat <$> fresh <*> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (OrderedOrPat' (pat : patterns)) = OrderedOrPat <$> fresh <*> desugarPattern' pat <*> desugarPattern' (OrderedOrPat' patterns)
 desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
 desugarPattern' (InductivePat name patterns) = InductivePat name <$> mapM desugarPattern' patterns
 desugarPattern' (IndexedPat pattern exprs) = IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs

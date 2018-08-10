@@ -1,6 +1,6 @@
 {-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
-             TypeFamilies, TupleSections, DeriveGeneric #-}
+             TypeFamilies, TupleSections, DeriveGeneric, TemplateHaskell #-}
 {- |
 Module      : Language.Egison.Types
 Copyright   : Satoshi Egi
@@ -95,10 +95,18 @@ module Language.Egison.Types
     , Match
     , PMMode (..)
     , pmMode
-    , MatchingState (..)
     , MatchingTree (..)
+    , MatchingState (..)
+    , OrderedOrTree (..)
+    , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
+    , debugMState
+    -- * makeLenses
+    , normalTree
+    , orderedOrTrees
+    , ooId
+    , ooTree
     -- * Errors
     , EgisonError (..)
     , liftError
@@ -154,6 +162,7 @@ import Prelude hiding (foldr, mappend, mconcat)
 
 import Control.Exception
 import Control.Parallel
+import Control.Lens (makeLenses)
 import Data.Typeable
 
 import Control.Applicative
@@ -325,7 +334,8 @@ data EgisonPattern =
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
-  | OrderedOrPat [EgisonPattern]
+  | OrderedOrPat' [EgisonPattern]
+  | OrderedOrPat String EgisonPattern EgisonPattern   -- string for id
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | LoopPat Var LoopRange EgisonPattern EgisonPattern
@@ -1182,6 +1192,7 @@ instance Show EgisonExpr where
   show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
   show (IndexedExpr b expr idxs) = show expr ++ concatMap show idxs
   show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
+  show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
@@ -1607,10 +1618,20 @@ data MatchingTree =
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
+data OrderedOrTree = OrderedOrTree { _ooId :: String, _ooTree :: [[MList EgisonM MatchingState]] }
+ deriving (Show)
+
+data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
+                                       _orderedOrTrees :: [OrderedOrTree]
+                                      } deriving (Show)
+
 type PatternBinding = (String, EgisonPattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
+
+debugMState :: MatchingState -> String
+debugMState (MState _ _ bindings l) = "(MState _ _ "++ show bindings ++ " " ++ show l ++ ")"
 
 --
 -- Errors
@@ -1767,9 +1788,9 @@ matchFail = MaybeT $ return Nothing
 
 data MList m a = MNil | MCons a (m (MList m a))
 
-instance Show (MList m a) where
+instance Show a => Show (MList m a) where
   show MNil = "MNil"
-  show (MCons _ _) = "(MCons ... ...)"
+  show (MCons x _) = "(MCons " ++ show x ++ " ...)"
 
 fromList :: Monad m => [a] -> MList m a
 fromList = foldr f MNil
@@ -1905,3 +1926,6 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f (Superscript ()) = Superscript ""
    f (Subscript ()) = Subscript ""
    f (SupSubscript ()) = SupSubscript ""
+
+makeLenses ''OrderedOrTree
+makeLenses ''MatchingStates
