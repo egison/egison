@@ -619,6 +619,8 @@ pattern' = wildCard
                     <|> try multPat
                     <|> try dApplyPat
                     <|> try pApplyPat
+                    <|> bfsPat
+                    <|> dfsPat
 --                    <|> powerPat
                     )
 
@@ -699,6 +701,9 @@ powerPat = try (do pat1 <- pattern
                    pat2 <- pattern
                    return $ PowerPat pat1 pat2)
        <|> pattern
+
+dfsPat :: Parser EgisonPattern
+bfsPat :: Parser EgisonPattern
 
 -- Constants
 
