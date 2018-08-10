@@ -1071,7 +1071,7 @@ processMStatesLine depth streams = do
             Just n -> let (f, s) = splitAt n acc in
                       f ++ [mergeOOT (head s) ootree] ++ tail s) (streams ^. orderedOrTrees) orderedorlist
     let nt = if null nextlist then streams ^. normalTree
-                              else mergeNT (depth + 1) nextlist $ changeNT depth [] (streams ^. normalTree) 
+                              else mergeNT (depth + 1) nextlist $ changeNT depth [] (streams ^. normalTree)
     return $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots }
  where
   concatTuple (a, b) = (concat a, concat b)
