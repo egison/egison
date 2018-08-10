@@ -1130,7 +1130,6 @@ processMStatesDorB depth stream@(MCons state stream') = do
   splitMStateOO (MState env loops bindings ((MNode penv state') : trees)) =
     let (state1, state2) = splitMStateOO state'
      in (MState env loops bindings (MNode penv state1 : trees), MState env loops bindings ((MNode penv state2) : trees))
-  debug (MState _ _ bindings l) = show bindings ++ show l
 
 processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
 processMStatesDFS (MCons state stream) = do

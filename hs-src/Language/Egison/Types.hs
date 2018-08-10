@@ -101,6 +101,7 @@ module Language.Egison.Types
     , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
+    , debugMState
     -- * makeLenses
     , normalTree
     , orderedOrTrees
@@ -1628,6 +1629,9 @@ type PatternBinding = (String, EgisonPattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
+
+debugMState :: MatchingState -> String
+debugMState (MState _ _ bindings l) = "(MState _ _ "++ show bindings ++ " " ++ show l ++ ")"
 
 --
 -- Errors
