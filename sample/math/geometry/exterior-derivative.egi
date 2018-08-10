@@ -6,8 +6,11 @@
   (lambda [%X]
     !((flip ∂/∂) params X)))
 
-(d (f x y z))
-;[| (f|1 x y z) (f|2 x y z) (f|3 x y z) |]
 
-(df-normalize (d (d (f x y z))))
+(define $f (function [x y z]))
+
+(d f)
+;[| f|x f|y f|z |]
+
+(df-normalize (d (d f)))
 ;[| [| 0 0 0 |] [| 0 0 0 |] [| 0 0 0 |] |]
