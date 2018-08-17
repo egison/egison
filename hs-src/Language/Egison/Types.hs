@@ -348,6 +348,8 @@ data EgisonPattern =
   | PlusPat [EgisonPattern]
   | MultPat [EgisonPattern]
   | PowerPat EgisonPattern EgisonPattern
+  | DFSPat EgisonPattern
+  | BFSPat EgisonPattern
  deriving (Show, Eq)
 
 data LoopRange = LoopRange EgisonExpr EgisonExpr EgisonPattern

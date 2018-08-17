@@ -614,13 +614,13 @@ pattern' = wildCard
                     <|> orPat
                     <|> loopPat
                     <|> letPat
+                    <|> bfsPat
+                    <|> dfsPat
                     <|> try divPat
                     <|> try plusPat
                     <|> try multPat
                     <|> try dApplyPat
                     <|> try pApplyPat
-                    <|> bfsPat
-                    <|> dfsPat
 --                    <|> powerPat
                     )
 
@@ -703,7 +703,10 @@ powerPat = try (do pat1 <- pattern
        <|> pattern
 
 dfsPat :: Parser EgisonPattern
+dfsPat = keywordDFS >> DFSPat <$> pattern
+
 bfsPat :: Parser EgisonPattern
+bfsPat = keywordBFS >> BFSPat <$> pattern
 
 -- Constants
 
@@ -928,6 +931,8 @@ keywordUserrefs             = reserved "user-refs"
 keywordUserrefsNew          = reserved "user-refs!"
 keywordFunction             = reserved "function"
 keywordSymbolicTensor       = reserved "symbolic-tensor"
+keywordDFS                  = reserved "dfs"
+keywordBFS                  = reserved "bfs"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)
