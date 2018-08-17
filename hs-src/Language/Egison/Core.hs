@@ -1118,11 +1118,11 @@ processMStatesDorB depth stream@(MCons state stream') = do
   case topMAtom state of
     MAtom (OrderedOrPat id _ _) _ _ -> do
       let (state1, state2) = splitMStateOO state
-      newStreams <- case getMatcherMode (topMAtom state) of
-                     DFSMode -> processMStatesDFS (MCons state1 stream')
-                     BFSMode -> processMStatesBFS (MCons state1 stream')
-      return ([OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[msingleton state2]]}], newStreams)
-    _ -> case getMatcherMode (topMAtom state) of
+      (oots, newStreams) <- processMStatesDorB depth (MCons state1 stream')
+      return (oots ++ [OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[msingleton state2]]}], newStreams)
+    MAtom (DFSPat _) _ _ -> processMStatesDorB depth (MCons (modeToDFS state) stream')
+    -- MAtom (BFSPat _) _ _ -> processMStatesDorB depth (MCons (modeToBFS state) stream')
+    _ -> case pmMode (getMatcher (topMAtom state)) of
            DFSMode -> ((,) []) <$> processMStatesDFS stream
            BFSMode -> ((,) []) <$> processMStatesBFS stream
  where
@@ -1132,6 +1132,18 @@ processMStatesDorB depth stream@(MCons state stream') = do
   splitMStateOO (MState env loops bindings ((MNode penv state') : trees)) =
     let (state1, state2) = splitMStateOO state'
      in (MState env loops bindings (MNode penv state1 : trees), MState env loops bindings ((MNode penv state2) : trees))
+
+modeToDFS :: MatchingState -> MatchingState
+modeToDFS (MState env loops bindings mtrees) = MState env loops bindings $ map modeToDFS_T mtrees
+
+modeToDFS_T :: MatchingTree -> MatchingTree
+modeToDFS_T (MAtom (DFSPat pat) target matcher) = MAtom pat target $ modeToDFS_M matcher
+modeToDFS_T (MAtom pat target matcher) = MAtom pat target $ modeToDFS_M matcher
+modeToDFS_T (MNode penv (MState env loops bindings mtrees)) = MNode penv (MState env loops bindings (map modeToDFS_T mtrees))
+
+modeToDFS_M :: Matcher -> Matcher
+modeToDFS_M (UserMatcher env _ matcherinfo) = UserMatcher env DFSMode matcherinfo
+modeToDFS_M matcher = matcher
 
 processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
 processMStatesDFS (MCons state stream) = do
@@ -1149,10 +1161,8 @@ topMAtom :: MatchingState -> MatchingTree
 topMAtom (MState _ _ _ (mAtom@(MAtom _ _ _):_)) = mAtom
 topMAtom (MState _ _ _ ((MNode _ mstate):_))    = topMAtom mstate
 
-getMatcherMode :: MatchingTree -> PMMode
-getMatcherMode (MAtom (DFSPat _) _ _) = DFSMode
-getMatcherMode (MAtom (BFSPat _) _ _) = BFSMode
-getMatcherMode (MAtom _ _ matcher) = pmMode matcher
+getMatcher :: MatchingTree -> Matcher
+getMatcher (MAtom _ _ matcher) = matcher
 
 processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState state@(MState _ _ _ l) = do
