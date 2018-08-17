@@ -448,6 +448,8 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (PlusPat patterns) = collectNames patterns
    collectName (MultPat patterns) = collectNames patterns
    collectName (PowerPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
+   collectName (DFSPat pattern) = collectName pattern
+   collectName (BFSPat pattern) = collectName pattern
    collectName _ = S.empty
    
    makeBinding :: String -> BindingExpr
@@ -493,7 +495,24 @@ desugarPattern' (MultPat (intPat:patterns)) = do
                                              _ -> lp)
                                           (reverse hps)]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
+desugarPattern' (DFSPat pattern) = dfs <$> desugarPattern' pattern
+desugarPattern' (BFSPat pattern) = BFSPat <$> desugarPattern' pattern
 desugarPattern' pattern = return pattern
+
+dfs :: EgisonPattern -> EgisonPattern
+dfs (NotPat pattern) = DFSPat $ NotPat $ dfs pattern
+dfs (AndPat patterns) = DFSPat $ AndPat $ map dfs patterns
+dfs (OrPat patterns)  =  DFSPat $ AndPat $ map dfs patterns
+dfs (OrderedOrPat id pat1 pat2)  = DFSPat $ OrderedOrPat id (dfs pat1) (dfs pat2)
+dfs (TuplePat patterns)  = DFSPat $ TuplePat $ map dfs patterns
+dfs (InductivePat name patterns) = DFSPat $ InductivePat name $ map dfs patterns
+dfs (IndexedPat pattern exprs) = DFSPat $ IndexedPat (dfs pattern) exprs
+dfs (PApplyPat expr patterns) = DFSPat $ PApplyPat expr $ map dfs patterns 
+dfs (DApplyPat pattern patterns) = DFSPat $ DApplyPat (dfs pattern) $ map dfs patterns
+dfs (LoopPat name range pattern1 pattern2) =  LoopPat name range (dfs pattern1) (dfs pattern2)
+dfs (LetPat binds pattern) = DFSPat $ LetPat binds $ dfs pattern
+dfs (PowerPat pattern1 pattern2) = PowerPat (dfs pattern1) (dfs pattern2)
+dfs pattern = pattern
 
 desugarLoopRange :: LoopRange -> DesugarM LoopRange
 desugarLoopRange (LoopRange sExpr eExpr pattern) = do

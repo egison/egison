@@ -1118,11 +1118,11 @@ processMStatesDorB depth stream@(MCons state stream') = do
   case topMAtom state of
     MAtom (OrderedOrPat id _ _) _ _ -> do
       let (state1, state2) = splitMStateOO state
-      newStreams <- case pmMode (getMatcher (topMAtom state)) of
+      newStreams <- case getMatcherMode (topMAtom state) of
                      DFSMode -> processMStatesDFS (MCons state1 stream')
                      BFSMode -> processMStatesBFS (MCons state1 stream')
       return ([OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[msingleton state2]]}], newStreams)
-    _ -> case pmMode (getMatcher (topMAtom state)) of
+    _ -> case getMatcherMode (topMAtom state) of
            DFSMode -> ((,) []) <$> processMStatesDFS stream
            BFSMode -> ((,) []) <$> processMStatesBFS stream
  where
@@ -1149,8 +1149,10 @@ topMAtom :: MatchingState -> MatchingTree
 topMAtom (MState _ _ _ (mAtom@(MAtom _ _ _):_)) = mAtom
 topMAtom (MState _ _ _ ((MNode _ mstate):_))    = topMAtom mstate
 
-getMatcher :: MatchingTree -> Matcher
-getMatcher (MAtom _ _ matcher) = matcher
+getMatcherMode :: MatchingTree -> PMMode
+getMatcherMode (MAtom (DFSPat _) _ _) = DFSMode
+getMatcherMode (MAtom (BFSPat _) _ _) = BFSMode
+getMatcherMode (MAtom _ _ matcher) = pmMode matcher
 
 processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState state@(MState _ _ _ l) = do
