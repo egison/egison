@@ -17,12 +17,27 @@ import Language.Egison.Core
 import Language.Egison.Primitives
 import Language.Egison
 
-import UnitTest
-
 main = do
-  unitTestCases <- glob "test/[^answer]**/*.egi"
-  sampleTestCases <- glob "test/answer/**/*.egi"
+  (sampleTestCases, unitTestCases) <- partition (isSubsequenceOf "answer" . show) <$> glob "test/**/*.egi"
   defaultMain $ hUnitTestToTests $ test $ map runUnitTestCase unitTestCases ++ map runSampleTestCase sampleTestCases
+
+runUnitTestCase :: FilePath -> Test
+runUnitTestCase file = TestLabel file . TestCase $ do
+  env <- initialEnv
+  assertEgisonM $ do
+    exprs <- loadFile file
+    let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
+    env' <- recursiveBind env bindings
+    forM_ tests $ evalExprDeep env'
+      where
+        assertEgisonM :: EgisonM a -> Assertion
+        assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")
+    
+        collectDefsAndTests (Define name expr) (bindings, tests) =
+          ((name, expr) : bindings, tests)
+        collectDefsAndTests (Test expr) (bindings, tests) =
+          (bindings, expr : tests)
+        collectDefsAndTests _ r = r
 
 runSampleTestCase :: FilePath -> Test
 runSampleTestCase file = TestLabel file . TestCase $ do
@@ -52,3 +67,4 @@ runSampleTestCase file = TestLabel file . TestCase $ do
                      then (if i < (length y - 1) then g x y (i + 1)
                                                  else "")
                      else "failed " ++ show (e !! i) ++ "\n expected: " ++ (x !! i) ++ "\n but found: " ++ show (v !! i)
+
