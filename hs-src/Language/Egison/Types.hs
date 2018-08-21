@@ -1609,13 +1609,11 @@ type Match = [Binding]
 data PMMode = BFSMode | DFSMode
  deriving (Show)
 
-pmMode :: Matcher -> PMMode
-pmMode (UserMatcher _ mode _) = mode
-pmMode (Tuple _) = DFSMode
-pmMode Something = DFSMode
-
-data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree]
+data MatchingState = MState PMMode Env [LoopPatContext] [Binding] [MatchingTree]
  deriving (Show)
+
+pmMode :: MatchingState -> PMMode
+pmMode (MState mode _ _ _ _) = mode
 
 data MatchingTree =
     MAtom EgisonPattern WHNFData Matcher
@@ -1635,7 +1633,7 @@ data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPatte
  deriving (Show)
 
 debugMState :: MatchingState -> String
-debugMState (MState _ _ bindings l) = "(MState _ _ "++ show bindings ++ " " ++ show l ++ ")"
+debugMState (MState _ _ _ bindings l) = "(MState _ _ _ "++ show bindings ++ " " ++ show l ++ ")"
 
 --
 -- Errors
