@@ -509,9 +509,11 @@ dfs (InductivePat name patterns) = DFSPat $ InductivePat name $ map dfs patterns
 dfs (IndexedPat pattern exprs) = DFSPat $ IndexedPat (dfs pattern) exprs
 dfs (PApplyPat expr patterns) = DFSPat $ PApplyPat expr $ map dfs patterns 
 dfs (DApplyPat pattern patterns) = DFSPat $ DApplyPat (dfs pattern) $ map dfs patterns
-dfs (LoopPat name range pattern1 pattern2) =  LoopPat name range (dfs pattern1) (dfs pattern2)
+dfs (LoopPat name range pattern1 pattern2) = DFSPat $ LoopPat name range (dfs pattern1) (dfs pattern2)
 dfs (LetPat binds pattern) = DFSPat $ LetPat binds $ dfs pattern
-dfs (PowerPat pattern1 pattern2) = PowerPat (dfs pattern1) (dfs pattern2)
+dfs (PowerPat pattern1 pattern2) = DFSPat $ PowerPat (dfs pattern1) (dfs pattern2)
+dfs (DFSPat pattern) = dfs pattern
+dfs (BFSPat pattern) = bfs pattern
 dfs pattern = pattern
 
 bfs :: EgisonPattern -> EgisonPattern
@@ -524,9 +526,11 @@ bfs (InductivePat name patterns) = BFSPat $ InductivePat name $ map bfs patterns
 bfs (IndexedPat pattern exprs) = BFSPat $ IndexedPat (bfs pattern) exprs
 bfs (PApplyPat expr patterns) = BFSPat $ PApplyPat expr $ map bfs patterns 
 bfs (DApplyPat pattern patterns) = BFSPat $ DApplyPat (bfs pattern) $ map bfs patterns
-bfs (LoopPat name range pattern1 pattern2) =  LoopPat name range (bfs pattern1) (bfs pattern2)
+bfs (LoopPat name range pattern1 pattern2) =  BFSPat $ LoopPat name range (bfs pattern1) (bfs pattern2)
 bfs (LetPat binds pattern) = BFSPat $ LetPat binds $ bfs pattern
-bfs (PowerPat pattern1 pattern2) = PowerPat (bfs pattern1) (bfs pattern2)
+bfs (PowerPat pattern1 pattern2) = BFSPat $ PowerPat (bfs pattern1) (bfs pattern2)
+bfs (DFSPat pattern) = dfs pattern
+bfs (BFSPat pattern) = bfs pattern
 bfs pattern = pattern
 
 desugarLoopRange :: LoopRange -> DesugarM LoopRange

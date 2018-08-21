@@ -1138,6 +1138,7 @@ modeTo mode (MState env loops bindings mtrees) = MState env loops bindings $ map
 
 modeTo_T :: PMMode -> MatchingTree -> MatchingTree
 modeTo_T mode (MAtom (DFSPat pat) target matcher) = MAtom pat target $ modeTo_M mode matcher
+modeTo_T mode (MAtom (BFSPat pat) target matcher) = MAtom pat target $ modeTo_M mode matcher
 modeTo_T mode (MAtom pat target matcher) = MAtom pat target $ modeTo_M mode matcher
 modeTo_T mode (MNode penv (MState env loops bindings mtrees)) = MNode penv $ MState env loops bindings $ map (modeTo_T mode) mtrees
 
