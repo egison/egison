@@ -545,6 +545,7 @@ evalExpr env (IoExpr expr) = do
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
+  -- result <- patternMatch env (DFSPat pattern) target matcher
   result <- patternMatch env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
@@ -1067,8 +1068,8 @@ processMStatesLine depth streams = do
     let oots = foldr (\ootree acc ->
           case lookupOOT acc (ootree ^. ooId) of
             Nothing -> acc ++ [ootree]
-            Just n -> let (f, s) = splitAt n acc in
-                      f ++ [mergeOOT (head s) ootree] ++ tail s) (streams ^. orderedOrTrees) orderedorlist
+            Just n -> let (f, s) = splitAt n acc
+                       in f ++ [mergeOOT (head s) ootree] ++ tail s) (streams ^. orderedOrTrees) orderedorlist
     let nt = if null nextlist then streams ^. normalTree
                               else mergeNT (depth + 1) nextlist $ changeNT depth [] (streams ^. normalTree)
     return $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots }
@@ -1113,7 +1114,9 @@ extractMatches depth streams
 
 processMStatesDorB :: Int -> MList EgisonM MatchingState -> EgisonM ([OrderedOrTree], [(MList EgisonM MatchingState)])
 processMStatesDorB _ MNil = return ([], [])
-processMStatesDorB depth stream@(MCons state stream') =
+processMStatesDorB depth stream@(MCons state stream') = do
+  l <- fromMList stream
+  liftIO $ putStrLn $ show depth ++ ": " ++ show l
   case topMAtom state of
     MAtom (OrderedOrPat id _ _) _ _ -> do
       let (state1, state2) = splitMStateOO state
@@ -1280,7 +1283,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
     _ ->
       case matcher of
         UserMatcher _ _ -> do
-          (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
+          (patterns, targetss, matchers) <- inductiveMatch env' mode pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTupleWHNF
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
@@ -1348,9 +1351,9 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
             _ -> throwError $ Default "something can only match with a pattern variable"
         _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
-inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
+inductiveMatch :: Env -> PMMode -> EgisonPattern -> WHNFData -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
-inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
+inductiveMatch env mode pattern target (UserMatcher matcherEnv clauses) =
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
   tryPPMatchClause (pat, matchers, clauses) cont = do
