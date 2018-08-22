@@ -657,8 +657,7 @@ evalExpr env (MemoizeExpr memoizeFrame expr) = do
        memoizeFrame
   evalExpr env expr
 
-evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
-evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
+evalExpr env (MatcherExpr info) = return $ Value $ UserMatcher env info
 
 evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
   fN <- (evalExpr env fstExpr >>= fromWHNF) :: EgisonM Integer
@@ -1280,7 +1279,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
 
     _ ->
       case matcher of
-        UserMatcher _ _ _ -> do
+        UserMatcher _ _ -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTupleWHNF
@@ -1351,7 +1350,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
-inductiveMatch env pattern target (UserMatcher matcherEnv _ clauses) =
+inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
   tryPPMatchClause (pat, matchers, clauses) cont = do
@@ -1493,7 +1492,7 @@ extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ 
 
 evalMatcherWHNF :: WHNFData -> EgisonM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher
-evalMatcherWHNF (Value matcher@(UserMatcher _ _ _)) = return matcher
+evalMatcherWHNF (Value matcher@(UserMatcher _ _)) = return matcher
 evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
 evalMatcherWHNF (Intermediate (ITuple refs)) = do
   whnfs <- mapM evalRef refs

@@ -256,8 +256,7 @@ data EgisonExpr =
   | NextMatchLambdaExpr EgisonExpr [MatchClause]
   | NextMatchAllLambdaExpr EgisonExpr MatchClause
 
-  | MatcherBFSExpr MatcherInfo
-  | MatcherDFSExpr MatcherInfo
+  | MatcherExpr MatcherInfo
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
 
   | QuoteExpr EgisonExpr
@@ -392,7 +391,7 @@ data EgisonValue =
   | IntHash (HashMap Integer EgisonValue)
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
-  | UserMatcher Env PMMode MatcherInfo
+  | UserMatcher Env MatcherInfo
   | Func (Maybe Var) Env [String] EgisonExpr
   | PartialFunc Env Integer EgisonExpr
   | CFunc (Maybe Var) Env String EgisonExpr
@@ -1226,8 +1225,7 @@ instance Show EgisonValue where
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
-  show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
+  show (UserMatcher _ _) = "#<user-matcher>"
   show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
   show (Func (Just name) _ _ _) = show name
   show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
@@ -1633,7 +1631,7 @@ data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPatte
  deriving (Show)
 
 debugMState :: MatchingState -> String
-debugMState (MState _ _ _ bindings l) = "(MState _ _ _ "++ show bindings ++ " " ++ show l ++ ")"
+debugMState (MState mode _ _ bindings mtrees) = "(MState " ++ intercalate " " [show mode, show bindings, show mtrees] ++ ")"
 
 --
 -- Errors
