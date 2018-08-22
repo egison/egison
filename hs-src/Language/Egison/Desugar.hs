@@ -68,7 +68,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         body <- mapM genMatcherClause patterns
         footer <- genSomethingClause
         clauses <- return $ [main] ++ body ++ [footer]
-        return $ MatcherDFSExpr clauses
+        return $ MatcherExpr clauses
         
       genMainClause :: [(String, [EgisonExpr])] -> EgisonExpr -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genMainClause patterns matcher = do
@@ -391,14 +391,10 @@ desugar (VarExpr name) = do
 desugar FreshVarExpr = do
   id <- fresh
   return (VarExpr $ stringToVar (":::" ++ id))
-
-desugar (MatcherBFSExpr matcherInfo) = do
-  matcherInfo' <- desugarMatcherInfo matcherInfo
-  return $ MatcherBFSExpr matcherInfo'
   
-desugar (MatcherDFSExpr matcherInfo) = do
+desugar (MatcherExpr matcherInfo) = do
   matcherInfo' <- desugarMatcherInfo matcherInfo
-  return $ MatcherDFSExpr matcherInfo'
+  return $ MatcherExpr matcherInfo'
   
 desugar (PartialVarExpr n) = return $ PartialVarExpr n
 

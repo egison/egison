@@ -5,7 +5,7 @@
 ;;;;;
 
 (define $eq
-  (matcher-dfs
+  (matcher
     {[,$val []
       {[$tgt (if (eq? val tgt)
                  {[]}
