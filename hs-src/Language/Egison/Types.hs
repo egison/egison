@@ -101,7 +101,6 @@ module Language.Egison.Types
     , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
-    , debugMState
     -- * makeLenses
     , normalTree
     , orderedOrTrees
@@ -1608,7 +1607,9 @@ data PMMode = BFSMode | DFSMode
  deriving (Show)
 
 data MatchingState = MState PMMode Env [LoopPatContext] [Binding] [MatchingTree]
- deriving (Show)
+
+instance Show MatchingState where
+  show (MState mode _ _ bindings mtrees) = "(MState " ++ intercalate " " [show mode, "_", "_", show bindings, show mtrees] ++ ")"
 
 pmMode :: MatchingState -> PMMode
 pmMode (MState mode _ _ _ _) = mode
@@ -1629,9 +1630,6 @@ type PatternBinding = (String, EgisonPattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
-
-debugMState :: MatchingState -> String
-debugMState (MState mode _ _ bindings mtrees) = "(MState " ++ intercalate " " [show mode, show bindings, show mtrees] ++ ")"
 
 --
 -- Errors
