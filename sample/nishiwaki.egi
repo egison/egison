@@ -1,0 +1,10 @@
+(define $nishiwaki-if
+  (macro [$b $e1 $e2]
+    (car (match-all b (matcher {[$ something {[#t {e1}] [#f {e2}]}]})
+           [$x x]))))
+
+(nishiwaki-if #t 1 2) ; 1
+
+(nishiwaki-if #f 1 2) ; 2
+
+(nishiwaki-if (eq? 1 1) 1 2) ; 1
