@@ -311,11 +311,9 @@
 
 (define $find-cycle
   (lambda [$xs]
-    (car (concat (match-all xs (list something)
-                   [<join $ys <cons $x _>>
-                    (match-all ys (list something)
-                      [<join $hs <cons ,x $ms>>
-                       [hs {x @ms}]])])))))
+    (car (match-all xs (list something)
+           [<join $ys <join (& <cons _ _> $cs) <join ,cs _>>>
+            [ys cs]]))))
 
 (define $repeat
   (lambda [%xs]
