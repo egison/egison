@@ -8,3 +8,9 @@
 (nishiwaki-if #f 1 2) ; 2
 
 (nishiwaki-if (eq? 1 1) 1 2) ; 1
+
+(io (nishiwaki-if #t (print "OK") (print "NG"))) ; print "OK"
+
+(io (nishiwaki-if #f (print "NG") (print "OK"))) ; print "OK"
+
+(io (nishiwaki-if (eq? 1 1) (print "OK") (print "NG"))) ; print "OK"
