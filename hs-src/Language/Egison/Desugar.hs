@@ -492,28 +492,28 @@ desugarPattern' (MultPat (intPat:patterns)) = do
                                           (reverse hps)]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 -- desugarPattern' (BFSPat pattern) = bfs <$> desugarPattern' pattern
--- desugarPattern' (DFSPat pattern) = dfs <$> desugarPattern' pattern
+desugarPattern' (DFSPat pattern) = dfs <$> desugarPattern' pattern
 desugarPattern' (BFSPat pattern) = BFSPat <$> desugarPattern' pattern
-desugarPattern' (DFSPat pattern) = DFSPat <$> desugarPattern' pattern
+-- desugarPattern' (DFSPat pattern) = DFSPat <$> desugarPattern' pattern
 desugarPattern' pattern = return pattern
 
--- dfs :: EgisonPattern -> EgisonPattern
--- dfs (NotPat pattern) = DFSPat $ NotPat $ dfs pattern
--- dfs (AndPat patterns) = DFSPat $ AndPat $ map dfs patterns
--- dfs (OrPat patterns)  =  DFSPat $ AndPat $ map dfs patterns
--- dfs (OrderedOrPat id pat1 pat2)  = DFSPat $ OrderedOrPat id (dfs pat1) (dfs pat2)
--- dfs (PatVar var) = DFSPat $ PatVar var
--- dfs (TuplePat patterns)  = DFSPat $ TuplePat $ map dfs patterns
--- dfs (InductivePat name patterns) = DFSPat $ InductivePat name $ map dfs patterns
--- dfs (IndexedPat pattern exprs) = DFSPat $ IndexedPat (dfs pattern) exprs
--- dfs (PApplyPat expr patterns) = DFSPat $ PApplyPat expr $ map dfs patterns 
--- dfs (DApplyPat pattern patterns) = DFSPat $ DApplyPat (dfs pattern) $ map dfs patterns
--- dfs (LoopPat name range pattern1 pattern2) = DFSPat $ LoopPat name range (dfs pattern1) (dfs pattern2)
--- dfs (LetPat binds pattern) = DFSPat $ LetPat binds $ dfs pattern
--- dfs (PowerPat pattern1 pattern2) = DFSPat $ PowerPat (dfs pattern1) (dfs pattern2)
--- dfs (DFSPat pattern) = dfs pattern
--- dfs (BFSPat pattern) = bfs pattern
--- dfs pattern = pattern
+dfs :: EgisonPattern -> EgisonPattern
+dfs (NotPat pattern) = DFSPat $ NotPat $ dfs pattern
+dfs (AndPat patterns) = DFSPat $ AndPat $ map dfs patterns
+dfs (OrPat patterns)  =  DFSPat $ AndPat $ map dfs patterns
+dfs (OrderedOrPat id pat1 pat2)  = DFSPat $ OrderedOrPat id (dfs pat1) (dfs pat2)
+dfs (PatVar var) = DFSPat $ PatVar var
+dfs (TuplePat patterns)  = DFSPat $ TuplePat $ map dfs patterns
+dfs (InductivePat name patterns) = DFSPat $ InductivePat name $ map dfs patterns
+dfs (IndexedPat pattern exprs) = DFSPat $ IndexedPat (dfs pattern) exprs
+dfs (PApplyPat expr patterns) = DFSPat $ PApplyPat expr $ map dfs patterns 
+dfs (DApplyPat pattern patterns) = DFSPat $ DApplyPat (dfs pattern) $ map dfs patterns
+dfs (LoopPat name range pattern1 pattern2) = DFSPat $ LoopPat name range (dfs pattern1) (dfs pattern2)
+dfs (LetPat binds pattern) = DFSPat $ LetPat binds $ dfs pattern
+dfs (PowerPat pattern1 pattern2) = DFSPat $ PowerPat (dfs pattern1) (dfs pattern2)
+dfs (DFSPat pattern) = dfs pattern
+dfs (BFSPat pattern) = bfs pattern
+dfs pattern = pattern
 --
 -- bfs :: EgisonPattern -> EgisonPattern
 -- bfs (NotPat pattern) = BFSPat $ NotPat $ bfs pattern
