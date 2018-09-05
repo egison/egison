@@ -1123,10 +1123,10 @@ processMStatesDorB depth stream@(MCons state stream') =
     MAtom (BFSPat _) _ _ -> mmap (return . (modeTo BFSMode)) stream >>= processMStatesDorB depth
     _ -> case pmMode state of
            DFSMode id -> do
-              newStreams <- processMStatesDFS (MCons state $ return MNil)
+              newStreams <- processMStates (MCons state $ return MNil)
               stream'' <- stream'
               return ([OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[stream'']]}], newStreams)
-           BFSMode -> ((,) []) <$> processMStatesBFS stream
+           BFSMode -> ((,) []) <$> processMStates stream
  where
   splitMStateOO :: MatchingState -> (MatchingState, MatchingState)
   splitMStateOO (MState mode env loops bindings ((MAtom (OrderedOrPat _ pat1 pat2) target matcher) : trees)) =
@@ -1150,14 +1150,8 @@ topMAtom :: MatchingState -> MatchingTree
 topMAtom (MState _ _ _ _ (mAtom@(MAtom _ _ _):_)) = mAtom
 topMAtom (MState _ _ _ _ ((MNode _ mstate):_))    = topMAtom mstate
 
-processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
-processMStatesDFS (MCons state stream) = do
-    stream' <- processMState state
-    newStream <- mappend stream' stream
-    return [newStream]
-
-processMStatesBFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
-processMStatesBFS (MCons state stream) = do
+processMStates :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+processMStates (MCons state stream) = do
     newStream <- processMState state
     newStream' <- stream
     return [newStream, newStream']
