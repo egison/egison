@@ -346,6 +346,7 @@ data EgisonPattern =
   | PlusPat [EgisonPattern]
   | MultPat [EgisonPattern]
   | PowerPat EgisonPattern EgisonPattern
+  | DFSPat' EgisonPattern
   | DFSPat Id EgisonPattern
   | BFSPat EgisonPattern
  deriving (Show, Eq)
@@ -1603,7 +1604,7 @@ refVar (Env env _) var = msum $ map (HashMap.lookup var) env
 
 type Match = [Binding]
 
-data PMMode = BFSMode | DFSMode
+data PMMode = BFSMode | DFSMode Id
  deriving (Show)
 
 data MatchingState = MState PMMode Env [LoopPatContext] [Binding] [MatchingTree]
