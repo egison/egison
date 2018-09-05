@@ -657,8 +657,7 @@ evalExpr env (MemoizeExpr memoizeFrame expr) = do
        memoizeFrame
   evalExpr env expr
 
-evalExpr env (MatcherBFSExpr info) = return $ Value $ UserMatcher env BFSMode info
-evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env DFSMode info
+evalExpr env (MatcherExpr info) = return $ Value $ UserMatcher env info
 
 evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
   fN <- (evalExpr env fstExpr >>= fromWHNF) :: EgisonM Integer
@@ -1068,8 +1067,8 @@ processMStatesLine depth streams = do
     let oots = foldr (\ootree acc ->
           case lookupOOT acc (ootree ^. ooId) of
             Nothing -> acc ++ [ootree]
-            Just n -> let (f, s) = splitAt n acc in
-                      f ++ [mergeOOT (head s) ootree] ++ tail s) (streams ^. orderedOrTrees) orderedorlist
+            Just n -> let (f, s) = splitAt n acc
+                       in f ++ [mergeOOT (head s) ootree] ++ tail s) (streams ^. orderedOrTrees) orderedorlist
     let nt = if null nextlist then streams ^. normalTree
                               else mergeNT (depth + 1) nextlist $ changeNT depth [] (streams ^. normalTree)
     return $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots }
@@ -1120,26 +1119,32 @@ processMStatesDorB depth stream@(MCons state stream') =
       let (state1, state2) = splitMStateOO state
       (oots, newStreams) <- processMStatesDorB depth (MCons state1 stream')
       return (oots ++ [OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[msingleton state2]]}], newStreams)
-    MAtom (DFSPat _) _ _ -> processMStatesDorB depth (MCons (modeTo DFSMode state) stream')
-    MAtom (BFSPat _) _ _ -> processMStatesDorB depth (MCons (modeTo BFSMode state) stream')
+    MAtom (DFSPat id _) _ _ -> mmap (return . (modeTo $ DFSMode id)) stream >>= processMStatesDorB depth
+    MAtom (BFSPat _) _ _ -> mmap (return . (modeTo BFSMode)) stream >>= processMStatesDorB depth
     _ -> case pmMode state of
-           DFSMode -> ((,) []) <$> processMStatesDFS stream
+           DFSMode id -> do
+              newStreams <- processMStatesDFS (MCons state $ return MNil)
+              stream'' <- stream'
+              return ([OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[stream'']]}], newStreams)
            BFSMode -> ((,) []) <$> processMStatesBFS stream
  where
   splitMStateOO :: MatchingState -> (MatchingState, MatchingState)
   splitMStateOO (MState mode env loops bindings ((MAtom (OrderedOrPat _ pat1 pat2) target matcher) : trees)) =
     (MState mode env loops bindings ((MAtom pat1 target matcher) : trees), MState mode env loops bindings ((MAtom pat2 target matcher) : trees))
+  splitMStateOO (MState mode env loops bindings ((MAtom pat target matcher) : trees)) =
+    (MState mode env loops bindings [MAtom pat target matcher], MState mode env loops bindings trees)
   splitMStateOO (MState mode env loops bindings ((MNode penv state') : trees)) =
     let (state1, state2) = splitMStateOO state'
      in (MState mode env loops bindings (MNode penv state1 : trees), MState mode env loops bindings ((MNode penv state2) : trees))
 
 modeTo :: PMMode -> MatchingState -> MatchingState
-modeTo mode (MState _ env loops bindings (mtree:mtrees)) = MState mode env loops bindings $ (fixPat mtree):mtrees
+modeTo mode (MState _ env loops bindings (mtree:mtrees)) = MState mode env loops bindings $ (rmPat mtree):mtrees
 
-fixPat :: MatchingTree -> MatchingTree
-fixPat (MAtom (DFSPat pattern) target matcher) = MAtom pattern target matcher
-fixPat (MAtom (BFSPat pattern) target matcher) = MAtom pattern target matcher
-fixPat (MNode penv (MState mode env loops bindings (mtree:mtrees))) = MNode penv $ MState mode env loops bindings ((fixPat mtree):mtrees)
+rmPat :: MatchingTree -> MatchingTree
+rmPat (MAtom (DFSPat _ pattern) target matcher) = MAtom pattern target matcher
+rmPat (MAtom (BFSPat pattern) target matcher) = MAtom pattern target matcher
+rmPat (MAtom pat target matcher) = MAtom pat target matcher
+rmPat (MNode penv (MState mode env loops bindings (mtree:mtrees))) = MNode penv $ MState mode env loops bindings ((rmPat mtree):mtrees)
 
 topMAtom :: MatchingState -> MatchingTree
 topMAtom (MState _ _ _ _ (mAtom@(MAtom _ _ _):_)) = mAtom
@@ -1280,7 +1285,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
 
     _ ->
       case matcher of
-        UserMatcher _ _ _ -> do
+        UserMatcher _ _ -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTupleWHNF
@@ -1351,7 +1356,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
-inductiveMatch env pattern target (UserMatcher matcherEnv _ clauses) =
+inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
   tryPPMatchClause (pat, matchers, clauses) cont = do
@@ -1493,7 +1498,7 @@ extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ 
 
 evalMatcherWHNF :: WHNFData -> EgisonM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher
-evalMatcherWHNF (Value matcher@(UserMatcher _ _ _)) = return matcher
+evalMatcherWHNF (Value matcher@(UserMatcher _ _)) = return matcher
 evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
 evalMatcherWHNF (Intermediate (ITuple refs)) = do
   whnfs <- mapM evalRef refs

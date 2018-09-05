@@ -235,8 +235,6 @@ expr' = (try partialExpr
                          <|> nextMatchAllLambdaExpr
                          <|> nextMatchLambdaExpr
                          <|> matcherExpr
-                         <|> matcherBFSExpr
-                         <|> matcherDFSExpr
                          <|> seqExpr
                          <|> applyExpr
                          <|> cApplyExpr
@@ -349,13 +347,7 @@ matchClause :: Parser MatchClause
 matchClause = brackets $ (,) <$> pattern <*> expr
 
 matcherExpr :: Parser EgisonExpr
-matcherExpr = keywordMatcher >> MatcherBFSExpr <$> ppMatchClauses
-
-matcherBFSExpr :: Parser EgisonExpr
-matcherBFSExpr = keywordMatcherBFS >> MatcherBFSExpr <$> ppMatchClauses
-
-matcherDFSExpr :: Parser EgisonExpr
-matcherDFSExpr = keywordMatcherDFS >> MatcherDFSExpr <$> ppMatchClauses
+matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
 ppMatchClauses = braces $ sepEndBy ppMatchClause whiteSpace
@@ -703,7 +695,7 @@ powerPat = try (do pat1 <- pattern
        <|> pattern
 
 dfsPat :: Parser EgisonPattern
-dfsPat = keywordDFS >> DFSPat <$> pattern
+dfsPat = keywordDFS >> DFSPat' <$> pattern
 
 bfsPat :: Parser EgisonPattern
 bfsPat = keywordBFS >> BFSPat <$> pattern
@@ -820,8 +812,6 @@ reservedKeywords =
   , "match-all-lambda"
   , "match-lambda"
   , "matcher"
-  , "matcher-bfs"
-  , "matcher-dfs"
   , "do"
   , "io"
   , "algebraic-data-matcher"
@@ -904,8 +894,6 @@ keywordNextMatchAllLambda   = reserved "next-match-all-lambda"
 keywordNextMatch            = reserved "next-match"
 keywordNextMatchLambda      = reserved "next-match-lambda"
 keywordMatcher              = reserved "matcher"
-keywordMatcherBFS           = reserved "matcher-bfs"
-keywordMatcherDFS           = reserved "matcher-dfs"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
