@@ -545,7 +545,6 @@ evalExpr env (IoExpr expr) = do
 evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  -- result <- patternMatch env (DFSPat pattern) target matcher
   result <- patternMatch env pattern target matcher
   mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
  where
@@ -1114,20 +1113,17 @@ extractMatches depth streams
 
 processMStatesDorB :: Int -> MList EgisonM MatchingState -> EgisonM ([OrderedOrTree], [(MList EgisonM MatchingState)])
 processMStatesDorB _ MNil = return ([], [])
-processMStatesDorB depth stream@(MCons state stream') = do
-  -- l <- fromMList stream
-  -- liftIO $ putStrLn $ show depth ++ ": " ++ show l
+processMStatesDorB depth stream@(MCons state stream') =
   case topMAtom state of
     MAtom (OrderedOrPat id _ _) _ _ -> do
       let (state1, state2) = splitMStateOO state
       (oots, newStreams) <- processMStatesDorB depth (MCons state1 stream')
       return (oots ++ [OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[msingleton state2]]}], newStreams)
-    MAtom (DFSPat _) _ _ -> mmap (return . (modeTo DFSMode)) stream >>= processMStatesDorB depth
+    MAtom (DFSPat id _) _ _ -> mmap (return . (modeTo $ DFSMode id)) stream >>= processMStatesDorB depth
     MAtom (BFSPat _) _ _ -> mmap (return . (modeTo BFSMode)) stream >>= processMStatesDorB depth
     _ -> case pmMode state of
-           DFSMode -> do
+           DFSMode id -> do
               newStreams <- processMStatesDFS (MCons state $ return MNil)
-              id <- fresh
               stream'' <- stream'
               return ([OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[stream'']]}], newStreams)
            BFSMode -> ((,) []) <$> processMStatesBFS stream
@@ -1142,27 +1138,13 @@ processMStatesDorB depth stream@(MCons state stream') = do
      in (MState mode env loops bindings (MNode penv state1 : trees), MState mode env loops bindings ((MNode penv state2) : trees))
 
 modeTo :: PMMode -> MatchingState -> MatchingState
-modeTo mode (MState _ env loops bindings (mtree:mtrees)) = MState mode env loops bindings $ (fixPat mtree):mtrees
+modeTo mode (MState _ env loops bindings (mtree:mtrees)) = MState mode env loops bindings $ (rmPat mtree):mtrees
 
-fixPat :: MatchingTree -> MatchingTree
-fixPat (MAtom (DFSPat pattern) target matcher) = MAtom pattern target matcher
-fixPat (MAtom (BFSPat pattern) target matcher) = MAtom pattern target matcher
-fixPat (MAtom pat target matcher) = MAtom pat target matcher
-fixPat (MNode penv (MState mode env loops bindings (mtree:mtrees))) = MNode penv $ MState mode env loops bindings ((fixPat mtree):mtrees)
-
-addPat' :: MatchingState -> MatchingState
-addPat' (MState mode env loops bindings ((MAtom (DFSPat pat) target matcher) : trees)) =
-  MState mode env loops bindings $ (MAtom (DFSPat pat) target matcher) : trees
-addPat' (MState mode env loops bindings ((MAtom (BFSPat pat) target matcher) : trees)) =
-  MState mode env loops bindings $ (MAtom (DFSPat pat) target matcher) : trees
-addPat' (MState mode env loops bindings ((MAtom pat target matcher) : trees)) =
-  MState mode env loops bindings $ (MAtom (DFSPat pat) target matcher) : trees
-addPat' (MState mode env loops bindings ((MNode penv state) : trees)) =
-  MState mode env loops bindings (MNode penv (addPat' state) : trees)
-
-addPat :: (MList EgisonM MatchingState) -> (MList EgisonM MatchingState)
-addPat MNil = MNil
-addPat (MCons state stream) = MCons (addPat' state) stream
+rmPat :: MatchingTree -> MatchingTree
+rmPat (MAtom (DFSPat _ pattern) target matcher) = MAtom pattern target matcher
+rmPat (MAtom (BFSPat pattern) target matcher) = MAtom pattern target matcher
+rmPat (MAtom pat target matcher) = MAtom pat target matcher
+rmPat (MNode penv (MState mode env loops bindings (mtree:mtrees))) = MNode penv $ MState mode env loops bindings ((rmPat mtree):mtrees)
 
 topMAtom :: MatchingState -> MatchingTree
 topMAtom (MState _ _ _ _ (mAtom@(MAtom _ _ _):_)) = mAtom

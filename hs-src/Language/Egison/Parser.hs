@@ -695,7 +695,7 @@ powerPat = try (do pat1 <- pattern
        <|> pattern
 
 dfsPat :: Parser EgisonPattern
-dfsPat = keywordDFS >> DFSPat <$> pattern
+dfsPat = keywordDFS >> DFSPat' <$> pattern
 
 bfsPat :: Parser EgisonPattern
 bfsPat = keywordBFS >> BFSPat <$> pattern
