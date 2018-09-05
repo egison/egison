@@ -265,10 +265,6 @@ desugar (ProcedureExpr names expr) = do
   expr' <- desugar expr
   return $ ProcedureExpr names expr'
 
---desugar (MacroExpr names expr) = do
---  expr' <- desugar expr
---  return $ MacroExpr names expr'
-
 desugar (PatternFunctionExpr names pattern) = do
   pattern' <- desugarPattern pattern
   return $ PatternFunctionExpr names pattern'
