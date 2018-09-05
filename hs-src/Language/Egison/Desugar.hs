@@ -496,7 +496,6 @@ dfs (NotPat pattern) = DFSPat <$> fresh <*> (NotPat <$> dfs pattern)
 dfs (AndPat patterns) = DFSPat <$> fresh <*> (AndPat <$> mapM dfs patterns)
 dfs (OrPat patterns)  = DFSPat <$> fresh <*> (AndPat <$> mapM dfs patterns)
 dfs (OrderedOrPat id pat1 pat2)  = DFSPat <$> fresh <*> (OrderedOrPat id <$> dfs pat1 <*> dfs pat2)
-dfs (PatVar var) = flip DFSPat (PatVar var) <$> fresh
 dfs (TuplePat patterns)  = DFSPat <$> fresh <*> (TuplePat <$> mapM dfs patterns)
 dfs (InductivePat name patterns) = DFSPat <$> fresh <*> (InductivePat name <$> mapM dfs patterns)
 dfs (IndexedPat pattern exprs) = DFSPat <$> fresh <*> (flip IndexedPat exprs <$> dfs pattern)

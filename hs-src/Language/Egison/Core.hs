@@ -1063,6 +1063,7 @@ processMStatesAll depth streams = do
 
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
+    liftIO $ putStrLn $ show depth
     (orderedorlist, nextlist) <- (concatTuple . unzip) <$> mapM (processMStatesDorB depth) ((streams ^. normalTree) !! depth)
     let oots = foldr (\ootree acc ->
           case lookupOOT acc (ootree ^. ooId) of
@@ -1339,6 +1340,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
                                          | otherwise = (k', v'):(subst k nv xs)
                 subst _ _ [] = []
+            -- IndexedPat (DFSPat $ PatVar name) indices -> do
             IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
