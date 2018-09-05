@@ -101,7 +101,6 @@ module Language.Egison.Types
     , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
-    , debugMState
     -- * makeLenses
     , normalTree
     , orderedOrTrees
@@ -256,8 +255,7 @@ data EgisonExpr =
   | NextMatchLambdaExpr EgisonExpr [MatchClause]
   | NextMatchAllLambdaExpr EgisonExpr MatchClause
 
-  | MatcherBFSExpr MatcherInfo
-  | MatcherDFSExpr MatcherInfo
+  | MatcherExpr MatcherInfo
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
 
   | QuoteExpr EgisonExpr
@@ -348,7 +346,8 @@ data EgisonPattern =
   | PlusPat [EgisonPattern]
   | MultPat [EgisonPattern]
   | PowerPat EgisonPattern EgisonPattern
-  | DFSPat EgisonPattern
+  | DFSPat' EgisonPattern
+  | DFSPat Id EgisonPattern
   | BFSPat EgisonPattern
  deriving (Show, Eq)
 
@@ -392,7 +391,7 @@ data EgisonValue =
   | IntHash (HashMap Integer EgisonValue)
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
-  | UserMatcher Env PMMode MatcherInfo
+  | UserMatcher Env MatcherInfo
   | Func (Maybe Var) Env [String] EgisonExpr
   | PartialFunc Env Integer EgisonExpr
   | CFunc (Maybe Var) Env String EgisonExpr
@@ -1226,8 +1225,7 @@ instance Show EgisonValue where
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (UserMatcher _ BFSMode _) = "#<matcher-bfs>"
-  show (UserMatcher _ DFSMode _) = "#<matcher-dfs>"
+  show (UserMatcher _ _) = "#<user-matcher>"
   show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
   show (Func (Just name) _ _ _) = show name
   show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
@@ -1606,11 +1604,13 @@ refVar (Env env _) var = msum $ map (HashMap.lookup var) env
 
 type Match = [Binding]
 
-data PMMode = BFSMode | DFSMode
+data PMMode = BFSMode | DFSMode Id
  deriving (Show)
 
 data MatchingState = MState PMMode Env [LoopPatContext] [Binding] [MatchingTree]
- deriving (Show)
+
+instance Show MatchingState where
+  show (MState mode _ _ bindings mtrees) = "(MState " ++ intercalate " " [show mode, "_", "_", show bindings, show mtrees] ++ ")"
 
 pmMode :: MatchingState -> PMMode
 pmMode (MState mode _ _ _ _) = mode
@@ -1631,9 +1631,6 @@ type PatternBinding = (String, EgisonPattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
-
-debugMState :: MatchingState -> String
-debugMState (MState _ _ _ bindings l) = "(MState _ _ _ "++ show bindings ++ " " ++ show l ++ ")"
 
 --
 -- Errors
