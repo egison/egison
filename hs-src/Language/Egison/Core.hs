@@ -1286,7 +1286,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
     _ ->
       case matcher of
         UserMatcher _ _ -> do
-          (patterns, targetss, matchers) <- inductiveMatch env' mode pattern target matcher
+          (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
           mfor targetss $ \ref -> do
             targets <- evalRef ref >>= fromTupleWHNF
             let trees' = zipWith3 MAtom patterns targets matchers ++ trees
@@ -1354,9 +1354,9 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
             _ -> throwError $ Default "something can only match with a pattern variable"
         _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
-inductiveMatch :: Env -> PMMode -> EgisonPattern -> WHNFData -> Matcher ->
+inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
-inductiveMatch env mode pattern target (UserMatcher matcherEnv clauses) =
+inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
   tryPPMatchClause (pat, matchers, clauses) cont = do
