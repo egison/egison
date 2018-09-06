@@ -1,0 +1,14 @@
+(match (between 1 n) (multiset integer)
+  {[<cons $x <cons ,x _>> "Matched"]
+   [_ "Not matched"]})
+; Returns "Not matched" in O(n^2).
+
+(match (between 1 n) (multiset integer)
+  {[<cons $x <cons ,x <cons ,x _>>> "Matched"]
+   [_ "Not matched"]})
+; Returns "Not matched" in O(n^2).
+
+(match (between 1 n) (multiset integer)
+  {[<cons $x <cons ,x <cons ,x <cons ,x _>>>> "Matched"]
+   [_ "Not matched"]})
+; Returns "Not matched" in O(n^2).
