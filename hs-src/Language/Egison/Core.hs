@@ -63,6 +63,8 @@ import           Data.Traversable          (mapM)
 
 import           Data.Array                ((!))
 import qualified Data.Array                as Array
+import           Data.Map                  (unionsWith, singleton, Map)
+import qualified Data.Map                  as M
 import qualified Data.HashMap.Lazy         as HL
 import           Data.HashMap.Strict       (HashMap)
 import qualified Data.HashMap.Strict       as HashMap
@@ -1045,33 +1047,27 @@ recursiveRebind env (name, expr) = do
 --
 
 patternMatch :: Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
-patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _normalTree = [[(msingleton (MState BFSMode env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = [] }
+patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _normalTree = [[(msingleton (MState BFSMode env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = empty, _ids = [] }
 
 processMStatesAll :: Int -> MatchingStates -> EgisonM (MList EgisonM Match)
 processMStatesAll depth streams = do
   (matches, streams') <- (\(a, b) -> (fromList a, b)) <$> (processMStatesLine depth streams >>= extractMatches (depth + 1))
-  let oots = streams' ^. orderedOrTrees
   if depth + 1 < length (streams' ^. normalTree)
      then mappend matches $ processMStatesAll (depth + 1) streams'
-     else do matches' <- mapM (\oTree -> processMStatesAll 0 $ MatchingStates { _normalTree = oTree ^. ooTree, _orderedOrTrees = [] }) $ reverse oots
+     else do matches' <- mapM (\id -> processMStatesAll 0 $ MatchingStates { _normalTree = M.(!) (streams' ^. orderedOrTrees) id, _orderedOrTrees = empty, _ids = [] }) $ streams' ^. ids
              mappend matches $ mconcat $ fromList matches'
 
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
-  (orderedorlist, nextlist) <- (concatTuple . unzip) <$> mapM (processMStatesDorB depth) ((streams ^. normalTree) !! depth)
-  let oots = foldr (\ootree acc ->
-               case lookupOOT acc (ootree ^. ooId) of
-                 Nothing -> acc ++ [ootree]
-                 Just n -> let (f, s) = splitAt n acc
-                            in f ++ [mergeOOT (head s) ootree] ++ tail s) (streams ^. orderedOrTrees) orderedorlist
+  (oomaps, ids, nextlist) <- (concatTuple . unzip3) <$> mapM (processMStatesDorB depth) ((streams ^. normalTree) !! depth)
+  let oots = unionsWith mergeOOT $ (streams ^. orderedOrTrees):oomaps 
   let nt = mergeNT (depth + 1) nextlist $ streams ^. normalTree
-  return $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots }
+  let ids' = ids ++ (streams ^. ids)
+  return $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots, _ids = ids' }
  where
-  concatTuple (a, b) = (concat a, concat b)
-  lookupOOT :: [OrderedOrTree] -> String -> Maybe Int
-  lookupOOT ootlist id = lookup id [ ((ootlist !! i) ^. ooId, i) | i <- [0 .. (length ootlist - 1)] ]
-  mergeOOT :: OrderedOrTree -> OrderedOrTree -> OrderedOrTree
-  mergeOOT old new = old & ooTree .~ (map (uncurry (++)) $ zip' (old ^. ooTree) (new ^. ooTree))
+  concatTuple (a, b, c) = (concat a, concat b, concat c)
+  mergeOOT :: [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
+  mergeOOT old new = map (uncurry (++)) $ zip' old new
   zip' :: [[a]] -> [[b]] -> [([a], [b])]
   zip' l1 l2 = take (max (length l1) (length l2)) $ zip (l1 ++ repeat []) (l2 ++ repeat [])
   mergeNT :: Int -> [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
@@ -1103,22 +1099,24 @@ extractMatches depth streams
     extractMatches' (xs ++ [bindings], ys ++ [states']) rest
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
 
-processMStatesDorB :: Int -> MList EgisonM MatchingState -> EgisonM ([OrderedOrTree], [MList EgisonM MatchingState])
-processMStatesDorB _ MNil = return ([], [])
+-- processMStatesDorB :: Int -> MList EgisonM MatchingState -> EgisonM ([OrderedOrTree], [MList EgisonM MatchingState])
+processMStatesDorB :: Int -> MList EgisonM MatchingState -> EgisonM ([Map Id [[MList EgisonM MatchingState]]], [Id], [MList EgisonM MatchingState])
+processMStatesDorB _ MNil = return ([], [], [])
 processMStatesDorB depth stream@(MCons state stream') =
   case topMAtom state of
     MAtom (OrderedOrPat id _ _) _ _ -> do
       let (state1, state2) = splitMStateOO state
-      (oots, newStreams) <- processMStatesDorB depth (MCons state1 stream')
-      return (oots ++ [OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[msingleton state2]]}], newStreams)
+      (oots, ids, newStreams) <- processMStatesDorB depth (MCons state1 stream')
+      return ((singleton id ((replicate depth []) ++ [[msingleton state2]])):oots, ids ++ [id], newStreams)
     MAtom (DFSPat id _) _ _ -> mmap (return . (modeTo $ DFSMode id)) stream >>= processMStatesDorB depth
     MAtom (BFSPat _) _ _ -> mmap (return . (modeTo BFSMode)) stream >>= processMStatesDorB depth
     _ -> case pmMode state of
            DFSMode id -> do
               newStreams <- processMStates (MCons state $ return MNil)
               stream'' <- stream'
-              return ([OrderedOrTree {_ooId = id, _ooTree = (replicate depth []) ++ [[stream'']]}], newStreams)
-           BFSMode -> ((,) []) <$> processMStates stream
+              return ([singleton id ((replicate depth []) ++ [[stream'']])], [id], newStreams)
+           -- BFSMode -> ([], [])) <$> processMStates stream
+           BFSMode -> (\x -> ([], [], x)) <$> processMStates stream
  where
   splitMStateOO :: MatchingState -> (MatchingState, MatchingState)
   splitMStateOO (MState mode env loops bindings ((MAtom (OrderedOrPat _ pat1 pat2) target matcher) : trees)) =
@@ -1153,7 +1151,7 @@ processMState state =
   case topMAtom state of
     MAtom (NotPat _) _ _ -> do
       let (state1, state2) = splitMState state
-      result <- processMStatesAll 0 $ MatchingStates { _normalTree = [[msingleton state1]], _orderedOrTrees = [] }
+      result <- processMStatesAll 0 $ MatchingStates { _normalTree = [[msingleton state1]], _orderedOrTrees = empty, _ids = [] }
       case result of
         MNil -> return $ msingleton state2
         _    -> return MNil
