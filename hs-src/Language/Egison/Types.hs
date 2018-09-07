@@ -1620,12 +1620,7 @@ data MatchingTree =
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
--- data OrderedOrTree = OrderedOrTree { _ooId :: String, _ooTree :: [[MList EgisonM MatchingState]] }
--- data MatchingStateTrees = OrderedOrTree { _ooId :: Id, _ooTree :: [[MList EgisonM MatchingState]] }
---  deriving (Show)
---
 data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
-                                       -- _orderedOrTrees :: [OrderedOrTree]
                                        _orderedOrTrees :: Map Id [[MList EgisonM MatchingState]],
                                        _ids :: [Id]
                                       } deriving (Show)

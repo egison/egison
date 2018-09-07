@@ -53,7 +53,7 @@ import           Control.Monad.Trans.Maybe
 
 import           Data.Foldable             (toList)
 import           Data.IORef
-import           Data.List                 (last, partition)
+import           Data.List                 (last, partition, nub)
 import           Data.List.Split           (oneOf, split)
 import           Data.Maybe
 import           Data.Ratio
@@ -63,7 +63,7 @@ import           Data.Traversable          (mapM)
 
 import           Data.Array                ((!))
 import qualified Data.Array                as Array
-import           Data.Map                  (unionsWith, singleton, Map)
+import           Data.Map                  (unionsWith, singleton, Map, (!), empty)
 import qualified Data.Map                  as M
 import qualified Data.HashMap.Lazy         as HL
 import           Data.HashMap.Strict       (HashMap)
@@ -912,7 +912,7 @@ refArray (Value (Array array)) (index:indices) = do
   if isInteger index
     then do i <- (liftM fromInteger . fromEgison) index
             if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
-              then refArray (Value (array ! i)) indices
+              then refArray (Value (array Array.! i)) indices
               else return  $ Value Undefined
     else case index of
            (ScalarData (Div (Plus [(Term 1 [(Symbol _ _ [], 1)])]) (Plus [(Term 1 [])]))) -> do
@@ -925,7 +925,7 @@ refArray (Intermediate (IArray array)) (index:indices) = do
   if isInteger index
     then do i <- (liftM fromInteger . fromEgison) index
             if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
-              then let ref = array ! i in
+              then let ref = array Array.! i in
                    evalRef ref >>= flip refArray indices
               else return  $ Value Undefined
     else case index of
@@ -1047,27 +1047,25 @@ recursiveRebind env (name, expr) = do
 --
 
 patternMatch :: Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
-patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _normalTree = [[(msingleton (MState BFSMode env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = empty, _ids = [] }
+patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _normalTree = [[(msingleton (MState BFSMode env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = M.empty, _ids = [] }
 
 processMStatesAll :: Int -> MatchingStates -> EgisonM (MList EgisonM Match)
 processMStatesAll depth streams = do
   (matches, streams') <- (\(a, b) -> (fromList a, b)) <$> (processMStatesLine depth streams >>= extractMatches (depth + 1))
   if depth + 1 < length (streams' ^. normalTree)
      then mappend matches $ processMStatesAll (depth + 1) streams'
-     else do matches' <- mapM (\id -> processMStatesAll 0 $ MatchingStates { _normalTree = M.(!) (streams' ^. orderedOrTrees) id, _orderedOrTrees = empty, _ids = [] }) $ streams' ^. ids
+     else do matches' <- mapM (\id -> processMStatesAll 0 $ MatchingStates { _normalTree = (streams' ^. orderedOrTrees) M.! id, _orderedOrTrees = M.empty, _ids = [] }) $ streams' ^. ids
              mappend matches $ mconcat $ fromList matches'
 
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
-  (oomaps, ids, nextlist) <- (concatTuple . unzip3) <$> mapM (processMStatesDorB depth) ((streams ^. normalTree) !! depth)
-  let oots = unionsWith mergeOOT $ (streams ^. orderedOrTrees):oomaps 
+  (oomaps, idlist, nextlist) <- (concatTuple . unzip3) <$> mapM (processMStatesDorB depth) ((streams ^. normalTree) !! depth)
+  let oots = unionsWith ((map (uncurry (++)) .) . zip') $ streams ^. orderedOrTrees:oomaps 
   let nt = mergeNT (depth + 1) nextlist $ streams ^. normalTree
-  let ids' = ids ++ (streams ^. ids)
+  let ids' = nub $ idlist ++ (streams ^. ids)
   return $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots, _ids = ids' }
  where
   concatTuple (a, b, c) = (concat a, concat b, concat c)
-  mergeOOT :: [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
-  mergeOOT old new = map (uncurry (++)) $ zip' old new
   zip' :: [[a]] -> [[b]] -> [([a], [b])]
   zip' l1 l2 = take (max (length l1) (length l2)) $ zip (l1 ++ repeat []) (l2 ++ repeat [])
   mergeNT :: Int -> [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
@@ -1099,7 +1097,6 @@ extractMatches depth streams
     extractMatches' (xs ++ [bindings], ys ++ [states']) rest
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
 
--- processMStatesDorB :: Int -> MList EgisonM MatchingState -> EgisonM ([OrderedOrTree], [MList EgisonM MatchingState])
 processMStatesDorB :: Int -> MList EgisonM MatchingState -> EgisonM ([Map Id [[MList EgisonM MatchingState]]], [Id], [MList EgisonM MatchingState])
 processMStatesDorB _ MNil = return ([], [], [])
 processMStatesDorB depth stream@(MCons state stream') =
@@ -1115,7 +1112,6 @@ processMStatesDorB depth stream@(MCons state stream') =
               newStreams <- processMStates (MCons state $ return MNil)
               stream'' <- stream'
               return ([singleton id ((replicate depth []) ++ [[stream'']])], [id], newStreams)
-           -- BFSMode -> ([], [])) <$> processMStates stream
            BFSMode -> (\x -> ([], [], x)) <$> processMStates stream
  where
   splitMStateOO :: MatchingState -> (MatchingState, MatchingState)
@@ -1151,7 +1147,7 @@ processMState state =
   case topMAtom state of
     MAtom (NotPat _) _ _ -> do
       let (state1, state2) = splitMState state
-      result <- processMStatesAll 0 $ MatchingStates { _normalTree = [[msingleton state1]], _orderedOrTrees = empty, _ids = [] }
+      result <- processMStatesAll 0 $ MatchingStates { _normalTree = [[msingleton state1]], _orderedOrTrees = M.empty, _ids = [] }
       case result of
         MNil -> return $ msingleton state2
         _    -> return MNil
