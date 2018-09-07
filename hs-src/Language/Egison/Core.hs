@@ -53,7 +53,7 @@ import           Control.Monad.Trans.Maybe
 
 import           Data.Foldable             (toList)
 import           Data.IORef
-import           Data.List                 (last, partition, nub)
+import           Data.List                 (last, partition, nub, drop)
 import           Data.List.Split           (oneOf, split)
 import           Data.Maybe
 import           Data.Ratio
@@ -1060,18 +1060,18 @@ processMStatesAll depth streams = do
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
   (oomaps, idlist, nextlist) <- (concatTuple . unzip3) <$> mapM (processMStatesDorB depth) ((streams ^. normalTree) !! depth)
-  let oots = unionsWith ((map (uncurry (++)) .) . zip') $ streams ^. orderedOrTrees:oomaps 
-  let nt = mergeNT (depth + 1) nextlist $ streams ^. normalTree
-  let ids' = nub $ idlist ++ (streams ^. ids)
+  let oots = unionsWith ((map (uncurry (++)) .) . zip') $! streams ^. orderedOrTrees:oomaps
+  let nt = mergeNT (depth + 1) nextlist $! streams ^. normalTree
+  let ids' = nub $! idlist ++ (streams ^. ids)
   return $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots, _ids = ids' }
  where
   concatTuple (a, b, c) = (concat a, concat b, concat c)
   zip' :: [[a]] -> [[b]] -> [([a], [b])]
-  zip' l1 l2 = take (max (length l1) (length l2)) $ zip (l1 ++ repeat []) (l2 ++ repeat [])
+  zip' l1 l2 = take (max (length l1) (length l2)) $! zip (l1 ++ repeat []) (l2 ++ repeat [])
   mergeNT :: Int -> [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
   mergeNT _ [] oldnt = oldnt
   mergeNT depth nodes oldnt =
-    let (f, s:ss) = splitAt depth $ take (max (depth + 1) (length oldnt)) $ oldnt ++ repeat []
+    let (f, s:ss) = splitAt depth $! take (max (depth + 1) (length oldnt)) $ oldnt ++ repeat []
      in f ++ [s ++ nodes] ++ ss
 
 gatherBindings :: MatchingState -> Maybe [Binding]
@@ -1109,9 +1109,9 @@ processMStatesDorB depth stream@(MCons state stream') =
     MAtom (BFSPat _) _ _ -> mmap (return . (modeTo BFSMode)) stream >>= processMStatesDorB depth
     _ -> case pmMode state of
            DFSMode id -> do
-              newStreams <- processMStates (MCons state $ return MNil)
-              stream'' <- stream'
-              return ([singleton id ((replicate depth []) ++ [[stream'']])], [id], newStreams)
+             newStreams <- processMStates (MCons state $ return MNil)
+             stream'' <- stream'
+             return ([singleton id ((replicate depth []) ++ [[stream'']])], [id], newStreams)
            BFSMode -> (\x -> ([], [], x)) <$> processMStates stream
  where
   splitMStateOO :: MatchingState -> (MatchingState, MatchingState)
