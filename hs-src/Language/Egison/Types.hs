@@ -88,6 +88,7 @@ module Language.Egison.Types
     , Var (..)
     , VarWithIndices (..)
     , Binding (..)
+    , Id
     , nullEnv
     , extendEnv
     , refVar
@@ -97,15 +98,13 @@ module Language.Egison.Types
     , pmMode
     , MatchingTree (..)
     , MatchingState (..)
-    , OrderedOrTree (..)
     , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
     -- * makeLenses
     , normalTree
     , orderedOrTrees
-    , ooId
-    , ooTree
+    , ids
     -- * Errors
     , EgisonError (..)
     , liftError
@@ -183,6 +182,7 @@ import Data.IORef
 import Data.Hashable (Hashable)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Map (Map)
 
 import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition, intercalate, elemIndex)
 import Data.List.Split (splitOn)
@@ -1620,11 +1620,9 @@ data MatchingTree =
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
-data OrderedOrTree = OrderedOrTree { _ooId :: String, _ooTree :: [[MList EgisonM MatchingState]] }
- deriving (Show)
-
 data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
-                                       _orderedOrTrees :: [OrderedOrTree]
+                                       _orderedOrTrees :: Map Id [[MList EgisonM MatchingState]],
+                                       _ids :: [Id]
                                       } deriving (Show)
 
 type PatternBinding = (String, EgisonPattern)
@@ -1926,5 +1924,4 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f (Subscript ()) = Subscript ""
    f (SupSubscript ()) = SupSubscript ""
 
-makeLenses ''OrderedOrTree
 makeLenses ''MatchingStates

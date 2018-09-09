@@ -265,10 +265,6 @@ desugar (ProcedureExpr names expr) = do
   expr' <- desugar expr
   return $ ProcedureExpr names expr'
 
---desugar (MacroExpr names expr) = do
---  expr' <- desugar expr
---  return $ MacroExpr names expr'
-
 desugar (PatternFunctionExpr names pattern) = do
   pattern' <- desugarPattern pattern
   return $ PatternFunctionExpr names pattern'
@@ -492,15 +488,15 @@ desugarPattern' (MultPat (intPat:patterns)) = do
                                           (reverse hps)]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (DFSPat' pattern) = desugarPattern' pattern >>= dfs
+-- desugarPattern' (DFSPat' pattern) = DFSPat <$> fresh <*> desugarPattern' pattern
 desugarPattern' (BFSPat pattern) = BFSPat <$> desugarPattern' pattern
 desugarPattern' pattern = return pattern
 
 dfs :: EgisonPattern -> DesugarM EgisonPattern
-dfs (NotPat pattern) = DFSPat <$> fresh <*> (NotPat <$> dfs pattern)
+dfs (NotPat pattern) = NotPat <$> dfs pattern
 dfs (AndPat patterns) = DFSPat <$> fresh <*> (AndPat <$> mapM dfs patterns)
-dfs (OrPat patterns)  = DFSPat <$> fresh <*> (AndPat <$> mapM dfs patterns)
-dfs (OrderedOrPat id pat1 pat2)  = DFSPat <$> fresh <*> (OrderedOrPat id <$> dfs pat1 <*> dfs pat2)
-dfs (PatVar var) = flip DFSPat (PatVar var) <$> fresh
+dfs (OrPat patterns)  = DFSPat <$> fresh <*> (OrPat <$> mapM dfs patterns)
+dfs (OrderedOrPat id pat1 pat2)  = OrderedOrPat id <$> dfs pat1 <*> dfs pat2
 dfs (TuplePat patterns)  = DFSPat <$> fresh <*> (TuplePat <$> mapM dfs patterns)
 dfs (InductivePat name patterns) = DFSPat <$> fresh <*> (InductivePat name <$> mapM dfs patterns)
 dfs (IndexedPat pattern exprs) = DFSPat <$> fresh <*> (flip IndexedPat exprs <$> dfs pattern)
