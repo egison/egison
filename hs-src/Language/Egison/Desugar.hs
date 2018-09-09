@@ -488,7 +488,6 @@ desugarPattern' (MultPat (intPat:patterns)) = do
                                           (reverse hps)]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (DFSPat' pattern) = desugarPattern' pattern >>= dfs
--- desugarPattern' (DFSPat' pattern) = DFSPat <$> fresh <*> desugarPattern' pattern
 desugarPattern' (BFSPat pattern) = BFSPat <$> desugarPattern' pattern
 desugarPattern' pattern = return pattern
 

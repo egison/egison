@@ -1323,7 +1323,6 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
                                          | otherwise = (k', v'):(subst k nv xs)
                 subst _ _ [] = []
-            -- IndexedPat (DFSPat $ PatVar name) indices -> do
             IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
