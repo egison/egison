@@ -1060,14 +1060,14 @@ processMStatesAll depth streams = do
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
   (oomaps, idlist, nextlist) <- (concatTuple . unzip3) <$> mapM (processMStatesDorB depth) (head $ streams ^. normalTree)
-  let oots = unionsWith ((map (uncurry (++)) .) . zip') $! streams ^. orderedOrTrees:oomaps
+  let oots = unionsWith ((map (uncurry (++)) .) . zip') $ streams ^. orderedOrTrees:oomaps
   let nt = mergeNT nextlist $ tail $ streams ^. normalTree
-  let ids' = nub $! idlist ++ (streams ^. ids)
+  let ids' = nub $ idlist ++ (streams ^. ids)
   return $ MatchingStates { _normalTree = nt, _orderedOrTrees = oots, _ids = ids' }
  where
   concatTuple (a, b, c) = (concat a, concat b, concat c)
   zip' :: [[a]] -> [[b]] -> [([a], [b])]
-  zip' l1 l2 = take (max (length l1) (length l2)) $! zip (l1 ++ repeat []) (l2 ++ repeat [])
+  zip' l1 l2 = take (max (length l1) (length l2)) $ zip (l1 ++ repeat []) (l2 ++ repeat [])
   mergeNT :: [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
   mergeNT [] oldnt = oldnt
   mergeNT nodes [] = [nodes] 
