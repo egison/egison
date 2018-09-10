@@ -194,7 +194,6 @@
         ((equal "if" name) 2)
         ((equal "apply" name) 2)
         ((equal "generate-array" name) 2)
-        ((equal "array-size" name) 2)
         ((equal "array-ref" name) 2)
         ((equal "generate-tensor" name) 2)
         ((equal "tensor-map" name) 2)

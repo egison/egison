@@ -630,7 +630,6 @@ mathDivide (Div (Plus []) (Plus ts2)) = Div (Plus []) (Plus ts2)
 mathDivide (Div (Plus ts1) (Plus ts2)) =
   let z = termsGcd (ts1 ++ ts2) in
   case z of
---    (Term 1 []) -> (Div (Plus ts1) (Plus ts2))
     (Term c zs) -> case ts2 of
       [Term a _] -> if a < 0
                       then (Div (Plus (map (\t -> mathDivideTerm t (Term (-1 * c) zs)) ts1)) (Plus (map (\t -> mathDivideTerm t (Term (-1 * c) zs)) ts2)))

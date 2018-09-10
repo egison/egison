@@ -357,6 +357,10 @@
   [3 5]
   )
 
+(assert-equal "array-ref"
+  (array-ref (| 1 2 3 4 5 |) 3)
+  3)
+
 ;;;
 ;;; Tensor
 ;;;
