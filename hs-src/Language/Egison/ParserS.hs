@@ -8,7 +8,7 @@ Licence     : MIT
 This module provide Egison parser.
 -}
 
-module Language.Egison.Parser
+module Language.Egison.ParserS
        (
        -- * Parse a string
          readTopExprs
@@ -126,40 +126,31 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 -- Expressions
 --
 topExpr :: Parser EgisonTopExpr
-topExpr = try defineExpr
-      <|> try (Test <$> expr)
--- topExpr = try (Test <$> expr)
---       <|> try defineExpr
-      -- <|> try (parens (redefineExpr
-      --              <|> testExpr
-      --              <|> executeExpr
-      --              <|> loadFileExpr
-      --              <|> loadExpr))
+topExpr = try (Test <$> expr)
+      <|> try defineExpr
+      <|> try (parens (redefineExpr
+                   <|> testExpr
+                   <|> executeExpr
+                   <|> loadFileExpr
+                   <|> loadExpr))
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = do
-  name <- identVar
-  reservedOp "="
-  e <- expr
-  return $ Define name e
--- defineExpr = Define <$> identVar <* char '=' <*> expr
--- defineExpr :: Parser EgisonTopExpr
--- defineExpr = try (parens (keywordDefine >> Define <$> (char '$' >> identVar) <*> expr))
---          <|> try (parens (do keywordDefine
---                              (VarWithIndices name is) <- (char '$' >> identVarWithIndices)
---                              body <- expr
---                              return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
- -- where
- --  f (Superscript _) = Superscript ()
- --  f (Subscript _) = Subscript ()
- --  f (SupSubscript _) = SupSubscript ()
- --  g (Superscript i) = i
- --  g (Subscript i) = i
- --  g (SupSubscript i) = i
- --  h (Superscript i) = (VarExpr $ stringToVar i)
- --  h (Subscript i) = (VarExpr $ stringToVar i)
- --  h (SupSubscript i) = (VarExpr $ stringToVar i)
+defineExpr = try (parens (keywordDefine >> Define <$> (char '$' >> identVar) <*> expr))
+         <|> try (parens (do keywordDefine
+                             (VarWithIndices name is) <- (char '$' >> identVarWithIndices)
+                             body <- expr
+                             return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
+ where
+  f (Superscript _) = Superscript ()
+  f (Subscript _) = Subscript ()
+  f (SupSubscript _) = SupSubscript ()
+  g (Superscript i) = i
+  g (Subscript i) = i
+  g (SupSubscript i) = i
+  h (Superscript i) = (VarExpr $ stringToVar i)
+  h (Subscript i) = (VarExpr $ stringToVar i)
+  h (SupSubscript i) = (VarExpr $ stringToVar i)
 
 redefineExpr :: Parser EgisonTopExpr
 redefineExpr = (keywordRedefine <|> keywordSet) >> Redefine <$> (char '$' >> identVar) <*> expr
@@ -221,7 +212,6 @@ expr' = (try partialExpr
 --             <|> quoteExpr
              <|> quoteSymbolExpr
              <|> wedgeExpr
-             <|> try applyExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
@@ -246,6 +236,7 @@ expr' = (try partialExpr
                          <|> nextMatchLambdaExpr
                          <|> matcherExpr
                          <|> seqExpr
+                         <|> applyExpr
                          <|> cApplyExpr
                          <|> algebraicDataMatcherExpr
                          <|> generateArrayExpr
@@ -516,7 +507,7 @@ applyExpr' = do
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
-  args = parens $ sepEndBy arg whiteSpace
+  args = sepEndBy arg whiteSpace
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
@@ -789,7 +780,7 @@ egisonDef =
                 , P.caseSensitive      = True }
 
 symbol0 = oneOf "^"
-symbol1 = oneOf "+-*/.∂∇"
+symbol1 = oneOf "+-*/.=∂∇"
 symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity
@@ -859,7 +850,6 @@ reservedOperators =
   , "^"
   , "&"
   , "|*"
-  , "="
 --  , "'"
 --  , "~"
 --  , "!"
