@@ -73,7 +73,7 @@ import qualified Data.Vector               as V
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
-import           Language.Egison.Parser
+import           Language.Egison.ParserS
 import           Language.Egison.Types
 
 --

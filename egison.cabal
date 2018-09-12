@@ -76,6 +76,7 @@ Library
                    Language.Egison.Desugar
                    Language.Egison.Types
                    Language.Egison.Parser
+                   Language.Egison.ParserS
                    Language.Egison.Primitives
                    Language.Egison.Util
                    Language.Egison.MathOutput
