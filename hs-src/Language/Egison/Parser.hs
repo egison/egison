@@ -602,6 +602,7 @@ pattern' = wildCard
             <|> tuplePat
             <|> inductivePat
             <|> parens (andPat
+                    <|> notPat'
                     <|> orderedOrPat
                     <|> orPat
                     <|> loopPat
@@ -642,6 +643,9 @@ letPat = keywordLet >> LetPat <$> bindings <*> pattern
 notPat :: Parser EgisonPattern
 notPat = char '!' >> NotPat <$> pattern
 
+notPat' :: Parser EgisonPattern
+notPat' = keywordNot >> NotPat <$> pattern
+
 tuplePat :: Parser EgisonPattern
 tuplePat = brackets $ TuplePat <$> sepEndBy pattern whiteSpace
 
@@ -652,10 +656,10 @@ contPat :: Parser EgisonPattern
 contPat = keywordCont >> pure ContPat
 
 andPat :: Parser EgisonPattern
-andPat = reservedOp "&" >> AndPat <$> sepEndBy pattern whiteSpace
+andPat = (reservedOp "&" <|> keywordAnd) >> AndPat <$> sepEndBy pattern whiteSpace
 
 orPat :: Parser EgisonPattern
-orPat = reservedOp "|" >> OrPat <$> sepEndBy pattern whiteSpace
+orPat = (reservedOp "|" <|> keywordOr) >> OrPat <$> sepEndBy pattern whiteSpace
 
 orderedOrPat :: Parser EgisonPattern
 orderedOrPat = reservedOp "|*" >> OrderedOrPat' <$> sepEndBy pattern whiteSpace
@@ -869,6 +873,9 @@ keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
+keywordNot                  = reserved "not"
+keywordAnd                  = reserved "and"
+keywordOr                   = reserved "or"
 keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
