@@ -33,8 +33,9 @@
 (define $fibs {1 1 @(map2 + fibs (cdr fibs))})
 
 (define $prime?
-  (lambda [$n]
-    (eq? n (find-factor n))))
+  (match-lambda integer
+    {[?(lt? $ 2) #f]
+     [$n (eq? n (find-factor n))]}))
 
 (define $primes {2 @(filter prime? (drop 2 nats))})
 
