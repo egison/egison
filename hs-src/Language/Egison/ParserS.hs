@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 
 {- |
-Module      : Language.Egison.Parser
+Module      : Language.Egison.ParserS
 Copyright   : Satoshi Egi
 Licence     : MIT
 
