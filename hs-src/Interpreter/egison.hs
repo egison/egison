@@ -31,7 +31,7 @@ main = do args <- getArgs
             Options {optShowVersion = True} -> printVersionNumber
             Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optFieldInfo = fieldInfo, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag, optMathExpr = mathExprLang, optSExpr = isSExpr} -> do
               coreEnv <- if noIOFlag then initialEnvNoIO else initialEnv
-              mEnv <- evalEgisonTopExprs coreEnv $ (map Load loadLibs) ++ (map LoadFile loadFiles)
+              mEnv <- evalEgisonTopExprs coreEnv $ (map (Load isSExpr) loadLibs) ++ (map (LoadFile isSExpr) loadFiles)
               case mEnv of
                 Left err -> putStrLn $ show err
                 Right env -> do
@@ -64,13 +64,14 @@ main = do args <- getArgs
                                 (file:args) -> do
                                   case opts of
                                     Options {optTestOnly = True} -> do
+                                      putStrLn $ show isSExpr
                                       result <- if noIOFlag
                                                   then do input <- readFile file
                                                           runEgisonTopExprsNoIO isSExpr env input
-                                                  else evalEgisonTopExprsTestOnly env [LoadFile file]
+                                                  else evalEgisonTopExprsTestOnly env [LoadFile isSExpr file]
                                       either print (const $ return ()) result
                                     Options {optTestOnly = False} -> do
-                                      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
+                                      result <- evalEgisonTopExprs env [LoadFile isSExpr file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
                                       either print (const $ return ()) result
 
 data Options = Options {
@@ -248,13 +249,13 @@ repl noIOFlag isSExpr mathExprLang env prompt = do
   loop :: Env -> IO ()
   loop env = (do 
     home <- getHomeDirectory
-    input <- liftIO $ runInputT (settings home) $ getEgisonExpr prompt
+    input <- liftIO $ runInputT (settings home) $ getEgisonExpr isSExpr prompt
     case (noIOFlag, input) of
       (_, Nothing) -> return ()
-      (True, Just (_, (LoadFile _))) -> do
+      (True, Just (_, (LoadFile _ _))) -> do
         putStrLn "error: No IO support"
         loop env
-      (True, Just (_, (Load _))) -> do
+      (True, Just (_, (Load _ _))) -> do
         putStrLn "error: No IO support"
         loop env
       (_, Just (topExpr, _)) -> do

@@ -73,7 +73,8 @@ import qualified Data.Vector               as V
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
-import           Language.Egison.ParserS
+import           Language.Egison.ParserS as ParserS
+import           Language.Egison.Parser as Parser
 import           Language.Egison.Types
 
 --
@@ -91,11 +92,11 @@ evalTopExprs env exprs = do
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load file -> do
-        exprs' <- loadLibraryFile file
+      Load b file -> do
+        exprs' <- if b then ParserS.loadLibraryFile file else Parser.loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
-      LoadFile file -> do
-        exprs' <- loadFile file
+      LoadFile b file -> do
+        exprs' <- if b then ParserS.loadFile file else Parser.loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
       Execute _ -> collectDefs exprs bindings (expr : rest)
       _ -> collectDefs exprs bindings rest
@@ -112,11 +113,11 @@ evalTopExprsTestOnly env exprs = do
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load file -> do
-        exprs' <- loadLibraryFile file
+      Load b file -> do
+        exprs' <- if b then ParserS.loadLibraryFile file else Parser.loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
-      LoadFile file -> do
-        exprs' <- loadFile file
+      LoadFile b file -> do
+        exprs' <- if b then ParserS.loadFile file else Parser.loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
       Test _ -> collectDefs exprs bindings (expr : rest)
       Redefine _ _ -> collectDefs exprs bindings (expr : rest)
@@ -134,8 +135,8 @@ evalTopExprsNoIO env exprs = do
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load _           -> throwError $ Default "No IO support"
-      LoadFile _       -> throwError $ Default "No IO support"
+      Load _ _           -> throwError $ Default "No IO support"
+      LoadFile _ _       -> throwError $ Default "No IO support"
       _                -> collectDefs exprs bindings (expr : rest)
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
@@ -158,8 +159,8 @@ evalTopExpr' env (Execute expr) = do
   case io of
     Value (IOFunc m) -> m >> return (Nothing, env)
     _                -> throwError $ TypeMismatch "io" io
-evalTopExpr' env (Load file) = loadLibraryFile file >>= evalTopExprs env >>= return . ((,) Nothing)
-evalTopExpr' env (LoadFile file) = loadFile file >>= evalTopExprs env >>= return . ((,) Nothing)
+evalTopExpr' env (Load b file) = (if b then ParserS.loadLibraryFile file else Parser.loadLibraryFile file) >>= evalTopExprs env >>= return . ((,) Nothing)
+evalTopExpr' env (LoadFile b file) = (if b then ParserS.loadFile file else Parser.loadFile file) >>= evalTopExprs env >>= return . ((,) Nothing)
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c

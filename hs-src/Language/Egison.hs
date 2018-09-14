@@ -84,18 +84,18 @@ runEgisonTopExprsNoIO True env input = fromEgisonM $ ParserS.readTopExprs input 
 runEgisonTopExprsNoIO False env input = fromEgisonM $ Parser.readTopExprs input >>= evalTopExprsNoIO env
 
 -- |load an Egison file
-loadEgisonFile :: Env -> FilePath -> IO (Either EgisonError Env)
-loadEgisonFile env path = evalEgisonTopExpr env (LoadFile path)
+loadEgisonFile :: Bool -> Env -> FilePath -> IO (Either EgisonError Env)
+loadEgisonFile isSExpr env path = evalEgisonTopExpr env (LoadFile isSExpr path)
 
 -- |load an Egison library
-loadEgisonLibrary :: Env -> FilePath -> IO (Either EgisonError Env)
-loadEgisonLibrary env path = evalEgisonTopExpr env (Load path)
+loadEgisonLibrary :: Bool -> Env -> FilePath -> IO (Either EgisonError Env)
+loadEgisonLibrary isSExpr env path = evalEgisonTopExpr env (Load isSExpr path)
 
 -- |Environment that contains core libraries
 initialEnv :: IO Env
 initialEnv = do
   env <- primitiveEnv
-  ret <- evalEgisonTopExprs env $ map Load coreLibraries
+  ret <- evalEgisonTopExprs env $ map (Load True) coreLibraries
   case ret of
     Left err -> do
       print . show $ err
@@ -106,7 +106,7 @@ initialEnv = do
 initialEnvNoIO :: IO Env
 initialEnvNoIO = do
   env <- primitiveEnvNoIO 
-  ret <- evalEgisonTopExprs env $ map Load coreLibraries
+  ret <- evalEgisonTopExprs env $ map (Load True) coreLibraries
   case ret of
     Left err -> do
       print . show $ err

@@ -207,8 +207,8 @@ data EgisonTopExpr =
   | Test EgisonExpr
   | Execute EgisonExpr
     -- temporary : we will replace load to import and export
-  | LoadFile String
-  | Load String
+  | LoadFile Bool String
+  | Load Bool String
  deriving (Show, Eq)
 
 data EgisonExpr =

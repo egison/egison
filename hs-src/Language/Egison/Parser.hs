@@ -105,8 +105,8 @@ loadFile file = do
   exprs <- readTopExprs $ shebang input
   concat <$> mapM  recursiveLoad exprs
  where
-  recursiveLoad (Load file) = loadLibraryFile file
-  recursiveLoad (LoadFile file) = loadFile file
+  recursiveLoad (Load _ file) = loadLibraryFile file
+  recursiveLoad (LoadFile _ file) = loadFile file
   recursiveLoad expr = return [expr]
   shebang :: String -> String
   shebang ('#':'!':cs) = ';':'#':'!':cs
@@ -171,10 +171,10 @@ executeExpr :: Parser EgisonTopExpr
 executeExpr = keywordExecute >> Execute <$> expr
 
 loadFileExpr :: Parser EgisonTopExpr
-loadFileExpr = keywordLoadFile >> LoadFile <$> stringLiteral
+loadFileExpr = keywordLoadFile >> LoadFile False <$> stringLiteral
 
 loadExpr :: Parser EgisonTopExpr
-loadExpr = keywordLoad >> Load <$> stringLiteral
+loadExpr = keywordLoad >> Load False <$> stringLiteral
 
 exprs :: Parser [EgisonExpr]
 exprs = endBy expr whiteSpace
@@ -211,6 +211,7 @@ expr' = (try partialExpr
              <|> try constantExpr
              <|> try partialVarExpr
              <|> try freshVarExpr
+             <|> try applyExpr
              <|> try varExpr
              <|> inductiveDataExpr
              <|> try arrayExpr
@@ -221,7 +222,6 @@ expr' = (try partialExpr
 --             <|> quoteExpr
              <|> quoteSymbolExpr
              <|> wedgeExpr
-             <|> try applyExpr
              <|> parens (ifExpr
                          <|> lambdaExpr
                          <|> memoizedLambdaExpr
@@ -490,12 +490,14 @@ cApplyExpr = (keywordCApply >> CApplyExpr <$> expr <*> expr)
 
 applyExpr :: Parser EgisonExpr
 applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr) 
-             <|> applyExpr'
+            <|> applyExpr'
 
 applyExpr' :: Parser EgisonExpr
 applyExpr' = do
-  func <- expr
+  func <- varExpr
+  char '('
   args <- args
+  char ')'
   let vars = lefts args
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
@@ -516,7 +518,7 @@ applyExpr' = do
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
-  args = parens $ sepEndBy arg whiteSpace
+  args = sepEndBy arg $ comma
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
@@ -860,6 +862,8 @@ reservedOperators =
   , "&"
   , "|*"
   , "="
+  , "("
+  , ")"
 --  , "'"
 --  , "~"
 --  , "!"
