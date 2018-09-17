@@ -1,0 +1,18 @@
+(define $combs
+  (lambda [$xs]
+    (match-all xs (multiset something)
+      [<cons $x_1
+             (loop $i [2 $n]
+               <cons $x_i ...>
+               _)>
+       (map 1#x_%1 (between 1 n))])))
+
+(define $p?
+  (lambda [$xs]
+    (match xs (list integer)
+      {[,{1} #f]
+       [_ (prime? (read (S.concat (map show xs))))]})))
+
+(define $main
+  (lambda [$args]
+    (each (compose show print) (filter p? (combs (map read args))))))
