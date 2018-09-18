@@ -61,10 +61,9 @@ main = do args <- getArgs
                             Nothing ->
                               case nonOpts of
                                 [] -> when bannerFlag showBanner >> repl noIOFlag isSExpr mathExprLang env prompt >> when bannerFlag showByebyeMessage >> exitWith ExitSuccess
-                                (file:args) -> do
+                                (file:args) ->
                                   case opts of
                                     Options {optTestOnly = True} -> do
-                                      putStrLn $ show isSExpr
                                       result <- if noIOFlag
                                                   then do input <- readFile file
                                                           runEgisonTopExprsNoIO isSExpr env input
