@@ -1,6 +1,6 @@
 {
 {-# OPTIONS -w  #-}
-module Language.Egison.Lexer
+module Language.Egison.Parser.Lexer
   ( Token(..)
   , AlexPosn(..)
   , TokenClass(..)
