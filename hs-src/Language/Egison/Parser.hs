@@ -139,15 +139,9 @@ topExpr = try defineExpr
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = do
-  name <- identVar
-  reservedOp "="
-  e <- expr
-  return $ Define name e
--- defineExpr = Define <$> identVar <* char '=' <*> expr
+defineExpr = try (Define <$> identVar <* reservedOp "=" <*> expr)
 -- defineExpr :: Parser EgisonTopExpr
--- defineExpr = try (parens (keywordDefine >> Define <$> (char '$' >> identVar) <*> expr))
---          <|> try (parens (do keywordDefine
+-- defineExpr = try (parens (do keywordDefine
 --                              (VarWithIndices name is) <- (char '$' >> identVarWithIndices)
 --                              body <- expr
 --                              return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
@@ -182,10 +176,8 @@ exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
 expr = P.lexeme lexer (do expr0 <- statement' <|> expr' <|> quoteExpr'
-                          expr1 <- option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
-                                                  <|> IndexedExpr True expr0 <$> parseindex
-                          -- option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex) <|> (IndexedExpr True expr0 <$> parseindex)
-                          return expr1
+                          option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
+                                         <|> IndexedExpr True expr0 <$> parseindex)
                             where parseindex :: Parser [Index EgisonExpr]
                                   parseindex = many1 (try (do
                                                            char '_' 
@@ -217,14 +209,14 @@ expr' = (try (buildExpressionParser table term)
            <|> parens expr')
            <?> "expression"
  where
-  table   = [ [prefix "-", prefix "+" ]
+  table   = [ [prefix "-", prefix "+"]
             -- , [postfix "++" (+1)]
-            , [binary "^" AssocLeft ]
-            , [binary "*" AssocLeft, binary "/" AssocLeft ]
-            , [binary "+" AssocLeft, binary "-" AssocLeft ]
-            , [binary ":" AssocLeft ]
+            , [binary "^" AssocLeft]
+            , [binary "*" AssocLeft, binary "/" AssocLeft]
+            , [binary "+" AssocLeft, binary "-" AssocLeft]
+            , [binary ":" AssocLeft]
             ]
-  binary "^" assoc = Infix (do{ reservedOp "^"; return $ \x -> PowerExpr x y } <?> "operator") assoc
+  binary "^" assoc = Infix (do{ reservedOp "^"; return $ \x y -> PowerExpr x y } <?> "operator") assoc
   binary ":" assoc = Infix (do{ reservedOp ":"; return $ \x y -> ApplyExpr (VarExpr $ stringToVar "cons") (TupleExpr [x, y]) } <?> "operator") assoc
   binary  op assoc = Infix (do{ reservedOp op; return $ \x y -> ApplyExpr (VarExpr $ stringToVar op) (TupleExpr [x, y]) } <?> "operator") assoc
   prefix  op = Prefix (do{ reservedOp op; return $ ApplyExpr (VarExpr $ stringToVar op) })
@@ -244,6 +236,7 @@ term = (try partialExpr
           <|> try hashExpr
           <|> collectionExpr
           <|> lambdaExpr
+          -- <|> matchAllExpr
           <|> parens term
 -- --             <|> quoteExpr
 --              <|> quoteSymbolExpr
@@ -260,7 +253,6 @@ term = (try partialExpr
 --                          <|> withSymbolsExpr
 --                          <|> doExpr
 --                          <|> ioExpr
---                          <|> matchAllExpr
 --                          <|> matchExpr
 --                          <|> matchAllLambdaExpr
 --                          <|> matchLambdaExpr
@@ -350,7 +342,7 @@ quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
-matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> matchClause
+matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> (string "as" *> expr) <*> (string "with" >> matchClause) <* string "end"
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
@@ -431,7 +423,7 @@ ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <*> expr <*> expr
 
 lambdaExpr :: Parser EgisonExpr
-lambdaExpr = (LambdaExpr <$> argNames <*> (spaces >> string "->" >> spaces >> expr))
+lambdaExpr = (LambdaExpr <$> argNames <* reservedOp "->" <*> expr)
 
 memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
@@ -894,6 +886,7 @@ reservedOperators =
   , "/"
   , ":"
   , "^"
+  , "->"
 --  , "'"
 --  , "~"
 --  , "!"
@@ -909,6 +902,7 @@ reservedOp = P.reservedOp lexer
 
 keywordDefine               = reserved "define"
 keywordRedefine             = reserved "redefine"
+keywordDefineFunction       = reserved "fn"
 keywordSet                  = reserved "set!"
 keywordTest                 = reserved "test"
 keywordExecute              = reserved "execute"
@@ -936,7 +930,7 @@ keywordLetStar              = reserved "let*"
 keywordWithSymbols          = reserved "with-symbols"
 keywordLoop                 = reserved "loop"
 keywordCont                 = reserved "..."
-keywordMatchAll             = reserved "match-all"
+keywordMatchAll             = reserved "matchAll"
 keywordMatchAllLambda       = reserved "match-all-lambda"
 keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "match-lambda"
