@@ -184,7 +184,8 @@ expr :: Parser EgisonExpr
 expr = P.lexeme lexer (do expr0 <- statement' <|> expr' <|> quoteExpr'
                           expr1 <- option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
                                                   <|> IndexedExpr True expr0 <$> parseindex
-                          option expr1 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
+                          -- option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex) <|> (IndexedExpr True expr0 <$> parseindex)
+                          return expr1
                             where parseindex :: Parser [Index EgisonExpr]
                                   parseindex = many1 (try (do
                                                            char '_' 
@@ -218,10 +219,12 @@ expr' = (try (buildExpressionParser table term)
  where
   table   = [ [prefix "-", prefix "+" ]
             -- , [postfix "++" (+1)]
+            , [binary "^" AssocLeft ]
             , [binary "*" AssocLeft, binary "/" AssocLeft ]
             , [binary "+" AssocLeft, binary "-" AssocLeft ]
             , [binary ":" AssocLeft ]
             ]
+  binary "^" assoc = Infix (do{ reservedOp "^"; return $ \x -> PowerExpr x y } <?> "operator") assoc
   binary ":" assoc = Infix (do{ reservedOp ":"; return $ \x y -> ApplyExpr (VarExpr $ stringToVar "cons") (TupleExpr [x, y]) } <?> "operator") assoc
   binary  op assoc = Infix (do{ reservedOp op; return $ \x y -> ApplyExpr (VarExpr $ stringToVar op) (TupleExpr [x, y]) } <?> "operator") assoc
   prefix  op = Prefix (do{ reservedOp op; return $ ApplyExpr (VarExpr $ stringToVar op) })
@@ -890,6 +893,7 @@ reservedOperators =
   , "*"
   , "/"
   , ":"
+  , "^"
 --  , "'"
 --  , "~"
 --  , "!"
