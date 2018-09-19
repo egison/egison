@@ -127,7 +127,7 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 -- Indent
 --
 
-newtype Indent = Indent Int
+-- newtype Indent = Indent Int
 
 -- block :: Parser [String]
 -- block = do
@@ -156,7 +156,6 @@ topExpr :: Parser EgisonTopExpr
 topExpr = try defineExpr
       <|> try (Test <$> expr)
 -- topExpr = try (Test <$> expr)
---       <|> try defineExpr
       -- <|> try (parens (redefineExpr
       --              <|> testExpr
       --              <|> executeExpr
@@ -165,21 +164,9 @@ topExpr = try defineExpr
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = try (Define <$> identVar <* reservedOp "=" <*> expr)
-             -- <|> try (do keywordDefineFunction
-             --             f <- identVar
-             --             char '('
-             --             args <- args
-             --             char ')'
-             --             return Define f (LambdaExpr args)
-                     -- )
- -- where
- --  args = sepEndBy arg $ comma
- --  arg = try (Right <$> expr)
- --         <|> char '$' *> (Left <$> option "" index)
-  
--- defineExpr :: Parser EgisonTopExpr
--- defineExpr = try (parens (do keywordDefine
+defineExpr = try (Define <$> identVar <* (spaces *>  string "=" *> spaces) <*> expr)
+             <|> try (Define <$> identVar <*> (LambdaExpr <$> (parens $ sepEndBy (ScalarArg <$> ident) comma) <* (spaces *> string "=" *> spaces) <*> expr))
+--              try (parens (do keywordDefine
 --                              (VarWithIndices name is) <- (char '$' >> identVarWithIndices)
 --                              body <- expr
 --                              return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
@@ -248,18 +235,14 @@ expr' = (try (buildExpressionParser table term)
            <?> "expression"
  where
   table   = [ [prefix "-", prefix "+"]
-            -- , [postfix "++" (+1)]
-            , [binary "^" AssocLeft]
-            , [binary "*" AssocLeft, binary "/" AssocLeft]
-            , [binary "+" AssocLeft, binary "-" AssocLeft]
-            , [binary ":" AssocLeft, binary ".." AssocLeft]
+            , [binary "^" "**" AssocLeft]
+            , [binary "*" "*" AssocLeft, binary "/" "/" AssocLeft]
+            , [binary "+" "+" AssocLeft, binary' "-" "-" AssocLeft]
+            , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
             ]
-  binary "^" assoc = Infix ((string "^" >> (return $ \x y -> PowerExpr x y)) <?> "operator") assoc
-  binary ":" assoc = Infix ((string ":" >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar "cons") (TupleExpr [x, y]))) <?> "operator") assoc
-  binary ".." assoc = Infix ((string ".." >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [x, y]))) <?> "operator") assoc
-  binary op assoc = Infix ((string op >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar op) (TupleExpr [x, y]))) <?> "operator") assoc
+  binary op name assoc = Infix (try $ spaces >> string op >> spaces >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
+  binary' op name assoc = Infix (try $ skipMany1 space >> string op >> skipMany1 space >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
   prefix op = Prefix $ string op >> (return $ ApplyExpr $ VarExpr $ stringToVar op)
-  -- postfix name fun       = Postfix (do{ reservedOp name; return fun })
 
 term :: Parser EgisonExpr
 term = (try partialExpr
@@ -844,8 +827,8 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
 
-symbol0 = oneOf "^+-*/"
-symbol1 = oneOf ".=∂∇"
+symbol0 = oneOf "^+*/"
+symbol1 = oneOf "-.∂∇"
 symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity
@@ -915,7 +898,6 @@ reservedOperators =
   , "^"
   , "&"
   , "|*"
-  , "="
   , "("
   , ")"
   , "->"
