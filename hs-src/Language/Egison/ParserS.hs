@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections, FlexibleContexts #-}
 
 {- |
 Module      : Language.Egison.ParserS

@@ -15,6 +15,7 @@ import System.FilePath (takeDirectory, replaceDirectory, splitPath)
 import Language.Egison.Types
 import Language.Egison.Core
 import Language.Egison.Primitives
+import Language.Egison.ParserS
 import Language.Egison
 
 main = do
