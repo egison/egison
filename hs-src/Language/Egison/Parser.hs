@@ -34,11 +34,12 @@ import System.Directory (doesFileExist, getHomeDirectory)
 
 import qualified Data.Sequence as Sq
 import Data.Either
-import Data.Char (isLower, isUpper)
+import Data.Char (isLower, isUpper, toLower)
 import qualified Data.Set as Set
 import Data.Traversable (mapM)
 import Data.Ratio
-import Data.List.Split (splitOn)
+import Data.List (intercalate)
+import Data.List.Split (split, splitOn, startsWithOneOf)
 
 import Text.Parsec
 import Text.Parsec.String
@@ -234,31 +235,32 @@ expr' = (try (buildExpressionParser table term)
            <|> parens expr')
            <?> "expression"
  where
-  table   = [ [prefix "-", prefix "+"]
-            , [binary "^" "**" AssocLeft]
-            , [binary "*" "*" AssocLeft, binary "/" "/" AssocLeft]
-            , [binary "+" "+" AssocLeft, binary' "-" "-" AssocLeft]
+  table   = [ [binary "^" "**" AssocLeft]
+            , [binary "*" "*" AssocLeft, binary' "/" "/" AssocLeft]
+            , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft]
             , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
             ]
-  binary op name assoc = Infix (try $ spaces >> string op >> spaces >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
-  binary' op name assoc = Infix (try $ skipMany1 space >> string op >> skipMany1 space >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
-  prefix op = Prefix $ string op >> (return $ ApplyExpr $ VarExpr $ stringToVar op)
+  binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
+  binary' op name assoc = Infix (try $ inSpaces1 (string op) >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
 
 term :: Parser EgisonExpr
-term = (try partialExpr
-          <|> try constantExpr
+-- term = (try partialExpr
+term = (try constantExpr
 --              <|> try partialVarExpr
 --              <|> try freshVarExpr
+          <|> matchAllExpr
+          <|> try functionWithArgExpr
+          <|> userrefsExpr
           <|> try applyExpr
+          <|> lambdaExpr
           <|> try varExpr
---              <|> inductiveDataExpr
           <|> try arrayExpr
           <|> try vectorExpr
           <|> try tupleExpr
           <|> try hashExpr
           <|> collectionExpr
-          <|> lambdaExpr
-          -- <|> matchAllExpr
+          <|> matchAllExpr
+--              <|> inductiveDataExpr
           <|> parens term
 -- --             <|> quoteExpr
 --              <|> quoteSymbolExpr
@@ -301,8 +303,6 @@ term = (try partialExpr
 --                          <|> pmapExpr
 --                          <|> subrefsExpr
 --                          <|> suprefsExpr
---                          <|> userrefsExpr
---                          <|> functionWithArgExpr
 --                          )
              <?> "simple expression")
 
@@ -316,29 +316,29 @@ inductiveDataExpr :: Parser EgisonExpr
 inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr whiteSpace
 
 tupleExpr :: Parser EgisonExpr
-tupleExpr = brackets $ TupleExpr <$> sepEndBy expr whiteSpace
+tupleExpr = parens $ TupleExpr <$> sepEndBy expr comma
 
 collectionExpr :: Parser EgisonExpr
-collectionExpr = braces $ CollectionExpr <$> sepEndBy innerExpr whiteSpace
+collectionExpr = brackets $ CollectionExpr <$> sepEndBy innerExpr comma
  where
   innerExpr :: Parser InnerExpr
   innerExpr = (char '@' >> SubCollectionExpr <$> expr)
                <|> ElementExpr <$> expr
 
 arrayExpr :: Parser EgisonExpr
-arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr whiteSpace
+arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr comma
   where
     lp = P.lexeme lexer (string "(|")
     rp = string "|)"
 
 vectorExpr :: Parser EgisonExpr
-vectorExpr = between lp rp $ VectorExpr <$> sepEndBy expr whiteSpace
+vectorExpr = between lp rp $ VectorExpr <$> sepEndBy expr comma
   where
     lp = P.lexeme lexer (string "[|")
     rp = string "|]"
 
 hashExpr :: Parser EgisonExpr
-hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
+hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr comma
   where
     lp = P.lexeme lexer (string "{|")
     rp = string "|}"
@@ -352,10 +352,7 @@ wedgeExpr :: Parser EgisonExpr
 wedgeExpr = char '!' >> WedgeExpr <$> expr
 
 functionWithArgExpr :: Parser EgisonExpr
-functionWithArgExpr = keywordFunction >> FunctionExpr <$> (between lp rp $ sepEndBy expr whiteSpace)
-  where
-    lp = P.lexeme lexer (char '[')
-    rp = char ']'
+functionWithArgExpr = keywordFunction >> FunctionExpr <$> (parens $ sepEndBy expr comma)
 
 symbolicTensorExpr :: Parser EgisonExpr
 symbolicTensorExpr = keywordSymbolicTensor >> SymbolicTensorExpr <$> (brackets $ sepEndBy expr whiteSpace) <*> expr <*> ident
@@ -364,7 +361,13 @@ quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
-matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> (string "as" *> expr) <*> (string "with" >> matchClause) <* string "end"
+matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> (string "as" >> spaces *> expr) <*> (string "with" >> matchClause) <* string "end"
+
+inSpaces :: Parser a -> Parser ()
+inSpaces s = spaces >> s >> spaces
+
+inSpaces1 :: Parser a -> Parser ()
+inSpaces1 s = skipMany1 space >> s >> skipMany1 space
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
@@ -630,8 +633,16 @@ suprefsExpr = (keywordSuprefs >> SuprefsExpr False <$> expr <*> expr)
                <|> (keywordSuprefsNew >> SuprefsExpr True <$> expr <*> expr)
 
 userrefsExpr :: Parser EgisonExpr
-userrefsExpr = (keywordUserrefs >> UserrefsExpr False <$> expr <*> expr)
-                <|> (keywordUserrefsNew >> UserrefsExpr True <$> expr <*> expr)
+userrefsExpr = (do keywordUserrefs
+                   xs <- parens $ sepEndBy expr comma
+                   case xs of
+                     [x, y] -> return $ UserrefsExpr False x y
+                     _ -> unexpected "number of arguments (expected 2)")
+                <|> (do keywordUserrefsNew
+                        xs <- parens $ sepEndBy expr comma
+                        case xs of
+                          [x, y] -> return $ UserrefsExpr True x y
+                          _ -> unexpected "number of arguments (expected 2)")
 
 -- Patterns
 
@@ -827,8 +838,8 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
 
-symbol0 = oneOf "^+*/"
-symbol1 = oneOf "-.∂∇"
+symbol0 = oneOf "^+-"
+symbol1 = oneOf "*/.=∂∇"
 symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity
@@ -841,40 +852,40 @@ reservedKeywords =
   , "set!"
   , "test"
   , "execute"
-  , "load-file"
+  , "loadFile"
   , "load"
   , "if"
   , "seq"
   , "apply"
   , "capply"
   , "lambda"
-  , "memoized-lambda"
+  , "memoizedLambda"
   , "memoize"
   , "cambda"
   , "procedure"
   , "macro"
-  , "pattern-function"
+  , "patternFunction"
   , "letrec"
   , "let"
   , "let*"
-  , "with-symbols"
+  , "withSymbols"
   , "loop"
-  , "match-all"
+  , "matchAll"
   , "match"
-  , "match-all-lambda"
-  , "match-lambda"
+  , "matchAllLambda"
+  , "matchLambda"
   , "matcher"
   , "do"
   , "io"
-  , "algebraic-data-matcher"
-  , "generate-array"
-  , "array-bounds"
-  , "array-ref"
-  , "generate-tensor"
+  , "algebraicDataMatcher"
+  , "generateArray"
+  , "arrayBounds"
+  , "arrayRef"
+  , "generateTensor"
   , "tensor"
   , "contract"
-  , "tensor-map"
-  , "tensor-map2"
+  , "tensorMap"
+  , "tensorMap2"
   , "transpose"
   , "par"
   , "pseq"
@@ -883,10 +894,10 @@ reservedKeywords =
   , "subrefs!"
   , "suprefs"
   , "suprefs!"
-  , "user-refs"
-  , "user-refs!"
+  , "userRefs"
+  , "userRefs!"
   , "function"
-  , "symbolic-tensor"
+  , "symbolicTensor"
   , "something"
   , "undefined"]
   
@@ -920,7 +931,7 @@ keywordDefineFunction       = reserved "fn"
 keywordSet                  = reserved "set!"
 keywordTest                 = reserved "test"
 keywordExecute              = reserved "execute"
-keywordLoadFile             = reserved "load-file"
+keywordLoadFile             = reserved "loadFile"
 keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
@@ -932,40 +943,40 @@ keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
 keywordLambda               = reserved "lambda"
-keywordMemoizedLambda       = reserved "memoized-lambda"
+keywordMemoizedLambda       = reserved "memoizedLambda"
 keywordMemoize              = reserved "memoize"
 keywordCambda               = reserved "cambda"
 keywordProcedure            = reserved "procedure"
 keywordMacro                = reserved "macro"
-keywordPatternFunction      = reserved "pattern-function"
+keywordPatternFunction      = reserved "patternFunction"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
 keywordLetStar              = reserved "let*"
-keywordWithSymbols          = reserved "with-symbols"
+keywordWithSymbols          = reserved "withSymbols"
 keywordLoop                 = reserved "loop"
 keywordCont                 = reserved "..."
 keywordMatchAll             = reserved "matchAll"
-keywordMatchAllLambda       = reserved "match-all-lambda"
+keywordMatchAllLambda       = reserved "matchAllLambda"
 keywordMatch                = reserved "match"
-keywordMatchLambda          = reserved "match-lambda"
-keywordNextMatchAll         = reserved "next-match-all"
-keywordNextMatchAllLambda   = reserved "next-match-all-lambda"
-keywordNextMatch            = reserved "next-match"
-keywordNextMatchLambda      = reserved "next-match-lambda"
+keywordMatchLambda          = reserved "matchLambda"
+keywordNextMatchAll         = reserved "nextMatchAll"
+keywordNextMatchAllLambda   = reserved "nextMatchAllLambda"
+keywordNextMatch            = reserved "nextMatch"
+keywordNextMatchLambda      = reserved "nextMatchLambda"
 keywordMatcher              = reserved "matcher"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
-keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
-keywordGenerateArray        = reserved "generate-array"
-keywordArrayBounds          = reserved "array-bounds"
-keywordArrayRef             = reserved "array-ref"
-keywordGenerateTensor       = reserved "generate-tensor"
+keywordAlgebraicDataMatcher = reserved "algebraicDataMatcher"
+keywordGenerateArray        = reserved "generateArray"
+keywordArrayBounds          = reserved "arrayBounds"
+keywordArrayRef             = reserved "arrayRef"
+keywordGenerateTensor       = reserved "generateTensor"
 keywordTensor               = reserved "tensor"
 keywordTensorContract       = reserved "contract"
-keywordTensorMap            = reserved "tensor-map"
-keywordTensorMap2           = reserved "tensor-map2"
+keywordTensorMap            = reserved "tensorMap"
+keywordTensorMap2           = reserved "tensorMap2"
 keywordTranspose            = reserved "transpose"
 keywordPar                  = reserved "par"
 keywordPseq                 = reserved "pseq"
@@ -974,10 +985,10 @@ keywordSubrefs              = reserved "subrefs"
 keywordSubrefsNew           = reserved "subrefs!"
 keywordSuprefs              = reserved "suprefs"
 keywordSuprefsNew           = reserved "suprefs!"
-keywordUserrefs             = reserved "user-refs"
-keywordUserrefsNew          = reserved "user-refs!"
+keywordUserrefs             = reserved "userRefs"
+keywordUserrefsNew          = reserved "userRefs!"
 keywordFunction             = reserved "function"
-keywordSymbolicTensor       = reserved "symbolic-tensor"
+keywordSymbolicTensor       = reserved "symbolicTensor"
 keywordDFS                  = reserved "dfs"
 keywordBFS                  = reserved "bfs"
 
@@ -1035,7 +1046,9 @@ dot :: Parser String
 dot = P.dot lexer
 
 ident :: Parser String
-ident = P.identifier lexer
+ident = do
+  s <- P.identifier lexer
+  return $ map toLower $ intercalate "-" $ split (startsWithOneOf ['A'..'Z']) s
 
 identVar :: Parser Var
 identVar = P.lexeme lexer (do
