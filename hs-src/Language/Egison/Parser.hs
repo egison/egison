@@ -259,7 +259,6 @@ term = (try constantExpr
           <|> try tupleExpr
           <|> try hashExpr
           <|> collectionExpr
-          <|> matchAllExpr
 --              <|> inductiveDataExpr
           <|> parens term
 -- --             <|> quoteExpr
@@ -361,13 +360,13 @@ quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
-matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> (string "as" >> spaces *> expr) <*> (string "with" >> matchClause) <* string "end"
+matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <* inSpaces (string "as") <*> expr <* inSpaces (string "with") <*> matchClause <* inSpaces (string "end")
 
 inSpaces :: Parser a -> Parser ()
-inSpaces s = spaces >> s >> spaces
+inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
 
 inSpaces1 :: Parser a -> Parser ()
-inSpaces1 s = skipMany1 space >> s >> skipMany1 space
+inSpaces1 p = skipMany1 (space <|> newline) >> p >> skipMany1 (space <|> newline)
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
@@ -394,7 +393,7 @@ matchClauses :: Parser [MatchClause]
 matchClauses = braces $ sepEndBy matchClause whiteSpace
 
 matchClause :: Parser MatchClause
-matchClause = brackets $ (,) <$> pattern <*> expr
+matchClause = (,) <$> pattern <* (reservedOp "->") <*> expr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
@@ -651,7 +650,17 @@ pattern = P.lexeme lexer (do pattern <- pattern'
                              option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr'))
 
 pattern' :: Parser EgisonPattern
-pattern' = wildCard
+pattern' = (try (buildExpressionParser table pattern'')
+                 <|> try pattern''
+                 <|> parens pattern'')
+                 <?> "expression"
+ where
+  table   = [[binary ":" "cons" AssocLeft, binary "++" "join" AssocLeft]
+            ]
+  binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> InductivePat name [x, y])) assoc
+
+pattern'' :: Parser EgisonPattern
+pattern'' = wildCard
             <|> contPat
             <|> patVar
             <|> varPat
@@ -676,8 +685,8 @@ pattern' = wildCard
 --                    <|> powerPat
                     )
 
-pattern'' :: Parser EgisonPattern
-pattern'' = wildCard
+pattern''' :: Parser EgisonPattern
+pattern''' = wildCard
             <|> patVar
             <|> valuePat
 
@@ -727,7 +736,7 @@ pApplyPat :: Parser EgisonPattern
 pApplyPat = PApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
 
 dApplyPat :: Parser EgisonPattern
-dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace 
+dApplyPat = DApplyPat <$> pattern''' <*> sepEndBy pattern whiteSpace 
 
 loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> char '$' >> LoopPat <$> identVarWithoutIndex <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
