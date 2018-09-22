@@ -19,10 +19,10 @@ import Language.Egison.ParserS as ParserS
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
 getEgisonExpr :: Bool -> String -> InputT IO (Maybe (String, EgisonTopExpr))
-getEgisonExpr b prompt = getEgisonExpr' b prompt ""
+getEgisonExpr isSExpr prompt = getEgisonExpr' isSExpr prompt ""
 
 getEgisonExpr' :: Bool -> String -> String -> InputT IO (Maybe (String, EgisonTopExpr))
-getEgisonExpr' b prompt prev = do
+getEgisonExpr' isSExpr prompt prev = do
   mLine <- case prev of
              "" -> getInputLine prompt
              _ -> getInputLine $ take (length prompt) (repeat ' ')
@@ -30,24 +30,24 @@ getEgisonExpr' b prompt prev = do
     Nothing -> return Nothing
     Just [] -> do
       if null prev
-        then getEgisonExpr b prompt
-        else getEgisonExpr' b prompt prev
+        then getEgisonExpr isSExpr prompt
+        else getEgisonExpr' isSExpr prompt prev
     Just line -> do
       let input = prev ++ line
-      case (if b then ParserS.parseTopExpr else Parser.parseTopExpr) input of
+      case (if isSExpr then ParserS.parseTopExpr else Parser.parseTopExpr) input of
         Left err | show err =~ "unexpected end of input" -> do
-          getEgisonExpr' b prompt $ input ++ "\n"
+          getEgisonExpr' isSExpr prompt $ input ++ "\n"
         Left err -> do
           liftIO $ putStrLn $ show err
-          getEgisonExpr b prompt
+          getEgisonExpr isSExpr prompt
         Right topExpr -> return $ Just (input, topExpr)
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
 getEgisonExprOrNewLine :: Bool -> String -> InputT IO (Either (Maybe String) (String, EgisonTopExpr))
-getEgisonExprOrNewLine b prompt = getEgisonExprOrNewLine' b prompt ""
+getEgisonExprOrNewLine isSExpr prompt = getEgisonExprOrNewLine' isSExpr prompt ""
 
 getEgisonExprOrNewLine' :: Bool -> String -> String -> InputT IO (Either (Maybe String) (String, EgisonTopExpr))
-getEgisonExprOrNewLine' b prompt prev = do
+getEgisonExprOrNewLine' isSExpr prompt prev = do
   mLine <- case prev of
              "" -> getInputLine prompt
              _ -> getInputLine $ take (length prompt) (repeat ' ')
@@ -56,12 +56,12 @@ getEgisonExprOrNewLine' b prompt prev = do
     Just [] -> return $ Left $ Just ""
     Just line -> do
       let input = prev ++ line
-      case (if b then ParserS.parseTopExpr else Parser.parseTopExpr) input of
+      case (if isSExpr then ParserS.parseTopExpr else Parser.parseTopExpr) input of
         Left err | show err =~ "unexpected end of input" -> do
-          getEgisonExprOrNewLine' b prompt $ input ++ "\n"
+          getEgisonExprOrNewLine' isSExpr prompt $ input ++ "\n"
         Left err -> do
           liftIO $ putStrLn $ show err
-          getEgisonExprOrNewLine b prompt
+          getEgisonExprOrNewLine isSExpr prompt
         Right topExpr -> return $ Right (input, topExpr)
 
 -- |Complete Egison keywords
