@@ -270,6 +270,7 @@ repl noIOFlag isSExpr mathExprLang env prompt = do
               (Just "haskell") -> putStrLn (mathExprToHaskell output) >> loop env'
               (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop env'
               (Just "latex") -> putStrLn (mathExprToLatex output) >> loop env'
+              _ -> putStrLn "error: this output lang is not supported"
              )
     `catch`
     (\e -> case e of
