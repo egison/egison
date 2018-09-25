@@ -26,6 +26,7 @@ import Data.List (span)
 import Data.Set (Set)
 import Data.Char (toUpper)
 import Control.Monad.Except
+import Control.Monad.Fail
 import Control.Monad.Reader
 import Language.Egison.Types
 
@@ -33,6 +34,9 @@ type Subst = [(String, EgisonExpr)]
 
 newtype DesugarM a = DesugarM { unDesugarM :: ReaderT Subst (ExceptT EgisonError Fresh) a }
   deriving (Functor, Applicative, Monad, MonadError EgisonError, MonadFresh, MonadReader Subst)
+
+instance MonadFail DesugarM where
+    fail = throwError . EgisonBug
 
 runDesugarM :: DesugarM a -> Fresh (Either EgisonError a)
 runDesugarM = runExceptT . flip runReaderT [] . unDesugarM

@@ -166,6 +166,7 @@ import Data.Typeable
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Fail
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity
@@ -1683,6 +1684,9 @@ liftError = either throwError return
 newtype EgisonM a = EgisonM {
     unEgisonM :: ExceptT EgisonError (FreshT IO) a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
+
+instance MonadFail EgisonM where
+    fail = throwError . EgisonBug
 
 parallelMapM :: (a -> EgisonM b) -> [a] -> EgisonM [b]
 parallelMapM f [] = return []
