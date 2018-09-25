@@ -69,6 +69,8 @@ source-repository head
   
 Library
   Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, text, regex-tdfa, process, vector, parallel, split, hashable, lens
+  if !impl(ghc > 8.0)
+    Build-Depends: fail
   Hs-Source-Dirs:  hs-src
   Exposed-Modules:
                    Language.Egison
