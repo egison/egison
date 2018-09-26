@@ -632,7 +632,8 @@ userrefsExpr = (do keywordUserrefs
 -- Patterns
 
 pattern :: Parser EgisonPattern
-pattern = P.lexeme lexer pattern'
+pattern = P.lexeme lexer (do pattern <- pattern'
+                             option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr'))
 
 pattern' :: Parser EgisonPattern
 pattern' = (try (buildExpressionParser table pattern'')
@@ -640,12 +641,12 @@ pattern' = (try (buildExpressionParser table pattern'')
                  )
                  <?> "expression"
  where
-  table   = [ [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
-            , [binary "+" "plus" AssocLeft]
-            , [binary ":" "cons" AssocRight]
-            , [binary' "and" AndPat AssocLeft, binary' "or" OrPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft]
-            , [binary "++" "join" AssocRight]
-            ]
+  table = [ [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
+          , [binary "+" "plus" AssocLeft]
+          , [binary ":" "cons" AssocRight]
+          , [binary' "and" AndPat AssocLeft, binary' "or" OrPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft]
+          , [binary "++" "join" AssocRight]
+          ]
   binary "+" name assoc = Infix (try $ inSpaces (string "+") >> notFollowedBy (string "+") >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary' "or" epr assoc = Infix (try $ inSpaces (string "or") >> notFollowedBy (string "*") >> (return $ \x y -> epr [x, y])) assoc
@@ -655,22 +656,18 @@ pattern'' :: Parser EgisonPattern
 pattern'' = wildCard
             <|> contPat
             <|> patVar
-            <|> valuePat
+            <|> try notPat
+            <|> try dfsPat
+            <|> try bfsPat
+            <|> try valuePat
             <|> predPat
-            <|> notPat
             <|> tuplePat
             <|> inductivePat
-            <|> indexedPat
             <|> parens pattern'
-            -- <|> parens (notPat'
-            --         <|> orderedOrPat
-            --         <|> loopPat
+            -- <|> parens (loopPat
             --         <|> letPat
-            --         <|> bfsPat
-            --         <|> dfsPat
             --         <|> try dApplyPat
             --         <|> try pApplyPat
-            --         <|> try pattern''
 --                    <|> powerPat
                     -- )
 
@@ -695,19 +692,13 @@ letPat :: Parser EgisonPattern
 letPat = keywordLet >> LetPat <$> bindings <*> pattern
 
 notPat :: Parser EgisonPattern
-notPat = char '!' >> NotPat <$> pattern
-
-notPat' :: Parser EgisonPattern
-notPat' = keywordNot >> NotPat <$> pattern
+notPat = (string "!" <|> string "not") >> spaces >> NotPat <$> pattern
 
 tuplePat :: Parser EgisonPattern
 tuplePat = brackets $ TuplePat <$> sepEndBy pattern whiteSpace
 
 inductivePat :: Parser EgisonPattern
 inductivePat = angles $ InductivePat <$> lowerName <*> sepEndBy pattern whiteSpace
-
-indexedPat :: Parser EgisonPattern
-indexedPat = IndexedPat <$> pattern'' <*> many1 (try $ char '_' >> expr')
 
 contPat :: Parser EgisonPattern
 contPat = keywordCont >> pure ContPat
@@ -734,10 +725,10 @@ loopRange = brackets (try (do s <- expr
                          return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 dfsPat :: Parser EgisonPattern
-dfsPat = keywordDFS >> DFSPat' <$> pattern
+dfsPat = keywordDFS >> DFSPat' <$> parens pattern
 
 bfsPat :: Parser EgisonPattern
-bfsPat = keywordBFS >> BFSPat <$> pattern
+bfsPat = keywordBFS >> BFSPat <$> parens pattern
 
 -- Constants
 
@@ -913,9 +904,6 @@ keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
-keywordNot                  = reserved "not"
-keywordAnd                  = reserved "and"
-keywordOr                   = reserved "or"
 keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
