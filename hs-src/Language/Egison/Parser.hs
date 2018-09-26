@@ -176,7 +176,7 @@ exprs :: Parser [EgisonExpr]
 exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
-expr = P.lexeme lexer (do expr0 <- statement' <|> expr' <|> quoteExpr'
+expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
                           option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
                                          <|> IndexedExpr True expr0 <$> parseindex)
                             where parseindex :: Parser [Index EgisonExpr]
@@ -201,24 +201,12 @@ expr = P.lexeme lexer (do expr0 <- statement' <|> expr' <|> quoteExpr'
 quoteExpr' :: Parser EgisonExpr
 quoteExpr' = char '\'' >> QuoteExpr <$> expr'
 
-statement' :: Parser EgisonExpr
-statement' = (try ifExpr)
-
 expr' :: Parser EgisonExpr
 expr' = (try applyInfixExpr
-           <|> try (buildExpressionParser table term)
+           <|> try ifExpr
            <|> try term
            <|> parens expr')
            <?> "expression"
- where
-  table   = [ [binary "^" "**" AssocLeft]
-            , [binary "*" "*" AssocLeft, binaryDiv "/" "/" AssocLeft]
-            , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft, binary "%" "remainder" AssocLeft]
-            , [binary "==" "eq?" AssocLeft, binary "<=" "lte?" AssocLeft, binary "<" "lt?" AssocLeft, binary ">=" "gte?" AssocLeft, binary ">" "gt?" AssocLeft]
-            , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
-            ]
-  binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
-  binaryDiv op name assoc = Infix (try $ ((inSpaces1 $ string op) <|> (inSpaces (string op) >> notFollowedBy (string "d"))) >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
 
 inSpaces :: Parser a -> Parser ()
 inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
@@ -524,7 +512,8 @@ applyInfixExpr :: Parser EgisonExpr
 applyInfixExpr = do
   arg1 <- arg
   spaces
-  func <- char '`' *> varExpr <* char '`'
+  func <- (char '`' *> varExpr <* char '`') 
+          <|> (VarExpr . stringToVar . return <$> oneOf "+-*/:")
   spaces
   arg2 <- arg
   applyExpr'' func [arg1, arg2]
@@ -537,13 +526,16 @@ applyInfixExpr = do
 applyExpr'' :: EgisonExpr -> [Either [Char] EgisonExpr] -> Parser EgisonExpr
 applyExpr'' func args = do
   let vars = lefts args
+  let func' = case func of
+               VarExpr (Var [":"] []) -> VarExpr (Var ["cons"] [])
+               _ -> func
   case vars of
-    [] -> return . ApplyExpr func . TupleExpr $ rights args
+    [] -> return . ApplyExpr func' . TupleExpr $ rights args
     _ | all null vars ->
         let args' = rights args
             args'' = map f (zip args (annonVars 1 (length args)))
             args''' = map (VarExpr . stringToVar . (either id id)) args''
-        in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
+        in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func' $ TupleExpr args''')) $ TupleExpr args'
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
@@ -552,7 +544,7 @@ applyExpr'' func args = do
                let args' = rights args
                    args'' = map g (zip args (annonVars (n + 1) (length args)))
                    args''' = map (VarExpr . stringToVar . (either id id)) args''
-               in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
+               in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func' $ TupleExpr args''')) $ TupleExpr args'
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
