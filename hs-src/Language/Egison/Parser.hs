@@ -513,35 +513,12 @@ applyExpr' = do
   char '('
   args <- args
   char ')'
-  let vars = lefts args
-  case vars of
-    [] -> return . ApplyExpr func . TupleExpr $ rights args
-    _ | all null vars ->
-        let args' = rights args
-            args'' = map f (zip args (annonVars 1 (length args)))
-            args''' = map (VarExpr . stringToVar . (either id id)) args''
-        in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
-      | all (not . null) vars ->
-        let ns = Set.fromList $ map read vars
-            n = Set.size ns
-        in if Set.findMin ns == 1 && Set.findMax ns == n
-             then
-               let args' = rights args
-                   args'' = map g (zip args (annonVars (n + 1) (length args)))
-                   args''' = map (VarExpr . stringToVar . (either id id)) args''
-               in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
-             else fail "invalid partial application"
-      | otherwise -> fail "invalid partial application"
+  applyExpr'' func args
  where
   args = sepEndBy arg $ comma
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  annonVars m n = take n $ map ((':':) . show) [m..]
-  f ((Left _), var) = Left var
-  f ((Right _), var) = Right var
-  g ((Left arg), _) = Left (':':arg)
-  g ((Right _), var) = Right var
 
 applyInfixExpr :: Parser EgisonExpr
 applyInfixExpr = do
@@ -550,7 +527,15 @@ applyInfixExpr = do
   func <- char '`' *> varExpr <* char '`'
   spaces
   arg2 <- arg
-  let args = [arg1, arg2]
+  applyExpr'' func [arg1, arg2]
+ where
+  args = sepEndBy arg $ comma
+  arg = try (Right <$> term)
+         <|> char '$' *> (Left <$> option "" index)
+  index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
+
+applyExpr'' :: EgisonExpr -> [Either [Char] EgisonExpr] -> Parser EgisonExpr
+applyExpr'' func args = do
   let vars = lefts args
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
@@ -571,10 +556,6 @@ applyInfixExpr = do
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
-  args = sepEndBy arg $ comma
-  arg = try (Right <$> term)
-         <|> char '$' *> (Left <$> option "" index)
-  index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   annonVars m n = take n $ map ((':':) . show) [m..]
   f ((Left _), var) = Left var
   f ((Right _), var) = Right var
