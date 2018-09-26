@@ -205,11 +205,10 @@ expr' :: Parser EgisonExpr
 expr' = (try applyInfixExpr
            <|> try (buildExpressionParser table arg)
            <|> try ifExpr
-           <|> try term
-           <|> parens expr')
+           <|> try term)
            <?> "expression"
  where
-  arg = (char '$' *> (LambdaArgExpr <$> option "" index))
+  arg = (char '$' *> notFollowedBy varExpr *> (LambdaArgExpr <$> option "" index))
         <|> term
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   table   = [ [binary "^" "**" AssocLeft]
@@ -228,10 +227,10 @@ inSpaces1 :: Parser a -> Parser ()
 inSpaces1 p = skipMany1 (space <|> newline) >> p >> skipMany1 (space <|> newline)
 
 term :: Parser EgisonExpr
--- term = (try partialExpr
 term = (
-              try constantExpr
---              <|> try partialVarExpr
+              try partialExpr
+          <|> try partialVarExpr
+          <|> try constantExpr
 --              <|> try freshVarExpr
           <|> matchExpr
           <|> matchAllExpr
@@ -248,7 +247,7 @@ term = (
           <|> collectionExpr
           <|> inductiveDataExpr
           <|> doExpr
-          <|> parens term
+          <|> parens expr'
 -- --             <|> quoteExpr
 --              <|> quoteSymbolExpr
 --              <|> wedgeExpr
@@ -633,8 +632,7 @@ userrefsExpr = (do keywordUserrefs
 -- Patterns
 
 pattern :: Parser EgisonPattern
-pattern = P.lexeme lexer (do pattern <- pattern'
-                             option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr'))
+pattern = P.lexeme lexer pattern'
 
 pattern' :: Parser EgisonPattern
 pattern' = (try (buildExpressionParser table pattern'')
@@ -644,11 +642,14 @@ pattern' = (try (buildExpressionParser table pattern'')
  where
   table   = [ [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
             , [binary "+" "plus" AssocLeft]
-            , [binary ":" "cons" AssocRight, binary "++" "join" AssocRight]
-            , [binary "&" "and" AssocRight]
+            , [binary ":" "cons" AssocRight]
+            , [binary' "and" AndPat AssocLeft, binary' "or" OrPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft]
+            , [binary "++" "join" AssocRight]
             ]
   binary "+" name assoc = Infix (try $ inSpaces (string "+") >> notFollowedBy (string "+") >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> InductivePat name [x, y])) assoc
+  binary' "or" epr assoc = Infix (try $ inSpaces (string "or") >> notFollowedBy (string "*") >> (return $ \x y -> epr [x, y])) assoc
+  binary' op epr assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> epr [x, y])) assoc
 
 pattern'' :: Parser EgisonPattern
 pattern'' = wildCard
@@ -659,18 +660,19 @@ pattern'' = wildCard
             <|> notPat
             <|> tuplePat
             <|> inductivePat
-            <|> parens (notPat'
-                    <|> orderedOrPat
-                    <|> orPat
-                    <|> loopPat
-                    <|> letPat
-                    <|> bfsPat
-                    <|> dfsPat
-                    <|> try dApplyPat
-                    <|> try pApplyPat
-                    <|> try pattern''
+            <|> indexedPat
+            <|> parens pattern'
+            -- <|> parens (notPat'
+            --         <|> orderedOrPat
+            --         <|> loopPat
+            --         <|> letPat
+            --         <|> bfsPat
+            --         <|> dfsPat
+            --         <|> try dApplyPat
+            --         <|> try pApplyPat
+            --         <|> try pattern''
 --                    <|> powerPat
-                    )
+                    -- )
 
 pattern''' :: Parser EgisonPattern
 pattern''' = wildCard
@@ -704,14 +706,11 @@ tuplePat = brackets $ TuplePat <$> sepEndBy pattern whiteSpace
 inductivePat :: Parser EgisonPattern
 inductivePat = angles $ InductivePat <$> lowerName <*> sepEndBy pattern whiteSpace
 
+indexedPat :: Parser EgisonPattern
+indexedPat = IndexedPat <$> pattern'' <*> many1 (try $ char '_' >> expr')
+
 contPat :: Parser EgisonPattern
 contPat = keywordCont >> pure ContPat
-
-andPat :: Parser EgisonPattern
-andPat = (reservedOp "&" <|> keywordAnd) >> AndPat <$> sepEndBy pattern whiteSpace
-
-orPat :: Parser EgisonPattern
-orPat = (reservedOp "|" <|> keywordOr) >> OrPat <$> sepEndBy pattern whiteSpace
 
 orderedOrPat :: Parser EgisonPattern
 orderedOrPat = reservedOp "|*" >> OrderedOrPat' <$> sepEndBy pattern whiteSpace
@@ -806,17 +805,17 @@ egisonDef =
   P.LanguageDef { P.commentStart       = "#|"
                 , P.commentEnd         = "|#"
                 , P.commentLine        = ";"
-                , P.identStart         = letter <|> symbol1 <|> symbol0
+                , P.identStart         = letter <|> symbol1
                 , P.identLetter        = letter <|> digit <|> symbol2
                 , P.opStart            = symbol1
-                , P.opLetter           = symbol1
+                , P.opLetter           = symbol0 <|> symbol1
                 , P.reservedNames      = reservedKeywords
                 , P.reservedOpNames    = reservedOperators
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
 
-symbol0 = oneOf "^+-="
-symbol1 = oneOf "*/.∂∇"
+symbol0 = oneOf "^+-=*/"
+symbol1 = oneOf ".∂∇"
 symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity
