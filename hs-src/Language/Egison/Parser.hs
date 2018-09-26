@@ -140,8 +140,8 @@ topExpr = try defineExpr
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = try (Define <$> identVar <* (spaces *>  string "=" *> spaces) <*> expr)
-             <|> try (keywordDefineFunction >> spaces >> Define <$> identVar <*> (LambdaExpr <$> (parens $ sepEndBy (ScalarArg <$> ident) comma) <* (inSpaces $ string "=") <*> expr))
+defineExpr = try (Define <$> identVar <* (inSpaces $  string "=") <* notFollowedBy (string "=") <*> expr)
+             <|> try (keywordDefineFunction >> spaces >> Define <$> identVar <*> (LambdaExpr <$> (parens $ sepEndBy (ScalarArg <$> ident) comma) <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr))
              -- try (parens (do keywordDefine
              --                 (VarWithIndices name is) <- (char '$' >> identVarWithIndices)
              --                 body <- expr
@@ -212,13 +212,13 @@ expr' = (try applyInfixExpr
            <?> "expression"
  where
   table   = [ [binary "^" "**" AssocLeft]
-            , [binary "*" "*" AssocLeft, binary' "/" "/" AssocLeft]
+            , [binary "*" "*" AssocLeft, binaryDiv "/" "/" AssocLeft]
             , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft, binary "%" "remainder" AssocLeft]
             , [binary "==" "eq?" AssocLeft, binary "<=" "lte?" AssocLeft, binary "<" "lt?" AssocLeft, binary ">=" "gte?" AssocLeft, binary ">" "gt?" AssocLeft]
             , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
             ]
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
-  binary' op name assoc = Infix (try $ ((inSpaces1 $ string op) <|> (inSpaces (string op) >> notFollowedBy (string "d"))) >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
+  binaryDiv op name assoc = Infix (try $ ((inSpaces1 $ string op) <|> (inSpaces (string op) >> notFollowedBy (string "d"))) >> (return $ \x y -> ApplyExpr (VarExpr $ stringToVar name) (TupleExpr [x, y]))) assoc
 
 inSpaces :: Parser a -> Parser ()
 inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
