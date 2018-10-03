@@ -141,7 +141,14 @@ topExpr = try defineExpr
 
 defineExpr :: Parser EgisonTopExpr
 defineExpr = try (Define <$> identVar <* (inSpaces $  string "=") <* notFollowedBy (string "=") <*> expr)
-             <|> try (keywordDefineFunction >> spaces >> Define <$> identVar <*> (LambdaExpr <$> (parens $ sepEndBy (ScalarArg <$> ident) comma) <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr))
+             <|> try (keywordDefineFunction >> spaces >> Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr))
+ where
+  argNames' :: Parser [Arg]
+  argNames' = sepEndBy argName' comma
+  argName' :: Parser Arg
+  argName' = try (ident >>= return . ScalarArg)
+        <|> try (char '*' >> ident >>= return . InvertedScalarArg)
+        <|> try (char '%' >> ident >>= return . TensorArg)
              -- try (parens (do keywordDefine
              --                 (VarWithIndices name is) <- (char '$' >> identVarWithIndices)
              --                 body <- expr
@@ -238,15 +245,19 @@ term = (
           <|> try partialExpr
           <|> try partialVarExpr
           <|> try constantExpr
-          <|> lambdaExpr
+          <|> try lambdaExpr
           <|> try varExpr
-          <|> try arrayExpr
           <|> try vectorExpr
           <|> try tupleExpr
           <|> try hashExpr
           <|> collectionExpr
           <|> inductiveDataExpr
           <|> doExpr
+          <|> generateTensorExpr
+          <|> tensorExpr
+          <|> letExpr
+          <|> letRecExpr
+          <|> letStarExpr
           <|> parens expr'
 -- --             <|> quoteExpr
 --              <|> quoteSymbolExpr
@@ -258,8 +269,6 @@ term = (
 --                          <|> procedureExpr
 --                          <|> macroExpr
 --                          <|> patternFunctionExpr
---                          <|> letRecExpr
---                          <|> letStarExpr
 --                          <|> withSymbolsExpr
 --                          <|> ioExpr
 --                          <|> matchAllLambdaExpr
@@ -271,12 +280,7 @@ term = (
 --                          <|> seqExpr
 --                          <|> cApplyExpr
 --                          <|> algebraicDataMatcherExpr
---                          <|> generateArrayExpr
---                          <|> arrayBoundsExpr
---                          <|> arrayRefExpr
---                          <|> generateTensorExpr
 --                          <|> symbolicTensorExpr
---                          <|> tensorExpr
 --                          <|> tensorContractExpr
 --                          <|> tensorMapExpr
 --                          <|> tensorMap2Expr
@@ -308,12 +312,6 @@ collectionExpr = brackets $ CollectionExpr <$> sepEndBy innerExpr comma
   innerExpr = (char '@' >> SubCollectionExpr <$> expr)
                <|> ElementExpr <$> expr
 
-arrayExpr :: Parser EgisonExpr
-arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr comma
-  where
-    lp = P.lexeme lexer (string "(|")
-    rp = string "|)"
-
 vectorExpr :: Parser EgisonExpr
 vectorExpr = between lp rp $ VectorExpr <$> sepEndBy expr comma
   where
@@ -326,7 +324,7 @@ hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr comma
     lp = P.lexeme lexer (string "{|")
     rp = string "|}"
     pairExpr :: Parser (EgisonExpr, EgisonExpr)
-    pairExpr = brackets $ (,) <$> expr <*> expr
+    pairExpr = brackets $ (,) <$> expr <* comma <*> expr
 
 quoteExpr :: Parser EgisonExpr
 quoteExpr = char '\'' >> QuoteExpr <$> expr
@@ -446,10 +444,13 @@ patternFunctionExpr :: Parser EgisonExpr
 patternFunctionExpr = keywordPatternFunction >> PatternFunctionExpr <$> varNames <*> pattern
 
 letRecExpr :: Parser EgisonExpr
-letRecExpr =  keywordLetRec >> LetRecExpr <$> bindings <*> expr
+letRecExpr =  keywordLetRec >> LetRecExpr <$> bindings <* keywordLetIn <*> expr
+
+letExpr :: Parser EgisonExpr
+letExpr = keywordLet >> LetExpr <$> bindings <* keywordLetIn <*> expr
 
 letStarExpr :: Parser EgisonExpr
-letStarExpr = keywordLetStar >> LetStarExpr <$> bindings <*> expr
+letStarExpr = keywordLetStar >> LetStarExpr <$> bindings <* keywordLetIn <*> expr
 
 withSymbolsExpr :: Parser EgisonExpr
 withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> (braces $ sepEndBy ident whiteSpace) <*> expr
@@ -466,21 +467,21 @@ statement = try binding
         <|> (([],) <$> expr)
 
 bindings :: Parser [BindingExpr]
-bindings = braces $ sepEndBy binding whiteSpace
+bindings = sepEndBy binding comma
 
 binding :: Parser BindingExpr
-binding = brackets $ (,) <$> varNames' <*> expr
+binding = (,) <$> varNames' <* inSpaces (string "=") <*> expr
 
 varNames :: Parser [String]
-varNames = return <$> (char '$' >> ident)
-            <|> brackets (sepEndBy (char '$' >> ident) whiteSpace) 
+varNames = return <$> ident
+            <|> parens (sepEndBy ident comma)
 
 varNames' :: Parser [Var]
-varNames' = return <$> (char '$' >> identVar)
-            <|> brackets (sepEndBy (char '$' >> identVar) whiteSpace)
+varNames' = return <$> identVar
+            <|> parens (sepEndBy identVar comma)
 
 argNames :: Parser [Arg]
-argNames = sepEndBy argName whiteSpace
+argNames = sepEndBy argName comma
 
 argName :: Parser Arg
 argName = try (char '$' >> ident >>= return . ScalarArg)
@@ -554,7 +555,7 @@ applyExpr'' func xs = do
   g ((Right _), var) = Right var
 
 partialExpr :: Parser EgisonExpr
-partialExpr = PartialExpr <$> read <$> index <*> (char '#' >> expr)
+partialExpr = PartialExpr <$> read <$> index <*> (char '#' >> (parens expr <|> expr))
  where
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
 
@@ -568,25 +569,11 @@ algebraicDataMatcherExpr = keywordAlgebraicDataMatcher
     inductivePat' :: Parser (String, [EgisonExpr])
     inductivePat' = angles $ (,) <$> lowerName <*> sepEndBy expr whiteSpace
 
-generateArrayExpr :: Parser EgisonExpr
-generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> expr <*> arrayRange
-
-arrayRange :: Parser (EgisonExpr, EgisonExpr)
-arrayRange = brackets (do s <- expr
-                          e <- expr
-                          return (s, e))
-
-arrayBoundsExpr :: Parser EgisonExpr
-arrayBoundsExpr = keywordArrayBounds >> ArrayBoundsExpr <$> expr
-
-arrayRefExpr :: Parser EgisonExpr
-arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
-
 generateTensorExpr :: Parser EgisonExpr
-generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> expr
+generateTensorExpr = keywordGenerateTensor >> parens (GenerateTensorExpr <$> expr <* comma <*> expr)
 
 tensorExpr :: Parser EgisonExpr
-tensorExpr = keywordTensor >> TensorExpr <$> expr <*> expr <*> option (CollectionExpr []) expr <*> option (CollectionExpr []) expr
+tensorExpr = keywordTensor >> parens (TensorExpr <$> expr <* comma <*> expr <*> option (CollectionExpr []) (comma *> expr) <*> option (CollectionExpr []) (comma *> expr))
 
 tensorContractExpr :: Parser EgisonExpr
 tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr <*> expr
@@ -809,9 +796,9 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
 
-symbol0 = oneOf "^+-=*/"
+symbol0 = oneOf "/"
 symbol1 = oneOf ".∂∇"
-symbol2 = symbol1 <|> oneOf "'!?"
+symbol2 = symbol1 <|> oneOf "'!?*"
 
 lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
@@ -849,9 +836,6 @@ reservedKeywords =
   , "do"
   , "io"
   , "algebraicDataMatcher"
-  , "generateArray"
-  , "arrayBounds"
-  , "arrayRef"
   , "generateTensor"
   , "tensor"
   , "contract"
@@ -921,6 +905,7 @@ keywordPatternFunction      = reserved "patternFunction"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
 keywordLetStar              = reserved "let*"
+keywordLetIn                = reserved "in"
 keywordWithSymbols          = reserved "withSymbols"
 keywordLoop                 = reserved "loop"
 keywordCont                 = reserved "..."
@@ -938,9 +923,6 @@ keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraicDataMatcher"
-keywordGenerateArray        = reserved "generateArray"
-keywordArrayBounds          = reserved "arrayBounds"
-keywordArrayRef             = reserved "arrayRef"
 keywordGenerateTensor       = reserved "generateTensor"
 keywordTensor               = reserved "tensor"
 keywordTensorContract       = reserved "contract"
