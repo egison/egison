@@ -596,7 +596,6 @@ evalExpr env (CApplyExpr func arg) = do
     _ -> applyFunc env func (Value (makeTuple args))
 
 evalExpr env (ApplyExpr func arg) = do
-  liftIO $ putStrLn $ show func
   func <- evalExpr env func >>= appendDFscripts 0
   arg <- evalExpr env arg
   case func of
