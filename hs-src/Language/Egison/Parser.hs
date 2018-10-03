@@ -228,16 +228,16 @@ inSpaces1 p = skipMany1 (space <|> newline) >> p >> skipMany1 (space <|> newline
 
 term :: Parser EgisonExpr
 term = (
-              try partialExpr
-          <|> try partialVarExpr
-          <|> try constantExpr
 --              <|> try freshVarExpr
-          <|> matchExpr
+              matchExpr
           <|> matchAllExpr
           <|> matcherExpr
           <|> functionWithArgExpr
           <|> userrefsExpr
           <|> try applyExpr
+          <|> try partialExpr
+          <|> try partialVarExpr
+          <|> try constantExpr
           <|> lambdaExpr
           <|> try varExpr
           <|> try arrayExpr
@@ -502,7 +502,7 @@ applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr)
 
 applyExpr' :: Parser EgisonExpr
 applyExpr' = do
-  func <- varExpr <|> (parens expr)
+  func <- try varExpr <|> try partialExpr <|> (parens expr)
   char '('
   args <- args
   char ')'
@@ -659,13 +659,13 @@ pattern'' = wildCard
             <|> try notPat
             <|> try dfsPat
             <|> try bfsPat
+            <|> try loopPat
             <|> try valuePat
             <|> predPat
             <|> tuplePat
             <|> inductivePat
             <|> parens pattern'
-            -- <|> parens (loopPat
-            --         <|> letPat
+            -- <|> parens (letPat
             --         <|> try dApplyPat
             --         <|> try pApplyPat
 --                    <|> powerPat
@@ -713,15 +713,19 @@ dApplyPat :: Parser EgisonPattern
 dApplyPat = DApplyPat <$> pattern''' <*> sepEndBy pattern whiteSpace 
 
 loopPat :: Parser EgisonPattern
-loopPat = keywordLoop >> char '$' >> LoopPat <$> identVarWithoutIndex <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
+loopPat = keywordLoop >> parens (char '$' >> LoopPat <$> identVarWithoutIndex <*> (comma >> loopRange) <*> (comma >> pattern) <*> (comma >> option (NotPat WildCard) pattern))
 
 loopRange :: Parser LoopRange
 loopRange = brackets (try (do s <- expr
+                              comma
                               e <- expr
+                              comma
                               ep <- option WildCard pattern
                               return (LoopRange s e ep))
                  <|> (do s <- expr
+                         comma
                          ep <- option WildCard pattern
+                         comma
                          return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 dfsPat :: Parser EgisonPattern
