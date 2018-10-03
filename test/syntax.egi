@@ -250,7 +250,7 @@
     {[(& $a (let {[$n (length a)]} _)) [a n]]})
   [{1 2 3} 3])
 
-(assert-equal "tupple patterns"
+(assert-equal "tuple patterns"
   (match-all [1 [2 3]] [integer [integer integer]]
     [[$m [$n $w]] [m n w]])
   {[1 2 3]})
