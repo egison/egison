@@ -1,0 +1,423 @@
+;;;;;
+;;;;; Syntax Test
+;;;;;
+
+;;;
+;;; Primitive Data
+;;;
+
+assertEqual("char literal", c#a, c#a)
+
+assertEqual("string literal", "abc\n", "abc\n")
+
+assertEqual("bool literal", [#t, #f], [#t, #f])
+
+assertEqual("integer literal", [1, 0, -100, 1-100], [1, 0, -100, -99])
+
+assertEqual("rational number", [10/3, 10/20, -1/2], [10/3 ,1/2, -1/2])
+
+assertEqual("float literal",
+  [1.0, 0.0, -100.012001],
+  [1.0, 0.0, -100.012001])
+
+assertEqual("inductive data literal",
+  <A>,
+  <A>)
+
+assertEqual("tuple literal",
+  (1, 2, 3),
+  (1, 2, 3))
+
+assertEqual("singleton tuple literal",
+  (1),
+  1)
+
+assertEqual("collection literal",
+  [1, @[2, 3, @[@[4], 5]], 6],
+  [1, 2, 3, 4, 5, 6])
+
+;;;
+;;; Basic Sytax
+;;;
+assertEqual("if",
+  if #t #t else #f,
+  #t)
+
+assertEqual("if",
+  if #f #t else #f,
+  #f)
+
+assertEqual("let binding",
+  let t = (1, 2) in
+  let (x, y) = t in x + y,
+  3)
+
+assertEqual("let* binding",
+  let* x = 1, y = x+1 in y,
+  2)
+
+assertEqual("letrec binding",
+  letrec (x, y) = t, t = (1, 2) in x + y,
+  3)
+
+assertEqual("mutual recursion",
+  letrec even? = $n -> if eq?(n, 0) #t else odd?(n-1),
+         odd? = $n -> if eq?(n, 0) #f else even?(n-1)
+    in even?(10),
+  #t)
+
+assertEqual("lambda and application",
+  ($x -> x+1)(10),
+  11)
+
+assertEqual("placeholder",
+  ($+1)(10),
+  11)
+
+assertEqual("indexed placeholder",
+  ($1+$1)(10),
+  20)
+
+assertEqual("indexed placeholder2",
+  ($2-$1)(10,20),
+  10)
+
+;;;
+;;; Pattern-Matching
+;;;
+
+assertEqual("match",
+  match 1 as integer
+  | 0 -> 0
+  | $x -> 10+x,
+  11)
+
+assertEqual("match-all",
+  matchAll [1, 2, 3] as list(integer)
+  | $x:$xs -> [x, xs],
+  [[1, [2, 3]]])
+
+fn count(l) = match l as list(something)
+              | <nil> -> 0
+              | _:$xs -> count(xs)+1
+
+assertEqual("match-lambda",
+  count([1, 2, 3]),
+  3)
+
+
+assertEqual("match-all-lambda",
+  ($l -> matchAll l as list(something)
+         | _ ++ $x : _ -> x)([1, 2, 3]),
+  [1, 2, 3])
+
+assertEqual("pattern variable",
+  match 1 as something
+  | $x -> x,
+  1)
+
+assert("value pattern",
+  match 1 as integer
+  | 1 -> #t)
+
+assert("and pattern",
+  match [1, 2, 3] as list(integer)
+  | 1:_ and <snoc 3 _> -> #t)
+
+assert("and pattern",
+  match [1, 2, 3] as list(integer)
+  | 1:_ and 3:_ -> #f
+  | _ -> #t)
+
+; assert("and pattern",
+;   match #t as something
+;   | (&) -> #t)
+;
+assert("or pattern",
+  match [1, 2, 3] as list(integer)
+  | <snoc 1 _> or <snoc 3 _> -> #t)
+
+assert("or pattern",
+  match [1, 2, 3] as list(integer)
+  | (2:_) or 3:_ -> #f
+  | _ -> #t)
+
+; (assert "or pattern"
+;   (match #t something
+;     {[(|) #f]
+;      [_ #t]}))
+;
+assertEqual("ordered or pattern",
+  match [1, 2, 3, 4, 5] as list(integer) 
+  | ([2] or* [1, 2, 3] or* [1]) ++ $xs -> xs,
+  [4, 5])
+
+; (assert-equal "ordered or pattern"
+;   (match-all {2 1 3} (multiset integer)
+;     [<cons (& (|* !,x_1 ,x_1) $y_1)
+;            <cons (& (|* !,x_2 ,x_2) $y_2)
+;                  <cons (& (|* !,x_3 ,x_3) $y_3) <nil>>>> (map 1#y_%1 (between 1 3))])
+;   {{2 1 3} {2 3 1} {1 2 3} {1 3 2} {3 2 1} {3 1 2}})
+
+
+; matchAll [2, 1, 3] as multiset(integer)
+; | ((!x_1 or* x_1) and $y_1) : _ -> map(1#y_%1, 1..3)
+;
+; assertEqual("ordered or pattern",
+;   matchAll [2, 1, 3] as multiset(integer)
+;   | (!x_1 or* x_1) and $y_1 : (!x_2 or* x_2) and $y_2 : (!x_3 or* x_3) and $y_3 : <nil> -> map(1#y_%1, 1..3),
+;   [[2, 1, 3], [2, 3, 1], [1, 2, 3], [1, 3, 2], [3, 2, 1], [3, 1, 2]])
+
+assert("ordered or pattern",
+  match [1, 2, 3] as list(integer)
+  | 2:_ or* 3:_ -> #f
+  | _ -> #t)
+
+assert("not pattern",
+  match 1 as integer
+  | not 1 -> #f
+  | not 2 -> #t)
+
+assertEqual("not pattern",
+  matchAll [1, 2, 2, 3, 3, 3] as multiset(integer)
+  | $n:!n:_ -> n,
+  [1])
+
+assert("predicate pattern",
+  match [1, 2, 3] as list(integer)
+  | ?(1 == $):_ -> #t)
+
+assert("predicate pattern",
+  match [1, 2, 3] as list(integer)
+  | ?(2 == $):_ -> #f
+  | _ -> #t)
+
+; assertEqual("indexed pattern variable"
+;   (match 23 (mod 10) {[$a_1 a]})
+;   {| [1 23] |})
+;
+
+assertEqual("dfs pattern 1",
+  take(10, matchAll nats as set(integer)
+           | dfs($m:$n:$l:_) -> [m, n, l]),
+  [[1, 1, 1], [1, 1, 2], [1, 1, 3], [1, 1, 4], [1, 1, 5], [1, 1, 6], [1, 1, 7], [1, 1, 8], [1, 1, 9], [1, 1, 10]])
+
+assertEqual("dfs pattern 2",
+  take(10, matchAll nats as set(integer)
+           | $m:dfs($n:$l:_) -> [m, n, l]),
+  [[1, 1, 1], [2, 1, 1], [3, 1, 1], [4, 1, 1], [5, 1, 1], [6, 1, 1], [7, 1, 1], [8, 1, 1], [9, 1, 1], [10, 1, 1]])
+
+assertEqual("dfs pattern 3",
+  matchAll 1..3 as set(integer)
+  | $m:$n:dfs($l:_) -> [m, n, l],
+  [[1, 1, 1], [1, 2, 1], [2, 1, 1], [1, 3, 1], [2, 2, 1], [3, 1, 1], [2, 3, 1], [3, 2, 1], [3, 3, 1], [1, 1, 2], [1, 2, 2], [2, 1, 2], [1, 3, 2], [2, 2, 2], [3, 1, 2], [2, 3, 2], [3, 2, 2], [3, 3, 2], [1, 1, 3], [1, 2, 3], [2, 1, 3], [1, 3, 3], [2, 2, 3], [3, 1, 3], [2, 3, 3], [3, 2, 3], [3, 3, 3]])
+
+assertEqual("dfs and bfs pattern 1",
+  take(10, matchAll nats as set(integer)
+           | dfs($m:bfs($n:$l:_)) -> [m, n, l]),
+  [[1, 1, 1], [1, 1, 2], [1, 2, 1], [1, 1, 3], [1, 2, 2], [1, 3, 1], [1, 1, 4], [1, 2, 3], [1, 3, 2], [1, 4, 1]])
+
+assertEqual("dfs and bfs pattern 2",
+  take(10, matchAll nats as set(integer)
+           | dfs($m:$n:bfs($l:_)) -> [m, n, l]),
+  [[1, 1, 1], [1, 1, 2], [1, 1, 3], [1, 1, 4], [1, 1, 5], [1, 1, 6], [1, 1, 7], [1, 1, 8], [1, 1, 9], [1, 1, 10]])
+
+assert("loop pattern",
+  match [3, 2, 1] as list(integer)
+  | loop($i, [1, [3], _], <snoc i ...>, <nil>) -> #t)
+
+; assertEqual("double loop pattern",
+;   match [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as list(list(integer))
+;   | loop($i, [1, [3], _],
+;         loop($j, [1, [3], _],
+;                 $n_i_j:...,
+;                 <nil>):...,
+;         <nil>)
+;       -> n,
+;   [|[1, [|[1, 1], [2, 2], [3, 3]|]], [2, [|[1, 4], [2, 5], [3, 6]|]], [3, [|[1, 7], [2, 8], [3, 9]|]]|])
+
+assertEqual("let pattern",
+  match [1, 2, 3] as list(integer)
+  | let a = 42 in _ -> a,
+  42)
+
+assertEqual("let pattern",
+  match [1, 2, 3] as list(integer)
+  | $a:(let x = a in $xs) -> [x, xs],
+  [1, [2, 3]])
+
+assertEqual("let pattern",
+  match [1, 2, 3] as list(integer)
+  | $a and (let n = length(a) in _) -> [a, n],
+  [[1, 2, 3], 3])
+
+assertEqual("tuple patterns",
+  matchAll (1, (2, 3)) as (integer, (integer, integer))
+  | [$m, [$n, $w]] -> [m, n, w],
+  [[1, 2, 3]])
+
+; assertEqual("pattern function call",
+;   letrec twin = patternFunction((pat1, pat2), (pat1 and $x):<cons x pat2>) in
+;     match [1, 1, 1, 2, 3] as list(integer)
+;     | twin($n, $ns) -> [n, ns],
+;   [1, [1, 2, 3]])
+;
+; assertEqual("recursive pattern function call",
+;   letrec repeat = patternFunction((pat), <nil> or <cons (pat and $x) repeat(x)>) in
+;     match [1, 1, 1, 1] as list(integer)
+;     | repeat($n) -> n,
+;   1)
+
+; assertEqual("loop pattern in pattern function"
+;   (letrec [[$comb (lambda [$n]
+;                     (pattern-function [$p]
+;                       (loop $i [1, [n], _]
+;                         <join _ <cons p_i ...>>
+;                         _)))
+;            ]]
+;     (match-all [1, 2, 3, 4, 5], (list integer)
+;       [((comb 2) $n) n]))
+;   [[|[1, 1], [2, 2]|], [|[1, 1], [2, 3]|], [|[1, 2], [2, 3]|], [|[1, 1], [2, 4]|], [|[1, 2], [2, 4]|], [|[1, 3], [2, 4]|], [|[1, 1], [2, 5]|], [|[1, 2], [2, 5]|], [|[1, 3], [2, 5]|], [|[1, 4], [2, 5]|]])
+;
+; assertEqual("pairs of 2, natural numbers"
+;   (take 10, (match-all nats (set integer)
+;              [<cons $m <cons $n _>> [m n]]))
+;   [[1, 1], [1, 2], [2, 1], [1, 3], [2, 2], [3, 1], [1, 4], [2, 3], [3, 2], [4, 1]])
+;
+; assertEqual("pairs of 2, different natural numbers"
+;   (take 10, (match-all nats (list integer)
+;              [<join _ <cons $m <join _ <cons $n _>>>> [m n]]))
+;   [[1, 2], [1, 3], [2, 3], [1, 4], [2, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5]])
+;
+; (define $tree
+;   (lambda [$a]
+;     (algebraic-data-matcher
+;       [<leaf> <node (tree a) a (tree a)>])))
+;
+; (define $tree-insert
+;   (lambda [$n $t]
+;     (match t (tree integer)
+;       [[<leaf> <Node <Leaf> n <Leaf>>]
+;        [<node $t1, $m $t2>
+;         (match (compare n m) ordering
+;           [[<less> <Node (tree-insert n t1) m t2>]
+;            [<equal> <Node t1, n t2>]
+;            [<greater> <Node t1, m (tree-insert n t2)>]])]])))
+;
+; (define $tree-member?
+;   (lambda [$n $t]
+;     (match t (tree integer)
+;       [[<leaf> #f]
+;        [<node $t1, $m $t2>
+;         (match (compare n m) ordering
+;           [[<less> (tree-member? n t1)]
+;            [<equal> #t]
+;            [<greater> (tree-member? n t2)]])]])))
+;
+; assertEqual("tree set using algebraic-data-matcher"
+;   (let [[$t (foldr tree-insert <Leaf> [4, 1, 2, 4, 3])]]
+;     [(tree-member? 1, t) (tree-member? 0, t)])
+;   [#t #f])
+;
+; assertEqual("tuple pattern"
+;   (match-all [[1, 1], [2, 2]], (multiset [integer integer]) [<cons [$x ,x], _> x])
+;   [1, 2])
+;
+
+;;;
+;;; Tensor
+;;;
+assertEqual("generate-tensor - case 1",
+  generateTensor(kroneckerDelta, [3]),
+  [| 1, 1, 1 |])
+
+assertEqual("generate-tensor - case 2",
+  generateTensor(kroneckerDelta, [2, 2, 2, 2]),
+  tensor([2, 2, 2, 2], [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]))
+
+;;;
+;;; Hash
+;;;
+assertEqual("hash-literal",
+  {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |},
+  {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |})
+
+assertEqual("empty hash-literal",
+  {| |},
+  {| |})
+
+assertEqual("hash access",
+  {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |}_3,
+  13)
+
+; assertEqual("string hash access",
+;  {| ["1", 11], ["2", 12], ["3", 13], ["4", 14], ["5", 15], |}_"3",
+;  13)
+ 
+;;;
+;;; Partial Application
+;;;
+assertEqual("partial application '$'",
+  ($+$)(1, 2),
+  3)
+
+assertEqual("partial application '$' with index",
+  ($2-$1)(1, 2),
+  1)
+
+assertEqual("partial application '#'",
+  2#(10 * %1 + %2)(1, 2),
+  12)
+
+; assertEqual("recursive partial application '#'",
+;   take(10, 1#[%1, @(%0, %1 * 2)](2)),
+;   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024])
+;
+
+assertEqual("double inverted index",
+  let f = *$x, *$y -> x + y 
+    in f([|1, 2, 3|]_i, [|10, 20, 30|]_j),
+  [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]~i~j)
+
+fn f(x, *y) = x + y
+assertEqual("single inverted index",
+  let f = $x, *$y -> x + y
+    in f([|1, 2, 3|]_i, [|10, 20, 30|]_j),
+  [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]_i~j)
+
+; a = 1
+; assertEqual("1", a, 1)
+; assertEqual("3", take(10, filter(prime?, nats)), [2, 3, 5, 7, 11, 13, 17, 19, 23, 29])
+; assertEqual("4", if #f 1, else 2, 2)
+; assertEqual("5", 1, + 2, 3)
+; assertEqual("6", (1, - 2), -1)
+; assertEqual("7", 2, * 3, 6)
+; assertEqual("8", 4, / 2, 2)
+; assertEqual("9", 1:[2, 3, 4], [1, 2, 3, 4])
+; assertEqual("10", ($n -> n + 1)(2), 3)
+; assertEqual("11", take(10, 1:map($n -> n+1, nats)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+; assertEqual("12", 2^4, 16)
+; f = function(x, y)
+; assertEqual("13", d/d(f, x), userRefs(f, [x]))
+; ; twinPrimes =
+; ;   matchAll primes as list(integer) with
+; ;     _ ++ $p : (p + 2) : _ -> p
+; ;   end
+; ; assertEqual("14", take(10, twinPrimes), [3, 5, 11, 17, 29, 41, 59, 71, 101, 107])
+;
+; fn fact(n) = foldl(*, 1, 1..n)
+; assertEqual("15", fact(4), 24)
+; fn gcd(m,n) =
+;   if (m >= n)
+;     if (n == 0)
+;       m
+;     else 
+;       gcd(n,m % n)
+;   else
+;     gcd(n,m)
+; assertEqual("16", 12, `gcd` 30, 6)
+;
+; assertEqual("17", 
+; match 1..5, as multiset(integer) with
+;   | $x:(x+2):_ -> [x, x+2]
+; end, [1, 3])
