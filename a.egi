@@ -1,6 +1,0 @@
-; even?(n) = if n==0 #t else odd?(n-1)
-; odd?(n) = if n==0 #f else even?(n-1)
-; main = $args -> print(show(even?(5)))
-(assert "and pattern"
-  (match {1 2 3} (list integer)
-    {[(& <cons ,1 _> <snoc ,3 _>) #t]}))
