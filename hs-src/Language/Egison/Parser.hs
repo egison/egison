@@ -241,6 +241,7 @@ term = (
           <|> matcherExpr
           <|> functionWithArgExpr
           <|> userrefsExpr
+          <|> algebraicDataMatcherExpr
           <|> try applyExpr
           <|> try partialExpr
           <|> try partialVarExpr
@@ -263,8 +264,7 @@ term = (
 -- --             <|> quoteExpr
 --              <|> quoteSymbolExpr
 --              <|> wedgeExpr
---              <|> parens (ifExpr
---                          <|> memoizedLambdaExpr
+--              <|> parens (memoizedLambdaExpr
 --                          <|> memoizeExpr
 --                          <|> cambdaExpr
 --                          <|> procedureExpr
@@ -277,7 +277,6 @@ term = (
 --                          <|> nextMatchLambdaExpr
 --                          <|> seqExpr
 --                          <|> cApplyExpr
---                          <|> algebraicDataMatcherExpr
 --                          <|> symbolicTensorExpr
 --                          <|> tensorContractExpr
 --                          <|> tensorMapExpr
@@ -298,7 +297,7 @@ freshVarExpr :: Parser EgisonExpr
 freshVarExpr = char '#' >> return FreshVarExpr
 
 inductiveDataExpr :: Parser EgisonExpr
-inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr comma
+inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr whiteSpace
 
 tupleExpr :: Parser EgisonExpr
 tupleExpr = parens $ TupleExpr <$> sepEndBy expr comma
@@ -501,7 +500,7 @@ applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr)
 
 applyExpr' :: Parser EgisonExpr
 applyExpr' = do
-  func <- try varExpr <|> try partialExpr <|> (parens expr)
+  func <- try varExpr <|> try partialExpr <|> try partialVarExpr <|> (parens expr)
   char '('
   args <- args
   char ')'
@@ -562,7 +561,7 @@ partialVarExpr = char '%' >> PartialVarExpr <$> integerLiteral
 
 algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = keywordAlgebraicDataMatcher
-                                >> braces (AlgebraicDataMatcherExpr <$> sepEndBy1 inductivePat' whiteSpace)
+                                >> AlgebraicDataMatcherExpr <$> parens (sepEndBy1 inductivePat' comma)
   where
     inductivePat' :: Parser (String, [EgisonExpr])
     inductivePat' = angles $ (,) <$> lowerName <*> sepEndBy expr whiteSpace
@@ -617,46 +616,44 @@ userrefsExpr = (do keywordUserrefs
 -- Patterns
 
 pattern :: Parser EgisonPattern
-pattern = P.lexeme lexer (do pattern <- pattern'
-                             option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr'))
-
-pattern' :: Parser EgisonPattern
-pattern' = (try (buildExpressionParser table pattern'')
-                 <|> try pattern''
-                 )
-                 <?> "expression"
+pattern = P.lexeme lexer (try (buildExpressionParser table pattern')
+                          <|> try pattern')
+                          <?> "expression"
+                 
  where
-  table = [ [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
+  table = [ [unary "!" AssocRight, unary "not" AssocRight]
+          , [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
           , [binary "+" "plus" AssocLeft]
           , [binary ":" "cons" AssocRight]
           , [binary' "and" AndPat AssocLeft, binary' "or" OrPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft]
           , [binary "++" "join" AssocRight]
           ]
+  unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> NotPat x))
   binary "+" name assoc = Infix (try $ inSpaces (string "+") >> notFollowedBy (string "+") >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary' "or" epr assoc = Infix (try $ inSpaces (string "or") >> notFollowedBy (string "*") >> (return $ \x y -> epr [x, y])) assoc
   binary' op epr assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> epr [x, y])) assoc
 
+pattern' :: Parser EgisonPattern
+pattern' = do pattern <- (wildCard
+                          <|> contPat
+                          <|> patVar
+                          <|> try dfsPat
+                          <|> try bfsPat
+                          <|> try loopPat
+                          <|> try pApplyPat
+                          <|> try dApplyPat
+                          <|> try varPat
+                          <|> valuePat
+                          <|> predPat
+                          <|> tuplePat
+                          <|> inductivePat
+                          <|> letPat
+                          <|> parens pattern)
+              option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr')
+
 pattern'' :: Parser EgisonPattern
 pattern'' = wildCard
-            <|> contPat
-            <|> patVar
-            <|> try notPat
-            <|> try dfsPat
-            <|> try bfsPat
-            <|> try loopPat
-            <|> try pApplyPat
-            <|> try dApplyPat
-            <|> varPat
-            <|> valuePat
-            <|> predPat
-            <|> tuplePat
-            <|> inductivePat
-            <|> letPat
-            <|> parens pattern'
-
-pattern''' :: Parser EgisonPattern
-pattern''' = wildCard
             <|> patVar
             <|> valuePat
 
@@ -667,7 +664,7 @@ patVar :: Parser EgisonPattern
 patVar = char '$' >> PatVar <$> identVarWithoutIndex
 
 varPat :: Parser EgisonPattern
-varPat = VarPat <$> ident
+varPat = char '\'' >> VarPat <$> ident
 
 valuePat :: Parser EgisonPattern
 valuePat = ValuePat <$> expr
@@ -678,9 +675,6 @@ predPat = char '?' >> PredPat <$> expr
 letPat :: Parser EgisonPattern
 letPat = keywordLet >> LetPat <$> bindings <* keywordLetIn <*> pattern
 
-notPat :: Parser EgisonPattern
-notPat = (string "!" <|> string "not") >> spaces >> NotPat <$> pattern
-
 tuplePat :: Parser EgisonPattern
 tuplePat = brackets $ TuplePat <$> sepEndBy pattern comma
 
@@ -690,14 +684,11 @@ inductivePat = angles $ InductivePat <$> lowerName <*> sepEndBy pattern whiteSpa
 contPat :: Parser EgisonPattern
 contPat = keywordCont >> pure ContPat
 
-orderedOrPat :: Parser EgisonPattern
-orderedOrPat = reservedOp "|*" >> OrderedOrPat' <$> sepEndBy pattern whiteSpace
-
 pApplyPat :: Parser EgisonPattern
 pApplyPat = PApplyPat <$> expr <*> parens (sepEndBy pattern comma)
 
 dApplyPat :: Parser EgisonPattern
-dApplyPat = DApplyPat <$> pattern''' <*> parens (sepEndBy pattern comma)
+dApplyPat = DApplyPat <$> pattern'' <*> parens (sepEndBy pattern comma)
 
 loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> parens (char '$' >> LoopPat <$> identVarWithoutIndex <*> (comma >> loopRange) <*> (comma >> pattern) <*> (comma >> option (NotPat WildCard) pattern))
@@ -712,7 +703,6 @@ loopRange = brackets (try (do s <- expr
                  <|> (do s <- expr
                          comma
                          ep <- option WildCard pattern
-                         comma
                          return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 dfsPat :: Parser EgisonPattern
