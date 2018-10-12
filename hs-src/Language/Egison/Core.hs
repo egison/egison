@@ -1071,7 +1071,7 @@ processMStatesLine depth streams = do
   zip' l1 l2 = take (max (length l1) (length l2)) $ zip (l1 ++ repeat []) (l2 ++ repeat [])
   mergeNT :: [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
   mergeNT [] oldnt = oldnt
-  mergeNT nodes [] = [nodes] 
+  mergeNT nodes [] = [nodes]
   mergeNT nodes (x:oldnt) = (x ++ nodes):oldnt
 
 gatherBindings :: MatchingState -> Maybe [Binding]
