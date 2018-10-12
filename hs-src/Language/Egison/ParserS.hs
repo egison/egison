@@ -177,7 +177,7 @@ expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
                           option expr1 $ PowerExpr expr1 <$> (try $ char '^' >> expr'))
                             where parseindex :: Parser [Index EgisonExpr]
                                   parseindex = many1 (try (do
-                                                           char '_' 
+                                                           char '_'
                                                            e1 <- expr'
                                                            string "..._"
                                                            e2 <- expr'
@@ -367,7 +367,7 @@ ppPattern = P.lexeme lexer (ppWildCard
                         <|> ppValuePat
                         <|> ppInductivePat
                         <?> "primitive-pattren-pattern")
-                       
+
 ppWildCard :: Parser PrimitivePatPattern
 ppWildCard = reservedOp "_" *> pure PPWildCard
 
@@ -387,7 +387,7 @@ pdPattern' :: Parser PrimitiveDataPattern
 pdPattern' = reservedOp "_" *> pure PDWildCard
                     <|> (char '$' >> PDPatVar <$> ident)
                     <|> braces ((PDConsPat <$> pdPattern <*> (char '@' *> pdPattern))
-                            <|> (PDSnocPat <$> (char '@' *> pdPattern) <*> pdPattern) 
+                            <|> (PDSnocPat <$> (char '@' *> pdPattern) <*> pdPattern)
                             <|> pure PDEmptyPat)
                     <|> angles (PDInductivePat <$> upperName <*> sepEndBy pdPattern whiteSpace)
                     <|> brackets (PDTuplePat <$> sepEndBy pdPattern whiteSpace)
@@ -455,7 +455,7 @@ binding = brackets $ (,) <$> varNames' <*> expr
 
 varNames :: Parser [String]
 varNames = return <$> (char '$' >> ident)
-            <|> brackets (sepEndBy (char '$' >> ident) whiteSpace) 
+            <|> brackets (sepEndBy (char '$' >> ident) whiteSpace)
 
 varNames' :: Parser [Var]
 varNames' = return <$> (char '$' >> identVar)
@@ -463,7 +463,7 @@ varNames' = return <$> (char '$' >> identVar)
 
 argNames :: Parser [Arg]
 argNames = return <$> argName
-            <|> brackets (sepEndBy argName whiteSpace) 
+            <|> brackets (sepEndBy argName whiteSpace)
 
 argName :: Parser Arg
 argName = try (char '$' >> ident >>= return . ScalarArg)
@@ -477,10 +477,10 @@ seqExpr :: Parser EgisonExpr
 seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
 
 cApplyExpr :: Parser EgisonExpr
-cApplyExpr = (keywordCApply >> CApplyExpr <$> expr <*> expr) 
+cApplyExpr = (keywordCApply >> CApplyExpr <$> expr <*> expr)
 
 applyExpr :: Parser EgisonExpr
-applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr) 
+applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr)
              <|> applyExpr'
 
 applyExpr' :: Parser EgisonExpr
@@ -665,10 +665,10 @@ orderedOrPat :: Parser EgisonPattern
 orderedOrPat = reservedOp "|*" >> OrderedOrPat' <$> sepEndBy pattern whiteSpace
 
 pApplyPat :: Parser EgisonPattern
-pApplyPat = PApplyPat <$> expr <*> sepEndBy pattern whiteSpace 
+pApplyPat = PApplyPat <$> expr <*> sepEndBy pattern whiteSpace
 
 dApplyPat :: Parser EgisonPattern
-dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace 
+dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace
 
 loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> char '$' >> LoopPat <$> identVarWithoutIndex <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
@@ -766,7 +766,7 @@ floatLiteral' = sign <*> positiveFloatLiteral
 --
 
 egisonDef :: P.GenLanguageDef String () Identity
-egisonDef = 
+egisonDef =
   P.LanguageDef { P.commentStart       = "#|"
                 , P.commentEnd         = "|#"
                 , P.commentLine        = ";"
@@ -787,7 +787,7 @@ lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
 
 reservedKeywords :: [String]
-reservedKeywords = 
+reservedKeywords =
   [ "define"
   , "redefine"
   , "set!"
@@ -841,9 +841,9 @@ reservedKeywords =
   , "symbolic-tensor"
   , "something"
   , "undefined"]
-  
+
 reservedOperators :: [String]
-reservedOperators = 
+reservedOperators =
   [ "$"
   , ",$"
   , "_"
@@ -1016,7 +1016,7 @@ upperName = P.lexeme lexer $ upperName'
 upperName' :: Parser String
 upperName' = (:) <$> upper <*> option "" ident
  where
-  upper :: Parser Char 
+  upper :: Parser Char
   upper = satisfy isUpper
 
 lowerName :: Parser String
@@ -1025,5 +1025,5 @@ lowerName = P.lexeme lexer $ lowerName'
 lowerName' :: Parser String
 lowerName' = (:) <$> lower <*> option "" ident
  where
-  lower :: Parser Char 
+  lower :: Parser Char
   lower = satisfy isLower

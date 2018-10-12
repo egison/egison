@@ -1,0 +1,15 @@
+(assert-equal "q-f' - case 1"
+  (q-f' 1 2 1)
+  [-1 -1])
+
+(assert-equal "q-f' - case 2"
+  (q-f' 1 1 -1)
+  [(/ (+ -1 (sqrt 5)) 2) (/ (+ -1 (* -1 (sqrt 5))) 2)])
+
+(assert-equal "q-f' - case 3"
+  (q-f' 1 (* -1 (/ (+ -1 (sqrt 5)) 2)) 1)
+  [(/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4) (/ (+ -1 (sqrt 5) (* -1 (sqrt (+ -10 (* -2 (sqrt 5)))))) 4)])
+
+(assert-equal "fifth root of unity"
+  (** (/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4) 5)
+  1)

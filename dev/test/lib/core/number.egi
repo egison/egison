@@ -1,0 +1,143 @@
+;;
+;; Matcher
+;;
+(assert-equal "nat's o - case 1"
+  (match 0 nat
+    {[<o> #t]
+     [_ #f]})
+  #t)
+
+(assert-equal "nat's o - case 2"
+  (match 1 nat
+    {[<o> #t]
+     [_ #f]})
+  #f)
+
+(assert-equal "nat's s - case 1"
+  (match 10 nat
+    {[<s $n> n]})
+  9)
+
+(assert-equal "nat's s - case 2"
+  (match 0 nat
+    {[<s <o>> #t]
+     [_ #f]})
+  #f)
+
+;;
+;; Sequences
+;;
+(assert-equal "nats"
+  (take 10 nats)
+  {1 2 3 4 5 6 7 8 9 10})
+
+(assert-equal "nats0"
+  (take 10 nats0)
+  {0 1 2 3 4 5 6 7 8 9})
+
+(assert-equal "odds"
+  (take 10 odds)
+  {1 3 5 7 9 11 13 15 17 19})
+
+(assert-equal "evens"
+  (take 10 evens)
+  {2 4 6 8 10 12 14 16 18 20})
+
+(assert-equal "primes"
+  (take 10 primes)
+  {2 3 5 7 11 13 17 19 23 29})
+
+;;
+;; Natural numbers
+;;
+(assert-equal "divisor?"
+  (divisor? 10 5)
+  #t)
+
+(assert-equal "find-factor"
+  (find-factor 100)
+  2)
+
+(assert-equal "p-f"
+  (p-f 100)
+  {2 2 5 5})
+
+(assert-equal "odd? - case 1"
+  (odd? 3)
+  #t)
+
+(assert-equal "odd? - case 2"
+  (odd? 4)
+  #f)
+
+(assert-equal "even? - case 1"
+  (even? 4)
+  #t)
+
+(assert-equal "even? - case 2"
+  (even? 5)
+  #f)
+
+(assert-equal "prime? - case 1"
+  (prime? 17)
+  #t)
+
+(assert-equal "prime? - case 2"
+  (prime? 18)
+  #f)
+
+(assert-equal "perm"
+  (perm 5 2)
+  20)
+
+(assert-equal "comb"
+  (comb 5 2)
+  10)
+
+(assert-equal "n-adic - case 1"
+  (n-adic 10 123)
+  {1 2 3})
+
+(assert-equal "n-adic - case 2"
+  (n-adic 2 10)
+  {1 0 1 0})
+
+;;
+;; Dicimal fractions
+;;
+(assert-equal "rtod"
+  (2#[%1 (take 10 %2)] (rtod (/ 6 35)))
+  [0 {1 7 1 4 2 8 5 7 1 4}])
+
+(assert-equal "rtod'"
+  (rtod' (/ 6 35))
+  [0 {1} {7 1 4 2 8 5}])
+
+(assert-equal "show-decimal"
+  (show-decimal 10 (/ 6 35))
+  "0.1714285714")
+
+(assert-equal "show-decimal'"
+  (show-decimal' (/ 6 35))
+  "0.1 714285 ...")
+
+(assert-equal "regular-continued-fraction sqrt of 2"
+  (rtof (regular-continued-fraction 1 {2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2}))
+  1.4142135623730951)
+
+(assert-equal "regular-continued-fraction pi"
+  (rtof (regular-continued-fraction 3 {7 15 1 292 1 1 1 2 1 3 1 14 2 1 1 2 2 2 2 1 84 2 1 1 15 3 13}))
+  3.141592653589793)
+
+(assert-equal "continued-fraction pi"
+  (rtof (continued-fraction 3 {7 15 1 292 1 1 1 2 1 3 1 14 2 1 1 2 2 2 2 1 84 2 1 1 15 3 13}
+                              {1 1  1 1   1 1 1 1 1 1 1 1  1 1 1 1 1 1 1 1 1  1 1 1 1  1 1}))
+  3.141592653589793)
+
+(assert-equal "regular-continued-fraction-of-sqrt case 1"
+  (2#[%1 (take 10 %2)] (regular-continued-fraction-of-sqrt 2))
+  [1 {2 2 2 2 2 2 2 2 2 2}])
+  
+(assert-equal "regular-continued-fraction-of-sqrt case 2"
+  (rtof (regular-continued-fraction (2#[%1 (take 100 %2)] (regular-continued-fraction-of-sqrt 2))))
+  1.4142135623730951)
