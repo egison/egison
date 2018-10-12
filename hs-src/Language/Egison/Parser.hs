@@ -188,7 +188,7 @@ expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
                                          <|> IndexedExpr True expr0 <$> parseindex)
                             where parseindex :: Parser [Index EgisonExpr]
                                   parseindex = many1 (try (do
-                                                           char '_' 
+                                                           char '_'
                                                            e1 <- expr'
                                                            string "..._"
                                                            e2 <- expr'
@@ -383,7 +383,7 @@ ppPattern = P.lexeme lexer (ppWildCard
                         <|> ppValuePat
                         <|> ppInductivePat
                         <?> "primitive-pattren-pattern")
-                       
+
 ppWildCard :: Parser PrimitivePatPattern
 ppWildCard = reservedOp "_" *> pure PPWildCard
 
@@ -403,7 +403,7 @@ pdPattern' :: Parser PrimitiveDataPattern
 pdPattern' = reservedOp "_" *> pure PDWildCard
                     <|> (char '$' >> PDPatVar <$> ident)
                     <|> braces ((PDConsPat <$> pdPattern <*> (char '@' *> pdPattern))
-                            <|> (PDSnocPat <$> (char '@' *> pdPattern) <*> pdPattern) 
+                            <|> (PDSnocPat <$> (char '@' *> pdPattern) <*> pdPattern)
                             <|> pure PDEmptyPat)
                     <|> angles (PDInductivePat <$> upperName <*> sepEndBy pdPattern whiteSpace)
                     <|> brackets (PDTuplePat <$> sepEndBy pdPattern whiteSpace)
@@ -438,7 +438,7 @@ macroExpr :: Parser EgisonExpr
 macroExpr = keywordMacro >> MacroExpr <$> varNames <*> expr
 
 patternFunctionExpr :: Parser EgisonExpr
-patternFunctionExpr = keywordPatternFunction >> parens (PatternFunctionExpr <$> varNames <* comma <*> pattern)
+patternFunctionExpr = keywordPatternFunction >> parens (PatternFunctionExpr <$> (brackets (sepEndBy ident comma)) <* comma <*> pattern)
 
 letRecExpr :: Parser EgisonExpr
 letRecExpr =  keywordLetRec >> LetRecExpr <$> bindings <* keywordLetIn <*> expr
@@ -492,10 +492,10 @@ seqExpr :: Parser EgisonExpr
 seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
 
 cApplyExpr :: Parser EgisonExpr
-cApplyExpr = (keywordCApply >> CApplyExpr <$> expr <*> expr) 
+cApplyExpr = (keywordCApply >> CApplyExpr <$> expr <*> expr)
 
 applyExpr :: Parser EgisonExpr
-applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr) 
+applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr)
             <|> try applyExpr'
 
 applyExpr' :: Parser EgisonExpr
@@ -515,7 +515,7 @@ applyInfixExpr :: Parser EgisonExpr
 applyInfixExpr = do
   arg1 <- arg
   spaces
-  func <- (char '`' *> varExpr <* char '`') 
+  func <- (char '`' *> varExpr <* char '`')
   spaces
   arg2 <- arg
   return $ applyExpr'' func [arg1, arg2]
@@ -619,7 +619,7 @@ pattern :: Parser EgisonPattern
 pattern = P.lexeme lexer (try (buildExpressionParser table pattern')
                           <|> try pattern')
                           <?> "expression"
-                 
+
  where
   table = [ [unary "!" AssocRight, unary "not" AssocRight]
           , [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
@@ -646,7 +646,7 @@ pattern' = do pattern <- (wildCard
                           <|> try varPat
                           <|> valuePat
                           <|> predPat
-                          <|> tuplePat
+                          <|> try tuplePat
                           <|> inductivePat
                           <|> letPat
                           <|> parens pattern)
@@ -676,7 +676,7 @@ letPat :: Parser EgisonPattern
 letPat = keywordLet >> LetPat <$> bindings <* keywordLetIn <*> pattern
 
 tuplePat :: Parser EgisonPattern
-tuplePat = brackets $ TuplePat <$> sepEndBy pattern comma
+tuplePat = TuplePat <$> parens ((:) <$> pattern <* comma <*> sepEndBy1 pattern comma)
 
 inductivePat :: Parser EgisonPattern
 inductivePat = angles $ InductivePat <$> lowerName <*> sepEndBy pattern whiteSpace
@@ -685,7 +685,7 @@ contPat :: Parser EgisonPattern
 contPat = keywordCont >> pure ContPat
 
 pApplyPat :: Parser EgisonPattern
-pApplyPat = PApplyPat <$> expr <*> parens (sepEndBy pattern comma)
+pApplyPat = PApplyPat <$> expr <*> brackets (sepEndBy pattern comma)
 
 dApplyPat :: Parser EgisonPattern
 dApplyPat = DApplyPat <$> pattern'' <*> parens (sepEndBy pattern comma)
@@ -773,7 +773,7 @@ floatLiteral' = sign <*> positiveFloatLiteral
 --
 
 egisonDef :: P.GenLanguageDef String () Identity
-egisonDef = 
+egisonDef =
   P.LanguageDef { P.commentStart       = "#|"
                 , P.commentEnd         = "|#"
                 , P.commentLine        = ";"
@@ -794,7 +794,7 @@ lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
 
 reservedKeywords :: [String]
-reservedKeywords = 
+reservedKeywords =
   [ "define"
   , "redefine"
   , "set!"
@@ -845,9 +845,9 @@ reservedKeywords =
   , "symbolicTensor"
   , "something"
   , "undefined"]
-  
+
 reservedOperators :: [String]
-reservedOperators = 
+reservedOperators =
   [ "$"
   , ",$"
   , "_"
@@ -1022,7 +1022,7 @@ upperName = P.lexeme lexer $ upperName'
 upperName' :: Parser String
 upperName' = (:) <$> upper <*> option "" ident
  where
-  upper :: Parser Char 
+  upper :: Parser Char
   upper = satisfy isUpper
 
 lowerName :: Parser String
@@ -1031,5 +1031,5 @@ lowerName = P.lexeme lexer $ lowerName'
 lowerName' :: Parser String
 lowerName' = (:) <$> lower <*> option "" ident
  where
-  lower :: Parser Char 
+  lower :: Parser Char
   lower = satisfy isLower
