@@ -1,0 +1,31 @@
+(assert-equal "sum"
+  (sum (take 5 nats))
+  15)
+
+(assert-equal "product"
+  (product (take 5 nats))
+  120)
+
+(assert-equal "power"
+  (power 2 5)
+  32)
+
+(assert-equal "** - case 1"
+  (power x 3)
+  x^3)
+
+(assert-equal "** - case 2"
+  (power (sqrt 2) 4)
+  4)
+
+(assert-equal "gcd"
+  (gcd 15 40)
+  5)
+
+(assert-equal "sqrt - case 1"
+  (sqrt (/ (* 50 x^2) y))
+  (/ (* 5 x (sqrt (* 2 y))) y))
+
+(assert-equal "sqrt - case 2"
+  (* (sqrt (* 3 x)) (sqrt (* 2 y)))
+  (* (sqrt 6) (sqrt x) (sqrt y)))

@@ -1,0 +1,35 @@
+(assert-equal "compare - case 1"
+  (compare 10 10)
+  <Equal>)
+
+(assert-equal "compare - case 2"
+  (compare 11 10)
+  <Greater>)
+
+(assert-equal "compare - case 3"
+  (compare 10 11)
+  <Less>)
+
+(assert-equal "min"
+  (min 20 5)
+  5)
+
+(assert-equal "min/fn"
+  (min/fn compare 20 5)
+  5)
+
+(assert-equal "max"
+  (max 5 30)
+  30)
+
+(assert-equal "max/fn"
+  (max/fn compare 5 30)
+  30)
+
+(assert-equal "sort"
+  (sort {10 20 5 20 30})
+  {5 10 20 20 30})
+
+(assert-equal "sort/fn"
+  (sort/fn compare {10 20 5 20 30})
+  {5 10 20 20 30})

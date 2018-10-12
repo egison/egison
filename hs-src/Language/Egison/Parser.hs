@@ -183,7 +183,7 @@ exprs :: Parser [EgisonExpr]
 exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
-expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
+expr = P.lexeme lexer (do expr0 <- expr'
                           option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
                                          <|> IndexedExpr True expr0 <$> parseindex)
                             where parseindex :: Parser [Index EgisonExpr]
@@ -205,9 +205,6 @@ expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
                                                  <|> try (char '|' >> expr' >>= return . Userscript))
 
 
-quoteExpr' :: Parser EgisonExpr
-quoteExpr' = char '\'' >> QuoteExpr <$> expr'
-
 expr' :: Parser EgisonExpr
 expr' = (try applyInfixExpr
            <|> try (buildExpressionParser table arg)
@@ -218,14 +215,17 @@ expr' = (try applyInfixExpr
   arg = (char '$' *> notFollowedBy varExpr *> (LambdaArgExpr <$> option "" index))
         <|> term
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  table   = [ [binary "^" "**" AssocLeft]
+  table   = [ [unary "not" AssocRight]
+            , [binary "^" "**" AssocLeft]
             , [binary "*" "*" AssocLeft, binary "/" "/" AssocLeft]
             , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft, binary "%" "remainder" AssocLeft]
             , [binary "==" "eq?" AssocLeft, binary "<=" "lte?" AssocLeft, binary "<" "lt?" AssocLeft, binary ">=" "gte?" AssocLeft, binary ">" "gt?" AssocLeft]
             , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
+            , [binary "and" "and" AssocLeft, binary "or" "or" AssocLeft]
             ]
-  binary "/" name assoc = Infix (try $ ((inSpaces1 $ string "/") <|> ((string "/") >> notFollowedBy (string "d"))) >> (return $ \x y -> applyExpr'' (VarExpr $ stringToVar name) [x, y])) assoc
-  binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> applyExpr'' (VarExpr $ stringToVar name) [x, y])) assoc
+  unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> makeApply (VarExpr $ stringToVar op) [x]))
+  binary "/" name assoc = Infix (try $ ((inSpaces1 $ string "/") <|> ((string "/") >> notFollowedBy (string "d" <|> string "m"))) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
+  binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
 
 inSpaces :: Parser a -> Parser ()
 inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
@@ -261,8 +261,8 @@ term = (
           <|> letStarExpr
           <|> patternFunctionExpr
           <|> parens expr'
--- --             <|> quoteExpr
---              <|> quoteSymbolExpr
+          <|> quoteExpr
+          <|> quoteSymbolExpr
 --              <|> wedgeExpr
 --              <|> parens (memoizedLambdaExpr
 --                          <|> memoizeExpr
@@ -501,10 +501,8 @@ applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr)
 applyExpr' :: Parser EgisonExpr
 applyExpr' = do
   func <- try varExpr <|> try partialExpr <|> try partialVarExpr <|> (parens expr)
-  char '('
-  args <- args
-  char ')'
-  return $ applyExpr'' func args
+  argslist <- many1 $ parens args
+  return $ foldl (\acc xs -> makeApply acc xs) func argslist
  where
   args = sepEndBy arg $ comma
   arg = try expr
@@ -518,15 +516,15 @@ applyInfixExpr = do
   func <- (char '`' *> varExpr <* char '`')
   spaces
   arg2 <- arg
-  return $ applyExpr'' func [arg1, arg2]
+  return $ makeApply func [arg1, arg2]
  where
   args = sepEndBy arg $ comma
   arg = try term
          <|> char '$' *> (LambdaArgExpr <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
 
-applyExpr'' :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
-applyExpr'' func xs = do
+makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
+makeApply func xs = do
   let args = map (\x -> case x of
                           LambdaArgExpr s -> Left s
                           _ -> Right x) xs
@@ -778,7 +776,7 @@ egisonDef =
                 , P.commentEnd         = "|#"
                 , P.commentLine        = ";"
                 , P.identStart         = letter <|> symbol1
-                , P.identLetter        = letter <|> digit <|> symbol2
+                , P.identLetter        = letter <|> digit <|> symbol0 <|> symbol2
                 , P.opStart            = symbol1
                 , P.opLetter           = symbol0 <|> symbol1
                 , P.reservedNames      = reservedKeywords
