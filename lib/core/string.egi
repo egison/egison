@@ -1,6 +1,6 @@
 ;;;;;
 ;;;;;
-;;;;; String
+;;;;; s.ring
 ;;;;;
 ;;;;;
 
@@ -19,14 +19,14 @@
                {}
                {(uncons-string tgt)})]}]
      [<join $ <cons ,$px $>> [string string]
-      {[$tgt (match-all (S.split (pack {px}) tgt) (list string)
-               [<join (& !<nil> $xs) (& !<nil> $ys)> [(S.intercalate (pack {px}) xs)
-                                (S.intercalate (pack {px}) ys)
+      {[$tgt (match-all (s.split (pack {px}) tgt) (list string)
+               [<join (& !<nil> $xs) (& !<nil> $ys)> [(s.intercalate (pack {px}) xs)
+                                (s.intercalate (pack {px}) ys)
                                 ]])]}]
      [<join $ <join ,$pxs $>> [string string]
-      {[$tgt (match-all (S.split pxs tgt) (list string)
-               [<join (& !<nil> $xs) (& !<nil> $ys)> [(S.intercalate pxs xs)
-                                (S.intercalate pxs ys)
+      {[$tgt (match-all (s.split pxs tgt) (list string)
+               [<join (& !<nil> $xs) (& !<nil> $ys)> [(s.intercalate pxs xs)
+                                (s.intercalate pxs ys)
                                 ]])]}]
      [<join $ $> [string string]
       {[$tgt (match-all tgt string
@@ -40,76 +40,76 @@
      }))
 
 ;;;
-;;; String as collection
+;;; s.ring as collection
 ;;;
-(define $S.empty?
+(define $s.empty?
   (lambda [$xs]
     (eq? xs "")))
 
-(define $S.cons
+(define $s.cons
   (lambda [$x $xs]
     (append-string (pack {x}) xs)))
 
-(define $S.car
+(define $s.car
   (lambda [$xs]
     (match xs string
       {[<cons $x _> x]})))
 
-(define $S.cdr
+(define $s.cdr
   (lambda [$xs]
     (match xs string
       {[<cons _ $r> r]})))
 
-(define $S.rac
+(define $s.rac
   (lambda [$str]
     (match str string
       {[<join _ <cons $c <nil>>> c]})))
 
-(define $S.map
+(define $s.map
   (lambda [$f $xs]
     (pack (map f (unpack xs)))))
 
-(define $S.length
+(define $s.length
   (lambda [$xs]
     (length-string xs)))
 
-(define $S.split
+(define $s.split
   (lambda [$in $ls]
     (split-string in ls)))
 
-(define $S.append
+(define $s.append
   (lambda [$xs $ys]
     (append-string xs ys)))
 
-(define $S.concat
+(define $s.concat
   (lambda [$xss]
-    (foldr (lambda [$xs $rs] (S.append xs rs))
+    (foldr (lambda [$xs $rs] (s.append xs rs))
            ""
            xss)))
 
-(define $S.intercalate (compose intersperse S.concat))
+(define $s.intercalate (compose intersperse s.concat))
 
-(define $S.replace
+(define $s.replace
   (lambda [$before $after $str]
-    (S.intercalate after (S.split before str))))
-    
+    (s.intercalate after (s.split before str))))
+
 
 ;;
 ;; Alphabet
 ;;
-(define $C.between
+(define $c.between
   (lambda [$c1 $c2]
     (map itoc (between (ctoi c1) (ctoi c2)))))
 
-(define $C.between?
+(define $c.between?
   (lambda [$c1 $c2 $c]
     (and (gte? (ctoi c) (ctoi c1))
          (lte? (ctoi c) (ctoi c2)))))
 
 (define $alphabet?
   (lambda [$c]
-    (or (C.between? c#a c#z c)
-        (C.between? c#A c#Z c))))
+    (or (c.between? c#a c#z c)
+        (c.between? c#A c#Z c))))
 
 (define $alphabets?
   (lambda [$s]
@@ -117,12 +117,12 @@
 
 (define $upper-case
   (lambda [$c]
-    (if (C.between? c#a c#z c)
+    (if (c.between? c#a c#z c)
       (itoc (- (ctoi c) 32))
       c)))
 
 (define $lower-case
   (lambda [$c]
-    (if (C.between? c#A c#Z c)
+    (if (c.between? c#A c#Z c)
       (itoc (+ (ctoi c) 32))
       c)))

@@ -137,12 +137,12 @@
 (define $show-decimal
   (lambda [$c $x]
     (match (2#[%1 (take c %2)] (rtod x)) [integer (list integer)]
-      {[[$q $sc] (foldl S.append (S.append (show q) ".") (map show sc))]})))
+      {[[$q $sc] (foldl s.append (s.append (show q) ".") (map show sc))]})))
 
 (define $show-decimal'
   (lambda [$x]
     (match (rtod' x) [integer (list integer) (list integer)]
-      {[[$q $s $c] (foldl S.append "" {(S.append (show q) ".") @(map show s) " " @(map show c) " ..."})]})))
+      {[[$q $s $c] (foldl s.append "" {(s.append (show q) ".") @(map show s) " " @(map show c) " ..."})]})))
 
 ;;;
 ;;; Continued Fraction

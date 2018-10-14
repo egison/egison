@@ -217,21 +217,24 @@ expr' = (try applyInfixExpr
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   table   = [ [unary "not" AssocRight]
             , [binary "^" "**" AssocLeft]
+            , [unary "-" AssocLeft]
             , [binary "*" "*" AssocLeft, binary "/" "/" AssocLeft]
             , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft, binary "%" "remainder" AssocLeft]
             , [binary "==" "eq?" AssocLeft, binary "<=" "lte?" AssocLeft, binary "<" "lt?" AssocLeft, binary ">=" "gte?" AssocLeft, binary ">" "gt?" AssocLeft]
             , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
             , [binary "and" "and" AssocLeft, binary "or" "or" AssocLeft]
+            , [binary "++" "join" AssocRight]
             ]
+  unary "-" assoc = Prefix (try $ inSpaces (string "-") >> (return $ \x -> (makeApply (VarExpr $ stringToVar "*") [IntegerExpr (-1), x]) <|> makeApply VarExpr $ stringToVar "*.") [IntegerExpr (-1), x])
   unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> makeApply (VarExpr $ stringToVar op) [x]))
-  binary "/" name assoc = Infix (try $ ((inSpaces1 $ string "/") <|> ((string "/") >> notFollowedBy (string "d" <|> string "m"))) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
+  binary "/" name assoc = Infix (try $ (try (inSpaces1 $ string "/") <|> ((inSpaces $ string "/") >> notFollowedBy (string "d" <|> string "m" <|> string "f"))) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
 
 inSpaces :: Parser a -> Parser ()
 inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
 
 inSpaces1 :: Parser a -> Parser ()
-inSpaces1 p = skipMany1 (space <|> newline) >> p >> skipMany1 (space <|> newline)
+inSpaces1 p = skipMany (space <|> newline) >> p >> skipMany1 (space <|> newline)
 
 term :: Parser EgisonExpr
 term = (
@@ -246,6 +249,7 @@ term = (
           <|> try partialExpr
           <|> try partialVarExpr
           <|> try constantExpr
+          <|> try negExpr
           <|> try lambdaExpr
           <|> try varExpr
           <|> try vectorExpr
@@ -416,6 +420,9 @@ ifExpr = keywordIf >> IfExpr <$> expr <*> expr <* (inSpaces $ string "else") <*>
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = (LambdaExpr <$> argNames <* reservedOp "->" <*> expr)
 
+negExpr :: Parser EgisonExpr
+negExpr = makeApply (VarExpr $ stringToVar "*") . (: [IntegerExpr (-1)]) <$ (inSpaces $ string "-") <*> term
+
 memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
 
@@ -550,7 +557,7 @@ makeApply func xs = do
   g ((Right _), var) = Right var
 
 partialExpr :: Parser EgisonExpr
-partialExpr = PartialExpr <$> read <$> index <*> (char '#' >> (parens expr <|> expr))
+partialExpr = PartialExpr <$> read <$> index <*> (char '#' >> (try (parens expr) <|> expr))
  where
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
 
@@ -622,9 +629,9 @@ pattern = P.lexeme lexer (try (buildExpressionParser table pattern')
   table = [ [unary "!" AssocRight, unary "not" AssocRight]
           , [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
           , [binary "+" "plus" AssocLeft]
-          , [binary ":" "cons" AssocRight]
+          , [binary "<:>" "cons" AssocRight]
           , [binary' "and" AndPat AssocLeft, binary' "or" OrPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft]
-          , [binary "++" "join" AssocRight]
+          , [binary "<++>" "join" AssocRight]
           ]
   unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> NotPat x))
   binary "+" name assoc = Infix (try $ inSpaces (string "+") >> notFollowedBy (string "+") >> (return $ \x y -> InductivePat name [x, y])) assoc
@@ -784,8 +791,8 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
 
-symbol0 = oneOf "/"
-symbol1 = oneOf ".∂∇"
+symbol0 = oneOf "/."
+symbol1 = oneOf "∂∇"
 symbol2 = symbol1 <|> oneOf "'!?*"
 
 lexer :: P.GenTokenParser String () Identity

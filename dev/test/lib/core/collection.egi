@@ -22,12 +22,12 @@ assert("list's nil - case 2",
 
 assertEqual("list's cons",
   match [1, 2, 3] as list(integer)
-  | $n:$ns -> [n, ns],
+  | $n<:>$ns -> [n, ns],
   [1, [2, 3]])
 
 assertEqual("list's cons with value pattern",
   match [1, 2, 3] as list(integer)
-  | 1:$ns -> ns,
+  | 1<:>$ns -> ns,
   [2, 3])
 
 assertEqual("list's snoc",
@@ -42,7 +42,7 @@ assertEqual("list's snoc with value pattern",
 
 assertEqual("list's join",
   matchAll [1, 2, 3] as list(integer)
-  | $xs ++ $ys -> [xs, ys],
+  | $xs <++> $ys -> [xs, ys],
   [[[], [1, 2, 3]],
    [[1], [2, 3]],
    [[1, 2], [3]],
@@ -50,7 +50,7 @@ assertEqual("list's join",
 
 assertEqual("list's join with value pattern",
   match [1, 2, 3] as list(integer)
-  | [1] ++ $ns -> ns,
+  | [1] <++> $ns -> ns,
   [2, 3])
 
 assertEqual("list's nioj",
@@ -86,32 +86,32 @@ assert("multiset's value pattern",
 
 assertEqual("multiset's cons",
   matchAll [1, 2, 3] as multiset(integer)
-  | $n:$ns -> [n, ns],
+  | $n<:>$ns -> [n, ns],
   [[1, [2, 3]], [2, [1, 3]], [3, [1, 2]]])
 
 assertEqual("multiset's cons with value pattern",
   match [1, 2, 3] as multiset(integer)
-  | 2:$ns -> ns,
+  | 2<:>$ns -> ns,
   [1, 3])
 
 assertEqual("multiset's join",
   matchAll [1, 2, 3] as multiset(integer)
-  | $xs ++ $ys -> [xs, ys],
+  | $xs <++> $ys -> [xs, ys],
   [[[], [1, 2, 3]], [[1], [2, 3]], [[2], [1, 3]], [[3], [1, 2]], [[1, 2], [3]], [[1, 3], [2]], [[2, 3], [1]], [[1, 2, 3], []]])
 
 assertEqual("multiset's join with value pattern - case 1",
   match [1, 2, 3] as multiset(integer)
-  | [1] ++ $ns -> ns,
+  | [1] <++> $ns -> ns,
   [2, 3])
 
 assertEqual("multiset's join with value pattern - case 2",
   matchAll [1, 2, 3] as multiset(integer)
-  | [1, 3] ++ $ys -> ys,
+  | [1, 3] <++> $ys -> ys,
   [[2]])
 
 assertEqual("multiset's join with value pattern - case 3",
   matchAll [1, 2, 3] as multiset(integer)
-  | [1, 5, 3] ++ $ys -> ys,
+  | [1, 5, 3] <++> $ys -> ys,
   [])
 
 ;;;
@@ -129,27 +129,27 @@ assert("set's nil - case 2",
 
 assertEqual("set's cons",
   matchAll [1, 2, 3] as set(integer)
-  | $n:$ns -> [n, ns],
+  | $n<:>$ns -> [n, ns],
   [[1, [1, 2, 3]], [2, [1, 2, 3]], [3, [1, 2, 3]]])
 
 assertEqual("set's cons with value pattern",
   match [1, 2, 3] as set(integer)
-  | 2:$ns -> ns,
+  | 2<:>$ns -> ns,
   [1, 2, 3])
 
 assertEqual("set's join",
   matchAll [1, 2, 3] as set(integer)
-  | $xs ++ $ys -> [xs, ys],
+  | $xs <++> $ys -> [xs, ys],
   [[[], [1, 2, 3]], [[1], [1, 2, 3]], [[2], [1, 2, 3]], [[3], [1, 2, 3]], [[1, 2], [1, 2, 3]], [[1, 3], [1, 2, 3]], [[2, 3], [1, 2, 3]], [[1, 2, 3], [1, 2, 3]]])
 
 assertEqual("set's join with value pattern 1",
   matchAll [1, 2, 3] as set(integer)
-  | [1, 3] ++ $ys -> ys,
+  | [1, 3] <++> $ys -> ys,
   [[1, 2, 3]])
 
 assertEqual("set's join with value pattern 2",
   matchAll [1, 2, 3] as set(integer)
-  | [1, 5, 3] ++ $ys -> ys,
+  | [1, 5, 3] <++> $ys -> ys,
   [])
 
 ;;
