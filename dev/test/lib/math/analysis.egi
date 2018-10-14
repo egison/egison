@@ -1,41 +1,39 @@
-(assert-equal "d/d - case 1"
-  (d/d (** x 2) x)
-  (* 2 x))
+assertEqual("d/d - case 1",
+  d/d(x^2, x),
+  2*x)
 
-(assert-equal "d/d - case 2"
-  (d/d (** a (** x 2)) x)
-  (* 2 (** a x^2) (log a) x))
+assertEqual("d/d - case 2",
+  d/d(a^(x^2), x),
+  2 * (a^(x^2)) * log(a) * x)
 
-(assert-equal "d/d - case 3"
-  (d/d (* (cos x) (sin x)) x)
-  (+ (* -1 (sin x)^2) (cos x)^2))
+assertEqual("d/d - case 3",
+  d/d(cos(x) * sin(x), x),
+  -sin(x)^2 + cos(x)^2)
 
-(assert-equal "d/d - case 4"
-  (d/d (sigmoid z) z)
-  (/ (exp (* -1 z)) (+ 1 (* 2 (exp (* -1 z))) (exp (* -1 z))^2)))
+assertEqual("d/d - case 4",
+  d/d(sigmoid(z), z),
+  exp(-z) / ((2 * exp(-z)) + exp(-z)^2 + 1))
 
-(assert-equal "d/d - case 5"
-  (d/d (d/d (log x) x) x)
-  (/ -1 x^2))
+assertEqual("d/d - case 5",
+  d/d(d/d(log(x), x), x),
+  -x^2)
 
-(assert-equal "tailor-expansion - case 1"
-  (take 4 (taylor-expansion (** e (* i x)) x 0))
-  {1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6)})
+assertEqual("tailor-expansion - case 1",
+  take(4, taylorExpansion(e^(i*x)), x, 0),
+  [1, i*x, (-x^2)/2, (-i * x^3)/6])
 
-(assert-equal "tailor-expansion - case 2"
-  (take 4 (taylor-expansion (* i (sin x)) x 0))
-  {0 (* i x) 0 (/ (* -1 i x^3) 6)})
+assertEqual("tailor-expansion - case 2",
+  take(4, taylorExpansion(i*sin(x), x, 0)),
+  [0, i*x, 0, (-i * x^3)/6])
 
-;(assert-equal "multivariate-tailor-expansion - case 1"
-;  (take 3 (multivariate-taylor-expansion (f x y) [| x y |] [| 0 0 |]))
+;assertEqual("multivariate-tailor-expansion - case 1"
+;  take(3 (multivariate-taylor-expansion (f x y) [| x y |] [| 0 0 |]))
 ;  {(f 0 0) (+ (* x (f|1 0 0)) (* y (f|2 0 0))) (/ (+ (* x^2 (f|1|1 0 0)) (* 2 x y (f|1|2 0 0)) (* y^2 (f|2|2 0 0))) 2)})
 
-(assert-equal "multivariate-tailor-expansion - case 2"
-  (take 3 (multivariate-taylor-expansion (** e (+ x y)) [| x y |] [| 0 0 |]))
-  {1 (+ x y) (/ (+ x^2 (* 2 x y) y^2) 2)})
+assertEqual("multivariate-tailor-expansion - case 2",
+  take(3, multivariateTaylorExpansion(e^(x+y), [| x, y |], [| 0, 0 |])),
+  [1, x + y, (x^2 + 2*x*y + y^2)/2])
 
-(assert-equal "function expr"
-  (let {[$f (function [x y])]}
-    (d/d f y))
-  (let {[$f (function [x y])]}
-    (user-refs f {y})))
+assertEqual("function expr",
+  let f = function(x, y) in d/d(f, y),
+  let f = function(x, y) in userRefs(f, [y]))

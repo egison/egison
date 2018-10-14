@@ -1,91 +1,91 @@
-(assert "string's value pattern"
-  (match "abc" string
-    {[,"abc" #t]
-     [_ #f]}))
+assert("string's value pattern",
+  match "abc" as string
+  | "abc" -> #t
+  | _ -> #f)
 
-(assert "string's nil - case 1"
-  (match "" string
-    {[<nil> #t]
-     [_ #f]}))
+assert("string's nil - case 1",
+  match "" as string
+  | <nil> -> #t
+  | _ -> #f)
 
-(assert "string's nil - case 2"
-  (match "abc" string
-    {[<nil> #f]
-     [_ #t]}))
+assert("string's nil - case 2",
+  match "abc" as string
+  | <nil> -> #f
+  | _ -> #t)
 
-(assert-equal "string's cons"
-  (match-all "abc" string
-    [<cons $x $xs> [x xs]])
-  {[c#a "bc"]})
+assertEqual("string's cons",
+  matchAll "abc" as string
+  | $x<:>$xs -> [x, xs],
+  [[c#a, "bc"]])
 
-(assert-equal "string's join"
-  (match-all "abc" string
-    [<join $xs $ys> [xs ys]])
-  {["" "abc"] ["a" "bc"]
-   ["ab" "c"] ["abc" ""]})
+assertEqual("string's join",
+  matchAll "abc" as string
+  | $xs<++>$ys -> [xs, ys],
+  [["", "abc"], ["a", "bc"],
+   ["ab", "c"], ["abc", ""]])
 
 ;;;
-;;; String as collection
+;;; string as collection
 ;;;
-(assert-equal "S.empty? - case 1"
-  (S.empty? "")
+assertEqual("s.empty? - case 1",
+  s.empty?(""),
   #t)
 
-(assert-equal "S.empty? - case 2"
-  (S.empty? "Egison")
+assertEqual("s.empty? - case 2",
+  s.empty?("Egison"),
   #f)
 
-(assert-equal "S.car"
-  (S.car "Egison")
+assertEqual("s.car",
+  s.car("Egison"),
   c#E)
 
-(assert-equal "S.cdr"
-  (S.cdr "Egison")
+assertEqual("s.cdr",
+  s.cdr("Egison"),
   "gison")
 
-(assert-equal "S.rac"
-  (S.rac "Egison")
+assertEqual("s.rac",
+  s.rac("Egison"),
   c#n)
 
-(assert-equal "S.map"
-  (S.map id "Egison")
+assertEqual("s.map",
+  s.map(id, "Egison"),
   "Egison")
 
-(assert-equal "S.length"
-  (S.length "Egison")
+assertEqual("s.length",
+  s.length("Egison"),
   6)
 
-(assert-equal "S.split"
-  (S.split "," "Lisp,Haskell,Egison")
-  {"Lisp" "Haskell" "Egison"})
+assertEqual("s.split",
+  s.split(",", "Lisp,Haskell,Egison"),
+  ["Lisp", "Haskell", "Egison"])
 
-(assert-equal "S.append"
-  (S.append "Egi" "son")
+assertEqual("s.append",
+  s.append("Egi", "son"),
   "Egison")
 
-(assert-equal "S.concat"
-  (S.concat {"Egi" "son"})
+assertEqual("s.concat",
+  s.concat(["Egi", "son"]),
   "Egison")
 
-(assert-equal "S.intercalate"
-  (S.intercalate "," {"Lisp" "Haskell" "Egison"})
+assertEqual("s.intercalate",
+  s.intercalate(",", ["Lisp", "Haskell", "Egison"]),
   "Lisp,Haskell,Egison")
 
 ;;
 ;; Characters
 ;;
-(assert-equal "alphabet?"
-  (alphabet? c#a)
+assertEqual("alphabet?",
+  alphabet?(c#a),
   #t)
 
-(assert-equal "alphabets?"
-  (alphabets? "Egison")
+assertEqual("alphabets?",
+  alphabets?("Egison"),
   #t)
 
-(assert-equal "upper-case"
-  (upper-case c#e)
+assertEqual("upper-case",
+  upperCase(c#e),
   c#E)
 
-(assert-equal "lower-case"
-  (lower-case c#E)
+assertEqual("lower-case",
+  lowerCase(c#E),
   c#e)

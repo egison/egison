@@ -833,28 +833,28 @@ valuetoTensor2 (Intermediate (ITensor t)) = t
 
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
-    tds <- fromTupleWHNF tds
-    if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
-       then do
-            symId <- fresh
-            let argnum = length tds
-                subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-                supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-            dot <- evalExpr env (VarExpr $ stringToVar ".")
-            makeITuple ((Value (TensorData (Tensor s1 t1 (i1 ++ supjs)))):(map Intermediate (map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
-       else throwError $ Default "applyfunc"
+  tds <- fromTupleWHNF tds
+  if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
+    then do
+      symId <- fresh
+      let argnum = length tds
+          subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+          supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+      dot <- evalExpr env (VarExpr $ stringToVar ".")
+      makeITuple ((Value (TensorData (Tensor s1 t1 (i1 ++ supjs)))):(map Intermediate (map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
+    else throwError $ Default "applyfunc"
 
 applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
-    tds <- fromTupleWHNF tds
-    if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
-       then do
-            symId <- fresh
-            let argnum = length tds
-                subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-                supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-            dot <- evalExpr env (VarExpr $ stringToVar ".")
-            makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):(map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
-       else throwError $ Default "applyfunc"
+  tds <- fromTupleWHNF tds
+  if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
+    then do
+      symId <- fresh
+      let argnum = length tds
+          subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+          supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+      dot <- evalExpr env (VarExpr $ stringToVar ".")
+      makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):(map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
+    else throwError $ Default "applyfunc"
 
 applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
