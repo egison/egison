@@ -17,8 +17,8 @@ assertEqual("integer literal", [1, 0, -100, 1-100], [1, 0, -100, -99])
 assertEqual("rational number", [10/3, 10/20, -1/2], [10/3 ,1/2, -1/2])
 
 assertEqual("float literal",
-  [1.0, 0.0, -100.012001],
-  [1.0, 0.0, -100.012001])
+  [1.0, 0.0, -100.012001, 1.0+2],
+  [1.0, 0.0, -100.012001, 3.0])
 
 assertEqual("inductive data literal",
   <A>,
