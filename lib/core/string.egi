@@ -1,6 +1,6 @@
 ;;;;;
 ;;;;;
-;;;;; s.ring
+;;;;; S.ring
 ;;;;;
 ;;;;;
 
@@ -19,14 +19,14 @@
                {}
                {(uncons-string tgt)})]}]
      [<join $ <cons ,$px $>> [string string]
-      {[$tgt (match-all (s.split (pack {px}) tgt) (list string)
-               [<join (& !<nil> $xs) (& !<nil> $ys)> [(s.intercalate (pack {px}) xs)
-                                (s.intercalate (pack {px}) ys)
+      {[$tgt (match-all (S.split (pack {px}) tgt) (list string)
+               [<join (& !<nil> $xs) (& !<nil> $ys)> [(S.intercalate (pack {px}) xs)
+                                (S.intercalate (pack {px}) ys)
                                 ]])]}]
      [<join $ <join ,$pxs $>> [string string]
-      {[$tgt (match-all (s.split pxs tgt) (list string)
-               [<join (& !<nil> $xs) (& !<nil> $ys)> [(s.intercalate pxs xs)
-                                (s.intercalate pxs ys)
+      {[$tgt (match-all (S.split pxs tgt) (list string)
+               [<join (& !<nil> $xs) (& !<nil> $ys)> [(S.intercalate pxs xs)
+                                (S.intercalate pxs ys)
                                 ]])]}]
      [<join $ $> [string string]
       {[$tgt (match-all tgt string
@@ -40,58 +40,58 @@
      }))
 
 ;;;
-;;; s.ring as collection
+;;; S.ring as collection
 ;;;
-(define $s.empty?
+(define $S.empty?
   (lambda [$xs]
     (eq? xs "")))
 
-(define $s.cons
+(define $S.cons
   (lambda [$x $xs]
     (append-string (pack {x}) xs)))
 
-(define $s.car
+(define $S.car
   (lambda [$xs]
     (match xs string
       {[<cons $x _> x]})))
 
-(define $s.cdr
+(define $S.cdr
   (lambda [$xs]
     (match xs string
       {[<cons _ $r> r]})))
 
-(define $s.rac
+(define $S.rac
   (lambda [$str]
     (match str string
       {[<join _ <cons $c <nil>>> c]})))
 
-(define $s.map
+(define $S.map
   (lambda [$f $xs]
     (pack (map f (unpack xs)))))
 
-(define $s.length
+(define $S.length
   (lambda [$xs]
     (length-string xs)))
 
-(define $s.split
+(define $S.split
   (lambda [$in $ls]
     (split-string in ls)))
 
-(define $s.append
+(define $S.append
   (lambda [$xs $ys]
     (append-string xs ys)))
 
-(define $s.concat
+(define $S.concat
   (lambda [$xss]
-    (foldr (lambda [$xs $rs] (s.append xs rs))
+    (foldr (lambda [$xs $rs] (S.append xs rs))
            ""
            xss)))
 
-(define $s.intercalate (compose intersperse s.concat))
+(define $S.intercalate (compose intersperse S.concat))
 
-(define $s.replace
+(define $S.replace
   (lambda [$before $after $str]
-    (s.intercalate after (s.split before str))))
+    (S.intercalate after (S.split before str))))
 
 
 ;;
