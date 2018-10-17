@@ -11,15 +11,32 @@
 (define $*' (cambda $xs (foldl b.*' (car xs) (cdr xs))))
 (define $/' b./')
 
-(define $+ (cambda $xs (math-normalize1 (capply +' xs))))
-(define $- (cambda $xs (math-normalize1 (capply -' xs))))
-(define $* (cambda $xs (math-normalize1 (capply *' xs))))
-(define $/ b./)
+(define $f.+' (cambda $xs (foldl f.+ (car xs) (cdr xs))))
+(define $f.-' (cambda $xs (foldl f.- (car xs) (cdr xs))))
+(define $f.*' (cambda $xs (foldl f.* (car xs) (cdr xs))))
+(define $f./' f./)
 
-;(define $+ +')
-;(define $- -')
-;(define $* *')
-;(define $/ b./')
+(define $+
+  (cambda $xs (if (capply and (map scalar? xs))
+                  (math-normalize1 (capply +' xs))
+                  (capply f.+' (map (lambda [$x] (if (float? x) x (itof x))) xs)))))
+(define $-
+  (cambda $xs (if (capply and (map scalar? xs))
+                  (math-normalize1 (capply -' xs))
+                  (capply f.-' (map (lambda [$x] (if (float? x) x (itof x))) xs)))))
+(define $*
+  (cambda $xs (if (capply and (map scalar? xs))
+                  (math-normalize1 (capply *' xs))
+                  (capply f.*' (map (lambda [$x] (if (float? x) x (itof x))) xs)))))
+(define $/
+  (lambda [$x $y]
+    (if (and (float? x) (float? y))
+        (f./ x y)
+        (if (float? x)
+            (f./ x (itof y))
+            (if (float? y)
+                (f./ (itof x) y)
+                (b./ x y))))))
 
 (define $reduce-fraction id)
 
