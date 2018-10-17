@@ -16,10 +16,10 @@ assertEqual("d/d - case 4",
 
 assertEqual("d/d - case 5",
   d/d(d/d(log(x), x), x),
-  -x^2)
+  -1/x^2)
 
 assertEqual("tailor-expansion - case 1",
-  take(4, taylorExpansion(e^(i*x)), x, 0),
+  take(4, taylorExpansion(e^(i*x), x, 0)),
   [1, i*x, (-x^2)/2, (-i * x^3)/6])
 
 assertEqual("tailor-expansion - case 2",
