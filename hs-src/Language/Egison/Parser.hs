@@ -207,6 +207,7 @@ expr = P.lexeme lexer (do expr0 <- expr'
 
 expr' :: Parser EgisonExpr
 expr' = (try applyInfixExpr
+           <|> try exprWithSymbol
            <|> try (buildExpressionParser table arg)
            <|> try ifExpr
            <|> try term)
@@ -225,9 +226,9 @@ expr' = (try applyInfixExpr
             , [binary "and" "and" AssocLeft, binary "or" "or" AssocLeft]
             , [binary "++" "join" AssocRight]
             ]
-  unary "-" assoc = Prefix (try $ inSpaces (string "-") >> (return $ \x -> (makeApply (VarExpr $ stringToVar "*") [IntegerExpr (-1), x]) <|> makeApply VarExpr $ stringToVar "*.") [IntegerExpr (-1), x])
+  unary "-" assoc = Prefix (try $ inSpaces (string "-") >> (return $ \x -> (makeApply (VarExpr $ stringToVar "*") [IntegerExpr (-1), x])))
   unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> makeApply (VarExpr $ stringToVar op) [x]))
-  binary "/" name assoc = Infix (try $ (try (inSpaces1 $ string "/") <|> ((inSpaces $ string "/") >> notFollowedBy (string "d" <|> string "m" <|> string "f"))) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
+  binary "/" name assoc = Infix (try $ (try (inSpaces1 $ string "/") <|> ((inSpaces $ string "/") >> notFollowedBy (string "m" <|> string "f"))) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
 
 inSpaces :: Parser a -> Parser ()
@@ -235,6 +236,10 @@ inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
 
 inSpaces1 :: Parser a -> Parser ()
 inSpaces1 p = skipMany (space <|> newline) >> p >> skipMany1 (space <|> newline)
+
+exprWithSymbol :: Parser EgisonExpr
+exprWithSymbol = (lookAhead (string "d/d") >> applyExpr)
+                 <|> (lookAhead (string "let*") >> letStarExpr)
 
 term :: Parser EgisonExpr
 term = (
@@ -513,7 +518,7 @@ applyExpr' = do
  where
   args = sepEndBy arg $ comma
   arg = try expr
-         <|> char '$' *> (LambdaArgExpr <$> option "" index)
+        <|> char '$' *> (LambdaArgExpr <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
 
 applyInfixExpr :: Parser EgisonExpr
@@ -527,7 +532,7 @@ applyInfixExpr = do
  where
   args = sepEndBy arg $ comma
   arg = try term
-         <|> char '$' *> (LambdaArgExpr <$> option "" index)
+        <|> char '$' *> (LambdaArgExpr <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
 
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
@@ -793,7 +798,7 @@ egisonDef =
 
 symbol0 = oneOf "/."
 symbol1 = oneOf "∂∇"
-symbol2 = symbol1 <|> oneOf "'!?*"
+symbol2 = symbol1 <|> oneOf "'!?"
 
 lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
@@ -993,8 +998,12 @@ dot = P.dot lexer
 
 ident :: Parser String
 ident = do
-  s <- P.identifier lexer
-  return $ map toLower $ intercalate "-" $ split (startsWithOneOf ['A'..'Z']) s
+  idt <- P.identifier lexer
+  let (f, s) = splitLast idt '.'
+  return $ f ++ (map toLower $ intercalate "-" $ split (startsWithOneOf ['A'..'Z']) s)
+ where
+   splitLast list elem = let (f, s) = span (/= elem) $ reverse list
+                          in (reverse s, reverse f)
 
 identVar :: Parser Var
 identVar = P.lexeme lexer (do
