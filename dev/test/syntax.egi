@@ -6,6 +6,7 @@
 ;;; Primitive Data
 ;;;
 
+"primitive-data"
 assertEqual("char literal", c#a, c#a)
 
 assertEqual("string literal", "abc\n", "abc\n")
@@ -86,6 +87,7 @@ assertEqual("indexed placeholder2",
 ;;; Pattern-Matching
 ;;;
 
+"pattern-matching"
 assertEqual("match",
   match 1 as integer
   | 0 -> 0
@@ -305,6 +307,8 @@ assertEqual("tuple pattern",
 ;;;
 ;;; Tensor
 ;;;
+
+"tensor"
 assertEqual("generate-tensor - case 1",
   generateTensor(kroneckerDelta, [3]),
   [| 1, 1, 1 |])

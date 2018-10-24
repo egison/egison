@@ -22,5 +22,5 @@ echo "analysis"
 stack exec egison -- -t -N dev/test/lib/math/analysis.egi
 echo "arithmetic"
 stack exec egison -- -t -N dev/test/lib/math/arithmetic.egi
-# echo "tensor"
-# stack exec egison -- -t -N dev/test/lib/math/tensor.egi
+echo "tensor"
+stack exec egison -- -t -N dev/test/lib/math/tensor.egi

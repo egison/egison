@@ -183,30 +183,8 @@ exprs :: Parser [EgisonExpr]
 exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
-expr = P.lexeme lexer (do expr0 <- expr'
-                          option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
-                                         <|> IndexedExpr True expr0 <$> parseindex)
-                            where parseindex :: Parser [Index EgisonExpr]
-                                  parseindex = many1 (try (do
-                                                           char '_'
-                                                           e1 <- expr'
-                                                           string "..._"
-                                                           e2 <- expr'
-                                                           return $ MultiSubscript e1 e2)
-                                                 <|> try (do
-                                                           char '~'
-                                                           e1 <- expr'
-                                                           string "...~"
-                                                           e2 <- expr'
-                                                           return $ MultiSuperscript e1 e2)
-                                                 <|> try (char '_' >> expr' >>= return . Subscript)
-                                                 <|> try (char '~' >> expr' >>= return . Superscript)
-                                                 <|> try (string "~_" >> expr' >>= return . SupSubscript)
-                                                 <|> try (char '|' >> expr' >>= return . Userscript))
-
-
-expr' :: Parser EgisonExpr
-expr' = (try applyInfixExpr
+expr = P.lexeme lexer
+          (try applyInfixExpr
            <|> try exprWithSymbol
            <|> try (buildExpressionParser table arg)
            <|> try ifExpr
@@ -216,20 +194,25 @@ expr' = (try applyInfixExpr
   arg = (char '$' *> notFollowedBy varExpr *> (LambdaArgExpr <$> option "" index))
         <|> term
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  table   = [ [unary "not" AssocRight]
-            , [binary "^" "**" AssocLeft]
-            , [unary "-" AssocLeft]
-            , [binary "*" "*" AssocLeft, binary "/" "/" AssocLeft]
-            , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft, binary "%" "remainder" AssocLeft]
-            , [binary "==" "eq?" AssocLeft, binary "<=" "lte?" AssocLeft, binary "<" "lt?" AssocLeft, binary ">=" "gte?" AssocLeft, binary ">" "gt?" AssocLeft]
-            , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
-            , [binary "and" "and" AssocLeft, binary "or" "or" AssocLeft]
-            , [binary "++" "join" AssocRight]
-            ]
+  table = [ [binaryscript "_" Subscript AssocLeft, binaryscript "~_" SupSubscript AssocLeft,
+             binaryscript "~" Superscript AssocLeft, binaryscript "|" Userscript AssocLeft,
+             binaryscript "..._" DotSubscript AssocLeft, binaryscript "...~" DotSupscript AssocLeft]
+          , [unary "not" AssocRight]
+          , [binary "^" "**" AssocLeft]
+          , [unary "-" AssocLeft]
+          , [binary "*" "*" AssocLeft, binary "/" "/" AssocLeft, binary "." "." AssocLeft]
+          , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft, binary "%" "remainder" AssocLeft]
+          , [binary "==" "eq?" AssocLeft, binary "<=" "lte?" AssocLeft, binary "<" "lt?" AssocLeft, binary ">=" "gte?" AssocLeft, binary ">" "gt?" AssocLeft]
+          , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
+          , [binary "and" "and" AssocLeft, binary "or" "or" AssocLeft]
+          , [binary "++" "join" AssocRight]
+          ]
   unary "-" assoc = Prefix (try $ inSpaces (string "-") >> (return $ \x -> (makeApply (VarExpr $ stringToVar "*") [IntegerExpr (-1), x])))
   unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> makeApply (VarExpr $ stringToVar op) [x]))
   binary "/" name assoc = Infix (try $ (try (inSpaces1 $ string "/") <|> ((inSpaces $ string "/") >> notFollowedBy (string "m" <|> string "f"))) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
+  binary "." name assoc = Infix (try $ (inSpaces1 $ string ".") >> (return $ \x y -> makeApply (VarExpr $ Var ["."] []) [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
+  binaryscript op t assoc = Infix (try $ string op >> (return $ \x y -> IndexedExpr' x [t y])) assoc
 
 inSpaces :: Parser a -> Parser ()
 inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
@@ -240,6 +223,7 @@ inSpaces1 p = skipMany (space <|> newline) >> p >> skipMany1 (space <|> newline)
 exprWithSymbol :: Parser EgisonExpr
 exprWithSymbol = (string "d/d" >> applyExpr'' (VarExpr $ stringToVar "d/d"))
                  <|> (string "V.*" >> applyExpr'' (VarExpr $ stringToVar "V.*"))
+                 <|> (string "M.*" >> applyExpr'' (VarExpr $ stringToVar "M.*"))
                  <|> (lookAhead (string "let*") >> letStarExpr)
 
 term :: Parser EgisonExpr
@@ -255,14 +239,13 @@ term = (
           <|> try partialExpr
           <|> try partialVarExpr
           <|> try constantExpr
-          <|> try negExpr
           <|> try lambdaExpr
           <|> try withSymbolsExpr
           <|> try varExpr
           <|> try vectorExpr
           <|> try tupleExpr
           <|> try hashExpr
-          <|> collectionExpr
+          <|> try collectionExpr
           <|> inductiveDataExpr
           <|> doExpr
           <|> generateTensorExpr
@@ -271,7 +254,7 @@ term = (
           <|> letRecExpr
           <|> letStarExpr
           <|> patternFunctionExpr
-          <|> parens expr'
+          <|> parens expr
           <|> quoteExpr
           <|> quoteSymbolExpr
 --              <|> wedgeExpr
@@ -313,7 +296,8 @@ tupleExpr :: Parser EgisonExpr
 tupleExpr = parens $ TupleExpr <$> sepEndBy expr comma
 
 collectionExpr :: Parser EgisonExpr
-collectionExpr = brackets $ CollectionExpr <$> sepEndBy innerExpr comma
+collectionExpr = brackets (CollectionExpr <$> sepEndBy innerExpr comma)
+                 <|> braces (CollectionExpr <$> sepEndBy innerExpr comma)
  where
   innerExpr :: Parser InnerExpr
   innerExpr = (char '@' >> SubCollectionExpr <$> expr)
@@ -425,9 +409,6 @@ ifExpr = keywordIf >> IfExpr <$> expr <*> expr <* (inSpaces $ string "else") <*>
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = (LambdaExpr <$> argNames <* reservedOp "->" <*> expr)
-
-negExpr :: Parser EgisonExpr
-negExpr = makeApply (VarExpr $ stringToVar "*") . (: [IntegerExpr (-1)]) <$ (inSpaces $ string "-") <*> term
 
 memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
@@ -665,7 +646,7 @@ pattern' = do pattern <- (wildCard
                           <|> inductivePat
                           <|> letPat
                           <|> parens pattern)
-              option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr')
+              option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr)
 
 pattern'' :: Parser EgisonPattern
 pattern'' = wildCard
@@ -1004,8 +985,7 @@ ident :: Parser String
 ident = do
   idt <- P.identifier lexer
   let (f, s) = splitLast idt '.'
-  let s' = if s == "dot" then "." else s
-  return $ f ++ (map toLower $ intercalate "-" $ split (startsWithOneOf ['A'..'Z']) s')
+  return $ f ++ (map toLower $ intercalate "-" $ split (startsWithOneOf ['A'..'Z']) s)
  where
    splitLast list elem = let (f, s) = span (/= elem) $ reverse list
                           in (reverse s, reverse f)

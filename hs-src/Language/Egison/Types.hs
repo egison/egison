@@ -219,6 +219,7 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr Var
   | FreshVarExpr
+  | IndexedExpr' EgisonExpr [Index EgisonExpr]
   | IndexedExpr Bool EgisonExpr [Index EgisonExpr]  -- True -> delete old index and append new one
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
@@ -239,7 +240,7 @@ data EgisonExpr =
   | ProcedureExpr [String] EgisonExpr
   | MacroExpr [String] EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern
-  
+
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetRecExpr [BindingExpr] EgisonExpr
   | LetExpr [BindingExpr] EgisonExpr
@@ -261,13 +262,13 @@ data EgisonExpr =
 
   | QuoteExpr EgisonExpr
   | QuoteSymbolExpr EgisonExpr
-  
+
   | WedgeExpr EgisonExpr
   | WedgeApplyExpr EgisonExpr EgisonExpr
 
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
-    
+
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
   | CApplyExpr EgisonExpr EgisonExpr
@@ -312,6 +313,8 @@ data Index a =
   | MultiSuperscript a a
   | DFscript Integer Integer -- DifferentialForm
   | Userscript a
+  | DotSubscript a
+  | DotSupscript a
  deriving (Eq, Generic)
 
 data InnerExpr =
@@ -656,7 +659,7 @@ mathDivideTerm (Term a xs) (Term b ys) =
     if x == y
     then (1, (x, n - m))
     else (1, (x, n))
-              
+
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
   let p x = case x of
@@ -722,7 +725,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
   p sgn [] _ = (False, 0)
   p sgn ((x, n):xs) ys =
     let (b, ys', sgn2) = q (x, n) [] ys in
-      if b 
+      if b
         then p (sgn * sgn2) xs ys'
         else (False, 0)
   q :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Bool, [(SymbolExpr, Integer)], Integer)
@@ -815,13 +818,13 @@ tIntRef' i (Tensor (n:ns) xs js) =
           fromTensor $ Tensor ns ys (cdr js)
    else throwError $ TensorIndexOutOfBounds i n
 tIntRef' i _ = throwError $ Default "More indices than the order of the tensor"
- 
+
 tIntRef :: HasTensor a => [Integer] -> Tensor a -> EgisonM (Tensor a)
 tIntRef [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
   | otherwise = throwError $ EgisonBug "sevaral elements in scalar tensor"
 tIntRef [] t = return t
-tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms 
+tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms
 
 tref :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM a
 tref [] (Tensor [] xs _)
@@ -1191,7 +1194,8 @@ instance Show EgisonExpr where
   show (VarExpr name) = show name
   show (PartialVarExpr n) = "%" ++ show n
   show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
-  show (IndexedExpr b expr idxs) = show expr ++ concatMap show idxs
+  show (IndexedExpr True expr idxs) = show expr ++ concatMap show idxs
+  show (IndexedExpr False expr idxs) = show expr ++ "..." ++ concatMap show idxs
   show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
   show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
 
@@ -1447,18 +1451,18 @@ data Intermediate =
 data Inner =
     IElement ObjectRef
   | ISubCollection ObjectRef
-    
+
 instance Show WHNFData where
-  show (Value val) = show val 
+  show (Value val) = show val
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
-  show (Intermediate (IArray _)) = "(|...|)" 
-  show (Intermediate (IIntHash _)) = "{|...|}" 
-  show (Intermediate (ICharHash _)) = "{|...|}" 
-  show (Intermediate (IStrHash _)) = "{|...|}" 
---  show (Intermediate (ITensor _)) = "[|...|]" 
-  show (Intermediate (ITensor (Tensor ns xs _))) = "[|" ++ show (length ns) ++ show (V.length xs) ++ "|]" 
+  show (Intermediate (IArray _)) = "(|...|)"
+  show (Intermediate (IIntHash _)) = "{|...|}"
+  show (Intermediate (ICharHash _)) = "{|...|}"
+  show (Intermediate (IStrHash _)) = "{|...|}"
+--  show (Intermediate (ITensor _)) = "[|...|]"
+  show (Intermediate (ITensor (Tensor ns xs _))) = "[|" ++ show (length ns) ++ show (V.length xs) ++ "|]"
 
 instance Show Object where
   show (Thunk _) = "#<thunk>"
@@ -1474,25 +1478,25 @@ class (EgisonData a) => EgisonWHNF a where
   toWHNF :: a -> WHNFData
   fromWHNF :: WHNFData -> EgisonM a
   toWHNF = Value . toEgison
-  
+
 instance EgisonWHNF Char where
   fromWHNF = liftError . fromCharWHNF
-  
+
 instance EgisonWHNF Text where
   fromWHNF = liftError . fromStringWHNF
-  
+
 instance EgisonWHNF Bool where
   fromWHNF = liftError . fromBoolWHNF
-  
+
 instance EgisonWHNF Integer where
   fromWHNF = liftError . fromIntegerWHNF
-  
+
 instance EgisonWHNF Double where
   fromWHNF = liftError . fromFloatWHNF
-  
+
 instance EgisonWHNF Handle where
   fromWHNF = liftError . fromPortWHNF
-  
+
 fromCharWHNF :: WHNFData -> Either EgisonError Char
 fromCharWHNF (Value (Char c)) = return c
 fromCharWHNF whnf = throwError $ TypeMismatch "char" whnf
@@ -1521,7 +1525,7 @@ fromPortWHNF whnf = throwError $ TypeMismatch "port" whnf
 class (EgisonWHNF a) => EgisonObject a where
   toObject :: a -> Object
   toObject = WHNF . toWHNF
-  
+
 --
 -- Environment
 --
@@ -1651,7 +1655,7 @@ data EgisonError =
   | EgisonBug String
   | Default String
   deriving Typeable
-    
+
 instance Show EgisonError where
   show (Parser err) = "Parse error at: " ++ err
   show (UnboundVariable var) = "Unbound variable: " ++ show var
@@ -1709,8 +1713,8 @@ liftEgisonM m = EgisonM $ ExceptT $ FreshT $ do
   s <- get
   (a, s') <- return $ runFresh s m
   put s'
-  return $ either throwError return a   
-  
+  return $ either throwError return a
+
 fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
 fromEgisonM = modifyCounter . runEgisonM
 
@@ -1726,9 +1730,9 @@ updateCounter = writeIORef counter
 modifyCounter :: FreshT IO a -> IO a
 modifyCounter m = do
   seed <- readCounter
-  (result, seed) <- runFreshT seed m 
+  (result, seed) <- runFreshT seed m
   updateCounter seed
-  return result  
+  return result
 
 newtype FreshT m a = FreshT { unFreshT :: StateT (Int, Int) m a }
   deriving (Functor, Applicative, Monad, MonadState (Int, Int), MonadTrans)
@@ -1918,7 +1922,7 @@ stringToVar name = Var (splitOn "." name) []
 
 varToVarWithIndices :: Var -> VarWithIndices
 varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
- where 
+ where
    f :: Index () -> Index String
    f (Superscript ()) = Superscript ""
    f (Subscript ()) = Subscript ""
