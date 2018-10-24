@@ -17,17 +17,17 @@
 (define $f./' f./)
 
 (define $+
-  (cambda $xs (if (capply and (map scalar? xs))
-                  (math-normalize1 (capply +' xs))
-                  (capply f.+' (map (lambda [$x] (if (float? x) x (itof x))) xs)))))
+  (cambda $xs (if (capply or (map float? xs))
+                  (capply f.+' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (math-normalize1 (capply +' xs)))))
 (define $-
-  (cambda $xs (if (capply and (map scalar? xs))
-                  (math-normalize1 (capply -' xs))
-                  (capply f.-' (map (lambda [$x] (if (float? x) x (itof x))) xs)))))
+  (cambda $xs (if (capply or (map float? xs))
+                  (capply f.-' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (math-normalize1 (capply -' xs)))))
 (define $*
-  (cambda $xs (if (capply and (map scalar? xs))
-                  (math-normalize1 (capply *' xs))
-                  (capply f.*' (map (lambda [$x] (if (float? x) x (itof x))) xs)))))
+  (cambda $xs (if (capply or (map float? xs))
+                  (capply f.*' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (math-normalize1 (capply *' xs)))))
 (define $/
   (lambda [$x $y]
     (if (and (float? x) (float? y))
