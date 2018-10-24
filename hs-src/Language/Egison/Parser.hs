@@ -238,7 +238,8 @@ inSpaces1 :: Parser a -> Parser ()
 inSpaces1 p = skipMany (space <|> newline) >> p >> skipMany1 (space <|> newline)
 
 exprWithSymbol :: Parser EgisonExpr
-exprWithSymbol = (lookAhead (string "d/d") >> applyExpr)
+exprWithSymbol = (string "d/d" >> applyExpr'' (VarExpr $ stringToVar "d/d"))
+                 <|> (string "V.*" >> applyExpr'' (VarExpr $ stringToVar "V.*"))
                  <|> (lookAhead (string "let*") >> letStarExpr)
 
 term :: Parser EgisonExpr
@@ -256,6 +257,7 @@ term = (
           <|> try constantExpr
           <|> try negExpr
           <|> try lambdaExpr
+          <|> try withSymbolsExpr
           <|> try varExpr
           <|> try vectorExpr
           <|> try tupleExpr
@@ -278,7 +280,6 @@ term = (
 --                          <|> cambdaExpr
 --                          <|> procedureExpr
 --                          <|> macroExpr
---                          <|> withSymbolsExpr
 --                          <|> ioExpr
 --                          <|> nextMatchAllExpr
 --                          <|> nextMatchExpr
@@ -450,7 +451,7 @@ macroExpr :: Parser EgisonExpr
 macroExpr = keywordMacro >> MacroExpr <$> varNames <*> expr
 
 patternFunctionExpr :: Parser EgisonExpr
-patternFunctionExpr = keywordPatternFunction >> parens (PatternFunctionExpr <$> (brackets (sepEndBy ident comma)) <* comma <*> pattern)
+patternFunctionExpr = keywordPatternFunction >> parens (PatternFunctionExpr <$> (brackets $ sepEndBy ident comma) <* comma <*> pattern)
 
 letRecExpr :: Parser EgisonExpr
 letRecExpr =  keywordLetRec >> LetRecExpr <$> bindings <* keywordLetIn <*> expr
@@ -462,7 +463,7 @@ letStarExpr :: Parser EgisonExpr
 letStarExpr = keywordLetStar >> LetStarExpr <$> bindings <* keywordLetIn <*> expr
 
 withSymbolsExpr :: Parser EgisonExpr
-withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> (braces $ sepEndBy ident whiteSpace) <*> expr
+withSymbolsExpr = keywordWithSymbols >> parens (WithSymbolsExpr <$> (brackets $ sepEndBy ident comma) <* comma <*> expr)
 
 doExpr :: Parser EgisonExpr
 doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr $ stringToVar "return") (TupleExpr [])) expr
@@ -513,6 +514,10 @@ applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr)
 applyExpr' :: Parser EgisonExpr
 applyExpr' = do
   func <- try varExpr <|> try partialExpr <|> try partialVarExpr <|> (parens expr)
+  applyExpr'' func
+
+applyExpr'' :: EgisonExpr -> Parser EgisonExpr
+applyExpr'' func = do
   argslist <- many1 $ parens args
   return $ foldl (\acc xs -> makeApply acc xs) func argslist
  where
@@ -999,7 +1004,8 @@ ident :: Parser String
 ident = do
   idt <- P.identifier lexer
   let (f, s) = splitLast idt '.'
-  return $ f ++ (map toLower $ intercalate "-" $ split (startsWithOneOf ['A'..'Z']) s)
+  let s' = if s == "dot" then "." else s
+  return $ f ++ (map toLower $ intercalate "-" $ split (startsWithOneOf ['A'..'Z']) s')
  where
    splitLast list elem = let (f, s) = span (/= elem) $ reverse list
                           in (reverse s, reverse f)
