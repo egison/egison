@@ -272,9 +272,9 @@ assertEqual("pairs of 2, different natural numbers",
            | _ <++> $m <:> _ <++> $n <:> _ -> [m, n]),
   [[1, 2], [1, 3], [2, 3], [1, 4], [2, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5]])
 
-fn tree(a) = algebraicDataMatcher(<leaf>, <node tree(a) a tree(a)>)
+tree(a) = algebraicDataMatcher(<leaf>, <node tree(a) a tree(a)>)
 
-fn treeInsert(n, t) = match t as tree(integer)
+treeInsert(n, t) = match t as tree(integer)
                       | <leaf> -> <Node <Leaf> n <Leaf>>
                       | <node $t1 $m $t2> ->
                           (match compare(n, m) as ordering
@@ -282,7 +282,7 @@ fn treeInsert(n, t) = match t as tree(integer)
                            | <equal> -> <Node t1 n t2>
                            | <greater> -> <Node t1 m treeInsert(n, t2)>)
 
-fn treeMember?(n, t) =
+treeMember?(n, t) =
   match t as tree(integer)
   | <leaf> -> #f
   | <node $t1 $m $t2> ->
@@ -353,7 +353,7 @@ assertEqual("double inverted index",
     in f([|1, 2, 3|]_i, [|10, 20, 30|]_j),
   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]~i~j)
 
-fn f(x, *y) = x + y
+f(x, *y) = x + y
 assertEqual("single inverted index",
   let f = $x, *$y -> x + y
     in f([|1, 2, 3|]_i, [|10, 20, 30|]_j),

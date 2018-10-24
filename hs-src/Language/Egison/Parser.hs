@@ -141,7 +141,7 @@ topExpr = try defineExpr
 
 defineExpr :: Parser EgisonTopExpr
 defineExpr = try (Define <$> identVar <* (inSpaces $  string "=") <* notFollowedBy (string "=") <*> expr)
-             <|> try (keywordDefineFunction >> spaces >> Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr))
+             <|> try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr))
  where
   argNames' :: Parser [Arg]
   argNames' = sepEndBy argName' comma
@@ -883,7 +883,6 @@ reservedOp = P.reservedOp lexer
 
 keywordDefine               = reserved "define"
 keywordRedefine             = reserved "redefine"
-keywordDefineFunction       = reserved "fn"
 keywordSet                  = reserved "set!"
 keywordTest                 = reserved "test"
 keywordExecute              = reserved "execute"
