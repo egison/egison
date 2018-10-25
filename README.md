@@ -1,16 +1,17 @@
 # The Egison Programming Language
 
-Egison is the pattern-matching-oriented purely functional programming language.
-We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
+Egison is a functional programming language featuring its expressive pattern-matching facility.
+Egison allows users to define efficient and expressive pattern-matching methods for arbitrary user-defined data types including non-free data types such as lists, multisets, sets, trees, graphs, and mathematical expressions.
 This is the repository of the interpreter of Egison.
 
 For more information, visit <a target="_blank" href="https://www.egison.org">our website</a>.
 
-## Non-Linear Pattern-Matching against Non-Free Data Types
+## Non-Linear Pattern-Matching for Non-Free Data Types
 
-We can do non-linear pattern-matching against non-free data types in Egison.
-An non-free data type is a data type whose data have no canonical form, a standard way to represent that object.
-It enables us to write elegant programs.
+We can describe non-linear pattern-matching for non-free data types in Egison.
+A non-free data type is a data type whose data have no canonical form, a standard way to represent that object.
+For example, multisets are non-free data types because the multiset {a,b,b} has two other equivalent but literally different forms {b,a,b} and {b,b,a}.
+Expressive pattern-matching for these data types enables us to write elegant programs.
 
 ### Twin Primes
 
@@ -54,12 +55,12 @@ We can use it for pattern-matching also against graphs and tree-structures such 
 
 ## Egison as a Computer Algebra System
 
-As an application of Egison, we implemented a computer algebra system on Egison.
-The most part of this computer algebra system is written in Egison and extensible in Egison.
+As an application of Egison pattern matching, we have implemented a computer algebra system on Egison.
+The most part of this computer algebra system is written in Egison and extensible using Egison.
 
 ### Symbolic Algebra
 
-Unbound variables are treated as symbols.
+Egison treats unbound variables as symbols.
 
 ```
 > x
@@ -279,16 +280,17 @@ Here are more samples.
 
 There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern-matching.
 
-The advantage of Egison is that it achieves **all of the following features** at the same time.
+The advantage of Egison is that it fulfillss **all the following two requirement** at the same time.
 
-* Modularization of the way of pattern-matching for each data type
-* Pattern-matching with multiple results (backtracking)
-* Non-linear pattern-matching with **lexical scoping**
-* Parametric polymorphism of pattern-constructors
+(1) Efficient backtracking algorithm for non-linear pattern matching.
+(2) Extensibility of patterns.
 
-The <a target="_blank" href="https://www.egison.org/manual/mechanism.html">Pattern-Matching Mechanism</a> section in Egison developer's manual explains how we achieve that.
+Additionally, it fulfills the following requirements.
 
-Please read <a target="_blank" href="http://arxiv.org/abs/1407.0729">our paper on arXiv.org</a> for details.
+(3) Polymorphism of patterns.
+(4) Pattern matching with infinitely many results.
+
+Please read <a target="_blank" https://arxiv.org/abs/1808.10603">our paper</a> for details.
 
 ## Installation
 
@@ -387,7 +389,7 @@ Please follow us.
 
 ## Acknowledgement
 
-I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara, Kentaro Honda, and Mayuko kori for their help to implement the interpreter.
+I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara, Kentaro Honda, and Mayuko Kori for their help to implement the interpreter.
 
 ## License
 
