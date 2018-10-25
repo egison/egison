@@ -805,9 +805,7 @@ tIndex (Tensor _ _ js) = js
 tIndex (Scalar _) = []
 
 tIntRef' :: HasTensor a => Integer -> Tensor a -> EgisonM a
-tIntRef' i (Tensor [ary] xs _) = let n = fromIntegral (length [ary]) in
-                                     if (0 < i) && (i <= (n + 3)) then fromTensor $ Scalar $ xs V.! fromIntegral (i - 1)
-                                                                  else throwError $ TensorIndexOutOfBounds i (n + 3)
+tIntRef' i (Tensor [_] xs _) = fromTensor $ Scalar $ xs V.! (fromIntegral (i - 1))
 tIntRef' i (Tensor (n:ns) xs js) =
   if (0 < i) && (i <= n)
    then let w = fromIntegral (product ns) in

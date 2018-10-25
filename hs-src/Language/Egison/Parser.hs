@@ -781,7 +781,7 @@ egisonDef =
 
 symbol0 = oneOf "^"
 symbol1 = oneOf "+-*/.=∂∇"
-symbol2 = symbol1 <|> oneOf "'!?"
+symbol2 = symbol1 <|> oneOf "'!?₀₁₂₃₄₅₆₇₈₉"
 
 lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser egisonDef
