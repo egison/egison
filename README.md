@@ -13,7 +13,7 @@ For more information, visit <a target="_blank" href="https://www.egison.org">our
 * Satoshi Egi, Yuichi Nishiwaki: [Non-linear Pattern Matching with Backtracking for Non-free Data Types](https://arxiv.org/abs/1808.10603) (APLAS 2018)
 * Satoshi Egi: [Loop Patterns: Extension of Kleene Star Operator for More Expressive Pattern Matching against Arbitrary Data Structures](https://arxiv.org/abs/1809.03252) (Scheme Workshop 2018)
 
-## Tensor Index Notation
+### Tensor Index Notation
 
 * Satoshi Egi: [Scalar and Tensor Parameters for Importing Tensor Index Notation including Einstein Summation Notation](https://arxiv.org/abs/1702.06343) (Scheme Workshop 2017)
 
