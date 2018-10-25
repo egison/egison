@@ -282,13 +282,13 @@ There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPat
 
 The advantage of Egison is that it fulfillss **all the following two requirement** at the same time.
 
-(1) Efficient backtracking algorithm for non-linear pattern matching.
-(2) Extensibility of patterns.
+1. Efficient backtracking algorithm for non-linear pattern matching.
+2. Extensibility of patterns.
 
 Additionally, it fulfills the following requirements.
 
-(3) Polymorphism of patterns.
-(4) Pattern matching with infinitely many results.
+3. Polymorphism of patterns.
+4. Pattern matching with infinitely many results.
 
 Please read <a target="_blank" https://arxiv.org/abs/1808.10603">our paper</a> for details.
 
