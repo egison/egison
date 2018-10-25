@@ -6,7 +6,7 @@ This is the repository of the interpreter of Egison.
 
 For more information, visit <a target="_blank" href="https://www.egison.org">our website</a>.
 
-## Refreed Papers
+## Refereed Papers
 
 ### Pattern Matching
 
@@ -291,7 +291,7 @@ Here are more samples.
 
 There are <a target="_blank" href="https://ghc.haskell.org/trac/ghc/wiki/ViewPatterns#Relatedwork">a lot of existing work</a> for pattern matching.
 
-The advantage of Egison is that it fulfillss **all the following two requirement** at the same time.
+The advantage of Egison is that it fulfills the following two requirements at the same time.
 
 1. Efficient backtracking algorithm for non-linear pattern matching.
 2. Extensibility of patterns.
