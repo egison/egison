@@ -140,8 +140,12 @@ topExpr = try defineExpr
       <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = try (Define <$> identVar <* (inSpaces $  string "=") <* notFollowedBy (string "=") <*> expr)
-             <|> try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr))
+defineExpr = try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr))
+             <|> try (Define <$> identVar <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr)
+             <|> try (do (VarWithIndices name is) <- identVarWithIndices
+                         inSpaces $ string "=" >> notFollowedBy (string "=")
+                         body <- expr
+                         return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body)))
  where
   argNames' :: Parser [Arg]
   argNames' = sepEndBy argName' comma
@@ -149,20 +153,15 @@ defineExpr = try (Define <$> identVar <* (inSpaces $  string "=") <* notFollowed
   argName' = try (ident >>= return . ScalarArg)
         <|> try (char '*' >> ident >>= return . InvertedScalarArg)
         <|> try (char '%' >> ident >>= return . TensorArg)
-             -- try (parens (do keywordDefine
-             --                 (VarWithIndices name is) <- (char '$' >> identVarWithIndices)
-             --                 body <- expr
-             --                 return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
- -- where
- --  f (Superscript _) = Superscript ()
- --  f (Subscript _) = Subscript ()
- --  f (SupSubscript _) = SupSubscript ()
- --  g (Superscript i) = i
- --  g (Subscript i) = i
- --  g (SupSubscript i) = i
- --  h (Superscript i) = (VarExpr $ stringToVar i)
- --  h (Subscript i) = (VarExpr $ stringToVar i)
- --  h (SupSubscript i) = (VarExpr $ stringToVar i)
+  f (Superscript _) = Superscript ()
+  f (Subscript _) = Subscript ()
+  f (SupSubscript _) = SupSubscript ()
+  g (Superscript i) = i
+  g (Subscript i) = i
+  g (SupSubscript i) = i
+  h (Superscript i) = (VarExpr $ stringToVar i)
+  h (Subscript i) = (VarExpr $ stringToVar i)
+  h (SupSubscript i) = (VarExpr $ stringToVar i)
 
 redefineExpr :: Parser EgisonTopExpr
 redefineExpr = (keywordRedefine <|> keywordSet) >> Redefine <$> (char '$' >> identVar) <*> expr
@@ -183,33 +182,12 @@ exprs :: Parser [EgisonExpr]
 exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
-expr = try (buildExpressionParser table expr'')
-      <|> try expr''
- where
-   table = [[binary "." AssocLeft]]
-   binary "." assoc = Infix (try $ (inSpaces1 $ string ".") >> (return $ \x y -> makeApply (VarExpr $ Var ["."] []) [x, y])) assoc
-
-expr'' :: Parser EgisonExpr
-expr'' = P.lexeme lexer
-        (do expr0 <- expr'
-            option expr0 $ try (IndexedExpr False expr0 <$ string "..." <*> parseindex
-                           <|> IndexedExpr True expr0 <$> parseindex))
- where
-  parseindex :: Parser [Index EgisonExpr]
-  parseindex = many1 $ try (MultiSubscript <$ char '_' <*> expr' <* string "..._" <*> expr')
-                       <|> try (MultiSuperscript <$ char '~' <*> expr' <* string "...~" <*> expr')
-                       <|> try (char '_' >> Subscript <$> expr')
-                       <|> try (char '~' >> Superscript <$> expr')
-                       <|> try (string "~_" >> SupSubscript <$> expr')
-                       <|> try (char '|' >> Userscript <$> expr')
-
-expr' :: Parser EgisonExpr
-expr' = (try applyInfixExpr
-         <|> try exprWithSymbol
-         <|> try (buildExpressionParser table arg)
-         <|> try ifExpr
-         <|> try term)
-         <?> "expression"
+expr = (try applyInfixExpr
+        <|> try exprWithSymbol
+        <|> try (buildExpressionParser table arg)
+        <|> try ifExpr
+        <|> try term)
+        <?> "expression"
  where
   arg = (char '$' *> notFollowedBy varExpr *> (LambdaArgExpr <$> option "" index))
         <|> term
@@ -227,7 +205,7 @@ expr' = (try applyInfixExpr
   unary "-" assoc = Prefix (try $ inSpaces (string "-") >> (return $ \x -> (makeApply (VarExpr $ stringToVar "*") [IntegerExpr (-1), x])))
   unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> makeApply (VarExpr $ stringToVar op) [x]))
   binary "/" name assoc = Infix (try $ (try (inSpaces1 $ string "/") <|> ((inSpaces $ string "/") >> notFollowedBy (string "m" <|> string "f"))) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
-  binary "." name assoc = Infix (try $ (inSpaces1 $ string ".") >> (return $ \x y -> makeApply (VarExpr $ Var ["."] []) [x, y])) assoc
+  binary "." name assoc = Infix (try $ (inSpaces1 $ string ".") >> (return $ \x y -> makeApply (VarExpr $ stringToVar ".") [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
 
 inSpaces :: Parser a -> Parser ()
@@ -243,7 +221,21 @@ exprWithSymbol = (string "d/d" >> applyExpr'' (VarExpr $ stringToVar "d/d"))
                  <|> (lookAhead (string "let*") >> letStarExpr)
 
 term :: Parser EgisonExpr
-term = (
+term = P.lexeme lexer
+        (do term0 <- term'
+            option term0 $ try (IndexedExpr False term0 <$ string "..." <*> parseindex
+                           <|> IndexedExpr True term0 <$> parseindex))
+ where
+  parseindex :: Parser [Index EgisonExpr]
+  parseindex = many1 $ try (MultiSubscript <$ char '_' <*> term' <* string "..._" <*> term')
+                       <|> try (MultiSuperscript <$ char '~' <*> term' <* string "...~" <*> term')
+                       <|> try (char '_' >> Subscript <$> term')
+                       <|> try (char '~' >> Superscript <$> term')
+                       <|> try (string "~_" >> SupSubscript <$> term')
+                       <|> try (char '|' >> Userscript <$> term')
+
+term' :: Parser EgisonExpr
+term' = (
 --              <|> try freshVarExpr
               matchExpr
           <|> matchAllExpr
@@ -270,9 +262,9 @@ term = (
           <|> letRecExpr
           <|> letStarExpr
           <|> patternFunctionExpr
-          <|> parens expr
           <|> quoteExpr
           <|> quoteSymbolExpr
+          <|> parens expr
 --              <|> wedgeExpr
 --              <|> parens (memoizedLambdaExpr
 --                          <|> memoizeExpr
@@ -460,7 +452,7 @@ letStarExpr :: Parser EgisonExpr
 letStarExpr = keywordLetStar >> LetStarExpr <$> bindings <* keywordLetIn <*> expr
 
 withSymbolsExpr :: Parser EgisonExpr
-withSymbolsExpr = keywordWithSymbols >> parens (WithSymbolsExpr <$> (brackets $ sepEndBy ident comma) <* comma <*> expr)
+withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> (braces $ sepEndBy ident comma) <*> expr
 
 doExpr :: Parser EgisonExpr
 doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr $ stringToVar "return") (TupleExpr [])) expr
@@ -527,12 +519,11 @@ applyInfixExpr :: Parser EgisonExpr
 applyInfixExpr = do
   arg1 <- arg
   spaces
-  func <- (char '`' *> (varExpr <|> (VarExpr (stringToVar ".") <$ string ".")) <* char '`')
+  func <- (char '`' *> varExpr <* char '`')
   spaces
   arg2 <- arg
   return $ makeApply func [arg1, arg2]
  where
-  args = sepEndBy arg $ comma
   arg = try term
         <|> char '$' *> (LambdaArgExpr <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
@@ -673,7 +664,7 @@ wildCard :: Parser EgisonPattern
 wildCard = reservedOp "_" >> pure WildCard
 
 indexedPat :: Parser EgisonPattern
-indexedPat = IndexedPat <$> (patVar <|> varPat) <*> many1 (try $ char '_' >> expr')
+indexedPat = IndexedPat <$> (patVar <|> varPat) <*> many1 (try $ char '_' >> expr)
 
 patVar :: Parser EgisonPattern
 patVar = char '$' >> PatVar <$> identVarWithoutIndex

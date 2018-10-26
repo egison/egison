@@ -6,7 +6,6 @@
 ;;; Primitive Data
 ;;;
 
-"primitive-data"
 assertEqual("char literal", c#a, c#a)
 
 assertEqual("string literal", "abc\n", "abc\n")
