@@ -183,7 +183,14 @@ exprs :: Parser [EgisonExpr]
 exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
-expr = P.lexeme lexer
+expr = try (buildExpressionParser table expr'')
+      <|> try expr''
+ where
+   table = [[binary "." AssocLeft]]
+   binary "." assoc = Infix (try $ (inSpaces1 $ string ".") >> (return $ \x y -> makeApply (VarExpr $ Var ["."] []) [x, y])) assoc
+
+expr'' :: Parser EgisonExpr
+expr'' = P.lexeme lexer
         (do expr0 <- expr'
             option expr0 $ try (IndexedExpr False expr0 <$ string "..." <*> parseindex
                            <|> IndexedExpr True expr0 <$> parseindex))
@@ -192,9 +199,9 @@ expr = P.lexeme lexer
   parseindex = many1 $ try (MultiSubscript <$ char '_' <*> expr' <* string "..._" <*> expr')
                        <|> try (MultiSuperscript <$ char '~' <*> expr' <* string "...~" <*> expr')
                        <|> try (char '_' >> Subscript <$> expr')
-                       <|> try (char '~' >> Subscript <$> expr')
-                       <|> try (string "~_" >> Subscript <$> expr')
-                       <|> try (char '|' >> Subscript <$> expr')
+                       <|> try (char '~' >> Superscript <$> expr')
+                       <|> try (string "~_" >> SupSubscript <$> expr')
+                       <|> try (char '|' >> Userscript <$> expr')
 
 expr' :: Parser EgisonExpr
 expr' = (try applyInfixExpr
@@ -520,7 +527,7 @@ applyInfixExpr :: Parser EgisonExpr
 applyInfixExpr = do
   arg1 <- arg
   spaces
-  func <- (char '`' *> varExpr <* char '`')
+  func <- (char '`' *> (varExpr <|> (VarExpr (stringToVar ".") <$ string ".")) <* char '`')
   spaces
   arg2 <- arg
   return $ makeApply func [arg1, arg2]
@@ -999,7 +1006,7 @@ ident = do
   let (f, s) = splitLast idt '.'
   return $ f ++ (map toLower $ intercalate "-" $ split (startsWithOneOf ['A'..'Z']) s)
  where
-   splitLast list elem = let (f, s) = span (/= elem) $ reverse list
+  splitLast list elem = let (f, s) = span (/= elem) $ reverse list
                           in (reverse s, reverse f)
 
 identVar :: Parser Var
@@ -1010,8 +1017,8 @@ identVar = P.lexeme lexer (do
 
 identVarWithoutIndex :: Parser Var
 identVarWithoutIndex = do
-    x <- ident
-    return $ stringToVar x
+  x <- ident
+  return $ stringToVar x
 
 identVarWithIndices :: Parser VarWithIndices
 identVarWithIndices = P.lexeme lexer (do
