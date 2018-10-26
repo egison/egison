@@ -39,7 +39,7 @@
               <nil>>>>>>>>>
      a]))
 
-(test eight-queen)
+;(test eight-queen)
 
 (define $n-queen
   (lambda [$n]
@@ -55,4 +55,7 @@
                    <nil>)>
       a])))
 
-(test (n-queen 4))
+(test (n-queen 8))
+(test (n-queen 9))
+(test (n-queen 10))
+(test (n-queen 11))
