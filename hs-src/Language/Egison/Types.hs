@@ -166,6 +166,7 @@ import Data.Typeable
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Fail
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity
@@ -807,9 +808,7 @@ tIndex (Tensor _ _ js) = js
 tIndex (Scalar _) = []
 
 tIntRef' :: HasTensor a => Integer -> Tensor a -> EgisonM a
-tIntRef' i (Tensor [ary] xs _) = let n = fromIntegral (length [ary]) in
-                                     if (0 < i) && (i <= (n + 3)) then fromTensor $ Scalar $ xs V.! fromIntegral (i - 1)
-                                                                  else throwError $ TensorIndexOutOfBounds i (n + 3)
+tIntRef' i (Tensor [_] xs _) = fromTensor $ Scalar $ xs V.! (fromIntegral (i - 1))
 tIntRef' i (Tensor (n:ns) xs js) =
   if (0 < i) && (i <= n)
    then let w = fromIntegral (product ns) in
@@ -1688,6 +1687,9 @@ liftError = either throwError return
 newtype EgisonM a = EgisonM {
     unEgisonM :: ExceptT EgisonError (FreshT IO) a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
+
+instance MonadFail EgisonM where
+    fail = throwError . EgisonBug
 
 parallelMapM :: (a -> EgisonM b) -> [a] -> EgisonM [b]
 parallelMapM f [] = return []
