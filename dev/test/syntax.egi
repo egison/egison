@@ -87,7 +87,6 @@ assertEqual("indexed placeholder2",
 ;;; Pattern-Matching
 ;;;
 
-"pattern-matching"
 assertEqual("match",
   match 1 as integer
   | 0 -> 0
@@ -308,7 +307,6 @@ assertEqual("tuple pattern",
 ;;; Tensor
 ;;;
 
-"tensor"
 assertEqual("generate-tensor - case 1",
   generateTensor(kroneckerDelta, [3]),
   [| 1, 1, 1 |])

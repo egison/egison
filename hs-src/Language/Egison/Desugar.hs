@@ -137,14 +137,6 @@ desugar (ArrayRefExpr expr nums) =
     (TupleExpr nums') -> desugar $ IndexedExpr True expr (map Subscript nums')
     _ -> desugar $ IndexedExpr True expr [Subscript nums]
 
-desugar (IndexedExpr' expr indices) =
-  case expr of
-    IndexedExpr' expr' indices' -> desugar (IndexedExpr' expr' $ indices' ++ indices)
-    otherwise -> case indices of
-                   (DotSubscript x):xs -> desugar (IndexedExpr False expr $ (Subscript x):xs)
-                   (DotSupscript x):xs -> desugar (IndexedExpr False expr $ (Superscript x):xs)
-                   _ -> desugar (IndexedExpr True expr indices)
-
 desugar (IndexedExpr b expr indices)
   | endWithThreeDots expr = case expr of
                               (VarExpr name) -> let x = show name in desugar $ IndexedExpr False (VarExpr $ stringToVar $ take ((length x)-3) x) indices

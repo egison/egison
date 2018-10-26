@@ -184,20 +184,30 @@ exprs = endBy expr whiteSpace
 
 expr :: Parser EgisonExpr
 expr = P.lexeme lexer
-          (try applyInfixExpr
-           <|> try exprWithSymbol
-           <|> try (buildExpressionParser table arg)
-           <|> try ifExpr
-           <|> try term)
-           <?> "expression"
+        (do expr0 <- expr'
+            option expr0 $ try (IndexedExpr False expr0 <$ string "..." <*> parseindex
+                           <|> IndexedExpr True expr0 <$> parseindex))
+ where
+  parseindex :: Parser [Index EgisonExpr]
+  parseindex = many1 $ try (MultiSubscript <$ char '_' <*> expr' <* string "..._" <*> expr')
+                       <|> try (MultiSuperscript <$ char '~' <*> expr' <* string "...~" <*> expr')
+                       <|> try (char '_' >> Subscript <$> expr')
+                       <|> try (char '~' >> Subscript <$> expr')
+                       <|> try (string "~_" >> Subscript <$> expr')
+                       <|> try (char '|' >> Subscript <$> expr')
+
+expr' :: Parser EgisonExpr
+expr' = (try applyInfixExpr
+         <|> try exprWithSymbol
+         <|> try (buildExpressionParser table arg)
+         <|> try ifExpr
+         <|> try term)
+         <?> "expression"
  where
   arg = (char '$' *> notFollowedBy varExpr *> (LambdaArgExpr <$> option "" index))
         <|> term
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  table = [ [binaryscript "_" Subscript AssocLeft, binaryscript "~_" SupSubscript AssocLeft,
-             binaryscript "~" Superscript AssocLeft, binaryscript "|" Userscript AssocLeft,
-             binaryscript "..._" DotSubscript AssocLeft, binaryscript "...~" DotSupscript AssocLeft]
-          , [unary "not" AssocRight]
+  table = [ [unary "not" AssocRight]
           , [binary "^" "**" AssocLeft]
           , [unary "-" AssocLeft]
           , [binary "*" "*" AssocLeft, binary "/" "/" AssocLeft, binary "." "." AssocLeft]
@@ -212,7 +222,6 @@ expr = P.lexeme lexer
   binary "/" name assoc = Infix (try $ (try (inSpaces1 $ string "/") <|> ((inSpaces $ string "/") >> notFollowedBy (string "m" <|> string "f"))) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
   binary "." name assoc = Infix (try $ (inSpaces1 $ string ".") >> (return $ \x y -> makeApply (VarExpr $ Var ["."] []) [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
-  binaryscript op t assoc = Infix (try $ string op >> (return $ \x y -> IndexedExpr' x [t y])) assoc
 
 inSpaces :: Parser a -> Parser ()
 inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
@@ -612,41 +621,41 @@ userrefsExpr = (do keywordUserrefs
 -- Patterns
 
 pattern :: Parser EgisonPattern
-pattern = P.lexeme lexer (try (buildExpressionParser table pattern')
-                          <|> try pattern')
-                          <?> "expression"
+pattern = P.lexeme lexer
+            (try (buildExpressionParser table pattern')
+            <|> try pattern')
+            <?> "expression"
 
  where
   table = [ [unary "!" AssocRight, unary "not" AssocRight]
           , [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
           , [binary "+" "plus" AssocLeft]
           , [binary "<:>" "cons" AssocRight]
-          , [binary' "and" AndPat AssocLeft, binary' "or" OrPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft]
+          , [binary' "and" AndPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft, binary' "or" OrPat AssocLeft]
           , [binary "<++>" "join" AssocRight]
           ]
   unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> NotPat x))
   binary "+" name assoc = Infix (try $ inSpaces (string "+") >> notFollowedBy (string "+") >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> InductivePat name [x, y])) assoc
-  binary' "or" epr assoc = Infix (try $ inSpaces (string "or") >> notFollowedBy (string "*") >> (return $ \x y -> epr [x, y])) assoc
   binary' op epr assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> epr [x, y])) assoc
 
 pattern' :: Parser EgisonPattern
-pattern' = do pattern <- (wildCard
-                          <|> contPat
-                          <|> patVar
-                          <|> try dfsPat
-                          <|> try bfsPat
-                          <|> try loopPat
-                          <|> try pApplyPat
-                          <|> try dApplyPat
-                          <|> try varPat
-                          <|> valuePat
-                          <|> predPat
-                          <|> try tuplePat
-                          <|> inductivePat
-                          <|> letPat
-                          <|> parens pattern)
-              option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr)
+pattern' = wildCard
+           <|> contPat
+           <|> try indexedPat
+           <|> patVar
+           <|> try dfsPat
+           <|> try bfsPat
+           <|> try loopPat
+           <|> try pApplyPat
+           <|> try dApplyPat
+           <|> try varPat
+           <|> valuePat
+           <|> predPat
+           <|> try tuplePat
+           <|> inductivePat
+           <|> letPat
+           <|> parens pattern
 
 pattern'' :: Parser EgisonPattern
 pattern'' = wildCard
@@ -655,6 +664,9 @@ pattern'' = wildCard
 
 wildCard :: Parser EgisonPattern
 wildCard = reservedOp "_" >> pure WildCard
+
+indexedPat :: Parser EgisonPattern
+indexedPat = IndexedPat <$> (patVar <|> varPat) <*> many1 (try $ char '_' >> expr')
 
 patVar :: Parser EgisonPattern
 patVar = char '$' >> PatVar <$> identVarWithoutIndex
