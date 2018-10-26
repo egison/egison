@@ -1201,6 +1201,7 @@ instance Show EgisonExpr where
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
   show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
+  show (VectorExpr xs) = "[| " ++ unwords (map show xs) ++ " |]"
   show _ = "(not supported)"
 
 instance Show EgisonValue where
