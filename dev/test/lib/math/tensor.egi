@@ -1,9 +1,9 @@
 assertEqual("Tensor product - case 1",
-  [| [| 1, 1 |], [| 0, 1 |] |]~i~j `.` [| [| 1, 1 |], [| 0, 1 |] |]_j_k,
+  [| [| 1, 1 |], [| 0, 1 |] |]~i~j . [| [| 1, 1 |], [| 0, 1 |] |]_j_k,
   [| [| 1, 2 |], [| 0, 1 |] |])
 
 assertEqual("Tensor product - case 2",
-  [| [| 1, 1 |], [| 0, 1 |] |]~i~j `.` [| [| 1, 1 |], [| 0, 1 |] |]_j~k `.` [| [| 1, 1 |], [| 0, 1 |] |]_k_l,
+  [| [| 1, 1 |], [| 0, 1 |] |]~i~j . [| [| 1, 1 |], [| 0, 1 |] |]_j~k . [| [| 1, 1 |], [| 0, 1 |] |]_k_l,
   [| [| 1, 3 |], [| 0, 1 |] |]~i_l)
 
 assertEqual("Vector *",
@@ -53,16 +53,16 @@ assertEqual("Tensor '+' - case 6",
   [| [| 101, 110 |], [| 202, 220 |], [| 303, 330 |] |]_j_i)
 
 assertEqual("append indices with ...",
-  let A = generateTensor(2#1, [2, 2]) in
-  let f = %B -> B..._j in
-  show(f(A_i)),
+  let a = generateTensor(2#1, [2, 2]) in
+  let f = %b -> b..._j in
+  show(f(a_i)),
   show([| [| 1, 1 |], [| 1, 1 |] |]_i_j))
 
 assertEqual("generate_tensor by using function expr",
   letrec g__ = generateTensor
                   ($x -> match x as (integer, integer)
                          | ($n, n) -> function(x, y, z)
-                         | _ -> 0,
-                  [3, 3]) in
-     show(withSymbols([i, j], d/d(g_i_j, x))),
+                         | _ -> 0
+                  , [3, 3]) in
+     show(withSymbols {i, j} d/d(g_i_j, x)),
   "[| [| g_1_1|x 0 0 |] [| 0 g_2_2|x 0 |] [| 0 0 g_3_3|x |] |]")
