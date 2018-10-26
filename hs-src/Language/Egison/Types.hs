@@ -219,7 +219,6 @@ data EgisonExpr =
   | FloatExpr Double Double
   | VarExpr Var
   | FreshVarExpr
-  | IndexedExpr' EgisonExpr [Index EgisonExpr]
   | IndexedExpr Bool EgisonExpr [Index EgisonExpr]  -- True -> delete old index and append new one
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
