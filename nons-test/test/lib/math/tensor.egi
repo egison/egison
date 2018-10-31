@@ -54,7 +54,7 @@ assertEqual("Tensor '+' - case 6",
 
 assertEqual("append indices with ...",
   let a = generateTensor(2#1, [2, 2]) in
-  let f = %b -> b..._j in
+  let f = %B -> B..._j in
   show(f(a_i)),
   show([| [| 1, 1 |], [| 1, 1 |] |]_i_j))
 
