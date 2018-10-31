@@ -73,8 +73,8 @@ import qualified Data.Vector               as V
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
-import           Language.Egison.ParserS as ParserS
 import           Language.Egison.Parser as Parser
+import           Language.Egison.ParserNonS as ParserNonS
 import           Language.Egison.Types
 
 --
@@ -93,10 +93,10 @@ evalTopExprs env exprs = do
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
       Load b file -> do
-        exprs' <- if b then ParserS.loadLibraryFile file else Parser.loadLibraryFile file
+        exprs' <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
       LoadFile b file -> do
-        exprs' <- if b then ParserS.loadFile file else Parser.loadFile file
+        exprs' <- if b then Parser.loadFile file else ParserNonS.loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
       Execute _ -> collectDefs exprs bindings (expr : rest)
       _ -> collectDefs exprs bindings rest
@@ -114,10 +114,10 @@ evalTopExprsTestOnly env exprs = do
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
       Load b file -> do
-        exprs' <- if b then ParserS.loadLibraryFile file else Parser.loadLibraryFile file
+        exprs' <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
       LoadFile b file -> do
-        exprs' <- if b then ParserS.loadFile file else Parser.loadFile file
+        exprs' <- if b then Parser.loadFile file else ParserNonS.loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
       Test _ -> collectDefs exprs bindings (expr : rest)
       Redefine _ _ -> collectDefs exprs bindings (expr : rest)
@@ -159,8 +159,8 @@ evalTopExpr' env (Execute expr) = do
   case io of
     Value (IOFunc m) -> m >> return (Nothing, env)
     _                -> throwError $ TypeMismatch "io" io
-evalTopExpr' env (Load b file) = (if b then ParserS.loadLibraryFile file else Parser.loadLibraryFile file) >>= evalTopExprs env >>= return . ((,) Nothing)
-evalTopExpr' env (LoadFile b file) = (if b then ParserS.loadFile file else Parser.loadFile file) >>= evalTopExprs env >>= return . ((,) Nothing)
+evalTopExpr' env (Load b file) = (if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file) >>= evalTopExprs env >>= return . ((,) Nothing)
+evalTopExpr' env (LoadFile b file) = (if b then Parser.loadFile file else ParserNonS.loadFile file) >>= evalTopExprs env >>= return . ((,) Nothing)
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c

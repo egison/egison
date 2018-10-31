@@ -15,7 +15,7 @@ import Control.Monad.Except (liftIO)
 
 import Language.Egison.Types
 import Language.Egison.Parser as Parser
-import Language.Egison.ParserS as ParserS
+import Language.Egison.ParserNonS as ParserNonS
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
 getEgisonExpr :: Bool -> String -> InputT IO (Maybe (String, EgisonTopExpr))
@@ -34,7 +34,7 @@ getEgisonExpr' isSExpr prompt prev = do
         else getEgisonExpr' isSExpr prompt prev
     Just line -> do
       let input = prev ++ line
-      case (if isSExpr then ParserS.parseTopExpr else Parser.parseTopExpr) input of
+      case (if isSExpr then Parser.parseTopExpr else ParserNonS.parseTopExpr) input of
         Left err | show err =~ "unexpected end of input" -> do
           getEgisonExpr' isSExpr prompt $ input ++ "\n"
         Left err -> do
@@ -56,7 +56,7 @@ getEgisonExprOrNewLine' isSExpr prompt prev = do
     Just [] -> return $ Left $ Just ""
     Just line -> do
       let input = prev ++ line
-      case (if isSExpr then ParserS.parseTopExpr else Parser.parseTopExpr) input of
+      case (if isSExpr then Parser.parseTopExpr else ParserNonS.parseTopExpr) input of
         Left err | show err =~ "unexpected end of input" -> do
           getEgisonExprOrNewLine' isSExpr prompt $ input ++ "\n"
         Left err -> do
