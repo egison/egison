@@ -245,8 +245,8 @@ term' = (matchExpr
           <|> try applyExpr
           <|> try partialExpr
           <|> try partialVarExpr
-          <|> try freshVarExpr
           <|> try constantExpr
+          <|> try freshVarExpr
           <|> try lambdaExpr
           <|> try withSymbolsExpr
           <|> try varExpr
@@ -267,13 +267,13 @@ term' = (matchExpr
           <|> tensorContractExpr
           <|> subrefsExpr
           <|> suprefsExpr
+          <|> macroExpr
+          <|> ioExpr
           <|> parens expr
 --              <|> wedgeExpr
 --              <|> parens (memoizedLambdaExpr
 --                          <|> memoizeExpr
 --                          <|> procedureExpr
---                          <|> macroExpr
---                          <|> ioExpr
 --                          <|> seqExpr
 --                          <|> cApplyExpr
 --                          <|> symbolicTensorExpr
@@ -368,16 +368,16 @@ matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
-ppMatchClauses = braces $ sepEndBy ppMatchClause comma
+ppMatchClauses = parens $ sepEndBy ppMatchClause comma
 
 ppMatchClause :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
-ppMatchClause = brackets $ (,,) <$> ppPattern <*> expr <*> pdMatchClauses
+ppMatchClause = brackets $ (,,) <$> ppPattern <* comma <*> expr <* comma <*> pdMatchClauses
 
 pdMatchClauses :: Parser [(PrimitiveDataPattern, EgisonExpr)]
-pdMatchClauses = braces $ sepEndBy pdMatchClause comma
+pdMatchClauses = brackets $ sepEndBy pdMatchClause comma
 
 pdMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
-pdMatchClause = brackets $ (,) <$> pdPattern <*> expr
+pdMatchClause = (,) <$> pdPattern <* (reservedOp "->") <*> expr
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = P.lexeme lexer (ppWildCard
@@ -437,7 +437,7 @@ procedureExpr :: Parser EgisonExpr
 procedureExpr = keywordProcedure >> ProcedureExpr <$> varNames <*> expr
 
 macroExpr :: Parser EgisonExpr
-macroExpr = keywordMacro >> MacroExpr <$> varNames <*> expr
+macroExpr = keywordMacro >> parens (MacroExpr <$> varNames <* comma <*> expr)
 
 patternFunctionExpr :: Parser EgisonExpr
 patternFunctionExpr = keywordPatternFunction >> parens (PatternFunctionExpr <$> (brackets $ sepEndBy ident comma) <* comma <*> pattern)
@@ -488,7 +488,7 @@ argName = try (char '$' >> ident >>= return . ScalarArg)
       <|> try (char '%' >> ident >>= return . TensorArg)
 
 ioExpr :: Parser EgisonExpr
-ioExpr = keywordIo >> IoExpr <$> expr
+ioExpr = keywordIo >> parens (IoExpr <$> expr)
 
 seqExpr :: Parser EgisonExpr
 seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
