@@ -621,8 +621,8 @@ userrefsExpr = (do keywordUserrefs
 pattern :: Parser EgisonPattern
 pattern = P.lexeme lexer
             (try (buildExpressionParser table pattern')
-            <|> try pattern')
-            <?> "expression"
+             <|> try pattern'
+             <?> "expression")
 
  where
   table = [ [unary "!" AssocRight, unary "not" AssocRight]
@@ -664,7 +664,7 @@ wildCard :: Parser EgisonPattern
 wildCard = reservedOp "_" >> pure WildCard
 
 indexedPat :: Parser EgisonPattern
-indexedPat = IndexedPat <$> (patVar <|> varPat) <*> many1 (try $ char '_' >> expr)
+indexedPat = IndexedPat <$> (patVar <|> varPat) <*> many1 (try $ char '_' >> term')
 
 patVar :: Parser EgisonPattern
 patVar = char '$' >> PatVar <$> identVarWithoutIndex
