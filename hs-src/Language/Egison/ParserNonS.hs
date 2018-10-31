@@ -269,25 +269,25 @@ term' = (matchExpr
           <|> suprefsExpr
           <|> macroExpr
           <|> ioExpr
+          <|> seqExpr
           <|> parens expr
 --              <|> wedgeExpr
 --              <|> parens (memoizedLambdaExpr
 --                          <|> memoizeExpr
 --                          <|> procedureExpr
---                          <|> seqExpr
 --                          <|> cApplyExpr
 --                          <|> symbolicTensorExpr
 --                          <|> parExpr
---                          <|> pseqExpr
 --                          <|> pmapExpr
+--                          <|> tensorMapExpr
+--                          <|> tensorMap2Expr
 --
 --                          <|> nextMatchAllExpr
 --                          <|> nextMatchExpr
 --                          <|> nextMatchAllLambdaExpr
 --                          <|> nextMatchLambdaExpr
---                          <|> tensorMapExpr
---                          <|> tensorMap2Expr
 --                          <|> transposeExpr
+--                          <|> pseqExpr
 --                          )
              <?> "simple expression")
 
@@ -491,7 +491,7 @@ ioExpr :: Parser EgisonExpr
 ioExpr = keywordIo >> parens (IoExpr <$> expr)
 
 seqExpr :: Parser EgisonExpr
-seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
+seqExpr = keywordSeq >> parens (SeqExpr <$> expr <* comma <*> expr)
 
 cApplyExpr :: Parser EgisonExpr
 cApplyExpr = (keywordCApply >> CApplyExpr <$> expr <*> expr)
