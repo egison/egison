@@ -168,7 +168,7 @@ options = [
   Option ['M'] ["math"]
     (ReqArg (\lang opts -> opts {optMathExpr = Just lang})
             "String")
-    "output in LaTeX format"
+    "output in AsciiMath, Latex, or Mathematica format"
   ]
 
 readFieldOption :: String -> (String, String)
@@ -266,6 +266,7 @@ repl noIOFlag mathExprLang env prompt = do
               (Just "haskell") -> putStrLn (mathExprToHaskell output) >> loop env'
               (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop env'
               (Just "latex") -> putStrLn (mathExprToLatex output) >> loop env'
+              (Just "mathematica") -> putStrLn (mathExprToMathematica output) >> loop env'
              )
     `catch`
     (\e -> case e of

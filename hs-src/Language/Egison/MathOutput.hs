@@ -6,7 +6,7 @@ Licence     : MIT
 This module provides utility functions.
 -}
 
-module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex) where
+module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex, mathExprToMathematica) where
 
 import Control.Monad
 import System.Environment
@@ -26,6 +26,11 @@ mathExprToLatex :: String -> String
 mathExprToLatex input = case parse parseExpr "math-expr" input of
                           Left err -> input
                           Right val -> "#latex|" ++ showMathExprLatex val ++ "|#"
+
+mathExprToMathematica :: String -> String
+mathExprToMathematica input = case parse parseExpr "math-expr" input of
+                          Left err -> input
+                          Right val -> "#mathematica|" ++ showMathExprMathematica val ++ "|#"
 
 data MathExpr = Atom String [MathIndex]
               | NegativeAtom String
@@ -48,10 +53,6 @@ data MathIndex = Super MathExpr
 --
 -- Show (AsciiMath)
 --
-
-showMathIndexAsciiMath :: MathIndex -> String
-showMathIndexAsciiMath (Super a) = showMathExprAsciiMath a
-showMathIndexAsciiMath (Sub a) = showMathExprAsciiMath a
 
 showMathExprAsciiMath :: MathExpr -> String
 showMathExprAsciiMath (Atom func []) = func
@@ -99,6 +100,10 @@ showMathExprAsciiMathArg lvs = showMathExprAsciiMath (head lvs) ++ ", " ++ (show
 showMathExprAsciiMathIndices :: [MathIndex] -> String
 showMathExprAsciiMathIndices [a] = showMathIndexAsciiMath a
 showMathExprAsciiMathIndices lvs = showMathIndexAsciiMath (head lvs) ++ showMathExprAsciiMathIndices (tail lvs)
+
+showMathIndexAsciiMath :: MathIndex -> String
+showMathIndexAsciiMath (Super a) = showMathExprAsciiMath a
+showMathIndexAsciiMath (Sub a) = showMathExprAsciiMath a
 
 --
 -- Show (Latex)
@@ -172,6 +177,61 @@ showMathExprLatexVectors :: [MathExpr] -> String
 showMathExprLatexVectors [] = ""
 showMathExprLatexVectors (Tensor lvs []:r) = showMathExprLatexArg lvs " & " ++ " \\\\ " ++ showMathExprLatexVectors r
 showMathExprLatexVectors lvs = showMathExprLatexArg lvs " \\\\ " ++ "\\\\ "
+
+--
+-- Show (Mathematica)
+--
+
+showMathExprMathematica :: MathExpr -> String
+showMathExprMathematica (Atom a []) = a
+--showMathExprMathematica (Atom a xs) = a ++ showMathExprMathematicaScript xs
+showMathExprMathematica (Partial f xs) = undefined
+showMathExprMathematica (NegativeAtom a) = "-" ++ a
+showMathExprMathematica (Plus []) = ""
+showMathExprMathematica (Plus (x:xs)) = showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
+ where
+  showMathExprMathematicaForPlus :: [MathExpr] -> String
+  showMathExprMathematicaForPlus [] = ""
+  showMathExprMathematicaForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprMathematicaForPlus xs
+  showMathExprMathematicaForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprMathematica (Multiply ((Atom a []):ys)) ++ showMathExprMathematicaForPlus xs
+  showMathExprMathematicaForPlus (x:xs) = " + " ++  showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
+showMathExprMathematica (Multiply []) = ""
+showMathExprMathematica (Multiply [x]) = showMathExprMathematica x
+showMathExprMathematica (Multiply (Atom "1" []:xs)) = showMathExprMathematica (Multiply xs)
+showMathExprMathematica (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExprMathematica (Multiply xs)
+showMathExprMathematica (Multiply (x:xs)) = showMathExprMathematica' x ++ " " ++ showMathExprMathematica (Multiply xs)
+showMathExprMathematica (Power lv1 lv2) = showMathExprMathematica lv1 ++ "^" ++ showMathExprMathematica lv2
+showMathExprMathematica (Func (Atom "sqrt" []) [x]) = "Sqrt[" ++ showMathExprMathematica x ++ "]"
+showMathExprMathematica (Func (Atom "rt" []) [x, y]) = "Surd[" ++ showMathExprMathematica x ++ "," ++ showMathExprMathematica y ++ "]"
+showMathExprMathematica (Func (Atom "/" []) [x, y]) = "(" ++ showMathExprMathematica x ++ ")/(" ++ showMathExprMathematica y ++ ")"
+showMathExprMathematica (Func f xs) = showMathExprMathematica f ++ "(" ++ showMathExprMathematicaArg xs ++ ")"
+showMathExprMathematica (Tensor lvs mis)
+  | null mis = "{" ++ showMathExprMathematicaArg lvs ++ "}"
+  | not (any isSub mis) = "{" ++ showMathExprMathematicaArg lvs ++ "}^(" ++ showMathExprMathematicaIndices mis ++ ")"
+  | not (any (not . isSub) mis) = "{" ++ showMathExprMathematicaArg lvs ++ "}_(" ++ showMathExprMathematicaIndices mis ++ ")"
+  | otherwise = "{" ++ showMathExprMathematicaArg lvs ++ "}_(" ++ showMathExprMathematicaIndices (filter isSub mis) ++ ")^(" ++ showMathExprMathematicaIndices (filter (not . isSub) mis) ++ ")"
+showMathExprMathematica (Tuple xs) = "(" ++ showMathExprMathematicaArg xs ++ ")"
+showMathExprMathematica (Collection xs) = "{" ++ showMathExprMathematicaArg xs ++ "}"
+showMathExprMathematica (Exp x) = "e^(" ++ showMathExprMathematica x ++ ")"
+showMathExprMathematica (Quote x) = "(" ++ showMathExprMathematica x ++ ")"
+
+showMathExprMathematica' :: MathExpr -> String
+showMathExprMathematica' (Plus xs) = "(" ++ showMathExprMathematica (Plus xs) ++ ")"
+showMathExprMathematica' x = showMathExprMathematica x
+
+showMathExprMathematicaArg :: [MathExpr] -> String
+showMathExprMathematicaArg [] = ""
+showMathExprMathematicaArg [a] = showMathExprMathematica a
+showMathExprMathematicaArg lvs = showMathExprMathematica (head lvs) ++ ", " ++ (showMathExprMathematicaArg (tail lvs))
+
+showMathExprMathematicaIndices :: [MathIndex] -> String
+showMathExprMathematicaIndices [a] = showMathIndexMathematica a
+showMathExprMathematicaIndices lvs = showMathIndexMathematica (head lvs) ++ showMathExprMathematicaIndices (tail lvs)
+ 
+showMathIndexMathematica :: MathIndex -> String
+showMathIndexMathematica (Super a) = showMathExprMathematica a
+showMathIndexMathematica (Sub a) = showMathExprMathematica a
+
 
 --
 -- Parser
