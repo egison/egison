@@ -1,6 +1,6 @@
 ;;;;;
 ;;;;;
-;;;;; String
+;;;;; S.ring
 ;;;;;
 ;;;;;
 
@@ -40,7 +40,7 @@
      }))
 
 ;;;
-;;; String as collection
+;;; S.ring as collection
 ;;;
 (define $S.empty?
   (lambda [$xs]
@@ -92,24 +92,24 @@
 (define $S.replace
   (lambda [$before $after $str]
     (S.intercalate after (S.split before str))))
-    
+
 
 ;;
 ;; Alphabet
 ;;
-(define $C.between
+(define $c.between
   (lambda [$c1 $c2]
     (map itoc (between (ctoi c1) (ctoi c2)))))
 
-(define $C.between?
+(define $c.between?
   (lambda [$c1 $c2 $c]
     (and (gte? (ctoi c) (ctoi c1))
          (lte? (ctoi c) (ctoi c2)))))
 
 (define $alphabet?
   (lambda [$c]
-    (or (C.between? c#a c#z c)
-        (C.between? c#A c#Z c))))
+    (or (c.between? c#a c#z c)
+        (c.between? c#A c#Z c))))
 
 (define $alphabets?
   (lambda [$s]
@@ -117,12 +117,12 @@
 
 (define $upper-case
   (lambda [$c]
-    (if (C.between? c#a c#z c)
+    (if (c.between? c#a c#z c)
       (itoc (- (ctoi c) 32))
       c)))
 
 (define $lower-case
   (lambda [$c]
-    (if (C.between? c#A c#Z c)
+    (if (c.between? c#A c#Z c)
       (itoc (+ (ctoi c) 32))
       c)))

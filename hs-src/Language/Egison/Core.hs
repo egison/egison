@@ -73,7 +73,8 @@ import qualified Data.Vector               as V
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
-import           Language.Egison.Parser
+import           Language.Egison.Parser as Parser
+import           Language.Egison.ParserNonS as ParserNonS
 import           Language.Egison.Types
 
 --
@@ -91,11 +92,11 @@ evalTopExprs env exprs = do
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load file -> do
-        exprs' <- loadLibraryFile file
+      Load b file -> do
+        exprs' <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
-      LoadFile file -> do
-        exprs' <- loadFile file
+      LoadFile b file -> do
+        exprs' <- if b then Parser.loadFile file else ParserNonS.loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
       Execute _ -> collectDefs exprs bindings (expr : rest)
       _ -> collectDefs exprs bindings rest
@@ -112,11 +113,11 @@ evalTopExprsTestOnly env exprs = do
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load file -> do
-        exprs' <- loadLibraryFile file
+      Load b file -> do
+        exprs' <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
         collectDefs (exprs' ++ exprs) bindings rest
-      LoadFile file -> do
-        exprs' <- loadFile file
+      LoadFile b file -> do
+        exprs' <- if b then Parser.loadFile file else ParserNonS.loadFile file
         collectDefs (exprs' ++ exprs) bindings rest
       Test _ -> collectDefs exprs bindings (expr : rest)
       Redefine _ _ -> collectDefs exprs bindings (expr : rest)
@@ -134,8 +135,8 @@ evalTopExprsNoIO env exprs = do
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load _           -> throwError $ Default "No IO support"
-      LoadFile _       -> throwError $ Default "No IO support"
+      Load _ _           -> throwError $ Default "No IO support"
+      LoadFile _ _       -> throwError $ Default "No IO support"
       _                -> collectDefs exprs bindings (expr : rest)
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
@@ -158,8 +159,8 @@ evalTopExpr' env (Execute expr) = do
   case io of
     Value (IOFunc m) -> m >> return (Nothing, env)
     _                -> throwError $ TypeMismatch "io" io
-evalTopExpr' env (Load file) = loadLibraryFile file >>= evalTopExprs env >>= return . ((,) Nothing)
-evalTopExpr' env (LoadFile file) = loadFile file >>= evalTopExprs env >>= return . ((,) Nothing)
+evalTopExpr' env (Load b file) = (if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file) >>= evalTopExprs env >>= return . ((,) Nothing)
+evalTopExpr' env (LoadFile b file) = (if b then Parser.loadFile file else ParserNonS.loadFile file) >>= evalTopExprs env >>= return . ((,) Nothing)
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
@@ -832,28 +833,28 @@ valuetoTensor2 (Intermediate (ITensor t)) = t
 
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
-    tds <- fromTupleWHNF tds
-    if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
-       then do
-            symId <- fresh
-            let argnum = length tds
-                subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-                supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-            dot <- evalExpr env (VarExpr $ stringToVar ".")
-            makeITuple ((Value (TensorData (Tensor s1 t1 (i1 ++ supjs)))):(map Intermediate (map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
-       else throwError $ Default "applyfunc"
+  tds <- fromTupleWHNF tds
+  if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
+    then do
+      symId <- fresh
+      let argnum = length tds
+          subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+          supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+      dot <- evalExpr env (VarExpr $ stringToVar ".")
+      makeITuple ((Value (TensorData (Tensor s1 t1 (i1 ++ supjs)))):(map Intermediate (map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
+    else throwError $ Default "applyfunc"
 
 applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
-    tds <- fromTupleWHNF tds
-    if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
-       then do
-            symId <- fresh
-            let argnum = length tds
-                subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-                supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-            dot <- evalExpr env (VarExpr $ stringToVar ".")
-            makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):(map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
-       else throwError $ Default "applyfunc"
+  tds <- fromTupleWHNF tds
+  if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
+    then do
+      symId <- fresh
+      let argnum = length tds
+          subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+          supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+      dot <- evalExpr env (VarExpr $ stringToVar ".")
+      makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):(map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
+    else throwError $ Default "applyfunc"
 
 applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
@@ -1070,7 +1071,7 @@ processMStatesLine depth streams = do
   zip' l1 l2 = take (max (length l1) (length l2)) $ zip (l1 ++ repeat []) (l2 ++ repeat [])
   mergeNT :: [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
   mergeNT [] oldnt = oldnt
-  mergeNT nodes [] = [nodes] 
+  mergeNT nodes [] = [nodes]
   mergeNT nodes (x:oldnt) = (x ++ nodes):oldnt
 
 gatherBindings :: MatchingState -> Maybe [Binding]

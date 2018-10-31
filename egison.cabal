@@ -45,7 +45,7 @@ Description:
   Please view and try more demonstrations!
   .
   <http://www.egison.org>
-  .  
+  .
   Egison makes programming dramatically simple.
   Please enjoy Egison!
 Homepage:            http://www.egison.org
@@ -66,7 +66,7 @@ Data-files:          lib/core/*.egi lib/math/*.egi lib/math/common/*.egi lib/mat
 source-repository head
   type: git
   location: https://github.com/egison/egison.git
-  
+
 Library
   Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, text, regex-tdfa, process, vector, parallel, split, hashable, lens
   if !impl(ghc > 8.0)
@@ -78,6 +78,7 @@ Library
                    Language.Egison.Desugar
                    Language.Egison.Types
                    Language.Egison.Parser
+                   Language.Egison.ParserNonS
                    Language.Egison.Primitives
                    Language.Egison.Util
                    Language.Egison.MathOutput

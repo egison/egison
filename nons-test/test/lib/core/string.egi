@@ -1,0 +1,91 @@
+assert("string's value pattern",
+  match "abc" as string
+  | "abc" -> #t
+  | _ -> #f)
+
+assert("string's nil - case 1",
+  match "" as string
+  | <nil> -> #t
+  | _ -> #f)
+
+assert("string's nil - case 2",
+  match "abc" as string
+  | <nil> -> #f
+  | _ -> #t)
+
+assertEqual("string's cons",
+  matchAll "abc" as string
+  | $x<:>$xs -> [x, xs],
+  [[c#a, "bc"]])
+
+assertEqual("string's join",
+  matchAll "abc" as string
+  | $xs<++>$ys -> [xs, ys],
+  [["", "abc"], ["a", "bc"],
+   ["ab", "c"], ["abc", ""]])
+
+;;;
+;;; string as collection
+;;;
+assertEqual("S.empty? - case 1",
+  S.empty?(""),
+  #t)
+
+assertEqual("S.empty? - case 2",
+  S.empty?("Egison"),
+  #f)
+
+assertEqual("S.car",
+  S.car("Egison"),
+  c#E)
+
+assertEqual("S.cdr",
+  S.cdr("Egison"),
+  "gison")
+
+assertEqual("S.rac",
+  S.rac("Egison"),
+  c#n)
+
+assertEqual("S.map",
+  S.map(id, "Egison"),
+  "Egison")
+
+assertEqual("S.length",
+  S.length("Egison"),
+  6)
+
+assertEqual("S.split",
+  S.split(",", "Lisp,Haskell,Egison"),
+  ["Lisp", "Haskell", "Egison"])
+
+assertEqual("S.append",
+  S.append("Egi", "son"),
+  "Egison")
+
+assertEqual("S.concat",
+  S.concat(["Egi", "son"]),
+  "Egison")
+
+assertEqual("S.intercalate",
+  S.intercalate(",", ["Lisp", "Haskell", "Egison"]),
+  "Lisp,Haskell,Egison")
+
+;;
+;; Characters
+;;
+assertEqual("alphabet?",
+  alphabet?(c#a),
+  #t)
+
+assertEqual("alphabets?",
+  alphabets?("Egison"),
+  #t)
+
+assertEqual("upper-case",
+  upperCase(c#e),
+  c#E)
+
+assertEqual("lower-case",
+  lowerCase(c#E),
+  c#e)

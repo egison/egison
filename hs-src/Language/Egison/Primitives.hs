@@ -84,7 +84,7 @@ oneArg' f arg = do
 twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 twoArgs f args = do
   args' <- tupleToList args
-  case args' of 
+  case args' of
     [TensorData t1@(Tensor _ _ _), TensorData t2@(Tensor _ _ _)] -> Value <$> (tProduct f t1 t2 >>= fromTensor)
     [TensorData(Tensor ns ds js), val] -> do
       ds' <- V.mapM (\d -> f d val) ds
@@ -99,7 +99,7 @@ twoArgs f args = do
 twoArgs' :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 twoArgs' f args = do
   args' <- tupleToList args
-  case args' of 
+  case args' of
     [val, val'] -> Value <$> f val val'
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
@@ -107,7 +107,7 @@ twoArgs' f args = do
 threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 threeArgs' f args = do
   args' <- tupleToList args
-  case args' of 
+  case args' of
     [val, val', val''] -> Value <$> f val val' val''
     _ -> throwError $ ArgumentsNumPrimitive 3 $ length args'
 
@@ -149,20 +149,20 @@ primitives = [ ("b.+", plus)
              , ("remainder", integerBinaryOp rem)
              , ("b.abs", rationalUnaryOp abs)
              , ("b.neg", rationalUnaryOp negate)
-               
+
              , ("eq?",  eq)
              , ("lt?",  lt)
              , ("lte?", lte)
              , ("gt?",  gt)
              , ("gte?", gte)
-               
+
              , ("round",    floatToIntegerOp round)
              , ("floor",    floatToIntegerOp floor)
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", truncate')
              , ("real-part", realPart)
              , ("imaginary-part", imaginaryPart)
-               
+
              , ("b.sqrt", floatUnaryOp sqrt)
              , ("b.sqrt'", floatUnaryOp sqrt)
              , ("b.exp", floatUnaryOp exp)
@@ -203,7 +203,7 @@ primitives = [ ("b.+", plus)
              , ("add-superscript", addSuperscript)
 
              , ("read-process", readProcess')
-               
+
              , ("read", read')
              , ("read-tsv", readTSV)
              , ("show", show')
@@ -235,7 +235,7 @@ rationalUnaryOp op = oneArg $ \val -> do
   r <- fromEgison val
   let r' =  op r
   return $ toEgison r'
-  
+
 rationalBinaryOp :: (Rational -> Rational -> Rational) -> PrimitiveFunc
 rationalBinaryOp op = twoArgs $ \val val' -> do
   r <- fromEgison val :: EgisonM Rational
@@ -362,7 +362,7 @@ lt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
   scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
   scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
   scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
-  
+
 lte :: PrimitiveFunc
 lte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
  where
@@ -374,7 +374,7 @@ lte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
   scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
   scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
   scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
-  
+
 gt :: PrimitiveFunc
 gt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
  where
@@ -386,7 +386,7 @@ gt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
   scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
   scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
   scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
-  
+
 gte :: PrimitiveFunc
 gte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
  where
@@ -398,7 +398,7 @@ gte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
   scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
   scalarBinaryPred' (Float _ _)    val           = throwError $ TypeMismatch "float" (Value val)
   scalarBinaryPred' val            _             = throwError $ TypeMismatch "number" (Value val)
-  
+
 truncate' :: PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
@@ -528,7 +528,7 @@ regexStringCaptureGroup :: PrimitiveFunc
 regexStringCaptureGroup = twoArgs $ \pat src -> case (pat, src) of
                                                   (String patStr, String srcStr) -> do
                                                     let ret = (T.unpack srcStr =~ T.unpack patStr) :: [[String]]
-                                                    case ret of 
+                                                    case ret of
                                                       [] -> return . Collection . Sq.fromList $ []
                                                       ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
                                                                        return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
@@ -645,18 +645,18 @@ ioPrimitives = [
                , ("read-line", readLine)
                , ("write-char", writeChar)
                , ("write", writeString)
-                 
+
                , ("read-char-from-port", readCharFromPort)
                , ("read-line-from-port", readLineFromPort)
                , ("write-char-to-port", writeCharToPort)
                , ("write-to-port", writeStringToPort)
-                 
+
                , ("eof?", isEOFStdin)
                , ("flush", flushStdout)
                , ("eof-port?", isEOFPort)
                , ("flush-port", flushPort)
                , ("read-file", readFile')
-                 
+
                , ("rand", randRange)
 --               , ("sqlite", sqlite)
                ]
@@ -696,7 +696,7 @@ writeString :: PrimitiveFunc
 writeString = oneArg' $ \val -> do
   s <- fromEgison val
   return $ makeIO' $ liftIO $ T.putStr s
-  
+
 writeStringToPort :: PrimitiveFunc
 writeStringToPort = twoArgs' $ \val val' -> do
   port <- fromEgison val
@@ -734,7 +734,7 @@ readFile' =  oneArg' $ \val -> do
   filename <- fromEgison val
   s <- liftIO $ T.readFile $ T.unpack filename
   return $ makeIO $ return $ toEgison s
-  
+
 isEOFStdin :: PrimitiveFunc
 isEOFStdin = noArg $ return $ makeIO $ liftIO $ liftM Bool isEOF
 

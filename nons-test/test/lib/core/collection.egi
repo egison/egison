@@ -1,0 +1,416 @@
+;;;;;
+;;;;; Collection Test
+;;;;;
+
+;;;
+;;; List Pattern-Matching
+;;;
+assert("list's value pattern",
+  match [1, 2, 3] as list(integer)
+  | [@[@[1]], @[2, @[3]]] -> #t
+  | _ -> #f)
+
+assert("list's nil - case 1",
+  match [] as list(integer)
+  | <nil> -> #t
+  | _ -> #f)
+
+assert("list's nil - case 2",
+  match [1] as list(integer)
+  | <nil> -> #f
+  | _ -> #t)
+
+assertEqual("list's cons",
+  match [1, 2, 3] as list(integer)
+  | $n<:>$ns -> [n, ns],
+  [1, [2, 3]])
+
+assertEqual("list's cons with value pattern",
+  match [1, 2, 3] as list(integer)
+  | 1<:>$ns -> ns,
+  [2, 3])
+
+assertEqual("list's snoc",
+  match [1, 2, 3] as list(integer)
+  | <snoc $n $ns> -> [n, ns],
+  [3, [1, 2]])
+
+assertEqual("list's snoc with value pattern",
+  match [1, 2, 3] as list(integer)
+  | <snoc 3 $ns> -> ns,
+  [1, 2])
+
+assertEqual("list's join",
+  matchAll [1, 2, 3] as list(integer)
+  | $xs <++> $ys -> [xs, ys],
+  [[[], [1, 2, 3]],
+   [[1], [2, 3]],
+   [[1, 2], [3]],
+   [[1, 2, 3], []]])
+
+assertEqual("list's join with value pattern",
+  match [1, 2, 3] as list(integer)
+  | [1] <++> $ns -> ns,
+  [2, 3])
+
+assertEqual("list's nioj",
+  matchAll [1, 2, 3] as list(integer)
+  | <nioj $xs $ys> -> [xs, ys],
+  [[[], [1, 2, 3]],
+   [[3], [1, 2]],
+   [[2, 3], [1]],
+   [[1, 2, 3], []]])
+
+assertEqual("list's nioj with value pattern",
+  match [1, 2, 3] as list(integer)
+  | <nioj [3] $ns> -> ns,
+  [1, 2])
+
+;;;
+;;; Multiset Pattern-Matching
+;;;
+assert("multiset's nil - case 1",
+  match [] as multiset(integer)
+  | <nil> -> #t
+  | _ -> #f)
+
+assert("multiset's nil - case 2",
+  match [1] as multiset(integer)
+  | <nil> -> #f
+  | _ -> #t)
+
+assert("multiset's value pattern",
+  match [1, 1, 1, 2, 3] as multiset(integer)
+  | [@[@[1]], @[2, @[1, 3]], 1] -> #t
+  | _ -> #f)
+
+assertEqual("multiset's cons",
+  matchAll [1, 2, 3] as multiset(integer)
+  | $n<:>$ns -> [n, ns],
+  [[1, [2, 3]], [2, [1, 3]], [3, [1, 2]]])
+
+assertEqual("multiset's cons with value pattern",
+  match [1, 2, 3] as multiset(integer)
+  | 2<:>$ns -> ns,
+  [1, 3])
+
+assertEqual("multiset's join",
+  matchAll [1, 2, 3] as multiset(integer)
+  | $xs <++> $ys -> [xs, ys],
+  [[[], [1, 2, 3]], [[1], [2, 3]], [[2], [1, 3]], [[3], [1, 2]], [[1, 2], [3]], [[1, 3], [2]], [[2, 3], [1]], [[1, 2, 3], []]])
+
+assertEqual("multiset's join with value pattern - case 1",
+  match [1, 2, 3] as multiset(integer)
+  | [1] <++> $ns -> ns,
+  [2, 3])
+
+assertEqual("multiset's join with value pattern - case 2",
+  matchAll [1, 2, 3] as multiset(integer)
+  | [1, 3] <++> $ys -> ys,
+  [[2]])
+
+assertEqual("multiset's join with value pattern - case 3",
+  matchAll [1, 2, 3] as multiset(integer)
+  | [1, 5, 3] <++> $ys -> ys,
+  [])
+
+;;;
+;;; Set Pattern-Matching
+;;;;
+assert("set's nil - case 1",
+  match [] as set(integer)
+  | <nil> -> #t
+  | _ -> #f)
+
+assert("set's nil - case 2",
+  match [1] as set(integer)
+  | <nil> -> #f
+  | _ -> #t)
+
+assertEqual("set's cons",
+  matchAll [1, 2, 3] as set(integer)
+  | $n<:>$ns -> [n, ns],
+  [[1, [1, 2, 3]], [2, [1, 2, 3]], [3, [1, 2, 3]]])
+
+assertEqual("set's cons with value pattern",
+  match [1, 2, 3] as set(integer)
+  | 2<:>$ns -> ns,
+  [1, 2, 3])
+
+assertEqual("set's join",
+  matchAll [1, 2, 3] as set(integer)
+  | $xs <++> $ys -> [xs, ys],
+  [[[], [1, 2, 3]], [[1], [1, 2, 3]], [[2], [1, 2, 3]], [[3], [1, 2, 3]], [[1, 2], [1, 2, 3]], [[1, 3], [1, 2, 3]], [[2, 3], [1, 2, 3]], [[1, 2, 3], [1, 2, 3]]])
+
+assertEqual("set's join with value pattern 1",
+  matchAll [1, 2, 3] as set(integer)
+  | [1, 3] <++> $ys -> ys,
+  [[1, 2, 3]])
+
+assertEqual("set's join with value pattern 2",
+  matchAll [1, 2, 3] as set(integer)
+  | [1, 5, 3] <++> $ys -> ys,
+  [])
+
+;;
+;; Simple accessors
+;;
+assertEqual("nth",
+  nth(1, [1, 2, 3]),
+  1)
+
+assertEqual("take",
+  take(2, [1, 2, 3]),
+  [1, 2])
+
+assertEqual("drop",
+  drop(2, [1, 2, 3]),
+  [3])
+
+assertEqual("take-and-drop",
+  takeAndDrop(2, [1, 2, 3]),
+  ([1, 2], [3]))
+
+assertEqual("take-while",
+  takeWhile(lt?($, 10), primes),
+  [2, 3, 5, 7])
+
+;;
+;; cons, car, cdr
+;;
+
+assertEqual("cons",
+  cons(1, [2, 3]),
+  [1, 2, 3])
+
+assertEqual("car",
+  car([1, 2, 3]),
+  1)
+
+assertEqual("cdr",
+  cdr([1, 2, 3]),
+  [2, 3])
+
+assertEqual("rac",
+  rac([1, 2, 3]),
+  3)
+
+assertEqual("rdc",
+  rdc([1, 2, 3]),
+  [1, 2])
+
+;;
+;; List Functions
+;;
+assertEqual("length",
+  length([1, 2, 3]),
+  3)
+
+assertEqual("map",
+  map($ * 2, [1, 2, 3]),
+  [2, 4, 6])
+
+assertEqual("map2",
+  map2($ * $, [1, 2, 3], [10, 20, 30]),
+  [10, 40, 90])
+
+assertEqual("filter",
+  let odd? = $n -> eq?(modulo(n, 2), 1) in
+    filter(odd?, [1, 2, 3]),
+  [1, 3])
+
+assertEqual("zip",
+  zip([1, 2, 3], [10, 20, 30]),
+  [(1, 10), (2, 20), (3, 30)])
+
+assertEqual("lookup",
+  lookup(2, [(1, 10), (2, 20), (3, 30)]),
+  20)
+
+assertEqual("foldr",
+  foldr(($n, $ns -> [n, @ns]), [], [1, 2, 3]),
+  [1, 2, 3])
+
+assertEqual("foldl",
+  foldl(($ns, $n -> [n, @ns]), [], [1, 2, 3]),
+  [3, 2, 1])
+
+assertEqual("scanl",
+  scanl(($r, $n -> r * n), 2, [2, 2, 2]),
+  [2, 4, 8, 16])
+
+assertEqual("append",
+  append([1, 2], [3, 4, 5]),
+  [1, 2, 3, 4, 5])
+
+assertEqual("concat",
+  concat([[1, 2], [3, 4, 5]]),
+  [1, 2, 3, 4, 5])
+
+assertEqual("reverse",
+  reverse([1, 2, 3]),
+  [3, 2, 1])
+
+assertEqual("intersperse",
+  intersperse([0], [[1, 2], [3, 3], [4], []]),
+  [[1, 2], [0], [3, 3], [0], [4], [0], []])
+
+assertEqual("intercalate",
+  intercalate([0], [[1, 2], [3, 3], [4], []]),
+  [1, 2, 0, 3, 3, 0, 4, 0])
+
+assertEqual("split",
+  split([0], [1, 2, 0, 3, 3, 0, 4, 0]),
+  [[1, 2], [3, 3], [4], []])
+
+assertEqual("split/m",
+  split/m(integer, [0], [1, 2, 0, 3, 3, 0, 4, 0]),
+  [[1, 2], [3, 3], [4], []])
+
+assertEqual("find-cycle",
+  findCycle([1, 3, 4, 5, 2, 7, 5, 2, 7, 5, 2, 7]),
+  ([1, 3, 4], [5, 2, 7]))
+
+assertEqual("repeat",
+  take(5, repeat([1, 2, 3])),
+  [1, 2, 3, 1, 2])
+
+assertEqual("repeat1",
+  take(5, repeat1(2)),
+  [2, 2, 2, 2, 2])
+
+;;
+;; Others
+;;
+assertEqual("all - case 1",
+  all(eq?($, 1), [1, 1, 1]),
+  #t)
+
+assertEqual("all - case 2",
+  all(eq?($, 1), [1, 1, 2]),
+  #f)
+
+assertEqual("any - case 1",
+  any(eq?($, 1), [0, 1, 0]),
+  #t)
+
+assertEqual("any - case 2",
+  any(eq?($, 1), [0, 0, 0]),
+  #f)
+
+assertEqual("from",
+  take(3, from(2)),
+  [2, 3, 4])
+
+assertEqual("between",
+  between(2, 5),
+  [2, 3, 4, 5])
+
+;;
+;; Multiset Functions
+;;
+assertEqual("add - case 1",
+  add(1, [2, 3]),
+  [2, 3, 1])
+
+assertEqual("add - case 2",
+  add(1, [1, 2, 3]),
+  [1, 2, 3])
+
+assertEqual("add/m - case 1",
+  add/m(integer, 1, [2, 3]),
+  [2, 3, 1])
+
+assertEqual("add/m - case 2",
+  add/m(integer, 1, [1, 2, 3]),
+  [1, 2, 3])
+
+assertEqual("delete-first",
+  deleteFirst(2, [1, 2, 3, 2]),
+  [1, 3, 2])
+
+assertEqual("delete-first/m",
+  deleteFirst/m(integer, 2, [1, 2, 3, 2]),
+  [1, 3, 2])
+
+assertEqual("delete",
+  delete(2, [1, 2, 3, 1, 2, 3]),
+  [1, 3, 1, 3])
+
+assertEqual("delete/m",
+  delete/m(integer, 2, [1, 2, 3, 1, 2, 3]),
+  [1, 3, 1, 3])
+
+assertEqual("difference",
+  difference([1, 2, 3], [1, 3]),
+  [2])
+
+assertEqual("difference/m",
+  difference/m(integer, [1, 2, 3], [1, 3]),
+  [2])
+
+assertEqual("union",
+  union([1, 2, 3], [1, 3, 4]),
+  [1, 2, 3, 4])
+
+assertEqual("union/m",
+  union/m(integer, [1, 2, 3], [1, 3, 4]),
+  [1, 2, 3, 4])
+
+assertEqual("intersect",
+  intersect([1, 2, 3], [1, 3, 4]),
+  [1, 3])
+
+assertEqual("intersect/m",
+  intersect/m(integer, [1, 2, 3], [1, 3, 4]),
+  [1, 3])
+
+;;
+;; Simple predicate
+;;
+
+assertEqual("member? - case 1",
+  member?(1, [1, 3, 1, 4]),
+  #t)
+
+assertEqual("member? - case 2",
+  member?(2, [1, 3, 1, 4]),
+  #f)
+
+assertEqual("member?/m - case 1",
+  member?/m(integer, 1, [1, 3, 1, 4]),
+  #t)
+
+assertEqual("member?/m - case 2",
+  member?/m(integer, 2, [1, 3, 1, 4]),
+  #f)
+
+;;
+;; Counting
+;;
+assertEqual("count",
+  count(1, [1, 3, 1, 4]),
+  2)
+
+assertEqual("count/m",
+  count/m(integer, 1, [1, 3, 1, 4]),
+  2)
+
+assertEqual("frequency",
+  frequency([1, 3, 1, 4]),
+  [(1, 2), (3, 1), (4, 1)])
+
+assertEqual("frequency/m",
+  frequency/m(integer, [1, 3, 1, 4]),
+  [(1, 2), (3, 1), (4, 1)])
+
+;;
+;; Set Functions
+;;
+assertEqual("unique",
+  unique([1, 2, 3, 2, 1, 4]),
+  [1, 2, 3, 4])
+
+assertEqual("unique/m",
+  unique/m(integer, [1, 2, 3, 2, 1, 4]),
+  [1, 2, 3, 4])
