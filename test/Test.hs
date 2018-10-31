@@ -15,6 +15,7 @@ import System.FilePath (takeDirectory, replaceDirectory, splitPath)
 import Language.Egison.Types
 import Language.Egison.Core
 import Language.Egison.Primitives
+import Language.Egison.Parser
 import Language.Egison
 
 main = do
@@ -32,7 +33,7 @@ runUnitTestCase file = TestLabel file . TestCase $ do
       where
         assertEgisonM :: EgisonM a -> Assertion
         assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")
-    
+
         collectDefsAndTests (Define name expr) (bindings, tests) =
           ((name, expr) : bindings, tests)
         collectDefsAndTests (Test expr) (bindings, tests) =
@@ -53,7 +54,7 @@ runSampleTestCase file = TestLabel file . TestCase $ do
       where
         assertEgisonM :: [String] -> EgisonM [(EgisonExpr, EgisonValue)] -> Assertion
         assertEgisonM answers m = fromEgisonM m >>= assertString . either show (f answers)
-    
+
         collectDefsAndTests (Define name expr) (bindings, tests) =
           ((name, expr) : bindings, tests)
         collectDefsAndTests (Test expr) (bindings, tests) =

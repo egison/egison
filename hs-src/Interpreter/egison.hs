@@ -29,49 +29,48 @@ main = do args <- getArgs
           case opts of
             Options {optShowHelp = True} -> printHelp
             Options {optShowVersion = True} -> printVersionNumber
-            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optFieldInfo = fieldInfo, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag, optMathExpr = mathExprLang} -> do
+            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optFieldInfo = fieldInfo, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag, optMathExpr = mathExprLang, optSExpr = isSExpr} -> do
               coreEnv <- if noIOFlag then initialEnvNoIO else initialEnv
-              mEnv <- evalEgisonTopExprs coreEnv $ (map Load loadLibs) ++ (map LoadFile loadFiles)
+              mEnv <- evalEgisonTopExprs coreEnv $ (map (Load isSExpr) loadLibs) ++ (map (LoadFile isSExpr) loadFiles)
               case mEnv of
                 Left err -> putStrLn $ show err
                 Right env -> do
                   case mExpr of
                     Just expr ->
                       if tsvFlag
-                        then do ret <- runEgisonTopExprs env ("(execute (each (compose show-tsv print) " ++ expr ++ "))")
+                        then do ret <- runEgisonTopExprs isSExpr env ("(execute (each (compose show-tsv print) " ++ expr ++ "))")
                                 case ret of
                                   Left err -> hPutStrLn stderr $ show err
                                   Right _ -> return ()
-                        else do ret <- runEgisonExpr env expr
+                        else do ret <- runEgisonExpr isSExpr env expr
                                 case ret of
                                   Left err -> hPutStrLn stderr (show err) >> exitFailure
                                   Right val -> putStrLn (show val) >> exitWith ExitSuccess
                     Nothing ->
                       case mCmd of
-                        Just cmd -> do cmdRet <- runEgisonTopExpr env ("(execute " ++ cmd ++ ")")
+                        Just cmd -> do cmdRet <- runEgisonTopExpr isSExpr env ("(execute " ++ cmd ++ ")")
                                        case cmdRet of
                                          Left err -> putStrLn (show err) >> exitFailure
                                          _ -> exitWith ExitSuccess
                         Nothing ->
                           case mSub of
-                            Just sub -> do cmdRet <- runEgisonTopExprs env ("(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if tsvFlag then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ intercalate " " (map fst fieldInfo) ++  "} {" ++ intercalate " " (map snd fieldInfo) ++  "})]} (" ++ sub ++ " SH.input))))")
+                            Just sub -> do cmdRet <- runEgisonTopExprs isSExpr env ("(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if tsvFlag then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ intercalate " " (map fst fieldInfo) ++  "} {" ++ intercalate " " (map snd fieldInfo) ++  "})]} (" ++ sub ++ " SH.input))))")
                                            case cmdRet of
                                              Left err -> putStrLn (show err) >> exitFailure
                                              _ -> exitWith ExitSuccess
                             Nothing ->
                               case nonOpts of
-                                [] -> do
-                                  when bannerFlag showBanner >> repl noIOFlag mathExprLang env prompt >> when bannerFlag showByebyeMessage >> exitWith ExitSuccess
-                                (file:args) -> do
+                                [] -> when bannerFlag showBanner >> repl noIOFlag isSExpr mathExprLang env prompt >> when bannerFlag showByebyeMessage >> exitWith ExitSuccess
+                                (file:args) ->
                                   case opts of
                                     Options {optTestOnly = True} -> do
                                       result <- if noIOFlag
                                                   then do input <- readFile file
-                                                          runEgisonTopExprsNoIO env input
-                                                  else evalEgisonTopExprsTestOnly env [LoadFile file]
+                                                          runEgisonTopExprsNoIO isSExpr env input
+                                                  else evalEgisonTopExprsTestOnly env [LoadFile isSExpr file]
                                       either print (const $ return ()) result
                                     Options {optTestOnly = False} -> do
-                                      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
+                                      result <- evalEgisonTopExprs env [LoadFile isSExpr file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
                                       either print (const $ return ()) result
 
 data Options = Options {
@@ -88,7 +87,8 @@ data Options = Options {
     optShowBanner :: Bool,
     optTestOnly :: Bool,
     optPrompt :: String,
-    optMathExpr :: Maybe String
+    optMathExpr :: Maybe String,
+    optSExpr :: Bool
     }
 
 defaultOptions :: Options
@@ -106,7 +106,8 @@ defaultOptions = Options {
     optShowBanner = True,
     optTestOnly = False,
     optPrompt = "> ",
-    optMathExpr = Nothing
+    optMathExpr = Nothing,
+    optSExpr = True
     }
 
 options :: [OptDescr (Options -> Options)]
@@ -168,7 +169,10 @@ options = [
   Option ['M'] ["math"]
     (ReqArg (\lang opts -> opts {optMathExpr = Just lang})
             "String")
-    "output in AsciiMath, Latex, or Mathematica format"
+    "output in AsciiMath, Latex, or Mathematica format",
+  Option ['N'] ["new-syntax"]
+    (NoArg (\opts -> opts {optSExpr = False}))
+    "parse by new syntax"
   ]
 
 readFieldOption :: String -> (String, String)
@@ -234,8 +238,8 @@ showBanner = do
 showByebyeMessage :: IO ()
 showByebyeMessage = putStrLn $ "Leaving Egison Interpreter."
 
-repl :: Bool -> (Maybe String) -> Env -> String -> IO ()
-repl noIOFlag mathExprLang env prompt = do
+repl :: Bool -> Bool -> (Maybe String) -> Env -> String -> IO ()
+repl noIOFlag isSExpr mathExprLang env prompt = do
   loop env
  where
   settings :: MonadIO m => FilePath -> Settings m
@@ -244,17 +248,17 @@ repl noIOFlag mathExprLang env prompt = do
   loop :: Env -> IO ()
   loop env = (do 
     home <- getHomeDirectory
-    input <- liftIO $ runInputT (settings home) $ getEgisonExpr prompt
+    input <- liftIO $ runInputT (settings home) $ getEgisonExpr isSExpr prompt
     case (noIOFlag, input) of
       (_, Nothing) -> return ()
-      (True, Just (_, (LoadFile _))) -> do
+      (True, Just (_, (LoadFile _ _))) -> do
         putStrLn "error: No IO support"
         loop env
-      (True, Just (_, (Load _))) -> do
+      (True, Just (_, (Load _ _))) -> do
         putStrLn "error: No IO support"
         loop env
       (_, Just (topExpr, _)) -> do
-        result <- liftIO $ runEgisonTopExpr' env topExpr
+        result <- liftIO $ runEgisonTopExpr' isSExpr env topExpr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
@@ -267,6 +271,7 @@ repl noIOFlag mathExprLang env prompt = do
               (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop env'
               (Just "latex") -> putStrLn (mathExprToLatex output) >> loop env'
               (Just "mathematica") -> putStrLn (mathExprToMathematica output) >> loop env'
+              _ -> putStrLn "error: this output lang is not supported"
              )
     `catch`
     (\e -> case e of

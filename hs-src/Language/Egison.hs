@@ -8,7 +8,6 @@ This is the top module of Egison.
 
 module Language.Egison
        ( module Language.Egison.Types
-       , module Language.Egison.Parser
        , module Language.Egison.Primitives
        -- * Eval Egison expressions
        , evalEgisonExpr
@@ -34,7 +33,8 @@ import Data.Version
 import qualified Paths_egison as P
 
 import Language.Egison.Types
-import Language.Egison.Parser
+import Language.Egison.Parser as Parser
+import Language.Egison.ParserNonS as ParserNonS
 import Language.Egison.Primitives
 import Language.Egison.Core
 
@@ -59,38 +59,43 @@ evalEgisonTopExprsTestOnly :: Env -> [EgisonTopExpr] -> IO (Either EgisonError E
 evalEgisonTopExprsTestOnly env exprs = fromEgisonM $ evalTopExprsTestOnly env exprs
 
 -- |eval an Egison expression. Input is a Haskell string.
-runEgisonExpr :: Env -> String -> IO (Either EgisonError EgisonValue)
-runEgisonExpr env input = fromEgisonM $ readExpr input >>= evalExprDeep env
+runEgisonExpr :: Bool -> Env -> String -> IO (Either EgisonError EgisonValue)
+runEgisonExpr True env input = fromEgisonM $ Parser.readExpr input >>= evalExprDeep env
+runEgisonExpr False env input = fromEgisonM $ ParserNonS.readExpr input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr :: Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExpr env input = fromEgisonM $ readTopExpr input >>= evalTopExpr env
+runEgisonTopExpr :: Bool -> Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExpr True env input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr env
+runEgisonTopExpr False env input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr' :: Env -> String -> IO (Either EgisonError (Maybe String, Env))
-runEgisonTopExpr' env input = fromEgisonM $ readTopExpr input >>= evalTopExpr' env
+runEgisonTopExpr' :: Bool -> Env -> String -> IO (Either EgisonError (Maybe String, Env))
+runEgisonTopExpr' True env input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' env
+runEgisonTopExpr' False env input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' env
 
 -- |eval Egison top expressions. Input is a Haskell string.
-runEgisonTopExprs :: Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExprs env input = fromEgisonM $ readTopExprs input >>= evalTopExprs env
+runEgisonTopExprs :: Bool -> Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExprs True env input = fromEgisonM $ Parser.readTopExprs input >>= evalTopExprs env
+runEgisonTopExprs False env input = fromEgisonM $ ParserNonS.readTopExprs input >>= evalTopExprs env
 
 -- |eval Egison top expressions without IO. Input is a Haskell string.
-runEgisonTopExprsNoIO :: Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExprsNoIO env input = fromEgisonM $ readTopExprs input >>= evalTopExprsNoIO env
+runEgisonTopExprsNoIO :: Bool -> Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExprsNoIO True env input = fromEgisonM $ Parser.readTopExprs input >>= evalTopExprsNoIO env
+runEgisonTopExprsNoIO False env input = fromEgisonM $ ParserNonS.readTopExprs input >>= evalTopExprsNoIO env
 
 -- |load an Egison file
-loadEgisonFile :: Env -> FilePath -> IO (Either EgisonError Env)
-loadEgisonFile env path = evalEgisonTopExpr env (LoadFile path)
+loadEgisonFile :: Bool -> Env -> FilePath -> IO (Either EgisonError Env)
+loadEgisonFile isSExpr env path = evalEgisonTopExpr env (LoadFile isSExpr path)
 
 -- |load an Egison library
-loadEgisonLibrary :: Env -> FilePath -> IO (Either EgisonError Env)
-loadEgisonLibrary env path = evalEgisonTopExpr env (Load path)
+loadEgisonLibrary :: Bool -> Env -> FilePath -> IO (Either EgisonError Env)
+loadEgisonLibrary isSExpr env path = evalEgisonTopExpr env (Load isSExpr path)
 
 -- |Environment that contains core libraries
 initialEnv :: IO Env
 initialEnv = do
   env <- primitiveEnv
-  ret <- evalEgisonTopExprs env $ map Load coreLibraries
+  ret <- evalEgisonTopExprs env $ map (Load True) coreLibraries
   case ret of
     Left err -> do
       print . show $ err
@@ -100,8 +105,8 @@ initialEnv = do
 -- |Environment that contains core libraries without IO primitives
 initialEnvNoIO :: IO Env
 initialEnvNoIO = do
-  env <- primitiveEnvNoIO 
-  ret <- evalEgisonTopExprs env $ map Load coreLibraries
+  env <- primitiveEnvNoIO
+  ret <- evalEgisonTopExprs env $ map (Load True) coreLibraries
   case ret of
     Left err -> do
       print . show $ err

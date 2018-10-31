@@ -1,0 +1,142 @@
+;;
+;; Matcher
+;;
+assertEqual("nat's o - case 1",
+  match 0 as nat
+  | <o> -> #t
+  | _ -> #f,
+  #t)
+
+assertEqual("nat's o - case 2",
+  match 1 as nat
+  | <o> -> #t
+  | _ -> #f,
+  #f)
+
+assertEqual("nat's s - case 1",
+  match 10 as nat
+  | <s $n> -> n,
+  9)
+
+assertEqual("nat's s - case 2",
+  match 0 as nat
+  | <s <o>> -> #t
+  | _ -> #f,
+  #f)
+
+;;
+;; Sequences
+;;
+assertEqual("nats",
+  take(10, nats),
+  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+assertEqual("nats0",
+  take(10, nats0),
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+assertEqual("odds",
+  take(10, odds),
+  [1, 3, 5, 7, 9, 11, 13, 15, 17, 19])
+
+assertEqual("evens",
+  take(10, evens),
+  [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+
+assertEqual("primes",
+  take(10, primes),
+  [2, 3, 5, 7, 11, 13, 17, 19, 23, 29])
+
+;;
+;; Natural numbers
+;;
+assertEqual("divisor?",
+  divisor?(10, 5),
+  #t)
+
+assertEqual("find-factor",
+  findFactor(100),
+  2)
+
+assertEqual("p-f",
+  pF(100),
+  [2, 2, 5, 5])
+
+assertEqual("odd? - case 1",
+  odd?(3),
+  #t)
+
+assertEqual("odd? - case 2",
+  odd?(4),
+  #f)
+
+assertEqual("even? - case 1",
+  even?(4),
+  #t)
+
+assertEqual("even? - case 2",
+  even?(5),
+  #f)
+
+assertEqual("prime? - case 1",
+  prime?(17),
+  #t)
+
+assertEqual("prime? - case 2",
+  prime?(18),
+  #f)
+
+assertEqual("perm",
+  perm(5, 2),
+  20)
+
+assertEqual("comb",
+  comb(5, 2),
+  10)
+
+assertEqual("n-adic - case 1",
+  nAdic(10, 123),
+  [1, 2, 3])
+
+assertEqual("n-adic - case 2",
+  nAdic(2, 10),
+  [1, 0, 1, 0])
+
+;;
+;; Dicimal fractions
+;;
+assertEqual("rtod",
+  2#[%1, take(10, %2)](rtod(6/35)),
+  [0, [1, 7, 1, 4, 2, 8, 5, 7, 1, 4]])
+
+assertEqual("rtod'",
+  rtod'(6/35),
+  (0, [1], [7, 1, 4, 2, 8, 5]))
+
+assertEqual("show-decimal",
+  showDecimal(10, 6/35),
+  "0.1714285714")
+
+assertEqual("show-decimal'",
+  showDecimal'(6/35),
+  "0.1 714285 ...")
+
+assertEqual("regular-continued-fraction sqrt of 2",
+  rtof(regularContinuedFraction(1, [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2])),
+  1.4142135623730951)
+
+assertEqual("regular-continued-fraction pi",
+  rtof(regularContinuedFraction(3, [7, 15, 1, 292, 1, 1, 1, 2, 1, 3, 1, 14, 2, 1, 1, 2, 2, 2, 2, 1, 84, 2, 1, 1, 15, 3, 13])),
+  3.141592653589793)
+
+assertEqual("continued-fraction pi",
+  rtof(continuedFraction(3, [7, 15, 1, 292, 1, 1, 1, 2, 1, 3, 1, 14, 2, 1, 1, 2, 2, 2, 2, 1, 84, 2, 1, 1, 15, 3, 13], [1, 1,  1, 1,   1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1,  1, 1])),
+  3.141592653589793)
+
+assertEqual("regular-continued-fraction-of-sqrt case 1",
+  2#[%1, take(10, %2)](regularContinuedFractionOfSqrt(2)),
+  [1, [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]])
+
+assertEqual("regular-continued-fraction-of-sqrt case 2",
+  rtof(regularContinuedFraction(2#(%1, take(100, %2))(regularContinuedFractionOfSqrt(2)))),
+  1.4142135623730951)
