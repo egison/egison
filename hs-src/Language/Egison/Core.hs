@@ -1137,9 +1137,9 @@ topMAtom (MState _ _ _ _ ((MNode _ mstate):_))    = topMAtom mstate
 
 processMStates :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
 processMStates (MCons state stream) = do
-    newStream <- processMState state
-    newStream' <- stream
-    return [newStream, newStream']
+  newStream <- processMState state
+  newStream' <- stream
+  return [newStream, newStream']
 
 processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState state =
