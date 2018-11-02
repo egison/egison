@@ -105,6 +105,7 @@ module Language.Egison.Types
     , normalTree
     , orderedOrTrees
     , ids
+    , bool
     -- * Errors
     , EgisonError (..)
     , liftError
@@ -1624,8 +1625,9 @@ data MatchingTree =
  deriving (Show)
 
 data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
-                                       _orderedOrTrees :: Map Id [[MList EgisonM MatchingState]],
-                                       _ids :: [Id]
+                                       _orderedOrTrees :: Map Id (Map Int [MList EgisonM MatchingState]),
+                                       _ids :: [Id],
+                                       _bool :: Bool
                                       } deriving (Show)
 
 type PatternBinding = (String, EgisonPattern)
