@@ -71,7 +71,7 @@ assertEqual("lambda and application",
   11)
 
 assertEqual("placeholder",
-  ($+1)(10),
+  ($ + 1)(10),
   11)
 
 assertEqual("indexed placeholder",
@@ -333,7 +333,7 @@ assertEqual("hash access",
 ;;; Partial Application
 ;;;
 assertEqual("partial application '$'",
-  ($+$)(1, 2),
+  ($ + $)(1, 2),
   3)
 
 assertEqual("partial application '$' with index",
