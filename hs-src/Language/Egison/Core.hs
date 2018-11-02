@@ -1074,7 +1074,6 @@ patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _
 
 processMStatesAll :: Int -> MatchingStates -> EgisonM (MList EgisonM Match)
 processMStatesAll depth streams = do
-  liftIO $ putStrLn $ show $ streams ^. bool
   (matches, streams') <- (\(a, b) -> (fromList a, b)) <$> (processMStatesLine depth streams >>= extractMatches)
   if null (streams' ^. normalTree)
      then do matches' <- mapM (\id -> processMStatesAll 0 $ MatchingStates { _normalTree = map snd (toAscList $ (streams' ^. orderedOrTrees) M.! id), _orderedOrTrees = M.empty, _ids = [], _bool = streams' ^. bool }) $ streams' ^. ids
