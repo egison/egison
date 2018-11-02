@@ -1,6 +1,9 @@
 nishiwakiIf =
   macro((b, e1, e2),
-    car(matchAll b as matcher([$, something, [#t -> {e1}, #f -> {e2}]])
+    car(matchAll b as (matcher
+                       | $ as something ->
+                           | #t -> [e1]
+                           | #f -> [e2])
         | $x -> x))
 
 nishiwakiIf(#t, 1, 2) ; 1

@@ -40,11 +40,11 @@ assertEqual("collection literal",
 ;;; Basic Sytax
 ;;;
 assertEqual("if",
-  if #t #t else #f,
+  if #t then #t else #f,
   #t)
 
 assertEqual("if",
-  if #f #t else #f,
+  if #f then #t else #f,
   #f)
 
 assertEqual("let binding",
@@ -61,8 +61,8 @@ assertEqual("letrec binding",
   3)
 
 assertEqual("mutual recursion",
-  letrec even? = $n -> if eq?(n, 0) #t else odd?(n-1),
-         odd? = $n -> if eq?(n, 0) #f else even?(n-1)
+  letrec even? = $n -> if eq?(n, 0) then #t else odd?(n-1),
+         odd? = $n -> if eq?(n, 0) then #f else even?(n-1)
     in even?(10),
   #t)
 

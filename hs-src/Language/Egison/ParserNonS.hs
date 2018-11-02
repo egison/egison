@@ -372,16 +372,16 @@ matcherDFSExpr :: Parser EgisonExpr
 matcherDFSExpr = keywordMatcherDFS >> MatcherDFSExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
-ppMatchClauses = parens $ sepEndBy ppMatchClause comma
+ppMatchClauses = many1 ppMatchClause
 
 ppMatchClause :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
-ppMatchClause = brackets $ (,,) <$> ppPattern <* comma <*> expr <* comma <*> pdMatchClauses
+ppMatchClause = inSpaces (string "|") >> (,,) <$> ppPattern <* keywordAs <*> expr <* (reservedOp "->") <*> pdMatchClauses
 
 pdMatchClauses :: Parser [(PrimitiveDataPattern, EgisonExpr)]
-pdMatchClauses = brackets $ sepEndBy pdMatchClause comma
+pdMatchClauses = many1 pdMatchClause
 
 pdMatchClause :: Parser (PrimitiveDataPattern, EgisonExpr)
-pdMatchClause = (,) <$> pdPattern <* (reservedOp "->") <*> expr
+pdMatchClause = try $ inSpaces (string "|") >> (,) <$> pdPattern <* (reservedOp "->") <*> expr
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = P.lexeme lexer (ppWildCard
@@ -403,21 +403,21 @@ ppInductivePat :: Parser PrimitivePatPattern
 ppInductivePat = angles (PPInductivePat <$> lowerName <*> sepEndBy ppPattern whiteSpace)
 
 pdPattern :: Parser PrimitiveDataPattern
-pdPattern = P.lexeme lexer $ pdPattern'
+pdPattern = P.lexeme lexer pdPattern'
 
 pdPattern' :: Parser PrimitiveDataPattern
 pdPattern' = reservedOp "_" *> pure PDWildCard
                     <|> (char '$' >> PDPatVar <$> ident)
-                    <|> braces ((PDConsPat <$> pdPattern <*> (char '@' *> pdPattern))
-                            <|> (PDSnocPat <$> (char '@' *> pdPattern) <*> pdPattern)
+                    <|> brackets ((PDConsPat <$> pdPattern <* comma <*> (char '@' *> pdPattern))
+                            <|> (PDSnocPat <$> (char '@' *> pdPattern) <* comma <*> pdPattern)
                             <|> pure PDEmptyPat)
-                    <|> angles (PDInductivePat <$> upperName <*> sepEndBy pdPattern whiteSpace)
-                    <|> brackets (PDTuplePat <$> sepEndBy pdPattern whiteSpace)
+                    <|> angles (PDInductivePat <$> upperName <*> sepEndBy pdPattern comma)
+                    <|> parens (PDTuplePat <$> sepEndBy pdPattern comma)
                     <|> PDConstantPat <$> constantExpr
                     <?> "primitive-data-pattern"
 
 ifExpr :: Parser EgisonExpr
-ifExpr = keywordIf >> IfExpr <$> expr <*> expr <* (inSpaces $ string "else") <*> expr
+ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = (LambdaExpr <$> argNames <* reservedOp "->" <*> expr)
@@ -630,14 +630,11 @@ pattern = P.lexeme lexer
 
  where
   table = [ [unary "!" AssocRight, unary "not" AssocRight]
-          , [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
-          , [binary "+" "plus" AssocLeft]
           , [binary "<:>" "cons" AssocRight]
           , [binary' "and" AndPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft, binary' "or" OrPat AssocLeft]
           , [binary "<++>" "join" AssocRight]
           ]
   unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> NotPat x))
-  binary "+" name assoc = Infix (try $ inSpaces (string "+") >> notFollowedBy (string "+") >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary' op epr assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> epr [x, y])) assoc
 
@@ -836,6 +833,7 @@ reservedKeywords =
   , "matcher"
   , "do"
   , "io"
+  , "as"
   , "algebraicDataMatcher"
   , "generateTensor"
   , "tensor"
@@ -892,6 +890,7 @@ keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
+keywordAs                   = reserved "as"
 keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
@@ -918,7 +917,7 @@ keywordNextMatchAllLambda   = reserved "nextMatchAllLambda"
 keywordNextMatch            = reserved "nextMatch"
 keywordNextMatchLambda      = reserved "nextMatchLambda"
 keywordMatcher              = reserved "matcher"
-keywordMatcherDFS           = reserved "matcherDfs"
+keywordMatcherDFS           = reserved "matcherDFS"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
