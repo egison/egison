@@ -101,6 +101,8 @@ module Language.Egison.Types
     , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
+    , topDFS
+    , containBFS
     -- * makeLenses
     , normalTree
     , orderedOrTrees
@@ -1634,6 +1636,30 @@ type PatternBinding = (String, EgisonPattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
+
+topDFS :: EgisonPattern -> Bool
+topDFS (DFSPat _ _) = True
+topDFS (InductivePat _ patterns) = any topDFS patterns
+topDFS _ = False
+
+containBFS :: EgisonPattern -> Bool
+containBFS (BFSPat _) = True
+containBFS (IndexedPat pattern _) = containBFS pattern
+containBFS (NotPat pattern) = containBFS pattern
+containBFS (AndPat patterns) = any containBFS patterns
+containBFS (OrPat patterns) = any containBFS patterns
+containBFS (OrderedOrPat _ pat1 pat2) = containBFS pat1 || containBFS pat2
+containBFS (TuplePat patterns) = any containBFS patterns
+containBFS (InductivePat _ patterns) = any containBFS patterns
+containBFS (LoopPat _ _ pat1 pat2) = containBFS pat1 || containBFS pat2
+containBFS (PApplyPat _ patterns) = any containBFS patterns
+containBFS (DApplyPat pat patterns) = any containBFS (pat:patterns)
+containBFS (DivPat pat1 pat2) = containBFS pat1 || containBFS pat2
+containBFS (PlusPat patterns) = any containBFS patterns
+containBFS (MultPat patterns) = any containBFS patterns
+containBFS (PowerPat pat1 pat2) = containBFS pat1 || containBFS pat2
+containBFS (DFSPat _ pattern) = containBFS pattern
+containBFS _ = False
 
 --
 -- Errors

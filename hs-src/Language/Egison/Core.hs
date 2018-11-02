@@ -1049,28 +1049,6 @@ recursiveRebind env (name, expr) = do
 
 patternMatch :: Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
 patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _normalTree = [[(msingleton (MState BFSMode env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = M.empty, _ids = [], _bool = topDFS pattern && not (containBFS pattern) }
- where
-   topDFS :: EgisonPattern -> Bool
-   topDFS (DFSPat _ _) = True
-   topDFS _ = False
-   containBFS :: EgisonPattern -> Bool
-   containBFS (BFSPat _) = True
-   containBFS (IndexedPat pattern _) = containBFS pattern
-   containBFS (NotPat pattern) = containBFS pattern
-   containBFS (AndPat patterns) = any containBFS patterns
-   containBFS (OrPat patterns) = any containBFS patterns
-   containBFS (OrderedOrPat _ pat1 pat2) = containBFS pat1 || containBFS pat2
-   containBFS (TuplePat patterns) = any containBFS patterns
-   containBFS (InductivePat _ patterns) = any containBFS patterns
-   containBFS (LoopPat _ _ pat1 pat2) = containBFS pat1 || containBFS pat2
-   containBFS (PApplyPat _ patterns) = any containBFS patterns
-   containBFS (DApplyPat pat patterns) = any containBFS (pat:patterns)
-   containBFS (DivPat pat1 pat2) = containBFS pat1 || containBFS pat2
-   containBFS (PlusPat patterns) = any containBFS patterns
-   containBFS (MultPat patterns) = any containBFS patterns
-   containBFS (PowerPat pat1 pat2) = containBFS pat1 || containBFS pat2
-   containBFS (DFSPat _ pattern) = containBFS pattern
-   containBFS _ = False
 
 processMStatesAll :: Int -> MatchingStates -> EgisonM (MList EgisonM Match)
 processMStatesAll depth streams = do
