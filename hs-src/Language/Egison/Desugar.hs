@@ -396,6 +396,10 @@ desugar (MatcherExpr matcherInfo) = do
   matcherInfo' <- desugarMatcherInfo matcherInfo
   return $ MatcherExpr matcherInfo'
 
+desugar (MatcherDFSExpr matcherInfo) = do
+  matcherInfo' <- desugarMatcherInfo matcherInfo
+  return $ MatcherDFSExpr matcherInfo'
+
 desugar (PartialVarExpr n) = return $ PartialVarExpr n
 
 desugar (PartialExpr n expr) = do

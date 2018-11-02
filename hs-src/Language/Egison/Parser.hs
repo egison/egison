@@ -235,6 +235,7 @@ expr' = (try partialExpr
                          <|> nextMatchAllLambdaExpr
                          <|> nextMatchLambdaExpr
                          <|> matcherExpr
+                         <|> matcherDFSExpr
                          <|> seqExpr
                          <|> applyExpr
                          <|> cApplyExpr
@@ -348,6 +349,9 @@ matchClause = brackets $ (,) <$> pattern <*> expr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
+
+matcherDFSExpr :: Parser EgisonExpr
+matcherDFSExpr = keywordMatcherDFS >> MatcherDFSExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
 ppMatchClauses = braces $ sepEndBy ppMatchClause whiteSpace
@@ -901,6 +905,7 @@ keywordNextMatchAllLambda   = reserved "next-match-all-lambda"
 keywordNextMatch            = reserved "next-match"
 keywordNextMatchLambda      = reserved "next-match-lambda"
 keywordMatcher              = reserved "matcher"
+keywordMatcherDFS           = reserved "matcher-dfs"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
