@@ -261,6 +261,7 @@ data EgisonExpr =
   | NextMatchAllLambdaExpr EgisonExpr MatchClause
 
   | MatcherExpr MatcherInfo
+  | MatcherDFSExpr MatcherInfo
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
 
   | QuoteExpr EgisonExpr
@@ -398,7 +399,7 @@ data EgisonValue =
   | IntHash (HashMap Integer EgisonValue)
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
-  | UserMatcher Env MatcherInfo
+  | UserMatcher Env MatcherInfo PMMode
   | Func (Maybe Var) Env [String] EgisonExpr
   | PartialFunc Env Integer EgisonExpr
   | CFunc (Maybe Var) Env String EgisonExpr
@@ -1231,7 +1232,7 @@ instance Show EgisonValue where
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (UserMatcher _ _) = "#<user-matcher>"
+  show (UserMatcher _ _ _) = "#<user-matcher>"
   show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
   show (Func (Just name) _ _ _) = show name
   show (PartialFunc _ n expr) = show n ++ "#" ++ show expr

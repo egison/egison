@@ -239,6 +239,7 @@ term' :: Parser EgisonExpr
 term' = (matchExpr
           <|> matchAllExpr
           <|> matcherExpr
+          <|> matcherDFSExpr
           <|> functionWithArgExpr
           <|> userrefsExpr
           <|> algebraicDataMatcherExpr
@@ -366,6 +367,9 @@ matchClause = inSpaces (string "|") >> (,) <$> pattern <* (reservedOp "->") <*> 
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
+
+matcherDFSExpr :: Parser EgisonExpr
+matcherDFSExpr = keywordMatcherDFS >> MatcherDFSExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
 ppMatchClauses = parens $ sepEndBy ppMatchClause comma
@@ -914,6 +918,7 @@ keywordNextMatchAllLambda   = reserved "nextMatchAllLambda"
 keywordNextMatch            = reserved "nextMatch"
 keywordNextMatchLambda      = reserved "nextMatchLambda"
 keywordMatcher              = reserved "matcher"
+keywordMatcherDFS           = reserved "matcherDfs"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
