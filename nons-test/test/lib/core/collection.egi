@@ -228,15 +228,15 @@ assertEqual("lookup",
   20)
 
 assertEqual("foldr",
-  foldr(($n, $ns -> [n, @ns]), [], [1, 2, 3]),
+  foldr(($n $ns -> [n, @ns]), [], [1, 2, 3]),
   [1, 2, 3])
 
 assertEqual("foldl",
-  foldl(($ns, $n -> [n, @ns]), [], [1, 2, 3]),
+  foldl(($ns $n -> [n, @ns]), [], [1, 2, 3]),
   [3, 2, 1])
 
 assertEqual("scanl",
-  scanl(($r, $n -> r * n), 2, [2, 2, 2]),
+  scanl(($r $n -> r * n), 2, [2, 2, 2]),
   [2, 4, 8, 16])
 
 assertEqual("append",
