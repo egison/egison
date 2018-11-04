@@ -59,7 +59,7 @@ assertEqual("append indices with ...",
   show([| [| 1, 1 |], [| 1, 1 |] |]_i_j))
 
 assertEqual("generate_tensor by using function expr",
-  letrec g__ = generateTensor(($a, $b ->
+  letrec g__ = generateTensor(($a $b ->
                                   match (a, b) as (integer, integer)
                                   | ($n, n) -> function(x, y, z)
                                   | (_, _) -> 0),
