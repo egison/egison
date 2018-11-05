@@ -1338,7 +1338,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
               if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
               let trees' = zipWith3 MAtom patterns targets (take (length patterns) (repeat Something)) ++ trees
               return $ msingleton $ MState mode env loops bindings trees'
-            _ -> throwError $ Default "something can only match with a pattern variable"
+            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ show pattern
         _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
