@@ -570,9 +570,9 @@ pattern = P.lexeme lexer
 
  where
   table = [ [unary "!" AssocRight, unary "not" AssocRight]
-          , [binary'' "^" PowerPat AssocRight]
-          , [binary' "*" MultPat AssocRight, binary "/" "div" AssocRight]
-          , [binary "+" "plus" AssocRight]
+          , [binary'' "^" PowerPat AssocLeft]
+          , [binary' "*" MultPat AssocRight, binary'' "/" DivPat AssocRight]
+          , [binary' "+" PlusPat AssocRight]
           , [binary "<:>" "cons" AssocRight]
           , [binary' "and" AndPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft, binary' "or" OrPat AssocLeft]
           , [binary "<++>" "join" AssocRight]

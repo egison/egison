@@ -475,14 +475,17 @@ desugarPattern' (DivPat pattern1 pattern2) = do
   pat2' <- desugarPattern' pattern2
   return $ InductivePat "div" [pat1', pat2']
 desugarPattern' (PlusPat patterns) = do
-  pats' <- mapM desugarPattern' patterns
+  pats' <- mapM desugarPattern' (concatMap f patterns)
   case (reverse pats') of
     [] -> return $ InductivePat "plus" [ValuePat (IntegerExpr 0)]
     lp:hps ->
       return $ InductivePat "plus" [foldr (\p r -> InductivePat "cons" [p, r]) lp (reverse hps)]
+ where
+   f (PlusPat xs) = concatMap f xs
+   f pat = [pat]
 desugarPattern' (MultPat (intPat:patterns)) = do
   intPat' <- desugarPattern' intPat
-  pats' <- mapM desugarPattern' patterns
+  pats' <- mapM desugarPattern' (concatMap f patterns)
   case (reverse pats') of
     [] -> return $ InductivePat "mult" [intPat', ValuePat (IntegerExpr 1)]
     lp:hps ->
@@ -494,6 +497,9 @@ desugarPattern' (MultPat (intPat:patterns)) = do
                                              (PowerPat p1 p2) -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
                                              _ -> lp)
                                           (reverse hps)]
+ where
+   f (MultPat xs) = concatMap f xs
+   f pat = [pat]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (DFSPat' pattern) = desugarPattern' pattern >>= dfs
 desugarPattern' (BFSPat pattern) = BFSPat <$> desugarPattern' pattern
