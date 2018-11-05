@@ -571,6 +571,8 @@ pattern = P.lexeme lexer
 
  where
   table = [ [unary "!" AssocRight, unary "not" AssocRight]
+          , [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
+          , [binary "+" "plus" AssocLeft]
           , [binary "<:>" "cons" AssocRight]
           , [binary' "and" AndPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft, binary' "or" OrPat AssocLeft]
           , [binary "<++>" "join" AssocRight]
@@ -790,7 +792,7 @@ reservedKeywords =
   , "userRefs!"
   , "function"
   , "dfs"
-  , "bfs")
+  , "bfs"]
 
 reservedOperators :: [String]
 reservedOperators =

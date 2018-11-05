@@ -134,7 +134,7 @@ assert("or pattern",
 
 assert("or pattern",
   match [1, 2, 3] as list(integer)
-  | (2<:>_) or 3<:>_ -> #f
+  | 2<:>_ or 3<:>_ -> #f
   | _ -> #t)
 
 assertEqual("ordered or pattern",
