@@ -435,8 +435,7 @@ binding :: Parser BindingExpr
 binding = (,) <$> varNames' <* inSpaces (string "=") <*> expr
 
 varNames :: Parser [String]
-varNames = return <$ char '$' <*> ident
-            <|> parens (sepEndBy (char '$' >> ident) comma)
+varNames = sepEndBy (char '$' >> ident) spaces
 
 varNames' :: Parser [Var]
 varNames' = return <$> identVar
@@ -571,8 +570,9 @@ pattern = P.lexeme lexer
 
  where
   table = [ [unary "!" AssocRight, unary "not" AssocRight]
-          , [binary "*" "mult" AssocLeft, binary "/" "div" AssocLeft]
-          , [binary "+" "plus" AssocLeft]
+          , [binary'' "^" PowerPat AssocRight]
+          , [binary' "*" MultPat AssocRight, binary "/" "div" AssocRight]
+          , [binary "+" "plus" AssocRight]
           , [binary "<:>" "cons" AssocRight]
           , [binary' "and" AndPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft, binary' "or" OrPat AssocLeft]
           , [binary "<++>" "join" AssocRight]
@@ -580,6 +580,7 @@ pattern = P.lexeme lexer
   unary op assoc = Prefix (try $ inSpaces (string op) >> (return $ \x -> NotPat x))
   binary op name assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> InductivePat name [x, y])) assoc
   binary' op epr assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> epr [x, y])) assoc
+  binary'' op epr assoc = Infix (try $ inSpaces (string op) >> (return $ \x y -> epr x y)) assoc
 
 pattern' :: Parser EgisonPattern
 pattern' = wildCard
