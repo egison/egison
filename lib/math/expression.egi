@@ -39,7 +39,7 @@
        [_ {}]}]
      [<apply $ $> [eq (list math-expr)]
       {[<Div <Plus {<Term 1 {[<Apply $v $mexprs> 1] @{}}> @{}}>
-             <Plus {<Term 1 {}> @{}}>> 
+             <Plus {<Term 1 {}> @{}}>>
         {[v (map to-math-expr' mexprs)]}]
        [_ {}]}]
      [<quote $> [math-expr]
@@ -281,7 +281,7 @@
                                              [_ #f]})
                                         xs))]}))
                      {@ts1 @ts2})]}))))
-  
+
 (define $find-symbols-from-poly
   (lambda [$poly]
     (match-all poly math-expr
@@ -301,7 +301,7 @@
   (lambda [$x $a $mexpr]
     (map-symbols (rewrite-symbol x a $) mexpr)))
 
-(define $rewrite-symbol 
+(define $rewrite-symbol
   (lambda [$x $a $sexpr]
     (match sexpr symbol-expr
       {[,x a]
