@@ -8,7 +8,6 @@ This module provides utility functions.
 
 module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex, mathExprToMathematica) where
 
-import Data.List (intercalate)
 import Control.Monad
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
@@ -16,12 +15,12 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 mathExprToHaskell :: String -> String
 mathExprToHaskell input = case parse parseExpr "math-expr" input of
                             Left err -> input
-                            Right val -> "#haskell\"" ++ show val ++ "\""
+                            Right val -> "#haskell|" ++ show val ++ "|#"
 
 mathExprToAsciiMath :: String -> String
 mathExprToAsciiMath input = case parse parseExpr "math-expr" input of
                               Left err -> input
-                              Right val -> "#asciimath\"" ++ showMathExprAsciiMath val ++ "\""
+                              Right val -> "#asciimath|" ++ showMathExprAsciiMath val ++ "|#"
 
 mathExprToLatex :: String -> String
 mathExprToLatex input = case parse parseExpr "math-expr" input of
@@ -132,6 +131,7 @@ showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlu
   showMathExprLatexForPlus :: [MathExpr] -> String
   showMathExprLatexForPlus [] = ""
   showMathExprLatexForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprLatexForPlus xs
+  showMathExprLatexForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprLatex (Multiply ys) ++ showMathExprLatexForPlus xs
   showMathExprLatexForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprLatex (Multiply ((Atom a []):ys)) ++ showMathExprLatexForPlus xs
   showMathExprLatexForPlus (x:xs) = " + " ++  showMathExprLatex x ++ showMathExprLatexForPlus xs
 showMathExprLatex (Multiply []) = ""
@@ -195,6 +195,7 @@ showMathExprMathematica (Plus (x:xs)) = showMathExprMathematica x ++ showMathExp
   showMathExprMathematicaForPlus :: [MathExpr] -> String
   showMathExprMathematicaForPlus [] = ""
   showMathExprMathematicaForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprMathematicaForPlus xs
+  showMathExprMathematicaForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprMathematica (Multiply ys) ++ showMathExprMathematicaForPlus xs
   showMathExprMathematicaForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprMathematica (Multiply ((Atom a []):ys)) ++ showMathExprMathematicaForPlus xs
   showMathExprMathematicaForPlus (x:xs) = " + " ++  showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
 showMathExprMathematica (Multiply []) = ""
