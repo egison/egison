@@ -8,6 +8,7 @@ This module provides utility functions.
 
 module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex, mathExprToMathematica) where
 
+import Data.List (intercalate)
 import Control.Monad
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
@@ -63,8 +64,9 @@ showMathExprAsciiMath (Plus (x:xs)) = showMathExprAsciiMath x ++ showMathExprAsc
   showMathExprAsciiMathForPlus :: [MathExpr] -> String
   showMathExprAsciiMathForPlus [] = ""
   showMathExprAsciiMathForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprAsciiMath (Multiply ys) ++ showMathExprAsciiMathForPlus xs
   showMathExprAsciiMathForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprAsciiMath (Multiply ((Atom a []):ys)) ++ " " ++ showMathExprAsciiMathForPlus xs
-  showMathExprAsciiMathForPlus (x:xs) = showMathExprAsciiMath x ++ " + " ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus (x:xs) = " + " ++ showMathExprAsciiMath x ++ showMathExprAsciiMathForPlus xs
 showMathExprAsciiMath (Multiply []) = ""
 showMathExprAsciiMath (Multiply [a]) = showMathExprAsciiMath a
 showMathExprAsciiMath (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprAsciiMath (Multiply lvs)
@@ -227,7 +229,7 @@ showMathExprMathematicaArg lvs = showMathExprMathematica (head lvs) ++ ", " ++ (
 showMathExprMathematicaIndices :: [MathIndex] -> String
 showMathExprMathematicaIndices [a] = showMathIndexMathematica a
 showMathExprMathematicaIndices lvs = showMathIndexMathematica (head lvs) ++ showMathExprMathematicaIndices (tail lvs)
- 
+
 showMathIndexMathematica :: MathIndex -> String
 showMathIndexMathematica (Super a) = showMathExprMathematica a
 showMathIndexMathematica (Sub a) = showMathExprMathematica a
@@ -247,7 +249,7 @@ symbol :: Parser Char
 symbol = oneOf "!$%&*+-/:<=>?@#"
 
 parseAtom :: Parser MathExpr
-parseAtom = do 
+parseAtom = do
     first <- letter <|> symbol <|> digit
     rest <- many (letter <|> digit <|> symbol)
     let atom = first : rest
@@ -255,7 +257,7 @@ parseAtom = do
     return $ Atom atom ys
 
 parseAtom' :: Parser MathExpr
-parseAtom' = do 
+parseAtom' = do
     first <- letter <|> symbol <|> digit
     rest <- many (letter <|> digit <|> symbol)
     let atom = first : rest
@@ -266,7 +268,7 @@ parsePartial = do
     xs <- parseAtom
     is <- many1 (char '|' >> parseAtom)
     return $ Partial xs is
-  
+
 parseNegativeAtom :: Parser MathExpr
 parseNegativeAtom = do
     char '-'
