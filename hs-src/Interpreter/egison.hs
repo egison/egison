@@ -112,23 +112,12 @@ defaultOptions = Options {
 
 options :: [OptDescr (Options -> Options)]
 options = [
-  Option ['v', 'V'] ["version"]
-    (NoArg (\opts -> opts {optShowVersion = True}))
-    "show version number",
   Option ['h', '?'] ["help"]
     (NoArg (\opts -> opts {optShowHelp = True}))
     "show usage information",
-  Option ['T'] ["tsv"]
-    (NoArg (\opts -> opts {optTsvOutput = True}))
-    "output in tsv format",
-  Option ['e'] ["eval"]
-    (ReqArg (\expr opts -> opts {optEvalString = Just expr})
-            "String")
-    "eval the argument string",
-  Option ['c'] ["command"]
-    (ReqArg (\expr opts -> opts {optExecuteString = Just expr})
-            "String")
-    "execute the argument string",
+  Option ['v', 'V'] ["version"]
+    (NoArg (\opts -> opts {optShowVersion = True}))
+    "show version number",
   Option ['L'] ["load-library"]
     (ReqArg (\d opts -> opts {optLoadLibs = optLoadLibs opts ++ [d]})
             "[String]")
@@ -140,16 +129,24 @@ options = [
   Option [] ["no-io"]
     (NoArg (\opts -> opts {optNoIO = True}))
     "prohibit all io primitives",
+  Option ['p'] ["prompt"]
+    (ReqArg (\prompt opts -> opts {optPrompt = prompt})
+            "String")
+    "set prompt string",
   Option [] ["no-banner"]
     (NoArg (\opts -> opts {optShowBanner = False}))
     "do not display banner",
   Option ['t'] ["test"]
     (NoArg (\opts -> opts {optTestOnly = True}))
     "execute only test expressions",
-  Option ['p'] ["prompt"]
-    (ReqArg (\prompt opts -> opts {optPrompt = prompt})
+  Option ['e'] ["eval"]
+    (ReqArg (\expr opts -> opts {optEvalString = Just expr})
             "String")
-    "set prompt string",
+    "eval the argument string",
+  Option ['c'] ["command"]
+    (ReqArg (\expr opts -> opts {optExecuteString = Just expr})
+            "String")
+    "execute the argument string",
   Option ['s'] ["substitute"]
     (ReqArg (\expr opts -> opts {optSubstituteString = Just expr})
             "String")
@@ -162,6 +159,9 @@ options = [
     (ReqArg (\expr opts -> opts {optSubstituteString = Just ("(filter " ++ expr ++ " $)")})
             "String")
     "filter strings",
+  Option ['T'] ["tsv"]
+    (NoArg (\opts -> opts {optTsvOutput = True}))
+    "output in tsv format",
   Option ['F'] ["--field"]
     (ReqArg (\d opts -> opts {optFieldInfo = optFieldInfo opts ++ [(readFieldOption d)]})
             "String")
@@ -218,11 +218,17 @@ printHelp = do
   putStrLn "  --substitute, -s expr      Substitute input using the argument expression"
   putStrLn "  --map, -m expr             Substitute each line of input using the argument expression"
   putStrLn "  --filter, -f expr          Filter each line of input using the argument predicate"
+  putStrLn ""
+  putStrLn "Options to change input or output format:"
+  putStrLn "  --tsv, -T                  Input and output in tsv format"
+  putStrLn "  --field, -F int            Specify a field type of input tsv"
+  putStrLn "  --math, -M (asciimath|latex|mathematica)"
+  putStrLn "                             Output in AsciiMath, LaTeX, or Mathematica format"
   exitWith ExitSuccess
 
 printVersionNumber :: IO ()
 printVersionNumber = do
-  putStrLn $ showVersion version 
+  putStrLn $ showVersion version
   exitWith ExitSuccess
 
 showBanner :: IO ()
@@ -244,9 +250,9 @@ repl noIOFlag isSExpr mathExprLang env prompt = do
  where
   settings :: MonadIO m => FilePath -> Settings m
   settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
-    
+
   loop :: Env -> IO ()
-  loop env = (do 
+  loop env = (do
     home <- getHomeDirectory
     input <- liftIO $ runInputT (settings home) $ getEgisonExpr isSExpr prompt
     case (noIOFlag, input) of
