@@ -229,6 +229,7 @@ term = P.lexeme lexer
 term' :: Parser EgisonExpr
 term' = matchExpr
         <|> matchAllExpr
+        <|> matchLambdaExpr
         <|> matcherExpr
         <|> matcherDFSExpr
         <|> functionWithArgExpr
@@ -321,6 +322,9 @@ matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <* (inSpaces $ string "a
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <* (inSpaces $ string "as") <*> expr <*> matchClauses
+
+matchLambdaExpr :: Parser EgisonExpr
+matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$ (inSpaces $ string "as") <*> expr <*> matchClauses
 
 matchClauses :: Parser [MatchClause]
 matchClauses = many1 matchClause
