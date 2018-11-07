@@ -221,7 +221,7 @@ printHelp = do
   putStrLn ""
   putStrLn "Options to change input or output format:"
   putStrLn "  --tsv, -T                  Input and output in tsv format"
-  putStrLn "  --field, -F int            Specify a field type of input tsv"
+  putStrLn "  --field, -F field          Specify a field type of input tsv"
   putStrLn "  --math, -M (asciimath|latex|mathematica)"
   putStrLn "                             Output in AsciiMath, LaTeX, or Mathematica format (only for interpreter)"
   exitWith ExitSuccess
