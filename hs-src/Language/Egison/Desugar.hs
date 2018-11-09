@@ -128,9 +128,9 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       matchingFailure :: EgisonExpr
       matchingFailure = CollectionExpr []
 
-desugar (MatchAllLambdaExpr matcher clause) = do
+desugar (MatchAllLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr (VarExpr $ stringToVar name) matcher clause)
+  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr (VarExpr $ stringToVar name) matcher clauses)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
@@ -304,11 +304,11 @@ desugar (MatchExpr expr0 expr1 clauses) = do
   clauses' <- desugarMatchClauses clauses
   return (MatchExpr expr0' expr1' clauses')
 
-desugar (MatchAllExpr expr0 expr1 clause) = do
+desugar (MatchAllExpr expr0 expr1 clauses) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
-  clause' <- desugarMatchClause clause
-  return $ MatchAllExpr expr0' expr1' clause'
+  clauses' <- desugarMatchClauses clauses
+  return $ MatchAllExpr expr0' expr1' clauses'
 
 desugar (DoExpr binds expr) = do
   binds' <- desugarBindings binds

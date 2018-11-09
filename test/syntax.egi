@@ -110,6 +110,12 @@
     [<cons $x $xs> [x xs]])
   {[1 {2 3}]})
 
+(assert-equal "match-all-multi"
+  (match-all {1 2 3} (multiset integer)
+    {[<cons $x <cons ,(+ x 1) _>> [x (+ x 1)]]
+     [<cons $x <cons ,(+ x 2) _>> [x (+ x 2)]]})
+  {[1 2] [2 3] [1 3]})
+
 (assert-equal "match-lambda"
   (letrec {[$count (match-lambda (list something)
                      {[<nil> 0]
@@ -120,6 +126,12 @@
 (assert-equal "match-all-lambda"
   ((match-all-lambda (list something) [<join _ <cons $x _>> x]) {1 2 3})
   {1 2 3})
+
+(assert-equal "match-all-lambda-multi"
+  ((match-all-lambda (multiset something)
+     {[<cons $x <cons ,(+ x 1) _>> [x (+ x 1)]]
+      [<cons $x <cons ,(+ x 2) _>> [x (+ x 2)]]}) {1 2 3})
+  {[1 2] [2 3] [1 3]})
 
 (assert-equal "pattern variable"
   (match 1 something
