@@ -223,10 +223,21 @@ evalExpr env (VectorExpr exprs) = do
   whnfs <- mapM (evalExpr env) exprs
   case whnfs of
     ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
-      ret <- mapM toTensor whnfs >>= tConcat' >>= fromTensor
+      ret <- mapM toTensor (map f $ zip whnfs [1..(length exprs + 1)]) >>= tConcat' >>= fromTensor
       return ret
-    _ -> do
-      fromTensor (Tensor [fromIntegral (length whnfs)] (V.fromList whnfs) [])
+    _ -> fromTensor (Tensor [fromIntegral $ length whnfs] (V.fromList whnfs) [])
+ where
+  f ((Intermediate (ITensor (Tensor ns xs indices))), i) =
+    Intermediate $ ITensor $ Tensor ns (V.fromList $ map g $ zip (V.toList xs) $ map (\ms -> map toEgison $ (toInteger i):ms) $ enumTensorIndices ns) indices
+  f (x, _) = x
+  g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)), ms) =
+    let Env _ maybe_vwi = env in
+    let fn' = case maybe_vwi of
+                Nothing -> fn
+                Just (VarWithIndices nameString indexList) ->
+                   Just $ symbolScalarData "" $ show $ VarWithIndices nameString $ changeIndexList indexList ms in
+    Value $ ScalarData $ Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p
+  g (x, _) = x
 
 evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
@@ -690,11 +701,6 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
     applyFunc env fn (Value (makeTuple ms)))
                 (map (\ms -> map toEgison ms) (enumTensorIndices ns))
   fromTensor (Tensor ns (V.fromList xs) [])
- where
-   changeIndexList :: [Index String] -> [EgisonValue] -> [Index String]
-   changeIndexList idxlist ms = map (\(i, m) -> case i of
-                                                  Superscript s -> Superscript (s ++ m)
-                                                  Subscript s -> Subscript (s ++ m)) $ zip idxlist (map show ms)
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
@@ -1007,6 +1013,7 @@ recursiveBind env bindings = do
   let (names, exprs) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
+  let Env frame _ = env'
   zipWithM_ (\ref (name,expr) -> do
                case expr of
                  MemoizedLambdaExpr names body -> do
@@ -1021,14 +1028,14 @@ recursiveBind env bindings = do
                    case whnf of
                      (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ (Value (CFunc (Just name) env arg body))
                  FunctionExpr args -> do
-                   let Env frame _ = env'
                    liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) $ FunctionExpr args
-                 GenerateTensorExpr _ _ -> do
-                   let Env frame _ = env'
-                   liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) $ expr
-                 _ -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
+                 _ | isVarWithIndices name -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) expr
+                   | otherwise -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
             refs bindings
   return env'
+ where
+  isVarWithIndices :: Var -> Bool
+  isVarWithIndices (Var _ xs) = not $ null xs
 
 recursiveRebind :: Env -> (Var, EgisonExpr) -> EgisonM Env
 recursiveRebind env (name, expr) = do

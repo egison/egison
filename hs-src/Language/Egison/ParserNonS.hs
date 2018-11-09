@@ -230,6 +230,7 @@ term' :: Parser EgisonExpr
 term' = matchExpr
         <|> matchAllExpr
         <|> matchLambdaExpr
+        <|> matchAllLambdaExpr
         <|> matcherExpr
         <|> matcherDFSExpr
         <|> functionWithArgExpr
@@ -318,19 +319,22 @@ quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
-matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <* (inSpaces $ string "as") <*> expr <*> matchClauses
+matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <* keywordAs <*> expr <*> matchClauses
 
 matchExpr :: Parser EgisonExpr
-matchExpr = keywordMatch >> MatchExpr <$> expr <* (inSpaces $ string "as") <*> expr <*> matchClauses
+matchExpr = keywordMatch >> MatchExpr <$> expr <* keywordAs <*> expr <*> matchClauses
 
 matchLambdaExpr :: Parser EgisonExpr
-matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$ (inSpaces $ string "as") <*> expr <*> matchClauses
+matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$ keywordAs <*> expr <*> matchClauses
+
+matchAllLambdaExpr :: Parser EgisonExpr
+matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$ keywordAs <*> expr <*> matchClauses
 
 matchClauses :: Parser [MatchClause]
 matchClauses = many1 matchClause
 
 matchClause :: Parser MatchClause
-matchClause = inSpaces (string "|") >> (,) <$> pattern <* (reservedOp "->") <*> expr
+matchClause = try $ inSpaces (string "|") >> (,) <$> pattern <* (reservedOp "->") <*> expr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
