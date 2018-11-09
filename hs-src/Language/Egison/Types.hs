@@ -43,6 +43,7 @@ module Language.Egison.Types
     , tIndex
     , tref
     , enumTensorIndices
+    , changeIndexList
     , tTranspose
     , tTranspose'
     , tFlipIndices
@@ -878,6 +879,11 @@ tref _ t = throwError $ Default "More indices than the order of the tensor"
 enumTensorIndices :: [Integer] -> [[Integer]]
 enumTensorIndices [] = [[]]
 enumTensorIndices (n:ns) = concatMap (\i -> (map (\is -> i:is) (enumTensorIndices ns))) [1..n]
+
+changeIndexList :: [Index String] -> [EgisonValue] -> [Index String]
+changeIndexList idxlist ms = map (\(i, m) -> case i of
+                                              Superscript s -> Superscript (s ++ m)
+                                              Subscript s -> Subscript (s ++ m)) $ zip idxlist (map show ms)
 
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> [Integer] -> EgisonM [Integer]
 transIndex [] [] is = return is

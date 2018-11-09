@@ -104,18 +104,30 @@ assertEqual("match-all",
   | $x<:>$xs -> [x, xs],
   [[1, [2, 3]]])
 
+assertEqual("match-all-multi",
+  matchAll [1, 2, 3] as multiset(integer)
+  | $x <:> (x + 1) <:> _ -> [x, x + 1]
+  | $x <:> (x + 2) <:> _ -> [x, x + 2],
+  [[1, 2], [2, 3], [1, 3]])
+
 assertEqual("match-lambda",
-  letrec count = $l ->
-    match l as list(something)
+  letrec count =
+    matchLambda as list(something)
     | <nil> -> 0
     | _<:>$xs -> count(xs)+1 in
   count([1, 2, 3]),
   3)
 
 assertEqual("match-all-lambda",
-  ($l -> matchAll l as list(something)
-         | _ <++> $x <:> _ -> x)([1, 2, 3]),
+  (matchAllLambda as list(something)
+   | _ <++> $x <:> _ -> x)([1, 2, 3]),
   [1, 2, 3])
+
+assertEqual("match-all-lambda-multi",
+  (matchAllLambda as multiset(something)
+   | $x <:> (x + 1) <:> _ -> [x, x + 1]
+   | $x <:> (x + 2) <:> _ -> [x, x + 2])([1, 2, 3]),
+  [[1, 2], [2, 3], [1, 3]])
 
 assertEqual("pattern variable",
   match 1 as something

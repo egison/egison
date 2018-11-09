@@ -65,3 +65,8 @@ assertEqual("generate_tensor by using function expr",
                     [3, 3]) in
    show(withSymbols {i, j} d/d(g_i_j, x)),
   "[| [| g_1_1|x 0 0 |] [| 0 g_2_2|x 0 |] [| 0 0 g_3_3|x |] |]")
+
+assertEqual("define tensor having value of function expr",
+  letrec g__ = [| [| function(x, y, z), 0, 0 |], [| 0, function(x, y, z), 0 |], [| 0, 0, function(x, y, z) |] |] in
+    show(withSymbols {i, j} d/d(g_i_j, x)),
+  "[| [| g_1_1|x 0 0 |] [| 0 g_2_2|x 0 |] [| 0 0 g_3_3|x |] |]")
