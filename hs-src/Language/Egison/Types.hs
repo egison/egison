@@ -251,9 +251,9 @@ data EgisonExpr =
   | WithSymbolsExpr [String] EgisonExpr
 
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
-  | MatchAllExpr EgisonExpr EgisonExpr MatchClause
+  | MatchAllExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchLambdaExpr EgisonExpr [MatchClause]
-  | MatchAllLambdaExpr EgisonExpr MatchClause
+  | MatchAllLambdaExpr EgisonExpr [MatchClause]
 
   | NextMatchExpr EgisonExpr EgisonExpr [MatchClause]
   | NextMatchAllExpr EgisonExpr EgisonExpr MatchClause
