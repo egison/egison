@@ -545,11 +545,10 @@ evalExpr env (IoExpr expr) = do
         Tuple [_, val'] -> return $ Value val'
     _ -> throwError $ TypeMismatch "io" io
 
-evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
+evalExpr env (MatchAllExpr target matcher clauses) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  result <- patternMatch env pattern target matcher
-  mmap (flip evalExpr expr . extendEnv env) result >>= fromMList
+  f matcher target >>= fromMList
  where
   fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
   fromMList MNil = return . Value $ Collection Sq.empty
@@ -558,6 +557,11 @@ evalExpr env (MatchAllExpr target matcher (pattern, expr)) = do
     tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
     seqRef <- liftIO . newIORef $ Sq.fromList [head, tail]
     return . Intermediate $ ICollection $ seqRef
+  f matcher target = do
+      let tryMatchClause (pattern, expr) results = do
+            result <- patternMatch env pattern target matcher
+            mmap (flip evalExpr expr . extendEnv env) result >>= flip mappend results
+      mfoldr tryMatchClause (return MNil) (fromList clauses)
 
 evalExpr env (MatchExpr target matcher clauses) = do
   target <- evalExpr env target
