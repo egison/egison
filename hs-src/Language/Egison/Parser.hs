@@ -230,10 +230,6 @@ expr' = (try partialExpr
                          <|> matchExpr
                          <|> matchAllLambdaExpr
                          <|> matchLambdaExpr
-                         <|> nextMatchAllExpr
-                         <|> nextMatchExpr
-                         <|> nextMatchAllLambdaExpr
-                         <|> nextMatchLambdaExpr
                          <|> matcherExpr
                          <|> matcherDFSExpr
                          <|> seqExpr
@@ -328,18 +324,6 @@ matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> ((
 
 matchLambdaExpr :: Parser EgisonExpr
 matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$> expr <*> matchClauses
-
-nextMatchAllExpr :: Parser EgisonExpr
-nextMatchAllExpr = keywordNextMatchAll >> NextMatchAllExpr <$> expr <*> expr <*> matchClause
-
-nextMatchExpr :: Parser EgisonExpr
-nextMatchExpr = keywordNextMatch >> NextMatchExpr <$> expr <*> expr <*> matchClauses
-
-nextMatchAllLambdaExpr :: Parser EgisonExpr
-nextMatchAllLambdaExpr = keywordNextMatchAllLambda >> NextMatchAllLambdaExpr <$> expr <*> matchClause
-
-nextMatchLambdaExpr :: Parser EgisonExpr
-nextMatchLambdaExpr = keywordNextMatchLambda >> NextMatchLambdaExpr <$> expr <*> matchClauses
 
 matchClauses :: Parser [MatchClause]
 matchClauses = braces $ sepEndBy matchClause whiteSpace
@@ -900,10 +884,6 @@ keywordMatchAll             = reserved "match-all"
 keywordMatchAllLambda       = reserved "match-all-lambda"
 keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "match-lambda"
-keywordNextMatchAll         = reserved "next-match-all"
-keywordNextMatchAllLambda   = reserved "next-match-all-lambda"
-keywordNextMatch            = reserved "next-match"
-keywordNextMatchLambda      = reserved "next-match-lambda"
 keywordMatcher              = reserved "matcher"
 keywordMatcherDFS           = reserved "matcher-dfs"
 keywordDo                   = reserved "do"
