@@ -15,12 +15,12 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 mathExprToHaskell :: String -> String
 mathExprToHaskell input = case parse parseExpr "math-expr" input of
                             Left err -> input
-                            Right val -> "#haskell\"" ++ show val ++ "\""
+                            Right val -> "#haskell|" ++ show val ++ "|#"
 
 mathExprToAsciiMath :: String -> String
 mathExprToAsciiMath input = case parse parseExpr "math-expr" input of
                               Left err -> input
-                              Right val -> "#asciimath\"" ++ showMathExprAsciiMath val ++ "\""
+                              Right val -> "#asciimath|" ++ showMathExprAsciiMath val ++ "|#"
 
 mathExprToLatex :: String -> String
 mathExprToLatex input = case parse parseExpr "math-expr" input of
@@ -63,8 +63,9 @@ showMathExprAsciiMath (Plus (x:xs)) = showMathExprAsciiMath x ++ showMathExprAsc
   showMathExprAsciiMathForPlus :: [MathExpr] -> String
   showMathExprAsciiMathForPlus [] = ""
   showMathExprAsciiMathForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprAsciiMath (Multiply ys) ++ showMathExprAsciiMathForPlus xs
   showMathExprAsciiMathForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprAsciiMath (Multiply ((Atom a []):ys)) ++ " " ++ showMathExprAsciiMathForPlus xs
-  showMathExprAsciiMathForPlus (x:xs) = showMathExprAsciiMath x ++ " + " ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus (x:xs) = " + " ++ showMathExprAsciiMath x ++ showMathExprAsciiMathForPlus xs
 showMathExprAsciiMath (Multiply []) = ""
 showMathExprAsciiMath (Multiply [a]) = showMathExprAsciiMath a
 showMathExprAsciiMath (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprAsciiMath (Multiply lvs)
@@ -130,6 +131,7 @@ showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlu
   showMathExprLatexForPlus :: [MathExpr] -> String
   showMathExprLatexForPlus [] = ""
   showMathExprLatexForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprLatexForPlus xs
+  showMathExprLatexForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprLatex (Multiply ys) ++ showMathExprLatexForPlus xs
   showMathExprLatexForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprLatex (Multiply ((Atom a []):ys)) ++ showMathExprLatexForPlus xs
   showMathExprLatexForPlus (x:xs) = " + " ++  showMathExprLatex x ++ showMathExprLatexForPlus xs
 showMathExprLatex (Multiply []) = ""
@@ -193,6 +195,7 @@ showMathExprMathematica (Plus (x:xs)) = showMathExprMathematica x ++ showMathExp
   showMathExprMathematicaForPlus :: [MathExpr] -> String
   showMathExprMathematicaForPlus [] = ""
   showMathExprMathematicaForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprMathematicaForPlus xs
+  showMathExprMathematicaForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprMathematica (Multiply ys) ++ showMathExprMathematicaForPlus xs
   showMathExprMathematicaForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprMathematica (Multiply ((Atom a []):ys)) ++ showMathExprMathematicaForPlus xs
   showMathExprMathematicaForPlus (x:xs) = " + " ++  showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
 showMathExprMathematica (Multiply []) = ""
@@ -227,7 +230,7 @@ showMathExprMathematicaArg lvs = showMathExprMathematica (head lvs) ++ ", " ++ (
 showMathExprMathematicaIndices :: [MathIndex] -> String
 showMathExprMathematicaIndices [a] = showMathIndexMathematica a
 showMathExprMathematicaIndices lvs = showMathIndexMathematica (head lvs) ++ showMathExprMathematicaIndices (tail lvs)
- 
+
 showMathIndexMathematica :: MathIndex -> String
 showMathIndexMathematica (Super a) = showMathExprMathematica a
 showMathIndexMathematica (Sub a) = showMathExprMathematica a
@@ -247,7 +250,7 @@ symbol :: Parser Char
 symbol = oneOf "!$%&*+-/:<=>?@#"
 
 parseAtom :: Parser MathExpr
-parseAtom = do 
+parseAtom = do
     first <- letter <|> symbol <|> digit
     rest <- many (letter <|> digit <|> symbol)
     let atom = first : rest
@@ -255,7 +258,7 @@ parseAtom = do
     return $ Atom atom ys
 
 parseAtom' :: Parser MathExpr
-parseAtom' = do 
+parseAtom' = do
     first <- letter <|> symbol <|> digit
     rest <- many (letter <|> digit <|> symbol)
     let atom = first : rest
@@ -266,7 +269,7 @@ parsePartial = do
     xs <- parseAtom
     is <- many1 (char '|' >> parseAtom)
     return $ Partial xs is
-  
+
 parseNegativeAtom :: Parser MathExpr
 parseNegativeAtom = do
     char '-'
