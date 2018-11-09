@@ -256,11 +256,6 @@ data EgisonExpr =
   | MatchLambdaExpr EgisonExpr [MatchClause]
   | MatchAllLambdaExpr EgisonExpr [MatchClause]
 
-  | NextMatchExpr EgisonExpr EgisonExpr [MatchClause]
-  | NextMatchAllExpr EgisonExpr EgisonExpr MatchClause
-  | NextMatchLambdaExpr EgisonExpr [MatchClause]
-  | NextMatchAllLambdaExpr EgisonExpr MatchClause
-
   | MatcherExpr MatcherInfo
   | MatcherDFSExpr MatcherInfo
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
