@@ -318,13 +318,13 @@ quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
-matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> matchClause
+matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> (((flip (:) []) <$> matchClause) <|> matchClauses)
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
 
 matchAllLambdaExpr :: Parser EgisonExpr
-matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> matchClause
+matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> (((flip (:) []) <$> matchClause) <|> matchClauses)
 
 matchLambdaExpr :: Parser EgisonExpr
 matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$> expr <*> matchClauses
