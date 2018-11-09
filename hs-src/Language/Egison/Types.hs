@@ -433,7 +433,7 @@ data SymbolExpr =
     Symbol Id String [Index ScalarData]
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
-  | FunctionData (Maybe EgisonValue) [EgisonValue] [EgisonValue] [Index ScalarData] -- fnname argnames arg indices
+  | FunctionData (Maybe EgisonValue) [EgisonValue] [EgisonValue] [Index ScalarData] -- fnname argnames args indices
  deriving (Eq)
 
 instance Eq PolyExpr where
