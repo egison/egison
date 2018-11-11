@@ -279,7 +279,7 @@ freshVarExpr :: Parser EgisonExpr
 freshVarExpr = char '#' >> return FreshVarExpr
 
 inductiveDataExpr :: Parser EgisonExpr
-inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr whiteSpace
+inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy term whiteSpace
 
 tupleExpr :: Parser EgisonExpr
 tupleExpr = parens $ TupleExpr <$> sepEndBy expr comma
@@ -382,7 +382,7 @@ pdPattern' = reservedOp "_" *> pure PDWildCard
                     <|> brackets ((PDConsPat <$> pdPattern <* comma <*> (char '@' *> pdPattern))
                             <|> (PDSnocPat <$> (char '@' *> pdPattern) <* comma <*> pdPattern)
                             <|> pure PDEmptyPat)
-                    <|> angles (PDInductivePat <$> upperName <*> sepEndBy pdPattern comma)
+                    <|> angles (PDInductivePat <$> upperName <*> sepEndBy pdPattern whiteSpace)
                     <|> parens (PDTuplePat <$> sepEndBy pdPattern comma)
                     <|> PDConstantPat <$> constantExpr
                     <?> "primitive-data-pattern"
@@ -443,14 +443,14 @@ binding :: Parser BindingExpr
 binding = (,) <$> varNames' <* inSpaces (string "=") <*> expr
 
 varNames :: Parser [String]
-varNames = sepEndBy (char '$' >> ident) spaces
+varNames = sepEndBy (char '$' >> ident) whiteSpace
 
 varNames' :: Parser [Var]
 varNames' = return <$> identVar
             <|> parens (sepEndBy identVar comma)
 
 argNames :: Parser [Arg]
-argNames = sepEndBy argName spaces
+argNames = sepEndBy argName whiteSpace
 
 argName :: Parser Arg
 argName = try (char '$' >> ident >>= return . ScalarArg)
