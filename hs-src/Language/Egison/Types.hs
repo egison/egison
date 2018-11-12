@@ -1642,6 +1642,7 @@ data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPatte
 topDFS :: EgisonPattern -> Bool
 topDFS (DFSPat _ _) = True
 topDFS (InductivePat _ patterns) = any topDFS patterns
+topDFS (LetPat _ pattern) = topDFS pattern
 topDFS _ = False
 
 containBFS :: EgisonPattern -> Bool
