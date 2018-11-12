@@ -1068,9 +1068,13 @@ processMStatesAll :: Int -> MatchingStates -> EgisonM (MList EgisonM Match)
 processMStatesAll depth streams = do
   (matches, streams') <- (\(a, b) -> (fromList a, b)) <$> (processMStatesLine depth streams >>= extractMatches)
   if null (streams' ^. normalTree)
-     then do matches' <- mapM (\id -> processMStatesAll 0 $ MatchingStates { _normalTree = map snd (toAscList $ (streams' ^. orderedOrTrees) M.! id), _orderedOrTrees = M.empty, _ids = [], _bool = streams' ^. bool }) $ streams' ^. ids
+     then do matches' <- mapM (\id -> processMStatesAll 0 $ MatchingStates { _normalTree = convert ((streams' ^. orderedOrTrees) M.! id), _orderedOrTrees = M.empty, _ids = [], _bool = streams' ^. bool }) $ streams' ^. ids
              mappend matches $ mconcat $ fromList matches'
      else mappend matches $ processMStatesAll (depth + 1) streams'
+ where
+  convert :: Map Int [a] -> [[a]]
+  convert = M.foldlWithKey (\l k x -> if length l <= k then l ++ (replicate (k - length l) []) ++ [x]
+                                                       else let (xs, y:ys) = splitAt k l in xs ++ (x:ys)) []
 
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
