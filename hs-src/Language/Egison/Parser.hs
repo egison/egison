@@ -599,6 +599,7 @@ pattern' = wildCard
                     <|> orPat
                     <|> loopPat
                     <|> letPat
+                    <|> laterPat
                     <|> bfsPat
                     <|> dfsPat
                     <|> try divPat
@@ -631,6 +632,9 @@ predPat = char '?' >> PredPat <$> expr
 
 letPat :: Parser EgisonPattern
 letPat = keywordLet >> LetPat <$> bindings <*> pattern
+
+laterPat :: Parser EgisonPattern
+laterPat = keywordLater >> LaterPat <$> pattern
 
 notPat :: Parser EgisonPattern
 notPat = char '!' >> NotPat <$> pattern
@@ -802,6 +806,9 @@ reservedKeywords =
   , "let"
   , "let*"
   , "with-symbols"
+--  , "not"
+--  , "and"
+--  , "or"
   , "loop"
   , "match-all"
   , "match"
@@ -868,6 +875,7 @@ keywordElse                 = reserved "else"
 keywordNot                  = reserved "not"
 keywordAnd                  = reserved "and"
 keywordOr                   = reserved "or"
+keywordLater                = reserved "later"
 keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
