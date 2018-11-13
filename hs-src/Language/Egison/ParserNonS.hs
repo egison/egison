@@ -124,6 +124,10 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
     fromParsecError :: ParseError -> EgisonError
     fromParsecError = Parser . show
 
+doParse' :: Parser a -> String -> a
+doParse' p input = case doParse p input of
+                     Right x -> x
+
 --
 -- Expressions
 --
@@ -683,7 +687,7 @@ constantExpr = stringExpr
                  <?> "constant"
 
 charExpr :: Parser EgisonExpr
-charExpr = CharExpr <$> charLiteral
+charExpr = CharExpr <$> oneChar
 
 stringExpr :: Parser EgisonExpr
 stringExpr = StringExpr . T.pack <$> stringLiteral
@@ -898,10 +902,14 @@ floatLiteral = sign <*> P.float lexer
 stringLiteral :: Parser String
 stringLiteral = P.stringLiteral lexer
 
---charLiteral :: Parser Char
---charLiteral = P.charLiteral lexer
 charLiteral :: Parser Char
-charLiteral = string "c#" >> anyChar
+charLiteral = P.charLiteral lexer
+
+oneChar :: Parser Char
+oneChar = do
+  string "c#"
+  x <- (char '\\' >> anyChar >>= (\x -> return ['\\', x])) <|> (anyChar >>= (\x -> return [x]))
+  return $ doParse' charLiteral $ "'" ++ x ++ "'"
 
 boolLiteral :: Parser Bool
 boolLiteral = char '#' >> (char 't' *> pure True <|> char 'f' *> pure False)
