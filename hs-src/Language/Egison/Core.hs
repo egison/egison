@@ -1173,6 +1173,9 @@ processMState state =
       case result of
         MNil -> return $ msingleton state2
         _    -> return MNil
+    MAtom (LaterPat _) _ _ -> do
+      let state' = swapMState state
+      processMState' state'
     _ -> processMState' state
  where
   splitMState :: MatchingState -> (MatchingState, MatchingState)
@@ -1181,6 +1184,12 @@ processMState state =
   splitMState (MState mode env loops bindings ((MNode penv state') : trees)) =
     let (state1, state2) = splitMState state'
      in (MState mode env loops bindings [MNode penv state1], MState mode env loops bindings (MNode penv state2 : trees))
+  swapMState :: MatchingState -> MatchingState
+  swapMState (MState mode env loops bindings ((MAtom (LaterPat pattern) target matcher) : trees)) =
+    MState mode env loops bindings (trees ++ [MAtom pattern target matcher])
+  swapMState (MState mode env loops bindings ((MNode penv state') : trees)) =
+    let state'' = swapMState state'
+     in MState mode env loops bindings ((MNode penv state''):trees)
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState' (MState _ _ _ _ []) = throwError $ EgisonBug "should not reach here (empty matching-state)"

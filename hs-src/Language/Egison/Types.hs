@@ -333,6 +333,7 @@ data EgisonPattern =
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
   | LetPat [BindingExpr] EgisonPattern
+  | LaterPat EgisonPattern
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
