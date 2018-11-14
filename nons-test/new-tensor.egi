@@ -4,10 +4,7 @@
 
 x = [| θ, φ |]
 
-X = [| r * sin(θ) * cos(φ), ; = x
-     r * sin(θ) * sin(φ),   ; = y
-     r * cos(θ)             ; = z
-     |]
+X = [| r * sin(θ) * cos(φ), r * sin(θ) * sin(φ), r * cos(θ) |]
 
 ;;
 ;; Local basis

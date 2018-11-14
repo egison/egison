@@ -694,12 +694,10 @@ evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   ns <- (mapM fromEgison size'') :: EgisonM [Integer]
   let Env frame maybe_vwi = env
   xs <- mapM (\ms -> do
-    let env' = case maybe_vwi of
-                 Nothing -> env
-                 Just (VarWithIndices nameString indexList) -> Env frame (Just $ VarWithIndices nameString $ changeIndexList indexList ms)
+    let env' = maybe env (\(VarWithIndices nameString indexList) -> Env frame $ Just $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi
     fn <- evalExpr env' fnExpr
-    applyFunc env fn (Value (makeTuple ms)))
-                (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+    applyFunc env fn $ Value $ makeTuple ms)
+                (map (\ms -> map toEgison ms) $ enumTensorIndices ns)
   fromTensor (Tensor ns (V.fromList xs) [])
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do

@@ -144,7 +144,7 @@ defineExpr = try (parens (keywordDefine >> Define <$> (char '$' >> identVar) <*>
          <|> try (parens (do keywordDefine
                              (VarWithIndices name is) <- (char '$' >> identVarWithIndices)
                              body <- expr
-                             return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body))))
+                             return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . VarExpr . stringToVar . g) is)) body))))
  where
   f (Superscript _) = Superscript ()
   f (Subscript _) = Subscript ()
@@ -152,9 +152,6 @@ defineExpr = try (parens (keywordDefine >> Define <$> (char '$' >> identVar) <*>
   g (Superscript i) = i
   g (Subscript i) = i
   g (SupSubscript i) = i
-  h (Superscript i) = (VarExpr $ stringToVar i)
-  h (Subscript i) = (VarExpr $ stringToVar i)
-  h (SupSubscript i) = (VarExpr $ stringToVar i)
 
 redefineExpr :: Parser EgisonTopExpr
 redefineExpr = (keywordRedefine <|> keywordSet) >> Redefine <$> (char '$' >> identVar) <*> expr
