@@ -146,7 +146,7 @@ defineExpr = try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* 
              <|> try (do (VarWithIndices name is) <- identVarWithIndices
                          inSpaces $ string "=" >> notFollowedBy (string "=")
                          body <- expr
-                         return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body)))
+                         return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . VarExpr . stringToVar . g) is)) body)))
  where
   argNames' :: Parser [Arg]
   argNames' = sepEndBy argName' comma
@@ -160,9 +160,6 @@ defineExpr = try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* 
   g (Superscript i) = i
   g (Subscript i) = i
   g (SupSubscript i) = i
-  h (Superscript i) = (VarExpr $ stringToVar i)
-  h (Subscript i) = (VarExpr $ stringToVar i)
-  h (SupSubscript i) = (VarExpr $ stringToVar i)
 
 testExpr :: Parser EgisonTopExpr
 testExpr = keywordTest >> Test <$> parens expr
