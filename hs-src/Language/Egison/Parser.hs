@@ -525,9 +525,7 @@ generateArrayExpr :: Parser EgisonExpr
 generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> expr <*> arrayRange
 
 arrayRange :: Parser (EgisonExpr, EgisonExpr)
-arrayRange = brackets (do s <- expr
-                          e <- expr
-                          return (s, e))
+arrayRange = brackets $ (,) <$> expr <*> expr
 
 arrayBoundsExpr :: Parser EgisonExpr
 arrayBoundsExpr = keywordArrayBounds >> ArrayBoundsExpr <$> expr
@@ -604,7 +602,6 @@ pattern' = wildCard
                     <|> try multPat
                     <|> try dApplyPat
                     <|> try pApplyPat
---                    <|> powerPat
                     )
 
 pattern'' :: Parser EgisonPattern
@@ -667,13 +664,10 @@ loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> char '$' >> LoopPat <$> identVarWithoutIndex <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
 loopRange :: Parser LoopRange
-loopRange = brackets (try (do s <- expr
-                              e <- expr
+loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
+                      <|> (do s <- expr
                               ep <- option WildCard pattern
-                              return (LoopRange s e ep))
-                 <|> (do s <- expr
-                         ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
+                              return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, (IntegerExpr 1)]))) ep)))
 
 divPat :: Parser EgisonPattern
 divPat = reservedOp "/" >> DivPat <$> pattern <*> pattern
@@ -685,11 +679,8 @@ multPat :: Parser EgisonPattern
 multPat = reservedOp "*" >> MultPat <$> sepEndBy powerPat whiteSpace
 
 powerPat :: Parser EgisonPattern
-powerPat = try (do pat1 <- pattern
-                   char '^'
-                   pat2 <- pattern
-                   return $ PowerPat pat1 pat2)
-       <|> pattern
+powerPat = try (PowerPat <$> pattern <* char '^' <*> pattern)
+            <|> pattern
 
 dfsPat :: Parser EgisonPattern
 dfsPat = keywordDFS >> DFSPat' <$> pattern
@@ -720,15 +711,9 @@ boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
 floatExpr = do
-  (x,y) <- try (do x <- floatLiteral'
-                   y <- sign' <*> positiveFloatLiteral
-                   char 'i'
-                   return (x,y))
-            <|> try (do y <- floatLiteral'
-                        char 'i'
-                        return (0,y))
-            <|> try (do x <- floatLiteral'
-                        return (x,0))
+  (x,y) <- try ((,) <$> floatLiteral' <*> (sign' <*> positiveFloatLiteral) <* char 'i')
+            <|> try ((,) 0 <$> floatLiteral' <* char 'i')
+            <|> try (flip (,) 0 <$> floatLiteral')
   return $ FloatExpr x y
 
 integerExpr :: Parser EgisonExpr

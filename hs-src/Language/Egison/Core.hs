@@ -232,10 +232,7 @@ evalExpr env (VectorExpr exprs) = do
   f (x, _) = x
   g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)), ms) =
     let Env _ maybe_vwi = env in
-    let fn' = case maybe_vwi of
-                Nothing -> fn
-                Just (VarWithIndices nameString indexList) ->
-                   Just $ symbolScalarData "" $ show $ VarWithIndices nameString $ changeIndexList indexList ms in
+    let fn' = maybe fn (\(VarWithIndices nameString indexList) -> Just $ symbolScalarData "" $ show $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi in
     Value $ ScalarData $ Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p
   g (x, _) = x
 
@@ -1025,8 +1022,7 @@ recursiveBind env bindings = do
                    whnf <- evalExpr env' expr
                    case whnf of
                      (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ (Value (CFunc (Just name) env arg body))
-                 FunctionExpr args -> do
-                   liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) $ FunctionExpr args
+                 FunctionExpr args -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) $ FunctionExpr args
                  _ | isVarWithIndices name -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) expr
                    | otherwise -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
             refs bindings
