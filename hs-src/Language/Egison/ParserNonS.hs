@@ -191,7 +191,7 @@ expr = (try applyInfixExpr
           , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft, binary "%" "remainder" AssocLeft]
           , [binary "==" "eq?" AssocLeft, binary "<=" "lte?" AssocLeft, binary "<" "lt?" AssocLeft, binary ">=" "gte?" AssocLeft, binary ">" "gt?" AssocLeft]
           , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
-          , [binary "and" "and" AssocLeft, binary "or" "or" AssocLeft]
+          , [binary "&&" "and" AssocLeft, binary "||" "or" AssocLeft]
           , [binary "++" "join" AssocRight]
           ]
   unary "-" assoc = Prefix (try $ inSpaces (string "-") >> (return $ \x -> (makeApply (VarExpr $ stringToVar "*") [IntegerExpr (-1), x])))
