@@ -954,7 +954,6 @@ oneChar :: Parser Char
 oneChar = do
   string "c#"
   x <- (char '\\' >> anyChar >>= (\x -> return ['\\', x])) <|> (anyChar >>= (\x -> return [x]))
---  x <- (char '\\' >> anyChar >>= (\x -> return [x])) -- <|> (anyChar >>= (\x -> return [x]))
   return $ doParse' charLiteral $ "'" ++ x ++ "'"
 
 boolLiteral :: Parser Bool
