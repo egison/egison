@@ -654,12 +654,7 @@ loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> parens (char '$' >> LoopPat <$> identVarWithoutIndex <*> (comma >> loopRange) <*> (comma >> pattern) <*> (comma >> option (NotPat WildCard) pattern))
 
 loopRange :: Parser LoopRange
-loopRange = brackets (try (do s <- expr
-                              comma
-                              e <- expr
-                              comma
-                              ep <- option WildCard pattern
-                              return (LoopRange s e ep))
+loopRange = parens (try (LoopRange <$> expr <* comma <*> expr <* comma <*> option WildCard pattern)
                  <|> (do s <- expr
                          comma
                          ep <- option WildCard pattern
@@ -694,15 +689,9 @@ boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
 floatExpr = do
-  (x,y) <- try (do x <- floatLiteral'
-                   y <- sign' <*> positiveFloatLiteral
-                   char 'i'
-                   return (x,y))
-            <|> try (do y <- floatLiteral'
-                        char 'i'
-                        return (0,y))
-            <|> try (do x <- floatLiteral'
-                        return (x,0))
+  (x,y) <- try ((,) <$> floatLiteral' <*> (sign' <*> positiveFloatLiteral) <* char 'i')
+            <|> try ((,) 0 <$> floatLiteral' <* char 'i')
+            <|> try (flip (,) 0 <$> floatLiteral')
   return $ FloatExpr x y
 
 integerExpr :: Parser EgisonExpr
