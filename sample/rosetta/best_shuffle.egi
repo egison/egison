@@ -6,10 +6,10 @@
 
 (define $shuffle
   (lambda [$lst]
-   (match [lst (randomize lst)] [(list eq) (multiset eq)]
-     {[[(loop $i [1 $n]
+    (match [lst (randomize lst)] [(list eq) (multiset eq)]
+      {[[(loop $i [1 $n]
            <cons $x_i ...> <nil>)
-        (loop $i [1 n]
+         (loop $i [1 n]
            (dfs <cons (& (|* !,x_i ,x_i) $y_i) ...>) <nil>)] (map 1#y_%1 (between 1 n))]})))
 
 (define $main

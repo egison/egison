@@ -52,11 +52,11 @@ assertEqual("compose - case 2",
 ;; Booleans
 ;;
 assertEqual("and",
-  [#t `and` #t, #t `and` #f, #f `and` #t, #f `and` #f],
+  [#t && #t, #t && #f, #f && #t, #f && #f],
   [#t, #f, #f, #f])
 
 assertEqual("or",
-  [#t `or` #t, #t `or` #f, #f `or` #t, #f `or` #f],
+  [#t || #t, #t || #f, #f || #t, #f || #f],
   [#t, #t, #t, #f])
 
 assertEqual("not",

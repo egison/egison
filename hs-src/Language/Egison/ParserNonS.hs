@@ -146,7 +146,7 @@ defineExpr = try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* 
              <|> try (do (VarWithIndices name is) <- identVarWithIndices
                          inSpaces $ string "=" >> notFollowedBy (string "=")
                          body <- expr
-                         return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . h) is)) body)))
+                         return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . VarExpr . stringToVar . g) is)) body)))
  where
   argNames' :: Parser [Arg]
   argNames' = sepEndBy argName' comma
@@ -160,9 +160,6 @@ defineExpr = try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* 
   g (Superscript i) = i
   g (Subscript i) = i
   g (SupSubscript i) = i
-  h (Superscript i) = (VarExpr $ stringToVar i)
-  h (Subscript i) = (VarExpr $ stringToVar i)
-  h (SupSubscript i) = (VarExpr $ stringToVar i)
 
 testExpr :: Parser EgisonTopExpr
 testExpr = keywordTest >> Test <$> parens expr
@@ -194,7 +191,7 @@ expr = (try applyInfixExpr
           , [binary "+" "+" AssocLeft, binary "-" "-" AssocLeft, binary "%" "remainder" AssocLeft]
           , [binary "==" "eq?" AssocLeft, binary "<=" "lte?" AssocLeft, binary "<" "lt?" AssocLeft, binary ">=" "gte?" AssocLeft, binary ">" "gt?" AssocLeft]
           , [binary ":" "cons" AssocLeft, binary ".." "between" AssocLeft]
-          , [binary "and" "and" AssocLeft, binary "or" "or" AssocLeft]
+          , [binary "&&" "and" AssocLeft, binary "||" "or" AssocLeft]
           , [binary "++" "join" AssocRight]
           ]
   unary "-" assoc = Prefix (try $ inSpaces (string "-") >> (return $ \x -> (makeApply (VarExpr $ stringToVar "*") [IntegerExpr (-1), x])))
@@ -657,12 +654,7 @@ loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> parens (char '$' >> LoopPat <$> identVarWithoutIndex <*> (comma >> loopRange) <*> (comma >> pattern) <*> (comma >> option (NotPat WildCard) pattern))
 
 loopRange :: Parser LoopRange
-loopRange = brackets (try (do s <- expr
-                              comma
-                              e <- expr
-                              comma
-                              ep <- option WildCard pattern
-                              return (LoopRange s e ep))
+loopRange = parens (try (LoopRange <$> expr <* comma <*> expr <* comma <*> option WildCard pattern)
                  <|> (do s <- expr
                          comma
                          ep <- option WildCard pattern
@@ -697,15 +689,9 @@ boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
 floatExpr = do
-  (x,y) <- try (do x <- floatLiteral'
-                   y <- sign' <*> positiveFloatLiteral
-                   char 'i'
-                   return (x,y))
-            <|> try (do y <- floatLiteral'
-                        char 'i'
-                        return (0,y))
-            <|> try (do x <- floatLiteral'
-                        return (x,0))
+  (x,y) <- try ((,) <$> floatLiteral' <*> (sign' <*> positiveFloatLiteral) <* char 'i')
+            <|> try ((,) 0 <$> floatLiteral' <* char 'i')
+            <|> try (flip (,) 0 <$> floatLiteral')
   return $ FloatExpr x y
 
 integerExpr :: Parser EgisonExpr
