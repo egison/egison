@@ -357,8 +357,8 @@ pdMatchClause = try $ inSpaces (string "|") >> (,) <$> pdPattern <* (reservedOp 
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = P.lexeme lexer (ppWildCard
+                        <|> try ppValuePat
                         <|> ppPatVar
-                        <|> ppValuePat
                         <|> ppInductivePat
                         <?> "primitive-pattren-pattern")
 
@@ -369,7 +369,7 @@ ppPatVar :: Parser PrimitivePatPattern
 ppPatVar = reservedOp "$" *> pure PPPatVar
 
 ppValuePat :: Parser PrimitivePatPattern
-ppValuePat = reservedOp ",$" >> PPValuePat <$> ident
+ppValuePat = reservedOp "$" >> PPValuePat <$> ident
 
 ppInductivePat :: Parser PrimitivePatPattern
 ppInductivePat = angles (PPInductivePat <$> lowerName <*> sepEndBy ppPattern whiteSpace)
@@ -796,7 +796,6 @@ reservedKeywords =
 reservedOperators :: [String]
 reservedOperators =
   [ "$"
-  , ",$"
   , "_"
   , "^"
   , "&"
