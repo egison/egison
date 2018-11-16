@@ -1067,8 +1067,10 @@ processMStatesAll depth streams = do
      else mappend matches $ processMStatesAll (depth + 1) streams'
  where
   convert :: Map Int [a] -> [[a]]
-  convert = M.foldlWithKey (\l k x -> if length l <= k then l ++ (replicate (k - length l) []) ++ [x]
-                                                       else let (xs, y:ys) = splitAt k l in xs ++ (x:ys)) []
+  convert ms = let ((start, root), ms') = M.deleteFindMin ms in
+                   M.foldlWithKey (\l k x -> let k' = k - start in
+                                                 if length l <= k' then l ++ (replicate (k' - length l) []) ++ [x]
+                                                                   else let (xs, y:ys) = splitAt k' l in xs ++ (x:ys)) [root] ms'
 
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
