@@ -654,7 +654,7 @@ loopPat :: Parser EgisonPattern
 loopPat = keywordLoop >> parens (char '$' >> LoopPat <$> identVarWithoutIndex <*> (comma >> loopRange) <*> (comma >> pattern) <*> (comma >> option (NotPat WildCard) pattern))
 
 loopRange :: Parser LoopRange
-loopRange = parens (try (LoopRange <$> expr <* comma <*> expr <* comma <*> option WildCard pattern)
+loopRange = parens (try (LoopRange <$> expr <* comma <*> expr <*> option WildCard (comma >> pattern))
                  <|> (do s <- expr
                          comma
                          ep <- option WildCard pattern
