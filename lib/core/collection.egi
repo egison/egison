@@ -574,7 +574,7 @@
                   [(map (lambda [$i] x_i) (between 1 n))
                    tgt]])]}]
        [,$val []
-        {[$tgt (match [val tgt] [(list a) (multiset a)]
+        {[$tgt (match [(unique val) (unique tgt)] [(list a) (multiset a)]
                  {[[<nil> <nil>] {[]}]
                   [[<cons $x $xs> <cons ,x ,xs>] {[]}]
                   [[_ _] {}]})]}]
@@ -593,7 +593,7 @@
 (define $unique
   (lambda [$xs]
     (reverse (match-all (reverse xs) (list something)
-      [<join _ <cons $x !<join _ <cons ,x _>>>> x]))))
+               [<join _ <cons $x !<join _ <cons ,x _>>>> x]))))
 
 (define $unique/m
   (lambda [$a $xs]
