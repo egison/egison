@@ -415,7 +415,7 @@ listDfs(a) = matcherDFS
                | $tgt -> matchAll tgt as listDfs(a)
                          | loop($i, (1, $n), <snoc $xa_i ...>, $rs) ->
                              (foldr((%i %r -> [@r, xa_i]), [], 1..n), rs)
-             | ,$val as () ->
+             | $val as () ->
                | $tgt -> if val == tgt then {()} else {}
              | $ as (something) ->
                | $tgt -> {tgt}
