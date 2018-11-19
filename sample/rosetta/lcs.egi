@@ -1,10 +1,27 @@
-(define $common-seqs
+(define $double-list
+  (lambda [$a]
+    (matcher
+      {
+       [<cons $ $> [[a a] (double-list a)]
+        {[[$xs $ys] (match-all [xs ys] [(list a) (list a)]
+                      [[<cons $x $rs1> <cons $y $rs2>]
+                       [[x y] [rs1 rs2]]])]}]
+       [<join $ $> [[(list a) (list a)] (double-list a)]
+        {[[$xs $ys] (match-all [xs ys] [(list a) (list a)]
+                      [[<join $hs1 $ts1> <join $hs2 $ts2>]
+                       [[hs1 hs2] [ts1 ts2]]])]}]
+       [<c-cons $ $> [a (double-list a)]
+        {[[$xs $ys] (match-all [xs ys] [(list a) (list a)]
+                      [[<cons $x $rs1> <cons ,x $rs2>]
+                       [x [rs1 rs2]]])]}]
+       [$ something
+        {[$tgt {tgt}]}]
+       })))
+
+(define $lcs
   (lambda [$xs $ys]
-    (match-all [xs ys] [(list char) (list char)]
-      [[(loop $i [1 $n] <join _ <cons $c_i ...>> _)
-        (loop $i [1 n] <join _ <cons ,c_i ...>> _)]
-       (map (lambda [$i] c_i) (between 1 n))])))
+    (match-all [(unpack "thisisatest") (unpack "testing123testing")] (double-list char)
+           [(loop $i [1 $n] <join _ <c-cons $c_i ...>> _)
+            [n (pack (map (lambda [$i] c_i) (between 1 n)))]])))
 
-(define $lcs (compose common-seqs rac))
-
-(test (lcs "thisisatest" "testing123testing"))
+(sort/fn 2#(compare (2#%1 %1) (2#%1 %2)) (lcs "thisisatest" "testing123testing"))

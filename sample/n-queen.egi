@@ -55,6 +55,10 @@
                    <nil>)>
       a])))
 
+(test (n-queen 4))
+(test (n-queen 5))
+(test (n-queen 6))
+(test (n-queen 7))
 (test (n-queen 8))
 (test (n-queen 9))
 (test (n-queen 10))

@@ -1293,11 +1293,20 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
     _ ->
       case matcher of
         UserMatcher _ _ _ -> do
-          (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
-          mfor targetss $ \ref -> do
-            targets <- evalRef ref >>= fromTupleWHNF
-            let trees' = zipWith3 MAtom patterns targets matchers ++ trees
-            return $ MState mode env loops bindings trees'
+          case pattern of
+            _ -> do
+              (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
+              case (length patterns, length matchers) of
+                (1,1) -> do
+                  mfor targetss $ \ref -> do
+                    targets <- evalRef ref >>= (\x -> return [x])
+                    let trees' = zipWith3 MAtom patterns targets matchers ++ trees
+                    return $ MState mode env loops bindings trees'
+                _ -> do
+                  mfor targetss $ \ref -> do
+                    targets <- evalRef ref >>= fromTupleWHNF
+                    let trees' = zipWith3 MAtom patterns targets matchers ++ trees
+                    return $ MState mode env loops bindings trees'
 
         Tuple matchers ->
           case pattern of
