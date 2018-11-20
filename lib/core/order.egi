@@ -36,12 +36,12 @@
     (if (gt? x y) x y)))
 
 (define $min/fn
-  (lambda [$compare $x $y]
-    (if (eq? (compare x y) <Less>) x y)))
+  (lambda [$f $xs]
+    (foldl 2#(if (eq? (f %1 %2) <Less>) %1 %2) (car xs) (cdr xs))))
 
 (define $max/fn
-  (lambda [$compare $x $y]
-    (if (eq? (compare x y) <Greater>) x y)))
+  (lambda [$f $xs]
+    (foldl 2#(if (eq? (f %1 %2) <Greater>) %1 %2) (car xs) (cdr xs))))
 
 (define $min (cambda $xs (foldl b.min (car xs) (cdr xs))))
 (define $max (cambda $xs (foldl b.max (car xs) (cdr xs))))
