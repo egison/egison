@@ -1,26 +1,29 @@
 module Main where
 
-import Prelude hiding (catch)
-import Control.Exception ( AsyncException(..), catch )
-import Control.Monad.Except
+import           Control.Exception          (AsyncException (..), catch)
+import           Control.Monad.Except
+import           Control.Monad.Trans.State
+import           Prelude                    hiding (catch)
 
-import qualified Data.Text as T
-import Data.Char
-import Data.List (intercalate)
+import           Data.Char
+import           Data.List                  (intercalate)
+import qualified Data.Text                  as T
 
-import Data.Version
+import           Data.Version
 
-import System.Environment
-import System.Directory (getHomeDirectory)
-import System.FilePath ((</>))
-import System.Console.Haskeline hiding (handle, catch, throwTo)
-import System.Console.GetOpt
-import System.Exit (ExitCode (..), exitWith, exitFailure)
-import System.IO
+import           System.Console.GetOpt
+import           System.Console.Haskeline   hiding (catch, handle, throwTo)
+import           System.Directory           (getHomeDirectory)
+import           System.Environment
+import           System.Exit                (ExitCode (..), exitFailure,
+                                             exitWith)
+import           System.FilePath            ((</>))
+import           System.IO
 
-import Language.Egison
-import Language.Egison.Util
-import Language.Egison.MathOutput
+import           Language.Egison
+import           Language.Egison.Core       (recursiveBind)
+import           Language.Egison.MathOutput
+import           Language.Egison.Util
 
 main :: IO ()
 main = do args <- getArgs
@@ -41,7 +44,7 @@ main = do args <- getArgs
                         then do ret <- runEgisonTopExprs isSExpr env ("(execute (each (compose show-tsv print) " ++ expr ++ "))")
                                 case ret of
                                   Left err -> hPutStrLn stderr $ show err
-                                  Right _ -> return ()
+                                  Right _  -> return ()
                         else do ret <- runEgisonExpr isSExpr env expr
                                 case ret of
                                   Left err -> hPutStrLn stderr (show err) >> exitFailure
@@ -74,21 +77,21 @@ main = do args <- getArgs
                                       either print (const $ return ()) result
 
 data Options = Options {
-    optShowVersion :: Bool,
-    optShowHelp :: Bool,
-    optEvalString :: Maybe String,
-    optExecuteString :: Maybe String,
+    optShowVersion      :: Bool,
+    optShowHelp         :: Bool,
+    optEvalString       :: Maybe String,
+    optExecuteString    :: Maybe String,
     optSubstituteString :: Maybe String,
-    optFieldInfo :: [(String, String)],
-    optLoadLibs :: [String],
-    optLoadFiles :: [String],
-    optTsvOutput :: Bool,
-    optNoIO :: Bool,
-    optShowBanner :: Bool,
-    optTestOnly :: Bool,
-    optPrompt :: String,
-    optMathExpr :: Maybe String,
-    optSExpr :: Bool
+    optFieldInfo        :: [(String, String)],
+    optLoadLibs         :: [String],
+    optLoadFiles        :: [String],
+    optTsvOutput        :: Bool,
+    optNoIO             :: Bool,
+    optShowBanner       :: Bool,
+    optTestOnly         :: Bool,
+    optPrompt           :: String,
+    optMathExpr         :: Maybe String,
+    optSExpr            :: Bool
     }
 
 defaultOptions :: Options
@@ -246,43 +249,43 @@ showByebyeMessage = putStrLn $ "Leaving Egison Interpreter."
 
 repl :: Bool -> Bool -> (Maybe String) -> Env -> String -> IO ()
 repl noIOFlag isSExpr mathExprLang env prompt = do
-  loop []
+  loop $ StateT (\defines -> flip (,) defines <$> recursiveBind env defines)
  where
   settings :: MonadIO m => FilePath -> Settings m
   settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
 
-  loop :: [(Var, EgisonExpr)] -> IO ()
-  loop defines = (do
+  loop :: StateT [(Var, EgisonExpr)] EgisonM Env -> IO ()
+  loop st = (do
     home <- getHomeDirectory
     input <- liftIO $ runInputT (settings home) $ getEgisonExpr isSExpr prompt
     case (noIOFlag, input) of
       (_, Nothing) -> return ()
       (True, Just (_, (LoadFile _ _))) -> do
         putStrLn "error: No IO support"
-        loop defines
+        loop st
       (True, Just (_, (Load _ _))) -> do
         putStrLn "error: No IO support"
-        loop defines
+        loop st
       (_, Just (topExpr, _)) -> do
-        result <- liftIO $ runEgisonTopExpr' isSExpr env defines topExpr
+        result <- liftIO $ runEgisonTopExpr' isSExpr st topExpr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
-            loop defines
-          Right (Nothing, defines') -> loop defines'
-          Right (Just output, defines') ->
+            loop st
+          Right (Nothing, st') -> loop st'
+          Right (Just output, st') ->
             case mathExprLang of
-              Nothing -> putStrLn output >> loop defines'
-              (Just "haskell") -> putStrLn (mathExprToHaskell output) >> loop defines'
-              (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop defines'
-              (Just "latex") -> putStrLn (mathExprToLatex output) >> loop defines'
-              (Just "mathematica") -> putStrLn (mathExprToMathematica output) >> loop defines'
+              Nothing -> putStrLn output >> loop st'
+              (Just "haskell") -> putStrLn (mathExprToHaskell output) >> loop st'
+              (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop st'
+              (Just "latex") -> putStrLn (mathExprToLatex output) >> loop st'
+              (Just "mathematica") -> putStrLn (mathExprToMathematica output) >> loop st'
               _ -> putStrLn "error: this output lang is not supported"
              )
     `catch`
     (\e -> case e of
-             UserInterrupt -> putStrLn "" >> loop defines
-             StackOverflow -> putStrLn "Stack over flow!" >> loop defines
-             HeapOverflow -> putStrLn "Heap over flow!" >> loop defines
-             _ -> putStrLn "error!" >> loop defines
+             UserInterrupt -> putStrLn "" >> loop st
+             StackOverflow -> putStrLn "Stack over flow!" >> loop st
+             HeapOverflow  -> putStrLn "Heap over flow!" >> loop st
+             _             -> putStrLn "error!" >> loop st
      )

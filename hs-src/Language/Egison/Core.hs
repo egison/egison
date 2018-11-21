@@ -42,38 +42,40 @@ module Language.Egison.Core
     , packStringValue
     ) where
 
-import           Prelude                   hiding (mapM, mappend, mconcat)
+import           Prelude                    hiding (mapM, mappend, mconcat)
 
 import           Control.Applicative
 import           Control.Arrow
-import           Control.Lens              (makeLenses, (%~), (&), (.~), (^.))
-import           Control.Monad.Except      hiding (mapM)
-import           Control.Monad.State       hiding (mapM, state)
+import           Control.Lens               (makeLenses, (%~), (&), (.~), (^.))
+import           Control.Monad.Except       hiding (mapM)
+import           Control.Monad.State        hiding (mapM)
 import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.State  (evalStateT, withStateT)
 
-import           Data.Foldable             (toList)
+import           Data.Foldable              (toList)
 import           Data.IORef
-import           Data.List                 (last, partition, nub, drop, any)
-import           Data.List.Split           (oneOf, split)
+import           Data.List                  (any, drop, last, nub, partition)
+import           Data.List.Split            (oneOf, split)
 import           Data.Maybe
 import           Data.Ratio
-import           Data.Sequence             (Seq, ViewL (..), ViewR (..), (><))
-import qualified Data.Sequence             as Sq
-import           Data.Traversable          (mapM)
+import           Data.Sequence              (Seq, ViewL (..), ViewR (..), (><))
+import qualified Data.Sequence              as Sq
+import           Data.Traversable           (mapM)
 
-import           Data.Array                ((!))
-import qualified Data.Array                as Array
-import           Data.Map                  (unionWith, unionsWith, toAscList, singleton, Map, (!), empty)
-import qualified Data.Map                  as M
-import qualified Data.HashMap.Lazy         as HL
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HashMap
-import qualified Data.Vector               as V
+import           Data.Array                 ((!))
+import qualified Data.Array                 as Array
+import qualified Data.HashMap.Lazy          as HL
+import           Data.HashMap.Strict        (HashMap)
+import qualified Data.HashMap.Strict        as HashMap
+import           Data.Map                   (Map, empty, singleton, toAscList,
+                                             unionWith, unionsWith, (!))
+import qualified Data.Map                   as M
+import qualified Data.Vector                as V
 
-import           Data.Text                 (Text)
-import qualified Data.Text                 as T
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
 
-import           Language.Egison.Parser as Parser
+import           Language.Egison.Parser     as Parser
 import           Language.Egison.ParserNonS as ParserNonS
 import           Language.Egison.Types
 
@@ -135,38 +137,37 @@ evalTopExprsNoIO env exprs = do
   collectDefs (expr:exprs) bindings rest =
     case expr of
       Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load _ _           -> throwError $ Default "No IO support"
-      LoadFile _ _       -> throwError $ Default "No IO support"
+      Load _ _         -> throwError $ Default "No IO support"
+      LoadFile _ _     -> throwError $ Default "No IO support"
       _                -> collectDefs exprs bindings (expr : rest)
   collectDefs [] bindings rest = return (bindings, reverse rest)
 
 evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
 evalTopExpr env topExpr = do
-  ret <- evalTopExpr' env [] topExpr
+  ret <- evalTopExpr' (StateT $ \defines -> flip (,) defines <$> recursiveBind env defines) topExpr
   case fst ret of
     Nothing     -> return ()
     Just output -> liftIO $ putStrLn output
-  recursiveBind env $ snd ret
+  evalStateT (snd ret) []
 
-evalTopExpr' :: Env -> [(Var, EgisonExpr)] -> EgisonTopExpr -> EgisonM (Maybe String, [(Var, EgisonExpr)])
-evalTopExpr' env defines e = runStateT evalTopExprState defines
- where
-   evalTopExprState :: StateT [(Var, EgisonExpr)] EgisonM (Maybe String)
-   evalTopExprState = StateT (\defines ->
-     case e of
-       Define name expr -> return (Nothing, (name, expr):defines)
-       Test expr -> do
-         val <- recursiveBind env defines >>= flip evalExprDeep expr
-         return (Just (show val), defines)
-       Execute expr -> do
-         io <- recursiveBind env defines >>= flip evalExpr expr
-         case io of
-           Value (IOFunc m) -> m >> return (Nothing, defines)
-           _                -> throwError $ TypeMismatch "io" io
-       Load b file -> do
-         exprs <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
-         (bindings, _) <- collectDefs exprs [] []
-         return $ (Nothing, bindings ++ defines))
+evalTopExpr' :: StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
+evalTopExpr' st (Define name expr) = return (Nothing, withStateT $ \defines -> (name, expr):defines) st
+evalTopExpr' st (Test expr) = do
+  val <- evalStateT st [] >>= flip evalExprDeep expr
+  return (Just (show val), st)
+evalTopExpr' st (Execute expr) = do
+  io <- evalStateT st [] >>= flip evalExpr expr
+  case io of
+    Value (IOFunc m) -> m >> return (Nothing, st)
+    _                -> throwError $ TypeMismatch "io" io
+evalTopExpr' st (Load b file) = do
+  exprs <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
+  (bindings, _) <- collectDefs exprs [] []
+  return (Nothing, withStateT (\defines -> bindings ++ defines) st)
+evalTopExpr' st (LoadFile b file) = do
+  exprs <- if b then Parser.loadFile file else ParserNonS.loadFile file
+  (bindings, _) <- collectDefs exprs [] []
+  return (Nothing, withStateT (\defines -> bindings ++ defines) st)
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c) = return . Value $ Char c
@@ -1088,8 +1089,8 @@ processMStatesLine depth streams = do
  where
   concatTuple (a, b, c) = (concat a, concat b, concat c)
   mergeNT :: [MList EgisonM MatchingState] -> [[MList EgisonM MatchingState]] -> [[MList EgisonM MatchingState]]
-  mergeNT [] oldnt = oldnt
-  mergeNT nodes [] = [nodes]
+  mergeNT [] oldnt        = oldnt
+  mergeNT nodes []        = [nodes]
   mergeNT nodes (x:oldnt) = (x ++ nodes):oldnt
 
 gatherBindings :: MatchingState -> Maybe [Binding]

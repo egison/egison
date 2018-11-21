@@ -29,14 +29,16 @@ module Language.Egison
        , version
        ) where
 
-import Data.Version
-import qualified Paths_egison as P
+import           Data.Version
+import qualified Paths_egison               as P
 
-import Language.Egison.Types
-import Language.Egison.Parser as Parser
-import Language.Egison.ParserNonS as ParserNonS
-import Language.Egison.Primitives
-import Language.Egison.Core
+import           Language.Egison.Core
+import           Language.Egison.Parser     as Parser
+import           Language.Egison.ParserNonS as ParserNonS
+import           Language.Egison.Primitives
+import           Language.Egison.Types
+
+import           Control.Monad.State
 
 -- |Version number
 version :: Version
@@ -69,9 +71,9 @@ runEgisonTopExpr True env input = fromEgisonM $ Parser.readTopExpr input >>= eva
 runEgisonTopExpr False env input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr' :: Bool -> Env -> [(Var, EgisonExpr)] -> String -> IO (Either EgisonError (Maybe String, [(Var, EgisonExpr)]))
-runEgisonTopExpr' True env defines input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' env defines
-runEgisonTopExpr' False env defines input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' env defines
+runEgisonTopExpr' :: Bool -> StateT [(Var, EgisonExpr)] EgisonM Env -> String -> IO (Either EgisonError (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env))
+runEgisonTopExpr' True st input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' st
+runEgisonTopExpr' False st input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' st
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: Bool -> Env -> String -> IO (Either EgisonError Env)
