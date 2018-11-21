@@ -246,43 +246,43 @@ showByebyeMessage = putStrLn $ "Leaving Egison Interpreter."
 
 repl :: Bool -> Bool -> (Maybe String) -> Env -> String -> IO ()
 repl noIOFlag isSExpr mathExprLang env prompt = do
-  loop env
+  loop []
  where
   settings :: MonadIO m => FilePath -> Settings m
   settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
 
-  loop :: Env -> IO ()
-  loop env = (do
+  loop :: [(Var, EgisonExpr)] -> IO ()
+  loop defines = (do
     home <- getHomeDirectory
     input <- liftIO $ runInputT (settings home) $ getEgisonExpr isSExpr prompt
     case (noIOFlag, input) of
       (_, Nothing) -> return ()
       (True, Just (_, (LoadFile _ _))) -> do
         putStrLn "error: No IO support"
-        loop env
+        loop defines
       (True, Just (_, (Load _ _))) -> do
         putStrLn "error: No IO support"
-        loop env
+        loop defines
       (_, Just (topExpr, _)) -> do
-        result <- liftIO $ runEgisonTopExpr' isSExpr env topExpr
+        result <- liftIO $ runEgisonTopExpr' isSExpr env defines topExpr
         case result of
           Left err -> do
             liftIO $ putStrLn $ show err
-            loop env
-          Right (Nothing, env') -> loop env'
-          Right (Just output, env') ->
+            loop defines
+          Right (Nothing, defines') -> loop defines'
+          Right (Just output, defines') ->
             case mathExprLang of
-              Nothing -> putStrLn output >> loop env'
-              (Just "haskell") -> putStrLn (mathExprToHaskell output) >> loop env'
-              (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop env'
-              (Just "latex") -> putStrLn (mathExprToLatex output) >> loop env'
-              (Just "mathematica") -> putStrLn (mathExprToMathematica output) >> loop env'
+              Nothing -> putStrLn output >> loop defines'
+              (Just "haskell") -> putStrLn (mathExprToHaskell output) >> loop defines'
+              (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop defines'
+              (Just "latex") -> putStrLn (mathExprToLatex output) >> loop defines'
+              (Just "mathematica") -> putStrLn (mathExprToMathematica output) >> loop defines'
               _ -> putStrLn "error: this output lang is not supported"
              )
     `catch`
     (\e -> case e of
-             UserInterrupt -> putStrLn "" >> loop env
-             StackOverflow -> putStrLn "Stack over flow!" >> loop env
-             HeapOverflow -> putStrLn "Heap over flow!" >> loop env
-             _ -> putStrLn "error!" >> loop env
+             UserInterrupt -> putStrLn "" >> loop defines
+             StackOverflow -> putStrLn "Stack over flow!" >> loop defines
+             HeapOverflow -> putStrLn "Heap over flow!" >> loop defines
+             _ -> putStrLn "error!" >> loop defines
      )

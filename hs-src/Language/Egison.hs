@@ -69,9 +69,9 @@ runEgisonTopExpr True env input = fromEgisonM $ Parser.readTopExpr input >>= eva
 runEgisonTopExpr False env input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr' :: Bool -> Env -> String -> IO (Either EgisonError (Maybe String, Env))
-runEgisonTopExpr' True env input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' env
-runEgisonTopExpr' False env input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' env
+runEgisonTopExpr' :: Bool -> Env -> [(Var, EgisonExpr)] -> String -> IO (Either EgisonError (Maybe String, [(Var, EgisonExpr)]))
+runEgisonTopExpr' True env defines input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' env defines
+runEgisonTopExpr' False env defines input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' env defines
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: Bool -> Env -> String -> IO (Either EgisonError Env)
