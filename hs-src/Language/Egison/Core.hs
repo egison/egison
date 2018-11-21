@@ -151,7 +151,7 @@ evalTopExpr env topExpr = do
   evalStateT (snd ret) []
 
 evalTopExpr' :: StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
-evalTopExpr' st (Define name expr) = return (Nothing, withStateT $ \defines -> (name, expr):defines) st
+evalTopExpr' st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
 evalTopExpr' st (Test expr) = do
   val <- evalStateT st [] >>= flip evalExprDeep expr
   return (Just (show val), st)
