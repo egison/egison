@@ -62,9 +62,9 @@ showMathExprAsciiMath (Plus (x:xs)) = showMathExprAsciiMath x ++ showMathExprAsc
  where
   showMathExprAsciiMathForPlus :: [MathExpr] -> String
   showMathExprAsciiMathForPlus [] = ""
-  showMathExprAsciiMathForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprAsciiMathForPlus xs
-  showMathExprAsciiMathForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprAsciiMath (Multiply ys) ++ showMathExprAsciiMathForPlus xs
-  showMathExprAsciiMathForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprAsciiMath (Multiply ((Atom a []):ys)) ++ " " ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExprAsciiMath (Multiply ys) ++ showMathExprAsciiMathForPlus xs
+  showMathExprAsciiMathForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExprAsciiMath (Multiply (Atom a []:ys)) ++ " " ++ showMathExprAsciiMathForPlus xs
   showMathExprAsciiMathForPlus (x:xs) = " + " ++ showMathExprAsciiMath x ++ showMathExprAsciiMathForPlus xs
 showMathExprAsciiMath (Multiply []) = ""
 showMathExprAsciiMath (Multiply [a]) = showMathExprAsciiMath a
@@ -93,7 +93,7 @@ showMathExprAsciiMath' val = showMathExprAsciiMath val
 showMathExprAsciiMathArg :: [MathExpr] -> String
 showMathExprAsciiMathArg [] = ""
 showMathExprAsciiMathArg [a] = showMathExprAsciiMath a
-showMathExprAsciiMathArg lvs = showMathExprAsciiMath (head lvs) ++ ", " ++ (showMathExprAsciiMathArg (tail lvs))
+showMathExprAsciiMathArg lvs = showMathExprAsciiMath (head lvs) ++ ", " ++ showMathExprAsciiMathArg (tail lvs)
 
 showMathExprAsciiMathIndices :: [MathIndex] -> String
 showMathExprAsciiMathIndices [a] = showMathIndexAsciiMath a
@@ -128,9 +128,9 @@ showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlu
  where
   showMathExprLatexForPlus :: [MathExpr] -> String
   showMathExprLatexForPlus [] = ""
-  showMathExprLatexForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprLatexForPlus xs
-  showMathExprLatexForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprLatex (Multiply ys) ++ showMathExprLatexForPlus xs
-  showMathExprLatexForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprLatex (Multiply ((Atom a []):ys)) ++ showMathExprLatexForPlus xs
+  showMathExprLatexForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprLatexForPlus xs
+  showMathExprLatexForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExprLatex (Multiply ys) ++ showMathExprLatexForPlus xs
+  showMathExprLatexForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExprLatex (Multiply (Atom a []:ys)) ++ showMathExprLatexForPlus xs
   showMathExprLatexForPlus (x:xs) = " + " ++  showMathExprLatex x ++ showMathExprLatexForPlus xs
 showMathExprLatex (Multiply []) = ""
 showMathExprLatex (Multiply [x]) = showMathExprLatex x
@@ -142,7 +142,7 @@ showMathExprLatex (Func (Atom "sqrt" []) [x]) = "\\sqrt{" ++ showMathExprLatex x
 showMathExprLatex (Func (Atom "rt" []) [x, y]) = "\\sqrt[" ++ showMathExprLatex x ++ "]{" ++ showMathExprLatex y ++ "}"
 showMathExprLatex (Func (Atom "/" []) [x, y]) = "\\frac{" ++ showMathExprLatex x ++ "}{" ++ showMathExprLatex y ++ "}"
 showMathExprLatex (Func f xs) = showMathExprLatex f ++ "(" ++ showMathExprLatexArg xs ", " ++ ")"
-showMathExprLatex (Tensor xs@((Tensor _ _):_) mis) = "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
+showMathExprLatex (Tensor xs@(Tensor _ _:_) mis) = "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
 showMathExprLatex (Tensor xs mis) = "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
 showMathExprLatex (Tuple xs) = "(" ++ showMathExprLatexArg xs ", " ++ ")"
 showMathExprLatex (Collection xs) = "\\{" ++ showMathExprLatexArg xs ", " ++ "\\}"
@@ -170,7 +170,7 @@ showMathExprLatexSub (Super x)           = "\\;"
 
 showMathExprLatexScript :: [MathIndex] -> String
 showMathExprLatexScript [] = ""
-showMathExprLatexScript is = "_{" ++ concat (map showMathExprLatexSub is) ++ "}^{" ++ concat (map showMathExprLatexSuper is) ++ "}"
+showMathExprLatexScript is = "_{" ++ concatMap showMathExprLatexSub is ++ "}^{" ++ concatMap showMathExprLatexSuper is ++ "}"
 
 showMathExprLatexVectors :: [MathExpr] -> String
 showMathExprLatexVectors [] = ""
@@ -190,9 +190,9 @@ showMathExprMathematica (Plus (x:xs)) = showMathExprMathematica x ++ showMathExp
  where
   showMathExprMathematicaForPlus :: [MathExpr] -> String
   showMathExprMathematicaForPlus [] = ""
-  showMathExprMathematicaForPlus ((NegativeAtom a):xs) = " - " ++ a ++ showMathExprMathematicaForPlus xs
-  showMathExprMathematicaForPlus ((Multiply (NegativeAtom "1":ys)):xs) = " - " ++ showMathExprMathematica (Multiply ys) ++ showMathExprMathematicaForPlus xs
-  showMathExprMathematicaForPlus ((Multiply (NegativeAtom a:ys)):xs) = " - " ++ showMathExprMathematica (Multiply ((Atom a []):ys)) ++ showMathExprMathematicaForPlus xs
+  showMathExprMathematicaForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprMathematicaForPlus xs
+  showMathExprMathematicaForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExprMathematica (Multiply ys) ++ showMathExprMathematicaForPlus xs
+  showMathExprMathematicaForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExprMathematica (Multiply (Atom a []:ys)) ++ showMathExprMathematicaForPlus xs
   showMathExprMathematicaForPlus (x:xs) = " + " ++  showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
 showMathExprMathematica (Multiply []) = ""
 showMathExprMathematica (Multiply [x]) = showMathExprMathematica x
@@ -221,7 +221,7 @@ showMathExprMathematica' x = showMathExprMathematica x
 showMathExprMathematicaArg :: [MathExpr] -> String
 showMathExprMathematicaArg [] = ""
 showMathExprMathematicaArg [a] = showMathExprMathematica a
-showMathExprMathematicaArg lvs = showMathExprMathematica (head lvs) ++ ", " ++ (showMathExprMathematicaArg (tail lvs))
+showMathExprMathematicaArg lvs = showMathExprMathematica (head lvs) ++ ", " ++ showMathExprMathematicaArg (tail lvs)
 
 showMathExprMathematicaIndices :: [MathIndex] -> String
 showMathExprMathematicaIndices [a] = showMathIndexMathematica a
@@ -308,4 +308,4 @@ parseExpr = do
 
 elemCount :: Eq a => [a] -> [(a, Int)]
 elemCount [] = []
-elemCount (x:xs) = (x, (length $ filter (== x) xs) + 1) : elemCount (filter (/= x) xs)
+elemCount (x:xs) = (x, length (filter (== x) xs) + 1) : elemCount (filter (/= x) xs)
