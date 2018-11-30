@@ -8,13 +8,13 @@ This module provides utility functions.
 
 module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex, mathExprToMathematica) where
 
-import Control.Monad
-import System.Environment
-import Text.ParserCombinators.Parsec hiding (spaces)
+import           Control.Monad
+import           System.Environment
+import           Text.ParserCombinators.Parsec hiding (spaces)
 
 mathExprToHaskell :: String -> String
 mathExprToHaskell input = case parse parseExpr "math-expr" input of
-                            Left err -> input
+                            Left err  -> input
                             Right val -> "#haskell|" ++ show val ++ "|#"
 
 mathExprToAsciiMath :: String -> String
@@ -71,10 +71,8 @@ showMathExprAsciiMath (Multiply [a]) = showMathExprAsciiMath a
 showMathExprAsciiMath (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprAsciiMath (Multiply lvs)
 showMathExprAsciiMath (Multiply lvs) = showMathExprAsciiMath' (head lvs) ++ " " ++ showMathExprAsciiMath (Multiply (tail lvs))
 showMathExprAsciiMath (Power lv1 lv2) = showMathExprAsciiMath lv1 ++ "^" ++ showMathExprAsciiMath lv2
-showMathExprAsciiMath (Func f lvs) = case f of
-                                       Atom "/" [] -> if length lvs == 2 then "frac{" ++ showMathExprAsciiMath (head lvs) ++ "}{" ++ showMathExprAsciiMath (lvs !! 1) ++ "}"
-                                                                        else showMathExprAsciiMath f ++ "(" ++ showMathExprAsciiMathArg lvs ++ ")"
-                                       _ -> showMathExprAsciiMath f ++ "(" ++ showMathExprAsciiMathArg lvs ++ ")"
+showMathExprAsciiMath (Func (Atom "/" []) [x, y]) = "frac{" ++ showMathExprAsciiMath x ++ "}{" ++ showMathExprAsciiMath y ++ "}"
+showMathExprAsciiMath (Func f lvs) = showMathExprAsciiMath f ++ "(" ++ showMathExprAsciiMathArg lvs ++ ")"
 showMathExprAsciiMath (Tensor lvs mis)
   | null mis = "(" ++ showMathExprAsciiMathArg lvs ++ ")"
   | not (any isSub mis) = "(" ++ showMathExprAsciiMathArg lvs ++ ")^(" ++ showMathExprAsciiMathIndices mis ++ ")"
@@ -85,9 +83,8 @@ showMathExprAsciiMath (Collection lvs) = "{" ++ showMathExprAsciiMathArg lvs ++ 
 showMathExprAsciiMath (Exp x) = "e^(" ++ showMathExprAsciiMath x ++ ")"
 
 isSub :: MathIndex -> Bool
-isSub x = case x of
-            Sub _ -> True
-            _ -> False
+isSub (Sub _) = True
+isSub _       = False
 
 showMathExprAsciiMath' :: MathExpr -> String
 showMathExprAsciiMath' (Plus lvs) = "(" ++ showMathExprAsciiMath (Plus lvs) ++ ")"
@@ -104,7 +101,7 @@ showMathExprAsciiMathIndices lvs = showMathIndexAsciiMath (head lvs) ++ showMath
 
 showMathIndexAsciiMath :: MathIndex -> String
 showMathIndexAsciiMath (Super a) = showMathExprAsciiMath a
-showMathIndexAsciiMath (Sub a) = showMathExprAsciiMath a
+showMathIndexAsciiMath (Sub a)   = showMathExprAsciiMath a
 
 --
 -- Show (Latex)
@@ -114,16 +111,17 @@ showMathExprLatex :: MathExpr -> String
 showMathExprLatex (Atom a []) = a
 showMathExprLatex (Atom a xs) = a ++ showMathExprLatexScript xs
 showMathExprLatex (Partial f xs) = "\\frac{" ++ convertToPartial (f, length xs) ++ "}{" ++ showPartial xs ++ "}"
-                                         where showPartial :: [MathExpr] -> String
-                                               showPartial xs = let lx = elemCount xs in convertToPartial2 (head lx) ++ foldr (\x acc -> " " ++ convertToPartial2 x ++ acc) "" (tail lx)
+ where
+  showPartial :: [MathExpr] -> String
+  showPartial xs = let lx = elemCount xs in convertToPartial2 (head lx) ++ foldr (\x acc -> " " ++ convertToPartial2 x ++ acc) "" (tail lx)
 
-                                               convertToPartial :: (MathExpr, Int) -> String
-                                               convertToPartial (x, 1) = "\\partial " ++ showMathExprLatex x
-                                               convertToPartial (x, n) = "\\partial^" ++ show n ++ " " ++ showMathExprLatex x
+  convertToPartial :: (MathExpr, Int) -> String
+  convertToPartial (x, 1) = "\\partial " ++ showMathExprLatex x
+  convertToPartial (x, n) = "\\partial^" ++ show n ++ " " ++ showMathExprLatex x
 
-                                               convertToPartial2 :: (MathExpr, Int) -> String
-                                               convertToPartial2 (x, 1) = "\\partial " ++ showMathExprLatex x
-                                               convertToPartial2 (x, n) = "\\partial " ++ showMathExprLatex x ++ "^"  ++ show n
+  convertToPartial2 :: (MathExpr, Int) -> String
+  convertToPartial2 (x, 1) = "\\partial " ++ showMathExprLatex x
+  convertToPartial2 (x, n) = "\\partial " ++ showMathExprLatex x ++ "^"  ++ show n
 showMathExprLatex (NegativeAtom a) = "-" ++ a
 showMathExprLatex (Plus []) = ""
 showMathExprLatex (Plus (x:xs)) = showMathExprLatex x ++ showMathExprLatexForPlus xs
@@ -144,9 +142,8 @@ showMathExprLatex (Func (Atom "sqrt" []) [x]) = "\\sqrt{" ++ showMathExprLatex x
 showMathExprLatex (Func (Atom "rt" []) [x, y]) = "\\sqrt[" ++ showMathExprLatex x ++ "]{" ++ showMathExprLatex y ++ "}"
 showMathExprLatex (Func (Atom "/" []) [x, y]) = "\\frac{" ++ showMathExprLatex x ++ "}{" ++ showMathExprLatex y ++ "}"
 showMathExprLatex (Func f xs) = showMathExprLatex f ++ "(" ++ showMathExprLatexArg xs ", " ++ ")"
-showMathExprLatex (Tensor xs mis) = case head xs of
-                                       Tensor _ _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
-                                       _ -> "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
+showMathExprLatex (Tensor xs@((Tensor _ _):_) mis) = "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
+showMathExprLatex (Tensor xs mis) = "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
 showMathExprLatex (Tuple xs) = "(" ++ showMathExprLatexArg xs ", " ++ ")"
 showMathExprLatex (Collection xs) = "\\{" ++ showMathExprLatexArg xs ", " ++ "\\}"
 showMathExprLatex (Exp x) = "e^{" ++ showMathExprLatex x ++ "}"
@@ -154,7 +151,7 @@ showMathExprLatex (Quote x) = "(" ++ showMathExprLatex x ++ ")"
 
 showMathExprLatex' :: MathExpr -> String
 showMathExprLatex' (Plus xs) = "(" ++ showMathExprLatex (Plus xs) ++ ")"
-showMathExprLatex' x = showMathExprLatex x
+showMathExprLatex' x         = showMathExprLatex x
 
 showMathExprLatexArg :: [MathExpr] -> String -> String
 showMathExprLatexArg [] _ = ""
@@ -163,13 +160,13 @@ showMathExprLatexArg lvs s = showMathExprLatex (head lvs) ++ s ++ showMathExprLa
 
 showMathExprLatexSuper :: MathIndex -> String
 showMathExprLatexSuper (Super (Atom "#" [])) = "\\#"
-showMathExprLatexSuper (Super x) = showMathExprLatex x
-showMathExprLatexSuper (Sub x) = "\\;"
+showMathExprLatexSuper (Super x)             = showMathExprLatex x
+showMathExprLatexSuper (Sub x)               = "\\;"
 
 showMathExprLatexSub :: MathIndex -> String
 showMathExprLatexSub (Sub (Atom "#" [])) = "\\#"
-showMathExprLatexSub (Sub x) = showMathExprLatex x
-showMathExprLatexSub (Super x) = "\\;"
+showMathExprLatexSub (Sub x)             = showMathExprLatex x
+showMathExprLatexSub (Super x)           = "\\;"
 
 showMathExprLatexScript :: [MathIndex] -> String
 showMathExprLatexScript [] = ""
@@ -232,7 +229,7 @@ showMathExprMathematicaIndices lvs = showMathIndexMathematica (head lvs) ++ show
 
 showMathIndexMathematica :: MathIndex -> String
 showMathIndexMathematica (Super a) = showMathExprMathematica a
-showMathIndexMathematica (Sub a) = showMathExprMathematica a
+showMathIndexMathematica (Sub a)   = showMathExprMathematica a
 
 
 --
@@ -249,102 +246,47 @@ symbol :: Parser Char
 symbol = oneOf "!$%&*+-/:<=>?@#"
 
 parseAtom :: Parser MathExpr
-parseAtom = do
-    first <- letter <|> symbol <|> digit
-    rest <- many (letter <|> digit <|> symbol)
-    let atom = first : rest
-    ys <- many parseScript
-    return $ Atom atom ys
+parseAtom = Atom <$> ((:) <$> (letter <|> symbol <|> digit) <*> many (letter <|> digit <|> symbol)) <*> many parseScript
 
 parseAtom' :: Parser MathExpr
-parseAtom' = do
-    first <- letter <|> symbol <|> digit
-    rest <- many (letter <|> digit <|> symbol)
-    let atom = first : rest
-    return $ Atom atom []
+parseAtom' = flip Atom [] <$> ((:) <$> (letter <|> symbol <|> digit) <*> many (letter <|> digit <|> symbol))
 
 parsePartial :: Parser MathExpr
-parsePartial = do
-    xs <- parseAtom
-    is <- many1 (char '|' >> parseAtom)
-    return $ Partial xs is
+parsePartial = Partial <$> parseAtom <*> many1 (char '|' >> parseAtom)
 
 parseNegativeAtom :: Parser MathExpr
-parseNegativeAtom = do
-    char '-'
-    first <- letter <|> symbol <|> digit
-    rest <- many (letter <|> digit <|> symbol)
-    let atom = first : rest
-    return $ NegativeAtom atom
+parseNegativeAtom = char '-' >> NegativeAtom <$> ((:) <$> (letter <|> symbol <|> digit) <*> many (letter <|> digit <|> symbol))
 
 parseList :: Parser [MathExpr]
 parseList = sepEndBy parseExpr spaces
 
 parseScript :: Parser MathIndex
-parseScript = (Sub <$> (char '_' >> parseAtom')) <|> (Super <$> (char '~' >> parseAtom'))
+parseScript = Sub <$> (char '_' >> parseAtom')
+              <|> Super <$> (char '~' >> parseAtom')
 
 parsePlus :: Parser MathExpr
-parsePlus = do
-    string "(+"
-    spaces
-    xs <- parseList
-    char ')'
-    return $ Plus xs
+parsePlus = string "(+" >> spaces >> Plus <$> parseList <* char ')'
 
 parseMultiply :: Parser MathExpr
-parseMultiply = do
-    string "(*"
-    spaces
-    xs <- parseList
-    char ')'
-    return $ Multiply xs
+parseMultiply = string "(*" >> spaces >> Plus <$> parseList <* char ')'
 
 parseFunction :: Parser MathExpr
-parseFunction = do
-    char '('
-    func <- parseAtom
-    spaces
-    xs <- parseList
-    char ')'
-    return $ Func func xs
+parseFunction = char '(' >> Func <$> parseAtom <* spaces <*> parseList <* char ')'
 
 parseTensor :: Parser MathExpr
-parseTensor = do
-    string "[|"
-    spaces0
-    xs <- parseList
-    spaces0
-    string "|]"
-    ys <- many  parseScript
-    return $ Tensor xs ys
+parseTensor = string "[|" >> spaces0 >> Tensor <$> parseList <* spaces0 <* string "|]" <*> many parseScript
 
 parseTuple :: Parser MathExpr
-parseTuple = do
-    char '['
-    xs <- parseList
-    char ']'
-    return $ Tuple xs
+parseTuple = char '[' >> Tuple <$> parseList <* char ']'
 
 parseCollection :: Parser MathExpr
-parseCollection = do
-    char '{'
-    xs <- parseList
-    char '}'
-    return $ Collection xs
+parseCollection = char '{' >> Collection <$> parseList <* char '}'
 
 parseExp :: Parser MathExpr
-parseExp = do
-    string "(exp"
-    spaces
-    x <- parseExpr
-    char ')'
-    return $ Exp x
+parseExp = string "(exp" >> spaces >> Exp <$> parseExpr <* char ')'
 
 parseQuote :: Parser MathExpr
-parseQuote = do
-    char '\''
-    x <- parseExpr'
-    return $ Quote x
+parseQuote = char '\'' >> Quote <$> parseExpr'
 
 parseExpr' :: Parser MathExpr
 parseExpr' = parseNegativeAtom
@@ -361,8 +303,8 @@ parseExpr' = parseNegativeAtom
 
 parseExpr :: Parser MathExpr
 parseExpr = do
-    x <- parseExpr'
-    option x $ Power x <$> try (char '^' >> parseExpr')
+  x <- parseExpr'
+  option x $ Power x <$> try (char '^' >> parseExpr')
 
 elemCount :: Eq a => [a] -> [(a, Int)]
 elemCount [] = []
