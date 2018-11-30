@@ -919,7 +919,9 @@ applyFunc _ (Value (QuotedFunc fn)) arg = do
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
 applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])])))) arg = do
   args <- tupleToList arg
-  mExprs <- mapM extractScalar args
+  mExprs <- mapM (\arg -> case arg of
+                            ScalarData _ -> extractScalar arg
+                            _ -> throwError $ EgisonBug "to use undefined function, you have to use ScalarData args") args
   return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
 applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
 
