@@ -1,0 +1,7 @@
+(define $f (function [x y]))
+(define $v [| (function [x y]) (function [x y]) (function [x y]) |])
+(from-math-expr f)
+;<Div <Plus {<Term 1 {[<Function f {x y} {x y} {}> 1]}>}> <Plus {<Term 1 {}>}>>
+(user-refs f {x})
+
+;f|x
