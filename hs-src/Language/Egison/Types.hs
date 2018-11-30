@@ -1286,7 +1286,7 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData Nothing argnames args js) = "(function [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
+  show (FunctionData Nothing argnames args js) = "(functionData [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
   show (FunctionData (Just name) argnames args js) = show name ++ concatMap show js
 
 showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String

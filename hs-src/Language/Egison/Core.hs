@@ -227,8 +227,10 @@ evalExpr env (ArrayExpr exprs) = do
   refs' <- mapM (newObjectRef env) exprs
   return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
-evalExpr env (VectorExpr exprs) = do
-  whnfs <- mapM (evalExpr env) exprs
+evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
+  whnfs <- mapM (\(expr, i) ->
+            let env' = maybe env (\(VarWithIndices nameString indexList) -> Env frame $ Just $ VarWithIndices nameString $ changeIndexList indexList [toEgison $ toInteger i]) maybe_vwi in
+            evalExpr env' expr) $ zip exprs [1..(length exprs + 1)]
   case whnfs of
     ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
       ret <- mapM toTensor (map f $ zip whnfs [1..(length exprs + 1)]) >>= tConcat' >>= fromTensor
@@ -239,7 +241,6 @@ evalExpr env (VectorExpr exprs) = do
     Intermediate $ ITensor $ Tensor ns (V.fromList $ map g $ zip (V.toList xs) $ map (\ms -> map toEgison $ (toInteger i):ms) $ enumTensorIndices ns) indices
   f (x, _) = x
   g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)), ms) =
-    let Env _ maybe_vwi = env in
     let fn' = maybe fn (\(VarWithIndices nameString indexList) -> Just $ symbolScalarData "" $ show $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi in
     Value $ ScalarData $ Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p
   g (x, _) = x
