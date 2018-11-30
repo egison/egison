@@ -141,10 +141,10 @@ topExpr = try defineExpr
           <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr))
-             <|> try (Define <$> identVar <* (inSpaces $ string "=") <* notFollowedBy (string "=") <*> expr)
+defineExpr = try (Define <$> identVar <*> (LambdaExpr <$> (parens argNames') <* (inSpaces $ reservedOp "=") <* notFollowedBy (string "=") <*> expr))
+             <|> try (Define <$> identVar <* (inSpaces $ reservedOp "=") <* notFollowedBy (string "=") <*> expr)
              <|> try (do (VarWithIndices name is) <- identVarWithIndices
-                         inSpaces $ string "=" >> notFollowedBy (string "=")
+                         inSpaces $ reservedOp "=" >> notFollowedBy (string "=")
                          body <- expr
                          return $ Define (Var name (map f is)) (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . VarExpr . stringToVar . g) is)) body)))
  where
@@ -804,6 +804,8 @@ reservedOperators =
   , ")"
   , "->"
   , "`"
+  , "=="
+  , "="
 --  , "'"
 --  , "~"
 --  , "!"

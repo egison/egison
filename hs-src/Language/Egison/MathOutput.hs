@@ -186,7 +186,6 @@ showMathExprLatexVectors lvs = showMathExprLatexArg lvs " \\\\ " ++ "\\\\ "
 
 showMathExprMathematica :: MathExpr -> String
 showMathExprMathematica (Atom a []) = a
---showMathExprMathematica (Atom a xs) = a ++ showMathExprMathematicaScript xs
 showMathExprMathematica (Partial f xs) = undefined
 showMathExprMathematica (NegativeAtom a) = "-" ++ a
 showMathExprMathematica (Plus []) = ""
