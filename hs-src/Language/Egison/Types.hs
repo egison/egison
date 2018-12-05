@@ -1,6 +1,13 @@
-{-# Language TypeSynonymInstances, FlexibleInstances, GeneralizedNewtypeDeriving,
-             MultiParamTypeClasses, UndecidableInstances, DeriveDataTypeable,
-             TypeFamilies, TupleSections, DeriveGeneric, TemplateHaskell #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE UndecidableInstances       #-}
 {- |
 Module      : Language.Egison.Types
 Copyright   : Satoshi Egi
@@ -160,47 +167,50 @@ module Language.Egison.Types
     , varToVarWithIndices
     ) where
 
-import Prelude hiding (foldr, mappend, mconcat)
+import           Prelude                   hiding (foldr, mappend, mconcat)
 
-import Control.Exception
-import Control.Parallel
-import Control.Lens (makeLenses)
-import Data.Typeable
+import           Control.Exception
+import           Control.Lens              (makeLenses)
+import           Control.Parallel
+import           Data.Typeable
 
-import Control.Applicative
-import Control.Monad.Except
-import Control.Monad.State
-import Control.Monad.Fail
-import Control.Monad.Reader (ReaderT)
-import Control.Monad.Writer (WriterT)
-import Control.Monad.Identity
-import Control.Monad.Trans.Maybe
+import           Control.Applicative
+import           Control.Monad.Except
+import           Control.Monad.Fail
+import           Control.Monad.Identity
+import           Control.Monad.Reader      (ReaderT)
+import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Writer      (WriterT)
 
-import Data.Monoid (Monoid)
-import qualified Data.HashMap.Lazy as HL
-import qualified Data.Array as Array
-import qualified Data.Vector as V
-import qualified Data.Sequence as Sq
-import Data.Sequence (Seq)
-import Data.Foldable (foldr, toList)
-import Data.IORef
-import Data.Hashable (Hashable)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-import Data.Map (Map)
+import qualified Data.Array                as Array
+import           Data.Foldable             (foldr, toList)
+import           Data.Hashable             (Hashable)
+import qualified Data.HashMap.Lazy         as HL
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HashMap
+import           Data.IORef
+import           Data.Map                  (Map)
+import           Data.Monoid               (Monoid)
+import           Data.Sequence             (Seq)
+import qualified Data.Sequence             as Sq
+import qualified Data.Vector               as V
 
-import Data.List (intercalate, sort, sortBy, find, findIndex, splitAt, (\\), elem, delete, deleteBy, any, partition, intercalate, elemIndex)
-import Data.List.Split (splitOn)
-import Data.Text (Text, pack)
-import qualified Data.Text as T
+import           Data.List                 (any, delete, deleteBy, elem,
+                                            elemIndex, find, findIndex,
+                                            intercalate, partition, sort,
+                                            sortBy, splitAt, (\\))
+import           Data.List.Split           (splitOn)
+import           Data.Text                 (Text, pack)
+import qualified Data.Text                 as T
 
-import System.IO
-import Data.Ratio
-import Numeric
+import           Data.Ratio
+import           Numeric
+import           System.IO
 
-import System.IO.Unsafe (unsafePerformIO)
+import           System.IO.Unsafe          (unsafePerformIO)
 
-import GHC.Generics (Generic)
+import           GHC.Generics              (Generic)
 
 --
 -- Expressions
@@ -486,7 +496,7 @@ instance HasTensor EgisonValue where
   fromTensor t@Tensor{} = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
-  toTensor x = return $ Scalar x
+  toTensor x              = return $ Scalar x
   undef = Undefined
 
 instance HasTensor WHNFData where
@@ -496,7 +506,7 @@ instance HasTensor WHNFData where
   fromTensor t@Tensor{} = return $ Intermediate $ ITensor t
   fromTensor (Scalar x) = return x
   toTensor (Intermediate (ITensor t)) = return t
-  toTensor x = return $ Scalar x
+  toTensor x                          = return $ Scalar x
   undef = Value Undefined
 
 --
@@ -601,7 +611,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [name, (Collection argnames)
   n' <- fromEgison n
   let name' = case getSymName name of
                 "" -> Nothing
-                s -> Just $ name
+                s  -> Just $ name
   return (FunctionData name' (toList argnames) (toList args) js', n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
@@ -665,7 +675,7 @@ mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
   let p x = case x of
               (_, 0) -> False
-              _ -> True in
+              _      -> True in
   let ts1' = map (\(Term a xs) -> Term a (filter p xs)) ts1 in
   let ts2' = map (\(Term a xs) -> Term a (filter p xs)) ts2 in
     Div (Plus ts1') (Plus ts2')
@@ -676,7 +686,7 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
   let ts2' = filter (\(Term a _) -> a /= 0) ts2 in
     case ts1' of
       [] -> Div (Plus []) (Plus [Term 1 []])
-      _ -> Div (Plus ts1') (Plus ts2')
+      _  -> Div (Plus ts1') (Plus ts2')
 
 mathFold :: ScalarData -> ScalarData
 mathFold mExpr = mathTermFold (mathSymbolFold (mathTermFold mExpr))
@@ -695,7 +705,7 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
       else g (ret ++ [((x, n), 1)]) xs
   p :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> Bool
   p (Quote x, _) ((Quote y, _),_) = (x == y) || (mathNegate x == y)
-  p (x, _) ((y, _),_) = x == y
+  p (x, _) ((y, _),_)             = x == y
   h :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> ((SymbolExpr, Integer), Integer)
   h (Quote x, n) ((Quote y, m), sgn)
     | x == y = ((Quote y, m + n), sgn)
@@ -794,19 +804,19 @@ initTensor ns xs sup sub = Tensor ns (V.fromList xs) (map Superscript sup ++ map
 
 tSize :: Tensor a -> [Integer]
 tSize (Tensor ns _ _) = ns
-tSize (Scalar _) = []
+tSize (Scalar _)      = []
 
 tToList :: Tensor a -> [a]
 tToList (Tensor _ xs _) = V.toList xs
-tToList (Scalar x) = [x]
+tToList (Scalar x)      = [x]
 
 tToVector :: Tensor a -> V.Vector a
 tToVector (Tensor _ xs _) = xs
-tToVector (Scalar x) = V.fromList [x]
+tToVector (Scalar x)      = V.fromList [x]
 
 tIndex :: Tensor a -> [Index EgisonValue]
 tIndex (Tensor _ _ js) = js
-tIndex (Scalar _) = []
+tIndex (Scalar _)      = []
 
 tIntRef' :: HasTensor a => Integer -> Tensor a -> EgisonM a
 tIntRef' i (Tensor [n] xs _) =
@@ -907,8 +917,8 @@ tTranspose' is t@(Tensor ns xs js) = do
   tTranspose is' t
  where
   f :: Index EgisonValue -> EgisonValue
-  f (Subscript i) = i
-  f (Superscript i) = i
+  f (Subscript i)    = i
+  f (Superscript i)  = i
   f (SupSubscript i) = i
   g :: [EgisonValue] -> [Index EgisonValue] -> EgisonM [Index EgisonValue]
   g [] js = return []
@@ -920,9 +930,9 @@ tTranspose' is t@(Tensor ns xs js) = do
 tFlipIndices :: HasTensor a => Tensor a -> EgisonM (Tensor a)
 tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map flipIndex js)
  where
-  flipIndex (Subscript i) = Superscript i
+  flipIndex (Subscript i)   = Superscript i
   flipIndex (Superscript i) = Subscript i
-  flipIndex x = x
+  flipIndex x               = x
 
 appendDFscripts :: Integer -> WHNFData -> EgisonM WHNFData
 appendDFscripts id (Intermediate (ITensor (Tensor s xs is))) = do
@@ -940,14 +950,14 @@ removeDFscripts (Intermediate (ITensor (Tensor s xs is))) = do
   return (Intermediate (ITensor (Tensor s ys js)))
  where
   isDF (DFscript _ _) = True
-  isDF _ = False
+  isDF _              = False
 removeDFscripts (Value (TensorData (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
   (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
   return (Value (TensorData (Tensor s ys js)))
  where
   isDF (DFscript _ _) = True
-  isDF _ = False
+  isDF _              = False
 removeDFscripts whnf = return whnf
 
 tMap :: HasTensor a => (a -> EgisonM a) -> Tensor a -> EgisonM (Tensor a)
@@ -990,7 +1000,7 @@ tMap2 f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
   h js1 js2 = let cjs = filter (`elem` js2) js1 in
                 (cjs, js1 \\ cjs, js2 \\ cjs)
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
-  uniq [] = []
+  uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
 tMap2 f t@(Tensor _ _ _) (Scalar x) = tMap (`f` x) t
 tMap2 f (Scalar x) t@(Tensor _ _ _) = tMap (f x) t
@@ -1010,14 +1020,14 @@ tDiag t@(Tensor _ _ js) = do
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
-  p (Subscript i) _ = False
-  p _ _ = False
+  p (Subscript i) _               = False
+  p _ _                           = False
   rev :: Index EgisonValue -> Index EgisonValue
   rev (Superscript i) = Subscript i
-  rev (Subscript i) = Superscript i
+  rev (Subscript i)   = Superscript i
   g :: Index EgisonValue -> Index EgisonValue
   g (Superscript i) = SupSubscript i
-  g (Subscript i) = SupSubscript i
+  g (Subscript i)   = SupSubscript i
 tDiag t = return t
 
 tDiagIndex :: [Index EgisonValue] -> [Index EgisonValue]
@@ -1028,14 +1038,14 @@ tDiagIndex js =
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
-  p (Subscript _) _ = False
-  p _ _ = False
+  p (Subscript _) _               = False
+  p _ _                           = False
   rev :: Index EgisonValue -> Index EgisonValue
   rev (Superscript i) = Subscript i
-  rev (Subscript i) = Superscript i
+  rev (Subscript i)   = Superscript i
   g :: Index EgisonValue -> Index EgisonValue
   g (Superscript i) = SupSubscript i
-  g (Subscript i) = SupSubscript i
+  g (Subscript i)   = SupSubscript i
 
 tSum :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
 tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
@@ -1081,15 +1091,15 @@ tProduct f t1''@(Tensor ns1 xs1 js1') t2''@(Tensor ns2 xs2 js2') = do
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
   p (Subscript i) (Superscript j) = i == j
-  p _ _ = False
+  p _ _                           = False
   rev :: Index EgisonValue -> Index EgisonValue
   rev (Superscript i) = Subscript i
-  rev (Subscript i) = Superscript i
+  rev (Subscript i)   = Superscript i
   g :: Index EgisonValue -> Index EgisonValue
   g (Superscript i) = SupSubscript i
-  g (Subscript i) = SupSubscript i
+  g (Subscript i)   = SupSubscript i
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
-  uniq [] = []
+  uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
 tProduct f (Scalar x) (Tensor ns xs js) = do
   xs' <- V.mapM (f x) xs
@@ -1123,10 +1133,10 @@ tContract' t@(Tensor ns xs js) = do
       mapM toTensor xs' >>= tConcat (js !! m) >>= tTranspose (hjs ++ [js !! m] ++ mjs ++ tjs) >>= tContract'
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
-  p (Superscript i) (Superscript j) = i == j
-  p (Subscript i) (Subscript j) = i == j
+  p (Superscript i) (Superscript j)   = i == j
+  p (Subscript i) (Subscript j)       = i == j
   p (DFscript i1 j1) (DFscript i2 j2) = (i1 == i2) && (j1 == j2)
-  p _ _ = False
+  p _ _                               = False
 tContract' val = return val
 
 -- utility functions for tensors
@@ -1135,7 +1145,7 @@ nth :: Integer -> [a] -> a
 nth i xs = xs !! fromIntegral (i - 1)
 
 cdr :: [a] -> [a]
-cdr [] = []
+cdr []     = []
 cdr (_:ts) = ts
 
 split :: Integer -> V.Vector a -> [V.Vector a]
@@ -1160,7 +1170,7 @@ tConcat' ts = do
 
 getScalar :: Tensor a -> EgisonM a
 getScalar (Scalar x) = return x
-getScalar _ = throwError $ Default "Inconsitent Tensor order"
+getScalar _          = throwError $ Default "Inconsitent Tensor order"
 
 findPairs :: (a -> a -> Bool) -> [a] -> [(Int, Int)]
 findPairs p xs = reverse $ findPairs' 0 p xs
@@ -1168,7 +1178,7 @@ findPairs p xs = reverse $ findPairs' 0 p xs
 findPairs' :: Int -> (a -> a -> Bool) -> [a] -> [(Int, Int)]
 findPairs' _ _ [] = []
 findPairs' m p (x:xs) = case findIndex (p x) xs of
-                    Just i -> (m, m + i + 1):findPairs' (m + 1) p xs
+                    Just i  -> (m, m + i + 1):findPairs' (m + 1) p xs
                     Nothing -> findPairs' (m + 1) p xs
 
 removePairs :: (Int, Int) -> [a] -> [a]
@@ -1260,18 +1270,18 @@ instance Show EgisonValue where
   show EOF = "#<eof>"
 
 instance Show Arg where
-  show (ScalarArg name) = "$" ++ name
+  show (ScalarArg name)         = "$" ++ name
   show (InvertedScalarArg name) = "*$" ++ name
-  show (TensorArg name) = "%" ++ name
+  show (TensorArg name)         = "%" ++ name
 
 instance Show ScalarData where
   show (Div p1 (Plus [Term 1 []])) = show p1
-  show (Div p1 p2) = "(/ " ++ show p1 ++ " " ++ show p2 ++ ")"
+  show (Div p1 p2)                 = "(/ " ++ show p1 ++ " " ++ show p2 ++ ")"
 
 instance Show PolyExpr where
-  show (Plus []) = "0"
+  show (Plus [])  = "0"
   show (Plus [t]) = show t
-  show (Plus ts) = "(+ " ++ unwords (map show ts)  ++ ")"
+  show (Plus ts)  = "(+ " ++ unwords (map show ts)  ++ ")"
 
 instance Show TermExpr where
   show (Term a []) = show a
@@ -1404,15 +1414,15 @@ instance (EgisonData a, EgisonData b, EgisonData c, EgisonData d) => EgisonData 
 
 fromCharValue :: EgisonValue -> Either EgisonError Char
 fromCharValue (Char c) = return c
-fromCharValue val = throwError $ TypeMismatch "char" (Value val)
+fromCharValue val      = throwError $ TypeMismatch "char" (Value val)
 
 fromStringValue :: EgisonValue -> Either EgisonError Text
 fromStringValue (String str) = return str
-fromStringValue val = throwError $ TypeMismatch "string" (Value val)
+fromStringValue val          = throwError $ TypeMismatch "string" (Value val)
 
 fromBoolValue :: EgisonValue -> Either EgisonError Bool
 fromBoolValue (Bool b) = return b
-fromBoolValue val = throwError $ TypeMismatch "bool" (Value val)
+fromBoolValue val      = throwError $ TypeMismatch "bool" (Value val)
 
 fromIntegerValue :: EgisonValue -> Either EgisonError Integer
 fromIntegerValue (ScalarData (Div (Plus []) (Plus [Term 1 []]))) = return 0
@@ -1426,11 +1436,11 @@ fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
 
 fromFloatValue :: EgisonValue -> Either EgisonError Double
 fromFloatValue (Float f 0) = return f
-fromFloatValue val = throwError $ TypeMismatch "float" (Value val)
+fromFloatValue val         = throwError $ TypeMismatch "float" (Value val)
 
 fromPortValue :: EgisonValue -> Either EgisonError Handle
 fromPortValue (Port h) = return h
-fromPortValue val = throwError $ TypeMismatch "port" (Value val)
+fromPortValue val      = throwError $ TypeMismatch "port" (Value val)
 
 --
 -- Internal Data
@@ -1474,7 +1484,7 @@ instance Show WHNFData where
   show (Intermediate (ITensor (Tensor ns xs _))) = "[|" ++ show (length ns) ++ show (V.length xs) ++ "|]"
 
 instance Show Object where
-  show (Thunk _) = "#<thunk>"
+  show (Thunk _)   = "#<thunk>"
   show (WHNF whnf) = show whnf
 
 instance Show ObjectRef where
@@ -1508,15 +1518,15 @@ instance EgisonWHNF Handle where
 
 fromCharWHNF :: WHNFData -> Either EgisonError Char
 fromCharWHNF (Value (Char c)) = return c
-fromCharWHNF whnf = throwError $ TypeMismatch "char" whnf
+fromCharWHNF whnf             = throwError $ TypeMismatch "char" whnf
 
 fromStringWHNF :: WHNFData -> Either EgisonError Text
 fromStringWHNF (Value (String str)) = return str
-fromStringWHNF whnf = throwError $ TypeMismatch "string" whnf
+fromStringWHNF whnf                 = throwError $ TypeMismatch "string" whnf
 
 fromBoolWHNF :: WHNFData -> Either EgisonError Bool
 fromBoolWHNF (Value (Bool b)) = return b
-fromBoolWHNF whnf = throwError $ TypeMismatch "bool" whnf
+fromBoolWHNF whnf             = throwError $ TypeMismatch "bool" whnf
 
 fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
 fromIntegerWHNF (Value (ScalarData (Div (Plus []) (Plus [Term 1 []])))) = return 0
@@ -1525,11 +1535,11 @@ fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
 
 fromFloatWHNF :: WHNFData -> Either EgisonError Double
 fromFloatWHNF (Value (Float f 0)) = return f
-fromFloatWHNF whnf = throwError $ TypeMismatch "float" whnf
+fromFloatWHNF whnf                = throwError $ TypeMismatch "float" whnf
 
 fromPortWHNF :: WHNFData -> Either EgisonError Handle
 fromPortWHNF (Value (Port h)) = return h
-fromPortWHNF whnf = throwError $ TypeMismatch "port" whnf
+fromPortWHNF whnf             = throwError $ TypeMismatch "port" whnf
 
 class (EgisonWHNF a) => EgisonObject a where
   toObject :: a -> Object
@@ -1562,32 +1572,32 @@ instance Show VarWithIndices where
   show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
 
 instance Show (Index ()) where
-  show (Superscript ()) = "~"
-  show (Subscript ()) = "_"
+  show (Superscript ())  = "~"
+  show (Subscript ())    = "_"
   show (SupSubscript ()) = "~_"
-  show (DFscript _ _) = ""
-  show (Userscript _) = "|"
+  show (DFscript _ _)    = ""
+  show (Userscript _)    = "|"
 
 instance Show (Index String) where
-  show (Superscript s) = "~" ++ s
-  show (Subscript s) = "_" ++ s
+  show (Superscript s)  = "~" ++ s
+  show (Subscript s)    = "_" ++ s
   show (SupSubscript s) = "~_" ++ s
-  show (DFscript _ _) = ""
-  show (Userscript i) = "|" ++ show i
+  show (DFscript _ _)   = ""
+  show (Userscript i)   = "|" ++ show i
 
 instance Show (Index EgisonExpr) where
-  show (Superscript i) = "~" ++ show i
-  show (Subscript i) = "_" ++ show i
+  show (Superscript i)  = "~" ++ show i
+  show (Subscript i)    = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
-  show (DFscript _ _) = ""
-  show (Userscript i) = "|" ++ show i
+  show (DFscript _ _)   = ""
+  show (Userscript i)   = "|" ++ show i
 
 instance Show (Index ScalarData) where
-  show (Superscript i) = "~" ++ show i
-  show (Subscript i) = "_" ++ show i
+  show (Superscript i)  = "~" ++ show i
+  show (Subscript i)    = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
-  show (DFscript _ _) = ""
-  show (Userscript i) = "|" ++ show i
+  show (DFscript _ _)   = ""
+  show (Userscript i)   = "|" ++ show i
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
@@ -1645,30 +1655,30 @@ data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPatte
  deriving (Show)
 
 topDFS :: EgisonPattern -> Bool
-topDFS (DFSPat _ _) = True
+topDFS (DFSPat _ _)                 = True
 topDFS (InductivePat _ (pattern:_)) = topDFS pattern
-topDFS (LetPat _ pattern) = topDFS pattern
-topDFS _ = False
+topDFS (LetPat _ pattern)           = topDFS pattern
+topDFS _                            = False
 
 containBFS :: EgisonPattern -> Bool
-containBFS (BFSPat _) = True
-containBFS (IndexedPat pattern _) = containBFS pattern
-containBFS (NotPat pattern) = containBFS pattern
-containBFS (AndPat patterns) = any containBFS patterns
-containBFS (OrPat patterns) = any containBFS patterns
+containBFS (BFSPat _)                 = True
+containBFS (IndexedPat pattern _)     = containBFS pattern
+containBFS (NotPat pattern)           = containBFS pattern
+containBFS (AndPat patterns)          = any containBFS patterns
+containBFS (OrPat patterns)           = any containBFS patterns
 containBFS (OrderedOrPat _ pat1 pat2) = containBFS pat1 || containBFS pat2
-containBFS (TuplePat patterns) = any containBFS patterns
-containBFS (InductivePat _ patterns) = any containBFS patterns
-containBFS (LoopPat _ _ pat1 pat2) = containBFS pat1 || containBFS pat2
-containBFS (PApplyPat _ patterns) = any containBFS patterns
-containBFS (DApplyPat pat patterns) = any containBFS (pat:patterns)
-containBFS (DivPat pat1 pat2) = containBFS pat1 || containBFS pat2
-containBFS (PlusPat patterns) = any containBFS patterns
-containBFS (MultPat patterns) = any containBFS patterns
-containBFS (PowerPat pat1 pat2) = containBFS pat1 || containBFS pat2
-containBFS (DFSPat _ pattern) = containBFS pattern
-containBFS (LetPat _ pattern) = containBFS pattern
-containBFS _ = False
+containBFS (TuplePat patterns)        = any containBFS patterns
+containBFS (InductivePat _ patterns)  = any containBFS patterns
+containBFS (LoopPat _ _ pat1 pat2)    = containBFS pat1 || containBFS pat2
+containBFS (PApplyPat _ patterns)     = any containBFS patterns
+containBFS (DApplyPat pat patterns)   = any containBFS (pat:patterns)
+containBFS (DivPat pat1 pat2)         = containBFS pat1 || containBFS pat2
+containBFS (PlusPat patterns)         = any containBFS patterns
+containBFS (MultPat patterns)         = any containBFS patterns
+containBFS (PowerPat pat1 pat2)       = containBFS pat1 || containBFS pat2
+containBFS (DFSPat _ pattern)         = containBFS pattern
+containBFS (LetPat _ pattern)         = containBFS pattern
+containBFS _                          = False
 
 --
 -- Errors
@@ -1829,7 +1839,7 @@ matchFail = MaybeT $ return Nothing
 data MList m a = MNil | MCons a (m (MList m a))
 
 instance Show a => Show (MList m a) where
-  show MNil = "MNil"
+  show MNil        = "MNil"
   show (MCons x _) = "(MCons " ++ show x ++ " ...)"
 
 fromList :: Monad m => [a] -> MList m a
@@ -1848,7 +1858,7 @@ msingleton :: Monad m => a -> MList m a
 msingleton = flip MCons $ return MNil
 
 mfoldr :: Monad m => (a -> m b -> m b) -> m b -> MList m a -> m b
-mfoldr f init MNil = init
+mfoldr f init MNil         = init
 mfoldr f init (MCons x xs) = f x (xs >>= mfoldr f init)
 
 mappend :: Monad m => MList m a -> m (MList m a) -> m (MList m a)
@@ -1868,23 +1878,23 @@ mfor = flip mmap
 
 isBool :: EgisonValue -> Bool
 isBool (Bool _) = True
-isBool _ = False
+isBool _        = False
 
 isBool' :: PrimitiveFunc
 isBool' (Value val) = return $ Value $ Bool $ isBool val
 
 isInteger :: EgisonValue -> Bool
-isInteger (ScalarData (Div (Plus []) (Plus [Term 1 []]))) = True
+isInteger (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = True
 isInteger (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = True
-isInteger _ = False
+isInteger _                                                        = False
 
 isInteger' :: PrimitiveFunc
 isInteger' (Value val) = return $ Value $ Bool $ isInteger val
 
 isRational :: EgisonValue -> Bool
-isRational (ScalarData (Div (Plus []) (Plus [Term _ []]))) = True
+isRational (ScalarData (Div (Plus []) (Plus [Term _ []])))          = True
 isRational (ScalarData (Div (Plus [Term _ []]) (Plus [Term _ []]))) = True
-isRational _ = False
+isRational _                                                        = False
 
 isRational' :: PrimitiveFunc
 isRational' (Value val) = return $ Value $ Bool $ isRational val
@@ -1895,60 +1905,60 @@ isSymbol _ = False
 
 isScalar :: EgisonValue -> Bool
 isScalar (ScalarData _) = True
-isScalar _ = False
+isScalar _              = False
 
 isScalar' :: PrimitiveFunc
 isScalar' (Value val) = return $ Value $ Bool $ isScalar val
-isScalar' _ = return $ Value $ Bool False
+isScalar' _           = return $ Value $ Bool False
 
 isTensor :: EgisonValue -> Bool
 isTensor (TensorData _) = True
-isTensor _ = False
+isTensor _              = False
 
 isTensor' :: PrimitiveFunc
 isTensor' (Value val) = return $ Value $ Bool $ isTensor val
-isTensor' _ = return $ Value $ Bool False
+isTensor' _           = return $ Value $ Bool False
 
 isTensorWithIndex :: EgisonValue -> Bool
 isTensorWithIndex (TensorData (Tensor _ _ (_:_))) = True
-isTensorWithIndex _ = False
+isTensorWithIndex _                               = False
 
 isTensorWithIndex' :: PrimitiveFunc
 isTensorWithIndex' (Value val) = return $ Value $ Bool $ isTensorWithIndex val
-isTensorWithIndex' _ = return $ Value $ Bool False
+isTensorWithIndex' _           = return $ Value $ Bool False
 
 isFloat' :: PrimitiveFunc
 isFloat' (Value (Float _ 0)) = return $ Value $ Bool True
-isFloat' _ = return $ Value $ Bool False
+isFloat' _                   = return $ Value $ Bool False
 
 isComplex' :: PrimitiveFunc
 isComplex' (Value (Float _ _)) = return $ Value $ Bool True
-isComplex' _ = return $ Value $ Bool False
+isComplex' _                   = return $ Value $ Bool False
 
 isChar' :: PrimitiveFunc
 isChar' (Value (Char _)) = return $ Value $ Bool True
-isChar' _ = return $ Value $ Bool False
+isChar' _                = return $ Value $ Bool False
 
 isString' :: PrimitiveFunc
 isString' (Value (String _)) = return $ Value $ Bool True
-isString' _ = return $ Value $ Bool False
+isString' _                  = return $ Value $ Bool False
 
 isCollection' :: PrimitiveFunc
-isCollection' (Value (Collection _)) = return $ Value $ Bool True
+isCollection' (Value (Collection _))         = return $ Value $ Bool True
 isCollection' (Intermediate (ICollection _)) = return $ Value $ Bool True
-isCollection' _ = return $ Value $ Bool False
+isCollection' _                              = return $ Value $ Bool False
 
 isArray' :: PrimitiveFunc
-isArray' (Value (Array _)) = return $ Value $ Bool True
+isArray' (Value (Array _))         = return $ Value $ Bool True
 isArray' (Intermediate (IArray _)) = return $ Value $ Bool True
-isArray' _ = return $ Value $ Bool False
+isArray' _                         = return $ Value $ Bool False
 
 isHash' :: PrimitiveFunc
-isHash' (Value (IntHash _)) = return $ Value $ Bool True
-isHash' (Value (StrHash _)) = return $ Value $ Bool True
+isHash' (Value (IntHash _))         = return $ Value $ Bool True
+isHash' (Value (StrHash _))         = return $ Value $ Bool True
 isHash' (Intermediate (IIntHash _)) = return $ Value $ Bool True
 isHash' (Intermediate (IStrHash _)) = return $ Value $ Bool True
-isHash' _ = return $ Value $ Bool False
+isHash' _                           = return $ Value $ Bool False
 
 readUTF8File :: FilePath -> IO String
 readUTF8File name = do
@@ -1963,8 +1973,8 @@ varToVarWithIndices :: Var -> VarWithIndices
 varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
  where
    f :: Index () -> Index String
-   f (Superscript ()) = Superscript ""
-   f (Subscript ()) = Subscript ""
+   f (Superscript ())  = Superscript ""
+   f (Subscript ())    = Subscript ""
    f (SupSubscript ()) = SupSubscript ""
 
 makeLenses ''MatchingStates
