@@ -67,7 +67,7 @@ import qualified Data.Array                 as Array
 import qualified Data.HashMap.Lazy          as HL
 import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as HashMap
-import           Data.Map                   (Map, empty, singleton, toAscList,
+import           Data.Map                   (Map, assocs, empty, singleton,
                                              unionWith, unionsWith, (!))
 import qualified Data.Map                   as M
 import qualified Data.Vector                as V
@@ -1078,10 +1078,7 @@ processMStatesAll depth streams = do
      else mappend matches $ processMStatesAll (depth + 1) streams'
  where
   convert :: Map Int [a] -> [[a]]
-  convert ms = let ((start, root), ms') = M.deleteFindMin ms in
-                   M.foldlWithKey (\l k x -> let k' = k - start in
-                                                 if length l <= k' then l ++ (replicate (k' - length l) []) ++ [x]
-                                                                   else let (xs, y:ys) = splitAt k' l in xs ++ (x:ys)) [root] ms'
+  convert m = dropWhile null $ map snd $ assocs m
 
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
