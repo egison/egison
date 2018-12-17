@@ -268,7 +268,7 @@ parsePlus :: Parser MathExpr
 parsePlus = string "(+" >> spaces >> Plus <$> parseList <* char ')'
 
 parseMultiply :: Parser MathExpr
-parseMultiply = string "(*" >> spaces >> Plus <$> parseList <* char ')'
+parseMultiply = string "(*" >> spaces >> Multiply <$> parseList <* char ')'
 
 parseFunction :: Parser MathExpr
 parseFunction = char '(' >> Func <$> parseAtom <* spaces <*> parseList <* char ')'
