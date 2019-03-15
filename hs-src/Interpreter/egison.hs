@@ -172,7 +172,7 @@ options = [
   Option ['M'] ["math"]
     (ReqArg (\lang opts -> opts {optMathExpr = Just lang})
             "String")
-    "output in AsciiMath, Latex, or Mathematica format",
+    "output in AsciiMath, Latex, Mathematica, or Maxima format",
   Option ['N'] ["new-syntax"]
     (NoArg (\opts -> opts {optSExpr = False}))
     "parse by new syntax"
@@ -225,7 +225,7 @@ printHelp = do
   putStrLn "Options to change input or output format:"
   putStrLn "  --tsv, -T                  Input and output in tsv format"
   putStrLn "  --field, -F field          Specify a field type of input tsv"
-  putStrLn "  --math, -M (asciimath|latex|mathematica)"
+  putStrLn "  --math, -M (asciimath|latex|mathematica|maxima)"
   putStrLn "                             Output in AsciiMath, LaTeX, or Mathematica format (only for interpreter)"
   exitWith ExitSuccess
 
@@ -280,6 +280,7 @@ repl noIOFlag isSExpr mathExprLang env prompt = do
               (Just "asciimath") -> putStrLn (mathExprToAsciiMath output) >> loop st'
               (Just "latex") -> putStrLn (mathExprToLatex output) >> loop st'
               (Just "mathematica") -> putStrLn (mathExprToMathematica output) >> loop st'
+              (Just "maxima") -> putStrLn (mathExprToMaxima output) >> loop st'
               _ -> putStrLn "error: this output lang is not supported"
              )
     `catch`
