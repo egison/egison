@@ -6,7 +6,7 @@ Licence     : MIT
 This module provides utility functions.
 -}
 
-module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex, mathExprToMathematica) where
+module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex, mathExprToMathematica, mathExprToMaxima) where
 
 import           Control.Monad
 import           System.Environment
@@ -20,17 +20,30 @@ mathExprToHaskell input = case parse parseExpr "math-expr" input of
 mathExprToAsciiMath :: String -> String
 mathExprToAsciiMath input = case parse parseExpr "math-expr" input of
                               Left err -> input
-                              Right val -> "#asciimath|" ++ showMathExprAsciiMath val ++ "|#"
+                              Right val -> case showMathExprAsciiMath val of
+                                             "undefined" -> "undefined"
+                                             output -> "#asciimath|" ++ output ++ "|#"
 
 mathExprToLatex :: String -> String
 mathExprToLatex input = case parse parseExpr "math-expr" input of
                           Left err -> input
-                          Right val -> "#latex|" ++ showMathExprLatex val ++ "|#"
+                          Right val -> case showMathExprLatex val of
+                                         "undefined" -> "undefined"
+                                         output -> "#latex|" ++ output ++ "|#"
 
 mathExprToMathematica :: String -> String
 mathExprToMathematica input = case parse parseExpr "math-expr" input of
+                                Left err -> input
+                                Right val -> case showMathExprMathematica val of
+                                               "undefined" -> "undefined"
+                                               output -> "#mathematica|" ++ output ++ "|#"
+
+mathExprToMaxima :: String -> String
+mathExprToMaxima input = case parse parseExpr "math-expr" input of
                           Left err -> input
-                          Right val -> "#mathematica|" ++ showMathExprMathematica val ++ "|#"
+                          Right val -> case showMathExprMaxima val of
+                                         "undefined" -> "undefined"
+                                         output -> "#maxima|" ++ output ++ "|#"
 
 data MathExpr = Atom String [MathIndex]
               | NegativeAtom String
@@ -71,6 +84,8 @@ showMathExprAsciiMath (Multiply [a]) = showMathExprAsciiMath a
 showMathExprAsciiMath (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprAsciiMath (Multiply lvs)
 showMathExprAsciiMath (Multiply lvs) = showMathExprAsciiMath' (head lvs) ++ " " ++ showMathExprAsciiMath (Multiply (tail lvs))
 showMathExprAsciiMath (Power lv1 lv2) = showMathExprAsciiMath lv1 ++ "^" ++ showMathExprAsciiMath lv2
+showMathExprAsciiMath (Func (Atom "sqrt" []) [x]) = "sqrt " ++ showMathExprAsciiMath x
+showMathExprAsciiMath (Func (Atom "rt" []) [x, y]) = "root " ++ showMathExprAsciiMath x ++ " " ++ showMathExprAsciiMath y
 showMathExprAsciiMath (Func (Atom "/" []) [x, y]) = "frac{" ++ showMathExprAsciiMath x ++ "}{" ++ showMathExprAsciiMath y ++ "}"
 showMathExprAsciiMath (Func f lvs) = showMathExprAsciiMath f ++ "(" ++ showMathExprAsciiMathArg lvs ++ ")"
 showMathExprAsciiMath (Tensor lvs mis)
@@ -142,7 +157,6 @@ showMathExprLatex (Func (Atom "sqrt" []) [x]) = "\\sqrt{" ++ showMathExprLatex x
 showMathExprLatex (Func (Atom "rt" []) [x, y]) = "\\sqrt[" ++ showMathExprLatex x ++ "]{" ++ showMathExprLatex y ++ "}"
 showMathExprLatex (Func (Atom "/" []) [x, y]) = "\\frac{" ++ showMathExprLatex x ++ "}{" ++ showMathExprLatex y ++ "}"
 showMathExprLatex (Func f xs) = showMathExprLatex f ++ "(" ++ showMathExprLatexArg xs ", " ++ ")"
-showMathExprLatex (Tensor xs@(Tensor _ _:_) mis) = "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
 showMathExprLatex (Tensor xs mis) = "\\begin{pmatrix} " ++ showMathExprLatexVectors xs ++ "\\end{pmatrix}" ++ showMathExprLatexScript mis
 showMathExprLatex (Tuple xs) = "(" ++ showMathExprLatexArg xs ", " ++ ")"
 showMathExprLatex (Collection xs) = "\\{" ++ showMathExprLatexArg xs ", " ++ "\\}"
@@ -183,7 +197,7 @@ showMathExprLatexVectors lvs = showMathExprLatexArg lvs " \\\\ " ++ "\\\\ "
 
 showMathExprMathematica :: MathExpr -> String
 showMathExprMathematica (Atom a []) = a
-showMathExprMathematica (Partial f xs) = undefined
+showMathExprMathematica (Partial f xs) = "undefined"
 showMathExprMathematica (NegativeAtom a) = "-" ++ a
 showMathExprMathematica (Plus []) = ""
 showMathExprMathematica (Plus (x:xs)) = showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
@@ -202,7 +216,10 @@ showMathExprMathematica (Multiply (x:xs)) = showMathExprMathematica' x ++ " " ++
 showMathExprMathematica (Power lv1 lv2) = showMathExprMathematica lv1 ++ "^" ++ showMathExprMathematica lv2
 showMathExprMathematica (Func (Atom "sqrt" []) [x]) = "Sqrt[" ++ showMathExprMathematica x ++ "]"
 showMathExprMathematica (Func (Atom "rt" []) [x, y]) = "Surd[" ++ showMathExprMathematica x ++ "," ++ showMathExprMathematica y ++ "]"
-showMathExprMathematica (Func (Atom "/" []) [x, y]) = "(" ++ showMathExprMathematica x ++ ")/(" ++ showMathExprMathematica y ++ ")"
+showMathExprMathematica (Func (Atom "/" []) [x, y]) = addBracket x ++ "/" ++ addBracket y
+ where
+   addBracket x@(Atom _ []) = showMathExprMathematica x
+   addBracket x             = "(" ++ showMathExprMathematica x ++ ")"
 showMathExprMathematica (Func f xs) = showMathExprMathematica f ++ "(" ++ showMathExprMathematicaArg xs ++ ")"
 showMathExprMathematica (Tensor lvs mis)
   | null mis = "{" ++ showMathExprMathematicaArg lvs ++ "}"
@@ -230,6 +247,65 @@ showMathExprMathematicaIndices lvs = showMathIndexMathematica (head lvs) ++ show
 showMathIndexMathematica :: MathIndex -> String
 showMathIndexMathematica (Super a) = showMathExprMathematica a
 showMathIndexMathematica (Sub a)   = showMathExprMathematica a
+
+--
+-- Show (Maxima)
+--
+
+showMathExprMaxima :: MathExpr -> String
+showMathExprMaxima (Atom a []) = a
+showMathExprMaxima (Partial f xs) = "undefined"
+showMathExprMaxima (NegativeAtom a) = "-" ++ a
+showMathExprMaxima (Plus []) = ""
+showMathExprMaxima (Plus (x:xs)) = showMathExprMaxima x ++ showMathExprMaximaForPlus xs
+ where
+  showMathExprMaximaForPlus :: [MathExpr] -> String
+  showMathExprMaximaForPlus [] = ""
+  showMathExprMaximaForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprMaximaForPlus xs
+  showMathExprMaximaForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExprMaxima (Multiply ys) ++ showMathExprMaximaForPlus xs
+  showMathExprMaximaForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExprMaxima (Multiply (Atom a []:ys)) ++ showMathExprMaximaForPlus xs
+  showMathExprMaximaForPlus (x:xs) = " + " ++  showMathExprMaxima x ++ showMathExprMaximaForPlus xs
+showMathExprMaxima (Multiply []) = ""
+showMathExprMaxima (Multiply [x]) = showMathExprMaxima x
+showMathExprMaxima (Multiply (Atom "1" []:xs)) = showMathExprMaxima (Multiply xs)
+showMathExprMaxima (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExprMaxima (Multiply xs)
+showMathExprMaxima (Multiply (x:xs)) = showMathExprMaxima' x ++ " * " ++ showMathExprMaxima (Multiply xs)
+showMathExprMaxima (Power lv1 lv2) = showMathExprMaxima lv1 ++ "^" ++ showMathExprMaxima lv2
+showMathExprMaxima (Func (Atom "sqrt" []) [x]) = "sqrt(" ++ showMathExprMaxima x ++ ")"
+showMathExprMaxima (Func (Atom "rt" []) [x, y]) = showMathExprMaxima y ++ "^(1/" ++ showMathExprMaxima x ++ ")"
+showMathExprMaxima (Func (Atom "/" []) [x, y]) = addBracket x ++ "/" ++ addBracket y
+ where
+   addBracket x@(Atom _ []) = showMathExprMaxima x
+   addBracket x             = "(" ++ showMathExprMaxima x ++ ")"
+showMathExprMaxima (Func f xs) = showMathExprMaxima f ++ "(" ++ showMathExprMaximaArg xs ++ ")"
+showMathExprMaxima (Tensor lvs mis)
+  | null mis = "matrix(" ++ showMathExprMaximaArg lvs ++ ")"
+  | not (any isSub mis) = "{" ++ showMathExprMaximaArg lvs ++ "}^(" ++ showMathExprMaximaIndices mis ++ ")"
+  | not (any (not . isSub) mis) = "{" ++ showMathExprMaximaArg lvs ++ "}_(" ++ showMathExprMaximaIndices mis ++ ")"
+  | otherwise = "{" ++ showMathExprMaximaArg lvs ++ "}_(" ++ showMathExprMaximaIndices (filter isSub mis) ++ ")^(" ++ showMathExprMaximaIndices (filter (not . isSub) mis) ++ ")"
+showMathExprMaxima (Tuple xs) = "undefined"
+showMathExprMaxima (Collection xs) = "[" ++ showMathExprMaximaArg xs ++ "]"
+showMathExprMaxima (Exp x) = "exp(" ++ showMathExprMaxima x ++ ")"
+showMathExprMaxima (Quote x) = "(" ++ showMathExprMaxima x ++ ")"
+
+showMathExprMaxima' :: MathExpr -> String
+showMathExprMaxima' (Plus xs) = "(" ++ showMathExprMaxima (Plus xs) ++ ")"
+showMathExprMaxima' x         = showMathExprMaxima x
+
+showMathExprMaximaArg :: [MathExpr] -> String
+showMathExprMaximaArg [] = ""
+-- showMathExprMaximaArg [Tensor lvs []] = "[" ++ concatMap show lvs showMathExprMaxima a
+showMathExprMaximaArg [a] = showMathExprMaxima a
+showMathExprMaximaArg lvs = showMathExprMaxima (head lvs) ++ ", " ++ showMathExprMaximaArg (tail lvs)
+
+showMathExprMaximaIndices :: [MathIndex] -> String
+showMathExprMaximaIndices [a] = showMathIndexMaxima a
+showMathExprMaximaIndices lvs = showMathIndexMaxima (head lvs) ++ showMathExprMaximaIndices (tail lvs)
+
+showMathIndexMaxima :: MathIndex -> String
+showMathIndexMaxima (Super a) = showMathExprMaxima a
+showMathIndexMaxima (Sub a)   = showMathExprMaxima a
+
 
 
 --
