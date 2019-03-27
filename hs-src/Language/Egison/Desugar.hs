@@ -1,4 +1,6 @@
-{-# Language FlexibleInstances, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 
 {- |
 Module      : Language.Egison.Desugar
@@ -17,18 +19,19 @@ module Language.Egison.Desugar
     , desugar
     ) where
 
-import Control.Applicative (Applicative)
-import Control.Applicative ((<$>), (<*>), (<*), (*>), pure)
-import qualified Data.Sequence as Sq
-import Data.Sequence (ViewL(..), (<|))
-import qualified Data.Set as S
-import Data.List (span)
-import Data.Set (Set)
-import Data.Char (toUpper)
-import Control.Monad.Except
-import Control.Monad.Fail
-import Control.Monad.Reader
-import Language.Egison.Types
+import           Control.Applicative   (Applicative, pure, (*>), (<$>), (<*),
+                                        (<*>))
+import           Control.Monad.Except
+import           Control.Monad.Fail
+import           Control.Monad.Reader
+import           Data.Char             (toUpper)
+import           Data.List             (span)
+import           Data.Maybe            (fromMaybe)
+import           Data.Sequence         (ViewL (..), (<|))
+import qualified Data.Sequence         as Sq
+import           Data.Set              (Set)
+import qualified Data.Set              as S
+import           Language.Egison.Types
 
 type Subst = [(String, EgisonExpr)]
 
@@ -62,7 +65,7 @@ desugarExpr expr = liftEgisonM $ runDesugarM $ desugar expr
 desugar :: EgisonExpr -> DesugarM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- freshV
-  matcherRef <- return $ VarExpr matcherName
+  let matcherRef = VarExpr matcherName
   matcher <- genMatcherClauses patterns matcherRef
   return $ LetRecExpr [([matcherName], matcher)] matcherRef
     where
@@ -71,20 +74,20 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         main <- genMainClause patterns matcher
         body <- mapM genMatcherClause patterns
         footer <- genSomethingClause
-        clauses <- return $ [main] ++ body ++ [footer]
+        let clauses = [main] ++ body ++ [footer]
         return $ MatcherExpr clauses
 
       genMainClause :: [(String, [EgisonExpr])] -> EgisonExpr -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", TupleExpr []
-               ,[(PDPatVar "tgt", (MatchExpr (TupleExpr [(VarExpr $ stringToVar "val"), (VarExpr $ stringToVar "tgt")])
-                                             (TupleExpr [matcher, matcher])
-                                             clauses))])
+               ,[(PDPatVar "tgt", MatchExpr (TupleExpr [VarExpr $ stringToVar "val", VarExpr $ stringToVar "tgt"])
+                                            (TupleExpr [matcher, matcher])
+                                             clauses)])
         where
           genClauses :: [(String, [EgisonExpr])] -> DesugarM [MatchClause]
           genClauses patterns = (++) <$> mapM genClause patterns
-                                     <*> pure [((TuplePat [WildCard, WildCard]), matchingFailure)]
+                                     <*> pure [(TuplePat [WildCard, WildCard], matchingFailure)]
 
           genClause :: (String, [EgisonExpr]) -> DesugarM MatchClause
           genClause pattern = do
@@ -94,8 +97,8 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genMatchingPattern :: (String, [EgisonExpr]) -> DesugarM (EgisonPattern, EgisonPattern)
           genMatchingPattern (name, patterns) = do
             names <- mapM (const freshV) patterns
-            return $ ((InductivePat name (map PatVar names))
-                     ,(InductivePat name (map (ValuePat . VarExpr) names)))
+            return (InductivePat name (map PatVar names),
+                    InductivePat name (map (ValuePat . VarExpr) names))
 
       genMatcherClause :: (String, [EgisonExpr]) -> DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genMatcherClause pattern = do
@@ -112,7 +115,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitiveDataPat :: (String, [EgisonExpr]) -> DesugarM (PrimitiveDataPattern, [EgisonExpr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const freshV) patterns
-            return (PDInductivePat (capitalize name) $ map PDPatVar $ map show patterns', map VarExpr patterns')
+            return (PDInductivePat (capitalize name) $ map (PDPatVar . show) patterns', map VarExpr patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
@@ -120,7 +123,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
       genSomethingClause :: DesugarM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genSomethingClause =
-        return (PPPatVar, (TupleExpr [SomethingExpr]), [(PDPatVar "tgt", CollectionExpr [ElementExpr (VarExpr $ stringToVar "tgt")])])
+        return (PPPatVar, TupleExpr [SomethingExpr], [(PDPatVar "tgt", CollectionExpr [ElementExpr (VarExpr $ stringToVar "tgt")])])
 
       matchingSuccess :: EgisonExpr
       matchingSuccess = CollectionExpr [ElementExpr $ TupleExpr []]
@@ -143,30 +146,30 @@ desugar (ArrayRefExpr expr nums) =
 
 desugar (IndexedExpr b expr indices)
   | endWithThreeDots expr = case expr of
-                              (VarExpr name) -> let x = show name in desugar $ IndexedExpr False (VarExpr $ stringToVar $ take ((length x)-3) x) indices
+                              (VarExpr name) -> let x = show name in desugar $ IndexedExpr False (VarExpr $ stringToVar $ take (length x - 3) x) indices
   | otherwise = case indices of
                  [Subscript x, DotSubscript y] -> case (x, y) of
                                            (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr b expr (ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [x, y]))
                                            (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) -> do
                                              k <- fresh
                                              return $ SubrefsExpr b expr (ApplyExpr (VarExpr $ stringToVar "map")
-                                                                                    (TupleExpr [(LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [(Subscript $ VarExpr $ stringToVar k)])),
-                                                                                                (ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [(fromIndexToExpr n1), (fromIndexToExpr n2)]))]))
+                                                                                    (TupleExpr [LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [Subscript $ VarExpr $ stringToVar k]),
+                                                                                                ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [fromIndexToExpr n1, fromIndexToExpr n2])]))
                  [Superscript x, DotSupscript y] -> case (x, y) of
                                              (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr b expr (ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [x, y]))
                                              (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) -> do
                                                k <- fresh
                                                return $ SuprefsExpr b expr (ApplyExpr (VarExpr $ stringToVar "map")
-                                                                                      (TupleExpr [(LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [(Subscript $ VarExpr $ stringToVar k)])),
-                                                                                                  (ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [(fromIndexToExpr n1), (fromIndexToExpr n2)]))]))
-                 _ -> IndexedExpr b <$> desugar expr <*> (mapM desugarIndex indices)
+                                                                                      (TupleExpr [LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [Subscript $ VarExpr $ stringToVar k]),
+                                                                                                  ApplyExpr (VarExpr $ stringToVar "between") (TupleExpr [fromIndexToExpr n1, fromIndexToExpr n2])]))
+                 _ -> IndexedExpr b <$> desugar expr <*> mapM desugarIndex indices
  where
   endWithThreeDots :: EgisonExpr -> Bool
-  endWithThreeDots (VarExpr name) = (take 3 $ reverse (show name)) == "..."
-  endWithThreeDots _ = False
+  endWithThreeDots (VarExpr name) = take 3 (reverse (show name)) == "..."
+  endWithThreeDots _              = False
   fromIndexToExpr :: Index EgisonExpr -> EgisonExpr
-  fromIndexToExpr (Subscript a) = a
-  fromIndexToExpr (Superscript a) = a
+  fromIndexToExpr (Subscript a)    = a
+  fromIndexToExpr (Superscript a)  = a
   fromIndexToExpr (SupSubscript a) = a
 
 desugar (SubrefsExpr bool expr1 expr2) =
@@ -194,12 +197,12 @@ desugar (TupleExpr exprs) = do
 
 desugar expr@(CollectionExpr []) = return expr
 
-desugar (CollectionExpr ((ElementExpr elm):inners)) = do
+desugar (CollectionExpr (ElementExpr elm:inners)) = do
       elm' <- desugar elm
       (CollectionExpr inners') <- desugar (CollectionExpr inners)
       return $ CollectionExpr (ElementExpr elm':inners')
 
-desugar (CollectionExpr ((SubCollectionExpr sub):inners)) = do
+desugar (CollectionExpr (SubCollectionExpr sub:inners)) = do
       sub' <- desugar sub
       (CollectionExpr inners') <- desugar (CollectionExpr inners)
       return $ CollectionExpr (SubCollectionExpr sub':inners')
@@ -214,16 +217,15 @@ desugar (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   return $ TensorExpr nsExpr' xsExpr' supExpr subExpr
 
 desugar (LambdaExpr names expr) = do
-  let (rtnames, rhnames) = span (\name -> case name of
-                                            TensorArg _ -> True
-                                            _ -> False) (reverse names)
+  let (rtnames, rhnames) = span (\case
+                                    TensorArg _ -> True
+                                    _           -> False) (reverse names)
   case rhnames of
     [] -> do expr' <- desugar expr
              return $ LambdaExpr names expr'
 
     (InvertedScalarArg rhname:rhnames') -> do
-      let (rtnames2, rhnames2) = span (\name -> case name of
-                                                _ -> False) rhnames'
+      let (rtnames2, rhnames2) = span (const False) rhnames'
       case rhnames2 of
         [] -> desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
                           (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (FlipIndicesExpr (VarExpr $ stringToVar rhname)))
@@ -235,9 +237,9 @@ desugar (LambdaExpr names expr) = do
                       (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr) (FlipIndicesExpr (VarExpr $ stringToVar rhname2)) (FlipIndicesExpr (VarExpr $ stringToVar rhname)))
 
     (ScalarArg rhname:rhnames') -> do
-      let (rtnames2, rhnames2) = span (\name -> case name of
-                                                TensorArg _ -> True
-                                                _ -> False) rhnames'
+      let (rtnames2, rhnames2) = span (\case
+                                          TensorArg _ -> True
+                                          _           -> False) rhnames'
       case rhnames2 of
         [] -> desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
                           (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (VarExpr $ stringToVar rhname))
@@ -302,7 +304,7 @@ desugar (MatchExpr expr0 expr1 clauses) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
   clauses' <- desugarMatchClauses clauses
-  return (MatchExpr expr0' expr1' clauses')
+  return $ MatchExpr expr0' expr1' clauses'
 
 desugar (MatchAllExpr expr0 expr1 clauses) = do
   expr0' <- desugar expr0
@@ -385,8 +387,8 @@ desugar (CApplyExpr expr0 expr1) = do
   expr1' <- desugar expr1
   return $ CApplyExpr expr0' expr1'
 
-desugar (VarExpr name) = do
-  asks $ maybe (VarExpr name) id . lookup (show name)
+desugar (VarExpr name) =
+  asks $ fromMaybe (VarExpr name) . lookup (show name)
 
 desugar FreshVarExpr = do
   id <- fresh
@@ -422,10 +424,10 @@ desugar (WedgeExpr (ApplyExpr expr0 expr1)) = do
 desugar expr = return expr
 
 desugarIndex :: Index EgisonExpr -> DesugarM (Index EgisonExpr)
-desugarIndex (Superscript expr) = desugar expr >>= return . Superscript
-desugarIndex (Subscript expr) = desugar expr >>= return . Subscript
-desugarIndex (SupSubscript expr) = desugar expr >>= return . SupSubscript
-desugarIndex (Userscript expr) = desugar expr >>= return . Userscript
+desugarIndex (Superscript expr)  = Superscript <$> desugar expr
+desugarIndex (Subscript expr)    = Subscript <$> desugar expr
+desugarIndex (SupSubscript expr) = SupSubscript <$> desugar expr
+desugarIndex (Userscript expr)   = Userscript <$> desugar expr
 
 desugarPattern :: EgisonPattern -> DesugarM EgisonPattern
 desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern) <$> desugarPattern' pattern
@@ -478,17 +480,17 @@ desugarPattern' (DivPat pattern1 pattern2) = do
   return $ InductivePat "div" [pat1', pat2']
 desugarPattern' (PlusPat patterns) = do
   pats' <- mapM desugarPattern' (concatMap f patterns)
-  case (reverse pats') of
+  case reverse pats' of
     [] -> return $ InductivePat "plus" [ValuePat (IntegerExpr 0)]
     lp:hps ->
       return $ InductivePat "plus" [foldr (\p r -> InductivePat "cons" [p, r]) lp (reverse hps)]
  where
    f (PlusPat xs) = concatMap f xs
-   f pat = [pat]
+   f pat          = [pat]
 desugarPattern' (MultPat (intPat:patterns)) = do
   intPat' <- desugarPattern' intPat
   pats' <- mapM desugarPattern' (concatMap f patterns)
-  case (reverse pats') of
+  case reverse pats' of
     [] -> return $ InductivePat "mult" [intPat', ValuePat (IntegerExpr 1)]
     lp:hps ->
       return $ InductivePat "mult" [intPat',
@@ -501,7 +503,7 @@ desugarPattern' (MultPat (intPat:patterns)) = do
                                           (reverse hps)]
  where
    f (MultPat xs) = concatMap f xs
-   f pat = [pat]
+   f pat          = [pat]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (DFSPat' pattern) = desugarPattern' pattern >>= dfs
 desugarPattern' (BFSPat pattern) = BFSPat <$> desugarPattern' pattern
@@ -532,7 +534,7 @@ desugarLoopRange (LoopRange sExpr eExpr pattern) = do
 desugarBinding :: BindingExpr -> DesugarM BindingExpr
 desugarBinding (name, expr) = do
   expr' <- desugar expr
-  return $ (name, expr')
+  return (name, expr')
 
 desugarBindings :: [BindingExpr] -> DesugarM [BindingExpr]
 desugarBindings (bind:rest) = do
@@ -546,7 +548,7 @@ desugarMatchClause :: MatchClause -> DesugarM MatchClause
 desugarMatchClause (pattern, expr) = do
   pattern' <- desugarPattern pattern
   expr'    <- desugar expr
-  return $ (pattern', expr')
+  return (pattern', expr')
 
 desugarMatchClauses :: [MatchClause] -> DesugarM [MatchClause]
 desugarMatchClauses (clause:rest) = do

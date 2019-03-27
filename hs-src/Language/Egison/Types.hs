@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TupleSections              #-}
@@ -534,10 +535,10 @@ termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.
 symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
 symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolScalarData id x, f js], toEgison n]
  where
-  f js = Collection (Sq.fromList (map (\j -> case j of
-                                               Superscript k -> InductiveData "Sup" [ScalarData k]
-                                               Subscript k -> InductiveData "Sub" [ScalarData k]
-                                               Userscript k -> InductiveData "User" [ScalarData k]
+  f js = Collection (Sq.fromList (map (\case
+                                          Superscript k -> InductiveData "Sup" [ScalarData k]
+                                          Subscript k -> InductiveData "Sub" [ScalarData k]
+                                          Userscript k -> InductiveData "User" [ScalarData k]
                                       ) js))
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
@@ -545,10 +546,10 @@ symbolExprToEgison (FunctionData name argnames args js, n) = case name of
                                                                Nothing -> Tuple [InductiveData "Function" [symbolScalarData "" "", Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
                                                                Just name' -> Tuple [InductiveData "Function" [name', Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
  where
-  f js = Collection (Sq.fromList (map (\j -> case j of
-                                               Superscript k -> InductiveData "Sup" [ScalarData k]
-                                               Subscript k -> InductiveData "Sub" [ScalarData k]
-                                               Userscript k -> InductiveData "User" [ScalarData k]
+  f js = Collection (Sq.fromList (map (\case
+                                          Superscript k -> InductiveData "Sup" [ScalarData k]
+                                          Subscript k -> InductiveData "Sub" [ScalarData k]
+                                          Userscript k -> InductiveData "User" [ScalarData k]
                                       ) js))
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
@@ -583,10 +584,10 @@ egisonToSymbolExpr :: EgisonValue -> EgisonM (SymbolExpr, Integer)
 egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
   let js = toList seq
   js' <- mapM (\j -> case j of
-                         InductiveData "Sup" [ScalarData k] -> return (Superscript k)
-                         InductiveData "Sub" [ScalarData k] -> return (Subscript k)
-                         InductiveData "User" [ScalarData k] -> return (Userscript k)
-                         _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
+                       InductiveData "Sup" [ScalarData k] -> return (Superscript k)
+                       InductiveData "Sub" [ScalarData k] -> return (Subscript k)
+                       InductiveData "User" [ScalarData k] -> return (Userscript k)
+                       _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
                ) js
   n' <- fromEgison n
   case x of
@@ -600,7 +601,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
-egisonToSymbolExpr (Tuple [InductiveData "Function" [name, (Collection argnames), (Collection args), Collection seq], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, Collection args, Collection seq], n]) = do
   let js = toList seq
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
@@ -611,7 +612,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [name, (Collection argnames)
   n' <- fromEgison n
   let name' = case getSymName name of
                 "" -> Nothing
-                s  -> Just $ name
+                s  -> Just name
   return (FunctionData name' (toList argnames) (toList args) js', n')
 egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
 
@@ -647,9 +648,9 @@ mathDivide (Div (Plus ts1) (Plus ts2)) =
   case z of
     (Term c zs) -> case ts2 of
       [Term a _] -> if a < 0
-                      then (Div (Plus (map (\t -> mathDivideTerm t (Term (-1 * c) zs)) ts1)) (Plus (map (\t -> mathDivideTerm t (Term (-1 * c) zs)) ts2)))
-                      else (Div (Plus (map (\t -> mathDivideTerm t z) ts1)) (Plus (map (\t -> mathDivideTerm t z) ts2)))
-      _ -> (Div (Plus (map (\t -> mathDivideTerm t z) ts1)) (Plus (map (\t -> mathDivideTerm t z) ts2)))
+                      then Div (Plus (map (`mathDivideTerm` Term (-1 * c) zs) ts1)) (Plus (map (`mathDivideTerm` Term (-1 * c) zs) ts2))
+                      else Div (Plus (map (`mathDivideTerm` z) ts1)) (Plus (map (`mathDivideTerm` z) ts2))
+      _ -> Div (Plus (map (`mathDivideTerm` z) ts1)) (Plus (map (`mathDivideTerm` z) ts2))
 
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
@@ -821,12 +822,12 @@ tIndex (Scalar _)      = []
 tIntRef' :: HasTensor a => Integer -> Tensor a -> EgisonM a
 tIntRef' i (Tensor [n] xs _) =
   if (0 < i) && (i <= n)
-     then fromTensor $ Scalar $ xs V.! (fromIntegral (i - 1))
+     then fromTensor $ Scalar $ xs V.! fromIntegral (i - 1)
      else throwError $ TensorIndexOutOfBounds i n
 tIntRef' i (Tensor (n:ns) xs js) =
   if (0 < i) && (i <= n)
    then let w = fromIntegral (product ns) in
-        let ys = V.take w (V.drop (w * (fromIntegral (i - 1))) xs) in
+        let ys = V.take w (V.drop (w * fromIntegral (i - 1)) xs) in
           fromTensor $ Tensor ns ys (cdr js)
    else throwError $ TensorIndexOutOfBounds i n
 tIntRef' i _ = throwError $ Default "More indices than the order of the tensor"
@@ -898,7 +899,7 @@ transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> [Integer] -> EgisonM
 transIndex [] [] is = return is
 transIndex (j1:js1) js2 is = do
   let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
-  if tjs2 == []
+  if null tjs2
     then throwError InconsistentTensorIndex
     else do let n = length hjs2 + 1
             rs <- transIndex js1 (hjs2 ++ tail tjs2) (take (n - 1) is ++ drop n is)
@@ -908,7 +909,7 @@ transIndex _ _ _ = throwError InconsistentTensorSize
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns xs js) = do
   ns' <- transIndex js is ns
-  xs' <- mapM (transIndex js is) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor >>= return . V.fromList
+  xs' <- V.fromList <$> mapM (transIndex js is) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
   return $ Tensor ns' xs' is
 
 tTranspose' :: HasTensor a => [EgisonValue] -> Tensor a -> EgisonM (Tensor a)
@@ -964,7 +965,7 @@ tMap :: HasTensor a => (a -> EgisonM a) -> Tensor a -> EgisonM (Tensor a)
 tMap f (Tensor ns xs js') = do
   let k = fromIntegral $ length ns - length js'
   let js = js' ++ map (DFscript 0) [1..k]
-  xs' <- mapM f (V.toList xs) >>= return . V.fromList
+  xs' <- V.fromList <$> mapM f (V.toList xs)
   t <- toTensor (V.head xs')
   case t of
     (Tensor ns1 _ js1') -> do
@@ -992,7 +993,7 @@ tMap2 f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
   let cns = take (length cjs) (tSize t1')
   rts1 <- mapM (`tIntRef` t1') (enumTensorIndices cns)
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
-  rts' <- mapM (\(t1, t2) -> tProduct f t1 t2) (zip rts1 rts2)
+  rts' <- zipWithM (tProduct f) rts1 rts2
   let ret = Tensor (cns ++ tSize (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
   tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
  where
@@ -1002,12 +1003,12 @@ tMap2 f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
-tMap2 f t@(Tensor _ _ _) (Scalar x) = tMap (`f` x) t
-tMap2 f (Scalar x) t@(Tensor _ _ _) = tMap (f x) t
+tMap2 f t@Tensor{} (Scalar x) = tMap (`f` x) t
+tMap2 f (Scalar x) t@Tensor{} = tMap (f x) t
 tMap2 f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
 
 tDiag :: HasTensor a => Tensor a -> EgisonM (Tensor a)
-tDiag t@(Tensor _ _ js) = do
+tDiag t@(Tensor _ _ js) =
   case filter (\j -> any (p j) js) js of
     [] -> return t
     xs -> do
@@ -1048,11 +1049,11 @@ tDiagIndex js =
   g (Subscript i)   = SupSubscript i
 
 tSum :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
-tSum f t1@(Tensor ns1 xs1 js1) t2@(Tensor _ _ _) = do
+tSum f t1@(Tensor ns1 xs1 js1) t2@Tensor{} = do
   t2' <- tTranspose js1 t2
   case t2' of
     (Tensor ns2 xs2 _)
-      | ns2 == ns1 -> do ys <- V.mapM (\(x1,x2) -> f x1 x2) (V.zip xs1 xs2)
+      | ns2 == ns1 -> do ys <- V.mapM (uncurry f) (V.zip xs1 xs2)
                          return (Tensor ns1 ys js1)
       | otherwise -> throwError InconsistentTensorSize
 
@@ -1063,15 +1064,16 @@ tProduct f t1''@(Tensor ns1 xs1 js1') t2''@(Tensor ns2 xs2 js2') = do
   let k2 = fromIntegral $ length ns2 - length js2'
   let js2 = js2' ++ map (DFscript 0) [1..k2]
   let (cjs1, cjs2, tjs1, tjs2) = h js1 js2
-  let t1 = (Tensor ns1 xs1 js1)
-  let t2 = (Tensor ns2 xs2 js2)
+  let t1 = Tensor ns1 xs1 js1
+  let t2 = Tensor ns2 xs2 js2
   case cjs1 of
     [] -> do
-      xs' <- mapM (\is -> do let is1 = take (length ns1) is
-                             let is2 = take (length ns2) (drop (length ns1) is)
-                             x1 <- tIntRef is1 t1 >>= fromTensor
-                             x2 <- tIntRef is2 t2 >>= fromTensor
-                             f x1 x2) (enumTensorIndices (ns1 ++ ns2)) >>= return . V.fromList
+      xs' <- V.fromList <$> mapM (\is -> do
+                              let is1 = take (length ns1) is
+                              let is2 = take (length ns2) (drop (length ns1) is)
+                              x1 <- tIntRef is1 t1 >>= fromTensor
+                              x2 <- tIntRef is2 t2 >>= fromTensor
+                              f x1 x2) (enumTensorIndices (ns1 ++ ns2))
       tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
@@ -1082,8 +1084,7 @@ tProduct f t1''@(Tensor ns1 xs1 js1') t2''@(Tensor ns2 xs2 js2') = do
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2) (enumTensorIndices cns1)
       let ret = Tensor (cns1 ++ tSize (head rts')) (V.concat (map tToVector rts')) (map g cjs1 ++ tIndex (head rts'))
-      ret2 <- tTranspose (uniq (map g cjs1 ++ tjs1 ++ tjs2)) ret
-      return ret2
+      tTranspose (uniq (map g cjs1 ++ tjs1 ++ tjs2)) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in
@@ -1120,15 +1121,15 @@ tContract t = do
     _ -> return [t']
 
 tContract' :: HasTensor a => Tensor a -> EgisonM (Tensor a)
-tContract' t@(Tensor ns xs js) = do
+tContract' t@(Tensor ns xs js) =
   case findPairs p js of
     [] -> return t
     ((m,n):_) -> do
       let ns' = (ns !! m):removePairs (m,n) ns
       let js' = (js !! m):removePairs (m,n) js
       let (hjs, mjs, tjs) = removePairs' (m,n) js
-      xs' <- mapM (\i -> (tref (hjs ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ mjs
-                                    ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ tjs) t))
+      xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ mjs
+                                    ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ tjs) t)
                   [1..(ns !! m)]
       mapM toTensor xs' >>= tConcat (js !! m) >>= tTranspose (hjs ++ [js !! m] ++ mjs ++ tjs) >>= tContract'
  where
@@ -1248,7 +1249,7 @@ instance Show EgisonValue where
   show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (UserMatcher _ _ _) = "#<user-matcher>"
+  show UserMatcher{} = "#<user-matcher>"
   show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
   show (Func (Just name) _ _ _) = show name
   show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
@@ -1259,7 +1260,7 @@ instance Show EgisonValue where
   show (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
   show (Proc (Just name) _ _ _) = name
   show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
-  show (PatternFunc _ _ _) = "#<pattern-function>"
+  show PatternFunc{} = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   show (IOFunc _) = "#<io-function>"
   show (QuotedFunc _) = "#<quoted-function>"
@@ -1633,7 +1634,7 @@ data PMMode = BFSMode | DFSMode Id
 data MatchingState = MState PMMode Env [LoopPatContext] [Binding] [MatchingTree]
 
 instance Show MatchingState where
-  show (MState mode _ _ bindings mtrees) = "(MState " ++ intercalate " " [show mode, "_", "_", show bindings, show mtrees] ++ ")"
+  show (MState mode _ _ bindings mtrees) = "(MState " ++ unwords [show mode, "_", "_", show bindings, show mtrees] ++ ")"
 
 pmMode :: MatchingState -> PMMode
 pmMode (MState mode _ _ _ _) = mode
@@ -1767,6 +1768,7 @@ liftEgisonM m = EgisonM $ ExceptT $ FreshT $ do
 fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
 fromEgisonM = modifyCounter . runEgisonM
 
+{-# NOINLINE counter #-}
 counter :: IORef (Int, Int)
 counter = unsafePerformIO (newIORef (0, 0))
 
@@ -1802,24 +1804,24 @@ instance (MonadError e m) => MonadError e (FreshT m) where
   catchError m h = FreshT $ catchError (unFreshT m) (unFreshT . h)
 
 instance (MonadState s m) => MonadState s (FreshT m) where
-  get = lift $ get
+  get = lift get
   put s = lift $ put s
 
 instance (MonadFresh m) => MonadFresh (StateT s m) where
-  fresh = lift $ fresh
-  freshV = lift $ freshV
+  fresh = lift fresh
+  freshV = lift freshV
 
 instance (MonadFresh m) => MonadFresh (ExceptT e m) where
-  fresh = lift $ fresh
-  freshV = lift $ freshV
+  fresh = lift fresh
+  freshV = lift freshV
 
 instance (MonadFresh m, Monoid e) => MonadFresh (ReaderT e m) where
-  fresh = lift $ fresh
-  freshV = lift $ freshV
+  fresh = lift fresh
+  freshV = lift freshV
 
 instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
-  fresh = lift $ fresh
-  freshV = lift $ freshV
+  fresh = lift fresh
+  freshV = lift freshV
 
 instance MonadIO (FreshT IO) where
   liftIO = lift
@@ -1869,7 +1871,7 @@ mconcat = mfoldr mappend $ return MNil
 
 mmap :: Monad m => (a -> m b) -> MList m a -> m (MList m b)
 mmap f = mfoldr g $ return MNil
-  where g x xs = f x >>= return . flip MCons xs
+  where g x xs = flip MCons xs <$> f x
 
 mfor :: Monad m => MList m a -> (a -> m b) -> m (MList m b)
 mfor = flip mmap
@@ -1900,7 +1902,7 @@ isRational' :: PrimitiveFunc
 isRational' (Value val) = return $ Value $ Bool $ isRational val
 
 isSymbol :: EgisonValue -> Bool
-isSymbol (ScalarData (Div (Plus [Term 1 [(Symbol _ _ _, 1)]]) (Plus [Term 1 []]))) = True
+isSymbol (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []]))) = True
 isSymbol _ = False
 
 isScalar :: EgisonValue -> Bool

@@ -1,4 +1,5 @@
-{-# Language FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase       #-}
 
 {- |
 Module      : Language.Egison.Primitives
@@ -10,35 +11,35 @@ This module provides primitive functions in Egison.
 
 module Language.Egison.Primitives (primitiveEnv, primitiveEnvNoIO) where
 
-import Control.Arrow
-import Control.Monad.Except
-import Control.Monad.Trans.Maybe
-import Control.Applicative ((<$>), (<*>), (*>), (<*), pure)
+import           Control.Applicative       (pure, (*>), (<$>), (<*), (<*>))
+import           Control.Arrow
+import           Control.Monad.Except
+import           Control.Monad.Trans.Maybe
 
-import Data.IORef
-import Data.Ratio
-import Data.Foldable (toList)
-import Text.Regex.TDFA
+import           Data.Foldable             (toList)
+import           Data.IORef
+import           Data.Ratio
+import           Text.Regex.TDFA
 
-import System.IO
-import System.Random
-import System.Process
+import           System.IO
+import           System.Process
+import           System.Random
 
-import qualified Data.Sequence as Sq
-import qualified Data.Vector as V
+import qualified Data.Sequence             as Sq
+import qualified Data.Vector               as V
 
-import Data.Char (ord, chr)
-import qualified Data.Text as T
-import Data.Text (Text)
-import qualified Data.Text.IO as T
+import           Data.Char                 (chr, ord)
+import           Data.Text                 (Text)
+import qualified Data.Text                 as T
+import qualified Data.Text.IO              as T
 
  {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
-import Language.Egison.Types
-import Language.Egison.Parser
-import Language.Egison.Core
+import           Language.Egison.Core
+import           Language.Egison.Parser
+import           Language.Egison.Types
 
 primitiveEnv :: IO Env
 primitiveEnv = do
@@ -62,7 +63,7 @@ noArg f args = do
     args' <- tupleToList args
     case args' of
       [] -> Value <$> f
-      _ -> throwError $ ArgumentsNumPrimitive 0 $ length args'
+      _  -> throwError $ ArgumentsNumPrimitive 0 $ length args'
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -85,12 +86,12 @@ twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
 twoArgs f args = do
   args' <- tupleToList args
   case args' of
-    [TensorData t1@(Tensor _ _ _), TensorData t2@(Tensor _ _ _)] -> Value <$> (tProduct f t1 t2 >>= fromTensor)
+    [TensorData t1@Tensor{}, TensorData t2@Tensor{}] -> Value <$> (tProduct f t1 t2 >>= fromTensor)
     [TensorData(Tensor ns ds js), val] -> do
-      ds' <- V.mapM (\d -> f d val) ds
+      ds' <- V.mapM (`f` val) ds
       Value <$> fromTensor (Tensor ns ds' js)
     [val, TensorData (Tensor ns ds js)] -> do
-      ds' <- V.mapM (\d -> f val d) ds
+      ds' <- V.mapM (f val) ds
       Value <$> fromTensor (Tensor ns ds' js)
     [val, val'] -> Value <$> f val val'
     _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
@@ -101,7 +102,7 @@ twoArgs' f args = do
   args' <- tupleToList args
   case args' of
     [val, val'] -> Value <$> f val val'
-    _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
+    _           -> throwError $ ArgumentsNumPrimitive 2 $ length args'
 
 {-# INLINE threeArgs' #-}
 threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -109,7 +110,7 @@ threeArgs' f args = do
   args' <- tupleToList args
   case args' of
     [val, val', val''] -> Value <$> f val val' val''
-    _ -> throwError $ ArgumentsNumPrimitive 3 $ length args'
+    _                  -> throwError $ ArgumentsNumPrimitive 3 $ length args'
 
 --
 -- Constants
@@ -342,7 +343,7 @@ fromScalarData = oneArg fromScalarData'
 toScalarData :: PrimitiveFunc
 toScalarData = oneArg toScalarData'
  where
-  toScalarData' val = (ScalarData . mathNormalize') <$> egisonToScalarData val
+  toScalarData' val = ScalarData . mathNormalize' <$> egisonToScalarData val
 
 --
 -- Pred
@@ -411,13 +412,13 @@ realPart :: PrimitiveFunc
 realPart =  oneArg realPart'
  where
   realPart' (Float x y) = return $ Float x 0
-  realPart' val = throwError $ TypeMismatch "float" (Value val)
+  realPart' val         = throwError $ TypeMismatch "float" (Value val)
 
 imaginaryPart :: PrimitiveFunc
 imaginaryPart =  oneArg imaginaryPart'
  where
   imaginaryPart' (Float _ y) = return $ Float y 0
-  imaginaryPart' val = throwError $ TypeMismatch "float" (Value val)
+  imaginaryPart' val         = throwError $ TypeMismatch "float" (Value val)
 
 --
 -- Tensor
@@ -553,7 +554,7 @@ addSubscript = twoArgs $ \fn sub -> case (fn, sub) of
                                        ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
                                       (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
                                        ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
-                                      (ScalarData (Div (Plus [Term 1 [(Symbol _ _ _, 1)]]) (Plus [Term 1 []])),
+                                      (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
                                        _) -> throwError $ TypeMismatch "symbol or integer" (Value sub)
                                       _ ->  throwError $ TypeMismatch "symbol or integer" (Value fn)
 
@@ -563,16 +564,16 @@ addSuperscript = twoArgs $ \fn sub -> case (fn, sub) of
                                          ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
                                         (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
                                          ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
-                                        (ScalarData (Div (Plus [Term 1 [(Symbol _ _ _, 1)]]) (Plus [Term 1 []])),
+                                        (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
                                          _) -> throwError $ TypeMismatch "symbol" (Value sub)
                                         _ ->  throwError $ TypeMismatch "symbol" (Value fn)
 
 readProcess' :: PrimitiveFunc
 readProcess' = threeArgs' $ \cmd args input -> case (cmd, args, input) of
                                                  (String cmdStr, Collection argStrs, String inputStr) -> do
-                                                   outputStr <- liftIO $ readProcess (T.unpack cmdStr) (map (\arg -> case arg of
-                                                                                                                       String argStr -> T.unpack argStr)
-                                                                                                             (toList argStrs)) (T.unpack inputStr)
+                                                   outputStr <- liftIO $ readProcess (T.unpack cmdStr) (map (\case
+                                                                                                                String argStr -> T.unpack argStr)
+                                                                                                                (toList argStrs)) (T.unpack inputStr)
                                                    return (String (T.pack outputStr))
                                                  (_, _, _) -> throwError $ TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input]))
 
@@ -583,7 +584,7 @@ readTSV :: PrimitiveFunc
 readTSV= oneArg' $ \val -> do rets <- fromEgison val >>= readExprs . T.unpack >>= mapM (evalExprDeep nullEnv)
                               case rets of
                                 [ret] -> return ret
-                                _ -> return (Tuple rets)
+                                _     -> return (Tuple rets)
 
 show' :: PrimitiveFunc
 show'= oneArg' $ \val -> return $ toEgison $ T.pack $ show val
@@ -662,7 +663,7 @@ ioPrimitives = [
                ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
-makeIO m = IOFunc $ liftM (Value . Tuple . (World :) . (:[])) m
+makeIO m = IOFunc $ fmap (Value . Tuple . (World :) . (:[])) m
 
 makeIO' :: EgisonM () -> EgisonValue
 makeIO' m = IOFunc $ m >> return (Value $ Tuple [World, Tuple []])
@@ -712,7 +713,7 @@ flushPort = oneArg' $ \val -> do
   return $ makeIO' $ liftIO $ hFlush port
 
 readChar :: PrimitiveFunc
-readChar = noArg $ return $ makeIO $ liftIO $ liftM Char getChar
+readChar = noArg $ return $ makeIO $ liftIO $ fmap Char getChar
 
 readCharFromPort :: PrimitiveFunc
 readCharFromPort = oneArg' $ \val -> do
@@ -721,7 +722,7 @@ readCharFromPort = oneArg' $ \val -> do
   return $ makeIO $ return (Char c)
 
 readLine :: PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ liftM toEgison T.getLine
+readLine = noArg $ return $ makeIO $ liftIO $ fmap toEgison T.getLine
 
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = oneArg' $ \val -> do
@@ -736,7 +737,7 @@ readFile' =  oneArg' $ \val -> do
   return $ makeIO $ return $ toEgison s
 
 isEOFStdin :: PrimitiveFunc
-isEOFStdin = noArg $ return $ makeIO $ liftIO $ liftM Bool isEOF
+isEOFStdin = noArg $ return $ makeIO $ liftIO $ fmap Bool isEOF
 
 isEOFPort :: PrimitiveFunc
 isEOFPort = oneArg' $ \val -> do

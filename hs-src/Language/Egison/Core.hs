@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE ViewPatterns    #-}
@@ -47,6 +48,7 @@ import           Prelude                    hiding (mapM, mappend, mconcat)
 import           Control.Applicative
 import           Control.Arrow
 import           Control.Lens               (makeLenses, (%~), (&), (.~), (^.))
+import           Control.Monad              (when)
 import           Control.Monad.Except       hiding (mapM)
 import           Control.Monad.State        hiding (mapM)
 import           Control.Monad.Trans.Maybe
@@ -144,7 +146,7 @@ evalTopExprsNoIO env exprs = do
 
 evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
 evalTopExpr env topExpr = do
-  ret <- evalTopExpr' (StateT $ \defines -> flip (,) defines <$> recursiveBind env defines) topExpr
+  ret <- evalTopExpr' (StateT $ \defines -> (, defines) <$> recursiveBind env defines) topExpr
   case fst ret of
     Nothing     -> return ()
     Just output -> liftIO $ putStrLn output
@@ -152,7 +154,7 @@ evalTopExpr env topExpr = do
 
 evalTopExpr' :: StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
 evalTopExpr' st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
-evalTopExpr' st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> flip (,) defines <$> recursiveRebind env (name, expr)) st)
+evalTopExpr' st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
 evalTopExpr' st (Test expr) = do
   val <- evalStateT st [] >>= flip evalExprDeep expr
   return (Just (show val), st)
@@ -181,13 +183,13 @@ evalExpr env (QuoteExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
     Value (ScalarData s) -> return . Value $ ScalarData $ Div (Plus [Term 1 [(Quote s, 1)]]) (Plus [Term 1 []])
-    _ -> throwError $ TypeMismatch "scalar in quote" $ whnf
+    _ -> throwError $ TypeMismatch "scalar in quote" whnf
 
 evalExpr env (QuoteSymbolExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
     Value val -> return . Value $ QuotedFunc val
-    _         -> throwError $ TypeMismatch "value in quote-function" $ whnf
+    _         -> throwError $ TypeMismatch "value in quote-function" whnf
 
 evalExpr env (VarExpr name) = do
   x <- refVar' env name >>= evalRef
@@ -232,13 +234,12 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
             let env' = maybe env (\(VarWithIndices nameString indexList) -> Env frame $ Just $ VarWithIndices nameString $ changeIndexList indexList [toEgison $ toInteger i]) maybe_vwi in
             evalExpr env' expr) $ zip exprs [1..(length exprs + 1)]
   case whnfs of
-    ((Intermediate (ITensor (Tensor _ _ _))):_) -> do
-      ret <- mapM toTensor (map f $ zip whnfs [1..(length exprs + 1)]) >>= tConcat' >>= fromTensor
-      return ret
+    (Intermediate (ITensor Tensor{}):_) ->
+      mapM toTensor (zipWith (curry f) whnfs [1..(length exprs + 1)]) >>= tConcat' >>= fromTensor
     _ -> fromTensor (Tensor [fromIntegral $ length whnfs] (V.fromList whnfs) [])
  where
-  f ((Intermediate (ITensor (Tensor ns xs indices))), i) =
-    Intermediate $ ITensor $ Tensor ns (V.fromList $ map g $ zip (V.toList xs) $ map (\ms -> map toEgison $ (toInteger i):ms) $ enumTensorIndices ns) indices
+  f (Intermediate (ITensor (Tensor ns xs indices)), i) =
+    Intermediate $ ITensor $ Tensor ns (V.fromList $ zipWith (curry g) (V.toList xs) $ map (\ms -> map toEgison $ toInteger i:ms) $ enumTensorIndices ns) indices
   f (x, _) = x
   g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)), ms) =
     let fn' = maybe fn (\(VarWithIndices nameString indexList) -> Just $ symbolScalarData "" $ show $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi in
@@ -247,7 +248,7 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
 
 evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsWhnf <- evalExpr env nsExpr
-  ns <- ((fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer])
+  ns <- (fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer]
   xsWhnf <- evalExpr env xsExpr
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
   supWhnf <- evalExpr env supExpr
@@ -256,7 +257,7 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
   if product ns == toInteger (length xs)
     then fromTensor (initTensor ns xs sup sub)
-    else throwError $ InconsistentTensorSize
+    else throwError InconsistentTensorSize
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -265,86 +266,86 @@ evalExpr env (HashExpr assocs) = do
   refs <- mapM (newObjectRef env) exprs
   case keys of
     [] -> do
-      let keys' = map (\key -> case key of IntKey i -> i) keys
+      let keys' = map (\case IntKey i -> i) keys
       return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
     _ ->
      case head keys of
        IntKey _ -> do
-         let keys' = map (\key -> case key of IntKey i -> i) keys
+         let keys' = map (\ case IntKey i -> i) keys
          return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
        CharKey _ -> do
-         let keys' = map (\key -> case key of CharKey c -> c) keys
+         let keys' = map (\case CharKey c -> c) keys
          return . Intermediate . ICharHash $ HL.fromList $ zip keys' refs
        StrKey _ -> do
-          let keys' = map (\key -> case key of StrKey s -> s) keys
+          let keys' = map (\case StrKey s -> s) keys
           return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
  where
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
     case val of
-      ScalarData _ -> fromEgison val >>= (return . IntKey)
+      ScalarData _ -> IntKey <$> fromEgison val
       Char c -> return (CharKey c)
       String str -> return (StrKey str)
       _ -> throwError $ TypeMismatch "integer or string" $ Value val
-  makeHashKey whnf = throwError $ TypeMismatch "integer or string" $ whnf
+  makeHashKey whnf = throwError $ TypeMismatch "integer or string" whnf
 
 evalExpr env (IndexedExpr bool expr indices) = do
   tensor <- case expr of
               VarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ (map f indices))
+                let mObjRef = refVar env (Var xs $ is ++ map f indices)
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing       -> evalExpr env expr
               _ -> evalExpr env expr
-  js <- mapM (\i -> case i of
-                      Superscript n -> evalExprDeep env n >>= return . Superscript
-                      Subscript n -> evalExprDeep env n >>= return . Subscript
-                      SupSubscript n -> evalExprDeep env n >>= return . SupSubscript
-                      Userscript n -> evalExprDeep env n >>= return . Userscript
+  js <- mapM (\case
+                 Superscript n -> Superscript <$> evalExprDeep env n
+                 Subscript n -> Subscript <$> evalExprDeep env n
+                 SupSubscript n -> SupSubscript <$> evalExprDeep env n
+                 Userscript n -> Userscript <$> evalExprDeep env n
               ) indices
 
   ret <- case tensor of
-      (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name [], 1)])]) (Plus [(Term 1 [])])))) -> do
-        js2 <- mapM (\i -> case i of
-                             Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
-                             Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
-                             SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
-                             Userscript n -> evalExprDeep env n >>= extractScalar >>= return . Userscript
+      (Value (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []])))) -> do
+        js2 <- mapM (\case
+                        Superscript n -> Superscript <$> (evalExprDeep env n >>= extractScalar)
+                        Subscript n -> Subscript <$> (evalExprDeep env n >>= extractScalar)
+                        SupSubscript n -> SupSubscript <$> (evalExprDeep env n >>= extractScalar)
+                        Userscript n -> Userscript <$> (evalExprDeep env n >>= extractScalar)
                     ) indices
-        return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js2, 1)])]) (Plus [(Term 1 [])])))
-      (Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name js', 1)])]) (Plus [(Term 1 [])])))) -> do
-        js2 <- mapM (\i -> case i of
-                             Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
-                             Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
-                             SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
-                             Userscript n -> evalExprDeep env n >>= extractScalar >>= return . Userscript
+        return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js2, 1)]]) (Plus [Term 1 []])))
+      (Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js', 1)]]) (Plus [Term 1 []])))) -> do
+        js2 <- mapM (\case
+                        Superscript n -> Superscript <$> (evalExprDeep env n >>= extractScalar)
+                        Subscript n -> Subscript <$> (evalExprDeep env n >>= extractScalar)
+                        SupSubscript n -> SupSubscript <$> (evalExprDeep env n >>= extractScalar)
+                        Userscript n -> Userscript <$> (evalExprDeep env n >>= extractScalar)
                     ) indices
-        return $ Value (ScalarData (Div (Plus [(Term 1 [(Symbol id name (js' ++ js2), 1)])]) (Plus [(Term 1 [])])))
-      (Value (TensorData (Tensor ns xs is))) -> do
-        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
-                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
-      (Intermediate (ITensor (Tensor ns xs is))) -> do
+        return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (js' ++ js2), 1)]]) (Plus [Term 1 []])))
+      (Value (TensorData (Tensor ns xs is))) ->
+        if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
+                else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
+      (Intermediate (ITensor (Tensor ns xs is))) ->
         if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
                 else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
       _ -> do
-        js2 <- mapM (\i -> case i of
-                             Superscript n -> evalExprDeep env n >>= extractScalar >>= return . Superscript
-                             Subscript n -> evalExprDeep env n >>= extractScalar >>= return . Subscript
-                             SupSubscript n -> evalExprDeep env n >>= extractScalar >>= return . SupSubscript
-                             Userscript n -> evalExprDeep env n >>= extractScalar >>= return . Userscript
+        js2 <- mapM (\case
+                        Superscript n -> Superscript <$> (evalExprDeep env n >>= extractScalar)
+                        Subscript n -> Subscript <$> (evalExprDeep env n >>= extractScalar)
+                        SupSubscript n -> SupSubscript <$> (evalExprDeep env n >>= extractScalar)
+                        Userscript n -> Userscript <$> (evalExprDeep env n >>= extractScalar)
                     ) indices
-        refArray tensor (map (\j -> case j of
-                                      Superscript k  -> ScalarData k
-                                      Subscript k    -> ScalarData k
-                                      SupSubscript k -> ScalarData k
-                                      Userscript k   -> ScalarData k
+        refArray tensor (map (\case
+                                 Superscript k  -> ScalarData k
+                                 Subscript k    -> ScalarData k
+                                 SupSubscript k -> ScalarData k
+                                 Userscript k   -> ScalarData k
                               ) js2)
   let ret2 = case expr of
-               (VarExpr var) -> do
+               (VarExpr var) ->
                  case ret of
                    Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) ->
                      case fn of
-                       Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show var ++ concat (map show indices)) argnames args js, 1)]]) p)
+                       Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show var ++ concatMap show indices) argnames args js, 1)]]) p)
                        Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
                    _ -> ret
                _ -> ret
@@ -357,25 +358,24 @@ evalExpr env (IndexedExpr bool expr indices) = do
   f (Userscript _)   = Userscript ()
 
 evalExpr env (SubrefsExpr bool expr jsExpr) = do
-  js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Subscript)
+  js <- map Subscript <$> (evalExpr env jsExpr >>= collectionToList)
   tensor <- case expr of
               VarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ (take (length js) (repeat (Subscript ()))))
+                let mObjRef = refVar env (Var xs $ is ++ replicate (length js) (Subscript ()))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing       -> evalExpr env expr
               _ -> evalExpr env expr
-  ret <- case tensor of
-      (Value (ScalarData _)) -> do
-        return $ tensor
-      (Value (TensorData (Tensor ns xs is))) -> do
-        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
-                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
-      (Intermediate (ITensor (Tensor ns xs is))) -> do
-        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
-      _ -> throwError $ NotImplemented "subrefs"
-  return ret
+  case tensor of
+    (Value (ScalarData _)) ->
+      return tensor
+    (Value (TensorData (Tensor ns xs is))) ->
+      if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
+              else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
+    (Intermediate (ITensor (Tensor ns xs is))) ->
+      if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
+              else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+    _ -> throwError $ NotImplemented "subrefs"
  where
   f :: Index a -> Index ()
   f (Superscript _)  = Superscript ()
@@ -384,25 +384,24 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
   f (Userscript _)   = Userscript ()
 
 evalExpr env (SuprefsExpr bool expr jsExpr) = do
-  js <- evalExpr env jsExpr >>= collectionToList >>= return . (map Superscript)
+  js <- map Superscript <$> (evalExpr env jsExpr >>= collectionToList)
   tensor <- case expr of
               VarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ (take (length js) (repeat (Superscript ()))))
+                let mObjRef = refVar env (Var xs $ is ++ replicate (length js) (Superscript ()))
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing       -> evalExpr env expr
               _ -> evalExpr env expr
-  ret <- case tensor of
-      (Value (ScalarData _)) -> do
-        return $ tensor
-      (Value (TensorData (Tensor ns xs is))) -> do
-        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
-                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor >>= return . Value
-      (Intermediate (ITensor (Tensor ns xs is))) -> do
-        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
-      _ -> throwError $ NotImplemented "suprefs"
-  return ret
+  case tensor of
+    (Value (ScalarData _)) ->
+      return tensor
+    (Value (TensorData (Tensor ns xs is))) ->
+      if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
+              else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
+    (Intermediate (ITensor (Tensor ns xs is))) ->
+      if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
+              else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+    _ -> throwError $ NotImplemented "suprefs"
  where
   f :: Index a -> Index ()
   f (Superscript _)  = Superscript ()
@@ -412,17 +411,16 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
 
 evalExpr env (UserrefsExpr bool expr jsExpr) = do
   val <- evalExprDeep env expr
-  js <- evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar >>= return . (map Userscript)
-  ret <- case val of
-      (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
-      (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
-      _ -> throwError $ NotImplemented "user-refs"
-  return ret
+  js <- map Userscript <$> (evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar)
+  case val of
+    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
+    (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
+    _ -> throwError $ NotImplemented "user-refs"
 
 evalExpr env (LambdaExpr names expr) = do
-  names' <- mapM (\name -> case name of
-                             (TensorArg name') -> return name'
-                             (ScalarArg _) -> throwError $ EgisonBug "scalar-arg remained") names
+  names' <- mapM (\case
+                     (TensorArg name') -> return name'
+                     (ScalarArg _) -> throwError $ EgisonBug "scalar-arg remained") names
   return . Value $ Func Nothing env names' expr
 
 evalExpr env (PartialExpr n expr) = return . Value $ PartialFunc env n expr
@@ -438,16 +436,16 @@ evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc 
 evalExpr (Env frame Nothing) (FunctionExpr args) = throwError $ Default "function symbol is not bound to a variable"
 
 evalExpr env@(Env frame (Just name)) (FunctionExpr args) = do
-  args' <- mapM (\arg -> evalExprDeep env arg) args
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show name) (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []]))
+  args' <- mapM (evalExprDeep env) args
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show name) (map (symbolScalarData "" . show) args) args' [], 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (SymbolicTensorExpr args sizeExpr name) = do
-  args' <- mapM (\arg -> evalExprDeep env arg) args
+  args' <- mapM (evalExprDeep env) args
   size' <- evalExpr env sizeExpr
   size'' <- collectionToList size'
-  ns <- (mapM fromEgison size'') :: EgisonM [Integer]
-  let xs = map (\ms -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" (name ++ concat (map (\m -> "_" ++ m) (map show ms)))) (map (\x -> symbolScalarData "" $ show x) args) args' [], 1)]]) (Plus [Term 1 []])))
-               (map (\ms -> map toEgison ms) (enumTensorIndices ns))
+  ns <- mapM fromEgison size'' :: EgisonM [Integer]
+  let xs = map ((\ms -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" (name ++ concatMap ((\m -> "_" ++ m) . show) ms)) (map (symbolScalarData "" . show) args) args' [], 1)]]) (Plus [Term 1 []])))
+               . map toEgison) (enumTensorIndices ns)
   fromTensor (Tensor ns (V.fromList xs) [])
 
 evalExpr env (IfExpr test expr expr') = do
@@ -510,17 +508,17 @@ evalExpr env (FlipIndicesExpr expr) = do
 
 evalExpr env (WithSymbolsExpr vars expr) = do
   symId <- fresh
-  syms <- mapM (\var -> (newEvaluatedObjectRef (Value (symbolScalarData symId var)))) vars
+  syms <- mapM (newEvaluatedObjectRef . Value . symbolScalarData symId) vars
   let bindings = zip (map stringToVar vars) syms
   whnf <- evalExpr (extendEnv env bindings) expr
   case whnf of
-    (Value (TensorData (Tensor ns xs js))) -> do
+    (Value (TensorData (Tensor ns xs js))) ->
       removeTmpscripts symId (Value (TensorData (Tensor ns xs js)))
-    (Intermediate (ITensor (Tensor ns xs js))) -> do
+    (Intermediate (ITensor (Tensor ns xs js))) ->
       removeTmpscripts symId (Intermediate (ITensor (Tensor ns xs js)))
     _ -> return whnf
  where
-  isTmpSymbol :: String -> (Index EgisonValue) -> Bool
+  isTmpSymbol :: String -> Index EgisonValue -> Bool
   isTmpSymbol symId (Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
     | symId == id = True
     | otherwise = False
@@ -542,7 +540,7 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     let (ds, js) = partition (isTmpSymbol symId) is
     (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
     return (Value (TensorData (Tensor s ys js)))
-  removeDFscripts _ whnf = return whnf
+  removeDFscripts _ = return
 
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
@@ -573,7 +571,7 @@ evalExpr env (MatchAllExpr target matcher clauses) = do
     head <- IElement <$> newEvaluatedObjectRef val
     tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
     seqRef <- liftIO . newIORef $ Sq.fromList [head, tail]
-    return . Intermediate $ ICollection $ seqRef
+    return . Intermediate $ ICollection seqRef
   f matcher target = do
       let tryMatchClause (pattern, expr) results = do
             result <- patternMatch env pattern target matcher
@@ -605,7 +603,7 @@ evalExpr env (CApplyExpr func arg) = do
       indices' <- mapM fromEgison args
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices' hash of
-        Just objRef -> do
+        Just objRef ->
           evalRef objRef
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) (Value (makeTuple args))
@@ -620,16 +618,16 @@ evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
   arg <- evalExpr env arg
   case func of
-    Value (TensorData t@(Tensor ns fs js)) -> do
-      tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value >>= removeDFscripts
-    Intermediate (ITensor t@(Tensor ns fs js)) -> do
+    Value (TensorData t@(Tensor ns fs js)) ->
+      Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor) >>= removeDFscripts
+    Intermediate (ITensor t@(Tensor ns fs js)) ->
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices' hash of
-        Just objRef -> do
+        Just objRef ->
           evalRef objRef
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) arg
@@ -644,18 +642,18 @@ evalExpr env (WedgeApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
   arg <- evalExpr env arg >>= fromTupleWHNF
   let k = fromIntegral (length arg)
-  arg <-  mapM (\(i,j) -> appendDFscripts i j) (zip [1..k] arg) >>= makeITuple
+  arg <- zipWithM appendDFscripts [1..k] arg >>= makeITuple
   case func of
-    Value (TensorData t@(Tensor ns fs js)) -> do
-      tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor >>= return . Value
-    Intermediate (ITensor t@(Tensor ns fs js)) -> do
+    Value (TensorData t@(Tensor ns fs js)) ->
+      Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor)
+    Intermediate (ITensor t@(Tensor ns fs js)) ->
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices' hash of
-        Just objRef -> do
+        Just objRef ->
           evalRef objRef
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) arg
@@ -667,17 +665,17 @@ evalExpr env (WedgeApplyExpr func arg) = do
     _ -> applyFunc env func arg >>= removeDFscripts
 
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
-  mapM (\(x, y, z) -> do x' <- evalExprDeep env x
-                         case x' of
-                           (MemoizedFunc name ref hashRef env' names body) -> do
-                             indices <- evalExprDeep env y
-                             indices' <- mapM fromEgison $ fromTupleValue indices
-                             hash <- liftIO $ readIORef hashRef
-                             ret <- evalExprDeep env z
-                             retRef <- newEvaluatedObjectRef (Value ret)
-                             liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-                             writeObjectRef ref (Value (MemoizedFunc name ref hashRef env' names body))
-                           _ -> throwError $ TypeMismatch "memoized-function" (Value x'))
+  mapM_ (\(x, y, z) -> do x' <- evalExprDeep env x
+                          case x' of
+                            (MemoizedFunc name ref hashRef env' names body) -> do
+                              indices <- evalExprDeep env y
+                              indices' <- mapM fromEgison $ fromTupleValue indices
+                              hash <- liftIO $ readIORef hashRef
+                              ret <- evalExprDeep env z
+                              retRef <- newEvaluatedObjectRef (Value ret)
+                              liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+                              writeObjectRef ref (Value (MemoizedFunc name ref hashRef env' names body))
+                            _ -> throwError $ TypeMismatch "memoized-function" (Value x'))
        memoizeFrame
   evalExpr env expr
 
@@ -688,7 +686,7 @@ evalExpr env (MatcherDFSExpr info) = return $ Value $ UserMatcher env info (DFSM
 evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
   fN <- (evalExpr env fstExpr >>= fromWHNF) :: EgisonM Integer
   eN <- (evalExpr env lstExpr >>= fromWHNF) :: EgisonM Integer
-  xs <- mapM (\n -> (newObjectRef env (ApplyExpr fnExpr (IntegerExpr n)))) [fN..eN]
+  xs <- mapM (newObjectRef env . ApplyExpr fnExpr . IntegerExpr) [fN..eN]
   return $ Intermediate $ IArray $ Array.listArray (fN, eN) xs
 
 evalExpr env (ArrayBoundsExpr expr) =
@@ -697,26 +695,26 @@ evalExpr env (ArrayBoundsExpr expr) =
 evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
   size' <- evalExpr env sizeExpr
   size'' <- collectionToList size'
-  ns <- (mapM fromEgison size'') :: EgisonM [Integer]
+  ns <- mapM fromEgison size'' :: EgisonM [Integer]
   let Env frame maybe_vwi = env
-  xs <- mapM (\ms -> do
+  xs <- mapM ((\ms -> do
     let env' = maybe env (\(VarWithIndices nameString indexList) -> Env frame $ Just $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi
     fn <- evalExpr env' fnExpr
     applyFunc env fn $ Value $ makeTuple ms)
-                (map (\ms -> map toEgison ms) $ enumTensorIndices ns)
+                . map toEgison) (enumTensorIndices ns)
   fromTensor (Tensor ns (V.fromList xs) [])
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
   whnf <- evalExpr env tExpr
   case whnf of
-    (Intermediate (ITensor t@(Tensor _ _ _))) -> do
+    (Intermediate (ITensor t@Tensor{})) -> do
       ts <- tContract t
       tMapN (\xs -> do xs' <- mapM newEvaluatedObjectRef xs
                        applyFunc env fn (Intermediate (ITuple xs'))) ts >>= fromTensor
-    (Value (TensorData t@(Tensor _ _ _))) -> do
+    (Value (TensorData t@Tensor{})) -> do
       ts <- tContract t
-      tMapN (\xs -> applyFunc' env fn (Tuple xs)) ts >>= fromTensor >>= return . Value
+      Value <$> (tMapN (applyFunc' env fn . Tuple) ts >>= fromTensor)
     _ -> return whnf
  where
   applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
@@ -726,10 +724,10 @@ evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
   whnf <- evalExpr env tExpr
   case whnf of
-    Intermediate (ITensor t) -> do
+    Intermediate (ITensor t) ->
       tMap (applyFunc env fn) t >>= fromTensor
-    Value (TensorData t) -> do
-      tMap (applyFunc' env fn) t >>= fromTensor >>= return . Value
+    Value (TensorData t) ->
+      Value <$> (tMap (applyFunc' env fn) t >>= fromTensor)
     _ -> applyFunc env fn whnf
  where
   applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
@@ -741,7 +739,7 @@ evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
   whnf2 <- evalExpr env t2Expr
   case (whnf1, whnf2) of
     -- both of arguments are tensors
-    (Intermediate (ITensor t1), Intermediate (ITensor t2)) -> do
+    (Intermediate (ITensor t1), Intermediate (ITensor t2)) ->
       tMap2 (applyFunc'' env fn) t1 t2 >>= fromTensor
     (Intermediate (ITensor t), Value (TensorData (Tensor ns xs js))) -> do
       let xs' = V.map Value xs
@@ -749,20 +747,20 @@ evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
     (Value (TensorData (Tensor ns xs js)), Intermediate (ITensor t)) -> do
       let xs' = V.map Value xs
       tMap2 (applyFunc'' env fn) (Tensor ns xs' js) t >>= fromTensor
-    (Value (TensorData t1), Value (TensorData t2)) -> do
-      tMap2 (\x y -> applyFunc' env fn (Tuple [x, y])) t1 t2 >>= fromTensor >>= return . Value
+    (Value (TensorData t1), Value (TensorData t2)) ->
+      Value <$> (tMap2 (\x y -> applyFunc' env fn (Tuple [x, y])) t1 t2 >>= fromTensor)
     -- an argument is scalar
     (Intermediate (ITensor (Tensor ns xs js)), whnf) -> do
-      ys <- V.mapM (\x -> (applyFunc'' env fn x whnf)) xs
+      ys <- V.mapM (\x -> applyFunc'' env fn x whnf) xs
       return $ Intermediate (ITensor (Tensor ns ys js))
     (whnf, Intermediate (ITensor (Tensor ns xs js))) -> do
-      ys <- V.mapM (\x -> (applyFunc'' env fn whnf x)) xs
+      ys <- V.mapM (applyFunc'' env fn whnf) xs
       return $ Intermediate (ITensor (Tensor ns ys js))
     (Value (TensorData (Tensor ns xs js)), whnf) -> do
-      ys <- V.mapM (\x -> (applyFunc'' env fn (Value x) whnf)) xs
+      ys <- V.mapM (\x -> applyFunc'' env fn (Value x) whnf) xs
       return $ Intermediate (ITensor (Tensor ns ys js))
     (whnf, Value (TensorData (Tensor ns xs js))) -> do
-      ys <- V.mapM (\x -> (applyFunc'' env fn whnf (Value x))) xs
+      ys <- V.mapM (applyFunc'' env fn whnf . Value) xs
       return $ Intermediate (ITensor (Tensor ns ys js))
     _ -> applyFunc'' env fn whnf1 whnf2
  where
@@ -842,7 +840,7 @@ evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
 evalWHNF coll = Collection <$> (fromCollection coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 addscript :: (Index EgisonValue, Tensor a) -> Tensor a
-addscript (subj, (Tensor s t i)) = (Tensor s t (i ++ [subj]))
+addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 
 valuetoTensor2 :: WHNFData -> Tensor WHNFData
 valuetoTensor2 (Intermediate (ITensor t)) = t
@@ -850,32 +848,32 @@ valuetoTensor2 (Intermediate (ITensor t)) = t
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
   tds <- fromTupleWHNF tds
-  if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
+  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s u i))) -> (length s - length i == 1)) tds
     then do
       symId <- fresh
       let argnum = length tds
-          subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-          supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+          subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
+          supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExpr env (VarExpr $ stringToVar ".")
-      makeITuple ((Value (TensorData (Tensor s1 t1 (i1 ++ supjs)))):(map Intermediate (map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
+      makeITuple (Value (TensorData (Tensor s1 t1 (i1 ++ supjs))):map (Intermediate .ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
 applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
   tds <- fromTupleWHNF tds
-  if (length s1) > (length i1) && (all (\(Intermediate (ITensor (Tensor s u i))) -> ((length s) - (length i) == 1)) tds)
+  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s u i))) -> (length s - length i == 1)) tds
     then do
       symId <- fresh
       let argnum = length tds
-          subjs = map (\symName -> Subscript $ symbolScalarData symId (show symName)) [1 .. argnum]
-          supjs = map (\symName -> Superscript $ symbolScalarData symId (show symName)) [1 .. argnum]
+          subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
+          supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExpr env (VarExpr $ stringToVar ".")
-      makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):(map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)))) >>= applyFunc env dot
+      makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds))) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
 applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
   if n == fromIntegral (length refs)
-    then evalExpr (extendEnv env $ makeBindings (map (\n -> (stringToVar $ "::" ++ show n)) [1..n]) refs) body
+    then evalExpr (extendEnv env $ makeBindings (map (\n -> stringToVar $ "::" ++ show n) [1..n]) refs) body
     else throwError $ ArgumentsNumWithNames ["partial"] (fromIntegral n) (length refs)
 applyFunc _ (Value (Func _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
@@ -896,8 +894,8 @@ applyFunc _ (Value (Proc _ env names body)) arg = do
 applyFunc _ (Value (CFunc _ env name body)) arg = do
   refs <- fromTuple arg
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
-  col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection $ seqRef
-  if length refs > 0
+  col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection seqRef
+  if not (null refs)
     then evalExpr (extendEnv env $ makeBindings' [name] [col]) body
     else throwError $ ArgumentsNumWithNames [name] 1 0
 applyFunc env (Value (Macro [name] body)) arg = do
@@ -909,50 +907,50 @@ applyFunc env (Value (Macro names body)) arg = do
     then evalExpr (extendEnv env $ makeBindings' names refs) body
     else throwError $ ArgumentsNumWithNames names (length names) (length refs)
 applyFunc _ (Value (PrimitiveFunc _ func)) arg = func arg
-applyFunc _ (Value (IOFunc m)) arg = do
+applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
      _           -> throwError $ TypeMismatch "world" arg
 applyFunc _ (Value (QuotedFunc fn)) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
-  return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
-applyFunc _ (Value fn@(ScalarData (Div (Plus [(Term 1 [(Symbol _ _ _, 1)])]) (Plus [(Term 1 [])])))) arg = do
+  return (Value (ScalarData (Div (Plus [Term 1 [(Apply fn mExprs, 1)]]) (Plus [Term 1 []]))))
+applyFunc _ (Value fn@(ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
                             _ -> throwError $ EgisonBug "to use undefined functions, you have to use ScalarData args") args
-  return (Value (ScalarData (Div (Plus [(Term 1 [(Apply fn mExprs, 1)])]) (Plus [(Term 1 [])]))))
+  return (Value (ScalarData (Div (Plus [Term 1 [(Apply fn mExprs, 1)]]) (Plus [Term 1 []]))))
 applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val
-refArray (Value (Array array)) (index:indices) = do
+refArray (Value (Array array)) (index:indices) =
   if isInteger index
-    then do i <- (liftM fromInteger . fromEgison) index
-            if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
+    then do i <- (fmap fromInteger . fromEgison) index
+            if (\(a,b) -> a <= i && i <= b) $ Array.bounds array
               then refArray (Value (array Array.! i)) indices
               else return  $ Value Undefined
     else case index of
-           (ScalarData (Div (Plus [(Term 1 [(Symbol _ _ [], 1)])]) (Plus [(Term 1 [])]))) -> do
+           (ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> do
              let (_,size) = Array.bounds array
              elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
              elmRefs <- mapM newEvaluatedObjectRef elms
              return $ Intermediate $ IArray $ Array.listArray (1, size) elmRefs
            _  -> throwError $ TypeMismatch "integer or symbol" (Value index)
-refArray (Intermediate (IArray array)) (index:indices) = do
+refArray (Intermediate (IArray array)) (index:indices) =
   if isInteger index
-    then do i <- (liftM fromInteger . fromEgison) index
-            if (\(a,b) -> if a <= i && i <= b then True else False) $ Array.bounds array
+    then do i <- (fmap fromInteger . fromEgison) index
+            if (\(a,b) -> a <= i && i <= b) $ Array.bounds array
               then let ref = array Array.! i in
                    evalRef ref >>= flip refArray indices
               else return  $ Value Undefined
     else case index of
-           (ScalarData (Div (Plus [(Term 1 [(Symbol _ _ [], 1)])]) (Plus [(Term 1 [])]))) -> do
+           (ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> do
              let (_,size) = Array.bounds array
              let refs = Array.elems array
              arrs <- mapM evalRef refs
-             elms <- mapM (\arr -> refArray arr indices) arrs
+             elms <- mapM (`refArray` indices) arrs
              elmRefs <- mapM newEvaluatedObjectRef elms
              return $ Intermediate $ IArray $ Array.listArray (1, size) elmRefs
            _  -> throwError $ TypeMismatch "integer or symbol" (Value index)
@@ -989,11 +987,11 @@ refArray (Intermediate (IStrHash hash)) (index:indices) = do
 refArray val _ = throwError $ TypeMismatch "array or hash" val
 
 arrayBounds :: WHNFData -> EgisonM WHNFData
-arrayBounds val = arrayBounds' val >>= return . Value
+arrayBounds val = Value <$> arrayBounds' val
 
 arrayBounds' :: WHNFData -> EgisonM EgisonValue
-arrayBounds' (Intermediate (IArray arr)) = return $ Tuple [(toEgison (fst (Array.bounds arr))), (toEgison (snd (Array.bounds arr)))]
-arrayBounds' (Value (Array arr))         = return $ Tuple [(toEgison (fst (Array.bounds arr))), (toEgison (snd (Array.bounds arr)))]
+arrayBounds' (Intermediate (IArray arr)) = return $ Tuple [toEgison (fst (Array.bounds arr)), toEgison (snd (Array.bounds arr))]
+arrayBounds' (Value (Array arr))         = return $ Tuple [toEgison (fst (Array.bounds arr)), toEgison (snd (Array.bounds arr))]
 arrayBounds' val                         = throwError $ TypeMismatch "array" val
 
 newThunk :: Env -> EgisonExpr -> Object
@@ -1020,7 +1018,7 @@ recursiveBind env bindings = do
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
   let Env frame _ = env'
-  zipWithM_ (\ref (name,expr) -> do
+  zipWithM_ (\ref (name,expr) ->
                case expr of
                  MemoizedLambdaExpr names body -> do
                    hashRef <- liftIO $ newIORef HL.empty
@@ -1028,11 +1026,11 @@ recursiveBind env bindings = do
                  LambdaExpr args body -> do
                    whnf <- evalExpr env' expr
                    case whnf of
-                     (Value (Func _ env args body)) -> liftIO . writeIORef ref . WHNF $ (Value (Func (Just name) env args body))
+                     (Value (Func _ env args body)) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just name) env args body)
                  CambdaExpr arg body -> do
                    whnf <- evalExpr env' expr
                    case whnf of
-                     (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ (Value (CFunc (Just name) env arg body))
+                     (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ Value (CFunc (Just name) env arg body)
                  FunctionExpr args -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) $ FunctionExpr args
                  _ | isVarWithIndices name -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) expr
                    | otherwise -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
@@ -1053,11 +1051,11 @@ recursiveRebind env (name, expr) = do
                   LambdaExpr args body -> do
                     whnf <- evalExpr env expr
                     case whnf of
-                      (Value (Func _ env args body)) -> liftIO . writeIORef ref . WHNF $ (Value (Func (Just name) env args body))
+                      (Value (Func _ env args body)) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just name) env args body)
                   CambdaExpr arg body -> do
                     whnf <- evalExpr env expr
                     case whnf of
-                      (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ (Value (CFunc (Just name) env arg body))
+                      (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ Value (CFunc (Just name) env arg body)
                   _ -> liftIO . writeIORef ref . Thunk $ evalExpr env expr
   return env
 
@@ -1066,8 +1064,8 @@ recursiveRebind env (name, expr) = do
 --
 
 patternMatch :: Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
-patternMatch env pattern target matcher@(UserMatcher _ _ (DFSMode id)) = processMStatesAll 0 MatchingStates { _normalTree = [[(msingleton (MState BFSMode env [] [] [MAtom (DFSPat id pattern) target matcher]))]], _orderedOrTrees = M.empty, _ids = [], _bool = True }
-patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _normalTree = [[(msingleton (MState BFSMode env [] [] [MAtom pattern target matcher]))]], _orderedOrTrees = M.empty, _ids = [], _bool = topDFS pattern && not (containBFS pattern) }
+patternMatch env pattern target matcher@(UserMatcher _ _ (DFSMode id)) = processMStatesAll 0 MatchingStates { _normalTree = [[msingleton (MState BFSMode env [] [] [MAtom (DFSPat id pattern) target matcher])]], _orderedOrTrees = M.empty, _ids = [], _bool = True }
+patternMatch env pattern target matcher = processMStatesAll 0 MatchingStates { _normalTree = [[msingleton (MState BFSMode env [] [] [MAtom pattern target matcher])]], _orderedOrTrees = M.empty, _ids = [], _bool = topDFS pattern && not (containBFS pattern) }
 
 processMStatesAll :: Int -> MatchingStates -> EgisonM (MList EgisonM Match)
 processMStatesAll depth streams = do
@@ -1082,7 +1080,7 @@ processMStatesAll depth streams = do
 
 processMStatesLine :: Int -> MatchingStates -> EgisonM MatchingStates
 processMStatesLine depth streams = do
-  (oomaps, idlist, nextlist) <- (concatTuple . unzip3) <$> mapM (processMStatesDorB (streams ^. bool) depth) (head $ streams ^. normalTree)
+  (oomaps, idlist, nextlist) <- concatTuple . unzip3 <$> mapM (processMStatesDorB (streams ^. bool) depth) (head $ streams ^. normalTree)
   let oots = unionsWith (unionWith (++)) $ streams ^. orderedOrTrees:oomaps
   let nt = mergeNT nextlist $ tail $ streams ^. normalTree
   let ids' = nub $ idlist ++ (streams ^. ids)
@@ -1099,7 +1097,7 @@ gatherBindings (MState _ _ _ bindings []) = return bindings
 gatherBindings (MState _ _ _ bindings trees) = isResolved trees >> return bindings
   where isResolved :: [MatchingTree] -> Maybe ()
         isResolved [] = return ()
-        isResolved (MAtom _ _ _ : _) = Nothing
+        isResolved (MAtom {} : _) = Nothing
         isResolved (MNode _ state : rest) = gatherBindings state >> isResolved rest
 
 extractMatches :: MatchingStates -> EgisonM ([Match], MatchingStates)
@@ -1107,11 +1105,11 @@ extractMatches streams
   | null (streams ^. normalTree) = return ([], streams)
   | otherwise = do
       (matches, s) <- extractMatches' ([], []) $ head $ streams ^. normalTree
-      return (matches, streams & normalTree .~ (s:(tail $ streams ^. normalTree)))
+      return (matches, streams & normalTree .~ (s:tail (streams ^. normalTree)))
  where
   extractMatches' :: ([Match], [MList EgisonM MatchingState]) -> [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
   extractMatches' (xs, ys) [] = return (xs, ys)
-  extractMatches' (xs, ys) ((MCons (gatherBindings -> Just bindings) states):rest) = do
+  extractMatches' (xs, ys) (MCons (gatherBindings -> Just bindings) states:rest) = do
     states' <- states
     extractMatches' (xs ++ [bindings], ys ++ [states']) rest
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
@@ -1123,46 +1121,46 @@ processMStatesDorB b depth stream@(MCons state stream') =
     MAtom (OrderedOrPat id _ _) _ _ -> do
       let (state1, state2) = splitMStateOO state
       (oots, ids, newStreams) <- processMStatesDorB b depth (MCons state1 stream')
-      return ((singleton id $ singleton depth [msingleton state2]):oots, ids ++ [id], newStreams)
-    MAtom (DFSPat id _) _ _ -> mmap (return . (modeTo $ DFSMode id)) stream >>= processMStatesDorB b depth
-    MAtom (BFSPat _) _ _ -> mmap (return . (modeTo BFSMode)) stream >>= processMStatesDorB b depth
+      return (singleton id (singleton depth [msingleton state2]):oots, ids ++ [id], newStreams)
+    MAtom (DFSPat id _) _ _ -> mmap (return . modeTo (DFSMode id)) stream >>= processMStatesDorB b depth
+    MAtom (BFSPat _) _ _ -> mmap (return . modeTo BFSMode) stream >>= processMStatesDorB b depth
     _ -> case pmMode state of
-           DFSMode id | b -> (\x -> ([], [], x)) <$> processMStatesDFS stream
+           DFSMode id | b -> ([], [],) <$> processMStatesDFS stream
                       | otherwise -> do
                          newStreams <- processMStates (MCons state $ return MNil)
                          stream'' <- stream'
                          return ([singleton id (singleton depth [stream''])], [id], newStreams)
-           BFSMode -> (\x -> ([], [], x)) <$> processMStates stream
+           BFSMode -> ([], [],) <$> processMStates stream
  where
   splitMStateOO :: MatchingState -> (MatchingState, MatchingState)
-  splitMStateOO (MState mode env loops bindings ((MAtom (OrderedOrPat _ pat1 pat2) target matcher) : trees)) =
-    (MState mode env loops bindings ((MAtom pat1 target matcher) : trees), MState mode env loops bindings ((MAtom pat2 target matcher) : trees))
-  splitMStateOO (MState mode env loops bindings ((MAtom pat target matcher) : trees)) =
+  splitMStateOO (MState mode env loops bindings (MAtom (OrderedOrPat _ pat1 pat2) target matcher : trees)) =
+    (MState mode env loops bindings (MAtom pat1 target matcher : trees), MState mode env loops bindings (MAtom pat2 target matcher : trees))
+  splitMStateOO (MState mode env loops bindings (MAtom pat target matcher : trees)) =
     (MState mode env loops bindings [MAtom pat target matcher], MState mode env loops bindings trees)
-  splitMStateOO (MState mode env loops bindings ((MNode penv state') : trees)) =
+  splitMStateOO (MState mode env loops bindings (MNode penv state' : trees)) =
     let (state1, state2) = splitMStateOO state'
-     in (MState mode env loops bindings (MNode penv state1 : trees), MState mode env loops bindings ((MNode penv state2) : trees))
+     in (MState mode env loops bindings (MNode penv state1 : trees), MState mode env loops bindings (MNode penv state2 : trees))
 
 modeTo :: PMMode -> MatchingState -> MatchingState
-modeTo mode (MState _ env loops bindings (mtree:mtrees)) = MState mode env loops bindings $ (rmPat mtree):mtrees
+modeTo mode (MState _ env loops bindings (mtree:mtrees)) = MState mode env loops bindings $ rmPat mtree:mtrees
 
 rmPat :: MatchingTree -> MatchingTree
 rmPat (MAtom (DFSPat _ pattern) target matcher) = MAtom pattern target matcher
 rmPat (MAtom (BFSPat pattern) target matcher) = MAtom pattern target matcher
 rmPat (MAtom pat target matcher) = MAtom pat target matcher
-rmPat (MNode penv (MState mode env loops bindings (mtree:mtrees))) = MNode penv $ MState mode env loops bindings ((rmPat mtree):mtrees)
+rmPat (MNode penv (MState mode env loops bindings (mtree:mtrees))) = MNode penv $ MState mode env loops bindings (rmPat mtree:mtrees)
 
 topMAtom :: MatchingState -> MatchingTree
-topMAtom (MState _ _ _ _ (mAtom@(MAtom _ _ _):_)) = mAtom
-topMAtom (MState _ _ _ _ ((MNode _ mstate):_))    = topMAtom mstate
+topMAtom (MState _ _ _ _ (mAtom@MAtom{}:_))  = mAtom
+topMAtom (MState _ _ _ _ (MNode _ mstate:_)) = topMAtom mstate
 
-processMStates :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+processMStates :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
 processMStates (MCons state stream) = do
   newStream <- processMState state
   newStream' <- stream
   return [newStream, newStream']
 
-processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
 processMStatesDFS (MCons state stream) = do
   stream' <- processMState state
   newStream <- mappend stream' stream
@@ -1183,48 +1181,48 @@ processMState state =
     _ -> processMState' state
  where
   splitMState :: MatchingState -> (MatchingState, MatchingState)
-  splitMState (MState mode env loops bindings ((MAtom (NotPat pattern) target matcher) : trees)) =
+  splitMState (MState mode env loops bindings (MAtom (NotPat pattern) target matcher : trees)) =
     (MState mode env loops bindings [MAtom pattern target matcher], MState mode env loops bindings trees)
-  splitMState (MState mode env loops bindings ((MNode penv state') : trees)) =
+  splitMState (MState mode env loops bindings (MNode penv state' : trees)) =
     let (state1, state2) = splitMState state'
      in (MState mode env loops bindings [MNode penv state1], MState mode env loops bindings (MNode penv state2 : trees))
   swapMState :: MatchingState -> MatchingState
-  swapMState (MState mode env loops bindings ((MAtom (LaterPat pattern) target matcher) : trees)) =
+  swapMState (MState mode env loops bindings (MAtom (LaterPat pattern) target matcher : trees)) =
     MState mode env loops bindings (trees ++ [MAtom pattern target matcher])
-  swapMState (MState mode env loops bindings ((MNode penv state') : trees)) =
+  swapMState (MState mode env loops bindings (MNode penv state' : trees)) =
     let state'' = swapMState state'
-     in MState mode env loops bindings ((MNode penv state''):trees)
+     in MState mode env loops bindings (MNode penv state'':trees)
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState' (MState _ _ _ _ []) = throwError $ EgisonBug "should not reach here (empty matching-state)"
 
-processMState' (MState _ _ _ _ ((MNode _ (MState _ _ _ _ [])):_)) = throwError $ EgisonBug "should not reach here (empty matching-node)"
+processMState' (MState _ _ _ _ (MNode _ (MState _ _ _ _ []):_)) = throwError $ EgisonBug "should not reach here (empty matching-node)"
 
-processMState' (MState mode env loops bindings (MNode penv (MState mode' env' loops' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) =
+processMState' (MState mode env loops bindings (MNode penv (MState mode' env' loops' bindings' (MAtom (VarPat name) target matcher:trees')):trees)) =
   case lookup name penv of
     Just pattern ->
       case trees' of
-        [] -> return $ msingleton $ MState mode env loops bindings ((MAtom pattern target matcher):trees)
-        _ -> return $ msingleton $ MState mode env loops bindings ((MAtom pattern target matcher):(MNode penv (MState mode' env' loops' bindings' trees')):trees)
+        [] -> return $ msingleton $ MState mode env loops bindings (MAtom pattern target matcher:trees)
+        _ -> return $ msingleton $ MState mode env loops bindings (MAtom pattern target matcher:MNode penv (MState mode' env' loops' bindings' trees'):trees)
     Nothing -> throwError $ UnboundVariable name
 
-processMState' (MState mode env loops bindings (MNode penv (MState mode' env' loops' bindings' ((MAtom (IndexedPat (VarPat name) indices) target matcher):trees')):trees)) =
+processMState' (MState mode env loops bindings (MNode penv (MState mode' env' loops' bindings' (MAtom (IndexedPat (VarPat name) indices) target matcher:trees')):trees)) =
   case lookup name penv of
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
-      indices' <- mapM (evalExpr env'' >=> liftM fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map (\i -> IntegerExpr i) indices'
+      indices' <- mapM (evalExpr env'' >=> fmap fromInteger . fromWHNF) indices
+      let pattern' = IndexedPat pattern $ map IntegerExpr indices'
       case trees' of
-        [] -> return $ msingleton $ MState mode env loops bindings ((MAtom pattern' target matcher):trees)
-        _ -> return $ msingleton $ MState mode env loops bindings ((MAtom pattern' target matcher):(MNode penv (MState mode' env' loops' bindings' trees')):trees)
+        [] -> return $ msingleton $ MState mode env loops bindings (MAtom pattern' target matcher:trees)
+        _ -> return $ msingleton $ MState mode env loops bindings (MAtom pattern' target matcher:MNode penv (MState mode' env' loops' bindings' trees'):trees)
     Nothing -> throwError $ UnboundVariable name
 
-processMState' (MState mode env loops bindings ((MNode penv state):trees)) =
+processMState' (MState mode env loops bindings (MNode penv state:trees)) =
   processMState' state >>= mmap (\state' -> case state' of
                                               MState _ _ _ _ [] -> return $ MState mode env loops bindings trees
                                               _ -> (return . MState mode env loops bindings . (: trees) . MNode penv) state')
 
-processMState' (MState mode env loops bindings ((MAtom pattern target matcher):trees)) =
+processMState' (MState mode env loops bindings (MAtom pattern target matcher:trees)) =
   let env' = extendEnvForNonLinearPatterns env bindings loops in
   case pattern of
     NotPat _ -> throwError $ EgisonBug "should not reach here (not pattern)"
@@ -1236,13 +1234,13 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
           extractBindings (names, expr) =
             makeBindings names <$> (evalExpr env' expr >>= fromTuple)
       in
-       liftM concat (mapM extractBindings bindings')
-         >>= (\b -> return $ msingleton $ MState mode env loops (b ++ bindings) ((MAtom pattern' target matcher):trees))
+       fmap concat (mapM extractBindings bindings')
+         >>= (\b -> return $ msingleton $ MState mode env loops (b ++ bindings) (MAtom pattern' target matcher:trees))
     PredPat predicate -> do
       func <- evalExpr env' predicate
       let arg = target
       result <- applyFunc env func arg >>= fromWHNF
-      if result then return $ msingleton $ (MState mode env loops bindings trees)
+      if result then return $ msingleton $ MState mode env loops bindings trees
                 else return MNil
 
     PApplyPat func args -> do
@@ -1253,8 +1251,8 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
           in return $ msingleton $ MState mode env loops bindings (MNode penv (MState mode env'' [] [] [MAtom expr target matcher]) : trees)
         _ -> throwError $ TypeMismatch "pattern constructor" func'
 
-    DApplyPat func args -> do
-      return $ msingleton $ (MState mode env loops bindings ((MAtom (InductivePat "apply" [func, (toListPat args)]) target matcher):trees))
+    DApplyPat func args ->
+      return $ msingleton $ MState mode env loops bindings (MAtom (InductivePat "apply" [func, toListPat args]) target matcher:trees)
 
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
       startNum <- evalExpr env' start >>= fromWHNF :: (EgisonM Integer)
@@ -1265,10 +1263,10 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
           endsRef <- newEvaluatedObjectRef ends'
           inners <- liftIO $ newIORef $ Sq.fromList [IElement endsRef]
           endsRef' <- liftIO $ newIORef (WHNF (Intermediate (ICollection inners)))
-          return $ msingleton $ MState mode env ((LoopPatContext (name, startNumRef) endsRef' endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+          return $ msingleton $ MState mode env (LoopPatContext (name, startNumRef) endsRef' endPat pat pat':loops) bindings (MAtom ContPat target matcher:trees)
         else do
           endsRef <- newEvaluatedObjectRef ends'
-          return $ msingleton $ MState mode env ((LoopPatContext (name, startNumRef) endsRef endPat pat pat'):loops) bindings ((MAtom ContPat target matcher):trees)
+          return $ msingleton $ MState mode env (LoopPatContext (name, startNumRef) endsRef endPat pat pat':loops) bindings (MAtom ContPat target matcher:trees)
     ContPat ->
       case loops of
         [] -> throwError $ Default "cannot use cont pattern except in loop pattern"
@@ -1288,9 +1286,9 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
                 then return MNil
                 else if startNum == carEndsNum
                        then if b2
-                              then return $ fromList [MState mode env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees)]
-                              else return $ fromList [MState mode env loops' bindings ((MAtom endPat startNumWhnf Something):(MAtom pat' target matcher):trees), MState mode env ((LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
-                       else return $ fromList [MState mode env ((LoopPatContext (name, nextNumRef) endsRef endPat pat pat'):loops') bindings ((MAtom pat target matcher):trees)]
+                              then return $ fromList [MState mode env loops' bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees)]
+                              else return $ fromList [MState mode env loops' bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees), MState mode env (LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat':loops') bindings (MAtom pat target matcher:trees)]
+                       else return $ fromList [MState mode env (LoopPatContext (name, nextNumRef) endsRef endPat pat pat':loops') bindings (MAtom pat target matcher:trees)]
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
       in return $ msingleton $ MState mode env loops bindings trees'
@@ -1300,32 +1298,30 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
 
     _ ->
       case matcher of
-        UserMatcher _ _ _ -> do
-          case pattern of
-            _ -> do
-              (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
-              case (length patterns, length matchers) of
-                (1,1) -> do
-                  mfor targetss $ \ref -> do
-                    targets <- evalRef ref >>= (\x -> return [x])
-                    let trees' = zipWith3 MAtom patterns targets matchers ++ trees
-                    return $ MState mode env loops bindings trees'
-                _ -> do
-                  mfor targetss $ \ref -> do
-                    targets <- evalRef ref >>= fromTupleWHNF
-                    let trees' = zipWith3 MAtom patterns targets matchers ++ trees
-                    return $ MState mode env loops bindings trees'
+        UserMatcher{} -> do
+          (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
+          case (length patterns, length matchers) of
+            (1,1) ->
+              mfor targetss $ \ref -> do
+                targets <- evalRef ref >>= (\x -> return [x])
+                let trees' = zipWith3 MAtom patterns targets matchers ++ trees
+                return $ MState mode env loops bindings trees'
+            _ ->
+              mfor targetss $ \ref -> do
+                targets <- evalRef ref >>= fromTupleWHNF
+                let trees' = zipWith3 MAtom patterns targets matchers ++ trees
+                return $ MState mode env loops bindings trees'
 
         Tuple matchers ->
           case pattern of
-            ValuePat _ -> return $ msingleton $ MState mode env loops bindings ((MAtom pattern target Something):trees)
-            WildCard -> return $ msingleton $ MState mode env loops bindings ((MAtom pattern target Something):trees)
-            PatVar _ -> return $ msingleton $ MState mode env loops bindings ((MAtom pattern target Something):trees)
-            IndexedPat _ _ -> return $ msingleton $ MState mode env loops bindings ((MAtom pattern target Something):trees)
+            ValuePat _ -> return $ msingleton $ MState mode env loops bindings (MAtom pattern target Something:trees)
+            WildCard -> return $ msingleton $ MState mode env loops bindings (MAtom pattern target Something:trees)
+            PatVar _ -> return $ msingleton $ MState mode env loops bindings (MAtom pattern target Something:trees)
+            IndexedPat _ _ -> return $ msingleton $ MState mode env loops bindings (MAtom pattern target Something:trees)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
-              if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
-              if not (length patterns == length matchers) then throwError $ ArgumentsNum (length patterns) (length matchers) else return ()
+              when (length patterns /= length targets) $ throwError $ ArgumentsNum (length patterns) (length targets)
+              when (length patterns /= length matchers) $ throwError $ ArgumentsNum (length patterns) (length matchers)
               let trees' = zipWith3 MAtom patterns targets matchers ++ trees
               return $ msingleton $ MState mode env loops bindings trees'
             _ ->  throwError $ Default $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
@@ -1343,7 +1339,7 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
               targetRef <- newEvaluatedObjectRef target
               return $ msingleton $ MState mode env loops ((name, targetRef):bindings) trees
             IndexedPat (PatVar name) indices -> do
-              indices <- mapM (evalExpr env' >=> liftM fromInteger . fromWHNF) indices
+              indices <- mapM (evalExpr env' >=> fmap fromInteger . fromWHNF) indices
               case lookup name bindings of
                 Just ref -> do
                   obj <- evalRef ref >>= updateHash indices >>= newEvaluatedObjectRef
@@ -1361,19 +1357,19 @@ processMState' (MState mode env loops bindings ((MAtom pattern target matcher):t
                   ref <- updateHash indices val >>= newEvaluatedObjectRef
                   return . Intermediate . IIntHash $ HL.insert index ref hash
                 updateHash indices (Value (IntHash hash)) = do
-                  keys <- return $ HL.keys hash
+                  let keys = HL.keys hash
                   vals <- mapM (newEvaluatedObjectRef . Value) $ HL.elems hash
                   updateHash indices (Intermediate $ IIntHash $ HL.fromList $ zip keys vals)
                 updateHash _ v = throwError $ Default $ "expected hash value: " ++ show v
                 subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
-                subst k nv ((k', v'):xs) | k == k'   = (k', nv):(subst k nv xs)
-                                         | otherwise = (k', v'):(subst k nv xs)
+                subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
+                                         | otherwise = (k', v'):subst k nv xs
                 subst _ _ [] = []
             IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
-              if not (length patterns == length targets) then throwError $ ArgumentsNum (length patterns) (length targets) else return ()
-              let trees' = zipWith3 MAtom patterns targets (take (length patterns) (repeat Something)) ++ trees
+              when (length patterns /= length targets) $ throwError $ ArgumentsNum (length patterns) (length targets)
+              let trees' = zipWith3 MAtom patterns targets (replicate (length patterns) Something) ++ trees
               return $ msingleton $ MState mode env loops bindings trees'
             _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ show pattern
         _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
@@ -1388,7 +1384,7 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses _) =
     case result of
       Just (patterns, bindings) -> do
         targetss <- foldr tryPDMatchClause failPDPatternMatch clauses
-        matchers <- evalExpr matcherEnv matchers >>= evalMatcherWHNF >>= (return . fromTupleValue)
+        matchers <- fromTupleValue <$> (evalExpr matcherEnv matchers >>= evalMatcherWHNF)
         return (patterns, targetss, matchers)
        where
         tryPDMatchClause (pat, expr) cont = do
@@ -1460,7 +1456,7 @@ primitiveDataPatternMatch (PDConstantPat expr) whnf = do
 
 expandCollection :: WHNFData -> EgisonM (Seq Inner)
 expandCollection (Value (Collection vals)) =
-  mapM (liftM IElement . newEvaluatedObjectRef . Value) vals
+  mapM (fmap IElement . newEvaluatedObjectRef . Value) vals
 expandCollection (Intermediate (ICollection innersRef)) = liftIO $ readIORef innersRef
 expandCollection val = throwError $ TypeMismatch "collection" val
 
@@ -1470,7 +1466,7 @@ isEmptyCollection coll@(Intermediate (ICollection innersRef)) = do
   inners <- liftIO $ readIORef innersRef
   case Sq.viewl inners of
     EmptyL -> return True
-    (ISubCollection ref') :< tInners -> do
+    ISubCollection ref' :< tInners -> do
       hInners <- evalRef ref' >>= expandCollection
       liftIO $ writeIORef innersRef (hInners >< tInners)
       isEmptyCollection coll
@@ -1488,10 +1484,10 @@ unconsCollection coll@(Intermediate (ICollection innersRef)) = do
   inners <- liftIO $ readIORef innersRef
   case Sq.viewl inners of
     EmptyL -> matchFail
-    (IElement ref') :< tInners -> do
+    IElement ref' :< tInners -> do
       tInnersRef <- liftIO $ newIORef tInners
       lift $ (ref', ) <$> newEvaluatedObjectRef (Intermediate $ ICollection tInnersRef)
-    (ISubCollection ref') :< tInners -> do
+    ISubCollection ref' :< tInners -> do
       hInners <- lift $ evalRef ref' >>= expandCollection
       liftIO $ writeIORef innersRef (hInners >< tInners)
       unconsCollection coll
@@ -1508,10 +1504,10 @@ unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
   inners <- liftIO $ readIORef innersRef
   case Sq.viewr inners of
     EmptyR -> matchFail
-    hInners :> (IElement ref') -> do
+    hInners :> IElement ref' -> do
       hInnersRef <- liftIO $ newIORef hInners
       lift $ (, ref') <$> newEvaluatedObjectRef (Intermediate $ ICollection hInnersRef)
-    hInners :> (ISubCollection ref') -> do
+    hInners :> ISubCollection ref' -> do
       tInners <- lift $ evalRef ref' >>= expandCollection
       liftIO $ writeIORef innersRef (hInners >< tInners)
       unsnocCollection coll
@@ -1522,7 +1518,7 @@ extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ 
 
 evalMatcherWHNF :: WHNFData -> EgisonM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher
-evalMatcherWHNF (Value matcher@(UserMatcher _ _ _)) = return matcher
+evalMatcherWHNF (Value matcher@UserMatcher{}) = return matcher
 evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
 evalMatcherWHNF (Intermediate (ITuple refs)) = do
   whnfs <- mapM evalRef refs
@@ -1535,7 +1531,7 @@ evalMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
 --
 toListPat :: [EgisonPattern] -> EgisonPattern
 toListPat []         = InductivePat "nil" []
-toListPat (pat:pats) = InductivePat "cons" [pat, (toListPat pats)]
+toListPat (pat:pats) = InductivePat "cons" [pat, toListPat pats]
 
 fromTuple :: WHNFData -> EgisonM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
@@ -1588,9 +1584,9 @@ makeTuple [x] = x
 makeTuple xs  = Tuple xs
 
 makeITuple :: [WHNFData] -> EgisonM WHNFData
-makeITuple [] = return $ Intermediate (ITuple [])
-makeITuple [x] = return $ x
-makeITuple xs = mapM newEvaluatedObjectRef xs >>= (return . Intermediate . ITuple)
+makeITuple []  = return $ Intermediate (ITuple [])
+makeITuple [x] = return x
+makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
 
 --
 -- String
