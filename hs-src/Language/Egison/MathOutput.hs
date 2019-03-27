@@ -278,11 +278,7 @@ showMathExprMaxima (Func (Atom "/" []) [x, y]) = addBracket x ++ "/" ++ addBrack
    addBracket x@(Atom _ []) = showMathExprMaxima x
    addBracket x             = "(" ++ showMathExprMaxima x ++ ")"
 showMathExprMaxima (Func f xs) = showMathExprMaxima f ++ "(" ++ showMathExprMaximaArg xs ++ ")"
-showMathExprMaxima (Tensor lvs mis)
-  | null mis = "matrix(" ++ showMathExprMaximaArg lvs ++ ")"
-  | not (any isSub mis) = "{" ++ showMathExprMaximaArg lvs ++ "}^(" ++ showMathExprMaximaIndices mis ++ ")"
-  | not (any (not . isSub) mis) = "{" ++ showMathExprMaximaArg lvs ++ "}_(" ++ showMathExprMaximaIndices mis ++ ")"
-  | otherwise = "{" ++ showMathExprMaximaArg lvs ++ "}_(" ++ showMathExprMaximaIndices (filter isSub mis) ++ ")^(" ++ showMathExprMaximaIndices (filter (not . isSub) mis) ++ ")"
+showMathExprMaxima (Tensor lvs mis) = "undefined"
 showMathExprMaxima (Tuple xs) = "undefined"
 showMathExprMaxima (Collection xs) = "[" ++ showMathExprMaximaArg xs ++ "]"
 showMathExprMaxima (Exp x) = "exp(" ++ showMathExprMaxima x ++ ")"
@@ -294,18 +290,9 @@ showMathExprMaxima' x         = showMathExprMaxima x
 
 showMathExprMaximaArg :: [MathExpr] -> String
 showMathExprMaximaArg [] = ""
--- showMathExprMaximaArg [Tensor lvs []] = "[" ++ concatMap show lvs showMathExprMaxima a
+showMathExprMaximaArg [Tensor lvs []] = "undefined"
 showMathExprMaximaArg [a] = showMathExprMaxima a
 showMathExprMaximaArg lvs = showMathExprMaxima (head lvs) ++ ", " ++ showMathExprMaximaArg (tail lvs)
-
-showMathExprMaximaIndices :: [MathIndex] -> String
-showMathExprMaximaIndices [a] = showMathIndexMaxima a
-showMathExprMaximaIndices lvs = showMathIndexMaxima (head lvs) ++ showMathExprMaximaIndices (tail lvs)
-
-showMathIndexMaxima :: MathIndex -> String
-showMathIndexMaxima (Super a) = showMathExprMaxima a
-showMathIndexMaxima (Sub a)   = showMathExprMaxima a
-
 
 
 --
