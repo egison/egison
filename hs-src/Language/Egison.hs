@@ -27,7 +27,7 @@ module Language.Egison
        , initialEnvNoIO
        -- * Information
        , version
-       ) where
+      ) where
 
 import           Data.Version
 import qualified Paths_egison               as P
@@ -38,6 +38,7 @@ import           Language.Egison.ParserNonS as ParserNonS
 import           Language.Egison.Primitives
 import           Language.Egison.Types
 
+import           Control.Lens               ((^.))
 import           Control.Monad.State
 
 -- |Version number
@@ -69,6 +70,8 @@ runEgisonExpr False env input = fromEgisonM $ ParserNonS.readExpr input >>= eval
 runEgisonTopExpr :: Bool -> Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExpr True env input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr env
 runEgisonTopExpr False env input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr env
+-- runEgisonTopExpr :: Options -> Env -> String -> IO (Either EgisonError Env)
+-- runEgisonTopExpr opts env input = fromEgisonM $ (if opts ^. optSExpr then Parser.readTopExpr else ParserNonS.readTopExpr) input >>= evalTopExpr env
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr' :: Bool -> StateT [(Var, EgisonExpr)] EgisonM Env -> String -> IO (Either EgisonError (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env))
