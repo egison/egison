@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE MultiWayIf    #-}
 {-# LANGUAGE TupleSections #-}
 
 module Main where
@@ -28,60 +29,85 @@ import           Language.Egison.Core       (recursiveBind)
 import           Language.Egison.MathOutput
 import           Language.Egison.Util
 
-main :: IO ()
-main = do args <- getArgs
-          let (actions, nonOpts, _) = getOpt Permute options args
-          let opts = foldl (flip id) defaultOptions actions
-          case opts of
-            Options {optShowHelp = True} -> printHelp
-            Options {optShowVersion = True} -> printVersionNumber
-            Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optFieldInfo = fieldInfo, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag, optMathExpr = mathExprLang, optSExpr = isSExpr} -> do
-              coreEnv <- if noIOFlag then initialEnvNoIO else initialEnv
-              mEnv <- evalEgisonTopExprs coreEnv $ map (Load isSExpr) loadLibs ++ map (LoadFile isSExpr) loadFiles
-              case mEnv of
-                Left err -> print err
-                Right env ->
-                  case mExpr of
-                    Just expr ->
-                      if tsvFlag
-                        then do ret <- runEgisonTopExprs isSExpr env $ "(execute (each (compose show-tsv print) " ++ expr ++ "))"
-                                case ret of
-                                  Left err -> hPrint stderr err
-                                  Right _  -> return ()
-                        else do ret <- runEgisonExpr isSExpr env expr
-                                case ret of
-                                  Left err -> hPrint stderr err >> exitFailure
-                                  Right val -> print val >> exitSuccess
-                    Nothing ->
-                      case mCmd of
-                        Just cmd -> do cmdRet <- runEgisonTopExpr isSExpr env ("(execute " ++ cmd ++ ")")
-                                       case cmdRet of
-                                         Left err -> print err >> exitFailure
-                                         _        -> exitSuccess
-                        Nothing ->
-                          case mSub of
-                            Just sub -> do cmdRet <- runEgisonTopExprs isSExpr env ("(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if tsvFlag then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst fieldInfo) ++  "} {" ++ unwords (map snd fieldInfo) ++  "})]} (" ++ sub ++ " SH.input))))")
-                                           case cmdRet of
-                                             Left err -> print err >> exitFailure
-                                             _ -> exitSuccess
-                            Nothing ->
-                              case nonOpts of
-                                [] -> when bannerFlag showBanner >> repl noIOFlag isSExpr mathExprLang env prompt >> when bannerFlag showByebyeMessage >> exitSuccess
-                                (file:args) ->
-                                  case opts of
-                                    Options {optTestOnly = True} -> do
-                                      result <- if noIOFlag
-                                                  then do input <- readFile file
-                                                          runEgisonTopExprsNoIO isSExpr env input
-                                                  else evalEgisonTopExprsTestOnly env [LoadFile isSExpr file]
-                                      either print (const $ return ()) result
-                                    Options {optTestOnly = False} -> do
-                                      result <- evalEgisonTopExprs env [LoadFile isSExpr file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
-                                      either print (const $ return ()) result
+import           Options.Applicative
 
-data Options = Options {
-    optShowVersion      :: Bool,
+runWithOptions :: EgisonOpt -> IO ()
+runWithOptions opts =
+  if optShowHelp opts then printHelp else printVersionNumber
+
+main :: IO ()
+main = execParser opts >>= runWithOptions
+ where
+  parser = EgisonOpt <$> switch (short 'h' <> long "help" <> help "show usage information")
+                     <*> switch (short 'v' <> long "version" <> help "show version number")
+                     <*> strOption (short 'e' <> long "eval" <> help "eval the argument string")
+                     <*> strOption (short 'c' <> long "command" <> help "execute the argument string")
+                     <*> strOption (short 's' <> long "substitute" <> help "substitute strings")
+                     <*> strOption (short 'F' <> long "field" <> help "field information")
+                     <*> switch (short 'L' <> long "load-library" <> help "load library")
+                     <*> switch (short 'l' <> long "load-file" <> help "load file")
+                     <*> switch (short 'T' <> long "tsv" <> help "output in tsv format")
+                     <*> switch (long "no-io" <> help "prohibit all io primitives")
+                     <*> switch (long "no-banner" <> help "do not display banner")
+                     <*> switch (short 't' <> long "test" <> help "execute only test expressions")
+                     <*> switch (short 'p' <> long "prompt" <> help "set prompt string")
+                     <*> switch (short 'M' <> long "math" <> help "output in AsciiMath, Latex, Mathematica, or Maxima format")
+                     <*> switch (short 'N' <> long "new-syntax" <> help "parse by new syntax")
+  opts = info parser mempty
+-- main = do args <- getArgs
+--           let (actions, nonOpts, _) = getOpt Permute options args
+--           let opts = foldl (flip id) defaultOptions actions
+ --          if | opts ^. optShowHelp -> printHelp
+ --             | opts ^. optShowVersion -> printVersionNumber
+ --             | otherwise ->
+ --                case opts of
+ --                  Options {_optEvalString = mExpr, _optSubstituteString = mSub, _optFieldInfo = fieldInfo, _optLoadLibs = loadLibs, _optLoadFiles = loadFiles, _optShowBanner = bannerFlag, _optTsvOutput = tsvFlag, _optSExpr = isSExpr} -> do
+ --                    coreEnv <- if opts ^. optNoIO then initialEnvNoIO else initialEnv
+ --                    mEnv <- evalEgisonTopExprs coreEnv $ map (Load isSExpr) loadLibs ++ map (LoadFile isSExpr) loadFiles
+ --                    case mEnv of
+ --                      Left err -> print err
+ --                      Right env ->
+ --                        case mExpr of
+ --                          Just expr ->
+ --                            if tsvFlag
+ --                              then f isSExpr env $ "(execute (each (compose show-tsv print) " ++ expr ++ "))"
+ --                              else do ret <- runEgisonExpr isSExpr env expr
+ --                                      case ret of
+ --                                        Left err  -> hPrint stderr err >> exitFailure
+ --                                        Right val -> print val >> exitSuccess
+ --                          Nothing ->
+ --                            case (opts ^. optExecuteString) of
+ --                              Just cmd -> f isSExpr env $ "(execute " ++ cmd ++ ")"
+ --                              Nothing ->
+ --                                case mSub of
+ --                                  Just sub -> f isSExpr env $ "(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if tsvFlag then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst fieldInfo) ++  "} {" ++ unwords (map snd fieldInfo) ++  "})]} (" ++ sub ++ " SH.input))))"
+ --                                  Nothing ->
+ --                                    case nonOpts of
+ --                                      [] -> when bannerFlag showBanner >> repl (opts ^. optNoIO) isSExpr (opts ^. optMathExpr) env (opts ^. optPrompt) >> when bannerFlag showByebyeMessage >> exitSuccess
+ --                                      (file:args) ->
+ --                                        case opts of
+ --                                          Options {_optTestOnly = True} -> do
+ --                                            result <- if (opts ^. optNoIO)
+ --                                                        then do input <- readFile file
+ --                                                                nunEgisonTopExprsNoIO isSExpr env input
+ --                                                        else evalEgisonTopExprsTestOnly env [LoadFile isSExpr file]
+ --                                            either print (const $ return ()) result
+ --                                          Options {_optTestOnly = False} -> do
+ --                                            result <- evalEgisonTopExprs env [LoadFile isSExpr file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
+ --                                            either print (const $ return ()) result
+ -- where
+ --  f isSExpr env expr = do
+ --    cmdRet <- runEgisonTopExpr opts env expr
+ --    case cmdRet of
+ --      Left err -> hPrint stderr err >> exitFailure
+ --      _        -> exitSuccess
+--
+-- options
+--
+
+data EgisonOpt = EgisonOpt {
     optShowHelp         :: Bool,
+    optShowVersion      :: Bool,
     optEvalString       :: Maybe String,
     optExecuteString    :: Maybe String,
     optSubstituteString :: Maybe String,
@@ -97,8 +123,8 @@ data Options = Options {
     optSExpr            :: Bool
     }
 
-defaultOptions :: Options
-defaultOptions = Options {
+defaultOptions :: EgisonOpt
+defaultOptions = EgisonOpt {
     optShowVersion = False,
     optShowHelp = False,
     optEvalString = Nothing,
@@ -116,7 +142,7 @@ defaultOptions = Options {
     optSExpr = True
     }
 
-options :: [OptDescr (Options -> Options)]
+options :: [OptDescr (EgisonOpt -> EgisonOpt)]
 options = [
   Option ['h', '?'] ["help"]
     (NoArg (\opts -> opts {optShowHelp = True}))
@@ -293,3 +319,4 @@ repl noIOFlag isSExpr mathExprLang env prompt =
         HeapOverflow  -> putStrLn "Heap over flow!" >> loop st
         _             -> putStrLn "error!" >> loop st
      )
+
