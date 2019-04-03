@@ -1,3 +1,6 @@
+{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE TupleSections #-}
+
 module Main where
 
 import           Control.Exception          (AsyncException (..), catch)
@@ -16,7 +19,7 @@ import           System.Console.Haskeline   hiding (catch, handle, throwTo)
 import           System.Directory           (getHomeDirectory)
 import           System.Environment
 import           System.Exit                (ExitCode (..), exitFailure,
-                                             exitWith)
+                                             exitSuccess)
 import           System.FilePath            ((</>))
 import           System.IO
 
@@ -34,36 +37,36 @@ main = do args <- getArgs
             Options {optShowVersion = True} -> printVersionNumber
             Options {optEvalString = mExpr, optExecuteString = mCmd, optSubstituteString = mSub, optFieldInfo = fieldInfo, optLoadLibs = loadLibs, optLoadFiles = loadFiles, optPrompt = prompt, optShowBanner = bannerFlag, optTsvOutput = tsvFlag, optNoIO = noIOFlag, optMathExpr = mathExprLang, optSExpr = isSExpr} -> do
               coreEnv <- if noIOFlag then initialEnvNoIO else initialEnv
-              mEnv <- evalEgisonTopExprs coreEnv $ (map (Load isSExpr) loadLibs) ++ (map (LoadFile isSExpr) loadFiles)
+              mEnv <- evalEgisonTopExprs coreEnv $ map (Load isSExpr) loadLibs ++ map (LoadFile isSExpr) loadFiles
               case mEnv of
-                Left err -> putStrLn $ show err
-                Right env -> do
+                Left err -> print err
+                Right env ->
                   case mExpr of
                     Just expr ->
                       if tsvFlag
-                        then do ret <- runEgisonTopExprs isSExpr env ("(execute (each (compose show-tsv print) " ++ expr ++ "))")
+                        then do ret <- runEgisonTopExprs isSExpr env $ "(execute (each (compose show-tsv print) " ++ expr ++ "))"
                                 case ret of
-                                  Left err -> hPutStrLn stderr $ show err
+                                  Left err -> hPrint stderr err
                                   Right _  -> return ()
                         else do ret <- runEgisonExpr isSExpr env expr
                                 case ret of
-                                  Left err -> hPutStrLn stderr (show err) >> exitFailure
-                                  Right val -> putStrLn (show val) >> exitWith ExitSuccess
+                                  Left err -> hPrint stderr err >> exitFailure
+                                  Right val -> print val >> exitSuccess
                     Nothing ->
                       case mCmd of
                         Just cmd -> do cmdRet <- runEgisonTopExpr isSExpr env ("(execute " ++ cmd ++ ")")
                                        case cmdRet of
-                                         Left err -> putStrLn (show err) >> exitFailure
-                                         _ -> exitWith ExitSuccess
+                                         Left err -> print err >> exitFailure
+                                         _        -> exitSuccess
                         Nothing ->
                           case mSub of
-                            Just sub -> do cmdRet <- runEgisonTopExprs isSExpr env ("(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if tsvFlag then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ intercalate " " (map fst fieldInfo) ++  "} {" ++ intercalate " " (map snd fieldInfo) ++  "})]} (" ++ sub ++ " SH.input))))")
+                            Just sub -> do cmdRet <- runEgisonTopExprs isSExpr env ("(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if tsvFlag then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst fieldInfo) ++  "} {" ++ unwords (map snd fieldInfo) ++  "})]} (" ++ sub ++ " SH.input))))")
                                            case cmdRet of
-                                             Left err -> putStrLn (show err) >> exitFailure
-                                             _ -> exitWith ExitSuccess
+                                             Left err -> print err >> exitFailure
+                                             _ -> exitSuccess
                             Nothing ->
                               case nonOpts of
-                                [] -> when bannerFlag showBanner >> repl noIOFlag isSExpr mathExprLang env prompt >> when bannerFlag showByebyeMessage >> exitWith ExitSuccess
+                                [] -> when bannerFlag showBanner >> repl noIOFlag isSExpr mathExprLang env prompt >> when bannerFlag showByebyeMessage >> exitSuccess
                                 (file:args) ->
                                   case opts of
                                     Options {optTestOnly = True} -> do
@@ -73,7 +76,7 @@ main = do args <- getArgs
                                                   else evalEgisonTopExprsTestOnly env [LoadFile isSExpr file]
                                       either print (const $ return ()) result
                                     Options {optTestOnly = False} -> do
-                                      result <- evalEgisonTopExprs env [LoadFile isSExpr file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map (ElementExpr . StringExpr) (map T.pack args))))]
+                                      result <- evalEgisonTopExprs env [LoadFile isSExpr file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
                                       either print (const $ return ()) result
 
 data Options = Options {
@@ -166,7 +169,7 @@ options = [
     (NoArg (\opts -> opts {optTsvOutput = True}))
     "output in tsv format",
   Option ['F'] ["--field"]
-    (ReqArg (\d opts -> opts {optFieldInfo = optFieldInfo opts ++ [(readFieldOption d)]})
+    (ReqArg (\d opts -> opts {optFieldInfo = optFieldInfo opts ++ [readFieldOption d]})
             "String")
     "field information",
   Option ['M'] ["math"]
@@ -227,12 +230,12 @@ printHelp = do
   putStrLn "  --field, -F field          Specify a field type of input tsv"
   putStrLn "  --math, -M (asciimath|latex|mathematica|maxima)"
   putStrLn "                             Output in AsciiMath, LaTeX, or Mathematica format (only for interpreter)"
-  exitWith ExitSuccess
+  exitSuccess
 
 printVersionNumber :: IO ()
 printVersionNumber = do
   putStrLn $ showVersion version
-  exitWith ExitSuccess
+  exitSuccess
 
 showBanner :: IO ()
 showBanner = do
@@ -245,11 +248,11 @@ showBanner = do
 --  putStrLn $ "*****************"
 
 showByebyeMessage :: IO ()
-showByebyeMessage = putStrLn $ "Leaving Egison Interpreter."
+showByebyeMessage = putStrLn "Leaving Egison Interpreter."
 
-repl :: Bool -> Bool -> (Maybe String) -> Env -> String -> IO ()
-repl noIOFlag isSExpr mathExprLang env prompt = do
-  loop $ StateT (\defines -> flip (,) defines <$> recursiveBind env defines)
+repl :: Bool -> Bool -> Maybe String -> Env -> String -> IO ()
+repl noIOFlag isSExpr mathExprLang env prompt =
+  loop $ StateT (\defines -> (, defines) <$> recursiveBind env defines)
  where
   settings :: MonadIO m => FilePath -> Settings m
   settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
@@ -260,17 +263,17 @@ repl noIOFlag isSExpr mathExprLang env prompt = do
     input <- liftIO $ runInputT (settings home) $ getEgisonExpr isSExpr prompt
     case (noIOFlag, input) of
       (_, Nothing) -> return ()
-      (True, Just (_, (LoadFile _ _))) -> do
+      (True, Just (_, LoadFile _ _)) -> do
         putStrLn "error: No IO support"
         loop st
-      (True, Just (_, (Load _ _))) -> do
+      (True, Just (_, Load _ _)) -> do
         putStrLn "error: No IO support"
         loop st
       (_, Just (topExpr, _)) -> do
         result <- liftIO $ runEgisonTopExpr' isSExpr st topExpr
         case result of
           Left err -> do
-            liftIO $ putStrLn $ show err
+            liftIO $ print err
             loop st
           Right (Nothing, st') -> loop st'
           Right (Just output, st') ->
@@ -284,9 +287,9 @@ repl noIOFlag isSExpr mathExprLang env prompt = do
               _ -> putStrLn "error: this output lang is not supported"
              )
     `catch`
-    (\e -> case e of
-             UserInterrupt -> putStrLn "" >> loop st
-             StackOverflow -> putStrLn "Stack over flow!" >> loop st
-             HeapOverflow  -> putStrLn "Heap over flow!" >> loop st
-             _             -> putStrLn "error!" >> loop st
+    (\case
+        UserInterrupt -> putStrLn "" >> loop st
+        StackOverflow -> putStrLn "Stack over flow!" >> loop st
+        HeapOverflow  -> putStrLn "Heap over flow!" >> loop st
+        _             -> putStrLn "error!" >> loop st
      )
