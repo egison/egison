@@ -143,7 +143,7 @@ topExpr = try defineExpr
           <?> "top-level expression"
 
 defineExpr :: Parser EgisonTopExpr
-defineExpr = try (Define <$> identVar <*> (LambdaExpr <$> parens argNames' <* inSpaces (reservedOp "=") <* notFollowedBy (string "=") <*> expr))
+defineExpr = try (Define <$ keywordDefine <*> identVar <*> (LambdaExpr <$> parens argNames' <* inSpaces (reservedOp "=") <* notFollowedBy (string "=") <*> expr))
              <|> try (Define <$> identVar <* inSpaces (reservedOp "=") <* notFollowedBy (string "=") <*> expr)
              <|> try (do (VarWithIndices name is) <- identVarWithIndices
                          inSpaces $ reservedOp "=" >> notFollowedBy (string "=")
@@ -818,7 +818,7 @@ reserved = P.reserved lexer
 reservedOp :: String -> Parser ()
 reservedOp = P.reservedOp lexer
 
-keywordDefine               = reserved "define"
+keywordDefine               = reserved "def"
 keywordSet                  = reserved "set!"
 keywordTest                 = reserved "test"
 keywordLoadFile             = reserved "loadFile"
