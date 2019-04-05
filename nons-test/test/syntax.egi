@@ -291,9 +291,9 @@ assertEqual("pairs of 2, different natural numbers",
            | _ <++> $m <:> _ <++> $n <:> _ -> [m, n]),
   [[1, 2], [1, 3], [2, 3], [1, 4], [2, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5]])
 
-tree(a) = algebraicDataMatcher(<leaf>, <node tree(a) a tree(a)>)
+def tree(a) = algebraicDataMatcher(<leaf>, <node tree(a) a tree(a)>)
 
-treeInsert(n, t) = match t as tree(integer)
+def treeInsert(n, t) = match t as tree(integer)
                       | <leaf> -> <Node <Leaf> n <Leaf>>
                       | <node $t1 $m $t2> ->
                           (match compare(n, m) as ordering
@@ -301,7 +301,7 @@ treeInsert(n, t) = match t as tree(integer)
                            | <equal> -> <Node t1 n t2>
                            | <greater> -> <Node t1 m treeInsert(n, t2)>)
 
-treeMember?(n, t) =
+def treeMember?(n, t) =
   match t as tree(integer)
   | <leaf> -> #f
   | <node $t1 $m $t2> ->
@@ -373,7 +373,7 @@ assertEqual("double inverted index",
     in f([|1, 2, 3|]_i, [|10, 20, 30|]_j),
   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]~i~j)
 
-f(x, *y) = x + y
+def f(x, *y) = x + y
 assertEqual("single inverted index",
   let f = $x *$y -> x + y
     in f([|1, 2, 3|]_i, [|10, 20, 30|]_j),
@@ -397,28 +397,29 @@ assertEqual("case 2", nishiwakiIf(#f, 1, 2), 2)
 
 assertEqual("case 3", nishiwakiIf(eq?(1, 1), 1, 2), 1)
 
-listDfs(a) = matcherDFS
-             | <nil> as () ->
-               | [] -> {()}
-               | _ -> {}
-             | <cons $ $> as (a, listDfs(a)) ->
-               | [$x, @$xs] -> {(x, xs)}
-               | _ -> {}
-             | <snoc $ $> as (a, listDfs(a)) ->
-               | [@$xs, $x] -> {(x, xs)}
-               | _ -> {}
-             | <join $ $> as (listDfs(a), listDfs(a)) ->
-               | $tgt -> matchAll tgt as listDfs(a)
-                         | loop($i, (1, $n), <cons $xa_i ...>, $rs) ->
-                             (foldr((%i %r -> [xa_i, @r]), [], 1..n), rs)
-             | <nioj $ $> as (listDfs(a), listDfs(a)) ->
-               | $tgt -> matchAll tgt as listDfs(a)
-                         | loop($i, (1, $n), <snoc $xa_i ...>, $rs) ->
-                             (foldr((%i %r -> [@r, xa_i]), [], 1..n), rs)
-             | $val as () ->
-               | $tgt -> if val == tgt then {()} else {}
-             | $ as (something) ->
-               | $tgt -> {tgt}
+def listDfs(a) =
+  matcherDFS
+ | <nil> as () ->
+   | [] -> {()}
+   | _ -> {}
+ | <cons $ $> as (a, listDfs(a)) ->
+   | [$x, @$xs] -> {(x, xs)}
+   | _ -> {}
+ | <snoc $ $> as (a, listDfs(a)) ->
+   | [@$xs, $x] -> {(x, xs)}
+   | _ -> {}
+ | <join $ $> as (listDfs(a), listDfs(a)) ->
+   | $tgt -> matchAll tgt as listDfs(a)
+             | loop($i, (1, $n), <cons $xa_i ...>, $rs) ->
+                 (foldr((%i %r -> [xa_i, @r]), [], 1..n), rs)
+ | <nioj $ $> as (listDfs(a), listDfs(a)) ->
+   | $tgt -> matchAll tgt as listDfs(a)
+             | loop($i, (1, $n), <snoc $xa_i ...>, $rs) ->
+                 (foldr((%i %r -> [@r, xa_i]), [], 1..n), rs)
+ | $val as () ->
+   | $tgt -> if val == tgt then {()} else {}
+ | $ as (something) ->
+   | $tgt -> {tgt}
 
 assertEqual("matcherdfs",
   matchAll (1..5) as listDfs(integer)
