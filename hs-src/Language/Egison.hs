@@ -27,6 +27,7 @@ module Language.Egison
        , initialEnvNoIO
        -- * Information
        , version
+       , EgisonOpts (..)
       ) where
 
 import           Data.Version
@@ -62,31 +63,34 @@ evalEgisonTopExprsTestOnly :: Env -> [EgisonTopExpr] -> IO (Either EgisonError E
 evalEgisonTopExprsTestOnly env exprs = fromEgisonM $ evalTopExprsTestOnly env exprs
 
 -- |eval an Egison expression. Input is a Haskell string.
-runEgisonExpr :: Bool -> Env -> String -> IO (Either EgisonError EgisonValue)
-runEgisonExpr True env input = fromEgisonM $ Parser.readExpr input >>= evalExprDeep env
-runEgisonExpr False env input = fromEgisonM $ ParserNonS.readExpr input >>= evalExprDeep env
+runEgisonExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError EgisonValue)
+runEgisonExpr opts env input =
+  if optSExpr opts then fromEgisonM $ Parser.readExpr input >>= evalExprDeep env
+                   else fromEgisonM $ ParserNonS.readExpr input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr :: Bool -> Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExpr True env input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr env
-runEgisonTopExpr False env input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr env
--- runEgisonTopExpr :: Options -> Env -> String -> IO (Either EgisonError Env)
--- runEgisonTopExpr opts env input = fromEgisonM $ (if opts ^. optSExpr then Parser.readTopExpr else ParserNonS.readTopExpr) input >>= evalTopExpr env
+runEgisonTopExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExpr opts env input =
+  if optSExpr opts then fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr env
+                   else fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr' :: Bool -> StateT [(Var, EgisonExpr)] EgisonM Env -> String -> IO (Either EgisonError (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env))
-runEgisonTopExpr' True st input = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' st
-runEgisonTopExpr' False st input = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' st
+runEgisonTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> String -> IO (Either EgisonError (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env))
+runEgisonTopExpr' opts st input =
+  if optSExpr opts then fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' st
+                   else fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' st
 
 -- |eval Egison top expressions. Input is a Haskell string.
-runEgisonTopExprs :: Bool -> Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExprs True env input = fromEgisonM $ Parser.readTopExprs input >>= evalTopExprs env
-runEgisonTopExprs False env input = fromEgisonM $ ParserNonS.readTopExprs input >>= evalTopExprs env
+runEgisonTopExprs :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExprs opts env input =
+  if optSExpr opts then fromEgisonM $ Parser.readTopExprs input >>= evalTopExprs env
+                   else fromEgisonM $ ParserNonS.readTopExprs input >>= evalTopExprs env
 
 -- |eval Egison top expressions without IO. Input is a Haskell string.
-runEgisonTopExprsNoIO :: Bool -> Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExprsNoIO True env input = fromEgisonM $ Parser.readTopExprs input >>= evalTopExprsNoIO env
-runEgisonTopExprsNoIO False env input = fromEgisonM $ ParserNonS.readTopExprs input >>= evalTopExprsNoIO env
+runEgisonTopExprsNoIO :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
+runEgisonTopExprsNoIO opts env input =
+  if optSExpr opts then fromEgisonM $ Parser.readTopExprs input >>= evalTopExprsNoIO env
+                   else fromEgisonM $ ParserNonS.readTopExprs input >>= evalTopExprsNoIO env
 
 -- |load an Egison file
 loadEgisonFile :: Bool -> Env -> FilePath -> IO (Either EgisonError Env)
@@ -144,3 +148,29 @@ coreLibraries =
   , "lib/core/string.egi"
   , "lib/core/maybe.egi"
   ]
+
+--
+-- options
+--
+
+data EgisonOpts = EgisonOpts {
+    optExecFileandExpr  :: Maybe String,
+    optShowHelp         :: Bool,
+    optShowVersion      :: Bool,
+    optEvalString       :: Maybe String,
+    optExecuteString    :: Maybe String,
+    optFieldInfo        :: [(String, String)],
+    optLoadLibs         :: [String],
+    optLoadFiles        :: [String],
+    optSubstituteString :: Maybe String,
+    optMapTsvInput      :: Maybe String,
+    optFilterTsvInput   :: Maybe String,
+    optTsvOutput        :: Bool,
+    optNoIO             :: Bool,
+    optShowBanner       :: Bool,
+    optTestOnly         :: Bool,
+    optPrompt           :: String,
+    optMathExpr         :: Maybe String,
+    optSExpr            :: Bool
+    }
+
