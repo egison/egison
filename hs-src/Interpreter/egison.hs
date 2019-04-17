@@ -59,7 +59,7 @@ parserInfo = info (helper <*> parser)
             <*> many (readFieldOption <$> strOption
                   (short 'F'
                   <> long "field"
-                  <> metavar "FIELd"
+                  <> metavar "FIELD"
                   <> help "Field information"))
             <*> many (strOption
                   (short 'L'
@@ -134,9 +134,10 @@ readFieldOption str =
 runWithOptions :: EgisonOpts -> IO ()
 runWithOptions opts
   | optShowVersion opts = putStrLn (showVersion version) >> exitSuccess
+  | isInValidMathOption opts = hPrint stderr (Default "this output lang is not supported") >> exitFailure
   | otherwise = do
-      coreEnv <- if optNoIO opts then initialEnvNoIO else initialEnv
-      mEnv <- evalEgisonTopExprs coreEnv $ map (Load $ optSExpr opts) (optLoadLibs opts) ++ map (LoadFile $ optSExpr opts) (optLoadFiles opts)
+      coreEnv <- initialEnv opts
+      mEnv <- evalEgisonTopExprs opts coreEnv $ map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)
       case mEnv of
         Left err -> print err
         Right env ->
@@ -151,25 +152,25 @@ runWithOptions opts
             Nothing ->
               case optExecuteString opts of
                 Just cmd -> f opts env $ "(execute " ++ cmd ++ ")"
-                Nothing -> do
-                  let fieldinfo = []
+                Nothing ->
                   case optSubstituteString opts of
-                    Just sub -> f opts env $ "(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if optTsvOutput opts then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst fieldinfo) ++  "} {" ++ unwords (map snd fieldinfo) ++  "})]} (" ++ sub ++ " SH.input))))"
+                    Just sub -> f opts env $ "(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if optTsvOutput opts then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst $ optFieldInfo opts) ++  "} {" ++ unwords (map snd $ optFieldInfo opts) ++  "})]} (" ++ sub ++ " SH.input))))"
                     Nothing ->
                       case optExecFile opts of
                         Nothing -> when (optShowBanner opts) showBanner >> repl opts env >> when (optShowBanner opts) showByebyeMessage >> exitSuccess
                         Just (file, args) ->
-                          case opts of
-                            EgisonOpts {optTestOnly = True} -> do
+                          if optTestOnly opts then do
                               result <- if optNoIO opts
                                           then do input <- readFile file
-                                                  runEgisonTopExprsNoIO opts env input
-                                          else evalEgisonTopExprsTestOnly env [LoadFile (optSExpr opts) file]
+                                                  runEgisonTopExprs opts env input
+                                          else evalEgisonTopExprs opts env [LoadFile file]
                               either print (const $ return ()) result
-                            EgisonOpts {optTestOnly = False} -> do
-                              result <- evalEgisonTopExprs env [LoadFile (optSExpr opts) file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
+                          else do
+                              result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
                               either print (const $ return ()) result
  where
+  isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = not $ elem lang ["asciimath", "latex", "mathematica", "maxima"]
+  isInValidMathOption EgisonOpts{ optMathExpr = Nothing } = False
   f opts env expr = do
     cmdRet <- runEgisonTopExpr opts env expr
     case cmdRet of
@@ -199,31 +200,24 @@ repl opts env =
   loop :: StateT [(Var, EgisonExpr)] EgisonM Env -> IO ()
   loop st = (do
     home <- getHomeDirectory
-    input <- liftIO $ runInputT (settings home) $ getEgisonExpr (optSExpr opts) (optPrompt opts)
+    input <- liftIO $ runInputT (settings home) $ getEgisonExpr opts
     case (optNoIO opts, input) of
       (_, Nothing) -> return ()
-      (True, Just (_, LoadFile _ _)) -> do
+      (True, Just (_, LoadFile _)) -> do
         putStrLn "error: No IO support"
         loop st
-      (True, Just (_, Load _ _)) -> do
+      (True, Just (_, Load _)) -> do
         putStrLn "error: No IO support"
         loop st
       (_, Just (topExpr, _)) -> do
         result <- liftIO $ runEgisonTopExpr' opts st topExpr
         case result of
-          Left err -> do
-            liftIO $ print err
-            loop st
+          Left err -> liftIO (print err) >> loop st
           Right (Nothing, st') -> loop st'
           Right (Just output, st') ->
             case optMathExpr opts of
-              Nothing -> putStrLn output >> loop st'
-              Just "haskell" -> putStrLn (mathExprToHaskell output) >> loop st'
-              Just "asciimath" -> putStrLn (mathExprToAsciiMath output) >> loop st'
-              Just "latex" -> putStrLn (mathExprToLatex output) >> loop st'
-              Just "mathematica" -> putStrLn (mathExprToMathematica output) >> loop st'
-              Just "maxima" -> putStrLn (mathExprToMaxima output) >> loop st'
-              _ -> putStrLn "error: this output lang is not supported"
+              Nothing   -> putStrLn output >> loop st'
+              Just lang -> putStrLn (changeOutputInLang lang output) >> loop st'
              )
     `catch`
     (\case

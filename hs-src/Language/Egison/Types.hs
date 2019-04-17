@@ -158,6 +158,8 @@ module Language.Egison.Types
     , readUTF8File
     , stringToVar
     , varToVarWithIndices
+    , EgisonOpts (..)
+    , defaultOption
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
@@ -215,8 +217,8 @@ data EgisonTopExpr =
   | Test EgisonExpr
   | Execute EgisonExpr
     -- temporary : we will replace load to import and export
-  | LoadFile Bool String
-  | Load Bool String
+  | LoadFile String
+  | Load String
  deriving (Show, Eq)
 
 data EgisonExpr =
@@ -1936,3 +1938,32 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f (Superscript ())  = Superscript ""
    f (Subscript ())    = Subscript ""
    f (SupSubscript ()) = SupSubscript ""
+
+--
+-- options
+--
+
+data EgisonOpts = EgisonOpts {
+    optExecFile         :: Maybe (String, [String]),
+    optShowVersion      :: Bool,
+    optEvalString       :: Maybe String,
+    optExecuteString    :: Maybe String,
+    optFieldInfo        :: [(String, String)],
+    optLoadLibs         :: [String],
+    optLoadFiles        :: [String],
+    optSubstituteString :: Maybe String,
+    optMapTsvInput      :: Maybe String,
+    optFilterTsvInput   :: Maybe String,
+    optTsvOutput        :: Bool,
+    optNoIO             :: Bool,
+    optShowBanner       :: Bool,
+    optTestOnly         :: Bool,
+    optPrompt           :: String,
+    optMathExpr         :: Maybe String,
+    optSExpr            :: Bool
+    }
+
+defaultOption :: EgisonOpts
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True
+
+makeLenses ''MatchingStates
