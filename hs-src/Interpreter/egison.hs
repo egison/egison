@@ -32,10 +32,108 @@ import           Language.Egison.Util
 import           Options.Applicative
 
 
+main :: IO ()
+main = execParser parserInfo >>= runWithOptions
+
+parserInfo :: ParserInfo EgisonOpts
+parserInfo = info (helper <*> parser)
+              $ fullDesc
+              <> header "The Egison Programming Language"
+ where
+  parser = EgisonOpts
+            <$> optional ((,) <$> strArgument (metavar "FILE") <*> many (strArgument (metavar "ARGS")))
+            <*> switch
+                  (short 'v'
+                  <> long "version"
+                  <> help "Show version number")
+            <*> optional (strOption
+                  (short 'e'
+                  <> long "eval"
+                  <> metavar "EXPR"
+                  <> help "Evaluate the argument string"))
+            <*> optional (strOption
+                  (short 'c'
+                  <> long "command"
+                  <> metavar "EXPR"
+                  <> help "Execute the argument string"))
+            <*> many (readFieldOption <$> strOption
+                  (short 'F'
+                  <> long "field"
+                  <> metavar "FIELd"
+                  <> help "Field information"))
+            <*> many (strOption
+                  (short 'L'
+                  <> long "load-library"
+                  <> metavar "FILE"
+                  <> help "Load library"))
+            <*> many (strOption
+                  (short 'l'
+                  <> long "load-file"
+                  <> metavar "FILE"
+                  <> help "Load file"))
+            <*> optional (strOption
+                  (short 's'
+                  <> long "substitute"
+                  <> metavar "EXPR"
+                  <> help "Operate input in tsv format as infinite stream"))
+            <*> optional ((\s -> "(map " ++ s ++ " $)") <$> strOption
+                  (short 'm'
+                  <> long "map"
+                  <> metavar "EXPR"
+                  <> help "Operate input in tsv format line by line"))
+            <*> optional ((\s -> "(filter " ++ s ++ " $)") <$> strOption
+                  (short 'f'
+                  <> long "filter"
+                  <> metavar "EXPR"
+                  <> help "Filter input in tsv format line by line"))
+            <*> switch
+                  (short 'T'
+                  <> long "tsv"
+                  <> help "Output in tsv format")
+            <*> switch
+                  (long "no-io"
+                  <> help "Prohibit all io primitives")
+            <*> flag True False
+                  (long "no-banner"
+                  <> help "Do not display banner")
+            <*> switch
+                  (short 't'
+                  <> long "test"
+                  <> help "Execute only test expressions")
+            <*> strOption
+                  (short 'p'
+                  <> long "prompt"
+                  <> metavar "STRING"
+                  <> value "> "
+                  <> help "Set prompt string")
+            <*> optional (strOption
+                  (short 'M'
+                  <> long "math"
+                  <> metavar "(asciimath|latex|mathematica|maxima)"
+                  <> help "Output in AsciiMath, Latex, Mathematica, or Maxima format"))
+            <*> flag True False
+                  (short 'N'
+                  <> long "new-syntax"
+                  <> help "Parse by new syntax")
+
+readFieldOption :: String -> (String, String)
+readFieldOption str =
+   let (s, rs) = span isDigit str in
+   case rs of
+     ',':rs' -> let (e, opts) = span isDigit rs' in
+                case opts of
+                  ['s'] -> ("{" ++ s ++ " " ++ e ++ "}", "")
+                  ['c'] -> ("{}", "{" ++ s ++ " " ++ e ++ "}")
+                  ['s', 'c'] -> ("{" ++ s ++ " " ++ e ++ "}", "{" ++ s ++ " " ++ e ++ "}")
+                  ['c', 's'] -> ("{" ++ s ++ " " ++ e ++ "}", "{" ++ s ++ " " ++ e ++ "}")
+     ['s'] -> ("{" ++ s ++ "}", "")
+     ['c'] -> ("", "{" ++ s ++ "}")
+     ['s', 'c'] -> ("{" ++ s ++ "}", "{" ++ s ++ "}")
+     ['c', 's'] -> ("{" ++ s ++ "}", "{" ++ s ++ "}")
+
 runWithOptions :: EgisonOpts -> IO ()
 runWithOptions opts
-  | optShowHelp opts = printHelp
-  | optShowVersion opts = printVersionNumber
+  | optShowVersion opts = putStrLn (showVersion version) >> exitSuccess
   | otherwise = do
       coreEnv <- if optNoIO opts then initialEnvNoIO else initialEnv
       mEnv <- evalEgisonTopExprs coreEnv $ map (Load $ optSExpr opts) (optLoadLibs opts) ++ map (LoadFile $ optSExpr opts) (optLoadFiles opts)
@@ -58,10 +156,9 @@ runWithOptions opts
                   case optSubstituteString opts of
                     Just sub -> f opts env $ "(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if optTsvOutput opts then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst fieldinfo) ++  "} {" ++ unwords (map snd fieldinfo) ++  "})]} (" ++ sub ++ " SH.input))))"
                     Nothing ->
-                      case optExecFileandExpr opts of
+                      case optExecFile opts of
                         Nothing -> when (optShowBanner opts) showBanner >> repl opts env >> when (optShowBanner opts) showByebyeMessage >> exitSuccess
-                        -- (file:args) ->
-                        Just file ->
+                        Just (file, args) ->
                           case opts of
                             EgisonOpts {optTestOnly = True} -> do
                               result <- if optNoIO opts
@@ -70,7 +167,6 @@ runWithOptions opts
                                           else evalEgisonTopExprsTestOnly env [LoadFile (optSExpr opts) file]
                               either print (const $ return ()) result
                             EgisonOpts {optTestOnly = False} -> do
-                              let args = []
                               result <- evalEgisonTopExprs env [LoadFile (optSExpr opts) file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
                               either print (const $ return ()) result
  where
@@ -79,86 +175,6 @@ runWithOptions opts
     case cmdRet of
       Left err -> hPrint stderr err >> exitFailure
       _        -> exitSuccess
-
-main :: IO ()
-main = execParser opts >>= runWithOptions
- where
-  parser = EgisonOpts
-            <$> optional (strArgument (metavar "FILE"))
-            <*> switch (short 'h' <> long "help" <> help "show usage information")
-            <*> switch (short 'v' <> long "version" <> help "show version number")
-            <*> optional (strOption (short 'e' <> long "eval" <> help "eval the argument string"))
-            <*> optional (strOption (short 'c' <> long "command" <> help "execute the argument string"))
-            <*> many (readFieldOption <$> strOption (short 'F' <> long "field" <> help "field information"))
-            <*> many (strOption (short 'L' <> long "load-library" <> help "load library"))
-            <*> many (strOption (short 'l' <> long "load-file" <> help "load file"))
-            <*> optional (strOption (short 's' <> long "substitute" <> help "operate input in tsv format as infinite stream"))
-            <*> optional ((\s -> "(map " ++ s ++ " $)") <$> strOption (short 'm' <> long "map" <> help "operate input in tsv format line by line"))
-            <*> optional ((\s -> "(filter " ++ s ++ " $)") <$> strOption (short 'f' <> long "filter" <> help "filter input in tsv format line by line"))
-            <*> switch (short 'T' <> long "tsv" <> help "output in tsv format")
-            <*> switch (long "no-io" <> help "prohibit all io primitives")
-            <*> flag True False (long "no-banner" <> help "do not display banner")
-            <*> switch (short 't' <> long "test" <> help "execute only test expressions")
-            <*> strOption (short 'p' <> long "prompt" <> value "> " <> help "set prompt string")
-            <*> optional (strOption (short 'M' <> long "math" <> help "output in AsciiMath, Latex, Mathematica, or Maxima format"))
-            <*> flag True False (short 'N' <> long "new-syntax" <> help "parse by new syntax")
-  opts = info parser mempty
-
-readFieldOption :: String -> (String, String)
-readFieldOption str =
-   let (s, rs) = span isDigit str in
-   case rs of
-     ',':rs' -> let (e, opts) = span isDigit rs' in
-                case opts of
-                  ['s'] -> ("{" ++ s ++ " " ++ e ++ "}", "")
-                  ['c'] -> ("{}", "{" ++ s ++ " " ++ e ++ "}")
-                  ['s', 'c'] -> ("{" ++ s ++ " " ++ e ++ "}", "{" ++ s ++ " " ++ e ++ "}")
-                  ['c', 's'] -> ("{" ++ s ++ " " ++ e ++ "}", "{" ++ s ++ " " ++ e ++ "}")
-     ['s'] -> ("{" ++ s ++ "}", "")
-     ['c'] -> ("", "{" ++ s ++ "}")
-     ['s', 'c'] -> ("{" ++ s ++ "}", "{" ++ s ++ "}")
-     ['c', 's'] -> ("{" ++ s ++ "}", "{" ++ s ++ "}")
-
-printHelp :: IO ()
-printHelp = do
-  putStrLn "Usage: egison [options]"
-  putStrLn "       egison [options] file"
-  putStrLn "       egison [options] expr"
-  putStrLn ""
-  putStrLn "Global Options:"
-  putStrLn "  --help, -h                 Display this information"
-  putStrLn "  --version, -v              Display egison version information"
-  putStrLn ""
-  putStrLn "  --load-library, -L file    Load the argument library"
-  putStrLn "  --load-file, -l file       Load the argument file"
-  putStrLn "  --no-io                    Prohibit all IO primitives"
-  putStrLn ""
-  putStrLn "Options as an interactive interpreter:"
-  putStrLn "  --prompt string            Set prompt of the interpreter"
-  putStrLn "  --no-banner                Don't show banner"
-  putStrLn ""
-  putStrLn "Options to handle Egison program file:"
-  putStrLn "  --test, -t file            Run only test expressions"
-  putStrLn ""
-  putStrLn "Options as a shell command:"
-  putStrLn "  --eval, -e expr            Evaluate the argument expression"
-  putStrLn "  --command, -c expr         Execute the argument expression"
-  putStrLn ""
-  putStrLn "  --substitute, -s expr      Substitute input using the argument expression"
-  putStrLn "  --map, -m expr             Substitute each line of input using the argument expression"
-  putStrLn "  --filter, -f expr          Filter each line of input using the argument predicate"
-  putStrLn ""
-  putStrLn "Options to change input or output format:"
-  putStrLn "  --tsv, -T                  Input and output in tsv format"
-  putStrLn "  --field, -F field          Specify a field type of input tsv"
-  putStrLn "  --math, -M (asciimath|latex|mathematica|maxima)"
-  putStrLn "                             Output in AsciiMath, LaTeX, or Mathematica format (only for interpreter)"
-  exitSuccess
-
-printVersionNumber :: IO ()
-printVersionNumber = do
-  putStrLn $ showVersion version
-  exitSuccess
 
 showBanner :: IO ()
 showBanner = do
@@ -216,4 +232,3 @@ repl opts env =
         HeapOverflow  -> putStrLn "Heap over flow!" >> loop st
         _             -> putStrLn "error!" >> loop st
      )
-
