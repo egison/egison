@@ -6,11 +6,20 @@ Licence     : MIT
 This module provides utility functions.
 -}
 
-module Language.Egison.MathOutput (mathExprToHaskell, mathExprToAsciiMath, mathExprToLatex, mathExprToMathematica, mathExprToMaxima) where
+module Language.Egison.MathOutput ( changeOutputInLang ) where
 
 import           Control.Monad
 import           System.Environment
 import           Text.ParserCombinators.Parsec hiding (spaces)
+
+
+changeOutputInLang :: String -> String -> String
+changeOutputInLang "haskell" input     = mathExprToHaskell input
+changeOutputInLang "asciimath" input   = mathExprToAsciiMath input
+changeOutputInLang "latex" input       = mathExprToLatex input
+changeOutputInLang "mathematica" input = mathExprToMathematica input
+changeOutputInLang "maxima" input      = mathExprToMaxima input
+changeOutputInLang _ input             = input
 
 mathExprToHaskell :: String -> String
 mathExprToHaskell input = case parse parseExpr "math-expr" input of

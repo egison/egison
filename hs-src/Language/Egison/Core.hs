@@ -15,8 +15,7 @@ module Language.Egison.Core
     (
     -- * Egison code evaluation
       evalTopExprs
-    , evalTopExprsTestOnly
-    , evalTopExprsNoIO
+    , collectDefs
     , evalTopExpr
     , evalTopExpr'
     , evalExpr
@@ -77,6 +76,7 @@ import qualified Data.Vector                as V
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 
+import           Language.Egison.MathOutput
 import           Language.Egison.Parser     as Parser
 import           Language.Egison.ParserNonS as ParserNonS
 import           Language.Egison.Types
@@ -85,91 +85,61 @@ import           Language.Egison.Types
 -- Evaluator
 --
 
-evalTopExprs :: Env -> [EgisonTopExpr] -> EgisonM Env
-evalTopExprs env exprs = do
-  (bindings, rest) <- collectDefs exprs [] []
+evalTopExprs :: EgisonOpts -> Env -> [EgisonTopExpr] -> EgisonM Env
+evalTopExprs opts env exprs = do
+  (bindings, rest) <- collectDefs opts exprs [] []
   env <- recursiveBind env bindings
-  forM_ rest $ evalTopExpr env
+  forM_ rest $ evalTopExpr opts env
   return env
 
-collectDefs :: [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
-collectDefs (expr:exprs) bindings rest =
+collectDefs :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
+collectDefs opts (expr:exprs) bindings rest =
   case expr of
-    Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-    Load b file -> do
-      exprs' <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
-      collectDefs (exprs' ++ exprs) bindings rest
-    LoadFile b file -> do
-      exprs' <- if b then Parser.loadFile file else ParserNonS.loadFile file
-      collectDefs (exprs' ++ exprs) bindings rest
-    Execute _ -> collectDefs exprs bindings (expr : rest)
-    _ -> collectDefs exprs bindings rest
-collectDefs [] bindings rest = return (bindings, reverse rest)
+    Define name expr -> collectDefs opts exprs ((name, expr) : bindings) rest
+    Redefine _ _ -> collectDefs opts exprs bindings $ if optTestOnly opts then expr : rest else rest
+    Test _ -> collectDefs opts exprs bindings $ if optTestOnly opts then expr : rest else rest
+    Execute _ -> collectDefs opts exprs bindings $ if optTestOnly opts then rest else expr : rest
+    LoadFile file ->
+      if optNoIO opts
+         then throwError $ Default "No IO support"
+         else do exprs' <- if optSExpr opts then Parser.loadFile file else ParserNonS.loadFile file
+                 collectDefs opts (exprs' ++ exprs) bindings rest
+    Load file ->
+      if optNoIO opts
+         then throwError $ Default "No IO support"
+         else do exprs' <- if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
+                 collectDefs opts (exprs' ++ exprs) bindings rest
+collectDefs _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExprsTestOnly :: Env -> [EgisonTopExpr] -> EgisonM Env
-evalTopExprsTestOnly env exprs = do
-  (bindings, rest) <- collectDefs exprs [] []
-  env <- recursiveBind env bindings
-  forM_ rest $ evalTopExpr env
-  return env
- where
-  collectDefs :: [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
-  collectDefs (expr:exprs) bindings rest =
-    case expr of
-      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load b file -> do
-        exprs' <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
-        collectDefs (exprs' ++ exprs) bindings rest
-      LoadFile b file -> do
-        exprs' <- if b then Parser.loadFile file else ParserNonS.loadFile file
-        collectDefs (exprs' ++ exprs) bindings rest
-      Test _ -> collectDefs exprs bindings (expr : rest)
-      Redefine _ _ -> collectDefs exprs bindings (expr : rest)
-      _ -> collectDefs exprs bindings rest
-  collectDefs [] bindings rest = return (bindings, reverse rest)
-
-evalTopExprsNoIO :: Env -> [EgisonTopExpr] -> EgisonM Env
-evalTopExprsNoIO env exprs = do
-  (bindings, rest) <- collectDefs exprs [] []
-  env <- recursiveBind env bindings
-  forM_ rest $ evalTopExpr env
-  return env
- where
-  collectDefs :: [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
-  collectDefs (expr:exprs) bindings rest =
-    case expr of
-      Define name expr -> collectDefs exprs ((name, expr) : bindings) rest
-      Load _ _         -> throwError $ Default "No IO support"
-      LoadFile _ _     -> throwError $ Default "No IO support"
-      _                -> collectDefs exprs bindings (expr : rest)
-  collectDefs [] bindings rest = return (bindings, reverse rest)
-
-evalTopExpr :: Env -> EgisonTopExpr -> EgisonM Env
-evalTopExpr env topExpr = do
-  ret <- evalTopExpr' (StateT $ \defines -> (, defines) <$> recursiveBind env defines) topExpr
+evalTopExpr :: EgisonOpts -> Env -> EgisonTopExpr -> EgisonM Env
+evalTopExpr opts env topExpr = do
+  ret <- evalTopExpr' opts (StateT $ \defines -> (, defines) <$> recursiveBind env defines) topExpr
   case fst ret of
     Nothing     -> return ()
-    Just output -> liftIO $ putStrLn output
+    Just output -> liftIO $
+            case optMathExpr opts of
+              Nothing   -> putStrLn output
+              Just lang -> putStrLn $ changeOutputInLang lang output
   evalStateT (snd ret) []
 
-evalTopExpr' :: StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
-evalTopExpr' st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
-evalTopExpr' st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
-evalTopExpr' st (Test expr) = do
+evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
+evalTopExpr' _ st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
+evalTopExpr' _ st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
+evalTopExpr' _ st (Test expr) = do
   val <- evalStateT st [] >>= flip evalExprDeep expr
   return (Just (show val), st)
-evalTopExpr' st (Execute expr) = do
+evalTopExpr' _ st (Execute expr) = do
   io <- evalStateT st [] >>= flip evalExpr expr
   case io of
     Value (IOFunc m) -> m >> return (Nothing, st)
     _                -> throwError $ TypeMismatch "io" io
-evalTopExpr' st (Load b file) = do
-  exprs <- if b then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
-  (bindings, _) <- collectDefs exprs [] []
+evalTopExpr' opts st (Load file) = do
+  exprs <- if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
+  (bindings, _) <- collectDefs opts exprs [] []
   return (Nothing, withStateT (\defines -> bindings ++ defines) st)
-evalTopExpr' st (LoadFile b file) = do
-  exprs <- if b then Parser.loadFile file else ParserNonS.loadFile file
-  (bindings, _) <- collectDefs exprs [] []
+evalTopExpr' opts st (LoadFile file) = do
+  exprs <- if optSExpr opts then Parser.loadFile file else ParserNonS.loadFile file
+  (bindings, _) <- collectDefs opts exprs [] []
   return (Nothing, withStateT (\defines -> bindings ++ defines) st)
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData

@@ -107,9 +107,9 @@ loadFile file = do
   exprs <- readTopExprs $ shebang input
   concat <$> mapM  recursiveLoad exprs
  where
-  recursiveLoad (Load _ file)     = loadLibraryFile file
-  recursiveLoad (LoadFile _ file) = loadFile file
-  recursiveLoad expr              = return [expr]
+  recursiveLoad (Load file)     = loadLibraryFile file
+  recursiveLoad (LoadFile file) = loadFile file
+  recursiveLoad expr            = return [expr]
   shebang :: String -> String
   shebang ('#':'!':cs) = ';':'#':'!':cs
   shebang cs           = cs
@@ -164,10 +164,10 @@ executeExpr :: Parser EgisonTopExpr
 executeExpr = keywordExecute >> Execute <$> expr
 
 loadFileExpr :: Parser EgisonTopExpr
-loadFileExpr = keywordLoadFile >> LoadFile True <$> stringLiteral
+loadFileExpr = keywordLoadFile >> LoadFile <$> stringLiteral
 
 loadExpr :: Parser EgisonTopExpr
-loadExpr = keywordLoad >> Load True <$> stringLiteral
+loadExpr = keywordLoad >> Load <$> stringLiteral
 
 exprs :: Parser [EgisonExpr]
 exprs = endBy expr whiteSpace
