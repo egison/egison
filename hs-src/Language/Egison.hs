@@ -154,8 +154,7 @@ coreLibraries =
 --
 
 data EgisonOpts = EgisonOpts {
-    optExecFileandExpr  :: Maybe String,
-    optShowHelp         :: Bool,
+    optExecFile         :: Maybe (String, [String]),
     optShowVersion      :: Bool,
     optEvalString       :: Maybe String,
     optExecuteString    :: Maybe String,
