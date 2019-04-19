@@ -97,6 +97,12 @@
       [(map 1#(lambda [$i] (nth i %1)) es)
        (map 1#(lambda [$i] (nth i %1)) os)])))
 
+(define $even-and-odd-permutations0
+  (lambda [$n]
+    (let {[[$es $os] (even-and-odd-permutations' n)]}
+      [(map 1#(lambda [$i] (nth (+ i 1) (map (- $ 1) %1))) es)
+       (map 1#(lambda [$i] (nth (+ i 1) (map (- $ 1) %1))) os)])))
+
 (define $even-and-odd-permutations'
   (lambda [$n]
     (match n integer

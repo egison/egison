@@ -28,7 +28,7 @@
 (define $.
   (cambda $xs
     (match xs (list something)
-      {[<join _ <cons (& ?scalar? ?tensor-symbol?) _>> (capply `. xs)]
+      {;[<join _ <cons (& ?scalar? ?tensor-symbol?) _>> (capply `. xs)]
        [_ (foldl b.. (car xs) (cdr xs))]})))
 
 (define $T.+
