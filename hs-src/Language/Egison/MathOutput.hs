@@ -197,7 +197,7 @@ showMathExprLatexVectors lvs = showMathExprLatexArg lvs " \\\\ " ++ "\\\\ "
 
 showMathExprMathematica :: MathExpr -> String
 showMathExprMathematica (Atom a []) = a
-showMathExprMathematica (Partial f xs) = "undefined"
+showMathExprMathematica (Partial f xs) = showMathExprMathematica f ++ "_" ++ (showMathExprsMathematica "_" xs)
 showMathExprMathematica (NegativeAtom a) = "-" ++ a
 showMathExprMathematica (Plus []) = ""
 showMathExprMathematica (Plus (x:xs)) = showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
@@ -235,10 +235,13 @@ showMathExprMathematica' :: MathExpr -> String
 showMathExprMathematica' (Plus xs) = "(" ++ showMathExprMathematica (Plus xs) ++ ")"
 showMathExprMathematica' x = showMathExprMathematica x
 
+showMathExprsMathematica :: String -> [MathExpr] -> String
+showMathExprsMathematica _ [] = ""
+showMathExprsMathematica _ [a] = showMathExprMathematica a
+showMathExprsMathematica s lvs = showMathExprMathematica (head lvs) ++ s ++ showMathExprsMathematica s (tail lvs)
+
 showMathExprMathematicaArg :: [MathExpr] -> String
-showMathExprMathematicaArg [] = ""
-showMathExprMathematicaArg [a] = showMathExprMathematica a
-showMathExprMathematicaArg lvs = showMathExprMathematica (head lvs) ++ ", " ++ showMathExprMathematicaArg (tail lvs)
+showMathExprMathematicaArg xs = showMathExprsMathematica ", " xs
 
 showMathExprMathematicaIndices :: [MathIndex] -> String
 showMathExprMathematicaIndices [a] = showMathIndexMathematica a
