@@ -227,11 +227,11 @@ expr' = try partialExpr
                         <|> doExpr
                         <|> ioExpr
                         <|> matchAllExpr
+                        <|> matchAllDFSExpr
                         <|> matchExpr
                         <|> matchAllLambdaExpr
                         <|> matchLambdaExpr
                         <|> matcherExpr
-                        <|> matcherDFSExpr
                         <|> seqExpr
                         <|> applyExpr
                         <|> cApplyExpr
@@ -316,6 +316,9 @@ quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 matchAllExpr :: Parser EgisonExpr
 matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
 
+matchAllDFSExpr :: Parser EgisonExpr
+matchAllDFSExpr = keywordMatchAllDFS >> MatchAllDFSExpr <$> expr <*> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
+
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
 
@@ -333,9 +336,6 @@ matchClause = brackets $ (,) <$> pattern <*> expr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
-
-matcherDFSExpr :: Parser EgisonExpr
-matcherDFSExpr = keywordMatcherDFS >> MatcherDFSExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
 ppMatchClauses = braces $ sepEndBy ppMatchClause whiteSpace
@@ -594,8 +594,6 @@ pattern' = wildCard
                     <|> loopPat
                     <|> letPat
                     <|> laterPat
-                    <|> bfsPat
-                    <|> dfsPat
                     <|> try divPat
                     <|> try plusPat
                     <|> try multPat
@@ -680,12 +678,6 @@ multPat = reservedOp "*" >> MultPat <$> sepEndBy powerPat whiteSpace
 powerPat :: Parser EgisonPattern
 powerPat = try (PowerPat <$> pattern <* char '^' <*> pattern)
             <|> pattern
-
-dfsPat :: Parser EgisonPattern
-dfsPat = keywordDFS >> DFSPat' <$> pattern
-
-bfsPat :: Parser EgisonPattern
-bfsPat = keywordBFS >> BFSPat <$> pattern
 
 -- Constants
 
@@ -872,11 +864,11 @@ keywordWithSymbols          = reserved "with-symbols"
 keywordLoop                 = reserved "loop"
 keywordCont                 = reserved "..."
 keywordMatchAll             = reserved "match-all"
+keywordMatchAllDFS          = reserved "match-all-dfs"
 keywordMatchAllLambda       = reserved "match-all-lambda"
 keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "match-lambda"
 keywordMatcher              = reserved "matcher"
-keywordMatcherDFS           = reserved "matcher-dfs"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
@@ -902,8 +894,6 @@ keywordUserrefs             = reserved "user-refs"
 keywordUserrefsNew          = reserved "user-refs!"
 keywordFunction             = reserved "function"
 keywordSymbolicTensor       = reserved "symbolic-tensor"
-keywordDFS                  = reserved "dfs"
-keywordBFS                  = reserved "bfs"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

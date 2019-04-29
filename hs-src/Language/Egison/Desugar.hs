@@ -312,6 +312,12 @@ desugar (MatchAllExpr expr0 expr1 clauses) = do
   clauses' <- desugarMatchClauses clauses
   return $ MatchAllExpr expr0' expr1' clauses'
 
+desugar (MatchAllDFSExpr expr0 expr1 clauses) = do
+  expr0' <- desugar expr0
+  expr1' <- desugar expr1
+  clauses' <- desugarMatchClauses clauses
+  return $ MatchAllDFSExpr expr0' expr1' clauses'
+
 desugar (DoExpr binds expr) = do
   binds' <- desugarBindings binds
   expr' <- desugar expr
@@ -398,10 +404,6 @@ desugar (MatcherExpr matcherInfo) = do
   matcherInfo' <- desugarMatcherInfo matcherInfo
   return $ MatcherExpr matcherInfo'
 
-desugar (MatcherDFSExpr matcherInfo) = do
-  matcherInfo' <- desugarMatcherInfo matcherInfo
-  return $ MatcherDFSExpr matcherInfo'
-
 desugar (PartialVarExpr n) = return $ PartialVarExpr n
 
 desugar (PartialExpr n expr) = do
@@ -451,8 +453,6 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (PlusPat patterns) = collectNames patterns
    collectName (MultPat patterns) = collectNames patterns
    collectName (PowerPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
-   collectName (DFSPat _ pattern) = collectName pattern
-   collectName (BFSPat pattern) = collectName pattern
    collectName _ = S.empty
 
    makeBinding :: String -> BindingExpr
@@ -505,24 +505,7 @@ desugarPattern' (MultPat (intPat:patterns)) = do
    f (MultPat xs) = concatMap f xs
    f pat          = [pat]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (DFSPat' pattern) = desugarPattern' pattern >>= dfs
-desugarPattern' (BFSPat pattern) = BFSPat <$> desugarPattern' pattern
 desugarPattern' pattern = return pattern
-
-dfs :: EgisonPattern -> DesugarM EgisonPattern
-dfs (NotPat pattern) = NotPat <$> dfs pattern
-dfs (AndPat patterns) = DFSPat <$> fresh <*> (AndPat <$> mapM dfs patterns)
-dfs (OrPat patterns)  = DFSPat <$> fresh <*> (OrPat <$> mapM dfs patterns)
-dfs (OrderedOrPat id pat1 pat2)  = OrderedOrPat id <$> dfs pat1 <*> dfs pat2
-dfs (TuplePat patterns)  = DFSPat <$> fresh <*> (TuplePat <$> mapM dfs patterns)
-dfs (InductivePat name patterns) = DFSPat <$> fresh <*> (InductivePat name <$> mapM dfs patterns)
-dfs (IndexedPat pattern exprs) = DFSPat <$> fresh <*> (flip IndexedPat exprs <$> dfs pattern)
-dfs (PApplyPat expr patterns) = DFSPat <$> fresh <*> (PApplyPat expr <$> mapM dfs patterns)
-dfs (DApplyPat pattern patterns) = DFSPat <$> fresh <*> (DApplyPat <$> dfs pattern <*> mapM dfs patterns)
-dfs (LoopPat name range pattern1 pattern2) = DFSPat <$> fresh <*> (LoopPat name range <$> dfs pattern1 <*> dfs pattern2)
-dfs (LetPat binds pattern) = DFSPat <$> fresh <*> (LetPat binds <$> dfs pattern)
-dfs (PowerPat pattern1 pattern2) = DFSPat <$> fresh <*> (PowerPat <$> dfs pattern1 <*> dfs pattern2)
-dfs pattern = return pattern
 
 desugarLoopRange :: LoopRange -> DesugarM LoopRange
 desugarLoopRange (LoopRange sExpr eExpr pattern) = do

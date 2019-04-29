@@ -104,19 +104,10 @@ module Language.Egison.Types
     -- * Pattern matching
     , Match
     , PMMode (..)
-    , pmMode
     , MatchingTree (..)
     , MatchingState (..)
-    , MatchingStates (..)
     , PatternBinding (..)
     , LoopPatContext (..)
-    , topDFS
-    , containBFS
-    -- * makeLenses
-    , normalTree
-    , orderedOrTrees
-    , ids
-    , bool
     -- * Errors
     , EgisonError (..)
     , liftError
@@ -264,11 +255,11 @@ data EgisonExpr =
 
   | MatchExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchAllExpr EgisonExpr EgisonExpr [MatchClause]
+  | MatchAllDFSExpr EgisonExpr EgisonExpr [MatchClause]
   | MatchLambdaExpr EgisonExpr [MatchClause]
   | MatchAllLambdaExpr EgisonExpr [MatchClause]
 
   | MatcherExpr MatcherInfo
-  | MatcherDFSExpr MatcherInfo
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
 
   | QuoteExpr EgisonExpr
@@ -362,9 +353,6 @@ data EgisonPattern =
   | PlusPat [EgisonPattern]
   | MultPat [EgisonPattern]
   | PowerPat EgisonPattern EgisonPattern
-  | DFSPat' EgisonPattern
-  | DFSPat Id EgisonPattern
-  | BFSPat EgisonPattern
  deriving (Show, Eq)
 
 data LoopRange = LoopRange EgisonExpr EgisonExpr EgisonPattern
@@ -407,7 +395,7 @@ data EgisonValue =
   | IntHash (HashMap Integer EgisonValue)
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
-  | UserMatcher Env MatcherInfo PMMode
+  | UserMatcher Env MatcherInfo
   | Func (Maybe Var) Env [String] EgisonExpr
   | PartialFunc Env Integer EgisonExpr
   | CFunc (Maybe Var) Env String EgisonExpr
@@ -1628,58 +1616,24 @@ refVar (Env env _) var = msum $ map (HashMap.lookup var) env
 
 type Match = [Binding]
 
-data PMMode = BFSMode | DFSMode Id
+data PMMode = BFSMode | DFSMode
  deriving (Show)
 
-data MatchingState = MState PMMode Env [LoopPatContext] [Binding] [MatchingTree]
+data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree] -- [MatchingTree]
 
 instance Show MatchingState where
-  show (MState mode _ _ bindings mtrees) = "(MState " ++ unwords [show mode, "_", "_", show bindings, show mtrees] ++ ")"
-
-pmMode :: MatchingState -> PMMode
-pmMode (MState mode _ _ _ _) = mode
+  show (MState _ _ bindings mtrees) = "(MState " ++ unwords ["_", "_", show bindings, show mtrees] ++ ")"
+--  show (MState _ _ bindings mtrees nextmtrees) = "(MState " ++ unwords ["_", "_", show bindings, show mtrees, show nextmtrees] ++ ")"
 
 data MatchingTree =
     MAtom EgisonPattern WHNFData Matcher
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
-data MatchingStates = MatchingStates { _normalTree :: [[MList EgisonM MatchingState]],
-                                       _orderedOrTrees :: Map Id (Map Int [MList EgisonM MatchingState]),
-                                       _ids :: [Id],
-                                       _bool :: Bool
-                                      } deriving (Show)
-
 type PatternBinding = (String, EgisonPattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
-
-topDFS :: EgisonPattern -> Bool
-topDFS (DFSPat _ _)                 = True
-topDFS (InductivePat _ (pattern:_)) = topDFS pattern
-topDFS (LetPat _ pattern)           = topDFS pattern
-topDFS _                            = False
-
-containBFS :: EgisonPattern -> Bool
-containBFS (BFSPat _)                 = True
-containBFS (IndexedPat pattern _)     = containBFS pattern
-containBFS (NotPat pattern)           = containBFS pattern
-containBFS (AndPat patterns)          = any containBFS patterns
-containBFS (OrPat patterns)           = any containBFS patterns
-containBFS (OrderedOrPat _ pat1 pat2) = containBFS pat1 || containBFS pat2
-containBFS (TuplePat patterns)        = any containBFS patterns
-containBFS (InductivePat _ patterns)  = any containBFS patterns
-containBFS (LoopPat _ _ pat1 pat2)    = containBFS pat1 || containBFS pat2
-containBFS (PApplyPat _ patterns)     = any containBFS patterns
-containBFS (DApplyPat pat patterns)   = any containBFS (pat:patterns)
-containBFS (DivPat pat1 pat2)         = containBFS pat1 || containBFS pat2
-containBFS (PlusPat patterns)         = any containBFS patterns
-containBFS (MultPat patterns)         = any containBFS patterns
-containBFS (PowerPat pat1 pat2)       = containBFS pat1 || containBFS pat2
-containBFS (DFSPat _ pattern)         = containBFS pattern
-containBFS (LetPat _ pattern)         = containBFS pattern
-containBFS _                          = False
 
 --
 -- Errors
@@ -1978,5 +1932,3 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f (Superscript ())  = Superscript ""
    f (Subscript ())    = Subscript ""
    f (SupSubscript ()) = SupSubscript ""
-
-makeLenses ''MatchingStates
