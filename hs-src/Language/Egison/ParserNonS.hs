@@ -231,10 +231,10 @@ term = P.lexeme lexer
 term' :: Parser EgisonExpr
 term' = matchExpr
         <|> matchAllExpr
+        <|> matchAllDFSExpr
         <|> matchLambdaExpr
         <|> matchAllLambdaExpr
         <|> matcherExpr
-        <|> matcherDFSExpr
         <|> functionWithArgExpr
         <|> userrefsExpr
         <|> algebraicDataMatcherExpr
@@ -323,6 +323,9 @@ quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 matchAllExpr :: Parser EgisonExpr
 matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <* keywordAs <*> expr <*> matchClauses
 
+matchAllDFSExpr :: Parser EgisonExpr
+matchAllDFSExpr = keywordMatchAllDFS >> MatchAllDFSExpr <$> expr <* keywordAs <*> expr <*> matchClauses
+
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <* keywordAs <*> expr <*> matchClauses
 
@@ -340,9 +343,6 @@ matchClause = try $ inSpaces (string "|") >> (,) <$> pattern <* reservedOp "->" 
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
-
-matcherDFSExpr :: Parser EgisonExpr
-matcherDFSExpr = keywordMatcherDFS >> MatcherDFSExpr <$> ppMatchClauses
 
 ppMatchClauses :: Parser MatcherInfo
 ppMatchClauses = many1 ppMatchClause
@@ -597,8 +597,6 @@ pattern' = wildCard
            <|> contPat
            <|> try indexedPat
            <|> patVar
-           <|> try dfsPat
-           <|> try bfsPat
            <|> try loopPat
            <|> try pApplyPat
            <|> try dApplyPat
@@ -660,12 +658,6 @@ loopRange = parens (try (LoopRange <$> expr <* comma <*> expr <*> option WildCar
                          comma
                          ep <- option WildCard pattern
                          return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
-
-dfsPat :: Parser EgisonPattern
-dfsPat = keywordDFS >> DFSPat' <$> parens pattern
-
-bfsPat :: Parser EgisonPattern
-bfsPat = keywordBFS >> BFSPat <$> parens pattern
 
 -- Constants
 
@@ -769,11 +761,11 @@ reservedKeywords =
   , "withSymbols"
   , "loop"
   , "matchAll"
+  , "matchAllDFS"
   , "matchAllLambda"
   , "match"
   , "matchLambda"
   , "matcher"
-  , "matcherDFS"
   , "do"
   , "io"
   , "something"
@@ -788,9 +780,7 @@ reservedKeywords =
   , "suprefs!"
   , "userRefs"
   , "userRefs!"
-  , "function"
-  , "dfs"
-  , "bfs"]
+  , "function"]
 
 reservedOperators :: [String]
 reservedOperators =
@@ -844,11 +834,11 @@ keywordWithSymbols          = reserved "withSymbols"
 keywordLoop                 = reserved "loop"
 keywordCont                 = reserved "..."
 keywordMatchAll             = reserved "matchAll"
+keywordMatchAllDFS          = reserved "matchAllDFS"
 keywordMatchAllLambda       = reserved "matchAllLambda"
 keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "matchLambda"
 keywordMatcher              = reserved "matcher"
-keywordMatcherDFS           = reserved "matcherDFS"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
@@ -864,8 +854,6 @@ keywordSuprefsNew           = reserved "suprefs!"
 keywordUserrefs             = reserved "userRefs"
 keywordUserrefsNew          = reserved "userRefs!"
 keywordFunction             = reserved "function"
-keywordDFS                  = reserved "dfs"
-keywordBFS                  = reserved "bfs"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)

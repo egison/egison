@@ -1,0 +1,4 @@
+(define $n 50)
+
+(match-all (take n (repeat {0})) (multiset integer)
+  [<cons $x <cons ,(+ x 1) <cons ,(+ x 2) _>>> x])
