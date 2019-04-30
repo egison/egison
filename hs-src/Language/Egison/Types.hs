@@ -1636,7 +1636,7 @@ type PatternBinding = (String, EgisonPattern)
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
 
-data SeqPatContext = SeqPatContext EgisonPattern [Matcher] [WHNFData]
+data SeqPatContext = SeqPatContext [MatchingTree] EgisonPattern [Matcher] [WHNFData]
  deriving (Show)
 
 --

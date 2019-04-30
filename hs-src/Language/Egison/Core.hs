@@ -1154,11 +1154,11 @@ processMState state =
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState' (MState _ _ [] _ []) = throwError $ EgisonBug "should not reach here (empty matching-state)"
 
-processMState' (MState env loops (SeqPatContext SeqNilPat [] []:seqs) bindings []) = return $ msingleton $ (MState env loops seqs bindings [])
-processMState' (MState env loops (SeqPatContext seqPat mats tgts:seqs) bindings []) = do
+processMState' (MState env loops (SeqPatContext stack SeqNilPat [] []:seqs) bindings []) = return $ msingleton $ (MState env loops seqs bindings stack)
+processMState' (MState env loops (SeqPatContext stack seqPat mats tgts:seqs) bindings []) = do
   let mat' = makeTuple mats
   tgt' <- makeITuple tgts
-  return $ msingleton $ (MState env loops seqs bindings [MAtom seqPat tgt' mat'])
+  return $ msingleton $ MState env loops seqs bindings (MAtom seqPat tgt' mat' : stack)
 
 processMState' (MState _ _ _ _ (MNode _ (MState _ _ _ [] []):_)) = throwError $ EgisonBug "should not reach here (empty matching-node)"
 
@@ -1254,11 +1254,11 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
                               else return $ fromList [MState env loops' seqs bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees), MState env (LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat':loops') seqs bindings (MAtom pat target matcher:trees)]
                        else return $ fromList [MState env (LoopPatContext (name, nextNumRef) endsRef endPat pat pat':loops') seqs bindings (MAtom pat target matcher:trees)]
     SeqNilPat -> throwError $ EgisonBug "should not reach here (seq nil pattern)"
-    SeqConsPat pattern pattern' -> return $ msingleton $ MState env loops (SeqPatContext pattern' [] []:seqs) bindings (MAtom pattern target matcher : trees)
+    SeqConsPat pattern pattern' -> return $ msingleton $ MState env loops (SeqPatContext trees pattern' [] []:seqs) bindings [MAtom pattern target matcher]
     LaterPatVar ->
       case seqs of
         [] -> throwError $ Default "cannot use # out of seq patterns"
-        (SeqPatContext pat mats tgts:seqs) -> return $ msingleton $ MState env loops (SeqPatContext pat (matcher:mats) (target:tgts):seqs) bindings trees
+        (SeqPatContext stack pat mats tgts:seqs) -> return $ msingleton $ MState env loops (SeqPatContext stack pat (matcher:mats) (target:tgts):seqs) bindings trees
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
       in return $ msingleton $ MState env loops seqs bindings trees'
