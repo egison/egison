@@ -587,9 +587,11 @@ pattern' = wildCard
             <|> notPat
             <|> tuplePat
             <|> inductivePat
+            <|> seqNilPat
+            <|> seqConsPat
+            <|> laterPatVar
             <|> parens (andPat
                     <|> notPat'
-                    <|> orderedOrPat
                     <|> orPat
                     <|> loopPat
                     <|> letPat
@@ -648,9 +650,6 @@ andPat = (reservedOp "&" <|> keywordAnd) >> AndPat <$> sepEndBy pattern whiteSpa
 orPat :: Parser EgisonPattern
 orPat = (reservedOp "|" <|> keywordOr) >> OrPat <$> sepEndBy pattern whiteSpace
 
-orderedOrPat :: Parser EgisonPattern
-orderedOrPat = reservedOp "|*" >> OrderedOrPat' <$> sepEndBy pattern whiteSpace
-
 pApplyPat :: Parser EgisonPattern
 pApplyPat = PApplyPat <$> expr <*> sepEndBy pattern whiteSpace
 
@@ -665,6 +664,15 @@ loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard patte
                       <|> (do s <- expr
                               ep <- option WildCard pattern
                               return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
+
+seqConsPat :: Parser EgisonPattern
+seqConsPat = braces $ SeqConsPat <$> pattern <*> (char '@' >> pattern)
+
+seqNilPat :: Parser EgisonPattern
+seqNilPat = braces $ pure SeqNilPat
+
+laterPatVar :: Parser EgisonPattern
+laterPatVar = char '#' >> pure NextPat
 
 divPat :: Parser EgisonPattern
 divPat = reservedOp "/" >> DivPat <$> pattern <*> pattern
