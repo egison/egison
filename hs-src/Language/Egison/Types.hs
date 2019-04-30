@@ -108,6 +108,7 @@ module Language.Egison.Types
     , MatchingState (..)
     , PatternBinding (..)
     , LoopPatContext (..)
+    , SeqPatContext (..)
     -- * Errors
     , EgisonError (..)
     , liftError
@@ -347,7 +348,7 @@ data EgisonPattern =
   | VarPat String
   | SeqNilPat
   | SeqConsPat EgisonPattern EgisonPattern
-  | NextPat
+  | LaterPatVar
   -- For symbolic computing
   | DApplyPat EgisonPattern [EgisonPattern]
   | DivPat EgisonPattern EgisonPattern
@@ -1635,7 +1636,7 @@ type PatternBinding = (String, EgisonPattern)
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
 
-data SeqPatContext = SeqPatContext EgisonPattern [ObjectRef] [ObjectRef] -- next matchers, next targets
+data SeqPatContext = SeqPatContext EgisonPattern [Matcher] [WHNFData]
  deriving (Show)
 
 --
