@@ -584,7 +584,7 @@ pattern = P.lexeme lexer
           , [binary' "*" MultPat AssocRight, binary'' "/" DivPat AssocRight]
           , [binary' "+" PlusPat AssocRight]
           , [binary "<:>" "cons" AssocRight]
-          , [binary' "and" AndPat AssocLeft, binary' "or*" OrderedOrPat' AssocLeft, binary' "or" OrPat AssocLeft]
+          , [binary' "and" AndPat AssocLeft, binary' "or" OrPat AssocLeft]
           , [binary "<++>" "join" AssocRight]
           ]
   unary op assoc = Prefix (try $ inSpaces (string op) >> return NotPat)

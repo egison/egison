@@ -339,14 +339,15 @@ data EgisonPattern =
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
-  | OrderedOrPat' [EgisonPattern]
-  | OrderedOrPat Id EgisonPattern EgisonPattern
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | LoopPat Var LoopRange EgisonPattern EgisonPattern
   | ContPat
   | PApplyPat EgisonExpr [EgisonPattern]
   | VarPat String
+  | SeqNilPat
+  | SeqConsPat EgisonPattern EgisonPattern
+  | NextPat
   -- For symbolic computing
   | DApplyPat EgisonPattern [EgisonPattern]
   | DivPat EgisonPattern EgisonPattern
@@ -1619,11 +1620,10 @@ type Match = [Binding]
 data PMMode = BFSMode | DFSMode
  deriving (Show)
 
-data MatchingState = MState Env [LoopPatContext] [Binding] [MatchingTree] -- [MatchingTree]
+data MatchingState = MState Env [LoopPatContext] [SeqPatContext] [Binding] [MatchingTree]
 
 instance Show MatchingState where
-  show (MState _ _ bindings mtrees) = "(MState " ++ unwords ["_", "_", show bindings, show mtrees] ++ ")"
---  show (MState _ _ bindings mtrees nextmtrees) = "(MState " ++ unwords ["_", "_", show bindings, show mtrees, show nextmtrees] ++ ")"
+  show (MState _ _ _ bindings mtrees) = "(MState " ++ unwords ["_", "_", "_", show bindings, show mtrees] ++ ")"
 
 data MatchingTree =
     MAtom EgisonPattern WHNFData Matcher
@@ -1633,6 +1633,9 @@ data MatchingTree =
 type PatternBinding = (String, EgisonPattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
+ deriving (Show)
+
+data SeqPatContext = SeqPatContext EgisonPattern [ObjectRef] [ObjectRef] -- next matchers, next targets
  deriving (Show)
 
 --

@@ -465,8 +465,6 @@ desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
 desugarPattern' (LaterPat pattern) = LaterPat <$> desugarPattern' pattern
 desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
 desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
-desugarPattern' (OrderedOrPat' [pat1, pat2])  = OrderedOrPat <$> fresh <*> desugarPattern' pat1 <*> desugarPattern' pat2
-desugarPattern' (OrderedOrPat' (pat : patterns)) = OrderedOrPat <$> fresh <*> desugarPattern' pat <*> desugarPattern' (OrderedOrPat' patterns)
 desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
 desugarPattern' (InductivePat name patterns) = InductivePat name <$> mapM desugarPattern' patterns
 desugarPattern' (IndexedPat pattern exprs) = IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs
@@ -474,6 +472,7 @@ desugarPattern' (PApplyPat expr patterns) = PApplyPat <$> desugar expr <*> mapM 
 desugarPattern' (DApplyPat pattern patterns) = DApplyPat <$> desugarPattern' pattern <*> mapM desugarPattern' patterns
 desugarPattern' (LoopPat name range pattern1 pattern2) =  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (LetPat binds pattern) = LetPat <$> desugarBindings binds <*> desugarPattern' pattern
+desugarPattern' (SeqConsPat pattern1 pattern2)  = SeqConsPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (DivPat pattern1 pattern2) = do
   pat1' <- desugarPattern' pattern1
   pat2' <- desugarPattern' pattern2
