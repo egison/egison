@@ -587,9 +587,9 @@ pattern' = wildCard
             <|> notPat
             <|> tuplePat
             <|> inductivePat
-            <|> seqNilPat
-            <|> seqConsPat
             <|> laterPatVar
+            <|> try seqNilPat
+            <|> seqConsPat
             <|> parens (andPat
                     <|> notPat'
                     <|> orPat
@@ -672,7 +672,7 @@ seqNilPat :: Parser EgisonPattern
 seqNilPat = braces $ pure SeqNilPat
 
 laterPatVar :: Parser EgisonPattern
-laterPatVar = char '#' >> pure NextPat
+laterPatVar = char '#' >> pure LaterPatVar
 
 divPat :: Parser EgisonPattern
 divPat = reservedOp "/" >> DivPat <$> pattern <*> pattern
