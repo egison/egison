@@ -1,12 +1,8 @@
 (define $delete-literals
-  (lambda [$l $cnf]
-    (map (lambda [$c] (match-all c (multiset integer)
-                        [<cons (and !,l $x) _> x]))
+  (lambda [$ls $cnf]
+    (map (lambda [$c] (match-all [c ls] [(multiset integer) (multiset integer)]
+                        [[<cons $x _> !<cons ,x _>] x]))
          cnf)))
-
-(define $assign-true
-  (lambda [$l $cnf]
-    (delete-literals (neg l) (delete-clauses-with {l} cnf))))
 
 (define $delete-clauses-with
   (lambda [$ls $cnf]
@@ -14,6 +10,10 @@
       [{[# <cons (& # $c) _>]
         ![<cons $l _> <cons ,l _>]}
        c])))
+
+(define $assign-true
+  (lambda [$l $cnf]
+    (delete-literals {(neg l)} (delete-clauses-with {l} cnf))))
 
 (define $resolve-on
   (lambda [$v $cnf]
