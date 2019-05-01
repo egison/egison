@@ -589,7 +589,8 @@ pattern' = wildCard
             <|> inductivePat
             <|> laterPatVar
             <|> try seqNilPat
-            <|> seqConsPat
+            <|> try seqConsPat
+            <|> try seqPat
             <|> parens (andPat
                     <|> notPat'
                     <|> orPat
@@ -665,11 +666,17 @@ loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard patte
                               ep <- option WildCard pattern
                               return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
 
+seqNilPat :: Parser EgisonPattern
+seqNilPat = braces $ pure SeqNilPat
+
 seqConsPat :: Parser EgisonPattern
 seqConsPat = braces $ SeqConsPat <$> pattern <*> (char '@' >> pattern)
 
-seqNilPat :: Parser EgisonPattern
-seqNilPat = braces $ pure SeqNilPat
+seqPat :: Parser EgisonPattern
+seqPat = braces $ do
+  pats <- sepEndBy pattern whiteSpace
+  tailPat <- option SeqNilPat (char '@' >> pattern)
+  return $ foldr (\p rets -> SeqConsPat p rets) tailPat pats
 
 laterPatVar :: Parser EgisonPattern
 laterPatVar = char '#' >> pure LaterPatVar

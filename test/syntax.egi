@@ -214,6 +214,13 @@
   (match 23 (mod 10) {[$a_1 a]})
   {| [1 23] |})
 
+(assert-equal "seq pattern"
+  (match-all {1 2 3 2 4 3 5} (list integer)
+    [{<join #                     <cons $x _>>
+            !<join _ <cons ,x _>>             }
+   x])
+  {1 2 3 4 5})
+
 ;(assert-equal "dfs pattern 1"
 ;  (take 10 (match-all nats (set integer)
 ;       [(dfs <cons $m <cons $n <cons $l _>>>) [m n l]]))
