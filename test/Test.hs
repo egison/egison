@@ -1,22 +1,23 @@
 module Main where
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.IO.Class
-import Data.IORef
-import Data.List
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Data.IORef
+import           Data.List
 
-import Test.Framework (defaultMain)
-import Test.Framework.Providers.HUnit (hUnitTestToTests)
-import Test.HUnit
-import System.FilePath.Glob (glob)
-import System.FilePath (takeDirectory, replaceDirectory, splitPath)
+import           System.FilePath                (replaceDirectory, splitPath,
+                                                 takeDirectory)
+import           System.FilePath.Glob           (glob)
+import           Test.Framework                 (defaultMain)
+import           Test.Framework.Providers.HUnit (hUnitTestToTests)
+import           Test.HUnit
 
-import Language.Egison.Types
-import Language.Egison.Core
-import Language.Egison.Primitives
-import Language.Egison.Parser
-import Language.Egison
+import           Language.Egison
+import           Language.Egison.Core
+import           Language.Egison.Parser
+import           Language.Egison.Primitives
+import           Language.Egison.Types
 
 main = do
   (sampleTestCases, unitTestCases) <- partition (isSubsequenceOf "answer" . show) <$> glob "test/**/*.egi"
@@ -24,7 +25,7 @@ main = do
 
 runUnitTestCase :: FilePath -> Test
 runUnitTestCase file = TestLabel file . TestCase $ do
-  env <- initialEnv
+  env <- initialEnv defaultOption
   assertEgisonM $ do
     exprs <- loadFile file
     let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
@@ -42,7 +43,7 @@ runUnitTestCase file = TestLabel file . TestCase $ do
 
 runSampleTestCase :: FilePath -> Test
 runSampleTestCase file = TestLabel file . TestCase $ do
-  env <- initialEnv
+  env <- initialEnv defaultOption
   let directory_path = takeDirectory file
   answers <- readFile file
   assertEgisonM (lines answers) $ do

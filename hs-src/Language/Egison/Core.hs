@@ -14,9 +14,7 @@ This module provides functions to evaluate various objects.
 module Language.Egison.Core
     (
     -- * Egison code evaluation
-      evalTopExprs
-    , collectDefs
-    , evalTopExpr
+     collectDefs
     , evalTopExpr'
     , evalExpr
     , evalExprDeep
@@ -85,13 +83,6 @@ import           Language.Egison.Types
 -- Evaluator
 --
 
-evalTopExprs :: EgisonOpts -> Env -> [EgisonTopExpr] -> EgisonM Env
-evalTopExprs opts env exprs = do
-  (bindings, rest) <- collectDefs opts exprs [] []
-  env <- recursiveBind env bindings
-  forM_ rest $ evalTopExpr opts env
-  return env
-
 collectDefs :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
 collectDefs opts (expr:exprs) bindings rest =
   case expr of
@@ -110,17 +101,6 @@ collectDefs opts (expr:exprs) bindings rest =
          else do exprs' <- if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
 collectDefs _ [] bindings rest = return (bindings, reverse rest)
-
-evalTopExpr :: EgisonOpts -> Env -> EgisonTopExpr -> EgisonM Env
-evalTopExpr opts env topExpr = do
-  ret <- evalTopExpr' opts (StateT $ \defines -> (, defines) <$> recursiveBind env defines) topExpr
-  case fst ret of
-    Nothing     -> return ()
-    Just output -> liftIO $
-            case optMathExpr opts of
-              Nothing   -> putStrLn output
-              Just lang -> putStrLn $ changeOutputInLang lang output
-  evalStateT (snd ret) []
 
 evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
 evalTopExpr' _ st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)

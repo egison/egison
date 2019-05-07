@@ -12,6 +12,8 @@ module Language.Egison
        ( module Language.Egison.Types
        , module Language.Egison.Primitives
        -- * Eval Egison expressions
+       , evalTopExprs
+       , evalTopExpr
        , evalEgisonExpr
        , evalEgisonTopExpr
        , evalEgisonTopExprs
@@ -32,6 +34,7 @@ import           Data.Version
 import qualified Paths_egison               as P
 
 import           Language.Egison.Core
+import           Language.Egison.MathOutput (changeOutputInLang)
 import           Language.Egison.Parser     as Parser
 import           Language.Egison.ParserNonS as ParserNonS
 import           Language.Egison.Primitives
@@ -43,6 +46,24 @@ import           Control.Monad.State
 -- |Version number
 version :: Version
 version = P.version
+
+evalTopExprs :: EgisonOpts -> Env -> [EgisonTopExpr] -> EgisonM Env
+evalTopExprs opts env exprs = do
+  (bindings, rest) <- collectDefs opts exprs [] []
+  env <- recursiveBind env bindings
+  forM_ rest $ evalTopExpr opts env
+  return env
+
+evalTopExpr :: EgisonOpts -> Env -> EgisonTopExpr -> EgisonM Env
+evalTopExpr opts env topExpr = do
+  ret <- evalTopExpr' opts (StateT $ \defines -> (, defines) <$> recursiveBind env defines) topExpr
+  case fst ret of
+    Nothing     -> return ()
+    Just output -> liftIO $
+            case optMathExpr opts of
+              Nothing   -> putStrLn output
+              Just lang -> putStrLn $ changeOutputInLang lang output
+  evalStateT (snd ret) []
 
 -- |eval an Egison expression
 evalEgisonExpr :: Env -> EgisonExpr -> IO (Either EgisonError EgisonValue)
