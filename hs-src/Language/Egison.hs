@@ -139,4 +139,5 @@ coreLibraries =
   , "lib/core/io.egi"
   , "lib/core/random.egi"
   , "lib/core/string.egi"
+  , "lib/core/maybe.egi"
   ]
