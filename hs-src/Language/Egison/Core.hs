@@ -1270,8 +1270,8 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
       case matcher of
         UserMatcher{} -> do
           (patterns, targetss, matchers) <- inductiveMatch env' pattern target matcher
-          case (length patterns, length matchers) of
-            (1,1) ->
+          case length patterns of
+            1 ->
               mfor targetss $ \ref -> do
                 targets <- evalRef ref >>= (\x -> return [x])
                 let trees' = zipWith3 MAtom patterns targets matchers ++ trees
@@ -1352,25 +1352,28 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
   tryPPMatchClause (pat, matchers, clauses) cont = do
     result <- runMaybeT $ primitivePatPatternMatch env pat pattern
     case result of
+      Just ([pattern], bindings) -> do
+        targetss <- foldr (tryPDMatchClause bindings) failPDPatternMatch clauses
+        matcher <- evalExpr matcherEnv matchers >>= evalMatcherWHNF
+        return ([pattern], targetss, [matcher])
       Just (patterns, bindings) -> do
-        targetss <- foldr tryPDMatchClause failPDPatternMatch clauses
+        targetss <- foldr (tryPDMatchClause bindings) failPDPatternMatch clauses
         matchers <- fromTupleValue <$> (evalExpr matcherEnv matchers >>= evalMatcherWHNF)
         return (patterns, targetss, matchers)
-       where
-        tryPDMatchClause (pat, expr) cont = do
-          result <- runMaybeT $ primitiveDataPatternMatch pat target
-          case result of
-            Just bindings' -> do
-              let env = extendEnv matcherEnv $ bindings ++ bindings'
-              evalExpr env expr >>= fromCollection
-            _ -> cont
+      _ -> cont
+  tryPDMatchClause bindings (pat, expr) cont = do
+    result <- runMaybeT $ primitiveDataPatternMatch pat target
+    case result of
+      Just bindings' -> do
+        let env = extendEnv matcherEnv $ bindings ++ bindings'
+        evalExpr env expr >>= fromCollection
       _ -> cont
   failPPPatternMatch = throwError $ Default "failed primitive pattern pattern match"
   failPDPatternMatch = throwError $ Default "failed primitive data pattern match"
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> EgisonPattern ->
                             MatchM ([EgisonPattern], [Binding])
-primitivePatPatternMatch _ PPWildCard _ = return ([], [])
+primitivePatPatternMatch _ PPWildCard WildCard = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
 primitivePatPatternMatch env (PPValuePat name) (ValuePat expr) = do
   ref <- lift $ newObjectRef env expr
