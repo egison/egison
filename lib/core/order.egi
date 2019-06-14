@@ -43,8 +43,8 @@
   (lambda [$f $xs]
     (foldl 2#(if (eq? (f %1 %2) <Greater>) %1 %2) (car xs) (cdr xs))))
 
-(define $min (cambda $xs (foldl b.min (car xs) (cdr xs))))
-(define $max (cambda $xs (foldl b.max (car xs) (cdr xs))))
+(define $min (lambda [$xs] (foldl b.min (car xs) (cdr xs))))
+(define $max (lambda [$xs] (foldl b.max (car xs) (cdr xs))))
 
 (define $split-by-ordering (split-by-ordering/fn compare $ $))
 
