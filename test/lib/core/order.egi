@@ -11,7 +11,7 @@
   <Less>)
 
 (assert-equal "min"
-  (min 20 5)
+  (min {20 5})
   5)
 
 (assert-equal "min/fn"
@@ -19,7 +19,7 @@
   5)
 
 (assert-equal "max"
-  (max 5 30)
+  (max {5 30})
   30)
 
 (assert-equal "max/fn"
