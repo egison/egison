@@ -8,13 +8,14 @@ This module provides utility functions.
 
 module Language.Egison.Util (getEgisonExpr, getEgisonExprOrNewLine, completeEgison) where
 
-import           Control.Monad.Except       (liftIO)
+import           Control.Monad.Except             (liftIO)
 import           Data.List
-import           System.Console.Haskeline   hiding (catch, handle, throwTo)
+import           System.Console.Haskeline         hiding (catch, handle, throwTo)
+import           System.Console.Haskeline.History (addHistoryUnlessConsecutiveDupe)
 import           Text.Regex.TDFA
 
-import           Language.Egison.Parser     as Parser
-import           Language.Egison.ParserNonS as ParserNonS
+import           Language.Egison.Parser           as Parser
+import           Language.Egison.ParserNonS       as ParserNonS
 import           Language.Egison.Types
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
@@ -33,6 +34,8 @@ getEgisonExpr' isSExpr prompt prev = do
         then getEgisonExpr isSExpr prompt
         else getEgisonExpr' isSExpr prompt prev
     Just line -> do
+      history <- getHistory
+      putHistory $ addHistoryUnlessConsecutiveDupe line history
       let input = prev ++ line
       case (if isSExpr then Parser.parseTopExpr else ParserNonS.parseTopExpr) input of
         Left err | show err =~ "unexpected end of input" ->
