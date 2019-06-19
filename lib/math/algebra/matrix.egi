@@ -76,8 +76,8 @@
            [$c1 (nth 1 cs)] [$c2 (nth 2 cs)]
            [$ds (tensor-size D)]
            [$d1 (nth 1 ds)] [$d2 (nth 2 ds)]
-           [$m1 (max a1 b1)] [$m2 (max a2 c2)]
-           [$n1 (max c1 d1)] [$n2 (max b2 d2)]
+           [$m1 (max {a1 b1})] [$m2 (max {a2 c2})]
+           [$n1 (max {c1 d1})] [$n2 (max {b2 d2})]
            }
       (generate-tensor
         2#(match [%1 %2] [integer integer]
