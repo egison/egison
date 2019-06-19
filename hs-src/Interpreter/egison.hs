@@ -195,7 +195,7 @@ repl opts env =
   loop $ StateT (\defines -> (, defines) <$> recursiveBind env defines)
  where
   settings :: MonadIO m => FilePath -> Settings m
-  settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history") }
+  settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
 
   loop :: StateT [(Var, EgisonExpr)] EgisonM Env -> IO ()
   loop st = (do
