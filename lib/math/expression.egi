@@ -360,8 +360,8 @@
 ;;;
 (define $coefficients
   (lambda [$f $x]
-    (let {[$m (capply max {0 @(match-all f math-expr
-                                [<div <poly <cons <term $a <ncons ,x $k $ts>> _>> _> k])})]}
+    (let {[$m (max {0 @(match-all f math-expr
+                         [<div <poly <cons <term $a <ncons ,x $k $ts>> _>> _> k])})]}
       (map (coefficient f x $) (between 0 m)))))
 
 (define $coefficient
