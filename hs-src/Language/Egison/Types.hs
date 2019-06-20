@@ -165,7 +165,6 @@ module Language.Egison.Types
 import           Prelude                   hiding (foldr, mappend, mconcat)
 
 import           Control.Exception
-import           Control.Lens              (makeLenses)
 import           Control.Parallel
 import           Data.Typeable
 
@@ -1965,5 +1964,3 @@ data EgisonOpts = EgisonOpts {
 
 defaultOption :: EgisonOpts
 defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True
-
-makeLenses ''MatchingStates

@@ -40,7 +40,6 @@ import           Language.Egison.ParserNonS as ParserNonS
 import           Language.Egison.Primitives
 import           Language.Egison.Types
 
-import           Control.Lens               ((^.))
 import           Control.Monad.State
 
 -- |Version number
