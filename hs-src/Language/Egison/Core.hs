@@ -44,7 +44,6 @@ import           Prelude                    hiding (mapM, mappend, mconcat)
 
 import           Control.Applicative
 import           Control.Arrow
-import           Control.Lens               (makeLenses, (%~), (&), (.~), (^.))
 import           Control.Monad              (when)
 import           Control.Monad.Except       hiding (mapM)
 import           Control.Monad.State        hiding (mapM)
@@ -1029,7 +1028,7 @@ recursiveRebind env (name, expr) = do
 -- Pattern Match
 --
 
-patternMatch :: PMMode -> Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match) 
+patternMatch :: PMMode -> Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
 patternMatch mode env pattern target matcher = processMStates mode [msingleton $ MState env [] [] [] [MAtom pattern target matcher]]
 
 processMStates :: PMMode -> [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
