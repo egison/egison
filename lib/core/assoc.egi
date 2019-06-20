@@ -99,9 +99,9 @@
 (define $AC.intersect
   (lambda [$xs $ys]
     (match-all [xs ys] [(assoc-multiset something) (assoc-multiset something)]
-      [[<ncons $x $m _> <ncons ,x $n _>] [x (min m n)]])))
+      [[<ncons $x $m _> <ncons ,x $n _>] [x (min {m n})]])))
 
 (define $AC.intersect/m
   (lambda [$a $xs $ys]
     (match-all [xs ys] [(assoc-multiset a) (assoc-multiset a)]
-      [[<ncons $x $m _> <ncons ,x $n _>] [x (min m n)]])))
+      [[<ncons $x $m _> <ncons ,x $n _>] [x (min {m n})]])))
