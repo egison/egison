@@ -1,24 +1,27 @@
 (define $literal integer)
+(define $stage integer)
+
+(define $tagged-literal [literal stage])
 
 (define $assignment
   (matcher
-    {[<deduced $ $> [edge (multiset edge)]
-      {[<Deduced e es> {[e es]}]
+    {[<deduced $ $> [tagged-literal (multiset tagged-literal)]
+      {[<Deduced $e $es> {[e es]}]
        [_ {}]}]
-     [<guessed $> [edge]
-      {[<Guessed e> {e}]
+     [<guessed $> [tagged-literal]
+      {[<Guessed $e> {e}]
        [_ {}]}]
-     [<fixed $> [edge]
-      {[<Fixed e> {e}]
+     [<fixed $> [tagged-literal]
+      {[<Fixed $e> {e}]
        [_ {}]}]
-     [<whichever $> [edge]
-      {[<Deduced e _> {e}]
-       [<Guessed e _> {e}]
-       [<Fixed e> {e}]
+     [<whichever $> [tagged-literal]
+      {[<Deduced $e _> {e}]
+       [<Guessed $e> {e}]
+       [<Fixed $e> {e}]
        [_ {}]}]
-     [<either $> [edge]
-      {[<Guessed e _> {e}]
-       [<Fixed e> {e}]
+     [<either $> [tagged-literal]
+      {[<Guessed $e> {e}]
+       [<Fixed $e> {e}]
        [_ {}]}]
      [_ [something]
       {[$tgt {tgt}]}]}))
@@ -39,7 +42,7 @@
 (define $add-vars
   (lambda [$vs $vars]
     (match [vs vars] [(list literal) (list [literal integer])]
-      {[[<nil> _] undefined] ; sort by count
+      {[[<nil> _] (sort/fn (lambda [$xc $yc] (compare (2#%2 xc) (2#%2 yc))) vars)]
        [[<cons $v $vs'> <join $hs <cons [,v $c] $ts>>]
         (add-vars vs' {@hs [v (+ c 1)] @ts})]})))
 
@@ -52,7 +55,7 @@
 (define $get-stage
   (lambda [$l $trail]
     (match trail (list assignment)
-      {[<join _ <cons <whichever [,(neg l) s]> _>> s]
+      {[<join _ <cons <whichever [,(neg l) $s]> _>> s]
        [_ "error: not matched in get-stage"]})))
 
 (define $delete-literal
@@ -64,9 +67,181 @@
 
 (define $delete-clauses-with
   (lambda [$l $cnf]
-    (match-all cnf (multiset (multiset literal))
+    (match-all cnf (multiset [(multiset literal) (multiset literal)])
       [<cons (and [!<cons ,l _> _] $c) _> c])))
 
 (define $assign-true
   (lambda [$l $cnf]
     (delete-literal (neg l) (delete-clauses-with l cnf))))
+
+(define $unit-propagate
+  (lambda [$stage $cnf $trail]
+    (unit-propagate' stage cnf trail trail)))
+
+(define $unit-propagate'
+  (lambda [$stage $cnf $trail $otrail]
+    (match trail (list assignment)
+      {[<cons <whichever [$l _]> $trail'> (unit-propagate' stage (assign-true l cnf) trail' otrail)]
+       [<nil> (unit-propagate'' stage (assign-true l cnf) otrail)]})))
+
+(define $unit-propagate''
+  (lambda [$stage $cnf $trail]
+    (match cnf (multiset [(multiset literal) (multiset literal)])
+      {; empty literal
+       [<cons [<nil> _] _> [cnf trail]]
+       ; 1-literal rule
+       [<cons [<cons $l <nil>> <cons ,l $rs>] _>
+        (unit-propagate'' stage (assign-true l cnf) {<Deduced [l stage] (map (lambda [$r] [r (get-stage r trail)]) rs)> @trail})]
+       ; otherwise
+       [_ [cnf trail]]})))
+
+(define $learn
+  (lambda [$stage $cl $trail]
+    (learn' stage (map (lambda [$l] [l (get-stage l trail)]) cl) trail)))
+
+(define $learn'
+  (lambda [$stage $cl $trail]
+    (match cl (multiset tagged-literal)
+      {; no 2 more literals from the current stage
+       [!<cons [_ ,stage] <cons [_ ,stage] _>>
+        [(min (map 2#%2 cl)) (map 2#%1 cl)]]
+       ; otherwise
+       [_ (learn'' stage cl trail)]})))
+
+(define $learn''
+  (lambda [$stage $cl $trail]
+    (match [trail cl] [(list assignment) (multiset tagged-literal)]
+      {[[<cons <deduced [$l ,stage] $ds> $trail'>
+         <cons [,(neg l) ,stage] $rs>]
+        (learn' stage (union rs ds) trail')]
+       [[<cons <deduced [_ _] _> $trail'> _]
+        (learn'' stage cl trail')]
+       [[_ _] "error-should-not-reach-here-in-learn''"]})))
+
+(define $backjump
+  (lambda [$stage $trail]
+    (match trail (list assignment)
+      {[<join _ (& <cons <either [_ ,stage]> _> $trail')>
+        trail']
+       [_ trail]})))
+
+(define $guess
+  (lambda [$vars $trail]
+    (match [vars trail] [(list [literal integer]) (list assignment)]
+      {[[<join _ <cons [$l _] _>> !<join _ <cons <either [(| ,l ,(neg l)) _]> _>>] (neg l)]})))
+
+(define $cdcl
+  (lambda [$vars $cnf]
+    (cdcl' 0 0 (init-vars vars) (to-cnf cnf) {})))
+
+(define $cdcl'
+  (lambda [$count $stage $vars $cnf $trail]
+    (let {[[$cnf' $trail'] (unit-propagate stage cnf trail)]}
+      (match cnf' (multiset [(multiset literal) (multiset literal)])
+        {[<nil> #t]
+         [<cons [<nil> $cc] _>
+          (match trail' (list assignment)
+            {[<join _ <cons <either [$l ,stage]> $trail''>>
+              (let* {[[$s $lc] (learn stage cc trail')]
+                     [$trail''' (backjump s trail'')]}
+                (cdcl' (+ count 1) s (add-vars lc vars) {[lc lc] @cnf} trail'''))]
+             [_ #f]})]
+         [_
+          (let {[$g (guess vars trail')]}
+            (cdcl' (+ count 1) (+ stage 1) vars cnf {<Guessed [g (+ stage 1)]> @trail'}))]}))))
+
+(define $problem20
+  {{ 4 -18 19}
+   {3 18 -5}
+   {-5 -8 -15}
+   {-20 7 -16}
+   {10 -13 -7}
+   {-12 -9 17}
+   {17 19 5}
+   {-16 9 15}
+   {11 -5 -14}
+   {18 -10 13}
+   {-3 11 12}
+   {-6 -17 -8}
+   {-18 14 1}
+   {-19 -15 10}
+   {12 18 -19}
+   {-8 4 7}
+   {-8 -9 4}
+   {7 17 -15}
+   {12 -7 -14}
+   {-10 -11 8}
+   {2 -15 -11}
+   {9 6 1}
+   {-11 20 -17}
+   {9 -15 13}
+   {12 -7 -17}
+   {-18 -2 20}
+   {20 12 4}
+   {19 11 14}
+   {-16 18 -4}
+   {-1 -17 -19}
+   {-13 15 10}
+   {-12 -14 -13}
+   {12 -14 -7}
+   {-7 16 10}
+   {6 10 7}
+   {20 14 -16}
+   {-19 17 11}
+   {-7 1 -20}
+   {-5 12 15}
+   {-4 -9 -13}
+   {12 -11 -7}
+   {-5 19 -8}
+   {1 16 17}
+   {20 -14 -15}
+   {13 -4 10}
+   {14 7 10}
+   {-5 9 20}
+   {10 1 -19}
+   {-16 -15 -1}
+   {16 3 -11}
+   {-15 -10 4}
+   {4 -15 -3}
+   {-10 -16 11}
+   {-8 12 -5}
+   {14 -6 12}
+   {1 6 11}
+   {-13 -5 -1}
+   {-7 -2 12}
+   {1 -20 19}
+   {-2 -13 -8}
+   {15 18 4}
+   {-11 14 9}
+   {-6 -15 -2}
+   {5 -12 -15}
+   {-6 17 5}
+   {-13 5 -19}
+   {20 -1 14}
+   {9 -17 15}
+   {-5 19 -18}
+   {-12 8 -10}
+   {-18 14 -4}
+   {15 -9 13}
+   {9 -5 -1}
+   {10 -19 -14}
+   {20 9 4}
+   {-9 -2 19}
+   {-5 13 -17}
+   {2 -10 -18}
+   {-18 3 11}
+   {7 -9 17}
+   {-15 -6 -3}
+   {-2 3 -13}
+   {12 3 -2}
+   {-2 -3 17}
+   {20 -15 -16}
+   {-5 -17 -19}
+   {-20 -18 11}
+   {-9 1 -5}
+   {-19 9 17}
+   {12 -2 17}
+   {4 -16 -5}})
+
+(cdcl (between 1 20) problem20) ; 6.566
+
