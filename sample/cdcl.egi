@@ -1,0 +1,72 @@
+(define $literal integer)
+
+(define $assignment
+  (matcher
+    {[<deduced $ $> [edge (multiset edge)]
+      {[<Deduced e es> {[e es]}]
+       [_ {}]}]
+     [<guessed $> [edge]
+      {[<Guessed e> {e}]
+       [_ {}]}]
+     [<fixed $> [edge]
+      {[<Fixed e> {e}]
+       [_ {}]}]
+     [<whichever $> [edge]
+      {[<Deduced e _> {e}]
+       [<Guessed e _> {e}]
+       [<Fixed e> {e}]
+       [_ {}]}]
+     [<either $> [edge]
+      {[<Guessed e _> {e}]
+       [<Fixed e> {e}]
+       [_ {}]}]
+     [_ [something]
+      {[$tgt {tgt}]}]}))
+
+(define $to-cnf
+  (lambda [$cs]
+    (map (lambda [$c] [c c]) cs)))
+
+(define $from-cnf
+  (lambda [$cs]
+    (map 2#%1 cs)))
+
+(define $init-vars
+  (lambda [$vs]
+    (append (map (lambda [$v] [(neg v) 0]) vs)
+            (map (lambda [$v] [v 0]) vs))))
+
+(define $add-vars
+  (lambda [$vs $vars]
+    (match [vs vars] [(list literal) (list [literal integer])]
+      {[[<nil> _] undefined] ; sort by count
+       [[<cons $v $vs'> <join $hs <cons [,v $c] $ts>>]
+        (add-vars vs' {@hs [v (+ c 1)] @ts})]})))
+
+(define $delete-var
+  (lambda [$v $vars]
+    (match vars (multiset [literal integer])
+      {[<cons [,v _] <cons [,(neg v) _] $vars'>> vars2]
+       [_ "error: not matched in delete-var"]})))
+
+(define $get-stage
+  (lambda [$l $trail]
+    (match trail (list assignment)
+      {[<join _ <cons <whichever [,(neg l) s]> _>> s]
+       [_ "error: not matched in get-stage"]})))
+
+(define $delete-literal
+  (lambda [$l $cnf]
+    (map (lambda [$c] [(match-all (2#%1 c) (multiset literal)
+                         [<cons (and !,l $m) _> m])
+                       (2#%2 c)])
+         cnf)))
+
+(define $delete-clauses-with
+  (lambda [$l $cnf]
+    (match-all cnf (multiset (multiset literal))
+      [<cons (and [!<cons ,l _> _] $c) _> c])))
+
+(define $assign-true
+  (lambda [$l $cnf]
+    (delete-literal (neg l) (delete-clauses-with l cnf))))
