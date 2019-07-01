@@ -20,11 +20,16 @@
          [(write-to-port port "\n")]
          })))
 
-(define $display (compose show print))
+(define $display
+  (procedure [$x]
+    (do {[(write x)]
+         [(flush)]
+         })))
 
 (define $display-to-port
   (procedure [$port $x]
-    (print-to-port port $ (show x))))
+    (do {[(write-to-port port x)]
+         })))
 
 (define $each-line
   (procedure [$proc]
@@ -71,4 +76,10 @@
 (define $debug
   (macro [$expr]
     (io (do {[(print (show expr))]}
+          (return expr)))))
+
+(define $debug2
+  (macro [$msg $expr]
+    (io (do {[(display msg)]
+             [(print (show expr))]}
           (return expr)))))
