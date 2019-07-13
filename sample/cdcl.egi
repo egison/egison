@@ -26,6 +26,8 @@
      [_ [something]
       {[$tgt {tgt}]}]}))
 
+;; Data structure for CNF
+
 (define $to-cnf
   (lambda [$cs]
     (map (lambda [$c] [c c]) cs)))
@@ -52,6 +54,8 @@
       {[<cons [,v _] <cons [,(neg v) _] $vars'>> vars2]
        [_ "error: not matched in delete-var"]})))
 
+;; Utility functions for literals and cnfs
+
 (define $get-stage
   (lambda [$l $trail]
     (match trail (list assignment)
@@ -74,6 +78,8 @@
   (lambda [$l $cnf]
     (delete-literal (neg l) (delete-clauses-with l cnf))))
 
+;; Unit propagation
+
 (define $unit-propagate
   (lambda [$stage $cnf $trail]
     (unit-propagate' stage cnf trail trail)))
@@ -95,28 +101,32 @@
        ; otherwise
        [_ [cnf trail]]})))
 
+;; Learning
+
 (define $learn
   (lambda [$stage $cl $trail]
     (learn' stage (map (lambda [$l] [l (get-stage l trail)]) cl) trail)))
 
 (define $learn'
-  (lambda [$stage $cl $trail]
-    (match cl (multiset tagged-literal)
-      {; no 2 more literals from the current stage
+  (lambda [$stage $clt $trail]
+    (match clt (multiset tagged-literal)
+      {; not more than 2 literals from the current stage
        [!<cons [_ ,stage] <cons [_ ,stage] _>>
-        [(min (map 2#%2 cl)) (map 2#%1 cl)]]
+        [(min (map 2#%2 clt)) (map 2#%1 clt)]]
        ; otherwise
-       [_ (learn'' stage cl trail)]})))
+       [_ (learn'' stage clt trail)]})))
 
 (define $learn''
-  (lambda [$stage $cl $trail]
-    (match [trail cl] [(list assignment) (multiset tagged-literal)]
+  (lambda [$stage $clt $trail]
+    (match [trail clt] [(list assignment) (multiset tagged-literal)]
       {[[<cons <deduced [$l ,stage] $ds> $trail'>
          <cons [,(neg l) ,stage] $rs>]
         (learn' stage (union rs ds) trail')]
        [[<cons <deduced [_ _] _> $trail'> _]
-        (learn'' stage cl trail')]
+        (learn'' stage clt trail')]
        [[_ _] "error-should-not-reach-here-in-learn''"]})))
+
+;; Backjumping
 
 (define $backjump
   (lambda [$stage $trail]
@@ -125,10 +135,14 @@
         trail']
        [_ trail]})))
 
+;; Guess
+
 (define $guess
   (lambda [$vars $trail]
     (match [vars trail] [(list [literal integer]) (list assignment)]
       {[[<join _ <cons [$l _] _>> !<join _ <cons <whichever [(| ,l ,(neg l)) _]> _>>] (neg l)]})))
+
+;; CDCL main
 
 (define $cdcl
   (lambda [$vars $cnf]
@@ -463,5 +477,5 @@
    {-3 -40 8}
    {-23 -31 38}})
 
-;(cdcl (between 1 20) problem20) ; 3.441
-(cdcl (between 1 50) problem50) ; 87.15
+(cdcl (between 1 20) problem20) ; 3.441
+;(cdcl (between 1 50) problem50) ; 87.15
