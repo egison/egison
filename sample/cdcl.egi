@@ -11,17 +11,9 @@
      [<guessed $> [tagged-literal]
       {[<Guessed $e> {e}]
        [_ {}]}]
-     [<fixed $> [tagged-literal]
-      {[<Fixed $e> {e}]
-       [_ {}]}]
      [<whichever $> [tagged-literal]
       {[<Deduced $e _> {e}]
        [<Guessed $e> {e}]
-       [<Fixed $e> {e}]
-       [_ {}]}]
-     [<either $> [tagged-literal]
-      {[<Guessed $e> {e}]
-       [<Fixed $e> {e}]
        [_ {}]}]
      [_ [something]
       {[$tgt {tgt}]}]}))
@@ -119,7 +111,7 @@
 (define $backjump
   (lambda [$stage $trail]
     (match-dfs trail (list assignment)
-      {[<join _ (& <cons <either [_ ,stage]> _> $trail')>
+      {[<join _ (& <cons <guessed [_ ,stage]> _> $trail')>
         trail']
        [_ trail]})))
 
@@ -143,7 +135,7 @@
         {[<nil> #t]
          [<cons [<nil> $cc] _>
           (match-dfs trail' (list assignment)
-            {[<join _ <cons <either [$l ,stage]> $trail''>>
+            {[<join _ <cons <guessed [$l ,stage]> $trail''>>
               (let* {[[$s $lc] (learn stage (debug2 "conflict: " (map (lambda [$l] [l (get-stage l trail')]) cc)) trail')]
                      [$trail''' (backjump s trail'')]}
                 (cdcl' (+ count 1) s (add-vars lc vars) {[(debug2 "learned clause: " lc) lc] @cnf} trail'''))]
@@ -465,5 +457,5 @@
    {-3 -40 8}
    {-23 -31 38}})
 
-(cdcl (between 1 20) problem20) ; 3.441
-;(cdcl (between 1 50) problem50) ; 87.15
+;(cdcl (between 1 20) problem20) ; 3.441
+(cdcl (between 1 50) problem50) ; 87.15
