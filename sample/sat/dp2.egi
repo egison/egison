@@ -1,17 +1,19 @@
-(define $delete-literal
-  (lambda [$l $cnf]
-    (map (lambda [$c] (match-all c (multiset integer)
-                        [<cons (and !,l $x) _> x]))
+(define $delete-literals
+  (lambda [$ls $cnf]
+    (map (lambda [$c] (match-all [c ls] [(multiset integer) (multiset integer)]
+                        [[<cons $l _> !<cons ,l _>] l]))
          cnf)))
 
 (define $delete-clauses-with
-  (lambda [$l $cnf]
-    (match-all cnf (multiset (multiset integer))
-      [<cons (& !<cons ,l _> $c) _> c])))
+  (lambda [$ls $cnf]
+    (match-all [ls cnf] [(multiset integer) (multiset (multiset integer))]
+      [{[# <cons (& # $c) _>]
+        ![<cons $l _> <cons ,l _>]}
+       c])))
 
 (define $assign-true
   (lambda [$l $cnf]
-    (delete-literal (neg l) (delete-clauses-with l cnf))))
+    (delete-literals {(neg l)} (delete-clauses-with {l} cnf))))
 
 (define $resolve-on
   (lambda [$v $cnf]
@@ -30,7 +32,7 @@
        [[_ <cons <cons $l <nil>> _>] (dp (delete (abs l) vars) (assign-true l cnf))]
        [[<cons $v $vs> !<cons <cons ,(neg v) _> _>] (dp vs (assign-true v cnf))]
        [[<cons $v $vs> !<cons <cons ,v _> _>] (dp vs (assign-true (neg v) cnf))]
-       [[<cons $v $vs> _] (dp vs {@(resolve-on v cnf) @(delete-clauses-with v (delete-clauses-with (neg v) cnf))})]})))
+       [[<cons $v $vs> _] (dp vs {@(resolve-on v cnf) @(delete-clauses-with {v (neg v)} cnf)})]})))
 
 (dp {1} {{1}}) ; #t
 (dp {1} {{1} {-1}}) ; #f
