@@ -109,30 +109,14 @@
 
 (define $learn'
   (lambda [$stage $clt $trail]
-    (match-dfs clt (multiset tagged-literal)
+    (match-dfs [trail clt] [(list assignment) (multiset tagged-literal)]
       {; not more than 2 literals from the current stage
-       [!<cons [_ ,stage] <cons [_ ,stage] _>>
+       [[_ !<cons [_ ,stage] <cons [_ ,stage] _>>]
         [(min (map 2#%2 clt)) (map 2#%1 clt)]]
        ; otherwise
-       [_ (learn'' stage clt trail)]})))
-
-(define $learn'''
-  (lambda [$stage $clt $trail]
-    (match-dfs [trail clt] [(list assignment) (multiset tagged-literal)]
-      {[[<cons <deduced [$l ,stage] $ds> $trail'>
+       [[<join _ <cons <deduced [$l ,stage] $ds> $trail'>>
          <cons [,(neg l) ,stage] $rs>]
-        (learn' stage (union rs ds) trail')]
-       [[<cons <deduced [_ _] _> $trail'> _]
-        (learn'' stage clt trail')]
-       [[_ _] "error-should-not-reach-here-in-learn''"]})))
-
-(define $learn''
-  (lambda [$stage $clt $trail]
-    (match-dfs [trail clt] [(list assignment) (multiset tagged-literal)]
-      {[[<join _ <cons <deduced [$l ,stage] $ds> $trail'>>
-         <cons [,(neg l) ,stage] $rs>]
-        (learn' stage (union rs ds) trail')]
-       [[_ _] "error-should-not-reach-here-in-learn''"]})))
+        (learn' stage (union rs ds) trail')]})))
 
 ;; Backjumping
 
@@ -485,5 +469,5 @@
    {-3 -40 8}
    {-23 -31 38}})
 
-;(cdcl (between 1 20) problem20) ; 3.441
-(cdcl (between 1 50) problem50) ; 87.15
+(cdcl (between 1 20) problem20) ; 3.441
+;(cdcl (between 1 50) problem50) ; 87.15
