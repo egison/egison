@@ -105,18 +105,14 @@
 
 (define $learn
   (lambda [$stage $cl $trail]
-    (learn' stage (map (lambda [$l] [l (get-stage l trail)]) cl) trail)))
-
-(define $learn'
-  (lambda [$stage $clt $trail]
-    (match-dfs [trail clt] [(list assignment) (multiset tagged-literal)]
+    (match-dfs [trail cl] [(list assignment) (multiset tagged-literal)]
       {; not more than 2 literals from the current stage
        [[_ !<cons [_ ,stage] <cons [_ ,stage] _>>]
-        [(min (map 2#%2 clt)) (map 2#%1 clt)]]
+        [(min (map 2#%2 cl)) (map 2#%1 cl)]]
        ; otherwise
        [[<join _ <cons <deduced [$l ,stage] $ds> $trail'>>
          <cons [,(neg l) ,stage] $rs>]
-        (learn' stage (union rs ds) trail')]})))
+        (learn stage (union rs ds) trail')]})))
 
 ;; Backjumping
 
@@ -148,7 +144,7 @@
          [<cons [<nil> $cc] _>
           (match-dfs trail' (list assignment)
             {[<join _ <cons <either [$l ,stage]> $trail''>>
-              (let* {[[$s $lc] (learn stage (debug2 "conflict: " cc) trail')]
+              (let* {[[$s $lc] (learn stage (debug2 "conflict: " (map (lambda [$l] [l (get-stage l trail')]) cc)) trail')]
                      [$trail''' (backjump s trail'')]}
                 (cdcl' (+ count 1) s (add-vars lc vars) {[(debug2 "learned clause: " lc) lc] @cnf} trail'''))]
              [_ #f]})]
