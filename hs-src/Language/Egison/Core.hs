@@ -558,6 +558,19 @@ evalExpr env (MatchExpr target matcher clauses) = do
               MNil             -> cont
       foldr tryMatchClause (throwError $ Default "failed pattern match") clauses
 
+evalExpr env (MatchDFSExpr target matcher clauses) = do
+  target <- evalExpr env target
+  matcher <- evalExpr env matcher >>= evalMatcherWHNF
+  f matcher target
+ where
+  f matcher target = do
+      let tryMatchClause (pattern, expr) cont = do
+            result <- patternMatch DFSMode env pattern target matcher
+            case result of
+              MCons bindings _ -> evalExpr (extendEnv env bindings) expr
+              MNil             -> cont
+      foldr tryMatchClause (throwError $ Default "failed pattern match") clauses
+
 evalExpr env (SeqExpr expr1 expr2) = do
   evalExprDeep env expr1
   evalExpr env expr2

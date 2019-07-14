@@ -229,6 +229,7 @@ expr' = try partialExpr
                         <|> matchAllExpr
                         <|> matchAllDFSExpr
                         <|> matchExpr
+                        <|> matchDFSExpr
                         <|> matchAllLambdaExpr
                         <|> matchLambdaExpr
                         <|> matcherExpr
@@ -321,6 +322,9 @@ matchAllDFSExpr = keywordMatchAllDFS >> MatchAllDFSExpr <$> expr <*> expr <*> ((
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
+
+matchDFSExpr :: Parser EgisonExpr
+matchDFSExpr = keywordMatchDFS >> MatchDFSExpr <$> expr <*> expr <*> matchClauses
 
 matchAllLambdaExpr :: Parser EgisonExpr
 matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
@@ -798,6 +802,8 @@ reservedKeywords =
   , "loop"
   , "match-all"
   , "match"
+  , "match-all-dfs"
+  , "match-dfs"
   , "match-all-lambda"
   , "match-lambda"
   , "matcher"
@@ -882,6 +888,7 @@ keywordMatchAll             = reserved "match-all"
 keywordMatchAllDFS          = reserved "match-all-dfs"
 keywordMatchAllLambda       = reserved "match-all-lambda"
 keywordMatch                = reserved "match"
+keywordMatchDFS             = reserved "match-dfs"
 keywordMatchLambda          = reserved "match-lambda"
 keywordMatcher              = reserved "matcher"
 keywordDo                   = reserved "do"
