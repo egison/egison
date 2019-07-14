@@ -71,8 +71,10 @@
 
      "\\<loop\\>"
      "\\<match\\>"
+     "\\<match-dfs\\>"
      "\\<match-lambda\\>"
      "\\<match-all\\>"
+     "\\<match-all-dfs\\>"
      "\\<match-all-lambda\\>"
      "\\<matcher\\>"
      "\\<self\\>"
@@ -194,8 +196,10 @@
         ((equal "tensor-map" name) 2)
         ((equal "loop" name) 2)
         ((equal "match" name) 2)
+        ((equal "match-dfs" name) 2)
         ((equal "match-lambda" name) 2)
         ((equal "match-all" name) 2)
+        ((equal "match-all-dfs" name) 2)
         ((equal "match-all-lambda" name) 2)
         ((equal "matcher" name) 2)
         ((equal "algebraic-data-matcher" name) 2)

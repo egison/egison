@@ -306,6 +306,12 @@ desugar (MatchExpr expr0 expr1 clauses) = do
   clauses' <- desugarMatchClauses clauses
   return $ MatchExpr expr0' expr1' clauses'
 
+desugar (MatchDFSExpr expr0 expr1 clauses) = do
+  expr0' <- desugar expr0
+  expr1' <- desugar expr1
+  clauses' <- desugarMatchClauses clauses
+  return $ MatchDFSExpr expr0' expr1' clauses'
+
 desugar (MatchAllExpr expr0 expr1 clauses) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1
