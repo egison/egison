@@ -101,7 +101,7 @@ Benchmark benchmark
 
 Executable egison
   Main-is:             egison.hs
-  Build-depends:       egison, base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, filepath, text, regex-tdfa, process, vector, optparse-applicative
+  Build-depends:       egison, base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.1, directory, ghc, ghc-paths, filepath, text, regex-tdfa, process, vector, optparse-applicative
   if !impl(ghc > 8.0)
     Build-Depends: semigroups
   Hs-Source-Dirs:      hs-src/Interpreter
