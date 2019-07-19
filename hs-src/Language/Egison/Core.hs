@@ -556,7 +556,10 @@ evalExpr env (MatchExpr target matcher clauses) = do
             case result of
               MCons bindings _ -> evalExpr (extendEnv env bindings) expr
               MNil             -> cont
-      foldr tryMatchClause (throwError $ Default "failed pattern match") clauses
+      currentFuncName <- topFuncName
+      callstack <- getFuncNameStack
+      let errmsg = "failed pattern match in " ++ currentFuncName ++ "\n  call stack: " ++ show callstack
+      foldr tryMatchClause (throwError $ Default $ errmsg) clauses
 
 evalExpr env (MatchDFSExpr target matcher clauses) = do
   target <- evalExpr env target
@@ -569,7 +572,10 @@ evalExpr env (MatchDFSExpr target matcher clauses) = do
             case result of
               MCons bindings _ -> evalExpr (extendEnv env bindings) expr
               MNil             -> cont
-      foldr tryMatchClause (throwError $ Default "failed pattern match") clauses
+      currentFuncName <- topFuncName
+      callstack <- getFuncNameStack
+      let errmsg = "failed pattern match in " ++ currentFuncName ++ "\n  call stack: " ++ show callstack
+      foldr tryMatchClause (throwError $ Default $ errmsg) clauses
 
 evalExpr env (SeqExpr expr1 expr2) = do
   evalExprDeep env expr1
@@ -853,9 +859,23 @@ applyFunc _ (Value (PartialFunc env n body)) arg = do
   if n == fromIntegral (length refs)
     then evalExpr (extendEnv env $ makeBindings (map (\n -> stringToVar $ "::" ++ show n) [1..n]) refs) body
     else throwError $ ArgumentsNumWithNames ["partial"] (fromIntegral n) (length refs)
+applyFunc _ (Value (Func (Just (Var [funcname] _)) env [name] body)) arg = do
+  pushFuncName funcname
+  ref <- newEvaluatedObjectRef arg
+  result <- evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
+  popFuncName
+  return result
 applyFunc _ (Value (Func _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
   evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
+applyFunc _ (Value (Func (Just (Var [funcname] _)) env names body)) arg = do
+  pushFuncName funcname
+  refs <- fromTuple arg
+  result <- (if length names == length refs
+               then evalExpr (extendEnv env $ makeBindings' names refs) body
+               else throwError $ ArgumentsNumWithNames names (length names) (length refs))
+  popFuncName
+  return result
 applyFunc _ (Value (Func _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
