@@ -457,5 +457,5 @@
    {-3 -40 8}
    {-23 -31 38}})
 
-;(cdcl (between 1 20) problem20) ; 3.441
-(cdcl (between 1 50) problem50) ; 87.15
+;(cdcl (between 1 20) problem20) ; 
+(cdcl (between 1 50) problem50) ; 1:10.74
