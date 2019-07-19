@@ -468,18 +468,10 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     _ -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
-  isTmpSymbol symId (Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
-    | symId == id = True
-    | otherwise = False
-  isTmpSymbol symId (Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
-    | symId == id = True
-    | otherwise = False
-  isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
-    | symId == id = True
-    | otherwise = False
-  isTmpSymbol symId (Userscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []]))))
-    | symId == id = True
-    | otherwise = False
+  isTmpSymbol symId (Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (Userscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))) = symId == id
   removeTmpscripts :: String -> WHNFData -> EgisonM WHNFData
   removeTmpscripts symId (Intermediate (ITensor (Tensor s xs is))) = do
     let (ds, js) = partition (isTmpSymbol symId) is
