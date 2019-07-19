@@ -1660,6 +1660,7 @@ data EgisonError =
   | Parser String
   | Desugar String
   | EgisonBug String
+  | MatchFailure String [String]
   | Default String
   deriving Typeable
 
@@ -1681,6 +1682,8 @@ instance Show EgisonError where
   show (Assertion message) = "Assertion failed: " ++ message
   show (Desugar message) = "Error: " ++ message
   show (EgisonBug message) = "Egison Error: " ++ message
+  show (MatchFailure currentFunc stack) = "Failed pattern match in: " ++ currentFunc ++
+                                          "\n  stack trace: " ++ intercalate ", " stack
   show (Default message) = "Error: " ++ message
 
 instance Exception EgisonError
