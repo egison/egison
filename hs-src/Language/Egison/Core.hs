@@ -558,8 +558,7 @@ evalExpr env (MatchExpr target matcher clauses) = do
               MNil             -> cont
       currentFuncName <- topFuncName
       callstack <- getFuncNameStack
-      let errmsg = "failed pattern match in " ++ currentFuncName ++ "\n  call stack: " ++ show callstack
-      foldr tryMatchClause (throwError $ Default $ errmsg) clauses
+      foldr tryMatchClause (throwError $ MatchFailure currentFuncName callstack) clauses
 
 evalExpr env (MatchDFSExpr target matcher clauses) = do
   target <- evalExpr env target
@@ -574,8 +573,7 @@ evalExpr env (MatchDFSExpr target matcher clauses) = do
               MNil             -> cont
       currentFuncName <- topFuncName
       callstack <- getFuncNameStack
-      let errmsg = "failed pattern match in " ++ currentFuncName ++ "\n  call stack: " ++ show callstack
-      foldr tryMatchClause (throwError $ Default $ errmsg) clauses
+      foldr tryMatchClause (throwError $ MatchFailure currentFuncName callstack) clauses
 
 evalExpr env (SeqExpr expr1 expr2) = do
   evalExprDeep env expr1
