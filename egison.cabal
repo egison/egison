@@ -68,7 +68,7 @@ source-repository head
   location: https://github.com/egison/egison.git
 
 Library
-  Build-Depends:   base >= 4.0 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, text, regex-tdfa, process, vector, parallel, split, hashable
+  Build-Depends:   base >= 4.7 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl >=2.2.1, parsec >= 3.0, directory, ghc, ghc-paths, text, regex-tdfa, process, vector, parallel, split, hashable
   if !impl(ghc > 8.0)
     Build-Depends: fail
   Hs-Source-Dirs:  hs-src
@@ -102,6 +102,8 @@ Benchmark benchmark
 Executable egison
   Main-is:             egison.hs
   Build-depends:       egison, base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.0, directory, ghc, ghc-paths, filepath, text, regex-tdfa, process, vector, optparse-applicative
+  if !impl(ghc > 8.0)
+    Build-Depends: semigroups
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
   ghc-options:  -O3 -threaded -eventlog -rtsopts
