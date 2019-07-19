@@ -179,7 +179,7 @@ runWithOptions opts
 
 showBanner :: IO ()
 showBanner = do
-  putStrLn $ "Egison Version " ++ showVersion version ++ " (C) 2011-2018 Satoshi Egi"
+  putStrLn $ "Egison Version " ++ showVersion version ++ " (C) 2011-2019 Satoshi Egi"
   putStrLn $ "https://www.egison.org"
   putStrLn $ "Welcome to Egison Interpreter!"
 --  putStrLn $ "** Information **"
