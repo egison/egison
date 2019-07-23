@@ -111,7 +111,7 @@ evalTopExpr' _ st (Execute expr) = do
   io <- evalStateT st [] >>= flip evalExpr expr
   case io of
     Value (IOFunc m) -> m >> return (Nothing, st)
-    _                -> throwError $ TypeMismatch "io" io
+    _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
 evalTopExpr' opts st (Load file) = do
   exprs <- if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
   (bindings, _) <- collectDefs opts exprs [] []
@@ -132,13 +132,13 @@ evalExpr env (QuoteExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
     Value (ScalarData s) -> return . Value $ ScalarData $ Div (Plus [Term 1 [(Quote s, 1)]]) (Plus [Term 1 []])
-    _ -> throwError $ TypeMismatch "scalar in quote" whnf
+    _ -> throwError =<< TypeMismatch "scalar in quote" whnf <$> getFuncNameStack
 
 evalExpr env (QuoteSymbolExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
     Value val -> return . Value $ QuotedFunc val
-    _         -> throwError $ TypeMismatch "value in quote-function" whnf
+    _         -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 
 evalExpr env (VarExpr name) = do
   x <- refVar' env name >>= evalRef
@@ -235,8 +235,8 @@ evalExpr env (HashExpr assocs) = do
       ScalarData _ -> IntKey <$> fromEgison val
       Char c -> return (CharKey c)
       String str -> return (StrKey str)
-      _ -> throwError $ TypeMismatch "integer or string" $ Value val
-  makeHashKey whnf = throwError $ TypeMismatch "integer or string" whnf
+      _ -> throwError =<< TypeMismatch "integer or string" (Value val) <$> getFuncNameStack
+  makeHashKey whnf = throwError =<< TypeMismatch "integer or string" whnf <$> getFuncNameStack
 
 evalExpr env (IndexedExpr bool expr indices) = do
   tensor <- case expr of
@@ -499,7 +499,7 @@ evalExpr env (IoExpr expr) = do
       val <- m >>= evalWHNF
       case val of
         Tuple [_, val'] -> return $ Value val'
-    _ -> throwError $ TypeMismatch "io" io
+    _ -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
 
 evalExpr env (MatchAllExpr target matcher clauses) = do
   target <- evalExpr env target
@@ -651,7 +651,7 @@ evalExpr env (MemoizeExpr memoizeFrame expr) = do
                               retRef <- newEvaluatedObjectRef (Value ret)
                               liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
                               writeObjectRef ref (Value (MemoizedFunc name ref hashRef env' names body))
-                            _ -> throwError $ TypeMismatch "memoized-function" (Value x'))
+                            _ -> throwError =<< TypeMismatch "memoized-function" (Value x') <$> getFuncNameStack)
        memoizeFrame
   evalExpr env expr
 
@@ -848,7 +848,7 @@ applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
   if n == fromIntegral (length refs)
     then evalExpr (extendEnv env $ makeBindings (map (\n -> stringToVar $ "::" ++ show n) [1..n]) refs) body
-    else throwError $ ArgumentsNumWithNames ["partial"] (fromIntegral n) (length refs)
+    else throwError =<< ArgumentsNumWithNames ["partial"] (fromIntegral n) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (Func (Just (Var [funcname] _)) env [name] body)) arg = do
   pushFuncName funcname
   ref <- newEvaluatedObjectRef arg
@@ -863,14 +863,14 @@ applyFunc _ (Value (Func (Just (Var [funcname] _)) env names body)) arg = do
   refs <- fromTuple arg
   result <- (if length names == length refs
                then evalExpr (extendEnv env $ makeBindings' names refs) body
-               else throwError $ ArgumentsNumWithNames names (length names) (length refs))
+               else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack)
   popFuncName
   return result
 applyFunc _ (Value (Func _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings' names refs) body
-    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (Proc _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
   evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
@@ -878,14 +878,14 @@ applyFunc _ (Value (Proc _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings' names refs) body
-    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (CFunc _ env name body)) arg = do
   refs <- fromTuple arg
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection seqRef
   if not (null refs)
     then evalExpr (extendEnv env $ makeBindings' [name] [col]) body
-    else throwError $ ArgumentsNumWithNames [name] 1 0
+    else throwError =<< ArgumentsNumWithNames [name] 1 0 <$> getFuncNameStack
 applyFunc env (Value (Macro [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
   evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
@@ -893,12 +893,12 @@ applyFunc env (Value (Macro names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings' names refs) body
-    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (PrimitiveFunc _ func)) arg = func arg
 applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
-     _           -> throwError $ TypeMismatch "world" arg
+     _           -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
 applyFunc _ (Value (QuotedFunc fn)) arg = do
   args <- tupleToList arg
   mExprs <- mapM extractScalar args
@@ -909,7 +909,7 @@ applyFunc _ (Value fn@(ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Te
                             ScalarData _ -> extractScalar arg
                             _ -> throwError $ EgisonBug "to use undefined functions, you have to use ScalarData args") args
   return (Value (ScalarData (Div (Plus [Term 1 [(Apply fn mExprs, 1)]]) (Plus [Term 1 []]))))
-applyFunc _ whnf _ = throwError $ TypeMismatch "function" whnf
+applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val
@@ -925,7 +925,7 @@ refArray (Value (Array array)) (index:indices) =
              elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
              elmRefs <- mapM newEvaluatedObjectRef elms
              return $ Intermediate $ IArray $ Array.listArray (1, size) elmRefs
-           _  -> throwError $ TypeMismatch "integer or symbol" (Value index)
+           _  -> throwError =<< TypeMismatch "integer or symbol" (Value index) <$> getFuncNameStack
 refArray (Intermediate (IArray array)) (index:indices) =
   if isInteger index
     then do i <- (fmap fromInteger . fromEgison) index
@@ -941,7 +941,7 @@ refArray (Intermediate (IArray array)) (index:indices) =
              elms <- mapM (`refArray` indices) arrs
              elmRefs <- mapM newEvaluatedObjectRef elms
              return $ Intermediate $ IArray $ Array.listArray (1, size) elmRefs
-           _  -> throwError $ TypeMismatch "integer or symbol" (Value index)
+           _  -> throwError =<< TypeMismatch "integer or symbol" (Value index) <$> getFuncNameStack
 refArray (Value (IntHash hash)) (index:indices) = do
   key <- fromEgison index
   case HL.lookup key hash of
@@ -972,7 +972,7 @@ refArray (Intermediate (IStrHash hash)) (index:indices) = do
   case HL.lookup key hash of
     Just ref -> evalRef ref >>= flip refArray indices
     Nothing  -> return $ Value Undefined
-refArray val _ = throwError $ TypeMismatch "array or hash" val
+refArray val _ = throwError =<< TypeMismatch "array or hash" val <$> getFuncNameStack
 
 arrayBounds :: WHNFData -> EgisonM WHNFData
 arrayBounds val = Value <$> arrayBounds' val
@@ -980,7 +980,7 @@ arrayBounds val = Value <$> arrayBounds' val
 arrayBounds' :: WHNFData -> EgisonM EgisonValue
 arrayBounds' (Intermediate (IArray arr)) = return $ Tuple [toEgison (fst (Array.bounds arr)), toEgison (snd (Array.bounds arr))]
 arrayBounds' (Value (Array arr))         = return $ Tuple [toEgison (fst (Array.bounds arr)), toEgison (snd (Array.bounds arr))]
-arrayBounds' val                         = throwError $ TypeMismatch "array" val
+arrayBounds' val                         = throwError =<< TypeMismatch "array" val <$> getFuncNameStack
 
 newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr
@@ -1185,7 +1185,7 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
         Value (PatternFunc env'' names expr) ->
           let penv = zip names args
           in return $ msingleton $ MState env loops seqs bindings (MNode penv (MState env'' [] [] [] [MAtom expr target matcher]) : trees)
-        _ -> throwError $ TypeMismatch "pattern constructor" func'
+        _ -> throwError =<< TypeMismatch "pattern constructor" func' <$> getFuncNameStack
 
     DApplyPat func args ->
       return $ msingleton $ MState env loops seqs bindings (MAtom (InductivePat "apply" [func, toListPat args]) target matcher:trees)
@@ -1262,8 +1262,8 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
             IndexedPat _ _ -> return $ msingleton $ MState env loops seqs bindings (MAtom pattern target Something:trees)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
-              when (length patterns /= length targets) $ throwError $ ArgumentsNum (length patterns) (length targets)
-              when (length patterns /= length matchers) $ throwError $ ArgumentsNum (length patterns) (length matchers)
+              when (length patterns /= length targets) $ throwError =<< ArgumentsNum (length patterns) (length targets) <$> getFuncNameStack
+              when (length patterns /= length matchers) $ throwError =<< ArgumentsNum (length patterns) (length matchers) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets matchers ++ trees
               return $ msingleton $ MState env loops seqs bindings trees'
             _ ->  throwError $ Default $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
@@ -1310,7 +1310,7 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
             IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
-              when (length patterns /= length targets) $ throwError $ ArgumentsNum (length patterns) (length targets)
+              when (length patterns /= length targets) $ throwError =<< ArgumentsNum (length patterns) (length targets) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets (replicate (length patterns) Something) ++ trees
               return $ msingleton $ MState env loops seqs bindings trees'
             _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ show pattern
@@ -1395,7 +1395,7 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') whnf = do
   (++) <$> primitiveDataPatternMatch pattern init'
        <*> primitiveDataPatternMatch pattern' last'
 primitiveDataPatternMatch (PDConstantPat expr) whnf = do
-  target <- (either (const matchFail) return . extractPrimitiveValue) whnf
+  target <- (either (const matchFail) return) $ extractPrimitiveValue whnf
   isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
 
@@ -1403,7 +1403,7 @@ expandCollection :: WHNFData -> EgisonM (Seq Inner)
 expandCollection (Value (Collection vals)) =
   mapM (fmap IElement . newEvaluatedObjectRef . Value) vals
 expandCollection (Intermediate (ICollection innersRef)) = liftIO $ readIORef innersRef
-expandCollection val = throwError $ TypeMismatch "collection" val
+expandCollection val = throwError =<< TypeMismatch "collection" val <$> getFuncNameStack
 
 isEmptyCollection :: WHNFData -> EgisonM Bool
 isEmptyCollection (Value (Collection col)) = return $ Sq.null col
@@ -1469,7 +1469,7 @@ evalMatcherWHNF (Intermediate (ITuple refs)) = do
   whnfs <- mapM evalRef refs
   ms <- mapM evalMatcherWHNF whnfs
   return $ Tuple ms
-evalMatcherWHNF whnf = throwError $ TypeMismatch "matcher" whnf
+evalMatcherWHNF whnf = throwError =<< TypeMismatch "matcher" whnf <$> getFuncNameStack
 
 --
 -- Util
@@ -1504,7 +1504,7 @@ fromCollection whnf@(Intermediate (ICollection _)) = do
       (head, tail) <- fromJust <$> runMaybeT (unconsCollection whnf)
       tail' <- evalRef tail
       return $ MCons head (fromCollection tail')
-fromCollection whnf = throwError $ TypeMismatch "collection" whnf
+fromCollection whnf = throwError =<< TypeMismatch "collection" whnf <$> getFuncNameStack
 
 tupleToList :: WHNFData -> EgisonM [EgisonValue]
 tupleToList whnf = do
@@ -1521,7 +1521,7 @@ collectionToList whnf = do
  where
   collectionToList' :: EgisonValue -> EgisonM [EgisonValue]
   collectionToList' (Collection sq) = return $ toList sq
-  collectionToList' val = throwError $ TypeMismatch "collection" (Value val)
+  collectionToList' val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
 
 makeTuple :: [EgisonValue] -> EgisonValue
 makeTuple []  = Tuple []
@@ -1541,11 +1541,11 @@ packStringValue (Collection seq) = do
   let ls = toList seq
   str <- mapM (\val -> case val of
                          Char c -> return c
-                         _ -> throwError $ TypeMismatch "char" (Value val))
+                         _ -> throwError =<< TypeMismatch "char" (Value val) <$> getFuncNameStack)
               ls
   return $ T.pack str
 packStringValue (Tuple [val]) = packStringValue val
-packStringValue val = throwError $ TypeMismatch "string" (Value val)
+packStringValue val = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 --
 -- Util
@@ -1555,7 +1555,7 @@ data EgisonHashKey =
   | CharKey Char
   | StrKey Text
 
-extractPrimitiveValue :: WHNFData -> Either EgisonError EgisonValue
+extractPrimitiveValue :: WHNFData -> Either ([String] -> EgisonError) EgisonValue
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
 extractPrimitiveValue (Value val@(ScalarData _)) = return val
