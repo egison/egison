@@ -63,7 +63,7 @@ noArg f args = do
     args' <- tupleToList args
     case args' of
       [] -> Value <$> f
-      _  -> throwError $ ArgumentsNumPrimitive 0 $ length args'
+      _  -> throwError =<< ArgumentsNumPrimitive 0 (length args') <$> getFuncNameStack
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -94,7 +94,7 @@ twoArgs f args = do
       ds' <- V.mapM (f val) ds
       Value <$> fromTensor (Tensor ns ds' js)
     [val, val'] -> Value <$> f val val'
-    _ -> throwError $ ArgumentsNumPrimitive 2 $ length args'
+    _ -> throwError =<< ArgumentsNumPrimitive 2 (length args') <$> getFuncNameStack
 
 {-# INLINE twoArgs' #-}
 twoArgs' :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -102,7 +102,7 @@ twoArgs' f args = do
   args' <- tupleToList args
   case args' of
     [val, val'] -> Value <$> f val val'
-    _           -> throwError $ ArgumentsNumPrimitive 2 $ length args'
+    _           -> throwError =<< ArgumentsNumPrimitive 2 (length args') <$> getFuncNameStack
 
 {-# INLINE threeArgs' #-}
 threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
@@ -110,7 +110,7 @@ threeArgs' f args = do
   args' <- tupleToList args
   case args' of
     [val, val', val''] -> Value <$> f val val' val''
-    _                  -> throwError $ ArgumentsNumPrimitive 3 $ length args'
+    _                  -> throwError =<< ArgumentsNumPrimitive 3 (length args') <$> getFuncNameStack
 
 --
 -- Constants
