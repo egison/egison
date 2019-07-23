@@ -1706,14 +1706,14 @@ instance MonadFail EgisonM where
 parallelMapM :: (a -> EgisonM b) -> [a] -> EgisonM [b]
 parallelMapM f [] = return []
 parallelMapM f (x:xs) = do
-  let defaultRuntimeState = RuntimeState { indexCounter = 0, threadID = 1, funcNameStack = [] }
+  let defaultRuntimeState = RuntimeState { indexCounter = 0, funcNameStack = [] }
   let y = unsafePerformEgison defaultRuntimeState $ f x
   let ys = unsafePerformEgison defaultRuntimeState $ parallelMapM f xs
   y `par` (ys `pseq` return (y:ys))
 
 unsafePerformEgison :: RuntimeState -> EgisonM a -> a
 unsafePerformEgison st ma =
-  let (Right ret, _) = unsafePerformIO $ runFreshT (st { threadID = threadID st + 1 }) $ runEgisonM ma in
+  let (Right ret, _) = unsafePerformIO $ runFreshT st $ runEgisonM ma in
   ret
 --    f' :: (Either EgisonError a) -> (Either EgisonError b) -> EgisonM c
 --    f' (Right x) (Right y) = f x y
@@ -1734,28 +1734,25 @@ fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
 fromEgisonM = modifyCounter . runEgisonM
 
 {-# NOINLINE counter #-}
-counter :: IORef (Int, Int)
-counter = unsafePerformIO (newIORef (0, 0))
+counter :: IORef Int
+counter = unsafePerformIO $ newIORef 0
 
-readCounter :: IO (Int, Int)
+readCounter :: IO Int
 readCounter = readIORef counter
 
-updateCounter :: (Int, Int) -> IO ()
+updateCounter :: Int -> IO ()
 updateCounter = writeIORef counter
 
 modifyCounter :: FreshT IO a -> IO a
 modifyCounter m = do
-  (x, y) <- readCounter
-  (result, st) <- runFreshT (RuntimeState { indexCounter = x, threadID = y, funcNameStack = [] }) m
-  updateCounter (indexCounter st, threadID st)
+  x <- readCounter
+  (result, st) <- runFreshT (RuntimeState { indexCounter = x, funcNameStack = [] }) m
+  updateCounter $ indexCounter st
   return result
 
--- TODO: delete threadID as they will no longer be used
 data RuntimeState = RuntimeState
     -- | index counter for generating fresh variable
       { indexCounter :: Int
-    -- | thread ID for parallel execution
-      , threadID :: Int
     -- | names of called functions for improved error message
       , funcNameStack :: [String]
       }
@@ -1776,10 +1773,10 @@ class (Applicative m, Monad m) => MonadFresh m where
 instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
   fresh = FreshT $ do
     st <- get; modify (\st -> st { indexCounter = indexCounter st + 1 })
-    return $ "$_" ++ show (indexCounter st) ++ show (threadID st)
+    return $ "$_" ++ show (indexCounter st)
   freshV = FreshT $ do
     st <- get; modify (\st -> st {indexCounter = indexCounter st + 1 })
-    return $ Var ["$_" ++ show (indexCounter st) ++ show (threadID st)] []
+    return $ Var ["$_" ++ show (indexCounter st)] []
   pushFuncName name = FreshT $ do
     st <- get
     put $ st { funcNameStack = name : funcNameStack st }
