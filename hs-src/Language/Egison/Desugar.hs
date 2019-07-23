@@ -39,7 +39,7 @@ newtype DesugarM a = DesugarM { unDesugarM :: ReaderT Subst (ExceptT EgisonError
   deriving (Functor, Applicative, Monad, MonadError EgisonError, MonadFresh, MonadReader Subst)
 
 instance MonadFail DesugarM where
-    fail = throwError . EgisonBug
+    fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
 
 runDesugarM :: DesugarM a -> Fresh (Either EgisonError a)
 runDesugarM = runExceptT . flip runReaderT [] . unDesugarM

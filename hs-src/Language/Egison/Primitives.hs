@@ -623,13 +623,13 @@ assert = twoArgs' $ \label test -> do
   test <- fromEgison test
   if test
     then return $ Bool True
-    else throwError $ Assertion $ show label
+    else throwError =<< Assertion (show label) <$> getFuncNameStack
 
 assertEqual :: PrimitiveFunc
 assertEqual = threeArgs' $ \label actual expected -> if actual == expected
                                                        then return $ Bool True
-                                                       else throwError $ Assertion $ show label ++ "\n expected: " ++ show expected ++
-                                                                                      "\n but found: " ++ show actual
+                                                       else throwError =<< Assertion
+                                                         (show label ++ "\n expected: " ++ show expected ++ "\n but found: " ++ show actual) <$> getFuncNameStack
 
 --
 -- IO Primitives

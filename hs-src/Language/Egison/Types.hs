@@ -815,26 +815,26 @@ tIntRef' :: HasTensor a => Integer -> Tensor a -> EgisonM a
 tIntRef' i (Tensor [n] xs _) =
   if (0 < i) && (i <= n)
      then fromTensor $ Scalar $ xs V.! fromIntegral (i - 1)
-     else throwError $ TensorIndexOutOfBounds i n
+     else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
 tIntRef' i (Tensor (n:ns) xs js) =
   if (0 < i) && (i <= n)
    then let w = fromIntegral (product ns) in
         let ys = V.take w (V.drop (w * fromIntegral (i - 1)) xs) in
           fromTensor $ Tensor ns ys (cdr js)
-   else throwError $ TensorIndexOutOfBounds i n
+   else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
 tIntRef' i _ = throwError $ Default "More indices than the order of the tensor"
 
 tIntRef :: HasTensor a => [Integer] -> Tensor a -> EgisonM (Tensor a)
 tIntRef [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
-  | otherwise = throwError $ EgisonBug "sevaral elements in scalar tensor"
+  | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
 tIntRef [] t = return t
 tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms
 
 tref :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM a
 tref [] (Tensor [] xs _)
   | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
-  | otherwise = throwError $ EgisonBug "sevaral elements in scalar tensor"
+  | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
 tref [] t = fromTensor t
 tref (Subscript (ScalarData (Div (Plus [Term m []]) (Plus [Term 1 []]))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
 tref (Subscript (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
@@ -892,11 +892,11 @@ transIndex [] [] is = return is
 transIndex (j1:js1) js2 is = do
   let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
   if null tjs2
-    then throwError InconsistentTensorIndex
+    then throwError =<< InconsistentTensorIndex <$> getFuncNameStack
     else do let n = length hjs2 + 1
             rs <- transIndex js1 (hjs2 ++ tail tjs2) (take (n - 1) is ++ drop n is)
             return (nth (fromIntegral n) is:rs)
-transIndex _ _ _ = throwError InconsistentTensorSize
+transIndex _ _ _ = throwError =<< InconsistentTensorSize <$> getFuncNameStack
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns xs js) = do
@@ -916,7 +916,7 @@ tTranspose' is t@(Tensor ns xs js) = do
   g :: [EgisonValue] -> [Index EgisonValue] -> EgisonM [Index EgisonValue]
   g [] js = return []
   g (i:is) js = case find (\j -> i == f j) js of
-                  Nothing ->  throwError InconsistentTensorIndex
+                  Nothing ->  throwError =<< InconsistentTensorIndex <$> getFuncNameStack
                   (Just j') -> do js' <- g is js
                                   return $ j':js'
 
@@ -1047,7 +1047,7 @@ tSum f t1@(Tensor ns1 xs1 js1) t2@Tensor{} = do
     (Tensor ns2 xs2 _)
       | ns2 == ns1 -> do ys <- V.mapM (uncurry f) (V.zip xs1 xs2)
                          return (Tensor ns1 ys js1)
-      | otherwise -> throwError InconsistentTensorSize
+      | otherwise -> throwError =<< InconsistentTensorSize <$> getFuncNameStack
 
 tProduct :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
 tProduct f t1''@(Tensor ns1 xs1 js1') t2''@(Tensor ns2 xs2 js2') = do
@@ -1694,13 +1694,13 @@ data EgisonError =
   | ArgumentsNumWithNames [String] Int Int CallStack
   | ArgumentsNumPrimitive Int Int CallStack
   | ArgumentsNum Int Int CallStack
-  | InconsistentTensorSize
-  | InconsistentTensorIndex
-  | TensorIndexOutOfBounds Integer Integer
-  | NotImplemented String
-  | Assertion String
+  | InconsistentTensorSize CallStack
+  | InconsistentTensorIndex CallStack
+  | TensorIndexOutOfBounds Integer Integer CallStack
+  | NotImplemented String CallStack
+  | Assertion String CallStack
   | Parser String
-  | EgisonBug String
+  | EgisonBug String CallStack
   | MatchFailure String CallStack
   | Default String
   deriving Typeable
@@ -1716,13 +1716,13 @@ instance Show EgisonError where
     "Wrong number of arguments for a primitive function: expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (ArgumentsNum expected got stack) =
     "Wrong number of arguments: expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
-  show InconsistentTensorSize = "Inconsistent tensor size"
-  show InconsistentTensorIndex = "Inconsistent tensor index"
-  show (TensorIndexOutOfBounds m n) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n
-  show (NotImplemented message) = "Not implemented: " ++ message
-  show (Assertion message) = "Assertion failed: " ++ message
+  show (InconsistentTensorSize stack) = "Inconsistent tensor size" ++ showTrace stack
+  show (InconsistentTensorIndex stack) = "Inconsistent tensor index" ++ showTrace stack
+  show (TensorIndexOutOfBounds m n stack) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n ++ showTrace stack
+  show (NotImplemented message stack) = "Not implemented: " ++ message ++ showTrace stack
+  show (Assertion message stack) = "Assertion failed: " ++ message ++ showTrace stack
   show (Parser err) = "Parse error at: " ++ err
-  show (EgisonBug message) = "Egison Error: " ++ message
+  show (EgisonBug message stack) = "Egison Error: " ++ message ++ showTrace stack
   show (MatchFailure currentFunc stack) = "Failed pattern match at: " ++ currentFunc ++ showTrace stack
   show (Default message) = "Error: " ++ message
 
@@ -1743,7 +1743,7 @@ newtype EgisonM a = EgisonM {
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
 
 instance MonadFail EgisonM where
-    fail = throwError . EgisonBug
+    fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
 
 parallelMapM :: (a -> EgisonM b) -> [a] -> EgisonM [b]
 parallelMapM f [] = return []
