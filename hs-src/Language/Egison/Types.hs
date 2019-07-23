@@ -1689,7 +1689,7 @@ data SeqPatContext = SeqPatContext [MatchingTree] EgisonPattern [Matcher] [WHNFD
 type CallStack = [String]
 
 data EgisonError =
-    UnboundVariable String
+    UnboundVariable String CallStack
   | TypeMismatch String WHNFData CallStack
   | ArgumentsNumWithNames [String] Int Int CallStack
   | ArgumentsNumPrimitive Int Int CallStack
@@ -1706,7 +1706,9 @@ data EgisonError =
   deriving Typeable
 
 instance Show EgisonError where
-  show (UnboundVariable var) = "Unbound variable: " ++ show var
+  show (UnboundVariable var stack) =
+    "Unbound variable: " ++ show var
+    ++ "\n  stack trace: " ++ intercalate ", " stack
   show (TypeMismatch expected found stack) =
     "Expected " ++  expected ++ ", but found: " ++ show found
     ++ "\n  stack trace: " ++ intercalate ", " stack
