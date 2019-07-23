@@ -1031,7 +1031,7 @@ recursiveBind env bindings = do
 recursiveRebind :: Env -> (Var, EgisonExpr) -> EgisonM Env
 recursiveRebind env (name, expr) = do
   case refVar env name of
-    Nothing -> throwError $ UnboundVariable $ show name
+    Nothing -> throwError =<< UnboundVariable (show name) <$> getFuncNameStack
     Just ref -> case expr of
                   MemoizedLambdaExpr names body -> do
                     hashRef <- liftIO $ newIORef HL.empty
@@ -1140,7 +1140,7 @@ processMState' (MState env loops seqs bindings (MNode penv (MState env' loops' s
       case trees' of
         [] -> return $ msingleton $ MState env loops seqs bindings ((MAtom pattern target matcher):trees)
         _ -> return $ msingleton $ MState env loops seqs bindings (MAtom pattern target matcher:MNode penv (MState env' loops' seqs' bindings' trees'):trees)
-    Nothing -> throwError $ UnboundVariable name
+    Nothing -> throwError =<< UnboundVariable name <$> getFuncNameStack
 
 processMState' (MState env loops seqs bindings (MNode penv (MState env' loops' seqs' bindings' (MAtom (IndexedPat (VarPat name) indices) target matcher:trees')):trees)) =
   case lookup name penv of
@@ -1151,7 +1151,7 @@ processMState' (MState env loops seqs bindings (MNode penv (MState env' loops' s
       case trees' of
         [] -> return $ msingleton $ MState env loops seqs bindings (MAtom pattern' target matcher:trees)
         _ -> return $ msingleton $ MState env loops seqs bindings (MAtom pattern' target matcher:MNode penv (MState env' loops' seqs' bindings' trees'):trees)
-    Nothing -> throwError $ UnboundVariable name
+    Nothing -> throwError =<< UnboundVariable name <$> getFuncNameStack
 
 processMState' (MState env loops seqs bindings (MNode penv state:trees)) =
   processMState' state >>= mmap (\state' -> case state' of
