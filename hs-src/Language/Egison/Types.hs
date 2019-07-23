@@ -1444,6 +1444,7 @@ instance (EgisonData a, EgisonData b, EgisonData c, EgisonData d) => EgisonData 
     return (x', y', z', w')
   fromEgison val = throwError =<< TypeMismatch "two elements tuple" (Value val) <$> getFuncNameStack
 
+-- TODO(momohatt): inline these functions
 fromCharValue :: EgisonValue -> EgisonM Char
 fromCharValue (Char c) = return c
 fromCharValue val      = throwError =<< TypeMismatch "char" (Value val) <$> getFuncNameStack
@@ -1548,6 +1549,7 @@ instance EgisonWHNF Double where
 instance EgisonWHNF Handle where
   fromWHNF = fromPortWHNF
 
+-- TODO(momohatt): inline these functions
 fromCharWHNF :: WHNFData -> EgisonM Char
 fromCharWHNF (Value (Char c)) = return c
 fromCharWHNF whnf             = throwError =<< TypeMismatch "char" whnf <$> getFuncNameStack
@@ -1684,10 +1686,12 @@ data SeqPatContext = SeqPatContext [MatchingTree] EgisonPattern [Matcher] [WHNFD
 -- Errors
 --
 
+type CallStack = [String]
+
 data EgisonError =
     UnboundVariable String
-  | TypeMismatch String WHNFData [String]
-  | ArgumentsNumWithNames [String] Int Int
+  | TypeMismatch String WHNFData CallStack
+  | ArgumentsNumWithNames [String] Int Int CallStack
   | ArgumentsNumPrimitive Int Int
   | ArgumentsNum Int Int
   | InconsistentTensorSize
@@ -1699,21 +1703,22 @@ data EgisonError =
   | Parser String
   | Desugar String
   | EgisonBug String
-  | MatchFailure String [String]
+  | MatchFailure String CallStack
   | Default String
   deriving Typeable
 
 instance Show EgisonError where
   show (Parser err) = "Parse error at: " ++ err
   show (UnboundVariable var) = "Unbound variable: " ++ show var
-  show (TypeMismatch expected found stack) = "Expected " ++  expected ++ ", but found: " ++ show found ++
-                                             "\n  stack trace: " ++ intercalate ", " stack
-  show (ArgumentsNumWithNames names expected got) = "Wrong number of arguments: " ++ show names ++ ": expected " ++
-                                                    show expected ++ ", but got " ++  show got
-  show (ArgumentsNumPrimitive expected got) = "Wrong number of arguments for a primitive function: expected " ++
-                                              show expected ++ ", but got " ++  show got
-  show (ArgumentsNum expected got) = "Wrong number of arguments: expected " ++
-                                      show expected ++ ", but got " ++  show got
+  show (TypeMismatch expected found stack) =
+    "Expected " ++  expected ++ ", but found: " ++ show found ++ "\n  stack trace: " ++ intercalate ", " stack
+  show (ArgumentsNumWithNames names expected got stack) =
+    "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got ++
+      "\n  stack trace: " ++ intercalate ", " stack
+  show (ArgumentsNumPrimitive expected got) =
+    "Wrong number of arguments for a primitive function: expected " ++ show expected ++ ", but got " ++  show got
+  show (ArgumentsNum expected got) =
+    "Wrong number of arguments: expected " ++ show expected ++ ", but got " ++  show got
   show InconsistentTensorSize = "Inconsistent tensor size"
   show InconsistentTensorIndex = "Inconsistent tensor index"
   show (TensorIndexOutOfBounds m n) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n
