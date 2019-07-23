@@ -208,7 +208,7 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
   if product ns == toInteger (length xs)
     then fromTensor (initTensor ns xs sup sub)
-    else throwError InconsistentTensorSize
+    else throwError =<< InconsistentTensorSize <$> getFuncNameStack
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -326,7 +326,7 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
     (Intermediate (ITensor (Tensor ns xs is))) ->
       if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
-    _ -> throwError $ NotImplemented "subrefs"
+    _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
  where
   f :: Index a -> Index ()
   f (Superscript _)  = Superscript ()
@@ -352,7 +352,7 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
     (Intermediate (ITensor (Tensor ns xs is))) ->
       if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
-    _ -> throwError $ NotImplemented "suprefs"
+    _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
  where
   f :: Index a -> Index ()
   f (Superscript _)  = Superscript ()
@@ -366,12 +366,12 @@ evalExpr env (UserrefsExpr bool expr jsExpr) = do
   case val of
     (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
     (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
-    _ -> throwError $ NotImplemented "user-refs"
+    _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
 evalExpr env (LambdaExpr names expr) = do
   names' <- mapM (\case
                      (TensorArg name') -> return name'
-                     (ScalarArg _) -> throwError $ EgisonBug "scalar-arg remained") names
+                     (ScalarArg _) -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
   return . Value $ Func Nothing env names' expr
 
 evalExpr env (PartialExpr n expr) = return . Value $ PartialFunc env n expr
@@ -763,7 +763,7 @@ evalExpr env (PmapExpr fnExpr cExpr) = do
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
-evalExpr _ expr = throwError $ NotImplemented ("evalExpr for " ++ show expr)
+evalExpr _ expr = throwError =<< NotImplemented ("evalExpr for " ++ show expr) <$> getFuncNameStack
 
 evalExprDeep :: Env -> EgisonExpr -> EgisonM EgisonValue
 evalExprDeep env expr = evalExpr env expr >>= evalWHNF
@@ -909,7 +909,7 @@ applyFunc _ (Value fn@(ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Te
   args <- tupleToList arg
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
-                            _ -> throwError $ EgisonBug "to use undefined functions, you have to use ScalarData args") args
+                            _ -> throwError =<< EgisonBug "to use undefined functions, you have to use ScalarData args" <$> getFuncNameStack) args
   return (Value (ScalarData (Div (Plus [Term 1 [(Apply fn mExprs, 1)]]) (Plus [Term 1 []]))))
 applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
 
@@ -1126,7 +1126,7 @@ processMState state =
      in MState env loops seqs bindings (MNode penv state'':trees)
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
-processMState' (MState _ _ [] _ []) = throwError $ EgisonBug "should not reach here (empty matching-state)"
+processMState' (MState _ _ [] _ []) = throwError =<< EgisonBug "should not reach here (empty matching-state)" <$> getFuncNameStack
 
 processMState' (MState env loops (SeqPatContext stack SeqNilPat [] []:seqs) bindings []) = return $ msingleton $ (MState env loops seqs bindings stack)
 processMState' (MState env loops (SeqPatContext stack seqPat mats tgts:seqs) bindings []) = do
@@ -1134,7 +1134,7 @@ processMState' (MState env loops (SeqPatContext stack seqPat mats tgts:seqs) bin
   tgt' <- makeITuple tgts
   return $ msingleton $ MState env loops seqs bindings (MAtom seqPat tgt' mat' : stack)
 
-processMState' (MState _ _ _ _ (MNode _ (MState _ _ _ [] []):_)) = throwError $ EgisonBug "should not reach here (empty matching-node)"
+processMState' (MState _ _ _ _ (MNode _ (MState _ _ _ [] []):_)) = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
 
 processMState' (MState env loops seqs bindings (MNode penv (MState env' loops' seqs' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) = do
   case lookup name penv of
@@ -1163,7 +1163,7 @@ processMState' (MState env loops seqs bindings (MNode penv state:trees)) =
 processMState' (MState env loops seqs bindings (MAtom pattern target matcher:trees)) =
   let env' = extendEnvForNonLinearPatterns env bindings loops in
   case pattern of
-    NotPat _ -> throwError $ EgisonBug "should not reach here (not pattern)"
+    NotPat _ -> throwError =<< EgisonBug "should not reach here (not pattern)" <$> getFuncNameStack
     VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ show pattern
 
     LetPat bindings' pattern' ->
@@ -1227,7 +1227,7 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
                               then return $ fromList [MState env loops' seqs bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees)]
                               else return $ fromList [MState env loops' seqs bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees), MState env (LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat':loops') seqs bindings (MAtom pat target matcher:trees)]
                        else return $ fromList [MState env (LoopPatContext (name, nextNumRef) endsRef endPat pat pat':loops') seqs bindings (MAtom pat target matcher:trees)]
-    SeqNilPat -> throwError $ EgisonBug "should not reach here (seq nil pattern)"
+    SeqNilPat -> throwError =<< EgisonBug "should not reach here (seq nil pattern)" <$> getFuncNameStack
     SeqConsPat pattern pattern' -> return $ msingleton $ MState env loops (SeqPatContext trees pattern' [] []:seqs) bindings [MAtom pattern target matcher]
     LaterPatVar ->
       case seqs of
@@ -1316,7 +1316,7 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
               let trees' = zipWith3 MAtom patterns targets (replicate (length patterns) Something) ++ trees
               return $ msingleton $ MState env loops seqs bindings trees'
             _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ show pattern
-        _ ->  throwError $ EgisonBug $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
+        _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
                   EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
@@ -1562,7 +1562,9 @@ extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
 extractPrimitiveValue (Value val@(ScalarData _)) = return val
 extractPrimitiveValue (Value val@(Float _ _)) = return val
-extractPrimitiveValue whnf = throwError $ TypeMismatch "primitive value" whnf
+extractPrimitiveValue whnf =
+  -- we don't need to extract call stack since detailed error information is not used
+  throwError $ TypeMismatch "primitive value" whnf
 
 isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _))       = True
