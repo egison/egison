@@ -562,15 +562,15 @@ egisonToScalarData s1@(InductiveData "Quote" _) = do
 egisonToScalarData s1@(InductiveData "Function" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
-egisonToScalarData val = liftError $ throwError $ TypeMismatch "math expression" (Value val)
+egisonToScalarData val = throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
 
 egisonToPolyExpr :: EgisonValue -> EgisonM PolyExpr
 egisonToPolyExpr (InductiveData "Plus" [Collection ts]) = Plus <$> mapM egisonToTermExpr (toList ts)
-egisonToPolyExpr val = liftError $ throwError $ TypeMismatch "math poly expression" (Value val)
+egisonToPolyExpr val = throwError =<< TypeMismatch "math poly expression" (Value val) <$> getFuncNameStack
 
 egisonToTermExpr :: EgisonValue -> EgisonM TermExpr
 egisonToTermExpr (InductiveData "Term" [n, Collection ts]) = Term <$> fromEgison n <*> mapM egisonToSymbolExpr (toList ts)
-egisonToTermExpr val = liftError $ throwError $ TypeMismatch "math term expression" (Value val)
+egisonToTermExpr val = throwError =<< TypeMismatch "math term expression" (Value val) <$> getFuncNameStack
 
 egisonToSymbolExpr :: EgisonValue -> EgisonM (SymbolExpr, Integer)
 egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
@@ -579,7 +579,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
                        InductiveData "Sup" [ScalarData k] -> return (Superscript k)
                        InductiveData "Sub" [ScalarData k] -> return (Subscript k)
                        InductiveData "User" [ScalarData k] -> return (Userscript k)
-                       _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
+                       _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
                ) js
   n' <- fromEgison n
   case x of
@@ -599,14 +599,14 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, 
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
                          InductiveData "Sub" [ScalarData k] -> return (Subscript k)
                          InductiveData "User" [ScalarData k] -> return (Userscript k)
-                         _ -> liftError $ throwError $ TypeMismatch "math symbol expression" (Value j)
+                         _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
                ) js
   n' <- fromEgison n
   let name' = case getSymName name of
                 "" -> Nothing
                 s  -> Just name
   return (FunctionData name' (toList argnames) (toList args) js', n')
-egisonToSymbolExpr val = liftError $ throwError $ TypeMismatch "math symbol expression" (Value val)
+egisonToSymbolExpr val = throwError =<< TypeMismatch "math symbol expression" (Value val) <$> getFuncNameStack
 
 mathNormalize' :: ScalarData -> ScalarData
 mathNormalize' mExpr = mathDivide (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr)))
@@ -782,11 +782,11 @@ mathDenominator (Div _ n) = Div n (Plus [Term 1 []])
 
 extractScalar :: EgisonValue -> EgisonM ScalarData
 extractScalar (ScalarData mExpr) = return mExpr
-extractScalar val = throwError $ TypeMismatch "math expression" (Value val)
+extractScalar val = throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
 
 extractScalar' :: WHNFData -> EgisonM ScalarData
 extractScalar' (Value (ScalarData x)) = return x
-extractScalar' val = throwError $ TypeMismatch "integer or string" val
+extractScalar' val = throwError =<< TypeMismatch "integer or string" val <$> getFuncNameStack
 
 --
 -- Tensors
@@ -1383,47 +1383,47 @@ class EgisonData a where
 
 instance EgisonData Char where
   toEgison = Char
-  fromEgison = liftError . fromCharValue
+  fromEgison = fromCharValue
 
 instance EgisonData Text where
   toEgison = String
-  fromEgison = liftError . fromStringValue
+  fromEgison = fromStringValue
 
 instance EgisonData Bool where
   toEgison = Bool
-  fromEgison = liftError . fromBoolValue
+  fromEgison = fromBoolValue
 
 instance EgisonData Integer where
   toEgison 0 = ScalarData $ mathNormalize' (Div (Plus []) (Plus [Term 1 []]))
   toEgison i = ScalarData $ mathNormalize' (Div (Plus [Term i []]) (Plus [Term 1 []]))
-  fromEgison = liftError . fromIntegerValue
+  fromEgison = fromIntegerValue
 
 instance EgisonData Rational where
   toEgison r = ScalarData $ mathNormalize' (Div (Plus [Term (numerator r) []]) (Plus [Term (denominator r) []]))
-  fromEgison = liftError . fromRationalValue
+  fromEgison = fromRationalValue
 
 instance EgisonData Double where
   toEgison f = Float f 0
-  fromEgison = liftError . fromFloatValue
+  fromEgison = fromFloatValue
 
 instance EgisonData Handle where
   toEgison = Port
-  fromEgison = liftError . fromPortValue
+  fromEgison = fromPortValue
 
 instance (EgisonData a) => EgisonData [a] where
   toEgison xs = Collection $ Sq.fromList (map toEgison xs)
   fromEgison (Collection seq) = mapM fromEgison (toList seq)
-  fromEgison val = liftError $ throwError $ TypeMismatch "collection" (Value val)
+  fromEgison val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
 
 instance EgisonData () where
   toEgison () = Tuple []
   fromEgison (Tuple []) = return ()
-  fromEgison val = liftError $ throwError $ TypeMismatch "zero element tuple" (Value val)
+  fromEgison val = throwError =<< TypeMismatch "zero element tuple" (Value val) <$> getFuncNameStack
 
 instance (EgisonData a, EgisonData b) => EgisonData (a, b) where
   toEgison (x, y) = Tuple [toEgison x, toEgison y]
   fromEgison (Tuple [x, y]) = liftM2 (,) (fromEgison x) (fromEgison y)
-  fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
+  fromEgison val = throwError =<< TypeMismatch "two elements tuple" (Value val) <$> getFuncNameStack
 
 instance (EgisonData a, EgisonData b, EgisonData c) => EgisonData (a, b, c) where
   toEgison (x, y, z) = Tuple [toEgison x, toEgison y, toEgison z]
@@ -1432,7 +1432,7 @@ instance (EgisonData a, EgisonData b, EgisonData c) => EgisonData (a, b, c) wher
     y' <- fromEgison y
     z' <- fromEgison z
     return (x', y', z')
-  fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
+  fromEgison val = throwError =<< TypeMismatch "two elements tuple" (Value val) <$> getFuncNameStack
 
 instance (EgisonData a, EgisonData b, EgisonData c, EgisonData d) => EgisonData (a, b, c, d) where
   toEgison (x, y, z, w) = Tuple [toEgison x, toEgison y, toEgison z, toEgison w]
@@ -1442,37 +1442,38 @@ instance (EgisonData a, EgisonData b, EgisonData c, EgisonData d) => EgisonData 
     z' <- fromEgison z
     w' <- fromEgison w
     return (x', y', z', w')
-  fromEgison val = liftError $ throwError $ TypeMismatch "two elements tuple" (Value val)
+  fromEgison val = throwError =<< TypeMismatch "two elements tuple" (Value val) <$> getFuncNameStack
 
-fromCharValue :: EgisonValue -> Either EgisonError Char
+-- TODO(momohatt): inline these functions
+fromCharValue :: EgisonValue -> EgisonM Char
 fromCharValue (Char c) = return c
-fromCharValue val      = throwError $ TypeMismatch "char" (Value val)
+fromCharValue val      = throwError =<< TypeMismatch "char" (Value val) <$> getFuncNameStack
 
-fromStringValue :: EgisonValue -> Either EgisonError Text
+fromStringValue :: EgisonValue -> EgisonM Text
 fromStringValue (String str) = return str
-fromStringValue val          = throwError $ TypeMismatch "string" (Value val)
+fromStringValue val          = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
-fromBoolValue :: EgisonValue -> Either EgisonError Bool
+fromBoolValue :: EgisonValue -> EgisonM Bool
 fromBoolValue (Bool b) = return b
-fromBoolValue val      = throwError $ TypeMismatch "bool" (Value val)
+fromBoolValue val      = throwError =<< TypeMismatch "bool" (Value val) <$> getFuncNameStack
 
-fromIntegerValue :: EgisonValue -> Either EgisonError Integer
+fromIntegerValue :: EgisonValue -> EgisonM Integer
 fromIntegerValue (ScalarData (Div (Plus []) (Plus [Term 1 []]))) = return 0
 fromIntegerValue (ScalarData (Div (Plus [Term x []]) (Plus [Term 1 []]))) = return x
-fromIntegerValue val = throwError $ TypeMismatch "integer" (Value val)
+fromIntegerValue val = throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack
 
-fromRationalValue :: EgisonValue -> Either EgisonError Rational
+fromRationalValue :: EgisonValue -> EgisonM Rational
 fromRationalValue (ScalarData (Div (Plus []) _)) = return 0
 fromRationalValue (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return (x % y)
-fromRationalValue val = throwError $ TypeMismatch "rational" (Value val)
+fromRationalValue val = throwError =<< TypeMismatch "rational" (Value val) <$> getFuncNameStack
 
-fromFloatValue :: EgisonValue -> Either EgisonError Double
+fromFloatValue :: EgisonValue -> EgisonM Double
 fromFloatValue (Float f 0) = return f
-fromFloatValue val         = throwError $ TypeMismatch "float" (Value val)
+fromFloatValue val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
-fromPortValue :: EgisonValue -> Either EgisonError Handle
+fromPortValue :: EgisonValue -> EgisonM Handle
 fromPortValue (Port h) = return h
-fromPortValue val      = throwError $ TypeMismatch "port" (Value val)
+fromPortValue val      = throwError =<< TypeMismatch "port" (Value val) <$> getFuncNameStack
 
 --
 -- Internal Data
@@ -1531,47 +1532,48 @@ class (EgisonData a) => EgisonWHNF a where
   toWHNF = Value . toEgison
 
 instance EgisonWHNF Char where
-  fromWHNF = liftError . fromCharWHNF
+  fromWHNF = fromCharWHNF
 
 instance EgisonWHNF Text where
-  fromWHNF = liftError . fromStringWHNF
+  fromWHNF = fromStringWHNF
 
 instance EgisonWHNF Bool where
-  fromWHNF = liftError . fromBoolWHNF
+  fromWHNF = fromBoolWHNF
 
 instance EgisonWHNF Integer where
-  fromWHNF = liftError . fromIntegerWHNF
+  fromWHNF = fromIntegerWHNF
 
 instance EgisonWHNF Double where
-  fromWHNF = liftError . fromFloatWHNF
+  fromWHNF = fromFloatWHNF
 
 instance EgisonWHNF Handle where
-  fromWHNF = liftError . fromPortWHNF
+  fromWHNF = fromPortWHNF
 
-fromCharWHNF :: WHNFData -> Either EgisonError Char
+-- TODO(momohatt): inline these functions
+fromCharWHNF :: WHNFData -> EgisonM Char
 fromCharWHNF (Value (Char c)) = return c
-fromCharWHNF whnf             = throwError $ TypeMismatch "char" whnf
+fromCharWHNF whnf             = throwError =<< TypeMismatch "char" whnf <$> getFuncNameStack
 
-fromStringWHNF :: WHNFData -> Either EgisonError Text
+fromStringWHNF :: WHNFData -> EgisonM Text
 fromStringWHNF (Value (String str)) = return str
-fromStringWHNF whnf                 = throwError $ TypeMismatch "string" whnf
+fromStringWHNF whnf                 = throwError =<< TypeMismatch "string" whnf <$> getFuncNameStack
 
-fromBoolWHNF :: WHNFData -> Either EgisonError Bool
+fromBoolWHNF :: WHNFData -> EgisonM Bool
 fromBoolWHNF (Value (Bool b)) = return b
-fromBoolWHNF whnf             = throwError $ TypeMismatch "bool" whnf
+fromBoolWHNF whnf             = throwError =<< TypeMismatch "bool" whnf <$> getFuncNameStack
 
-fromIntegerWHNF :: WHNFData -> Either EgisonError Integer
+fromIntegerWHNF :: WHNFData -> EgisonM Integer
 fromIntegerWHNF (Value (ScalarData (Div (Plus []) (Plus [Term 1 []])))) = return 0
 fromIntegerWHNF (Value (ScalarData (Div (Plus [Term x []]) (Plus [Term 1 []])))) = return x
-fromIntegerWHNF whnf = throwError $ TypeMismatch "integer" whnf
+fromIntegerWHNF whnf = throwError =<< TypeMismatch "integer" whnf <$> getFuncNameStack
 
-fromFloatWHNF :: WHNFData -> Either EgisonError Double
+fromFloatWHNF :: WHNFData -> EgisonM Double
 fromFloatWHNF (Value (Float f 0)) = return f
-fromFloatWHNF whnf                = throwError $ TypeMismatch "float" whnf
+fromFloatWHNF whnf                = throwError =<< TypeMismatch "float" whnf <$> getFuncNameStack
 
-fromPortWHNF :: WHNFData -> Either EgisonError Handle
+fromPortWHNF :: WHNFData -> EgisonM Handle
 fromPortWHNF (Value (Port h)) = return h
-fromPortWHNF whnf             = throwError $ TypeMismatch "port" whnf
+fromPortWHNF whnf             = throwError =<< TypeMismatch "port" whnf <$> getFuncNameStack
 
 class (EgisonWHNF a) => EgisonObject a where
   toObject :: a -> Object
@@ -1684,12 +1686,14 @@ data SeqPatContext = SeqPatContext [MatchingTree] EgisonPattern [Matcher] [WHNFD
 -- Errors
 --
 
+type CallStack = [String]
+
 data EgisonError =
     UnboundVariable String
-  | TypeMismatch String WHNFData
-  | ArgumentsNumWithNames [String] Int Int
-  | ArgumentsNumPrimitive Int Int
-  | ArgumentsNum Int Int
+  | TypeMismatch String WHNFData CallStack
+  | ArgumentsNumWithNames [String] Int Int CallStack
+  | ArgumentsNumPrimitive Int Int CallStack
+  | ArgumentsNum Int Int CallStack
   | InconsistentTensorSize
   | InconsistentTensorIndex
   | TensorIndexOutOfBounds Integer Integer
@@ -1697,20 +1701,24 @@ data EgisonError =
   | Assertion String
   | Parser String
   | EgisonBug String
-  | MatchFailure String [String]
+  | MatchFailure String CallStack
   | Default String
   deriving Typeable
 
 instance Show EgisonError where
   show (UnboundVariable var) = "Unbound variable: " ++ show var
-  show (TypeMismatch expected found) = "Expected " ++  expected ++
-                                        ", but found: " ++ show found
-  show (ArgumentsNumWithNames names expected got) = "Wrong number of arguments: " ++ show names ++ ": expected " ++
-                                                    show expected ++ ", but got " ++  show got
-  show (ArgumentsNumPrimitive expected got) = "Wrong number of arguments for a primitive function: expected " ++
-                                              show expected ++ ", but got " ++  show got
-  show (ArgumentsNum expected got) = "Wrong number of arguments: expected " ++
-                                      show expected ++ ", but got " ++  show got
+  show (TypeMismatch expected found stack) =
+    "Expected " ++  expected ++ ", but found: " ++ show found
+    ++ "\n  stack trace: " ++ intercalate ", " stack
+  show (ArgumentsNumWithNames names expected got stack) =
+    "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got
+    ++ "\n  stack trace: " ++ intercalate ", " stack
+  show (ArgumentsNumPrimitive expected got stack) =
+    "Wrong number of arguments for a primitive function: expected " ++ show expected ++ ", but got " ++  show got
+    ++ "\n  stack trace: " ++ intercalate ", " stack
+  show (ArgumentsNum expected got stack) =
+    "Wrong number of arguments: expected " ++ show expected ++ ", but got " ++  show got
+    ++ "\n  stack trace: " ++ intercalate ", " stack
   show InconsistentTensorSize = "Inconsistent tensor size"
   show InconsistentTensorIndex = "Inconsistent tensor index"
   show (TensorIndexOutOfBounds m n) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n
@@ -1718,8 +1726,9 @@ instance Show EgisonError where
   show (Assertion message) = "Assertion failed: " ++ message
   show (Parser err) = "Parse error at: " ++ err
   show (EgisonBug message) = "Egison Error: " ++ message
-  show (MatchFailure currentFunc stack) = "Failed pattern match in: " ++ currentFunc ++
-                                          "\n  stack trace: " ++ intercalate ", " stack
+  show (MatchFailure currentFunc stack) =
+    "Failed pattern match in: " ++ currentFunc
+    ++ "\n  stack trace: " ++ intercalate ", " stack
   show (Default message) = "Error: " ++ message
 
 instance Exception EgisonError
