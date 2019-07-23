@@ -170,7 +170,7 @@ runWithOptions opts
                               result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
                               either print (const $ return ()) result
  where
-  isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = not $ elem lang ["asciimath", "latex", "mathematica", "maxima"]
+  isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = notElem lang ["asciimath", "latex", "mathematica", "maxima"]
   isInValidMathOption EgisonOpts{ optMathExpr = Nothing } = False
   f opts env expr = do
     cmdRet <- runEgisonTopExpr opts env expr

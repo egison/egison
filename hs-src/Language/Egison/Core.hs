@@ -1,5 +1,4 @@
 {-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE ViewPatterns    #-}
 
@@ -824,7 +823,7 @@ valuetoTensor2 (Intermediate (ITensor t)) = t
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
   tds <- fromTupleWHNF tds
-  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s u i))) -> (length s - length i == 1)) tds
+  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s u i))) -> length s - length i == 1) tds
     then do
       symId <- fresh
       let argnum = length tds
@@ -836,7 +835,7 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
 
 applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
   tds <- fromTupleWHNF tds
-  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s u i))) -> (length s - length i == 1)) tds
+  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s u i))) -> length s - length i == 1) tds
     then do
       symId <- fresh
       let argnum = length tds
@@ -863,9 +862,9 @@ applyFunc _ (Value (Func _ env [name] body)) arg = do
 applyFunc _ (Value (Func (Just (Var [funcname] _)) env names body)) arg = do
   pushFuncName funcname
   refs <- fromTuple arg
-  result <- (if length names == length refs
-               then evalExpr (extendEnv env $ makeBindings' names refs) body
-               else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack)
+  result <- if length names == length refs
+              then evalExpr (extendEnv env $ makeBindings' names refs) body
+              else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
   popFuncName
   return result
 applyFunc _ (Value (Func _ env names body)) arg = do
@@ -1081,13 +1080,13 @@ extractMatches = extractMatches' ([], [])
     extractMatches' (xs ++ [bindings], ys ++ [states']) rest
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
 
-processMStatesBFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+processMStatesBFS :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
 processMStatesBFS (MCons state stream) = do
   newStream <- processMState state
   newStream' <- stream
   return [newStream, newStream']
 
-processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [(MList EgisonM MatchingState)]
+processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
 processMStatesDFS (MCons state stream) = do
   stream' <- processMState state
   newStream <- mappend stream' stream
@@ -1128,7 +1127,7 @@ processMState state =
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState' (MState _ _ [] _ []) = throwError =<< EgisonBug "should not reach here (empty matching-state)" <$> getFuncNameStack
 
-processMState' (MState env loops (SeqPatContext stack SeqNilPat [] []:seqs) bindings []) = return $ msingleton $ (MState env loops seqs bindings stack)
+processMState' (MState env loops (SeqPatContext stack SeqNilPat [] []:seqs) bindings []) = return $ msingleton $ MState env loops seqs bindings stack
 processMState' (MState env loops (SeqPatContext stack seqPat mats tgts:seqs) bindings []) = do
   let mat' = makeTuple mats
   tgt' <- makeITuple tgts
@@ -1136,7 +1135,7 @@ processMState' (MState env loops (SeqPatContext stack seqPat mats tgts:seqs) bin
 
 processMState' (MState _ _ _ _ (MNode _ (MState _ _ _ [] []):_)) = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
 
-processMState' (MState env loops seqs bindings (MNode penv (MState env' loops' seqs' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) = do
+processMState' (MState env loops seqs bindings (MNode penv (MState env' loops' seqs' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) =
   case lookup name penv of
     Just pattern ->
       case trees' of
