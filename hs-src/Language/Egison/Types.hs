@@ -1695,16 +1695,13 @@ data EgisonError =
   | TensorIndexOutOfBounds Integer Integer
   | NotImplemented String
   | Assertion String
-  | Match String
   | Parser String
-  | Desugar String
   | EgisonBug String
   | MatchFailure String [String]
   | Default String
   deriving Typeable
 
 instance Show EgisonError where
-  show (Parser err) = "Parse error at: " ++ err
   show (UnboundVariable var) = "Unbound variable: " ++ show var
   show (TypeMismatch expected found) = "Expected " ++  expected ++
                                         ", but found: " ++ show found
@@ -1719,7 +1716,7 @@ instance Show EgisonError where
   show (TensorIndexOutOfBounds m n) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n
   show (NotImplemented message) = "Not implemented: " ++ message
   show (Assertion message) = "Assertion failed: " ++ message
-  show (Desugar message) = "Error: " ++ message
+  show (Parser err) = "Parse error at: " ++ err
   show (EgisonBug message) = "Egison Error: " ++ message
   show (MatchFailure currentFunc stack) = "Failed pattern match in: " ++ currentFunc ++
                                           "\n  stack trace: " ++ intercalate ", " stack
