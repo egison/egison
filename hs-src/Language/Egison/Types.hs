@@ -1692,8 +1692,8 @@ data EgisonError =
     UnboundVariable String
   | TypeMismatch String WHNFData CallStack
   | ArgumentsNumWithNames [String] Int Int CallStack
-  | ArgumentsNumPrimitive Int Int
-  | ArgumentsNum Int Int
+  | ArgumentsNumPrimitive Int Int CallStack
+  | ArgumentsNum Int Int CallStack
   | InconsistentTensorSize
   | InconsistentTensorIndex
   | TensorIndexOutOfBounds Integer Integer
@@ -1711,14 +1711,17 @@ instance Show EgisonError where
   show (Parser err) = "Parse error at: " ++ err
   show (UnboundVariable var) = "Unbound variable: " ++ show var
   show (TypeMismatch expected found stack) =
-    "Expected " ++  expected ++ ", but found: " ++ show found ++ "\n  stack trace: " ++ intercalate ", " stack
+    "Expected " ++  expected ++ ", but found: " ++ show found
+    ++ "\n  stack trace: " ++ intercalate ", " stack
   show (ArgumentsNumWithNames names expected got stack) =
-    "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got ++
-      "\n  stack trace: " ++ intercalate ", " stack
-  show (ArgumentsNumPrimitive expected got) =
+    "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got
+    ++ "\n  stack trace: " ++ intercalate ", " stack
+  show (ArgumentsNumPrimitive expected got stack) =
     "Wrong number of arguments for a primitive function: expected " ++ show expected ++ ", but got " ++  show got
-  show (ArgumentsNum expected got) =
+    ++ "\n  stack trace: " ++ intercalate ", " stack
+  show (ArgumentsNum expected got stack) =
     "Wrong number of arguments: expected " ++ show expected ++ ", but got " ++  show got
+    ++ "\n  stack trace: " ++ intercalate ", " stack
   show InconsistentTensorSize = "Inconsistent tensor size"
   show InconsistentTensorIndex = "Inconsistent tensor index"
   show (TensorIndexOutOfBounds m n) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n
@@ -1726,8 +1729,9 @@ instance Show EgisonError where
   show (Assertion message) = "Assertion failed: " ++ message
   show (Desugar message) = "Error: " ++ message
   show (EgisonBug message) = "Egison Error: " ++ message
-  show (MatchFailure currentFunc stack) = "Failed pattern match in: " ++ currentFunc ++
-                                          "\n  stack trace: " ++ intercalate ", " stack
+  show (MatchFailure currentFunc stack) =
+    "Failed pattern match in: " ++ currentFunc
+    ++ "\n  stack trace: " ++ intercalate ", " stack
   show (Default message) = "Error: " ++ message
 
 instance Exception EgisonError
