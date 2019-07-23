@@ -1707,20 +1707,15 @@ data EgisonError =
 
 instance Show EgisonError where
   show (UnboundVariable var stack) =
-    "Unbound variable: " ++ show var
-    ++ "\n  stack trace: " ++ intercalate ", " stack
+    "Unbound variable: " ++ show var ++ showTrace stack
   show (TypeMismatch expected found stack) =
-    "Expected " ++  expected ++ ", but found: " ++ show found
-    ++ "\n  stack trace: " ++ intercalate ", " stack
+    "Expected " ++  expected ++ ", but found: " ++ show found ++ showTrace stack
   show (ArgumentsNumWithNames names expected got stack) =
-    "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got
-    ++ "\n  stack trace: " ++ intercalate ", " stack
+    "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (ArgumentsNumPrimitive expected got stack) =
-    "Wrong number of arguments for a primitive function: expected " ++ show expected ++ ", but got " ++  show got
-    ++ "\n  stack trace: " ++ intercalate ", " stack
+    "Wrong number of arguments for a primitive function: expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (ArgumentsNum expected got stack) =
-    "Wrong number of arguments: expected " ++ show expected ++ ", but got " ++  show got
-    ++ "\n  stack trace: " ++ intercalate ", " stack
+    "Wrong number of arguments: expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show InconsistentTensorSize = "Inconsistent tensor size"
   show InconsistentTensorIndex = "Inconsistent tensor index"
   show (TensorIndexOutOfBounds m n) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n
@@ -1728,10 +1723,11 @@ instance Show EgisonError where
   show (Assertion message) = "Assertion failed: " ++ message
   show (Parser err) = "Parse error at: " ++ err
   show (EgisonBug message) = "Egison Error: " ++ message
-  show (MatchFailure currentFunc stack) =
-    "Failed pattern match in: " ++ currentFunc
-    ++ "\n  stack trace: " ++ intercalate ", " stack
+  show (MatchFailure currentFunc stack) = "Failed pattern match at: " ++ currentFunc ++ showTrace stack
   show (Default message) = "Error: " ++ message
+
+showTrace :: CallStack -> String
+showTrace stack = "\n  stack trace: " ++ intercalate ", " stack
 
 instance Exception EgisonError
 
@@ -1853,32 +1849,32 @@ instance (MonadFresh m) => MonadFresh (StateT s m) where
   fresh = lift fresh
   freshV = lift freshV
   pushFuncName name = lift $ pushFuncName name
-  topFuncName = lift $ topFuncName
-  popFuncName = lift $ popFuncName
+  topFuncName = lift topFuncName
+  popFuncName = lift popFuncName
   getFuncNameStack = lift $ getFuncNameStack
 
 instance (MonadFresh m) => MonadFresh (ExceptT e m) where
   fresh = lift fresh
   freshV = lift freshV
   pushFuncName name = lift $ pushFuncName name
-  topFuncName = lift $ topFuncName
-  popFuncName = lift $ popFuncName
+  topFuncName = lift topFuncName
+  popFuncName = lift popFuncName
   getFuncNameStack = lift $ getFuncNameStack
 
 instance (MonadFresh m, Monoid e) => MonadFresh (ReaderT e m) where
   fresh = lift fresh
   freshV = lift freshV
   pushFuncName name = lift $ pushFuncName name
-  topFuncName = lift $ topFuncName
-  popFuncName = lift $ popFuncName
+  topFuncName = lift topFuncName
+  popFuncName = lift popFuncName
   getFuncNameStack = lift $ getFuncNameStack
 
 instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
   fresh = lift fresh
   freshV = lift freshV
   pushFuncName name = lift $ pushFuncName name
-  topFuncName = lift $ topFuncName
-  popFuncName = lift $ popFuncName
+  topFuncName = lift topFuncName
+  popFuncName = lift popFuncName
   getFuncNameStack = lift $ getFuncNameStack
 
 instance MonadIO (FreshT IO) where
