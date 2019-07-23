@@ -848,7 +848,7 @@ applyFunc _ (Value (PartialFunc env n body)) arg = do
   refs <- fromTuple arg
   if n == fromIntegral (length refs)
     then evalExpr (extendEnv env $ makeBindings (map (\n -> stringToVar $ "::" ++ show n) [1..n]) refs) body
-    else throwError $ ArgumentsNumWithNames ["partial"] (fromIntegral n) (length refs)
+    else throwError =<< ArgumentsNumWithNames ["partial"] (fromIntegral n) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (Func (Just (Var [funcname] _)) env [name] body)) arg = do
   pushFuncName funcname
   ref <- newEvaluatedObjectRef arg
@@ -863,14 +863,14 @@ applyFunc _ (Value (Func (Just (Var [funcname] _)) env names body)) arg = do
   refs <- fromTuple arg
   result <- (if length names == length refs
                then evalExpr (extendEnv env $ makeBindings' names refs) body
-               else throwError $ ArgumentsNumWithNames names (length names) (length refs))
+               else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack)
   popFuncName
   return result
 applyFunc _ (Value (Func _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings' names refs) body
-    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (Proc _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
   evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
@@ -878,14 +878,14 @@ applyFunc _ (Value (Proc _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings' names refs) body
-    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (CFunc _ env name body)) arg = do
   refs <- fromTuple arg
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection seqRef
   if not (null refs)
     then evalExpr (extendEnv env $ makeBindings' [name] [col]) body
-    else throwError $ ArgumentsNumWithNames [name] 1 0
+    else throwError =<< ArgumentsNumWithNames [name] 1 0 <$> getFuncNameStack
 applyFunc env (Value (Macro [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
   evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
@@ -893,7 +893,7 @@ applyFunc env (Value (Macro names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings' names refs) body
-    else throwError $ ArgumentsNumWithNames names (length names) (length refs)
+    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (PrimitiveFunc _ func)) arg = func arg
 applyFunc _ (Value (IOFunc m)) arg =
   case arg of
