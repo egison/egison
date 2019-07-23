@@ -4,8 +4,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -652,7 +650,7 @@ mathDivideTerm (Term a xs) (Term b ys) =
   f :: Integer -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Integer, [(SymbolExpr, Integer)])
   f sgn xs [] = (sgn, xs)
   f sgn xs ((y, n):ys) =
-    let (sgns, zs) = unzip (map (\(x, m) -> (g (x, m) (y, n))) xs) in
+    let (sgns, zs) = unzip (map (\(x, m) -> g (x, m) (y, n)) xs) in
     f (sgn * product sgns) zs ys
   g :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (Integer, (SymbolExpr, Integer))
   g (Quote x, n) (Quote y, m)
@@ -716,7 +714,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
   f' :: [TermExpr] -> [TermExpr] -> [TermExpr]
   f' ret [] = ret
   f' ret (Term a xs:ts) =
-    if any (\(Term _ ys) -> (fst (p 1 xs ys))) ret
+    if any (\(Term _ ys) -> fst (p 1 xs ys)) ret
       then f' (map (g (Term a xs)) ret) ts
       else f' (ret ++ [Term a xs]) ts
   g :: TermExpr -> TermExpr -> TermExpr
@@ -762,13 +760,13 @@ mathMult' (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2
 mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
 mathMultPoly (Plus []) (Plus _) = Plus []
 mathMultPoly (Plus _) (Plus []) = Plus []
-mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> (Plus (map (\(Term b ys) -> (Term (a * b) (xs ++ ys))) ts2))) ts1)
+mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> Plus (map (\(Term b ys) -> Term (a * b) (xs ++ ys)) ts2)) ts1)
 
 mathNegate :: ScalarData -> ScalarData
 mathNegate (Div m n) = Div (mathNegate' m) n
 
 mathNegate' :: PolyExpr -> PolyExpr
-mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> (Term (negate a) xs)) ts)
+mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> Term (negate a) xs) ts)
 
 mathNumerator :: ScalarData -> ScalarData
 mathNumerator (Div m _) = Div m (Plus [Term 1 []])
@@ -880,7 +878,7 @@ tref _ t = throwError $ Default "More indices than the order of the tensor"
 
 enumTensorIndices :: [Integer] -> [[Integer]]
 enumTensorIndices [] = [[]]
-enumTensorIndices (n:ns) = concatMap (\i -> (map (\is -> i:is) (enumTensorIndices ns))) [1..n]
+enumTensorIndices (n:ns) = concatMap (\i -> map (i:) (enumTensorIndices ns)) [1..n]
 
 changeIndexList :: [Index String] -> [EgisonValue] -> [Index String]
 changeIndexList idxlist ms = map (\(i, m) -> case i of
@@ -1785,16 +1783,12 @@ instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
     st <- get
     put $ st { funcNameStack = name : funcNameStack st }
     return ()
-  topFuncName = FreshT $ do
-    st <- get
-    return $ head $ funcNameStack st
+  topFuncName = FreshT $ head . funcNameStack <$> get
   popFuncName = FreshT $ do
     st <- get
     put $ st { funcNameStack = tail $ funcNameStack st }
     return ()
-  getFuncNameStack = FreshT $ do
-    st <- get
-    return $ funcNameStack st
+  getFuncNameStack = FreshT $ funcNameStack <$> get
 
 instance (MonadError e m) => MonadError e (FreshT m) where
   throwError = lift . throwError
@@ -1810,7 +1804,7 @@ instance (MonadFresh m) => MonadFresh (StateT s m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
   popFuncName = lift popFuncName
-  getFuncNameStack = lift $ getFuncNameStack
+  getFuncNameStack = lift getFuncNameStack
 
 instance (MonadFresh m) => MonadFresh (ExceptT e m) where
   fresh = lift fresh
@@ -1818,7 +1812,7 @@ instance (MonadFresh m) => MonadFresh (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
   popFuncName = lift popFuncName
-  getFuncNameStack = lift $ getFuncNameStack
+  getFuncNameStack = lift getFuncNameStack
 
 instance (MonadFresh m, Monoid e) => MonadFresh (ReaderT e m) where
   fresh = lift fresh
@@ -1826,7 +1820,7 @@ instance (MonadFresh m, Monoid e) => MonadFresh (ReaderT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
   popFuncName = lift popFuncName
-  getFuncNameStack = lift $ getFuncNameStack
+  getFuncNameStack = lift getFuncNameStack
 
 instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
   fresh = lift fresh
@@ -1834,7 +1828,7 @@ instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
   popFuncName = lift popFuncName
-  getFuncNameStack = lift $ getFuncNameStack
+  getFuncNameStack = lift getFuncNameStack
 
 instance MonadIO (FreshT IO) where
   liftIO = lift
