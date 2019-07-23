@@ -369,7 +369,7 @@ Examples:
 >
 ```
 
-We can try it also <a target="_blank" href="https://try.egison.org">online</a>.
+We can try it also <a target="_blank" href="http://console.egison.org">online</a>.
 Enjoy!
 
 ## Note for Developers
