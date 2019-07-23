@@ -105,9 +105,11 @@ evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTo
 evalTopExpr' _ st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
 evalTopExpr' _ st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
 evalTopExpr' _ st (Test expr) = do
+  pushFuncName "<stdin>"
   val <- evalStateT st [] >>= flip evalExprDeep expr
   return (Just (show val), st)
 evalTopExpr' _ st (Execute expr) = do
+  pushFuncName "<stdin>"
   io <- evalStateT st [] >>= flip evalExpr expr
   case io of
     Value (IOFunc m) -> m >> return (Nothing, st)
