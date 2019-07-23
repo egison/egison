@@ -265,12 +265,12 @@ integerBinaryPred pred = twoArgs $ \val val' -> do
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
 floatUnaryOp op = oneArg $ \val -> case val of
                                      (Float f 0) -> return $ Float (op f) 0
-                                     _ -> throwError $ TypeMismatch "float" (Value val)
+                                     _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp op = twoArgs $ \val val' -> case (val, val') of
                                             (Float f 0, Float f' 0) -> return $ Float (op f f') 0
-                                            _ -> throwError $ TypeMismatch "float" (Value val)
+                                            _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' -> do
@@ -281,22 +281,22 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
 floatPlus :: PrimitiveFunc
 floatPlus = twoArgs $ \val val' -> case (val, val') of
                                      (Float x y, Float x' y') -> return $ Float (x + x')  (y + y')
-                                     _ -> throwError $ TypeMismatch "float" (Value val)
+                                     _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatMinus :: PrimitiveFunc
 floatMinus = twoArgs $ \val val' -> case (val, val') of
                                       (Float x y, Float x' y') -> return $ Float (x - x')  (y - y')
-                                      _ -> throwError $ TypeMismatch "float" (Value val)
+                                      _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatMult :: PrimitiveFunc
 floatMult = twoArgs $ \val val' -> case (val, val') of
                                      (Float x y, Float x' y') -> return $ Float (x * x' - y * y')  (x * y' + x' * y)
-                                     _ -> throwError $ TypeMismatch "float" (Value val)
+                                     _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatDivide :: PrimitiveFunc
 floatDivide = twoArgs $ \val val' -> case (val, val') of
                                        (Float x y, Float x' y') -> return $ Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y'))
-                                       _ -> throwError $ TypeMismatch "float" (Value val)
+                                       _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 
 --
@@ -307,8 +307,8 @@ scalarBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> PrimitiveFunc
 scalarBinaryOp mOp = twoArgs $ \val val' -> scalarBinaryOp' val val'
  where
   scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
-  scalarBinaryOp' (ScalarData _)  val             = throwError $ TypeMismatch "number" (Value val)
-  scalarBinaryOp' val             _               = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryOp' (ScalarData _)  val             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryOp' val             _               = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 plus :: PrimitiveFunc
 plus = scalarBinaryOp mathPlus
@@ -326,19 +326,19 @@ numerator' :: PrimitiveFunc
 numerator' =  oneArg numerator''
  where
   numerator'' (ScalarData m) = return $ ScalarData (mathNumerator m)
-  numerator'' val = throwError $ TypeMismatch "rational" (Value val)
+  numerator'' val = throwError =<< TypeMismatch "rational" (Value val) <$> getFuncNameStack
 
 denominator' :: PrimitiveFunc
 denominator' =  oneArg denominator''
  where
   denominator'' (ScalarData m) = return $ ScalarData (mathDenominator m)
-  denominator'' val = throwError $ TypeMismatch "rational" (Value val)
+  denominator'' val = throwError =<< TypeMismatch "rational" (Value val) <$> getFuncNameStack
 
 fromScalarData :: PrimitiveFunc
 fromScalarData = oneArg fromScalarData'
  where
   fromScalarData' (ScalarData m) = return $ mathExprToEgison m
-  fromScalarData' val = throwError $ TypeMismatch "number" (Value val)
+  fromScalarData' val = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 toScalarData :: PrimitiveFunc
 toScalarData = oneArg toScalarData'
@@ -360,9 +360,9 @@ lt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (<) r r'
   scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<) f f'
-  scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
-  scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float _ _)  val           = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
+  scalarBinaryPred' val          _             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 lte :: PrimitiveFunc
 lte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
@@ -372,9 +372,9 @@ lte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (<=) r r'
   scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<=) f f'
-  scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
-  scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float _ _)  val           = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
+  scalarBinaryPred' val          _             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 gt :: PrimitiveFunc
 gt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
@@ -384,9 +384,9 @@ gt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (>) r r'
   scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (>) f f'
-  scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
-  scalarBinaryPred' (Float _ _)  val           = throwError $ TypeMismatch "float" (Value val)
-  scalarBinaryPred' val          _             = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float _ _)  val           = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
+  scalarBinaryPred' val          _             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 gte :: PrimitiveFunc
 gte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
@@ -396,9 +396,9 @@ gte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (>=) r r'
   scalarBinaryPred' (Float f 0)    (Float f' 0)  = return $ Bool $ (>=) f f'
-  scalarBinaryPred' (ScalarData _) val           = throwError $ TypeMismatch "number" (Value val)
-  scalarBinaryPred' (Float _ _)    val           = throwError $ TypeMismatch "float" (Value val)
-  scalarBinaryPred' val            _             = throwError $ TypeMismatch "number" (Value val)
+  scalarBinaryPred' (ScalarData _) val           = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float _ _)    val           = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
+  scalarBinaryPred' val            _             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 truncate' :: PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
@@ -406,19 +406,19 @@ truncate' = oneArg $ \val -> numberUnaryOp' val
   numberUnaryOp' (ScalarData (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
   numberUnaryOp' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return $ toEgison (quot x y)
   numberUnaryOp' (Float x _)           = return $ toEgison (truncate x :: Integer)
-  numberUnaryOp' val                   = throwError $ TypeMismatch "rational or float" (Value val)
+  numberUnaryOp' val                   = throwError =<< TypeMismatch "rational or float" (Value val) <$> getFuncNameStack
 
 realPart :: PrimitiveFunc
 realPart =  oneArg realPart'
  where
   realPart' (Float x y) = return $ Float x 0
-  realPart' val         = throwError $ TypeMismatch "float" (Value val)
+  realPart' val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 imaginaryPart :: PrimitiveFunc
 imaginaryPart =  oneArg imaginaryPart'
  where
   imaginaryPart' (Float _ y) = return $ Float y 0
-  imaginaryPart' val         = throwError $ TypeMismatch "float" (Value val)
+  imaginaryPart' val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 --
 -- Tensor
@@ -457,21 +457,21 @@ rationalToFloat = oneArg $ \val ->
   case val of
     (ScalarData (Div (Plus []) _)) -> return $ numberToFloat' val
     (ScalarData (Div (Plus [Term _ []]) (Plus [Term _ []]))) -> return $ numberToFloat' val
-    _ -> throwError $ TypeMismatch "integer or rational number" (Value val)
+    _ -> throwError =<< TypeMismatch "integer or rational number" (Value val) <$> getFuncNameStack
 
 charToInteger :: PrimitiveFunc
 charToInteger = oneArg $ \val -> case val of
                                    Char c -> do
                                      let i = fromIntegral $ ord c :: Integer
                                      return $ toEgison i
-                                   _ -> throwError $ TypeMismatch "character" (Value val)
+                                   _ -> throwError =<< TypeMismatch "character" (Value val) <$> getFuncNameStack
 
 integerToChar :: PrimitiveFunc
 integerToChar = oneArg $ \val -> case val of
                                    (ScalarData _) -> do
                                       i <- fromEgison val :: EgisonM Integer
                                       return $ Char $ chr $ fromIntegral i
-                                   _ -> throwError $ TypeMismatch "integer" (Value val)
+                                   _ -> throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
@@ -489,31 +489,31 @@ pack = oneArg $ \val -> do
 unpack :: PrimitiveFunc
 unpack = oneArg $ \val -> case val of
                             String str -> return $ toEgison (T.unpack str)
-                            _ -> throwError $ TypeMismatch "string" (Value val)
+                            _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 unconsString :: PrimitiveFunc
 unconsString = oneArg $ \val -> case val of
                                   String str -> case T.uncons str of
                                                   Just (c, rest) ->  return $ Tuple [Char c, String rest]
                                                   Nothing -> throwError $ Default "Tried to unsnoc empty string"
-                                  _ -> throwError $ TypeMismatch "string" (Value val)
+                                  _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 lengthString :: PrimitiveFunc
 lengthString = oneArg $ \val -> case val of
                                   String str -> return . toEgison . toInteger $ T.length str
-                                  _ -> throwError $ TypeMismatch "string" (Value val)
+                                  _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 appendString :: PrimitiveFunc
 appendString = twoArgs $ \val1 val2 -> case (val1, val2) of
                                          (String str1, String str2) -> return . String $ T.append str1 str2
-                                         (String _, _) -> throwError $ TypeMismatch "string" (Value val2)
-                                         (_, _) -> throwError $ TypeMismatch "string" (Value val1)
+                                         (String _, _) -> throwError =<< TypeMismatch "string" (Value val2) <$> getFuncNameStack
+                                         (_, _) -> throwError =<< TypeMismatch "string" (Value val1) <$> getFuncNameStack
 
 splitString :: PrimitiveFunc
 splitString = twoArgs $ \pat src -> case (pat, src) of
                                       (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
-                                      (String _, _) -> throwError $ TypeMismatch "string" (Value src)
-                                      (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+                                      (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
+                                      (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 regexString :: PrimitiveFunc
 regexString = twoArgs $ \pat src -> case (pat, src) of
@@ -522,8 +522,8 @@ regexString = twoArgs $ \pat src -> case (pat, src) of
                                         if b == ""
                                           then return . Collection . Sq.fromList $ []
                                           else return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
-                                      (String _, _) -> throwError $ TypeMismatch "string" (Value src)
-                                      (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+                                      (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
+                                      (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 regexStringCaptureGroup :: PrimitiveFunc
 regexStringCaptureGroup = twoArgs $ \pat src -> case (pat, src) of
@@ -533,20 +533,20 @@ regexStringCaptureGroup = twoArgs $ \pat src -> case (pat, src) of
                                                       [] -> return . Collection . Sq.fromList $ []
                                                       ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
                                                                        return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
-                                                  (String _, _) -> throwError $ TypeMismatch "string" (Value src)
-                                                  (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+                                                  (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
+                                                  (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 --regexStringMatch :: PrimitiveFunc
 --regexStringMatch = twoArgs $ \pat src -> do
 --  case (pat, src) of
 --    (String patStr, String srcStr) -> return . Bool $ (((T.unpack srcStr) =~ (T.unpack patStr)) :: Bool)
---    (String _, _) -> throwError $ TypeMismatch "string" (Value src)
---    (_, _) -> throwError $ TypeMismatch "string" (Value pat)
+--    (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
+--    (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 addPrime :: PrimitiveFunc
 addPrime = oneArg $ \sym -> case sym of
                               ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id (name ++ "'") is, 1)]]) (Plus [Term 1 []])))
-                              _ ->  throwError $ TypeMismatch "symbol" (Value sym)
+                              _ -> throwError =<< TypeMismatch "symbol" (Value sym) <$> getFuncNameStack
 
 addSubscript :: PrimitiveFunc
 addSubscript = twoArgs $ \fn sub -> case (fn, sub) of
@@ -555,8 +555,8 @@ addSubscript = twoArgs $ \fn sub -> case (fn, sub) of
                                       (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
                                        ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
                                       (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
-                                       _) -> throwError $ TypeMismatch "symbol or integer" (Value sub)
-                                      _ ->  throwError $ TypeMismatch "symbol or integer" (Value fn)
+                                       _) -> throwError =<< TypeMismatch "symbol or integer" (Value sub) <$> getFuncNameStack
+                                      _ -> throwError =<< TypeMismatch "symbol or integer" (Value fn) <$> getFuncNameStack
 
 addSuperscript :: PrimitiveFunc
 addSuperscript = twoArgs $ \fn sub -> case (fn, sub) of
@@ -565,8 +565,8 @@ addSuperscript = twoArgs $ \fn sub -> case (fn, sub) of
                                         (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
                                          ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
                                         (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
-                                         _) -> throwError $ TypeMismatch "symbol" (Value sub)
-                                        _ ->  throwError $ TypeMismatch "symbol" (Value fn)
+                                         _) -> throwError =<< TypeMismatch "symbol" (Value sub) <$> getFuncNameStack
+                                        _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
 
 readProcess' :: PrimitiveFunc
 readProcess' = threeArgs' $ \cmd args input -> case (cmd, args, input) of
@@ -575,7 +575,7 @@ readProcess' = threeArgs' $ \cmd args input -> case (cmd, args, input) of
                                                                                                                 String argStr -> T.unpack argStr)
                                                                                                                 (toList argStrs)) (T.unpack inputStr)
                                                    return (String (T.pack outputStr))
-                                                 (_, _, _) -> throwError $ TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input]))
+                                                 (_, _, _) -> throwError =<< TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input])) <$> getFuncNameStack
 
 read' :: PrimitiveFunc
 read'= oneArg' $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
