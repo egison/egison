@@ -77,12 +77,15 @@ Library
                    Language.Egison.Core
                    Language.Egison.Desugar
                    Language.Egison.Types
+                   Language.Egison.Lexer
                    Language.Egison.Parser
                    Language.Egison.ParserNonS
+                   Language.Egison.ParserNonS2
                    Language.Egison.Primitives
                    Language.Egison.Util
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
+  build-tools:     happy, alex
   ghc-options:  -O3
 
 Test-Suite test

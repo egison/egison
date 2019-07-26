@@ -1983,8 +1983,9 @@ data EgisonOpts = EgisonOpts {
     optTestOnly         :: Bool,
     optPrompt           :: String,
     optMathExpr         :: Maybe String,
-    optSExpr            :: Bool
+    optSExpr            :: Bool,
+    optUseHappy         :: Bool
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True False
