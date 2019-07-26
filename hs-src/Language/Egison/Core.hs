@@ -1355,6 +1355,10 @@ primitivePatPatternMatch env (PPInductivePat name patterns) (InductivePat name' 
   | name == name' && length patterns == length exprs =
     (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
   | otherwise = matchFail
+primitivePatPatternMatch env (PPTuplePat patterns) (TuplePat exprs)
+  | length patterns == length exprs =
+    (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
+  | otherwise = matchFail
 primitivePatPatternMatch _ _ _ = matchFail
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> WHNFData -> MatchM [Binding]
