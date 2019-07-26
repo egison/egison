@@ -39,42 +39,43 @@ module Language.Egison.Core
     , packStringValue
     ) where
 
-import           Prelude                    hiding (mapM, mappend, mconcat)
+import           Prelude                     hiding (mapM, mappend, mconcat)
 
 import           Control.Applicative
 import           Control.Arrow
-import           Control.Monad              (when)
-import           Control.Monad.Except       hiding (mapM)
-import           Control.Monad.State        hiding (mapM)
+import           Control.Monad               (when)
+import           Control.Monad.Except        hiding (mapM)
+import           Control.Monad.State         hiding (mapM)
 import           Control.Monad.Trans.Maybe
-import           Control.Monad.Trans.State  (evalStateT, withStateT)
+import           Control.Monad.Trans.State   (evalStateT, withStateT)
 
-import           Data.Foldable              (toList)
+import           Data.Foldable               (toList)
 import           Data.IORef
-import           Data.List                  (any, drop, last, nub, partition)
-import           Data.List.Split            (oneOf, split)
+import           Data.List                   (any, drop, last, nub, partition)
+import           Data.List.Split             (oneOf, split)
 import           Data.Maybe
 import           Data.Ratio
-import           Data.Sequence              (Seq, ViewL (..), ViewR (..), (><))
-import qualified Data.Sequence              as Sq
-import           Data.Traversable           (mapM)
+import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
+import qualified Data.Sequence               as Sq
+import           Data.Traversable            (mapM)
 
-import           Data.Array                 ((!))
-import qualified Data.Array                 as Array
-import qualified Data.HashMap.Lazy          as HL
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HashMap
-import           Data.Map                   (Map, assocs, empty, singleton,
-                                             unionWith, unionsWith, (!))
-import qualified Data.Map                   as M
-import qualified Data.Vector                as V
+import           Data.Array                  ((!))
+import qualified Data.Array                  as Array
+import qualified Data.HashMap.Lazy           as HL
+import           Data.HashMap.Strict         (HashMap)
+import qualified Data.HashMap.Strict         as HashMap
+import           Data.Map                    (Map, assocs, empty, singleton,
+                                              unionWith, unionsWith, (!))
+import qualified Data.Map                    as M
+import qualified Data.Vector                 as V
 
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 
 import           Language.Egison.MathOutput
-import           Language.Egison.Parser     as Parser
-import           Language.Egison.ParserNonS as ParserNonS
+import           Language.Egison.Parser      as Parser
+import           Language.Egison.ParserNonS  as ParserNonS
+import           Language.Egison.ParserNonS2 as ParserNonS2
 import           Language.Egison.Types
 
 --
@@ -91,12 +92,12 @@ collectDefs opts (expr:exprs) bindings rest =
     LoadFile file ->
       if optNoIO opts
          then throwError $ Default "No IO support"
-         else do exprs' <- if optSExpr opts then Parser.loadFile file else ParserNonS.loadFile file
+         else do exprs' <- if optUseHappy opts then ParserNonS2.loadFile file else if optSExpr opts then Parser.loadFile file else ParserNonS.loadFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
     Load file ->
       if optNoIO opts
          then throwError $ Default "No IO support"
-         else do exprs' <- if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
+         else do exprs' <- if optUseHappy opts then ParserNonS2.loadLibraryFile file else if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
 collectDefs _ [] bindings rest = return (bindings, reverse rest)
 

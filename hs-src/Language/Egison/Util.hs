@@ -16,6 +16,7 @@ import           Text.Regex.TDFA
 
 import           Language.Egison.Parser           as Parser
 import           Language.Egison.ParserNonS       as ParserNonS
+import           Language.Egison.ParserNonS2      as ParserNonS2
 import           Language.Egison.Types
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
@@ -37,7 +38,8 @@ getEgisonExpr' opts prev = do
       history <- getHistory
       putHistory $ addHistoryUnlessConsecutiveDupe line history
       let input = prev ++ line
-      case (if optSExpr opts then Parser.parseTopExpr else ParserNonS.parseTopExpr) input of
+      let parsedExpr = (if optUseHappy opts then ParserNonS2.parseTopExpr else if optSExpr opts then Parser.parseTopExpr else ParserNonS.parseTopExpr) input
+      case parsedExpr of
         Left err | show err =~ "unexpected end of input" ->
           getEgisonExpr' opts $ input ++ "\n"
         Left err -> do
@@ -59,7 +61,8 @@ getEgisonExprOrNewLine' opts prev = do
     Just [] -> return $ Left $ Just ""
     Just line -> do
       let input = prev ++ line
-      case (if optSExpr opts then Parser.parseTopExpr else ParserNonS.parseTopExpr) input of
+      let parsedExpr = (if optUseHappy opts then ParserNonS2.parseTopExpr else if optSExpr opts then Parser.parseTopExpr else ParserNonS.parseTopExpr) input
+      case parsedExpr of
         Left err | show err =~ "unexpected end of input" ->
           getEgisonExprOrNewLine' opts $ input ++ "\n"
         Left err -> do
