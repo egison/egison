@@ -75,3 +75,16 @@
     (match b bool
       {[,#t #f]
        [,#f #t]})))
+
+;;
+;; Unordered Pair
+;;
+
+(define $unordered-pair
+  (lambda [$m]
+    (matcher
+      {[[$ $] [m m]
+        {[[$x $y] {[x y] [y x]}]}]
+       [$ [eq]
+        {[$tgt {tgt}]}]
+       })))
