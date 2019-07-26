@@ -358,6 +358,7 @@ ppPattern = P.lexeme lexer (ppWildCard
                         <|> ppPatVar
                         <|> ppValuePat
                         <|> ppInductivePat
+                        <|> ppTuplePat
                         <?> "primitive-pattren-pattern")
 
 ppWildCard :: Parser PrimitivePatPattern
@@ -371,6 +372,9 @@ ppValuePat = reservedOp ",$" >> PPValuePat <$> ident
 
 ppInductivePat :: Parser PrimitivePatPattern
 ppInductivePat = angles (PPInductivePat <$> lowerName <*> sepEndBy ppPattern whiteSpace)
+
+ppTuplePat :: Parser PrimitivePatPattern
+ppTuplePat = brackets $ PPTuplePat <$> sepEndBy ppPattern whiteSpace
 
 pdPattern :: Parser PrimitiveDataPattern
 pdPattern = P.lexeme lexer pdPattern'

@@ -365,6 +365,7 @@ data PrimitivePatPattern =
   | PPPatVar
   | PPValuePat String
   | PPInductivePat String [PrimitivePatPattern]
+  | PPTuplePat [PrimitivePatPattern]
  deriving (Show, Eq)
 
 data PrimitiveDataPattern =
