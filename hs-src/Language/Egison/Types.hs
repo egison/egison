@@ -162,7 +162,6 @@ module Language.Egison.Types
 import           Prelude                   hiding (foldr, mappend, mconcat)
 
 import           Control.Exception
-import           Control.Parallel
 import           Data.Typeable
 
 import           Control.Applicative
