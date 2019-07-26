@@ -374,21 +374,6 @@ desugar (FlipIndicesExpr expr) = do
   expr' <- desugar expr
   return $ FlipIndicesExpr expr'
 
-desugar (ParExpr expr1 expr2) = do
-  expr1' <- desugar expr1
-  expr2' <- desugar expr2
-  return $ ParExpr expr1' expr2'
-
-desugar (PseqExpr expr1 expr2) = do
-  expr1' <- desugar expr1
-  expr2' <- desugar expr2
-  return $ PseqExpr expr1' expr2'
-
-desugar (PmapExpr expr1 expr2) = do
-  expr1' <- desugar expr1
-  expr2' <- desugar expr2
-  return $ PmapExpr expr1' expr2'
-
 desugar (ApplyExpr expr0 expr1) = do
   expr0' <- desugar expr0
   expr1' <- desugar expr1

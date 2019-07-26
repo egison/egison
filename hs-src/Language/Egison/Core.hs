@@ -747,18 +747,6 @@ evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
     yRef <- newEvaluatedObjectRef y
     applyFunc env fn (Intermediate (ITuple [xRef, yRef]))
 
-evalExpr env (ParExpr expr1 expr2) = undefined
-evalExpr env (PseqExpr expr1 expr2) = undefined
-
-evalExpr env (PmapExpr fnExpr cExpr) = do
-  fn <- evalExpr env fnExpr
-  xs <- evalExpr env cExpr >>= collectionToList
-  ys <- parallelMapM (applyFunc' env fn) xs
-  return $ Value $ Collection (Sq.fromList ys)
- where
-  applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
-  applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
-
 
 evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
