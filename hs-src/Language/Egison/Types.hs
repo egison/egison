@@ -112,7 +112,6 @@ module Language.Egison.Types
     , liftError
     -- * Monads
     , EgisonM (..)
-    , parallelMapM
     , runEgisonM
     , liftEgisonM
     , fromEgisonM
@@ -282,10 +281,6 @@ data EgisonExpr =
   | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
   | ArrayBoundsExpr EgisonExpr
   | ArrayRefExpr EgisonExpr EgisonExpr
-
-  | ParExpr EgisonExpr EgisonExpr
-  | PseqExpr EgisonExpr EgisonExpr
-  | PmapExpr EgisonExpr EgisonExpr
 
   | GenerateTensorExpr EgisonExpr EgisonExpr
   | TensorExpr EgisonExpr EgisonExpr EgisonExpr EgisonExpr
@@ -1702,23 +1697,6 @@ newtype EgisonM a = EgisonM {
 
 instance MonadFail EgisonM where
     fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
-
-parallelMapM :: (a -> EgisonM b) -> [a] -> EgisonM [b]
-parallelMapM f [] = return []
-parallelMapM f (x:xs) = do
-  let defaultRuntimeState = RuntimeState { indexCounter = 0, funcNameStack = [] }
-  let y = unsafePerformEgison defaultRuntimeState $ f x
-  let ys = unsafePerformEgison defaultRuntimeState $ parallelMapM f xs
-  y `par` (ys `pseq` return (y:ys))
-
-unsafePerformEgison :: RuntimeState -> EgisonM a -> a
-unsafePerformEgison st ma =
-  let (Right ret, _) = unsafePerformIO $ runFreshT st $ runEgisonM ma in
-  ret
---    f' :: (Either EgisonError a) -> (Either EgisonError b) -> EgisonM c
---    f' (Right x) (Right y) = f x y
---    f' (Left e) _ = liftError (Left e)
---    f' _ (Left e) = liftError (Left e)
 
 runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
 runEgisonM = runExceptT . unEgisonM
