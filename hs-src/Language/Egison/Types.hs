@@ -1646,7 +1646,7 @@ data EgisonError =
   | TypeMismatch String WHNFData CallStack
   | ArgumentsNumWithNames [String] Int Int CallStack
   | ArgumentsNumPrimitive Int Int CallStack
-  | ArgumentsNum Int Int CallStack
+  | TupleLength Int Int CallStack
   | InconsistentTensorSize CallStack
   | InconsistentTensorIndex CallStack
   | TensorIndexOutOfBounds Integer Integer CallStack
@@ -1667,8 +1667,8 @@ instance Show EgisonError where
     "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (ArgumentsNumPrimitive expected got stack) =
     "Wrong number of arguments for a primitive function: expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
-  show (ArgumentsNum expected got stack) =
-    "Wrong number of arguments: expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
+  show (TupleLength expected got stack) =
+    "Inconsistent tuple lengths: expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (InconsistentTensorSize stack) = "Inconsistent tensor size" ++ showTrace stack
   show (InconsistentTensorIndex stack) = "Inconsistent tensor index" ++ showTrace stack
   show (TensorIndexOutOfBounds m n stack) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n ++ showTrace stack

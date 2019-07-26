@@ -1251,8 +1251,8 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
             IndexedPat _ _ -> return $ msingleton $ MState env loops seqs bindings (MAtom pattern target Something:trees)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
-              when (length patterns /= length targets) $ throwError =<< ArgumentsNum (length patterns) (length targets) <$> getFuncNameStack
-              when (length patterns /= length matchers) $ throwError =<< ArgumentsNum (length patterns) (length matchers) <$> getFuncNameStack
+              when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
+              when (length patterns /= length matchers) $ throwError =<< TupleLength (length patterns) (length matchers) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets matchers ++ trees
               return $ msingleton $ MState env loops seqs bindings trees'
             _ ->  throwError $ Default $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
@@ -1299,7 +1299,7 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
             IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
-              when (length patterns /= length targets) $ throwError =<< ArgumentsNum (length patterns) (length targets) <$> getFuncNameStack
+              when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets (replicate (length patterns) Something) ++ trees
               return $ msingleton $ MState env loops seqs bindings trees'
             _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ show pattern
