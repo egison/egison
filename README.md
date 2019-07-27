@@ -400,7 +400,7 @@ Please follow us.
 
 ## Acknowledgement
 
-I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara, Kentaro Honda, and Mayuko Kori for their help to implement the interpreter.
+I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara, Kentaro Honda, Mayuko Kori, and Momoko Hattori for their help to implement the interpreter.
 
 ## License
 
