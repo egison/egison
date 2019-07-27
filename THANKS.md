@@ -7,3 +7,7 @@ I thank the following people for their great contribution.
 * Takasuke Nakamura
 * Tomoya Chiba
 * Shigekazu Takei
+* Mayuko Kori
+* Naoya Umezaki
+* Yuichi Nishiwaki
+* Momoko Hattori
