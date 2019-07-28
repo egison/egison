@@ -28,6 +28,7 @@ module Language.Egison.ParserNonS2
 import           Control.Monad.Except    hiding (mapM)
 
 import           Data.Either
+import qualified Data.Set                as Set
 
 import           System.Directory        (doesFileExist, getHomeDirectory)
 
@@ -48,14 +49,19 @@ import           Paths_egison            (getDataFileName)
 -- Without this we get a type error
 %error { happyError }
 
-%left '<' '>' '=' "<=" ">="
+%left '<' '>' "==" "<=" ">="
 %left '+' '-'
 %left '*' '/'
 
 %token
       int      { Token _ (TokenInt $$) }
       var      { Token _ (TokenVar $$) }
-      '='      { Token _ TokenEq }
+      "#t"     { Token _ TokenTrue }
+      "#f"     { Token _ TokenFalse }
+
+      test     { Token _ TokenTest }
+
+      "=="     { Token _ TokenEq }
       '<'      { Token _ TokenLT }
       '>'      { Token _ TokenGT }
       "<="     { Token _ TokenLE }
@@ -64,6 +70,7 @@ import           Paths_egison            (getDataFileName)
       '-'      { Token _ TokenMinus }
       '*'      { Token _ TokenAsterisk }
       '/'      { Token _ TokenDiv }
+
       '('      { Token _ TokenLParen }
       ')'      { Token _ TokenRParen }
       '['      { Token _ TokenLBracket }
@@ -73,19 +80,58 @@ import           Paths_egison            (getDataFileName)
 
 TopExprs :
     TopExpr           { [$1] }
-  | TopExprs TopExpr  { $1 ++ [$2] }
+  | TopExpr TopExprs  { $1 : $2 }
 
 TopExpr :
-    Expr        { Test $1 }
+    Expr              { Test $1 }
+  | test '(' Expr ')' { Test $3 }
 
 Exprs :
-    Expr        { [$1] }
-  | Exprs Expr  { $1 ++ [$2] }
+    Expr              { [$1] }
+  | Expr Exprs        { $1 : $2 }
 
 Expr :
-    int      { IntegerExpr $1 }
+    int               { IntegerExpr $1 }
+  | "#t"              { BoolExpr True }
+  | "#f"              { BoolExpr False }
+  | Expr "==" Expr    { makeApply (VarExpr $ stringToVar "eq?") [$1, $3] }
+  | Expr "<=" Expr    { makeApply (VarExpr $ stringToVar "lte?") [$1, $3] }
+  | Expr '<' Expr     { makeApply (VarExpr $ stringToVar "lt?") [$1, $3] }
+  | Expr ">=" Expr    { makeApply (VarExpr $ stringToVar "gte?") [$1, $3] }
+  | Expr '>' Expr     { makeApply (VarExpr $ stringToVar "gt?") [$1, $3] }
+  | Expr '+' Expr     { makeApply (VarExpr $ stringToVar "+") [$1, $3] }
+  | Expr '-' Expr     { makeApply (VarExpr $ stringToVar "-") [$1, $3] }
+  | Expr '*' Expr     { makeApply (VarExpr $ stringToVar "*") [$1, $3] }
+  | Expr '/' Expr     { makeApply (VarExpr $ stringToVar "/") [$1, $3] }
+  | '(' Expr ')'      { $2 }
 
 {
+makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
+makeApply func xs = do
+  let args = map (\x -> case x of
+                          LambdaArgExpr s -> Left s
+                          _               -> Right x) xs
+  let vars = lefts args
+  case vars of
+    [] -> ApplyExpr func . TupleExpr $ rights args
+    _ | all null vars ->
+        let args' = rights args
+            args'' = zipWith (curry f) args (annonVars 1 (length args))
+            args''' = map (VarExpr . stringToVar . either id id) args''
+        in ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
+      | all (not . null) vars ->
+        let n = Set.size $ Set.fromList vars
+            args' = rights args
+            args'' = zipWith (curry g) args (annonVars (n + 1) (length args))
+            args''' = map (VarExpr . stringToVar . either id id) args''
+        in ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
+ where
+  annonVars m n = take n $ map ((':':) . show) [m..]
+  f (Left _, var)  = Left var
+  f (Right _, var) = Right var
+  g (Left arg, _)  = Left (':':arg)
+  g (Right _, var) = Right var
+
 lexwrap :: (Token -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
 
