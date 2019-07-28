@@ -1,14 +1,14 @@
 {
+{-# OPTIONS -w #-}
 
 {- |
 Module      : Language.Egison.ParserNonS2
 Copyright   : Satoshi Egi
 Licence     : MIT
 
-This module provide new Egison parser.
+This module provides new Egison parser.
 -}
 
-{-# OPTIONS -w #-}
 module Language.Egison.ParserNonS2
        (
        -- * Parse a string
