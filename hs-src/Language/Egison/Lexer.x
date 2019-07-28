@@ -33,7 +33,12 @@ tokens :-
   $white+                        ;
   $digit+                        { lex (TokenInt . read) }
   $alpha [$alpha $digit \_ \']*  { lex  TokenVar         }
-  \=                             { lex' TokenEq          }
+  \#t                            { lex' TokenTrue        }
+  \#f                            { lex' TokenFalse       }
+
+  test                           { lex' TokenTest        }
+
+  \=\=                           { lex' TokenEq          }
   \<                             { lex' TokenLT          }
   \>                             { lex' TokenGT          }
   \<\=                           { lex' TokenLE          }
@@ -42,6 +47,7 @@ tokens :-
   \-                             { lex' TokenMinus       }
   \*                             { lex' TokenAsterisk    }
   \/                             { lex' TokenDiv         }
+
   \(                             { lex' TokenLParen      }
   \)                             { lex' TokenRParen      }
   \[                             { lex' TokenLBracket    }
@@ -66,8 +72,15 @@ data Token = Token AlexPosn TokenClass
   deriving ( Show )
 
 data TokenClass
+  -- Data and Variables
   = TokenInt Integer
   | TokenVar String
+  | TokenTrue
+  | TokenFalse
+
+  -- Keywords
+  | TokenTest
+
   | TokenEq
   | TokenLT
   | TokenGT
@@ -77,6 +90,7 @@ data TokenClass
   | TokenMinus
   | TokenAsterisk
   | TokenDiv
+
   | TokenLParen
   | TokenRParen
   | TokenLBracket
@@ -87,7 +101,12 @@ data TokenClass
 instance Show TokenClass where
   show (TokenInt i) = show i
   show (TokenVar s) = show s
-  show TokenEq = "="
+  show TokenTrue = "#t"
+  show TokenFalse = "#f"
+
+  show TokenTest = "test"
+
+  show TokenEq = "=="
   show TokenLT = "<"
   show TokenGT = ">"
   show TokenLE = "<="
@@ -96,6 +115,7 @@ instance Show TokenClass where
   show TokenMinus = "-"
   show TokenAsterisk = "*"
   show TokenDiv = "/"
+
   show TokenLParen = "("
   show TokenRParen = ")"
   show TokenLBracket = "["
