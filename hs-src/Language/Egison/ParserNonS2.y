@@ -1,4 +1,13 @@
 {
+
+{- |
+Module      : Language.Egison.ParserNonS2
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This module provide new Egison parser.
+-}
+
 {-# OPTIONS -w #-}
 module Language.Egison.ParserNonS2
        (
@@ -12,23 +21,33 @@ module Language.Egison.ParserNonS2
        , parseExprs
        , parseExpr
        -- * Parse a file
-       , loadFile
        , loadLibraryFile
+       , loadFile
        ) where
 
-import Language.Egison.Lexer
-import Language.Egison.Types
+import           Control.Monad.Except    hiding (mapM)
+
+import           Data.Either
+
+import           System.Directory        (doesFileExist, getHomeDirectory)
+
+import           Language.Egison.Desugar
+import           Language.Egison.Lexer
+import           Language.Egison.Types
+import           Paths_egison            (getDataFileName)
 
 }
 
-%name parse
+%name parseTopExprs_ TopExprs
+%name parseTopExpr_ TopExpr
+%name parseExprs_ Exprs
+%name parseExpr_ Expr
 %tokentype { Token }
 %monad { Alex }
 %lexer { lexwrap } { Token _ TokenEOF }
 -- Without this we get a type error
 %error { happyError }
 
-%right let in
 %left '<' '>' '=' "<=" ">="
 %left '+' '-'
 %left '*' '/'
@@ -52,7 +71,18 @@ import Language.Egison.Types
 
 %%
 
-EgisonExpr :
+TopExprs :
+    TopExpr           { [$1] }
+  | TopExprs TopExpr  { $1 ++ [$2] }
+
+TopExpr :
+    Expr        { Test $1 }
+
+Exprs :
+    Expr        { [$1] }
+  | Exprs Expr  { $1 ++ [$2] }
+
+Expr :
     int      { IntegerExpr $1 }
 
 {
@@ -64,33 +94,51 @@ happyError (Token p t) =
   alexError' p ("parse error at token '" ++ show t ++ "'")
 
 readTopExprs :: String -> EgisonM [EgisonTopExpr]
-readTopExprs = undefined
+readTopExprs = either throwError (mapM desugarTopExpr) . parseTopExprs
 
 readTopExpr :: String -> EgisonM EgisonTopExpr
-readTopExpr = undefined
+readTopExpr = either throwError desugarTopExpr . parseTopExpr
 
 readExprs :: String -> EgisonM [EgisonExpr]
-readExprs = undefined
+readExprs = liftEgisonM . runDesugarM . either throwError (mapM desugar) . parseExprs
 
 readExpr :: String -> EgisonM EgisonExpr
-readExpr = undefined
+readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = undefined
+parseTopExprs = runAlex' parseTopExprs_
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = undefined
+parseTopExpr = runAlex' parseTopExpr_
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = undefined
+parseExprs = runAlex' parseExprs_
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = undefined
--- parseExpr = runAlex' parse
+parseExpr = runAlex' parseExpr_
 
-loadFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadFile = undefined
-
+-- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadLibraryFile = undefined
+loadLibraryFile file = do
+  homeDir <- liftIO getHomeDirectory
+  doesExist <- liftIO $ doesFileExist $ homeDir ++ "/.egison/" ++ file
+  if doesExist
+    then loadFile $ homeDir ++ "/.egison/" ++ file
+    else liftIO (getDataFileName file) >>= loadFile
+
+-- |Load a file
+loadFile :: FilePath -> EgisonM [EgisonTopExpr]
+loadFile file = do
+  doesExist <- liftIO $ doesFileExist file
+  unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
+  input <- liftIO $ readUTF8File file
+  exprs <- readTopExprs $ shebang input
+  concat <$> mapM  recursiveLoad exprs
+ where
+  recursiveLoad (Load file)     = loadLibraryFile file
+  recursiveLoad (LoadFile file) = loadFile file
+  recursiveLoad expr            = return [expr]
+  shebang :: String -> String
+  shebang ('#':'!':cs) = ';':'#':'!':cs
+  shebang cs           = cs
 }

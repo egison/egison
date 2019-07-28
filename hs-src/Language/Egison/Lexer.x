@@ -9,9 +9,14 @@ module Language.Egison.Lexer
   , alexMonadScan'
   , alexError'
   ) where
-import Prelude       hiding (lex)
-import Control.Monad (liftM)
+
+import           Prelude               hiding (lex)
+import           Control.Monad         (liftM)
+
+import           Language.Egison.Types
+
 }
+
 %wrapper "monadUserState"
 $digit = 0-9
 $alpha = [A-Za-z]
@@ -37,15 +42,20 @@ tokens :-
 -- To improve error messages, We keep the path of the file we are
 -- lexing in our own state.
 data AlexUserState = AlexUserState { filePath :: FilePath }
+
 alexInitUserState :: AlexUserState
 alexInitUserState = AlexUserState "<unknown>"
+
 getFilePath :: Alex FilePath
 getFilePath = liftM filePath alexGetUserState
+
 setFilePath :: FilePath -> Alex ()
 setFilePath = alexSetUserState . AlexUserState
+
 -- The token type, consisting of the source code position and a token class.
 data Token = Token AlexPosn TokenClass
   deriving ( Show )
+
 data TokenClass
   = TokenInt Integer
   | TokenVar String
@@ -87,14 +97,17 @@ alexEOF :: Alex Token
 alexEOF = do
   (p,_,_,_) <- alexGetInput
   return $ Token p TokenEOF
+
 -- Unfortunately, we have to extract the matching bit of string
 -- ourselves...
 lex :: (String -> TokenClass) -> AlexAction Token
 lex f = \(p,_,_,s) i -> return $ Token p (f (take i s))
+
 -- For constructing tokens that do not depend on
 -- the input
 lex' :: TokenClass -> AlexAction Token
 lex' = lex . const
+
 -- We rewrite alexMonadScan' to delegate to alexError' when lexing fails
 -- (the default implementation just returns an error message).
 alexMonadScan' :: Alex Token
@@ -111,12 +124,17 @@ alexMonadScan' = do
     AlexToken inp' len action -> do
         alexSetInput inp'
         action (ignorePendingBytes inp) len
+
 -- Signal an error, including a commonly accepted source code position.
 alexError' :: AlexPosn -> String -> Alex a
 alexError' (AlexPn _ l c) msg = do
   fp <- getFilePath
   alexError (fp ++ ":" ++ show l ++ ":" ++ show c ++ ": " ++ msg)
+
 -- A variant of runAlex, keeping track of the path of the file we are lexing.
-runAlex' :: Alex a -> String -> Either String a
-runAlex' a input = runAlex input (setFilePath "<stdin>" >> a)
+runAlex' :: Alex a -> String -> Either EgisonError a
+runAlex' a input =
+  case runAlex input (setFilePath "<stdin>" >> a) of
+    Left msg -> Left $ Parser msg
+    Right r  -> Right r
 }
