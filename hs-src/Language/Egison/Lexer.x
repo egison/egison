@@ -1,14 +1,23 @@
 {
-{-# OPTIONS -w  #-}
+{-# OPTIONS -w #-}
+
+{- |
+Module      : Language.Egison.Lexer
+Copyright   : Satoshi Egi
+Licence     : MIT
+
+This module provides new Egison lexer.
+-}
+
 module Language.Egison.Lexer
-  ( Token(..)
-  , AlexPosn(..)
-  , TokenClass(..)
-  , Alex(..)
-  , runAlex'
-  , alexMonadScan'
-  , alexError'
-  ) where
+       ( Token(..)
+       , AlexPosn(..)
+       , TokenClass(..)
+       , Alex(..)
+       , runAlex'
+       , alexMonadScan'
+       , alexError'
+       ) where
 
 import           Prelude               hiding (lex)
 import           Control.Monad         (liftM)
