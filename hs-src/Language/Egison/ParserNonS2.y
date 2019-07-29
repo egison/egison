@@ -49,9 +49,14 @@ import           Paths_egison            (getDataFileName)
 -- Without this we get a type error
 %error { happyError }
 
+%right "++"
+%right "||"
+%right "&&"
+%right ':'
 %left '<' '>' "==" "<=" ">="
-%left '+' '-'
+%left '+' '-' '%'
 %left '*' '/'
+%left '^'
 
 %token
       int      { Token _ (TokenInt $$) }
@@ -68,8 +73,15 @@ import           Paths_egison            (getDataFileName)
       ">="     { Token _ TokenGE }
       '+'      { Token _ TokenPlus }
       '-'      { Token _ TokenMinus }
+      '%'      { Token _ TokenPercent }
       '*'      { Token _ TokenAsterisk }
       '/'      { Token _ TokenDiv }
+      '^'      { Token _ TokenCaret }
+      "&&"     { Token _ TokenAndAnd }
+      "||"     { Token _ TokenBarBar }
+      ':'      { Token _ TokenColon }
+      ".."     { Token _ TokenDotDot }
+      "++"     { Token _ TokenPlusPlus }
 
       '('      { Token _ TokenLParen }
       ')'      { Token _ TokenRParen }
@@ -91,9 +103,7 @@ Exprs :
   | Expr Exprs        { $1 : $2 }
 
 Expr :
-    int               { IntegerExpr $1 }
-  | "#t"              { BoolExpr True }
-  | "#f"              { BoolExpr False }
+    Term              { $1 }
   | Expr "==" Expr    { makeApply (VarExpr $ stringToVar "eq?") [$1, $3] }
   | Expr "<=" Expr    { makeApply (VarExpr $ stringToVar "lte?") [$1, $3] }
   | Expr '<' Expr     { makeApply (VarExpr $ stringToVar "lt?") [$1, $3] }
@@ -101,8 +111,22 @@ Expr :
   | Expr '>' Expr     { makeApply (VarExpr $ stringToVar "gt?") [$1, $3] }
   | Expr '+' Expr     { makeApply (VarExpr $ stringToVar "+") [$1, $3] }
   | Expr '-' Expr     { makeApply (VarExpr $ stringToVar "-") [$1, $3] }
+  | Expr '%' Expr     { makeApply (VarExpr $ stringToVar "remainder") [$1, $3] }
   | Expr '*' Expr     { makeApply (VarExpr $ stringToVar "*") [$1, $3] }
   | Expr '/' Expr     { makeApply (VarExpr $ stringToVar "/") [$1, $3] }
+  | Expr '^' Expr     { makeApply (VarExpr $ stringToVar "**") [$1, $3] }
+  | Expr "&&" Expr    { makeApply (VarExpr $ stringToVar "and") [$1, $3] }
+  | Expr "||" Expr    { makeApply (VarExpr $ stringToVar "or") [$1, $3] }
+  | Expr ':' Expr     { makeApply (VarExpr $ stringToVar "cons") [$1, $3] }
+  | Term ".." Term    { makeApply (VarExpr $ stringToVar "between") [$1, $3] }
+  | Expr "++" Expr    { makeApply (VarExpr $ stringToVar "append") [$1, $3] }
+
+Term :
+    int               { IntegerExpr $1 }
+  | "#t"              { BoolExpr True }
+  | "#f"              { BoolExpr False }
+  -- TODO
+  -- | '-' Term          { IntegerExpr (-1 * $2) }
   | '(' Expr ')'      { $2 }
 
 {

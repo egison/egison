@@ -45,8 +45,15 @@ tokens :-
   \>\=                           { lex' TokenGE          }
   \+                             { lex' TokenPlus        }
   \-                             { lex' TokenMinus       }
+  \%                             { lex' TokenPercent     }
   \*                             { lex' TokenAsterisk    }
   \/                             { lex' TokenDiv         }
+  \^                             { lex' TokenCaret       }
+  \&\&                           { lex' TokenAndAnd      }
+  \|\|                           { lex' TokenBarBar      }
+  \:                             { lex' TokenColon       }
+  \.\.                           { lex' TokenDotDot      }
+  \+\+                           { lex' TokenPlusPlus    }
 
   \(                             { lex' TokenLParen      }
   \)                             { lex' TokenRParen      }
@@ -88,8 +95,15 @@ data TokenClass
   | TokenGE
   | TokenPlus
   | TokenMinus
+  | TokenPercent
   | TokenAsterisk
   | TokenDiv
+  | TokenCaret
+  | TokenAndAnd
+  | TokenBarBar
+  | TokenColon
+  | TokenDotDot
+  | TokenPlusPlus
 
   | TokenLParen
   | TokenRParen
@@ -113,8 +127,15 @@ instance Show TokenClass where
   show TokenGE = ">="
   show TokenPlus = "+"
   show TokenMinus = "-"
+  show TokenPercent = "%"
   show TokenAsterisk = "*"
   show TokenDiv = "/"
+  show TokenCaret = "^"
+  show TokenAndAnd = "&&"
+  show TokenBarBar = "||"
+  show TokenColon = ":"
+  show TokenDotDot = ".."
+  show TokenPlusPlus = "++"
 
   show TokenLParen = "("
   show TokenRParen = ")"
