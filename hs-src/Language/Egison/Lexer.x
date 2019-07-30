@@ -16,6 +16,7 @@ module Language.Egison.Lexer
        , Alex(..)
        , runAlex'
        , alexMonadScan'
+       , alexError
        , alexError'
        ) where
 
@@ -42,6 +43,10 @@ tokens :-
   matchAllDFS                    { lex' TokenMatchAllDFS }
   as                             { lex' TokenAs          }
   with                           { lex' TokenWith        }
+  something                      { lex' TokenSomething   }
+  if                             { lex' TokenIf          }
+  then                           { lex' TokenThen        }
+  else                           { lex' TokenElse        }
 
   -- Data
   $digit+                        { lex (TokenInt . read) }
@@ -71,6 +76,8 @@ tokens :-
   \_                             { lex' TokenUnderscore  }
   \#                             { lex' TokenSharp       }
   \,                             { lex' TokenComma       }
+  \\                             { lex' TokenBackSlash   }
+  \*\$                           { lex' TokenAstDollar   }
 
   \(                             { lex' TokenLParen      }
   \)                             { lex' TokenRParen      }
@@ -106,6 +113,10 @@ data TokenClass
   | TokenMatchAllDFS
   | TokenAs
   | TokenWith
+  | TokenSomething
+  | TokenIf
+  | TokenThen
+  | TokenElse
 
   -- Data and Variables
   | TokenInt Integer
@@ -134,6 +145,8 @@ data TokenClass
   | TokenUnderscore
   | TokenSharp
   | TokenComma
+  | TokenBackSlash
+  | TokenAstDollar
 
   | TokenLParen
   | TokenRParen
@@ -152,6 +165,10 @@ instance Show TokenClass where
   show TokenMatchAllDFS = "matchAllDFS"
   show TokenAs = "as"
   show TokenWith = "with"
+  show TokenSomething = "something"
+  show TokenIf = "if"
+  show TokenThen = "then"
+  show TokenElse = "else"
 
   show (TokenInt i) = show i
   show (TokenVar s) = show s
@@ -179,6 +196,8 @@ instance Show TokenClass where
   show TokenUnderscore = "_"
   show TokenSharp = "#"
   show TokenComma = ","
+  show TokenBackSlash = "\\"
+  show TokenAstDollar = "*$"
 
   show TokenLParen = "("
   show TokenRParen = ")"
