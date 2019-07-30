@@ -39,9 +39,8 @@ import           Paths_egison            (getDataFileName)
 
 }
 
-%name parseTopExprs_ TopExprs
+-- %name parseTopExprs_ TopExprs
 %name parseTopExpr_ TopExpr
-%name parseExprs_ Exprs
 %name parseExpr_ Expr
 %tokentype { Token }
 %monad { Alex }
@@ -90,17 +89,13 @@ import           Paths_egison            (getDataFileName)
 
 %%
 
-TopExprs :
-    TopExpr           { [$1] }
-  | TopExpr TopExprs  { $1 : $2 }
+-- TopExprs :
+--     TopExpr           { [$1] }
+--   | TopExpr TopExprs  { $1 : $2 }
 
 TopExpr :
     Expr              { Test $1 }
   | test '(' Expr ')' { Test $3 }
-
-Exprs :
-    Expr              { [$1] }
-  | Expr Exprs        { $1 : $2 }
 
 Expr :
     Term              { $1 }
@@ -125,9 +120,9 @@ Term :
     int               { IntegerExpr $1 }
   | "#t"              { BoolExpr True }
   | "#f"              { BoolExpr False }
-  -- TODO
-  -- | '-' Term          { IntegerExpr (-1 * $2) }
   | '(' Expr ')'      { $2 }
+  | '-' int           { IntegerExpr (-1 * $2) }
+  | '-' '(' Expr ')'  { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $3] }
 
 {
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
@@ -176,13 +171,13 @@ readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = runAlex' parseTopExprs_
+parseTopExprs = undefined -- runAlex' parseTopExprs_
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
 parseTopExpr = runAlex' parseTopExpr_
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = runAlex' parseExprs_
+parseExprs = undefined
 
 parseExpr :: String -> Either EgisonError EgisonExpr
 parseExpr = runAlex' parseExpr_
