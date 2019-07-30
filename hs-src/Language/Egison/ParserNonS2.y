@@ -57,55 +57,59 @@ import           Paths_egison            (getDataFileName)
 %left '+' '-' '%'
 %left '*' '/'
 %left '^'
+%right TENSOR
 
 %token
-      True        { Token _ TokenTrue        }
-      False       { Token _ TokenFalse       }
-      test        { Token _ TokenTest        }
-      match       { Token _ TokenMatch       }
-      matchDFS    { Token _ TokenMatchDFS    }
-      matchAll    { Token _ TokenMatchAll    }
-      matchAllDFS { Token _ TokenMatchAllDFS }
-      as          { Token _ TokenAs          }
-      with        { Token _ TokenWith        }
-      something   { Token _ TokenSomething   }
-      if          { Token _ TokenIf          }
-      then        { Token _ TokenThen        }
-      else        { Token _ TokenElse        }
+      True           { Token _ TokenTrue           }
+      False          { Token _ TokenFalse          }
+      test           { Token _ TokenTest           }
+      match          { Token _ TokenMatch          }
+      matchDFS       { Token _ TokenMatchDFS       }
+      matchAll       { Token _ TokenMatchAll       }
+      matchAllDFS    { Token _ TokenMatchAllDFS    }
+      matchLambda    { Token _ TokenMatchLambda    }
+      matchAllLambda { Token _ TokenMatchAllLambda }
+      as             { Token _ TokenAs             }
+      with           { Token _ TokenWith           }
+      something      { Token _ TokenSomething      }
+      if             { Token _ TokenIf             }
+      then           { Token _ TokenThen           }
+      else           { Token _ TokenElse           }
 
-      int         { Token _ (TokenInt $$)    }
-      var         { Token _ (TokenVar $$)    }
+      int            { Token _ (TokenInt $$)       }
+      var            { Token _ (TokenVar $$)       }
 
-      "=="        { Token _ TokenEq          }
-      '<'         { Token _ TokenLT          }
-      '>'         { Token _ TokenGT          }
-      "<="        { Token _ TokenLE          }
-      ">="        { Token _ TokenGE          }
-      '+'         { Token _ TokenPlus        }
-      '-'         { Token _ TokenMinus       }
-      '%'         { Token _ TokenPercent     }
-      '*'         { Token _ TokenAsterisk    }
-      '/'         { Token _ TokenDiv         }
-      '^'         { Token _ TokenCaret       }
-      "&&"        { Token _ TokenAndAnd      }
-      "||"        { Token _ TokenBarBar      }
-      ':'         { Token _ TokenColon       }
-      ".."        { Token _ TokenDotDot      }
-      "++"        { Token _ TokenPlusPlus    }
+      "=="           { Token _ TokenEqEq           }
+      '<'            { Token _ TokenLT             }
+      '>'            { Token _ TokenGT             }
+      "<="           { Token _ TokenLE             }
+      ">="           { Token _ TokenGE             }
+      '+'            { Token _ TokenPlus           }
+      '-'            { Token _ TokenMinus          }
+      '%'            { Token _ TokenPercent        }
+      '*'            { Token _ TokenAsterisk       }
+      '/'            { Token _ TokenDiv            }
+      '^'            { Token _ TokenCaret          }
+      "&&"           { Token _ TokenAndAnd         }
+      "||"           { Token _ TokenBarBar         }
+      ':'            { Token _ TokenColon          }
+      ".."           { Token _ TokenDotDot         }
+      "++"           { Token _ TokenPlusPlus       }
 
-      '|'         { Token _ TokenBar         }
-      "->"        { Token _ TokenArrow       }
-      '$'         { Token _ TokenDollar      }
-      '_'         { Token _ TokenUnderscore  }
-      '#'         { Token _ TokenSharp       }
-      ','         { Token _ TokenComma       }
-      '\\'        { Token _ TokenBackSlash   }
-      "*$"        { Token _ TokenAstDollar   }
+      '|'            { Token _ TokenBar            }
+      "->"           { Token _ TokenArrow          }
+      '$'            { Token _ TokenDollar         }
+      '_'            { Token _ TokenUnderscore     }
+      '#'            { Token _ TokenSharp          }
+      ','            { Token _ TokenComma          }
+      '\\'           { Token _ TokenBackSlash      }
+      "*$"           { Token _ TokenAstDollar      }
+      '='            { Token _ TokenEq             }
 
-      '('         { Token _ TokenLParen      }
-      ')'         { Token _ TokenRParen      }
-      '['         { Token _ TokenLBracket    }
-      ']'         { Token _ TokenRBracket    }
+      '('            { Token _ TokenLParen         }
+      ')'            { Token _ TokenRParen         }
+      '['            { Token _ TokenLBracket       }
+      ']'            { Token _ TokenRBracket       }
 
 %%
 
@@ -114,8 +118,10 @@ import           Paths_egison            (getDataFileName)
 --   | TopExpr TopExprs  { $1 : $2 }
 
 TopExpr :: { EgisonTopExpr }
-  : Expr              { Test $1 }
-  | test '(' Expr ')' { Test $3 }
+  : var '=' Expr            { Define (stringToVar $1) $3 }
+  | var list1(Arg) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
+  | Expr                    { Test $1 }
+  | test '(' Expr ')'       { Test $3 }
 
 Expr :: { EgisonExpr }
   : Expr1                       { $1 }
@@ -154,15 +160,23 @@ MatchExpr :: { EgisonExpr }
   | matchDFS    Expr as Atoms with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
   | matchAll    Expr as Atoms with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
   | matchAllDFS Expr as Atoms with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
+  | matchLambda      as Atoms with '|' MatchClauses { MatchLambdaExpr $3 $6 }
+  | matchAllLambda   as Atoms with '|' MatchClauses { MatchAllLambdaExpr $3 $6 }
 
 MatchClauses :: { [MatchClause] }
   : Pattern "->" Expr                               { [($1, $3)] }
   | MatchClauses '|' Pattern "->" Expr              { $1 ++ [($3, $5)] }
 
+-- FIXME :
+--   Uncommenting these 2 rules will yield shift/reduce conflict at
+--       TopExpr -> var . '=' Expr
+--       TopExpr -> var . list1__Arg__ '=' Expr
+--       Atom -> var .
 Arg :: { Arg }
   : '$' var                  { ScalarArg $2 }
+  -- | var                      { ScalarArg $1 }
   | "*$" var                 { InvertedScalarArg $2 }
-  | '%' var                  { TensorArg $2 }
+  -- | '%' var %prec TENSOR     { TensorArg $2 }
 
 Atom :: { EgisonExpr }
   : int                      { IntegerExpr $1 }
@@ -171,7 +185,7 @@ Atom :: { EgisonExpr }
   | False                    { BoolExpr False }
   | something                { SomethingExpr }
   | '(' sep2(Expr, ',') ')'  { TupleExpr $2 }
-  | '[' sep2(Expr, ',') ']'  { CollectionExpr (map ElementExpr $2) }
+  | '[' sep(Expr, ',') ']'   { CollectionExpr (map ElementExpr $2) }
   | '(' Expr ')'             { $2 }
   | '[' Expr ".." Expr ']'   { makeApply (VarExpr $ stringToVar "between") [$2, $4] }
 
