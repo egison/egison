@@ -98,7 +98,8 @@ TopExpr :
   | test '(' Expr ')' { Test $3 }
 
 Expr :
-    Term              { $1 }
+    Atoms             { $1 }
+  | '-' Atom          { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $2] }
   | Expr "==" Expr    { makeApply (VarExpr $ stringToVar "eq?") [$1, $3] }
   | Expr "<=" Expr    { makeApply (VarExpr $ stringToVar "lte?") [$1, $3] }
   | Expr '<' Expr     { makeApply (VarExpr $ stringToVar "lt?") [$1, $3] }
@@ -113,16 +114,19 @@ Expr :
   | Expr "&&" Expr    { makeApply (VarExpr $ stringToVar "and") [$1, $3] }
   | Expr "||" Expr    { makeApply (VarExpr $ stringToVar "or") [$1, $3] }
   | Expr ':' Expr     { makeApply (VarExpr $ stringToVar "cons") [$1, $3] }
-  | Term ".." Term    { makeApply (VarExpr $ stringToVar "between") [$1, $3] }
   | Expr "++" Expr    { makeApply (VarExpr $ stringToVar "append") [$1, $3] }
 
-Term :
-    int               { IntegerExpr $1 }
-  | "#t"              { BoolExpr True }
-  | "#f"              { BoolExpr False }
-  | '(' Expr ')'      { $2 }
-  | '-' int           { IntegerExpr (-1 * $2) }
-  | '-' '(' Expr ')'  { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $3] }
+Atoms :
+    Atom              { $1 }
+  | Atoms Atom        { ApplyExpr $1 $2 }
+
+Atom :
+    int                    { IntegerExpr $1 }
+  | var                    { VarExpr $ stringToVar $1 }
+  | "#t"                   { BoolExpr True }
+  | "#f"                   { BoolExpr False }
+  | '(' Expr ')'           { $2 }
+  | '[' Expr ".." Expr ']' { makeApply (VarExpr $ stringToVar "between") [$2, $4] }
 
 {
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
