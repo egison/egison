@@ -68,6 +68,10 @@ import           Paths_egison            (getDataFileName)
       matchAllDFS { Token _ TokenMatchAllDFS }
       as          { Token _ TokenAs          }
       with        { Token _ TokenWith        }
+      something   { Token _ TokenSomething   }
+      if          { Token _ TokenIf          }
+      then        { Token _ TokenThen        }
+      else        { Token _ TokenElse        }
 
       int         { Token _ (TokenInt $$)    }
       var         { Token _ (TokenVar $$)    }
@@ -95,6 +99,8 @@ import           Paths_egison            (getDataFileName)
       '_'         { Token _ TokenUnderscore  }
       '#'         { Token _ TokenSharp       }
       ','         { Token _ TokenComma       }
+      '\\'        { Token _ TokenBackSlash   }
+      "*$"        { Token _ TokenAstDollar   }
 
       '('         { Token _ TokenLParen      }
       ')'         { Token _ TokenRParen      }
@@ -112,8 +118,10 @@ TopExpr :: { EgisonTopExpr }
   | test '(' Expr ')' { Test $3 }
 
 Expr :: { EgisonExpr }
-  : Expr1             { $1 }
-  | MatchExpr         { $1 }
+  : Expr1                       { $1 }
+  | MatchExpr                   { $1 }
+  | '\\' list1(Arg) "->" Expr   { LambdaExpr $2 $4 }
+  | if Expr then Expr else Expr { IfExpr $2 $4 $6 }
 
 Expr1 :: { EgisonExpr }
   : Atoms             { $1 }
@@ -151,12 +159,19 @@ MatchClauses :: { [MatchClause] }
   : Pattern "->" Expr                               { [($1, $3)] }
   | MatchClauses '|' Pattern "->" Expr              { $1 ++ [($3, $5)] }
 
+Arg :: { Arg }
+  : '$' var                  { ScalarArg $2 }
+  | "*$" var                 { InvertedScalarArg $2 }
+  | '%' var                  { TensorArg $2 }
+
 Atom :: { EgisonExpr }
   : int                      { IntegerExpr $1 }
   | var                      { VarExpr $ stringToVar $1 }
   | True                     { BoolExpr True }
   | False                    { BoolExpr False }
+  | something                { SomethingExpr }
   | '(' sep2(Expr, ',') ')'  { TupleExpr $2 }
+  | '[' sep2(Expr, ',') ']'  { CollectionExpr (map ElementExpr $2) }
   | '(' Expr ')'             { $2 }
   | '[' Expr ".." Expr ']'   { makeApply (VarExpr $ stringToVar "between") [$2, $4] }
 
@@ -165,8 +180,12 @@ Atom :: { EgisonExpr }
 --
 
 Pattern :: { EgisonPattern }
-  : '_'                    { WildCard }
-  | '$' var                { PatVar (stringToVar $2) }
+  : '_'                        { WildCard }
+  | '$' var                    { PatVar (stringToVar $2) }
+  | '#' Atom                   { ValuePat $2 }
+  | '(' sep2(Pattern, ',') ')' { TuplePat $2 }
+  | Pattern ':' Pattern        { InductivePat "cons" [$1, $3] }
+  | Pattern "++" Pattern       { InductivePat "join" [$1, $3] }
 
 --
 -- Helpers (Parameterized Products)
@@ -217,8 +236,8 @@ lexwrap :: (Token -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
 
 happyError :: Token -> Alex a
-happyError (Token p t) =
-  alexError' p ("parse error at token '" ++ show t ++ "'")
+happyError (Token _ TokenEOF) = alexError "unexpected end of input"
+happyError (Token p t) = alexError' p ("parse error at token '" ++ show t ++ "'")
 
 readTopExprs :: String -> EgisonM [EgisonTopExpr]
 readTopExprs = either throwError (mapM desugarTopExpr) . parseTopExprs
