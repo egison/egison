@@ -31,13 +31,17 @@ $digit = 0-9
 $alpha = [A-Za-z]
 tokens :-
   $white+                        ;
-  $digit+                        { lex (TokenInt . read) }
-  $alpha [$alpha $digit \_ \']*  { lex  TokenVar         }
-  \#t                            { lex' TokenTrue        }
-  \#f                            { lex' TokenFalse       }
 
+  -- Keywords
+  True                           { lex' TokenTrue        }
+  False                          { lex' TokenFalse       }
   test                           { lex' TokenTest        }
 
+  -- Data
+  $digit+                        { lex (TokenInt . read) }
+  $alpha [$alpha $digit \_ \']*  { lex  TokenVar         }
+
+  -- Operators
   \=\=                           { lex' TokenEq          }
   \<                             { lex' TokenLT          }
   \>                             { lex' TokenGT          }
@@ -79,14 +83,14 @@ data Token = Token AlexPosn TokenClass
   deriving ( Show )
 
 data TokenClass
-  -- Data and Variables
-  = TokenInt Integer
-  | TokenVar String
-  | TokenTrue
-  | TokenFalse
-
   -- Keywords
+  = TokenTrue
+  | TokenFalse
   | TokenTest
+
+  -- Data and Variables
+  | TokenInt Integer
+  | TokenVar String
 
   | TokenEq
   | TokenLT
@@ -113,12 +117,12 @@ data TokenClass
 
 -- For nice parser error messages.
 instance Show TokenClass where
+  show TokenTrue = "True"
+  show TokenFalse = "False"
+  show TokenTest = "test"
+
   show (TokenInt i) = show i
   show (TokenVar s) = show s
-  show TokenTrue = "#t"
-  show TokenFalse = "#f"
-
-  show TokenTest = "test"
 
   show TokenEq = "=="
   show TokenLT = "<"

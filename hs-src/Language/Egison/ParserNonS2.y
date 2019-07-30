@@ -60,8 +60,8 @@ import           Paths_egison            (getDataFileName)
 %token
       int      { Token _ (TokenInt $$) }
       var      { Token _ (TokenVar $$) }
-      "#t"     { Token _ TokenTrue }
-      "#f"     { Token _ TokenFalse }
+      True     { Token _ TokenTrue }
+      False    { Token _ TokenFalse }
 
       test     { Token _ TokenTest }
 
@@ -123,8 +123,8 @@ Atoms :
 Atom :
     int                    { IntegerExpr $1 }
   | var                    { VarExpr $ stringToVar $1 }
-  | "#t"                   { BoolExpr True }
-  | "#f"                   { BoolExpr False }
+  | True                   { BoolExpr True }
+  | False                  { BoolExpr False }
   | '(' Expr ')'           { $2 }
   | '[' Expr ".." Expr ']' { makeApply (VarExpr $ stringToVar "between") [$2, $4] }
 
