@@ -34,55 +34,58 @@ tokens :-
   $white+                        ;
 
   -- Keywords
-  True                           { lex' TokenTrue        }
-  False                          { lex' TokenFalse       }
-  test                           { lex' TokenTest        }
-  match                          { lex' TokenMatch       }
-  matchDFS                       { lex' TokenMatchDFS    }
-  matchAll                       { lex' TokenMatchAll    }
-  matchAllDFS                    { lex' TokenMatchAllDFS }
-  as                             { lex' TokenAs          }
-  with                           { lex' TokenWith        }
-  something                      { lex' TokenSomething   }
-  if                             { lex' TokenIf          }
-  then                           { lex' TokenThen        }
-  else                           { lex' TokenElse        }
+  True                           { lex' TokenTrue           }
+  False                          { lex' TokenFalse          }
+  test                           { lex' TokenTest           }
+  match                          { lex' TokenMatch          }
+  matchDFS                       { lex' TokenMatchDFS       }
+  matchAll                       { lex' TokenMatchAll       }
+  matchAllDFS                    { lex' TokenMatchAllDFS    }
+  matchLambda                    { lex' TokenMatchLambda    }
+  matchAllLambda                 { lex' TokenMatchAllLambda }
+  as                             { lex' TokenAs             }
+  with                           { lex' TokenWith           }
+  something                      { lex' TokenSomething      }
+  if                             { lex' TokenIf             }
+  then                           { lex' TokenThen           }
+  else                           { lex' TokenElse           }
 
   -- Data
-  $digit+                        { lex (TokenInt . read) }
-  $alpha [$alpha $digit \']*     { lex  TokenVar         }
+  $digit+                        { lex (TokenInt . read)    }
+  $alpha [$alpha $digit \']*     { lex  TokenVar            }
 
   -- Operators
-  \=\=                           { lex' TokenEq          }
-  \<                             { lex' TokenLT          }
-  \>                             { lex' TokenGT          }
-  \<\=                           { lex' TokenLE          }
-  \>\=                           { lex' TokenGE          }
-  \+                             { lex' TokenPlus        }
-  \-                             { lex' TokenMinus       }
-  \%                             { lex' TokenPercent     }
-  \*                             { lex' TokenAsterisk    }
-  \/                             { lex' TokenDiv         }
-  \^                             { lex' TokenCaret       }
-  \&\&                           { lex' TokenAndAnd      }
-  \|\|                           { lex' TokenBarBar      }
-  \:                             { lex' TokenColon       }
-  \.\.                           { lex' TokenDotDot      }
-  \+\+                           { lex' TokenPlusPlus    }
+  \=\=                           { lex' TokenEqEq           }
+  \<                             { lex' TokenLT             }
+  \>                             { lex' TokenGT             }
+  \<\=                           { lex' TokenLE             }
+  \>\=                           { lex' TokenGE             }
+  \+                             { lex' TokenPlus           }
+  \-                             { lex' TokenMinus          }
+  \%                             { lex' TokenPercent        }
+  \*                             { lex' TokenAsterisk       }
+  \/                             { lex' TokenDiv            }
+  \^                             { lex' TokenCaret          }
+  \&\&                           { lex' TokenAndAnd         }
+  \|\|                           { lex' TokenBarBar         }
+  \:                             { lex' TokenColon          }
+  \.\.                           { lex' TokenDotDot         }
+  \+\+                           { lex' TokenPlusPlus       }
 
-  \|                             { lex' TokenBar         }
-  \-\>                           { lex' TokenArrow       }
-  \$                             { lex' TokenDollar      }
-  \_                             { lex' TokenUnderscore  }
-  \#                             { lex' TokenSharp       }
-  \,                             { lex' TokenComma       }
-  \\                             { lex' TokenBackSlash   }
-  \*\$                           { lex' TokenAstDollar   }
+  \|                             { lex' TokenBar            }
+  \-\>                           { lex' TokenArrow          }
+  \$                             { lex' TokenDollar         }
+  \_                             { lex' TokenUnderscore     }
+  \#                             { lex' TokenSharp          }
+  \,                             { lex' TokenComma          }
+  \\                             { lex' TokenBackSlash      }
+  \*\$                           { lex' TokenAstDollar      }
+  \=                             { lex' TokenEq             }
 
-  \(                             { lex' TokenLParen      }
-  \)                             { lex' TokenRParen      }
-  \[                             { lex' TokenLBracket    }
-  \]                             { lex' TokenRBracket    }
+  \(                             { lex' TokenLParen         }
+  \)                             { lex' TokenRParen         }
+  \[                             { lex' TokenLBracket       }
+  \]                             { lex' TokenRBracket       }
 
 {
 -- To improve error messages, We keep the path of the file we are
@@ -111,6 +114,8 @@ data TokenClass
   | TokenMatchDFS
   | TokenMatchAll
   | TokenMatchAllDFS
+  | TokenMatchLambda
+  | TokenMatchAllLambda
   | TokenAs
   | TokenWith
   | TokenSomething
@@ -122,7 +127,7 @@ data TokenClass
   | TokenInt Integer
   | TokenVar String
 
-  | TokenEq
+  | TokenEqEq
   | TokenLT
   | TokenGT
   | TokenLE
@@ -147,6 +152,7 @@ data TokenClass
   | TokenComma
   | TokenBackSlash
   | TokenAstDollar
+  | TokenEq
 
   | TokenLParen
   | TokenRParen
@@ -163,6 +169,8 @@ instance Show TokenClass where
   show TokenMatchDFS = "matchDFS"
   show TokenMatchAll = "matchAll"
   show TokenMatchAllDFS = "matchAllDFS"
+  show TokenMatchLambda = "matchLambda"
+  show TokenMatchAllLambda = "matchAllLambda"
   show TokenAs = "as"
   show TokenWith = "with"
   show TokenSomething = "something"
@@ -173,7 +181,7 @@ instance Show TokenClass where
   show (TokenInt i) = show i
   show (TokenVar s) = show s
 
-  show TokenEq = "=="
+  show TokenEqEq = "=="
   show TokenLT = "<"
   show TokenGT = ">"
   show TokenLE = "<="
@@ -198,6 +206,7 @@ instance Show TokenClass where
   show TokenComma = ","
   show TokenBackSlash = "\\"
   show TokenAstDollar = "*$"
+  show TokenEq = "="
 
   show TokenLParen = "("
   show TokenRParen = ")"
