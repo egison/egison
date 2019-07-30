@@ -107,21 +107,21 @@ import           Paths_egison            (getDataFileName)
 --     TopExpr           { [$1] }
 --   | TopExpr TopExprs  { $1 : $2 }
 
-TopExpr :
-    Expr              { Test $1 }
+TopExpr :: { EgisonTopExpr }
+  : Expr              { Test $1 }
   | test '(' Expr ')' { Test $3 }
 
-Expr :
-    Expr1             { $1 }
+Expr :: { EgisonExpr }
+  : Expr1             { $1 }
   | MatchExpr         { $1 }
 
-Expr1 :
-    Atoms             { $1 }
+Expr1 :: { EgisonExpr }
+  : Atoms             { $1 }
   | '-' Atom          { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $2] }
   | BinOpExpr         { $1 }
 
-BinOpExpr :
-    Expr1 "==" Expr1  { makeApply (VarExpr $ stringToVar "eq?")       [$1, $3] }
+BinOpExpr :: { EgisonExpr }
+  : Expr1 "==" Expr1  { makeApply (VarExpr $ stringToVar "eq?")       [$1, $3] }
   | Expr1 "<=" Expr1  { makeApply (VarExpr $ stringToVar "lte?")      [$1, $3] }
   | Expr1 '<'  Expr1  { makeApply (VarExpr $ stringToVar "lt?")       [$1, $3] }
   | Expr1 ">=" Expr1  { makeApply (VarExpr $ stringToVar "gte?")      [$1, $3] }
@@ -137,41 +137,54 @@ BinOpExpr :
   | Expr1 ':'  Expr1  { makeApply (VarExpr $ stringToVar "cons")      [$1, $3] }
   | Expr1 "++" Expr1  { makeApply (VarExpr $ stringToVar "append")    [$1, $3] }
 
-Atoms :
-    Atom              { $1 }
+Atoms :: { EgisonExpr }
+  : Atom              { $1 }
   | Atoms Atom        { ApplyExpr $1 $2 }
 
-MatchExpr :
-    match       Expr as Atoms with '|' MatchClauses { MatchExpr $2 $4 $7 }
+MatchExpr :: { EgisonExpr }
+  : match       Expr as Atoms with '|' MatchClauses { MatchExpr $2 $4 $7 }
   | matchDFS    Expr as Atoms with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
   | matchAll    Expr as Atoms with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
   | matchAllDFS Expr as Atoms with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
 
-MatchClauses :
-    Pattern "->" Expr                               { [($1, $3)] }
+MatchClauses :: { [MatchClause] }
+  : Pattern "->" Expr                               { [($1, $3)] }
   | MatchClauses '|' Pattern "->" Expr              { $1 ++ [($3, $5)] }
 
-Atom :
-    int                    { IntegerExpr $1 }
-  | var                    { VarExpr $ stringToVar $1 }
-  | True                   { BoolExpr True }
-  | False                  { BoolExpr False }
-  | '(' TupleExpr1 ')'     { TupleExpr $2 }
-  | '(' Expr ')'           { $2 }
-  | '[' Expr ".." Expr ']' { makeApply (VarExpr $ stringToVar "between") [$2, $4] }
-
-TupleExpr1 :
-    Expr ',' Expr          { [$1, $3] }
-  | Expr ',' TupleExpr1    { $1 : $3 }
+Atom :: { EgisonExpr }
+  : int                      { IntegerExpr $1 }
+  | var                      { VarExpr $ stringToVar $1 }
+  | True                     { BoolExpr True }
+  | False                    { BoolExpr False }
+  | '(' sep2(Expr, ',') ')'  { TupleExpr $2 }
+  | '(' Expr ')'             { $2 }
+  | '[' Expr ".." Expr ']'   { makeApply (VarExpr $ stringToVar "between") [$2, $4] }
 
 --
 -- Patterns
 --
 
-Pattern :
-    '_'                    { WildCard }
+Pattern :: { EgisonPattern }
+  : '_'                    { WildCard }
   | '$' var                { PatVar (stringToVar $2) }
 
+--
+-- Helpers (Parameterized Products)
+--
+
+sep2(p, q)    : p q sep1(p, q)     { $1 : $3 }
+sep1(p, q)    : p list(snd(q, p))  { $1 : $2 }
+sep(p, q)     : sep1(p, q)         { $1 }
+              |                    { [] }
+
+snd(p, q)     : p q                { $2 }
+
+list1(p)      : rev_list1(p)       { reverse $1 }
+list(p)       : list1(p)           { $1 }
+              |                    { [] }
+
+rev_list1(p)  : p                  { [$1] }
+              | rev_list1(p) p     { $2 : $1 }
 
 {
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
