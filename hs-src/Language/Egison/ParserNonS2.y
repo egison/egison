@@ -48,6 +48,7 @@ import           Paths_egison            (getDataFileName)
 -- Without this we get a type error
 %error { happyError }
 
+%right '|'
 %right "++"
 %right "||"
 %right "&&"
@@ -58,34 +59,47 @@ import           Paths_egison            (getDataFileName)
 %left '^'
 
 %token
-      int      { Token _ (TokenInt $$) }
-      var      { Token _ (TokenVar $$) }
-      True     { Token _ TokenTrue }
-      False    { Token _ TokenFalse }
+      True        { Token _ TokenTrue        }
+      False       { Token _ TokenFalse       }
+      test        { Token _ TokenTest        }
+      match       { Token _ TokenMatch       }
+      matchDFS    { Token _ TokenMatchDFS    }
+      matchAll    { Token _ TokenMatchAll    }
+      matchAllDFS { Token _ TokenMatchAllDFS }
+      as          { Token _ TokenAs          }
+      with        { Token _ TokenWith        }
 
-      test     { Token _ TokenTest }
+      int         { Token _ (TokenInt $$)    }
+      var         { Token _ (TokenVar $$)    }
 
-      "=="     { Token _ TokenEq }
-      '<'      { Token _ TokenLT }
-      '>'      { Token _ TokenGT }
-      "<="     { Token _ TokenLE }
-      ">="     { Token _ TokenGE }
-      '+'      { Token _ TokenPlus }
-      '-'      { Token _ TokenMinus }
-      '%'      { Token _ TokenPercent }
-      '*'      { Token _ TokenAsterisk }
-      '/'      { Token _ TokenDiv }
-      '^'      { Token _ TokenCaret }
-      "&&"     { Token _ TokenAndAnd }
-      "||"     { Token _ TokenBarBar }
-      ':'      { Token _ TokenColon }
-      ".."     { Token _ TokenDotDot }
-      "++"     { Token _ TokenPlusPlus }
+      "=="        { Token _ TokenEq          }
+      '<'         { Token _ TokenLT          }
+      '>'         { Token _ TokenGT          }
+      "<="        { Token _ TokenLE          }
+      ">="        { Token _ TokenGE          }
+      '+'         { Token _ TokenPlus        }
+      '-'         { Token _ TokenMinus       }
+      '%'         { Token _ TokenPercent     }
+      '*'         { Token _ TokenAsterisk    }
+      '/'         { Token _ TokenDiv         }
+      '^'         { Token _ TokenCaret       }
+      "&&"        { Token _ TokenAndAnd      }
+      "||"        { Token _ TokenBarBar      }
+      ':'         { Token _ TokenColon       }
+      ".."        { Token _ TokenDotDot      }
+      "++"        { Token _ TokenPlusPlus    }
 
-      '('      { Token _ TokenLParen }
-      ')'      { Token _ TokenRParen }
-      '['      { Token _ TokenLBracket }
-      ']'      { Token _ TokenRBracket }
+      '|'         { Token _ TokenBar         }
+      "->"        { Token _ TokenArrow       }
+      '$'         { Token _ TokenDollar      }
+      '_'         { Token _ TokenUnderscore  }
+      '#'         { Token _ TokenSharp       }
+      ','         { Token _ TokenComma       }
+
+      '('         { Token _ TokenLParen      }
+      ')'         { Token _ TokenRParen      }
+      '['         { Token _ TokenLBracket    }
+      ']'         { Token _ TokenRBracket    }
 
 %%
 
@@ -98,35 +112,66 @@ TopExpr :
   | test '(' Expr ')' { Test $3 }
 
 Expr :
+    Expr1             { $1 }
+  | MatchExpr         { $1 }
+
+Expr1 :
     Atoms             { $1 }
   | '-' Atom          { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $2] }
-  | Expr "==" Expr    { makeApply (VarExpr $ stringToVar "eq?") [$1, $3] }
-  | Expr "<=" Expr    { makeApply (VarExpr $ stringToVar "lte?") [$1, $3] }
-  | Expr '<' Expr     { makeApply (VarExpr $ stringToVar "lt?") [$1, $3] }
-  | Expr ">=" Expr    { makeApply (VarExpr $ stringToVar "gte?") [$1, $3] }
-  | Expr '>' Expr     { makeApply (VarExpr $ stringToVar "gt?") [$1, $3] }
-  | Expr '+' Expr     { makeApply (VarExpr $ stringToVar "+") [$1, $3] }
-  | Expr '-' Expr     { makeApply (VarExpr $ stringToVar "-") [$1, $3] }
-  | Expr '%' Expr     { makeApply (VarExpr $ stringToVar "remainder") [$1, $3] }
-  | Expr '*' Expr     { makeApply (VarExpr $ stringToVar "*") [$1, $3] }
-  | Expr '/' Expr     { makeApply (VarExpr $ stringToVar "/") [$1, $3] }
-  | Expr '^' Expr     { makeApply (VarExpr $ stringToVar "**") [$1, $3] }
-  | Expr "&&" Expr    { makeApply (VarExpr $ stringToVar "and") [$1, $3] }
-  | Expr "||" Expr    { makeApply (VarExpr $ stringToVar "or") [$1, $3] }
-  | Expr ':' Expr     { makeApply (VarExpr $ stringToVar "cons") [$1, $3] }
-  | Expr "++" Expr    { makeApply (VarExpr $ stringToVar "append") [$1, $3] }
+  | BinOpExpr         { $1 }
+
+BinOpExpr :
+    Expr1 "==" Expr1  { makeApply (VarExpr $ stringToVar "eq?")       [$1, $3] }
+  | Expr1 "<=" Expr1  { makeApply (VarExpr $ stringToVar "lte?")      [$1, $3] }
+  | Expr1 '<'  Expr1  { makeApply (VarExpr $ stringToVar "lt?")       [$1, $3] }
+  | Expr1 ">=" Expr1  { makeApply (VarExpr $ stringToVar "gte?")      [$1, $3] }
+  | Expr1 '>'  Expr1  { makeApply (VarExpr $ stringToVar "gt?")       [$1, $3] }
+  | Expr1 '+'  Expr1  { makeApply (VarExpr $ stringToVar "+")         [$1, $3] }
+  | Expr1 '-'  Expr1  { makeApply (VarExpr $ stringToVar "-")         [$1, $3] }
+  | Expr1 '%'  Expr1  { makeApply (VarExpr $ stringToVar "remainder") [$1, $3] }
+  | Expr1 '*'  Expr1  { makeApply (VarExpr $ stringToVar "*")         [$1, $3] }
+  | Expr1 '/'  Expr1  { makeApply (VarExpr $ stringToVar "/")         [$1, $3] }
+  | Expr1 '^'  Expr1  { makeApply (VarExpr $ stringToVar "**")        [$1, $3] }
+  | Expr1 "&&" Expr1  { makeApply (VarExpr $ stringToVar "and")       [$1, $3] }
+  | Expr1 "||" Expr1  { makeApply (VarExpr $ stringToVar "or")        [$1, $3] }
+  | Expr1 ':'  Expr1  { makeApply (VarExpr $ stringToVar "cons")      [$1, $3] }
+  | Expr1 "++" Expr1  { makeApply (VarExpr $ stringToVar "append")    [$1, $3] }
 
 Atoms :
     Atom              { $1 }
   | Atoms Atom        { ApplyExpr $1 $2 }
+
+MatchExpr :
+    match       Expr as Atoms with '|' MatchClauses { MatchExpr $2 $4 $7 }
+  | matchDFS    Expr as Atoms with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
+  | matchAll    Expr as Atoms with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
+  | matchAllDFS Expr as Atoms with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
+
+MatchClauses :
+    Pattern "->" Expr                               { [($1, $3)] }
+  | MatchClauses '|' Pattern "->" Expr              { $1 ++ [($3, $5)] }
 
 Atom :
     int                    { IntegerExpr $1 }
   | var                    { VarExpr $ stringToVar $1 }
   | True                   { BoolExpr True }
   | False                  { BoolExpr False }
+  | '(' TupleExpr1 ')'     { TupleExpr $2 }
   | '(' Expr ')'           { $2 }
   | '[' Expr ".." Expr ']' { makeApply (VarExpr $ stringToVar "between") [$2, $4] }
+
+TupleExpr1 :
+    Expr ',' Expr          { [$1, $3] }
+  | Expr ',' TupleExpr1    { $1 : $3 }
+
+--
+-- Patterns
+--
+
+Pattern :
+    '_'                    { WildCard }
+  | '$' var                { PatVar (stringToVar $2) }
+
 
 {
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr

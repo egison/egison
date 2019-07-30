@@ -36,10 +36,16 @@ tokens :-
   True                           { lex' TokenTrue        }
   False                          { lex' TokenFalse       }
   test                           { lex' TokenTest        }
+  match                          { lex' TokenMatch       }
+  matchDFS                       { lex' TokenMatchDFS    }
+  matchAll                       { lex' TokenMatchAll    }
+  matchAllDFS                    { lex' TokenMatchAllDFS }
+  as                             { lex' TokenAs          }
+  with                           { lex' TokenWith        }
 
   -- Data
   $digit+                        { lex (TokenInt . read) }
-  $alpha [$alpha $digit \_ \']*  { lex  TokenVar         }
+  $alpha [$alpha $digit \']*     { lex  TokenVar         }
 
   -- Operators
   \=\=                           { lex' TokenEq          }
@@ -58,6 +64,13 @@ tokens :-
   \:                             { lex' TokenColon       }
   \.\.                           { lex' TokenDotDot      }
   \+\+                           { lex' TokenPlusPlus    }
+
+  \|                             { lex' TokenBar         }
+  \-\>                           { lex' TokenArrow       }
+  \$                             { lex' TokenDollar      }
+  \_                             { lex' TokenUnderscore  }
+  \#                             { lex' TokenSharp       }
+  \,                             { lex' TokenComma       }
 
   \(                             { lex' TokenLParen      }
   \)                             { lex' TokenRParen      }
@@ -87,6 +100,12 @@ data TokenClass
   = TokenTrue
   | TokenFalse
   | TokenTest
+  | TokenMatch
+  | TokenMatchDFS
+  | TokenMatchAll
+  | TokenMatchAllDFS
+  | TokenAs
+  | TokenWith
 
   -- Data and Variables
   | TokenInt Integer
@@ -109,6 +128,13 @@ data TokenClass
   | TokenDotDot
   | TokenPlusPlus
 
+  | TokenBar
+  | TokenArrow
+  | TokenDollar
+  | TokenUnderscore
+  | TokenSharp
+  | TokenComma
+
   | TokenLParen
   | TokenRParen
   | TokenLBracket
@@ -120,6 +146,12 @@ instance Show TokenClass where
   show TokenTrue = "True"
   show TokenFalse = "False"
   show TokenTest = "test"
+  show TokenMatch = "match"
+  show TokenMatchDFS = "matchDFS"
+  show TokenMatchAll = "matchAll"
+  show TokenMatchAllDFS = "matchAllDFS"
+  show TokenAs = "as"
+  show TokenWith = "with"
 
   show (TokenInt i) = show i
   show (TokenVar s) = show s
@@ -140,6 +172,13 @@ instance Show TokenClass where
   show TokenColon = ":"
   show TokenDotDot = ".."
   show TokenPlusPlus = "++"
+
+  show TokenBar = "|"
+  show TokenArrow = "->"
+  show TokenDollar = "$"
+  show TokenUnderscore = "_"
+  show TokenSharp = "#"
+  show TokenComma = ","
 
   show TokenLParen = "("
   show TokenRParen = ")"
