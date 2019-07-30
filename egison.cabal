@@ -85,7 +85,7 @@ Library
                    Language.Egison.Util
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
-  build-tools:     happy, alex
+  build-tools:     happy >= 1.17.1, alex
   ghc-options:  -O3
 
 Test-Suite test
