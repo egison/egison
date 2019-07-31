@@ -124,15 +124,21 @@ TopExpr :: { EgisonTopExpr }
   | test '(' Expr ')'       { Test $3 }
 
 Expr :: { EgisonExpr }
-  : Expr1                       { $1 }
+  : Expr1 Expr1s            { makeApply $1 $2 }
+  | Expr1                   { $1 }
+
+Expr1 :: { EgisonExpr }
+  : Atom             { $1 }
+  | '-' Atom          { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $2] }
+  | BinOpExpr         { $1 }
   | MatchExpr                   { $1 }
   | '\\' list1(Arg) "->" Expr   { LambdaExpr $2 $4 }
   | if Expr then Expr else Expr { IfExpr $2 $4 $6 }
+  | '(' Expr ')' { $2 }
 
-Expr1 :: { EgisonExpr }
-  : Atoms             { $1 }
-  | '-' Atom          { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $2] }
-  | BinOpExpr         { $1 }
+Expr1s :: { [EgisonExpr] }
+  : Expr1              { [$1] }
+  | Expr1s Expr1       { $1 ++ [$2] }
 
 BinOpExpr :: { EgisonExpr }
   : Expr1 "==" Expr1  { makeApply (VarExpr $ stringToVar "eq?")       [$1, $3] }
@@ -151,17 +157,13 @@ BinOpExpr :: { EgisonExpr }
   | Expr1 ':'  Expr1  { makeApply (VarExpr $ stringToVar "cons")      [$1, $3] }
   | Expr1 "++" Expr1  { makeApply (VarExpr $ stringToVar "append")    [$1, $3] }
 
-Atoms :: { EgisonExpr }
-  : Atom              { $1 }
-  | Atoms Atom        { ApplyExpr $1 $2 }
-
 MatchExpr :: { EgisonExpr }
-  : match       Expr as Atoms with '|' MatchClauses { MatchExpr $2 $4 $7 }
-  | matchDFS    Expr as Atoms with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
-  | matchAll    Expr as Atoms with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
-  | matchAllDFS Expr as Atoms with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
-  | matchLambda      as Atoms with '|' MatchClauses { MatchLambdaExpr $3 $6 }
-  | matchAllLambda   as Atoms with '|' MatchClauses { MatchAllLambdaExpr $3 $6 }
+  : match       Expr as Expr with '|' MatchClauses { MatchExpr $2 $4 $7 }
+  | matchDFS    Expr as Expr with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
+  | matchAll    Expr as Expr with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
+  | matchAllDFS Expr as Expr with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
+  | matchLambda      as Expr with '|' MatchClauses { MatchLambdaExpr $3 $6 }
+  | matchAllLambda   as Expr with '|' MatchClauses { MatchAllLambdaExpr $3 $6 }
 
 MatchClauses :: { [MatchClause] }
   : Pattern "->" Expr                               { [($1, $3)] }
