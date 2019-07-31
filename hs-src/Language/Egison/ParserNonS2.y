@@ -124,21 +124,15 @@ TopExpr :: { EgisonTopExpr }
   | test '(' Expr ')'       { Test $3 }
 
 Expr :: { EgisonExpr }
-  : Expr1 Expr1s            { makeApply $1 $2 }
-  | Expr1                   { $1 }
-
-Expr1 :: { EgisonExpr }
-  : Atom             { $1 }
-  | '-' Atom          { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $2] }
-  | BinOpExpr         { $1 }
+  : Expr1                       { $1 }
   | MatchExpr                   { $1 }
   | '\\' list1(Arg) "->" Expr   { LambdaExpr $2 $4 }
   | if Expr then Expr else Expr { IfExpr $2 $4 $6 }
-  | '(' Expr ')' { $2 }
 
-Expr1s :: { [EgisonExpr] }
-  : Expr1              { [$1] }
-  | Expr1s Expr1       { $1 ++ [$2] }
+Expr1 :: { EgisonExpr }
+  : Atoms             { $1 }
+  | '-' Atom          { makeApply (VarExpr $ stringToVar "*") [IntegerExpr(-1), $2] }
+  | BinOpExpr         { $1 }
 
 BinOpExpr :: { EgisonExpr }
   : Expr1 "==" Expr1  { makeApply (VarExpr $ stringToVar "eq?")       [$1, $3] }
