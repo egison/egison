@@ -153,15 +153,15 @@ BinOpExpr :: { EgisonExpr }
 
 Atoms :: { EgisonExpr }
   : Atom              { $1 }
-  | Atoms Atom        { ApplyExpr $1 $2 }
+  | Atom list1(Atom)  { makeApply $1 $2 }
 
 MatchExpr :: { EgisonExpr }
-  : match       Expr as Atoms with '|' MatchClauses { MatchExpr $2 $4 $7 }
-  | matchDFS    Expr as Atoms with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
-  | matchAll    Expr as Atoms with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
-  | matchAllDFS Expr as Atoms with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
-  | matchLambda      as Atoms with '|' MatchClauses { MatchLambdaExpr $3 $6 }
-  | matchAllLambda   as Atoms with '|' MatchClauses { MatchAllLambdaExpr $3 $6 }
+  : match       Expr as Expr with '|' MatchClauses { MatchExpr $2 $4 $7 }
+  | matchDFS    Expr as Expr with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
+  | matchAll    Expr as Expr with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
+  | matchAllDFS Expr as Expr with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
+  | matchLambda      as Expr with '|' MatchClauses { MatchLambdaExpr $3 $6 }
+  | matchAllLambda   as Expr with '|' MatchClauses { MatchAllLambdaExpr $3 $6 }
 
 MatchClauses :: { [MatchClause] }
   : Pattern "->" Expr                               { [($1, $3)] }
