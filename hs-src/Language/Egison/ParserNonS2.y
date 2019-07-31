@@ -157,6 +157,10 @@ BinOpExpr :: { EgisonExpr }
   | Expr1 ':'  Expr1  { makeApply (VarExpr $ stringToVar "cons")      [$1, $3] }
   | Expr1 "++" Expr1  { makeApply (VarExpr $ stringToVar "append")    [$1, $3] }
 
+Atoms :: { EgisonExpr }
+  : Atom              { $1 }
+  | Atom list1(Atom)  { makeApply $1 $2 }
+
 MatchExpr :: { EgisonExpr }
   : match       Expr as Expr with '|' MatchClauses { MatchExpr $2 $4 $7 }
   | matchDFS    Expr as Expr with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
