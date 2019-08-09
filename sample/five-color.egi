@@ -1,0 +1,42 @@
+;;;
+;;; 5-color
+;;;
+
+
+(define $node [integer (maybe integer)])
+(define $graph (set [node (multiset node)]))
+
+(define $colors (between 1 5))
+
+(define $graph-data
+  {[[1 Nothing] {[2 Nothing]}]
+   [[2 Nothing] {[1 Nothing]}]})
+
+(define $main
+  (lambda [$graph-data]
+    (match [colors graph-data] [(set integer) graph]
+      {; 次数が5で周りが全部塗られているノードしか残っていない場合．
+       [[_ <cons [[$id (nothing)] <cons [$nid_1 (just $c_1)] <cons [$nid_2 (just $c_2)] <cons [$nid_3 (just $c_3)] <cons [$nid_4 (just $c_4)] <cons [$nid_5 (just $c_5)] _>>>>>] _>]
+        undefined]
+       ; 次数が5で周りが全部塗られいないノードがある場合．
+       [[<cons $c _> <cons [[$id (nothing)] !<cons [_ (just ,c)] _>] _>]
+        (main (assign-color id c graph-data))]
+       ; すべてのノードに色付け完了．
+       [_ graph-data]
+       })))
+
+(define $assign-color
+  (lambda [$id $c $graph-data]
+    (map (lambda [$n]
+           [(rewrite-node id c (2#%1 n)) (map (lambda [$n] (rewrite-node id c n)) (2#%2 n))])
+         graph-data)))
+
+(define $rewrite-node
+  (lambda [$id $c $n]
+    (match n node
+      {[[,id (nothing)] [id (Just c)]]
+       [_ n]})))
+
+(rewrite-node 1 5 [1 Nothing]) ; [1 {5}]
+(assign-color 1 5 graph-data) ; {[[1 {5}] {[2 {}]}] [[2 {}] {[1 {5}]}]}
+(main graph-data) ; {[[1 {1}] {[2 {2}]}] [[2 {2}] {[1 {1}]}]}
