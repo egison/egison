@@ -107,12 +107,13 @@ evalTopExpr' _ st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, 
 evalTopExpr' _ st (Test expr) = do
   pushFuncName "<stdin>"
   val <- evalStateT st [] >>= flip evalExprDeep expr
+  popFuncName
   return (Just (show val), st)
 evalTopExpr' _ st (Execute expr) = do
   pushFuncName "<stdin>"
   io <- evalStateT st [] >>= flip evalExpr expr
   case io of
-    Value (IOFunc m) -> m >> return (Nothing, st)
+    Value (IOFunc m) -> m >> popFuncName >> return (Nothing, st)
     _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
 evalTopExpr' opts st (Load file) = do
   exprs <- if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
