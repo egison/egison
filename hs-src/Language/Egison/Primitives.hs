@@ -659,6 +659,7 @@ ioPrimitives = [
                , ("read-file", readFile')
 
                , ("rand", randRange)
+               , ("f.rand", randRangeDouble)
 --               , ("sqlite", sqlite)
                ]
 
@@ -749,6 +750,13 @@ randRange :: PrimitiveFunc
 randRange = twoArgs' $ \val val' -> do
   i <- fromEgison val :: EgisonM Integer
   i' <- fromEgison val' :: EgisonM Integer
+  n <- liftIO $ getStdRandom $ randomR (i, i')
+  return $ makeIO $ return $ toEgison n
+
+randRangeDouble :: PrimitiveFunc
+randRangeDouble = twoArgs' $ \val val' -> do
+  i <- fromEgison val :: EgisonM Double
+  i' <- fromEgison val' :: EgisonM Double
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return $ toEgison n
 
