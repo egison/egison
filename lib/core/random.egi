@@ -73,3 +73,11 @@
        [$ [something]
         {[$tgt {tgt}]}]
        })))
+
+(define $f.rands
+  (lambda [$s $e]
+    {(f.pure-rand s e) @(f.rands s e)}))
+
+(define $f.pure-rand
+  (lambda [$s $e]
+    (io (f.rand s e))))
