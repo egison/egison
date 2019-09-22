@@ -1675,7 +1675,7 @@ instance Show EgisonError where
   show (Assertion message stack) = "Assertion failed: " ++ message ++ showTrace stack
   show (Parser err) = "Parse error at: " ++ err
   show (EgisonBug message stack) = "Egison Error: " ++ message ++ showTrace stack
-  show (MatchFailure currentFunc stack) = "Failed pattern match at: " ++ currentFunc ++ showTrace stack
+  show (MatchFailure currentFunc stack) = "Failed pattern match in: " ++ currentFunc ++ showTrace stack
   show (Default message) = "Error: " ++ message
 
 showTrace :: CallStack -> String
