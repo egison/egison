@@ -181,7 +181,7 @@ ArgNoConflict :: { Arg }
 
 Atom :: { EgisonExpr }
   : int                      { IntegerExpr $1 }
-  | str                      { StringExpr (pack $1) }
+  | str                      { (StringExpr . pack . init  . tail) $1 }
   | var                      { VarExpr $ stringToVar $1 }
   | True                     { BoolExpr True }
   | False                    { BoolExpr False }
