@@ -52,6 +52,7 @@ tokens :-
 
   -- Data
   $digit+                        { lex (TokenInt . read)    }
+  \" .* \"                       { lex  TokenString         }
   $alpha [$alpha $digit \? \']*  { lex  TokenVar            }
 
   -- Operators
@@ -125,6 +126,7 @@ data TokenClass
 
   -- Data and Variables
   | TokenInt Integer
+  | TokenString String
   | TokenVar String
 
   | TokenEqEq
@@ -179,6 +181,7 @@ instance Show TokenClass where
   show TokenElse = "else"
 
   show (TokenInt i) = show i
+  show (TokenString s) = s
   show (TokenVar s) = show s
 
   show TokenEqEq = "=="
@@ -219,13 +222,11 @@ alexEOF = do
   (p,_,_,_) <- alexGetInput
   return $ Token p TokenEOF
 
--- Unfortunately, we have to extract the matching bit of string
--- ourselves...
+-- Unfortunately, we have to extract the matching bit of string ourselves...
 lex :: (String -> TokenClass) -> AlexAction Token
 lex f = \(p,_,_,s) i -> return $ Token p (f (take i s))
 
--- For constructing tokens that do not depend on
--- the input
+-- For constructing tokens that do not depend on the input
 lex' :: TokenClass -> AlexAction Token
 lex' = lex . const
 
