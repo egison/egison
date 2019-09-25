@@ -29,6 +29,7 @@ import           Control.Monad.Except    hiding (mapM)
 
 import           Data.Either
 import qualified Data.Set                as Set
+import           Data.Text               (pack)
 
 import           System.Directory        (doesFileExist, getHomeDirectory)
 
@@ -76,6 +77,7 @@ import           Paths_egison            (getDataFileName)
       else           { Token _ TokenElse           }
 
       int            { Token _ (TokenInt $$)       }
+      str            { Token _ (TokenString $$)    }
       var            { Token _ (TokenVar $$)       }
 
       "=="           { Token _ TokenEqEq           }
@@ -179,6 +181,7 @@ ArgNoConflict :: { Arg }
 
 Atom :: { EgisonExpr }
   : int                      { IntegerExpr $1 }
+  | str                      { StringExpr (pack $1) }
   | var                      { VarExpr $ stringToVar $1 }
   | True                     { BoolExpr True }
   | False                    { BoolExpr False }
