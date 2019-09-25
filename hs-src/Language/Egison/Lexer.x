@@ -52,7 +52,7 @@ tokens :-
 
   -- Data
   $digit+                        { lex (TokenInt . read)    }
-  \" .* \"                       { lex  TokenString         }
+  \" [^\" \n] * \"               { lex  TokenString         }
   $alpha [$alpha $digit \? \']*  { lex  TokenVar            }
 
   -- Operators
