@@ -57,7 +57,6 @@ import           Paths_egison            (getDataFileName)
 %left '+' '-' '%'
 %left '*' '/'
 %left '^'
-%right TENSOR
 
 %token
       True           { Token _ TokenTrue           }
@@ -118,10 +117,11 @@ import           Paths_egison            (getDataFileName)
 --   | TopExpr TopExprs  { $1 : $2 }
 
 TopExpr :: { EgisonTopExpr }
-  : var '=' Expr            { Define (stringToVar $1) $3 }
-  | var list1(Arg) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
-  | Expr                    { Test $1 }
-  | test '(' Expr ')'       { Test $3 }
+  : var '=' Expr                      { Define (stringToVar $1) $3 }
+  | var list1(ArgNoConflict) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
+  | Atoms '=' Expr                    { makeDefine $1 $3 }
+  | Expr                              { Test $1 }
+  | test '(' Expr ')'                 { Test $3 }
 
 Expr :: { EgisonExpr }
   : Expr1                       { $1 }
@@ -167,16 +167,15 @@ MatchClauses :: { [MatchClause] }
   : Pattern "->" Expr                               { [($1, $3)] }
   | MatchClauses '|' Pattern "->" Expr              { $1 ++ [($3, $5)] }
 
--- FIXME :
---   Uncommenting these 2 rules will yield shift/reduce conflict at
---       TopExpr -> var . '=' Expr
---       TopExpr -> var . list1__Arg__ '=' Expr
---       Atom -> var .
 Arg :: { Arg }
   : '$' var                  { ScalarArg $2 }
-  -- | var                      { ScalarArg $1 }
+  | var                      { ScalarArg $1 }
   | "*$" var                 { InvertedScalarArg $2 }
-  -- | '%' var %prec TENSOR     { TensorArg $2 }
+  | '%' var                  { TensorArg $2 }
+
+ArgNoConflict :: { Arg }
+  : '$' var                  { ScalarArg $2 }
+  | "*$" var                 { InvertedScalarArg $2 }
 
 Atom :: { EgisonExpr }
   : int                      { IntegerExpr $1 }
@@ -245,6 +244,13 @@ makeApply func xs = do
   f (Right _, var) = Right var
   g (Left arg, _)  = Left (':':arg)
   g (Right _, var) = Right var
+
+makeDefine :: EgisonExpr -> EgisonExpr -> EgisonTopExpr
+makeDefine (ApplyExpr (VarExpr (Var [f] _)) (TupleExpr xs)) bodyExpr =
+  Define (stringToVar f) (LambdaExpr (map exprToArg xs) bodyExpr)
+
+exprToArg :: EgisonExpr -> Arg
+exprToArg (VarExpr (Var [x] _)) = ScalarArg x
 
 lexwrap :: (Token -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
