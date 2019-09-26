@@ -27,6 +27,7 @@ module Language.Egison.ParserNonS2
 
 import           Control.Monad.Except    hiding (mapM)
 
+import           Data.Char               (readLitChar)
 import           Data.Either
 import qualified Data.Set                as Set
 import           Data.List.Split         (endByOneOf)
@@ -78,6 +79,7 @@ import           Paths_egison            (getDataFileName)
 
       int            { Token _ (TokenInt $$)       }
       str            { Token _ (TokenString $$)    }
+      char           { Token _ (TokenChar $$)      }
       var            { Token _ (TokenVar $$)       }
 
       "=="           { Token _ TokenEqEq           }
@@ -177,6 +179,7 @@ ArgNoConflict :: { Arg }
 Atom :: { EgisonExpr }
   : int                      { IntegerExpr $1 }
   | str                      { (StringExpr . pack . init  . tail) $1 }
+  | char                     { (CharExpr . fst . (!! 0) . readLitChar . tail) $1 }
   | var                      { VarExpr $ stringToVar $1 }
   | True                     { BoolExpr True }
   | False                    { BoolExpr False }
