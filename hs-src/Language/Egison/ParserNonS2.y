@@ -29,6 +29,7 @@ import           Control.Monad.Except    hiding (mapM)
 
 import           Data.Either
 import qualified Data.Set                as Set
+import           Data.List.Split         (endByOneOf)
 import           Data.Text               (pack)
 
 import           System.Directory        (doesFileExist, getHomeDirectory)
@@ -40,7 +41,6 @@ import           Paths_egison            (getDataFileName)
 
 }
 
--- %name parseTopExprs_ TopExprs
 %name parseTopExpr_ TopExpr
 %name parseExpr_ Expr
 %tokentype { Token }
@@ -271,14 +271,29 @@ readExprs = liftEgisonM . runDesugarM . either throwError (mapM desugar) . parse
 readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
+parseLines :: (String -> Either EgisonError a) -> [a] -> String -> [String] -> Either EgisonError [a]
+parseLines parser parsed [] [] = Right parsed
+parseLines parser parsed deferred pending =
+  case pending of
+    [] -> Left $ Parser "shouldn't reach here"
+    [last] -> case parser (deferred ++ last) of
+                Left msg -> Left msg
+                Right expr -> Right (parsed ++ [expr])
+    new:rest ->
+      case parser (deferred ++ new) of
+        Left _ -> parseLines parser parsed (deferred ++ new) rest
+        Right expr -> parseLines parser (parsed ++ [expr]) [] rest
+
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = undefined
+parseTopExprs input =
+  parseLines parseTopExpr [] "" $ map (++ "\n") $ endByOneOf "\r\n" input
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
 parseTopExpr = runAlex' parseTopExpr_ . (++ "\n")
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = undefined
+parseExprs input =
+  parseLines parseExpr [] "" $ map (++ "\n") $ endByOneOf "\r\n" input
 
 parseExpr :: String -> Either EgisonError EgisonExpr
 parseExpr = runAlex' parseExpr_ . (++ "\n")
