@@ -27,8 +27,11 @@ module Language.Egison.ParserNonS2
 
 import           Control.Monad.Except    hiding (mapM)
 
+import           Data.Char               (readLitChar)
 import           Data.Either
 import qualified Data.Set                as Set
+import           Data.List.Split         (endByOneOf)
+import           Data.Text               (pack)
 
 import           System.Directory        (doesFileExist, getHomeDirectory)
 
@@ -39,7 +42,6 @@ import           Paths_egison            (getDataFileName)
 
 }
 
--- %name parseTopExprs_ TopExprs
 %name parseTopExpr_ TopExpr
 %name parseExpr_ Expr
 %tokentype { Token }
@@ -57,7 +59,6 @@ import           Paths_egison            (getDataFileName)
 %left '+' '-' '%'
 %left '*' '/'
 %left '^'
-%right TENSOR
 
 %token
       True           { Token _ TokenTrue           }
@@ -77,6 +78,8 @@ import           Paths_egison            (getDataFileName)
       else           { Token _ TokenElse           }
 
       int            { Token _ (TokenInt $$)       }
+      str            { Token _ (TokenString $$)    }
+      char           { Token _ (TokenChar $$)      }
       var            { Token _ (TokenVar $$)       }
 
       "=="           { Token _ TokenEqEq           }
@@ -113,15 +116,11 @@ import           Paths_egison            (getDataFileName)
 
 %%
 
--- TopExprs :
---     TopExpr           { [$1] }
---   | TopExpr TopExprs  { $1 : $2 }
-
 TopExpr :: { EgisonTopExpr }
-  : var '=' Expr            { Define (stringToVar $1) $3 }
-  | var list1(Arg) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
-  | Expr                    { Test $1 }
-  | test '(' Expr ')'       { Test $3 }
+  : var list1(ArgNoConflict) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
+  | Atoms '=' Expr                    { makeDefine $1 $3 }
+  | Expr                              { Test $1 }
+  | test '(' Expr ')'                 { Test $3 }
 
 Expr :: { EgisonExpr }
   : Expr1                       { $1 }
@@ -167,19 +166,20 @@ MatchClauses :: { [MatchClause] }
   : Pattern "->" Expr                               { [($1, $3)] }
   | MatchClauses '|' Pattern "->" Expr              { $1 ++ [($3, $5)] }
 
--- FIXME :
---   Uncommenting these 2 rules will yield shift/reduce conflict at
---       TopExpr -> var . '=' Expr
---       TopExpr -> var . list1__Arg__ '=' Expr
---       Atom -> var .
 Arg :: { Arg }
   : '$' var                  { ScalarArg $2 }
-  -- | var                      { ScalarArg $1 }
+  | var                      { ScalarArg $1 }
   | "*$" var                 { InvertedScalarArg $2 }
-  -- | '%' var %prec TENSOR     { TensorArg $2 }
+  | '%' var                  { TensorArg $2 }
+
+ArgNoConflict :: { Arg }
+  : '$' var                  { ScalarArg $2 }
+  | "*$" var                 { InvertedScalarArg $2 }
 
 Atom :: { EgisonExpr }
   : int                      { IntegerExpr $1 }
+  | str                      { (StringExpr . pack . init  . tail) $1 }
+  | char                     { (CharExpr . fst . (!! 0) . readLitChar . tail) $1 }
   | var                      { VarExpr $ stringToVar $1 }
   | True                     { BoolExpr True }
   | False                    { BoolExpr False }
@@ -246,6 +246,15 @@ makeApply func xs = do
   g (Left arg, _)  = Left (':':arg)
   g (Right _, var) = Right var
 
+makeDefine :: EgisonExpr -> EgisonExpr -> EgisonTopExpr
+makeDefine (VarExpr x) bodyExpr =
+  Define x bodyExpr
+makeDefine (ApplyExpr (VarExpr (Var [f] _)) (TupleExpr xs)) bodyExpr =
+  Define (stringToVar f) (LambdaExpr (map exprToArg xs) bodyExpr)
+
+exprToArg :: EgisonExpr -> Arg
+exprToArg (VarExpr (Var [x] _)) = ScalarArg x
+
 lexwrap :: (Token -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
 
@@ -265,17 +274,32 @@ readExprs = liftEgisonM . runDesugarM . either throwError (mapM desugar) . parse
 readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
+parseLines :: (String -> Either EgisonError a) -> [a] -> String -> [String] -> Either EgisonError [a]
+parseLines parser parsed [] [] = Right parsed
+parseLines parser parsed deferred pending =
+  case pending of
+    [] -> Left $ Parser "shouldn't reach here"
+    [last] -> case parser (deferred ++ last) of
+                Left msg -> Left msg
+                Right expr -> Right (parsed ++ [expr])
+    new:rest ->
+      case parser (deferred ++ new) of
+        Left _ -> parseLines parser parsed (deferred ++ new) rest
+        Right expr -> parseLines parser (parsed ++ [expr]) [] rest
+
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = undefined -- runAlex' parseTopExprs_
+parseTopExprs input =
+  parseLines parseTopExpr [] "" $ map (++ "\n") $ endByOneOf "\r\n" input
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = runAlex' parseTopExpr_
+parseTopExpr = runAlex' parseTopExpr_ . (++ "\n")
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = undefined
+parseExprs input =
+  parseLines parseExpr [] "" $ map (++ "\n") $ endByOneOf "\r\n" input
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = runAlex' parseExpr_
+parseExpr = runAlex' parseExpr_ . (++ "\n")
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
@@ -299,6 +323,6 @@ loadFile file = do
   recursiveLoad (LoadFile file) = loadFile file
   recursiveLoad expr            = return [expr]
   shebang :: String -> String
-  shebang ('#':'!':cs) = ';':'#':'!':cs
+  shebang ('#':'!':cs) = "-- #!" ++ cs
   shebang cs           = cs
 }

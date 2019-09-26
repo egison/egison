@@ -9,7 +9,15 @@ Licence     : MIT
 This module provides primitive functions in Egison.
 -}
 
-module Language.Egison.Primitives (primitiveEnv, primitiveEnvNoIO) where
+module Language.Egison.Primitives
+  (
+  -- S-syntax version
+    primitiveEnv
+  , primitiveEnvNoIO
+  -- Non-S syntax (Camel case) version
+  , primitiveEnv'
+  , primitiveEnvNoIO'
+  ) where
 
 import           Control.Applicative       (pure, (*>), (<$>), (<*), (<*>))
 import           Control.Arrow
@@ -52,6 +60,23 @@ primitiveEnv = do
 primitiveEnvNoIO :: IO Env
 primitiveEnvNoIO = do
   let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) primitives
+  bindings <- forM (constants ++ ops) $ \(name, op) -> do
+    ref <- newIORef . WHNF $ Value op
+    return (stringToVar name, ref)
+  return $ extendEnv nullEnv bindings
+
+-- primitive env for Non-S syntax
+primitiveEnv' :: IO Env
+primitiveEnv' = do
+  let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) (primitives' ++ ioPrimitives')
+  bindings <- forM (constants ++ ops) $ \(name, op) -> do
+    ref <- newIORef . WHNF $ Value op
+    return (stringToVar name, ref)
+  return $ extendEnv nullEnv bindings
+
+primitiveEnvNoIO' :: IO Env
+primitiveEnvNoIO' = do
+  let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) primitives'
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
@@ -229,6 +254,112 @@ primitives = [ ("b.+", plus)
 
              , ("assert", assert)
              , ("assert-equal", assertEqual)
+             ]
+
+-- for Non-S syntax
+primitives' :: [(String, PrimitiveFunc)]
+primitives' = [ ("b.+", plus)
+             , ("b.-", minus)
+             , ("b.*", multiply)
+             , ("b./", divide)
+             , ("b.+'", plus)
+             , ("b.-'", minus)
+             , ("b.*'", multiply)
+             , ("b./'", divide)
+             , ("f.+", floatPlus)
+             , ("f.-", floatMinus)
+             , ("f.*", floatMult)
+             , ("f./", floatDivide)
+             , ("numerator", numerator')
+             , ("denominator", denominator')
+             , ("fromMathExpr", fromScalarData)
+             , ("toMathExpr", toScalarData)
+             , ("toMathExpr'", toScalarData)
+
+             , ("modulo",    integerBinaryOp mod)
+             , ("quotient",   integerBinaryOp quot)
+             , ("remainder", integerBinaryOp rem)
+             , ("b.abs", rationalUnaryOp abs)
+             , ("b.neg", rationalUnaryOp negate)
+
+             , ("eq?",  eq)
+             , ("lt?",  lt)
+             , ("lte?", lte)
+             , ("gt?",  gt)
+             , ("gte?", gte)
+
+             , ("round",    floatToIntegerOp round)
+             , ("floor",    floatToIntegerOp floor)
+             , ("ceiling",  floatToIntegerOp ceiling)
+             , ("truncate", truncate')
+             , ("realPart", realPart)
+             , ("imaginaryPart", imaginaryPart)
+
+             , ("b.sqrt", floatUnaryOp sqrt)
+             , ("b.sqrt'", floatUnaryOp sqrt)
+             , ("b.exp", floatUnaryOp exp)
+             , ("b.log", floatUnaryOp log)
+             , ("b.sin", floatUnaryOp sin)
+             , ("b.cos", floatUnaryOp cos)
+             , ("b.tan", floatUnaryOp tan)
+             , ("b.asin", floatUnaryOp asin)
+             , ("b.acos", floatUnaryOp acos)
+             , ("b.atan", floatUnaryOp atan)
+             , ("b.sinh", floatUnaryOp sinh)
+             , ("b.cosh", floatUnaryOp cosh)
+             , ("b.tanh", floatUnaryOp tanh)
+             , ("b.asinh", floatUnaryOp asinh)
+             , ("b.acosh", floatUnaryOp acosh)
+             , ("b.atanh", floatUnaryOp atanh)
+
+             , ("tensorSize", tensorSize')
+             , ("tensorToList", tensorToList')
+             , ("dfOrder", dfOrder')
+
+             , ("itof", integerToFloat)
+             , ("rtof", rationalToFloat)
+             , ("ctoi", charToInteger)
+             , ("itoc", integerToChar)
+
+             , ("pack", pack)
+             , ("unpack", unpack)
+             , ("unconsString", unconsString)
+             , ("lengthString", lengthString)
+             , ("appendString", appendString)
+             , ("splitString", splitString)
+             , ("regex", regexString)
+             , ("regexCg", regexStringCaptureGroup)
+
+             , ("addPrime", addPrime)
+             , ("addSubscript", addSubscript)
+             , ("addSuperscript", addSuperscript)
+
+             , ("readProcess", readProcess')
+
+             , ("read", read')
+             , ("readTsv", readTSV)
+             , ("show", show')
+             , ("showTsv", showTSV')
+
+             , ("empty?", isEmpty')
+             , ("uncons", uncons')
+             , ("unsnoc", unsnoc')
+
+             , ("bool?", isBool')
+             , ("integer?", isInteger')
+             , ("rational?", isRational')
+             , ("scalar?", isScalar')
+             , ("float?", isFloat')
+             , ("char?", isChar')
+             , ("string?", isString')
+             , ("collection?", isCollection')
+             , ("array?", isArray')
+             , ("hash?", isHash')
+             , ("tensor?", isTensor')
+             , ("tensorWithIndex?", isTensorWithIndex')
+
+             , ("assert", assert)
+             , ("assertEqual", assertEqual)
              ]
 
 rationalUnaryOp :: (Rational -> Rational) -> PrimitiveFunc
@@ -657,6 +788,35 @@ ioPrimitives = [
                , ("eof-port?", isEOFPort)
                , ("flush-port", flushPort)
                , ("read-file", readFile')
+
+               , ("rand", randRange)
+               , ("f.rand", randRangeDouble)
+--               , ("sqlite", sqlite)
+               ]
+
+-- For Non-S syntax
+ioPrimitives' :: [(String, PrimitiveFunc)]
+ioPrimitives' = [
+                 ("return", return')
+               , ("openInputFile", makePort ReadMode)
+               , ("openOutputFile", makePort WriteMode)
+               , ("closeInputPort", closePort)
+               , ("closeOutputPort", closePort)
+               , ("readChar", readChar)
+               , ("readLine", readLine)
+               , ("writeChar", writeChar)
+               , ("write", writeString)
+
+               , ("readCharFromPort", readCharFromPort)
+               , ("readLineFromPort", readLineFromPort)
+               , ("writeCharToPort", writeCharToPort)
+               , ("writeToPort", writeStringToPort)
+
+               , ("eof?", isEOFStdin)
+               , ("flush", flushStdout)
+               , ("eofPort?", isEOFPort)
+               , ("flushPort", flushPort)
+               , ("readFile", readFile')
 
                , ("rand", randRange)
                , ("f.rand", randRangeDouble)
