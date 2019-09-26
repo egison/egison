@@ -1,0 +1,5 @@
+language: haskell
+ghc:
+    - 8.6.5
+script:
+    - stack build && stack test
