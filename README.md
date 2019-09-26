@@ -1,4 +1,5 @@
 # The Egison Programming Language
+[![Build Status](https://travis-ci.org/egison/egison.svg?branch=master)](https://travis-ci.org/egison/egison)
 
 Egison is a functional programming language featuring its expressive pattern-matching facility.
 Egison allows users to define efficient and expressive pattern-matching methods for arbitrary user-defined data types including non-free data types such as lists, multisets, sets, trees, graphs, and mathematical expressions.
