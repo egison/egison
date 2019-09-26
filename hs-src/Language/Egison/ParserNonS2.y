@@ -114,10 +114,6 @@ import           Paths_egison            (getDataFileName)
 
 %%
 
--- TopExprs :
---     TopExpr           { [$1] }
---   | TopExpr TopExprs  { $1 : $2 }
-
 TopExpr :: { EgisonTopExpr }
   : var list1(ArgNoConflict) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
   | Atoms '=' Expr                    { makeDefine $1 $3 }
@@ -276,7 +272,7 @@ readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = undefined -- runAlex' parseTopExprs_
+parseTopExprs = undefined
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
 parseTopExpr = runAlex' parseTopExpr_ . (++ "\n")
@@ -309,6 +305,6 @@ loadFile file = do
   recursiveLoad (LoadFile file) = loadFile file
   recursiveLoad expr            = return [expr]
   shebang :: String -> String
-  shebang ('#':'!':cs) = ';':'#':'!':cs
+  shebang ('#':'!':cs) = "-- #!" ++ cs
   shebang cs           = cs
 }

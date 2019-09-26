@@ -252,7 +252,7 @@ nestedComment _ _ = do
               Just (45,  input) -> go n temp       -- '-'
               Just (_,   input) -> go n input
 
-          Just (123, input) -> do                  -- '{'
+          Just (123, input) ->                     -- '{'
             case alexGetByte input of
               Nothing -> err input
               Just (45, input) -> go (n+1) input   -- '-'
