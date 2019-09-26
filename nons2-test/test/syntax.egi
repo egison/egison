@@ -6,7 +6,7 @@
 -- Primitive Data
 --
 
--- assertEqual "char literal" 'a' 'a'
+assertEqual "char literal" ['a', '\n', '\''] ['a', '\n', '\'']
 
 assertEqual "string literal" "abc\n" "abc\n"
 

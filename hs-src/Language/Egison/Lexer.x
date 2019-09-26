@@ -28,8 +28,14 @@ import           Language.Egison.Types
 }
 
 %wrapper "monadUserState"
-$digit = 0-9
+$digit = [0-9]
+$octdig = [0-7]
+$hexdig = [0-9A-Fa-f]
+$special = [\.\;\,\$\|\*\+\?\#\~\-\{\}\(\)\[\]\^\/]
 $alpha = [A-Za-z]
+
+$escaped = [nrtbfv0\'\"\\]
+
 tokens :-
   \-\- .* [\r\n]                 ;
   $white+                        ;
@@ -54,7 +60,9 @@ tokens :-
 
   -- Data
   $digit+                        { lex (TokenInt . read)    }
-  \" [^\" \n] * \"               { lex  TokenString         }
+  \" [^\" \n]* \"                { lex  TokenString         }
+  \' . \'                        { lex  TokenChar           }
+  \' \\ $escaped \'              { lex  TokenChar           }
   $alpha [$alpha $digit \? \']*  { lex  TokenVar            }
 
   -- Operators
@@ -128,7 +136,8 @@ data TokenClass
 
   -- Data and Variables
   | TokenInt Integer
-  | TokenString String
+  | TokenString String  -- with double quotation at both sides
+  | TokenChar String    -- with single quotation at both sides
   | TokenVar String
 
   | TokenEqEq
@@ -184,6 +193,7 @@ instance Show TokenClass where
 
   show (TokenInt i) = show i
   show (TokenString s) = s
+  show (TokenChar c) = c
   show (TokenVar s) = show s
 
   show TokenEqEq = "=="
