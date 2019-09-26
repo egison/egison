@@ -279,13 +279,13 @@ parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = undefined -- runAlex' parseTopExprs_
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = runAlex' parseTopExpr_
+parseTopExpr = runAlex' parseTopExpr_ . (++ "\n")
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
 parseExprs = undefined
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = runAlex' parseExpr_
+parseExpr = runAlex' parseExpr_ . (++ "\n")
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
