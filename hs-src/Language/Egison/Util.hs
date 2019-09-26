@@ -6,7 +6,10 @@ Licence     : MIT
 This module provides utility functions.
 -}
 
-module Language.Egison.Util (getEgisonExpr, getEgisonExprOrNewLine, completeEgison) where
+module Language.Egison.Util
+  ( getEgisonExpr
+  , completeEgison
+  ) where
 
 import           Control.Monad.Except             (liftIO)
 import           Data.List
@@ -46,29 +49,6 @@ getEgisonExpr' opts prev = do
           liftIO $ print err
           getEgisonExpr opts
         Right topExpr -> return $ Just (input, topExpr)
-
--- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExprOrNewLine :: EgisonOpts -> InputT IO (Either (Maybe String) (String, EgisonTopExpr))
-getEgisonExprOrNewLine opts = getEgisonExprOrNewLine' opts ""
-
-getEgisonExprOrNewLine' :: EgisonOpts -> String -> InputT IO (Either (Maybe String) (String, EgisonTopExpr))
-getEgisonExprOrNewLine' opts prev = do
-  mLine <- case prev of
-             "" -> getInputLine $ optPrompt opts
-             _  -> getInputLine $ replicate (length $ optPrompt opts) ' '
-  case mLine of
-    Nothing -> return $ Left Nothing
-    Just [] -> return $ Left $ Just ""
-    Just line -> do
-      let input = prev ++ line
-      let parsedExpr = (if optUseHappy opts then ParserNonS2.parseTopExpr else if optSExpr opts then Parser.parseTopExpr else ParserNonS.parseTopExpr) input
-      case parsedExpr of
-        Left err | show err =~ "unexpected end of input" ->
-          getEgisonExprOrNewLine' opts $ input ++ "\n"
-        Left err -> do
-          liftIO $ print err
-          getEgisonExprOrNewLine opts
-        Right topExpr -> return $ Right (input, topExpr)
 
 -- |Complete Egison keywords
 completeEgison :: Monad m => CompletionFunc m

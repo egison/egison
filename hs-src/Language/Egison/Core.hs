@@ -51,22 +51,15 @@ import           Control.Monad.Trans.State   (evalStateT, withStateT)
 
 import           Data.Foldable               (toList)
 import           Data.IORef
-import           Data.List                   (any, drop, last, nub, partition)
-import           Data.List.Split             (oneOf, split)
+import           Data.List                   (partition)
 import           Data.Maybe
 import           Data.Ratio
 import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
 import qualified Data.Sequence               as Sq
 import           Data.Traversable            (mapM)
 
-import           Data.Array                  ((!))
 import qualified Data.Array                  as Array
 import qualified Data.HashMap.Lazy           as HL
-import           Data.HashMap.Strict         (HashMap)
-import qualified Data.HashMap.Strict         as HashMap
-import           Data.Map                    (Map, assocs, empty, singleton,
-                                              unionWith, unionsWith, (!))
-import qualified Data.Map                    as M
 import qualified Data.Vector                 as V
 
 import           Data.Text                   (Text)
