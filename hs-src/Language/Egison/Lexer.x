@@ -28,10 +28,18 @@ import           Language.Egison.Types
 }
 
 %wrapper "monadUserState"
-$digit = 0-9
+$digit = [0-9]
+$octdig = [0-7]
+$hexdig = [0-9A-Fa-f]
+$special = [\.\;\,\$\|\*\+\?\#\~\-\{\}\(\)\[\]\^\/]
 $alpha = [A-Za-z]
+
+$escaped = [nrtbfv0\'\"\\]
+
 tokens :-
+  \-\- .* [\r\n]                 ;
   $white+                        ;
+  \{\-                           { nestedComment            }
 
   -- Keywords
   True                           { lex' TokenTrue           }
@@ -52,7 +60,10 @@ tokens :-
 
   -- Data
   $digit+                        { lex (TokenInt . read)    }
-  $alpha [$alpha $digit \']*     { lex  TokenVar            }
+  \" [^\" \n]* \"                { lex  TokenString         }
+  \' . \'                        { lex  TokenChar           }
+  \' \\ $escaped \'              { lex  TokenChar           }
+  $alpha [$alpha $digit \? \']*  { lex  TokenVar            }
 
   -- Operators
   \=\=                           { lex' TokenEqEq           }
@@ -125,6 +136,8 @@ data TokenClass
 
   -- Data and Variables
   | TokenInt Integer
+  | TokenString String  -- with double quotation at both sides
+  | TokenChar String    -- with single quotation at both sides
   | TokenVar String
 
   | TokenEqEq
@@ -179,6 +192,8 @@ instance Show TokenClass where
   show TokenElse = "else"
 
   show (TokenInt i) = show i
+  show (TokenString s) = s
+  show (TokenChar c) = c
   show (TokenVar s) = show s
 
   show TokenEqEq = "=="
@@ -219,15 +234,46 @@ alexEOF = do
   (p,_,_,_) <- alexGetInput
   return $ Token p TokenEOF
 
--- Unfortunately, we have to extract the matching bit of string
--- ourselves...
+-- Unfortunately, we have to extract the matching bit of string ourselves...
 lex :: (String -> TokenClass) -> AlexAction Token
-lex f = \(p,_,_,s) i -> return $ Token p (f (take i s))
+lex f = \(p,_,_,s) len -> return $ Token p (f (take len s))
 
--- For constructing tokens that do not depend on
--- the input
+-- For constructing tokens that do not depend on the input
 lex' :: TokenClass -> AlexAction Token
 lex' = lex . const
+
+-- cf. https://github.com/simonmar/alex/blob/master/examples/haskell.x
+nestedComment :: AlexInput -> Int -> Alex Token
+nestedComment _ _ = do
+  input <- alexGetInput
+  go 1 input
+    where
+      go 0 input = do
+        alexSetInput input
+        alexMonadScan'
+      go n input = do
+        case alexGetByte input of
+          Nothing  -> err input
+          Just (45, input) -> do                   -- '-'
+            let temp = input
+            case alexGetByte input of
+              Nothing  -> err input
+              Just (125, input) -> go (n-1) input  -- '}'
+              Just (45,  input) -> go n temp       -- '-'
+              Just (_,   input) -> go n input
+
+          Just (123, input) ->                     -- '{'
+            case alexGetByte input of
+              Nothing -> err input
+              Just (45, input) -> go (n+1) input   -- '-'
+              Just (_,  input) -> go n input
+
+          Just (_, input) -> go n input
+
+      err input = do
+        alexSetInput input
+        -- TODO(momohatt): Use alexError'
+        alexError "error in nested comment"
 
 -- We rewrite alexMonadScan' to delegate to alexError' when lexing fails
 -- (the default implementation just returns an error message).

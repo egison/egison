@@ -116,7 +116,10 @@ loadEgisonLibrary opts env path = evalEgisonTopExpr opts env (Load path)
 -- |Environment that contains core libraries
 initialEnv :: EgisonOpts -> IO Env
 initialEnv opts = do
-  env <- if optNoIO opts then primitiveEnvNoIO else primitiveEnv
+  env <- if optNoIO opts then if optUseHappy opts then primitiveEnvNoIO'
+                                                  else primitiveEnvNoIO
+                         else if optUseHappy opts then primitiveEnv'
+                                                  else primitiveEnv
   ret <- evalEgisonTopExprs defaultOption env $ map Load coreLibraries
   case ret of
     Left err -> do
