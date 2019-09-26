@@ -119,8 +119,7 @@ import           Paths_egison            (getDataFileName)
 --   | TopExpr TopExprs  { $1 : $2 }
 
 TopExpr :: { EgisonTopExpr }
-  : var '=' Expr                      { Define (stringToVar $1) $3 }
-  | var list1(ArgNoConflict) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
+  : var list1(ArgNoConflict) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
   | Atoms '=' Expr                    { makeDefine $1 $3 }
   | Expr                              { Test $1 }
   | test '(' Expr ')'                 { Test $3 }
@@ -249,6 +248,8 @@ makeApply func xs = do
   g (Right _, var) = Right var
 
 makeDefine :: EgisonExpr -> EgisonExpr -> EgisonTopExpr
+makeDefine (VarExpr x) bodyExpr =
+  Define x bodyExpr
 makeDefine (ApplyExpr (VarExpr (Var [f] _)) (TupleExpr xs)) bodyExpr =
   Define (stringToVar f) (LambdaExpr (map exprToArg xs) bodyExpr)
 
