@@ -1,0 +1,17 @@
+--
+-- Syntax test
+--
+
+--
+-- Primitive Data
+--
+
+-- assertEqual "char literal" 'a' 'a'
+
+assertEqual "string literal" "abc\n" "abc\n"
+
+assertEqual "bool literal" [True, False] [True, False]
+assertEqual "integer literal" [1, 0, -100, 1 - 100] [1, 0, -100, -99]
+
+-- TODO: -1 + 1/2 doesn't work. why?
+assertEqual "rational number" [10 / 3, 10 / 20, -1 / 2] [10 / 3 , 1 / 2, -1 / 2]
