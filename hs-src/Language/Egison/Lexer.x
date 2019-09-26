@@ -31,6 +31,7 @@ import           Language.Egison.Types
 $digit = 0-9
 $alpha = [A-Za-z]
 tokens :-
+  \-\- .* [\r\n]                 ;
   $white+                        ;
 
   -- Keywords
