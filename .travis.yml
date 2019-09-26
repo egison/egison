@@ -1,8 +1,5 @@
 language: haskell
 
-ghc:
-  - 8.6.5
-
 sudo: false
 
 # Caching so the next build will be fast too.
