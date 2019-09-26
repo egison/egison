@@ -52,7 +52,6 @@ import           Control.Monad.Trans.State   (evalStateT, withStateT)
 import           Data.Foldable               (toList)
 import           Data.IORef
 import           Data.List                   (any, drop, last, nub, partition)
-import           Data.List.Split             (oneOf, split)
 import           Data.Maybe
 import           Data.Ratio
 import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
