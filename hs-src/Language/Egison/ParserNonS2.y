@@ -266,7 +266,7 @@ lexwrap :: (Token -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
 
 happyError :: Token -> Alex a
-happyError (Token _ TokenEOF) = alexError "unexpected end of input"
+happyError (Token _ TokenEOF) = alexError "unexpected eof"
 happyError (Token p t) = alexError' p ("parse error at token '" ++ show t ++ "'")
 
 readTopExprs :: String -> EgisonM [EgisonTopExpr]
@@ -287,8 +287,8 @@ parseLines parser parsed deferred pending =
   case pending of
     [] -> Left $ Parser "shouldn't reach here"
     [last] -> case parser (deferred ++ last) of
-                Left (Parser "unexpected end of input") -> Right parsed
-                Left msg -> Left msg
+                Left ParserUnexpectedEOF -> Right parsed
+                Left err -> Left err
                 Right expr -> Right (parsed ++ [expr])
     new:rest ->
       case parser (deferred ++ new) of

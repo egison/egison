@@ -307,6 +307,7 @@ alexError' (AlexPn _ l c) msg = do
 runAlex' :: Alex a -> String -> Either EgisonError a
 runAlex' a input =
   case runAlex input (setFilePath "<stdin>" >> a) of
+    Left "unexpected eof" -> Left ParserUnexpectedEOF
     Left msg -> Left $ Parser msg
     Right r  -> Right r
 }
