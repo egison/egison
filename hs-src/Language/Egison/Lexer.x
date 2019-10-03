@@ -82,6 +82,7 @@ tokens :-
   \^                             { lex' TokenCaret          }
   \&\&                           { lex' TokenAndAnd         }
   \|\|                           { lex' TokenBarBar         }
+  \!                             { lex' TokenExclamationMark }
   \:                             { lex' TokenColon          }
   \.\.                           { lex' TokenDotDot         }
   \+\+                           { lex' TokenPlusPlus       }
@@ -157,6 +158,7 @@ data TokenClass
   | TokenCaret
   | TokenAndAnd
   | TokenBarBar
+  | TokenExclamationMark
   | TokenColon
   | TokenDotDot
   | TokenPlusPlus
@@ -214,6 +216,7 @@ instance Show TokenClass where
   show TokenCaret = "^"
   show TokenAndAnd = "&&"
   show TokenBarBar = "||"
+  show TokenExclamationMark = "!"
   show TokenColon = ":"
   show TokenDotDot = ".."
   show TokenPlusPlus = "++"
