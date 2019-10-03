@@ -207,9 +207,13 @@ Pattern :: { EgisonPattern }
   | '$' var                    { PatVar (stringToVar $2) }
   | '#' Atom                   { ValuePat $2 }
   | '(' sep2(Pattern, ',') ')' { TuplePat $2 }
+  | '(' var list(Pattern) ')'  { InductivePat $2 $3 }
   | '[' ']'                    { InductivePat "nil" [] }
   | Pattern ':' Pattern        { InductivePat "cons" [$1, $3] }
   | Pattern "++" Pattern       { InductivePat "join" [$1, $3] }
+  | Pattern "&&" Pattern       { AndPat [$1, $3] }
+  | Pattern "||" Pattern       { OrPat [$1, $3] }
+  | '(' Pattern ')'            { $2 }
 
 --
 -- Helpers (Parameterized Products)
