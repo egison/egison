@@ -55,6 +55,7 @@ import           Paths_egison            (getDataFileName)
 %right "||"
 %right "&&"
 %right ':'
+%nonassoc '!'
 %left '<' '>' "==" "<=" ">="
 %left '+' '-' '%'
 %left '*' '/'
@@ -80,7 +81,8 @@ import           Paths_egison            (getDataFileName)
       int            { Token _ (TokenInt $$)       }
       str            { Token _ (TokenString $$)    }
       char           { Token _ (TokenChar $$)      }
-      var            { Token _ (TokenVar $$)       }
+      Var            { Token _ (TokenUpperVar $$)  }
+      var            { Token _ (TokenLowerVar $$)  }
 
       "=="           { Token _ TokenEqEq           }
       '<'            { Token _ TokenLT             }
@@ -95,6 +97,7 @@ import           Paths_egison            (getDataFileName)
       '^'            { Token _ TokenCaret          }
       "&&"           { Token _ TokenAndAnd         }
       "||"           { Token _ TokenBarBar         }
+      '!'            { Token _ TokenExclamationMark }
       ':'            { Token _ TokenColon          }
       ".."           { Token _ TokenDotDot         }
       "++"           { Token _ TokenPlusPlus       }
@@ -113,14 +116,15 @@ import           Paths_egison            (getDataFileName)
       ')'            { Token _ TokenRParen         }
       '['            { Token _ TokenLBracket       }
       ']'            { Token _ TokenRBracket       }
+      eof            { Token _ TokenEOF            }
 
 %%
 
 TopExpr :: { EgisonTopExpr }
-  : var list1(ArgNoConflict) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
-  | Atoms '=' Expr                    { makeDefine $1 $3 }
-  | Expr                              { Test $1 }
-  | test '(' Expr ')'                 { Test $3 }
+  : var list1(ArgNoConflict) '=' Expr opt(eof) { Define (stringToVar $1) (LambdaExpr $2 $4) }
+  | Atoms '=' Expr                    opt(eof) { makeDefine $1 $3 }
+  | Expr                              opt(eof) { Test $1 }
+  | test '(' Expr ')'                 opt(eof) { Test $3 }
 
 Expr :: { EgisonExpr }
   : Expr1                       { $1 }
@@ -155,16 +159,22 @@ Atoms :: { EgisonExpr }
   | Atom list1(Atom)  { makeApply $1 $2 }
 
 MatchExpr :: { EgisonExpr }
-  : match       Expr as Expr with '|' MatchClauses { MatchExpr $2 $4 $7 }
-  | matchDFS    Expr as Expr with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
-  | matchAll    Expr as Expr with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
-  | matchAllDFS Expr as Expr with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
-  | matchLambda      as Expr with '|' MatchClauses { MatchLambdaExpr $3 $6 }
-  | matchAllLambda   as Expr with '|' MatchClauses { MatchAllLambdaExpr $3 $6 }
+  : match       Expr as Expr with opt('|') MatchClauses { MatchExpr $2 $4 $7 }
+  | matchDFS    Expr as Expr with opt('|') MatchClauses { MatchDFSExpr $2 $4 $7 }
+  | matchAll    Expr as Expr with opt('|') MatchClauses { MatchAllExpr $2 $4 $7 }
+  | matchAllDFS Expr as Expr with opt('|') MatchClauses { MatchAllDFSExpr $2 $4 $7 }
+  | matchLambda      as Expr with opt('|') MatchClauses { MatchLambdaExpr $3 $6 }
+  | matchAllLambda   as Expr with opt('|') MatchClauses { MatchAllLambdaExpr $3 $6 }
+
+-- match ... as ... with
+--   ... -> match ... as ... with
+--            ... -> ...
+--          | ... -> ...           <= this will be interpreted as a pattern of first match
+-- | ... -> ...
 
 MatchClauses :: { [MatchClause] }
-  : Pattern "->" Expr                               { [($1, $3)] }
-  | MatchClauses '|' Pattern "->" Expr              { $1 ++ [($3, $5)] }
+  : Pattern "->" Expr1                               { [($1, $3)] }
+  | Pattern "->" Expr1 '|' MatchClauses              { ($1, $3) : $5 }
 
 Arg :: { Arg }
   : '$' var                  { ScalarArg $2 }
@@ -181,6 +191,7 @@ Atom :: { EgisonExpr }
   | str                      { (StringExpr . pack . init  . tail) $1 }
   | char                     { (CharExpr . fst . (!! 0) . readLitChar . tail) $1 }
   | var                      { VarExpr $ stringToVar $1 }
+  | Var                      { InductiveDataExpr $1 [] }
   | True                     { BoolExpr True }
   | False                    { BoolExpr False }
   | something                { SomethingExpr }
@@ -198,8 +209,14 @@ Pattern :: { EgisonPattern }
   | '$' var                    { PatVar (stringToVar $2) }
   | '#' Atom                   { ValuePat $2 }
   | '(' sep2(Pattern, ',') ')' { TuplePat $2 }
+  | '(' var list(Pattern) ')'  { InductivePat $2 $3 }
+  | '[' ']'                    { InductivePat "nil" [] }
   | Pattern ':' Pattern        { InductivePat "cons" [$1, $3] }
   | Pattern "++" Pattern       { InductivePat "join" [$1, $3] }
+  | Pattern "&&" Pattern       { AndPat [$1, $3] }
+  | Pattern "||" Pattern       { OrPat [$1, $3] }
+  | '!' Pattern                { NotPat $2 }
+  | '(' Pattern ')'            { $2 }
 
 --
 -- Helpers (Parameterized Products)
@@ -209,6 +226,9 @@ sep2(p, q)    : p q sep1(p, q)     { $1 : $3 }
 sep1(p, q)    : p list(snd(q, p))  { $1 : $2 }
 sep(p, q)     : sep1(p, q)         { $1 }
               |                    { [] }
+
+opt(p)        : p                  { Just $1 }
+              |                    { Nothing }
 
 snd(p, q)     : p q                { $2 }
 
@@ -221,6 +241,7 @@ rev_list1(p)  : p                  { [$1] }
 
 {
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
+makeApply (InductiveDataExpr x []) xs = InductiveDataExpr x xs
 makeApply func xs = do
   let args = map (\x -> case x of
                           LambdaArgExpr s -> Left s
@@ -259,7 +280,7 @@ lexwrap :: (Token -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
 
 happyError :: Token -> Alex a
-happyError (Token _ TokenEOF) = alexError "unexpected end of input"
+happyError (Token _ TokenEOF) = alexError "unexpected eof"
 happyError (Token p t) = alexError' p ("parse error at token '" ++ show t ++ "'")
 
 readTopExprs :: String -> EgisonM [EgisonTopExpr]
@@ -280,7 +301,8 @@ parseLines parser parsed deferred pending =
   case pending of
     [] -> Left $ Parser "shouldn't reach here"
     [last] -> case parser (deferred ++ last) of
-                Left msg -> Left msg
+                Left ParserUnexpectedEOF -> Right parsed
+                Left err -> Left err
                 Right expr -> Right (parsed ++ [expr])
     new:rest ->
       case parser (deferred ++ new) of

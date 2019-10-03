@@ -33,6 +33,8 @@ $octdig = [0-7]
 $hexdig = [0-9A-Fa-f]
 $special = [\.\;\,\$\|\*\+\?\#\~\-\{\}\(\)\[\]\^\/]
 $alpha = [A-Za-z]
+$upper = [A-Z]
+$lower = [a-z]
 
 $escaped = [nrtbfv0\'\"\\]
 
@@ -63,7 +65,8 @@ tokens :-
   \" [^\" \n]* \"                { lex  TokenString         }
   \' . \'                        { lex  TokenChar           }
   \' \\ $escaped \'              { lex  TokenChar           }
-  $alpha [$alpha $digit \? \']*  { lex  TokenVar            }
+  $upper [$alpha $digit]*        { lex  TokenUpperVar       }
+  $lower [$alpha $digit \? \']*  { lex  TokenLowerVar       }
 
   -- Operators
   \=\=                           { lex' TokenEqEq           }
@@ -79,6 +82,7 @@ tokens :-
   \^                             { lex' TokenCaret          }
   \&\&                           { lex' TokenAndAnd         }
   \|\|                           { lex' TokenBarBar         }
+  \!                             { lex' TokenExclamationMark }
   \:                             { lex' TokenColon          }
   \.\.                           { lex' TokenDotDot         }
   \+\+                           { lex' TokenPlusPlus       }
@@ -138,7 +142,8 @@ data TokenClass
   | TokenInt Integer
   | TokenString String  -- with double quotation at both sides
   | TokenChar String    -- with single quotation at both sides
-  | TokenVar String
+  | TokenUpperVar String
+  | TokenLowerVar String
 
   | TokenEqEq
   | TokenLT
@@ -153,6 +158,7 @@ data TokenClass
   | TokenCaret
   | TokenAndAnd
   | TokenBarBar
+  | TokenExclamationMark
   | TokenColon
   | TokenDotDot
   | TokenPlusPlus
@@ -194,7 +200,8 @@ instance Show TokenClass where
   show (TokenInt i) = show i
   show (TokenString s) = s
   show (TokenChar c) = c
-  show (TokenVar s) = show s
+  show (TokenUpperVar s) = show s
+  show (TokenLowerVar s) = show s
 
   show TokenEqEq = "=="
   show TokenLT = "<"
@@ -209,6 +216,7 @@ instance Show TokenClass where
   show TokenCaret = "^"
   show TokenAndAnd = "&&"
   show TokenBarBar = "||"
+  show TokenExclamationMark = "!"
   show TokenColon = ":"
   show TokenDotDot = ".."
   show TokenPlusPlus = "++"
@@ -302,6 +310,7 @@ alexError' (AlexPn _ l c) msg = do
 runAlex' :: Alex a -> String -> Either EgisonError a
 runAlex' a input =
   case runAlex input (setFilePath "<stdin>" >> a) of
+    Left "unexpected eof" -> Left ParserUnexpectedEOF
     Left msg -> Left $ Parser msg
     Right r  -> Right r
 }
