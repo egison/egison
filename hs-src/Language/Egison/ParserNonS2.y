@@ -55,6 +55,7 @@ import           Paths_egison            (getDataFileName)
 %right "||"
 %right "&&"
 %right ':'
+%nonassoc '!'
 %left '<' '>' "==" "<=" ">="
 %left '+' '-' '%'
 %left '*' '/'
@@ -96,6 +97,7 @@ import           Paths_egison            (getDataFileName)
       '^'            { Token _ TokenCaret          }
       "&&"           { Token _ TokenAndAnd         }
       "||"           { Token _ TokenBarBar         }
+      '!'            { Token _ TokenExclamationMark }
       ':'            { Token _ TokenColon          }
       ".."           { Token _ TokenDotDot         }
       "++"           { Token _ TokenPlusPlus       }
@@ -213,6 +215,7 @@ Pattern :: { EgisonPattern }
   | Pattern "++" Pattern       { InductivePat "join" [$1, $3] }
   | Pattern "&&" Pattern       { AndPat [$1, $3] }
   | Pattern "||" Pattern       { OrPat [$1, $3] }
+  | '!' Pattern                { NotPat $2 }
   | '(' Pattern ')'            { $2 }
 
 --
