@@ -373,32 +373,3 @@ assertEqual("case 1", nishiwakiIf(#t, 1, 2), 1)
 assertEqual("case 2", nishiwakiIf(#f, 1, 2), 2)
 
 assertEqual("case 3", nishiwakiIf(eq?(1, 1), 1, 2), 1)
-
-def listDfs(a) =
-  matcherDFS
- | <nil> as () ->
-   | [] -> {()}
-   | _ -> {}
- | <cons $ $> as (a, listDfs(a)) ->
-   | [$x, @$xs] -> {(x, xs)}
-   | _ -> {}
- | <snoc $ $> as (a, listDfs(a)) ->
-   | [@$xs, $x] -> {(x, xs)}
-   | _ -> {}
- | <join $ $> as (listDfs(a), listDfs(a)) ->
-   | $tgt -> matchAll tgt as listDfs(a)
-             | loop($i, (1, $n), <cons $xa_i ...>, $rs) ->
-                 (foldr((%i %r -> [xa_i, @r]), [], 1..n), rs)
- | <nioj $ $> as (listDfs(a), listDfs(a)) ->
-   | $tgt -> matchAll tgt as listDfs(a)
-             | loop($i, (1, $n), <snoc $xa_i ...>, $rs) ->
-                 (foldr((%i %r -> [@r, xa_i]), [], 1..n), rs)
- | $val as () ->
-   | $tgt -> if val == tgt then {()} else {}
- | $ as (something) ->
-   | $tgt -> {tgt}
-
-assertEqual("matcherdfs",
-  matchAll (1..5) as listDfs(integer)
-  | _ <++> $x <:> _ <++> $y <:> _ -> [x, y],
-  {{1, 2}, {1, 3}, {1, 4}, {1, 5}, {2, 3}, {2, 4}, {2, 5}, {3, 4}, {3, 5}, {4, 5}})
