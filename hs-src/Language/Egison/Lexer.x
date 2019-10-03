@@ -33,6 +33,8 @@ $octdig = [0-7]
 $hexdig = [0-9A-Fa-f]
 $special = [\.\;\,\$\|\*\+\?\#\~\-\{\}\(\)\[\]\^\/]
 $alpha = [A-Za-z]
+$upper = [A-Z]
+$lower = [a-z]
 
 $escaped = [nrtbfv0\'\"\\]
 
@@ -63,7 +65,8 @@ tokens :-
   \" [^\" \n]* \"                { lex  TokenString         }
   \' . \'                        { lex  TokenChar           }
   \' \\ $escaped \'              { lex  TokenChar           }
-  $alpha [$alpha $digit \? \']*  { lex  TokenVar            }
+  $upper [$alpha $digit]*        { lex  TokenUpperVar       }
+  $lower [$alpha $digit \? \']*  { lex  TokenLowerVar       }
 
   -- Operators
   \=\=                           { lex' TokenEqEq           }
@@ -138,7 +141,8 @@ data TokenClass
   | TokenInt Integer
   | TokenString String  -- with double quotation at both sides
   | TokenChar String    -- with single quotation at both sides
-  | TokenVar String
+  | TokenUpperVar String
+  | TokenLowerVar String
 
   | TokenEqEq
   | TokenLT
@@ -194,7 +198,8 @@ instance Show TokenClass where
   show (TokenInt i) = show i
   show (TokenString s) = s
   show (TokenChar c) = c
-  show (TokenVar s) = show s
+  show (TokenUpperVar s) = show s
+  show (TokenLowerVar s) = show s
 
   show TokenEqEq = "=="
   show TokenLT = "<"

@@ -80,7 +80,8 @@ import           Paths_egison            (getDataFileName)
       int            { Token _ (TokenInt $$)       }
       str            { Token _ (TokenString $$)    }
       char           { Token _ (TokenChar $$)      }
-      var            { Token _ (TokenVar $$)       }
+      Var            { Token _ (TokenUpperVar $$)  }
+      var            { Token _ (TokenLowerVar $$)  }
 
       "=="           { Token _ TokenEqEq           }
       '<'            { Token _ TokenLT             }
@@ -113,14 +114,15 @@ import           Paths_egison            (getDataFileName)
       ')'            { Token _ TokenRParen         }
       '['            { Token _ TokenLBracket       }
       ']'            { Token _ TokenRBracket       }
+      eof            { Token _ TokenEOF            }
 
 %%
 
 TopExpr :: { EgisonTopExpr }
-  : var list1(ArgNoConflict) '=' Expr { Define (stringToVar $1) (LambdaExpr $2 $4) }
-  | Atoms '=' Expr                    { makeDefine $1 $3 }
-  | Expr                              { Test $1 }
-  | test '(' Expr ')'                 { Test $3 }
+  : var list1(ArgNoConflict) '=' Expr opt(eof) { Define (stringToVar $1) (LambdaExpr $2 $4) }
+  | Atoms '=' Expr                    opt(eof) { makeDefine $1 $3 }
+  | Expr                              opt(eof) { Test $1 }
+  | test '(' Expr ')'                 opt(eof) { Test $3 }
 
 Expr :: { EgisonExpr }
   : Expr1                       { $1 }
@@ -181,6 +183,7 @@ Atom :: { EgisonExpr }
   | str                      { (StringExpr . pack . init  . tail) $1 }
   | char                     { (CharExpr . fst . (!! 0) . readLitChar . tail) $1 }
   | var                      { VarExpr $ stringToVar $1 }
+  | Var                      { InductiveDataExpr $1 [] }
   | True                     { BoolExpr True }
   | False                    { BoolExpr False }
   | something                { SomethingExpr }
@@ -210,6 +213,9 @@ sep1(p, q)    : p list(snd(q, p))  { $1 : $2 }
 sep(p, q)     : sep1(p, q)         { $1 }
               |                    { [] }
 
+opt(p)        : p                  { Just $1 }
+              |                    { Nothing }
+
 snd(p, q)     : p q                { $2 }
 
 list1(p)      : rev_list1(p)       { reverse $1 }
@@ -221,6 +227,7 @@ rev_list1(p)  : p                  { [$1] }
 
 {
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
+makeApply (InductiveDataExpr x []) xs = InductiveDataExpr x xs
 makeApply func xs = do
   let args = map (\x -> case x of
                           LambdaArgExpr s -> Left s
@@ -280,6 +287,7 @@ parseLines parser parsed deferred pending =
   case pending of
     [] -> Left $ Parser "shouldn't reach here"
     [last] -> case parser (deferred ++ last) of
+                Left (Parser "unexpected end of input") -> Right parsed
                 Left msg -> Left msg
                 Right expr -> Right (parsed ++ [expr])
     new:rest ->
