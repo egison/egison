@@ -157,16 +157,22 @@ Atoms :: { EgisonExpr }
   | Atom list1(Atom)  { makeApply $1 $2 }
 
 MatchExpr :: { EgisonExpr }
-  : match       Expr as Expr with '|' MatchClauses { MatchExpr $2 $4 $7 }
-  | matchDFS    Expr as Expr with '|' MatchClauses { MatchDFSExpr $2 $4 $7 }
-  | matchAll    Expr as Expr with '|' MatchClauses { MatchAllExpr $2 $4 $7 }
-  | matchAllDFS Expr as Expr with '|' MatchClauses { MatchAllDFSExpr $2 $4 $7 }
-  | matchLambda      as Expr with '|' MatchClauses { MatchLambdaExpr $3 $6 }
-  | matchAllLambda   as Expr with '|' MatchClauses { MatchAllLambdaExpr $3 $6 }
+  : match       Expr as Expr with opt('|') MatchClauses { MatchExpr $2 $4 $7 }
+  | matchDFS    Expr as Expr with opt('|') MatchClauses { MatchDFSExpr $2 $4 $7 }
+  | matchAll    Expr as Expr with opt('|') MatchClauses { MatchAllExpr $2 $4 $7 }
+  | matchAllDFS Expr as Expr with opt('|') MatchClauses { MatchAllDFSExpr $2 $4 $7 }
+  | matchLambda      as Expr with opt('|') MatchClauses { MatchLambdaExpr $3 $6 }
+  | matchAllLambda   as Expr with opt('|') MatchClauses { MatchAllLambdaExpr $3 $6 }
+
+-- match ... as ... with
+--   ... -> match ... as ... with
+--            ... -> ...
+--          | ... -> ...           <= this will be interpreted as a pattern of first match
+-- | ... -> ...
 
 MatchClauses :: { [MatchClause] }
-  : Pattern "->" Expr                               { [($1, $3)] }
-  | MatchClauses '|' Pattern "->" Expr              { $1 ++ [($3, $5)] }
+  : Pattern "->" Expr1                               { [($1, $3)] }
+  | Pattern "->" Expr1 '|' MatchClauses              { ($1, $3) : $5 }
 
 Arg :: { Arg }
   : '$' var                  { ScalarArg $2 }
