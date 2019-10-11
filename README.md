@@ -306,31 +306,7 @@ Please read <a target="_blank" href="https://arxiv.org/abs/1808.10603">our paper
 
 ## Installation
 
-If you are using Linux, please install `libncurses-dev` at first.
-
-```
-% sudo apt-get install libncurses-dev # on Debian
-```
-
-To compile Egison, you also need to install <a target="_blank" href="https://www.haskell.org/platform/">Haskell Platform</a>.
-
-After you installed Haskell Platform, run the following commands on the terminal.
-
-```
-% cabal update
-% cabal install egison
-```
-
-Now, you can try Egison.
-
-```
-% egison
-Egison Version X.X.X(C) 2011-2014 Satoshi Egi
-https://www.egison.org
-Welcome to Egison Interpreter!
-> ^D
-Leaving Egison Interpreter.
-```
+Installation guide for [MacOS](https://www.egison.org/getting-started/getting-started-mac.html), [Linux](https://www.egison.org/getting-started/getting-started-linux.html) and [Windows](https://www.egison.org/getting-started/getting-started-windows.html) are available on our website.
 
 If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egison/egison-tutorial">`egison-tutorial`</a>.
 
@@ -338,7 +314,7 @@ If you are a beginner of Egison, it would be better to install <a target="_blank
 % cabal update
 % cabal install egison-tutorial
 % egison-tutorial
-Egison Tutorial Version 3.7.4 (C) 2013-2017 Satoshi Egi
+Egison Tutorial Version X.X.X (C) 2013-20XX Satoshi Egi
 Welcome to Egison Tutorial!
 ** Information **
 We can use a 'Tab' key to complete keywords on the interpreter.
