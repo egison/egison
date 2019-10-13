@@ -91,3 +91,10 @@
        [[<cons $x $txs> <cons ?1#(eq? (f %1 x) <Greater>) _>] {x @(merge txs ys)}]
        [[_ <cons $y $tys>] {y @(merge xs tys)}]})))
 
+(define $minimize
+  (lambda [$f $xs]
+    (foldl 2#(if (eq? (compare (f %1) (f %2)) <Less>) %1 %2) (car xs) (cdr xs))))
+
+(define $maximize
+  (lambda [$f $xs]
+    (foldl 2#(if (eq? (compare (f %1) (f %2)) <Greater>) %1 %2) (car xs) (cdr xs))))
