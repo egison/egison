@@ -1,8 +1,5 @@
 language: haskell
 
-ghc:
-  - 8.6.5
-
 sudo: false
 
 # Caching so the next build will be fast too.
@@ -21,3 +18,7 @@ before_install:
 
 script:
   - stack init && stack --no-terminal --skip-ghc-check test
+
+branches:
+  only:
+    - master
