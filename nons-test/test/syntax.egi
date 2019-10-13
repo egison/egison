@@ -156,29 +156,6 @@ assert("or pattern",
   | 2<:>_ or 3<:>_ -> #f
   | _ -> #t)
 
-assertEqual("ordered or pattern",
-  match [1, 2, 3, 4, 5] as list(integer)
-  | ([2] or* [1, 2, 3] or* [1]) <++> $xs -> xs,
-  [4, 5])
-
-assertEqual("ordered or pattern",
-  let x = [| 1, 2, 3 |] in
-  matchAll [2, 1, 3] as multiset(integer)
-  | <cons ((!x_1 or* x_1) and $y_1)
-      <cons ((!x_2 or* x_2) and $y_2)
-        <cons ((!x_3 or* x_3) and $y_3) <nil>>>> -> map(1#y_%1, between(1, 3)),
-  [[2, 3, 1], [3, 1, 2], [2, 1, 3], [3, 2, 1], [1, 3, 2], [1, 2, 3]])
-
-assertEqual("ordered or pattern",
-  matchAll [2, 1, 3] as multiset(integer)
-  | ((!x_1 or* x_1) and $y_1) <:> ((!x_2 or* x_2) and $y_2) <:> ((!x_3 or* x_3) and $y_3) <:> <nil> -> map(1#y_%1, 1..3),
-  [[2, 1, 3], [2, 3, 1], [1, 2, 3], [1, 3, 2], [3, 2, 1], [3, 1, 2]])
-
-assert("ordered or pattern",
-  match [1, 2, 3] as list(integer)
-  | 2<:>_ or* 3<:>_ -> #f
-  | _ -> #t)
-
 assert("not pattern",
   match 1 as integer
   | not 1 -> #f
@@ -396,32 +373,3 @@ assertEqual("case 1", nishiwakiIf(#t, 1, 2), 1)
 assertEqual("case 2", nishiwakiIf(#f, 1, 2), 2)
 
 assertEqual("case 3", nishiwakiIf(eq?(1, 1), 1, 2), 1)
-
-def listDfs(a) =
-  matcherDFS
- | <nil> as () ->
-   | [] -> {()}
-   | _ -> {}
- | <cons $ $> as (a, listDfs(a)) ->
-   | [$x, @$xs] -> {(x, xs)}
-   | _ -> {}
- | <snoc $ $> as (a, listDfs(a)) ->
-   | [@$xs, $x] -> {(x, xs)}
-   | _ -> {}
- | <join $ $> as (listDfs(a), listDfs(a)) ->
-   | $tgt -> matchAll tgt as listDfs(a)
-             | loop($i, (1, $n), <cons $xa_i ...>, $rs) ->
-                 (foldr((%i %r -> [xa_i, @r]), [], 1..n), rs)
- | <nioj $ $> as (listDfs(a), listDfs(a)) ->
-   | $tgt -> matchAll tgt as listDfs(a)
-             | loop($i, (1, $n), <snoc $xa_i ...>, $rs) ->
-                 (foldr((%i %r -> [@r, xa_i]), [], 1..n), rs)
- | $val as () ->
-   | $tgt -> if val == tgt then {()} else {}
- | $ as (something) ->
-   | $tgt -> {tgt}
-
-assertEqual("matcherdfs",
-  matchAll (1..5) as listDfs(integer)
-  | _ <++> $x <:> _ <++> $y <:> _ -> [x, y],
-  {{1, 2}, {1, 3}, {1, 4}, {1, 5}, {2, 3}, {2, 4}, {2, 5}, {3, 4}, {3, 5}, {4, 5}})
