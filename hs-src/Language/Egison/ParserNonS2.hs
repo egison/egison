@@ -25,7 +25,7 @@ module Language.Egison.ParserNonS2
        , loadFile
        ) where
 
-import           Control.Applicative     (pure, (*>), (<$>), (<*), (<*>))
+import           Control.Applicative     (pure, (*>), (<$>), (<$), (<*), (<*>))
 import           Control.Monad.Except    hiding (mapM)
 import           Control.Monad.Identity  hiding (mapM)
 import           Control.Monad.State     hiding (mapM)
@@ -69,13 +69,13 @@ readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = undefined
+parseTopExprs = doParse $ many $ L.nonIndented sc topExpr
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
 parseTopExpr = doParse (sc >> topExpr)
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = undefined
+parseExprs = doParse $ many $ L.nonIndented sc expr
 
 parseExpr :: String -> Either EgisonError EgisonExpr
 parseExpr = doParse (sc >> expr)
@@ -129,12 +129,40 @@ topExpr :: Parser EgisonTopExpr
 topExpr = Test <$> expr
 
 expr :: Parser EgisonExpr
-expr = IntegerExpr <$> integerLiteral
-   <|> boolExpr
+expr = try opExpr
+   <|> atomExpr
+
+opExpr :: Parser EgisonExpr
+opExpr = makeExprParser atomExpr table
+  where
+    table :: [[Operator Parser EgisonExpr]]
+    table =
+      [ [ Prefix (makeUnaryOpApply "-"       <$ symbol "-"   ) ]
+      , [ InfixL (makeBinOpApply "**"        <$ symbol "^"   ) ]
+      , [ InfixL (makeBinOpApply "*"         <$ symbol "*"   )
+        , InfixL (makeBinOpApply "/"         <$ symbol "/"   )
+        , InfixL (makeBinOpApply "and"       <$ symbol "&&"  ) ]
+      , [ InfixL (makeBinOpApply "+"         <$ symbol "+"   )
+        , InfixL (makeBinOpApply "-"         <$ symbol "-"   )
+        , InfixL (makeBinOpApply "remainder" <$ symbol "%"   )
+        , InfixL (makeBinOpApply "or"        <$ symbol "||"  ) ]
+      , [ InfixL (makeBinOpApply "cons"      <$ symbol ":"   )
+        , InfixL (makeBinOpApply "append"    <$ symbol "++"  ) ]
+      , [ InfixL (makeBinOpApply "eq?"       <$ symbol "=="  )
+        , InfixL (makeBinOpApply "lte?"      <$ symbol "<="  )
+        , InfixL (makeBinOpApply "lt?"       <$ symbol "<"   )
+        , InfixL (makeBinOpApply "gte?"      <$ symbol ">="  )
+        , InfixL (makeBinOpApply "gt?"       <$ symbol ">"   ) ]
+      ]
+
 
 boolExpr :: Parser EgisonExpr
 boolExpr = BoolExpr <$> (reserved "True" >> return True)
        <|> BoolExpr <$> (reserved "False" >> return False)
+
+atomExpr :: Parser EgisonExpr
+atomExpr = IntegerExpr <$> integerLiteral
+       <|> boolExpr
 
 --
 -- Tokens
@@ -270,3 +298,40 @@ reservedWords = ["define"
                , "userRefs"
                , "userRefs!"
                , "function"]
+
+--
+-- Utils
+--
+
+makeBinOpApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
+makeBinOpApply func x y = makeApply (VarExpr $ stringToVar func) [x, y]
+
+makeUnaryOpApply :: String -> EgisonExpr -> EgisonExpr
+makeUnaryOpApply "-" x = makeBinOpApply "*" (IntegerExpr (-1)) x
+makeUnaryOpApply func x = makeApply (VarExpr $ stringToVar func) [x]
+
+makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
+makeApply func xs = do
+  let args = map (\x -> case x of
+                          LambdaArgExpr s -> Left s
+                          _               -> Right x) xs
+  let vars = lefts args
+  case vars of
+    [] -> ApplyExpr func . TupleExpr $ rights args
+    _ | all null vars ->
+        let args' = rights args
+            args'' = zipWith (curry f) args (annonVars 1 (length args))
+            args''' = map (VarExpr . stringToVar . either id id) args''
+        in ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
+      | all (not . null) vars ->
+        let n = Set.size $ Set.fromList vars
+            args' = rights args
+            args'' = zipWith (curry g) args (annonVars (n + 1) (length args))
+            args''' = map (VarExpr . stringToVar . either id id) args''
+        in ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
+ where
+  annonVars m n = take n $ map ((':':) . show) [m..]
+  f (Left _, var)  = Left var
+  f (Right _, var) = Right var
+  g (Left arg, _)  = Left (':':arg)
+  g (Right _, var) = Right var
