@@ -130,6 +130,11 @@ topExpr = Test <$> expr
 
 expr :: Parser EgisonExpr
 expr = IntegerExpr <$> integerLiteral
+   <|> boolExpr
+
+boolExpr :: Parser EgisonExpr
+boolExpr = BoolExpr <$> (reserved "True" >> return True)
+       <|> BoolExpr <$> (reserved "False" >> return False)
 
 --
 -- Tokens
