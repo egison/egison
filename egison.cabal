@@ -78,7 +78,7 @@ Library
     , transformers
     , mtl >=2.2.1
     , parsec >= 3.0
-    , megaparsec
+    , megaparsec >= 7.0.0
     , parser-combinators
     , directory
     , ghc
