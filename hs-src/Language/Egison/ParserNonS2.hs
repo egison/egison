@@ -48,6 +48,7 @@ import           Data.Void
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
+import           Text.Megaparsec.Debug
 
 import qualified Data.Text               as T
 import           Text.Regex.TDFA
@@ -126,47 +127,71 @@ doParse' p input = case doParse p input of
 --
 
 topExpr :: Parser EgisonTopExpr
-topExpr = Test <$> expr
+topExpr = Test <$> (dbg "expr" expr)
 
 expr :: Parser EgisonExpr
-expr = ifExpr
-   <|> try opExpr
-   <|> atomExpr
+expr = dbg "ifExpr" ifExpr
+   <|> try (dbg "applyExpr" applyExpr)
+   <|> dbg "opExpr" opExpr
    <?> "expressions"
 
+-- Also parses atomExpr
 opExpr :: Parser EgisonExpr
 opExpr = makeExprParser atomExpr table
   where
     table :: [[Operator Parser EgisonExpr]]
     table =
-      [ [ Prefix (makeUnaryOpApply "-"       <$ symbol "-"   ) ]
-      , [ InfixL (makeBinOpApply "**"        <$ symbol "^"   ) ]
-      , [ InfixL (makeBinOpApply "*"         <$ symbol "*"   )
-        , InfixL (makeBinOpApply "/"         <$ symbol "/"   )
-        , InfixL (makeBinOpApply "and"       <$ symbol "&&"  ) ]
-      , [ InfixL (makeBinOpApply "+"         <$ symbol "+"   )
-        , InfixL (makeBinOpApply "-"         <$ symbol "-"   )
-        , InfixL (makeBinOpApply "remainder" <$ symbol "%"   )
-        , InfixL (makeBinOpApply "or"        <$ symbol "||"  ) ]
-      , [ InfixL (makeBinOpApply "cons"      <$ symbol ":"   )
-        , InfixL (makeBinOpApply "append"    <$ symbol "++"  ) ]
-      , [ InfixL (makeBinOpApply "eq?"       <$ symbol "=="  )
-        , InfixL (makeBinOpApply "lte?"      <$ symbol "<="  )
-        , InfixL (makeBinOpApply "lt?"       <$ symbol "<"   )
-        , InfixL (makeBinOpApply "gte?"      <$ symbol ">="  )
-        , InfixL (makeBinOpApply "gt?"       <$ symbol ">"   ) ]
+      [ [ Prefix (unary  "-"         "-" ) ]
+      , [ InfixL (binary "**"        "^" ) ]
+      , [ InfixL (binary "*"         "*" )
+        , InfixL (binary "/"         "/" )
+        , InfixL (binary "and"       "&&") ]
+      , [ InfixL (binary "+"         "+" )
+        , InfixL (binary "-"         "-" )
+        , InfixL (binary "remainder" "%" )
+        , InfixL (binary "or"        "||") ]
+      , [ InfixL (binary "cons"      ":" )
+        , InfixL (binary "append"    "++") ]
+      , [ InfixL (binary "eq?"       "==")
+        , InfixL (binary "lte?"      "<=")
+        , InfixL (binary "lt?"       "<" )
+        , InfixL (binary "gte?"      ">=")
+        , InfixL (binary "gt?"       ">" ) ]
       ]
+    unary  internalName sym = makeUnaryOpApply  internalName <$ symbol sym
+    binary internalName sym = makeBinaryOpApply internalName <$ symbol sym
+
+    makeBinaryOpApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
+    makeBinaryOpApply func x y = makeApply (VarExpr $ stringToVar func) [x, y]
+
+    makeUnaryOpApply :: String -> EgisonExpr -> EgisonExpr
+    makeUnaryOpApply "-" x  = makeBinaryOpApply "*" (IntegerExpr (-1)) x
+    makeUnaryOpApply func x = makeApply (VarExpr $ stringToVar func) [x]
+
 
 ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
 
+applyExpr :: Parser EgisonExpr
+applyExpr = do
+  pos <- L.indentLevel
+  func <- atomExpr
+  args <- some (L.indentGuard sc GT pos *> atomExpr)
+  return $ case args of
+             [] -> func
+             _  -> makeApply func args
+
 boolExpr :: Parser EgisonExpr
-boolExpr = BoolExpr <$> (reserved "True" >> return True)
-       <|> BoolExpr <$> (reserved "False" >> return False)
+boolExpr = (reserved "True"  $> BoolExpr True)
+       <|> (reserved "False" $> BoolExpr False)
+
+varExpr :: Parser EgisonExpr
+varExpr = VarExpr . stringToVar <$> identifier
 
 atomExpr :: Parser EgisonExpr
-atomExpr = IntegerExpr <$> integerLiteral
+atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> boolExpr
+       <|> varExpr
        <|> parens expr
        <?> "atomic expressions"
 
@@ -193,9 +218,8 @@ comma     = symbol ","
 colon     = symbol ":"
 dot       = symbol "."
 
-integerLiteral :: Parser Integer
-integerLiteral = lexeme L.decimal
-             <|> L.signed sc (lexeme L.decimal)
+positiveIntegerLiteral :: Parser Integer
+positiveIntegerLiteral = lexeme L.decimal
 
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
@@ -308,13 +332,6 @@ reservedWords = ["define"
 --
 -- Utils
 --
-
-makeBinOpApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
-makeBinOpApply func x y = makeApply (VarExpr $ stringToVar func) [x, y]
-
-makeUnaryOpApply :: String -> EgisonExpr -> EgisonExpr
-makeUnaryOpApply "-" x = makeBinOpApply "*" (IntegerExpr (-1)) x
-makeUnaryOpApply func x = makeApply (VarExpr $ stringToVar func) [x]
 
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
 makeApply func xs = do
