@@ -171,9 +171,6 @@ loadFileExpr = keywordLoadFile >> LoadFile <$> parens stringLiteral
 loadExpr :: Parser EgisonTopExpr
 loadExpr = keywordLoad >> Load <$> parens stringLiteral
 
-exprs :: Parser [EgisonExpr]
-exprs = endBy expr whiteSpace
-
 expr :: Parser EgisonExpr
 expr = (try applyInfixExpr
         <|> try exprWithSymbol
@@ -682,9 +679,9 @@ boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
 floatExpr = do
-  (x,y) <- try ((,) <$> floatLiteral' <*> (sign' <*> positiveFloatLiteral) <* char 'i')
-            <|> try ((,) 0 <$> floatLiteral' <* char 'i')
-            <|> try ((, 0) <$> floatLiteral')
+  (x,y) <- try ((,) <$> floatLiteral <*> (sign' <*> positiveFloatLiteral) <* char 'i')
+            <|> try ((,) 0 <$> floatLiteral <* char 'i')
+            <|> try ((, 0) <$> floatLiteral)
   return $ FloatExpr x y
 
 integerExpr :: Parser EgisonExpr
@@ -705,8 +702,8 @@ positiveFloatLiteral = do
   let l = m % (10 ^ fromIntegral (length mStr))
   return (fromRational (fromIntegral n + l) :: Double)
 
-floatLiteral' :: Parser Double
-floatLiteral' = sign <*> positiveFloatLiteral
+floatLiteral :: Parser Double
+floatLiteral = sign <*> positiveFloatLiteral
 
 --
 -- Tokens
@@ -864,14 +861,8 @@ sign' :: Num a => Parser (a -> a)
 sign' = (char '-' >> return negate)
     <|> (char '+' >> return id)
 
-naturalLiteral :: Parser Integer
-naturalLiteral = P.natural lexer
-
 integerLiteral :: Parser Integer
 integerLiteral = sign <*> P.natural lexer
-
-floatLiteral :: Parser Double
-floatLiteral = sign <*> P.float lexer
 
 stringLiteral :: Parser String
 stringLiteral = P.stringLiteral lexer
