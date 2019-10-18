@@ -72,13 +72,13 @@ parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = undefined
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = doParse topExpr
+parseTopExpr = doParse (sc >> topExpr)
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
 parseExprs = undefined
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = doParse expr
+parseExpr = doParse (sc >> expr)
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
