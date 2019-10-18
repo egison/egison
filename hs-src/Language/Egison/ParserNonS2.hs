@@ -129,8 +129,10 @@ topExpr :: Parser EgisonTopExpr
 topExpr = Test <$> expr
 
 expr :: Parser EgisonExpr
-expr = try opExpr
+expr = ifExpr
+   <|> try opExpr
    <|> atomExpr
+   <?> "expressions"
 
 opExpr :: Parser EgisonExpr
 opExpr = makeExprParser atomExpr table
@@ -155,6 +157,8 @@ opExpr = makeExprParser atomExpr table
         , InfixL (makeBinOpApply "gt?"       <$ symbol ">"   ) ]
       ]
 
+ifExpr :: Parser EgisonExpr
+ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
 
 boolExpr :: Parser EgisonExpr
 boolExpr = BoolExpr <$> (reserved "True" >> return True)
@@ -163,6 +167,8 @@ boolExpr = BoolExpr <$> (reserved "True" >> return True)
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> integerLiteral
        <|> boolExpr
+       <|> parens expr
+       <?> "atomic expressions"
 
 --
 -- Tokens
