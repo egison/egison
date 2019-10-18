@@ -68,7 +68,25 @@ source-repository head
   location: https://github.com/egison/egison.git
 
 Library
-  Build-Depends:   base >= 4.7 && < 5, array, random, containers, unordered-containers, haskeline, transformers, mtl >=2.2.1, parsec >= 3.0, directory, ghc, ghc-paths, text, regex-tdfa, process, vector, split, hashable
+  Build-Depends:
+      base >= 4.7 && < 5
+    , array
+    , random
+    , containers
+    , unordered-containers
+    , haskeline
+    , transformers
+    , mtl >=2.2.1
+    , parsec >= 3.0
+    , directory
+    , ghc
+    , ghc-paths
+    , text
+    , regex-tdfa
+    , process
+    , vector
+    , split
+    , hashable
   if !impl(ghc > 8.0)
     Build-Depends: fail
   Hs-Source-Dirs:  hs-src
@@ -92,19 +110,52 @@ Test-Suite test
   Type:           exitcode-stdio-1.0
   Hs-Source-Dirs: test
   Main-Is:        Test.hs
-  Build-Depends: egison, base >= 4.0 && < 5, transformers, mtl, Glob, HUnit, test-framework, test-framework-hunit, filepath
+  Build-Depends:
+      egison
+    , base >= 4.0 && < 5
+    , transformers
+    , mtl
+    , Glob
+    , HUnit
+    , test-framework
+    , test-framework-hunit
+    , filepath
   Other-modules:   Paths_egison
 
 Benchmark benchmark
   Type: exitcode-stdio-1.0
   Hs-Source-Dirs:  benchmark
   Main-Is: Benchmark.hs
-  Build-Depends: egison, base >= 4.0 && < 5, deepseq, criterion >= 0.5, transformers, mtl
+  Build-Depends:
+      egison
+    , base >= 4.0 && < 5
+    , deepseq
+    , criterion >= 0.5
+    , transformers
+    , mtl
   Other-modules:   Paths_egison
 
 Executable egison
   Main-is:             egison.hs
-  Build-depends:       egison, base >= 4.0 && < 5, array, containers, unordered-containers, haskeline, transformers, mtl, parsec >= 3.1, directory, ghc, ghc-paths, filepath, text, regex-tdfa, process, vector, optparse-applicative
+  Build-depends:
+      egison
+    , base >= 4.0 && < 5
+    , array
+    , containers
+    , unordered-containers
+    , haskeline
+    , transformers
+    , mtl
+    , parsec >= 3.1
+    , directory
+    , ghc
+    , ghc-paths
+    , filepath
+    , text
+    , regex-tdfa
+    , process
+    , vector
+    , optparse-applicative
   if !impl(ghc > 8.0)
     Build-Depends: semigroups
   Hs-Source-Dirs:      hs-src/Interpreter
