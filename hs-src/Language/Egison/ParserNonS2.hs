@@ -72,13 +72,13 @@ parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = undefined
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = undefined
+parseTopExpr = doParse topExpr
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
 parseExprs = undefined
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = undefined
+parseExpr = doParse expr
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
@@ -126,13 +126,13 @@ doParse' p input = case doParse p input of
 --
 
 topExpr :: Parser EgisonTopExpr
-topExpr = undefined
+topExpr = Test <$> expr
 
 exprs :: Parser [EgisonExpr]
 exprs = undefined
 
 expr :: Parser EgisonExpr
-expr = undefined
+expr = IntegerExpr <$> integerLiteral
 
 --
 -- Tokens
