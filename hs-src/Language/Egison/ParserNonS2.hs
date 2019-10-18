@@ -128,9 +128,6 @@ doParse' p input = case doParse p input of
 topExpr :: Parser EgisonTopExpr
 topExpr = Test <$> expr
 
-exprs :: Parser [EgisonExpr]
-exprs = undefined
-
 expr :: Parser EgisonExpr
 expr = IntegerExpr <$> integerLiteral
 
@@ -143,13 +140,19 @@ sc :: Parser ()
 sc = L.space space1 lineCmnt blockCmnt
   where
     lineCmnt  = L.skipLineComment "--"
-    blockCmnt = L.skipBlockComment "{-" "-}"
+    blockCmnt = L.skipBlockCommentNested "{-" "-}"
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
-parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol ")")
+parens    = between (symbol "(") (symbol ")")
+braces    = between (symbol "{") (symbol "}")
+angles    = between (symbol "<") (symbol ">")
+brackets  = between (symbol "[") (symbol "]")
+semicolon = symbol ";"
+comma     = symbol ","
+colon     = symbol ":"
+dot       = symbol "."
 
 integerLiteral :: Parser Integer
 integerLiteral = lexeme L.decimal
