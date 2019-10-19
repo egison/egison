@@ -175,26 +175,25 @@ ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
 
 patternMatchExpr :: Parser EgisonExpr
-patternMatchExpr = matchExpr
-               -- <|> matchDFSExpr
-               -- <|> matchAllExpr
-               -- <|> matchAllDFSExpr
-               -- <|> matchLambdaExpr
-               -- <|> matchAllLambdaExpr
+patternMatchExpr = makeMatchExpr       keywordMatch          MatchExpr
+               <|> makeMatchExpr       keywordMatchDFS       MatchDFSExpr
+               <|> makeMatchExpr       keywordMatchAll       MatchAllExpr
+               <|> makeMatchExpr       keywordMatchAllDFS    MatchAllDFSExpr
+               <|> makeMatchLambdaExpr keywordMatchLambda    MatchLambdaExpr
+               <|> makeMatchLambdaExpr keywordMatchAllLambda MatchAllLambdaExpr
+  where
+    makeMatchExpr keyword ctor = do
+      pos     <- L.indentLevel
+      tgt     <- keyword >> expr
+      matcher <- keywordAs >> expr
+      clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
+      return $ ctor tgt matcher clauses
 
-matchExpr :: Parser EgisonExpr
-matchExpr = do
-  pos     <- L.indentLevel
-  tgt     <- keywordMatch >> expr
-  matcher <- keywordAs >> expr
-  clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
-  return $ MatchExpr tgt matcher clauses
-
-matchDFSExpr = undefined
-matchAllExpr = undefined
-matchAllDFSExpr = undefined
-matchLambdaExpr = undefined
-matchAllLambdaExpr = undefined
+    makeMatchLambdaExpr keyword ctor = do
+      pos     <- L.indentLevel
+      matcher <- keyword >> keywordAs >> expr
+      clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
+      return $ ctor matcher clauses
 
 matchClauses :: Pos -> Parser [MatchClause]
 matchClauses pos = sepBy1 (matchClause pos) (symbol "|")
