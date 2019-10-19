@@ -163,13 +163,6 @@ opExpr = makeExprParser atomExpr table
     unary  internalName sym = makeUnaryOpApply  internalName <$ symbol sym
     binary internalName sym = makeBinaryOpApply internalName <$ symbol sym
 
-    makeBinaryOpApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
-    makeBinaryOpApply func x y = makeApply (VarExpr $ stringToVar func) [x, y]
-
-    makeUnaryOpApply :: String -> EgisonExpr -> EgisonExpr
-    makeUnaryOpApply "-" x  = makeBinaryOpApply "*" (IntegerExpr (-1)) x
-    makeUnaryOpApply func x = makeApply (VarExpr $ stringToVar func) [x]
-
 
 ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
@@ -219,10 +212,17 @@ boolExpr :: Parser EgisonExpr
 boolExpr = (reserved "True"  $> BoolExpr True)
        <|> (reserved "False" $> BoolExpr False)
 
+collectionExpr :: Parser EgisonExpr
+collectionExpr = symbol "[" >> (try _betweenExpr <|> _elementsExpr)
+  where
+    _betweenExpr = makeBinaryOpApply "between" <$> expr <*> (symbol ".." >> expr <* symbol "]")
+    _elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) (symbol ",") <* symbol "]")
+
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> boolExpr
        <|> VarExpr <$> varLiteral
+       <|> collectionExpr
        <|> parens expr
        <?> "atomic expressions"
 
@@ -370,6 +370,13 @@ reservedWords = ["define"
 --
 -- Utils
 --
+
+makeBinaryOpApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
+makeBinaryOpApply func x y = makeApply (VarExpr $ stringToVar func) [x, y]
+
+makeUnaryOpApply :: String -> EgisonExpr -> EgisonExpr
+makeUnaryOpApply "-" x  = makeBinaryOpApply "*" (IntegerExpr (-1)) x
+makeUnaryOpApply func x = makeApply (VarExpr $ stringToVar func) [x]
 
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
 makeApply func xs = do
