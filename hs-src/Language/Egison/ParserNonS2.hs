@@ -213,13 +213,19 @@ collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try _betweenExpr <|> _elementsExpr)
   where
     _betweenExpr = makeBinaryOpApply "between" <$> expr <*> (symbol ".." >> expr <* symbol "]")
-    _elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) (symbol ",") <* symbol "]")
+    _elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
+
+tupleExpr :: Parser EgisonExpr
+-- TODO(momohatt): Do we really need an empty tuple?
+tupleExpr = try (TupleExpr <$> (symbol "(" >> symbol ")" $> []))
+        <|> (\x y -> TupleExpr (x:y)) <$> (symbol "(" >> expr) <*> some (comma >> expr) <* symbol ")"
 
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> boolExpr
        <|> VarExpr <$> varLiteral
        <|> collectionExpr
+       <|> tupleExpr
        <|> parens expr
        <?> "atomic expressions"
 
@@ -239,7 +245,6 @@ lexeme = L.lexeme sc
 
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
-angles    = between (symbol "<") (symbol ">")
 brackets  = between (symbol "[") (symbol "]")
 semicolon = symbol ";"
 comma     = symbol ","
