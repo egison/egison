@@ -36,11 +36,8 @@ import           System.Directory        (doesFileExist, getHomeDirectory)
 import           Data.Char               (isLower, isUpper, toLower)
 import           Data.Either
 import           Data.Functor            (($>))
-import           Data.List               (intercalate)
 import           Data.List.Split         (split, splitOn, startsWithOneOf)
 import           Data.Ratio
-import qualified Data.Sequence           as Sq
-import qualified Data.Set                as Set
 import           Data.Traversable        (mapM)
 
 import           Control.Monad.Combinators.Expr
@@ -392,7 +389,7 @@ makeApply func xs = do
             args''' = map (VarExpr . stringToVar . either id id) args''
         in ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
       | all (not . null) vars ->
-        let n = Set.size $ Set.fromList vars
+        let n = length vars
             args' = rights args
             args'' = zipWith (curry g) args (annonVars (n + 1) (length args))
             args''' = map (VarExpr . stringToVar . either id id) args''
