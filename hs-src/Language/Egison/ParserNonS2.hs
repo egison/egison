@@ -49,6 +49,7 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 import           Text.Megaparsec.Debug
+import           Text.Megaparsec.Pos     (Pos)
 
 import qualified Data.Text               as T
 import           Text.Regex.TDFA
@@ -131,6 +132,7 @@ topExpr = Test <$> (dbg "expr" expr)
 
 expr :: Parser EgisonExpr
 expr = dbg "ifExpr" ifExpr
+   <|> dbg "patternMatchExpr" patternMatchExpr
    <|> try (dbg "applyExpr" applyExpr)
    <|> dbg "opExpr" opExpr
    <?> "expressions"
@@ -171,6 +173,38 @@ opExpr = makeExprParser atomExpr table
 
 ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
+
+patternMatchExpr :: Parser EgisonExpr
+patternMatchExpr = matchExpr
+               -- <|> matchDFSExpr
+               -- <|> matchAllExpr
+               -- <|> matchAllDFSExpr
+               -- <|> matchLambdaExpr
+               -- <|> matchAllLambdaExpr
+
+matchExpr :: Parser EgisonExpr
+matchExpr = do
+  pos     <- L.indentLevel
+  tgt     <- keywordMatch >> expr
+  matcher <- keywordAs >> expr
+  clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
+  return $ MatchExpr tgt matcher clauses
+
+matchDFSExpr = undefined
+matchAllExpr = undefined
+matchAllDFSExpr = undefined
+matchLambdaExpr = undefined
+matchAllLambdaExpr = undefined
+
+matchClauses :: Pos -> Parser [MatchClause]
+matchClauses pos = sepBy1 (matchClause pos) (symbol "|")
+
+matchClause :: Pos -> Parser MatchClause
+matchClause pos = (,) <$> (L.indentGuard sc GT pos *> patternExpr) <*> (symbol "->" >> expr)
+
+patternExpr :: Parser EgisonPattern
+patternExpr = WildCard <$ symbol "_"
+          <|> ValuePat <$> (symbol "#" >> atomExpr)
 
 applyExpr :: Parser EgisonExpr
 applyExpr = do
@@ -243,7 +277,6 @@ keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
-keywordAs                   = reserved "as"
 keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
@@ -260,11 +293,14 @@ keywordLetIn                = reserved "in"
 keywordWithSymbols          = reserved "withSymbols"
 keywordLoop                 = reserved "loop"
 keywordCont                 = reserved "..."
+keywordMatch                = reserved "match"
+keywordMatchDFS             = reserved "matchDFS"
 keywordMatchAll             = reserved "matchAll"
 keywordMatchAllDFS          = reserved "matchAllDFS"
-keywordMatchAllLambda       = reserved "matchAllLambda"
-keywordMatch                = reserved "match"
 keywordMatchLambda          = reserved "matchLambda"
+keywordMatchAllLambda       = reserved "matchAllLambda"
+keywordAs                   = reserved "as"
+keywordWith                 = reserved "with"
 keywordMatcher              = reserved "matcher"
 keywordDo                   = reserved "do"
 keywordIo                   = reserved "io"
@@ -290,7 +326,6 @@ reservedWords = ["define"
                , "if"
                , "then"
                , "else"
-               , "as"
                , "seq"
                , "apply"
                , "capply"
@@ -307,11 +342,14 @@ reservedWords = ["define"
                , "withSymbols"
                , "loop"
                , "..."
+               , "match"
+               , "matchDFS"
                , "matchAll"
                , "matchAllDFS"
-               , "matchAllLambda"
-               , "match"
                , "matchLambda"
+               , "matchAllLambda"
+               , "as"
+               , "with"
                , "matcher"
                , "do"
                , "io"
