@@ -232,6 +232,7 @@ data EgisonExpr =
   | PowerExpr EgisonExpr EgisonExpr
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
+  -- TODO: InnerExpr should be EgisonExpr from 4.0.0
   | CollectionExpr [InnerExpr]
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
