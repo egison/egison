@@ -204,6 +204,7 @@ matchClause pos = (,) <$> (L.indentGuard sc GT pos *> patternExpr) <*> (symbol "
 
 patternExpr :: Parser EgisonPattern
 patternExpr = WildCard <$ symbol "_"
+          <|> PatVar   <$> (symbol "$" >> varLiteral)
           <|> ValuePat <$> (symbol "#" >> atomExpr)
 
 applyExpr :: Parser EgisonExpr
@@ -219,13 +220,10 @@ boolExpr :: Parser EgisonExpr
 boolExpr = (reserved "True"  $> BoolExpr True)
        <|> (reserved "False" $> BoolExpr False)
 
-varExpr :: Parser EgisonExpr
-varExpr = VarExpr . stringToVar <$> identifier
-
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> boolExpr
-       <|> varExpr
+       <|> VarExpr <$> varLiteral
        <|> parens expr
        <?> "atomic expressions"
 
@@ -254,6 +252,9 @@ dot       = symbol "."
 
 positiveIntegerLiteral :: Parser Integer
 positiveIntegerLiteral = lexeme L.decimal
+
+varLiteral :: Parser Var
+varLiteral = stringToVar <$> identifier
 
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
