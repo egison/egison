@@ -71,13 +71,13 @@ parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = doParse (sc >> topExpr)
+parseTopExpr = doParse $ sc >> topExpr
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
 parseExprs = doParse $ many (L.nonIndented sc expr) <* eof
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = doParse (sc >> expr)
+parseExpr = doParse $ sc >> expr
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
@@ -115,10 +115,6 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
   where
     fromParsecError :: ParseErrorBundle String Void -> EgisonError
     fromParsecError = Parser . errorBundlePretty
-
-doParse' :: Parser a -> String -> a
-doParse' p input = case doParse p input of
-                     Right x -> x
 
 --
 -- Expressions
@@ -233,9 +229,7 @@ applyExpr = do
   pos <- L.indentLevel
   func <- atomExpr
   args <- some (L.indentGuard sc GT pos *> atomExpr)
-  return $ case args of
-             [] -> func
-             _  -> makeApply func args
+  return $ makeApply func args
 
 boolExpr :: Parser EgisonExpr
 boolExpr = (reserved "True"  $> BoolExpr True)
