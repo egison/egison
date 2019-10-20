@@ -131,24 +131,29 @@ assert "value pattern" (match 1 as integer with #1 -> True)
 
 -- assert "and pattern" (match [1, 2, 3] as (list integer) with
 --                       | #1 : _ && (snoc #3 _) -> True)
---
--- assert "and pattern" (match [1, 2, 3] as (list integer) with
---                       | #1 : _ && #3 : _ -> False
---                       | _ -> True)
---
+
+assert "and pattern"
+  (match [1, 2, 3] as (list integer) with
+   | #1 : _ && #3 : _ -> False
+   | _ -> True)
+
 -- assert "or pattern" (match [1, 2, 3] as (list integer) with
 --                      | (snoc #1 _) || (snoc #3 _) -> True)
---
--- assert "or pattern" (match [1, 2, 3] as (list integer) with
---                      | #2:_ || #3:_ -> False
---                      | _ -> True)
---
--- assert "not pattern" (match 1 as integer with
---                       | ! #1 -> False
---                       | ! #2 -> True)
---
--- assertEqual "not pattern" [1] (matchAll [1, 2, 2, 3, 3, 3] as (multiset integer) with
---                                | $n : !(#n : _) -> n)
+
+assert "or pattern"
+  (match [1, 2, 3] as (list integer) with
+   | #2 : _ || #3 : _ -> False
+   | _ -> True)
+
+assert "not pattern"
+  (match 1 as integer with
+   | ! #1 -> False
+   | ! #2 -> True)
+
+assertEqual "not pattern"
+  (matchAll [1, 2, 2, 3, 3, 3] as (multiset integer) with
+   | $n : !(#n : _) -> n)
+  [1]
 
 -- assert "predicate pattern"
 --   match [1, 2, 3] as (list integer) with
