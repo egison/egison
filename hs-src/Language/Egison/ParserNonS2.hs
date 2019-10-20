@@ -130,6 +130,7 @@ topExpr = Test <$> (dbg "expr" expr)
 expr :: Parser EgisonExpr
 expr = dbg "ifExpr" ifExpr
    <|> dbg "patternMatchExpr" patternMatchExpr
+   <|> dbg "lambdaExpr" lambdaExpr
    <|> try (dbg "applyExpr" applyExpr)
    <|> dbg "opExpr" opExpr
    <?> "expressions"
@@ -196,6 +197,15 @@ patternExpr = WildCard <$ symbol "_"
           <|> PatVar   <$> (symbol "$" >> varLiteral)
           <|> ValuePat <$> (symbol "#" >> atomExpr)
 
+lambdaExpr :: Parser EgisonExpr
+lambdaExpr = LambdaExpr <$> (symbol "\\" >> some arg) <*> (symbol "->" >> expr)
+
+arg :: Parser Arg
+arg = ScalarArg         <$> (symbol "$"  >> identifier)
+  <|> InvertedScalarArg <$> (symbol "*$" >> identifier)
+  <|> TensorArg         <$> (symbol "%"  >> identifier)
+  <|> ScalarArg         <$> identifier
+
 applyExpr :: Parser EgisonExpr
 applyExpr = do
   pos <- L.indentLevel
@@ -218,7 +228,7 @@ collectionExpr = symbol "[" >> (try _betweenExpr <|> _elementsExpr)
 tupleOrParenExpr :: Parser EgisonExpr
 -- TODO(momohatt): Do we really need an empty tuple?
 tupleOrParenExpr = do
-  elems <- parens (sepBy expr comma)
+  elems <- parens $ sepBy expr comma
   case elems of
     [x] -> return x
     _   -> return $ TupleExpr elems
@@ -263,7 +273,7 @@ reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
 
 symbol :: String -> Parser String
-symbol = L.symbol sc
+symbol sym = try (L.symbol sc sym)
 
 identifier :: Parser String
 identifier = (lexeme . try) (p >>= check)
