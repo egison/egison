@@ -146,21 +146,28 @@ opExpr = do
             makeBinaryOpApply internalName <$ (L.indentGuard sc GT pos >> symbol sym)
        in
           [ [ Prefix (unary  "-"         "-" ) ]
+          -- 8
           , [ InfixL (binary "**"        "^" ) ]
+          -- 7
           , [ InfixL (binary "*"         "*" )
             , InfixL (binary "/"         "/" )
-            , InfixL (binary "and"       "&&") ]
+            , InfixL (binary "remainder" "%" ) ]
+          -- 6
           , [ InfixL (binary "+"         "+" )
-            , InfixL (binary "-"         "-" )
-            , InfixL (binary "remainder" "%" )
-            , InfixL (binary "or"        "||") ]
-          , [ InfixR (binary "cons"      ":" ) ]
-          , [ InfixR (binary "append"    "++") ]
+            , InfixL (binary "-"         "-" ) ]
+          -- 5
+          , [ InfixR (binary "cons"      ":" )
+            , InfixR (binary "append"    "++") ]
+          -- 4
           , [ InfixL (binary "eq?"       "==")
             , InfixL (binary "lte?"      "<=")
             , InfixL (binary "lt?"       "<" )
             , InfixL (binary "gte?"      ">=")
             , InfixL (binary "gt?"       ">" ) ]
+          -- 3
+          , [ InfixR (binary "and"       "&&") ]
+          -- 2
+          , [ InfixR (binary "or"        "||") ]
           ]
 
 
