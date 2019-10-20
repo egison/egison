@@ -215,18 +215,20 @@ collectionExpr = symbol "[" >> (try _betweenExpr <|> _elementsExpr)
     _betweenExpr = makeBinaryOpApply "between" <$> expr <*> (symbol ".." >> expr <* symbol "]")
     _elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
 
-tupleExpr :: Parser EgisonExpr
+tupleOrParenExpr :: Parser EgisonExpr
 -- TODO(momohatt): Do we really need an empty tuple?
-tupleExpr = try (TupleExpr <$> (symbol "(" >> symbol ")" $> []))
-        <|> (\x y -> TupleExpr (x:y)) <$> (symbol "(" >> expr) <*> some (comma >> expr) <* symbol ")"
+tupleOrParenExpr = do
+  elems <- parens (sepBy expr comma)
+  case elems of
+    [x] -> return x
+    _   -> return $ TupleExpr elems
 
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> boolExpr
        <|> VarExpr <$> varLiteral
        <|> collectionExpr
-       <|> tupleExpr
-       <|> parens expr
+       <|> tupleOrParenExpr
        <?> "atomic expressions"
 
 --
