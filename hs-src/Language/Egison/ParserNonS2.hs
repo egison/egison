@@ -231,7 +231,6 @@ collectionExpr = symbol "[" >> (try _betweenExpr <|> _elementsExpr)
     _elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
 
 tupleOrParenExpr :: Parser EgisonExpr
--- TODO(momohatt): Do we really need an empty tuple?
 tupleOrParenExpr = do
   elems <- parens $ sepBy expr comma
   case elems of
