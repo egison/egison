@@ -211,7 +211,7 @@ opPattern = makeExprParser atomPattern table
 
 atomPattern :: Parser EgisonPattern
 atomPattern = WildCard <$   symbol "_"
-          <|> PatVar   <$> (symbol "$" >> varLiteral)
+          <|> PatVar . stringToVar <$> (symbol "$" >> identifier)
           <|> ValuePat <$> (symbol "#" >> atomExpr)
           <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
 
@@ -231,10 +231,6 @@ applyExpr = do
   args <- some (L.indentGuard sc GT pos *> atomExpr)
   return $ makeApply func args
 
-boolExpr :: Parser EgisonExpr
-boolExpr = (reserved "True"  $> BoolExpr True)
-       <|> (reserved "False" $> BoolExpr False)
-
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try _betweenExpr <|> _elementsExpr)
   where
@@ -250,10 +246,11 @@ tupleOrParenExpr = do
 
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
-       <|> boolExpr
+       <|> BoolExpr <$> boolLiteral
        <|> CharExpr <$> charLiteral
        <|> StringExpr . pack <$> stringLiteral
        <|> VarExpr <$> varLiteral
+       <|> (\x -> InductiveDataExpr x []) <$> upperId
        <|> collectionExpr
        <|> tupleOrParenExpr
        <?> "atomic expressions"
@@ -289,8 +286,12 @@ charLiteral = between (char '\'') (char '\'') L.charLiteral
 stringLiteral :: Parser String
 stringLiteral = char '\"' *> manyTill L.charLiteral (char '\"')
 
+boolLiteral :: Parser Bool
+boolLiteral = reserved "True"  $> True
+          <|> reserved "False" $> False
+
 varLiteral :: Parser Var
-varLiteral = stringToVar <$> identifier
+varLiteral = stringToVar <$> lowerId
 
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
@@ -298,13 +299,25 @@ reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
 symbol :: String -> Parser String
 symbol sym = try (L.symbol sc sym)
 
-identifier :: Parser String
-identifier = (lexeme . try) (p >>= check)
+lowerId :: Parser String
+lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> letterChar <*> many alphaNumChar
-    check x = if x `elem` reservedWords
+    p       = (:) <$> lowerChar <*> many alphaNumChar
+    check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
+
+-- TODO(momohatt): Deprecate BoolExpr and merge it with InductiveDataExpr
+upperId :: Parser String
+upperId = (lexeme . try) (p >>= check)
+  where
+    p       = (:) <$> upperChar <*> many alphaNumChar
+    check x = if x `elem` upperReservedWords
+                then fail $ "keyword " ++ show x ++ " cannot be an identifier"
+                else return x
+
+identifier :: Parser String
+identifier = lowerId <|> upperId
 
 keywordDefine               = reserved "define"
 keywordSet                  = reserved "set!"
@@ -355,54 +368,60 @@ keywordUserrefs             = reserved "userRefs"
 keywordUserrefsNew          = reserved "userRefs!"
 keywordFunction             = reserved "function"
 
-reservedWords = ["define"
-               , "set!"
-               , "test"
-               , "loadFile"
-               , "load"
-               , "if"
-               , "then"
-               , "else"
-               , "seq"
-               , "apply"
-               , "capply"
-               , "lambda"
-               , "memoizedLambda"
-               , "cambda"
-               , "procedure"
-               , "macro"
-               , "patternFunction"
-               , "letrec"
-               , "let"
-               , "let*"
-               , "in"
-               , "withSymbols"
-               , "loop"
-               , "..."
-               , "match"
-               , "matchDFS"
-               , "matchAll"
-               , "matchAllDFS"
-               , "matchLambda"
-               , "matchAllLambda"
-               , "as"
-               , "with"
-               , "matcher"
-               , "do"
-               , "io"
-               , "something"
-               , "undefined"
-               , "algebraicDataMatcher"
-               , "generateTensor"
-               , "tensor"
-               , "contract"
-               , "subrefs"
-               , "subrefs!"
-               , "suprefs"
-               , "suprefs!"
-               , "userRefs"
-               , "userRefs!"
-               , "function"]
+upperReservedWords =
+  [ "True"
+  , "False"
+  ]
+
+lowerReservedWords =
+  [ "define"
+  , "set!"
+  , "test"
+  , "loadFile"
+  , "load"
+  , "if"
+  , "then"
+  , "else"
+  , "seq"
+  , "apply"
+  , "capply"
+  , "lambda"
+  , "memoizedLambda"
+  , "cambda"
+  , "procedure"
+  , "macro"
+  , "patternFunction"
+  , "letrec"
+  , "let"
+  , "let*"
+  , "in"
+  , "withSymbols"
+  , "loop"
+  , "..."
+  , "match"
+  , "matchDFS"
+  , "matchAll"
+  , "matchAllDFS"
+  , "matchLambda"
+  , "matchAllLambda"
+  , "as"
+  , "with"
+  , "matcher"
+  , "do"
+  , "io"
+  , "something"
+  , "undefined"
+  , "algebraicDataMatcher"
+  , "generateTensor"
+  , "tensor"
+  , "contract"
+  , "subrefs"
+  , "subrefs!"
+  , "suprefs"
+  , "suprefs!"
+  , "userRefs"
+  , "userRefs!"
+  , "function"]
 
 --
 -- Utils
@@ -416,6 +435,7 @@ makeUnaryOpApply "-" x  = makeBinaryOpApply "*" (IntegerExpr (-1)) x
 makeUnaryOpApply func x = makeApply (VarExpr $ stringToVar func) [x]
 
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
+makeApply (InductiveDataExpr x []) xs = InductiveDataExpr x xs
 makeApply func xs = do
   let args = map (\x -> case x of
                           LambdaArgExpr s -> Left s
