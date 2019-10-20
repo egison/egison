@@ -48,7 +48,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import           Text.Megaparsec.Debug
 import           Text.Megaparsec.Pos     (Pos)
 
-import qualified Data.Text               as T
+import           Data.Text               (pack)
 import           Text.Regex.TDFA
 
 import           Language.Egison.Desugar
@@ -236,6 +236,8 @@ tupleOrParenExpr = do
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> boolExpr
+       <|> CharExpr <$> charLiteral
+       <|> StringExpr . pack <$> stringLiteral
        <|> VarExpr <$> varLiteral
        <|> collectionExpr
        <|> tupleOrParenExpr
@@ -265,6 +267,12 @@ dot       = symbol "."
 
 positiveIntegerLiteral :: Parser Integer
 positiveIntegerLiteral = lexeme L.decimal
+
+charLiteral :: Parser Char
+charLiteral = between (char '\'') (char '\'') L.charLiteral
+
+stringLiteral :: Parser String
+stringLiteral = char '\"' *> manyTill L.charLiteral (char '\"')
 
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> identifier
