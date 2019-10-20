@@ -112,20 +112,20 @@ assertEqual "match-lambda"
     | $x : _ -> x) [1, 2, 3])
   1
 
--- assertEqual "match-all-lambda"
---   ((matchAllLambda as (list something) with
---     | _ ++ $x : _ -> x) [1, 2, 3])
---   [1, 2, 3]
+assertEqual "match-all-lambda"
+  ((matchAllLambda as (list something) with
+    | _ ++ $x : _ -> x) [1, 2, 3])
+  [1, 2, 3]
 
--- assertEqual "match-all-lambda-multi"
---   ((matchAllLambda as (multiset something) with
---     | $x : #(x + 1) : _ -> [x, x + 1]
---     | $x : #(x + 2) : _ -> [x, x + 2]) [1, 2, 3])
---   [[1, 2], [2, 3], [1, 3]]
+assertEqual "match-all-lambda-multi"
+  ((matchAllLambda as (multiset something) with
+    | $x : #(x + 1) : _ -> [x, x + 1]
+    | $x : #(x + 2) : _ -> [x, x + 2]) [1, 2, 3])
+  [[1, 2], [2, 3], [1, 3]]
 
--- assertEqual "pattern variable"
---   (match 1 as something with $x -> x)
---   1
+assertEqual "pattern variable"
+  (match 1 as something with $x -> x)
+  1
 
 assert "value pattern" (match 1 as integer with #1 -> True)
 

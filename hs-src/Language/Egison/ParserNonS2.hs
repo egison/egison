@@ -250,6 +250,8 @@ atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> CharExpr <$> charLiteral
        <|> StringExpr . pack <$> stringLiteral
        <|> VarExpr <$> varLiteral
+       <|> SomethingExpr <$ keywordSomething
+       <|> UndefinedExpr <$ keywordUndefined
        <|> (\x -> InductiveDataExpr x []) <$> upperId
        <|> collectionExpr
        <|> tupleOrParenExpr
