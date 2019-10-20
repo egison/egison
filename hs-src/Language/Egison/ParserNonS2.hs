@@ -68,13 +68,13 @@ readExpr :: String -> EgisonM EgisonExpr
 readExpr = liftEgisonM . runDesugarM . either throwError desugar . parseExpr
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
-parseTopExprs = doParse $ many $ L.nonIndented sc topExpr
+parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
 parseTopExpr = doParse (sc >> topExpr)
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
-parseExprs = doParse $ many $ L.nonIndented sc expr
+parseExprs = doParse $ many (L.nonIndented sc expr) <* eof
 
 parseExpr :: String -> Either EgisonError EgisonExpr
 parseExpr = doParse (sc >> expr)
@@ -137,29 +137,34 @@ expr = dbg "ifExpr" ifExpr
 
 -- Also parses atomExpr
 opExpr :: Parser EgisonExpr
-opExpr = makeExprParser atomExpr table
+opExpr = do
+  pos <- L.indentLevel
+  makeExprParser atomExpr (makeTable pos)
   where
-    table :: [[Operator Parser EgisonExpr]]
-    table =
-      [ [ Prefix (unary  "-"         "-" ) ]
-      , [ InfixL (binary "**"        "^" ) ]
-      , [ InfixL (binary "*"         "*" )
-        , InfixL (binary "/"         "/" )
-        , InfixL (binary "and"       "&&") ]
-      , [ InfixL (binary "+"         "+" )
-        , InfixL (binary "-"         "-" )
-        , InfixL (binary "remainder" "%" )
-        , InfixL (binary "or"        "||") ]
-      , [ InfixL (binary "cons"      ":" )
-        , InfixL (binary "append"    "++") ]
-      , [ InfixL (binary "eq?"       "==")
-        , InfixL (binary "lte?"      "<=")
-        , InfixL (binary "lt?"       "<" )
-        , InfixL (binary "gte?"      ">=")
-        , InfixL (binary "gt?"       ">" ) ]
-      ]
-    unary  internalName sym = makeUnaryOpApply  internalName <$ symbol sym
-    binary internalName sym = makeBinaryOpApply internalName <$ symbol sym
+    makeTable :: Pos -> [[Operator Parser EgisonExpr]]
+    makeTable pos =
+      let unary  internalName sym =
+            makeUnaryOpApply  internalName <$ symbol sym
+          binary internalName sym =
+            makeBinaryOpApply internalName <$ (L.indentGuard sc GT pos >> symbol sym)
+       in
+          [ [ Prefix (unary  "-"         "-" ) ]
+          , [ InfixL (binary "**"        "^" ) ]
+          , [ InfixL (binary "*"         "*" )
+            , InfixL (binary "/"         "/" )
+            , InfixL (binary "and"       "&&") ]
+          , [ InfixL (binary "+"         "+" )
+            , InfixL (binary "-"         "-" )
+            , InfixL (binary "remainder" "%" )
+            , InfixL (binary "or"        "||") ]
+          , [ InfixL (binary "cons"      ":" )
+            , InfixL (binary "append"    "++") ]
+          , [ InfixL (binary "eq?"       "==")
+            , InfixL (binary "lte?"      "<=")
+            , InfixL (binary "lt?"       "<" )
+            , InfixL (binary "gte?"      ">=")
+            , InfixL (binary "gt?"       ">" ) ]
+          ]
 
 
 ifExpr :: Parser EgisonExpr
