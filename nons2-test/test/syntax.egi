@@ -6,19 +6,28 @@
 -- Primitive Data
 --
 
-assertEqual "char literal" ['a', '\n', '\''] ['a', '\n', '\'']
+assertEqual "char literal"
+  ['a', '\n', '\'']
+  ['a', '\n', '\'']
 
-assertEqual "string literal" "abc\n" "abc\n"
+-- assertEqual "string literal" "abc\n" "abc\n"
 
-assertEqual "bool literal" [True, False] [True, False]
-assertEqual "integer literal" [1, 0, -100, 1 - 100] [1, 0, -100, -99]
+assertEqual "bool literal"
+  [True, False]
+  [True, False]
+
+assertEqual "integer literal"
+  [1, 0, -100, 1 - 100]
+  [1, 0, -100, -99]
 
 -- TODO: -1 + 1/2 doesn't work. why?
-assertEqual "rational number" [10 / 3, 10 / 20, -1 / 2] [10 / 3 , 1 / 2, -1 / 2]
+assertEqual "rational number"
+  [10 / 3, 10 / 20, -1 / 2]
+  [10 / 3 , 1 / 2, -1 / 2]
 
 -- assertEqual "float literal" [1.0, 0.0, -100.012001, 1.0+2] [1.0, 0.0, -100.012001, 3.0]
 
-assertEqual "inductive data literal" A A
+-- assertEqual "inductive data literal" A A
 
 assertEqual "tuple literal" (1, 2, 3) (1, 2, 3)
 
@@ -30,9 +39,13 @@ assertEqual "collection literal" [1, 2, 3, 4, 5, 6] [1, 2, 3, 4, 5, 6]
 -- Basic Sytax
 --
 
-assertEqual "if" (if True then True else False) True
+assertEqual "if"
+  (if True then True else False)
+  True
 
-assertEqual "if" (if False then True else False) False
+assertEqual "if"
+  (if False then True else False)
+  False
 
 -- assertEqual "let binding" (let t = (1, 2) in let (x, y) = t in x + y) 3
 
@@ -50,7 +63,9 @@ assertEqual "if" (if False then True else False) False
 --     in even?(10)
 --   True
 
-assertEqual "lambda and application" ((\x -> x + 1) 10) 11
+assertEqual "lambda and application"
+  ((\x -> x + 1) 10)
+  11
 
 -- assertEqual "placeholder" (($ + 1) 10) 11
 
@@ -75,52 +90,66 @@ assertEqual "lambda and application" ((\x -> x + 1) 10) 11
 -- Pattern-Matching
 --
 
-assertEqual "match" 11 (match 1 as integer with
-                        | #0 -> 0
-                        | $x -> 10 + x)
+assertEqual "match"
+  (match 1 as integer with
+   | #0 -> 0
+   | $x -> 10 + x)
+  11
 
-assertEqual "match-all" [1, 2, 3] (matchAll [1,2,3] as (multiset integer) with
-                                   | $x : _ -> x)
+assertEqual "match-all"
+  (matchAll [1, 2, 3] as (multiset integer) with
+   | $x : _ -> x)
+  [1, 2, 3]
 
-assertEqual "match-all-multi" [[1, 2], [2, 3], [1, 3]] (matchAll [1,2,3] as (multiset integer) with
-                                                        | $x : #(x + 1) : _ -> [x, x + 1]
-                                                        | $x : #(x + 2) : _ -> [x, x + 2])
+assertEqual "match-all-multi"
+  (matchAll [1, 2, 3] as (multiset integer) with
+   | $x : #(x + 1) : _ -> [x, x + 1]
+   | $x : #(x + 2) : _ -> [x, x + 2])
+  [[1, 2], [2, 3], [1, 3]]
 
-assertEqual "match-lambda" 1 ((matchLambda as (list integer) with
-                               | [] -> 0
-                               | $x : _ -> x) [1, 2, 3])
+assertEqual "match-lambda"
+  ((matchLambda as (list integer) with
+    | [] -> 0
+    | $x : _ -> x) [1, 2, 3])
+  1
 
-assertEqual "match-all-lambda" [1,2,3] ((matchAllLambda as (list something) with
-                                         | _ ++ $x : _ -> x) [1, 2, 3])
+-- assertEqual "match-all-lambda"
+--   ((matchAllLambda as (list something) with
+--     | _ ++ $x : _ -> x) [1, 2, 3])
+--   [1, 2, 3]
 
-assertEqual "match-all-lambda-multi" [[1, 2], [2, 3], [1, 3]] ((matchAllLambda as (multiset something) with
-                                                                | $x : #(x + 1) : _ -> [x, x + 1]
-                                                                | $x : #(x + 2) : _ -> [x, x + 2]) [1, 2, 3])
+-- assertEqual "match-all-lambda-multi"
+--   ((matchAllLambda as (multiset something) with
+--     | $x : #(x + 1) : _ -> [x, x + 1]
+--     | $x : #(x + 2) : _ -> [x, x + 2]) [1, 2, 3])
+--   [[1, 2], [2, 3], [1, 3]]
 
-assertEqual "pattern variable" 1 (match 1 as something with $x -> x)
+-- assertEqual "pattern variable"
+--   (match 1 as something with $x -> x)
+--   1
 
 assert "value pattern" (match 1 as integer with #1 -> True)
 
-assert "and pattern" (match [1, 2, 3] as (list integer) with
-                      | #1 : _ && (snoc #3 _) -> True)
-
-assert "and pattern" (match [1, 2, 3] as (list integer) with
-                      | #1 : _ && #3 : _ -> False
-                      | _ -> True)
-
-assert "or pattern" (match [1, 2, 3] as (list integer) with
-                     | (snoc #1 _) || (snoc #3 _) -> True)
-
-assert "or pattern" (match [1, 2, 3] as (list integer) with
-                     | #2:_ || #3:_ -> False
-                     | _ -> True)
-
-assert "not pattern" (match 1 as integer with
-                      | ! #1 -> False
-                      | ! #2 -> True)
-
-assertEqual "not pattern" [1] (matchAll [1, 2, 2, 3, 3, 3] as (multiset integer) with
-                               | $n : !(#n : _) -> n)
+-- assert "and pattern" (match [1, 2, 3] as (list integer) with
+--                       | #1 : _ && (snoc #3 _) -> True)
+--
+-- assert "and pattern" (match [1, 2, 3] as (list integer) with
+--                       | #1 : _ && #3 : _ -> False
+--                       | _ -> True)
+--
+-- assert "or pattern" (match [1, 2, 3] as (list integer) with
+--                      | (snoc #1 _) || (snoc #3 _) -> True)
+--
+-- assert "or pattern" (match [1, 2, 3] as (list integer) with
+--                      | #2:_ || #3:_ -> False
+--                      | _ -> True)
+--
+-- assert "not pattern" (match 1 as integer with
+--                       | ! #1 -> False
+--                       | ! #2 -> True)
+--
+-- assertEqual "not pattern" [1] (matchAll [1, 2, 2, 3, 3, 3] as (multiset integer) with
+--                                | $n : !(#n : _) -> n)
 
 -- assert "predicate pattern"
 --   match [1, 2, 3] as (list integer) with
@@ -187,8 +216,8 @@ assertEqual "not pattern" [1] (matchAll [1, 2, 2, 3, 3, 3] as (multiset integer)
 --   | $a and (let n = length(a) in _) -> [a, n]
 --   [[1, 2, 3], 3]
 
-assertEqual "tuple patterns" [[1, 2, 3]] (matchAll (1, (2, 3)) as (integer, (integer, integer)) with
-                                          | ($m, ($n, $w)) -> [m, n, w])
+-- assertEqual "tuple patterns" [[1, 2, 3]] (matchAll (1, (2, 3)) as (integer, (integer, integer)) with
+--                                           | ($m, ($n, $w)) -> [m, n, w])
 
 -- assertEqual "pattern function call"
 --   letrec twin = patternFunction([pat1, pat2], ('pat1 and $x) <:> x <:> 'pat2) in
@@ -245,8 +274,8 @@ assertEqual "tuple patterns" [[1, 2, 3]] (matchAll (1, (2, 3)) as (integer, (int
 --     in [treeMember?(1, t), treeMember?(0, t)]
 --   [True, False]
 
-assertEqual "tuple pattern" [1, 2] (matchAll [(1, 1), (2, 2)] as (multiset (integer, integer)) with
-                                    | ($x, #x) : _ -> x)
+-- assertEqual "tuple pattern" [1, 2] (matchAll [(1, 1), (2, 2)] as (multiset (integer, integer)) with
+--                                     | ($x, #x) : _ -> x)
 
 -- ;;;
 -- ;;; Tensor
@@ -310,20 +339,20 @@ assertEqual "tuple pattern" [1, 2] (matchAll [(1, 1), (2, 2)] as (multiset (inte
 -- macroExpr, matcherExpr, matcherDFSExpr
 --
 
-multiset a = matcher
-  | [] as () with
-    | $tgt -> match tgt as (mutiset a) with
-                | [] -> [()]
-                | _ -> []
-  | $ : $ as (a, multiset a) with
-    | $tgt -> matchAll tgt as list a with
-                | $hs ++ $x : $ts -> (x, hs ++ ts)
-  | #$val as () with
-    | $tgt -> match (val, tgt) as (list a, multiset a) with
-                | ([], []) -> [()]
-                | ($x : $xs, #x : #xs) -> [()] (_, _) -> []
-  | $ as something with
-    | $tgt -> [tgt]
+-- multiset a = matcher
+--   | [] as () with
+--     | $tgt -> match tgt as (mutiset a) with
+--                 | [] -> [()]
+--                 | _ -> []
+--   | $ : $ as (a, multiset a) with
+--     | $tgt -> matchAll tgt as list a with
+--                 | $hs ++ $x : $ts -> (x, hs ++ ts)
+--   | #$val as () with
+--     | $tgt -> match (val, tgt) as (list a, multiset a) with
+--                 | ([], []) -> [()]
+--                 | ($x : $xs, #x : #xs) -> [()] (_, _) -> []
+--   | $ as something with
+--     | $tgt -> [tgt]
 
 -- nishiwakiIf =
 --   macro $b $e1 $e2 ->
