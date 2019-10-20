@@ -141,6 +141,7 @@ opExpr = do
   pos <- L.indentLevel
   makeExprParser atomExpr (makeTable pos)
   where
+    -- TODO(momohatt): '++' doesn't work
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
       let unary  internalName sym =
@@ -157,8 +158,8 @@ opExpr = do
             , InfixL (binary "-"         "-" )
             , InfixL (binary "remainder" "%" )
             , InfixL (binary "or"        "||") ]
-          , [ InfixL (binary "cons"      ":" )
-            , InfixL (binary "append"    "++") ]
+          , [ InfixR (binary "cons"      ":" ) ]
+          , [ InfixR (binary "append"    "++") ]
           , [ InfixL (binary "eq?"       "==")
             , InfixL (binary "lte?"      "<=")
             , InfixL (binary "lt?"       "<" )
@@ -195,12 +196,28 @@ matchClauses :: Pos -> Parser [MatchClause]
 matchClauses pos = sepBy1 (matchClause pos) (symbol "|")
 
 matchClause :: Pos -> Parser MatchClause
-matchClause pos = (,) <$> (L.indentGuard sc GT pos *> patternExpr) <*> (symbol "->" >> expr)
+matchClause pos = (,) <$> (L.indentGuard sc GT pos *> pattern) <*> (symbol "->" >> expr)
 
-patternExpr :: Parser EgisonPattern
-patternExpr = WildCard <$ symbol "_"
+pattern :: Parser EgisonPattern
+pattern = opPattern
+
+opPattern :: Parser EgisonPattern
+opPattern = makeExprParser atomPattern table
+  where
+    table :: [[Operator Parser EgisonPattern]]
+    table =
+      let inductive2 name sym =
+            (\x y -> InductivePat name [x, y]) <$ symbol sym
+       in [ [ InfixR (inductive2 "cons"    ":" )
+            , InfixR (inductive2 "join"    "++") ]
+          ]
+
+
+atomPattern :: Parser EgisonPattern
+atomPattern = WildCard <$   symbol "_"
           <|> PatVar   <$> (symbol "$" >> varLiteral)
           <|> ValuePat <$> (symbol "#" >> atomExpr)
+          <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = LambdaExpr <$> (symbol "\\" >> some arg) <*> (symbol "->" >> expr)
