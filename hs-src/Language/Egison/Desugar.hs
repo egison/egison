@@ -213,7 +213,8 @@ desugar (CollectionExpr (SubCollectionExpr sub:inners)) = do
   (CollectionExpr inners') <- desugar (CollectionExpr inners)
   return $ CollectionExpr (SubCollectionExpr sub':inners')
 
-desugar (VectorExpr exprs) = VectorExpr <$> mapM desugar exprs
+desugar (VectorExpr exprs) =
+  VectorExpr <$> mapM desugar exprs
 
 desugar (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   nsExpr' <- desugar nsExpr
@@ -225,9 +226,7 @@ desugar (LambdaExpr names expr) = do
                                     TensorArg _ -> True
                                     _           -> False) (reverse names)
   case rhnames of
-    [] -> do expr' <- desugar expr
-             return $ LambdaExpr names expr'
-
+    [] -> LambdaExpr names <$> desugar expr
     (InvertedScalarArg rhname:rhnames') -> do
       let (rtnames2, rhnames2) = span (const False) rhnames'
       case rhnames2 of
