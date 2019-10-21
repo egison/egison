@@ -229,11 +229,10 @@ data EgisonExpr =
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
   | UserrefsExpr Bool EgisonExpr EgisonExpr
-  | PowerExpr EgisonExpr EgisonExpr
+  | PowerExpr EgisonExpr EgisonExpr           -- TODO: delete this in v4.0.0
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
-  -- TODO: InnerExpr should be EgisonExpr from 4.0.0
-  | CollectionExpr [InnerExpr]
+  | CollectionExpr [InnerExpr]                -- TODO: InnerExpr should be EgisonExpr from v4.0.0
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | VectorExpr [EgisonExpr]
