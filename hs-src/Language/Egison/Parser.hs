@@ -427,7 +427,7 @@ withSymbolsExpr :: Parser EgisonExpr
 withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> braces (sepEndBy ident whiteSpace) <*> expr
 
 doExpr :: Parser EgisonExpr
-doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr $ stringToVar "return") (TupleExpr [])) expr
+doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (stringToVarExpr "return") (TupleExpr [])) expr
 
 statements :: Parser [BindingExpr]
 statements = braces $ sepEndBy statement whiteSpace
@@ -657,7 +657,7 @@ loopRange :: Parser LoopRange
 loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
                       <|> (do s <- expr
                               ep <- option WildCard pattern
-                              return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
+                              return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
 
 seqNilPat :: Parser EgisonPattern
 seqNilPat = braces $ pure SeqNilPat
