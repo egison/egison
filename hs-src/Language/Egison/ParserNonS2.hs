@@ -127,6 +127,7 @@ expr :: Parser EgisonExpr
 expr = dbg "ifExpr" ifExpr
    <|> dbg "patternMatchExpr" patternMatchExpr
    <|> dbg "lambdaExpr" lambdaExpr
+   <|> dbg "letExpr" letExpr
    <|> try (dbg "applyExpr" applyExpr)
    <|> dbg "opExpr" opExpr
    <?> "expressions"
@@ -205,12 +206,24 @@ lambdaExpr = symbol "\\" >> (
       clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
       return $ ctor matcher clauses
 
-
 arg :: Parser Arg
 arg = ScalarArg         <$> (symbol "$"  >> identifier)
   <|> InvertedScalarArg <$> (symbol "*$" >> identifier)
   <|> TensorArg         <$> (symbol "%"  >> identifier)
   <|> ScalarArg         <$> identifier
+
+letExpr :: Parser EgisonExpr
+letExpr = do
+  pos   <- keywordLet >> L.indentLevel
+  binds <- some (L.indentGuard sc EQ pos *> binding)
+  body  <- keywordIn >> expr
+  return $ LetStarExpr binds body
+
+binding :: Parser BindingExpr
+binding = do
+  vars <- ((:[]) <$> varLiteral) <|> (parens $ sepBy varLiteral comma)
+  body <- symbol "=" >> expr
+  return (vars, body)
 
 applyExpr :: Parser EgisonExpr
 applyExpr = do
@@ -366,8 +379,7 @@ keywordMacro                = reserved "macro"
 keywordPatternFunction      = reserved "patternFunction"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
-keywordLetStar              = reserved "let*"
-keywordLetIn                = reserved "in"
+keywordIn                   = reserved "in"
 keywordWithSymbols          = reserved "withSymbols"
 keywordLoop                 = reserved "loop"
 keywordCont                 = reserved "..."
@@ -417,7 +429,6 @@ lowerReservedWords =
   , "patternFunction"
   , "letrec"
   , "let"
-  , "let*"
   , "in"
   , "withSymbols"
   , "loop"

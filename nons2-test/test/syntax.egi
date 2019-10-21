@@ -46,13 +46,17 @@ assertEqual "if"
   (if False then True else False)
   False
 
--- assertEqual "let binding" (let t = (1, 2) in let (x, y) = t in x + y) 3
+assertEqual "let binding"
+  (let t = (1, 2)
+       (x, y) = t
+    in x + y)
+  3
 
--- assertEqual "let* binding"
---   (let x = 1
---        y = x + 1
---     in y)
---   2
+assertEqual "let binding"
+  (let x = 1
+       y = x + 1
+    in y)
+  2
 --
 -- assertEqual "letrec binding"
 --   (letrec (x, y) = t, t = (1, 2) in x + y)
