@@ -175,12 +175,10 @@ ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
 
 patternMatchExpr :: Parser EgisonExpr
-patternMatchExpr = makeMatchExpr       keywordMatch          MatchExpr
-               <|> makeMatchExpr       keywordMatchDFS       MatchDFSExpr
-               <|> makeMatchExpr       keywordMatchAll       MatchAllExpr
-               <|> makeMatchExpr       keywordMatchAllDFS    MatchAllDFSExpr
-               <|> makeMatchLambdaExpr keywordMatchLambda    MatchLambdaExpr
-               <|> makeMatchLambdaExpr keywordMatchAllLambda MatchAllLambdaExpr
+patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
+               <|> makeMatchExpr keywordMatchDFS    MatchDFSExpr
+               <|> makeMatchExpr keywordMatchAll    MatchAllExpr
+               <|> makeMatchExpr keywordMatchAllDFS MatchAllDFSExpr
   where
     makeMatchExpr keyword ctor = do
       pos     <- L.indentLevel
@@ -189,12 +187,6 @@ patternMatchExpr = makeMatchExpr       keywordMatch          MatchExpr
       clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
       return $ ctor tgt matcher clauses
 
-    makeMatchLambdaExpr keyword ctor = do
-      pos     <- L.indentLevel
-      matcher <- keyword >> keywordAs >> expr
-      clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
-      return $ ctor matcher clauses
-
 matchClauses :: Pos -> Parser [MatchClause]
 matchClauses pos = sepBy1 (matchClause pos) (symbol "|")
 
@@ -202,7 +194,17 @@ matchClause :: Pos -> Parser MatchClause
 matchClause pos = (,) <$> (L.indentGuard sc GT pos *> pattern) <*> (symbol "->" >> expr)
 
 lambdaExpr :: Parser EgisonExpr
-lambdaExpr = LambdaExpr <$> (symbol "\\" >> some arg) <*> (symbol "->" >> expr)
+lambdaExpr = symbol "\\" >> (
+      makeMatchLambdaExpr keywordMatch    MatchLambdaExpr
+  <|> makeMatchLambdaExpr keywordMatchAll MatchAllLambdaExpr
+  <|> LambdaExpr <$> some arg <*> (symbol "->" >> expr))
+  where
+    makeMatchLambdaExpr keyword ctor = do
+      pos     <- L.indentLevel
+      matcher <- keyword >> keywordAs >> expr
+      clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
+      return $ ctor matcher clauses
+
 
 arg :: Parser Arg
 arg = ScalarArg         <$> (symbol "$"  >> identifier)
@@ -357,7 +359,6 @@ keywordElse                 = reserved "else"
 keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
-keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoizedLambda"
 keywordCambda               = reserved "cambda"
 keywordProcedure            = reserved "procedure"
@@ -374,8 +375,6 @@ keywordMatch                = reserved "match"
 keywordMatchDFS             = reserved "matchDFS"
 keywordMatchAll             = reserved "matchAll"
 keywordMatchAllDFS          = reserved "matchAllDFS"
-keywordMatchLambda          = reserved "matchLambda"
-keywordMatchAllLambda       = reserved "matchAllLambda"
 keywordAs                   = reserved "as"
 keywordWith                 = reserved "with"
 keywordMatcher              = reserved "matcher"
@@ -412,7 +411,6 @@ lowerReservedWords =
   , "seq"
   , "apply"
   , "capply"
-  , "lambda"
   , "memoizedLambda"
   , "cambda"
   , "procedure"
@@ -429,8 +427,6 @@ lowerReservedWords =
   , "matchDFS"
   , "matchAll"
   , "matchAllDFS"
-  , "matchLambda"
-  , "matchAllLambda"
   , "as"
   , "with"
   , "matcher"
