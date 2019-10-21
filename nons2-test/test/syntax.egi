@@ -49,7 +49,9 @@ assertEqual "if"
 -- assertEqual "let binding" (let t = (1, 2) in let (x, y) = t in x + y) 3
 
 -- assertEqual "let* binding"
---   (let* x = 1, y = x+1 in y)
+--   (let x = 1
+--        y = x + 1
+--     in y)
 --   2
 --
 -- assertEqual "letrec binding"
@@ -69,19 +71,19 @@ assertEqual "lambda and application"
 -- assertEqual "placeholder" (($ + 1) 10) 11
 
 -- assertEqual "indexed placeholder"
---   ($1+$1)(10)
+--   (($1 + $1) 10)
 --   20
 --
 -- assertEqual "indexed placeholder2"
---   ($2-$1)(10,20)
+--   (($2 - $1) 10 20)
 --   10
 --
 -- findFactor = memoizedLambda
---               $n -> match takeWhile($ <= floor(sqrt(itof(n))), primes) as (list integer)
---                     | _ <++> (?(divisor?(n, $)) and $x) <:> _ -> x
+--               $n -> match takeWhile($ <= floor(sqrt(itof(n))), primes) as (list integer) with
+--                     | _ ++ (?(divisor? n $) && $x)  :  _ -> x
 --                     | _ -> n
 -- assertEqual "memoized lambda"
---   map(findFactor, 1..10)
+--   (map findFactor [1..10])
 --   {1, 2, 3, 2, 5, 2, 7, 2, 3, 2}
 --
 
@@ -157,68 +159,68 @@ assertEqual "not pattern"
    | $n : !(#n : _) -> n)
   [1]
 
+assert "predicate pattern"
+  (match [1, 2, 3] as (list integer) with
+   | ?(\x -> x == 1) : _ -> True)
+
 -- assert "predicate pattern"
---   match [1, 2, 3] as (list integer) with
---   | ?(1 == $)<:>_ -> True
---
--- assert "predicate pattern"
---   match [1, 2, 3] as (list integer) with
---   | ?(2 == $)<:>_ -> False
---   | _ -> True
+--   (match [1, 2, 3] as (list integer) with
+--    | ?(2 == $) : _ -> False
+--    | _ -> True)
 --
 -- assertEqual "indexed pattern variable"
---   match 23 as mod(10
---   | $a_1 -> a
+--   (match 23 as (mod 10) with
+--    | $a_1 -> a)
 --   {| [1, 23] |}
 --
 -- assertEqual "dfs pattern 1"
---   take(10, matchAll nats as (set integer)
---            | dfs($m<:>$n<:>$l<:>_) -> [m, n, l])
+--   (take 10 (matchAll nats as (set integer) with
+--             | (dfs ($m : $n : $l : _)) -> [m, n, l]))
 --   [[1, 1, 1], [1, 1, 2], [1, 1, 3], [1, 1, 4], [1, 1, 5], [1, 1, 6], [1, 1, 7], [1, 1, 8], [1, 1, 9], [1, 1, 10]]
 --
 -- assertEqual "dfs pattern 2"
---   take(10, matchAll nats as (set integer)
---            | $m<:>dfs($n<:>$l<:>_) -> [m, n, l])
+--   (take 10 (matchAll nats as (set integer) with
+--             | $m : (dfs ($n : $l : _)) -> [m, n, l]))
 --   [[1, 1, 1], [2, 1, 1], [3, 1, 1], [4, 1, 1], [5, 1, 1], [6, 1, 1], [7, 1, 1], [8, 1, 1], [9, 1, 1], [10, 1, 1]]
 --
 -- assertEqual "dfs pattern 3"
---   matchAll 1..3 as (set integer)
---   | $m<:>$n<:>dfs($l<:>_) -> [m, n, l]
+--   (matchAll [1..3] as (set integer) with
+--    | $m : $n : (dfs ($l : _)) -> [m, n, l])
 --   [[1, 1, 1], [1, 2, 1], [2, 1, 1], [1, 3, 1], [2, 2, 1], [3, 1, 1], [2, 3, 1], [3, 2, 1], [3, 3, 1], [1, 1, 2], [1, 2, 2], [2, 1, 2], [1, 3, 2], [2, 2, 2], [3, 1, 2], [2, 3, 2], [3, 2, 2], [3, 3, 2], [1, 1, 3], [1, 2, 3], [2, 1, 3], [1, 3, 3], [2, 2, 3], [3, 1, 3], [2, 3, 3], [3, 2, 3], [3, 3, 3]]
 --
 -- assertEqual "dfs and bfs pattern 1"
---   take(10, matchAll nats as (set integer)
---            | dfs($m<:>bfs($n<:>$l<:>_)) -> [m, n, l])
+--   (take 10 (matchAll nats as (set integer) with
+--             | (dfs ($m : (bfs ($n : $l : _)))) -> [m, n, l]))
 --   [[1, 1, 1], [1, 1, 2], [1, 2, 1], [1, 1, 3], [1, 2, 2], [1, 3, 1], [1, 1, 4], [1, 2, 3], [1, 3, 2], [1, 4, 1]]
 --
 -- assertEqual "dfs and bfs pattern 2"
---   take(10, matchAll nats as (set integer)
---            | dfs($m<:>$n<:>bfs($l<:>_)) -> [m, n, l])
+--   (take 10 (matchAll nats as (set integer) with
+--             | (dfs ($m : $n : (bfs ($l : _)))) -> [m, n, l]))
 --   [[1, 1, 1], [1, 1, 2], [1, 1, 3], [1, 1, 4], [1, 1, 5], [1, 1, 6], [1, 1, 7], [1, 1, 8], [1, 1, 9], [1, 1, 10]]
 --
 -- assert "loop pattern"
---   match [3, 2, 1] as (list integer)
---   | loop($i, (1, [3], _), <snoc i ...>, <nil>) -> True
+--   (match [3, 2, 1] as (list integer) with
+--    | loop($i, (1, [3], _), <snoc i ...>, <nil>) -> True)
 --
 -- assertEqual "double loop pattern"
---   match [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as list((list integer))
---   | loop($i, (1, [3], _)
---          <cons loop($j, (1, [3], _), <cons $n_i_j ...>, <nil>) ...>
---          <nil>) -> n
+--   (match [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as (list (list integer)) with
+--    | loop($i, (1, [3], _)
+--           <cons loop($j, (1, [3], _), <cons $n_i_j ...>, <nil>) ...>
+--           <nil>) -> n)
 --   {| [1, {| [1, 1], [2, 2], [3, 3] |}], [2, {| [1, 4], [2, 5], [3, 6] |}], [3, {| [1, 7], [2, 8], [3, 9] |}] |}
 --
 -- assertEqual "let pattern"
---   match [1, 2, 3] as (list integer)
+--   match [1, 2, 3] as (list integer) with
 --   | let a = 42 in _ -> a
 --   42
 --
 -- assertEqual "let pattern"
---   match [1, 2, 3] as (list integer)
+--   match [1, 2, 3] as (list integer) with
 --   | $a : (let x = a in $xs) -> [x, xs]
 --   [1, [2, 3]]
 --
 -- assertEqual "let pattern"
---   match [1, 2, 3] as (list integer)
+--   match [1, 2, 3] as (list integer) with
 --   | $a && (let n = length a in _) -> [a, n]
 --   [[1, 2, 3], 3]
 
@@ -233,14 +235,14 @@ assertEqual "tuple pattern"
   [1, 2]
 
 -- assertEqual "pattern function call"
---   letrec twin = patternFunction([pat1, pat2], ('pat1 and $x) <:> x <:> 'pat2) in
---     match [1, 1, 1, 2, 3] as (list integer)
+--   letrec twin = patternFunction([pat1, pat2], ('pat1 and $x)  :  x  :  'pat2) in
+--     match [1, 1, 1, 2, 3] as (list integer) with
 --     | twin[$n, $ns] -> [n, ns]
 --   [1, [1, 2, 3]]
 --
 -- assertEqual "recursive pattern function call"
---   letrec repeat = patternFunction([pat], <nil> or ('pat and $x) <:> repeat[x]) in
---     match [1, 1, 1, 1] as (list integer)
+--   letrec repeat = patternFunction([pat], <nil> or ('pat and $x)  :  repeat[x]) in
+--     match [1, 1, 1, 1] as (list integer) with
 --     | repeat[$n] -> n
 --   1
 --
@@ -249,7 +251,7 @@ assertEqual "tuple pattern"
 --                       loop($i, (1, [n], _)
 --                         _ <++> <cons 'p_i ...>
 --                         _)) in
---   matchAll [1, 2, 3, 4, 5] as (list integer)
+--   matchAll [1, 2, 3, 4, 5] as (list integer) with
 --   | comb(2)[$n] -> n
 --   [{|[1, 1], [2, 2]|}, {|[1, 1], [2, 3]|}, {|[1, 2], [2, 3]|}, {|[1, 1], [2, 4]|}, {|[1, 2], [2, 4]|}, {|[1, 3], [2, 4]|}, {|[1, 1], [2, 5]|}, {|[1, 2], [2, 5]|}, {|[1, 3], [2, 5]|}, {|[1, 4], [2, 5]|}]
 
@@ -265,19 +267,19 @@ assertEqual "pairs of 2, different natural numbers"
 
 -- def tree(a) = algebraicDataMatcher(<leaf>, <node tree(a) a tree(a)>
 --
--- def treeInsert(n, t) = match t as (tree integer)
+-- def treeInsert(n, t) = match t as (tree integer) with
 --                       | <leaf> -> <Node <Leaf> n <Leaf>>
 --                       | <node $t1 $m $t2> ->
---                           (match compare(n, m) as ordering
+--                           (match (compare n m) as ordering with
 --                            | <less> -> <Node treeInsert(n, t1) m t2>
 --                            | <equal> -> <Node t1 n t2>
 --                            | <greater> -> <Node t1 m treeInsert(n, t2)>
 --
 -- def treeMember?(n, t) =
---   match t as (tree integer)
+--   match t as (tree integer) with
 --   | <leaf> -> False
 --   | <node $t1 $m $t2> ->
---       (match compare(n, m) as ordering
+--       (match (compare n m) as ordering with
 --        | <less> -> treeMember?(n, t1
 --        | <equal> -> True
 --        | <greater> -> treeMember?(n, t2)

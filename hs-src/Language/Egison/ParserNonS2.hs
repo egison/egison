@@ -282,6 +282,7 @@ atomPattern = WildCard <$   symbol "_"
           <|> ValuePat <$> (symbol "#" >> atomExpr)
           <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
           <|> VarPat   <$> identifier
+          <|> PredPat  <$> (symbol "?" >> atomExpr)
           <|> tupleOrParenPattern
 
 --
@@ -348,7 +349,6 @@ upperId = (lexeme . try) (p >>= check)
 identifier :: Parser String
 identifier = lowerId <|> upperId
 
-keywordDefine               = reserved "define"
 keywordSet                  = reserved "set!"
 keywordTest                 = reserved "test"
 keywordLoadFile             = reserved "loadFile"
@@ -400,8 +400,7 @@ upperReservedWords =
   ]
 
 lowerReservedWords =
-  [ "define"
-  , "set!"
+  [ "set!"
   , "test"
   , "loadFile"
   , "load"
