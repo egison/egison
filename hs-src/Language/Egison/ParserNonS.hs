@@ -192,12 +192,12 @@ expr = (try applyInfixExpr
           , [binary "&&" "and" AssocLeft, binary "||" "or" AssocLeft]
           , [binary "++" "join" AssocRight]
           ]
-  unary "-" assoc = Prefix (try $ inSpaces (string "-") >> return (\x -> makeApply (VarExpr $ stringToVar "*") [IntegerExpr (-1), x]))
-  unary op assoc = Prefix (try $ inSpaces (string op) >> return (\x -> makeApply (VarExpr $ stringToVar op) [x]))
+  unary "-" assoc = Prefix (try $ inSpaces (string "-") >> return (\x -> makeApply (stringToVarExpr "*") [IntegerExpr (-1), x]))
+  unary op assoc = Prefix (try $ inSpaces (string op) >> return (\x -> makeApply (stringToVarExpr op) [x]))
   binary op name assoc
-    | op == "/" = Infix (try $ (try (inSpaces1 $ string op) <|> (inSpaces (string op) >> notFollowedBy (string "m" <|> string "fn"))) >> return (\x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
-    | op == "." || op == "%" = Infix (try $ inSpaces1 (string op) >> return (\x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
-    | otherwise = Infix (try $ inSpaces (string op) >> return (\x y -> makeApply (VarExpr $ stringToVar name) [x, y])) assoc
+    | op == "/" = Infix (try $ (try (inSpaces1 $ string op) <|> (inSpaces (string op) >> notFollowedBy (string "m" <|> string "fn"))) >> return (\x y -> makeApply (stringToVarExpr name) [x, y])) assoc
+    | op == "." || op == "%" = Infix (try $ inSpaces1 (string op) >> return (\x y -> makeApply (stringToVarExpr name) [x, y])) assoc
+    | otherwise = Infix (try $ inSpaces (string op) >> return (\x y -> makeApply (stringToVarExpr name) [x, y])) assoc
 
 inSpaces :: Parser a -> Parser ()
 inSpaces p = skipMany (space <|> newline) >> p >> skipMany (space <|> newline)
@@ -206,9 +206,9 @@ inSpaces1 :: Parser a -> Parser ()
 inSpaces1 p = skipMany (space <|> newline) >> p >> skipMany1 (space <|> newline)
 
 exprWithSymbol :: Parser EgisonExpr
-exprWithSymbol = (string "d/d" >> applyExpr'' (VarExpr $ stringToVar "d/d"))
-                 <|> (string "V.*" >> applyExpr'' (VarExpr $ stringToVar "V.*"))
-                 <|> (string "M.*" >> applyExpr'' (VarExpr $ stringToVar "M.*"))
+exprWithSymbol = (string "d/d" >> applyExpr'' (stringToVarExpr "d/d"))
+                 <|> (string "V.*" >> applyExpr'' (stringToVarExpr "V.*"))
+                 <|> (string "M.*" >> applyExpr'' (stringToVarExpr "M.*"))
                  <|> (lookAhead (string "let*") >> letStarExpr)
 
 term :: Parser EgisonExpr
@@ -426,7 +426,7 @@ withSymbolsExpr :: Parser EgisonExpr
 withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> braces (sepEndBy ident comma) <*> expr
 
 doExpr :: Parser EgisonExpr
-doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (VarExpr $ stringToVar "return") (TupleExpr [])) expr
+doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (stringToVarExpr "return") (TupleExpr [])) expr
 
 statements :: Parser [BindingExpr]
 statements = braces $ sepEndBy statement comma
@@ -654,7 +654,7 @@ loopRange = parens (try (LoopRange <$> expr <* comma <*> expr <*> option WildCar
                  <|> (do s <- expr
                          comma
                          ep <- option WildCard pattern
-                         return (LoopRange s (ApplyExpr (VarExpr $ stringToVar "from") (ApplyExpr (VarExpr $ stringToVar "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
+                         return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
 
 -- Constants
 

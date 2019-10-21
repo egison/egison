@@ -154,6 +154,7 @@ module Language.Egison.Types
     , isHash'
     , readUTF8File
     , stringToVar
+    , stringToVarExpr
     , varToVarWithIndices
     , EgisonOpts (..)
     , defaultOption
@@ -1955,6 +1956,9 @@ readUTF8File name = do
 
 stringToVar :: String -> Var
 stringToVar name = Var (splitOn "." name) []
+
+stringToVarExpr :: String -> EgisonExpr
+stringToVarExpr = VarExpr . stringToVar
 
 varToVarWithIndices :: Var -> VarWithIndices
 varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is

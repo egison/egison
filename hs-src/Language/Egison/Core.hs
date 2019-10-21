@@ -149,7 +149,7 @@ evalExpr env (VarExpr name) = do
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" $ show var))) return
                           (refVar env var)
 
-evalExpr env (PartialVarExpr n) = evalExpr env (VarExpr $ stringToVar ("::" ++ show n))
+evalExpr env (PartialVarExpr n) = evalExpr env (stringToVarExpr ("::" ++ show n))
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
@@ -422,7 +422,7 @@ evalExpr env (LetRecExpr bindings expr) =
         nth n =
           let pattern = TuplePat $ flip map [1..k] $ \i ->
                 if i == n then PatVar (stringToVar "#_") else WildCard
-          in MatchExpr target matcher [(pattern, VarExpr $ stringToVar "#_")]
+          in MatchExpr target matcher [(pattern, stringToVarExpr "#_")]
     return ((var, expr) : map (second nth) (zip names [1..]))
 
   genVar :: State Int Var
@@ -481,12 +481,12 @@ evalExpr env (WithSymbolsExpr vars expr) = do
 
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
-  let body = foldr genLet (ApplyExpr expr $ TupleExpr [VarExpr $ stringToVar "#1"]) bindings
+  let body = foldr genLet (ApplyExpr expr $ TupleExpr [stringToVarExpr "#1"]) bindings
   applyFunc env (Value $ Func Nothing env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
-    LetExpr [(map stringToVar ["#1", "#2"], ApplyExpr expr $ TupleExpr [VarExpr $ stringToVar "#1"])] $
-    LetExpr [(names, VarExpr $ stringToVar "#2")] expr'
+    LetExpr [(map stringToVar ["#1", "#2"], ApplyExpr expr $ TupleExpr [stringToVarExpr "#1"])] $
+    LetExpr [(names, stringToVarExpr "#2")] expr'
 
 evalExpr env (IoExpr expr) = do
   io <- evalExpr env expr
@@ -812,7 +812,7 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
       let argnum = length tds
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
-      dot <- evalExpr env (VarExpr $ stringToVar ".")
+      dot <- evalExpr env (stringToVarExpr ".")
       makeITuple (Value (TensorData (Tensor s1 t1 (i1 ++ supjs))):map (Intermediate .ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
@@ -824,7 +824,7 @@ applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
       let argnum = length tds
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
-      dot <- evalExpr env (VarExpr $ stringToVar ".")
+      dot <- evalExpr env (stringToVarExpr ".")
       makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds))) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
