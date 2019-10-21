@@ -201,34 +201,6 @@ matchClauses pos = sepBy1 (matchClause pos) (symbol "|")
 matchClause :: Pos -> Parser MatchClause
 matchClause pos = (,) <$> (L.indentGuard sc GT pos *> pattern) <*> (symbol "->" >> expr)
 
-pattern :: Parser EgisonPattern
-pattern = opPattern
-
-opPattern :: Parser EgisonPattern
-opPattern = makeExprParser atomPattern table
-  where
-    table :: [[Operator Parser EgisonPattern]]
-    table =
-      [ [ Prefix (NotPat <$ symbol "!") ]
-      -- 5
-      , [ InfixR (inductive2 "cons" ":" )
-        , InfixR (inductive2 "join" "++") ]
-      -- 3
-      , [ InfixR (binary AndPat "&&") ]
-      -- 2
-      , [ InfixR (binary OrPat  "||") ]
-      ]
-    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ symbol sym
-    binary name sym     = (\x y -> name [x, y]) <$ symbol sym
-
-
-atomPattern :: Parser EgisonPattern
-atomPattern = WildCard <$   symbol "_"
-          <|> PatVar . stringToVar <$> (symbol "$" >> identifier)
-          <|> ValuePat <$> (symbol "#" >> atomExpr)
-          <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
-          <|> parens pattern
-
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = LambdaExpr <$> (symbol "\\" >> some arg) <*> (symbol "->" >> expr)
 
@@ -270,6 +242,45 @@ atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> collectionExpr
        <|> tupleOrParenExpr
        <?> "atomic expressions"
+
+--
+-- Pattern
+--
+
+pattern :: Parser EgisonPattern
+pattern = opPattern
+
+opPattern :: Parser EgisonPattern
+opPattern = makeExprParser atomPattern table
+  where
+    table :: [[Operator Parser EgisonPattern]]
+    table =
+      [ [ Prefix (NotPat <$ symbol "!") ]
+      -- 5
+      , [ InfixR (inductive2 "cons" ":" )
+        , InfixR (inductive2 "join" "++") ]
+      -- 3
+      , [ InfixR (binary AndPat "&&") ]
+      -- 2
+      , [ InfixR (binary OrPat  "||") ]
+      ]
+    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ symbol sym
+    binary name sym     = (\x y -> name [x, y]) <$ symbol sym
+
+tupleOrParenPattern :: Parser EgisonPattern
+tupleOrParenPattern = do
+  elems <- parens $ sepBy pattern comma
+  case elems of
+    [p] -> return p
+    _   -> return $ TuplePat elems
+
+atomPattern :: Parser EgisonPattern
+atomPattern = WildCard <$   symbol "_"
+          <|> PatVar . stringToVar <$> (symbol "$" >> identifier)
+          <|> ValuePat <$> (symbol "#" >> atomExpr)
+          <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
+          <|> VarPat   <$> identifier
+          <|> tupleOrParenPattern
 
 --
 -- Tokens
