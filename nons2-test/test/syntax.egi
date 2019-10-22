@@ -137,6 +137,14 @@ assertEqual "match-all-lambda-multi"
     | $x : #(x + 2) : _ -> [x, x + 2]) [1, 2, 3])
   [[1, 2], [2, 3], [1, 3]]
 
+assert "nested pattern match"
+  (match [1, 2, 3] as (list integer) with
+   | #2 : $x -> match x as (multiset integer) with
+                | _ -> False
+   | #1 : $x -> match x as (multiset integer) with
+                | #1 : _ -> False
+                | #2 : _ -> True)
+
 assertEqual "pattern variable"
   (match 1 as something with $x -> x)
   1

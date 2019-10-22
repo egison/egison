@@ -195,14 +195,17 @@ patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
       pos     <- L.indentLevel
       tgt     <- keyword >> expr
       matcher <- keywordAs >> expr
-      clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
+      clauses <- keywordWith >> matchClauses1 pos
       return $ ctor tgt matcher clauses
 
-matchClauses :: Pos -> Parser [MatchClause]
-matchClauses pos = sepBy1 (matchClause pos) (symbol "|")
-
-matchClause :: Pos -> Parser MatchClause
-matchClause pos = (,) <$> (L.indentGuard sc GT pos *> pattern) <*> (symbol "->" >> expr)
+matchClauses1 :: Pos -> Parser [MatchClause]
+matchClauses1 pos = (:) <$> (optional (symbol "|") >> matchClause pos) <*> matchClauses pos
+  where
+    matchClauses :: Pos -> Parser [MatchClause]
+    matchClauses pos = try ((:) <$> (symbol "|" >> matchClause pos) <*> matchClauses pos)
+                   <|> (return [])
+    matchClause :: Pos -> Parser MatchClause
+    matchClause pos = (,) <$> (L.indentGuard sc GT pos *> pattern) <*> (symbol "->" >> expr)
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
@@ -213,7 +216,7 @@ lambdaExpr = symbol "\\" >> (
     makeMatchLambdaExpr keyword ctor = do
       pos     <- L.indentLevel
       matcher <- keyword >> keywordAs >> expr
-      clauses <- keywordWith >> optional (symbol "|") >> matchClauses pos
+      clauses <- keywordWith >> matchClauses1 pos
       return $ ctor matcher clauses
 
 arg :: Parser Arg
