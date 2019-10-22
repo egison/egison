@@ -228,21 +228,21 @@ assert "predicate pattern"
 --           <cons loop($j, (1, [3], _), <cons $n_i_j ...>, <nil>) ...>
 --           <nil>) -> n)
 --   {| [1, {| [1, 1], [2, 2], [3, 3] |}], [2, {| [1, 4], [2, 5], [3, 6] |}], [3, {| [1, 7], [2, 8], [3, 9] |}] |}
---
--- assertEqual "let pattern"
---   match [1, 2, 3] as (list integer) with
---   | let a = 42 in _ -> a
---   42
---
--- assertEqual "let pattern"
---   match [1, 2, 3] as (list integer) with
---   | $a : (let x = a in $xs) -> [x, xs]
---   [1, [2, 3]]
---
--- assertEqual "let pattern"
---   match [1, 2, 3] as (list integer) with
---   | $a && (let n = length a in _) -> [a, n]
---   [[1, 2, 3], 3]
+
+assertEqual "let pattern"
+  (match [1, 2, 3] as (list integer) with
+   | let a = 42 in _ -> a)
+  42
+
+assertEqual "let pattern"
+  (match [1, 2, 3] as (list integer) with
+   | $a : (let x = a in $xs) -> [x, xs])
+  [1, [2, 3]]
+
+assertEqual "let pattern"
+  (match [1, 2, 3] as (list integer) with
+   | $a && (let n = length a in _) -> [a, n])
+  [[1, 2, 3], 3]
 
 assertEqual "tuple pattern"
   (matchAll (1, (2, 3)) as (integer, (integer, integer)) with
