@@ -258,6 +258,12 @@ tupleOrParenExpr = do
     [x] -> return x
     _   -> return $ TupleExpr elems
 
+hashExpr :: Parser EgisonExpr
+hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
+  where
+    hashBraces = between (symbol "{|") (symbol "|}")
+    hashElem = brackets $ (,) <$> expr <*> (comma >> expr)
+
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> BoolExpr <$> boolLiteral
@@ -269,6 +275,7 @@ atomExpr = IntegerExpr <$> positiveIntegerLiteral
        <|> (\x -> InductiveDataExpr x []) <$> upperId
        <|> collectionExpr
        <|> tupleOrParenExpr
+       <|> hashExpr
        <?> "atomic expressions"
 
 --
@@ -336,9 +343,7 @@ lexeme = L.lexeme sc
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
 brackets  = between (symbol "[") (symbol "]")
-semicolon = symbol ";"
 comma     = symbol ","
-colon     = symbol ":"
 dot       = symbol "."
 
 positiveIntegerLiteral :: Parser Integer

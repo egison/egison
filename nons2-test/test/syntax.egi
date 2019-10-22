@@ -185,7 +185,7 @@ assert "predicate pattern"
 
 assert "predicate pattern"
   (match [1, 2, 3] as (list integer) with
-   | ?(2 == $) : _ -> False
+    | ?(\x -> x == 2) : _ -> False
    | _ -> True)
 
 -- assertEqual "indexed pattern variable"
@@ -299,18 +299,19 @@ assertEqual "pairs of 2, different natural numbers"
 --
 -- Hash
 --
--- assertEqual "hash-literal"
---   {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |}
---   {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |}
---
--- assertEqual "empty hash-literal"
---   {| |}
---   {| |}
---
+
+assertEqual "hash-literal"
+  {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |}
+  {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |}
+
+assertEqual "empty hash-literal"
+  {| |}
+  {| |}
+
 -- assertEqual "hash access"
 --   {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |}_3
 --   13
---
+
 --
 -- Partial Application
 --
