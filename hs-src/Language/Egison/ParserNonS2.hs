@@ -121,7 +121,9 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 --
 
 topExpr :: Parser EgisonTopExpr
-topExpr = Test <$> (dbg "expr" expr)
+topExpr = Load     <$> (keywordLoad >> stringLiteral)
+      <|> LoadFile <$> (keywordLoadFile >> stringLiteral)
+      <|> Test     <$> try (dbg "expr" expr)
 
 expr :: Parser EgisonExpr
 expr = dbg "ifExpr" ifExpr
@@ -362,8 +364,6 @@ upperId = (lexeme . try) (p >>= check)
 identifier :: Parser String
 identifier = lowerId <|> upperId
 
-keywordSet                  = reserved "set!"
-keywordTest                 = reserved "test"
 keywordLoadFile             = reserved "loadFile"
 keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
@@ -412,9 +412,7 @@ upperReservedWords =
   ]
 
 lowerReservedWords =
-  [ "set!"
-  , "test"
-  , "loadFile"
+  [ "loadFile"
   , "load"
   , "if"
   , "then"
@@ -454,7 +452,8 @@ lowerReservedWords =
   , "suprefs!"
   , "userRefs"
   , "userRefs!"
-  , "function"]
+  , "function"
+  ]
 
 --
 -- Utils
