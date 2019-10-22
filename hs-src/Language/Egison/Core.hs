@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE ViewPatterns    #-}
+{-# LANGUAGE MultiWayIf      #-}
 
 {- |
 Module      : Language.Egison.Core
@@ -85,12 +86,18 @@ collectDefs opts (expr:exprs) bindings rest =
     LoadFile file ->
       if optNoIO opts
          then throwError $ Default "No IO support"
-         else do exprs' <- if optUseHappy opts then ParserNonS2.loadFile file else if optSExpr opts then Parser.loadFile file else ParserNonS.loadFile file
+         else do exprs' <- if
+                   | optUseHappy opts -> ParserNonS2.loadFile file
+                   | optSExpr opts    -> Parser.loadFile file
+                   | otherwise        -> ParserNonS.loadFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
     Load file ->
       if optNoIO opts
          then throwError $ Default "No IO support"
-         else do exprs' <- if optUseHappy opts then ParserNonS2.loadLibraryFile file else if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
+         else do exprs' <- if
+                   | optUseHappy opts -> ParserNonS2.loadLibraryFile file
+                   | optSExpr opts    -> Parser.loadLibraryFile file
+                   | otherwise        -> ParserNonS.loadLibraryFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
 collectDefs _ [] bindings rest = return (bindings, reverse rest)
 
@@ -1202,13 +1209,15 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
               (carEndsRef, cdrEndsRef) <- fromJust <$> runMaybeT (unconsCollection ends)
               b2 <- evalRef cdrEndsRef >>= isEmptyCollection
               carEndsNum <- evalRef carEndsRef >>= fromWHNF
-              if startNum > carEndsNum
-                then return MNil
-                else if startNum == carEndsNum
-                       then if b2
-                              then return $ fromList [MState env loops' seqs bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees)]
-                              else return $ fromList [MState env loops' seqs bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees), MState env (LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat':loops') seqs bindings (MAtom pat target matcher:trees)]
-                       else return $ fromList [MState env (LoopPatContext (name, nextNumRef) endsRef endPat pat pat':loops') seqs bindings (MAtom pat target matcher:trees)]
+              return $ if
+                | startNum >  carEndsNum -> MNil
+                | startNum == carEndsNum && b2 ->
+                  fromList [MState env loops' seqs bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees)]
+                | startNum == carEndsNum ->
+                  fromList [MState env loops' seqs bindings (MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees),
+                            MState env (LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat':loops') seqs bindings (MAtom pat target matcher:trees)]
+                | otherwise ->
+                  fromList [MState env (LoopPatContext (name, nextNumRef) endsRef endPat pat pat':loops') seqs bindings (MAtom pat target matcher:trees)]
     SeqNilPat -> throwError =<< EgisonBug "should not reach here (seq nil pattern)" <$> getFuncNameStack
     SeqConsPat pattern pattern' -> return $ msingleton $ MState env loops (SeqPatContext trees pattern' [] []:seqs) bindings [MAtom pattern target matcher]
     LaterPatVar ->
