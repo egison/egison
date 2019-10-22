@@ -276,7 +276,15 @@ atomExpr = IntegerExpr <$> positiveIntegerLiteral
 --
 
 pattern :: Parser EgisonPattern
-pattern = opPattern
+pattern = letPattern
+      <|> opPattern
+
+letPattern :: Parser EgisonPattern
+letPattern = do
+  pos   <- keywordLet >> L.indentLevel
+  binds <- some (L.indentGuard sc EQ pos *> binding)
+  body  <- keywordIn >> pattern
+  return $ LetPat binds body
 
 opPattern :: Parser EgisonPattern
 opPattern = makeExprParser atomPattern table
