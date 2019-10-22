@@ -89,7 +89,15 @@ assertEqual "lambda and application"
 -- assertEqual "memoized lambda"
 --   (map findFactor [1..10])
 --   {1, 2, 3, 2, 5, 2, 7, 2, 3, 2}
---
+
+twinPrimes =
+  matchAll primes as list integer with
+  | _ ++ $p : #(p + 2) : _ -> (p, p + 2)
+
+assertEqual "twin primes"
+  (take 10 twinPrimes)
+  [(3, 5), (5, 7), (11, 13), (17, 19), (29, 31), (41, 43), (59, 61), (71, 73), (101, 103), (107, 109)]
+
 
 --
 -- Pattern-Matching

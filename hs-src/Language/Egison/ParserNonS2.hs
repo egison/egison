@@ -123,13 +123,21 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 topExpr :: Parser EgisonTopExpr
 topExpr = Load     <$> (keywordLoad >> stringLiteral)
       <|> LoadFile <$> (keywordLoadFile >> stringLiteral)
-      <|> Test     <$> try (dbg "expr" expr)
+      <|> try (dbg "define" defineExpr)
+      <|> Test     <$> dbg "expr" expr
+
+defineExpr :: Parser EgisonTopExpr
+defineExpr = do
+  var <- varLiteral
+  symbol "="
+  body <- expr
+  return $ Define var body
 
 expr :: Parser EgisonExpr
-expr = dbg "ifExpr" ifExpr
-   <|> dbg "patternMatchExpr" patternMatchExpr
-   <|> dbg "lambdaExpr" lambdaExpr
-   <|> dbg "letExpr" letExpr
+expr = ifExpr
+   <|> patternMatchExpr
+   <|> lambdaExpr
+   <|> letExpr
    <|> try (dbg "applyExpr" applyExpr)
    <|> dbg "opExpr" opExpr
    <?> "expressions"
