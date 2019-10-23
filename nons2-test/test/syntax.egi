@@ -72,6 +72,8 @@ assertEqual "lambda and application"
   ((\x -> x + 1) 10)
   11
 
+assertEqual "point free expr" ((+) 10 1) 11
+
 -- assertEqual "placeholder" (($ + 1) 10) 11
 
 -- assertEqual "indexed placeholder"
