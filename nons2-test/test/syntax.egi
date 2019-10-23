@@ -73,17 +73,9 @@ assertEqual "lambda and application"
   11
 
 assertEqual "point free expr" ((+) 10 1) 11
+assertEqual "point free expr" ((+ 1) 10) 11
+-- assertEqual "point free expr" ((10 -) 1) 9
 
--- assertEqual "placeholder" (($ + 1) 10) 11
-
--- assertEqual "indexed placeholder"
---   (($1 + $1) 10)
---   20
---
--- assertEqual "indexed placeholder2"
---   (($2 - $1) 10 20)
---   10
---
 -- findFactor = memoizedLambda
 --               $n -> match takeWhile($ <= floor(sqrt(itof(n))), primes) as (list integer) with
 --                     | _ ++ (?(divisor? n $) && $x)  :  _ -> x
