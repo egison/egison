@@ -259,14 +259,25 @@ tupleOrParenExpr = do
     _   -> return $ TupleExpr elems
   where
     makeLambda name =
-      let x = stringToVarExpr "x"
-          y = stringToVarExpr "y"
-       in LambdaExpr [ScalarArg "x", ScalarArg "y"]
-                     (ApplyExpr (stringToVarExpr name) (TupleExpr [x, y]))
+      LambdaExpr [ScalarArg "x", ScalarArg "y"]
+                 (ApplyExpr (stringToVarExpr name)
+                            (TupleExpr [stringToVarExpr "x", stringToVarExpr "y"]))
+    makeLambdaL name rarg =
+      LambdaExpr [ScalarArg "x"]
+                 (ApplyExpr (stringToVarExpr name)
+                            (TupleExpr [stringToVarExpr "x", rarg]))
+    makeLambdaR name larg =
+      LambdaExpr [ScalarArg "y"]
+                 (ApplyExpr (stringToVarExpr name)
+                            (TupleExpr [larg, stringToVarExpr "y"]))
 
     pointFreeExpr :: Parser [EgisonExpr]
-    pointFreeExpr =
-      parseOneOf $ map (\(sym, sem) -> symbol sym $> [makeLambda sem]) reservedBinops
+    pointFreeExpr = do
+      op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
+      rarg <- optional $ expr
+      case rarg of
+        Nothing -> return [makeLambda op]
+        Just y  -> return [makeLambdaL op y]
 
 hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
