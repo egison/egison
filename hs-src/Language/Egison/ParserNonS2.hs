@@ -253,10 +253,20 @@ collectionExpr = symbol "[" >> (try _betweenExpr <|> _elementsExpr)
 
 tupleOrParenExpr :: Parser EgisonExpr
 tupleOrParenExpr = do
-  elems <- parens $ sepBy expr comma
+  elems <- parens $ try pointFreeExpr <|> sepBy expr comma
   case elems of
     [x] -> return x
     _   -> return $ TupleExpr elems
+  where
+    makeLambda name =
+      let x = stringToVarExpr "x"
+          y = stringToVarExpr "y"
+       in LambdaExpr [ScalarArg "x", ScalarArg "y"]
+                     (ApplyExpr (stringToVarExpr name) (TupleExpr [x, y]))
+
+    pointFreeExpr :: Parser [EgisonExpr]
+    pointFreeExpr =
+      parseOneOf $ map (\(sym, sem) -> symbol sym $> [makeLambda sem]) reservedBinops
 
 hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
@@ -479,9 +489,29 @@ lowerReservedWords =
   , "function"
   ]
 
+reservedBinops :: [(String, String)]
+reservedBinops = [ ("^",  "**"       )
+                 , ("*",  "*"        )
+                 , ("/",  "/"        )
+                 , ("%",  "remainder")
+                 , ("+",  "+"        )
+                 , ("-",  "-"        )
+                 , (":",  "cons"     )
+                 , ("++", "append"   )
+                 , ("==", "eq?"      )
+                 , ("<=", "lte?"     )
+                 , ("<",  "lt?"      )
+                 , (">=", "gte?"     )
+                 , (">",  "gt?"      )
+                 , ("&&", "and"      )
+                 , ("||", "or"       ) ]
+
 --
 -- Utils
 --
+
+parseOneOf :: [Parser a] -> Parser a
+parseOneOf = foldl1 (\acc p -> acc <|> p)
 
 makeBinaryOpApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
 makeBinaryOpApply func x y = makeApply (VarExpr $ stringToVar func) [x, y]
