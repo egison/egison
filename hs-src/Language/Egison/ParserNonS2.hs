@@ -37,6 +37,7 @@ import           Data.Char               (isLower, isUpper, toLower)
 import           Data.Either
 import           Data.Functor            (($>))
 import           Data.List.Split         (split, splitOn, startsWithOneOf)
+import           Data.Maybe
 import           Data.Ratio
 import           Data.Traversable        (mapM)
 
@@ -338,10 +339,24 @@ loopPattern :: Parser EgisonPattern
 loopPattern = do
   keywordLoop
   iter <- patVarLiteral
-  range <- parens $ LoopRange <$> expr <*> (comma >> expr) <*> (comma >> pattern)
-  loopBody <- atomPattern
-  loopEnd <- atomPattern
+  range <- parseRange
+  loopBody <- optional (symbol "|") >> pattern
+  loopEnd <- symbol "|" >> pattern
   return $ LoopPat iter range loopBody loopEnd
+  where
+    parseRange :: Parser LoopRange
+    parseRange =
+      try (parens $ LoopRange <$> expr <*> (comma >> expr) <*> (comma >> pattern))
+      <|> (do start <- keywordFrom >> expr
+              ends  <- fromMaybe (defaultEnds start) <$> optional (keywordTo >> expr)
+              as    <- fromMaybe WildCard <$> optional (keywordAs >> pattern)
+              keywordOf
+              return $ LoopRange start ends as)
+
+    defaultEnds s =
+      ApplyExpr
+        (stringToVarExpr "from")
+        (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))
 
 applyPattern :: Parser EgisonPattern
 applyPattern = do
@@ -383,7 +398,7 @@ atomPattern = WildCard <$   symbol "_"
           <|> InductivePat <$> identifier <*> pure []
           <|> VarPat   <$> (char '~' >> identifier)
           <|> PredPat  <$> (symbol "?" >> atomExpr)
-          <|> ContPat  <$ keywordCont
+          <|> ContPat  <$ symbol "..."
           <|> tupleOrParenPattern
 
 patVarLiteral :: Parser Var
@@ -468,7 +483,9 @@ keywordLet                  = reserved "let"
 keywordIn                   = reserved "in"
 keywordWithSymbols          = reserved "withSymbols"
 keywordLoop                 = reserved "loop"
-keywordCont                 = reserved "..."
+keywordFrom                 = reserved "from"
+keywordTo                   = reserved "to"
+keywordOf                   = reserved "of"
 keywordMatch                = reserved "match"
 keywordMatchDFS             = reserved "matchDFS"
 keywordMatchAll             = reserved "matchAll"
@@ -515,7 +532,9 @@ lowerReservedWords =
   , "in"
   , "withSymbols"
   , "loop"
-  , "..."
+  , "from"
+  , "to"
+  , "of"
   , "match"
   , "matchDFS"
   , "matchAll"
