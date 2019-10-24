@@ -107,38 +107,38 @@ assertEqual "match"
   11
 
 assertEqual "match-all"
-  (matchAll [1, 2, 3] as (multiset integer) with
+  (matchAll [1, 2, 3] as multiset integer with
    | $x : _ -> x)
   [1, 2, 3]
 
 assertEqual "match-all-multi"
-  (matchAll [1, 2, 3] as (multiset integer) with
+  (matchAll [1, 2, 3] as multiset integer with
    | $x : #(x + 1) : _ -> [x, x + 1]
    | $x : #(x + 2) : _ -> [x, x + 2])
   [[1, 2], [2, 3], [1, 3]]
 
 assertEqual "match-lambda"
-  ((\match as (list integer) with
+  ((\match as list integer with
     | [] -> 0
     | $x : _ -> x) [1, 2, 3])
   1
 
 assertEqual "match-all-lambda"
-  ((\matchAll as (list something) with
+  ((\matchAll as list something with
     | _ ++ $x : _ -> x) [1, 2, 3])
   [1, 2, 3]
 
 assertEqual "match-all-lambda-multi"
-  ((\matchAll as (multiset something) with
+  ((\matchAll as multiset something with
     | $x : #(x + 1) : _ -> [x, x + 1]
     | $x : #(x + 2) : _ -> [x, x + 2]) [1, 2, 3])
   [[1, 2], [2, 3], [1, 3]]
 
 assert "nested pattern match"
-  (match [1, 2, 3] as (list integer) with
-   | #2 : $x -> match x as (multiset integer) with
+  (match [1, 2, 3] as list integer with
+   | #2 : $x -> match x as multiset integer with
                 | _ -> False
-   | #1 : $x -> match x as (multiset integer) with
+   | #1 : $x -> match x as multiset integer with
                 | #1 : _ -> False
                 | #2 : _ -> True)
 
@@ -149,20 +149,20 @@ assertEqual "pattern variable"
 assert "value pattern" (match 1 as integer with #1 -> True)
 
 -- assert "and pattern"
---   (match [1, 2, 3] as (list integer) with
+--   (match [1, 2, 3] as list integer with
 --    | #1 : _ && (snoc #3 _) -> True)
 
 assert "and pattern"
-  (match [1, 2, 3] as (list integer) with
+  (match [1, 2, 3] as list integer with
    | #1 : _ && #3 : _ -> False
    | _ -> True)
 
 -- assert "or pattern"
---   (match [1, 2, 3] as (list integer) with
+--   (match [1, 2, 3] as list integer with
 --    | (snoc #1 _) || (snoc #3 _) -> True)
 
 assert "or pattern"
-  (match [1, 2, 3] as (list integer) with
+  (match [1, 2, 3] as list integer with
    | #2 : _ || #3 : _ -> False
    | _ -> True)
 
@@ -172,26 +172,26 @@ assert "not pattern"
    | ! #2 -> True)
 
 assertEqual "not pattern"
-  (matchAll [1, 2, 2, 3, 3, 3] as (multiset integer) with
+  (matchAll [1, 2, 2, 3, 3, 3] as multiset integer with
    | $n : !(#n : _) -> n)
   [1]
 
 assert "predicate pattern"
-  (match [1, 2, 3] as (list integer) with
+  (match [1, 2, 3] as list integer with
    | ?(\x -> x == 1) : _ -> True)
 
 assert "predicate pattern"
-  (match [1, 2, 3] as (list integer) with
+  (match [1, 2, 3] as list integer with
     | ?(\x -> x == 2) : _ -> False
    | _ -> True)
 
 -- assertEqual "indexed pattern variable"
---   (match 23 as (mod 10) with
+--   (match 23 as mod 10 with
 --    | $a_1 -> a)
 --   {| [1, 23] |}
 --
 -- assert "loop pattern"
---   (match [3, 2, 1] as (list integer) with
+--   (match [3, 2, 1] as list integer with
 --    | loop($i, (1, [3], _), <snoc i ...>, <nil>) -> True)
 --
 -- assertEqual "double loop pattern"
@@ -202,17 +202,17 @@ assert "predicate pattern"
 --   {| [1, {| [1, 1], [2, 2], [3, 3] |}], [2, {| [1, 4], [2, 5], [3, 6] |}], [3, {| [1, 7], [2, 8], [3, 9] |}] |}
 
 assertEqual "let pattern"
-  (match [1, 2, 3] as (list integer) with
+  (match [1, 2, 3] as list integer with
    | let a = 42 in _ -> a)
   42
 
 assertEqual "let pattern"
-  (match [1, 2, 3] as (list integer) with
+  (match [1, 2, 3] as list integer with
    | $a : (let x = a in $xs) -> [x, xs])
   [1, [2, 3]]
 
 assertEqual "let pattern"
-  (match [1, 2, 3] as (list integer) with
+  (match [1, 2, 3] as list integer with
    | $a && (let n = length a in _) -> [a, n])
   [[1, 2, 3], 3]
 
@@ -248,18 +248,18 @@ assertEqual "tuple pattern"
 --   [{|[1, 1], [2, 2]|}, {|[1, 1], [2, 3]|}, {|[1, 2], [2, 3]|}, {|[1, 1], [2, 4]|}, {|[1, 2], [2, 4]|}, {|[1, 3], [2, 4]|}, {|[1, 1], [2, 5]|}, {|[1, 2], [2, 5]|}, {|[1, 3], [2, 5]|}, {|[1, 4], [2, 5]|}]
 
 assertEqual "pairs of 2, natural numbers"
-  (take 10 (matchAll nats as (set integer) with
+  (take 10 (matchAll nats as set integer with
             | $m : $n : _ -> [m, n]))
   [[1, 1], [1, 2], [2, 1], [1, 3], [2, 2], [3, 1], [1, 4], [2, 3], [3, 2], [4, 1]]
 
 assertEqual "pairs of 2, different natural numbers"
-  (take 10 (matchAll nats as (list integer) with
+  (take 10 (matchAll nats as list integer with
             | _ ++ $m : _ ++ $n : _ -> [m, n]))
   [[1, 2], [1, 3], [2, 3], [1, 4], [2, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5]]
 
 -- def tree(a) = algebraicDataMatcher(<leaf>, <node tree(a) a tree(a)>
 --
--- def treeInsert(n, t) = match t as (tree integer) with
+-- def treeInsert(n, t) = match t as tree integer with
 --                       | <leaf> -> <Node <Leaf> n <Leaf>>
 --                       | <node $t1 $m $t2> ->
 --                           (match (compare n m) as ordering with
@@ -268,7 +268,7 @@ assertEqual "pairs of 2, different natural numbers"
 --                            | <greater> -> <Node t1 m treeInsert(n, t2)>
 --
 -- def treeMember?(n, t) =
---   match t as (tree integer) with
+--   match t as tree integer with
 --   | <leaf> -> False
 --   | <node $t1 $m $t2> ->
 --       (match (compare n m) as ordering with
