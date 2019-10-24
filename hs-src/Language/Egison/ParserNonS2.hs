@@ -311,6 +311,7 @@ atomExpr = IntegerExpr <$> positiveIntegerLiteral
 
 pattern :: Parser EgisonPattern
 pattern = letPattern
+      <|> try applyPattern
       <|> opPattern
 
 letPattern :: Parser EgisonPattern
@@ -319,6 +320,14 @@ letPattern = do
   binds <- some (L.indentGuard sc EQ pos *> binding)
   body  <- keywordIn >> pattern
   return $ LetPat binds body
+
+applyPattern :: Parser EgisonPattern
+applyPattern = do
+  pos <- L.indentLevel
+  func <- atomPattern
+  args <- some (L.indentGuard sc GT pos *> atomPattern)
+  case func of
+    InductivePat x [] -> return $ InductivePat x args
 
 opPattern :: Parser EgisonPattern
 opPattern = makeExprParser atomPattern table
@@ -349,7 +358,8 @@ atomPattern = WildCard <$   symbol "_"
           <|> PatVar . stringToVar <$> (symbol "$" >> identifier)
           <|> ValuePat <$> (symbol "#" >> atomExpr)
           <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
-          <|> VarPat   <$> identifier
+          <|> InductivePat <$> identifier <*> pure []
+          <|> VarPat   <$> (symbol "~" >> identifier)
           <|> PredPat  <$> (symbol "?" >> atomExpr)
           <|> tupleOrParenPattern
 
@@ -427,7 +437,6 @@ keywordMemoizedLambda       = reserved "memoizedLambda"
 keywordCambda               = reserved "cambda"
 keywordProcedure            = reserved "procedure"
 keywordMacro                = reserved "macro"
-keywordPatternFunction      = reserved "patternFunction"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"
 keywordIn                   = reserved "in"
@@ -475,7 +484,6 @@ lowerReservedWords =
   , "cambda"
   , "procedure"
   , "macro"
-  , "patternFunction"
   , "letrec"
   , "let"
   , "in"

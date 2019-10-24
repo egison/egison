@@ -61,10 +61,6 @@ assertEqual "let binding"
     in y)
   2
 
--- assertEqual "letrec binding"
---   (letrec (x, y) = t, t = (1, 2) in x + y)
---   3
---
 -- assertEqual "mutual recursion"
 --   letrec even? = $n -> if eq?(n, 0) then True else odd?(n-1)
 --          odd? = $n -> if eq?(n, 0) then False else even?(n-1
@@ -148,23 +144,26 @@ assertEqual "pattern variable"
 
 assert "value pattern" (match 1 as integer with #1 -> True)
 
--- assert "and pattern"
---   (match [1, 2, 3] as list integer with
---    | #1 : _ && (snoc #3 _) -> True)
+assert "inductive pattern"
+  (match [1, 2, 3] as list integer with
+   | snoc #3 _ -> True)
+
+assert "and pattern"
+  (match [1, 2, 3] as list integer with
+   | #1 : _ && (snoc #3 _) -> True)
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
    | #1 : _ && #3 : _ -> False
    | _ -> True)
 
--- assert "or pattern"
---   (match [1, 2, 3] as list integer with
---    | (snoc #1 _) || (snoc #3 _) -> True)
+assert "or pattern"
+  (match [1, 2, 3] as list integer with
+   | (snoc #1 _) || (snoc #3 _) -> True)
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
-   | #2 : _ || #3 : _ -> False
-   | _ -> True)
+   | #2 : _ || #1 : _ -> True)
 
 assert "not pattern"
   (match 1 as integer with
@@ -222,27 +221,26 @@ assertEqual "tuple pattern"
   [[1, 2, 3]]
 
 assertEqual "tuple pattern"
-  (matchAll [(1, 1), (2, 2)] as (multiset (integer, integer)) with
+  (matchAll [(1, 1), (2, 2)] as multiset (integer, integer) with
    | ($x, #x) : _ -> x)
   [1, 2]
 
 -- assertEqual "pattern function call"
---   letrec twin = patternFunction([pat1, pat2], ('pat1 and $x)  :  x  :  'pat2) in
---     match [1, 1, 1, 2, 3] as (list integer) with
---     | twin[$n, $ns] -> [n, ns]
+--   (let twin = \pat1 pat2 => (~pat1 && $x) : #x : ~pat2 in
+--    match [1, 1, 1, 2, 3] as list integer with
+--    | twin $n $ns -> [n, ns])
 --   [1, [1, 2, 3]]
---
+
 -- assertEqual "recursive pattern function call"
 --   letrec repeat = patternFunction([pat], <nil> or ('pat and $x)  :  repeat[x]) in
---     match [1, 1, 1, 1] as (list integer) with
+--     match [1, 1, 1, 1] as list integer with
 --     | repeat[$n] -> n
 --   1
---
+
 -- assertEqual "loop pattern in pattern function"
---   letrec comb = $n -> patternFunction([p]
---                       loop($i, (1, [n], _)
---                         _ <++> <cons 'p_i ...>
---                         _)) in
+--   let comb n = \p =>
+--     loop $i from 1 to n of _ ++ ~p_i : ... | _
+--    in
 --   matchAll [1, 2, 3, 4, 5] as (list integer) with
 --   | comb(2)[$n] -> n
 --   [{|[1, 1], [2, 2]|}, {|[1, 1], [2, 3]|}, {|[1, 2], [2, 3]|}, {|[1, 1], [2, 4]|}, {|[1, 2], [2, 4]|}, {|[1, 3], [2, 4]|}, {|[1, 1], [2, 5]|}, {|[1, 2], [2, 5]|}, {|[1, 3], [2, 5]|}, {|[1, 4], [2, 5]|}]
