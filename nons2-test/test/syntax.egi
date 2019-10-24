@@ -183,27 +183,27 @@ assertEqual "not pattern"
 
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
-   | ?(\x -> x == 1) : _ -> True)
+   | ?(== 1) : _ -> True)
 
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
-    | ?(\x -> x == 2) : _ -> False
+    | ?(== 2) : _ -> False
    | _ -> True)
 
 -- assertEqual "indexed pattern variable"
 --   (match 23 as mod 10 with
 --    | $a_1 -> a)
 --   {| [1, 23] |}
---
--- assert "loop pattern"
---   (match [3, 2, 1] as list integer with
---    | loop($i, (1, [3], _), <snoc i ...>, <nil>) -> True)
---
+
+assert "loop pattern"
+  (match [3, 2, 1] as list integer with
+   | loop $i (1, [3], _) (snoc #i ...) [] -> True)
+
 -- assertEqual "double loop pattern"
 --   (match [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as (list (list integer)) with
 --    | loop($i, (1, [3], _)
---           <cons loop($j, (1, [3], _), <cons $n_i_j ...>, <nil>) ...>
---           <nil>) -> n)
+--           ((loop $j (1, [3], _) ($n_i_j : ...) []) : ...)
+--           []) -> n)
 --   {| [1, {| [1, 1], [2, 2], [3, 3] |}], [2, {| [1, 4], [2, 5], [3, 6] |}], [3, {| [1, 7], [2, 8], [3, 9] |}] |}
 
 assertEqual "let pattern"

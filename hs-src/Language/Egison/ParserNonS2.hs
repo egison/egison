@@ -158,6 +158,7 @@ opExpr = do
   makeExprParser atomExpr (makeTable pos)
   where
     -- TODO(momohatt): '++' doesn't work
+    -- TODO(momohatt): Parse function application here.
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
       let unary  internalName sym =
@@ -286,6 +287,8 @@ tupleOrParenExpr = do
                  (ApplyExpr (stringToVarExpr name)
                             (TupleExpr [larg, stringToVarExpr "y"]))
 
+    -- TODO(momohatt): Handle point-free expressions starting with expr, such as (1 +)
+    -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr = do
       op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
@@ -320,6 +323,7 @@ atomExpr = IntegerExpr <$> positiveIntegerLiteral
 
 pattern :: Parser EgisonPattern
 pattern = letPattern
+      <|> loopPattern
       <|> try applyPattern
       <|> opPattern
 
@@ -329,6 +333,15 @@ letPattern = do
   binds <- some (L.indentGuard sc EQ pos *> binding)
   body  <- keywordIn >> pattern
   return $ LetPat binds body
+
+loopPattern :: Parser EgisonPattern
+loopPattern = do
+  keywordLoop
+  iter <- patVarLiteral
+  range <- parens $ LoopRange <$> expr <*> (comma >> expr) <*> (comma >> pattern)
+  loopBody <- atomPattern
+  loopEnd <- atomPattern
+  return $ LoopPat iter range loopBody loopEnd
 
 applyPattern :: Parser EgisonPattern
 applyPattern = do
@@ -364,13 +377,17 @@ tupleOrParenPattern = do
 
 atomPattern :: Parser EgisonPattern
 atomPattern = WildCard <$   symbol "_"
-          <|> PatVar . stringToVar <$> (symbol "$" >> identifier)
-          <|> ValuePat <$> (symbol "#" >> atomExpr)
+          <|> PatVar   <$> patVarLiteral
+          <|> ValuePat <$> (char '#' >> atomExpr)
           <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
           <|> InductivePat <$> identifier <*> pure []
-          <|> VarPat   <$> (symbol "~" >> identifier)
+          <|> VarPat   <$> (char '~' >> identifier)
           <|> PredPat  <$> (symbol "?" >> atomExpr)
+          <|> ContPat  <$ keywordCont
           <|> tupleOrParenPattern
+
+patVarLiteral :: Parser Var
+patVarLiteral = stringToVar <$> (char '$' >> identifier)
 
 --
 -- Tokens
