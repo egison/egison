@@ -246,10 +246,16 @@ applyExpr = do
   return $ makeApply func args
 
 collectionExpr :: Parser EgisonExpr
-collectionExpr = symbol "[" >> (try _betweenExpr <|> _elementsExpr)
+collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
   where
-    _betweenExpr = makeBinaryOpApply "between" <$> expr <*> (symbol ".." >> expr <* symbol "]")
-    _elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
+    betweenOrFromExpr = do
+      start <- expr <* symbol ".."
+      end   <- optional expr <* symbol "]"
+      case end of
+        Just end' -> return $ makeBinaryOpApply "between" start end'
+        Nothing   -> return $ makeUnaryOpApply "from" start
+
+    elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
 
 tupleOrParenExpr :: Parser EgisonExpr
 tupleOrParenExpr = do

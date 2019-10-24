@@ -34,6 +34,9 @@ assertEqual "singleton tuple literal" (1) 1
 
 assertEqual "collection literal" [1, 2, 3, 4, 5, 6] [1, 2, 3, 4, 5, 6]
 
+assertEqual "collection between" [1..5] [1, 2, 3, 4, 5]
+assertEqual "collection from" (take 5 [1..]) [1, 2, 3, 4, 5]
+
 --
 -- Basic Sytax
 --
@@ -57,7 +60,7 @@ assertEqual "let binding"
        y = x + 1
     in y)
   2
---
+
 -- assertEqual "letrec binding"
 --   (letrec (x, y) = t, t = (1, 2) in x + y)
 --   3
