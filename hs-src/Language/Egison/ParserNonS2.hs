@@ -275,18 +275,18 @@ tupleOrParenExpr = do
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
-    makeLambda name =
-      LambdaExpr [ScalarArg "x", ScalarArg "y"]
+    makeLambda name Nothing Nothing =
+      LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
                  (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [stringToVarExpr "x", stringToVarExpr "y"]))
-    makeLambdaL name rarg =
-      LambdaExpr [ScalarArg "x"]
+                            (TupleExpr [stringToVarExpr ":x", stringToVarExpr ":y"]))
+    makeLambda name Nothing (Just rarg) =
+      LambdaExpr [ScalarArg ":x"]
                  (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [stringToVarExpr "x", rarg]))
-    makeLambdaR name larg =
-      LambdaExpr [ScalarArg "y"]
+                            (TupleExpr [stringToVarExpr ":x", rarg]))
+    makeLambda name (Just larg) Nothing =
+      LambdaExpr [ScalarArg ":y"]
                  (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [larg, stringToVarExpr "y"]))
+                            (TupleExpr [larg, stringToVarExpr ":y"]))
 
     -- TODO(momohatt): Handle point-free expressions starting with expr, such as (1 +)
     -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
@@ -294,9 +294,7 @@ tupleOrParenExpr = do
     pointFreeExpr = do
       op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
       rarg <- optional $ expr
-      case rarg of
-        Nothing -> return [makeLambda op]
-        Just y  -> return [makeLambdaL op y]
+      return [makeLambda op Nothing rarg]
 
 hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
