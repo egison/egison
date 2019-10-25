@@ -148,6 +148,7 @@ expr = ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
    <|> letExpr
+   <|> matcherExpr
    <|> dbg "opExpr" opExpr
    <?> "expressions"
 
@@ -254,6 +255,25 @@ applyExpr = do
   func <- atomExpr
   args <- some (L.indentGuard sc GT pos *> atomExpr)
   return $ makeApply func args
+
+matcherExpr :: Parser EgisonExpr
+matcherExpr = do
+  keywordMatcher
+  pos <- L.indentLevel
+  -- In matcher expression, the first '|' (bar) is indispensable
+  info <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
+  return $ MatcherExpr info
+
+patternDef :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+patternDef = do
+  pp <- ppPattern
+  returnMatcher <- keywordAs >> expr <* keywordWith
+  pos <- L.indentLevel
+  datapat <- some (L.indentGuard sc EQ pos >> symbol "|" >> dataCases)
+  return (pp, returnMatcher, datapat)
+    where
+      dataCases :: Parser (PrimitiveDataPattern, EgisonExpr)
+      dataCases = (,) <$> pdPattern <*> (symbol "->" >> expr)
 
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
@@ -404,6 +424,36 @@ atomPattern = WildCard <$   symbol "_"
 
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> identifier)
+
+ppPattern :: Parser PrimitivePatPattern
+ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
+        <|> makeExprParser ppAtom table
+ where
+   table :: [[Operator Parser PrimitivePatPattern]]
+   table =
+     [ [ InfixR (inductive2 "cons" ":" )
+       , InfixR (inductive2 "join" "++") ]
+     ]
+   inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ symbol sym
+
+   ppAtom :: Parser PrimitivePatPattern
+   ppAtom = PPWildCard <$ symbol "_"
+        <|> PPPatVar   <$ symbol "$"
+        <|> PPValuePat <$> (symbol "#$" >> identifier)
+        <|> PPTuplePat <$> parens (sepBy ppPattern comma)
+        <|> PPInductivePat "nil" [] <$ brackets sc
+        <|> parens ppPattern
+
+-- TODO(momohatt): cons pat, snoc pat, empty pat, constant pat
+pdPattern :: Parser PrimitiveDataPattern
+pdPattern = PDInductivePat <$> upperId <*> many pdAtom
+        <|> pdAtom
+  where
+    pdAtom :: Parser PrimitiveDataPattern
+    pdAtom = PDWildCard <$ symbol "_"
+         <|> PDPatVar   <$> (symbol "$" >> identifier)
+         <|> PDTuplePat <$> parens (sepBy pdPattern comma)
+         <|> parens pdPattern
 
 --
 -- Tokens
