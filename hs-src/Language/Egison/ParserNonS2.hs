@@ -163,9 +163,9 @@ opExpr = do
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
       let unary  internalName sym =
-            makeUnaryOpApply  internalName <$ symbol sym
+            makeUnaryApply  internalName <$ symbol sym
           binary internalName sym =
-            makeBinaryOpApply internalName <$ (L.indentGuard sc GT pos >> symbol sym)
+            makeBinaryApply internalName <$ (L.indentGuard sc GT pos >> symbol sym)
        in
           [ [ Prefix (unary  "-"         "-" ) ]
           -- 8
@@ -263,8 +263,8 @@ collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
       start <- expr <* symbol ".."
       end   <- optional expr <* symbol "]"
       case end of
-        Just end' -> return $ makeBinaryOpApply "between" start end'
-        Nothing   -> return $ makeUnaryOpApply "from" start
+        Just end' -> return $ makeBinaryApply "between" start end'
+        Nothing   -> return $ makeUnaryApply "from" start
 
     elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
 
@@ -581,36 +581,13 @@ reservedBinops = [ ("^",  "**"       )
 parseOneOf :: [Parser a] -> Parser a
 parseOneOf = foldl1 (\acc p -> acc <|> p)
 
-makeBinaryOpApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
-makeBinaryOpApply func x y = makeApply (VarExpr $ stringToVar func) [x, y]
+makeBinaryApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
+makeBinaryApply func x y = ApplyExpr (stringToVarExpr func) (TupleExpr [x, y])
 
-makeUnaryOpApply :: String -> EgisonExpr -> EgisonExpr
-makeUnaryOpApply "-" x  = makeBinaryOpApply "*" (IntegerExpr (-1)) x
-makeUnaryOpApply func x = makeApply (VarExpr $ stringToVar func) [x]
+makeUnaryApply :: String -> EgisonExpr -> EgisonExpr
+makeUnaryApply "-" x  = makeBinaryApply "*" (IntegerExpr (-1)) x
+makeUnaryApply func x = ApplyExpr (stringToVarExpr func) (TupleExpr [x])
 
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
 makeApply (InductiveDataExpr x []) xs = InductiveDataExpr x xs
-makeApply func xs = do
-  let args = map (\x -> case x of
-                          LambdaArgExpr s -> Left s
-                          _               -> Right x) xs
-  let vars = lefts args
-  case vars of
-    [] -> ApplyExpr func . TupleExpr $ rights args
-    _ | all null vars ->
-        let args' = rights args
-            args'' = zipWith (curry f) args (annonVars 1 (length args))
-            args''' = map (VarExpr . stringToVar . either id id) args''
-        in ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
-      | all (not . null) vars ->
-        let n = length vars
-            args' = rights args
-            args'' = zipWith (curry g) args (annonVars (n + 1) (length args))
-            args''' = map (VarExpr . stringToVar . either id id) args''
-        in ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
- where
-  annonVars m n = take n $ map ((':':) . show) [m..]
-  f (Left _, var)  = Left var
-  f (Right _, var) = Right var
-  g (Left arg, _)  = Left (':':arg)
-  g (Right _, var) = Right var
+makeApply func xs = ApplyExpr func (TupleExpr xs)
