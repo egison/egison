@@ -428,32 +428,44 @@ patVarLiteral = stringToVar <$> (char '$' >> identifier)
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
         <|> makeExprParser ppAtom table
- where
-   table :: [[Operator Parser PrimitivePatPattern]]
-   table =
-     [ [ InfixR (inductive2 "cons" ":" )
-       , InfixR (inductive2 "join" "++") ]
-     ]
-   inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ symbol sym
+  where
+    table :: [[Operator Parser PrimitivePatPattern]]
+    table =
+      [ [ InfixR (inductive2 "cons" ":" )
+        , InfixR (inductive2 "join" "++") ]
+      ]
+    inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ symbol sym
 
-   ppAtom :: Parser PrimitivePatPattern
-   ppAtom = PPWildCard <$ symbol "_"
-        <|> PPPatVar   <$ symbol "$"
-        <|> PPValuePat <$> (symbol "#$" >> identifier)
-        <|> PPTuplePat <$> parens (sepBy ppPattern comma)
-        <|> PPInductivePat "nil" [] <$ brackets sc
-        <|> parens ppPattern
+    ppParens :: Parser PrimitivePatPattern
+    ppParens = do
+      pps <- parens $ sepBy ppPattern comma
+      case pps of
+        [pp] -> return pp
+        _    -> return $ PPTuplePat pps
+
+    ppAtom :: Parser PrimitivePatPattern
+    ppAtom = PPWildCard <$ symbol "_"
+         <|> PPPatVar   <$ symbol "$"
+         <|> PPValuePat <$> (symbol "#$" >> identifier)
+         <|> PPInductivePat "nil" [] <$ brackets sc
+         <|> ppParens
 
 -- TODO(momohatt): cons pat, snoc pat, empty pat, constant pat
 pdPattern :: Parser PrimitiveDataPattern
 pdPattern = PDInductivePat <$> upperId <*> many pdAtom
         <|> pdAtom
   where
+    pdParens :: Parser PrimitiveDataPattern
+    pdParens = do
+      pds <- parens $ sepBy pdPattern comma
+      case pds of
+        [pd] -> return pd
+        _    -> return $ PDTuplePat pds
+
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard <$ symbol "_"
          <|> PDPatVar   <$> (symbol "$" >> identifier)
-         <|> PDTuplePat <$> parens (sepBy pdPattern comma)
-         <|> parens pdPattern
+         <|> pdParens
 
 --
 -- Tokens
@@ -505,7 +517,7 @@ lowerId = (lexeme . try) (p >>= check)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
 
--- TODO(momohatt): Deprecate BoolExpr and merge it with InductiveDataExpr
+-- TODO: Deprecate BoolExpr and merge it with InductiveDataExpr
 upperId :: Parser String
 upperId = (lexeme . try) (p >>= check)
   where
@@ -514,6 +526,7 @@ upperId = (lexeme . try) (p >>= check)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
 
+-- TODO: Replace identifier with lowerId?
 identifier :: Parser String
 identifier = lowerId <|> upperId
 
