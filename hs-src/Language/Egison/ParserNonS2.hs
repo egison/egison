@@ -25,36 +25,33 @@ module Language.Egison.ParserNonS2
        , loadFile
        ) where
 
-import           Control.Applicative     (pure, (*>), (<$>), (<$), (<*), (<*>))
-import           Control.Monad.Except    hiding (mapM)
-import           Control.Monad.Identity  hiding (mapM)
-import           Control.Monad.State     hiding (mapM)
-import           Prelude                 hiding (mapM)
+import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
+import           Control.Monad.Except           hiding (mapM)
+import           Control.Monad.Identity         hiding (mapM)
+import           Control.Monad.State            hiding (mapM)
+import           Prelude                        hiding (mapM)
 
-import           System.Directory        (doesFileExist, getHomeDirectory)
+import           System.Directory               (doesFileExist, getHomeDirectory)
 
-import           Data.Char               (isLower, isUpper, toLower)
 import           Data.Either
-import           Data.Functor            (($>))
-import           Data.List.Split         (split, splitOn, startsWithOneOf)
+import           Data.Functor                   (($>))
 import           Data.Maybe
 import           Data.Ratio
-import           Data.Traversable        (mapM)
+import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
 import           Data.Void
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Text.Megaparsec.Char.Lexer     as L
 import           Text.Megaparsec.Debug
-import           Text.Megaparsec.Pos     (Pos)
+import           Text.Megaparsec.Pos            (Pos)
 
-import           Data.Text               (pack)
-import           Text.Regex.TDFA
+import           Data.Text                      (pack)
 
 import           Language.Egison.Desugar
 import           Language.Egison.Types
-import           Paths_egison            (getDataFileName)
+import           Paths_egison                   (getDataFileName)
 
 readTopExprs :: String -> EgisonM [EgisonTopExpr]
 readTopExprs = either throwError (mapM desugarTopExpr) . parseTopExprs
