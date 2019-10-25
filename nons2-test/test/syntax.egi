@@ -71,6 +71,9 @@ assertEqual "lambda and application"
   ((\x -> x + 1) 10)
   11
 
+assertEqual "append op" ([1] ++ [2]) [1, 2]
+assertEqual "append op" ((++) [1] [2]) [1, 2]
+
 assertEqual "point free expr" ((+) 10 1) 11
 assertEqual "point free expr" ((+ 1) 10) 11
 assertEqual "point free expr" (foldl (*) 1 [1..5]) 120

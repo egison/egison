@@ -158,38 +158,37 @@ opExpr = do
   pos <- L.indentLevel
   makeExprParser atomExpr (makeTable pos)
   where
-    -- TODO(momohatt): '++' doesn't work
     -- TODO(momohatt): Parse function application here.
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
-      let unary  internalName sym =
-            makeUnaryApply  internalName <$ symbol sym
-          binary internalName sym =
-            makeBinaryApply internalName <$ (L.indentGuard sc GT pos >> symbol sym)
+      let unary  internalName parseSym =
+            makeUnaryApply  internalName <$ parseSym
+          binary internalName parseSym =
+            makeBinaryApply internalName <$ (L.indentGuard sc GT pos >> parseSym)
        in
-          [ [ Prefix (unary  "-"         "-" ) ]
+          [ [ Prefix (unary  "-"         $ symbol "-" ) ]
           -- 8
-          , [ InfixL (binary "**"        "^" ) ]
+          , [ InfixL (binary "**"        $ symbol "^" ) ]
           -- 7
-          , [ InfixL (binary "*"         "*" )
-            , InfixL (binary "/"         "/" )
-            , InfixL (binary "remainder" "%" ) ]
+          , [ InfixL (binary "*"         $ symbol "*" )
+            , InfixL (binary "/"         $ symbol "/" )
+            , InfixL (binary "remainder" $ symbol "%" ) ]
           -- 6
-          , [ InfixL (binary "+"         "+" )
-            , InfixL (binary "-"         "-" ) ]
+          , [ InfixL (binary "+"         $ try $ symbol "+" <* notFollowedBy (char '+'))
+            , InfixL (binary "-"         $ symbol "-" ) ]
           -- 5
-          , [ InfixR (binary "cons"      ":" )
-            , InfixR (binary "append"    "++") ]
+          , [ InfixR (binary "cons"      $ symbol ":" )
+            , InfixR (binary "append"    $ symbol "++") ]
           -- 4
-          , [ InfixL (binary "eq?"       "==")
-            , InfixL (binary "lte?"      "<=")
-            , InfixL (binary "lt?"       "<" )
-            , InfixL (binary "gte?"      ">=")
-            , InfixL (binary "gt?"       ">" ) ]
+          , [ InfixL (binary "eq?"       $ symbol "==")
+            , InfixL (binary "lte?"      $ symbol "<=")
+            , InfixL (binary "lt?"       $ symbol "<" )
+            , InfixL (binary "gte?"      $ symbol ">=")
+            , InfixL (binary "gt?"       $ symbol ">" ) ]
           -- 3
-          , [ InfixR (binary "and"       "&&") ]
+          , [ InfixR (binary "and"       $ symbol "&&") ]
           -- 2
-          , [ InfixR (binary "or"        "||") ]
+          , [ InfixR (binary "or"        $ symbol "||") ]
           ]
 
 
@@ -557,22 +556,25 @@ lowerReservedWords =
   , "function"
   ]
 
+-- Reserved binary operators, aligned from the longest one
 reservedBinops :: [(String, String)]
-reservedBinops = [ ("^",  "**"       )
-                 , ("*",  "*"        )
-                 , ("/",  "/"        )
-                 , ("%",  "remainder")
-                 , ("+",  "+"        )
-                 , ("-",  "-"        )
-                 , (":",  "cons"     )
-                 , ("++", "append"   )
-                 , ("==", "eq?"      )
-                 , ("<=", "lte?"     )
-                 , ("<",  "lt?"      )
-                 , (">=", "gte?"     )
-                 , (">",  "gt?"      )
-                 , ("&&", "and"      )
-                 , ("||", "or"       ) ]
+reservedBinops =
+  [ ("++", "append"   )
+  , ("==", "eq?"      )
+  , ("<=", "lte?"     )
+  , (">=", "gte?"     )
+  , ("&&", "and"      )
+  , ("||", "or"       )
+  , ("^",  "**"       )
+  , ("*",  "*"        )
+  , ("/",  "/"        )
+  , ("%",  "remainder")
+  , ("+",  "+"        )
+  , ("-",  "-"        )
+  , (":",  "cons"     )
+  , ("<",  "lt?"      )
+  , (">",  "gt?"      )
+  ]
 
 --
 -- Utils
