@@ -362,20 +362,26 @@ assertEqual "empty hash-literal"
 -- macroExpr, matcherExpr, matcherDFSExpr
 --
 
--- multiset a = matcher
---   | [] as () with
---     | $tgt -> match tgt as (mutiset a) with
---                 | [] -> [()]
---                 | _ -> []
---   | $ : $ as (a, multiset a) with
---     | $tgt -> matchAll tgt as list a with
---                 | $hs ++ $x : $ts -> (x, hs ++ ts)
---   | #$val as () with
---     | $tgt -> match (val, tgt) as (list a, multiset a) with
---                 | ([], []) -> [()]
---                 | ($x : $xs, #x : #xs) -> [()] (_, _) -> []
---   | $ as something with
---     | $tgt -> [tgt]
+multiset a = matcher
+  | [] as () with
+    | $tgt -> match tgt as (mutiset a) with
+                | [] -> [()]
+                | _ -> []
+  | $ : $ as (a, multiset a) with
+    | $tgt -> matchAll tgt as list a with
+                | $hs ++ $x : $ts -> (x, hs ++ ts)
+  | #$val as () with
+    | $tgt -> match (val, tgt) as (list a, multiset a) with
+                | ([], []) -> [()]
+                | ($x : $xs, #x : #xs) -> [()]
+                | (_, _) -> []
+  | $ as something with
+    | $tgt -> [tgt]
+
+assertEqual "matcher definition"
+  (matchAll [1, 2, 3] as multiset integer with
+   | $x : _ -> x)
+  [1, 2, 3]
 
 -- nishiwakiIf =
 --   macro $b $e1 $e2 ->
