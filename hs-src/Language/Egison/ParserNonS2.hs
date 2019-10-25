@@ -148,7 +148,6 @@ expr = ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
    <|> letExpr
-   <|> try (dbg "applyExpr" applyExpr)
    <|> dbg "opExpr" opExpr
    <?> "expressions"
 
@@ -156,9 +155,10 @@ expr = ifExpr
 opExpr :: Parser EgisonExpr
 opExpr = do
   pos <- L.indentLevel
-  makeExprParser atomExpr (makeTable pos)
+  makeExprParser atomOrAppExpr (makeTable pos)
   where
-    -- TODO(momohatt): Parse function application here.
+    -- TODO(momohatt): Parse function application here (this would require
+    -- currying of functions)
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
       let unary  internalName parseSym =
@@ -300,6 +300,10 @@ hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
   where
     hashBraces = between (symbol "{|") (symbol "|}")
     hashElem = brackets $ (,) <$> expr <*> (comma >> expr)
+
+atomOrAppExpr :: Parser EgisonExpr
+atomOrAppExpr = try (dbg "applyExpr" applyExpr)
+            <|> atomExpr
 
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
