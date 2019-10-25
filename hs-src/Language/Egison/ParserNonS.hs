@@ -26,9 +26,8 @@ module Language.Egison.ParserNonS
        ) where
 
 import           Control.Applicative     (pure, (*>), (<$>), (<*), (<*>))
-import           Control.Monad.Except    hiding (mapM)
-import           Control.Monad.Identity  hiding (mapM)
-import           Control.Monad.State     hiding (mapM)
+import           Control.Monad.Except    (liftIO, throwError)
+import           Control.Monad.Identity  (Identity, unless)
 import           Prelude                 hiding (mapM)
 
 import           System.Directory        (doesFileExist, getHomeDirectory)
@@ -39,7 +38,6 @@ import           Data.Functor            (($>))
 import           Data.List               (intercalate)
 import           Data.List.Split         (split, splitOn, startsWithOneOf)
 import           Data.Ratio
-import qualified Data.Sequence           as Sq
 import qualified Data.Set                as Set
 import           Data.Traversable        (mapM)
 
@@ -49,7 +47,6 @@ import           Text.Parsec.String
 import qualified Text.Parsec.Token       as P
 
 import qualified Data.Text               as T
-import           Text.Regex.TDFA
 
 import           Language.Egison.Desugar
 import           Language.Egison.Types
