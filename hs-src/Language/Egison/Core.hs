@@ -42,7 +42,6 @@ module Language.Egison.Core
 
 import           Prelude                     hiding (mapM, mappend, mconcat)
 
-import           Control.Applicative
 import           Control.Arrow
 import           Control.Monad               (when)
 import           Control.Monad.Except        hiding (mapM)
@@ -54,7 +53,6 @@ import           Data.Foldable               (toList)
 import           Data.IORef
 import           Data.List                   (partition)
 import           Data.Maybe
-import           Data.Ratio
 import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
 import qualified Data.Sequence               as Sq
 import           Data.Traversable            (mapM)
@@ -66,7 +64,6 @@ import qualified Data.Vector                 as V
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 
-import           Language.Egison.MathOutput
 import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
 import           Language.Egison.ParserNonS2 as ParserNonS2
