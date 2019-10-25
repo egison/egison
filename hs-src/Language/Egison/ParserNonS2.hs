@@ -404,13 +404,6 @@ opPattern = makeExprParser atomPattern table
     inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ symbol sym
     binary name sym     = (\x y -> name [x, y]) <$ symbol sym
 
-tupleOrParenPattern :: Parser EgisonPattern
-tupleOrParenPattern = do
-  elems <- parens $ sepBy pattern comma
-  case elems of
-    [p] -> return p
-    _   -> return $ TuplePat elems
-
 atomPattern :: Parser EgisonPattern
 atomPattern = WildCard <$   symbol "_"
           <|> PatVar   <$> patVarLiteral
@@ -420,7 +413,7 @@ atomPattern = WildCard <$   symbol "_"
           <|> VarPat   <$> (char '~' >> identifier)
           <|> PredPat  <$> (symbol "?" >> atomExpr)
           <|> ContPat  <$ symbol "..."
-          <|> tupleOrParenPattern
+          <|> makeTupleOrParen pattern TuplePat
 
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> identifier)
@@ -436,36 +429,22 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
       ]
     inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ symbol sym
 
-    ppParens :: Parser PrimitivePatPattern
-    ppParens = do
-      pps <- parens $ sepBy ppPattern comma
-      case pps of
-        [pp] -> return pp
-        _    -> return $ PPTuplePat pps
-
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
          <|> PPPatVar   <$ symbol "$"
          <|> PPValuePat <$> (symbol "#$" >> identifier)
          <|> PPInductivePat "nil" [] <$ brackets sc
-         <|> ppParens
+         <|> makeTupleOrParen ppPattern PPTuplePat
 
 -- TODO(momohatt): cons pat, snoc pat, empty pat, constant pat
 pdPattern :: Parser PrimitiveDataPattern
 pdPattern = PDInductivePat <$> upperId <*> many pdAtom
         <|> pdAtom
   where
-    pdParens :: Parser PrimitiveDataPattern
-    pdParens = do
-      pds <- parens $ sepBy pdPattern comma
-      case pds of
-        [pd] -> return pd
-        _    -> return $ PDTuplePat pds
-
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard <$ symbol "_"
          <|> PDPatVar   <$> (symbol "$" >> identifier)
-         <|> pdParens
+         <|> makeTupleOrParen pdPattern PDTuplePat
 
 --
 -- Tokens
@@ -649,6 +628,13 @@ reservedBinops =
 
 parseOneOf :: [Parser a] -> Parser a
 parseOneOf = foldl1 (\acc p -> acc <|> p)
+
+makeTupleOrParen :: Parser a -> ([a] -> a) -> Parser a
+makeTupleOrParen parser tupleCtor = do
+  elems <- parens $ sepBy parser comma
+  case elems of
+    [elem] -> return elem
+    _      -> return $ tupleCtor elems
 
 makeBinaryApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
 makeBinaryApply func x y = ApplyExpr (stringToVarExpr func) (TupleExpr [x, y])
