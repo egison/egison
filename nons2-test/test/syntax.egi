@@ -71,6 +71,10 @@ assertEqual "lambda and application"
   ((\x -> x + 1) 10)
   11
 
+assertEqual "application with binops"
+  ((\x y -> x + y) 1 2 + 3)
+  6
+
 assertEqual "append op" ([1] ++ [2]) [1, 2]
 assertEqual "append op" ((++) [1] [2]) [1, 2]
 
