@@ -73,6 +73,7 @@ assertEqual "lambda and application"
 
 assertEqual "point free expr" ((+) 10 1) 11
 assertEqual "point free expr" ((+ 1) 10) 11
+assertEqual "point free expr" (foldl (*) 1 [1..5]) 120
 -- assertEqual "point free expr" ((10 -) 1) 9
 
 -- findFactor = memoizedLambda
