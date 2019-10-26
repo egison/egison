@@ -511,10 +511,10 @@ positiveIntegerLiteral :: Parser Integer
 positiveIntegerLiteral = lexeme L.decimal
 
 charLiteral :: Parser Char
-charLiteral = between (char '\'') (char '\'') L.charLiteral
+charLiteral = between (char '\'') (symbol "\'") L.charLiteral
 
 stringLiteral :: Parser String
-stringLiteral = char '\"' *> manyTill L.charLiteral (char '\"')
+stringLiteral = dbg "stringLiteral" $ char '\"' *> manyTill L.charLiteral (symbol "\"")
 
 boolLiteral :: Parser Bool
 boolLiteral = reserved "True"  $> True

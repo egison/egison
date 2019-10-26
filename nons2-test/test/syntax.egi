@@ -10,7 +10,8 @@ assertEqual "char literal"
   ['a', '\n', '\'']
   ['a', '\n', '\'']
 
--- assertEqual "string literal" "abc\n" "abc\n"
+assertEqual "string literal" "" ""
+assertEqual "string literal" "abc\n" "abc\n"
 
 assertEqual "bool literal"
   [True, False]
