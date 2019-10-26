@@ -26,17 +26,14 @@ module Language.Egison.ParserNonS2
        ) where
 
 import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
-import           Control.Monad.Except           hiding (mapM)
-import           Control.Monad.Identity         hiding (mapM)
-import           Control.Monad.State            hiding (mapM)
+import           Control.Monad.Except           (liftIO, throwError)
+import           Control.Monad.State            (unless)
 import           Prelude                        hiding (mapM)
 
 import           System.Directory               (doesFileExist, getHomeDirectory)
 
-import           Data.Either
 import           Data.Functor                   (($>))
-import           Data.Maybe
-import           Data.Ratio
+import           Data.Maybe                     (fromMaybe)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
