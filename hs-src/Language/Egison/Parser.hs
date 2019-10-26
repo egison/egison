@@ -306,10 +306,10 @@ quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
-matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
+matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
 
 matchAllDFSExpr :: Parser EgisonExpr
-matchAllDFSExpr = keywordMatchAllDFS >> MatchAllDFSExpr <$> expr <*> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
+matchAllDFSExpr = keywordMatchAllDFS >> MatchAllDFSExpr <$> expr <*> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
@@ -318,7 +318,7 @@ matchDFSExpr :: Parser EgisonExpr
 matchDFSExpr = keywordMatchDFS >> MatchDFSExpr <$> expr <*> expr <*> matchClauses
 
 matchAllLambdaExpr :: Parser EgisonExpr
-matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
+matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
 
 matchLambdaExpr :: Parser EgisonExpr
 matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$> expr <*> matchClauses
@@ -666,7 +666,7 @@ seqPat :: Parser EgisonPattern
 seqPat = braces $ do
   pats <- sepEndBy pattern whiteSpace
   tailPat <- option SeqNilPat (char '@' >> pattern)
-  return $ foldr (\p rets -> SeqConsPat p rets) tailPat pats
+  return $ foldr SeqConsPat tailPat pats
 
 laterPatVar :: Parser EgisonPattern
 laterPatVar = char '#' >> pure LaterPatVar
@@ -845,8 +845,6 @@ keywordExecute              = reserved "execute"
 keywordLoadFile             = reserved "load-file"
 keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
-keywordThen                 = reserved "then"
-keywordElse                 = reserved "else"
 keywordNot                  = reserved "not"
 keywordAnd                  = reserved "and"
 keywordOr                   = reserved "or"
