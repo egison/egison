@@ -333,29 +333,41 @@ hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
     hashElem = brackets $ (,) <$> expr <*> (comma >> expr)
 
 index :: Parser (Index EgisonExpr)
-index = MultiSubscript   <$> (char '_' >> atomExpr) <*> (string "..._" >> atomExpr)
-    <|> MultiSuperscript <$> (char '~' >> atomExpr) <*> (string "...~" >> atomExpr)
-    <|> Subscript    <$> (char '_'    >> atomExpr)
-    <|> Superscript  <$> (char '~'    >> atomExpr)
-    <|> SupSubscript <$> (string "~_" >> atomExpr)
-    <|> Userscript   <$> (char '|'    >> atomExpr)
+index = SupSubscript <$> (string "~_" >> atomExpr')
+    <|> try (char '_' >> subscript)
+    <|> try (char '~' >> superscript)
+    <|> try (Userscript <$> (char '|' >> atomExpr'))
     <?> "index"
+  where
+    subscript = do
+      e1 <- atomExpr'
+      e2 <- optional (string "..._" >> atomExpr')
+      case e2 of
+        Nothing  -> return $ Subscript e1
+        Just e2' -> return $ MultiSubscript e1 e2'
+    superscript = do
+      e1 <- atomExpr'
+      e2 <- optional (string "...~" >> atomExpr')
+      case e2 of
+        Nothing  -> return $ Superscript e1
+        Just e2' -> return $ MultiSuperscript e1 e2'
 
 atomOrAppExpr :: Parser EgisonExpr
 atomOrAppExpr = try (dbg "applyExpr" applyExpr)
             <|> atomExpr
 
--- atomExpr :: Parser EgisonExpr
--- atomExpr = do
---   e <- atomExprWithoutIndex
---   hasDots <- isJust <$> optional (string "...")
---   indices <- many index
---   case indices of
---     [] -> return e
---     _  -> return $ IndexedExpr (not hasDots) e indices
-
 atomExpr :: Parser EgisonExpr
-atomExpr = IntegerExpr <$> positiveIntegerLiteral
+atomExpr = do
+  e <- atomExpr'
+  -- TODO(momohatt): "..." (override of index) collides with ContPat
+  indices <- many index
+  case indices of
+    [] -> return e
+    _  -> return $ IndexedExpr False e indices
+
+-- atom expr without index
+atomExpr' :: Parser EgisonExpr
+atomExpr' = IntegerExpr <$> positiveIntegerLiteral
        <|> BoolExpr <$> boolLiteral
        <|> CharExpr <$> charLiteral
        <|> StringExpr . pack <$> stringLiteral

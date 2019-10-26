@@ -62,9 +62,9 @@ assertEqual "let binding"
   2
 
 -- assertEqual "mutual recursion"
---   letrec even? = $n -> if eq?(n, 0) then True else odd?(n-1)
---          odd? = $n -> if eq?(n, 0) then False else even?(n-1
---     in even?(10)
+--   (let even? n = if n == 0 then True else odd? (n-1)
+--        odd? n = if n == 0 then False else even? (n-1)
+--     in even?(10))
 --   True
 
 assertEqual "lambda and application"
@@ -324,9 +324,9 @@ assertEqual "empty hash-literal"
   {| |}
   {| |}
 
--- assertEqual "hash access"
---   {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |}_3
---   13
+assertEqual "hash access"
+  {| [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], |}_3
+  13
 
 --
 -- Partial Application
