@@ -143,6 +143,7 @@ expr = ifExpr
    <|> lambdaExpr
    <|> letExpr
    <|> matcherExpr
+   <|> algebraicDataMatcherExpr
    <|> dbg "opExpr" opExpr
    <?> "expressions"
 
@@ -257,17 +258,31 @@ matcherExpr = do
   -- In matcher expression, the first '|' (bar) is indispensable
   info <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
   return $ MatcherExpr info
+  where
+    patternDef :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+    patternDef = do
+      pp <- ppPattern
+      returnMatcher <- keywordAs >> expr <* keywordWith
+      pos <- L.indentLevel
+      datapat <- some (L.indentGuard sc EQ pos >> symbol "|" >> dataCases)
+      return (pp, returnMatcher, datapat)
 
-patternDef :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
-patternDef = do
-  pp <- ppPattern
-  returnMatcher <- keywordAs >> expr <* keywordWith
+    dataCases :: Parser (PrimitiveDataPattern, EgisonExpr)
+    dataCases = (,) <$> pdPattern <*> (symbol "->" >> expr)
+
+algebraicDataMatcherExpr :: Parser EgisonExpr
+algebraicDataMatcherExpr = do
+  keywordAlgebraicDataMatcher
   pos <- L.indentLevel
-  datapat <- some (L.indentGuard sc EQ pos >> symbol "|" >> dataCases)
-  return (pp, returnMatcher, datapat)
-    where
-      dataCases :: Parser (PrimitiveDataPattern, EgisonExpr)
-      dataCases = (,) <$> pdPattern <*> (symbol "->" >> expr)
+  defs <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
+  return $ AlgebraicDataMatcherExpr defs
+  where
+    patternDef :: Parser (String, [EgisonExpr])
+    patternDef = do
+      pos <- L.indentLevel
+      patternCtor <- lowerId
+      args <- many (L.indentGuard sc GT pos >> atomExpr)
+      return (patternCtor, args)
 
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
@@ -485,7 +500,7 @@ symbol sym = try (L.symbol sc sym)
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> lowerChar <*> many alphaNumChar
+    p       = (:) <$> lowerChar <*> many (alphaNumChar <|> oneOf ['?', '\''])
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
