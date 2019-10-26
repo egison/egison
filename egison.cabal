@@ -152,7 +152,6 @@ Executable egison
     , ghc-paths
     , filepath
     , text
-    , regex-tdfa
     , process
     , vector
     , optparse-applicative

@@ -165,7 +165,6 @@ import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Control.Exception
 import           Data.Typeable
 
-import           Control.Applicative
 import           Control.Monad.Except
 import           Control.Monad.Fail
 import           Control.Monad.Identity
@@ -177,26 +176,23 @@ import           Control.Monad.Writer      (WriterT)
 import qualified Data.Array                as Array
 import           Data.Foldable             (foldr, toList)
 import           Data.Hashable             (Hashable)
-import qualified Data.HashMap.Lazy         as HL
 import           Data.HashMap.Strict       (HashMap)
 import qualified Data.HashMap.Strict       as HashMap
 import           Data.IORef
-import           Data.Map                  (Map)
 import           Data.Monoid               (Monoid)
 import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
-import           Data.List                 (any, delete, deleteBy, elem,
-                                            elemIndex, find, findIndex,
-                                            intercalate, partition, sort,
-                                            sortBy, splitAt, (\\))
+import           Data.List                 (any, delete, elem, elemIndex, find,
+                                            findIndex, intercalate, partition,
+                                            splitAt, (\\))
 import           Data.List.Split           (splitOn)
-import           Data.Text                 (Text, pack)
+import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
 import           Data.Ratio
-import           Numeric
+import           Numeric                   (showFFloat)
 import           System.IO
 
 import           System.IO.Unsafe          (unsafePerformIO)

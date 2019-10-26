@@ -20,18 +20,16 @@ module Language.Egison.Desugar
     , desugar
     ) where
 
-import           Control.Applicative   (Applicative, pure, (*>), (<$>), (<*),
-                                        (<*>))
+import           Control.Applicative   (Applicative, pure, (<$>), (<*>))
 import           Control.Monad.Except
 import           Control.Monad.Fail
 import           Control.Monad.Reader
 import           Data.Char             (toUpper)
 import           Data.List             (span)
 import           Data.Maybe            (fromMaybe)
-import           Data.Sequence         (ViewL (..), (<|))
-import qualified Data.Sequence         as Sq
 import           Data.Set              (Set)
 import qualified Data.Set              as S
+
 import           Language.Egison.Types
 
 type Subst = [(String, EgisonExpr)]
