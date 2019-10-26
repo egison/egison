@@ -198,20 +198,22 @@ patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
                <|> makeMatchExpr keywordMatchAllDFS MatchAllDFSExpr
   where
     makeMatchExpr keyword ctor = do
-      pos     <- L.indentLevel
       tgt     <- keyword >> expr
-      matcher <- keywordAs >> expr
-      clauses <- keywordWith >> matchClauses1 pos
+      matcher <- keywordAs >> expr <* keywordWith
+      clauses <- matchClauses1
       return $ ctor tgt matcher clauses
 
-matchClauses1 :: Pos -> Parser [MatchClause]
-matchClauses1 pos = (:) <$> (optional (symbol "|") >> matchClause pos) <*> matchClauses pos
+-- Parse more than 1 match clauses.
+matchClauses1 :: Parser [MatchClause]
+matchClauses1 = do
+  pos <- optional (symbol "|") >> L.indentLevel
+  (:) <$> matchClause pos <*> matchClauses pos
   where
     matchClauses :: Pos -> Parser [MatchClause]
     matchClauses pos = try ((:) <$> (symbol "|" >> matchClause pos) <*> matchClauses pos)
-                   <|> (return [])
+                   <|> return []
     matchClause :: Pos -> Parser MatchClause
-    matchClause pos = (,) <$> (L.indentGuard sc GT pos *> pattern) <*> (symbol "->" >> expr)
+    matchClause pos = (,) <$> (L.indentGuard sc EQ pos *> pattern) <*> (symbol "->" >> expr)
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
@@ -220,9 +222,8 @@ lambdaExpr = symbol "\\" >> (
   <|> LambdaExpr <$> some arg <*> (symbol "->" >> expr))
   where
     makeMatchLambdaExpr keyword ctor = do
-      pos     <- L.indentLevel
       matcher <- keyword >> keywordAs >> expr
-      clauses <- keywordWith >> matchClauses1 pos
+      clauses <- keywordWith >> matchClauses1
       return $ ctor matcher clauses
 
 arg :: Parser Arg
