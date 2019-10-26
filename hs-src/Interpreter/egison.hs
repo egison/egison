@@ -10,18 +10,14 @@ import           Control.Monad.Trans.State
 import           Prelude                    hiding (catch)
 
 import           Data.Char
-import           Data.List                  (intercalate)
 import           Data.Semigroup             ((<>))
 import qualified Data.Text                  as T
 
 import           Data.Version
 
-import           System.Console.GetOpt
 import           System.Console.Haskeline   hiding (catch, handle, throwTo)
 import           System.Directory           (getHomeDirectory)
-import           System.Environment
-import           System.Exit                (ExitCode (..), exitFailure,
-                                             exitSuccess)
+import           System.Exit                (exitFailure, exitSuccess)
 import           System.FilePath            ((</>))
 import           System.IO
 

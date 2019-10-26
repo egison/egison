@@ -19,25 +19,22 @@ module Language.Egison.Primitives
   , primitiveEnvNoIO'
   ) where
 
-import           Control.Applicative       (pure, (*>), (<$>), (<*), (<*>))
-import           Control.Arrow
 import           Control.Monad.Except
 import           Control.Monad.Trans.Maybe
 
 import           Data.Foldable             (toList)
 import           Data.IORef
 import           Data.Ratio
-import           Text.Regex.TDFA
+import           Text.Regex.TDFA           ((=~))
 
 import           System.IO
-import           System.Process
-import           System.Random
+import           System.Process            (readProcess)
+import           System.Random             (getStdRandom, randomR)
 
 import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
 import           Data.Char                 (chr, ord)
-import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import qualified Data.Text.IO              as T
 
