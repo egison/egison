@@ -15,7 +15,7 @@ import           Control.Monad.Except             (liftIO)
 import           Data.List
 import           System.Console.Haskeline         hiding (catch, handle, throwTo)
 import           System.Console.Haskeline.History (addHistoryUnlessConsecutiveDupe)
-import           Text.Regex.TDFA
+import           Text.Regex.TDFA                  ((=~))
 
 import           Language.Egison.Parser           as Parser
 import           Language.Egison.ParserNonS       as ParserNonS
