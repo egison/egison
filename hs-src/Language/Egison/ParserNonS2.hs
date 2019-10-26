@@ -219,7 +219,8 @@ lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr keywordMatch    MatchLambdaExpr
   <|> makeMatchLambdaExpr keywordMatchAll MatchAllLambdaExpr
-  <|> LambdaExpr <$> some arg <*> (symbol "->" >> expr))
+  <|> try (LambdaExpr <$> some arg <*> (symbol "->" >> expr))
+  <|> PatternFunctionExpr <$> some identifier <*> (symbol "=>" >> pattern))
   where
     makeMatchLambdaExpr keyword ctor = do
       matcher <- keyword >> keywordAs >> expr
@@ -331,9 +332,27 @@ hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
     hashBraces = between (symbol "{|") (symbol "|}")
     hashElem = brackets $ (,) <$> expr <*> (comma >> expr)
 
+index :: Parser (Index EgisonExpr)
+index = MultiSubscript   <$> (char '_' >> atomExpr) <*> (string "..._" >> atomExpr)
+    <|> MultiSuperscript <$> (char '~' >> atomExpr) <*> (string "...~" >> atomExpr)
+    <|> Subscript    <$> (char '_'    >> atomExpr)
+    <|> Superscript  <$> (char '~'    >> atomExpr)
+    <|> SupSubscript <$> (string "~_" >> atomExpr)
+    <|> Userscript   <$> (char '|'    >> atomExpr)
+    <?> "index"
+
 atomOrAppExpr :: Parser EgisonExpr
 atomOrAppExpr = try (dbg "applyExpr" applyExpr)
             <|> atomExpr
+
+-- atomExpr :: Parser EgisonExpr
+-- atomExpr = do
+--   e <- atomExprWithoutIndex
+--   hasDots <- isJust <$> optional (string "...")
+--   indices <- many index
+--   case indices of
+--     [] -> return e
+--     _  -> return $ IndexedExpr (not hasDots) e indices
 
 atomExpr :: Parser EgisonExpr
 atomExpr = IntegerExpr <$> positiveIntegerLiteral
