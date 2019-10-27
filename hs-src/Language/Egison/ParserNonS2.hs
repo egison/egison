@@ -119,6 +119,7 @@ topExpr :: Parser EgisonTopExpr
 topExpr = Load     <$> (keywordLoad >> stringLiteral)
       <|> LoadFile <$> (keywordLoadFile >> stringLiteral)
       <|> defineOrTestExpr
+      <?> "toplevel expression"
 
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
@@ -145,7 +146,7 @@ expr = ifExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
    <|> dbg "opExpr" opExpr
-   <?> "expressions"
+   <?> "expression"
 
 -- Also parses atomExpr
 opExpr :: Parser EgisonExpr
@@ -196,6 +197,7 @@ patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
                <|> makeMatchExpr keywordMatchDFS    MatchDFSExpr
                <|> makeMatchExpr keywordMatchAll    MatchAllExpr
                <|> makeMatchExpr keywordMatchAllDFS MatchAllDFSExpr
+               <?> "pattern match expression"
   where
     makeMatchExpr keyword ctor = do
       tgt     <- keyword >> expr
@@ -221,6 +223,7 @@ lambdaExpr = symbol "\\" >> (
   <|> makeMatchLambdaExpr keywordMatchAll MatchAllLambdaExpr
   <|> try (LambdaExpr <$> some arg <*> (symbol "->" >> expr))
   <|> PatternFunctionExpr <$> some identifier <*> (symbol "=>" >> pattern))
+  <?> "lambda or pattern function expression"
   where
     makeMatchLambdaExpr keyword ctor = do
       matcher <- keyword >> keywordAs >> expr
@@ -232,6 +235,7 @@ arg = ScalarArg         <$> (symbol "$"  >> identifier)
   <|> InvertedScalarArg <$> (symbol "*$" >> identifier)
   <|> TensorArg         <$> (symbol "%"  >> identifier)
   <|> ScalarArg         <$> identifier
+  <?> "argument"
 
 letExpr :: Parser EgisonExpr
 letExpr = do
@@ -378,12 +382,12 @@ atomExpr' = numericExpr
         <|> collectionExpr
         <|> tupleOrParenExpr
         <|> hashExpr
-        <?> "atomic expressions"
+        <?> "atomic expression"
 
 numericExpr :: Parser EgisonExpr
 numericExpr = try (uncurry FloatExpr <$> floatLiteral)
           <|> IntegerExpr <$> positiveIntegerLiteral
-          <?> "numeric expressions"
+          <?> "numeric expression"
 --
 -- Pattern
 --
@@ -393,6 +397,7 @@ pattern = letPattern
       <|> loopPattern
       <|> try applyPattern
       <|> opPattern
+      <?> "pattern"
 
 letPattern :: Parser EgisonPattern
 letPattern = do
@@ -459,6 +464,7 @@ atomPattern = WildCard <$   symbol "_"
           <|> PredPat  <$> (symbol "?" >> atomExpr)
           <|> ContPat  <$ symbol "..."
           <|> makeTupleOrParen pattern TuplePat
+          <?> "atomic pattern"
 
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> identifier)
@@ -466,6 +472,7 @@ patVarLiteral = stringToVar <$> (char '$' >> identifier)
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
         <|> makeExprParser ppAtom table
+        <?> "primitive pattern pattern"
   where
     table :: [[Operator Parser PrimitivePatPattern]]
     table =
@@ -485,6 +492,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
 pdPattern :: Parser PrimitiveDataPattern
 pdPattern = PDInductivePat <$> upperId <*> many pdAtom
         <|> pdAtom
+        <?> "primitive data pattern"
   where
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard <$ symbol "_"
@@ -512,21 +520,26 @@ comma     = symbol ","
 dot       = symbol "."
 
 positiveIntegerLiteral :: Parser Integer
-positiveIntegerLiteral = try $ lexeme L.decimal
+positiveIntegerLiteral = try (lexeme L.decimal)
+                     <?> "unsinged integer"
 
 charLiteral :: Parser Char
 charLiteral = between (char '\'') (symbol "\'") L.charLiteral
+          <?> "character"
 
 stringLiteral :: Parser String
 stringLiteral = char '\"' *> manyTill L.charLiteral (symbol "\"")
+          <?> "string"
 
 boolLiteral :: Parser Bool
 boolLiteral = reserved "True"  $> True
           <|> reserved "False" $> False
+          <?> "boolean"
 
 floatLiteral :: Parser (Double, Double)
-floatLiteral = try ((,0) <$> (lexeme L.float <* notFollowedBy (char 'i')))
+floatLiteral = try ((,0) <$> (lexeme L.float <* notFollowedBy (symbol "i")))
                 <|> (0,) <$> (lexeme L.float <* symbol "i")
+                <?> "float"
 
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> lowerId
