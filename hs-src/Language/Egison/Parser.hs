@@ -708,7 +708,7 @@ boolExpr = BoolExpr <$> boolLiteral
 floatExpr :: Parser EgisonExpr
 floatExpr = do
   (x,y) <- try ((,) <$> floatLiteral <*> (sign' <*> positiveFloatLiteral) <* char 'i')
-            <|> try ((,) 0 <$> floatLiteral <* char 'i')
+            <|> try ((0,)  <$> floatLiteral <* char 'i')
             <|> try ((, 0) <$> floatLiteral)
   return $ FloatExpr x y
 

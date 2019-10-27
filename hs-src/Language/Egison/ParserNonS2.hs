@@ -367,19 +367,23 @@ atomExpr = do
 
 -- atom expr without index
 atomExpr' :: Parser EgisonExpr
-atomExpr' = IntegerExpr <$> positiveIntegerLiteral
-       <|> BoolExpr <$> boolLiteral
-       <|> CharExpr <$> charLiteral
-       <|> StringExpr . pack <$> stringLiteral
-       <|> VarExpr <$> varLiteral
-       <|> SomethingExpr <$ keywordSomething
-       <|> UndefinedExpr <$ keywordUndefined
-       <|> (\x -> InductiveDataExpr x []) <$> upperId
-       <|> collectionExpr
-       <|> tupleOrParenExpr
-       <|> hashExpr
-       <?> "atomic expressions"
+atomExpr' = numericExpr
+        <|> BoolExpr <$> boolLiteral
+        <|> CharExpr <$> charLiteral
+        <|> StringExpr . pack <$> stringLiteral
+        <|> VarExpr <$> varLiteral
+        <|> SomethingExpr <$ keywordSomething
+        <|> UndefinedExpr <$ keywordUndefined
+        <|> (\x -> InductiveDataExpr x []) <$> upperId
+        <|> collectionExpr
+        <|> tupleOrParenExpr
+        <|> hashExpr
+        <?> "atomic expressions"
 
+numericExpr :: Parser EgisonExpr
+numericExpr = try (uncurry FloatExpr <$> floatLiteral)
+          <|> IntegerExpr <$> positiveIntegerLiteral
+          <?> "numeric expressions"
 --
 -- Pattern
 --
@@ -508,17 +512,21 @@ comma     = symbol ","
 dot       = symbol "."
 
 positiveIntegerLiteral :: Parser Integer
-positiveIntegerLiteral = lexeme L.decimal
+positiveIntegerLiteral = try $ lexeme L.decimal
 
 charLiteral :: Parser Char
 charLiteral = between (char '\'') (symbol "\'") L.charLiteral
 
 stringLiteral :: Parser String
-stringLiteral = dbg "stringLiteral" $ char '\"' *> manyTill L.charLiteral (symbol "\"")
+stringLiteral = char '\"' *> manyTill L.charLiteral (symbol "\"")
 
 boolLiteral :: Parser Bool
 boolLiteral = reserved "True"  $> True
           <|> reserved "False" $> False
+
+floatLiteral :: Parser (Double, Double)
+floatLiteral = try ((,0) <$> (lexeme L.float <* notFollowedBy (char 'i')))
+                <|> (0,) <$> (lexeme L.float <* symbol "i")
 
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> lowerId
