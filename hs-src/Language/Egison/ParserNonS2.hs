@@ -520,7 +520,7 @@ comma     = symbol ","
 dot       = symbol "."
 
 positiveIntegerLiteral :: Parser Integer
-positiveIntegerLiteral = try (lexeme L.decimal)
+positiveIntegerLiteral = lexeme L.decimal
                      <?> "unsinged integer"
 
 charLiteral :: Parser Char
