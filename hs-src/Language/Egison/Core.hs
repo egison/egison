@@ -84,7 +84,7 @@ collectDefs opts (expr:exprs) bindings rest =
       if optNoIO opts
          then throwError $ Default "No IO support"
          else do exprs' <- if
-                   | optUseHappy opts -> ParserNonS2.loadFile file
+                   | optUseNonS2 opts -> ParserNonS2.loadFile file
                    | optSExpr opts    -> Parser.loadFile file
                    | otherwise        -> ParserNonS.loadFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
@@ -92,7 +92,7 @@ collectDefs opts (expr:exprs) bindings rest =
       if optNoIO opts
          then throwError $ Default "No IO support"
          else do exprs' <- if
-                   | optUseHappy opts -> ParserNonS2.loadLibraryFile file
+                   | optUseNonS2 opts -> ParserNonS2.loadLibraryFile file
                    | optSExpr opts    -> Parser.loadLibraryFile file
                    | otherwise        -> ParserNonS.loadLibraryFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest

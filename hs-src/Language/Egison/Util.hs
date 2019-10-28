@@ -41,7 +41,7 @@ getEgisonExpr' opts prev = do
       history <- getHistory
       putHistory $ addHistoryUnlessConsecutiveDupe line history
       let input = prev ++ line
-      let parsedExpr = (if optUseHappy opts then ParserNonS2.parseTopExpr else if optSExpr opts then Parser.parseTopExpr else ParserNonS.parseTopExpr) input
+      let parsedExpr = (if optUseNonS2 opts then ParserNonS2.parseTopExpr else if optSExpr opts then Parser.parseTopExpr else ParserNonS.parseTopExpr) input
       case parsedExpr of
         Left err | show err =~ "unexpected end of input" ->
           getEgisonExpr' opts $ input ++ "\n"
