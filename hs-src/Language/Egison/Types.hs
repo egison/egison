@@ -1986,7 +1986,7 @@ data EgisonOpts = EgisonOpts {
     optPrompt           :: String,
     optMathExpr         :: Maybe String,
     optSExpr            :: Bool,
-    optUseHappy         :: Bool
+    optUseNonS2         :: Bool
     }
 
 defaultOption :: EgisonOpts

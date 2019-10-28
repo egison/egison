@@ -80,28 +80,28 @@ evalEgisonTopExprs opts env exprs = fromEgisonM $ evalTopExprs opts env exprs
 -- |eval an Egison expression. Input is a Haskell string.
 runEgisonExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError EgisonValue)
 runEgisonExpr opts env input
-  | optUseHappy opts = fromEgisonM $ ParserNonS2.readExpr input >>= evalExprDeep env
+  | optUseNonS2 opts = fromEgisonM $ ParserNonS2.readExpr input >>= evalExprDeep env
   | optSExpr opts    = fromEgisonM $ Parser.readExpr input >>= evalExprDeep env
   | otherwise        = fromEgisonM $ ParserNonS.readExpr input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExpr opts env input
-  | optUseHappy opts = fromEgisonM $ ParserNonS2.readTopExpr input >>= evalTopExpr opts env
+  | optUseNonS2 opts = fromEgisonM $ ParserNonS2.readTopExpr input >>= evalTopExpr opts env
   | optSExpr opts    = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr opts env
   | otherwise        = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr opts env
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> String -> IO (Either EgisonError (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env))
 runEgisonTopExpr' opts st input
-  | optUseHappy opts = fromEgisonM $ ParserNonS2.readTopExpr input >>= evalTopExpr' opts st
+  | optUseNonS2 opts = fromEgisonM $ ParserNonS2.readTopExpr input >>= evalTopExpr' opts st
   | optSExpr opts    = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' opts st
   | otherwise        = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' opts st
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExprs opts env input
-  | optUseHappy opts = fromEgisonM $ ParserNonS2.readTopExprs input >>= evalTopExprs opts env
+  | optUseNonS2 opts = fromEgisonM $ ParserNonS2.readTopExprs input >>= evalTopExprs opts env
   | optSExpr opts    = fromEgisonM $ Parser.readTopExprs input >>= evalTopExprs opts env
   | otherwise        = fromEgisonM $ ParserNonS.readTopExprs input >>= evalTopExprs opts env
 
@@ -116,9 +116,9 @@ loadEgisonLibrary opts env path = evalEgisonTopExpr opts env (Load path)
 -- |Environment that contains core libraries
 initialEnv :: EgisonOpts -> IO Env
 initialEnv opts = do
-  env <- if optNoIO opts then if optUseHappy opts then primitiveEnvNoIO'
+  env <- if optNoIO opts then if optUseNonS2 opts then primitiveEnvNoIO'
                                                   else primitiveEnvNoIO
-                         else if optUseHappy opts then primitiveEnv'
+                         else if optUseNonS2 opts then primitiveEnv'
                                                   else primitiveEnv
   ret <- evalEgisonTopExprs defaultOption env $ map Load coreLibraries
   case ret of
