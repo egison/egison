@@ -311,16 +311,13 @@ tupleOrParenExpr = do
   where
     makeLambda name Nothing Nothing =
       LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
-                 (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [stringToVarExpr ":x", stringToVarExpr ":y"]))
+                 (makeApply (stringToVarExpr name) [stringToVarExpr ":x", stringToVarExpr ":y"])
     makeLambda name Nothing (Just rarg) =
       LambdaExpr [ScalarArg ":x"]
-                 (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [stringToVarExpr ":x", rarg]))
+                 (makeApply (stringToVarExpr name) [stringToVarExpr ":x", rarg])
     makeLambda name (Just larg) Nothing =
       LambdaExpr [ScalarArg ":y"]
-                 (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [larg, stringToVarExpr ":y"]))
+                 (makeApply (stringToVarExpr name) [larg, stringToVarExpr ":y"])
 
     -- TODO(momohatt): Handle point-free expressions starting with expr, such as (1 +)
     -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
@@ -425,9 +422,8 @@ loopPattern = do
               return $ LoopRange start ends as)
 
     defaultEnds s =
-      ApplyExpr
-        (stringToVarExpr "from")
-        (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))
+      ApplyExpr (stringToVarExpr "from")
+                (makeApply (stringToVarExpr "-'") [s, IntegerExpr 1])
 
 applyPattern :: Parser EgisonPattern
 applyPattern = do
