@@ -82,7 +82,7 @@ assertEqual "append op" ((++) [1] [2]) [1, 2]
 assertEqual "point free expr" ((+) 10 1) 11
 assertEqual "point free expr" ((+ 1) 10) 11
 assertEqual "point free expr" (foldl (*) 1 [1..5]) 120
--- assertEqual "point free expr" ((10 -) 1) 9
+assertEqual "point free expr" ((10 -) 1) 9
 
 -- findFactor = memoizedLambda
 --               $n -> match takeWhile($ <= floor(sqrt(itof(n))), primes) as (list integer) with

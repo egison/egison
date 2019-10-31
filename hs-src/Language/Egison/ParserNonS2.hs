@@ -158,34 +158,34 @@ opExpr = do
     -- currying of functions)
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
-      let unary  internalName parseSym =
-            makeUnaryApply  internalName <$ parseSym
-          binary internalName parseSym =
-            makeBinaryApply internalName <$ (L.indentGuard sc GT pos >> parseSym)
+      let unary  internalName sym =
+            makeUnaryApply  internalName <$ symbol' sym
+          binary internalName sym =
+            makeBinaryApply internalName <$ (L.indentGuard sc GT pos >> symbol' sym)
        in
-          [ [ Prefix (unary  "-"         $ symbol "-" ) ]
+          [ [ Prefix (unary  "-"         "-" ) ]
           -- 8
-          , [ InfixL (binary "**"        $ symbol "^" ) ]
+          , [ InfixL (binary "**"        "^" ) ]
           -- 7
-          , [ InfixL (binary "*"         $ symbol "*" )
-            , InfixL (binary "/"         $ symbol "/" )
-            , InfixL (binary "remainder" $ symbol "%" ) ]
+          , [ InfixL (binary "*"         "*" )
+            , InfixL (binary "/"         "/" )
+            , InfixL (binary "remainder" "%" ) ]
           -- 6
-          , [ InfixL (binary "+"         $ try $ symbol "+" <* notFollowedBy (char '+'))
-            , InfixL (binary "-"         $ symbol "-" ) ]
+          , [ InfixL (binary "+"         "+" )
+            , InfixL (binary "-"         "-" ) ]
           -- 5
-          , [ InfixR (binary "cons"      $ symbol ":" )
-            , InfixR (binary "append"    $ symbol "++") ]
+          , [ InfixR (binary "cons"      ":" )
+            , InfixR (binary "append"    "++") ]
           -- 4
-          , [ InfixL (binary "eq?"       $ symbol "==")
-            , InfixL (binary "lte?"      $ symbol "<=")
-            , InfixL (binary "lt?"       $ symbol "<" )
-            , InfixL (binary "gte?"      $ symbol ">=")
-            , InfixL (binary "gt?"       $ symbol ">" ) ]
+          , [ InfixL (binary "eq?"       "==")
+            , InfixL (binary "lte?"      "<=")
+            , InfixL (binary "lt?"       "<" )
+            , InfixL (binary "gte?"      ">=")
+            , InfixL (binary "gt?"       ">" ) ]
           -- 3
-          , [ InfixR (binary "and"       $ symbol "&&") ]
+          , [ InfixR (binary "and"       "&&") ]
           -- 2
-          , [ InfixR (binary "or"        $ symbol "||") ]
+          , [ InfixR (binary "or"        "||") ]
           ]
 
 
@@ -319,13 +319,15 @@ tupleOrParenExpr = do
       LambdaExpr [ScalarArg ":y"]
                  (makeApply (stringToVarExpr name) [larg, stringToVarExpr ":y"])
 
-    -- TODO(momohatt): Handle point-free expressions starting with expr, such as (1 +)
     -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
     pointFreeExpr :: Parser [EgisonExpr]
-    pointFreeExpr = do
-      op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
-      rarg <- optional $ expr
-      return [makeLambda op Nothing rarg]
+    pointFreeExpr =
+      try (do op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
+              rarg <- optional $ expr
+              return [makeLambda op Nothing rarg])
+      <|> (do larg <- opExpr
+              op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
+              return [makeLambda op (Just larg) Nothing])
 
 hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
@@ -549,6 +551,13 @@ reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
 
 symbol :: String -> Parser String
 symbol sym = try (L.symbol sc sym)
+
+symbol' :: String -> Parser String
+symbol' sym = try (L.symbol sc sym <* notFollowedBy (oneOf opChars))
+  where
+    -- characters that could consist operators, or closing symbols (')', ']', ...)
+    opChars :: [Char]
+    opChars = "!@#$%^&*)-+]}\\|;:<,>.?/"
 
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
