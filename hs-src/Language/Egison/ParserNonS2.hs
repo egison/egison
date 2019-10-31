@@ -407,14 +407,18 @@ loopPattern :: Parser EgisonPattern
 loopPattern = do
   keywordLoop
   iter <- patVarLiteral
-  range <- parseRange
+  range <- loopRange
   loopBody <- optional (symbol "|") >> pattern
   loopEnd <- symbol "|" >> pattern
   return $ LoopPat iter range loopBody loopEnd
   where
-    parseRange :: Parser LoopRange
-    parseRange =
-      try (parens $ LoopRange <$> expr <*> (comma >> expr) <*> (comma >> pattern))
+    loopRange :: Parser LoopRange
+    loopRange =
+      try (parens $
+           do start <- expr
+              ends  <- fromMaybe (defaultEnds start) <$> optional (try $ comma >> expr)
+              as    <- fromMaybe WildCard <$> optional (comma >> pattern)
+              return $ LoopRange start ends as)
       <|> (do start <- keywordFrom >> expr
               ends  <- fromMaybe (defaultEnds start) <$> optional (keywordTo >> expr)
               as    <- fromMaybe WildCard <$> optional (keywordAs >> pattern)
