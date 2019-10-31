@@ -210,6 +210,13 @@ assert "loop pattern"
        | snoc #i ...
        | [] -> True)
 
+assertEqual "loop pattern"
+  (match [1..10] as list integer with
+   | loop $i (1, $n)
+       | #i : ...
+       | [] -> n)
+  10
+
 assert "loop pattern"
   (match [3, 2, 1] as list integer with
    | loop $i from 1 to [3] of snoc #i ... | [] -> True)
