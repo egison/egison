@@ -26,7 +26,7 @@ import           Control.Monad.Fail
 import           Control.Monad.Reader
 import           Data.Char             (toUpper)
 import           Data.List             (span)
-import           Data.Maybe            (fromMaybe)
+import           Data.Maybe            (fromJust, fromMaybe)
 import           Data.Set              (Set)
 import qualified Data.Set              as S
 
@@ -176,8 +176,6 @@ desugar (IndexedExpr b expr indices)
   fromIndexToExpr (Subscript a)    = a
   fromIndexToExpr (Superscript a)  = a
   fromIndexToExpr (SupSubscript a) = a
-  makeApply :: String -> [EgisonExpr] -> EgisonExpr
-  makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
 
 desugar (SubrefsExpr bool expr1 expr2) =
   SubrefsExpr bool <$> desugar expr1 <*> desugar expr2
@@ -310,6 +308,12 @@ desugar (DoExpr binds expr) =
 
 desugar (IoExpr expr) =
   IoExpr <$> desugar expr
+
+desugar (UnaryOpExpr "-" expr) =
+  (\x -> makeApply "*" [IntegerExpr (-1), x]) <$> desugar expr
+
+desugar (BinaryOpExpr op expr1 expr2) =
+  (\x y -> makeApply (fromJust $ lookup op reservedBinops) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 desugar (SeqExpr expr0 expr1) =
   SeqExpr <$> desugar expr0 <*> desugar expr1
@@ -485,3 +489,6 @@ desugarPrimitiveDataMatchClauses ((pd, expr):pds) = do
   expr' <- desugar expr
   pds' <- desugarPrimitiveDataMatchClauses pds
   return $ (pd, expr'):pds'
+
+makeApply :: String -> [EgisonExpr] -> EgisonExpr
+makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
