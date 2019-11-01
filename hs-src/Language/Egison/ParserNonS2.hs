@@ -431,6 +431,11 @@ loopPattern = do
       ApplyExpr (stringToVarExpr "from")
                 (makeApply (stringToVarExpr "-'") [s, IntegerExpr 1])
 
+seqPattern :: Parser EgisonPattern
+seqPattern = do
+  pats <- braces $ sepBy pattern comma
+  return $ foldr SeqConsPat SeqNilPat pats
+
 applyPattern :: Parser EgisonPattern
 applyPattern = do
   pos <- L.indentLevel
@@ -466,6 +471,8 @@ atomPattern = WildCard <$   symbol "_"
           <|> PredPat  <$> (symbol "?" >> atomExpr)
           <|> ContPat  <$ symbol "..."
           <|> makeTupleOrParen pattern TuplePat
+          <|> seqPattern
+          <|> LaterPatVar <$ symbol "@"
           <?> "atomic pattern"
 
 patVarLiteral :: Parser Var
