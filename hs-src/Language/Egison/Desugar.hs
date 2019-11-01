@@ -185,6 +185,9 @@ desugar (SubrefsExpr bool expr1 expr2) =
 desugar (SuprefsExpr bool expr1 expr2) =
   SuprefsExpr bool <$> desugar expr1 <*> desugar expr2
 
+desugar (UserrefsExpr bool expr1 expr2) =
+  UserrefsExpr bool <$> desugar expr1 <*> desugar expr2
+
 desugar (PowerExpr expr1 expr2) = do
   expr1' <- desugar expr1
   expr2' <- desugar expr2

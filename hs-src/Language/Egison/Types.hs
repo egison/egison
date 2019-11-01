@@ -272,7 +272,6 @@ data EgisonExpr =
   | CApplyExpr EgisonExpr EgisonExpr
   | PartialExpr Integer EgisonExpr
   | PartialVarExpr Integer
-  | RecVarExpr
 
   | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
   | ArrayBoundsExpr EgisonExpr
@@ -437,11 +436,9 @@ instance Eq PolyExpr where
   _ == _ = False
 
 instance Eq TermExpr where
-  (Term a []) == (Term b [])
-    | a /= b =  False
-    | otherwise = True
+  (Term a []) == (Term b []) = a == b
   (Term a ((Quote x, n):xs)) == (Term b ys)
-    | (a /= b) && (a /= negate b) =  False
+    | (a /= b) && (a /= negate b) = False
     | otherwise = case elemIndex (Quote x, n) ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 Term a xs == Term b (hs ++ ts)
@@ -452,7 +449,7 @@ instance Eq TermExpr where
                                                else Term (negate a) xs == Term b (hs ++ ts)
                                  Nothing -> False
   (Term a (x:xs)) == (Term b ys)
-    | (a /= b) && (a /= negate b) =  False
+    | (a /= b) && (a /= negate b) = False
     | otherwise = case elemIndex x ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 Term a xs == Term b (hs ++ ts)
