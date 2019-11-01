@@ -308,6 +308,12 @@ assertEqual "tree set using algebraic-data-matcher"
     in [treeMember? 1 t, treeMember? 0 t])
   [True, False]
 
+assert "sequential pattern"
+  (match [2,3,1,4,5] as list integer with
+    { @ : @ : $x : _,
+      (#(x + 1), @),
+      #(x + 2)} -> True)
+
 --
 -- Tensor
 --
