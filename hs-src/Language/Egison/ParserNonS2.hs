@@ -313,11 +313,11 @@ tupleOrParenExpr = do
     -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr =
-      try (do op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
+      try (do op   <- choice $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
               rarg <- optional $ expr
               return [makeLambda op Nothing rarg])
       <|> (do larg <- opExpr
-              op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
+              op   <- choice $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
               return [makeLambda op (Just larg) Nothing])
 
 hashExpr :: Parser EgisonExpr
@@ -679,9 +679,6 @@ lowerReservedWords =
 --
 -- Utils
 --
-
-parseOneOf :: [Parser a] -> Parser a
-parseOneOf = foldl1 (\acc p -> acc <|> p)
 
 makeTupleOrParen :: Parser a -> ([a] -> a) -> Parser a
 makeTupleOrParen parser tupleCtor = do
