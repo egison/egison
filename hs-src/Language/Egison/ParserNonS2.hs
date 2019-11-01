@@ -152,7 +152,7 @@ expr = ifExpr
 opExpr :: Parser EgisonExpr
 opExpr = do
   pos <- L.indentLevel
-  makeExprParser atomOrAppExpr (makeTable pos)
+  makeExprParser atomOrApplyExpr (makeTable pos)
   where
     -- TODO(momohatt): Parse function application here (this would require
     -- currying of functions)
@@ -249,13 +249,6 @@ binding = do
   vars <- ((:[]) <$> varLiteral) <|> (parens $ sepBy varLiteral comma)
   body <- symbol "=" >> expr
   return (vars, body)
-
-applyExpr :: Parser EgisonExpr
-applyExpr = do
-  pos <- L.indentLevel
-  func <- atomExpr
-  args <- some (L.indentGuard sc GT pos *> atomExpr)
-  return $ makeApply func args
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
@@ -355,9 +348,14 @@ index = SupSubscript <$> (string "~_" >> atomExpr')
         Nothing  -> return $ Superscript e1
         Just e2' -> return $ MultiSuperscript e1 e2'
 
-atomOrAppExpr :: Parser EgisonExpr
-atomOrAppExpr = try (dbg "applyExpr" applyExpr)
-            <|> atomExpr
+atomOrApplyExpr :: Parser EgisonExpr
+atomOrApplyExpr = do
+  pos <- L.indentLevel
+  func <- atomExpr
+  args <- many (L.indentGuard sc GT pos *> atomExpr)
+  return $ case args of
+             [] -> func
+             _  -> makeApply func args
 
 atomExpr :: Parser EgisonExpr
 atomExpr = do
