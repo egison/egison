@@ -34,6 +34,7 @@ module Language.Egison.Types
     , PrimitiveFunc (..)
     , EgisonData (..)
     , showTSV
+    , reservedBinops
     -- * Egison values
     , EgisonValue (..)
     , ScalarData (..)
@@ -267,6 +268,9 @@ data EgisonExpr =
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
 
+  | UnaryOpExpr String EgisonExpr
+  | BinaryOpExpr String EgisonExpr EgisonExpr
+
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
   | CApplyExpr EgisonExpr EgisonExpr
@@ -370,6 +374,26 @@ data PrimitiveDataPattern =
   | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
+
+-- Reserved binary operators, aligned from the longest one
+reservedBinops :: [(String, String)]
+reservedBinops =
+  [ ("++", "append"   )
+  , ("==", "eq?"      )
+  , ("<=", "lte?"     )
+  , (">=", "gte?"     )
+  , ("&&", "and"      )
+  , ("||", "or"       )
+  , ("^",  "**"       )
+  , ("*",  "*"        )
+  , ("/",  "/"        )
+  , ("%",  "remainder")
+  , ("+",  "+"        )
+  , ("-",  "-"        )
+  , (":",  "cons"     )
+  , ("<",  "lt?"      )
+  , (">",  "gt?"      )
+  ]
 
 --
 -- Values

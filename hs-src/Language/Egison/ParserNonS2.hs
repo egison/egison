@@ -158,34 +158,32 @@ opExpr = do
     -- currying of functions)
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
-      let unary  internalName sym =
-            makeUnaryApply  internalName <$ symbol' sym
-          binary internalName sym =
-            makeBinaryApply internalName <$ (L.indentGuard sc GT pos >> symbol' sym)
+      let unary  sym = UnaryOpExpr  <$> symbol' sym
+          binary sym = BinaryOpExpr <$> (L.indentGuard sc GT pos >> symbol' sym)
        in
-          [ [ Prefix (unary  "-"         "-" ) ]
+          [ [ Prefix (unary  "-" ) ]
           -- 8
-          , [ InfixL (binary "**"        "^" ) ]
+          , [ InfixL (binary "^" ) ]
           -- 7
-          , [ InfixL (binary "*"         "*" )
-            , InfixL (binary "/"         "/" )
-            , InfixL (binary "remainder" "%" ) ]
+          , [ InfixL (binary "*" )
+            , InfixL (binary "/" )
+            , InfixL (binary "%" ) ]
           -- 6
-          , [ InfixL (binary "+"         "+" )
-            , InfixL (binary "-"         "-" ) ]
+          , [ InfixL (binary "+" )
+            , InfixL (binary "-" ) ]
           -- 5
-          , [ InfixR (binary "cons"      ":" )
-            , InfixR (binary "append"    "++") ]
+          , [ InfixR (binary ":" )
+            , InfixR (binary "++") ]
           -- 4
-          , [ InfixL (binary "eq?"       "==")
-            , InfixL (binary "lte?"      "<=")
-            , InfixL (binary "lt?"       "<" )
-            , InfixL (binary "gte?"      ">=")
-            , InfixL (binary "gt?"       ">" ) ]
+          , [ InfixL (binary "==")
+            , InfixL (binary "<=")
+            , InfixL (binary "<" )
+            , InfixL (binary ">=")
+            , InfixL (binary ">" ) ]
           -- 3
-          , [ InfixR (binary "and"       "&&") ]
+          , [ InfixR (binary "&&") ]
           -- 2
-          , [ InfixR (binary "or"        "||") ]
+          , [ InfixR (binary "||") ]
           ]
 
 
@@ -290,8 +288,8 @@ collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
       start <- expr <* symbol ".."
       end   <- optional expr <* symbol "]"
       case end of
-        Just end' -> return $ makeBinaryApply "between" start end'
-        Nothing   -> return $ makeUnaryApply "from" start
+        Just end' -> return $ makeApply' "between" [start, end']
+        Nothing   -> return $ makeApply' "from" [start]
 
     elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
 
@@ -678,26 +676,6 @@ lowerReservedWords =
   , "function"
   ]
 
--- Reserved binary operators, aligned from the longest one
-reservedBinops :: [(String, String)]
-reservedBinops =
-  [ ("++", "append"   )
-  , ("==", "eq?"      )
-  , ("<=", "lte?"     )
-  , (">=", "gte?"     )
-  , ("&&", "and"      )
-  , ("||", "or"       )
-  , ("^",  "**"       )
-  , ("*",  "*"        )
-  , ("/",  "/"        )
-  , ("%",  "remainder")
-  , ("+",  "+"        )
-  , ("-",  "-"        )
-  , (":",  "cons"     )
-  , ("<",  "lt?"      )
-  , (">",  "gt?"      )
-  ]
-
 --
 -- Utils
 --
@@ -712,13 +690,9 @@ makeTupleOrParen parser tupleCtor = do
     [elem] -> return elem
     _      -> return $ tupleCtor elems
 
-makeBinaryApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
-makeBinaryApply func x y = ApplyExpr (stringToVarExpr func) (TupleExpr [x, y])
-
-makeUnaryApply :: String -> EgisonExpr -> EgisonExpr
-makeUnaryApply "-" x  = makeBinaryApply "*" (IntegerExpr (-1)) x
-makeUnaryApply func x = ApplyExpr (stringToVarExpr func) (TupleExpr [x])
-
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
 makeApply (InductiveDataExpr x []) xs = InductiveDataExpr x xs
 makeApply func xs = ApplyExpr func (TupleExpr xs)
+
+makeApply' :: String -> [EgisonExpr] -> EgisonExpr
+makeApply' func xs = ApplyExpr (stringToVarExpr func) (TupleExpr xs)
