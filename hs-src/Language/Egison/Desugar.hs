@@ -25,7 +25,7 @@ import           Control.Monad.Except
 import           Control.Monad.Fail
 import           Control.Monad.Reader
 import           Data.Char             (toUpper)
-import           Data.List             (span)
+import           Data.List             (find, span)
 import           Data.Maybe            (fromJust, fromMaybe)
 import           Data.Set              (Set)
 import qualified Data.Set              as S
@@ -313,7 +313,7 @@ desugar (UnaryOpExpr "-" expr) =
   (\x -> makeApply "*" [IntegerExpr (-1), x]) <$> desugar expr
 
 desugar (BinaryOpExpr op expr1 expr2) =
-  (\x y -> makeApply (fromJust $ lookup op reservedBinops) [x, y]) <$> desugar expr1 <*> desugar expr2
+  (\x y -> makeApply (function . fromJust $ find ((== op) . operator) reservedBinops) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 desugar (SeqExpr expr0 expr1) =
   SeqExpr <$> desugar expr0 <*> desugar expr1
