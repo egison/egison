@@ -33,7 +33,8 @@ import           Prelude                        hiding (mapM)
 import           System.Directory               (doesFileExist, getHomeDirectory)
 
 import           Data.Functor                   (($>))
-import           Data.Maybe                     (fromMaybe)
+import           Data.List                      (find)
+import           Data.Maybe                     (fromJust, fromMaybe)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
@@ -298,25 +299,31 @@ tupleOrParenExpr = do
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
-    makeLambda op Nothing Nothing =
-      LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
-                 (BinaryOpExpr op (stringToVarExpr ":x") (stringToVarExpr ":y"))
-    makeLambda op Nothing (Just rarg) =
-      LambdaExpr [ScalarArg ":x"]
-                 (BinaryOpExpr op (stringToVarExpr ":x") rarg)
-    makeLambda op (Just larg) Nothing =
-      LambdaExpr [ScalarArg ":y"]
-                 (BinaryOpExpr op larg (stringToVarExpr ":y"))
-
-    -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
+    -- TODO(momohatt): Throw megaparsec exception (not error)
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr =
       try (do op   <- choice $ map (operator . repr) reservedBinops
               rarg <- optional $ expr
-              return [makeLambda op Nothing rarg])
+              case rarg of
+                Just (BinaryOpExpr op' _ _) | priorityOf op >= priorityOf op' -> error "wrong priority of operator"
+                _ -> return [makeLambda op Nothing rarg])
       <|> (do larg <- opExpr
               op   <- choice $ map (operator . repr) reservedBinops
-              return [makeLambda op (Just larg) Nothing])
+              case larg of
+                BinaryOpExpr op' _ _ | priorityOf op >= priorityOf op' -> error "wrong priority of operator"
+                _ -> return [makeLambda op (Just larg) Nothing])
+
+    makeLambda :: String -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
+    makeLambda op Nothing Nothing =
+      LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
+                 (BinaryOpExpr op (stringToVarExpr ":x") (stringToVarExpr ":y"))
+    makeLambda op Nothing (Just rarg) =
+      LambdaExpr [ScalarArg ":x"] (BinaryOpExpr op (stringToVarExpr ":x") rarg)
+    makeLambda op (Just larg) Nothing =
+      LambdaExpr [ScalarArg ":y"] (BinaryOpExpr op larg (stringToVarExpr ":y"))
+
+    priorityOf :: String -> Int
+    priorityOf op = priority . fromJust $ find ((== op) . repr) reservedBinops
 
 hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
