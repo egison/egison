@@ -156,8 +156,8 @@ opExpr = do
   where
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
-      let unary  sym = UnaryOpExpr  <$> symbol' sym
-          binary sym = BinaryOpExpr <$> (L.indentGuard sc GT pos >> symbol' sym)
+      let unary  sym = UnaryOpExpr  <$> operator' sym
+          binary sym = BinaryOpExpr <$> (L.indentGuard sc GT pos >> operator' sym)
        in
           [ [ Prefix (unary  "-" ) ]
           -- 8
@@ -311,11 +311,11 @@ tupleOrParenExpr = do
     -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr =
-      try (do op   <- choice $ map (symbol'' . operator) reservedBinops
+      try (do op   <- choice $ map (operator . repr) reservedBinops
               rarg <- optional $ expr
               return [makeLambda op Nothing rarg])
       <|> (do larg <- opExpr
-              op   <- choice $ map (symbol'' . operator) reservedBinops
+              op   <- choice $ map (operator . repr) reservedBinops
               return [makeLambda op (Just larg) Nothing])
 
 hashExpr :: Parser EgisonExpr
@@ -452,8 +452,8 @@ opPattern = makeExprParser atomPattern table
       -- 2
       , [ InfixR (binary OrPat  "||") ]
       ]
-    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ symbol sym
-    binary name sym     = (\x y -> name [x, y]) <$ symbol sym
+    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ operator sym
+    binary name sym     = (\x y -> name [x, y]) <$ operator sym
 
 atomPattern :: Parser EgisonPattern
 atomPattern = WildCard <$   symbol "_"
@@ -482,7 +482,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
       [ [ InfixR (inductive2 "cons" ":" )
         , InfixR (inductive2 "join" "++") ]
       ]
-    inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ symbol sym
+    inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ operator sym
 
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
@@ -516,12 +516,6 @@ sc = L.space space1 lineCmnt blockCmnt
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
-parens    = between (symbol "(") (symbol ")")
-braces    = between (symbol "{") (symbol "}")
-brackets  = between (symbol "[") (symbol "]")
-comma     = symbol ","
-dot       = symbol "."
-
 positiveIntegerLiteral :: Parser Integer
 positiveIntegerLiteral = lexeme L.decimal
                      <?> "unsinged integer"
@@ -551,21 +545,27 @@ reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
 
 symbol :: String -> Parser String
-symbol sym = try (L.symbol sc sym)
+symbol sym = try $ L.symbol sc sym
 
-symbol' :: String -> Parser String
-symbol' sym = try (L.symbol sc sym <* notFollowedBy (oneOf opChars))
+-- Ensures that the next character isn't any of the characters that could consist other operators
+-- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+operator :: String -> Parser String
+operator sym = try $ string sym <* notFollowedBy (oneOf opChars) <* sc
   where
-    -- characters that could consist operators, or closing symbols (')', ']', ...)
     opChars :: [Char]
-    opChars = "!@#$%^&*)-+]}\\|:<>.?/"
+    opChars = "%^&*-+\\|:<>.?/'"
 
-symbol'' :: String -> Parser String
-symbol'' sym = try (L.symbol sc sym <* notFollowedBy (oneOf opChars))
+-- Mostly same as `operator`, but doesn't allow closing symbols (')', ']', ...) to follow
+operator' :: String -> Parser String
+operator' sym = try $ string sym <* notFollowedBy (oneOf opChars) <* sc
   where
-    -- characters that could consist operators
     opChars :: [Char]
-    opChars = "!@#$%^&*-+\\|:<>.?/"
+    opChars = "%^&*-+\\|:<>.?/')]}"
+
+parens    = between (symbol "(") (symbol ")")
+braces    = between (symbol "{") (symbol "}")
+brackets  = between (symbol "[") (symbol "]")
+comma     = symbol ","
 
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)

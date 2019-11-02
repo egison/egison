@@ -313,7 +313,7 @@ desugar (UnaryOpExpr "-" expr) =
   (\x -> makeApply "*" [IntegerExpr (-1), x]) <$> desugar expr
 
 desugar (BinaryOpExpr op expr1 expr2) =
-  (\x y -> makeApply (function . fromJust $ find ((== op) . operator) reservedBinops) [x, y]) <$> desugar expr1 <*> desugar expr2
+  (\x y -> makeApply (func . fromJust $ find ((== op) . repr) reservedBinops) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 desugar (SeqExpr expr0 expr1) =
   SeqExpr <$> desugar expr0 <*> desugar expr1
