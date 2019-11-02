@@ -376,8 +376,8 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
-data EgisonBinOp = EgisonBinOp { repr :: String  -- syntastic representation
-                               , func :: String  -- semantics
+data EgisonBinOp = EgisonBinOp { repr     :: String  -- syntastic representation
+                               , func     :: String  -- semantics
                                , priority :: Int
                                , assoc    :: BinOpAssoc
                                }
