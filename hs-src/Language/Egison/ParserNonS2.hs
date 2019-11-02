@@ -104,12 +104,20 @@ loadFile file = do
 -- Parser
 --
 
-type Parser = Parsec Void String
+type Parser = Parsec CustomError String
+
+data CustomError
+  = IllFormedPointFreeExpr String String
+  deriving (Eq, Ord)
+
+instance ShowErrorComponent CustomError where
+  showErrorComponent (IllFormedPointFreeExpr op op') =
+    "The operator " ++ op ++ " must have lower precedence than " ++ op'
 
 doParse :: Parser a -> String -> Either EgisonError a
 doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
   where
-    fromParsecError :: ParseErrorBundle String Void -> EgisonError
+    fromParsecError :: ParseErrorBundle String CustomError -> EgisonError
     fromParsecError = Parser . errorBundlePretty
 
 --
@@ -299,18 +307,19 @@ tupleOrParenExpr = do
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
-    -- TODO(momohatt): Throw megaparsec exception (not error)
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr =
       try (do op   <- choice $ map (operator . repr) reservedBinops
               rarg <- optional $ expr
               case rarg of
-                Just (BinaryOpExpr op' _ _) | priorityOf op >= priorityOf op' -> error "wrong priority of operator"
+                Just (BinaryOpExpr op' _ _) | priorityOf op >= priorityOf op' ->
+                  customFailure (IllFormedPointFreeExpr op op')
                 _ -> return [makeLambda op Nothing rarg])
       <|> (do larg <- opExpr
               op   <- choice $ map (operator . repr) reservedBinops
               case larg of
-                BinaryOpExpr op' _ _ | priorityOf op >= priorityOf op' -> error "wrong priority of operator"
+                BinaryOpExpr op' _ _ | priorityOf op >= priorityOf op' ->
+                  customFailure (IllFormedPointFreeExpr op op')
                 _ -> return [makeLambda op (Just larg) Nothing])
 
     makeLambda :: String -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
