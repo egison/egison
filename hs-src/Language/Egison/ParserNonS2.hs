@@ -112,7 +112,16 @@ data CustomError
 
 instance ShowErrorComponent CustomError where
   showErrorComponent (IllFormedPointFreeExpr op op') =
-    "The operator " ++ op ++ " must have lower precedence than " ++ op'
+    "The operator " ++ info op ++ " must have lower precedence than " ++ info op'
+    where
+      info op =
+        let priority = priorityOf op
+            assoc = case assocOf op of
+                      LeftAssoc -> "infixl"
+                      RightAssoc -> "infixr"
+                      NonAssoc -> "infix"
+         in "'" ++ op ++ "' [" ++ assoc ++ " " ++ show priority ++ "]"
+
 
 doParse :: Parser a -> String -> Either EgisonError a
 doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
@@ -329,9 +338,6 @@ tupleOrParenExpr = do
       LambdaExpr [ScalarArg ":x"] (BinaryOpExpr op (stringToVarExpr ":x") rarg)
     makeLambda op (Just larg) Nothing =
       LambdaExpr [ScalarArg ":y"] (BinaryOpExpr op larg (stringToVarExpr ":y"))
-
-    priorityOf :: String -> Int
-    priorityOf op = priority . fromJust $ find ((== op) . repr) reservedBinops
 
 hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
@@ -709,3 +715,9 @@ makeApply func xs = ApplyExpr func (TupleExpr xs)
 
 makeApply' :: String -> [EgisonExpr] -> EgisonExpr
 makeApply' func xs = ApplyExpr (stringToVarExpr func) (TupleExpr xs)
+
+priorityOf :: String -> Int
+priorityOf op = priority . fromJust $ find ((== op) . repr) reservedBinops
+
+assocOf :: String -> BinOpAssoc
+assocOf op = assoc . fromJust $ find ((== op) . repr) reservedBinops
