@@ -302,21 +302,20 @@ collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
 
 tupleOrParenExpr :: Parser EgisonExpr
 tupleOrParenExpr = do
-  elems <- parens $ try pointFreeExpr <|> sepBy expr comma
+  elems <- parens $ pointFreeExpr <|> sepBy expr comma
   case elems of
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr =
-      try (do op   <- choice $ map (operator . repr) reservedBinops
+          (do op   <- try . choice $ map (operator . repr) reservedBinops
               rarg <- optional $ expr
               case rarg of
                 Just (BinaryOpExpr op' _ _) | priorityOf op >= priorityOf op' ->
                   customFailure (IllFormedPointFreeExpr op op')
                 _ -> return [makeLambda op Nothing rarg])
-      <|> (do larg <- opExpr
-              op   <- choice $ map (operator . repr) reservedBinops
+      <|> (do (larg, op) <- try $ (,) <$> opExpr <*> (choice $ map (operator . repr) reservedBinops)
               case larg of
                 BinaryOpExpr op' _ _ | priorityOf op >= priorityOf op' ->
                   customFailure (IllFormedPointFreeExpr op op')
