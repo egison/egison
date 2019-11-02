@@ -459,20 +459,16 @@ desugarLoopRange :: LoopRange -> DesugarM LoopRange
 desugarLoopRange (LoopRange sExpr eExpr pattern) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pattern
 
-desugarBinding :: BindingExpr -> DesugarM BindingExpr
-desugarBinding (name, expr) = (name,) <$> desugar expr
-
 desugarBindings :: [BindingExpr] -> DesugarM [BindingExpr]
-desugarBindings (bind:rest) = (:) <$> desugarBinding bind <*> desugarBindings rest
-desugarBindings []          = return []
-
-desugarMatchClause :: MatchClause -> DesugarM MatchClause
-desugarMatchClause (pattern, expr) =
-  (,) <$> desugarPattern pattern <*> desugar expr
+desugarBindings = mapM desugarBinding
+  where
+    desugarBinding (name, expr) = (name,) <$> desugar expr
 
 desugarMatchClauses :: [MatchClause] -> DesugarM [MatchClause]
-desugarMatchClauses (clause:rest) = (:) <$> desugarMatchClause clause <*> desugarMatchClauses rest
-desugarMatchClauses []            = return []
+desugarMatchClauses = mapM desugarMatchClause
+  where
+    desugarMatchClause (pattern, expr) =
+      (,) <$> desugarPattern pattern <*> desugar expr
 
 desugarMatcherInfo :: MatcherInfo -> DesugarM MatcherInfo
 desugarMatcherInfo [] = return []
@@ -483,8 +479,6 @@ desugarMatcherInfo ((pp, matcher, pds):matcherInfo) = do
   return $ (pp, matcher', pds'):matcherInfo'
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, EgisonExpr)] -> DesugarM [(PrimitiveDataPattern, EgisonExpr)]
-desugarPrimitiveDataMatchClauses [] = return []
-desugarPrimitiveDataMatchClauses ((pd, expr):pds) = do
-  expr' <- desugar expr
-  pds' <- desugarPrimitiveDataMatchClauses pds
-  return $ (pd, expr'):pds'
+desugarPrimitiveDataMatchClauses = mapM desugarPrimitiveDataMatchClause
+  where
+    desugarPrimitiveDataMatchClause (pd, expr) = (pd,) <$> desugar expr
