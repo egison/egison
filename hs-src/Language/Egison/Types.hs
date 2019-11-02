@@ -376,8 +376,8 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
-data EgisonBinOp = EgisonBinOp { operator :: String
-                               , function :: String
+data EgisonBinOp = EgisonBinOp { repr :: String  -- syntastic representation
+                               , func :: String  -- semantics
                                , priority :: Int
                                , assoc    :: BinOpAssoc
                                }
@@ -389,21 +389,21 @@ data BinOpAssoc
 
 reservedBinops :: [EgisonBinOp]
 reservedBinops =
-  [ EgisonBinOp { operator = "^" , function = "**"       , priority = 8, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "*" , function = "*"        , priority = 7, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "/" , function = "/"        , priority = 7, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "%" , function = "remainder", priority = 7, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "+" , function = "+"        , priority = 6, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "-" , function = "-"        , priority = 6, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "++", function = "append"   , priority = 5, assoc = RightAssoc }
-  , EgisonBinOp { operator = ":" , function = "cons"     , priority = 5, assoc = RightAssoc }
-  , EgisonBinOp { operator = "==", function = "eq?"      , priority = 4, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "<=", function = "lte?"     , priority = 4, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = ">=", function = "gte?"     , priority = 4, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "<" , function = "lt?"      , priority = 4, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = ">" , function = "gt?"      , priority = 4, assoc = LeftAssoc  }
-  , EgisonBinOp { operator = "&&", function = "and"      , priority = 3, assoc = RightAssoc }
-  , EgisonBinOp { operator = "||", function = "or"       , priority = 2, assoc = RightAssoc }
+  [ EgisonBinOp { repr = "^" , func = "**"       , priority = 8, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "*" , func = "*"        , priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "/" , func = "/"        , priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "%" , func = "remainder", priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "+" , func = "+"        , priority = 6, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "-" , func = "-"        , priority = 6, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "++", func = "append"   , priority = 5, assoc = RightAssoc }
+  , EgisonBinOp { repr = ":" , func = "cons"     , priority = 5, assoc = RightAssoc }
+  , EgisonBinOp { repr = "==", func = "eq?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "<=", func = "lte?"     , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = ">=", func = "gte?"     , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "<" , func = "lt?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = ">" , func = "gt?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "&&", func = "and"      , priority = 3, assoc = RightAssoc }
+  , EgisonBinOp { repr = "||", func = "or"       , priority = 2, assoc = RightAssoc }
   ]
 
 --
