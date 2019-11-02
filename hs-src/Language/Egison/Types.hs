@@ -35,6 +35,7 @@ module Language.Egison.Types
     , EgisonData (..)
     , showTSV
     , EgisonBinOp(..)
+    , BinOpAssoc(..)
     , reservedBinops
     -- * Egison values
     , EgisonValue (..)
