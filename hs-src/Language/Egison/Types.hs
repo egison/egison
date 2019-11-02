@@ -34,6 +34,7 @@ module Language.Egison.Types
     , PrimitiveFunc (..)
     , EgisonData (..)
     , showTSV
+    , EgisonBinOp(..)
     , reservedBinops
     -- * Egison values
     , EgisonValue (..)
@@ -375,24 +376,34 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
--- Reserved binary operators, aligned from the longest one
-reservedBinops :: [(String, String)]
+data EgisonBinOp = EgisonBinOp { operator :: String
+                               , function :: String
+                               , priority :: Int
+                               , assoc    :: BinOpAssoc
+                               }
+
+data BinOpAssoc
+  = LeftAssoc
+  | RightAssoc
+  | NonAssoc
+
+reservedBinops :: [EgisonBinOp]
 reservedBinops =
-  [ ("++", "append"   )
-  , ("==", "eq?"      )
-  , ("<=", "lte?"     )
-  , (">=", "gte?"     )
-  , ("&&", "and"      )
-  , ("||", "or"       )
-  , ("^",  "**"       )
-  , ("*",  "*"        )
-  , ("/",  "/"        )
-  , ("%",  "remainder")
-  , ("+",  "+"        )
-  , ("-",  "-"        )
-  , (":",  "cons"     )
-  , ("<",  "lt?"      )
-  , (">",  "gt?"      )
+  [ EgisonBinOp { operator = "^" , function = "**"       , priority = 8, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "*" , function = "*"        , priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "/" , function = "/"        , priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "%" , function = "remainder", priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "+" , function = "+"        , priority = 6, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "-" , function = "-"        , priority = 6, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "++", function = "append"   , priority = 5, assoc = RightAssoc }
+  , EgisonBinOp { operator = ":" , function = "cons"     , priority = 5, assoc = RightAssoc }
+  , EgisonBinOp { operator = "==", function = "eq?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "<=", function = "lte?"     , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = ">=", function = "gte?"     , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "<" , function = "lt?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = ">" , function = "gt?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { operator = "&&", function = "and"      , priority = 3, assoc = RightAssoc }
+  , EgisonBinOp { operator = "||", function = "or"       , priority = 2, assoc = RightAssoc }
   ]
 
 --

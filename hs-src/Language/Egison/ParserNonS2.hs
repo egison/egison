@@ -298,24 +298,24 @@ tupleOrParenExpr = do
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
-    makeLambda name Nothing Nothing =
+    makeLambda op Nothing Nothing =
       LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
-                 (makeApply (stringToVarExpr name) [stringToVarExpr ":x", stringToVarExpr ":y"])
-    makeLambda name Nothing (Just rarg) =
+                 (BinaryOpExpr op (stringToVarExpr ":x") (stringToVarExpr ":y"))
+    makeLambda op Nothing (Just rarg) =
       LambdaExpr [ScalarArg ":x"]
-                 (makeApply (stringToVarExpr name) [stringToVarExpr ":x", rarg])
-    makeLambda name (Just larg) Nothing =
+                 (BinaryOpExpr op (stringToVarExpr ":x") rarg)
+    makeLambda op (Just larg) Nothing =
       LambdaExpr [ScalarArg ":y"]
-                 (makeApply (stringToVarExpr name) [larg, stringToVarExpr ":y"])
+                 (BinaryOpExpr op larg (stringToVarExpr ":y"))
 
     -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr =
-      try (do op   <- choice $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
+      try (do op   <- choice $ map (symbol'' . operator) reservedBinops
               rarg <- optional $ expr
               return [makeLambda op Nothing rarg])
       <|> (do larg <- opExpr
-              op   <- choice $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
+              op   <- choice $ map (symbol'' . operator) reservedBinops
               return [makeLambda op (Just larg) Nothing])
 
 hashExpr :: Parser EgisonExpr
@@ -558,7 +558,14 @@ symbol' sym = try (L.symbol sc sym <* notFollowedBy (oneOf opChars))
   where
     -- characters that could consist operators, or closing symbols (')', ']', ...)
     opChars :: [Char]
-    opChars = "!@#$%^&*)-+]}\\|;:<,>.?/"
+    opChars = "!@#$%^&*)-+]}\\|:<>.?/"
+
+symbol'' :: String -> Parser String
+symbol'' sym = try (L.symbol sc sym <* notFollowedBy (oneOf opChars))
+  where
+    -- characters that could consist operators
+    opChars :: [Char]
+    opChars = "!@#$%^&*-+\\|:<>.?/"
 
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
