@@ -41,7 +41,7 @@ import           Data.Void
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
-import           Text.Megaparsec.Debug
+import           Text.Megaparsec.Debug          (dbg)
 import           Text.Megaparsec.Pos            (Pos)
 
 import           Data.Text                      (pack)
@@ -154,8 +154,6 @@ opExpr = do
   pos <- L.indentLevel
   makeExprParser atomOrApplyExpr (makeTable pos)
   where
-    -- TODO(momohatt): Parse function application here (this would require
-    -- currying of functions)
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
       let unary  sym = UnaryOpExpr  <$> symbol' sym
@@ -220,7 +218,7 @@ lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr keywordMatch    MatchLambdaExpr
   <|> makeMatchLambdaExpr keywordMatchAll MatchAllLambdaExpr
   <|> try (LambdaExpr <$> some arg <*> (symbol "->" >> expr))
-  <|> PatternFunctionExpr <$> some identifier <*> (symbol "=>" >> pattern))
+  <|> PatternFunctionExpr <$> some lowerId <*> (symbol "=>" >> pattern))
   <?> "lambda or pattern function expression"
   where
     makeMatchLambdaExpr keyword ctor = do
@@ -229,10 +227,10 @@ lambdaExpr = symbol "\\" >> (
       return $ ctor matcher clauses
 
 arg :: Parser Arg
-arg = ScalarArg         <$> (symbol "$"  >> identifier)
-  <|> InvertedScalarArg <$> (symbol "*$" >> identifier)
-  <|> TensorArg         <$> (symbol "%"  >> identifier)
-  <|> ScalarArg         <$> identifier
+arg = ScalarArg         <$> (symbol "$"  >> lowerId)
+  <|> InvertedScalarArg <$> (symbol "*$" >> lowerId)
+  <|> TensorArg         <$> (symbol "%"  >> lowerId)
+  <|> ScalarArg         <$> lowerId
   <?> "argument"
 
 letExpr :: Parser EgisonExpr
@@ -462,8 +460,8 @@ atomPattern = WildCard <$   symbol "_"
           <|> PatVar   <$> patVarLiteral
           <|> ValuePat <$> (char '#' >> atomExpr)
           <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
-          <|> InductivePat <$> identifier <*> pure []
-          <|> VarPat   <$> (char '~' >> identifier)
+          <|> InductivePat <$> lowerId <*> pure []
+          <|> VarPat   <$> (char '~' >> lowerId)
           <|> PredPat  <$> (symbol "?" >> atomExpr)
           <|> ContPat  <$ symbol "..."
           <|> makeTupleOrParen pattern TuplePat
@@ -472,7 +470,7 @@ atomPattern = WildCard <$   symbol "_"
           <?> "atomic pattern"
 
 patVarLiteral :: Parser Var
-patVarLiteral = stringToVar <$> (char '$' >> identifier)
+patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
@@ -489,7 +487,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
          <|> PPPatVar   <$ symbol "$"
-         <|> PPValuePat <$> (symbol "#$" >> identifier)
+         <|> PPValuePat <$> (symbol "#$" >> lowerId)
          <|> PPInductivePat "nil" [] <$ brackets sc
          <|> makeTupleOrParen ppPattern PPTuplePat
 
@@ -501,7 +499,7 @@ pdPattern = PDInductivePat <$> upperId <*> many pdAtom
   where
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard <$ symbol "_"
-         <|> PDPatVar   <$> (symbol "$" >> identifier)
+         <|> PDPatVar   <$> (symbol "$" >> lowerId)
          <|> makeTupleOrParen pdPattern PDTuplePat
 
 --
@@ -578,10 +576,6 @@ upperId = (lexeme . try) (p >>= check)
     check x = if x `elem` upperReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
-
--- TODO: Replace identifier with lowerId?
-identifier :: Parser String
-identifier = lowerId <|> upperId
 
 keywordLoadFile             = reserved "loadFile"
 keywordLoad                 = reserved "load"
