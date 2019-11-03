@@ -156,6 +156,7 @@ expr = ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
    <|> letExpr
+   <|> doExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
    <|> generateTensorExpr
@@ -262,6 +263,16 @@ binding = do
   vars <- ((:[]) <$> varLiteral) <|> (parens $ sepBy varLiteral comma)
   body <- symbol "=" >> expr
   return (vars, body)
+
+doExpr :: Parser EgisonExpr
+doExpr = do
+  pos <- keywordDo >> L.indentLevel
+  stmts <- some $ L.indentGuard sc EQ pos >> statement
+  ret <- option (makeApply' "return" []) $ L.indentGuard sc EQ pos >> expr
+  return $ DoExpr stmts ret
+  where
+    statement :: Parser BindingExpr
+    statement = try binding <|> ([],) <$> expr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
