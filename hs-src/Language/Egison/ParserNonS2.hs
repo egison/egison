@@ -34,7 +34,7 @@ import           System.Directory               (doesFileExist, getHomeDirectory
 
 import           Data.Functor                   (($>))
 import           Data.List                      (find)
-import           Data.Maybe                     (fromJust, fromMaybe)
+import           Data.Maybe                     (fromJust)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
@@ -158,6 +158,8 @@ expr = ifExpr
    <|> letExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
+   <|> generateTensorExpr
+   <|> tensorExpr
    <|> dbg "opExpr" opExpr
    <?> "expression"
 
@@ -294,6 +296,14 @@ algebraicDataMatcherExpr = do
       args <- many (L.indentGuard sc GT pos >> atomExpr)
       return (patternCtor, args)
 
+generateTensorExpr :: Parser EgisonExpr
+generateTensorExpr = GenerateTensorExpr <$> (keywordGenerateTensor >> atomExpr) <*> atomExpr
+
+tensorExpr :: Parser EgisonExpr
+tensorExpr = TensorExpr <$> (keywordTensor >> atomExpr) <*> atomExpr
+                        <*> option (CollectionExpr []) atomExpr
+                        <*> option (CollectionExpr []) atomExpr
+
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
   where
@@ -336,6 +346,12 @@ tupleOrParenExpr = do
       LambdaExpr [ScalarArg ":x"] (BinaryOpExpr op (stringToVarExpr ":x") rarg)
     makeLambda op (Just larg) Nothing =
       LambdaExpr [ScalarArg ":y"] (BinaryOpExpr op larg (stringToVarExpr ":y"))
+
+arrayExpr :: Parser EgisonExpr
+arrayExpr = ArrayExpr <$> between (symbol "(|") (symbol "|)") (sepEndBy expr comma)
+
+vectorExpr :: Parser EgisonExpr
+vectorExpr = VectorExpr <$> between (symbol "[|") (symbol "|]") (sepEndBy expr comma)
 
 hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
@@ -391,6 +407,8 @@ atomExpr' = numericExpr
         <|> SomethingExpr <$ keywordSomething
         <|> UndefinedExpr <$ keywordUndefined
         <|> (\x -> InductiveDataExpr x []) <$> upperId
+        <|> vectorExpr     -- must come before collectionExpr
+        <|> arrayExpr      -- must come before tupleOrParenExpr
         <|> collectionExpr
         <|> tupleOrParenExpr
         <|> hashExpr
@@ -430,12 +448,12 @@ loopPattern = do
     loopRange =
       try (parens $
            do start <- expr
-              ends  <- fromMaybe (defaultEnds start) <$> optional (try $ comma >> expr)
-              as    <- fromMaybe WildCard <$> optional (comma >> pattern)
+              ends  <- option (defaultEnds start) (try $ comma >> expr)
+              as    <- option WildCard (comma >> pattern)
               return $ LoopRange start ends as)
       <|> (do start <- keywordFrom >> expr
-              ends  <- fromMaybe (defaultEnds start) <$> optional (keywordTo >> expr)
-              as    <- fromMaybe WildCard <$> optional (keywordAs >> pattern)
+              ends  <- option (defaultEnds start) (keywordTo >> expr)
+              as    <- option WildCard (keywordAs >> pattern)
               keywordOf
               return $ LoopRange start ends as)
 

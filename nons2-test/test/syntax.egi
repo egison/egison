@@ -332,13 +332,18 @@ assert "sequential pattern"
 -- Tensor
 --
 
--- assertEqual "generate-tensor - case 1"
---   generateTensor(kroneckerDelta, [3])
---   [| 1, 1, 1 |]
---
--- assertEqual "generate-tensor - case 2"
---   generateTensor(kroneckerDelta, [2, 2, 2, 2])
---   tensor([2, 2, 2, 2], [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+assertEqual "generate-tensor"
+  (generateTensor (*) [3, 5])
+  [| [| 1, 2, 3, 4, 5 |], [| 2, 4, 6, 8, 10 |], [| 3, 6, 9, 12, 15 |] |]
+
+assertEqual "tensor"
+  (tensor [2, 5] [1, 2, 3, 4, 5, 2, 4, 6, 8, 10])
+  [| [| 1, 2, 3, 4, 5 |], [| 2, 4, 6, 8, 10 |] |]
+
+-- -- This fails, because 'kroneckerDelta' is not defined (kronecker-delta)
+-- assertEqual "generate-tensor"
+--   (generateTensor kroneckerDelta [2, 2, 2, 2])
+--   (tensor [2, 2, 2, 2] [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
 
 --
 -- Hash
