@@ -475,21 +475,27 @@ applyOrAtomPattern = do
     (InductivePat x [], _)  -> return $ InductivePat x args
 
 atomPattern :: Parser EgisonPattern
-atomPattern = WildCard <$   symbol "_"
-          <|> PatVar   <$> patVarLiteral
-          <|> ValuePat <$> (char '#' >> atomExpr)
-          <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
-          <|> InductivePat <$> lowerId <*> pure []
-          <|> VarPat   <$> (char '~' >> lowerId)
-          <|> PredPat  <$> (symbol "?" >> atomExpr)
-          <|> ContPat  <$ symbol "..."
-          <|> makeTupleOrParen pattern TuplePat
-          <|> seqPattern
-          <|> LaterPatVar <$ symbol "@"
-          <?> "atomic pattern"
+atomPattern = do
+  pat     <- atomPattern'
+  indices <- many . try $ char '_' >> atomExpr'
+  return $ case indices of
+             [] -> pat
+             _  -> IndexedPat pat indices
 
-patVarLiteral :: Parser Var
-patVarLiteral = stringToVar <$> (char '$' >> lowerId)
+-- atomic pattern without index
+atomPattern' :: Parser EgisonPattern
+atomPattern' = WildCard <$   symbol "_"
+           <|> PatVar   <$> patVarLiteral
+           <|> ValuePat <$> (char '#' >> atomExpr)
+           <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
+           <|> InductivePat <$> lowerId <*> pure []
+           <|> VarPat   <$> (char '~' >> lowerId)
+           <|> PredPat  <$> (symbol "?" >> atomExpr)
+           <|> ContPat  <$ symbol "..."
+           <|> makeTupleOrParen pattern TuplePat
+           <|> seqPattern
+           <|> LaterPatVar <$ symbol "@"
+           <?> "atomic pattern"
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
@@ -559,6 +565,9 @@ floatLiteral = try ((,0) <$> (lexeme L.float <* notFollowedBy (symbol "i")))
 
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> lowerId
+
+patVarLiteral :: Parser Var
+patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
 binOpLiteral :: String -> Parser EgisonBinOp
 binOpLiteral sym = do
