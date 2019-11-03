@@ -1,0 +1,9 @@
+repl = do
+  write "input :"
+  flush ()
+  input = readLine ()
+  write input
+  print ""
+  repl
+
+main args = repl
