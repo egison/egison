@@ -407,7 +407,6 @@ numericExpr = try (uncurry FloatExpr <$> floatLiteral)
 pattern :: Parser EgisonPattern
 pattern = letPattern
       <|> loopPattern
-      <|> try applyPattern
       <|> opPattern
       <?> "pattern"
 
@@ -449,16 +448,8 @@ seqPattern = do
   pats <- braces $ sepBy pattern comma
   return $ foldr SeqConsPat SeqNilPat pats
 
-applyPattern :: Parser EgisonPattern
-applyPattern = do
-  pos <- L.indentLevel
-  func <- atomPattern
-  args <- some (L.indentGuard sc GT pos *> atomPattern)
-  case func of
-    InductivePat x [] -> return $ InductivePat x args
-
 opPattern :: Parser EgisonPattern
-opPattern = makeExprParser atomPattern table
+opPattern = makeExprParser applyOrAtomPattern table
   where
     table :: [[Operator Parser EgisonPattern]]
     table =
@@ -473,6 +464,15 @@ opPattern = makeExprParser atomPattern table
       ]
     inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ operator sym
     binary name sym     = (\x y -> name [x, y]) <$ operator sym
+
+applyOrAtomPattern :: Parser EgisonPattern
+applyOrAtomPattern = do
+  pos <- L.indentLevel
+  func <- atomPattern
+  args <- many (L.indentGuard sc GT pos *> atomPattern)
+  case (func, args) of
+    (_,                 []) -> return func
+    (InductivePat x [], _)  -> return $ InductivePat x args
 
 atomPattern :: Parser EgisonPattern
 atomPattern = WildCard <$   symbol "_"
