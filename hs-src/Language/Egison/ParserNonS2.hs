@@ -107,7 +107,7 @@ loadFile file = do
 type Parser = Parsec CustomError String
 
 data CustomError
-  = IllFormedPointFreeExpr String String
+  = IllFormedPointFreeExpr EgisonBinOp EgisonBinOp
   deriving (Eq, Ord)
 
 instance ShowErrorComponent CustomError where
@@ -115,12 +115,7 @@ instance ShowErrorComponent CustomError where
     "The operator " ++ info op ++ " must have lower precedence than " ++ info op'
     where
       info op =
-        let priority = priorityOf op
-            assoc = case assocOf op of
-                      LeftAssoc -> "infixl"
-                      RightAssoc -> "infixr"
-                      NonAssoc -> "infix"
-         in "'" ++ op ++ "' [" ++ assoc ++ " " ++ show priority ++ "]"
+         "'" ++ repr op ++ "' [" ++ show (assoc op) ++ " " ++ show (priority op) ++ "]"
 
 
 doParse :: Parser a -> String -> Either EgisonError a
@@ -175,7 +170,9 @@ opExpr = do
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
       let unary  sym = UnaryOpExpr  <$> operator sym
-          binary sym = BinaryOpExpr <$> try (L.indentGuard sc GT pos >> operator sym <* notFollowedBy (symbol ")"))
+          binary sym = do
+            op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
+            return $ BinaryOpExpr op
        in
           [ [ Prefix (unary  "-" ) ]
           -- 8
@@ -318,20 +315,20 @@ tupleOrParenExpr = do
   where
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr =
-          (do op   <- try . choice $ map (operator . repr) reservedBinops
-              rarg <- optional $ expr
+          (do op <- try . choice $ map (binOpLiteral . repr) reservedBinops
+              rarg  <- optional $ expr
               case rarg of
-                Just (BinaryOpExpr op' _ _) | priorityOf op >= priorityOf op' ->
+                Just (BinaryOpExpr op' _ _) | priority op >= priority op' ->
                   customFailure (IllFormedPointFreeExpr op op')
                 _ -> return [makeLambda op Nothing rarg])
-      <|> (do larg <- opExpr
-              op   <- choice $ map (operator . repr) reservedBinops
+      <|> (do larg  <- opExpr
+              op <- choice $ map (binOpLiteral . repr) reservedBinops
               case larg of
-                BinaryOpExpr op' _ _ | priorityOf op >= priorityOf op' ->
+                BinaryOpExpr op' _ _ | priority op >= priority op' ->
                   customFailure (IllFormedPointFreeExpr op op')
                 _ -> return [makeLambda op (Just larg) Nothing])
 
-    makeLambda :: String -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
+    makeLambda :: EgisonBinOp -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
     makeLambda op Nothing Nothing =
       LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
                  (BinaryOpExpr op (stringToVarExpr ":x") (stringToVarExpr ":y"))
@@ -563,6 +560,11 @@ floatLiteral = try ((,0) <$> (lexeme L.float <* notFollowedBy (symbol "i")))
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> lowerId
 
+binOpLiteral :: String -> Parser EgisonBinOp
+binOpLiteral sym = do
+  opSym <- operator sym
+  return . fromJust $ find ((== opSym) . repr) reservedBinops
+
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
 
@@ -709,9 +711,3 @@ makeApply func xs = ApplyExpr func (TupleExpr xs)
 
 makeApply' :: String -> [EgisonExpr] -> EgisonExpr
 makeApply' func xs = ApplyExpr (stringToVarExpr func) (TupleExpr xs)
-
-priorityOf :: String -> Int
-priorityOf op = priority . fromJust $ find ((== op) . repr) reservedBinops
-
-assocOf :: String -> BinOpAssoc
-assocOf op = assoc . fromJust $ find ((== op) . repr) reservedBinops
