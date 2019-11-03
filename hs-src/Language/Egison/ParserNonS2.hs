@@ -174,8 +174,8 @@ opExpr = do
   where
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
-      let unary  sym = UnaryOpExpr  <$> operator' sym
-          binary sym = BinaryOpExpr <$> (L.indentGuard sc GT pos >> operator' sym)
+      let unary  sym = UnaryOpExpr  <$> operator sym
+          binary sym = BinaryOpExpr <$> try (L.indentGuard sc GT pos >> operator sym <* notFollowedBy (symbol ")"))
        in
           [ [ Prefix (unary  "-" ) ]
           -- 8
@@ -311,7 +311,7 @@ collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
 
 tupleOrParenExpr :: Parser EgisonExpr
 tupleOrParenExpr = do
-  elems <- parens $ pointFreeExpr <|> sepBy expr comma
+  elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (pointFreeExpr <* symbol ")")
   case elems of
     [x] -> return x
     _   -> return $ TupleExpr elems
@@ -324,7 +324,8 @@ tupleOrParenExpr = do
                 Just (BinaryOpExpr op' _ _) | priorityOf op >= priorityOf op' ->
                   customFailure (IllFormedPointFreeExpr op op')
                 _ -> return [makeLambda op Nothing rarg])
-      <|> (do (larg, op) <- try $ (,) <$> opExpr <*> (choice $ map (operator . repr) reservedBinops)
+      <|> (do larg <- opExpr
+              op   <- choice $ map (operator . repr) reservedBinops
               case larg of
                 BinaryOpExpr op' _ _ | priorityOf op >= priorityOf op' ->
                   customFailure (IllFormedPointFreeExpr op op')
@@ -568,20 +569,13 @@ reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
 symbol :: String -> Parser String
 symbol sym = try $ L.symbol sc sym
 
--- Ensures that the next character isn't any of the characters that could consist other operators
--- ! # @ $ are omitted because they can appear at the beginning of atomPattern
 operator :: String -> Parser String
-operator sym = try $ string sym <* notFollowedBy (oneOf opChars) <* sc
-  where
-    opChars :: [Char]
-    opChars = "%^&*-+\\|:<>.?/'"
+operator sym = try $ string sym <* notFollowedBy opChar <* sc
 
--- Mostly same as `operator`, but doesn't allow closing symbols (')', ']', ...) to follow
-operator' :: String -> Parser String
-operator' sym = try $ string sym <* notFollowedBy (oneOf opChars) <* sc
-  where
-    opChars :: [Char]
-    opChars = "%^&*-+\\|:<>.?/')]}"
+-- Characters that could consist other operators.
+-- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+opChar :: Parser Char
+opChar = oneOf "%^&*-+\\|:<>.?/'"
 
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
