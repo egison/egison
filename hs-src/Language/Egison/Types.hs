@@ -271,7 +271,7 @@ data EgisonExpr =
   | IoExpr EgisonExpr
 
   | UnaryOpExpr String EgisonExpr
-  | BinaryOpExpr String EgisonExpr EgisonExpr
+  | BinaryOpExpr EgisonBinOp EgisonExpr EgisonExpr
 
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
@@ -377,16 +377,24 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
-data EgisonBinOp = EgisonBinOp { repr     :: String  -- syntastic representation
-                               , func     :: String  -- semantics
-                               , priority :: Int
-                               , assoc    :: BinOpAssoc
-                               }
+data EgisonBinOp
+  = EgisonBinOp { repr     :: String  -- syntastic representation
+                , func     :: String  -- semantics
+                , priority :: Int
+                , assoc    :: BinOpAssoc
+                }
+  deriving (Eq, Ord)
 
 data BinOpAssoc
   = LeftAssoc
   | RightAssoc
   | NonAssoc
+  deriving (Eq, Ord)
+
+instance Show BinOpAssoc where
+  show LeftAssoc  = "infixl"
+  show RightAssoc = "infixr"
+  show NonAssoc   = "infix"
 
 reservedBinops :: [EgisonBinOp]
 reservedBinops =

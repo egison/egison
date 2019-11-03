@@ -313,9 +313,7 @@ desugar (UnaryOpExpr "-" expr) =
   (\x -> makeApply "neg" [x]) <$> desugar expr
 
 desugar (BinaryOpExpr op expr1 expr2) =
-  (\x y -> makeApply f [x, y]) <$> desugar expr1 <*> desugar expr2
-  where
-    f = func . fromJust $ find ((== op) . repr) reservedBinops
+  (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 desugar (SeqExpr expr0 expr1) =
   SeqExpr <$> desugar expr0 <*> desugar expr1
