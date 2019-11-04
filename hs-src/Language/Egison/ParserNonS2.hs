@@ -220,6 +220,7 @@ patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
       return $ ctor tgt matcher clauses
 
 -- Parse more than 1 match clauses.
+-- TODO(momohatt): Require first bar '|' when there are multiple match clauses
 matchClauses1 :: Parser [MatchClause]
 matchClauses1 = do
   pos <- optional (symbol "|") >> L.indentLevel
@@ -260,15 +261,15 @@ letExpr = do
 
 binding :: Parser BindingExpr
 binding = do
-  vars <- ((:[]) <$> varLiteral) <|> (parens $ sepBy varLiteral comma)
+  vars <- (:[]) <$> varLiteral <|> (parens $ sepBy varLiteral comma)
   body <- symbol "=" >> expr
   return (vars, body)
 
 doExpr :: Parser EgisonExpr
 doExpr = do
-  pos <- keywordDo >> L.indentLevel
+  pos   <- keywordDo >> L.indentLevel
   stmts <- some $ L.indentGuard sc EQ pos >> statement
-  ret <- option (makeApply' "return" []) $ L.indentGuard sc EQ pos >> expr
+  ret   <- option (makeApply' "return" []) $ L.indentGuard sc EQ pos >> expr
   return $ DoExpr stmts ret
   where
     statement :: Parser BindingExpr
@@ -277,7 +278,7 @@ doExpr = do
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
   keywordMatcher
-  pos <- L.indentLevel
+  pos  <- L.indentLevel
   -- In matcher expression, the first '|' (bar) is indispensable
   info <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
   return $ MatcherExpr info
@@ -296,7 +297,7 @@ matcherExpr = do
 algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = do
   keywordAlgebraicDataMatcher
-  pos <- L.indentLevel
+  pos  <- L.indentLevel
   defs <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
   return $ AlgebraicDataMatcherExpr defs
   where
@@ -336,14 +337,14 @@ tupleOrParenExpr = do
   where
     pointFreeExpr :: Parser [EgisonExpr]
     pointFreeExpr =
-          (do op <- try . choice $ map (binOpLiteral . repr) reservedBinops
-              rarg  <- optional $ expr
+          (do op   <- try . choice $ map (binOpLiteral . repr) reservedBinops
+              rarg <- optional expr
               case rarg of
                 Just (BinaryOpExpr op' _ _) | priority op >= priority op' ->
                   customFailure (IllFormedPointFreeExpr op op')
                 _ -> return [makeLambda op Nothing rarg])
-      <|> (do larg  <- opExpr
-              op <- choice $ map (binOpLiteral . repr) reservedBinops
+      <|> (do larg <- opExpr
+              op   <- choice $ map (binOpLiteral . repr) reservedBinops
               case larg of
                 BinaryOpExpr op' _ _ | priority op >= priority op' ->
                   customFailure (IllFormedPointFreeExpr op op')
@@ -457,16 +458,10 @@ loopPattern = do
   where
     loopRange :: Parser LoopRange
     loopRange =
-      try (parens $
-           do start <- expr
-              ends  <- option (defaultEnds start) (try $ comma >> expr)
-              as    <- option WildCard (comma >> pattern)
-              return $ LoopRange start ends as)
-      <|> (do start <- keywordFrom >> expr
-              ends  <- option (defaultEnds start) (keywordTo >> expr)
-              as    <- option WildCard (keywordAs >> pattern)
-              keywordOf
-              return $ LoopRange start ends as)
+      parens $ do start <- expr
+                  ends  <- option (defaultEnds start) (try $ comma >> expr)
+                  as    <- option WildCard (comma >> pattern)
+                  return $ LoopRange start ends as
 
     defaultEnds s =
       ApplyExpr (stringToVarExpr "from")
@@ -656,9 +651,6 @@ keywordLet                  = reserved "let"
 keywordIn                   = reserved "in"
 keywordWithSymbols          = reserved "withSymbols"
 keywordLoop                 = reserved "loop"
-keywordFrom                 = reserved "from"
-keywordTo                   = reserved "to"
-keywordOf                   = reserved "of"
 keywordMatch                = reserved "match"
 keywordMatchDFS             = reserved "matchDFS"
 keywordMatchAll             = reserved "matchAll"
