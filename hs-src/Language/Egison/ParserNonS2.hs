@@ -159,6 +159,7 @@ expr = ifExpr
    <|> doExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
+   <|> macroExpr
    <|> generateTensorExpr
    <|> tensorExpr
    <|> dbg "opExpr" opExpr
@@ -261,7 +262,7 @@ letExpr = do
 
 binding :: Parser BindingExpr
 binding = do
-  vars <- (:[]) <$> varLiteral <|> (parens $ sepBy varLiteral comma)
+  vars <- (:[]) <$> varLiteral <|> parens (sepBy varLiteral comma)
   body <- symbol "=" >> expr
   return (vars, body)
 
@@ -307,6 +308,9 @@ algebraicDataMatcherExpr = do
       patternCtor <- lowerId
       args <- many (L.indentGuard sc GT pos >> atomExpr)
       return (patternCtor, args)
+
+macroExpr :: Parser EgisonExpr
+macroExpr = MacroExpr <$> (keywordMacro >> many lowerId) <*> (symbol "->" >> expr)
 
 generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = GenerateTensorExpr <$> (keywordGenerateTensor >> atomExpr) <*> atomExpr
@@ -411,13 +415,8 @@ atomExpr = do
 
 -- atom expr without index
 atomExpr' :: Parser EgisonExpr
-atomExpr' = numericExpr
-        <|> BoolExpr <$> boolLiteral
-        <|> CharExpr <$> charLiteral
-        <|> StringExpr . pack <$> stringLiteral
+atomExpr' = constantExpr
         <|> VarExpr <$> varLiteral
-        <|> SomethingExpr <$ keywordSomething
-        <|> UndefinedExpr <$ keywordUndefined
         <|> (\x -> InductiveDataExpr x []) <$> upperId
         <|> vectorExpr     -- must come before collectionExpr
         <|> arrayExpr      -- must come before tupleOrParenExpr
@@ -425,6 +424,14 @@ atomExpr' = numericExpr
         <|> tupleOrParenExpr
         <|> hashExpr
         <?> "atomic expression"
+
+constantExpr :: Parser EgisonExpr
+constantExpr = numericExpr
+           <|> BoolExpr <$> boolLiteral
+           <|> CharExpr <$> charLiteral
+           <|> StringExpr . pack <$> stringLiteral
+           <|> SomethingExpr <$ keywordSomething
+           <|> UndefinedExpr <$ keywordUndefined
 
 numericExpr :: Parser EgisonExpr
 numericExpr = try (uncurry FloatExpr <$> floatLiteral)
@@ -540,15 +547,16 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
          <|> PPInductivePat "nil" [] <$ brackets sc
          <|> makeTupleOrParen ppPattern PPTuplePat
 
--- TODO(momohatt): cons pat, snoc pat, empty pat, constant pat
+-- TODO(momohatt): cons pat, snoc pat, empty pat
 pdPattern :: Parser PrimitiveDataPattern
 pdPattern = PDInductivePat <$> upperId <*> many pdAtom
         <|> pdAtom
         <?> "primitive data pattern"
   where
     pdAtom :: Parser PrimitiveDataPattern
-    pdAtom = PDWildCard <$ symbol "_"
-         <|> PDPatVar   <$> (symbol "$" >> lowerId)
+    pdAtom = PDWildCard    <$ symbol "_"
+         <|> PDPatVar      <$> (symbol "$" >> lowerId)
+         <|> PDConstantPat <$> constantExpr
          <|> makeTupleOrParen pdPattern PDTuplePat
 
 --

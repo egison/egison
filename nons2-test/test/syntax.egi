@@ -285,7 +285,7 @@ assertEqual "tuple pattern"
 
 -- assertEqual "loop pattern in pattern function"
 --   let comb n = \p =>
---     loop $i from 1 to n of _ ++ ~p_i : ... | _
+--     loop $i (1, n, _) _ ++ ~p_i : ... | _
 --    in
 --   matchAll [1, 2, 3, 4, 5] as (list integer) with
 --   | (comb 2) $n -> n
@@ -397,7 +397,7 @@ assertEqual "hash access"
 --   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]_i~j
 
 --
--- macroExpr, matcherExpr, matcherDFSExpr
+-- matcherExpr, macroExpr
 --
 
 multiset a = matcher
@@ -421,16 +421,14 @@ assertEqual "matcher definition"
    | $x : _ -> x)
   [1, 2, 3]
 
--- nishiwakiIf =
---   macro $b $e1 $e2 ->
---     car(matchAll b as (matcher
---                        | $ as something ->
---                            | True -> [e1]
---                            | False -> [e2]
---         | $x -> x
---
--- assertEqual "case 1", nishiwakiIf(True, 1, 2), 1
---
--- assertEqual "case 2", nishiwakiIf(False, 1, 2), 2
---
--- assertEqual "case 3", nishiwakiIf(eq?(1, 1), 1, 2), 1
+nishiwakiIf =
+  macro b e1 e2 ->
+    car (matchAll b as (matcher
+                        | $ as something with
+                            | True  -> [e1]
+                            | False -> [e2]) with
+         | $x -> x)
+
+assertEqual "case 1" (nishiwakiIf True     1 2) 1
+assertEqual "case 2" (nishiwakiIf False    1 2) 2
+assertEqual "case 3" (nishiwakiIf (1 == 1) 1 2) 1
