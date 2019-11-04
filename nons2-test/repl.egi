@@ -1,7 +1,7 @@
 repl = do
   write "input :"
   flush ()
-  input = readLine ()
+  let input = readLine ()
   write input
   print ""
   repl

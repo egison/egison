@@ -272,7 +272,7 @@ doExpr = do
   return $ DoExpr stmts ret
   where
     statement :: Parser BindingExpr
-    statement = try binding <|> ([],) <$> expr
+    statement = (keywordLet >> binding) <|> ([],) <$> expr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
