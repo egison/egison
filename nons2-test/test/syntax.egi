@@ -82,7 +82,9 @@ assertEqual "append op" ((++) [1] [2]) [1, 2]
 assertEqual "point free expr" ((+) 10 1) 11
 assertEqual "point free expr" ((+ 1) 10) 11
 assertEqual "point free expr" (foldl (*) 1 [1..5]) 120
--- assertEqual "point free expr" ((10 -) 1) 9
+assertEqual "point free expr" ((10 -) 1) 9
+assertEqual "point free expr" ((10 - ) 1) 9
+assertEqual "not point free expr" (- 2) (-2)
 
 -- findFactor = memoizedLambda
 --               $n -> match takeWhile($ <= floor(sqrt(itof(n))), primes) as (list integer) with
@@ -106,6 +108,16 @@ someFunction x y z =
 assertEqual "function definition"
   (someFunction 1 2 3)
   7
+
+gcd m n =
+  if (m >= n) then
+              if (n == 0) then m
+                          else gcd n (m % n)
+              else gcd n m
+
+assertEqual "recursive function definition"
+  (gcd 143 22)
+  11
 
 --
 -- Pattern-Matching
@@ -199,10 +211,10 @@ assert "predicate pattern"
    | ?(== 2) : _ -> False
    | _ -> True)
 
--- assertEqual "indexed pattern variable"
---   (match 23 as mod 10 with
---    | $a_1 -> a)
---   {| [1, 23] |}
+assertEqual "indexed pattern variable"
+  (match 23 as mod 10 with
+   | $a_1 -> a)
+  {| [1, 23] |}
 
 assert "loop pattern"
   (match [3, 2, 1] as list integer with
@@ -210,16 +222,29 @@ assert "loop pattern"
        | snoc #i ...
        | [] -> True)
 
+assertEqual "loop pattern"
+  (match [1..10] as list integer with
+   | loop $i (1, $n)
+       | #i : ...
+       | [] -> n)
+  10
+
 assert "loop pattern"
   (match [3, 2, 1] as list integer with
-   | loop $i from 1 to [3] of snoc #i ... | [] -> True)
+   | loop $i (1, [3], _)
+       | snoc #i ...
+       | [] -> True)
 
--- assertEqual "double loop pattern"
---   (match [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as (list (list integer)) with
---    | loop($i, (1, [3], _)
---           ((loop $j (1, [3], _) ($n_i_j : ...) []) : ...)
---           []) -> n)
---   {| [1, {| [1, 1], [2, 2], [3, 3] |}], [2, {| [1, 4], [2, 5], [3, 6] |}], [3, {| [1, 7], [2, 8], [3, 9] |}] |}
+assertEqual "double loop pattern"
+  (match [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as (list (list integer)) with
+   | loop $i (1, [3], _)
+       | ((loop $j (1, [3], _)
+             | ($n_i_j : ...)
+             | []) : ...)
+       | [] -> n)
+  {| [1, {| [1, 1], [2, 2], [3, 3] |}],
+     [2, {| [1, 4], [2, 5], [3, 6] |}],
+     [3, {| [1, 7], [2, 8], [3, 9] |}] |}
 
 assertEqual "let pattern"
   (match [1, 2, 3] as list integer with
@@ -260,7 +285,7 @@ assertEqual "tuple pattern"
 
 -- assertEqual "loop pattern in pattern function"
 --   let comb n = \p =>
---     loop $i from 1 to n of _ ++ ~p_i : ... | _
+--     loop $i (1, n, _) _ ++ ~p_i : ... | _
 --    in
 --   matchAll [1, 2, 3, 4, 5] as (list integer) with
 --   | (comb 2) $n -> n
@@ -301,17 +326,28 @@ assertEqual "tree set using algebraic-data-matcher"
     in [treeMember? 1 t, treeMember? 0 t])
   [True, False]
 
+assert "sequential pattern"
+  (match [2,3,1,4,5] as list integer with
+    { @ : @ : $x : _,
+      (#(x + 1), @),
+      #(x + 2)} -> True)
+
 --
 -- Tensor
 --
 
--- assertEqual "generate-tensor - case 1"
---   generateTensor(kroneckerDelta, [3])
---   [| 1, 1, 1 |]
---
--- assertEqual "generate-tensor - case 2"
---   generateTensor(kroneckerDelta, [2, 2, 2, 2])
---   tensor([2, 2, 2, 2], [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+assertEqual "generate-tensor"
+  (generateTensor (*) [3, 5])
+  [| [| 1, 2, 3, 4, 5 |], [| 2, 4, 6, 8, 10 |], [| 3, 6, 9, 12, 15 |] |]
+
+assertEqual "tensor"
+  (tensor [2, 5] [1, 2, 3, 4, 5, 2, 4, 6, 8, 10])
+  [| [| 1, 2, 3, 4, 5 |], [| 2, 4, 6, 8, 10 |] |]
+
+-- -- This fails, because 'kroneckerDelta' is not defined (kronecker-delta)
+-- assertEqual "generate-tensor"
+--   (generateTensor kroneckerDelta [2, 2, 2, 2])
+--   (tensor [2, 2, 2, 2] [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
 
 --
 -- Hash
@@ -361,7 +397,7 @@ assertEqual "hash access"
 --   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]_i~j
 
 --
--- macroExpr, matcherExpr, matcherDFSExpr
+-- matcherExpr, macroExpr
 --
 
 multiset a = matcher
@@ -385,16 +421,14 @@ assertEqual "matcher definition"
    | $x : _ -> x)
   [1, 2, 3]
 
--- nishiwakiIf =
---   macro $b $e1 $e2 ->
---     car(matchAll b as (matcher
---                        | $ as something ->
---                            | True -> [e1]
---                            | False -> [e2]
---         | $x -> x
---
--- assertEqual "case 1", nishiwakiIf(True, 1, 2), 1
---
--- assertEqual "case 2", nishiwakiIf(False, 1, 2), 2
---
--- assertEqual "case 3", nishiwakiIf(eq?(1, 1), 1, 2), 1
+nishiwakiIf =
+  macro b e1 e2 ->
+    car (matchAll b as (matcher
+                        | $ as something with
+                            | True  -> [e1]
+                            | False -> [e2]) with
+         | $x -> x)
+
+assertEqual "case 1" (nishiwakiIf True     1 2) 1
+assertEqual "case 2" (nishiwakiIf False    1 2) 2
+assertEqual "case 3" (nishiwakiIf (1 == 1) 1 2) 1

@@ -33,7 +33,8 @@ import           Prelude                        hiding (mapM)
 import           System.Directory               (doesFileExist, getHomeDirectory)
 
 import           Data.Functor                   (($>))
-import           Data.Maybe                     (fromMaybe)
+import           Data.List                      (find)
+import           Data.Maybe                     (fromJust)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
@@ -41,7 +42,7 @@ import           Data.Void
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
-import           Text.Megaparsec.Debug
+import           Text.Megaparsec.Debug          (dbg)
 import           Text.Megaparsec.Pos            (Pos)
 
 import           Data.Text                      (pack)
@@ -103,12 +104,24 @@ loadFile file = do
 -- Parser
 --
 
-type Parser = Parsec Void String
+type Parser = Parsec CustomError String
+
+data CustomError
+  = IllFormedPointFreeExpr EgisonBinOp EgisonBinOp
+  deriving (Eq, Ord)
+
+instance ShowErrorComponent CustomError where
+  showErrorComponent (IllFormedPointFreeExpr op op') =
+    "The operator " ++ info op ++ " must have lower precedence than " ++ info op'
+    where
+      info op =
+         "'" ++ repr op ++ "' [" ++ show (assoc op) ++ " " ++ show (priority op) ++ "]"
+
 
 doParse :: Parser a -> String -> Either EgisonError a
 doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
   where
-    fromParsecError :: ParseErrorBundle String Void -> EgisonError
+    fromParsecError :: ParseErrorBundle String CustomError -> EgisonError
     fromParsecError = Parser . errorBundlePretty
 
 --
@@ -143,8 +156,12 @@ expr = ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
    <|> letExpr
+   <|> doExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
+   <|> macroExpr
+   <|> generateTensorExpr
+   <|> tensorExpr
    <|> dbg "opExpr" opExpr
    <?> "expression"
 
@@ -152,40 +169,38 @@ expr = ifExpr
 opExpr :: Parser EgisonExpr
 opExpr = do
   pos <- L.indentLevel
-  makeExprParser atomOrAppExpr (makeTable pos)
+  makeExprParser atomOrApplyExpr (makeTable pos)
   where
-    -- TODO(momohatt): Parse function application here (this would require
-    -- currying of functions)
     makeTable :: Pos -> [[Operator Parser EgisonExpr]]
     makeTable pos =
-      let unary  internalName parseSym =
-            makeUnaryApply  internalName <$ parseSym
-          binary internalName parseSym =
-            makeBinaryApply internalName <$ (L.indentGuard sc GT pos >> parseSym)
+      let unary  sym = UnaryOpExpr  <$> operator sym
+          binary sym = do
+            op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
+            return $ BinaryOpExpr op
        in
-          [ [ Prefix (unary  "-"         $ symbol "-" ) ]
+          [ [ Prefix (unary  "-" ) ]
           -- 8
-          , [ InfixL (binary "**"        $ symbol "^" ) ]
+          , [ InfixL (binary "^" ) ]
           -- 7
-          , [ InfixL (binary "*"         $ symbol "*" )
-            , InfixL (binary "/"         $ symbol "/" )
-            , InfixL (binary "remainder" $ symbol "%" ) ]
+          , [ InfixL (binary "*" )
+            , InfixL (binary "/" )
+            , InfixL (binary "%" ) ]
           -- 6
-          , [ InfixL (binary "+"         $ try $ symbol "+" <* notFollowedBy (char '+'))
-            , InfixL (binary "-"         $ symbol "-" ) ]
+          , [ InfixL (binary "+" )
+            , InfixL (binary "-" ) ]
           -- 5
-          , [ InfixR (binary "cons"      $ symbol ":" )
-            , InfixR (binary "append"    $ symbol "++") ]
+          , [ InfixR (binary ":" )
+            , InfixR (binary "++") ]
           -- 4
-          , [ InfixL (binary "eq?"       $ symbol "==")
-            , InfixL (binary "lte?"      $ symbol "<=")
-            , InfixL (binary "lt?"       $ symbol "<" )
-            , InfixL (binary "gte?"      $ symbol ">=")
-            , InfixL (binary "gt?"       $ symbol ">" ) ]
+          , [ InfixL (binary "==")
+            , InfixL (binary "<=")
+            , InfixL (binary "<" )
+            , InfixL (binary ">=")
+            , InfixL (binary ">" ) ]
           -- 3
-          , [ InfixR (binary "and"       $ symbol "&&") ]
+          , [ InfixR (binary "&&") ]
           -- 2
-          , [ InfixR (binary "or"        $ symbol "||") ]
+          , [ InfixR (binary "||") ]
           ]
 
 
@@ -206,6 +221,7 @@ patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
       return $ ctor tgt matcher clauses
 
 -- Parse more than 1 match clauses.
+-- TODO(momohatt): Require first bar '|' when there are multiple match clauses
 matchClauses1 :: Parser [MatchClause]
 matchClauses1 = do
   pos <- optional (symbol "|") >> L.indentLevel
@@ -222,7 +238,7 @@ lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr keywordMatch    MatchLambdaExpr
   <|> makeMatchLambdaExpr keywordMatchAll MatchAllLambdaExpr
   <|> try (LambdaExpr <$> some arg <*> (symbol "->" >> expr))
-  <|> PatternFunctionExpr <$> some identifier <*> (symbol "=>" >> pattern))
+  <|> PatternFunctionExpr <$> some lowerId <*> (symbol "=>" >> pattern))
   <?> "lambda or pattern function expression"
   where
     makeMatchLambdaExpr keyword ctor = do
@@ -231,10 +247,10 @@ lambdaExpr = symbol "\\" >> (
       return $ ctor matcher clauses
 
 arg :: Parser Arg
-arg = ScalarArg         <$> (symbol "$"  >> identifier)
-  <|> InvertedScalarArg <$> (symbol "*$" >> identifier)
-  <|> TensorArg         <$> (symbol "%"  >> identifier)
-  <|> ScalarArg         <$> identifier
+arg = ScalarArg         <$> (symbol "$"  >> lowerId)
+  <|> InvertedScalarArg <$> (symbol "*$" >> lowerId)
+  <|> TensorArg         <$> (symbol "%"  >> lowerId)
+  <|> ScalarArg         <$> lowerId
   <?> "argument"
 
 letExpr :: Parser EgisonExpr
@@ -246,21 +262,24 @@ letExpr = do
 
 binding :: Parser BindingExpr
 binding = do
-  vars <- ((:[]) <$> varLiteral) <|> (parens $ sepBy varLiteral comma)
+  vars <- (:[]) <$> varLiteral <|> parens (sepBy varLiteral comma)
   body <- symbol "=" >> expr
   return (vars, body)
 
-applyExpr :: Parser EgisonExpr
-applyExpr = do
-  pos <- L.indentLevel
-  func <- atomExpr
-  args <- some (L.indentGuard sc GT pos *> atomExpr)
-  return $ makeApply func args
+doExpr :: Parser EgisonExpr
+doExpr = do
+  pos   <- keywordDo >> L.indentLevel
+  stmts <- some $ L.indentGuard sc EQ pos >> statement
+  ret   <- option (makeApply' "return" []) $ L.indentGuard sc EQ pos >> expr
+  return $ DoExpr stmts ret
+  where
+    statement :: Parser BindingExpr
+    statement = (keywordLet >> binding) <|> ([],) <$> expr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
   keywordMatcher
-  pos <- L.indentLevel
+  pos  <- L.indentLevel
   -- In matcher expression, the first '|' (bar) is indispensable
   info <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
   return $ MatcherExpr info
@@ -279,7 +298,7 @@ matcherExpr = do
 algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = do
   keywordAlgebraicDataMatcher
-  pos <- L.indentLevel
+  pos  <- L.indentLevel
   defs <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
   return $ AlgebraicDataMatcherExpr defs
   where
@@ -290,6 +309,17 @@ algebraicDataMatcherExpr = do
       args <- many (L.indentGuard sc GT pos >> atomExpr)
       return (patternCtor, args)
 
+macroExpr :: Parser EgisonExpr
+macroExpr = MacroExpr <$> (keywordMacro >> many lowerId) <*> (symbol "->" >> expr)
+
+generateTensorExpr :: Parser EgisonExpr
+generateTensorExpr = GenerateTensorExpr <$> (keywordGenerateTensor >> atomExpr) <*> atomExpr
+
+tensorExpr :: Parser EgisonExpr
+tensorExpr = TensorExpr <$> (keywordTensor >> atomExpr) <*> atomExpr
+                        <*> option (CollectionExpr []) atomExpr
+                        <*> option (CollectionExpr []) atomExpr
+
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
   where
@@ -297,38 +327,47 @@ collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
       start <- expr <* symbol ".."
       end   <- optional expr <* symbol "]"
       case end of
-        Just end' -> return $ makeBinaryApply "between" start end'
-        Nothing   -> return $ makeUnaryApply "from" start
+        Just end' -> return $ makeApply' "between" [start, end']
+        Nothing   -> return $ makeApply' "from" [start]
 
     elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
 
 tupleOrParenExpr :: Parser EgisonExpr
 tupleOrParenExpr = do
-  elems <- parens $ try pointFreeExpr <|> sepBy expr comma
+  elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (pointFreeExpr <* symbol ")")
   case elems of
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
-    makeLambda name Nothing Nothing =
-      LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
-                 (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [stringToVarExpr ":x", stringToVarExpr ":y"]))
-    makeLambda name Nothing (Just rarg) =
-      LambdaExpr [ScalarArg ":x"]
-                 (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [stringToVarExpr ":x", rarg]))
-    makeLambda name (Just larg) Nothing =
-      LambdaExpr [ScalarArg ":y"]
-                 (ApplyExpr (stringToVarExpr name)
-                            (TupleExpr [larg, stringToVarExpr ":y"]))
-
-    -- TODO(momohatt): Handle point-free expressions starting with expr, such as (1 +)
-    -- TODO(momohatt): Reject ill-formed point-free expressions like (* 1 + 2)
     pointFreeExpr :: Parser [EgisonExpr]
-    pointFreeExpr = do
-      op   <- parseOneOf $ map (\(sym, sem) -> symbol sym $> sem) reservedBinops
-      rarg <- optional $ expr
-      return [makeLambda op Nothing rarg]
+    pointFreeExpr =
+          (do op   <- try . choice $ map (binOpLiteral . repr) reservedBinops
+              rarg <- optional expr
+              case rarg of
+                Just (BinaryOpExpr op' _ _) | priority op >= priority op' ->
+                  customFailure (IllFormedPointFreeExpr op op')
+                _ -> return [makeLambda op Nothing rarg])
+      <|> (do larg <- opExpr
+              op   <- choice $ map (binOpLiteral . repr) reservedBinops
+              case larg of
+                BinaryOpExpr op' _ _ | priority op >= priority op' ->
+                  customFailure (IllFormedPointFreeExpr op op')
+                _ -> return [makeLambda op (Just larg) Nothing])
+
+    makeLambda :: EgisonBinOp -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
+    makeLambda op Nothing Nothing =
+      LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
+                 (BinaryOpExpr op (stringToVarExpr ":x") (stringToVarExpr ":y"))
+    makeLambda op Nothing (Just rarg) =
+      LambdaExpr [ScalarArg ":x"] (BinaryOpExpr op (stringToVarExpr ":x") rarg)
+    makeLambda op (Just larg) Nothing =
+      LambdaExpr [ScalarArg ":y"] (BinaryOpExpr op larg (stringToVarExpr ":y"))
+
+arrayExpr :: Parser EgisonExpr
+arrayExpr = ArrayExpr <$> between (symbol "(|") (symbol "|)") (sepEndBy expr comma)
+
+vectorExpr :: Parser EgisonExpr
+vectorExpr = VectorExpr <$> between (symbol "[|") (symbol "|]") (sepEndBy expr comma)
 
 hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
@@ -356,9 +395,14 @@ index = SupSubscript <$> (string "~_" >> atomExpr')
         Nothing  -> return $ Superscript e1
         Just e2' -> return $ MultiSuperscript e1 e2'
 
-atomOrAppExpr :: Parser EgisonExpr
-atomOrAppExpr = try (dbg "applyExpr" applyExpr)
-            <|> atomExpr
+atomOrApplyExpr :: Parser EgisonExpr
+atomOrApplyExpr = do
+  pos <- L.indentLevel
+  func <- atomExpr
+  args <- many (L.indentGuard sc GT pos *> atomExpr)
+  return $ case args of
+             [] -> func
+             _  -> makeApply func args
 
 atomExpr :: Parser EgisonExpr
 atomExpr = do
@@ -371,18 +415,23 @@ atomExpr = do
 
 -- atom expr without index
 atomExpr' :: Parser EgisonExpr
-atomExpr' = numericExpr
-        <|> BoolExpr <$> boolLiteral
-        <|> CharExpr <$> charLiteral
-        <|> StringExpr . pack <$> stringLiteral
+atomExpr' = constantExpr
         <|> VarExpr <$> varLiteral
-        <|> SomethingExpr <$ keywordSomething
-        <|> UndefinedExpr <$ keywordUndefined
         <|> (\x -> InductiveDataExpr x []) <$> upperId
+        <|> vectorExpr     -- must come before collectionExpr
+        <|> arrayExpr      -- must come before tupleOrParenExpr
         <|> collectionExpr
         <|> tupleOrParenExpr
         <|> hashExpr
         <?> "atomic expression"
+
+constantExpr :: Parser EgisonExpr
+constantExpr = numericExpr
+           <|> BoolExpr <$> boolLiteral
+           <|> CharExpr <$> charLiteral
+           <|> StringExpr . pack <$> stringLiteral
+           <|> SomethingExpr <$ keywordSomething
+           <|> UndefinedExpr <$ keywordUndefined
 
 numericExpr :: Parser EgisonExpr
 numericExpr = try (uncurry FloatExpr <$> floatLiteral)
@@ -395,7 +444,6 @@ numericExpr = try (uncurry FloatExpr <$> floatLiteral)
 pattern :: Parser EgisonPattern
 pattern = letPattern
       <|> loopPattern
-      <|> try applyPattern
       <|> opPattern
       <?> "pattern"
 
@@ -410,35 +458,29 @@ loopPattern :: Parser EgisonPattern
 loopPattern = do
   keywordLoop
   iter <- patVarLiteral
-  range <- parseRange
+  range <- loopRange
   loopBody <- optional (symbol "|") >> pattern
   loopEnd <- symbol "|" >> pattern
   return $ LoopPat iter range loopBody loopEnd
   where
-    parseRange :: Parser LoopRange
-    parseRange =
-      try (parens $ LoopRange <$> expr <*> (comma >> expr) <*> (comma >> pattern))
-      <|> (do start <- keywordFrom >> expr
-              ends  <- fromMaybe (defaultEnds start) <$> optional (keywordTo >> expr)
-              as    <- fromMaybe WildCard <$> optional (keywordAs >> pattern)
-              keywordOf
-              return $ LoopRange start ends as)
+    loopRange :: Parser LoopRange
+    loopRange =
+      parens $ do start <- expr
+                  ends  <- option (defaultEnds start) (try $ comma >> expr)
+                  as    <- option WildCard (comma >> pattern)
+                  return $ LoopRange start ends as
 
     defaultEnds s =
-      ApplyExpr
-        (stringToVarExpr "from")
-        (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))
+      ApplyExpr (stringToVarExpr "from")
+                (makeApply (stringToVarExpr "-'") [s, IntegerExpr 1])
 
-applyPattern :: Parser EgisonPattern
-applyPattern = do
-  pos <- L.indentLevel
-  func <- atomPattern
-  args <- some (L.indentGuard sc GT pos *> atomPattern)
-  case func of
-    InductivePat x [] -> return $ InductivePat x args
+seqPattern :: Parser EgisonPattern
+seqPattern = do
+  pats <- braces $ sepBy pattern comma
+  return $ foldr SeqConsPat SeqNilPat pats
 
 opPattern :: Parser EgisonPattern
-opPattern = makeExprParser atomPattern table
+opPattern = makeExprParser applyOrAtomPattern table
   where
     table :: [[Operator Parser EgisonPattern]]
     table =
@@ -451,23 +493,40 @@ opPattern = makeExprParser atomPattern table
       -- 2
       , [ InfixR (binary OrPat  "||") ]
       ]
-    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ symbol sym
-    binary name sym     = (\x y -> name [x, y]) <$ symbol sym
+    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ operator sym
+    binary name sym     = (\x y -> name [x, y]) <$ operator sym
+
+applyOrAtomPattern :: Parser EgisonPattern
+applyOrAtomPattern = do
+  pos <- L.indentLevel
+  func <- atomPattern
+  args <- many (L.indentGuard sc GT pos *> atomPattern)
+  case (func, args) of
+    (_,                 []) -> return func
+    (InductivePat x [], _)  -> return $ InductivePat x args
 
 atomPattern :: Parser EgisonPattern
-atomPattern = WildCard <$   symbol "_"
-          <|> PatVar   <$> patVarLiteral
-          <|> ValuePat <$> (char '#' >> atomExpr)
-          <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
-          <|> InductivePat <$> identifier <*> pure []
-          <|> VarPat   <$> (char '~' >> identifier)
-          <|> PredPat  <$> (symbol "?" >> atomExpr)
-          <|> ContPat  <$ symbol "..."
-          <|> makeTupleOrParen pattern TuplePat
-          <?> "atomic pattern"
+atomPattern = do
+  pat     <- atomPattern'
+  indices <- many . try $ char '_' >> atomExpr'
+  return $ case indices of
+             [] -> pat
+             _  -> IndexedPat pat indices
 
-patVarLiteral :: Parser Var
-patVarLiteral = stringToVar <$> (char '$' >> identifier)
+-- atomic pattern without index
+atomPattern' :: Parser EgisonPattern
+atomPattern' = WildCard <$   symbol "_"
+           <|> PatVar   <$> patVarLiteral
+           <|> ValuePat <$> (char '#' >> atomExpr)
+           <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
+           <|> InductivePat <$> lowerId <*> pure []
+           <|> VarPat   <$> (char '~' >> lowerId)
+           <|> PredPat  <$> (symbol "?" >> atomExpr)
+           <|> ContPat  <$ symbol "..."
+           <|> makeTupleOrParen pattern TuplePat
+           <|> seqPattern
+           <|> LaterPatVar <$ symbol "@"
+           <?> "atomic pattern"
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
@@ -479,24 +538,25 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
       [ [ InfixR (inductive2 "cons" ":" )
         , InfixR (inductive2 "join" "++") ]
       ]
-    inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ symbol sym
+    inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ operator sym
 
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
          <|> PPPatVar   <$ symbol "$"
-         <|> PPValuePat <$> (symbol "#$" >> identifier)
+         <|> PPValuePat <$> (symbol "#$" >> lowerId)
          <|> PPInductivePat "nil" [] <$ brackets sc
          <|> makeTupleOrParen ppPattern PPTuplePat
 
--- TODO(momohatt): cons pat, snoc pat, empty pat, constant pat
+-- TODO(momohatt): cons pat, snoc pat, empty pat
 pdPattern :: Parser PrimitiveDataPattern
 pdPattern = PDInductivePat <$> upperId <*> many pdAtom
         <|> pdAtom
         <?> "primitive data pattern"
   where
     pdAtom :: Parser PrimitiveDataPattern
-    pdAtom = PDWildCard <$ symbol "_"
-         <|> PDPatVar   <$> (symbol "$" >> identifier)
+    pdAtom = PDWildCard    <$ symbol "_"
+         <|> PDPatVar      <$> (symbol "$" >> lowerId)
+         <|> PDConstantPat <$> constantExpr
          <|> makeTupleOrParen pdPattern PDTuplePat
 
 --
@@ -512,12 +572,6 @@ sc = L.space space1 lineCmnt blockCmnt
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
-
-parens    = between (symbol "(") (symbol ")")
-braces    = between (symbol "{") (symbol "}")
-brackets  = between (symbol "[") (symbol "]")
-comma     = symbol ","
-dot       = symbol "."
 
 positiveIntegerLiteral :: Parser Integer
 positiveIntegerLiteral = lexeme L.decimal
@@ -544,11 +598,32 @@ floatLiteral = try ((,0) <$> (lexeme L.float <* notFollowedBy (symbol "i")))
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> lowerId
 
+patVarLiteral :: Parser Var
+patVarLiteral = stringToVar <$> (char '$' >> lowerId)
+
+binOpLiteral :: String -> Parser EgisonBinOp
+binOpLiteral sym = do
+  opSym <- operator sym
+  return . fromJust $ find ((== opSym) . repr) reservedBinops
+
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
 
 symbol :: String -> Parser String
-symbol sym = try (L.symbol sc sym)
+symbol sym = try $ L.symbol sc sym
+
+operator :: String -> Parser String
+operator sym = try $ string sym <* notFollowedBy opChar <* sc
+
+-- Characters that could consist other operators.
+-- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+opChar :: Parser Char
+opChar = oneOf "%^&*-+\\|:<>.?/'"
+
+parens    = between (symbol "(") (symbol ")")
+braces    = between (symbol "{") (symbol "}")
+brackets  = between (symbol "[") (symbol "]")
+comma     = symbol ","
 
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
@@ -567,10 +642,6 @@ upperId = (lexeme . try) (p >>= check)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
 
--- TODO: Replace identifier with lowerId?
-identifier :: Parser String
-identifier = lowerId <|> upperId
-
 keywordLoadFile             = reserved "loadFile"
 keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
@@ -588,9 +659,6 @@ keywordLet                  = reserved "let"
 keywordIn                   = reserved "in"
 keywordWithSymbols          = reserved "withSymbols"
 keywordLoop                 = reserved "loop"
-keywordFrom                 = reserved "from"
-keywordTo                   = reserved "to"
-keywordOf                   = reserved "of"
 keywordMatch                = reserved "match"
 keywordMatchDFS             = reserved "matchDFS"
 keywordMatchAll             = reserved "matchAll"
@@ -664,32 +732,9 @@ lowerReservedWords =
   , "function"
   ]
 
--- Reserved binary operators, aligned from the longest one
-reservedBinops :: [(String, String)]
-reservedBinops =
-  [ ("++", "append"   )
-  , ("==", "eq?"      )
-  , ("<=", "lte?"     )
-  , (">=", "gte?"     )
-  , ("&&", "and"      )
-  , ("||", "or"       )
-  , ("^",  "**"       )
-  , ("*",  "*"        )
-  , ("/",  "/"        )
-  , ("%",  "remainder")
-  , ("+",  "+"        )
-  , ("-",  "-"        )
-  , (":",  "cons"     )
-  , ("<",  "lt?"      )
-  , (">",  "gt?"      )
-  ]
-
 --
 -- Utils
 --
-
-parseOneOf :: [Parser a] -> Parser a
-parseOneOf = foldl1 (\acc p -> acc <|> p)
 
 makeTupleOrParen :: Parser a -> ([a] -> a) -> Parser a
 makeTupleOrParen parser tupleCtor = do
@@ -698,13 +743,9 @@ makeTupleOrParen parser tupleCtor = do
     [elem] -> return elem
     _      -> return $ tupleCtor elems
 
-makeBinaryApply :: String -> EgisonExpr -> EgisonExpr -> EgisonExpr
-makeBinaryApply func x y = ApplyExpr (stringToVarExpr func) (TupleExpr [x, y])
-
-makeUnaryApply :: String -> EgisonExpr -> EgisonExpr
-makeUnaryApply "-" x  = makeBinaryApply "*" (IntegerExpr (-1)) x
-makeUnaryApply func x = ApplyExpr (stringToVarExpr func) (TupleExpr [x])
-
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
 makeApply (InductiveDataExpr x []) xs = InductiveDataExpr x xs
 makeApply func xs = ApplyExpr func (TupleExpr xs)
+
+makeApply' :: String -> [EgisonExpr] -> EgisonExpr
+makeApply' func xs = ApplyExpr (stringToVarExpr func) (TupleExpr xs)

@@ -34,6 +34,9 @@ module Language.Egison.Types
     , PrimitiveFunc (..)
     , EgisonData (..)
     , showTSV
+    , EgisonBinOp(..)
+    , BinOpAssoc(..)
+    , reservedBinops
     -- * Egison values
     , EgisonValue (..)
     , ScalarData (..)
@@ -267,12 +270,14 @@ data EgisonExpr =
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
 
+  | UnaryOpExpr String EgisonExpr
+  | BinaryOpExpr EgisonBinOp EgisonExpr EgisonExpr
+
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
   | CApplyExpr EgisonExpr EgisonExpr
   | PartialExpr Integer EgisonExpr
   | PartialVarExpr Integer
-  | RecVarExpr
 
   | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
   | ArrayBoundsExpr EgisonExpr
@@ -371,6 +376,44 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
+data EgisonBinOp
+  = EgisonBinOp { repr     :: String  -- syntastic representation
+                , func     :: String  -- semantics
+                , priority :: Int
+                , assoc    :: BinOpAssoc
+                }
+  deriving (Eq, Ord)
+
+data BinOpAssoc
+  = LeftAssoc
+  | RightAssoc
+  | NonAssoc
+  deriving (Eq, Ord)
+
+instance Show BinOpAssoc where
+  show LeftAssoc  = "infixl"
+  show RightAssoc = "infixr"
+  show NonAssoc   = "infix"
+
+reservedBinops :: [EgisonBinOp]
+reservedBinops =
+  [ EgisonBinOp { repr = "^" , func = "**"       , priority = 8, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "*" , func = "*"        , priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "/" , func = "/"        , priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "%" , func = "remainder", priority = 7, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "+" , func = "+"        , priority = 6, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "-" , func = "-"        , priority = 6, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "++", func = "append"   , priority = 5, assoc = RightAssoc }
+  , EgisonBinOp { repr = ":" , func = "cons"     , priority = 5, assoc = RightAssoc }
+  , EgisonBinOp { repr = "==", func = "eq?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "<=", func = "lte?"     , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = ">=", func = "gte?"     , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "<" , func = "lt?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = ">" , func = "gt?"      , priority = 4, assoc = LeftAssoc  }
+  , EgisonBinOp { repr = "&&", func = "and"      , priority = 3, assoc = RightAssoc }
+  , EgisonBinOp { repr = "||", func = "or"       , priority = 2, assoc = RightAssoc }
+  ]
+
 --
 -- Values
 --
@@ -437,11 +480,9 @@ instance Eq PolyExpr where
   _ == _ = False
 
 instance Eq TermExpr where
-  (Term a []) == (Term b [])
-    | a /= b =  False
-    | otherwise = True
+  (Term a []) == (Term b []) = a == b
   (Term a ((Quote x, n):xs)) == (Term b ys)
-    | (a /= b) && (a /= negate b) =  False
+    | (a /= b) && (a /= negate b) = False
     | otherwise = case elemIndex (Quote x, n) ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 Term a xs == Term b (hs ++ ts)
@@ -452,7 +493,7 @@ instance Eq TermExpr where
                                                else Term (negate a) xs == Term b (hs ++ ts)
                                  Nothing -> False
   (Term a (x:xs)) == (Term b ys)
-    | (a /= b) && (a /= negate b) =  False
+    | (a /= b) && (a /= negate b) = False
     | otherwise = case elemIndex x ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 Term a xs == Term b (hs ++ ts)
@@ -525,9 +566,10 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                       ) js))
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
-symbolExprToEgison (FunctionData name argnames args js, n) = case name of
-                                                               Nothing -> Tuple [InductiveData "Function" [symbolScalarData "" "", Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
-                                                               Just name' -> Tuple [InductiveData "Function" [name', Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
+symbolExprToEgison (FunctionData name argnames args js, n) =
+  case name of
+    Nothing -> Tuple [InductiveData "Function" [symbolScalarData "" "", Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
+    Just name' -> Tuple [InductiveData "Function" [name', Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map (\case
                                           Superscript k -> InductiveData "Sup" [ScalarData k]
