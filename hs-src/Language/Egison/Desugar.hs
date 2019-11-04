@@ -183,6 +183,9 @@ desugar (SubrefsExpr bool expr1 expr2) =
 desugar (SuprefsExpr bool expr1 expr2) =
   SuprefsExpr bool <$> desugar expr1 <*> desugar expr2
 
+desugar (UserrefsExpr bool expr1 expr2) =
+  UserrefsExpr bool <$> desugar expr1 <*> desugar expr2
+
 desugar (PowerExpr expr1 expr2) = do
   expr1' <- desugar expr1
   expr2' <- desugar expr2
@@ -444,10 +447,10 @@ desugarPattern' (MultPat (intPat:patterns)) = do
     lp:hps ->
       return $ InductivePat "mult" [intPat',
                                     foldr (\p r -> case p of
-                                                     (PowerPat p1 p2) -> InductivePat "ncons" [p1, p2, r]
+                                                     PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, r]
                                                      _ -> InductivePat "cons" [p, r])
                                           (case lp of
-                                             (PowerPat p1 p2) -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
+                                             PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
                                              _ -> lp)
                                           (reverse hps)]
  where
@@ -460,35 +463,23 @@ desugarLoopRange :: LoopRange -> DesugarM LoopRange
 desugarLoopRange (LoopRange sExpr eExpr pattern) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pattern
 
-desugarBinding :: BindingExpr -> DesugarM BindingExpr
-desugarBinding (name, expr) = (name,) <$> desugar expr
-
 desugarBindings :: [BindingExpr] -> DesugarM [BindingExpr]
-desugarBindings (bind:rest) = (:) <$> desugarBinding bind <*> desugarBindings rest
-desugarBindings []          = return []
-
-desugarMatchClause :: MatchClause -> DesugarM MatchClause
-desugarMatchClause (pattern, expr) =
-  (,) <$> desugarPattern pattern <*> desugar expr
+desugarBindings = mapM f
+  where f (name, expr) = (name,) <$> desugar expr
 
 desugarMatchClauses :: [MatchClause] -> DesugarM [MatchClause]
-desugarMatchClauses (clause:rest) = (:) <$> desugarMatchClause clause <*> desugarMatchClauses rest
-desugarMatchClauses []            = return []
+desugarMatchClauses = mapM f
+  where f (pattern, expr) = (,) <$> desugarPattern pattern <*> desugar expr
 
 desugarMatcherInfo :: MatcherInfo -> DesugarM MatcherInfo
-desugarMatcherInfo [] = return []
-desugarMatcherInfo ((pp, matcher, pds):matcherInfo) = do
-  matcher' <- desugar matcher
-  pds' <- desugarPrimitiveDataMatchClauses pds
-  matcherInfo' <- desugarMatcherInfo matcherInfo
-  return $ (pp, matcher', pds'):matcherInfo'
+desugarMatcherInfo = mapM f
+  where
+    f (pp, matcher, pds) =
+      (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, EgisonExpr)] -> DesugarM [(PrimitiveDataPattern, EgisonExpr)]
-desugarPrimitiveDataMatchClauses [] = return []
-desugarPrimitiveDataMatchClauses ((pd, expr):pds) = do
-  expr' <- desugar expr
-  pds' <- desugarPrimitiveDataMatchClauses pds
-  return $ (pd, expr'):pds'
+desugarPrimitiveDataMatchClauses = mapM f
+  where f (pd, expr) = (pd,) <$> desugar expr
 
 makeApply :: String -> [EgisonExpr] -> EgisonExpr
 makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
