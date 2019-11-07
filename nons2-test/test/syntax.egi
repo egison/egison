@@ -87,12 +87,12 @@ assertEqual "point free expr" ((10 - ) 1) 9
 assertEqual "not point free expr" (- 2) (-2)
 
 -- findFactor = memoizedLambda
---               $n -> match takeWhile($ <= floor(sqrt(itof(n))), primes) as (list integer) with
---                     | _ ++ (?(divisor? n $) && $x)  :  _ -> x
+--                n -> match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
+--                     | _ ++ (?(\m -> divisor? n m) && $x)  :  _ -> x
 --                     | _ -> n
 -- assertEqual "memoized lambda"
 --   (map findFactor [1..10])
---   {1, 2, 3, 2, 5, 2, 7, 2, 3, 2}
+--   [1, 2, 3, 2, 5, 2, 7, 2, 3, 2]
 
 twinPrimes =
   matchAll primes as list integer with
@@ -356,6 +356,10 @@ assertEqual "tensor wedge expr"
 assertEqual "tensor wedge expr of binary operator"
   ([| 1, 2, 3 |] !+ [| 1, 2, 3 |])
   [| [| 2, 3, 4 |], [| 3, 4, 5 |], [| 4, 5, 6 |] |]
+
+assertEqual "tensor multiplication"
+  ([| 1, 2, 3 |]_i * [| 1, 2, 3 |]_i)
+  [| 1, 4, 9 |]_i
 
 --
 -- Hash
