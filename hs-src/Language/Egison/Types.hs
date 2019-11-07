@@ -1446,6 +1446,7 @@ instance EgisonData Rational where
 instance EgisonData Double where
   toEgison f = Float f
   fromEgison (Float f) = return f
+  fromEgison val       = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 instance EgisonData Handle where
   toEgison = Port
@@ -1561,6 +1562,7 @@ instance EgisonWHNF Integer where
 
 instance EgisonWHNF Double where
   fromWHNF (Value (Float f)) = return f
+  fromWHNF whnf              = throwError =<< TypeMismatch "float" whnf <$> getFuncNameStack
 
 instance EgisonWHNF Handle where
   fromWHNF (Value (Port h)) = return h
