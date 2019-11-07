@@ -159,6 +159,7 @@ expr = ifExpr
    <|> doExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
+   <|> memoizedLambdaExpr
    <|> macroExpr
    <|> generateTensorExpr
    <|> tensorExpr
@@ -312,6 +313,9 @@ algebraicDataMatcherExpr = do
       patternCtor <- lowerId
       args <- many (L.indentGuard sc GT pos >> atomExpr)
       return (patternCtor, args)
+
+memoizedLambdaExpr :: Parser EgisonExpr
+memoizedLambdaExpr = MemoizedLambdaExpr <$> (keywordMemoizedLambda >> many lowerId) <*> (symbol "->" >> expr)
 
 macroExpr :: Parser EgisonExpr
 macroExpr = MacroExpr <$> (keywordMacro >> many lowerId) <*> (symbol "->" >> expr)
