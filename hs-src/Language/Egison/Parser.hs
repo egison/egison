@@ -706,11 +706,7 @@ boolExpr :: Parser EgisonExpr
 boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
-floatExpr = do
-  (x,y) <- try ((,) <$> floatLiteral <*> (sign' <*> positiveFloatLiteral) <* char 'i')
-            <|> try ((0,)  <$> floatLiteral <* char 'i')
-            <|> try ((, 0) <$> floatLiteral)
-  return $ FloatExpr x y
+floatExpr = FloatExpr <$> positiveFloatLiteral
 
 integerExpr :: Parser EgisonExpr
 integerExpr = IntegerExpr <$> integerLiteral'
@@ -729,9 +725,6 @@ positiveFloatLiteral = do
   let m = read mStr
   let l = m % (10 ^ fromIntegral (length mStr))
   return (fromRational (fromIntegral n + l) :: Double)
-
-floatLiteral :: Parser Double
-floatLiteral = sign <*> positiveFloatLiteral
 
 --
 -- Tokens
