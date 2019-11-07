@@ -34,7 +34,7 @@ import           System.Directory               (doesFileExist, getHomeDirectory
 
 import           Data.Functor                   (($>))
 import           Data.List                      (find)
-import           Data.Maybe                     (fromJust)
+import           Data.Maybe                     (fromJust, isJust)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
@@ -179,6 +179,7 @@ opExpr = do
             return $ BinaryOpExpr op
        in
           [ [ Prefix (unary  "-" ) ]
+          , [ Prefix (unary  "!" ) ]
           -- 8
           , [ InfixL (binary "^" ) ]
           -- 7
@@ -202,7 +203,6 @@ opExpr = do
           -- 2
           , [ InfixR (binary "||") ]
           ]
-
 
 ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
@@ -497,8 +497,8 @@ opPattern = makeExprParser applyOrAtomPattern table
       -- 2
       , [ InfixR (binary OrPat  "||") ]
       ]
-    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ operator sym
-    binary name sym     = (\x y -> name [x, y]) <$ operator sym
+    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ patOperator sym
+    binary name sym     = (\x y -> name [x, y]) <$ patOperator sym
 
 applyOrAtomPattern :: Parser EgisonPattern
 applyOrAtomPattern = do
@@ -607,8 +607,10 @@ patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
 binOpLiteral :: String -> Parser EgisonBinOp
 binOpLiteral sym = do
+  wedge <- optional (char '!')
   opSym <- operator sym
-  return . fromJust $ find ((== opSym) . repr) reservedBinops
+  let opInfo = fromJust $ find ((== opSym) . repr) reservedBinops
+  return $ opInfo { isWedge = isJust wedge }
 
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
@@ -619,10 +621,17 @@ symbol sym = try $ L.symbol sc sym
 operator :: String -> Parser String
 operator sym = try $ string sym <* notFollowedBy opChar <* sc
 
--- Characters that could consist other operators.
--- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+patOperator :: String -> Parser String
+patOperator sym = try $ string sym <* notFollowedBy patOpChar <* sc
+
+-- Characters that could consist expression operators.
 opChar :: Parser Char
-opChar = oneOf "%^&*-+\\|:<>.?/'"
+opChar = oneOf "%^&*-+\\|:<>.?/'!#@$"
+
+-- Characters that could consist pattern operators.
+-- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+patOpChar :: Parser Char
+patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
@@ -632,7 +641,7 @@ comma     = symbol ","
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> lowerChar <*> many (alphaNumChar <|> oneOf ['?', '\''])
+    p       = (:) <$> lowerChar <*> many (alphaNumChar <|> oneOf ['.', '?', '\''])
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
