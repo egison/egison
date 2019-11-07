@@ -160,3 +160,10 @@ Executable egison
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
   ghc-options:  -O3 -threaded -eventlog -rtsopts
+
+Executable egison-translate
+  Main-is:          translator.hs
+  Build-depends:
+      egison
+    , base >= 4.0 && < 5
+  Hs-Source-Dirs:   hs-src/Tool
