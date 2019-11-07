@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE MultiWayIf       #-}
 
 {- |
 Module      : Language.Egison.ParserNonS
@@ -156,6 +157,7 @@ expr = ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
    <|> letExpr
+   <|> withSymbolsExpr
    <|> doExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
@@ -181,8 +183,8 @@ opExpr = do
             op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
             return $ BinaryOpExpr op
        in
-          [ [ Prefix (unary  "-" ) ]
-          , [ Prefix (unary  "!" ) ]
+          [ [ Prefix (unary  "-" )
+            , Prefix (unary  "!" ) ]
           -- 8
           , [ InfixL (binary "^" ) ]
           -- 7
@@ -272,6 +274,9 @@ binding = do
   return $ case args of
              [] -> (vars, body)
              _  -> (vars, LambdaExpr args body)
+
+withSymbolsExpr :: Parser EgisonExpr
+withSymbolsExpr = WithSymbolsExpr <$> (keywordWithSymbols >> brackets (sepBy lowerId comma)) <*> expr
 
 doExpr :: Parser EgisonExpr
 doExpr = do
@@ -425,9 +430,9 @@ atomExpr = do
   e <- atomExpr'
   -- TODO(momohatt): "..." (override of index) collides with ContPat
   indices <- many index
-  case indices of
-    [] -> return e
-    _  -> return $ IndexedExpr False e indices
+  return $ case indices of
+             [] -> e
+             _  -> IndexedExpr False e indices
 
 -- atom expr without index
 atomExpr' :: Parser EgisonExpr
@@ -439,12 +444,14 @@ atomExpr' = constantExpr
         <|> collectionExpr
         <|> tupleOrParenExpr
         <|> hashExpr
+        <|> QuoteExpr <$> (char '\'' >> atomExpr')
+        <|> QuoteSymbolExpr <$> (char '`' >> atomExpr')
         <?> "atomic expression"
 
 constantExpr :: Parser EgisonExpr
 constantExpr = numericExpr
            <|> BoolExpr <$> boolLiteral
-           <|> CharExpr <$> charLiteral
+           <|> CharExpr <$> try charLiteral        -- try for quoteExpr
            <|> StringExpr . pack <$> stringLiteral
            <|> SomethingExpr <$ keywordSomething
            <|> UndefinedExpr <$ keywordUndefined

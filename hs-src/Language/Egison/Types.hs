@@ -264,8 +264,8 @@ data EgisonExpr =
   | QuoteExpr EgisonExpr
   | QuoteSymbolExpr EgisonExpr
 
-  | WedgeExpr EgisonExpr
-  | WedgeApplyExpr EgisonExpr EgisonExpr
+  | WedgeExpr EgisonExpr                         -- Desugared to WedgeApplyExpr
+  | WedgeApplyExpr EgisonExpr EgisonExpr         -- Appears after desugar
 
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
@@ -390,6 +390,9 @@ data BinOpAssoc
   | RightAssoc
   | NonAssoc
   deriving (Eq, Ord)
+
+instance Show EgisonBinOp where
+  show op = repr op
 
 instance Show BinOpAssoc where
   show LeftAssoc  = "infixl"
@@ -1246,6 +1249,12 @@ instance Show EgisonExpr where
   show (IndexedExpr False expr idxs) = show expr ++ "..." ++ concatMap show idxs
   show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
   show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
+
+  show (UnaryOpExpr op e) = op ++ " " ++ show e
+  show (BinaryOpExpr op e1 e2) = "(" ++ show e1 ++ " " ++ show op ++ " " ++ show e2 ++ ")"
+
+  show (QuoteExpr e) = "'" ++ show e
+  show (QuoteSymbolExpr e) = "`" ++ show e
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"

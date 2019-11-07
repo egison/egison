@@ -314,9 +314,10 @@ desugar (IoExpr expr) =
 
 desugar (UnaryOpExpr "-" expr) =
   (\x -> makeApply "neg" [x]) <$> desugar expr
-
 desugar (UnaryOpExpr "!" (ApplyExpr expr1 expr2)) =
   WedgeApplyExpr <$> desugar expr1 <*> desugar expr2
+desugar (UnaryOpExpr "'" expr) = QuoteExpr <$> desugar expr
+desugar (UnaryOpExpr "`" expr) = QuoteSymbolExpr <$> desugar expr
 
 desugar (BinaryOpExpr op expr1 expr2) | isWedge op = do
   (\x y -> WedgeApplyExpr (stringToVarExpr (func op)) (TupleExpr [x, y]))
