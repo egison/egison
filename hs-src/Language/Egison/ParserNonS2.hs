@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE MultiWayIf       #-}
 
 {- |
 Module      : Language.Egison.ParserNonS
@@ -34,7 +35,7 @@ import           System.Directory               (doesFileExist, getHomeDirectory
 
 import           Data.Functor                   (($>))
 import           Data.List                      (find)
-import           Data.Maybe                     (fromJust)
+import           Data.Maybe                     (fromJust, isJust)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
@@ -156,12 +157,16 @@ expr = ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
    <|> letExpr
+   <|> withSymbolsExpr
    <|> doExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
+   <|> memoizedLambdaExpr
+   <|> procedureExpr
    <|> macroExpr
    <|> generateTensorExpr
    <|> tensorExpr
+   <|> functionExpr
    <|> dbg "opExpr" opExpr
    <?> "expression"
 
@@ -178,7 +183,8 @@ opExpr = do
             op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
             return $ BinaryOpExpr op
        in
-          [ [ Prefix (unary  "-" ) ]
+          [ [ Prefix (unary  "-" )
+            , Prefix (unary  "!" ) ]
           -- 8
           , [ InfixL (binary "^" ) ]
           -- 7
@@ -202,7 +208,6 @@ opExpr = do
           -- 2
           , [ InfixR (binary "||") ]
           ]
-
 
 ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
@@ -247,8 +252,7 @@ lambdaExpr = symbol "\\" >> (
       return $ ctor matcher clauses
 
 arg :: Parser Arg
-arg = ScalarArg         <$> (symbol "$"  >> lowerId)
-  <|> InvertedScalarArg <$> (symbol "*$" >> lowerId)
+arg = InvertedScalarArg <$> (symbol "*$" >> lowerId)
   <|> TensorArg         <$> (symbol "%"  >> lowerId)
   <|> ScalarArg         <$> lowerId
   <?> "argument"
@@ -258,13 +262,21 @@ letExpr = do
   pos   <- keywordLet >> L.indentLevel
   binds <- some (L.indentGuard sc EQ pos *> binding)
   body  <- keywordIn >> expr
-  return $ LetStarExpr binds body
+  return $ LetRecExpr binds body
 
 binding :: Parser BindingExpr
 binding = do
-  vars <- (:[]) <$> varLiteral <|> parens (sepBy varLiteral comma)
+  (vars, args) <- (,[]) <$> parens (sepBy varLiteral comma)
+              <|> do var <- varLiteral
+                     args <- many arg
+                     return ([var], args)
   body <- symbol "=" >> expr
-  return (vars, body)
+  return $ case args of
+             [] -> (vars, body)
+             _  -> (vars, LambdaExpr args body)
+
+withSymbolsExpr :: Parser EgisonExpr
+withSymbolsExpr = WithSymbolsExpr <$> (keywordWithSymbols >> brackets (sepBy lowerId comma)) <*> expr
 
 doExpr :: Parser EgisonExpr
 doExpr = do
@@ -309,6 +321,12 @@ algebraicDataMatcherExpr = do
       args <- many (L.indentGuard sc GT pos >> atomExpr)
       return (patternCtor, args)
 
+memoizedLambdaExpr :: Parser EgisonExpr
+memoizedLambdaExpr = MemoizedLambdaExpr <$> (keywordMemoizedLambda >> many lowerId) <*> (symbol "->" >> expr)
+
+procedureExpr :: Parser EgisonExpr
+procedureExpr = ProcedureExpr <$> (keywordProcedure >> many lowerId) <*> (symbol "->" >> expr)
+
 macroExpr :: Parser EgisonExpr
 macroExpr = MacroExpr <$> (keywordMacro >> many lowerId) <*> (symbol "->" >> expr)
 
@@ -319,6 +337,9 @@ tensorExpr :: Parser EgisonExpr
 tensorExpr = TensorExpr <$> (keywordTensor >> atomExpr) <*> atomExpr
                         <*> option (CollectionExpr []) atomExpr
                         <*> option (CollectionExpr []) atomExpr
+
+functionExpr :: Parser EgisonExpr
+functionExpr = FunctionExpr <$> (keywordFunction >> parens (sepBy expr comma))
 
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
@@ -409,9 +430,9 @@ atomExpr = do
   e <- atomExpr'
   -- TODO(momohatt): "..." (override of index) collides with ContPat
   indices <- many index
-  case indices of
-    [] -> return e
-    _  -> return $ IndexedExpr False e indices
+  return $ case indices of
+             [] -> e
+             _  -> IndexedExpr False e indices
 
 -- atom expr without index
 atomExpr' :: Parser EgisonExpr
@@ -423,12 +444,14 @@ atomExpr' = constantExpr
         <|> collectionExpr
         <|> tupleOrParenExpr
         <|> hashExpr
+        <|> QuoteExpr <$> (char '\'' >> atomExpr')
+        <|> QuoteSymbolExpr <$> (char '`' >> atomExpr')
         <?> "atomic expression"
 
 constantExpr :: Parser EgisonExpr
 constantExpr = numericExpr
            <|> BoolExpr <$> boolLiteral
-           <|> CharExpr <$> charLiteral
+           <|> CharExpr <$> try charLiteral        -- try for quoteExpr
            <|> StringExpr . pack <$> stringLiteral
            <|> SomethingExpr <$ keywordSomething
            <|> UndefinedExpr <$ keywordUndefined
@@ -493,8 +516,8 @@ opPattern = makeExprParser applyOrAtomPattern table
       -- 2
       , [ InfixR (binary OrPat  "||") ]
       ]
-    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ operator sym
-    binary name sym     = (\x y -> name [x, y]) <$ operator sym
+    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ patOperator sym
+    binary name sym     = (\x y -> name [x, y]) <$ patOperator sym
 
 applyOrAtomPattern :: Parser EgisonPattern
 applyOrAtomPattern = do
@@ -603,8 +626,10 @@ patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
 binOpLiteral :: String -> Parser EgisonBinOp
 binOpLiteral sym = do
+  wedge <- optional (char '!')
   opSym <- operator sym
-  return . fromJust $ find ((== opSym) . repr) reservedBinops
+  let opInfo = fromJust $ find ((== opSym) . repr) reservedBinops
+  return $ opInfo { isWedge = isJust wedge }
 
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
@@ -615,10 +640,17 @@ symbol sym = try $ L.symbol sc sym
 operator :: String -> Parser String
 operator sym = try $ string sym <* notFollowedBy opChar <* sc
 
--- Characters that could consist other operators.
--- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+patOperator :: String -> Parser String
+patOperator sym = try $ string sym <* notFollowedBy patOpChar <* sc
+
+-- Characters that could consist expression operators.
 opChar :: Parser Char
-opChar = oneOf "%^&*-+\\|:<>.?/'"
+opChar = oneOf "%^&*-+\\|:<>.?/'!#@$"
+
+-- Characters that could consist pattern operators.
+-- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+patOpChar :: Parser Char
+patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
@@ -628,7 +660,7 @@ comma     = symbol ","
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> lowerChar <*> many (alphaNumChar <|> oneOf ['?', '\''])
+    p       = (:) <$> lowerChar <*> many (alphaNumChar <|> oneOf ['.', '?', '\''])
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
