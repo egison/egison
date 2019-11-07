@@ -160,9 +160,11 @@ expr = ifExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
    <|> memoizedLambdaExpr
+   <|> procedureExpr
    <|> macroExpr
    <|> generateTensorExpr
    <|> tensorExpr
+   <|> functionExpr
    <|> dbg "opExpr" opExpr
    <?> "expression"
 
@@ -317,6 +319,9 @@ algebraicDataMatcherExpr = do
 memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = MemoizedLambdaExpr <$> (keywordMemoizedLambda >> many lowerId) <*> (symbol "->" >> expr)
 
+procedureExpr :: Parser EgisonExpr
+procedureExpr = ProcedureExpr <$> (keywordProcedure >> many lowerId) <*> (symbol "->" >> expr)
+
 macroExpr :: Parser EgisonExpr
 macroExpr = MacroExpr <$> (keywordMacro >> many lowerId) <*> (symbol "->" >> expr)
 
@@ -327,6 +332,9 @@ tensorExpr :: Parser EgisonExpr
 tensorExpr = TensorExpr <$> (keywordTensor >> atomExpr) <*> atomExpr
                         <*> option (CollectionExpr []) atomExpr
                         <*> option (CollectionExpr []) atomExpr
+
+functionExpr :: Parser EgisonExpr
+functionExpr = FunctionExpr <$> (keywordFunction >> parens (sepBy expr comma))
 
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
