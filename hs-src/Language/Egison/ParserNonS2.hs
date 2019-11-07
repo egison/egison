@@ -247,8 +247,7 @@ lambdaExpr = symbol "\\" >> (
       return $ ctor matcher clauses
 
 arg :: Parser Arg
-arg = ScalarArg         <$> (symbol "$"  >> lowerId)
-  <|> InvertedScalarArg <$> (symbol "*$" >> lowerId)
+arg = InvertedScalarArg <$> (symbol "*$" >> lowerId)
   <|> TensorArg         <$> (symbol "%"  >> lowerId)
   <|> ScalarArg         <$> lowerId
   <?> "argument"
@@ -258,13 +257,18 @@ letExpr = do
   pos   <- keywordLet >> L.indentLevel
   binds <- some (L.indentGuard sc EQ pos *> binding)
   body  <- keywordIn >> expr
-  return $ LetStarExpr binds body
+  return $ LetRecExpr binds body
 
 binding :: Parser BindingExpr
 binding = do
-  vars <- (:[]) <$> varLiteral <|> parens (sepBy varLiteral comma)
+  (vars, args) <- (,[]) <$> parens (sepBy varLiteral comma)
+              <|> do var <- varLiteral
+                     args <- many arg
+                     return ([var], args)
   body <- symbol "=" >> expr
-  return (vars, body)
+  return $ case args of
+             [] -> (vars, body)
+             _  -> (vars, LambdaExpr args body)
 
 doExpr :: Parser EgisonExpr
 doExpr = do
