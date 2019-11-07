@@ -263,8 +263,7 @@ data EgisonExpr =
   | QuoteExpr EgisonExpr
   | QuoteSymbolExpr EgisonExpr
 
-  | WedgeExpr EgisonExpr                         -- Desugared to WedgeApplyExpr
-  | WedgeApplyExpr EgisonExpr EgisonExpr         -- Appears after desugar
+  | WedgeApplyExpr EgisonExpr EgisonExpr
 
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
