@@ -381,7 +381,7 @@ desugar (QuoteExpr expr) =
 desugar (QuoteSymbolExpr expr) =
   QuoteSymbolExpr <$> desugar expr
 
-desugar (WedgeExpr (ApplyExpr expr0 expr1)) =
+desugar (WedgeApplyExpr expr0 expr1) =
   WedgeApplyExpr <$> desugar expr0 <*> desugar expr1
 
 desugar expr = return expr
