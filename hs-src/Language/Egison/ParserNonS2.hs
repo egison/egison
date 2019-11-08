@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiWayIf       #-}
 
 {- |
-Module      : Language.Egison.ParserNonS
+Module      : Language.Egison.ParserNonS2
 Copyright   : Satoshi Egi
 Licence     : MIT
 
@@ -167,7 +167,7 @@ expr = ifExpr
    <|> generateTensorExpr
    <|> tensorExpr
    <|> functionExpr
-   <|> dbg "opExpr" opExpr
+   <|> opExpr
    <?> "expression"
 
 -- Also parses atomExpr
