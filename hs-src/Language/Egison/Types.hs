@@ -296,7 +296,7 @@ data EgisonExpr =
 
   | SomethingExpr
   | UndefinedExpr
- deriving (Show, Eq)
+ deriving (Eq)
 
 data Arg =
     ScalarArg String
@@ -402,11 +402,11 @@ instance Show BinOpAssoc where
 reservedBinops :: [EgisonBinOp]
 reservedBinops =
   [ makeBinOp "^"  "**"        8 LeftAssoc
-  , makeBinOp "*"  "*"         7 LeftAssoc
-  , makeBinOp "/"  "/"         7 LeftAssoc
+  , makeBinOp "*"  "b.*"       7 LeftAssoc
+  , makeBinOp "/"  "b./"       7 LeftAssoc
   , makeBinOp "%"  "remainder" 7 LeftAssoc
-  , makeBinOp "+"  "+"         6 LeftAssoc
-  , makeBinOp "-"  "-"         6 LeftAssoc
+  , makeBinOp "+"  "b.+"       6 LeftAssoc
+  , makeBinOp "-"  "b.-"       6 LeftAssoc
   , makeBinOp "++" "append"    5 RightAssoc
   , makeBinOp ":"  "cons"      5 RightAssoc
   , makeBinOp "==" "eq?"       4 LeftAssoc
@@ -1235,33 +1235,33 @@ type Matcher = EgisonValue
 
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
--- instance Show EgisonExpr where
---   show (CharExpr c) = "c#" ++ [c]
---   show (StringExpr str) = "\"" ++ T.unpack str ++ "\""
---   show (BoolExpr True) = "#t"
---   show (BoolExpr False) = "#f"
---   show (IntegerExpr n) = show n
---   show (FloatExpr x y) = showComplexFloat x y
---   show (VarExpr name) = show name
---   show (PartialVarExpr n) = "%" ++ show n
---   show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
---   show (IndexedExpr True expr idxs) = show expr ++ concatMap show idxs
---   show (IndexedExpr False expr idxs) = show expr ++ "..." ++ concatMap show idxs
---   show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
---   show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
--- 
---   show (UnaryOpExpr op e) = op ++ " " ++ show e
---   show (BinaryOpExpr op e1 e2) = "(" ++ show e1 ++ " " ++ show op ++ " " ++ show e2 ++ ")"
--- 
---   show (QuoteExpr e) = "'" ++ show e
---   show (QuoteSymbolExpr e) = "`" ++ show e
--- 
---   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
---   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
---   show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
---   show (VectorExpr xs) = "[| " ++ unwords (map show xs) ++ " |]"
---   show (WithSymbolsExpr xs e) = "(withSymbols {" ++ unwords (map show xs) ++ "} " ++ show e ++ ")"
---   show _ = "(not supported)"
+instance Show EgisonExpr where
+  show (CharExpr c) = "c#" ++ [c]
+  show (StringExpr str) = "\"" ++ T.unpack str ++ "\""
+  show (BoolExpr True) = "#t"
+  show (BoolExpr False) = "#f"
+  show (IntegerExpr n) = show n
+  show (FloatExpr x y) = showComplexFloat x y
+  show (VarExpr name) = show name
+  show (PartialVarExpr n) = "%" ++ show n
+  show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
+  show (IndexedExpr True expr idxs) = show expr ++ concatMap show idxs
+  show (IndexedExpr False expr idxs) = show expr ++ "..." ++ concatMap show idxs
+  show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
+  show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
+
+  show (UnaryOpExpr op e) = op ++ " " ++ show e
+  show (BinaryOpExpr op e1 e2) = "(" ++ show e1 ++ " " ++ show op ++ " " ++ show e2 ++ ")"
+
+  show (QuoteExpr e) = "'" ++ show e
+  show (QuoteSymbolExpr e) = "`" ++ show e
+
+  show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
+  show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
+  show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
+  show (VectorExpr xs) = "[| " ++ unwords (map show xs) ++ " |]"
+  show (WithSymbolsExpr xs e) = "(withSymbols {" ++ unwords (map show xs) ++ "} " ++ show e ++ ")"
+  show _ = "(not supported)"
 
 instance Show EgisonValue where
   show (Char c) = "c#" ++ [c]
