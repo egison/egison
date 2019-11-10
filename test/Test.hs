@@ -52,35 +52,12 @@ unitNonSTestCases =
 
 sampleTestCases :: [FilePath]
 sampleTestCases =
-  [ "test/answer/sample/graph.egi"
-  , "test/answer/sample/tree.egi"
-  , "test/answer/sample/one-minute-second.egi"
-  , "test/answer/sample/binary-counter.egi"
-  , "test/answer/sample/mickey.egi"
-  , "test/answer/sample/one-minute-first.egi"
-  , "test/answer/sample/poker-hands-with-joker.egi"
-  , "test/answer/sample/demo1.egi"
-  -- , "test/answer/sample/demo1-ja.egi"
+  [ "test/answer/sample/poker-hands-with-joker.egi"
   , "test/answer/sample/primes.egi"
-  , "test/answer/sample/pi.egi"
   , "test/answer/sample/mahjong.egi"
-  , "test/answer/sample/bipartite-graph.egi"
   , "test/answer/sample/poker-hands.egi"
-  , "test/answer/sample/physics/tension3.egi"
-  , "test/answer/sample/physics/tension2.egi"
-  , "test/answer/sample/physics/tension.egi"
   , "test/answer/sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
   , "test/answer/sample/math/number/17th-root-of-unity.egi"
-  , "test/answer/sample/math/number/5th-root-of-unity.egi"
-  , "test/answer/sample/math/number/sum-of-cubes.egi"
-  , "test/answer/sample/math/number/7th-root-of-unity-2.egi"
-  , "test/answer/sample/math/number/euler-totient-function.egi"
-  , "test/answer/sample/math/number/pi.egi"
-  , "test/answer/sample/math/number/napier.egi"
-  , "test/answer/sample/math/others/mobius-transformation.egi"
-  , "test/answer/sample/rosetta/consolidate.egi"
-  , "test/answer/sample/rosetta/lcs.egi"
-  , "test/answer/sample/rosetta/partial.egi"
   ]
 
 runUnitTestCase :: FilePath -> Test
