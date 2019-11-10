@@ -74,6 +74,14 @@
 ;;
 ;; Characters
 ;;
+(assert-equal "C.between"
+  (C.between c#a c#c)
+  {c#a c#b c#c})
+
+(assert-equal "C.between?"
+  (C.between? c#a c#c c#b)
+  #t)
+
 (assert-equal "alphabet?"
   (alphabet? c#a)
   #t)
