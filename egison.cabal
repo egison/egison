@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.9.1
+Version:             3.9.2
 Synopsis:            Programming language with non-linear pattern-matching against non-free data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
@@ -51,7 +51,7 @@ Description:
 Homepage:            http://www.egison.org
 License:             MIT
 License-file:        LICENSE
-Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe, Kentaro Honda, Mayuko Kori
+Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe, Kentaro Honda, Mayuko Kori, Momoko Hattori
 Maintainer:          Satoshi Egi <egi@egison.org>
 Category:            Compilers/Interpreters
 Build-type:          Simple
@@ -105,6 +105,7 @@ Library
                    Language.Egison.Util
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
+  Autogen-modules: Language.Egison.Lexer  
   ghc-options:  -O3
 
 Test-Suite test
