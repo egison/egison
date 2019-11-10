@@ -1,5 +1,5 @@
 Name:                egison
-Version:             3.9.2
+Version:             3.9.3
 Synopsis:            Programming language with non-linear pattern-matching against non-free data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
@@ -96,7 +96,6 @@ Library
                    Language.Egison
                    Language.Egison.Core
                    Language.Egison.Desugar
-                   Language.Egison.Lexer
                    Language.Egison.Types
                    Language.Egison.Parser
                    Language.Egison.ParserNonS
@@ -105,7 +104,6 @@ Library
                    Language.Egison.Util
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
-  Autogen-modules: Language.Egison.Lexer  
   ghc-options:  -O3
 
 Test-Suite test
