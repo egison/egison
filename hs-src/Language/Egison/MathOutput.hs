@@ -8,10 +8,7 @@ This module provides utility functions.
 
 module Language.Egison.MathOutput ( changeOutputInLang ) where
 
-import           Control.Monad
-import           System.Environment
 import           Text.ParserCombinators.Parsec hiding (spaces)
-
 
 changeOutputInLang :: String -> String -> String
 changeOutputInLang "haskell" input     = mathExprToHaskell input

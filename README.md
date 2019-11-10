@@ -7,7 +7,7 @@ This is the repository of the interpreter of Egison.
 
 For more information, visit <a target="_blank" href="https://www.egison.org">our website</a>.
 
-## Refereed Papers
+## Referred Papers
 
 ### Pattern Matching
 

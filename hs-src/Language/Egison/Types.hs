@@ -34,6 +34,9 @@ module Language.Egison.Types
     , PrimitiveFunc (..)
     , EgisonData (..)
     , showTSV
+    , EgisonBinOp(..)
+    , BinOpAssoc(..)
+    , reservedBinops
     -- * Egison values
     , EgisonValue (..)
     , ScalarData (..)
@@ -165,7 +168,6 @@ import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Control.Exception
 import           Data.Typeable
 
-import           Control.Applicative
 import           Control.Monad.Except
 import           Control.Monad.Fail
 import           Control.Monad.Identity
@@ -177,26 +179,23 @@ import           Control.Monad.Writer      (WriterT)
 import qualified Data.Array                as Array
 import           Data.Foldable             (foldr, toList)
 import           Data.Hashable             (Hashable)
-import qualified Data.HashMap.Lazy         as HL
 import           Data.HashMap.Strict       (HashMap)
 import qualified Data.HashMap.Strict       as HashMap
 import           Data.IORef
-import           Data.Map                  (Map)
 import           Data.Monoid               (Monoid)
 import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
-import           Data.List                 (any, delete, deleteBy, elem,
-                                            elemIndex, find, findIndex,
-                                            intercalate, partition, sort,
-                                            sortBy, splitAt, (\\))
+import           Data.List                 (any, delete, elem, elemIndex, find,
+                                            findIndex, intercalate, partition,
+                                            splitAt, (\\))
 import           Data.List.Split           (splitOn)
-import           Data.Text                 (Text, pack)
+import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
 import           Data.Ratio
-import           Numeric
+import           Numeric                   (showFFloat)
 import           System.IO
 
 import           System.IO.Unsafe          (unsafePerformIO)
@@ -229,10 +228,10 @@ data EgisonExpr =
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
   | UserrefsExpr Bool EgisonExpr EgisonExpr
-  | PowerExpr EgisonExpr EgisonExpr
+  | PowerExpr EgisonExpr EgisonExpr           -- TODO: delete this in v4.0.0
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
-  | CollectionExpr [InnerExpr]
+  | CollectionExpr [InnerExpr]                -- TODO: InnerExpr should be EgisonExpr from v4.0.0
   | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | VectorExpr [EgisonExpr]
@@ -265,18 +264,20 @@ data EgisonExpr =
   | QuoteExpr EgisonExpr
   | QuoteSymbolExpr EgisonExpr
 
-  | WedgeExpr EgisonExpr
-  | WedgeApplyExpr EgisonExpr EgisonExpr
+  | WedgeExpr EgisonExpr                         -- Desugared to WedgeApplyExpr
+  | WedgeApplyExpr EgisonExpr EgisonExpr         -- Appears after desugar
 
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
+
+  | UnaryOpExpr String EgisonExpr
+  | BinaryOpExpr EgisonBinOp EgisonExpr EgisonExpr
 
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
   | CApplyExpr EgisonExpr EgisonExpr
   | PartialExpr Integer EgisonExpr
   | PartialVarExpr Integer
-  | RecVarExpr
 
   | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
   | ArrayBoundsExpr EgisonExpr
@@ -375,6 +376,52 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
+data EgisonBinOp
+  = EgisonBinOp { repr     :: String  -- syntastic representation
+                , func     :: String  -- semantics
+                , priority :: Int
+                , assoc    :: BinOpAssoc
+                , isWedge  :: Bool    -- True if operator is prefixed with '!'
+                }
+  deriving (Eq, Ord)
+
+data BinOpAssoc
+  = LeftAssoc
+  | RightAssoc
+  | NonAssoc
+  deriving (Eq, Ord)
+
+instance Show EgisonBinOp where
+  show op = repr op
+
+instance Show BinOpAssoc where
+  show LeftAssoc  = "infixl"
+  show RightAssoc = "infixr"
+  show NonAssoc   = "infix"
+
+reservedBinops :: [EgisonBinOp]
+reservedBinops =
+  [ makeBinOp "^"  "**"        8 LeftAssoc
+  , makeBinOp "*"  "*"         7 LeftAssoc
+  , makeBinOp "/"  "/"         7 LeftAssoc
+  , makeBinOp "%"  "remainder" 7 LeftAssoc
+  , makeBinOp "+"  "+"         6 LeftAssoc
+  , makeBinOp "-"  "-"         6 LeftAssoc
+  , makeBinOp "++" "append"    5 RightAssoc
+  , makeBinOp ":"  "cons"      5 RightAssoc
+  , makeBinOp "==" "eq?"       4 LeftAssoc
+  , makeBinOp "<=" "lte?"      4 LeftAssoc
+  , makeBinOp ">=" "gte?"      4 LeftAssoc
+  , makeBinOp "<"  "lt?"       4 LeftAssoc
+  , makeBinOp ">"  "gt?"       4 LeftAssoc
+  , makeBinOp "&&" "and"       3 RightAssoc
+  , makeBinOp "||" "or"        2 RightAssoc
+  ]
+  where
+    makeBinOp r f p a =
+      EgisonBinOp { repr = r, func = f, priority = p, assoc = a, isWedge = False }
+
+
 --
 -- Values
 --
@@ -441,11 +488,9 @@ instance Eq PolyExpr where
   _ == _ = False
 
 instance Eq TermExpr where
-  (Term a []) == (Term b [])
-    | a /= b =  False
-    | otherwise = True
+  (Term a []) == (Term b []) = a == b
   (Term a ((Quote x, n):xs)) == (Term b ys)
-    | (a /= b) && (a /= negate b) =  False
+    | (a /= b) && (a /= negate b) = False
     | otherwise = case elemIndex (Quote x, n) ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 Term a xs == Term b (hs ++ ts)
@@ -456,7 +501,7 @@ instance Eq TermExpr where
                                                else Term (negate a) xs == Term b (hs ++ ts)
                                  Nothing -> False
   (Term a (x:xs)) == (Term b ys)
-    | (a /= b) && (a /= negate b) =  False
+    | (a /= b) && (a /= negate b) = False
     | otherwise = case elemIndex x ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 Term a xs == Term b (hs ++ ts)
@@ -529,9 +574,10 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                       ) js))
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
-symbolExprToEgison (FunctionData name argnames args js, n) = case name of
-                                                               Nothing -> Tuple [InductiveData "Function" [symbolScalarData "" "", Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
-                                                               Just name' -> Tuple [InductiveData "Function" [name', Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
+symbolExprToEgison (FunctionData name argnames args js, n) =
+  case name of
+    Nothing -> Tuple [InductiveData "Function" [symbolScalarData "" "", Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
+    Just name' -> Tuple [InductiveData "Function" [name', Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map (\case
                                           Superscript k -> InductiveData "Sup" [ScalarData k]
@@ -1203,6 +1249,12 @@ instance Show EgisonExpr where
   show (IndexedExpr False expr idxs) = show expr ++ "..." ++ concatMap show idxs
   show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
   show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
+
+  show (UnaryOpExpr op e) = op ++ " " ++ show e
+  show (BinaryOpExpr op e1 e2) = "(" ++ show e1 ++ " " ++ show op ++ " " ++ show e2 ++ ")"
+
+  show (QuoteExpr e) = "'" ++ show e
+  show (QuoteSymbolExpr e) = "`" ++ show e
 
   show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
   show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
@@ -1990,7 +2042,7 @@ data EgisonOpts = EgisonOpts {
     optPrompt           :: String,
     optMathExpr         :: Maybe String,
     optSExpr            :: Bool,
-    optUseHappy         :: Bool
+    optUseNonS2         :: Bool
     }
 
 defaultOption :: EgisonOpts

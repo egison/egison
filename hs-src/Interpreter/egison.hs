@@ -10,18 +10,14 @@ import           Control.Monad.Trans.State
 import           Prelude                    hiding (catch)
 
 import           Data.Char
-import           Data.List                  (intercalate)
 import           Data.Semigroup             ((<>))
 import qualified Data.Text                  as T
 
 import           Data.Version
 
-import           System.Console.GetOpt
 import           System.Console.Haskeline   hiding (catch, handle, throwTo)
 import           System.Directory           (getHomeDirectory)
-import           System.Environment
-import           System.Exit                (ExitCode (..), exitFailure,
-                                             exitSuccess)
+import           System.Exit                (exitFailure, exitSuccess)
 import           System.FilePath            ((</>))
 import           System.IO
 
@@ -117,7 +113,7 @@ parserInfo = info (helper <*> parser)
                   <> long "new-syntax"
                   <> help "Use non-S-expressoin syntax")
             <*> flag False True
-                  (long "happy"
+                  (long "N2"
                   <> help "[experimental] Use new lexer and parser")
 
 readFieldOption :: String -> (String, String)
@@ -145,33 +141,33 @@ runWithOptions opts
       case mEnv of
         Left err -> print err
         Right env ->
-          case optEvalString opts of
-            Just expr ->
-              if optTsvOutput opts
-                then f opts env $ "(execute (each (compose show-tsv print) " ++ expr ++ "))"
-                else do ret <- runEgisonExpr opts env expr
-                        case ret of
-                          Left err  -> hPrint stderr err >> exitFailure
-                          Right val -> print val >> exitSuccess
-            Nothing ->
-              case optExecuteString opts of
-                Just cmd -> f opts env $ "(execute " ++ cmd ++ ")"
-                Nothing ->
-                  case optSubstituteString opts of
-                    Just sub -> f opts env $ "(load \"lib/core/shell.egi\") (execute (each (compose " ++ (if optTsvOutput opts then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst $ optFieldInfo opts) ++  "} {" ++ unwords (map snd $ optFieldInfo opts) ++  "})]} (" ++ sub ++ " SH.input))))"
-                    Nothing ->
-                      case optExecFile opts of
-                        Nothing -> when (optShowBanner opts) showBanner >> repl opts env >> when (optShowBanner opts) showByebyeMessage >> exitSuccess
-                        Just (file, args) ->
-                          if optTestOnly opts then do
-                              result <- if optNoIO opts
-                                          then do input <- readFile file
-                                                  runEgisonTopExprs opts env input
-                                          else evalEgisonTopExprs opts env [LoadFile file]
-                              either print (const $ return ()) result
-                          else do
-                              result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
-                              either print (const $ return ()) result
+          case opts of
+            EgisonOpts { optEvalString = Just expr }
+              | optTsvOutput opts ->
+                f opts env $ "(execute (each (compose show-tsv print) " ++ expr ++ "))"
+              | otherwise -> do
+                ret <- runEgisonExpr opts env expr
+                case ret of
+                  Left err  -> hPrint stderr err >> exitFailure
+                  Right val -> print val >> exitSuccess
+            EgisonOpts { optExecuteString = Just cmd } ->
+              f opts env $ "(execute " ++ cmd ++ ")"
+            EgisonOpts { optSubstituteString = Just sub } ->
+              let expr = "(load \"lib/core/shell.egi\") "
+                      ++ "(execute (each (compose " ++ (if optTsvOutput opts then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst $ optFieldInfo opts) ++  "} {" ++ unwords (map snd $ optFieldInfo opts) ++  "})]} (" ++ sub ++ " SH.input))))"
+                in f opts env expr
+            EgisonOpts { optExecFile = Nothing } ->
+              when (optShowBanner opts) showBanner >> repl opts env >> when (optShowBanner opts) showByebyeMessage >> exitSuccess
+            EgisonOpts { optExecFile = Just (file, args) }
+              | optTestOnly opts -> do
+                result <- if optNoIO opts
+                            then do input <- readFile file
+                                    runEgisonTopExprs opts env input
+                            else evalEgisonTopExprs opts env [LoadFile file]
+                either print (const $ return ()) result
+              | otherwise -> do
+                result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
+                either print (const $ return ()) result
  where
   isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = notElem lang ["asciimath", "latex", "mathematica", "maxima"]
   isInValidMathOption EgisonOpts{ optMathExpr = Nothing } = False

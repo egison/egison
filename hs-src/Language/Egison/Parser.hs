@@ -26,9 +26,8 @@ module Language.Egison.Parser
        ) where
 
 import           Control.Applicative     (pure, (*>), (<$>), (<*), (<*>))
-import           Control.Monad.Except    hiding (mapM)
-import           Control.Monad.Identity  hiding (mapM)
-import           Control.Monad.State     hiding (mapM)
+import           Control.Monad.Except    (liftIO, throwError)
+import           Control.Monad.Identity  (Identity, unless)
 import           Prelude                 hiding (mapM)
 
 import           System.Directory        (doesFileExist, getHomeDirectory)
@@ -38,7 +37,6 @@ import           Data.Either
 import           Data.Functor            (($>))
 import           Data.List.Split         (splitOn)
 import           Data.Ratio
-import qualified Data.Sequence           as Sq
 import qualified Data.Set                as Set
 import           Data.Traversable        (mapM)
 
@@ -47,7 +45,6 @@ import           Text.Parsec.String
 import qualified Text.Parsec.Token       as P
 
 import qualified Data.Text               as T
-import           Text.Regex.TDFA
 
 import           Language.Egison.Desugar
 import           Language.Egison.Types
@@ -309,10 +306,10 @@ quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
-matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
+matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
 
 matchAllDFSExpr :: Parser EgisonExpr
-matchAllDFSExpr = keywordMatchAllDFS >> MatchAllDFSExpr <$> expr <*> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
+matchAllDFSExpr = keywordMatchAllDFS >> MatchAllDFSExpr <$> expr <*> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
 
 matchExpr :: Parser EgisonExpr
 matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
@@ -321,7 +318,7 @@ matchDFSExpr :: Parser EgisonExpr
 matchDFSExpr = keywordMatchDFS >> MatchDFSExpr <$> expr <*> expr <*> matchClauses
 
 matchAllLambdaExpr :: Parser EgisonExpr
-matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> ((flip (:) [] <$> matchClause) <|> matchClauses)
+matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
 
 matchLambdaExpr :: Parser EgisonExpr
 matchLambdaExpr = keywordMatchLambda >> MatchLambdaExpr <$> expr <*> matchClauses
@@ -669,7 +666,7 @@ seqPat :: Parser EgisonPattern
 seqPat = braces $ do
   pats <- sepEndBy pattern whiteSpace
   tailPat <- option SeqNilPat (char '@' >> pattern)
-  return $ foldr (\p rets -> SeqConsPat p rets) tailPat pats
+  return $ foldr SeqConsPat tailPat pats
 
 laterPatVar :: Parser EgisonPattern
 laterPatVar = char '#' >> pure LaterPatVar
@@ -711,7 +708,7 @@ boolExpr = BoolExpr <$> boolLiteral
 floatExpr :: Parser EgisonExpr
 floatExpr = do
   (x,y) <- try ((,) <$> floatLiteral <*> (sign' <*> positiveFloatLiteral) <* char 'i')
-            <|> try ((,) 0 <$> floatLiteral <* char 'i')
+            <|> try ((0,)  <$> floatLiteral <* char 'i')
             <|> try ((, 0) <$> floatLiteral)
   return $ FloatExpr x y
 
@@ -848,8 +845,6 @@ keywordExecute              = reserved "execute"
 keywordLoadFile             = reserved "load-file"
 keywordLoad                 = reserved "load"
 keywordIf                   = reserved "if"
-keywordThen                 = reserved "then"
-keywordElse                 = reserved "else"
 keywordNot                  = reserved "not"
 keywordAnd                  = reserved "and"
 keywordOr                   = reserved "or"
