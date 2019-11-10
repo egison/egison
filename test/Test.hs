@@ -44,11 +44,10 @@ unitTestCases =
 
 unitNonSTestCases :: [FilePath]
 unitNonSTestCases =
-  [
---    "nons-test/test/syntax.egi"
---  , "nons-test/test/primitive.egi"
---  , "nons-test/test/lib/core/base.egi"
---  , "nons-test/test/lib/core/order.egi"
+  [ "nons-test/test/syntax.egi"
+  , "nons-test/test/primitive.egi"
+  , "nons-test/test/lib/core/base.egi"
+  , "nons-test/test/lib/core/order.egi"
   ]
 
 sampleTestCases :: [FilePath]
