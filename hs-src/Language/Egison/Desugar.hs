@@ -20,18 +20,16 @@ module Language.Egison.Desugar
     , desugar
     ) where
 
-import           Control.Applicative   (Applicative, pure, (*>), (<$>), (<*),
-                                        (<*>))
+import           Control.Applicative   (Applicative, pure, (<$>), (<*>))
 import           Control.Monad.Except
 import           Control.Monad.Fail
 import           Control.Monad.Reader
 import           Data.Char             (toUpper)
-import           Data.List             (span)
-import           Data.Maybe            (fromMaybe)
-import           Data.Sequence         (ViewL (..), (<|))
-import qualified Data.Sequence         as Sq
+import           Data.List             (find, span)
+import           Data.Maybe            (fromJust, fromMaybe)
 import           Data.Set              (Set)
 import qualified Data.Set              as S
+
 import           Language.Egison.Types
 
 type Subst = [(String, EgisonExpr)]
@@ -178,14 +176,15 @@ desugar (IndexedExpr b expr indices)
   fromIndexToExpr (Subscript a)    = a
   fromIndexToExpr (Superscript a)  = a
   fromIndexToExpr (SupSubscript a) = a
-  makeApply :: String -> [EgisonExpr] -> EgisonExpr
-  makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
 
 desugar (SubrefsExpr bool expr1 expr2) =
   SubrefsExpr bool <$> desugar expr1 <*> desugar expr2
 
 desugar (SuprefsExpr bool expr1 expr2) =
   SuprefsExpr bool <$> desugar expr1 <*> desugar expr2
+
+desugar (UserrefsExpr bool expr1 expr2) =
+  UserrefsExpr bool <$> desugar expr1 <*> desugar expr2
 
 desugar (PowerExpr expr1 expr2) = do
   expr1' <- desugar expr1
@@ -312,6 +311,20 @@ desugar (DoExpr binds expr) =
 
 desugar (IoExpr expr) =
   IoExpr <$> desugar expr
+
+desugar (UnaryOpExpr "-" expr) =
+  (\x -> makeApply "neg" [x]) <$> desugar expr
+desugar (UnaryOpExpr "!" (ApplyExpr expr1 expr2)) =
+  WedgeApplyExpr <$> desugar expr1 <*> desugar expr2
+desugar (UnaryOpExpr "'" expr) = QuoteExpr <$> desugar expr
+desugar (UnaryOpExpr "`" expr) = QuoteSymbolExpr <$> desugar expr
+
+desugar (BinaryOpExpr op expr1 expr2) | isWedge op = do
+  (\x y -> WedgeApplyExpr (stringToVarExpr (func op)) (TupleExpr [x, y]))
+    <$> desugar expr1 <*> desugar expr2
+
+desugar (BinaryOpExpr op expr1 expr2) =
+  (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 desugar (SeqExpr expr0 expr1) =
   SeqExpr <$> desugar expr0 <*> desugar expr1
@@ -442,10 +455,10 @@ desugarPattern' (MultPat (intPat:patterns)) = do
     lp:hps ->
       return $ InductivePat "mult" [intPat',
                                     foldr (\p r -> case p of
-                                                     (PowerPat p1 p2) -> InductivePat "ncons" [p1, p2, r]
+                                                     PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, r]
                                                      _ -> InductivePat "cons" [p, r])
                                           (case lp of
-                                             (PowerPat p1 p2) -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
+                                             PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
                                              _ -> lp)
                                           (reverse hps)]
  where
@@ -458,32 +471,23 @@ desugarLoopRange :: LoopRange -> DesugarM LoopRange
 desugarLoopRange (LoopRange sExpr eExpr pattern) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pattern
 
-desugarBinding :: BindingExpr -> DesugarM BindingExpr
-desugarBinding (name, expr) = (name,) <$> desugar expr
-
 desugarBindings :: [BindingExpr] -> DesugarM [BindingExpr]
-desugarBindings (bind:rest) = (:) <$> desugarBinding bind <*> desugarBindings rest
-desugarBindings []          = return []
-
-desugarMatchClause :: MatchClause -> DesugarM MatchClause
-desugarMatchClause (pattern, expr) =
-  (,) <$> desugarPattern pattern <*> desugar expr
+desugarBindings = mapM f
+  where f (name, expr) = (name,) <$> desugar expr
 
 desugarMatchClauses :: [MatchClause] -> DesugarM [MatchClause]
-desugarMatchClauses (clause:rest) = (:) <$> desugarMatchClause clause <*> desugarMatchClauses rest
-desugarMatchClauses []            = return []
+desugarMatchClauses = mapM f
+  where f (pattern, expr) = (,) <$> desugarPattern pattern <*> desugar expr
 
 desugarMatcherInfo :: MatcherInfo -> DesugarM MatcherInfo
-desugarMatcherInfo [] = return []
-desugarMatcherInfo ((pp, matcher, pds):matcherInfo) = do
-  matcher' <- desugar matcher
-  pds' <- desugarPrimitiveDataMatchClauses pds
-  matcherInfo' <- desugarMatcherInfo matcherInfo
-  return $ (pp, matcher', pds'):matcherInfo'
+desugarMatcherInfo = mapM f
+  where
+    f (pp, matcher, pds) =
+      (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, EgisonExpr)] -> DesugarM [(PrimitiveDataPattern, EgisonExpr)]
-desugarPrimitiveDataMatchClauses [] = return []
-desugarPrimitiveDataMatchClauses ((pd, expr):pds) = do
-  expr' <- desugar expr
-  pds' <- desugarPrimitiveDataMatchClauses pds
-  return $ (pd, expr'):pds'
+desugarPrimitiveDataMatchClauses = mapM f
+  where f (pd, expr) = (pd,) <$> desugar expr
+
+makeApply :: String -> [EgisonExpr] -> EgisonExpr
+makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)

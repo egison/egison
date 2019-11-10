@@ -1,8 +1,9 @@
-repl = do {write("input: "),
-           flush(),
-           input = readLine(),
-           write(input),
-           print("")}
-           repl
+repl = do
+  write "input :"
+  flush ()
+  let input = readLine ()
+  write input
+  print ""
+  repl
 
-main = $args -> do {repl}
+main args = repl

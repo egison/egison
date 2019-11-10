@@ -42,7 +42,6 @@ module Language.Egison.Core
 
 import           Prelude                     hiding (mapM, mappend, mconcat)
 
-import           Control.Applicative
 import           Control.Arrow
 import           Control.Monad               (when)
 import           Control.Monad.Except        hiding (mapM)
@@ -54,7 +53,6 @@ import           Data.Foldable               (toList)
 import           Data.IORef
 import           Data.List                   (partition)
 import           Data.Maybe
-import           Data.Ratio
 import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
 import qualified Data.Sequence               as Sq
 import           Data.Traversable            (mapM)
@@ -66,7 +64,6 @@ import qualified Data.Vector                 as V
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 
-import           Language.Egison.MathOutput
 import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
 import           Language.Egison.ParserNonS2 as ParserNonS2
@@ -87,7 +84,7 @@ collectDefs opts (expr:exprs) bindings rest =
       if optNoIO opts
          then throwError $ Default "No IO support"
          else do exprs' <- if
-                   | optUseHappy opts -> ParserNonS2.loadFile file
+                   | optUseNonS2 opts -> ParserNonS2.loadFile file
                    | optSExpr opts    -> Parser.loadFile file
                    | otherwise        -> ParserNonS.loadFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
@@ -95,7 +92,7 @@ collectDefs opts (expr:exprs) bindings rest =
       if optNoIO opts
          then throwError $ Default "No IO support"
          else do exprs' <- if
-                   | optUseHappy opts -> ParserNonS2.loadLibraryFile file
+                   | optUseNonS2 opts -> ParserNonS2.loadLibraryFile file
                    | optSExpr opts    -> Parser.loadLibraryFile file
                    | otherwise        -> ParserNonS.loadLibraryFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest

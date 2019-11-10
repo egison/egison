@@ -78,6 +78,8 @@ Library
     , transformers
     , mtl >=2.2.1
     , parsec >= 3.0
+    , megaparsec >= 7.0.0
+    , parser-combinators
     , directory
     , ghc
     , ghc-paths
@@ -95,7 +97,6 @@ Library
                    Language.Egison.Core
                    Language.Egison.Desugar
                    Language.Egison.Types
-                   Language.Egison.Lexer
                    Language.Egison.Parser
                    Language.Egison.ParserNonS
                    Language.Egison.ParserNonS2
@@ -103,7 +104,6 @@ Library
                    Language.Egison.Util
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
-  build-tools:     happy >= 1.17.1, alex
   ghc-options:  -O3
 
 Test-Suite test
@@ -152,7 +152,6 @@ Executable egison
     , ghc-paths
     , filepath
     , text
-    , regex-tdfa
     , process
     , vector
     , optparse-applicative
