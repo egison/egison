@@ -1784,9 +1784,9 @@ modifyCounter m = do
   return result
 
 data RuntimeState = RuntimeState
-    -- | index counter for generating fresh variable
+    -- index counter for generating fresh variable
       { indexCounter :: Int
-    -- | names of called functions for improved error message
+    -- names of called functions for improved error message
       , funcNameStack :: [String]
       }
 
