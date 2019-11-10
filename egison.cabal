@@ -96,6 +96,7 @@ Library
                    Language.Egison
                    Language.Egison.Core
                    Language.Egison.Desugar
+                   Language.Egison.Lexer
                    Language.Egison.Types
                    Language.Egison.Parser
                    Language.Egison.ParserNonS
