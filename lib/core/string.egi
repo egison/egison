@@ -108,8 +108,8 @@
 
 (define $alphabet?
   (lambda [$c]
-    (or (c.between? c#a c#z c)
-        (c.between? c#A c#Z c))))
+    (or (C.between? c#a c#z c)
+        (C.between? c#A c#Z c))))
 
 (define $alphabets?
   (lambda [$s]
@@ -117,12 +117,12 @@
 
 (define $upper-case
   (lambda [$c]
-    (if (c.between? c#a c#z c)
+    (if (C.between? c#a c#z c)
       (itoc (- (ctoi c) 32))
       c)))
 
 (define $lower-case
   (lambda [$c]
-    (if (c.between? c#A c#Z c)
+    (if (C.between? c#A c#Z c)
       (itoc (+ (ctoi c) 32))
       c)))
