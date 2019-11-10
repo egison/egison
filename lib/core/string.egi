@@ -97,11 +97,11 @@
 ;;
 ;; Alphabet
 ;;
-(define $c.between
+(define $C.between
   (lambda [$c1 $c2]
     (map itoc (between (ctoi c1) (ctoi c2)))))
 
-(define $c.between?
+(define $C.between?
   (lambda [$c1 $c2 $c]
     (and (gte? (ctoi c) (ctoi c1))
          (lte? (ctoi c) (ctoi c2)))))
