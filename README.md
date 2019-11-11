@@ -354,17 +354,8 @@ Enjoy!
 ### How to Run Test
 
 ```
-% cabal test
-```
-
-### How to Profile the Interpreter
-
-```
-% sudo apt-get install haskell-platform-doc haskell-platform-prof
-% cabal sandbox init
-% cabal install --enable-profiling
-% egison +RTS -p -RTS -l sample/sequence.egi
-% cat egison.prof
+% stack init
+% stack test
 ```
 
 ## Community
