@@ -126,7 +126,7 @@ evalExpr _ (CharExpr c) = return . Value $ Char c
 evalExpr _ (StringExpr s) = return $ Value $ toEgison s
 evalExpr _ (BoolExpr b) = return . Value $ Bool b
 evalExpr _ (IntegerExpr x) = return . Value $ toEgison x
-evalExpr _ (FloatExpr x y) = return . Value $ Float x y
+evalExpr _ (FloatExpr x) = return . Value $ Float x
 
 evalExpr env (QuoteExpr expr) = do
   whnf <- evalExpr env expr
@@ -1553,7 +1553,7 @@ extractPrimitiveValue :: WHNFData -> Either ([String] -> EgisonError) EgisonValu
 extractPrimitiveValue (Value val@(Char _)) = return val
 extractPrimitiveValue (Value val@(Bool _)) = return val
 extractPrimitiveValue (Value val@(ScalarData _)) = return val
-extractPrimitiveValue (Value val@(Float _ _)) = return val
+extractPrimitiveValue (Value val@(Float _)) = return val
 extractPrimitiveValue whnf =
   -- we don't need to extract call stack since detailed error information is not used
   throwError $ TypeMismatch "primitive value" whnf
@@ -1562,5 +1562,5 @@ isPrimitiveValue :: WHNFData -> Bool
 isPrimitiveValue (Value (Char _))       = True
 isPrimitiveValue (Value (Bool _))       = True
 isPrimitiveValue (Value (ScalarData _)) = True
-isPrimitiveValue (Value (Float _ _))    = True
+isPrimitiveValue (Value (Float _))      = True
 isPrimitiveValue _                      = False

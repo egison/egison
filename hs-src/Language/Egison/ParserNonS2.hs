@@ -457,7 +457,7 @@ constantExpr = numericExpr
            <|> UndefinedExpr <$ keywordUndefined
 
 numericExpr :: Parser EgisonExpr
-numericExpr = try (uncurry FloatExpr <$> floatLiteral)
+numericExpr = FloatExpr <$> try positiveFloatLiteral
           <|> IntegerExpr <$> positiveIntegerLiteral
           <?> "numeric expression"
 --
@@ -613,10 +613,9 @@ boolLiteral = reserved "True"  $> True
           <|> reserved "False" $> False
           <?> "boolean"
 
-floatLiteral :: Parser (Double, Double)
-floatLiteral = try ((,0) <$> (lexeme L.float <* notFollowedBy (symbol "i")))
-                <|> (0,) <$> (lexeme L.float <* symbol "i")
-                <?> "float"
+positiveFloatLiteral :: Parser Double
+positiveFloatLiteral = lexeme L.float
+           <?> "unsigned float"
 
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> lowerId
