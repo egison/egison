@@ -25,7 +25,7 @@ import           Control.Monad.Trans.Maybe
 import           Data.Foldable             (toList)
 import           Data.IORef
 import           Data.Ratio
-import           Text.Regex.TDFA           ((=~))
+import           Text.Regex.TDFA           ((=~~))
 
 import           System.IO
 import           System.Process            (readProcess)
@@ -645,22 +645,20 @@ splitString = twoArgs $ \pat src -> case (pat, src) of
 
 regexString :: PrimitiveFunc
 regexString = twoArgs $ \pat src -> case (pat, src) of
-                                      (String patStr, String srcStr) -> do
-                                        let (a, b, c) = (T.unpack srcStr =~ T.unpack patStr) :: (String, String, String)
-                                        if b == ""
-                                          then return . Collection . Sq.fromList $ []
-                                          else return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
+                                      (String patStr, String srcStr) ->
+                                        case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe (String, String, String)) of
+                                          Nothing -> return . Collection . Sq.fromList $ []
+                                          Just (a,b,c) -> return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
                                       (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
                                       (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 regexStringCaptureGroup :: PrimitiveFunc
 regexStringCaptureGroup = twoArgs $ \pat src -> case (pat, src) of
-                                                  (String patStr, String srcStr) -> do
-                                                    let ret = (T.unpack srcStr =~ T.unpack patStr) :: [[String]]
-                                                    case ret of
-                                                      [] -> return . Collection . Sq.fromList $ []
-                                                      ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
-                                                                       return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
+                                                  (String patStr, String srcStr) ->
+                                                    case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe [[String]]) of
+                                                      Nothing -> return . Collection . Sq.fromList $ []
+                                                      Just ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
+                                                                            return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
                                                   (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
                                                   (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
