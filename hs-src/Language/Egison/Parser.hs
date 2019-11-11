@@ -291,7 +291,10 @@ quoteExpr :: Parser EgisonExpr
 quoteExpr = char '\'' >> QuoteExpr <$> expr
 
 wedgeExpr :: Parser EgisonExpr
-wedgeExpr = char '!' >> WedgeExpr <$> expr
+wedgeExpr = do
+  e <- char '!' >> expr
+  case e of
+    ApplyExpr e1 e2 -> return $ WedgeApplyExpr e1 e2
 
 functionWithArgExpr :: Parser EgisonExpr
 functionWithArgExpr = keywordFunction >> FunctionExpr <$> between lp rp (sepEndBy expr whiteSpace)
