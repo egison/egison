@@ -140,8 +140,8 @@ threeArgs' f args = do
 
 constants :: [(String, EgisonValue)]
 constants = [
-              ("f.pi", Float 3.141592653589793 0)
-             ,("f.e" , Float 2.718281828459045 0)
+              ("f.pi", Float 3.141592653589793)
+             ,("f.e" , Float 2.718281828459045)
               ]
 
 --
@@ -157,10 +157,10 @@ primitives = [ ("b.+", plus)
              , ("b.-'", minus)
              , ("b.*'", multiply)
              , ("b./'", divide)
-             , ("f.+", floatPlus)
-             , ("f.-", floatMinus)
-             , ("f.*", floatMult)
-             , ("f./", floatDivide)
+             , ("f.+", floatBinaryOp (+))
+             , ("f.-", floatBinaryOp (-))
+             , ("f.*", floatBinaryOp (*))
+             , ("f./", floatBinaryOp (/))
              , ("numerator", numerator')
              , ("denominator", denominator')
              , ("from-math-expr", fromScalarData)
@@ -183,8 +183,6 @@ primitives = [ ("b.+", plus)
              , ("floor",    floatToIntegerOp floor)
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", truncate')
-             , ("real-part", realPart)
-             , ("imaginary-part", imaginaryPart)
 
              , ("b.sqrt", floatUnaryOp sqrt)
              , ("b.sqrt'", floatUnaryOp sqrt)
@@ -263,10 +261,10 @@ primitives' = [ ("b.+", plus)
              , ("b.-'", minus)
              , ("b.*'", multiply)
              , ("b./'", divide)
-             , ("f.+", floatPlus)
-             , ("f.-", floatMinus)
-             , ("f.*", floatMult)
-             , ("f./", floatDivide)
+             , ("f.+", floatBinaryOp (+))
+             , ("f.-", floatBinaryOp (-))
+             , ("f.*", floatBinaryOp (*))
+             , ("f./", floatBinaryOp (/))
              , ("numerator", numerator')
              , ("denominator", denominator')
              , ("fromMathExpr", fromScalarData)
@@ -289,8 +287,6 @@ primitives' = [ ("b.+", plus)
              , ("floor",    floatToIntegerOp floor)
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", truncate')
-             , ("realPart", realPart)
-             , ("imaginaryPart", imaginaryPart)
 
              , ("b.sqrt", floatUnaryOp sqrt)
              , ("b.sqrt'", floatUnaryOp sqrt)
@@ -392,12 +388,12 @@ integerBinaryPred pred = twoArgs $ \val val' -> do
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
 floatUnaryOp op = oneArg $ \val -> case val of
-                                     (Float f 0) -> return $ Float (op f) 0
+                                     (Float f) -> return $ Float (op f)
                                      _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp op = twoArgs $ \val val' -> case (val, val') of
-                                            (Float f 0, Float f' 0) -> return $ Float (op f f') 0
+                                            (Float f, Float f') -> return $ Float (op f f')
                                             _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
@@ -405,26 +401,6 @@ floatBinaryPred pred = twoArgs $ \val val' -> do
   f <- fromEgison val
   f' <- fromEgison val'
   return $ Bool $ pred f f'
-
-floatPlus :: PrimitiveFunc
-floatPlus = twoArgs $ \val val' -> case (val, val') of
-                                     (Float x y, Float x' y') -> return $ Float (x + x')  (y + y')
-                                     _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
-
-floatMinus :: PrimitiveFunc
-floatMinus = twoArgs $ \val val' -> case (val, val') of
-                                      (Float x y, Float x' y') -> return $ Float (x - x')  (y - y')
-                                      _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
-
-floatMult :: PrimitiveFunc
-floatMult = twoArgs $ \val val' -> case (val, val') of
-                                     (Float x y, Float x' y') -> return $ Float (x * x' - y * y')  (x * y' + x' * y)
-                                     _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
-
-floatDivide :: PrimitiveFunc
-floatDivide = twoArgs $ \val val' -> case (val, val') of
-                                       (Float x y, Float x' y') -> return $ Float ((x * x' + y * y') / (x' * x' + y' * y')) ((y * x' - x * y') / (x' * x' + y' * y'))
-                                       _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 
 --
@@ -487,10 +463,10 @@ lt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (<) r r'
-  scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<) f f'
-  scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryPred' (Float _ _)  val           = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
-  scalarBinaryPred' val          _             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float f)      (Float f') = return $ Bool (f < f')
+  scalarBinaryPred' (ScalarData _) val        = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float _)      val        = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
+  scalarBinaryPred' val            _          = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 lte :: PrimitiveFunc
 lte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
@@ -499,10 +475,10 @@ lte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (<=) r r'
-  scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (<=) f f'
-  scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryPred' (Float _ _)  val           = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
-  scalarBinaryPred' val          _             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float f)      (Float f') = return $ Bool (f <= f')
+  scalarBinaryPred' (ScalarData _) val        = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float _)      val        = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
+  scalarBinaryPred' val            _          = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 gt :: PrimitiveFunc
 gt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
@@ -511,10 +487,10 @@ gt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (>) r r'
-  scalarBinaryPred' (Float f 0)  (Float f' 0)  = return $ Bool $ (>) f f'
+  scalarBinaryPred' (Float f)      (Float f')  = return $ Bool $ (f > f')
   scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryPred' (Float _ _)  val           = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
-  scalarBinaryPred' val          _             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float _)      val         = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
+  scalarBinaryPred' val            _           = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 gte :: PrimitiveFunc
 gte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
@@ -523,30 +499,30 @@ gte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
     r <- fromEgison m :: EgisonM Rational
     r' <- fromEgison n :: EgisonM Rational
     return $ Bool $ (>=) r r'
-  scalarBinaryPred' (Float f 0)    (Float f' 0)  = return $ Bool $ (>=) f f'
-  scalarBinaryPred' (ScalarData _) val           = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryPred' (Float _ _)    val           = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
-  scalarBinaryPred' val            _             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float f)      (Float f')  = return $ Bool (f >= f')
+  scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryPred' (Float _)      val         = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
+  scalarBinaryPred' val            _           = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 truncate' :: PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
   numberUnaryOp' (ScalarData (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
   numberUnaryOp' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return $ toEgison (quot x y)
-  numberUnaryOp' (Float x _)           = return $ toEgison (truncate x :: Integer)
+  numberUnaryOp' (Float x)             = return $ toEgison (truncate x :: Integer)
   numberUnaryOp' val                   = throwError =<< TypeMismatch "rational or float" (Value val) <$> getFuncNameStack
 
-realPart :: PrimitiveFunc
-realPart =  oneArg realPart'
- where
-  realPart' (Float x y) = return $ Float x 0
-  realPart' val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
+-- realPart :: PrimitiveFunc
+-- realPart =  oneArg realPart'
+--  where
+--   realPart' (Float x) = return $ Float x
+--   realPart' val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
-imaginaryPart :: PrimitiveFunc
-imaginaryPart =  oneArg imaginaryPart'
- where
-  imaginaryPart' (Float _ y) = return $ Float y 0
-  imaginaryPart' val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
+-- imaginaryPart :: PrimitiveFunc
+-- imaginaryPart =  oneArg imaginaryPart'
+--  where
+--   imaginaryPart' (Float _ y) = return $ Float y 0
+--   imaginaryPart' val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 --
 -- Tensor
@@ -574,8 +550,8 @@ dfOrder' = oneArg' dfOrder''
 -- Transform
 --
 numberToFloat' :: EgisonValue -> EgisonValue
-numberToFloat' (ScalarData (Div (Plus []) _)) = Float 0 0
-numberToFloat' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = Float (fromRational (x % y)) 0
+numberToFloat' (ScalarData (Div (Plus []) _)) = Float 0
+numberToFloat' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = Float $ fromRational (x % y)
 
 integerToFloat :: PrimitiveFunc
 integerToFloat = rationalToFloat
