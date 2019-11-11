@@ -512,18 +512,6 @@ truncate' = oneArg $ \val -> numberUnaryOp' val
   numberUnaryOp' (Float x)             = return $ toEgison (truncate x :: Integer)
   numberUnaryOp' val                   = throwError =<< TypeMismatch "rational or float" (Value val) <$> getFuncNameStack
 
--- realPart :: PrimitiveFunc
--- realPart =  oneArg realPart'
---  where
---   realPart' (Float x) = return $ Float x
---   realPart' val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
-
--- imaginaryPart :: PrimitiveFunc
--- imaginaryPart =  oneArg imaginaryPart'
---  where
---   imaginaryPart' (Float _ y) = return $ Float y 0
---   imaginaryPart' val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
-
 --
 -- Tensor
 --
