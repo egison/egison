@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections    #-}
 {-# LANGUAGE MultiWayIf       #-}
 
@@ -39,7 +38,6 @@ import           Data.Maybe                     (fromJust, isJust)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
-import           Data.Void
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
