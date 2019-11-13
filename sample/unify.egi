@@ -52,8 +52,6 @@
       (Just {})]
      [[<var $x> (& $t !(occur ,x))]
       (Just {[x t]})]
-     [[<compound $f <nil>> <compound ,f <nil>>]
-      (Just {})]
      [[<compound $f $xs> <compound ,f $ys>]
       (unify-list xs ys)]
      [_ Nothing]}))
