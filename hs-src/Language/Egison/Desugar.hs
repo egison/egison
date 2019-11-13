@@ -186,10 +186,8 @@ desugar (SuprefsExpr bool expr1 expr2) =
 desugar (UserrefsExpr bool expr1 expr2) =
   UserrefsExpr bool <$> desugar expr1 <*> desugar expr2
 
-desugar (PowerExpr expr1 expr2) = do
-  expr1' <- desugar expr1
-  expr2' <- desugar expr2
-  return $ ApplyExpr (stringToVarExpr "**") (TupleExpr [expr1', expr2'])
+desugar (PowerExpr expr1 expr2) =
+  (\x y -> makeApply "**" [x, y]) <$> desugar expr1 <*> desugar expr2
 
 desugar (ArrayBoundsExpr expr) =
   ArrayBoundsExpr <$> desugar expr
