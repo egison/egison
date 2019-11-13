@@ -629,7 +629,7 @@ binOpLiteral sym = do
   return $ opInfo { isWedge = isJust wedge }
 
 reserved :: String -> Parser ()
-reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
+reserved w = (lexeme . try) (string w *> notFollowedBy identChar)
 
 symbol :: String -> Parser String
 symbol sym = try $ L.symbol sc sym
@@ -649,6 +649,10 @@ opChar = oneOf "%^&*-+\\|:<>.?/'!#@$"
 patOpChar :: Parser Char
 patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 
+-- Characters that consist identifiers
+identChar :: Parser Char
+identChar = alphaNumChar <|> oneOf ['.', '?', '\'']
+
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
 brackets  = between (symbol "[") (symbol "]")
@@ -657,7 +661,7 @@ comma     = symbol ","
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> lowerChar <*> many (alphaNumChar <|> oneOf ['.', '?', '\''])
+    p       = (:) <$> lowerChar <*> many identChar
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
