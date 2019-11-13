@@ -400,11 +400,11 @@ instance Show BinOpAssoc where
 reservedBinops :: [EgisonBinOp]
 reservedBinops =
   [ makeBinOp "^"  "**"        8 LeftAssoc
-  , makeBinOp "*"  "*"         7 LeftAssoc
-  , makeBinOp "/"  "/"         7 LeftAssoc
+  , makeBinOp "*"  "b.*"       7 LeftAssoc
+  , makeBinOp "/"  "b./"       7 LeftAssoc
   , makeBinOp "%"  "remainder" 7 LeftAssoc
-  , makeBinOp "+"  "+"         6 LeftAssoc
-  , makeBinOp "-"  "-"         6 LeftAssoc
+  , makeBinOp "+"  "b.+"       6 LeftAssoc
+  , makeBinOp "-"  "b.-"       6 LeftAssoc
   , makeBinOp "++" "append"    5 RightAssoc
   , makeBinOp ":"  "cons"      5 RightAssoc
   , makeBinOp "==" "eq?"       4 LeftAssoc
@@ -1215,16 +1215,16 @@ findPairs' m p (x:xs) = case findIndex (p x) xs of
 
 removePairs :: (Int, Int) -> [a] -> [a]
 removePairs (m, n) xs =
-  let (hs, ms, ts) = removePairs' (m, n) xs in
-    hs ++ ms ++ ts
+  let (hs, ms, ts) = removePairs' (m, n) xs
+   in hs ++ ms ++ ts
 
 removePairs' :: (Int, Int) -> [a] -> ([a],[a],[a])
-removePairs' (m, n) xs =           -- (0,1) [i i]
-  let (hms, tts) = splitAt n xs in -- [i] [i]
-  let ts = tail tts in             -- []
-  let (hs, tms) = splitAt m hms in -- [] [i]
-  let ms = tail tms in             -- []
-    (hs, ms, ts)                   -- [] [] []
+removePairs' (m, n) xs =         -- (0,1) [i i]
+  let (hms, tts) = splitAt n xs  -- [i] [i]
+      ts = tail tts              -- []
+      (hs, tms) = splitAt m hms  -- [] [i]
+      ms = tail tms              -- []
+   in (hs, ms, ts)               -- [] [] []
 --
 --
 --
