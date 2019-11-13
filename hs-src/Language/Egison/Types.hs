@@ -400,11 +400,11 @@ instance Show BinOpAssoc where
 reservedBinops :: [EgisonBinOp]
 reservedBinops =
   [ makeBinOp "^"  "**"        8 LeftAssoc
-  , makeBinOp "*"  "b.*"       7 LeftAssoc
-  , makeBinOp "/"  "b./"       7 LeftAssoc
+  , makeBinOp "*"  "*"         7 LeftAssoc
+  , makeBinOp "/"  "/"         7 LeftAssoc
   , makeBinOp "%"  "remainder" 7 LeftAssoc
-  , makeBinOp "+"  "b.+"       6 LeftAssoc
-  , makeBinOp "-"  "b.-"       6 LeftAssoc
+  , makeBinOp "+"  "+"         6 LeftAssoc
+  , makeBinOp "-"  "-"         6 LeftAssoc
   , makeBinOp "++" "append"    5 RightAssoc
   , makeBinOp ":"  "cons"      5 RightAssoc
   , makeBinOp "==" "eq?"       4 LeftAssoc
