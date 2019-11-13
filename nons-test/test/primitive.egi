@@ -75,11 +75,19 @@ assertEqual "sqrt" (sqrt 4.0) 2.0
 -- * acosh
 -- * atanh
 
+-- tensorSize
+-- tensorToList
+-- dfOrder
+
 assertEqual "itof" (itof 4)    4.0
 assertEqual "itof" (itof (-1)) (-1.0)
 
 assertEqual "rtof" (rtof (3 / 2)) 1.5
 assertEqual "rtof" (rtof 1)       1.0
+
+assertEqual "ctoi" (ctoi '1') 49
+
+assertEqual "itoc" (itoc 49) '1'
 
 assertEqual "pack" (pack []) ""
 assertEqual "pack" (pack ['E', 'g', 'i', 's', 'o', 'n']) "Egison"
@@ -106,15 +114,24 @@ assertEqual "regex" (regex "a*" "") [("", "", "")]
 
 assertEqual "regexCg" (regexCg "([0-9]+),([0-9]+)" "abc,123,45,defg") [("abc,", ["123", "45"], ",defg")]
 
+-- addPrime
+-- addSubscript
+-- addSuperscript
+-- readProcess
+
 assertEqual "read" (read "3")                3
 assertEqual "read" (read "3.14")             3.14
 assertEqual "read" (read "{1 2}")            [1, 2]
 assertEqual "read" (read "\"Hello world!\"") "Hello world!"
 
+-- TODO: read-tsv
+
 assertEqual "show" (show 3)              "3"
 assertEqual "show" (show 3.14159)        "3.14159"
-assertEqual "show" (show {1 2})          "{1 2}"
+assertEqual "show" (show [1, 2])         "{1 2}"
 assertEqual "show" (show "Hello world!") "\"Hello world!\""
+
+-- TODO: show-tsv
 
 assertEqual "empty?" (empty? [])  True
 assertEqual "empty?" (empty? [1]) False
@@ -130,18 +147,28 @@ assertEqual "rational?" (rational? 1)       True
 assertEqual "rational?" (rational? (1 / 2)) True
 assertEqual "rational?" (rational? 3.1)     False
 
-assertEqual "char?" (char? c#c) True
+assertEqual "scalar?" (scalar? 1) True
+assertEqual "scalar?" (scalar? (| 1, 2 |)) False
+
+assertEqual "float?" (float? 1.0) True
+assertEqual "float?" (float? 1)   False
+
+assertEqual "char?" (char? 'c') True
 
 assertEqual "string?" (string? "hoge") True
-
-assertEqual "tuple?" (tuple? ()) True
-assertEqual "tuple?" (tuple? (1, 2)) True
 
 assertEqual "collection?" (collection? []) True
 assertEqual "collection?" (collection? [1]) True
 
-assertEqual "array?" (array? [| |]) True
-assertEqual "array?" (array? [| 1, 2, 3 |]) True
+assertEqual "array?" (array? (| |)) True
+assertEqual "array?" (array? (| 1, 2, 3 |)) True
 
 assertEqual "hash?" (hash? {| |}) True
 assertEqual "hash?" (hash? {| [1, 2] |}) True
+
+-- TODO: Add a test case where tensor? returns True
+assertEqual "tensor?" (tensor? (| 1 |))                     False
+assertEqual "tensor?" (tensor? [| 1 |])                     False
+assertEqual "tensor?" (tensor? (generateTensor (+) [1, 2])) False
+
+-- TODO: tensorWithIndex?

@@ -168,7 +168,7 @@ primitives = [ ("b.+", plus)
              , ("to-math-expr'", toScalarData)
 
              , ("modulo",    integerBinaryOp mod)
-             , ("quotient",   integerBinaryOp quot)
+             , ("quotient",  integerBinaryOp quot)
              , ("remainder", integerBinaryOp rem)
              , ("b.abs", rationalUnaryOp abs)
              , ("b.neg", rationalUnaryOp negate)
