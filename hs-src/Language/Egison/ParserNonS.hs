@@ -305,7 +305,10 @@ quoteExpr :: Parser EgisonExpr
 quoteExpr = char '\'' >> QuoteExpr <$> expr
 
 wedgeExpr :: Parser EgisonExpr
-wedgeExpr = char '!' >> WedgeExpr <$> expr
+wedgeExpr = do
+  e <- char '!' >> expr
+  case e of
+    ApplyExpr e1 e2 -> return $ WedgeApplyExpr e1 e2
 
 functionWithArgExpr :: Parser EgisonExpr
 functionWithArgExpr = keywordFunction >> FunctionExpr <$> parens (sepEndBy expr comma)
@@ -674,11 +677,7 @@ boolExpr :: Parser EgisonExpr
 boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
-floatExpr = do
-  (x,y) <- try ((,) <$> floatLiteral <*> (sign' <*> positiveFloatLiteral) <* char 'i')
-            <|> try ((,) 0 <$> floatLiteral <* char 'i')
-            <|> try ((, 0) <$> floatLiteral)
-  return $ FloatExpr x y
+floatExpr = FloatExpr <$> positiveFloatLiteral
 
 integerExpr :: Parser EgisonExpr
 integerExpr = IntegerExpr <$> integerLiteral'
@@ -697,9 +696,6 @@ positiveFloatLiteral = do
   let m = read mStr
   let l = m % (10 ^ fromIntegral (length mStr))
   return (fromRational (fromIntegral n + l) :: Double)
-
-floatLiteral :: Parser Double
-floatLiteral = sign <*> positiveFloatLiteral
 
 --
 -- Tokens

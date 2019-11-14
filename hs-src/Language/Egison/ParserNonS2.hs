@@ -1,9 +1,8 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections    #-}
 {-# LANGUAGE MultiWayIf       #-}
 
 {- |
-Module      : Language.Egison.ParserNonS
+Module      : Language.Egison.ParserNonS2
 Copyright   : Satoshi Egi
 Licence     : MIT
 
@@ -39,7 +38,6 @@ import           Data.Maybe                     (fromJust, isJust)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
-import           Data.Void
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
@@ -167,7 +165,7 @@ expr = ifExpr
    <|> generateTensorExpr
    <|> tensorExpr
    <|> functionExpr
-   <|> dbg "opExpr" opExpr
+   <|> opExpr
    <?> "expression"
 
 -- Also parses atomExpr
@@ -457,7 +455,7 @@ constantExpr = numericExpr
            <|> UndefinedExpr <$ keywordUndefined
 
 numericExpr :: Parser EgisonExpr
-numericExpr = try (uncurry FloatExpr <$> floatLiteral)
+numericExpr = FloatExpr <$> try positiveFloatLiteral
           <|> IntegerExpr <$> positiveIntegerLiteral
           <?> "numeric expression"
 --
@@ -613,10 +611,9 @@ boolLiteral = reserved "True"  $> True
           <|> reserved "False" $> False
           <?> "boolean"
 
-floatLiteral :: Parser (Double, Double)
-floatLiteral = try ((,0) <$> (lexeme L.float <* notFollowedBy (symbol "i")))
-                <|> (0,) <$> (lexeme L.float <* symbol "i")
-                <?> "float"
+positiveFloatLiteral :: Parser Double
+positiveFloatLiteral = lexeme L.float
+           <?> "unsigned float"
 
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> lowerId
@@ -632,7 +629,7 @@ binOpLiteral sym = do
   return $ opInfo { isWedge = isJust wedge }
 
 reserved :: String -> Parser ()
-reserved w = (lexeme . try) (string w *> notFollowedBy alphaNumChar)
+reserved w = (lexeme . try) (string w *> notFollowedBy identChar)
 
 symbol :: String -> Parser String
 symbol sym = try $ L.symbol sc sym
@@ -652,6 +649,10 @@ opChar = oneOf "%^&*-+\\|:<>.?/'!#@$"
 patOpChar :: Parser Char
 patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 
+-- Characters that consist identifiers
+identChar :: Parser Char
+identChar = alphaNumChar <|> oneOf ['.', '?', '\'']
+
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
 brackets  = between (symbol "[") (symbol "]")
@@ -660,7 +661,7 @@ comma     = symbol ","
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> lowerChar <*> many (alphaNumChar <|> oneOf ['.', '?', '\''])
+    p       = (:) <$> lowerChar <*> many identChar
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x

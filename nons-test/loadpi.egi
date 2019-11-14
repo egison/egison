@@ -1,2 +1,3 @@
-loadFile("nons-test/pi.egi")
-pi2(1)
+loadFile "nons-test/pi.egi"
+
+pi2 1

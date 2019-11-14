@@ -167,29 +167,21 @@ loadExpr :: Parser EgisonTopExpr
 loadExpr = keywordLoad >> Load <$> stringLiteral
 
 expr :: Parser EgisonExpr
-expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr'
+expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr
                           expr1 <- option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
                                                   <|> IndexedExpr True expr0 <$> parseindex
                           option expr1 $ PowerExpr expr1 <$> try (char '^' >> expr'))
                             where parseindex :: Parser [Index EgisonExpr]
-                                  parseindex = many1 (try (do
-                                                           char '_'
-                                                           e1 <- expr'
-                                                           string "..._"
-                                                           MultiSubscript e1 <$> expr')
-                                                 <|> try (do
-                                                           char '~'
-                                                           e1 <- expr'
-                                                           string "...~"
-                                                           MultiSuperscript e1 <$> expr')
-                                                 <|> try (Subscript <$> (char '_' >> expr'))
-                                                 <|> try (Superscript <$> (char '~' >> expr'))
-                                                 <|> try (SupSubscript <$> (string "~_" >> expr'))
-                                                 <|> try (Userscript <$> (char '|' >> expr')))
+                                  parseindex = many1 (try (MultiSubscript   <$> (char '_' >> expr') <*> (string "..._" >> expr'))
+                                                  <|> try (MultiSuperscript <$> (char '~' >> expr') <*> (string "...~" >> expr'))
+                                                  <|> try (Subscript    <$> (char '_' >> expr'))
+                                                  <|> try (Superscript  <$> (char '~' >> expr'))
+                                                  <|> try (SupSubscript <$> (string "~_" >> expr'))
+                                                  <|> try (Userscript   <$> (char '|' >> expr')))
 
 
-quoteExpr' :: Parser EgisonExpr
-quoteExpr' = char '\'' >> QuoteExpr <$> expr'
+quoteExpr :: Parser EgisonExpr
+quoteExpr = char '\'' >> QuoteExpr <$> expr'
 
 expr' :: Parser EgisonExpr
 expr' = try partialExpr
@@ -203,7 +195,6 @@ expr' = try partialExpr
             <|> try tupleExpr
             <|> try hashExpr
             <|> collectionExpr
---            <|> quoteExpr
             <|> quoteSymbolExpr
             <|> wedgeExpr
             <|> parens (ifExpr
@@ -287,11 +278,11 @@ hashExpr = between lp rp $ HashExpr <$> sepEndBy pairExpr whiteSpace
     pairExpr :: Parser (EgisonExpr, EgisonExpr)
     pairExpr = brackets $ (,) <$> expr <*> expr
 
-quoteExpr :: Parser EgisonExpr
-quoteExpr = char '\'' >> QuoteExpr <$> expr
-
 wedgeExpr :: Parser EgisonExpr
-wedgeExpr = char '!' >> WedgeExpr <$> expr
+wedgeExpr = do
+  e <- char '!' >> expr
+  case e of
+    ApplyExpr e1 e2 -> return $ WedgeApplyExpr e1 e2
 
 functionWithArgExpr :: Parser EgisonExpr
 functionWithArgExpr = keywordFunction >> FunctionExpr <$> between lp rp (sepEndBy expr whiteSpace)
@@ -706,11 +697,7 @@ boolExpr :: Parser EgisonExpr
 boolExpr = BoolExpr <$> boolLiteral
 
 floatExpr :: Parser EgisonExpr
-floatExpr = do
-  (x,y) <- try ((,) <$> floatLiteral <*> (sign' <*> positiveFloatLiteral) <* char 'i')
-            <|> try ((0,)  <$> floatLiteral <* char 'i')
-            <|> try ((, 0) <$> floatLiteral)
-  return $ FloatExpr x y
+floatExpr = FloatExpr <$> positiveFloatLiteral
 
 integerExpr :: Parser EgisonExpr
 integerExpr = IntegerExpr <$> integerLiteral'
@@ -729,9 +716,6 @@ positiveFloatLiteral = do
   let m = read mStr
   let l = m % (10 ^ fromIntegral (length mStr))
   return (fromRational (fromIntegral n + l) :: Double)
-
-floatLiteral :: Parser Double
-floatLiteral = sign <*> positiveFloatLiteral
 
 --
 -- Tokens
