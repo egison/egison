@@ -22,7 +22,7 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 instance Pretty EgisonTopExpr where
   pretty (Define x (LambdaExpr args body)) =
     pretty x <+> hsep (map pretty args) <+> equals <> softline <> pretty body
-  pretty (Define x expr) = pretty x <+> equals <> softline <> pretty expr -- TODO: use flatAlt
+  pretty (Define x expr) = pretty x <+> equals <> nest 2 (softline <> pretty expr)
   pretty (Test expr) = pretty expr
 
 instance Pretty EgisonExpr where
@@ -33,11 +33,21 @@ instance Pretty EgisonExpr where
   pretty (FloatExpr x)   = pretty x
   pretty (VarExpr x)     = pretty x
 
+  pretty (InductiveDataExpr c xs) = nest 2 (pretty c <+> fillSep (map pretty xs))
+
   pretty (TupleExpr xs) = tupled (map pretty xs)
   pretty (CollectionExpr xs) = list (map pretty xs)
   pretty (ArrayExpr xs)  = listoid "(|" "|)" (map pretty xs)
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> list [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
+
+  pretty (UnaryOpExpr op x) = pretty op <> pretty x
+  pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y)
+    | priority op > priority op' = parens (pretty x) <+> pretty (repr op) <+> pretty' y
+    | otherwise                  = pretty x <+> pretty (repr op) <+> pretty' y
+  pretty (BinaryOpExpr op x y) = pretty x <+> pretty (repr op) <+> pretty' y
+
+  pretty (ApplyExpr x (TupleExpr ys)) = nest 2 (pretty x <+> fillSep (map pretty ys))
 
 instance Pretty Arg where
   pretty (ScalarArg x)         = pretty x
@@ -51,6 +61,10 @@ instance Pretty Var where
 instance Pretty InnerExpr where
   pretty (ElementExpr x) = pretty x
   pretty (SubCollectionExpr _) = error "Not supported"
+
+pretty' :: EgisonExpr -> Doc ann
+pretty' x@(UnaryOpExpr _ _) = parens $ pretty x
+pretty' x                   = pretty x
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
