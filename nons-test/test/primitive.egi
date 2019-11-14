@@ -167,8 +167,9 @@ assertEqual "hash?" (hash? {| |}) True
 assertEqual "hash?" (hash? {| [1, 2] |}) True
 
 -- TODO: Add a test case where tensor? returns True
+assertEqual "tensor?" (tensor? 1)                           False
 assertEqual "tensor?" (tensor? (| 1 |))                     False
-assertEqual "tensor?" (tensor? [| 1 |])                     False
-assertEqual "tensor?" (tensor? (generateTensor (+) [1, 2])) False
+assertEqual "tensor?" (tensor? [| 1 |])                     True
+assertEqual "tensor?" (tensor? (generateTensor (+) [1, 2])) True
 
 -- TODO: tensorWithIndex?
