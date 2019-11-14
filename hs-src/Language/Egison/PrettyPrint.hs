@@ -12,8 +12,6 @@ module Language.Egison.PrettyPrint
     ( prettyTopExprs
     ) where
 
-import           Data.Char                 (toUpper)
-import           Data.List.Split           (splitOn)
 import           Data.Text.Prettyprint.Doc
 
 import           Language.Egison.Types
@@ -61,12 +59,7 @@ instance Pretty Arg where
 
 instance Pretty Var where
   -- TODO: indices
-  pretty (Var xs is) = concatWith (surround dot) (map (pretty . toCamelCase) xs)
-    where
-      toCamelCase :: String -> String
-      toCamelCase x =
-        let heads:tails = splitOn "-" x
-         in concat $ heads : map (\ (x:xs) -> toUpper x : xs) tails
+  pretty (Var xs is) = concatWith (surround dot) (map pretty xs)
 
 instance Pretty InnerExpr where
   pretty (ElementExpr x) = pretty x

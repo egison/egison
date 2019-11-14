@@ -169,4 +169,5 @@ Executable egison-translate
       egison
     , base >= 4.0 && < 5
     , prettyprinter
+    , split
   Hs-Source-Dirs:   hs-src/Tool
