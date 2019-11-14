@@ -568,16 +568,21 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
          <|> PPInductivePat "nil" [] <$ brackets sc
          <|> makeTupleOrParen ppPattern PPTuplePat
 
--- TODO(momohatt): cons pat, snoc pat, empty pat
 pdPattern :: Parser PrimitiveDataPattern
 pdPattern = PDInductivePat <$> upperId <*> many pdAtom
-        <|> pdAtom
+        <|> PDSnocPat <$> (symbol "snoc" >> pdAtom) <*> pdAtom
+        <|> makeExprParser pdAtom table
         <?> "primitive data pattern"
   where
+    table :: [[Operator Parser PrimitiveDataPattern]]
+    table =
+      [ [ InfixR (PDConsPat <$ symbol ":") ]
+      ]
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard    <$ symbol "_"
          <|> PDPatVar      <$> (symbol "$" >> lowerId)
          <|> PDConstantPat <$> constantExpr
+         <|> PDEmptyPat    <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen pdPattern PDTuplePat
 
 --
