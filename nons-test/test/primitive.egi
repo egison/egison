@@ -1,15 +1,175 @@
-assertEqual "less than predicate"
-  [0.1 < 1.0, 1.0 < 0.1, 1.0 < 1.0]
-  [True, False, False]
+assertEqual "numerator" (numerator (13 / 21)) 13
 
-assertEqual "less than or equal predicate"
-  [0.1 <= 1.0, 1.0 <= 0.1, 1.0 <= 1.0]
-  [True, False, True]
+assertEqual "denominator" (denominator (13 / 21)) 21
 
-assertEqual "greater than predicate"
-  [0.1 > 1.0, 1.0 > 0.1, 1.0 > 1.0]
-  [False, True, False]
+assertEqual "modulo" (modulo (-21) 13) 5
 
-assertEqual "greater than or equal predicate"
-  [0.1 >= 1.0, 1.0 >= 0.1, 1.0 >= 1.0]
-  [False, True, True]
+assertEqual "quotient" (quotient (-21) 13) (-1)
+
+assertEqual "remainder" (remainder (-21) 13) (-8)
+
+assertEqual "neg" (neg (-89)) 89
+
+assertEqual "abs" (abs 0)     0
+assertEqual "abs" (abs 15)    15
+assertEqual "abs" (abs (-89)) 89
+
+assertEqual "lt?" (0.1 < 1.0) True
+assertEqual "lt?" (1.0 < 0.1) False
+assertEqual "lt?" (1.0 < 1.0) False
+
+assertEqual "lte?" (0.1 <= 1.0) True
+assertEqual "lte?" (1.0 <= 0.1) False
+assertEqual "lte?" (1.0 <= 1.0) True
+
+assertEqual "gt?" (0.1 > 1.0) False
+assertEqual "gt?" (1.0 > 0.1) True
+assertEqual "gt?" (1.0 > 1.0) False
+
+assertEqual "gte?" (0.1 >= 1.0) False
+assertEqual "gte?" (1.0 >= 0.1) True
+assertEqual "gte?" (1.0 >= 1.0) True
+
+assertEqual "round" (round 3.1)    3
+assertEqual "round" (round 3.7)    4
+assertEqual "round" (round (-2.2)) (-2)
+assertEqual "round" (round (-2.7)) (-3)
+
+assertEqual "floor" (floor 3.1)    3
+assertEqual "floor" (floor 3.7)    3
+assertEqual "floor" (floor (-2.2)) (-3)
+assertEqual "floor" (floor (-2.7)) (-3)
+
+assertEqual "ceiling" (ceiling 3.1)    4
+assertEqual "ceiling" (ceiling 3.7)    4
+assertEqual "ceiling" (ceiling (-2.2)) (-2)
+assertEqual "ceiling" (ceiling (-2.7)) (-2)
+
+assertEqual "truncate" (truncate 3.1)    3
+assertEqual "truncate" (truncate 3.7)    3
+assertEqual "truncate" (truncate (-2.2)) (-2)
+assertEqual "truncate" (truncate (-2.7)) (-2)
+
+-- assertEqual "sqrt" (sqrt 4) 2
+assertEqual "sqrt" (sqrt 4.0) 2.0
+-- assertEqual "sqrt" (sqrt (-1)) i
+
+-- assertEqual "exp"
+--   [exp 1, exp 1.0, exp (-1.0)]
+--   [e, 2.718281828459045, 0.36787944117144233]
+
+-- assertEqual "log"
+--   [log e, log 10.0]
+--   [1, 2.302585092994046]
+
+-- TODO: trigonometric functions
+-- * sin
+-- * cos
+-- * tan
+-- * asin
+-- * acos
+-- * sinh
+-- * cosh
+-- * tanh
+-- * asinh
+-- * acosh
+-- * atanh
+
+-- tensorSize
+-- tensorToList
+-- dfOrder
+
+assertEqual "itof" (itof 4)    4.0
+assertEqual "itof" (itof (-1)) (-1.0)
+
+assertEqual "rtof" (rtof (3 / 2)) 1.5
+assertEqual "rtof" (rtof 1)       1.0
+
+assertEqual "ctoi" (ctoi '1') 49
+
+assertEqual "itoc" (itoc 49) '1'
+
+assertEqual "pack" (pack []) ""
+assertEqual "pack" (pack ['E', 'g', 'i', 's', 'o', 'n']) "Egison"
+
+assertEqual "unpack" (unpack "Egison") ['E', 'g', 'i', 's', 'o', 'n']
+assertEqual "unpack" (unpack "") []
+
+assertEqual "unconsString" (unconsString "Egison") ('E', "gison")
+
+assertEqual "lengthString" (lengthString "") 0
+assertEqual "lengthString" (lengthString "Egison") 6
+
+assertEqual "appendString" (appendString "" "")       ""
+assertEqual "appendString" (appendString "" "Egison") "Egison"
+assertEqual "appendString" (appendString "Egison" "") "Egison"
+assertEqual "appendString" (appendString "Egi" "son") "Egison"
+
+assertEqual "splitString" (splitString "," "") [""]
+assertEqual "splitString" (splitString "," "2,3,5,7,11,13") ["2", "3", "5", "7", "11", "13"]
+
+assertEqual "regex" (regex "cde" "abcdefg") [("ab", "cde", "fg")]
+assertEqual "regex" (regex "[0-9]+" "abc123defg") [("abc", "123", "defg")]
+assertEqual "regex" (regex "a*" "") [("", "", "")]
+
+assertEqual "regexCg" (regexCg "([0-9]+),([0-9]+)" "abc,123,45,defg") [("abc,", ["123", "45"], ",defg")]
+
+-- addPrime
+-- addSubscript
+-- addSuperscript
+-- readProcess
+
+assertEqual "read" (read "3")                3
+assertEqual "read" (read "3.14")             3.14
+assertEqual "read" (read "{1 2}")            [1, 2]
+assertEqual "read" (read "\"Hello world!\"") "Hello world!"
+
+-- TODO: read-tsv
+
+assertEqual "show" (show 3)              "3"
+assertEqual "show" (show 3.14159)        "3.14159"
+assertEqual "show" (show [1, 2])         "{1 2}"
+assertEqual "show" (show "Hello world!") "\"Hello world!\""
+
+-- TODO: show-tsv
+
+assertEqual "empty?" (empty? [])  True
+assertEqual "empty?" (empty? [1]) False
+
+assertEqual "uncons" (uncons [1, 2, 3]) (1, [2, 3])
+assertEqual "unsnoc" (unsnoc [1, 2, 3]) ([1, 2], 3)
+
+assertEqual "bool?" (bool? False) True
+
+assertEqual "integer?" (integer? 1) True
+
+assertEqual "rational?" (rational? 1)       True
+assertEqual "rational?" (rational? (1 / 2)) True
+assertEqual "rational?" (rational? 3.1)     False
+
+assertEqual "scalar?" (scalar? 1) True
+assertEqual "scalar?" (scalar? (| 1, 2 |)) False
+
+assertEqual "float?" (float? 1.0) True
+assertEqual "float?" (float? 1)   False
+
+assertEqual "char?" (char? 'c') True
+
+assertEqual "string?" (string? "hoge") True
+
+assertEqual "collection?" (collection? []) True
+assertEqual "collection?" (collection? [1]) True
+
+assertEqual "array?" (array? (| |)) True
+assertEqual "array?" (array? (| 1, 2, 3 |)) True
+
+assertEqual "hash?" (hash? {| |}) True
+assertEqual "hash?" (hash? {| [1, 2] |}) True
+
+-- TODO: Add a test case where tensor? returns True
+assertEqual "tensor?" (tensor? 1)                           False
+assertEqual "tensor?" (tensor? (| 1 |))                     False
+assertEqual "tensor?" (tensor? [| 1 |])                     True
+assertEqual "tensor?" (tensor? (generateTensor (+) [1, 2])) True
+
+-- TODO: tensorWithIndex?

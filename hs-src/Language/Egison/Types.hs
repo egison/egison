@@ -195,7 +195,6 @@ import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 
 import           Data.Ratio
-import           Numeric                   (showFFloat)
 import           System.IO
 
 import           System.IO.Unsafe          (unsafePerformIO)
@@ -221,7 +220,7 @@ data EgisonExpr =
   | StringExpr Text
   | BoolExpr Bool
   | IntegerExpr Integer
-  | FloatExpr Double Double
+  | FloatExpr Double
   | VarExpr Var
   | FreshVarExpr
   | IndexedExpr Bool EgisonExpr [Index EgisonExpr]  -- True -> delete old index and append new one
@@ -264,8 +263,7 @@ data EgisonExpr =
   | QuoteExpr EgisonExpr
   | QuoteSymbolExpr EgisonExpr
 
-  | WedgeExpr EgisonExpr                         -- Desugared to WedgeApplyExpr
-  | WedgeApplyExpr EgisonExpr EgisonExpr         -- Appears after desugar
+  | WedgeApplyExpr EgisonExpr EgisonExpr
 
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
@@ -433,7 +431,7 @@ data EgisonValue =
   | Bool Bool
   | ScalarData ScalarData
   | TensorData (Tensor EgisonValue)
-  | Float Double Double
+  | Float Double
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
   | Collection (Seq EgisonValue)
@@ -1217,16 +1215,16 @@ findPairs' m p (x:xs) = case findIndex (p x) xs of
 
 removePairs :: (Int, Int) -> [a] -> [a]
 removePairs (m, n) xs =
-  let (hs, ms, ts) = removePairs' (m, n) xs in
-    hs ++ ms ++ ts
+  let (hs, ms, ts) = removePairs' (m, n) xs
+   in hs ++ ms ++ ts
 
 removePairs' :: (Int, Int) -> [a] -> ([a],[a],[a])
-removePairs' (m, n) xs =           -- (0,1) [i i]
-  let (hms, tts) = splitAt n xs in -- [i] [i]
-  let ts = tail tts in             -- []
-  let (hs, tms) = splitAt m hms in -- [] [i]
-  let ms = tail tms in             -- []
-    (hs, ms, ts)                   -- [] [] []
+removePairs' (m, n) xs =         -- (0,1) [i i]
+  let (hms, tts) = splitAt n xs  -- [i] [i]
+      ts = tail tts              -- []
+      (hs, tms) = splitAt m hms  -- [] [i]
+      ms = tail tms              -- []
+   in (hs, ms, ts)               -- [] [] []
 --
 --
 --
@@ -1241,7 +1239,7 @@ instance Show EgisonExpr where
   show (BoolExpr True) = "#t"
   show (BoolExpr False) = "#f"
   show (IntegerExpr n) = show n
-  show (FloatExpr x y) = showComplexFloat x y
+  show (FloatExpr x) = show x
   show (VarExpr name) = show name
   show (PartialVarExpr n) = "%" ++ show n
   show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
@@ -1277,7 +1275,7 @@ instance Show EgisonValue where
     f j [] = ""
     f j xs = "[| " ++ unwords (map show (take j xs)) ++ " |] " ++ f j (drop j xs)
   show (TensorData (Tensor ns xs js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show (V.toList xs)) ++ "} )" ++ concatMap show js
-  show (Float x y) = showComplexFloat x y
+  show (Float x) = show x
   show (InductiveData name []) = "<" ++ name ++ ">"
   show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
   show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
@@ -1342,18 +1340,6 @@ instance Show SymbolExpr where
   show (FunctionData Nothing argnames args js) = "(functionData [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
   show (FunctionData (Just name) argnames args js) = show name ++ concatMap show js
 
-showComplex :: (Num a, Eq a, Ord a, Show a) => a -> a -> String
-showComplex x 0 = show x
-showComplex 0 y = show y ++ "i"
-showComplex x y = show x ++ (if y > 0 then "+" else "") ++ show y ++ "i"
-
-showComplexFloat :: Double -> Double -> String
-showComplexFloat x 0.0 = showFFloat Nothing x ""
-showComplexFloat 0.0 y = showFFloat Nothing y "i"
-showComplexFloat x y = showFFloat Nothing x "" ++ if y > 0
-                                                    then "+" ++ showFFloat Nothing y "i"
-                                                    else showFFloat Nothing y "i"
-
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map show vals)
 showTSV (Collection vals) = intercalate "\t" (map show (toList vals))
@@ -1365,7 +1351,7 @@ instance Eq EgisonValue where
  (Bool b) == (Bool b') = b == b'
  (ScalarData x) == (ScalarData y) = x == y
  (TensorData (Tensor js xs _)) == (TensorData (Tensor js' xs' _)) = (js == js') && (xs == xs')
- (Float x y) == (Float x' y') = (x == x') && (y == y')
+ (Float x) == (Float x') = x == x'
  (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
  (Tuple vals) == (Tuple vals') = vals == vals'
  (Collection vals) == (Collection vals') = vals == vals'
@@ -1457,9 +1443,9 @@ instance EgisonData Rational where
   fromEgison val = throwError =<< TypeMismatch "rational" (Value val) <$> getFuncNameStack
 
 instance EgisonData Double where
-  toEgison f = Float f 0
-  fromEgison (Float f 0) = return f
-  fromEgison val         = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
+  toEgison f = Float f
+  fromEgison (Float f) = return f
+  fromEgison val       = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 instance EgisonData Handle where
   toEgison = Port
@@ -1574,8 +1560,8 @@ instance EgisonWHNF Integer where
   fromWHNF whnf = throwError =<< TypeMismatch "integer" whnf <$> getFuncNameStack
 
 instance EgisonWHNF Double where
-  fromWHNF (Value (Float f 0)) = return f
-  fromWHNF whnf                = throwError =<< TypeMismatch "float" whnf <$> getFuncNameStack
+  fromWHNF (Value (Float f)) = return f
+  fromWHNF whnf              = throwError =<< TypeMismatch "float" whnf <$> getFuncNameStack
 
 instance EgisonWHNF Handle where
   fromWHNF (Value (Port h)) = return h
@@ -1784,9 +1770,9 @@ modifyCounter m = do
   return result
 
 data RuntimeState = RuntimeState
-    -- | index counter for generating fresh variable
+    -- index counter for generating fresh variable
       { indexCounter :: Int
-    -- | names of called functions for improved error message
+    -- names of called functions for improved error message
       , funcNameStack :: [String]
       }
 
@@ -1948,7 +1934,7 @@ isScalar (ScalarData _) = True
 isScalar _              = False
 
 isScalar' :: PrimitiveFunc
-isScalar' (Value val) = return $ Value $ Bool $ isScalar val
+isScalar' (Value (ScalarData _)) = return $ Value $ Bool $ True
 isScalar' _           = return $ Value $ Bool False
 
 isTensor :: EgisonValue -> Bool
@@ -1956,7 +1942,8 @@ isTensor (TensorData _) = True
 isTensor _              = False
 
 isTensor' :: PrimitiveFunc
-isTensor' (Value val) = return $ Value $ Bool $ isTensor val
+isTensor' (Value (TensorData _)) = return $ Value $ Bool $ True
+isTensor' (Intermediate (ITensor _)) = return $ Value $ Bool $ True
 isTensor' _           = return $ Value $ Bool False
 
 isTensorWithIndex :: EgisonValue -> Bool
@@ -1968,12 +1955,12 @@ isTensorWithIndex' (Value val) = return $ Value $ Bool $ isTensorWithIndex val
 isTensorWithIndex' _           = return $ Value $ Bool False
 
 isFloat' :: PrimitiveFunc
-isFloat' (Value (Float _ 0)) = return $ Value $ Bool True
-isFloat' _                   = return $ Value $ Bool False
+isFloat' (Value (Float _)) = return $ Value $ Bool True
+isFloat' _                 = return $ Value $ Bool False
 
 isComplex' :: PrimitiveFunc
-isComplex' (Value (Float _ _)) = return $ Value $ Bool True
-isComplex' _                   = return $ Value $ Bool False
+isComplex' (Value (Float _)) = return $ Value $ Bool True
+isComplex' _                 = return $ Value $ Bool False
 
 isChar' :: PrimitiveFunc
 isChar' (Value (Char _)) = return $ Value $ Bool True
