@@ -89,6 +89,7 @@ Library
     , vector
     , split
     , hashable
+    , prettyprinter
   if !impl(ghc > 8.0)
     Build-Depends: fail
   Hs-Source-Dirs:  hs-src
@@ -100,6 +101,7 @@ Library
                    Language.Egison.Parser
                    Language.Egison.ParserNonS
                    Language.Egison.ParserNonS2
+                   Language.Egison.PrettyPrint
                    Language.Egison.Primitives
                    Language.Egison.Util
                    Language.Egison.MathOutput
@@ -166,4 +168,5 @@ Executable egison-translate
   Build-depends:
       egison
     , base >= 4.0 && < 5
+    , prettyprinter
   Hs-Source-Dirs:   hs-src/Tool

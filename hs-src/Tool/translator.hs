@@ -1,8 +1,10 @@
 module Main where
 
-import           System.Environment (getArgs)
+import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
+import           System.Environment                    (getArgs)
 
 import           Language.Egison.Parser
+import           Language.Egison.PrettyPrint
 
 main :: IO ()
 main = do
@@ -11,4 +13,6 @@ main = do
   let ast = parseTopExprs input
   case ast of
     Left _ -> return ()
-    Right ast -> print ast
+    Right ast -> do
+      putDoc $ prettyTopExprs ast
+      putStrLn ""
