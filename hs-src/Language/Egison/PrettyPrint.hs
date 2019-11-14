@@ -12,6 +12,8 @@ module Language.Egison.PrettyPrint
     ( prettyTopExprs
     ) where
 
+import           Data.Char                 (toUpper)
+import           Data.List.Split           (splitOn)
 import           Data.Text.Prettyprint.Doc
 
 import           Language.Egison.Types
@@ -41,6 +43,9 @@ instance Pretty EgisonExpr where
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> list [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
+  pretty (LambdaExpr xs y)          = pretty "\\" <> hsep (map pretty xs) <+> pretty "->" <> nest 2 (softline <> pretty y)
+  pretty (PatternFunctionExpr xs y) = pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty y
+
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
   pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y)
     | priority op > priority op' = parens (pretty x) <+> pretty (repr op) <+> pretty' y
@@ -56,11 +61,19 @@ instance Pretty Arg where
 
 instance Pretty Var where
   -- TODO: indices
-  pretty (Var xs is) = concatWith (surround dot) (map pretty xs)
+  pretty (Var xs is) = concatWith (surround dot) (map (pretty . toCamelCase) xs)
+    where
+      toCamelCase :: String -> String
+      toCamelCase x =
+        let heads:tails = splitOn "-" x
+         in concat $ heads : map (\ (x:xs) -> toUpper x : xs) tails
 
 instance Pretty InnerExpr where
   pretty (ElementExpr x) = pretty x
   pretty (SubCollectionExpr _) = error "Not supported"
+
+instance Pretty EgisonPattern where
+  pretty x = undefined
 
 pretty' :: EgisonExpr -> Doc ann
 pretty' x@(UnaryOpExpr _ _) = parens $ pretty x
