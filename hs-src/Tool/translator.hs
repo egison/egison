@@ -31,11 +31,25 @@ instance SyntaxElement EgisonExpr where
   toNonS (PowerExpr x y) = BinaryOpExpr powerOp (toNonS x) (toNonS y)
     where
       powerOp = fromJust $ find (\op -> repr op == "^") reservedBinops
+  toNonS (InductiveDataExpr x ys) = InductiveDataExpr x (map toNonS ys)
+
+  toNonS (LambdaExpr xs y)          = LambdaExpr xs (toNonS y)
+  toNonS (MemoizedLambdaExpr xs y)  = MemoizedLambdaExpr xs (toNonS y)
+  toNonS (CambdaExpr _ _)           = error "Not supported"
+  toNonS (ProcedureExpr xs y)       = ProcedureExpr xs (toNonS y)
+  toNonS (MacroExpr xs y)           = MacroExpr xs (toNonS y)
+  toNonS (PatternFunctionExpr xs y) = PatternFunctionExpr xs (toNonS y)
+
+  toNonS (IfExpr x y z) = IfExpr (toNonS x) (toNonS y) (toNonS z)
+
   toNonS (ApplyExpr x@(VarExpr (Var [f] [])) (TupleExpr [y, z])) =
     case find (\op -> repr op == f) reservedBinops of
       Just op -> BinaryOpExpr op (toNonS y) (toNonS z)
       Nothing -> ApplyExpr x (TupleExpr [toNonS y, toNonS z])
 
+  toNonS x = x
+
+instance SyntaxElement EgisonPattern where
   toNonS x = x
 
 instance SyntaxElement a => SyntaxElement (Index a) where
