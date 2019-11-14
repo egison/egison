@@ -224,17 +224,17 @@ patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
       return $ ctor tgt matcher clauses
 
 -- Parse more than 1 match clauses.
--- TODO(momohatt): Require first bar '|' when there are multiple match clauses
 matchClauses1 :: Parser [MatchClause]
 matchClauses1 = do
-  pos <- optional (symbol "|") >> L.indentLevel
-  (:) <$> matchClause pos <*> matchClauses pos
+  pos <- L.indentLevel
+  -- If the first bar '|' is missing, then it is expected to have only one match clause.
+  (lookAhead (symbol "|") >> some (matchClause pos)) <|> (:[]) <$> matchClauseWithoutBar
   where
-    matchClauses :: Pos -> Parser [MatchClause]
-    matchClauses pos = try ((:) <$> (symbol "|" >> matchClause pos) <*> matchClauses pos)
-                   <|> return []
+    matchClauseWithoutBar :: Parser MatchClause
+    matchClauseWithoutBar = (,) <$> pattern <*> (symbol "->" >> expr)
+
     matchClause :: Pos -> Parser MatchClause
-    matchClause pos = (,) <$> (L.indentGuard sc EQ pos *> pattern) <*> (symbol "->" >> expr)
+    matchClause pos = (,) <$> (L.indentGuard sc EQ pos >> symbol "|" >> pattern) <*> (symbol "->" >> expr)
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
