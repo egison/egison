@@ -407,6 +407,32 @@ assertEqual "hash access"
 -- matcherExpr, macroExpr
 --
 
+list a = matcher
+  | [] as () with
+    | [] -> [()]
+    | _  -> []
+  | $ : $    as (a, list a) with
+    | $x : $xs -> [(x, xs)]
+    | _        -> []
+  | snoc $ $ as (a, list a) with
+    | snoc $xs $x -> [(x, xs)]
+    | _           -> []
+  | join _ $ as (list a) with
+    | $tgt -> matchAll tgt as list a with
+              | loop $i (1, _) | _ : ...  | $rs -> rs
+  | join $ $ as (list a, list a) with
+    | $tgt -> matchAll tgt as list a with
+              | loop $i (1, $n) $xa_i : ... | $rs ->
+                (foldr (\%i %r -> xa_i : r) [] [1..n], rs)
+  | nioj $ $ as (list a, list a) with
+    | $tgt -> matchAll tgt as list a with
+              | loop $i (1, $n) snoc $xa_i ... | $rs ->
+                (foldr (\%i %r -> r ++ [xa_i]) [] [1..n], rs)
+  | #$val as () with
+    | $tgt -> if val == tgt then [()] else []
+  | $ as something with
+    | $tgt -> [tgt]
+
 multiset a = matcher
   | [] as () with
     | $tgt -> match tgt as (mutiset a) with
