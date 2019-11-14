@@ -1934,9 +1934,8 @@ isScalar (ScalarData _) = True
 isScalar _              = False
 
 isScalar' :: PrimitiveFunc
-isScalar' (Value (TensorData _)) = return $ Value $ Bool $ False
-isScalar' (Intermediate (ITensor _)) = return $ Value $ Bool $ False
-isScalar' _           = return $ Value $ Bool True
+isScalar' (Value (ScalarData _)) = return $ Value $ Bool $ True
+isScalar' _           = return $ Value $ Bool False
 
 isTensor :: EgisonValue -> Bool
 isTensor (TensorData _) = True
