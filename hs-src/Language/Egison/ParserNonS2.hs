@@ -130,25 +130,25 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 topExpr :: Parser EgisonTopExpr
 topExpr = Load     <$> (keywordLoad >> stringLiteral)
       <|> LoadFile <$> (keywordLoadFile >> stringLiteral)
-      <|> defineOrTestExpr
+      <|> Test     <$> (keywordTest >> expr)
+      <|> Test     <$> assertExpr
+      <|> Define   <$> varLiteral <*> defineBodyExpr
       <?> "toplevel expression"
 
-defineOrTestExpr :: Parser EgisonTopExpr
-defineOrTestExpr = do
-  e <- expr
-  (do symbol "="
-      body <- expr
-      return (convertToDefine e body))
-      <|> return (Test e)
-  where
-    convertToDefine :: EgisonExpr -> EgisonExpr -> EgisonTopExpr
-    convertToDefine (VarExpr var) body = Define var body
-    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) body =
-      Define var (LambdaExpr (map exprToArg args) body)
+defineBodyExpr :: Parser EgisonExpr
+defineBodyExpr = do
+  args <- many arg
+  body <- operator "=" >> expr
+  return $ case args of
+             [] -> body
+             _  -> LambdaExpr args body
 
-    -- TODO(momohatt): Handle other types of arg
-    exprToArg :: EgisonExpr -> Arg
-    exprToArg (VarExpr (Var [x] [])) = ScalarArg x
+assertExpr :: Parser EgisonExpr
+assertExpr = do
+  pos <- L.indentLevel
+  func <- (keywordAssert $> "assert") <|> (keywordAssertEqual $> "assertEqual")
+  args <- many (L.indentGuard sc GT pos >> atomExpr)
+  return $ makeApply' func args
 
 expr :: Parser EgisonExpr
 expr = ifExpr
@@ -362,6 +362,7 @@ tupleOrParenExpr = do
     pointFreeExpr =
           (do op   <- try . choice $ map (binOpLiteral . repr) reservedBinops
               rarg <- optional expr
+              -- TODO(momohatt): Take associativity of operands into account
               case rarg of
                 Just (BinaryOpExpr op' _ _) | priority op >= priority op' ->
                   customFailure (IllFormedPointFreeExpr op op')
@@ -682,6 +683,7 @@ upperId = (lexeme . try) (p >>= check)
 
 keywordLoadFile             = reserved "loadFile"
 keywordLoad                 = reserved "load"
+keywordTest                 = reserved "test"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
@@ -718,6 +720,8 @@ keywordSuprefsNew           = reserved "suprefs!"
 keywordUserrefs             = reserved "userRefs"
 keywordUserrefsNew          = reserved "userRefs!"
 keywordFunction             = reserved "function"
+keywordAssert               = reserved "assert"
+keywordAssertEqual          = reserved "assertEqual"
 
 upperReservedWords =
   [ "True"
@@ -727,6 +731,7 @@ upperReservedWords =
 lowerReservedWords =
   [ "loadFile"
   , "load"
+  , "test"
   , "if"
   , "then"
   , "else"
@@ -766,6 +771,8 @@ lowerReservedWords =
   , "userRefs"
   , "userRefs!"
   , "function"
+  , "assert"
+  , "assertEqual"
   ]
 
 --
