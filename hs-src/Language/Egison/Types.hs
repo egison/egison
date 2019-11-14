@@ -262,7 +262,6 @@ data EgisonExpr =
 
   | QuoteExpr EgisonExpr
   | QuoteSymbolExpr EgisonExpr
-
   | WedgeApplyExpr EgisonExpr EgisonExpr
 
   | DoExpr [BindingExpr] EgisonExpr
