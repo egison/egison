@@ -16,6 +16,10 @@ import           Data.Text.Prettyprint.Doc
 
 import           Language.Egison.Types
 
+--
+-- Pretty printing for Non-S syntax
+--
+
 prettyTopExprs :: [EgisonTopExpr] -> Doc [EgisonTopExpr]
 prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
