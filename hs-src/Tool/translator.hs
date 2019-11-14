@@ -12,7 +12,7 @@ import           System.Environment                    (getArgs)
 
 import           Language.Egison.Types
 import           Language.Egison.Parser
-import           Language.Egison.PrettyPrint
+import           Language.Egison.Pretty
 
 class SyntaxElement a where
   toNonS :: a -> a

@@ -8,7 +8,7 @@ Licence     : MIT
 This module contains pretty printing for Egison syntax
 -}
 
-module Language.Egison.PrettyPrint
+module Language.Egison.Pretty
     ( prettyTopExprs
     ) where
 
