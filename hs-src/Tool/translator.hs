@@ -35,8 +35,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (SuprefsExpr b x y)   = SuprefsExpr  b (toNonS x) (toNonS y)
   toNonS (UserrefsExpr b x y)  = UserrefsExpr b (toNonS x) (toNonS y)
   toNonS (PowerExpr x y) = BinaryOpExpr powerOp (toNonS x) (toNonS y)
-    where
-      powerOp = fromJust $ find (\op -> repr op == "^") reservedBinops
+    where powerOp = fromJust $ find (\op -> repr op == "^") reservedBinops
   toNonS (InductiveDataExpr x ys) = InductiveDataExpr x (map toNonS ys)
   toNonS (TupleExpr xs)      = TupleExpr (map toNonS xs)
   toNonS (CollectionExpr xs) = CollectionExpr (map toNonS xs)
