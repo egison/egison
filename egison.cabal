@@ -100,7 +100,6 @@ Library
                    Language.Egison.Types
                    Language.Egison.Parser
                    Language.Egison.ParserNonS
-                   Language.Egison.ParserNonS2
                    Language.Egison.Pretty
                    Language.Egison.Primitives
                    Language.Egison.Util
