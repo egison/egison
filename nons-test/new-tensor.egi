@@ -1,69 +1,77 @@
-;;;
-;;; Parameters
-;;;
+--
+-- Parameters
+--
 
 x = [| θ, φ |]
 
-X = [| r * sin(θ) * cos(φ), r * sin(θ) * sin(φ), r * cos(θ) |]
+X = [| r * (sin θ) * (cos φ), r * (sin θ) * (sin φ), r * (cos θ) |]
 
-;;
-;; Local basis
-;;
+--
+-- Local basis
+--
 
-e_i_j = ∂/∂(X_j, x~i)
+e_i_j = ∂/∂ X_j x~i
 e_i_j
-; [| [| (* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
-; [| (* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]
-; |]_i_j
+-- [| [| (* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
+-- [| (* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]
+-- |]_i_j
 
-;;
-;; Metric tensor
-;;
+--
+-- Metric tensor
+--
 
 g__ = generateTensor(2#(V.*(e_%1_#, e_%2_#)), [2, 2])
 g~~ = M.inverse(g_#_#)
 
-g_#_#;[| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |]_#_#
-g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
+g_#_#  -- [| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |]_#_#
+g~#~#  -- [| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
 
-;;
-;; Christoffel symbols of the first kind
-;;
+--
+-- Christoffel symbols of the first kind
+--
 
 Γ_j_k_l = (1/2) * (∂/∂(g_j_l, x~k) + ∂/∂(g_j_k, x~l) - ∂/∂(g_k_l, x~j))
 
 Γ_#_#_#
 Γ_1_#_#
 Γ_2_#_#
-;;
-;; Christoffel symbols of the second kind
-;;
-Γ~__ = withSymbols {i} g~#~i . Γ_i_#_#
+
+--
+-- Christoffel symbols of the second kind
+--
+
+Γ~__ = withSymbols [i] g~#~i . Γ_i_#_#
 Γ~#_#_#
 Γ~1_#_#
 Γ~2_#_#
-;;
-;; Riemann curvature tensor
-;;
-R~i_j_k_l = withSymbols {m} ∂/∂(Γ~i_j_l, x~k) - ∂/∂(Γ~i_j_k, x~l) + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
-R~#_#_#_#;
-R~#_#_1_1;
-R~#_#_1_2;
-R~#_#_2_1;
-R~#_#_2_2;
-R____ = withSymbols {i} g_i_# .  R~i_#_#_#
+
+--
+-- Riemann curvature tensor
+--
+
+R~i_j_k_l = withSymbols [m] (∂/∂ Γ~i_j_l x~k) - (∂/∂ Γ~i_j_k x~l) + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
+R~#_#_#_#
+R~#_#_1_1
+R~#_#_1_2
+R~#_#_2_1
+R~#_#_2_2
+R____ = withSymbols [i] g_i_# .  R~i_#_#_#
 R_#_#_#_#
 R_#_#_1_1
 R_#_#_1_2
 R_#_#_2_1
 R_#_#_2_2
-;;
-;; Ricci curvature
-;;
-Ric__ = withSymbols {i} contract(+, R~i_#_i_#)
+
+--
+-- Ricci curvature
+--
+
+Ric__ = withSymbols [i] contract + R~i_#_i_#
 Ric_#_#
-;;
-;; Scalar curvature
-;;
-scalarCurvature = withSymbols {j, k} g~j~k . Ric_j_k
+
+--
+-- Scalar curvature
+--
+
+scalarCurvature = withSymbols [j, k] g~j~k . Ric_j_k
 scalarCurvature
