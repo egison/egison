@@ -11,45 +11,21 @@ module Language.Egison.MathOutput ( changeOutputInLang ) where
 import           Text.ParserCombinators.Parsec hiding (spaces)
 
 changeOutputInLang :: String -> String -> String
-changeOutputInLang "haskell" input     = mathExprToHaskell input
-changeOutputInLang "asciimath" input   = mathExprToAsciiMath input
-changeOutputInLang "latex" input       = mathExprToLatex input
-changeOutputInLang "mathematica" input = mathExprToMathematica input
-changeOutputInLang "maxima" input      = mathExprToMaxima input
-changeOutputInLang _ input             = input
+changeOutputInLang lang input =
+  -- 'lang' is either "asciimath", "latex", "mathematica" or "maxima"
+  -- Other invalid options are rejected in Interpreter/egison.hs
+  case parse parseExpr "math-expr" input of
+    Left err  -> input
+    Right val -> case showMathExpr lang val of
+                   "undefined" -> "undefined"
+                   output      -> "#" ++ lang ++ "|" ++ output ++ "|#"
 
-mathExprToHaskell :: String -> String
-mathExprToHaskell input = case parse parseExpr "math-expr" input of
-                            Left err  -> input
-                            Right val -> "#haskell|" ++ show val ++ "|#"
-
-mathExprToAsciiMath :: String -> String
-mathExprToAsciiMath input = case parse parseExpr "math-expr" input of
-                              Left err -> input
-                              Right val -> case showMathExprAsciiMath val of
-                                             "undefined" -> "undefined"
-                                             output -> "#asciimath|" ++ output ++ "|#"
-
-mathExprToLatex :: String -> String
-mathExprToLatex input = case parse parseExpr "math-expr" input of
-                          Left err -> input
-                          Right val -> case showMathExprLatex val of
-                                         "undefined" -> "undefined"
-                                         output -> "#latex|" ++ output ++ "|#"
-
-mathExprToMathematica :: String -> String
-mathExprToMathematica input = case parse parseExpr "math-expr" input of
-                                Left err -> input
-                                Right val -> case showMathExprMathematica val of
-                                               "undefined" -> "undefined"
-                                               output -> "#mathematica|" ++ output ++ "|#"
-
-mathExprToMaxima :: String -> String
-mathExprToMaxima input = case parse parseExpr "math-expr" input of
-                          Left err -> input
-                          Right val -> case showMathExprMaxima val of
-                                         "undefined" -> "undefined"
-                                         output -> "#maxima|" ++ output ++ "|#"
+showMathExpr :: String -> MathExpr -> String
+showMathExpr "asciimath"   = showMathExprAsciiMath
+showMathExpr "latex"       = showMathExprLatex
+showMathExpr "mathematica" = showMathExprMathematica
+showMathExpr "maxima"      = showMathExprMaxima
+showMathExpr "haskell"     = show
 
 data MathExpr = Atom String [MathIndex]
               | NegativeAtom String
