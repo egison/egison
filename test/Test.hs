@@ -16,7 +16,7 @@ import           Test.HUnit
 import           Language.Egison
 import           Language.Egison.Core
 import qualified Language.Egison.Parser         as Parser
-import qualified Language.Egison.ParserNonS2    as ParserNonS2
+import qualified Language.Egison.ParserNonS     as ParserNonS
 import           Language.Egison.Primitives
 import           Language.Egison.Types
 
@@ -74,9 +74,9 @@ runUnitTestCase file = TestLabel file . TestCase $ do
 
 runUnitTestCaseNonS :: FilePath -> Test
 runUnitTestCaseNonS file = TestLabel file . TestCase $ do
-  env <- initialEnv (defaultOption { optUseNonS2 = True })
+  env <- initialEnv (defaultOption { optSExpr = False })
   assertEgisonM $ do
-    exprs <- ParserNonS2.loadFile file
+    exprs <- ParserNonS.loadFile file
     let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
     env' <- recursiveBind env bindings
     forM_ tests $ evalExprDeep env'
