@@ -63,7 +63,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (MatchLambdaExpr x ys)    = MatchLambdaExpr    (toNonS x) (map toNonS ys)
   toNonS (MatchAllLambdaExpr x ys) = MatchAllLambdaExpr (toNonS x) (map toNonS ys)
 
-  toNonS (MatcherExpr x) = MatcherExpr (toNonS x)
+  toNonS (MatcherExpr xs) = MatcherExpr (map toNonS xs)
 
   toNonS (QuoteExpr x)        = QuoteExpr (toNonS x)
   toNonS (QuoteSymbolExpr x)  = QuoteSymbolExpr (toNonS x)
@@ -100,8 +100,8 @@ instance SyntaxElement BindingExpr where
 instance SyntaxElement MatchClause where
   toNonS (x, y) = (x, toNonS y)
 
-instance SyntaxElement MatcherInfo where
-  toNonS xs = map (\(x, y, zs) -> (x, toNonS y, map (\(z, w) -> (z, toNonS w)) zs)) xs
+instance SyntaxElement PatternDef where
+  toNonS (x, y, zs) = (x, toNonS y, map (\(z, w) -> (z, toNonS w)) zs)
 
 instance SyntaxElement Var where
   toNonS (Var xs ys) = Var (map toCamelCase xs) ys

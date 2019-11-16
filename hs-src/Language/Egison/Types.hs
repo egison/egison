@@ -26,7 +26,7 @@ module Language.Egison.Types
     , InnerExpr (..)
     , BindingExpr (..)
     , MatchClause (..)
-    , MatcherInfo (..)
+    , PatternDef (..)
     , LoopRange (..)
     , PrimitivePatPattern (..)
     , PrimitiveDataPattern (..)
@@ -257,7 +257,7 @@ data EgisonExpr =
   | MatchLambdaExpr EgisonExpr [MatchClause]
   | MatchAllLambdaExpr EgisonExpr [MatchClause]
 
-  | MatcherExpr MatcherInfo
+  | MatcherExpr [PatternDef]
   | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
 
   | QuoteExpr EgisonExpr
@@ -320,7 +320,7 @@ data InnerExpr =
 
 type BindingExpr = ([Var], EgisonExpr)
 type MatchClause = (EgisonPattern, EgisonExpr)
-type MatcherInfo = [(PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])]
+type PatternDef  = (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
 
 -- TODO(momohatt): AndPat and OrPat take only 2 arguments in new syntax
 data EgisonPattern =
@@ -438,7 +438,7 @@ data EgisonValue =
   | IntHash (HashMap Integer EgisonValue)
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
-  | UserMatcher Env MatcherInfo
+  | UserMatcher Env [PatternDef]
   | Func (Maybe Var) Env [String] EgisonExpr
   | PartialFunc Env Integer EgisonExpr
   | CFunc (Maybe Var) Env String EgisonExpr

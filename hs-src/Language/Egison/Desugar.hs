@@ -364,8 +364,8 @@ desugar FreshVarExpr = do
   id <- fresh
   return $ stringToVarExpr (":::" ++ id)
 
-desugar (MatcherExpr matcherInfo) =
-  MatcherExpr <$> desugarMatcherInfo matcherInfo
+desugar (MatcherExpr patternDefs) =
+  MatcherExpr <$> mapM desugarPatternDef patternDefs
 
 desugar (PartialVarExpr n) = return $ PartialVarExpr n
 
@@ -477,11 +477,9 @@ desugarMatchClauses :: [MatchClause] -> DesugarM [MatchClause]
 desugarMatchClauses = mapM f
   where f (pattern, expr) = (,) <$> desugarPattern pattern <*> desugar expr
 
-desugarMatcherInfo :: MatcherInfo -> DesugarM MatcherInfo
-desugarMatcherInfo = mapM f
-  where
-    f (pp, matcher, pds) =
-      (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
+desugarPatternDef :: PatternDef -> DesugarM PatternDef
+desugarPatternDef (pp, matcher, pds) =
+  (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, EgisonExpr)] -> DesugarM [(PrimitiveDataPattern, EgisonExpr)]
 desugarPrimitiveDataMatchClauses = mapM f
