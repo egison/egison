@@ -107,6 +107,7 @@ type Parser = Parsec CustomError String
 
 data CustomError
   = IllFormedPointFreeExpr EgisonBinOp EgisonBinOp
+  | IllFormedDefine
   deriving (Eq, Ord)
 
 instance ShowErrorComponent CustomError where
@@ -115,6 +116,8 @@ instance ShowErrorComponent CustomError where
     where
       info op =
          "'" ++ repr op ++ "' [" ++ show (assoc op) ++ " " ++ show (priority op) ++ "]"
+  showErrorComponent IllFormedDefine =
+    "Ill-formed definition syntax."
 
 
 doParse :: Parser a -> String -> Either EgisonError a
@@ -138,17 +141,33 @@ defineOrTestExpr = do
   e <- expr
   (do symbol "="
       body <- expr
-      return (convertToDefine e body))
+      return $ convertToDefine e body)
       <|> return (Test e)
   where
+    -- TODO: Throw IllFormedDefine in pattern match failure.
+    -- first 2 cases are the most common ones
     convertToDefine :: EgisonExpr -> EgisonExpr -> EgisonTopExpr
     convertToDefine (VarExpr var) body = Define var body
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) body =
       Define var (LambdaExpr (map exprToArg args) body)
+    convertToDefine e@(BinaryOpExpr op _ _) body
+      | repr op == "*" || repr op == "%" =
+        case exprToArgs e of
+          ScalarArg var : args -> Define (Var [var] []) (LambdaExpr args body)
 
-    -- TODO(momohatt): Handle other types of arg
     exprToArg :: EgisonExpr -> Arg
     exprToArg (VarExpr (Var [x] [])) = ScalarArg x
+
+    exprToArgs :: EgisonExpr -> [Arg]
+    exprToArgs (VarExpr (Var [x] [])) = [ScalarArg x]
+    exprToArgs (ApplyExpr func (TupleExpr args)) =
+      exprToArgs func ++ map exprToArg args
+    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" =
+      case exprToArgs rhs of
+        ScalarArg x : xs -> exprToArgs lhs ++ InvertedScalarArg x : xs
+    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "%" =
+      case exprToArgs rhs of
+        ScalarArg x : xs -> exprToArgs lhs ++ TensorArg x : xs
 
 expr :: Parser EgisonExpr
 expr = ifExpr
