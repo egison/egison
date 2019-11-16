@@ -130,25 +130,25 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 topExpr :: Parser EgisonTopExpr
 topExpr = Load     <$> (keywordLoad >> stringLiteral)
       <|> LoadFile <$> (keywordLoadFile >> stringLiteral)
-      <|> Test     <$> (keywordTest >> expr)
-      <|> Test     <$> assertExpr
-      <|> Define   <$> varLiteral <*> defineBodyExpr
+      <|> defineOrTestExpr
       <?> "toplevel expression"
 
-defineBodyExpr :: Parser EgisonExpr
-defineBodyExpr = do
-  args <- many arg
-  body <- operator "=" >> expr
-  return $ case args of
-             [] -> body
-             _  -> LambdaExpr args body
+defineOrTestExpr :: Parser EgisonTopExpr
+defineOrTestExpr = do
+  e <- expr
+  (do symbol "="
+      body <- expr
+      return (convertToDefine e body))
+      <|> return (Test e)
+  where
+    convertToDefine :: EgisonExpr -> EgisonExpr -> EgisonTopExpr
+    convertToDefine (VarExpr var) body = Define var body
+    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) body =
+      Define var (LambdaExpr (map exprToArg args) body)
 
-assertExpr :: Parser EgisonExpr
-assertExpr = do
-  pos <- L.indentLevel
-  func <- (keywordAssert $> "assert") <|> (keywordAssertEqual $> "assertEqual")
-  args <- many (L.indentGuard sc GT pos >> atomExpr)
-  return $ makeApply' func args
+    -- TODO(momohatt): Handle other types of arg
+    exprToArg :: EgisonExpr -> Arg
+    exprToArg (VarExpr (Var [x] [])) = ScalarArg x
 
 expr :: Parser EgisonExpr
 expr = ifExpr
@@ -683,7 +683,6 @@ upperId = (lexeme . try) (p >>= check)
 
 keywordLoadFile             = reserved "loadFile"
 keywordLoad                 = reserved "load"
-keywordTest                 = reserved "test"
 keywordIf                   = reserved "if"
 keywordThen                 = reserved "then"
 keywordElse                 = reserved "else"
@@ -720,8 +719,6 @@ keywordSuprefsNew           = reserved "suprefs!"
 keywordUserrefs             = reserved "userRefs"
 keywordUserrefsNew          = reserved "userRefs!"
 keywordFunction             = reserved "function"
-keywordAssert               = reserved "assert"
-keywordAssertEqual          = reserved "assertEqual"
 
 upperReservedWords =
   [ "True"
@@ -731,7 +728,6 @@ upperReservedWords =
 lowerReservedWords =
   [ "loadFile"
   , "load"
-  , "test"
   , "if"
   , "then"
   , "else"
@@ -771,8 +767,6 @@ lowerReservedWords =
   , "userRefs"
   , "userRefs!"
   , "function"
-  , "assert"
-  , "assertEqual"
   ]
 
 --
