@@ -323,10 +323,10 @@ matchClause = brackets $ (,) <$> pattern <*> expr
 matcherExpr :: Parser EgisonExpr
 matcherExpr = keywordMatcher >> MatcherExpr <$> ppMatchClauses
 
-ppMatchClauses :: Parser MatcherInfo
+ppMatchClauses :: Parser [PatternDef]
 ppMatchClauses = braces $ sepEndBy ppMatchClause whiteSpace
 
-ppMatchClause :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+ppMatchClause :: Parser PatternDef
 ppMatchClause = brackets $ (,,) <$> ppPattern <*> expr <*> pdMatchClauses
 
 pdMatchClauses :: Parser [(PrimitiveDataPattern, EgisonExpr)]
