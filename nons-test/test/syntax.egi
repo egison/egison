@@ -390,18 +390,20 @@ assertEqual "hash access"
 -- assertEqual "recursive partial application '#'"
 --   take(10, 1#[%1, @(%0(%1 * 2))](2))
 --   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
---
---
--- assertEqual "double inverted index"
---   let f = *$x *$y -> x + y
---     in f([|1, 2, 3|]_i, [|10, 20, 30|]_j)
---   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]~i~j
---
--- def f(x, *y) = x + y
--- assertEqual "single inverted index"
---   let f = $x *$y -> x + y
---     in f([|1, 2, 3|]_i, [|10, 20, 30|]_j)
---   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]_i~j
+
+-- f *x *y = x + y
+f = \*x *y -> x + y
+
+assertEqual "double inverted index"
+  (f [|1, 2, 3|]_i [|10, 20, 30|]_j)
+  [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]~i~j
+
+-- g x *y = x + y
+g = \x *y -> x + y
+
+assertEqual "single inverted index"
+  (g [|1, 2, 3|]_i  [|10, 20, 30|]_j)
+  [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]_i~j
 
 --
 -- matcherExpr, macroExpr
