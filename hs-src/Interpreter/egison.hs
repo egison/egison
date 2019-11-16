@@ -111,7 +111,7 @@ parserInfo = info (helper <*> parser)
             <*> flag True False
                   (short 'N'
                   <> long "new-syntax"
-                  <> help "Use non-S-expressoin syntax")
+                  <> help "[experimental] Use non-S expression syntax")
 
 readFieldOption :: String -> (String, String)
 readFieldOption str =
