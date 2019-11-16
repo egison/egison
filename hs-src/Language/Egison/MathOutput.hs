@@ -3,10 +3,13 @@ Module      : Language.Egison.MathOutput
 Copyright   : Satoshi Egi
 Licence     : MIT
 
-This module provides utility functions.
+This module provides translation from mathematical Egison expression into
+other languages / format of other computer algebra systems.
 -}
 
-module Language.Egison.MathOutput ( changeOutputInLang ) where
+module Language.Egison.MathOutput
+  ( changeOutputInLang
+  ) where
 
 import           Text.ParserCombinators.Parsec hiding (spaces)
 
@@ -27,23 +30,25 @@ showMathExpr "mathematica" = showMathExprMathematica
 showMathExpr "maxima"      = showMathExprMaxima
 showMathExpr "haskell"     = show
 
-data MathExpr = Atom String [MathIndex]
-              | NegativeAtom String
-              | Plus [MathExpr]
-              | Multiply [MathExpr]
-              | Power MathExpr MathExpr
-              | Func MathExpr [MathExpr]
-              | Tensor [MathExpr] [MathIndex]
-              | Tuple [MathExpr]
-              | Collection [MathExpr]
-              | Exp MathExpr
-              | Quote MathExpr
-              | Partial MathExpr [MathExpr]
-              deriving (Eq, Show)
+data MathExpr
+  = Atom String [MathIndex]
+  | NegativeAtom String
+  | Plus [MathExpr]
+  | Multiply [MathExpr]
+  | Power MathExpr MathExpr
+  | Func MathExpr [MathExpr]
+  | Tensor [MathExpr] [MathIndex]
+  | Tuple [MathExpr]
+  | Collection [MathExpr]
+  | Exp MathExpr
+  | Quote MathExpr
+  | Partial MathExpr [MathExpr]
+  deriving (Eq, Show)
 
-data MathIndex = Super MathExpr
-              | Sub MathExpr
-              deriving (Eq, Show)
+data MathIndex
+  = Super MathExpr
+  | Sub MathExpr
+  deriving (Eq, Show)
 
 --
 -- Show (AsciiMath)
