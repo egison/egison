@@ -250,8 +250,8 @@ lambdaExpr = symbol "\\" >> (
       return $ ctor matcher clauses
 
 arg :: Parser Arg
-arg = InvertedScalarArg <$> (symbol "*$" >> lowerId)
-  <|> TensorArg         <$> (symbol "%"  >> lowerId)
+arg = InvertedScalarArg <$> (symbol "*" >> lowerId)
+  <|> TensorArg         <$> (symbol "%" >> lowerId)
   <|> ScalarArg         <$> lowerId
   <?> "argument"
 
