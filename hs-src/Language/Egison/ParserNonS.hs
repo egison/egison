@@ -236,11 +236,9 @@ patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
                <|> makeMatchExpr keywordMatchAllDFS MatchAllDFSExpr
                <?> "pattern match expression"
   where
-    makeMatchExpr keyword ctor = do
-      tgt     <- keyword >> expr
-      matcher <- keywordAs >> expr <* keywordWith
-      clauses <- matchClauses1
-      return $ ctor tgt matcher clauses
+    makeMatchExpr keyword ctor = ctor <$> (keyword >> expr)
+                                      <*> (keywordAs >> expr)
+                                      <*> (keywordWith >> matchClauses1)
 
 -- Parse more than 1 match clauses.
 matchClauses1 :: Parser [MatchClause]
