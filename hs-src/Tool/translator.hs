@@ -52,8 +52,8 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (IfExpr x y z)         = IfExpr (toNonS x) (toNonS y) (toNonS z)
   toNonS (LetRecExpr xs y)      = LetRecExpr (map toNonS xs) (toNonS y)
-  toNonS (LetExpr xs y)         = LetExpr (map toNonS xs) (toNonS y)
-  toNonS (LetStarExpr xs y)     = LetStarExpr (map toNonS xs) (toNonS y)
+  toNonS (LetExpr xs y)         = LetRecExpr (map toNonS xs) (toNonS y)
+  toNonS (LetStarExpr xs y)     = LetRecExpr (map toNonS xs) (toNonS y)
   toNonS (WithSymbolsExpr xs y) = WithSymbolsExpr xs (toNonS y)
 
   toNonS (MatchExpr x y zs)        = MatchExpr       (toNonS x) (toNonS y) (map toNonS zs)
