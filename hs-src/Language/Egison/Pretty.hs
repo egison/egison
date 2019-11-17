@@ -10,6 +10,7 @@ This module contains pretty printing for Egison syntax
 
 module Language.Egison.Pretty
     ( prettyTopExprs
+    , ASTElement(..)
     ) where
 
 import           Data.Text.Prettyprint.Doc
@@ -78,3 +79,49 @@ pretty' x                   = pretty x
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
+
+--
+-- Pretty printer for S-expression
+--
+
+class ASTElement a where
+  prettyS :: a -> String
+
+instance ASTElement EgisonPattern where
+  prettyS WildCard = "_"
+  prettyS (PatVar var) = "$" ++ show var
+  prettyS (ValuePat expr) = "," ++ show expr
+  prettyS (PredPat expr) = "?" ++ show expr
+  prettyS (IndexedPat pat exprs) = prettyS pat ++ concatMap (("_" ++) . show) exprs
+  prettyS (LetPat bexprs pat) = "(let {" ++ unwords (map (\(vars, expr) -> "[" ++ showVarsHelper vars ++ " " ++ show expr ++ "]") bexprs) ++
+                             "} " ++ prettyS pat ++ ")"
+    where showVarsHelper [] = ""
+          showVarsHelper [v] = "$" ++ show v
+          showVarsHelper vs = "[" ++ unwords (map (("$" ++) . show) vs) ++ "]"
+  prettyS (LaterPat pat) = "(later " ++ prettyS pat ++ ")"
+  prettyS (NotPat pat) = "!" ++ prettyS pat
+  prettyS (AndPat pats) = "(&" ++ concatMap ((" " ++) . prettyS) pats ++ ")"
+  prettyS (OrPat pats) = "(|" ++ concatMap ((" " ++) . prettyS) pats ++ ")"
+  prettyS (TuplePat pats) = "[" ++ unwords (map prettyS pats) ++ "]"
+  prettyS (InductivePat name pats) = "<" ++ name ++ concatMap ((" " ++) . prettyS) pats ++ ">"
+  prettyS (LoopPat var range pat endPat) = "(loop $" ++ unwords [show var, prettyS range, prettyS pat, prettyS endPat] ++ ")"
+  prettyS ContPat = "..."
+  prettyS (PApplyPat expr pats) = "(" ++ unwords (show expr : map prettyS pats) ++ ")"
+  prettyS (VarPat name) = name
+  prettyS SeqNilPat = "{}"
+  prettyS (SeqConsPat pat pat') = "{" ++ prettyS pat ++ showSeqPatHelper pat' ++ "}"
+    where showSeqPatHelper SeqNilPat = ""
+          showSeqPatHelper (SeqConsPat pat pat') = " " ++ prettyS pat ++ showSeqPatHelper pat'
+          showSeqPatHelper pat = " " ++ prettyS pat
+  prettyS LaterPatVar = "#"
+
+  prettyS (DApplyPat pat pats) = "(" ++ unwords (prettyS pat : map prettyS pats) ++ ")"
+  prettyS (DivPat pat pat') = "(/ " ++ prettyS pat ++ " " ++ prettyS pat' ++ ")"
+  prettyS (PlusPat pats) = "(+" ++ concatMap ((" " ++) . prettyS) pats
+  prettyS (MultPat pats) = "(*" ++ concatMap ((" " ++) . prettyS) pats
+  prettyS (PowerPat pat pat') = "(" ++ prettyS pat ++ " ^ " ++ prettyS pat' ++ ")"
+
+instance ASTElement LoopRange where
+  prettyS (LoopRange start (ApplyExpr (VarExpr (Var ["from"] [])) (ApplyExpr _ (TupleExpr (x:_)))) endPat) =
+    "[" ++ show start ++ " (from " ++ show x ++ ") " ++ prettyS endPat ++ "]"
+  prettyS (LoopRange start ends endPat) = "[" ++ show start ++ " " ++ show ends ++ " " ++ prettyS endPat ++ "]"
