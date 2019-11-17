@@ -92,7 +92,7 @@ instance Pretty EgisonExpr where
 
 instance Pretty Arg where
   pretty (ScalarArg x)         = pretty x
-  pretty (InvertedScalarArg x) = pretty "*$" <> pretty x
+  pretty (InvertedScalarArg x) = pretty "*" <> pretty x
   pretty (TensorArg x)         = pretty '%' <> pretty x
 
 instance Pretty Var where
@@ -111,7 +111,11 @@ instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) = pipe <+> pretty pat <+> pretty "->" <> softline <> pretty expr
 
 instance Pretty EgisonPattern where
-  pretty x = pretty "hoge"
+  pretty WildCard     = pretty "_"
+  pretty (PatVar x)   = pretty "$" <> pretty x
+  pretty (ValuePat v) = pretty "#" <> parens (pretty v) -- TODO: remove parens
+  pretty (PredPat v)  = pretty "?" <> parens (pretty v)
+  pretty _            = pretty "hoge"
 
 pretty' :: EgisonExpr -> Doc ann
 pretty' x@(UnaryOpExpr _ _) = parens $ pretty x
