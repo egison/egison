@@ -28,6 +28,8 @@ instance Pretty EgisonTopExpr where
     pretty x <+> hsep (map pretty args) <+> equals <> nest 2 (softline <> pretty body)
   pretty (Define x expr) = pretty x <+> equals <> nest 2 (softline <> pretty expr)
   pretty (Test expr) = pretty expr
+  pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
+  pretty (Load lib) = pretty "load" <+> pretty (show lib)
 
 instance Pretty EgisonExpr where
   pretty (CharExpr x)    = squote <> pretty x <> squote
@@ -53,9 +55,22 @@ instance Pretty EgisonExpr where
                <> nest 2 (softline <> pretty "then" <+> pretty y <>
                           softline <> pretty "else" <+> pretty z)
   pretty (LetRecExpr bindings body) =
-    pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> pretty body
+    hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> pretty body)
   pretty (LetExpr _ _) = error "unreachable"
   pretty (LetStarExpr _ _) = error "unreachable"
+
+  pretty (MatchExpr tgt matcher clauses) =
+    pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses
+  pretty (MatchDFSExpr tgt matcher clauses) =
+    pretty "matchDFS"    <+> pretty tgt <+> prettyMatch matcher clauses
+  pretty (MatchAllExpr tgt matcher clauses) =
+    pretty "matchAll"    <+> pretty tgt <+> prettyMatch matcher clauses
+  pretty (MatchAllDFSExpr tgt matcher clauses) =
+    pretty "matchAllDFS" <+> pretty tgt <+> prettyMatch matcher clauses
+  pretty (MatchLambdaExpr matcher clauses) =
+    pretty "\\match"     <+> prettyMatch matcher clauses
+  pretty (MatchAllLambdaExpr matcher clauses) =
+    pretty "\\matchAll"  <+> prettyMatch matcher clauses
 
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
   -- (x1 op' x2) op y
@@ -71,6 +86,9 @@ instance Pretty EgisonExpr where
   pretty (BinaryOpExpr op x y) = pretty x <+> pretty (repr op) <+> pretty' y
 
   pretty (ApplyExpr x (TupleExpr ys)) = nest 2 (pretty x <+> fillSep (map pretty ys))
+
+  pretty SomethingExpr = pretty "something"
+  pretty UndefinedExpr = pretty "undefined"
 
 instance Pretty Arg where
   pretty (ScalarArg x)         = pretty x
@@ -89,12 +107,20 @@ instance {-# OVERLAPPING #-} Pretty BindingExpr where
   pretty ([var], expr) = pretty var <+> pretty "=" <+> pretty expr
   pretty (vars, expr) = tupled (map pretty vars) <+> pretty "=" <+> pretty expr
 
+instance {-# OVERLAPPING #-} Pretty MatchClause where
+  pretty (pat, expr) = pipe <+> pretty pat <+> pretty "->" <> softline <> pretty expr
+
 instance Pretty EgisonPattern where
-  pretty x = undefined
+  pretty x = pretty "hoge"
 
 pretty' :: EgisonExpr -> Doc ann
 pretty' x@(UnaryOpExpr _ _) = parens $ pretty x
 pretty' x                   = pretty x
+
+prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
+prettyMatch matcher clauses =
+  pretty "as" <+> pretty matcher <+> pretty "with" <> hardline <>
+    align (vsep (map pretty clauses))
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
