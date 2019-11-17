@@ -66,6 +66,7 @@ import qualified Data.Text                   as T
 
 import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
+import           Language.Egison.Pretty
 import           Language.Egison.Types
 
 --
@@ -1125,7 +1126,7 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
   let env' = extendEnvForNonLinearPatterns env bindings loops in
   case pattern of
     NotPat _ -> throwError =<< EgisonBug "should not reach here (not pattern)" <$> getFuncNameStack
-    VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ show pattern
+    VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyS pattern
 
     LetPat bindings' pattern' ->
       let extractBindings ([name], expr) =
@@ -1272,13 +1273,13 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
                                          | otherwise = (k', v'):subst k nv xs
                 subst _ _ [] = []
-            IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
+            IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ prettyS pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets (replicate (length patterns) Something) ++ trees
               return $ msingleton $ MState env loops seqs bindings trees'
-            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ show pattern
+            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ prettyS pattern
         _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
