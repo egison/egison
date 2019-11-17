@@ -33,7 +33,6 @@ module Language.Egison.Types
     , Matcher (..)
     , PrimitiveFunc (..)
     , EgisonData (..)
-    , showTSV
     , EgisonBinOp(..)
     , BinOpAssoc(..)
     , reservedBinops
@@ -192,7 +191,6 @@ import           Data.List                 (any, delete, elem, elemIndex, find,
                                             splitAt, (\\))
 import           Data.List.Split           (splitOn)
 import           Data.Text                 (Text)
-import qualified Data.Text                 as T
 
 import           Data.Ratio
 import           System.IO
@@ -293,13 +291,13 @@ data EgisonExpr =
 
   | SomethingExpr
   | UndefinedExpr
- deriving (Eq)
+ deriving (Eq, Show)
 
 data Arg =
     ScalarArg String
   | InvertedScalarArg String
   | TensorArg String
- deriving (Eq)
+ deriving (Eq, Show)
 
 data Index a =
     Subscript a
@@ -453,6 +451,7 @@ data EgisonValue =
   | Something
   | Undefined
   | EOF
+  deriving (Show)
 
 --
 -- Scalar and Tensor Types
@@ -460,20 +459,22 @@ data EgisonValue =
 
 data ScalarData =
     Div PolyExpr PolyExpr
- deriving (Eq)
+ deriving (Eq, Show)
 
 newtype PolyExpr =
     Plus [TermExpr]
+  deriving (Show)
 
 data TermExpr =
     Term Integer [(SymbolExpr, Integer)]
+  deriving (Show)
 
 data SymbolExpr =
     Symbol Id String [Index ScalarData]
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
   | FunctionData (Maybe EgisonValue) [EgisonValue] [EgisonValue] [Index ScalarData] -- fnname argnames args indices
- deriving (Eq)
+ deriving (Eq, Show)
 
 instance Eq PolyExpr where
   (Plus []) == (Plus []) = True
@@ -1224,6 +1225,7 @@ removePairs' (m, n) xs =         -- (0,1) [i i]
       (hs, tms) = splitAt m hms  -- [] [i]
       ms = tail tms              -- []
    in (hs, ms, ts)               -- [] [] []
+
 --
 --
 --
@@ -1232,117 +1234,14 @@ type Matcher = EgisonValue
 
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
-instance Show EgisonExpr where
-  show (CharExpr c) = "c#" ++ [c]
-  show (StringExpr str) = "\"" ++ T.unpack str ++ "\""
-  show (BoolExpr True) = "#t"
-  show (BoolExpr False) = "#f"
-  show (IntegerExpr n) = show n
-  show (FloatExpr x) = show x
-  show (VarExpr name) = show name
-  show (PartialVarExpr n) = "%" ++ show n
-  show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
-  show (IndexedExpr True expr idxs) = show expr ++ concatMap show idxs
-  show (IndexedExpr False expr idxs) = show expr ++ "..." ++ concatMap show idxs
-  show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
-  show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
+instance Show PrimitiveFunc where
+  show = const ""
 
-  show (UnaryOpExpr op e) = op ++ " " ++ show e
-  show (BinaryOpExpr op e1 e2) = "(" ++ show e1 ++ " " ++ show op ++ " " ++ show e2 ++ ")"
+instance Show (IORef (HashMap [Integer] ObjectRef)) where
+  show = const ""
 
-  show (QuoteExpr e) = "'" ++ show e
-  show (QuoteSymbolExpr e) = "`" ++ show e
-
-  show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
-  show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
-  show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
-  show (VectorExpr xs) = "[| " ++ unwords (map show xs) ++ " |]"
-  show (WithSymbolsExpr xs e) = "(withSymbols {" ++ unwords (map show xs) ++ "} " ++ show e ++ ")"
-  show _ = "(not supported)"
-
-instance Show EgisonValue where
-  show (Char c) = "c#" ++ [c]
-  show (String str) = "\"" ++ T.unpack str ++ "\""
-  show (Bool True) = "#t"
-  show (Bool False) = "#f"
-  show (ScalarData mExpr) = show mExpr
---  show (TensorData (Scalar x)) = "invalid scalar:" ++ show x
-  show (TensorData (Tensor [_] xs js)) = "[| " ++ unwords (map show (V.toList xs)) ++ " |]" ++ concatMap show js
-  show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap show js
-  show (TensorData (Tensor [i, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concatMap show js
-   where
-    f j [] = ""
-    f j xs = "[| " ++ unwords (map show (take j xs)) ++ " |] " ++ f j (drop j xs)
-  show (TensorData (Tensor ns xs js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show (V.toList xs)) ++ "} )" ++ concatMap show js
-  show (Float x) = show x
-  show (InductiveData name []) = "<" ++ name ++ ">"
-  show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
-  show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
-  show (Collection vals) = if Sq.null vals
-                             then "{}"
-                             else "{" ++ unwords (map show (toList vals)) ++ "}"
-  show (Array vals) = "(|" ++ unwords (map show $ Array.elems vals) ++ "|)"
-  show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show UserMatcher{} = "#<user-matcher>"
-  show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
-  show (Func (Just name) _ _ _) = show name
-  show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
-  show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
-  show (CFunc (Just name) _ _ _) = show name
-  show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
-  show (MemoizedFunc (Just name) _ _ _ names _) = show name
-  show (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
-  show (Proc (Just name) _ _ _) = name
-  show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
-  show PatternFunc{} = "#<pattern-function>"
-  show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
-  show (IOFunc _) = "#<io-function>"
-  show (QuotedFunc _) = "#<quoted-function>"
-  show (Port _) = "#<port>"
-  show Something = "something"
-  show Undefined = "undefined"
-  show World = "#<world>"
-  show EOF = "#<eof>"
-
-instance Show Arg where
-  show (ScalarArg name)         = "$" ++ name
-  show (InvertedScalarArg name) = "*$" ++ name
-  show (TensorArg name)         = "%" ++ name
-
-instance Show ScalarData where
-  show (Div p1 (Plus [Term 1 []])) = show p1
-  show (Div p1 p2)                 = "(/ " ++ show p1 ++ " " ++ show p2 ++ ")"
-
-instance Show PolyExpr where
-  show (Plus [])  = "0"
-  show (Plus [t]) = show t
-  show (Plus ts)  = "(+ " ++ unwords (map show ts)  ++ ")"
-
-instance Show TermExpr where
-  show (Term a []) = show a
-  show (Term 1 [x]) = showPoweredSymbol x
-  show (Term 1 xs) = "(* " ++ unwords (map showPoweredSymbol xs) ++ ")"
-  show (Term a xs) = "(* " ++ show a ++ " " ++ unwords (map showPoweredSymbol xs) ++ ")"
-
-showPoweredSymbol :: (SymbolExpr, Integer) -> String
-showPoweredSymbol (x, 1) = show x
-showPoweredSymbol (x, n) = show x ++ "^" ++ show n
-
-instance Show SymbolExpr where
-  show (Symbol _ (':':':':':':_) []) = "#"
-  show (Symbol _ s []) = s
-  show (Symbol _ s js) = s ++ concatMap show js
-  show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
-  show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData Nothing argnames args js) = "(functionData [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
-  show (FunctionData (Just name) argnames args js) = show name ++ concatMap show js
-
-showTSV :: EgisonValue -> String
-showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map show vals)
-showTSV (Collection vals) = intercalate "\t" (map show (toList vals))
-showTSV val = show val
+instance Show (EgisonM WHNFData) where
+  show = const ""
 
 instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
@@ -1558,11 +1457,11 @@ instance Show VarWithIndices where
   show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
 
 instance Show (Index ()) where
-  show (Superscript ())  = "~"
-  show (Subscript ())    = "_"
-  show (SupSubscript ()) = "~_"
-  show (DFscript _ _)    = ""
-  show (Userscript _)    = "|"
+  show (Superscript _)  = "~"
+  show (Subscript _)    = "_"
+  show (SupSubscript _) = "~_"
+  show (DFscript _ _)   = ""
+  show (Userscript _)   = "|"
 
 instance Show (Index String) where
   show (Superscript s)  = "~" ++ s
@@ -1587,16 +1486,16 @@ instance Show (Index ScalarData) where
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
-                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "~[" ++ show i ++ "]"
-                         _ -> "~" ++ show i
+    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "~[" ++ show i ++ "]"
+    _ -> "~" ++ show i
   show (Subscript i) = case i of
-                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
-                         _ -> "_" ++ show i
+    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+    _ -> "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript i j) = "_d" ++ show i ++ show j
   show (Userscript i) = case i of
-                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
-                         _ -> "|" ++ show i
+    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+    _ -> "|" ++ show i
 
 nullEnv :: Env
 nullEnv = Env [] Nothing
