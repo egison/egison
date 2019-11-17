@@ -15,7 +15,6 @@ module Language.Egison.Desugar
     (
       desugarTopExpr
     , desugarExpr
-    , desugar
     ) where
 
 import           Data.Char             (toUpper)
@@ -26,22 +25,14 @@ import qualified Data.Set              as S
 import           Language.Egison.Types
 
 desugarTopExpr :: EgisonTopExpr -> EgisonM EgisonTopExpr
-desugarTopExpr (Define name expr) = do
-  expr' <- desugar expr
-  return (Define name expr')
-desugarTopExpr (Redefine name expr) = do
-  expr' <- desugar expr
-  return (Redefine name expr')
-desugarTopExpr (Test expr) = do
-  expr' <- desugar expr
-  return (Test expr')
-desugarTopExpr (Execute expr) = do
-  expr' <- desugar expr
-  return (Execute expr')
-desugarTopExpr expr = return expr
+desugarTopExpr (Define name expr)   = Define name <$> desugar expr
+desugarTopExpr (Redefine name expr) = Redefine name <$> desugar expr
+desugarTopExpr (Test expr)          = Test <$> desugar expr
+desugarTopExpr (Execute expr)       = Execute <$> desugar expr
+desugarTopExpr expr                 = return expr
 
 desugarExpr :: EgisonExpr -> EgisonM EgisonExpr
-desugarExpr expr = desugar expr
+desugarExpr = desugar
 
 desugar :: EgisonExpr -> EgisonM EgisonExpr
 desugar (AlgebraicDataMatcherExpr patterns) = do

@@ -57,10 +57,10 @@ readTopExpr :: String -> EgisonM EgisonTopExpr
 readTopExpr = either throwError desugarTopExpr . parseTopExpr
 
 readExprs :: String -> EgisonM [EgisonExpr]
-readExprs = either throwError (mapM desugar) . parseExprs
+readExprs = either throwError (mapM desugarExpr) . parseExprs
 
 readExpr :: String -> EgisonM EgisonExpr
-readExpr = either throwError desugar . parseExpr
+readExpr = either throwError desugarExpr . parseExpr
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ do
