@@ -11,6 +11,8 @@ module Language.Egison.MathOutput
   ( changeOutputInLang
   ) where
 
+import           Data.List                     (intercalate)
+
 import           Text.ParserCombinators.Parsec hiding (spaces)
 
 changeOutputInLang :: String -> String -> String
@@ -50,6 +52,10 @@ data MathIndex
   | Sub MathExpr
   deriving (Eq, Show)
 
+isSub :: MathIndex -> Bool
+isSub (Sub _) = True
+isSub _       = False
+
 --
 -- Show (AsciiMath)
 --
@@ -84,22 +90,16 @@ showMathExprAsciiMath (Tuple lvs) = "(" ++ showMathExprAsciiMathArg lvs ++ ")"
 showMathExprAsciiMath (Collection lvs) = "{" ++ showMathExprAsciiMathArg lvs ++ "}"
 showMathExprAsciiMath (Exp x) = "e^(" ++ showMathExprAsciiMath x ++ ")"
 
-isSub :: MathIndex -> Bool
-isSub (Sub _) = True
-isSub _       = False
-
 showMathExprAsciiMath' :: MathExpr -> String
 showMathExprAsciiMath' (Plus lvs) = "(" ++ showMathExprAsciiMath (Plus lvs) ++ ")"
 showMathExprAsciiMath' val = showMathExprAsciiMath val
 
 showMathExprAsciiMathArg :: [MathExpr] -> String
-showMathExprAsciiMathArg [] = ""
-showMathExprAsciiMathArg [a] = showMathExprAsciiMath a
-showMathExprAsciiMathArg lvs = showMathExprAsciiMath (head lvs) ++ ", " ++ showMathExprAsciiMathArg (tail lvs)
+showMathExprAsciiMathArg exprs = intercalate ", " $ map showMathExprAsciiMath exprs
 
 showMathExprAsciiMathIndices :: [MathIndex] -> String
-showMathExprAsciiMathIndices [a] = showMathIndexAsciiMath a
-showMathExprAsciiMathIndices lvs = showMathIndexAsciiMath (head lvs) ++ showMathExprAsciiMathIndices (tail lvs)
+showMathExprAsciiMathIndices []  = error "unreachable"
+showMathExprAsciiMathIndices lvs = concatMap showMathIndexAsciiMath lvs
 
 showMathIndexAsciiMath :: MathIndex -> String
 showMathIndexAsciiMath (Super a) = showMathExprAsciiMath a
@@ -155,9 +155,7 @@ showMathExprLatex' (Plus xs) = "(" ++ showMathExprLatex (Plus xs) ++ ")"
 showMathExprLatex' x         = showMathExprLatex x
 
 showMathExprLatexArg :: [MathExpr] -> String -> String
-showMathExprLatexArg [] _ = ""
-showMathExprLatexArg [a] _ = showMathExprLatex a
-showMathExprLatexArg lvs s = showMathExprLatex (head lvs) ++ s ++ showMathExprLatexArg  (tail lvs) s
+showMathExprLatexArg exprs sep = intercalate sep $ map showMathExprLatex exprs
 
 showMathExprLatexSuper :: MathIndex -> String
 showMathExprLatexSuper (Super (Atom "#" [])) = "\\#"
@@ -223,16 +221,14 @@ showMathExprMathematica' (Plus xs) = "(" ++ showMathExprMathematica (Plus xs) ++
 showMathExprMathematica' x = showMathExprMathematica x
 
 showMathExprsMathematica :: String -> [MathExpr] -> String
-showMathExprsMathematica _ [] = ""
-showMathExprsMathematica _ [a] = showMathExprMathematica a
-showMathExprsMathematica s lvs = showMathExprMathematica (head lvs) ++ s ++ showMathExprsMathematica s (tail lvs)
+showMathExprsMathematica sep exprs = intercalate sep $ map showMathExprMathematica exprs
 
 showMathExprMathematicaArg :: [MathExpr] -> String
-showMathExprMathematicaArg xs = showMathExprsMathematica ", " xs
+showMathExprMathematicaArg = showMathExprsMathematica ", "
 
 showMathExprMathematicaIndices :: [MathIndex] -> String
-showMathExprMathematicaIndices [a] = showMathIndexMathematica a
-showMathExprMathematicaIndices lvs = showMathIndexMathematica (head lvs) ++ showMathExprMathematicaIndices (tail lvs)
+showMathExprMathematicaIndices []  = error "unreachable"
+showMathExprMathematicaIndices lvs = concatMap showMathIndexMathematica lvs
 
 showMathIndexMathematica :: MathIndex -> String
 showMathIndexMathematica (Super a) = showMathExprMathematica a
