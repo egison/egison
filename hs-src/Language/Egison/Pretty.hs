@@ -49,9 +49,16 @@ instance Pretty EgisonExpr where
   pretty (PatternFunctionExpr xs y) = pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty y
 
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
-  pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y)
-    | priority op > priority op' = parens (pretty x) <+> pretty (repr op) <+> pretty' y
-    | otherwise                  = pretty x <+> pretty (repr op) <+> pretty' y
+  -- (x1 op' x2) op y
+  pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
+    if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
+       then parens (pretty x) <+> pretty (repr op) <+> pretty' y
+       else pretty x <+> pretty (repr op) <+> pretty' y
+  -- x op (y1 op' y2)
+  pretty (BinaryOpExpr op x y@(BinaryOpExpr op' _ _)) =
+    if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
+       then pretty x <+> pretty (repr op) <+> parens (pretty y)
+       else pretty x <+> pretty (repr op) <+> pretty' y
   pretty (BinaryOpExpr op x y) = pretty x <+> pretty (repr op) <+> pretty' y
 
   pretty (ApplyExpr x (TupleExpr ys)) = nest 2 (pretty x <+> fillSep (map pretty ys))

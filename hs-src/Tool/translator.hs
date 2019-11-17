@@ -72,10 +72,12 @@ instance SyntaxElement EgisonExpr where
   toNonS (DoExpr xs y) = DoExpr (map toNonS xs) (toNonS y)
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
-  toNonS (ApplyExpr x@(VarExpr (Var [f] [])) (TupleExpr [y, z])) =
-    case find (\op -> repr op == f) reservedBinops of
-      Just op -> BinaryOpExpr op (toNonS y) (toNonS z)
-      Nothing -> ApplyExpr x (TupleExpr [toNonS y, toNonS z])
+  toNonS (ApplyExpr x@(VarExpr (Var [f] [])) (TupleExpr (y:ys)))
+    | any (\op -> repr op == f) reservedBinops =
+      foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+      where
+        op = fromJust $ find (\op -> repr op == f) reservedBinops
+  toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
 
   toNonS x = x
 
