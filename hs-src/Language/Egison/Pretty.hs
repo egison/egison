@@ -25,7 +25,7 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty EgisonTopExpr where
   pretty (Define x (LambdaExpr args body)) =
-    pretty x <+> hsep (map pretty args) <+> equals <> softline <> pretty body
+    pretty x <+> hsep (map pretty args) <+> equals <> nest 2 (softline <> pretty body)
   pretty (Define x expr) = pretty x <+> equals <> nest 2 (softline <> pretty expr)
   pretty (Test expr) = pretty expr
 
@@ -47,6 +47,15 @@ instance Pretty EgisonExpr where
 
   pretty (LambdaExpr xs y)          = pretty "\\" <> hsep (map pretty xs) <+> pretty "->" <> nest 2 (softline <> pretty y)
   pretty (PatternFunctionExpr xs y) = pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty y
+
+  pretty (IfExpr x y z) =
+    pretty "if" <+> pretty x
+               <> nest 2 (softline <> pretty "then" <+> pretty y <>
+                          softline <> pretty "else" <+> pretty z)
+  pretty (LetRecExpr bindings body) =
+    pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> pretty body
+  pretty (LetExpr _ _) = error "unreachable"
+  pretty (LetStarExpr _ _) = error "unreachable"
 
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
   -- (x1 op' x2) op y
@@ -75,6 +84,10 @@ instance Pretty Var where
 instance Pretty InnerExpr where
   pretty (ElementExpr x) = pretty x
   pretty (SubCollectionExpr _) = error "Not supported"
+
+instance {-# OVERLAPPING #-} Pretty BindingExpr where
+  pretty ([var], expr) = pretty var <+> pretty "=" <+> pretty expr
+  pretty (vars, expr) = tupled (map pretty vars) <+> pretty "=" <+> pretty expr
 
 instance Pretty EgisonPattern where
   pretty x = undefined
