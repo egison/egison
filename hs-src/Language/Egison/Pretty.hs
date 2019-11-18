@@ -171,6 +171,9 @@ instance ASTElement EgisonValue where
 instance ASTElement Var where
   prettyS = show
 
+instance ASTElement VarWithIndices where
+  prettyS = show
+
 instance ASTElement EgisonBinOp where
   prettyS = show
 
