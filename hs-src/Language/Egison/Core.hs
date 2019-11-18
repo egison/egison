@@ -322,12 +322,6 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
       if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
     _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
- where
-  f :: Index a -> Index ()
-  f (Superscript _)  = Superscript ()
-  f (Subscript _)    = Subscript ()
-  f (SupSubscript _) = SupSubscript ()
-  f (Userscript _)   = Userscript ()
 
 evalExpr env (SuprefsExpr bool expr jsExpr) = do
   js <- map Superscript <$> (evalExpr env jsExpr >>= collectionToList)
@@ -348,12 +342,6 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
       if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
     _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
- where
-  f :: Index a -> Index ()
-  f (Superscript _)  = Superscript ()
-  f (Subscript _)    = Subscript ()
-  f (SupSubscript _) = SupSubscript ()
-  f (Userscript _)   = Userscript ()
 
 evalExpr env (UserrefsExpr bool expr jsExpr) = do
   val <- evalExprDeep env expr
