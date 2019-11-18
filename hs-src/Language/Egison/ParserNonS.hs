@@ -674,7 +674,7 @@ patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 
 -- Characters that consist identifiers
 identChar :: Parser Char
-identChar = alphaNumChar <|> oneOf ['.', '?', '\'']
+identChar = alphaNumChar <|> oneOf ['.', '?', '\'', '/']
 
 parens    = between (symbol "(") (symbol ")")
 braces    = between (symbol "{") (symbol "}")
