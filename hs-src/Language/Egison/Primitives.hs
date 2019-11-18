@@ -353,6 +353,27 @@ primitives' = [ ("b.+", plus)
 
              , ("assert", assert)
              , ("assertEqual", assertEqual)
+
+             -- for old library compatibility
+             , ("from-math-expr", fromScalarData)
+             , ("to-math-expr", toScalarData)
+             , ("to-math-expr'", toScalarData)
+             , ("tensor-size", tensorSize')
+             , ("tensor-to-list", tensorToList')
+             , ("df-order", dfOrder')
+             , ("uncons-string", unconsString)
+             , ("length-string", lengthString)
+             , ("append-string", appendString)
+             , ("split-string", splitString)
+             , ("regex-cg", regexStringCaptureGroup)
+             , ("add-prime", addPrime)
+             , ("add-subscript", addSubscript)
+             , ("add-superscript", addSuperscript)
+             , ("read-process", readProcess')
+             , ("read-tsv", readTSV)
+             , ("show-tsv", showTSV')
+             , ("tensor-with-index?", isTensorWithIndex')
+             , ("assert-equal", assertEqual)
              ]
 
 rationalUnaryOp :: (Rational -> Rational) -> PrimitiveFunc
@@ -726,8 +747,7 @@ assertEqual = threeArgs' $ \label actual expected -> if actual == expected
 --
 
 ioPrimitives :: [(String, PrimitiveFunc)]
-ioPrimitives = [
-                 ("return", return')
+ioPrimitives = [ ("return", return')
                , ("open-input-file", makePort ReadMode)
                , ("open-output-file", makePort WriteMode)
                , ("close-input-port", closePort)
@@ -755,8 +775,7 @@ ioPrimitives = [
 
 -- For Non-S syntax
 ioPrimitives' :: [(String, PrimitiveFunc)]
-ioPrimitives' = [
-                 ("return", return')
+ioPrimitives' = [ ("return", return')
                , ("openInputFile", makePort ReadMode)
                , ("openOutputFile", makePort WriteMode)
                , ("closeInputPort", closePort)
@@ -779,7 +798,22 @@ ioPrimitives' = [
 
                , ("rand", randRange)
                , ("f.rand", randRangeDouble)
---               , ("sqlite", sqlite)
+
+               -- for S-expression library compatibility
+               , ("open-input-file", makePort ReadMode)
+               , ("open-output-file", makePort WriteMode)
+               , ("close-input-port", closePort)
+               , ("close-output-port", closePort)
+               , ("read-char", readChar)
+               , ("read-line", readLine)
+               , ("write-char", writeChar)
+               , ("read-char-from-port", readCharFromPort)
+               , ("read-line-from-port", readLineFromPort)
+               , ("write-char-to-port", writeCharToPort)
+               , ("write-to-port", writeStringToPort)
+               , ("eof-port?", isEOFPort)
+               , ("flush-port", flushPort)
+               , ("read-file", readFile')
                ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
