@@ -82,16 +82,14 @@ collectDefs opts (expr:exprs) bindings rest =
     LoadFile file ->
       if optNoIO opts
          then throwError $ Default "No IO support"
-         else do exprs' <- if
-                   | optSExpr opts    -> Parser.loadFile file
-                   | otherwise        -> ParserNonS.loadFile file
+         else do exprs' <- if optSExpr opts then Parser.loadFile file
+                                            else ParserNonS.loadFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
     Load file ->
       if optNoIO opts
          then throwError $ Default "No IO support"
-         else do exprs' <- if
-                   | optSExpr opts    -> Parser.loadLibraryFile file
-                   | otherwise        -> ParserNonS.loadLibraryFile file
+         else do exprs' <- if optSExpr opts then Parser.loadLibraryFile file
+                                            else ParserNonS.loadLibraryFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
 collectDefs _ [] bindings rest = return (bindings, reverse rest)
 
@@ -243,29 +241,13 @@ evalExpr env (IndexedExpr bool expr indices) = do
                   (Just objRef) -> evalRef objRef
                   Nothing       -> evalExpr env expr
               _ -> evalExpr env expr
-  js <- mapM (\case
-                 Superscript n -> Superscript <$> evalExprDeep env n
-                 Subscript n -> Subscript <$> evalExprDeep env n
-                 SupSubscript n -> SupSubscript <$> evalExprDeep env n
-                 Userscript n -> Userscript <$> evalExprDeep env n
-              ) indices
-
+  js <- mapM evalIndex indices
   ret <- case tensor of
       (Value (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []])))) -> do
-        js2 <- mapM (\case
-                        Superscript n -> Superscript <$> (evalExprDeep env n >>= extractScalar)
-                        Subscript n -> Subscript <$> (evalExprDeep env n >>= extractScalar)
-                        SupSubscript n -> SupSubscript <$> (evalExprDeep env n >>= extractScalar)
-                        Userscript n -> Userscript <$> (evalExprDeep env n >>= extractScalar)
-                    ) indices
+        js2 <- mapM evalIndexToScalar indices
         return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js2, 1)]]) (Plus [Term 1 []])))
       (Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js', 1)]]) (Plus [Term 1 []])))) -> do
-        js2 <- mapM (\case
-                        Superscript n -> Superscript <$> (evalExprDeep env n >>= extractScalar)
-                        Subscript n -> Subscript <$> (evalExprDeep env n >>= extractScalar)
-                        SupSubscript n -> SupSubscript <$> (evalExprDeep env n >>= extractScalar)
-                        Userscript n -> Userscript <$> (evalExprDeep env n >>= extractScalar)
-                    ) indices
+        js2 <- mapM evalIndexToScalar indices
         return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (js' ++ js2), 1)]]) (Plus [Term 1 []])))
       (Value (TensorData (Tensor ns xs is))) ->
         if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
@@ -274,12 +256,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
         if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
                 else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
       _ -> do
-        js2 <- mapM (\case
-                        Superscript n -> Superscript <$> (evalExprDeep env n >>= extractScalar)
-                        Subscript n -> Subscript <$> (evalExprDeep env n >>= extractScalar)
-                        SupSubscript n -> SupSubscript <$> (evalExprDeep env n >>= extractScalar)
-                        Userscript n -> Userscript <$> (evalExprDeep env n >>= extractScalar)
-                    ) indices
+        js2 <- mapM evalIndexToScalar indices
         refArray tensor (map (\case
                                  Superscript k  -> ScalarData k
                                  Subscript k    -> ScalarData k
@@ -297,6 +274,19 @@ evalExpr env (IndexedExpr bool expr indices) = do
                _ -> ret
   return ret2
  where
+  evalIndex :: Index EgisonExpr -> EgisonM (Index EgisonValue)
+  evalIndex = \case
+    Superscript n  -> Superscript  <$> evalExprDeep env n
+    Subscript n    -> Subscript    <$> evalExprDeep env n
+    SupSubscript n -> SupSubscript <$> evalExprDeep env n
+    Userscript n   -> Userscript   <$> evalExprDeep env n
+  evalIndexToScalar :: Index EgisonExpr -> EgisonM (Index ScalarData)
+  evalIndexToScalar = \case
+    Superscript n  -> Superscript  <$> (evalExprDeep env n >>= extractScalar)
+    Subscript n    -> Subscript    <$> (evalExprDeep env n >>= extractScalar)
+    SupSubscript n -> SupSubscript <$> (evalExprDeep env n >>= extractScalar)
+    Userscript n   -> Userscript   <$> (evalExprDeep env n >>= extractScalar)
+
   f :: Index a -> Index ()
   f (Superscript _)  = Superscript ()
   f (Subscript _)    = Subscript ()
@@ -322,12 +312,6 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
       if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
     _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
- where
-  f :: Index a -> Index ()
-  f (Superscript _)  = Superscript ()
-  f (Subscript _)    = Subscript ()
-  f (SupSubscript _) = SupSubscript ()
-  f (Userscript _)   = Userscript ()
 
 evalExpr env (SuprefsExpr bool expr jsExpr) = do
   js <- map Superscript <$> (evalExpr env jsExpr >>= collectionToList)
@@ -348,12 +332,6 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
       if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
     _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
- where
-  f :: Index a -> Index ()
-  f (Superscript _)  = Superscript ()
-  f (Subscript _)    = Subscript ()
-  f (SupSubscript _) = SupSubscript ()
-  f (Userscript _)   = Userscript ()
 
 evalExpr env (UserrefsExpr bool expr jsExpr) = do
   val <- evalExprDeep env expr
