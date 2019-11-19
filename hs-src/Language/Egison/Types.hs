@@ -289,7 +289,6 @@ data EgisonExpr =
   | FlipIndicesExpr EgisonExpr
 
   | FunctionExpr [EgisonExpr]
-  | SymbolicTensorExpr [EgisonExpr] EgisonExpr String
 
   | SomethingExpr
   | UndefinedExpr

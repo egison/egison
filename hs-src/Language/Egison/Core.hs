@@ -385,15 +385,6 @@ evalExpr env@(Env frame (Just name)) (FunctionExpr args) = do
   args' <- mapM (evalExprDeep env) args
   return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ show name) (map (symbolScalarData "" . show) args) args' [], 1)]]) (Plus [Term 1 []]))
 
-evalExpr env (SymbolicTensorExpr args sizeExpr name) = do
-  args' <- mapM (evalExprDeep env) args
-  size' <- evalExpr env sizeExpr
-  size'' <- collectionToList size'
-  ns <- mapM fromEgison size'' :: EgisonM [Integer]
-  let xs = map ((\ms -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" (name ++ concatMap ((\m -> "_" ++ m) . show) ms)) (map (symbolScalarData "" . show) args) args' [], 1)]]) (Plus [Term 1 []])))
-               . map toEgison) (enumTensorIndices ns)
-  fromTensor (Tensor ns (V.fromList xs) [])
-
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
   evalExpr env $ if test then expr else expr'

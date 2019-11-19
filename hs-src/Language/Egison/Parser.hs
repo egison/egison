@@ -226,7 +226,6 @@ expr' = try partialExpr
                         <|> arrayBoundsExpr
                         <|> arrayRefExpr
                         <|> generateTensorExpr
-                        <|> symbolicTensorExpr
                         <|> tensorExpr
                         <|> tensorContractExpr
                         <|> tensorMapExpr
@@ -289,9 +288,6 @@ functionWithArgExpr = keywordFunction >> FunctionExpr <$> between lp rp (sepEndB
   where
     lp = P.lexeme lexer (char '[')
     rp = char ']'
-
-symbolicTensorExpr :: Parser EgisonExpr
-symbolicTensorExpr = keywordSymbolicTensor >> SymbolicTensorExpr <$> brackets (sepEndBy expr whiteSpace) <*> expr <*> ident
 
 quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
@@ -796,7 +792,6 @@ reservedKeywords =
   , "user-refs"
   , "user-refs!"
   , "function"
-  , "symbolic-tensor"
   , "something"
   , "undefined"]
 
@@ -877,7 +872,6 @@ keywordSuprefsNew           = reserved "suprefs!"
 keywordUserrefs             = reserved "user-refs"
 keywordUserrefsNew          = reserved "user-refs!"
 keywordFunction             = reserved "function"
-keywordSymbolicTensor       = reserved "symbolic-tensor"
 
 sign :: Num a => Parser (a -> a)
 sign = (char '-' >> return negate)
