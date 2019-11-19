@@ -250,10 +250,8 @@ data EgisonExpr =
   | LetStarExpr [BindingExpr] EgisonExpr
   | WithSymbolsExpr [String] EgisonExpr
 
-  | MatchExpr EgisonExpr EgisonExpr [MatchClause]
-  | MatchDFSExpr EgisonExpr EgisonExpr [MatchClause]
-  | MatchAllExpr EgisonExpr EgisonExpr [MatchClause]
-  | MatchAllDFSExpr EgisonExpr EgisonExpr [MatchClause]
+  | MatchExpr PMMode EgisonExpr EgisonExpr [MatchClause]
+  | MatchAllExpr PMMode EgisonExpr EgisonExpr [MatchClause]
   | MatchLambdaExpr EgisonExpr [MatchClause]
   | MatchAllLambdaExpr EgisonExpr [MatchClause]
 
@@ -1652,7 +1650,7 @@ refVar (Env env _) var = msum $ map (HashMap.lookup var) env
 type Match = [Binding]
 
 data PMMode = BFSMode | DFSMode
- deriving (Show)
+ deriving (Eq, Show)
 
 data MatchingState = MState Env [LoopPatContext] [SeqPatContext] [Binding] [MatchingTree]
 

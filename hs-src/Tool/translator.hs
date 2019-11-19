@@ -56,12 +56,10 @@ instance SyntaxElement EgisonExpr where
   toNonS (LetStarExpr xs y)     = LetRecExpr (map toNonS xs) (toNonS y)
   toNonS (WithSymbolsExpr xs y) = WithSymbolsExpr xs (toNonS y)
 
-  toNonS (MatchExpr x y zs)        = MatchExpr       (toNonS x) (toNonS y) (map toNonS zs)
-  toNonS (MatchDFSExpr x y zs)     = MatchDFSExpr    (toNonS x) (toNonS y) (map toNonS zs)
-  toNonS (MatchAllExpr x y zs)     = MatchAllExpr    (toNonS x) (toNonS y) (map toNonS zs)
-  toNonS (MatchAllDFSExpr x y zs)  = MatchAllDFSExpr (toNonS x) (toNonS y) (map toNonS zs)
-  toNonS (MatchLambdaExpr x ys)    = MatchLambdaExpr    (toNonS x) (map toNonS ys)
-  toNonS (MatchAllLambdaExpr x ys) = MatchAllLambdaExpr (toNonS x) (map toNonS ys)
+  toNonS (MatchExpr pmmode x y zs)    = MatchExpr pmmode (toNonS x) (toNonS y) (map toNonS zs)
+  toNonS (MatchAllExpr pmmode x y zs) = MatchAllExpr pmmode (toNonS x) (toNonS y) (map toNonS zs)
+  toNonS (MatchLambdaExpr x ys)       = MatchLambdaExpr    (toNonS x) (map toNonS ys)
+  toNonS (MatchAllLambdaExpr x ys)    = MatchAllLambdaExpr (toNonS x) (map toNonS ys)
 
   toNonS (MatcherExpr xs) = MatcherExpr (map toNonS xs)
 

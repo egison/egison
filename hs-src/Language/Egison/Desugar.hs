@@ -53,7 +53,8 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", TupleExpr []
-               ,[(PDPatVar "tgt", MatchExpr (TupleExpr [stringToVarExpr "val", stringToVarExpr "tgt"])
+               ,[(PDPatVar "tgt", MatchExpr BFSMode
+                                            (TupleExpr [stringToVarExpr "val", stringToVarExpr "tgt"])
                                             (TupleExpr [matcher, matcher])
                                              clauses)])
         where
@@ -105,11 +106,11 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
 desugar (MatchAllLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr (stringToVarExpr name) matcher clauses)
+  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr BFSMode (stringToVarExpr name) matcher clauses)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchExpr (stringToVarExpr name) matcher clauses)
+  desugar $ LambdaExpr [TensorArg name] (MatchExpr BFSMode (stringToVarExpr name) matcher clauses)
 
 desugar (ArrayRefExpr expr nums) =
   case nums of
@@ -265,17 +266,11 @@ desugar (LetStarExpr binds expr) = do
 desugar (WithSymbolsExpr vars expr) =
   WithSymbolsExpr vars <$> desugar expr
 
-desugar (MatchExpr expr0 expr1 clauses) =
-  MatchExpr <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses
+desugar (MatchExpr pmmode expr0 expr1 clauses) =
+  MatchExpr pmmode <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses
 
-desugar (MatchDFSExpr expr0 expr1 clauses) =
-  MatchDFSExpr <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses
-
-desugar (MatchAllExpr expr0 expr1 clauses) =
-  MatchAllExpr <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses
-
-desugar (MatchAllDFSExpr expr0 expr1 clauses) =
-  MatchAllDFSExpr <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses
+desugar (MatchAllExpr pmmode expr0 expr1 clauses) =
+  MatchAllExpr pmmode <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses
 
 desugar (DoExpr binds expr) =
   DoExpr <$> desugarBindings binds <*> desugar expr

@@ -230,10 +230,10 @@ ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
 
 patternMatchExpr :: Parser EgisonExpr
-patternMatchExpr = makeMatchExpr keywordMatch       MatchExpr
-               <|> makeMatchExpr keywordMatchDFS    MatchDFSExpr
-               <|> makeMatchExpr keywordMatchAll    MatchAllExpr
-               <|> makeMatchExpr keywordMatchAllDFS MatchAllDFSExpr
+patternMatchExpr = makeMatchExpr keywordMatch       (MatchExpr BFSMode)
+               <|> makeMatchExpr keywordMatchDFS    (MatchExpr DFSMode)
+               <|> makeMatchExpr keywordMatchAll    (MatchAllExpr BFSMode)
+               <|> makeMatchExpr keywordMatchAllDFS (MatchAllExpr DFSMode)
                <?> "pattern match expression"
   where
     makeMatchExpr keyword ctor = ctor <$> (keyword >> expr)

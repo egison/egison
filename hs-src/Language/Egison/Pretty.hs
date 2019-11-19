@@ -59,13 +59,13 @@ instance Pretty EgisonExpr where
   pretty (LetExpr _ _) = error "unreachable"
   pretty (LetStarExpr _ _) = error "unreachable"
 
-  pretty (MatchExpr tgt matcher clauses) =
+  pretty (MatchExpr BFSMode tgt matcher clauses) =
     pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses
-  pretty (MatchDFSExpr tgt matcher clauses) =
+  pretty (MatchExpr DFSMode tgt matcher clauses) =
     pretty "matchDFS"    <+> pretty tgt <+> prettyMatch matcher clauses
-  pretty (MatchAllExpr tgt matcher clauses) =
+  pretty (MatchAllExpr BFSMode tgt matcher clauses) =
     pretty "matchAll"    <+> pretty tgt <+> prettyMatch matcher clauses
-  pretty (MatchAllDFSExpr tgt matcher clauses) =
+  pretty (MatchAllExpr DFSMode tgt matcher clauses) =
     pretty "matchAllDFS" <+> pretty tgt <+> prettyMatch matcher clauses
   pretty (MatchLambdaExpr matcher clauses) =
     pretty "\\match"     <+> prettyMatch matcher clauses
