@@ -392,7 +392,7 @@ evalExpr env (LetRecExpr bindings expr) =
         nth n =
           let pattern = TuplePat $ flip map [1..k] $ \i ->
                 if i == n then PatVar (stringToVar "#_") else WildCard
-          in MatchExpr target matcher [(pattern, stringToVarExpr "#_")]
+          in MatchExpr BFSMode target matcher [(pattern, stringToVarExpr "#_")]
     return ((var, expr) : map (second nth) (zip names [1..]))
 
   genVar :: State Int Var
@@ -467,7 +467,7 @@ evalExpr env (IoExpr expr) = do
         Tuple [_, val'] -> return $ Value val'
     _ -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
 
-evalExpr env (MatchAllExpr target matcher clauses) = do
+evalExpr env (MatchAllExpr pmmode target matcher clauses) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
   f matcher target >>= fromMList
@@ -481,51 +481,18 @@ evalExpr env (MatchAllExpr target matcher clauses) = do
     return . Intermediate $ ICollection seqRef
   f matcher target = do
       let tryMatchClause (pattern, expr) results = do
-            result <- patternMatch BFSMode env pattern target matcher
+            result <- patternMatch pmmode env pattern target matcher
             mmap (flip evalExpr expr . extendEnv env) result >>= flip mappend results
       mfoldr tryMatchClause (return MNil) (fromList clauses)
 
-evalExpr env (MatchAllDFSExpr target matcher clauses) = do
-  target <- evalExpr env target
-  matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  f matcher target >>= fromMList
- where
-  fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
-  fromMList MNil = return . Value $ Collection Sq.empty
-  fromMList (MCons val m) = do
-    head <- IElement <$> newEvaluatedObjectRef val
-    tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
-    seqRef <- liftIO . newIORef $ Sq.fromList [head, tail]
-    return . Intermediate $ ICollection seqRef
-  f matcher target = do
-      let tryMatchClause (pattern, expr) results = do
-            result <- patternMatch DFSMode env pattern target matcher
-            mmap (flip evalExpr expr . extendEnv env) result >>= flip mappend results
-      mfoldr tryMatchClause (return MNil) (fromList clauses)
-
-evalExpr env (MatchExpr target matcher clauses) = do
+evalExpr env (MatchExpr pmmode target matcher clauses) = do
   target <- evalExpr env target
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
   f matcher target
  where
   f matcher target = do
       let tryMatchClause (pattern, expr) cont = do
-            result <- patternMatch BFSMode env pattern target matcher
-            case result of
-              MCons bindings _ -> evalExpr (extendEnv env bindings) expr
-              MNil             -> cont
-      currentFuncName <- topFuncName
-      callstack <- getFuncNameStack
-      foldr tryMatchClause (throwError $ MatchFailure currentFuncName callstack) clauses
-
-evalExpr env (MatchDFSExpr target matcher clauses) = do
-  target <- evalExpr env target
-  matcher <- evalExpr env matcher >>= evalMatcherWHNF
-  f matcher target
- where
-  f matcher target = do
-      let tryMatchClause (pattern, expr) cont = do
-            result <- patternMatch DFSMode env pattern target matcher
+            result <- patternMatch pmmode env pattern target matcher
             case result of
               MCons bindings _ -> evalExpr (extendEnv env bindings) expr
               MNil             -> cont

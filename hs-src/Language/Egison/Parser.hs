@@ -293,16 +293,16 @@ quoteSymbolExpr :: Parser EgisonExpr
 quoteSymbolExpr = char '`' >> QuoteSymbolExpr <$> expr
 
 matchAllExpr :: Parser EgisonExpr
-matchAllExpr = keywordMatchAll >> MatchAllExpr <$> expr <*> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
+matchAllExpr = keywordMatchAll >> MatchAllExpr BFSMode <$> expr <*> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
 
 matchAllDFSExpr :: Parser EgisonExpr
-matchAllDFSExpr = keywordMatchAllDFS >> MatchAllDFSExpr <$> expr <*> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
+matchAllDFSExpr = keywordMatchAllDFS >> MatchAllExpr DFSMode <$> expr <*> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
 
 matchExpr :: Parser EgisonExpr
-matchExpr = keywordMatch >> MatchExpr <$> expr <*> expr <*> matchClauses
+matchExpr = keywordMatch >> MatchExpr BFSMode <$> expr <*> expr <*> matchClauses
 
 matchDFSExpr :: Parser EgisonExpr
-matchDFSExpr = keywordMatchDFS >> MatchDFSExpr <$> expr <*> expr <*> matchClauses
+matchDFSExpr = keywordMatchDFS >> MatchExpr DFSMode <$> expr <*> expr <*> matchClauses
 
 matchAllLambdaExpr :: Parser EgisonExpr
 matchAllLambdaExpr = keywordMatchAllLambda >> MatchAllLambdaExpr <$> expr <*> (((:[]) <$> matchClause) <|> matchClauses)
