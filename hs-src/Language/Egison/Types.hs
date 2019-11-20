@@ -82,6 +82,7 @@ module Language.Egison.Types
     , nullEnv
     , extendEnv
     , refVar
+    , varToVarWithIndices
     -- * Pattern matching
     , Match
     , MatchingTree (..)
@@ -134,8 +135,6 @@ module Language.Egison.Types
     , isCollection'
     , isArray'
     , isHash'
-    , readUTF8File
-    , varToVarWithIndices
     , EgisonOpts (..)
     , defaultOption
     ) where
@@ -1300,6 +1299,14 @@ extendEnv (Env env idx) bdg = Env ((: env) $ HashMap.fromList bdg) idx
 refVar :: Env -> Var -> Maybe ObjectRef
 refVar (Env env _) var = msum $ map (HashMap.lookup var) env
 
+varToVarWithIndices :: Var -> VarWithIndices
+varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
+ where
+   f :: Index () -> Index String
+   f (Superscript ())  = Superscript ""
+   f (Subscript ())    = Subscript ""
+   f (SupSubscript ()) = SupSubscript ""
+
 --
 -- Pattern Match
 --
@@ -1636,20 +1643,6 @@ isHash' (Value (StrHash _))         = return $ Value $ Bool True
 isHash' (Intermediate (IIntHash _)) = return $ Value $ Bool True
 isHash' (Intermediate (IStrHash _)) = return $ Value $ Bool True
 isHash' _                           = return $ Value $ Bool False
-
-readUTF8File :: FilePath -> IO String
-readUTF8File name = do
-  h <- openFile name ReadMode
-  hSetEncoding h utf8
-  hGetContents h
-
-varToVarWithIndices :: Var -> VarWithIndices
-varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
- where
-   f :: Index () -> Index String
-   f (Superscript ())  = Superscript ""
-   f (Subscript ())    = Subscript ""
-   f (SupSubscript ()) = SupSubscript ""
 
 --
 -- options

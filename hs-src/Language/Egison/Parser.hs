@@ -25,12 +25,11 @@ module Language.Egison.Parser
        , loadFile
        ) where
 
+import           Prelude                 hiding (mapM)
+
 import           Control.Applicative     (pure, (*>), (<$>), (<*), (<*>))
 import           Control.Monad.Except    (liftIO, throwError)
 import           Control.Monad.Identity  (Identity, unless)
-import           Prelude                 hiding (mapM)
-
-import           System.Directory        (doesFileExist, getHomeDirectory)
 
 import           Data.Char               (isLower, isUpper)
 import           Data.Either
@@ -38,13 +37,14 @@ import           Data.Functor            (($>))
 import           Data.List.Split         (splitOn)
 import           Data.Ratio
 import qualified Data.Set                as Set
+import qualified Data.Text               as T
 import           Data.Traversable        (mapM)
 
 import           Text.Parsec
 import           Text.Parsec.String
 import qualified Text.Parsec.Token       as P
-
-import qualified Data.Text               as T
+import           System.Directory        (doesFileExist, getHomeDirectory)
+import           System.IO
 
 import           Language.Egison.AST
 import           Language.Egison.Desugar
@@ -111,6 +111,12 @@ loadFile file = do
   shebang :: String -> String
   shebang ('#':'!':cs) = ';':'#':'!':cs
   shebang cs           = cs
+
+readUTF8File :: FilePath -> IO String
+readUTF8File name = do
+  h <- openFile name ReadMode
+  hSetEncoding h utf8
+  hGetContents h
 
 --
 -- Parser
