@@ -9,7 +9,8 @@ This is the top module of Egison.
 -}
 
 module Language.Egison
-       ( module Language.Egison.Types
+       ( module Language.Egison.AST
+       , module Language.Egison.Types
        , module Language.Egison.Primitives
        -- * Eval Egison expressions
        , evalTopExprs
@@ -33,6 +34,7 @@ module Language.Egison
 import           Data.Version
 import qualified Paths_egison                as P
 
+import           Language.Egison.AST
 import           Language.Egison.Core
 import           Language.Egison.MathOutput  (changeOutputInLang)
 import           Language.Egison.Parser      as Parser

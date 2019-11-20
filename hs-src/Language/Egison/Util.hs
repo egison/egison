@@ -17,6 +17,7 @@ import           System.Console.Haskeline         hiding (catch, handle, throwTo
 import           System.Console.Haskeline.History (addHistoryUnlessConsecutiveDupe)
 import           Text.Regex.TDFA                  ((=~))
 
+import           Language.Egison.AST
 import           Language.Egison.Parser           as Parser
 import           Language.Egison.ParserNonS       as ParserNonS
 import           Language.Egison.Types
