@@ -79,7 +79,6 @@ module Language.Egison.Types
     , Env (..)
     , VarWithIndices (..)
     , Binding (..)
-    , Id
     , nullEnv
     , extendEnv
     , refVar
@@ -232,6 +231,8 @@ data SymbolExpr =
   | Quote ScalarData
   | FunctionData (Maybe EgisonValue) [EgisonValue] [EgisonValue] [Index ScalarData] -- fnname argnames args indices
  deriving (Eq)
+
+type Id = String
 
 instance Eq PolyExpr where
   (Plus []) == (Plus []) = True
@@ -1267,8 +1268,6 @@ data VarWithIndices = VarWithIndices [String] [Index String]
  deriving (Eq)
 
 type Binding = (Var, ObjectRef)
-
-type Id = String
 
 instance Show (Index ScalarData) where
   show (Superscript i)  = "~" ++ show i
