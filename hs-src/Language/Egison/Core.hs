@@ -64,6 +64,7 @@ import qualified Data.Vector                 as V
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 
+import           Language.Egison.AST
 import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
 import           Language.Egison.Types

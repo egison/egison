@@ -46,6 +46,7 @@ import           Text.Megaparsec.Pos            (Pos)
 
 import           Data.Text                      (pack)
 
+import           Language.Egison.AST
 import           Language.Egison.Desugar
 import           Language.Egison.Types
 import           Paths_egison                   (getDataFileName)
