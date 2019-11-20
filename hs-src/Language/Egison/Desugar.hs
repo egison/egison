@@ -22,8 +22,8 @@ import           Data.List             (span)
 import           Data.Set              (Set)
 import qualified Data.Set              as S
 
-import           Language.Egison.Types
 import           Language.Egison.AST
+import           Language.Egison.Types
 
 desugarTopExpr :: EgisonTopExpr -> EgisonM EgisonTopExpr
 desugarTopExpr (Define name expr)   = Define name <$> desugar expr
