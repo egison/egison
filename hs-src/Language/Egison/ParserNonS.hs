@@ -25,16 +25,16 @@ module Language.Egison.ParserNonS
        , loadFile
        ) where
 
+import           Prelude                        hiding (mapM)
+
 import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
 import           Control.Monad.Except           (liftIO, throwError)
 import           Control.Monad.State            (unless)
-import           Prelude                        hiding (mapM)
-
-import           System.Directory               (doesFileExist, getHomeDirectory)
 
 import           Data.Functor                   (($>))
 import           Data.List                      (find)
 import           Data.Maybe                     (fromJust, isJust)
+import           Data.Text                      (pack)
 import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
@@ -43,8 +43,8 @@ import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
 import           Text.Megaparsec.Debug          (dbg)
 import           Text.Megaparsec.Pos            (Pos)
-
-import           Data.Text                      (pack)
+import           System.Directory               (doesFileExist, getHomeDirectory)
+import           System.IO
 
 import           Language.Egison.AST
 import           Language.Egison.Desugar
@@ -99,6 +99,12 @@ loadFile file = do
   shebang :: String -> String
   shebang ('#':'!':cs) = ';':'#':'!':cs
   shebang cs           = cs
+
+readUTF8File :: FilePath -> IO String
+readUTF8File name = do
+  h <- openFile name ReadMode
+  hSetEncoding h utf8
+  hGetContents h
 
 --
 -- Parser
