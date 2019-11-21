@@ -15,15 +15,15 @@ This module contains type definitions of Egison Data.
 
 module Language.Egison.Types
     (
-      EgisonData (..)
+    -- * Egison values
+      EgisonValue (..)
     , Matcher (..)
     , PrimitiveFunc (..)
-    -- * Egison values
-    , EgisonValue (..)
     , ScalarData (..)
     , PolyExpr (..)
     , TermExpr (..)
     , SymbolExpr (..)
+    , EgisonData (..)
     , Tensor (..)
     , HasTensor (..)
     -- * Tensor
@@ -206,6 +206,10 @@ data EgisonValue =
   | Something
   | Undefined
   | EOF
+
+type Matcher = EgisonValue
+
+type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 --
 -- Scalar and Tensor Types
@@ -983,10 +987,6 @@ removePairs' (m, n) xs =         -- (0,1) [i i]
 --
 --
 --
-
-type Matcher = EgisonValue
-
-type PrimitiveFunc = WHNFData -> EgisonM WHNFData
 
 instance Show EgisonValue where
   show (Char c) = "c#" ++ [c]
