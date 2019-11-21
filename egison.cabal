@@ -93,6 +93,7 @@ Library
     , vector
     , split
     , hashable
+    , optparse-applicative
     , prettyprinter
   if !impl(ghc > 8.0)
     Build-Depends: fail
@@ -101,6 +102,7 @@ Library
                    Language.Egison
                    Language.Egison.AST
                    Language.Egison.Core
+                   Language.Egison.CmdOptions
                    Language.Egison.Desugar
                    Language.Egison.Types
                    Language.Egison.Parser

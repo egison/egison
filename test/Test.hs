@@ -15,6 +15,7 @@ import           Test.HUnit
 
 import           Language.Egison
 import           Language.Egison.Core
+import           Language.Egison.CmdOptions
 import qualified Language.Egison.Parser         as Parser
 import qualified Language.Egison.ParserNonS     as ParserNonS
 import           Language.Egison.Primitives
