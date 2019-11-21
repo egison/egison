@@ -375,13 +375,6 @@ assertEqual "hash access"
 --
 -- Partial Application
 --
--- assertEqual "partial application '$'"
---   ($ + $)(1, 2)
---   3
---
--- assertEqual "partial application '$' with index"
---   ($2-$1)(1, 2)
---   1
 --
 -- assertEqual "partial application '#'"
 --   2#(10 * %1 + %2)(1, 2)
@@ -417,10 +410,10 @@ list a = matcher
   | snoc $ $ as (a, list a) with
     | snoc $xs $x -> [(x, xs)]
     | _           -> []
-  | join _ $ as (list a) with
+  | _ ++ $ as (list a) with
     | $tgt -> matchAll tgt as list a with
               | loop $i (1, _) | _ : ...  | $rs -> rs
-  | join $ $ as (list a, list a) with
+  | $ ++ $ as (list a, list a) with
     | $tgt -> matchAll tgt as list a with
               | loop $i (1, $n) $xa_i : ... | $rs ->
                 (foldr (\%i %r -> xa_i : r) [] [1..n], rs)
