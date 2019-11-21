@@ -25,8 +25,8 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty EgisonTopExpr where
   pretty (Define x (LambdaExpr args body)) =
-    pretty x <+> hsep (map pretty args) <+> equals <> nest 2 (softline <> pretty body)
-  pretty (Define x expr) = pretty x <+> equals <> nest 2 (softline <> pretty expr)
+    pretty x <+> hsep (map pretty args) <+> pretty ":=" <> nest 2 (softline <> pretty body)
+  pretty (Define x expr) = pretty x <+> pretty ":=" <> nest 2 (softline <> pretty expr)
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
@@ -104,8 +104,8 @@ instance Pretty InnerExpr where
   pretty (SubCollectionExpr _) = error "Not supported"
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
-  pretty ([var], expr) = pretty var <+> pretty "=" <+> pretty expr
-  pretty (vars, expr) = tupled (map pretty vars) <+> pretty "=" <+> pretty expr
+  pretty ([var], expr) = pretty var <+> pretty ":=" <+> pretty expr
+  pretty (vars, expr) = tupled (map pretty vars) <+> pretty ":=" <+> pretty expr
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) = pipe <+> pretty pat <+> pretty "->" <> softline <> pretty expr
