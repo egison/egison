@@ -220,7 +220,7 @@ opExpr = do
           , [ InfixL (binary "+" )
             , InfixL (binary "-" ) ]
           -- 5
-          , [ InfixR (binary ":" )
+          , [ InfixR (binary "::" )
             , InfixR (binary "++") ]
           -- 4
           , [ InfixL (binary "==")
@@ -536,7 +536,7 @@ opPattern = makeExprParser applyOrAtomPattern table
     table =
       [ [ Prefix (NotPat <$ symbol "!") ]
       -- 5
-      , [ InfixR (inductive2 "cons" ":" )
+      , [ InfixR (inductive2 "cons" "::" )
         , InfixR (inductive2 "join" "++") ]
       -- 3
       , [ InfixR (binary AndPat "&&") ]
@@ -585,7 +585,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
   where
     table :: [[Operator Parser PrimitivePatPattern]]
     table =
-      [ [ InfixR (inductive2 "cons" ":" )
+      [ [ InfixR (inductive2 "cons" "::" )
         , InfixR (inductive2 "join" "++") ]
       ]
     inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ operator sym
@@ -605,7 +605,7 @@ pdPattern = PDInductivePat <$> upperId <*> many pdAtom
   where
     table :: [[Operator Parser PrimitiveDataPattern]]
     table =
-      [ [ InfixR (PDConsPat <$ symbol ":") ]
+      [ [ InfixR (PDConsPat <$ symbol "::") ]
       ]
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard    <$ symbol "_"
