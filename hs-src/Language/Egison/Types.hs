@@ -995,10 +995,10 @@ instance Show EgisonValue where
   show (ScalarData mExpr) = show mExpr
   show (TensorData (Tensor [_] xs js)) = "[| " ++ intercalate ", " (map show (V.toList xs)) ++ " |]" ++ concatMap show js
   show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap show js
-  show (TensorData (Tensor [i, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concatMap show js
+  show (TensorData (Tensor [i, j] xs js)) = "[| " ++ intercalate ", " (f (fromIntegral j) (V.toList xs)) ++ " |]" ++ concatMap show js
     where
-      f j [] = ""
-      f j xs = "[| " ++ intercalate ", " (map show (take j xs)) ++ " |] " ++ f j (drop j xs)
+      f j [] = []
+      f j xs = ["[| " ++ intercalate ", " (map show (take j xs)) ++ " |]"] ++ f j (drop j xs)
   show (TensorData (Tensor ns xs js)) = "(tensor [" ++ intercalate ", " (map show ns) ++ "] [" ++ intercalate ", " (map show (V.toList xs)) ++ "] )" ++ concatMap show js
   show (Float x) = show x
   show (InductiveData name vals) = name ++ concatMap ((' ':) . show') vals

@@ -18,6 +18,7 @@ import           Language.Egison.Core
 import           Language.Egison.CmdOptions
 import qualified Language.Egison.Parser         as Parser
 import qualified Language.Egison.ParserNonS     as ParserNonS
+import           Language.Egison.Pretty
 import           Language.Egison.Primitives
 import           Language.Egison.Types
 
@@ -103,10 +104,10 @@ runSampleTestCase file = TestLabel file . TestCase $ do
     f :: [String] -> [(EgisonExpr, EgisonValue)] -> String
     f answers ls = g answers ls 0
     g x y i = let (e, v) = unzip y in
-              if (x !! i) == show (v !! i)
+              if (x !! i) == prettyS (v !! i)
                  then (if i < (length y - 1) then g x y (i + 1)
                                              else "")
-                 else "failed " ++ show (e !! i) ++ "\n expected: " ++ (x !! i) ++ "\n but found: " ++ show (v !! i)
+                 else "failed " ++ show (e !! i) ++ "\n expected: " ++ (x !! i) ++ "\n but found: " ++ prettyS (v !! i)
 
 collectDefsAndTests :: EgisonTopExpr -> ([(Var, EgisonExpr)], [EgisonExpr]) -> ([(Var, EgisonExpr)], [EgisonExpr])
 collectDefsAndTests (Define name expr) (bindings, tests) =
