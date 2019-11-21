@@ -183,6 +183,7 @@ expr = ifExpr
    <|> letExpr
    <|> withSymbolsExpr
    <|> doExpr
+   <|> ioExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
    <|> memoizedLambdaExpr
@@ -309,6 +310,9 @@ doExpr = do
   where
     statement :: Parser BindingExpr
     statement = (keywordLet >> binding) <|> ([],) <$> expr
+
+ioExpr :: Parser EgisonExpr
+ioExpr = IoExpr <$> (keywordIo >> expr)
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
