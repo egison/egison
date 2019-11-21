@@ -146,7 +146,7 @@ topExpr = Load     <$> (keywordLoad >> stringLiteral)
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
   e <- expr
-  (do symbol "="
+  (do symbol ":="
       body <- expr
       return $ convertToDefine e body)
       <|> return (Test e)
@@ -223,7 +223,7 @@ opExpr = do
           , [ InfixR (binary "::" )
             , InfixR (binary "++") ]
           -- 4
-          , [ InfixL (binary "==")
+          , [ InfixL (binary "=")
             , InfixL (binary "<=")
             , InfixL (binary "<" )
             , InfixL (binary ">=")
@@ -293,7 +293,7 @@ binding = do
               <|> do var <- varLiteral
                      args <- many arg
                      return ([var], args)
-  body <- symbol "=" >> expr
+  body <- symbol ":=" >> expr
   return $ case args of
              [] -> (vars, body)
              _  -> (vars, LambdaExpr args body)
