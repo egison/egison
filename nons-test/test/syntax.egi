@@ -102,6 +102,14 @@ assertEqual "twin primes"
   (take 10 twinPrimes)
   [(3, 5), (5, 7), (11, 13), (17, 19), (29, 31), (41, 43), (59, 61), (71, 73), (101, 103), (107, 109)]
 
+primeTriplets :=
+  matchAll primes as list integer with
+  | _ ++ $p :: ((#(p + 2) || #(p + 4)) && $m) :: #(p + 6) ::  _ -> (p, m, p + 6)
+
+assertEqual "prime triplets"
+  (take 10 primeTriplets)
+  [(5, 7, 11), (7, 11, 13), (11, 13, 17), (13, 17, 19), (17, 19, 23), (37, 41, 43), (41, 43, 47), (67, 71, 73), (97, 101, 103), (101, 103, 107)]
+
 someFunction x y z :=
   x + y * z
 
