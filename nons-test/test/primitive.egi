@@ -128,7 +128,7 @@ assertEqual "read" (read "\"Hello world!\"") "Hello world!"
 
 assertEqual "show" (show 3)              "3"
 assertEqual "show" (show 3.14159)        "3.14159"
-assertEqual "show" (show [1, 2])         "{1 2}"
+assertEqual "show" (show [1, 2])         "[1, 2]"
 assertEqual "show" (show "Hello world!") "\"Hello world!\""
 
 -- TODO: show-tsv
