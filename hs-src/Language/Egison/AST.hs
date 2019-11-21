@@ -241,8 +241,8 @@ reservedBinops =
   , makeBinOp "+"  "+"         6 LeftAssoc
   , makeBinOp "-"  "-"         6 LeftAssoc
   , makeBinOp "++" "append"    5 RightAssoc
-  , makeBinOp ":"  "cons"      5 RightAssoc
-  , makeBinOp "==" "eq?"       4 LeftAssoc
+  , makeBinOp "::" "cons"      5 RightAssoc
+  , makeBinOp "="  "eq?"       4 LeftAssoc
   , makeBinOp "<=" "lte?"      4 LeftAssoc
   , makeBinOp ">=" "gte?"      4 LeftAssoc
   , makeBinOp "<"  "lt?"       4 LeftAssoc

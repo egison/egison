@@ -51,20 +51,20 @@ assertEqual "if"
   False
 
 assertEqual "let binding"
-  (let t = (1, 2)
-       (x, y) = t
+  (let t := (1, 2)
+       (x, y) := t
     in x + y)
   3
 
 assertEqual "let binding"
-  (let x = 1
-       y = x + 1
+  (let x := 1
+       y := x + 1
     in y)
   2
 
 assertEqual "mutual recursion"
-  (let even? n = if n == 0 then True else odd? (n - 1)
-       odd? n = if n == 0 then False else even? (n - 1)
+  (let even? n := if n = 0 then True else odd? (n - 1)
+       odd?  n := if n = 0 then False else even? (n - 1)
     in even? 10)
   True
 
@@ -86,32 +86,32 @@ assertEqual "point free expr" ((10 -) 1) 9
 assertEqual "point free expr" ((10 - ) 1) 9
 assertEqual "not point free expr" (- 2) (1 - 3)
 
--- findFactor = memoizedLambda
+-- findFactor := memoizedLambda
 --                n -> match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
---                     | _ ++ (?(\m -> divisor? n m) && $x)  :  _ -> x
+--                     | _ ++ (?(\m -> divisor? n m) && $x) :: _ -> x
 --                     | _ -> n
 -- assertEqual "memoized lambda"
 --   (map findFactor [1..10])
 --   [1, 2, 3, 2, 5, 2, 7, 2, 3, 2]
 
-twinPrimes =
+twinPrimes :=
   matchAll primes as list integer with
-  | _ ++ $p : #(p + 2) : _ -> (p, p + 2)
+  | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 
 assertEqual "twin primes"
   (take 10 twinPrimes)
   [(3, 5), (5, 7), (11, 13), (17, 19), (29, 31), (41, 43), (59, 61), (71, 73), (101, 103), (107, 109)]
 
-someFunction x y z =
+someFunction x y z :=
   x + y * z
 
 assertEqual "function definition"
   (someFunction 1 2 3)
   7
 
-gcd m n =
+gcd m n :=
   if (m >= n) then
-              if (n == 0) then m
+              if (n = 0) then m
                           else gcd n (m % n)
               else gcd n m
 
@@ -131,39 +131,39 @@ assertEqual "match"
 
 assertEqual "match-all"
   (matchAll [1, 2, 3] as multiset integer with
-   | $x : _ -> x)
+   | $x :: _ -> x)
   [1, 2, 3]
 
 assertEqual "match-all-multi"
   (matchAll [1, 2, 3] as multiset integer with
-   | $x : #(x + 1) : _ -> [x, x + 1]
-   | $x : #(x + 2) : _ -> [x, x + 2])
+   | $x :: #(x + 1) :: _ -> [x, x + 1]
+   | $x :: #(x + 2) :: _ -> [x, x + 2])
   [[1, 2], [2, 3], [1, 3]]
 
 assertEqual "match-lambda"
   ((\match as list integer with
     | [] -> 0
-    | $x : _ -> x) [1, 2, 3])
+    | $x :: _ -> x) [1, 2, 3])
   1
 
 assertEqual "match-all-lambda"
   ((\matchAll as list something with
-    | _ ++ $x : _ -> x) [1, 2, 3])
+    | _ ++ $x :: _ -> x) [1, 2, 3])
   [1, 2, 3]
 
 assertEqual "match-all-lambda-multi"
   ((\matchAll as multiset something with
-    | $x : #(x + 1) : _ -> [x, x + 1]
-    | $x : #(x + 2) : _ -> [x, x + 2]) [1, 2, 3])
+    | $x :: #(x + 1) :: _ -> [x, x + 1]
+    | $x :: #(x + 2) :: _ -> [x, x + 2]) [1, 2, 3])
   [[1, 2], [2, 3], [1, 3]]
 
 assert "nested pattern match"
   (match [1, 2, 3] as list integer with
-   | #2 : $x -> match x as multiset integer with
+   | #2 :: $x -> match x as multiset integer with
                 | _ -> False
-   | #1 : $x -> match x as multiset integer with
-                | #1 : _ -> False
-                | #2 : _ -> True)
+   | #1 :: $x -> match x as multiset integer with
+                | #1 :: _ -> False
+                | #2 :: _ -> True)
 
 assertEqual "pattern variable"
   (match 1 as something with $x -> x)
@@ -177,11 +177,11 @@ assert "inductive pattern"
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
-   | #1 : _ && snoc #3 _ -> True)
+   | #1 :: _ && snoc #3 _ -> True)
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
-   | #1 : _ && #3 : _ -> False
+   | #1 :: _ && #3 :: _ -> False
    | _ -> True)
 
 assert "or pattern"
@@ -190,7 +190,7 @@ assert "or pattern"
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
-   | #2 : _ || #1 : _ -> True)
+   | #2 :: _ || #1 :: _ -> True)
 
 assert "not pattern"
   (match 1 as integer with
@@ -199,16 +199,16 @@ assert "not pattern"
 
 assertEqual "not pattern"
   (matchAll [1, 2, 2, 3, 3, 3] as multiset integer with
-   | $n : !(#n : _) -> n)
+   | $n :: !(#n :: _) -> n)
   [1]
 
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
-   | ?(== 1) : _ -> True)
+   | ?(= 1) :: _ -> True)
 
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
-   | ?(== 2) : _ -> False
+   | ?(= 2) :: _ -> False
    | _ -> True)
 
 assertEqual "indexed pattern variable"
@@ -225,7 +225,7 @@ assert "loop pattern"
 assertEqual "loop pattern"
   (match [1..10] as list integer with
    | loop $i (1, $n)
-       | #i : ...
+       | #i :: ...
        | [] -> n)
   10
 
@@ -239,8 +239,8 @@ assertEqual "double loop pattern"
   (match [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as (list (list integer)) with
    | loop $i (1, [3], _)
        | ((loop $j (1, [3], _)
-             | $n_i_j : ...
-             | []) : ...)
+             | $n_i_j :: ...
+             | []) :: ...)
        | [] -> n)
   {| [1, {| [1, 1], [2, 2], [3, 3] |}],
      [2, {| [1, 4], [2, 5], [3, 6] |}],
@@ -248,17 +248,17 @@ assertEqual "double loop pattern"
 
 assertEqual "let pattern"
   (match [1, 2, 3] as list integer with
-   | let a = 42 in _ -> a)
+   | let a := 42 in _ -> a)
   42
 
 assertEqual "let pattern"
   (match [1, 2, 3] as list integer with
-   | $a : (let x = a in $xs) -> [x, xs])
+   | $a :: (let x := a in $xs) -> [x, xs])
   [1, [2, 3]]
 
 assertEqual "let pattern"
   (match [1, 2, 3] as list integer with
-   | $a && (let n = length a in _) -> [a, n])
+   | $a && (let n := length a in _) -> [a, n])
   [[1, 2, 3], 3]
 
 assertEqual "tuple pattern"
@@ -268,24 +268,24 @@ assertEqual "tuple pattern"
 
 assertEqual "tuple pattern"
   (matchAll [(1, 1), (2, 2)] as multiset (integer, integer) with
-   | ($x, #x) : _ -> x)
+   | ($x, #x) :: _ -> x)
   [1, 2]
 
 -- assertEqual "pattern function call"
---   (let twin = \pat1 pat2 => (~pat1 && $x) : #x : ~pat2 in
+--   (let twin := \pat1 pat2 => (~pat1 && $x) :: #x :: ~pat2 in
 --    match [1, 1, 1, 2, 3] as list integer with
 --    | twin $n $ns -> [n, ns])
 --   [1, [1, 2, 3]]
 
 -- assertEqual "recursive pattern function call"
---   (let repeat = \pat => [] || (~pat && $x) : (repeat x) in
+--   (let repeat := \pat => [] || (~pat && $x) :: (repeat x) in
 --    match [1, 1, 1, 1] as list integer with
 --    | repeat $n -> n)
 --   1
 
 -- assertEqual "loop pattern in pattern function"
---   let comb n = \p =>
---     loop $i (1, n, _) _ ++ ~p_i : ... | _
+--   let comb n := \p =>
+--     loop $i (1, n, _) _ ++ ~p_i :: ... | _
 --    in
 --   matchAll [1, 2, 3, 4, 5] as (list integer) with
 --   | (comb 2) $n -> n
@@ -293,19 +293,19 @@ assertEqual "tuple pattern"
 
 assertEqual "pairs of 2, natural numbers"
   (take 10 (matchAll nats as set integer with
-            | $m : $n : _ -> [m, n]))
+            | $m :: $n :: _ -> [m, n]))
   [[1, 1], [1, 2], [2, 1], [1, 3], [2, 2], [3, 1], [1, 4], [2, 3], [3, 2], [4, 1]]
 
 assertEqual "pairs of 2, different natural numbers"
   (take 10 (matchAll nats as list integer with
-            | _ ++ $m : _ ++ $n : _ -> [m, n]))
+            | _ ++ $m :: _ ++ $n :: _ -> [m, n]))
   [[1, 2], [1, 3], [2, 3], [1, 4], [2, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5]]
 
-tree a = algebraicDataMatcher
+tree a := algebraicDataMatcher
   | leaf
   | node (tree a) a (tree a)
 
-treeInsert n t =
+treeInsert n t :=
   match t as tree integer with
   | leaf -> Node Leaf n Leaf
   | node $t1 $m $t2 -> match (compare n m) as ordering with
@@ -313,7 +313,7 @@ treeInsert n t =
       | equal   -> Node t1 n t2
       | greater -> Node t1 m (treeInsert n t2)
 
-treeMember? n t =
+treeMember? n t :=
   match t as tree integer with
   | leaf -> False
   | node $t1 $m $t2 -> match (compare n m) as ordering with
@@ -322,13 +322,13 @@ treeMember? n t =
       | greater -> treeMember? n t2
 
 assertEqual "tree set using algebraic-data-matcher"
-  (let t = foldr treeInsert Leaf [4, 1, 2, 4, 3]
+  (let t := foldr treeInsert Leaf [4, 1, 2, 4, 3]
     in [treeMember? 1 t, treeMember? 0 t])
   [True, False]
 
 assert "sequential pattern"
   (match [2,3,1,4,5] as list integer with
-    { @ : @ : $x : _,
+    { @ :: @ :: $x :: _,
       (#(x + 1), @),
       #(x + 2)} -> True)
 
@@ -384,13 +384,13 @@ assertEqual "hash access"
 --   take(10, 1#[%1, @(%0(%1 * 2))](2))
 --   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 
-f *x *y = x + y
+f *x *y := x + y
 
 assertEqual "double inverted index"
   (f [|1, 2, 3|]_i [|10, 20, 30|]_j)
   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]~i~j
 
-g x *y = x + y
+g x *y := x + y
 
 assertEqual "single inverted index"
   (g [|1, 2, 3|]_i  [|10, 20, 30|]_j)
@@ -400,54 +400,54 @@ assertEqual "single inverted index"
 -- matcherExpr, macroExpr
 --
 
-list a = matcher
+list a := matcher
   | [] as () with
     | [] -> [()]
     | _  -> []
-  | $ : $    as (a, list a) with
-    | $x : $xs -> [(x, xs)]
-    | _        -> []
+  | $ :: $    as (a, list a) with
+    | $x :: $xs -> [(x, xs)]
+    | _         -> []
   | snoc $ $ as (a, list a) with
     | snoc $xs $x -> [(x, xs)]
     | _           -> []
   | _ ++ $ as (list a) with
     | $tgt -> matchAll tgt as list a with
-              | loop $i (1, _) | _ : ...  | $rs -> rs
+              | loop $i (1, _) | _ :: ...  | $rs -> rs
   | $ ++ $ as (list a, list a) with
     | $tgt -> matchAll tgt as list a with
-              | loop $i (1, $n) $xa_i : ... | $rs ->
-                (foldr (\%i %r -> xa_i : r) [] [1..n], rs)
+              | loop $i (1, $n) $xa_i :: ... | $rs ->
+                (foldr (\%i %r -> xa_i :: r) [] [1..n], rs)
   | nioj $ $ as (list a, list a) with
     | $tgt -> matchAll tgt as list a with
               | loop $i (1, $n) snoc $xa_i ... | $rs ->
                 (foldr (\%i %r -> r ++ [xa_i]) [] [1..n], rs)
   | #$val as () with
-    | $tgt -> if val == tgt then [()] else []
+    | $tgt -> if val = tgt then [()] else []
   | $ as something with
     | $tgt -> [tgt]
 
-multiset a = matcher
+multiset a := matcher
   | [] as () with
     | $tgt -> match tgt as (mutiset a) with
                 | [] -> [()]
                 | _ -> []
-  | $ : $ as (a, multiset a) with
+  | $ :: $ as (a, multiset a) with
     | $tgt -> matchAll tgt as list a with
-                | $hs ++ $x : $ts -> (x, hs ++ ts)
+                | $hs ++ $x :: $ts -> (x, hs ++ ts)
   | #$val as () with
     | $tgt -> match (val, tgt) as (list a, multiset a) with
                 | ([], []) -> [()]
-                | ($x : $xs, #x : #xs) -> [()]
+                | ($x :: $xs, #x :: #xs) -> [()]
                 | (_, _) -> []
   | $ as something with
     | $tgt -> [tgt]
 
 assertEqual "matcher definition"
   (matchAll [1, 2, 3] as multiset integer with
-   | $x : _ -> x)
+   | $x :: _ -> x)
   [1, 2, 3]
 
-nishiwakiIf =
+nishiwakiIf :=
   macro b e1 e2 ->
     car (matchAll b as (matcher
                         | $ as something with
@@ -457,4 +457,4 @@ nishiwakiIf =
 
 assertEqual "case 1" (nishiwakiIf True     1 2) 1
 assertEqual "case 2" (nishiwakiIf False    1 2) 2
-assertEqual "case 3" (nishiwakiIf (1 == 1) 1 2) 1
+assertEqual "case 3" (nishiwakiIf (1 = 1) 1 2) 1
