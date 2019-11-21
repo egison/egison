@@ -505,13 +505,9 @@ letPattern = do
   return $ LetPat binds body
 
 loopPattern :: Parser EgisonPattern
-loopPattern = do
-  keywordLoop
-  iter <- patVarLiteral
-  range <- loopRange
-  loopBody <- optional (symbol "|") >> pattern
-  loopEnd <- symbol "|" >> pattern
-  return $ LoopPat iter range loopBody loopEnd
+loopPattern =
+  LoopPat <$> (keywordLoop >> patVarLiteral) <*> loopRange
+          <*> atomPattern <*> atomPattern
   where
     loopRange :: Parser LoopRange
     loopRange =
