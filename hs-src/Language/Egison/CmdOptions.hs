@@ -9,7 +9,7 @@ This module provides command line options of Egison interpreter.
 module Language.Egison.CmdOptions
   ( EgisonOpts (..)
   , defaultOption
-  , cmdArgParser
+  , cmdParser
   ) where
 
 import           Data.Char           (isDigit)
@@ -37,6 +37,11 @@ data EgisonOpts = EgisonOpts {
 
 defaultOption :: EgisonOpts
 defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True
+
+cmdParser :: ParserInfo EgisonOpts
+cmdParser = info (helper <*> cmdArgParser)
+          $ fullDesc
+          <> header "The Egison Programming Language"
 
 cmdArgParser :: Parser EgisonOpts
 cmdArgParser = EgisonOpts
