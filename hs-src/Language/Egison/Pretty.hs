@@ -52,7 +52,7 @@ instance Pretty EgisonExpr where
   pretty (TupleExpr xs) = tupled (map pretty xs)
   pretty (CollectionExpr xs) = list (map pretty xs)
   pretty (ArrayExpr xs)  = listoid "(|" "|)" (map pretty xs)
-  pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> list [pretty x, pretty y]) xs)
+  pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
   pretty (LambdaExpr xs y)          = pretty "\\" <> hsep (map pretty xs) <+> pretty "->" <> nest 2 (softline <> pretty y)
