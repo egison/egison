@@ -20,5 +20,6 @@
   (lambda [$z]
     (+ (/ a c) z)))
 
-(f4 (f3 (f2 (f1 z))))
-;(/ (+ (* a z) b) (+ (* c z) d))
+(assert-equal "mobius transformation"
+  (f4 (f3 (f2 (f1 z))))
+  (/ (+ (* a z) b) (+ (* c z) d)))
