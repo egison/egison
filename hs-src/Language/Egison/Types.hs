@@ -18,7 +18,6 @@ module Language.Egison.Types
       EgisonData (..)
     , Matcher (..)
     , PrimitiveFunc (..)
-    , showTSV
     -- * Egison values
     , EgisonValue (..)
     , ScalarData (..)
@@ -158,13 +157,13 @@ import           Data.IORef
 import           Data.Monoid               (Monoid)
 import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Sq
+import qualified Data.Text                 as T
 import qualified Data.Vector               as V
 
 import           Data.List                 (any, delete, elem, elemIndex, find,
                                             findIndex, intercalate, partition,
                                             splitAt, (\\))
 import           Data.Text                 (Text)
-import qualified Data.Text                 as T
 
 import           Data.Ratio
 import           System.IO
@@ -980,6 +979,7 @@ removePairs' (m, n) xs =         -- (0,1) [i i]
       (hs, tms) = splitAt m hms  -- [] [i]
       ms = tail tms              -- []
    in (hs, ms, ts)               -- [] [] []
+
 --
 --
 --
@@ -1061,11 +1061,6 @@ instance Show SymbolExpr where
   show (Quote mExprs) = "'" ++ show mExprs
   show (FunctionData Nothing argnames args js) = "(functionData [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
   show (FunctionData (Just name) argnames args js) = show name ++ concatMap show js
-
-showTSV :: EgisonValue -> String
-showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map show vals)
-showTSV (Collection vals) = intercalate "\t" (map show (toList vals))
-showTSV val = show val
 
 instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
@@ -1277,16 +1272,16 @@ instance Show VarWithIndices where
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
-                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "~[" ++ show i ++ "]"
-                         _ -> "~" ++ show i
+    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "~[" ++ show i ++ "]"
+    _ -> "~" ++ show i
   show (Subscript i) = case i of
-                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
-                         _ -> "_" ++ show i
+    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+    _ -> "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript i j) = "_d" ++ show i ++ show j
   show (Userscript i) = case i of
-                         ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
-                         _ -> "|" ++ show i
+    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+    _ -> "|" ++ show i
 
 nullEnv :: Env
 nullEnv = Env [] Nothing
