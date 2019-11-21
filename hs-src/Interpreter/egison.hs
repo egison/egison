@@ -9,7 +9,6 @@ import           Control.Monad.Except
 import           Control.Monad.Trans.State
 import           Prelude                    hiding (catch)
 
-import           Data.Semigroup             ((<>))
 import qualified Data.Text                  as T
 
 import           Data.Version
