@@ -10,7 +10,7 @@ This module contains pretty printing for Egison syntax
 
 module Language.Egison.Pretty
     ( prettyTopExprs
-    , ASTElement(..)
+    , PrettyS(..)
     , showTSV
     ) where
 
@@ -141,10 +141,10 @@ listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
 -- Pretty printer for S-expression
 --
 
-class ASTElement a where
+class PrettyS a where
   prettyS :: a -> String
 
-instance ASTElement EgisonExpr where
+instance PrettyS EgisonExpr where
   prettyS (CharExpr c) = "c#" ++ [c]
   prettyS (StringExpr str) = show str
   prettyS (BoolExpr True) = "#t"
@@ -172,7 +172,7 @@ instance ASTElement EgisonExpr where
   prettyS (WithSymbolsExpr xs e) = "(withSymbols {" ++ unwords xs ++ "} " ++ prettyS e ++ ")"
   prettyS _ = "(not supported)"
 
-instance ASTElement EgisonValue where
+instance PrettyS EgisonValue where
   prettyS (Char c) = "c#" ++ [c]
   prettyS (String str) = show str
   prettyS (Bool True) = "#t"
@@ -214,34 +214,34 @@ instance ASTElement EgisonValue where
   prettyS World = "#<world>"
   prettyS EOF = "#<eof>"
 
-instance ASTElement Var where
+instance PrettyS Var where
   prettyS = show
 
-instance ASTElement VarWithIndices where
+instance PrettyS VarWithIndices where
   prettyS = show
 
-instance ASTElement EgisonBinOp where
+instance PrettyS EgisonBinOp where
   prettyS = show
 
-instance ASTElement InnerExpr where
+instance PrettyS InnerExpr where
   prettyS (ElementExpr e) = prettyS e
   prettyS (SubCollectionExpr e) = '@' : prettyS e
 
-instance ASTElement Arg where
+instance PrettyS Arg where
   prettyS (ScalarArg name)         = "$" ++ name
   prettyS (InvertedScalarArg name) = "*$" ++ name
   prettyS (TensorArg name)         = "%" ++ name
 
-instance ASTElement ScalarData where
+instance PrettyS ScalarData where
   prettyS (Div p1 (Plus [Term 1 []])) = prettyS p1
   prettyS (Div p1 p2)                 = "(/ " ++ prettyS p1 ++ " " ++ prettyS p2 ++ ")"
 
-instance ASTElement PolyExpr where
+instance PrettyS PolyExpr where
   prettyS (Plus [])  = "0"
   prettyS (Plus [t]) = prettyS t
   prettyS (Plus ts)  = "(+ " ++ unwords (map prettyS ts)  ++ ")"
 
-instance ASTElement TermExpr where
+instance PrettyS TermExpr where
   prettyS (Term a []) = show a
   prettyS (Term 1 [x]) = showPoweredSymbol x
   prettyS (Term 1 xs) = "(* " ++ unwords (map showPoweredSymbol xs) ++ ")"
@@ -251,7 +251,7 @@ showPoweredSymbol :: (SymbolExpr, Integer) -> String
 showPoweredSymbol (x, 1) = prettyS x
 showPoweredSymbol (x, n) = prettyS x ++ "^" ++ show n
 
-instance ASTElement SymbolExpr where
+instance PrettyS SymbolExpr where
   prettyS (Symbol _ (':':':':':':_) []) = "#"
   prettyS (Symbol _ s []) = s
   prettyS (Symbol _ s js) = s ++ concatMap prettyS js
@@ -265,21 +265,21 @@ showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (prettyS val) (map p
 showTSV (Collection vals) = intercalate "\t" (map prettyS (toList vals))
 showTSV val = prettyS val
 
-instance ASTElement (Index EgisonExpr) where
+instance PrettyS (Index EgisonExpr) where
   prettyS (Superscript i)  = "~" ++ prettyS i
   prettyS (Subscript i)    = "_" ++ prettyS i
   prettyS (SupSubscript i) = "~_" ++ prettyS i
   prettyS (DFscript _ _)   = ""
   prettyS (Userscript i)   = "|" ++ prettyS i
 
-instance ASTElement (Index ScalarData) where
+instance PrettyS (Index ScalarData) where
   prettyS (Superscript i)  = "~" ++ prettyS i
   prettyS (Subscript i)    = "_" ++ prettyS i
   prettyS (SupSubscript i) = "~_" ++ prettyS i
   prettyS (DFscript _ _)   = ""
   prettyS (Userscript i)   = "|" ++ prettyS i
 
-instance ASTElement (Index EgisonValue) where
+instance PrettyS (Index EgisonValue) where
   prettyS (Superscript i) = case i of
     ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "~[" ++ prettyS i ++ "]"
     _ -> "~" ++ prettyS i
@@ -292,7 +292,7 @@ instance ASTElement (Index EgisonValue) where
     ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
     _ -> "|" ++ prettyS i
 
-instance ASTElement EgisonPattern where
+instance PrettyS EgisonPattern where
   prettyS WildCard = "_"
   prettyS (PatVar var) = "$" ++ prettyS var
   prettyS (ValuePat expr) = "," ++ prettyS expr
@@ -327,7 +327,7 @@ instance ASTElement EgisonPattern where
   prettyS (MultPat pats) = "(*" ++ concatMap ((" " ++) . prettyS) pats
   prettyS (PowerPat pat pat') = "(" ++ prettyS pat ++ " ^ " ++ prettyS pat' ++ ")"
 
-instance ASTElement LoopRange where
+instance PrettyS LoopRange where
   prettyS (LoopRange start (ApplyExpr (VarExpr (Var ["from"] [])) (ApplyExpr _ (TupleExpr (x:_)))) endPat) =
     "[" ++ show start ++ " (from " ++ show x ++ ") " ++ prettyS endPat ++ "]"
   prettyS (LoopRange start ends endPat) = "[" ++ show start ++ " " ++ show ends ++ " " ++ prettyS endPat ++ "]"
