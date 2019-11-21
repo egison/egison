@@ -18,9 +18,9 @@ module Language.Egison.AST
   , Index (..)
   , PMMode (..)
   , InnerExpr (..)
-  , BindingExpr (..)
-  , MatchClause (..)
-  , PatternDef (..)
+  , BindingExpr
+  , MatchClause
+  , PatternDef
   , LoopRange (..)
   , PrimitivePatPattern (..)
   , PrimitiveDataPattern (..)
