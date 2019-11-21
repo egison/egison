@@ -14,7 +14,7 @@ module Language.Egison.Pretty
 
 import           Data.Text.Prettyprint.Doc
 
-import           Language.Egison.Types
+import           Language.Egison.AST
 
 --
 -- Pretty printing for Non-S syntax

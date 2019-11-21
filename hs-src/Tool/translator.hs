@@ -10,7 +10,7 @@ import           Data.Maybe                            (fromJust)
 import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
 import           System.Environment                    (getArgs)
 
-import           Language.Egison.Types
+import           Language.Egison.AST
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
 
