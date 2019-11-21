@@ -146,7 +146,7 @@ topExpr = Load     <$> (keywordLoad >> stringLiteral)
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
   e <- expr
-  (do symbol "="
+  (do symbol ":="
       body <- expr
       return $ convertToDefine e body)
       <|> return (Test e)
@@ -183,6 +183,7 @@ expr = ifExpr
    <|> letExpr
    <|> withSymbolsExpr
    <|> doExpr
+   <|> ioExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
    <|> memoizedLambdaExpr
@@ -219,10 +220,10 @@ opExpr = do
           , [ InfixL (binary "+" )
             , InfixL (binary "-" ) ]
           -- 5
-          , [ InfixR (binary ":" )
+          , [ InfixR (binary "::" )
             , InfixR (binary "++") ]
           -- 4
-          , [ InfixL (binary "==")
+          , [ InfixL (binary "=")
             , InfixL (binary "<=")
             , InfixL (binary "<" )
             , InfixL (binary ">=")
@@ -292,7 +293,7 @@ binding = do
               <|> do var <- varLiteral
                      args <- many arg
                      return ([var], args)
-  body <- symbol "=" >> expr
+  body <- symbol ":=" >> expr
   return $ case args of
              [] -> (vars, body)
              _  -> (vars, LambdaExpr args body)
@@ -309,6 +310,9 @@ doExpr = do
   where
     statement :: Parser BindingExpr
     statement = (keywordLet >> binding) <|> ([],) <$> expr
+
+ioExpr :: Parser EgisonExpr
+ioExpr = IoExpr <$> (keywordIo >> expr)
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
@@ -532,7 +536,7 @@ opPattern = makeExprParser applyOrAtomPattern table
     table =
       [ [ Prefix (NotPat <$ symbol "!") ]
       -- 5
-      , [ InfixR (inductive2 "cons" ":" )
+      , [ InfixR (inductive2 "cons" "::" )
         , InfixR (inductive2 "join" "++") ]
       -- 3
       , [ InfixR (binary AndPat "&&") ]
@@ -581,7 +585,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
   where
     table :: [[Operator Parser PrimitivePatPattern]]
     table =
-      [ [ InfixR (inductive2 "cons" ":" )
+      [ [ InfixR (inductive2 "cons" "::" )
         , InfixR (inductive2 "join" "++") ]
       ]
     inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ operator sym
@@ -601,7 +605,7 @@ pdPattern = PDInductivePat <$> upperId <*> many pdAtom
   where
     table :: [[Operator Parser PrimitiveDataPattern]]
     table =
-      [ [ InfixR (PDConsPat <$ symbol ":") ]
+      [ [ InfixR (PDConsPat <$ symbol "::") ]
       ]
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard    <$ symbol "_"
