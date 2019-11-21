@@ -99,11 +99,14 @@ collectDefs _ [] bindings rest = return (bindings, reverse rest)
 evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
 evalTopExpr' _ st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
 evalTopExpr' _ st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
-evalTopExpr' _ st (Test expr) = do
+evalTopExpr' opts st (Test expr) = do
   pushFuncName "<stdin>"
   val <- evalStateT st [] >>= flip evalExprDeep expr
   popFuncName
-  return (Just (prettyS val), st)
+  case optMathExpr opts of
+    Nothing -> return (Just (show val), st)
+    Just _  -> return (Just (prettyS val), st)
+  
 evalTopExpr' _ st (Execute expr) = do
   pushFuncName "<stdin>"
   io <- evalStateT st [] >>= flip evalExpr expr
