@@ -88,27 +88,34 @@
 ;;
 ;; Demonstration code
 ;;
-(test (poker-hands {<Card <Club> 12>
-                    <Card <Club> 10>
-                    <Card <Club> 13>
-                    <Card <Club> 1>
-                    <Card <Club> 11>}))
+(assert-equal "poker hands 1"
+  (poker-hands {<Card <Club> 12>
+                <Card <Club> 10>
+                <Card <Club> 13>
+                <Card <Club> 1>
+                <Card <Club> 11>})
+  "Straight flush")
 
-(test (poker-hands {<Card <Diamond> 1>
-                    <Card <Club> 2>
-                    <Card <Club> 1>
-                    <Card <Heart> 1>
-                    <Card <Diamond> 2>}))
+(assert-equal "poker hands 2"
+  (poker-hands {<Card <Diamond> 1>
+                <Card <Club> 2>
+                <Card <Club> 1>
+                <Card <Heart> 1>
+                <Card <Diamond> 2>})
+  "Full house")
 
-(test (poker-hands {<Card <Diamond> 4>
-                    <Card <Club> 2>
-                    <Card <Club> 5>
-                    <Card <Heart> 1>
-                    <Card <Diamond> 3>}))
+(assert-equal "poker hands 3"
+  (poker-hands {<Card <Diamond> 4>
+                <Card <Club> 2>
+                <Card <Club> 5>
+                <Card <Heart> 1>
+                <Card <Diamond> 3>})
+  "Straight")
 
-(test (poker-hands {<Card <Diamond> 4>
-                    <Card <Club> 10>
-                    <Card <Club> 5>
-                    <Card <Heart> 1>
-                    <Card <Diamond> 3>}))
-
+(assert-equal "poker hands 4"
+  (poker-hands {<Card <Diamond> 4>
+                <Card <Club> 10>
+                <Card <Club> 5>
+                <Card <Heart> 1>
+                <Card <Diamond> 3>})
+  "Nothing")
