@@ -35,6 +35,7 @@ import           Data.Version
 import qualified Paths_egison                as P
 
 import           Language.Egison.AST
+import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.MathOutput  (changeOutputInLang)
 import           Language.Egison.Parser      as Parser

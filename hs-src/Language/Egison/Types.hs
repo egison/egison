@@ -135,8 +135,6 @@ module Language.Egison.Types
     , isCollection'
     , isArray'
     , isHash'
-    , EgisonOpts (..)
-    , defaultOption
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
@@ -1646,30 +1644,3 @@ isHash' (Value (StrHash _))         = return $ Value $ Bool True
 isHash' (Intermediate (IIntHash _)) = return $ Value $ Bool True
 isHash' (Intermediate (IStrHash _)) = return $ Value $ Bool True
 isHash' _                           = return $ Value $ Bool False
-
---
--- options
---
-
-data EgisonOpts = EgisonOpts {
-    optExecFile         :: Maybe (String, [String]),
-    optShowVersion      :: Bool,
-    optEvalString       :: Maybe String,
-    optExecuteString    :: Maybe String,
-    optFieldInfo        :: [(String, String)],
-    optLoadLibs         :: [String],
-    optLoadFiles        :: [String],
-    optSubstituteString :: Maybe String,
-    optMapTsvInput      :: Maybe String,
-    optFilterTsvInput   :: Maybe String,
-    optTsvOutput        :: Bool,
-    optNoIO             :: Bool,
-    optShowBanner       :: Bool,
-    optTestOnly         :: Bool,
-    optPrompt           :: String,
-    optMathExpr         :: Maybe String,
-    optSExpr            :: Bool
-    }
-
-defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True

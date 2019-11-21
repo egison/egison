@@ -18,9 +18,9 @@ import           System.Console.Haskeline.History (addHistoryUnlessConsecutiveDu
 import           Text.Regex.TDFA                  ((=~))
 
 import           Language.Egison.AST
+import           Language.Egison.CmdOptions
 import           Language.Egison.Parser           as Parser
 import           Language.Egison.ParserNonS       as ParserNonS
-import           Language.Egison.Types
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
 getEgisonExpr :: EgisonOpts -> InputT IO (Maybe (String, EgisonTopExpr))
