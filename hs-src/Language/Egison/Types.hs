@@ -1137,7 +1137,7 @@ instance EgisonData Handle where
   fromEgison (Port h) = return h
   fromEgison val      = throwError =<< TypeMismatch "port" (Value val) <$> getFuncNameStack
 
-instance (EgisonData a) => EgisonData [a] where
+instance EgisonData a => EgisonData [a] where
   toEgison xs = Collection $ Sq.fromList (map toEgison xs)
   fromEgison (Collection seq) = mapM fromEgison (toList seq)
   fromEgison val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
@@ -1222,7 +1222,7 @@ instance Show ObjectRef where
 --
 -- Extract data from WHNF
 --
-class (EgisonData a) => EgisonWHNF a where
+class EgisonData a => EgisonWHNF a where
   toWHNF :: a -> WHNFData
   fromWHNF :: WHNFData -> EgisonM a
   toWHNF = Value . toEgison
