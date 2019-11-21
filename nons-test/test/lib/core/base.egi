@@ -35,9 +35,7 @@ assertEqual "compose - case 1" ((compose (fst, snd)) ((1, 2), 3)) 2
 
 assertEqual "compose - case 2" ((compose (fst, snd, fst)) ((1, (2, 3)), 4)) 2
 
--- assertEqual("eq?/m",
---   eq?/m(integer, 1, 1),
---   True)
+assertEqual "eq?/m" (eq?/m integer 1 1) True
 
 --
 -- Booleans
