@@ -103,9 +103,9 @@ evalTopExpr' opts st (Test expr) = do
   pushFuncName "<stdin>"
   val <- evalStateT st [] >>= flip evalExprDeep expr
   popFuncName
-  case optMathExpr opts of
-    Nothing -> return (Just (show val), st)
-    Just _  -> return (Just (prettyS val), st)
+  case (optSExpr opts, optMathExpr opts) of
+    (False, Nothing) -> return (Just (show val), st)
+    _  -> return (Just (prettyS val), st)
   
 evalTopExpr' _ st (Execute expr) = do
   pushFuncName "<stdin>"
