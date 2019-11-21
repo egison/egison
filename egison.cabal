@@ -99,6 +99,7 @@ Library
   Hs-Source-Dirs:  hs-src
   Exposed-Modules:
                    Language.Egison
+                   Language.Egison.AST
                    Language.Egison.Core
                    Language.Egison.Desugar
                    Language.Egison.Types
