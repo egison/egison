@@ -421,7 +421,7 @@ hashExpr :: Parser EgisonExpr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
   where
     hashBraces = between (symbol "{|") (symbol "|}")
-    hashElem = brackets $ (,) <$> expr <*> (comma >> expr)
+    hashElem = parens $ (,) <$> expr <*> (comma >> expr)
 
 index :: Parser (Index EgisonExpr)
 index = SupSubscript <$> (string "~_" >> atomExpr')

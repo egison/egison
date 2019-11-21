@@ -164,7 +164,7 @@ assertEqual "array?" (array? (| |)) True
 assertEqual "array?" (array? (| 1, 2, 3 |)) True
 
 assertEqual "hash?" (hash? {| |}) True
-assertEqual "hash?" (hash? {| [1, 2] |}) True
+assertEqual "hash?" (hash? {| (1, 2) |}) True
 
 -- TODO: Add a test case where tensor? returns True
 assertEqual "tensor?" (tensor? 1)                           False
