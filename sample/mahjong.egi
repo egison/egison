@@ -60,14 +60,18 @@
 ;;
 ;; Demonstration code
 ;;
-(test (complete? {<Hnr <Haku>> <Hnr <Haku>>
-               <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
-               <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
-               <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
-               <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
+(assert-equal "mahjong 1"
+  (complete? {<Hnr <Haku>> <Hnr <Haku>>
+              <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
+              <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
+              <Num <Pin> 2> <Num <Pin> 3> <Num <Pin> 4>
+              <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>})
+  #t)
 
-(test (complete? {<Hnr <Haku>> <Hnr <Haku>>
-               <Num <Pin> 1> <Num <Pin> 3> <Num <Pin> 4>
-               <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
-               <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
-               <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>}))
+(assert-equal "mahjong 2"
+  (complete? {<Hnr <Haku>> <Hnr <Haku>>
+              <Num <Pin> 1> <Num <Pin> 3> <Num <Pin> 4>
+              <Num <Wan> 6> <Num <Wan> 7> <Num <Wan> 8>
+              <Num <Wan> 3> <Num <Wan> 4> <Num <Wan> 5>
+              <Num <Sou> 6> <Num <Sou> 6> <Num <Sou> 6>})
+  #f)
