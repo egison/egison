@@ -31,11 +31,6 @@ import           Options.Applicative
 main :: IO ()
 main = execParser cmdParser >>= runWithOptions
 
-cmdParser :: ParserInfo EgisonOpts
-cmdParser = info (helper <*> cmdArgParser)
-          $ fullDesc
-          <> header "The Egison Programming Language"
-
 runWithOptions :: EgisonOpts -> IO ()
 runWithOptions opts
   | optShowVersion opts = putStrLn (showVersion version) >> exitSuccess
