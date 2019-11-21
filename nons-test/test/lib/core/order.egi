@@ -14,22 +14,22 @@ assertEqual "min"
   (min [20, 5])
   5
 
--- assertEqual "min/fn"
---   (min/fn compare [10, 20, 5, 20, 30])
---   5
+assertEqual "min/fn"
+  (min/fn compare [10, 20, 5, 20, 30])
+  5
 
 assertEqual "max"
   (max [5, 30])
   30
 
--- assertEqual "max/fn"
---   (max/fn compare [10, 20, 5, 20, 30])
---   30
+assertEqual "max/fn"
+  (max/fn compare [10, 20, 5, 20, 30])
+  30
 
 assertEqual "sort"
   (sort [10, 20, 5, 20, 30])
   [5, 10, 20, 20, 30]
 
--- assertEqual "sort/fn"
---   (sort/fn compare [10, 20, 5, 20, 30])
---   [5, 10, 20, 20, 30]
+assertEqual "sort/fn"
+  (sort/fn compare [10, 20, 5, 20, 30])
+  [5, 10, 20, 20, 30]
