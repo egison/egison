@@ -157,7 +157,6 @@ import           Data.IORef
 import           Data.Monoid               (Monoid)
 import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Sq
-import qualified Data.Text                 as T
 import qualified Data.Vector               as V
 
 import           Data.List                 (any, delete, elem, elemIndex, find,
@@ -989,41 +988,40 @@ removePairs' (m, n) xs =         -- (0,1) [i i]
 --
 
 instance Show EgisonValue where
-  show (Char c) = "c#" ++ [c]
-  show (String str) = "\"" ++ T.unpack str ++ "\""
-  show (Bool True) = "#t"
-  show (Bool False) = "#f"
+  show (Char c) = '\'' : c : "'"
+  show (String str) = show str
+  show (Bool True) = "True"
+  show (Bool False) = "False"
   show (ScalarData mExpr) = show mExpr
---  show (TensorData (Scalar x)) = "invalid scalar:" ++ show x
-  show (TensorData (Tensor [_] xs js)) = "[| " ++ unwords (map show (V.toList xs)) ++ " |]" ++ concatMap show js
+  show (TensorData (Tensor [_] xs js)) = "[| " ++ intercalate ", " (map show (V.toList xs)) ++ " |]" ++ concatMap show js
   show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap show js
   show (TensorData (Tensor [i, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concatMap show js
-   where
-    f j [] = ""
-    f j xs = "[| " ++ unwords (map show (take j xs)) ++ " |] " ++ f j (drop j xs)
-  show (TensorData (Tensor ns xs js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map show (V.toList xs)) ++ "} )" ++ concatMap show js
+    where
+      f j [] = ""
+      f j xs = "[| " ++ intercalate ", " (map show (take j xs)) ++ " |] " ++ f j (drop j xs)
+  show (TensorData (Tensor ns xs js)) = "(tensor [" ++ intercalate ", " (map show ns) ++ "] [" ++ intercalate ", " (map show (V.toList xs)) ++ "] )" ++ concatMap show js
   show (Float x) = show x
-  show (InductiveData name []) = "<" ++ name ++ ">"
-  show (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map show vals) ++ ">"
-  show (Tuple vals) = "[" ++ unwords (map show vals) ++ "]"
-  show (Collection vals) = if Sq.null vals
-                             then "{}"
-                             else "{" ++ unwords (map show (toList vals)) ++ "}"
-  show (Array vals) = "(|" ++ unwords (map show $ Array.elems vals) ++ "|)"
-  show (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
-  show (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
+  show (InductiveData name vals) = name ++ concatMap ((' ':) . show') vals
+    where
+      show' x | isAtomic x = show x
+              | otherwise  = "(" ++ show x ++ ")"
+  show (Tuple vals)      = "(" ++ intercalate ", " (map show vals) ++ ")"
+  show (Collection vals) = "[" ++ intercalate ", " (map show (toList vals)) ++ "]"
+  show (Array vals)      = "(| " ++ intercalate ", " (map show $ Array.elems vals) ++ " |)"
+  show (IntHash hash)  = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
+  show (CharHash hash) = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
+  show (StrHash hash)  = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show UserMatcher{} = "#<user-matcher>"
-  show (Func Nothing _ args _) = "(lambda [" ++ unwords (map show args) ++ "] ...)"
+  show (Func Nothing _ args _) = "(lambda [" ++ intercalate ", " (map show args) ++ "] ...)"
   show (Func (Just name) _ _ _) = show name
   show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   show (CFunc (Just name) _ _ _) = show name
-  show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
+  show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ intercalate ", " names ++ "] ...)"
   show (MemoizedFunc (Just name) _ _ _ names _) = show name
-  show (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
+  show (Proc Nothing _ names _) = "(procedure [" ++ intercalate ", " names ++ "] ...)"
   show (Proc (Just name) _ _ _) = name
-  show (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
+  show (Macro names _) = "(macro [" ++ intercalate ", " names ++ "] ...)"
   show PatternFunc{} = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   show (IOFunc _) = "#<io-function>"
@@ -1034,20 +1032,30 @@ instance Show EgisonValue where
   show World = "#<world>"
   show EOF = "#<eof>"
 
+-- False if we have to put parenthesis around it to make it an atomic expression.
+isAtomic :: EgisonValue -> Bool
+isAtomic (InductiveData _ []) = True
+isAtomic (InductiveData _ _)  = False
+isAtomic (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = True
+isAtomic (ScalarData _) = False
+isAtomic _ = True
+
 instance Show ScalarData where
   show (Div p1 (Plus [Term 1 []])) = show p1
-  show (Div p1 p2)                 = "(/ " ++ show p1 ++ " " ++ show p2 ++ ")"
+  show (Div p1 p2)                 = show' p1 ++ " / " ++ show' p2
+    where
+      show' :: PolyExpr -> String
+      show' p@(Plus [_]) = show p
+      show' p            = "(" ++ show p ++ ")"
 
 instance Show PolyExpr where
   show (Plus [])  = "0"
-  show (Plus [t]) = show t
-  show (Plus ts)  = "(+ " ++ unwords (map show ts)  ++ ")"
+  show (Plus ts)  = intercalate " + " (map show ts)
 
 instance Show TermExpr where
   show (Term a []) = show a
-  show (Term 1 [x]) = showPoweredSymbol x
-  show (Term 1 xs) = "(* " ++ unwords (map showPoweredSymbol xs) ++ ")"
-  show (Term a xs) = "(* " ++ show a ++ " " ++ unwords (map showPoweredSymbol xs) ++ ")"
+  show (Term 1 xs) = intercalate " * " (map showPoweredSymbol xs)
+  show (Term a xs) = intercalate " * " (show a : map showPoweredSymbol xs)
 
 showPoweredSymbol :: (SymbolExpr, Integer) -> String
 showPoweredSymbol (x, 1) = show x

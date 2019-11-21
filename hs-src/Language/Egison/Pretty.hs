@@ -18,9 +18,7 @@ import qualified Data.Array                as Array
 import           Data.Foldable             (toList)
 import qualified Data.HashMap.Strict       as HashMap
 import           Data.List                 (intercalate)
-import qualified Data.Text                 as T
 import           Data.Text.Prettyprint.Doc
-import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
 import           Language.Egison.AST
@@ -148,7 +146,7 @@ class ASTElement a where
 
 instance ASTElement EgisonExpr where
   prettyS (CharExpr c) = "c#" ++ [c]
-  prettyS (StringExpr str) = "\"" ++ T.unpack str ++ "\""
+  prettyS (StringExpr str) = show str
   prettyS (BoolExpr True) = "#t"
   prettyS (BoolExpr False) = "#f"
   prettyS (IntegerExpr n) = show n
@@ -176,7 +174,7 @@ instance ASTElement EgisonExpr where
 
 instance ASTElement EgisonValue where
   prettyS (Char c) = "c#" ++ [c]
-  prettyS (String str) = "\"" ++ T.unpack str ++ "\""
+  prettyS (String str) = show str
   prettyS (Bool True) = "#t"
   prettyS (Bool False) = "#f"
   prettyS (ScalarData mExpr) = prettyS mExpr
@@ -188,16 +186,13 @@ instance ASTElement EgisonValue where
     f j xs = "[| " ++ unwords (map prettyS (take j xs)) ++ " |] " ++ f j (drop j xs)
   prettyS (TensorData (Tensor ns xs js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map prettyS (V.toList xs)) ++ "} )" ++ concatMap prettyS js
   prettyS (Float x) = show x
-  prettyS (InductiveData name []) = "<" ++ name ++ ">"
-  prettyS (InductiveData name vals) = "<" ++ name ++ " " ++ unwords (map prettyS vals) ++ ">"
-  prettyS (Tuple vals) = "[" ++ unwords (map prettyS vals) ++ "]"
-  prettyS (Collection vals) = if Sq.null vals
-                             then "{}"
-                             else "{" ++ unwords (map prettyS (toList vals)) ++ "}"
-  prettyS (Array vals) = "(|" ++ unwords (map prettyS $ Array.elems vals) ++ "|)"
-  prettyS (IntHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
-  prettyS (CharHash hash) = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
-  prettyS (StrHash hash) = "{|" ++ unwords (map (\(key, val) -> "[\"" ++ T.unpack key ++ "\" " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
+  prettyS (InductiveData name vals) = "<" ++ name ++ concatMap ((' ':) . prettyS) vals ++ ">"
+  prettyS (Tuple vals)      = "[" ++ unwords (map prettyS vals) ++ "]"
+  prettyS (Collection vals) = "{" ++ unwords (map prettyS (toList vals)) ++ "}"
+  prettyS (Array vals)      = "(|" ++ unwords (map prettyS $ Array.elems vals) ++ "|)"
+  prettyS (IntHash hash)    = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
+  prettyS (CharHash hash)   = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
+  prettyS (StrHash hash)    = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
   prettyS UserMatcher{} = "#<user-matcher>"
   prettyS (Func Nothing _ args _) = "(lambda [" ++ unwords (map ('$':) args) ++ "] ...)"
   prettyS (Func (Just name) _ _ _) = prettyS name
