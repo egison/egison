@@ -150,4 +150,5 @@ coreLibraries =
   , "lib/core/random.egi"
   , "lib/core/string.egi"
   , "lib/core/maybe.egi"
+  , "lib/core/sexpr.egi" -- For compatibility between new and old syntax
   ]
