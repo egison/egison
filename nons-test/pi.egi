@@ -1,2 +1,2 @@
-pi2 n =
+pi2 n :=
   (1 + foldr (\x r -> x ^ 2 / (x * 2 + 1 + r)) 0 (take n nats)) / 4
