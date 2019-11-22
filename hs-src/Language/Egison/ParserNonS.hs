@@ -535,9 +535,9 @@ opPattern = makeExprParser applyOrAtomPattern table
       , [ InfixR (inductive2 "cons" "::" )
         , InfixR (inductive2 "join" "++") ]
       -- 3
-      , [ InfixR (binary AndPat "&&") ]
+      , [ InfixR (binary AndPat "&") ]
       -- 2
-      , [ InfixR (binary OrPat  "||") ]
+      , [ InfixR (binary OrPat  "|") ]
       ]
     inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ patOperator sym
     binary name sym     = (\x y -> name [x, y]) <$ patOperator sym
