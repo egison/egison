@@ -88,7 +88,7 @@ assertEqual "not point free expr" (- 2) (1 - 3)
 
 -- findFactor := memoizedLambda
 --                n -> match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
---                     | _ ++ (?(\m -> divisor? n m) && $x) :: _ -> x
+--                     | _ ++ (?(\m -> divisor? n m) & $x) :: _ -> x
 --                     | _ -> n
 -- assertEqual "memoized lambda"
 --   (map findFactor [1..10])
@@ -104,7 +104,7 @@ assertEqual "twin primes"
 
 primeTriplets :=
   matchAll primes as list integer with
-  | _ ++ $p :: ((#(p + 2) || #(p + 4)) && $m) :: #(p + 6) ::  _ -> (p, m, p + 6)
+  | _ ++ $p :: ((#(p + 2) | #(p + 4)) & $m) :: #(p + 6) ::  _ -> (p, m, p + 6)
 
 assertEqual "prime triplets"
   (take 10 primeTriplets)
@@ -185,20 +185,20 @@ assert "inductive pattern"
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
-   | #1 :: _ && snoc #3 _ -> True)
+   | #1 :: _ & snoc #3 _ -> True)
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
-   | #1 :: _ && #3 :: _ -> False
+   | #1 :: _ & #3 :: _ -> False
    | _ -> True)
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
-   | snoc #1 _ || snoc #3 _ -> True)
+   | snoc #1 _ | snoc #3 _ -> True)
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
-   | #2 :: _ || #1 :: _ -> True)
+   | #2 :: _ | #1 :: _ -> True)
 
 assert "not pattern"
   (match 1 as integer with
@@ -266,7 +266,7 @@ assertEqual "let pattern"
 
 assertEqual "let pattern"
   (match [1, 2, 3] as list integer with
-   | $a && (let n := length a in _) -> [a, n])
+   | $a & (let n := length a in _) -> [a, n])
   [[1, 2, 3], 3]
 
 assertEqual "tuple pattern"
@@ -280,13 +280,13 @@ assertEqual "tuple pattern"
   [1, 2]
 
 -- assertEqual "pattern function call"
---   (let twin := \pat1 pat2 => (~pat1 && $x) :: #x :: ~pat2 in
+--   (let twin := \pat1 pat2 => (~pat1 & $x) :: #x :: ~pat2 in
 --    match [1, 1, 1, 2, 3] as list integer with
 --    | twin $n $ns -> [n, ns])
 --   [1, [1, 2, 3]]
 
 -- assertEqual "recursive pattern function call"
---   (let repeat := \pat => [] || (~pat && $x) :: (repeat x) in
+--   (let repeat := \pat => [] | (~pat & $x) :: (repeat x) in
 --    match [1, 1, 1, 1] as list integer with
 --    | repeat $n -> n)
 --   1
