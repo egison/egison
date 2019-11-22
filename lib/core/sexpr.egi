@@ -1,0 +1,6 @@
+(define $unorderedPair unordered-pair)
+(define $takeAndDrop take-and-drop)
+(define $takeWhile take-while)
+(define $dropWhile drop-while)
+(define $deleteFirst delete-first)
+(define $deleteFirst/m delete-first/m)
