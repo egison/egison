@@ -51,3 +51,12 @@ assertEqual "or"
 assertEqual "not"
   [not True, not False]
   [False, True]
+
+--
+-- Unordered-Pair
+--
+
+assertEqual "unorderedPair matcher"
+  (match (1, 2) as unorderedPair integer with
+   | (#2, $x) -> x)
+  1
