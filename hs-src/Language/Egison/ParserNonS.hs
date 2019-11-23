@@ -465,7 +465,7 @@ atomExpr = do
 atomExpr' :: Parser EgisonExpr
 atomExpr' = constantExpr
         <|> VarExpr <$> varLiteral
-        <|> (\x -> InductiveDataExpr x []) <$> upperId
+        <|> inductiveDataOrModuleExpr
         <|> vectorExpr     -- must come before collectionExpr
         <|> arrayExpr      -- must come before tupleOrParenExpr
         <|> collectionExpr
@@ -474,6 +474,13 @@ atomExpr' = constantExpr
         <|> QuoteExpr <$> (char '\'' >> atomExpr')
         <|> QuoteSymbolExpr <$> (char '`' >> atomExpr')
         <?> "atomic expression"
+
+inductiveDataOrModuleExpr :: Parser EgisonExpr
+inductiveDataOrModuleExpr = do
+  (ident, rest) <- upperOrModuleId
+  return $ case rest of
+             [] -> InductiveDataExpr ident []
+             _  -> VarExpr (Var (ident : rest) [])
 
 constantExpr :: Parser EgisonExpr
 constantExpr = numericExpr
@@ -705,6 +712,15 @@ upperId = (lexeme . try) (p >>= check)
     check x = if x `elem` upperReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
+
+-- Parses both InductiveDataExpr and Var with module
+-- ex. "Greater"       -> ("Greater", [])
+--     "S.intercalate" -> ("S", ["intercalate"])
+upperOrModuleId :: Parser (String, [String])
+upperOrModuleId = do
+  ident <- (:) <$> upperChar <*> many alphaNumChar
+  follows <- many (char '.' >> some alphaNumChar) <* sc
+  return (ident, follows)
 
 keywordLoadFile             = reserved "loadFile"
 keywordLoad                 = reserved "load"
