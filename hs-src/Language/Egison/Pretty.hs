@@ -93,7 +93,7 @@ instance Pretty EgisonExpr where
        else pretty x <+> pretty (repr op) <+> pretty' y
   pretty (BinaryOpExpr op x y) = pretty x <+> pretty (repr op) <+> pretty' y
 
-  pretty (ApplyExpr x (TupleExpr ys)) = nest 2 (pretty x <+> fillSep (map pretty ys))
+  pretty (ApplyExpr x (TupleExpr ys)) = nest 2 (pretty x <+> fillSep (map pretty' ys))
 
   pretty SomethingExpr = pretty "something"
   pretty UndefinedExpr = pretty "undefined"
@@ -123,16 +123,27 @@ instance Pretty EgisonPattern where
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> parens (pretty v) -- TODO: remove parens
   pretty (PredPat v)  = pretty "?" <> parens (pretty v)
+  pretty (InductivePat "nil" []) = pretty "[]"
+  pretty (TuplePat xs) = tupled $ map pretty xs
   pretty _            = pretty "hoge"
 
 pretty' :: EgisonExpr -> Doc ann
-pretty' x@(UnaryOpExpr _ _) = parens $ pretty x
-pretty' x                   = pretty x
+pretty' x =
+  case x of
+    UnaryOpExpr _ _        -> parens $ pretty x
+    ApplyExpr _ _          -> parens $ pretty x
+    LambdaExpr _ _         -> parens $ pretty x
+    IfExpr _ _ _           -> parens $ pretty x
+    LetRecExpr _ _         -> parens $ pretty x
+    MatchExpr _ _ _ _      -> parens $ pretty x
+    MatchLambdaExpr _ _    -> parens $ pretty x
+    MatchAllLambdaExpr _ _ -> parens $ pretty x
+    _                      -> pretty x
 
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
-  pretty "as" <+> pretty matcher <+> pretty "with" <> hardline <>
-    align (vsep (map pretty clauses))
+  pretty "as" <+> pretty matcher <+> pretty "with" <>
+    (nest 2 (hardline <> align (vsep (map pretty clauses))))
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
