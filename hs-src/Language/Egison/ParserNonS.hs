@@ -305,8 +305,10 @@ doExpr :: Parser EgisonExpr
 doExpr = do
   pos   <- keywordDo >> L.indentLevel
   stmts <- some $ L.indentGuard sc EQ pos >> statement
-  ret   <- option (makeApply' "return" []) $ L.indentGuard sc EQ pos >> expr
-  return $ DoExpr stmts ret
+  return $ case last stmts of
+             ([], retExpr@(ApplyExpr (VarExpr (Var ["return"] _)) _)) ->
+               DoExpr (init stmts) retExpr
+             _ -> DoExpr stmts (makeApply' "return" [])
   where
     statement :: Parser BindingExpr
     statement = (keywordLet >> binding) <|> ([],) <$> expr
