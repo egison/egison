@@ -19,7 +19,7 @@ class SyntaxElement a where
 
 instance SyntaxElement EgisonTopExpr where
   toNonS (Define x y)   = Define (toNonS x) (toNonS y)
-  toNonS (Redefine x y) = error "Not supported"
+  toNonS (Redefine _ _) = error "Not supported"
   toNonS (Test x)       = Test (toNonS x)
   toNonS (Execute x)    = Execute (toNonS x)
   toNonS x              = x
@@ -70,7 +70,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (DoExpr xs y) = DoExpr (map toNonS xs) (toNonS y)
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
-  toNonS (ApplyExpr x@(VarExpr (Var [f] [])) (TupleExpr (y:ys)))
+  toNonS (ApplyExpr (VarExpr (Var [f] [])) (TupleExpr (y:ys)))
     | any (\op -> func op == f) reservedBinops =
       foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
       where
