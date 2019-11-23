@@ -33,7 +33,7 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty EgisonTopExpr where
   pretty (Define x (LambdaExpr args body)) =
-    pretty x <+> hsep (map pretty args) <+> pretty ":=" <> nest 2 (softline <> pretty body)
+    pretty x <+> hsep (map pretty args) <+> pretty ":=" <> nest 2 (hardline <> pretty body)
   pretty (Define x expr) = pretty x <+> pretty ":=" <> nest 2 (softline <> pretty expr)
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
@@ -93,6 +93,10 @@ instance Pretty EgisonExpr where
        else pretty x <+> pretty (repr op) <+> pretty' y
   pretty (BinaryOpExpr op x y) = pretty x <+> pretty (repr op) <+> pretty' y
 
+  -- TODO: Fix display of binding expr for do
+  pretty (DoExpr xs y) = pretty "do" <+> pretty xs <> hardline <> pretty y
+  pretty (IoExpr x) = pretty "io" <+> pretty x
+
   pretty (ApplyExpr x (TupleExpr ys)) = nest 2 (pretty x <+> fillSep (map pretty' ys))
 
   pretty SomethingExpr = pretty "something"
@@ -119,11 +123,17 @@ instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) = pipe <+> pretty pat <+> pretty "->" <> softline <> pretty expr
 
 instance Pretty EgisonPattern where
+  -- TODO: Add parenthesis according to priority
   pretty WildCard     = pretty "_"
   pretty (PatVar x)   = pretty "$" <> pretty x
-  pretty (ValuePat v) = pretty "#" <> parens (pretty v) -- TODO: remove parens
-  pretty (PredPat v)  = pretty "?" <> parens (pretty v)
+  pretty (ValuePat v) = pretty "#" <> pretty v
+  pretty (PredPat v)  = pretty "?" <> pretty v
   pretty (InductivePat "nil" []) = pretty "[]"
+  pretty (InductivePat "cons" [x, y]) = pretty x <+> pretty "::" <+> pretty y
+  pretty (InductivePat "join" [x, y]) = pretty x <+> pretty "++" <+> pretty y
+  pretty (InductivePat ctor xs) = pretty ctor <+> hsep (map pretty xs)
+  pretty (AndPat xs) = pintercalate (pretty "&") (map pretty xs)
+  pretty (OrPat xs)  = pintercalate (pretty "|") (map pretty xs)
   pretty (TuplePat xs) = tupled $ map pretty xs
   pretty _            = pretty "hoge"
 
@@ -142,11 +152,14 @@ pretty' x =
 
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
-  pretty "as" <+> pretty matcher <+> pretty "with" <>
+  pretty "as" <+> group (pretty matcher) <+> pretty "with" <>
     (nest 2 (hardline <> align (vsep (map pretty clauses))))
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
+
+pintercalate :: Doc ann -> [Doc ann] -> Doc ann
+pintercalate sep elems = encloseSep emptyDoc emptyDoc (space <> sep <> space) elems
 
 --
 -- Pretty printer for S-expression
