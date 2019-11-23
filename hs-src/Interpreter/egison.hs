@@ -7,7 +7,6 @@ module Main where
 import           Control.Exception          (AsyncException (..), catch)
 import           Control.Monad.Except
 import           Control.Monad.Trans.State
-import           Prelude                    hiding (catch)
 
 import qualified Data.Text                  as T
 
