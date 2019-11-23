@@ -550,6 +550,7 @@ applyOrAtomPattern = do
   case (func, args) of
     (_,                 []) -> return func
     (InductivePat x [], _)  -> return $ InductivePat x args
+    _                       -> error (show (func, args))
 
 atomPattern :: Parser EgisonPattern
 atomPattern = do
