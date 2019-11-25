@@ -32,7 +32,7 @@ import           Control.Monad.Except           (liftIO, throwError)
 import           Control.Monad.State            (unless)
 
 import           Data.Functor                   (($>))
-import           Data.List                      (find)
+import           Data.List                      (find, groupBy)
 import           Data.Maybe                     (fromJust, isJust)
 import           Data.Text                      (pack)
 import           Data.Traversable               (mapM)
@@ -200,40 +200,32 @@ opExpr :: Parser EgisonExpr
 opExpr = do
   pos <- L.indentLevel
   makeExprParser atomOrApplyExpr (makeTable pos)
+
+makeTable :: Pos -> [[Operator Parser EgisonExpr]]
+makeTable pos =
+  -- prefixes have top priority
+  let prefixes = [ [ Prefix (unary "-")
+                   , Prefix (unary "!") ] ]
+      -- Generate binary operator table from reservedBinops
+      binops = map (map binOpToOperator)
+        (groupBy (\x y -> priority x == priority y) reservedBinops)
+   in prefixes ++ binops
   where
-    makeTable :: Pos -> [[Operator Parser EgisonExpr]]
-    makeTable pos =
-      let unary  sym = UnaryOpExpr  <$> operator sym
-          binary sym = do
-            -- TODO: Is this indentation guard necessary?
-            op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
-            return $ BinaryOpExpr op
-       in
-          [ [ Prefix (unary  "-" )
-            , Prefix (unary  "!" ) ]
-          -- 8
-          , [ InfixL (binary "^" ) ]
-          -- 7
-          , [ InfixL (binary "*" )
-            , InfixL (binary "/" )
-            , InfixL (binary "%" ) ]
-          -- 6
-          , [ InfixL (binary "+" )
-            , InfixL (binary "-" ) ]
-          -- 5
-          , [ InfixR (binary "::" )
-            , InfixR (binary "++") ]
-          -- 4
-          , [ InfixL (binary "=")
-            , InfixL (binary "<=")
-            , InfixL (binary "<" )
-            , InfixL (binary ">=")
-            , InfixL (binary ">" ) ]
-          -- 3
-          , [ InfixR (binary "&&") ]
-          -- 2
-          , [ InfixR (binary "||") ]
-          ]
+    unary :: String -> Parser (EgisonExpr -> EgisonExpr)
+    unary sym = UnaryOpExpr <$> operator sym
+
+    binary :: String -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
+    binary sym = do
+      -- TODO: Is this indentation guard necessary?
+      op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
+      return $ BinaryOpExpr op
+
+    binOpToOperator :: EgisonBinOp -> Operator Parser EgisonExpr
+    binOpToOperator op = case assoc op of
+                           LeftAssoc  -> InfixL (binary (repr op))
+                           RightAssoc -> InfixR (binary (repr op))
+                           NonAssoc   -> InfixN (binary (repr op))
+
 
 ifExpr :: Parser EgisonExpr
 ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
