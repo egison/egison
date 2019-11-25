@@ -138,8 +138,8 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 --
 
 topExpr :: Parser EgisonTopExpr
-topExpr = Load     <$> (keywordLoad >> stringLiteral)
-      <|> LoadFile <$> (keywordLoadFile >> stringLiteral)
+topExpr = Load     <$> (reserved "load" >> stringLiteral)
+      <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
       <|> defineOrTestExpr
       <?> "toplevel expression"
 
@@ -241,18 +241,18 @@ makeTable pos =
 
 
 ifExpr :: Parser EgisonExpr
-ifExpr = keywordIf >> IfExpr <$> expr <* keywordThen <*> expr <* keywordElse <*> expr
+ifExpr = reserved "if" >> IfExpr <$> expr <* reserved "then" <*> expr <* reserved "else" <*> expr
 
 patternMatchExpr :: Parser EgisonExpr
-patternMatchExpr = makeMatchExpr keywordMatch       (MatchExpr BFSMode)
-               <|> makeMatchExpr keywordMatchDFS    (MatchExpr DFSMode)
-               <|> makeMatchExpr keywordMatchAll    (MatchAllExpr BFSMode)
-               <|> makeMatchExpr keywordMatchAllDFS (MatchAllExpr DFSMode)
+patternMatchExpr = makeMatchExpr (reserved "match")       (MatchExpr BFSMode)
+               <|> makeMatchExpr (reserved "matchDFS")    (MatchExpr DFSMode)
+               <|> makeMatchExpr (reserved "matchAll")    (MatchAllExpr BFSMode)
+               <|> makeMatchExpr (reserved "matchAllDFS") (MatchAllExpr DFSMode)
                <?> "pattern match expression"
   where
     makeMatchExpr keyword ctor = ctor <$> (keyword >> expr)
-                                      <*> (keywordAs >> expr)
-                                      <*> (keywordWith >> matchClauses1)
+                                      <*> (reserved "as" >> expr)
+                                      <*> (reserved "with" >> matchClauses1)
 
 -- Parse more than 1 match clauses.
 matchClauses1 :: Parser [MatchClause]
@@ -269,15 +269,15 @@ matchClauses1 = do
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
-      makeMatchLambdaExpr keywordMatch    MatchLambdaExpr
-  <|> makeMatchLambdaExpr keywordMatchAll MatchAllLambdaExpr
+      makeMatchLambdaExpr (reserved "match")    MatchLambdaExpr
+  <|> makeMatchLambdaExpr (reserved "matchAll") MatchAllLambdaExpr
   <|> try (LambdaExpr <$> some arg <*> (symbol "->" >> expr))
   <|> PatternFunctionExpr <$> some lowerId <*> (symbol "=>" >> pattern))
   <?> "lambda or pattern function expression"
   where
     makeMatchLambdaExpr keyword ctor = do
-      matcher <- keyword >> keywordAs >> expr
-      clauses <- keywordWith >> matchClauses1
+      matcher <- keyword >> reserved "as" >> expr
+      clauses <- reserved "with" >> matchClauses1
       return $ ctor matcher clauses
 
 arg :: Parser Arg
@@ -288,9 +288,9 @@ arg = InvertedScalarArg <$> (symbol "*" >> lowerId)
 
 letExpr :: Parser EgisonExpr
 letExpr = do
-  pos   <- keywordLet >> L.indentLevel
+  pos   <- reserved "let" >> L.indentLevel
   binds <- oneLiner <|> some (L.indentGuard sc EQ pos *> binding)
-  body  <- keywordIn >> expr
+  body  <- reserved "in" >> expr
   return $ LetRecExpr binds body
   where
     oneLiner :: Parser [BindingExpr]
@@ -308,11 +308,11 @@ binding = do
              _  -> (vars, LambdaExpr args body)
 
 withSymbolsExpr :: Parser EgisonExpr
-withSymbolsExpr = WithSymbolsExpr <$> (keywordWithSymbols >> brackets (sepBy lowerId comma)) <*> expr
+withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy lowerId comma)) <*> expr
 
 doExpr :: Parser EgisonExpr
 doExpr = do
-  pos   <- keywordDo >> L.indentLevel
+  pos   <- reserved "do" >> L.indentLevel
   stmts <- oneLiner <|> some (L.indentGuard sc EQ pos >> statement)
   return $ case last stmts of
              ([], retExpr@(ApplyExpr (VarExpr (Var ["return"] _)) _)) ->
@@ -320,17 +320,17 @@ doExpr = do
              _ -> DoExpr stmts (makeApply' "return" [])
   where
     statement :: Parser BindingExpr
-    statement = (keywordLet >> binding) <|> ([],) <$> expr
+    statement = (reserved "let" >> binding) <|> ([],) <$> expr
 
     oneLiner :: Parser [BindingExpr]
     oneLiner = braces $ sepBy statement (symbol ";")
 
 ioExpr :: Parser EgisonExpr
-ioExpr = IoExpr <$> (keywordIo >> expr)
+ioExpr = IoExpr <$> (reserved "io" >> expr)
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
-  keywordMatcher
+  reserved "matcher"
   pos  <- L.indentLevel
   -- In matcher expression, the first '|' (bar) is indispensable
   info <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
@@ -339,7 +339,7 @@ matcherExpr = do
     patternDef :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
     patternDef = do
       pp <- ppPattern
-      returnMatcher <- keywordAs >> expr <* keywordWith
+      returnMatcher <- reserved "as" >> expr <* reserved "with"
       pos <- L.indentLevel
       datapat <- some (L.indentGuard sc EQ pos >> symbol "|" >> dataCases)
       return (pp, returnMatcher, datapat)
@@ -349,7 +349,7 @@ matcherExpr = do
 
 algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = do
-  keywordAlgebraicDataMatcher
+  reserved "algebraicDataMatcher"
   pos  <- L.indentLevel
   defs <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
   return $ AlgebraicDataMatcherExpr defs
@@ -362,24 +362,24 @@ algebraicDataMatcherExpr = do
       return (patternCtor, args)
 
 memoizedLambdaExpr :: Parser EgisonExpr
-memoizedLambdaExpr = MemoizedLambdaExpr <$> (keywordMemoizedLambda >> many lowerId) <*> (symbol "->" >> expr)
+memoizedLambdaExpr = MemoizedLambdaExpr <$> (reserved "memoizedLambda" >> many lowerId) <*> (symbol "->" >> expr)
 
 procedureExpr :: Parser EgisonExpr
-procedureExpr = ProcedureExpr <$> (keywordProcedure >> many lowerId) <*> (symbol "->" >> expr)
+procedureExpr = ProcedureExpr <$> (reserved "procedure" >> many lowerId) <*> (symbol "->" >> expr)
 
 macroExpr :: Parser EgisonExpr
-macroExpr = MacroExpr <$> (keywordMacro >> many lowerId) <*> (symbol "->" >> expr)
+macroExpr = MacroExpr <$> (reserved "macro" >> many lowerId) <*> (symbol "->" >> expr)
 
 generateTensorExpr :: Parser EgisonExpr
-generateTensorExpr = GenerateTensorExpr <$> (keywordGenerateTensor >> atomExpr) <*> atomExpr
+generateTensorExpr = GenerateTensorExpr <$> (reserved "generateTensor" >> atomExpr) <*> atomExpr
 
 tensorExpr :: Parser EgisonExpr
-tensorExpr = TensorExpr <$> (keywordTensor >> atomExpr) <*> atomExpr
+tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
                         <*> option (CollectionExpr []) atomExpr
                         <*> option (CollectionExpr []) atomExpr
 
 functionExpr :: Parser EgisonExpr
-functionExpr = FunctionExpr <$> (keywordFunction >> parens (sepBy expr comma))
+functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
 
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
@@ -501,8 +501,8 @@ constantExpr = numericExpr
            <|> BoolExpr <$> boolLiteral
            <|> CharExpr <$> try charLiteral        -- try for quoteExpr
            <|> StringExpr . pack <$> stringLiteral
-           <|> SomethingExpr <$ keywordSomething
-           <|> UndefinedExpr <$ keywordUndefined
+           <|> SomethingExpr <$ reserved "something"
+           <|> UndefinedExpr <$ reserved "undefined"
 
 numericExpr :: Parser EgisonExpr
 numericExpr = FloatExpr <$> try positiveFloatLiteral
@@ -520,14 +520,14 @@ pattern = letPattern
 
 letPattern :: Parser EgisonPattern
 letPattern = do
-  pos   <- keywordLet >> L.indentLevel
+  pos   <- reserved "let" >> L.indentLevel
   binds <- some (L.indentGuard sc EQ pos *> binding)
-  body  <- keywordIn >> pattern
+  body  <- reserved "in" >> pattern
   return $ LetPat binds body
 
 loopPattern :: Parser EgisonPattern
 loopPattern =
-  LoopPat <$> (keywordLoop >> patVarLiteral) <*> loopRange
+  LoopPat <$> (reserved "loop" >> patVarLiteral) <*> loopRange
           <*> atomPattern <*> atomPattern
   where
     loopRange :: Parser LoopRange
@@ -736,50 +736,13 @@ upperOrModuleId = do
   follows <- many (char '.' >> some alphaNumChar) <* sc
   return (ident, follows)
 
-keywordLoadFile             = reserved "loadFile"
-keywordLoad                 = reserved "load"
-keywordIf                   = reserved "if"
-keywordThen                 = reserved "then"
-keywordElse                 = reserved "else"
-keywordSeq                  = reserved "seq"
-keywordApply                = reserved "apply"
-keywordCApply               = reserved "capply"
-keywordMemoizedLambda       = reserved "memoizedLambda"
-keywordCambda               = reserved "cambda"
-keywordProcedure            = reserved "procedure"
-keywordMacro                = reserved "macro"
-keywordLet                  = reserved "let"
-keywordIn                   = reserved "in"
-keywordWithSymbols          = reserved "withSymbols"
-keywordLoop                 = reserved "loop"
-keywordMatch                = reserved "match"
-keywordMatchDFS             = reserved "matchDFS"
-keywordMatchAll             = reserved "matchAll"
-keywordMatchAllDFS          = reserved "matchAllDFS"
-keywordAs                   = reserved "as"
-keywordWith                 = reserved "with"
-keywordMatcher              = reserved "matcher"
-keywordDo                   = reserved "do"
-keywordIo                   = reserved "io"
-keywordSomething            = reserved "something"
-keywordUndefined            = reserved "undefined"
-keywordAlgebraicDataMatcher = reserved "algebraicDataMatcher"
-keywordGenerateTensor       = reserved "generateTensor"
-keywordTensor               = reserved "tensor"
-keywordTensorContract       = reserved "contract"
-keywordSubrefs              = reserved "subrefs"
-keywordSubrefsNew           = reserved "subrefs!"
-keywordSuprefs              = reserved "suprefs"
-keywordSuprefsNew           = reserved "suprefs!"
-keywordUserrefs             = reserved "userRefs"
-keywordUserrefsNew          = reserved "userRefs!"
-keywordFunction             = reserved "function"
-
+upperReservedWords :: [String]
 upperReservedWords =
   [ "True"
   , "False"
   ]
 
+lowerReservedWords :: [String]
 lowerReservedWords =
   [ "loadFile"
   , "load"
@@ -795,10 +758,9 @@ lowerReservedWords =
   , "macro"
   , "let"
   , "in"
+  , "where"
   , "withSymbols"
   , "loop"
-  , "from"
-  , "to"
   , "of"
   , "match"
   , "matchDFS"
@@ -822,7 +784,6 @@ lowerReservedWords =
   , "userRefs"
   , "userRefs!"
   , "function"
-  , "where"
   ]
 
 --
