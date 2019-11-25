@@ -1,4 +1,7 @@
-(define $n 50)
+(define $n 200)
 
 (match-all (take n (repeat {0})) (multiset integer)
   [<cons $x <cons ,(+ x 1) <cons ,(+ x 2) _>>> x])
+
+; vesion 3.10.0; n = 100; 5.95s user 0.14s system 91% cpu 6.616 total
+; vesion 3.10.0; n = 200; 23.78s user 0.43s system 95% cpu 25.457 total
