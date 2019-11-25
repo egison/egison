@@ -119,10 +119,10 @@ assertEqual "function definition"
   7
 
 gcd m n :=
-  if (m >= n) then
-              if (n = 0) then m
-                          else gcd n (m % n)
-              else gcd n m
+  if m >= n then
+            if n = 0 then m
+                     else gcd n (m % n)
+            else gcd n m
 
 assertEqual "recursive function definition"
   (gcd 143 22)

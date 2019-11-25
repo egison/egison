@@ -17,8 +17,8 @@ module Language.Egison.Types
     (
     -- * Egison values
       EgisonValue (..)
-    , Matcher (..)
-    , PrimitiveFunc (..)
+    , Matcher
+    , PrimitiveFunc
     , ScalarData (..)
     , PolyExpr (..)
     , TermExpr (..)
@@ -69,7 +69,7 @@ module Language.Egison.Types
     , extractScalar'
     -- * Internal data
     , Object (..)
-    , ObjectRef (..)
+    , ObjectRef
     , WHNFData (..)
     , Intermediate (..)
     , Inner (..)
@@ -77,7 +77,7 @@ module Language.Egison.Types
     -- * Environment
     , Env (..)
     , VarWithIndices (..)
-    , Binding (..)
+    , Binding
     , nullEnv
     , extendEnv
     , refVar
@@ -86,7 +86,7 @@ module Language.Egison.Types
     , Match
     , MatchingTree (..)
     , MatchingState (..)
-    , PatternBinding (..)
+    , PatternBinding
     , LoopPatContext (..)
     , SeqPatContext (..)
     -- * Errors
@@ -98,10 +98,10 @@ module Language.Egison.Types
     , liftEgisonM
     , fromEgisonM
     , FreshT (..)
-    , Fresh (..)
+    , Fresh
     , MonadFresh (..)
     , runFreshT
-    , MatchM (..)
+    , MatchM
     , matchFail
     , MList (..)
     , fromList
