@@ -177,7 +177,20 @@ defineOrTestExpr = do
         ScalarArg x : xs -> exprToArgs lhs ++ TensorArg x : xs
 
 expr :: Parser EgisonExpr
-expr = ifExpr
+expr = do
+  body <- exprWithoutWhere
+  bindings <- optional whereDefs
+  return $ case bindings of
+             Nothing -> body
+             Just bindings -> LetRecExpr bindings body
+  where
+    whereDefs = do
+      pos <- reserved "where" >> L.indentLevel
+      some (L.indentGuard sc EQ pos >> binding)
+
+exprWithoutWhere :: Parser EgisonExpr
+exprWithoutWhere =
+       ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
    <|> letExpr
@@ -809,6 +822,7 @@ lowerReservedWords =
   , "userRefs"
   , "userRefs!"
   , "function"
+  , "where"
   ]
 
 --

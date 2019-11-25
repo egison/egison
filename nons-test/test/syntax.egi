@@ -71,6 +71,12 @@ io do print "io and do expression"
 
 io do { print "io and do expression without indent"; return 0 }
 
+assertEqual "where"
+  (f 0 + y + 1
+    where f x := 2 + x
+          y := 3)
+  6
+
 assertEqual "mutual recursion"
   (let even? n := if n = 0 then True else odd? (n - 1)
        odd?  n := if n = 0 then False else even? (n - 1)
