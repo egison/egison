@@ -62,6 +62,15 @@ assertEqual "let binding"
     in y)
   2
 
+assertEqual "let binding without indent"
+  (let { x := 1; y := x + 1 } in y)
+  2
+
+io do print "io and do expression"
+      return 0
+
+io do { print "io and do expression without indent"; return 0 }
+
 assertEqual "mutual recursion"
   (let even? n := if n = 0 then True else odd? (n - 1)
        odd?  n := if n = 0 then False else even? (n - 1)

@@ -205,6 +205,7 @@ opExpr = do
     makeTable pos =
       let unary  sym = UnaryOpExpr  <$> operator sym
           binary sym = do
+            -- TODO: Is this indentation guard necessary?
             op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
             return $ BinaryOpExpr op
        in
@@ -283,9 +284,12 @@ arg = InvertedScalarArg <$> (symbol "*" >> lowerId)
 letExpr :: Parser EgisonExpr
 letExpr = do
   pos   <- keywordLet >> L.indentLevel
-  binds <- some (L.indentGuard sc EQ pos *> binding)
+  binds <- oneLiner <|> some (L.indentGuard sc EQ pos *> binding)
   body  <- keywordIn >> expr
   return $ LetRecExpr binds body
+  where
+    oneLiner :: Parser [BindingExpr]
+    oneLiner = braces $ sepBy binding (symbol ";")
 
 binding :: Parser BindingExpr
 binding = do
@@ -304,7 +308,7 @@ withSymbolsExpr = WithSymbolsExpr <$> (keywordWithSymbols >> brackets (sepBy low
 doExpr :: Parser EgisonExpr
 doExpr = do
   pos   <- keywordDo >> L.indentLevel
-  stmts <- some $ L.indentGuard sc EQ pos >> statement
+  stmts <- oneLiner <|> some (L.indentGuard sc EQ pos >> statement)
   return $ case last stmts of
              ([], retExpr@(ApplyExpr (VarExpr (Var ["return"] _)) _)) ->
                DoExpr (init stmts) retExpr
@@ -312,6 +316,9 @@ doExpr = do
   where
     statement :: Parser BindingExpr
     statement = (keywordLet >> binding) <|> ([],) <$> expr
+
+    oneLiner :: Parser [BindingExpr]
+    oneLiner = braces $ sepBy statement (symbol ";")
 
 ioExpr :: Parser EgisonExpr
 ioExpr = IoExpr <$> (keywordIo >> expr)
