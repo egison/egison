@@ -25,23 +25,23 @@ dp vars cnf :=
   -- unsatisfiable
   | (_, [] :: _) -> False
   -- 1-literal rule
-  | (_, (cons (cons $l nil) _))
-    -> dp (delete (abs l) vars) (assignTrue l cnf)
+  | (_, (($l :: []) :: _))
+  -> dp (delete (abs l) vars) (assignTrue l cnf)
   -- pure literal rule (positive)
   | ($v :: $vs, !((#(neg v) :: _) :: _))
-    -> dp vs (assignTrue v cnf)
+  -> dp vs (assignTrue v cnf)
   -- pure literal rule (negative)
   | ($v :: $vs, !((#v :: _) :: _))
-    -> dp vs (assignTrue (neg v) cnf)
+  -> dp vs (assignTrue (neg v) cnf)
   -- otherwise
   | ($v :: $vs, _)
-    -> dp vs (resolveOn v cnf ++
-              deleteClausesWith v (deleteClausesWith (neg v) cnf))
+  -> dp vs (resolveOn v cnf ++
+            deleteClausesWith v (deleteClausesWith (neg v) cnf))
 
-dp [1] [[1]] -- True
-dp [1] [[1],[-1]] -- False
-dp [1,2,3] [[1,2],[-1,3],[1,-3]] -- True
-dp [1,2] [[1,2],[-1,-2],[1,-2]] -- True
-dp [1,2] [[1,2],[-1,-2],[1,-2],[-1,2]] -- False
-dp [1,2,3,4,5] [[-1,-2,3],[-1,-2,-3],[1,2,3,4],[-4,-2,3],[5,1,2,-3],[-3,1,-5],[1,-2,3,4],[1,-2,-3,5]] -- True
-dp [1,2] [[-1,-2],[1]] -- True
+assertEqual "dp" (dp [1] [[1]]) True
+assertEqual "dp" (dp [1] [[1],[-1]]) False
+assertEqual "dp" (dp [1,2,3] [[1,2],[-1,3],[1,-3]]) True
+assertEqual "dp" (dp [1,2] [[1,2],[-1,-2],[1,-2]]) True
+assertEqual "dp" (dp [1,2] [[1,2],[-1,-2],[1,-2],[-1,2]]) False
+assertEqual "dp" (dp [1,2,3,4,5] [[-1,-2,3],[-1,-2,-3],[1,2,3,4],[-4,-2,3],[5,1,2,-3],[-3,1,-5],[1,-2,3,4],[1,-2,-3,5]]) True
+assertEqual "dp" (dp [1,2] [[-1,-2],[1]]) True

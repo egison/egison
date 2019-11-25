@@ -104,7 +104,8 @@ assertEqual "twin primes"
 
 primeTriplets :=
   matchAll primes as list integer with
-  | _ ++ $p :: ((#(p + 2) | #(p + 4)) & $m) :: #(p + 6) ::  _ -> (p, m, p + 6)
+  | _ ++ $p :: ((#(p + 2) | #(p + 4)) & $m) :: #(p + 6) ::  _
+  -> (p, m, p + 6)
 
 assertEqual "prime triplets"
   (take 10 primeTriplets)
@@ -313,6 +314,16 @@ assertEqual "pairs of 2, different natural numbers"
             | _ ++ $m :: _ ++ $n :: _ -> [m, n]))
   [[1, 2], [1, 3], [2, 3], [1, 4], [2, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5]]
 
+assertEqual "combinations"
+  (matchAll [1,2,3] as list something with
+   | _ ++ $x :: _ ++ $y :: _ -> (x, y))
+  [(1, 2), (1, 3), (2, 3)]
+
+assertEqual "permutations"
+  (matchAll [1,2,3] as multiset something with
+   | $x :: $y :: _ -> (x, y))
+  [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)]
+
 tree a := algebraicDataMatcher
   | leaf
   | node (tree a) a (tree a)
@@ -340,9 +351,17 @@ assertEqual "tree set using algebraic-data-matcher"
 
 assert "sequential pattern"
   (match [2,3,1,4,5] as list integer with
-    { @ :: @ :: $x :: _,
-      (#(x + 1), @),
-      #(x + 2)} -> True)
+   | { @ :: @ :: $x :: _,
+       (#(x + 1), @),
+      #(x + 2)}
+   -> True)
+
+assertEqual "sequential not pattern"
+  (matchAll ([1,2,3], [4,3,5]) as (multiset eq, multiset eq) with
+   | { ($x :: @, #x :: @),
+       !($y :: _, #y :: _) }
+   -> x)
+  [3]
 
 --
 -- Tensor
