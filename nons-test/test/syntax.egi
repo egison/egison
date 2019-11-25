@@ -77,6 +77,14 @@ assertEqual "where"
           y := 3)
   6
 
+assertEqual "nested where"
+  (f 0 + 1
+    where
+      f x := 2 + y + z
+        where y := 3
+      z := 4)
+  10
+
 assertEqual "mutual recursion"
   (let even? n := if n = 0 then True else odd? (n - 1)
        odd?  n := if n = 0 then False else even? (n - 1)
