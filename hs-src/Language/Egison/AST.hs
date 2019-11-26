@@ -166,7 +166,6 @@ data EgisonPattern =
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
   | LetPat [BindingExpr] EgisonPattern
-  | LaterPat EgisonPattern
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
@@ -331,7 +330,6 @@ instance Show EgisonPattern where
     where showVarsHelper [] = ""
           showVarsHelper [v] = "$" ++ show v
           showVarsHelper vs = "[" ++ unwords (map (("$" ++) . show) vs) ++ "]"
-  show (LaterPat pat) = "(later " ++ show pat ++ ")"
   show (NotPat pat) = "!" ++ show pat
   show (AndPat pats) = "(&" ++ concatMap ((" " ++) . show) pats ++ ")"
   show (OrPat pats) = "(|" ++ concatMap ((" " ++) . show) pats ++ ")"
