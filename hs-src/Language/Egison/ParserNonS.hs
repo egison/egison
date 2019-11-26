@@ -400,21 +400,28 @@ tupleOrParenExpr = do
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
+    leftPointFreeExpr :: Parser EgisonExpr
+    leftPointFreeExpr = do
+      op   <- choice $ map (binOpLiteral . repr) reservedBinops
+      rarg <- optional expr
+      -- TODO(momohatt): Take associativity of operands into account
+      case rarg of
+        Just (BinaryOpExpr op' _ _) | priority op >= priority op' ->
+          customFailure (IllFormedPointFreeExpr op op')
+        _ -> return (makeLambda op Nothing rarg)
+
+    rightPointFreeExpr :: Parser EgisonExpr
+    rightPointFreeExpr = do
+      larg <- opExpr
+      op   <- choice $ map (binOpLiteral . repr) reservedBinops
+      case larg of
+        BinaryOpExpr op' _ _ | priority op >= priority op' ->
+          customFailure (IllFormedPointFreeExpr op op')
+        _ -> return (makeLambda op (Just larg) Nothing)
+
     pointFreeExpr :: Parser [EgisonExpr]
-    pointFreeExpr =
-          (do op   <- try . choice $ map (binOpLiteral . repr) reservedBinops
-              rarg <- optional expr
-              -- TODO(momohatt): Take associativity of operands into account
-              case rarg of
-                Just (BinaryOpExpr op' _ _) | priority op >= priority op' ->
-                  customFailure (IllFormedPointFreeExpr op op')
-                _ -> return [makeLambda op Nothing rarg])
-      <|> (do larg <- opExpr
-              op   <- choice $ map (binOpLiteral . repr) reservedBinops
-              case larg of
-                BinaryOpExpr op' _ _ | priority op >= priority op' ->
-                  customFailure (IllFormedPointFreeExpr op op')
-                _ -> return [makeLambda op (Just larg) Nothing])
+    -- Start from right, in order to parse expressions like (-1 +) correctly
+    pointFreeExpr = (:[]) <$> (rightPointFreeExpr <|> leftPointFreeExpr)
 
     makeLambda :: EgisonBinOp -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
     makeLambda op Nothing Nothing =
