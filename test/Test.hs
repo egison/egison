@@ -23,14 +23,14 @@ import           Language.Egison.Primitives
 import           Language.Egison.Types
 
 main :: IO ()
-main = do
-  let unitTests     = map runUnitTestCase     unitTestCases
-      unitNonSTests = map runUnitTestCaseNonS unitNonSTestCases
-      sampleTests   = map runSampleTestCase   sampleTestCases
-   in defaultMain . hUnitTestToTests . test $ unitNonSTests ++ unitTests ++ sampleTests
+main =
+  defaultMain . hUnitTestToTests . test $ nonSTests ++ sExprTests
+  where
+    sExprTests = map runTestCase     testCases
+    nonSTests  = map runTestCaseNonS nonSTestCases
 
-unitTestCases :: [FilePath]
-unitTestCases =
+testCases :: [FilePath]
+testCases =
   [ "test/syntax.egi"
   , "test/primitive.egi"
   , "test/lib/math/analysis.egi"
@@ -47,24 +47,20 @@ unitTestCases =
   , "sample/poker-hands-with-joker.egi"
   , "sample/poker-hands.egi"
   , "sample/primes.egi"
+  , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
+  , "sample/math/number/17th-root-of-unity.egi"
   ]
 
-unitNonSTestCases :: [FilePath]
-unitNonSTestCases =
+nonSTestCases :: [FilePath]
+nonSTestCases =
   [ "nons-test/test/syntax.egi"
   , "nons-test/test/primitive.egi"
   , "nons-test/test/lib/core/base.egi"
   , "nons-test/test/lib/core/order.egi"
   ]
 
-sampleTestCases :: [FilePath]
-sampleTestCases =
-  [ "test/answer/sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
-  , "test/answer/sample/math/number/17th-root-of-unity.egi"
-  ]
-
-runUnitTestCase :: FilePath -> Test
-runUnitTestCase file = TestLabel file . TestCase $ do
+runTestCase :: FilePath -> Test
+runTestCase file = TestLabel file . TestCase $ do
   env <- initialEnv defaultOption
   assertEgisonM $ do
     exprs <- Parser.loadFile file
@@ -75,8 +71,8 @@ runUnitTestCase file = TestLabel file . TestCase $ do
     assertEgisonM :: EgisonM a -> Assertion
     assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")
 
-runUnitTestCaseNonS :: FilePath -> Test
-runUnitTestCaseNonS file = TestLabel file . TestCase $ do
+runTestCaseNonS :: FilePath -> Test
+runTestCaseNonS file = TestLabel file . TestCase $ do
   env <- initialEnv (defaultOption { optSExpr = False })
   assertEgisonM $ do
     exprs <- ParserNonS.loadFile file
@@ -86,29 +82,6 @@ runUnitTestCaseNonS file = TestLabel file . TestCase $ do
   where
     assertEgisonM :: EgisonM a -> Assertion
     assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")
-
-runSampleTestCase :: FilePath -> Test
-runSampleTestCase file = TestLabel file . TestCase $ do
-  env <- initialEnv defaultOption
-  let directory_path = takeDirectory file
-  answers <- readFile file
-  assertEgisonM (lines answers) $ do
-    exprs <- Parser.loadFile (replaceDirectory file $ concat $ drop 2 $ splitPath directory_path)
-    let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
-    env' <- recursiveBind env bindings
-    vals <- forM tests (evalExprDeep env')
-    return $ zip tests vals
-  where
-    assertEgisonM :: [String] -> EgisonM [(EgisonExpr, EgisonValue)] -> Assertion
-    assertEgisonM answers m = fromEgisonM m >>= assertString . either show (f answers)
-
-    f :: [String] -> [(EgisonExpr, EgisonValue)] -> String
-    f answers ls = g answers ls 0
-    g x y i = let (e, v) = unzip y in
-              if (x !! i) == prettyS (v !! i)
-                 then (if i < (length y - 1) then g x y (i + 1)
-                                             else "")
-                 else "failed " ++ show (e !! i) ++ "\n expected: " ++ (x !! i) ++ "\n but found: " ++ prettyS (v !! i)
 
 collectDefsAndTests :: EgisonTopExpr -> ([(Var, EgisonExpr)], [EgisonExpr]) -> ([(Var, EgisonExpr)], [EgisonExpr])
 collectDefsAndTests (Define name expr) (bindings, tests) =
