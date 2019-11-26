@@ -480,6 +480,7 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
 mathFold :: ScalarData -> ScalarData
 mathFold mExpr = mathTermFold (mathSymbolFold (mathTermFold mExpr))
 
+-- x^2 y x -> x^3 y
 mathSymbolFold :: ScalarData -> ScalarData
 mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f ts2))
  where
@@ -504,6 +505,7 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
                              then ((y, m + n), sgn)
                              else ((y, m), sgn)
 
+-- x^2 y + x^2 y -> 2 x^2 y
 mathTermFold :: ScalarData -> ScalarData
 mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
  where
