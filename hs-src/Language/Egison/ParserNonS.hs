@@ -1,5 +1,4 @@
 {-# LANGUAGE TupleSections    #-}
-{-# LANGUAGE MultiWayIf       #-}
 
 {- |
 Module      : Language.Egison.ParserNonS
@@ -113,12 +112,12 @@ readUTF8File name = do
 type Parser = Parsec CustomError String
 
 data CustomError
-  = IllFormedPointFreeExpr EgisonBinOp EgisonBinOp
+  = IllFormedSection EgisonBinOp EgisonBinOp
   | IllFormedDefine
   deriving (Eq, Ord)
 
 instance ShowErrorComponent CustomError where
-  showErrorComponent (IllFormedPointFreeExpr op op') =
+  showErrorComponent (IllFormedSection op op') =
     "The operator " ++ info op ++ " must have lower precedence than " ++ info op'
     where
       info op =
@@ -146,35 +145,50 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
   e <- expr
-  (do symbol ":="
-      body <- expr
-      return $ convertToDefine e body)
-      <|> return (Test e)
+  defineExpr e <|> return (Test e)
   where
-    -- TODO: Throw IllFormedDefine in pattern match failure.
-    -- first 2 cases are the most common ones
-    convertToDefine :: EgisonExpr -> EgisonExpr -> EgisonTopExpr
-    convertToDefine (VarExpr var) body = Define var body
-    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) body =
-      Define var (LambdaExpr (map exprToArg args) body)
+    defineExpr :: EgisonExpr -> Parser EgisonTopExpr
+    defineExpr e = do
+      symbol ":="
+      body <- expr
+      case convertToDefine e body of
+        Just def -> return def
+        -- TODO(momohatt): Adjust the position of error
+        Nothing -> customFailure IllFormedDefine
+
+    convertToDefine :: EgisonExpr -> EgisonExpr -> Maybe EgisonTopExpr
+    convertToDefine (VarExpr var) body = Just (Define var body)
+    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) body = do
+      args' <- mapM exprToArg args
+      return (Define var (LambdaExpr args' body))
     convertToDefine e@(BinaryOpExpr op _ _) body
-      | repr op == "*" || repr op == "%" =
-        case exprToArgs e of
-          ScalarArg var : args -> Define (Var [var] []) (LambdaExpr args body)
+      | repr op == "*" || repr op == "%" = do
+        args <- exprToArgs e
+        case args of
+          ScalarArg var : args -> return (Define (Var [var] []) (LambdaExpr args body))
+    convertToDefine _ _ = Nothing
 
-    exprToArg :: EgisonExpr -> Arg
-    exprToArg (VarExpr (Var [x] [])) = ScalarArg x
+    exprToArg :: EgisonExpr -> Maybe Arg
+    exprToArg (VarExpr (Var [x] [])) = return (ScalarArg x)
+    exprToArg _                      = Nothing
 
-    exprToArgs :: EgisonExpr -> [Arg]
-    exprToArgs (VarExpr (Var [x] [])) = [ScalarArg x]
+    exprToArgs :: EgisonExpr -> Maybe [Arg]
+    exprToArgs (VarExpr (Var [x] [])) = return [ScalarArg x]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
-      exprToArgs func ++ map exprToArg args
-    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" =
-      case exprToArgs rhs of
-        ScalarArg x : xs -> exprToArgs lhs ++ InvertedScalarArg x : xs
-    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "%" =
-      case exprToArgs rhs of
-        ScalarArg x : xs -> exprToArgs lhs ++ TensorArg x : xs
+      (++) <$> exprToArgs func <*> mapM exprToArg args
+    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
+      lhs' <- exprToArgs lhs
+      rhs' <- exprToArgs rhs
+      case rhs' of
+        ScalarArg x : xs -> return (lhs' ++ InvertedScalarArg x : xs)
+        _                -> Nothing
+    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "%" = do
+      lhs' <- exprToArgs lhs
+      rhs' <- exprToArgs rhs
+      case rhs' of
+        ScalarArg x : xs -> return (lhs' ++ TensorArg x : xs)
+        _                -> Nothing
+    exprToArgs _ = Nothing
 
 expr :: Parser EgisonExpr
 expr = do
@@ -224,8 +238,9 @@ makeTable pos =
         (groupBy (\x y -> priority x == priority y) reservedBinops)
    in prefixes ++ binops
   where
+    -- notFollowedBy (in unary and binary) is necessary for section expression.
     unary :: String -> Parser (EgisonExpr -> EgisonExpr)
-    unary sym = UnaryOpExpr <$> operator sym
+    unary sym = UnaryOpExpr <$> try (operator sym <* notFollowedBy (symbol ")"))
 
     binary :: String -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
     binary sym = do
@@ -395,26 +410,35 @@ collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
 
 tupleOrParenExpr :: Parser EgisonExpr
 tupleOrParenExpr = do
-  elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (pointFreeExpr <* symbol ")")
+  elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (section <* symbol ")")
   case elems of
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
-    pointFreeExpr :: Parser [EgisonExpr]
-    pointFreeExpr =
-          (do op   <- try . choice $ map (binOpLiteral . repr) reservedBinops
-              rarg <- optional expr
-              -- TODO(momohatt): Take associativity of operands into account
-              case rarg of
-                Just (BinaryOpExpr op' _ _) | priority op >= priority op' ->
-                  customFailure (IllFormedPointFreeExpr op op')
-                _ -> return [makeLambda op Nothing rarg])
-      <|> (do larg <- opExpr
-              op   <- choice $ map (binOpLiteral . repr) reservedBinops
-              case larg of
-                BinaryOpExpr op' _ _ | priority op >= priority op' ->
-                  customFailure (IllFormedPointFreeExpr op op')
-                _ -> return [makeLambda op (Just larg) Nothing])
+    leftSection :: Parser EgisonExpr
+    leftSection = do
+      op   <- choice $ map (binOpLiteral . repr) reservedBinops
+      rarg <- optional expr
+      -- TODO(momohatt): Take associativity of operands into account
+      case rarg of
+        Just (BinaryOpExpr op' _ _)
+          | assoc op' /= RightAssoc && priority op >= priority op' ->
+          customFailure (IllFormedSection op op')
+        _ -> return (makeLambda op Nothing rarg)
+
+    rightSection :: Parser EgisonExpr
+    rightSection = do
+      larg <- opExpr
+      op   <- choice $ map (binOpLiteral . repr) reservedBinops
+      case larg of
+        BinaryOpExpr op' _ _
+          | assoc op' /= LeftAssoc && priority op >= priority op' ->
+          customFailure (IllFormedSection op op')
+        _ -> return (makeLambda op (Just larg) Nothing)
+
+    section :: Parser [EgisonExpr]
+    -- Start from right, in order to parse expressions like (-1 +) correctly
+    section = (:[]) <$> (rightSection <|> leftSection)
 
     makeLambda :: EgisonBinOp -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
     makeLambda op Nothing Nothing =
@@ -674,11 +698,15 @@ patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
 binOpLiteral :: String -> Parser EgisonBinOp
-binOpLiteral sym = do
+binOpLiteral sym = try $ do
   wedge <- optional (char '!')
-  opSym <- operator sym
+  opSym <- operator' sym
   let opInfo = fromJust $ find ((== opSym) . repr) reservedBinops
   return $ opInfo { isWedge = isJust wedge }
+  where
+    -- operator without try
+    operator' :: String -> Parser String
+    operator' sym = string sym <* notFollowedBy opChar <* sc
 
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy identChar)
