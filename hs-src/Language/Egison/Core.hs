@@ -979,7 +979,18 @@ recursiveRebind env (name, expr) = do
 --
 
 patternMatch :: PMMode -> Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
-patternMatch mode env pattern target matcher = processMStates mode [msingleton $ MState env [] [] [] [MAtom pattern target matcher]]
+patternMatch DFSMode env pattern target matcher = processMStatesAllDFS (msingleton $ MState env [] [] [] [MAtom pattern target matcher])
+patternMatch BFSMode env pattern target matcher = processMStates BFSMode [msingleton $ MState env [] [] [] [MAtom pattern target matcher]]
+
+processMStatesAllDFS :: (MList EgisonM MatchingState) -> EgisonM (MList EgisonM Match)
+processMStatesAllDFS MNil = return MNil
+processMStatesAllDFS (MCons (MState _ _ [] bindings []) ms) = do
+  ms' <- ms
+  return (MCons bindings (processMStatesAllDFS ms'))
+processMStatesAllDFS (MCons mstate ms) = do
+  ms' <- processMState mstate
+  ms'' <- mappend ms' ms
+  processMStatesAllDFS ms''
 
 processMStates :: PMMode -> [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
 processMStates _ [] = return MNil
@@ -990,7 +1001,6 @@ processMStates mode streams = do
 processMStates' :: PMMode -> MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
 processMStates' _ MNil = return []
 processMStates' BFSMode stream@(MCons _ _) = processMStatesBFS stream
-processMStates' DFSMode stream@(MCons _ _) = processMStatesDFS stream
 
 gatherBindings :: MatchingState -> Maybe [Binding]
 gatherBindings (MState _ _ [] bindings []) = return bindings
@@ -1011,12 +1021,6 @@ processMStatesBFS (MCons state stream) = do
   newStream <- processMState state
   newStream' <- stream
   return [newStream, newStream']
-
-processMStatesDFS :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
-processMStatesDFS (MCons state stream) = do
-  stream' <- processMState state
-  newStream <- mappend stream' stream
-  return [newStream]
 
 topMAtom :: MatchingState -> Maybe MatchingTree
 topMAtom (MState _ _ _ _ (mAtom@MAtom{}:_))  = Just mAtom
