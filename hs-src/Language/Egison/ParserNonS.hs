@@ -238,8 +238,9 @@ makeTable pos =
         (groupBy (\x y -> priority x == priority y) reservedBinops)
    in prefixes ++ binops
   where
+    -- notFollowedBy (in unary and binary) is necessary for section expression.
     unary :: String -> Parser (EgisonExpr -> EgisonExpr)
-    unary sym = UnaryOpExpr <$> operator sym
+    unary sym = UnaryOpExpr <$> try (operator sym <* notFollowedBy (symbol ")"))
 
     binary :: String -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
     binary sym = do
@@ -697,11 +698,15 @@ patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
 binOpLiteral :: String -> Parser EgisonBinOp
-binOpLiteral sym = do
+binOpLiteral sym = try $ do
   wedge <- optional (char '!')
-  opSym <- operator sym
+  opSym <- operator' sym
   let opInfo = fromJust $ find ((== opSym) . repr) reservedBinops
   return $ opInfo { isWedge = isJust wedge }
+  where
+    -- operator without try
+    operator' :: String -> Parser String
+    operator' sym = string sym <* notFollowedBy opChar <* sc
 
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy identChar)
