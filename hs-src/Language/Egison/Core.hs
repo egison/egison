@@ -980,7 +980,7 @@ recursiveRebind env (name, expr) = do
 
 patternMatch :: PMMode -> Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
 patternMatch DFSMode env pattern target matcher = processMStatesAllDFS (msingleton $ MState env [] [] [] [MAtom pattern target matcher])
-patternMatch BFSMode env pattern target matcher = processMStates BFSMode [msingleton $ MState env [] [] [] [MAtom pattern target matcher]]
+patternMatch BFSMode env pattern target matcher = processMStatesAll [msingleton $ MState env [] [] [] [MAtom pattern target matcher]]
 
 processMStatesAllDFS :: (MList EgisonM MatchingState) -> EgisonM (MList EgisonM Match)
 processMStatesAllDFS MNil = return MNil
@@ -992,19 +992,18 @@ processMStatesAllDFS (MCons mstate ms) = do
   ms'' <- mappend ms' ms
   processMStatesAllDFS ms''
 
-processMStates :: PMMode -> [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
-processMStates _ [] = return MNil
-processMStates mode streams = do
-  (matches, streams') <- mapM (processMStates' mode) streams >>= extractMatches . concat
-  mappend (fromList matches) $ (processMStates mode) streams'
+processMStatesAll :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
+processMStatesAll [] = return MNil
+processMStatesAll streams = do
+  (matches, streams') <- mapM processMStates streams >>= extractMatches . concat
+  mappend (fromList matches) $ processMStatesAll streams'
 
-processMStates' :: PMMode -> MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
-processMStates' _ MNil = return []
-processMStates' BFSMode stream@(MCons _ _) = processMStatesBFS stream
-
-gatherBindings :: MatchingState -> Maybe [Binding]
-gatherBindings (MState _ _ [] bindings []) = return bindings
-gatherBindings _ = Nothing
+processMStates :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
+processMStates MNil = return []
+processMStates (MCons state stream) = do
+  newStream <- processMState state
+  newStream' <- stream
+  return [newStream, newStream']
 
 extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
 extractMatches = extractMatches' ([], [])
@@ -1016,11 +1015,9 @@ extractMatches = extractMatches' ([], [])
     extractMatches' (xs ++ [bindings], ys ++ [states']) rest
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
 
-processMStatesBFS :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
-processMStatesBFS (MCons state stream) = do
-  newStream <- processMState state
-  newStream' <- stream
-  return [newStream, newStream']
+gatherBindings :: MatchingState -> Maybe [Binding]
+gatherBindings (MState _ _ [] bindings []) = return bindings
+gatherBindings _ = Nothing
 
 topMAtom :: MatchingState -> Maybe MatchingTree
 topMAtom (MState _ _ _ _ (mAtom@MAtom{}:_))  = Just mAtom
@@ -1032,13 +1029,10 @@ processMState state =
   case topMAtom state of
     Just (MAtom (NotPat _) _ _) -> do
       let (state1, state2) = splitMState state
-      result <- processMStates BFSMode [msingleton state1]
+      result <- processMStatesAll [msingleton state1]
       case result of
         MNil -> return $ msingleton state2
         _    -> return MNil
-    Just (MAtom (LaterPat _) _ _) -> do
-      let state' = swapMState state
-      processMState' state'
     _ -> processMState' state
  where
   splitMState :: MatchingState -> (MatchingState, MatchingState)
@@ -1047,22 +1041,18 @@ processMState state =
   splitMState (MState env loops seqs bindings (MNode penv state' : trees)) =
     let (state1, state2) = splitMState state'
      in (MState env loops seqs bindings [MNode penv state1], MState env loops seqs bindings (MNode penv state2 : trees))
-  swapMState :: MatchingState -> MatchingState
-  swapMState (MState env loops seqs bindings (MAtom (LaterPat pattern) target matcher : trees)) =
-    MState env loops seqs bindings (trees ++ [MAtom pattern target matcher])
-  swapMState (MState env loops seqs bindings (MNode penv state' : trees)) =
-    let state'' = swapMState state'
-     in MState env loops seqs bindings (MNode penv state'':trees)
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState' (MState _ _ [] _ []) = throwError =<< EgisonBug "should not reach here (empty matching-state)" <$> getFuncNameStack
 
+-- Sequential patterns
 processMState' (MState env loops (SeqPatContext stack SeqNilPat [] []:seqs) bindings []) = return $ msingleton $ MState env loops seqs bindings stack
 processMState' (MState env loops (SeqPatContext stack seqPat mats tgts:seqs) bindings []) = do
   let mat' = makeTuple mats
   tgt' <- makeITuple tgts
   return $ msingleton $ MState env loops seqs bindings (MAtom seqPat tgt' mat' : stack)
 
+-- Matching Nodes
 processMState' (MState _ _ _ _ (MNode _ (MState _ _ _ [] []):_)) = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
 
 processMState' (MState env loops seqs bindings (MNode penv (MState env' loops' seqs' bindings' ((MAtom (VarPat name) target matcher):trees')):trees)) =
@@ -1089,6 +1079,7 @@ processMState' (MState env loops seqs bindings (MNode penv state:trees)) =
                                               MState _ _ _ _ [] -> return $ MState env loops seqs bindings trees
                                               _ -> return $ MState env loops seqs bindings (MNode penv state':trees))
 
+-- Matching Atoms
 processMState' (MState env loops seqs bindings (MAtom pattern target matcher:trees)) =
   let env' = extendEnvForNonLinearPatterns env bindings loops in
   case pattern of
