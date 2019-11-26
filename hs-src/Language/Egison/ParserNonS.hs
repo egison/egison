@@ -406,7 +406,8 @@ tupleOrParenExpr = do
       rarg <- optional expr
       -- TODO(momohatt): Take associativity of operands into account
       case rarg of
-        Just (BinaryOpExpr op' _ _) | priority op >= priority op' ->
+        Just (BinaryOpExpr op' _ _)
+          | assoc op' /= RightAssoc && priority op >= priority op' ->
           customFailure (IllFormedPointFreeExpr op op')
         _ -> return (makeLambda op Nothing rarg)
 
@@ -415,7 +416,8 @@ tupleOrParenExpr = do
       larg <- opExpr
       op   <- choice $ map (binOpLiteral . repr) reservedBinops
       case larg of
-        BinaryOpExpr op' _ _ | priority op >= priority op' ->
+        BinaryOpExpr op' _ _
+          | assoc op' /= LeftAssoc && priority op >= priority op' ->
           customFailure (IllFormedPointFreeExpr op op')
         _ -> return (makeLambda op (Just larg) Nothing)
 
