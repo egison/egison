@@ -328,7 +328,6 @@ instance PrettyS EgisonPattern where
     where varsHelper [] = ""
           varsHelper [v] = "$" ++ prettyS v
           varsHelper vs = "[" ++ unwords (map (("$" ++) . prettyS) vs) ++ "]"
-  prettyS (LaterPat pat) = "(later " ++ prettyS pat ++ ")"
   prettyS (NotPat pat) = "!" ++ prettyS pat
   prettyS (AndPat pats) = "(&" ++ concatMap ((" " ++) . prettyS) pats ++ ")"
   prettyS (OrPat pats) = "(|" ++ concatMap ((" " ++) . prettyS) pats ++ ")"

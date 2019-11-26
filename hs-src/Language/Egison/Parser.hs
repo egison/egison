@@ -580,7 +580,6 @@ pattern' = wildCard
                     <|> orPat
                     <|> loopPat
                     <|> letPat
-                    <|> laterPat
                     <|> try divPat
                     <|> try plusPat
                     <|> try multPat
@@ -610,9 +609,6 @@ predPat = char '?' >> PredPat <$> expr
 
 letPat :: Parser EgisonPattern
 letPat = keywordLet >> LetPat <$> bindings <*> pattern
-
-laterPat :: Parser EgisonPattern
-laterPat = keywordLater >> LaterPat <$> pattern
 
 notPat :: Parser EgisonPattern
 notPat = char '!' >> NotPat <$> pattern

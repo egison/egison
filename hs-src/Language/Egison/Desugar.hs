@@ -364,7 +364,6 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
 
    collectName :: EgisonPattern -> Set String
    collectName (NotPat pattern) = collectName pattern
-   collectName (LaterPat pattern) = collectName pattern
    collectName (AndPat patterns) = collectNames patterns
    collectName (TuplePat patterns) = collectNames patterns
    collectName (InductivePat _ patterns) = collectNames patterns
@@ -387,7 +386,6 @@ desugarPattern' :: EgisonPattern -> EgisonM EgisonPattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
 desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
-desugarPattern' (LaterPat pattern) = LaterPat <$> desugarPattern' pattern
 desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
 desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
 desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
