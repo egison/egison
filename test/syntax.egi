@@ -196,11 +196,6 @@
     [<cons $n !<cons ,n _>> n])
   {1})
 
-(assert-equal "later pattern"
-  (match-all {1 1 2} (list integer)
-    [<cons (later ,n) <cons $n _>> n])
-  {1})
-
 (assert "predicate pattern"
   (match {1 2 3} (list integer)
     {[<cons ?(eq? 1 $) _> #t]}))
