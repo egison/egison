@@ -112,12 +112,12 @@ readUTF8File name = do
 type Parser = Parsec CustomError String
 
 data CustomError
-  = IllFormedPointFreeExpr EgisonBinOp EgisonBinOp
+  = IllFormedSection EgisonBinOp EgisonBinOp
   | IllFormedDefine
   deriving (Eq, Ord)
 
 instance ShowErrorComponent CustomError where
-  showErrorComponent (IllFormedPointFreeExpr op op') =
+  showErrorComponent (IllFormedSection op op') =
     "The operator " ++ info op ++ " must have lower precedence than " ++ info op'
     where
       info op =
@@ -152,7 +152,7 @@ defineOrTestExpr = do
       symbol ":="
       body <- expr
       case convertToDefine e body of
-        Just te -> return te
+        Just def -> return def
         -- TODO(momohatt): Adjust the position of error
         Nothing -> customFailure IllFormedDefine
 
@@ -409,35 +409,35 @@ collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
 
 tupleOrParenExpr :: Parser EgisonExpr
 tupleOrParenExpr = do
-  elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (pointFreeExpr <* symbol ")")
+  elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (section <* symbol ")")
   case elems of
     [x] -> return x
     _   -> return $ TupleExpr elems
   where
-    leftPointFreeExpr :: Parser EgisonExpr
-    leftPointFreeExpr = do
+    leftSection :: Parser EgisonExpr
+    leftSection = do
       op   <- choice $ map (binOpLiteral . repr) reservedBinops
       rarg <- optional expr
       -- TODO(momohatt): Take associativity of operands into account
       case rarg of
         Just (BinaryOpExpr op' _ _)
           | assoc op' /= RightAssoc && priority op >= priority op' ->
-          customFailure (IllFormedPointFreeExpr op op')
+          customFailure (IllFormedSection op op')
         _ -> return (makeLambda op Nothing rarg)
 
-    rightPointFreeExpr :: Parser EgisonExpr
-    rightPointFreeExpr = do
+    rightSection :: Parser EgisonExpr
+    rightSection = do
       larg <- opExpr
       op   <- choice $ map (binOpLiteral . repr) reservedBinops
       case larg of
         BinaryOpExpr op' _ _
           | assoc op' /= LeftAssoc && priority op >= priority op' ->
-          customFailure (IllFormedPointFreeExpr op op')
+          customFailure (IllFormedSection op op')
         _ -> return (makeLambda op (Just larg) Nothing)
 
-    pointFreeExpr :: Parser [EgisonExpr]
+    section :: Parser [EgisonExpr]
     -- Start from right, in order to parse expressions like (-1 +) correctly
-    pointFreeExpr = (:[]) <$> (rightPointFreeExpr <|> leftPointFreeExpr)
+    section = (:[]) <$> (rightSection <|> leftSection)
 
     makeLambda :: EgisonBinOp -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
     makeLambda op Nothing Nothing =

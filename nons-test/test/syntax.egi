@@ -102,15 +102,15 @@ assertEqual "application with binops"
 assertEqual "append op" ([1] ++ [2]) [1, 2]
 assertEqual "append op" ((++) [1] [2]) [1, 2]
 
-assertEqual "point free expr" ((+) 10 1) 11
-assertEqual "point free expr" ((+ 1) 10) 11
-assertEqual "point free expr" (foldl (*) 1 [1..5]) 120
-assertEqual "point free expr" ((10 -) 1) 9
-assertEqual "point free expr" ((10 - ) 1) 9
-assertEqual "point free expr" ((-1 +) 2) 1
-assertEqual "safe point free expr - left assoc"  ((1 + 2 +) 3) 6
-assertEqual "safe point free expr - right assoc" ((++ [1] ++ [2]) [3]) [3, 1, 2]
-assertEqual "not point free expr" (- 2) (1 - 3)
+assertEqual "section" ((+) 10 1) 11
+assertEqual "section" ((+ 1) 10) 11
+assertEqual "section" (foldl (*) 1 [1..5]) 120
+assertEqual "section" ((10 -) 1) 9
+assertEqual "section" ((10 - ) 1) 9
+assertEqual "section" ((-1 +) 2) 1
+assertEqual "safe section - left assoc"  ((1 + 2 +) 3) 6
+assertEqual "safe section - right assoc" ((++ [1] ++ [2]) [3]) [3, 1, 2]
+assertEqual "not section" (- 2) (1 - 3)
 
 -- findFactor := memoizedLambda
 --                n -> match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
