@@ -984,13 +984,8 @@ patternMatch BFSMode env pattern target matcher = processMStatesAll [msingleton 
 
 processMStatesAllDFS :: (MList EgisonM MatchingState) -> EgisonM (MList EgisonM Match)
 processMStatesAllDFS MNil = return MNil
-processMStatesAllDFS (MCons (MState _ _ [] bindings []) ms) = do
-  ms' <- ms
-  return (MCons bindings (processMStatesAllDFS ms'))
-processMStatesAllDFS (MCons mstate ms) = do
-  ms' <- processMState mstate
-  ms'' <- mappend ms' ms
-  processMStatesAllDFS ms''
+processMStatesAllDFS (MCons (MState _ _ [] bindings []) ms) = MCons bindings <$> (processMStatesAllDFS <$> ms)
+processMStatesAllDFS (MCons mstate ms) = processMState mstate >>= (flip mappend) ms >>= processMStatesAllDFS
 
 processMStatesAll :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
 processMStatesAll [] = return MNil
@@ -1000,10 +995,7 @@ processMStatesAll streams = do
 
 processMStates :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
 processMStates MNil = return []
-processMStates (MCons state stream) = do
-  newStream <- processMState state
-  newStream' <- stream
-  return [newStream, newStream']
+processMStates (MCons state stream) = (\x y -> [x, y]) <$> processMState state <*> stream
 
 extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
 extractMatches = extractMatches' ([], [])
