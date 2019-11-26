@@ -63,14 +63,18 @@
 
 (define $a1' (/ (+ b11' b12') 2))
 
-a1';(+ z z^16) = (* 2 (cos (/ (* 2 pi) 17)))
-;(/ (+ -1 (sqrt 17) (sqrt (+ 34 (* -2 (sqrt 17)))) (* 2 (sqrt (+ 17 (* 3 (sqrt 17)) (* -1 (sqrt (+ 34 (* -2 (sqrt 17))))) (* -2 (sqrt (+ 34 (* 2 (sqrt 17))))))))) 8)
+(assert-equal "17th-root-of-unity: 1"
+  a1';(+ z z^16) = (* 2 (cos (/ (* 2 pi) 17)))
+  (/ (+ -1 (sqrt 17) (sqrt (+ 34 (* -2 (sqrt 17)))) (* 2 (sqrt (+ 17 (* 3 (sqrt 17)) (* -1 (sqrt (+ 34 (* -2 (sqrt 17))))) (* -2 (sqrt (+ 34 (* 2 (sqrt 17))))))))) 8)
+  )
 
-(/ (+ -1
-      (sqrt 17)
-      (sqrt (+ 34 (* -2 (sqrt 17))))
-      (* 2 (sqrt (+ 17
-                    (* 3 (sqrt 17))
-                    (* -1 (sqrt (+ 34 (* -2 (sqrt 17)))))
-                    (* -2 (sqrt (+ 34 (* 2 (sqrt 17)))))))))
-   8)
+(assert-equal "17th-root-of-unity: 2"
+  (/ (+ -1
+        (sqrt 17)
+        (sqrt (+ 34 (* -2 (sqrt 17))))
+        (* 2 (sqrt (+ 17
+                      (* 3 (sqrt 17))
+                      (* -1 (sqrt (+ 34 (* -2 (sqrt 17)))))
+                      (* -2 (sqrt (+ 34 (* 2 (sqrt 17)))))))))
+     8)
+  (/ (+ -1 (sqrt 17) (* (sqrt 2) (sqrt (+ 17 (* -1 (sqrt 17))))) (* 2 (sqrt (+ 17 (* 3 (sqrt 17)) (* -1 (sqrt 2) (sqrt (+ 17 (* -1 (sqrt 17))))) (* -2 (sqrt 2) (sqrt (+ 17 (sqrt 17)))))))) 8))

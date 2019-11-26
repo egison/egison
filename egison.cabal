@@ -63,7 +63,6 @@ Data-files:          lib/core/*.egi lib/math/*.egi lib/math/common/*.egi lib/mat
                      sample/*.egi sample/io/*.egi sample/math/algebra/*.egi sample/math/analysis/*.egi sample/math/geometry/*.egi sample/math/number/*.egi sample/math/others/*.egi
                      test/*.egi test/lib/core/*.egi test/lib/math/*.egi
                      nons-test/test/*.egi nons-test/test/lib/core/*.egi
-                     test/answer/sample/math/geometry/*.egi test/answer/sample/math/number/*.egi
                      elisp/egison-mode.el
 
 
