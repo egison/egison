@@ -20,7 +20,7 @@ changeOutputInLang lang input =
   -- 'lang' is either "asciimath", "latex", "mathematica" or "maxima"
   -- Other invalid options are rejected in Interpreter/egison.hs
   case parse parseExpr "math-expr" input of
-    Left err  -> input
+    Left _ -> input
     Right val -> case showMathExpr lang val of
                    "undefined" -> "undefined"
                    output      -> "#" ++ lang ++ "|" ++ output ++ "|#"
@@ -31,6 +31,7 @@ showMathExpr "latex"       = showMathExprLatex
 showMathExpr "mathematica" = showMathExprMathematica
 showMathExpr "maxima"      = showMathExprMaxima
 showMathExpr "haskell"     = show
+showMathExpr _             = error "Unreachable"
 
 data MathExpr
   = Atom String [MathIndex]
@@ -160,12 +161,12 @@ showMathExprLatexArg exprs sep = intercalate sep $ map showMathExprLatex exprs
 showMathExprLatexSuper :: MathIndex -> String
 showMathExprLatexSuper (Super (Atom "#" [])) = "\\#"
 showMathExprLatexSuper (Super x)             = showMathExprLatex x
-showMathExprLatexSuper (Sub x)               = "\\;"
+showMathExprLatexSuper (Sub _)               = "\\;"
 
 showMathExprLatexSub :: MathIndex -> String
 showMathExprLatexSub (Sub (Atom "#" [])) = "\\#"
 showMathExprLatexSub (Sub x)             = showMathExprLatex x
-showMathExprLatexSub (Super x)           = "\\;"
+showMathExprLatexSub (Super _)           = "\\;"
 
 showMathExprLatexScript :: [MathIndex] -> String
 showMathExprLatexScript [] = ""
@@ -240,7 +241,7 @@ showMathIndexMathematica (Sub a)   = showMathExprMathematica a
 
 showMathExprMaxima :: MathExpr -> String
 showMathExprMaxima (Atom a []) = a
-showMathExprMaxima (Partial f xs) = "undefined"
+showMathExprMaxima (Partial _ _) = "undefined"
 showMathExprMaxima (NegativeAtom a) = "-" ++ a
 showMathExprMaxima (Plus []) = ""
 showMathExprMaxima (Plus (x:xs)) = showMathExprMaxima x ++ showMathExprMaximaForPlus xs
@@ -264,19 +265,19 @@ showMathExprMaxima (Func (Atom "/" []) [x, y]) = addBracket x ++ "/" ++ addBrack
    addBracket x@(Atom _ []) = showMathExprMaxima x
    addBracket x             = "(" ++ showMathExprMaxima x ++ ")"
 showMathExprMaxima (Func f xs) = showMathExprMaxima f ++ "(" ++ showMathExprMaximaArg xs ++ ")"
-showMathExprMaxima (Tensor lvs mis) = "undefined"
-showMathExprMaxima (Tuple xs) = "undefined"
+showMathExprMaxima (Tensor _ _) = "undefined"
+showMathExprMaxima (Tuple _) = "undefined"
 showMathExprMaxima (Collection xs) = "[" ++ showMathExprMaximaArg xs ++ "]"
 showMathExprMaxima (Exp x) = "exp(" ++ showMathExprMaxima x ++ ")"
 showMathExprMaxima (Quote x) = "(" ++ showMathExprMaxima x ++ ")"
 
 showMathExprMaxima' :: MathExpr -> String
-showMathExprMaxima' (Plus xs) = "(" ++ showMathExprMaxima (Plus xs) ++ ")"
+showMathExprMaxima' x@(Plus _) = "(" ++ showMathExprMaxima x ++ ")"
 showMathExprMaxima' x         = showMathExprMaxima x
 
 showMathExprMaximaArg :: [MathExpr] -> String
 showMathExprMaximaArg [] = ""
-showMathExprMaximaArg [Tensor lvs []] = "undefined"
+showMathExprMaximaArg [Tensor _ []] = "undefined"
 showMathExprMaximaArg [a] = showMathExprMaxima a
 showMathExprMaximaArg lvs = showMathExprMaxima (head lvs) ++ ", " ++ showMathExprMaximaArg (tail lvs)
 
