@@ -1108,13 +1108,13 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
       startNum <- evalExpr env' start >>= fromWHNF :: (EgisonM Integer)
       startNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum - 1)
       ends' <- evalExpr env' ends
-      if isPrimitiveValue ends'
-        then do
+      case ends' of
+        Value (ScalarData _) -> do -- the case when the end numbers are an integer
           endsRef <- newEvaluatedObjectRef ends'
           inners <- liftIO $ newIORef $ Sq.fromList [IElement endsRef]
           endsRef' <- liftIO $ newIORef (WHNF (Intermediate (ICollection inners)))
           return $ msingleton $ MState env (LoopPatContext (name, startNumRef) endsRef' endPat pat pat':loops) seqs bindings (MAtom ContPat target matcher:trees)
-        else do
+        _ -> do -- the case when the end numbers are a collection
           endsRef <- newEvaluatedObjectRef ends'
           return $ msingleton $ MState env (LoopPatContext (name, startNumRef) endsRef endPat pat pat':loops) seqs bindings (MAtom ContPat target matcher:trees)
     ContPat ->
@@ -1483,10 +1483,3 @@ extractPrimitiveValue (Value val@(Float _)) = return val
 extractPrimitiveValue whnf =
   -- we don't need to extract call stack since detailed error information is not used
   throwError $ TypeMismatch "primitive value" whnf
-
-isPrimitiveValue :: WHNFData -> Bool
-isPrimitiveValue (Value (Char _))       = True
-isPrimitiveValue (Value (Bool _))       = True
-isPrimitiveValue (Value (ScalarData _)) = True
-isPrimitiveValue (Value (Float _))      = True
-isPrimitiveValue _                      = False
