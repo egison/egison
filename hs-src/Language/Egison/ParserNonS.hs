@@ -1,5 +1,4 @@
 {-# LANGUAGE TupleSections    #-}
-{-# LANGUAGE MultiWayIf       #-}
 
 {- |
 Module      : Language.Egison.ParserNonS
@@ -146,35 +145,50 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
   e <- expr
-  (do symbol ":="
-      body <- expr
-      return $ convertToDefine e body)
-      <|> return (Test e)
+  defineExpr e <|> return (Test e)
   where
-    -- TODO: Throw IllFormedDefine in pattern match failure.
-    -- first 2 cases are the most common ones
-    convertToDefine :: EgisonExpr -> EgisonExpr -> EgisonTopExpr
-    convertToDefine (VarExpr var) body = Define var body
-    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) body =
-      Define var (LambdaExpr (map exprToArg args) body)
+    defineExpr :: EgisonExpr -> Parser EgisonTopExpr
+    defineExpr e = do
+      symbol ":="
+      body <- expr
+      case convertToDefine e body of
+        Just te -> return te
+        -- TODO(momohatt): Adjust the position of error
+        Nothing -> customFailure IllFormedDefine
+
+    convertToDefine :: EgisonExpr -> EgisonExpr -> Maybe EgisonTopExpr
+    convertToDefine (VarExpr var) body = Just (Define var body)
+    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) body = do
+      args' <- mapM exprToArg args
+      return (Define var (LambdaExpr args' body))
     convertToDefine e@(BinaryOpExpr op _ _) body
-      | repr op == "*" || repr op == "%" =
-        case exprToArgs e of
-          ScalarArg var : args -> Define (Var [var] []) (LambdaExpr args body)
+      | repr op == "*" || repr op == "%" = do
+        args <- exprToArgs e
+        case args of
+          ScalarArg var : args -> return (Define (Var [var] []) (LambdaExpr args body))
+    convertToDefine _ _ = Nothing
 
-    exprToArg :: EgisonExpr -> Arg
-    exprToArg (VarExpr (Var [x] [])) = ScalarArg x
+    exprToArg :: EgisonExpr -> Maybe Arg
+    exprToArg (VarExpr (Var [x] [])) = return (ScalarArg x)
+    exprToArg _                      = Nothing
 
-    exprToArgs :: EgisonExpr -> [Arg]
-    exprToArgs (VarExpr (Var [x] [])) = [ScalarArg x]
+    exprToArgs :: EgisonExpr -> Maybe [Arg]
+    exprToArgs (VarExpr (Var [x] [])) = return [ScalarArg x]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
-      exprToArgs func ++ map exprToArg args
-    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" =
-      case exprToArgs rhs of
-        ScalarArg x : xs -> exprToArgs lhs ++ InvertedScalarArg x : xs
-    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "%" =
-      case exprToArgs rhs of
-        ScalarArg x : xs -> exprToArgs lhs ++ TensorArg x : xs
+      (++) <$> exprToArgs func <*> mapM exprToArg args
+    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
+      lhs' <- exprToArgs lhs
+      rhs' <- exprToArgs rhs
+      case rhs' of
+        ScalarArg x : xs -> return (lhs' ++ InvertedScalarArg x : xs)
+        _                -> Nothing
+    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "%" = do
+      lhs' <- exprToArgs lhs
+      rhs' <- exprToArgs rhs
+      case rhs' of
+        ScalarArg x : xs -> return (lhs' ++ TensorArg x : xs)
+        _                -> Nothing
+    exprToArgs _ = Nothing
 
 expr :: Parser EgisonExpr
 expr = do
