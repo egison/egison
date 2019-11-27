@@ -713,13 +713,19 @@ readProcess' = threeArgs' $ \cmd args input ->
     (_, _, _) -> throwError =<< TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input])) <$> getFuncNameStack
 
 read' :: PrimitiveFunc
-read'= oneArg' $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
+read'= oneArg' $ \val -> do
+  str <- fromEgison val
+  ast <- readExpr (T.unpack str)
+  evalExprDeep nullEnv ast
 
 readTSV :: PrimitiveFunc
-readTSV= oneArg' $ \val -> do rets <- fromEgison val >>= readExprs . T.unpack >>= mapM (evalExprDeep nullEnv)
-                              case rets of
-                                [ret] -> return ret
-                                _     -> return (Tuple rets)
+readTSV= oneArg' $ \val -> do
+  str   <- fromEgison val
+  exprs <- readExprs (T.unpack str)
+  rets  <- mapM (evalExprDeep nullEnv) exprs
+  case rets of
+    [ret] -> return ret
+    _     -> return (Tuple rets)
 
 show' :: PrimitiveFunc
 show'= oneArg' $ \val -> return $ toEgison $ T.pack $ show val
@@ -731,11 +737,7 @@ showTSV'= oneArg' $ \val -> return $ toEgison $ T.pack $ showTSV val
 -- Collection
 --
 isEmpty' :: PrimitiveFunc
-isEmpty' whnf = do
-  b <- isEmptyCollection whnf
-  if b
-    then return $ Value $ Bool True
-    else return $ Value $ Bool False
+isEmpty' whnf = Value . Bool <$> isEmptyCollection whnf
 
 uncons' :: PrimitiveFunc
 uncons' whnf = do
