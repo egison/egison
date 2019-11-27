@@ -15,10 +15,10 @@
 
 (define $e_i_j (∂/∂ X_j x~i))
 (assert-equal "Local basis"
-  e_i_j
+  e_#_#
   [|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
     [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]
-    |]_i_j)
+    |]_#_#)
 
 ;;
 ;; Metric tensor
@@ -41,8 +41,8 @@
         (* -1 (∂/∂ g_k_l x~j)))))
 
 (assert-equal "Christoffel symbols of the first kind" Γ_#_#_# (tensor {2 2 2} {0 0 0 (* -1 r^2 (sin θ) (cos θ)) 0 (* r^2 (sin θ) (cos θ)) (* r^2 (sin θ) (cos θ)) 0} )_#_#_#)
-(assert-equal "Christoffel symbols of the first kind 1" Γ_1_#_# [| [| 0 0 |] [| 0 (* -1 r^2 (sin θ) (cos θ)) |] |]_#_#)
-(assert-equal "Christoffel symbols of the first kind 2" Γ_2_#_# [| [| 0 (* r^2 (sin θ) (cos θ)) |] [| (* r^2 (sin θ) (cos θ)) 0 |] |]_#_#)
+(assert-equal "Christoffel symbols of the first kind" Γ_1_#_# [| [| 0 0 |] [| 0 (* -1 r^2 (sin θ) (cos θ)) |] |]_#_#)
+(assert-equal "Christoffel symbols of the first kind" Γ_2_#_# [| [| 0 (* r^2 (sin θ) (cos θ)) |] [| (* r^2 (sin θ) (cos θ)) 0 |] |]_#_#)
 
 ;;
 ;; Christoffel symbols of the second kind
@@ -51,8 +51,8 @@
 (define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
 
 (assert-equal "Christoffel symbols of the second kind" Γ~#_#_# (tensor {2 2 2} {0 0 0 (* -1 (sin θ) (cos θ)) 0 (/ (cos θ) (sin θ)) (/ (cos θ) (sin θ)) 0} )~#_#_#)
-(assert-equal "Christoffel symbols of the second kind 1" Γ~1_#_# [| [| 0 0 |] [| 0 (* -1 (sin θ) (cos θ)) |] |]_#_#)
-(assert-equal "Christoffel symbols of the second kind 2" Γ~2_#_# [| [| 0 (/ (cos θ) (sin θ)) |] [| (/ (cos θ) (sin θ)) 0 |] |]_#_#)
+(assert-equal "Christoffel symbols of the second kind" Γ~1_#_# [| [| 0 0 |] [| 0 (* -1 (sin θ) (cos θ)) |] |]_#_#)
+(assert-equal "Christoffel symbols of the second kind" Γ~2_#_# [| [| 0 (/ (cos θ) (sin θ)) |] [| (/ (cos θ) (sin θ)) 0 |] |]_#_#)
 
 ;;
 ;; Covariant derivative of metric tensor
