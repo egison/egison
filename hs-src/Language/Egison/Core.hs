@@ -70,6 +70,7 @@ import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
 import           Language.Egison.Pretty
 import           Language.Egison.Types
+import           Language.Egison.Tensor
 
 --
 -- Evaluator

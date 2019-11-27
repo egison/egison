@@ -47,6 +47,7 @@ import           Language.Egison.Core
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.Types
+import           Language.Egison.Tensor
 
 primitiveEnv :: IO Env
 primitiveEnv = do
