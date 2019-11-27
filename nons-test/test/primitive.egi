@@ -50,7 +50,7 @@ assertEqual "truncate" (truncate 3.7)    3
 assertEqual "truncate" (truncate (-2.2)) (-2)
 assertEqual "truncate" (truncate (-2.7)) (-2)
 
--- assertEqual "sqrt" (sqrt 4) 2
+assertEqual "sqrt" (sqrt 4) 2
 assertEqual "sqrt" (sqrt 4.0) 2.0
 -- assertEqual "sqrt" (sqrt (-1)) i
 
