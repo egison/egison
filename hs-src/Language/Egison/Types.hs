@@ -138,9 +138,7 @@ import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
-import           Data.List                 (any, delete, elem, elemIndex, find,
-                                            findIndex, intercalate, partition,
-                                            splitAt, (\\))
+import           Data.List                 (any, elemIndex, intercalate, splitAt)
 import           Data.Text                 (Text)
 
 import           Data.Ratio
