@@ -132,7 +132,7 @@ data Arg =
     ScalarArg String
   | InvertedScalarArg String
   | TensorArg String
- deriving (Eq)
+ deriving (Eq, Show)
 
 data Index a =
     Subscript a
@@ -215,10 +215,7 @@ data EgisonBinOp
                 , assoc    :: BinOpAssoc
                 , isWedge  :: Bool    -- True if operator is prefixed with '!'
                 }
-  deriving (Eq, Ord)
-
-instance Show EgisonBinOp where
-  show = repr
+  deriving (Eq, Ord, Show)
 
 data BinOpAssoc
   = LeftAssoc
@@ -264,11 +261,6 @@ stringToVarExpr = VarExpr . stringToVar
 
 instance Show Var where
   show (Var xs is) = intercalate "." xs ++ concatMap show is
-
-instance Show Arg where
-  show (ScalarArg name)         = "$" ++ name
-  show (InvertedScalarArg name) = "*$" ++ name
-  show (TensorArg name)         = "%" ++ name
 
 instance Show (Index ()) where
   show (Superscript ())  = "~"
