@@ -189,19 +189,19 @@ primitives = [ ("b.+", plus)
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", truncate')
 
-             , ("b.sqrt", floatUnaryOp sqrt)
+             , ("b.sqrt",  floatUnaryOp sqrt)
              , ("b.sqrt'", floatUnaryOp sqrt)
-             , ("b.exp", floatUnaryOp exp)
-             , ("b.log", floatUnaryOp log)
-             , ("b.sin", floatUnaryOp sin)
-             , ("b.cos", floatUnaryOp cos)
-             , ("b.tan", floatUnaryOp tan)
-             , ("b.asin", floatUnaryOp asin)
-             , ("b.acos", floatUnaryOp acos)
-             , ("b.atan", floatUnaryOp atan)
-             , ("b.sinh", floatUnaryOp sinh)
-             , ("b.cosh", floatUnaryOp cosh)
-             , ("b.tanh", floatUnaryOp tanh)
+             , ("b.exp",   floatUnaryOp exp)
+             , ("b.log",   floatUnaryOp log)
+             , ("b.sin",   floatUnaryOp sin)
+             , ("b.cos",   floatUnaryOp cos)
+             , ("b.tan",   floatUnaryOp tan)
+             , ("b.asin",  floatUnaryOp asin)
+             , ("b.acos",  floatUnaryOp acos)
+             , ("b.atan",  floatUnaryOp atan)
+             , ("b.sinh",  floatUnaryOp sinh)
+             , ("b.cosh",  floatUnaryOp cosh)
+             , ("b.tanh",  floatUnaryOp tanh)
              , ("b.asinh", floatUnaryOp asinh)
              , ("b.acosh", floatUnaryOp acosh)
              , ("b.atanh", floatUnaryOp atanh)
@@ -277,7 +277,7 @@ primitives' = [ ("b.+", plus)
              , ("toMathExpr'", toScalarData)
 
              , ("modulo",    integerBinaryOp mod)
-             , ("quotient",   integerBinaryOp quot)
+             , ("quotient",  integerBinaryOp quot)
              , ("remainder", integerBinaryOp rem)
              , ("b.abs", rationalUnaryOp abs)
              , ("b.neg", rationalUnaryOp negate)
@@ -293,19 +293,19 @@ primitives' = [ ("b.+", plus)
              , ("ceiling",  floatToIntegerOp ceiling)
              , ("truncate", truncate')
 
-             , ("b.sqrt", floatUnaryOp sqrt)
+             , ("b.sqrt",  floatUnaryOp sqrt)
              , ("b.sqrt'", floatUnaryOp sqrt)
-             , ("b.exp", floatUnaryOp exp)
-             , ("b.log", floatUnaryOp log)
-             , ("b.sin", floatUnaryOp sin)
-             , ("b.cos", floatUnaryOp cos)
-             , ("b.tan", floatUnaryOp tan)
-             , ("b.asin", floatUnaryOp asin)
-             , ("b.acos", floatUnaryOp acos)
-             , ("b.atan", floatUnaryOp atan)
-             , ("b.sinh", floatUnaryOp sinh)
-             , ("b.cosh", floatUnaryOp cosh)
-             , ("b.tanh", floatUnaryOp tanh)
+             , ("b.exp",   floatUnaryOp exp)
+             , ("b.log",   floatUnaryOp log)
+             , ("b.sin",   floatUnaryOp sin)
+             , ("b.cos",   floatUnaryOp cos)
+             , ("b.tan",   floatUnaryOp tan)
+             , ("b.asin",  floatUnaryOp asin)
+             , ("b.acos",  floatUnaryOp acos)
+             , ("b.atan",  floatUnaryOp atan)
+             , ("b.sinh",  floatUnaryOp sinh)
+             , ("b.cosh",  floatUnaryOp cosh)
+             , ("b.tanh",  floatUnaryOp tanh)
              , ("b.asinh", floatUnaryOp asinh)
              , ("b.acosh", floatUnaryOp acosh)
              , ("b.atanh", floatUnaryOp atanh)
@@ -381,55 +381,28 @@ primitives' = [ ("b.+", plus)
              , ("assert-equal", assertEqual)
              ]
 
-rationalUnaryOp :: (Rational -> Rational) -> PrimitiveFunc
-rationalUnaryOp op = oneArg $ \val -> do
-  r <- fromEgison val
-  let r' =  op r
-  return $ toEgison r'
+unaryOp :: (EgisonData a, EgisonData b) => (a -> b) -> PrimitiveFunc
+unaryOp op = oneArg $ \val -> do
+  v <- fromEgison val
+  return $ toEgison (op v)
 
-rationalBinaryOp :: (Rational -> Rational -> Rational) -> PrimitiveFunc
-rationalBinaryOp op = twoArgs $ \val val' -> do
-  r <- fromEgison val :: EgisonM Rational
-  r' <- fromEgison val' :: EgisonM Rational
-  let r'' = op r r''
-  return $ toEgison r''
-
-rationalBinaryPred :: (Rational -> Rational -> Bool) -> PrimitiveFunc
-rationalBinaryPred pred = twoArgs $ \val val' -> do
-  r <- fromEgison val
-  r' <- fromEgison val'
-  return $ Bool $ pred r r'
-
-integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
-integerBinaryOp op = twoArgs $ \val val' -> do
+binaryOp :: (EgisonData a, EgisonData b) => (a -> a -> b) -> PrimitiveFunc
+binaryOp op = twoArgs $ \val val' -> do
   i <- fromEgison val
   i' <- fromEgison val'
   return $ toEgison (op i i')
 
-integerBinaryPred :: (Integer -> Integer -> Bool) -> PrimitiveFunc
-integerBinaryPred pred = twoArgs $ \val val' -> do
-  i <- fromEgison val
-  i' <- fromEgison val'
-  return $ Bool $ pred i i'
+rationalUnaryOp :: (Rational -> Rational) -> PrimitiveFunc
+rationalUnaryOp = unaryOp
+
+integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
+integerBinaryOp = binaryOp
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
-floatUnaryOp op = oneArg $ \val ->
-  case val of
-    Float f -> return $ Float (op f)
-    _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
+floatUnaryOp = unaryOp
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
-floatBinaryOp op = twoArgs $ \val val' ->
-  case (val, val') of
-    (Float f, Float f') -> return $ Float (op f f')
-    _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
-
-floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
-floatBinaryPred pred = twoArgs $ \val val' -> do
-  f <- fromEgison val
-  f' <- fromEgison val'
-  return $ Bool $ pred f f'
-
+floatBinaryOp = binaryOp
 
 --
 -- Arith
@@ -544,23 +517,19 @@ rationalToFloat = oneArg $ \val ->
     _ -> throwError =<< TypeMismatch "integer or rational number" (Value val) <$> getFuncNameStack
 
 charToInteger :: PrimitiveFunc
-charToInteger = oneArg $ \val -> do
-  c <- fromEgison val
-  let i = fromIntegral $ ord c :: Integer
-  return $ toEgison i
+charToInteger = unaryOp ctoi
+  where
+    ctoi :: Char -> Integer
+    ctoi = fromIntegral . ord
 
 integerToChar :: PrimitiveFunc
-integerToChar = oneArg $ \val ->
-  case val of
-    ScalarData _ -> do
-       i <- fromEgison val :: EgisonM Integer
-       return $ Char $ chr $ fromIntegral i
-    _ -> throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack
+integerToChar = unaryOp itoc
+  where
+    itoc :: Integer -> Char
+    itoc = chr . fromIntegral
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
-floatToIntegerOp op = oneArg $ \val -> do
-  f <- fromEgison val
-  return $ toEgison (op f)
+floatToIntegerOp = unaryOp
 
 --
 -- String
@@ -576,12 +545,10 @@ pack = oneArg $ \val -> do
       str <- mapM fromEgison ls
       return $ T.pack str
     packStringValue (Tuple [val]) = packStringValue val
-    packStringValue val = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
+    packStringValue val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
 
 unpack :: PrimitiveFunc
-unpack = oneArg $ \val -> do
-  str <- fromEgison val
-  return $ toEgison (T.unpack str)
+unpack = unaryOp T.unpack
 
 unconsString :: PrimitiveFunc
 unconsString = oneArg $ \val -> do
@@ -591,15 +558,10 @@ unconsString = oneArg $ \val -> do
     Nothing -> throwError $ Default "Tried to unsnoc empty string"
 
 lengthString :: PrimitiveFunc
-lengthString = oneArg $ \val -> do
-  str <- fromEgison val
-  return . toEgison . toInteger $ T.length str
+lengthString = unaryOp (toInteger . T.length)
 
 appendString :: PrimitiveFunc
-appendString = twoArgs $ \val1 val2 -> do
-  str1 <- fromEgison val1
-  str2 <- fromEgison val2
-  return . String $ T.append str1 str2
+appendString = binaryOp T.append
 
 splitString :: PrimitiveFunc
 splitString = twoArgs $ \pat src -> do
