@@ -311,8 +311,6 @@ Installation guide for [MacOS](https://www.egison.org/getting-started/getting-st
 If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egison/egison-tutorial">`egison-tutorial`</a>.
 
 ```
-% cabal update
-% cabal install egison-tutorial
 % egison-tutorial
 Egison Tutorial Version X.X.X (C) 2013-20XX Satoshi Egi
 Welcome to Egison Tutorial!
@@ -346,7 +344,7 @@ Examples:
 >
 ```
 
-We can try it also <a target="_blank" href="http://console.egison.org">online</a>.
+We also have [online interpreter](http://console.egison.org) and [online tutorial](http://try.egison.org/).
 Enjoy!
 
 ## Note for Developers
