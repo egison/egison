@@ -19,6 +19,7 @@ module Language.Egison.Types
       EgisonValue (..)
     , Matcher
     , PrimitiveFunc
+    , EgisonHashKey (..)
     , ScalarData (..)
     , PolyExpr (..)
     , TermExpr (..)
@@ -209,6 +210,11 @@ data EgisonValue =
 type Matcher = EgisonValue
 
 type PrimitiveFunc = WHNFData -> EgisonM WHNFData
+
+data EgisonHashKey =
+    IntKey Integer
+  | CharKey Char
+  | StrKey Text
 
 --
 -- Scalar and Tensor Types
