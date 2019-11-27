@@ -616,59 +616,50 @@ pack = oneArg $ \val -> do
     packStringValue val = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 unpack :: PrimitiveFunc
-unpack = oneArg $ \val ->
-  case val of
-    String str -> return $ toEgison (T.unpack str)
-    _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
+unpack = oneArg $ \val -> do
+  str <- fromEgison val
+  return $ toEgison (T.unpack str)
 
 unconsString :: PrimitiveFunc
-unconsString = oneArg $ \val ->
-  case val of
-    String str -> case T.uncons str of
-                    Just (c, rest) ->  return $ Tuple [Char c, String rest]
-                    Nothing -> throwError $ Default "Tried to unsnoc empty string"
-    _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
+unconsString = oneArg $ \val -> do
+  str <- fromEgison val
+  case T.uncons str of
+    Just (c, rest) -> return $ Tuple [Char c, String rest]
+    Nothing -> throwError $ Default "Tried to unsnoc empty string"
 
 lengthString :: PrimitiveFunc
-lengthString = oneArg $ \val ->
-  case val of
-    String str -> return . toEgison . toInteger $ T.length str
-    _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
+lengthString = oneArg $ \val -> do
+  str <- fromEgison val
+  return . toEgison . toInteger $ T.length str
 
 appendString :: PrimitiveFunc
-appendString = twoArgs $ \val1 val2 ->
-  case (val1, val2) of
-    (String str1, String str2) -> return . String $ T.append str1 str2
-    (String _, _) -> throwError =<< TypeMismatch "string" (Value val2) <$> getFuncNameStack
-    (_, _) -> throwError =<< TypeMismatch "string" (Value val1) <$> getFuncNameStack
+appendString = twoArgs $ \val1 val2 -> do
+  str1 <- fromEgison val1
+  str2 <- fromEgison val2
+  return . String $ T.append str1 str2
 
 splitString :: PrimitiveFunc
-splitString = twoArgs $ \pat src ->
-  case (pat, src) of
-    (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
-    (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
-    (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
+splitString = twoArgs $ \pat src -> do
+  patStr <- fromEgison pat
+  srcStr <- fromEgison src
+  return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
 
 regexString :: PrimitiveFunc
-regexString = twoArgs $ \pat src ->
-  case (pat, src) of
-    (String patStr, String srcStr) ->
-      case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe (String, String, String)) of
-        Nothing -> return . Collection . Sq.fromList $ []
-        Just (a,b,c) -> return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
-    (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
-    (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
+regexString = twoArgs $ \pat src -> do
+  patStr <- fromEgison pat
+  srcStr <- fromEgison src
+  case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe (String, String, String)) of
+    Nothing -> return . Collection . Sq.fromList $ []
+    Just (a,b,c) -> return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
 
 regexStringCaptureGroup :: PrimitiveFunc
-regexStringCaptureGroup = twoArgs $ \pat src ->
-  case (pat, src) of
-    (String patStr, String srcStr) ->
-      case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe [[String]]) of
-        Nothing -> return . Collection . Sq.fromList $ []
-        Just ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
-                              return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
-    (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
-    (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
+regexStringCaptureGroup = twoArgs $ \pat src -> do
+  patStr <- fromEgison pat
+  srcStr <- fromEgison src
+  case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe [[String]]) of
+    Nothing -> return . Collection . Sq.fromList $ []
+    Just ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
+                          return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
 
 --regexStringMatch :: PrimitiveFunc
 --regexStringMatch = twoArgs $ \pat src -> do
@@ -714,10 +705,10 @@ readProcess' :: PrimitiveFunc
 readProcess' = threeArgs' $ \cmd args input ->
   case (cmd, args, input) of
     (String cmdStr, Collection argStrs, String inputStr) -> do
-      let cmd = T.unpack cmdStr
-      let args = map (\case String argStr -> T.unpack argStr) (toList argStrs)
-      let input = T.unpack inputStr
-      outputStr <- liftIO $ readProcess cmd args input
+      let cmd' = T.unpack cmdStr
+      let args' = map (\case String argStr -> T.unpack argStr) (toList argStrs)
+      let input' = T.unpack inputStr
+      outputStr <- liftIO $ readProcess cmd' args' input'
       return (String (T.pack outputStr))
     (_, _, _) -> throwError =<< TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input])) <$> getFuncNameStack
 
