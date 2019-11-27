@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE RankNTypes       #-}
 
 {- |
 Module      : Language.Egison.Primitives
@@ -178,10 +179,10 @@ primitives = [ ("b.+", plus)
              , ("b.neg", rationalUnaryOp negate)
 
              , ("eq?",  eq)
-             , ("lt?",  lt)
-             , ("lte?", lte)
-             , ("gt?",  gt)
-             , ("gte?", gte)
+             , ("lt?",  scalarCompare (<))
+             , ("lte?", scalarCompare (<=))
+             , ("gt?",  scalarCompare (>))
+             , ("gte?", scalarCompare (>=))
 
              , ("round",    floatToIntegerOp round)
              , ("floor",    floatToIntegerOp floor)
@@ -282,10 +283,10 @@ primitives' = [ ("b.+", plus)
              , ("b.neg", rationalUnaryOp negate)
 
              , ("eq?",  eq)
-             , ("lt?",  lt)
-             , ("lte?", lte)
-             , ("gt?",  gt)
-             , ("gte?", gte)
+             , ("lt?",  scalarCompare (<))
+             , ("lte?", scalarCompare (<=))
+             , ("gt?",  scalarCompare (>))
+             , ("gte?", scalarCompare (>=))
 
              , ("round",    floatToIntegerOp round)
              , ("floor",    floatToIntegerOp floor)
@@ -483,53 +484,17 @@ eq :: PrimitiveFunc
 eq = twoArgs' $ \val val' ->
   return $ Bool $ val == val'
 
-lt :: PrimitiveFunc
-lt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
- where
-  scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
-    r <- fromEgison m :: EgisonM Rational
-    r' <- fromEgison n :: EgisonM Rational
-    return $ Bool $ (<) r r'
-  scalarBinaryPred' (Float f)      (Float f') = return $ Bool (f < f')
-  scalarBinaryPred' (ScalarData _) val        = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryPred' (Float _)      val        = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
-  scalarBinaryPred' val            _          = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-
-lte :: PrimitiveFunc
-lte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
- where
-  scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
-    r <- fromEgison m :: EgisonM Rational
-    r' <- fromEgison n :: EgisonM Rational
-    return $ Bool $ (<=) r r'
-  scalarBinaryPred' (Float f)      (Float f') = return $ Bool (f <= f')
-  scalarBinaryPred' (ScalarData _) val        = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryPred' (Float _)      val        = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
-  scalarBinaryPred' val            _          = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-
-gt :: PrimitiveFunc
-gt = twoArgs' $ \val val' -> scalarBinaryPred' val val'
- where
-  scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
-    r <- fromEgison m :: EgisonM Rational
-    r' <- fromEgison n :: EgisonM Rational
-    return $ Bool $ (>) r r'
-  scalarBinaryPred' (Float f)      (Float f')  = return $ Bool $ (f > f')
-  scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryPred' (Float _)      val         = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
-  scalarBinaryPred' val            _           = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-
-gte :: PrimitiveFunc
-gte = twoArgs' $ \val val' -> scalarBinaryPred' val val'
- where
-  scalarBinaryPred' m@(ScalarData _) n@(ScalarData _) = do
-    r <- fromEgison m :: EgisonM Rational
-    r' <- fromEgison n :: EgisonM Rational
-    return $ Bool $ (>=) r r'
-  scalarBinaryPred' (Float f)      (Float f')  = return $ Bool (f >= f')
-  scalarBinaryPred' (ScalarData _) val         = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryPred' (Float _)      val         = throwError =<< TypeMismatch "float"  (Value val) <$> getFuncNameStack
-  scalarBinaryPred' val            _           = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+scalarCompare :: (forall a. Ord a => a -> a -> Bool) -> PrimitiveFunc
+scalarCompare cmp = twoArgs' $ \val1 val2 ->
+  case (val1, val2) of
+    (ScalarData _, ScalarData _) -> do
+      r1 <- fromEgison val1 :: EgisonM Rational
+      r2 <- fromEgison val2 :: EgisonM Rational
+      return $ Bool (cmp r1 r2)
+    (Float f1, Float f2) -> return $ Bool (cmp f1 f2)
+    (ScalarData _, _) -> throwError =<< TypeMismatch "number" (Value val2) <$> getFuncNameStack
+    (Float _,      _) -> throwError =<< TypeMismatch "float"  (Value val2) <$> getFuncNameStack
+    _                 -> throwError =<< TypeMismatch "number" (Value val1) <$> getFuncNameStack
 
 truncate' :: PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
@@ -579,12 +544,10 @@ rationalToFloat = oneArg $ \val ->
     _ -> throwError =<< TypeMismatch "integer or rational number" (Value val) <$> getFuncNameStack
 
 charToInteger :: PrimitiveFunc
-charToInteger = oneArg $ \val ->
-  case val of
-    Char c -> do
-      let i = fromIntegral $ ord c :: Integer
-      return $ toEgison i
-    _ -> throwError =<< TypeMismatch "character" (Value val) <$> getFuncNameStack
+charToInteger = oneArg $ \val -> do
+  c <- fromEgison val
+  let i = fromIntegral $ ord c :: Integer
+  return $ toEgison i
 
 integerToChar :: PrimitiveFunc
 integerToChar = oneArg $ \val ->
