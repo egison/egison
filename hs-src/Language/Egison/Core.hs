@@ -1469,10 +1469,7 @@ makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
 packStringValue :: EgisonValue -> EgisonM Text
 packStringValue (Collection seq) = do
   let ls = toList seq
-  str <- mapM (\val -> case val of
-                         Char c -> return c
-                         _ -> throwError =<< TypeMismatch "char" (Value val) <$> getFuncNameStack)
-              ls
+  str <- mapM fromEgison ls
   return $ T.pack str
 packStringValue (Tuple [val]) = packStringValue val
 packStringValue val = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
