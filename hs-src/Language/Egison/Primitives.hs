@@ -412,14 +412,16 @@ integerBinaryPred pred = twoArgs $ \val val' -> do
   return $ Bool $ pred i i'
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
-floatUnaryOp op = oneArg $ \val -> case val of
-                                     (Float f) -> return $ Float (op f)
-                                     _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
+floatUnaryOp op = oneArg $ \val ->
+  case val of
+    Float f -> return $ Float (op f)
+    _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
-floatBinaryOp op = twoArgs $ \val val' -> case (val, val') of
-                                            (Float f, Float f') -> return $ Float (op f f')
-                                            _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
+floatBinaryOp op = twoArgs $ \val val' ->
+  case (val, val') of
+    (Float f, Float f') -> return $ Float (op f f')
+    _ -> throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
 
 floatBinaryPred :: (Double -> Double -> Bool) -> PrimitiveFunc
 floatBinaryPred pred = twoArgs $ \val val' -> do
@@ -577,18 +579,20 @@ rationalToFloat = oneArg $ \val ->
     _ -> throwError =<< TypeMismatch "integer or rational number" (Value val) <$> getFuncNameStack
 
 charToInteger :: PrimitiveFunc
-charToInteger = oneArg $ \val -> case val of
-                                   Char c -> do
-                                     let i = fromIntegral $ ord c :: Integer
-                                     return $ toEgison i
-                                   _ -> throwError =<< TypeMismatch "character" (Value val) <$> getFuncNameStack
+charToInteger = oneArg $ \val ->
+  case val of
+    Char c -> do
+      let i = fromIntegral $ ord c :: Integer
+      return $ toEgison i
+    _ -> throwError =<< TypeMismatch "character" (Value val) <$> getFuncNameStack
 
 integerToChar :: PrimitiveFunc
-integerToChar = oneArg $ \val -> case val of
-                                   (ScalarData _) -> do
-                                      i <- fromEgison val :: EgisonM Integer
-                                      return $ Char $ chr $ fromIntegral i
-                                   _ -> throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack
+integerToChar = oneArg $ \val ->
+  case val of
+    ScalarData _ -> do
+       i <- fromEgison val :: EgisonM Integer
+       return $ Char $ chr $ fromIntegral i
+    _ -> throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack
 
 floatToIntegerOp :: (Double -> Integer) -> PrimitiveFunc
 floatToIntegerOp op = oneArg $ \val -> do
@@ -612,52 +616,59 @@ pack = oneArg $ \val -> do
     packStringValue val = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 unpack :: PrimitiveFunc
-unpack = oneArg $ \val -> case val of
-                            String str -> return $ toEgison (T.unpack str)
-                            _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
+unpack = oneArg $ \val ->
+  case val of
+    String str -> return $ toEgison (T.unpack str)
+    _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 unconsString :: PrimitiveFunc
-unconsString = oneArg $ \val -> case val of
-                                  String str -> case T.uncons str of
-                                                  Just (c, rest) ->  return $ Tuple [Char c, String rest]
-                                                  Nothing -> throwError $ Default "Tried to unsnoc empty string"
-                                  _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
+unconsString = oneArg $ \val ->
+  case val of
+    String str -> case T.uncons str of
+                    Just (c, rest) ->  return $ Tuple [Char c, String rest]
+                    Nothing -> throwError $ Default "Tried to unsnoc empty string"
+    _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 lengthString :: PrimitiveFunc
-lengthString = oneArg $ \val -> case val of
-                                  String str -> return . toEgison . toInteger $ T.length str
-                                  _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
+lengthString = oneArg $ \val ->
+  case val of
+    String str -> return . toEgison . toInteger $ T.length str
+    _ -> throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 appendString :: PrimitiveFunc
-appendString = twoArgs $ \val1 val2 -> case (val1, val2) of
-                                         (String str1, String str2) -> return . String $ T.append str1 str2
-                                         (String _, _) -> throwError =<< TypeMismatch "string" (Value val2) <$> getFuncNameStack
-                                         (_, _) -> throwError =<< TypeMismatch "string" (Value val1) <$> getFuncNameStack
+appendString = twoArgs $ \val1 val2 ->
+  case (val1, val2) of
+    (String str1, String str2) -> return . String $ T.append str1 str2
+    (String _, _) -> throwError =<< TypeMismatch "string" (Value val2) <$> getFuncNameStack
+    (_, _) -> throwError =<< TypeMismatch "string" (Value val1) <$> getFuncNameStack
 
 splitString :: PrimitiveFunc
-splitString = twoArgs $ \pat src -> case (pat, src) of
-                                      (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
-                                      (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
-                                      (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
+splitString = twoArgs $ \pat src ->
+  case (pat, src) of
+    (String patStr, String srcStr) -> return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
+    (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
+    (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 regexString :: PrimitiveFunc
-regexString = twoArgs $ \pat src -> case (pat, src) of
-                                      (String patStr, String srcStr) ->
-                                        case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe (String, String, String)) of
-                                          Nothing -> return . Collection . Sq.fromList $ []
-                                          Just (a,b,c) -> return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
-                                      (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
-                                      (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
+regexString = twoArgs $ \pat src ->
+  case (pat, src) of
+    (String patStr, String srcStr) ->
+      case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe (String, String, String)) of
+        Nothing -> return . Collection . Sq.fromList $ []
+        Just (a,b,c) -> return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
+    (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
+    (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 regexStringCaptureGroup :: PrimitiveFunc
-regexStringCaptureGroup = twoArgs $ \pat src -> case (pat, src) of
-                                                  (String patStr, String srcStr) ->
-                                                    case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe [[String]]) of
-                                                      Nothing -> return . Collection . Sq.fromList $ []
-                                                      Just ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
-                                                                            return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
-                                                  (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
-                                                  (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
+regexStringCaptureGroup = twoArgs $ \pat src ->
+  case (pat, src) of
+    (String patStr, String srcStr) ->
+      case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe [[String]]) of
+        Nothing -> return . Collection . Sq.fromList $ []
+        Just ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
+                              return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
+    (String _, _) -> throwError =<< TypeMismatch "string" (Value src) <$> getFuncNameStack
+    (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 --regexStringMatch :: PrimitiveFunc
 --regexStringMatch = twoArgs $ \pat src -> do
@@ -667,38 +678,48 @@ regexStringCaptureGroup = twoArgs $ \pat src -> case (pat, src) of
 --    (_, _) -> throwError =<< TypeMismatch "string" (Value pat) <$> getFuncNameStack
 
 addPrime :: PrimitiveFunc
-addPrime = oneArg $ \sym -> case sym of
-                              ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id (name ++ "'") is, 1)]]) (Plus [Term 1 []])))
-                              _ -> throwError =<< TypeMismatch "symbol" (Value sym) <$> getFuncNameStack
+addPrime = oneArg $ \sym ->
+  case sym of
+    ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])) ->
+      return (ScalarData (Div (Plus [Term 1 [(Symbol id (name ++ "'") is, 1)]]) (Plus [Term 1 []])))
+    _ -> throwError =<< TypeMismatch "symbol" (Value sym) <$> getFuncNameStack
 
 addSubscript :: PrimitiveFunc
-addSubscript = twoArgs $ \fn sub -> case (fn, sub) of
-                                      (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
-                                       ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
-                                      (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
-                                       ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
-                                      (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
-                                       _) -> throwError =<< TypeMismatch "symbol or integer" (Value sub) <$> getFuncNameStack
-                                      _ -> throwError =<< TypeMismatch "symbol or integer" (Value fn) <$> getFuncNameStack
+addSubscript = twoArgs $ \fn sub ->
+  case (fn, sub) of
+    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
+     ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) ->
+       return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
+    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
+     ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) ->
+       return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
+    (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
+     _) -> throwError =<< TypeMismatch "symbol or integer" (Value sub) <$> getFuncNameStack
+    _ -> throwError =<< TypeMismatch "symbol or integer" (Value fn) <$> getFuncNameStack
 
 addSuperscript :: PrimitiveFunc
-addSuperscript = twoArgs $ \fn sub -> case (fn, sub) of
-                                        (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
-                                         ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
-                                        (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
-                                         ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) -> return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
-                                        (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
-                                         _) -> throwError =<< TypeMismatch "symbol" (Value sub) <$> getFuncNameStack
-                                        _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
+addSuperscript = twoArgs $ \fn sub ->
+  case (fn, sub) of
+    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
+     ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) ->
+       return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
+    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
+     ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) ->
+       return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
+    (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
+     _) -> throwError =<< TypeMismatch "symbol" (Value sub) <$> getFuncNameStack
+    _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
 
 readProcess' :: PrimitiveFunc
-readProcess' = threeArgs' $ \cmd args input -> case (cmd, args, input) of
-                                                 (String cmdStr, Collection argStrs, String inputStr) -> do
-                                                   outputStr <- liftIO $ readProcess (T.unpack cmdStr) (map (\case
-                                                                                                                String argStr -> T.unpack argStr)
-                                                                                                                (toList argStrs)) (T.unpack inputStr)
-                                                   return (String (T.pack outputStr))
-                                                 (_, _, _) -> throwError =<< TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input])) <$> getFuncNameStack
+readProcess' = threeArgs' $ \cmd args input ->
+  case (cmd, args, input) of
+    (String cmdStr, Collection argStrs, String inputStr) -> do
+      let cmd = T.unpack cmdStr
+      let args = map (\case String argStr -> T.unpack argStr) (toList argStrs)
+      let input = T.unpack inputStr
+      outputStr <- liftIO $ readProcess cmd args input
+      return (String (T.pack outputStr))
+    (_, _, _) -> throwError =<< TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input])) <$> getFuncNameStack
 
 read' :: PrimitiveFunc
 read'= oneArg' $ \val -> fromEgison val >>= readExpr . T.unpack >>= evalExprDeep nullEnv
@@ -749,10 +770,11 @@ assert = twoArgs' $ \label test -> do
     else throwError =<< Assertion (show label) <$> getFuncNameStack
 
 assertEqual :: PrimitiveFunc
-assertEqual = threeArgs' $ \label actual expected -> if actual == expected
-                                                       then return $ Bool True
-                                                       else throwError =<< Assertion
-                                                         (show label ++ "\n expected: " ++ show expected ++ "\n but found: " ++ show actual) <$> getFuncNameStack
+assertEqual = threeArgs' $ \label actual expected ->
+  if actual == expected
+     then return $ Bool True
+     else throwError =<< Assertion
+       (show label ++ "\n expected: " ++ show expected ++ "\n but found: " ++ show actual) <$> getFuncNameStack
 
 --
 -- IO Primitives
