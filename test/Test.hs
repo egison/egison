@@ -43,15 +43,15 @@ testCases =
   , "test/lib/core/order.egi"
   , "test/lib/core/number.egi"
 
-  , "sample/mahjong.egi"
-  , "sample/poker-hands-with-joker.egi"
   , "sample/poker-hands.egi"
-  , "sample/primes.egi"
-  , "sample/sat/cdcl.egi"
-  , "sample/math/number/17th-root-of-unity.egi"
-  , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
-  , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi"
-  , "sample/math/geometry/curvature-form.egi"
+  , "sample/poker-hands-with-joker.egi"
+  , "sample/mahjong.egi" -- for testing pattern functions
+  , "sample/primes.egi" -- for testing pattern matching with infinitely many results
+  , "sample/sat/cdcl.egi" -- for testing a practical program using pattern matching
+  , "sample/math/number/17th-root-of-unity.egi" -- for testing rewriting of mathematical expressions
+  , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi" -- for testing tensor index notation
+  , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi" -- for testing tensor index notation and math quote
+  , "sample/math/geometry/curvature-form.egi" -- for testing differential form
   ]
 
 nonSTestCases :: [FilePath]
