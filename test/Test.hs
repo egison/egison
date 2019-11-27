@@ -47,9 +47,11 @@ testCases =
   , "sample/poker-hands-with-joker.egi"
   , "sample/poker-hands.egi"
   , "sample/primes.egi"
+  , "sample/sat/cdcl.egi"
+  , "sample/math/number/17th-root-of-unity.egi"
   , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
   , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi"
-  , "sample/math/number/17th-root-of-unity.egi"
+  , "sample/math/geometry/curvature-form.egi"
   ]
 
 nonSTestCases :: [FilePath]
