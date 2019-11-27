@@ -1318,6 +1318,15 @@ primitiveDataPatternMatch (PDConstantPat expr) whnf = do
   target <- (either (const matchFail) return) $ extractPrimitiveValue whnf
   isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
+ where
+  extractPrimitiveValue :: WHNFData -> Either ([String] -> EgisonError) EgisonValue
+  extractPrimitiveValue (Value val@(Char _)) = return val
+  extractPrimitiveValue (Value val@(Bool _)) = return val
+  extractPrimitiveValue (Value val@(ScalarData _)) = return val
+  extractPrimitiveValue (Value val@(Float _)) = return val
+  extractPrimitiveValue whnf =
+    -- we don't need to extract call stack since detailed error information is not used
+    throwError $ TypeMismatch "primitive value" whnf
 
 expandCollection :: WHNFData -> EgisonM (Seq Inner)
 expandCollection (Value (Collection vals)) =
@@ -1466,20 +1475,3 @@ packStringValue (Collection seq) = do
   return $ T.pack str
 packStringValue (Tuple [val]) = packStringValue val
 packStringValue val = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
-
---
--- Util
---
-data EgisonHashKey =
-    IntKey Integer
-  | CharKey Char
-  | StrKey Text
-
-extractPrimitiveValue :: WHNFData -> Either ([String] -> EgisonError) EgisonValue
-extractPrimitiveValue (Value val@(Char _)) = return val
-extractPrimitiveValue (Value val@(Bool _)) = return val
-extractPrimitiveValue (Value val@(ScalarData _)) = return val
-extractPrimitiveValue (Value val@(Float _)) = return val
-extractPrimitiveValue whnf =
-  -- we don't need to extract call stack since detailed error information is not used
-  throwError $ TypeMismatch "primitive value" whnf
