@@ -48,6 +48,7 @@ testCases =
   , "sample/poker-hands.egi"
   , "sample/primes.egi"
   , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
+  , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi"
   , "sample/math/number/17th-root-of-unity.egi"
   ]
 
