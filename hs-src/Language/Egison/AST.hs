@@ -123,7 +123,7 @@ data EgisonExpr =
 
   | SomethingExpr
   | UndefinedExpr
- deriving (Eq)
+ deriving (Eq, Show)
 
 data Var = Var [String] [Index ()]
   deriving (Eq, Generic)
@@ -132,7 +132,7 @@ data Arg =
     ScalarArg String
   | InvertedScalarArg String
   | TensorArg String
- deriving (Eq)
+ deriving (Eq, Show)
 
 data Index a =
     Subscript a
@@ -184,10 +184,10 @@ data EgisonPattern =
   | PlusPat [EgisonPattern]
   | MultPat [EgisonPattern]
   | PowerPat EgisonPattern EgisonPattern
- deriving Eq
+ deriving (Eq, Show)
 
 data LoopRange = LoopRange EgisonExpr EgisonExpr EgisonPattern
- deriving Eq
+ deriving (Eq, Show)
 
 data PrimitivePatPattern =
     PPWildCard
@@ -215,10 +215,7 @@ data EgisonBinOp
                 , assoc    :: BinOpAssoc
                 , isWedge  :: Bool    -- True if operator is prefixed with '!'
                 }
-  deriving (Eq, Ord)
-
-instance Show EgisonBinOp where
-  show = repr
+  deriving (Eq, Ord, Show)
 
 data BinOpAssoc
   = LeftAssoc
@@ -262,41 +259,8 @@ stringToVar name = Var (splitOn "." name) []
 stringToVarExpr :: String -> EgisonExpr
 stringToVarExpr = VarExpr . stringToVar
 
-instance Show EgisonExpr where
-  show (CharExpr c) = "c#" ++ [c]
-  show (StringExpr str) = "\"" ++ T.unpack str ++ "\""
-  show (BoolExpr True) = "#t"
-  show (BoolExpr False) = "#f"
-  show (IntegerExpr n) = show n
-  show (FloatExpr x) = show x
-  show (VarExpr name) = show name
-  show (PartialVarExpr n) = "%" ++ show n
-  show (FunctionExpr args) = "(function [" ++ unwords (map show args) ++ "])"
-  show (IndexedExpr True expr idxs) = show expr ++ concatMap show idxs
-  show (IndexedExpr False expr idxs) = show expr ++ "..." ++ concatMap show idxs
-  show (TupleExpr exprs) = "[" ++ unwords (map show exprs) ++ "]"
-  show (CollectionExpr ls) = "{" ++ unwords (map show ls) ++ "}"
-
-  show (UnaryOpExpr op e) = op ++ " " ++ show e
-  show (BinaryOpExpr op e1 e2) = "(" ++ show e1 ++ " " ++ show op ++ " " ++ show e2 ++ ")"
-
-  show (QuoteExpr e) = "'" ++ show e
-  show (QuoteSymbolExpr e) = "`" ++ show e
-
-  show (ApplyExpr fn (TupleExpr [])) = "(" ++ show fn ++ ")"
-  show (ApplyExpr fn (TupleExpr args)) = "(" ++ show fn ++ " " ++ unwords (map show args) ++ ")"
-  show (ApplyExpr fn arg) = "(" ++ show fn ++ " " ++ show arg ++ ")"
-  show (VectorExpr xs) = "[| " ++ unwords (map show xs) ++ " |]"
-  show (WithSymbolsExpr xs e) = "(withSymbols {" ++ unwords (map show xs) ++ "} " ++ show e ++ ")"
-  show _ = "(not supported)"
-
 instance Show Var where
   show (Var xs is) = intercalate "." xs ++ concatMap show is
-
-instance Show Arg where
-  show (ScalarArg name)         = "$" ++ name
-  show (InvertedScalarArg name) = "*$" ++ name
-  show (TensorArg name)         = "%" ++ name
 
 instance Show (Index ()) where
   show (Superscript ())  = "~"
@@ -318,41 +282,3 @@ instance Show (Index EgisonExpr) where
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript _ _)   = ""
   show (Userscript i)   = "|" ++ show i
-
-instance Show EgisonPattern where
-  show WildCard = "_"
-  show (PatVar var) = "$" ++ show var
-  show (ValuePat expr) = "," ++ show expr
-  show (PredPat expr) = "?" ++ show expr
-  show (IndexedPat pat exprs) = show pat ++ concatMap (("_" ++) . show) exprs
-  show (LetPat bexprs pat) = "(let {" ++ unwords (map (\(vars, expr) -> "[" ++ showVarsHelper vars ++ " " ++ show expr ++ "]") bexprs) ++
-                             "} " ++ show pat ++ ")"
-    where showVarsHelper [] = ""
-          showVarsHelper [v] = "$" ++ show v
-          showVarsHelper vs = "[" ++ unwords (map (("$" ++) . show) vs) ++ "]"
-  show (NotPat pat) = "!" ++ show pat
-  show (AndPat pats) = "(&" ++ concatMap ((" " ++) . show) pats ++ ")"
-  show (OrPat pats) = "(|" ++ concatMap ((" " ++) . show) pats ++ ")"
-  show (TuplePat pats) = "[" ++ unwords (map show pats) ++ "]"
-  show (InductivePat name pats) = "<" ++ name ++ concatMap ((" " ++) . show) pats ++ ">"
-  show (LoopPat var range pat endPat) = "(loop $" ++ unwords [show var, show range, show pat, show endPat] ++ ")"
-  show ContPat = "..."
-  show (PApplyPat expr pats) = "(" ++ unwords (show expr : map show pats) ++ ")"
-  show (VarPat name) = name
-  show SeqNilPat = "{}"
-  show (SeqConsPat pat pat') = "{" ++ show pat ++ showSeqPatHelper pat' ++ "}"
-    where showSeqPatHelper SeqNilPat = ""
-          showSeqPatHelper (SeqConsPat pat pat') = " " ++ show pat ++ showSeqPatHelper pat'
-          showSeqPatHelper pat = " " ++ show pat
-  show LaterPatVar = "#"
-
-  show (DApplyPat pat pats) = "(" ++ unwords (show pat : map show pats) ++ ")"
-  show (DivPat pat pat') = "(/ " ++ show pat ++ " " ++ show pat' ++ ")"
-  show (PlusPat pats) = "(+" ++ concatMap ((" " ++) . show) pats
-  show (MultPat pats) = "(*" ++ concatMap ((" " ++) . show) pats
-  show (PowerPat pat pat') = "(" ++ show pat ++ " ^ " ++ show pat' ++ ")"
-
-instance Show LoopRange where
-  show (LoopRange start (ApplyExpr (VarExpr (Var ["from"] [])) (ApplyExpr _ (TupleExpr (x:_)))) endPat) =
-    "[" ++ show start ++ " (from " ++ show x ++ ") " ++ show endPat ++ "]"
-  show (LoopRange start ends endPat) = "[" ++ show start ++ " " ++ show ends ++ " " ++ show endPat ++ "]"

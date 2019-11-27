@@ -35,6 +35,7 @@ import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
 import           Data.Char                 (chr, ord)
+import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import qualified Data.Text.IO              as T
 
@@ -601,6 +602,14 @@ pack :: PrimitiveFunc
 pack = oneArg $ \val -> do
   str <- packStringValue val
   return $ String str
+  where
+    packStringValue :: EgisonValue -> EgisonM Text
+    packStringValue (Collection seq) = do
+      let ls = toList seq
+      str <- mapM fromEgison ls
+      return $ T.pack str
+    packStringValue (Tuple [val]) = packStringValue val
+    packStringValue val = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
 
 unpack :: PrimitiveFunc
 unpack = oneArg $ \val -> case val of

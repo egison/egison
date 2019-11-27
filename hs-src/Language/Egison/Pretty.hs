@@ -245,7 +245,7 @@ instance PrettyS VarWithIndices where
   prettyS = show
 
 instance PrettyS EgisonBinOp where
-  prettyS = show
+  prettyS = repr
 
 instance PrettyS InnerExpr where
   prettyS (ElementExpr e) = prettyS e

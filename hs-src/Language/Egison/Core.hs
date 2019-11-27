@@ -36,8 +36,6 @@ module Language.Egison.Core
     -- * Tuple, Collection
     , tupleToList
     , collectionToList
-    -- * Utiltiy functions
-    , packStringValue
     ) where
 
 import           Prelude                     hiding (mapM, mappend, mconcat)
@@ -60,9 +58,6 @@ import           Data.Traversable            (mapM)
 import qualified Data.Array                  as Array
 import qualified Data.HashMap.Lazy           as HL
 import qualified Data.Vector                 as V
-
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
 
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
@@ -1462,17 +1457,3 @@ makeITuple :: [WHNFData] -> EgisonM WHNFData
 makeITuple []  = return $ Intermediate (ITuple [])
 makeITuple [x] = return x
 makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
-
---
--- String
---
-packStringValue :: EgisonValue -> EgisonM Text
-packStringValue (Collection seq) = do
-  let ls = toList seq
-  str <- mapM (\val -> case val of
-                         Char c -> return c
-                         _ -> throwError =<< TypeMismatch "char" (Value val) <$> getFuncNameStack)
-              ls
-  return $ T.pack str
-packStringValue (Tuple [val]) = packStringValue val
-packStringValue val = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
