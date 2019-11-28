@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections    #-}
+{-# OPTIONS_GHC -Wno-all      #-} -- Since we will soon deprecate this parser
 
 {- |
 Module      : Language.Egison.Parser

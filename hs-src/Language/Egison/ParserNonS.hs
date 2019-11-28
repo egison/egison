@@ -40,7 +40,7 @@ import           Control.Monad.Combinators.Expr
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
-import           Text.Megaparsec.Debug          (dbg)
+-- import           Text.Megaparsec.Debug          (dbg)
 import           Text.Megaparsec.Pos            (Pos)
 import           System.Directory               (doesFileExist, getHomeDirectory)
 import           System.IO
@@ -149,8 +149,7 @@ defineOrTestExpr = do
   where
     defineExpr :: EgisonExpr -> Parser EgisonTopExpr
     defineExpr e = do
-      symbol ":="
-      body <- expr
+      body <- symbol ":=" >> expr
       case convertToDefine e body of
         Just def -> return def
         -- TODO(momohatt): Adjust the position of error
@@ -733,10 +732,17 @@ patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 identChar :: Parser Char
 identChar = alphaNumChar <|> oneOf ['.', '?', '\'', '/']
 
-parens    = between (symbol "(") (symbol ")")
-braces    = between (symbol "{") (symbol "}")
+parens :: Parser a -> Parser a
+parens = between (symbol "(") (symbol ")")
+
+braces :: Parser a -> Parser a
+braces = between (symbol "{") (symbol "}")
+
+brackets :: Parser a -> Parser a
 brackets  = between (symbol "[") (symbol "]")
-comma     = symbol ","
+
+comma :: Parser String
+comma = symbol ","
 
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
