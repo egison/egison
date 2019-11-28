@@ -29,6 +29,7 @@ module Language.Egison.Types
     , HasTensor (..)
     -- * Scalar
     , symbolScalarData
+    , symbolScalarData'
     , getSymId
     , getSymName
     , mathExprToEgison
@@ -139,7 +140,7 @@ import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
 import           Data.List                 (any, elemIndex, intercalate, splitAt)
-import           Data.Text                 (Text)
+import           Data.Text                 (Text, pack, unpack)
 
 import           Data.Ratio
 import           System.IO
@@ -210,7 +211,7 @@ data SymbolExpr =
     Symbol Id String [Index ScalarData]
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
-  | FunctionData (Maybe EgisonValue) [EgisonValue] [EgisonValue] [Index ScalarData] -- fnname argnames args indices
+  | FunctionData ScalarData [ScalarData] [EgisonValue] [Index ScalarData] -- fnname argnames args indices
  deriving (Eq)
 
 type Id = String
@@ -286,6 +287,9 @@ instance HasTensor WHNFData where
 symbolScalarData :: String -> String -> EgisonValue
 symbolScalarData id name = ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))
 
+symbolScalarData' :: String -> String -> ScalarData
+symbolScalarData' id name = Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []])
+
 getSymId :: EgisonValue -> String
 getSymId (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) = id
 
@@ -312,9 +316,7 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (FunctionData name argnames args js, n) =
-  case name of
-    Nothing -> Tuple [InductiveData "Function" [symbolScalarData "" "", Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
-    Just name' -> Tuple [InductiveData "Function" [name', Collection (Sq.fromList argnames), Collection (Sq.fromList args), f js], toEgison n]
+  Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList args), f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map (\case
                                           Superscript k -> InductiveData "Sup" [ScalarData k]
@@ -372,6 +374,8 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   n' <- fromEgison n
   return (Quote mExpr', n')
 egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, Collection args, Collection seq], n]) = do
+  name' <- extractScalar name
+  argnames' <- mapM extractScalar (toList argnames)
   let js = toList seq
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
@@ -380,10 +384,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, 
                          _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
                ) js
   n' <- fromEgison n
-  let name' = case getSymName name of
-                "" -> Nothing
-                s  -> Just name
-  return (FunctionData name' (toList argnames) (toList args) js', n')
+  return (FunctionData name' argnames' (toList args) js', n')
 egisonToSymbolExpr val = throwError =<< TypeMismatch "math symbol expression" (Value val) <$> getFuncNameStack
 
 mathNormalize' :: ScalarData -> ScalarData
@@ -652,8 +653,7 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData Nothing argnames args js) = "(functionData [" ++ unwords (map show argnames) ++ "])" ++ concatMap show js
-  show (FunctionData (Just name) argnames args js) = show name ++ concatMap show js
+  show (FunctionData name argnames args js) = show name ++ concatMap show js
 
 instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
