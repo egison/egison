@@ -225,10 +225,10 @@ symbolScalarData' :: String -> String -> ScalarData
 symbolScalarData' id name = Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []])
 
 getSymId :: EgisonValue -> String
-getSymId (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) = id
+getSymId (ScalarData (Div (Plus [Term 1 [(Symbol id _ [], 1)]]) (Plus [Term 1 []]))) = id
 
 getSymName :: EgisonValue -> String
-getSymName (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) = name
+getSymName (ScalarData (Div (Plus [Term 1 [(Symbol _ name [], 1)]]) (Plus [Term 1 []]))) = name
 
 mathExprToEgison :: ScalarData -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [polyExprToEgison p1, polyExprToEgison p2]
@@ -347,9 +347,9 @@ instance Show EgisonValue where
   show (ScalarData mExpr) = show mExpr
   show (TensorData (Tensor [_] xs js)) = "[| " ++ intercalate ", " (map show (V.toList xs)) ++ " |]" ++ concatMap show js
   show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap show js
-  show (TensorData (Tensor [i, j] xs js)) = "[| " ++ intercalate ", " (f (fromIntegral j) (V.toList xs)) ++ " |]" ++ concatMap show js
+  show (TensorData (Tensor [_, j] xs js)) = "[| " ++ intercalate ", " (f (fromIntegral j) (V.toList xs)) ++ " |]" ++ concatMap show js
     where
-      f j [] = []
+      f _ [] = []
       f j xs = ["[| " ++ intercalate ", " (map show (take j xs)) ++ " |]"] ++ f j (drop j xs)
   show (TensorData (Tensor ns xs js)) = "(tensor [" ++ intercalate ", " (map show ns) ++ "] [" ++ intercalate ", " (map show (V.toList xs)) ++ "] )" ++ concatMap show js
   show (Float x) = show x
@@ -370,7 +370,7 @@ instance Show EgisonValue where
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   show (CFunc (Just name) _ _ _) = show name
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ intercalate ", " names ++ "] ...)"
-  show (MemoizedFunc (Just name) _ _ _ names _) = show name
+  show (MemoizedFunc (Just name) _ _ _ _ _) = show name
   show (Proc Nothing _ names _) = "(procedure [" ++ intercalate ", " names ++ "] ...)"
   show (Proc (Just name) _ _ _) = name
   show PatternFunc{} = "#<pattern-function>"
@@ -589,15 +589,15 @@ instance Show VarWithIndices where
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "~[" ++ show i ++ "]"
+    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "~[" ++ show i ++ "]"
     _ -> "~" ++ show i
   show (Subscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
     _ -> "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript i j) = "_d" ++ show i ++ show j
   show (Userscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
     _ -> "|" ++ show i
 
 nullEnv :: Env
@@ -852,7 +852,7 @@ msingleton :: Monad m => a -> MList m a
 msingleton = flip MCons $ return MNil
 
 mfoldr :: Monad m => (a -> m b -> m b) -> m b -> MList m a -> m b
-mfoldr f init MNil         = init
+mfoldr _ init MNil         = init
 mfoldr f init (MCons x xs) = f x (xs >>= mfoldr f init)
 
 mappend :: Monad m => MList m a -> m (MList m a) -> m (MList m a)

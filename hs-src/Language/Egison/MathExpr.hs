@@ -115,7 +115,7 @@ instance Show SymbolExpr where
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
   show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData name argnames args js) = show name ++ concatMap show js
+  show (FunctionData name _ _ js) = show name ++ concatMap show js
 
 instance Show (Index ScalarData) where
   show (Superscript i)  = "~" ++ show i
@@ -139,18 +139,20 @@ termsGcd (t:ts) = f t ts
   f (Term a xs) (Term b ys:ts) =
     f (Term (gcd a b) (g xs ys)) ts
   g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
-  g [] ys = []
-  g ((x, n):xs) ys = let (z, m) = h (x, n) ys in
-    if m == 0 then g xs ys else (z, m):g xs ys
+  g [] _ = []
+  g ((x, n):xs) ys
+    | m == 0    = g xs ys
+    | otherwise = (z, m) : g xs ys
+    where (z, m) = h (x, n) ys
   h :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> (SymbolExpr, Integer)
-  h (x, n) [] = (x, 0)
+  h (x, _) [] = (x, 0)
   h (Quote x, n) ((Quote y, m):ys)
-    | x == y = (Quote x, min n m)
+    | x == y            = (Quote x, min n m)
     | x == mathNegate y = (Quote x, min n m)
-    | otherwise = h (Quote x, n) ys
-  h (x, n) ((y, m):ys) = if x == y
-                         then (x, min n m)
-                         else h (x, n) ys
+    | otherwise         = h (Quote x, n) ys
+  h (x, n) ((y, m):ys)
+    | x == y    = (x, min n m)
+    | otherwise = h (x, n) ys
 
 mathDivide :: ScalarData -> ScalarData
 mathDivide (Div (Plus ts1) (Plus [])) = Div (Plus ts1) (Plus [])
@@ -176,13 +178,12 @@ mathDivideTerm (Term a xs) (Term b ys) =
     f (sgn * product sgns) zs ys
   g :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (Integer, (SymbolExpr, Integer))
   g (Quote x, n) (Quote y, m)
-    | x == y = (1, (Quote x, n - m))
+    | x == y            = (1, (Quote x, n - m))
     | x == mathNegate y = if even m then (1, (Quote x, n - m)) else (-1, (Quote x, n - m))
-    | otherwise = (1, (Quote x, n))
-  g (x, n) (y, m) =
-    if x == y
-    then (1, (x, n - m))
-    else (1, (x, n))
+    | otherwise         = (1, (Quote x, n))
+  g (x, n) (y, m)
+    | x == y    = (1, (x, n - m))
+    | otherwise = (1, (x, n))
 
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
@@ -248,7 +249,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
                                   else Term b ys
   p :: Integer -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Bool, Integer)
   p sgn [] [] = (True, sgn)
-  p sgn [] _ = (False, 0)
+  p _   [] _  = (False, 0)
   p sgn ((x, n):xs) ys =
     let (b, ys', sgn2) = q (x, n) [] ys in
       if b
