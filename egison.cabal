@@ -113,7 +113,7 @@ Library
                    Language.Egison.MathExpr
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
-  ghc-options:  -O3
+  ghc-options:  -O3 -fwarn-unused-imports
 
 Test-Suite test
   Type:           exitcode-stdio-1.0
@@ -168,7 +168,7 @@ Executable egison
     Build-Depends: semigroups
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
-  ghc-options:  -O3 -threaded -eventlog -rtsopts
+  ghc-options:  -O3 -threaded -eventlog -rtsopts -fwarn-unused-imports
 
 Executable egison-translate
   Main-is:          translator.hs
