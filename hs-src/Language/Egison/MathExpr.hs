@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 {- |
 Module      : Language.Egison.MathExpr
 Copyright   : Satoshi Egi
@@ -28,7 +30,7 @@ module Language.Egison.MathExpr
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
-import           Data.List                 (any, elemIndex, splitAt)
+import           Data.List                 (any, elemIndex, intercalate, splitAt)
 
 import           Language.Egison.AST
 
@@ -85,6 +87,42 @@ instance Eq TermExpr where
                                 Term a xs == Term b (hs ++ ts)
                     Nothing -> False
   _ == _ = False
+
+instance Show ScalarData where
+  show (Div p1 (Plus [Term 1 []])) = show p1
+  show (Div p1 p2)                 = show' p1 ++ " / " ++ show' p2
+    where
+      show' :: PolyExpr -> String
+      show' p@(Plus [_]) = show p
+      show' p            = "(" ++ show p ++ ")"
+
+instance Show PolyExpr where
+  show (Plus [])  = "0"
+  show (Plus ts)  = intercalate " + " (map show ts)
+
+instance Show TermExpr where
+  show (Term a []) = show a
+  show (Term 1 xs) = intercalate " * " (map showPoweredSymbol xs)
+  show (Term a xs) = intercalate " * " (show a : map showPoweredSymbol xs)
+
+showPoweredSymbol :: (SymbolExpr, Integer) -> String
+showPoweredSymbol (x, 1) = show x
+showPoweredSymbol (x, n) = show x ++ "^" ++ show n
+
+instance Show SymbolExpr where
+  show (Symbol _ (':':':':':':_) []) = "#"
+  show (Symbol _ s []) = s
+  show (Symbol _ s js) = s ++ concatMap show js
+  show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
+  show (Quote mExprs) = "'" ++ show mExprs
+  show (FunctionData name argnames args js) = show name ++ concatMap show js
+
+instance Show (Index ScalarData) where
+  show (Superscript i)  = "~" ++ show i
+  show (Subscript i)    = "_" ++ show i
+  show (SupSubscript i) = "~_" ++ show i
+  show (DFscript _ _)   = ""
+  show (Userscript i)   = "|" ++ show i
 
 --
 -- Scalars

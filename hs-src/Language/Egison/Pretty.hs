@@ -23,6 +23,7 @@ import           Data.Text.Prettyprint.Doc
 import qualified Data.Vector               as V
 
 import           Language.Egison.AST
+import           Language.Egison.MathExpr
 import           Language.Egison.Types
 
 --
