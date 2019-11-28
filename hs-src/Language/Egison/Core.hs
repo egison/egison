@@ -346,7 +346,7 @@ evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc 
 evalExpr (Env frame Nothing) (FunctionExpr args) = throwError $ Default "function symbol is not bound to a variable"
 
 evalExpr env@(Env frame (Just name)) (FunctionExpr args) = do
-  args' <- mapM (evalExprDeep env) args
+  args' <- mapM (evalExprDeep env) args >>= mapM extractScalar
   return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map ((symbolScalarData' "") . prettyS) args) args' [], 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (IfExpr test expr expr') = do

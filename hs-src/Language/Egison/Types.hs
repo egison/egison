@@ -211,7 +211,7 @@ data SymbolExpr =
     Symbol Id String [Index ScalarData]
   | Apply EgisonValue [ScalarData]
   | Quote ScalarData
-  | FunctionData ScalarData [ScalarData] [EgisonValue] [Index ScalarData] -- fnname argnames args indices
+  | FunctionData ScalarData [ScalarData] [ScalarData] [Index ScalarData] -- fnname argnames args indices
  deriving (Eq)
 
 type Id = String
@@ -316,7 +316,7 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (FunctionData name argnames args js, n) =
-  Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList args), f js], toEgison n]
+  Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList (map ScalarData args)), f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map (\case
                                           Superscript k -> InductiveData "Sup" [ScalarData k]
@@ -376,6 +376,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
 egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, Collection args, Collection seq], n]) = do
   name' <- extractScalar name
   argnames' <- mapM extractScalar (toList argnames)
+  args' <- mapM extractScalar (toList args)
   let js = toList seq
   js' <- mapM (\j -> case j of
                          InductiveData "Sup" [ScalarData k] -> return (Superscript k)
@@ -384,7 +385,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, 
                          _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
                ) js
   n' <- fromEgison n
-  return (FunctionData name' argnames' (toList args) js', n')
+  return (FunctionData name' argnames' args' js', n')
 egisonToSymbolExpr val = throwError =<< TypeMismatch "math symbol expression" (Value val) <$> getFuncNameStack
 
 mathNormalize' :: ScalarData -> ScalarData
