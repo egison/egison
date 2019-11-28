@@ -77,7 +77,7 @@ tIntRef' i (Tensor (n:ns) xs js) =
         let ys = V.take w (V.drop (w * fromIntegral (i - 1)) xs) in
           fromTensor $ Tensor ns ys (cdr js)
    else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
-tIntRef' i _ = throwError $ Default "More indices than the order of the tensor"
+tIntRef' _ _ = throwError $ Default "More indices than the order of the tensor"
 
 tIntRef :: HasTensor a => [Integer] -> Tensor a -> EgisonM (Tensor a)
 tIntRef [] (Tensor [] xs _)
@@ -127,11 +127,11 @@ tref (SupSubscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
       ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
       symId <- fresh
       tConcat (SupSubscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
-tref (s:ms) (Tensor (n:ns) xs js) = do
+tref (s:ms) (Tensor (_:ns) xs js) = do
   let yss = split (product ns) xs
   ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
   mapM toTensor ts >>= tConcat s >>= fromTensor
-tref _ t = throwError $ Default "More indices than the order of the tensor"
+tref _ _ = throwError $ Default "More indices than the order of the tensor"
 
 enumTensorIndices :: [Integer] -> [[Integer]]
 enumTensorIndices [] = [[]]
@@ -154,13 +154,13 @@ transIndex (j1:js1) js2 is = do
 transIndex _ _ _ = throwError =<< InconsistentTensorSize <$> getFuncNameStack
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
-tTranspose is t@(Tensor ns xs js) = do
+tTranspose is t@(Tensor ns _ js) = do
   ns' <- transIndex js is ns
   xs' <- V.fromList <$> mapM (transIndex js is) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
   return $ Tensor ns' xs' is
 
 tTranspose' :: HasTensor a => [EgisonValue] -> Tensor a -> EgisonM (Tensor a)
-tTranspose' is t@(Tensor ns xs js) = do
+tTranspose' is t@(Tensor _ _ js) = do
   is' <- g is js
   tTranspose is' t
  where
@@ -169,11 +169,11 @@ tTranspose' is t@(Tensor ns xs js) = do
   f (Superscript i)  = i
   f (SupSubscript i) = i
   g :: [EgisonValue] -> [Index EgisonValue] -> EgisonM [Index EgisonValue]
-  g [] js = return []
+  g [] _ = return []
   g (i:is) js = case find (\j -> i == f j) js of
                   Nothing ->  throwError =<< InconsistentTensorIndex <$> getFuncNameStack
-                  (Just j') -> do js' <- g is js
-                                  return $ j':js'
+                  Just j' -> do js' <- g is js
+                                return $ j':js'
 
 tFlipIndices :: HasTensor a => Tensor a -> EgisonM (Tensor a)
 tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map flipIndex js)
@@ -229,7 +229,7 @@ tMapN f ts@(Tensor ns xs js:_) = do
 tMapN f xs = Scalar <$> (mapM fromTensor xs >>= f)
 
 tMap2 :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
-tMap2 f t1@(Tensor ns1 xs1 js1') t2@(Tensor ns2 xs2 js2') = do
+tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let k1 = fromIntegral $ length ns1 - length js1'
   let js1 = js1' ++ map (DFscript 0) [1..k1]
   let k2 = fromIntegral $ length ns2 - length js2'
@@ -268,7 +268,7 @@ tDiag t@(Tensor _ _ js) =
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
-  p (Subscript i) _               = False
+  p (Subscript _) _               = False
   p _ _                           = False
   rev :: Index EgisonValue -> Index EgisonValue
   rev (Superscript i) = Subscript i
@@ -296,7 +296,7 @@ tDiagIndex js =
   g (Subscript i)   = SupSubscript i
 
 tSum :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
-tSum f t1@(Tensor ns1 xs1 js1) t2@Tensor{} = do
+tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
   t2' <- tTranspose js1 t2
   case t2' of
     (Tensor ns2 xs2 _)
@@ -305,7 +305,7 @@ tSum f t1@(Tensor ns1 xs1 js1) t2@Tensor{} = do
       | otherwise -> throwError =<< InconsistentTensorSize <$> getFuncNameStack
 
 tProduct :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
-tProduct f t1''@(Tensor ns1 xs1 js1') t2''@(Tensor ns2 xs2 js2') = do
+tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let k1 = fromIntegral $ length ns1 - length js1'
   let js1 = js1' ++ map (DFscript 0) [1..k1]
   let k2 = fromIntegral $ length ns2 - length js2'
@@ -360,18 +360,18 @@ tContract :: HasTensor a => Tensor a -> EgisonM [Tensor a]
 tContract t = do
   t' <- tDiag t
   case t' of
-    (Tensor (n:ns) xs (SupSubscript i:js)) -> do
+    (Tensor (n:_) _ (SupSubscript _ : _)) -> do
       ts <- mapM (`tIntRef'` t') [1..n]
       tss <- mapM toTensor ts >>= mapM tContract
       return $ concat tss
     _ -> return [t']
 
 tContract' :: HasTensor a => Tensor a -> EgisonM (Tensor a)
-tContract' t@(Tensor ns xs js) =
+tContract' t@(Tensor ns _ js) =
   case findPairs p js of
     [] -> return t
     ((m,n):_) -> do
-      let (hjs, mjs, tjs) = removePairs' (m,n) js
+      let (hjs, mjs, tjs) = removePairs (m,n) js
       xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ mjs
                                     ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ tjs) t)
                   [1..(ns !! m)]
@@ -392,8 +392,8 @@ tConcat s ts = do
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') [s]
 
 tConcat' :: HasTensor a => [Tensor a] -> EgisonM (Tensor a)
-tConcat' (Tensor ns@(0:_) _ _:_) = return $ Tensor (0:ns) V.empty []
-tConcat' ts@(Tensor ns v _:_) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) []
+tConcat' (Tensor ns@(0:_) _ _ : _) = return $ Tensor (0:ns) V.empty []
+tConcat' ts@(Tensor ns _ _ : _) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) []
 tConcat' ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') []
@@ -427,13 +427,8 @@ findPairs' m p (x:xs) = case findIndex (p x) xs of
                     Just i  -> (m, m + i + 1):findPairs' (m + 1) p xs
                     Nothing -> findPairs' (m + 1) p xs
 
-removePairs :: (Int, Int) -> [a] -> [a]
-removePairs (m, n) xs =
-  let (hs, ms, ts) = removePairs' (m, n) xs
-   in hs ++ ms ++ ts
-
-removePairs' :: (Int, Int) -> [a] -> ([a],[a],[a])
-removePairs' (m, n) xs =         -- (0,1) [i i]
+removePairs :: (Int, Int) -> [a] -> ([a],[a],[a])
+removePairs (m, n) xs =          -- (0,1) [i i]
   let (hms, tts) = splitAt n xs  -- [i] [i]
       ts = tail tts              -- []
       (hs, tms) = splitAt m hms  -- [] [i]
