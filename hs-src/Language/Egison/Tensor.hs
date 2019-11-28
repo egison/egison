@@ -223,7 +223,7 @@ tMap f (Tensor ns xs js') = do
 tMap f (Scalar x) = Scalar <$> f x
 
 tMapN :: HasTensor a => ([a] -> EgisonM a) -> [Tensor a] -> EgisonM (Tensor a)
-tMapN f ts@(Tensor ns xs js:_) = do
+tMapN f ts@(Tensor ns _ js : _) = do
   xs' <- mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
   return $ Tensor ns (V.fromList xs') js
 tMapN f xs = Scalar <$> (mapM fromTensor xs >>= f)

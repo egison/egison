@@ -113,7 +113,7 @@ Library
                    Language.Egison.MathExpr
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
-  ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns -Wno-unused-matches
+  ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns
 
 Test-Suite test
   Type:           exitcode-stdio-1.0

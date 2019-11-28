@@ -321,7 +321,7 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
     _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
 
-evalExpr env (UserrefsExpr bool expr jsExpr) = do
+evalExpr env (UserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
   js <- map Userscript <$> (evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar)
   case val of
@@ -343,9 +343,9 @@ evalExpr env (ProcedureExpr names expr) = return . Value $ Proc Nothing env name
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
-evalExpr (Env frame Nothing) (FunctionExpr args) = throwError $ Default "function symbol is not bound to a variable"
+evalExpr (Env _ Nothing) (FunctionExpr _) = throwError $ Default "function symbol is not bound to a variable"
 
-evalExpr env@(Env frame (Just name)) (FunctionExpr args) = do
+evalExpr env@(Env _ (Just name)) (FunctionExpr args) = do
   args' <- mapM (evalExprDeep env) args >>= mapM extractScalar
   return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map ((symbolScalarData' "") . prettyS) args) args' [], 1)]]) (Plus [Term 1 []]))
 
@@ -359,7 +359,9 @@ evalExpr env (LetExpr bindings expr) =
   extractBindings :: BindingExpr -> EgisonM [Binding]
   extractBindings ([name], expr) =
     case expr of
-      FunctionExpr args -> let Env frame _ = env in makeBindings [name] . (:[]) <$> newObjectRef (Env frame (Just $ varToVarWithIndices name)) expr
+      FunctionExpr _ ->
+        let Env frame _ = env
+         in makeBindings [name] . (:[]) <$> newObjectRef (Env frame (Just $ varToVarWithIndices name)) expr
       _ -> makeBindings [name] . (:[]) <$> newObjectRef env expr
   extractBindings (names, expr) =
     makeBindings names <$> (evalExpr env expr >>= fromTuple)
@@ -420,10 +422,10 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     _ -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
-  isTmpSymbol symId (Subscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (Superscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (Userscript (ScalarData (Div (Plus [Term 1 [(Symbol id name is,n)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (Subscript    (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (Superscript  (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (Userscript   (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
   removeTmpscripts :: String -> WHNFData -> EgisonM WHNFData
   removeTmpscripts symId (Intermediate (ITensor (Tensor s xs is))) = do
     let (ds, js) = partition (isTmpSymbol symId) is
@@ -512,9 +514,9 @@ evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
   arg <- evalExpr env arg
   case func of
-    Value (TensorData t@(Tensor ns fs js)) ->
+    Value (TensorData t@(Tensor _ _ _)) ->
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor) >>= removeDFscripts
-    Intermediate (ITensor t@(Tensor ns fs js)) ->
+    Intermediate (ITensor t@(Tensor _ _ _)) ->
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
@@ -538,9 +540,9 @@ evalExpr env (WedgeApplyExpr func arg) = do
   let k = fromIntegral (length arg)
   arg <- zipWithM appendDFscripts [1..k] arg >>= makeITuple
   case func of
-    Value (TensorData t@(Tensor ns fs js)) ->
+    Value (TensorData t@(Tensor _ _ _)) ->
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor)
-    Intermediate (ITensor t@(Tensor ns fs js)) ->
+    Intermediate (ITensor t@(Tensor _ _ _)) ->
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
@@ -728,7 +730,7 @@ valuetoTensor2 (Intermediate (ITensor t)) = t
 applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
 applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
   tds <- fromTupleWHNF tds
-  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s u i))) -> length s - length i == 1) tds
+  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s _ i))) -> length s - length i == 1) tds
     then do
       symId <- fresh
       let argnum = length tds
@@ -740,7 +742,7 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
 
 applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
   tds <- fromTupleWHNF tds
-  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s u i))) -> length s - length i == 1) tds
+  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s _ i))) -> length s - length i == 1) tds
     then do
       symId <- fresh
       let argnum = length tds
@@ -905,14 +907,14 @@ recursiveBind env bindings = do
                  MemoizedLambdaExpr names body -> do
                    hashRef <- liftIO $ newIORef HL.empty
                    liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc (Just name) ref hashRef env' names body
-                 LambdaExpr args body -> do
+                 LambdaExpr _ _ -> do
                    whnf <- evalExpr env' expr
                    case whnf of
-                     (Value (Func _ env args body)) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just name) env args body)
-                 CambdaExpr arg body -> do
+                     Value (Func _ env args body) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just name) env args body)
+                 CambdaExpr _ _ -> do
                    whnf <- evalExpr env' expr
                    case whnf of
-                     (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ Value (CFunc (Just name) env arg body)
+                     Value (CFunc _ env arg body) -> liftIO . writeIORef ref . WHNF $ Value (CFunc (Just name) env arg body)
                  FunctionExpr args -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) $ FunctionExpr args
                  _ | isVarWithIndices name -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) expr
                    | otherwise -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
@@ -930,14 +932,14 @@ recursiveRebind env (name, expr) = do
                   MemoizedLambdaExpr names body -> do
                     hashRef <- liftIO $ newIORef HL.empty
                     liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc (Just name) ref hashRef env names body
-                  LambdaExpr args body -> do
+                  LambdaExpr _ _ -> do
                     whnf <- evalExpr env expr
                     case whnf of
-                      (Value (Func _ env args body)) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just name) env args body)
-                  CambdaExpr arg body -> do
+                      Value (Func _ env args body) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just name) env args body)
+                  CambdaExpr _ _ -> do
                     whnf <- evalExpr env expr
                     case whnf of
-                      (Value (CFunc _ env arg body)) -> liftIO . writeIORef ref . WHNF $ Value (CFunc (Just name) env arg body)
+                      Value (CFunc _ env arg body) -> liftIO . writeIORef ref . WHNF $ Value (CFunc (Just name) env arg body)
                   _ -> liftIO . writeIORef ref . Thunk $ evalExpr env expr
   return env
 
@@ -1190,7 +1192,7 @@ processMState' (MState env loops seqs bindings (MAtom pattern target matcher:tre
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
                                          | otherwise = (k', v'):subst k nv xs
                 subst _ _ [] = []
-            IndexedPat pattern indices -> throwError $ Default ("invalid indexed-pattern: " ++ prettyS pattern)
+            IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyS pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
