@@ -608,10 +608,6 @@ instance EgisonWHNF Handle where
   fromWHNF (Value (Port h)) = return h
   fromWHNF whnf             = throwError =<< TypeMismatch "port" whnf <$> getFuncNameStack
 
-class (EgisonWHNF a) => EgisonObject a where
-  toObject :: a -> Object
-  toObject = WHNF . toWHNF
-
 --
 -- Environment
 --
