@@ -281,8 +281,7 @@ instance PrettyS SymbolExpr where
   prettyS (Symbol _ s js) = s ++ concatMap prettyS js
   prettyS (Apply fn mExprs) = "(" ++ prettyS fn ++ " " ++ unwords (map prettyS mExprs) ++ ")"
   prettyS (Quote mExprs) = "'" ++ prettyS mExprs
-  prettyS (FunctionData Nothing argnames args js) = "(functionData [" ++ unwords (map prettyS argnames) ++ "])" ++ concatMap prettyS js
-  prettyS (FunctionData (Just name) argnames args js) = prettyS name ++ concatMap prettyS js
+  prettyS (FunctionData name argnames args js) = show name ++ concatMap prettyS js
 
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (prettyS val) (map prettyS vals)

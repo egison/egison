@@ -137,14 +137,7 @@ evalExpr env (QuoteSymbolExpr expr) = do
     Value val -> return . Value $ QuotedFunc val
     _         -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 
-evalExpr env (VarExpr name) = do
-  x <- refVar' env name >>= evalRef
-  return (case x of
-            Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) ->
-              case fn of
-                Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ prettyS name) argnames args js, 1)]]) p)
-                Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
-            _ -> x)
+evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" $ prettyS var))) return
@@ -188,7 +181,7 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
     Intermediate $ ITensor $ Tensor ns (V.fromList $ zipWith (curry g) (V.toList xs) $ map (\ms -> map toEgison $ toInteger i:ms) $ enumTensorIndices ns) indices
   f (x, _) = x
   g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)), ms) =
-    let fn' = maybe fn (\(VarWithIndices nameString indexList) -> Just $ symbolScalarData "" $ prettyS $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi
+    let fn' = maybe fn (\(VarWithIndices nameString indexList) -> symbolScalarData' "" $ prettyS $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi
      in Value $ ScalarData $ Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p
   g (x, _) = x
 
@@ -198,9 +191,9 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   xsWhnf <- evalExpr env xsExpr
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
   supWhnf <- evalExpr env supExpr
-  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
+  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRefDeep
   subWhnf <- evalExpr env subExpr
-  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep -- >>= mapM extractScalar'
+  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep
   if product ns == toInteger (length xs)
     then fromTensor (initTensor ns xs sup sub)
     else throwError =<< InconsistentTensorSize <$> getFuncNameStack
@@ -265,16 +258,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
                                  SupSubscript k -> ScalarData k
                                  Userscript k   -> ScalarData k
                               ) js2)
-  let ret2 = case expr of
-               (VarExpr var) ->
-                 case ret of
-                   Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)) ->
-                     case fn of
-                       Nothing -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ prettyS var ++ concatMap show indices) argnames args js, 1)]]) p)
-                       Just s -> Value $ ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)
-                   _ -> ret
-               _ -> ret
-  return ret2
+  return ret -- TODO: refactor
  where
   evalIndex :: Index EgisonExpr -> EgisonM (Index EgisonValue)
   evalIndex = \case
@@ -340,7 +324,7 @@ evalExpr env (UserrefsExpr bool expr jsExpr) = do
   js <- map Userscript <$> (evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar)
   case val of
     (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
-    (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData (Just name) argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
+    (ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
 evalExpr env (LambdaExpr names expr) = do
@@ -363,7 +347,7 @@ evalExpr (Env frame Nothing) (FunctionExpr args) = throwError $ Default "functio
 
 evalExpr env@(Env frame (Just name)) (FunctionExpr args) = do
   args' <- mapM (evalExprDeep env) args
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (Just $ symbolScalarData "" $ prettyS name) (map (symbolScalarData "" . prettyS) args) args' [], 1)]]) (Plus [Term 1 []]))
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map ((symbolScalarData' "") . prettyS) args) args' [], 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
