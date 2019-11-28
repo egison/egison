@@ -231,7 +231,6 @@ instance PrettyS EgisonValue where
   prettyS PatternFunc{} = "#<pattern-function>"
   prettyS (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   prettyS (IOFunc _) = "#<io-function>"
-  prettyS (QuotedFunc _) = "#<quoted-function>"
   prettyS (Port _) = "#<port>"
   prettyS Something = "something"
   prettyS Undefined = "undefined"
