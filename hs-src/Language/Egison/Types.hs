@@ -20,10 +20,6 @@ module Language.Egison.Types
     , Matcher
     , PrimitiveFunc
     , EgisonHashKey (..)
-    , ScalarData (..)
-    , PolyExpr (..)
-    , TermExpr (..)
-    , SymbolExpr (..)
     , EgisonData (..)
     , Tensor (..)
     , HasTensor (..)
@@ -396,35 +392,6 @@ isAtomic (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = True
 isAtomic (ScalarData _) = False
 isAtomic _ = True
 
-instance Show ScalarData where
-  show (Div p1 (Plus [Term 1 []])) = show p1
-  show (Div p1 p2)                 = show' p1 ++ " / " ++ show' p2
-    where
-      show' :: PolyExpr -> String
-      show' p@(Plus [_]) = show p
-      show' p            = "(" ++ show p ++ ")"
-
-instance Show PolyExpr where
-  show (Plus [])  = "0"
-  show (Plus ts)  = intercalate " + " (map show ts)
-
-instance Show TermExpr where
-  show (Term a []) = show a
-  show (Term 1 xs) = intercalate " * " (map showPoweredSymbol xs)
-  show (Term a xs) = intercalate " * " (show a : map showPoweredSymbol xs)
-
-showPoweredSymbol :: (SymbolExpr, Integer) -> String
-showPoweredSymbol (x, 1) = show x
-showPoweredSymbol (x, n) = show x ++ "^" ++ show n
-
-instance Show SymbolExpr where
-  show (Symbol _ (':':':':':':_) []) = "#"
-  show (Symbol _ s []) = s
-  show (Symbol _ s js) = s ++ concatMap show js
-  show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
-  show (Quote mExprs) = "'" ++ show mExprs
-  show (FunctionData name argnames args js) = show name ++ concatMap show js
-
 instance Eq EgisonValue where
  (Char c) == (Char c') = c == c'
  (String str) == (String str') = str == str'
@@ -620,12 +587,6 @@ data VarWithIndices = VarWithIndices [String] [Index String]
 
 type Binding = (Var, ObjectRef)
 
-instance Show (Index ScalarData) where
-  show (Superscript i)  = "~" ++ show i
-  show (Subscript i)    = "_" ++ show i
-  show (SupSubscript i) = "~_" ++ show i
-  show (DFscript _ _)   = ""
-  show (Userscript i)   = "|" ++ show i
 instance Show VarWithIndices where
   show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
 

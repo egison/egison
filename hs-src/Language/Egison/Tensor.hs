@@ -40,6 +40,7 @@ import           Data.List                 (any, delete, elem, find, findIndex,
                                             partition, splitAt, (\\))
 
 import           Language.Egison.AST
+import           Language.Egison.MathExpr
 import           Language.Egison.Types
 
 --
@@ -324,8 +325,7 @@ tProduct f t1''@(Tensor ns1 xs1 js1') t2''@(Tensor ns2 xs2 js2') = do
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
       t2' <- tTranspose (cjs2 ++ tjs2) t2
-      let (cns1, tns1) = splitAt (length cjs1) (tSize t1')
-      let (cns2, tns2) = splitAt (length cjs2) (tSize t2')
+      let (cns1, _) = splitAt (length cjs1) (tSize t1')
       rts' <- mapM (\is -> do rt1 <- tIntRef is t1'
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2) (enumTensorIndices cns1)
@@ -371,8 +371,6 @@ tContract' t@(Tensor ns xs js) =
   case findPairs p js of
     [] -> return t
     ((m,n):_) -> do
-      let ns' = (ns !! m):removePairs (m,n) ns
-      let js' = (js !! m):removePairs (m,n) js
       let (hjs, mjs, tjs) = removePairs' (m,n) js
       xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ mjs
                                     ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ tjs) t)
@@ -441,4 +439,3 @@ removePairs' (m, n) xs =         -- (0,1) [i i]
       (hs, tms) = splitAt m hms  -- [] [i]
       ms = tail tms              -- []
    in (hs, ms, ts)               -- [] [] []
-

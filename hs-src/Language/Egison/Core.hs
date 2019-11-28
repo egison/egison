@@ -61,6 +61,7 @@ import qualified Data.Vector                 as V
 
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
+import           Language.Egison.MathExpr
 import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
 import           Language.Egison.Pretty
@@ -434,7 +435,6 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     let (ds, js) = partition (isTmpSymbol symId) is
     (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
     return (Value (TensorData (Tensor s ys js)))
-  removeDFscripts _ = return
 
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
@@ -488,7 +488,7 @@ evalExpr env (MatchExpr pmmode target matcher clauses) = do
       foldr tryMatchClause (throwError $ MatchFailure currentFuncName callstack) clauses
 
 evalExpr env (SeqExpr expr1 expr2) = do
-  evalExprDeep env expr1
+  _ <- evalExprDeep env expr1
   evalExpr env expr2
 
 evalExpr env (CApplyExpr func arg) = do
@@ -906,7 +906,7 @@ makeBindings' xs = zip (map stringToVar xs)
 
 recursiveBind :: Env -> [(Var, EgisonExpr)] -> EgisonM Env
 recursiveBind env bindings = do
-  let (names, exprs) = unzip bindings
+  let (names, _) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
   let Env frame _ = env'
