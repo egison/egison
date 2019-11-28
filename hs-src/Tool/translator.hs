@@ -47,7 +47,6 @@ instance SyntaxElement EgisonExpr where
   toNonS (MemoizedLambdaExpr xs y)  = MemoizedLambdaExpr xs (toNonS y)
   toNonS (CambdaExpr _ _)           = error "Not supported"
   toNonS (ProcedureExpr xs y)       = ProcedureExpr xs (toNonS y)
-  toNonS (MacroExpr xs y)           = MacroExpr xs (toNonS y)
   -- PatternFunctionExpr
 
   toNonS (IfExpr x y z)         = IfExpr (toNonS x) (toNonS y) (toNonS z)

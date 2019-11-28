@@ -73,7 +73,6 @@ data EgisonExpr =
   | MemoizeExpr [(EgisonExpr, EgisonExpr, EgisonExpr)] EgisonExpr
   | CambdaExpr String EgisonExpr
   | ProcedureExpr [String] EgisonExpr
-  | MacroExpr [String] EgisonExpr
   | PatternFunctionExpr [String] EgisonPattern
 
   | IfExpr EgisonExpr EgisonExpr EgisonExpr

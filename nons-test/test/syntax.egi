@@ -459,7 +459,7 @@ assertEqual "single inverted index"
   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]_i~j
 
 --
--- matcherExpr, macroExpr
+-- matcherExpr
 --
 
 list a := matcher
@@ -509,13 +509,12 @@ assertEqual "matcher definition"
    | $x :: _ -> x)
   [1, 2, 3]
 
-nishiwakiIf :=
-  macro b e1 e2 ->
-    car (matchAll b as (matcher
-                        | $ as something with
-                            | True  -> [e1]
-                            | False -> [e2]) with
-         | $x -> x)
+nishiwakiIf b e1 e2 :=
+  car (matchAll b as (matcher
+                      | $ as something with
+                          | True  -> [e1]
+                          | False -> [e2]) with
+       | $x -> x)
 
 assertEqual "case 1" (nishiwakiIf True     1 2) 1
 assertEqual "case 2" (nishiwakiIf False    1 2) 2
