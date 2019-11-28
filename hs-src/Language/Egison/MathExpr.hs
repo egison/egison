@@ -1,10 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable         #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE UndecidableInstances       #-}
-
 {- |
 Module      : Language.Egison.MathExpr
 Copyright   : Satoshi Egi
@@ -36,6 +29,7 @@ module Language.Egison.MathExpr
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Data.List                 (any, elemIndex, splitAt)
+
 import           Language.Egison.AST
 
 --
