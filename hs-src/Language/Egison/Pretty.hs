@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -Wno-orphans   #-}
 
 {- |
 Module      : Language.Egison.PrettyPrint
