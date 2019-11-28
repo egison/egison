@@ -134,8 +134,9 @@ evalExpr env (QuoteExpr expr) = do
 evalExpr env (QuoteSymbolExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value val -> return . Value $ QuotedFunc val
-    _         -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
+    Value fn@(Func (Just _) _ _ _) -> return . Value $ symbolScalarData "" (prettyS fn)
+    Value (ScalarData _) -> return whnf
+    _ -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
@@ -806,11 +807,7 @@ applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
      _           -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
-applyFunc _ (Value (QuotedFunc fn)) arg = do
-  args <- tupleToList arg
-  mExprs <- mapM extractScalar args
-  return (Value (ScalarData (Div (Plus [Term 1 [(Apply fn mExprs, 1)]]) (Plus [Term 1 []]))))
-applyFunc _ (Value fn@(ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])))) arg = do
+applyFunc _ (Value (ScalarData fn@(Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg

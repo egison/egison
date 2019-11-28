@@ -178,7 +178,6 @@ data EgisonValue =
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
-  | QuotedFunc EgisonValue
   | Port Handle
   | Something
   | Undefined
@@ -209,7 +208,7 @@ data TermExpr =
 
 data SymbolExpr =
     Symbol Id String [Index ScalarData]
-  | Apply EgisonValue [ScalarData]
+  | Apply ScalarData [ScalarData]
   | Quote ScalarData
   | FunctionData ScalarData [ScalarData] [ScalarData] [Index ScalarData] -- fnname argnames args indices
  deriving (Eq)
@@ -313,7 +312,7 @@ symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolSc
                                           Subscript k -> InductiveData "Sub" [ScalarData k]
                                           Userscript k -> InductiveData "User" [ScalarData k]
                                       ) js))
-symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
+symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (FunctionData name argnames args js, n) =
   Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList (map ScalarData args)), f js], toEgison n]
@@ -366,9 +365,10 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
     (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) ->
       return (Symbol id name js', n')
 egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, Collection mExprs], n]) = do
+  fn' <- extractScalar fn
   mExprs' <- mapM egisonToScalarData (toList mExprs)
   n' <- fromEgison n
-  return (Apply fn mExprs', n')
+  return (Apply fn' mExprs', n')
 egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
@@ -612,7 +612,6 @@ instance Show EgisonValue where
   show PatternFunc{} = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   show (IOFunc _) = "#<io-function>"
-  show (QuotedFunc _) = "#<quoted-function>"
   show (Port _) = "#<port>"
   show Something = "something"
   show Undefined = "undefined"
