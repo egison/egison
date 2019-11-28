@@ -113,7 +113,7 @@ Library
                    Language.Egison.MathExpr
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
-  ghc-options:  -O3 -fwarn-unused-imports
+  ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns -Wno-unused-matches
 
 Test-Suite test
   Type:           exitcode-stdio-1.0
@@ -168,7 +168,7 @@ Executable egison
     Build-Depends: semigroups
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
-  ghc-options:  -O3 -threaded -eventlog -rtsopts -fwarn-unused-imports
+  ghc-options:  -O3 -threaded -eventlog -rtsopts -Wall -Wno-name-shadowing -Wno-incomplete-patterns -Wno-unused-matches
 
 Executable egison-translate
   Main-is:          translator.hs
@@ -178,3 +178,4 @@ Executable egison-translate
     , prettyprinter
     , split
   Hs-Source-Dirs:   hs-src/Tool
+  ghc-options:  -Wall -Wno-name-shadowing
