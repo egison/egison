@@ -830,7 +830,6 @@ keywordIf                   = reserved "if"
 keywordNot                  = reserved "not"
 keywordAnd                  = reserved "and"
 keywordOr                   = reserved "or"
-keywordLater                = reserved "later"
 keywordSeq                  = reserved "seq"
 keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
@@ -881,10 +880,6 @@ sign = (char '-' >> return negate)
    <|> (char '+' >> return id)
    <|> return id
 
-sign' :: Num a => Parser (a -> a)
-sign' = (char '-' >> return negate)
-    <|> (char '+' >> return id)
-
 integerLiteral :: Parser Integer
 integerLiteral = sign <*> P.natural lexer
 
@@ -917,15 +912,6 @@ braces = P.braces lexer
 
 angles :: Parser a -> Parser a
 angles = P.angles lexer
-
-colon :: Parser String
-colon = P.colon lexer
-
-comma :: Parser String
-comma = P.comma lexer
-
-dot :: Parser String
-dot = P.dot lexer
 
 ident :: Parser String
 ident = P.identifier lexer

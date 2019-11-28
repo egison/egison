@@ -246,9 +246,6 @@ mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
 mathMult :: ScalarData -> ScalarData -> ScalarData
 mathMult (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
 
-mathMult' :: ScalarData -> ScalarData -> ScalarData
-mathMult' (Div m1 n1) (Div m2 n2) = Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
-
 mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
 mathMultPoly (Plus []) (Plus _) = Plus []
 mathMultPoly (Plus _) (Plus []) = Plus []
