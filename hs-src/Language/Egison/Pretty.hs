@@ -111,7 +111,7 @@ instance Pretty Arg where
 
 instance Pretty Var where
   -- TODO: indices
-  pretty (Var xs is) = concatWith (surround dot) (map pretty xs)
+  pretty (Var xs _) = concatWith (surround dot) (map pretty xs)
 
 instance Pretty InnerExpr where
   pretty (ElementExpr x) = pretty x
@@ -206,7 +206,7 @@ instance PrettyS EgisonValue where
   prettyS (ScalarData mExpr) = prettyS mExpr
   prettyS (TensorData (Tensor [_] xs js)) = "[| " ++ unwords (map prettyS (V.toList xs)) ++ " |]" ++ concatMap prettyS js
   prettyS (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap prettyS js
-  prettyS (TensorData (Tensor [i, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concatMap prettyS js
+  prettyS (TensorData (Tensor [_, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concatMap prettyS js
    where
     f _ [] = ""
     f j xs = "[| " ++ unwords (map prettyS (take j xs)) ++ " |] " ++ f j (drop j xs)
@@ -226,7 +226,7 @@ instance PrettyS EgisonValue where
   prettyS (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   prettyS (CFunc (Just name) _ _ _) = prettyS name
   prettyS (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
-  prettyS (MemoizedFunc (Just name) _ _ _ names _) = prettyS name
+  prettyS (MemoizedFunc (Just name) _ _ _ _ _) = prettyS name
   prettyS (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
   prettyS (Proc (Just name) _ _ _) = name
   prettyS PatternFunc{} = "#<pattern-function>"
@@ -281,7 +281,7 @@ instance PrettyS SymbolExpr where
   prettyS (Symbol _ s js) = s ++ concatMap prettyS js
   prettyS (Apply fn mExprs) = "(" ++ prettyS fn ++ " " ++ unwords (map prettyS mExprs) ++ ")"
   prettyS (Quote mExprs) = "'" ++ prettyS mExprs
-  prettyS (FunctionData name argnames args js) = show name ++ concatMap prettyS js
+  prettyS (FunctionData name _ _ js) = show name ++ concatMap prettyS js
 
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (prettyS val) (map prettyS vals)
@@ -304,15 +304,15 @@ instance PrettyS (Index ScalarData) where
 
 instance PrettyS (Index EgisonValue) where
   prettyS (Superscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "~[" ++ prettyS i ++ "]"
+    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "~[" ++ prettyS i ++ "]"
     _ -> "~" ++ prettyS i
   prettyS (Subscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
+    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
     _ -> "_" ++ prettyS i
   prettyS (SupSubscript i) = "~_" ++ prettyS i
   prettyS (DFscript i j) = "_d" ++ show i ++ show j
   prettyS (Userscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name (a:indices), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
+    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
     _ -> "|" ++ prettyS i
 
 instance PrettyS EgisonPattern where

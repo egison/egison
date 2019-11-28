@@ -129,7 +129,7 @@ desugar (IndexedExpr b expr indices)
       [Subscript x, DotSubscript y] ->
         case (x, y) of
           (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr b expr (makeApply "between" [x, y])
-          (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) -> do
+          (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr _ _ [n2]]) -> do
             k <- fresh
             return $ SubrefsExpr b expr (makeApply "map"
                                                    [LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [Subscript $ stringToVarExpr k]),
@@ -137,7 +137,7 @@ desugar (IndexedExpr b expr indices)
       [Superscript x, DotSupscript y] ->
         case (x, y) of
           (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr b expr (makeApply "between" [x, y])
-          (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr b2 e2 [n2]]) -> do
+          (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr _ _ [n2]]) -> do
             k <- fresh
             return $ SuprefsExpr b expr (makeApply "map"
                                                    [LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [Subscript $ stringToVarExpr k]),
