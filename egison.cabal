@@ -110,6 +110,7 @@ Library
                    Language.Egison.Pretty
                    Language.Egison.Primitives
                    Language.Egison.Util
+                   Language.Egison.MathExpr
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
   ghc-options:  -O3
