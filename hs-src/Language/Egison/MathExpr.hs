@@ -35,38 +35,7 @@ module Language.Egison.MathExpr
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
-
-import           Control.Exception
-import           Data.Typeable
-
-import           Control.Monad.Except
-import           Control.Monad.Fail
-import           Control.Monad.Identity
-import           Control.Monad.Reader      (ReaderT)
-import           Control.Monad.State
-import           Control.Monad.Trans.Maybe
-import           Control.Monad.Writer      (WriterT)
-
-import qualified Data.Array                as Array
-import           Data.Foldable             (foldr, toList)
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HashMap
-import           Data.IORef
-import           Data.Monoid               (Monoid)
-import           Data.Sequence             (Seq)
-import qualified Data.Sequence             as Sq
-import qualified Data.Vector               as V
-
-import           Data.List                 (any, delete, elem, elemIndex, find,
-                                            findIndex, intercalate, partition,
-                                            splitAt, (\\))
-import           Data.Text                 (Text)
-
-import           Data.Ratio
-import           System.IO
-
-import           System.IO.Unsafe          (unsafePerformIO)
-
+import           Data.List                 (any, elemIndex, splitAt)
 import           Language.Egison.AST
 
 --

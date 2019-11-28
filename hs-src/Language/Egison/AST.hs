@@ -35,7 +35,6 @@ import           Data.Hashable   (Hashable)
 import           Data.List       (intercalate)
 import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
-import qualified Data.Text       as T
 import           GHC.Generics    (Generic)
 
 data EgisonTopExpr =

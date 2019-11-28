@@ -128,8 +128,8 @@ import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
-import           Data.List                 (any, elemIndex, intercalate, splitAt)
-import           Data.Text                 (Text, pack, unpack)
+import           Data.List                 (intercalate)
+import           Data.Text                 (Text)
 
 import           Data.Ratio
 import           System.IO
