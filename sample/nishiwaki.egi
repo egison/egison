@@ -1,5 +1,5 @@
 (define $nishiwaki-if
-  (macro [$b $e1 $e2]
+  (lambda [$b $e1 $e2]
     (car (match-all b (matcher {[$ something {[#t {e1}] [#f {e2}]}]})
            [$x x]))))
 

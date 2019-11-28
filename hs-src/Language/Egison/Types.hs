@@ -160,7 +160,6 @@ data EgisonValue =
   | CFunc (Maybe Var) Env String EgisonExpr
   | MemoizedFunc (Maybe Var) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | Proc (Maybe String) Env [String] EgisonExpr
-  | Macro [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
@@ -374,7 +373,6 @@ instance Show EgisonValue where
   show (MemoizedFunc (Just name) _ _ _ names _) = show name
   show (Proc Nothing _ names _) = "(procedure [" ++ intercalate ", " names ++ "] ...)"
   show (Proc (Just name) _ _ _) = name
-  show (Macro names _) = "(macro [" ++ intercalate ", " names ++ "] ...)"
   show PatternFunc{} = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   show (IOFunc _) = "#<io-function>"
@@ -412,7 +410,6 @@ instance Eq EgisonValue where
  (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
  (CFunc Nothing _ x1 expr1) == (CFunc Nothing _ x2 expr2) = (x1 == x2) && (expr1 == expr2)
  (CFunc (Just name1) _ _ _) == (CFunc (Just name2) _ _ _) = name1 == name2
- (Macro xs1 expr1) == (Macro xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
  _ == _ = False
 
 --

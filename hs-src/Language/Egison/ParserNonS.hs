@@ -214,7 +214,6 @@ exprWithoutWhere =
    <|> algebraicDataMatcherExpr
    <|> memoizedLambdaExpr
    <|> procedureExpr
-   <|> macroExpr
    <|> generateTensorExpr
    <|> tensorExpr
    <|> functionExpr
@@ -380,9 +379,6 @@ memoizedLambdaExpr = MemoizedLambdaExpr <$> (reserved "memoizedLambda" >> many l
 
 procedureExpr :: Parser EgisonExpr
 procedureExpr = ProcedureExpr <$> (reserved "procedure" >> many lowerId) <*> (symbol "->" >> expr)
-
-macroExpr :: Parser EgisonExpr
-macroExpr = MacroExpr <$> (reserved "macro" >> many lowerId) <*> (symbol "->" >> expr)
 
 generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = GenerateTensorExpr <$> (reserved "generateTensor" >> atomExpr) <*> atomExpr
@@ -789,7 +785,6 @@ lowerReservedWords =
   , "memoizedLambda"
   , "cambda"
   , "procedure"
-  , "macro"
   , "let"
   , "in"
   , "where"

@@ -211,7 +211,6 @@ expr' = try partialExpr
                         <|> memoizeExpr
                         <|> cambdaExpr
                         <|> procedureExpr
-                        <|> macroExpr
                         <|> patternFunctionExpr
                         <|> letRecExpr
                         <|> letExpr
@@ -399,9 +398,6 @@ cambdaExpr = keywordCambda >> char '$' >> CambdaExpr <$> ident <*> expr
 
 procedureExpr :: Parser EgisonExpr
 procedureExpr = keywordProcedure >> ProcedureExpr <$> varNames <*> expr
-
-macroExpr :: Parser EgisonExpr
-macroExpr = keywordMacro >> MacroExpr <$> varNames <*> expr
 
 patternFunctionExpr :: Parser EgisonExpr
 patternFunctionExpr = keywordPatternFunction >> PatternFunctionExpr <$> varNames <*> pattern
@@ -760,7 +756,6 @@ reservedKeywords =
   , "memoize"
   , "cambda"
   , "procedure"
-  , "macro"
   , "pattern-function"
   , "letrec"
   , "let"
@@ -839,7 +834,6 @@ keywordMemoizedLambda       = reserved "memoized-lambda"
 keywordMemoize              = reserved "memoize"
 keywordCambda               = reserved "cambda"
 keywordProcedure            = reserved "procedure"
-keywordMacro                = reserved "macro"
 keywordPatternFunction      = reserved "pattern-function"
 keywordLetRec               = reserved "letrec"
 keywordLet                  = reserved "let"

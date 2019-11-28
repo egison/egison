@@ -229,7 +229,6 @@ instance PrettyS EgisonValue where
   prettyS (MemoizedFunc (Just name) _ _ _ names _) = prettyS name
   prettyS (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
   prettyS (Proc (Just name) _ _ _) = name
-  prettyS (Macro names _) = "(macro [" ++ unwords names ++ "] ...)"
   prettyS PatternFunc{} = "#<pattern-function>"
   prettyS (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   prettyS (IOFunc _) = "#<io-function>"

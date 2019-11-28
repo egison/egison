@@ -341,8 +341,6 @@ evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name ex
 
 evalExpr env (ProcedureExpr names expr) = return . Value $ Proc Nothing env names expr
 
-evalExpr env (MacroExpr names expr) = return . Value $ Macro names expr
-
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
 evalExpr (Env frame Nothing) (FunctionExpr args) = throwError $ Default "function symbol is not bound to a variable"
@@ -794,14 +792,6 @@ applyFunc _ (Value (CFunc _ env name body)) arg = do
   if not (null refs)
     then evalExpr (extendEnv env $ makeBindings' [name] [col]) body
     else throwError =<< ArgumentsNumWithNames [name] 1 0 <$> getFuncNameStack
-applyFunc env (Value (Macro [name] body)) arg = do
-  ref <- newEvaluatedObjectRef arg
-  evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
-applyFunc env (Value (Macro names body)) arg = do
-  refs <- fromTuple arg
-  if length names == length refs
-    then evalExpr (extendEnv env $ makeBindings' names refs) body
-    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (PrimitiveFunc _ func)) arg = func arg
 applyFunc _ (Value (IOFunc m)) arg =
   case arg of
