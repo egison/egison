@@ -70,7 +70,7 @@ instance Eq PolyExpr where
 instance Eq TermExpr where
   (Term a []) == (Term b []) = a == b
   (Term a ((Quote x, n):xs)) == (Term b ys)
-    | (a /= b) && (a /= negate b) = False
+    | (a /= b) && (a /= -b) = False
     | otherwise = case elemIndex (Quote x, n) ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 Term a xs == Term b (hs ++ ts)
@@ -78,10 +78,10 @@ instance Eq TermExpr where
                                  Just i -> let (hs, _:ts) = splitAt i ys in
                                              if even n
                                                then Term a xs == Term b (hs ++ ts)
-                                               else Term (negate a) xs == Term b (hs ++ ts)
+                                               else Term (-a) xs == Term b (hs ++ ts)
                                  Nothing -> False
   (Term a (x:xs)) == (Term b ys)
-    | (a /= b) && (a /= negate b) = False
+    | (a /= b) && (a /= -b) = False
     | otherwise = case elemIndex x ys of
                     Just i -> let (hs, _:ts) = splitAt i ys in
                                 Term a xs == Term b (hs ++ ts)
@@ -162,7 +162,7 @@ mathDivide (Div (Plus ts1) (Plus ts2)) =
   case z of
     (Term c zs) -> case ts2 of
       [Term a _] -> if a < 0
-                      then Div (Plus (map (`mathDivideTerm` Term (-1 * c) zs) ts1)) (Plus (map (`mathDivideTerm` Term (-1 * c) zs) ts2))
+                      then Div (Plus (map (`mathDivideTerm` Term (-c) zs) ts1)) (Plus (map (`mathDivideTerm` Term (-c) zs) ts2))
                       else Div (Plus (map (`mathDivideTerm` z) ts1)) (Plus (map (`mathDivideTerm` z) ts2))
       _ -> Div (Plus (map (`mathDivideTerm` z) ts1)) (Plus (map (`mathDivideTerm` z) ts2))
 
@@ -211,13 +211,12 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
  where
   f :: TermExpr -> TermExpr
   f (Term a xs) = let (ys, sgns) = unzip $ g [] xs
-                    in Term (product sgns * a) ys
+                   in Term (product sgns * a) ys
   g :: [((SymbolExpr, Integer),Integer)] -> [(SymbolExpr, Integer)] -> [((SymbolExpr, Integer),Integer)]
   g ret [] = ret
-  g ret ((x, n):xs) =
-    if any (p (x, n)) ret
-      then g (map (h (x, n)) ret) xs
-      else g (ret ++ [((x, n), 1)]) xs
+  g ret ((x, n):xs)
+    | any (p (x, n)) ret = g (map (h (x, n)) ret) xs
+    | otherwise          = g (ret ++ [((x, n), 1)]) xs
   p :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> Bool
   p (Quote x, _) ((Quote y, _),_) = (x == y) || (mathNegate x == y)
   p (x, _) ((y, _),_)             = x == y
@@ -288,7 +287,7 @@ mathNegate :: ScalarData -> ScalarData
 mathNegate (Div m n) = Div (mathNegate' m) n
 
 mathNegate' :: PolyExpr -> PolyExpr
-mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> Term (negate a) xs) ts)
+mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> Term (-a) xs) ts)
 
 mathNumerator :: ScalarData -> ScalarData
 mathNumerator (Div m _) = Div m (Plus [Term 1 []])
