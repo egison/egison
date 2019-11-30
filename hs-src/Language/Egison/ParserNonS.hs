@@ -148,6 +148,9 @@ defineOrTestExpr = do
     defineExpr :: EgisonExpr -> Parser EgisonTopExpr
     defineExpr e = do
       body <- symbol ":=" >> expr
+      -- When ":=" is observed and the current expression turns out to be a
+      -- definition, we do not start over from scratch but re-interpret
+      -- what's parsed so far as the lhs of definition.
       case convertToDefine e body of
         Just def -> return def
         -- TODO(momohatt): Adjust the position of error
@@ -350,7 +353,9 @@ matcherExpr :: Parser EgisonExpr
 matcherExpr = do
   reserved "matcher"
   pos  <- L.indentLevel
-  -- In matcher expression, the first '|' (bar) is indispensable
+  -- Assuming it is unlikely that users want to write matchers with only 1
+  -- pattern definition, the first '|' (bar) is made indispensable in matcher
+  -- expression.
   info <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
   return $ MatcherExpr info
   where
@@ -408,24 +413,33 @@ collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
 
     elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
 
+-- Parse an atomic expression starting with '(', which can be:
+--   * a tuple
+--   * an arbitrary expression wrapped with parenthesis
+--   * section
 tupleOrParenExpr :: Parser EgisonExpr
 tupleOrParenExpr = do
   elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (section <* symbol ")")
   case elems of
-    [x] -> return x
-    _   -> return $ TupleExpr elems
+    [x] -> return x                 -- expression wrapped in parenthesis
+    _   -> return $ TupleExpr elems -- tuple
   where
+    section :: Parser [EgisonExpr]
+    -- Start from right, in order to parse expressions like (-1 +) correctly
+    section = (:[]) <$> (rightSection <|> leftSection)
+
+    -- Sections without the left operand: eg. (+), (+ 1)
     leftSection :: Parser EgisonExpr
     leftSection = do
       op   <- choice $ map (binOpLiteral . repr) reservedBinops
       rarg <- optional expr
-      -- TODO(momohatt): Take associativity of operands into account
       case rarg of
         Just (BinaryOpExpr op' _ _)
           | assoc op' /= RightAssoc && priority op >= priority op' ->
           customFailure (IllFormedSection op op')
         _ -> return (makeLambda op Nothing rarg)
 
+    -- Sections with the left operand but lacks the right operand: eg. (1 +)
     rightSection :: Parser EgisonExpr
     rightSection = do
       larg <- opExpr
@@ -436,10 +450,7 @@ tupleOrParenExpr = do
           customFailure (IllFormedSection op op')
         _ -> return (makeLambda op (Just larg) Nothing)
 
-    section :: Parser [EgisonExpr]
-    -- Start from right, in order to parse expressions like (-1 +) correctly
-    section = (:[]) <$> (rightSection <|> leftSection)
-
+    -- TODO(momohatt): Generate fresh variable for argument
     makeLambda :: EgisonBinOp -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
     makeLambda op Nothing Nothing =
       LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
@@ -490,6 +501,7 @@ atomOrApplyExpr = do
              [] -> func
              _  -> makeApply func args
 
+-- (Possibly indexed) atomic expressions
 atomExpr :: Parser EgisonExpr
 atomExpr = do
   e <- atomExpr'
@@ -499,7 +511,7 @@ atomExpr = do
              [] -> e
              _  -> IndexedExpr True e indices
 
--- atom expr without index
+-- Atomic expressions without index
 atomExpr' :: Parser EgisonExpr
 atomExpr' = constantExpr
         <|> FreshVarExpr <$ symbol "#"
@@ -598,6 +610,7 @@ applyOrAtomPattern = do
     (InductivePat x [], _)  -> return $ InductivePat x args
     _                       -> error (show (func, args))
 
+-- (Possibly indexed) atomic pattern
 atomPattern :: Parser EgisonPattern
 atomPattern = do
   pat     <- atomPattern'
@@ -606,7 +619,7 @@ atomPattern = do
              [] -> pat
              _  -> IndexedPat pat indices
 
--- atomic pattern without index
+-- Atomic pattern without index
 atomPattern' :: Parser EgisonPattern
 atomPattern' = WildCard <$   symbol "_"
            <|> PatVar   <$> patVarLiteral
@@ -661,7 +674,7 @@ pdPattern = PDInductivePat <$> upperId <*> many pdAtom
 -- Tokens
 --
 
--- space comsumer
+-- Space Comsumer
 sc :: Parser ()
 sc = L.space space1 lineCmnt blockCmnt
   where
@@ -721,18 +734,24 @@ operator sym = try $ string sym <* notFollowedBy opChar <* sc
 patOperator :: String -> Parser String
 patOperator sym = try $ string sym <* notFollowedBy patOpChar <* sc
 
--- Characters that could consist expression operators.
+-- Characters that can consist expression operators.
 opChar :: Parser Char
 opChar = oneOf "%^&*-+\\|:<>.?/'!#@$"
 
--- Characters that could consist pattern operators.
+-- Characters that can consist pattern operators.
 -- ! # @ $ are omitted because they can appear at the beginning of atomPattern
 patOpChar :: Parser Char
 patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 
--- Characters that consist identifiers
+-- Characters that consist identifiers.
+-- Note that 'alphaNumChar' can also parse greek letters.
+-- TODO(momohatt): Probably remove '.' ?
 identChar :: Parser Char
 identChar = alphaNumChar <|> oneOf (['.', '?', '\'', '/'] ++ mathSymbols)
+
+-- Non-alphabetical symbols that are allowed for identifiers
+mathSymbols :: String
+mathSymbols = "∂∇"
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
@@ -746,10 +765,13 @@ brackets  = between (symbol "[") (symbol "]")
 comma :: Parser String
 comma = symbol ","
 
-mathSymbols :: String
-mathSymbols = "∂∇"
+-- Notes on identifiers:
+-- * Identifiers must be able to include greek letters and some symbols in
+--   |mathSymbols|.
+-- * Only identifiers starting with capital English letters ('A' - 'Z') can be
+--   parsed as |upperId|. Identifiers starting with capital Greek letters must
+--   be regarded as |lowerId|.
 
--- Also parse identifier starting with non-ascii character
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
@@ -758,7 +780,6 @@ lowerId = (lexeme . try) (p >>= check)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
 
--- TODO: Deprecate BoolExpr and merge it with InductiveDataExpr
 upperId :: Parser String
 upperId = (lexeme . try) (p >>= check)
   where
