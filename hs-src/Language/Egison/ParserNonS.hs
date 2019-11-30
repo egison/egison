@@ -28,7 +28,7 @@ import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), 
 import           Control.Monad.Except           (liftIO, throwError)
 import           Control.Monad.State            (unless)
 
-import           Data.Char                      (isLetter, isUpper)
+import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Functor                   (($>))
 import           Data.List                      (find, groupBy)
 import           Data.Maybe                     (fromJust, isJust)
@@ -750,7 +750,7 @@ comma = symbol ","
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> satisfy (\c -> isLetter c && not (isUpper c)) <*> many identChar
+    p       = (:) <$> satisfy (\c -> isLetter c && not (isAsciiUpper c)) <*> many identChar
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
@@ -759,7 +759,7 @@ lowerId = (lexeme . try) (p >>= check)
 upperId :: Parser String
 upperId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> upperChar <*> many alphaNumChar
+    p       = (:) <$> satisfy isAsciiUpper <*> many alphaNumChar
     check x = if x `elem` upperReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
