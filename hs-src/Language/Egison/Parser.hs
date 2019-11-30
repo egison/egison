@@ -26,8 +26,6 @@ module Language.Egison.Parser
        , loadFile
        ) where
 
-import           Prelude                 hiding (mapM)
-
 import           Control.Applicative     (pure, (*>), (<$>), (<*), (<*>))
 import           Control.Monad.Except    (liftIO, throwError)
 import           Control.Monad.Identity  (Identity, unless)
@@ -39,7 +37,6 @@ import           Data.List.Split         (splitOn)
 import           Data.Ratio
 import qualified Data.Set                as Set
 import qualified Data.Text               as T
-import           Data.Traversable        (mapM)
 
 import           Text.Parsec
 import           Text.Parsec.String
@@ -104,7 +101,7 @@ loadFile file = do
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
   input <- liftIO $ readUTF8File file
   exprs <- readTopExprs $ shebang input
-  concat <$> mapM  recursiveLoad exprs
+  concat <$> mapM recursiveLoad exprs
  where
   recursiveLoad (Load file)     = loadLibraryFile file
   recursiveLoad (LoadFile file) = loadFile file

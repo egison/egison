@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 {- |
@@ -149,7 +150,7 @@ data Index a =
   | Userscript a
   | DotSubscript a
   | DotSupscript a
- deriving (Eq, Functor, Generic)
+ deriving (Eq, Functor, Foldable, Generic, Traversable)
 
 data InnerExpr =
     ElementExpr EgisonExpr
