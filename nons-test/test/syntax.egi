@@ -31,8 +31,6 @@ assertEqual "inductive data literal" A A
 
 assertEqual "tuple literal" (1, 2, 3) (1, 2, 3)
 
-assertEqual "singleton tuple literal" (1) 1
-
 assertEqual "collection literal" [1, 2, 3, 4, 5, 6] [1, 2, 3, 4, 5, 6]
 
 assertEqual "collection between" [1..5] [1, 2, 3, 4, 5]
