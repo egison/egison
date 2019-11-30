@@ -239,6 +239,7 @@ reservedBinops =
   [ makeBinOp "^"  "**"        8 LeftAssoc
   , makeBinOp "*"  "*"         7 LeftAssoc
   , makeBinOp "/"  "/"         7 LeftAssoc
+  , makeBinOp "."  "."         7 LeftAssoc -- tensor multiplication
   , makeBinOp "%"  "remainder" 7 LeftAssoc
   , makeBinOp "+"  "+"         6 LeftAssoc
   , makeBinOp "-"  "-"         6 LeftAssoc
