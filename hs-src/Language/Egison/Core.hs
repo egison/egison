@@ -254,12 +254,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
                 else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
       _ -> do
         js2 <- mapM evalIndexToScalar indices
-        refArray tensor (map (\case
-                                 Superscript k  -> ScalarData k
-                                 Subscript k    -> ScalarData k
-                                 SupSubscript k -> ScalarData k
-                                 Userscript k   -> ScalarData k
-                              ) js2)
+        refArray tensor (map (ScalarData . extractIndex) js2)
   return ret -- TODO: refactor
  where
   evalIndex :: Index EgisonExpr -> EgisonM (Index EgisonValue)

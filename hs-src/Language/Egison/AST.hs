@@ -20,6 +20,7 @@ module Language.Egison.AST
   , varToVarWithIndices
   , Arg (..)
   , Index (..)
+  , extractIndex
   , PMMode (..)
   , InnerExpr (..)
   , BindingExpr
@@ -151,6 +152,13 @@ data Index a =
   | DotSubscript a
   | DotSupscript a
  deriving (Eq, Functor, Foldable, Generic, Traversable)
+
+extractIndex :: Index a -> a
+extractIndex (Subscript x)    = x
+extractIndex (Superscript x)  = x
+extractIndex (SupSubscript x) = x
+extractIndex (Userscript x)   = x
+extractIndex _                = error "Not supported"
 
 data InnerExpr =
     ElementExpr EgisonExpr
