@@ -60,14 +60,14 @@ assertEqual "let binding"
     in y)
   2
 
-assertEqual "let binding without indent"
+assertEqual "let binding without newline"
   (let { x := 1; y := x + 1 } in y)
   2
 
 io do print "io and do expression"
       return 0
 
-io do { print "io and do expression without indent"; return 0 }
+io do { print "io and do expression without newline"; return 0 }
 
 assertEqual "where"
   (f 0 + y + 1
@@ -82,6 +82,14 @@ assertEqual "nested where"
         where y := 3
       z := 4)
   10
+
+assertEqual "multiple where in one expression"
+  (matchAll [1, 2, 3] as multiset integer with
+   | #1 :: $xs -> f xs
+     where f xs := length xs
+   | #2 :: #3 :: $xs -> g xs
+     where g xs := length xs)
+  [2, 1]
 
 assertEqual "mutual recursion"
   (let even? n := if n = 0 then True else odd? (n - 1)
@@ -111,13 +119,15 @@ assertEqual "safe section - left assoc"  ((1 + 2 +) 3) 6
 assertEqual "safe section - right assoc" ((++ [1] ++ [2]) [3]) [3, 1, 2]
 assertEqual "not section" (- 2) (1 - 3)
 
--- findFactor := memoizedLambda
---                n -> match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
---                     | _ ++ (?(\m -> divisor? n m) & $x) :: _ -> x
---                     | _ -> n
--- assertEqual "memoized lambda"
---   (map findFactor [1..10])
---   [1, 2, 3, 2, 5, 2, 7, 2, 3, 2]
+findFactor :=
+  memoizedLambda n ->
+    match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
+    | _ ++ (?(\m -> divisor? n m) & $x) :: _ -> x
+    | _ -> n
+
+assertEqual "memoized lambda"
+  (map findFactor [1..10])
+  [1, 2, 3, 2, 5, 2, 7, 2, 3, 2]
 
 twinPrimes :=
   matchAll primes as list integer with
@@ -152,6 +162,15 @@ gcd m n :=
 assertEqual "recursive function definition"
   (gcd 143 22)
   11
+
+{-
+  This is a comment
+ -}
+
+{-
+  {- We can nest comments! -}
+  {- {- nested -} comment -}
+ -}
 
 --
 -- Pattern-Matching
