@@ -166,7 +166,6 @@ defineOrTestExpr = do
       -- [Index EgisonExpr] -> Maybe [Index String]
       indices' <- mapM (traverse exprToStr) indices
       return $ DefineWithIndices (VarWithIndices var indices') body
-      where
     convertToDefine _ _ = Nothing
 
     exprToStr :: EgisonExpr -> Maybe String
