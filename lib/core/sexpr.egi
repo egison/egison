@@ -4,3 +4,5 @@
 (define $dropWhile drop-while)
 (define $deleteFirst delete-first)
 (define $deleteFirst/m delete-first/m)
+
+(define $dfNormalize df-normalize)
