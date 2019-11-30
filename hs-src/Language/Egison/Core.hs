@@ -233,7 +233,7 @@ evalExpr env (HashExpr assocs) = do
 evalExpr env (IndexedExpr bool expr indices) = do
   tensor <- case expr of
               VarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ map f indices)
+                let mObjRef = refVar env (Var xs $ is ++ map (const () <$>) indices)
                 case mObjRef of
                   (Just objRef) -> evalRef objRef
                   Nothing       -> evalExpr env expr
@@ -263,23 +263,10 @@ evalExpr env (IndexedExpr bool expr indices) = do
   return ret -- TODO: refactor
  where
   evalIndex :: Index EgisonExpr -> EgisonM (Index EgisonValue)
-  evalIndex = \case
-    Superscript n  -> Superscript  <$> evalExprDeep env n
-    Subscript n    -> Subscript    <$> evalExprDeep env n
-    SupSubscript n -> SupSubscript <$> evalExprDeep env n
-    Userscript n   -> Userscript   <$> evalExprDeep env n
-  evalIndexToScalar :: Index EgisonExpr -> EgisonM (Index ScalarData)
-  evalIndexToScalar = \case
-    Superscript n  -> Superscript  <$> (evalExprDeep env n >>= extractScalar)
-    Subscript n    -> Subscript    <$> (evalExprDeep env n >>= extractScalar)
-    SupSubscript n -> SupSubscript <$> (evalExprDeep env n >>= extractScalar)
-    Userscript n   -> Userscript   <$> (evalExprDeep env n >>= extractScalar)
+  evalIndex index = traverse (evalExprDeep env) index
 
-  f :: Index a -> Index ()
-  f (Superscript _)  = Superscript ()
-  f (Subscript _)    = Subscript ()
-  f (SupSubscript _) = SupSubscript ()
-  f (Userscript _)   = Userscript ()
+  evalIndexToScalar :: Index EgisonExpr -> EgisonM (Index ScalarData)
+  evalIndexToScalar index = traverse ((extractScalar =<<) . evalExprDeep env) index
 
 evalExpr env (SubrefsExpr bool expr jsExpr) = do
   js <- map Subscript <$> (evalExpr env jsExpr >>= collectionToList)
