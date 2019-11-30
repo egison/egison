@@ -29,15 +29,10 @@ desugarTopExpr :: EgisonTopExpr -> EgisonM EgisonTopExpr
 desugarTopExpr (Define name expr)   = Define name <$> desugar expr
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr
-  return $ Define (Var name (map f is))
-    (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . stringToVarExpr . g) is)) body))
-  where
-    f (Superscript _)  = Superscript ()
-    f (Subscript _)    = Subscript ()
-    f (SupSubscript _) = SupSubscript ()
-    g (Superscript i)  = i
-    g (Subscript i)    = i
-    g (SupSubscript i) = i
+  let indexNames = map extractIndex is
+  let indexNamesCollection = CollectionExpr (map (ElementExpr . stringToVarExpr) indexNames)
+  return $ Define (Var name (map (const () <$>) is))
+    (WithSymbolsExpr indexNames (TransposeExpr indexNamesCollection body))
 desugarTopExpr (Redefine name expr) = Redefine name <$> desugar expr
 desugarTopExpr (Test expr)          = Test <$> desugar expr
 desugarTopExpr (Execute expr)       = Execute <$> desugar expr
@@ -144,7 +139,7 @@ desugar (IndexedExpr b expr indices)
             k <- fresh
             return $ SubrefsExpr b expr (makeApply "map"
                                                    [LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [Subscript $ stringToVarExpr k]),
-                                                    makeApply "between" [fromIndexToExpr n1, fromIndexToExpr n2]])
+                                                    makeApply "between" [extractIndex n1, extractIndex n2]])
       [Superscript x, DotSupscript y] ->
         case (x, y) of
           (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr b expr (makeApply "between" [x, y])
@@ -152,16 +147,12 @@ desugar (IndexedExpr b expr indices)
             k <- fresh
             return $ SuprefsExpr b expr (makeApply "map"
                                                    [LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [Subscript $ stringToVarExpr k]),
-                                                    makeApply "between" [fromIndexToExpr n1, fromIndexToExpr n2]])
+                                                    makeApply "between" [extractIndex n1, extractIndex n2]])
       _ -> IndexedExpr b <$> desugar expr <*> mapM desugarIndex indices
  where
   endWithThreeDots :: EgisonExpr -> Bool
   endWithThreeDots (VarExpr name) = take 3 (reverse (show name)) == "..."
   endWithThreeDots _              = False
-  fromIndexToExpr :: Index EgisonExpr -> EgisonExpr
-  fromIndexToExpr (Subscript a)    = a
-  fromIndexToExpr (Superscript a)  = a
-  fromIndexToExpr (SupSubscript a) = a
 
 desugar (SubrefsExpr bool expr1 expr2) =
   SubrefsExpr bool <$> desugar expr1 <*> desugar expr2
@@ -362,10 +353,7 @@ desugar (WedgeApplyExpr expr0 expr1) =
 desugar expr = return expr
 
 desugarIndex :: Index EgisonExpr -> EgisonM (Index EgisonExpr)
-desugarIndex (Superscript expr)  = Superscript  <$> desugar expr
-desugarIndex (Subscript expr)    = Subscript    <$> desugar expr
-desugarIndex (SupSubscript expr) = SupSubscript <$> desugar expr
-desugarIndex (Userscript expr)   = Userscript   <$> desugar expr
+desugarIndex index = traverse desugar index
 
 desugarPattern :: EgisonPattern -> EgisonM EgisonPattern
 desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern) <$> desugarPattern' pattern
