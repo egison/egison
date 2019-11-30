@@ -158,7 +158,7 @@ extractIndex (Subscript x)    = x
 extractIndex (Superscript x)  = x
 extractIndex (SupSubscript x) = x
 extractIndex (Userscript x)   = x
-extractIndex _                = error "Not supported"
+extractIndex _                = error "extractIndex: Not supported"
 
 data InnerExpr =
     ElementExpr EgisonExpr
