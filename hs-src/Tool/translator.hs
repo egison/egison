@@ -79,15 +79,7 @@ instance SyntaxElement EgisonExpr where
   toNonS x = x
 
 instance SyntaxElement a => SyntaxElement (Index a) where
-  toNonS (Subscript x)          = Subscript (toNonS x)
-  toNonS (Superscript x)        = Superscript (toNonS x)
-  toNonS (SupSubscript x)       = SupSubscript (toNonS x)
-  toNonS (MultiSubscript x y)   = MultiSubscript (toNonS x) (toNonS y)
-  toNonS (MultiSuperscript x y) = MultiSuperscript (toNonS x) (toNonS y)
-  toNonS (Userscript x)         = Userscript (toNonS x)
-  toNonS (DotSubscript x)       = DotSubscript (toNonS x)
-  toNonS (DotSupscript x)       = DotSupscript (toNonS x)
-  toNonS x = x -- DFScript
+  toNonS script = toNonS <$> script
 
 instance SyntaxElement InnerExpr where
   toNonS (ElementExpr x) = ElementExpr (toNonS x)
