@@ -732,7 +732,7 @@ patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 
 -- Characters that consist identifiers
 identChar :: Parser Char
-identChar = alphaNumChar <|> oneOf ['.', '?', '\'', '/']
+identChar = alphaNumChar <|> oneOf (['.', '?', '\'', '/'] ++ mathSymbols)
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
@@ -746,11 +746,14 @@ brackets  = between (symbol "[") (symbol "]")
 comma :: Parser String
 comma = symbol ","
 
+mathSymbols :: String
+mathSymbols = "∂∇"
+
 -- Also parse identifier starting with non-ascii character
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> satisfy (\c -> isLetter c && not (isAsciiUpper c)) <*> many identChar
+    p       = (:) <$> satisfy (\c -> c `elem` mathSymbols || isLetter c && not (isAsciiUpper c)) <*> many identChar
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
