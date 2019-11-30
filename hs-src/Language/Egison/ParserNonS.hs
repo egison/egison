@@ -24,8 +24,6 @@ module Language.Egison.ParserNonS
        , loadFile
        ) where
 
-import           Prelude                        hiding (mapM)
-
 import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
 import           Control.Monad.Except           (liftIO, throwError)
 import           Control.Monad.State            (unless)
@@ -34,7 +32,6 @@ import           Data.Functor                   (($>))
 import           Data.List                      (find, groupBy)
 import           Data.Maybe                     (fromJust, isJust)
 import           Data.Text                      (pack)
-import           Data.Traversable               (mapM)
 
 import           Control.Monad.Combinators.Expr
 import           Text.Megaparsec
@@ -90,7 +87,7 @@ loadFile file = do
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
   input <- liftIO $ readUTF8File file
   exprs <- readTopExprs $ shebang input
-  concat <$> mapM  recursiveLoad exprs
+  concat <$> mapM recursiveLoad exprs
  where
   recursiveLoad (Load file)     = loadLibraryFile file
   recursiveLoad (LoadFile file) = loadFile file
@@ -165,11 +162,19 @@ defineOrTestExpr = do
         args <- exprToArgs e
         case args of
           ScalarArg var : args -> return (Define (Var [var] []) (LambdaExpr args body))
+    convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) body = do
+      -- [Index EgisonExpr] -> Maybe [Index String]
+      indices' <- mapM (traverse exprToStr) indices
+      return $ DefineWithIndices (VarWithIndices var indices') body
+      where
     convertToDefine _ _ = Nothing
 
+    exprToStr :: EgisonExpr -> Maybe String
+    exprToStr (VarExpr (Var [x] [])) = Just x
+    exprToStr _                      = Nothing
+
     exprToArg :: EgisonExpr -> Maybe Arg
-    exprToArg (VarExpr (Var [x] [])) = return (ScalarArg x)
-    exprToArg _                      = Nothing
+    exprToArg x = ScalarArg <$> exprToStr x
 
     exprToArgs :: EgisonExpr -> Maybe [Arg]
     exprToArgs (VarExpr (Var [x] [])) = return [ScalarArg x]
@@ -492,11 +497,12 @@ atomExpr = do
   indices <- many index
   return $ case indices of
              [] -> e
-             _  -> IndexedExpr False e indices
+             _  -> IndexedExpr True e indices
 
 -- atom expr without index
 atomExpr' :: Parser EgisonExpr
 atomExpr' = constantExpr
+        <|> FreshVarExpr <$ symbol "#"
         <|> VarExpr <$> varLiteral
         <|> inductiveDataOrModuleExpr
         <|> vectorExpr     -- must come before collectionExpr
