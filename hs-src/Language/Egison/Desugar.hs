@@ -27,6 +27,17 @@ import           Language.Egison.Types
 
 desugarTopExpr :: EgisonTopExpr -> EgisonM EgisonTopExpr
 desugarTopExpr (Define name expr)   = Define name <$> desugar expr
+desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
+  body <- desugar expr
+  return $ Define (Var name (map f is))
+    (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . stringToVarExpr . g) is)) body))
+  where
+    f (Superscript _)  = Superscript ()
+    f (Subscript _)    = Subscript ()
+    f (SupSubscript _) = SupSubscript ()
+    g (Superscript i)  = i
+    g (Subscript i)    = i
+    g (SupSubscript i) = i
 desugarTopExpr (Redefine name expr) = Redefine name <$> desugar expr
 desugarTopExpr (Test expr)          = Test <$> desugar expr
 desugarTopExpr (Execute expr)       = Execute <$> desugar expr
