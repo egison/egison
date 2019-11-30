@@ -28,6 +28,7 @@ import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), 
 import           Control.Monad.Except           (liftIO, throwError)
 import           Control.Monad.State            (unless)
 
+import           Data.Char                      (isLetter, isUpper)
 import           Data.Functor                   (($>))
 import           Data.List                      (find, groupBy)
 import           Data.Maybe                     (fromJust, isJust)
@@ -745,10 +746,11 @@ brackets  = between (symbol "[") (symbol "]")
 comma :: Parser String
 comma = symbol ","
 
+-- Also parse identifier starting with non-ascii character
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> lowerChar <*> many identChar
+    p       = (:) <$> satisfy (\c -> isLetter c && not (isUpper c)) <*> many identChar
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
