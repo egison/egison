@@ -149,8 +149,10 @@ topExpr = try (Test <$> expr)
 defineExpr :: Parser EgisonTopExpr
 defineExpr = try (parens (keywordDefine >> Define <$> (char '$' >> identVar) <*> expr))
          <|> try (parens (do keywordDefine
-                             (VarWithIndices name is) <- char '$' >> identVarWithIndices
-                             Define (Var name (map f is)) . WithSymbolsExpr (map g is) . TransposeExpr (CollectionExpr (map (ElementExpr . VarExpr . stringToVar . g) is)) <$> expr))
+                             VarWithIndices name is <- char '$' >> identVarWithIndices
+                             body <- expr
+                             return $ Define (Var name (map f is))
+                                    (WithSymbolsExpr (map g is) (TransposeExpr (CollectionExpr (map (ElementExpr . stringToVarExpr . g) is)) body))))
  where
   f (Superscript _)  = Superscript ()
   f (Subscript _)    = Subscript ()
