@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 {- |
@@ -14,6 +15,8 @@ module Language.Egison.AST
   , EgisonExpr (..)
   , EgisonPattern (..)
   , Var (..)
+  , VarWithIndices (..)
+  , varToVarWithIndices
   , Arg (..)
   , Index (..)
   , PMMode (..)
@@ -39,6 +42,7 @@ import           GHC.Generics    (Generic)
 
 data EgisonTopExpr =
     Define Var EgisonExpr
+  | DefineWithIndices VarWithIndices EgisonExpr
   | Redefine Var EgisonExpr
   | Test EgisonExpr
   | Execute EgisonExpr
@@ -126,6 +130,9 @@ data EgisonExpr =
 data Var = Var [String] [Index ()]
   deriving (Eq, Generic)
 
+data VarWithIndices = VarWithIndices [String] [Index String]
+ deriving (Eq)
+
 data Arg =
     ScalarArg String
   | InvertedScalarArg String
@@ -142,7 +149,7 @@ data Index a =
   | Userscript a
   | DotSubscript a
   | DotSupscript a
- deriving (Eq, Generic)
+ deriving (Eq, Functor, Generic)
 
 data InnerExpr =
     ElementExpr EgisonExpr
@@ -259,6 +266,15 @@ stringToVarExpr = VarExpr . stringToVar
 
 instance Show Var where
   show (Var xs is) = intercalate "." xs ++ concatMap show is
+
+instance Show VarWithIndices where
+  show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
+
+varToVarWithIndices :: Var -> VarWithIndices
+varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
+ where
+   f :: Index () -> Index String
+   f index = (\() -> "") <$> index
 
 instance Show (Index ()) where
   show (Superscript ())  = "~"

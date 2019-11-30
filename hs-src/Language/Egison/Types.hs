@@ -41,12 +41,10 @@ module Language.Egison.Types
     , EgisonWHNF (..)
     -- * Environment
     , Env (..)
-    , VarWithIndices (..)
     , Binding
     , nullEnv
     , extendEnv
     , refVar
-    , varToVarWithIndices
     -- * Pattern matching
     , Match
     , MatchingTree (..)
@@ -579,13 +577,7 @@ instance EgisonWHNF Handle where
 data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
  deriving (Show)
 
-data VarWithIndices = VarWithIndices [String] [Index String]
- deriving (Eq)
-
 type Binding = (Var, ObjectRef)
-
-instance Show VarWithIndices where
-  show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
@@ -608,14 +600,6 @@ extendEnv (Env env idx) bdg = Env ((: env) $ HashMap.fromList bdg) idx
 
 refVar :: Env -> Var -> Maybe ObjectRef
 refVar (Env env _) var = msum $ map (HashMap.lookup var) env
-
-varToVarWithIndices :: Var -> VarWithIndices
-varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
- where
-   f :: Index () -> Index String
-   f (Superscript ())  = Superscript ""
-   f (Subscript ())    = Subscript ""
-   f (SupSubscript ()) = SupSubscript ""
 
 --
 -- Pattern Match
