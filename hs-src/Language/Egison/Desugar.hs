@@ -202,17 +202,16 @@ desugar (LambdaExpr names expr) = do
   case rhnames of
     [] -> LambdaExpr names <$> desugar expr
     (InvertedScalarArg rhname:rhnames') -> do
-      let (rtnames2, rhnames2) = span (const False) rhnames'
-      case rhnames2 of
+      case rhnames' of
         [] -> desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
                           (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (FlipIndicesExpr (stringToVarExpr rhname)))
         (ScalarArg rhname2:rhnames2') ->
-          desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2] ++ rtnames2 ++ [TensorArg rhname] ++ reverse rtnames)
+          desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2, TensorArg rhname] ++ reverse rtnames)
                       (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr)
                                       (stringToVarExpr rhname2)
                                       (FlipIndicesExpr (stringToVarExpr rhname)))
         (InvertedScalarArg rhname2:rhnames2') ->
-          desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2] ++ rtnames2 ++ [TensorArg rhname] ++ reverse rtnames)
+          desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2, TensorArg rhname] ++ reverse rtnames)
                       (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr)
                                       (FlipIndicesExpr (stringToVarExpr rhname2))
                                       (FlipIndicesExpr (stringToVarExpr rhname)))
