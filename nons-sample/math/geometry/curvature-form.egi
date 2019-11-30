@@ -1,7 +1,7 @@
 x := [| θ, φ |]
 
-g_i_j := [| [| (r * r), 0 |], [| 0, (r * r * (sin θ) * (sin θ)) |] |]_i_j
-g~i~j := [| [| (1 / (r * r)), 0 |], [| 0, (1 / (r * r * (sin θ) * (sin θ))) |] |]~i~j
+g_i_j := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
+g~i~j := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
 
 Γ_j_l_k := (1 / 2) * ((∂/∂ g_j_l x~k) + (∂/∂ g_j_k x~l) - (∂/∂ g_k_l x~j))
 
@@ -14,3 +14,17 @@ assertEqual "Riemann curvature" r~#_#_1_1 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 assertEqual "Riemann curvature" r~#_#_1_2 [| [| 0, (sin θ)^2 |], [| -1, 0 |] |]~#_#
 assertEqual "Riemann curvature" r~#_#_2_1 [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |] |]~#_#
 assertEqual "Riemann curvature" r~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+
+ω := Γ~#_#_#
+
+d %t := !(flip ∂/∂) x t
+
+wedge %x %y := x !. y
+
+Ω := withSymbols [i, j]
+       dfNormalize ((d ω~i_j) + (wedge ω~i_k ω~k_j))
+
+assertEqual "Curvature form" Ω~#_#_1_1 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+assertEqual "Curvature form" Ω~#_#_1_2 [| [| 0, (sin θ)^2  / 2|], [| -1 / 2, 0 |] |]~#_#
+assertEqual "Curvature form" Ω~#_#_2_1 [| [| 0, -1 * (sin θ)^2 / 2 |], [| 1 / 2, 0 |] |]~#_#
+assertEqual "Curvature form" Ω~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
