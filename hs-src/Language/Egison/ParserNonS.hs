@@ -64,13 +64,13 @@ parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
 
 parseTopExpr :: String -> Either EgisonError EgisonTopExpr
-parseTopExpr = doParse $ sc >> topExpr
+parseTopExpr = doParse $ sc >> topExpr <* eof
 
 parseExprs :: String -> Either EgisonError [EgisonExpr]
 parseExprs = doParse $ many (L.nonIndented sc expr) <* eof
 
 parseExpr :: String -> Either EgisonError EgisonExpr
-parseExpr = doParse $ sc >> expr
+parseExpr = doParse $ sc >> expr <* eof
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
@@ -725,11 +725,12 @@ patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
 binOpLiteral :: String -> Parser EgisonBinOp
-binOpLiteral sym = try $ do
-  wedge <- optional (char '!')
-  opSym <- operator' sym
-  let opInfo = fromJust $ find ((== opSym) . repr) reservedBinops
-  return $ opInfo { isWedge = isJust wedge }
+binOpLiteral sym =
+  try (do wedge <- optional (char '!')
+          opSym <- operator' sym
+          let opInfo = fromJust $ find ((== opSym) . repr) reservedBinops
+          return $ opInfo { isWedge = isJust wedge })
+   <?> "binary operator"
   where
     -- operator without try
     operator' :: String -> Parser String
