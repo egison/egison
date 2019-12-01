@@ -454,11 +454,11 @@ assertEqual "hash access"
 --
 -- Partial Application
 --
---
--- assertEqual "partial application '#'"
---   2#(10 * %1 + %2)(1, 2)
---   12
---
+
+assertEqual "partial application '#'"
+  (2#(10 * %1 + %2) 1 2)
+  12
+
 -- assertEqual "recursive partial application '#'"
 --   take(10, 1#[%1, @(%0(%1 * 2))](2))
 --   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]

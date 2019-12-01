@@ -244,7 +244,7 @@ makeTable pos =
   -- prefixes have top priority
   let prefixes = [ [ Prefix (unary "-")
                    , Prefix (unary "!") ] ]
-      -- Generate binary operator table from reservedBinops
+      -- Generate binary operator table from |reservedBinops|
       binops = map (map binOpToOperator)
         (groupBy (\x y -> priority x == priority y) reservedBinops)
    in prefixes ++ binops
@@ -518,17 +518,19 @@ atomExpr = do
 
 -- Atomic expressions without index
 atomExpr' :: Parser EgisonExpr
-atomExpr' = constantExpr
+atomExpr' = partialExpr    -- must come before |constantExpr|
+        <|> constantExpr
         <|> FreshVarExpr <$ symbol "#"
         <|> VarExpr <$> varLiteral
         <|> inductiveDataOrModuleExpr
-        <|> vectorExpr     -- must come before collectionExpr
-        <|> arrayExpr      -- must come before tupleOrParenExpr
+        <|> vectorExpr     -- must come before |collectionExpr|
+        <|> arrayExpr      -- must come before |tupleOrParenExpr|
         <|> collectionExpr
         <|> tupleOrParenExpr
         <|> hashExpr
-        <|> QuoteExpr <$> (char '\'' >> atomExpr')
+        <|> QuoteExpr <$> (char '\'' >> atomExpr') -- must come after |constantExpr|
         <|> QuoteSymbolExpr <$> (char '`' >> atomExpr')
+        <|> PartialVarExpr  <$> try (char '%' >> positiveIntegerLiteral)
         <?> "atomic expression"
 
 inductiveDataOrModuleExpr :: Parser EgisonExpr
@@ -537,6 +539,12 @@ inductiveDataOrModuleExpr = do
   return $ case rest of
              [] -> InductiveDataExpr ident []
              _  -> VarExpr (Var (ident : rest) [])
+
+partialExpr :: Parser EgisonExpr
+partialExpr = do
+  n    <- try (L.decimal <* char '#') -- No space after the index
+  body <- atomExpr                    -- No space after '#'
+  return $ PartialExpr n body
 
 constantExpr :: Parser EgisonExpr
 constantExpr = numericExpr
