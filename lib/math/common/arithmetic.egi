@@ -6,10 +6,10 @@
 
 (define $to-math-expr (lambda [$arg] (math-normalize1 (apply to-math-expr' arg))))
 
-(define $+' (cambda $xs (foldl b.+' (car xs) (cdr xs))))
-(define $-' (cambda $xs (foldl b.-' (car xs) (cdr xs))))
-(define $*' (cambda $xs (foldl b.*' (car xs) (cdr xs))))
-(define $/' b./')
+(define $+' (cambda $xs (foldl b.+ (car xs) (cdr xs))))
+(define $-' (cambda $xs (foldl b.- (car xs) (cdr xs))))
+(define $*' (cambda $xs (foldl b.* (car xs) (cdr xs))))
+(define $/' b./)
 
 (define $f.+' (cambda $xs (foldl f.+ (car xs) (cdr xs))))
 (define $f.-' (cambda $xs (foldl f.- (car xs) (cdr xs))))
