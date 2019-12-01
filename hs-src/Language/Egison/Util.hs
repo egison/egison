@@ -48,7 +48,9 @@ getEgisonExpr' opts prev = do
         Left err -> do
           liftIO $ print err
           getEgisonExpr opts
-        Right topExpr -> return $ Just (input, topExpr)
+        Right topExpr -> do
+          -- outputStr $ show topExpr
+          return $ Just (input, topExpr)
 
 -- |Complete Egison keywords
 completeEgison :: Monad m => CompletionFunc m

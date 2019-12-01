@@ -460,7 +460,7 @@ assertEqual "partial application '#'"
   12
 
 -- assertEqual "recursive partial application '#'"
---   take(10, 1#[%1, @(%0(%1 * 2))](2))
+--   (take 10 (1#(%1 :: (%0 (%1 * %2))) 2))
 --   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 
 f *x *y := x + y
