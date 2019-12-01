@@ -121,7 +121,7 @@ instance ShowErrorComponent CustomError where
       info op =
          "'" ++ repr op ++ "' [" ++ show (assoc op) ++ " " ++ show (priority op) ++ "]"
   showErrorComponent IllFormedDefine =
-    "Ill-formed definition syntax."
+    "Failed to parse the left hand side of definition expression."
 
 
 doParse :: Parser a -> String -> Either EgisonError a
@@ -159,13 +159,9 @@ defineOrTestExpr = do
       -- what's parsed so far as the lhs of definition.
       case convertToDefine e of
         Nothing -> customFailure IllFormedDefine
-        Just (Variable var) ->
-          Define var <$> expr
-        Just (Function var args) -> do
-          body <- expr
-          return $ Define var (LambdaExpr args body)
-        Just (IndexedVar var) ->
-          DefineWithIndices var <$> expr
+        Just (Variable var)      -> Define var <$> expr
+        Just (Function var args) -> Define var . LambdaExpr args <$> expr
+        Just (IndexedVar var)    -> DefineWithIndices var <$> expr
 
     convertToDefine :: EgisonExpr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
