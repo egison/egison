@@ -12,12 +12,8 @@ This module provides primitive functions in Egison.
 
 module Language.Egison.Primitives
   (
-  -- S-syntax version
     primitiveEnv
   , primitiveEnvNoIO
-  -- Non-S syntax (Camel case) version
-  , primitiveEnv'
-  , primitiveEnvNoIO'
   ) where
 
 import           Control.Monad.Except
@@ -63,23 +59,6 @@ primitiveEnv = do
 primitiveEnvNoIO :: IO Env
 primitiveEnvNoIO = do
   let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) primitives
-  bindings <- forM (constants ++ ops) $ \(name, op) -> do
-    ref <- newIORef . WHNF $ Value op
-    return (stringToVar name, ref)
-  return $ extendEnv nullEnv bindings
-
--- primitive env for Non-S syntax
-primitiveEnv' :: IO Env
-primitiveEnv' = do
-  let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) (primitives' ++ ioPrimitives')
-  bindings <- forM (constants ++ ops) $ \(name, op) -> do
-    ref <- newIORef . WHNF $ Value op
-    return (stringToVar name, ref)
-  return $ extendEnv nullEnv bindings
-
-primitiveEnvNoIO' :: IO Env
-primitiveEnvNoIO' = do
-  let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) primitives'
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
@@ -156,110 +135,6 @@ constants = [
 
 primitives :: [(String, PrimitiveFunc)]
 primitives = [ ("b.+", plus)
-             , ("b.-", minus)
-             , ("b.*", multiply)
-             , ("b./", divide)
-             , ("b.+'", plus)
-             , ("b.-'", minus)
-             , ("b.*'", multiply)
-             , ("b./'", divide)
-             , ("f.+", floatBinaryOp (+))
-             , ("f.-", floatBinaryOp (-))
-             , ("f.*", floatBinaryOp (*))
-             , ("f./", floatBinaryOp (/))
-             , ("numerator", numerator')
-             , ("denominator", denominator')
-             , ("from-math-expr", fromScalarData)
-             , ("to-math-expr", toScalarData)
-             , ("to-math-expr'", toScalarData)
-
-             , ("modulo",    integerBinaryOp mod)
-             , ("quotient",  integerBinaryOp quot)
-             , ("remainder", integerBinaryOp rem)
-             , ("b.abs", rationalUnaryOp abs)
-             , ("b.neg", rationalUnaryOp negate)
-
-             , ("eq?",  eq)
-             , ("lt?",  scalarCompare (<))
-             , ("lte?", scalarCompare (<=))
-             , ("gt?",  scalarCompare (>))
-             , ("gte?", scalarCompare (>=))
-
-             , ("round",    floatToIntegerOp round)
-             , ("floor",    floatToIntegerOp floor)
-             , ("ceiling",  floatToIntegerOp ceiling)
-             , ("truncate", truncate')
-
-             , ("b.sqrt",  floatUnaryOp sqrt)
-             , ("b.sqrt'", floatUnaryOp sqrt)
-             , ("b.exp",   floatUnaryOp exp)
-             , ("b.log",   floatUnaryOp log)
-             , ("b.sin",   floatUnaryOp sin)
-             , ("b.cos",   floatUnaryOp cos)
-             , ("b.tan",   floatUnaryOp tan)
-             , ("b.asin",  floatUnaryOp asin)
-             , ("b.acos",  floatUnaryOp acos)
-             , ("b.atan",  floatUnaryOp atan)
-             , ("b.sinh",  floatUnaryOp sinh)
-             , ("b.cosh",  floatUnaryOp cosh)
-             , ("b.tanh",  floatUnaryOp tanh)
-             , ("b.asinh", floatUnaryOp asinh)
-             , ("b.acosh", floatUnaryOp acosh)
-             , ("b.atanh", floatUnaryOp atanh)
-
-             , ("tensor-size", tensorSize')
-             , ("tensor-to-list", tensorToList')
-             , ("df-order", dfOrder')
-
-             , ("itof", integerToFloat)
-             , ("rtof", rationalToFloat)
-             , ("ctoi", charToInteger)
-             , ("itoc", integerToChar)
-
-             , ("pack", pack)
-             , ("unpack", unpack)
-             , ("uncons-string", unconsString)
-             , ("length-string", lengthString)
-             , ("append-string", appendString)
-             , ("split-string", splitString)
-             , ("regex", regexString)
-             , ("regex-cg", regexStringCaptureGroup)
-
-             , ("add-prime", addPrime)
-             , ("add-subscript", addSubscript)
-             , ("add-superscript", addSuperscript)
-
-             , ("read-process", readProcess')
-
-             , ("read", read')
-             , ("read-tsv", readTSV)
-             , ("show", show')
-             , ("show-tsv", showTSV')
-
-             , ("empty?", isEmpty')
-             , ("uncons", uncons')
-             , ("unsnoc", unsnoc')
-
-             , ("bool?", isBool')
-             , ("integer?", isInteger')
-             , ("rational?", isRational')
-             , ("scalar?", isScalar')
-             , ("float?", isFloat')
-             , ("char?", isChar')
-             , ("string?", isString')
-             , ("collection?", isCollection')
-             , ("array?", isArray')
-             , ("hash?", isHash')
-             , ("tensor?", isTensor')
-             , ("tensor-with-index?", isTensorWithIndex')
-
-             , ("assert", assert)
-             , ("assert-equal", assertEqual)
-             ]
-
--- for Non-S syntax
-primitives' :: [(String, PrimitiveFunc)]
-primitives' = [ ("b.+", plus)
              , ("b.-", minus)
              , ("b.*", multiply)
              , ("b./", divide)
@@ -360,7 +235,8 @@ primitives' = [ ("b.+", plus)
              , ("assert", assert)
              , ("assertEqual", assertEqual)
 
-             -- for old library compatibility
+             -- for old syntax compatibility
+             -- TODO: Delete these after the old syntax is deprecated
              , ("from-math-expr", fromScalarData)
              , ("to-math-expr", toScalarData)
              , ("to-math-expr'", toScalarData)
@@ -697,34 +573,6 @@ assertEqual = threeArgs' $ \label actual expected ->
 
 ioPrimitives :: [(String, PrimitiveFunc)]
 ioPrimitives = [ ("return", return')
-               , ("open-input-file", makePort ReadMode)
-               , ("open-output-file", makePort WriteMode)
-               , ("close-input-port", closePort)
-               , ("close-output-port", closePort)
-               , ("read-char", readChar)
-               , ("read-line", readLine)
-               , ("write-char", writeChar)
-               , ("write", writeString)
-
-               , ("read-char-from-port", readCharFromPort)
-               , ("read-line-from-port", readLineFromPort)
-               , ("write-char-to-port", writeCharToPort)
-               , ("write-to-port", writeStringToPort)
-
-               , ("eof?", isEOFStdin)
-               , ("flush", flushStdout)
-               , ("eof-port?", isEOFPort)
-               , ("flush-port", flushPort)
-               , ("read-file", readFile')
-
-               , ("rand", randRange)
-               , ("f.rand", randRangeDouble)
---               , ("sqlite", sqlite)
-               ]
-
--- For Non-S syntax
-ioPrimitives' :: [(String, PrimitiveFunc)]
-ioPrimitives' = [ ("return", return')
                , ("openInputFile", makePort ReadMode)
                , ("openOutputFile", makePort WriteMode)
                , ("closeInputPort", closePort)
@@ -748,7 +596,8 @@ ioPrimitives' = [ ("return", return')
                , ("rand", randRange)
                , ("f.rand", randRangeDouble)
 
-               -- for S-expression library compatibility
+               -- for old syntax compatibility
+               -- TODO: Delete these after the old syntax is deprecated
                , ("open-input-file", makePort ReadMode)
                , ("open-output-file", makePort WriteMode)
                , ("close-input-port", closePort)
