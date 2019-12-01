@@ -140,6 +140,12 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> defineOrTestExpr
       <?> "toplevel expression"
 
+-- Return type of |convertToDefine|.
+data ConversionResult
+  = Variable Var        -- Definition of a variable with no arguments on lhs.
+  | Function Var [Arg]  -- Definition of a function with some arguments on lhs.
+  | IndexedVar VarWithIndices
+
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
   e <- expr
@@ -147,42 +153,45 @@ defineOrTestExpr = do
   where
     defineExpr :: EgisonExpr -> Parser EgisonTopExpr
     defineExpr e = do
-      body <- symbol ":=" >> expr
+      _    <- symbol ":="
       -- When ":=" is observed and the current expression turns out to be a
       -- definition, we do not start over from scratch but re-interpret
       -- what's parsed so far as the lhs of definition.
-      case convertToDefine e body of
-        Just def -> return def
-        -- TODO(momohatt): Adjust the position of error
+      case convertToDefine e of
         Nothing -> customFailure IllFormedDefine
+        Just (Variable var) ->
+          Define var <$> expr
+        Just (Function var args) -> do
+          body <- expr
+          return $ Define var (LambdaExpr args body)
+        Just (IndexedVar var) ->
+          DefineWithIndices var <$> expr
 
-    convertToDefine :: EgisonExpr -> EgisonExpr -> Maybe EgisonTopExpr
-    convertToDefine (VarExpr var) body = Just (Define var body)
-    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) body = do
-      args' <- mapM exprToArg args
-      return (Define var (LambdaExpr args' body))
-    convertToDefine e@(BinaryOpExpr op _ _) body
+    convertToDefine :: EgisonExpr -> Maybe ConversionResult
+    convertToDefine (VarExpr var) = return $ Variable var
+    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
+      args' <- mapM ((ScalarArg <$>) . exprToStr) args
+      return $ Function var args'
+    convertToDefine e@(BinaryOpExpr op _ _)
       | repr op == "*" || repr op == "%" = do
         args <- exprToArgs e
         case args of
-          ScalarArg var : args -> return (Define (Var [var] []) (LambdaExpr args body))
-    convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) body = do
+          ScalarArg var : args -> return $ Function (Var [var] []) args
+          _                    -> Nothing
+    convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) = do
       -- [Index EgisonExpr] -> Maybe [Index String]
       indices' <- mapM (traverse exprToStr) indices
-      return $ DefineWithIndices (VarWithIndices var indices') body
-    convertToDefine _ _ = Nothing
+      return $ IndexedVar (VarWithIndices var indices')
+    convertToDefine _ = Nothing
 
     exprToStr :: EgisonExpr -> Maybe String
     exprToStr (VarExpr (Var [x] [])) = Just x
     exprToStr _                      = Nothing
 
-    exprToArg :: EgisonExpr -> Maybe Arg
-    exprToArg x = ScalarArg <$> exprToStr x
-
     exprToArgs :: EgisonExpr -> Maybe [Arg]
     exprToArgs (VarExpr (Var [x] [])) = return [ScalarArg x]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
-      (++) <$> exprToArgs func <*> mapM exprToArg args
+      (++) <$> exprToArgs func <*> mapM ((ScalarArg <$>) . exprToStr) args
     exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
