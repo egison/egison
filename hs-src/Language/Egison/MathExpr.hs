@@ -114,7 +114,7 @@ instance Show SymbolExpr where
   show (Symbol _ s []) = s
   show (Symbol _ s js) = s ++ concatMap show js
   show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
-  show (Quote mExprs) = "'" ++ show mExprs
+  show (Quote mExprs) = "'(" ++ show mExprs ++ ")"
   show (FunctionData name _ _ js) = show name ++ concatMap show js
 
 instance Show (Index ScalarData) where
