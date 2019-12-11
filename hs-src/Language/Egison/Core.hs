@@ -47,6 +47,7 @@ import           Control.Monad.State         hiding (mapM)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.State   (evalStateT, withStateT)
 
+import           Data.Char                   (isUpper)
 import           Data.Foldable               (toList)
 import           Data.IORef
 import           Data.List                   (partition)
@@ -781,6 +782,10 @@ applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
      _           -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
+applyFunc _ (Value (ScalarData (Div (Plus [Term 1 [(Symbol "" name@(c:_) [], 1)]]) (Plus [Term 1 []])))) arg | isUpper c = do
+  args <- fromTupleWHNF arg
+  args' <- mapM newEvaluatedObjectRef args
+  return $ Intermediate $ IInductiveData name args'
 applyFunc _ (Value (ScalarData fn@(Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM (\arg -> case arg of
