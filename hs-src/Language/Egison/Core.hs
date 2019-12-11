@@ -140,6 +140,12 @@ evalExpr env (QuoteSymbolExpr expr) = do
     Value (ScalarData _) -> return whnf
     _ -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 
+evalExpr env (VarExpr var@(Var [name@(c:_)] [])) | isUpper c = refVar' env var >>= evalRef
+ where
+  refVar' :: Env -> Var -> EgisonM ObjectRef
+  refVar' env var = maybe (newEvaluatedObjectRef (Value (InductiveData name []))) return
+                          (refVar env var)
+
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
