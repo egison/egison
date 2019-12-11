@@ -495,13 +495,20 @@ evalExpr env (CApplyExpr func arg) = do
 
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
-  arg <- evalExpr env arg
   case func of
-    Value (TensorData t@(Tensor _ _ _)) ->
+    Value (ScalarData (Div (Plus [Term 1 [(Symbol "" name@(c:_) [], 1)]]) (Plus [Term 1 []]))) | isUpper c ->
+      case arg of
+        TupleExpr exprs ->
+          Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs
+        _ -> throwError $ Default "argument is not a tuple"
+    Value (TensorData t@(Tensor _ _ _)) -> do
+      arg <- evalExpr env arg
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor) >>= removeDFscripts
-    Intermediate (ITensor t@(Tensor _ _ _)) ->
+    Intermediate (ITensor t@(Tensor _ _ _)) -> do
+      arg <- evalExpr env arg
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
-    Value (MemoizedFunc name ref hashRef env names body) -> do
+    Value (MemoizedFunc name ref hashRef env' names body) -> do
+      arg <- evalExpr env arg
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
       hash <- liftIO $ readIORef hashRef
@@ -509,13 +516,15 @@ evalExpr env (ApplyExpr func arg) = do
         Just objRef ->
           evalRef objRef
         Nothing -> do
-          whnf <- applyFunc env (Value (Func Nothing env names body)) arg
+          whnf <- applyFunc env' (Value (Func Nothing env' names body)) arg
           retRef <- newEvaluatedObjectRef whnf
           hash <- liftIO $ readIORef hashRef
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
+          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env' names body))
           return whnf
-    _ -> applyFunc env func arg >>= removeDFscripts
+    _ -> do
+      arg <- evalExpr env arg
+      applyFunc env func arg >>= removeDFscripts
 
 evalExpr env (WedgeApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
@@ -782,10 +791,6 @@ applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
      _           -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
-applyFunc _ (Value (ScalarData (Div (Plus [Term 1 [(Symbol "" name@(c:_) [], 1)]]) (Plus [Term 1 []])))) arg | isUpper c = do
-  args <- fromTupleWHNF arg
-  args' <- mapM newEvaluatedObjectRef args
-  return $ Intermediate $ IInductiveData name args'
 applyFunc _ (Value (ScalarData fn@(Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])))) arg = do
   args <- tupleToList arg
   mExprs <- mapM (\arg -> case arg of
