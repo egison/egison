@@ -607,10 +607,16 @@ refVar (Env env _) var = msum $ map (HashMap.lookup var) env
 
 type Match = [Binding]
 
-data MatchingState = MState Env [LoopPatContext] [SeqPatContext] [Binding] [MatchingTree]
+data MatchingState
+  = MState { mStateEnv      :: Env
+           , loopPatCtx     :: [LoopPatContext]
+           , seqPatCtx      :: [SeqPatContext]
+           , mStateBindings :: [Binding]
+           , mTrees         :: [MatchingTree]
+           }
 
 instance Show MatchingState where
-  show (MState _ _ _ bindings mtrees) = "(MState " ++ unwords ["_", "_", "_", show bindings, show mtrees] ++ ")"
+  show ms = "(MState " ++ unwords ["_", "_", "_", show (mStateBindings ms), show (mTrees ms)] ++ ")"
 
 data MatchingTree =
     MAtom EgisonPattern WHNFData Matcher
