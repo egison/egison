@@ -1,0 +1,46 @@
+;;; Parameters and metrics
+
+N := 2
+
+x := [|r, θ|]
+
+g_i_j := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
+g~i~j := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
+
+;;; Hodge Laplacian
+
+d %A := !(flip ∂/∂) x A
+
+hodge %A :=
+  let k := dfOrder A in
+    withSymbols [i, j]
+      (sqrt (abs (M.det g_#_#))) * (foldl . (. (ε' N k)_(i_1)..._(i_N) A..._(j_1)..._(j_k))
+                                            (map 1#g~(i_%1)~(j_%1) [1..k]))
+
+
+δ %A :=
+  let k := dfOrder A in
+    -1^(N * (k + 1) + 1) * (hodge (d (hodge A)))
+
+Δ %A :=
+  match (dfOrder A) as integer with
+  | #0 -> δ (d A)
+  | #N -> d (δ A)
+  | _  -> d (δ A) + δ (d A)
+
+f := function (r, θ)
+
+d f
+;[| f|r f|θ |]
+
+hodge (d f)
+;[| (/ (* -1 f|θ) r) (* r f|r) |]
+
+d (hodge (d f))
+;[| [| (/ (+ (* -1 f|θ|r r) f|θ) r^2) (+ f|r (* r f|r|r)) |] [| (/ (* -1 f|θ|θ) r) (* r f|r|θ) |] |]
+
+hodge (d (hodge (d f)))
+;(/ (+ f|θ|θ (* r f|r) (* r^2 f|r|r)) r^2)
+
+Δ f
+;(/ (+ (* -1 f|θ|θ) (* -1 r f|r) (* -1 r^2 f|r|r)) r^2)
