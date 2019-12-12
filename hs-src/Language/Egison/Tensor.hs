@@ -133,6 +133,10 @@ tref (s:ms) (Tensor (_:ns) xs js) = do
   mapM toTensor ts >>= tConcat s >>= fromTensor
 tref _ _ = throwError $ Default "More indices than the order of the tensor"
 
+-- Enumarates all indices (1-indexed) from shape
+-- ex.
+-- >>> enumTensorIndices [2,2,2]
+-- [[1,1,1],[1,1,2],[1,2,1],[1,2,2],[2,1,1],[2,1,2],[2,2,1],[2,2,2]]
 enumTensorIndices :: [Integer] -> [[Integer]]
 enumTensorIndices [] = [[]]
 enumTensorIndices (n:ns) = concatMap (\i -> map (i:) (enumTensorIndices ns)) [1..n]
