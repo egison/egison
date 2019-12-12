@@ -6,3 +6,4 @@
 (define $deleteFirst/m delete-first/m)
 
 (define $dfNormalize df-normalize)
+(define $antisymmetrize df-normalize)
