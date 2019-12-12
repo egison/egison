@@ -510,11 +510,12 @@ atomOrApplyExpr = do
 atomExpr :: Parser EgisonExpr
 atomExpr = do
   e <- atomExpr'
+  override <- not . isJust <$> optional (try (string "..." <* lookAhead index))
   -- TODO(momohatt): "..." (override of index) collides with ContPat
   indices <- many index
   return $ case indices of
              [] -> e
-             _  -> IndexedExpr True e indices
+             _  -> IndexedExpr override e indices
 
 -- Atomic expressions without index
 atomExpr' :: Parser EgisonExpr
@@ -751,9 +752,11 @@ patOpChar = oneOf "%^&*-+\\|:<>.?/'"
 
 -- Characters that consist identifiers.
 -- Note that 'alphaNumChar' can also parse greek letters.
--- TODO(momohatt): Probably remove '.' ?
+-- TODO(momohatt): Use more natural way to reject "..."
 identChar :: Parser Char
-identChar = alphaNumChar <|> oneOf (['.', '?', '\'', '/'] ++ mathSymbols)
+identChar = alphaNumChar
+        <|> oneOf (['?', '\'', '/'] ++ mathSymbols)
+        <|> try (char '.' <* notFollowedBy (char '.'))
 
 -- Non-alphabetical symbols that are allowed for identifiers
 mathSymbols :: String
