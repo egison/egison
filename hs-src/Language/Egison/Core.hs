@@ -182,7 +182,7 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
     let env' = maybe env (\(VarWithIndices nameString indexList) -> Env frame $ Just $ VarWithIndices nameString $ changeIndexList indexList [toEgison $ toInteger i]) maybe_vwi
      in evalExpr env' expr) $ zip exprs [1..(length exprs + 1)]
   case whnfs of
-    (Intermediate (ITensor Tensor{}):_) ->
+    Intermediate (ITensor Tensor{}):_ ->
       mapM toTensor (zipWith (curry f) whnfs [1..(length exprs + 1)]) >>= tConcat' >>= fromTensor
     _ -> fromTensor (Tensor [fromIntegral $ length whnfs] (V.fromList whnfs) [])
  where
@@ -216,24 +216,22 @@ evalExpr env (HashExpr assocs) = do
     [] -> do
       let keys' = map (\case IntKey i -> i) keys
       return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
-    _ ->
-     case head keys of
-       IntKey _ -> do
-         let keys' = map (\ case IntKey i -> i) keys
-         return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
-       CharKey _ -> do
-         let keys' = map (\case CharKey c -> c) keys
-         return . Intermediate . ICharHash $ HL.fromList $ zip keys' refs
-       StrKey _ -> do
-          let keys' = map (\case StrKey s -> s) keys
-          return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
+    IntKey _ : _ -> do
+      let keys' = map (\case IntKey i -> i) keys
+      return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
+    CharKey _ : _ -> do
+      let keys' = map (\case CharKey c -> c) keys
+      return . Intermediate . ICharHash $ HL.fromList $ zip keys' refs
+    StrKey _ : _ -> do
+      let keys' = map (\case StrKey s -> s) keys
+      return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
  where
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
     case val of
       ScalarData _ -> IntKey <$> fromEgison val
-      Char c -> return (CharKey c)
-      String str -> return (StrKey str)
+      Char c       -> return (CharKey c)
+      String str   -> return (StrKey str)
       _ -> throwError =<< TypeMismatch "integer or string" (Value val) <$> getFuncNameStack
   makeHashKey whnf = throwError =<< TypeMismatch "integer or string" whnf <$> getFuncNameStack
 
@@ -247,16 +245,16 @@ evalExpr env (IndexedExpr bool expr indices) = do
               _ -> evalExpr env expr
   js <- mapM evalIndex indices
   ret <- case tensor of
-      (Value (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []])))) -> do
+      Value (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) -> do
         js2 <- mapM evalIndexToScalar indices
         return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js2, 1)]]) (Plus [Term 1 []])))
-      (Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js', 1)]]) (Plus [Term 1 []])))) -> do
+      Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js', 1)]]) (Plus [Term 1 []]))) -> do
         js2 <- mapM evalIndexToScalar indices
         return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (js' ++ js2), 1)]]) (Plus [Term 1 []])))
-      (Value (TensorData (Tensor ns xs is))) ->
+      Value (TensorData (Tensor ns xs is)) ->
         if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
                 else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-      (Intermediate (ITensor (Tensor ns xs is))) ->
+      Intermediate (ITensor (Tensor ns xs is)) ->
         if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
                 else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
       _ -> do
@@ -314,8 +312,10 @@ evalExpr env (UserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
   js <- map Userscript <$> (evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar)
   case val of
-    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
-    (ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args is, 1)]]) (Plus [Term 1 []]))) -> return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
+    ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])) ->
+      return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
+    ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args is, 1)]]) (Plus [Term 1 []])) ->
+      return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
 evalExpr env (LambdaExpr names expr) = do
@@ -562,7 +562,7 @@ evalExpr env (WedgeApplyExpr func arg) = do
 evalExpr env (MemoizeExpr memoizeFrame expr) = do
   mapM_ (\(x, y, z) -> do x' <- evalExprDeep env x
                           case x' of
-                            (MemoizedFunc name ref hashRef env' names body) -> do
+                            MemoizedFunc name ref hashRef env' names body -> do
                               indices <- evalExprDeep env y
                               indices' <- mapM fromEgison $ fromTupleValue indices
                               hash <- liftIO $ readIORef hashRef
