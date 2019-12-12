@@ -163,6 +163,12 @@ assertEqual "recursive function definition"
   (gcd 143 22)
   11
 
+A x := 1
+
+assertEqual "definition of upper-case identifier"
+  (A 2)
+  1
+
 {-
   This is a comment
  -}
