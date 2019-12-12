@@ -435,6 +435,12 @@ assertEqual "tensor multiplication"
   ([| 1, 2, 3 |]_i * [| 1, 2, 3 |]_i)
   [| 1, 4, 9 |]_i
 
+assertEqual "multi subscript"
+  (let i := {| (1, 1), (2, 2), (3, 3) |}
+       x := generateTensor (\x y z -> x + y + z) [5, 5, 5]
+    in x_(i_1)..._(i_3))
+  6
+
 --
 -- Hash
 --
@@ -450,6 +456,10 @@ assertEqual "empty hash-literal"
 assertEqual "hash access"
   {| (1, 11), (2, 12), (3, 13), (4, 14), (5, 15), |}_3
   13
+
+-- assertEqual "string hash access"
+--   {| ("1", 11), ("2", 12), ("3", 13), ("4", 14), ("5", 15) |}_"3"
+--   13
 
 --
 -- Partial Application

@@ -276,8 +276,8 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
               VarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ replicate (length js) (Subscript ()))
                 case mObjRef of
-                  (Just objRef) -> evalRef objRef
-                  Nothing       -> evalExpr env expr
+                  Just objRef -> evalRef objRef
+                  Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
   case tensor of
     (Value (ScalarData _)) ->
