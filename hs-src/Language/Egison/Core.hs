@@ -585,17 +585,18 @@ evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
 evalExpr env (ArrayBoundsExpr expr) =
   evalExpr env expr >>= arrayBounds
 
+-- TODO(momohatt): Following numpy's convention, rename 'size' into 'shape'.
 evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
-  size' <- evalExpr env sizeExpr
-  size'' <- collectionToList size'
-  ns <- mapM fromEgison size'' :: EgisonM [Integer]
-  let Env frame maybe_vwi = env
-  xs <- mapM ((\ms -> do
+  size <- evalExpr env sizeExpr >>= collectionToList
+  ns   <- mapM fromEgison size :: EgisonM [Integer]
+  xs   <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
+  fromTensor (Tensor ns (V.fromList xs) [])
+ where
+  indexToWHNF :: Env -> [EgisonValue] {- index -} -> EgisonM WHNFData
+  indexToWHNF (Env frame maybe_vwi) ms = do
     let env' = maybe env (\(VarWithIndices nameString indexList) -> Env frame $ Just $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi
     fn <- evalExpr env' fnExpr
-    applyFunc env fn $ Value $ makeTuple ms)
-                . map toEgison) (enumTensorIndices ns)
-  fromTensor (Tensor ns (V.fromList xs) [])
+    applyFunc env fn $ Value $ makeTuple ms
 
 evalExpr env (TensorContractExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
