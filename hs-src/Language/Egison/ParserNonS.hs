@@ -307,9 +307,9 @@ lambdaExpr = symbol "\\" >> (
       return $ ctor matcher clauses
 
 arg :: Parser Arg
-arg = InvertedScalarArg <$> (char '*' >> lowerId)
-  <|> TensorArg         <$> (char '%' >> lowerId)
-  <|> ScalarArg         <$> lowerId
+arg = InvertedScalarArg <$> (char '*' >> ident)
+  <|> TensorArg         <$> (char '%' >> ident)
+  <|> ScalarArg         <$> ident
   <?> "argument"
 
 letExpr :: Parser EgisonExpr
@@ -334,7 +334,7 @@ binding = do
              _  -> (vars, LambdaExpr args body)
 
 withSymbolsExpr :: Parser EgisonExpr
-withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy lowerId comma)) <*> expr
+withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy ident comma)) <*> expr
 
 doExpr :: Parser EgisonExpr
 doExpr = do
@@ -458,12 +458,12 @@ tupleOrParenExpr = do
     -- TODO(momohatt): Generate fresh variable for argument
     makeLambda :: EgisonBinOp -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
     makeLambda op Nothing Nothing =
-      LambdaExpr [ScalarArg ":x", ScalarArg ":y"]
+      LambdaExpr [TensorArg ":x", TensorArg ":y"]
                  (BinaryOpExpr op (stringToVarExpr ":x") (stringToVarExpr ":y"))
     makeLambda op Nothing (Just rarg) =
-      LambdaExpr [ScalarArg ":x"] (BinaryOpExpr op (stringToVarExpr ":x") rarg)
+      LambdaExpr [TensorArg ":x"] (BinaryOpExpr op (stringToVarExpr ":x") rarg)
     makeLambda op (Just larg) Nothing =
-      LambdaExpr [ScalarArg ":y"] (BinaryOpExpr op larg (stringToVarExpr ":y"))
+      LambdaExpr [TensorArg ":y"] (BinaryOpExpr op larg (stringToVarExpr ":y"))
 
 arrayExpr :: Parser EgisonExpr
 arrayExpr = ArrayExpr <$> between (symbol "(|") (symbol "|)") (sepEndBy expr comma)
@@ -712,7 +712,7 @@ positiveFloatLiteral = lexeme L.float
            <?> "unsigned float"
 
 varLiteral :: Parser Var
-varLiteral = stringToVar <$> lowerOrUpperId
+varLiteral = stringToVar <$> ident
 
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
@@ -797,8 +797,9 @@ upperId = (lexeme . try) (p >>= check)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
 
-lowerOrUpperId :: Parser String
-lowerOrUpperId = (lexeme . try) (p >>= check)
+-- union of lowerId and upperId
+ident :: Parser String
+ident = (lexeme . try) (p >>= check)
   where
     p       = (:) <$> satisfy (\c -> c `elem` mathSymbols || isLetter c) <*> many identChar
     check x = if x `elem` (lowerReservedWords ++ upperReservedWords)
