@@ -502,7 +502,8 @@ evalExpr env (CApplyExpr func arg) = do
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
   case func of
-    Value (ScalarData (Div (Plus [Term 1 [(Symbol "" name@(c:_) [], 1)]]) (Plus [Term 1 []]))) | isUpper c ->
+--    Value (ScalarData (Div (Plus [Term 1 [(Symbol "" name@(c:_) [], 1)]]) (Plus [Term 1 []]))) | isUpper c ->
+    Value (InductiveData name []) ->
       case arg of
         TupleExpr exprs ->
           Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs
