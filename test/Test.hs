@@ -52,6 +52,7 @@ testCases =
   , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi" -- for testing tensor index notation
   , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi" -- for testing tensor index notation and math quote
   , "sample/math/geometry/curvature-form.egi" -- for testing differential form
+  , "sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
   ]
 
 nonSTestCases :: [FilePath]
@@ -62,6 +63,7 @@ nonSTestCases =
   , "nons-test/test/lib/core/order.egi"
 
   , "nons-sample/math/geometry/curvature-form.egi"
+  , "nons-sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
   ]
 
 runTestCase :: FilePath -> Test

@@ -34,4 +34,4 @@ assertEqual "exterior derivative" (d f) [| ∂/∂ f r, ∂/∂ f θ |]
 
 assertEqual "hodge operator" (hodge (d f)) [| (-1 * ∂/∂ f θ) / r, r * (∂/∂ f r) |]
 
-assertEqual "Laplacian" (Δ f) ((-1 / r^2) * ((∂/∂ (∂/∂ f θ) θ) + r * (∂/∂ f r) + (r^2 * (∂/∂ (∂/∂ f r) r)))
+assertEqual "Laplacian" (Δ f) ((-1 / r^2) * ((∂/∂ (∂/∂ f θ) θ) + r * (∂/∂ f r) + (r^2 * (∂/∂ (∂/∂ f r) r))))

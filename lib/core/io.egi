@@ -74,12 +74,12 @@
 ;;; Debug
 ;;;
 (define $debug
-  (lambda [$expr]
+  (lambda [%expr]
     (io (do {[(print (show expr))]}
           (return expr)))))
 
 (define $debug2
-  (lambda [$msg $expr]
+  (lambda [%msg %expr]
     (io (do {[(display msg)]
              [(print (show expr))]}
           (return expr)))))
