@@ -30,17 +30,8 @@ hodge %A :=
 
 f := function (r, θ)
 
-d f
---[| f|r f|θ |]
+assertEqual "exterior derivative" (d f) [| ∂/∂ f r, ∂/∂ f θ |]
 
-hodge (d f)
--- [| (/ (* -1 f|θ) r) (* r f|r) |]
+assertEqual "hodge operator" (hodge (d f)) [| (-1 * ∂/∂ f θ) / r, r * (∂/∂ f r) |]
 
-d (hodge (d f))
--- [| [| (/ (+ (* -1 f|θ|r r) f|θ) r^2) (+ f|r (* r f|r|r)) |] [| (/ (* -1 f|θ|θ) r) (* r f|r|θ) |] |]
-
-hodge (d (hodge (d f)))
--- (/ (+ f|θ|θ (* r f|r) (* r^2 f|r|r)) r^2)
-
-Δ f
--- (/ (+ (* -1 f|θ|θ) (* -1 r f|r) (* -1 r^2 f|r|r)) r^2)
+assertEqual "Laplacian" (Δ f) ((-1 / r^2) * ((∂/∂ (∂/∂ f θ) θ) + r * (∂/∂ f r) + (r^2 * (∂/∂ (∂/∂ f r) r)))
