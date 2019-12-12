@@ -292,8 +292,8 @@ instance PrettyS a => PrettyS (Index a) where
   prettyS (Subscript i)    = "_" ++ prettyS i
   prettyS (Superscript i)  = "~" ++ prettyS i
   prettyS (SupSubscript i) = "~_" ++ prettyS i
-  prettyS (MultiSubscript x y) = "_" ++ prettyS x ++ "..._" ++ prettyS y
-  prettyS (MultiSuperscript x y) = "~" ++ prettyS x ++ "...~" ++ prettyS y
+  prettyS (MultiSubscript x y) = "_[" ++ prettyS x ++ "]..._[" ++ prettyS y ++ "]"
+  prettyS (MultiSuperscript x y) = "~[" ++ prettyS x ++ "]...~[" ++ prettyS y ++ "]"
   prettyS (DFscript _ _)   = ""
   prettyS (Userscript i)   = "|" ++ prettyS i
 
@@ -310,7 +310,7 @@ instance {-# OVERLAPPING #-} PrettyS (Index EgisonValue) where
     ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
     _ -> "|" ++ prettyS i
 
-instance {-# OVERLAPPING #-} PrettyS EgisonPattern where
+instance PrettyS EgisonPattern where
   prettyS WildCard = "_"
   prettyS (PatVar var) = "$" ++ prettyS var
   prettyS (ValuePat expr) = "," ++ prettyS expr
