@@ -68,11 +68,11 @@ tIndex (Scalar _)      = []
 
 tIntRef' :: HasTensor a => Integer -> Tensor a -> EgisonM a
 tIntRef' i (Tensor [n] xs _) =
-  if (0 < i) && (i <= n)
+  if 0 < i && i <= n
      then fromTensor $ Scalar $ xs V.! fromIntegral (i - 1)
      else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
 tIntRef' i (Tensor (n:ns) xs js) =
-  if (0 < i) && (i <= n)
+  if 0 < i && i <= n
    then let w = fromIntegral (product ns) in
         let ys = V.take w (V.drop (w * fromIntegral (i - 1)) xs) in
           fromTensor $ Tensor ns ys (cdr js)
@@ -194,14 +194,14 @@ appendDFscripts _ whnf = return whnf
 removeDFscripts :: WHNFData -> EgisonM WHNFData
 removeDFscripts (Intermediate (ITensor (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
-  (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
+  Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
   return (Intermediate (ITensor (Tensor s ys js)))
  where
   isDF (DFscript _ _) = True
   isDF _              = False
 removeDFscripts (Value (TensorData (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
-  (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
+  Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
   return (Value (TensorData (Tensor s ys js)))
  where
   isDF (DFscript _ _) = True
@@ -215,7 +215,7 @@ tMap f (Tensor ns xs js') = do
   xs' <- V.fromList <$> mapM f (V.toList xs)
   t <- toTensor (V.head xs')
   case t of
-    (Tensor ns1 _ js1') -> do
+    Tensor ns1 _ js1' -> do
       let k1 = fromIntegral $ length ns1 - length js1'
       let js1 = js1' ++ map (DFscript 0) [1..k1]
       tContract' $ Tensor (ns ++ ns1) (V.concat (V.toList (V.map tensorElems xs'))) (js ++ js1)
@@ -370,7 +370,7 @@ tContract' :: HasTensor a => Tensor a -> EgisonM (Tensor a)
 tContract' t@(Tensor ns _ js) =
   case findPairs p js of
     [] -> return t
-    ((m,n):_) -> do
+    (m,n):_ -> do
       let (hjs, mjs, tjs) = removePairs (m,n) js
       xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ mjs
                                     ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ tjs) t)

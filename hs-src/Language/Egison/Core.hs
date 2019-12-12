@@ -14,7 +14,7 @@ This module provides functions to evaluate various objects.
 module Language.Egison.Core
     (
     -- * Egison code evaluation
-     collectDefs
+      collectDefs
     , evalTopExpr'
     , evalExpr
     , evalExprDeep
@@ -242,8 +242,8 @@ evalExpr env (IndexedExpr bool expr indices) = do
               VarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ map (const () <$>) indices)
                 case mObjRef of
-                  (Just objRef) -> evalRef objRef
-                  Nothing       -> evalExpr env expr
+                  Just objRef -> evalRef objRef
+                  Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
   js <- mapM evalIndex indices
   ret <- case tensor of
@@ -280,12 +280,12 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
                   Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
   case tensor of
-    (Value (ScalarData _)) ->
+    Value (ScalarData _) ->
       return tensor
-    (Value (TensorData (Tensor ns xs is))) ->
+    Value (TensorData (Tensor ns xs is)) ->
       if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
               else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-    (Intermediate (ITensor (Tensor ns xs is))) ->
+    Intermediate (ITensor (Tensor ns xs is)) ->
       if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
     _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
@@ -296,16 +296,16 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
               VarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ replicate (length js) (Superscript ()))
                 case mObjRef of
-                  (Just objRef) -> evalRef objRef
-                  Nothing       -> evalExpr env expr
+                  Just objRef -> evalRef objRef
+                  Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
   case tensor of
-    (Value (ScalarData _)) ->
+    Value (ScalarData _) ->
       return tensor
-    (Value (TensorData (Tensor ns xs is))) ->
+    Value (TensorData (Tensor ns xs is)) ->
       if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
               else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-    (Intermediate (ITensor (Tensor ns xs is))) ->
+    Intermediate (ITensor (Tensor ns xs is)) ->
       if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
               else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
     _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
@@ -320,8 +320,8 @@ evalExpr env (UserrefsExpr _ expr jsExpr) = do
 
 evalExpr env (LambdaExpr names expr) = do
   names' <- mapM (\case
-                     (TensorArg name') -> return name'
-                     (ScalarArg _) -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
+                     TensorArg name' -> return name'
+                     ScalarArg _ -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
   return . Value $ Func Nothing env names' expr
 
 evalExpr env (PartialExpr n expr) = return . Value $ PartialFunc env n expr
@@ -379,10 +379,10 @@ evalExpr env (TransposeExpr vars expr) = do
   syms <- evalExpr env vars >>= collectionToList
   whnf <- evalExpr env expr
   case whnf of
-    (Intermediate (ITensor t)) -> do
+    Intermediate (ITensor t) -> do
       t' <- tTranspose' syms t
       return (Intermediate (ITensor t'))
-    (Value (TensorData t)) -> do
+    Value (TensorData t) -> do
       t' <- tTranspose' syms t
       return (Value (TensorData t'))
     _ -> return whnf
@@ -390,10 +390,10 @@ evalExpr env (TransposeExpr vars expr) = do
 evalExpr env (FlipIndicesExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    (Intermediate (ITensor t)) -> do
+    Intermediate (ITensor t) -> do
       t' <- tFlipIndices t
       return (Intermediate (ITensor t'))
-    (Value (TensorData t)) -> do
+    Value (TensorData t) -> do
       t' <- tFlipIndices t
       return (Value (TensorData t'))
     _ -> return whnf
@@ -404,9 +404,9 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   let bindings = zip (map stringToVar vars) syms
   whnf <- evalExpr (extendEnv env bindings) expr
   case whnf of
-    (Value (TensorData (Tensor ns xs js))) ->
+    Value (TensorData (Tensor ns xs js)) ->
       removeTmpscripts symId (Value (TensorData (Tensor ns xs js)))
-    (Intermediate (ITensor (Tensor ns xs js))) ->
+    Intermediate (ITensor (Tensor ns xs js)) ->
       removeTmpscripts symId (Intermediate (ITensor (Tensor ns xs js)))
     _ -> return whnf
  where
@@ -418,11 +418,11 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   removeTmpscripts :: String -> WHNFData -> EgisonM WHNFData
   removeTmpscripts symId (Intermediate (ITensor (Tensor s xs is))) = do
     let (ds, js) = partition (isTmpSymbol symId) is
-    (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
+    Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
     return (Intermediate (ITensor (Tensor s ys js)))
   removeTmpscripts symId (Value (TensorData (Tensor s xs is))) = do
     let (ds, js) = partition (isTmpSymbol symId) is
-    (Tensor s ys _) <- tTranspose (js ++ ds) (Tensor s xs is)
+    Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
     return (Value (TensorData (Tensor s ys js)))
 
 
@@ -601,11 +601,11 @@ evalExpr env (TensorContractExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
   whnf <- evalExpr env tExpr
   case whnf of
-    (Intermediate (ITensor t@Tensor{})) -> do
+    Intermediate (ITensor t@Tensor{}) -> do
       ts <- tContract t
       tMapN (\xs -> do xs' <- mapM newEvaluatedObjectRef xs
                        applyFunc env fn (Intermediate (ITuple xs'))) ts >>= fromTensor
-    (Value (TensorData t@Tensor{})) -> do
+    Value (TensorData t@Tensor{}) -> do
       ts <- tContract t
       Value <$> (tMapN (applyFunc' env fn . Tuple) ts >>= fromTensor)
     _ -> return whnf
@@ -815,7 +815,7 @@ refArray (Value (Array array)) (index:indices) =
               then refArray (Value (array Array.! i)) indices
               else return  $ Value Undefined
     else case index of
-           (ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> do
+           ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []])) -> do
              let (_,size) = Array.bounds array
              elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
              elmRefs <- mapM newEvaluatedObjectRef elms
@@ -829,7 +829,7 @@ refArray (Intermediate (IArray array)) (index:indices) =
                    evalRef ref >>= flip refArray indices
               else return  $ Value Undefined
     else case index of
-           (ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) -> do
+           ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []])) -> do
              let (_,size) = Array.bounds array
              let refs = Array.elems array
              arrs <- mapM evalRef refs
