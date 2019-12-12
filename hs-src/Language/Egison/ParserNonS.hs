@@ -522,7 +522,6 @@ atomExpr' = partialExpr    -- must come before |constantExpr|
         <|> constantExpr
         <|> FreshVarExpr <$ symbol "#"
         <|> VarExpr <$> varLiteral
-        <|> inductiveDataOrModuleExpr
         <|> vectorExpr     -- must come before |collectionExpr|
         <|> arrayExpr      -- must come before |tupleOrParenExpr|
         <|> collectionExpr
@@ -532,13 +531,6 @@ atomExpr' = partialExpr    -- must come before |constantExpr|
         <|> QuoteSymbolExpr <$> (char '`' >> atomExpr')
         <|> PartialVarExpr  <$> try (char '%' >> positiveIntegerLiteral)
         <?> "atomic expression"
-
-inductiveDataOrModuleExpr :: Parser EgisonExpr
-inductiveDataOrModuleExpr = do
-  (ident, rest) <- upperOrModuleId
-  return $ case rest of
-             [] -> InductiveDataExpr ident []
-             _  -> VarExpr (Var (ident : rest) [])
 
 partialExpr :: Parser EgisonExpr
 partialExpr = do
@@ -719,7 +711,7 @@ positiveFloatLiteral = lexeme L.float
            <?> "unsigned float"
 
 varLiteral :: Parser Var
-varLiteral = stringToVar <$> lowerId
+varLiteral = stringToVar <$> lowerOrUpperId
 
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
@@ -802,14 +794,13 @@ upperId = (lexeme . try) (p >>= check)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
 
--- Parses both InductiveDataExpr and Var with module
--- ex. "Greater"       -> ("Greater", [])
---     "S.intercalate" -> ("S", ["intercalate"])
-upperOrModuleId :: Parser (String, [String])
-upperOrModuleId = do
-  ident <- (:) <$> upperChar <*> many alphaNumChar
-  follows <- many (char '.' >> some alphaNumChar) <* sc
-  return (ident, follows)
+lowerOrUpperId :: Parser String
+lowerOrUpperId = (lexeme . try) (p >>= check)
+  where
+    p       = (:) <$> satisfy (\c -> c `elem` mathSymbols || isLetter c) <*> many identChar
+    check x = if x `elem` (lowerReservedWords ++ upperReservedWords)
+                then fail $ "keyword " ++ show x ++ " cannot be an identifier"
+                else return x
 
 upperReservedWords :: [String]
 upperReservedWords =
