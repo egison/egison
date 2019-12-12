@@ -17,6 +17,7 @@ module Language.Egison.Desugar
     , desugarExpr
     ) where
 
+import           Control.Monad.Except  (throwError)
 import           Data.Char             (toUpper)
 import           Data.List             (span)
 import           Data.Set              (Set)
@@ -129,18 +130,18 @@ desugar (IndexedExpr b expr indices) =
   case indices of
     [MultiSubscript x y] ->
       case (x, y) of
-        (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr b expr (makeApply "between" [x, y])
         (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2]) ->
           desugarMultiScript SubrefsExpr b1 e1 n1 n2
         (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr _ _ [n2]]) ->
           desugarMultiScript SubrefsExpr b1 e1 n1 n2
+        _ -> throwError $ Default "Index should be IndexedExpr for multi subscript"
     [MultiSuperscript x y] ->
       case (x, y) of
-        (IntegerExpr _, IntegerExpr _) -> return $ SubrefsExpr b expr (makeApply "between" [x, y])
         (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2]) ->
           desugarMultiScript SuprefsExpr b1 e1 n1 n2
         (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr _ _ [n2]]) ->
           desugarMultiScript SuprefsExpr b1 e1 n1 n2
+        _ -> throwError $ Default "Index should be IndexedExpr for multi superscript"
     _ -> IndexedExpr b <$> desugar expr <*> mapM desugarIndex indices
   where
     desugarMultiScript refExpr b1 e1 n1 n2 = do
