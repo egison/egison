@@ -149,8 +149,6 @@ data Index a =
   | MultiSuperscript a a
   | DFscript Integer Integer -- DifferentialForm
   | Userscript a
-  | DotSubscript a
-  | DotSupscript a
  deriving (Eq, Functor, Foldable, Generic, Traversable)
 
 extractIndex :: Index a -> a

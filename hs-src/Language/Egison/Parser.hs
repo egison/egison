@@ -719,8 +719,9 @@ egisonDef =
                 , P.nestedComments     = True
                 , P.caseSensitive      = True }
 
-symbol0 = oneOf "^"
-symbol1 = oneOf "+-*/.=∂∇"
+symbol0 = char '^'
+-- Don't allow three consecutive dots to be a part of identifier
+symbol1 = oneOf "+-*/=∂∇" <|> try (char '.' <* notFollowedBy (string ".."))
 symbol2 = symbol1 <|> oneOf "'!?₀₁₂₃₄₅₆₇₈₉"
 
 lexer :: P.GenTokenParser String () Identity

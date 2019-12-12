@@ -288,21 +288,16 @@ showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (prettyS val) (map p
 showTSV (Collection vals) = intercalate "\t" (map prettyS (toList vals))
 showTSV val = prettyS val
 
-instance PrettyS (Index EgisonExpr) where
-  prettyS (Superscript i)  = "~" ++ prettyS i
+instance PrettyS a => PrettyS (Index a) where
   prettyS (Subscript i)    = "_" ++ prettyS i
+  prettyS (Superscript i)  = "~" ++ prettyS i
   prettyS (SupSubscript i) = "~_" ++ prettyS i
+  prettyS (MultiSubscript x y) = "_[" ++ prettyS x ++ "]..._[" ++ prettyS y ++ "]"
+  prettyS (MultiSuperscript x y) = "~[" ++ prettyS x ++ "]...~[" ++ prettyS y ++ "]"
   prettyS (DFscript _ _)   = ""
   prettyS (Userscript i)   = "|" ++ prettyS i
 
-instance PrettyS (Index ScalarData) where
-  prettyS (Superscript i)  = "~" ++ prettyS i
-  prettyS (Subscript i)    = "_" ++ prettyS i
-  prettyS (SupSubscript i) = "~_" ++ prettyS i
-  prettyS (DFscript _ _)   = ""
-  prettyS (Userscript i)   = "|" ++ prettyS i
-
-instance PrettyS (Index EgisonValue) where
+instance {-# OVERLAPPING #-} PrettyS (Index EgisonValue) where
   prettyS (Superscript i) = case i of
     ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "~[" ++ prettyS i ++ "]"
     _ -> "~" ++ prettyS i
