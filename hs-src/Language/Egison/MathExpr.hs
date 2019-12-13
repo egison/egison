@@ -129,7 +129,7 @@ instance Show (Index ScalarData) where
 --
 
 mathNormalize' :: ScalarData -> ScalarData
-mathNormalize' mExpr = mathDivide (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr)))
+mathNormalize' = mathDivide . mathRemoveZero . mathFold . mathRemoveZeroSymbol
 
 termsGcd :: [TermExpr] -> TermExpr
 termsGcd (t:ts) = f t ts
@@ -155,16 +155,15 @@ termsGcd (t:ts) = f t ts
     | otherwise = h (x, n) ys
 
 mathDivide :: ScalarData -> ScalarData
-mathDivide (Div (Plus ts1) (Plus [])) = Div (Plus ts1) (Plus [])
-mathDivide (Div (Plus []) (Plus ts2)) = Div (Plus []) (Plus ts2)
+mathDivide mExpr@(Div (Plus _) (Plus [])) = mExpr
+mathDivide mExpr@(Div (Plus []) (Plus _)) = mExpr
 mathDivide (Div (Plus ts1) (Plus ts2)) =
-  let z = termsGcd (ts1 ++ ts2) in
-  case z of
-    (Term c zs) -> case ts2 of
-      [Term a _] -> if a < 0
-                      then Div (Plus (map (`mathDivideTerm` Term (-c) zs) ts1)) (Plus (map (`mathDivideTerm` Term (-c) zs) ts2))
-                      else Div (Plus (map (`mathDivideTerm` z) ts1)) (Plus (map (`mathDivideTerm` z) ts2))
-      _ -> Div (Plus (map (`mathDivideTerm` z) ts1)) (Plus (map (`mathDivideTerm` z) ts2))
+  let z@(Term c zs) = termsGcd (ts1 ++ ts2) in
+  case ts2 of
+    [Term a _] | a < 0 -> Div (Plus (map (`mathDivideTerm` Term (-c) zs) ts1))
+                              (Plus (map (`mathDivideTerm` Term (-c) zs) ts2))
+    _                  -> Div (Plus (map (`mathDivideTerm` z) ts1))
+                              (Plus (map (`mathDivideTerm` z) ts2))
 
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
@@ -187,12 +186,12 @@ mathDivideTerm (Term a xs) (Term b ys) =
 
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
-  let p x = case x of
-              (_, 0) -> False
-              _      -> True in
-  let ts1' = map (\(Term a xs) -> Term a (filter p xs)) ts1 in
-  let ts2' = map (\(Term a xs) -> Term a (filter p xs)) ts2 in
-    Div (Plus ts1') (Plus ts2')
+  let ts1' = map (\(Term a xs) -> Term a (filter p xs)) ts1
+      ts2' = map (\(Term a xs) -> Term a (filter p xs)) ts2
+   in Div (Plus ts1') (Plus ts2')
+  where
+    p (_, 0) = False
+    p _      = True
 
 mathRemoveZero :: ScalarData -> ScalarData
 mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
@@ -203,7 +202,7 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
       _  -> Div (Plus ts1') (Plus ts2')
 
 mathFold :: ScalarData -> ScalarData
-mathFold mExpr = mathTermFold (mathSymbolFold (mathTermFold mExpr))
+mathFold = mathTermFold . mathSymbolFold . mathTermFold
 
 -- x^2 y x -> x^3 y
 mathSymbolFold :: ScalarData -> ScalarData
