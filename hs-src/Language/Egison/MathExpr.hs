@@ -47,7 +47,9 @@ newtype PolyExpr =
     Plus [TermExpr]
 
 data TermExpr =
-    Term Integer [(SymbolExpr, Integer)]
+    Term Integer Monomial
+
+type Monomial = [(SymbolExpr, Integer)]
 
 data SymbolExpr =
     Symbol Id String [Index ScalarData]
@@ -132,27 +134,25 @@ mathNormalize' :: ScalarData -> ScalarData
 mathNormalize' = mathDivide . mathRemoveZero . mathFold . mathRemoveZeroSymbol
 
 termsGcd :: [TermExpr] -> TermExpr
-termsGcd (t:ts) = f t ts
+termsGcd (t:ts) =
+  foldl (\(Term a xs) (Term b ys) -> Term (gcd a b) (monoMult xs ys)) t ts
  where
-  f :: TermExpr -> [TermExpr] -> TermExpr
-  f ret [] =  ret
-  f (Term a xs) (Term b ys:ts) =
-    f (Term (gcd a b) (g xs ys)) ts
-  g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
-  g [] _ = []
-  g ((x, n):xs) ys
-    | m == 0    = g xs ys
-    | otherwise = (z, m) : g xs ys
-    where (z, m) = h (x, n) ys
-  h :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> (SymbolExpr, Integer)
-  h (x, _) [] = (x, 0)
-  h (Quote x, n) ((Quote y, m):ys)
+  monoMult :: Monomial -> Monomial -> Monomial
+  monoMult [] _ = []
+  monoMult ((x, n):xs) ys =
+    case f (x, n) ys of
+      (_, 0) -> monoMult xs ys
+      (z, m) -> (z, m) : monoMult xs ys
+
+  f :: (SymbolExpr, Integer) -> Monomial -> (SymbolExpr, Integer)
+  f (x, _) [] = (x, 0)
+  f (Quote x, n) ((Quote y, m):ys)
     | x == y            = (Quote x, min n m)
     | x == mathNegate y = (Quote x, min n m)
-    | otherwise         = h (Quote x, n) ys
-  h (x, n) ((y, m):ys)
+    | otherwise         = f (Quote x, n) ys
+  f (x, n) ((y, m):ys)
     | x == y    = (x, min n m)
-    | otherwise = h (x, n) ys
+    | otherwise = f (x, n) ys
 
 mathDivide :: ScalarData -> ScalarData
 mathDivide mExpr@(Div (Plus _) (Plus [])) = mExpr
