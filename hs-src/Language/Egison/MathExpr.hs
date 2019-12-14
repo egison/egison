@@ -47,7 +47,9 @@ newtype PolyExpr =
     Plus [TermExpr]
 
 data TermExpr =
-    Term Integer [(SymbolExpr, Integer)]
+    Term Integer Monomial
+
+type Monomial = [(SymbolExpr, Integer)]
 
 data SymbolExpr =
     Symbol Id String [Index ScalarData]
@@ -129,42 +131,39 @@ instance Show (Index ScalarData) where
 --
 
 mathNormalize' :: ScalarData -> ScalarData
-mathNormalize' mExpr = mathDivide (mathRemoveZero (mathFold (mathRemoveZeroSymbol mExpr)))
+mathNormalize' = mathDivide . mathRemoveZero . mathFold . mathRemoveZeroSymbol
 
 termsGcd :: [TermExpr] -> TermExpr
-termsGcd (t:ts) = f t ts
+termsGcd (t:ts) =
+  foldl (\(Term a xs) (Term b ys) -> Term (gcd a b) (monoMult xs ys)) t ts
  where
-  f :: TermExpr -> [TermExpr] -> TermExpr
-  f ret [] =  ret
-  f (Term a xs) (Term b ys:ts) =
-    f (Term (gcd a b) (g xs ys)) ts
-  g :: [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)]
-  g [] _ = []
-  g ((x, n):xs) ys
-    | m == 0    = g xs ys
-    | otherwise = (z, m) : g xs ys
-    where (z, m) = h (x, n) ys
-  h :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> (SymbolExpr, Integer)
-  h (x, _) [] = (x, 0)
-  h (Quote x, n) ((Quote y, m):ys)
+  monoMult :: Monomial -> Monomial -> Monomial
+  monoMult [] _ = []
+  monoMult ((x, n):xs) ys =
+    case f (x, n) ys of
+      (_, 0) -> monoMult xs ys
+      (z, m) -> (z, m) : monoMult xs ys
+
+  f :: (SymbolExpr, Integer) -> Monomial -> (SymbolExpr, Integer)
+  f (x, _) [] = (x, 0)
+  f (Quote x, n) ((Quote y, m):ys)
     | x == y            = (Quote x, min n m)
     | x == mathNegate y = (Quote x, min n m)
-    | otherwise         = h (Quote x, n) ys
-  h (x, n) ((y, m):ys)
+    | otherwise         = f (Quote x, n) ys
+  f (x, n) ((y, m):ys)
     | x == y    = (x, min n m)
-    | otherwise = h (x, n) ys
+    | otherwise = f (x, n) ys
 
 mathDivide :: ScalarData -> ScalarData
-mathDivide (Div (Plus ts1) (Plus [])) = Div (Plus ts1) (Plus [])
-mathDivide (Div (Plus []) (Plus ts2)) = Div (Plus []) (Plus ts2)
+mathDivide mExpr@(Div (Plus _) (Plus [])) = mExpr
+mathDivide mExpr@(Div (Plus []) (Plus _)) = mExpr
 mathDivide (Div (Plus ts1) (Plus ts2)) =
-  let z = termsGcd (ts1 ++ ts2) in
-  case z of
-    (Term c zs) -> case ts2 of
-      [Term a _] -> if a < 0
-                      then Div (Plus (map (`mathDivideTerm` Term (-c) zs) ts1)) (Plus (map (`mathDivideTerm` Term (-c) zs) ts2))
-                      else Div (Plus (map (`mathDivideTerm` z) ts1)) (Plus (map (`mathDivideTerm` z) ts2))
-      _ -> Div (Plus (map (`mathDivideTerm` z) ts1)) (Plus (map (`mathDivideTerm` z) ts2))
+  let z@(Term c zs) = termsGcd (ts1 ++ ts2) in
+  case ts2 of
+    [Term a _] | a < 0 -> Div (Plus (map (`mathDivideTerm` Term (-c) zs) ts1))
+                              (Plus (map (`mathDivideTerm` Term (-c) zs) ts2))
+    _                  -> Div (Plus (map (`mathDivideTerm` z) ts1))
+                              (Plus (map (`mathDivideTerm` z) ts2))
 
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
@@ -187,12 +186,12 @@ mathDivideTerm (Term a xs) (Term b ys) =
 
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
-  let p x = case x of
-              (_, 0) -> False
-              _      -> True in
-  let ts1' = map (\(Term a xs) -> Term a (filter p xs)) ts1 in
-  let ts2' = map (\(Term a xs) -> Term a (filter p xs)) ts2 in
-    Div (Plus ts1') (Plus ts2')
+  let ts1' = map (\(Term a xs) -> Term a (filter p xs)) ts1
+      ts2' = map (\(Term a xs) -> Term a (filter p xs)) ts2
+   in Div (Plus ts1') (Plus ts2')
+  where
+    p (_, 0) = False
+    p _      = True
 
 mathRemoveZero :: ScalarData -> ScalarData
 mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
@@ -203,7 +202,7 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
       _  -> Div (Plus ts1') (Plus ts2')
 
 mathFold :: ScalarData -> ScalarData
-mathFold mExpr = mathTermFold (mathSymbolFold (mathTermFold mExpr))
+mathFold = mathTermFold . mathSymbolFold . mathTermFold
 
 -- x^2 y x -> x^3 y
 mathSymbolFold :: ScalarData -> ScalarData
