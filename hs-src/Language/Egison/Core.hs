@@ -379,35 +379,28 @@ evalExpr env (TransposeExpr vars expr) = do
   syms <- evalExpr env vars >>= collectionToList
   whnf <- evalExpr env expr
   case whnf of
-    Intermediate (ITensor t) -> do
-      t' <- tTranspose' syms t
-      return (Intermediate (ITensor t'))
-    Value (TensorData t) -> do
-      t' <- tTranspose' syms t
-      return (Value (TensorData t'))
-    _ -> return whnf
+    Intermediate (ITensor t) -> Intermediate . ITensor <$> tTranspose' syms t
+    Value (TensorData t)     -> Value . TensorData <$> tTranspose' syms t
+    _                        -> return whnf
 
 evalExpr env (FlipIndicesExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Intermediate (ITensor t) -> do
-      t' <- tFlipIndices t
-      return (Intermediate (ITensor t'))
-    Value (TensorData t) -> do
-      t' <- tFlipIndices t
-      return (Value (TensorData t'))
-    _ -> return whnf
+    Intermediate (ITensor t) -> Intermediate . ITensor <$> tFlipIndices t
+    Value (TensorData t)     -> Value . TensorData <$> tFlipIndices t
+    _                        -> return whnf
 
 evalExpr env (WithSymbolsExpr vars expr) = do
   symId <- fresh
   syms <- mapM (newEvaluatedObjectRef . Value . symbolScalarData symId) vars
   let bindings = zip (map stringToVar vars) syms
   whnf <- evalExpr (extendEnv env bindings) expr
+  -- Remove temporary scripts from tensors.
   case whnf of
-    Value (TensorData (Tensor ns xs js)) ->
-      removeTmpscripts symId (Value (TensorData (Tensor ns xs js)))
-    Intermediate (ITensor (Tensor ns xs js)) ->
-      removeTmpscripts symId (Intermediate (ITensor (Tensor ns xs js)))
+    Value (TensorData t@Tensor{}) ->
+      Value . TensorData <$> removeTmpScripts symId t
+    Intermediate (ITensor t@Tensor{}) ->
+      Intermediate . ITensor <$> removeTmpScripts symId t
     _ -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
@@ -415,15 +408,11 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   isTmpSymbol symId (Superscript  (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
   isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
   isTmpSymbol symId (Userscript   (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
-  removeTmpscripts :: String -> WHNFData -> EgisonM WHNFData
-  removeTmpscripts symId (Intermediate (ITensor (Tensor s xs is))) = do
+  removeTmpScripts :: HasTensor a => String -> Tensor a -> EgisonM (Tensor a)
+  removeTmpScripts symId (Tensor s xs is) = do
     let (ds, js) = partition (isTmpSymbol symId) is
     Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
-    return (Intermediate (ITensor (Tensor s ys js)))
-  removeTmpscripts symId (Value (TensorData (Tensor s xs is))) = do
-    let (ds, js) = partition (isTmpSymbol symId) is
-    Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
-    return (Value (TensorData (Tensor s ys js)))
+    return (Tensor s ys js)
 
 
 evalExpr env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
