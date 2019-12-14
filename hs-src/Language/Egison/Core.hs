@@ -213,18 +213,15 @@ evalExpr env (HashExpr assocs) = do
   keys <- mapM makeHashKey keyWhnfs
   refs <- mapM (newObjectRef env) exprs
   case keys of
-    [] -> do
-      let keys' = map (\case IntKey i -> i) keys
-      return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
-    IntKey _ : _ -> do
-      let keys' = map (\case IntKey i -> i) keys
-      return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
     CharKey _ : _ -> do
       let keys' = map (\case CharKey c -> c) keys
       return . Intermediate . ICharHash $ HL.fromList $ zip keys' refs
     StrKey _ : _ -> do
       let keys' = map (\case StrKey s -> s) keys
       return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
+    _ -> do
+      let keys' = map (\case IntKey i -> i) keys
+      return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
  where
   makeHashKey :: WHNFData -> EgisonM EgisonHashKey
   makeHashKey (Value val) =
@@ -395,7 +392,6 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   syms <- mapM (newEvaluatedObjectRef . Value . symbolScalarData symId) vars
   let bindings = zip (map stringToVar vars) syms
   whnf <- evalExpr (extendEnv env bindings) expr
-  -- Remove temporary scripts from tensors.
   case whnf of
     Value (TensorData t@Tensor{}) ->
       Value . TensorData <$> removeTmpScripts symId t
