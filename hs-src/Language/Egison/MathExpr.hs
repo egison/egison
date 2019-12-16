@@ -134,15 +134,15 @@ mathNormalize' :: ScalarData -> ScalarData
 mathNormalize' = mathDivide . mathRemoveZero . mathFold . mathRemoveZeroSymbol
 
 termsGcd :: [TermExpr] -> TermExpr
-termsGcd (t:ts) =
-  foldl (\(Term a xs) (Term b ys) -> Term (gcd a b) (monoMult xs ys)) t ts
+termsGcd ts@(_:_) =
+  foldl1 (\(Term a xs) (Term b ys) -> Term (gcd a b) (monoGcd xs ys)) ts
  where
-  monoMult :: Monomial -> Monomial -> Monomial
-  monoMult [] _ = []
-  monoMult ((x, n):xs) ys =
+  monoGcd :: Monomial -> Monomial -> Monomial
+  monoGcd [] _ = []
+  monoGcd ((x, n):xs) ys =
     case f (x, n) ys of
-      (_, 0) -> monoMult xs ys
-      (z, m) -> (z, m) : monoMult xs ys
+      (_, 0) -> monoGcd xs ys
+      (z, m) -> (z, m) : monoGcd xs ys
 
   f :: (SymbolExpr, Integer) -> Monomial -> (SymbolExpr, Integer)
   f (x, _) [] = (x, 0)
