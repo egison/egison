@@ -31,7 +31,7 @@ import           Control.Monad.State            (unless)
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Functor                   (($>))
 import           Data.List                      (find, groupBy)
-import           Data.Maybe                     (fromJust, isJust)
+import           Data.Maybe                     (fromJust, isJust, isNothing)
 import           Data.Text                      (pack)
 
 import           Control.Monad.Combinators.Expr
@@ -510,7 +510,7 @@ atomOrApplyExpr = do
 atomExpr :: Parser EgisonExpr
 atomExpr = do
   e <- atomExpr'
-  override <- not . isJust <$> optional (try (string "..." <* lookAhead index))
+  override <- isNothing <$> optional (try (string "..." <* lookAhead index))
   -- TODO(momohatt): "..." (override of index) collides with ContPat
   indices <- many index
   return $ case indices of

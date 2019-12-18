@@ -333,7 +333,7 @@ evalExpr (Env _ Nothing) (FunctionExpr _) = throwError $ Default "function symbo
 
 evalExpr env@(Env _ (Just name)) (FunctionExpr args) = do
   args' <- mapM (evalExprDeep env) args >>= mapM extractScalar
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map ((symbolScalarData' "") . prettyS) args) args' [], 1)]]) (Plus [Term 1 []]))
+  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map (symbolScalarData' "" . prettyS) args) args' [], 1)]]) (Plus [Term 1 []]))
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
@@ -443,7 +443,7 @@ evalExpr env (MatchAllExpr pmmode target matcher clauses) = do
   f matcher target = do
       let tryMatchClause (pattern, expr) results = do
             result <- patternMatch pmmode env pattern target matcher
-            mmap (flip evalExpr expr . extendEnv env) result >>= flip mappend results
+            mmap (flip evalExpr expr . extendEnv env) result >>= (`mappend` results)
       mfoldr tryMatchClause (return MNil) (fromList clauses)
 
 evalExpr env (MatchExpr pmmode target matcher clauses) = do
@@ -493,10 +493,10 @@ evalExpr env (ApplyExpr func arg) = do
         TupleExpr exprs ->
           Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs
         _ -> throwError $ Default "argument is not a tuple"
-    Value (TensorData t@(Tensor _ _ _)) -> do
+    Value (TensorData t@Tensor{}) -> do
       arg <- evalExpr env arg
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor) >>= removeDFscripts
-    Intermediate (ITensor t@(Tensor _ _ _)) -> do
+    Intermediate (ITensor t@Tensor{}) -> do
       arg <- evalExpr env arg
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env' names body) -> do
@@ -524,9 +524,9 @@ evalExpr env (WedgeApplyExpr func arg) = do
   let k = fromIntegral (length arg)
   arg <- zipWithM appendDFscripts [1..k] arg >>= makeITuple
   case func of
-    Value (TensorData t@(Tensor _ _ _)) ->
+    Value (TensorData t@Tensor{}) ->
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor)
-    Intermediate (ITensor t@(Tensor _ _ _)) ->
+    Intermediate (ITensor t@Tensor{}) ->
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc name ref hashRef env names body) -> do
       indices <- evalWHNF arg
@@ -945,10 +945,10 @@ patternMatch pmmode env pattern target matcher =
                         , mTrees         = [MAtom pattern target matcher]
                         }
 
-processMStatesAllDFS :: (MList EgisonM MatchingState) -> EgisonM (MList EgisonM Match)
+processMStatesAllDFS :: MList EgisonM MatchingState -> EgisonM (MList EgisonM Match)
 processMStatesAllDFS MNil = return MNil
-processMStatesAllDFS (MCons (MState _ _ [] bindings []) ms) = MCons bindings <$> (processMStatesAllDFS <$> ms)
-processMStatesAllDFS (MCons mstate ms) = processMState mstate >>= (flip mappend) ms >>= processMStatesAllDFS
+processMStatesAllDFS (MCons (MState _ _ [] bindings []) ms) = MCons bindings . processMStatesAllDFS <$> ms
+processMStatesAllDFS (MCons mstate ms) = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFS
 
 processMStatesAll :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
 processMStatesAll [] = return MNil
@@ -965,7 +965,7 @@ extractMatches = extractMatches' ([], [])
  where
   extractMatches' :: ([Match], [MList EgisonM MatchingState]) -> [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
   extractMatches' (xs, ys) [] = return (xs, ys)
-  extractMatches' (xs, ys) ((MCons (gatherBindings -> Just bindings) states):rest) = do
+  extractMatches' (xs, ys) (MCons (gatherBindings -> Just bindings) states : rest) = do
     states' <- states
     extractMatches' (xs ++ [bindings], ys ++ [states']) rest
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
@@ -1009,7 +1009,7 @@ processMState' mstate@MState{ seqPatCtx = SeqPatContext stack seqPat mats tgts:s
   return . msingleton $ mstate { seqPatCtx = seqs, mTrees = MAtom seqPat tgt' mat' : stack }
 
 -- Matching Nodes
-processMState' MState{ mTrees = MNode _ (MState{ mStateBindings = [], mTrees = [] }):_ } = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
+processMState' MState{ mTrees = MNode _ MState{ mStateBindings = [], mTrees = [] }:_ } = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
 
 processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (VarPat name) target matcher:trees' }:trees } =
   case lookup name penv of
@@ -1280,7 +1280,7 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') whnf = do
   (++) <$> primitiveDataPatternMatch pattern init'
        <*> primitiveDataPatternMatch pattern' last'
 primitiveDataPatternMatch (PDConstantPat expr) whnf = do
-  target <- (either (const matchFail) return) $ extractPrimitiveValue whnf
+  target <- either (const matchFail) return $ extractPrimitiveValue whnf
   isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
   if isEqual then return [] else matchFail
  where

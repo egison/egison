@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TupleSections              #-}
 
@@ -197,22 +196,22 @@ desugar (LambdaExpr names expr) = do
                                     _           -> False) (reverse names)
   case rhnames of
     [] -> LambdaExpr names <$> desugar expr
-    (InvertedScalarArg rhname:rhnames') -> do
+    InvertedScalarArg rhname:rhnames' ->
       case rhnames' of
         [] -> desugar $ LambdaExpr (reverse rhnames' ++ [TensorArg rhname] ++ reverse rtnames)
                           (TensorMapExpr (LambdaExpr [TensorArg rhname] expr) (FlipIndicesExpr (stringToVarExpr rhname)))
-        (ScalarArg rhname2:rhnames2') ->
+        ScalarArg rhname2:rhnames2' ->
           desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2, TensorArg rhname] ++ reverse rtnames)
                       (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr)
                                       (stringToVarExpr rhname2)
                                       (FlipIndicesExpr (stringToVarExpr rhname)))
-        (InvertedScalarArg rhname2:rhnames2') ->
+        InvertedScalarArg rhname2:rhnames2' ->
           desugar $ LambdaExpr (reverse rhnames2' ++ [TensorArg rhname2, TensorArg rhname] ++ reverse rtnames)
                       (TensorMap2Expr (LambdaExpr [TensorArg rhname2, TensorArg rhname] expr)
                                       (FlipIndicesExpr (stringToVarExpr rhname2))
                                       (FlipIndicesExpr (stringToVarExpr rhname)))
 
-    (ScalarArg rhname:rhnames') -> do
+    ScalarArg rhname:rhnames' -> do
       let (rtnames2, rhnames2) = span (\case
                                           TensorArg _ -> True
                                           _           -> False) rhnames'
@@ -283,7 +282,7 @@ desugar (UnaryOpExpr "!" (ApplyExpr expr1 expr2)) =
 desugar (UnaryOpExpr "'" expr) = QuoteExpr <$> desugar expr
 desugar (UnaryOpExpr "`" expr) = QuoteSymbolExpr <$> desugar expr
 
-desugar (BinaryOpExpr op expr1 expr2) | isWedge op = do
+desugar (BinaryOpExpr op expr1 expr2) | isWedge op =
   (\x y -> WedgeApplyExpr (stringToVarExpr (func op)) (TupleExpr [x, y]))
     <$> desugar expr1 <*> desugar expr2
 
