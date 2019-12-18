@@ -74,7 +74,6 @@ data EgisonExpr =
   | VectorExpr [EgisonExpr]
 
   | LambdaExpr [Arg] EgisonExpr
-  | LambdaArgExpr [Char]
   | MemoizedLambdaExpr [String] EgisonExpr
   | MemoizeExpr [(EgisonExpr, EgisonExpr, EgisonExpr)] EgisonExpr
   | CambdaExpr String EgisonExpr
