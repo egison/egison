@@ -77,6 +77,7 @@ collectDefs :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTo
 collectDefs opts (expr:exprs) bindings rest =
   case expr of
     Define name expr -> collectDefs opts exprs ((name, expr) : bindings) rest
+    DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
     Redefine _ _ -> collectDefs opts exprs bindings $ if optTestOnly opts then expr : rest else rest
     Test _ -> collectDefs opts exprs bindings $ if optTestOnly opts then expr : rest else rest
     Execute _ -> collectDefs opts exprs bindings $ if optTestOnly opts then rest else expr : rest
@@ -96,6 +97,7 @@ collectDefs _ [] bindings rest = return (bindings, reverse rest)
 
 evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
 evalTopExpr' _ st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
+evalTopExpr' _ _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
 evalTopExpr' _ st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
 evalTopExpr' opts st (Test expr) = do
   pushFuncName "<stdin>"
