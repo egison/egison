@@ -894,17 +894,17 @@ isScalar (ScalarData _) = True
 isScalar _              = False
 
 isScalar' :: PrimitiveFunc
-isScalar' (Value (ScalarData _)) = return $ Value $ Bool $ True
-isScalar' _           = return $ Value $ Bool False
+isScalar' (Value (ScalarData _)) = return $ Value $ Bool True
+isScalar' _                      = return $ Value $ Bool False
 
 isTensor :: EgisonValue -> Bool
 isTensor (TensorData _) = True
 isTensor _              = False
 
 isTensor' :: PrimitiveFunc
-isTensor' (Value (TensorData _)) = return $ Value $ Bool $ True
-isTensor' (Intermediate (ITensor _)) = return $ Value $ Bool $ True
-isTensor' _           = return $ Value $ Bool False
+isTensor' (Value (TensorData _))     = return $ Value $ Bool True
+isTensor' (Intermediate (ITensor _)) = return $ Value $ Bool True
+isTensor' _                          = return $ Value $ Bool False
 
 isTensorWithIndex :: EgisonValue -> Bool
 isTensorWithIndex (TensorData (Tensor _ _ (_:_))) = True
