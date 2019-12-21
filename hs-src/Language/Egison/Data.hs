@@ -195,16 +195,16 @@ instance HasTensor WHNFData where
 --
 
 symbolScalarData :: String -> String -> EgisonValue
-symbolScalarData id name = ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))
+symbolScalarData id name = ScalarData (SingleTerm 1 [(Symbol id name [], 1)])
 
 symbolScalarData' :: String -> String -> ScalarData
-symbolScalarData' id name = Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []])
+symbolScalarData' id name = SingleTerm 1 [(Symbol id name [], 1)]
 
 getSymId :: EgisonValue -> String
-getSymId (ScalarData (Div (Plus [Term 1 [(Symbol id _ [], 1)]]) (Plus [Term 1 []]))) = id
+getSymId (ScalarData (SingleTerm 1 [(Symbol id _ [], 1)])) = id
 
 getSymName :: EgisonValue -> String
-getSymName (ScalarData (Div (Plus [Term 1 [(Symbol _ name [], 1)]]) (Plus [Term 1 []]))) = name
+getSymName (ScalarData (SingleTerm 1 [(Symbol _ name [], 1)])) = name
 
 mathExprToEgison :: ScalarData -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [polyExprToEgison p1, polyExprToEgison p2]
@@ -239,16 +239,16 @@ egisonToScalarData t1@(InductiveData "Term" _) = do
   return $ Div (Plus [t1']) (Plus [Term 1 []])
 egisonToScalarData s1@(InductiveData "Symbol" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 ::Integer)])
-  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
+  return $ SingleTerm 1 [s1']
 egisonToScalarData s1@(InductiveData "Apply" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
+  return $ SingleTerm 1 [s1']
 egisonToScalarData s1@(InductiveData "Quote" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
+  return $ SingleTerm 1 [s1']
 egisonToScalarData s1@(InductiveData "Function" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ Div (Plus [Term 1 [s1']]) (Plus [Term 1 []])
+  return $ SingleTerm 1 [s1']
 egisonToScalarData val = throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
 
 egisonToPolyExpr :: EgisonValue -> EgisonM PolyExpr
@@ -407,9 +407,9 @@ instance EgisonData Bool where
 
 instance EgisonData Integer where
   toEgison 0 = ScalarData $ mathNormalize' (Div (Plus []) (Plus [Term 1 []]))
-  toEgison i = ScalarData $ mathNormalize' (Div (Plus [Term i []]) (Plus [Term 1 []]))
+  toEgison i = ScalarData $ mathNormalize' (SingleTerm i [])
   fromEgison (ScalarData (Div (Plus []) (Plus [Term 1 []]))) = return 0
-  fromEgison (ScalarData (Div (Plus [Term x []]) (Plus [Term 1 []]))) = return x
+  fromEgison (ScalarData (SingleTerm x [])) = return x
   fromEgison val = throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack
 
 instance EgisonData Rational where
@@ -532,7 +532,7 @@ instance EgisonWHNF Bool where
 
 instance EgisonWHNF Integer where
   fromWHNF (Value (ScalarData (Div (Plus []) (Plus [Term 1 []])))) = return 0
-  fromWHNF (Value (ScalarData (Div (Plus [Term x []]) (Plus [Term 1 []])))) = return x
+  fromWHNF (Value (ScalarData (SingleTerm x []))) = return x
   fromWHNF whnf = throwError =<< TypeMismatch "integer" whnf <$> getFuncNameStack
 
 instance EgisonWHNF Double where
@@ -554,15 +554,15 @@ type Binding = (Var, ObjectRef)
 
 instance Show (Index EgisonValue) where
   show (Superscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "~[" ++ show i ++ "]"
+    ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "~[" ++ show i ++ "]"
     _ -> "~" ++ show i
   show (Subscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+    ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
     _ -> "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
   show (DFscript i j) = "_d" ++ show i ++ show j
   show (Userscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ show i ++ "]"
+    ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
     _ -> "|" ++ show i
 
 nullEnv :: Env
