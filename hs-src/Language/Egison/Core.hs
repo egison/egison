@@ -133,7 +133,7 @@ evalExpr _ (FloatExpr x)   = return . Value $ Float x
 evalExpr env (QuoteExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value (ScalarData s) -> return . Value $ ScalarData $ Div (Plus [Term 1 [(Quote s, 1)]]) (Plus [Term 1 []])
+    Value (ScalarData s) -> return . Value $ ScalarData $ SingleTerm 1 [(Quote s, 1)]
     _ -> throwError =<< TypeMismatch "scalar in quote" whnf <$> getFuncNameStack
 
 evalExpr env (QuoteSymbolExpr expr) = do
@@ -245,12 +245,12 @@ evalExpr env (IndexedExpr bool expr indices) = do
               _ -> evalExpr env expr
   js <- mapM evalIndex indices
   ret <- case tensor of
-      Value (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) -> do
+      Value (ScalarData (SingleTerm 1 [(Symbol id name [], 1)])) -> do
         js2 <- mapM evalIndexToScalar indices
-        return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js2, 1)]]) (Plus [Term 1 []])))
-      Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js', 1)]]) (Plus [Term 1 []]))) -> do
+        return $ Value (ScalarData (SingleTerm 1 [(Symbol id name js2, 1)]))
+      Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
         js2 <- mapM evalIndexToScalar indices
-        return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (js' ++ js2), 1)]]) (Plus [Term 1 []])))
+        return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
       Value (TensorData (Tensor ns xs is)) ->
         if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
                 else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
@@ -312,10 +312,10 @@ evalExpr env (UserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
   js <- map Userscript <$> (evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar)
   case val of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])) ->
-      return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
-    ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args is, 1)]]) (Plus [Term 1 []])) ->
-      return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
+    ScalarData (SingleTerm 1 [(Symbol id name is, 1)]) ->
+      return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (is ++ js), 1)]))
+    ScalarData (SingleTerm 1 [(FunctionData name argnames args is, 1)]) ->
+      return $ Value (ScalarData (SingleTerm 1 [(FunctionData name argnames args (is ++ js), 1)]))
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
 evalExpr env (LambdaExpr names expr) = do
@@ -336,7 +336,7 @@ evalExpr (Env _ Nothing) (FunctionExpr _) = throwError $ Default "function symbo
 
 evalExpr env@(Env _ (Just name)) (FunctionExpr args) = do
   args' <- mapM (evalExprDeep env) args >>= mapM extractScalar
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map (symbolScalarData' "" . prettyS) args) args' [], 1)]]) (Plus [Term 1 []]))
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map (symbolScalarData' "" . prettyS) args) args' [], 1)])
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
@@ -403,10 +403,10 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     _ -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
-  isTmpSymbol symId (Subscript    (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (Superscript  (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (Userscript   (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (Subscript    (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
+  isTmpSymbol symId (Superscript  (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
+  isTmpSymbol symId (SupSubscript (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
+  isTmpSymbol symId (Userscript   (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
   removeTmpScripts :: HasTensor a => String -> Tensor a -> EgisonM (Tensor a)
   removeTmpScripts symId (Tensor s xs is) = do
     let (ds, js) = partition (isTmpSymbol symId) is
@@ -490,7 +490,7 @@ evalExpr env (CApplyExpr func arg) = do
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
   case func of
---    Value (ScalarData (Div (Plus [Term 1 [(Symbol "" name@(c:_) [], 1)]]) (Plus [Term 1 []]))) | isUpper c ->
+--    Value (ScalarData (SingleTerm 1 [(Symbol "" name@(c:_) [], 1)])) | isUpper c ->
     Value (InductiveData name []) ->
       case arg of
         TupleExpr exprs ->
@@ -787,12 +787,12 @@ applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
      _           -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
-applyFunc _ (Value (ScalarData fn@(Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])))) arg = do
+applyFunc _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) arg = do
   args <- tupleToList arg
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
                             _ -> throwError =<< EgisonBug "to use undefined functions, you have to use ScalarData args" <$> getFuncNameStack) args
-  return (Value (ScalarData (Div (Plus [Term 1 [(Apply fn mExprs, 1)]]) (Plus [Term 1 []]))))
+  return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
@@ -804,7 +804,7 @@ refArray (Value (Array array)) (index:indices) =
               then refArray (Value (array Array.! i)) indices
               else return  $ Value Undefined
     else case index of
-           ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []])) -> do
+           ScalarData (SingleTerm 1 [(Symbol _ _ [], 1)]) -> do
              let (_,size) = Array.bounds array
              elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
              elmRefs <- mapM newEvaluatedObjectRef elms
@@ -818,7 +818,7 @@ refArray (Intermediate (IArray array)) (index:indices) =
                    evalRef ref >>= flip refArray indices
               else return  $ Value Undefined
     else case index of
-           ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []])) -> do
+           ScalarData (SingleTerm 1 [(Symbol _ _ [], 1)]) -> do
              let (_,size) = Array.bounds array
              let refs = Array.elems array
              arrs <- mapM evalRef refs
