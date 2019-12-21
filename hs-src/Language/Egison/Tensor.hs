@@ -92,9 +92,12 @@ tref [] (Tensor [] xs _)
   | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
   | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
 tref [] t = fromTensor t
-tref (Subscript m@ScalarData{}    : ms) t = fromEgison m >>= \i -> tIntRef' i t >>= toTensor >>= tref ms
-tref (Superscript m@ScalarData{}  : ms) t = fromEgison m >>= \i -> tIntRef' i t >>= toTensor >>= tref ms
-tref (SupSubscript m@ScalarData{} : ms) t = fromEgison m >>= \i -> tIntRef' i t >>= toTensor >>= tref ms
+tref (Subscript    (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
+tref (Subscript    (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
+tref (Superscript  (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
+tref (Superscript  (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
+tref (SupSubscript (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
+tref (SupSubscript (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
 tref (Subscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
