@@ -86,16 +86,17 @@ tIntRef [] (Tensor [] xs _)
 tIntRef [] t = return t
 tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms
 
+-- TODO(momohatt): Refactor.
 tref :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM a
 tref [] (Tensor [] xs _)
   | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
   | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
 tref [] t = fromTensor t
-tref (Subscript (ScalarData (Div (Plus [Term m []]) (Plus [Term 1 []]))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref (Subscript (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
-tref (Superscript (ScalarData (Div (Plus [Term m []]) (Plus [Term 1 []]))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref (Superscript (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
-tref (SupSubscript (ScalarData (Div (Plus [Term m []]) (Plus [Term 1 []]))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref (Subscript    (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
+tref (Subscript    (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
+tref (Superscript  (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
+tref (Superscript  (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
+tref (SupSubscript (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
 tref (SupSubscript (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
 tref (Subscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
@@ -376,8 +377,8 @@ tContract' t@(Tensor ns _ js) =
     [] -> return t
     (m,n):_ -> do
       let (hjs, mjs, tjs) = removePairs (m,n) js
-      xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ mjs
-                                    ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ tjs) t)
+      xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (SingleTerm i []))] ++ mjs
+                                   ++ [Subscript (ScalarData (SingleTerm i []))] ++ tjs) t)
                   [1..(ns !! m)]
       mapM toTensor xs' >>= tConcat (js !! m) >>= tTranspose (hjs ++ [js !! m] ++ mjs ++ tjs) >>= tContract'
  where

@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PatternSynonyms   #-}
 
 {- |
 Module      : Language.Egison.MathExpr
@@ -15,6 +16,7 @@ module Language.Egison.MathExpr
     , PolyExpr (..)
     , TermExpr (..)
     , SymbolExpr (..)
+    , pattern SingleTerm
     -- * Scalar
     , mathNormalize'
     , mathFold
@@ -39,26 +41,31 @@ import           Language.Egison.AST
 --
 
 
-data ScalarData =
-    Div PolyExpr PolyExpr
+data ScalarData
+  = Div PolyExpr PolyExpr
  deriving (Eq)
 
-newtype PolyExpr =
-    Plus [TermExpr]
+newtype PolyExpr
+  = Plus [TermExpr]
 
-data TermExpr =
-    Term Integer Monomial
+data TermExpr
+  = Term Integer Monomial
 
+-- We choose the definition 'monomials' without its coefficients.
+-- ex. 2 x^2 y^3 is *not* a monomial. x^2 t^3 is a monomial.
 type Monomial = [(SymbolExpr, Integer)]
 
-data SymbolExpr =
-    Symbol Id String [Index ScalarData]
+data SymbolExpr
+  = Symbol Id String [Index ScalarData]
   | Apply ScalarData [ScalarData]
   | Quote ScalarData
   | FunctionData ScalarData [ScalarData] [ScalarData] [Index ScalarData] -- fnname argnames args indices
  deriving (Eq)
 
 type Id = String
+
+pattern SingleTerm :: Integer -> Monomial -> ScalarData
+pattern SingleTerm coeff mono = Div (Plus [Term coeff mono]) (Plus [Term 1 []])
 
 instance Eq PolyExpr where
   (Plus []) == (Plus []) = True
