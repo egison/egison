@@ -103,6 +103,7 @@ Library
                    Language.Egison.Core
                    Language.Egison.CmdOptions
                    Language.Egison.Desugar
+                   Language.Egison.Data
                    Language.Egison.Types
                    Language.Egison.Tensor
                    Language.Egison.Parser
