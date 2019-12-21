@@ -218,21 +218,18 @@ termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.
 symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
 symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolScalarData id x, f js], toEgison n]
  where
-  f js = Collection (Sq.fromList (map (\case
-                                          Superscript k -> InductiveData "Sup" [ScalarData k]
-                                          Subscript k -> InductiveData "Sub" [ScalarData k]
-                                          Userscript k -> InductiveData "User" [ScalarData k]
-                                      ) js))
+  f js = Collection (Sq.fromList (map scalarIndexToEgison js))
 symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (FunctionData name argnames args js, n) =
   Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList (map ScalarData args)), f js], toEgison n]
  where
-  f js = Collection (Sq.fromList (map (\case
-                                          Superscript k -> InductiveData "Sup" [ScalarData k]
-                                          Subscript k -> InductiveData "Sub" [ScalarData k]
-                                          Userscript k -> InductiveData "User" [ScalarData k]
-                                      ) js))
+  f js = Collection (Sq.fromList (map scalarIndexToEgison js))
+
+scalarIndexToEgison :: Index ScalarData -> EgisonValue
+scalarIndexToEgison (Superscript k) = InductiveData "Sup"  [ScalarData k]
+scalarIndexToEgison (Subscript k)   = InductiveData "Sub"  [ScalarData k]
+scalarIndexToEgison (Userscript k)  = InductiveData "User" [ScalarData k]
 
 egisonToScalarData :: EgisonValue -> EgisonM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
@@ -265,12 +262,7 @@ egisonToTermExpr val = throwError =<< TypeMismatch "math term expression" (Value
 egisonToSymbolExpr :: EgisonValue -> EgisonM (SymbolExpr, Integer)
 egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
   let js = toList seq
-  js' <- mapM (\j -> case j of
-                       InductiveData "Sup" [ScalarData k] -> return (Superscript k)
-                       InductiveData "Sub" [ScalarData k] -> return (Subscript k)
-                       InductiveData "User" [ScalarData k] -> return (Userscript k)
-                       _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
-               ) js
+  js' <- mapM egisonToScalarIndex js
   n' <- fromEgison n
   case x of
     (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) ->
@@ -289,15 +281,17 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, 
   argnames' <- mapM extractScalar (toList argnames)
   args' <- mapM extractScalar (toList args)
   let js = toList seq
-  js' <- mapM (\j -> case j of
-                         InductiveData "Sup" [ScalarData k] -> return (Superscript k)
-                         InductiveData "Sub" [ScalarData k] -> return (Subscript k)
-                         InductiveData "User" [ScalarData k] -> return (Userscript k)
-                         _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
-               ) js
+  js' <- mapM egisonToScalarIndex js
   n' <- fromEgison n
   return (FunctionData name' argnames' args' js', n')
 egisonToSymbolExpr val = throwError =<< TypeMismatch "math symbol expression" (Value val) <$> getFuncNameStack
+
+egisonToScalarIndex :: EgisonValue -> EgisonM (Index ScalarData)
+egisonToScalarIndex j = case j of
+  InductiveData "Sup"  [ScalarData k] -> return (Superscript k)
+  InductiveData "Sub"  [ScalarData k] -> return (Subscript k)
+  InductiveData "User" [ScalarData k] -> return (Userscript k)
+  _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
 
 --
 -- ExtractScalar
@@ -315,6 +309,8 @@ extractScalar' val = throwError =<< TypeMismatch "integer or string" val <$> get
 --
 --
 
+-- New-syntax version of EgisonValue pretty printer.
+-- TODO(momohatt): Don't make it a show instance of EgisonValue.
 instance Show EgisonValue where
   show (Char c) = '\'' : c : "'"
   show (String str) = show str
