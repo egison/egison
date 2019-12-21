@@ -23,7 +23,7 @@ import           Data.Set              (Set)
 import qualified Data.Set              as S
 
 import           Language.Egison.AST
-import           Language.Egison.Types
+import           Language.Egison.Data
 
 desugarTopExpr :: EgisonTopExpr -> EgisonM EgisonTopExpr
 desugarTopExpr (Define name expr)   = Define name <$> desugar expr

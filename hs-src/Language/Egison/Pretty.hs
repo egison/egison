@@ -24,7 +24,7 @@ import qualified Data.Vector               as V
 
 import           Language.Egison.AST
 import           Language.Egison.MathExpr
-import           Language.Egison.Types
+import           Language.Egison.Data
 
 --
 -- Pretty printing for Non-S syntax

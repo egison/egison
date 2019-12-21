@@ -41,7 +41,7 @@ import           Data.List                 (any, delete, elem, find, findIndex,
 
 import           Language.Egison.AST
 import           Language.Egison.MathExpr
-import           Language.Egison.Types
+import           Language.Egison.Data
 
 --
 -- Tensors
