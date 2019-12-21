@@ -235,7 +235,7 @@ evalExpr env (HashExpr assocs) = do
       _ -> throwError =<< TypeMismatch "integer or string" (Value val) <$> getFuncNameStack
   makeHashKey whnf = throwError =<< TypeMismatch "integer or string" whnf <$> getFuncNameStack
 
-evalExpr env (IndexedExpr bool expr indices) = do
+evalExpr env (IndexedExpr override expr indices) = do
   tensor <- case expr of
               VarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ map (const () <$>) indices)
@@ -251,12 +251,8 @@ evalExpr env (IndexedExpr bool expr indices) = do
       Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
         js2 <- mapM evalIndexToScalar indices
         return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
-      Value (TensorData (Tensor ns xs is)) ->
-        if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
-                else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-      Intermediate (ITensor (Tensor ns xs is)) ->
-        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+      Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
+      Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
       _ -> do
         js2 <- mapM evalIndexToScalar indices
         refArray tensor (map (ScalarData . extractIndex) js2)
@@ -268,7 +264,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
   evalIndexToScalar :: Index EgisonExpr -> EgisonM (Index ScalarData)
   evalIndexToScalar index = traverse ((extractScalar =<<) . evalExprDeep env) index
 
-evalExpr env (SubrefsExpr bool expr jsExpr) = do
+evalExpr env (SubrefsExpr override expr jsExpr) = do
   js <- map Subscript <$> (evalExpr env jsExpr >>= collectionToList)
   tensor <- case expr of
               VarExpr (Var xs is) -> do
@@ -278,17 +274,12 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
                   Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
   case tensor of
-    Value (ScalarData _) ->
-      return tensor
-    Value (TensorData (Tensor ns xs is)) ->
-      if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
-              else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-    Intermediate (ITensor (Tensor ns xs is)) ->
-      if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-              else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+    Value (ScalarData _)              -> return tensor
+    Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
+    Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
     _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
 
-evalExpr env (SuprefsExpr bool expr jsExpr) = do
+evalExpr env (SuprefsExpr override expr jsExpr) = do
   js <- map Superscript <$> (evalExpr env jsExpr >>= collectionToList)
   tensor <- case expr of
               VarExpr (Var xs is) -> do
@@ -298,14 +289,9 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
                   Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
   case tensor of
-    Value (ScalarData _) ->
-      return tensor
-    Value (TensorData (Tensor ns xs is)) ->
-      if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
-              else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-    Intermediate (ITensor (Tensor ns xs is)) ->
-      if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-              else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+    Value (ScalarData _)              -> return tensor
+    Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
+    Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
     _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
 
 evalExpr env (UserrefsExpr _ expr jsExpr) = do
@@ -1429,3 +1415,10 @@ makeITuple :: [WHNFData] -> EgisonM WHNFData
 makeITuple []  = return $ Intermediate (ITuple [])
 makeITuple [x] = return x
 makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
+
+-- Refer the specified tensor index with potential overriding of the index.
+refTenworWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EgisonM a
+refTenworWithOverride override js (Tensor ns xs is) =
+  tref js' (Tensor ns xs js') >>= toTensor >>= tContract' >>= fromTensor
+    where
+      js' = if override then js else is ++ js
