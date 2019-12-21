@@ -121,7 +121,7 @@ desugar (MatchLambdaExpr matcher clauses) = do
 
 desugar (ArrayRefExpr expr nums) =
   case nums of
-    (TupleExpr nums') -> desugar $ IndexedExpr True expr (map Subscript nums')
+    TupleExpr nums' -> desugar $ IndexedExpr True expr (map Subscript nums')
     _ -> desugar $ IndexedExpr True expr [Subscript nums]
 
 -- TODO: Allow nested MultiSubscript and MultiSuperscript
@@ -174,12 +174,12 @@ desugar expr@(CollectionExpr []) = return expr
 
 desugar (CollectionExpr (ElementExpr elm:inners)) = do
   elm' <- desugar elm
-  (CollectionExpr inners') <- desugar (CollectionExpr inners)
+  CollectionExpr inners' <- desugar (CollectionExpr inners)
   return $ CollectionExpr (ElementExpr elm':inners')
 
 desugar (CollectionExpr (SubCollectionExpr sub:inners)) = do
   sub' <- desugar sub
-  (CollectionExpr inners') <- desugar (CollectionExpr inners)
+  CollectionExpr inners' <- desugar (CollectionExpr inners)
   return $ CollectionExpr (SubCollectionExpr sub':inners')
 
 desugar (VectorExpr exprs) =
@@ -427,20 +427,17 @@ desugarLoopRange (LoopRange sExpr eExpr pattern) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pattern
 
 desugarBindings :: [BindingExpr] -> EgisonM [BindingExpr]
-desugarBindings = mapM f
-  where f (name, expr) = (name,) <$> desugar expr
+desugarBindings = mapM (\(name, expr) -> (name,) <$> desugar expr)
 
 desugarMatchClauses :: [MatchClause] -> EgisonM [MatchClause]
-desugarMatchClauses = mapM f
-  where f (pattern, expr) = (,) <$> desugarPattern pattern <*> desugar expr
+desugarMatchClauses = mapM (\(pattern, expr) -> (,) <$> desugarPattern pattern <*> desugar expr)
 
 desugarPatternDef :: PatternDef -> EgisonM PatternDef
 desugarPatternDef (pp, matcher, pds) =
   (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, EgisonExpr)] -> EgisonM [(PrimitiveDataPattern, EgisonExpr)]
-desugarPrimitiveDataMatchClauses = mapM f
-  where f (pd, expr) = (pd,) <$> desugar expr
+desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (pd,) <$> desugar expr)
 
 makeApply :: String -> [EgisonExpr] -> EgisonExpr
 makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
