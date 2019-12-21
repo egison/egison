@@ -236,7 +236,6 @@ instance PrettyS EgisonValue where
   prettyS Something = "something"
   prettyS Undefined = "undefined"
   prettyS World = "#<world>"
-  prettyS EOF = "#<eof>"
 
 instance PrettyS Var where
   prettyS = show
