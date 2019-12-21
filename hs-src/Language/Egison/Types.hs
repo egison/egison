@@ -164,7 +164,6 @@ data EgisonValue =
   | Port Handle
   | Something
   | Undefined
-  | EOF
 
 type Matcher = EgisonValue
 
@@ -378,7 +377,6 @@ instance Show EgisonValue where
   show Something = "something"
   show Undefined = "undefined"
   show World = "#<world>"
-  show EOF = "#<eof>"
 
 -- False if we have to put parenthesis around it to make it an atomic expression.
 isAtomic :: EgisonValue -> Bool
