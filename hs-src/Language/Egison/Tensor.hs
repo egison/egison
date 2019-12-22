@@ -155,7 +155,7 @@ transIndex (j1:js1) js2 is = do
     else do let n = length hjs2 + 1
             rs <- transIndex js1 (hjs2 ++ tail tjs2) (take (n - 1) is ++ drop n is)
             return (nth (fromIntegral n) is:rs)
-transIndex _ _ _ = throwError =<< InconsistentTensorSize <$> getFuncNameStack
+transIndex _ _ _ = throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns _ js) = do
@@ -306,7 +306,7 @@ tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
     (Tensor ns2 xs2 _)
       | ns2 == ns1 -> do ys <- V.mapM (uncurry f) (V.zip xs1 xs2)
                          return (Tensor ns1 ys js1)
-      | otherwise -> throwError =<< InconsistentTensorSize <$> getFuncNameStack
+      | otherwise -> throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 tProduct :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do

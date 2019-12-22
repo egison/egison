@@ -208,7 +208,7 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep
   if product ns == toInteger (length xs)
     then fromTensor (initTensor ns xs sup sub)
-    else throwError =<< InconsistentTensorSize <$> getFuncNameStack
+    else throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
