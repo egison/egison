@@ -263,41 +263,29 @@ tDiag t@(Tensor _ _ js) =
   case filter (\j -> any (p j) js) js of
     [] -> return t
     xs -> do
-      let ys = js \\ (xs ++ map rev xs)
-      t2 <- tTranspose (xs ++ map rev xs ++ ys) t
+      let ys = js \\ (xs ++ map reverseIndex xs)
+      t2 <- tTranspose (xs ++ map reverseIndex xs ++ ys) t
       let (ns1, tmp) = splitAt (length xs) (tShape t2)
       let (_, ns2) = splitAt (length xs) tmp
       ts <- mapM (\is -> tIntRef (is ++ is) t2) (enumTensorIndices ns1)
-      return $ Tensor (ns1 ++ ns2) (V.concat (map tToVector ts)) (map g xs ++ ys)
+      return $ Tensor (ns1 ++ ns2) (V.concat (map tToVector ts)) (map toSupSubscript xs ++ ys)
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
   p (Subscript _) _               = False
   p _ _                           = False
-  rev :: Index EgisonValue -> Index EgisonValue
-  rev (Superscript i) = Subscript i
-  rev (Subscript i)   = Superscript i
-  g :: Index EgisonValue -> Index EgisonValue
-  g (Superscript i) = SupSubscript i
-  g (Subscript i)   = SupSubscript i
 tDiag t = return t
 
 tDiagIndex :: [Index EgisonValue] -> [Index EgisonValue]
 tDiagIndex js =
-  let xs = filter (\j -> any (p j) js) js in
-  let ys = js \\ (xs ++ map rev xs) in
-    map g xs ++ ys
+  let xs = filter (\j -> any (p j) js) js
+      ys = js \\ (xs ++ map reverseIndex xs)
+   in map toSupSubscript xs ++ ys
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
   p (Subscript _) _               = False
   p _ _                           = False
-  rev :: Index EgisonValue -> Index EgisonValue
-  rev (Superscript i) = Subscript i
-  rev (Subscript i)   = Superscript i
-  g :: Index EgisonValue -> Index EgisonValue
-  g (Superscript i) = SupSubscript i
-  g (Subscript i)   = SupSubscript i
 
 tSum :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
 tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
@@ -333,22 +321,16 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
       rts' <- mapM (\is -> do rt1 <- tIntRef is t1'
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2) (enumTensorIndices cns1)
-      let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map g cjs1 ++ tIndex (head rts'))
-      tTranspose (uniq (map g cjs1 ++ tjs1 ++ tjs2)) ret
+      let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map toSupSubscript cjs1 ++ tIndex (head rts'))
+      tTranspose (uniq (map toSupSubscript cjs1 ++ tjs1 ++ tjs2)) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in
-                (cjs, map rev cjs, js1 \\ cjs, js2 \\ map rev cjs)
+                (cjs, map reverseIndex cjs, js1 \\ cjs, js2 \\ map reverseIndex cjs)
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
   p (Subscript i) (Superscript j) = i == j
   p _ _                           = False
-  rev :: Index EgisonValue -> Index EgisonValue
-  rev (Superscript i) = Subscript i
-  rev (Subscript i)   = Superscript i
-  g :: Index EgisonValue -> Index EgisonValue
-  g (Superscript i) = SupSubscript i
-  g (Subscript i)   = SupSubscript i
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
@@ -438,3 +420,11 @@ removePairs (m, n) xs =          -- (0,1) [i i]
       (hs, tms) = splitAt m hms  -- [] [i]
       ms = tail tms              -- []
    in (hs, ms, ts)               -- [] [] []
+
+reverseIndex :: Index EgisonValue -> Index EgisonValue
+reverseIndex (Superscript i) = Subscript i
+reverseIndex (Subscript i)   = Superscript i
+
+toSupSubscript :: Index EgisonValue -> Index EgisonValue
+toSupSubscript (Superscript i) = SupSubscript i
+toSupSubscript (Subscript i)   = SupSubscript i
