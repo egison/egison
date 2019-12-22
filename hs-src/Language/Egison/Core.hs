@@ -559,11 +559,10 @@ evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
 evalExpr env (ArrayBoundsExpr expr) =
   evalExpr env expr >>= arrayBounds
 
--- TODO(momohatt): Following numpy's convention, rename 'size' into 'shape'.
-evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
-  size <- evalExpr env sizeExpr >>= collectionToList
-  ns   <- mapM fromEgison size :: EgisonM [Integer]
-  xs   <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
+evalExpr env (GenerateTensorExpr fnExpr shapeExpr) = do
+  shape <- evalExpr env shapeExpr >>= collectionToList
+  ns    <- mapM fromEgison shape :: EgisonM Shape
+  xs    <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
   fromTensor (Tensor ns (V.fromList xs) [])
  where
   indexToWHNF :: Env -> [EgisonValue] {- index -} -> EgisonM WHNFData

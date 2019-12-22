@@ -22,6 +22,7 @@ module Language.Egison.Data
     , EgisonHashKey (..)
     , EgisonData (..)
     , Tensor (..)
+    , Shape
     , HasTensor (..)
     -- * Scalar
     , symbolScalarData
@@ -158,13 +159,15 @@ data EgisonHashKey =
 --
 
 data Tensor a =
-    Tensor [Integer] (V.Vector a) [Index EgisonValue]
+    Tensor Shape (V.Vector a) [Index EgisonValue]
   | Scalar a
  deriving (Show)
 
+type Shape = [Integer]
+
 class HasTensor a where
   tensorElems :: a -> V.Vector a
-  tensorSize :: a -> [Integer]
+  tensorShape :: a -> Shape
   tensorIndices :: a -> [Index EgisonValue]
   fromTensor :: Tensor a -> EgisonM a
   toTensor :: a -> EgisonM (Tensor a)
@@ -172,7 +175,7 @@ class HasTensor a where
 
 instance HasTensor EgisonValue where
   tensorElems (TensorData (Tensor _ xs _)) = xs
-  tensorSize (TensorData (Tensor ns _ _)) = ns
+  tensorShape (TensorData (Tensor ns _ _)) = ns
   tensorIndices (TensorData (Tensor _ _ js)) = js
   fromTensor t@Tensor{} = return $ TensorData t
   fromTensor (Scalar x) = return x
@@ -182,7 +185,7 @@ instance HasTensor EgisonValue where
 
 instance HasTensor WHNFData where
   tensorElems (Intermediate (ITensor (Tensor _ xs _))) = xs
-  tensorSize (Intermediate (ITensor (Tensor ns _ _))) = ns
+  tensorShape (Intermediate (ITensor (Tensor ns _ _))) = ns
   tensorIndices (Intermediate (ITensor (Tensor _ _ js))) = js
   fromTensor t@Tensor{} = return $ Intermediate $ ITensor t
   fromTensor (Scalar x) = return x
