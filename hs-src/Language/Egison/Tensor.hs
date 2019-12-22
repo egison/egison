@@ -10,7 +10,6 @@ module Language.Egison.Tensor
     (
     -- * Tensor
       initTensor
-    , tSize
     , tToList
     , tIndex
     , tref
@@ -40,19 +39,19 @@ import           Data.List                 (any, delete, elem, find, findIndex,
                                             partition, splitAt, (\\))
 
 import           Language.Egison.AST
-import           Language.Egison.MathExpr
 import           Language.Egison.Data
+import           Language.Egison.MathExpr
 
 --
 -- Tensors
 --
 
-initTensor :: [Integer] -> [a] -> [EgisonValue] -> [EgisonValue] -> Tensor a
+initTensor :: Shape -> [a] -> [EgisonValue] -> [EgisonValue] -> Tensor a
 initTensor ns xs sup sub = Tensor ns (V.fromList xs) (map Superscript sup ++ map Subscript sub)
 
-tSize :: Tensor a -> [Integer]
-tSize (Tensor ns _ _) = ns
-tSize (Scalar _)      = []
+tShape :: Tensor a -> Shape
+tShape (Tensor ns _ _) = ns
+tShape (Scalar _)      = []
 
 tToList :: Tensor a -> [a]
 tToList (Tensor _ xs _) = V.toList xs
@@ -138,7 +137,7 @@ tref _ _ = throwError $ Default "More indices than the order of the tensor"
 -- ex.
 -- >>> enumTensorIndices [2,2,2]
 -- [[1,1,1],[1,1,2],[1,2,1],[1,2,2],[2,1,1],[2,1,2],[2,2,1],[2,2,2]]
-enumTensorIndices :: [Integer] -> [[Integer]]
+enumTensorIndices :: Shape -> [[Integer]]
 enumTensorIndices [] = [[]]
 enumTensorIndices (n:ns) = concatMap (\i -> map (i:) (enumTensorIndices ns)) [1..n]
 
@@ -242,11 +241,11 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let (cjs, tjs1, tjs2) = h js1 js2
   t1' <- tTranspose (cjs ++ tjs1) (Tensor ns1 xs1 js1)
   t2' <- tTranspose (cjs ++ tjs2) (Tensor ns2 xs2 js2)
-  let cns = take (length cjs) (tSize t1')
+  let cns = take (length cjs) (tShape t1')
   rts1 <- mapM (`tIntRef` t1') (enumTensorIndices cns)
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
   rts' <- zipWithM (tProduct f) rts1 rts2
-  let ret = Tensor (cns ++ tSize (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
+  let ret = Tensor (cns ++ tShape (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
   tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
@@ -266,7 +265,7 @@ tDiag t@(Tensor _ _ js) =
     xs -> do
       let ys = js \\ (xs ++ map rev xs)
       t2 <- tTranspose (xs ++ map rev xs ++ ys) t
-      let (ns1, tmp) = splitAt (length xs) (tSize t2)
+      let (ns1, tmp) = splitAt (length xs) (tShape t2)
       let (_, ns2) = splitAt (length xs) tmp
       ts <- mapM (\is -> tIntRef (is ++ is) t2) (enumTensorIndices ns1)
       return $ Tensor (ns1 ++ ns2) (V.concat (map tToVector ts)) (map g xs ++ ys)
@@ -330,11 +329,11 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
       t2' <- tTranspose (cjs2 ++ tjs2) t2
-      let (cns1, _) = splitAt (length cjs1) (tSize t1')
+      let (cns1, _) = splitAt (length cjs1) (tShape t1')
       rts' <- mapM (\is -> do rt1 <- tIntRef is t1'
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2) (enumTensorIndices cns1)
-      let ret = Tensor (cns1 ++ tSize (head rts')) (V.concat (map tToVector rts')) (map g cjs1 ++ tIndex (head rts'))
+      let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map g cjs1 ++ tIndex (head rts'))
       tTranspose (uniq (map g cjs1 ++ tjs1 ++ tjs2)) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])

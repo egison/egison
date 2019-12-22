@@ -6,7 +6,7 @@
 
 (define $tensor-order
   (lambda [%A]
-    (length (tensor-size A))))
+    (length (tensor-shape A))))
 
 (define $unit-tensor
   (lambda [$ns]
@@ -33,11 +33,11 @@
 
 (define $T.+
   (lambda [%t1 %t2]
-    (tensor (tensor-size t1)
+    (tensor (tensor-shape t1)
             (map2 + (tensor-to-list t1) (tensor-to-list t2)))))
 
 
 (define $T.-
   (lambda [%t1 %t2]
-    (tensor (tensor-size t1)
+    (tensor (tensor-shape t1)
             (map2 - (tensor-to-list t1) (tensor-to-list t2)))))

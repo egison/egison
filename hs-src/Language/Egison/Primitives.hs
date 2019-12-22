@@ -183,7 +183,7 @@ primitives = [ ("b.+", plus)
              , ("b.acosh", floatUnaryOp acosh)
              , ("b.atanh", floatUnaryOp atanh)
 
-             , ("tensorSize", tensorSize')
+             , ("tensorShape", tensorShape')
              , ("tensorToList", tensorToList')
              , ("dfOrder", dfOrder')
 
@@ -237,7 +237,7 @@ primitives = [ ("b.+", plus)
              , ("from-math-expr", fromScalarData)
              , ("to-math-expr", toScalarData)
              , ("to-math-expr'", toScalarData)
-             , ("tensor-size", tensorSize')
+             , ("tensor-shape", tensorShape')
              , ("tensor-to-list", tensorToList')
              , ("df-order", dfOrder')
              , ("uncons-string", unconsString)
@@ -355,11 +355,11 @@ truncate' = oneArg $ \val -> numberUnaryOp' val
 -- Tensor
 --
 
-tensorSize' :: PrimitiveFunc
-tensorSize' = oneArg' tensorSize''
+tensorShape' :: PrimitiveFunc
+tensorShape' = oneArg' tensorShape''
  where
-  tensorSize'' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
-  tensorSize'' _ = return . Collection $ Sq.fromList []
+  tensorShape'' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
+  tensorShape'' _ = return . Collection $ Sq.fromList []
 
 tensorToList' :: PrimitiveFunc
 tensorToList' = oneArg' tensorToList''
