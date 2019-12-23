@@ -178,6 +178,10 @@ assertEqual "definition of upper-case identifier"
   (A 2)
   1
 
+assertEqual "capply"
+  (capply (+) [1, 2])
+  3
+
 {-
   This is a comment
  -}
