@@ -162,7 +162,7 @@ infixExpr = do
   sym      <- some opChar >>= check
   let newop = EgisonBinOp { repr = sym, func = sym, priority, assoc, isWedge = False }
   modify' (newop :)
-  return (Infix newop)
+  return (InfixDecl newop)
   where
     check :: String -> Parser String
     check x | x `elem` reservedOp = fail $ show x ++ " cannot be a new infix"
