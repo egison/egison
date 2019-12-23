@@ -820,7 +820,6 @@ lowerReservedWords =
   , "then"
   , "else"
   , "seq"
-  , "apply"
   , "capply"
   , "memoizedLambda"
   , "cambda"

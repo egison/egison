@@ -446,11 +446,7 @@ cApplyExpr :: Parser EgisonExpr
 cApplyExpr = keywordCApply >> CApplyExpr <$> expr <*> expr
 
 applyExpr :: Parser EgisonExpr
-applyExpr = (keywordApply >> ApplyExpr <$> expr <*> expr)
-             <|> applyExpr'
-
-applyExpr' :: Parser EgisonExpr
-applyExpr' = do
+applyExpr = do
   func <- expr
   args <- args
   let vars = lefts args
@@ -738,7 +734,6 @@ reservedKeywords =
   , "load"
   , "if"
   , "seq"
-  , "apply"
   , "capply"
   , "lambda"
   , "memoized-lambda"
@@ -816,7 +811,6 @@ keywordNot                  = reserved "not"
 keywordAnd                  = reserved "and"
 keywordOr                   = reserved "or"
 keywordSeq                  = reserved "seq"
-keywordApply                = reserved "apply"
 keywordCApply               = reserved "capply"
 keywordLambda               = reserved "lambda"
 keywordMemoizedLambda       = reserved "memoized-lambda"

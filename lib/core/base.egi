@@ -31,7 +31,7 @@
 (define $b.compose
   (lambda [$f $g]
     (lambda $x
-      (apply g (apply f x)))))
+      (g (f x)))))
 
 (define $compose
   (cambda $fs
