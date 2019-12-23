@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE NamedFieldPuns   #-}
 
 {- |
 Module      : Language.Egison.ParserNonS
@@ -137,6 +138,7 @@ doParse p input = either (throwError . fromParsecError) return $ parse p "egison
 topExpr :: Parser EgisonTopExpr
 topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
+      <|> infixExpr
       <|> defineOrTestExpr
       <?> "toplevel expression"
 
@@ -145,6 +147,23 @@ data ConversionResult
   = Variable Var        -- Definition of a variable with no arguments on lhs.
   | Function Var [Arg]  -- Definition of a function with some arguments on lhs.
   | IndexedVar VarWithIndices
+
+infixExpr :: Parser EgisonTopExpr
+infixExpr = do
+  assoc    <- (reserved "infixl" $> LeftAssoc)
+          <|> (reserved "infixr" $> RightAssoc)
+          <|> (reserved "infix"  $> NonAssoc)
+  _        <- reserved "expression"
+  priority <- fromInteger <$> positiveIntegerLiteral
+  sym      <- some opChar >>= check
+  return . Infix $ EgisonBinOp { repr = sym, func = sym, priority, assoc, isWedge = False }
+  where
+    check :: String -> Parser String
+    check x | x `elem` reservedOp = fail $ show x ++ " cannot be a new infix"
+            | otherwise           = return x
+
+    reservedOp :: [String]
+    reservedOp = [":", ":=", "->"]
 
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
@@ -754,7 +773,7 @@ patOperator sym = try $ string sym <* notFollowedBy patOpChar <* sc
 
 -- Characters that can consist expression operators.
 opChar :: Parser Char
-opChar = oneOf "%^&*-+\\|:<>.?/'!#@$"
+opChar = oneOf ("%^&*-+\\|:<>.?!/'#@$" ++ "ʌ")
 
 -- Characters that can consist pattern operators.
 -- ! # @ $ are omitted because they can appear at the beginning of atomPattern
@@ -862,6 +881,9 @@ lowerReservedWords =
   -- , "userRefs"
   -- , "userRefs!"
   , "function"
+  , "infixl"
+  , "infixr"
+  , "infix"
   ]
 
 --
