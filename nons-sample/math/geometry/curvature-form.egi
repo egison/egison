@@ -19,10 +19,12 @@ assertEqual "Riemann curvature" R~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
 d %t := !(flip ∂/∂) x t
 
-wedge %x %y := x !. y
+infixl expression 7 ∧
+
+(∧) %x %y := x !. y
 
 Ω := withSymbols [i, j]
-       antisymmetrize (d ω~i_j + wedge ω~i_k ω~k_j)
+       antisymmetrize (d ω~i_j + ω~i_k ∧ ω~k_j)
 
 assertEqual "Curvature form" Ω~#_#_1_1 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 assertEqual "Curvature form" Ω~#_#_1_2 [| [| 0, (sin θ)^2  / 2|], [| -1 / 2, 0 |] |]~#_#

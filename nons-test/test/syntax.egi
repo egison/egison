@@ -121,6 +121,21 @@ assertEqual "safe section - left assoc"  ((1 + 2 +) 3) 6
 assertEqual "safe section - right assoc" ((++ [1] ++ [2]) [3]) [3, 1, 2]
 assertEqual "not section" (- 2) (1 - 3)
 
+-- user-defined infix
+infixl expression 5 @
+(@) x y := x + y
+
+assertEqual "user defined infix"
+  (4 @ 3 @ 5)
+  12
+
+infixl expression 5 @@
+(@@) %x y := x + y
+
+assertEqual "user defined infix with tensor arg"
+  (4 @@ 3 @@ 2)
+  9
+
 findFactor :=
   memoizedLambda n ->
     match takeWhile (<= floor (sqrt (itof n))) primes as list integer with

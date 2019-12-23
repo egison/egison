@@ -194,7 +194,7 @@ defineOrTestExpr = do
       args' <- mapM ((ScalarArg <$>) . exprToStr) args
       return $ Function var args'
     convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) (TupleExpr [x, y])) = do
-      args <- (++) <$> exprToArgs x <*> exprToArgs y
+      args <- mapM ((ScalarArg <$>) . exprToStr) [x, y]
       return $ Function (stringToVar (repr op)) args
     convertToDefine e@(BinaryOpExpr op _ _)
       | repr op == "*" || repr op == "%" || repr op == "$" = do
@@ -216,6 +216,7 @@ defineOrTestExpr = do
     exprToArgs (VarExpr (Var [x] [])) = return [ScalarArg x]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((ScalarArg <$>) . exprToStr) args
+    exprToArgs (SectionExpr op Nothing Nothing) = return [ScalarArg (repr op)]
     exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
@@ -776,7 +777,7 @@ patOperator sym = try $ string sym <* notFollowedBy patOpChar <* sc
 
 -- Characters that can consist expression operators.
 opChar :: Parser Char
-opChar = oneOf ("%^&*-+\\|:<>.?!/'#@$" ++ "ʌ")
+opChar = oneOf ("%^&*-+\\|:<>.?!/'#@$" ++ "∧")
 
 -- Characters that can consist pattern operators.
 -- ! # @ $ are omitted because they can appear at the beginning of atomPattern
