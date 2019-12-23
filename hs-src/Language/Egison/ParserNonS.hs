@@ -229,6 +229,7 @@ exprWithoutWhere =
    <|> withSymbolsExpr
    <|> doExpr
    <|> ioExpr
+   <|> capplyExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
    <|> memoizedLambdaExpr
@@ -360,6 +361,9 @@ doExpr = do
 
 ioExpr :: Parser EgisonExpr
 ioExpr = IoExpr <$> (reserved "io" >> expr)
+
+capplyExpr :: Parser EgisonExpr
+capplyExpr = CApplyExpr <$> (reserved "capply" >> atomExpr) <*> atomExpr
 
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
