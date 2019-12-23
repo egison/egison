@@ -62,6 +62,7 @@ import qualified Data.Vector                 as V
 
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
+import           Language.Egison.Data
 import           Language.Egison.MathExpr
 import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
@@ -132,7 +133,7 @@ evalExpr _ (FloatExpr x)   = return . Value $ Float x
 evalExpr env (QuoteExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value (ScalarData s) -> return . Value $ ScalarData $ Div (Plus [Term 1 [(Quote s, 1)]]) (Plus [Term 1 []])
+    Value (ScalarData s) -> return . Value $ ScalarData $ SingleTerm 1 [(Quote s, 1)]
     _ -> throwError =<< TypeMismatch "scalar in quote" whnf <$> getFuncNameStack
 
 evalExpr env (QuoteSymbolExpr expr) = do
@@ -207,7 +208,7 @@ evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
   sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep
   if product ns == toInteger (length xs)
     then fromTensor (initTensor ns xs sup sub)
-    else throwError =<< InconsistentTensorSize <$> getFuncNameStack
+    else throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 evalExpr env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -234,7 +235,7 @@ evalExpr env (HashExpr assocs) = do
       _ -> throwError =<< TypeMismatch "integer or string" (Value val) <$> getFuncNameStack
   makeHashKey whnf = throwError =<< TypeMismatch "integer or string" whnf <$> getFuncNameStack
 
-evalExpr env (IndexedExpr bool expr indices) = do
+evalExpr env (IndexedExpr override expr indices) = do
   tensor <- case expr of
               VarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ map (const () <$>) indices)
@@ -244,18 +245,14 @@ evalExpr env (IndexedExpr bool expr indices) = do
               _ -> evalExpr env expr
   js <- mapM evalIndex indices
   ret <- case tensor of
-      Value (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) -> do
+      Value (ScalarData (SingleTerm 1 [(Symbol id name [], 1)])) -> do
         js2 <- mapM evalIndexToScalar indices
-        return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js2, 1)]]) (Plus [Term 1 []])))
-      Value (ScalarData (Div (Plus [Term 1 [(Symbol id name js', 1)]]) (Plus [Term 1 []]))) -> do
+        return $ Value (ScalarData (SingleTerm 1 [(Symbol id name js2, 1)]))
+      Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
         js2 <- mapM evalIndexToScalar indices
-        return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (js' ++ js2), 1)]]) (Plus [Term 1 []])))
-      Value (TensorData (Tensor ns xs is)) ->
-        if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
-                else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-      Intermediate (ITensor (Tensor ns xs is)) ->
-        if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-                else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+        return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
+      Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
+      Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
       _ -> do
         js2 <- mapM evalIndexToScalar indices
         refArray tensor (map (ScalarData . extractIndex) js2)
@@ -267,7 +264,7 @@ evalExpr env (IndexedExpr bool expr indices) = do
   evalIndexToScalar :: Index EgisonExpr -> EgisonM (Index ScalarData)
   evalIndexToScalar index = traverse ((extractScalar =<<) . evalExprDeep env) index
 
-evalExpr env (SubrefsExpr bool expr jsExpr) = do
+evalExpr env (SubrefsExpr override expr jsExpr) = do
   js <- map Subscript <$> (evalExpr env jsExpr >>= collectionToList)
   tensor <- case expr of
               VarExpr (Var xs is) -> do
@@ -277,17 +274,12 @@ evalExpr env (SubrefsExpr bool expr jsExpr) = do
                   Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
   case tensor of
-    Value (ScalarData _) ->
-      return tensor
-    Value (TensorData (Tensor ns xs is)) ->
-      if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
-              else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-    Intermediate (ITensor (Tensor ns xs is)) ->
-      if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-              else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+    Value (ScalarData _)              -> return tensor
+    Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
+    Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
     _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
 
-evalExpr env (SuprefsExpr bool expr jsExpr) = do
+evalExpr env (SuprefsExpr override expr jsExpr) = do
   js <- map Superscript <$> (evalExpr env jsExpr >>= collectionToList)
   tensor <- case expr of
               VarExpr (Var xs is) -> do
@@ -297,24 +289,19 @@ evalExpr env (SuprefsExpr bool expr jsExpr) = do
                   Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
   case tensor of
-    Value (ScalarData _) ->
-      return tensor
-    Value (TensorData (Tensor ns xs is)) ->
-      if bool then Value <$> (tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor)
-              else Value <$> (tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor)
-    Intermediate (ITensor (Tensor ns xs is)) ->
-      if bool then tref js (Tensor ns xs js) >>= toTensor >>= tContract' >>= fromTensor
-              else tref (is ++ js) (Tensor ns xs (is ++ js)) >>= toTensor >>= tContract' >>= fromTensor
+    Value (ScalarData _)              -> return tensor
+    Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
+    Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
     _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
 
 evalExpr env (UserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
   js <- map Userscript <$> (evalExpr env jsExpr >>= collectionToList >>= mapM extractScalar)
   case val of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])) ->
-      return $ Value (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ js), 1)]]) (Plus [Term 1 []])))
-    ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args is, 1)]]) (Plus [Term 1 []])) ->
-      return $ Value (ScalarData (Div (Plus [Term 1 [(FunctionData name argnames args (is ++ js), 1)]]) (Plus [Term 1 []])))
+    ScalarData (SingleTerm 1 [(Symbol id name is, 1)]) ->
+      return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (is ++ js), 1)]))
+    ScalarData (SingleTerm 1 [(FunctionData name argnames args is, 1)]) ->
+      return $ Value (ScalarData (SingleTerm 1 [(FunctionData name argnames args (is ++ js), 1)]))
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
 evalExpr env (LambdaExpr names expr) = do
@@ -335,7 +322,7 @@ evalExpr (Env _ Nothing) (FunctionExpr _) = throwError $ Default "function symbo
 
 evalExpr env@(Env _ (Just name)) (FunctionExpr args) = do
   args' <- mapM (evalExprDeep env) args >>= mapM extractScalar
-  return . Value $ ScalarData (Div (Plus [Term 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map (symbolScalarData' "" . prettyS) args) args' [], 1)]]) (Plus [Term 1 []]))
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map (symbolScalarData' "" . prettyS) args) args' [], 1)])
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
@@ -402,10 +389,10 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     _ -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
-  isTmpSymbol symId (Subscript    (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (Superscript  (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (SupSubscript (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
-  isTmpSymbol symId (Userscript   (ScalarData (Div (Plus [Term 1 [(Symbol id _ _, _)]]) (Plus [Term 1 []])))) = symId == id
+  isTmpSymbol symId (Subscript    (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
+  isTmpSymbol symId (Superscript  (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
+  isTmpSymbol symId (SupSubscript (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
+  isTmpSymbol symId (Userscript   (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
   removeTmpScripts :: HasTensor a => String -> Tensor a -> EgisonM (Tensor a)
   removeTmpScripts symId (Tensor s xs is) = do
     let (ds, js) = partition (isTmpSymbol symId) is
@@ -489,7 +476,7 @@ evalExpr env (CApplyExpr func arg) = do
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
   case func of
---    Value (ScalarData (Div (Plus [Term 1 [(Symbol "" name@(c:_) [], 1)]]) (Plus [Term 1 []]))) | isUpper c ->
+--    Value (ScalarData (SingleTerm 1 [(Symbol "" name@(c:_) [], 1)])) | isUpper c ->
     Value (InductiveData name []) ->
       case arg of
         TupleExpr exprs ->
@@ -572,11 +559,10 @@ evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
 evalExpr env (ArrayBoundsExpr expr) =
   evalExpr env expr >>= arrayBounds
 
--- TODO(momohatt): Following numpy's convention, rename 'size' into 'shape'.
-evalExpr env (GenerateTensorExpr fnExpr sizeExpr) = do
-  size <- evalExpr env sizeExpr >>= collectionToList
-  ns   <- mapM fromEgison size :: EgisonM [Integer]
-  xs   <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
+evalExpr env (GenerateTensorExpr fnExpr shapeExpr) = do
+  shape <- evalExpr env shapeExpr >>= collectionToList
+  ns    <- mapM fromEgison shape :: EgisonM Shape
+  xs    <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
   fromTensor (Tensor ns (V.fromList xs) [])
  where
   indexToWHNF :: Env -> [EgisonValue] {- index -} -> EgisonM WHNFData
@@ -786,12 +772,12 @@ applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
      _           -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
-applyFunc _ (Value (ScalarData fn@(Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])))) arg = do
+applyFunc _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) arg = do
   args <- tupleToList arg
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
                             _ -> throwError =<< EgisonBug "to use undefined functions, you have to use ScalarData args" <$> getFuncNameStack) args
-  return (Value (ScalarData (Div (Plus [Term 1 [(Apply fn mExprs, 1)]]) (Plus [Term 1 []]))))
+  return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
@@ -803,7 +789,7 @@ refArray (Value (Array array)) (index:indices) =
               then refArray (Value (array Array.! i)) indices
               else return  $ Value Undefined
     else case index of
-           ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []])) -> do
+           ScalarData (SingleTerm 1 [(Symbol _ _ [], 1)]) -> do
              let (_,size) = Array.bounds array
              elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
              elmRefs <- mapM newEvaluatedObjectRef elms
@@ -817,7 +803,7 @@ refArray (Intermediate (IArray array)) (index:indices) =
                    evalRef ref >>= flip refArray indices
               else return  $ Value Undefined
     else case index of
-           ScalarData (Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []])) -> do
+           ScalarData (SingleTerm 1 [(Symbol _ _ [], 1)]) -> do
              let (_,size) = Array.bounds array
              let refs = Array.elems array
              arrs <- mapM evalRef refs
@@ -1428,3 +1414,10 @@ makeITuple :: [WHNFData] -> EgisonM WHNFData
 makeITuple []  = return $ Intermediate (ITuple [])
 makeITuple [x] = return x
 makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
+
+-- Refer the specified tensor index with potential overriding of the index.
+refTenworWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EgisonM a
+refTenworWithOverride override js (Tensor ns xs is) =
+  tref js' (Tensor ns xs js') >>= toTensor >>= tContract' >>= fromTensor
+    where
+      js' = if override then js else is ++ js

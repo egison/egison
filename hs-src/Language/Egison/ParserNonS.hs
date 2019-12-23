@@ -45,7 +45,7 @@ import           System.IO
 
 import           Language.Egison.AST
 import           Language.Egison.Desugar
-import           Language.Egison.Types
+import           Language.Egison.Data
 import           Paths_egison                   (getDataFileName)
 
 readTopExprs :: String -> EgisonM [EgisonTopExpr]

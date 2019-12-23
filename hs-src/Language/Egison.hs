@@ -10,7 +10,7 @@ This is the top module of Egison.
 
 module Language.Egison
        ( module Language.Egison.AST
-       , module Language.Egison.Types
+       , module Language.Egison.Data
        , module Language.Egison.Primitives
        -- * Eval Egison expressions
        , evalTopExprs
@@ -37,11 +37,11 @@ import qualified Paths_egison                as P
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Core
+import           Language.Egison.Data
 import           Language.Egison.MathOutput  (changeOutputInLang)
 import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
 import           Language.Egison.Primitives
-import           Language.Egison.Types
 
 import           Control.Monad.State
 

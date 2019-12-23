@@ -38,20 +38,20 @@
               (if (even? (+ %1 %2))
                 (/ (M.det (M.join A B C D)) d)
                 (* -1 (/ (M.det (M.join A B C D)) d)))]})
-        (tensor-size m)))))
+        (tensor-shape m)))))
 
 (define $trace (lambda [%t] (with-symbols {i} (contract + t~i_i))))
 
 (define $matrix
   (matcher
     {[<quad-cons $ $ $ $> [math-expr matrix matrix matrix]
-      {[$tgt (match (tensor-size tgt) (list integer)
+      {[$tgt (match (tensor-shape tgt) (list integer)
                {[<cons $m <cons $n _>>
                  {[tgt_1_1 tgt_1_[2 n] tgt_[2 m]_1 tgt_[2 m]_[2 n]]}]
                 [_ {}]})]}]
      [<cons ,$i ,$j $ $ $ $ $> [math-expr matrix matrix matrix matrix]
       {[$tgt
-        (let* {[$ns (tensor-size tgt)]
+        (let* {[$ns (tensor-shape tgt)]
                [$m (nth 1 ns)]
                [$n (nth 2 ns)]}
           {[tgt_i_j
@@ -68,13 +68,13 @@
 
 (define $M.join
   (lambda [%A %B %C %D]
-    (let* {[$as (tensor-size A)]
+    (let* {[$as (tensor-shape A)]
            [$a1 (nth 1 as)] [$a2 (nth 2 as)]
-           [$bs (tensor-size B)]
+           [$bs (tensor-shape B)]
            [$b1 (nth 1 bs)] [$b2 (nth 2 bs)]
-           [$cs (tensor-size C)]
+           [$cs (tensor-shape C)]
            [$c1 (nth 1 cs)] [$c2 (nth 2 cs)]
-           [$ds (tensor-size D)]
+           [$ds (tensor-shape D)]
            [$d1 (nth 1 ds)] [$d2 (nth 2 ds)]
            [$m1 (max {a1 b1})] [$m2 (max {a2 c2})]
            [$n1 (max {c1 d1})] [$n2 (max {b2 d2})]
@@ -130,7 +130,7 @@
 
 (define $M.determinant
   (lambda [%m]
-    (match (tensor-size m) (list integer)
+    (match (tensor-shape m) (list integer)
       {[<cons ,0 <cons ,0 <nil>>> 1]
        [<cons $n <cons ,n <nil>>>
         (let {[[$es $os] (even-and-odd-permutations' n)]}
@@ -154,7 +154,7 @@
 
 (define $M.eigenvalues
   (lambda [%m]
-    (match (tensor-size m) (list integer)
+    (match (tensor-shape m) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
         (let {[[$e1 $e2] (q-f (M.det (T.- m (scalar-to-tensor x {2 2}))) x)]}
           {e1 e2})]
@@ -162,7 +162,7 @@
 
 (define $M.eigenvectors
   (lambda [%m]
-    (match (tensor-size m) (list integer)
+    (match (tensor-shape m) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
         (let {[[$e1 $e2] (q-f (M.det (T.- m (scalar-to-tensor x {2 2}))) x)]}
           {[e1 (clear-index (T.- m (scalar-to-tensor e1 {2 2}))_i_1)]
@@ -176,7 +176,7 @@
 
 (define $M.LU
   (lambda [%x]
-    (match (tensor-size x) (list integer)
+    (match (tensor-shape x) (list integer)
       {[<cons ,2 <cons ,2 <nil>>>
         (let* {[$L (generate-tensor 2#(match (compare %1 %2) ordering {[<less> 0] [<equal> 1] [<greater> b_%1_%2]}) {2 2})]
                [$U (generate-tensor 2#(match (compare %1 %2) ordering {[<greater> 0] [_ c_%1_%2]}) {2 2})]
