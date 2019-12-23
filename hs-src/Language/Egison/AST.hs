@@ -104,6 +104,7 @@ data EgisonExpr =
 
   | UnaryOpExpr String EgisonExpr
   | BinaryOpExpr EgisonBinOp EgisonExpr EgisonExpr
+  | SectionExpr EgisonBinOp (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
 
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr

@@ -480,7 +480,7 @@ tupleOrParenExpr = do
         Just (BinaryOpExpr op' _ _)
           | assoc op' /= RightAssoc && priority op >= priority op' ->
           customFailure (IllFormedSection op op')
-        _ -> return (makeLambda op Nothing rarg)
+        _ -> return (SectionExpr op Nothing rarg)
 
     -- Sections with the left operand but lacks the right operand: eg. (1 +)
     rightSection :: Parser EgisonExpr
@@ -492,17 +492,7 @@ tupleOrParenExpr = do
         BinaryOpExpr op' _ _
           | assoc op' /= LeftAssoc && priority op >= priority op' ->
           customFailure (IllFormedSection op op')
-        _ -> return (makeLambda op (Just larg) Nothing)
-
-    -- TODO(momohatt): Generate fresh variable for argument
-    makeLambda :: EgisonBinOp -> Maybe EgisonExpr -> Maybe EgisonExpr -> EgisonExpr
-    makeLambda op Nothing Nothing =
-      LambdaExpr [TensorArg ":x", TensorArg ":y"]
-                 (BinaryOpExpr op (stringToVarExpr ":x") (stringToVarExpr ":y"))
-    makeLambda op Nothing (Just rarg) =
-      LambdaExpr [TensorArg ":x"] (BinaryOpExpr op (stringToVarExpr ":x") rarg)
-    makeLambda op (Just larg) Nothing =
-      LambdaExpr [TensorArg ":y"] (BinaryOpExpr op larg (stringToVarExpr ":y"))
+        _ -> return (SectionExpr op (Just larg) Nothing)
 
 arrayExpr :: Parser EgisonExpr
 arrayExpr = ArrayExpr <$> between (symbol "(|") (symbol "|)") (sepEndBy expr comma)
