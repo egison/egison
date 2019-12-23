@@ -257,6 +257,7 @@ reservedBinops =
   , makeBinOp ">"  "gt?"       4 LeftAssoc
   , makeBinOp "&&" "and"       3 RightAssoc
   , makeBinOp "||" "or"        2 RightAssoc
+  , makeBinOp "$"  "app"       0 RightAssoc -- TODO:
   ]
   where
     makeBinOp r f p a =
