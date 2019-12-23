@@ -94,6 +94,7 @@ collectDefs opts (expr:exprs) bindings rest =
          else do exprs' <- if optSExpr opts then Parser.loadLibraryFile file
                                             else ParserNonS.loadLibraryFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
+    Infix _ -> collectDefs opts exprs bindings rest
 collectDefs _ [] bindings rest = return (bindings, reverse rest)
 
 evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)

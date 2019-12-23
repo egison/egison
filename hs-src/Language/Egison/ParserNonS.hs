@@ -27,7 +27,7 @@ module Language.Egison.ParserNonS
 
 import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
 import           Control.Monad.Except           (liftIO, throwError)
-import           Control.Monad.State            (unless)
+import           Control.Monad.State            (evalStateT, get, modify', StateT, unless)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Functor                   (($>))
@@ -52,6 +52,7 @@ import           Paths_egison                   (getDataFileName)
 readTopExprs :: String -> EgisonM [EgisonTopExpr]
 readTopExprs = either throwError (mapM desugarTopExpr) . parseTopExprs
 
+-- TODO(momohatt): Parse from the last state
 readTopExpr :: String -> EgisonM EgisonTopExpr
 readTopExpr = either throwError desugarTopExpr . parseTopExpr
 
@@ -108,7 +109,7 @@ readUTF8File name = do
 -- Parser
 --
 
-type Parser = Parsec CustomError String
+type Parser = StateT [EgisonBinOp] (Parsec CustomError String)
 
 data CustomError
   = IllFormedSection EgisonBinOp EgisonBinOp
@@ -126,7 +127,10 @@ instance ShowErrorComponent CustomError where
 
 
 doParse :: Parser a -> String -> Either EgisonError a
-doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
+doParse p input =
+  case parse (evalStateT p reservedBinops) "egison" input of
+    Left e  -> throwError (fromParsecError e)
+    Right r -> return r
   where
     fromParsecError :: ParseErrorBundle String CustomError -> EgisonError
     fromParsecError = Parser . errorBundlePretty
@@ -153,10 +157,12 @@ infixExpr = do
   assoc    <- (reserved "infixl" $> LeftAssoc)
           <|> (reserved "infixr" $> RightAssoc)
           <|> (reserved "infix"  $> NonAssoc)
-  _        <- reserved "expression"
+  reserved "expression"
   priority <- fromInteger <$> positiveIntegerLiteral
   sym      <- some opChar >>= check
-  return . Infix $ EgisonBinOp { repr = sym, func = sym, priority, assoc, isWedge = False }
+  let newop = EgisonBinOp { repr = sym, func = sym, priority, assoc, isWedge = False }
+  modify' (newop :)
+  return (Infix newop)
   where
     check :: String -> Parser String
     check x | x `elem` reservedOp = fail $ show x ++ " cannot be a new infix"
@@ -263,17 +269,18 @@ exprWithoutWhere =
 opExpr :: Parser EgisonExpr
 opExpr = do
   pos <- L.indentLevel
-  makeExprParser atomOrApplyExpr (makeTable pos)
+  binops <- get
+  makeExprParser atomOrApplyExpr (makeTable binops pos)
 
-makeTable :: Pos -> [[Operator Parser EgisonExpr]]
-makeTable pos =
+makeTable :: [EgisonBinOp] -> Pos -> [[Operator Parser EgisonExpr]]
+makeTable binops pos =
   -- prefixes have top priority
   let prefixes = [ [ Prefix (unary "-")
                    , Prefix (unary "!") ] ]
-      -- Generate binary operator table from |reservedBinops|
-      binops = map (map binOpToOperator)
-        (groupBy (\x y -> priority x == priority y) reservedBinops)
-   in prefixes ++ binops
+      -- Generate binary operator table from |binops|
+      binops' = map (map binOpToOperator)
+        (groupBy (\x y -> priority x == priority y) binops)
+   in prefixes ++ binops'
   where
     -- notFollowedBy (in unary and binary) is necessary for section expression.
     unary :: String -> Parser (EgisonExpr -> EgisonExpr)
@@ -466,8 +473,9 @@ tupleOrParenExpr = do
     -- Sections without the left operand: eg. (+), (+ 1)
     leftSection :: Parser EgisonExpr
     leftSection = do
-      op   <- choice $ map (binOpLiteral . repr) reservedBinops
-      rarg <- optional expr
+      binops <- get
+      op     <- choice $ map (binOpLiteral . repr) binops
+      rarg   <- optional expr
       case rarg of
         Just (BinaryOpExpr op' _ _)
           | assoc op' /= RightAssoc && priority op >= priority op' ->
@@ -477,8 +485,9 @@ tupleOrParenExpr = do
     -- Sections with the left operand but lacks the right operand: eg. (1 +)
     rightSection :: Parser EgisonExpr
     rightSection = do
-      larg <- opExpr
-      op   <- choice $ map (binOpLiteral . repr) reservedBinops
+      binops <- get
+      larg   <- opExpr
+      op     <- choice $ map (binOpLiteral . repr) binops
       case larg of
         BinaryOpExpr op' _ _
           | assoc op' /= LeftAssoc && priority op >= priority op' ->
@@ -751,7 +760,8 @@ binOpLiteral :: String -> Parser EgisonBinOp
 binOpLiteral sym =
   try (do wedge <- optional (char '!')
           opSym <- operator' sym
-          let opInfo = fromJust $ find ((== opSym) . repr) reservedBinops
+          binops <- get
+          let opInfo = fromJust $ find ((== opSym) . repr) binops
           return $ opInfo { isWedge = isJust wedge })
    <?> "binary operator"
   where
