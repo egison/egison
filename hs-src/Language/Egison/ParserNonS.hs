@@ -193,6 +193,9 @@ defineOrTestExpr = do
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
       args' <- mapM ((ScalarArg <$>) . exprToStr) args
       return $ Function var args'
+    convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) (TupleExpr [x, y])) = do
+      args <- (++) <$> exprToArgs x <*> exprToArgs y
+      return $ Function (stringToVar (repr op)) args
     convertToDefine e@(BinaryOpExpr op _ _)
       | repr op == "*" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
