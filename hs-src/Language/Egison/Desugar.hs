@@ -289,6 +289,25 @@ desugar (BinaryOpExpr op expr1 expr2) | isWedge op =
 desugar (BinaryOpExpr op expr1 expr2) =
   (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
+-- section
+desugar (SectionExpr op Nothing Nothing) = do
+  x <- fresh
+  y <- fresh
+  desugar $ LambdaExpr [TensorArg x, TensorArg y]
+                       (BinaryOpExpr op (stringToVarExpr x) (stringToVarExpr y))
+
+desugar (SectionExpr op Nothing (Just expr2)) = do
+  x <- fresh
+  desugar $ LambdaExpr [TensorArg x]
+                       (BinaryOpExpr op (stringToVarExpr x) expr2)
+
+desugar (SectionExpr op (Just expr1) Nothing) = do
+  y <- fresh
+  desugar $ LambdaExpr [TensorArg y]
+                       (BinaryOpExpr op expr1 (stringToVarExpr y))
+
+desugar SectionExpr{} = throwError $ Default "Cannot reach here: section with both arguments"
+
 desugar (SeqExpr expr0 expr1) =
   SeqExpr <$> desugar expr0 <*> desugar expr1
 
