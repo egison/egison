@@ -28,6 +28,10 @@
 
 (define $snd 2#%2)
 
+(define $apply
+  (lambda [$f $x]
+    (f x)))
+
 (define $b.compose
   (lambda [$f $g]
     (lambda $x
