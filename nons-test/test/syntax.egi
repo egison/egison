@@ -153,6 +153,13 @@ assertEqual "function definition"
   (someFunction 1 2 3)
   7
 
+someFunctionWithDollar $x $y $z :=
+  x + y + z
+
+assertEqual "function definition with '$' scalar arg"
+  (someFunctionWithDollar 1 2 3)
+  6
+
 gcd m n :=
   if m >= n then
             if n = 0 then m

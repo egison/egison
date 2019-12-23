@@ -169,7 +169,7 @@ defineOrTestExpr = do
       args' <- mapM ((ScalarArg <$>) . exprToStr) args
       return $ Function var args'
     convertToDefine e@(BinaryOpExpr op _ _)
-      | repr op == "*" || repr op == "%" = do
+      | repr op == "*" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
         case args of
           ScalarArg var : args -> return $ Function (Var [var] []) args
@@ -200,6 +200,12 @@ defineOrTestExpr = do
       case rhs' of
         ScalarArg x : xs -> return (lhs' ++ TensorArg x : xs)
         _                -> Nothing
+    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "$" = do
+      lhs' <- exprToArgs lhs
+      rhs' <- exprToArgs rhs
+      case rhs' of
+        ScalarArg _ : _ -> return (lhs' ++ rhs')
+        _               -> Nothing
     exprToArgs _ = Nothing
 
 expr :: Parser EgisonExpr
@@ -309,6 +315,7 @@ lambdaExpr = symbol "\\" >> (
 arg :: Parser Arg
 arg = InvertedScalarArg <$> (char '*' >> ident)
   <|> TensorArg         <$> (char '%' >> ident)
+  <|> ScalarArg         <$> (char '$' >> ident)
   <|> ScalarArg         <$> ident
   <?> "argument"
 
