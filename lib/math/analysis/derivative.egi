@@ -70,7 +70,7 @@
 (define $multivariate-taylor-expansion
   (lambda [%f %xs %as]
     (with-symbols {h}
-      (let {[$hs (generate-tensor 1#h_%1 (tensor-size xs))]}
+      (let {[$hs (generate-tensor 1#h_%1 (tensor-shape xs))]}
         (map2 *
               (map 1#(/ 1 (fact %1)) nats0)
               (map (compose 1#(V.substitute xs as %1)

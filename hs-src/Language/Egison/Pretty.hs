@@ -24,7 +24,7 @@ import qualified Data.Vector               as V
 
 import           Language.Egison.AST
 import           Language.Egison.MathExpr
-import           Language.Egison.Types
+import           Language.Egison.Data
 
 --
 -- Pretty printing for Non-S syntax
@@ -236,7 +236,6 @@ instance PrettyS EgisonValue where
   prettyS Something = "something"
   prettyS Undefined = "undefined"
   prettyS World = "#<world>"
-  prettyS EOF = "#<eof>"
 
 instance PrettyS Var where
   prettyS = show

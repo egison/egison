@@ -42,10 +42,11 @@ import qualified Database.SQLite3 as SQLite
 
 import           Language.Egison.AST
 import           Language.Egison.Core
+import           Language.Egison.Data
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
-import           Language.Egison.Types
 import           Language.Egison.MathExpr
+import           Language.Egison.Types
 import           Language.Egison.Tensor
 
 primitiveEnv :: IO Env
@@ -182,7 +183,7 @@ primitives = [ ("b.+", plus)
              , ("b.acosh", floatUnaryOp acosh)
              , ("b.atanh", floatUnaryOp atanh)
 
-             , ("tensorSize", tensorSize')
+             , ("tensorShape", tensorShape')
              , ("tensorToList", tensorToList')
              , ("dfOrder", dfOrder')
 
@@ -236,7 +237,7 @@ primitives = [ ("b.+", plus)
              , ("from-math-expr", fromScalarData)
              , ("to-math-expr", toScalarData)
              , ("to-math-expr'", toScalarData)
-             , ("tensor-size", tensorSize')
+             , ("tensor-shape", tensorShape')
              , ("tensor-to-list", tensorToList')
              , ("df-order", dfOrder')
              , ("uncons-string", unconsString)
@@ -354,11 +355,11 @@ truncate' = oneArg $ \val -> numberUnaryOp' val
 -- Tensor
 --
 
-tensorSize' :: PrimitiveFunc
-tensorSize' = oneArg' tensorSize''
+tensorShape' :: PrimitiveFunc
+tensorShape' = oneArg' tensorShape''
  where
-  tensorSize'' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
-  tensorSize'' _ = return . Collection $ Sq.fromList []
+  tensorShape'' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
+  tensorShape'' _ = return . Collection $ Sq.fromList []
 
 tensorToList' :: PrimitiveFunc
 tensorToList' = oneArg' tensorToList''

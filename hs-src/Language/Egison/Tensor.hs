@@ -10,7 +10,6 @@ module Language.Egison.Tensor
     (
     -- * Tensor
       initTensor
-    , tSize
     , tToList
     , tIndex
     , tref
@@ -40,19 +39,19 @@ import           Data.List                 (any, delete, elem, find, findIndex,
                                             partition, splitAt, (\\))
 
 import           Language.Egison.AST
+import           Language.Egison.Data
 import           Language.Egison.MathExpr
-import           Language.Egison.Types
 
 --
 -- Tensors
 --
 
-initTensor :: [Integer] -> [a] -> [EgisonValue] -> [EgisonValue] -> Tensor a
+initTensor :: Shape -> [a] -> [EgisonValue] -> [EgisonValue] -> Tensor a
 initTensor ns xs sup sub = Tensor ns (V.fromList xs) (map Superscript sup ++ map Subscript sub)
 
-tSize :: Tensor a -> [Integer]
-tSize (Tensor ns _ _) = ns
-tSize (Scalar _)      = []
+tShape :: Tensor a -> Shape
+tShape (Tensor ns _ _) = ns
+tShape (Scalar _)      = []
 
 tToList :: Tensor a -> [a]
 tToList (Tensor _ xs _) = V.toList xs
@@ -86,16 +85,17 @@ tIntRef [] (Tensor [] xs _)
 tIntRef [] t = return t
 tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms
 
+-- TODO(momohatt): Refactor.
 tref :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM a
 tref [] (Tensor [] xs _)
   | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
   | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
 tref [] t = fromTensor t
-tref (Subscript (ScalarData (Div (Plus [Term m []]) (Plus [Term 1 []]))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref (Subscript (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
-tref (Superscript (ScalarData (Div (Plus [Term m []]) (Plus [Term 1 []]))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref (Superscript (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
-tref (SupSubscript (ScalarData (Div (Plus [Term m []]) (Plus [Term 1 []]))):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref (Subscript    (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
+tref (Subscript    (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
+tref (Superscript  (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
+tref (Superscript  (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
+tref (SupSubscript (ScalarData (SingleTerm m [])):ms) t                  = tIntRef' m t >>= toTensor >>= tref ms
 tref (SupSubscript (ScalarData (Div (Plus []) (Plus [Term 1 []]))):ms) t = tIntRef' 0 t >>= toTensor >>= tref ms
 tref (Subscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
@@ -137,7 +137,7 @@ tref _ _ = throwError $ Default "More indices than the order of the tensor"
 -- ex.
 -- >>> enumTensorIndices [2,2,2]
 -- [[1,1,1],[1,1,2],[1,2,1],[1,2,2],[2,1,1],[2,1,2],[2,2,1],[2,2,2]]
-enumTensorIndices :: [Integer] -> [[Integer]]
+enumTensorIndices :: Shape -> [[Integer]]
 enumTensorIndices [] = [[]]
 enumTensorIndices (n:ns) = concatMap (\i -> map (i:) (enumTensorIndices ns)) [1..n]
 
@@ -155,7 +155,7 @@ transIndex (j1:js1) js2 is = do
     else do let n = length hjs2 + 1
             rs <- transIndex js1 (hjs2 ++ tail tjs2) (take (n - 1) is ++ drop n is)
             return (nth (fromIntegral n) is:rs)
-transIndex _ _ _ = throwError =<< InconsistentTensorSize <$> getFuncNameStack
+transIndex _ _ _ = throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns _ js) = do
@@ -241,11 +241,11 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let (cjs, tjs1, tjs2) = h js1 js2
   t1' <- tTranspose (cjs ++ tjs1) (Tensor ns1 xs1 js1)
   t2' <- tTranspose (cjs ++ tjs2) (Tensor ns2 xs2 js2)
-  let cns = take (length cjs) (tSize t1')
+  let cns = take (length cjs) (tShape t1')
   rts1 <- mapM (`tIntRef` t1') (enumTensorIndices cns)
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
   rts' <- zipWithM (tProduct f) rts1 rts2
-  let ret = Tensor (cns ++ tSize (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
+  let ret = Tensor (cns ++ tShape (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
   tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
@@ -263,41 +263,29 @@ tDiag t@(Tensor _ _ js) =
   case filter (\j -> any (p j) js) js of
     [] -> return t
     xs -> do
-      let ys = js \\ (xs ++ map rev xs)
-      t2 <- tTranspose (xs ++ map rev xs ++ ys) t
-      let (ns1, tmp) = splitAt (length xs) (tSize t2)
+      let ys = js \\ (xs ++ map reverseIndex xs)
+      t2 <- tTranspose (xs ++ map reverseIndex xs ++ ys) t
+      let (ns1, tmp) = splitAt (length xs) (tShape t2)
       let (_, ns2) = splitAt (length xs) tmp
       ts <- mapM (\is -> tIntRef (is ++ is) t2) (enumTensorIndices ns1)
-      return $ Tensor (ns1 ++ ns2) (V.concat (map tToVector ts)) (map g xs ++ ys)
+      return $ Tensor (ns1 ++ ns2) (V.concat (map tToVector ts)) (map toSupSubscript xs ++ ys)
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
   p (Subscript _) _               = False
   p _ _                           = False
-  rev :: Index EgisonValue -> Index EgisonValue
-  rev (Superscript i) = Subscript i
-  rev (Subscript i)   = Superscript i
-  g :: Index EgisonValue -> Index EgisonValue
-  g (Superscript i) = SupSubscript i
-  g (Subscript i)   = SupSubscript i
 tDiag t = return t
 
 tDiagIndex :: [Index EgisonValue] -> [Index EgisonValue]
 tDiagIndex js =
-  let xs = filter (\j -> any (p j) js) js in
-  let ys = js \\ (xs ++ map rev xs) in
-    map g xs ++ ys
+  let xs = filter (\j -> any (p j) js) js
+      ys = js \\ (xs ++ map reverseIndex xs)
+   in map toSupSubscript xs ++ ys
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
   p (Subscript _) _               = False
   p _ _                           = False
-  rev :: Index EgisonValue -> Index EgisonValue
-  rev (Superscript i) = Subscript i
-  rev (Subscript i)   = Superscript i
-  g :: Index EgisonValue -> Index EgisonValue
-  g (Superscript i) = SupSubscript i
-  g (Subscript i)   = SupSubscript i
 
 tSum :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
 tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
@@ -306,7 +294,7 @@ tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
     (Tensor ns2 xs2 _)
       | ns2 == ns1 -> do ys <- V.mapM (uncurry f) (V.zip xs1 xs2)
                          return (Tensor ns1 ys js1)
-      | otherwise -> throwError =<< InconsistentTensorSize <$> getFuncNameStack
+      | otherwise -> throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 tProduct :: HasTensor a => (a -> a -> EgisonM a) -> Tensor a -> Tensor a -> EgisonM (Tensor a)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
@@ -329,26 +317,20 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
       t2' <- tTranspose (cjs2 ++ tjs2) t2
-      let (cns1, _) = splitAt (length cjs1) (tSize t1')
+      let (cns1, _) = splitAt (length cjs1) (tShape t1')
       rts' <- mapM (\is -> do rt1 <- tIntRef is t1'
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2) (enumTensorIndices cns1)
-      let ret = Tensor (cns1 ++ tSize (head rts')) (V.concat (map tToVector rts')) (map g cjs1 ++ tIndex (head rts'))
-      tTranspose (uniq (map g cjs1 ++ tjs1 ++ tjs2)) ret
+      let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map toSupSubscript cjs1 ++ tIndex (head rts'))
+      tTranspose (uniq (map toSupSubscript cjs1 ++ tjs1 ++ tjs2)) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in
-                (cjs, map rev cjs, js1 \\ cjs, js2 \\ map rev cjs)
+                (cjs, map reverseIndex cjs, js1 \\ cjs, js2 \\ map reverseIndex cjs)
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
   p (Subscript i) (Superscript j) = i == j
   p _ _                           = False
-  rev :: Index EgisonValue -> Index EgisonValue
-  rev (Superscript i) = Subscript i
-  rev (Subscript i)   = Superscript i
-  g :: Index EgisonValue -> Index EgisonValue
-  g (Superscript i) = SupSubscript i
-  g (Subscript i)   = SupSubscript i
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
@@ -376,8 +358,8 @@ tContract' t@(Tensor ns _ js) =
     [] -> return t
     (m,n):_ -> do
       let (hjs, mjs, tjs) = removePairs (m,n) js
-      xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ mjs
-                                    ++ [Subscript (ScalarData (Div (Plus [Term i []]) (Plus [Term 1 []])))] ++ tjs) t)
+      xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (SingleTerm i []))] ++ mjs
+                                   ++ [Subscript (ScalarData (SingleTerm i []))] ++ tjs) t)
                   [1..(ns !! m)]
       mapM toTensor xs' >>= tConcat (js !! m) >>= tTranspose (hjs ++ [js !! m] ++ mjs ++ tjs) >>= tContract'
  where
@@ -438,3 +420,11 @@ removePairs (m, n) xs =          -- (0,1) [i i]
       (hs, tms) = splitAt m hms  -- [] [i]
       ms = tail tms              -- []
    in (hs, ms, ts)               -- [] [] []
+
+reverseIndex :: Index EgisonValue -> Index EgisonValue
+reverseIndex (Superscript i) = Subscript i
+reverseIndex (Subscript i)   = Superscript i
+
+toSupSubscript :: Index EgisonValue -> Index EgisonValue
+toSupSubscript (Superscript i) = SupSubscript i
+toSupSubscript (Subscript i)   = SupSubscript i
