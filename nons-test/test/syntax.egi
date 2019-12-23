@@ -108,6 +108,8 @@ assertEqual "application with binops"
 assertEqual "append op" ([1] ++ [2]) [1, 2]
 assertEqual "append op" ((++) [1] [2]) [1, 2]
 
+assertEqual "apply op" ((+ 5) $ 1 + 2) 8
+
 assertEqual "section" ((+) 10 1) 11
 assertEqual "section" ((+ 1) 10) 11
 assertEqual "section" (foldl (*) 1 [1..5]) 120
