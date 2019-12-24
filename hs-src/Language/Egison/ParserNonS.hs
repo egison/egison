@@ -294,7 +294,7 @@ makeExprTable binops =
   let prefixes = [ [ Prefix (unary "-")
                    , Prefix (unary "!") ] ]
       -- Generate binary operator table from |binops|
-      binops' = map (map infixToOperator)
+      binops' = map (map toOperator)
         (groupBy (\x y -> priority x == priority y) binops)
    in prefixes ++ binops'
   where
@@ -302,18 +302,15 @@ makeExprTable binops =
     unary :: String -> Parser (EgisonExpr -> EgisonExpr)
     unary sym = UnaryOpExpr <$> try (operator sym <* notFollowedBy (symbol ")"))
 
-    binary :: String -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
-    binary sym = do
+    binary :: Infix -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
+    binary op = do
       -- Operators should be indented than pos1 in order to avoid
       -- "1\n-2" (2 topExprs, 1 and -2) to be parsed as "1 - 2".
-      op <- try (indented >> binOpLiteral sym <* notFollowedBy (symbol ")"))
+      op <- try (indented >> binOpLiteral (repr op) <* notFollowedBy (symbol ")"))
       return $ BinaryOpExpr op
 
-    infixToOperator :: Infix -> Operator Parser EgisonExpr
-    infixToOperator op = case assoc op of
-                           LeftAssoc  -> InfixL (binary (repr op))
-                           RightAssoc -> InfixR (binary (repr op))
-                           NonAssoc   -> InfixN (binary (repr op))
+    toOperator :: Infix -> Operator Parser EgisonExpr
+    toOperator = infixToOperator binary
 
 
 ifExpr :: Parser EgisonExpr
@@ -642,10 +639,7 @@ makePatternTable ops =
                  , (2, InfixR (binary OrPat "|")) ]
 
     toOperator :: Infix -> (Int, Operator Parser EgisonPattern)
-    toOperator op = case assoc op of
-                      LeftAssoc  -> (priority op, InfixL (inductive2 op))
-                      RightAssoc -> (priority op, InfixR (inductive2 op))
-                      NonAssoc   -> (priority op, InfixN (inductive2 op))
+    toOperator op = (priority op, infixToOperator inductive2 op)
 
     inductive2 op = (\x y -> InductivePat (func op) [x, y]) <$ patOperator (repr op)
     binary name sym     = (\x y -> name [x, y]) <$ patOperator sym
@@ -695,10 +689,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
       map (map toOperator) (groupBy (\x y -> priority x == priority y) ops)
 
     toOperator :: Infix -> Operator Parser PrimitivePatPattern
-    toOperator op = case assoc op of
-                      LeftAssoc  -> InfixL (inductive2 op)
-                      RightAssoc -> InfixR (inductive2 op)
-                      NonAssoc   -> InfixN (inductive2 op)
+    toOperator = infixToOperator inductive2
 
     inductive2 op = (\x y -> PPInductivePat (func op) [x, y]) <$ operator (repr op)
 
@@ -939,3 +930,10 @@ alignSome p = do
 
 indented :: Parser Pos
 indented = indentGuardGT pos1
+
+infixToOperator :: (Infix -> Parser (a -> a -> a)) -> Infix -> Operator Parser a
+infixToOperator opToParser op =
+  case assoc op of
+    LeftAssoc  -> InfixL (opToParser op)
+    RightAssoc -> InfixR (opToParser op)
+    NonAssoc   -> InfixN (opToParser op)
