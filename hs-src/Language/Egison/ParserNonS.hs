@@ -30,6 +30,7 @@ import           Control.Monad.Except           (liftIO, throwError)
 import           Control.Monad.State            (evalStateT, get, put, StateT, unless)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
+import           Data.Either                    (isRight)
 import           Data.Functor                   (($>))
 import           Data.List                      (find, groupBy, insertBy)
 import           Data.Maybe                     (fromJust, isJust, isNothing)
@@ -161,30 +162,37 @@ data ConversionResult
   | IndexedVar VarWithIndices
 
 -- Sort binaryop table on the insertion
-addNewOp :: Infix -> Parser ()
-addNewOp newop = do
+addNewOp :: Infix -> Bool -> Parser ()
+addNewOp newop isPattern = do
   pstate <- get
-  put $! pstate { exprInfix = insertBy (\x y -> compare (priority y) (priority x)) newop (exprInfix pstate) }
+  put $! if isPattern
+             then pstate { patternInfix = insertBy (\x y -> compare (priority y) (priority x)) newop (patternInfix pstate) }
+             else pstate { exprInfix = insertBy (\x y -> compare (priority y) (priority x)) newop (exprInfix pstate) }
 
 infixExpr :: Parser EgisonTopExpr
 infixExpr = do
-  assoc    <- (reserved "infixl" $> LeftAssoc)
-          <|> (reserved "infixr" $> RightAssoc)
-          <|> (reserved "infix"  $> NonAssoc)
-  reserved "expression"
-  priority <- fromInteger <$> positiveIntegerLiteral
-  sym      <- some opChar >>= check
+  assoc     <- (reserved "infixl" $> LeftAssoc)
+           <|> (reserved "infixr" $> RightAssoc)
+           <|> (reserved "infix"  $> NonAssoc)
+  isPattern <- isRight <$> eitherP (reserved "expression") (reserved "pattern")
+  priority  <- fromInteger <$> positiveIntegerLiteral
+  sym       <- if isPattern then some patOpChar >>= checkP else some opChar >>= check
   let newop = Infix { repr = sym, func = sym, priority, assoc, isWedge = False }
-  addNewOp newop
-  return (InfixDecl newop)
+  addNewOp newop isPattern
+  return (InfixDecl isPattern newop)
   where
     check :: String -> Parser String
     check ('!':_) = fail $ "cannot declare infix starting with '!'"
     check x | x `elem` reservedOp = fail $ show x ++ " cannot be a new infix"
             | otherwise           = return x
 
-    reservedOp :: [String]
+    -- Checks if given string is valid for pattern op.
+    checkP :: String -> Parser String
+    checkP x | x `elem` reservedPOp = fail $ show x ++ " cannot be a new pattern infix"
+             | otherwise           = return x
+
     reservedOp = [":", ":=", "->"]
+    reservedPOp = ["&", "|"]
 
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
@@ -788,9 +796,9 @@ opChar :: Parser Char
 opChar = oneOf ("%^&*-+\\|:<>.?!/'#@$" ++ "∧")
 
 -- Characters that can consist pattern operators.
--- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+-- ! ? # @ $ are omitted because they can appear at the beginning of atomPattern
 patOpChar :: Parser Char
-patOpChar = oneOf "%^&*-+\\|:<>.?/'"
+patOpChar = oneOf "%^&*-+\\|:<>./'"
 
 -- Characters that consist identifiers.
 -- Note that 'alphaNumChar' can also parse greek letters.
