@@ -27,11 +27,12 @@ module Language.Egison.ParserNonS
 
 import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
 import           Control.Monad.Except           (liftIO, throwError)
-import           Control.Monad.State            (evalStateT, get, modify', StateT, unless)
+import           Control.Monad.State            (evalStateT, get, put, StateT, unless)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
+import           Data.Either                    (isRight)
 import           Data.Functor                   (($>))
-import           Data.List                      (find, groupBy)
+import           Data.List                      (find, groupBy, insertBy)
 import           Data.Maybe                     (fromJust, isJust, isNothing)
 import           Data.Text                      (pack)
 
@@ -109,10 +110,21 @@ readUTF8File name = do
 -- Parser
 --
 
-type Parser = StateT [EgisonBinOp] (Parsec CustomError String)
+type Parser = StateT PState (Parsec CustomError String)
+
+-- Parser state
+data PState
+  = PState { exprInfix :: [Infix]
+           , patternInfix :: [Infix]
+           }
+
+initialPState :: PState
+initialPState = PState { exprInfix = reservedExprInfix
+                       , patternInfix = reservedPatternInfix
+                       }
 
 data CustomError
-  = IllFormedSection EgisonBinOp EgisonBinOp
+  = IllFormedSection Infix Infix
   | IllFormedDefine
   deriving (Eq, Ord)
 
@@ -128,12 +140,9 @@ instance ShowErrorComponent CustomError where
 
 doParse :: Parser a -> String -> Either EgisonError a
 doParse p input =
-  case parse (evalStateT p reservedBinops) "egison" input of
-    Left e  -> throwError (fromParsecError e)
+  case parse (evalStateT p initialPState) "egison" input of
+    Left e  -> throwError (Parser (errorBundlePretty e))
     Right r -> return r
-  where
-    fromParsecError :: ParseErrorBundle String CustomError -> EgisonError
-    fromParsecError = Parser . errorBundlePretty
 
 --
 -- Expressions
@@ -152,24 +161,38 @@ data ConversionResult
   | Function Var [Arg]  -- Definition of a function with some arguments on lhs.
   | IndexedVar VarWithIndices
 
+-- Sort binaryop table on the insertion
+addNewOp :: Infix -> Bool -> Parser ()
+addNewOp newop isPattern = do
+  pstate <- get
+  put $! if isPattern
+             then pstate { patternInfix = insertBy (\x y -> compare (priority y) (priority x)) newop (patternInfix pstate) }
+             else pstate { exprInfix = insertBy (\x y -> compare (priority y) (priority x)) newop (exprInfix pstate) }
+
 infixExpr :: Parser EgisonTopExpr
 infixExpr = do
-  assoc    <- (reserved "infixl" $> LeftAssoc)
-          <|> (reserved "infixr" $> RightAssoc)
-          <|> (reserved "infix"  $> NonAssoc)
-  reserved "expression"
-  priority <- fromInteger <$> positiveIntegerLiteral
-  sym      <- some opChar >>= check
-  let newop = EgisonBinOp { repr = sym, func = sym, priority, assoc, isWedge = False }
-  modify' (newop :)
-  return (InfixDecl newop)
+  assoc     <- (reserved "infixl" $> LeftAssoc)
+           <|> (reserved "infixr" $> RightAssoc)
+           <|> (reserved "infix"  $> NonAssoc)
+  isPattern <- isRight <$> eitherP (reserved "expression") (reserved "pattern")
+  priority  <- fromInteger <$> positiveIntegerLiteral
+  sym       <- if isPattern then newPatOp >>= checkP else some opChar >>= check
+  let newop = Infix { repr = sym, func = sym, priority, assoc, isWedge = False }
+  addNewOp newop isPattern
+  return (InfixDecl isPattern newop)
   where
     check :: String -> Parser String
+    check ('!':_) = fail $ "cannot declare infix starting with '!'"
     check x | x `elem` reservedOp = fail $ show x ++ " cannot be a new infix"
             | otherwise           = return x
 
-    reservedOp :: [String]
+    -- Checks if given string is valid for pattern op.
+    checkP :: String -> Parser String
+    checkP x | x `elem` reservedPOp = fail $ show x ++ " cannot be a new pattern infix"
+             | otherwise           = return x
+
     reservedOp = [":", ":=", "->"]
+    reservedPOp = ["&", "|", ":=", "->"]
 
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
@@ -245,9 +268,7 @@ expr = do
              Nothing -> body
              Just bindings -> LetRecExpr bindings body
   where
-    whereDefs = do
-      pos <- reserved "where" >> L.indentLevel
-      some (L.indentGuard sc EQ pos >> binding)
+    whereDefs = reserved "where" >> alignSome binding
 
 exprWithoutWhere :: Parser EgisonExpr
 exprWithoutWhere =
@@ -272,17 +293,16 @@ exprWithoutWhere =
 -- Also parses atomExpr
 opExpr :: Parser EgisonExpr
 opExpr = do
-  pos <- L.indentLevel
-  binops <- get
-  makeExprParser atomOrApplyExpr (makeTable binops pos)
+  binops <- exprInfix <$> get
+  makeExprParser atomOrApplyExpr (makeExprTable binops)
 
-makeTable :: [EgisonBinOp] -> Pos -> [[Operator Parser EgisonExpr]]
-makeTable binops pos =
+makeExprTable :: [Infix] -> [[Operator Parser EgisonExpr]]
+makeExprTable binops =
   -- prefixes have top priority
   let prefixes = [ [ Prefix (unary "-")
                    , Prefix (unary "!") ] ]
       -- Generate binary operator table from |binops|
-      binops' = map (map binOpToOperator)
+      binops' = map (map toOperator)
         (groupBy (\x y -> priority x == priority y) binops)
    in prefixes ++ binops'
   where
@@ -290,17 +310,15 @@ makeTable binops pos =
     unary :: String -> Parser (EgisonExpr -> EgisonExpr)
     unary sym = UnaryOpExpr <$> try (operator sym <* notFollowedBy (symbol ")"))
 
-    binary :: String -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
-    binary sym = do
-      -- TODO: Is this indentation guard necessary?
-      op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
+    binary :: Infix -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
+    binary op = do
+      -- Operators should be indented than pos1 in order to avoid
+      -- "1\n-2" (2 topExprs, 1 and -2) to be parsed as "1 - 2".
+      op <- try (indented >> binOpLiteral (repr op) <* notFollowedBy (symbol ")"))
       return $ BinaryOpExpr op
 
-    binOpToOperator :: EgisonBinOp -> Operator Parser EgisonExpr
-    binOpToOperator op = case assoc op of
-                           LeftAssoc  -> InfixL (binary (repr op))
-                           RightAssoc -> InfixR (binary (repr op))
-                           NonAssoc   -> InfixN (binary (repr op))
+    toOperator :: Infix -> Operator Parser EgisonExpr
+    toOperator = infixToOperator binary
 
 
 ifExpr :: Parser EgisonExpr
@@ -319,22 +337,21 @@ patternMatchExpr = makeMatchExpr (reserved "match")       (MatchExpr BFSMode)
 
 -- Parse more than 1 match clauses.
 matchClauses1 :: Parser [MatchClause]
-matchClauses1 = do
-  pos <- L.indentLevel
+matchClauses1 =
   -- If the first bar '|' is missing, then it is expected to have only one match clause.
-  (lookAhead (symbol "|") >> some (matchClause pos)) <|> (:[]) <$> matchClauseWithoutBar
+  (lookAhead (symbol "|") >> alignSome matchClause) <|> (:[]) <$> matchClauseWithoutBar
   where
     matchClauseWithoutBar :: Parser MatchClause
     matchClauseWithoutBar = (,) <$> pattern <*> (symbol "->" >> expr)
 
-    matchClause :: Pos -> Parser MatchClause
-    matchClause pos = (,) <$> (L.indentGuard sc EQ pos >> symbol "|" >> pattern) <*> (symbol "->" >> expr)
+    matchClause :: Parser MatchClause
+    matchClause = (,) <$> (symbol "|" >> pattern) <*> (symbol "->" >> expr)
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr (reserved "match")    MatchLambdaExpr
   <|> makeMatchLambdaExpr (reserved "matchAll") MatchAllLambdaExpr
-  <|> try (LambdaExpr <$> some arg <*> (symbol "->" >> expr))
+  <|> try (LambdaExpr <$> some arg <* symbol "->") <*> expr
   <|> PatternFunctionExpr <$> some lowerId <*> (symbol "=>" >> pattern))
   <?> "lambda or pattern function expression"
   where
@@ -353,7 +370,7 @@ arg = InvertedScalarArg <$> (char '*' >> ident)
 letExpr :: Parser EgisonExpr
 letExpr = do
   pos   <- reserved "let" >> L.indentLevel
-  binds <- oneLiner <|> some (L.indentGuard sc EQ pos *> binding)
+  binds <- oneLiner <|> some (indentGuardEQ pos *> binding)
   body  <- reserved "in" >> expr
   return $ LetRecExpr binds body
   where
@@ -377,7 +394,7 @@ withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy
 doExpr :: Parser EgisonExpr
 doExpr = do
   pos   <- reserved "do" >> L.indentLevel
-  stmts <- oneLiner <|> some (L.indentGuard sc EQ pos >> statement)
+  stmts <- oneLiner <|> some (indentGuardEQ pos >> statement)
   return $ case last stmts of
              ([], retExpr@(ApplyExpr (VarExpr (Var ["return"] _)) _)) ->
                DoExpr (init stmts) retExpr
@@ -398,19 +415,16 @@ capplyExpr = CApplyExpr <$> (reserved "capply" >> atomExpr) <*> atomExpr
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
   reserved "matcher"
-  pos  <- L.indentLevel
   -- Assuming it is unlikely that users want to write matchers with only 1
   -- pattern definition, the first '|' (bar) is made indispensable in matcher
   -- expression.
-  info <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
-  return $ MatcherExpr info
+  MatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
     patternDef :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
     patternDef = do
       pp <- ppPattern
       returnMatcher <- reserved "as" >> expr <* reserved "with"
-      pos <- L.indentLevel
-      datapat <- some (L.indentGuard sc EQ pos >> symbol "|" >> dataCases)
+      datapat <- alignSome (symbol "|" >> dataCases)
       return (pp, returnMatcher, datapat)
 
     dataCases :: Parser (PrimitiveDataPattern, EgisonExpr)
@@ -419,15 +433,13 @@ matcherExpr = do
 algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = do
   reserved "algebraicDataMatcher"
-  pos  <- L.indentLevel
-  defs <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
-  return $ AlgebraicDataMatcherExpr defs
+  AlgebraicDataMatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
     patternDef :: Parser (String, [EgisonExpr])
     patternDef = do
       pos <- L.indentLevel
       patternCtor <- lowerId
-      args <- many (L.indentGuard sc GT pos >> atomExpr)
+      args <- many (indentGuardGT pos >> atomExpr)
       return (patternCtor, args)
 
 memoizedLambdaExpr :: Parser EgisonExpr
@@ -448,10 +460,10 @@ functionExpr :: Parser EgisonExpr
 functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
 
 collectionExpr :: Parser EgisonExpr
-collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
+collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr
   where
     betweenOrFromExpr = do
-      start <- expr <* symbol ".."
+      start <- try (expr <* symbol "..")
       end   <- optional expr <* symbol "]"
       case end of
         Just end' -> return $ makeApply' "between" [start, end']
@@ -477,7 +489,7 @@ tupleOrParenExpr = do
     -- Sections without the left operand: eg. (+), (+ 1)
     leftSection :: Parser EgisonExpr
     leftSection = do
-      binops <- get
+      binops <- exprInfix <$> get
       op     <- choice $ map (binOpLiteral . repr) binops
       rarg   <- optional expr
       case rarg of
@@ -489,7 +501,7 @@ tupleOrParenExpr = do
     -- Sections with the left operand but lacks the right operand: eg. (1 +)
     rightSection :: Parser EgisonExpr
     rightSection = do
-      binops <- get
+      binops <- exprInfix <$> get
       larg   <- opExpr
       op     <- choice $ map (binOpLiteral . repr) binops
       case larg of
@@ -534,7 +546,7 @@ atomOrApplyExpr :: Parser EgisonExpr
 atomOrApplyExpr = do
   pos <- L.indentLevel
   func <- atomExpr
-  args <- many (L.indentGuard sc GT pos *> atomExpr)
+  args <- many (indentGuardGT pos *> atomExpr)
   return $ case args of
              [] -> func
              _  -> makeApply func args
@@ -544,7 +556,6 @@ atomExpr :: Parser EgisonExpr
 atomExpr = do
   e <- atomExpr'
   override <- isNothing <$> optional (try (string "..." <* lookAhead index))
-  -- TODO(momohatt): "..." (override of index) collides with ContPat
   indices <- many index
   return $ case indices of
              [] -> e
@@ -595,11 +606,8 @@ pattern = letPattern
       <?> "pattern"
 
 letPattern :: Parser EgisonPattern
-letPattern = do
-  pos   <- reserved "let" >> L.indentLevel
-  binds <- some (L.indentGuard sc EQ pos *> binding)
-  body  <- reserved "in" >> pattern
-  return $ LetPat binds body
+letPattern =
+  reserved "let" >> LetPat <$> alignSome binding <*> (reserved "in" >> pattern)
 
 loopPattern :: Parser EgisonPattern
 loopPattern =
@@ -623,27 +631,32 @@ seqPattern = do
   return $ foldr SeqConsPat SeqNilPat pats
 
 opPattern :: Parser EgisonPattern
-opPattern = makeExprParser applyOrAtomPattern table
+opPattern = do
+  ops <- patternInfix <$> get
+  makeExprParser applyOrAtomPattern (makePatternTable ops)
+
+makePatternTable :: [Infix] -> [[Operator Parser EgisonPattern]]
+makePatternTable ops =
+  let prefix = [ [ Prefix (NotPat <$ symbol "!") ] ]
+      binops = map toOperator ops ++ logicalPat
+      binops' = map (map snd) (groupBy (\x y -> fst x == fst y) binops)
+   in prefix ++ binops'
   where
-    table :: [[Operator Parser EgisonPattern]]
-    table =
-      [ [ Prefix (NotPat <$ symbol "!") ]
-      -- 5
-      , [ InfixR (inductive2 "cons" "::" )
-        , InfixR (inductive2 "join" "++") ]
-      -- 3
-      , [ InfixR (binary AndPat "&") ]
-      -- 2
-      , [ InfixR (binary OrPat  "|") ]
-      ]
-    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ patOperator sym
+    logicalPat :: [(Int, Operator Parser EgisonPattern)]
+    logicalPat = [ (3, InfixR (binary AndPat "&"))
+                 , (2, InfixR (binary OrPat "|")) ]
+
+    toOperator :: Infix -> (Int, Operator Parser EgisonPattern)
+    toOperator op = (priority op, infixToOperator inductive2 op)
+
+    inductive2 op = (\x y -> InductivePat (func op) [x, y]) <$ patOperator (repr op)
     binary name sym     = (\x y -> name [x, y]) <$ patOperator sym
 
 applyOrAtomPattern :: Parser EgisonPattern
 applyOrAtomPattern = do
   pos <- L.indentLevel
   func <- atomPattern
-  args <- many (L.indentGuard sc GT pos *> atomPattern)
+  args <- many (indentGuardGT pos *> atomPattern)
   case (func, args) of
     (_,                 []) -> return func
     (InductivePat x [], _)  -> return $ InductivePat x args
@@ -675,15 +688,18 @@ atomPattern' = WildCard <$   symbol "_"
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
-        <|> makeExprParser ppAtom table
+        <|> do ops <- patternInfix <$> get
+               makeExprParser ppAtom (makeTable ops)
         <?> "primitive pattern pattern"
   where
-    table :: [[Operator Parser PrimitivePatPattern]]
-    table =
-      [ [ InfixR (inductive2 "cons" "::" )
-        , InfixR (inductive2 "join" "++") ]
-      ]
-    inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ operator sym
+    makeTable :: [Infix] -> [[Operator Parser PrimitivePatPattern]]
+    makeTable ops =
+      map (map toOperator) (groupBy (\x y -> priority x == priority y) ops)
+
+    toOperator :: Infix -> Operator Parser PrimitivePatPattern
+    toOperator = infixToOperator inductive2
+
+    inductive2 op = (\x y -> PPInductivePat (func op) [x, y]) <$ operator (repr op)
 
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
@@ -750,11 +766,11 @@ varLiteral = stringToVar <$> ident
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
-binOpLiteral :: String -> Parser EgisonBinOp
+binOpLiteral :: String -> Parser Infix
 binOpLiteral sym =
   try (do wedge <- optional (char '!')
           opSym <- operator' sym
-          binops <- get
+          binops <- exprInfix <$> get
           let opInfo = fromJust $ find ((== opSym) . repr) binops
           return $ opInfo { isWedge = isJust wedge })
    <?> "binary operator"
@@ -766,8 +782,8 @@ binOpLiteral sym =
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy identChar)
 
-symbol :: String -> Parser String
-symbol sym = try $ L.symbol sc sym
+symbol :: String -> Parser ()
+symbol sym = try (L.symbol sc sym) >> pure ()
 
 operator :: String -> Parser String
 operator sym = try $ string sym <* notFollowedBy opChar <* sc
@@ -780,9 +796,12 @@ opChar :: Parser Char
 opChar = oneOf ("%^&*-+\\|:<>.?!/'#@$" ++ "∧")
 
 -- Characters that can consist pattern operators.
--- ! # @ $ are omitted because they can appear at the beginning of atomPattern
+-- ! ? # @ $ are omitted because they can appear at the beginning of atomPattern
 patOpChar :: Parser Char
-patOpChar = oneOf "%^&*-+\\|:<>.?/'"
+patOpChar = oneOf "%^&*-+\\|:<>./'"
+
+newPatOp :: Parser String
+newPatOp = (:) <$> patOpChar <*> many (patOpChar <|> oneOf "!?#@$")
 
 -- Characters that consist identifiers.
 -- Note that 'alphaNumChar' can also parse greek letters.
@@ -805,7 +824,7 @@ braces = between (symbol "{") (symbol "}")
 brackets :: Parser a -> Parser a
 brackets  = between (symbol "[") (symbol "]")
 
-comma :: Parser String
+comma :: Parser ()
 comma = symbol ","
 
 -- Notes on identifiers:
@@ -907,3 +926,25 @@ makeApply func xs = ApplyExpr func (TupleExpr xs)
 
 makeApply' :: String -> [EgisonExpr] -> EgisonExpr
 makeApply' func xs = ApplyExpr (stringToVarExpr func) (TupleExpr xs)
+
+indentGuardEQ :: Pos -> Parser Pos
+indentGuardEQ pos = L.indentGuard sc EQ pos
+
+indentGuardGT :: Pos -> Parser Pos
+indentGuardGT pos = L.indentGuard sc GT pos
+
+-- Variant of 'some' that requires every element to be at the same indentation level
+alignSome :: Parser a -> Parser [a]
+alignSome p = do
+  pos <- L.indentLevel
+  some (indentGuardEQ pos >> p)
+
+indented :: Parser Pos
+indented = indentGuardGT pos1
+
+infixToOperator :: (Infix -> Parser (a -> a -> a)) -> Infix -> Operator Parser a
+infixToOperator opToParser op =
+  case assoc op of
+    LeftAssoc  -> InfixL (opToParser op)
+    RightAssoc -> InfixR (opToParser op)
+    NonAssoc   -> InfixN (opToParser op)
