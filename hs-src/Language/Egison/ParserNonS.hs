@@ -260,9 +260,7 @@ expr = do
              Nothing -> body
              Just bindings -> LetRecExpr bindings body
   where
-    whereDefs = do
-      pos <- reserved "where" >> L.indentLevel
-      some (indentGuardEQ pos >> binding)
+    whereDefs = reserved "where" >> alignSome binding
 
 exprWithoutWhere :: Parser EgisonExpr
 exprWithoutWhere =
@@ -334,16 +332,15 @@ patternMatchExpr = makeMatchExpr (reserved "match")       (MatchExpr BFSMode)
 
 -- Parse more than 1 match clauses.
 matchClauses1 :: Parser [MatchClause]
-matchClauses1 = do
-  pos <- L.indentLevel
+matchClauses1 =
   -- If the first bar '|' is missing, then it is expected to have only one match clause.
-  (lookAhead (symbol "|") >> some (matchClause pos)) <|> (:[]) <$> matchClauseWithoutBar
+  (lookAhead (symbol "|") >> alignSome matchClause) <|> (:[]) <$> matchClauseWithoutBar
   where
     matchClauseWithoutBar :: Parser MatchClause
     matchClauseWithoutBar = (,) <$> pattern <*> (symbol "->" >> expr)
 
-    matchClause :: Pos -> Parser MatchClause
-    matchClause pos = (,) <$> (indentGuardEQ pos >> symbol "|" >> pattern) <*> (symbol "->" >> expr)
+    matchClause :: Parser MatchClause
+    matchClause = (,) <$> (symbol "|" >> pattern) <*> (symbol "->" >> expr)
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
@@ -413,19 +410,16 @@ capplyExpr = CApplyExpr <$> (reserved "capply" >> atomExpr) <*> atomExpr
 matcherExpr :: Parser EgisonExpr
 matcherExpr = do
   reserved "matcher"
-  pos  <- L.indentLevel
   -- Assuming it is unlikely that users want to write matchers with only 1
   -- pattern definition, the first '|' (bar) is made indispensable in matcher
   -- expression.
-  info <- some (indentGuardEQ pos >> symbol "|" >> patternDef)
-  return $ MatcherExpr info
+  MatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
     patternDef :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
     patternDef = do
       pp <- ppPattern
       returnMatcher <- reserved "as" >> expr <* reserved "with"
-      pos <- L.indentLevel
-      datapat <- some (indentGuardEQ pos >> symbol "|" >> dataCases)
+      datapat <- alignSome (symbol "|" >> dataCases)
       return (pp, returnMatcher, datapat)
 
     dataCases :: Parser (PrimitiveDataPattern, EgisonExpr)
@@ -434,9 +428,7 @@ matcherExpr = do
 algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = do
   reserved "algebraicDataMatcher"
-  pos  <- L.indentLevel
-  defs <- some (indentGuardEQ pos >> symbol "|" >> patternDef)
-  return $ AlgebraicDataMatcherExpr defs
+  AlgebraicDataMatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
     patternDef :: Parser (String, [EgisonExpr])
     patternDef = do
@@ -610,11 +602,8 @@ pattern = letPattern
       <?> "pattern"
 
 letPattern :: Parser EgisonPattern
-letPattern = do
-  pos   <- reserved "let" >> L.indentLevel
-  binds <- some (indentGuardEQ pos *> binding)
-  body  <- reserved "in" >> pattern
-  return $ LetPat binds body
+letPattern =
+  reserved "let" >> LetPat <$> alignSome binding <*> (reserved "in" >> pattern)
 
 loopPattern :: Parser EgisonPattern
 loopPattern =
@@ -928,3 +917,9 @@ indentGuardEQ pos = L.indentGuard sc EQ pos
 
 indentGuardGT :: Pos -> Parser Pos
 indentGuardGT pos = L.indentGuard sc GT pos
+
+-- Variant of 'some' that requires every element to be at the same indentation level
+alignSome :: Parser a -> Parser [a]
+alignSome p = do
+  pos <- L.indentLevel
+  some (indentGuardEQ pos >> p)
