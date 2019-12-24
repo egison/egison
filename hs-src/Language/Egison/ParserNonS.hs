@@ -129,11 +129,8 @@ instance ShowErrorComponent CustomError where
 doParse :: Parser a -> String -> Either EgisonError a
 doParse p input =
   case parse (evalStateT p reservedBinops) "egison" input of
-    Left e  -> throwError (fromParsecError e)
+    Left e  -> throwError (Parser (errorBundlePretty e))
     Right r -> return r
-  where
-    fromParsecError :: ParseErrorBundle String CustomError -> EgisonError
-    fromParsecError = Parser . errorBundlePretty
 
 --
 -- Expressions
@@ -248,7 +245,7 @@ expr = do
   where
     whereDefs = do
       pos <- reserved "where" >> L.indentLevel
-      some (L.indentGuard sc EQ pos >> binding)
+      some (indentGuardEQ pos >> binding)
 
 exprWithoutWhere :: Parser EgisonExpr
 exprWithoutWhere =
@@ -294,7 +291,7 @@ makeTable binops pos =
     binary :: String -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
     binary sym = do
       -- TODO: Is this indentation guard necessary?
-      op <- try (L.indentGuard sc GT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
+      op <- try (indentGuardGT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
       return $ BinaryOpExpr op
 
     binOpToOperator :: EgisonBinOp -> Operator Parser EgisonExpr
@@ -329,7 +326,7 @@ matchClauses1 = do
     matchClauseWithoutBar = (,) <$> pattern <*> (symbol "->" >> expr)
 
     matchClause :: Pos -> Parser MatchClause
-    matchClause pos = (,) <$> (L.indentGuard sc EQ pos >> symbol "|" >> pattern) <*> (symbol "->" >> expr)
+    matchClause pos = (,) <$> (indentGuardEQ pos >> symbol "|" >> pattern) <*> (symbol "->" >> expr)
 
 lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
@@ -354,7 +351,7 @@ arg = InvertedScalarArg <$> (char '*' >> ident)
 letExpr :: Parser EgisonExpr
 letExpr = do
   pos   <- reserved "let" >> L.indentLevel
-  binds <- oneLiner <|> some (L.indentGuard sc EQ pos *> binding)
+  binds <- oneLiner <|> some (indentGuardEQ pos *> binding)
   body  <- reserved "in" >> expr
   return $ LetRecExpr binds body
   where
@@ -378,7 +375,7 @@ withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy
 doExpr :: Parser EgisonExpr
 doExpr = do
   pos   <- reserved "do" >> L.indentLevel
-  stmts <- oneLiner <|> some (L.indentGuard sc EQ pos >> statement)
+  stmts <- oneLiner <|> some (indentGuardEQ pos >> statement)
   return $ case last stmts of
              ([], retExpr@(ApplyExpr (VarExpr (Var ["return"] _)) _)) ->
                DoExpr (init stmts) retExpr
@@ -403,7 +400,7 @@ matcherExpr = do
   -- Assuming it is unlikely that users want to write matchers with only 1
   -- pattern definition, the first '|' (bar) is made indispensable in matcher
   -- expression.
-  info <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
+  info <- some (indentGuardEQ pos >> symbol "|" >> patternDef)
   return $ MatcherExpr info
   where
     patternDef :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
@@ -411,7 +408,7 @@ matcherExpr = do
       pp <- ppPattern
       returnMatcher <- reserved "as" >> expr <* reserved "with"
       pos <- L.indentLevel
-      datapat <- some (L.indentGuard sc EQ pos >> symbol "|" >> dataCases)
+      datapat <- some (indentGuardEQ pos >> symbol "|" >> dataCases)
       return (pp, returnMatcher, datapat)
 
     dataCases :: Parser (PrimitiveDataPattern, EgisonExpr)
@@ -421,14 +418,14 @@ algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = do
   reserved "algebraicDataMatcher"
   pos  <- L.indentLevel
-  defs <- some (L.indentGuard sc EQ pos >> symbol "|" >> patternDef)
+  defs <- some (indentGuardEQ pos >> symbol "|" >> patternDef)
   return $ AlgebraicDataMatcherExpr defs
   where
     patternDef :: Parser (String, [EgisonExpr])
     patternDef = do
       pos <- L.indentLevel
       patternCtor <- lowerId
-      args <- many (L.indentGuard sc GT pos >> atomExpr)
+      args <- many (indentGuardGT pos >> atomExpr)
       return (patternCtor, args)
 
 memoizedLambdaExpr :: Parser EgisonExpr
@@ -535,7 +532,7 @@ atomOrApplyExpr :: Parser EgisonExpr
 atomOrApplyExpr = do
   pos <- L.indentLevel
   func <- atomExpr
-  args <- many (L.indentGuard sc GT pos *> atomExpr)
+  args <- many (indentGuardGT pos *> atomExpr)
   return $ case args of
              [] -> func
              _  -> makeApply func args
@@ -598,7 +595,7 @@ pattern = letPattern
 letPattern :: Parser EgisonPattern
 letPattern = do
   pos   <- reserved "let" >> L.indentLevel
-  binds <- some (L.indentGuard sc EQ pos *> binding)
+  binds <- some (indentGuardEQ pos *> binding)
   body  <- reserved "in" >> pattern
   return $ LetPat binds body
 
@@ -644,7 +641,7 @@ applyOrAtomPattern :: Parser EgisonPattern
 applyOrAtomPattern = do
   pos <- L.indentLevel
   func <- atomPattern
-  args <- many (L.indentGuard sc GT pos *> atomPattern)
+  args <- many (indentGuardGT pos *> atomPattern)
   case (func, args) of
     (_,                 []) -> return func
     (InductivePat x [], _)  -> return $ InductivePat x args
@@ -767,8 +764,8 @@ binOpLiteral sym =
 reserved :: String -> Parser ()
 reserved w = (lexeme . try) (string w *> notFollowedBy identChar)
 
-symbol :: String -> Parser String
-symbol sym = try $ L.symbol sc sym
+symbol :: String -> Parser ()
+symbol sym = try (L.symbol sc sym) >> pure ()
 
 operator :: String -> Parser String
 operator sym = try $ string sym <* notFollowedBy opChar <* sc
@@ -806,7 +803,7 @@ braces = between (symbol "{") (symbol "}")
 brackets :: Parser a -> Parser a
 brackets  = between (symbol "[") (symbol "]")
 
-comma :: Parser String
+comma :: Parser ()
 comma = symbol ","
 
 -- Notes on identifiers:
@@ -908,3 +905,9 @@ makeApply func xs = ApplyExpr func (TupleExpr xs)
 
 makeApply' :: String -> [EgisonExpr] -> EgisonExpr
 makeApply' func xs = ApplyExpr (stringToVarExpr func) (TupleExpr xs)
+
+indentGuardEQ :: Pos -> Parser Pos
+indentGuardEQ pos = L.indentGuard sc EQ pos
+
+indentGuardGT :: Pos -> Parser Pos
+indentGuardGT pos = L.indentGuard sc GT pos
