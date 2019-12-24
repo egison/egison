@@ -334,7 +334,7 @@ lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr (reserved "match")    MatchLambdaExpr
   <|> makeMatchLambdaExpr (reserved "matchAll") MatchAllLambdaExpr
-  <|> try (LambdaExpr <$> some arg <*> (symbol "->" >> expr))
+  <|> try (LambdaExpr <$> some arg <* symbol "->") <*> expr
   <|> PatternFunctionExpr <$> some lowerId <*> (symbol "=>" >> pattern))
   <?> "lambda or pattern function expression"
   where
@@ -448,10 +448,10 @@ functionExpr :: Parser EgisonExpr
 functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
 
 collectionExpr :: Parser EgisonExpr
-collectionExpr = symbol "[" >> (try betweenOrFromExpr <|> elementsExpr)
+collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr
   where
     betweenOrFromExpr = do
-      start <- expr <* symbol ".."
+      start <- try (expr <* symbol "..")
       end   <- optional expr <* symbol "]"
       case end of
         Just end' -> return $ makeApply' "between" [start, end']
