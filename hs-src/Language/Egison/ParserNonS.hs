@@ -109,10 +109,21 @@ readUTF8File name = do
 -- Parser
 --
 
-type Parser = StateT [EgisonBinOp] (Parsec CustomError String)
+type Parser = StateT PState (Parsec CustomError String)
+
+-- Parser state
+data PState
+  = PState { exprInfix :: [Infix]
+           , patternInfix :: [Infix]
+           }
+
+initialPState :: PState
+initialPState = PState { exprInfix = reservedExprInfix
+                       , patternInfix = []
+                       }
 
 data CustomError
-  = IllFormedSection EgisonBinOp EgisonBinOp
+  = IllFormedSection Infix Infix
   | IllFormedDefine
   deriving (Eq, Ord)
 
@@ -128,7 +139,7 @@ instance ShowErrorComponent CustomError where
 
 doParse :: Parser a -> String -> Either EgisonError a
 doParse p input =
-  case parse (evalStateT p reservedBinops) "egison" input of
+  case parse (evalStateT p initialPState) "egison" input of
     Left e  -> throwError (Parser (errorBundlePretty e))
     Right r -> return r
 
@@ -150,10 +161,10 @@ data ConversionResult
   | IndexedVar VarWithIndices
 
 -- Sort binaryop table on the insertion
-addNewOp :: EgisonBinOp -> Parser ()
+addNewOp :: Infix -> Parser ()
 addNewOp newop = do
-  binops <- get
-  put $! insertBy (\x y -> compare (priority y) (priority x)) newop binops
+  pstate <- get
+  put $! pstate { exprInfix = insertBy (\x y -> compare (priority y) (priority x)) newop (exprInfix pstate) }
 
 infixExpr :: Parser EgisonTopExpr
 infixExpr = do
@@ -163,7 +174,7 @@ infixExpr = do
   reserved "expression"
   priority <- fromInteger <$> positiveIntegerLiteral
   sym      <- some opChar >>= check
-  let newop = EgisonBinOp { repr = sym, func = sym, priority, assoc, isWedge = False }
+  let newop = Infix { repr = sym, func = sym, priority, assoc, isWedge = False }
   addNewOp newop
   return (InfixDecl newop)
   where
@@ -277,16 +288,16 @@ exprWithoutWhere =
 opExpr :: Parser EgisonExpr
 opExpr = do
   pos <- L.indentLevel
-  binops <- get
+  binops <- exprInfix <$> get
   makeExprParser atomOrApplyExpr (makeTable binops pos)
 
-makeTable :: [EgisonBinOp] -> Pos -> [[Operator Parser EgisonExpr]]
+makeTable :: [Infix] -> Pos -> [[Operator Parser EgisonExpr]]
 makeTable binops pos =
   -- prefixes have top priority
   let prefixes = [ [ Prefix (unary "-")
                    , Prefix (unary "!") ] ]
       -- Generate binary operator table from |binops|
-      binops' = map (map binOpToOperator)
+      binops' = map (map infixToOperator)
         (groupBy (\x y -> priority x == priority y) binops)
    in prefixes ++ binops'
   where
@@ -300,8 +311,8 @@ makeTable binops pos =
       op <- try (indentGuardGT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
       return $ BinaryOpExpr op
 
-    binOpToOperator :: EgisonBinOp -> Operator Parser EgisonExpr
-    binOpToOperator op = case assoc op of
+    infixToOperator :: Infix -> Operator Parser EgisonExpr
+    infixToOperator op = case assoc op of
                            LeftAssoc  -> InfixL (binary (repr op))
                            RightAssoc -> InfixR (binary (repr op))
                            NonAssoc   -> InfixN (binary (repr op))
@@ -481,7 +492,7 @@ tupleOrParenExpr = do
     -- Sections without the left operand: eg. (+), (+ 1)
     leftSection :: Parser EgisonExpr
     leftSection = do
-      binops <- get
+      binops <- exprInfix <$> get
       op     <- choice $ map (binOpLiteral . repr) binops
       rarg   <- optional expr
       case rarg of
@@ -493,7 +504,7 @@ tupleOrParenExpr = do
     -- Sections with the left operand but lacks the right operand: eg. (1 +)
     rightSection :: Parser EgisonExpr
     rightSection = do
-      binops <- get
+      binops <- exprInfix <$> get
       larg   <- opExpr
       op     <- choice $ map (binOpLiteral . repr) binops
       case larg of
@@ -754,11 +765,11 @@ varLiteral = stringToVar <$> ident
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
-binOpLiteral :: String -> Parser EgisonBinOp
+binOpLiteral :: String -> Parser Infix
 binOpLiteral sym =
   try (do wedge <- optional (char '!')
           opSym <- operator' sym
-          binops <- get
+          binops <- exprInfix <$> get
           let opInfo = fromJust $ find ((== opSym) . repr) binops
           return $ opInfo { isWedge = isJust wedge })
    <?> "binary operator"
