@@ -7,23 +7,24 @@ tree a := matcher
 hand := (integer, multiset integer, multiset integer)
 
 step s := matchAllDFS s as (integer, list integer, list integer) with
-  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), $hs' ++ (?(\y -> x + y < 6) & $y) :: (!(_ ++ #y :: _) & $ts')) -> (2, hs ++ x :: ts, hs' ++ x + y :: ts')
-  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), ?(\y -> x + y > 5) :: []) -> (-1, hs ++ x :: ts, [])
-  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), (!(_ :: []) & $hs' ++ (?(\y -> x + y > 5) & $y) :: (!(_ ++ #y :: _) & $ts'))) -> (2, hs ++ x :: ts, hs' ++ ts')
-  | (#2, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), $hs' ++ (?(\y -> x + y < 6) & $y) :: (!(_ ++ #y :: _) & $ts')) -> (1, hs ++ x + y :: ts, hs' ++ y :: ts')
-  | (#2, $x :: [], $hs' ++ (?(\y -> x + y > 5) & $y) :: (!(_ ++ #y :: _) & $ts')) -> (-2, [], hs' ++ y :: ts')
-  | (#2, (!(_ :: []) & $hs ++ $x :: (!(_ ++ #x :: _) & $ts)), $hs' ++ (?(\y -> x + y > 5) & $y) :: (!(_ ++ #y :: _) & $ts')) -> (1, hs ++ ts, hs' ++ y :: ts')
-
---concat (map step (concat (map step' (step ([1,1],[1,1])))))
---concat (map step' (concat (map step (concat (map step' (step ([1,1],[1,1])))))))
+  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), $hs' ++ (?(\y -> x + y < 6) & $y) :: (!(_ ++ #y :: _) & $ts'))
+  -> (2, hs ++ x :: ts, hs' ++ x + y :: ts')
+  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), ?(\y -> x + y > 5) :: [])
+  -> (-1, hs ++ x :: ts, [])
+  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), (!(_ :: []) & $hs' ++ (?(\y -> x + y > 5) & $y) :: (!(_ ++ #y :: _) & $ts')))
+  -> (2, hs ++ x :: ts, hs' ++ ts')
+  | (#2, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), $hs' ++ (?(\y -> x + y < 6) & $y) :: (!(_ ++ #y :: _) & $ts'))
+  -> (1, hs ++ x + y :: ts, hs' ++ y :: ts')
+  | (#2, $x :: [], $hs' ++ (?(\y -> x + y > 5) & $y) :: (!(_ ++ #y :: _) & $ts'))
+  -> (-2, [], hs' ++ y :: ts')
+  | (#2, (!(_ :: []) & $hs ++ $x :: (!(_ ++ #x :: _) & $ts)), $hs' ++ (?(\y -> x + y > 5) & $y) :: (!(_ ++ #y :: _) & $ts'))
+  -> (1, hs ++ ts, hs' ++ y :: ts')
 
 init := (1, [1,1], [1,1])
 
-makeTree x := Node x (map makeTree (step x))
+next := car (step init) -- (2, [1, 1], [1, 2])
 
---matchAllDFS makeTree init as tree hand with
---| node $x_1 ((node $x_2 ((node $x_3 _) :: _)) :: _)
----> (x_1, x_2, x_3)
+makeTree x := Node x (map makeTree (step x))
 
 topTree n :=
   matchAllDFS makeTree init as tree hand with
@@ -41,4 +42,17 @@ paths :=
       (node $x_(n + 1) [])
   -> map (\i -> x_i) [1..(n + 1)]
 
-io (each (compose show print) paths)
+--io (each (compose show print) paths)
+
+--winning := \p => node ((#(-1), _, ~p) & _) _ | (node ~p (!(node _ (winning _ :: _) :: _)))
+
+winningStep s h :=
+  matchAll makeTree s as tree hand with
+  | loop $i (1, $n)
+      (node _ (!(node _ (!(... :: _)) :: _)))
+      ((node (#(neg h), _, _) _) & $x)
+  -> (n, x)
+
+winningStep init 1
+winningStep next 2
+

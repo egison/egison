@@ -52,13 +52,11 @@ deleteClausesWith l cnf :=
 
 assertEqual "deleteClausesWith" (fromCnf (deleteClausesWith 1 (toCnf [[1,2,3], [1], [-1,2]]))) [[-1, 2]]
 
-assignTrue l cnf :=
-  deleteLiteral (neg l) (deleteClausesWith l cnf)
+assignTrue l cnf := deleteLiteral (neg l) (deleteClausesWith l cnf)
 
 assertEqual "assignTrue" (fromCnf (assignTrue 1 (toCnf [[1,2,3], [1], [-1,2]]))) [[2]]
 
-unitPropagate stage cnf trail :=
-  unitPropagate' stage cnf trail trail
+unitPropagate stage cnf trail := unitPropagate' stage cnf trail trail
 
 unitPropagate' stage cnf trail otrail :=
   matchDFS trail as list assignment with
