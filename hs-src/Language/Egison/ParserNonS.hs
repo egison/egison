@@ -263,12 +263,10 @@ defineOrTestExpr = do
 expr :: Parser EgisonExpr
 expr = do
   body <- exprWithoutWhere
-  bindings <- optional whereDefs
+  bindings <- optional (reserved "where" >> alignSome binding)
   return $ case bindings of
              Nothing -> body
              Just bindings -> LetRecExpr bindings body
-  where
-    whereDefs = reserved "where" >> alignSome binding
 
 exprWithoutWhere :: Parser EgisonExpr
 exprWithoutWhere =
@@ -293,18 +291,18 @@ exprWithoutWhere =
 -- Also parses atomExpr
 opExpr :: Parser EgisonExpr
 opExpr = do
-  binops <- exprInfix <$> get
-  makeExprParser atomOrApplyExpr (makeExprTable binops)
+  infixes <- exprInfix <$> get
+  makeExprParser atomOrApplyExpr (makeExprTable infixes)
 
 makeExprTable :: [Infix] -> [[Operator Parser EgisonExpr]]
-makeExprTable binops =
+makeExprTable infixes =
   -- prefixes have top priority
   let prefixes = [ [ Prefix (unary "-")
                    , Prefix (unary "!") ] ]
-      -- Generate binary operator table from |binops|
-      binops' = map (map toOperator)
-        (groupBy (\x y -> priority x == priority y) binops)
-   in prefixes ++ binops'
+      -- Generate binary operator table from |infixes|
+      infixes' = map (map toOperator)
+        (groupBy (\x y -> priority x == priority y) infixes)
+   in prefixes ++ infixes'
   where
     -- notFollowedBy (in unary and binary) is necessary for section expression.
     unary :: String -> Parser (EgisonExpr -> EgisonExpr)
@@ -314,7 +312,7 @@ makeExprTable binops =
     binary op = do
       -- Operators should be indented than pos1 in order to avoid
       -- "1\n-2" (2 topExprs, 1 and -2) to be parsed as "1 - 2".
-      op <- try (indented >> binOpLiteral (repr op) <* notFollowedBy (symbol ")"))
+      op <- try (indented >> infixLiteral (repr op) <* notFollowedBy (symbol ")"))
       return $ BinaryOpExpr op
 
     toOperator :: Infix -> Operator Parser EgisonExpr
@@ -482,9 +480,9 @@ tupleOrParenExpr = do
     -- Sections without the left operand: eg. (+), (+ 1)
     leftSection :: Parser EgisonExpr
     leftSection = do
-      binops <- exprInfix <$> get
-      op     <- choice $ map (binOpLiteral . repr) binops
-      rarg   <- optional expr
+      infixes <- exprInfix <$> get
+      op      <- choice $ map (infixLiteral . repr) infixes
+      rarg    <- optional expr
       case rarg of
         Just (BinaryOpExpr op' _ _)
           | assoc op' /= RightAssoc && priority op >= priority op' ->
@@ -494,9 +492,9 @@ tupleOrParenExpr = do
     -- Sections with the left operand but lacks the right operand: eg. (1 +)
     rightSection :: Parser EgisonExpr
     rightSection = do
-      binops <- exprInfix <$> get
-      larg   <- opExpr
-      op     <- choice $ map (binOpLiteral . repr) binops
+      infixes <- exprInfix <$> get
+      larg    <- opExpr
+      op      <- choice $ map (infixLiteral . repr) infixes
       case larg of
         BinaryOpExpr op' _ _
           | assoc op' /= LeftAssoc && priority op >= priority op' ->
@@ -628,20 +626,20 @@ opPattern = do
 
 makePatternTable :: [Infix] -> [[Operator Parser EgisonPattern]]
 makePatternTable ops =
-  let prefix = [ [ Prefix (NotPat <$ symbol "!") ] ]
-      binops = map toOperator ops ++ logicalPat
-      binops' = map (map snd) (groupBy (\x y -> fst x == fst y) binops)
-   in prefix ++ binops'
+  let prefix   = [ [ Prefix (NotPat <$ symbol "!") ] ]
+      infixes  = map toOperator ops ++ logicalPatOp
+      infixes' = map (map snd) (groupBy (\x y -> fst x == fst y) infixes)
+   in prefix ++ infixes'
   where
-    logicalPat :: [(Int, Operator Parser EgisonPattern)]
-    logicalPat = [ (3, InfixR (binary AndPat "&"))
-                 , (2, InfixR (binary OrPat "|")) ]
+    logicalPatOp :: [(Int, Operator Parser EgisonPattern)]
+    logicalPatOp = [ (3, InfixR (binary AndPat "&"))
+                   , (2, InfixR (binary OrPat "|")) ]
 
     toOperator :: Infix -> (Int, Operator Parser EgisonPattern)
     toOperator op = (priority op, infixToOperator inductive2 op)
 
     inductive2 op = (\x y -> InductivePat (func op) [x, y]) <$ patOperator (repr op)
-    binary name sym     = (\x y -> name [x, y]) <$ patOperator sym
+    binary ctor sym = (\x y -> ctor [x, y]) <$ patOperator sym
 
 applyOrAtomPattern :: Parser EgisonPattern
 applyOrAtomPattern = do
@@ -662,7 +660,7 @@ atomPattern = do
 
 -- Atomic pattern without index
 atomPattern' :: Parser EgisonPattern
-atomPattern' = WildCard <$   symbol "_"
+atomPattern' = WildCard <$  symbol "_"
            <|> PatVar   <$> patVarLiteral
            <|> ValuePat <$> (char '#' >> atomExpr)
            <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
@@ -693,8 +691,8 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
          <|> PPPatVar   <$ symbol "$"
-         <|> PPValuePat <$> (symbol "#$" >> lowerId)
-         <|> PPInductivePat "nil" [] <$ brackets sc
+         <|> PPValuePat <$> (string "#$" >> lowerId)
+         <|> PPInductivePat "nil" [] <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen ppPattern PPTuplePat
 
 pdPattern :: Parser PrimitiveDataPattern
@@ -709,7 +707,7 @@ pdPattern = PDInductivePat <$> upperId <*> many pdAtom
       ]
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard    <$ symbol "_"
-         <|> PDPatVar      <$> (symbol "$" >> lowerId)
+         <|> PDPatVar      <$> (char '$' >> lowerId)
          <|> PDConstantPat <$> constantExpr
          <|> PDEmptyPat    <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen pdPattern PDTuplePat
@@ -755,14 +753,14 @@ varLiteral = stringToVar <$> ident
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
-binOpLiteral :: String -> Parser Infix
-binOpLiteral sym =
-  try (do wedge <- optional (char '!')
-          opSym <- operator' sym
-          binops <- exprInfix <$> get
-          let opInfo = fromJust $ find ((== opSym) . repr) binops
+infixLiteral :: String -> Parser Infix
+infixLiteral sym =
+  try (do wedge   <- optional (char '!')
+          opSym   <- operator' sym
+          infixes <- exprInfix <$> get
+          let opInfo = fromJust $ find ((== opSym) . repr) infixes
           return $ opInfo { isWedge = isJust wedge })
-   <?> "binary operator"
+   <?> "infix"
   where
     -- operator without try
     operator' :: String -> Parser String
