@@ -580,3 +580,16 @@ nishiwakiIf b e1 e2 :=
 assertEqual "case 1" (nishiwakiIf True     1 2) 1
 assertEqual "case 2" (nishiwakiIf False    1 2) 2
 assertEqual "case 3" (nishiwakiIf (1 = 1) 1 2) 1
+
+-- User-defined pattern infix
+
+infixl pattern 7 <>
+
+dummyMatcher := matcher
+  | $ <> $ as (integer, integer) with
+    | $x :: $y :: [] -> [(x, y)]
+    | _              -> []
+
+assertEqual "user-defined pattern infix"
+  (match [1, 2] as dummyMatcher with $x <> $y -> x + y)
+  3

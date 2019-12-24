@@ -94,7 +94,7 @@ collectDefs opts (expr:exprs) bindings rest =
          else do exprs' <- if optSExpr opts then Parser.loadLibraryFile file
                                             else ParserNonS.loadLibraryFile file
                  collectDefs opts (exprs' ++ exprs) bindings rest
-    InfixDecl _ -> collectDefs opts exprs bindings rest
+    InfixDecl{} -> collectDefs opts exprs bindings rest
 collectDefs _ [] bindings rest = return (bindings, reverse rest)
 
 evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
@@ -122,7 +122,7 @@ evalTopExpr' opts st (LoadFile file) = do
   exprs <- if optSExpr opts then Parser.loadFile file else ParserNonS.loadFile file
   (bindings, _) <- collectDefs opts exprs [] []
   return (Nothing, withStateT (\defines -> bindings ++ defines) st)
-evalTopExpr' _ st (InfixDecl _) = return (Nothing, st)
+evalTopExpr' _ st InfixDecl{} = return (Nothing, st)
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c)    = return . Value $ Char c

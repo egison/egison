@@ -52,7 +52,7 @@ data EgisonTopExpr =
     -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
-  | InfixDecl Infix
+  | InfixDecl Bool Infix -- True for pattern infix; False for expression infix
  deriving (Show, Eq)
 
 data EgisonExpr =
