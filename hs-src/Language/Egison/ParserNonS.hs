@@ -176,7 +176,7 @@ infixExpr = do
            <|> (reserved "infix"  $> NonAssoc)
   isPattern <- isRight <$> eitherP (reserved "expression") (reserved "pattern")
   priority  <- fromInteger <$> positiveIntegerLiteral
-  sym       <- if isPattern then some patOpChar >>= checkP else some opChar >>= check
+  sym       <- if isPattern then newPatOp >>= checkP else some opChar >>= check
   let newop = Infix { repr = sym, func = sym, priority, assoc, isWedge = False }
   addNewOp newop isPattern
   return (InfixDecl isPattern newop)
@@ -192,7 +192,7 @@ infixExpr = do
              | otherwise           = return x
 
     reservedOp = [":", ":=", "->"]
-    reservedPOp = ["&", "|"]
+    reservedPOp = ["&", "|", ":=", "->"]
 
 defineOrTestExpr :: Parser EgisonTopExpr
 defineOrTestExpr = do
@@ -799,6 +799,9 @@ opChar = oneOf ("%^&*-+\\|:<>.?!/'#@$" ++ "∧")
 -- ! ? # @ $ are omitted because they can appear at the beginning of atomPattern
 patOpChar :: Parser Char
 patOpChar = oneOf "%^&*-+\\|:<>./'"
+
+newPatOp :: Parser String
+newPatOp = (:) <$> patOpChar <*> many (patOpChar <|> oneOf "!?#@$")
 
 -- Characters that consist identifiers.
 -- Note that 'alphaNumChar' can also parse greek letters.
