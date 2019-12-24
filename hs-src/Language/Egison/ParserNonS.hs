@@ -27,11 +27,11 @@ module Language.Egison.ParserNonS
 
 import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
 import           Control.Monad.Except           (liftIO, throwError)
-import           Control.Monad.State            (evalStateT, get, modify', StateT, unless)
+import           Control.Monad.State            (evalStateT, get, put, StateT, unless)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Functor                   (($>))
-import           Data.List                      (find, groupBy)
+import           Data.List                      (find, groupBy, insertBy)
 import           Data.Maybe                     (fromJust, isJust, isNothing)
 import           Data.Text                      (pack)
 
@@ -149,6 +149,12 @@ data ConversionResult
   | Function Var [Arg]  -- Definition of a function with some arguments on lhs.
   | IndexedVar VarWithIndices
 
+-- Sort binaryop table on the insertion
+addNewOp :: EgisonBinOp -> Parser ()
+addNewOp newop = do
+  binops <- get
+  put $! insertBy (\x y -> compare (priority y) (priority x)) newop binops
+
 infixExpr :: Parser EgisonTopExpr
 infixExpr = do
   assoc    <- (reserved "infixl" $> LeftAssoc)
@@ -158,7 +164,7 @@ infixExpr = do
   priority <- fromInteger <$> positiveIntegerLiteral
   sym      <- some opChar >>= check
   let newop = EgisonBinOp { repr = sym, func = sym, priority, assoc, isWedge = False }
-  modify' (newop :)
+  addNewOp newop
   return (InfixDecl newop)
   where
     check :: String -> Parser String
