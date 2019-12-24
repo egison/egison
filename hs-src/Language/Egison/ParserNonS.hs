@@ -369,8 +369,7 @@ arg = InvertedScalarArg <$> (char '*' >> ident)
 
 letExpr :: Parser EgisonExpr
 letExpr = do
-  pos   <- reserved "let" >> L.indentLevel
-  binds <- oneLiner <|> some (indentGuardEQ pos *> binding)
+  binds <- reserved "let" >> oneLiner <|> alignSome binding
   body  <- reserved "in" >> expr
   return $ LetRecExpr binds body
   where
@@ -393,8 +392,7 @@ withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy
 
 doExpr :: Parser EgisonExpr
 doExpr = do
-  pos   <- reserved "do" >> L.indentLevel
-  stmts <- oneLiner <|> some (indentGuardEQ pos >> statement)
+  stmts <- reserved "do" >> oneLiner <|> alignSome statement
   return $ case last stmts of
              ([], retExpr@(ApplyExpr (VarExpr (Var ["return"] _)) _)) ->
                DoExpr (init stmts) retExpr
@@ -435,12 +433,7 @@ algebraicDataMatcherExpr = do
   reserved "algebraicDataMatcher"
   AlgebraicDataMatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
-    patternDef :: Parser (String, [EgisonExpr])
-    patternDef = do
-      pos <- L.indentLevel
-      patternCtor <- lowerId
-      args <- many (indentGuardGT pos >> atomExpr)
-      return (patternCtor, args)
+    patternDef = indentBlock lowerId atomExpr
 
 memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = MemoizedLambdaExpr <$> (reserved "memoizedLambda" >> many lowerId) <*> (symbol "->" >> expr)
@@ -544,9 +537,7 @@ index = SupSubscript <$> (string "~_" >> atomExpr')
 
 atomOrApplyExpr :: Parser EgisonExpr
 atomOrApplyExpr = do
-  pos <- L.indentLevel
-  func <- atomExpr
-  args <- many (indentGuardGT pos *> atomExpr)
+  (func, args) <- indentBlock atomExpr atomExpr
   return $ case args of
              [] -> func
              _  -> makeApply func args
@@ -654,9 +645,7 @@ makePatternTable ops =
 
 applyOrAtomPattern :: Parser EgisonPattern
 applyOrAtomPattern = do
-  pos <- L.indentLevel
-  func <- atomPattern
-  args <- many (indentGuardGT pos *> atomPattern)
+  (func, args) <- indentBlock atomPattern atomPattern
   case (func, args) of
     (_,                 []) -> return func
     (InductivePat x [], _)  -> return $ InductivePat x args
@@ -938,6 +927,15 @@ alignSome :: Parser a -> Parser [a]
 alignSome p = do
   pos <- L.indentLevel
   some (indentGuardEQ pos >> p)
+
+-- Useful for parsing syntax like function applications, where all 'arguments'
+-- should be indented deeper than the 'function'.
+indentBlock :: Parser a -> Parser b -> Parser (a, [b])
+indentBlock phead parg = do
+  pos  <- L.indentLevel
+  head <- phead
+  args <- many (indentGuardGT pos >> parg)
+  return (head, args)
 
 indented :: Parser Pos
 indented = indentGuardGT pos1
