@@ -108,7 +108,6 @@ evalTopExpr' opts st (Test expr) = do
   case (optSExpr opts, optMathExpr opts) of
     (False, Nothing) -> return (Just (show val), st)
     _  -> return (Just (prettyS val), st)
-  
 evalTopExpr' _ st (Execute expr) = do
   pushFuncName "<stdin>"
   io <- evalStateT st [] >>= flip evalExpr expr
@@ -123,6 +122,7 @@ evalTopExpr' opts st (LoadFile file) = do
   exprs <- if optSExpr opts then Parser.loadFile file else ParserNonS.loadFile file
   (bindings, _) <- collectDefs opts exprs [] []
   return (Nothing, withStateT (\defines -> bindings ++ defines) st)
+evalTopExpr' _ st (InfixDecl _) = return (Nothing, st)
 
 evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
 evalExpr _ (CharExpr c)    = return . Value $ Char c
