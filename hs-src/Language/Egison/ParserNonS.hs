@@ -119,7 +119,7 @@ data PState
 
 initialPState :: PState
 initialPState = PState { exprInfix = reservedExprInfix
-                       , patternInfix = []
+                       , patternInfix = reservedPatternInfix
                        }
 
 data CustomError
@@ -286,10 +286,10 @@ exprWithoutWhere =
 opExpr :: Parser EgisonExpr
 opExpr = do
   binops <- exprInfix <$> get
-  makeExprParser atomOrApplyExpr (makeTable binops)
+  makeExprParser atomOrApplyExpr (makeExprTable binops)
 
-makeTable :: [Infix] -> [[Operator Parser EgisonExpr]]
-makeTable binops =
+makeExprTable :: [Infix] -> [[Operator Parser EgisonExpr]]
+makeExprTable binops =
   -- prefixes have top priority
   let prefixes = [ [ Prefix (unary "-")
                    , Prefix (unary "!") ] ]
@@ -551,7 +551,6 @@ atomExpr :: Parser EgisonExpr
 atomExpr = do
   e <- atomExpr'
   override <- isNothing <$> optional (try (string "..." <* lookAhead index))
-  -- TODO(momohatt): "..." (override of index) collides with ContPat
   indices <- many index
   return $ case indices of
              [] -> e
@@ -627,20 +626,28 @@ seqPattern = do
   return $ foldr SeqConsPat SeqNilPat pats
 
 opPattern :: Parser EgisonPattern
-opPattern = makeExprParser applyOrAtomPattern table
+opPattern = do
+  ops <- patternInfix <$> get
+  makeExprParser applyOrAtomPattern (makePatternTable ops)
+
+makePatternTable :: [Infix] -> [[Operator Parser EgisonPattern]]
+makePatternTable ops =
+  let prefix = [ [ Prefix (NotPat <$ symbol "!") ] ]
+      binops = map toOperator ops ++ logicalPat
+      binops' = map (map snd) (groupBy (\x y -> fst x == fst y) binops)
+   in prefix ++ binops'
   where
-    table :: [[Operator Parser EgisonPattern]]
-    table =
-      [ [ Prefix (NotPat <$ symbol "!") ]
-      -- 5
-      , [ InfixR (inductive2 "cons" "::" )
-        , InfixR (inductive2 "join" "++") ]
-      -- 3
-      , [ InfixR (binary AndPat "&") ]
-      -- 2
-      , [ InfixR (binary OrPat  "|") ]
-      ]
-    inductive2 name sym = (\x y -> InductivePat name [x, y]) <$ patOperator sym
+    logicalPat :: [(Int, Operator Parser EgisonPattern)]
+    logicalPat = [ (3, InfixR (binary AndPat "&"))
+                 , (2, InfixR (binary OrPat "|")) ]
+
+    toOperator :: Infix -> (Int, Operator Parser EgisonPattern)
+    toOperator op = case assoc op of
+                      LeftAssoc  -> (priority op, InfixL (inductive2 op))
+                      RightAssoc -> (priority op, InfixR (inductive2 op))
+                      NonAssoc   -> (priority op, InfixN (inductive2 op))
+
+    inductive2 op = (\x y -> InductivePat (func op) [x, y]) <$ patOperator (repr op)
     binary name sym     = (\x y -> name [x, y]) <$ patOperator sym
 
 applyOrAtomPattern :: Parser EgisonPattern
@@ -679,15 +686,21 @@ atomPattern' = WildCard <$   symbol "_"
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
-        <|> makeExprParser ppAtom table
+        <|> do ops <- patternInfix <$> get
+               makeExprParser ppAtom (makeTable ops)
         <?> "primitive pattern pattern"
   where
-    table :: [[Operator Parser PrimitivePatPattern]]
-    table =
-      [ [ InfixR (inductive2 "cons" "::" )
-        , InfixR (inductive2 "join" "++") ]
-      ]
-    inductive2 name sym = (\x y -> PPInductivePat name [x, y]) <$ operator sym
+    makeTable :: [Infix] -> [[Operator Parser PrimitivePatPattern]]
+    makeTable ops =
+      map (map toOperator) (groupBy (\x y -> priority x == priority y) ops)
+
+    toOperator :: Infix -> Operator Parser PrimitivePatPattern
+    toOperator op = case assoc op of
+                      LeftAssoc  -> InfixL (inductive2 op)
+                      RightAssoc -> InfixR (inductive2 op)
+                      NonAssoc   -> InfixN (inductive2 op)
+
+    inductive2 op = (\x y -> PPInductivePat (func op) [x, y]) <$ operator (repr op)
 
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
