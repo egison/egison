@@ -29,9 +29,10 @@ module Language.Egison.AST
   , LoopRange (..)
   , PrimitivePatPattern (..)
   , PrimitiveDataPattern (..)
-  , EgisonBinOp (..)
+  , Infix (..)
   , BinOpAssoc (..)
-  , reservedBinops
+  , reservedExprInfix
+  , reservedPatternInfix
   , stringToVar
   , stringToVarExpr
   ) where
@@ -51,7 +52,7 @@ data EgisonTopExpr =
     -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
-  | InfixDecl EgisonBinOp
+  | InfixDecl Bool Infix -- True for pattern infix; False for expression infix
  deriving (Show, Eq)
 
 data EgisonExpr =
@@ -103,8 +104,8 @@ data EgisonExpr =
   | IoExpr EgisonExpr
 
   | UnaryOpExpr String EgisonExpr
-  | BinaryOpExpr EgisonBinOp EgisonExpr EgisonExpr
-  | SectionExpr EgisonBinOp (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
+  | BinaryOpExpr Infix EgisonExpr EgisonExpr
+  | SectionExpr Infix (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
 
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
@@ -221,13 +222,13 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
-data EgisonBinOp
-  = EgisonBinOp { repr     :: String  -- syntastic representation
-                , func     :: String  -- semantics
-                , priority :: Int
-                , assoc    :: BinOpAssoc
-                , isWedge  :: Bool    -- True if operator is prefixed with '!'
-                }
+data Infix
+  = Infix { repr     :: String  -- syntastic representation
+          , func     :: String  -- semantics
+          , priority :: Int
+          , assoc    :: BinOpAssoc
+          , isWedge  :: Bool    -- True if operator is prefixed with '!'. Only used for expression infix.
+          }
   deriving (Eq, Ord, Show)
 
 data BinOpAssoc
@@ -241,29 +242,38 @@ instance Show BinOpAssoc where
   show RightAssoc = "infixr"
   show NonAssoc   = "infix"
 
-reservedBinops :: [EgisonBinOp]
-reservedBinops =
-  [ makeBinOp "^"  "**"        8 LeftAssoc
-  , makeBinOp "*"  "*"         7 LeftAssoc
-  , makeBinOp "/"  "/"         7 LeftAssoc
-  , makeBinOp "."  "."         7 LeftAssoc -- tensor multiplication
-  , makeBinOp "%"  "remainder" 7 LeftAssoc
-  , makeBinOp "+"  "+"         6 LeftAssoc
-  , makeBinOp "-"  "-"         6 LeftAssoc
-  , makeBinOp "++" "append"    5 RightAssoc
-  , makeBinOp "::" "cons"      5 RightAssoc
-  , makeBinOp "="  "eq?"       4 LeftAssoc
-  , makeBinOp "<=" "lte?"      4 LeftAssoc
-  , makeBinOp ">=" "gte?"      4 LeftAssoc
-  , makeBinOp "<"  "lt?"       4 LeftAssoc
-  , makeBinOp ">"  "gt?"       4 LeftAssoc
-  , makeBinOp "&&" "and"       3 RightAssoc
-  , makeBinOp "||" "or"        2 RightAssoc
-  , makeBinOp "$"  "apply"     0 RightAssoc
+reservedExprInfix :: [Infix]
+reservedExprInfix =
+  [ makeInfix "^"  "**"        8 LeftAssoc
+  , makeInfix "*"  "*"         7 LeftAssoc
+  , makeInfix "/"  "/"         7 LeftAssoc
+  , makeInfix "."  "."         7 LeftAssoc -- tensor multiplication
+  , makeInfix "%"  "remainder" 7 LeftAssoc
+  , makeInfix "+"  "+"         6 LeftAssoc
+  , makeInfix "-"  "-"         6 LeftAssoc
+  , makeInfix "++" "append"    5 RightAssoc
+  , makeInfix "::" "cons"      5 RightAssoc
+  , makeInfix "="  "eq?"       4 LeftAssoc
+  , makeInfix "<=" "lte?"      4 LeftAssoc
+  , makeInfix ">=" "gte?"      4 LeftAssoc
+  , makeInfix "<"  "lt?"       4 LeftAssoc
+  , makeInfix ">"  "gt?"       4 LeftAssoc
+  , makeInfix "&&" "and"       3 RightAssoc
+  , makeInfix "||" "or"        2 RightAssoc
+  , makeInfix "$"  "apply"     0 RightAssoc
   ]
   where
-    makeBinOp r f p a =
-      EgisonBinOp { repr = r, func = f, priority = p, assoc = a, isWedge = False }
+    makeInfix r f p a =
+      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
+
+reservedPatternInfix :: [Infix]
+reservedPatternInfix =
+  [ makeInfix "::" "cons" 5 RightAssoc
+  , makeInfix "++" "join" 5 RightAssoc
+  ]
+  where
+    makeInfix r f p a =
+      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
 instance Hashable (Index ())
 instance Hashable Var

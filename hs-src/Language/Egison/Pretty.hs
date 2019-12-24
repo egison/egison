@@ -243,7 +243,7 @@ instance PrettyS Var where
 instance PrettyS VarWithIndices where
   prettyS = show
 
-instance PrettyS EgisonBinOp where
+instance PrettyS Infix where
   prettyS = repr
 
 instance PrettyS InnerExpr where
