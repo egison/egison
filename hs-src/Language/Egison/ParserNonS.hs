@@ -285,12 +285,11 @@ exprWithoutWhere =
 -- Also parses atomExpr
 opExpr :: Parser EgisonExpr
 opExpr = do
-  pos <- L.indentLevel
   binops <- exprInfix <$> get
-  makeExprParser atomOrApplyExpr (makeTable binops pos)
+  makeExprParser atomOrApplyExpr (makeTable binops)
 
-makeTable :: [Infix] -> Pos -> [[Operator Parser EgisonExpr]]
-makeTable binops pos =
+makeTable :: [Infix] -> [[Operator Parser EgisonExpr]]
+makeTable binops =
   -- prefixes have top priority
   let prefixes = [ [ Prefix (unary "-")
                    , Prefix (unary "!") ] ]
@@ -305,8 +304,9 @@ makeTable binops pos =
 
     binary :: String -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
     binary sym = do
-      -- TODO: Is this indentation guard necessary?
-      op <- try (indentGuardGT pos >> binOpLiteral sym <* notFollowedBy (symbol ")"))
+      -- Operators should be indented than pos1 in order to avoid
+      -- "1\n-2" (2 topExprs, 1 and -2) to be parsed as "1 - 2".
+      op <- try (indented >> binOpLiteral sym <* notFollowedBy (symbol ")"))
       return $ BinaryOpExpr op
 
     infixToOperator :: Infix -> Operator Parser EgisonExpr
@@ -923,3 +923,6 @@ alignSome :: Parser a -> Parser [a]
 alignSome p = do
   pos <- L.indentLevel
   some (indentGuardEQ pos >> p)
+
+indented :: Parser Pos
+indented = indentGuardGT pos1
