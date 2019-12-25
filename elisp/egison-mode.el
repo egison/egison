@@ -38,48 +38,27 @@
 (defconst egison-font-lock-keywords-1
   (eval-when-compile
     (list
-     "\\<module\\>"
-     "\\<define\\>"
-     "\\<redefine\\>"
-     "\\<set!\\>"
-     "\\<test\\>"
-     "\\<execute\\>"
      "\\<load\\>"
-     "\\<load-file\\>"
+     "\\<loadFile\\>"
 
-     "\\<lambda\\>"
-     "\\<memoized-lambda\\>"
-     "\\<memoize\\>"
-     "\\<cambda\\>"
-     "\\<procedure\\>"
-     "\\<macro\\>"
      "\\<let\\>"
-     "\\<letrec\\>"
-     "\\<let\\*\\>"
-     "\\<with-symbols\\>"
+     "\\<withSymbols\\>"
      "\\<if\\>"
-     "\\<seq\\>"
-;     "\\<apply\\>"
-     "\\<capply\\>"
-     "\\<generate-array\\>"
-     "\\<array-bounds\\>"
-     "\\<array-ref\\>"
+     "\\<generateArray\\>"
+     "\\<arrayBounds\\>"
+     "\\<arrayRef\\>"
      "\\<tensor\\>"
-     "\\<generate-tensor\\>"
+     "\\<generateTensor\\>"
      "\\<contract\\>"
-     "\\<tensor-map\\>"
+     "\\<tensorMap\\>"
 
      "\\<loop\\>"
      "\\<match\\>"
-     "\\<match-dfs\\>"
-     "\\<match-lambda\\>"
-     "\\<match-all\\>"
-     "\\<match-all-dfs\\>"
-     "\\<match-all-lambda\\>"
+     "\\<matchDFS\\>"
+     "\\<matchAll\\>"
+     "\\<matchAllDFS\\>"
      "\\<matcher\\>"
-     "\\<self\\>"
-     "\\<algebraic-data-matcher\\>"
-     "\\<pattern-function\\>"
+     "\\<algebraicDataMatcher\\>"
 
      "\\<do\\>"
      "\\<io\\>"
@@ -88,8 +67,12 @@
      "\\<undefined\\>"
      "\\<something\\>"
 
+;     ":="
+     "::"
+     "++"
      "\\\.\\\.\\\."
-     "\\\,"
+     "->"
+     "#"
 ;     "'"
      "`"
      "\\\#"
@@ -97,6 +80,7 @@
      "\\\&"
      "@"
      "!"
+     "?"
 ;     "\\<_\\>"
 
      "\\<assert\\>"
@@ -116,104 +100,10 @@
 (defvar egison-font-lock-keywords egison-font-lock-keywords-1
   "Default expressions to highlight in Egison modes.")
 
-
-(defun egison-open-paren-p ()
-  (let ((c (string-to-char (thing-at-point 'char))))
-    (or (eq c 40) (eq c 60) (eq c 91) (eq c 123))))
-
-(defun egison-close-paren-p ()
-  (let ((c (string-to-char (thing-at-point 'char))))
-    (or (eq c 41) (eq c 62) (eq c 93) (eq c 125))))
-
-(defun egison-last-unclosed-paren ()
-  (save-excursion
-    (let ((pc 0))
-      (while (<= pc 0)
-        (if (bobp)
-            (setq pc 2)
-          (backward-char)
-          (if (egison-open-paren-p)
-              (progn
-                (setq pc (+ pc 1))
-                (if (and (= pc 0) (= (current-column) 0))
-                    (setq pc 2)))
-            (if (egison-close-paren-p)
-                (setq pc (- pc 1))))))
-      (if (= pc 2)
-          nil
-        (point)))))
-
-(defun egison-indent-point ()
-  (save-excursion
-    (beginning-of-line)
-    (let ((p (egison-last-unclosed-paren)))
-      (if p
-          (progn
-            (goto-char (egison-last-unclosed-paren))
-            (let ((cp (current-column)))
-              (cond ((eq (string-to-char (thing-at-point 'char)) 40)
-                     (forward-char)
-                     (let* ((op (current-word))
-                            (ip (egison-keyword-indent-point op)))
-                       (if ip
-                           (+ ip cp)
-                         (progn (forward-sexp)
-                                (+ 1 (current-column))))))
-                    ((eq (string-to-char (thing-at-point 'char)) 60)
-                     (forward-char)
-                     (let ((op (current-word)))
-                       (+ 2 (length op) cp)))
-                    ((eq (string-to-char (thing-at-point 'char)) 91)
-                     (forward-char)
-                     (if (eq (string-to-char (thing-at-point 'char)) 124)
-                         (+ 2 cp)
-                       (+ 1 cp)))
-                    (t (+ 1 cp)))))
-        0))))
-
-(defun egison-keyword-indent-point (name)
-  (cond ((equal "module" name) 2)
-        ((equal "define" name) 2)
-        ((equal "test" name) 2)
-        ((equal "load" name) 2)
-        ((equal "load-file" name) 2)
-        ((equal "execute" name) 2)
-        ((equal "lambda" name) 2)
-        ((equal "cambda" name) 2)
-        ((equal "procedure" name) 2)
-        ((equal "macro" name) 2)
-        ((equal "memoized-lambda" name) 2)
-        ((equal "memoize" name) 2)
-        ((equal "letrec" name) 2)
-        ((equal "let" name) 2)
-        ((equal "let*" name) 2)
-        ((equal "with-symbols" name) 2)
-        ((equal "if" name) 2)
-        ((equal "apply" name) 2)
-        ((equal "generate-array" name) 2)
-        ((equal "array-ref" name) 2)
-        ((equal "generate-tensor" name) 2)
-        ((equal "tensor-map" name) 2)
-        ((equal "loop" name) 2)
-        ((equal "match" name) 2)
-        ((equal "match-dfs" name) 2)
-        ((equal "match-lambda" name) 2)
-        ((equal "match-all" name) 2)
-        ((equal "match-all-dfs" name) 2)
-        ((equal "match-all-lambda" name) 2)
-        ((equal "matcher" name) 2)
-        ((equal "algebraic-data-matcher" name) 2)
-        ((equal "pattern-function" name) 2)
-        ((equal "do" name) 2)
-        ((equal "io" name) 2)
-        ((equal "assert" name) 2)
-        ((equal "assert-equal" name) 2)
-        ))
-
 (defun egison-indent-line ()
   "indent current line as Egison code."
   (interactive)
-  (indent-line-to (egison-indent-point)))
+  )
 
 
 (defvar egison-mode-map
@@ -224,15 +114,15 @@
 
 
 (defvar egison-mode-syntax-table
-  (let ((egison-mode-syntax-table (make-syntax-table)))
-    (modify-syntax-entry ?< "(>" egison-mode-syntax-table)
-    (modify-syntax-entry ?> ")<" egison-mode-syntax-table)
-    (modify-syntax-entry ?\; "<" egison-mode-syntax-table)
-    (modify-syntax-entry ?\n ">" egison-mode-syntax-table)
-    (modify-syntax-entry ?\? "w" egison-mode-syntax-table)
-    (modify-syntax-entry ?# ". 14bn" egison-mode-syntax-table)
-    ;(modify-syntax-entry ?| ". 23bn" egison-mode-syntax-table)
-    egison-mode-syntax-table)
+  (let ((table (make-syntax-table)))
+
+    (modify-syntax-entry ?\{  "(}1nb" table)
+    (modify-syntax-entry ?\}  "){4nb" table)
+    (modify-syntax-entry ?-  "_ 123" table)
+    (modify-syntax-entry ?\-  "_ 123" table)
+;    (modify-syntax-entry ?\;  "_ 123" table)
+    (modify-syntax-entry ?\n ">" table)
+    table)
   ;; (copy-syntax-table lisp-mode-syntax-table)
   "Syntax table for Egison mode")
 
@@ -241,12 +131,12 @@
   (set (make-local-variable 'font-lock-defaults)
        '((egison-font-lock-keywords
           egison-font-lock-keywords-1 egison-font-lock-keywords-2)
-         nil t (("+-*/=!?%:_~.'∂∇α-ωΑ-Ω" . "w") ("<" . "(") (">" . ")"))
+         nil t (("+*/=!?%:_~.'∂∇αβγδεζχθικλμνξοπρςστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ" . "w"))
          ))
   (set (make-local-variable 'indent-line-function) 'egison-indent-line)
-  (set (make-local-variable 'comment-start) ";")
+  (set (make-local-variable 'comment-start) "--")
   (set (make-local-variable 'comment-end) "")
-  (set (make-local-variable 'comment-start-skip) ";+ *")
+  (set (make-local-variable 'comment-start-skip) "{-+ *\\|--+ *")
   (set (make-local-variable 'comment-add) 1)
   (set (make-local-variable 'comment-end-skip) nil)
   )
