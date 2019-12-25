@@ -42,17 +42,15 @@ paths :=
       (node $x_(n + 1) [])
   -> map (\i -> x_i) [1..(n + 1)]
 
---io (each (compose show print) paths)
+io (each (compose show print) (car paths))
 
---winning := \p => node ((#(-1), _, ~p) & _) _ | (node ~p (!(node _ (winning _ :: _) :: _)))
-
-winningStep s h :=
+winning s h :=
   matchAll makeTree s as tree hand with
-  | loop $i (1, $n)
-      (node _ (!(node _ (!(... :: _)) :: _)))
-      ((node (#(neg h), _, _) _) & $x)
-  -> (n, x)
+  | loop $i (1, [1..], _)
+      (node $w (!(node _ (!(... :: _)) :: _)))
+      (node (#(neg h), _, _) _)
+  -> w
 
-winningStep init 1
-winningStep next 2
+winning init 1
+winning next 2
 
