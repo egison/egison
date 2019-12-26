@@ -280,9 +280,9 @@ assert "or pattern"
    | #2 :: _ | #1 :: _ -> True)
 
 assert "not pattern"
-  (match 1 as integer with
-   | ! #1 -> False
-   | ! #2 -> True)
+  (match [1, 2] as list integer with
+   | snoc !#1 _ -> True
+   | !#1 :: _ -> False)
 
 assertEqual "not pattern"
   (matchAll [1, 2, 2, 3, 3, 3] as multiset integer with

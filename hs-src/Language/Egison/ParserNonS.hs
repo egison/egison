@@ -626,10 +626,8 @@ opPattern = do
 
 makePatternTable :: [Infix] -> [[Operator Parser EgisonPattern]]
 makePatternTable ops =
-  let prefix   = [ [ Prefix (NotPat <$ symbol "!") ] ]
-      infixes  = map toOperator ops ++ logicalPatOp
-      infixes' = map (map snd) (groupBy (\x y -> fst x == fst y) infixes)
-   in prefix ++ infixes'
+  let infixes  = map toOperator ops ++ logicalPatOp
+   in map (map snd) (groupBy (\x y -> fst x == fst y) infixes)
   where
     logicalPatOp :: [(Int, Operator Parser EgisonPattern)]
     logicalPatOp = [ (3, InfixR (binary AndPat "&"))
@@ -647,7 +645,7 @@ applyOrAtomPattern = do
   case (func, args) of
     (_,                 []) -> return func
     (InductivePat x [], _)  -> return $ InductivePat x args
-    _                       -> error (show (func, args))
+    _                       -> fail $ "Pattern not understood: " ++ show (func, args)
 
 -- (Possibly indexed) atomic pattern
 atomPattern :: Parser EgisonPattern
@@ -662,6 +660,7 @@ atomPattern = do
 atomPattern' :: Parser EgisonPattern
 atomPattern' = WildCard <$  symbol "_"
            <|> PatVar   <$> patVarLiteral
+           <|> NotPat   <$> (symbol "!" >> atomPattern)
            <|> ValuePat <$> (char '#' >> atomExpr)
            <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
            <|> InductivePat <$> lowerId <*> pure []
