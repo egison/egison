@@ -46,28 +46,24 @@ paths :=
 
 --io (each (compose show print) (car paths))
 
---winning s :=
---  matchAll makeTree s as tree state with
---  | loop $i (1, [1..], _)
---      (node ($h, _, _) (!(node _ (!(... :: _)) :: _)))
---      (node (#(neg h), _, _) _)
---  -> h
-
---winning s :=
---  matchAll makeTree s as tree state with
---  | (node ($h, _, _)
---      ((loop $i (1, [1..], _)
---         (node $t (!(node _ (!(... :: _)) :: _)))
---         (node (#(neg h), _, _) _)) :: _))
---  -> t
+winningRec s :=
+  matchAll makeTree s as tree state with
+  | (node ($h, _, _)
+         ((node ($t & ((#(neg h), _, _)
+                    | (?(\t -> (empty? (winningRec t)))))) _)
+          :: _))
+  -> t
 
 winning s :=
   matchAll makeTree s as tree state with
   | (node ($h, _, _)
-         ((node ($t & ((#(neg h), _, _)
-                    | (?(\t -> (empty? (winning t)))))) _)
-          :: _))
+      ((loop $i (1, [1..], _)
+         (node $t (!(node _ (!(... :: _)) :: _)))
+         (node (#(neg h), _, _) _)) :: _))
   -> t
+
+winningRec (1, [1, 1], [1, 1])
+winningRec (2, [1, 1], [1, 2])
 
 winning (1, [1, 1], [1, 1])
 winning (2, [1, 1], [1, 2])
