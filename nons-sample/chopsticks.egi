@@ -19,7 +19,7 @@ move s := matchAllDFS s as (integer, list integer, list integer) with
   -> (1, hs ++ x + y :: ts, hs' ++ y :: ts')
   | (#2, $x :: [], $hs' ++ (?(\y -> x + y > N) & $y) :: (!(_ ++ #y :: _) & $ts'))
   -> (-2, [], hs' ++ y :: ts')
-  | (#2, (!(_ :: []) & $hs ++ $x :: (!(_ ++ #x :: _) & $ts)), $hs' ++ (?(\y -> x + y > N) & $y) :: (!(_ ++ #y :: _) & $ts'))
+  | (#2, !(_ :: []) & $hs ++ $x :: (!(_ ++ #x :: _) & $ts), $hs' ++ (?(\y -> x + y > N) & $y) :: (!(_ ++ #y :: _) & $ts'))
   -> (1, hs ++ ts, hs' ++ y :: ts')
 
 init := (1, [1,1], [1,1])
@@ -50,7 +50,7 @@ winningRec s :=
   matchAll makeTree s as tree state with
   | (node ($h, _, _)
          ((node ($t & ((#(neg h), _, _)
-                    | (?(\t -> (empty? (winningRec t)))))) _)
+                    | ?(\t -> (empty? (winningRec t))))) _)
           :: _))
   -> t
 
@@ -58,7 +58,7 @@ winning s :=
   matchAll makeTree s as tree state with
   | (node ($h, _, _)
       ((loop $i (1, [1..], _)
-         (node $t (!(node _ (!(... :: _)) :: _)))
+         (node $t !(node _ !(... :: _) :: _))
          (node (#(neg h), _, _) _)) :: _))
   -> t
 
