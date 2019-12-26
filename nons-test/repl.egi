@@ -1,9 +1,9 @@
-repl = do
+repl := do
   write "input :"
   flush ()
-  let input = readLine ()
+  let input := readLine ()
   write input
   print ""
   repl
 
-main args = repl
+main args := repl
