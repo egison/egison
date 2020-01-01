@@ -370,7 +370,7 @@ I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara, Kentaro Honda, Mayuko Ko
 
 ## License
 
-Copyright (c) 2011-2019, Satoshi Egi
+Copyright (c) 2011-2020, Satoshi Egi
 
 Egison is released under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
 
