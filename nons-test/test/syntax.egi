@@ -441,6 +441,11 @@ assertEqual "sequential not pattern"
    -> x)
   [3]
 
+assertEqual "partial sequential pattern"
+  (matchAll ([1,2,3,2], [10,20]) as (list eq, list eq) with
+   | ({ @ ++ $x :: _, !(_ ++ #x :: _) }, $ys) -> (x, ys))
+  [(1, [10, 20]), (2, [10, 20]), (3, [10, 20])]
+
 --
 -- Tensor
 --
