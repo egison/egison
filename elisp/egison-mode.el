@@ -57,6 +57,8 @@
      "\\<matchDFS\\>"
      "\\<matchAll\\>"
      "\\<matchAllDFS\\>"
+     "\\<as\\>"
+     "\\<with\\>"
      "\\<matcher\\>"
      "\\<algebraicDataMatcher\\>"
 
