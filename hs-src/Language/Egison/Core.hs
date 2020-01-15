@@ -963,24 +963,23 @@ gatherBindings :: MatchingState -> Maybe [Binding]
 gatherBindings mstate@MState{ seqPatCtx = [], mTrees = [] } = return (mStateBindings mstate)
 gatherBindings _ = Nothing
 
-topMAtom :: MatchingState -> Maybe MatchingTree
-topMAtom MState{ mTrees = mAtom@MAtom{}:_ }  = Just mAtom
-topMAtom MState{ mTrees = MNode _ mstate:_ } = topMAtom mstate
-topMAtom _ = Nothing
-
 processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 processMState state =
-  case topMAtom state of
-    Just (MAtom (NotPat _) _ _) -> do
-      let (state1, state2) = splitMState state
-      result <- processMStatesAll [msingleton state1]
-      case result of
-        MNil -> return $ msingleton state2
-        _    -> return MNil
-    _ -> processMState' state
+  if nullMState state
+    then processMState' state
+    else case splitMState state of
+           ((MState e l s b [MAtom (NotPat p) m t]), state2) -> do
+             result <- processMStatesAll [msingleton (MState e l s b [MAtom p m t])]
+             case result of
+               MNil -> return $ msingleton state2
+               _    -> return MNil
+           _ -> processMState' state
  where
+  nullMState :: MatchingState -> Bool
+  nullMState MState{ mTrees = [] } = True
+  nullMState _ = False
   splitMState :: MatchingState -> (MatchingState, MatchingState)
-  splitMState mstate@MState{ mTrees = MAtom (NotPat pattern) target matcher : trees } =
+  splitMState mstate@MState{ mTrees = MAtom pattern target matcher : trees } =
     (mstate { mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
   splitMState mstate@MState{ mTrees = MNode penv state' : trees } =
     (mstate { mTrees = [MNode penv state1] }, mstate { mTrees = MNode penv state2 : trees })
