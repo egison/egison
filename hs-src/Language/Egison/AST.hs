@@ -183,6 +183,7 @@ data EgisonPattern =
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
+  | ForallPat EgisonPattern EgisonPattern
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
   | LoopPat Var LoopRange EgisonPattern EgisonPattern

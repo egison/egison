@@ -939,6 +939,11 @@ processMStatesAllDFS MNil = return MNil
 processMStatesAllDFS (MCons (MState _ _ [] bindings []) ms) = MCons bindings . processMStatesAllDFS <$> ms
 processMStatesAllDFS (MCons mstate ms) = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFS
 
+processMStatesAllDFSForall :: MList EgisonM MatchingState -> EgisonM (MList EgisonM MatchingState)
+processMStatesAllDFSForall MNil = return MNil
+processMStatesAllDFSForall (MCons mstate@(MState _ _ (ForallPatContext _ _ : _) _ []) ms) = MCons mstate . processMStatesAllDFSForall <$> ms
+processMStatesAllDFSForall (MCons mstate ms) = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFSForall
+
 processMStatesAll :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
 processMStatesAll [] = return MNil
 processMStatesAll streams = do
@@ -969,10 +974,24 @@ processMState state =
     then processMState' state
     else case splitMState state of
            (MState e l s b [MAtom (NotPat p) m t], state2) -> do
-             result <- processMStatesAll [msingleton (MState e l s b [MAtom p m t])]
+             result <- processMStatesAllDFS (msingleton (MState e l s b [MAtom p m t]))
              case result of
                MNil -> return $ msingleton state2
                _    -> return MNil
+           (MState e l s b [MAtom (ForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
+             states <- processMStatesAllDFSForall (msingleton (MState e l (ForallPatContext [] []:s) b [MAtom p1 m t]))
+             statess' <- mmap (\(MState e' l' (ForallPatContext ms ts:s') b' []) -> do
+                                   let mat' = makeTuple ms
+                                   tgt' <- makeITuple ts
+                                   processMStatesAllDFSForall (msingleton (MState e' l' (ForallPatContext [] []:s') b' [MAtom p2 tgt' mat']))) states
+             b <- mAny (\s -> case s of
+                                MNil -> return True
+                                _ -> return False) statess'
+             if b
+               then return MNil
+--               else return MNil
+               else do nstatess <- mmap (\states' -> mmap (\(MState e' l' (ForallPatContext [] []:s') b' []) -> return $ MState e' l' s' b' trees) states') statess'
+                       mconcat nstatess
            _ -> processMState' state
  where
   nullMState :: MatchingState -> Bool
@@ -986,15 +1005,18 @@ processMState state =
       where (state1, state2) = splitMState state'
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
-processMState' MState{ seqPatCtx = [], mTrees = [] } = throwError =<< EgisonBug "should not reach here (empty matching-state)" <$> getFuncNameStack
+--processMState' MState{ seqPatCtx = [], mTrees = [] } = throwError =<< EgisonBug "should not reach here (empty matching-state)" <$> getFuncNameStack
+processMState' mstate@MState{ seqPatCtx = [], mTrees = [] } = return . msingleton $ mstate -- for forall pattern used in matchAll (not matchAllDFS)
 
--- Sequential patterns
+-- Sequential patterns and forall pattern
 processMState' mstate@MState{ seqPatCtx = SeqPatContext stack SeqNilPat [] []:seqs, mTrees = [] } =
   return . msingleton $ mstate { seqPatCtx = seqs, mTrees = stack }
 processMState' mstate@MState{ seqPatCtx = SeqPatContext stack seqPat mats tgts:seqs, mTrees = [] } = do
   let mat' = makeTuple mats
   tgt' <- makeITuple tgts
   return . msingleton $ mstate { seqPatCtx = seqs, mTrees = MAtom seqPat tgt' mat' : stack }
+processMState' mstate@MState{ seqPatCtx = ForallPatContext _ _:_, mTrees = [] } =
+  return . msingleton $ mstate
 
 -- Matching Nodes
 processMState' MState{ mTrees = MNode _ MState{ mStateBindings = [], mTrees = [] }:_ } = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
@@ -1100,6 +1122,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
       case seqs of
         [] -> throwError $ Default "cannot use # out of seq patterns"
         (SeqPatContext stack pat mats tgts:seqs) -> return . msingleton $ MState env loops (SeqPatContext stack pat (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
+        (ForallPatContext mats tgts:seqs) -> return . msingleton $ MState env loops (ForallPatContext (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
     AndPat patterns ->
       let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
        in return . msingleton $ mstate { mTrees = trees' }

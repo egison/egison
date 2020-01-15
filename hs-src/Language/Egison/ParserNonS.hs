@@ -590,6 +590,7 @@ numericExpr = FloatExpr <$> try positiveFloatLiteral
 
 pattern :: Parser EgisonPattern
 pattern = letPattern
+      <|> forallPattern
       <|> loopPattern
       <|> opPattern
       <?> "pattern"
@@ -597,6 +598,10 @@ pattern = letPattern
 letPattern :: Parser EgisonPattern
 letPattern =
   reserved "let" >> LetPat <$> alignSome binding <*> (reserved "in" >> pattern)
+
+forallPattern :: Parser EgisonPattern
+forallPattern =
+  reserved "forall" >> ForallPat <$> atomPattern <*> atomPattern
 
 loopPattern :: Parser EgisonPattern
 loopPattern =
@@ -868,6 +873,7 @@ lowerReservedWords =
   , "where"
   , "withSymbols"
   , "loop"
+  , "forall"
   , "match"
   , "matchDFS"
   , "matchAll"

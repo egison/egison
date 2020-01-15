@@ -446,6 +446,26 @@ assertEqual "partial sequential pattern"
    | ({ @ ++ $x :: _, !(_ ++ #x :: _) }, $ys) -> (x, ys))
   [(1, [10, 20]), (2, [10, 20]), (3, [10, 20])]
 
+assertEqual "forall pattern 1"
+  (matchAll [1,5,3] as multiset integer with
+   | forall _ _ -> "ok")
+  ["ok"]
+
+assertEqual "forall pattern 2"
+  (matchAll [1,5,3] as multiset integer with
+   | (forall ((@ & $x) :: _) ?odd?) & $xs -> (x,xs))
+  [(1, [1, 5, 3]), (5, [1, 5, 3]), (3, [1, 5, 3])]
+
+assertEqual "forall pattern 3"
+  (matchAllDFS [1,5,3] as multiset integer with
+   | forall ((@ & $x) :: _) ?odd? -> x)
+  [1,5,3]
+
+assertEqual "forall pattern 4"
+  (matchAll [1,5,3] as multiset integer with
+   | forall ((@ & $x) :: _) ?odd? -> x)
+  [1, 5, 3]
+
 --
 -- Tensor
 --
