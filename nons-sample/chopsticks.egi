@@ -106,12 +106,19 @@ winningRec s :=
           :: _))
   -> t
 
+--winningNot s :=
+--  matchAll makeTree s as tree state with
+--  | (node ($h, _, _)
+--      ((loop $i (1, [1..], _)
+--         (node $t !(node _ !(... :: _) :: _))
+--         (node (#(neg h), _, _) _)) :: _))
+--  -> t
 winningNot s :=
   matchAll makeTree s as tree state with
-  | (node ($h, _, _)
-      ((loop $i (1, [1..], _)
-         (node $t !(node _ !(... :: _) :: _))
-         (node (#(neg h), _, _) _)) :: _))
+  | node ($h, _, _)
+      (loop $i (1, [1..], _)
+         ((node $t !(node _ !... :: _)) :: _)
+         ((node (#(neg h), _, _) _) :: _))
   -> t
 
 winning c :=
@@ -122,16 +129,16 @@ winning c :=
                              (node $s_i ...))) :: _)
          ((node (#(neg h), _, _) _) :: _))
 --  -> (n,"win")
-  -> concat (map (\i -> [s_i, f_i]) [1..n])
+  -> concat (map (\i -> [s_i, f_(i + 1)]) [1..(n - 1)])
 
 --winningRec init
 
 "winningNot (first)"
---winningNot init
+winningNot init
 --[(2, [(1, 2)], [(2, 1), (1, 1)])]
 
 "winningNot (second)"
---winningNot (2, [(1, 2)], [(2, 1), (1, 1)])
+winningNot (2, [(1, 2)], [(2, 1), (1, 1)])
 --[]
 
 "winning (first)"
