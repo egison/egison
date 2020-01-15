@@ -1,3 +1,33 @@
+assocMultiset a := matcher
+  | [] as () with
+    | [] -> [()]
+    | _  -> []
+  | #$x :: $ as assocMultiset a with
+    | $tgt -> match tgt as list (a, integer) with
+              | $hs ++ (#x, #1) :: $ts -> hs ++ ts
+              | $hs ++ (#x, $n) :: $ts -> hs ++ (x, n - 1) :: ts
+  | $ :: $ as (a, assocMultiset a) with
+    | $tgt -> matchAll tgt as list (a, integer) with
+              | $hs ++ ($x, #1) :: $ts -> (x, hs ++ ts)
+              | $hs ++ ($x, !#1 & $n) :: $ts -> (x, hs ++ (x, n - 1) :: ts)
+  | $ as something with
+    | $tgt -> [tgt]
+
+assertEqual "assocMultiset"
+  (matchAll [(1,2),(2,1),(3,3)] as assocMultiset integer with
+   | #1 :: $rs -> rs)
+  [(1, 1), (2, 1), (3, 3)]
+
+assertEqual "assocMultiset"
+  (matchAll [(1,2),(2,1),(3,3)] as assocMultiset integer with
+   | #2 :: $rs -> rs)
+  [(1, 2), (3, 3)]
+
+assertEqual "assocMultiset"
+  (matchAll [(1,2),(2,1),(3,3)] as assocMultiset integer with
+   | $x :: $rs -> (x,rs))
+  [(2, [(1, 2), (3, 3)]), (1, [(1, 1), (2, 1), (3, 3)]), (3, [(1, 2), (2, 1), (3, 2)])]
+
 N := 5
 
 tree a := matcher
@@ -6,36 +36,58 @@ tree a := matcher
   | $ as something with
     | $tgt -> [tgt]
 
-state := (integer, multiset integer, multiset integer)
+state := (integer, assocMultiset integer, assocMultiset integer)
 
-move s := matchAllDFS s as (integer, list integer, list integer) with
-  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), $hs' ++ (?(\y -> x + y < N + 1) & $y) :: (!(_ ++ #y :: _) & $ts'))
-  -> (2, hs ++ x :: ts, hs' ++ x + y :: ts')
-  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), ?(\y -> x + y > N) :: [])
-  -> (-1, hs ++ x :: ts, [])
-  | (#1, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), (!(_ :: []) & $hs' ++ (?(\y -> x + y > N) & $y) :: (!(_ ++ #y :: _) & $ts')))
-  -> (2, hs ++ x :: ts, hs' ++ ts')
-  | (#2, $hs ++ $x :: (!(_ ++ #x :: _) & $ts), $hs' ++ (?(\y -> x + y < N + 1) & $y) :: (!(_ ++ #y :: _) & $ts'))
-  -> (1, hs ++ x + y :: ts, hs' ++ y :: ts')
-  | (#2, $x :: [], $hs' ++ (?(\y -> x + y > N) & $y) :: (!(_ ++ #y :: _) & $ts'))
-  -> (-2, [], hs' ++ y :: ts')
-  | (#2, !(_ :: []) & $hs ++ $x :: (!(_ ++ #x :: _) & $ts), $hs' ++ (?(\y -> x + y > N) & $y) :: (!(_ ++ #y :: _) & $ts'))
-  -> (1, hs ++ ts, hs' ++ y :: ts')
+fOrS s := match s as state with
+  | ($h, _, _) -> h
 
-init := (1, [1,1], [1,1])
+move s := matchAllDFS s as state with
+  -- equal or less than N
+  | (#1, ($s1 & $x :: _), (?(\y -> x + y < N + 1) & $y) :: $rs')
+    -> (2, s1, add (x + y) rs')
+  -- the single hand becomes more than N
+  | (#1, ($s1 & $x :: _), ?(\y -> x + y > N) :: [])
+    -> (-1, s1, [])
+  -- a hand becomes more than N
+  | (#1, ($s1 & $x :: _), (?(\y -> x + y > N) & $y) :: (![] & $rs'))
+    -> (2, s1, rs')
+  -- equal or less than N
+  | (#2, $x :: $rs', (?(\y -> x + y < N + 1) & $y) :: _ & $s2)
+    -> (1, add (x + y) rs', s2)
+  -- the single hand becomes more than N
+  | (#2, $x :: [], (?(\y -> x + y > N) :: _) & $s2)
+    -> (-2, [], s2)
+  -- a hand becomes more than N
+  | (#2, $x :: $rs', (?(\y -> x + y > N) :: ![]) & $s2)
+    -> (1, rs', s2)
 
-next := car (move init) -- (2, [1, 1], [1, 2])
+add x xs := matchDFS s as list (eq, integer) with
+  | $hs ++ (#x, n) :: $ts -> hs ++ (x, n + 1) :: ts
+  | _ -> (x, 1) :: xs
+
+init := (1, [(1,2)], [(1,2)])
+
+assertEqual "move"
+  (move init)
+  [(2, [(1, 2)], [(2, 1), (1, 1)])]
 
 makeTree x := Node x (map makeTree (move x))
 
-topTree n :=
-  matchAllDFS makeTree init as tree state with
-  | loop $i (1, n)
+assertEqual "makeTree"
+  (makeTree (1, [(2, 1)], [(1, 1)]))
+  (Node (1, [(2, 1)], [(1, 1)])
+    [Node (2, [(2, 1)], [(3, 1)])
+       [Node (1, [(5, 1)], [(3, 1)])
+          [Node (-1, [(5, 1)], [])
+             []]]])
+
+topTree s n :=
+  matchAllDFS makeTree s as tree state with
+  | loop $i (1, [1..n], $m)
       (node $x_i (... :: _))
       _
-  -> map (\i -> x_i) [1..n]
+  -> map (\i -> x_i) [1..m]
 
---io (each (compose show print) (topTree 5))
 
 paths :=
   matchAllDFS makeTree init as tree state with
@@ -54,7 +106,7 @@ winningRec s :=
           :: _))
   -> t
 
-winning s :=
+winningNot s :=
   matchAll makeTree s as tree state with
   | (node ($h, _, _)
       ((loop $i (1, [1..], _)
@@ -62,9 +114,41 @@ winning s :=
          (node (#(neg h), _, _) _)) :: _))
   -> t
 
-winningRec (1, [1, 1], [1, 1])
-winningRec (2, [1, 1], [1, 2])
+winning c :=
+  matchAll makeTree c as tree state with
+  | node ($h, _, _)
+      (loop $i (1, $n)
+         ((node $f_i (forall (@ :: _)
+                             (node $s_i ...))) :: _)
+         ((node (#(neg h), _, _) _) :: _))
+--  -> (n,"win")
+  -> concat (map (\i -> [s_i, f_i]) [1..n])
 
-winning (1, [1, 1], [1, 1])
-winning (2, [1, 1], [1, 2])
+--winningRec init
+
+"winningNot (first)"
+--winningNot init
+--[(2, [(1, 2)], [(2, 1), (1, 1)])]
+
+"winningNot (second)"
+--winningNot (2, [(1, 2)], [(2, 1), (1, 1)])
+--[]
+
+"winning (first)"
+winning init
+
+"winning (second)"
+winning (2, [(1, 2)], [(2, 1), (1, 1)])
+
+"winning"
+winning (1, [(5, 2)], [(5, 1)])
+
+"winning"
+winning (1, [(2, 1)], [(1, 1)])
+
+--makeTree (1, [(5, 2)], [(5, 1)])
+--Node (1, [(5, 2)], [(5, 1)])
+--   [Node (-1, [(5, 2)], []) [], Node (2, [(5, 2)], []) []
+--  , Node (-1, [(5, 2)], []) [], Node (2, [(5, 2)], []) []]
+
 
