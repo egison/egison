@@ -968,7 +968,7 @@ processMState state =
   if nullMState state
     then processMState' state
     else case splitMState state of
-           ((MState e l s b [MAtom (NotPat p) m t]), state2) -> do
+           (MState e l s b [MAtom (NotPat p) m t], state2) -> do
              result <- processMStatesAll [msingleton (MState e l s b [MAtom p m t])]
              case result of
                MNil -> return $ msingleton state2
