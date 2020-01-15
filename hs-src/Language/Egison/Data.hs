@@ -77,6 +77,7 @@ module Language.Egison.Data
     , mconcat
     , mmap
     , mfor
+    , mAny
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
@@ -604,7 +605,9 @@ type PatternBinding = (String, EgisonPattern)
 data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
  deriving (Show)
 
-data SeqPatContext = SeqPatContext [MatchingTree] EgisonPattern [Matcher] [WHNFData]
+data SeqPatContext =
+    SeqPatContext [MatchingTree] EgisonPattern [Matcher] [WHNFData]
+  | ForallPatContext [Matcher] [WHNFData]
  deriving (Show)
 
 --
@@ -833,3 +836,12 @@ mmap f = mfoldr g $ return MNil
 
 mfor :: Monad m => MList m a -> (a -> m b) -> m (MList m b)
 mfor = flip mmap
+
+mAny :: Monad m => (a -> m Bool) -> MList m a -> m Bool
+mAny _ MNil = return False
+mAny p (MCons x xs) = do
+  b <- p x
+  if b
+   then return True
+   else do xs' <- xs
+           mAny p xs'
