@@ -236,6 +236,7 @@ instance PrettyS EgisonValue where
   prettyS Something = "something"
   prettyS Undefined = "undefined"
   prettyS World = "#<world>"
+  prettyS _ = "(not supported)"
 
 instance PrettyS Var where
   prettyS = show
@@ -342,6 +343,7 @@ instance PrettyS EgisonPattern where
   prettyS (PlusPat pats) = "(+" ++ concatMap ((" " ++) . prettyS) pats
   prettyS (MultPat pats) = "(*" ++ concatMap ((" " ++) . prettyS) pats
   prettyS (PowerPat pat pat') = "(" ++ prettyS pat ++ " ^ " ++ prettyS pat' ++ ")"
+  prettyS _ = "(not supported)"
 
 instance PrettyS LoopRange where
   prettyS (LoopRange start (ApplyExpr (VarExpr (Var ["from"] [])) (ApplyExpr _ (TupleExpr (x:_)))) endPat) =
