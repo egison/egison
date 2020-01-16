@@ -114,7 +114,7 @@ winningRec s :=
 --         (node (#(neg h), _, _) _)) :: _))
 --  -> t
 winningNot s :=
-  matchAll makeTree s as tree state with
+  matchAllDFS makeTree s as tree state with
   | node ($h, _, _)
       (loop $i (1, [1..], _)
          ((node $t !(node _ !... :: _)) :: _)
@@ -122,7 +122,7 @@ winningNot s :=
   -> t
 
 winning c :=
-  matchAll makeTree c as tree state with
+  matchAllDFS makeTree c as tree state with
   | node ($h, _, _)
       (loop $i (1, $n)
          ((node $f_i (forall (@ :: _)
