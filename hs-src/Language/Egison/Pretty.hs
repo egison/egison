@@ -49,7 +49,7 @@ instance Pretty EgisonExpr where
   pretty (FloatExpr x)   = pretty x
   pretty (VarExpr x)     = pretty x
 
-  pretty (InductiveDataExpr c xs) = nest 2 (pretty c <+> fillSep (map pretty xs))
+  pretty (InductiveDataExpr c xs) = nest 2 (pretty c <+> sep (map pretty xs))
 
   pretty (TupleExpr xs) = tupled (map pretty xs)
   pretty (CollectionExpr xs) = list (map pretty xs)
@@ -99,7 +99,7 @@ instance Pretty EgisonExpr where
   pretty (DoExpr xs y) = pretty "do" <+> pretty xs <> hardline <> pretty y
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
-  pretty (ApplyExpr x (TupleExpr ys)) = nest 2 (pretty x <+> fillSep (map pretty' ys))
+  pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (pretty x <+> sep (map (group . pretty') ys))
 
   pretty SomethingExpr = pretty "something"
   pretty UndefinedExpr = pretty "undefined"
@@ -118,11 +118,13 @@ instance Pretty InnerExpr where
   pretty (SubCollectionExpr _) = error "Not supported"
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
-  pretty ([var], expr) = pretty var <+> pretty ":=" <+> pretty expr
-  pretty (vars, expr) = tupled (map pretty vars) <+> pretty ":=" <+> pretty expr
+  pretty ([var], expr) = pretty var <+> pretty ":=" <+> align (pretty expr)
+  pretty (vars, expr) = tupled (map pretty vars) <+> pretty ":=" <+> align (pretty expr)
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
-  pretty (pat, expr) = pipe <+> pretty pat <+> pretty "->" <> softline <> pretty expr
+  pretty (pat, expr)
+    | isAtom expr = pipe <+> pretty pat <+> pretty "->" <> softline <> pretty expr
+    | otherwise   = hang 2 (pipe <+> pretty pat <+> pretty "->" <> hardline <> pretty expr)
 
 instance Pretty EgisonPattern where
   -- TODO: Add parenthesis according to priority
@@ -139,18 +141,21 @@ instance Pretty EgisonPattern where
   pretty (TuplePat xs) = tupled $ map pretty xs
   pretty _            = pretty "hoge"
 
+isAtom :: EgisonExpr -> Bool
+isAtom (UnaryOpExpr _ _)        = False
+isAtom (BinaryOpExpr _ _ _)     = False
+isAtom (ApplyExpr _ _)          = False
+isAtom (LambdaExpr _ _)         = False
+isAtom (IfExpr _ _ _)           = False
+isAtom (LetRecExpr _ _)         = False
+isAtom (MatchExpr _ _ _ _)      = False
+isAtom (MatchLambdaExpr _ _)    = False
+isAtom (MatchAllLambdaExpr _ _) = False
+isAtom _                        = True
+
 pretty' :: EgisonExpr -> Doc ann
-pretty' x =
-  case x of
-    UnaryOpExpr _ _        -> parens $ pretty x
-    ApplyExpr _ _          -> parens $ pretty x
-    LambdaExpr _ _         -> parens $ pretty x
-    IfExpr _ _ _           -> parens $ pretty x
-    LetRecExpr _ _         -> parens $ pretty x
-    MatchExpr _ _ _ _      -> parens $ pretty x
-    MatchLambdaExpr _ _    -> parens $ pretty x
-    MatchAllLambdaExpr _ _ -> parens $ pretty x
-    _                      -> pretty x
+pretty' x | isAtom x  = pretty x
+          | otherwise = parens $ pretty x
 
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
