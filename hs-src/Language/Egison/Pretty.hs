@@ -95,8 +95,7 @@ instance Pretty EgisonExpr where
        else pretty x <+> pretty (repr op) <+> pretty' y
   pretty (BinaryOpExpr op x y) = pretty x <+> pretty (repr op) <+> pretty' y
 
-  -- TODO: Fix display of binding expr for do
-  pretty (DoExpr xs y) = pretty "do" <+> pretty xs <> hardline <> pretty y
+  pretty (DoExpr xs y) = pretty "do" <+> align (vsep (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
   pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (pretty x <+> sep (map (group . pretty') ys))
@@ -141,6 +140,11 @@ instance Pretty EgisonPattern where
   pretty (TuplePat xs) = tupled $ map pretty xs
   pretty _            = pretty "hoge"
 
+-- Display "hoge" instead of "() := hoge"
+prettyDoBinds :: BindingExpr -> Doc ann
+prettyDoBinds ([], expr) = pretty expr
+prettyDoBinds (vs, expr) = pretty (vs, expr)
+
 isAtom :: EgisonExpr -> Bool
 isAtom (UnaryOpExpr _ _)        = False
 isAtom (BinaryOpExpr _ _ _)     = False
@@ -160,7 +164,7 @@ pretty' x | isAtom x  = pretty x
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
   pretty "as" <+> group (pretty matcher) <+> pretty "with" <>
-    (nest 2 (hardline <> align (vsep (map pretty clauses))))
+    nest 2 (hardline <> align (vsep (map pretty clauses)))
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
