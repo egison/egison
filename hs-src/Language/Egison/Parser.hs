@@ -689,7 +689,8 @@ positiveFloatLiteral = do
   mStr <- many1 digit
   let m = read mStr
   let l = m % (10 ^ fromIntegral (length mStr))
-  return (fromRational (fromIntegral n + l) :: Double)
+  if n < 0 then return (fromRational (fromIntegral n - l) :: Double)
+           else return (fromRational (fromIntegral n + l) :: Double)
 
 --
 -- Tokens
