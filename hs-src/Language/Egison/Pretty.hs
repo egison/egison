@@ -43,6 +43,7 @@ instance Pretty EgisonTopExpr where
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
+  pretty _ = error "Unsupported topexpr"
 
 instance Pretty EgisonExpr where
   pretty (CharExpr x)    = squote <> pretty x <> squote
@@ -132,6 +133,8 @@ instance Pretty EgisonExpr where
   pretty SomethingExpr = pretty "something"
   pretty UndefinedExpr = pretty "undefined"
 
+  pretty _ = pretty "REPLACEME"
+
 instance Pretty Arg where
   pretty (ScalarArg x)         = pretty x
   pretty (InvertedScalarArg x) = pretty "*" <> pretty x
@@ -175,7 +178,7 @@ instance Pretty EgisonPattern where
   pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   pretty (NotPat pat)    = pretty "!" <> pretty pat
   pretty (TuplePat pats) = tupled $ map pretty pats
-  pretty _            = pretty "hoge"
+  pretty _            = pretty "REPLACEME"
 
 instance Pretty PrimitivePatPattern where
   pretty PPWildCard     = pretty "_"

@@ -10,16 +10,6 @@
 
 (lambda [$x] (+ x "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 
-{1 2 3}
-
-[1 2 3]
-
-(| 1 2 3 |)
-
-{| [1 2] [2 3] |}
-
-[| 1 2 |]
-
 (match 1 integer {[(& ,1 (| ,2 ,3)) #t]})
 (match 1 integer {[(| (& ,1 ,2) ,3) #t]})
 (match 1 integer {[(| ,1 (& ,2 ,3)) #t]})
