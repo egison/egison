@@ -51,8 +51,8 @@ assertEqual "rational number"
   (10 / 3, 1 / 2, (-1) / 2)
 
 assertEqual "float literal"
-  (1.0, 0.0, -99.987999, 1.0 + 2)
-  (1.0, 0.0, -99.987999, 3.0)
+  (1.0, 0.0, -100.012001, 1.0 + 2)
+  (1.0, 0.0, -100.012001, 3.0)
 
 assertEqual "inductive data literal" A A
 
