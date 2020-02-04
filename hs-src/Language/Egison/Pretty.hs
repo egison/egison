@@ -36,7 +36,9 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 instance Pretty EgisonTopExpr where
   pretty (Define x (LambdaExpr args body)) =
     pretty x <+> hsep (map pretty args) <+> pretty ":=" <> nest 2 (hardline <> pretty body)
-  pretty (Define x expr) = pretty x <+> pretty ":=" <> nest 2 (softline <> pretty expr)
+  pretty (Define x expr)
+    | isAtom expr = pretty x <+> pretty ":=" <> nest 2 (softline <> pretty expr)
+    | otherwise   = pretty x <+> pretty ":=" <> nest 2 (hardline <> pretty expr)
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
@@ -81,6 +83,16 @@ instance Pretty EgisonExpr where
     pretty "\\match"     <+> prettyMatch matcher clauses
   pretty (MatchAllLambdaExpr matcher clauses) =
     pretty "\\matchAll"  <+> prettyMatch matcher clauses
+
+  pretty (MatcherExpr patDefs) =
+    pretty "matcher" <> softline <> align (vsep (map prettyPatDef patDefs))
+      where
+        prettyPatDef (pppat, expr, body) =
+          pretty "|" <+> pretty pppat <+> pretty "as" <+>
+            group (pretty expr) <+> pretty "with" <>
+              nest 2 (hardline <> align (vsep (map prettyPatBody body)))
+        prettyPatBody (pdpat, expr) =
+          pretty "|" <+> pretty pdpat <+> pretty "->" <+> pretty expr
 
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
   -- (x1 op' x2) op y
@@ -139,6 +151,24 @@ instance Pretty EgisonPattern where
   pretty (OrPat xs)  = pintercalate (pretty "|") (map pretty xs)
   pretty (TuplePat xs) = tupled $ map pretty xs
   pretty _            = pretty "hoge"
+
+instance Pretty PrimitivePatPattern where
+  pretty PPWildCard     = pretty "_"
+  pretty PPPatVar       = pretty "$"
+  pretty (PPValuePat x) = pretty ('#' : x)
+  pretty (PPInductivePat x pppats) = pretty x <+> hsep (map pretty pppats)
+  pretty (PPTuplePat pppats) = tupled (map pretty pppats)
+
+-- TODO(momohatt): priority and associativity
+instance Pretty PrimitiveDataPattern where
+  pretty PDWildCard   = pretty "_"
+  pretty (PDPatVar x) = pretty ('$' : x)
+  pretty (PDInductivePat x pdpats) = pretty x <+> hsep (map pretty pdpats)
+  pretty (PDTuplePat pdpats) = tupled (map pretty pdpats)
+  pretty PDEmptyPat = pretty "[]"
+  pretty (PDConsPat pdp1 pdp2) = pretty pdp1 <> pretty "::" <> pretty pdp2
+  pretty (PDSnocPat pdp1 pdp2) = pretty "snoc" <+> pretty pdp1 <+> pretty pdp2
+  pretty (PDConstantPat expr) = pretty expr
 
 -- Display "hoge" instead of "() := hoge"
 prettyDoBinds :: BindingExpr -> Doc ann

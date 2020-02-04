@@ -109,7 +109,8 @@ main = do
   -- 'ast' is not desugared
   let ast = parseTopExprs input
   case ast of
-    Left _ -> return ()
+    Left err ->
+      print err
     Right ast -> do
       putDoc $ prettyTopExprs $ map toNonS ast
       putStrLn ""
