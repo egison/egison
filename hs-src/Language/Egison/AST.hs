@@ -180,6 +180,7 @@ data EgisonPattern =
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
   | LetPat [BindingExpr] EgisonPattern
+  | InfixPat Infix EgisonPattern EgisonPattern -- Includes AndPat,OrPat,InductivePat(cons/join)
   | NotPat EgisonPattern
   | AndPat [EgisonPattern]
   | OrPat [EgisonPattern]
@@ -271,6 +272,8 @@ reservedPatternInfix :: [Infix]
 reservedPatternInfix =
   [ makeInfix "::" "cons" 5 RightAssoc
   , makeInfix "++" "join" 5 RightAssoc
+  , makeInfix "&"  "&"    3 RightAssoc
+  , makeInfix "|"  "|"    2 RightAssoc
   ]
   where
     makeInfix r f p a =
