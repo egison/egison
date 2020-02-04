@@ -35,10 +35,11 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty EgisonTopExpr where
   pretty (Define x (LambdaExpr args body)) =
-    pretty x <+> hsep (map pretty args) <+> pretty ":=" <> nest 2 (hardline <> pretty body)
-  pretty (Define x expr)
-    | isAtom expr = pretty x <+> pretty ":=" <> nest 2 (softline <> pretty expr)
-    | otherwise   = pretty x <+> pretty ":=" <> nest 2 (hardline <> pretty expr)
+    hsep (pretty x : map pretty args) <+> group (pretty ":=" <>
+      flatAlt (nest 2 (hardline <> pretty body)) (space <> pretty body))
+  pretty (Define x expr) =
+    pretty x <+> group (pretty ":=" <>
+      flatAlt (nest 2 (hardline <> pretty expr)) (space <> pretty expr))
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
@@ -72,27 +73,27 @@ instance Pretty EgisonExpr where
   pretty (LetStarExpr _ _) = error "unreachable"
 
   pretty (MatchExpr BFSMode tgt matcher clauses) =
-    pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses
+    nest 2 (pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses)
   pretty (MatchExpr DFSMode tgt matcher clauses) =
-    pretty "matchDFS"    <+> pretty tgt <+> prettyMatch matcher clauses
+    nest 2 (pretty "matchDFS"    <+> pretty tgt <+> prettyMatch matcher clauses)
   pretty (MatchAllExpr BFSMode tgt matcher clauses) =
-    pretty "matchAll"    <+> pretty tgt <+> prettyMatch matcher clauses
+    nest 2 (pretty "matchAll"    <+> pretty tgt <+> prettyMatch matcher clauses)
   pretty (MatchAllExpr DFSMode tgt matcher clauses) =
-    pretty "matchAllDFS" <+> pretty tgt <+> prettyMatch matcher clauses
+    nest 2 (pretty "matchAllDFS" <+> pretty tgt <+> prettyMatch matcher clauses)
   pretty (MatchLambdaExpr matcher clauses) =
-    pretty "\\match"     <+> prettyMatch matcher clauses
+    nest 2 (pretty "\\match"     <+> prettyMatch matcher clauses)
   pretty (MatchAllLambdaExpr matcher clauses) =
-    pretty "\\matchAll"  <+> prettyMatch matcher clauses
+    nest 2 (pretty "\\matchAll"  <+> prettyMatch matcher clauses)
 
   pretty (MatcherExpr patDefs) =
-    pretty "matcher" <> softline <> align (vsep (map prettyPatDef patDefs))
+    nest 2 (pretty "matcher" <> hardline <> align (vsep (map prettyPatDef patDefs)))
       where
         prettyPatDef (pppat, expr, body) =
-          pretty "|" <+> pretty pppat <+> pretty "as" <+>
-            group (pretty expr) <+> pretty "with" <>
-              nest 2 (hardline <> align (vsep (map prettyPatBody body)))
+          nest 2 (pipe <+> pretty pppat <+> pretty "as" <+>
+            group (pretty expr) <+> pretty "with" <> hardline <>
+              align (vsep (map prettyPatBody body)))
         prettyPatBody (pdpat, expr) =
-          pretty "|" <+> pretty pdpat <+> pretty "->" <+> pretty expr
+          pipe <+> pretty pdpat <+> pretty "->" <+> pretty expr
 
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
   -- TODO(momohatt): Treat application as infix?
@@ -134,9 +135,9 @@ instance {-# OVERLAPPING #-} Pretty BindingExpr where
   pretty (vars, expr) = tupled (map pretty vars) <+> pretty ":=" <+> align (pretty expr)
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
-  pretty (pat, expr)
-    | isAtom expr = pipe <+> pretty pat <+> pretty "->" <> softline <> pretty expr
-    | otherwise   = hang 2 (pipe <+> pretty pat <+> pretty "->" <> hardline <> pretty expr)
+  pretty (pat, expr) =
+    pipe <+> pretty pat <+> group (pretty "->" <>
+      flatAlt (nest 2 (hardline <> pretty expr)) (space <> pretty expr))
 
 instance Pretty EgisonPattern where
   pretty WildCard     = pretty "_"
@@ -168,15 +169,14 @@ instance Pretty PrimitivePatPattern where
   pretty (PPInductivePat x pppats) = hsep (pretty x : map pretty pppats)
   pretty (PPTuplePat pppats) = tupled (map pretty pppats)
 
--- TODO(momohatt): priority and associativity
 instance Pretty PrimitiveDataPattern where
   pretty PDWildCard   = pretty "_"
   pretty (PDPatVar x) = pretty ('$' : x)
-  pretty (PDInductivePat x pdpats) = hsep (pretty x : map pretty pdpats)
+  pretty (PDInductivePat x pdpats) = hsep (pretty x : map pretty' pdpats)
   pretty (PDTuplePat pdpats) = tupled (map pretty pdpats)
   pretty PDEmptyPat = pretty "[]"
-  pretty (PDConsPat pdp1 pdp2) = pretty pdp1 <> pretty "::" <> pretty pdp2
-  pretty (PDSnocPat pdp1 pdp2) = pretty "snoc" <+> pretty pdp1 <+> pretty pdp2
+  pretty (PDConsPat pdp1 pdp2) = pretty' pdp1 <> pretty "::" <> pretty'' pdp2
+  pretty (PDSnocPat pdp1 pdp2) = pretty "snoc" <+> pretty' pdp1 <+> pretty' pdp2
   pretty (PDConstantPat expr) = pretty expr
 
 -- Display "hoge" instead of "() := hoge"
@@ -214,6 +214,15 @@ instance Complex EgisonPattern where
   isInfix (InfixPat _ _ _)   = True
   isInfix _                  = False
 
+instance Complex PrimitiveDataPattern where
+  isAtom (PDInductivePat _ []) = True
+  isAtom (PDInductivePat _ _)  = False
+  isAtom (PDConsPat _ _)       = False
+  isAtom (PDSnocPat _ _)       = False
+  isAtom _                     = True
+  isInfix (PDConsPat _ _)      = True
+  isInfix _                    = False
+
 pretty' :: (Pretty a, Complex a) => a -> Doc ann
 pretty' x | isAtom x  = pretty x
           | otherwise = parens $ pretty x
@@ -224,8 +233,8 @@ pretty'' x | isAtom x || isInfix x = pretty x
 
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
-  pretty "as" <+> group (pretty matcher) <+> pretty "with" <>
-    nest 2 (hardline <> align (vsep (map pretty clauses)))
+  pretty "as" <+> group (pretty matcher) <+> pretty "with" <> hardline <>
+    align (vsep (map pretty clauses))
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
