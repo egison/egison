@@ -139,7 +139,6 @@ instance {-# OVERLAPPING #-} Pretty MatchClause where
     | otherwise   = hang 2 (pipe <+> pretty pat <+> pretty "->" <> hardline <> pretty expr)
 
 instance Pretty EgisonPattern where
-  -- TODO: Add parenthesis according to priority
   pretty WildCard     = pretty "_"
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
