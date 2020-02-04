@@ -52,7 +52,7 @@ instance Pretty EgisonExpr where
   pretty (FloatExpr x)   = pretty x
   pretty (VarExpr x)     = pretty x
 
-  pretty (InductiveDataExpr c xs) = nest 2 (pretty c <+> sep (map pretty xs))
+  pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty xs))
 
   pretty (TupleExpr xs) = tupled (map pretty xs)
   pretty (CollectionExpr xs) = list (map pretty xs)
@@ -121,6 +121,10 @@ instance Pretty EgisonExpr where
 
   pretty (GenerateArrayExpr gen (size1, size2)) =
     pretty "generateArray" <+> pretty' gen <+> tupled [pretty size1, pretty size2]
+  pretty (ArrayBoundsExpr expr) =
+    pretty "arrayBounds" <+> pretty' expr
+  pretty (ArrayRefExpr expr i) =
+    pretty "arrayRef" <+> pretty' expr <+> pretty i
 
   pretty (GenerateTensorExpr gen shape) =
     pretty "generateTensor" <+> pretty' gen <+> pretty shape
@@ -212,6 +216,8 @@ instance Complex EgisonExpr where
   isAtom (MatchLambdaExpr _ _)    = False
   isAtom (MatchAllLambdaExpr _ _) = False
   isAtom (GenerateArrayExpr _ _)  = False
+  isAtom (ArrayBoundsExpr _)      = False
+  isAtom (ArrayRefExpr _ _)       = False
   isAtom (GenerateTensorExpr _ _) = False
   isAtom _                        = True
   isInfix (BinaryOpExpr _ _ _)    = True
