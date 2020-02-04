@@ -95,6 +95,11 @@ instance Pretty EgisonExpr where
         prettyPatBody (pdpat, expr) =
           pipe <+> pretty pdpat <+> pretty "->" <+> pretty expr
 
+  pretty (AlgebraicDataMatcherExpr patDefs) =
+    nest 2 (pretty "algebraicDataMatcher" <> hardline <> align (vsep (map prettyPatDef patDefs)))
+      where
+        prettyPatDef (name, exprs) = pipe <+> hsep (pretty name : map pretty exprs)
+
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
   -- TODO(momohatt): Treat application as infix?
   -- (x1 op' x2) op y
@@ -113,6 +118,12 @@ instance Pretty EgisonExpr where
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
   pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (pretty x <+> sep (map (group . pretty') ys))
+
+  pretty (GenerateArrayExpr gen (size1, size2)) =
+    pretty "generateArray" <+> pretty' gen <+> tupled [pretty size1, pretty size2]
+
+  pretty (GenerateTensorExpr gen shape) =
+    pretty "generateTensor" <+> pretty' gen <+> pretty shape
 
   pretty SomethingExpr = pretty "something"
   pretty UndefinedExpr = pretty "undefined"
@@ -200,6 +211,8 @@ instance Complex EgisonExpr where
   isAtom (MatchAllExpr _ _ _ _)   = False
   isAtom (MatchLambdaExpr _ _)    = False
   isAtom (MatchAllLambdaExpr _ _) = False
+  isAtom (GenerateArrayExpr _ _)  = False
+  isAtom (GenerateTensorExpr _ _) = False
   isAtom _                        = True
   isInfix (BinaryOpExpr _ _ _)    = True
   isInfix _                       = False
