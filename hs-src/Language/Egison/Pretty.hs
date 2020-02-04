@@ -95,17 +95,18 @@ instance Pretty EgisonExpr where
           pretty "|" <+> pretty pdpat <+> pretty "->" <+> pretty expr
 
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
+  -- TODO(momohatt): Treat application as infix?
   -- (x1 op' x2) op y
   pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
-       then parens (pretty x) <+> pretty (repr op) <+> pretty' y
-       else pretty x <+> pretty (repr op) <+> pretty' y
+       then parens (pretty x) <+> pretty (repr op) <+> pretty'' y
+       else pretty x          <+> pretty (repr op) <+> pretty'' y
   -- x op (y1 op' y2)
   pretty (BinaryOpExpr op x y@(BinaryOpExpr op' _ _)) =
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
-       then pretty x <+> pretty (repr op) <+> parens (pretty y)
-       else pretty x <+> pretty (repr op) <+> pretty' y
-  pretty (BinaryOpExpr op x y) = pretty x <+> pretty (repr op) <+> pretty' y
+       then pretty'' x <+> pretty (repr op) <+> parens (pretty y)
+       else pretty'' x <+> pretty (repr op) <+> pretty y
+  pretty (BinaryOpExpr op x y) = pretty' x <+> pretty (repr op) <+> pretty' y
 
   pretty (DoExpr xs y) = pretty "do" <+> align (vsep (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
@@ -143,7 +144,17 @@ instance Pretty EgisonPattern where
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
   pretty (PredPat v)  = pretty "?" <> pretty v
-  pretty (InfixPat Infix{ repr = sym } p1 p2) = pretty p1 <+> pretty sym <+> pretty p2
+  -- (p11 op' p12) op p2
+  pretty (InfixPat op p1@(InfixPat op' _ _) p2) =
+    if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
+       then parens (pretty p1) <+> pretty (repr op) <+> pretty'' p2
+       else pretty p1          <+> pretty (repr op) <+> pretty'' p2
+  -- p1 op (p21 op' p22)
+  pretty (InfixPat op p1 p2@(InfixPat op' _ _)) =
+    if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
+       then pretty'' p1 <+> pretty (repr op) <+> parens (pretty p2)
+       else pretty'' p1 <+> pretty (repr op) <+> pretty p2
+  pretty (InfixPat op p1 p2) = pretty' p1 <+> pretty (repr op) <+> pretty' p2
   pretty (InductivePat "nil" []) = pretty "[]"
   pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty xs)
   pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
@@ -174,23 +185,43 @@ prettyDoBinds :: BindingExpr -> Doc ann
 prettyDoBinds ([], expr) = pretty expr
 prettyDoBinds (vs, expr) = pretty (vs, expr)
 
-isAtom :: EgisonExpr -> Bool
-isAtom (IntegerExpr i) | i < 0  = False
-isAtom (UnaryOpExpr _ _)        = False
-isAtom (BinaryOpExpr _ _ _)     = False
-isAtom (ApplyExpr _ _)          = False
-isAtom (LambdaExpr _ _)         = False
-isAtom (IfExpr _ _ _)           = False
-isAtom (LetRecExpr _ _)         = False
-isAtom (MatchExpr _ _ _ _)      = False
-isAtom (MatchAllExpr _ _ _ _)   = False
-isAtom (MatchLambdaExpr _ _)    = False
-isAtom (MatchAllLambdaExpr _ _) = False
-isAtom _                        = True
+class Complex a where
+  isAtom :: a -> Bool
+  isInfix :: a -> Bool
 
-pretty' :: EgisonExpr -> Doc ann
+instance Complex EgisonExpr where
+  isAtom (IntegerExpr i) | i < 0  = False
+  isAtom (UnaryOpExpr _ _)        = False
+  isAtom (BinaryOpExpr _ _ _)     = False
+  isAtom (ApplyExpr _ _)          = False
+  isAtom (LambdaExpr _ _)         = False
+  isAtom (IfExpr _ _ _)           = False
+  isAtom (LetRecExpr _ _)         = False
+  isAtom (MatchExpr _ _ _ _)      = False
+  isAtom (MatchAllExpr _ _ _ _)   = False
+  isAtom (MatchLambdaExpr _ _)    = False
+  isAtom (MatchAllLambdaExpr _ _) = False
+  isAtom _                        = True
+  isInfix (BinaryOpExpr _ _ _)    = True
+  isInfix _                       = False
+
+instance Complex EgisonPattern where
+  isAtom (InductivePat _ []) = True
+  isAtom (InductivePat _ _)  = False
+  isAtom (NotPat _)          = False
+  isAtom (InfixPat _ _ _)    = False
+  isAtom (LoopPat _ _ _ _)   = False
+  isAtom _                   = True
+  isInfix (InfixPat _ _ _)   = True
+  isInfix _                  = False
+
+pretty' :: (Pretty a, Complex a) => a -> Doc ann
 pretty' x | isAtom x  = pretty x
           | otherwise = parens $ pretty x
+
+pretty'' :: (Pretty a, Complex a) => a -> Doc ann
+pretty'' x | isAtom x || isInfix x = pretty x
+           | otherwise             = parens $ pretty x
 
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
@@ -199,9 +230,6 @@ prettyMatch matcher clauses =
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
-
-pintercalate :: Doc ann -> [Doc ann] -> Doc ann
-pintercalate sep elems = encloseSep emptyDoc emptyDoc (space <> sep <> space) elems
 
 --
 -- Pretty printer for S-expression
