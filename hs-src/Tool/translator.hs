@@ -83,15 +83,16 @@ instance SyntaxElement EgisonPattern where
   toNonS (PredPat e) = PredPat (toNonS e)
   toNonS (LetPat binds pat) = LetPat (map toNonS binds) (toNonS pat)
   toNonS (NotPat p) = NotPat (toNonS p)
-  toNonS (AndPat ps) = foldr1 (\acc p -> InfixPat op (toNonS p) acc) ps
+  toNonS (InfixPat op p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
+  toNonS (AndPat ps) = toNonS (foldr1 (\p acc -> InfixPat op p acc) ps)
     where op = fromJust $ find (\op -> repr op == "&") reservedPatternInfix
-  toNonS (OrPat ps) = foldr1 (\acc p -> InfixPat op (toNonS p) acc) ps
+  toNonS (OrPat ps) = toNonS (foldr1 (\p acc -> InfixPat op p acc) ps)
     where op = fromJust $ find (\op -> repr op == "|") reservedPatternInfix
   toNonS (TuplePat ps) = TuplePat (map toNonS ps)
-  toNonS (InductivePat "cons" [p1, p2]) = InfixPat op (toNonS p1) (toNonS p2)
-    where op = fromJust $ find (\op -> repr op == "::") reservedPatternInfix
-  toNonS (InductivePat "join" [p1, p2]) = InfixPat op (toNonS p1) (toNonS p2)
-    where op = fromJust $ find (\op -> repr op == "++") reservedPatternInfix
+  toNonS (InductivePat name [p1, p2])
+    | any (\op -> func op == name) reservedPatternInfix =
+      InfixPat op (toNonS p1) (toNonS p2)
+        where op = fromJust $ find (\op -> func op == name) reservedPatternInfix
   toNonS (InductivePat name ps) = InductivePat name (map toNonS ps)
   toNonS (LoopPat i range p1 p2) = LoopPat i (toNonS range) (toNonS p1) (toNonS p2)
   toNonS (PApplyPat e p) = PApplyPat (toNonS e) (map toNonS p)
