@@ -680,17 +680,11 @@ floatExpr :: Parser EgisonExpr
 floatExpr = FloatExpr <$> positiveFloatLiteral
 
 integerExpr :: Parser EgisonExpr
-integerExpr = IntegerExpr <$> integerLiteral'
-
-integerLiteral' :: Parser Integer
-integerLiteral' = sign <*> positiveIntegerLiteral
-
-positiveIntegerLiteral :: Parser Integer
-positiveIntegerLiteral = read <$> many1 digit
+integerExpr = IntegerExpr <$> integerLiteral
 
 positiveFloatLiteral :: Parser Double
 positiveFloatLiteral = do
-  n <- positiveIntegerLiteral
+  n <- integerLiteral
   char '.'
   mStr <- many1 digit
   let m = read mStr
