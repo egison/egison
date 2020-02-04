@@ -631,18 +631,16 @@ opPattern = do
 
 makePatternTable :: [Infix] -> [[Operator Parser EgisonPattern]]
 makePatternTable ops =
-  let infixes  = map toOperator ops ++ logicalPatOp
+  let infixes = map toOperator ops
    in map (map snd) (groupBy (\x y -> fst x == fst y) infixes)
   where
-    logicalPatOp :: [(Int, Operator Parser EgisonPattern)]
-    logicalPatOp = [ (3, InfixR (binary AndPat "&"))
-                   , (2, InfixR (binary OrPat "|")) ]
-
     toOperator :: Infix -> (Int, Operator Parser EgisonPattern)
-    toOperator op = (priority op, infixToOperator inductive2 op)
+    toOperator op = (priority op, infixToOperator binary op)
 
-    inductive2 op = (\x y -> InductivePat (func op) [x, y]) <$ patOperator (repr op)
-    binary ctor sym = (\x y -> ctor [x, y]) <$ patOperator sym
+    binary :: Infix -> Parser (EgisonPattern -> EgisonPattern -> EgisonPattern)
+    binary op = do
+      op <- try (indented >> patInfixLiteral (repr op))
+      return $ InfixPat op
 
 applyOrAtomPattern :: Parser EgisonPattern
 applyOrAtomPattern = do
@@ -757,6 +755,8 @@ varLiteral = stringToVar <$> ident
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> lowerId)
 
+-- Parse infix (binary operator) literal.
+-- If the operator is prefixed with '!', |isWedge| is turned to true.
 infixLiteral :: String -> Parser Infix
 infixLiteral sym =
   try (do wedge   <- optional (char '!')
@@ -779,8 +779,13 @@ symbol sym = try (L.symbol sc sym) >> pure ()
 operator :: String -> Parser String
 operator sym = try $ string sym <* notFollowedBy opChar <* sc
 
-patOperator :: String -> Parser String
-patOperator sym = try $ string sym <* notFollowedBy patOpChar <* sc
+-- |infixLiteral| for pattern infixes.
+patInfixLiteral :: String -> Parser Infix
+patInfixLiteral sym =
+  try (do opSym <- string sym <* notFollowedBy patOpChar <* sc
+          infixes <- patternInfix <$> get
+          let opInfo = fromJust $ find ((== opSym) . repr) infixes
+          return opInfo)
 
 -- Characters that can consist expression operators.
 opChar :: Parser Char
