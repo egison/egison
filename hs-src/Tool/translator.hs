@@ -55,10 +55,10 @@ instance SyntaxElement EgisonExpr where
   toNonS (LetStarExpr xs y)     = LetRecExpr (map toNonS xs) (toNonS y)
   toNonS (WithSymbolsExpr xs y) = WithSymbolsExpr xs (toNonS y)
 
-  toNonS (MatchExpr pmmode x y zs)    = MatchExpr pmmode (toNonS x) (toNonS y) (map toNonS zs)
-  toNonS (MatchAllExpr pmmode x y zs) = MatchAllExpr pmmode (toNonS x) (toNonS y) (map toNonS zs)
-  toNonS (MatchLambdaExpr x ys)       = MatchLambdaExpr    (toNonS x) (map toNonS ys)
-  toNonS (MatchAllLambdaExpr x ys)    = MatchAllLambdaExpr (toNonS x) (map toNonS ys)
+  toNonS (MatchExpr pmmode m p xs)    = MatchExpr pmmode (toNonS m) (toNonS p) (map toNonS xs)
+  toNonS (MatchAllExpr pmmode m p xs) = MatchAllExpr pmmode (toNonS m) (toNonS p) (map toNonS xs)
+  toNonS (MatchLambdaExpr p xs)       = MatchLambdaExpr    (toNonS p) (map toNonS xs)
+  toNonS (MatchAllLambdaExpr p xs)    = MatchAllLambdaExpr (toNonS p) (map toNonS xs)
 
   toNonS (MatcherExpr xs) = MatcherExpr (map toNonS xs)
 
@@ -78,6 +78,29 @@ instance SyntaxElement EgisonExpr where
 
   toNonS x = x
 
+instance SyntaxElement EgisonPattern where
+  toNonS (ValuePat e) = ValuePat (toNonS e)
+  toNonS (PredPat e) = PredPat (toNonS e)
+  toNonS (LetPat binds pat) = LetPat (map toNonS binds) (toNonS pat)
+  toNonS (NotPat p) = NotPat (toNonS p)
+  toNonS (AndPat ps) = foldr1 (\acc p -> InfixPat op (toNonS p) acc) ps
+    where op = fromJust $ find (\op -> repr op == "&") reservedPatternInfix
+  toNonS (OrPat ps) = foldr1 (\acc p -> InfixPat op (toNonS p) acc) ps
+    where op = fromJust $ find (\op -> repr op == "|") reservedPatternInfix
+  toNonS (TuplePat ps) = TuplePat (map toNonS ps)
+  toNonS (InductivePat "cons" [p1, p2]) = InfixPat op (toNonS p1) (toNonS p2)
+    where op = fromJust $ find (\op -> repr op == "::") reservedPatternInfix
+  toNonS (InductivePat "join" [p1, p2]) = InfixPat op (toNonS p1) (toNonS p2)
+    where op = fromJust $ find (\op -> repr op == "++") reservedPatternInfix
+  toNonS (InductivePat name ps) = InductivePat name (map toNonS ps)
+  toNonS (LoopPat i range p1 p2) = LoopPat i (toNonS range) (toNonS p1) (toNonS p2)
+  toNonS (PApplyPat e p) = PApplyPat (toNonS e) (map toNonS p)
+  toNonS (SeqConsPat p1 p2) = SeqConsPat (toNonS p1) (toNonS p2)
+  toNonS p = p
+
+instance SyntaxElement LoopRange where
+  toNonS (LoopRange e1 e2 p) = LoopRange (toNonS e1) (toNonS e2) (toNonS p)
+
 instance SyntaxElement a => SyntaxElement (Index a) where
   toNonS script = toNonS <$> script
 
@@ -89,7 +112,7 @@ instance SyntaxElement BindingExpr where
   toNonS (vars, x) = (map toNonS vars, toNonS x)
 
 instance SyntaxElement MatchClause where
-  toNonS (x, y) = (x, toNonS y)
+  toNonS (pat, body) = (toNonS pat, toNonS body)
 
 instance SyntaxElement PatternDef where
   toNonS (x, y, zs) = (x, toNonS y, map (\(z, w) -> (z, toNonS w)) zs)

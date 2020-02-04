@@ -143,14 +143,11 @@ instance Pretty EgisonPattern where
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
   pretty (PredPat v)  = pretty "?" <> pretty v
+  pretty (InfixPat Infix{ repr = sym } p1 p2) = pretty p1 <+> pretty sym <+> pretty p2
   pretty (InductivePat "nil" []) = pretty "[]"
-  pretty (InductivePat "cons" [x, y]) = pretty x <+> pretty "::" <+> pretty y
-  pretty (InductivePat "join" [x, y]) = pretty x <+> pretty "++" <+> pretty y
-  pretty (InductivePat ctor xs) = pretty ctor <+> hsep (map pretty xs)
+  pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty xs)
   pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   pretty (NotPat pat)    = pretty "!" <> pretty pat
-  pretty (AndPat pats)   = pintercalate (pretty "&") (map pretty pats)
-  pretty (OrPat pats)    = pintercalate (pretty "|") (map pretty pats)
   pretty (TuplePat pats) = tupled $ map pretty pats
   pretty _            = pretty "hoge"
 
@@ -158,14 +155,14 @@ instance Pretty PrimitivePatPattern where
   pretty PPWildCard     = pretty "_"
   pretty PPPatVar       = pretty "$"
   pretty (PPValuePat x) = pretty ('#' : x)
-  pretty (PPInductivePat x pppats) = pretty x <+> hsep (map pretty pppats)
+  pretty (PPInductivePat x pppats) = hsep (pretty x : map pretty pppats)
   pretty (PPTuplePat pppats) = tupled (map pretty pppats)
 
 -- TODO(momohatt): priority and associativity
 instance Pretty PrimitiveDataPattern where
   pretty PDWildCard   = pretty "_"
   pretty (PDPatVar x) = pretty ('$' : x)
-  pretty (PDInductivePat x pdpats) = pretty x <+> hsep (map pretty pdpats)
+  pretty (PDInductivePat x pdpats) = hsep (pretty x : map pretty pdpats)
   pretty (PDTuplePat pdpats) = tupled (map pretty pdpats)
   pretty PDEmptyPat = pretty "[]"
   pretty (PDConsPat pdp1 pdp2) = pretty pdp1 <> pretty "::" <> pretty pdp2
