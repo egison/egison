@@ -141,15 +141,17 @@ instance Pretty EgisonPattern where
   -- TODO: Add parenthesis according to priority
   pretty WildCard     = pretty "_"
   pretty (PatVar x)   = pretty "$" <> pretty x
-  pretty (ValuePat v) = pretty "#" <> pretty v
+  pretty (ValuePat v) = pretty "#" <> pretty' v
   pretty (PredPat v)  = pretty "?" <> pretty v
   pretty (InductivePat "nil" []) = pretty "[]"
   pretty (InductivePat "cons" [x, y]) = pretty x <+> pretty "::" <+> pretty y
   pretty (InductivePat "join" [x, y]) = pretty x <+> pretty "++" <+> pretty y
   pretty (InductivePat ctor xs) = pretty ctor <+> hsep (map pretty xs)
-  pretty (AndPat xs) = pintercalate (pretty "&") (map pretty xs)
-  pretty (OrPat xs)  = pintercalate (pretty "|") (map pretty xs)
-  pretty (TuplePat xs) = tupled $ map pretty xs
+  pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
+  pretty (NotPat pat)    = pretty "!" <> pretty pat
+  pretty (AndPat pats)   = pintercalate (pretty "&") (map pretty pats)
+  pretty (OrPat pats)    = pintercalate (pretty "|") (map pretty pats)
+  pretty (TuplePat pats) = tupled $ map pretty pats
   pretty _            = pretty "hoge"
 
 instance Pretty PrimitivePatPattern where
@@ -176,6 +178,7 @@ prettyDoBinds ([], expr) = pretty expr
 prettyDoBinds (vs, expr) = pretty (vs, expr)
 
 isAtom :: EgisonExpr -> Bool
+isAtom (IntegerExpr i) | i < 0  = False
 isAtom (UnaryOpExpr _ _)        = False
 isAtom (BinaryOpExpr _ _ _)     = False
 isAtom (ApplyExpr _ _)          = False
@@ -183,6 +186,7 @@ isAtom (LambdaExpr _ _)         = False
 isAtom (IfExpr _ _ _)           = False
 isAtom (LetRecExpr _ _)         = False
 isAtom (MatchExpr _ _ _ _)      = False
+isAtom (MatchAllExpr _ _ _ _)   = False
 isAtom (MatchLambdaExpr _ _)    = False
 isAtom (MatchAllLambdaExpr _ _) = False
 isAtom _                        = True
