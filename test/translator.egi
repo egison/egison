@@ -1,0 +1,28 @@
+(define $declare-function (lambda [$x $y $z] x))
+
+(define $longword "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+(define $verylongword "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+(assert-equal "aaaa" "aaa" "aa" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "aaaa" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+(* (+ 3 4) -1)
+
+(lambda [$x] (+ x "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+
+{1 2 3}
+
+[1 2 3]
+
+(| 1 2 3 |)
+
+{| [1 2] [2 3] |}
+
+[| 1 2 |]
+
+(match 1 integer {[(& ,1 (| ,2 ,3)) #t]})
+(match 1 integer {[(| (& ,1 ,2) ,3) #t]})
+(match 1 integer {[(| ,1 (& ,2 ,3)) #t]})
+(match 1 integer {[(& (| ,1 ,2) ,3) #t]})
+
+(match 1 integer {[(& ,1 ,2 ,3) #t]})
+(match 1 integer {[(| <cons ,1 _> ,2 ,3) #t]})
