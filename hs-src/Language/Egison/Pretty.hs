@@ -118,7 +118,8 @@ instance Pretty EgisonExpr where
   pretty (DoExpr xs y) = pretty "do" <+> align (vsep (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
-  pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (pretty x <+> sep (map (group . pretty') ys))
+  pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (pretty' x <+> sep (map (group . pretty') ys))
+  pretty (ApplyExpr x y) = hang 2 (pretty' x <+> group (pretty' y))
 
   pretty (GenerateArrayExpr gen (size1, size2)) =
     pretty "generateArray" <+> pretty' gen <+> tupled [pretty size1, pretty size2]
