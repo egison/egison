@@ -1,0 +1,80 @@
+ordering :=
+  algebraicDataMatcher
+    | less
+    | equal
+    | greater
+
+compare m n :=
+  if collection? m
+    then compareC m n
+    else if m < n then Less else if m = n then Equal else Greater
+
+compareC c1 c2 :=
+  match (c1, c2) as (list something, list something) with
+    | ([], []) -> Equal
+    | ([], _) -> Less
+    | (_, []) -> Greater
+    | ($x :: $xs, #x :: $ys) -> compareC xs ys
+    | ($x :: _, $y :: _) -> compare x y
+
+b.min x y := if x < y then x else y
+
+b.max x y := if x > y then x else y
+
+min/fn f xs := foldl 2#(if (f %1 %2) = Less then %1 else %2) (car xs) (cdr xs)
+
+max/fn f xs :=
+  foldl 2#(if (f %1 %2) = Greater then %1 else %2) (car xs) (cdr xs)
+
+min xs := foldl b.min (car xs) (cdr xs)
+
+max xs := foldl b.max (car xs) (cdr xs)
+
+splitByOrdering := 2#(splitByOrdering/fn compare %1 %2)
+
+splitByOrdering/fn f p xs :=
+  match xs as list something with
+    | [] -> ([], [], [])
+    | $x :: $rs ->
+      let (ys1, ys2, ys3) := splitByOrdering/fn f p rs
+       in match f x p as ordering with
+            | less -> (x :: ys1, ys2, ys3)
+            | equal -> (ys1, x :: ys2, ys3)
+            | greater -> (ys1, ys2, x :: ys3)
+
+sort := 1#(sort/fn compare %1)
+
+sort/fn f xs :=
+  match xs as list something with
+    | [] -> []
+    | $x :: [] -> [x]
+    | _ ->
+      let n := length xs
+          p := nth (quotient n 2) xs
+          (ys1, ys2, ys3) := splitByOrdering/fn f p xs
+       in (sort/fn f ys1) ++ ys2 ++ (sort/fn f ys3)
+
+sortStrings xs :=
+  sort/fn 2#(compareC (map ctoi (unpack %1)) (map ctoi (unpack %2))) xs
+
+merge xs ys :=
+  match (xs, ys) as (list something, list something) with
+    | ([], _) -> ys
+    | (_, []) -> xs
+    | ($x :: $txs, ?1#(%1 >= x) :: _) -> x :: (merge txs ys)
+    | (_, $y :: $tys) -> y :: (merge xs tys)
+
+merge/fn f xs ys :=
+  match (xs, ys) as (list something, list something) with
+    | ([], _) -> ys
+    | (_, []) -> xs
+    | ($x :: $txs, ?1#((f %1 x) = Greater) :: _) -> x :: (merge txs ys)
+    | (_, $y :: $tys) -> y :: (merge xs tys)
+
+minimize f xs :=
+  foldl 2#(if (compare (f %1) (f %2)) = Less then %1 else %2) (car xs) (cdr xs)
+
+maximize f xs :=
+  foldl 2#(if (compare (f %1) (f %2)) = Greater then %1 else %2)
+    (car xs)
+    (cdr xs)

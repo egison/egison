@@ -1,0 +1,61 @@
+rands s e := (pureRand s e) :: (rands s e)
+
+pureRand s e := io rand s e
+
+randomize xs :=
+  let randomize' xs n :=
+        if n = 0
+          then []
+          else let r := pureRand 1 n
+                   x := nth r xs
+                in x :: (randomize' (deleteFirst x xs) (n - 1))
+   in randomize' xs (length xs)
+
+R.between s e := randomize (between s e)
+
+R.multiset a :=
+  matcher
+    | nil as () with
+      | [] -> [()]
+      | _ -> []
+    | cons $ $ as (a, R.multiset a) with
+      | $tgt -> map (\i -> match tgt as list a with
+                      | loop $j (1, i - 1, _)
+                          ($xa_j :: ...)
+                          ($x :: $ts) ->
+                        (x, (map (\j -> xa_j) (between 1 (i - 1))) ++ ts))
+                  (R.between 1 (length tgt))
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+R.uncons xs :=
+  car (matchAll xs as R.multiset something with
+      | $x :: $rs -> (x, rs))
+
+R.car xs :=
+  car (matchAll xs as R.multiset something with
+      | $x :: $rs -> x)
+
+R.cdr xs :=
+  car (matchAll xs as R.multiset something with
+      | $x :: $rs -> rs)
+
+sample := R.car
+
+R.set a :=
+  matcher
+    | nil as () with
+      | [] -> [()]
+      | _ -> []
+    | cons $ $ as (a, R.multiset a) with
+      | $tgt -> map (\i -> match tgt as list a with
+                      | loop $j (1, i - 1, _)
+                          (_ :: ...)
+                          ($x :: _) -> (x, tgt))
+                  (R.between 1 (length tgt))
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+f.rands s e := (f.pureRand s e) :: (f.rands s e)
+
+f.pureRand s e := io f.rand s e

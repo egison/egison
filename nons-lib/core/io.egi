@@ -1,0 +1,19 @@
+print := REPLACEME
+
+printToPort := REPLACEME
+
+display := REPLACEME
+
+displayToPort := REPLACEME
+
+eachLine := REPLACEME
+
+eachLineFromPort := REPLACEME
+
+eachFile := REPLACEME
+
+each := REPLACEME
+
+debug %expr := io do print (show expr) return expr
+
+debug2 %msg %expr := io do display msg print (show expr) return expr

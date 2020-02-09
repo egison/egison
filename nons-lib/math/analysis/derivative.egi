@@ -1,0 +1,14 @@
+∂/∂ f *x :=
+  match f as mathExpr with
+    | #x -> 1
+    | ?symbol? -> 0
+    | func _ $argnames $args _ ->
+      sum (map2 (\s r -> REPLACEME * (∂/∂ r x)) argnames args)
+    | REPLACEME -> (exp g) * (∂/∂ g x)
+    | REPLACEME -> 1 / g * (∂/∂ g x)
+    | REPLACEME -> 1 / (2 * (sqrt g)) * (∂/∂ g x)
+    | REPLACEME -> f * (∂/∂ ((log g) * h) x)
+    | REPLACEME -> (-1) * (sin g) * (∂/∂ g x)
+    | REPLACEME -> (cos g) * (∂/∂ g x)
+    | REPLACEME -> 1 / (sqrt (1 - g ^ 2)) * (∂/∂ g x)
+    | apply $g $args 

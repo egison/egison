@@ -1,0 +1,69 @@
+string :=
+  matcher
+    | regex-cg #regexpr $ $ $ as (string, list string, string) with
+      | $tgt -> regexCg regexpr tgt
+    | regex #regexpr $ $ $ as (string, string, string) with
+      | $tgt -> regex regexpr tgt
+    | nil as () with
+      | $tgt -> if "" = tgt then [()] else []
+    | cons $ $ as (char, string) with
+      | $tgt -> if "" = tgt then [] else [unconsString tgt]
+    | join $ cons #px $ as (string, string) with
+      | $tgt -> matchAll S.split (pack [px]) tgt as list string with
+        | ((![]) & $xs) ++ (![]) & $ys ->
+          (S.intercalate (pack [px]) xs, S.intercalate (pack [px]) ys)
+    | join $ join #pxs $ as (string, string) with
+      | $tgt -> matchAll S.split pxs tgt as list string with
+        | ((![]) & $xs) ++ (![]) & $ys ->
+          (S.intercalate pxs xs, S.intercalate pxs ys)
+    | join $ $ as (string, string) with
+      | $tgt -> matchAll tgt as string with
+        | loop $i (1, from (' 1 1), $n)
+            ($xa_i :: ...)
+            $rs -> (pack (map (\i -> xa_i) (between 1 n)), rs)
+    | #val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+S.empty? xs := xs = ""
+
+S.cons x xs := appendString (pack [x]) xs
+
+S.car xs :=
+  match xs as string with
+    | $x :: _ -> x
+
+S.cdr xs :=
+  match xs as string with
+    | _ :: $r -> r
+
+S.rac str :=
+  match str as string with
+    | _ ++ $c :: [] -> c
+
+S.map f xs := pack (map f (unpack xs))
+
+S.length xs := lengthString xs
+
+S.split in ls := splitString in ls
+
+S.append xs ys := appendString xs ys
+
+S.concat xss := foldr (\xs rs -> S.append xs rs) "" xss
+
+S.intercalate := compose intersperse S.concat
+
+S.replace before after str := S.intercalate after (S.split before str)
+
+C.between c1 c2 := map itoc (between (ctoi c1) (ctoi c2))
+
+C.between? c1 c2 c := (ctoi c) >= (ctoi c1) && (ctoi c) <= (ctoi c2)
+
+alphabet? c := (C.between? 'a' 'z' c) || (C.between? 'A' 'Z' c)
+
+alphabets? s := all alphabet? (unpack s)
+
+upperCase c := if C.between? 'a' 'z' c then itoc ((ctoi c) - 32) else c
+
+lowerCase c := if C.between? 'A' 'Z' c then itoc ((ctoi c) + 32) else c

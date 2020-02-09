@@ -1,0 +1,9 @@
+Nothing := []
+
+Just x := [x]
+
+nothing := \ => []
+
+just := \pat => ~pat :: _
+
+maybe a := list a

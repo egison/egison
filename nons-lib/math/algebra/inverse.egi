@@ -1,0 +1,36 @@
+inverse (f x) x
+
+f~(-1) x
+
+inverse (x ^ 2) x
+
+inverse t f x :=
+  match f as mathExpr with
+    | ?simpleTerm? ->
+      match f as symbolExpr with
+        | #x -> t
+        | REPLACEME -> log t
+        | REPLACEME -> exp t
+        | REPLACEME -> t ^ 2
+        | REPLACEME -> acos t
+        | REPLACEME -> asin t
+        | REPLACEME -> cos t
+        | REPLACEME -> sin t
+        | _ -> inverse' t f x
+    | ?term? ->
+      match f as termExpr with
+        | term #1 ncons $n #x [] -> rt n t
+        | term _ ncons $n #x _ ->
+          let a := f / x ^ n
+           in inverse (t / a) (f / a) x
+        | _ -> REPLACEME t f x
+    | ?polynomial? ->
+      match coefficients x f as list mathExpr with
+        | $c :: (loop $i (1, from (' 1 1), $n)
+                   (#0 :: ...)
+                   ($a :: [])) -> inverse ((t - c) / a) (x ^ (n + 1)) x
+        | _ -> REPLACEME t f x
+    | _ ->
+      match f as mathExpr with
+        | div $p1 $p2 -> inverse (p2 * t) p1 x
+    | _ -> REPLACEME t f x

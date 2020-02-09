@@ -1,0 +1,30 @@
+Sd x f :=
+  match f as mathExpr with
+    | #x -> 1 / 2 * x ^ 2
+    | symbol _ _ -> f * x
+    | REPLACEME -> exp x
+    | REPLACEME -> sin x
+    | REPLACEME -> (-1) * (cos x)
+    | REPLACEME -> multSd x 1 (log x)
+    | REPLACEME -> a ^ x / (log a)
+    | REPLACEME -> REPLACEME
+    | REPLACEME -> REPLACEME x (REPLACEME y g)
+    | REPLACEME -> REPLACEME
+    | #0 -> 0
+    | term $c [] -> c * x
+    | mult $a ncons $n #x $r ->
+      if containSymbol? x r
+        then REPLACEME x f
+        else a / (n + 1) * x ^ (n + 1) * r
+    | poly $ts -> sum (map 1#(Sd x %1) ts)
+    | div plus $ts $p2 -> sum (map 1#(Sd x (%1 / p2)) ts)
+    | div $p1 $p2 ->
+      if containSymbol? x p2 then REPLACEME x f else (Sd x p1) / p2
+
+multSd x f g :=
+  let F := Sd x f
+   in F * g - (Sd x (F * (d/d g x)))
+
+dSd x a b f :=
+  let F := Sd x f
+   in (substitute [(x, b)] F) - (substitute [(x, a)] F)
