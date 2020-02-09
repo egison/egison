@@ -59,7 +59,7 @@ instance Pretty EgisonExpr where
   pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty xs))
 
   pretty (TupleExpr xs) = tupled (map pretty xs)
-  pretty (CollectionExpr xs) = list (map pretty xs)
+  pretty (CollectionExpr xs) = listoid "[" "]" (map pretty xs)
   pretty (ArrayExpr xs)  = listoid "(|" "|)" (map pretty xs)
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
@@ -122,8 +122,8 @@ instance Pretty EgisonExpr where
   pretty (DoExpr xs y) = pretty "do" <+> align (vsep (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
-  pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (pretty' x <+> sep (map (group . pretty') ys))
-  pretty (ApplyExpr x y) = hang 2 (pretty' x <+> group (pretty' y))
+  pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (sep (map (group . pretty') (x : ys)))
+  pretty (ApplyExpr x y) = hang 2 (sep [group (pretty' x), group (pretty' y)])
   pretty (PartialExpr n e) = pretty n <> pretty '#' <> pretty' e
   pretty (PartialVarExpr n) = pretty '%' <> pretty n
 
@@ -298,7 +298,8 @@ prettyMatch matcher clauses =
     align (vsep (map pretty clauses))
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
-listoid lp rp elems = encloseSep (pretty lp) (pretty rp) (comma <> space) elems
+listoid lp rp elems =
+  pretty lp <> align (fillSep (punctuate comma elems) <> pretty rp)
 
 --
 -- Pretty printer for S-expression
