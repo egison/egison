@@ -448,36 +448,34 @@ cApplyExpr = keywordCApply >> CApplyExpr <$> expr <*> expr
 applyExpr :: Parser EgisonExpr
 applyExpr = do
   func <- expr
-  args <- args
+  args <- sepEndBy arg whiteSpace
   let vars = lefts args
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let args' = rights args
-            args'' = zipWith (curry f) args (annonVars 1 (length args))
-            args''' = map (VarExpr . stringToVar . either id id) args''
-        in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (lefts args'')) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
+        let pairs = zip args (annonVars 1 (length args))
+            args' = map f pairs
+            lambdaArgs = map (ScalarArg . snd) (filter (\(arg, _) -> isLeft arg) pairs)
+         in return $ LambdaExpr lambdaArgs $ ApplyExpr func (TupleExpr args')
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
-               let args' = rights args
-                   args'' = zipWith (curry g) args (annonVars (n + 1) (length args))
-                   args''' = map (VarExpr . stringToVar . either id id) args''
-               in return $ ApplyExpr (LambdaExpr (map ScalarArg (rights args'')) (LambdaExpr (map ScalarArg (annonVars 1 n)) $ ApplyExpr func $ TupleExpr args''')) $ TupleExpr args'
+               let args' = map g args
+                   lambdaArgs = map ScalarArg (annonVars 1 n)
+                in return $ LambdaExpr lambdaArgs $ ApplyExpr func (TupleExpr args')
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
-  args = sepEndBy arg whiteSpace
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   annonVars m n = take n $ map ((':':) . show) [m..]
-  f (Left _, var)  = Left var
-  f (Right _, var) = Right var
-  g (Left arg, _)  = Left (':':arg)
-  g (Right _, var) = Right var
+  f (Left _, var)   = VarExpr (stringToVar var)
+  f (Right expr, _) = expr
+  g (Left arg)   = VarExpr (stringToVar (':':arg))
+  g (Right expr) = expr
 
 partialExpr :: Parser EgisonExpr
 partialExpr = (PartialExpr . read <$> index) <*> (char '#' >> expr)
