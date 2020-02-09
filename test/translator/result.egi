@@ -340,7 +340,7 @@ assertEqual "hash-literal"
 
 assertEqual "empty hash-literal" {||} {||}
 
-assertEqual "hash access" REPLACEME 13
+assertEqual "hash access" {|(1, 11), (2, 12), (3, 13), (4, 14), (5, 15)|}_3 13
 
 assertEqual "partial application '$'" ((\:1 :2 -> :1 + :2) 1 2) 3
 
@@ -354,10 +354,10 @@ assertEqual "recursive partial application '#'"
 
 assertEqual "double inverted index"
   (let f *x *y := x + y
-    in (f REPLACEME REPLACEME))
-  (REPLACEME)
+    in (f [|1, 2, 3|]_i [|10, 20, 30|]_j))
+  ([|[|11, 21, 31|], [|12, 22, 32|], [|13, 23, 33|]|]~i~j)
 
 assertEqual "single inverted index"
   (let f x *y := x + y
-    in (f REPLACEME REPLACEME))
-  (REPLACEME)
+    in (f [|1, 2, 3|]_i [|10, 20, 30|]_j))
+  ([|[|11, 21, 31|], [|12, 22, 32|], [|13, 23, 33|]|]_i~j)
