@@ -1,0 +1,69 @@
+assert
+  "string's value pattern"
+  (match "abc" as string with
+    | #"abc" -> True
+    | _ -> False)
+
+assert
+  "string's nil - case 1"
+  (match "" as string with
+    | [] -> True
+    | _ -> False)
+
+assert
+  "string's nil - case 2"
+  (match "abc" as string with
+    | [] -> False
+    | _ -> True)
+
+assertEqual
+  "string's cons"
+  (matchAll "abc" as string with
+    | $x :: $xs -> (x, xs))
+  [('a', "bc")]
+
+assertEqual
+  "string's join"
+  (matchAll "abc" as string with
+    | $xs ++ $ys -> (xs, ys))
+  [("", "abc"), ("a", "bc"), ("ab", "c"), ("abc", "")]
+
+assertEqual "S.empty? - case 1" (S.empty? "") True
+
+assertEqual "S.empty? - case 2" (S.empty? "Egison") False
+
+assertEqual "S.car" (S.car "Egison") 'E'
+
+assertEqual "S.cdr" (S.cdr "Egison") "gison"
+
+assertEqual "S.rac" (S.rac "Egison") 'n'
+
+assertEqual "S.map" (S.map id "Egison") "Egison"
+
+assertEqual "S.length" (S.length "Egison") 6
+
+assertEqual
+  "S.split"
+  (S.split "," "Lisp,Haskell,Egison")
+  ["Lisp", "Haskell", "Egison"]
+
+assertEqual "S.append" (S.append "Egi" "son") "Egison"
+
+assertEqual "S.concat" (S.concat ["Egi", "son"]) "Egison"
+
+assertEqual
+  "S.intercalate"
+  (S.intercalate "," ["Lisp", "Haskell", "Egison"])
+  "Lisp,Haskell,Egison"
+
+assertEqual "C.between" (C.between 'a' 'c') ['a', 'b', 'c']
+
+assertEqual "C.between?" (C.between? 'a' 'c' 'b') True
+
+assertEqual "alphabet?" (alphabet? 'a') True
+
+assertEqual "alphabets?" (alphabets? "Egison") True
+
+assertEqual "upper-case" (upperCase 'e') 'E'
+
+assertEqual "lower-case" (lowerCase 'E') 'e'
