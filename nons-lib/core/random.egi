@@ -19,7 +19,8 @@ R.multiset a :=
       | [] -> [()]
       | _ -> []
     | cons $ $ as (a, R.multiset a) with
-      | $tgt -> map (\i -> match tgt as list a with
+      | $tgt -> map
+                  (\i -> match tgt as list a with
                       | loop $j (1, i - 1, _)
                           ($xa_j :: ...)
                           ($x :: $ts) ->
@@ -29,15 +30,18 @@ R.multiset a :=
       | $tgt -> [tgt]
 
 R.uncons xs :=
-  car (matchAll xs as R.multiset something with
+  car
+    (matchAll xs as R.multiset something with
       | $x :: $rs -> (x, rs))
 
 R.car xs :=
-  car (matchAll xs as R.multiset something with
+  car
+    (matchAll xs as R.multiset something with
       | $x :: $rs -> x)
 
 R.cdr xs :=
-  car (matchAll xs as R.multiset something with
+  car
+    (matchAll xs as R.multiset something with
       | $x :: $rs -> rs)
 
 sample := R.car
@@ -48,7 +52,8 @@ R.set a :=
       | [] -> [()]
       | _ -> []
     | cons $ $ as (a, R.multiset a) with
-      | $tgt -> map (\i -> match tgt as list a with
+      | $tgt -> map
+                  (\i -> match tgt as list a with
                       | loop $j (1, i - 1, _)
                           (_ :: ...)
                           ($x :: _) -> (x, tgt))

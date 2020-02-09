@@ -11,8 +11,9 @@ tableName data :=
     | database-table _ $n -> n
 
 simpleSelect whats table-name wheres :=
-  "select " ++ (intercalate "," whats) ++ " from " ++ tableName ++
-  " " ++ (simpleWhere wheres)
+  "select " ++ (intercalate
+                  ","
+                  whats) ++ " from " ++ tableName ++ " " ++ (simpleWhere wheres)
 
 simpleWhere wheres :=
   let loopFn wheres :=

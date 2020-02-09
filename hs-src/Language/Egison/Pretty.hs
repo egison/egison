@@ -59,7 +59,7 @@ instance Pretty EgisonExpr where
   pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty xs))
 
   pretty (TupleExpr xs) = tupled (map pretty xs)
-  pretty (CollectionExpr xs) = listoid "[" "]" (map pretty xs)
+  pretty (CollectionExpr xs) = list (map pretty xs)
   pretty (ArrayExpr xs)  = listoid "(|" "|)" (map pretty xs)
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
@@ -109,13 +109,13 @@ instance Pretty EgisonExpr where
   -- (x1 op' x2) op y
   pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
-       then fillSep [parens (pretty x), pretty (repr op), pretty'' y]
-       else fillSep [pretty x,          pretty (repr op), pretty'' y]
+       then parens (pretty x) <+> pretty (repr op) <+> pretty'' y
+       else pretty x          <+> pretty (repr op) <+> pretty'' y
   -- x op (y1 op' y2)
   pretty (BinaryOpExpr op x y@(BinaryOpExpr op' _ _)) =
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
-       then fillSep [pretty'' x, pretty (repr op), parens (pretty y)]
-       else fillSep [pretty'' x, pretty (repr op), pretty y]
+       then pretty'' x <+> pretty (repr op) <+> parens (pretty y)
+       else pretty'' x <+> pretty (repr op) <+> pretty y
   pretty (BinaryOpExpr op x y) = pretty' x <+> pretty (repr op) <+> pretty' y
   pretty (SectionExpr op Nothing Nothing) = parens (pretty (repr op))
 
@@ -299,7 +299,7 @@ prettyMatch matcher clauses =
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems =
-  pretty lp <> align (fillSep (punctuate comma elems) <> pretty rp)
+  encloseSep (pretty lp) (pretty rp) (comma <> space) elems
 
 --
 -- Pretty printer for S-expression

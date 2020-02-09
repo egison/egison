@@ -75,6 +75,7 @@ minimize f xs :=
   foldl 2#(if (compare (f %1) (f %2)) = Less then %1 else %2) (car xs) (cdr xs)
 
 maximize f xs :=
-  foldl 2#(if (compare (f %1) (f %2)) = Greater then %1 else %2)
+  foldl
+    2#(if (compare (f %1) (f %2)) = Greater then %1 else %2)
     (car xs)
     (cdr xs)

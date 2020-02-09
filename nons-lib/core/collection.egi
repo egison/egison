@@ -232,7 +232,8 @@ split/m a in ls :=
     | _ -> [ls]
 
 findCycle xs :=
-  car (matchAll xs as list something with
+  car
+    (matchAll xs as list something with
       | $ys ++ (_ :: _ & $cs) ++ #cs ++ _ -> (ys, cs))
 
 repeat %xs := xs ++ (repeat xs)
@@ -250,8 +251,8 @@ any pred xs :=
     | $x :: $rs -> if pred x then True else any pred rs
 
 from s :=
-  s :: s + 1 :: s + 2 :: s + 3 :: s + 4 :: s + 5 :: s + 6 :: s + 7 :: s + 8 ::
-  s + 9 :: s + 10 :: (from (s + 11))
+  s :: s + 1 :: s + 2 :: s + 3 :: s + 4 :: s + 5 :: s + 6 :: s + 7 :: s + 8 :: s + 9 :: s + 10 :: (from
+                                                                                                     (s + 11))
 
 between s e :=
   if s = e then [s] else if s < e then s :: (between (s + 1) e) else []
