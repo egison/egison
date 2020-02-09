@@ -1,0 +1,16 @@
+dfNormalize %X :=
+  let p := dfOrder X
+      (es, os) := evenAndOddPermutations p
+   in REPLACEME
+
+wedge %X %Y := REPLACEME
+
+Lie.wedge %X %Y := REPLACEME - REPLACEME
+
+ι %X %Y := REPLACEME
+
+Lie %X %Y :=
+  match dfOrder Y as integer with
+    | #0 -> ι X (d Y)
+    | #N -> d (ι X Y)
+    | _ -> (ι X (d Y)) + (d (ι X Y))

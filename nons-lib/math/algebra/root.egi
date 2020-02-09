@@ -1,0 +1,83 @@
+rt n x :=
+  if integer? n
+    then match x as mathExpr with
+      | #0 -> 0
+      | ?monomial? -> rtMonomial n x
+      | div poly $xs poly $ys ->
+        let xd := reduce gcd xs
+            yd := reduce gcd ys
+         in let d := rtMonomial n (xd / yd)
+             in *' d
+                  (rt'' n
+                     (*' (/' (sum' (map 1#(/' %1 xd) xs))
+                            (sum' (map 1#(/' %1 yd) ys)))))
+      | _ -> rt'' n x
+    else rt'' n x
+
+rtMonomial n x :=
+  (rtTerm n ((numerator x) * (denominator x) ^ (n - 1))) / (denominator x)
+
+rtTerm n x :=
+  match x as termExpr with
+    | term $a _ ->
+      if a < 0
+        then *' (rtm1 n) (rtPositiveTerm n ((-1) * x))
+        else rtPositiveTerm n x
+
+rtPositiveTerm n x :=
+  match (n, x) as (mathExpr, mathExpr) with
+    | (#3, REPLACEME) -> (-1) * i * (rt 3 (*' a r))
+    | (_, REPLACEME) -> *' (rt (n * 2) (*' (**' a 2) b)) (rt n r)
+    | (_, REPLACEME) -> *' (rt (n * n') (*' (**' a n') b)) (rt n r)
+    | (_, _) -> rtPositiveTerm1 n x
+
+rtPositiveTerm1 n x :=
+  let f xs :=
+        match xs as assocMultiset mathExpr with
+          | [] -> (1, 1)
+          | ncons $p $k $rs ->
+            let (a, b) := f rs
+             in (*' (**' p (quotient k n)) a, *' (**' p (k % n)) b)
+      g n x :=
+        let d := match x as termExpr with
+                   | term $m $xs ->
+                     gcd n (reduce gcd (map 2#%2 ((toAssoc (pF m)) ++ xs)))
+         in rt'' (n / d) (rt d x)
+   in match x as termExpr with
+        | term $m $xs ->
+          match f ((toAssoc (pF (abs m))) ++ xs) as (integer, integer) with
+            | ($a, #1) -> a
+            | ($a, $b) -> *' a (g n b)
+
+rt'' n x :=
+  match (n, x) as (integer, integer) with
+    | (#2, _) -> REPLACEME x
+    | (_, _) -> REPLACEME n x
+
+rtm1 n :=
+  match n as integer with
+    | #1 -> -1
+    | #2 -> i
+    | ?odd? -> -1
+    | _ -> undefined
+
+sqrt x :=
+  if scalar? x
+    then let m := numerator x
+             n := denominator x
+          in (rt 2 (m * n)) / n
+    else b.sqrt x
+
+rtOfUnity := rtu
+
+rtu n := rtu' n
+
+rtu' n :=
+  if integer? n
+    then match n as integer with
+      | #1 -> 1
+      | #2 -> -1
+      | #3 -> w
+      | #4 -> i
+      | _ -> REPLACEME n
+    else REPLACEME n

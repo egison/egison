@@ -1,0 +1,178 @@
+mathExpr :=
+  matcher
+    | #val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as (mathExpr') with
+      | $tgt -> [fromMathExpr tgt]
+
+mathExpr' :=
+  matcher
+    | div $ $ as (mathExpr, mathExpr) with
+      | Div $p1 $p2 -> [(toMathExpr' p1, toMathExpr' p2)]
+      | _ -> []
+    | poly $ as (multiset mathExpr) with
+      | Div (Plus $ts) (Plus ((Term 1 [])::[])) -> [map toMathExpr' ts]
+      | _ -> []
+    | plus $ as (plusExpr) with
+      | Div (Plus $ts) (Plus ((Term 1 [])::[])) -> [ toMathExpr' Div
+                                                         Plus ts
+                                                         Plus [Term 1 []] ]
+      | _ -> []
+    | term $ $ as (integer, assocMultiset mathExpr) with
+      | Div (Plus ((Term $n $xs)::[])) (Plus ((Term 1 [])::[])) -> [ ( n
+      , map 2#(toMathExpr' %1, %2) xs ) ]
+      | _ -> []
+    | mult $ $ as (integer, multExpr) with
+      | Div (Plus ((Term $n $xs)::[])) (Plus ((Term 1 [])::[])) -> [ ( n
+      , product' (map 2#(**' (toMathExpr' %1) %2) xs) ) ]
+      | _ -> []
+    | symbol $ $ as (eq, list indexExpr) with
+      | Div (Plus ((Term 1 (( Symbol $v $js
+      , 1 )::[]))::[])) (Plus ((Term 1 [])::[])) -> [(v, js)]
+      | _ -> []
+    | apply $ $ as (eq, list mathExpr) with
+      | Div (Plus ((Term 1 (( Apply $v $mexprs
+      , 1 )::[]))::[])) (Plus ((Term 1 [])::[])) -> [ ( v
+      , map toMathExpr' mexprs ) ]
+      | _ -> []
+    | quote $ as (mathExpr) with
+      | Div (Plus ((Term 1 (( Quote $mexpr
+      , 1 )::[]))::[])) (Plus ((Term 1 [])::[])) -> [toMathExpr' mexpr]
+      | _ -> []
+    | func $ $ $ $ as ( mathExpr
+      , list mathExpr
+      , list mathExpr
+      , list indexExpr ) with
+      | Div (Plus ((Term 1 (( Function $name $argnames $args $js
+      , 1 )::[]))::[])) (Plus ((Term 1 [])::[])) -> [(name, argnames, args, js)]
+      | _ -> []
+    | $ as (something) with
+      | $tgt -> [toMathExpr' tgt]
+
+indexExpr :=
+  algebraicDataMatcher
+    | sub math-expr
+    | sup math-expr
+    | user math-expr
+
+polyExpr := mathExpr
+
+termExpr := mathExpr
+
+symbolExpr := mathExpr
+
+plusExpr :=
+  matcher
+    | nil as () with
+      | $tgt -> if tgt = 0 then [()] else []
+    | cons $ $ as (mathExpr, plusExpr) with
+      | $tgt -> matchAll tgt as mathExpr with
+        | poly $t :: $ts -> (t, sum' ts)
+    | $ as (mathExpr) with
+      | $tgt -> [tgt]
+
+multExpr :=
+  matcher
+    | nil as () with
+      | $tgt -> match tgt as mathExpr with
+        | #0 -> [()]
+        | _ -> []
+    | cons $ $ as (mathExpr, multExpr) with
+      | $tgt -> match tgt as mathExpr with
+        | term _ $xs ->
+          matchAll xs as assocMultiset mathExpr with
+            | $x :: $rs -> (x, product' (map 2#(**' %1 %2) rs))
+        | _ -> []
+    | ncons $ #k $ as (mathExpr, multExpr) with
+      | $tgt -> match tgt as mathExpr with
+        | term _ $xs ->
+          matchAll xs as list (mathExpr, integer) with
+            | $hs ++ ($x, ?1#(%1 >= k) & $n) :: $ts ->
+              (x, product' (map 2#(**' %1 %2) (hs ++ (x, n - k) :: ts)))
+        | _ -> []
+    | ncons $ $ $ as (mathExpr, integer, multExpr) with
+      | $tgt -> match tgt as mathExpr with
+        | term _ $xs ->
+          matchAll xs as list (mathExpr, integer) with
+            | $hs ++ ($x, $n) :: $ts ->
+              (x, n, product' (map 2#(**' %1 %2) (hs ++ ts)))
+        | _ -> []
+    | $ as (mathExpr) with
+      | $tgt -> [tgt]
+
+symbol? mexpr :=
+  match mexpr as mathExpr with
+    | symbol _ _ -> True
+    | _ -> False
+
+tensorSymbol? mexpr :=
+  match mexpr as mathExpr with
+    | symbol _ _ ++ ((sub ?symbol?) | (sup ?symbol?)) :: _ -> True
+    | _ -> False
+
+apply? mexpr :=
+  match mexpr as mathExpr with
+    | apply _ _ -> True
+    | _ -> False
+
+simpleTerm? := 1#((symbol? %1) || (apply? %1))
+
+term? mexpr :=
+  match mexpr as mathExpr with
+    | term _ _ -> True
+    | #0 -> True
+    | _ -> False
+
+polynomial? mexpr :=
+  match mexpr as mathExpr with
+    | poly _ -> True
+    | #0 -> True
+    | _ -> False
+
+monomial? mexpr :=
+  match mexpr as mathExpr with
+    | div poly (term _ _) :: [] poly (term _ _) :: [] -> True
+    | #0 -> True
+    | _ -> False
+
+symbolIndices mexpr :=
+  match mexpr as mathExpr with
+    | symbol _ $js -> js
+    | _ -> undefined
+
+fromMonomial mexpr :=
+  match mexpr as mathExpr with
+    | div term $a $xs term $b $ys ->
+      ( a / b
+      , (foldl *' 1 (map 2#(**' %1 %2) xs)) / (foldl *'
+                                                 1
+                                                 (map 2#(**' %1 %2) ys)) )
+
+mapPolys fn mexpr :=
+  match mexpr as mathExpr with
+    | div $p1 $p2 -> /' (fn p1) (fn p2)
+
+fromPoly mexpr :=
+  match mexpr as mathExpr with
+    | div poly $ts1 $q -> map (\t1 -> /' t1 q) ts1
+
+mapPoly fn mexpr :=
+  match mexpr as mathExpr with
+    | div poly $ts1 $q -> foldl +' 0 (map (\t1 -> fn (/' t1 q)) ts1)
+
+mapTerms fn mexpr :=
+  match mexpr as mathExpr with
+    | div poly $ts1 poly $ts2 ->
+      /' (foldl +' 0 (map fn ts1)) (foldl +' 0 (map fn ts2))
+
+mapSymbols fn mexpr :=
+  mapTerms (\term -> match term as termExpr with
+        | term $a $xs ->
+          *' a
+            (foldl *'
+               1
+               (map 2#(match %1 as symbolExpr with
+                    | symbol _ _ -> **' (fn %1) %2
+                    | apply $g $args ->
+                      let args' := map 1#(mapSymbols fn %1) args
+                       in 

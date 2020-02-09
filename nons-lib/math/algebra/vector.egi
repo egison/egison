@@ -1,0 +1,14 @@
+dotProduct %v1 %v2 := REPLACEME
+
+V.* := dotProduct
+
+crossProduct/fn fn %a %b :=
+  [|(fn a_2 b_3) - (fn a_3 b_2)
+  , (fn a_3 b_1) - (fn a_1 b_3)
+  , (fn a_1 b_2) - (fn a_2 b_1)|]
+
+crossProduct %a %b := crossProduct/fn * a b
+
+div %A %xs := trace (∇ A xs)
+
+rot %A %xs := crossProduct/fn ∂/∂ A xs

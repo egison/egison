@@ -1,0 +1,145 @@
+nat :=
+  matcher
+    | o as () with
+      | 0 -> [()]
+      | _ -> []
+    | s $ as nat with
+      | $tgt -> match compare tgt 0 as ordering with
+        | greater -> [tgt - 1]
+        | _ -> []
+    | #n as () with
+      | $tgt -> if tgt = n then [()] else []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+nats :=
+  1 :: 2 :: 3 :: 4 :: 5 :: 6 :: 7 :: 8 :: 9 :: 10 :: 11 :: 12 :: 13 :: 14 :: 15
+  :: 16 :: 17 :: 18 :: 19 :: 20 :: 21 :: 22 :: 23 :: 24 :: 25 :: 26 :: 27 :: 28
+  :: 29 :: 30 :: 31 :: 32 :: 33 :: 34 :: 35 :: 36 :: 37 :: 38 :: 39 :: 40 :: 41
+  :: 42 :: 43 :: 44 :: 45 :: 46 :: 47 :: 48 :: 49 :: 50 :: 51 :: 52 :: 53 :: 54
+  :: 55 :: 56 :: 57 :: 58 :: 59 :: 60 :: 61 :: 62 :: 63 :: 64 :: 65 :: 66 :: 67
+  :: 68 :: 69 :: 70 :: 71 :: 72 :: 73 :: 74 :: 75 :: 76 :: 77 :: 78 :: 79 :: 80
+  :: 81 :: 82 :: 83 :: 84 :: 85 :: 86 :: 87 :: 88 :: 89 :: 90 :: 91 :: 92 :: 93
+  :: 94 :: 95 :: 96 :: 97 :: 98 :: 99 :: 100 :: (map 1#(100 + %1) nats)
+
+nats0 := 0 :: nats
+
+odds := 1 :: (map 1#(%1 + 2) odds)
+
+evens := 2 :: (map 1#(%1 + 2) evens)
+
+fibs := 1 :: 1 :: (map2 + fibs (cdr fibs))
+
+prime? :=
+  \match as integer with
+    | ?1#(%1 < 2) -> False
+    | $n -> n = (findFactor n)
+
+primes := 2 :: (filter prime? (drop 2 nats))
+
+divisor? n d := 0 = n % d
+
+findFactor := REPLACEME
+
+primeFactorization :=
+  \match as integer with
+    | #1 -> []
+    | ?1#(%1 < 0) & $n -> (-1) :: (primeFactorization (neg n))
+    | $n ->
+      let p := findFactor n
+       in p :: (primeFactorization (quotient n p))
+
+pF := primeFactorization
+
+even? n := 0 = (modulo n 2)
+
+odd? n := 1 = (modulo n 2)
+
+fact n := foldl * 1 (between 1 n)
+
+perm n r := foldl * 1 (between (n - (r - 1)) n)
+
+comb n r := (perm n r) / (fact r)
+
+nAdic n x :=
+  if x = 0
+    then []
+    else let q := quotient x n
+             r := x % n
+          in (nAdic n q) ++ [r]
+
+mod m :=
+  matcher
+    | #n as () with
+      | $tgt -> if (modulo tgt m) = (modulo n m) then [()] else []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+exp2 x y := exp ((log x) * y)
+
+rtodHelper m n :=
+  let q := quotient (m * 10) n
+      r := m * 10 % n
+   in (q, r) :: (rtodHelper r n)
+
+rtod x :=
+  let m := numerator x
+      n := denominator x
+      q := quotient m n
+      r := m % n
+   in (q, map fst (rtodHelper r n))
+
+rtod' x :=
+  let m := numerator x
+      n := denominator x
+      q := quotient m n
+      r := m % n
+      (s, c) := findCycle (rtodHelper r n)
+   in (q, map fst s, map fst c)
+
+showDecimal c x :=
+  match 2#(%1, take c %2) (rtod x) as (integer, list integer) with
+    | ($q, $sc) -> foldl S.append (S.append (show q) ".") (map show sc)
+
+showDecimal' x :=
+  match rtod' x as (integer, list integer, list integer) with
+    | ($q, $s, $c) ->
+      foldl S.append
+        ""
+        ((S.append (show q) ".") :: (map show s) ++ " " :: (map show
+                                                              c) ++ [" ..."])
+
+regularContinuedFraction n as := n + (foldr (\a r -> 1 / (a + r)) 0 as)
+
+continuedFraction n as bs :=
+  match (as, bs) as (list integer, list integer) with
+    | ($a :: $as, $b :: $bs) -> n + b / (continuedFraction a as bs)
+    | ([], []) -> n
+
+regularContinuedFractionOfSqrtHelper m a b :=
+  let n := floor (f.+ (rtof a) (f.* (rtof b) (sqrt (rtof m))))
+      x := m - (power n 2)
+   in if x = 0
+        then [(a, b, n)]
+        else let y := (power (n - a) 2) - b * b * m
+              in (a, b, n) :: (regularContinuedFractionOfSqrtHelper m
+                                 ((a - n) / y)
+                                 (neg (b / y)))
+
+regularContinuedFractionOfSqrt m :=
+  let n := floor (sqrt (rtof m))
+      x := m - (power n 2)
+   in if x = 0
+        then (n, [], [])
+        else ( n
+        , map 3#%3 (regularContinuedFractionOfSqrtHelper m (n / x) (1 / x)) )
+
+regularContinuedFractionOfSqrt' m :=
+  let n := floor (sqrt (rtof m))
+      x := m - (power n 2)
+   in if x = 0
+        then (n, [], [])
+        else let (s, c) := findCycle (regularContinuedFractionOfSqrtHelper m
+                                        (n / x)
+                                        (1 / x))
+              in (n, map 3#%3 s, map 3#%3 c)

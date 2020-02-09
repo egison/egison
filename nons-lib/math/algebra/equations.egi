@@ -1,0 +1,34 @@
+solve1 f expr x := inverse expr f x
+
+solve eqs := solve' eqs []
+
+solve' eqs rets :=
+  match eqs as list (mathExpr, mathExpr, symbolExpr) with
+    | [] -> rets
+    | ($f, $expr, $x) :: $rs ->
+      solve' rs
+        (rets ++ [(x, solve1 (substitute rets f) (substitute rets expr) x)])
+
+quadraticFormula := qF
+
+qF f x :=
+  match coefficients f x as list mathExpr with
+    | $a_0 :: $a_1 :: $a_2 :: [] -> qF' a_2 a_1 a_0
+
+qF' a b c :=
+  ( ((-1) * b + (sqrt (b ^ 2 - 4 * a * c))) / 2 * a
+  , ((-1) * b - (sqrt (b ^ 2 - 4 * a * c))) / 2 * a )
+
+cubicFormula := cF
+
+cF f x :=
+  match coefficients f x as list mathExpr with
+    | $a_0 :: $a_1 :: $a_2 :: $a_3 :: [] -> cF' a_3 a_2 a_1 a_0
+
+cF' a b c d :=
+  match (a, b, c, d) as (mathExpr, mathExpr, mathExpr, mathExpr) with
+    | (#1, #0, $p, $q) ->
+      let (s1, s2) := 2#(rt 3 %1, rt 3 %2) (qF' 1 (27 * q) ((-27) * p ^ 3))
+       in ((s1 + s2) / 3, (w ^ 2 * s1 + w * s2) / 3, (w * s1 + w ^ 2 * s2) / 3)
+    | (#1, _, _, _) -> 3#(%1 - b / 3, %2 - b / 3, %3 - b / 3) REPLACEME
+    | (_, _, _, _) -> cF' 1 (b / a) (c / a) (d / a)

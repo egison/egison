@@ -1,0 +1,25 @@
+eq :=
+  matcher
+    | #val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+bool := eq
+
+char := eq
+
+integer := eq
+
+float := eq
+
+id := 1#%1
+
+fst := 2#%1
+
+snd := 2#%2
+
+apply f x := f x
+
+b.compose f g := \x -> g (f x)
+
