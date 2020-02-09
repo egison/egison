@@ -76,6 +76,18 @@ instance SyntaxElement EgisonExpr where
         op = fromJust $ find (\op -> func op == f) reservedExprInfix
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
 
+  toNonS (GenerateArrayExpr e (e1, e2)) = GenerateArrayExpr (toNonS e) (toNonS e1, toNonS e2)
+  toNonS (ArrayBoundsExpr e) = ArrayBoundsExpr (toNonS e)
+  toNonS (ArrayRefExpr e1 e2) = ArrayRefExpr (toNonS e1) (toNonS e2)
+
+  toNonS (GenerateTensorExpr e1 e2) = GenerateTensorExpr (toNonS e1) (toNonS e2)
+  toNonS (TensorExpr e1 e2 e3 e4) = TensorExpr (toNonS e1) (toNonS e2) (toNonS e3) (toNonS e4)
+  toNonS (TensorContractExpr e1 e2) = TensorContractExpr (toNonS e1) (toNonS e2)
+  toNonS (TensorMapExpr e1 e2) = TensorMapExpr (toNonS e1) (toNonS e2)
+  toNonS (TensorMap2Expr e1 e2 e3) = TensorMap2Expr (toNonS e1) (toNonS e2) (toNonS e3)
+  toNonS (TransposeExpr e1 e2) = TransposeExpr (toNonS e1) (toNonS e2)
+  toNonS (FlipIndicesExpr e1) = FlipIndicesExpr (toNonS e1)
+
   toNonS x = x
 
 instance SyntaxElement EgisonPattern where
