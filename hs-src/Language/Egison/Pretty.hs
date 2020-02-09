@@ -68,9 +68,9 @@ instance Pretty EgisonExpr where
   pretty (PatternFunctionExpr xs y) = pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty y
 
   pretty (IfExpr x y z) =
-    pretty "if" <+> pretty x
-               <> nest 2 (softline <> pretty "then" <+> pretty y <>
-                          softline <> pretty "else" <+> pretty z)
+    pretty "if" <+> pretty x <>
+      (flatAlt (nest 2 (hardline <> pretty "then" <+> pretty y)) (space <> pretty "then" <+> pretty y)) <>
+      (flatAlt (nest 2 (hardline <> pretty "else" <+> pretty z)) (space <> pretty "else" <+> pretty z))
   pretty (LetRecExpr bindings body) =
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
   pretty (LetExpr _ _) = error "unreachable"
@@ -109,13 +109,13 @@ instance Pretty EgisonExpr where
   -- (x1 op' x2) op y
   pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
-       then parens (pretty x) <+> pretty (repr op) <+> pretty'' y
-       else pretty x          <+> pretty (repr op) <+> pretty'' y
+       then fillSep [parens (pretty x), pretty (repr op), pretty'' y]
+       else fillSep [pretty x,          pretty (repr op), pretty'' y]
   -- x op (y1 op' y2)
   pretty (BinaryOpExpr op x y@(BinaryOpExpr op' _ _)) =
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
-       then pretty'' x <+> pretty (repr op) <+> parens (pretty y)
-       else pretty'' x <+> pretty (repr op) <+> pretty y
+       then fillSep [pretty'' x, pretty (repr op), parens (pretty y)]
+       else fillSep [pretty'' x, pretty (repr op), pretty y]
   pretty (BinaryOpExpr op x y) = pretty' x <+> pretty (repr op) <+> pretty' y
 
   pretty (DoExpr xs y) = pretty "do" <+> align (vsep (map prettyDoBinds xs ++ [pretty y]))
@@ -135,6 +135,10 @@ instance Pretty EgisonExpr where
 
   pretty (GenerateTensorExpr gen shape) =
     pretty "generateTensor" <+> pretty' gen <+> pretty shape
+  pretty (TensorExpr e1 e2 e3 e4) =
+    pretty "tensor" <+> pretty' e1 <+> pretty' e2 <>
+      (if e3 == CollectionExpr [] then emptyDoc else space <> pretty' e3) <>
+      (if e4 == CollectionExpr [] then emptyDoc else space <> pretty' e4)
 
   pretty SomethingExpr = pretty "something"
   pretty UndefinedExpr = pretty "undefined"
@@ -240,22 +244,23 @@ class Complex a where
 
 instance Complex EgisonExpr where
   isAtom (IntegerExpr i) | i < 0  = False
-  isAtom (UnaryOpExpr _ _)        = False
-  isAtom (BinaryOpExpr _ _ _)     = False
-  isAtom (ApplyExpr _ _)          = False
-  isAtom (LambdaExpr _ _)         = False
-  isAtom (IfExpr _ _ _)           = False
-  isAtom (LetRecExpr _ _)         = False
-  isAtom (MatchExpr _ _ _ _)      = False
-  isAtom (MatchAllExpr _ _ _ _)   = False
-  isAtom (MatchLambdaExpr _ _)    = False
-  isAtom (MatchAllLambdaExpr _ _) = False
-  isAtom (GenerateArrayExpr _ _)  = False
-  isAtom (ArrayBoundsExpr _)      = False
-  isAtom (ArrayRefExpr _ _)       = False
-  isAtom (GenerateTensorExpr _ _) = False
+  isAtom UnaryOpExpr{}            = False
+  isAtom BinaryOpExpr{}           = False
+  isAtom ApplyExpr{}              = False
+  isAtom LambdaExpr{}             = False
+  isAtom IfExpr{}                 = False
+  isAtom LetRecExpr{}             = False
+  isAtom MatchExpr{}              = False
+  isAtom MatchAllExpr{}           = False
+  isAtom MatchLambdaExpr{}        = False
+  isAtom MatchAllLambdaExpr{}     = False
+  isAtom GenerateArrayExpr{}      = False
+  isAtom ArrayBoundsExpr{}        = False
+  isAtom ArrayRefExpr{}           = False
+  isAtom GenerateTensorExpr{}     = False
+  isAtom TensorExpr{}             = False
   isAtom _                        = True
-  isInfix (BinaryOpExpr _ _ _)    = True
+  isInfix BinaryOpExpr{}          = True
   isInfix _                       = False
 
 instance Complex EgisonPattern where
