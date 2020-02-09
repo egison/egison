@@ -29,6 +29,10 @@
   c#a
   c#a)
 
+(assert-equal "char literal"
+  c#\n
+  c#\n)
+
 (assert-equal "string literal"
   "abc\n"
   "abc\n")

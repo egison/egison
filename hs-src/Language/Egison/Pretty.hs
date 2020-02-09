@@ -46,8 +46,9 @@ instance Pretty EgisonTopExpr where
   pretty _ = error "Unsupported topexpr"
 
 instance Pretty EgisonExpr where
-  pretty (CharExpr x)    = squote <> pretty x <> squote
-  pretty (StringExpr x)  = dquote <> pretty x <> dquote
+  -- Use |viaShow| to correctly handle escaped characters
+  pretty (CharExpr x)    = viaShow x
+  pretty (StringExpr x)  = viaShow x
   pretty (BoolExpr x)    = pretty x
   pretty (IntegerExpr x) = pretty x
   pretty (FloatExpr x)   = pretty x

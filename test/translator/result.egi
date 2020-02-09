@@ -40,7 +40,9 @@ match 1 as integer with
 
 assertEqual "char literal" 'a' 'a'
 
-assertEqual "string literal" "abc " "abc "
+assertEqual "char literal" '\n' '\n'
+
+assertEqual "string literal" "abc\n" "abc\n"
 
 assertEqual "bool literal" (True, False) (True, False)
 
