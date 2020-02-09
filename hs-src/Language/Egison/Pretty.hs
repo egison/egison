@@ -53,6 +53,8 @@ instance Pretty EgisonExpr where
   pretty (IntegerExpr x) = pretty x
   pretty (FloatExpr x)   = pretty x
   pretty (VarExpr x)     = pretty x
+  pretty (IndexedExpr True e indices) = pretty e <> cat (map pretty indices)
+  pretty (IndexedExpr False e indices) = pretty e <> pretty "..." <> cat (map pretty indices)
 
   pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty xs))
 
@@ -163,6 +165,15 @@ instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
     pipe <+> pretty pat <+> group (pretty "->" <>
       flatAlt (nest 2 (hardline <> pretty expr)) (space <> pretty expr))
+
+instance (Pretty a, Complex a) => Pretty (Index a) where
+  pretty (Subscript i) = pretty '_' <> pretty' i
+  pretty (Superscript i) = pretty '~' <> pretty' i
+  pretty (SupSubscript i) = pretty "~_" <> pretty' i
+  pretty (MultiSubscript i j) = pretty '_' <> pretty' i <> pretty "..._" <> pretty' j
+  pretty (MultiSuperscript i j) = pretty '~' <> pretty' i <> pretty "...~" <> pretty' j
+  pretty (DFscript _ _) = undefined
+  pretty (Userscript i) = pretty '|' <> pretty' i
 
 instance Pretty EgisonPattern where
   pretty WildCard     = pretty "_"
