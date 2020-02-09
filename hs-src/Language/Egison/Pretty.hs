@@ -117,6 +117,7 @@ instance Pretty EgisonExpr where
        then fillSep [pretty'' x, pretty (repr op), parens (pretty y)]
        else fillSep [pretty'' x, pretty (repr op), pretty y]
   pretty (BinaryOpExpr op x y) = pretty' x <+> pretty (repr op) <+> pretty' y
+  pretty (SectionExpr op Nothing Nothing) = parens (pretty (repr op))
 
   pretty (DoExpr xs y) = pretty "do" <+> align (vsep (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x

@@ -89,7 +89,12 @@ instance SyntaxElement EgisonExpr where
         op = fromJust $ find (\op -> func op == f) reservedExprInfix
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
   toNonS CApplyExpr{} = error "Not supported: capply"
-  toNonS (PartialExpr n e) = PartialExpr n (toNonS e)
+  toNonS (PartialExpr n e) =
+    -- SectionExpr with only one argument omitted is hard to detect correctly.
+    case PartialExpr n (toNonS e) of
+      PartialExpr 2 (BinaryOpExpr op (PartialVarExpr 1) (PartialVarExpr 2)) ->
+        SectionExpr op Nothing Nothing
+      e' -> e'
 
   toNonS (GenerateArrayExpr e (e1, e2)) = GenerateArrayExpr (toNonS e) (toNonS e1, toNonS e2)
   toNonS (ArrayBoundsExpr e) = ArrayBoundsExpr (toNonS e)
