@@ -14,7 +14,8 @@ mathExpr' :=
       | Div (Plus $ts) (Plus ((Term 1 [])::[])) -> [map toMathExpr' ts]
       | _ -> []
     | plus $ as (plusExpr) with
-      | Div (Plus $ts) (Plus ((Term 1 [])::[])) -> [ toMathExpr' Div
+      | Div (Plus $ts) (Plus ((Term 1 [])::[])) -> [ toMathExpr'
+                                                       Div
                                                          Plus ts
                                                          Plus [Term 1 []] ]
       | _ -> []
@@ -144,7 +145,8 @@ fromMonomial mexpr :=
   match mexpr as mathExpr with
     | div term $a $xs term $b $ys ->
       ( a / b
-      , (foldl *' 1 (map 2#(**' %1 %2) xs)) / (foldl *'
+      , (foldl *' 1 (map 2#(**' %1 %2) xs)) / (foldl
+                                                 *'
                                                  1
                                                  (map 2#(**' %1 %2) ys)) )
 
@@ -166,12 +168,16 @@ mapTerms fn mexpr :=
       /' (foldl +' 0 (map fn ts1)) (foldl +' 0 (map fn ts2))
 
 mapSymbols fn mexpr :=
-  mapTerms (\term -> match term as termExpr with
+  mapTerms
+    (\term -> match term as termExpr with
         | term $a $xs ->
-          *' a
-            (foldl *'
+          *'
+            a
+            (foldl
+               *'
                1
-               (map 2#(match %1 as symbolExpr with
+               (map
+                  2#(match %1 as symbolExpr with
                     | symbol _ _ -> **' (fn %1) %2
                     | apply $g $args ->
                       let args' := map 1#(mapSymbols fn %1) args

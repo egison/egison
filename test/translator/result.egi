@@ -8,7 +8,8 @@ longword := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 verylongword :=
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-assertEqual "aaaa"
+assertEqual
+  "aaaa"
   "aaa"
   "aa"
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -48,11 +49,13 @@ assertEqual "bool literal" (True, False) (True, False)
 
 assertEqual "integer literal" (1, 0, -100, 1 + (-100)) (1, 0, -100, -99)
 
-assertEqual "rational number"
+assertEqual
+  "rational number"
   (10 / 3, 10 / 20, (-1) / 2)
   (10 / 3, 1 / 2, (-1) / 2)
 
-assertEqual "float literal"
+assertEqual
+  "float literal"
   (1.0, 0.0, -100.012001, 1.0 + 2)
   (1.0, 0.0, -100.012001, 3.0)
 
@@ -66,25 +69,29 @@ assertEqual "if" (if True then True else False) True
 
 assertEqual "if" (if False then True else False) False
 
-assertEqual "let binding"
+assertEqual
+  "let binding"
   (let t := (1, 2)
     in let (x, y) := t
         in x + y)
   3
 
-assertEqual "let* binding"
+assertEqual
+  "let* binding"
   (let x := 1
        y := x + 1
     in y)
   2
 
-assertEqual "letrec binding"
+assertEqual
+  "letrec binding"
   (let (x, y) := t
        t := (1, 2)
     in x + y)
   3
 
-assertEqual "mutual recursion"
+assertEqual
+  "mutual recursion"
   (let even? n := if n = 0 then True else odd? (n - 1)
        odd? n := if n = 0 then False else even? (n - 1)
     in even? 10)
@@ -98,104 +105,126 @@ assertEqual "indexed placeholder" (1#(%1 + %1) 10) 20
 
 assertEqual "indexed placeholder2" (2#(%2 - %1) 10 20) 10
 
-assertEqual "match"
+assertEqual
+  "match"
   (match 1 as integer with
     | #0 -> 0
     | $x -> 10 + x)
   11
 
-assertEqual "match-all"
+assertEqual
+  "match-all"
   (matchAll [1, 2, 3] as list integer with
     | $x :: $xs -> (x, xs))
   [(1, [2, 3])]
 
-assertEqual "match-all-multi"
+assertEqual
+  "match-all-multi"
   (matchAll [1, 2, 3] as multiset integer with
     | $x :: #(x + 1) :: _ -> (x, x + 1)
     | $x :: #(x + 2) :: _ -> (x, x + 2))
   [(1, 2), (2, 3), (1, 3)]
 
-assertEqual "match-lambda"
+assertEqual
+  "match-lambda"
   (let count := \match as list something with
                   | [] -> 0
                   | _ :: $xs -> (count xs) + 1
     in count [1, 2, 3])
   3
 
-assertEqual "match-all-lambda"
+assertEqual
+  "match-all-lambda"
   ((\matchAll as list something with
-       | _ ++ $x :: _ -> x) [1, 2, 3])
+       | _ ++ $x :: _ -> x)
+     [1, 2, 3])
   [1, 2, 3]
 
-assertEqual "match-all-lambda-multi"
+assertEqual
+  "match-all-lambda-multi"
   ((\matchAll as multiset something with
        | $x :: #(x + 1) :: _ -> (x, x + 1)
-       | $x :: #(x + 2) :: _ -> (x, x + 2)) [1, 2, 3])
+       | $x :: #(x + 2) :: _ -> (x, x + 2))
+     [1, 2, 3])
   [(1, 2), (2, 3), (1, 3)]
 
-assertEqual "pattern variable"
+assertEqual
+  "pattern variable"
   (match 1 as something with
     | $x -> x)
   1
 
-assert "value pattern"
+assert
+  "value pattern"
   (match 1 as integer with
     | #1 -> True)
 
-assert "and pattern"
+assert
+  "and pattern"
   (match [1, 2, 3] as list integer with
     | #1 :: _ & (snoc #3 _) -> True)
 
-assert "and pattern"
+assert
+  "and pattern"
   (match [1, 2, 3] as list integer with
     | #1 :: _ & #3 :: _ -> False
     | _ -> True)
 
-assert "or pattern"
+assert
+  "or pattern"
   (match [1, 2, 3] as list integer with
     | (snoc #1 _) | (snoc #3 _) -> True)
 
-assert "or pattern"
+assert
+  "or pattern"
   (match [1, 2, 3] as list integer with
     | #2 :: _ | #3 :: _ -> False
     | _ -> True)
 
-assert "not pattern"
+assert
+  "not pattern"
   (match 1 as integer with
     | !#1 -> False
     | !#2 -> True)
 
-assertEqual "not pattern"
+assertEqual
+  "not pattern"
   (matchAll [1, 2, 2, 3, 3, 3] as multiset integer with
     | $n :: (!#n :: _) -> n)
   [1]
 
-assert "predicate pattern"
+assert
+  "predicate pattern"
   (match [1, 2, 3] as list integer with
     | ?1#(1 = %1) :: _ -> True)
 
-assert "predicate pattern"
+assert
+  "predicate pattern"
   (match [1, 2, 3] as list integer with
     | ?1#(2 = %1) :: _ -> False
     | _ -> True)
 
-assertEqual "indexed pattern variable"
+assertEqual
+  "indexed pattern variable"
   (match 23 as mod 10 with
     | $a_1 -> a)
   {|(1, 23)|}
 
-assertEqual "seq pattern"
+assertEqual
+  "seq pattern"
   (matchAll [1, 2, 3, 2, 4, 3, 5] as list integer with
     | REPLACEME -> x)
   [1, 2, 3, 4, 5]
 
-assert "loop pattern"
+assert
+  "loop pattern"
   (match [3, 2, 1] as list integer with
     | loop $i (1, [3], _)
         (snoc #i ...)
         [] -> True)
 
-assertEqual "double loop pattern"
+assertEqual
+  "double loop pattern"
   (match [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as list (list integer) with
     | loop $i (1, [3], _)
         ((loop $j (1, [3], _) ($n_i_j :: ...) []) :: ...)
@@ -204,39 +233,46 @@ assertEqual "double loop pattern"
   , (2, {|(1, 4), (2, 5), (3, 6)|})
   , (3, {|(1, 7), (2, 8), (3, 9)|})|}
 
-assertEqual "let pattern"
+assertEqual
+  "let pattern"
   (match [1, 2, 3] as list integer with
     | let a := 42 in _ -> a)
   42
 
-assertEqual "let pattern"
+assertEqual
+  "let pattern"
   (match [1, 2, 3] as list integer with
     | $a :: (let x := a in $xs) -> (x, xs))
   (1, [2, 3])
 
-assertEqual "let pattern"
+assertEqual
+  "let pattern"
   (match [1, 2, 3] as list integer with
     | $a & (let n := length a in _) -> (a, n))
   ([1, 2, 3], 3)
 
-assertEqual "tuple patterns"
+assertEqual
+  "tuple patterns"
   (matchAll (1, (2, 3)) as (integer, (integer, integer)) with
     | ($m, ($n, $w)) -> (m, n, w))
   [(1, 2, 3)]
 
-assertEqual "pattern function call"
+assertEqual
+  "pattern function call"
   (let twin := \pat1 pat2 => (~pat1 & $x) :: #x :: ~pat2
     in match [1, 1, 1, 2, 3] as list integer with
          | twin $n $ns -> (n, ns))
   (1, [1, 2, 3])
 
-assertEqual "recursive pattern function call"
+assertEqual
+  "recursive pattern function call"
   (let repeat := \pat => [] | (~pat & $x) :: repeat #x
     in match [1, 1, 1, 1] as list integer with
          | repeat $n -> n)
   1
 
-assertEqual "loop pattern in pattern function"
+assertEqual
+  "loop pattern in pattern function"
   (let comb n := \p => loop $i (1, [n], _) (_ ++ ~p_i :: ...) _
     in matchAll [1, 2, 3, 4, 5] as list integer with
          | (comb 2) $n -> n)
@@ -251,8 +287,10 @@ assertEqual "loop pattern in pattern function"
   , {|(1, 3), (2, 5)|}
   , {|(1, 4), (2, 5)|} ]
 
-assertEqual "pairs of 2 natural numbers"
-  (take 10
+assertEqual
+  "pairs of 2 natural numbers"
+  (take
+     10
      (matchAll nats as set integer with
        | $m :: $n :: _ -> (m, n)))
   [ (1, 1)
@@ -266,8 +304,10 @@ assertEqual "pairs of 2 natural numbers"
   , (3, 2)
   , (4, 1) ]
 
-assertEqual "pairs of 2 different natural numbers"
-  (take 10
+assertEqual
+  "pairs of 2 different natural numbers"
+  (take
+     10
      (matchAll nats as list integer with
        | _ ++ $m :: _ ++ $n :: _ -> (m, n)))
   [ (1, 2)
@@ -304,12 +344,14 @@ treeMember? n t :=
         | equal -> True
         | greater -> treeMember? n t2
 
-assertEqual "tree set using algebraic-data-matcher"
+assertEqual
+  "tree set using algebraic-data-matcher"
   (let t := foldr treeInsert Leaf [4, 1, 2, 4, 3]
     in (treeMember? 1 t, treeMember? 0 t))
   (True, False)
 
-assertEqual "tuple pattern"
+assertEqual
+  "tuple pattern"
   (matchAll [(1, 1), (2, 2)] as multiset (integer, integer) with
     | ($x, #x) :: _ -> x)
   [1, 2]
@@ -320,21 +362,25 @@ assertEqual "empty array literal" (||) (||)
 
 assertEqual "array-bounds - case 1" (arrayBounds (|1, 2, 3|)) (1, 3)
 
-assertEqual "array-bounds - case 2"
+assertEqual
+  "array-bounds - case 2"
   (arrayBounds (generateArray 1#(%1 + 100) (3, 5)))
   (3, 5)
 
 assertEqual "array-ref" (arrayRef (|1, 2, 3, 4, 5|) 3) 3
 
-assertEqual "generate-tensor - case 1"
+assertEqual
+  "generate-tensor - case 1"
   (generateTensor kroneckerDelta [3])
   [|1, 1, 1|]
 
-assertEqual "generate-tensor - case 2"
+assertEqual
+  "generate-tensor - case 2"
   (generateTensor kroneckerDelta [2, 2, 2, 2])
   (tensor [2, 2, 2, 2] [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
 
-assertEqual "hash-literal"
+assertEqual
+  "hash-literal"
   {|(1, 11), (2, 12), (3, 13), (4, 14), (5, 15)|}
   {|(1, 11), (2, 12), (3, 13), (4, 14), (5, 15)|}
 
@@ -348,16 +394,19 @@ assertEqual "partial application '$' with index" (2#(%2 - %1) 1 2) 1
 
 assertEqual "partial application '#'" (2#(10 * %1 + %2) 1 2) 12
 
-assertEqual "recursive partial application '#'"
+assertEqual
+  "recursive partial application '#'"
   (take 10 (1#(%1 :: (%0 (%1 * 2))) 2))
   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 
-assertEqual "double inverted index"
+assertEqual
+  "double inverted index"
   (let f *x *y := x + y
     in (f [|1, 2, 3|]_i [|10, 20, 30|]_j))
   ([|[|11, 21, 31|], [|12, 22, 32|], [|13, 23, 33|]|]~i~j)
 
-assertEqual "single inverted index"
+assertEqual
+  "single inverted index"
   (let f x *y := x + y
     in (f [|1, 2, 3|]_i [|10, 20, 30|]_j))
   ([|[|11, 21, 31|], [|12, 22, 32|], [|13, 23, 33|]|]_i~j)

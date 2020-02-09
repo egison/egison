@@ -7,10 +7,14 @@ rt n x :=
         let xd := reduce gcd xs
             yd := reduce gcd ys
          in let d := rtMonomial n (xd / yd)
-             in *' d
-                  (rt'' n
-                     (*' (/' (sum' (map 1#(/' %1 xd) xs))
-                            (sum' (map 1#(/' %1 yd) ys)))))
+             in *'
+                  d
+                  (rt''
+                     n
+                     (*'
+                        (/'
+                           (sum' (map 1#(/' %1 xd) xs))
+                           (sum' (map 1#(/' %1 yd) ys)))))
       | _ -> rt'' n x
     else rt'' n x
 
