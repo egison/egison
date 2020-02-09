@@ -92,11 +92,11 @@ assertEqual "mutual recursion"
 
 assertEqual "lambda and application" ((\x -> 1 + x) 10) 11
 
-assertEqual "placeholder" ((\:1 -> :1 + 1) 10) 11
+assertEqual "placeholder" (1#(%1 + 1) 10) 11
 
-assertEqual "indexed placeholder" ((\:1 -> :1 + :1) 10) 20
+assertEqual "indexed placeholder" (1#(%1 + %1) 10) 20
 
-assertEqual "indexed placeholder2" ((\:1 :2 -> :2 - :1) 10 20) 10
+assertEqual "indexed placeholder2" (2#(%2 - %1) 10 20) 10
 
 assertEqual "match"
   (match 1 as integer with
@@ -172,11 +172,11 @@ assertEqual "not pattern"
 
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
-    | ?(\:2 -> 1 = :2) :: _ -> True)
+    | ?1#(1 = %1) :: _ -> True)
 
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
-    | ?(\:2 -> 2 = :2) :: _ -> False
+    | ?1#(2 = %1) :: _ -> False
     | _ -> True)
 
 assertEqual "indexed pattern variable"
@@ -321,7 +321,7 @@ assertEqual "empty array literal" (||) (||)
 assertEqual "array-bounds - case 1" (arrayBounds (|1, 2, 3|)) (1, 3)
 
 assertEqual "array-bounds - case 2"
-  (arrayBounds (generateArray (\:1 -> :1 + 100) (3, 5)))
+  (arrayBounds (generateArray 1#(%1 + 100) (3, 5)))
   (3, 5)
 
 assertEqual "array-ref" (arrayRef (|1, 2, 3, 4, 5|) 3) 3
@@ -342,9 +342,9 @@ assertEqual "empty hash-literal" {||} {||}
 
 assertEqual "hash access" {|(1, 11), (2, 12), (3, 13), (4, 14), (5, 15)|}_3 13
 
-assertEqual "partial application '$'" ((\:1 :2 -> :1 + :2) 1 2) 3
+assertEqual "partial application '$'" (2#(%1 + %2) 1 2) 3
 
-assertEqual "partial application '$' with index" ((\:1 :2 -> :2 - :1) 1 2) 1
+assertEqual "partial application '$' with index" (2#(%2 - %1) 1 2) 1
 
 assertEqual "partial application '#'" (2#(10 * %1 + %2) 1 2) 12
 
