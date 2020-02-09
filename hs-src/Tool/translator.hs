@@ -38,6 +38,9 @@ instance SyntaxElement EgisonExpr where
     where powerOp = fromJust $ find (\op -> repr op == "^") reservedExprInfix
   toNonS (InductiveDataExpr x ys) = InductiveDataExpr x (map toNonS ys)
   toNonS (TupleExpr xs)      = TupleExpr (map toNonS xs)
+  toNonS (CollectionExpr [ElementExpr x, SubCollectionExpr xs]) =
+    BinaryOpExpr cons (toNonS x) (toNonS xs)
+      where cons = fromJust $ find (\op -> repr op == "::") reservedExprInfix
   toNonS (CollectionExpr xs) = CollectionExpr (map toNonS xs)
   toNonS (ArrayExpr xs)      = ArrayExpr (map toNonS xs)
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
@@ -75,6 +78,8 @@ instance SyntaxElement EgisonExpr where
       where
         op = fromJust $ find (\op -> func op == f) reservedExprInfix
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
+  toNonS CApplyExpr{} = error "Not supported: capply"
+  toNonS (PartialExpr n e) = PartialExpr n (toNonS e)
 
   toNonS (GenerateArrayExpr e (e1, e2)) = GenerateArrayExpr (toNonS e) (toNonS e1, toNonS e2)
   toNonS (ArrayBoundsExpr e) = ArrayBoundsExpr (toNonS e)

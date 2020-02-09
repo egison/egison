@@ -346,10 +346,10 @@ assertEqual "partial application '$'" ((\:1 :2 -> :1 + :2) 1 2) 3
 
 assertEqual "partial application '$' with index" ((\:1 :2 -> :2 - :1) 1 2) 1
 
-assertEqual "partial application '#'" (REPLACEME 1 2) 12
+assertEqual "partial application '#'" (2#(10 * %1 + %2) 1 2) 12
 
 assertEqual "recursive partial application '#'"
-  (take 10 (REPLACEME 2))
+  (take 10 (1#(%1 :: (%0 (%1 * 2))) 2))
   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 
 assertEqual "double inverted index"
