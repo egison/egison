@@ -70,7 +70,7 @@ instance Pretty EgisonExpr where
                <> nest 2 (softline <> pretty "then" <+> pretty y <>
                           softline <> pretty "else" <+> pretty z)
   pretty (LetRecExpr bindings body) =
-    hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> pretty body)
+    hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
   pretty (LetExpr _ _) = error "unreachable"
   pretty (LetStarExpr _ _) = error "unreachable"
 
@@ -167,6 +167,7 @@ instance Pretty EgisonPattern where
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
   pretty (PredPat v)  = pretty "?" <> pretty' v
+  pretty (IndexedPat p indices) = pretty p <> hcat (map (\i -> pretty '_' <> pretty' i) indices)
   -- (p11 op' p12) op p2
   pretty (InfixPat op p1@(InfixPat op' _ _) p2) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
@@ -180,10 +181,23 @@ instance Pretty EgisonPattern where
   pretty (InfixPat op p1 p2) = pretty' p1 <+> pretty (repr op) <+> pretty' p2
   pretty (InductivePat "nil" []) = pretty "[]"
   pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty xs)
+  pretty (LoopPat i range p1 p2) =
+    hang 2 (pretty "loop" <+> pretty '$' <> pretty i <+> pretty range <>
+      flatAlt (hardline <> group (pretty' p1) <> hardline <> group (pretty' p2))
+              (space <> pretty' p1 <+> pretty' p2))
+  pretty ContPat = pretty "..."
+  pretty (PApplyPat fn ps) = nest 2 (hsep (pretty' fn : map pretty ps))
+  pretty (VarPat x) = pretty ('~' : x)
+  -- pretty SeqNilPat = undefined
+  -- pretty (SeqConsPat p1 p2) = undefined
+  pretty LaterPatVar = pretty "@"
   pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   pretty (NotPat pat)    = pretty "!" <> pretty pat
   pretty (TuplePat pats) = tupled $ map pretty pats
   pretty _            = pretty "REPLACEME"
+
+instance Pretty LoopRange where
+  pretty (LoopRange from to pat) = tupled $ [pretty from, pretty to, pretty pat]
 
 instance Pretty PrimitivePatPattern where
   pretty PPWildCard     = pretty "_"
