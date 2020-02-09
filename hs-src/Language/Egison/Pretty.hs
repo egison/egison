@@ -68,9 +68,9 @@ instance Pretty EgisonExpr where
   pretty (PatternFunctionExpr xs y) = pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty y
 
   pretty (IfExpr x y z) =
-    pretty "if" <+> pretty x <>
+    group (pretty "if" <+> pretty x <>
       (flatAlt (nest 2 (hardline <> pretty "then" <+> pretty y)) (space <> pretty "then" <+> pretty y)) <>
-      (flatAlt (nest 2 (hardline <> pretty "else" <+> pretty z)) (space <> pretty "else" <+> pretty z))
+      (flatAlt (nest 2 (hardline <> pretty "else" <+> pretty z)) (space <> pretty "else" <+> pretty z)))
   pretty (LetRecExpr bindings body) =
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
   pretty (LetExpr _ _) = error "unreachable"
