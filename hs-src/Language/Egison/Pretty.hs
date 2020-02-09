@@ -162,7 +162,7 @@ instance Pretty EgisonPattern where
   pretty WildCard     = pretty "_"
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
-  pretty (PredPat v)  = pretty "?" <> pretty v
+  pretty (PredPat v)  = pretty "?" <> pretty' v
   -- (p11 op' p12) op p2
   pretty (InfixPat op p1@(InfixPat op' _ _) p2) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc

@@ -170,11 +170,11 @@ assertEqual "not pattern"
 
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
-    | ?\:2 -> 1 = :2 :: _ -> True)
+    | ?(\:2 -> 1 = :2) :: _ -> True)
 
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
-    | ?\:2 -> 2 = :2 :: _ -> False
+    | ?(\:2 -> 2 = :2) :: _ -> False
     | _ -> True)
 
 assertEqual "indexed pattern variable"
