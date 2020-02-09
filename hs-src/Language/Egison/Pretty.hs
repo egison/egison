@@ -232,6 +232,7 @@ instance Complex EgisonExpr where
   isInfix _                       = False
 
 instance Complex EgisonPattern where
+  isAtom (LetPat _ _)        = False
   isAtom (InductivePat _ []) = True
   isAtom (InductivePat _ _)  = False
   isAtom (NotPat _)          = False

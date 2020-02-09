@@ -207,12 +207,12 @@ assertEqual "let pattern"
 
 assertEqual "let pattern"
   (match [1, 2, 3] as list integer with
-    | $a :: let x := a in $xs -> (x, xs))
+    | $a :: (let x := a in $xs) -> (x, xs))
   (1, [2, 3])
 
 assertEqual "let pattern"
   (match [1, 2, 3] as list integer with
-    | $a & let n := length a in _ -> (a, n))
+    | $a & (let n := length a in _) -> (a, n))
   ([1, 2, 3], 3)
 
 assertEqual "tuple patterns"
