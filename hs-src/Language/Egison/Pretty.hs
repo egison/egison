@@ -150,6 +150,9 @@ instance Pretty InnerExpr where
   pretty (SubCollectionExpr _) = error "Not supported"
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
+  pretty ([var], LambdaExpr args body) =
+    hsep (pretty var : map pretty args) <+> group (pretty ":=" <>
+      flatAlt (nest 2 (hardline <> pretty body)) (space <> pretty body))
   pretty ([var], expr) = pretty var <+> pretty ":=" <+> align (pretty expr)
   pretty (vars, expr) = tupled (map pretty vars) <+> pretty ":=" <+> align (pretty expr)
 

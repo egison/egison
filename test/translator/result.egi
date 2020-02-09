@@ -83,8 +83,8 @@ assertEqual "letrec binding"
   3
 
 assertEqual "mutual recursion"
-  (let even? := \n -> if n = 0 then True else odd? (n - 1)
-       odd? := \n -> if n = 0 then False else even? (n - 1)
+  (let even? n := if n = 0 then True else odd? (n - 1)
+       odd? n := if n = 0 then False else even? (n - 1)
     in even? 10)
   True
 
@@ -231,7 +231,7 @@ assertEqual "recursive pattern function call"
   1
 
 assertEqual "loop pattern in pattern function"
-  (let comb := \n -> \p => REPLACEME
+  (let comb n := \p => REPLACEME
     in matchAll [1, 2, 3, 4, 5] as list integer with
       | REPLACEME -> n)
   [ {|(1, 1), (2, 2)|}
@@ -347,11 +347,11 @@ assertEqual "recursive partial application '#'"
   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 
 assertEqual "double inverted index"
-  (let f := \*x *y -> x + y
+  (let f *x *y := x + y
     in (f REPLACEME REPLACEME))
   (REPLACEME)
 
 assertEqual "single inverted index"
-  (let f := \x *y -> x + y
+  (let f x *y := x + y
     in (f REPLACEME REPLACEME))
   (REPLACEME)
