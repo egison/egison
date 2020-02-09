@@ -342,7 +342,7 @@ assertEqual "empty hash-literal" {||} {||}
 
 assertEqual "hash access" {|(1, 11), (2, 12), (3, 13), (4, 14), (5, 15)|}_3 13
 
-assertEqual "partial application '$'" (2#(%1 + %2) 1 2) 3
+assertEqual "partial application '$'" ((+) 1 2) 3
 
 assertEqual "partial application '$' with index" (2#(%2 - %1) 1 2) 1
 
