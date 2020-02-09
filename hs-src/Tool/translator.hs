@@ -38,10 +38,20 @@ instance SyntaxElement EgisonExpr where
     where powerOp = fromJust $ find (\op -> repr op == "^") reservedExprInfix
   toNonS (InductiveDataExpr x ys) = InductiveDataExpr x (map toNonS ys)
   toNonS (TupleExpr xs)      = TupleExpr (map toNonS xs)
-  toNonS (CollectionExpr [ElementExpr x, SubCollectionExpr xs]) =
-    BinaryOpExpr cons (toNonS x) (toNonS xs)
-      where cons = fromJust $ find (\op -> repr op == "::") reservedExprInfix
-  toNonS (CollectionExpr xs) = CollectionExpr (map toNonS xs)
+  toNonS (CollectionExpr xs)
+    | all isElementExpr xs = CollectionExpr (map toNonS xs)
+    | otherwise            = f xs
+    where
+      isElementExpr :: InnerExpr -> Bool
+      isElementExpr ElementExpr{} = True
+      isElementExpr _             = False
+      f [] = CollectionExpr []
+      f [ElementExpr x] = CollectionExpr [ElementExpr (toNonS x)]
+      f [SubCollectionExpr x] = toNonS x
+      f (ElementExpr x : xs) = BinaryOpExpr cons (toNonS x) (f xs)
+      f (SubCollectionExpr x : xs) = BinaryOpExpr append (toNonS x) (f xs)
+      cons = fromJust $ find (\op -> repr op == "::") reservedExprInfix
+      append = fromJust $ find (\op -> repr op == "++") reservedExprInfix
   toNonS (ArrayExpr xs)      = ArrayExpr (map toNonS xs)
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
   toNonS (VectorExpr xs)     = VectorExpr (map toNonS xs)

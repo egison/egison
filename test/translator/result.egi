@@ -332,7 +332,7 @@ assertEqual "generate-tensor - case 1"
 
 assertEqual "generate-tensor - case 2"
   (generateTensor kroneckerDelta [2, 2, 2, 2])
-  REPLACEME
+  (tensor [2, 2, 2, 2] [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
 
 assertEqual "hash-literal"
   {|(1, 11), (2, 12), (3, 13), (4, 14), (5, 15)|}
