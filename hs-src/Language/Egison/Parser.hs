@@ -453,18 +453,16 @@ applyExpr = do
   case vars of
     [] -> return . ApplyExpr func . TupleExpr $ rights args
     _ | all null vars ->
-        let pairs = zip args (annonVars 1 (length args))
-            args' = map f pairs
-            lambdaArgs = map (ScalarArg . snd) (filter (\(arg, _) -> isLeft arg) pairs)
-         in return $ LambdaExpr lambdaArgs $ ApplyExpr func (TupleExpr args')
+        let n = toInteger (length vars)
+            args' = f args 1
+         in return $ PartialExpr n $ ApplyExpr func (TupleExpr args')
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
                let args' = map g args
-                   lambdaArgs = map ScalarArg (annonVars 1 n)
-                in return $ LambdaExpr lambdaArgs $ ApplyExpr func (TupleExpr args')
+                in return $ PartialExpr (toInteger n) $ ApplyExpr func (TupleExpr args')
              else fail "invalid partial application"
       | otherwise -> fail "invalid partial application"
  where
@@ -472,9 +470,10 @@ applyExpr = do
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   annonVars m n = take n $ map ((':':) . show) [m..]
-  f (Left _, var)   = VarExpr (stringToVar var)
-  f (Right expr, _) = expr
-  g (Left arg)   = VarExpr (stringToVar (':':arg))
+  f [] n                   = []
+  f (Left _ : args) n      = PartialVarExpr n : f args (n + 1)
+  f (Right expr : args) n  = expr : f args n
+  g (Left arg)   = PartialVarExpr (read arg)
   g (Right expr) = expr
 
 partialExpr :: Parser EgisonExpr
