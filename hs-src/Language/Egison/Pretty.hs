@@ -59,7 +59,10 @@ instance Pretty EgisonExpr where
   pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty' xs))
 
   pretty (TupleExpr xs) = tupled (map pretty xs)
-  pretty (CollectionExpr xs) = list (map pretty xs)
+  pretty (CollectionExpr xs)
+    | length xs < 20 = list (map pretty xs)
+    | otherwise      =
+      pretty "[" <> align (fillSepAtom (punctuate comma (map pretty xs))) <> pretty "]"
   pretty (ArrayExpr xs)  = listoid "(|" "|)" (map pretty xs)
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
@@ -239,11 +242,6 @@ instance Pretty PrimitiveDataPattern where
   pretty (PDSnocPat pdp1 pdp2) = pretty "snoc" <+> pretty' pdp1 <+> pretty' pdp2
   pretty (PDConstantPat expr) = pretty expr
 
--- Display "hoge" instead of "() := hoge"
-prettyDoBinds :: BindingExpr -> Doc ann
-prettyDoBinds ([], expr) = pretty expr
-prettyDoBinds (vs, expr) = pretty (vs, expr)
-
 class Complex a where
   isAtom :: a -> Bool
   isInfix :: a -> Bool
@@ -296,6 +294,11 @@ pretty'' :: (Pretty a, Complex a) => a -> Doc ann
 pretty'' x | isAtom x || isInfix x = pretty x
            | otherwise             = parens $ pretty x
 
+-- Display "hoge" instead of "() := hoge"
+prettyDoBinds :: BindingExpr -> Doc ann
+prettyDoBinds ([], expr) = pretty expr
+prettyDoBinds (vs, expr) = pretty (vs, expr)
+
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
   pretty "as" <+> group (pretty matcher) <+> pretty "with" <> hardline <>
@@ -304,6 +307,16 @@ prettyMatch matcher clauses =
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems =
   encloseSep (pretty lp) (pretty rp) (comma <> space) elems
+
+-- Just like |fillSep|, but does not break the atomicity of grouped Docs
+fillSepAtom :: [Doc ann] -> Doc ann
+fillSepAtom [] = emptyDoc
+fillSepAtom [x] = x
+fillSepAtom (x:xs) = x <> fillSepAtom' xs
+  where
+    fillSepAtom' [] = emptyDoc
+    fillSepAtom' (x:xs) =
+      group (flatAlt (hardline <> x) (space <> x)) <> fillSepAtom' xs
 
 --
 -- Pretty printer for S-expression
