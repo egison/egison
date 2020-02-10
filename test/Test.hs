@@ -33,10 +33,7 @@ testCases :: [FilePath]
 testCases =
   [ "test/syntax.egi"
   , "test/primitive.egi"
-  , "test/lib/math/analysis.egi"
   , "test/lib/math/tensor.egi"
-  , "test/lib/math/arithmetic.egi"
-  , "test/lib/math/algebra.egi"
 
   , "sample/poker-hands.egi"
   , "sample/poker-hands-with-joker.egi"
@@ -59,6 +56,9 @@ nonSTestCases =
   , "nons-test/test/lib/core/number.egi"
   , "nons-test/test/lib/core/order.egi"
   , "nons-test/test/lib/core/string.egi"
+  , "nons-test/test/lib/math/algebra.egi"
+  , "nons-test/test/lib/math/analysis.egi"
+  , "nons-test/test/lib/math/arithmetic.egi"
 
   , "nons-sample/math/geometry/curvature-form.egi"
   , "nons-sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
