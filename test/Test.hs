@@ -37,11 +37,6 @@ testCases =
   , "test/lib/math/tensor.egi"
   , "test/lib/math/arithmetic.egi"
   , "test/lib/math/algebra.egi"
-  , "test/lib/core/string.egi"
-  , "test/lib/core/base.egi"
-  , "test/lib/core/collection.egi"
-  , "test/lib/core/order.egi"
-  , "test/lib/core/number.egi"
 
   , "sample/poker-hands.egi"
   , "sample/poker-hands-with-joker.egi"
@@ -60,7 +55,10 @@ nonSTestCases =
   [ "nons-test/test/syntax.egi"
   , "nons-test/test/primitive.egi"
   , "nons-test/test/lib/core/base.egi"
+  , "nons-test/test/lib/core/collection.egi"
+  , "nons-test/test/lib/core/number.egi"
   , "nons-test/test/lib/core/order.egi"
+  , "nons-test/test/lib/core/string.egi"
 
   , "nons-sample/math/geometry/curvature-form.egi"
   , "nons-sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
