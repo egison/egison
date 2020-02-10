@@ -15,6 +15,9 @@
 (define $continuedFraction continued-fraction)
 (define $regularContinuedFractionOfSqrt regular-continued-fraction-of-sqrt)
 (define $findCycle find-cycle)
+(define $qF' q-f')
+(define $taylorExpansion taylor-expansion)
+(define $multivariateTaylorExpansion multivariate-taylor-expansion)
 
 (define $dfNormalize df-normalize)
 (define $antisymmetrize df-normalize)

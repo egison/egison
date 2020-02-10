@@ -82,11 +82,11 @@ instance SyntaxElement EgisonExpr where
   toNonS (DoExpr xs y) = DoExpr (map toNonS xs) (toNonS y)
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
-  toNonS (ApplyExpr (VarExpr (Var [f] [])) (TupleExpr (y:ys)))
-    | any (\op -> func op == f) reservedExprInfix =
+  toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys)))
+    | any (\op -> func op == prettyS f) reservedExprInfix =
       foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
       where
-        op = fromJust $ find (\op -> func op == f) reservedExprInfix
+        op = fromJust $ find (\op -> func op == prettyS f) reservedExprInfix
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
   toNonS CApplyExpr{} = error "Not supported: capply"
   toNonS (PartialExpr n e) =

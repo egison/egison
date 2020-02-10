@@ -206,7 +206,7 @@ assertEqual "map2" (map2 (*) [1, 2, 3] [10, 20, 30]) [10, 40, 90]
 
 assertEqual
   "filter"
-  (let odd? n := (modulo n 2) = 1
+  (let odd? n := modulo n 2 = 1
     in filter odd? [1, 2, 3])
   [1, 3]
 
