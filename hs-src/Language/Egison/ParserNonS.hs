@@ -285,7 +285,7 @@ exprWithoutWhere =
    <|> generateTensorExpr
    <|> tensorExpr
    <|> functionExpr
-   <|> userrefsExpr
+   <|> refsExpr
    <|> opExpr
    <?> "expression"
 
@@ -451,10 +451,14 @@ tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
 functionExpr :: Parser EgisonExpr
 functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
 
-userrefsExpr :: Parser EgisonExpr
-userrefsExpr =
-      (reserved "userRefs" >> UserrefsExpr False <$> atomExpr <*> atomExpr)
-  <|> (reserved "userRefs!" >> UserrefsExpr True <$> atomExpr <*> atomExpr)
+refsExpr :: Parser EgisonExpr
+refsExpr =
+      (reserved "subrefs"   >> SubrefsExpr  False <$> atomExpr <*> atomExpr)
+  <|> (reserved "subrefs!"  >> SubrefsExpr  True  <$> atomExpr <*> atomExpr)
+  <|> (reserved "suprefs"   >> SuprefsExpr  False <$> atomExpr <*> atomExpr)
+  <|> (reserved "suprefs!"  >> SuprefsExpr  True  <$> atomExpr <*> atomExpr)
+  <|> (reserved "userRefs"  >> UserrefsExpr False <$> atomExpr <*> atomExpr)
+  <|> (reserved "userRefs!" >> UserrefsExpr True  <$> atomExpr <*> atomExpr)
 
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr
@@ -900,12 +904,12 @@ lowerReservedWords =
   , "generateTensor"
   , "tensor"
   -- , "contract"
-  -- , "subrefs"
-  -- , "subrefs!"
-  -- , "suprefs"
-  -- , "suprefs!"
-  -- , "userRefs"
-  -- , "userRefs!"
+  , "subrefs"
+  , "subrefs!"
+  , "suprefs"
+  , "suprefs!"
+  , "userRefs"
+  , "userRefs!"
   , "function"
   , "infixl"
   , "infixr"
