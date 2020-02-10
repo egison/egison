@@ -440,13 +440,13 @@ assertEqual
 assertEqual
   "q-f' - case 2"
   (qF' 1 1 (-1))
-  (((-1) + sqrt 5) / 2, ((-1) + (-1) * sqrt 5) / 2)
+  (((-1) + sqrt 5) / 2, ((-1) + (- sqrt 5)) / 2)
 
 assertEqual
   "q-f' - case 3"
-  (qF' 1 ((-1) * (((-1) + sqrt 5) / 2)) 1)
+  (qF' 1 (- (((-1) + sqrt 5) / 2)) 1)
   ( ((-1) + sqrt 5 + sqrt ((-10) + (-2) * sqrt 5)) / 4
-  , ((-1) + sqrt 5 + (-1) * sqrt ((-10) + (-2) * sqrt 5)) / 4 )
+  , ((-1) + sqrt 5 + (- sqrt ((-10) + (-2) * sqrt 5))) / 4 )
 
 assertEqual
   "fifth root of unity"
