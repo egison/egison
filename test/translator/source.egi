@@ -210,31 +210,6 @@
    x])
   {1 2 3 4 5})
 
-;(assert-equal "dfs pattern 1"
-;  (take 10 (match-all nats (set integer)
-;       [(dfs <cons $m <cons $n <cons $l _>>>) [m n l]]))
-;  {[1 1 1] [1 1 2] [1 1 3] [1 1 4] [1 1 5] [1 1 6] [1 1 7] [1 1 8] [1 1 9] [1 1 10]})
-
-;(assert-equal "dfs pattern 2"
-;  (take 10 (match-all nats (set integer)
-;       [<cons $m (dfs <cons $n <cons $l _>>)> [m n l]]))
-;  {[1 1 1] [2 1 1] [3 1 1] [4 1 1] [5 1 1] [6 1 1] [7 1 1] [8 1 1] [9 1 1] [10 1 1]})
-
-;(assert-equal "dfs pattern 3"
-;  (match-all (between 1 3) (set integer)
-;       [<cons $m <cons $n (dfs <cons $l _>)>> [m n l]])
-;  {[1 1 1] [1 2 1] [2 1 1] [1 3 1] [2 2 1] [3 1 1] [2 3 1] [3 2 1] [3 3 1] [1 1 2] [1 2 2] [2 1 2] [1 3 2] [2 2 2] [3 1 2] [2 3 2] [3 2 2] [3 3 2] [1 1 3] [1 2 3] [2 1 3] [1 3 3] [2 2 3] [3 1 3] [2 3 3] [3 2 3] [3 3 3]})
-
-;(assert-equal "dfs and bfs pattern 1"
-;  (take 10 (match-all nats (set integer)
-;       [(dfs <cons $m (bfs <cons $n <cons $l _>>)>) [m n l]]))
-;  {[1 1 1] [1 1 2] [1 2 1] [1 1 3] [1 2 2] [1 3 1] [1 1 4] [1 2 3] [1 3 2] [1 4 1]})
-
-;(assert-equal "dfs and bfs pattern 2"
-;  (take 10 (match-all nats (set integer)
-;       [(dfs <cons $m <cons $n (bfs <cons $l _>)>>) [m n l]]))
-;  {[1 1 1] [1 1 2] [1 1 3] [1 1 4] [1 1 5] [1 1 6] [1 1 7] [1 1 8] [1 1 9] [1 1 10]})
-
 (assert "loop pattern"
   (match {3 2 1} (list integer)
     {[(loop $i [1 {3} _] <snoc ,i ...> <nil>) #t]}))
@@ -356,9 +331,9 @@
   (||)
   )
 
-;(assert-equal "generate-array"
-;  (generate-array (+ $ 100) [3 5])_4
-;  104)
+(assert-equal "generate-array"
+  (generate-array (+ $ 100) [3 5])_4
+  104)
 
 (assert-equal "array-bounds - case 1"
   (array-bounds (| 1 2 3 |))
@@ -431,3 +406,16 @@
   (let {[$f (lambda [$x *$y] (+ x y))]}
     [(f [|1 2 3|]_i [|10 20 30|]_j)])
   [[| [| 11 21 31 |] [| 12 22 32 |] [| 13 23 33 |] |]_i~j])
+
+;;
+;; long lists
+;;
+
+(assert-equal "regular-continued-fraction pi"
+  (rtof (regular-continued-fraction 3 {7 15 1 292 1 1 1 2 1 3 1 14 2 1 1 2 2 2 2 1 84 2 1 1 15 3 13}))
+  3.141592653589793)
+
+(assert-equal "continued-fraction pi"
+  (rtof (continued-fraction 3 {7 15 1 292 1 1 1 2 1 3 1 14 2 1 1 2 2 2 2 1 84 2 1 1 15 3 13}
+                              {1 1  1 1   1 1 1 1 1 1 1 1  1 1 1 1 1 1 1 1 1  1 1 1 1  1 1}))
+  3.141592653589793)

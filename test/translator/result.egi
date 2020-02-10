@@ -364,6 +364,8 @@ assertEqual "array-literal" (|1, 2, 3, 4, 5|) (|1, 2, 3, 4, 5|)
 
 assertEqual "empty array literal" (||) (||)
 
+assertEqual "generate-array" (generateArray 1#(%1 + 100) (3, 5))_4 104
+
 assertEqual "array-bounds - case 1" (arrayBounds (|1, 2, 3|)) (1, 3)
 
 assertEqual
@@ -414,3 +416,98 @@ assertEqual
   (let f x *y := x + y
     in (f [|1, 2, 3|]_i [|10, 20, 30|]_j))
   ([|[|11, 21, 31|], [|12, 22, 32|], [|13, 23, 33|]|]_i~j)
+
+assertEqual
+  "regular-continued-fraction pi"
+  (rtof
+     (regularContinuedFraction
+        3
+        [ 7
+        , 15
+        , 1
+        , 292
+        , 1
+        , 1
+        , 1
+        , 2
+        , 1
+        , 3
+        , 1
+        , 14
+        , 2
+        , 1
+        , 1
+        , 2
+        , 2
+        , 2
+        , 2
+        , 1
+        , 84
+        , 2
+        , 1
+        , 1
+        , 15
+        , 3
+        , 13 ]))
+  3.141592653589793
+
+assertEqual
+  "continued-fraction pi"
+  (rtof
+     (continuedFraction
+        3
+        [ 7
+        , 15
+        , 1
+        , 292
+        , 1
+        , 1
+        , 1
+        , 2
+        , 1
+        , 3
+        , 1
+        , 14
+        , 2
+        , 1
+        , 1
+        , 2
+        , 2
+        , 2
+        , 2
+        , 1
+        , 84
+        , 2
+        , 1
+        , 1
+        , 15
+        , 3
+        , 13 ]
+        [ 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1
+        , 1 ]))
+  3.141592653589793
