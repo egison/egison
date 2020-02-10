@@ -285,6 +285,7 @@ exprWithoutWhere =
    <|> generateTensorExpr
    <|> tensorExpr
    <|> functionExpr
+   <|> userrefsExpr
    <|> opExpr
    <?> "expression"
 
@@ -449,6 +450,11 @@ tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
 
 functionExpr :: Parser EgisonExpr
 functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
+
+userrefsExpr :: Parser EgisonExpr
+userrefsExpr =
+      (reserved "userRefs" >> UserrefsExpr False <$> atomExpr <*> atomExpr)
+  <|> (reserved "userRefs!" >> UserrefsExpr True <$> atomExpr <*> atomExpr)
 
 collectionExpr :: Parser EgisonExpr
 collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr

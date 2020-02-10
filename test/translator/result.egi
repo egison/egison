@@ -133,7 +133,7 @@ assertEqual
   "match-lambda"
   (let count := \match as list something with
                   | [] -> 0
-                  | _ :: $xs -> (count xs) + 1
+                  | _ :: $xs -> count xs + 1
     in count [1, 2, 3])
   3
 
@@ -402,7 +402,7 @@ assertEqual "partial application '#'" (2#(10 * %1 + %2) 1 2) 12
 
 assertEqual
   "recursive partial application '#'"
-  (take 10 (1#(%1 :: (%0 (%1 * 2))) 2))
+  (take 10 (1#(%1 :: %0 (%1 * 2)) 2))
   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 
 assertEqual

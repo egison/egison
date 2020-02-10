@@ -55,6 +55,15 @@ instance Pretty EgisonExpr where
   pretty (VarExpr x)     = pretty x
   pretty (IndexedExpr True e indices) = pretty' e <> cat (map pretty indices)
   pretty (IndexedExpr False e indices) = pretty' e <> pretty "..." <> cat (map pretty indices)
+  pretty (SubrefsExpr b e1 e2) =
+    pretty "subrefs" <> (if b then pretty "!" else emptyDoc) <+>
+      pretty' e1 <+> pretty' e2
+  pretty (SuprefsExpr b e1 e2) =
+    pretty "suprefs" <> (if b then pretty "!" else emptyDoc) <+>
+      pretty' e1 <+> pretty' e2
+  pretty (UserrefsExpr b e1 e2) =
+    pretty "userRefs" <> (if b then pretty "!" else emptyDoc) <+>
+      pretty' e1 <+> pretty' e2
 
   pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty' xs))
 
@@ -79,6 +88,7 @@ instance Pretty EgisonExpr where
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
   pretty (LetExpr _ _) = error "unreachable"
   pretty (LetStarExpr _ _) = error "unreachable"
+  pretty (WithSymbolsExpr xs e) = pretty "withSymbols" <+> list (map pretty xs) <+> pretty e
 
   pretty (MatchExpr BFSMode tgt matcher clauses) =
     nest 2 (pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses)
@@ -108,6 +118,9 @@ instance Pretty EgisonExpr where
       where
         prettyPatDef (name, exprs) = pipe <+> hsep (pretty name : map pretty exprs)
 
+  pretty (QuoteExpr e) = squote <> pretty' e
+  pretty (QuoteSymbolExpr e) = pretty '`' <> pretty' e
+
   pretty (UnaryOpExpr op x) = pretty op <> pretty x
   -- TODO(momohatt): Treat application as infix?
   -- (x1 op' x2) op y
@@ -120,7 +133,7 @@ instance Pretty EgisonExpr where
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
        then pretty'' x <+> pretty (repr op) <+> parens (pretty y)
        else pretty'' x <+> pretty (repr op) <+> pretty y
-  pretty (BinaryOpExpr op x y) = pretty' x <+> pretty (repr op) <+> pretty' y
+  pretty (BinaryOpExpr op x y) = pretty'' x <+> pretty (repr op) <+> pretty'' y
   pretty (SectionExpr op Nothing Nothing) = parens (pretty (repr op))
 
   pretty (DoExpr xs y) = pretty "do" <+> align (vsep (map prettyDoBinds xs ++ [pretty y]))
@@ -144,6 +157,8 @@ instance Pretty EgisonExpr where
     pretty "tensor" <+> pretty' e1 <+> pretty' e2 <>
       (if e3 == CollectionExpr [] then emptyDoc else space <> pretty' e3) <>
       (if e4 == CollectionExpr [] then emptyDoc else space <> pretty' e4)
+
+  pretty (FunctionExpr xs) = pretty "function" <+> tupled (map pretty xs)
 
   pretty SomethingExpr = pretty "something"
   pretty UndefinedExpr = pretty "undefined"
@@ -244,6 +259,7 @@ instance Pretty PrimitiveDataPattern where
 
 class Complex a where
   isAtom :: a -> Bool
+  isAtomOrApp :: a -> Bool
   isInfix :: a -> Bool
 
 instance Complex EgisonExpr where
@@ -254,18 +270,29 @@ instance Complex EgisonExpr where
   isAtom LambdaExpr{}             = False
   isAtom IfExpr{}                 = False
   isAtom LetRecExpr{}             = False
+  isAtom SubrefsExpr{}            = False
+  isAtom SuprefsExpr{}            = False
+  isAtom UserrefsExpr{}           = False
+  isAtom WithSymbolsExpr{}        = False
   isAtom MatchExpr{}              = False
   isAtom MatchAllExpr{}           = False
   isAtom MatchLambdaExpr{}        = False
   isAtom MatchAllLambdaExpr{}     = False
+  isAtom MatcherExpr{}            = False
+  isAtom AlgebraicDataMatcherExpr{} = False
   isAtom GenerateArrayExpr{}      = False
   isAtom ArrayBoundsExpr{}        = False
   isAtom ArrayRefExpr{}           = False
   isAtom GenerateTensorExpr{}     = False
   isAtom TensorExpr{}             = False
+  isAtom FunctionExpr{}           = False
   isAtom _                        = True
-  isInfix BinaryOpExpr{}          = True
-  isInfix _                       = False
+
+  isAtomOrApp ApplyExpr{} = True
+  isAtomOrApp e           = isAtom e
+
+  isInfix BinaryOpExpr{}  = True
+  isInfix _               = False
 
 instance Complex EgisonPattern where
   isAtom (LetPat _ _)        = False
@@ -274,6 +301,10 @@ instance Complex EgisonPattern where
   isAtom (InfixPat _ _ _)    = False
   isAtom (LoopPat _ _ _ _)   = False
   isAtom _                   = True
+
+  isAtomOrApp PApplyPat{} = True
+  isAtomOrApp e           = isAtom e
+
   isInfix (InfixPat _ _ _)   = True
   isInfix _                  = False
 
@@ -283,16 +314,19 @@ instance Complex PrimitiveDataPattern where
   isAtom (PDConsPat _ _)       = False
   isAtom (PDSnocPat _ _)       = False
   isAtom _                     = True
-  isInfix (PDConsPat _ _)      = True
-  isInfix _                    = False
+
+  isAtomOrApp = isAtom
+
+  isInfix (PDConsPat _ _) = True
+  isInfix _               = False
 
 pretty' :: (Pretty a, Complex a) => a -> Doc ann
 pretty' x | isAtom x  = pretty x
           | otherwise = parens $ pretty x
 
 pretty'' :: (Pretty a, Complex a) => a -> Doc ann
-pretty'' x | isAtom x || isInfix x = pretty x
-           | otherwise             = parens $ pretty x
+pretty'' x | isAtomOrApp x || isInfix x = pretty x
+           | otherwise                  = parens $ pretty x
 
 -- Display "hoge" instead of "() := hoge"
 prettyDoBinds :: BindingExpr -> Doc ann
