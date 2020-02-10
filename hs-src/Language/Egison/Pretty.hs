@@ -121,7 +121,10 @@ instance Pretty EgisonExpr where
   pretty (QuoteExpr e) = squote <> pretty' e
   pretty (QuoteSymbolExpr e) = pretty '`' <> pretty' e
 
-  pretty (UnaryOpExpr op x) = pretty op <> pretty x
+  pretty (UnaryOpExpr op x@(IntegerExpr _)) = pretty op <> pretty x
+  pretty (UnaryOpExpr op x)
+    | isAtomOrApp x = pretty op <+> pretty x
+    | otherwise     = pretty op <+> parens (pretty x)
   -- TODO(momohatt): Treat application as infix?
   -- (x1 op' x2) op y
   pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =

@@ -25,9 +25,7 @@ instance SyntaxElement EgisonTopExpr where
   toNonS x              = x
 
 instance SyntaxElement EgisonExpr where
-  toNonS (IntegerExpr x)
-    | x < 0     = UnaryOpExpr "-" (IntegerExpr (-x))
-    | otherwise = IntegerExpr x
+  toNonS (IntegerExpr x) = IntegerExpr x
   toNonS (VarExpr x) = VarExpr (toNonS x)
 
   toNonS (IndexedExpr b x ys)  = IndexedExpr  b (toNonS x) (map toNonS ys)
@@ -84,9 +82,16 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys)))
     | any (\op -> func op == prettyS f) reservedExprInfix =
-      foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+      optimize $ foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
       where
         op = fromJust $ find (\op -> func op == prettyS f) reservedExprInfix
+
+        optimize (BinaryOpExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
+          UnaryOpExpr "-" (optimize e2)
+        optimize (BinaryOpExpr op e1 e2) =
+          BinaryOpExpr op (optimize e1) (optimize e2)
+        optimize e = e
+
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
   toNonS CApplyExpr{} = error "Not supported: capply"
   toNonS (PartialExpr n e) =

@@ -6,25 +6,19 @@ assertEqual "d/d - case 1" (d/d (x ^ 2) x) (2 * x)
 
 assertEqual "d/d - case 2" (d/d (a ^ (x ^ 2)) x) (2 * a ^ (x ^ 2) * log a * x)
 
-assertEqual
-  "d/d - case 3"
-  (d/d (cos x * sin x) x)
-  ((-1) * sin x ^ 2 + cos x ^ 2)
+assertEqual "d/d - case 3" (d/d (cos x * sin x) x) ((- (sin x ^ 2)) + cos x ^ 2)
 
 assertEqual
   "d/d - case 4"
   (d/d (sigmoid z) z)
-  (exp ((-1) * z) / (1 + 2 * exp ((-1) * z) + exp ((-1) * z) ^ 2))
+  (exp (- z) / (1 + 2 * exp (- z) + exp (- z) ^ 2))
 
 assertEqual "d/d - case 5" (d/d (d/d (log x) x) x) ((-1) / x ^ 2)
 
 assertEqual
   "tailor-expansion - case 1"
   (take 4 (taylorExpansion (e ^ (i * x)) x 0))
-  [ `exp 0
-  , `exp 0 * i * x
-  , (-1) * `exp 0 * x ^ 2 / 2
-  , (-1) * `exp 0 * i * x ^ 3 / 6 ]
+  [`exp 0, `exp 0 * i * x, (- `exp 0) * x ^ 2 / 2, (- `exp 0) * i * x ^ 3 / 6]
 
 assertEqual
   "multivariate-tailor-expansion - case 1"
