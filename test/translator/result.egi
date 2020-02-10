@@ -194,7 +194,7 @@ assert
 assertEqual
   "not pattern"
   (matchAll [1, 2, 2, 3, 3, 3] as multiset integer with
-    | $n :: (!(#n :: _)) -> n)
+    | $n :: !(#n :: _) -> n)
   [1]
 
 assert
@@ -217,7 +217,7 @@ assertEqual
 assertEqual
   "seq pattern"
   (matchAll [1, 2, 3, 2, 4, 3, 5] as list integer with
-    | REPLACEME -> x)
+    | {@ ++ $x :: _, !(_ ++ #x :: _)} -> x)
   [1, 2, 3, 4, 5]
 
 assert

@@ -14,11 +14,11 @@ string :=
       | $tgt -> if "" = tgt then [] else [unconsString tgt]
     | join $ cons #px $ as (string, string) with
       | $tgt -> matchAll S.split (pack [px]) tgt as list string with
-        | ((![]) & $xs) ++ (![]) & $ys ->
+        | (![] & $xs) ++ ![] & $ys ->
           (S.intercalate (pack [px]) xs, S.intercalate (pack [px]) ys)
     | join $ join #pxs $ as (string, string) with
       | $tgt -> matchAll S.split pxs tgt as list string with
-        | ((![]) & $xs) ++ (![]) & $ys ->
+        | (![] & $xs) ++ ![] & $ys ->
           (S.intercalate pxs xs, S.intercalate pxs ys)
     | join $ $ as (string, string) with
       | $tgt -> matchAll tgt as string with
