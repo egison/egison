@@ -56,7 +56,7 @@ instance Pretty EgisonExpr where
   pretty (IndexedExpr True e indices) = pretty e <> cat (map pretty indices)
   pretty (IndexedExpr False e indices) = pretty e <> pretty "..." <> cat (map pretty indices)
 
-  pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty xs))
+  pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty' xs))
 
   pretty (TupleExpr xs) = tupled (map pretty xs)
   pretty (CollectionExpr xs) = list (map pretty xs)
@@ -210,7 +210,7 @@ instance Pretty EgisonPattern where
   -- pretty (SeqConsPat p1 p2) = undefined
   pretty LaterPatVar = pretty "@"
   pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
-  pretty (NotPat pat)    = pretty "!" <> pretty pat
+  pretty (NotPat pat)    = pretty "!" <> pretty' pat
   pretty (TuplePat pats) = tupled $ map pretty pats
   pretty _            = pretty "REPLACEME"
 
