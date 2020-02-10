@@ -8,27 +8,26 @@ Sd x f :=
     | symbol _ _ -> f * x
     | REPLACEME -> exp x
     | REPLACEME -> sin x
-    | REPLACEME -> (-1) * (cos x)
+    | REPLACEME -> - cos x
     | REPLACEME -> multSd x 1 (log x)
-    | REPLACEME -> a ^ x / (log a)
-    | REPLACEME -> REPLACEME
-    | REPLACEME -> REPLACEME x (REPLACEME y g)
-    | REPLACEME -> REPLACEME
+    | REPLACEME -> a ^ x / log a
+    | REPLACEME ->
+      withSymbols [t] substitute [(t, y)] (Sd t (a ^ t * d/d (inverse t y x) t))
+    | REPLACEME -> `Sd x (`Sd y g)
+    | REPLACEME ->
+      withSymbols [t] substitute [(t, y)] (Sd t (f t * d/d (inverse t y x) t))
     | #0 -> 0
     | term $c [] -> c * x
     | mult $a ncons $n #x $r ->
-      if containSymbol? x r
-        then REPLACEME x f
-        else a / (n + 1) * x ^ (n + 1) * r
+      if containSymbol? x r then `Sd x f else a / (n + 1) * x ^ (n + 1) * r
     | poly $ts -> sum (map 1#(Sd x %1) ts)
     | div plus $ts $p2 -> sum (map 1#(Sd x (%1 / p2)) ts)
-    | div $p1 $p2 ->
-      if containSymbol? x p2 then REPLACEME x f else (Sd x p1) / p2
+    | div $p1 $p2 -> if containSymbol? x p2 then `Sd x f else Sd x p1 / p2
 
 multSd x f g :=
   let F := Sd x f
-   in F * g - (Sd x (F * (d/d g x)))
+   in F * g - Sd x (F * d/d g x)
 
 dSd x a b f :=
   let F := Sd x f
-   in (substitute [(x, b)] F) - (substitute [(x, a)] F)
+   in substitute [(x, b)] F - substitute [(x, a)] F

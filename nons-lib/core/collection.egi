@@ -72,7 +72,7 @@ take n xs :=
   if n = 0
     then []
     else match xs as list something with
-      | $x :: $xs -> x :: (take (n - 1) xs)
+      | $x :: $xs -> x :: take (n - 1) xs
       | [] -> []
 
 drop n xs :=
@@ -85,22 +85,22 @@ drop n xs :=
 takeWhile pred xs :=
   match xs as list something with
     | [] -> []
-    | $x :: $rs -> if pred x then x :: (takeWhile pred rs) else []
+    | $x :: $rs -> if pred x then x :: takeWhile pred rs else []
 
 takeWhileBy pred xs :=
   match xs as list something with
     | [] -> []
-    | $x :: $rs -> if pred x then x :: (takeWhileBy pred rs) else [x]
+    | $x :: $rs -> if pred x then x :: takeWhileBy pred rs else [x]
 
 taileUntil pred xs :=
   match xs as list something with
     | [] -> []
-    | $x :: $rs -> if not (pred x) then x :: (takeUntil pred rs) else []
+    | $x :: $rs -> if not (pred x) then x :: takeUntil pred rs else []
 
 takeUntilBy pred xs :=
   match xs as list something with
     | [] -> []
-    | $x :: $rs -> if not (pred x) then x :: (takeUntilBy pred rs) else [x]
+    | $x :: $rs -> if not (pred x) then x :: takeUntilBy pred rs else [x]
 
 dropWhile pred xs :=
   match xs as list something with
@@ -130,21 +130,20 @@ length xs := foldl 2#(%1 + 1) 0 xs
 map fn xs :=
   match xs as list something with
     | [] -> []
-    | $x :: $rs -> (fn x) :: (map fn rs)
+    | $x :: $rs -> fn x :: map fn rs
 
 map2 fn xs ys :=
   match (xs, ys) as (list something, list something) with
     | ([], _) -> []
     | (_, []) -> []
-    | ($x :: $xs2, $y :: $ys2) -> (fn x y) :: (map2 fn xs2 ys2)
+    | ($x :: $xs2, $y :: $ys2) -> fn x y :: map2 fn xs2 ys2
 
 map3 fn xs ys zs :=
   match (xs, ys, zs) as (list something, list something, list something) with
     | ([], _, _) -> []
     | (_, [], _) -> []
     | (_, _, []) -> []
-    | ($x :: $xs2, $y :: $ys2, $z :: $zs2) ->
-      (fn x y z) :: (map3 fn xs2 ys2 zs2)
+    | ($x :: $xs2, $y :: $ys2, $z :: $zs2) -> fn x y z :: map3 fn xs2 ys2 zs2
 
 map4 fn xs ys zs ws :=
   match (xs, ys, zs, ws) as ( list something
@@ -156,7 +155,7 @@ map4 fn xs ys zs ws :=
     | (_, _, [], _) -> []
     | (_, _, _, []) -> []
     | ($x :: $xs2, $y :: $ys2, $z :: $zs2, $w :: $ws2) ->
-      (fn x y z w) :: (map4 fn xs2 ys2 zs2 ws2)
+      fn x y z w :: map4 fn xs2 ys2 zs2 ws2
 
 filter pred xs := foldr (\%y %ys -> if pred y then y :: ys else ys) [] xs
 
@@ -197,7 +196,7 @@ iterate fn %x :=
       nx3 := fn nx2
       nx4 := fn nx3
       nx5 := fn nx4
-   in x :: nx1 :: nx2 :: nx3 :: nx4 :: (iterate fn nx5)
+   in x :: nx1 :: nx2 :: nx3 :: nx4 :: iterate fn nx5
 
 repeatedSquaring fn %x n :=
   match n as integer with
@@ -216,7 +215,7 @@ concat xss := foldr (\%xs %rs -> xs ++ rs) [] xss
 reverse xs :=
   match xs as list something with
     | [] -> []
-    | snoc $x $rs -> x :: (reverse rs)
+    | snoc $x $rs -> x :: reverse rs
 
 intersperse in ws :=
   match ws as list something with
@@ -227,12 +226,12 @@ intercalate := compose intersperse concat
 
 split in ls :=
   match ls as list something with
-    | $xs ++ #in ++ $rs -> xs :: (split in rs)
+    | $xs ++ #in ++ $rs -> xs :: split in rs
     | _ -> [ls]
 
 split/m a in ls :=
   match ls as list a with
-    | $xs ++ #in ++ $rs -> xs :: (split/m a in rs)
+    | $xs ++ #in ++ $rs -> xs :: split/m a in rs
     | _ -> [ls]
 
 findCycle xs :=
@@ -240,9 +239,9 @@ findCycle xs :=
     (matchAll xs as list something with
       | $ys ++ (_ :: _ & $cs) ++ #cs ++ _ -> (ys, cs))
 
-repeat %xs := xs ++ (repeat xs)
+repeat %xs := xs ++ repeat xs
 
-repeat1 %x := x :: (repeat1 x)
+repeat1 %x := x :: repeat1 x
 
 all pred xs :=
   match xs as list something with
@@ -255,14 +254,14 @@ any pred xs :=
     | $x :: $rs -> if pred x then True else any pred rs
 
 from s :=
-  s :: s + 1 :: s + 2 :: s + 3 :: s + 4 :: s + 5 :: s + 6 :: s + 7 :: s + 8 :: s + 9 :: s + 10 :: (from
-                                                                                                     (s + 11))
+  s :: s + 1 :: s + 2 :: s + 3 :: s + 4 :: s + 5 :: s + 6 :: s + 7 :: s + 8 :: s + 9 :: s + 10 :: from
+                                                                                                    (s + 11)
 
 between s e :=
-  if s = e then [s] else if s < e then s :: (between (s + 1) e) else []
+  if s = e then [s] else if s < e then s :: between (s + 1) e else []
 
 L./ xs ys :=
-  if (length xs) < (length ys)
+  if length xs < length ys
     then ([], xs)
     else match (ys, xs) as (list mathExpr, list mathExpr) with
       | 

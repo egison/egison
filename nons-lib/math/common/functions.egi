@@ -4,7 +4,7 @@
 
 abs x := if rational? x then b.abs x else x
 
-neg x := if rational? x then b.neg x else (-1) * x
+neg x := if rational? x then b.neg x else - x
 
 exp x :=
   if float? x
@@ -14,8 +14,8 @@ exp x :=
         | #0 -> 1
         | #1 -> e
         | mult $a #(i * pi) -> (-1) ^ a
-        | _ -> REPLACEME x
-      else REPLACEME x
+        | _ -> `exp x
+      else `exp x
 
 log x :=
   if float? x
@@ -23,16 +23,16 @@ log x :=
     else match x as mathExpr with
       | #1 -> 0
       | #e -> 1
-      | _ -> REPLACEME x
+      | _ -> `log x
 
 cos x :=
   if float? x
     then b.cos x
     else match x as mathExpr with
       | #0 -> 1
-      | term $n #π :: [] -> (-1) ^ (abs n)
+      | term $n #π :: [] -> (-1) ^ abs n
       | div mult _ #π #2 -> 0
-      | _ -> REPLACEME x
+      | _ -> `cos x
 
 sin x :=
   if float? x
@@ -40,43 +40,43 @@ sin x :=
     else match x as mathExpr with
       | #0 -> 0
       | mult _ #π -> 0
-      | div mult $n #π #2 -> (-1) ^ (((abs n) - 1) / 2)
-      | _ -> REPLACEME x
+      | div mult $n #π #2 -> (-1) ^ ((abs n - 1) / 2)
+      | _ -> `sin x
 
 tan x :=
   if float? x
     then b.tan x
     else match x as mathExpr with
       | #0 -> 0
-      | _ -> REPLACEME x
+      | _ -> `tan x
 
 cosh x :=
   if float? x
     then b.cosh x
     else match x as mathExpr with
       | #0 -> 1
-      | _ -> REPLACEME x
+      | _ -> `cosh x
 
 sinh x :=
   if float? x
     then b.sinh x
     else match x as mathExpr with
       | #0 -> 0
-      | _ -> REPLACEME x
+      | _ -> `sinh x
 
 tanh x :=
   if float? x
     then b.tanh x
     else match x as mathExpr with
       | #0 -> 0
-      | _ -> REPLACEME x
+      | _ -> `tanh x
 
 sinc x :=
   if float? x
-    then if x = 0.0 then 1.0 else (b.sin x) / x
+    then if x = 0.0 then 1.0 else b.sin x / x
     else match x as mathExpr with
       | #0 -> 1
-      | _ -> (sin x) / x
+      | _ -> sin x / x
 
-sigmoid z := 1 / (1 + (exp ((-1) * z)))
+sigmoid z := 1 / (1 + exp (- z))
 

@@ -25,10 +25,9 @@ b.min x y := if x < y then x else y
 
 b.max x y := if x > y then x else y
 
-min/fn f xs := foldl 2#(if (f %1 %2) = Less then %1 else %2) (car xs) (cdr xs)
+min/fn f xs := foldl 2#(if f %1 %2 = Less then %1 else %2) (car xs) (cdr xs)
 
-max/fn f xs :=
-  foldl 2#(if (f %1 %2) = Greater then %1 else %2) (car xs) (cdr xs)
+max/fn f xs := foldl 2#(if f %1 %2 = Greater then %1 else %2) (car xs) (cdr xs)
 
 min xs := foldl b.min (car xs) (cdr xs)
 
@@ -56,7 +55,7 @@ sort/fn f xs :=
       let n := length xs
           p := nth (quotient n 2) xs
           (ys1, ys2, ys3) := splitByOrdering/fn f p xs
-       in (sort/fn f ys1) ++ ys2 ++ (sort/fn f ys3)
+       in sort/fn f ys1 ++ ys2 ++ sort/fn f ys3
 
 sortStrings xs :=
   sort/fn 2#(compareC (map ctoi (unpack %1)) (map ctoi (unpack %2))) xs
@@ -65,21 +64,18 @@ merge xs ys :=
   match (xs, ys) as (list something, list something) with
     | ([], _) -> ys
     | (_, []) -> xs
-    | ($x :: $txs, ?1#(%1 >= x) :: _) -> x :: (merge txs ys)
-    | (_, $y :: $tys) -> y :: (merge xs tys)
+    | ($x :: $txs, ?1#(%1 >= x) :: _) -> x :: merge txs ys
+    | (_, $y :: $tys) -> y :: merge xs tys
 
 merge/fn f xs ys :=
   match (xs, ys) as (list something, list something) with
     | ([], _) -> ys
     | (_, []) -> xs
-    | ($x :: $txs, ?1#((f %1 x) = Greater) :: _) -> x :: (merge txs ys)
-    | (_, $y :: $tys) -> y :: (merge xs tys)
+    | ($x :: $txs, ?1#(f %1 x = Greater) :: _) -> x :: merge txs ys
+    | (_, $y :: $tys) -> y :: merge xs tys
 
 minimize f xs :=
-  foldl 2#(if (compare (f %1) (f %2)) = Less then %1 else %2) (car xs) (cdr xs)
+  foldl 2#(if compare (f %1) (f %2) = Less then %1 else %2) (car xs) (cdr xs)
 
 maximize f xs :=
-  foldl
-    2#(if (compare (f %1) (f %2)) = Greater then %1 else %2)
-    (car xs)
-    (cdr xs)
+  foldl 2#(if compare (f %1) (f %2) = Greater then %1 else %2) (car xs) (cdr xs)

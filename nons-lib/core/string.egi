@@ -62,12 +62,12 @@ S.replace before after str := S.intercalate after (S.split before str)
 
 C.between c1 c2 := map itoc (between (ctoi c1) (ctoi c2))
 
-C.between? c1 c2 c := (ctoi c) >= (ctoi c1) && (ctoi c) <= (ctoi c2)
+C.between? c1 c2 c := ctoi c >= ctoi c1 && ctoi c <= ctoi c2
 
-alphabet? c := (C.between? 'a' 'z' c) || (C.between? 'A' 'Z' c)
+alphabet? c := C.between? 'a' 'z' c || C.between? 'A' 'Z' c
 
 alphabets? s := all alphabet? (unpack s)
 
-upperCase c := if C.between? 'a' 'z' c then itoc ((ctoi c) - 32) else c
+upperCase c := if C.between? 'a' 'z' c then itoc (ctoi c - 32) else c
 
-lowerCase c := if C.between? 'A' 'Z' c then itoc ((ctoi c) + 32) else c
+lowerCase c := if C.between? 'A' 'Z' c then itoc (ctoi c + 32) else c

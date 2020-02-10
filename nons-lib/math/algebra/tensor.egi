@@ -6,6 +6,6 @@ tensorOrder %A := length (tensorShape A)
 
 unitTensor ns := generateTensor kroneckerDelta ns
 
-scalarToTensor x ns := x * (unitTensor ns)
+scalarToTensor x ns := x * unitTensor ns
 
 zeroTensor ns 

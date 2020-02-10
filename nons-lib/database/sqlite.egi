@@ -15,17 +15,17 @@ tableName data :=
     | database-table _ $n -> n
 
 simpleSelect whats table-name wheres :=
-  "select " ++ (intercalate
-                  ","
-                  whats) ++ " from " ++ tableName ++ " " ++ (simpleWhere wheres)
+  "select " ++ intercalate
+                 ","
+                 whats ++ " from " ++ tableName ++ " " ++ simpleWhere wheres
 
 simpleWhere wheres :=
   let loopFn wheres :=
         match wheres as list (string, something) with
           | [] -> ""
-          | ($key, $val) :: $rs -> (key ++ " = " ++ val) :: (loopFn rs)
+          | ($key, $val) :: $rs -> (key ++ " = " ++ val) :: loopFn rs
    in match loopFn wheres as list string with
         | [] -> ""
-        | $wc :: $wcs -> "where " ++ (intercalate " and " (wc :: wcs))
+        | $wc :: $wcs -> "where " ++ intercalate " and " (wc :: wcs)
 
 pureSqlite db q := io sqlite db q
