@@ -207,8 +207,8 @@ instance Pretty EgisonPattern where
   pretty ContPat = pretty "..."
   pretty (PApplyPat fn ps) = nest 2 (hsep (pretty' fn : map pretty ps))
   pretty (VarPat x) = pretty ('~' : x)
-  -- pretty SeqNilPat = undefined
-  -- pretty (SeqConsPat p1 p2) = undefined
+  pretty SeqNilPat = pretty "{}"
+  pretty (SeqConsPat p1 p2) = pretty "{" <+> pretty p1 <+> pretty ", " <+> pretty p2 <+> pretty "}" -- Maybe we can improve this line.
   pretty LaterPatVar = pretty "@"
   pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   pretty (NotPat pat)    = pretty "!" <> pretty' pat
