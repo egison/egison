@@ -5,16 +5,24 @@
 dfNormalize %X :=
   let p := dfOrder X
       (es, os) := evenAndOddPermutations p
-   in REPLACEME
+   in withSymbols [i] (sum
+                         (map
+                            (\σ -> subrefs X (map 1#i_(σ %1) (between 1 p)))
+                            es) - sum
+                                    (map
+                                       (\σ -> subrefs X (map
+                                                           1#i_(σ %1)
+                                                           (between 1 p)))
+                                       os)) / fact p
 
 wedge %X %Y := REPLACEME
 
 Lie.wedge %X %Y := REPLACEME - REPLACEME
 
-ι %X %Y := REPLACEME
+ι %X %Y := withSymbols [i] dfOrder Y * (X...~i . dfNormalize Y..._i)
 
 Lie %X %Y :=
   match dfOrder Y as integer with
     | #0 -> ι X (d Y)
     | #N -> d (ι X Y)
-    | _ -> (ι X (d Y)) + (d (ι X Y))
+    | _ -> ι X (d Y) + d (ι X Y)

@@ -23,18 +23,16 @@ rt n x :=
     else rt'' n x
 
 rtMonomial n x :=
-  (rtTerm n ((numerator x) * (denominator x) ^ (n - 1))) / (denominator x)
+  rtTerm n (numerator x * denominator x ^ (n - 1)) / denominator x
 
 rtTerm n x :=
   match x as termExpr with
     | term $a _ ->
-      if a < 0
-        then *' (rtm1 n) (rtPositiveTerm n ((-1) * x))
-        else rtPositiveTerm n x
+      if a < 0 then *' (rtm1 n) (rtPositiveTerm n (- x)) else rtPositiveTerm n x
 
 rtPositiveTerm n x :=
   match (n, x) as (mathExpr, mathExpr) with
-    | (#3, REPLACEME) -> (-1) * i * (rt 3 (*' a r))
+    | (#3, REPLACEME) -> (- i) * rt 3 (*' a r)
     | (_, REPLACEME) -> *' (rt (n * 2) (*' (**' a 2) b)) (rt n r)
     | (_, REPLACEME) -> *' (rt (n * n') (*' (**' a n') b)) (rt n r)
     | (_, _) -> rtPositiveTerm1 n x
@@ -49,18 +47,18 @@ rtPositiveTerm1 n x :=
       g n x :=
         let d := match x as termExpr with
                    | term $m $xs ->
-                     gcd n (reduce gcd (map 2#%2 ((toAssoc (pF m)) ++ xs)))
+                     gcd n (reduce gcd (map 2#%2 (toAssoc (pF m) ++ xs)))
          in rt'' (n / d) (rt d x)
    in match x as termExpr with
         | term $m $xs ->
-          match f ((toAssoc (pF (abs m))) ++ xs) as (integer, integer) with
+          match f (toAssoc (pF (abs m)) ++ xs) as (integer, integer) with
             | ($a, #1) -> a
             | ($a, $b) -> *' a (g n b)
 
 rt'' n x :=
   match (n, x) as (integer, integer) with
-    | (#2, _) -> REPLACEME x
-    | (_, _) -> REPLACEME n x
+    | (#2, _) -> `sqrt x
+    | (_, _) -> `rt n x
 
 rtm1 n :=
   match n as integer with
@@ -73,7 +71,7 @@ sqrt x :=
   if scalar? x
     then let m := numerator x
              n := denominator x
-          in (rt 2 (m * n)) / n
+          in rt 2 (m * n) / n
     else b.sqrt x
 
 rtOfUnity := rtu
@@ -87,5 +85,5 @@ rtu' n :=
       | #2 -> -1
       | #3 -> w
       | #4 -> i
-      | _ -> REPLACEME n
-    else REPLACEME n
+      | _ -> `rtu n
+    else `rtu n

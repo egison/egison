@@ -120,7 +120,7 @@ apply? mexpr :=
     | apply _ _ -> True
     | _ -> False
 
-simpleTerm? := 1#((symbol? %1) || (apply? %1))
+simpleTerm? := 1#(symbol? %1 || apply? %1)
 
 term? mexpr :=
   match mexpr as mathExpr with
@@ -149,10 +149,7 @@ fromMonomial mexpr :=
   match mexpr as mathExpr with
     | div term $a $xs term $b $ys ->
       ( a / b
-      , (foldl *' 1 (map 2#(**' %1 %2) xs)) / (foldl
-                                                 *'
-                                                 1
-                                                 (map 2#(**' %1 %2) ys)) )
+      , foldl *' 1 (map 2#(**' %1 %2) xs) / foldl *' 1 (map 2#(**' %1 %2) ys) )
 
 mapPolys fn mexpr :=
   match mexpr as mathExpr with
