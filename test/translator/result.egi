@@ -194,7 +194,7 @@ assert
 assertEqual
   "not pattern"
   (matchAll [1, 2, 2, 3, 3, 3] as multiset integer with
-    | $n :: (!#n :: _) -> n)
+    | $n :: (!(#n :: _)) -> n)
   [1]
 
 assert
@@ -335,9 +335,9 @@ treeInsert n t :=
     | leaf -> Node Leaf n Leaf
     | node $t1 $m $t2 ->
       match compare n m as ordering with
-        | less -> Node treeInsert n t1 m t2
+        | less -> Node (treeInsert n t1) m t2
         | equal -> Node t1 n t2
-        | greater -> Node t1 m treeInsert n t2
+        | greater -> Node t1 m (treeInsert n t2)
 
 treeMember? n t :=
   match t as tree integer with
