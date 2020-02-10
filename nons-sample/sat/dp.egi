@@ -22,17 +22,18 @@ resolveOn v cnf :=
 
 dp vars cnf :=
   match (vars, cnf) as (multiset integer, multiset (multiset integer)) with
-    | (_, []) -> True
-    | (_, [] :: _) -> False
-    | (_, ($l :: []) :: _) -> dp (delete (abs l) vars) (assignTrue l cnf)
-    | ($v :: $vs, !((#(neg v) :: _) :: _)) -> dp vs (assignTrue v cnf)
-    | ($v :: $vs, !((#v :: _) :: _)) -> dp vs (assignTrue (neg v) cnf)
-    | ($v :: $vs, _) ->
-      dp
-        vs
-        ((resolveOn v cnf) ++ (deleteClausesWith
-                                 v
-                                 (deleteClausesWith (neg v) cnf)))
+  | (_, []) -> True
+  | (_, [] :: _) -> False
+  -- 1-literal rule
+  | (_, ($l :: []) :: _) -> dp (delete (abs l) vars) (assignTrue l cnf)
+  -- pure literal rule (positive)
+  | ($v :: $vs, !((#(neg v) :: _) :: _)) -> dp vs (assignTrue v cnf)
+  -- pure literal rule (negative)
+  | ($v :: $vs, !((#v :: _) :: _)) -> dp vs (assignTrue (neg v) cnf)
+  -- otherwise
+  | ($v :: $vs, _) ->
+    dp vs
+       ((resolveOn v cnf) ++ (deleteClausesWith v (deleteClausesWith (neg v) cnf)))
 
 dp [1] [[1]]
 dp [1] [[1], [-1]]
