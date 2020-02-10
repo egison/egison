@@ -208,7 +208,11 @@ instance Pretty EgisonPattern where
   pretty (PApplyPat fn ps) = nest 2 (hsep (pretty' fn : map pretty ps))
   pretty (VarPat x) = pretty ('~' : x)
   pretty SeqNilPat = pretty "{}"
-  pretty (SeqConsPat p1 p2) = pretty "{" <+> pretty p1 <+> pretty ", " <+> pretty p2 <+> pretty "}" -- Maybe we can improve this line.
+  pretty (SeqConsPat p1 p2) = listoid "{" "}" (f p1 p2)
+    where
+      f p1 SeqNilPat = [pretty p1]
+      f p1 (SeqConsPat p2 p3) = pretty p1 : f p2 p3
+      f _ _ = error "Unexpected sequence pattern"
   pretty LaterPatVar = pretty "@"
   pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   pretty (NotPat pat)    = pretty "!" <> pretty' pat
@@ -269,7 +273,6 @@ instance Complex EgisonPattern where
   isAtom (LetPat _ _)        = False
   isAtom (InductivePat _ []) = True
   isAtom (InductivePat _ _)  = False
-  isAtom (NotPat _)          = False
   isAtom (InfixPat _ _ _)    = False
   isAtom (LoopPat _ _ _ _)   = False
   isAtom _                   = True

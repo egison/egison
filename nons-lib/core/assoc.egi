@@ -7,7 +7,7 @@ toAssoc xs :=
     | [] -> []
     | $x :: (loop $i (2, from (' 2 1), $n)
                (#x :: ...)
-               ((!(#x :: _)) & $rs)) -> (x, n) :: (toAssoc rs)
+               (!(#x :: _) & $rs)) -> (x, n) :: (toAssoc rs)
 
 fromAssoc xs :=
   match xs as list (something, integer) with
