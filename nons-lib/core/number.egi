@@ -27,7 +27,7 @@ odds := 1 :: map 1#(%1 + 2) odds
 
 evens := 2 :: map 1#(%1 + 2) evens
 
-fibs := 1 :: 1 :: map2 + fibs (cdr fibs)
+fibs := 1 :: 1 :: map2 (+) fibs (cdr fibs)
 
 prime? :=
   \match as integer with
@@ -54,9 +54,9 @@ even? n := 0 = modulo n 2
 
 odd? n := 1 = modulo n 2
 
-fact n := foldl * 1 (between 1 n)
+fact n := foldl (*) 1 (between 1 n)
 
-perm n r := foldl * 1 (between (n - (r - 1)) n)
+perm n r := foldl (*) 1 (between (n - (r - 1)) n)
 
 comb n r := perm n r / fact r
 

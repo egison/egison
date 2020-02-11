@@ -26,6 +26,10 @@ instance SyntaxElement EgisonTopExpr where
 
 instance SyntaxElement EgisonExpr where
   toNonS (IntegerExpr x) = IntegerExpr x
+  toNonS (VarExpr v) | any (\op -> func op == prettyS v) reservedExprInfix =
+    SectionExpr op Nothing Nothing
+      where
+        op = fromJust $ find (\op -> func op == prettyS v) reservedExprInfix
   toNonS (VarExpr x) = VarExpr (toNonS x)
 
   toNonS (IndexedExpr b x ys)  = IndexedExpr  b (toNonS x) (map toNonS ys)
@@ -56,7 +60,7 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (LambdaExpr xs y)          = LambdaExpr xs (toNonS y)
   toNonS (MemoizedLambdaExpr xs y)  = MemoizedLambdaExpr xs (toNonS y)
-  toNonS (CambdaExpr _ _)           = error "Not supported"
+  toNonS (CambdaExpr _ _)           = error "Not supported: cambda"
   toNonS (ProcedureExpr xs y)       = ProcedureExpr xs (toNonS y)
   toNonS (PatternFunctionExpr args p) = PatternFunctionExpr args (toNonS p)
 
@@ -146,7 +150,7 @@ instance SyntaxElement a => SyntaxElement (Index a) where
 
 instance SyntaxElement InnerExpr where
   toNonS (ElementExpr x) = ElementExpr (toNonS x)
-  toNonS (SubCollectionExpr _) = error "Not supported"
+  toNonS (SubCollectionExpr _) = error "Not supported: SubCollectionExpr"
 
 instance SyntaxElement BindingExpr where
   toNonS (vars, x) = (map toNonS vars, toNonS x)
@@ -161,9 +165,11 @@ instance SyntaxElement Var where
   toNonS (Var xs ys) = Var (map toCamelCase xs) ys
     where
       toCamelCase :: String -> String
+      toCamelCase "-" = "-"
       toCamelCase x =
         let heads:tails = splitOn "-" x
-         in concat $ heads : map (\ (x:xs) -> toUpper x : xs) tails
+         in concat $ heads : map (\(x:xs) -> toUpper x : xs) tails
+
 
 main :: IO ()
 main = do
