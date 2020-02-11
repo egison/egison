@@ -370,17 +370,17 @@ assertEqual "recursive pattern function call"
    | repeat #1 -> "OK")
   ["OK"]
 
---assertEqual "loop pattern in pattern function"
---  (let comb n := \p =>
---     loop $i (1, n, _) (_ ++ ~p_i :: ...) _
---    in
---    matchAll [1, 2, 3, 4, 5] as (list integer) with
---    | (comb 2) $n -> n)
---  [{|(1, 1), (2, 2)|}, {|(1, 1), (2, 3)|},
---   {|(1, 2), (2, 3)|}, {|(1, 1), (2, 4)|},
---   {|(1, 2), (2, 4)|}, {|(1, 3), (2, 4)|},
---   {|(1, 1), (2, 5)|}, {|(1, 2), (2, 5)|},
---   {|(1, 3), (2, 5)|}, {|(1, 4), (2, 5)|}]
+assertEqual "loop pattern in pattern function"
+  (let comb n := \p =>
+     loop $i (1, n, _) (_ ++ ~p_i :: ...) _
+    in
+    matchAll [1, 2, 3, 4, 5] as (list integer) with
+    | (comb 2) $n -> n)
+  [{|(1, 1), (2, 2)|}, {|(1, 1), (2, 3)|},
+   {|(1, 2), (2, 3)|}, {|(1, 1), (2, 4)|},
+   {|(1, 2), (2, 4)|}, {|(1, 3), (2, 4)|},
+   {|(1, 1), (2, 5)|}, {|(1, 2), (2, 5)|},
+   {|(1, 3), (2, 5)|}, {|(1, 4), (2, 5)|}]
 
 assertEqual "pairs of 2, natural numbers"
   (take 10 (matchAll nats as set integer with
