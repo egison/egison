@@ -342,7 +342,7 @@ prettyDoBinds (vs, expr) = pretty (vs, expr)
 
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
-  pretty "as" <+> group (pretty matcher) <+> pretty "with" <> hardline <>
+  pretty "as" <> group (flatAlt (hardline <> pretty matcher) (space <> pretty matcher) <+> pretty "with") <> hardline <>
     align (vsep (map pretty clauses))
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
