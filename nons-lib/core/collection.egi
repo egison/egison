@@ -264,4 +264,195 @@ L./ xs ys :=
   if length xs < length ys
     then ([], xs)
     else match (ys, xs) as (list mathExpr, list mathExpr) with
-      | 
+      | ($y :: $yrs, $x :: $xrs) ->
+        let (zs, rs) := L./
+                          (map2
+                             (-)
+                             (take (length yrs) xrs)
+                             (map 1#(%1 * (x / y)) yrs) ++ drop
+                                                             (length yrs)
+                                                             xrs)
+                          ys
+         in (x / y :: zs, rs)
+
+multiset a :=
+  matcher
+    | nil as () with
+      | [] -> [()]
+      | _ -> []
+    | cons $ _ as (a) with
+      | $tgt -> tgt
+    | cons $ $ as (a, multiset a) with
+      | $tgt -> matchAll tgt as list a with
+        | $hs ++ $x :: $ts -> (x, hs ++ ts)
+    | join #pxs $ as (multiset a) with
+      | $tgt -> match (pxs, tgt) as (list a, multiset a) with
+        | loop $i (1, length pxs, _)
+            {($x_i :: @, #x_i :: @), ...}
+            ([], $rs) -> [rs]
+        | _ -> []
+    | join $ $ as (multiset a, multiset a) with
+      | $tgt -> matchAll tgt as list a with
+        | loop $i (1, from (' 1 1), $n)
+            ($rs_i ++ $x_i :: ...)
+            $ts ->
+          ( map (\i -> x_i) (between 1 n)
+          , concat (map (\i -> rs_i) (between 1 n) ++ [ts]) )
+    | #val as () with
+      | $tgt -> match (val, tgt) as (list a, multiset a) with
+        | ([], []) -> [()]
+        | ($x :: $xs, #x :: #xs) -> [()]
+        | (_, _) -> []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+add x xs := if member? x xs then xs else xs ++ [x]
+
+add/m a x xs := if member?/m a x xs then xs else xs ++ [x]
+
+deleteFirst %x xs :=
+  match xs as list something with
+    | [] -> []
+    | #x :: $rs -> rs
+    | $y :: $rs -> y :: deleteFirst x rs
+
+deleteFirst/m a %x xs :=
+  match xs as list a with
+    | [] -> []
+    | #x :: $rs -> rs
+    | $y :: $rs -> y :: deleteFirst/m a x rs
+
+delete x xs :=
+  match xs as list something with
+    | [] -> []
+    | $hs ++ #x :: $ts -> hs ++ delete x ts
+    | _ -> xs
+
+delete/m a x xs :=
+  match xs as list a with
+    | [] -> []
+    | $hs ++ #x :: $ts -> hs ++ delete/m a x ts
+    | _ -> xs
+
+difference xs ys :=
+  match ys as list something with
+    | [] -> xs
+    | $y :: $rs -> difference (deleteFirst y xs) rs
+
+difference/m a xs ys :=
+  match ys as list a with
+    | [] -> xs
+    | $y :: $rs -> difference/m a (deleteFirst/m a y xs) rs
+
+include? xs ys :=
+  match ys as list something with
+    | [] -> True
+    | $y :: $rs ->
+      if member? y xs then include? (deleteFirst y xs) rs else False
+
+include?/m a xs ys :=
+  match ys as list a with
+    | [] -> True
+    | $y :: $rs ->
+      if member?/m a y xs then include?/m a (deleteFirst y xs) rs else False
+
+union xs ys :=
+  xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
+    | ($y :: _, !(#y :: _)) -> y)
+
+union/m a xs ys :=
+  xs ++ (matchAll (ys, xs) as (multiset a, multiset a) with
+    | ($y :: _, !(#y :: _)) -> y)
+
+intersect xs ys :=
+  matchAll (xs, ys) as (multiset something, multiset something) with
+    | ($x :: _, #x :: _) -> x
+
+intersect/m a xs ys :=
+  matchAll (xs, ys) as (multiset a, multiset a) with
+    | ($x :: _, #x :: _) -> x
+
+member? x ys :=
+  match ys as list something with
+    | _ ++ #x :: _ -> True
+    | _ -> False
+
+member?/m a x ys :=
+  match ys as list a with
+    | _ ++ #x :: _ -> True
+    | _ -> False
+
+count x xs :=
+  foldl
+    (\match as (something, something) with
+      | ($r, #x) -> r + 1
+      | ($r, $y) -> r)
+    0
+    xs
+
+count/m a x xs :=
+  foldl
+    (\match as (a, a) with
+      | ($r, #x) -> r + 1
+      | ($r, $y) -> r)
+    0
+    xs
+
+frequency xs :=
+  let us := unique xs
+   in map (\u -> (u, count u xs)) us
+
+frequency/m a xs :=
+  let us := unique/m a xs
+   in map (\u -> (u, count/m a u xs)) us
+
+elemIndices x xs :=
+  matchAll xs as list something with
+    | $hs ++ #x :: _ -> 1 + length hs
+
+set a :=
+  matcher
+    | nil as () with
+      | [] -> [()]
+      | _ -> []
+    | cons $ $ as (a, set a) with
+      | $tgt -> matchAll tgt as list a with
+        | _ ++ $x :: _ -> (x, tgt)
+    | join #pxs $ as (set a) with
+      | $tgt -> match (pxs, tgt) as (list a, set a) with
+        | ( loop $i (1, from (' 1 1), $n)
+              ($x_i :: ...)
+              []
+          , loop $i (1, n, _)
+              (#x_i :: ...)
+              _ ) -> [tgt]
+        | _ -> []
+    | join $ $ as (set a, set a) with
+      | $tgt -> matchAll tgt as list a with
+        | loop $i (1, from (' 1 1), $n)
+            ($rs_i ++ $x_i :: ...)
+            $ts -> (map (\i -> x_i) (between 1 n), tgt)
+    | #val as () with
+      | $tgt -> match (unique val, unique tgt) as (list a, multiset a) with
+        | ([], []) -> [()]
+        | ($x :: $xs, #x :: #xs) -> [()]
+        | (_, _) -> []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+fastUnique xs :=
+  matchAll sort xs as list something with
+    | _ ++ $x :: !(#x :: _) -> x
+
+unique xs :=
+  reverse
+    (matchAll reverse xs as list something with
+      | _ ++ $x :: !(_ ++ #x :: _) -> x)
+
+unique/m a xs :=
+  let loopFn xs ys :=
+        match (xs, ys) as (list a, multiset a) with
+          | ([], _) -> ys
+          | ($x :: $rs, #x :: _) -> loopFn rs ys
+          | ($x :: $rs, _) -> loopFn rs (ys ++ [x])
+   in loopFn xs []

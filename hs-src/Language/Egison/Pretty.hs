@@ -233,7 +233,7 @@ instance Pretty EgisonPattern where
     where
       f p1 SeqNilPat = [pretty p1]
       f p1 (SeqConsPat p2 p3) = pretty p1 : f p2 p3
-      f _ _ = error "Unexpected sequence pattern"
+      f p1 p2 = [pretty p1, pretty p2]
   pretty LaterPatVar = pretty "@"
   pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   pretty (NotPat pat)    = pretty "!" <> pretty' pat
