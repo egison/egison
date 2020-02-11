@@ -125,7 +125,6 @@ instance Pretty EgisonExpr where
   pretty (UnaryOpExpr op x)
     | isAtomOrApp x = pretty op <+> pretty x
     | otherwise     = pretty op <+> parens (pretty x)
-  -- TODO(momohatt): Treat application as infix?
   -- (x1 op' x2) op y
   pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
@@ -226,7 +225,7 @@ instance Pretty EgisonPattern where
       flatAlt (hardline <> group (pretty' p1) <> hardline <> group (pretty' p2))
               (space <> pretty' p1 <+> pretty' p2))
   pretty ContPat = pretty "..."
-  pretty (PApplyPat fn ps) = nest 2 (hsep (pretty' fn : map pretty ps))
+  pretty (PApplyPat fn ps) = hang 2 (hsep (pretty' fn : map pretty' ps))
   pretty (VarPat x) = pretty ('~' : x)
   pretty SeqNilPat = pretty "{}"
   pretty (SeqConsPat p1 p2) = listoid "{" "}" (f p1 p2)
