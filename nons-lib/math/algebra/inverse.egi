@@ -30,7 +30,7 @@ inverse t f x :=
         | _ -> `inverse t f x
     | ?polynomial? ->
       match coefficients x f as list mathExpr with
-        | $c :: (loop $i (1, from (' 1 1), $n)
+        | $c :: (loop $i (1, $n)
                    (#0 :: ...)
                    ($a :: [])) -> inverse ((t - c) / a) (x ^ (n + 1)) x
         | _ -> `inverse t f x
