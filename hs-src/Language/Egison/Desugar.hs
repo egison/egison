@@ -381,6 +381,7 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (AndPat patterns) = collectNames patterns
    collectName (OrPat patterns)  = collectNames patterns
    collectName (TuplePat patterns) = collectNames patterns
+   collectName (InductiveOrPApplyPat _ patterns) = collectNames patterns
    collectName (InductivePat _ patterns) = collectNames patterns
    collectName (PApplyPat _ patterns) = collectNames patterns
    collectName (DApplyPat _ patterns) = collectNames patterns
@@ -407,6 +408,7 @@ desugarPattern' (InfixPat Infix{ func = f } pattern1 pattern2)   = InductivePat 
 desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
 desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
 desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
+desugarPattern' (InductiveOrPApplyPat name patterns) = InductiveOrPApplyPat name <$> mapM desugarPattern' patterns
 desugarPattern' (InductivePat name patterns) = InductivePat name <$> mapM desugarPattern' patterns
 desugarPattern' (IndexedPat pattern exprs) = IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs
 desugarPattern' (PApplyPat expr patterns) = PApplyPat <$> desugar expr <*> mapM desugarPattern' patterns

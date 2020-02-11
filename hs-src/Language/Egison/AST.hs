@@ -191,6 +191,7 @@ data EgisonPattern =
   | ContPat
   | PApplyPat EgisonExpr [EgisonPattern]
   | VarPat String
+  | InductiveOrPApplyPat String [EgisonPattern]
   | SeqNilPat
   | SeqConsPat EgisonPattern EgisonPattern
   | LaterPatVar

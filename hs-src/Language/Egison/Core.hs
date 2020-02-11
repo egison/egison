@@ -1049,6 +1049,11 @@ processMState' mstate@MState{ mTrees = MNode penv state:trees } =
 processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matcher:trees)) =
   let env' = extendEnvForNonLinearPatterns env bindings loops in
   case pattern of
+    InductiveOrPApplyPat name args ->
+      case refVar env (stringToVar name) of
+        Nothing -> processMState' (MState env loops seqs bindings (MAtom (InductivePat name args) target matcher:trees))
+        Just _ -> processMState' (MState env loops seqs bindings (MAtom (PApplyPat (VarExpr (stringToVar name)) args) target matcher:trees))
+
     NotPat _ -> throwError =<< EgisonBug "should not reach here (not pattern)" <$> getFuncNameStack
     VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyS pattern
 

@@ -657,7 +657,7 @@ applyOrAtomPattern = do
   (func, args) <- indentBlock atomPattern atomPattern
   case (func, args) of
     (_,                 []) -> return func
-    (InductivePat x [], _)  -> return $ InductivePat x args
+    (InductivePat x [], _)  -> return $ InductiveOrPApplyPat x args
     _                       -> fail $ "Pattern not understood: " ++ show (func, args)
 
 -- (Possibly indexed) atomic pattern

@@ -358,29 +358,29 @@ assertEqual "tuple pattern"
    | ($x, #x) :: _ -> x)
   [1, 2]
 
--- assertEqual "pattern function call"
---   (let twin := \pat1 pat2 => (~pat1 & $x) :: #x :: ~pat2 in
---    match [1, 1, 1, 2, 3] as list integer with
---    | twin $n $ns -> [n, ns])
---   [1, [1, 2, 3]]
+assertEqual "pattern function call"
+   (let twin := \pat1 pat2 => (~pat1 & $x) :: #x :: ~pat2 in
+    match [1, 1, 1, 2, 3] as list integer with
+    | twin $n $ns -> [n, ns])
+   [1, [1, 2, 3]]
 
--- assertEqual "recursive pattern function call"
---   (let repeat := \pat => [] | (~pat & $x) :: (repeat x) in
---    match [1, 1, 1, 1] as list integer with
---    | repeat $n -> n)
---   1
+assertEqual "recursive pattern function call"
+  (let repeat := \pat => [] | ~pat :: (repeat ~pat) in
+   matchAll [1, 1, 1, 1] as list integer with
+   | repeat #1 -> "OK")
+  ["OK"]
 
--- assertEqual "loop pattern in pattern function"
---   let comb n := \p =>
+--assertEqual "loop pattern in pattern function"
+--  (let comb n := \p =>
 --     loop $i (1, n, _) (_ ++ ~p_i :: ...) _
 --    in
---   matchAll [1, 2, 3, 4, 5] as (list integer) with
---   | (comb 2) $n -> n
---   [{|(1, 1), (2, 2)|}, {|(1, 1), (2, 3)|},
---    {|(1, 2), (2, 3)|}, {|(1, 1), (2, 4)|},
---    {|(1, 2), (2, 4)|}, {|(1, 3), (2, 4)|},
---    {|(1, 1), (2, 5)|}, {|(1, 2), (2, 5)|},
---    {|(1, 3), (2, 5)|}, {|(1, 4), (2, 5)|}]
+--    matchAll [1, 2, 3, 4, 5] as (list integer) with
+--    | (comb 2) $n -> n)
+--  [{|(1, 1), (2, 2)|}, {|(1, 1), (2, 3)|},
+--   {|(1, 2), (2, 3)|}, {|(1, 1), (2, 4)|},
+--   {|(1, 2), (2, 4)|}, {|(1, 3), (2, 4)|},
+--   {|(1, 1), (2, 5)|}, {|(1, 2), (2, 5)|},
+--   {|(1, 3), (2, 5)|}, {|(1, 4), (2, 5)|}]
 
 assertEqual "pairs of 2, natural numbers"
   (take 10 (matchAll nats as set integer with
