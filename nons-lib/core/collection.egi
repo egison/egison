@@ -15,17 +15,17 @@ list a :=
       | _ -> []
     | join _ $ as (list a) with
       | $tgt -> matchAll tgt as list a with
-        | loop $i (1, from (' 1 1), _)
+        | loop $i (1, _)
             (_ :: ...)
             $rs -> rs
     | join $ $ as (list a, list a) with
       | $tgt -> matchAll tgt as list a with
-        | loop $i (1, from (' 1 1), $n)
+        | loop $i (1, $n)
             ($xa_i :: ...)
             $rs -> (foldr (\%i %r -> xa_i :: r) [] (between 1 n), rs)
     | nioj $ $ as (list a, list a) with
       | $tgt -> matchAll tgt as list a with
-        | loop $i (1, from (' 1 1), $n)
+        | loop $i (1, $n)
             (snoc $xa_i ...)
             $rs -> (foldr (\%i %r -> r ++ [xa_i]) [] (between 1 n), rs)
     | #val as () with
@@ -40,12 +40,12 @@ sortedList a :=
       | _ -> []
     | join $ cons #px $ as (sortedList a, sortedList a) with
       | $tgt -> matchAll tgt as list a with
-        | loop $i (1, from (' 1 1), $n)
+        | loop $i (1, $n)
             ((?1#(%1 < px) & $xa_i) :: ...)
             (#px :: $rs) -> (map (\i -> ref xa i) (between 1 n), rs)
     | join $ $ as (sortedList a, sortedList a) with
       | $tgt -> matchAll tgt as list a with
-        | loop $i (1, from (' 1 1), $n)
+        | loop $i (1, $n)
             ($xa_i :: ...)
             $rs -> (map (\i -> ref xa i) (between 1 n), rs)
     | cons $ $ as (a, sortedList a) with
@@ -293,7 +293,7 @@ multiset a :=
         | _ -> []
     | join $ $ as (multiset a, multiset a) with
       | $tgt -> matchAll tgt as list a with
-        | loop $i (1, from (' 1 1), $n)
+        | loop $i (1, $n)
             ($rs_i ++ $x_i :: ...)
             $ts ->
           ( map (\i -> x_i) (between 1 n)
@@ -420,7 +420,7 @@ set a :=
         | _ ++ $x :: _ -> (x, tgt)
     | join #pxs $ as (set a) with
       | $tgt -> match (pxs, tgt) as (list a, set a) with
-        | ( loop $i (1, from (' 1 1), $n)
+        | ( loop $i (1, $n)
               ($x_i :: ...)
               []
           , loop $i (1, n, _)
@@ -429,7 +429,7 @@ set a :=
         | _ -> []
     | join $ $ as (set a, set a) with
       | $tgt -> matchAll tgt as list a with
-        | loop $i (1, from (' 1 1), $n)
+        | loop $i (1, $n)
             ($rs_i ++ $x_i :: ...)
             $ts -> (map (\i -> x_i) (between 1 n), tgt)
     | #val as () with

@@ -241,7 +241,11 @@ instance Pretty EgisonPattern where
   pretty _            = pretty "REPLACEME"
 
 instance Pretty LoopRange where
-  pretty (LoopRange from to pat) = tupled $ [pretty from, pretty to, pretty pat]
+  pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
+                                    (ApplyExpr (VarExpr (Var ["-'"] []))
+                                               (TupleExpr [_, IntegerExpr 1]))) pat) =
+    tupled [pretty from, pretty pat]
+  pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
 instance Pretty PrimitivePatPattern where
   pretty PPWildCard     = pretty "_"

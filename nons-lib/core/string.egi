@@ -22,7 +22,7 @@ string :=
           (S.intercalate pxs xs, S.intercalate pxs ys)
     | join $ $ as (string, string) with
       | $tgt -> matchAll tgt as string with
-        | loop $i (1, from (' 1 1), $n)
+        | loop $i (1, $n)
             ($xa_i :: ...)
             $rs -> (pack (map (\i -> xa_i) (between 1 n)), rs)
     | #val as () with

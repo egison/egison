@@ -165,7 +165,7 @@ instance SyntaxElement Var where
   toNonS (Var xs ys) = Var (map toCamelCase xs) ys
     where
       toCamelCase :: String -> String
-      toCamelCase "-" = "-"
+      toCamelCase x@('-':_) = x
       toCamelCase x =
         let heads:tails = splitOn "-" x
          in concat $ heads : map (\(x:xs) -> toUpper x : xs) tails
