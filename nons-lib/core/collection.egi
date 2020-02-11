@@ -146,10 +146,8 @@ map3 fn xs ys zs :=
     | ($x :: $xs2, $y :: $ys2, $z :: $zs2) -> fn x y z :: map3 fn xs2 ys2 zs2
 
 map4 fn xs ys zs ws :=
-  match (xs, ys, zs, ws) as ( list something
-    , list something
-    , list something
-    , list something ) with
+  match (xs, ys, zs, ws) as
+    (list something, list something, list something, list something) with
     | ([], _, _, _) -> []
     | (_, [], _, _) -> []
     | (_, _, [], _) -> []
