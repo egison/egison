@@ -14,16 +14,16 @@ TSV.readLine sopts copts :=
       in let fnS := \match as (list (list integer), list string) with
                       | ([], $fs) -> fs
                       | ( ($m :: []) :: $opts'
-                      , ($hs & ?(\hs -> m - 1 = length hs)) ++ $ts ) ->
+                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $ts ) ->
                         fnS
                           opts'
                           (hs ++ map (\t -> S.concat ["\"", t, "\""]) ts)
                       | ( ($m :: #m :: []) :: $opts'
-                      , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
+                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
                         fnS opts' (hs ++ S.concat ["\"", mf, "\""] :: ts)
                       | ( ($m :: $n :: []) :: $opts'
-                      , ($hs & ?(\hs -> m - 1 = length hs)) ++ ($ms & ?(\ms ->
-                        n - m + 1 = length ms)) ++ $ts ) ->
+                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ ($ms & ?(\ms ->
+                          n - m + 1 = length ms)) ++ $ts ) ->
                         fnS
                           opts'
                           (hs ++ map (\m -> S.concat ["\"", m, "\""]) ms ++ ts)
@@ -32,21 +32,21 @@ TSV.readLine sopts copts :=
              fnC := \match as (list (list integer), list string) with
                       | ([], $fs) -> fs
                       | ( ($m :: []) :: $opts'
-                      , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: [] ) ->
+                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: [] ) ->
                         fnC opts' (hs ++ [S.concat ["{", mf, "}"]])
                       | ( ($m :: []) :: $opts'
-                      , ($hs & ?(\hs -> m - 1 = length
-                                                  hs)) ++ $mf :: (snoc $tf $ms) ) ->
+                        , ($hs & ?(\hs -> m - 1 = length
+                                                    hs)) ++ $mf :: (snoc $tf $ms) ) ->
                         fnC
                           opts'
                           (hs ++ S.append "{" mf :: ms ++ [S.append tf "}"])
                       | ( ($m :: #m :: []) :: $opts'
-                      , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
+                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
                         fnC opts' (hs ++ S.concat ["{", mf, "}"] :: ts)
                       | ( ($m :: $n :: []) :: $opts'
-                      , ($hs & ?(\hs -> m - 1 = length
-                                                  hs)) ++ $mf :: ($ms & ?(\ms ->
-                        n - m - 1 = length ms)) ++ $nf :: $ts ) ->
+                        , ($hs & ?(\hs -> m - 1 = length
+                                                    hs)) ++ $mf :: ($ms & ?(\ms ->
+                          n - m - 1 = length ms)) ++ $nf :: $ts ) ->
                         fnC
                           opts'
                           (hs ++ S.append "{" mf :: ms ++ S.append nf "}" :: ts)

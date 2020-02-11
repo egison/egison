@@ -190,7 +190,7 @@ instance {-# OVERLAPPING #-} Pretty BindingExpr where
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
-    pipe <+> pretty pat <+> group (pretty "->" <>
+    pipe <+> align (pretty pat) <+> group (pretty "->" <>
       flatAlt (nest 2 (hardline <> pretty expr)) (space <> pretty expr))
 
 instance (Pretty a, Complex a) => Pretty (Index a) where
