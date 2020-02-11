@@ -653,12 +653,15 @@ makePatternTable ops =
       return $ InfixPat op
 
 applyOrAtomPattern :: Parser EgisonPattern
-applyOrAtomPattern = do
-  (func, args) <- indentBlock atomPattern atomPattern
-  case (func, args) of
-    (_,                 []) -> return func
-    (InductivePat x [], _)  -> return $ InductiveOrPApplyPat x args
-    _                       -> fail $ "Pattern not understood: " ++ show (func, args)
+applyOrAtomPattern = (do
+    (func, args) <- indentBlock (try atomPattern) atomPattern
+    case (func, args) of
+      (_,                 []) -> return func
+      (InductivePat x [], _)  -> return $ InductiveOrPApplyPat x args
+      _                       -> fail $ "Pattern not understood: " ++ show (func, args))
+  <|> (do
+    (func, args) <- indentBlock atomExpr atomPattern
+    return $ PApplyPat func args)
 
 -- (Possibly indexed) atomic pattern
 atomPattern :: Parser EgisonPattern
