@@ -3,7 +3,6 @@
 
 {- |
 Module      : Language.Egison.PrettyPrint
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module contains pretty printing for Egison syntax

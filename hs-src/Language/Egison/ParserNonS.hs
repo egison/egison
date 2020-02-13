@@ -3,7 +3,6 @@
 
 {- |
 Module      : Language.Egison.ParserNonS
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module provides the new parser of Egison.

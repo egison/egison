@@ -1,6 +1,5 @@
 {- |
 Module      : Language.Egison.CmdOptions
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module provides command line options of Egison interpreter.

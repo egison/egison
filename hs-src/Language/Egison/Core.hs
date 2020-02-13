@@ -5,7 +5,6 @@
 
 {- |
 Module      : Language.Egison.Core
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module provides functions to evaluate various objects.

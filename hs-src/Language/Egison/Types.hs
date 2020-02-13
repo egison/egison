@@ -1,6 +1,5 @@
 {- |
 Module      : Language.Egison.Types
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module contains functions for dynamic type systems.

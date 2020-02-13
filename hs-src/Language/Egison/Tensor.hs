@@ -1,6 +1,5 @@
 {- |
 Module      : Language.Egison.Tensor
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module contains functions for tensors.

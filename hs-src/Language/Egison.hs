@@ -2,7 +2,6 @@
 
 {- |
 Module      : Language.Egison
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This is the top module of Egison.
