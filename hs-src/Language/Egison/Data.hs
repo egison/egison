@@ -7,7 +7,6 @@
 
 {- |
 Module      : Language.Egison.Data
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module contains definitions for Egison internal data.

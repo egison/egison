@@ -1,6 +1,5 @@
 {- |
 Module      : Language.Egison.MathOutput
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module provides translation from mathematical Egison expression into

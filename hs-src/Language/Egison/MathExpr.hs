@@ -3,7 +3,6 @@
 
 {- |
 Module      : Language.Egison.MathExpr
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module contains functions for mathematical expressions.

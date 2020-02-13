@@ -5,7 +5,6 @@
 
 {- |
 Module      : Language.Egison.AST
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module defines the syntax of Egison.

@@ -4,7 +4,6 @@
 
 {- |
 Module      : Language.Egison.Desugar
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module provide desugar functions.

@@ -1,6 +1,5 @@
 {- |
 Module      : Language.Egison.Util
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module provides utility functions.

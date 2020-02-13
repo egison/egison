@@ -4,7 +4,6 @@
 
 {- |
 Module      : Language.Egison.Primitives
-Copyright   : Satoshi Egi
 Licence     : MIT
 
 This module provides primitive functions in Egison.

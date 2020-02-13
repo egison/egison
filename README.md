@@ -347,8 +347,6 @@ Examples:
 We also have [online interpreter](http://console.egison.org) and [online tutorial](http://try.egison.org/).
 Enjoy!
 
-## Note for Developers
-
 ### How to Run Test
 
 ```
@@ -364,17 +362,13 @@ Please join us!
 We are on <a target="_blank" href="https://twitter.com/Egison_Lang">Twitter</a>.
 Please follow us.
 
-## Acknowledgement
-
-I thank Ryo Tanaka, Takahisa Watanabe, Takuya Kuwahara, Kentaro Honda, Mayuko Kori, and Momoko Hattori for their help to implement the interpreter.
-
 ## License
 
 Copyright (c) 2011-2020, Satoshi Egi
 
 Egison is released under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
 
-I used [husk-scheme](http://justinethier.github.io/husk-scheme/) by Justin Ethier as reference to implement the base part of the previous version of the interpreter.
+We used [husk-scheme](http://justinethier.github.io/husk-scheme/) by Justin Ethier as reference to implement the base part of the previous version of the interpreter.
 
 ## Sponsors
 
