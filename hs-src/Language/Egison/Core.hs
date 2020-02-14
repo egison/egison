@@ -972,12 +972,12 @@ processMState state =
   if nullMState state
     then processMState' state
     else case splitMState state of
-           (MState e l s b [MAtom (NotPat p) m t], state2) -> do
-             result <- processMStatesAllDFS (msingleton (MState e l s b [MAtom p m t]))
+           (1, state1, state2) -> do
+             result <- processMStatesAllDFS (msingleton state1)
              case result of
                MNil -> return $ msingleton state2
                _    -> return MNil
-           (MState e l s b [MAtom (ForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
+           (0, MState e l s b [MAtom (ForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
              states <- processMStatesAllDFSForall (msingleton (MState e l (ForallPatContext [] []:s) b [MAtom p1 m t]))
              statess' <- mmap (\(MState e' l' (ForallPatContext ms ts:s') b' []) -> do
                                    let mat' = makeTuple ms
@@ -995,13 +995,16 @@ processMState state =
  where
   nullMState :: MatchingState -> Bool
   nullMState MState{ mTrees = [] } = True
+  nullMState MState{ mTrees = MNode _ state : _ } = nullMState state
   nullMState _ = False
-  splitMState :: MatchingState -> (MatchingState, MatchingState)
+  splitMState :: MatchingState -> (Integer, MatchingState, MatchingState)
+  splitMState mstate@MState{ mTrees = MAtom (NotPat pattern) target matcher : trees } =
+    (1, mstate { mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
   splitMState mstate@MState{ mTrees = MAtom pattern target matcher : trees } =
-    (mstate { mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
+    (0, mstate { mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
   splitMState mstate@MState{ mTrees = MNode penv state' : trees } =
-    (mstate { mTrees = [MNode penv state1] }, mstate { mTrees = MNode penv state2 : trees })
-      where (state1, state2) = splitMState state'
+    (f, mstate { mTrees = [MNode penv state1] }, mstate { mTrees = MNode penv state2 : trees })
+      where (f, state1, state2) = splitMState state'
 
 processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
 --processMState' MState{ seqPatCtx = [], mTrees = [] } = throwError =<< EgisonBug "should not reach here (empty matching-state)" <$> getFuncNameStack
@@ -1018,7 +1021,8 @@ processMState' mstate@MState{ seqPatCtx = ForallPatContext _ _:_, mTrees = [] } 
   return . msingleton $ mstate
 
 -- Matching Nodes
-processMState' MState{ mTrees = MNode _ MState{ mStateBindings = [], mTrees = [] }:_ } = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
+--processMState' MState{ mTrees = MNode _ MState{ mStateBindings = [], mTrees = [] }:_ } = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
+processMState' mstate@MState{ mTrees = MNode _ MState{ seqPatCtx = [], mTrees = [] }:trees } = return . msingleton $ mstate { mTrees = trees }
 
 processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (VarPat name) target matcher:trees' }:trees } =
   case lookup name penv of
@@ -1041,7 +1045,7 @@ processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ 
 
 processMState' mstate@MState{ mTrees = MNode penv state:trees } =
   processMState' state >>= mmap (\state' -> case state' of
-                                              MState { mTrees = [] } -> return $ mstate { mTrees = trees }
+--egi                                              MState { mTrees = [] } -> return $ mstate { mTrees = trees }
                                               _ -> return $ mstate { mTrees = MNode penv state':trees })
 
 -- Matching Atoms
@@ -1053,7 +1057,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
         Nothing -> processMState' (MState env loops seqs bindings (MAtom (InductivePat name args) target matcher:trees))
         Just _ -> processMState' (MState env loops seqs bindings (MAtom (PApplyPat (VarExpr (stringToVar name)) args) target matcher:trees))
 
-    NotPat _ -> throwError =<< EgisonBug "should not reach here (not pattern)" <$> getFuncNameStack
+    NotPat _ -> throwError =<< EgisonBug "should not reach here (not-pattern)" <$> getFuncNameStack
     VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyS pattern
 
     LetPat bindings' pattern' -> do
