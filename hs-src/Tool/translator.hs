@@ -58,11 +58,11 @@ instance SyntaxElement EgisonExpr where
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
   toNonS (VectorExpr xs)     = VectorExpr (map toNonS xs)
 
-  toNonS (LambdaExpr xs y)          = LambdaExpr xs (toNonS y)
-  toNonS (MemoizedLambdaExpr xs y)  = MemoizedLambdaExpr xs (toNonS y)
-  toNonS (CambdaExpr _ _)           = error "Not supported: cambda"
-  toNonS (ProcedureExpr xs y)       = ProcedureExpr xs (toNonS y)
-  toNonS (PatternFunctionExpr args p) = PatternFunctionExpr args (toNonS p)
+  toNonS (LambdaExpr xs e)          = LambdaExpr xs (toNonS e)
+  toNonS (MemoizedLambdaExpr xs e)  = MemoizedLambdaExpr xs (toNonS e)
+  toNonS (CambdaExpr x e)           = CambdaExpr x (toNonS e)
+  toNonS (ProcedureExpr xs e)       = ProcedureExpr xs (toNonS e)
+  toNonS (PatternFunctionExpr xs p) = PatternFunctionExpr xs (toNonS p)
 
   toNonS (IfExpr x y z)         = IfExpr (toNonS x) (toNonS y) (toNonS z)
   toNonS (LetRecExpr xs y)      = LetRecExpr (map toNonS xs) (toNonS y)
@@ -97,7 +97,7 @@ instance SyntaxElement EgisonExpr where
         optimize e = e
 
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
-  toNonS CApplyExpr{} = error "Not supported: capply"
+  toNonS (CApplyExpr e1 e2) = CApplyExpr (toNonS e1) (toNonS e2)
   toNonS (PartialExpr n e) =
     -- SectionExpr with only one argument omitted is hard to detect correctly.
     case PartialExpr n (toNonS e) of
