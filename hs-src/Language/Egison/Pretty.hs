@@ -52,6 +52,7 @@ instance Pretty EgisonExpr where
   pretty (IntegerExpr x) = pretty x
   pretty (FloatExpr x)   = pretty x
   pretty (VarExpr x)     = pretty x
+  pretty FreshVarExpr    = pretty "#"
   pretty (IndexedExpr True e indices) = pretty' e <> cat (map pretty indices)
   pretty (IndexedExpr False e indices) = pretty' e <> pretty "..." <> cat (map pretty indices)
   pretty (SubrefsExpr b e1 e2) =

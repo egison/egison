@@ -4,11 +4,11 @@
 
 M.* := cambda ms -> foldl M.b.* (car ms) (cdr ms)
 
-M.b.* %m1 %m2 := withSymbols [j] m1~REPLACEME~j . m2_j_REPLACEME
+M.b.* %m1 %m2 := withSymbols [j] m1~#~j . m2_j_#
 
 M.*' := cambda ms -> foldl M.b.*' (car ms) (cdr ms)
 
-M.b.*' %m1 %m2 := withSymbols [j] .' m1~REPLACEME~j m2_j
+M.b.*' %m1 %m2 := withSymbols [j] .' m1~#~j m2_j
 
 M.power %m n := repeatedSquaring M.* m n
 

@@ -23,7 +23,7 @@
 (define $M.power
   (lambda [%m $n]
     (repeated-squaring M.* m n)))
-                       
+
 (define $M.comm
   (lambda [%m1 %m2]
     (with-symbols {i j k}
