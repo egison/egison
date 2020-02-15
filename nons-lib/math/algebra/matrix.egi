@@ -22,7 +22,7 @@ M.inverse %m :=
             then M.det (M.join A B C D) / d
             else - (M.det (M.join A B C D) / d)) tensorShape m
 
-trace %t := withSymbols [i] REPLACEME
+trace %t := withSymbols [i] contract (+) t~i_i
 
 matrix :=
   matcher

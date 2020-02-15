@@ -115,7 +115,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (TensorMapExpr e1 e2) = TensorMapExpr (toNonS e1) (toNonS e2)
   toNonS (TensorMap2Expr e1 e2 e3) = TensorMap2Expr (toNonS e1) (toNonS e2) (toNonS e3)
   toNonS (TransposeExpr e1 e2) = TransposeExpr (toNonS e1) (toNonS e2)
-  toNonS (FlipIndicesExpr e1) = FlipIndicesExpr (toNonS e1)
+  toNonS (FlipIndicesExpr e1) = error "Not supported: FlipIndicesExpr"
 
   toNonS x = x
 

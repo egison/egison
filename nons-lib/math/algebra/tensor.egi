@@ -10,9 +10,9 @@ scalarToTensor x ns := x * unitTensor ns
 
 zeroTensor ns := generateTensor (cambda xs -> 0) ns
 
-b..' %t1 %t2 := REPLACEME
+b..' %t1 %t2 := contract +' (*' t1 t2)
 
-b.. %t1 %t2 := REPLACEME
+b.. %t1 %t2 := contract (+) (t1 * t2)
 
 .' := cambda xs -> foldl b..' (car xs) (cdr xs)
 

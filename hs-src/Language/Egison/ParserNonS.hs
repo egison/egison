@@ -272,6 +272,7 @@ exprWithoutWhere =
        ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
+   <|> lambdaLikeExpr
    <|> letExpr
    <|> withSymbolsExpr
    <|> doExpr
@@ -279,11 +280,9 @@ exprWithoutWhere =
    <|> capplyExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
-   <|> memoizedLambdaExpr
-   <|> procedureExpr
-   <|> cambdaExpr
    <|> generateTensorExpr
    <|> tensorExpr
+   <|> tensorOpExpr
    <|> functionExpr
    <|> refsExpr
    <|> opExpr
@@ -358,6 +357,12 @@ lambdaExpr = symbol "\\" >> (
       matcher <- keyword >> reserved "as" >> expr
       clauses <- reserved "with" >> matchClauses1
       return $ ctor matcher clauses
+
+lambdaLikeExpr :: Parser EgisonExpr
+lambdaLikeExpr =
+        (reserved "memoizedLambda" >> MemoizedLambdaExpr <$> many lowerId <*> (symbol "->" >> expr))
+    <|> (reserved "procedure"      >> ProcedureExpr      <$> many lowerId <*> (symbol "->" >> expr))
+    <|> (reserved "cambda"         >> CambdaExpr         <$> lowerId      <*> (symbol "->" >> expr))
 
 arg :: Parser Arg
 arg = InvertedScalarArg <$> (char '*' >> ident)
@@ -434,15 +439,6 @@ algebraicDataMatcherExpr = do
   where
     patternDef = indentBlock lowerId atomExpr
 
-memoizedLambdaExpr :: Parser EgisonExpr
-memoizedLambdaExpr = MemoizedLambdaExpr <$> (reserved "memoizedLambda" >> many lowerId) <*> (symbol "->" >> expr)
-
-procedureExpr :: Parser EgisonExpr
-procedureExpr = ProcedureExpr <$> (reserved "procedure" >> many lowerId) <*> (symbol "->" >> expr)
-
-cambdaExpr :: Parser EgisonExpr
-cambdaExpr = CambdaExpr <$> (reserved "cambda" >> lowerId) <*> (symbol "->" >> expr)
-
 generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = GenerateTensorExpr <$> (reserved "generateTensor" >> atomExpr) <*> atomExpr
 
@@ -450,6 +446,13 @@ tensorExpr :: Parser EgisonExpr
 tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
                         <*> option (CollectionExpr []) atomExpr
                         <*> option (CollectionExpr []) atomExpr
+
+tensorOpExpr :: Parser EgisonExpr
+tensorOpExpr =
+      (reserved "contract"   >> TensorContractExpr <$> atomExpr <*> atomExpr)
+  <|> (reserved "tensorMap"  >> TensorMapExpr      <$> atomExpr <*> atomExpr)
+  <|> (reserved "tensorMap2" >> TensorMap2Expr     <$> atomExpr <*> atomExpr <*> atomExpr)
+  <|> (reserved "transpose"  >> TransposeExpr      <$> atomExpr <*> atomExpr)
 
 functionExpr :: Parser EgisonExpr
 functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
@@ -909,7 +912,10 @@ lowerReservedWords =
   , "algebraicDataMatcher"
   , "generateTensor"
   , "tensor"
-  -- , "contract"
+  , "contract"
+  , "tensorMap"
+  , "tensorMap2"
+  , "transpose"
   , "subrefs"
   , "subrefs!"
   , "suprefs"
