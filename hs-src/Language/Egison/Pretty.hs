@@ -165,6 +165,7 @@ instance Pretty EgisonExpr where
   pretty (TensorMapExpr e1 e2) = pretty "tensorMap" <+> pretty' e1 <+> pretty' e2
   pretty (TensorMap2Expr e1 e2 e3) = pretty "tensorMap2" <+> pretty' e1 <+> pretty' e2 <+> pretty' e3
   pretty (TransposeExpr e1 e2) = pretty "transpose" <+> pretty' e1 <+> pretty' e2
+  pretty (FlipIndicesExpr _) = error "unreachable"
 
   pretty (FunctionExpr xs) = pretty "function" <+> tupled (map pretty xs)
 
