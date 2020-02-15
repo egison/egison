@@ -165,8 +165,14 @@ addNewOp :: Infix -> Bool -> Parser ()
 addNewOp newop isPattern = do
   pstate <- get
   put $! if isPattern
-             then pstate { patternInfix = insertBy (\x y -> compare (priority y) (priority x)) newop (patternInfix pstate) }
-             else pstate { exprInfix = insertBy (\x y -> compare (priority y) (priority x)) newop (exprInfix pstate) }
+            then pstate { patternInfix = insertBy
+                                           (\x y -> compare (priority y) (priority x))
+                                           newop
+                                           (patternInfix pstate) }
+            else pstate { exprInfix = insertBy
+                                        (\x y -> compare (priority y) (priority x))
+                                        newop
+                                        (exprInfix pstate) }
 
 infixExpr :: Parser EgisonTopExpr
 infixExpr = do
@@ -280,7 +286,7 @@ exprWithoutWhere =
    <|> capplyExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
-   <|> generateTensorExpr
+   <|> arrayOpExpr
    <|> tensorExpr
    <|> tensorOpExpr
    <|> functionExpr
@@ -439,8 +445,14 @@ algebraicDataMatcherExpr = do
   where
     patternDef = indentBlock lowerId atomExpr
 
-generateTensorExpr :: Parser EgisonExpr
-generateTensorExpr = GenerateTensorExpr <$> (reserved "generateTensor" >> atomExpr) <*> atomExpr
+arrayOpExpr :: Parser EgisonExpr
+arrayOpExpr =
+      (reserved "generateArray" >> GenerateArrayExpr <$> atomExpr <*> arrayShape)
+  <|> (reserved "arrayBounds"   >> ArrayBoundsExpr   <$> atomExpr)
+  <|> (reserved "arrayRef"      >> ArrayRefExpr      <$> atomExpr <*> atomExpr)
+    where
+      arrayShape :: Parser (EgisonExpr, EgisonExpr)
+      arrayShape = parens $ (,) <$> expr <*> (comma >> expr)
 
 tensorExpr :: Parser EgisonExpr
 tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
@@ -449,10 +461,11 @@ tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
 
 tensorOpExpr :: Parser EgisonExpr
 tensorOpExpr =
-      (reserved "contract"   >> TensorContractExpr <$> atomExpr <*> atomExpr)
-  <|> (reserved "tensorMap"  >> TensorMapExpr      <$> atomExpr <*> atomExpr)
-  <|> (reserved "tensorMap2" >> TensorMap2Expr     <$> atomExpr <*> atomExpr <*> atomExpr)
-  <|> (reserved "transpose"  >> TransposeExpr      <$> atomExpr <*> atomExpr)
+      (reserved "generateTensor" >> GenerateTensorExpr <$> atomExpr <*> atomExpr)
+  <|> (reserved "contract"       >> TensorContractExpr <$> atomExpr <*> atomExpr)
+  <|> (reserved "tensorMap"      >> TensorMapExpr      <$> atomExpr <*> atomExpr)
+  <|> (reserved "tensorMap2"     >> TensorMap2Expr     <$> atomExpr <*> atomExpr <*> atomExpr)
+  <|> (reserved "transpose"      >> TransposeExpr      <$> atomExpr <*> atomExpr)
 
 functionExpr :: Parser EgisonExpr
 functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
@@ -910,6 +923,9 @@ lowerReservedWords =
   , "something"
   , "undefined"
   , "algebraicDataMatcher"
+  , "generateArray"
+  , "arrayBounds"
+  , "arrayRef"
   , "generateTensor"
   , "tensor"
   , "contract"
