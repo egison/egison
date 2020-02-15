@@ -182,4 +182,164 @@ mapSymbols fn mexpr :=
                     | symbol _ _ -> **' (fn %1) %2
                     | apply $g $args ->
                       let args' := map 1#(mapSymbols fn %1) args
-                       in 
+                       in if args = args'
+                            then **' %1 %2
+                            else **' (fn capply g args') %2)
+                  xs)))
+    mexpr
+
+containSymbol? x mexpr :=
+  any
+    id
+    (match mexpr as mathExpr with
+      | div poly $ts1 poly $ts2 ->
+        map
+          (\term -> match term as termExpr with
+              | term _ $xs ->
+                any
+                  id
+                  (map
+                     2#(match %1 as symbolExpr with
+                       | #x -> True
+                       | apply _ $args ->
+                         any id (map 1#(containSymbol? x %1) args)
+                       | _ -> False)
+                     xs))
+          (ts1 ++ ts2))
+
+containFunction? f mexpr :=
+  any
+    id
+    (match mexpr as mathExpr with
+      | div poly $ts1 poly $ts2 ->
+        map
+          (\term -> match term as termExpr with
+              | term _ $xs ->
+                any
+                  id
+                  (map
+                     2#(match %1 as symbolExpr with
+                       | apply $g $args ->
+                         if f = g
+                           then True
+                           else any id (map 1#(containFunction? f %1) args)
+                       | _ -> False)
+                     xs))
+          (ts1 ++ ts2))
+
+containFunctionWithOrder? f n mexpr :=
+  any
+    id
+    (match mexpr as mathExpr with
+      | div poly $ts1 poly $ts2 ->
+        map
+          (\term -> match term as termExpr with
+              | term _ $xs ->
+                any
+                  id
+                  (map
+                     2#(match %1 as symbolExpr with
+                       | apply $g $args ->
+                         if f = g && %2 >= n
+                           then True
+                           else any
+                                  id
+                                  (map
+                                     1#(containFunctionWithOrder? f n %1)
+                                     args)
+                       | _ -> False)
+                     xs))
+          (ts1 ++ ts2))
+
+containFunctionWithIndex? mexpr :=
+  any
+    id
+    (match mexpr as mathExpr with
+      | div poly $ts1 poly $ts2 ->
+        map
+          (\term -> match term as termExpr with
+              | term _ $xs ->
+                any
+                  id
+                  (map
+                     2#(match %1 as symbolExpr with
+                       | apply ?scalar? & $f $args ->
+                         match f as mathExpr with
+                           | symbol _ ![] -> True
+                           | _ ->
+                             any id (map 1#(containFunctionWithIndex? %1) args)
+                       | apply _ $args ->
+                         any id (map 1#(containFunctionWithIndex? %1) args)
+                       | _ -> False)
+                     xs))
+          (ts1 ++ ts2))
+
+findSymbolsFromPoly poly :=
+  matchAll poly as mathExpr with
+    | poly (term _ ((symbol _ _) & $s) :: _) :: _ -> s
+
+substitute ls mexpr :=
+  match ls as list (symbolExpr, mathExpr) with
+    | [] -> mexpr
+    | ($x, $a) :: $rs -> substitute rs (substitute' x a mexpr)
+
+substitute' x a mexpr := mapSymbols 1#(rewriteSymbol x a %1) mexpr
+
+rewriteSymbol x a sexpr :=
+  match sexpr as symbolExpr with
+    | #x -> a
+    | _ -> sexpr
+
+V.substitute %xs %ys mexpr :=
+  substitute (zip (tensorToList xs) (tensorToList ys)) mexpr
+
+expandAll mexpr :=
+  match mexpr as mathExpr with
+    | ?symbol? -> mexpr
+    | apply $g $args -> capply g (map expandAll args)
+    | quote $g -> g
+    | term $a $ps -> a * product (map 2#(expandAll %1 ^ expandAll %2) ps)
+    | poly $ts -> sum (map 1#(expandAll %1) ts)
+    | REPLACEME ->
+      let p1' := expandAll p1
+          p2' := expandAll p2
+       in p1' / p2'
+
+expandAll' mexpr :=
+  match mexpr as mathExpr with
+    | ?symbol? -> mexpr
+    | apply $g $args -> capply g (map expandAll' args)
+    | quote $g -> g
+    | term $a $ps ->
+      *' a (product' (map 2#(**' (expandAll' %1) (expandAll' %2)) ps))
+    | poly $ts -> sum' (map 1#(expandAll' %1) ts)
+    | REPLACEME ->
+      let p1' := expandAll' p1
+          p2' := expandAll' p2
+       in /' p1' p2'
+
+coefficients f x :=
+  let m := max
+             (0 :: (matchAll f as mathExpr with
+               | div poly (term $a ncons #x $k $ts) :: _ _ -> k))
+   in map 1#(coefficient f x %1) (between 0 m)
+
+coefficient f x m :=
+  if m = 0
+    then sum
+           (matchAll f as mathExpr with
+             | div poly (term $a !(#x :: _) & $ts) :: _ _ ->
+               foldl *' a (map 2#(**' %1 %2) ts)) / denominator f
+    else coefficient' f x m
+
+coefficient' f x m :=
+  sum
+    (matchAll f as mathExpr with
+      | div poly (term $a ncons #x $k $ts) :: _ _ ->
+        if m = k then foldl *' a (map 2#(**' %1 %2) ts) else 0) / denominator f
+
+coefficient2 f x y :=
+  sum
+    (matchAll f as mathExpr with
+      | div poly (term $a #x :: #y :: $ts) :: _ _ ->
+        foldl *' a (map 2#(**' %1 %2) ts)) / denominator f

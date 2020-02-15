@@ -27,3 +27,36 @@ apply f x := f x
 
 b.compose f g := \x -> g (f x)
 
+compose := cambda fs -> \x -> foldl 2#(%2 %1) x fs
+
+flip fn := \x y -> fn y x
+
+ref %xa is :=
+  match is as list integer with
+    | [] -> xa
+    | $i :: $rs -> ref (arrayRef xa i) rs
+
+eq?/m a x y :=
+  match x as a with
+    | #y -> True
+    | _ -> False
+
+and := cambda bs -> foldl b.and True bs
+
+or := cambda bs -> foldl b.or False bs
+
+b.and b1 b2 := if b1 then b2 else False
+
+b.or b1 b2 := if b1 then True else b2
+
+not b :=
+  match b as bool with
+    | #True -> False
+    | #False -> True
+
+unorderedPair m :=
+  matcher
+    | ($, $) as (m, m) with
+      | ($x, $y) -> [(x, y), (y, x)]
+    | $ as (eq) with
+      | $tgt -> [tgt]

@@ -75,9 +75,10 @@ instance Pretty EgisonExpr where
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
-  pretty (LambdaExpr xs y)          = nest 2 (pretty "\\" <> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty y)
-  pretty (ProcedureExpr xs y)       = nest 2 (pretty "procedure" <+> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty y)
-  pretty (PatternFunctionExpr xs y) = nest 2 (pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty y)
+  pretty (LambdaExpr xs e)          = nest 2 (pretty "\\" <> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty e)
+  pretty (CambdaExpr x e)           = nest 2 (pretty "cambda" <+> pretty x <+> pretty "->" <> softline <> pretty e)
+  pretty (ProcedureExpr xs e)       = nest 2 (pretty "procedure" <+> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty e)
+  pretty (PatternFunctionExpr xs p) = nest 2 (pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty p)
 
   pretty (IfExpr x y z) =
     group (pretty "if" <+> pretty x <>
@@ -142,6 +143,7 @@ instance Pretty EgisonExpr where
 
   pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (sep (map (group . pretty') (x : ys)))
   pretty (ApplyExpr x y) = hang 2 (sep [group (pretty' x), group (pretty' y)])
+  pretty (CApplyExpr e1 e2) = pretty "capply" <+> pretty' e1 <+> pretty' e2
   pretty (PartialExpr n e) = pretty n <> pretty '#' <> pretty' e
   pretty (PartialVarExpr n) = pretty '%' <> pretty n
 
@@ -273,6 +275,8 @@ instance Complex EgisonExpr where
   isAtom BinaryOpExpr{}           = False
   isAtom ApplyExpr{}              = False
   isAtom LambdaExpr{}             = False
+  isAtom CambdaExpr{}             = False
+  isAtom ProcedureExpr{}          = False
   isAtom IfExpr{}                 = False
   isAtom LetRecExpr{}             = False
   isAtom SubrefsExpr{}            = False
