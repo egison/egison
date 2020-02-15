@@ -161,6 +161,10 @@ instance Pretty EgisonExpr where
     pretty "tensor" <+> pretty' e1 <+> pretty' e2 <>
       (if e3 == CollectionExpr [] then emptyDoc else space <> pretty' e3) <>
       (if e4 == CollectionExpr [] then emptyDoc else space <> pretty' e4)
+  pretty (TensorContractExpr e1 e2) = pretty "contract" <+> pretty' e1 <+> pretty' e2
+  pretty (TensorMapExpr e1 e2) = pretty "tensorMap" <+> pretty' e1 <+> pretty' e2
+  pretty (TensorMap2Expr e1 e2 e3) = pretty "tensorMap2" <+> pretty' e1 <+> pretty' e2 <+> pretty' e3
+  pretty (TransposeExpr e1 e2) = pretty "transpose" <+> pretty' e1 <+> pretty' e2
 
   pretty (FunctionExpr xs) = pretty "function" <+> tupled (map pretty xs)
 
@@ -296,6 +300,10 @@ instance Complex EgisonExpr where
   isAtom GenerateTensorExpr{}     = False
   isAtom TensorExpr{}             = False
   isAtom FunctionExpr{}           = False
+  isAtom TensorContractExpr{}     = False
+  isAtom TensorMapExpr{}          = False
+  isAtom TensorMap2Expr{}         = False
+  isAtom TransposeExpr{}          = False
   isAtom _                        = True
 
   isAtomOrApp ApplyExpr{} = True

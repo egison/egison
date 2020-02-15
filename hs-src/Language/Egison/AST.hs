@@ -122,7 +122,7 @@ data EgisonExpr =
   | TensorMapExpr EgisonExpr EgisonExpr
   | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
   | TransposeExpr EgisonExpr EgisonExpr
-  | FlipIndicesExpr EgisonExpr
+  | FlipIndicesExpr EgisonExpr                              -- Does not appear in user program
 
   | FunctionExpr [EgisonExpr]
 

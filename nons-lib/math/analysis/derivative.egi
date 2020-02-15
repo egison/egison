@@ -62,7 +62,7 @@ multivariateTaylorExpansion %f %xs %as :=
                            (iterate (compose 1#(∇ %1 xs) 1#(V.* hs %1)) f))
 
 multivariateMaclaurinExpansion %f %xs :=
-  multivariateTaylorExpansion f xs REPLACEME
+  multivariateTaylorExpansion f xs (tensorMap 1#0 xs)
 
 addUserScript f i :=
   let (g, is) := deconsUserScripts f
