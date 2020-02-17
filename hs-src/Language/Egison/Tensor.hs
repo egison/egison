@@ -13,7 +13,7 @@ module Language.Egison.Tensor
     , tIndex
     , tref
     , enumTensorIndices
-    , changeIndexList
+    , changeIndex
     , tTranspose
     , tTranspose'
     , tFlipIndices
@@ -140,10 +140,9 @@ enumTensorIndices :: Shape -> [[Integer]]
 enumTensorIndices [] = [[]]
 enumTensorIndices (n:ns) = concatMap (\i -> map (i:) (enumTensorIndices ns)) [1..n]
 
-changeIndexList :: [Index String] -> [EgisonValue] -> [Index String]
-changeIndexList idxlist ms = map (\(i, m) -> case i of
-                                              Superscript s -> Superscript (s ++ m)
-                                              Subscript s -> Subscript (s ++ m)) $ zip idxlist (map show ms)
+changeIndex :: Index String -> EgisonValue -> Index String
+changeIndex (Superscript s) m = Superscript (s ++ show m)
+changeIndex (Subscript s) m   = Subscript (s ++ show m)
 
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> [Integer] -> EgisonM [Integer]
 transIndex [] [] is = return is
