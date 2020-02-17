@@ -286,7 +286,6 @@ exprWithoutWhere =
    <|> capplyExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
-   <|> arrayOpExpr
    <|> tensorExpr
    <|> tensorOpExpr
    <|> functionExpr
@@ -445,15 +444,6 @@ algebraicDataMatcherExpr = do
   where
     patternDef = indentBlock lowerId atomExpr
 
-arrayOpExpr :: Parser EgisonExpr
-arrayOpExpr =
-      (reserved "generateArray" >> GenerateArrayExpr <$> atomExpr <*> arrayShape)
-  <|> (reserved "arrayBounds"   >> ArrayBoundsExpr   <$> atomExpr)
-  <|> (reserved "arrayRef"      >> ArrayRefExpr      <$> atomExpr <*> atomExpr)
-    where
-      arrayShape :: Parser (EgisonExpr, EgisonExpr)
-      arrayShape = parens $ (,) <$> expr <*> (comma >> expr)
-
 tensorExpr :: Parser EgisonExpr
 tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
                         <*> option (CollectionExpr []) atomExpr
@@ -530,9 +520,6 @@ tupleOrParenExpr = do
           customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op (Just larg) Nothing)
 
-arrayExpr :: Parser EgisonExpr
-arrayExpr = ArrayExpr <$> between (symbol "(|") (symbol "|)") (sepEndBy expr comma)
-
 vectorExpr :: Parser EgisonExpr
 vectorExpr = VectorExpr <$> between (symbol "[|") (symbol "|]") (sepEndBy expr comma)
 
@@ -586,7 +573,6 @@ atomExpr' = partialExpr    -- must come before |constantExpr|
         <|> FreshVarExpr <$ symbol "#"
         <|> VarExpr <$> varLiteral
         <|> vectorExpr     -- must come before |collectionExpr|
-        <|> arrayExpr      -- must come before |tupleOrParenExpr|
         <|> collectionExpr
         <|> tupleOrParenExpr
         <|> hashExpr
@@ -923,9 +909,6 @@ lowerReservedWords =
   , "something"
   , "undefined"
   , "algebraicDataMatcher"
-  , "generateArray"
-  , "arrayBounds"
-  , "arrayRef"
   , "generateTensor"
   , "tensor"
   , "contract"

@@ -349,39 +349,6 @@
 
 
 ;;;
-;;; Array
-;;;
-
-(assert-equal "array-literal"
-  (| 1 2 3 4 5 |)
-  (| 1 2 3 4 5 |)
-  )
-
-(assert-equal "empty array literal"
-  (||)
-  (||)
-  )
-
-(assert-equal "generate-array"
-  (generate-array (+ $ 100) [3 5])_4
-  104
-  )
-
-(assert-equal "array-bounds - case 1"
-  (array-bounds (| 1 2 3 |))
-  [1 3]
-  )
-
-(assert-equal "array-bounds - case 2"
-  (array-bounds (generate-array (+ $ 100) [3 5]))
-  [3 5]
-  )
-
-(assert-equal "array-ref"
-  (array-ref (| 1 2 3 4 5 |) 3)
-  3)
-
-;;;
 ;;; Tensor
 ;;;
 (assert-equal "generate-tensor - case 1"

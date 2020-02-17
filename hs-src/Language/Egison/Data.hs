@@ -92,7 +92,6 @@ import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer      (WriterT)
 
-import qualified Data.Array                as Array
 import           Data.Foldable             (foldr, toList)
 import           Data.HashMap.Strict       (HashMap)
 import qualified Data.HashMap.Strict       as HashMap
@@ -128,7 +127,6 @@ data EgisonValue =
   | InductiveData String [EgisonValue]
   | Tuple [EgisonValue]
   | Collection (Seq EgisonValue)
-  | Array (Array.Array Integer EgisonValue)
   | IntHash (HashMap Integer EgisonValue)
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
@@ -334,7 +332,6 @@ instance Show EgisonValue where
               | otherwise  = "(" ++ show x ++ ")"
   show (Tuple vals)      = "(" ++ intercalate ", " (map show vals) ++ ")"
   show (Collection vals) = "[" ++ intercalate ", " (map show (toList vals)) ++ "]"
-  show (Array vals)      = "(| " ++ intercalate ", " (map show $ Array.elems vals) ++ " |)"
   show (IntHash hash)  = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (CharHash hash) = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash)  = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
@@ -374,7 +371,6 @@ instance Eq EgisonValue where
  (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
  (Tuple vals) == (Tuple vals') = vals == vals'
  (Collection vals) == (Collection vals') = vals == vals'
- (Array vals) == (Array vals') = vals == vals'
  (IntHash vals) == (IntHash vals') = vals == vals'
  (CharHash vals) == (CharHash vals') = vals == vals'
  (StrHash vals) == (StrHash vals') = vals == vals'
@@ -484,7 +480,6 @@ data Intermediate =
     IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
   | ICollection (IORef (Seq Inner))
-  | IArray (Array.Array Integer ObjectRef)
   | IIntHash (HashMap Integer ObjectRef)
   | ICharHash (HashMap Char ObjectRef)
   | IStrHash (HashMap Text ObjectRef)
@@ -499,7 +494,6 @@ instance Show WHNFData where
   show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
   show (Intermediate (ITuple _)) = "[...]"
   show (Intermediate (ICollection _)) = "{...}"
-  show (Intermediate (IArray _)) = "(|...|)"
   show (Intermediate (IIntHash _)) = "{|...|}"
   show (Intermediate (ICharHash _)) = "{|...|}"
   show (Intermediate (IStrHash _)) = "{|...|}"
