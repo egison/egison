@@ -1,3 +1,4 @@
+(define $sortedList sorted-list)
 (define $unorderedPair unordered-pair)
 (define $takeAndDrop take-and-drop)
 (define $takeWhile take-while)
