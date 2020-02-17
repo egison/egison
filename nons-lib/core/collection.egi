@@ -42,12 +42,12 @@ sortedList a :=
       | $tgt -> matchAll tgt as list a with
         | loop $i (1, $n)
             ((?1#(%1 < px) & $xa_i) :: ...)
-            (#px :: $rs) -> (map (\i -> ref xa i) (between 1 n), rs)
+            (#px :: $rs) -> (map (\i -> xa_i) (between 1 n), rs)
     | join $ $ as (sortedList a, sortedList a) with
       | $tgt -> matchAll tgt as list a with
         | loop $i (1, $n)
             ($xa_i :: ...)
-            $rs -> (map (\i -> ref xa i) (between 1 n), rs)
+            $rs -> (map (\i -> xa_i) (between 1 n), rs)
     | cons $ $ as (a, sortedList a) with
       | $x::$xs -> [(x, xs)]
       | _ -> []

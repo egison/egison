@@ -68,6 +68,18 @@ assertEqual
     | nioj #[3] $ns -> ns)
   [1, 2]
 
+assertEqual
+  "sorted-list - join-cons 1"
+  (matchAll [3, 1, 2, 4] as sortedList integer with
+    | _ ++ #3 :: $xs -> xs)
+  [[1, 2, 4]]
+
+assertEqual
+  "sorted-list - join-cons 2"
+  (matchAll [3, 1, 2, 4] as sortedList integer with
+    | _ ++ #2 :: $xs -> xs)
+  []
+
 assert
   "multiset's nil - case 1"
   (match [] as multiset integer with
