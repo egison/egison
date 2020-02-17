@@ -456,8 +456,6 @@ arrayOpExpr =
 
 tensorExpr :: Parser EgisonExpr
 tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
-                        <*> option (CollectionExpr []) atomExpr
-                        <*> option (CollectionExpr []) atomExpr
 
 tensorOpExpr :: Parser EgisonExpr
 tensorOpExpr =
