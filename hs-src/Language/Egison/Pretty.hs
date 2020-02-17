@@ -155,12 +155,8 @@ instance Pretty EgisonExpr where
   pretty (ArrayRefExpr expr i) =
     pretty "arrayRef" <+> pretty' expr <+> pretty i
 
-  pretty (GenerateTensorExpr gen shape) =
-    pretty "generateTensor" <+> pretty' gen <+> pretty shape
-  pretty (TensorExpr e1 e2 e3 e4) =
-    pretty "tensor" <+> pretty' e1 <+> pretty' e2 <>
-      (if e3 == CollectionExpr [] then emptyDoc else space <> pretty' e3) <>
-      (if e4 == CollectionExpr [] then emptyDoc else space <> pretty' e4)
+  pretty (GenerateTensorExpr gen shape) = pretty "generateTensor" <+> pretty' gen <+> pretty shape
+  pretty (TensorExpr e1 e2) = pretty "tensor" <+> pretty' e1 <+> pretty' e2
   pretty (TensorContractExpr e1 e2) = pretty "contract" <+> pretty' e1 <+> pretty' e2
   pretty (TensorMapExpr e1 e2) = pretty "tensorMap" <+> pretty' e1 <+> pretty' e2
   pretty (TensorMap2Expr e1 e2 e3) = pretty "tensorMap2" <+> pretty' e1 <+> pretty' e2 <+> pretty' e3

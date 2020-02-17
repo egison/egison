@@ -184,10 +184,8 @@ desugar (CollectionExpr (SubCollectionExpr sub:inners)) = do
 desugar (VectorExpr exprs) =
   VectorExpr <$> mapM desugar exprs
 
-desugar (TensorExpr nsExpr xsExpr supExpr subExpr) = do
-  nsExpr' <- desugar nsExpr
-  xsExpr' <- desugar xsExpr
-  return $ TensorExpr nsExpr' xsExpr' supExpr subExpr
+desugar (TensorExpr nsExpr xsExpr) =
+  TensorExpr <$> desugar nsExpr <*> desugar xsExpr
 
 desugar (LambdaExpr names expr) = do
   let (rtnames, rhnames) = span (\case

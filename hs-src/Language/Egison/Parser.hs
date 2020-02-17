@@ -506,7 +506,7 @@ generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> expr
 
 tensorExpr :: Parser EgisonExpr
-tensorExpr = keywordTensor >> TensorExpr <$> expr <*> expr <*> option (CollectionExpr []) expr <*> option (CollectionExpr []) expr
+tensorExpr = keywordTensor >> TensorExpr <$> expr <*> expr
 
 tensorContractExpr :: Parser EgisonExpr
 tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr <*> expr

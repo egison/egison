@@ -45,8 +45,8 @@ import           Language.Egison.MathExpr
 -- Tensors
 --
 
-initTensor :: Shape -> [a] -> [EgisonValue] -> [EgisonValue] -> Tensor a
-initTensor ns xs sup sub = Tensor ns (V.fromList xs) (map Superscript sup ++ map Subscript sub)
+initTensor :: Shape -> [a] -> Tensor a
+initTensor ns xs = Tensor ns (V.fromList xs) []
 
 tShape :: Tensor a -> Shape
 tShape (Tensor ns _ _) = ns
