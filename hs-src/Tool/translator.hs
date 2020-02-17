@@ -110,7 +110,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (ArrayRefExpr e1 e2) = ArrayRefExpr (toNonS e1) (toNonS e2)
 
   toNonS (GenerateTensorExpr e1 e2) = GenerateTensorExpr (toNonS e1) (toNonS e2)
-  toNonS (TensorExpr e1 e2 e3 e4) = TensorExpr (toNonS e1) (toNonS e2) (toNonS e3) (toNonS e4)
+  toNonS (TensorExpr e1 e2) = TensorExpr (toNonS e1) (toNonS e2)
   toNonS (TensorContractExpr e1 e2) = TensorContractExpr (toNonS e1) (toNonS e2)
   toNonS (TensorMapExpr e1 e2) = TensorMapExpr (toNonS e1) (toNonS e2)
   toNonS (TensorMap2Expr e1 e2 e3) = TensorMap2Expr (toNonS e1) (toNonS e2) (toNonS e3)
