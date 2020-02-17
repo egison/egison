@@ -172,33 +172,42 @@ evalExpr env (CollectionExpr inners) = do
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
 
 evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
-  whnfs <- mapM (\(expr, i) ->
-    let env' = maybe env (\(VarWithIndices nameString indexList) -> Env frame $ Just $ VarWithIndices nameString $ changeIndexList indexList [toEgison $ toInteger i]) maybe_vwi
-     in evalExpr env' expr) $ zip exprs [1..(length exprs + 1)]
+  let n = toInteger (length exprs)
+  let indices = [1 .. (n + 1)]
+  whnfs <- zipWithM evalWithIndex exprs indices
   case whnfs of
     Intermediate (ITensor Tensor{}):_ ->
-      mapM toTensor (zipWith (curry f) whnfs [1..(length exprs + 1)]) >>= tConcat' >>= fromTensor
-    _ -> fromTensor (Tensor [fromIntegral $ length whnfs] (V.fromList whnfs) [])
- where
-  f (Intermediate (ITensor (Tensor ns xs indices)), i) =
-    Intermediate $ ITensor $ Tensor ns (V.fromList $ zipWith (curry g) (V.toList xs) $ map (\ms -> map toEgison $ toInteger i:ms) $ enumTensorIndices ns) indices
-  f (x, _) = x
-  g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p)), ms) =
-    let fn' = maybe fn (\(VarWithIndices nameString indexList) -> symbolScalarData' "" $ prettyS $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi
-     in Value $ ScalarData $ Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p
-  g (x, _) = x
+      mapM toTensor (zipWith f whnfs indices) >>= tConcat' >>= fromTensor
+    _ -> fromTensor (Tensor [n] (V.fromList whnfs) [])
+  where
+    evalWithIndex :: EgisonExpr -> Integer -> EgisonM WHNFData
+    evalWithIndex expr index = evalExpr env' expr
+      where
+        env' = case maybe_vwi of
+          Nothing -> env
+          Just (VarWithIndices name indices) ->
+            Env frame (Just (VarWithIndices name (zipWith changeIndex indices [toEgison index])))
+    f (Intermediate (ITensor (Tensor ns xs indices))) i =
+      Intermediate (ITensor (Tensor ns xs' indices))
+      where
+        xs' = V.fromList $ zipWith g (V.toList xs) $ map (\ms -> map toEgison (i:ms)) $ enumTensorIndices ns
+    f x _ = x
+    g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p))) ms =
+      Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p))
+      where
+        fn' = case maybe_vwi of
+          Nothing -> fn
+          Just (VarWithIndices name indices) ->
+            symbolScalarData' "" $ prettyS (VarWithIndices name (zipWith changeIndex indices ms))
+    g x _ = x
 
-evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
+evalExpr env (TensorExpr nsExpr xsExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- (fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer]
   xsWhnf <- evalExpr env xsExpr
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
-  supWhnf <- evalExpr env supExpr
-  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRefDeep
-  subWhnf <- evalExpr env subExpr
-  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep
   if product ns == toInteger (length xs)
-    then fromTensor (initTensor ns xs sup sub)
+    then fromTensor (initTensor ns xs)
     else throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 evalExpr env (HashExpr assocs) = do
@@ -549,7 +558,7 @@ evalExpr env (GenerateTensorExpr fnExpr shapeExpr) = do
  where
   indexToWHNF :: Env -> [EgisonValue] {- index -} -> EgisonM WHNFData
   indexToWHNF (Env frame maybe_vwi) ms = do
-    let env' = maybe env (\(VarWithIndices nameString indexList) -> Env frame $ Just $ VarWithIndices nameString $ changeIndexList indexList ms) maybe_vwi
+    let env' = maybe env (\(VarWithIndices name indices) -> Env frame $ Just $ VarWithIndices name $ zipWith changeIndex indices ms) maybe_vwi
     fn <- evalExpr env' fnExpr
     applyFunc env fn $ Value $ makeTuple ms
 

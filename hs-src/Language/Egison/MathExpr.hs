@@ -63,6 +63,7 @@ data SymbolExpr
 
 type Id = String
 
+-- Product of a coefficient and a monomial
 pattern SingleTerm :: Integer -> Monomial -> ScalarData
 pattern SingleTerm coeff mono = Div (Plus [Term coeff mono]) (Plus [Term 1 []])
 
