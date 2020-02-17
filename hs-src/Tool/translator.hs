@@ -54,7 +54,6 @@ instance SyntaxElement EgisonExpr where
       f (SubCollectionExpr x : xs) = BinaryOpExpr append (toNonS x) (f xs)
       cons = fromJust $ find (\op -> repr op == "::") reservedExprInfix
       append = fromJust $ find (\op -> repr op == "++") reservedExprInfix
-  toNonS (ArrayExpr xs)      = ArrayExpr (map toNonS xs)
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
   toNonS (VectorExpr xs)     = VectorExpr (map toNonS xs)
 
@@ -104,10 +103,6 @@ instance SyntaxElement EgisonExpr where
       PartialExpr 2 (BinaryOpExpr op (PartialVarExpr 1) (PartialVarExpr 2)) ->
         SectionExpr op Nothing Nothing
       e' -> e'
-
-  toNonS (GenerateArrayExpr e (e1, e2)) = GenerateArrayExpr (toNonS e) (toNonS e1, toNonS e2)
-  toNonS (ArrayBoundsExpr e) = ArrayBoundsExpr (toNonS e)
-  toNonS (ArrayRefExpr e1 e2) = ArrayRefExpr (toNonS e1) (toNonS e2)
 
   toNonS (GenerateTensorExpr e1 e2) = GenerateTensorExpr (toNonS e1) (toNonS e2)
   toNonS (TensorExpr e1 e2 e3 e4) = TensorExpr (toNonS e1) (toNonS e2) (toNonS e3) (toNonS e4)

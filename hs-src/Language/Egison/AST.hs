@@ -70,7 +70,6 @@ data EgisonExpr =
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [InnerExpr]                -- TODO: InnerExpr should be EgisonExpr from v4.0.0
-  | ArrayExpr [EgisonExpr]
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | VectorExpr [EgisonExpr]
 
@@ -111,10 +110,6 @@ data EgisonExpr =
   | CApplyExpr EgisonExpr EgisonExpr
   | PartialExpr Integer EgisonExpr
   | PartialVarExpr Integer
-
-  | GenerateArrayExpr EgisonExpr (EgisonExpr, EgisonExpr)
-  | ArrayBoundsExpr EgisonExpr
-  | ArrayRefExpr EgisonExpr EgisonExpr
 
   | GenerateTensorExpr EgisonExpr EgisonExpr
   | TensorExpr EgisonExpr EgisonExpr EgisonExpr EgisonExpr

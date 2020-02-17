@@ -24,7 +24,6 @@ module Language.Egison.Types
   , isChar'
   , isString'
   , isCollection'
-  , isArray'
   , isHash'
   ) where
 
@@ -107,11 +106,6 @@ isCollection' :: PrimitiveFunc
 isCollection' (Value (Collection _))         = return $ Value $ Bool True
 isCollection' (Intermediate (ICollection _)) = return $ Value $ Bool True
 isCollection' _                              = return $ Value $ Bool False
-
-isArray' :: PrimitiveFunc
-isArray' (Value (Array _))         = return $ Value $ Bool True
-isArray' (Intermediate (IArray _)) = return $ Value $ Bool True
-isArray' _                         = return $ Value $ Bool False
 
 isHash' :: PrimitiveFunc
 isHash' (Value (IntHash _))         = return $ Value $ Bool True
