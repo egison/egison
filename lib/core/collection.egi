@@ -45,12 +45,12 @@
        [<join $ <cons ,$px $>> [(sorted-list a) (sorted-list a)]
         {[$tgt (match-all tgt (list a)
                  [(loop $i [1 $n] <cons (& ?(lt? $ px) $xa_i) ...> <cons ,px $rs>)
-                  [(map (lambda [$i] (ref xa i)) (between 1 n))
+                  [(map (lambda [$i] xa_i) (between 1 n))
                    rs]])]}]
        [<join $ $> [(sorted-list a) (sorted-list a)]
         {[$tgt (match-all tgt (list a)
                  [(loop $i [1 $n] <cons $xa_i ...> $rs)
-                  [(map (lambda [$i] (ref xa i)) (between 1 n))
+                  [(map (lambda [$i] xa_i) (between 1 n))
                    rs]])]}]
        [<cons $ $> [a (sorted-list a)]
         {[{$x @$xs} {[x xs]}]

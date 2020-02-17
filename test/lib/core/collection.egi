@@ -66,6 +66,16 @@
     {[<nioj ,{3} $ns> ns]})
   {1 2})
 
+(assert-equal "sorted-list - join-cons 1"
+  (match-all {3 1 2 4} (sorted-list integer)
+    {[<join _ <cons ,3 $xs>> xs]})
+  {{1 2 4}})
+
+(assert-equal "sorted-list - join-cons 2"
+  (match-all {3 1 2 4} (sorted-list integer)
+    {[<join _ <cons ,2 $xs>> xs]})
+  {})
+
 ;;;
 ;;; Multiset Pattern-Matching
 ;;;
