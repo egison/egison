@@ -197,17 +197,13 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
      in Value $ ScalarData $ Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p
   g (x, _) = x
 
-evalExpr env (TensorExpr nsExpr xsExpr supExpr subExpr) = do
+evalExpr env (TensorExpr nsExpr xsExpr) = do
   nsWhnf <- evalExpr env nsExpr
   ns <- (fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer]
   xsWhnf <- evalExpr env xsExpr
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
-  supWhnf <- evalExpr env supExpr
-  sup <- fromCollection supWhnf >>= fromMList >>= mapM evalRefDeep
-  subWhnf <- evalExpr env subExpr
-  sub <- fromCollection subWhnf >>= fromMList >>= mapM evalRefDeep
   if product ns == toInteger (length xs)
-    then fromTensor (initTensor ns xs sup sub)
+    then fromTensor (initTensor ns xs)
     else throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 evalExpr env (HashExpr assocs) = do
