@@ -14,7 +14,6 @@ module Language.Egison.Pretty
     , showTSV
     ) where
 
-import qualified Data.Array                as Array
 import           Data.Foldable             (toList)
 import qualified Data.HashMap.Strict       as HashMap
 import           Data.List                 (intercalate)
@@ -72,7 +71,6 @@ instance Pretty EgisonExpr where
     | length xs < 20 = list (map pretty xs)
     | otherwise      =
       pretty "[" <> align (fillSepAtom (punctuate comma (map pretty xs))) <> pretty "]"
-  pretty (ArrayExpr xs)  = listoid "(|" "|)" (map pretty xs)
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
@@ -147,13 +145,6 @@ instance Pretty EgisonExpr where
   pretty (CApplyExpr e1 e2) = pretty "capply" <+> pretty' e1 <+> pretty' e2
   pretty (PartialExpr n e) = pretty n <> pretty '#' <> pretty' e
   pretty (PartialVarExpr n) = pretty '%' <> pretty n
-
-  pretty (GenerateArrayExpr gen (size1, size2)) =
-    pretty "generateArray" <+> pretty' gen <+> tupled [pretty size1, pretty size2]
-  pretty (ArrayBoundsExpr expr) =
-    pretty "arrayBounds" <+> pretty' expr
-  pretty (ArrayRefExpr expr i) =
-    pretty "arrayRef" <+> pretty' expr <+> pretty i
 
   pretty (GenerateTensorExpr gen shape) = pretty "generateTensor" <+> pretty' gen <+> pretty shape
   pretty (TensorExpr e1 e2) = pretty "tensor" <+> pretty' e1 <+> pretty' e2
@@ -291,9 +282,6 @@ instance Complex EgisonExpr where
   isAtom MatchAllLambdaExpr{}     = False
   isAtom MatcherExpr{}            = False
   isAtom AlgebraicDataMatcherExpr{} = False
-  isAtom GenerateArrayExpr{}      = False
-  isAtom ArrayBoundsExpr{}        = False
-  isAtom ArrayRefExpr{}           = False
   isAtom GenerateTensorExpr{}     = False
   isAtom TensorExpr{}             = False
   isAtom FunctionExpr{}           = False
@@ -419,7 +407,6 @@ instance PrettyS EgisonValue where
   prettyS (InductiveData name vals) = "<" ++ name ++ concatMap ((' ':) . prettyS) vals ++ ">"
   prettyS (Tuple vals)      = "[" ++ unwords (map prettyS vals) ++ "]"
   prettyS (Collection vals) = "{" ++ unwords (map prettyS (toList vals)) ++ "}"
-  prettyS (Array vals)      = "(|" ++ unwords (map prettyS $ Array.elems vals) ++ "|)"
   prettyS (IntHash hash)    = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
   prettyS (CharHash hash)   = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
   prettyS (StrHash hash)    = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"

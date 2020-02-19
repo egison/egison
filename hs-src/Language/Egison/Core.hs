@@ -21,9 +21,6 @@ module Language.Egison.Core
     , evalRefDeep
     , evalWHNF
     , applyFunc
-    -- * Array
-    , refArray
-    , arrayBounds
     -- * Environment
     , recursiveBind
     -- * Pattern matching
@@ -55,7 +52,6 @@ import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
 import qualified Data.Sequence               as Sq
 import           Data.Traversable            (mapM)
 
-import qualified Data.Array                  as Array
 import qualified Data.HashMap.Lazy           as HL
 import qualified Data.Vector                 as V
 
@@ -66,7 +62,6 @@ import           Language.Egison.MathExpr
 import           Language.Egison.Parser      as Parser
 import           Language.Egison.ParserNonS  as ParserNonS
 import           Language.Egison.Pretty
-import           Language.Egison.Types
 import           Language.Egison.Tensor
 
 --
@@ -175,10 +170,6 @@ evalExpr env (CollectionExpr inners) = do
   fromInnerExpr :: InnerExpr -> EgisonM Inner
   fromInnerExpr (ElementExpr expr) = IElement <$> newObjectRef env expr
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
-
-evalExpr env (ArrayExpr exprs) = do
-  refs' <- mapM (newObjectRef env) exprs
-  return . Intermediate . IArray $ Array.listArray (1, toInteger (length exprs)) refs'
 
 evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
   let n = toInteger (length exprs)
@@ -559,15 +550,6 @@ evalExpr env (MemoizeExpr memoizeFrame expr) = do
 
 evalExpr env (MatcherExpr info) = return $ Value $ UserMatcher env info
 
-evalExpr env (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
-  fN <- (evalExpr env fstExpr >>= fromWHNF) :: EgisonM Integer
-  eN <- (evalExpr env lstExpr >>= fromWHNF) :: EgisonM Integer
-  xs <- mapM (newObjectRef env . ApplyExpr fnExpr . IntegerExpr) [fN..eN]
-  return $ Intermediate $ IArray $ Array.listArray (fN, eN) xs
-
-evalExpr env (ArrayBoundsExpr expr) =
-  evalExpr env expr >>= arrayBounds
-
 evalExpr env (GenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExpr env shapeExpr >>= collectionToList
   ns    <- mapM fromEgison shape :: EgisonM Shape
@@ -684,9 +666,6 @@ evalWHNF :: WHNFData -> EgisonM EgisonValue
 evalWHNF (Value val) = return val
 evalWHNF (Intermediate (IInductiveData name refs)) =
   InductiveData name <$> mapM evalRefDeep refs
-evalWHNF (Intermediate (IArray refs)) = do
-  refs' <- mapM evalRefDeep $ Array.elems refs
-  return $ Array $ Array.listArray (Array.bounds refs) refs'
 evalWHNF (Intermediate (IIntHash refs)) = do
   refs' <- mapM evalRefDeep refs
   return $ IntHash refs'
@@ -791,35 +770,6 @@ applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncName
 
 refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
 refArray val [] = return val
-refArray (Value (Array array)) (index:indices) =
-  if isInteger index
-    then do i <- (fmap fromInteger . fromEgison) index
-            if (\(a,b) -> a <= i && i <= b) $ Array.bounds array
-              then refArray (Value (array Array.! i)) indices
-              else return  $ Value Undefined
-    else case index of
-           ScalarData (SingleTerm 1 [(Symbol _ _ [], 1)]) -> do
-             let (_,size) = Array.bounds array
-             elms <- mapM (\arr -> refArray (Value arr) indices) (Array.elems array)
-             elmRefs <- mapM newEvaluatedObjectRef elms
-             return $ Intermediate $ IArray $ Array.listArray (1, size) elmRefs
-           _  -> throwError =<< TypeMismatch "integer or symbol" (Value index) <$> getFuncNameStack
-refArray (Intermediate (IArray array)) (index:indices) =
-  if isInteger index
-    then do i <- (fmap fromInteger . fromEgison) index
-            if (\(a,b) -> a <= i && i <= b) $ Array.bounds array
-              then let ref = array Array.! i in
-                   evalRef ref >>= flip refArray indices
-              else return  $ Value Undefined
-    else case index of
-           ScalarData (SingleTerm 1 [(Symbol _ _ [], 1)]) -> do
-             let (_,size) = Array.bounds array
-             let refs = Array.elems array
-             arrs <- mapM evalRef refs
-             elms <- mapM (`refArray` indices) arrs
-             elmRefs <- mapM newEvaluatedObjectRef elms
-             return $ Intermediate $ IArray $ Array.listArray (1, size) elmRefs
-           _  -> throwError =<< TypeMismatch "integer or symbol" (Value index) <$> getFuncNameStack
 refArray (Value (IntHash hash)) (index:indices) = do
   key <- fromEgison index
   case HL.lookup key hash of
@@ -851,14 +801,6 @@ refArray (Intermediate (IStrHash hash)) (index:indices) = do
     Just ref -> evalRef ref >>= flip refArray indices
     Nothing  -> return $ Value Undefined
 refArray val _ = throwError =<< TypeMismatch "array or hash" val <$> getFuncNameStack
-
-arrayBounds :: WHNFData -> EgisonM WHNFData
-arrayBounds val = Value <$> arrayBounds' val
-
-arrayBounds' :: WHNFData -> EgisonM EgisonValue
-arrayBounds' (Intermediate (IArray arr)) = return $ Tuple [toEgison (fst (Array.bounds arr)), toEgison (snd (Array.bounds arr))]
-arrayBounds' (Value (Array arr))         = return $ Tuple [toEgison (fst (Array.bounds arr)), toEgison (snd (Array.bounds arr))]
-arrayBounds' val                         = throwError =<< TypeMismatch "array" val <$> getFuncNameStack
 
 newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr

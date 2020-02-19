@@ -118,11 +118,6 @@ desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
   desugar $ LambdaExpr [TensorArg name] (MatchExpr BFSMode (stringToVarExpr name) matcher clauses)
 
-desugar (ArrayRefExpr expr nums) =
-  case nums of
-    TupleExpr nums' -> desugar $ IndexedExpr True expr (map Subscript nums')
-    _ -> desugar $ IndexedExpr True expr [Subscript nums]
-
 -- TODO: Allow nested MultiSubscript and MultiSuperscript
 desugar (IndexedExpr b expr indices) =
   case indices of
@@ -159,9 +154,6 @@ desugar (UserrefsExpr bool expr1 expr2) =
 
 desugar (PowerExpr expr1 expr2) =
   (\x y -> makeApply "**" [x, y]) <$> desugar expr1 <*> desugar expr2
-
-desugar (ArrayBoundsExpr expr) =
-  ArrayBoundsExpr <$> desugar expr
 
 desugar (InductiveDataExpr name exprs) =
   InductiveDataExpr name <$> mapM desugar exprs
@@ -307,12 +299,6 @@ desugar SectionExpr{} = throwError $ Default "Cannot reach here: section with bo
 
 desugar (SeqExpr expr0 expr1) =
   SeqExpr <$> desugar expr0 <*> desugar expr1
-
-desugar (GenerateArrayExpr fnExpr (fstExpr, lstExpr)) = do
-  fnExpr' <- desugar fnExpr
-  fstExpr' <- desugar fstExpr
-  lstExpr' <- desugar lstExpr
-  return $ GenerateArrayExpr fnExpr' (fstExpr', lstExpr')
 
 desugar (GenerateTensorExpr fnExpr sizeExpr) =
   GenerateTensorExpr <$> desugar fnExpr <*> desugar sizeExpr

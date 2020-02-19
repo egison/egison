@@ -185,7 +185,6 @@ expr' = try partialExpr
             <|> try freshVarExpr
             <|> try varExpr
             <|> inductiveDataExpr
-            <|> try arrayExpr
             <|> try vectorExpr
             <|> try tupleExpr
             <|> try hashExpr
@@ -216,9 +215,6 @@ expr' = try partialExpr
                         <|> applyExpr
                         <|> cApplyExpr
                         <|> algebraicDataMatcherExpr
-                        <|> generateArrayExpr
-                        <|> arrayBoundsExpr
-                        <|> arrayRefExpr
                         <|> generateTensorExpr
                         <|> tensorExpr
                         <|> tensorContractExpr
@@ -250,12 +246,6 @@ collectionExpr = braces $ CollectionExpr <$> sepEndBy innerExpr whiteSpace
   innerExpr :: Parser InnerExpr
   innerExpr = (char '@' >> SubCollectionExpr <$> expr)
                <|> ElementExpr <$> expr
-
-arrayExpr :: Parser EgisonExpr
-arrayExpr = between lp rp $ ArrayExpr <$> sepEndBy expr whiteSpace
-  where
-    lp = P.lexeme lexer (string "(|")
-    rp = string "|)"
 
 vectorExpr :: Parser EgisonExpr
 vectorExpr = between lp rp $ VectorExpr <$> sepEndBy expr whiteSpace
@@ -489,18 +479,6 @@ algebraicDataMatcherExpr = keywordAlgebraicDataMatcher
   where
     inductivePat' :: Parser (String, [EgisonExpr])
     inductivePat' = angles $ (,) <$> lowerName <*> sepEndBy expr whiteSpace
-
-generateArrayExpr :: Parser EgisonExpr
-generateArrayExpr = keywordGenerateArray >> GenerateArrayExpr <$> expr <*> arrayRange
-
-arrayRange :: Parser (EgisonExpr, EgisonExpr)
-arrayRange = brackets $ (,) <$> expr <*> expr
-
-arrayBoundsExpr :: Parser EgisonExpr
-arrayBoundsExpr = keywordArrayBounds >> ArrayBoundsExpr <$> expr
-
-arrayRefExpr :: Parser EgisonExpr
-arrayRefExpr = keywordArrayRef >> ArrayRefExpr <$> expr <*> expr
 
 generateTensorExpr :: Parser EgisonExpr
 generateTensorExpr = keywordGenerateTensor >> GenerateTensorExpr <$> expr <*> expr
@@ -750,9 +728,6 @@ reservedKeywords =
   , "do"
   , "io"
   , "algebraic-data-matcher"
-  , "generate-array"
-  , "array-bounds"
-  , "array-ref"
   , "generate-tensor"
   , "tensor"
   , "contract"
@@ -827,9 +802,6 @@ keywordIo                   = reserved "io"
 keywordSomething            = reserved "something"
 keywordUndefined            = reserved "undefined"
 keywordAlgebraicDataMatcher = reserved "algebraic-data-matcher"
-keywordGenerateArray        = reserved "generate-array"
-keywordArrayBounds          = reserved "array-bounds"
-keywordArrayRef             = reserved "array-ref"
 keywordGenerateTensor       = reserved "generate-tensor"
 keywordTensor               = reserved "tensor"
 keywordTensorContract       = reserved "contract"
