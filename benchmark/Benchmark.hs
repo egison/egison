@@ -7,6 +7,7 @@ import           Control.Monad.Except
 import           Criterion
 import           Criterion.Main
 import           Language.Egison
+import           Language.Egison.CmdOptions
 
 runEgisonFile :: String -> IO ()
 runEgisonFile path = initialEnv defaultOption >>= flip (loadEgisonFile defaultOption) path >> return ()
