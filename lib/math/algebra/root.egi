@@ -18,8 +18,8 @@
           (let {[$xd (reduce gcd xs)]
                 [$yd (reduce gcd ys)]}
             (let {[$d (rt-monomial n (/ xd yd))]}
-              (*' d
-                 (rt'' n (*' (/' (sum' (map (/' $ xd) xs)) (sum' (map (/' $ yd) ys)))))
+              (mul' d
+                 (rt'' n (mul' (div' (sum' (map (div' $ xd) xs)) (sum' (map (div' $ yd) ys)))))
                  )))]
          [_ (rt'' n x)]})
       (rt'' n x))))
@@ -35,15 +35,15 @@
     (match x term-expr
       {[<term $a _>
         (if (lt? a 0)
-          (*' (rtm1 n) (rt-positive-term n (* -1 x)))
+          (mul' (rtm1 n) (rt-positive-term n (* -1 x)))
           (rt-positive-term n x))]})))
 
 (define $rt-positive-term
   (lambda [$n $x]
     (match [n x] [math-expr math-expr]
-      {[[,3 (* $a ,i $r)] (* -1 i (rt 3 (*' a r)))]
-       [[_ (* $a (,sqrt $b) $r)] (*' (rt (* n 2) (*' (**' a 2) b)) (rt n r))]
-       [[_ (* $a (,rt $n' $b) $r)] (*' (rt (* n n') (*' (**' a n') b)) (rt n r))]
+      {[[,3 (* $a ,i $r)] (* -1 i (rt 3 (mul' a r)))]
+       [[_ (* $a (,sqrt $b) $r)] (mul' (rt (* n 2) (mul' (power' a 2) b)) (rt n r))]
+       [[_ (* $a (,rt $n' $b) $r)] (mul' (rt (* n n') (mul' (power' a n') b)) (rt n r))]
        [[_ _] (rt-positive-term1 n x)]
        })))
 
@@ -54,7 +54,7 @@
                      {[<nil> [1 1]]
                       [<ncons $p $k $rs>
                        (let {[[$a $b] (f rs)]}
-                         [(*' (**' p (quotient k n)) a) (*' (**' p (remainder k n)) b)])]}))]
+                         [(mul' (power' p (quotient k n)) a) (mul' (power' p (remainder k n)) b)])]}))]
              [$g (lambda [$n $x]
                    (let {[$d (match x term-expr
                                {[<term $m $xs> (gcd n (reduce gcd (map 2#%2 {@(to-assoc (p-f m)) @xs})))]})]}
@@ -63,7 +63,7 @@
         {[<term $m $xs>
           (match (f {@(to-assoc (p-f (abs m))) @xs}) [integer integer]
             {[[$a ,1] a]
-             [[$a $b] (*' a (g n b))]})]}))))
+             [[$a $b] (mul' a (g n b))]})]}))))
 
 (define $rt''
   (lambda [$n $x]

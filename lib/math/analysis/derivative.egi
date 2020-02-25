@@ -29,15 +29,15 @@
           (if (monomial? g')
             g'
             (let {[$d (capply gcd (from-poly g'))]}
-              (*' d '(map-poly (/' $ d) g')))))]
+              (mul' d '(map-poly (div' $ d) g')))))]
        ; term (constant)
        [,0 0]
        [(* _ ,1) 0]
        ; term (multiplication)
        [(* ,1 $fx^$n) (* n (** fx (- n 1)) (∂/∂ fx x))]
        [(* $a $fx^$n $r)
-        (+ (* a (∂/∂ (**' fx n) x) r)
-           (* a (**' fx n) (∂/∂ r x)))]
+        (+ (* a (∂/∂ (power' fx n) x) r)
+           (* a (power' fx n) (∂/∂ r x)))]
        ; polynomial
        [<poly $ts> (sum (map (∂/∂ $ x) ts))]
        ; quotient

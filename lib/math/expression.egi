@@ -29,7 +29,7 @@
       {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (map 2#[(to-math-expr' %1) %2] xs)]}]
        [_ {}]}]
      [<mult $ $> [integer mult-expr]
-      {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (product' (map 2#(**' (to-math-expr' %1) %2) xs))]}]
+      {[<Div <Plus {<Term $n $xs> @{}}> <Plus {<Term 1 {}> @{}}>> {[n (product' (map 2#(power' (to-math-expr' %1) %2) xs))]}]
        [_ {}]}]
 ;     [<symbol $> [eq]
 ;      {[<Div <Plus {<Term 1 {[<Symbol $v {}> 1] @{}}> @{}}> <Plus {<Term 1 {}> @{}}>> {v}]
@@ -86,21 +86,21 @@
                {[<term _ $xs>
                  (match-all xs (assoc-multiset math-expr)
                    [<cons $x $rs>
-                    [x (product' (map 2#(**' %1 %2) rs))]])]
+                    [x (product' (map 2#(power' %1 %2) rs))]])]
                 [_ {}]})]}]
      [<ncons $ ,$k $> [math-expr mult-expr]
       {[$tgt (match tgt math-expr
                {[<term _ $xs>
                  (match-all xs (list [math-expr integer])
                    [<join $hs <cons [$x (& ?(gte? $ k) $n)] $ts>>
-                    [x (product' (map 2#(**' %1 %2) {@hs [x (- n k)] @ts}))]])]
+                    [x (product' (map 2#(power' %1 %2) {@hs [x (- n k)] @ts}))]])]
                 [_ {}]})]}]
      [<ncons $ $ $> [math-expr integer mult-expr]
       {[$tgt (match tgt math-expr
                {[<term _ $xs>
                  (match-all xs (list [math-expr integer])
                    [<join $hs <cons [$x $n] $ts>>
-                    [x n (product' (map 2#(**' %1 %2) {@hs @ts}))]])]
+                    [x n (product' (map 2#(power' %1 %2) {@hs @ts}))]])]
                 [_ {}]})]}]
      [$ [math-expr]
       {[$tgt {tgt}]}]
@@ -168,8 +168,8 @@
       {[<div <term $a $xs>
              <term $b $ys>>
         [(/ a b)
-         (/ (foldl *' 1 (map 2#(**' %1 %2) xs))
-            (foldl *' 1 (map 2#(**' %1 %2) ys)))]]})))
+         (/ (foldl mul' 1 (map 2#(power' %1 %2) xs))
+            (foldl mul' 1 (map 2#(power' %1 %2) ys)))]]})))
 
 ;;
 ;; Map
@@ -178,42 +178,42 @@
   (lambda [$fn $mexpr]
     (match mexpr math-expr
       {[<div $p1 $p2>
-        (/' (fn p1) (fn p2))]})))
+        (div' (fn p1) (fn p2))]})))
 
 (define $from-poly
   (lambda [$mexpr]
     (match mexpr math-expr
       {[<div <poly $ts1> $q>
-        (map (lambda [$t1] (/' t1 q))
+        (map (lambda [$t1] (div' t1 q))
              ts1)]})))
 
 (define $map-poly
   (lambda [$fn $mexpr]
     (match mexpr math-expr
       {[<div <poly $ts1> $q>
-        (foldl +' 0 (map (lambda [$t1] (fn (/' t1 q)))
+        (foldl add' 0 (map (lambda [$t1] (fn (div' t1 q)))
                          ts1))]})))
 
 (define $map-terms
   (lambda [$fn $mexpr]
     (match mexpr math-expr
       {[<div <poly $ts1> <poly $ts2>>
-        (/' (foldl +' 0 (map fn ts1))
-            (foldl +' 0 (map fn ts2)))]})))
+        (div' (foldl add' 0 (map fn ts1))
+              (foldl add' 0 (map fn ts2)))]})))
 
 (define $map-symbols
   (lambda [$fn $mexpr]
     (map-terms (lambda [$term]
                  (match term term-expr
                    {[<term $a $xs>
-                     (*' a (foldl *' 1 (map 2#(match %1 symbol-expr
-                                                {[<symbol _ _> (**' (fn %1) %2)]
+                     (mul' a (foldl mul' 1 (map 2#(match %1 symbol-expr
+                                                {[<symbol _ _> (power' (fn %1) %2)]
                                                  [<apply $g $args>
                                                   (let {[$args'(map (map-symbols fn $) args)]}
                                                     (if (eq? args args')
-                                                      (**' %1 %2)
-                                                      (**' (fn (capply g args'))
-                                                          %2)))
+                                                      (power' %1 %2)
+                                                      (power' (fn (capply g args'))
+                                                              %2)))
                                                   ]})
                                             xs)))]}))
                mexpr)))
@@ -345,14 +345,14 @@
        [<quote $g> g]
        ; term (multiplication)
        [<term $a $ps>
-        (*' a (product' (map 2#(**' (expand-all' %1) (expand-all' %2)) ps)))]
+        (mul' a (product' (map 2#(power' (expand-all' %1) (expand-all' %2)) ps)))]
        ; polynomial
        [<poly $ts> (sum' (map (expand-all' $) ts))]
        ; quotient
        [(/ $p1 $p2)
         (let {[$p1' (expand-all' p1)]
               [$p2' (expand-all' p2)]}
-          (/' p1' p2'))]
+          (div' p1' p2'))]
        })))
 
 ;;;
@@ -369,7 +369,7 @@
     (if (eq? m 0)
       (/ (sum (match-all f math-expr
                 [<div <poly <cons <term $a (& !<cons ,x _> $ts)> _>> _>
-                 (foldl *' a (map 2#(**' %1 %2) ts))]))
+                 (foldl mul' a (map 2#(power' %1 %2) ts))]))
          (denominator f))
       (coefficient' f x m))))
 
@@ -378,7 +378,7 @@
     (/ (sum (match-all f math-expr
               [<div <poly <cons <term $a <ncons ,x $k $ts>> _>> _>
                (if (eq? m k)
-                 (foldl *' a (map 2#(**' %1 %2) ts))
+                 (foldl mul' a (map 2#(power' %1 %2) ts))
                  0)]))
        (denominator f))))
 
@@ -386,6 +386,6 @@
   (lambda [$f $x $y]
     (/ (sum (match-all f math-expr
               [<div <poly <cons <term $a <cons ,x <cons ,y $ts>>> _>> _>
-               (foldl *' a (map 2#(**' %1 %2) ts))
+               (foldl mul' a (map 2#(power' %1 %2) ts))
                ]))
        (denominator f))))

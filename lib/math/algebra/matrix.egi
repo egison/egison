@@ -11,11 +11,11 @@
     (with-symbols {j}
       (. m1~#~j m2_j_#))))
 
-(define $M.*'
+(define $M.mul'
   (cambda $ms
-    (foldl M.b.*' (car ms) (cdr ms))))
+    (foldl M.b.mul' (car ms) (cdr ms))))
 
-(define $M.b.*'
+(define $M.b.mul'
   (lambda [%m1 %m2]
     (with-symbols {j}
       (.' m1~#~j m2_j))))

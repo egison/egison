@@ -599,7 +599,7 @@ loopRange :: Parser LoopRange
 loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
                       <|> (do s <- expr
                               ep <- option WildCard pattern
-                              return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
+                              return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "sub'") (TupleExpr [s, IntegerExpr 1]))) ep)))
 
 seqNilPat :: Parser EgisonPattern
 seqNilPat = braces $ pure SeqNilPat

@@ -6,28 +6,28 @@
 
 (define $to-math-expr (lambda [$arg] (math-normalize1 (to-math-expr' arg))))
 
-(define $+' (cambda $xs (foldl b.+ (car xs) (cdr xs))))
-(define $-' (cambda $xs (foldl b.- (car xs) (cdr xs))))
-(define $*' (cambda $xs (foldl b.* (car xs) (cdr xs))))
-(define $/' b./)
+(define $add' (cambda $xs (foldl b.+ (car xs) (cdr xs))))
+(define $sub' (cambda $xs (foldl b.- (car xs) (cdr xs))))
+(define $mul' (cambda $xs (foldl b.* (car xs) (cdr xs))))
+(define $div' b./)
 
-(define $f.+' (cambda $xs (foldl f.+ (car xs) (cdr xs))))
-(define $f.-' (cambda $xs (foldl f.- (car xs) (cdr xs))))
-(define $f.*' (cambda $xs (foldl f.* (car xs) (cdr xs))))
-(define $f./' f./)
+(define $f.add' (cambda $xs (foldl f.+ (car xs) (cdr xs))))
+(define $f.sub' (cambda $xs (foldl f.- (car xs) (cdr xs))))
+(define $f.mul' (cambda $xs (foldl f.* (car xs) (cdr xs))))
+(define $f.div' f./)
 
 (define $+
   (cambda $xs (if (capply or (map float? xs))
-                  (capply f.+' (map (lambda [$x] (if (float? x) x (itof x))) xs))
-                  (math-normalize1 (capply +' xs)))))
+                  (capply f.add' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (math-normalize1 (capply add' xs)))))
 (define $-
   (cambda $xs (if (capply or (map float? xs))
-                  (capply f.-' (map (lambda [$x] (if (float? x) x (itof x))) xs))
-                  (math-normalize1 (capply -' xs)))))
+                  (capply f.sub' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (math-normalize1 (capply sub' xs)))))
 (define $*
   (cambda $xs (if (capply or (map float? xs))
-                  (capply f.*' (map (lambda [$x] (if (float? x) x (itof x))) xs))
-                  (math-normalize1 (capply *' xs)))))
+                  (capply f.mul' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (math-normalize1 (capply mul' xs)))))
 (define $/
   (lambda [$x $y]
     (if (and (float? x) (float? y))
@@ -48,7 +48,7 @@
 
 (define $sum'
   (lambda [$xs]
-    (foldl +' 0 xs)))
+    (foldl add' 0 xs)))
 
 (define $product
   (lambda [$xs]
@@ -58,7 +58,7 @@
 
 (define $product'
   (lambda [$xs]
-    (foldl *' 1 xs)))
+    (foldl mul' 1 xs)))
 
 (define $power
   (lambda [$x $n]
@@ -66,7 +66,7 @@
 
 (define $power'
   (lambda [$x $n]
-    (foldl *' 1 (take n (repeat1 x)))))
+    (foldl mul' 1 (take n (repeat1 x)))))
 
 (define $**
   (lambda [$x $n]
@@ -80,7 +80,7 @@
           (/ 1 (** x (neg n))))
         (`** x n)))))
 
-(define $**'
+(define $power'
   (lambda [$x $n]
     (if (eq? x e)
       (exp n)
@@ -89,7 +89,7 @@
           (if (integer? n)
             (power' x n)
             (`** x n))
-          (/' 1 (**' x (neg n))))
+          (div' 1 (power' x (neg n))))
         (`** x n)))))
 
 (define $gcd
@@ -106,7 +106,7 @@
       {[[_ ,0] x]
        [[,0 _] y]
        [[<term $a $xs> <term $b $ys>]
-        (*' (b.gcd' (abs a) (abs b)) (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys))))]})))
+        (mul' (b.gcd' (abs a) (abs b)) (foldl mul' 1 (map 2#(power' %1 %2) (AC.intersect xs ys))))]})))
 
 (define $b.gcd'
   (lambda [$x $y]
@@ -121,5 +121,5 @@
     (let* {[$as (reverse (coefficients fx x))]
            [$bs (reverse (coefficients gx x))]
            [[$zs $rs] (L./ as bs)]}
-      [(sum' (map2 2#(*' %1 (**' x %2)) (reverse zs) nats0))
-       (sum' (map2 2#(*' %1 (**' x %2)) (reverse rs) nats0))])))
+      [(sum' (map2 2#(mul' %1 (power' x %2)) (reverse zs) nats0))
+       (sum' (map2 2#(mul' %1 (power' x %2)) (reverse rs) nats0))])))
