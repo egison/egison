@@ -32,9 +32,9 @@ rtTerm n x :=
 
 rtPositiveTerm n x :=
   match (n, x) as (mathExpr, mathExpr) with
-    | (#3, REPLACEME) -> (- i) * rt 3 (*' a r)
-    | (_, REPLACEME) -> *' (rt (n * 2) (*' (**' a 2) b)) (rt n r)
-    | (_, REPLACEME) -> *' (rt (n * n') (*' (**' a n') b)) (rt n r)
+    | (#3, $a * #i * $r) -> (- i) * rt 3 (*' a r)
+    | (_, $a * #sqrt $b * $r) -> *' (rt (n * 2) (*' (**' a 2) b)) (rt n r)
+    | (_, $a * #rt $n' $b * $r) -> *' (rt (n * n') (*' (**' a n') b)) (rt n r)
     | (_, _) -> rtPositiveTerm1 n x
 
 rtPositiveTerm1 n x :=

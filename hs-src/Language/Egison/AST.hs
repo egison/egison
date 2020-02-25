@@ -265,7 +265,10 @@ reservedExprInfix =
 
 reservedPatternInfix :: [Infix]
 reservedPatternInfix =
-  [ makeInfix "/"  "div"  7 LeftAssoc
+  [ makeInfix "^"  "^"    8 LeftAssoc   -- PowerPat
+  , makeInfix "*"  "*"    7 LeftAssoc   -- MultPat
+  , makeInfix "/"  "div"  7 LeftAssoc   -- DivPat
+  , makeInfix "+"  "+"    6 LeftAssoc   -- PlusPat
   , makeInfix "::" "cons" 5 RightAssoc
   , makeInfix "++" "join" 5 RightAssoc
   , makeInfix "&"  "&"    3 RightAssoc
