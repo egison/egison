@@ -36,6 +36,8 @@ assertEqual "collection literal" [1, 2, 3, 4, 5, 6] [1, 2, 3, 4, 5, 6]
 assertEqual "collection between" [1..5] [1, 2, 3, 4, 5]
 assertEqual "collection from" (take 5 [1..]) [1, 2, 3, 4, 5]
 
+assertEqual "identifier with dot and operator" (b.* 1 2) 2
+
 --
 -- Basic Sytax
 --

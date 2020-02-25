@@ -806,7 +806,7 @@ patInfixLiteral sym =
 
 -- Characters that can consist expression operators.
 opChar :: Parser Char
-opChar = oneOf ("%^&*-+\\|:<>.?!/'#@$" ++ "∧")
+opChar = oneOf ("%^&*-+\\|:<>?!./'#@$" ++ "∧")
 
 -- Characters that can consist pattern operators.
 -- ! ? # @ $ are omitted because they can appear at the beginning of atomPattern
@@ -818,11 +818,17 @@ newPatOp = (:) <$> patOpChar <*> many (patOpChar <|> oneOf "!?#@$")
 
 -- Characters that consist identifiers.
 -- Note that 'alphaNumChar' can also parse greek letters.
--- TODO(momohatt): Use more natural way to reject "..."
 identChar :: Parser Char
 identChar = alphaNumChar
         <|> oneOf (['?', '\'', '/'] ++ mathSymbols)
-        <|> try (char '.' <* notFollowedBy (char '.'))
+
+identString :: Parser String
+identString = do
+  strs <- many substr
+  return $ concat strs
+  where
+    substr = ((\x y -> [x, y]) <$> try (char '.' <* notFollowedBy (string "..")) <*> (identChar <|> opChar))
+         <|> (:[]) <$> identChar
 
 -- Non-alphabetical symbols that are allowed for identifiers
 mathSymbols :: String
@@ -850,7 +856,8 @@ comma = symbol ","
 lowerId :: Parser String
 lowerId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> satisfy (\c -> c `elem` mathSymbols || isLetter c && not (isAsciiUpper c)) <*> many identChar
+    p = (:) <$> satisfy checkHead <*> identString
+    checkHead c = c `elem` mathSymbols || isLetter c && not (isAsciiUpper c)
     check x = if x `elem` lowerReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
@@ -858,7 +865,7 @@ lowerId = (lexeme . try) (p >>= check)
 upperId :: Parser String
 upperId = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> satisfy isAsciiUpper <*> many alphaNumChar
+    p = (:) <$> satisfy isAsciiUpper <*> many alphaNumChar
     check x = if x `elem` upperReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
@@ -867,7 +874,8 @@ upperId = (lexeme . try) (p >>= check)
 ident :: Parser String
 ident = (lexeme . try) (p >>= check)
   where
-    p       = (:) <$> satisfy (\c -> c `elem` mathSymbols || isLetter c) <*> many identChar
+    p = (:) <$> satisfy checkHead <*> identString
+    checkHead c = c `elem` mathSymbols || isLetter c
     check x = if x `elem` (lowerReservedWords ++ upperReservedWords)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
