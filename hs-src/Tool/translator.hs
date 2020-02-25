@@ -80,6 +80,19 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (QuoteExpr x)        = QuoteExpr (toNonS x)
   toNonS (QuoteSymbolExpr x)  = QuoteSymbolExpr (toNonS x)
+  toNonS (WedgeApplyExpr (VarExpr f) (TupleExpr (y:ys)))
+    | any (\op -> func op == prettyS f) reservedExprInfix =
+      optimize $ foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+      where
+        op =
+          let op' = fromJust $ find (\op -> func op == prettyS f) reservedExprInfix
+           in op' { isWedge = True }
+
+        optimize (BinaryOpExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
+          UnaryOpExpr "-" (optimize e2)
+        optimize (BinaryOpExpr op e1 e2) =
+          BinaryOpExpr op (optimize e1) (optimize e2)
+        optimize e = e
   toNonS (WedgeApplyExpr x y) = WedgeApplyExpr (toNonS x) (toNonS y)
 
   toNonS (DoExpr xs y) = DoExpr (map toNonS xs) (toNonS y)

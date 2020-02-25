@@ -132,15 +132,15 @@ instance Pretty EgisonExpr where
   -- (x1 op' x2) op y
   pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
-       then parens (pretty x) <+> pretty (repr op) <+> pretty'' y
-       else pretty x          <+> pretty (repr op) <+> pretty'' y
+       then parens (pretty x) <+> pretty op <+> pretty'' y
+       else pretty x          <+> pretty op <+> pretty'' y
   -- x op (y1 op' y2)
   pretty (BinaryOpExpr op x y@(BinaryOpExpr op' _ _)) =
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
-       then pretty'' x <+> pretty (repr op) <+> parens (pretty y)
-       else pretty'' x <+> pretty (repr op) <+> pretty y
-  pretty (BinaryOpExpr op x y) = pretty'' x <+> pretty (repr op) <+> pretty'' y
-  pretty (SectionExpr op Nothing Nothing) = parens (pretty (repr op))
+       then pretty'' x <+> pretty op <+> parens (pretty y)
+       else pretty'' x <+> pretty op <+> pretty y
+  pretty (BinaryOpExpr op x y) = pretty'' x <+> pretty op <+> pretty'' y
+  pretty (SectionExpr op Nothing Nothing) = parens (pretty op)
 
   pretty (DoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
@@ -269,6 +269,10 @@ instance Pretty PrimitiveDataPattern where
   pretty (PDConsPat pdp1 pdp2) = pretty'' pdp1 <+> pretty "::" <+> pretty'' pdp2
   pretty (PDSnocPat pdp1 pdp2) = applyLike [pretty "snoc", pretty' pdp1, pretty' pdp2]
   pretty (PDConstantPat expr) = pretty expr
+
+instance Pretty Infix where
+  pretty op | isWedge op = pretty ("!" ++ repr op)
+            | otherwise  = pretty (repr op)
 
 class Complex a where
   isAtom :: a -> Bool
