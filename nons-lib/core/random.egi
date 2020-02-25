@@ -25,7 +25,8 @@ R.multiset a :=
     | cons $ $ as (a, R.multiset a) with
       | $tgt ->
         map
-          (\i -> match tgt as list a with
+          (\i ->
+            match tgt as list a with
               | loop $j (1, i - 1, _)
                   ($xa_j :: ...)
                   ($x :: $ts) ->
@@ -59,7 +60,8 @@ R.set a :=
     | cons $ $ as (a, R.multiset a) with
       | $tgt ->
         map
-          (\i -> match tgt as list a with
+          (\i ->
+            match tgt as list a with
               | loop $j (1, i - 1, _)
                   (_ :: ...)
                   ($x :: _) -> (x, tgt))

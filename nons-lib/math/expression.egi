@@ -180,7 +180,8 @@ mapTerms fn mexpr :=
 
 mapSymbols fn mexpr :=
   mapTerms
-    (\term -> match term as termExpr with
+    (\term ->
+      match term as termExpr with
         | term $a $xs ->
           *'
             a
@@ -204,7 +205,8 @@ containSymbol? x mexpr :=
     (match mexpr as mathExpr with
       | div poly $ts1 poly $ts2 ->
         map
-          (\term -> match term as termExpr with
+          (\term ->
+            match term as termExpr with
               | term _ $xs ->
                 any
                   id
@@ -223,7 +225,8 @@ containFunction? f mexpr :=
     (match mexpr as mathExpr with
       | div poly $ts1 poly $ts2 ->
         map
-          (\term -> match term as termExpr with
+          (\term ->
+            match term as termExpr with
               | term _ $xs ->
                 any
                   id
@@ -243,7 +246,8 @@ containFunctionWithOrder? f n mexpr :=
     (match mexpr as mathExpr with
       | div poly $ts1 poly $ts2 ->
         map
-          (\term -> match term as termExpr with
+          (\term ->
+            match term as termExpr with
               | term _ $xs ->
                 any
                   id
@@ -267,7 +271,8 @@ containFunctionWithIndex? mexpr :=
     (match mexpr as mathExpr with
       | div poly $ts1 poly $ts2 ->
         map
-          (\term -> match term as termExpr with
+          (\term ->
+            match term as termExpr with
               | term _ $xs ->
                 any
                   id

@@ -35,8 +35,8 @@ TSV.readLine sopts copts :=
                         , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: [] ) ->
                         fnC opts' (hs ++ [S.concat ["{", mf, "}"]])
                       | ( ($m :: []) :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length
-                                                    hs)) ++ $mf :: (snoc $tf $ms) ) ->
+                        , ($hs & ?(\hs ->
+                          m - 1 = length hs)) ++ $mf :: (snoc $tf $ms) ) ->
                         fnC
                           opts'
                           (hs ++ S.append "{" mf :: ms ++ [S.append tf "}"])
@@ -44,8 +44,8 @@ TSV.readLine sopts copts :=
                         , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
                         fnC opts' (hs ++ S.concat ["{", mf, "}"] :: ts)
                       | ( ($m :: $n :: []) :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length
-                                                    hs)) ++ $mf :: ($ms & ?(\ms ->
+                        , ($hs & ?(\hs ->
+                          m - 1 = length hs)) ++ $mf :: ($ms & ?(\ms ->
                           n - m - 1 = length ms)) ++ $nf :: $ts ) ->
                         fnC
                           opts'
