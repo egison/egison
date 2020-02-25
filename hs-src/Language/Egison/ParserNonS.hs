@@ -283,11 +283,11 @@ exprWithoutWhere =
    <|> withSymbolsExpr
    <|> doExpr
    <|> ioExpr
+   <|> seqExpr
    <|> capplyExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
    <|> tensorExpr
-   <|> tensorOpExpr
    <|> functionExpr
    <|> refsExpr
    <|> opExpr
@@ -416,6 +416,9 @@ doExpr = do
 ioExpr :: Parser EgisonExpr
 ioExpr = IoExpr <$> (reserved "io" >> expr)
 
+seqExpr :: Parser EgisonExpr
+seqExpr = SeqExpr <$> (reserved "seq" >> atomExpr) <*> atomExpr
+
 capplyExpr :: Parser EgisonExpr
 capplyExpr = CApplyExpr <$> (reserved "capply" >> atomExpr) <*> atomExpr
 
@@ -445,11 +448,9 @@ algebraicDataMatcherExpr = do
     patternDef = indentBlock lowerId atomExpr
 
 tensorExpr :: Parser EgisonExpr
-tensorExpr = TensorExpr <$> (reserved "tensor" >> atomExpr) <*> atomExpr
-
-tensorOpExpr :: Parser EgisonExpr
-tensorOpExpr =
-      (reserved "generateTensor" >> GenerateTensorExpr <$> atomExpr <*> atomExpr)
+tensorExpr =
+      (reserved "tensor"         >> TensorExpr         <$> atomExpr <*> atomExpr)
+  <|> (reserved "generateTensor" >> GenerateTensorExpr <$> atomExpr <*> atomExpr)
   <|> (reserved "contract"       >> TensorContractExpr <$> atomExpr <*> atomExpr)
   <|> (reserved "tensorMap"      >> TensorMapExpr      <$> atomExpr <*> atomExpr)
   <|> (reserved "tensorMap2"     >> TensorMap2Expr     <$> atomExpr <*> atomExpr <*> atomExpr)
@@ -884,7 +885,7 @@ lowerReservedWords =
   , "if"
   , "then"
   , "else"
-  -- , "seq"
+  , "seq"
   , "capply"
   , "memoizedLambda"
   , "cambda"

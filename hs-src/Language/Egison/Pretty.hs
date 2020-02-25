@@ -145,6 +145,7 @@ instance Pretty EgisonExpr where
   pretty (DoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
+  pretty (SeqExpr e1 e2) = applyLike [pretty "seq", pretty' e1, pretty' e2]
   pretty (ApplyExpr x (TupleExpr ys)) = applyLike (map pretty' (x : ys))
   pretty (ApplyExpr x y) = applyLike [pretty' x, pretty' y]
   pretty (CApplyExpr e1 e2) = applyLike [pretty "capply", pretty' e1, pretty' e2]
