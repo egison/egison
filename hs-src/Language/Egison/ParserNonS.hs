@@ -827,7 +827,7 @@ identString = do
   strs <- many substr
   return $ concat strs
   where
-    substr = ((\x y -> [x, y]) <$> try (char '.' <* notFollowedBy (string "..")) <*> (identChar <|> opChar))
+    substr = ((:) <$> try (char '.' <* notFollowedBy (string "..")) <*> many opChar)
          <|> (:[]) <$> identChar
 
 -- Non-alphabetical symbols that are allowed for identifiers
