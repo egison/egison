@@ -8,9 +8,10 @@ nat :=
       | 0 -> [()]
       | _ -> []
     | s $ as nat with
-      | $tgt -> match compare tgt 0 as ordering with
-        | greater -> [tgt - 1]
-        | _ -> []
+      | $tgt ->
+        match compare tgt 0 as ordering with
+          | greater -> [tgt - 1]
+          | _ -> []
     | #n as () with
       | $tgt -> if tgt = n then [()] else []
     | $ as (something) with
