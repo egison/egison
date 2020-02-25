@@ -190,7 +190,12 @@ instance SyntaxElement PatternDef where
   toNonS (x, y, zs) = (x, toNonS y, map (\(z, w) -> (z, toNonS w)) zs)
 
 instance SyntaxElement Var where
-  toNonS (Var xs ys) = Var (map toCamelCase xs) ys
+  toNonS (Var ["+'"]  []) = Var ["add'"]   []
+  toNonS (Var ["-'"]  []) = Var ["sub'"]   []
+  toNonS (Var ["*'"]  []) = Var ["mul'"]   []
+  toNonS (Var ["/'"]  []) = Var ["div'"]   []
+  toNonS (Var ["**'"] []) = Var ["power'"] []
+  toNonS (Var xs ys)      = Var (map toCamelCase xs) ys
 
 toCamelCase :: String -> String
 toCamelCase x@('-':_) = x
