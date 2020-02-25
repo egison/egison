@@ -146,7 +146,7 @@ polynomial? mexpr :=
 
 monomial? mexpr :=
   match mexpr as mathExpr with
-    | div poly (term _ _) :: [] poly (term _ _) :: [] -> True
+    | (poly (term _ _) :: []) / (poly (term _ _) :: []) -> True
     | #0 -> True
     | _ -> False
 
@@ -157,25 +157,25 @@ symbolIndices mexpr :=
 
 fromMonomial mexpr :=
   match mexpr as mathExpr with
-    | div term $a $xs term $b $ys ->
+    | (term $a $xs) / (term $b $ys) ->
       ( a / b
       , foldl *' 1 (map 2#(**' %1 %2) xs) / foldl *' 1 (map 2#(**' %1 %2) ys) )
 
 mapPolys fn mexpr :=
   match mexpr as mathExpr with
-    | div $p1 $p2 -> /' (fn p1) (fn p2)
+    | $p1 / $p2 -> /' (fn p1) (fn p2)
 
 fromPoly mexpr :=
   match mexpr as mathExpr with
-    | div poly $ts1 $q -> map (\t1 -> /' t1 q) ts1
+    | (poly $ts1) / $q -> map (\t1 -> /' t1 q) ts1
 
 mapPoly fn mexpr :=
   match mexpr as mathExpr with
-    | div poly $ts1 $q -> foldl +' 0 (map (\t1 -> fn (/' t1 q)) ts1)
+    | (poly $ts1) / $q -> foldl +' 0 (map (\t1 -> fn (/' t1 q)) ts1)
 
 mapTerms fn mexpr :=
   match mexpr as mathExpr with
-    | div poly $ts1 poly $ts2 ->
+    | (poly $ts1) / (poly $ts2) ->
       /' (foldl +' 0 (map fn ts1)) (foldl +' 0 (map fn ts2))
 
 mapSymbols fn mexpr :=
@@ -203,7 +203,7 @@ containSymbol? x mexpr :=
   any
     id
     (match mexpr as mathExpr with
-      | div poly $ts1 poly $ts2 ->
+      | (poly $ts1) / (poly $ts2) ->
         map
           (\term ->
             match term as termExpr with
@@ -223,7 +223,7 @@ containFunction? f mexpr :=
   any
     id
     (match mexpr as mathExpr with
-      | div poly $ts1 poly $ts2 ->
+      | (poly $ts1) / (poly $ts2) ->
         map
           (\term ->
             match term as termExpr with
@@ -244,7 +244,7 @@ containFunctionWithOrder? f n mexpr :=
   any
     id
     (match mexpr as mathExpr with
-      | div poly $ts1 poly $ts2 ->
+      | (poly $ts1) / (poly $ts2) ->
         map
           (\term ->
             match term as termExpr with
@@ -269,7 +269,7 @@ containFunctionWithIndex? mexpr :=
   any
     id
     (match mexpr as mathExpr with
-      | div poly $ts1 poly $ts2 ->
+      | (poly $ts1) / (poly $ts2) ->
         map
           (\term ->
             match term as termExpr with
@@ -315,7 +315,7 @@ expandAll mexpr :=
     | quote $g -> g
     | term $a $ps -> a * product (map 2#(expandAll %1 ^ expandAll %2) ps)
     | poly $ts -> sum (map 1#(expandAll %1) ts)
-    | REPLACEME ->
+    | $p1 / $p2 ->
       let p1' := expandAll p1
           p2' := expandAll p2
        in p1' / p2'
@@ -328,7 +328,7 @@ expandAll' mexpr :=
     | term $a $ps ->
       *' a (product' (map 2#(**' (expandAll' %1) (expandAll' %2)) ps))
     | poly $ts -> sum' (map 1#(expandAll' %1) ts)
-    | REPLACEME ->
+    | $p1 / $p2 ->
       let p1' := expandAll' p1
           p2' := expandAll' p2
        in /' p1' p2'
@@ -336,25 +336,25 @@ expandAll' mexpr :=
 coefficients f x :=
   let m := max
              (0 :: (matchAll f as mathExpr with
-               | div poly (term $a ncons #x $k $ts) :: _ _ -> k))
+               | (poly (term $a ncons #x $k $ts) :: _) / _ -> k))
    in map 1#(coefficient f x %1) (between 0 m)
 
 coefficient f x m :=
   if m = 0
     then sum
            (matchAll f as mathExpr with
-             | div poly (term $a !(#x :: _) & $ts) :: _ _ ->
+             | (poly (term $a !(#x :: _) & $ts) :: _) / _ ->
                foldl *' a (map 2#(**' %1 %2) ts)) / denominator f
     else coefficient' f x m
 
 coefficient' f x m :=
   sum
     (matchAll f as mathExpr with
-      | div poly (term $a ncons #x $k $ts) :: _ _ ->
+      | (poly (term $a ncons #x $k $ts) :: _) / _ ->
         if m = k then foldl *' a (map 2#(**' %1 %2) ts) else 0) / denominator f
 
 coefficient2 f x y :=
   sum
     (matchAll f as mathExpr with
-      | div poly (term $a #x :: #y :: $ts) :: _ _ ->
+      | (poly (term $a #x :: #y :: $ts) :: _) / _ ->
         foldl *' a (map 2#(**' %1 %2) ts)) / denominator f
