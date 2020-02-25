@@ -57,7 +57,7 @@ R~#_#_#_#
 (define $Ric__ (with-symbols {i} (contract + R~i_#_i_#)))
 Ric_#_#
 
-(expand-all' (with-symbols {i j} (-' Ric_i_j (*' 4 g_i_j))))
+(expand-all' (with-symbols {i j} (sub' Ric_i_j (mul' 4 g_i_j))))
 ;[| [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] [| 0 0 0 0 0 |] |]
 
 ;;
