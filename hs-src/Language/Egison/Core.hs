@@ -59,14 +59,32 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Data
 import           Language.Egison.MathExpr
-import           Language.Egison.Parser      as Parser
-import           Language.Egison.ParserNonS  as ParserNonS
+import qualified Language.Egison.Parser      as Parser
+import qualified Language.Egison.ParserNonS  as ParserNonS
 import           Language.Egison.Pretty
 import           Language.Egison.Tensor
 
 --
 -- Evaluator
 --
+
+hasDotEgiExtension :: String -> Bool
+hasDotEgiExtension file = drop (length file - 4) file == ".egi"
+
+hasDotSEgiExtension :: String -> Bool
+hasDotSEgiExtension file = drop (length file - 5) file == ".segi"
+
+loadLibraryFile :: String -> EgisonM [EgisonTopExpr]
+loadLibraryFile file
+  | hasDotEgiExtension file  = ParserNonS.loadLibraryFile file
+  | hasDotSEgiExtension file = Parser.loadLibraryFile file
+  | otherwise                = throwError (UnknownFileExtension file)
+
+loadFile :: String -> EgisonM [EgisonTopExpr]
+loadFile file
+  | hasDotEgiExtension file  = ParserNonS.loadFile file
+  | hasDotSEgiExtension file = Parser.loadFile file
+  | otherwise                = throwError (UnknownFileExtension file)
 
 collectDefs :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
 collectDefs opts (expr:exprs) bindings rest =
@@ -76,18 +94,14 @@ collectDefs opts (expr:exprs) bindings rest =
     Redefine _ _ -> collectDefs opts exprs bindings $ if optTestOnly opts then expr : rest else rest
     Test _ -> collectDefs opts exprs bindings $ if optTestOnly opts then expr : rest else rest
     Execute _ -> collectDefs opts exprs bindings $ if optTestOnly opts then rest else expr : rest
-    LoadFile file ->
-      if optNoIO opts
-         then throwError $ Default "No IO support"
-         else do exprs' <- if optSExpr opts then Parser.loadFile file
-                                            else ParserNonS.loadFile file
-                 collectDefs opts (exprs' ++ exprs) bindings rest
-    Load file ->
-      if optNoIO opts
-         then throwError $ Default "No IO support"
-         else do exprs' <- if optSExpr opts then Parser.loadLibraryFile file
-                                            else ParserNonS.loadLibraryFile file
-                 collectDefs opts (exprs' ++ exprs) bindings rest
+    LoadFile _ | optNoIO opts -> throwError (Default "No IO support")
+    LoadFile file -> do
+      exprs' <- loadFile file
+      collectDefs opts (exprs' ++ exprs) bindings rest
+    Load _ | optNoIO opts -> throwError (Default "No IO support")
+    Load file -> do
+      exprs' <- loadLibraryFile file
+      collectDefs opts (exprs' ++ exprs) bindings rest
     InfixDecl{} -> collectDefs opts exprs bindings rest
 collectDefs _ [] bindings rest = return (bindings, reverse rest)
 
@@ -109,11 +123,11 @@ evalTopExpr' _ st (Execute expr) = do
     Value (IOFunc m) -> m >> popFuncName >> return (Nothing, st)
     _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
 evalTopExpr' opts st (Load file) = do
-  exprs <- if optSExpr opts then Parser.loadLibraryFile file else ParserNonS.loadLibraryFile file
+  exprs <- loadLibraryFile file
   (bindings, _) <- collectDefs opts exprs [] []
   return (Nothing, withStateT (\defines -> bindings ++ defines) st)
 evalTopExpr' opts st (LoadFile file) = do
-  exprs <- if optSExpr opts then Parser.loadFile file else ParserNonS.loadFile file
+  exprs <- loadFile file
   (bindings, _) <- collectDefs opts exprs [] []
   return (Nothing, withStateT (\defines -> bindings ++ defines) st)
 evalTopExpr' _ st InfixDecl{} = return (Nothing, st)

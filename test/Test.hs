@@ -31,20 +31,20 @@ main =
 
 testCases :: [FilePath]
 testCases =
-  [ "test/syntax.egi"
-  , "test/primitive.egi"
-  , "test/lib/math/tensor.egi"
+  [ "test/syntax.segi"
+  , "test/primitive.segi"
+  , "test/lib/math/tensor.segi"
 
-  , "sample/poker-hands.egi"
-  , "sample/poker-hands-with-joker.egi"
-  , "sample/mahjong.egi" -- for testing pattern functions
-  , "sample/primes.egi" -- for testing pattern matching with infinitely many results
-  , "sample/sat/cdcl.egi" -- for testing a practical program using pattern matching
-  , "sample/math/number/17th-root-of-unity.egi" -- for testing rewriting of mathematical expressions
-  , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi" -- for testing tensor index notation
-  , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi" -- for testing tensor index notation and math quote
-  , "sample/math/geometry/curvature-form.egi" -- for testing differential form
-  , "sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
+  , "sample/poker-hands.segi"
+  , "sample/poker-hands-with-joker.segi"
+  , "sample/mahjong.segi" -- for testing pattern functions
+  , "sample/primes.segi" -- for testing pattern matching with infinitely many results
+  , "sample/sat/cdcl.segi" -- for testing a practical program using pattern matching
+  , "sample/math/number/17th-root-of-unity.segi" -- for testing rewriting of mathematical expressions
+  , "sample/math/geometry/riemann-curvature-tensor-of-S2.segi" -- for testing tensor index notation
+  , "sample/math/geometry/riemann-curvature-tensor-of-T2.segi" -- for testing tensor index notation and math quote
+  , "sample/math/geometry/curvature-form.segi" -- for testing differential form
+  , "sample/math/geometry/hodge-laplacian-polar.segi" -- for testing "..." in tensor indices
   ]
 
 nonSTestCases :: [FilePath]
