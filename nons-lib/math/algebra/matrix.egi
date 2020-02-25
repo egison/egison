@@ -27,19 +27,21 @@ trace %t := withSymbols [i] contract (+) t~i_i
 matrix :=
   matcher
     | quad-cons $ $ $ $ as (mathExpr, matrix, matrix, matrix) with
-      | $tgt -> match tensorShape tgt as list integer with
-        | $m :: $n :: _ ->
-          [(tgt_1_1, tgt_1_(2, n), tgt_(2, m)_1, tgt_(2, m)_(2, n))]
-        | _ -> []
+      | $tgt ->
+        match tensorShape tgt as list integer with
+          | $m :: $n :: _ ->
+            [(tgt_1_1, tgt_1_(2, n), tgt_(2, m)_1, tgt_(2, m)_(2, n))]
+          | _ -> []
     | cons #i #j $ $ $ $ $ as (mathExpr, matrix, matrix, matrix, matrix) with
-      | $tgt -> let ns := tensorShape tgt
-                    m := nth 1 ns
-                    n := nth 2 ns
-                 in [ ( tgt_i_j
-                    , tgt_(1, i - 1)_(1, j - 1)
-                    , tgt_(1, i - 1)_(j + 1, n)
-                    , tgt_(i + 1, m)_(1, j - 1)
-                    , tgt_(i + 1, m)_(j + 1, n) ) ]
+      | $tgt ->
+        let ns := tensorShape tgt
+            m := nth 1 ns
+            n := nth 2 ns
+         in [ ( tgt_i_j
+            , tgt_(1, i - 1)_(1, j - 1)
+            , tgt_(1, i - 1)_(j + 1, n)
+            , tgt_(i + 1, m)_(1, j - 1)
+            , tgt_(i + 1, m)_(j + 1, n) ) ]
     | #val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with

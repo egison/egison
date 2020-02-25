@@ -110,7 +110,8 @@ instance Pretty EgisonExpr where
             group (pretty expr) <+> pretty "with" <> hardline <>
               align (vsep (map prettyPatBody body)))
         prettyPatBody (pdpat, expr) =
-          pipe <+> pretty pdpat <+> pretty "->" <+> pretty expr
+          group (pipe <+> align (pretty pdpat) <+> pretty "->" <>
+            flatAlt (nest 2 (hardline <> pretty expr)) (space <> pretty expr))
 
   pretty (AlgebraicDataMatcherExpr patDefs) =
     nest 2 (pretty "algebraicDataMatcher" <> hardline <> align (vsep (map prettyPatDef patDefs)))
@@ -250,10 +251,11 @@ instance Pretty PrimitivePatPattern where
 instance Pretty PrimitiveDataPattern where
   pretty PDWildCard   = pretty "_"
   pretty (PDPatVar x) = pretty ('$' : x)
-  pretty (PDInductivePat x pdpats) = hsep (pretty x : map pretty' pdpats)
+  pretty (PDInductivePat x pdpats) =
+    hang 2 (sep (pretty x : map (group . pretty') pdpats))
   pretty (PDTuplePat pdpats) = tupled (map pretty pdpats)
   pretty PDEmptyPat = pretty "[]"
-  pretty (PDConsPat pdp1 pdp2) = pretty' pdp1 <> pretty "::" <> pretty'' pdp2
+  pretty (PDConsPat pdp1 pdp2) = pretty'' pdp1 <+> pretty "::" <+> pretty'' pdp2
   pretty (PDSnocPat pdp1 pdp2) = pretty "snoc" <+> pretty' pdp1 <+> pretty' pdp2
   pretty (PDConstantPat expr) = pretty expr
 
@@ -321,7 +323,9 @@ instance Complex PrimitiveDataPattern where
   isAtom (PDSnocPat _ _)       = False
   isAtom _                     = True
 
-  isAtomOrApp = isAtom
+  isAtomOrApp PDInductivePat{} = True
+  isAtomOrApp PDSnocPat{}      = True
+  isAtomOrApp e                = isAtom e
 
   isInfix (PDConsPat _ _) = True
   isInfix _               = False
