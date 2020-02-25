@@ -408,7 +408,7 @@ desugarPattern' (PlusPat patterns) = do
   case reverse pats' of
     [] -> return $ InductivePat "plus" [ValuePat (IntegerExpr 0)]
     lp:hps ->
-      return $ InductivePat "plus" [foldr (\p r -> InductivePat "cons" [p, r]) lp (reverse hps)]
+      return $ InductivePat "plus" [foldr (\p acc -> InductivePat "cons" [p, acc]) lp (reverse hps)]
  where
    f (PlusPat xs) = concatMap f xs
    f pat          = [pat]
@@ -417,15 +417,15 @@ desugarPattern' (MultPat (intPat:patterns)) = do
   pats' <- mapM desugarPattern' (concatMap f patterns)
   case reverse pats' of
     [] -> return $ InductivePat "mult" [intPat', ValuePat (IntegerExpr 1)]
-    lp:hps ->
-      return $ InductivePat "mult" [intPat',
-                                    foldr (\p r -> case p of
-                                                     PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, r]
-                                                     _ -> InductivePat "cons" [p, r])
-                                          (case lp of
-                                             PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
-                                             _ -> lp)
-                                          (reverse hps)]
+    lp:hps -> do
+      let mono = foldr (\p acc -> case p of
+                                    PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, acc]
+                                    _ -> InductivePat "cons" [p, acc])
+                       (case lp of
+                          PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
+                          _ -> lp)
+                       (reverse hps)
+      return $ InductivePat "mult" [intPat', mono]
  where
    f (MultPat xs) = concatMap f xs
    f pat          = [pat]

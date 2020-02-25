@@ -32,9 +32,9 @@
        ; polynomial
        [<poly $ts> (sum (map (Sd x $) ts))]
        ; quotient
-       [<div <plus $ts> $p2>
+       [(/ (+ $ts) $p2)
         (sum (map 1#(Sd x (/ %1 p2)) ts))]
-       [<div $p1 $p2>
+       [(/ $p1 $p2)
         (if (contain-symbol? x p2)
           (`Sd x f)
           (/ (Sd x p1) p2))]
