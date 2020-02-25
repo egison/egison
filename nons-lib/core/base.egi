@@ -31,11 +31,6 @@ compose := cambda fs -> \x -> foldl 2#(%2 %1) x fs
 
 flip fn := \x y -> fn y x
 
-ref %xa is :=
-  match is as list integer with
-    | [] -> xa
-    | $i :: $rs -> ref (arrayRef xa i) rs
-
 eq?/m a x y :=
   match x as a with
     | #y -> True

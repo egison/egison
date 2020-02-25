@@ -19,9 +19,9 @@ mathExpr' :=
       | _ -> []
     | plus $ as (plusExpr) with
       | Div (Plus $ts) (Plus ((Term 1 [])::[])) -> [ toMathExpr'
-                                                       Div
-                                                         Plus ts
-                                                         Plus [Term 1 []] ]
+                                                       (Div
+                                                         (Plus ts)
+                                                         (Plus [Term 1 []])) ]
       | _ -> []
     | term $ $ as (integer, assocMultiset mathExpr) with
       | Div (Plus ((Term $n $xs)::[])) (Plus ((Term 1 [])::[])) -> [ ( n
@@ -56,9 +56,9 @@ mathExpr' :=
 
 indexExpr :=
   algebraicDataMatcher
-    | sub math-expr
-    | sup math-expr
-    | user math-expr
+    | sub mathExpr
+    | sup mathExpr
+    | user mathExpr
 
 polyExpr := mathExpr
 
