@@ -48,7 +48,7 @@ taylorExpansion f x a := multivariateTaylorExpansion f [|x|] [|a|]
 maclaurinExpansion := 2#(taylorExpansion %1 %2 0)
 
 multivariateTaylorExpansion %f %xs %as :=
-  withSymbols [h] let hs := generateTensor 1#h_%1 tensorShape xs
+  withSymbols [h] let hs := generateTensor 1#h_%1 (tensorShape xs)
                    in map2
                         (*)
                         (map 1#(1 / fact %1) nats0)

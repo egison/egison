@@ -53,14 +53,14 @@ instance Pretty EgisonExpr where
   pretty (IndexedExpr True e indices) = pretty' e <> cat (map pretty indices)
   pretty (IndexedExpr False e indices) = pretty' e <> pretty "..." <> cat (map pretty indices)
   pretty (SubrefsExpr b e1 e2) =
-    pretty "subrefs" <> (if b then pretty "!" else emptyDoc) <+>
-      pretty' e1 <+> pretty' e2
+    applyLike [pretty "subrefs" <> (if b then pretty "!" else emptyDoc),
+               pretty' e1, pretty' e2]
   pretty (SuprefsExpr b e1 e2) =
-    pretty "suprefs" <> (if b then pretty "!" else emptyDoc) <+>
-      pretty' e1 <+> pretty' e2
+    applyLike [pretty "suprefs" <> (if b then pretty "!" else emptyDoc),
+               pretty' e1, pretty' e2]
   pretty (UserrefsExpr b e1 e2) =
-    pretty "userRefs" <> (if b then pretty "!" else emptyDoc) <+>
-      pretty' e1 <+> pretty' e2
+    applyLike [pretty "userRefs" <> (if b then pretty "!" else emptyDoc),
+               pretty' e1, pretty' e2]
 
   pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty' xs))
 
@@ -145,18 +145,24 @@ instance Pretty EgisonExpr where
   pretty (DoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
-  pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (sep (map (group . pretty') (x : ys)))
-  pretty (ApplyExpr x y) = hang 2 (sep [group (pretty' x), group (pretty' y)])
-  pretty (CApplyExpr e1 e2) = pretty "capply" <+> pretty' e1 <+> pretty' e2
+  pretty (ApplyExpr x (TupleExpr ys)) = applyLike (map pretty' (x : ys))
+  pretty (ApplyExpr x y) = applyLike [pretty' x, pretty' y]
+  pretty (CApplyExpr e1 e2) = applyLike [pretty "capply", pretty' e1, pretty' e2]
   pretty (PartialExpr n e) = pretty n <> pretty '#' <> pretty' e
   pretty (PartialVarExpr n) = pretty '%' <> pretty n
 
-  pretty (GenerateTensorExpr gen shape) = pretty "generateTensor" <+> pretty' gen <+> pretty shape
-  pretty (TensorExpr e1 e2) = pretty "tensor" <+> pretty' e1 <+> pretty' e2
-  pretty (TensorContractExpr e1 e2) = pretty "contract" <+> pretty' e1 <+> pretty' e2
-  pretty (TensorMapExpr e1 e2) = pretty "tensorMap" <+> pretty' e1 <+> pretty' e2
-  pretty (TensorMap2Expr e1 e2 e3) = pretty "tensorMap2" <+> pretty' e1 <+> pretty' e2 <+> pretty' e3
-  pretty (TransposeExpr e1 e2) = pretty "transpose" <+> pretty' e1 <+> pretty' e2
+  pretty (GenerateTensorExpr gen shape) =
+    applyLike [pretty "generateTensor", pretty' gen, pretty' shape]
+  pretty (TensorExpr e1 e2) =
+    applyLike [pretty "tensor", pretty' e1, pretty' e2]
+  pretty (TensorContractExpr e1 e2) =
+    applyLike [pretty "contract", pretty' e1, pretty' e2]
+  pretty (TensorMapExpr e1 e2) =
+    applyLike [pretty "tensorMap", pretty' e1, pretty' e2]
+  pretty (TensorMap2Expr e1 e2 e3) =
+    applyLike [pretty "tensorMap2", pretty' e1, pretty' e2, pretty' e3]
+  pretty (TransposeExpr e1 e2) =
+    applyLike [pretty "transpose", pretty' e1, pretty' e2]
   pretty (FlipIndicesExpr _) = error "unreachable"
 
   pretty (FunctionExpr xs) = pretty "function" <+> tupled (map pretty xs)
@@ -222,7 +228,7 @@ instance Pretty EgisonPattern where
       flatAlt (hardline <> group (pretty' p1) <> hardline <> group (pretty' p2))
               (space <> pretty' p1 <+> pretty' p2))
   pretty ContPat = pretty "..."
-  pretty (PApplyPat fn ps) = hang 2 (hsep (pretty' fn : map pretty' ps))
+  pretty (PApplyPat fn ps) = applyLike (pretty' fn : map pretty' ps)
   pretty (VarPat x) = pretty ('~' : x)
   pretty SeqNilPat = pretty "{}"
   pretty (SeqConsPat p1 p2) = listoid "{" "}" (f p1 p2)
@@ -253,12 +259,11 @@ instance Pretty PrimitivePatPattern where
 instance Pretty PrimitiveDataPattern where
   pretty PDWildCard   = pretty "_"
   pretty (PDPatVar x) = pretty ('$' : x)
-  pretty (PDInductivePat x pdpats) =
-    hang 2 (sep (pretty x : map (group . pretty') pdpats))
+  pretty (PDInductivePat x pdpats) = applyLike (pretty x : map pretty' pdpats)
   pretty (PDTuplePat pdpats) = tupled (map pretty pdpats)
   pretty PDEmptyPat = pretty "[]"
   pretty (PDConsPat pdp1 pdp2) = pretty'' pdp1 <+> pretty "::" <+> pretty'' pdp2
-  pretty (PDSnocPat pdp1 pdp2) = pretty "snoc" <+> pretty' pdp1 <+> pretty' pdp2
+  pretty (PDSnocPat pdp1 pdp2) = applyLike [pretty "snoc", pretty' pdp1, pretty' pdp2]
   pretty (PDConstantPat expr) = pretty expr
 
 class Complex a where
@@ -370,6 +375,9 @@ indentBlock header bodies =
 
 hsepHard :: [Doc ann] -> Doc ann
 hsepHard = concatWith (\x y -> x <> hardline <> y)
+
+applyLike :: [Doc ann] -> Doc ann
+applyLike = hang 2 . sep . map group
 
 --
 -- Pretty printer for S-expression

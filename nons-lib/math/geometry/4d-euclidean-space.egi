@@ -5,6 +5,8 @@
 coordinates := [x, y, z, w]
 
 metric :=
-  generateTensor (\match as (integer, integer) with
-    | ($n, #n) -> 1
-    | (_, _) -> 0) [4, 4]
+  generateTensor
+    (\match as (integer, integer) with
+      | ($n, #n) -> 1
+      | (_, _) -> 0)
+    [4, 4]

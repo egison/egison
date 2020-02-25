@@ -16,11 +16,13 @@ M.comm %m1 %m2 := withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
 
 M.inverse %m :=
   let d := M.det m
-   in generateTensor 2#(match m as matrix with
-        | cons #%2 #%1 _ $A $B $C $D ->
-          if even? (%1 + %2)
-            then M.det (M.join A B C D) / d
-            else - (M.det (M.join A B C D) / d)) tensorShape m
+   in generateTensor
+        2#(match m as matrix with
+          | cons #%2 #%1 _ $A $B $C $D ->
+            if even? (%1 + %2)
+              then M.det (M.join A B C D) / d
+              else - (M.det (M.join A B C D) / d))
+        (tensorShape m)
 
 trace %t := withSymbols [i] contract (+) t~i_i
 
@@ -64,11 +66,13 @@ M.join %A %B %C %D :=
       m2 := max [a2, c2]
       n1 := max [c1, d1]
       n2 := max [b2, d2]
-   in generateTensor 2#(match (%1, %2) as (integer, integer) with
-        | (?1#(%1 <= a1), ?1#(%1 <= a2)) -> A_%1_%2
-        | (?1#(%1 <= m1), _) -> B_%1_(%2 - a2)
-        | (_, ?1#(%1 <= m2)) -> C_(%1 - a1)_%2
-        | (_, _) -> D_(%1 - m1)_(%2 - m2)) [m1 + n1, m2 + n2]
+   in generateTensor
+        2#(match (%1, %2) as (integer, integer) with
+          | (?1#(%1 <= a1), ?1#(%1 <= a2)) -> A_%1_%2
+          | (?1#(%1 <= m1), _) -> B_%1_(%2 - a2)
+          | (_, ?1#(%1 <= m2)) -> C_(%1 - a1)_%2
+          | (_, _) -> D_(%1 - m1)_(%2 - m2))
+        [m1 + n1, m2 + n2]
 
 evenAndOddPermutations n :=
   let (es, os) := evenAndOddPermutations' n
@@ -135,13 +139,17 @@ M.eigenvectors %m :=
 M.LU %x :=
   match tensorShape x as list integer with
     | #2 :: #2 :: [] ->
-      let L := generateTensor 2#(match compare %1 %2 as ordering with
-                 | less -> 0
-                 | equal -> 1
-                 | greater -> b_%1_%2) [2, 2]
-          U := generateTensor 2#(match compare %1 %2 as ordering with
-                 | greater -> 0
-                 | _ -> c_%1_%2) [2, 2]
+      let L := generateTensor
+                 2#(match compare %1 %2 as ordering with
+                   | less -> 0
+                   | equal -> 1
+                   | greater -> b_%1_%2)
+                 [2, 2]
+          U := generateTensor
+                 2#(match compare %1 %2 as ordering with
+                   | greater -> 0
+                   | _ -> c_%1_%2)
+                 [2, 2]
           m := M.* L U
           ret := solve
                    [ (m_1_1, x_1_1, c_1_1)
@@ -150,13 +158,17 @@ M.LU %x :=
                    , (m_2_2, x_2_2, c_2_2) ]
        in (substitute ret L, substitute ret U)
     | #3 :: #3 :: [] ->
-      let L := generateTensor 2#(match compare %1 %2 as ordering with
-                 | less -> 0
-                 | equal -> 1
-                 | greater -> b_%1_%2) [3, 3]
-          U := generateTensor 2#(match compare %1 %2 as ordering with
-                 | greater -> 0
-                 | _ -> c_%1_%2) [3, 3]
+      let L := generateTensor
+                 2#(match compare %1 %2 as ordering with
+                   | less -> 0
+                   | equal -> 1
+                   | greater -> b_%1_%2)
+                 [3, 3]
+          U := generateTensor
+                 2#(match compare %1 %2 as ordering with
+                   | greater -> 0
+                   | _ -> c_%1_%2)
+                 [3, 3]
           m := M.* L U
           ret := solve
                    [ (m_1_1, x_1_1, c_1_1)
@@ -172,5 +184,6 @@ M.LU %x :=
     | _ -> undefined
 
 generateMatrixFromQuadraticExpr f xs :=
-  generateTensor 2#(coefficient2 f (nth %1 xs) (nth %2 xs)) [ length xs
-  , length xs ]
+  generateTensor
+    2#(coefficient2 f (nth %1 xs) (nth %2 xs))
+    [length xs, length xs]
