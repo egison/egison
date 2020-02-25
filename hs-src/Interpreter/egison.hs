@@ -51,7 +51,7 @@ runWithOptions opts
             EgisonOpts { optExecuteString = Just cmd } ->
               f opts env $ "(execute " ++ cmd ++ ")"
             EgisonOpts { optSubstituteString = Just sub } ->
-              let expr = "(load \"lib/core/shell.egi\") "
+              let expr = "(load \"lib/core/shell.segi\") "
                       ++ "(execute (each (compose " ++ (if optTsvOutput opts then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst $ optFieldInfo opts) ++  "} {" ++ unwords (map snd $ optFieldInfo opts) ++  "})]} (" ++ sub ++ " SH.input))))"
                 in f opts env expr
             EgisonOpts { optExecFile = Nothing } ->
