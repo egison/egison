@@ -4,39 +4,39 @@
 
 toMathExpr arg := mathNormalize1 (toMathExpr' arg)
 
-+' := cambda xs -> foldl b.+ (car xs) (cdr xs)
+add' := cambda xs -> foldl b.+ (car xs) (cdr xs)
 
--' := cambda xs -> foldl b.- (car xs) (cdr xs)
+sub' := cambda xs -> foldl b.- (car xs) (cdr xs)
 
-*' := cambda xs -> foldl b.* (car xs) (cdr xs)
+mul' := cambda xs -> foldl b.* (car xs) (cdr xs)
 
-/' := b./
+div' := b./
 
-f.+' := cambda xs -> foldl f.+ (car xs) (cdr xs)
+f.add' := cambda xs -> foldl f.+ (car xs) (cdr xs)
 
-f.-' := cambda xs -> foldl f.- (car xs) (cdr xs)
+f.sub' := cambda xs -> foldl f.- (car xs) (cdr xs)
 
-f.*' := cambda xs -> foldl f.* (car xs) (cdr xs)
+f.mul' := cambda xs -> foldl f.* (car xs) (cdr xs)
 
-f./' := f./
+f.div' := f./
 
 + :=
   cambda xs ->
     if capply (||) (map float? xs)
-      then capply f.+' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 capply +' xs
+      then capply f.add' (map (\x -> if float? x then x else itof x) xs)
+      else mathNormalize1 capply add' xs
 
 - :=
   cambda xs ->
     if capply (||) (map float? xs)
-      then capply f.-' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 capply -' xs
+      then capply f.sub' (map (\x -> if float? x then x else itof x) xs)
+      else mathNormalize1 capply sub' xs
 
 * :=
   cambda xs ->
     if capply (||) (map float? xs)
-      then capply f.*' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 capply *' xs
+      then capply f.mul' (map (\x -> if float? x then x else itof x) xs)
+      else mathNormalize1 capply mul' xs
 
 / x y :=
   if float? x && float? y
@@ -49,15 +49,15 @@ reduceFraction := id
 
 sum xs := if empty? xs then 0 else capply (+) xs
 
-sum' xs := foldl +' 0 xs
+sum' xs := foldl add' 0 xs
 
 product xs := if empty? xs then 1 else capply (*) xs
 
-product' xs := foldl *' 1 xs
+product' xs := foldl mul' 1 xs
 
 power x n := mathNormalize1 (power' x n)
 
-power' x n := foldl *' 1 (take n (repeat1 x))
+power' x n := foldl mul' 1 (take n (repeat1 x))
 
 ** x n :=
   if x = e
@@ -68,13 +68,13 @@ power' x n := foldl *' 1 (take n (repeat1 x))
         else 1 / x ^ neg n
       else `(^) x n
 
-**' x n :=
+power' x n :=
   if x = e
     then exp n
     else if rational? n
       then if n >= 0
         then if integer? n then power' x n else `(^) x n
-        else /' 1 (**' x (neg n))
+        else div' 1 (power' x (neg n))
       else `(^) x n
 
 gcd := cambda xs -> foldl b.gcd (car xs) (cdr xs)
@@ -86,9 +86,9 @@ b.gcd x y :=
     | (_, #0) -> x
     | (#0, _) -> y
     | (term $a $xs, term $b $ys) ->
-      *'
+      mul'
         (b.gcd' (abs a) (abs b))
-        (foldl *' 1 (map 2#(**' %1 %2) (AC.intersect xs ys)))
+        (foldl mul' 1 (map 2#(power' %1 %2) (AC.intersect xs ys)))
 
 b.gcd' x y :=
   match (x, y) as (integer, integer) with
@@ -101,5 +101,5 @@ P./ fx gx x :=
   let as := reverse (coefficients fx x)
       bs := reverse (coefficients gx x)
       (zs, rs) := L./ as bs
-   in ( sum' (map2 2#(*' %1 (**' x %2)) (reverse zs) nats0)
-      , sum' (map2 2#(*' %1 (**' x %2)) (reverse rs) nats0) )
+   in ( sum' (map2 2#(mul' %1 (power' x %2)) (reverse zs) nats0)
+      , sum' (map2 2#(mul' %1 (power' x %2)) (reverse rs) nats0) )
