@@ -184,7 +184,7 @@ foldl fn %init %ls :=
     | [] -> init
     | $x :: $xs ->
       let z := fn init x
-       in REPLACEME
+       in seq z (foldl fn z xs)
 
 reduce fn %ls := foldl fn (car ls) (cdr ls)
 

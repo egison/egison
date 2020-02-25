@@ -6,7 +6,7 @@ SH.genInput sopts copts :=
   if io eof?
     then []
     else let x := io TSV.readLine sopts copts
-          in REPLACEME
+          in seq x (x :: SH.genInput sopts copts)
 
 TSV.readLine sopts copts :=
   do line := readLine

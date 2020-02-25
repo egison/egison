@@ -85,6 +85,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (DoExpr xs y) = DoExpr (map toNonS xs) (toNonS y)
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
+  toNonS (SeqExpr e1 e2) = SeqExpr (toNonS e1) (toNonS e2)
   toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys)))
     | any (\op -> func op == prettyS f) reservedExprInfix =
       optimize $ foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
