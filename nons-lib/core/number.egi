@@ -39,7 +39,11 @@ primes := 2 :: filter prime? (drop 2 nats)
 
 divisor? n d := 0 = n % d
 
-findFactor := REPLACEME
+findFactor :=
+  memoizedLambda n -> match takeWhile 1#(%1 <= floor (sqrt (itof n))) primes as
+      list integer with
+      | _ ++ (?1#(divisor? n %1) & $x) :: _ -> x
+      | _ -> n
 
 primeFactorization :=
   \match as integer with
