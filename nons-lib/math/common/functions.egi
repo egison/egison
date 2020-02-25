@@ -31,7 +31,7 @@ cos x :=
     else match x as mathExpr with
       | #0 -> 1
       | term $n #π :: [] -> (-1) ^ abs n
-      | div mult _ #π #2 -> 0
+      | (mult _ #π) / #2 -> 0
       | _ -> `cos x
 
 sin x :=
@@ -40,7 +40,7 @@ sin x :=
     else match x as mathExpr with
       | #0 -> 0
       | mult _ #π -> 0
-      | div mult $n #π #2 -> (-1) ^ ((abs n - 1) / 2)
+      | (mult $n #π) / #2 -> (-1) ^ ((abs n - 1) / 2)
       | _ -> `sin x
 
 tan x :=

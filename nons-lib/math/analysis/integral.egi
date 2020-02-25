@@ -21,8 +21,8 @@ Sd x f :=
     | mult $a ncons $n #x $r ->
       if containSymbol? x r then `Sd x f else a / (n + 1) * x ^ (n + 1) * r
     | poly $ts -> sum (map 1#(Sd x %1) ts)
-    | div plus $ts $p2 -> sum (map 1#(Sd x (%1 / p2)) ts)
-    | div $p1 $p2 -> if containSymbol? x p2 then `Sd x f else Sd x p1 / p2
+    | (plus $ts) / $p2 -> sum (map 1#(Sd x (%1 / p2)) ts)
+    | $p1 / $p2 -> if containSymbol? x p2 then `Sd x f else Sd x p1 / p2
 
 multSd x f g :=
   let F := Sd x f

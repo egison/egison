@@ -36,5 +36,5 @@ inverse t f x :=
         | _ -> `inverse t f x
     | _ ->
       match f as mathExpr with
-        | div $p1 $p2 -> inverse (p2 * t) p1 x
+        | $p1 / $p2 -> inverse (p2 * t) p1 x
     | _ -> `inverse t f x

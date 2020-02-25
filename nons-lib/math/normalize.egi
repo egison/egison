@@ -107,16 +107,16 @@ rewriteRuleForCosAndSin := 1#(mapPolys rewriteRuleForCosAndSinPoly %1)
 
 rewriteRuleForCosAndSinExpr expr :=
   match (expr, expr) as (mathExpr, mathExpr) with
-    | (div REPLACEME $pr2, (div REPLACEME _) | (div _ REPLACEME)) ->
+    | (REPLACEME / $pr2, REPLACEME / _ | _ / REPLACEME) ->
       rewriteRuleForCosAndSinExpr
         (/' (+' (*' a (-' (cos (x / 2) ^ 2) (sin (x / 2) ^ 2)) mr) pr1) pr2)
-    | (div REPLACEME $pr2, (div REPLACEME _) | (div _ REPLACEME)) ->
+    | (REPLACEME / $pr2, REPLACEME / _ | _ / REPLACEME) ->
       rewriteRuleForCosAndSinExpr
         (/' (+' (*' (*' a 2) (*' (cos (x / 2)) (sin (x / 2))) mr) pr1) pr2)
-    | (div $pr2 REPLACEME, (div REPLACEME _) | (div _ REPLACEME)) ->
+    | ($pr2 / REPLACEME, REPLACEME / _ | _ / REPLACEME) ->
       rewriteRuleForCosAndSinExpr
         (/' pr2 (+' (*' a (-' (cos (x / 2) ^ 2) (sin (x / 2) ^ 2)) mr) pr1))
-    | (div $pr2 REPLACEME, (div REPLACEME _) | (div _ REPLACEME)) ->
+    | ($pr2 / REPLACEME, REPLACEME / _ | _ / REPLACEME) ->
       rewriteRuleForCosAndSinExpr
         (/' pr2 (+' (*' (*' a 2) (*' (cos (x / 2)) (sin (x / 2))) mr) pr1))
     | _ -> expr
