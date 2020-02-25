@@ -75,6 +75,8 @@ instance SyntaxElement EgisonExpr where
   toNonS (MatchAllLambdaExpr p xs)    = MatchAllLambdaExpr (toNonS p) (map toNonS xs)
 
   toNonS (MatcherExpr xs) = MatcherExpr (map toNonS xs)
+  toNonS (AlgebraicDataMatcherExpr xs) =
+    AlgebraicDataMatcherExpr (map (\(s, es) -> (toCamelCase s, map toNonS es)) xs)
 
   toNonS (QuoteExpr x)        = QuoteExpr (toNonS x)
   toNonS (QuoteSymbolExpr x)  = QuoteSymbolExpr (toNonS x)
@@ -158,12 +160,12 @@ instance SyntaxElement PatternDef where
 
 instance SyntaxElement Var where
   toNonS (Var xs ys) = Var (map toCamelCase xs) ys
-    where
-      toCamelCase :: String -> String
-      toCamelCase x@('-':_) = x
-      toCamelCase x =
-        let heads:tails = splitOn "-" x
-         in concat $ heads : map (\(x:xs) -> toUpper x : xs) tails
+
+toCamelCase :: String -> String
+toCamelCase x@('-':_) = x
+toCamelCase x =
+  let heads:tails = splitOn "-" x
+   in concat $ heads : map (\(x:xs) -> toUpper x : xs) tails
 
 
 main :: IO ()

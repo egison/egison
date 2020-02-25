@@ -264,6 +264,8 @@ class Complex a where
 
 instance Complex EgisonExpr where
   isAtom (IntegerExpr i) | i < 0  = False
+  isAtom (InductiveDataExpr _ []) = True
+  isAtom (InductiveDataExpr _ _)  = False
   isAtom UnaryOpExpr{}            = False
   isAtom BinaryOpExpr{}           = False
   isAtom ApplyExpr{}              = False
@@ -291,8 +293,9 @@ instance Complex EgisonExpr where
   isAtom TransposeExpr{}          = False
   isAtom _                        = True
 
-  isAtomOrApp ApplyExpr{} = True
-  isAtomOrApp e           = isAtom e
+  isAtomOrApp ApplyExpr{}         = True
+  isAtomOrApp InductiveDataExpr{} = True
+  isAtomOrApp e                   = isAtom e
 
   isInfix BinaryOpExpr{}  = True
   isInfix _               = False

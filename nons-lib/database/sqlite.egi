@@ -4,7 +4,7 @@
 
 databaseTable :=
   algebraicDataMatcher
-    | database-table string string
+    | databaseTable string string
 
 databaseName data :=
   match data as databaseTable with
