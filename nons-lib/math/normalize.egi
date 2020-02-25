@@ -28,8 +28,8 @@ rewriteRuleForITerm := 1#(mapTerms rewriteRuleForITerm' %1)
 
 rewriteRuleForITerm' term :=
   match term as mathExpr with
-    | REPLACEME -> *' a (**' (-1) (quotient k 2)) r
-    | REPLACEME -> *' a (**' (-1) (quotient k 2)) r i
+    | $a * #i ^ (?even? & $k) * $r -> *' a (**' (-1) (quotient k 2)) r
+    | $a * #i ^ $k * $r -> *' a (**' (-1) (quotient k 2)) r i
     | _ -> term
 
 rewriteRuleForW := 1#(compose rewriteRuleForWTerm rewriteRuleForWPoly %1)
@@ -40,12 +40,13 @@ rewriteRuleForWPoly := 1#(mapPolys rewriteRuleForWPoly' %1)
 
 rewriteRuleForWTerm' term :=
   match term as mathExpr with
-    | REPLACEME -> *' a r (**' w (k % 3))
+    | $a * #w ^ (?1#(%1 >= 3) & $k) * $r -> *' a r (**' w (k % 3))
     | _ -> term
 
 rewriteRuleForWPoly' poly :=
   match poly as mathExpr with
-    | REPLACEME -> rewriteRuleForWPoly' (+' pr (*' (-1) a mr) (*' (b - a) mr w))
+    | $a * #w ^ #2 * $mr + $b * #w * #mr + $pr ->
+      rewriteRuleForWPoly' (+' pr (*' (-1) a mr) (*' (b - a) mr w))
     | _ -> poly
 
 rewriteRuleForRtu :=
@@ -59,20 +60,23 @@ rewriteRuleForRtuPoly := 1#(mapPolys rewriteRuleForRtuPoly' %1)
 
 rewriteRuleForRtuTerm' term :=
   match term as mathExpr with
-    | REPLACEME -> *' a (**' (rtu n) (k % n)) r
+    | $a * #`rtu $n ^ (?1#(%1 >= n) & $k) * $r -> *' a (**' (rtu n) (k % n)) r
     | _ -> term
 
 rewriteRuleForRtuPoly' poly :=
   match poly as mathExpr with
-    | REPLACEME -> rewriteRuleForRtuPoly' (+' pr (*' (-1) a mr))
+    | $a * #rtu $n ^ #1 * $mr + (loop $i (2, #(n - 1))
+                                   (#a * #(rtu n) ^ #i * #mr + ...)
+                                   $pr) ->
+      rewriteRuleForRtuPoly' (+' pr (*' (-1) a mr))
     | _ -> poly
 
 rewriteRuleForSqrt := 1#(mapTerms rewriteRuleForSqrtTerm %1)
 
 rewriteRuleForSqrtTerm term :=
   match term as mathExpr with
-    | REPLACEME -> rewriteRuleForSqrt (*' a x r)
-    | REPLACEME ->
+    | $a * #`sqrt $x * #`sqrt #x * $r -> rewriteRuleForSqrt (*' a x r)
+    | $a * #`sqrt (?term? & $x) * #`sqrt (?term? & $y) * $r ->
       let d := gcd x y
           (a1, x1) := fromMonomial (x / d)
           (a2, y1) := fromMonomial (y / d)
@@ -83,68 +87,93 @@ rewriteRuleForRt := 1#(mapTerms rewriteRuleForRtTerm %1)
 
 rewriteRuleForRtTerm term :=
   match term as mathExpr with
-    | REPLACEME -> *' a (**' x (quotient k n)) (**' (rt n x) (k % n)) r
+    | $a * #`rt $n $x ^ (?1#(%1 >= n) & $k) * $r ->
+      *' a (**' x (quotient k n)) (**' (rt n x) (k % n)) r
     | _ -> term
 
 rewriteRuleForExp := 1#(mapTerms rewriteRuleForExpTerm %1)
 
 rewriteRuleForExpTerm term :=
   match term as mathExpr with
-    | REPLACEME -> rewriteRuleForExp (*' a (exp (x * n)) r)
-    | REPLACEME -> rewriteRuleForExp (*' a (exp (x + y)) r)
+    | $a * #`exp $x ^ (?1#(%1 >= 2) & $n) * $r ->
+      rewriteRuleForExp (*' a (exp (x * n)) r)
+    | $a * #`exp $x * #`exp $y * $r -> rewriteRuleForExp (*' a (exp (x + y)) r)
     | _ -> term
 
 rewriteRuleFor** := 1#(mapTerms rewriteRuleFor**Term %1)
 
 rewriteRuleFor**Term term :=
   match term as mathExpr with
-    | REPLACEME -> rewriteRuleFor** (*' a r)
-    | REPLACEME -> rewriteRuleFor** (*' a (x ^ (y * n)) r)
-    | REPLACEME -> rewriteRuleFor** (*' a (x ^ (y + z)) r)
+    | $a * #`(^) #1 _ ^ _ * $r -> rewriteRuleFor** (*' a r)
+    | $a * #`(^) $x $y ^ (?1#(%1 >= 2) & $n) * $r ->
+      rewriteRuleFor** (*' a (x ^ (y * n)) r)
+    | $a * #`(^) $x $y * #`(^) #x $z * $r ->
+      rewriteRuleFor** (*' a (x ^ (y + z)) r)
     | _ -> term
 
 rewriteRuleForCosAndSin := 1#(mapPolys rewriteRuleForCosAndSinPoly %1)
 
 rewriteRuleForCosAndSinExpr expr :=
   match (expr, expr) as (mathExpr, mathExpr) with
-    | (REPLACEME / $pr2, REPLACEME / _ | _ / REPLACEME) ->
+    | ( ($a * #`cos $x * $mr + $pr1) / $pr2
+      , (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _ | _ / (_ * (#`cos
+                                                                          #(x / 2) | #`sin
+                                                                                       #(x / 2)) * _ + _) ) ->
       rewriteRuleForCosAndSinExpr
         (/' (+' (*' a (-' (cos (x / 2) ^ 2) (sin (x / 2) ^ 2)) mr) pr1) pr2)
-    | (REPLACEME / $pr2, REPLACEME / _ | _ / REPLACEME) ->
+    | ( ($a * #`sin $x * $mr + $pr1) / $pr2
+      , (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _ | _ / (_ * (#`cos
+                                                                          #(x / 2) | #`sin
+                                                                                       #(x / 2)) * _ + _) ) ->
       rewriteRuleForCosAndSinExpr
         (/' (+' (*' (*' a 2) (*' (cos (x / 2)) (sin (x / 2))) mr) pr1) pr2)
-    | ($pr2 / REPLACEME, REPLACEME / _ | _ / REPLACEME) ->
+    | ( $pr2 / ($a * #`cos $x * $mr + $pr1)
+      , (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _ | _ / (_ * (#`cos
+                                                                          #(x / 2) | #`sin
+                                                                                       #(x / 2)) * _ + _) ) ->
       rewriteRuleForCosAndSinExpr
         (/' pr2 (+' (*' a (-' (cos (x / 2) ^ 2) (sin (x / 2) ^ 2)) mr) pr1))
-    | ($pr2 / REPLACEME, REPLACEME / _ | _ / REPLACEME) ->
+    | ( $pr2 / ($a * #`sin $x * $mr + $pr1)
+      , (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _ | _ / (_ * (#`cos
+                                                                          #(x / 2) | #`sin
+                                                                                       #(x / 2)) * _ + _) ) ->
       rewriteRuleForCosAndSinExpr
         (/' pr2 (+' (*' (*' a 2) (*' (cos (x / 2)) (sin (x / 2))) mr) pr1))
     | _ -> expr
 
 rewriteRuleForCosAndSinPoly poly :=
   match poly as mathExpr with
-    | REPLACEME -> rewriteRuleForCosAndSinPoly (+' pr (*' a mr))
-    | REPLACEME -> rewriteRuleForCosAndSinPoly (+' pr (*' a (cos x ^ 2) mr))
-    | REPLACEME -> rewriteRuleForCosAndSinPoly (+' pr (*' a (sin x ^ 2) mr))
+    | $a * #`cos $x ^ #2 * $mr + #a * #`sin #x ^ #2 * #mr + $pr ->
+      rewriteRuleForCosAndSinPoly (+' pr (*' a mr))
+    | $a * $mr + #(- a) * #`sin $x ^ #2 * #mr + $pr ->
+      rewriteRuleForCosAndSinPoly (+' pr (*' a (cos x ^ 2) mr))
+    | $a * $mr + #(- a) * #`cos $x ^ #2 * #mr + $pr ->
+      rewriteRuleForCosAndSinPoly (+' pr (*' a (sin x ^ 2) mr))
     | _ -> poly
 
 rewriteRuleForCosToSin := 1#(mapTerms rewriteRuleForCosToSinTerm' %1)
 
 rewriteRuleForCosToSinTerm' term :=
   match term as mathExpr with
-    | REPLACEME -> *' a (-' 1 (sin x ^ 2)) (rewriteRuleForCosToSinTerm' mr)
+    | $a * #`cos $x ^ #2 * $mr ->
+      *' a (-' 1 (sin x ^ 2)) (rewriteRuleForCosToSinTerm' mr)
     | _ -> term
 
 rewriteRuleForD := 1#(mapTerms rewriteRuleForDTerm %1)
 
 rewriteRuleForDTerm term :=
   match term as mathExpr with
-    | REPLACEME -> 0
+    | _ * #d _ * #d _ * _ -> 0
     | _ -> term
 
 rewriteRuleForD/d := 1#(mapPolys rewriteRuleForD/dPoly %1)
 
 rewriteRuleForD/dPoly poly :=
   match poly as mathExpr with
-    | REPLACEME -> rewriteRuleForD/dPoly (+' (*' (a + b) (f ^ n) mr) pr)
+    | $a * ($f & (func $g _ $arg $js)) ^ $n * $mr + $b * (func #g _ #arg ?1#(eq?/m
+                                                                               (multiset
+                                                                                  something)
+                                                                               js
+                                                                               %1)) ^ #n * #mr + $pr ->
+      rewriteRuleForD/dPoly (+' (*' (a + b) (f ^ n) mr) pr)
     | _ -> poly

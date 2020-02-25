@@ -130,7 +130,7 @@ instance SyntaxElement EgisonPattern where
   toNonS (OrPat []) = error "Not supported: empty or pattern"
   toNonS (OrPat ps) = toNonS (foldr1 (\p acc -> InfixPat op p acc) ps)
     where op = fromJust $ find (\op -> repr op == "|") reservedPatternInfix
-  toNonS (ForallPat p1 p2) = error "Not supported: forall pattern"
+  toNonS ForallPat{} = error "Not supported: forall pattern"
   toNonS (TuplePat ps) = TuplePat (map toNonS ps)
   toNonS (InductivePat name [p1, p2])
     | any (\op -> func op == name) reservedPatternInfix =
@@ -143,9 +143,18 @@ instance SyntaxElement EgisonPattern where
   toNonS (DApplyPat p ps) = DApplyPat (toNonS p) (map toNonS ps)
   toNonS (DivPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
     where op = fromJust $ find (\op -> repr op == "/") reservedPatternInfix
-  toNonS (PlusPat ps) = PlusPat (map toNonS ps)
-  toNonS (MultPat ps) = MultPat (map toNonS ps)
-  toNonS (PowerPat p1 p2) = PowerPat (toNonS p1) (toNonS p2)
+  toNonS (PlusPat [])  = InductivePat "plus" []
+  toNonS (PlusPat [p]) = InductivePat "plus" [toNonS p]
+  toNonS (PlusPat (p:ps)) =
+    foldl (\acc x -> InfixPat op acc (toNonS x)) (toNonS p) ps
+      where op = fromJust $ find (\op -> repr op == "+") reservedPatternInfix
+  toNonS (MultPat []) = InductivePat "mult" []
+  toNonS (MultPat [p]) = InductivePat "mult" [toNonS p]
+  toNonS (MultPat (p:ps)) =
+    foldl (\acc x -> InfixPat op acc (toNonS x)) (toNonS p) ps
+      where op = fromJust $ find (\op -> repr op == "*") reservedPatternInfix
+  toNonS (PowerPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
+    where op = fromJust $ find (\op -> repr op == "^") reservedPatternInfix
   toNonS p = p
 
 instance SyntaxElement LoopRange where

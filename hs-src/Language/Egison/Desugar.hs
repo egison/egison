@@ -385,8 +385,16 @@ desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
 desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
 desugarPattern' (ForallPat pattern1 pattern2) = ForallPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (InfixPat Infix{ repr = "&" } pattern1 pattern2) = AndPat <$> mapM desugarPattern' [pattern1, pattern2]
-desugarPattern' (InfixPat Infix{ repr = "|" } pattern1 pattern2) = OrPat  <$> mapM desugarPattern' [pattern1, pattern2]
+desugarPattern' (InfixPat Infix{ repr = "&" } pattern1 pattern2) =
+  AndPat <$> mapM desugarPattern' [pattern1, pattern2]
+desugarPattern' (InfixPat Infix{ repr = "|" } pattern1 pattern2) =
+  OrPat <$> mapM desugarPattern' [pattern1, pattern2]
+desugarPattern' (InfixPat Infix{ repr = "^" } pattern1 pattern2) =
+  desugarPattern' (PowerPat pattern1 pattern2)
+desugarPattern' (InfixPat Infix{ repr = "*" } pattern1 pattern2) =
+  desugarPattern' (MultPat [pattern1, pattern2])
+desugarPattern' (InfixPat Infix{ repr = "+" } pattern1 pattern2) =
+  desugarPattern' (PlusPat [pattern1, pattern2])
 desugarPattern' (InfixPat Infix{ func = f } pattern1 pattern2)   = InductivePat f <$> mapM desugarPattern' [pattern1, pattern2]
 desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
 desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
