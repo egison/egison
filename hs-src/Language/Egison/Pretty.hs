@@ -75,6 +75,7 @@ instance Pretty EgisonExpr where
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
   pretty (LambdaExpr xs e)          = nest 2 (pretty "\\" <> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty e)
+  pretty (MemoizedLambdaExpr xs e)  = nest 2 (pretty "memoizedLambda" <+> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty e)
   pretty (CambdaExpr x e)           = nest 2 (pretty "cambda" <+> pretty x <+> pretty "->" <> softline <> pretty e)
   pretty (ProcedureExpr xs e)       = nest 2 (pretty "procedure" <+> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty e)
   pretty (PatternFunctionExpr xs p) = nest 2 (pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty p)
