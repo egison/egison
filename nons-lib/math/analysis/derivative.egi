@@ -8,13 +8,13 @@
     | ?symbol? -> 0
     | func _ $argnames $args _ ->
       sum (map2 (\s r -> (userRefs f [s]) * ∂/∂ r x) argnames args)
-    | REPLACEME -> exp g * ∂/∂ g x
-    | REPLACEME -> 1 / g * ∂/∂ g x
-    | REPLACEME -> 1 / (2 * sqrt g) * ∂/∂ g x
-    | REPLACEME -> f * ∂/∂ (log g * h) x
-    | REPLACEME -> (- sin g) * ∂/∂ g x
-    | REPLACEME -> cos g * ∂/∂ g x
-    | REPLACEME -> 1 / sqrt (1 - g ^ 2) * ∂/∂ g x
+    | #`exp $g -> exp g * ∂/∂ g x
+    | #`log $g -> 1 / g * ∂/∂ g x
+    | #`sqrt $g -> 1 / (2 * sqrt g) * ∂/∂ g x
+    | #`(^) $g $h -> f * ∂/∂ (log g * h) x
+    | #`cos $g -> (- sin g) * ∂/∂ g x
+    | #`sin $g -> cos g * ∂/∂ g x
+    | #`arccos $g -> 1 / sqrt (1 - g ^ 2) * ∂/∂ g x
     | apply $g $args ->
       sum (map 2#(capply `(userRefs g [%1]) args * ∂/∂ %2 x) (zip nats args))
     | quote $g ->

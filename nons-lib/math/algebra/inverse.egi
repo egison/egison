@@ -13,13 +13,13 @@ inverse t f x :=
     | ?simpleTerm? ->
       match f as symbolExpr with
         | #x -> t
-        | REPLACEME -> log t
-        | REPLACEME -> exp t
-        | REPLACEME -> t ^ 2
-        | REPLACEME -> acos t
-        | REPLACEME -> asin t
-        | REPLACEME -> cos t
-        | REPLACEME -> sin t
+        | #exp #x -> log t
+        | #log #x -> exp t
+        | #sqrt #x -> t ^ 2
+        | #cos #x -> acos t
+        | #sin #x -> asin t
+        | #acos #x -> cos t
+        | #asin #x -> sin t
         | _ -> inverse' t f x
     | ?term? ->
       match f as termExpr with

@@ -662,7 +662,7 @@ applyOrAtomPattern = (do
     case (func, args) of
       (_,                 []) -> return func
       (InductivePat x [], _)  -> return $ InductiveOrPApplyPat x args
-      _                       -> fail $ "Pattern not understood: " ++ show (func, args))
+      _                       -> return $ DApplyPat func args
   <|> (do
     (func, args) <- indentBlock atomExpr atomPattern
     return $ PApplyPat func args)

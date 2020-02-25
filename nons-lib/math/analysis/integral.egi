@@ -6,15 +6,15 @@ Sd x f :=
   match f as mathExpr with
     | #x -> 1 / 2 * x ^ 2
     | symbol _ _ -> f * x
-    | REPLACEME -> exp x
-    | REPLACEME -> sin x
-    | REPLACEME -> - cos x
-    | REPLACEME -> multSd x 1 (log x)
-    | REPLACEME -> a ^ x / log a
-    | REPLACEME ->
+    | #exp #x -> exp x
+    | #cos #x -> sin x
+    | #sin #x -> - cos x
+    | #log #x -> multSd x 1 (log x)
+    | #(^) $a #x -> a ^ x / log a
+    | #(^) $a $y ->
       withSymbols [t] substitute [(t, y)] (Sd t (a ^ t * d/d (inverse t y x) t))
-    | REPLACEME -> `Sd x (`Sd y g)
-    | REPLACEME ->
+    | #Sd $y $g -> `Sd x (`Sd y g)
+    | $f $y ->
       withSymbols [t] substitute [(t, y)] (Sd t (f t * d/d (inverse t y x) t))
     | #0 -> 0
     | term $c [] -> c * x
