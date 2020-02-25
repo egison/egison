@@ -210,7 +210,10 @@ instance Pretty EgisonPattern where
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
   pretty (PredPat v)  = pretty "?" <> pretty' v
-  pretty (IndexedPat p indices) = pretty p <> hcat (map (\i -> pretty '_' <> pretty' i) indices)
+  pretty (IndexedPat p indices) =
+    pretty p <> hcat (map (\i -> pretty '_' <> pretty' i) indices)
+  pretty (LetPat binds pat) =
+    pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   -- (p11 op' p12) op p2
   pretty (InfixPat op p1@(InfixPat op' _ _) p2) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
@@ -222,6 +225,8 @@ instance Pretty EgisonPattern where
        then pretty'' p1 <+> pretty (repr op) <+> parens (pretty p2)
        else pretty'' p1 <+> pretty (repr op) <+> pretty p2
   pretty (InfixPat op p1 p2) = pretty' p1 <+> pretty (repr op) <+> pretty' p2
+  pretty (NotPat pat) = pretty "!" <> pretty' pat
+  pretty (TuplePat pats) = tupled $ map pretty pats
   pretty (InductivePat "nil" []) = pretty "[]"
   pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty xs)
   pretty (LoopPat i range p1 p2) =
@@ -238,9 +243,7 @@ instance Pretty EgisonPattern where
       f p1 (SeqConsPat p2 p3) = pretty p1 : f p2 p3
       f p1 p2 = [pretty p1, pretty p2]
   pretty LaterPatVar = pretty "@"
-  pretty (LetPat binds pat) = pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
-  pretty (NotPat pat)    = pretty "!" <> pretty' pat
-  pretty (TuplePat pats) = tupled $ map pretty pats
+  pretty (DApplyPat p ps) = applyLike (map pretty' (p : ps))
   pretty _            = pretty "REPLACEME"
 
 instance Pretty LoopRange where

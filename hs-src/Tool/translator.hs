@@ -120,15 +120,17 @@ instance SyntaxElement EgisonExpr where
 instance SyntaxElement EgisonPattern where
   toNonS (ValuePat e) = ValuePat (toNonS e)
   toNonS (PredPat e) = PredPat (toNonS e)
+  toNonS (IndexedPat p es) = IndexedPat (toNonS p) (map toNonS es)
   toNonS (LetPat binds pat) = LetPat (map toNonS binds) (toNonS pat)
-  toNonS (NotPat p) = NotPat (toNonS p)
   toNonS (InfixPat op p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
+  toNonS (NotPat p) = NotPat (toNonS p)
   toNonS (AndPat []) = error "Not supported: empty and pattern"
   toNonS (AndPat ps) = toNonS (foldr1 (\p acc -> InfixPat op p acc) ps)
     where op = fromJust $ find (\op -> repr op == "&") reservedPatternInfix
   toNonS (OrPat []) = error "Not supported: empty or pattern"
   toNonS (OrPat ps) = toNonS (foldr1 (\p acc -> InfixPat op p acc) ps)
     where op = fromJust $ find (\op -> repr op == "|") reservedPatternInfix
+  toNonS (ForallPat p1 p2) = ForallPat (toNonS p1) (toNonS p2)
   toNonS (TuplePat ps) = TuplePat (map toNonS ps)
   toNonS (InductivePat name [p1, p2])
     | any (\op -> func op == name) reservedPatternInfix =
@@ -138,6 +140,11 @@ instance SyntaxElement EgisonPattern where
   toNonS (LoopPat i range p1 p2) = LoopPat i (toNonS range) (toNonS p1) (toNonS p2)
   toNonS (PApplyPat e p) = PApplyPat (toNonS e) (map toNonS p)
   toNonS (SeqConsPat p1 p2) = SeqConsPat (toNonS p1) (toNonS p2)
+  toNonS (DApplyPat p ps) = DApplyPat (toNonS p) (map toNonS ps)
+  toNonS (DivPat p1 p2) = DivPat (toNonS p1) (toNonS p2)
+  toNonS (PlusPat ps) = PlusPat (map toNonS ps)
+  toNonS (MultPat ps) = MultPat (map toNonS ps)
+  toNonS (PowerPat p1 p2) = PowerPat (toNonS p1) (toNonS p2)
   toNonS p = p
 
 instance SyntaxElement LoopRange where
