@@ -248,7 +248,7 @@ instance Pretty EgisonPattern where
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (ApplyExpr (VarExpr (Var ["-'"] []))
+                                    (ApplyExpr (VarExpr (Var ["sub'"] []))
                                                (TupleExpr [_, IntegerExpr 1]))) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
