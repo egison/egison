@@ -13,7 +13,7 @@ rewriteRules1 :=
   , (rewriteRuleForI, 1#(containSymbol? i %1))
   , (rewriteRuleForWTerm, 1#(containSymbol? w %1))
   , (rewriteRuleForRtuTerm, 1#(containFunction? `rtu %1))
-  , (rewriteRuleFor**, 1#(containFunction? `(^) %1))
+  , (rewriteRuleForPower, 1#(containFunction? `(^) %1))
   , (rewriteRuleForExp, 1#(containFunction? `exp %1))
   , (rewriteRuleForWPoly, 1#(containSymbol? w %1))
   , (rewriteRuleForRtuPoly, 1#(containFunction? `rtu %1))
@@ -100,15 +100,15 @@ rewriteRuleForExpTerm term :=
     | $a * #`exp $x * #`exp $y * $r -> rewriteRuleForExp (*' a (exp (x + y)) r)
     | _ -> term
 
-rewriteRuleFor** := 1#(mapTerms rewriteRuleFor**Term %1)
+rewriteRuleForPower := 1#(mapTerms rewriteRuleForPowerTerm %1)
 
-rewriteRuleFor**Term term :=
+rewriteRuleForPowerTerm term :=
   match term as mathExpr with
-    | $a * #`(^) #1 _ ^ _ * $r -> rewriteRuleFor** (*' a r)
+    | $a * #`(^) #1 _ ^ _ * $r -> rewriteRuleForPower (*' a r)
     | $a * #`(^) $x $y ^ (?1#(%1 >= 2) & $n) * $r ->
-      rewriteRuleFor** (*' a (x ^ (y * n)) r)
+      rewriteRuleForPower (*' a (x ^ (y * n)) r)
     | $a * #`(^) $x $y * #`(^) #x $z * $r ->
-      rewriteRuleFor** (*' a (x ^ (y + z)) r)
+      rewriteRuleForPower (*' a (x ^ (y + z)) r)
     | _ -> term
 
 rewriteRuleForCosAndSin := 1#(mapPolys rewriteRuleForCosAndSinPoly %1)
