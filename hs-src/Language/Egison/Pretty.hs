@@ -33,11 +33,9 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty EgisonTopExpr where
   pretty (Define x (LambdaExpr args body)) =
-    hsep (pretty x : map pretty args) <+> group (pretty ":=" <>
-      flatAlt (nest 2 (hardline <> pretty body)) (space <> pretty body))
+    hsep (pretty x : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (Define x expr) =
-    pretty x <+> group (pretty ":=" <>
-      flatAlt (nest 2 (hardline <> pretty expr)) (space <> pretty expr))
+    pretty x <+> indentBlock (pretty ":=") [pretty expr]
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
@@ -74,16 +72,22 @@ instance Pretty EgisonExpr where
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
-  pretty (LambdaExpr xs e)          = nest 2 (pretty "\\" <> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty e)
-  pretty (MemoizedLambdaExpr xs e)  = nest 2 (pretty "memoizedLambda" <+> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty e)
-  pretty (CambdaExpr x e)           = nest 2 (pretty "cambda" <+> pretty x <+> pretty "->" <> softline <> pretty e)
-  pretty (ProcedureExpr xs e)       = nest 2 (pretty "procedure" <+> hsep (map pretty xs) <+> pretty "->" <> softline <> pretty e)
-  pretty (PatternFunctionExpr xs p) = nest 2 (pretty "\\" <> hsep (map pretty xs) <+> pretty "=>" <> softline <> pretty p)
+  pretty (LambdaExpr xs e) =
+    indentBlock (pretty "\\" <> hsep (map pretty xs) <+> pretty "->") [pretty e]
+  pretty (MemoizedLambdaExpr xs e)  =
+    indentBlock
+      (pretty "memoizedLambda" <+> hsep (map pretty xs) <+> pretty "->")
+      [pretty e]
+  pretty (CambdaExpr x e) =
+    indentBlock (pretty "cambda" <+> pretty x <+> pretty "->") [pretty e]
+  pretty (ProcedureExpr xs e) =
+    indentBlock (pretty "procedure" <+> hsep (map pretty xs) <+> pretty "->") [pretty e]
+  pretty (PatternFunctionExpr xs p) =
+    indentBlock (pretty "\\" <> hsep (map pretty xs) <+> pretty "=>") [pretty p]
 
   pretty (IfExpr x y z) =
-    group (pretty "if" <+> pretty x <>
-      (flatAlt (nest 2 (hardline <> pretty "then" <+> pretty y)) (space <> pretty "then" <+> pretty y)) <>
-      (flatAlt (nest 2 (hardline <> pretty "else" <+> pretty z)) (space <> pretty "else" <+> pretty z)))
+    indentBlock (pretty "if" <+> pretty x)
+      [pretty "then" <+> pretty y, pretty "else" <+> pretty z]
   pretty (LetRecExpr bindings body) =
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
   pretty (LetExpr _ _) = error "unreachable"
@@ -111,8 +115,7 @@ instance Pretty EgisonExpr where
             group (pretty expr) <+> pretty "with" <> hardline <>
               align (vsep (map prettyPatBody body)))
         prettyPatBody (pdpat, expr) =
-          group (pipe <+> align (pretty pdpat) <+> pretty "->" <>
-            flatAlt (nest 2 (hardline <> pretty expr)) (space <> pretty expr))
+          indentBlock (pipe <+> align (pretty pdpat) <+> pretty "->") [pretty expr]
 
   pretty (AlgebraicDataMatcherExpr patDefs) =
     nest 2 (pretty "algebraicDataMatcher" <> hardline <> align (vsep (map prettyPatDef patDefs)))
@@ -139,7 +142,7 @@ instance Pretty EgisonExpr where
   pretty (BinaryOpExpr op x y) = pretty'' x <+> pretty (repr op) <+> pretty'' y
   pretty (SectionExpr op Nothing Nothing) = parens (pretty (repr op))
 
-  pretty (DoExpr xs y) = pretty "do" <+> align (vsep (map prettyDoBinds xs ++ [pretty y]))
+  pretty (DoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
   pretty (ApplyExpr x (TupleExpr ys)) = hang 2 (sep (map (group . pretty') (x : ys)))
@@ -178,15 +181,13 @@ instance Pretty InnerExpr where
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
   pretty ([var], LambdaExpr args body) =
-    hsep (pretty var : map pretty args) <+> group (pretty ":=" <>
-      flatAlt (nest 2 (hardline <> pretty body)) (space <> pretty body))
+    hsep (pretty var : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
   pretty ([var], expr) = pretty var <+> pretty ":=" <+> align (pretty expr)
   pretty (vars, expr) = tupled (map pretty vars) <+> pretty ":=" <+> align (pretty expr)
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
-    pipe <+> align (pretty pat) <+> group (pretty "->" <>
-      flatAlt (nest 2 (hardline <> pretty expr)) (space <> pretty expr))
+    pipe <+> align (pretty pat) <+> indentBlock (pretty "->") [pretty expr]
 
 instance (Pretty a, Complex a) => Pretty (Index a) where
   pretty (Subscript i) = pretty '_' <> pretty' i
@@ -362,6 +363,13 @@ fillSepAtom (x:xs) = x <> fillSepAtom' xs
     fillSepAtom' [] = emptyDoc
     fillSepAtom' (x:xs) =
       group (flatAlt (hardline <> x) (space <> x)) <> fillSepAtom' xs
+
+indentBlock :: Doc ann -> [Doc ann] -> Doc ann
+indentBlock header bodies =
+  group (nest 2 (header <> flatAlt (hardline <> hsepHard bodies) (space <> hsep bodies)))
+
+hsepHard :: [Doc ann] -> Doc ann
+hsepHard = concatWith (\x y -> x <> hardline <> y)
 
 --
 -- Pretty printer for S-expression

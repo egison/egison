@@ -10,9 +10,10 @@ dfNormalize %X :=
                             (\σ -> subrefs X (map 1#i_(σ %1) (between 1 p)))
                             es) - sum
                                     (map
-                                       (\σ -> subrefs X (map
-                                                           1#i_(σ %1)
-                                                           (between 1 p)))
+                                       (\σ ->
+                                         subrefs X (map
+                                                      1#i_(σ %1)
+                                                      (between 1 p)))
                                        os)) / fact p
 
 wedge %X %Y := REPLACEME

@@ -21,17 +21,20 @@ f.*' := cambda xs -> foldl f.* (car xs) (cdr xs)
 f./' := f./
 
 + :=
-  cambda xs -> if capply (||) (map float? xs)
+  cambda xs ->
+    if capply (||) (map float? xs)
       then capply f.+' (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 capply +' xs
 
 - :=
-  cambda xs -> if capply (||) (map float? xs)
+  cambda xs ->
+    if capply (||) (map float? xs)
       then capply f.-' (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 capply -' xs
 
 * :=
-  cambda xs -> if capply (||) (map float? xs)
+  cambda xs ->
+    if capply (||) (map float? xs)
       then capply f.*' (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 capply *' xs
 

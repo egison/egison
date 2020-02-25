@@ -17,7 +17,8 @@ b.. %t1 %t2 := contract (+) (t1 * t2)
 .' := cambda xs -> foldl b..' (car xs) (cdr xs)
 
 . :=
-  cambda xs -> match xs as list something with
+  cambda xs ->
+    match xs as list something with
       | _ -> foldl b.. (car xs) (cdr xs)
 
 T.+ %t1 %t2 :=
