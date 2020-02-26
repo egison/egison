@@ -4,7 +4,7 @@
 
 string :=
   matcher
-    | regex-cg #$regexpr $ $ $ as (string, list string, string) with
+    | regexCg #$regexpr $ $ $ as (string, list string, string) with
       | $tgt -> regexCg regexpr tgt
     | regex #$regexpr $ $ $ as (string, string, string) with
       | $tgt -> regex regexpr tgt

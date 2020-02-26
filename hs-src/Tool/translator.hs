@@ -170,6 +170,21 @@ instance SyntaxElement EgisonPattern where
     where op = fromJust $ find (\op -> repr op == "^") reservedPatternInfix
   toNonS p = p
 
+instance SyntaxElement PrimitivePatPattern where
+  toNonS (PPValuePat x) = PPValuePat (toCamelCase x)
+  toNonS (PPInductivePat x pps) = PPInductivePat (toCamelCase x) (map toNonS pps)
+  toNonS (PPTuplePat pps) = PPTuplePat (map toNonS pps)
+  toNonS pp = pp
+
+instance SyntaxElement PrimitiveDataPattern where
+  toNonS (PDPatVar x) = PDPatVar (toCamelCase x)
+  toNonS (PDInductivePat x pds) = PDInductivePat (toCamelCase x) (map toNonS pds)
+  toNonS (PDTuplePat pds) = PDTuplePat (map toNonS pds)
+  toNonS (PDConsPat pd1 pd2) = PDConsPat (toNonS pd1) (toNonS pd2)
+  toNonS (PDSnocPat pd1 pd2) = PDSnocPat (toNonS pd1) (toNonS pd2)
+  toNonS (PDConstantPat e) = PDConstantPat (toNonS e)
+  toNonS pd = pd
+
 instance SyntaxElement LoopRange where
   toNonS (LoopRange e1 e2 p) = LoopRange (toNonS e1) (toNonS e2) (toNonS p)
 
@@ -187,7 +202,7 @@ instance SyntaxElement MatchClause where
   toNonS (pat, body) = (toNonS pat, toNonS body)
 
 instance SyntaxElement PatternDef where
-  toNonS (x, y, zs) = (x, toNonS y, map (\(z, w) -> (z, toNonS w)) zs)
+  toNonS (x, y, zs) = (toNonS x, toNonS y, map (\(z, w) -> (toNonS z, toNonS w)) zs)
 
 instance SyntaxElement Var where
   toNonS (Var ["+'"]  []) = Var ["add'"]   []
