@@ -6,7 +6,7 @@ Nothing := []
 
 Just x := [x]
 
-nothing := \ => []
+nothing := \() => []
 
 just := \pat => ~pat :: _
 

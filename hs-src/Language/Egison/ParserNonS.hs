@@ -354,8 +354,8 @@ lambdaExpr :: Parser EgisonExpr
 lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr (reserved "match")    MatchLambdaExpr
   <|> makeMatchLambdaExpr (reserved "matchAll") MatchAllLambdaExpr
-  <|> try (LambdaExpr <$> some arg <* symbol "->") <*> expr
-  <|> PatternFunctionExpr <$> some lowerId <*> (symbol "=>" >> pattern))
+  <|> try (LambdaExpr <$> tupleOrSome arg <* symbol "->") <*> expr
+  <|> PatternFunctionExpr <$> tupleOrSome lowerId <*> (symbol "=>" >> pattern))
   <?> "lambda or pattern function expression"
   where
     makeMatchLambdaExpr keyword ctor = do
@@ -365,8 +365,8 @@ lambdaExpr = symbol "\\" >> (
 
 lambdaLikeExpr :: Parser EgisonExpr
 lambdaLikeExpr =
-        (reserved "memoizedLambda" >> MemoizedLambdaExpr <$> many lowerId <*> (symbol "->" >> expr))
-    <|> (reserved "procedure"      >> ProcedureExpr      <$> many lowerId <*> (symbol "->" >> expr))
+        (reserved "memoizedLambda" >> MemoizedLambdaExpr <$> tupleOrSome lowerId <*> (symbol "->" >> expr))
+    <|> (reserved "procedure"      >> ProcedureExpr      <$> tupleOrSome lowerId <*> (symbol "->" >> expr))
     <|> (reserved "cambda"         >> CambdaExpr         <$> lowerId      <*> (symbol "->" >> expr))
 
 arg :: Parser Arg
@@ -982,3 +982,6 @@ infixToOperator opToParser op =
     LeftAssoc  -> InfixL (opToParser op)
     RightAssoc -> InfixR (opToParser op)
     NonAssoc   -> InfixN (opToParser op)
+
+tupleOrSome :: Parser a -> Parser [a]
+tupleOrSome p = parens (sepBy p comma) <|> some p

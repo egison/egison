@@ -73,17 +73,15 @@ instance Pretty EgisonExpr where
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
   pretty (LambdaExpr xs e) =
-    indentBlock (pretty "\\" <> hsep (map pretty xs) <+> pretty "->") [pretty e]
+    lambdaLike (pretty "\\") (map pretty xs) (pretty "->") (pretty e)
   pretty (MemoizedLambdaExpr xs e)  =
-    indentBlock
-      (pretty "memoizedLambda" <+> hsep (map pretty xs) <+> pretty "->")
-      [pretty e]
+    lambdaLike (pretty "memoizedLambda ") (map pretty xs) (pretty "->") (pretty e)
   pretty (CambdaExpr x e) =
     indentBlock (pretty "cambda" <+> pretty x <+> pretty "->") [pretty e]
   pretty (ProcedureExpr xs e) =
-    indentBlock (pretty "procedure" <+> hsep (map pretty xs) <+> pretty "->") [pretty e]
+    lambdaLike (pretty "procedure ") (map pretty xs) (pretty "->") (pretty e)
   pretty (PatternFunctionExpr xs p) =
-    indentBlock (pretty "\\" <> hsep (map pretty xs) <+> pretty "=>") [pretty p]
+    lambdaLike (pretty "\\") (map pretty xs) (pretty "=>") (pretty p)
 
   pretty (IfExpr x y z) =
     indentBlock (pretty "if" <+> pretty x)
@@ -383,6 +381,12 @@ indentBlock header bodies =
 
 hsepHard :: [Doc ann] -> Doc ann
 hsepHard = concatWith (\x y -> x <> hardline <> y)
+
+lambdaLike :: Doc ann -> [Doc ann] -> Doc ann -> Doc ann -> Doc ann
+lambdaLike start [] arrow body =
+  indentBlock (start <> pretty "()" <+> arrow) [body]
+lambdaLike start args arrow body =
+  indentBlock (start <> hsep args <+> arrow) [body]
 
 applyLike :: [Doc ann] -> Doc ann
 applyLike = hang 2 . sep . map group
