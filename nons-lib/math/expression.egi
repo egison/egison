@@ -4,7 +4,7 @@
 
 mathExpr :=
   matcher
-    | #val as () with
+    | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (mathExpr') with
       | $tgt -> [fromMathExpr tgt]
@@ -96,7 +96,7 @@ multExpr :=
             matchAll xs as assocMultiset mathExpr with
               | $x :: $rs -> (x, product' (map 2#(power' %1 %2) rs))
           | _ -> []
-    | ncons $ #k $ as (mathExpr, multExpr) with
+    | ncons $ #$k $ as (mathExpr, multExpr) with
       | $tgt ->
         match tgt as mathExpr with
           | term _ $xs ->
