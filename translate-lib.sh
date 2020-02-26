@@ -5,11 +5,11 @@ do
     [ -d ${f} ] && continue
     [ "${f}" = "lib/core/sexpr.egi" ] && continue
     echo ${f}
-    stack exec -- egison-translate ${f} > "nons-"${f}
+    stack exec -- egison-translate ${f} > "nons-"${f%.segi}.egi
 done
 
 for f in lib/??*/??*/??*
 do
     echo ${f}
-    stack exec -- egison-translate ${f} > "nons-"${f}
+    stack exec -- egison-translate ${f} > "nons-"${f%.segi}.egi
 done
