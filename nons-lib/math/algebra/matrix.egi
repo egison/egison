@@ -28,7 +28,7 @@ trace %t := withSymbols [i] contract (+) t~i_i
 
 matrix :=
   matcher
-    | quad-cons $ $ $ $ as (mathExpr, matrix, matrix, matrix) with
+    | quadCons $ $ $ $ as (mathExpr, matrix, matrix, matrix) with
       | $tgt ->
         match tensorShape tgt as list integer with
           | $m :: $n :: _ ->
