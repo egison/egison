@@ -25,7 +25,7 @@ assocList a :=
           | ($x, #1) :: $rs -> [(x, rs)]
           | ($x, $n) :: $rs -> [(x, (x, n - 1) :: rs)]
           | _ -> []
-    | ncons $ #k $ as (a, assocList a) with
+    | ncons $ #$k $ as (a, assocList a) with
       | $tgt ->
         match tgt as list (something, integer) with
           | ($x, #k) :: $rs -> [(x, rs)]
@@ -36,7 +36,7 @@ assocList a :=
         match tgt as list (something, integer) with
           | ($x, $k) :: $rs -> [(x, k, rs)]
           | _ -> []
-    | #val as () with
+    | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
@@ -46,7 +46,7 @@ assocMultiset a :=
     | nil as () with
       | [] -> [()]
       | _ -> []
-    | cons #x $ as (assocMultiset a) with
+    | cons #$x $ as (assocMultiset a) with
       | $tgt ->
         matchAll tgt as list (a, integer) with
           | $hs ++ (#x, $n) :: $ts ->
@@ -56,17 +56,17 @@ assocMultiset a :=
         matchAll tgt as list (a, integer) with
           | $hs ++ ($x, $n) :: $ts ->
             if n = 1 then (x, hs ++ ts) else (x, hs ++ (x, n - 1) :: ts)
-    | ncons #x #n $ as (assocMultiset a) with
+    | ncons #$x #$n $ as (assocMultiset a) with
       | $tgt ->
         matchAll tgt as list (a, integer) with
           | $hs ++ (#x, ?1#(%1 >= n) & $k) :: $ts ->
             if k - n = 0 then hs ++ ts else hs ++ (x, k - n) :: ts
-    | ncons $ #n $ as (a, assocMultiset a) with
+    | ncons $ #$n $ as (a, assocMultiset a) with
       | $tgt ->
         matchAll tgt as list (a, integer) with
           | $hs ++ ($x, ?1#(%1 >= n) & $k) :: $ts ->
             if k - n = 0 then (x, hs ++ ts) else (x, hs ++ (x, k - n) :: ts)
-    | ncons #x $ $ as (integer, assocMultiset a) with
+    | ncons #$x $ $ as (integer, assocMultiset a) with
       | $tgt ->
         matchAll tgt as list (a, integer) with
           | $hs ++ (#x, $n) :: $ts -> (n, hs ++ ts)

@@ -4,20 +4,20 @@
 
 string :=
   matcher
-    | regex-cg #regexpr $ $ $ as (string, list string, string) with
+    | regex-cg #$regexpr $ $ $ as (string, list string, string) with
       | $tgt -> regexCg regexpr tgt
-    | regex #regexpr $ $ $ as (string, string, string) with
+    | regex #$regexpr $ $ $ as (string, string, string) with
       | $tgt -> regex regexpr tgt
     | nil as () with
       | $tgt -> if "" = tgt then [()] else []
     | cons $ $ as (char, string) with
       | $tgt -> if "" = tgt then [] else [unconsString tgt]
-    | join $ cons #px $ as (string, string) with
+    | join $ cons #$px $ as (string, string) with
       | $tgt ->
         matchAll S.split (pack [px]) tgt as list string with
           | (![] & $xs) ++ ![] & $ys ->
             (S.intercalate (pack [px]) xs, S.intercalate (pack [px]) ys)
-    | join $ join #pxs $ as (string, string) with
+    | join $ join #$pxs $ as (string, string) with
       | $tgt ->
         matchAll S.split pxs tgt as list string with
           | (![] & $xs) ++ ![] & $ys ->
@@ -28,7 +28,7 @@ string :=
           | loop $i (1, $n)
               ($xa_i :: ...)
               $rs -> (pack (map (\i -> xa_i) (between 1 n)), rs)
-    | #val as () with
+    | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]

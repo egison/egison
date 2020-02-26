@@ -256,7 +256,7 @@ instance Pretty LoopRange where
 instance Pretty PrimitivePatPattern where
   pretty PPWildCard     = pretty "_"
   pretty PPPatVar       = pretty "$"
-  pretty (PPValuePat x) = pretty ('#' : x)
+  pretty (PPValuePat x) = pretty ('#' : '$' : x)
   pretty (PPInductivePat x pppats) = hsep (pretty x : map pretty pppats)
   pretty (PPTuplePat pppats) = tupled (map pretty pppats)
 

@@ -31,7 +31,7 @@ list a :=
           | loop $i (1, $n)
               (snoc $xa_i ...)
               $rs -> (foldr (\%i %r -> r ++ [xa_i]) [] (between 1 n), rs)
-    | #val as () with
+    | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
@@ -41,7 +41,7 @@ sortedList a :=
     | nil as () with
       | [] -> [()]
       | _ -> []
-    | join $ cons #px $ as (sortedList a, sortedList a) with
+    | join $ cons #$px $ as (sortedList a, sortedList a) with
       | $tgt ->
         matchAll tgt as list a with
           | loop $i (1, $n)
@@ -56,7 +56,7 @@ sortedList a :=
     | cons $ $ as (a, sortedList a) with
       | $x :: $xs -> [(x, xs)]
       | _ -> []
-    | #val as () with
+    | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
@@ -289,7 +289,7 @@ multiset a :=
       | $tgt ->
         matchAll tgt as list a with
           | $hs ++ $x :: $ts -> (x, hs ++ ts)
-    | join #pxs $ as (multiset a) with
+    | join #$pxs $ as (multiset a) with
       | $tgt ->
         match (pxs, tgt) as (list a, multiset a) with
           | loop $i (1, length pxs, _)
@@ -304,7 +304,7 @@ multiset a :=
               $ts ->
             ( map (\i -> x_i) (between 1 n)
             , concat (map (\i -> rs_i) (between 1 n) ++ [ts]) )
-    | #val as () with
+    | #$val as () with
       | $tgt ->
         match (val, tgt) as (list a, multiset a) with
           | ([], []) -> [()]
@@ -426,7 +426,7 @@ set a :=
       | $tgt ->
         matchAll tgt as list a with
           | _ ++ $x :: _ -> (x, tgt)
-    | join #pxs $ as (set a) with
+    | join #$pxs $ as (set a) with
       | $tgt ->
         match (pxs, tgt) as (list a, set a) with
           | ( loop $i (1, $n)
@@ -442,7 +442,7 @@ set a :=
           | loop $i (1, $n)
               ($rs_i ++ $x_i :: ...)
               $ts -> (map (\i -> x_i) (between 1 n), tgt)
-    | #val as () with
+    | #$val as () with
       | $tgt ->
         match (unique val, unique tgt) as (list a, multiset a) with
           | ([], []) -> [()]
