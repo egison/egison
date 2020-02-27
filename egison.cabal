@@ -60,6 +60,7 @@ Cabal-version:       >=1.8
 Extra-Source-Files:  benchmark/Benchmark.hs
 
 Data-files:          lib/core/*.segi lib/math/*.segi lib/math/common/*.segi lib/math/algebra/*.segi lib/math/analysis/*.segi lib/math/geometry/*.segi
+                     nons-lib/core/*.egi
                      sample/*.segi sample/sat/*.segi sample/io/*.segi sample/math/algebra/*.segi sample/math/analysis/*.segi sample/math/geometry/*.segi sample/math/number/*.segi sample/math/others/*.segi
                      nons-sample/math/geometry/*.egi
                      test/*.segi test/lib/core/*.segi test/lib/math/*.segi
