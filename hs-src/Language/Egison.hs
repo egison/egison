@@ -138,7 +138,7 @@ coreLibraries =
   , "lib/math/algebra/matrix.segi"
   , "lib/math/algebra/tensor.segi"
   , "lib/math/geometry/differential-form.segi"
-  , "lib/core/base.segi"
+  , "nons-lib/core/base.egi"
   , "lib/core/collection.segi"
   , "lib/core/assoc.segi"
   , "lib/core/order.segi"
@@ -146,6 +146,6 @@ coreLibraries =
   , "lib/core/io.segi"
   , "lib/core/random.segi"
   , "lib/core/string.segi"
-  , "lib/core/maybe.segi"
+  , "nons-lib/core/maybe.egi"
   , "lib/core/sexpr.segi" -- For compatibility between new and old syntax
   ]

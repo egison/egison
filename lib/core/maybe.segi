@@ -4,13 +4,18 @@
 ;;;;;
 ;;;;;
 
-(define $Nothing {})
-(define $Just (lambda [$x] {x}))
+(define $maybe
+  (lambda [$a]
+    (matcher
+      {[<nothing> []
+        {[<Nothing> {[]}]
+         [_ {}]}]
+       [<just $> [a]
+        {[<Just $x> {x}]
+         [_ {}]}]
+       [$ [something]
+        {[$tgt {tgt}]}]
+       })))
 
-(define $nothing (pattern-function [] <nil>))
-(define $just (pattern-function [$pat] <cons pat _>))
-
-(define $maybe (lambda [$a] (list a)))
-
-;(match-all (Just 1) (maybe integer) [(nothing) "error"]) ; {}
-;(match-all (Just 1) (maybe integer) [(just $x) x]) ; {1}
+;(match-all <Just 1> (maybe integer) [<nothing> "error"]) ; {}
+;(match-all <Just 1> (maybe integer) [<just $x> x]) ; {1}
