@@ -12,7 +12,7 @@ For more information, visit <a target="_blank" href="https://www.egison.org">our
 ### Pattern Matching
 
 * Satoshi Egi, Yuichi Nishiwaki: [Non-linear Pattern Matching with Backtracking for Non-free Data Types](https://arxiv.org/abs/1808.10603) (APLAS 2018)
-* Satoshi Egi: [Loop Patterns: Extension of Kleene Star Operator for More Expressive Pattern Matching against Arbitrary Data Structures](https://arxiv.org/abs/1809.03252) (Scheme Workshop 2018)
+* Satoshi Egi, Yuichi Nishiwaki: [Functional Programming in Pattern-Match-Oriented Programming Style](https://doi.org/10.22152/programming-journal.org/2020/4/7) (The Art, Science, and Engineering of Programming)
 
 ### Tensor Index Notation
 
@@ -30,40 +30,70 @@ Expressive pattern matching for these data types enables us to write elegant pro
 We can use pattern matching for enumeration.
 The following code enumerates all twin primes from the infinite list of prime numbers with pattern matching!
 
-<hr/>
-<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/twin-primes.png" />
-<hr/>
+```
+twinPrimes :=
+  matchAll primes as list integer with
+  | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
+
+take 8 twinPrimes
+-- [(3, 5), (5, 7), (11, 13), (17, 19), (29, 31), (41, 43), (59, 61), (71, 73)]
+
+```
 
 ### Poker Hands
 
 The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
-<hr/>
-<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/poker-hands.png" />
-<hr/>
-
-### Mahjong
-
-We can write a pattern even against mahjong tiles.
-We modularize patterns to represent complex mahjong hands.
-
-<hr/>
-<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/mahjong.png" />
-<hr/>
+```
+poker cs :=
+  match cs as multiset card with
+  | card $s $n :: card #s #(n-1) :: card #s #(n-2) :: card #s #(n-3) :: card #s #(n-4) :: _
+    -> "Straight flush"
+  | card _ $n :: card _ #n :: card _ #n :: card _ #n :: _ :: []
+    -> "Four of a kind"
+  | card _ $m :: card _ #m :: card _ #m :: card _ $n :: card _ #n :: []
+    -> "Full house"
+  | card $s _ :: card #s _ :: card #s _ :: card #s _ :: card #s _ :: []
+    -> "Flush"
+  | card _ $n :: card _ #(n-1) :: card _ #(n-2) :: card _ #(n-3) :: card _ #(n-4) :: []
+    -> "Straight"
+  | card _ $n :: card _ #n :: card _ #n :: _ :: _ :: []
+    -> "Three of a kind"
+  | card _ $m :: card _ #m :: card _ $n :: card _ #n :: _ :: []
+    -> "Two pair"
+  | card _ $n :: card _ #n :: _ :: _ :: _ :: []
+    -> "One pair"
+  | _ :: _ :: _ :: _ :: _ :: [] -> "Nothing"
+```
 
 ### Graphs
 
 We can pattern-match against graphs.
 We can write program to solve the travelling salesman problem in a single pattern-matching expression.
 
-<hr/>
-<img width="100%" src="https://raw.githubusercontent.com/egison/egison/master/images/salesman.png" />
-<hr/>
+```
+graph := multiset (string, multiset (string, integer))
 
-Aren't these exciting?
-The pattern-matching facility of Egison is very powerful.
-We can use it for pattern matching also for graphs and tree-structures such as XML.
+graphData :=
+  [("Berlin", [("New York", 14), ("London", 2), ("Tokyo", 14), ("Vancouver", 13)]),
+   ("New York", [("Berlin", 14), ("London", 12), ("Tokyo", 18), ("Vancouver", 6)]),
+   ("London", [("Berlin", 2), ("New York", 12), ("Tokyo", 15), ("Vancouver", 10)]),
+   ("Tokyo", [("Berlin", 14), ("New York", 18), ("London", 15), ("Vancouver", 12)]),
+   ("Vancouver", [("Berlin", 13), ("New York", 6), ("London", 10), ("Tokyo", 12)])]
+
+trips :=
+  let n := length graphData in
+    matchAll graphData as graph with
+    | (#"Berlin", (($s_1,$p_1) : _)) ::
+        loop $i (2, n - 1)
+          ((#s_(i - 1), ($s_i, $p_i) :: _) :: ...)
+          ((#s_(n - 1), (#"Berlin" & $s_n, $p_n) :: _) :: [])
+    -> sum (map (\i -> p_i) [1..n]), map (\i -> s_i) [1..n]
+
+car (sortBy (\(_, x), (_, y) -> compare x y)) trips)
+-- (["London", "New York", "Vancouver", "Tokyo"," Berlin"], 46)
+```
 
 ## Egison as a Computer Algebra System
 
@@ -77,10 +107,10 @@ Egison treats unbound variables as symbols.
 ```
 > x
 x
-> (** (+ x y) 2)
-(+ x^2 (* 2 x y) y^2)
-> (** (+ x y) 10)
-(+ x^10 (* 10 x^9 y) (* 45 x^8 y^2) (* 120 x^7 y^3) (* 210 x^6 y^4) (* 252 x^5 y^5) (* 210 x^4 y^6) (* 120 x^3 y^7) (* 45 x^2 y^8) (* 10 x y^9) y^10)
+> (x + y)^2
+x^2 + 2 * x * y + y^2
+> (x + y)^4
+x^4 + 4 * x^3 * y + 6 * x^2 * y^2 + 4 * x * y^3 + y^4
 ```
 
 We can handle algebraic numbers, too.
@@ -88,14 +118,12 @@ We can handle algebraic numbers, too.
 * [Definition of `sqrt` in `root.segi`](https://github.com/egison/egison/blob/master/lib/math/algebra/root.segi)
 
 ```
-> (sqrt x)
+> sqrt x
 (sqrt x)
-> (sqrt 2)
+> sqrt 2
 (sqrt 2)
-> (sqrt 4)
-2
-> (+ x (sqrt y))
-(+ x (sqrt y))
+> x + sqrt y
+x + (sqrt y)
 ```
 
 ### Complex Numbers
@@ -105,31 +133,28 @@ The symbol `i` is defined to rewrite `i^2` to `-1` in Egison library.
 * [Rewriting rule for `i` in `normalize.segi`](https://github.com/egison/egison/blob/master/lib/math/normalize.segi)
 
 ```
-> (* i i)
+> i * i
 -1
-> (* (+ 1 (* 1 i))  (+ 1 (* 1 i)))
-(* 2 i)
-> (** (+ 1 (* 1 i)) 10)
-(* 32 i)
+> (1 + i) * (1 + i)
+2 * i
 > (* (+ x (* y i))  (+ x (* y i)))
-(+ x^2 (* 2 i x y) (* -1 y^2))
+> (x + y * i) * (x + y * i)
+x^2 + 2 * x * y * i + -1 * y^2
 ```
 
 ### Square Root
 
-The rewriting rule for `sqrt` is also defined in Egison library.
+The rewriting rule for `sqrt` fgis also defined in Egison library.
 
 * [Rewriting rule for `sqrt` in `normalize.segi`](https://github.com/egison/egison/blob/master/lib/math/normalize.segi)
 
 ```
-> (* (sqrt 2) (sqrt 2))
+> sqrt 2 * sqrt 2
 2
-> (* (sqrt 6) (sqrt 10))
-(* 2 (sqrt 15))
-> (sqrt x)
-(sqrt x)
-> (* (sqrt (* x y)) (sqrt (* 2 x)))
-(* x (sqrt 2) (sqrt y))
+> sqrt 6 * sqrt 10
+2 * (sqrt 15)
+> sqrt (x * y) * sqrt (2 * x)
+x * (sqrt 2) * (sqrt y)
 ```
 
 ### The 5th Roots of Unity
