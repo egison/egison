@@ -67,7 +67,7 @@ unitPropagate' stage cnf trail otrail :=
 unitPropagate'' stage cnf trail :=
   matchDFS cnf as multiset (multiset literal, multiset literal) with
     | ([], _) :: _ -> (cnf, trail)
-    | ($l :: [], #l :: $rs) :: _ ->
+    | ([$l], #l :: $rs) :: _ ->
       unitPropagate'' stage (assignTrue l cnf)
         ((Deduced (l, stage) (map (\r -> (r, getStage r trail)) rs) :: trail))
     | _ -> (cnf, trail)
