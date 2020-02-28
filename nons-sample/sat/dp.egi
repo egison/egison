@@ -25,7 +25,7 @@ dp vars cnf :=
   | (_, []) -> True
   | (_, [] :: _) -> False
   -- 1-literal rule
-  | (_, ($l :: []) :: _) -> dp (delete (abs l) vars) (assignTrue l cnf)
+  | (_, [$l] :: _) -> dp (delete (abs l) vars) (assignTrue l cnf)
   -- pure literal rule (positive)
   | ($v :: $vs, !((#(neg v) :: _) :: _)) -> dp vs (assignTrue v cnf)
   -- pure literal rule (negative)
