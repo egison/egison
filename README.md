@@ -30,14 +30,13 @@ Expressive pattern matching for these data types enables us to write elegant pro
 We can use pattern matching for enumeration.
 The following code enumerates all twin primes from the infinite list of prime numbers with pattern matching!
 
-```
+```hs
 twinPrimes :=
   matchAll primes as list integer with
   | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 
 take 8 twinPrimes
 -- [(3, 5), (5, 7), (11, 13), (17, 19), (29, 31), (41, 43), (59, 61), (71, 73)]
-
 ```
 
 ### Poker Hands
@@ -45,7 +44,7 @@ take 8 twinPrimes
 The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
-```
+```hs
 poker cs :=
   match cs as multiset card with
   | card $s $n :: card #s #(n-1) :: card #s #(n-2) :: card #s #(n-3) :: card #s #(n-4) :: _
@@ -72,7 +71,7 @@ poker cs :=
 We can pattern-match against graphs.
 We can write program to solve the travelling salesman problem in a single pattern-matching expression.
 
-```
+```hs
 graph := multiset (string, multiset (string, integer))
 
 graphData :=
@@ -144,7 +143,7 @@ x^2 + 2 * x * y * i + -1 * y^2
 
 ### Square Root
 
-The rewriting rule for `sqrt` fgis also defined in Egison library.
+The rewriting rule for `sqrt` is also defined in Egison library.
 
 * [Rewriting rule for `sqrt` in `normalize.segi`](https://github.com/egison/egison/blob/master/lib/math/normalize.segi)
 
