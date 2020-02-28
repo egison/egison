@@ -272,6 +272,20 @@ assert "inductive pattern"
   (match [1, 2, 3] as list integer with
    | snoc #3 _ -> True)
 
+assert "collection pattern - nil"
+  (match [] as list integer with
+   | [] -> True)
+
+assertEqual "collection pattern"
+  (match [1, 2, 3] as list integer with
+   | [#1, _, $x] -> x)
+  3
+
+assertEqual "collection pattern"
+  (matchAll [1, 2, 3, 4] as list integer with
+   | [_, _, _] -> True)
+  []
+
 assert "and pattern"
   (match [1, 2, 3] as list integer with
    | #1 :: _ & snoc #3 _ -> True)

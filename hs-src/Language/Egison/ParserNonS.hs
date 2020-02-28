@@ -667,6 +667,15 @@ applyOrAtomPattern = (do
     (func, args) <- indentBlock atomExpr atomPattern
     return $ PApplyPat func args)
 
+collectionPattern :: Parser EgisonPattern
+collectionPattern = brackets $ do
+  elems <- sepBy pattern comma
+  let nilPat = InductivePat "nil" []
+  case elems of
+    [] -> return $ nilPat
+    _  -> return $ foldr (InfixPat consOp) nilPat elems
+      where consOp = fromJust $ find ((== "::") . repr) reservedPatternInfix
+
 -- (Possibly indexed) atomic pattern
 atomPattern :: Parser EgisonPattern
 atomPattern = do
@@ -682,7 +691,7 @@ atomPattern' = WildCard <$  symbol "_"
            <|> PatVar   <$> patVarLiteral
            <|> NotPat   <$> (symbol "!" >> atomPattern)
            <|> ValuePat <$> (char '#' >> atomExpr)
-           <|> InductivePat "nil" [] <$ (symbol "[" >> symbol "]")
+           <|> collectionPattern
            <|> InductivePat <$> lowerId <*> pure []
            <|> VarPat   <$> (char '~' >> lowerId)
            <|> PredPat  <$> (symbol "?" >> atomExpr)
