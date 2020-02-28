@@ -85,7 +85,7 @@ x
 
 We can handle algebraic numbers, too.
 
-* [Definition of `sqrt` in `root.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/root.egi)
+* [Definition of `sqrt` in `root.segi`](https://github.com/egison/egison/blob/master/lib/math/algebra/root.segi)
 
 ```
 > (sqrt x)
@@ -102,7 +102,7 @@ We can handle algebraic numbers, too.
 
 The symbol `i` is defined to rewrite `i^2` to `-1` in Egison library.
 
-* [Rewriting rule for `i` in `normalize.egi`](https://github.com/egison/egison/blob/master/lib/math/normalize.egi)
+* [Rewriting rule for `i` in `normalize.segi`](https://github.com/egison/egison/blob/master/lib/math/normalize.segi)
 
 ```
 > (* i i)
@@ -119,7 +119,7 @@ The symbol `i` is defined to rewrite `i^2` to `-1` in Egison library.
 
 The rewriting rule for `sqrt` is also defined in Egison library.
 
-* [Rewriting rule for `sqrt` in `normalize.egi`](https://github.com/egison/egison/blob/master/lib/math/normalize.egi)
+* [Rewriting rule for `sqrt` in `normalize.segi`](https://github.com/egison/egison/blob/master/lib/math/normalize.segi)
 
 ```
 > (* (sqrt 2) (sqrt 2))
@@ -136,7 +136,7 @@ The rewriting rule for `sqrt` is also defined in Egison library.
 
 The following is a sample to calculate the 5th roots of unity.
 
-* [Definition of `q-f'` in `equations.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/equations.egi)
+* [Definition of `q-f'` in `equations.segi`](https://github.com/egison/egison/blob/master/lib/math/algebra/equations.segi)
 
 ```
 > (q-f' 1 1 -1)
@@ -155,7 +155,7 @@ The following is a sample to calculate the 5th roots of unity.
 
 We can implement differentiation easily in Egison.
 
-* [Definition of `d/d` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
+* [Definition of `d/d` in `derivative.segi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.segi)
 
 ```
 > (d/d (** x 3) x)
@@ -173,7 +173,7 @@ We can implement differentiation easily in Egison.
 The following sample executes Taylor expansion on Egison.
 We verify [Euler's formula](https://en.wikipedia.org/wiki/Euler%27s_formula) in the following sample.
 
-* [Definition of `taylor-expansion` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
+* [Definition of `taylor-expansion` in `derivative.segi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.segi)
 
 ```
 > (take 8 (taylor-expansion (** e (* i x)) x 0))
