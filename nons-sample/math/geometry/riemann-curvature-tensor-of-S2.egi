@@ -7,21 +7,50 @@ X := [| r * (sin θ) * (cos φ) -- x
 
 e_i_j := (∂/∂ X_j x~i)
 
-e_#_#
-
 g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
 g~i~j := M.inverse g_#_#
 
-g_#_# -- [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
-g~#~# -- [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
+assertEqual "Metric tensor"
+  g_#_#
+  [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
+assertEqual "Metric tensor"
+  g~#~#
+  [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
 
-Γ_j_l_k := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
+Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+
+assertEqual "Christoffel symbols of the first kind"
+  Γ_1_#_#
+  [| [| 0, 0 |], [| 0, -1 * r^2 * (sin θ) * (cos θ) |] |]_#_#
+assertEqual "Christoffel symbols of the first kind"
+  Γ_2_#_#
+  [| [| 0, r^2 * (sin θ) * (cos θ) |], [| r^2 * (sin θ) * (cos θ), 0 |] |]_#_#
 
 Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
 
+assertEqual "Christoffel symbols of the second kind"
+  Γ~1_#_#
+  [| [| 0, 0 |], [| 0, -1 * (sin θ) * (cos θ) |] |]_#_#
+assertEqual "Christoffel symbols of the second kind"
+  Γ~2_#_#
+  [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
+
 R~i_j_k_l := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
+
+assertEqual "riemann curvature"
+  R~#_#_1_1
+  [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+assertEqual "riemann curvature"
+  R~#_#_1_2
+  [| [| 0, (sin θ)^2 |], [| -1, 0 |] |]~#_#
+assertEqual "riemann curvature"
+  R~#_#_2_1
+  [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |] |]~#_#
+assertEqual "riemann curvature"
+  R~#_#_2_2
+  [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
 Ric_i_j := withSymbols [m]
   contract (+) R~m_i_m_j
@@ -29,4 +58,6 @@ Ric_i_j := withSymbols [m]
 scalarCurvature := withSymbols [i, j]
   g~i~j . Ric_i_j
 
-scalarCurvature
+assertEqual "scalar curvature"
+  scalarCurvature
+  (2 / r^2)

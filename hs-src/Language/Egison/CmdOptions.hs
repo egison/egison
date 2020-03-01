@@ -35,7 +35,7 @@ data EgisonOpts = EgisonOpts {
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing False
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -114,10 +114,10 @@ cmdArgParser = EgisonOpts
                   <> long "math"
                   <> metavar "(asciimath|latex|mathematica|maxima)"
                   <> help "Output in AsciiMath, Latex, Mathematica, or Maxima format"))
-            <*> flag True False
-                  (short 'N'
-                  <> long "new-syntax"
-                  <> help "[experimental] Use non-S expression syntax")
+            <*> flag False True
+                  (short 'S'
+                  <> long "sexpr-syntax"
+                  <> help "Use s-expression syntax")
 
 readFieldOption :: String -> (String, String)
 readFieldOption str =
