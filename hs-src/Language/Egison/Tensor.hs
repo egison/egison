@@ -173,21 +173,22 @@ tTranspose is t@(Tensor ns _ js) =
             ns' <- transIndex (js' ++ ds) (is ++ ds) ns
             xs' <- V.fromList <$> mapM (transIndex (js' ++ ds) (is ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
             return $ Tensor ns' xs' is
-    else throwError =<< InconsistentTensorIndex <$> getFuncNameStack
+    else return t
 
 tTranspose' :: HasTensor a => [EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) = do
-  is' <- g is js
-  tTranspose is' t
+  case g is js of
+    Nothing -> return t
+    Just is' -> tTranspose is' t
  where
   f :: Index EgisonValue -> EgisonValue
   f (Subscript i)    = i
   f (Superscript i)  = i
   f (SupSubscript i) = i
-  g :: [EgisonValue] -> [Index EgisonValue] -> EgisonM [Index EgisonValue]
+  g :: [EgisonValue] -> [Index EgisonValue] -> Maybe [Index EgisonValue]
   g [] _ = return []
   g (i:is) js = case find (\j -> i == f j) js of
-                  Nothing ->  throwError =<< InconsistentTensorIndex <$> getFuncNameStack
+                  Nothing -> Nothing
                   Just j' -> do js' <- g is js
                                 return $ j':js'
 
