@@ -7,17 +7,26 @@ X := [| r * (sin θ) * (cos φ) -- x
 
 e_i_j := (∂/∂ X_j x~i)
 
-g_i_j := (generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2])_i_j
-g~i~j := (M.inverse g_#_#)~i~j
---g_i_j := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
---g~i~j := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
+e_#_#
 
-g_#_#
-g~#~#
+g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
+g~i~j := M.inverse g_#_#
+
+g_#_# -- [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
+g~#~# -- [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
 
 Γ_j_l_k := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
 
-Γ~i_k_l := withSymbols [j] g~i~j . Γ_j_l_k
+Γ~i_j_k := withSymbols [m]
+  g~i~m . Γ_m_j_k
 
 R~i_j_k_l := withSymbols [m]
-               ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
+  ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
+
+Ric_i_j := withSymbols [m]
+  contract (+) R~m_i_m_j
+
+scalarCurvature := withSymbols [i, j]
+  g~i~j . Ric_i_j
+
+scalarCurvature
