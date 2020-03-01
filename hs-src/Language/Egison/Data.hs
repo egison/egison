@@ -4,6 +4,9 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE TypeOperators              #-}
 
 {- |
 Module      : Language.Egison.Data
@@ -84,11 +87,11 @@ import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Control.Exception
 import           Data.Typeable
 
-import           Control.Monad.Except
+import           Control.Monad.Except      hiding (join)
 import           Control.Monad.Fail
-import           Control.Monad.Identity
+import           Control.Monad.Identity    hiding (join)
 import           Control.Monad.Reader      (ReaderT)
-import           Control.Monad.State
+import           Control.Monad.State       hiding (join)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer      (WriterT)
 
@@ -109,7 +112,10 @@ import           System.IO
 
 import           System.IO.Unsafe          (unsafePerformIO)
 
-import           Language.Egison.AST
+import           Control.Egison hiding (Integer, MList, MNil, MCons, Matcher, Something, mappend)
+import qualified Control.Egison as M
+
+import           Language.Egison.AST hiding (PatVar)
 import           Language.Egison.MathExpr
 
 --
@@ -569,7 +575,12 @@ extendEnv :: Env -> [Binding] -> Env
 extendEnv (Env env idx) bdg = Env ((: env) $ HashMap.fromList bdg) idx
 
 refVar :: Env -> Var -> Maybe ObjectRef
-refVar (Env env _) var = msum $ map (HashMap.lookup var) env
+refVar (Env env _) var@(Var _ []) = msum $ map (HashMap.lookup var) env
+refVar e@(Env env _) var@(Var name is) =
+  case msum $ map (HashMap.lookup var) env of
+    Nothing -> match is (List M.Something)
+                 [[mc| join $his (cons _ nil) => refVar e (Var name his) |]]
+    Just x -> Just x
 
 --
 -- Pattern Match

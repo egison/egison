@@ -39,7 +39,7 @@ import           Prelude                     hiding (mapM, mappend, mconcat)
 import           Control.Arrow
 import           Control.Monad               (when)
 import           Control.Monad.Except        (throwError)
-import           Control.Monad.State         hiding (mapM)
+import           Control.Monad.State         hiding (mapM, join)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.State   (evalStateT, withStateT)
 

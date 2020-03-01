@@ -1,3 +1,9 @@
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE TypeOperators         #-}
+
 {- |
 Module      : Language.Egison.Tensor
 Licence     : MIT
@@ -32,12 +38,15 @@ module Language.Egison.Tensor
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
 
-import           Control.Monad.Except
+import           Control.Monad.Except      hiding (join)
 import qualified Data.Vector               as V
 import           Data.List                 (any, delete, elem, find, findIndex,
                                             partition, splitAt, (\\))
 
-import           Language.Egison.AST
+import           Control.Egison hiding (Integer)
+import qualified Control.Egison as M
+
+import           Language.Egison.AST hiding (PatVar)
 import           Language.Egison.Data
 import           Language.Egison.MathExpr
 
@@ -146,20 +155,25 @@ changeIndex (Subscript s) m   = Subscript (s ++ show m)
 
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> [Integer] -> EgisonM [Integer]
 transIndex [] [] is = return is
-transIndex (j1:js1) js2 is = do
-  let (hjs2, tjs2) = break (\j2 -> j1 == j2) js2
-  if null tjs2
-    then throwError =<< InconsistentTensorIndex <$> getFuncNameStack
-    else do let n = length hjs2 + 1
-            rs <- transIndex js1 (hjs2 ++ tail tjs2) (take (n - 1) is ++ drop n is)
-            return (nth (fromIntegral n) is:rs)
+transIndex (j1:js1) js2 is =
+  matchDFS js2 (List Eql)
+    [[mc| join $hjs2 (cons #j1 $tjs2) =>
+          do let n = length hjs2 + 1
+             rs <- transIndex js1 (hjs2 ++ tjs2) (take (n - 1) is ++ drop n is)
+             return (nth (fromIntegral n) is:rs) |],
+     [mc| _ => throwError =<< InconsistentTensorIndex <$> getFuncNameStack |]]
 transIndex _ _ _ = throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
-tTranspose is t@(Tensor ns _ js) = do
-  ns' <- transIndex js is ns
-  xs' <- V.fromList <$> mapM (transIndex js is) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
-  return $ Tensor ns' xs' is
+tTranspose is t@(Tensor ns _ js) =
+  if length is <= length js
+    then do let js' = take (length is) js
+            let k = fromIntegral (length ns - length is)
+            let ds = map (DFscript 0) [1..k]
+            ns' <- transIndex (js' ++ ds) (is ++ ds) ns
+            xs' <- V.fromList <$> mapM (transIndex (js' ++ ds) (is ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
+            return $ Tensor ns' xs' is
+    else throwError =<< InconsistentTensorIndex <$> getFuncNameStack
 
 tTranspose' :: HasTensor a => [EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) = do
