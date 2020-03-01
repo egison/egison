@@ -1,12 +1,15 @@
+-- Parameters and metric tensor
 x := [| θ, φ |]
 
 g_i_j := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
 g~i~j := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
 
+-- Christoffel symbols
 Γ_j_l_k := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
 
 Γ~i_k_l := withSymbols [j] g~i~j . Γ_j_l_k
 
+-- Riemann curvature
 R~i_j_k_l := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
@@ -15,14 +18,18 @@ assertEqual "Riemann curvature" R~#_#_1_2 [| [| 0, (sin θ)^2 |], [| -1, 0 |] |]
 assertEqual "Riemann curvature" R~#_#_2_1 [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |] |]~#_#
 assertEqual "Riemann curvature" R~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
-ω~i_j := Γ~i_j_#
-
+-- Exterior derivative
 d %t := !(flip ∂/∂) x t
 
+-- Wedge product
 infixl expression 7 ∧
 
 (∧) %x %y := x !. y
 
+-- Connection form
+ω~i_j := Γ~i_j_#
+
+-- Curvature form
 Ω~i_j := withSymbols [k]
   antisymmetrize (d ω~i_j + ω~i_k ∧ ω~k_j)
 
