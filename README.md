@@ -220,51 +220,44 @@ The method for importing tensor index notation into programming is discussed in 
 The following sample is from [Riemann Curvature Tensor of S2 - Egison Mathematics Notebook](https://www.egison.org/math/riemann-curvature-tensor-of-S2.html).
 
 
-```
-;; Parameters
-(define $x [|θ φ|])
+```hs
+-- Parameters
+x := [| θ, φ |]
 
-(define $X [|(* r (sin θ) (cos φ)) ; = x
-             (* r (sin θ) (sin φ)) ; = y
-             (* r (cos θ))         ; = z
-             |])
+X := [| r * (sin θ) * (cos φ) -- x
+      , r * (sin θ) * (sin φ) -- y
+      , r * (cos θ)           -- z
+      |]
 
-;; Local basis
-(define $e_i_j (∂/∂ X_j x~i))
-e_i_j
-;[|[|(* r (cos θ) (cos φ)) (* r (cos θ) (sin φ)) (* -1 r (sin θ)) |]
-;  [|(* -1 r (sin θ) (sin φ)) (* r (sin θ) (cos φ)) 0 |]
-;  |]_#_#
+e_i_j := (∂/∂ X_j x~i)
 
-;; Metric tensor
-(define $g__ (generate-tensor 2#(V.* e_%1_# e_%2_#) {2 2}))
-(define $g~~ (M.inverse g_#_#))
+-- Metric tensors
+g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
+g~i~j := M.inverse g_#_#
 
-g_#_#;[| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |]_#_#
-g~#~#;[| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |]~#~#
+g_#_# -- [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
+g~#~# -- [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
 
-;; Christoffel symbols
-(define $Γ_j_k_l
-  (* (/ 1 2)
-     (+ (∂/∂ g_j_l x~k)
-        (∂/∂ g_j_k x~l)
-        (* -1 (∂/∂ g_k_l x~j)))))
+-- Christoffel symbols
+Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
-(define $Γ~__ (with-symbols {i} (. g~#~i Γ_i_#_#)))
+Γ_1_#_# -- [| [| 0, 0 |], [| 0, -1 * r^2 * (sin θ) * (cos θ) |] |]_#_#
+Γ_2_#_# -- [| [| 0, r^2 * (sin θ) * (cos θ) |], [| r^2 * (sin θ) * (cos θ), 0 |] |]_#_#
 
-Γ~1_#_#;[| [| 0 0 |] [| 0 (* -1 (sin θ) (cos θ)) |] |]_#_#
-Γ~2_#_#;[| [| 0 (/ (cos θ) (sin θ)) |] [| (/ (cos θ) (sin θ)) 0 |] |]_#_#
+Γ~i_j_k := withSymbols [m]
+  g~i~m . Γ_m_j_k
 
-;; Riemann curvature tensor
-(define $R~i_j_k_l
-  (with-symbols {m}
-    (+ (- (∂/∂ Γ~i_j_l x~k) (∂/∂ Γ~i_j_k x~l))
-       (- (. Γ~m_j_l Γ~i_m_k) (. Γ~m_j_k Γ~i_m_l)))))
+Γ~1_#_# -- [| [| 0, 0 |], [| 0, -1 * (sin θ) * (cos θ) |] |]_#_#
+Γ~2_#_# -- [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
 
-R~#_#_1_1;[| [| 0 0 |] [| 0 0 |] |]~#_#
-R~#_#_1_2;[| [| 0 (sin θ)^2 |] [| -1 0 |] |]~#_#
-R~#_#_2_1;[| [| 0 (* -1 (sin θ)^2) |] [| 1 0 |] |]~#_#
-R~#_#_2_2;[| [| 0 0 |] [| 0 0 |] |]~#_#
+-- Riemann curvature
+R~i_j_k_l := withSymbols [m]
+  ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
+
+R~#_#_1_1 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+R~#_#_1_2 -- [| [| 0, (sin θ)^2 |], [| -1, 0 |] |]~#_#
+R~#_#_2_1 -- [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |] |]~#_#
+R~#_#_2_2 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 ```
 
 ### Differential Forms
@@ -273,37 +266,38 @@ By designing the index completion rules for omitted indices, we can use the abov
 
 The following sample is from [Curvature Form - Egison Mathematics Notebook](https://www.egison.org/math/curvature-form.html).
 
-```
-;; Parameters and metric tensor
-(define $x [| θ φ |])
+```hs
+-- Parameters and metric tensor
+x := [| θ, φ |]
 
-(define $g__ [| [| r^2 0 |] [| 0 (* r^2 (sin θ)^2) |] |])
-(define $g~~ [| [| (/ 1 r^2) 0 |] [| 0 (/ 1 (* r^2 (sin θ)^2)) |] |])
+g_i_j := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
+g~i~j := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
 
-;; Christoffel symbols
-(define $Γ_i_j_k
-  (* (/ 1 2)
-     (+ (∂/∂ g_i_k x~j)
-        (∂/∂ g_i_j x~k)
-        (* -1 (∂/∂ g_j_k x~i)))))
+-- Christoffel symbols
+Γ_j_l_k := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
 
-(define $Γ~i_j_k (with-symbols {m} (. g~i~m Γ_m_j_k)))
+Γ~i_k_l := withSymbols [j] g~i~j . Γ_j_l_k
 
-;; Connection form
-(define $ω~i_j (with-symbols {k} Γ~i_j_k))
+-- Exterior derivative
+d %t := !(flip ∂/∂) x t
 
-;; Curvature form
-(define $d
-  (lambda [%A]
-    !((flip ∂/∂) x A)))
+-- Wedge product
+infixl expression 7 ∧
 
-(define $wedge
-  (lambda [%X %Y]
-    !(. X Y)))
+(∧) %x %y := x !. y
 
-(define $Ω~i_j (with-symbols {k}
-  (df-normalize (+ (d ω~i_j)
-                   (wedge ω~i_k ω~k_j)))))
+-- Connection form
+ω~i_j := Γ~i_j_#
+
+-- Curvature form
+Ω~i_j := withSymbols [k]
+  antisymmetrize (d ω~i_j + ω~i_k ∧ ω~k_j)
+
+Ω~#_#_1_1 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+Ω~#_#_1_2 -- [| [| 0, (sin θ)^2  / 2|], [| -1 / 2, 0 |] |]~#_#
+Ω~#_#_2_1 -- [| [| 0, -1 * (sin θ)^2 / 2 |], [| 1 / 2, 0 |] |]~#_#
+Ω~#_#_2_2 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+
 ```
 
 ### Egison Mathematics Notebook
