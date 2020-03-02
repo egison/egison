@@ -140,7 +140,7 @@ coreLibraries =
   , "lib/math/geometry/differential-form.segi"
   , "nons-lib/core/base.egi"
   , "nons-lib/core/collection.egi"
-  , "lib/core/assoc.segi"
+  , "nons-lib/core/assoc.egi"
   , "nons-lib/core/order.egi"
   , "nons-lib/core/number.egi"
   , "nons-lib/core/io.egi"
