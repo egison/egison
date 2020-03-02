@@ -28,19 +28,19 @@ displayToPort :=
 
 eachLine :=
   procedure proc ->
-    do eof := eof?
+    do let eof := eof?
        if eof
          then return ()
-         else do line := readLine
+         else do let line := readLine
                  proc line
                  eachLine proc
 
 eachLineFromPort :=
   procedure port proc ->
-    do eof := eofPort? port
+    do let eof := eofPort? port
        if eof
          then return ()
-         else do line := readLineFromPort port
+         else do let line := readLineFromPort port
                  proc line
                  eachLineFromPort port proc
 
@@ -49,7 +49,7 @@ eachFile :=
     match files as list string with
       | [] -> return ()
       | $file :: $rest ->
-        do port := openInputFile file
+        do let port := openInputFile file
            eachLineFromPort port proc
            closeInputPort port
            eachFile rest proc
