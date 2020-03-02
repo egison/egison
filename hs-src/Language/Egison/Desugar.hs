@@ -275,6 +275,10 @@ desugar (BinaryOpExpr op expr1 expr2) | isWedge op =
   (\x y -> WedgeApplyExpr (stringToVarExpr (func op)) (TupleExpr [x, y]))
     <$> desugar expr1 <*> desugar expr2
 
+desugar (BinaryOpExpr op expr1 expr2) | repr op == "::" =
+  (\x y -> CollectionExpr [ElementExpr x, SubCollectionExpr y]) <$> desugar expr1 <*> desugar expr2
+desugar (BinaryOpExpr op expr1 expr2) | repr op == "++" =
+  (\x y -> CollectionExpr [SubCollectionExpr x, SubCollectionExpr y]) <$> desugar expr1 <*> desugar expr2
 desugar (BinaryOpExpr op expr1 expr2) =
   (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
