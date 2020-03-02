@@ -142,7 +142,7 @@ coreLibraries =
   , "lib/core/collection.segi"
   , "lib/core/assoc.segi"
   , "lib/core/order.segi"
-  , "lib/core/number.segi"
+  , "nons-lib/core/number.egi"
   , "nons-lib/core/io.egi"
   , "lib/core/random.segi"
   , "lib/core/string.segi"

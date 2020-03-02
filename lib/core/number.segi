@@ -178,7 +178,7 @@
       ; n+(rt(m)-n)*(rt(m)+n)/(rt(m)+n)
       ; n+x/(rt(m)+n)
       (if (eq? x 0)
-        [n {} {}]
+        [n {}]
         [n (map 3#%3 (regular-continued-fraction-of-sqrt-helper m (/ n x) (/ 1 x)))]))))
 
 (define $regular-continued-fraction-of-sqrt'
