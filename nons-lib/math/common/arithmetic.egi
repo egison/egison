@@ -12,30 +12,30 @@ mul' := cambda xs -> foldl b.* (car xs) (cdr xs)
 
 div' := b./
 
-f.+' := cambda xs -> foldl f.+ (car xs) (cdr xs)
+f.add' := cambda xs -> foldl f.+ (car xs) (cdr xs)
 
-f.-' := cambda xs -> foldl f.- (car xs) (cdr xs)
+f.sub' := cambda xs -> foldl f.- (car xs) (cdr xs)
 
-f.*' := cambda xs -> foldl f.* (car xs) (cdr xs)
+f.mul' := cambda xs -> foldl f.* (car xs) (cdr xs)
 
-f./' := f./
+f.div' := f./
 
 + :=
   cambda xs ->
     if capply (||) (map float? xs)
-      then capply f.+' (map (\x -> if float? x then x else itof x) xs)
+      then capply f.add' (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 capply add' xs
 
 - :=
   cambda xs ->
     if capply (||) (map float? xs)
-      then capply f.-' (map (\x -> if float? x then x else itof x) xs)
+      then capply f.sub' (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 capply sub' xs
 
 * :=
   cambda xs ->
     if capply (||) (map float? xs)
-      then capply f.*' (map (\x -> if float? x then x else itof x) xs)
+      then capply f.mul' (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 capply mul' xs
 
 / x y :=
