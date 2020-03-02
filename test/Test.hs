@@ -53,6 +53,7 @@ nonSTestCases =
   , "nons-test/test/primitive.egi"
   , "nons-test/test/lib/core/base.egi"
   , "nons-test/test/lib/core/collection.egi"
+  , "nons-test/test/lib/core/maybe.egi"
   , "nons-test/test/lib/core/number.egi"
   , "nons-test/test/lib/core/order.egi"
   , "nons-test/test/lib/core/string.egi"
