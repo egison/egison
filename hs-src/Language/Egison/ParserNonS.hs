@@ -219,16 +219,16 @@ defineOrTestExpr = do
     convertToDefine :: EgisonExpr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
-      args' <- mapM ((ScalarArg <$>) . exprToStr) args
+      args' <- mapM ((TensorArg <$>) . exprToStr) args
       return $ Function var args'
     convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) (TupleExpr [x, y])) = do
-      args <- mapM ((ScalarArg <$>) . exprToStr) [x, y]
+      args <- mapM ((TensorArg <$>) . exprToStr) [x, y]
       return $ Function (stringToVar (repr op)) args
     convertToDefine e@(BinaryOpExpr op _ _)
       | repr op == "*" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
         case args of
-          ScalarArg var : args -> return $ Function (Var [var] []) args
+          TensorArg var : args -> return $ Function (Var [var] []) args
           _                    -> Nothing
     convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) = do
       -- [Index EgisonExpr] -> Maybe [Index String]
@@ -241,27 +241,27 @@ defineOrTestExpr = do
     exprToStr _                      = Nothing
 
     exprToArgs :: EgisonExpr -> Maybe [Arg]
-    exprToArgs (VarExpr (Var [x] [])) = return [ScalarArg x]
+    exprToArgs (VarExpr (Var [x] [])) = return [TensorArg x]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
-      (++) <$> exprToArgs func <*> mapM ((ScalarArg <$>) . exprToStr) args
-    exprToArgs (SectionExpr op Nothing Nothing) = return [ScalarArg (repr op)]
+      (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
+    exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (repr op)]
     exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
       case rhs' of
-        ScalarArg x : xs -> return (lhs' ++ InvertedScalarArg x : xs)
-        _                -> Nothing
-    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "%" = do
-      lhs' <- exprToArgs lhs
-      rhs' <- exprToArgs rhs
-      case rhs' of
-        ScalarArg x : xs -> return (lhs' ++ TensorArg x : xs)
+        TensorArg x : xs -> return (lhs' ++ InvertedScalarArg x : xs)
         _                -> Nothing
     exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "$" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
       case rhs' of
-        ScalarArg _ : _ -> return (lhs' ++ rhs')
+        TensorArg x : xs -> return (lhs' ++ ScalarArg x : xs)
+        _                -> Nothing
+    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "%" = do
+      lhs' <- exprToArgs lhs
+      rhs' <- exprToArgs rhs
+      case rhs' of
+        TensorArg _ : _ -> return (lhs' ++ rhs')
         _               -> Nothing
     exprToArgs _ = Nothing
 
@@ -373,7 +373,7 @@ arg :: Parser Arg
 arg = InvertedScalarArg <$> (char '*' >> ident)
   <|> TensorArg         <$> (char '%' >> ident)
   <|> ScalarArg         <$> (char '$' >> ident)
-  <|> ScalarArg         <$> ident
+  <|> TensorArg         <$> ident
   <?> "argument"
 
 letExpr :: Parser EgisonExpr
