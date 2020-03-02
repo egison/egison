@@ -10,6 +10,7 @@ do
     [ "${f}" = "lib/core/number.segi" ] && continue
     [ "${f}" = "lib/core/io.segi" ] && continue
     [ "${f}" = "lib/core/order.segi" ] && continue
+    [ "${f}" = "lib/core/random.segi" ] && continue
     echo ${f}
     stack exec -- egison-translate ${f} > "nons-"${f%.segi}.egi
 done
