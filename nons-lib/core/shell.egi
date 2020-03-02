@@ -9,7 +9,7 @@ SH.genInput sopts copts :=
           in seq x (x :: SH.genInput sopts copts)
 
 TSV.readLine sopts copts :=
-  do line := readLine
+  do let line := readLine
      let fs := S.split "\t" line
       in let fnS := \match as (list (list integer), list string) with
                       | ([], $fs) -> fs

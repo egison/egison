@@ -354,7 +354,7 @@ pretty'' x | isAtomOrApp x || isInfix x = pretty x
 -- Display "hoge" instead of "() := hoge"
 prettyDoBinds :: BindingExpr -> Doc ann
 prettyDoBinds ([], expr) = pretty expr
-prettyDoBinds (vs, expr) = pretty (vs, expr)
+prettyDoBinds (vs, expr) = pretty "let" <+> pretty (vs, expr)
 
 prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
