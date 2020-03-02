@@ -41,10 +41,10 @@ testCases =
   , "sample/primes.segi" -- for testing pattern matching with infinitely many results
   , "sample/sat/cdcl.segi" -- for testing a practical program using pattern matching
   , "sample/math/number/17th-root-of-unity.segi" -- for testing rewriting of mathematical expressions
-  , "sample/math/geometry/riemann-curvature-tensor-of-S2.segi" -- for testing tensor index notation
+--  , "sample/math/geometry/riemann-curvature-tensor-of-S2.segi" -- for testing tensor index notation
   , "sample/math/geometry/riemann-curvature-tensor-of-T2.segi" -- for testing tensor index notation and math quote
-  , "sample/math/geometry/curvature-form.segi" -- for testing differential form
-  , "sample/math/geometry/hodge-laplacian-polar.segi" -- for testing "..." in tensor indices
+--  , "sample/math/geometry/curvature-form.segi" -- for testing differential form
+--  , "sample/math/geometry/hodge-laplacian-polar.segi" -- for testing "..." in tensor indices
   ]
 
 nonSTestCases :: [FilePath]
@@ -61,6 +61,7 @@ nonSTestCases =
   , "nons-test/test/lib/math/analysis.egi"
   , "nons-test/test/lib/math/arithmetic.egi"
 
+  , "nons-sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
   , "nons-sample/math/geometry/curvature-form.egi"
   , "nons-sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
   ]
