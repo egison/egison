@@ -6,32 +6,26 @@ print :=
   procedure x ->
     do write x
        write "\n"
-       flush
-       return
+       flush ()
 
 printToPort :=
   procedure port x ->
     do writeToPort port x
        writeToPort port "\n"
-       return
 
 display :=
   procedure x ->
     do write x
-       flush
-       return
+       flush ()
 
-displayToPort :=
-  procedure port x ->
-    do writeToPort port x
-       return
+displayToPort := procedure port x -> do writeToPort port x
 
 eachLine :=
   procedure proc ->
-    do let eof := eof?
+    do let eof := eof? ()
        if eof
          then return ()
-         else do let line := readLine
+         else do let line := readLine ()
                  proc line
                  eachLine proc
 
@@ -57,7 +51,7 @@ eachFile :=
 each :=
   procedure proc xs ->
     match xs as list something with
-      | [] -> do return
+      | [] -> do return ()
       | $x :: $rs ->
         do proc x
            each proc rs
