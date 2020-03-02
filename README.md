@@ -118,11 +118,11 @@ We can handle algebraic numbers, too.
 
 ```
 > sqrt x
-(sqrt x)
+sqrt x
 > sqrt 2
-(sqrt 2)
+sqrt 2
 > x + sqrt y
-x + (sqrt y)
+x + sqrt y
 ```
 
 ### Complex Numbers
@@ -151,9 +151,9 @@ The rewriting rule for `sqrt` is also defined in Egison library.
 > sqrt 2 * sqrt 2
 2
 > sqrt 6 * sqrt 10
-2 * (sqrt 15)
+2 * sqrt 15
 > sqrt (x * y) * sqrt (2 * x)
-x * (sqrt 2) * (sqrt y)
+x * sqrt 2 * sqrt y
 ```
 
 ### The 5th Roots of Unity
