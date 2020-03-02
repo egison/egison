@@ -141,7 +141,7 @@ coreLibraries =
   , "nons-lib/core/base.egi"
   , "lib/core/collection.segi"
   , "lib/core/assoc.segi"
-  , "lib/core/order.segi"
+  , "nons-lib/core/order.egi"
   , "nons-lib/core/number.egi"
   , "nons-lib/core/io.egi"
   , "lib/core/random.segi"
