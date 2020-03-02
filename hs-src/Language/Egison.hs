@@ -139,7 +139,7 @@ coreLibraries =
   , "lib/math/algebra/tensor.segi"
   , "lib/math/geometry/differential-form.segi"
   , "nons-lib/core/base.egi"
-  , "lib/core/collection.segi"
+  , "nons-lib/core/collection.egi"
   , "lib/core/assoc.segi"
   , "nons-lib/core/order.egi"
   , "nons-lib/core/number.egi"
