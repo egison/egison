@@ -4,15 +4,12 @@
 --
 --
 
-infixr pattern 5 ::
-infixr pattern 5 ++
-
 --
 -- List
 --
 list a :=
   matcher
-    | nil as () with
+    | [] as () with
       | [] -> [()]
       | _ -> []
     | $ :: $ as (a, list a) with
@@ -46,7 +43,7 @@ list a :=
 
 sortedList a :=
   matcher
-    | nil as () with
+    | [] as () with
       | [] -> [()]
       | _ -> []
     | $ ++ #$px :: $ as (sortedList a, sortedList a) with
@@ -124,10 +121,8 @@ dropWhile pred xs :=
     | $x :: $rs -> if pred x then dropWhile pred rs else xs
 
 --
--- cons, car, cdr
+-- car, cdr
 --
-cons x xs := x :: xs
-
 car xs :=
   match xs as list something with
     | $x :: _ -> x
@@ -229,8 +224,6 @@ repeatedSquaring fn %x n :=
       let y := repeatedSquaring fn x (quotient n 2)
        in fn (fn y y) x
 
-append xs ys := xs ++ ys
-
 concat xss := foldr (\%xs %rs -> xs ++ rs) [] xss
 
 reverse xs :=
@@ -303,7 +296,7 @@ L./ xs ys :=
 --
 multiset a :=
   matcher
-    | nil as () with
+    | [] as () with
       | [] -> [()]
       | _ -> []
     | $ :: _ as (a) with
@@ -456,7 +449,7 @@ elemIndices x xs :=
 --
 set a :=
   matcher
-    | nil as () with
+    | [] as () with
       | [] -> [()]
       | _ -> []
     | $ :: $ as (a, set a) with
