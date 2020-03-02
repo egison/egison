@@ -12,7 +12,7 @@ For more information, visit <a target="_blank" href="https://www.egison.org">our
 ### Pattern Matching
 
 * Satoshi Egi, Yuichi Nishiwaki: [Non-linear Pattern Matching with Backtracking for Non-free Data Types](https://arxiv.org/abs/1808.10603) (APLAS 2018)
-* Satoshi Egi, Yuichi Nishiwaki: [Functional Programming in Pattern-Match-Oriented Programming Style](https://doi.org/10.22152/programming-journal.org/2020/4/7) (The Art, Science, and Engineering of Programming)
+* Satoshi Egi, Yuichi Nishiwaki: [Functional Programming in Pattern-Match-Oriented Programming Style](https://doi.org/10.22152/programming-journal.org/2020/4/7) (<programming> 2020)
 
 ### Tensor Index Notation
 
@@ -381,8 +381,6 @@ We are on <a target="_blank" href="https://twitter.com/Egison_Lang">Twitter</a>.
 Please follow us.
 
 ## License
-
-Copyright (c) 2011-2020, Satoshi Egi
 
 Egison is released under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
 
