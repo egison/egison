@@ -145,6 +145,6 @@ coreLibraries =
   , "nons-lib/core/number.egi"
   , "nons-lib/core/io.egi"
   , "nons-lib/core/random.egi"
-  , "lib/core/string.segi"
+  , "nons-lib/core/string.egi"
   , "nons-lib/core/maybe.egi"
   ]
