@@ -147,5 +147,4 @@ coreLibraries =
   , "lib/core/random.segi"
   , "lib/core/string.segi"
   , "nons-lib/core/maybe.egi"
-  , "lib/core/sexpr.segi" -- For compatibility between new and old syntax
   ]
