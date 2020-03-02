@@ -99,11 +99,15 @@ instance Eq TermExpr where
 
 instance Show ScalarData where
   show (Div p1 (Plus [Term 1 []])) = show p1
-  show (Div p1 p2)                 = show' p1 ++ " / " ++ show' p2
+  show (Div p1 p2)                 = show' p1 ++ " / " ++ show'' p2
     where
       show' :: PolyExpr -> String
       show' p@(Plus [_]) = show p
       show' p            = "(" ++ show p ++ ")"
+
+      show'' :: PolyExpr -> String
+      show'' p@(Plus [Term _ [_]]) = show p
+      show'' p                     = "(" ++ show p ++ ")"
 
 instance Show PolyExpr where
   show (Plus [])  = "0"
