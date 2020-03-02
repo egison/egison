@@ -3,9 +3,7 @@
 module Main where
 
 import           Control.Arrow                         ((***))
-import           Data.Char                             (toUpper)
 import           Data.List                             (find)
-import           Data.List.Split                       (splitOn)
 import           Data.Maybe                            (fromJust)
 import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
 import           System.Environment                    (getArgs)
@@ -76,7 +74,7 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (MatcherExpr xs) = MatcherExpr (map toNonS xs)
   toNonS (AlgebraicDataMatcherExpr xs) =
-    AlgebraicDataMatcherExpr (map (\(s, es) -> (toCamelCase s, map toNonS es)) xs)
+    AlgebraicDataMatcherExpr (map (\(s, es) -> (s, map toNonS es)) xs)
 
   toNonS (QuoteExpr x)        = QuoteExpr (toNonS x)
   toNonS (QuoteSymbolExpr x)  = QuoteSymbolExpr (toNonS x)
@@ -171,14 +169,12 @@ instance SyntaxElement EgisonPattern where
   toNonS p = p
 
 instance SyntaxElement PrimitivePatPattern where
-  toNonS (PPValuePat x) = PPValuePat (toCamelCase x)
-  toNonS (PPInductivePat x pps) = PPInductivePat (toCamelCase x) (map toNonS pps)
+  toNonS (PPInductivePat x pps) = PPInductivePat x (map toNonS pps)
   toNonS (PPTuplePat pps) = PPTuplePat (map toNonS pps)
   toNonS pp = pp
 
 instance SyntaxElement PrimitiveDataPattern where
-  toNonS (PDPatVar x) = PDPatVar (toCamelCase x)
-  toNonS (PDInductivePat x pds) = PDInductivePat (toCamelCase x) (map toNonS pds)
+  toNonS (PDInductivePat x pds) = PDInductivePat x (map toNonS pds)
   toNonS (PDTuplePat pds) = PDTuplePat (map toNonS pds)
   toNonS (PDConsPat pd1 pd2) = PDConsPat (toNonS pd1) (toNonS pd2)
   toNonS (PDSnocPat pd1 pd2) = PDSnocPat (toNonS pd1) (toNonS pd2)
@@ -205,18 +201,7 @@ instance SyntaxElement PatternDef where
   toNonS (x, y, zs) = (toNonS x, toNonS y, map (\(z, w) -> (toNonS z, toNonS w)) zs)
 
 instance SyntaxElement Var where
-  toNonS (Var ["+'"]  []) = Var ["add'"]   []
-  toNonS (Var ["-'"]  []) = Var ["sub'"]   []
-  toNonS (Var ["*'"]  []) = Var ["mul'"]   []
-  toNonS (Var ["/'"]  []) = Var ["div'"]   []
-  toNonS (Var ["**'"] []) = Var ["power'"] []
-  toNonS (Var xs ys)      = Var (map toCamelCase xs) ys
-
-toCamelCase :: String -> String
-toCamelCase x@('-':_) = x
-toCamelCase x =
-  let heads:tails = splitOn "-" x
-   in concat $ heads : map (\(x:xs) -> toUpper x : xs) tails
+  toNonS = id
 
 
 main :: IO ()
