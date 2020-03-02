@@ -120,13 +120,16 @@ instance Show TermExpr where
 
 showPoweredSymbol :: (SymbolExpr, Integer) -> String
 showPoweredSymbol (x, 1) = show x
-showPoweredSymbol (x, n) = show x ++ "^" ++ show n
+showPoweredSymbol (x, n) = show' x ++ "^" ++ show n
+  where
+    show' e@Apply{} = "(" ++ show e ++ ")"
+    show' e = show e
 
 instance Show SymbolExpr where
   show (Symbol _ (':':':':':':_) []) = "#"
   show (Symbol _ s []) = s
   show (Symbol _ s js) = s ++ concatMap show js
-  show (Apply fn mExprs) = "(" ++ show fn ++ " " ++ unwords (map show mExprs) ++ ")"
+  show (Apply fn mExprs) = unwords (map show (fn : mExprs))
   show (Quote mExprs) = "'(" ++ show mExprs ++ ")"
   show (FunctionData name _ _ js) = show name ++ concatMap show js
 
