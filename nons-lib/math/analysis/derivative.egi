@@ -22,12 +22,11 @@
        in if monomial? g'
             then g'
             else let d := capply gcd (fromPoly g')
-                  in mul' d '(mapPoly 1#(div' %1 d) g')
+                  in d *' '(mapPoly 1#(%1 /' d) g')
     | #0 -> 0
     | _ * #1 -> 0
     | #1 * $fx ^ $n -> n * fx ^ (n - 1) * ∂/∂ fx x
-    | $a * $fx ^ $n * $r ->
-      a * ∂/∂ (power' fx n) x * r + a * power' fx n * ∂/∂ r x
+    | $a * $fx ^ $n * $r -> a * ∂/∂ (fx ^' n) x * r + a * fx ^' n * ∂/∂ r x
     | poly $ts -> sum (map 1#(∂/∂ %1 x) ts)
     | $p1 / $p2 ->
       let p1' := ∂/∂ p1 x
