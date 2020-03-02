@@ -121,8 +121,10 @@ dropWhile pred xs :=
     | $x :: $rs -> if pred x then dropWhile pred rs else xs
 
 --
--- car, cdr
+-- cons, car, cdr
 --
+cons x xs := x :: xs
+
 car xs :=
   match xs as list something with
     | $x :: _ -> x
@@ -223,6 +225,8 @@ repeatedSquaring fn %x n :=
     | ?odd? ->
       let y := repeatedSquaring fn x (quotient n 2)
        in fn (fn y y) x
+
+append xs ys := xs ++ ys
 
 concat xss := foldr (\%xs %rs -> xs ++ rs) [] xss
 
