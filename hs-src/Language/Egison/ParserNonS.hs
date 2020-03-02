@@ -631,7 +631,7 @@ loopPattern =
 
     defaultEnds s =
       ApplyExpr (stringToVarExpr "from")
-                (makeApply (stringToVarExpr "-'") [s, IntegerExpr 1])
+                (makeApply (stringToVarExpr "sub'") [s, IntegerExpr 1])
 
 seqPattern :: Parser EgisonPattern
 seqPattern = do
@@ -836,7 +836,7 @@ identString = do
   strs <- many substr
   return $ concat strs
   where
-    substr = ((:) <$> try (char '.' <* notFollowedBy (string "..")) <*> many opChar)
+    substr = ((:) <$> try (char '.' <* notFollowedBy (char '.')) <*> many opChar)
          <|> (:[]) <$> identChar
 
 -- Non-alphabetical symbols that are allowed for identifiers

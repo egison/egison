@@ -143,7 +143,7 @@
 ;; cons, car, cdr
 ;;
 (define $cons
-  (lambda [$x $xs] {x @xs}))
+  (lambda [%x %xs] {x @xs}))
 
 (define $car
   (lambda [$xs]
@@ -276,7 +276,7 @@
                 (fn (fn y y) x))]})))
 
 (define $append
-  (lambda [$xs $ys]
+  (lambda [%xs %ys]
     {@xs @ys}))
 
 (define $concat

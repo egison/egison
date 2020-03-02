@@ -29,7 +29,7 @@ import           Control.Applicative     (pure, (*>), (<$>), (<*), (<*>))
 import           Control.Monad.Except    (liftIO, throwError)
 import           Control.Monad.Identity  (Identity, unless)
 
-import           Data.Char               (isLower, isUpper)
+import           Data.Char               (isLower, isUpper, toUpper)
 import           Data.Either
 import           Data.Functor            (($>))
 import           Data.List.Split         (splitOn)
@@ -599,7 +599,7 @@ loopRange :: Parser LoopRange
 loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
                       <|> (do s <- expr
                               ep <- option WildCard pattern
-                              return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
+                              return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "sub'") (TupleExpr [s, IntegerExpr 1]))) ep)))
 
 seqNilPat :: Parser EgisonPattern
 seqNilPat = braces $ pure SeqNilPat
@@ -855,7 +855,7 @@ angles :: Parser a -> Parser a
 angles = P.angles lexer
 
 ident :: Parser String
-ident = P.identifier lexer
+ident = toCamelCase <$> P.identifier lexer
 
 identVar :: Parser Var
 identVar = P.lexeme lexer (do
@@ -897,3 +897,21 @@ lowerName' = (:) <$> lower <*> option "" ident
  where
   lower :: Parser Char
   lower = satisfy isLower
+
+-- Translate identifiers for Non-S syntax
+toCamelCase :: String -> String
+toCamelCase "+'" = "add'"
+toCamelCase "-'" = "sub'"
+toCamelCase "*'" = "mul'"
+toCamelCase "/'" = "div'"
+toCamelCase "**'" = "power'"
+toCamelCase "f.+'" = "f.add'"
+toCamelCase "f.-'" = "f.sub'"
+toCamelCase "f.*'" = "f.mul'"
+toCamelCase "f./'" = "f.div'"
+toCamelCase x =
+  let heads:tails = splitOn "-" x
+   in concat $ heads : map capitalize tails
+  where
+    capitalize [] = "-"
+    capitalize (x:xs) = toUpper x : xs
