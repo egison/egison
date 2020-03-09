@@ -22,12 +22,12 @@ import           Text.Regex.TDFA            ((=~))
 
 import           Language.Egison
 import           Language.Egison.CmdOptions
+import           Language.Egison.Completion
 import           Language.Egison.Core       (evalTopExpr', recursiveBind)
 import           Language.Egison.Desugar
 import           Language.Egison.MathOutput
 import qualified Language.Egison.Parser     as Parser
 import qualified Language.Egison.ParserNonS as ParserNonS
-import           Language.Egison.Util
 
 import           Options.Applicative
 

@@ -1,18 +1,17 @@
 {- |
-Module      : Language.Egison.Util
+Module      : Language.Egison.Completion
 Licence     : MIT
 
-This module provides utility functions.
+This module provides command-line completion.
 -}
 
-module Language.Egison.Util
+module Language.Egison.Completion
   ( completeEgison
   ) where
 
 import           Data.List
 
 import           System.Console.Haskeline   hiding (catch, handle, throwTo)
-import           Language.Egison.CmdOptions
 
 -- |Complete Egison keywords
 completeEgison :: Monad m => CompletionFunc m

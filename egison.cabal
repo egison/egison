@@ -105,6 +105,7 @@ Library
                    Language.Egison.AST
                    Language.Egison.Core
                    Language.Egison.CmdOptions
+                   Language.Egison.Completion
                    Language.Egison.Desugar
                    Language.Egison.Data
                    Language.Egison.Types
@@ -113,7 +114,6 @@ Library
                    Language.Egison.ParserNonS
                    Language.Egison.Pretty
                    Language.Egison.Primitives
-                   Language.Egison.Util
                    Language.Egison.MathExpr
                    Language.Egison.MathOutput
   Other-modules:   Paths_egison
