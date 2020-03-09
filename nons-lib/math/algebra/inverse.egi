@@ -14,7 +14,7 @@ inverse t f x :=
         | #sin #x -> asin t
         | #acos #x -> cos t
         | #asin #x -> sin t
-        | _ -> inverse' t f x
+        | _ -> inverse' t f x  -- TODO: define inverse'
     | ?term? ->
       match f as termExpr with
         | term #1 (ncons $n #x []) -> rt n t

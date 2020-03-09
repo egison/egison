@@ -126,7 +126,7 @@ coreLibraries =
   , "nons-lib/math/common/functions.egi"
   , "nons-lib/math/algebra/root.egi"
   , "nons-lib/math/algebra/equations.egi"
-  , "lib/math/algebra/inverse.segi"
+  , "nons-lib/math/algebra/inverse.egi"
   , "lib/math/analysis/derivative.segi"
   , "nons-lib/math/analysis/integral.egi"
   , "nons-lib/math/algebra/vector.egi"
