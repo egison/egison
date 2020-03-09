@@ -16,7 +16,7 @@
     | #`sin $g -> cos g * ∂/∂ g x
     | #`arccos $g -> 1 / sqrt (1 - g ^ 2) * ∂/∂ g x
     | apply $g $args ->
-      sum (map 2#(capply `(userRefs g [%1]) args * ∂/∂ %2 x) (zip nats args))
+      sum (map 2#((capply `(userRefs g [%1]) args) * ∂/∂ %2 x) (zip nats args))
     | quote $g ->
       let g' := ∂/∂ g x
        in if monomial? g'
@@ -47,7 +47,7 @@ taylorExpansion f x a := multivariateTaylorExpansion f [|x|] [|a|]
 
 maclaurinExpansion := 2#(taylorExpansion %1 %2 0)
 
-multivariateTaylorExpansion %f %xs %as :=
+multivariateTaylorExpansion %f %xs %ys :=
   withSymbols [h]
     let hs := generateTensor 1#h_%1 (tensorShape xs)
      in map2
@@ -55,8 +55,8 @@ multivariateTaylorExpansion %f %xs %as :=
           (map 1#(1 / fact %1) nats0)
           (map
              (compose
-                1#(V.substitute xs as %1)
-                1#(V.substitute hs (withSymbols [i] xs_i - as_i) %1))
+                1#(V.substitute xs ys %1)
+                1#(V.substitute hs (withSymbols [i] xs_i - ys_i) %1))
              (iterate (compose 1#(∇ %1 xs) 1#(V.* hs %1)) f))
 
 multivariateMaclaurinExpansion %f %xs :=
