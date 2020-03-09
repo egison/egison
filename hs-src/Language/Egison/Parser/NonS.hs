@@ -162,6 +162,8 @@ defineOrTestExpr = do
 
     convertToDefine :: EgisonExpr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
+    convertToDefine (SectionExpr op Nothing Nothing) =
+      return $ Variable (stringToVar (repr op))
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
       args' <- mapM ((ScalarArg <$>) . exprToStr) args
       return $ Function var args'

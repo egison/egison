@@ -20,6 +20,9 @@ for f in lib/??*/??*/??*
 do
     [ "${f}" = "lib/math/algebra/equations.segi" ] && continue
     [ "${f}" = "lib/math/algebra/root.segi" ] && continue
+    [ "${f}" = "lib/math/algebra/matrix.segi" ] && continue
+    [ "${f}" = "lib/math/algebra/vector.segi" ] && continue
+    [ "${f}" = "lib/math/algebra/tensor.segi" ] && continue
     [ "${f}" = "lib/math/common/constants.segi" ] && continue
     [ "${f}" = "lib/math/common/functions.segi" ] && continue
     echo ${f}
