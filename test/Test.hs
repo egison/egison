@@ -28,7 +28,6 @@ main =
 testCases :: [FilePath]
 testCases =
   [ "test/syntax.segi"
-  , "test/primitive.segi"
   , "test/lib/math/tensor.segi"
 
   , "sexpr-sample/poker-hands.segi"
