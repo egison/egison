@@ -18,8 +18,8 @@ module Language.Egison.Parser.NonS
        ) where
 
 import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
-import           Control.Monad.Except           (liftIO, throwError)
-import           Control.Monad.State            (evalStateT, get, put, StateT, unless)
+import           Control.Monad.Except           (throwError)
+import           Control.Monad.State            (evalStateT, get, put, StateT)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
@@ -32,15 +32,10 @@ import           Control.Monad.Combinators.Expr
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
--- import           Text.Megaparsec.Debug          (dbg)
 import           Text.Megaparsec.Pos            (Pos)
-import           System.Directory               (doesFileExist, getHomeDirectory)
-import           System.IO
 
 import           Language.Egison.AST
-import           Language.Egison.Desugar
 import           Language.Egison.Data
-import           Paths_egison                   (getDataFileName)
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof

@@ -17,23 +17,9 @@ module Language.Egison.Parser
        , loadFile
        ) where
  
-import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
 import           Control.Monad.Except           (liftIO, throwError)
-import           Control.Monad.State            (evalStateT, get, put, StateT, unless)
+import           Control.Monad.State            (unless)
 
-import           Data.Char                      (isAsciiUpper, isLetter)
-import           Data.Either                    (isRight)
-import           Data.Functor                   (($>))
-import           Data.List                      (find, groupBy, insertBy)
-import           Data.Maybe                     (fromJust, isJust, isNothing)
-import           Data.Text                      (pack)
-
-import           Control.Monad.Combinators.Expr
-import           Text.Megaparsec
-import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer     as L
--- import           Text.Megaparsec.Debug          (dbg)
-import           Text.Megaparsec.Pos            (Pos)
 import           System.Directory               (doesFileExist, getHomeDirectory)
 import           System.IO
 
