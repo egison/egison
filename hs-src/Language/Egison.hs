@@ -132,7 +132,7 @@ coreLibraries =
   , "nons-lib/math/algebra/vector.egi"
   , "lib/math/algebra/matrix.segi" -- TODO: change to nons-lib
   , "lib/math/algebra/tensor.segi" -- TODO: change to nons-lib
-  , "lib/math/geometry/differential-form.segi"
+  , "nons-lib/math/geometry/differential-form.egi"
   , "nons-lib/core/assoc.egi"
   , "nons-lib/core/base.egi"
   , "nons-lib/core/collection.egi"
