@@ -5,16 +5,20 @@
 dfNormalize %X :=
   let p := dfOrder X
       (es, os) := evenAndOddPermutations p
-   in withSymbols [i] (sum
-                         (map
-                            (\σ -> subrefs X (map 1#i_(σ %1) (between 1 p)))
-                            es) - sum
-                                    (map
-                                       (\σ ->
-                                         subrefs
-                                           X
-                                           (map 1#i_(σ %1) (between 1 p)))
-                                       os)) / fact p
+   in withSymbols [i]
+        (sum (map (\σ -> subrefs X (map 1#i_(σ %1) (between 1 p))) es) - sum
+                                                                           (map
+                                                                              (\σ ->
+                                                                                subrefs
+                                                                                  X
+                                                                                  (map
+                                                                                     1#i_(σ
+                                                                                            %1)
+                                                                                     (between
+                                                                                        1
+                                                                                        p)))
+                                                                              os)) / fact
+                                                                                       p
 
 antisymmetrize := dfNormalize
 
