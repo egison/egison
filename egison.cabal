@@ -166,6 +166,7 @@ Executable egison
     , filepath
     , text
     , process
+    , regex-tdfa
     , vector
     , optparse-applicative
   if !impl(ghc > 8.0)

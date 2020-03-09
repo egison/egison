@@ -6,50 +6,13 @@ This module provides utility functions.
 -}
 
 module Language.Egison.Util
-  ( getEgisonExpr
-  , completeEgison
+  ( completeEgison
   ) where
 
-import           Control.Monad.Except             (liftIO)
 import           Data.List
-import           System.Console.Haskeline         hiding (catch, handle, throwTo)
-import           System.Console.Haskeline.History (addHistoryUnlessConsecutiveDupe)
-import           Text.Regex.TDFA                  ((=~))
 
-import           Language.Egison.AST
+import           System.Console.Haskeline   hiding (catch, handle, throwTo)
 import           Language.Egison.CmdOptions
-import           Language.Egison.Parser           as Parser
-import           Language.Egison.ParserNonS       as ParserNonS
-
--- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExpr :: EgisonOpts -> InputT IO (Maybe (String, EgisonTopExpr))
-getEgisonExpr opts = getEgisonExpr' opts ""
-
-getEgisonExpr' :: EgisonOpts -> String -> InputT IO (Maybe (String, EgisonTopExpr))
-getEgisonExpr' opts prev = do
-  mLine <- case prev of
-             "" -> getInputLine $ optPrompt opts
-             _  -> getInputLine $ replicate (length $ optPrompt opts) ' '
-  case mLine of
-    Nothing -> return Nothing
-    Just [] ->
-      if null prev
-        then getEgisonExpr opts
-        else getEgisonExpr' opts prev
-    Just line -> do
-      history <- getHistory
-      putHistory $ addHistoryUnlessConsecutiveDupe line history
-      let input = prev ++ line
-      let parsedExpr = (if optSExpr opts then Parser.parseTopExpr else ParserNonS.parseTopExpr) input
-      case parsedExpr of
-        Left err | show err =~ "unexpected end of input" ->
-          getEgisonExpr' opts $ input ++ "\n"
-        Left err -> do
-          liftIO $ print err
-          getEgisonExpr opts
-        Right topExpr -> do
-          -- outputStr $ show topExpr
-          return $ Just (input, topExpr)
 
 -- |Complete Egison keywords
 completeEgison :: Monad m => CompletionFunc m
