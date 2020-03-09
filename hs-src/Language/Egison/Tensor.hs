@@ -44,7 +44,6 @@ import           Data.List                 (any, delete, elem, find, findIndex,
                                             partition, splitAt, (\\))
 
 import           Control.Egison hiding (Integer)
-import qualified Control.Egison as M
 
 import           Language.Egison.AST hiding (PatVar)
 import           Language.Egison.Data
