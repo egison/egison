@@ -181,11 +181,11 @@ defineOrTestExpr = do
     convertToDefine _ = Nothing
 
     exprToStr :: EgisonExpr -> Maybe String
-    exprToStr (VarExpr (Var [x] [])) = Just x
-    exprToStr _                      = Nothing
+    exprToStr (VarExpr v) = Just (show v)
+    exprToStr _           = Nothing
 
     exprToArgs :: EgisonExpr -> Maybe [Arg]
-    exprToArgs (VarExpr (Var [x] [])) = return [ScalarArg x]
+    exprToArgs (VarExpr v) = return [ScalarArg (show v)]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((ScalarArg <$>) . exprToStr) args
     exprToArgs (SectionExpr op Nothing Nothing) = return [ScalarArg (repr op)]
@@ -679,7 +679,7 @@ pdPattern = PDInductivePat <$> upperId <*> many pdAtom
       ]
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard    <$ symbol "_"
-         <|> PDPatVar      <$> (char '$' >> lowerId)
+         <|> PDPatVar      <$> (char '$' >> ident)
          <|> PDConstantPat <$> constantExpr
          <|> PDEmptyPat    <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen pdPattern PDTuplePat
@@ -723,7 +723,7 @@ varLiteral :: Parser Var
 varLiteral = stringToVar <$> ident
 
 patVarLiteral :: Parser Var
-patVarLiteral = stringToVar <$> (char '$' >> lowerId)
+patVarLiteral = stringToVar <$> (char '$' >> ident)
 
 -- Parse infix (binary operator) literal.
 -- If the operator is prefixed with '!', |isWedge| is turned to true.

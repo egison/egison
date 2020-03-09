@@ -250,6 +250,7 @@ reservedExprInfix =
   , makeInfix "*'" "*'"        7 LeftAssoc
   , makeInfix "/'" "/'"        7 LeftAssoc
   , makeInfix "."  "."         7 LeftAssoc -- tensor multiplication
+  , makeInfix ".'" ".'"        7 LeftAssoc -- tensor multiplication
   , makeInfix "%"  "remainder" 7 LeftAssoc
   , makeInfix "+"  "+"         6 LeftAssoc
   , makeInfix "-"  "-"         6 LeftAssoc
