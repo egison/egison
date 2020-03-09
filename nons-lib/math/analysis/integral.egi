@@ -18,7 +18,7 @@ Sd x f :=
       withSymbols [t] substitute [(t, y)] (Sd t (f t * d/d (inverse t y x) t))
     | #0 -> 0
     | term $c [] -> c * x
-    | mult $a ncons $n #x $r ->
+    | mult $a (ncons $n #x $r) ->
       if containSymbol? x r then `Sd x f else a / (n + 1) * x ^ (n + 1) * r
     | poly $ts -> sum (map 1#(Sd x %1) ts)
     | (plus $ts) / $p2 -> sum (map 1#(Sd x (%1 / p2)) ts)

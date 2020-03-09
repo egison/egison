@@ -78,7 +78,7 @@ plusExpr :=
     | cons $ $ as (mathExpr, plusExpr) with
       | $tgt ->
         matchAll tgt as mathExpr with
-          | poly $t :: $ts -> (t, sum' ts)
+          | poly ($t :: $ts) -> (t, sum' ts)
     | $ as (mathExpr) with
       | $tgt -> [tgt]
 
@@ -121,7 +121,7 @@ symbol? mexpr :=
 
 tensorSymbol? mexpr :=
   match mexpr as mathExpr with
-    | symbol _ _ ++ ((sub ?symbol?) | (sup ?symbol?)) :: _ -> True
+    | symbol _ (_ ++ ((sub ?symbol?) | (sup ?symbol?)) :: _) -> True
     | _ -> False
 
 apply? mexpr :=
@@ -145,7 +145,7 @@ polynomial? mexpr :=
 
 monomial? mexpr :=
   match mexpr as mathExpr with
-    | (poly (term _ _) :: []) / (poly (term _ _) :: []) -> True
+    | (poly ((term _ _) :: [])) / (poly ((term _ _) :: [])) -> True
     | #0 -> True
     | _ -> False
 
@@ -274,7 +274,7 @@ containFunctionWithIndex? mexpr :=
                   id
                   (map
                      2#(match %1 as symbolExpr with
-                       | apply ?scalar? & $f $args ->
+                       | apply (?scalar? & $f) $args ->
                          match f as mathExpr with
                            | symbol _ ![] -> True
                            | _ ->
@@ -287,7 +287,7 @@ containFunctionWithIndex? mexpr :=
 
 findSymbolsFromPoly poly :=
   matchAll poly as mathExpr with
-    | poly (term _ ((symbol _ _) & $s) :: _) :: _ -> s
+    | poly ((term _ (((symbol _ _) & $s) :: _)) :: _) -> s
 
 substitute ls mexpr :=
   match ls as list (symbolExpr, mathExpr) with
@@ -331,25 +331,25 @@ expandAll' mexpr :=
 coefficients f x :=
   let m := max
              (0 :: (matchAll f as mathExpr with
-               | (poly (term $a ncons #x $k $ts) :: _) / _ -> k))
+               | (poly ((term $a (ncons #x $k $ts)) :: _)) / _ -> k))
    in map 1#(coefficient f x %1) (between 0 m)
 
 coefficient f x m :=
   if m = 0
     then sum
            (matchAll f as mathExpr with
-             | (poly (term $a !(#x :: _) & $ts) :: _) / _ ->
+             | (poly ((term $a (!(#x :: _) & $ts)) :: _)) / _ ->
                foldl (*') a (map (^') ts)) / denominator f
     else coefficient' f x m
 
 coefficient' f x m :=
   sum
     (matchAll f as mathExpr with
-      | (poly (term $a ncons #x $k $ts) :: _) / _ ->
+      | (poly ((term $a (ncons #x $k $ts)) :: _)) / _ ->
         if m = k then foldl (*') a (map (^') ts) else 0) / denominator f
 
 coefficient2 f x y :=
   sum
     (matchAll f as mathExpr with
-      | (poly (term $a #x :: #y :: $ts) :: _) / _ ->
+      | (poly ((term $a (#x :: #y :: $ts)) :: _)) / _ ->
         foldl (*') a (map (^') ts)) / denominator f

@@ -23,8 +23,8 @@ inverse t f x :=
         | _ -> inverse' t f x
     | ?term? ->
       match f as termExpr with
-        | term #1 ncons $n #x [] -> rt n t
-        | term _ ncons $n #x _ ->
+        | term #1 (ncons $n #x []) -> rt n t
+        | term _ (ncons $n #x _) ->
           let a := f / x ^ n
            in inverse (t / a) (f / a) x
         | _ -> `inverse t f x

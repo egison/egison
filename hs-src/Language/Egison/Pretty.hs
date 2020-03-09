@@ -231,7 +231,8 @@ instance Pretty EgisonPattern where
   pretty (NotPat pat) = pretty "!" <> pretty' pat
   pretty (TuplePat pats) = tupled $ map pretty pats
   pretty (InductivePat "nil" []) = pretty "[]"
-  pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty xs)
+  pretty (InductivePat "cons" [p, InductivePat "nil" []]) = pretty "[" <> pretty p <> pretty "]"
+  pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty' xs)
   pretty (LoopPat i range p1 p2) =
     hang 2 (pretty "loop" <+> pretty '$' <> pretty i <+> pretty range <>
       flatAlt (hardline <> group (pretty' p1) <> hardline <> group (pretty' p2))
