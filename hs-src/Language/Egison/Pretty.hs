@@ -90,7 +90,8 @@ instance Pretty EgisonExpr where
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
   pretty (LetExpr _ _) = error "unreachable"
   pretty (LetStarExpr _ _) = error "unreachable"
-  pretty (WithSymbolsExpr xs e) = pretty "withSymbols" <+> list (map pretty xs) <+> pretty e
+  pretty (WithSymbolsExpr xs e) =
+    indentBlock (pretty "withSymbols" <+> list (map pretty xs)) [pretty e]
 
   pretty (MatchExpr BFSMode tgt matcher clauses) =
     nest 2 (pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses)
