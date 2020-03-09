@@ -18,6 +18,9 @@ done
 
 for f in lib/??*/??*/??*
 do
+    [ "${f}" = "lib/math/algebra/equations.segi" ] && continue
+    [ "${f}" = "lib/math/common/constants.segi" ] && continue
+    [ "${f}" = "lib/math/common/functions.segi" ] && continue
     echo ${f}
     stack exec -- egison-translate ${f} > "nons-"${f%.segi}.egi
 done
