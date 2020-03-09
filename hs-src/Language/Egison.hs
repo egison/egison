@@ -125,7 +125,7 @@ coreLibraries =
   , "nons-lib/math/common/constants.egi"
   , "nons-lib/math/common/functions.egi"
   , "lib/math/algebra/root.segi"
-  , "lib/math/algebra/equations.segi"
+  , "nons-lib/math/algebra/equations.egi"
   , "lib/math/algebra/inverse.segi"
   , "lib/math/analysis/derivative.segi"
   , "lib/math/analysis/integral.segi"
