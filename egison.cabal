@@ -111,7 +111,8 @@ Library
                    Language.Egison.Types
                    Language.Egison.Tensor
                    Language.Egison.Parser
-                   Language.Egison.ParserNonS
+                   Language.Egison.Parser.SExpr
+                   Language.Egison.Parser.NonS
                    Language.Egison.Pretty
                    Language.Egison.Primitives
                    Language.Egison.MathExpr

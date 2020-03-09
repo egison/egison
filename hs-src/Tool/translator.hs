@@ -9,7 +9,7 @@ import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
 import           System.Environment                    (getArgs)
 
 import           Language.Egison.AST
-import           Language.Egison.Parser
+import           Language.Egison.Parser.SExpr
 import           Language.Egison.Pretty
 
 class SyntaxElement a where

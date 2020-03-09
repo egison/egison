@@ -508,13 +508,13 @@ readProcess' = threeArgs' $ \cmd args input ->
 read' :: PrimitiveFunc
 read'= oneArg' $ \val -> do
   str <- fromEgison val
-  ast <- readExpr (T.unpack str)
+  ast <- readExpr False (T.unpack str)
   evalExprDeep nullEnv ast
 
 readTSV :: PrimitiveFunc
 readTSV= oneArg' $ \val -> do
   str   <- fromEgison val
-  exprs <- readExprs (T.unpack str)
+  exprs <- readExprs False (T.unpack str)
   rets  <- mapM (evalExprDeep nullEnv) exprs
   case rets of
     [ret] -> return ret

@@ -59,32 +59,13 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Data
 import           Language.Egison.MathExpr
-import qualified Language.Egison.Parser      as Parser
-import qualified Language.Egison.ParserNonS  as ParserNonS
+import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.Tensor
 
 --
 -- Evaluator
 --
-
-hasDotEgiExtension :: String -> Bool
-hasDotEgiExtension file = drop (length file - 4) file == ".egi"
-
-hasDotSEgiExtension :: String -> Bool
-hasDotSEgiExtension file = drop (length file - 5) file == ".segi"
-
-loadLibraryFile :: String -> EgisonM [EgisonTopExpr]
-loadLibraryFile file
-  | hasDotEgiExtension file  = ParserNonS.loadLibraryFile file
-  | hasDotSEgiExtension file = Parser.loadLibraryFile file
-  | otherwise                = throwError (UnknownFileExtension file)
-
-loadFile :: String -> EgisonM [EgisonTopExpr]
-loadFile file
-  | hasDotEgiExtension file  = ParserNonS.loadFile file
-  | hasDotSEgiExtension file = Parser.loadFile file
-  | otherwise                = throwError (UnknownFileExtension file)
 
 collectDefs :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
 collectDefs opts (expr:exprs) bindings rest =

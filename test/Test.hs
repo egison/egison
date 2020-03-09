@@ -16,18 +16,14 @@ import           Test.HUnit
 import           Language.Egison
 import           Language.Egison.Core
 import           Language.Egison.CmdOptions
-import qualified Language.Egison.Parser         as Parser
-import qualified Language.Egison.ParserNonS     as ParserNonS
+import           Language.Egison.ParserCommon
 import           Language.Egison.Pretty
 import           Language.Egison.Primitives
 import           Language.Egison.Types
 
 main :: IO ()
 main =
-  defaultMain . hUnitTestToTests . test $ nonSTests ++ sExprTests
-  where
-    sExprTests = map runTestCase     testCases
-    nonSTests  = map runTestCaseNonS nonSTestCases
+  defaultMain . hUnitTestToTests . test $ map runTestCase testCases
 
 testCases :: [FilePath]
 testCases =
@@ -45,11 +41,8 @@ testCases =
   , "sexpr-sample/math/geometry/riemann-curvature-tensor-of-T2.segi" -- for testing tensor index notation and math quote
 --  , "sexpr-sample/math/geometry/curvature-form.segi" -- for testing differential form
 --  , "sexpr-sample/math/geometry/hodge-laplacian-polar.segi" -- for testing "..." in tensor indices
-  ]
 
-nonSTestCases :: [FilePath]
-nonSTestCases =
-  [ "nons-test/test/syntax.egi"
+  , "nons-test/test/syntax.egi"
   , "nons-test/test/primitive.egi"
   , "nons-test/test/lib/core/base.egi"
   , "nons-test/test/lib/core/collection.egi"
@@ -70,19 +63,7 @@ runTestCase :: FilePath -> Test
 runTestCase file = TestLabel file . TestCase $ do
   env <- initialEnv defaultOption
   assertEgisonM $ do
-    exprs <- Parser.loadFile file
-    let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
-    env' <- recursiveBind env bindings
-    forM_ tests $ evalExprDeep env'
-  where
-    assertEgisonM :: EgisonM a -> Assertion
-    assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")
-
-runTestCaseNonS :: FilePath -> Test
-runTestCaseNonS file = TestLabel file . TestCase $ do
-  env <- initialEnv (defaultOption { optSExpr = False })
-  assertEgisonM $ do
-    exprs <- ParserNonS.loadFile file
+    exprs <- loadFile file
     let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
     env' <- recursiveBind env bindings
     forM_ tests $ evalExprDeep env'
