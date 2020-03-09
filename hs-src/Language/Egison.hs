@@ -129,7 +129,7 @@ coreLibraries =
   , "lib/math/algebra/inverse.segi"
   , "lib/math/analysis/derivative.segi"
   , "lib/math/analysis/integral.segi"
-  , "lib/math/algebra/vector.segi"
+  , "nons-lib/math/algebra/vector.egi"
   , "nons-lib/math/algebra/matrix.egi"
   , "lib/math/algebra/tensor.segi"
   , "lib/math/geometry/differential-form.segi"
