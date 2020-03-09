@@ -191,7 +191,7 @@ mapSymbols fn mexpr :=
                         let args' := map 1#(mapSymbols fn %1) args
                          in if args = args'
                               then %1 ^' %2
-                              else fn capply g args' ^' %2)
+                              else fn (capply g args') ^' %2)
                     xs))
     mexpr
 

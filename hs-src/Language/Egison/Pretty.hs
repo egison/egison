@@ -289,6 +289,7 @@ instance Complex EgisonExpr where
   isAtom UnaryOpExpr{}            = False
   isAtom BinaryOpExpr{}           = False
   isAtom ApplyExpr{}              = False
+  isAtom CApplyExpr{}             = False
   isAtom LambdaExpr{}             = False
   isAtom CambdaExpr{}             = False
   isAtom ProcedureExpr{}          = False

@@ -24,19 +24,19 @@ f./' := f./
   cambda xs ->
     if capply (||) (map float? xs)
       then capply f.+' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 capply (+') xs
+      else mathNormalize1 (capply (+') xs)
 
 - :=
   cambda xs ->
     if capply (||) (map float? xs)
       then capply f.-' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 capply (-') xs
+      else mathNormalize1 (capply (-') xs)
 
 * :=
   cambda xs ->
     if capply (||) (map float? xs)
       then capply f.*' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 capply (*') xs
+      else mathNormalize1 (capply (*') xs)
 
 / x y :=
   if float? x && float? y
