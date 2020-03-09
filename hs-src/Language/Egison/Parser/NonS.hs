@@ -2,26 +2,19 @@
 {-# LANGUAGE NamedFieldPuns   #-}
 
 {- |
-Module      : Language.Egison.ParserNonS
+Module      : Language.Egison.Parser.NonS
 Licence     : MIT
 
 This module provides the new parser of Egison.
 -}
 
-module Language.Egison.ParserNonS
+module Language.Egison.Parser.NonS
        (
        -- * Parse a string
-         readTopExprs
-       , readTopExpr
-       , readExprs
-       , readExpr
-       , parseTopExprs
+         parseTopExprs
        , parseTopExpr
        , parseExprs
        , parseExpr
-       -- * Parse a file
-       , loadLibraryFile
-       , loadFile
        ) where
 
 import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
@@ -49,19 +42,6 @@ import           Language.Egison.Desugar
 import           Language.Egison.Data
 import           Paths_egison                   (getDataFileName)
 
-readTopExprs :: String -> EgisonM [EgisonTopExpr]
-readTopExprs = either throwError (mapM desugarTopExpr) . parseTopExprs
-
--- TODO(momohatt): Parse from the last state
-readTopExpr :: String -> EgisonM EgisonTopExpr
-readTopExpr = either throwError desugarTopExpr . parseTopExpr
-
-readExprs :: String -> EgisonM [EgisonExpr]
-readExprs = either throwError (mapM desugarExpr) . parseExprs
-
-readExpr :: String -> EgisonM EgisonExpr
-readExpr = either throwError desugarExpr . parseExpr
-
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
 
@@ -73,37 +53,6 @@ parseExprs = doParse $ many (L.nonIndented sc expr) <* eof
 
 parseExpr :: String -> Either EgisonError EgisonExpr
 parseExpr = doParse $ sc >> expr <* eof
-
--- |Load a libary file
-loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadLibraryFile file = do
-  homeDir <- liftIO getHomeDirectory
-  doesExist <- liftIO $ doesFileExist $ homeDir ++ "/.egison/" ++ file
-  if doesExist
-    then loadFile $ homeDir ++ "/.egison/" ++ file
-    else liftIO (getDataFileName file) >>= loadFile
-
--- |Load a file
-loadFile :: FilePath -> EgisonM [EgisonTopExpr]
-loadFile file = do
-  doesExist <- liftIO $ doesFileExist file
-  unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
-  input <- liftIO $ readUTF8File file
-  exprs <- readTopExprs $ shebang input
-  concat <$> mapM recursiveLoad exprs
- where
-  recursiveLoad (Load file)     = loadLibraryFile file
-  recursiveLoad (LoadFile file) = loadFile file
-  recursiveLoad expr            = return [expr]
-  shebang :: String -> String
-  shebang ('#':'!':cs) = ';':'#':'!':cs
-  shebang cs           = cs
-
-readUTF8File :: FilePath -> IO String
-readUTF8File name = do
-  h <- openFile name ReadMode
-  hSetEncoding h utf8
-  hGetContents h
 
 --
 -- Parser

@@ -121,7 +121,7 @@ assertEqual "regexCg" (regexCg "([0-9]+),([0-9]+)" "abc,123,45,defg") [("abc,", 
 
 assertEqual "read" (read "3")                3
 assertEqual "read" (read "3.14")             3.14
-assertEqual "read" (read "{1 2}")            [1, 2]
+assertEqual "read" (read "[1, 2]")            [1, 2]
 assertEqual "read" (read "\"Hello world!\"") "Hello world!"
 
 -- TODO: read-tsv

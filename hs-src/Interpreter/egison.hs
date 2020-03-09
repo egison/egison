@@ -26,8 +26,8 @@ import           Language.Egison.Completion
 import           Language.Egison.Core       (evalTopExpr', recursiveBind)
 import           Language.Egison.Desugar
 import           Language.Egison.MathOutput
-import qualified Language.Egison.Parser     as Parser
-import qualified Language.Egison.ParserNonS as ParserNonS
+import qualified Language.Egison.Parser.SExpr as SExpr
+import qualified Language.Egison.Parser.NonS  as NonS
 
 import           Options.Applicative
 
@@ -151,8 +151,8 @@ getEgisonExpr opts = getEgisonExpr' opts ""
           history <- getHistory
           putHistory $ addHistoryUnlessConsecutiveDupe line history
           let input = prev ++ line
-          let parsedExpr = if optSExpr opts then Parser.parseTopExpr input
-                                            else ParserNonS.parseTopExpr input
+          let parsedExpr = if optSExpr opts then SExpr.parseTopExpr input
+                                            else NonS.parseTopExpr input
           case parsedExpr of
             Left err | show err =~ "unexpected end of input" ->
               getEgisonExpr' opts $ input ++ "\n"

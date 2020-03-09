@@ -38,8 +38,7 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.MathOutput  (changeOutputInLang)
-import           Language.Egison.Parser      as Parser
-import           Language.Egison.ParserNonS  as ParserNonS
+import           Language.Egison.Parser
 import           Language.Egison.Primitives
 
 import           Control.Monad.State
@@ -80,27 +79,23 @@ evalEgisonTopExprs opts env exprs = fromEgisonM $ evalTopExprs opts env exprs
 
 -- |eval an Egison expression. Input is a Haskell string.
 runEgisonExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError EgisonValue)
-runEgisonExpr opts env input
-  | optSExpr opts = fromEgisonM $ Parser.readExpr input >>= evalExprDeep env
-  | otherwise     = fromEgisonM $ ParserNonS.readExpr input >>= evalExprDeep env
+runEgisonExpr opts env input =
+  fromEgisonM $ readExpr (optSExpr opts) input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExpr opts env input
-  | optSExpr opts = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr opts env
-  | otherwise     = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr opts env
+runEgisonTopExpr opts env input =
+  fromEgisonM $ readTopExpr (optSExpr opts) input >>= evalTopExpr opts env
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> String -> IO (Either EgisonError (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env))
-runEgisonTopExpr' opts st input
-  | optSExpr opts = fromEgisonM $ Parser.readTopExpr input >>= evalTopExpr' opts st
-  | otherwise     = fromEgisonM $ ParserNonS.readTopExpr input >>= evalTopExpr' opts st
+runEgisonTopExpr' opts st input =
+  fromEgisonM $ readTopExpr (optSExpr opts) input >>= evalTopExpr' opts st
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExprs opts env input
-  | optSExpr opts = fromEgisonM $ Parser.readTopExprs input >>= evalTopExprs opts env
-  | otherwise     = fromEgisonM $ ParserNonS.readTopExprs input >>= evalTopExprs opts env
+runEgisonTopExprs opts env input =
+  fromEgisonM $ readTopExprs (optSExpr opts) input >>= evalTopExprs opts env
 
 -- |load an Egison file
 loadEgisonFile :: EgisonOpts -> Env -> FilePath -> IO (Either EgisonError Env)
