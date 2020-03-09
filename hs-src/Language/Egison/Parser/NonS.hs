@@ -174,7 +174,7 @@ defineOrTestExpr = do
       | repr op == "*" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
         case args of
-          ScalarArg var : args -> return $ Function (Var [var] []) args
+          ScalarArg var : args -> return $ Function (stringToVar var) args
           _                    -> Nothing
     convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) = do
       -- [Index EgisonExpr] -> Maybe [Index String]
