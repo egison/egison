@@ -243,7 +243,8 @@ desugar (IoExpr expr) =
   IoExpr <$> desugar expr
 
 desugar (UnaryOpExpr "-" expr) =
-  (\x -> makeApply "neg" [x]) <$> desugar expr
+  desugar (BinaryOpExpr mult (IntegerExpr (-1)) expr)
+    where mult = findOpFrom "*" reservedExprInfix
 desugar (UnaryOpExpr "!" (ApplyExpr expr1 expr2)) =
   WedgeApplyExpr <$> desugar expr1 <*> desugar expr2
 desugar (UnaryOpExpr "'" expr) = QuoteExpr <$> desugar expr
