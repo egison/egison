@@ -24,8 +24,8 @@ import           Control.Monad.State            (evalStateT, get, put, StateT)
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
 import           Data.Functor                   (($>))
-import           Data.List                      (find, groupBy, insertBy)
-import           Data.Maybe                     (fromJust, isJust, isNothing)
+import           Data.List                      (groupBy, insertBy)
+import           Data.Maybe                     (isJust, isNothing)
 import           Data.Text                      (pack)
 
 import           Control.Monad.Combinators.Expr
@@ -162,6 +162,8 @@ defineOrTestExpr = do
 
     convertToDefine :: EgisonExpr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
+    convertToDefine (SectionExpr op Nothing Nothing) =
+      return $ Variable (stringToVar (repr op))
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
       args' <- mapM ((ScalarArg <$>) . exprToStr) args
       return $ Function var args'
@@ -181,11 +183,11 @@ defineOrTestExpr = do
     convertToDefine _ = Nothing
 
     exprToStr :: EgisonExpr -> Maybe String
-    exprToStr (VarExpr (Var [x] [])) = Just x
-    exprToStr _                      = Nothing
+    exprToStr (VarExpr v) = Just (show v)
+    exprToStr _           = Nothing
 
     exprToArgs :: EgisonExpr -> Maybe [Arg]
-    exprToArgs (VarExpr (Var [x] [])) = return [ScalarArg x]
+    exprToArgs (VarExpr v) = return [ScalarArg (show v)]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((ScalarArg <$>) . exprToStr) args
     exprToArgs (SectionExpr op Nothing Nothing) = return [ScalarArg (repr op)]
@@ -618,7 +620,7 @@ collectionPattern = brackets $ do
   case elems of
     [] -> return $ nilPat
     _  -> return $ foldr (InfixPat consOp) nilPat elems
-      where consOp = fromJust $ find ((== "::") . repr) reservedPatternInfix
+      where consOp = findOpFrom "::" reservedPatternInfix
 
 -- (Possibly indexed) atomic pattern
 atomPattern :: Parser EgisonPattern
@@ -679,7 +681,7 @@ pdPattern = PDInductivePat <$> upperId <*> many pdAtom
       ]
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard    <$ symbol "_"
-         <|> PDPatVar      <$> (char '$' >> lowerId)
+         <|> PDPatVar      <$> (char '$' >> ident)
          <|> PDConstantPat <$> constantExpr
          <|> PDEmptyPat    <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen pdPattern PDTuplePat
@@ -723,7 +725,7 @@ varLiteral :: Parser Var
 varLiteral = stringToVar <$> ident
 
 patVarLiteral :: Parser Var
-patVarLiteral = stringToVar <$> (char '$' >> lowerId)
+patVarLiteral = stringToVar <$> (char '$' >> ident)
 
 -- Parse infix (binary operator) literal.
 -- If the operator is prefixed with '!', |isWedge| is turned to true.
@@ -732,7 +734,7 @@ infixLiteral sym =
   try (do wedge   <- optional (char '!')
           opSym   <- operator' sym
           infixes <- exprInfix <$> get
-          let opInfo = fromJust $ find ((== opSym) . repr) infixes
+          let opInfo = findOpFrom opSym infixes
           return $ opInfo { isWedge = isJust wedge })
    <?> "infix"
   where
@@ -754,7 +756,7 @@ patInfixLiteral :: String -> Parser Infix
 patInfixLiteral sym =
   try (do opSym <- string sym <* notFollowedBy patOpChar <* sc
           infixes <- patternInfix <$> get
-          let opInfo = fromJust $ find ((== opSym) . repr) infixes
+          let opInfo = findOpFrom opSym infixes
           return opInfo)
 
 -- Characters that can consist expression operators.

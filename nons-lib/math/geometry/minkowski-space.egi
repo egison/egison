@@ -1,3 +1,9 @@
-Parse error at: "egison" (line 12, column 13):
-unexpected end of input
-expecting top-level expression
+coordinates := [t, x, y, z]
+
+metric :=
+  generateTensor
+    (\match as (integer, integer) with
+      | (#1, #1) -> -1
+      | ($n, #n) -> 1
+      | (_, _) -> 0)
+    [4, 4]

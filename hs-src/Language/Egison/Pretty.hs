@@ -90,7 +90,8 @@ instance Pretty EgisonExpr where
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
   pretty (LetExpr _ _) = error "unreachable"
   pretty (LetStarExpr _ _) = error "unreachable"
-  pretty (WithSymbolsExpr xs e) = pretty "withSymbols" <+> list (map pretty xs) <+> pretty e
+  pretty (WithSymbolsExpr xs e) =
+    indentBlock (pretty "withSymbols" <+> list (map pretty xs)) [pretty e]
 
   pretty (MatchExpr BFSMode tgt matcher clauses) =
     nest 2 (pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses)
@@ -230,7 +231,8 @@ instance Pretty EgisonPattern where
   pretty (NotPat pat) = pretty "!" <> pretty' pat
   pretty (TuplePat pats) = tupled $ map pretty pats
   pretty (InductivePat "nil" []) = pretty "[]"
-  pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty xs)
+  pretty (InductivePat "cons" [p, InductivePat "nil" []]) = pretty "[" <> pretty p <> pretty "]"
+  pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty' xs)
   pretty (LoopPat i range p1 p2) =
     hang 2 (pretty "loop" <+> pretty '$' <> pretty i <+> pretty range <>
       flatAlt (hardline <> group (pretty' p1) <> hardline <> group (pretty' p2))
@@ -287,6 +289,7 @@ instance Complex EgisonExpr where
   isAtom UnaryOpExpr{}            = False
   isAtom BinaryOpExpr{}           = False
   isAtom ApplyExpr{}              = False
+  isAtom CApplyExpr{}             = False
   isAtom LambdaExpr{}             = False
   isAtom CambdaExpr{}             = False
   isAtom ProcedureExpr{}          = False

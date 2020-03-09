@@ -693,7 +693,7 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExpr env (stringToVarExpr ".")
-      makeITuple (Value (TensorData (Tensor s1 t1 (i1 ++ supjs))):map (Intermediate .ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)) >>= applyFunc env dot
+      makeITuple (Value (TensorData (Tensor s1 t1 (i1 ++ supjs))):map (Intermediate . ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
 applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
