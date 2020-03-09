@@ -11,14 +11,10 @@ rt n x :=
         let xd := reduce gcd xs
             yd := reduce gcd ys
          in let d := rtMonomial n (xd / yd)
-             in mul'
-                  d
-                  (rt''
-                     n
-                     (mul'
-                        (div'
-                           (sum' (map 1#(div' %1 xd) xs))
-                           (sum' (map 1#(div' %1 yd) ys)))))
+             in d *' rt''
+                       n
+                       (sum' (map 1#(%1 /' xd) xs) /' sum'
+                                                        (map 1#(%1 /' yd) ys))
       | _ -> rt'' n x
     else rt'' n x
 
@@ -28,17 +24,13 @@ rtMonomial n x :=
 rtTerm n x :=
   match x as termExpr with
     | term $a _ ->
-      if a < 0
-        then mul' (rtm1 n) (rtPositiveTerm n (- x))
-        else rtPositiveTerm n x
+      if a < 0 then rtm1 n *' rtPositiveTerm n (- x) else rtPositiveTerm n x
 
 rtPositiveTerm n x :=
   match (n, x) as (mathExpr, mathExpr) with
-    | (#3, $a * #i * $r) -> (- i) * rt 3 (mul' a r)
-    | (_, $a * #sqrt $b * $r) ->
-      mul' (rt (n * 2) (mul' (power' a 2) b)) (rt n r)
-    | (_, $a * #rt $n' $b * $r) ->
-      mul' (rt (n * n') (mul' (power' a n') b)) (rt n r)
+    | (#3, $a * #i * $r) -> (- i) * rt 3 (a *' r)
+    | (_, $a * #sqrt $b * $r) -> rt (n * 2) (a ^' 2 *' b) *' rt n r
+    | (_, $a * #rt $n' $b * $r) -> rt (n * n') (a ^' n' *' b) *' rt n r
     | (_, _) -> rtPositiveTerm1 n x
 
 rtPositiveTerm1 n x :=
@@ -47,7 +39,7 @@ rtPositiveTerm1 n x :=
           | [] -> (1, 1)
           | ncons $p $k $rs ->
             let (a, b) := f rs
-             in (mul' (power' p (quotient k n)) a, mul' (power' p (k % n)) b)
+             in (p ^' quotient k n *' a, p ^' (k % n) *' b)
       g n x :=
         let d := match x as termExpr with
                    | term $m $xs ->
@@ -57,7 +49,7 @@ rtPositiveTerm1 n x :=
         | term $m $xs ->
           match f (toAssoc (pF (abs m)) ++ xs) as (integer, integer) with
             | ($a, #1) -> a
-            | ($a, $b) -> mul' a (g n b)
+            | ($a, $b) -> a *' g n b
 
 rt'' n x :=
   match (n, x) as (integer, integer) with

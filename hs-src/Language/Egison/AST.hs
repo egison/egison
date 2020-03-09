@@ -242,12 +242,17 @@ instance Show BinOpAssoc where
 reservedExprInfix :: [Infix]
 reservedExprInfix =
   [ makeInfix "^"  "**"        8 LeftAssoc
+  , makeInfix "^'" "**'"       8 LeftAssoc
   , makeInfix "*"  "*"         7 LeftAssoc
   , makeInfix "/"  "/"         7 LeftAssoc
+  , makeInfix "*'" "*'"        7 LeftAssoc
+  , makeInfix "/'" "/'"        7 LeftAssoc
   , makeInfix "."  "."         7 LeftAssoc -- tensor multiplication
   , makeInfix "%"  "remainder" 7 LeftAssoc
   , makeInfix "+"  "+"         6 LeftAssoc
   , makeInfix "-"  "-"         6 LeftAssoc
+  , makeInfix "+'" "+'"        6 LeftAssoc
+  , makeInfix "-'" "-'"        6 LeftAssoc
   , makeInfix "++" "append"    5 RightAssoc
   , makeInfix "::" "cons"      5 RightAssoc
   , makeInfix "="  "eq?"       4 LeftAssoc

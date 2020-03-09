@@ -27,7 +27,7 @@ mathExpr' :=
       | _ -> []
     | mult $ $ as (integer, multExpr) with
       | Div (Plus (Term $n $xs :: [])) (Plus (Term 1 [] :: [])) ->
-        [(n, product' (map 2#(power' (toMathExpr' %1) %2) xs))]
+        [(n, product' (map 2#(toMathExpr' %1 ^' %2) xs))]
       | _ -> []
     | symbol $ $ as (eq, list indexExpr) with
       | Div
@@ -94,7 +94,7 @@ multExpr :=
         match tgt as mathExpr with
           | term _ $xs ->
             matchAll xs as assocMultiset mathExpr with
-              | $x :: $rs -> (x, product' (map 2#(power' %1 %2) rs))
+              | $x :: $rs -> (x, product' (map (^') rs))
           | _ -> []
     | ncons $ #$k $ as (mathExpr, multExpr) with
       | $tgt ->
@@ -102,15 +102,14 @@ multExpr :=
           | term _ $xs ->
             matchAll xs as list (mathExpr, integer) with
               | $hs ++ ($x, ?1#(%1 >= k) & $n) :: $ts ->
-                (x, product' (map 2#(power' %1 %2) (hs ++ (x, n - k) :: ts)))
+                (x, product' (map (^') (hs ++ (x, n - k) :: ts)))
           | _ -> []
     | ncons $ $ $ as (mathExpr, integer, multExpr) with
       | $tgt ->
         match tgt as mathExpr with
           | term _ $xs ->
             matchAll xs as list (mathExpr, integer) with
-              | $hs ++ ($x, $n) :: $ts ->
-                (x, n, product' (map 2#(power' %1 %2) (hs ++ ts)))
+              | $hs ++ ($x, $n) :: $ts -> (x, n, product' (map (^') (hs ++ ts)))
           | _ -> []
     | $ as (mathExpr) with
       | $tgt -> [tgt]
@@ -158,48 +157,42 @@ symbolIndices mexpr :=
 fromMonomial mexpr :=
   match mexpr as mathExpr with
     | (term $a $xs) / (term $b $ys) ->
-      ( a / b
-      , foldl mul' 1 (map 2#(power' %1 %2) xs) / foldl
-                                                   mul'
-                                                   1
-                                                   (map 2#(power' %1 %2) ys) )
+      (a / b, foldl (*') 1 (map (^') xs) / foldl (*') 1 (map (^') ys))
 
 mapPolys fn mexpr :=
   match mexpr as mathExpr with
-    | $p1 / $p2 -> div' (fn p1) (fn p2)
+    | $p1 / $p2 -> fn p1 /' fn p2
 
 fromPoly mexpr :=
   match mexpr as mathExpr with
-    | (poly $ts1) / $q -> map (\t1 -> div' t1 q) ts1
+    | (poly $ts1) / $q -> map (\t1 -> t1 /' q) ts1
 
 mapPoly fn mexpr :=
   match mexpr as mathExpr with
-    | (poly $ts1) / $q -> foldl add' 0 (map (\t1 -> fn (div' t1 q)) ts1)
+    | (poly $ts1) / $q -> foldl (+') 0 (map (\t1 -> fn (t1 /' q)) ts1)
 
 mapTerms fn mexpr :=
   match mexpr as mathExpr with
     | (poly $ts1) / (poly $ts2) ->
-      div' (foldl add' 0 (map fn ts1)) (foldl add' 0 (map fn ts2))
+      foldl (+') 0 (map fn ts1) /' foldl (+') 0 (map fn ts2)
 
 mapSymbols fn mexpr :=
   mapTerms
     (\term ->
       match term as termExpr with
         | term $a $xs ->
-          mul'
-            a
-            (foldl
-               mul'
-               1
-               (map
-                  2#(match %1 as symbolExpr with
-                    | symbol _ _ -> power' (fn %1) %2
-                    | apply $g $args ->
-                      let args' := map 1#(mapSymbols fn %1) args
-                       in if args = args'
-                            then power' %1 %2
-                            else power' (fn capply g args') %2)
-                  xs)))
+          a *' foldl
+                 (*')
+                 1
+                 (map
+                    2#(match %1 as symbolExpr with
+                      | symbol _ _ -> fn %1 ^' %2
+                      | apply $g $args ->
+                        let args' := map 1#(mapSymbols fn %1) args
+                         in if args = args'
+                              then %1 ^' %2
+                              else fn capply g args' ^' %2)
+                    xs))
     mexpr
 
 containSymbol? x mexpr :=
@@ -328,13 +321,12 @@ expandAll' mexpr :=
     | ?symbol? -> mexpr
     | apply $g $args -> capply g (map expandAll' args)
     | quote $g -> g
-    | term $a $ps ->
-      mul' a (product' (map 2#(power' (expandAll' %1) (expandAll' %2)) ps))
+    | term $a $ps -> a *' product' (map 2#(expandAll' %1 ^' expandAll' %2) ps)
     | poly $ts -> sum' (map 1#(expandAll' %1) ts)
     | $p1 / $p2 ->
       let p1' := expandAll' p1
           p2' := expandAll' p2
-       in div' p1' p2'
+       in p1' /' p2'
 
 coefficients f x :=
   let m := max
@@ -347,19 +339,17 @@ coefficient f x m :=
     then sum
            (matchAll f as mathExpr with
              | (poly (term $a !(#x :: _) & $ts) :: _) / _ ->
-               foldl mul' a (map 2#(power' %1 %2) ts)) / denominator f
+               foldl (*') a (map (^') ts)) / denominator f
     else coefficient' f x m
 
 coefficient' f x m :=
   sum
     (matchAll f as mathExpr with
       | (poly (term $a ncons #x $k $ts) :: _) / _ ->
-        if m = k
-          then foldl mul' a (map 2#(power' %1 %2) ts)
-          else 0) / denominator f
+        if m = k then foldl (*') a (map (^') ts) else 0) / denominator f
 
 coefficient2 f x y :=
   sum
     (matchAll f as mathExpr with
       | (poly (term $a #x :: #y :: $ts) :: _) / _ ->
-        foldl mul' a (map 2#(power' %1 %2) ts)) / denominator f
+        foldl (*') a (map (^') ts)) / denominator f

@@ -575,7 +575,7 @@ loopPattern =
 
     defaultEnds s =
       ApplyExpr (stringToVarExpr "from")
-                (makeApply (stringToVarExpr "sub'") [s, IntegerExpr 1])
+                (makeApply (stringToVarExpr "-'") [s, IntegerExpr 1])
 
 seqPattern :: Parser EgisonPattern
 seqPattern = do
