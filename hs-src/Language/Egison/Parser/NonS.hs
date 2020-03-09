@@ -24,8 +24,8 @@ import           Control.Monad.State            (evalStateT, get, put, StateT)
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
 import           Data.Functor                   (($>))
-import           Data.List                      (find, groupBy, insertBy)
-import           Data.Maybe                     (fromJust, isJust, isNothing)
+import           Data.List                      (groupBy, insertBy)
+import           Data.Maybe                     (isJust, isNothing)
 import           Data.Text                      (pack)
 
 import           Control.Monad.Combinators.Expr
@@ -618,7 +618,7 @@ collectionPattern = brackets $ do
   case elems of
     [] -> return $ nilPat
     _  -> return $ foldr (InfixPat consOp) nilPat elems
-      where consOp = fromJust $ find ((== "::") . repr) reservedPatternInfix
+      where consOp = findOpFrom "::" reservedPatternInfix
 
 -- (Possibly indexed) atomic pattern
 atomPattern :: Parser EgisonPattern
@@ -732,7 +732,7 @@ infixLiteral sym =
   try (do wedge   <- optional (char '!')
           opSym   <- operator' sym
           infixes <- exprInfix <$> get
-          let opInfo = fromJust $ find ((== opSym) . repr) infixes
+          let opInfo = findOpFrom opSym infixes
           return $ opInfo { isWedge = isJust wedge })
    <?> "infix"
   where
@@ -754,7 +754,7 @@ patInfixLiteral :: String -> Parser Infix
 patInfixLiteral sym =
   try (do opSym <- string sym <* notFollowedBy patOpChar <* sc
           infixes <- patternInfix <$> get
-          let opInfo = fromJust $ find ((== opSym) . repr) infixes
+          let opInfo = findOpFrom opSym infixes
           return opInfo)
 
 -- Characters that can consist expression operators.
