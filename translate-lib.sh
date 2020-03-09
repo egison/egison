@@ -23,6 +23,7 @@ do
     [ "${f}" = "lib/math/algebra/matrix.segi" ] && continue
     [ "${f}" = "lib/math/algebra/vector.segi" ] && continue
     [ "${f}" = "lib/math/algebra/tensor.segi" ] && continue
+    [ "${f}" = "lib/math/algebra/inverse.segi" ] && continue
     [ "${f}" = "lib/math/common/constants.segi" ] && continue
     [ "${f}" = "lib/math/common/functions.segi" ] && continue
     echo ${f}
