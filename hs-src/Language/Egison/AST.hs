@@ -32,12 +32,14 @@ module Language.Egison.AST
   , BinOpAssoc (..)
   , reservedExprInfix
   , reservedPatternInfix
+  , findOpFrom
   , stringToVar
   , stringToVarExpr
   ) where
 
 import           Data.Hashable   (Hashable)
-import           Data.List       (intercalate)
+import           Data.List       (find, intercalate)
+import           Data.Maybe      (fromJust)
 import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
@@ -248,6 +250,7 @@ reservedExprInfix =
   , makeInfix "*'" "*'"        7 LeftAssoc
   , makeInfix "/'" "/'"        7 LeftAssoc
   , makeInfix "."  "."         7 LeftAssoc -- tensor multiplication
+  , makeInfix ".'" ".'"        7 LeftAssoc -- tensor multiplication
   , makeInfix "%"  "remainder" 7 LeftAssoc
   , makeInfix "+"  "+"         6 LeftAssoc
   , makeInfix "-"  "-"         6 LeftAssoc
@@ -282,6 +285,9 @@ reservedPatternInfix =
   where
     makeInfix r f p a =
       Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
+
+findOpFrom :: String -> [Infix] -> Infix
+findOpFrom op table = fromJust $ find ((== op) . repr) table
 
 instance Hashable (Index ())
 instance Hashable Var
