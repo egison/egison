@@ -19,8 +19,8 @@ module Language.Egison.Parser.SExpr
        ) where
 
 import           Control.Applicative     (pure, (*>), (<$>), (<*), (<*>))
-import           Control.Monad.Except    (liftIO, throwError)
-import           Control.Monad.Identity  (Identity, unless)
+import           Control.Monad.Except    (throwError)
+import           Control.Monad.Identity  (Identity)
 
 import           Data.Char               (isLower, isUpper, toUpper)
 import           Data.Either
@@ -33,13 +33,9 @@ import qualified Data.Text               as T
 import           Text.Parsec
 import           Text.Parsec.String
 import qualified Text.Parsec.Token       as P
-import           System.Directory        (doesFileExist, getHomeDirectory)
-import           System.IO
 
 import           Language.Egison.AST
-import           Language.Egison.Desugar
 import           Language.Egison.Data
-import           Paths_egison            (getDataFileName)
 
 parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
 parseTopExprs = doParse $ do
@@ -408,8 +404,7 @@ applyExpr = do
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  annonVars m n = take n $ map ((':':) . show) [m..]
-  f [] n                   = []
+  f [] _                   = []
   f (Left _ : args) n      = PartialVarExpr n : f args (n + 1)
   f (Right expr : args) n  = expr : f args n
   g (Left arg)   = PartialVarExpr (read arg)

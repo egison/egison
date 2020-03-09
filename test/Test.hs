@@ -16,7 +16,7 @@ import           Test.HUnit
 import           Language.Egison
 import           Language.Egison.Core
 import           Language.Egison.CmdOptions
-import           Language.Egison.ParserCommon
+import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.Primitives
 import           Language.Egison.Types
