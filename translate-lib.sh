@@ -25,7 +25,7 @@ do
     [ "${f}" = "lib/math/algebra/tensor.segi" ] && continue
     [ "${f}" = "lib/math/algebra/vector.segi" ] && continue
     [ "${f}" = "lib/math/analysis/derivative.segi" ] && continue
-    # [ "${f}" = "lib/math/analysis/integral.segi" ] && continue
+    [ "${f}" = "lib/math/analysis/integral.segi" ] && continue
     # [ "${f}" = "lib/math/common/arithmetic.segi" ] && continue
     [ "${f}" = "lib/math/common/constants.segi" ] && continue
     [ "${f}" = "lib/math/common/functions.segi" ] && continue

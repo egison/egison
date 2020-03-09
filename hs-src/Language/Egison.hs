@@ -128,7 +128,7 @@ coreLibraries =
   , "nons-lib/math/algebra/equations.egi"
   , "lib/math/algebra/inverse.segi"
   , "lib/math/analysis/derivative.segi"
-  , "lib/math/analysis/integral.segi"
+  , "nons-lib/math/analysis/integral.egi"
   , "nons-lib/math/algebra/vector.egi"
   , "lib/math/algebra/matrix.segi" -- TODO: change to nons-lib
   , "lib/math/algebra/tensor.segi" -- TODO: change to nons-lib
