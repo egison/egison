@@ -338,7 +338,7 @@ desugarIndex :: Index EgisonExpr -> EgisonM (Index EgisonExpr)
 desugarIndex index = traverse desugar index
 
 desugarPattern :: EgisonPattern -> EgisonM EgisonPattern
-desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern) <$> desugarPattern' pattern
+desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern) <$> desugarPattern' (desugarPatternInfix pattern)
  where
    collectNames :: [EgisonPattern] -> Set String
    collectNames patterns = S.unions $ map collectName patterns
@@ -366,22 +366,50 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    makeBinding :: String -> BindingExpr
    makeBinding name = ([stringToVar name], HashExpr [])
 
+desugarPatternInfix :: EgisonPattern -> EgisonPattern
+desugarPatternInfix (IndexedPat pat es) = IndexedPat (desugarPatternInfix pat) es
+desugarPatternInfix (LetPat bindings pat) = LetPat bindings (desugarPatternInfix pat)
+desugarPatternInfix (InfixPat Infix{ repr = "&" } pat1 pat2) =
+  AndPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
+desugarPatternInfix (InfixPat Infix{ repr = "|" } pat1 pat2) =
+  OrPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
+desugarPatternInfix (InfixPat Infix{ repr = "^" } pat1 pat2) =
+  PowerPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
+desugarPatternInfix (InfixPat Infix{ repr = "*" } pat1 pat2) =
+  MultPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
+desugarPatternInfix (InfixPat Infix{ repr = "+" } pat1 pat2) =
+  PlusPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
+desugarPatternInfix (InfixPat Infix{ func = f } pat1 pat2) =
+  InductivePat f [desugarPatternInfix pat1, desugarPatternInfix pat2]
+desugarPatternInfix (NotPat pat) = NotPat (desugarPatternInfix pat)
+desugarPatternInfix (ForallPat pat1 pat2) =
+  ForallPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
+desugarPatternInfix (TuplePat pats) = TuplePat (map desugarPatternInfix pats)
+desugarPatternInfix (InductivePat ctor pats) =
+  InductivePat ctor (map desugarPatternInfix pats)
+desugarPatternInfix (LoopPat name range pat1 pat2) =
+  LoopPat name range (desugarPatternInfix pat1) (desugarPatternInfix pat2)
+desugarPatternInfix (PApplyPat expr pats) =
+  PApplyPat expr (map desugarPatternInfix pats)
+desugarPatternInfix (InductiveOrPApplyPat name pats) =
+  InductiveOrPApplyPat name (map desugarPatternInfix pats)
+desugarPatternInfix (SeqConsPat pat1 pat2) =
+  SeqConsPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
+desugarPatternInfix (DApplyPat pat pats) =
+  DApplyPat (desugarPatternInfix pat) (map desugarPatternInfix pats)
+desugarPatternInfix (DivPat pat1 pat2) =
+  DivPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
+desugarPatternInfix (PlusPat pats) = PlusPat (map desugarPatternInfix pats)
+desugarPatternInfix (MultPat pats) = MultPat (map desugarPatternInfix pats)
+desugarPatternInfix (PowerPat pat1 pat2) =
+  PowerPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
+desugarPatternInfix pat = pat
+
 desugarPattern' :: EgisonPattern -> EgisonM EgisonPattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
 desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
 desugarPattern' (ForallPat pattern1 pattern2) = ForallPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (InfixPat Infix{ repr = "&" } pattern1 pattern2) =
-  AndPat <$> mapM desugarPattern' [pattern1, pattern2]
-desugarPattern' (InfixPat Infix{ repr = "|" } pattern1 pattern2) =
-  OrPat <$> mapM desugarPattern' [pattern1, pattern2]
-desugarPattern' (InfixPat Infix{ repr = "^" } pattern1 pattern2) =
-  desugarPattern' (PowerPat pattern1 pattern2)
-desugarPattern' (InfixPat Infix{ repr = "*" } pattern1 pattern2) =
-  desugarPattern' (MultPat [pattern1, pattern2])
-desugarPattern' (InfixPat Infix{ repr = "+" } pattern1 pattern2) =
-  desugarPattern' (PlusPat [pattern1, pattern2])
-desugarPattern' (InfixPat Infix{ func = f } pattern1 pattern2)   = InductivePat f <$> mapM desugarPattern' [pattern1, pattern2]
 desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
 desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
 desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
@@ -398,19 +426,18 @@ desugarPattern' (DivPat pattern1 pattern2) = do
   pat2' <- desugarPattern' pattern2
   return $ InductivePat "div" [pat1', pat2']
 desugarPattern' (PlusPat patterns) = do
-  pats' <- mapM desugarPattern' (concatMap f patterns)
+  pats' <- mapM desugarPattern' (concatMap flatten patterns)
   case reverse pats' of
     [] -> return $ InductivePat "plus" [ValuePat (IntegerExpr 0)]
     lp:hps ->
       return $ InductivePat "plus" [foldr (\p acc -> InductivePat "cons" [p, acc]) lp (reverse hps)]
  where
-   f (PlusPat xs) = concatMap f xs
-   f pat          = [pat]
-desugarPattern' (MultPat (intPat:patterns)) = do
-  intPat' <- desugarPattern' intPat
-  pats' <- mapM desugarPattern' (concatMap f patterns)
+   flatten (PlusPat xs) = concatMap flatten xs
+   flatten pat          = [pat]
+desugarPattern' (MultPat patterns) = do
+  intPat:pats' <- mapM desugarPattern' (concatMap flatten patterns)
   case reverse pats' of
-    [] -> return $ InductivePat "mult" [intPat', ValuePat (IntegerExpr 1)]
+    [] -> return $ InductivePat "mult" [intPat, ValuePat (IntegerExpr 1)]
     lp:hps -> do
       let mono = foldr (\p acc -> case p of
                                     PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, acc]
@@ -419,10 +446,10 @@ desugarPattern' (MultPat (intPat:patterns)) = do
                           PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
                           _ -> lp)
                        (reverse hps)
-      return $ InductivePat "mult" [intPat', mono]
+      return $ InductivePat "mult" [intPat, mono]
  where
-   f (MultPat xs) = concatMap f xs
-   f pat          = [pat]
+   flatten (MultPat xs) = concatMap flatten xs
+   flatten pat          = [pat]
 desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' pattern = return pattern
 
