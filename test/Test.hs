@@ -30,8 +30,6 @@ testCases =
   [ "test/syntax.segi"
   , "test/lib/math/tensor.segi"
 
-  , "sexpr-sample/poker-hands.segi"
-  , "sexpr-sample/poker-hands-with-joker.segi"
   , "sexpr-sample/mahjong.segi" -- for testing pattern functions
   , "sexpr-sample/primes.segi" -- for testing pattern matching with infinitely many results
   , "sexpr-sample/sat/cdcl.segi" -- for testing a practical program using pattern matching
@@ -52,6 +50,9 @@ testCases =
   , "nons-test/test/lib/math/algebra.egi"
   , "nons-test/test/lib/math/analysis.egi"
   , "nons-test/test/lib/math/arithmetic.egi"
+
+  , "sample/poker-hands.egi"
+  , "sample/poker-hands-with-joker.egi"
 
   , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
   , "sample/math/geometry/curvature-form.egi"
