@@ -4,8 +4,13 @@ suit := algebraicDataMatcher
   | club
   | diamond
 
-card := algebraicDataMatcher
-  | card suit (mod 13)
+card := matcher
+  | card $ $ as (suit, mod 13) with
+    | Card $x $y -> [(x, y)]
+    | Joker -> matchAll ([Spade, Heart, Club, Diamnond], [1..13]) as (set something, set something) with
+               | ($s :: _, $n :: _) -> (s, n)
+  | $ as something with
+    | $tgt -> [tgt]
 
 poker cs :=
   match cs as multiset card with
@@ -28,37 +33,25 @@ poker cs :=
   | _ :: _ :: _ :: _ :: _ :: [] -> "Nothing"
 
 assertEqual "poker hand 1"
-  (poker [Card Spade 5, Card Spade 6, Card Spade 7, Card Spade 8, Card Spade 9])
+  (poker [Card Spade 5, Card Spade 6, Joker, Card Spade 8, Card Spade 9])
   "Straight flush"
 
 assertEqual "poker hand 2"
-  (poker [Card Spade 5, Card Diamond 5, Card Spade 7, Card Club 5, Card Heart 5])
+  (poker [Card Spade 5, Card Diamond 5, Card Spade 7, Joker, Card Heart 5])
   "Four of a kind"
 
 assertEqual "poker hand 3"
-  (poker [Card Spade 5, Card Diamond 5, Card Spade 7, Card Club 5, Card Heart 7])
-  "Full house"
-
-assertEqual "poker hand 4"
-  (poker [Card Spade 5, Card Spade 6, Card Spade 7, Card Spade 13, Card Spade 9])
+  (poker [Card Spade 5, Joker, Card Spade 7, Card Spade 13, Card Spade 9])
   "Flush"
 
-assertEqual "poker hand 5"
-  (poker [Card Spade 5, Card Club 6, Card Spade 7, Card Spade 8, Card Spade 9])
+assertEqual "poker hand 4"
+  (poker [Card Spade 5, Card Club 6, Joker, Card Spade 8, Card Spade 9])
   "Straight"
 
-assertEqual "poker hand 6"
-  (poker [Card Spade 5, Card Diamond 5, Card Spade 7, Card Club 5, Card Heart 8])
+assertEqual "poker hand 5"
+  (poker [Card Spade 5, Card Diamond 5, Card Spade 7, Joker, Card Heart 8])
   "Three of a kind"
 
-assertEqual "poker hand 7"
-  (poker [Card Spade 5, Card Diamond 10, Card Spade 7, Card Club 5, Card Heart 10])
-  "Two pair"
-
-assertEqual "poker hand 8"
-  (poker [Card Spade 5, Card Diamond 10, Card Spade 7, Card Club 5, Card Heart 8])
+assertEqual "poker hand 6"
+  (poker [Card Spade 5, Card Diamond 10, Card Spade 7, Joker, Card Heart 8])
   "One pair"
-
-assertEqual "poker hand 9"
-  (poker [Card Spade 5, Card Spade 6, Card Spade 7, Card Spade 8, Card Diamond 11])
-  "Nothing"
