@@ -28,16 +28,11 @@ main =
 testCases :: [FilePath]
 testCases =
   [ "test/syntax.segi"
-  , "test/lib/math/tensor.segi"
 
   , "sexpr-sample/mahjong.segi" -- for testing pattern functions
   , "sexpr-sample/primes.segi" -- for testing pattern matching with infinitely many results
   , "sexpr-sample/sat/cdcl.segi" -- for testing a practical program using pattern matching
   , "sexpr-sample/math/number/17th-root-of-unity.segi" -- for testing rewriting of mathematical expressions
---  , "sexpr-sample/math/geometry/riemann-curvature-tensor-of-S2.segi" -- for testing tensor index notation
-  , "sexpr-sample/math/geometry/riemann-curvature-tensor-of-T2.segi" -- for testing tensor index notation and math quote
---  , "sexpr-sample/math/geometry/curvature-form.segi" -- for testing differential form
---  , "sexpr-sample/math/geometry/hodge-laplacian-polar.segi" -- for testing "..." in tensor indices
 
   , "nons-test/test/syntax.egi"
   , "nons-test/test/primitive.egi"
@@ -50,12 +45,14 @@ testCases =
   , "nons-test/test/lib/math/algebra.egi"
   , "nons-test/test/lib/math/analysis.egi"
   , "nons-test/test/lib/math/arithmetic.egi"
+  , "nons-test/test/lib/math/tensor.egi"
 
   , "sample/poker-hands.egi"
   , "sample/poker-hands-with-joker.egi"
 
-  , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi"
-  , "sample/math/geometry/curvature-form.egi"
+  , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi" -- for testing tensor index notation
+  , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi" -- for testing tensor index notation and math quote
+  , "sample/math/geometry/curvature-form.egi" -- for testing differential form
   , "sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
   ]
 

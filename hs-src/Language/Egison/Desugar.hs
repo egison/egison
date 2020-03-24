@@ -286,8 +286,8 @@ desugar (SeqExpr expr0 expr1) =
 desugar (GenerateTensorExpr fnExpr sizeExpr) =
   GenerateTensorExpr <$> desugar fnExpr <*> desugar sizeExpr
 
-desugar (TensorContractExpr fnExpr tExpr) =
-  TensorContractExpr <$> desugar fnExpr <*> desugar tExpr
+desugar (TensorContractExpr tExpr) =
+  TensorContractExpr <$> desugar tExpr
 
 desugar (TensorMapExpr (LambdaExpr [x] (TensorMapExpr (LambdaExpr [y] expr) b)) a) =
   desugar (TensorMap2Expr (LambdaExpr [x, y] expr) a b)

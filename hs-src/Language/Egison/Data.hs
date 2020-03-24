@@ -35,6 +35,9 @@ module Language.Egison.Data
     , egisonToScalarData
     , extractScalar
     , extractScalar'
+    -- * Tensor
+    , tensorToWHNF
+    , tensorToValue
     -- * Internal data
     , Object (..)
     , ObjectRef
@@ -313,8 +316,16 @@ extractScalar' (Value (ScalarData x)) = return x
 extractScalar' val = throwError =<< TypeMismatch "integer or string" val <$> getFuncNameStack
 
 --
+-- Tensor
 --
---
+
+tensorToWHNF :: Tensor WHNFData -> WHNFData
+tensorToWHNF (Scalar whnf) = whnf
+tensorToWHNF t@(Tensor _ _ _) = Intermediate (ITensor t)
+
+tensorToValue :: Tensor EgisonValue -> EgisonValue
+tensorToValue (Scalar val) = val
+tensorToValue t@(Tensor _ _ _) = TensorData t
 
 -- New-syntax version of EgisonValue pretty printer.
 -- TODO(momohatt): Don't make it a show instance of EgisonValue.
@@ -503,8 +514,8 @@ instance Show WHNFData where
   show (Intermediate (IIntHash _)) = "{|...|}"
   show (Intermediate (ICharHash _)) = "{|...|}"
   show (Intermediate (IStrHash _)) = "{|...|}"
---  show (Intermediate (ITensor _)) = "[|...|]"
   show (Intermediate (ITensor (Tensor ns xs _))) = "[|" ++ show (length ns) ++ show (V.length xs) ++ "|]"
+  show (Intermediate (ITensor (Scalar _))) = "scalar"
 
 instance Show Object where
   show (Thunk _)   = "#<thunk>"
