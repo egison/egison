@@ -159,8 +159,8 @@ instance Pretty EgisonExpr where
     applyLike [pretty "generateTensor", pretty' gen, pretty' shape]
   pretty (TensorExpr e1 e2) =
     applyLike [pretty "tensor", pretty' e1, pretty' e2]
-  pretty (TensorContractExpr e1 e2) =
-    applyLike [pretty "contract", pretty' e1, pretty' e2]
+  pretty (TensorContractExpr e1) =
+    applyLike [pretty "contract", pretty' e1]
   pretty (TensorMapExpr e1 e2) =
     applyLike [pretty "tensorMap", pretty' e1, pretty' e2]
   pretty (TensorMap2Expr e1 e2 e3) =

@@ -557,17 +557,15 @@ evalExpr env (GenerateTensorExpr fnExpr shapeExpr) = do
     fn <- evalExpr env' fnExpr
     applyFunc env fn $ Value $ makeTuple ms
 
-evalExpr env (TensorContractExpr fnExpr tExpr) = do
-  fn <- evalExpr env fnExpr
+evalExpr env (TensorContractExpr tExpr) = do
   whnf <- evalExpr env tExpr
   case whnf of
     Intermediate (ITensor t@Tensor{}) -> do
       ts <- tContract t
-      tMapN (\xs -> do xs' <- mapM newEvaluatedObjectRef xs
-                       applyFunc env fn (Intermediate (ITuple xs'))) ts >>= fromTensor
+      makeICollection (map tensorToWHNF ts)
     Value (TensorData t@Tensor{}) -> do
       ts <- tContract t
-      Value <$> (tMapN (applyFunc' env fn . Tuple) ts >>= fromTensor)
+      return $ Value $ Collection $ Sq.fromList $ map tensorToValue ts
     _ -> return whnf
  where
   applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
@@ -1369,7 +1367,7 @@ fromCollection whnf@(Intermediate (ICollection _)) = do
       (head, tail) <- fromJust <$> runMaybeT (unconsCollection whnf)
       tail' <- evalRef tail
       return $ MCons head (fromCollection tail')
-fromCollection whnf = throwError =<< TypeMismatch "collection" whnf <$> getFuncNameStack
+fromCollection whnf = throwError =<< TypeMismatch "collection4" whnf <$> getFuncNameStack
 
 tupleToList :: WHNFData -> EgisonM [EgisonValue]
 tupleToList whnf = do
@@ -1397,6 +1395,12 @@ makeITuple :: [WHNFData] -> EgisonM WHNFData
 makeITuple []  = return $ Intermediate (ITuple [])
 makeITuple [x] = return x
 makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
+
+makeICollection :: [WHNFData] -> EgisonM WHNFData
+makeICollection xs  = do
+  is <- mapM (\x -> IElement <$> newEvaluatedObjectRef x) xs
+  v <- liftIO $ newIORef $ Sq.fromList is
+  return $ Intermediate $ ICollection v
 
 -- Refer the specified tensor index with potential overriding of the index.
 refTenworWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EgisonM a

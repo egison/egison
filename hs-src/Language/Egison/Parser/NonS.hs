@@ -397,7 +397,7 @@ tensorExpr :: Parser EgisonExpr
 tensorExpr =
       (reserved "tensor"         >> TensorExpr         <$> atomExpr <*> atomExpr)
   <|> (reserved "generateTensor" >> GenerateTensorExpr <$> atomExpr <*> atomExpr)
-  <|> (reserved "contract"       >> TensorContractExpr <$> atomExpr <*> atomExpr)
+  <|> (reserved "contract"       >> TensorContractExpr <$> atomExpr)
   <|> (reserved "tensorMap"      >> TensorMapExpr      <$> atomExpr <*> atomExpr)
   <|> (reserved "tensorMap2"     >> TensorMap2Expr     <$> atomExpr <*> atomExpr <*> atomExpr)
   <|> (reserved "transpose"      >> TransposeExpr      <$> atomExpr <*> atomExpr)

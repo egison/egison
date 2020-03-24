@@ -115,7 +115,7 @@ data EgisonExpr =
 
   | GenerateTensorExpr EgisonExpr EgisonExpr
   | TensorExpr EgisonExpr EgisonExpr
-  | TensorContractExpr EgisonExpr EgisonExpr
+  | TensorContractExpr EgisonExpr
   | TensorMapExpr EgisonExpr EgisonExpr
   | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
   | TransposeExpr EgisonExpr EgisonExpr

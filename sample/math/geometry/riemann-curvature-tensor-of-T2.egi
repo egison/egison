@@ -1,9 +1,9 @@
 -- Parameters
 x := [| θ, φ |]
 
-X := [| r * sin θ * cos φ -- x
-      , r * sin θ * sin φ -- y
-      , r * cos θ         -- z
+X := [| '(a * cos θ + b) * cos φ -- x
+      , '(a * cos θ + b) * sin φ -- y
+      , a * sin θ                -- z
       |]
 
 e_i_j := (∂/∂ X_j x~i)
@@ -14,30 +14,30 @@ g~i~j := M.inverse g_#_#
 
 assertEqual "Metric tensor"
   g_#_#
-  [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
+  [| [| a^2, 0 |], [| 0, '(a * cos θ + b)^2 |] |]_#_#
 assertEqual "Metric tensor"
   g~#~#
-  [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
+  [| [| 1 / a^2, 0 |], [| 0, 1 / '(a * cos θ + b)^2 |] |]~#~#
 
 -- Christoffel symbols
 Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 assertEqual "Christoffel symbols of the first kind"
   Γ_1_#_#
-  [| [| 0, 0 |], [| 0, -1 * r^2 * (sin θ) * (cos θ) |] |]_#_#
+  [| [| 0, 0 |], [| 0, '(a * cos θ + b) * a * sin θ |] |]_#_#
 assertEqual "Christoffel symbols of the first kind"
   Γ_2_#_#
-  [| [| 0, r^2 * (sin θ) * (cos θ) |], [| r^2 * (sin θ) * (cos θ), 0 |] |]_#_#
+  [| [| 0, -1 * '(a * cos θ + b) * a * sin θ |], [| -1 * '(a * cos θ + b) * a * sin θ, 0 |] |]_#_#
 
 Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
 
 assertEqual "Christoffel symbols of the second kind"
   Γ~1_#_#
-  [| [| 0, 0 |], [| 0, -1 * (sin θ) * (cos θ) |] |]_#_#
+  [| [| 0, 0 |], [| 0, '(a * cos θ + b) * sin θ / a |] |]_#_#
 assertEqual "Christoffel symbols of the second kind"
   Γ~2_#_#
-  [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
+  [| [| 0, -1 * a * sin θ / '(a * cos θ + b) |], [| -1 * a * sin θ / '(a * cos θ + b), 0 |] |]_#_#
 
 -- Riemann curvature
 R~i_j_k_l := withSymbols [m]
@@ -48,10 +48,10 @@ assertEqual "riemann curvature"
   [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 assertEqual "riemann curvature"
   R~#_#_1_2
-  [| [| 0, (sin θ)^2 |], [| -1, 0 |] |]~#_#
+  [| [| 0, '(a * cos θ + b) * cos θ / a |], [| -1 * a * cos θ / '(a * cos θ + b), 0 |] |]~#_#
 assertEqual "riemann curvature"
   R~#_#_2_1
-  [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |] |]~#_#
+  [| [| 0, -1 * '(a * cos θ + b) * cos θ / a |], [| a * cos θ / '(a * cos θ + b), 0 |] |]~#_#
 assertEqual "riemann curvature"
   R~#_#_2_2
   [| [| 0, 0 |], [| 0, 0 |] |]~#_#
@@ -66,4 +66,4 @@ scalarCurvature := withSymbols [i, j]
 
 assertEqual "scalar curvature"
   scalarCurvature
-  (2 / r^2)
+  (2 * cos θ / (a * '(a * cos θ + b)))

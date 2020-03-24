@@ -432,7 +432,8 @@ tensorExpr :: Parser EgisonExpr
 tensorExpr = keywordTensor >> TensorExpr <$> expr <*> expr
 
 tensorContractExpr :: Parser EgisonExpr
-tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr <*> expr
+tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr
+--tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr <*> expr
 
 tensorMapExpr :: Parser EgisonExpr
 tensorMapExpr = keywordTensorMap >> TensorMapExpr <$> expr <*> expr

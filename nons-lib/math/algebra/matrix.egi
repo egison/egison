@@ -24,7 +24,7 @@ M.inverse %m :=
               else - (M.det (M.join A B C D) / d))
         (tensorShape m)
 
-trace %t := withSymbols [i] contract (+) t~i_i
+trace %t := withSymbols [i] sum (contract t~i_i)
 
 matrix :=
   matcher
