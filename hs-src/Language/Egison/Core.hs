@@ -567,9 +567,6 @@ evalExpr env (TensorContractExpr tExpr) = do
       ts <- tContract t
       return $ Value $ Collection $ Sq.fromList $ map tensorToValue ts
     _ -> return whnf
- where
-  applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
-  applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
 
 evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
@@ -1367,7 +1364,7 @@ fromCollection whnf@(Intermediate (ICollection _)) = do
       (head, tail) <- fromJust <$> runMaybeT (unconsCollection whnf)
       tail' <- evalRef tail
       return $ MCons head (fromCollection tail')
-fromCollection whnf = throwError =<< TypeMismatch "collection4" whnf <$> getFuncNameStack
+fromCollection whnf = throwError =<< TypeMismatch "collection" whnf <$> getFuncNameStack
 
 tupleToList :: WHNFData -> EgisonM [EgisonValue]
 tupleToList whnf = do
