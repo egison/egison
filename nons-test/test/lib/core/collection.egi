@@ -202,13 +202,13 @@ assertEqual "take-while" (takeWhile 1#(%1 < 10) primes) [2, 3, 5, 7]
 
 assertEqual "cons" (1 :: [2, 3]) [1, 2, 3]
 
-assertEqual "car" (car [1, 2, 3]) 1
+assertEqual "head" (head [1, 2, 3]) 1
 
-assertEqual "cdr" (cdr [1, 2, 3]) [2, 3]
+assertEqual "tail" (tail [1, 2, 3]) [2, 3]
 
-assertEqual "rac" (rac [1, 2, 3]) 3
+assertEqual "last" (last [1, 2, 3]) 3
 
-assertEqual "rdc" (rdc [1, 2, 3]) [1, 2]
+assertEqual "init" (init [1, 2, 3]) [1, 2]
 
 assertEqual "length" (length [1, 2, 3]) 3
 

@@ -41,7 +41,7 @@ odds := 1 :: map 1#(%1 + 2) odds
 
 evens := 2 :: map 1#(%1 + 2) evens
 
-fibs := [1, 1] ++ map2 (+) fibs (cdr fibs)
+fibs := [1, 1] ++ map2 (+) fibs (tail fibs)
 
 prime? :=
   \match as integer with

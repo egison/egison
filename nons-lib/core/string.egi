@@ -42,15 +42,15 @@ S.empty? xs := xs = ""
 
 S.cons x xs := appendString (pack [x]) xs
 
-S.car xs :=
+S.head xs :=
   match xs as string with
     | $x :: _ -> x
 
-S.cdr xs :=
+S.tail xs :=
   match xs as string with
     | _ :: $r -> r
 
-S.rac str :=
+S.last str :=
   match str as string with
     | _ ++ $c :: [] -> c
 

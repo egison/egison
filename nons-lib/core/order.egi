@@ -27,13 +27,13 @@ b.min x y := if x < y then x else y
 
 b.max x y := if x > y then x else y
 
-min/fn f xs := foldl 2#(if f %1 %2 = Less then %1 else %2) (car xs) (cdr xs)
+min/fn f xs := foldl1 2#(if f %1 %2 = Less then %1 else %2) xs
 
-max/fn f xs := foldl 2#(if f %1 %2 = Greater then %1 else %2) (car xs) (cdr xs)
+max/fn f xs := foldl1 2#(if f %1 %2 = Greater then %1 else %2) xs
 
-min xs := foldl b.min (car xs) (cdr xs)
+min xs := foldl1 b.min xs
 
-max xs := foldl b.max (car xs) (cdr xs)
+max xs := foldl1 b.max xs
 
 splitByOrdering := 2#(splitByOrdering/fn compare %1 %2)
 
@@ -77,7 +77,7 @@ merge/fn f xs ys :=
     | (_, $y :: $tys) -> y :: merge xs tys
 
 minimize f xs :=
-  foldl 2#(if compare (f %1) (f %2) = Less then %1 else %2) (car xs) (cdr xs)
+  foldl1 2#(if compare (f %1) (f %2) = Less then %1 else %2) xs
 
 maximize f xs :=
-  foldl 2#(if compare (f %1) (f %2) = Greater then %1 else %2) (car xs) (cdr xs)
+  foldl1 2#(if compare (f %1) (f %2) = Greater then %1 else %2) xs

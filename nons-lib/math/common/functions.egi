@@ -80,7 +80,7 @@ sinc x :=
 
 sigmoid z := 1 / (1 + exp (- z))
 
-kroneckerDelta := cambda js -> if all 1#(%1 = car js) (cdr js) then 1 else 0
+kroneckerDelta := cambda js -> if all 1#(%1 = head js) (tail js) then 1 else 0
 
 eulerTotientFunction n := n * product (map (\p -> 1 - 1 / p) (unique (pF n)))
 

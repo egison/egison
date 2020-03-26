@@ -30,11 +30,11 @@ assertEqual "S.empty? - case 1" (S.empty? "") True
 
 assertEqual "S.empty? - case 2" (S.empty? "Egison") False
 
-assertEqual "S.car" (S.car "Egison") 'E'
+assertEqual "S.head" (S.head "Egison") 'E'
 
-assertEqual "S.cdr" (S.cdr "Egison") "gison"
+assertEqual "S.tail" (S.tail "Egison") "gison"
 
-assertEqual "S.rac" (S.rac "Egison") 'n'
+assertEqual "S.last" (S.last "Egison") 'n'
 
 assertEqual "S.map" (S.map id "Egison") "Egison"
 
