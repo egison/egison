@@ -29,10 +29,10 @@ testCases :: [FilePath]
 testCases =
   [ "test/syntax.segi"
 
+  -- TODO: translate these tests into new syntax
   , "sexpr-sample/mahjong.segi" -- for testing pattern functions
   , "sexpr-sample/primes.segi" -- for testing pattern matching with infinitely many results
   , "sexpr-sample/sat/cdcl.segi" -- for testing a practical program using pattern matching
-  , "sexpr-sample/math/number/17th-root-of-unity.segi" -- for testing rewriting of mathematical expressions
 
   , "nons-test/test/syntax.egi"
   , "nons-test/test/primitive.egi"
@@ -54,6 +54,7 @@ testCases =
   , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi" -- for testing tensor index notation and math quote
   , "sample/math/geometry/curvature-form.egi" -- for testing differential form
   , "sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
+  , "sample/math/number/17th-root-of-unity.egi" -- for testing rewriting of mathematical expressions
   ]
 
 runTestCase :: FilePath -> Test

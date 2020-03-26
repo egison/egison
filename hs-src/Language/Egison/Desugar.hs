@@ -255,7 +255,7 @@ desugar (BinaryOpExpr op expr1 expr2) =
 -- section
 --
 -- If `op` is not a cambda, simply desugar it into the function
-desugar (SectionExpr op Nothing Nothing) | repr op `notElem` reservedCambdaInfix =
+desugar (SectionExpr op Nothing Nothing) | not (isWedge op) =
   desugar (stringToVarExpr (func op))
 desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
