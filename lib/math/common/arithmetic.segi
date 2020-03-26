@@ -11,22 +11,17 @@
 (define $*' (cambda $xs (foldl1 b.* xs)))
 (define $/' b./)
 
-(define $f.+' (cambda $xs (foldl1 f.+ xs)))
-(define $f.-' (cambda $xs (foldl1 f.- xs)))
-(define $f.*' (cambda $xs (foldl1 f.* xs)))
-(define $f./' f./)
-
 (define $+
-  (cambda $xs (if (capply or (map float? xs))
-                  (capply f.+' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+  (cambda $xs (if (any float? xs)
+                  (foldl1 f.+ (map (lambda [$x] (if (float? x) x (itof x))) xs))
                   (math-normalize1 (capply +' xs)))))
 (define $-
-  (cambda $xs (if (capply or (map float? xs))
-                  (capply f.-' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+  (cambda $xs (if (any float? xs)
+                  (foldl1 f.- (map (lambda [$x] (if (float? x) x (itof x))) xs))
                   (math-normalize1 (capply -' xs)))))
 (define $*
-  (cambda $xs (if (capply or (map float? xs))
-                  (capply f.*' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+  (cambda $xs (if (any float? xs)
+                  (foldl1 f.* (map (lambda [$x] (if (float? x) x (itof x))) xs))
                   (math-normalize1 (capply *' xs)))))
 (define $/
   (lambda [$x $y]
@@ -42,9 +37,7 @@
 
 (define $sum
   (lambda [$xs]
-    (if (empty? xs)
-      0
-      (capply + xs))))
+    (foldl + 0 xs)))
 
 (define $sum'
   (lambda [$xs]
@@ -52,9 +45,7 @@
 
 (define $product
   (lambda [$xs]
-    (if (empty? xs)
-      1
-      (capply * xs))))
+    (foldl * 1 xs)))
 
 (define $product'
   (lambda [$xs]

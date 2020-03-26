@@ -28,7 +28,7 @@
        in if monomial? g'
             then g'
             else let d := capply gcd (fromPoly g')
-                  in d *' '(mapPoly 1#(%1 /' d) g')
+                  in d *' '(mapPoly (/' d) g')
     -- term (constant)
     | #0 -> 0
     | _ * #1 -> 0

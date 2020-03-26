@@ -97,6 +97,12 @@ instance SyntaxElement EgisonExpr where
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
   toNonS (SeqExpr e1 e2) = SeqExpr (toNonS e1) (toNonS e2)
+  toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys))) | prettyS f == "and" =
+    foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+      where op = fromJust $ find (\op -> repr op == "&&") reservedExprInfix
+  toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys))) | prettyS f == "or" =
+    foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+      where op = fromJust $ find (\op -> repr op == "||") reservedExprInfix
   toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys)))
     | any (\op -> func op == prettyS f) reservedExprInfix =
       optimize $ foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
@@ -112,10 +118,13 @@ instance SyntaxElement EgisonExpr where
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
   toNonS (CApplyExpr e1 e2) = CApplyExpr (toNonS e1) (toNonS e2)
   toNonS (PartialExpr n e) =
-    -- SectionExpr with only one argument omitted is hard to detect correctly.
     case PartialExpr n (toNonS e) of
       PartialExpr 2 (BinaryOpExpr op (PartialVarExpr 1) (PartialVarExpr 2)) ->
         SectionExpr op Nothing Nothing
+      PartialExpr 1 (BinaryOpExpr op e (PartialVarExpr 1)) ->
+        SectionExpr op (Just (toNonS e)) Nothing
+      PartialExpr 1 (BinaryOpExpr op (PartialVarExpr 1) e) ->
+        SectionExpr op Nothing (Just (toNonS e))
       e' -> e'
 
   toNonS (GenerateTensorExpr e1 e2) = GenerateTensorExpr (toNonS e1) (toNonS e2)
