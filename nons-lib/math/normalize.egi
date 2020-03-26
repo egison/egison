@@ -41,7 +41,7 @@ rewriteRuleForWPoly := 1#(mapPolys rewriteRuleForWPoly' %1)
 
 rewriteRuleForWTerm' term :=
   match term as mathExpr with
-    | $a * #w ^ (?1#(%1 >= 3) & $k) * $r -> a *' r *' w ^' (k % 3)
+    | $a * #w ^ (?(>= 3) & $k) * $r -> a *' r *' w ^' (k % 3)
     | _ -> term
 
 rewriteRuleForWPoly' poly :=
@@ -88,7 +88,7 @@ rewriteRuleForRt := 1#(mapTerms rewriteRuleForRtTerm %1)
 
 rewriteRuleForRtTerm term :=
   match term as mathExpr with
-    | $a * #`rt $n $x ^ (?1#(%1 >= n) & $k) * $r ->
+    | $a * #`rt $n $x ^ (?(>= n) & $k) * $r ->
       a *' x ^' quotient k n *' rt n x ^' (k % n) *' r
     | _ -> term
 
@@ -96,7 +96,7 @@ rewriteRuleForExp := 1#(mapTerms rewriteRuleForExpTerm %1)
 
 rewriteRuleForExpTerm term :=
   match term as mathExpr with
-    | $a * #`exp $x ^ (?1#(%1 >= 2) & $n) * $r ->
+    | $a * #`exp $x ^ (?(>= 2) & $n) * $r ->
       rewriteRuleForExp (a *' exp (x * n) *' r)
     | $a * #`exp $x * #`exp $y * $r -> rewriteRuleForExp (a *' exp (x + y) *' r)
     | _ -> term
@@ -106,7 +106,7 @@ rewriteRuleForPower := 1#(mapTerms rewriteRuleForPowerTerm %1)
 rewriteRuleForPowerTerm term :=
   match term as mathExpr with
     | $a * #`(^) #1 _ ^ _ * $r -> rewriteRuleForPower (a *' r)
-    | $a * #`(^) $x $y ^ (?1#(%1 >= 2) & $n) * $r ->
+    | $a * #`(^) $x $y ^ (?(>= 2) & $n) * $r ->
       rewriteRuleForPower (a *' x ^ (y * n) *' r)
     | $a * #`(^) $x $y * #`(^) #x $z * $r ->
       rewriteRuleForPower (a *' x ^ (y + z) *' r)

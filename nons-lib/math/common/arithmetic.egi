@@ -84,7 +84,7 @@ b.gcd' x y :=
   match (x, y) as (integer, integer) with
     | (_, #0) -> x
     | (#0, _) -> y
-    | (_, ?1#(%1 >= x)) -> b.gcd' (modulo y x) x
+    | (_, ?(>= x)) -> b.gcd' (modulo y x) x
     | (_, _) -> b.gcd' y x
 
 P./ fx gx x :=

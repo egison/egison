@@ -310,7 +310,7 @@ expandAll mexpr :=
     | apply $g $args -> capply g (map expandAll args)
     | quote $g -> g
     | term $a $ps -> a * product (map 2#(expandAll %1 ^ expandAll %2) ps)
-    | poly $ts -> sum (map 1#(expandAll %1) ts)
+    | poly $ts -> sum (map expandAll ts)
     | $p1 / $p2 ->
       let p1' := expandAll p1
           p2' := expandAll p2
@@ -322,7 +322,7 @@ expandAll' mexpr :=
     | apply $g $args -> capply g (map expandAll' args)
     | quote $g -> g
     | term $a $ps -> a *' product' (map 2#(expandAll' %1 ^' expandAll' %2) ps)
-    | poly $ts -> sum' (map 1#(expandAll' %1) ts)
+    | poly $ts -> sum' (map expandAll' ts)
     | $p1 / $p2 ->
       let p1' := expandAll' p1
           p2' := expandAll' p2
