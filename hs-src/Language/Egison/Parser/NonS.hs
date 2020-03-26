@@ -163,13 +163,13 @@ defineOrTestExpr = do
     convertToDefine :: EgisonExpr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
     convertToDefine (SectionExpr op Nothing Nothing) =
-      return $ Variable (stringToVar (repr op))
+      return $ Variable (stringToVar (func op))
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
       args' <- mapM ((ScalarArg <$>) . exprToStr) args
       return $ Function var args'
     convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) (TupleExpr [x, y])) = do
       args <- mapM ((ScalarArg <$>) . exprToStr) [x, y]
-      return $ Function (stringToVar (repr op)) args
+      return $ Function (stringToVar (func op)) args
     convertToDefine e@(BinaryOpExpr op _ _)
       | repr op == "*" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
@@ -190,7 +190,7 @@ defineOrTestExpr = do
     exprToArgs (VarExpr v) = return [ScalarArg (show v)]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((ScalarArg <$>) . exprToStr) args
-    exprToArgs (SectionExpr op Nothing Nothing) = return [ScalarArg (repr op)]
+    exprToArgs (SectionExpr op Nothing Nothing) = return [ScalarArg (func op)]
     exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
@@ -616,11 +616,10 @@ applyOrAtomPattern = (do
 collectionPattern :: Parser EgisonPattern
 collectionPattern = brackets $ do
   elems <- sepBy pattern comma
-  let nilPat = InductivePat "nil" []
-  case elems of
-    [] -> return $ nilPat
-    _  -> return $ foldr (InfixPat consOp) nilPat elems
-      where consOp = findOpFrom "::" reservedPatternInfix
+  return $ foldr (InfixPat consOp) nilPat elems
+    where
+      nilPat = InductivePat "nil" []
+      consOp = findOpFrom "::" reservedPatternInfix
 
 -- (Possibly indexed) atomic pattern
 atomPattern :: Parser EgisonPattern
@@ -670,20 +669,29 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
          <|> makeTupleOrParen ppPattern PPTuplePat
 
 pdPattern :: Parser PrimitiveDataPattern
-pdPattern = PDInductivePat <$> upperId <*> many pdAtom
-        <|> PDSnocPat <$> (symbol "snoc" >> pdAtom) <*> pdAtom
-        <|> makeExprParser pdAtom table
+pdPattern = makeExprParser pdApplyOrAtom table
         <?> "primitive data pattern"
   where
     table :: [[Operator Parser PrimitiveDataPattern]]
     table =
       [ [ InfixR (PDConsPat <$ symbol "::") ]
       ]
+
+    pdApplyOrAtom :: Parser PrimitiveDataPattern
+    pdApplyOrAtom = PDInductivePat <$> upperId <*> many pdAtom
+                <|> PDSnocPat <$> (symbol "snoc" >> pdAtom) <*> pdAtom
+                <|> pdAtom
+
+    pdCollection :: Parser PrimitiveDataPattern
+    pdCollection = do
+      elts <- brackets (sepBy pdPattern comma)
+      return (foldr PDConsPat PDEmptyPat elts)
+
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard    <$ symbol "_"
          <|> PDPatVar      <$> (char '$' >> ident)
          <|> PDConstantPat <$> constantExpr
-         <|> PDEmptyPat    <$ (symbol "[" >> symbol "]")
+         <|> pdCollection
          <|> makeTupleOrParen pdPattern PDTuplePat
 
 --

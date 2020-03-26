@@ -37,9 +37,9 @@ nats :=
 
 nats0 := 0 :: nats
 
-odds := 1 :: map 1#(%1 + 2) odds
+odds := 1 :: map (+ 2) odds
 
-evens := 2 :: map 1#(%1 + 2) evens
+evens := 2 :: map (+ 2) evens
 
 fibs := [1, 1] ++ map2 (+) fibs (tail fibs)
 

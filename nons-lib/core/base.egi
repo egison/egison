@@ -43,12 +43,11 @@ eq?/m a x y :=
 -- Boolean
 --
 
-and := cambda bs -> foldl b.and True bs
-or  := cambda bs -> foldl b.or False bs
+and := cambda bs -> foldl (&&) True bs
+or  := cambda bs -> foldl (||) False bs
 
-b.and b1 b2 := if b1 then b2 else False
-
-b.or b1 b2 := if b1 then True else b2
+(&&) b1 b2 := if b1 then b2 else False
+(||) b1 b2 := if b1 then True else b2
 
 not b :=
   match b as bool with
