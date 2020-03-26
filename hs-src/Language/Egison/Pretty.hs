@@ -140,6 +140,8 @@ instance Pretty EgisonExpr where
        else pretty'' x <+> pretty op <+> pretty y
   pretty (BinaryOpExpr op x y) = pretty'' x <+> pretty op <+> pretty'' y
   pretty (SectionExpr op Nothing Nothing) = parens (pretty op)
+  pretty (SectionExpr op (Just x) Nothing) = parens (pretty x <+> pretty op)
+  pretty (SectionExpr op Nothing (Just x)) = parens (pretty op <+> pretty x)
 
   pretty (DoExpr [] y) = pretty "do" <+> pretty y
   pretty (DoExpr xs (ApplyExpr (VarExpr (Var ["return"] [])) (TupleExpr []))) =
