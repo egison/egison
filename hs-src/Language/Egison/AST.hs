@@ -272,7 +272,7 @@ reservedExprInfix =
       Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
 reservedCambdaInfix :: [String]
-reservedCambdaInfix = ["+", "-", "*", "+'", "-'", "*'"]
+reservedCambdaInfix = ["+", "-", "*"]
 
 reservedPatternInfix :: [Infix]
 reservedPatternInfix =

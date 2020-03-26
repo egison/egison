@@ -37,9 +37,7 @@
 
 (define $sum
   (lambda [$xs]
-    (if (empty? xs)
-      0
-      (capply + xs))))
+    (foldl + 0 xs)))
 
 (define $sum'
   (lambda [$xs]
@@ -47,9 +45,7 @@
 
 (define $product
   (lambda [$xs]
-    (if (empty? xs)
-      1
-      (capply * xs))))
+    (foldl * 1 xs)))
 
 (define $product'
   (lambda [$xs]
