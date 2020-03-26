@@ -31,6 +31,7 @@ module Language.Egison.AST
   , Infix (..)
   , BinOpAssoc (..)
   , reservedExprInfix
+  , reservedCambdaInfix
   , reservedPatternInfix
   , findOpFrom
   , stringToVar
@@ -269,6 +270,9 @@ reservedExprInfix =
   where
     makeInfix r f p a =
       Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
+
+reservedCambdaInfix :: [String]
+reservedCambdaInfix = ["+", "-", "*", "+'", "-'", "*'"]
 
 reservedPatternInfix :: [Infix]
 reservedPatternInfix =
