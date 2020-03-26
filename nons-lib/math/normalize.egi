@@ -143,27 +143,23 @@ rewriteRuleForCosAndSin := 1#(mapPolys rewriteRuleForCosAndSinPoly %1)
 rewriteRuleForCosAndSinExpr expr :=
   match (expr, expr) as (mathExpr, mathExpr) with
     | ( ($a * #`cos $x * $mr + $pr1) / $pr2
-      , (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _ | _ / (_ * (#`cos
-                                                                          #(x / 2) | #`sin
-                                                                                       #(x / 2)) * _ + _) ) ->
+      , ( _ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _
+        | _ / (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) ) ->
       rewriteRuleForCosAndSinExpr
         ((a *' (cos (x / 2) ^ 2 -' sin (x / 2) ^ 2) *' mr +' pr1) /' pr2)
     | ( ($a * #`sin $x * $mr + $pr1) / $pr2
-      , (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _ | _ / (_ * (#`cos
-                                                                          #(x / 2) | #`sin
-                                                                                       #(x / 2)) * _ + _) ) ->
+      , ( _ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _
+        | _ / (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) ) ->
       rewriteRuleForCosAndSinExpr
         ((a *' 2 *' cos (x / 2) *' sin (x / 2) *' mr +' pr1) /' pr2)
     | ( $pr2 / ($a * #`cos $x * $mr + $pr1)
-      , (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _ | _ / (_ * (#`cos
-                                                                          #(x / 2) | #`sin
-                                                                                       #(x / 2)) * _ + _) ) ->
+      , ( _ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _
+        | _ / (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) ) ->
       rewriteRuleForCosAndSinExpr
         (pr2 /' (a *' (cos (x / 2) ^ 2 -' sin (x / 2) ^ 2) *' mr +' pr1))
     | ( $pr2 / ($a * #`sin $x * $mr + $pr1)
-      , (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _ | _ / (_ * (#`cos
-                                                                          #(x / 2) | #`sin
-                                                                                       #(x / 2)) * _ + _) ) ->
+      , ( _ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) / _
+        | _ / (_ * (#`cos #(x / 2) | #`sin #(x / 2)) * _ + _) ) ->
       rewriteRuleForCosAndSinExpr
         (pr2 /' (a *' 2 *' cos (x / 2) *' sin (x / 2) *' mr +' pr1))
     | _ -> expr
@@ -203,10 +199,7 @@ rewriteRuleForD/d := 1#(mapPolys rewriteRuleForD/dPoly %1)
 
 rewriteRuleForD/dPoly poly :=
   match poly as mathExpr with
-    | $a * ($f & (func $g _ $arg $js)) ^ $n * $mr + $b * (func #g _ #arg ?1#(eq?/m
-                                                                               (multiset
-                                                                                  something)
-                                                                               js
-                                                                               %1)) ^ #n * #mr + $pr ->
+    | $a * ($f & (func $g _ $arg $js)) ^ $n * $mr +
+        $b * func #g _ #arg ?1#(eq?/m (multiset something) js %1) ^ #n * #mr + $pr ->
       rewriteRuleForD/dPoly ((a + b) *' f ^ n *' mr +' pr)
     | _ -> poly

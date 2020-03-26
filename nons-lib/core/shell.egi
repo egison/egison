@@ -36,7 +36,7 @@ TSV.readLine sopts copts :=
                         fnC opts' (hs ++ [S.concat ["{", mf, "}"]])
                       | ( ($m :: []) :: $opts'
                         , ($hs & ?(\hs ->
-                          m - 1 = length hs)) ++ $mf :: (snoc $tf $ms) ) ->
+                          m - 1 = length hs)) ++ $mf :: snoc $tf $ms ) ->
                         fnC
                           opts'
                           (hs ++ S.append "{" mf :: ms ++ [S.append tf "}"])
