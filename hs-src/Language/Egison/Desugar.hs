@@ -253,6 +253,10 @@ desugar (BinaryOpExpr op expr1 expr2) =
   (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 -- section
+--
+-- If `op` is not a cambda, simply desugar it into the function
+desugar (SectionExpr op Nothing Nothing) | repr op `notElem` reservedCambdaInfix =
+  desugar (stringToVarExpr (func op))
 desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
   y <- fresh
