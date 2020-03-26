@@ -101,7 +101,7 @@ multExpr :=
         match tgt as mathExpr with
           | term _ $xs ->
             matchAll xs as list (mathExpr, integer) with
-              | $hs ++ ($x, ?1#(%1 >= k) & $n) :: $ts ->
+              | $hs ++ ($x, ?(>= k) & $n) :: $ts ->
                 (x, product' (map (^') (hs ++ (x, n - k) :: ts)))
           | _ -> []
     | ncons $ $ $ as (mathExpr, integer, multExpr) with

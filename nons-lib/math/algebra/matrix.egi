@@ -68,9 +68,9 @@ M.join %A %B %C %D :=
       n2 := max [b2, d2]
    in generateTensor
         2#(match (%1, %2) as (integer, integer) with
-          | (?1#(%1 <= a1), ?1#(%1 <= a2)) -> A_%1_%2
-          | (?1#(%1 <= m1), _) -> B_%1_(%2 - a2)
-          | (_, ?1#(%1 <= m2)) -> C_(%1 - a1)_%2
+          | (?(<= a1), ?(<= a2)) -> A_%1_%2
+          | (?(<= m1), _) -> B_%1_(%2 - a2)
+          | (_, ?(<= m2)) -> C_(%1 - a1)_%2
           | (_, _) -> D_(%1 - m1)_(%2 - m2))
         [m1 + n1, m2 + n2]
 
@@ -92,8 +92,8 @@ evenAndOddPermutations' n :=
     | #2 -> ([[1, 2]], [[2, 1]])
     | _ ->
       let (es, os) := evenAndOddPermutations' (n - 1)
-          es' := map 1#(%1 ++ [n]) es
-          os' := map 1#(%1 ++ [n]) os
+          es' := map (++ [n]) es
+          os' := map (++ [n]) os
        in ( es' ++ concat
                      (map
                         (\i -> map 1#(permutate i n %1) os')
