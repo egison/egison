@@ -14,30 +14,33 @@ toMathExpr arg := mathNormalize1 (toMathExpr' arg)
 
 (/') := b./
 
-(+) :=
-  cambda xs ->
-    if any float? xs
-      then foldl1 f.+ (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 (foldl1 (+') xs)
+(+) x y :=
+  match (float? x, float? y) as eq with
+    | #(True, True)  -> f.+ x y
+    | #(True, False) -> f.+ x (itof y)
+    | #(False, True) -> f.+ (itof x) y
+    | _              -> mathNormalize1 (x +' y)
 
-(-) :=
-  cambda xs ->
-    if any float? xs
-      then foldl1 f.- (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 (foldl1 (-') xs)
+(-) x y :=
+  match (float? x, float? y) as eq with
+    | #(True, True)  -> f.- x y
+    | #(True, False) -> f.- x (itof y)
+    | #(False, True) -> f.- (itof x) y
+    | _              -> mathNormalize1 (x -' y)
 
-(*) :=
-  cambda xs ->
-    if any float? xs
-      then foldl1 f.* (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 (foldl1 (*') xs)
+(*) x y :=
+  match (float? x, float? y) as eq with
+    | #(True, True)  -> f.* x y
+    | #(True, False) -> f.* x (itof y)
+    | #(False, True) -> f.* (itof x) y
+    | _              -> mathNormalize1 (x *' y)
 
 (/) x y :=
-  if float? x && float? y
-    then f./ x y
-    else if float? x
-      then f./ x (itof y)
-      else if float? y then f./ (itof x) y else b./ x y
+  match (float? x, float? y) as eq with
+    | #(True, True)  -> f./ x y
+    | #(True, False) -> f./ x (itof y)
+    | #(False, True) -> f./ (itof x) y
+    | _              -> x /' y
 
 reduceFraction := id
 
