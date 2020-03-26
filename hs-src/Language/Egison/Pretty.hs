@@ -229,7 +229,7 @@ instance Pretty EgisonPattern where
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
        then pretty'' p1 <+> pretty (repr op) <+> parens (pretty p2)
        else pretty'' p1 <+> pretty (repr op) <+> pretty p2
-  pretty (InfixPat op p1 p2) = pretty' p1 <+> pretty (repr op) <+> pretty' p2
+  pretty (InfixPat op p1 p2) = pretty'' p1 <+> pretty (repr op) <+> pretty'' p2
   pretty (NotPat pat) = pretty "!" <> pretty' pat
   pretty (TuplePat pats) = tupled $ map pretty pats
   pretty (InductivePat "nil" []) = pretty "[]"
@@ -329,9 +329,12 @@ instance Complex EgisonPattern where
   isAtom (InductivePat _ _)  = False
   isAtom (InfixPat _ _ _)    = False
   isAtom (LoopPat _ _ _ _)   = False
+  isAtom (PApplyPat _ [])    = True
+  isAtom (PApplyPat _ _)     = False
   isAtom _                   = True
 
   isAtomOrApp PApplyPat{} = True
+  isAtomOrApp InductivePat{} = True
   isAtomOrApp e           = isAtom e
 
   isInfix (InfixPat _ _ _)   = True
