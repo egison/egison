@@ -15,36 +15,30 @@ mathExpr' :=
       | Div $p1 $p2 -> [(toMathExpr' p1, toMathExpr' p2)]
       | _ -> []
     | poly $ as (multiset mathExpr) with
-      | Div (Plus $ts) (Plus (Term 1 [] :: [])) -> [map toMathExpr' ts]
+      | Div (Plus $ts) (Plus [Term 1 []]) -> [map toMathExpr' ts]
       | _ -> []
     | plus $ as (plusExpr) with
-      | Div (Plus $ts) (Plus (Term 1 [] :: [])) ->
+      | Div (Plus $ts) (Plus [Term 1 []]) ->
         [toMathExpr' (Div (Plus ts) (Plus [Term 1 []]))]
       | _ -> []
     | term $ $ as (integer, assocMultiset mathExpr) with
-      | Div (Plus (Term $n $xs :: [])) (Plus (Term 1 [] :: [])) ->
+      | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
         [(n, map 2#(toMathExpr' %1, %2) xs)]
       | _ -> []
     | mult $ $ as (integer, multExpr) with
-      | Div (Plus (Term $n $xs :: [])) (Plus (Term 1 [] :: [])) ->
+      | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
         [(n, product' (map 2#(toMathExpr' %1 ^' %2) xs))]
       | _ -> []
     | symbol $ $ as (eq, list indexExpr) with
-      | Div
-          (Plus (Term 1 ((Symbol $v $js, 1) :: []) :: []))
-          (Plus (Term 1 [] :: [])) ->
+      | Div (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
         [(v, js)]
       | _ -> []
     | apply $ $ as (eq, list mathExpr) with
-      | Div
-          (Plus (Term 1 ((Apply $v $mexprs, 1) :: []) :: []))
-          (Plus (Term 1 [] :: [])) ->
+      | Div (Plus [Term 1 [(Apply $v $mexprs, 1)]]) (Plus [Term 1 []]) ->
         [(v, map toMathExpr' mexprs)]
       | _ -> []
     | quote $ as (mathExpr) with
-      | Div
-          (Plus (Term 1 ((Quote $mexpr, 1) :: []) :: []))
-          (Plus (Term 1 [] :: [])) ->
+      | Div (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
         [toMathExpr' mexpr]
       | _ -> []
     | func $ $ $ $ as ( mathExpr
@@ -52,8 +46,8 @@ mathExpr' :=
       , list mathExpr
       , list indexExpr ) with
       | Div
-          (Plus (Term 1 ((Function $name $argnames $args $js, 1) :: []) :: []))
-          (Plus (Term 1 [] :: [])) ->
+          (Plus [Term 1 [(Function $name $argnames $args $js, 1)]])
+          (Plus [Term 1 []]) ->
         [(name, argnames, args, js)]
       | _ -> []
     | $ as (something) with
