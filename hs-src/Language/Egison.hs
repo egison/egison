@@ -119,9 +119,9 @@ initialEnv opts = do
 
 coreLibraries :: [String]
 coreLibraries =
-  [ "lib/math/expression.segi"
-  , "lib/math/normalize.segi"
-  , "lib/math/common/arithmetic.segi"
+  [ "nons-lib/math/expression.egi"
+  , "nons-lib/math/normalize.egi"
+  , "nons-lib/math/common/arithmetic.egi"
   , "nons-lib/math/common/constants.egi"
   , "nons-lib/math/common/functions.egi"
   , "nons-lib/math/algebra/root.egi"
