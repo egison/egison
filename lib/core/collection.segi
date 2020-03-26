@@ -247,6 +247,10 @@
         (let {[$z (fn init x)]}
           (seq z (foldl fn z xs)))]})))
 
+(define $foldl1
+  (lambda [$fn %ls]
+    (foldl fn (car ls) (cdr ls))))
+
 (define $reduce
   (lambda [$fn %ls]
     (foldl fn (car ls) (cdr ls))))

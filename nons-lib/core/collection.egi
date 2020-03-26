@@ -121,23 +121,23 @@ dropWhile pred xs :=
     | $x :: $rs -> if pred x then dropWhile pred rs else xs
 
 --
--- cons, car, cdr
+-- cons, head, tail
 --
 cons x xs := x :: xs
 
-car xs :=
+head xs :=
   match xs as list something with
     | $x :: _ -> x
 
-cdr xs :=
+tail xs :=
   match xs as list something with
     | _ :: $ys -> ys
 
-rac xs :=
+last xs :=
   match xs as list something with
     | snoc $x _ -> x
 
-rdc xs :=
+init xs :=
   match xs as list something with
     | snoc _ $ys -> ys
 
@@ -201,7 +201,9 @@ foldl fn %init %ls :=
       let z := fn init x
        in seq z (foldl fn z xs)
 
-reduce fn %ls := foldl fn (car ls) (cdr ls)
+foldl1 fn %ls := foldl fn (head ls) (tail ls)
+
+reduce fn %ls := foldl fn (head ls) (tail ls)
 
 scanl fn %init %ls :=
   init :: (match ls as list something with
@@ -253,7 +255,7 @@ split/m a sep ls :=
     | _ -> [ls]
 
 findCycle xs :=
-  car
+  head
     (matchAll xs as list something with
       | $ys ++ (_ :: _ & $cs) ++ #cs ++ _ -> (ys, cs))
 

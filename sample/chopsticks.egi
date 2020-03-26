@@ -121,7 +121,7 @@ paths :=
       (node $x_(n + 1) [])
   -> map (\i -> x_i) [1..(n + 1)]
 
---io (each (compose show print) (car paths))
+--io (each (compose show print) (head paths))
 
 winningRec s :=
   matchAll makeTree s as tree state with

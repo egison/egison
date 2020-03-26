@@ -4,19 +4,19 @@
 
 toMathExpr arg := mathNormalize1 (toMathExpr' arg)
 
-+' := cambda xs -> foldl b.+ (car xs) (cdr xs)
++' := cambda xs -> foldl1 b.+ xs
 
--' := cambda xs -> foldl b.- (car xs) (cdr xs)
+-' := cambda xs -> foldl1 b.- xs
 
-*' := cambda xs -> foldl b.* (car xs) (cdr xs)
+*' := cambda xs -> foldl1 b.* xs
 
 /' := b./
 
-f.+' := cambda xs -> foldl f.+ (car xs) (cdr xs)
+f.+' := cambda xs -> foldl1 f.+ xs
 
-f.-' := cambda xs -> foldl f.- (car xs) (cdr xs)
+f.-' := cambda xs -> foldl1 f.- xs
 
-f.*' := cambda xs -> foldl f.* (car xs) (cdr xs)
+f.*' := cambda xs -> foldl1 f.* xs
 
 f./' := f./
 
@@ -77,9 +77,9 @@ power' x n := foldl (*') 1 (take n (repeat1 x))
         else 1 /' x ^' neg n
       else `(^) x n
 
-gcd := cambda xs -> foldl b.gcd (car xs) (cdr xs)
+gcd := cambda xs -> foldl1 b.gcd xs
 
-gcd' := cambda xs -> foldl b.gcd' (car xs) (cdr xs)
+gcd' := cambda xs -> foldl1 b.gcd' xs
 
 b.gcd x y :=
   match (x, y) as (termExpr, termExpr) with

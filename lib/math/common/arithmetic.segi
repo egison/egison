@@ -6,14 +6,14 @@
 
 (define $to-math-expr (lambda [$arg] (math-normalize1 (to-math-expr' arg))))
 
-(define $+' (cambda $xs (foldl b.+ (car xs) (cdr xs))))
-(define $-' (cambda $xs (foldl b.- (car xs) (cdr xs))))
-(define $*' (cambda $xs (foldl b.* (car xs) (cdr xs))))
+(define $+' (cambda $xs (foldl1 b.+ xs)))
+(define $-' (cambda $xs (foldl1 b.- xs)))
+(define $*' (cambda $xs (foldl1 b.* xs)))
 (define $/' b./)
 
-(define $f.+' (cambda $xs (foldl f.+ (car xs) (cdr xs))))
-(define $f.-' (cambda $xs (foldl f.- (car xs) (cdr xs))))
-(define $f.*' (cambda $xs (foldl f.* (car xs) (cdr xs))))
+(define $f.+' (cambda $xs (foldl1 f.+ xs)))
+(define $f.-' (cambda $xs (foldl1 f.- xs)))
+(define $f.*' (cambda $xs (foldl1 f.* xs)))
 (define $f./' f./)
 
 (define $+
@@ -92,13 +92,9 @@
           (/' 1 (**' x (neg n))))
         (`** x n)))))
 
-(define $gcd
-  (cambda $xs
-    (foldl b.gcd (car xs) (cdr xs))))
+(define $gcd (cambda $xs (foldl1 b.gcd xs)))
 
-(define $gcd'
-  (cambda $xs
-    (foldl b.gcd' (car xs) (cdr xs))))
+(define $gcd' (cambda $xs (foldl1 b.gcd' xs)))
 
 (define $b.gcd
   (lambda [$x $y]

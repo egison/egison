@@ -620,7 +620,7 @@ assertEqual "matcher definition"
   [1, 2, 3]
 
 nishiwakiIf b e1 e2 :=
-  car (matchAll b as (matcher
+  head (matchAll b as (matcher
                       | $ as something with
                           | True  -> [e1]
                           | False -> [e2]) with
