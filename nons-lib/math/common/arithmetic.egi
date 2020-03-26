@@ -4,13 +4,13 @@
 
 toMathExpr arg := mathNormalize1 (toMathExpr' arg)
 
-+' := cambda xs -> foldl1 b.+ xs
+(+') := b.+
 
--' := cambda xs -> foldl1 b.- xs
+(-') := b.-
 
-*' := cambda xs -> foldl1 b.* xs
+(*') := b.*
 
-/' := b./
+(/') := b./
 
 f.+' := cambda xs -> foldl1 f.+ xs
 
@@ -20,25 +20,25 @@ f.*' := cambda xs -> foldl1 f.* xs
 
 f./' := f./
 
-+ :=
+(+) :=
   cambda xs ->
-    if capply (||) (map float? xs)
+    if any float? xs
       then capply f.+' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 (capply (+') xs)
+      else mathNormalize1 (foldl1 (+') xs)
 
-- :=
+(-) :=
   cambda xs ->
-    if capply (||) (map float? xs)
+    if any float? xs
       then capply f.-' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 (capply (-') xs)
+      else mathNormalize1 (foldl1 (-') xs)
 
-* :=
+(*) :=
   cambda xs ->
-    if capply (||) (map float? xs)
+    if any float? xs
       then capply f.*' (map (\x -> if float? x then x else itof x) xs)
-      else mathNormalize1 (capply (*') xs)
+      else mathNormalize1 (foldl1 (*') xs)
 
-/ x y :=
+(/) x y :=
   if float? x && float? y
     then f./ x y
     else if float? x
@@ -47,11 +47,11 @@ f./' := f./
 
 reduceFraction := id
 
-sum xs := if empty? xs then 0 else capply (+) xs
+sum xs := foldl (+) 0 xs
 
 sum' xs := foldl (+') 0 xs
 
-product xs := if empty? xs then 1 else capply (*) xs
+product xs := foldl (*) 1 xs
 
 product' xs := foldl (*') 1 xs
 
@@ -59,7 +59,7 @@ power x n := mathNormalize1 (power' x n)
 
 power' x n := foldl (*') 1 (take n (repeat1 x))
 
-** x n :=
+(^) x n :=
   if x = e
     then exp n
     else if rational? n
@@ -68,7 +68,7 @@ power' x n := foldl (*') 1 (take n (repeat1 x))
         else 1 / x ^ neg n
       else `(^) x n
 
-**' x n :=
+(^') x n :=
   if x = e
     then exp n
     else if rational? n
@@ -96,8 +96,8 @@ b.gcd' x y :=
     | (_, _) -> b.gcd' y x
 
 P./ fx gx x :=
-  let as := reverse (coefficients fx x)
-      bs := reverse (coefficients gx x)
-      (zs, rs) := L./ as bs
+  let xs := reverse (coefficients fx x)
+      ys := reverse (coefficients gx x)
+      (zs, rs) := L./ xs ys
    in ( sum' (map2 2#(%1 *' x ^' %2) (reverse zs) nats0)
       , sum' (map2 2#(%1 *' x ^' %2) (reverse rs) nats0) )

@@ -163,13 +163,13 @@ defineOrTestExpr = do
     convertToDefine :: EgisonExpr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
     convertToDefine (SectionExpr op Nothing Nothing) =
-      return $ Variable (stringToVar (repr op))
+      return $ Variable (stringToVar (func op))
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
       args' <- mapM ((ScalarArg <$>) . exprToStr) args
       return $ Function var args'
     convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) (TupleExpr [x, y])) = do
       args <- mapM ((ScalarArg <$>) . exprToStr) [x, y]
-      return $ Function (stringToVar (repr op)) args
+      return $ Function (stringToVar (func op)) args
     convertToDefine e@(BinaryOpExpr op _ _)
       | repr op == "*" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
@@ -190,7 +190,7 @@ defineOrTestExpr = do
     exprToArgs (VarExpr v) = return [ScalarArg (show v)]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((ScalarArg <$>) . exprToStr) args
-    exprToArgs (SectionExpr op Nothing Nothing) = return [ScalarArg (repr op)]
+    exprToArgs (SectionExpr op Nothing Nothing) = return [ScalarArg (func op)]
     exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs

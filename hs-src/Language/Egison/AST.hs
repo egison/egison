@@ -243,28 +243,28 @@ instance Show BinOpAssoc where
 
 reservedExprInfix :: [Infix]
 reservedExprInfix =
-  [ makeInfix "^"  "**"        8 LeftAssoc
-  , makeInfix "^'" "**'"       8 LeftAssoc
+  [ makeInfix "^"  "**"        8 LeftAssoc -- TODO: Make "**" into "^" when S-expr is deprecated
+  , makeInfix "^'" "**'"       8 LeftAssoc -- TODO: Make "**'" into "^'" when S-expr is deprecated
   , makeInfix "*"  "*"         7 LeftAssoc
   , makeInfix "/"  "/"         7 LeftAssoc
   , makeInfix "*'" "*'"        7 LeftAssoc
   , makeInfix "/'" "/'"        7 LeftAssoc
   , makeInfix "."  "."         7 LeftAssoc -- tensor multiplication
   , makeInfix ".'" ".'"        7 LeftAssoc -- tensor multiplication
-  , makeInfix "%"  "remainder" 7 LeftAssoc
+  , makeInfix "%"  "remainder" 7 LeftAssoc -- primitive function
   , makeInfix "+"  "+"         6 LeftAssoc
   , makeInfix "-"  "-"         6 LeftAssoc
   , makeInfix "+'" "+'"        6 LeftAssoc
   , makeInfix "-'" "-'"        6 LeftAssoc
   , makeInfix "++" "append"    5 RightAssoc
   , makeInfix "::" "cons"      5 RightAssoc
-  , makeInfix "="  "eq?"       4 LeftAssoc
-  , makeInfix "<=" "lte?"      4 LeftAssoc
-  , makeInfix ">=" "gte?"      4 LeftAssoc
-  , makeInfix "<"  "lt?"       4 LeftAssoc
-  , makeInfix ">"  "gt?"       4 LeftAssoc
-  , makeInfix "&&" "and"       3 RightAssoc
-  , makeInfix "||" "or"        2 RightAssoc
+  , makeInfix "="  "eq?"       4 LeftAssoc -- primitive function
+  , makeInfix "<=" "lte?"      4 LeftAssoc -- primitive function
+  , makeInfix ">=" "gte?"      4 LeftAssoc -- primitive function
+  , makeInfix "<"  "lt?"       4 LeftAssoc -- primitive function
+  , makeInfix ">"  "gt?"       4 LeftAssoc -- primitive function
+  , makeInfix "&&" "&&"        3 RightAssoc
+  , makeInfix "||" "||"        2 RightAssoc
   , makeInfix "$"  "apply"     0 RightAssoc
   ]
   where
