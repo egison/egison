@@ -325,7 +325,7 @@
        [<term $a $ps>
         (* a (product (map 2#(** (expand-all %1) (expand-all %2)) ps)))]
        ; polynomial
-       [<poly $ts> (sum (map (expand-all $) ts))]
+       [<poly $ts> (sum (map expand-all ts))]
        ; quotient
        [(/ $p1 $p2)
         (let {[$p1' (expand-all p1)]
@@ -347,7 +347,7 @@
        [<term $a $ps>
         (*' a (product' (map 2#(**' (expand-all' %1) (expand-all' %2)) ps)))]
        ; polynomial
-       [<poly $ts> (sum' (map (expand-all' $) ts))]
+       [<poly $ts> (sum' (map expand-all' ts))]
        ; quotient
        [(/ $p1 $p2)
         (let {[$p1' (expand-all' p1)]
