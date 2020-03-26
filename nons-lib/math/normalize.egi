@@ -61,7 +61,7 @@ rewriteRuleForRtuPoly := 1#(mapPolys rewriteRuleForRtuPoly' %1)
 
 rewriteRuleForRtuTerm' term :=
   match term as mathExpr with
-    | $a * #`rtu $n ^ (?1#(%1 >= n) & $k) * $r -> a *' rtu n ^' (k % n) *' r
+    | $a * #`rtu $n ^ (?(>= n) & $k) * $r -> a *' rtu n ^' (k % n) *' r
     | _ -> term
 
 rewriteRuleForRtuPoly' poly :=
