@@ -140,7 +140,6 @@ expr' = try partialExpr
             <|> parens (ifExpr
                         <|> lambdaExpr
                         <|> memoizedLambdaExpr
-                        <|> memoizeExpr
                         <|> cambdaExpr
                         <|> procedureExpr
                         <|> patternFunctionExpr
@@ -306,9 +305,6 @@ lambdaExpr = keywordLambda >> LambdaExpr <$> argNames <*> expr
 
 memoizedLambdaExpr :: Parser EgisonExpr
 memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
-
-memoizeExpr :: Parser EgisonExpr
-memoizeExpr = keywordMemoize >> MemoizeExpr <$> memoizeFrame <*> expr
 
 memoizeFrame :: Parser [(EgisonExpr, EgisonExpr, EgisonExpr)]
 memoizeFrame = braces $ sepEndBy memoizeBinding whiteSpace

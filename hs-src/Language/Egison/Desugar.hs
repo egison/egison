@@ -195,15 +195,6 @@ desugar (LambdaExpr names expr) = do
 desugar (MemoizedLambdaExpr names expr) =
   MemoizedLambdaExpr names <$> desugar expr
 
-desugar (MemoizeExpr memoizeBindings expr) = do
-  memoizeBindings' <- mapM (\(x,y,z) -> do x' <- desugar x
-                                           y' <- desugar y
-                                           z' <- desugar z
-                                           return (x',y',z'))
-                           memoizeBindings
-  expr' <- desugar expr
-  return $ MemoizeExpr memoizeBindings' expr'
-
 desugar (CambdaExpr name expr) =
   CambdaExpr name <$> desugar expr
 

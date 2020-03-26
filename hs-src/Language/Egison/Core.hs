@@ -528,21 +528,6 @@ evalExpr env (WedgeApplyExpr func arg) = do
           return whnf
     _ -> applyFunc env func arg >>= removeDFscripts
 
-evalExpr env (MemoizeExpr memoizeFrame expr) = do
-  mapM_ (\(x, y, z) -> do x' <- evalExprDeep env x
-                          case x' of
-                            MemoizedFunc name ref hashRef env' names body -> do
-                              indices <- evalExprDeep env y
-                              indices' <- mapM fromEgison $ fromTupleValue indices
-                              hash <- liftIO $ readIORef hashRef
-                              ret <- evalExprDeep env z
-                              retRef <- newEvaluatedObjectRef (Value ret)
-                              liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-                              writeObjectRef ref (Value (MemoizedFunc name ref hashRef env' names body))
-                            _ -> throwError =<< TypeMismatch "memoized-function" (Value x') <$> getFuncNameStack)
-       memoizeFrame
-  evalExpr env expr
-
 evalExpr env (MatcherExpr info) = return $ Value $ UserMatcher env info
 
 evalExpr env (GenerateTensorExpr fnExpr shapeExpr) = do
