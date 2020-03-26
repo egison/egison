@@ -11,22 +11,17 @@
 (define $*' (cambda $xs (foldl1 b.* xs)))
 (define $/' b./)
 
-(define $f.+' (cambda $xs (foldl1 f.+ xs)))
-(define $f.-' (cambda $xs (foldl1 f.- xs)))
-(define $f.*' (cambda $xs (foldl1 f.* xs)))
-(define $f./' f./)
-
 (define $+
   (cambda $xs (if (any float? xs)
-                  (capply f.+' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (foldl1 f.+ (map (lambda [$x] (if (float? x) x (itof x))) xs))
                   (math-normalize1 (capply +' xs)))))
 (define $-
   (cambda $xs (if (any float? xs)
-                  (capply f.-' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (foldl1 f.- (map (lambda [$x] (if (float? x) x (itof x))) xs))
                   (math-normalize1 (capply -' xs)))))
 (define $*
   (cambda $xs (if (any float? xs)
-                  (capply f.*' (map (lambda [$x] (if (float? x) x (itof x))) xs))
+                  (foldl1 f.* (map (lambda [$x] (if (float? x) x (itof x))) xs))
                   (math-normalize1 (capply *' xs)))))
 (define $/
   (lambda [$x $y]

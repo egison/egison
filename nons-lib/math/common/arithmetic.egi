@@ -12,30 +12,22 @@ toMathExpr arg := mathNormalize1 (toMathExpr' arg)
 
 (/') := b./
 
-f.+' := cambda xs -> foldl1 f.+ xs
-
-f.-' := cambda xs -> foldl1 f.- xs
-
-f.*' := cambda xs -> foldl1 f.* xs
-
-f./' := f./
-
 (+) :=
   cambda xs ->
     if any float? xs
-      then capply f.+' (map (\x -> if float? x then x else itof x) xs)
+      then foldl1 f.+ (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 (foldl1 (+') xs)
 
 (-) :=
   cambda xs ->
     if any float? xs
-      then capply f.-' (map (\x -> if float? x then x else itof x) xs)
+      then foldl1 f.- (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 (foldl1 (-') xs)
 
 (*) :=
   cambda xs ->
     if any float? xs
-      then capply f.*' (map (\x -> if float? x then x else itof x) xs)
+      then foldl1 f.* (map (\x -> if float? x then x else itof x) xs)
       else mathNormalize1 (foldl1 (*') xs)
 
 (/) x y :=
