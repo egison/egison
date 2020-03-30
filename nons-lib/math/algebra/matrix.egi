@@ -2,15 +2,11 @@
 -- Matrices
 --
 
-M.* := cambda ms -> foldl1 M.b.* ms
+M.* %s %t := withSymbols [i, j, k] s~i~j . t_j
+M.*' %s %t := withSymbols [i, j, k] s~i~j .' t_j
 
-M.b.* %m1 %m2 := withSymbols [j] m1~#~j . m2_j_#
-
-M.*' := cambda ms -> foldl1 M.b.*' ms
-
-M.b.*' %m1 %m2 := withSymbols [j] m1~#~j .' m2_j
-
-M.power %m n := repeatedSquaring M.* m n
+M.power %t n := foldl M.* t (take (n - 1) (repeat1 t))
+--M.power %m n := repeatedSquaring M.* m n
 
 M.comm %m1 %m2 := withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
 
