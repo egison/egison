@@ -47,6 +47,7 @@ import           Control.Egison hiding (Integer)
 
 import           Language.Egison.AST hiding (PatVar)
 import           Language.Egison.Data
+import           Language.Egison.IState     (fresh, getFuncNameStack)
 import           Language.Egison.MathExpr
 
 --
