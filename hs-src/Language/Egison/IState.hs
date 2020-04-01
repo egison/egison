@@ -25,9 +25,7 @@ module Language.Egison.IState
 
 import           Control.Monad.Except
 import           Control.Monad.Identity
-import           Control.Monad.Reader      (ReaderT)
 import           Control.Monad.State
-import           Control.Monad.Writer      (WriterT)
 import           Data.IORef
 
 import           System.IO.Unsafe          (unsafePerformIO)
@@ -35,9 +33,9 @@ import           System.IO.Unsafe          (unsafePerformIO)
 import           Language.Egison.AST       (Var(..))
 
 data RuntimeState = RuntimeState
-    -- index counter for generating fresh variable
+      -- index counter for generating fresh variable
       { indexCounter :: Int
-    -- names of called functions for improved error message
+      -- names of called functions for improved error message
       , funcNameStack :: [String]
       }
 
@@ -72,10 +70,6 @@ instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
     return ()
   getFuncNameStack = FreshT $ funcNameStack <$> get
 
-instance (MonadError e m) => MonadError e (FreshT m) where
-  throwError = lift . throwError
-  catchError m h = FreshT $ catchError (unFreshT m) (unFreshT . h)
-
 instance (MonadState s m) => MonadState s (FreshT m) where
   get = lift get
   put s = lift $ put s
@@ -89,22 +83,6 @@ instance (MonadFresh m) => MonadFresh (StateT s m) where
   getFuncNameStack = lift getFuncNameStack
 
 instance (MonadFresh m) => MonadFresh (ExceptT e m) where
-  fresh = lift fresh
-  freshV = lift freshV
-  pushFuncName name = lift $ pushFuncName name
-  topFuncName = lift topFuncName
-  popFuncName = lift popFuncName
-  getFuncNameStack = lift getFuncNameStack
-
-instance (MonadFresh m, Monoid e) => MonadFresh (ReaderT e m) where
-  fresh = lift fresh
-  freshV = lift freshV
-  pushFuncName name = lift $ pushFuncName name
-  topFuncName = lift topFuncName
-  popFuncName = lift popFuncName
-  getFuncNameStack = lift getFuncNameStack
-
-instance (MonadFresh m, Monoid e) => MonadFresh (WriterT e m) where
   fresh = lift fresh
   freshV = lift freshV
   pushFuncName name = lift $ pushFuncName name
