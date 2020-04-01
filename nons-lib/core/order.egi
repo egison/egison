@@ -23,17 +23,17 @@ compareC c1 c2 :=
     | ($x :: $xs, #x :: $ys) -> compareC xs ys
     | ($x :: _, $y :: _) -> compare x y
 
-b.min x y := if x < y then x else y
+b.min $x $y := if x < y then x else y
 
-b.max x y := if x > y then x else y
+b.max $x $y := if x > y then x else y
 
-min/fn f xs := foldl1 2#(if f %1 %2 = Less then %1 else %2) xs
+min/fn f $xs := foldl1 2#(if f %1 %2 = Less then %1 else %2) xs
 
-max/fn f xs := foldl1 2#(if f %1 %2 = Greater then %1 else %2) xs
+max/fn f $xs := foldl1 2#(if f %1 %2 = Greater then %1 else %2) xs
 
-min xs := foldl1 b.min xs
+min $xs := foldl1 b.min xs
 
-max xs := foldl1 b.max xs
+max $xs := foldl1 b.max xs
 
 splitByOrdering := 2#(splitByOrdering/fn compare %1 %2)
 
