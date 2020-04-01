@@ -1,0 +1,78 @@
+--
+--
+-- Mah-jong example
+--
+--
+
+--
+-- Matcher definitions
+--
+suit :=
+  algebraicDataMatcher
+    | wan
+    | pin
+    | sou
+
+honor :=
+  algebraicDataMatcher
+    | ton
+    | nan
+    | sha
+    | pe
+    | haku
+    | hatsu
+    | chun
+
+tile :=
+  algebraicDataMatcher
+    | num suit integer
+    | hnr honor
+
+--
+-- Pattern modularization
+--
+twin := \pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
+
+shuntsu :=
+  \pat1 pat2 =>
+    (num $s $n & ~pat1) :: num #s #(n + 1) :: num #s #(n + 2) :: ~pat2
+
+kohtsu := \pat1 pat2 => ($pat & ~pat1) :: #pat :: #pat :: ~pat2
+
+--
+-- A function that determines whether the hand is completed or not.
+--
+complete? :=
+  \match as multiset tile with
+    | twin
+        $th_1
+        (shuntsu $sh_1
+           (shuntsu $sh_2
+              (shuntsu $sh_3 (shuntsu $sh_4 [] | kohtsu $kh_1 [])
+              | kohtsu $kh_1 (kohtsu $kh_2 []))
+           | kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 [])))
+        | kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 []))))
+        (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 []))))))
+    -> True
+    | _ -> False
+
+--
+-- Demonstration code
+--
+assertEqual "mahjong 1"
+  (complete?
+     [ Hnr Haku,  Hnr Haku
+     , Num Wan 3, Num Wan 4, Num Wan 5
+     , Num Wan 6, Num Wan 7, Num Wan 8
+     , Num Pin 2, Num Pin 3, Num Pin 4
+     , Num Sou 6, Num Sou 6, Num Sou 6 ])
+  True
+
+assertEqual "mahjong 2"
+  (complete?
+     [ Hnr Haku,  Hnr Haku
+     , Num Pin 1, Num Pin 3, Num Pin 4
+     , Num Wan 6, Num Wan 7, Num Wan 8
+     , Num Wan 3, Num Wan 4, Num Wan 5
+     , Num Sou 6, Num Sou 6, Num Sou 6 ])
+  False

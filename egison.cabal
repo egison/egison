@@ -61,8 +61,7 @@ Extra-Source-Files:  benchmark/Benchmark.hs
 
 Data-files:          lib/math/*.segi lib/math/common/*.segi lib/math/algebra/*.segi lib/math/analysis/*.segi lib/math/geometry/*.segi
                      nons-lib/core/*.egi nons-lib/math/*.egi nons-lib/math/common/*.egi nons-lib/math/algebra/*.egi nons-lib/math/analysis/*.egi nons-lib/math/geometry/*.egi
-                     sexpr-sample/*.segi sexpr-sample/sat/*.segi sexpr-sample/io/*.segi sexpr-sample/math/algebra/*.segi sexpr-sample/math/analysis/*.segi sexpr-sample/math/geometry/*.segi sexpr-sample/math/number/*.segi sexpr-sample/math/others/*.segi
-                     sample/math/geometry/*.egi sample/math/number/*.egi
+                     sample/*.egi sample/sat/*.egi sample/math/geometry/*.egi sample/math/number/*.egi
                      test/*.segi test/lib/core/*.segi test/lib/math/*.segi
                      nons-test/test/*.egi nons-test/test/lib/core/*.egi nons-test/test/lib/math/*.egi
                      elisp/egison-mode.el

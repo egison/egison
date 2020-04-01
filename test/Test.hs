@@ -29,11 +29,6 @@ testCases :: [FilePath]
 testCases =
   [ "test/syntax.segi"
 
-  -- TODO: translate these tests into new syntax
-  , "sexpr-sample/mahjong.segi" -- for testing pattern functions
-  , "sexpr-sample/primes.segi" -- for testing pattern matching with infinitely many results
-  , "sexpr-sample/sat/cdcl.segi" -- for testing a practical program using pattern matching
-
   , "nons-test/test/syntax.egi"
   , "nons-test/test/primitive.egi"
   , "nons-test/test/lib/core/base.egi"
@@ -47,6 +42,9 @@ testCases =
   , "nons-test/test/lib/math/arithmetic.egi"
   , "nons-test/test/lib/math/tensor.egi"
 
+  , "sample/mahjong.egi" -- for testing pattern functions
+  , "sample/primes.egi" -- for testing pattern matching with infinitely many results
+  , "sample/sat/cdcl.egi" -- for testing a practical program using pattern matching
   , "sample/poker-hands.egi"
   , "sample/poker-hands-with-joker.egi"
 
