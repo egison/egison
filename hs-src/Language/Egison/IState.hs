@@ -11,15 +11,12 @@ This module defines the internal state of Egison runtime.
 -}
 
 module Language.Egison.IState
-  ( RuntimeState(..)
+  ( IState(..)
   , FreshT(..)
   , Fresh
   , MonadFresh(..)
   , runFreshT
   , runFresh
-  , counter
-  , readCounter
-  , updateCounter
   , modifyCounter
   ) where
 
@@ -30,17 +27,18 @@ import           Data.IORef
 
 import           System.IO.Unsafe          (unsafePerformIO)
 
-import           Language.Egison.AST       (Var(..))
+import           Language.Egison.AST
 
-data RuntimeState = RuntimeState
-      -- index counter for generating fresh variable
-      { indexCounter :: Int
-      -- names of called functions for improved error message
-      , funcNameStack :: [String]
-      }
 
-newtype FreshT m a = FreshT { unFreshT :: StateT RuntimeState m a }
-  deriving (Functor, Applicative, Monad, MonadState RuntimeState, MonadTrans)
+data IState = IState
+  -- Index counter for generating fresh variable
+  { indexCounter  :: Int
+  -- Names of called functions for improved error message
+  , funcNameStack :: [String]
+  }
+
+newtype FreshT m a = FreshT { unFreshT :: StateT IState m a }
+  deriving (Functor, Applicative, Monad, MonadState IState, MonadTrans)
 
 type Fresh = FreshT Identity
 
@@ -93,10 +91,10 @@ instance (MonadFresh m) => MonadFresh (ExceptT e m) where
 instance MonadIO (FreshT IO) where
   liftIO = lift
 
-runFreshT :: Monad m => RuntimeState -> FreshT m a -> m (a, RuntimeState)
+runFreshT :: Monad m => IState -> FreshT m a -> m (a, IState)
 runFreshT = flip (runStateT . unFreshT)
 
-runFresh :: RuntimeState -> Fresh a -> (a, RuntimeState)
+runFresh :: IState -> Fresh a -> (a, IState)
 runFresh seed m = runIdentity $ flip runStateT seed $ unFreshT m
 
 {-# NOINLINE counter #-}
@@ -112,6 +110,6 @@ updateCounter = writeIORef counter
 modifyCounter :: FreshT IO a -> IO a
 modifyCounter m = do
   x <- readCounter
-  (result, st) <- runFreshT (RuntimeState { indexCounter = x, funcNameStack = [] }) m
+  (result, st) <- runFreshT (IState { indexCounter = x, funcNameStack = [] }) m
   updateCounter $ indexCounter st
   return result
