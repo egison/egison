@@ -6,36 +6,36 @@
 
 toMathExpr arg := mathNormalize1 (toMathExpr' arg)
 
-(+') := b.+
+(+') $x $y := b.+ x y
 
-(-') := b.-
+(-') $x $y := b.- x y
 
-(*') := b.*
+(*') $x $y := b.* x y
 
-(/') := b./
+(/') $x $y := b./ x y
 
-(+) x y :=
+(+) $x $y :=
   match (float? x, float? y) as eq with
     | #(True, True)  -> f.+ x y
     | #(True, False) -> f.+ x (itof y)
     | #(False, True) -> f.+ (itof x) y
     | _              -> mathNormalize1 (x +' y)
 
-(-) x y :=
+(-) $x $y :=
   match (float? x, float? y) as eq with
     | #(True, True)  -> f.- x y
     | #(True, False) -> f.- x (itof y)
     | #(False, True) -> f.- (itof x) y
     | _              -> mathNormalize1 (x -' y)
 
-(*) x y :=
+(*) $x $y :=
   match (float? x, float? y) as eq with
     | #(True, True)  -> f.* x y
     | #(True, False) -> f.* x (itof y)
     | #(False, True) -> f.* (itof x) y
     | _              -> mathNormalize1 (x *' y)
 
-(/) x y :=
+(/) $x $y :=
   match (float? x, float? y) as eq with
     | #(True, True)  -> f./ x y
     | #(True, False) -> f./ x (itof y)

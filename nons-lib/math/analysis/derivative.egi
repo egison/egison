@@ -4,7 +4,7 @@
 --
 --
 
-∂/∂ f *x :=
+∂/∂ $f *x :=
   match f as mathExpr with
     -- symbol
     | #x -> 1
