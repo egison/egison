@@ -562,7 +562,7 @@ assertEqual "double inverted index"
   (f [|1, 2, 3|]_i [|10, 20, 30|]_j)
   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]~i~j
 
-g x *y := x + y
+g $x *y := x + y
 
 assertEqual "single inverted index"
   (g [|1, 2, 3|]_i  [|10, 20, 30|]_j)
