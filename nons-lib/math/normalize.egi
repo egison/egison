@@ -4,7 +4,7 @@
 --
 --
 
-mathNormalize1 x :=
+mathNormalize1 $x :=
   if integer? x
     then x
     else let ret := (capply compose (map 2#%1 (filter 2#(%2 x) rewriteRules1)))

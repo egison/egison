@@ -32,7 +32,7 @@ b.compose f g := \x -> g (f x)
 
 compose := cambda fs -> \x -> foldl 2#(%2 %1) x fs
 
-flip fn := \x y -> fn y x
+flip fn := \$x $y -> fn y x
 
 eq?/m a x y :=
   match x as a with
