@@ -1,5 +1,5 @@
 {- |
-Module      : Language.Egison.ParserCommon
+Module      : Language.Egison.Parser
 Licence     : MIT
 
 This module provides the parser interface.

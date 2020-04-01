@@ -42,6 +42,7 @@ import qualified Database.SQLite3 as SQLite
 import           Language.Egison.AST
 import           Language.Egison.Core
 import           Language.Egison.Data
+import           Language.Egison.IState    (MonadFresh(..))
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.MathExpr
