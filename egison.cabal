@@ -107,6 +107,7 @@ Library
                    Language.Egison.Completion
                    Language.Egison.Desugar
                    Language.Egison.Data
+                   Language.Egison.IState
                    Language.Egison.Types
                    Language.Egison.Tensor
                    Language.Egison.Parser
