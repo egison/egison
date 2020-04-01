@@ -17,7 +17,6 @@ module Language.Egison.Parser.NonS
        , parseExpr
        ) where
 
-import           Control.Applicative            (pure, (*>), (<$>), (<$), (<*), (<*>))
 import           Control.Monad.Except           (throwError)
 import           Control.Monad.State            (evalStateT, get, put, StateT)
 
@@ -32,7 +31,6 @@ import           Control.Monad.Combinators.Expr
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
-import           Text.Megaparsec.Pos            (Pos)
 
 import           Language.Egison.AST
 import           Language.Egison.Data

@@ -40,8 +40,8 @@ import           Prelude                   hiding (foldr, mappend, mconcat)
 
 import           Control.Monad.Except      hiding (join)
 import qualified Data.Vector               as V
-import           Data.List                 (any, delete, elem, find, findIndex,
-                                            partition, splitAt, (\\))
+import           Data.List                 (delete, find, findIndex,
+                                            partition, (\\))
 
 import           Control.Egison hiding (Integer)
 

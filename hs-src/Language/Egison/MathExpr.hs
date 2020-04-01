@@ -31,7 +31,7 @@ module Language.Egison.MathExpr
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
-import           Data.List                 (any, elemIndex, intercalate, splitAt)
+import           Data.List                 (elemIndex, intercalate)
 
 import           Language.Egison.AST
 
