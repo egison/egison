@@ -51,13 +51,16 @@ runWithOptions opts = do
     Left err -> print err
     Right env ->
       case opts of
+        -- Evaluate the given string
         EgisonOpts { optEvalString = Just expr }
           | optTsvOutput opts ->
             executeEgisonTopExpr opts env $ "execute (each (\\x -> print (showTsv x)) (" ++ expr ++ "))"
           | otherwise -> do
             executeEgisonTopExpr opts env $ "execute (print (show (" ++ expr ++ ")))"
+        -- Execute the given string
         EgisonOpts { optExecuteString = Just cmd } ->
           executeEgisonTopExpr opts env $ "execute (" ++ cmd ++ ")"
+        -- Operate input in tsv format as infinite stream
         EgisonOpts { optSubstituteString = Just sub } ->
           let (sopts, copts) = unzip (optFieldInfo opts)
               sopts' = "[" ++ intercalate ", " sopts ++ "]"
@@ -66,18 +69,24 @@ runWithOptions opts = do
                   ++ "execute (let SH.input := SH.genInput " ++ sopts' ++ " " ++ copts' ++ "\n"
                   ++ "          in each (\\x -> print (" ++ if optTsvOutput opts then "showTsv" else "show" ++ " x)) (" ++ sub ++ " SH.input))"
             in executeEgisonTopExpr opts env expr
-        EgisonOpts { optExecFile = Nothing } ->
-          when (optShowBanner opts) showBanner >> repl opts env >> when (optShowBanner opts) showByebyeMessage >> exitSuccess
-        EgisonOpts { optExecFile = Just (file, args) }
-          | optTestOnly opts -> do
-            result <- if optNoIO opts
-                        then do input <- readFile file
-                                runEgisonTopExprs opts env input
-                        else evalEgisonTopExprs opts env [LoadFile file]
-            either print (const $ return ()) result
-          | otherwise -> do
-            result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
-            either print (const $ return ()) result
+        -- Execute a script (test only)
+        EgisonOpts { optTestOnly = True, optExecFile = Just (file, _) } -> do
+          result <- if optNoIO opts
+                       -- TODO: Switch parsers by file extension
+                       then do input <- readFile file
+                               runEgisonTopExprs opts env input
+                       else evalEgisonTopExprs opts env [LoadFile file]
+          either print (const $ return ()) result
+        -- Execute a script from the main function
+        EgisonOpts { optExecFile = Just (file, args) } -> do
+          result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
+          either print (const $ return ()) result
+        -- Start the read-eval-print-loop
+        _ -> do
+          when (optShowBanner opts) showBanner
+          repl opts env
+          when (optShowBanner opts) showByebyeMessage
+          exitSuccess
 
 executeEgisonTopExpr :: EgisonOpts -> Env -> String -> IO ()
 executeEgisonTopExpr opts env expr = do
