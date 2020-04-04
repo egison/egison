@@ -8,6 +8,7 @@ import           Control.Exception          (AsyncException (..), catch)
 import           Control.Monad.Except
 import           Control.Monad.Trans.State
 
+import           Data.List                  (intercalate)
 import qualified Data.Text                  as T
 
 import           Data.Version
@@ -50,38 +51,49 @@ runWithOptions opts = do
     Left err -> print err
     Right env ->
       case opts of
+        -- Evaluate the given string
         EgisonOpts { optEvalString = Just expr }
           | optTsvOutput opts ->
-            f opts env $ "(execute (each (compose show-tsv print) " ++ expr ++ "))"
+            executeEgisonTopExpr opts env $ "execute (each (\\x -> print (showTsv x)) (" ++ expr ++ "))"
           | otherwise -> do
-            ret <- runEgisonExpr opts env expr
-            case ret of
-              Left err  -> hPrint stderr err >> exitFailure
-              Right val -> print val >> exitSuccess
+            executeEgisonTopExpr opts env $ "execute (print (show (" ++ expr ++ ")))"
+        -- Execute the given string
         EgisonOpts { optExecuteString = Just cmd } ->
-          f opts env $ "(execute " ++ cmd ++ ")"
+          executeEgisonTopExpr opts env $ "execute (" ++ cmd ++ ")"
+        -- Operate input in tsv format as infinite stream
         EgisonOpts { optSubstituteString = Just sub } ->
-          let expr = "(load \"lib/core/shell.segi\") "
-                  ++ "(execute (each (compose " ++ (if optTsvOutput opts then "show-tsv" else "show") ++ " print) (let {[$SH.input (SH.gen-input {" ++ unwords (map fst $ optFieldInfo opts) ++  "} {" ++ unwords (map snd $ optFieldInfo opts) ++  "})]} (" ++ sub ++ " SH.input))))"
-            in f opts env expr
-        EgisonOpts { optExecFile = Nothing } ->
-          when (optShowBanner opts) showBanner >> repl opts env >> when (optShowBanner opts) showByebyeMessage >> exitSuccess
-        EgisonOpts { optExecFile = Just (file, args) }
-          | optTestOnly opts -> do
-            result <- if optNoIO opts
-                        then do input <- readFile file
-                                runEgisonTopExprs opts env input
-                        else evalEgisonTopExprs opts env [LoadFile file]
-            either print (const $ return ()) result
-          | otherwise -> do
-            result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (VarExpr $ stringToVar "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
-            either print (const $ return ()) result
- where
-  f opts env expr = do
-    cmdRet <- runEgisonTopExpr opts env expr
-    case cmdRet of
-      Left err -> hPrint stderr err >> exitFailure
-      _        -> exitSuccess
+          let (sopts, copts) = unzip (optFieldInfo opts)
+              sopts' = "[" ++ intercalate ", " sopts ++ "]"
+              copts' = "[" ++ intercalate ", " copts ++ "]"
+              expr = "load \"lib/core/shell.segi\"\n"
+                  ++ "execute (let SH.input := SH.genInput " ++ sopts' ++ " " ++ copts' ++ "\n"
+                  ++ "          in each (\\x -> print (" ++ if optTsvOutput opts then "showTsv" else "show" ++ " x)) (" ++ sub ++ " SH.input))"
+            in executeEgisonTopExpr opts env expr
+        -- Execute a script (test only)
+        EgisonOpts { optTestOnly = True, optExecFile = Just (file, _) } -> do
+          result <- if optNoIO opts
+                       -- TODO: Switch parsers by file extension
+                       then do input <- readFile file
+                               runEgisonTopExprs opts env input
+                       else evalEgisonTopExprs opts env [LoadFile file]
+          either print (const $ return ()) result
+        -- Execute a script from the main function
+        EgisonOpts { optExecFile = Just (file, args) } -> do
+          result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
+          either print (const $ return ()) result
+        -- Start the read-eval-print-loop
+        _ -> do
+          when (optShowBanner opts) showBanner
+          repl opts env
+          when (optShowBanner opts) showByebyeMessage
+          exitSuccess
+
+executeEgisonTopExpr :: EgisonOpts -> Env -> String -> IO ()
+executeEgisonTopExpr opts env expr = do
+  cmdRet <- runEgisonTopExprs opts env expr
+  case cmdRet of
+    Left err -> hPrint stderr err >> exitFailure
+    _        -> exitSuccess
 
 showBanner :: IO ()
 showBanner = do

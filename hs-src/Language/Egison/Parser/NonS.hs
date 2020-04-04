@@ -92,6 +92,7 @@ doParse p input =
 topExpr :: Parser EgisonTopExpr
 topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
+      <|> Execute  <$> (reserved "execute" >> expr)
       <|> infixExpr
       <|> defineOrTestExpr
       <?> "toplevel expression"
