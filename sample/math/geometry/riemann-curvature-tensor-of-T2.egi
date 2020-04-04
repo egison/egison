@@ -6,7 +6,7 @@ X := [| '(a * cos θ + b) * cos φ -- x
       , a * sin θ                -- z
       |]
 
-e_i_j := (∂/∂ X_j x~i)
+e_i_j := ∂/∂ X_j x~i
 
 -- Metric tensors
 g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]

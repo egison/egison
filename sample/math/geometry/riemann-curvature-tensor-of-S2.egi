@@ -34,7 +34,7 @@ assertEqual "Christoffel symbols of the first kind"
 
 assertEqual "Christoffel symbols of the second kind"
   Γ~1_#_#
-  [| [| 0, 0 |], [| 0, -1 * (sin θ) * (cos θ) |] |]_#_#
+  [| [| 0, 0 |], [| 0, -1 * sin θ * cos θ |] |]_#_#
 assertEqual "Christoffel symbols of the second kind"
   Γ~2_#_#
   [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
