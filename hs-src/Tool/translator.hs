@@ -121,10 +121,11 @@ instance SyntaxElement EgisonExpr where
     case PartialExpr n (toNonS e) of
       PartialExpr 2 (BinaryOpExpr op (PartialVarExpr 1) (PartialVarExpr 2)) ->
         SectionExpr op Nothing Nothing
-      PartialExpr 1 (BinaryOpExpr op e (PartialVarExpr 1)) ->
-        SectionExpr op (Just (toNonS e)) Nothing
-      PartialExpr 1 (BinaryOpExpr op (PartialVarExpr 1) e) ->
-        SectionExpr op Nothing (Just (toNonS e))
+      -- TODO(momohatt): Check if %1 does not appear freely in e
+      -- PartialExpr 1 (BinaryOpExpr op e (PartialVarExpr 1)) ->
+      --   SectionExpr op (Just (toNonS e)) Nothing
+      -- PartialExpr 1 (BinaryOpExpr op (PartialVarExpr 1) e) ->
+      --   SectionExpr op Nothing (Just (toNonS e))
       e' -> e'
 
   toNonS (GenerateTensorExpr e1 e2) = GenerateTensorExpr (toNonS e1) (toNonS e2)

@@ -166,7 +166,7 @@ assert
 assert
   "and pattern"
   (match [1, 2, 3] as list integer with
-    | #1 :: _ & (snoc #3 _) -> True)
+    | #1 :: _ & snoc #3 _ -> True)
 
 assert
   "and pattern"
@@ -177,7 +177,7 @@ assert
 assert
   "or pattern"
   (match [1, 2, 3] as list integer with
-    | (snoc #1 _) | (snoc #3 _) -> True)
+    | snoc #1 _ | snoc #3 _ -> True)
 
 assert
   "or pattern"
