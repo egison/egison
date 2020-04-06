@@ -199,6 +199,6 @@ rewriteRuleForD/d := 1#(mapPolys rewriteRuleForD/dPoly %1)
 rewriteRuleForD/dPoly poly :=
   match poly as mathExpr with
     | $a * ($f & (func $g _ $arg $js)) ^ $n * $mr +
-        $b * func #g _ #arg ?1#(eq?/m (multiset something) js %1) ^ #n * #mr + $pr ->
+        $b * func #g _ #arg ?1#(eqAs? (multiset something) js %1) ^ #n * #mr + $pr ->
       rewriteRuleForD/dPoly ((a + b) *' f ^ n *' mr +' pr)
     | _ -> poly

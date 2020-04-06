@@ -249,9 +249,9 @@ split sep ls :=
     | $xs ++ #sep ++ $rs -> xs :: split sep rs
     | _ -> [ls]
 
-split/m a sep ls :=
+splitAs a sep ls :=
   match ls as list a with
-    | $xs ++ #sep ++ $rs -> xs :: split/m a sep rs
+    | $xs ++ #sep ++ $rs -> xs :: splitAs a sep rs
     | _ -> [ls]
 
 findCycle xs :=
@@ -337,21 +337,17 @@ multiset a :=
 --
 -- multiset operation
 --
-add x xs := if member? x xs then xs else xs ++ [x]
-
-add/m a x xs := if member?/m a x xs then xs else xs ++ [x]
-
 deleteFirst %x xs :=
   match xs as list something with
     | [] -> []
     | #x :: $rs -> rs
     | $y :: $rs -> y :: deleteFirst x rs
 
-deleteFirst/m a %x xs :=
+deleteFirstAs a %x xs :=
   match xs as list a with
     | [] -> []
     | #x :: $rs -> rs
-    | $y :: $rs -> y :: deleteFirst/m a x rs
+    | $y :: $rs -> y :: deleteFirstAs a x rs
 
 delete x xs :=
   match xs as list something with
@@ -359,10 +355,10 @@ delete x xs :=
     | $hs ++ #x :: $ts -> hs ++ delete x ts
     | _ -> xs
 
-delete/m a x xs :=
+deleteAs a x xs :=
   match xs as list a with
     | [] -> []
-    | $hs ++ #x :: $ts -> hs ++ delete/m a x ts
+    | $hs ++ #x :: $ts -> hs ++ deleteAs a x ts
     | _ -> xs
 
 difference xs ys :=
@@ -370,10 +366,10 @@ difference xs ys :=
     | [] -> xs
     | $y :: $rs -> difference (deleteFirst y xs) rs
 
-difference/m a xs ys :=
+differenceAs a xs ys :=
   match ys as list a with
     | [] -> xs
-    | $y :: $rs -> difference/m a (deleteFirst/m a y xs) rs
+    | $y :: $rs -> differenceAs a (deleteFirstAs a y xs) rs
 
 include? xs ys :=
   match ys as list something with
@@ -381,17 +377,17 @@ include? xs ys :=
     | $y :: $rs ->
       if member? y xs then include? (deleteFirst y xs) rs else False
 
-include?/m a xs ys :=
+includeAs? a xs ys :=
   match ys as list a with
     | [] -> True
     | $y :: $rs ->
-      if member?/m a y xs then include?/m a (deleteFirst y xs) rs else False
+      if memberAs? a y xs then includeAs? a (deleteFirst y xs) rs else False
 
 union xs ys :=
   xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
     | ($y :: _, !(#y :: _)) -> y)
 
-union/m a xs ys :=
+unionAs a xs ys :=
   xs ++ (matchAll (ys, xs) as (multiset a, multiset a) with
     | ($y :: _, !(#y :: _)) -> y)
 
@@ -399,7 +395,7 @@ intersect xs ys :=
   matchAll (xs, ys) as (multiset something, multiset something) with
     | ($x :: _, #x :: _) -> x
 
-intersect/m a xs ys :=
+intersectAs a xs ys :=
   matchAll (xs, ys) as (multiset a, multiset a) with
     | ($x :: _, #x :: _) -> x
 
@@ -411,7 +407,7 @@ member? x ys :=
     | _ ++ #x :: _ -> True
     | _ -> False
 
-member?/m a x ys :=
+memberAs? a x ys :=
   match ys as list a with
     | _ ++ #x :: _ -> True
     | _ -> False
@@ -427,7 +423,7 @@ count x xs :=
     0
     xs
 
-count/m a x xs :=
+countAs a x xs :=
   foldl
     (\match as (a, a) with
       | ($r, #x) -> r + 1
@@ -439,9 +435,9 @@ frequency xs :=
   let us := unique xs
    in map (\u -> (u, count u xs)) us
 
-frequency/m a xs :=
-  let us := unique/m a xs
-   in map (\u -> (u, count/m a u xs)) us
+frequencyAs a xs :=
+  let us := uniqueAs a xs
+   in map (\u -> (u, countAs a u xs)) us
 
 --
 -- Index
@@ -486,6 +482,10 @@ set a :=
 --
 -- set operation
 --
+add x xs := if member? x xs then xs else xs ++ [x]
+
+addAs a x xs := if memberAs? a x xs then xs else xs ++ [x]
+
 fastUnique xs :=
   matchAll sort xs as list something with
     | _ ++ $x :: !(#x :: _) -> x
@@ -495,7 +495,7 @@ unique xs :=
     (matchAll reverse xs as list something with
       | _ ++ $x :: !(_ ++ #x :: _) -> x)
 
-unique/m a xs := loopFn xs []
+uniqueAs a xs := loopFn xs []
   where
     loopFn xs ys :=
       match (xs, ys) as (list a, multiset a) with

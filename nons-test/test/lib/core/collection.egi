@@ -254,8 +254,8 @@ assertEqual
   [[1, 2], [3, 3], [4], []]
 
 assertEqual
-  "split/m"
-  (split/m integer [0] [1, 2, 0, 3, 3, 0, 4, 0])
+  "splitAs"
+  (splitAs integer [0] [1, 2, 0, 3, 3, 0, 4, 0])
   [[1, 2], [3, 3], [4], []]
 
 assertEqual
@@ -283,49 +283,49 @@ assertEqual "add - case 1" (add 1 [2, 3]) [2, 3, 1]
 
 assertEqual "add - case 2" (add 1 [1, 2, 3]) [1, 2, 3]
 
-assertEqual "add/m - case 1" (add/m integer 1 [2, 3]) [2, 3, 1]
+assertEqual "addAs - case 1" (addAs integer 1 [2, 3]) [2, 3, 1]
 
-assertEqual "add/m - case 2" (add/m integer 1 [1, 2, 3]) [1, 2, 3]
+assertEqual "addAs - case 2" (addAs integer 1 [1, 2, 3]) [1, 2, 3]
 
 assertEqual "delete-first" (deleteFirst 2 [1, 2, 3, 2]) [1, 3, 2]
 
-assertEqual "delete-first/m" (deleteFirst/m integer 2 [1, 2, 3, 2]) [1, 3, 2]
+assertEqual "delete-firstAs" (deleteFirstAs integer 2 [1, 2, 3, 2]) [1, 3, 2]
 
 assertEqual "delete" (delete 2 [1, 2, 3, 1, 2, 3]) [1, 3, 1, 3]
 
-assertEqual "delete/m" (delete/m integer 2 [1, 2, 3, 1, 2, 3]) [1, 3, 1, 3]
+assertEqual "deleteAs" (deleteAs integer 2 [1, 2, 3, 1, 2, 3]) [1, 3, 1, 3]
 
 assertEqual "difference" (difference [1, 2, 3] [1, 3]) [2]
 
-assertEqual "difference/m" (difference/m integer [1, 2, 3] [1, 3]) [2]
+assertEqual "differenceAs" (differenceAs integer [1, 2, 3] [1, 3]) [2]
 
 assertEqual "union" (union [1, 2, 3] [1, 3, 4]) [1, 2, 3, 4]
 
-assertEqual "union/m" (union/m integer [1, 2, 3] [1, 3, 4]) [1, 2, 3, 4]
+assertEqual "unionAs" (unionAs integer [1, 2, 3] [1, 3, 4]) [1, 2, 3, 4]
 
 assertEqual "intersect" (intersect [1, 2, 3] [1, 3, 4]) [1, 3]
 
-assertEqual "intersect/m" (intersect/m integer [1, 2, 3] [1, 3, 4]) [1, 3]
+assertEqual "intersectAs" (intersectAs integer [1, 2, 3] [1, 3, 4]) [1, 3]
 
 assertEqual "member? - case 1" (member? 1 [1, 3, 1, 4]) True
 
 assertEqual "member? - case 2" (member? 2 [1, 3, 1, 4]) False
 
-assertEqual "member?/m - case 1" (member?/m integer 1 [1, 3, 1, 4]) True
+assertEqual "memberAs? - case 1" (memberAs? integer 1 [1, 3, 1, 4]) True
 
-assertEqual "member?/m - case 2" (member?/m integer 2 [1, 3, 1, 4]) False
+assertEqual "memberAs? - case 2" (memberAs? integer 2 [1, 3, 1, 4]) False
 
 assertEqual "count" (count 1 [1, 3, 1, 4]) 2
 
-assertEqual "count/m" (count/m integer 1 [1, 3, 1, 4]) 2
+assertEqual "countAs" (countAs integer 1 [1, 3, 1, 4]) 2
 
 assertEqual "frequency" (frequency [1, 3, 1, 4]) [(1, 2), (3, 1), (4, 1)]
 
 assertEqual
-  "frequency/m"
-  (frequency/m integer [1, 3, 1, 4])
+  "frequencyAs"
+  (frequencyAs integer [1, 3, 1, 4])
   [(1, 2), (3, 1), (4, 1)]
 
 assertEqual "unique" (unique [1, 2, 3, 2, 1, 4]) [1, 2, 3, 4]
 
-assertEqual "unique/m" (unique/m integer [1, 2, 3, 2, 1, 4]) [1, 2, 3, 4]
+assertEqual "uniqueAs" (uniqueAs integer [1, 2, 3, 2, 1, 4]) [1, 2, 3, 4]
