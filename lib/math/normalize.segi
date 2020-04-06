@@ -8,8 +8,7 @@
   (lambda [$x]
     (if (integer? x)
       x
-      (let {[$ret ((capply compose (map 2#%1 (filter 2#(%2 x) rewrite-rules1))) x)]} ret))))
-;      (let {[$ret ((capply compose (map 2#%1 (filter 2#(%2 fn x) rewrite-rules1))) (debug x))]} (debug ret)))))
+      ((capply compose (map 2#%1 (filter 2#(%2 x) rewrite-rules1))) x))))
 
 (define $rewrite-rules1
   {
