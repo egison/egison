@@ -34,7 +34,7 @@ compose := cambda fs -> \x -> foldl 2#(%2 %1) x fs
 
 flip fn := \$x $y -> fn y x
 
-eq?/m a x y :=
+eqAs? a x y :=
   match x as a with
     | #y -> True
     | _ -> False
