@@ -108,36 +108,36 @@ multExpr :=
     | $ as (mathExpr) with
       | $tgt -> [tgt]
 
-symbol? mexpr :=
+symbol? %mexpr :=
   match mexpr as mathExpr with
     | symbol _ _ -> True
     | _ -> False
 
-tensorSymbol? mexpr :=
+tensorSymbol? %mexpr :=
   match mexpr as mathExpr with
     | symbol _ (_ ++ ((sub ?symbol?) | (sup ?symbol?)) :: _) -> True
     | _ -> False
 
-apply? mexpr :=
+apply? %mexpr :=
   match mexpr as mathExpr with
     | apply _ _ -> True
     | _ -> False
 
 simpleTerm? := 1#(symbol? %1 || apply? %1)
 
-term? mexpr :=
+term? %mexpr :=
   match mexpr as mathExpr with
     | term _ _ -> True
     | #0 -> True
     | _ -> False
 
-polynomial? mexpr :=
+polynomial? %mexpr :=
   match mexpr as mathExpr with
     | poly _ -> True
     | #0 -> True
     | _ -> False
 
-monomial? mexpr :=
+monomial? %mexpr :=
   match mexpr as mathExpr with
     | poly [term _ _] / poly [term _ _] -> True
     | #0 -> True
@@ -146,12 +146,12 @@ monomial? mexpr :=
 --
 -- Accessor
 --
-symbolIndices mexpr :=
+symbolIndices $mexpr :=
   match mexpr as mathExpr with
     | symbol _ $js -> js
     | _ -> undefined
 
-fromMonomial mexpr :=
+fromMonomial $mexpr :=
   match mexpr as mathExpr with
     | (term $a $xs) / (term $b $ys) ->
       (a / b, foldl (*') 1 (map (^') xs) / foldl (*') 1 (map (^') ys))
@@ -159,24 +159,24 @@ fromMonomial mexpr :=
 --
 -- Map
 --
-mapPolys fn mexpr :=
+mapPolys $fn $mexpr :=
   match mexpr as mathExpr with
     | $p1 / $p2 -> fn p1 /' fn p2
 
-fromPoly mexpr :=
+fromPoly $mexpr :=
   match mexpr as mathExpr with
     | poly $ts1 / $q -> map (\t1 -> t1 /' q) ts1
 
-mapPoly fn mexpr :=
+mapPoly $fn $mexpr :=
   match mexpr as mathExpr with
     | poly $ts1 / $q -> foldl (+') 0 (map (\t1 -> fn (t1 /' q)) ts1)
 
-mapTerms fn mexpr :=
+mapTerms $fn $mexpr :=
   match mexpr as mathExpr with
     | poly $ts1 / poly $ts2 ->
       foldl (+') 0 (map fn ts1) /' foldl (+') 0 (map fn ts2)
 
-mapSymbols fn mexpr :=
+mapSymbols $fn $mexpr :=
   mapTerms
     (\term ->
       match term as termExpr with
@@ -195,7 +195,7 @@ mapSymbols fn mexpr :=
                     xs))
     mexpr
 
-containSymbol? x mexpr :=
+containSymbol? $x $mexpr :=
   any
     id
     (match mexpr as mathExpr with
@@ -215,7 +215,7 @@ containSymbol? x mexpr :=
                      xs))
           (ts1 ++ ts2))
 
-containFunction? f mexpr :=
+containFunction? $f $mexpr :=
   any
     id
     (match mexpr as mathExpr with
@@ -236,7 +236,7 @@ containFunction? f mexpr :=
                      xs))
           (ts1 ++ ts2))
 
-containFunctionWithOrder? f n mexpr :=
+containFunctionWithOrder? $f $n $mexpr :=
   any
     id
     (match mexpr as mathExpr with
@@ -261,7 +261,7 @@ containFunctionWithOrder? f n mexpr :=
                      xs))
           (ts1 ++ ts2))
 
-containFunctionWithIndex? mexpr :=
+containFunctionWithIndex? $mexpr :=
   any
     id
     (match mexpr as mathExpr with
@@ -285,29 +285,29 @@ containFunctionWithIndex? mexpr :=
                      xs))
           (ts1 ++ ts2))
 
-findSymbolsFromPoly poly :=
+findSymbolsFromPoly $poly :=
   matchAll poly as mathExpr with
     | poly (term _ ((symbol _ _ & $s) :: _) :: _) -> s
 
 --
 -- Substitute
 --
-substitute ls mexpr :=
+substitute %ls $mexpr :=
   match ls as list (symbolExpr, mathExpr) with
     | [] -> mexpr
     | ($x, $a) :: $rs -> substitute rs (substitute' x a mexpr)
 
-substitute' x a mexpr := mapSymbols 1#(rewriteSymbol x a %1) mexpr
+substitute' $x %a $mexpr := mapSymbols 1#(rewriteSymbol x a %1) mexpr
 
-rewriteSymbol x a sexpr :=
+rewriteSymbol $x $a $sexpr :=
   match sexpr as symbolExpr with
     | #x -> a
     | _ -> sexpr
 
-V.substitute %xs %ys mexpr :=
+V.substitute %xs %ys $mexpr :=
   substitute (zip (tensorToList xs) (tensorToList ys)) mexpr
 
-expandAll mexpr :=
+expandAll $mexpr :=
   match mexpr as mathExpr with
     | ?symbol? -> mexpr
     -- function application
@@ -324,7 +324,7 @@ expandAll mexpr :=
           p2' := expandAll p2
        in p1' / p2'
 
-expandAll' mexpr :=
+expandAll' $mexpr :=
   match mexpr as mathExpr with
     | ?symbol? -> mexpr
     -- function application
@@ -344,13 +344,13 @@ expandAll' mexpr :=
 --
 -- Coefficient
 --
-coefficients f x :=
+coefficients $f $x :=
   let m := max
              (0 :: (matchAll f as mathExpr with
                | poly (term $a (ncons #x $k $ts) :: _) / _ -> k))
    in map 1#(coefficient f x %1) (between 0 m)
 
-coefficient f x m :=
+coefficient $f $x $m :=
   if m = 0
     then sum
            (matchAll f as mathExpr with
@@ -358,13 +358,13 @@ coefficient f x m :=
                foldl (*') a (map (^') ts)) / denominator f
     else coefficient' f x m
 
-coefficient' f x m :=
+coefficient' $f $x $m :=
   sum
     (matchAll f as mathExpr with
       | poly (term $a (ncons #x $k $ts) :: _) / _ ->
         if m = k then foldl (*') a (map (^') ts) else 0) / denominator f
 
-coefficient2 f x y :=
+coefficient2 $f $x $y :=
   sum
     (matchAll f as mathExpr with
       | poly (term $a (#x :: #y :: $ts) :: _) / _ ->

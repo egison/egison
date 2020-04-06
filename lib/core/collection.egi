@@ -81,7 +81,7 @@ takeAndDrop n xs :=
         ($a_i :: ...)
         $rs -> (map (\i -> a_i) [1..n], rs)
 
-take %n %xs :=
+take n xs :=
   if n = 0
     then []
     else match xs as list something with
