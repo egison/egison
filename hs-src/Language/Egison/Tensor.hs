@@ -153,16 +153,14 @@ changeIndex :: Index String -> EgisonValue -> Index String
 changeIndex (Superscript s) m = Superscript (s ++ show m)
 changeIndex (Subscript s) m   = Subscript (s ++ show m)
 
+-- transIndex [a, b, c] [c, a, b] [2, 3, 4] = [4, 2, 3]
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> [Integer] -> EgisonM [Integer]
-transIndex [] [] is = return is
-transIndex (j1:js1) js2 is =
-  matchDFS js2 (List Eql)
-    [[mc| join $hjs2 (cons #j1 $tjs2) =>
-          do let n = length hjs2 + 1
-             rs <- transIndex js1 (hjs2 ++ tjs2) (take (n - 1) is ++ drop n is)
-             return (nth (fromIntegral n) is:rs) |],
-     [mc| _ => throwError =<< InconsistentTensorIndex <$> getFuncNameStack |]]
-transIndex _ _ _ = throwError =<< InconsistentTensorShape <$> getFuncNameStack
+transIndex is js ns = do
+  let n = fromIntegral (length is)
+  return $ map (\k -> nth (elemN (nth k js) is) ns) [1..n]
+ where
+  elemN x xs = matchDFS xs (List Eql)
+                 [[mc| join $hs (cons #x _) => fromIntegral (length hs) + 1 |]]
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns _ js) =
@@ -171,7 +169,7 @@ tTranspose is t@(Tensor ns _ js) =
             let k = fromIntegral (length ns - length is)
             let ds = map (DFscript 0) [1..k]
             ns' <- transIndex (js' ++ ds) (is ++ ds) ns
-            xs' <- V.fromList <$> mapM (transIndex (js' ++ ds) (is ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
+            xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
             return $ Tensor ns' xs' is
     else return t
 

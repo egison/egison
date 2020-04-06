@@ -524,6 +524,13 @@ assertEqual "multi subscript"
     in x_(i_1)..._(i_3))
   6
 
+TestT := generateTensor 3#x_%1_%2_%3 [2,3,4]
+TestC_c_a_b := TestT_a_b_c
+
+assertEqual "transpose"
+  TestC_#_#_#
+  (tensor [4, 2, 3] [x_1_1_1, x_1_2_1, x_1_3_1, x_2_1_1, x_2_2_1, x_2_3_1, x_1_1_2, x_1_2_2, x_1_3_2, x_2_1_2, x_2_2_2, x_2_3_2, x_1_1_3, x_1_2_3, x_1_3_3, x_2_1_3, x_2_2_3, x_2_3_3, x_1_1_4, x_1_2_4, x_1_3_4, x_2_1_4, x_2_2_4, x_2_3_4] )_#_#_#
+
 --
 -- Hash
 --
