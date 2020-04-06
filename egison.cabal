@@ -95,7 +95,7 @@ Library
     , hashable
     , optparse-applicative
     , prettyprinter
-    , mini-egison == 0.1.6
+    , mini-egison >= 1.0.0
   if !impl(ghc > 8.0)
     Build-Depends: fail
   Hs-Source-Dirs:  hs-src

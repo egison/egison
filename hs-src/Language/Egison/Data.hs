@@ -580,7 +580,7 @@ refVar (Env env _) var@(Var _ []) = msum $ map (HashMap.lookup var) env
 refVar e@(Env env _) var@(Var name is) =
   case msum $ map (HashMap.lookup var) env of
     Nothing -> match is (List M.Something)
-                 [[mc| join $his (cons _ nil) => refVar e (Var name his) |]]
+                 [[mc| $his ++ _ : [] -> refVar e (Var name his) |]]
     Just x -> Just x
 
 --
