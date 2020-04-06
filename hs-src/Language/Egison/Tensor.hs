@@ -160,7 +160,7 @@ transIndex is js ns = do
   return $ map (\k -> nth (elemN (nth k js) is) ns) [1..n]
  where
   elemN x xs = matchDFS xs (List Eql)
-                 [[mc| join $hs (cons #x _) => fromIntegral (length hs) + 1 |]]
+                 [[mc| $hs ++ #x : _ -> fromIntegral (length hs) + 1 |]]
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns _ js) =
