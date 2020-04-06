@@ -2,11 +2,11 @@
 -- Mathematical Functions
 --
 
-abs x := if rational? x then b.abs x else x
+abs $x := if rational? x then b.abs x else x
 
-neg x := if rational? x then b.neg x else - x
+neg $x := if rational? x then b.neg x else - x
 
-exp x :=
+exp $x :=
   if float? x
     then b.exp x
     else if term? x
@@ -17,7 +17,7 @@ exp x :=
         | _ -> `exp x
       else `exp x
 
-log x :=
+log $x :=
   if float? x
     then b.log x
     else match x as mathExpr with
@@ -25,7 +25,7 @@ log x :=
       | #e -> 1
       | _ -> `log x
 
-cos x :=
+cos $x :=
   if float? x
     then b.cos x
     else match x as mathExpr with
@@ -34,7 +34,7 @@ cos x :=
       | (mult _ #π) / #2 -> 0
       | _ -> `cos x
 
-sin x :=
+sin $x :=
   if float? x
     then b.sin x
     else match x as mathExpr with
@@ -43,46 +43,46 @@ sin x :=
       | (mult $n #π) / #2 -> (-1) ^ ((abs n - 1) / 2)
       | _ -> `sin x
 
-tan x :=
+tan $x :=
   if float? x
     then b.tan x
     else match x as mathExpr with
       | #0 -> 0
       | _ -> `tan x
 
-cosh x :=
+cosh $x :=
   if float? x
     then b.cosh x
     else match x as mathExpr with
       | #0 -> 1
       | _ -> `cosh x
 
-sinh x :=
+sinh $x :=
   if float? x
     then b.sinh x
     else match x as mathExpr with
       | #0 -> 0
       | _ -> `sinh x
 
-tanh x :=
+tanh $x :=
   if float? x
     then b.tanh x
     else match x as mathExpr with
       | #0 -> 0
       | _ -> `tanh x
 
-sinc x :=
+sinc $x :=
   if float? x
     then if x = 0.0 then 1.0 else b.sin x / x
     else match x as mathExpr with
       | #0 -> 1
       | _ -> sin x / x
 
-sigmoid z := 1 / (1 + exp (- z))
+sigmoid $z := 1 / (1 + exp (- z))
 
 kroneckerDelta := cambda js -> if all (= head js) (tail js) then 1 else 0
 
-eulerTotientFunction n := n * product (map (\p -> 1 - 1 / p) (unique (pF n)))
+eulerTotientFunction $n := n * product (map (\p -> 1 - 1 / p) (unique (pF n)))
 
 ε :=
   memoizedLambda n ->
