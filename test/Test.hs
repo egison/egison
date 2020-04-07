@@ -27,9 +27,7 @@ main =
 
 testCases :: [FilePath]
 testCases =
-  [ "test/syntax.segi"
-
-  , "nons-test/test/syntax.egi"
+  [ "nons-test/test/syntax.egi"
   , "nons-test/test/primitive.egi"
   , "nons-test/test/lib/core/base.egi"
   , "nons-test/test/lib/core/collection.egi"
