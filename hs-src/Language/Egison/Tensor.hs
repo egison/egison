@@ -160,11 +160,6 @@ transIndex is js ns = do
   return $ map (\j -> matchDFS (zip is ns) (List (Pair Eql M.Something))
                         [[mc| _ ++ (#j, $n) : _ -> n |]])
                js
---  let n = fromIntegral (length is)
---  return $ map (\k -> nth (elemN (nth k js) is) ns) [1..n]
--- where
---  elemN x xs = matchDFS xs (List Eql)
---                 [[mc| $hs ++ #x : _ -> fromIntegral (length hs) + 1 |]]
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns _ js) =
@@ -401,9 +396,6 @@ tConcat' ts = do
 
 
 -- utility functions for tensors
-
-nth :: Integer -> [a] -> a
-nth i xs = xs !! fromIntegral (i - 1)
 
 cdr :: [a] -> [a]
 cdr []     = []
