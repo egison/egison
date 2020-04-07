@@ -245,8 +245,8 @@ evalExpr env (IndexedExpr override expr indices) = do
       Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
         js2 <- mapM evalIndexToScalar indices
         return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
-      Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
-      Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
+      Value (TensorData t@Tensor{})     -> Value <$> refTensorWithOverride override js t
+      Intermediate (ITensor t@Tensor{}) -> refTensorWithOverride override js t
       _ -> do
         js2 <- mapM evalIndexToScalar indices
         refArray tensor (map (ScalarData . extractIndex) js2)
@@ -269,8 +269,8 @@ evalExpr env (SubrefsExpr override expr jsExpr) = do
               _ -> evalExpr env expr
   case tensor of
     Value (ScalarData _)              -> return tensor
-    Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
-    Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
+    Value (TensorData t@Tensor{})     -> Value <$> refTensorWithOverride override js t
+    Intermediate (ITensor t@Tensor{}) -> refTensorWithOverride override js t
     _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
 
 evalExpr env (SuprefsExpr override expr jsExpr) = do
@@ -284,8 +284,8 @@ evalExpr env (SuprefsExpr override expr jsExpr) = do
               _ -> evalExpr env expr
   case tensor of
     Value (ScalarData _)              -> return tensor
-    Value (TensorData t@Tensor{})     -> Value <$> refTenworWithOverride override js t
-    Intermediate (ITensor t@Tensor{}) -> refTenworWithOverride override js t
+    Value (TensorData t@Tensor{})     -> Value <$> refTensorWithOverride override js t
+    Intermediate (ITensor t@Tensor{}) -> refTensorWithOverride override js t
     _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
 
 evalExpr env (UserrefsExpr _ expr jsExpr) = do
@@ -1384,8 +1384,8 @@ makeICollection xs  = do
   return $ Intermediate $ ICollection v
 
 -- Refer the specified tensor index with potential overriding of the index.
-refTenworWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EgisonM a
-refTenworWithOverride override js (Tensor ns xs is) =
+refTensorWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EgisonM a
+refTensorWithOverride override js (Tensor ns xs is) =
   tref js' (Tensor ns xs js') >>= toTensor >>= tContract' >>= fromTensor
     where
       js' = if override then js else is ++ js
