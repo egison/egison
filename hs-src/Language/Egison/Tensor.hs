@@ -43,7 +43,8 @@ import qualified Data.Vector               as V
 import           Data.List                 (delete, find, findIndex,
                                             partition, (\\))
 
-import           Control.Egison hiding (Integer)
+import           Control.Egison            hiding (Integer)
+import qualified Control.Egison            as M
 
 import           Language.Egison.AST hiding (PatVar)
 import           Language.Egison.Data
@@ -156,11 +157,14 @@ changeIndex (Subscript s) m   = Subscript (s ++ show m)
 -- transIndex [a, b, c] [c, a, b] [2, 3, 4] = [4, 2, 3]
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> [Integer] -> EgisonM [Integer]
 transIndex is js ns = do
-  let n = fromIntegral (length is)
-  return $ map (\k -> nth (elemN (nth k js) is) ns) [1..n]
- where
-  elemN x xs = matchDFS xs (List Eql)
-                 [[mc| $hs ++ #x : _ -> fromIntegral (length hs) + 1 |]]
+  return $ map (\j -> matchDFS (zip is ns) (List (Pair Eql M.Something))
+                        [[mc| _ ++ (#j, $n) : _ -> n |]])
+               js
+--  let n = fromIntegral (length is)
+--  return $ map (\k -> nth (elemN (nth k js) is) ns) [1..n]
+-- where
+--  elemN x xs = matchDFS xs (List Eql)
+--                 [[mc| $hs ++ #x : _ -> fromIntegral (length hs) + 1 |]]
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns _ js) =
