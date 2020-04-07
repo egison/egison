@@ -157,9 +157,10 @@ changeIndex (Subscript s) m   = Subscript (s ++ show m)
 -- transIndex [a, b, c] [c, a, b] [2, 3, 4] = [4, 2, 3]
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> [Integer] -> EgisonM [Integer]
 transIndex is js ns = do
-  return $ map (\j -> matchDFS (zip is ns) (List (Pair Eql M.Something))
-                        [[mc| _ ++ (#j, $n) : _ -> n |]])
-               js
+  mapM (\j -> matchDFS (zip is ns) (List (Pair Eql M.Something))
+               [[mc| _ ++ (#j, $n) : _ -> return n |]
+               ,[mc| _ -> throwError $ Default "cannot transpose becuase of the inconsitent symbolic tensor indices" |]])
+       js
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EgisonM (Tensor a)
 tTranspose is t@(Tensor ns _ js) =
