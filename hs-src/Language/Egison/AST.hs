@@ -257,11 +257,11 @@ reservedExprInfix =
   , makeInfix "-'" "-'"        6 LeftAssoc
   , makeInfix "++" "append"    5 RightAssoc
   , makeInfix "::" "cons"      5 RightAssoc
-  , makeInfix "="  "eq?"       4 LeftAssoc -- primitive function
-  , makeInfix "<=" "lte?"      4 LeftAssoc -- primitive function
-  , makeInfix ">=" "gte?"      4 LeftAssoc -- primitive function
-  , makeInfix "<"  "lt?"       4 LeftAssoc -- primitive function
-  , makeInfix ">"  "gt?"       4 LeftAssoc -- primitive function
+  , makeInfix "="  "equal"       4 LeftAssoc -- primitive function
+  , makeInfix "<=" "lte"      4 LeftAssoc -- primitive function
+  , makeInfix ">=" "gte"      4 LeftAssoc -- primitive function
+  , makeInfix "<"  "lt"       4 LeftAssoc -- primitive function
+  , makeInfix ">"  "gt"       4 LeftAssoc -- primitive function
   , makeInfix "&&" "&&"        3 RightAssoc
   , makeInfix "||" "||"        2 RightAssoc
   , makeInfix "$"  "apply"     0 RightAssoc
