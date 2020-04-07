@@ -20,6 +20,11 @@ assertEqual
   (M.* [|[|1, 1|], [|0, 1|]|] [|[|1, 1|], [|0, 1|]|])
   [|[|1, 2|], [|0, 1|]|]
 
+assertEqual
+  "Matrix determinant"
+  (M.det [|[|1, 1|], [|0, 1|]|])
+  1
+
 assertEqual "Tensor '+' - case 1" (1 + [|1, 2, 3|]) [|2, 3, 4|]
 
 assertEqual "Tensor '+' - case 2" ([|1, 2, 3|] + 1) [|2, 3, 4|]

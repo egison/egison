@@ -33,7 +33,7 @@ rewriteRuleForITerm := 1#(mapTerms rewriteRuleForITerm' %1)
 
 rewriteRuleForITerm' term :=
   match term as mathExpr with
-    | $a * #i ^ (?even? & $k) * $r -> a *' (-1) ^' quotient k 2 *' r
+    | $a * #i ^ (?isEven & $k) * $r -> a *' (-1) ^' quotient k 2 *' r
     | $a * #i ^ $k * $r -> a *' (-1) ^' quotient k 2 *' r *' i
     | _ -> term
 

@@ -218,8 +218,8 @@ assertEqual "map2" (map2 (*) [1, 2, 3] [10, 20, 30]) [10, 40, 90]
 
 assertEqual
   "filter"
-  (let odd? n := modulo n 2 = 1
-    in filter odd? [1, 2, 3])
+  (let isOdd n := modulo n 2 = 1
+    in filter isOdd [1, 2, 3])
   [1, 3]
 
 assertEqual "zip" (zip [1, 2, 3] [10, 20, 30]) [(1, 10), (2, 20), (3, 30)]
@@ -307,13 +307,13 @@ assertEqual "intersect" (intersect [1, 2, 3] [1, 3, 4]) [1, 3]
 
 assertEqual "intersectAs" (intersectAs integer [1, 2, 3] [1, 3, 4]) [1, 3]
 
-assertEqual "member? - case 1" (member? 1 [1, 3, 1, 4]) True
+assertEqual "member - case 1" (member 1 [1, 3, 1, 4]) True
 
-assertEqual "member? - case 2" (member? 2 [1, 3, 1, 4]) False
+assertEqual "member - case 2" (member 2 [1, 3, 1, 4]) False
 
-assertEqual "memberAs? - case 1" (memberAs? integer 1 [1, 3, 1, 4]) True
+assertEqual "memberAs - case 1" (memberAs integer 1 [1, 3, 1, 4]) True
 
-assertEqual "memberAs? - case 2" (memberAs? integer 2 [1, 3, 1, 4]) False
+assertEqual "memberAs - case 2" (memberAs integer 2 [1, 3, 1, 4]) False
 
 assertEqual "count" (count 1 [1, 3, 1, 4]) 2
 

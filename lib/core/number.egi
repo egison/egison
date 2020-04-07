@@ -43,19 +43,19 @@ evens := 2 :: map (+ 2) evens
 
 fibs := [1, 1] ++ map2 (+) fibs (tail fibs)
 
-prime? :=
+isPrime :=
   \match as integer with
     | ?(< 2) -> False
     | $n -> n = findFactor n
 
-primes := 2 :: filter prime? (drop 2 nats)
+primes := 2 :: filter isPrime (drop 2 nats)
 
-divisor? n d := 0 = n % d
+divisor n d := 0 = n % d
 
 findFactor :=
   memoizedLambda n ->
     match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
-      | _ ++ (?1#(divisor? n %1) & $x) :: _ -> x
+      | _ ++ (?1#(divisor n %1) & $x) :: _ -> x
       | _ -> n
 
 primeFactorization :=
@@ -68,9 +68,9 @@ primeFactorization :=
 
 pF := primeFactorization
 
-even? n := 0 = modulo n 2
+isEven n := 0 = modulo n 2
 
-odd? n := 1 = modulo n 2
+isOdd n := 1 = modulo n 2
 
 fact n := foldl (*) 1 [1..n]
 
