@@ -14,21 +14,21 @@ assertEqual "abs" (abs 0)     0
 assertEqual "abs" (abs 15)    15
 assertEqual "abs" (abs (-89)) 89
 
-assertEqual "lt?" (0.1 < 1.0) True
-assertEqual "lt?" (1.0 < 0.1) False
-assertEqual "lt?" (1.0 < 1.0) False
+assertEqual "lt" (0.1 < 1.0) True
+assertEqual "lt" (1.0 < 0.1) False
+assertEqual "lt" (1.0 < 1.0) False
 
-assertEqual "lte?" (0.1 <= 1.0) True
-assertEqual "lte?" (1.0 <= 0.1) False
-assertEqual "lte?" (1.0 <= 1.0) True
+assertEqual "lte" (0.1 <= 1.0) True
+assertEqual "lte" (1.0 <= 0.1) False
+assertEqual "lte" (1.0 <= 1.0) True
 
-assertEqual "gt?" (0.1 > 1.0) False
-assertEqual "gt?" (1.0 > 0.1) True
-assertEqual "gt?" (1.0 > 1.0) False
+assertEqual "gt" (0.1 > 1.0) False
+assertEqual "gt" (1.0 > 0.1) True
+assertEqual "gt" (1.0 > 1.0) False
 
-assertEqual "gte?" (0.1 >= 1.0) False
-assertEqual "gte?" (1.0 >= 0.1) True
-assertEqual "gte?" (1.0 >= 1.0) True
+assertEqual "gte" (0.1 >= 1.0) False
+assertEqual "gte" (1.0 >= 0.1) True
+assertEqual "gte" (1.0 >= 1.0) True
 
 assertEqual "round" (round 3.1)    3
 assertEqual "round" (round 3.7)    4
@@ -133,8 +133,8 @@ assertEqual "show" (show "Hello world!") "\"Hello world!\""
 
 -- TODO: show-tsv
 
-assertEqual "empty?" (empty? [])  True
-assertEqual "empty?" (empty? [1]) False
+assertEqual "isEmpty" (isEmpty [])  True
+assertEqual "isEmpty" (isEmpty [1]) False
 
 assertEqual "uncons" (uncons [1, 2, 3]) (1, [2, 3])
 assertEqual "unsnoc" (unsnoc [1, 2, 3]) ([1, 2], 3)
