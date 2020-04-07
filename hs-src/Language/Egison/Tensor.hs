@@ -363,12 +363,13 @@ tContract t = do
       return $ concat tss
     _ -> return [t']
 
+-- TODO: refactor in PMOP
 tContract' :: HasTensor a => Tensor a -> EgisonM (Tensor a)
 tContract' t@(Tensor ns _ js) =
-  case findPairs p js of
-    [] -> return t
-    (m,n):_ -> do
-      let (hjs, mjs, tjs) = removePairs (m,n) js
+  case findPair p js of
+    Nothing -> return t
+    Just (m, n) -> do
+      let (hjs, mjs, tjs) = removePair (m,n) js
       xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (SingleTerm i []))] ++ mjs
                                    ++ [Subscript (ScalarData (SingleTerm i []))] ++ tjs) t)
                   [1..(ns !! m)]
@@ -412,17 +413,19 @@ getScalar :: Tensor a -> EgisonM a
 getScalar (Scalar x) = return x
 getScalar _          = throwError $ Default "Inconsitent Tensor order"
 
-findPairs :: (a -> a -> Bool) -> [a] -> [(Int, Int)]
-findPairs p xs = reverse $ findPairs' 0 p xs
+findPair :: (a -> a -> Bool) -> [a] -> Maybe (Int, Int)
+findPair p xs = findPair' 0 p xs
 
-findPairs' :: Int -> (a -> a -> Bool) -> [a] -> [(Int, Int)]
-findPairs' _ _ [] = []
-findPairs' m p (x:xs) = case findIndex (p x) xs of
-                    Just i  -> (m, m + i + 1):findPairs' (m + 1) p xs
-                    Nothing -> findPairs' (m + 1) p xs
+-- TODO: refactor in PMOP
+findPair' :: Int -> (a -> a -> Bool) -> [a] -> Maybe (Int, Int)
+findPair' _ _ [] = Nothing
+findPair' m p (x:xs) = case findIndex (p x) xs of
+                    Just i  -> Just (m, m + i + 1)
+                    Nothing -> findPair' (m + 1) p xs
 
-removePairs :: (Int, Int) -> [a] -> ([a],[a],[a])
-removePairs (m, n) xs =          -- (0,1) [i i]
+-- TODO: refactor in PMOP
+removePair :: (Int, Int) -> [a] -> ([a],[a],[a])
+removePair (m, n) xs =          -- (0,1) [i i]
   let (hms, tts) = splitAt n xs  -- [i] [i]
       ts = tail tts              -- []
       (hs, tms) = splitAt m hms  -- [] [i]
