@@ -43,23 +43,23 @@ assertEqual "primes" (take 10 primes) [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
 -- Natural numbers
 --
 
-assertEqual "divisor?" (divisor? 10 5) True
+assertEqual "divisor" (divisor 10 5) True
 
 assertEqual "find-factor" (findFactor 100) 2
 
 assertEqual "p-f" (pF 100) [2, 2, 5, 5]
 
-assertEqual "odd? - case 1" (odd? 3) True
+assertEqual "isOdd - case 1" (isOdd 3) True
 
-assertEqual "odd? - case 2" (odd? 4) False
+assertEqual "isOdd - case 2" (isOdd 4) False
 
-assertEqual "even? - case 1" (even? 4) True
+assertEqual "isEven - case 1" (isEven 4) True
 
-assertEqual "even? - case 2" (even? 5) False
+assertEqual "isEven - case 2" (isEven 5) False
 
-assertEqual "prime? - case 1" (prime? 17) True
+assertEqual "isPrime - case 1" (isPrime 17) True
 
-assertEqual "prime? - case 2" (prime? 18) False
+assertEqual "isPrime - case 2" (isPrime 18) False
 
 assertEqual "perm" (perm 5 2) 20
 

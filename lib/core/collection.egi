@@ -221,10 +221,10 @@ iterate fn %x :=
 repeatedSquaring fn %x n :=
   match n as integer with
     | #1 -> x
-    | ?even? ->
+    | ?isEven ->
       let y := repeatedSquaring fn x (quotient n 2)
        in fn y y
-    | ?odd? ->
+    | ?isOdd ->
       let y := repeatedSquaring fn x (quotient n 2)
        in fn (fn y y) x
 
@@ -371,17 +371,17 @@ differenceAs a xs ys :=
     | [] -> xs
     | $y :: $rs -> differenceAs a (deleteFirstAs a y xs) rs
 
-include? xs ys :=
+include xs ys :=
   match ys as list something with
     | [] -> True
     | $y :: $rs ->
-      if member? y xs then include? (deleteFirst y xs) rs else False
+      if member y xs then include (deleteFirst y xs) rs else False
 
-includeAs? a xs ys :=
+includeAs a xs ys :=
   match ys as list a with
     | [] -> True
     | $y :: $rs ->
-      if memberAs? a y xs then includeAs? a (deleteFirst y xs) rs else False
+      if memberAs a y xs then includeAs a (deleteFirst y xs) rs else False
 
 union xs ys :=
   xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
@@ -402,12 +402,12 @@ intersectAs a xs ys :=
 --
 -- Simple predicate
 --
-member? x ys :=
+member x ys :=
   match ys as list something with
     | _ ++ #x :: _ -> True
     | _ -> False
 
-memberAs? a x ys :=
+memberAs a x ys :=
   match ys as list a with
     | _ ++ #x :: _ -> True
     | _ -> False
@@ -482,9 +482,9 @@ set a :=
 --
 -- set operation
 --
-add x xs := if member? x xs then xs else xs ++ [x]
+add x xs := if member x xs then xs else xs ++ [x]
 
-addAs a x xs := if memberAs? a x xs then xs else xs ++ [x]
+addAs a x xs := if memberAs a x xs then xs else xs ++ [x]
 
 fastUnique xs :=
   matchAll sort xs as list something with

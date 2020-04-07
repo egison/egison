@@ -15,7 +15,7 @@ M.inverse %m :=
    in generateTensor
         2#(match m as matrix with
           | cons #%2 #%1 _ $A $B $C $D ->
-            if even? (%1 + %2)
+            if isEven (%1 + %2)
               then M.det (M.join A B C D) / d
               else - (M.det (M.join A B C D) / d))
         (tensorShape m)
