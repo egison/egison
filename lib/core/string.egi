@@ -38,7 +38,7 @@ string :=
 --
 -- String as collection
 --
-S.empty? xs := xs = ""
+S.isEmpty xs := xs = ""
 
 S.cons x xs := appendString (pack [x]) xs
 

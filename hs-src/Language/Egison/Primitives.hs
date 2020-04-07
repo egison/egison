@@ -212,7 +212,7 @@ primitives = [ ("b.+", plus)
              , ("show", show')
              , ("showTsv", showTSV')
 
-             , ("empty?", isEmpty')
+             , ("isEmpty", isEmpty')
              , ("uncons", uncons')
              , ("unsnoc", unsnoc')
 
