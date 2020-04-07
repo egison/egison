@@ -106,16 +106,21 @@ instance Show ScalarData where
       show' p            = "(" ++ show p ++ ")"
 
       show'' :: PolyExpr -> String
+      show'' p@(Plus [Term _ []]) = show p
       show'' p@(Plus [Term _ [_]]) = show p
       show'' p                     = "(" ++ show p ++ ")"
 
 instance Show PolyExpr where
-  show (Plus [])  = "0"
-  show (Plus ts)  = intercalate " + " (map show ts)
+  show (Plus []) = "0"
+  show (Plus (t:ts)) = show t ++ concatMap showWithSign ts
+    where
+      showWithSign (Term a xs) | a < 0 = " - " ++ show (Term (- a) xs)
+      showWithSign t                   = " + " ++ show t
 
 instance Show TermExpr where
   show (Term a []) = show a
   show (Term 1 xs) = intercalate " * " (map showPoweredSymbol xs)
+  show (Term (-1) xs) = "- " ++ intercalate " * " (map showPoweredSymbol xs)
   show (Term a xs) = intercalate " * " (show a : map showPoweredSymbol xs)
 
 showPoweredSymbol :: (SymbolExpr, Integer) -> String
