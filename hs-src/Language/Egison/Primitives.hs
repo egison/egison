@@ -226,7 +226,6 @@ primitives = [ ("b.+", plus)
              , ("collection?", isCollection')
              , ("hash?", isHash')
              , ("tensor?", isTensor')
-             , ("tensorWithIndex?", isTensorWithIndex')
 
              , ("assert", assert)
              , ("assertEqual", assertEqual)
@@ -250,7 +249,6 @@ primitives = [ ("b.+", plus)
              , ("read-process", readProcess')
              , ("read-tsv", readTSV)
              , ("show-tsv", showTSV')
-             , ("tensor-with-index?", isTensorWithIndex')
              , ("assert-equal", assertEqual)
              ]
 
