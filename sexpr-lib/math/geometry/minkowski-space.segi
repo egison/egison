@@ -1,9 +1,0 @@
-(define $coordinates {t x y z})
-
-(define $metric
-  (generate-tensor
-    (match-lambda [integer integer]
-      {[[,1 ,1] -1]
-       [[$n ,n] 1]
-       [[_ _] 0]})
-    {4 4}))
