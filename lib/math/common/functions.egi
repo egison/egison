@@ -9,7 +9,7 @@ neg $x := if isRational x then b.neg x else - x
 exp $x :=
   if isFloat x
     then b.exp x
-    else if term? x
+    else if isTerm x
       then match x as termExpr with
         | #0 -> 1
         | #1 -> e

@@ -12,16 +12,16 @@ mathNormalize1 $x :=
 
 rewriteRules1 :=
   [ (id, 1#True)
-  , (rewriteRuleForI, 1#(containSymbol? i %1))
-  , (rewriteRuleForWTerm, 1#(containSymbol? w %1))
-  , (rewriteRuleForRtuTerm, 1#(containFunction? `rtu %1))
-  , (rewriteRuleForPower, 1#(containFunction? `(^) %1))
-  , (rewriteRuleForExp, 1#(containFunction? `exp %1))
-  , (rewriteRuleForWPoly, 1#(containSymbol? w %1))
-  , (rewriteRuleForRtuPoly, 1#(containFunction? `rtu %1))
-  , (rewriteRuleForSqrt, 1#(containFunction? `sqrt %1))
-  , (rewriteRuleForRt, 1#(containFunction? `rt %1))
-  , (rewriteRuleForCosToSin, 1#(containFunctionWithOrder? `cos 2 %1))
+  , (rewriteRuleForI, 1#(containSymbol i %1))
+  , (rewriteRuleForWTerm, 1#(containSymbol w %1))
+  , (rewriteRuleForRtuTerm, 1#(containFunction `rtu %1))
+  , (rewriteRuleForPower, 1#(containFunction `(^) %1))
+  , (rewriteRuleForExp, 1#(containFunction `exp %1))
+  , (rewriteRuleForWPoly, 1#(containSymbol w %1))
+  , (rewriteRuleForRtuPoly, 1#(containFunction `rtu %1))
+  , (rewriteRuleForSqrt, 1#(containFunction `sqrt %1))
+  , (rewriteRuleForRt, 1#(containFunction `rt %1))
+  , (rewriteRuleForCosToSin, 1#(containFunctionWithOrder `cos 2 %1))
   , (rewriteRuleForD/d, 1#True) ]
 
 --
@@ -90,7 +90,7 @@ rewriteRuleForSqrt := 1#(mapTerms rewriteRuleForSqrtTerm %1)
 rewriteRuleForSqrtTerm term :=
   match term as mathExpr with
     | $a * #`sqrt $x * #`sqrt #x * $r -> rewriteRuleForSqrt (a *' x *' r)
-    | $a * #`sqrt (?term? & $x) * #`sqrt (?term? & $y) * $r ->
+    | $a * #`sqrt (?isTerm & $x) * #`sqrt (?isTerm & $y) * $r ->
       let d := gcd x y
           (a1, x1) := fromMonomial (x / d)
           (a2, y1) := fromMonomial (y / d)

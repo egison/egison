@@ -11,7 +11,7 @@ rt n x :=
   if isInteger n
     then match x as mathExpr with
       | #0 -> 0
-      | ?monomial? -> rtMonomial n x
+      | ?isMonomial -> rtMonomial n x
       | (poly $xs) / (poly $ys) ->
         let xd := reduce gcd xs
             yd := reduce gcd ys
