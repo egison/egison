@@ -28,9 +28,7 @@ snd := 2#%2
 
 apply f x := f x
 
-b.compose f g := \x -> g (f x)
-
-compose := cambda fs -> \x -> foldl 2#(%2 %1) x fs
+compose f g := \x -> g (f x)
 
 flip fn := \$x $y -> fn y x
 
@@ -42,9 +40,6 @@ eqAs a x y :=
 --
 -- Boolean
 --
-
-and := cambda bs -> foldl (&&) True bs
-or  := cambda bs -> foldl (||) False bs
 
 (&&) b1 b2 := if b1 then b2 else False
 (||) b1 b2 := if b1 then True else b2

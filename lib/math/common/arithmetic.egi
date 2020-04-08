@@ -74,23 +74,19 @@ power' $x $n := foldl (*') 1 (take n (repeat1 x))
         else 1 /' x ^' neg n
       else `(^) x n
 
-gcd := cambda xs -> foldl1 b.gcd xs
-
-gcd' := cambda xs -> foldl1 b.gcd' xs
-
-b.gcd $x $y :=
+gcd $x $y :=
   match (x, y) as (termExpr, termExpr) with
     | (_, #0) -> x
     | (#0, _) -> y
     | (term $a $xs, term $b $ys) ->
-      b.gcd' (abs a) (abs b) *' foldl (*') 1 (map (^') (AC.intersect xs ys))
+      gcd' (abs a) (abs b) *' foldl (*') 1 (map (^') (AC.intersect xs ys))
 
-b.gcd' $x $y :=
+gcd' $x $y :=
   match (x, y) as (integer, integer) with
     | (_, #0) -> x
     | (#0, _) -> y
-    | (_, ?(>= x)) -> b.gcd' (modulo y x) x
-    | (_, _) -> b.gcd' y x
+    | (_, ?(>= x)) -> gcd' (modulo y x) x
+    | (_, _) -> gcd' y x
 
 P./ fx $gx $x :=
   let xs := reverse (coefficients fx x)
