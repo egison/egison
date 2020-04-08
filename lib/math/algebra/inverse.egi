@@ -4,7 +4,7 @@
 
 inverse t f x :=
   match f as mathExpr with
-    | ?simpleTerm? ->
+    | ?isSimpleTerm ->
       match f as symbolExpr with
         | #x -> t
         | #exp #x -> log t
@@ -15,14 +15,14 @@ inverse t f x :=
         | #acos #x -> cos t
         | #asin #x -> sin t
         | _ -> inverse' t f x  -- TODO: define inverse'
-    | ?term? ->
+    | ?isTerm ->
       match f as termExpr with
         | term #1 (ncons $n #x []) -> rt n t
         | term _ (ncons $n #x _) ->
           let a := f / x ^ n
            in inverse (t / a) (f / a) x
         | _ -> `inverse t f x
-    | ?polynomial? ->
+    | ?isPolynomial ->
       match coefficients x f as list mathExpr with
         | $c :: (loop $i (1, $n)
                    (#0 :: ...)

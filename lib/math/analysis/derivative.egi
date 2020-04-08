@@ -8,7 +8,7 @@
   match f as mathExpr with
     -- symbol
     | #x -> 1
-    | ?symbol? -> 0
+    | ?isSymbol -> 0
     -- function expression
     | func _ $argnames $args _ ->
       sum (map2 (\s r -> (userRefs f [s]) * ∂/∂ r x) argnames args)
@@ -25,7 +25,7 @@
     -- quote
     | quote $g ->
       let g' := ∂/∂ g x
-       in if monomial? g'
+       in if isMonomial g'
             then g'
             else let d := capply gcd (fromPoly g')
                   in d *' '(mapPoly (/' d) g')
