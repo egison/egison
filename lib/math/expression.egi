@@ -340,7 +340,7 @@ expandAll' $mexpr :=
 -- Coefficient
 --
 coefficients $f $x :=
-  let m := max
+  let m := maximum
              (0 :: (matchAll f as mathExpr with
                | poly (term $a (ncons #x $k $ts) :: _) / _ -> k))
    in map 1#(coefficient f x %1) (between 0 m)
