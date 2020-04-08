@@ -58,11 +58,11 @@ assertEqual "S.intercalate"
 
 assertEqual "C.between" (C.between 'a' 'c') ['a', 'b', 'c']
 
-assertEqual "C.between?" (C.between? 'a' 'c' 'b') True
+assertEqual "C.isBetween" (C.isBetween 'a' 'c' 'b') True
 
-assertEqual "alphabet?" (alphabet? 'a') True
+assertEqual "isAlphabet" (isAlphabet 'a') True
 
-assertEqual "alphabets?" (alphabets? "Egison") True
+assertEqual "isAlphabetString" (isAlphabetString "Egison") True
 
 assertEqual "upper-case" (upperCase 'e') 'E'
 
