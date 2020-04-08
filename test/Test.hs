@@ -27,18 +27,18 @@ main =
 
 testCases :: [FilePath]
 testCases =
-  [ "nons-test/test/syntax.egi"
-  , "nons-test/test/primitive.egi"
-  , "nons-test/test/lib/core/base.egi"
-  , "nons-test/test/lib/core/collection.egi"
-  , "nons-test/test/lib/core/maybe.egi"
-  , "nons-test/test/lib/core/number.egi"
-  , "nons-test/test/lib/core/order.egi"
-  , "nons-test/test/lib/core/string.egi"
-  , "nons-test/test/lib/math/algebra.egi"
-  , "nons-test/test/lib/math/analysis.egi"
-  , "nons-test/test/lib/math/arithmetic.egi"
-  , "nons-test/test/lib/math/tensor.egi"
+  [ "test/syntax.egi"
+  , "test/primitive.egi"
+  , "test/lib/core/base.egi"
+  , "test/lib/core/collection.egi"
+  , "test/lib/core/maybe.egi"
+  , "test/lib/core/number.egi"
+  , "test/lib/core/order.egi"
+  , "test/lib/core/string.egi"
+  , "test/lib/math/algebra.egi"
+  , "test/lib/math/analysis.egi"
+  , "test/lib/math/arithmetic.egi"
+  , "test/lib/math/tensor.egi"
 
   , "sample/mahjong.egi" -- for testing pattern functions
   , "sample/primes.egi" -- for testing pattern matching with infinitely many results
