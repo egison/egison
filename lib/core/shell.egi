@@ -1,5 +1,5 @@
 SH.genInput sopts copts :=
-  if io eof? ()
+  if io isEof ()
     then []
     else let x := io TSV.readLine sopts copts
           in seq x (x :: SH.genInput sopts copts)

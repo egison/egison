@@ -581,9 +581,9 @@ ioPrimitives = [ ("return", return')
                , ("writeCharToPort", writeCharToPort)
                , ("writeToPort", writeStringToPort)
 
-               , ("eof?", isEOFStdin)
+               , ("isEof", isEOFStdin)
                , ("flush", flushStdout)
-               , ("eofPort?", isEOFPort)
+               , ("isEofPort", isEOFPort)
                , ("flushPort", flushPort)
                , ("readFile", readFile')
 

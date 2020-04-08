@@ -27,7 +27,7 @@ displayToPort := procedure port x -> do writeToPort port x
 
 eachLine :=
   procedure proc ->
-    do let eof := eof? ()
+    do let eof := isEof ()
        if eof
          then return ()
          else do let line := readLine ()
@@ -36,7 +36,7 @@ eachLine :=
 
 eachLineFromPort :=
   procedure port proc ->
-    do let eof := eofPort? port
+    do let eof := isEofPort port
        if eof
          then return ()
          else do let line := readLineFromPort port
