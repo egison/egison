@@ -11,7 +11,7 @@ ordering :=
     | greater
 
 compare m n :=
-  if collection? m
+  if isCollection m
     then compareC m n
     else if m < n then Less else if m = n then Equal else Greater
 

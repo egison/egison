@@ -2,12 +2,12 @@
 -- Mathematical Functions
 --
 
-abs $x := if rational? x then b.abs x else x
+abs $x := if isRational x then b.abs x else x
 
-neg $x := if rational? x then b.neg x else - x
+neg $x := if isRational x then b.neg x else - x
 
 exp $x :=
-  if float? x
+  if isFloat x
     then b.exp x
     else if term? x
       then match x as termExpr with
@@ -18,7 +18,7 @@ exp $x :=
       else `exp x
 
 log $x :=
-  if float? x
+  if isFloat x
     then b.log x
     else match x as mathExpr with
       | #1 -> 0
@@ -26,7 +26,7 @@ log $x :=
       | _ -> `log x
 
 cos $x :=
-  if float? x
+  if isFloat x
     then b.cos x
     else match x as mathExpr with
       | #0 -> 1
@@ -35,7 +35,7 @@ cos $x :=
       | _ -> `cos x
 
 sin $x :=
-  if float? x
+  if isFloat x
     then b.sin x
     else match x as mathExpr with
       | #0 -> 0
@@ -44,35 +44,35 @@ sin $x :=
       | _ -> `sin x
 
 tan $x :=
-  if float? x
+  if isFloat x
     then b.tan x
     else match x as mathExpr with
       | #0 -> 0
       | _ -> `tan x
 
 cosh $x :=
-  if float? x
+  if isFloat x
     then b.cosh x
     else match x as mathExpr with
       | #0 -> 1
       | _ -> `cosh x
 
 sinh $x :=
-  if float? x
+  if isFloat x
     then b.sinh x
     else match x as mathExpr with
       | #0 -> 0
       | _ -> `sinh x
 
 tanh $x :=
-  if float? x
+  if isFloat x
     then b.tanh x
     else match x as mathExpr with
       | #0 -> 0
       | _ -> `tanh x
 
 sinc $x :=
-  if float? x
+  if isFloat x
     then if x = 0.0 then 1.0 else b.sin x / x
     else match x as mathExpr with
       | #0 -> 1
