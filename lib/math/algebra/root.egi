@@ -8,7 +8,7 @@
 -- Root
 --
 rt n x :=
-  if integer? n
+  if isInteger n
     then match x as mathExpr with
       | #0 -> 0
       | ?monomial? -> rtMonomial n x
@@ -62,11 +62,11 @@ rtm1 n :=
   match n as integer with
     | #1 -> -1
     | #2 -> i
-    | ?odd? -> -1
+    | ?isOdd -> -1
     | _ -> undefined
 
 sqrt x :=
-  if scalar? x
+  if isScalar x
     then let m := numerator x
              n := denominator x
           in rt 2 (m * n) / n
@@ -77,7 +77,7 @@ rtOfUnity := rtu
 rtu n := rtu' n
 
 rtu' n :=
-  if integer? n
+  if isInteger n
     then match n as integer with
       | #1 -> 1
       | #2 -> -1

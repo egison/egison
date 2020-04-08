@@ -15,28 +15,28 @@ toMathExpr arg := mathNormalize1 (toMathExpr' arg)
 (/') $x $y := b./ x y
 
 (+) $x $y :=
-  match (float? x, float? y) as eq with
+  match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f.+ x y
     | #(True, False) -> f.+ x (itof y)
     | #(False, True) -> f.+ (itof x) y
     | _              -> mathNormalize1 (x +' y)
 
 (-) $x $y :=
-  match (float? x, float? y) as eq with
+  match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f.- x y
     | #(True, False) -> f.- x (itof y)
     | #(False, True) -> f.- (itof x) y
     | _              -> mathNormalize1 (x -' y)
 
 (*) $x $y :=
-  match (float? x, float? y) as eq with
+  match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f.* x y
     | #(True, False) -> f.* x (itof y)
     | #(False, True) -> f.* (itof x) y
     | _              -> mathNormalize1 (x *' y)
 
 (/) $x $y :=
-  match (float? x, float? y) as eq with
+  match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f./ x y
     | #(True, False) -> f./ x (itof y)
     | #(False, True) -> f./ (itof x) y
@@ -59,18 +59,18 @@ power' $x $n := foldl (*') 1 (take n (repeat1 x))
 (^) $x $n :=
   if x = e
     then exp n
-    else if rational? n
+    else if isRational n
       then if n >= 0
-        then if integer? n then power x n else `(^) x n
+        then if isInteger n then power x n else `(^) x n
         else 1 / x ^ neg n
       else `(^) x n
 
 (^') $x $n :=
   if x = e
     then exp n
-    else if rational? n
+    else if isRational n
       then if n >= 0
-        then if integer? n then power' x n else `(^) x n
+        then if isInteger n then power' x n else `(^) x n
         else 1 /' x ^' neg n
       else `(^) x n
 

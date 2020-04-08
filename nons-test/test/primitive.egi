@@ -139,33 +139,31 @@ assertEqual "isEmpty" (isEmpty [1]) False
 assertEqual "uncons" (uncons [1, 2, 3]) (1, [2, 3])
 assertEqual "unsnoc" (unsnoc [1, 2, 3]) ([1, 2], 3)
 
-assertEqual "bool?" (bool? False) True
+assertEqual "isBool" (isBool False) True
 
-assertEqual "integer?" (integer? 1) True
+assertEqual "isInteger" (isInteger 1) True
 
-assertEqual "rational?" (rational? 1)       True
-assertEqual "rational?" (rational? (1 / 2)) True
-assertEqual "rational?" (rational? 3.1)     False
+assertEqual "isRational" (isRational 1)       True
+assertEqual "isRational" (isRational (1 / 2)) True
+assertEqual "isRational" (isRational 3.1)     False
 
-assertEqual "scalar?" (scalar? 1) True
-assertEqual "scalar?" (scalar? [| 1, 2 |]) False
+assertEqual "isScalar" (isScalar 1) True
+assertEqual "isScalar" (isScalar [| 1, 2 |]) False
 
-assertEqual "float?" (float? 1.0) True
-assertEqual "float?" (float? 1)   False
+assertEqual "isFloat" (isFloat 1.0) True
+assertEqual "isFloat" (isFloat 1)   False
 
-assertEqual "char?" (char? 'c') True
+assertEqual "isChar" (isChar 'c') True
 
-assertEqual "string?" (string? "hoge") True
+assertEqual "isString" (isString "hoge") True
 
-assertEqual "collection?" (collection? []) True
-assertEqual "collection?" (collection? [1]) True
+assertEqual "isCollection" (isCollection []) True
+assertEqual "isCollection" (isCollection [1]) True
 
-assertEqual "hash?" (hash? {| |}) True
-assertEqual "hash?" (hash? {| (1, 2) |}) True
+assertEqual "isHash" (isHash {| |}) True
+assertEqual "isHash" (isHash {| (1, 2) |}) True
 
--- TODO: Add a test case where tensor? returns True
-assertEqual "tensor?" (tensor? 1)                           False
-assertEqual "tensor?" (tensor? [| 1 |])                     True
-assertEqual "tensor?" (tensor? (generateTensor (+) [1, 2])) True
-
--- TODO: tensorWithIndex?
+-- TODO: Add a test case where isTensor returns True
+assertEqual "isTensor" (isTensor 1)                           False
+assertEqual "isTensor" (isTensor [| 1 |])                     True
+assertEqual "isTensor" (isTensor (generateTensor (+) [1, 2])) True

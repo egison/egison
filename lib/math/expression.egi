@@ -274,7 +274,7 @@ containFunctionWithIndex? $mexpr :=
                   id
                   (map
                      2#(match %1 as symbolExpr with
-                       | apply (?scalar? & $f) $args ->
+                       | apply (?isScalar & $f) $args ->
                          match f as mathExpr with
                            | symbol _ ![] -> True
                            | _ ->
