@@ -58,10 +58,10 @@ M.join %A %B %C %D :=
       dshape := tensorShape D
       d1 := nth 1 dshape
       d2 := nth 2 dshape
-      m1 := max [a1, b1]
-      m2 := max [a2, c2]
-      n1 := max [c1, d1]
-      n2 := max [b2, d2]
+      m1 := max a1 b1
+      m2 := max a2 c2
+      n1 := max c1 d1
+      n2 := max b2 d2
    in generateTensor
         2#(match (%1, %2) as (integer, integer) with
           | (?(<= a1), ?(<= a2)) -> A_%1_%2

@@ -86,7 +86,7 @@ learn stage cl trail :=
   matchDFS (trail, cl) as (list assignment, multiset taggedLiteral) with
     -- not more than 2 literals from the current stage
     | (_, !((_, #stage) :: (_, #stage) :: _)) ->
-      (min (map 2#%2 cl), map 2#%1 cl)
+      (minimum (map 2#%2 cl), map 2#%1 cl)
     -- otherwise
     | (_ ++ deduced ($l, #stage) $ds :: $trail', (#(neg l), #stage) :: $rs) ->
       learn stage (union rs ds) trail'

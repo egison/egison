@@ -11,7 +11,7 @@ assertEqual "compare - case 3"
   Less
 
 assertEqual "min"
-  (min [20, 5])
+  (minimum [20, 5])
   5
 
 assertEqual "min/fn"
@@ -19,7 +19,7 @@ assertEqual "min/fn"
   5
 
 assertEqual "max"
-  (max [5, 30])
+  (maximum [5, 30])
   30
 
 assertEqual "max/fn"
