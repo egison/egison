@@ -11,3 +11,12 @@
 $ pip install sphinx sphinx_rtd_theme
 $ make html
 ```
+
+## How to add/manage Japanese translation
+See <https://docs.readthedocs.io/en/stable/guides/manage-translations.html> for the detail.
+
+### Update `locale/`
+```
+$ sphinx-build -b gettext . _build/gettext
+$ sphinx-intl update -p _build/gettext -l ja
+```

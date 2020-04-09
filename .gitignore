@@ -13,3 +13,4 @@ stack.yaml
 stack.yaml.lock
 .stack-work
 docs/_build
+*.mo
