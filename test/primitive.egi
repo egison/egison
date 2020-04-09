@@ -133,12 +133,6 @@ assertEqual "show" (show "Hello world!") "\"Hello world!\""
 
 -- TODO: show-tsv
 
-assertEqual "isEmpty" (isEmpty [])  True
-assertEqual "isEmpty" (isEmpty [1]) False
-
-assertEqual "uncons" (uncons [1, 2, 3]) (1, [2, 3])
-assertEqual "unsnoc" (unsnoc [1, 2, 3]) ([1, 2], 3)
-
 assertEqual "isBool" (isBool False) True
 
 assertEqual "isInteger" (isInteger 1) True

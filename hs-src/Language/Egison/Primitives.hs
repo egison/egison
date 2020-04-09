@@ -212,10 +212,6 @@ primitives = [ ("b.+", plus)
              , ("show", show')
              , ("showTsv", showTSV')
 
-             , ("isEmpty", isEmpty')
-             , ("uncons", uncons')
-             , ("unsnoc", unsnoc')
-
              , ("isBool", isBool')
              , ("isInteger", isInteger')
              , ("isRational", isRational')
@@ -526,26 +522,8 @@ showTSV' :: PrimitiveFunc
 showTSV'= oneArg' $ \val -> return $ toEgison $ T.pack $ showTSV val
 
 --
--- Collection
---
-isEmpty' :: PrimitiveFunc
-isEmpty' whnf = Value . Bool <$> isEmptyCollection whnf
-
-uncons' :: PrimitiveFunc
-uncons' whnf = do
-  mRet <- runMaybeT (unconsCollection whnf)
-  case mRet of
-    Just (carObjRef, cdrObjRef) -> return $ Intermediate $ ITuple [carObjRef, cdrObjRef]
-    Nothing -> throwError $ Default "cannot uncons collection"
-
-unsnoc' :: PrimitiveFunc
-unsnoc' whnf = do
-  mRet <- runMaybeT (unsnocCollection whnf)
-  case mRet of
-    Just (racObjRef, rdcObjRef) -> return $ Intermediate $ ITuple [racObjRef, rdcObjRef]
-    Nothing -> throwError $ Default "cannot unsnoc collection"
-
 -- Test
+--
 
 assert ::  PrimitiveFunc
 assert = twoArgs' $ \label test -> do

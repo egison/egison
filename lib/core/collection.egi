@@ -121,7 +121,7 @@ dropWhile pred xs :=
     | $x :: $rs -> if pred x then dropWhile pred rs else xs
 
 --
--- head, tail
+-- head, tail, uncons, unsnoc
 --
 head xs :=
   match xs as list something with
@@ -139,10 +139,23 @@ init xs :=
   match xs as list something with
     | snoc _ $ys -> ys
 
+uncons xs :=
+  match xs as list something with
+    | $x :: $ys -> (x, ys)
+
+unsnoc xs :=
+  match xs as list something with
+    | snoc $x $ys -> (ys, x)
+
 
 --
 -- list functions
 --
+isEmpty xs :=
+  match xs as list something with
+    | [] -> True
+    | _  -> False
+
 length xs := foldl 2#(%1 + 1) 0 xs
 
 map fn xs :=

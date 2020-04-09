@@ -25,10 +25,6 @@ module Language.Egison.Core
     , recursiveBind
     -- * Pattern matching
     , patternMatch
-    -- * Collection
-    , isEmptyCollection
-    , unconsCollection
-    , unsnocCollection
     -- * Tuple, Collection
     , tupleToList
     , collectionToList
