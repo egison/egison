@@ -107,15 +107,16 @@ Library
                    Language.Egison.Desugar
                    Language.Egison.Data
                    Language.Egison.IState
-                   Language.Egison.Types
-                   Language.Egison.Tensor
+                   Language.Egison.MathExpr
+                   Language.Egison.MathOutput
+                   Language.Egison.MList
                    Language.Egison.Parser
                    Language.Egison.Parser.SExpr
                    Language.Egison.Parser.NonS
                    Language.Egison.Pretty
                    Language.Egison.Primitives
-                   Language.Egison.MathExpr
-                   Language.Egison.MathOutput
+                   Language.Egison.Tensor
+                   Language.Egison.Types
   Other-modules:   Paths_egison
   ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns
 
