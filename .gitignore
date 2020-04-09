@@ -12,4 +12,4 @@ test.egi
 stack.yaml
 stack.yaml.lock
 .stack-work
-docs/build
+docs/_build
