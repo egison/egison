@@ -4,7 +4,7 @@
 --
 --
 
-toMathExpr arg := mathNormalize1 (toMathExpr' arg)
+toMathExpr arg := mathNormalize (toMathExpr' arg)
 
 (+') $x $y := b.+ x y
 
@@ -19,21 +19,21 @@ toMathExpr arg := mathNormalize1 (toMathExpr' arg)
     | #(True, True)  -> f.+ x y
     | #(True, False) -> f.+ x (itof y)
     | #(False, True) -> f.+ (itof x) y
-    | _              -> mathNormalize1 (x +' y)
+    | _              -> mathNormalize (x +' y)
 
 (-) $x $y :=
   match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f.- x y
     | #(True, False) -> f.- x (itof y)
     | #(False, True) -> f.- (itof x) y
-    | _              -> mathNormalize1 (x -' y)
+    | _              -> mathNormalize (x -' y)
 
 (*) $x $y :=
   match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f.* x y
     | #(True, False) -> f.* x (itof y)
     | #(False, True) -> f.* (itof x) y
-    | _              -> mathNormalize1 (x *' y)
+    | _              -> mathNormalize (x *' y)
 
 (/) $x $y :=
   match (isFloat x, isFloat y) as eq with
@@ -52,7 +52,7 @@ product xs := foldl (*) 1 xs
 
 product' xs := foldl (*') 1 xs
 
-power $x $n := mathNormalize1 (power' x n)
+power $x $n := mathNormalize (power' x n)
 
 power' $x $n := foldl (*') 1 (take n (repeat1 x))
 
