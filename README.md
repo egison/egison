@@ -327,40 +327,6 @@ Installation guide for [MacOS](https://www.egison.org/getting-started/getting-st
 
 If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egison/egison-tutorial">`egison-tutorial`</a>.
 
-```
-% egison-tutorial
-Egison Tutorial Version X.X.X (C) 2013-20XX Satoshi Egi
-Welcome to Egison Tutorial!
-** Information **
-We can use a 'Tab' key to complete keywords on the interpreter.
-If we type a 'Tab' key after a closed parenthesis, the next closed parenthesis will be completed.
-*****************
-==============================
-List of sections in the tutorial.
-1: Calculate numbers
-2: Basics of functional programming
-3: Basics of pattern matching
-4: Pattern matching against various data types
-5: Symbolic computation
-6: Differential geometry: tensor analysis
-7: Differential geometry: differential forms
-==============================
-Choose a section to learn.
-(1-7): 1
-====================
-We can do arithmetic operations with '+', '-', '*', '/', 'modulo' and 'power'.
-
-Examples:
-  (+ 1 2)
-  (- 30 15)
-  (* 10 20)
-  (/ 20 5)
-  (modulo 17 4)
-  (power 2 10)
-====================
->
-```
-
 We also have [online interpreter](http://console.egison.org) and [online tutorial](http://try.egison.org/).
 Enjoy!
 
