@@ -225,27 +225,6 @@ primitives = [ ("b.+", plus)
 
              , ("assert", assert)
              , ("assertEqual", assertEqual)
-
-             -- for old syntax compatibility
-             -- TODO: Delete these after the old syntax is deprecated
-             , ("from-math-expr", fromScalarData)
-             , ("to-math-expr", toScalarData)
-             , ("to-math-expr'", toScalarData)
-             , ("tensor-shape", tensorShape')
-             , ("tensor-to-list", tensorToList')
-             , ("df-order", dfOrder')
-             , ("uncons-string", unconsString)
-             , ("length-string", lengthString)
-             , ("append-string", appendString)
-             , ("split-string", splitString)
-             , ("regex-cg", regexStringCaptureGroup)
-             , ("add-prime", addPrime)
-             , ("add-subscript", addSubscript)
-             , ("add-superscript", addSuperscript)
-             , ("read-process", readProcess')
-             , ("read-tsv", readTSV)
-             , ("show-tsv", showTSV')
-             , ("assert-equal", assertEqual)
              ]
 
 unaryOp :: (EgisonData a, EgisonData b) => (a -> b) -> PrimitiveFunc
@@ -567,23 +546,6 @@ ioPrimitives = [ ("return", return')
 
                , ("rand", randRange)
                , ("f.rand", randRangeDouble)
-
-               -- for old syntax compatibility
-               -- TODO: Delete these after the old syntax is deprecated
-               , ("open-input-file", makePort ReadMode)
-               , ("open-output-file", makePort WriteMode)
-               , ("close-input-port", closePort)
-               , ("close-output-port", closePort)
-               , ("read-char", readChar)
-               , ("read-line", readLine)
-               , ("write-char", writeChar)
-               , ("read-char-from-port", readCharFromPort)
-               , ("read-line-from-port", readLineFromPort)
-               , ("write-char-to-port", writeCharToPort)
-               , ("write-to-port", writeStringToPort)
-               , ("eof-port?", isEOFPort)
-               , ("flush-port", flushPort)
-               , ("read-file", readFile')
                ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
