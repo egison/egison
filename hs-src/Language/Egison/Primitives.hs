@@ -16,7 +16,6 @@ module Language.Egison.Primitives
   ) where
 
 import           Control.Monad.Except
-import           Control.Monad.Trans.Maybe
 
 import           Data.Foldable             (toList)
 import           Data.IORef
