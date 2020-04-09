@@ -163,15 +163,15 @@ The following is a sample to calculate the 5th roots of unity.
 * [Definition of `q-f'` in `equations.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/equations.egi)
 
 ```
-> (q-f' 1 1 -1)
-[(/ (+ -1 (sqrt 5)) 2) (/ (+ -1 (* -1 (sqrt 5))) 2)]
-> (define $t (fst (q-f' 1 1 -1)))
-> (q-f' 1 (* -1 t) 1)
-[(/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4) (/ (+ -1 (sqrt 5) (* -1 (sqrt (+ -10 (* -2 (sqrt 5)))))) 4)]
-> (define $z (fst (q-f' 1 (* -1 t) 1)))
+> qF' 1 1 (-1)
+((-1 + sqrt 5) / 2, (-1 - sqrt 5) / 2)
+> t := fst (qF' 1 1 (-1))
+> qF' 1 (-t) 1
+((-1 + sqrt 5 + sqrt 2 * sqrt (-5 - sqrt 5)) / 4, (-1 + sqrt 5 - sqrt 2 * sqrt (-5 - sqrt 5)) / 4)
+> z := fst (qF' 1 (-t) 1)
 > z
-(/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4)
-> (** z 5)
+(-1 + sqrt 5 + sqrt 2 * sqrt (-5 - sqrt 5)) / 4
+> z ^ 5
 1
 ```
 
@@ -182,14 +182,14 @@ We can implement differentiation easily in Egison.
 * [Definition of `d/d` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
 
 ```
-> (d/d (** x 3) x)
-(* 3 x^2)
-> (d/d (** e (* i x)) x)
-(* i (** e (* i x)))
-> (d/d (d/d (log x) x) x)
-(/ -1 x^2)
-> (d/d (* (cos x) (sin x)) x)
-(+ (* -1 (sin x)^2) (cos x)^2)
+> d/d (x ^ 3) x
+3 * x^2
+> d/d (e ^ (i * x)) x
+exp (x * i) * i
+> d/d (d/d (log x) x) x
+-1 / x^2
+> d/d (cos x * sin x) x
+-2 * (sin x)^2 + 1
 ```
 
 ### Taylor Expansion
