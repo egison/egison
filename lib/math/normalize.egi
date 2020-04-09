@@ -4,15 +4,14 @@
 --
 --
 
-mathNormalize1 $x :=
+mathNormalize $x :=
   if isInteger x
     then x
-    else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules1))) x
+    else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules))) x
 --    else x
 
-rewriteRules1 :=
-  [ (id, 1#True)
-  , (rewriteRuleForI, 1#(containSymbol i %1))
+rewriteRules :=
+  [ (rewriteRuleForI, 1#(containSymbol i %1))
   , (rewriteRuleForWTerm, 1#(containSymbol w %1))
   , (rewriteRuleForRtuTerm, 1#(containFunction `rtu %1))
   , (rewriteRuleForPower, 1#(containFunction `(^) %1))
