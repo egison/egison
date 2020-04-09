@@ -547,7 +547,7 @@ evalExpr env (TensorContractExpr tExpr) = do
     Value (TensorData t@Tensor{}) -> do
       ts <- tContract t
       return $ Value $ Collection $ Sq.fromList $ map tensorToValue ts
-    _ -> return whnf
+    _ -> makeICollection [whnf]
 
 evalExpr env (TensorMapExpr fnExpr tExpr) = do
   fn <- evalExpr env fnExpr
