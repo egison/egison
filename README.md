@@ -200,14 +200,14 @@ We verify [Euler's formula](https://en.wikipedia.org/wiki/Euler%27s_formula) in 
 * [Definition of `taylor-expansion` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
 
 ```
-> (take 8 (taylor-expansion (** e (* i x)) x 0))
-{1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6) (/ x^4 24) (/ (* i x^5) 120) (/ (* -1 x^6) 720) (/ (* -1 i x^7) 5040)}
-> (take 8 (taylor-expansion (cos x) x 0))
-{1 0 (/ (* -1 x^2) 2) 0 (/ x^4 24) 0 (/ (* -1 x^6) 720) 0}
-> (take 8 (taylor-expansion (* i (sin x)) x 0))
-{0 (* i x) 0 (/ (* -1 i x^3) 6) 0 (/ (* i x^5) 120) 0 (/ (* -1 i x^7) 5040)}
-> (take 8 (map2 + (taylor-expansion (cos x) x 0) (taylor-expansion (* i (sin x)) x 0)))
-{1 (* i x) (/ (* -1 x^2) 2) (/ (* -1 i x^3) 6) (/ x^4 24) (/ (* i x^5) 120) (/ (* -1 x^6) 720) (/ (* -1 i x^7) 5040)}
+> take 8 (taylorExpansion (exp (i * x)) x 0)
+[1, x * i, - x^2 / 2, - x^3 * i / 6, x^4 / 24, x^5 * i / 120, - x^6 / 720, - x^7 * i / 5040]
+> take 8 (taylorExpansion (cos x) x 0)
+[1, 0, - x^2 / 2, 0, x^4 / 24, 0, - x^6 / 720, 0]
+> take 8 (taylorExpansion (i * sin x) x 0)
+[0, x * i, 0, - x^3 * i / 6, 0, x^5 * i / 120, 0, - x^7 * i / 5040]
+> take 8 (map2 (+) (taylorExpansion (cos x) x 0) (taylorExpansion (i * sin x) x 0))
+[1, x * i, - x^2 / 2, - x^3 * i / 6, x^4 / 24, x^5 * i / 120, - x^6 / 720, - x^7 * i / 5040]
 ```
 
 ### Tensor Index Notation
