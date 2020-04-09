@@ -200,15 +200,16 @@ assertEqual "take-and-drop" (takeAndDrop 2 [1, 2, 3]) ([1, 2], [3])
 
 assertEqual "take-while" (takeWhile 1#(%1 < 10) primes) [2, 3, 5, 7]
 
-assertEqual "cons" (1 :: [2, 3]) [1, 2, 3]
-
 assertEqual "head" (head [1, 2, 3]) 1
-
 assertEqual "tail" (tail [1, 2, 3]) [2, 3]
-
 assertEqual "last" (last [1, 2, 3]) 3
-
 assertEqual "init" (init [1, 2, 3]) [1, 2]
+
+assertEqual "uncons" (uncons [1, 2, 3]) (1, [2, 3])
+assertEqual "unsnoc" (unsnoc [1, 2, 3]) ([1, 2], 3)
+
+assertEqual "isEmpty" (isEmpty [])  True
+assertEqual "isEmpty" (isEmpty [1]) False
 
 assertEqual "length" (length [1, 2, 3]) 3
 
