@@ -58,7 +58,7 @@ sortedList a :=
           | loop $i (1, $n)
               ($xa_i :: ...)
               $rs -> (map (\i -> xa_i) [1..n], rs)
-    | cons $ $ as (a, sortedList a) with
+    | $ :: $ as (a, sortedList a) with
       | $x :: $xs -> [(x, xs)]
       | _ -> []
     | #$val as () with
@@ -121,10 +121,8 @@ dropWhile pred xs :=
     | $x :: $rs -> if pred x then dropWhile pred rs else xs
 
 --
--- cons, head, tail
+-- head, tail
 --
-cons x xs := x :: xs
-
 head xs :=
   match xs as list something with
     | $x :: _ -> x
