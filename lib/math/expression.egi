@@ -67,9 +67,9 @@ symbolExpr := mathExpr
 
 plusExpr :=
   matcher
-    | nil as () with
+    | [] as () with
       | $tgt -> if tgt = 0 then [()] else []
-    | cons $ $ as (mathExpr, plusExpr) with
+    | $ :: $ as (mathExpr, plusExpr) with
       | $tgt ->
         matchAll tgt as mathExpr with
           | poly ($t :: $ts) -> (t, sum' ts)
@@ -78,12 +78,12 @@ plusExpr :=
 
 multExpr :=
   matcher
-    | nil as () with
+    | [] as () with
       | $tgt ->
         match tgt as mathExpr with
           | #0 -> [()]
           | _ -> []
-    | cons $ $ as (mathExpr, multExpr) with
+    | $ :: $ as (mathExpr, multExpr) with
       | $tgt ->
         match tgt as mathExpr with
           | term _ $xs ->
