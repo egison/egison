@@ -23,8 +23,8 @@ Changes in function names
 
 Apart from the changes in the syntax itself, some of the library/built-in variable names have also been renamed to match the new syntax.
 
-Naming convention
------------------
+Changes in naming rules
+-----------------------
 
 The following describes the changes in the naming rule of variables.
 The table shows the example of such changes and the detailed description is given under the table.
@@ -48,8 +48,8 @@ Some of these changes are supported in ``egison-translate`` but others are not, 
 4. Function names of the form ``foo/m`` are renamed as ``fooAs``. For instance, ``delete/m`` became ``deleteAs``.
 
 
-Individual changes
-------------------
+Instance-wise changes
+---------------------
 
 Also, some of the Lisp-inspired names have been renamed into Haskell-like names as shown in the following table.
 These changes are supported in ``egison-translate``.
