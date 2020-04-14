@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE ViewPatterns     #-}
 {-# OPTIONS_GHC -Wno-all      #-} -- Since we will soon deprecate this parser
 
 {- |
@@ -846,6 +847,12 @@ toCamelCase "-'" = "-'"
 toCamelCase "f.-'" = "f.-'"
 toCamelCase "b.." = "b."
 toCamelCase "b..'" = "b.'"
+toCamelCase "car" = "head"
+toCamelCase "cdr" = "tail"
+toCamelCase "rac" = "last"
+toCamelCase "rdc" = "init"
+toCamelCase (reverse -> 'm':'/':xs) =
+  toCamelCase (reverse xs ++ "-as")
 toCamelCase x =
   let heads:tails = splitOn "-" x
    in concat $ heads : map capitalize tails

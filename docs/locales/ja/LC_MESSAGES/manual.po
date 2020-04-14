@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Egison \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-09 18:58+0900\n"
+"POT-Creation-Date: 2020-04-14 21:34+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -20,6 +20,183 @@ msgstr ""
 #: ../../manual/libs.rst:3
 msgid "List of libraries"
 msgstr "標準ライブラリ"
+
+#: ../../manual/new-syntax-migration-guide.rst:3
+msgid "Migration Guide for the New Syntax"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:6
+msgid "Automated translation with ``egison-translate``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:8
+msgid ""
+"We have a tool to help users convert old Egison programs into the new "
+"syntax. ``egison-translate`` automatically translates Egison programs in "
+"the old S-expression syntax into the new Haskell-like syntax. It is not "
+"released but can be built from the Egison source as follows."
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:22
+msgid "Changes in function names"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:24
+msgid ""
+"Apart from the changes in the syntax itself, some of the library/built-in"
+" variable names have also been renamed to match the new syntax."
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:27
+msgid "Naming convention"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:29
+msgid ""
+"The following describes the changes in the naming rule of variables. The "
+"table shows the example of such changes and the detailed description is "
+"given under the table. Some of the changes in the rules are handled by "
+"``egison-translate`` but others are not -- the users still have to "
+"manually modify the program to complete the translation, at least for "
+"now."
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:34
+#: ../../manual/new-syntax-migration-guide.rst:57
+msgid "Old name"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:34
+#: ../../manual/new-syntax-migration-guide.rst:57
+msgid "New name"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:34
+msgid "Handled by ``egison-translate``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:36
+msgid "1"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:36
+msgid "``take-while``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:36
+msgid "``takeWhile``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:36
+#: ../../manual/new-syntax-migration-guide.rst:42
+msgid "Yes"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:38
+msgid "2"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:38
+msgid "``even?``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:38
+msgid "``isEven``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:38
+#: ../../manual/new-syntax-migration-guide.rst:40
+msgid "No"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:40
+msgid "3"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:40
+msgid "``member?``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:40
+msgid "``member``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:42
+msgid "4"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:42
+msgid "``delete/m``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:42
+msgid "``deleteAs``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:45
+msgid "Names connected with hyphens ``-`` are converted into camelCase."
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:46
+msgid ""
+"Unary function names that ended with a question mark ``?`` is prefixed "
+"with ``is``."
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:47
+msgid ""
+"Non-unary function names that ended with a question mark ``foo?`` now "
+"omits the last question mark."
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:48
+msgid ""
+"Function names of the form ``foo/m`` are renamed as ``fooAs``. For "
+"instance, ``delete/m`` became ``deleteAs``."
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:51
+msgid "Individual changes"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:53
+msgid ""
+"Also, some of the Lisp-inspired names have been renamed into Haskell-like"
+" names as shown in the following table. These changes are supported by "
+"``egison-translate``."
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:59
+msgid "``car``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:59
+msgid "``head``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:61
+msgid "``cdr``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:61
+msgid "``tail``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:63
+msgid "``rac``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:63
+msgid "``last``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:65
+msgid "``rdc``"
+msgstr ""
+
+#: ../../manual/new-syntax-migration-guide.rst:65
+msgid "``init``"
+msgstr ""
 
 #: ../../manual/primitive-functions.rst:3
 msgid "Primitive Functions"
