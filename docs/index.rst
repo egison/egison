@@ -16,4 +16,4 @@ Manuals
 
    manual/libs.rst
    manual/primitive-functions.rst
-   manual/new-syntax-migration-guide.rst
+   manual/migration-guide-for-new-syntax.rst

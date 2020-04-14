@@ -7,14 +7,14 @@ Automated translation with ``egison-translate``
 
 We have a tool to help users convert old Egison programs into the new syntax.
 ``egison-translate`` automatically translates Egison programs in the old S-expression syntax into the new Haskell-like syntax.
-It is not released but can be built from the Egison source as follows.
+It can be built from the source as follows.
 
 ::
 
     $ git clone git@github.com:egison/egison.git
     $ cd egison
     $ stack init
-    $ stack build
+    $ stack build --fast
     $ stack exec -- egison-translate name-of-file-you-want-to-convert.segi
 
 
