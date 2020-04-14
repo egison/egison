@@ -28,7 +28,7 @@ Naming convention
 
 The following describes the changes in the naming rule of variables.
 The table shows the example of such changes and the detailed description is given under the table.
-Some of the changes in the rules are handled by ``egison-translate`` but others are not -- the users still have to manually modify the program to complete the translation, at least for now.
+Some of these changes are supported in ``egison-translate`` but others are not, so the users might need to manually modify the program to complete the translation, at least for now.
 
 +----+----------------+---------------+---------------------------------+
 |    | Old name       | New name      | Handled by ``egison-translate`` |
@@ -47,11 +47,12 @@ Some of the changes in the rules are handled by ``egison-translate`` but others 
 3. Non-unary function names that ended with a question mark ``foo?`` now omits the last question mark.
 4. Function names of the form ``foo/m`` are renamed as ``fooAs``. For instance, ``delete/m`` became ``deleteAs``.
 
+
 Individual changes
 ------------------
 
 Also, some of the Lisp-inspired names have been renamed into Haskell-like names as shown in the following table.
-These changes are supported by ``egison-translate``.
+These changes are supported in ``egison-translate``.
 
 +----------+----------+
 | Old name | New name |
