@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Egison \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-14 21:34+0900\n"
+"POT-Creation-Date: 2020-04-14 22:21+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -55,19 +55,18 @@ msgstr ""
 msgid ""
 "The following describes the changes in the naming rule of variables. The "
 "table shows the example of such changes and the detailed description is "
-"given under the table. Some of the changes in the rules are handled by "
-"``egison-translate`` but others are not -- the users still have to "
-"manually modify the program to complete the translation, at least for "
-"now."
+"given under the table. Some of these changes are supported in ``egison-"
+"translate`` but others are not, so the users might need to manually "
+"modify the program to complete the translation, at least for now."
 msgstr ""
 
 #: ../../manual/new-syntax-migration-guide.rst:34
-#: ../../manual/new-syntax-migration-guide.rst:57
+#: ../../manual/new-syntax-migration-guide.rst:58
 msgid "Old name"
 msgstr ""
 
 #: ../../manual/new-syntax-migration-guide.rst:34
-#: ../../manual/new-syntax-migration-guide.rst:57
+#: ../../manual/new-syntax-migration-guide.rst:58
 msgid "New name"
 msgstr ""
 
@@ -155,50 +154,72 @@ msgid ""
 "instance, ``delete/m`` became ``deleteAs``."
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:51
+#: ../../manual/new-syntax-migration-guide.rst:52
 msgid "Individual changes"
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:53
+#: ../../manual/new-syntax-migration-guide.rst:54
 msgid ""
 "Also, some of the Lisp-inspired names have been renamed into Haskell-like"
-" names as shown in the following table. These changes are supported by "
+" names as shown in the following table. These changes are supported in "
 "``egison-translate``."
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:59
+#: ../../manual/new-syntax-migration-guide.rst:60
 msgid "``car``"
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:59
+#: ../../manual/new-syntax-migration-guide.rst:60
 msgid "``head``"
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:61
+#: ../../manual/new-syntax-migration-guide.rst:62
 msgid "``cdr``"
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:61
+#: ../../manual/new-syntax-migration-guide.rst:62
 msgid "``tail``"
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:63
+#: ../../manual/new-syntax-migration-guide.rst:64
 msgid "``rac``"
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:63
+#: ../../manual/new-syntax-migration-guide.rst:64
 msgid "``last``"
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:65
+#: ../../manual/new-syntax-migration-guide.rst:66
 msgid "``rdc``"
 msgstr ""
 
-#: ../../manual/new-syntax-migration-guide.rst:65
+#: ../../manual/new-syntax-migration-guide.rst:66
 msgid "``init``"
 msgstr ""
 
 #: ../../manual/primitive-functions.rst:3
 msgid "Primitive Functions"
 msgstr "ビルトイン関数"
+
+#~ msgid ""
+#~ "The following describes the changes in"
+#~ " the naming rule of variables. The"
+#~ " table shows the example of such "
+#~ "changes and the detailed description is"
+#~ " given under the table. Some of "
+#~ "the changes in the rules are "
+#~ "handled by ``egison-translate`` but "
+#~ "others are not -- the users still"
+#~ " have to manually modify the program"
+#~ " to complete the translation, at "
+#~ "least for now."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Also, some of the Lisp-inspired "
+#~ "names have been renamed into Haskell-"
+#~ "like names as shown in the "
+#~ "following table. These changes are "
+#~ "supported by ``egison-translate``."
+#~ msgstr ""
 
