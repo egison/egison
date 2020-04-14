@@ -26,7 +26,7 @@ fst := 2#%1
 
 snd := 2#%2
 
-apply f x := f x
+($) f x := f x
 
 compose f g := \x -> g (f x)
 

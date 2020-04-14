@@ -152,8 +152,8 @@ desugar (SuprefsExpr bool expr1 expr2) =
 desugar (UserrefsExpr bool expr1 expr2) =
   UserrefsExpr bool <$> desugar expr1 <*> desugar expr2
 
-desugar (PowerExpr expr1 expr2) =
-  (\x y -> makeApply "**" [x, y]) <$> desugar expr1 <*> desugar expr2
+desugar (PowerExpr expr1 expr2) = desugar (BinaryOpExpr op expr1 expr2)
+  where op = findOpFrom "^" reservedExprInfix
 
 desugar (InductiveDataExpr name exprs) =
   InductiveDataExpr name <$> mapM desugar exprs
@@ -243,7 +243,7 @@ desugar (UnaryOpExpr "'" expr) = QuoteExpr <$> desugar expr
 desugar (UnaryOpExpr "`" expr) = QuoteSymbolExpr <$> desugar expr
 
 desugar (BinaryOpExpr op expr1 expr2) | isWedge op =
-  (\x y -> WedgeApplyExpr (stringToVarExpr (func op)) (TupleExpr [x, y]))
+  (\x y -> WedgeApplyExpr (stringToVarExpr (repr op)) (TupleExpr [x, y]))
     <$> desugar expr1 <*> desugar expr2
 
 desugar (BinaryOpExpr op expr1 expr2) | repr op == "::" =
@@ -251,7 +251,7 @@ desugar (BinaryOpExpr op expr1 expr2) | repr op == "::" =
 desugar (BinaryOpExpr op expr1 expr2) | repr op == "++" =
   (\x y -> CollectionExpr [SubCollectionExpr x, SubCollectionExpr y]) <$> desugar expr1 <*> desugar expr2
 desugar (BinaryOpExpr op expr1 expr2) =
-  (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
+  (\x y -> makeApply (repr op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 -- section
 --

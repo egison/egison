@@ -162,7 +162,7 @@ defineOrTestExpr = do
     convertToDefine :: EgisonExpr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
     convertToDefine (SectionExpr op Nothing Nothing) =
-      return $ Variable (stringToVar (func op))
+      return $ Variable (stringToVar (repr op))
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
       args' <- mapM ((TensorArg <$>) . exprToStr) args
       return $ Function var args'
@@ -189,7 +189,7 @@ defineOrTestExpr = do
     exprToArgs (VarExpr v) = return [TensorArg (show v)]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
-    exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (func op)]
+    exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (repr op)]
     exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
