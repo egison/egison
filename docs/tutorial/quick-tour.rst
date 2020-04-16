@@ -8,6 +8,68 @@ This section introduces basic functionalities of Egison for pattern-matching ori
 ``matchAll`` and matchers
 =========================
 
+Egison provides some syntactic constructs for expressing pattern-matching.
+The most basic one among them is ``matchAll``.
+
+::
+
+   matchAll [1,2,3] as list something with
+     | $x :: $xs -> (x, xs)
+   -- [(1,[2,3])]
+
+A ``matchAll`` expression consists of the following elements.
+
+* a **target** (``[1,2,3]`` in the above example)
+* a **matcher** (``list something``)
+* more than one **match clauses** (``$x :: $xs -> (x, xs)``)
+
+A match clause contains a **pattern** (``$x :: $xs`` in the above example) and a **body** (``(x, xs)``).
+Just like the pattern matching in other programming languages, the ``matchAll`` expression attempts pattern-matching of the target and the pattern, and if it succeeds, evaluates the body of the match clause.
+
+The unique feature of the ``matchAll`` expression is twofold: (1) it returns a list, and (2) it takes additional argument called matchers.
+
+(1) is for supporting pattern-matching with multiple results.
+Since there can be multiple ways to match the pattern for the target data, the ``matchAll`` expression evaluates the body for all of these pattern-matching results and returns a list of the evaluation results.
+In the above example, the ``::`` is what we call a **cons pattern** which decomposes a list into the first element and the others.
+Because there is only one way to decompose the list ``[1, 2, 3]`` in this manner, the ``matchAll`` returns a singleton list.
+
+The feature (2) realizes extensible pattern matching algorithm and pattern polymorphism.
+Matcher is an Egison-specific object that retains pattern-matching algorithms.
+See :ref:`label-pattern-polymorphism` for the description of pattern polymorphism.
+
+Lines starting with ``--`` are comments.
+In this tutorial, a line comment right after a program shows the execution result of the program.
+
+We will explain more on the syntax of ``matchAll``.
+A matcher is sandwitched between two keywords ``as`` and ``with``.
+A ``matchAll`` expression can take multiple match clauses.
+Match clauses are precedented with ``|``, which enhances the readability of program when a match clause occupy multiple lines.
+In a match clause, the pattern and the body is separated with ``->``.
+
+::
+
+   matchAll target as matcher with
+   | pattern1 -> body1
+   | pattern2 -> body2
+   ...
+
+When there is only one match clause, we can omit the ``|`` before the match clause.
+
+::
+
+   matchAll ターゲット as マッチャー with パターン -> ボディ
+
+
+The following is an example of pattern-matching with multiple results.
+``++`` is called **join pattern**, which splits a list into two segments.
+The ``matchAll`` evaluates the body for every possible matching result of the join pattern.
+
+::
+
+   matchAll [1,2,3] as list something with
+   | $hs ++ $ts -> (hs, ts)
+   -- [([], [1, 2, 3]), ([1], [2, 3]), ([1, 2], [3]), ([1, 2, 3], [])]
+
 
 Non-linear pattern with value pattern and predicate pattern
 ===========================================================
@@ -70,6 +132,8 @@ When evaluating the second expression, Egison interpreter does not try pattern m
 Therefore, the time complexities of the above expressions are identical.
 .. The pattern-matching algorithm inside Egison is discussed in [9] in detail.
 
+
+.. _label-pattern-polymorphism:
 
 Ad-hoc polymorphism of patterns by matchers
 ===========================================
@@ -330,3 +394,61 @@ This is necessary for distinguishing variable patterns from nullary pattern cons
    match [1, 1, 2, 3] as list integer with
    | twin $n $ns -> [n, ns]
    -- [1, [2, 3]]
+
+
+Matcher compositions
+====================
+
+.. TODO : link to ``matcher`` expression
+
+All the matchers presented so far can be defined by users, except for the only built-in matcher ``something``.
+Matchers are usually defined by the ``matcher`` expressions, but users can define matchers by composing the existing matchers.
+This way, we can for example define matchers for tuples of multisets and multisets of multisets.
+
+First, we can define a matcher for tuples by a tuple of matchers.
+A tuple pattern is used for pattern matching using such a matcher.
+For example, we can define the intersect function using a matcher for tuples of two multisets.
+
+.. We work on pattern matching for tuples of collections more in section 3.3.
+
+::
+
+   intersect xs ys := matchAll (xs,ys) as (multiset eq, multiset eq) with
+     | ($x : _, #x : _) -> x
+
+``eq`` is a user-defined matcher for data types for which equality is defined.
+When it is used, equality is checked for a value pattern.
+By passing a tuple matcher to a function that takes and returns a matcher, we can define a matcher for various non-free data types.
+For example, we can define a matcher for a graph as a set of edges as follows, where the nodes are represented by integers.
+
+::
+
+   graph := multiset (integer, integer)
+
+A matcher for adjacency graphs can also be defined.
+An adjacency graph is defined as a multiset of tuples of an integer and a multiset of integers.
+
+::
+
+   adjacencyGraph := multiset (integer, multiset integer)
+
+Egison provides a handy syntactic sugar for defining a matcher for algebraic data types,
+while it can laso be defined with ``matcher`` expressions.
+For example, a matcher for binary trees can be defined using ``algebraicDataMatcher``.
+
+::
+
+   binaryTree a := algebraicDataMatcher
+     | bLeaf a
+     | bNode a (binaryTree a) (binaryTree a)
+
+Matchers for algebraic data types and matchers for non-free data types also can be composed.
+For example, we can define a matcher for trees whose nodes have an arbitrary number of children whose order is ignorable.
+
+.. We show pattern matching for these trees in section 3.4.1.
+
+::
+
+   tree a := algebraicDataMatcher
+     | leaf a
+     | node a (multiset (tree a))
