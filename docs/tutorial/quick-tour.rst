@@ -258,3 +258,75 @@ The following loop pattern enumerates all initial prefixes of the target collect
 .. Loop patterns are heavily used especially for trees and graphs.
 .. We work on pattern matching for trees in section 3.4.1.
 .. More formal specification of syntax and semantics of loop patterns is shown in the author’s previous paper [6].
+
+
+Sequential Patterns
+===================
+
+The pattern-matching system of Egison processes patterns from left to right.
+However, there are some cases where we want to change this order, for example, to refer to a pattern variable bound in the right side of a pattern.
+**Sequential patterns** are provided for such cases.
+
+Sequential patterns allow users to control the order of the pattern-matching process.
+A sequential pattern is represented as a list of patterns.
+Pattern matching is executed for each pattern in order.
+In the following sample, the target list is pattern-matched from the third, first, and second element in order.
+
+::
+
+   matchAll [2,3,1,4,5] as list integer with
+     | [    @    ::    @    :: $x :: _,
+        (#(x + 1),     @    ),
+                    #(x + 2)]
+     -> "Matched"
+   -- ["Matched"]
+
+``@`` that appears in a sequential pattern is called **later pattern variable**.
+The target data bound to later pattern variables are pattern-matched in the next sequence.
+When multiple later pattern variables appear, they are pattern-matched as a tuple in the next sequence.
+
+Sequential patterns allow us to apply not-patterns for different parts of a pattern at the same time.
+For example, the following pattern matches when ``xs`` and ``ys`` have only one element in common.
+The use of the sequential pattern in this example allows us to first check that the two collections have at least one element in common, and then make sure that there is no more common element in the remaining part of the collections.
+Such combination of sequential patterns and not patterns is often useful when writing a mathematical algorithm.
+
+.. TODO : example
+
+::
+
+   singleCommonElem :=
+     match (xs, ys) as (multiset eq, multiset eq) with
+       | [($x :: @, #x :: @),
+         !($y :: _, #y :: _)] -> True
+
+
+Some readers might wonder if sequential patterns can be implemented using nested ``matchAll`` expressions.
+There are at least two reasons why it is impossible.
+First, a nested ``matchAll`` expression breaks breadth-first search strategy:
+the inner ``matchAll`` for the second result of the outer ``matchAll`` is executed only after the inner ``matchAll`` for the first result of the outer ``matchAll`` is finished.
+Second, a later pattern variable retains the information of not only a target but also a matcher.
+There are cases that the matcher of ``matchAll`` is a parameter passed as an argument of a function, and a pattern is polymorphic.
+Therefore, it is impossible to determine the matchers of inner ``matchAll`` expressions syntactically.
+
+
+Pattern functions
+=================
+
+It is sometimes the case that the same combination of patterns appears at multiple locations of a program.
+In such case, we can use **pattern functions** to give names to the combinations of patterns and avoid repetition.
+
+A pattern function is a function which takes patterns as its argument and returns a pattern.
+Its syntax is similar to that of lambda functions except that it uses ``=>`` instead of ``->``.
+
+The ``twin`` in the following program is a pattern function and modularizes the double nested cons pattern.
+The argument of pattern functions are called **variable patterns**, which are ``pat1`` and ``pat2`` in the following case.
+Variable patterns must be prefixed with ``~`` when referred to in the body of pattern functions.
+This is necessary for distinguishing variable patterns from nullary pattern constructors.
+
+::
+
+   twin := \pat1 pat2 => (~pat1 & $x) :: #x :: ~pat2
+
+   match [1, 1, 2, 3] as list integer with
+   | twin $n $ns -> [n, ns]
+   -- [1, [2, 3]]
