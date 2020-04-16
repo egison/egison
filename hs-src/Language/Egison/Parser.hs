@@ -17,6 +17,7 @@ module Language.Egison.Parser
        , loadFile
        -- * Parser utils (for translator)
        , removeShebang
+       , readUTF8File
        ) where
  
 import           Control.Monad.Except           (liftIO, throwError)

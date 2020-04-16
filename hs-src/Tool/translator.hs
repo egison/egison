@@ -9,7 +9,7 @@ import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
 import           System.Environment                    (getArgs)
 
 import           Language.Egison.AST
-import           Language.Egison.Parser                (removeShebang)
+import           Language.Egison.Parser                (readUTF8File, removeShebang)
 import           Language.Egison.Parser.SExpr
 import           Language.Egison.Pretty
 
@@ -218,7 +218,7 @@ instance SyntaxElement Var where
 main :: IO ()
 main = do
   args <- getArgs
-  input <- readFile $ head args
+  input <- readUTF8File $ head args
   -- 'ast' is not desugared
   let ast = parseTopExprs (removeShebang True input)
   case ast of
