@@ -8,6 +8,7 @@ Tutorial
    :maxdepth: 2
 
    tutorial/getting-started.rst
+   tutorial/quick-tour.rst
 
 Manuals
 -------
