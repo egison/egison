@@ -57,9 +57,9 @@ When there is only one match clause, we can omit the ``|`` before the match clau
 
 ::
 
-   matchAll ターゲット as マッチャー with パターン -> ボディ
+   matchAll target as matcher with pattern -> body
 
-
+   
 The following is an example of pattern matching with multiple results.
 ``++`` is called **join pattern**, which splits a list into two segments.
 The ``matchAll`` evaluates the body for every possible matching result of the join pattern.
@@ -86,7 +86,7 @@ For example, the following non-linear pattern matches when the target collection
 **Value patterns** play an important role in representing non-linear patterns.
 A value pattern matches the target if the target is equal to the content of the value pattern.
 A value pattern is prepended with ``#`` and the expression after ``#`` is evaluated referring to the value bound to the pattern variables that appear on the left side of the patterns.
-As a result, for example, ``$x : #x : _`` is valid while ``#x : $x : _`` is invalid.
+As a result, for example, ``$x :: #x :: _`` is valid while ``#x :: $x :: _`` is invalid.
 
 Let us show pattern matching for twin primes as a sample of non-linear patterns.
 A twin prime is a pair of prime numbers of the form :math:`(p, p+2)`.
@@ -130,7 +130,7 @@ Since this target collection contains neither identical pairs nor triples, both 
 
 When evaluating the second expression, Egison interpreter does not try pattern matching for the second ``#x`` because pattern matching for the first ``#x`` always fails.
 Therefore, the time complexities of the above expressions are identical.
-.. The pattern-matching algorithm inside Egison is discussed in [9] in detail.
+The pattern-matching algorithm inside Egison is discussed in `this paper <https://arxiv.org/abs/1808.10603>`_ in detail. .. TODO: write a manual page for algorithm
 
 
 .. _label-pattern-polymorphism:
@@ -414,7 +414,7 @@ For example, we can define the intersect function using a matcher for tuples of 
 ::
 
    intersect xs ys := matchAll (xs,ys) as (multiset eq, multiset eq) with
-     | ($x : _, #x : _) -> x
+     | ($x :: _, #x :: _) -> x
 
 ``eq`` is a user-defined matcher for data types for which equality is defined.
 When it is used, equality is checked for a value pattern.
