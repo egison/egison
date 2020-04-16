@@ -55,6 +55,5 @@ assertEqual "not"
 --
 
 assertEqual "unorderedPair matcher"
-  (match (1, 2) as unorderedPair integer with
-   | (#2, $x) -> x)
+  (match (1, 2) as unorderedPair integer with (#2, $x) -> x)
   1
