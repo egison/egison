@@ -2,13 +2,13 @@
 Egison Quick Tour
 =================
 
-This section introduces basic functionalities of Egison for pattern-matching oriented programming.
+This section introduces basic functionalities of Egison for pattern-match-oriented programming.
 
 
 ``matchAll`` and matchers
 =========================
 
-Egison provides some syntactic constructs for expressing pattern-matching.
+Egison provides some syntactic constructs for expressing pattern matching.
 The most basic one among them is ``matchAll``.
 
 ::
@@ -24,16 +24,16 @@ A ``matchAll`` expression consists of the following elements.
 * more than one **match clauses** (``$x :: $xs -> (x, xs)``)
 
 A match clause contains a **pattern** (``$x :: $xs`` in the above example) and a **body** (``(x, xs)``).
-Just like the pattern matching in other programming languages, the ``matchAll`` expression attempts pattern-matching of the target and the pattern, and if it succeeds, evaluates the body of the match clause.
+Just like the pattern matching in other programming languages, the ``matchAll`` expression attempts pattern matching of the target and the pattern, and if it succeeds, evaluates the body of the match clause.
 
 The unique feature of the ``matchAll`` expression is twofold: (1) it returns a list, and (2) it takes additional argument called matchers.
 
-(1) is for supporting pattern-matching with multiple results.
+(1) is for supporting pattern matching with multiple results.
 Since there can be multiple ways to match the pattern for the target data, the ``matchAll`` expression evaluates the body for all of these pattern-matching results and returns a list of the evaluation results.
 In the above example, the ``::`` is what we call a **cons pattern** which decomposes a list into the first element and the others.
 Because there is only one way to decompose the list ``[1, 2, 3]`` in this manner, the ``matchAll`` returns a singleton list.
 
-The feature (2) realizes extensible pattern matching algorithm and pattern polymorphism.
+The feature (2) realizes extensible pattern-matching algorithm and pattern polymorphism.
 Matcher is an Egison-specific object that retains pattern-matching algorithms.
 See :ref:`label-pattern-polymorphism` for the description of pattern polymorphism.
 
@@ -60,7 +60,7 @@ When there is only one match clause, we can omit the ``|`` before the match clau
    matchAll ターゲット as マッチャー with パターン -> ボディ
 
 
-The following is an example of pattern-matching with multiple results.
+The following is an example of pattern matching with multiple results.
 ``++`` is called **join pattern**, which splits a list into two segments.
 The ``matchAll`` evaluates the body for every possible matching result of the join pattern.
 
@@ -113,7 +113,7 @@ A predicate pattern is prepended with ``?``, and a unary predicate follows after
      | _ ++ $p :: ?(\q -> q = p + 2) :: _ -> (p, p + 2)
 
 
-Efficient pattern-matching with backtracking
+Efficient pattern matching with backtracking
 ============================================
 
 The pattern-matching algorithm inside Egison includes a backtracking mechanism for efficient non-linear pattern matching.
@@ -164,7 +164,7 @@ This behavior comes from the idea that a set can be seen as a collection which c
    -- [(1,[1,2,3]),(2,[1,2,3]),(3,[1,2,3])]
 
 
-Controlling the order of pattern-matching
+Controlling the order of pattern matching
 =========================================
 
 The ``matchAll`` expression is designed to enumerate all countably infinite pattern-matching results.
@@ -193,7 +193,7 @@ However, sometimes this order is not preferable. .. (see section 3.1.2 and secti
    -- [(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8)]
 
 
-For instance, think about defining ``concat`` with pattern-matching.
+For instance, think about defining ``concat`` with pattern matching.
 If we use ``matchAll``, the outcome will be the alternation of the elements in the sublists, which is not what we expect of ``concat``.
 
 ::
@@ -220,8 +220,8 @@ And-Patterns, Or-Patterns, and Not-Patterns
 
 Logical patterns such as **and-patterns**, **or-patterns** and **not-patterns** play an important role in enriching the expressivity of patterns.
 
-An and-pattern ``p1 & p2`` pattern-matches when *both* of the patterns ``p1`` and ``p2`` succeeds in pattern-matching.
-Similarly, an or-pattern ``p1 | p2`` pattern-matches when *either* of the patterns ``p1`` and ``p2`` succeeds in pattern-matching.
+An and-pattern ``p1 & p2`` pattern-matches when *both* of the patterns ``p1`` and ``p2`` succeeds in pattern matching.
+Similarly, an or-pattern ``p1 | p2`` pattern-matches when *either* of the patterns ``p1`` and ``p2`` succeeds in pattern matching.
 A not-pattern ``!p`` pattern-matches when the pattern ``p`` fails to pattern-match.
 
 We start by showing pattern matching for prime triples as an example of and-patterns and or-patterns.
