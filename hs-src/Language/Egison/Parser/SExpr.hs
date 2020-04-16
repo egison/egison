@@ -841,16 +841,54 @@ lowerName' = (:) <$> lower <*> option "" ident
   lower :: Parser Char
   lower = satisfy isLower
 
+renamedFunctions :: [(String, String)]
+renamedFunctions =
+  [ ("empty?",      "isEmpty")
+  , ("S.empty?",    "S.isEmpty")
+  , ("bool?",       "isBool")
+  , ("integer?",    "isInteger")
+  , ("rational?",   "isRational")
+  , ("scalar?",     "isScalar")
+  , ("float?",      "isFloat")
+  , ("char?",       "isChar")
+  , ("string?",     "isString")
+  , ("collection?", "isCollection")
+  , ("hash?",       "isHash")
+  , ("tensor?",     "isTensor")
+  , ("even?",       "isEven")
+  , ("odd?",        "isOdd")
+  , ("prime?",      "isPrime")
+  , ("eof?",        "isEof")
+  , ("eof-port?",   "isEofPort")
+  , ("alphabet?",   "isAlphabet")
+  , ("C.between?",  "C.isBetween")
+  , ("alphabets?",  "isAlphabetString")
+  , ("include?",    "include")
+  , ("include/m?",  "includeAs")
+  , ("member?",     "member")
+  , ("member/m?",   "memberAs")
+  , ("divisor?",    "divisor")
+  , ("tree-member?","treeMember")
+  , ("eq/m?",       "eqAs")
+  , ("eq?",         "equal")
+  , ("lt?",         "lt")
+  , ("lte?",        "lte")
+  , ("gt?",         "gt")
+  , ("gte?",        "gte")
+  , ("car",         "head")
+  , ("cdr",         "tail")
+  , ("rac",         "last")
+  , ("rdc",         "init")
+  ]
+
 -- Translate identifiers for Non-S syntax
 toCamelCase :: String -> String
 toCamelCase "-'" = "-'"
 toCamelCase "f.-'" = "f.-'"
 toCamelCase "b.." = "b."
 toCamelCase "b..'" = "b.'"
-toCamelCase "car" = "head"
-toCamelCase "cdr" = "tail"
-toCamelCase "rac" = "last"
-toCamelCase "rdc" = "init"
+toCamelCase (flip lookup renamedFunctions -> Just name') =
+  name'
 toCamelCase (reverse -> 'm':'/':xs) =
   toCamelCase (reverse xs ++ "-as")
 toCamelCase x =

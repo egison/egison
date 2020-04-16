@@ -125,7 +125,7 @@ infixExpr = do
   isPattern <- isRight <$> eitherP (reserved "expression") (reserved "pattern")
   priority  <- fromInteger <$> positiveIntegerLiteral
   sym       <- if isPattern then newPatOp >>= checkP else some opChar >>= check
-  let newop = Infix { repr = sym, func = sym, oldName = "", priority, assoc, isWedge = False }
+  let newop = Infix { repr = sym, func = sym, priority, assoc, isWedge = False }
   addNewOp newop isPattern
   return (InfixDecl isPattern newop)
   where
