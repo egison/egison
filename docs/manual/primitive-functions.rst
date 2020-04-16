@@ -22,12 +22,12 @@ modulo
 quotient
    ::
 
-      > quotient (-21) 13 --> -1
+      > quotient (-21) 13 --> (-1)
 
 remainder
    ::
 
-      > remainder (-21) 13 --> -8
+      > remainder (-21) 13 --> (-8)
 
 neg
    ::
@@ -74,32 +74,32 @@ round
 
       > round 3.1 --> 3
       > round 3.7 --> 4
-      > round (-2.2) --> -2
-      > round (-2.7) --> -3
+      > round (-2.2) --> (-2)
+      > round (-2.7) --> (-3)
 
 floor
    ::
 
       > floor 3.1 --> 3
       > floor 3.7 --> 3
-      > floor (-2.2) --> -3
-      > floor (-2.7) --> -3
+      > floor (-2.2) --> (-3)
+      > floor (-2.7) --> (-3)
 
 ceiling
    ::
 
       > ceiling 3.1 --> 4
       > ceiling 3.7 --> 4
-      > ceiling (-2.2) --> -2
-      > ceiling (-2.7) --> -2
+      > ceiling (-2.2) --> (-2)
+      > ceiling (-2.7) --> (-2)
 
 truncate
    ::
 
       > truncate 3.1 --> 3
       > truncate 3.7 --> 3
-      > truncate (-2.2) --> -2
-      > truncate (-2.7) --> -2
+      > truncate (-2.2) --> (-2)
+      > truncate (-2.7) --> (-2)
 
 sqrt
    ::
@@ -111,7 +111,7 @@ itof
    ::
 
       > itof 4 --> 4.0
-      > itof (-1) --> -1.0
+      > itof (-1) --> (-1.0)
 
 rtof
    ::
@@ -144,7 +144,7 @@ unpack
 unconsString
    ::
 
-      > unconsString "Egison" --> 'E', "gison"
+      > unconsString "Egison" --> ('E', "gison")
 
 lengthString
    ::
@@ -164,19 +164,22 @@ splitString
    ::
 
       > splitString "," "" --> [""]
-      > splitString "," "2,3,5,7,11,13" --> ["2", "3", "5", "7", "11", "13"]
+      > splitString "," "2,3,5,7,11,13"
+      --> ["2", "3", "5", "7", "11", "13"]
 
 regex
    ::
 
       > regex "cde" "abcdefg" --> [("ab", "cde", "fg")]
-      > regex "[0-9]+" "abc123defg" --> [("abc", "123", "defg")]
+      > regex "[0-9]+" "abc123defg"
+      --> [("abc", "123", "defg")]
       > regex "a*" "" --> [("", "", "")]
 
 regexCg
    ::
 
-      > regexCg "([0-9]+),([0-9]+)" "abc,123,45,defg" --> [("abc,", ["123", "45"], ",defg")]
+      > regexCg "([0-9]+),([0-9]+)" "abc,123,45,defg"
+      --> [("abc,", ["123", "45"], ",defg")]
 
 read
    ::
