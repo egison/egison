@@ -15,6 +15,8 @@ module Language.Egison.Parser
        -- * Parse and desugar a file
        , loadLibraryFile
        , loadFile
+       -- * Parser utils (for translator)
+       , removeShebang
        ) where
  
 import           Control.Monad.Except           (liftIO, throwError)
@@ -71,15 +73,16 @@ loadFile file = do
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
   input <- liftIO $ readUTF8File file
   useSExpr <- checkIfUseSExpr file
-  exprs <- readTopExprs useSExpr $ shebang input
+  exprs <- readTopExprs useSExpr $ removeShebang useSExpr input
   concat <$> mapM recursiveLoad exprs
  where
   recursiveLoad (Load file)     = loadLibraryFile file
   recursiveLoad (LoadFile file) = loadFile file
   recursiveLoad expr            = return [expr]
-  shebang :: String -> String
-  shebang ('#':'!':cs) = ';':'#':'!':cs
-  shebang cs           = cs
+
+removeShebang :: Bool -> String -> String
+removeShebang useSExpr cs@('#':'!':_) = if useSExpr then ';' : cs else "--" ++ cs
+removeShebang _        cs             = cs
 
 readUTF8File :: FilePath -> IO String
 readUTF8File name = do

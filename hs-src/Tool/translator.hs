@@ -9,6 +9,7 @@ import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
 import           System.Environment                    (getArgs)
 
 import           Language.Egison.AST
+import           Language.Egison.Parser                (removeShebang)
 import           Language.Egison.Parser.SExpr
 import           Language.Egison.Pretty
 
@@ -219,7 +220,7 @@ main = do
   args <- getArgs
   input <- readFile $ head args
   -- 'ast' is not desugared
-  let ast = parseTopExprs input
+  let ast = parseTopExprs (removeShebang True input)
   case ast of
     Left err ->
       print err
