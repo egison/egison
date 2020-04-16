@@ -223,7 +223,6 @@ data PrimitiveDataPattern =
 data Infix
   = Infix { repr     :: String  -- syntastic representation
           , func     :: String  -- semantics
-          , oldName  :: String  -- function name in S-expression
           , priority :: Int
           , assoc    :: BinOpAssoc
           , isWedge  :: Bool    -- True if operator is prefixed with '!'. Only used for expression infix.
@@ -243,33 +242,33 @@ instance Show BinOpAssoc where
 
 reservedExprInfix :: [Infix]
 reservedExprInfix =
-  [ makeInfix "^"  "**"        "**"        8 LeftAssoc -- TODO: Make "**" into "^" when S-expr is deprecated
-  , makeInfix "^'" "**'"       "**'"       8 LeftAssoc -- TODO: Make "**'" into "^'" when S-expr is deprecated
-  , makeInfix "*"  "*"         "*"         7 LeftAssoc
-  , makeInfix "/"  "/"         "/"         7 LeftAssoc
-  , makeInfix "*'" "*'"        "*'"        7 LeftAssoc
-  , makeInfix "/'" "/'"        "/'"        7 LeftAssoc
-  , makeInfix "."  "."         "."         7 LeftAssoc -- tensor multiplication
-  , makeInfix ".'" ".'"        ".'"        7 LeftAssoc -- tensor multiplication
-  , makeInfix "%"  "remainder" "remainder" 7 LeftAssoc -- primitive function
-  , makeInfix "+"  "+"         "+"         6 LeftAssoc
-  , makeInfix "-"  "-"         "-"         6 LeftAssoc
-  , makeInfix "+'" "+'"        "+'"        6 LeftAssoc
-  , makeInfix "-'" "-'"        "-'"        6 LeftAssoc
-  , makeInfix "++" "append"    "append"    5 RightAssoc
-  , makeInfix "::" "cons"      "cons"      5 RightAssoc
-  , makeInfix "="  "equal"     "eq?"       4 LeftAssoc -- primitive function
-  , makeInfix "<=" "lte"       "lte?"      4 LeftAssoc -- primitive function
-  , makeInfix ">=" "gte"       "gte?"      4 LeftAssoc -- primitive function
-  , makeInfix "<"  "lt"        "lt?"       4 LeftAssoc -- primitive function
-  , makeInfix ">"  "gt"        "gt?"       4 LeftAssoc -- primitive function
-  , makeInfix "&&" "&&"        "and"       3 RightAssoc
-  , makeInfix "||" "||"        "or"        2 RightAssoc
-  , makeInfix "$"  "apply"     ""          0 RightAssoc
+  [ makeInfix "^"  "**"        8 LeftAssoc -- TODO: Make "**" into "^" when S-expr is deprecated
+  , makeInfix "^'" "**'"       8 LeftAssoc -- TODO: Make "**'" into "^'" when S-expr is deprecated
+  , makeInfix "*"  "*"         7 LeftAssoc
+  , makeInfix "/"  "/"         7 LeftAssoc
+  , makeInfix "*'" "*'"        7 LeftAssoc
+  , makeInfix "/'" "/'"        7 LeftAssoc
+  , makeInfix "."  "."         7 LeftAssoc -- tensor multiplication
+  , makeInfix ".'" ".'"        7 LeftAssoc -- tensor multiplication
+  , makeInfix "%"  "remainder" 7 LeftAssoc -- primitive function
+  , makeInfix "+"  "+"         6 LeftAssoc
+  , makeInfix "-"  "-"         6 LeftAssoc
+  , makeInfix "+'" "+'"        6 LeftAssoc
+  , makeInfix "-'" "-'"        6 LeftAssoc
+  , makeInfix "++" "append"    5 RightAssoc
+  , makeInfix "::" "cons"      5 RightAssoc
+  , makeInfix "="  "equal"     4 LeftAssoc -- primitive function
+  , makeInfix "<=" "lte"       4 LeftAssoc -- primitive function
+  , makeInfix ">=" "gte"       4 LeftAssoc -- primitive function
+  , makeInfix "<"  "lt"        4 LeftAssoc -- primitive function
+  , makeInfix ">"  "gt"        4 LeftAssoc -- primitive function
+  , makeInfix "&&" "&&"        3 RightAssoc
+  , makeInfix "||" "||"        2 RightAssoc
+  , makeInfix "$"  "apply"     0 RightAssoc
   ]
   where
-    makeInfix r f f' p a =
-      Infix { repr = r, func = f, oldName = f', priority = p, assoc = a, isWedge = False }
+    makeInfix r f p a =
+      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
 reservedPatternInfix :: [Infix]
 reservedPatternInfix =
@@ -284,7 +283,7 @@ reservedPatternInfix =
   ]
   where
     makeInfix r f p a =
-      Infix { repr = r, func = f, oldName = f, priority = p, assoc = a, isWedge = False }
+      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
 findOpFrom :: String -> [Infix] -> Infix
 findOpFrom op table = fromJust $ find ((== op) . repr) table
