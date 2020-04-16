@@ -1,5 +1,3 @@
-#!/bin/sh python3
-
 import re
 
 test_and_docs = [
