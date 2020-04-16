@@ -196,9 +196,9 @@ assertEqual "take" (take 2 [1, 2, 3]) [1, 2]
 
 assertEqual "drop" (drop 2 [1, 2, 3]) [3]
 
-assertEqual "take-and-drop" (takeAndDrop 2 [1, 2, 3]) ([1, 2], [3])
+assertEqual "takeAndDrop" (takeAndDrop 2 [1, 2, 3]) ([1, 2], [3])
 
-assertEqual "take-while" (takeWhile 1#(%1 < 10) primes) [2, 3, 5, 7]
+assertEqual "takeWhile" (takeWhile (< 10) primes) [2, 3, 5, 7]
 
 assertEqual "head" (head [1, 2, 3]) 1
 assertEqual "tail" (tail [1, 2, 3]) [2, 3]
@@ -213,15 +213,11 @@ assertEqual "isEmpty" (isEmpty [1]) False
 
 assertEqual "length" (length [1, 2, 3]) 3
 
-assertEqual "map" (map 1#(%1 * 2) [1, 2, 3]) [2, 4, 6]
+assertEqual "map" (map (* 2) [1, 2, 3]) [2, 4, 6]
 
 assertEqual "map2" (map2 (*) [1, 2, 3] [10, 20, 30]) [10, 40, 90]
 
-assertEqual
-  "filter"
-  (let isOdd n := modulo n 2 = 1
-    in filter isOdd [1, 2, 3])
-  [1, 3]
+assertEqual "filter" (filter (\n -> n % 2 = 1) [1, 2, 3]) [1, 3]
 
 assertEqual "zip" (zip [1, 2, 3] [10, 20, 30]) [(1, 10), (2, 20), (3, 30)]
 
@@ -231,36 +227,29 @@ assertEqual "foldr" (foldr (\n ns -> n :: ns) [] [1, 2, 3]) [1, 2, 3]
 
 assertEqual "foldl" (foldl (\ns n -> n :: ns) [] [1, 2, 3]) [3, 2, 1]
 
-assertEqual "scanl" (scanl (\r n -> r * n) 2 [2, 2, 2]) [2, 4, 8, 16]
-
-assertEqual "append" ([1, 2] ++ [3, 4, 5]) [1, 2, 3, 4, 5]
+assertEqual "scanl" (scanl (*) 2 [2, 2, 2]) [2, 4, 8, 16]
 
 assertEqual "concat" (concat [[1, 2], [3, 4, 5]]) [1, 2, 3, 4, 5]
 
 assertEqual "reverse" (reverse [1, 2, 3]) [3, 2, 1]
 
-assertEqual
-  "intersperse"
+assertEqual "intersperse"
   (intersperse [0] [[1, 2], [3, 3], [4], []])
   [[1, 2], [0], [3, 3], [0], [4], [0], []]
 
-assertEqual
-  "intercalate"
+assertEqual "intercalate"
   (intercalate [0] [[1, 2], [3, 3], [4], []])
   [1, 2, 0, 3, 3, 0, 4, 0]
 
-assertEqual
-  "split"
+assertEqual "split"
   (split [0] [1, 2, 0, 3, 3, 0, 4, 0])
   [[1, 2], [3, 3], [4], []]
 
-assertEqual
-  "splitAs"
+assertEqual "splitAs"
   (splitAs integer [0] [1, 2, 0, 3, 3, 0, 4, 0])
   [[1, 2], [3, 3], [4], []]
 
-assertEqual
-  "find-cycle"
+assertEqual "findCycle"
   (findCycle [1, 3, 4, 5, 2, 7, 5, 2, 7, 5, 2, 7])
   ([1, 3, 4], [5, 2, 7])
 
@@ -268,29 +257,29 @@ assertEqual "repeat" (take 5 (repeat [1, 2, 3])) [1, 2, 3, 1, 2]
 
 assertEqual "repeat1" (take 5 (repeat1 2)) [2, 2, 2, 2, 2]
 
-assertEqual "all - case 1" (all 1#(%1 = 1) [1, 1, 1]) True
+assertEqual "all" (all (= 1) [1, 1, 1]) True
 
-assertEqual "all - case 2" (all 1#(%1 = 1) [1, 1, 2]) False
+assertEqual "all" (all (= 1) [1, 1, 2]) False
 
-assertEqual "any - case 1" (any 1#(%1 = 1) [0, 1, 0]) True
+assertEqual "any" (any (= 1) [0, 1, 0]) True
 
-assertEqual "any - case 2" (any 1#(%1 = 1) [0, 0, 0]) False
+assertEqual "any" (any (= 1) [0, 0, 0]) False
 
 assertEqual "from" (take 3 (from 2)) [2, 3, 4]
 
 assertEqual "between" (between 2 5) [2, 3, 4, 5]
 
-assertEqual "add - case 1" (add 1 [2, 3]) [2, 3, 1]
+assertEqual "add" (add 1 [2, 3]) [2, 3, 1]
 
-assertEqual "add - case 2" (add 1 [1, 2, 3]) [1, 2, 3]
+assertEqual "add" (add 1 [1, 2, 3]) [1, 2, 3]
 
-assertEqual "addAs - case 1" (addAs integer 1 [2, 3]) [2, 3, 1]
+assertEqual "addAs" (addAs integer 1 [2, 3]) [2, 3, 1]
 
-assertEqual "addAs - case 2" (addAs integer 1 [1, 2, 3]) [1, 2, 3]
+assertEqual "addAs" (addAs integer 1 [1, 2, 3]) [1, 2, 3]
 
-assertEqual "delete-first" (deleteFirst 2 [1, 2, 3, 2]) [1, 3, 2]
+assertEqual "deleteFirst" (deleteFirst 2 [1, 2, 3, 2]) [1, 3, 2]
 
-assertEqual "delete-firstAs" (deleteFirstAs integer 2 [1, 2, 3, 2]) [1, 3, 2]
+assertEqual "deleteFirstAs" (deleteFirstAs integer 2 [1, 2, 3, 2]) [1, 3, 2]
 
 assertEqual "delete" (delete 2 [1, 2, 3, 1, 2, 3]) [1, 3, 1, 3]
 
@@ -308,13 +297,13 @@ assertEqual "intersect" (intersect [1, 2, 3] [1, 3, 4]) [1, 3]
 
 assertEqual "intersectAs" (intersectAs integer [1, 2, 3] [1, 3, 4]) [1, 3]
 
-assertEqual "member - case 1" (member 1 [1, 3, 1, 4]) True
+assertEqual "member" (member 1 [1, 3, 1, 4]) True
 
-assertEqual "member - case 2" (member 2 [1, 3, 1, 4]) False
+assertEqual "member" (member 2 [1, 3, 1, 4]) False
 
-assertEqual "memberAs - case 1" (memberAs integer 1 [1, 3, 1, 4]) True
+assertEqual "memberAs" (memberAs integer 1 [1, 3, 1, 4]) True
 
-assertEqual "memberAs - case 2" (memberAs integer 2 [1, 3, 1, 4]) False
+assertEqual "memberAs" (memberAs integer 2 [1, 3, 1, 4]) False
 
 assertEqual "count" (count 1 [1, 3, 1, 4]) 2
 
@@ -322,8 +311,7 @@ assertEqual "countAs" (countAs integer 1 [1, 3, 1, 4]) 2
 
 assertEqual "frequency" (frequency [1, 3, 1, 4]) [(1, 2), (3, 1), (4, 1)]
 
-assertEqual
-  "frequencyAs"
+assertEqual "frequencyAs"
   (frequencyAs integer [1, 3, 1, 4])
   [(1, 2), (3, 1), (4, 1)]
 
