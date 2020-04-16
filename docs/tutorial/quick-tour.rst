@@ -433,7 +433,7 @@ An adjacency graph is defined as a multiset of tuples of an integer and a multis
    adjacencyGraph := multiset (integer, multiset integer)
 
 Egison provides a handy syntactic sugar for defining a matcher for algebraic data types,
-while it can laso be defined with ``matcher`` expressions.
+while it can also be defined with ``matcher`` expressions.
 For example, a matcher for binary trees can be defined using ``algebraicDataMatcher``.
 
 ::
