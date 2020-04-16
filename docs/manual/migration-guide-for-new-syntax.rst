@@ -18,6 +18,12 @@ It can be built from the source as follows.
     $ stack exec -- egison-translate name-of-file-you-want-to-convert.segi
 
 
+.. warning::
+
+   ``egison-translate`` does not preserve comments and shebangs.
+   Please manually add them after the translation.
+
+
 Changes in function names
 =========================
 
