@@ -157,7 +157,6 @@ assertEqual "isCollection" (isCollection [1]) True
 assertEqual "isHash" (isHash {| |}) True
 assertEqual "isHash" (isHash {| (1, 2) |}) True
 
--- TODO: Add a test case where isTensor returns True
 assertEqual "isTensor" (isTensor 1)                           False
 assertEqual "isTensor" (isTensor [| 1 |])                     True
 assertEqual "isTensor" (isTensor (generateTensor (+) [1, 2])) True
