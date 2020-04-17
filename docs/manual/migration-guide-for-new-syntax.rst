@@ -28,25 +28,25 @@ Changes in function names
 =========================
 
 Apart from the changes in the syntax itself, some of the library/built-in variable names have also been renamed to match the new syntax.
+All of these changes are supported in ``egison-translate``.
 
 Changes in naming rules
 -----------------------
 
 The following describes the changes in the naming rule of variables.
 The table shows the example of such changes and the detailed description is given under the table.
-Some of these changes are supported in ``egison-translate`` but others are not, so the users might need to manually modify the program to complete the translation, at least for now.
 
-+----+----------------+---------------+---------------------------------+
-|    | Old name       | New name      | Handled by ``egison-translate`` |
-+----+----------------+---------------+---------------------------------+
-| 1  | ``take-while`` | ``takeWhile`` | Yes                             |
-+----+----------------+---------------+---------------------------------+
-| 2  | ``even?``      | ``isEven``    | No                              |
-+----+----------------+---------------+---------------------------------+
-| 3  | ``member?``    | ``member``    | No                              |
-+----+----------------+---------------+---------------------------------+
-| 4  | ``delete/m``   | ``deleteAs``  | Yes                             |
-+----+----------------+---------------+---------------------------------+
++----+----------------+---------------+
+|    | Old name       | New name      |
++----+----------------+---------------+
+| 1  | ``take-while`` | ``takeWhile`` |
++----+----------------+---------------+
+| 2  | ``even?``      | ``isEven``    |
++----+----------------+---------------+
+| 3  | ``member?``    | ``member``    |
++----+----------------+---------------+
+| 4  | ``delete/m``   | ``deleteAs``  |
++----+----------------+---------------+
 
 1. Names connected with hyphens ``-`` are converted into camelCase.
 2. Unary function names that ended with a question mark ``?`` is prefixed with ``is``.
@@ -58,7 +58,6 @@ Instance-wise changes
 ---------------------
 
 Also, some of the Lisp-inspired names have been renamed into Haskell-like names as shown in the following table.
-These changes are supported in ``egison-translate``.
 
 +----------+----------+
 | Old name | New name |
