@@ -215,8 +215,8 @@ To fix this, we should use ``matchAllDFS`` instead.
    -- [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 
-And-Patterns, Or-Patterns, and Not-Patterns
-===========================================
+Logical patterns: and-, or-, and not-patterns
+=============================================
 
 Logical patterns such as **and-patterns**, **or-patterns** and **not-patterns** play an important role in enriching the expressivity of patterns.
 
