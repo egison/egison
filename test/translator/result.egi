@@ -96,9 +96,9 @@ assertEqual
 
 assertEqual
   "mutual recursion"
-  (let even? n := if n = 0 then True else odd? (n - 1)
-       odd? n := if n = 0 then False else even? (n - 1)
-    in even? 10)
+  (let isEven n := if n = 0 then True else isOdd (n - 1)
+       isOdd n := if n = 0 then False else isEven (n - 1)
+    in isEven 10)
   True
 
 assertEqual "lambda and application" ((\x -> 1 + x) 10) 11
@@ -339,19 +339,19 @@ treeInsert n t :=
         | equal -> Node t1 n t2
         | greater -> Node t1 m (treeInsert n t2)
 
-treeMember? n t :=
+treeMember n t :=
   match t as tree integer with
     | leaf -> False
     | node $t1 $m $t2 ->
       match compare n m as ordering with
-        | less -> treeMember? n t1
+        | less -> treeMember n t1
         | equal -> True
-        | greater -> treeMember? n t2
+        | greater -> treeMember n t2
 
 assertEqual
   "tree set using algebraic-data-matcher"
   (let t := foldr treeInsert Leaf [4, 1, 2, 4, 3]
-    in (treeMember? 1 t, treeMember? 0 t))
+    in (treeMember 1 t, treeMember 0 t))
   (True, False)
 
 assertEqual

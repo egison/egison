@@ -293,8 +293,10 @@ instance Complex EgisonExpr where
   isAtom ApplyExpr{}              = False
   isAtom CApplyExpr{}             = False
   isAtom LambdaExpr{}             = False
+  isAtom MemoizedLambdaExpr{}     = False
   isAtom CambdaExpr{}             = False
   isAtom ProcedureExpr{}          = False
+  isAtom PatternFunctionExpr{}    = False
   isAtom IfExpr{}                 = False
   isAtom LetRecExpr{}             = False
   isAtom SubrefsExpr{}            = False
