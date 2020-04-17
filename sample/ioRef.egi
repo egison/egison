@@ -1,0 +1,13 @@
+refTest :=
+  procedure x y ->
+    do let w := newIORef ()
+       writeIORef w x
+       let w1 := readIORef w
+       print (show w1)
+       writeIORef w y
+       let w2 := readIORef w
+       print (show w2)
+       flush ()
+
+main args := refTest 1 2
+  

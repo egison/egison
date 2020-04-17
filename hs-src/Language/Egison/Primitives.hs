@@ -545,6 +545,10 @@ ioPrimitives = [ ("return", return')
 
                , ("rand", randRange)
                , ("f.rand", randRangeDouble)
+
+               , ("newIORef", newIORef')
+               , ("writeIORef", writeIORef')
+               , ("readIORef", readIORef')
                ]
 
 makeIO :: EgisonM EgisonValue -> EgisonValue
@@ -643,6 +647,23 @@ randRangeDouble = twoArgs' $ \val val' -> do
   i' <- fromEgison val' :: EgisonM Double
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return $ toEgison n
+
+newIORef' :: PrimitiveFunc
+newIORef' = noArg $ do
+  ref <- liftIO $ newIORef Undefined
+  return $ makeIO $ return (RefBox ref)
+
+writeIORef' :: PrimitiveFunc
+writeIORef' = twoArgs $ \ref val -> do
+  ref' <- fromEgison ref
+  return $ makeIO' $ liftIO $ writeIORef ref' val
+
+readIORef' :: PrimitiveFunc
+readIORef' = oneArg $ \ref -> do
+  ref' <- fromEgison ref
+  val <- liftIO $ readIORef ref'
+  return $ makeIO $ return val
+
 
  {-- -- for 'egison-sqlite'
 sqlite :: PrimitiveFunc

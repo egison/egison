@@ -126,6 +126,7 @@ data EgisonValue =
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
   | Port Handle
+  | RefBox (IORef EgisonValue)
   | Something
   | Undefined
 
@@ -454,6 +455,11 @@ instance (EgisonData a, EgisonData b, EgisonData c, EgisonData d) => EgisonData 
     w' <- fromEgison w
     return (x', y', z', w')
   fromEgison val = throwError =<< TypeMismatch "two elements tuple" (Value val) <$> getFuncNameStack
+
+instance EgisonData (IORef EgisonValue) where
+  toEgison = RefBox
+  fromEgison (RefBox ref) = return ref
+  fromEgison val      = throwError =<< TypeMismatch "ioRef" (Value val) <$> getFuncNameStack
 
 --
 -- Internal Data
