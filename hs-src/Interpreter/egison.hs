@@ -65,7 +65,7 @@ runWithOptions opts = do
           let (sopts, copts) = unzip (optFieldInfo opts)
               sopts' = "[" ++ intercalate ", " sopts ++ "]"
               copts' = "[" ++ intercalate ", " copts ++ "]"
-              expr = "load \"lib/core/shell.segi\"\n"
+              expr = "load \"lib/core/shell.egi\"\n"
                   ++ "execute (let SH.input := SH.genInput " ++ sopts' ++ " " ++ copts' ++ "\n"
                   ++ "          in each (\\x -> print (" ++ if optTsvOutput opts then "showTsv" else "show" ++ " x)) (" ++ sub ++ " SH.input))"
             in executeEgisonTopExpr opts env expr
