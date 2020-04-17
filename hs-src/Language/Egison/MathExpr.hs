@@ -15,6 +15,8 @@ module Language.Egison.MathExpr
     , PolyExpr (..)
     , TermExpr (..)
     , SymbolExpr (..)
+    , pattern ZeroExpr
+    , pattern SingleSymbol
     , pattern SingleTerm
     -- * Scalar
     , mathNormalize'
@@ -62,6 +64,12 @@ data SymbolExpr
  deriving (Eq)
 
 type Id = String
+
+pattern ZeroExpr :: ScalarData
+pattern ZeroExpr = (Div (Plus []) (Plus [Term 1 []]))
+
+pattern SingleSymbol :: SymbolExpr -> ScalarData
+pattern SingleSymbol sym = Div (Plus [Term 1 [(sym, 1)]]) (Plus [Term 1 []])
 
 -- Product of a coefficient and a monomial
 pattern SingleTerm :: Integer -> Monomial -> ScalarData
