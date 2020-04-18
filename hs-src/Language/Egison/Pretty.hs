@@ -131,14 +131,15 @@ instance Pretty EgisonExpr where
   -- (x1 op' x2) op y
   pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
-       then parens (pretty x) <+> pretty op <+> pretty'' y
-       else pretty x          <+> pretty op <+> pretty'' y
+       then parens (pretty x) <+> pretty op <> infixRight (pretty'' y)
+       else pretty x          <+> pretty op <> infixRight (pretty'' y)
   -- x op (y1 op' y2)
   pretty (BinaryOpExpr op x y@(BinaryOpExpr op' _ _)) =
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
-       then pretty'' x <+> pretty op <+> parens (pretty y)
-       else pretty'' x <+> pretty op <+> pretty y
-  pretty (BinaryOpExpr op x y) = pretty'' x <+> pretty op <+> pretty'' y
+       then pretty'' x <+> pretty op <> infixRight (parens (pretty y))
+       else pretty'' x <+> pretty op <> infixRight (pretty y)
+  pretty (BinaryOpExpr op x y) =
+    pretty'' x <+> pretty op <> infixRight (pretty'' y)
   pretty (SectionExpr op Nothing Nothing) = parens (pretty op)
   pretty (SectionExpr op (Just x) Nothing) = parens (pretty x <+> pretty op)
   pretty (SectionExpr op Nothing (Just x)) = parens (pretty op <+> pretty x)
@@ -403,6 +404,12 @@ lambdaLike start args arrow body =
 
 applyLike :: [Doc ann] -> Doc ann
 applyLike = hang 2 . sep . map group
+
+-- Tests if the argument can be printed in a single line, and if not,
+-- inserts a line break before printing it.
+-- This is useful for nicely printing infix expressions.
+infixRight :: Doc ann -> Doc ann
+infixRight p = group (flatAlt (hardline <> p) (space <> p))
 
 --
 -- Pretty printer for S-expression
