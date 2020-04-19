@@ -115,9 +115,9 @@ tref (s@(SupSubscript (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) =
 tref (Subscript    (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= toTensor >>= tref ms
 tref (Superscript  (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= toTensor >>= tref ms
 tref (SupSubscript (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref (Subscript    (ScalarData ZeroExpr):ms) t = throwError $ Default "tensor index out of bounds: 0"
-tref (Superscript  (ScalarData ZeroExpr):ms) t = throwError $ Default "tensor index out of bounds: 0"
-tref (SupSubscript (ScalarData ZeroExpr):ms) t = throwError $ Default "tensor index out of bounds: 0"
+tref (Subscript    (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
+tref (Superscript  (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
+tref (SupSubscript (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
 tref (Subscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
@@ -148,8 +148,7 @@ tref (SupSubscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
       ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
       symId <- fresh
       tConcat (SupSubscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
-tref (s:_) _ = throwError $ Default "Tensor index must be an integer or a single symbol."
-tref _ _ = throwError $ Default "More indices than the order of the tensor"
+tref (_:_) _ = throwError $ Default "Tensor index must be an integer or a single symbol."
 
 -- Enumarates all indices (1-indexed) from shape
 -- ex.
