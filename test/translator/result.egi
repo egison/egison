@@ -23,7 +23,8 @@ assertEqual
 (3 + 4) * (-1)
 
 \x ->
-  x + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  x + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 match 1 as integer with
   | #1 & (#2 | #3) -> True
@@ -437,3 +438,13 @@ assertEqual
   "fifth root of unity"
   ((((-1) + sqrt 5 + sqrt ((-10) + (-2) * sqrt 5)) / 4) ^ 5)
   1
+
+infixTest1 :=
+  foo bar + foo bar baz + foo bar + foo bar baz + foo bar + foo bar baz +
+  foo bar + foo bar + foo bar * foo bar * foo bar * foo bar + foo bar +
+  foo bar + foo bar + foo bar
+
+infixTest2 :=
+  foo bar + foo bar baz + foo bar + foo bar baz + foo bar +
+  foo bar * foo bar * foo bar * foo bar + foo bar baz + foo bar + foo bar +
+  foo bar + foo bar + foo bar + foo bar

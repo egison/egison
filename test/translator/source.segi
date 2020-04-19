@@ -8,7 +8,7 @@
 
 (* (+ 3 4) -1)
 
-(lambda [$x] (+ x "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+(lambda [$x] (+ x "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 
 (match 1 integer {[(& ,1 (| ,2 ,3)) #t]})
 (match 1 integer {[(| (& ,1 ,2) ,3) #t]})
@@ -405,3 +405,41 @@
 (assert-equal "fifth root of unity"
   (** (/ (+ -1 (sqrt 5) (sqrt (+ -10 (* -2 (sqrt 5))))) 4) 5)
   1)
+
+;; aligning infix nicely
+
+(define $infix-test-1
+  (+ (foo bar)
+     (foo bar baz)
+     (foo bar)
+     (foo bar baz)
+     (foo bar)
+     (foo bar baz)
+     (foo bar)
+     (foo bar)
+     (* (foo bar)
+        (foo bar)
+        (foo bar)
+        (foo bar))
+     (foo bar)
+     (foo bar)
+     (foo bar)
+     (foo bar)))
+
+(define $infix-test-2
+  (+ (foo bar)
+     (foo bar baz)
+     (foo bar)
+     (foo bar baz)
+     (foo bar)
+     (* (foo bar)
+        (foo bar)
+        (foo bar)
+        (foo bar))
+     (foo bar baz)
+     (foo bar)
+     (foo bar)
+     (foo bar)
+     (foo bar)
+     (foo bar)
+     (foo bar)))
