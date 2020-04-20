@@ -2,6 +2,9 @@
 List of libraries
 =================
 
+List of core libraries
+======================
+
 .. toctree::
    :maxdepth: 1
 
@@ -12,3 +15,10 @@ List of libraries
    lib/core/number.rst
    lib/core/order.rst
    lib/core/string.rst
+
+
+List of mathematical libraries
+==============================
+
+.. toctree::
+   :maxdepth: 1

@@ -18,14 +18,14 @@ from typing import List, Tuple
 #   by this script.
 
 test_and_docs = [
-          ('test/primitive.egi', 'docs/manual/primitive-functions.rst')
-        , ('test/lib/core/assoc.egi', 'docs/manual/lib/core/assoc.rst')
-        , ('test/lib/core/base.egi', 'docs/manual/lib/core/base.rst')
-        , ('test/lib/core/collection.egi', 'docs/manual/lib/core/collection.rst')
-        , ('test/lib/core/maybe.egi', 'docs/manual/lib/core/maybe.rst')
-        , ('test/lib/core/number.egi', 'docs/manual/lib/core/number.rst')
-        , ('test/lib/core/order.egi', 'docs/manual/lib/core/order.rst')
-        , ('test/lib/core/string.egi', 'docs/manual/lib/core/string.rst')
+          ('test/primitive.egi',           'docs/reference/builtin-functions.rst')
+        , ('test/lib/core/assoc.egi',      'docs/reference/lib/core/assoc.rst')
+        , ('test/lib/core/base.egi',       'docs/reference/lib/core/base.rst')
+        , ('test/lib/core/collection.egi', 'docs/reference/lib/core/collection.rst')
+        , ('test/lib/core/maybe.egi',      'docs/reference/lib/core/maybe.rst')
+        , ('test/lib/core/number.egi',     'docs/reference/lib/core/number.rst')
+        , ('test/lib/core/order.egi',      'docs/reference/lib/core/order.rst')
+        , ('test/lib/core/string.egi',     'docs/reference/lib/core/string.rst')
         ]
 
 

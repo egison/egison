@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Egison \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-09 18:58+0900\n"
+"POT-Creation-Date: 2020-04-20 15:02+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,11 +21,14 @@ msgstr ""
 msgid "The Egison Programming Language"
 msgstr "プログラミング言語Egison"
 
-#: ../../index.rst:13
+#: ../../index.rst:6
 msgid "Tutorial"
 msgstr "チュートリアル"
 
-#: ../../index.rst:16
-msgid "Manuals"
+#: ../../index.rst:14
+msgid "Reference"
 msgstr ""
+
+#~ msgid "Manuals"
+#~ msgstr ""
 

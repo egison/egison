@@ -1,6 +1,6 @@
-===================
-Primitive Functions
-===================
+==========================
+List of Built-in Functions
+==========================
 
 .. highlight:: haskell
 
