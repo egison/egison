@@ -53,7 +53,7 @@ assocMultiset
       ---> [[(x, 3), (y, 1), (z, 1)]]
       matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset something with
           | ncons $a $n $r -> (a, n, r)
-      ---> [(x, 3, [(y, 2), (z, 1)]),
+      ---> [(x, 3, [(y, 2), (z, 1)]), (y, 2, [(x, 3), (z, 1)]), (z, 1, [(x, 3), (y, 2)])]
 
 AC.intersect
    ::
