@@ -45,20 +45,21 @@ assertEqual "primes" (take 10 primes) [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
 
 assertEqual "divisor" (divisor 10 5) True
 
-assertEqual "find-factor" (findFactor 100) 2
+assertEqual "findFactor" (findFactor 1) 1
+assertEqual "findFactor" (findFactor 35) 5
+assertEqual "findFactor" (findFactor 100) 2
 
-assertEqual "p-f" (pF 100) [2, 2, 5, 5]
+assertEqual "pF" (pF 1) []
+assertEqual "pF" (pF 3) [3]
+assertEqual "pF" (pF 100) [2, 2, 5, 5]
 
 assertEqual "isOdd" (isOdd 3) True
-
 assertEqual "isOdd" (isOdd 4) False
 
 assertEqual "isEven" (isEven 4) True
-
 assertEqual "isEven" (isEven 5) False
 
 assertEqual "isPrime" (isPrime 17) True
-
 assertEqual "isPrime" (isPrime 18) False
 
 assertEqual "perm" (perm 5 2) 20
