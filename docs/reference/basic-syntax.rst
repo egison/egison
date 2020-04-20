@@ -4,8 +4,8 @@ Basic Syntax
 
 .. highlight:: haskell
 
-Top-level Expression
-====================
+Top-level Expressions
+=====================
 
 Definition
 ----------
@@ -197,7 +197,7 @@ For example, the following two expressions are identical.
 ``seq`` expression
 ------------------
 
-Expressions for tensor computation
+Expressions for Tensor Computation
 ==================================
 
 ``generateTensor`` expression
@@ -223,7 +223,7 @@ Wedge application expression
 
 .. TODO arguments (scalar arguments, tensor arguments, inverted scalar arguments)
 
-Exprsesions for symbolic computation
+Expressions for Symbolic Computation
 ====================================
 
 ``withSymbols`` expression
