@@ -7,27 +7,27 @@ lib/core/base.egi
 id
    ::
 
-      > id 1 --> 1
+      id 1 --> 1
 
 fst
    ::
 
-      > fst (1, 2) --> 1
+      fst (1, 2) --> 1
 
 snd
    ::
 
-      > snd (1, 2) --> 2
+      snd (1, 2) --> 2
 
 compose
    ::
 
-      > (compose fst snd) ((1, 2), 3) --> 2
+      (compose fst snd) ((1, 2), 3) --> 2
 
 eqAs
    ::
 
-      > eqAs integer 1 1 --> True
+      eqAs integer 1 1 --> True
 
 and
    ::
@@ -44,6 +44,6 @@ or
 not
    ::
 
-      > [not True, not False] --> [False, True]
+      [not True, not False] --> [False, True]
 
 .. END docsgen

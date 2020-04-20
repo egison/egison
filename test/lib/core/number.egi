@@ -2,24 +2,24 @@
 -- Matcher
 --
 
-assertEqual "nat's o - case 1"
+assertEqual "nat's o"
   (match 0 as nat with
     | o -> True
     | _ -> False)
   True
 
-assertEqual "nat's o - case 2"
+assertEqual "nat's o"
   (match 1 as nat with
     | o -> True
     | _ -> False)
   False
 
-assertEqual "nat's s - case 1"
+assertEqual "nat's s"
   (match 10 as nat with
     | s $n -> n)
   9
 
-assertEqual "nat's s - case 2"
+assertEqual "nat's s"
   (match 0 as nat with
     | s o -> True
     | _ -> False)
@@ -49,25 +49,25 @@ assertEqual "find-factor" (findFactor 100) 2
 
 assertEqual "p-f" (pF 100) [2, 2, 5, 5]
 
-assertEqual "isOdd - case 1" (isOdd 3) True
+assertEqual "isOdd" (isOdd 3) True
 
-assertEqual "isOdd - case 2" (isOdd 4) False
+assertEqual "isOdd" (isOdd 4) False
 
-assertEqual "isEven - case 1" (isEven 4) True
+assertEqual "isEven" (isEven 4) True
 
-assertEqual "isEven - case 2" (isEven 5) False
+assertEqual "isEven" (isEven 5) False
 
-assertEqual "isPrime - case 1" (isPrime 17) True
+assertEqual "isPrime" (isPrime 17) True
 
-assertEqual "isPrime - case 2" (isPrime 18) False
+assertEqual "isPrime" (isPrime 18) False
 
 assertEqual "perm" (perm 5 2) 20
 
 assertEqual "comb" (comb 5 2) 10
 
-assertEqual "n-adic - case 1" (nAdic 10 123) [1, 2, 3]
+assertEqual "nAdic" (nAdic 10 123) [1, 2, 3]
 
-assertEqual "n-adic - case 2" (nAdic 2 10) [1, 0, 1, 0]
+assertEqual "nAdic" (nAdic 2 10) [1, 0, 1, 0]
 
 assertEqual "rtod"
   (2#(%1, take 10 %2) (rtod (6 / 35)))
@@ -75,9 +75,9 @@ assertEqual "rtod"
 
 assertEqual "rtod'" (rtod' (6 / 35)) (0, [1], [7, 1, 4, 2, 8, 5])
 
-assertEqual "show-decimal" (showDecimal 10 (6 / 35)) "0.1714285714"
+assertEqual "showDecimal" (showDecimal 10 (6 / 35)) "0.1714285714"
 
-assertEqual "show-decimal'" (showDecimal' (6 / 35)) "0.1 714285 ..."
+assertEqual "showDecimal'" (showDecimal' (6 / 35)) "0.1 714285 ..."
 
 assertEqual
   "regular-continued-fraction sqrt of 2"
@@ -106,12 +106,12 @@ assertEqual "continued-fraction pi"
   3.141592653589793
 
 assertEqual
-  "regular-continued-fraction-of-sqrt case 1"
+  "regularContinuedFractionOfSqrt case 1"
   (2#(%1, take 10 %2) (regularContinuedFractionOfSqrt 2))
   (1, [2, 2, 2, 2, 2, 2, 2, 2, 2, 2])
 
 assertEqual
-  "regular-continued-fraction-of-sqrt case 2"
+  "regularContinuedFractionOfSqrt case 2"
   (rtof
      (regularContinuedFraction
         (2#(%1, take 100 %2) (regularContinuedFractionOfSqrt 2))))
