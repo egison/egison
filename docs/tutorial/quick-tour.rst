@@ -37,7 +37,7 @@ Because there is only one way to decompose the list ``[1, 2, 3]`` in this manner
 
 The feature (2) realizes extensible pattern-matching algorithm and pattern polymorphism.
 Matcher is an Egison-specific object that retains pattern-matching algorithms.
-See :ref:`label-pattern-polymorphism` for the description of pattern polymorphism.
+See :ref:`pattern-polymorphism` for the description of pattern polymorphism.
 
 Lines starting with ``--`` are comments.
 In this tutorial, a line comment right after a program shows the execution result of the program.
@@ -135,7 +135,7 @@ Therefore, the time complexities of the above expressions are identical.
 The pattern-matching algorithm inside Egison is discussed in `this paper <https://arxiv.org/abs/1808.10603>`_ in detail. .. TODO: write a manual page for algorithm
 
 
-.. _label-pattern-polymorphism:
+.. _pattern-polymorphism:
 
 Ad-hoc polymorphism of patterns by matchers
 ===========================================
