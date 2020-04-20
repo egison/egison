@@ -38,14 +38,18 @@ divisor
 
       divisor 10 5 ---> True
 
-find-factor
+findFactor
    ::
 
+      findFactor 1 ---> 1
+      findFactor 35 ---> 5
       findFactor 100 ---> 2
 
-p-f
+pF
    ::
 
+      pF 1 ---> []
+      pF 3 ---> [3]
       pF 100 ---> [2, 2, 5, 5]
 
 isOdd
