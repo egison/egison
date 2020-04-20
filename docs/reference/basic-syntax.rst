@@ -49,8 +49,8 @@ To load your own program, call ``loadFile`` with a full-path or a relative path 
    -- Load your program.
    loadFile "myfile.egi"
 
-Expression
-==========
+Basic Expressions
+=================
 
 Anonymous function
 ------------------
@@ -179,3 +179,58 @@ For example, the following two expressions are identical.
    let x1 := expr1
        x2 := expr2
     in expression
+
+``if`` expression
+-----------------
+
+.. TODO
+
+``do`` expression
+-----------------
+
+``io`` expression
+-----------------
+
+``procedure`` expression
+------------------------
+
+``seq`` expression
+------------------
+
+Expressions for tensor computation
+==================================
+
+``generateTensor`` expression
+-----------------------------
+
+``contract`` expression
+-----------------------
+
+``tensorMap`` expression
+------------------------
+
+``tensorMap2`` expression
+-------------------------
+
+``transpose`` expression
+------------------------
+
+``subrefs``, ``suprefs`` and ``userRefs``
+-----------------------------------------
+
+Wedge application expression
+----------------------------
+
+.. TODO arguments (scalar arguments, tensor arguments, inverted scalar arguments)
+
+Exprsesions for symbolic computation
+====================================
+
+``withSymbols`` expression
+--------------------------
+
+``function`` expression
+-----------------------
+
+Quoted expression
+-----------------
