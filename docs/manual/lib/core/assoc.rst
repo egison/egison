@@ -1,5 +1,5 @@
 ==================
-lib/core/assoc.rst
+lib/core/assoc.egi
 ==================
 
 .. highlight:: haskell

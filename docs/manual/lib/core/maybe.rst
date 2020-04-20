@@ -1,5 +1,5 @@
 ==================
-lib/core/maybe.rst
+lib/core/maybe.egi
 ==================
 
 .. highlight:: haskell
