@@ -15,10 +15,12 @@ Reference
 .. toctree::
    :maxdepth: 1
 
-   reference/command-line-options.rst
    reference/builtin-data.rst
    reference/basic-syntax.rst
    reference/patterns.rst
+   reference/symbolic.rst
+   reference/tensor.rst
    reference/libs.rst
    reference/builtin-functions.rst
+   reference/command-line-options.rst
    reference/migration-guide-for-new-syntax.rst
