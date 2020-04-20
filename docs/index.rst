@@ -15,6 +15,7 @@ Manuals
 .. toctree::
    :maxdepth: 2
 
+   manual/command-line-options.rst
    manual/libs.rst
    manual/primitive-functions.rst
    manual/migration-guide-for-new-syntax.rst
