@@ -29,6 +29,7 @@ testCases :: [FilePath]
 testCases =
   [ "test/syntax.egi"
   , "test/primitive.egi"
+  , "test/lib/core/assoc.egi"
   , "test/lib/core/base.egi"
   , "test/lib/core/collection.egi"
   , "test/lib/core/maybe.egi"
