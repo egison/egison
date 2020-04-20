@@ -2,21 +2,14 @@
 -- Maybe
 --
 
-assertEqual "nothing pattern and Just"
+assertEqual "maybe"
   (matchAll Just 1 as maybe integer with
+    | just $x -> x
     | nothing -> "error")
-  []
-
-assertEqual "just pattern and Just"
-  (matchAll Just 1 as maybe integer with
-    | just $x -> x)
   [1]
 
-assert "nothing pattern and Nothing"
-  (match Nothing as maybe integer with
-    | nothing -> True)
-
-assertEqual "just pattern and Nothing"
+assertEqual "maybe"
   (matchAll Nothing as maybe integer with
-    | just $x -> "error")
-  []
+    | just _ -> "error"
+    | nothing -> True)
+  [True]

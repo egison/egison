@@ -1,6 +1,22 @@
 import re
 from typing import List, Tuple
 
+# Document generator
+#
+# Usage:
+# At the root of this repository, run:
+#
+# $ python3 scripts/docsgen.py
+#
+# Requirements:
+# * Only the ``assertEqual`` assertions will be converted into the document.
+# * The ``assertEqual`` label must be the name of the functions/matchers
+#   and must not contain whitespaces. (Assertions whose label contains
+#   whitespace will be ignored)
+# * The evaluation result should be written in one line.
+# * Lines between ``.. BEGIN docsgen`` and ``.. END docsgen`` will be overwritten
+#   by this script.
+
 test_and_docs = [
           ('test/primitive.egi', 'docs/manual/primitive-functions.rst')
         , ('test/lib/core/assoc.egi', 'docs/manual/lib/core/assoc.rst')

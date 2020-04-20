@@ -67,7 +67,6 @@ assertEqual "perm" (perm 5 2) 20
 assertEqual "comb" (comb 5 2) 10
 
 assertEqual "nAdic" (nAdic 10 123) [1, 2, 3]
-
 assertEqual "nAdic" (nAdic 2 10) [1, 0, 1, 0]
 
 assertEqual "rtod"
@@ -77,7 +76,6 @@ assertEqual "rtod"
 assertEqual "rtod'" (rtod' (6 / 35)) (0, [1], [7, 1, 4, 2, 8, 5])
 
 assertEqual "showDecimal" (showDecimal 10 (6 / 35)) "0.1714285714"
-
 assertEqual "showDecimal'" (showDecimal' (6 / 35)) "0.1 714285 ..."
 
 assertEqual
