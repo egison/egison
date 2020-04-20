@@ -26,15 +26,15 @@ def template(func: str, examples: List[str]):
         if len(targets) > 1:
             code = ' ' * 6 + targets[0] + '\n'
             code += "".join([' ' * 6 + t + '\n' for t in targets[1:]])
-            code += "      --> {}\n".format(expect)
+            code += "      ---> {}\n".format(expect)
 
         else:
-            code = "      {} --> {}\n".format(target, expect)
+            code = "      {} ---> {}\n".format(target, expect)
 
             # Description comes in 2 lines if it's too long
             if len(code) > 60:
-                code  = "      > {}\n".format(target)
-                code += "      --> {}\n".format(expect)
+                code  = "      {}\n".format(target)
+                code += "      ---> {}\n".format(expect)
 
         programs += code
 
