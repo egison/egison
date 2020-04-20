@@ -16,6 +16,9 @@ Reference
    :maxdepth: 2
 
    reference/command-line-options.rst
+   reference/builtin-data.rst
+   reference/basic-syntax.rst
+   reference/patterns.rst
    reference/libs.rst
-   reference/primitive-functions.rst
+   reference/builtin-functions.rst
    reference/migration-guide-for-new-syntax.rst

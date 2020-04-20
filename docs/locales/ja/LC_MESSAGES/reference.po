@@ -1,0 +1,970 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020, The Egison Authors
+# This file is distributed under the same license as the Egison package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2020.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Egison \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-04-20 15:02+0900\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.8.0\n"
+
+#: ../../reference/basic-syntax.rst:3
+msgid "Basic Syntax"
+msgstr ""
+
+#: ../../reference/builtin-data.rst:3
+msgid "Built-in Data"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:3
+msgid "List of Built-in Functions"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:12
+msgid "numerator"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:17
+msgid "denominator"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:22
+msgid "modulo"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:27
+msgid "quotient"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:32
+msgid "remainder"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:37
+msgid "neg"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:44
+msgid "abs"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:51
+msgid "lt"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:58
+msgid "lte"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:65
+msgid "gt"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:72
+msgid "gte"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:80
+msgid "round"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:88
+msgid "floor"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:96
+msgid "ceiling"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:104
+msgid "truncate"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:110
+msgid "sqrt"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:116
+msgid "itof"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:122
+msgid "rtof"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:127
+msgid "ctoi"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:132
+msgid "itoc"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:138
+msgid "pack"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:144
+msgid "unpack"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:149
+msgid "unconsString"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:155
+msgid "lengthString"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:163
+msgid "appendString"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:170
+msgid "splitString"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:178
+msgid "regex"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:184
+msgid "regexCg"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:192
+msgid "read"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:200
+msgid "show"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:205
+msgid "isBool"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:210
+msgid "isInteger"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:217
+msgid "isRational"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:223
+msgid "isScalar"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:229
+msgid "isFloat"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:234
+msgid "isChar"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:239
+msgid "isString"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:245
+msgid "isCollection"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:251
+msgid "isHash"
+msgstr ""
+
+#: ../../reference/builtin-functions.rst:258
+msgid "isTensor"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:3
+msgid "Command-Line Options"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:14
+msgid "``-l`` / ``--load-file``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:6
+msgid "Load definitions from the given file. ::"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:28
+msgid "``-t`` / ``--test``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:17
+msgid "Evaluate expressions in the given file. ::"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:35
+msgid "``-e`` / ``--eval``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:31
+msgid "Output the evaluation result of the given Egison expression. ::"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:42
+msgid "``-c`` / ``--command``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:38
+msgid "Execute the given expression, which should evaluate to an IO function. ::"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:69
+msgid "``-T`` / ``--tsv``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:45
+msgid "Output the evaluation result in the TSV form."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:47
+msgid ""
+"When the evaluation result is a colleciton, each of its elements is "
+"printed in a single line. ::"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:62
+msgid ""
+"When the evaluation result is a collection of collections or a collection"
+" of tuples, the elements of the inner collections are separated by a tab."
+" ::"
+msgstr ""
+
+#: ../../reference/lib/core/assoc.rst:3
+msgid "lib/core/assoc.egi"
+msgstr ""
+
+#: ../../reference/lib/core/assoc.rst:13
+msgid "toAssoc"
+msgstr ""
+
+#: ../../reference/lib/core/assoc.rst:18
+msgid "fromAssoc"
+msgstr ""
+
+#: ../../reference/lib/core/assoc.rst:37
+msgid "assocList"
+msgstr ""
+
+#: ../../reference/lib/core/assoc.rst:56
+msgid "assocMultiset"
+msgstr ""
+
+#: ../../reference/lib/core/assoc.rst:66
+msgid "AC.intersect"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:3
+msgid "lib/core/base.egi"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:12
+msgid "id"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:17
+msgid "fst"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:22
+msgid "snd"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:27
+msgid "compose"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:32
+msgid "eqAs"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:38
+msgid "and"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:44
+msgid "or"
+msgstr ""
+
+#: ../../reference/lib/core/base.rst:49
+msgid "not"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:3
+msgid "lib/core/collection.egi"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:12
+msgid "nth"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:17
+msgid "take"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:22
+msgid "drop"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:27
+msgid "takeAndDrop"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:32
+msgid "takeWhile"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:37
+msgid "head"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:42
+msgid "tail"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:47
+msgid "last"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:52
+msgid "init"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:57
+msgid "uncons"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:62
+msgid "unsnoc"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:68
+msgid "isEmpty"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:73
+msgid "length"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:78
+msgid "map"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:83
+msgid "map2"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:88
+msgid "filter"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:94
+msgid "zip"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:99
+msgid "lookup"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:104
+msgid "foldr"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:109
+msgid "foldl"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:114
+msgid "scanl"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:119
+msgid "concat"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:124
+msgid "reverse"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:130
+msgid "intersperse"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:136
+msgid "intercalate"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:142
+msgid "split"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:148
+msgid "splitAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:154
+msgid "findCycle"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:159
+msgid "repeat"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:164
+msgid "repeat1"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:170
+msgid "all"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:176
+msgid "any"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:181
+msgid "from"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:186
+msgid "between"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:192
+msgid "add"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:198
+msgid "addAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:203
+msgid "deleteFirst"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:208
+msgid "deleteFirstAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:213
+msgid "delete"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:219
+msgid "deleteAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:224
+msgid "difference"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:229
+msgid "differenceAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:234
+msgid "union"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:239
+msgid "unionAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:244
+msgid "intersect"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:249
+msgid "intersectAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:255
+msgid "member"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:261
+msgid "memberAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:266
+msgid "count"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:271
+msgid "countAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:276
+msgid "frequency"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:282
+msgid "frequencyAs"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:287
+msgid "unique"
+msgstr ""
+
+#: ../../reference/lib/core/collection.rst:292
+msgid "uniqueAs"
+msgstr ""
+
+#: ../../reference/lib/core/maybe.rst:3
+msgid "lib/core/maybe.egi"
+msgstr ""
+
+#: ../../reference/lib/core/maybe.rst:19
+msgid "maybe"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:3
+msgid "lib/core/number.egi"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:12
+msgid "nats"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:17
+msgid "nats0"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:22
+msgid "odds"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:28
+msgid "evens"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:34
+msgid "primes"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:39
+msgid "divisor"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:46
+msgid "findFactor"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:53
+msgid "pF"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:59
+msgid "isOdd"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:65
+msgid "isEven"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:71
+msgid "isPrime"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:76
+msgid "perm"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:81
+msgid "comb"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:87
+msgid "nAdic"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:93
+msgid "rtod"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:98
+msgid "rtod'"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:103
+msgid "showDecimal"
+msgstr ""
+
+#: ../../reference/lib/core/number.rst:108
+msgid "showDecimal'"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:3
+msgid "lib/core/order.egi"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:14
+msgid "compare"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:19
+msgid "min"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:24
+msgid "minimum"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:29
+msgid "min/fn"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:34
+msgid "max"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:39
+msgid "maximum"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:44
+msgid "max/fn"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:49
+msgid "sort"
+msgstr ""
+
+#: ../../reference/lib/core/order.rst:55
+msgid "sort/fn"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:3
+msgid "lib/core/string.egi"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:13
+msgid "S.isEmpty"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:18
+msgid "S.head"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:23
+msgid "S.tail"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:28
+msgid "S.last"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:33
+msgid "S.map"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:38
+msgid "S.length"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:44
+msgid "S.split"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:49
+msgid "S.append"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:54
+msgid "S.concat"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:60
+msgid "S.intercalate"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:65
+msgid "C.between"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:70
+msgid "C.isBetween"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:75
+msgid "isAlphabet"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:80
+msgid "isAlphabetString"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:85
+msgid "upper-case"
+msgstr ""
+
+#: ../../reference/lib/core/string.rst:90
+msgid "lower-case"
+msgstr ""
+
+#: ../../reference/libs.rst:3
+msgid "List of libraries"
+msgstr ""
+
+#: ../../reference/libs.rst:6
+msgid "List of core libraries"
+msgstr ""
+
+#: ../../reference/libs.rst:21
+msgid "List of mathematical libraries"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:3
+msgid "Migration Guide for the New Syntax"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:6
+msgid "Automated translation with ``egison-translate``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:8
+msgid ""
+"We have a tool to help users convert old Egison programs into the new "
+"syntax. ``egison-translate`` automatically translates Egison programs in "
+"the old S-expression syntax into the new Haskell-like syntax. It can be "
+"built from the source as follows."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:23
+msgid ""
+"``egison-translate`` does not preserve comments and shebangs. Please "
+"manually add them after the translation."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:28
+msgid "Changes in function names"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:30
+msgid ""
+"Apart from the changes in the syntax itself, some of the library/built-in"
+" variable names have also been renamed to match the new syntax. All of "
+"these changes are supported in ``egison-translate``."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:34
+msgid "Changes in naming rules"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:36
+msgid ""
+"The following describes the changes in the naming rule of variables. The "
+"table shows the example of such changes and the detailed description is "
+"given under the table."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:40
+#: ../../reference/migration-guide-for-new-syntax.rst:63
+msgid "Old name"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:40
+#: ../../reference/migration-guide-for-new-syntax.rst:63
+msgid "New name"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:42
+msgid "1"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:42
+msgid "``take-while``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:42
+msgid "``takeWhile``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:44
+msgid "2"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:44
+msgid "``even?``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:44
+msgid "``isEven``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:46
+msgid "3"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:46
+msgid "``member?``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:46
+msgid "``member``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:48
+msgid "4"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:48
+msgid "``delete/m``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:48
+msgid "``deleteAs``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:51
+msgid "Names connected with hyphens ``-`` are converted into camelCase."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:52
+msgid ""
+"Unary function names that ended with a question mark ``?`` is prefixed "
+"with ``is``."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:53
+msgid ""
+"Non-unary function names that ended with a question mark ``foo?`` now "
+"omits the last question mark."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:54
+msgid ""
+"Function names of the form ``foo/m`` are renamed as ``fooAs``. For "
+"instance, ``delete/m`` became ``deleteAs``."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:58
+msgid "Instance-wise changes"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:60
+msgid ""
+"Also, some of the Lisp-inspired names have been renamed into Haskell-like"
+" names as shown in the following table."
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:65
+msgid "``car``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:65
+msgid "``head``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:67
+msgid "``cdr``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:67
+msgid "``tail``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:69
+msgid "``rac``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:69
+msgid "``last``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:71
+msgid "``rdc``"
+msgstr ""
+
+#: ../../reference/migration-guide-for-new-syntax.rst:71
+msgid "``init``"
+msgstr ""
+
+#: ../../reference/patterns.rst:3
+msgid "Pattern Matching"
+msgstr ""
+
+#: ../../reference/patterns.rst:6
+msgid "Expressions for pattern matching"
+msgstr ""
+
+#: ../../reference/patterns.rst:9
+msgid "``match`` and ``matchAll``"
+msgstr ""
+
+#: ../../reference/patterns.rst:12
+msgid "``\\match`` and ``\\matchAll``"
+msgstr ""
+
+#: ../../reference/patterns.rst:15
+msgid "``matchDFS`` and ``matchAllDFS``"
+msgstr ""
+
+#: ../../reference/patterns.rst:18
+msgid "Pattern functions"
+msgstr ""
+
+#: ../../reference/patterns.rst:21
+msgid "``matcher`` and ``algebraicDataMatcher``"
+msgstr ""
+
+#: ../../reference/patterns.rst:24
+msgid "Patterns"
+msgstr ""
+
+#: ../../reference/patterns.rst:27
+msgid "Wildcard pattern"
+msgstr ""
+
+#: ../../reference/patterns.rst:30
+msgid "Pattern variable"
+msgstr ""
+
+#: ../../reference/patterns.rst:33
+msgid "Indexed pattern variable"
+msgstr ""
+
+#: ../../reference/patterns.rst:36
+msgid "Inductive pattern"
+msgstr ""
+
+#: ../../reference/patterns.rst:39
+msgid "Value pattern"
+msgstr ""
+
+#: ../../reference/patterns.rst:42
+msgid "Predicate pattern"
+msgstr ""
+
+#: ../../reference/patterns.rst:45
+msgid "Logical patterns: and-, or- and not-pattern"
+msgstr ""
+
+#: ../../reference/patterns.rst:48
+msgid "Sequential pattern"
+msgstr ""
+
+#: ../../reference/patterns.rst:51
+msgid "Loop pattern"
+msgstr ""
+
+#: ../../reference/patterns.rst:54
+msgid "Let pattern"
+msgstr ""
+
