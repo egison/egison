@@ -2,6 +2,8 @@
 Egison Quick Tour
 =================
 
+.. highlight:: haskell
+
 This section introduces basic functionalities of Egison for pattern-match-oriented programming.
 
 
