@@ -1,5 +1,5 @@
 =================
-List of libraries
+List of Libraries
 =================
 
 List of core libraries

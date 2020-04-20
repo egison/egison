@@ -5,7 +5,7 @@ The Egison Programming Language
 Tutorial
 ========
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    tutorial/getting-started.rst
    tutorial/quick-tour.rst
@@ -13,7 +13,7 @@ Tutorial
 Reference
 =========
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    reference/command-line-options.rst
    reference/builtin-data.rst
