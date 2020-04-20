@@ -3,12 +3,12 @@ assert "string's value pattern"
     | #"abc" -> True
     | _ -> False)
 
-assert "string's nil - case 1"
+assert "string's nil"
   (match "" as string with
     | [] -> True
     | _ -> False)
 
-assert "string's nil - case 2"
+assert "string's nil"
   (match "abc" as string with
     | [] -> False
     | _ -> True)
@@ -26,9 +26,9 @@ assertEqual "string's join"
 --
 -- String as collection
 --
-assertEqual "S.isEmpty - case 1" (S.isEmpty "") True
+assertEqual "S.isEmpty" (S.isEmpty "") True
 
-assertEqual "S.isEmpty - case 2" (S.isEmpty "Egison") False
+assertEqual "S.isEmpty" (S.isEmpty "Egison") False
 
 assertEqual "S.head" (S.head "Egison") 'E'
 
