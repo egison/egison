@@ -59,7 +59,7 @@ Characters are enclosed in single quotes.
 String
 ======
 
-String are enclosed in double quotes.
+Strings are enclosed in double quotes.
 
 ::
 
@@ -80,7 +80,7 @@ You don't need to define the inductive data before using it.
 Tuple (Multiple values)
 =======================
 
-A tuple is a sequence of elements that are enclosed in parentheses and separated by ``,``.
+A tuple is denoted as a sequence of elements enclosed in parentheses and separated by ``,``.
 Tuples of single element cannot be written.
 
 ::
@@ -102,8 +102,8 @@ A collection is a sequence of elements that are enclosed in brackets and separat
    [1, 2]
    [1, 2, 3]
 
-Tensors
-=======
+Tensor
+======
 
 A tensor is a sequence of elements enclosed in double brackets ``[|`` ``|]`` and separated by ``,``.
 The :math:`i`-th element of a tensor ``t`` can be retrieved by ``t_i``. Note that it is 1-indexed.
@@ -151,4 +151,4 @@ If the key is not included in the keys of the hash map, the result will be ``und
 Undefined
 =========
 
-``undefined`` is a useful built-in data that you can put where you have not written yet.
+``undefined`` is a useful built-in data you can put where you have not written yet.
