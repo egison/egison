@@ -2,6 +2,8 @@
 Tensor Computation
 ==================
 
+.. _label-tensor-syntax:
+
 Syntax for Tensor Computation
 =============================
 
