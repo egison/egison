@@ -176,7 +176,7 @@ Value pattern
 
 A value pattern is written as ``#expr``, where ``expr`` can be any expression.
 An object ``obj`` can match a value pattern ``#expr`` only if the evaluation result of ``obj`` is equal to that of ``expr``.
-This equality is defined by matcher.
+This equality is defined by the given matcher.
 
 ::
 
@@ -185,7 +185,7 @@ This equality is defined by matcher.
    | _  -> KO
    ---> OK
 
-   match 0 as integer with #1 -> "OK"
+   match 0 as integer with
    | #1 -> OK
    | _  -> KO
    ---> KO
