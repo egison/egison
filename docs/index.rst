@@ -17,7 +17,7 @@ Reference
 
    reference/builtin-data.rst
    reference/basic-syntax.rst
-   reference/patterns.rst
+   reference/pattern-matching.rst
    reference/symbolic.rst
    reference/tensor.rst
    reference/libs.rst
