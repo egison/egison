@@ -2,7 +2,7 @@
 Tensor Computation
 ==================
 
-.. _label-tensor-syntax:
+.. _tensor-syntax:
 
 Syntax for Tensor Computation
 =============================

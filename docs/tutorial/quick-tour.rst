@@ -166,7 +166,7 @@ This behavior comes from the idea that a set can be seen as a collection which c
    -- [(1,[1,2,3]),(2,[1,2,3]),(3,[1,2,3])]
 
 
-.. _label-match-search-order:
+.. _match-search-order:
 
 Controlling the order of pattern matching
 =========================================

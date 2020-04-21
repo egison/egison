@@ -133,7 +133,7 @@ Multi-dimensional tensors can be defined by nesting tensors.
    [| [| 1, 2, 3 |], [| 4, 5, 6 |], [| 7, 8, 9 |] |]_2_3 ---> 6
 
 Egison prepares special syntax for tensors.
-See :ref:`label-tensor-syntax` for detail.
+See :ref:`tensor-syntax` for detail.
 
 Hash Maps
 =========
