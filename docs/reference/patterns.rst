@@ -110,8 +110,27 @@ See :ref:`label-match-search-order` for the description.
 Pattern functions
 -----------------
 
-``matcher`` and ``algebraicDataMatcher``
-----------------------------------------
+
+Matchers
+========
+
+``something`` matcher
+---------------------
+
+``something`` is the only built-in matcher.
+Only variable pattern and wildcard patterns can be used for ``something`` matcher; it does not decompose the target object.
+
+::
+
+   match [1, 2, 3] as something with $x -> x ---> [1, 2, 3]
+   match [1, 2, 3] as something with _  -> True ---> True
+   match [1, 2, 3] as something with $x :: _  -> x ---> Error
+
+Defining matcher with ``matcher`` expression
+--------------------------------------------
+
+``algebraicDataMatcher`` expression
+-----------------------------------
 
 Patterns
 ========
@@ -119,8 +138,32 @@ Patterns
 Wildcard pattern
 ----------------
 
+Wildcard patterns are denoted by ``_``.
+It can match with any values and the matched value will be discarded.
+
+::
+
+   match [1, 2, 3] as list something with
+   | _ -> "OK"
+   ---> "OK"
+
 Pattern variable
 ----------------
+
+We can bind values to variables in pattern matching with pattern variables.
+It is denoted as a variable prefixed with ``$``.
+Any object matches pattern variables and the variable is locally bound to the object.
+
+::
+
+   match True as bool with
+   | $x -> x
+   ---> True
+
+   match [1, 2, 3] as list integer with
+   | $x :: $xs -> (x, xs)
+   ---> (1, [2, 3])
+
 
 Indexed pattern variable
 ------------------------
@@ -130,6 +173,30 @@ Inductive pattern
 
 Value pattern
 -------------
+
+A value pattern is written as ``#expr``, where ``expr`` can be any expression.
+An object ``obj`` can match a value pattern ``#expr`` only if the evaluation result of ``obj`` is equal to that of ``expr``.
+This equality is defined by matcher.
+
+::
+
+   match 1 as integer with
+   | #1 -> OK
+   | _  -> KO
+   ---> OK
+
+   match 0 as integer with #1 -> "OK"
+   | #1 -> OK
+   | _  -> KO
+   ---> KO
+
+   match [1, 2, 3] as list integer with
+   | #[1, 2, 3] -> OK
+   ---> OK
+
+   match [1, 2, 3] as multiset integer with
+   | #[2, 1, 3] -> OK
+   ---> OK
 
 Predicate pattern
 -----------------
