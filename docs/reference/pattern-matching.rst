@@ -105,7 +105,7 @@ The semantics of ``\match`` is similar.
 --------------------------------
 
 ``matchAllDFS`` and ``matchDFS`` are variants of ``matchAll`` and ``match``, respectively.
-See :ref:`label-match-search-order` for the description.
+See :ref:`match-search-order` for the description.
 
 Pattern functions
 -----------------
