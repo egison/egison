@@ -185,16 +185,101 @@ For example, the following two expressions are identical.
 ``if`` expression
 -----------------
 
-.. TODO
+It is the ordinary ``if`` expression.
+The guard expression (the one right after ``if``) must be evaluated to a boolean (``True`` or ``False``).
+
+::
+
+   if True then "Yes" else "No"  ---> "Yes"
+   if False then "Yes" else "No" ---> "No"
 
 ``do`` expression
 -----------------
 
+A ``do`` expression can group several IO functions into one IO function.
+You can bind expressions to values with ``let`` in the ``do`` expression as well.
+Every lines in the ``do`` block must either be an expression that evaluates to an IO function or a ``let`` binding.
+Note that all the lines in the ``do`` block must be aligned vertically.
+
+::
+
+   repl := do
+     write "> "
+     flush ()
+     let line := readLine ()
+     write line
+     flush ()
+     repl
+
+A ``do`` expression can be written in one line as follows.
+The expressions needs to be wrapped with ``{`` ``}`` and separated by ``;``.
+
+::
+
+   do { print "foo" ; print "bar" ; print "baz" }
+
+
+You can return values from ``do`` expressions with ``return``, a primitive function.
+
+::
+
+   > io do { return 1 }
+   1
+
+.. warning::
+
+   As of version 4.0.0, the ``return`` must be placed at the last line of the ``do`` block,
+   and the last line must be of the form ``return ...`` (``return`` being applied to some argument) in order to be recognized as the return expression.
+
+   When the last line is not of the form ``return ...``, an expression ``return ()`` is appended to the tail of the ``do`` block.
+   Applications of the function ``return`` in non-tail position of ``do`` blocks is evaluated, but the evaluation result is discarded.
+
+   ::
+
+      > io do { return 1 }
+      1
+      > -- Applications of 'return' in then/else branches are not recognized.
+      > -- Therefore, the following is parsed as
+      > --   io do { if True then return 1 else return 2 ; return () }
+      > io do { if True then return 1 else return 2 }
+      ()
+      > io do { if True then print "foo" else return 2 }
+      foo
+      ()
+      > io do { if True then return 1 else return 2 ; return 4 }
+      4
+
+.. _io-expression:
+
 ``io`` expression
 -----------------
+
+An ``io`` expression takes an IO function and executes it.
+This is similar to the ``unsafePerformIO`` in Haskell.
+
+::
+
+   > io print "hoge"
+   hoge
+   ()
 
 ``procedure`` expression
 ------------------------
 
 ``seq`` expression
 ------------------
+
+This expression is inspired by the ``seq`` function in Haskell.
+
+A ``seq`` expression takes two arguments.
+The first argument of ``seq`` is strictly evaluated.
+The most popular use case of seq is in the definition of the foldl function.
+
+::
+
+   foldl $fn $init $ls :=
+     match ls as list something with
+       | [] -> init
+       | $x :: $xs ->
+         let z := fn init x
+          in seq z (foldl fn z xs)

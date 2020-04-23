@@ -184,6 +184,19 @@ An object matched to ``$x_i`` is associated with the key ``i`` in the hash ``x``
 Inductive pattern
 -----------------
 
+Inductive pattern is an analogy of :ref:`inductive data <inductive-data>`.
+An inductive pattern consists of a **pattern constructor** and multiple (zero or more) argument patterns.
+The names and behaviors of pattern constructors are defined by matchers.
+
+In the following example, ``snoc`` is a pattern constructor defined in the ``list`` matcher, and ``$x`` and ``$xs`` is applied to the pattern constructor.
+
+::
+
+   matchAll [1, 2, 3] as list integer with snoc $x $xs -> (x, xs)
+   ---> (3, [1, 2])
+
+The nil pattern ``[]`` and the pattern infixes such as ``::`` and ``++`` are also implemented as pattern constructors.
+
 Value pattern
 -------------
 
