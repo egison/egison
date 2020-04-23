@@ -65,6 +65,9 @@ Strings are enclosed in double quotes.
 
    "Hello, world"
 
+
+.. _inductive-data:
+
 Inductive data
 ==============
 
@@ -150,6 +153,17 @@ If the key is not included in the keys of the hash map, the result will be ``und
    {| (1, 11) (2, 12) (3, 13) (4, 14) (5, 15) |}_1 ---> 11
    {| (1, 11) (2, 12) (3, 13) (4, 14) (5, 15) |}_4 ---> 14
    {| (1, 11) (2, 12) (3, 13) (4, 14) (5, 15) |}_8 ---> undefined
+
+IO Function
+===========
+
+IO functions are functions that will yield IO operation when executed.
+
+Any IO functions can be executed with :ref:`io expressions<io-expression>`.
+
+::
+
+   print "foo" ---> #<io-function>
 
 Undefined
 =========
