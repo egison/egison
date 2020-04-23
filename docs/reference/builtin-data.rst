@@ -135,6 +135,9 @@ Multi-dimensional tensors can be defined by nesting tensors.
 Egison prepares special syntax for tensors.
 See :ref:`tensor-syntax` for detail.
 
+
+.. _hash-maps:
+
 Hash Maps
 =========
 
