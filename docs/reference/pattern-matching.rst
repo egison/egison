@@ -113,7 +113,7 @@ Pattern functions
 A pattern function is a function that takes patterns and returns a pattern.
 Pattern functions allows us to reuse useful combination of patterns.
 
-The syntax of pattern function is similar to that of :ref:`anonymous-function` except that it uses double arrow ``=>`` instead of the sigle arrow ``->``.
+The syntax of pattern function is similar to that of :ref:`anonymous function <anonymous-function>` except that it uses double arrow ``=>`` instead of the sigle arrow ``->``.
 Also, the argument pattern must be prefixed with a ``~`` in the body of the pattern function.
 This is to distinguish the argument with nullary pattern constructor.
 
@@ -169,6 +169,18 @@ Any object matches pattern variables and the variable is locally bound to the ob
 Indexed pattern variable
 ------------------------
 
+Indexed pattern variables ``$x_n`` (``n`` denotes integers) are special pattern variables.
+When an indexed pattern variable ``$x_n`` appears in the pattern, Egison creates a :ref:`hash map <hash-maps>` and binds it to the variable ``x``.
+An object matched to ``$x_i`` is associated with the key ``i`` in the hash ``x``.
+
+::
+
+   match 1 as something with $x_1 -> x
+   ---> {| (1, 1) |}
+
+   match [1, 2, 3] as list integer with $x_1 :: $x_2 -> x
+   ---> {| (1, 1), (2, [2, 3]) |}
+
 Inductive pattern
 -----------------
 
@@ -217,7 +229,7 @@ The expression following ``?`` should be a unary function that returns a boolean
 
 
 And-pattern
-===========
+-----------
 
 An and-pattern ``p1 & p2`` is a pattern that matches the object if and only if both of the pattern ``p1`` and ``p2`` are matched.
 
@@ -242,7 +254,7 @@ For example, a pattern ``(_ :: _) & $xs`` matches with any non-empty collections
    ---> pattern match failure
 
 Or-pattern
-==========
+----------
 
 An or-pattern ``p1 | p2`` matches with the object if the object matches with ``p1`` or ``p2``.
 
@@ -254,7 +266,7 @@ An or-pattern ``p1 | p2`` matches with the object if the object matches with ``p
    ---> OK
 
 Not-pattern
-===========
+-----------
 
 A not-pattern ``!p`` matches with the object if the object does not match the pattern ``p``.
 
@@ -284,11 +296,30 @@ A not-pattern ``!p`` matches with the object if the object does not match the pa
 Sequential pattern
 ------------------
 
+See :ref:`sequential-patterns` in the tutorial.
+
 Loop pattern
 ------------
 
+See :ref:`loop-patterns` in the tutorial.
+
 Let pattern
 -----------
+
+A let pattern allows binding expressions to variables inside the pattern.
+The variables bound in the ``let`` pattern can be used in the body of the ``let`` pattern.
+
+::
+
+   f x :=
+     match x as multiset integer with
+     | let n := length x in #n :: #n :: _ -> True
+     | _                                  -> False
+
+   f [1, 2, 2] ---> False
+   f [3, 3, 2] ---> True
+   f [1, 2, 3, 4] ---> False
+   f [1, 4, 3, 4] ---> True
 
 Matchers
 ========

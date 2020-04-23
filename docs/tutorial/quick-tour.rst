@@ -254,6 +254,8 @@ The not-pattern ``!#(p + 2)`` matches values other than :math:`p + 2`.
    -- [(2,3),(7,11),(13,17),(19,23),(23,29),(31,37),(37,41),(43,47),(47,53),(53,59)]
 
 
+.. _loop-patterns:
+
 Loop Patterns
 =============
 
@@ -327,6 +329,8 @@ The following loop pattern enumerates all initial prefixes of the target collect
 .. We work on pattern matching for trees in section 3.4.1.
 .. More formal specification of syntax and semantics of loop patterns is shown in the author’s previous paper [6].
 
+
+.. _sequential-patterns:
 
 Sequential Patterns
 ===================
