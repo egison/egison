@@ -52,6 +52,8 @@ To load your own program, call ``loadFile`` with a full-path or a relative path 
 Basic Expressions
 =================
 
+.. _anonymous-function:
+
 Anonymous function
 ------------------
 
