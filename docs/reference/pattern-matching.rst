@@ -110,27 +110,28 @@ See :ref:`match-search-order` for the description.
 Pattern functions
 -----------------
 
+A pattern function is a function that takes patterns and returns a pattern.
+Pattern functions allows us to reuse useful combination of patterns.
 
-Matchers
-========
+The syntax of pattern function is similar to that of :ref:`anonymous-function` except that it uses double arrow ``=>`` instead of the sigle arrow ``->``.
+Also, the argument pattern must be prefixed with a ``~`` in the body of the pattern function.
+This is to distinguish the argument with nullary pattern constructor.
 
-``something`` matcher
----------------------
-
-``something`` is the only built-in matcher.
-Only variable pattern and wildcard patterns can be used for ``something`` matcher; it does not decompose the target object.
+The application of pattern functions is written in the same manner as the application of pattern constructors.
 
 ::
 
-   match [1, 2, 3] as something with $x -> x ---> [1, 2, 3]
-   match [1, 2, 3] as something with _  -> True ---> True
-   match [1, 2, 3] as something with $x :: _  -> x ---> Error
+   -- Defining a pattern function 'twin'
+   twin := \ pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
 
-Defining matcher with ``matcher`` expression
---------------------------------------------
+   matchAll [1, 2, 1, 3] as multiset integer with twin $n _ -> n
+   ---> [1, 1]
 
-``algebraicDataMatcher`` expression
------------------------------------
+   matchAll [2, 2, 1, 3] as multiset integer with _ :: twin #1 _ -> True
+   ---> []
+
+Like anonymous functions, a pattern function has lexical scope for the pattern variables.
+Therefore, bindings for pattern variables in the argument patterns and the body of pattern functions don't conflict.
 
 Patterns
 ========
@@ -201,6 +202,19 @@ This equality is defined by the given matcher.
 Predicate pattern
 -----------------
 
+A predicate pattern is a pattern that matches with an object when it satisfies the predicate following ``?``.
+The expression following ``?`` should be a unary function that returns a boolean.
+
+::
+
+   matchAll [1..6] as list integer with
+   | $xs ++ ?(< 4) :: $ys -> xs ++ ys
+   ---> [[2, 3, 4, 5, 6], [1, 3, 4, 5, 6], [1, 2, 4, 5, 6]]
+
+   matchAll [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377] as multiset integer with
+   | ?(\x -> modulo x 2 == 0) & $x -> x
+   ---> [2, 8, 34, 144]
+
 Logical patterns: and-, or- and not-pattern
 -------------------------------------------
 
@@ -213,3 +227,119 @@ Loop pattern
 Let pattern
 -----------
 
+Matchers
+========
+
+``something`` matcher
+---------------------
+
+``something`` is the only built-in matcher.
+Only variable pattern and wildcard patterns can be used for ``something`` matcher; it does not decompose the target object.
+
+::
+
+   match [1, 2, 3] as something with $x -> x ---> [1, 2, 3]
+   match [1, 2, 3] as something with _  -> True ---> True
+   match [1, 2, 3] as something with $x :: _  -> x ---> Error
+
+.. _matcher:
+
+Defining matcher with ``matcher`` expression
+--------------------------------------------
+
+This subsection describes how to define a matcher with ``matcher`` expression.
+
+Let's think about defining a matcher ``unorderedIntegerPair``, which matches with a tuple of 2 integers ignoring the order.
+
+::
+
+   matchAll (1, 2) as unorderedIntegerPair with pair $a $b -> (a, b)
+   ---> [(1, 2), (2, 1)]
+
+This ``unorderedIntegerPair`` matcher can be defined as follows.
+
+::
+
+   unorderedIntegerPair :=
+     matcher
+       | pair $ $ as (integer, integer) with
+         | ($x, $y) -> [(x, y), (y, x)]
+       | $ as something with
+         | $tgt -> [tgt]
+
+Line 3 and 4 corresponds with the case where we want to decompose the tuple, and line 5 and 6 is for the case where we don't want to.
+The expression ``pair $ $`` in line 3 is a **primitive pattern pattern** (pattern for patterns) and it defines a pattern constructor named ``pair``, which enables the pattern expression like ``pair $a $b``.
+The following ``(integer, integer)`` indicates that the both of matched 2 terms should be recursively pattern-matched by using ``integer`` matcher.
+The expression ``($x, $y) -> [(x, y), (y, x)]`` in line 4 defines the correspondense between the syntactic representation of the target data and pattern matching results.
+The ``($x, $y)`` in line 4 is called **primitive data pattern**.
+In the example above, the target data ``(1, 2)`` is *syntactically* matched with ``($x, $y)``, making the variable ``x`` bound to ``1`` and ``y`` to ``2``.
+As a result, the pattern matching result (specified with ``[(x, y), (y, x)]``) will be ``[(1, 2), (2, 1)]``.
+Then, variable ``a`` and ``b`` in the pattern expression ``pair $a $b`` are bound to one of the pattern matching result.
+Since it is a ``matchAll`` expression, this binding enumrates for the entire results, meaning that the first ``a`` is bound to ``1`` and ``b`` to ``2``, and secondly ``a`` to ``2`` and ``b`` to ``1``.
+
+This ``unorderedIntegerPair`` matcher only works for integer tuples;
+however, we can make it "polymorphic" by making it a function that takes matchers and returns a matcher.
+For example, ``unorderedPair`` for an arbitrary matcher can be defined as follows:
+
+::
+
+   unorderedPair m :=
+     matcher
+       | pair $ $ as (m, m) with
+         | ($x, $y) -> [(x, y), (y, x)]
+       | $ as something with
+         | $tgt -> [tgt]
+
+   -- Examples
+   match ([1, 2], [3, 4]) as unorderedPair (multiset integer) with
+   | pair (#4 :: _) _ -> True
+   ---> True
+
+
+``algebraicDataMatcher`` expression
+-----------------------------------
+
+``algebraicDataMatcher`` is a convenient syntax sugar for defining normal matchers, which decompose data accordingly to their data structure.
+For example, the following code defines a matcher for terms in untyped lambda calculus.
+The first identifiers in each line of the ``algebraicDataMatcher`` (``var``, ``abs`` and ``app``) must start with a lower case alphabet.
+
+::
+
+   term :=
+     algebraicDataMatcher
+       | var string       -- variable
+       | abs string term  -- lambda abstraction
+       | app term term    -- application
+
+The above definition is desugared into the following one:
+
+::
+
+   term :=
+     matcher
+       | var $ as string with
+         | Var $x -> [x]
+         | _      -> []
+       | abs $ $ as (string, term) with
+         | Abs $x $t -> [(x, t)]
+         | _         -> []
+       | app $ $ as (term, term) with
+         | App $s $t -> [(s, t)]
+         | _         -> []
+       | $ as something with
+         | $tgt -> [tgt]
+
+.. Primitive Pattern Pattern
+.. =========================
+..
+.. As explained in :ref:`matcher`, primitive pattern patterns are patterns for patterns.
+..
+.. This section gives the syntax for primitive pattern patterns.
+..
+.. Primitive Data Pattern
+.. ======================
+..
+.. As explained in :ref:`matcher`, primitive pattern patterns are used to express decomposition of Egison objects.
+.. The pattern matching for primitive data pattern is conducted in a similar way as the pattern matching in standard programming languages.
+..
+.. This section gives the syntax for primitive data patterns.
