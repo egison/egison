@@ -215,8 +215,71 @@ The expression following ``?`` should be a unary function that returns a boolean
    | ?(\x -> modulo x 2 == 0) & $x -> x
    ---> [2, 8, 34, 144]
 
-Logical patterns: and-, or- and not-pattern
--------------------------------------------
+
+And-pattern
+===========
+
+An and-pattern ``p1 & p2`` is a pattern that matches the object if and only if both of the pattern ``p1`` and ``p2`` are matched.
+
+::
+
+   match [1, 3, 2] as list integer with
+   | (#1 :: _) & snoc #2 _ -> OK
+   | _                     -> KO
+   ---> OK
+
+We can use and-patterns like as-patterns in Haskell.
+For example, a pattern ``(_ :: _) & $xs`` matches with any non-empty collections and binds it to the variable ``xs``.
+
+::
+
+   match [1, 2] as list integer with
+   | (_ :: _) & $xs -> xs
+   ---> [1, 2]
+
+   match [] as list integer with
+   | (_ :: _) & $xs -> xs
+   ---> pattern match failure
+
+Or-pattern
+==========
+
+An or-pattern ``p1 | p2`` matches with the object if the object matches with ``p1`` or ``p2``.
+
+::
+
+   match [1, 3, 3] as list integer with
+   | (#1 :: _) | snoc #2 _ -> OK
+   | _                     -> KO
+   ---> OK
+
+Not-pattern
+===========
+
+A not-pattern ``!p`` matches with the object if the object does not match the pattern ``p``.
+
+::
+
+   match 1 as integer with !#2 -> True
+   ---> True
+
+   -- Returns True if and only if the collection does not contain 1
+   f :=
+     \match as multiset integer with
+      | !(#1 :: _) -> True
+      | _          -> False
+
+   -- Returns True if and only if the collection has an element other than 1
+   g :=
+     \match as multiset integer with
+      | !#1 :: _ -> True
+      | _        -> False
+
+   f [2, 3, 4] ---> True
+   f [1, 2, 3] ---> False
+   g [1, 2, 3] ---> True
+   g [1, 1, 1] ---> False
+
 
 Sequential pattern
 ------------------
