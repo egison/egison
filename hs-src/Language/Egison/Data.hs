@@ -349,8 +349,7 @@ instance Show EgisonValue where
 isAtomic :: EgisonValue -> Bool
 isAtomic (InductiveData _ []) = True
 isAtomic (InductiveData _ _)  = False
-isAtomic (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = True
-isAtomic (ScalarData _) = False
+isAtomic (ScalarData m) = isAtom m
 isAtomic _ = True
 
 instance Eq EgisonValue where
