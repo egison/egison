@@ -166,6 +166,9 @@ defineOrTestExpr = do
     convertToDefine (VarExpr var) = return $ Variable var
     convertToDefine (SectionExpr op Nothing Nothing) =
       return $ Variable (stringToVar (func op))
+    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr [TupleExpr args])) = do
+      args' <- mapM ((TensorArg <$>) . exprToStr) args
+      return $ Function var args'
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
       args' <- mapM ((TensorArg <$>) . exprToStr) args
       return $ Function var args'
@@ -910,7 +913,6 @@ makeTupleOrParen parser tupleCtor = do
 
 makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
 makeApply (InductiveDataExpr x []) xs = InductiveDataExpr x xs
-makeApply func [TupleExpr xs] = ApplyExpr func (TupleExpr xs)
 makeApply func xs = ApplyExpr func (TupleExpr xs)
 
 makeApply' :: String -> [EgisonExpr] -> EgisonExpr
