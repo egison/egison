@@ -5,11 +5,7 @@ Getting Started
 Installation
 ============
 
-To install the Egison interpreter, visit the following links and follow the instructions there.
-
-* `Installing Egison in MacOS <https://www.egison.org/getting-started/getting-started-mac.html>`_
-* `Installing Egison in Linux <https://www.egison.org/getting-started/getting-started-linux.html>`_
-* `Installing Egison in Windows <https://www.egison.org/getting-started/getting-started-windows.html>`_
+See :doc:`../reference/install` for the install guide of the Egison interpreter.
 
 How to use the Egison interpreter
 =================================

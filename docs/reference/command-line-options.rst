@@ -118,4 +118,4 @@ Use the old S-expression syntax in REPL.
    we recommend using the new syntax if possible.
 
    As for Egison programs written in the old syntax, we have a tool to translate them in the new syntax.
-   Please see :ref:`migration-guide-for-new-syntax` for details.
+   Please see :doc:`migration-guide-for-new-syntax` for details.
