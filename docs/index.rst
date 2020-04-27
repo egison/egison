@@ -22,6 +22,6 @@ Reference
    reference/symbolic.rst
    reference/tensor.rst
    reference/libs.rst
-   reference/builtin-functions.rst
+   reference/primitive-functions.rst
    reference/command-line-options.rst
    reference/migration-guide-for-new-syntax.rst

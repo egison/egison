@@ -18,7 +18,7 @@ from typing import List, Tuple
 #   by this script.
 
 test_and_docs = [
-          ('test/primitive.egi',           'docs/reference/builtin-functions.rst')
+          ('test/primitive.egi',           'docs/reference/primitive-functions.rst')
         , ('test/lib/core/assoc.egi',      'docs/reference/lib/core/assoc.rst')
         , ('test/lib/core/base.egi',       'docs/reference/lib/core/base.rst')
         , ('test/lib/core/collection.egi', 'docs/reference/lib/core/collection.rst')

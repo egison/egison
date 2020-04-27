@@ -1,11 +1,13 @@
-==========================
-List of Built-in Functions
-==========================
+===========================
+List of Primitive Functions
+===========================
 
 .. highlight:: haskell
 
-Pure built-in functions
-=======================
+The following is the list of primitive (built-in) functions.
+
+Pure primitive functions
+========================
 
 .. BEGIN docsgen
 
@@ -336,8 +338,8 @@ isTensor
 
 .. END docsgen
 
-IO built-in functions
-=====================
+Primitive functions for IO operations
+=====================================
 
 return
    Takes a pure value and return an IO function that returns the value.
