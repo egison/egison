@@ -346,10 +346,10 @@ withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy
 doExpr :: Parser EgisonExpr
 doExpr = do
   stmts <- reserved "do" >> oneLiner <|> alignSome statement
-  return $ case last stmts of
-             ([], retExpr@(ApplyExpr (VarExpr (Var ["return"] _)) _)) ->
-               DoExpr (init stmts) retExpr
-             _ -> DoExpr stmts (makeApply' "return" [])
+  case reverse stmts of
+    []           -> return $ DoExpr []           (makeApply' "return" [])
+    ([], expr):_ -> return $ DoExpr (init stmts) expr
+    _:_          -> return $ DoExpr stmts        (makeApply' "return" [])
   where
     statement :: Parser BindingExpr
     statement = (reserved "let" >> binding) <|> ([],) <$> expr
