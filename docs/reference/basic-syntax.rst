@@ -193,6 +193,8 @@ The guard expression (the one right after ``if``) must be evaluated to a boolean
    if True then "Yes" else "No"  ---> "Yes"
    if False then "Yes" else "No" ---> "No"
 
+.. _do-expression:
+
 ``do`` expression
 -----------------
 
@@ -204,7 +206,7 @@ Note that all the lines in the ``do`` block must be aligned vertically.
 ::
 
    repl := do
-     write "> "
+     write ">>> "
      flush ()
      let line := readLine ()
      write line

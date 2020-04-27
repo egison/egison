@@ -9,6 +9,7 @@ Tutorial
 
    tutorial/getting-started.rst
    tutorial/quick-tour.rst
+   tutorial/io.rst
 
 Reference
 =========
