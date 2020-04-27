@@ -330,11 +330,18 @@ If you are a beginner of Egison, it would be better to install <a target="_blank
 We also have [online interpreter](http://console.egison.org) and [online tutorial](http://try.egison.org/).
 Enjoy!
 
-### How to Run Test
+## Notes for Developers
 
+### How to Build
 ```
-% stack init
-% stack test
+$ stack init
+$ stack build --fast
+```
+
+### How to Run Test
+```
+$ stack init
+$ stack test
 ```
 
 ## Community
