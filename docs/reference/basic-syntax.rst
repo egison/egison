@@ -263,9 +263,6 @@ This is similar to the ``unsafePerformIO`` in Haskell.
    hoge
    ()
 
-``procedure`` expression
-------------------------
-
 ``seq`` expression
 ------------------
 

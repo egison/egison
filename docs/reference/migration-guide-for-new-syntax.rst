@@ -1,3 +1,5 @@
+.. _migration-guide-for-new-syntax:
+
 ==================================
 Migration Guide for the New Syntax
 ==================================
