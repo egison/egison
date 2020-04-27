@@ -393,25 +393,25 @@ write
       write "string"
 
 readCharFromPort
-   Reads one character from the given port and returns it.
+   A variant of ``readChar`` that reads from the given port.
    ::
 
       let c := readCharFromPort inport
 
 readLineFromPort
-   Reads one line from the given port and returns it.
+   A variant of ``readLine`` that reads from the given port.
    ::
 
       let line := readLineFromPort inport
 
 writeCharToPort
-   Output a given character to the given port.
+   A variant of ``writeChar`` that writes to the given port.
    ::
 
       writeCharToPort 'a' outport
 
 writeToPort
-   Output a given string to the given port.
+   A variant of ``write`` that writes to the given port.
    ::
 
       writeToPort "string" outport
