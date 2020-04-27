@@ -4,47 +4,6 @@ Built-in Data
 
 .. highlight:: haskell
 
-Boolean
-=======
-
-``True`` and ``False`` are booleans.
-
-Numbers
-=======
-
-Integer
--------
-
-::
-
-   1
-   0
-   -100
-
-Rational number
----------------
-
-Egison supports rational numbers.
-
-::
-
-   1 / 3
-   4 / 6 ---> 2 / 3
-
-Float
------
-
-::
-
-   1.0
-   1e-1 ---> 0.1
-   2e3  ---> 2000.0
-
-Mathematical expression
-=======================
-
-.. TODO
-
 Character
 =========
 
@@ -65,6 +24,90 @@ Strings are enclosed in double quotes.
 
    "Hello, world"
 
+
+Boolean
+=======
+
+``True`` and ``False`` are booleans.
+
+Scalar Values
+=============
+
+In Egison, numeric scalar values (except for floats) are treated as polynomials
+and represented in the mathematical canonical form.
+
+Integer
+-------
+
+::
+
+   1
+   0
+   -100
+
+Rational number
+---------------
+
+::
+
+   1 / 3
+   4 / 6 ---> 2 / 3
+
+Symbols
+-------
+
+Unbound variables are interpreted as symbols.
+
+::
+
+   > x + 1
+   x + 1
+   > f 2  -- uninterpreted functions
+   f 2
+
+Mathematical expressions with symbols are automatically normalized into the normal form.
+
+::
+
+   > (x + 1) ^ 2
+   x^2 + 2 * x + 1
+
+Special symbols
+```````````````
+
+Egison implements normalization algorithm for some of the common mathematical symbols.
+
+``i`` (imaginary unit):
+::
+
+   > i * i
+   -1
+   > (1 + i)^2
+   2 * i
+
+``sqrt`` and ``rt`` (``sqrt n`` denotes :math:`\sqrt{n}` and ``rt m n`` denotes :math:`\sqrt[m]{n}`):
+::
+
+   > (sqrt 2) ^ 2
+   2
+   > (rt 3 2) ^ 3
+   2
+
+``sin`` and ``cos``:
+::
+
+   > (sin x)^2 + (cos x)^2
+   1
+
+
+Float
+=====
+
+::
+
+   1.0
+   1e-1 ---> 0.1
+   2e3  ---> 2000.0
 
 .. _inductive-data:
 
