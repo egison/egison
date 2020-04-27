@@ -346,5 +346,61 @@ return
       io return 1 ---> 1
 
 openInputFile
+   Takes a name of a file (string) and opens the file in read-only mode.
+   Returns a port of the opened file.
 
 openOutputFile
+   Takes a name of a file (string) and opens the file in write-only (truncate) mode.
+   Returns a port of the opened file.
+
+closeInputPort, closeOutputPort
+   Takes a port and closes it.
+
+readChar
+   Reads one character from the standard input and returns it.
+
+readLine
+   Reads one line from the standard input and returns it.
+
+writeChar
+   Output a given character to the standard input.
+
+write
+   Output a given string to the standard input.
+
+readCharFromPort
+   Reads one character from the given port and returns it.
+
+readLineFromPort
+   Reads one line from the given port and returns it.
+
+writeCharToPort
+   Output a given character to the given port.
+
+writeToPort
+   Output a given string to the given port.
+
+isEof
+   Returns ``True`` if an EOF is given in the standard input.
+
+flush
+   Flushes the standard output.
+
+isEofPort
+   Returns ``True`` if an EOF is given in the specified port.
+
+flushPort
+   Flushes the given port.
+
+readFile
+   Takes a name of a file (string) and returns its content as a string.
+
+rand
+   ``rand n m`` returns an integer in the range :math:`[n, m]` (including :math:`m`).
+
+f.rand
+   Float version of ``rand``.
+
+.. newIORef
+.. writeIORef
+.. readIORef
