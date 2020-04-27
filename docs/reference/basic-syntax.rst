@@ -219,35 +219,13 @@ The expressions needs to be wrapped with ``{`` ``}`` and separated by ``;``.
    do { print "foo" ; print "bar" ; print "baz" }
 
 
-You can return values from ``do`` expressions with ``return``, a primitive function.
+The last statement in a ``do`` block must be an expression.
+The last expression in a ``do`` block is interpreted as the evaluation result of the ``do`` expression.
 
 ::
 
-   > io do { return 1 }
-   1
-
-.. warning::
-
-   As of version 4.0.0, the ``return`` must be placed at the last line of the ``do`` block,
-   and the last line must be of the form ``return ...`` (``return`` being applied to some argument) in order to be recognized as the return expression.
-
-   When the last line is not of the form ``return ...``, an expression ``return ()`` is appended to the tail of the ``do`` block.
-   Applications of the function ``return`` in non-tail position of ``do`` blocks is evaluated, but the evaluation result is discarded.
-
-   ::
-
-      > io do { return 1 }
-      1
-      > -- Applications of 'return' in then/else branches are not recognized.
-      > -- Therefore, the following is parsed as
-      > --   io do { if True then return 1 else return 2 ; return () }
-      > io do { if True then return 1 else return 2 }
-      ()
-      > io do { if True then print "foo" else return 2 }
-      foo
-      ()
-      > io do { if True then return 1 else return 2 ; return 4 }
-      4
+   > io do { return 1; return 2; return 3 }
+   3
 
 .. _io-expression:
 

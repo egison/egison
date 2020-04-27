@@ -67,6 +67,7 @@ initialPState = PState { exprInfix = reservedExprInfix
 data CustomError
   = IllFormedSection Infix Infix
   | IllFormedDefine
+  | LastStmtInDoBlock
   deriving (Eq, Ord)
 
 instance ShowErrorComponent CustomError where
@@ -77,6 +78,8 @@ instance ShowErrorComponent CustomError where
          "'" ++ repr op ++ "' [" ++ show (assoc op) ++ " " ++ show (priority op) ++ "]"
   showErrorComponent IllFormedDefine =
     "Failed to parse the left hand side of definition expression."
+  showErrorComponent LastStmtInDoBlock =
+    "The last statement in a 'do' block must be an expression."
 
 
 doParse :: Parser a -> String -> Either EgisonError a
@@ -349,7 +352,7 @@ doExpr = do
   case reverse stmts of
     []           -> return $ DoExpr []           (makeApply' "return" [])
     ([], expr):_ -> return $ DoExpr (init stmts) expr
-    _:_          -> return $ DoExpr stmts        (makeApply' "return" [])
+    _:_          -> customFailure LastStmtInDoBlock
   where
     statement :: Parser BindingExpr
     statement = (reserved "let" >> binding) <|> ([],) <$> expr
