@@ -348,52 +348,101 @@ return
 openInputFile
    Takes a name of a file (string) and opens the file in read-only mode.
    Returns a port of the opened file.
+   ::
+
+      let inport := openInputFile "file.txt"
 
 openOutputFile
    Takes a name of a file (string) and opens the file in write-only (truncate) mode.
    Returns a port of the opened file.
+   ::
+
+      let outport := openOuputFile "file.txt"
 
 closeInputPort, closeOutputPort
    Takes a port and closes it.
+   ::
+
+      closeInputPort inport
+      closeOutputPort outport
 
 readChar
    Reads one character from the standard input and returns it.
+   ::
+
+      let c := readChar ()
 
 readLine
    Reads one line from the standard input and returns it.
+   ::
+
+      let line := readLine ()
 
 writeChar
    Output a given character to the standard input.
+   ::
+
+      writeChar 'a'
 
 write
    Output a given string to the standard input.
+   ::
+
+      write "string"
 
 readCharFromPort
    Reads one character from the given port and returns it.
+   ::
+
+      let c := readCharFromPort inport
 
 readLineFromPort
    Reads one line from the given port and returns it.
+   ::
+
+      let line := readLineFromPort inport
 
 writeCharToPort
    Output a given character to the given port.
+   ::
+
+      writeCharToPort 'a' outport
 
 writeToPort
    Output a given string to the given port.
+   ::
+
+      writeToPort "string" outport
 
 isEof
    Returns ``True`` if an EOF is given in the standard input.
+   ::
+
+      let b := isEof ()
 
 flush
    Flushes the standard output.
+   ::
+
+      flush ()
 
 isEofPort
    Returns ``True`` if an EOF is given in the specified port.
+   ::
+
+      let b := isEofPort inport
 
 flushPort
    Flushes the given port.
+   ::
+
+      flushPort outport
 
 readFile
    Takes a name of a file (string) and returns its content as a string.
+   ::
+
+      let lines := readFile "file.txt"
 
 rand
    ``rand n m`` returns an integer in the range :math:`[n, m]` (including :math:`m`).
