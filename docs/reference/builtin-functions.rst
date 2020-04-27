@@ -4,6 +4,9 @@ List of Built-in Functions
 
 .. highlight:: haskell
 
+Pure built-in functions
+=======================
+
 .. BEGIN docsgen
 
 numerator
@@ -108,6 +111,80 @@ sqrt
 
       sqrt 4 ---> 2
       sqrt 4.0 ---> 2.0
+      sqrt (-1) ---> i
+
+exp
+   ::
+
+      exp 1 ---> e
+      exp 1.0 ---> 2.718281828459045
+      exp (-1.0) ---> 0.36787944117144233
+
+log
+   ::
+
+      log e ---> 1
+      log 10.0 ---> 2.302585092994046
+
+sin
+   ::
+
+      sin 2.71828 ---> 0.41078295757034533
+
+cos
+   ::
+
+      cos 2.71828 ---> -0.9117331636886747
+
+tan
+   ::
+
+      tan 2.71828 ---> -0.4505517336984941
+
+asin
+   ::
+
+      asin 0.41078 ---> 0.42330940969311176
+
+acos
+   ::
+
+      acos 0.41078 ---> 1.1474869171017847
+
+atan
+   ::
+
+      atan 0.41078 ---> 0.38976479923936064
+
+sinh
+   ::
+
+      sinh 2.71828 ---> 7.5441231880274415
+
+cosh
+   ::
+
+      cosh 2.71828 ---> 7.610111344529286
+
+tanh
+   ::
+
+      tanh 2.71828 ---> 0.9913288842285756
+
+asinh
+   ::
+
+      asinh 3.14159 ---> 1.862294938438355
+
+acosh
+   ::
+
+      acosh 3.14159 ---> 1.811525381452312
+
+atanh
+   ::
+
+      atanh 0.41078 ---> 0.43654919678194676
 
 itof
    ::
@@ -258,3 +335,16 @@ isTensor
       isTensor (generateTensor (+) [1, 2]) ---> True
 
 .. END docsgen
+
+IO built-in functions
+=====================
+
+return
+   Takes a pure value and return an IO function that returns the value.
+   ::
+
+      io return 1 ---> 1
+
+openInputFile
+
+openOutputFile
