@@ -11,6 +11,7 @@ List of core libraries
    lib/core/assoc.rst
    lib/core/base.rst
    lib/core/collection.rst
+   lib/core/io.rst
    lib/core/maybe.rst
    lib/core/number.rst
    lib/core/order.rst
