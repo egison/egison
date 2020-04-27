@@ -7,62 +7,55 @@
 --
 -- IO
 --
-print :=
-  procedure x ->
-    do write x
-       write "\n"
-       flush ()
+print x :=
+  do write x
+     write "\n"
+     flush ()
 
-printToPort :=
-  procedure port x ->
-    do writeToPort port x
-       writeToPort port "\n"
+printToPort port x :=
+  do writeToPort port x
+     writeToPort port "\n"
 
-display :=
-  procedure x ->
-    do write x
-       flush ()
+display x :=
+  do write x
+     flush ()
 
-displayToPort := procedure port x -> do writeToPort port x
+displayToPort port x := do writeToPort port x
 
-eachLine :=
-  procedure proc ->
-    do let eof := isEof ()
-       if eof
-         then return ()
-         else do let line := readLine ()
-                 proc line
-                 eachLine proc
+eachLine proc :=
+  do let eof := isEof ()
+     if eof
+       then return ()
+       else do let line := readLine ()
+               proc line
+               eachLine proc
 
-eachLineFromPort :=
-  procedure port proc ->
-    do let eof := isEofPort port
-       if eof
-         then return ()
-         else do let line := readLineFromPort port
-                 proc line
-                 eachLineFromPort port proc
+eachLineFromPort port proc :=
+  do let eof := isEofPort port
+     if eof
+       then return ()
+       else do let line := readLineFromPort port
+               proc line
+               eachLineFromPort port proc
 
-eachFile :=
-  procedure files proc ->
-    match files as list string with
-      | [] -> return ()
-      | $file :: $rest ->
-        do let port := openInputFile file
-           eachLineFromPort port proc
-           closeInputPort port
-           eachFile rest proc
+eachFile files proc :=
+  match files as list string with
+    | [] -> return ()
+    | $file :: $rest ->
+      do let port := openInputFile file
+         eachLineFromPort port proc
+         closeInputPort port
+         eachFile rest proc
 
 --
 -- Collection
 --
-each :=
-  procedure proc xs ->
-    match xs as list something with
-      | [] -> do return ()
-      | $x :: $rs ->
-        do proc x
-           each proc rs
+each proc xs :=
+  match xs as list something with
+    | [] -> do return ()
+    | $x :: $rs ->
+      do proc x
+         each proc rs
 
 --
 -- Debug

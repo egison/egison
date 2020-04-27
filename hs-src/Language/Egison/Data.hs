@@ -121,7 +121,6 @@ data EgisonValue =
   | PartialFunc Env Integer EgisonExpr
   | CFunc (Maybe Var) Env String EgisonExpr
   | MemoizedFunc (Maybe Var) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
-  | Proc (Maybe String) Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EgisonM WHNFData)
@@ -338,8 +337,6 @@ instance Show EgisonValue where
   show (CFunc (Just name) _ _ _) = show name
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ intercalate ", " names ++ "] ...)"
   show (MemoizedFunc (Just name) _ _ _ _ _) = show name
-  show (Proc Nothing _ names _) = "(procedure [" ++ intercalate ", " names ++ "] ...)"
-  show (Proc (Just name) _ _ _) = name
   show PatternFunc{} = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   show (IOFunc _) = "#<io-function>"

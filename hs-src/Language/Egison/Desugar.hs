@@ -199,9 +199,6 @@ desugar (MemoizedLambdaExpr names expr) =
 desugar (CambdaExpr name expr) =
   CambdaExpr name <$> desugar expr
 
-desugar (ProcedureExpr names expr) =
-  ProcedureExpr names <$> desugar expr
-
 desugar (PatternFunctionExpr names pattern) =
   PatternFunctionExpr names <$> desugarPattern pattern
 

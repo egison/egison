@@ -78,8 +78,6 @@ instance Pretty EgisonExpr where
     lambdaLike (pretty "memoizedLambda ") (map pretty xs) (pretty "->") (pretty e)
   pretty (CambdaExpr x e) =
     indentBlock (pretty "cambda" <+> pretty x <+> pretty "->") [pretty e]
-  pretty (ProcedureExpr xs e) =
-    lambdaLike (pretty "procedure ") (map pretty xs) (pretty "->") (pretty e)
   pretty (PatternFunctionExpr xs p) =
     lambdaLike (pretty "\\") (map pretty xs) (pretty "=>") (pretty p)
 
@@ -296,7 +294,6 @@ instance Complex EgisonExpr where
   isAtom LambdaExpr{}             = False
   isAtom MemoizedLambdaExpr{}     = False
   isAtom CambdaExpr{}             = False
-  isAtom ProcedureExpr{}          = False
   isAtom PatternFunctionExpr{}    = False
   isAtom IfExpr{}                 = False
   isAtom LetRecExpr{}             = False
@@ -474,8 +471,6 @@ instance PrettyS EgisonValue where
   prettyS (CFunc (Just name) _ _ _) = prettyS name
   prettyS (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
   prettyS (MemoizedFunc (Just name) _ _ _ _ _) = prettyS name
-  prettyS (Proc Nothing _ names _) = "(procedure [" ++ unwords names ++ "] ...)"
-  prettyS (Proc (Just name) _ _ _) = name
   prettyS PatternFunc{} = "#<pattern-function>"
   prettyS (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   prettyS (IOFunc _) = "#<io-function>"

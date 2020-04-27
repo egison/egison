@@ -305,8 +305,6 @@ evalExpr env (PartialExpr n expr) = return . Value $ PartialFunc env n expr
 
 evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name expr
 
-evalExpr env (ProcedureExpr names expr) = return . Value $ Proc Nothing env names expr
-
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
 evalExpr (Env _ Nothing) (FunctionExpr _) = throwError $ Default "function symbol is not bound to a variable"
@@ -707,14 +705,6 @@ applyFunc _ (Value (Func (Just (Var [funcname] _)) env names body)) arg = do
   popFuncName
   return result
 applyFunc _ (Value (Func _ env names body)) arg = do
-  refs <- fromTuple arg
-  if length names == length refs
-    then evalExpr (extendEnv env $ makeBindings' names refs) body
-    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
-applyFunc _ (Value (Proc _ env [name] body)) arg = do
-  ref <- newEvaluatedObjectRef arg
-  evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
-applyFunc _ (Value (Proc _ env names body)) arg = do
   refs <- fromTuple arg
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings' names refs) body
