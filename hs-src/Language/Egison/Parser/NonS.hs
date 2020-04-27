@@ -311,7 +311,6 @@ lambdaExpr = symbol "\\" >> (
 lambdaLikeExpr :: Parser EgisonExpr
 lambdaLikeExpr =
         (reserved "memoizedLambda" >> MemoizedLambdaExpr <$> tupleOrSome lowerId <*> (symbol "->" >> expr))
-    <|> (reserved "procedure"      >> ProcedureExpr      <$> tupleOrSome lowerId <*> (symbol "->" >> expr))
     <|> (reserved "cambda"         >> CambdaExpr         <$> lowerId      <*> (symbol "->" >> expr))
 
 arg :: Parser Arg
@@ -859,7 +858,6 @@ lowerReservedWords =
   , "capply"
   , "memoizedLambda"
   , "cambda"
-  , "procedure"
   , "let"
   , "in"
   , "where"

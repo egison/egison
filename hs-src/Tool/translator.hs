@@ -59,7 +59,6 @@ instance SyntaxElement EgisonExpr where
   toNonS (LambdaExpr xs e)          = LambdaExpr xs (toNonS e)
   toNonS (MemoizedLambdaExpr xs e)  = MemoizedLambdaExpr xs (toNonS e)
   toNonS (CambdaExpr x e)           = CambdaExpr x (toNonS e)
-  toNonS (ProcedureExpr xs e)       = ProcedureExpr xs (toNonS e)
   toNonS (PatternFunctionExpr xs p) = PatternFunctionExpr xs (toNonS p)
 
   toNonS (IfExpr x y z)         = IfExpr (toNonS x) (toNonS y) (toNonS z)
