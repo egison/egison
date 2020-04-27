@@ -45,12 +45,12 @@ R.uncons xs :=
 R.head xs :=
   head
     (matchAll xs as R.multiset something with
-      | $x :: $rs -> x)
+      | $x :: _ -> x)
 
 R.tail xs :=
   head
     (matchAll xs as R.multiset something with
-      | $x :: $rs -> rs)
+      | _ :: $rs -> rs)
 
 sample := R.head
 

@@ -15,6 +15,7 @@ List of core libraries
    lib/core/maybe.rst
    lib/core/number.rst
    lib/core/order.rst
+   lib/core/random.rst
    lib/core/string.rst
 
 
