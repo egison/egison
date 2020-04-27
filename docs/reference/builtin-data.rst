@@ -208,6 +208,12 @@ Any IO functions can be executed with :ref:`io expressions<io-expression>`.
 
    print "foo" ---> #<io-function>
 
+Port
+====
+
+A port has information of a file and its access mode (input/output).
+You can create a port with ``openInputFile`` or ``openOutputFile``.
+
 Undefined
 =========
 
