@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Egison \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-20 15:02+0900\n"
+"POT-Creation-Date: 2020-04-27 18:19+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -27,67 +27,49 @@ msgstr ""
 
 #: ../../tutorial/getting-started.rst:8
 msgid ""
-"To install the Egison interpreter, visit the following links and follow "
-"the instructions there."
-msgstr ""
-
-#: ../../tutorial/getting-started.rst:10
-msgid ""
-"`Installing Egison in MacOS <https://www.egison.org/getting-started"
-"/getting-started-mac.html>`_"
+"See :doc:`../reference/install` for the install guide of the Egison "
+"interpreter."
 msgstr ""
 
 #: ../../tutorial/getting-started.rst:11
-msgid ""
-"`Installing Egison in Linux <https://www.egison.org/getting-started"
-"/getting-started-linux.html>`_"
-msgstr ""
-
-#: ../../tutorial/getting-started.rst:12
-msgid ""
-"`Installing Egison in Windows <https://www.egison.org/getting-started"
-"/getting-started-windows.html>`_"
-msgstr ""
-
-#: ../../tutorial/getting-started.rst:15
 msgid "How to use the Egison interpreter"
 msgstr ""
 
-#: ../../tutorial/getting-started.rst:18
+#: ../../tutorial/getting-started.rst:14
 msgid "Interactive mode"
 msgstr ""
 
-#: ../../tutorial/getting-started.rst:20
+#: ../../tutorial/getting-started.rst:16
 msgid ""
 "Just typing ``egison`` starts the REPL (read-eval-print loop) of the "
 "interpreter."
 msgstr ""
 
-#: ../../tutorial/getting-started.rst:26
+#: ../../tutorial/getting-started.rst:22
 msgid ""
 "You can load definitions from a file by passing ``-l`` option. The "
 "following example is equivalent to starting the REPL and then executing "
 "``loadFile \"name-of-file-to-load.egi\"``."
 msgstr ""
 
-#: ../../tutorial/getting-started.rst:35
+#: ../../tutorial/getting-started.rst:31
 msgid "Executing a program in files"
 msgstr ""
 
-#: ../../tutorial/getting-started.rst:37
+#: ../../tutorial/getting-started.rst:33
 msgid ""
 "You can write any expressions at the top level of program. With ``-t`` "
 "option, the interpreter prints out the evaluation results of each "
 "expression written at the top level."
 msgstr ""
 
-#: ../../tutorial/getting-started.rst:40
+#: ../../tutorial/getting-started.rst:36
 msgid ""
 "Note that the statements (such as definitions and ``loadFile``) are not "
 "expressions, and hence not printed."
 msgstr ""
 
-#: ../../tutorial/getting-started.rst:53
+#: ../../tutorial/getting-started.rst:49
 msgid ""
 "Finally, simply passing a file name to ``egison`` executes the ``main`` "
 "function defined in the file. The ``main`` should be a unary (1 argument)"
@@ -162,8 +144,8 @@ msgstr ""
 msgid ""
 "The feature (2) realizes extensible pattern-matching algorithm and "
 "pattern polymorphism. Matcher is an Egison-specific object that retains "
-"pattern-matching algorithms. See :ref:`label-pattern-polymorphism` for "
-"the description of pattern polymorphism."
+"pattern-matching algorithms. See :ref:`pattern-polymorphism` for the "
+"description of pattern polymorphism."
 msgstr ""
 
 #: ../../tutorial/quick-tour.rst:42
@@ -300,18 +282,18 @@ msgid ""
 "infinitely many copies of each element."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:170
+#: ../../tutorial/quick-tour.rst:172
 msgid "Controlling the order of pattern matching"
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:172
+#: ../../tutorial/quick-tour.rst:174
 msgid ""
 "The ``matchAll`` expression is designed to enumerate all countably "
 "infinite pattern-matching results. For this purpose, users sometimes need"
 " to care about the order of pattern-matching results."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:175
+#: ../../tutorial/quick-tour.rst:177
 msgid ""
 "Let us start by showing a typical example. The ``matchAll`` expression "
 "below enumerates all pairs of natural numbers. We extract the first 8 "
@@ -321,7 +303,7 @@ msgid ""
 "a result, the order of the pattern-matching results is as follows."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:187
+#: ../../tutorial/quick-tour.rst:189
 msgid ""
 "The above order is suitable for traversing an infinite reduction tree. "
 "However, sometimes this order is not preferable. .. (see section 3.1.2 "
@@ -329,29 +311,29 @@ msgid ""
 "depth-first order, is provided for this reason."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:198
+#: ../../tutorial/quick-tour.rst:200
 msgid ""
 "For instance, think about defining ``concat`` with pattern matching. If "
 "we use ``matchAll``, the outcome will be the alternation of the elements "
 "in the sublists, which is not what we expect of ``concat``."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:209
+#: ../../tutorial/quick-tour.rst:211
 msgid "To fix this, we should use ``matchAllDFS`` instead."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:221
+#: ../../tutorial/quick-tour.rst:223
 msgid "Logical patterns: and-, or-, and not-patterns"
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:223
+#: ../../tutorial/quick-tour.rst:225
 msgid ""
 "Logical patterns such as **and-patterns**, **or-patterns** and **not-"
 "patterns** play an important role in enriching the expressivity of "
 "patterns."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:225
+#: ../../tutorial/quick-tour.rst:227
 msgid ""
 "An and-pattern ``p1 & p2`` pattern-matches when *both* of the patterns "
 "``p1`` and ``p2`` succeeds in pattern matching. Similarly, an or-pattern "
@@ -360,7 +342,7 @@ msgid ""
 " when the pattern ``p`` fails to pattern-match."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:229
+#: ../../tutorial/quick-tour.rst:231
 msgid ""
 "We start by showing pattern matching for prime triples as an example of "
 "and-patterns and or-patterns. A prime triple is a triple of primes of the"
@@ -371,32 +353,32 @@ msgid ""
 "usage of and-pattern is similar to the as-pattern in Haskell."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:245
+#: ../../tutorial/quick-tour.rst:247
 msgid ""
 "As an example of not-patterns, the following ``matchAll`` enumerates "
 "sequential pairs of prime numbers that are not twin primes. The not-"
 "pattern ``!#(p + 2)`` matches values other than :math:`p + 2`."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:256
+#: ../../tutorial/quick-tour.rst:260
 msgid "Loop Patterns"
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:258
+#: ../../tutorial/quick-tour.rst:262
 msgid ""
 "A loop pattern is a pattern construct for representing a pattern that "
 "repeats itself multiple times. It is an extension of Kleene star operator"
 " of regular expressions for general non-free data types."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:261
+#: ../../tutorial/quick-tour.rst:265
 msgid ""
 "Let us start by considering pattern matching for enumerating all "
 "combinations of two elements from a target collection. It can be written "
 "using ``matchAll`` as follows."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:271
+#: ../../tutorial/quick-tour.rst:275
 msgid ""
 "Egison allows users to append indices to a pattern variable as ``$x_1`` "
 "and ``$x_2`` in the above sample. They are called **indexed variables** "
@@ -409,39 +391,39 @@ msgid ""
 "new key-value pair is added to this map."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:278
+#: ../../tutorial/quick-tour.rst:282
 msgid ""
 "Now, we generalize ``comb2``. The loop patterns can be used for this "
 "purpose."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:292
+#: ../../tutorial/quick-tour.rst:296
 msgid "A loop pattern consists of the following four elements."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:294
+#: ../../tutorial/quick-tour.rst:298
 msgid "An **index variable** is a variable to hold the current repeat count."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:295
+#: ../../tutorial/quick-tour.rst:299
 msgid ""
 "An **index range** is a tuple of an initial number and final number which"
 " specifies the range of the index variable."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:296
+#: ../../tutorial/quick-tour.rst:300
 msgid ""
 "A **repeat pattern** is a pattern repeated when the index variable is in "
 "the index range."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:297
+#: ../../tutorial/quick-tour.rst:301
 msgid ""
 "A **final pattern** is a pattern expanded when the index variable gets "
 "out of the index range."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:299
+#: ../../tutorial/quick-tour.rst:303
 msgid ""
 "Inside of the repeat patterns, we can use the ellipsis pattern ``...``. "
 "The repeat pattern or the final pattern is expanded at the location of "
@@ -451,7 +433,7 @@ msgid ""
 "follows."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:312
+#: ../../tutorial/quick-tour.rst:316
 msgid ""
 "The repeat count of the loop patterns in the above example is constant. "
 "However, we can also write a loop pattern whose repeat count varies "
@@ -463,11 +445,11 @@ msgid ""
 " enumerates all initial prefixes of the target collection."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:330
+#: ../../tutorial/quick-tour.rst:336
 msgid "Sequential Patterns"
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:332
+#: ../../tutorial/quick-tour.rst:338
 msgid ""
 "The pattern-matching system of Egison processes patterns from left to "
 "right. However, there are some cases where we want to change this order, "
@@ -475,7 +457,7 @@ msgid ""
 "pattern. **Sequential patterns** are provided for such cases."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:336
+#: ../../tutorial/quick-tour.rst:342
 msgid ""
 "Sequential patterns allow users to control the order of the pattern-"
 "matching process. A sequential pattern is represented as a list of "
@@ -484,7 +466,7 @@ msgid ""
 "first, and second element in order."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:350
+#: ../../tutorial/quick-tour.rst:356
 msgid ""
 "``@`` that appears in a sequential pattern is called **later pattern "
 "variable**. The target data bound to later pattern variables are pattern-"
@@ -492,7 +474,7 @@ msgid ""
 "appear, they are pattern-matched as a tuple in the next sequence."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:354
+#: ../../tutorial/quick-tour.rst:360
 msgid ""
 "Sequential patterns allow us to apply not-patterns for different parts of"
 " a pattern at the same time. For example, the following pattern matches "
@@ -504,7 +486,7 @@ msgid ""
 " when writing a mathematical algorithm."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:369
+#: ../../tutorial/quick-tour.rst:375
 msgid ""
 "Some readers might wonder if sequential patterns can be implemented using"
 " nested ``matchAll`` expressions. There are at least two reasons why it "
@@ -519,11 +501,11 @@ msgid ""
 "``matchAll`` expressions syntactically."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:379
+#: ../../tutorial/quick-tour.rst:385
 msgid "Pattern functions"
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:381
+#: ../../tutorial/quick-tour.rst:387
 msgid ""
 "It is sometimes the case that the same combination of patterns appears at"
 " multiple locations of a program. In such case, we can use **pattern "
@@ -531,14 +513,14 @@ msgid ""
 "repetition."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:384
+#: ../../tutorial/quick-tour.rst:390
 msgid ""
 "A pattern function is a function which takes patterns as its argument and"
 " returns a pattern. Its syntax is similar to that of lambda functions "
 "except that it uses ``=>`` instead of ``->``."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:387
+#: ../../tutorial/quick-tour.rst:393
 msgid ""
 "The ``twin`` in the following program is a pattern function and "
 "modularizes the double nested cons pattern. The argument of pattern "
@@ -549,11 +531,11 @@ msgid ""
 "constructors."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:402
+#: ../../tutorial/quick-tour.rst:408
 msgid "Matcher compositions"
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:406
+#: ../../tutorial/quick-tour.rst:412
 msgid ""
 "All the matchers presented so far can be defined by users, except for the"
 " only built-in matcher ``something``. Matchers are usually defined by the"
@@ -562,7 +544,7 @@ msgid ""
 "tuples of multisets and multisets of multisets."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:410
+#: ../../tutorial/quick-tour.rst:416
 msgid ""
 "First, we can define a matcher for tuples by a tuple of matchers. A tuple"
 " pattern is used for pattern matching using such a matcher. For example, "
@@ -570,7 +552,7 @@ msgid ""
 "multisets."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:421
+#: ../../tutorial/quick-tour.rst:427
 msgid ""
 "``eq`` is a user-defined matcher for data types for which equality is "
 "defined. When it is used, equality is checked for a value pattern. By "
@@ -580,14 +562,14 @@ msgid ""
 "nodes are represented by integers."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:430
+#: ../../tutorial/quick-tour.rst:436
 msgid ""
 "A matcher for adjacency graphs can also be defined. An adjacency graph is"
 " defined as a multiset of tuples of an integer and a multiset of "
 "integers."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:437
+#: ../../tutorial/quick-tour.rst:443
 msgid ""
 "Egison provides a handy syntactic sugar for defining a matcher for "
 "algebraic data types, while it can also be defined with ``matcher`` "
@@ -595,11 +577,45 @@ msgid ""
 " ``algebraicDataMatcher``."
 msgstr ""
 
-#: ../../tutorial/quick-tour.rst:447
+#: ../../tutorial/quick-tour.rst:453
 msgid ""
 "Matchers for algebraic data types and matchers for non-free data types "
 "also can be composed. For example, we can define a matcher for trees "
 "whose nodes have an arbitrary number of children whose order is "
 "ignorable."
 msgstr ""
+
+#~ msgid ""
+#~ "To install the Egison interpreter, visit"
+#~ " the following links and follow the"
+#~ " instructions there."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "`Installing Egison in MacOS "
+#~ "<https://www.egison.org/getting-started/getting-"
+#~ "started-mac.html>`_"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "`Installing Egison in Linux "
+#~ "<https://www.egison.org/getting-started/getting-"
+#~ "started-linux.html>`_"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "`Installing Egison in Windows "
+#~ "<https://www.egison.org/getting-started/getting-"
+#~ "started-windows.html>`_"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "The feature (2) realizes extensible "
+#~ "pattern-matching algorithm and pattern "
+#~ "polymorphism. Matcher is an Egison-"
+#~ "specific object that retains pattern-"
+#~ "matching algorithms. See :ref:`label-"
+#~ "pattern-polymorphism` for the description "
+#~ "of pattern polymorphism."
+#~ msgstr ""
 

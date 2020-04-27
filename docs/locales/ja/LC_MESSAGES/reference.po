@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Egison \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-20 15:02+0900\n"
+"POT-Creation-Date: 2020-04-27 18:19+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,229 +21,580 @@ msgstr ""
 msgid "Basic Syntax"
 msgstr ""
 
+#: ../../reference/basic-syntax.rst:8
+msgid "Top-level Expressions"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:11
+msgid "Definition"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:13
+msgid ""
+"You can bind an expression to a variable by connecting them with ``:=``. "
+"When defining functions, the argument variable can be placed in the left "
+"hand side of the ``:=``."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:25
+msgid "Expression"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:27
+msgid ""
+"You can also write arbitrary expressions at the top level of programs. "
+"These expressions are evaluated only when the ``-t`` option (see :ref"
+":`command-options-test`) is specified."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:40
+msgid "``load`` and ``loadFile``"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:41
+msgid ""
+"We can load Egison libraries with ``load``. To load your own program, "
+"call ``loadFile`` with a full-path or a relative path to the file."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:53
+msgid "Basic Expressions"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:58
+msgid "Anonymous function"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:60
+msgid ""
+"An anonymous function consists of two parts: arguments and a body. The "
+"arguments are written between ``\\`` and ``->``, and the body is written "
+"at the right of ``->``."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:77
+msgid ""
+"The arguments can be simply aligned (separated with whitespace) or packed"
+" in a tuple. Namely, the following two notations are identical."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:87
+msgid "Anonymous parameter function"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:89
+#, python-format
+msgid ""
+"Egison has a shorthand notation for the anonymous function. In this "
+"syntax, the function body is prefixed with a ``n#``, where ``n`` "
+"indicates the arity of the function. There must not be any spaces between"
+" the arity number ``n`` and the ``#``. Also, the arguments are specified "
+"by numbers, where ``%i`` refers to the i-th argument."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:94
+msgid "This syntax is inspired by `the anonymous function syntax of Clojure`_."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:110
+msgid "``let`` ... ``in`` expression"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:112
+msgid ""
+"A ``let`` ... ``in`` expression (or simply a ``let`` expression) locally "
+"binds expressions to variables. Bindings defined in a ``let`` expression "
+"cannot be referred to outside of the ``let`` expression."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:119
+msgid ""
+"You can write multiple bindings in a single ``let`` expression. Note that"
+" the head of the binding must be aligned vertically in order to be parsed"
+" correctly."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:129
+msgid ""
+"The above expression can be written in a single line as follows. The "
+"bindings must be wrapped with ``{`` ``}`` and separated with ``;``."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:136
+msgid ""
+"Bindings in the same ``let`` expression can depend on each other. The "
+"bindings do not necessarily be aligned in the order of dependency."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:152
+msgid "As a result, note the following behavior."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:165
+msgid "``where`` expression"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:167
+msgid ""
+"``where`` is a syntax sugar for the above ``let`` expression. Unlike the "
+"``let`` expression, the bindings in ``where`` expressions come after the "
+"body expression."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:170
+msgid "For example, the following two expressions are identical."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:186
+msgid "``if`` expression"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:188
+msgid ""
+"It is the ordinary ``if`` expression. The guard expression (the one right"
+" after ``if``) must be evaluated to a boolean (``True`` or ``False``)."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:197
+msgid "``do`` expression"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:199
+msgid ""
+"A ``do`` expression can group several IO functions into one IO function. "
+"You can bind expressions to values with ``let`` in the ``do`` expression "
+"as well. Every lines in the ``do`` block must either be an expression "
+"that evaluates to an IO function or a ``let`` binding. Note that all the "
+"lines in the ``do`` block must be aligned vertically."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:214
+msgid ""
+"A ``do`` expression can be written in one line as follows. The "
+"expressions needs to be wrapped with ``{`` ``}`` and separated by ``;``."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:222
+msgid ""
+"The last statement in a ``do`` block must be an expression. The last "
+"expression in a ``do`` block is interpreted as the evaluation result of "
+"the ``do`` expression."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:233
+msgid "``io`` expression"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:235
+msgid ""
+"An ``io`` expression takes an IO function and executes it. This is "
+"similar to the ``unsafePerformIO`` in Haskell."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:245
+msgid "``seq`` expression"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:247
+msgid "This expression is inspired by the ``seq`` function in Haskell."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:249
+msgid ""
+"A ``seq`` expression takes two arguments. The first argument of ``seq`` "
+"is strictly evaluated. The most popular use case of seq is in the "
+"definition of the foldl function."
+msgstr ""
+
 #: ../../reference/builtin-data.rst:3
 msgid "Built-in Data"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:3
-msgid "List of Built-in Functions"
+#: ../../reference/builtin-data.rst:8
+msgid "Character"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:12
-msgid "numerator"
+#: ../../reference/builtin-data.rst:10
+msgid "Characters are enclosed in single quotes."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:17
-msgid "denominator"
+#: ../../reference/builtin-data.rst:19
+msgid "String"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:22
-msgid "modulo"
+#: ../../reference/builtin-data.rst:21
+msgid "Strings are enclosed in double quotes."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:27
-msgid "quotient"
+#: ../../reference/builtin-data.rst:29
+msgid "Boolean"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:32
-msgid "remainder"
+#: ../../reference/builtin-data.rst:31
+msgid "``True`` and ``False`` are booleans."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:37
-msgid "neg"
+#: ../../reference/builtin-data.rst:34
+msgid "Scalar Values"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:44
-msgid "abs"
+#: ../../reference/builtin-data.rst:36
+msgid ""
+"In Egison, numeric scalar values (except for floats) are treated as "
+"polynomials and represented in the mathematical canonical form."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:51
-msgid "lt"
+#: ../../reference/builtin-data.rst:40
+msgid "Integer"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:58
-msgid "lte"
+#: ../../reference/builtin-data.rst:49
+msgid "Rational number"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:65
-msgid "gt"
+#: ../../reference/builtin-data.rst:57
+msgid "Symbols"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:72
-msgid "gte"
+#: ../../reference/builtin-data.rst:59
+msgid "Unbound variables are interpreted as symbols."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:80
-msgid "round"
+#: ../../reference/builtin-data.rst:68
+msgid ""
+"Mathematical expressions with symbols are automatically normalized into "
+"the normal form."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:88
-msgid "floor"
+#: ../../reference/builtin-data.rst:76
+msgid "Special symbols"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:96
-msgid "ceiling"
+#: ../../reference/builtin-data.rst:78
+msgid ""
+"Egison implements normalization algorithm for some of the common "
+"mathematical symbols."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:104
-msgid "truncate"
+#: ../../reference/builtin-data.rst:80
+msgid "``i`` (imaginary unit): ::"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:110
-msgid "sqrt"
+#: ../../reference/builtin-data.rst:88
+msgid ""
+"``sqrt`` and ``rt`` (``sqrt n`` denotes :math:`\\sqrt{n}` and ``rt m n`` "
+"denotes :math:`\\sqrt[m]{n}`): ::"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:116
-msgid "itof"
+#: ../../reference/builtin-data.rst:96
+msgid "``sin`` and ``cos``: ::"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:122
-msgid "rtof"
+#: ../../reference/builtin-data.rst:104
+msgid "Float"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:127
-msgid "ctoi"
+#: ../../reference/builtin-data.rst:115
+msgid "Inductive data"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:132
-msgid "itoc"
+#: ../../reference/builtin-data.rst:117
+msgid ""
+"A variable starting with an upper-case letter is interpreted as a "
+"constructor of inductive data. You don't need to define the inductive "
+"data before using it."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:138
-msgid "pack"
+#: ../../reference/builtin-data.rst:127
+msgid "Tuple (Multiple values)"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:144
-msgid "unpack"
+#: ../../reference/builtin-data.rst:129
+msgid ""
+"A tuple is denoted as a sequence of elements enclosed in parentheses and "
+"separated by ``,``. Tuples of single element cannot be written."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:149
-msgid "unconsString"
+#: ../../reference/builtin-data.rst:140
+msgid "Collection"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:155
-msgid "lengthString"
+#: ../../reference/builtin-data.rst:142
+msgid ""
+"A collection is a sequence of elements that are enclosed in brackets and "
+"separated by ``,``."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:163
-msgid "appendString"
+#: ../../reference/builtin-data.rst:152
+msgid "Tensor"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:170
-msgid "splitString"
+#: ../../reference/builtin-data.rst:154
+msgid ""
+"A tensor is a sequence of elements enclosed in double brackets ``[|`` "
+"``|]`` and separated by ``,``. The :math:`i`-th element of a tensor ``t``"
+" can be retrieved by ``t_i``. Note that it is 1-indexed."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:178
-msgid "regex"
+#: ../../reference/builtin-data.rst:168
+msgid "You can get the shape of a tensor with ``tensorShape``."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:184
-msgid "regexCg"
+#: ../../reference/builtin-data.rst:174
+msgid "Multi-dimensional tensors can be defined by nesting tensors."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:192
-msgid "read"
+#: ../../reference/builtin-data.rst:181
+msgid ""
+"Egison prepares special syntax for tensors. See :ref:`tensor-syntax` for "
+"detail."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:200
-msgid "show"
+#: ../../reference/builtin-data.rst:188
+msgid "Hash Maps"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:205
-msgid "isBool"
+#: ../../reference/builtin-data.rst:190
+msgid ""
+"A hash map is a sequence of key-value pairs enclosed in double braces "
+"``{|`` ``|}``. The value of a key ``k`` in a hash map ``h`` can be "
+"retrieved by ``h_k``. If the key is not included in the keys of the hash "
+"map, the result will be ``undefined``."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:210
-msgid "isInteger"
+#: ../../reference/builtin-data.rst:201
+msgid "IO Function"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:217
-msgid "isRational"
+#: ../../reference/builtin-data.rst:203
+msgid "IO functions are functions that will yield IO operation when executed."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:223
-msgid "isScalar"
+#: ../../reference/builtin-data.rst:205
+msgid ""
+"Any IO functions can be executed with :ref:`io expressions<io-"
+"expression>`."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:229
-msgid "isFloat"
+#: ../../reference/builtin-data.rst:212
+msgid "Port"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:234
-msgid "isChar"
+#: ../../reference/builtin-data.rst:214
+msgid ""
+"A port has information of a file and its access mode (input/output). You "
+"can create a port with ``openInputFile`` or ``openOutputFile``."
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:239
-msgid "isString"
+#: ../../reference/builtin-data.rst:218
+msgid "Undefined"
 msgstr ""
 
-#: ../../reference/builtin-functions.rst:245
-msgid "isCollection"
-msgstr ""
-
-#: ../../reference/builtin-functions.rst:251
-msgid "isHash"
-msgstr ""
-
-#: ../../reference/builtin-functions.rst:258
-msgid "isTensor"
+#: ../../reference/builtin-data.rst:220
+msgid ""
+"``undefined`` is a useful built-in data you can put where you have not "
+"written yet."
 msgstr ""
 
 #: ../../reference/command-line-options.rst:3
 msgid "Command-Line Options"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:14
+#: ../../reference/command-line-options.rst:6
 msgid "``-l`` / ``--load-file``"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:6
+#: ../../reference/command-line-options.rst:8
 msgid "Load definitions from the given file. ::"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:28
+#: ../../reference/command-line-options.rst:22
 msgid "``-t`` / ``--test``"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:17
+#: ../../reference/command-line-options.rst:24
 msgid "Evaluate expressions in the given file. ::"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:35
+#: ../../reference/command-line-options.rst:38
 msgid "``-e`` / ``--eval``"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:31
+#: ../../reference/command-line-options.rst:40
 msgid "Output the evaluation result of the given Egison expression. ::"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:42
+#: ../../reference/command-line-options.rst:47
 msgid "``-c`` / ``--command``"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:38
+#: ../../reference/command-line-options.rst:49
 msgid "Execute the given expression, which should evaluate to an IO function. ::"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:69
+#: ../../reference/command-line-options.rst:56
 msgid "``-T`` / ``--tsv``"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:45
+#: ../../reference/command-line-options.rst:58
 msgid "Output the evaluation result in the TSV form."
 msgstr ""
 
-#: ../../reference/command-line-options.rst:47
+#: ../../reference/command-line-options.rst:60
 msgid ""
 "When the evaluation result is a colleciton, each of its elements is "
 "printed in a single line. ::"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:62
+#: ../../reference/command-line-options.rst:75
 msgid ""
 "When the evaluation result is a collection of collections or a collection"
 " of tuples, the elements of the inner collections are separated by a tab."
 " ::"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:86
+msgid "``-M`` / ``--math``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:88
+msgid ""
+"Output the evaluation result in the specified format. The format can be "
+"chosen from ``latex``, ``asciimath``, ``mathematica`` and ``maxima``."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:98
+msgid "``-S`` / ``--sexpr-syntax``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:100
+msgid "Use the old S-expression syntax in REPL."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:111
+msgid ""
+"When parsing programs in files, Egison switches the parser by the file "
+"extension. If the source file has extension ``.egi``, it is interpreted "
+"in the new syntax, and if the source file has extension ``.segi``, it is "
+"interpreted in the old (S-expression) syntax."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:117
+msgid ""
+"Since we are no longer taking care of the backward compatibility with the"
+" old syntax (before version 4.0.0), we recommend using the new syntax if "
+"possible."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:120
+msgid ""
+"As for Egison programs written in the old syntax, we have a tool to "
+"translate them in the new syntax. Please see :doc:`migration-guide-for-"
+"new-syntax` for details."
+msgstr ""
+
+#: ../../reference/install.rst:3
+msgid "Installation"
+msgstr ""
+
+#: ../../reference/install.rst:5
+msgid ""
+"There are two ways to install Egison: installing with package manager or "
+"installing from Haskell Platform. The former method is available for only"
+" Linux and Mac users, while the latter is available for every user."
+msgstr ""
+
+#: ../../reference/install.rst:9
+msgid "Install with package manager"
+msgstr ""
+
+#: ../../reference/install.rst:9 ../../reference/install.rst:53
+msgid "Install from Haskell Platform"
+msgstr ""
+
+#: ../../reference/install.rst:11
+msgid "Linux"
+msgstr ""
+
+#: ../../reference/install.rst:11
+msgid "O (:ref:`yum` or :ref:`dpkg`)"
+msgstr ""
+
+#: ../../reference/install.rst:11 ../../reference/install.rst:13
+#: ../../reference/install.rst:15
+msgid "O"
+msgstr ""
+
+#: ../../reference/install.rst:13
+msgid "MacOS"
+msgstr ""
+
+#: ../../reference/install.rst:13
+msgid "O (:ref:`homebrew`)"
+msgstr ""
+
+#: ../../reference/install.rst:15
+msgid "Windows"
+msgstr ""
+
+#: ../../reference/install.rst:15
+msgid "X"
+msgstr ""
+
+#: ../../reference/install.rst:20
+msgid "Install with Package Manager"
+msgstr ""
+
+#: ../../reference/install.rst:25
+msgid "``yum``"
+msgstr ""
+
+#: ../../reference/install.rst:35
+msgid "``dpkg``"
+msgstr ""
+
+#: ../../reference/install.rst:44
+msgid "Homebrew"
+msgstr ""
+
+#: ../../reference/install.rst:56
+msgid "1. Install Haskell Platform"
+msgstr ""
+
+#: ../../reference/install.rst:58
+msgid ""
+"To install Egison, you need to install `Haskell Platform "
+"<https://www.haskell.org/platform/>`_. This is because Egison is "
+"implemented in Haskell and distributed as a `Hackage "
+"<https://hackage.haskell.org/>`_ package."
+msgstr ""
+
+#: ../../reference/install.rst:61
+msgid "If you use ``apt-get``, execute the following commands."
+msgstr ""
+
+#: ../../reference/install.rst:69
+msgid ""
+"Otherwise, download an installer from `here "
+"<https://www.haskell.org/platform/>`_."
+msgstr ""
+
+#: ../../reference/install.rst:72
+msgid "2. Install Egison via Hackage"
+msgstr ""
+
+#: ../../reference/install.rst:74
+msgid ""
+"After you installed Haskell Platform, perform the following commands in "
+"the terminal."
+msgstr ""
+
+#: ../../reference/install.rst:84
+msgid ""
+"When the installation is finished, there will be a message that tells the"
+" location of the installed binary. Add the path to the ``$PATH`` vairable"
+" so that your shell can find the ``egison`` command. For example, if you "
+"are using bash, run the following commands."
 msgstr ""
 
 #: ../../reference/lib/core/assoc.rst:3
@@ -526,6 +877,96 @@ msgstr ""
 msgid "uniqueAs"
 msgstr ""
 
+#: ../../reference/lib/core/io.rst:3
+msgid "lib/core/io.egi"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:13
+msgid "print"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:8
+msgid "Prints the given string and a newline to the standard output. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:20
+msgid "printToPort"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:16
+msgid "A variant of ``print``. The output is written to the given port. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:27
+msgid "display"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:23
+msgid "Prints the given string to the standard output. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:33
+msgid "displayToPort"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:30
+msgid "A variant of ``display``. The output is written to the given port. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:40
+msgid "eachLine"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:36
+msgid ""
+"Repeat reading a single line from the standard input and applying the "
+"given function to it. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:46
+msgid "eachLineFromPort"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:43
+msgid "A variant of ``eachLine``. The input is read from the given port. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:53
+msgid "eachFile"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:49
+msgid ""
+"Takes a collection of file names (in string) and a function, and apply "
+"the function for each line in each of the files. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:59
+msgid "each"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:56
+msgid "This function corresponds to the ``mapM_`` in Haskell. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:66
+msgid "debug"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:62
+msgid ""
+"Prints out the argument value and returns it. This function is useful for"
+" debugging. ::"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:71
+msgid "debug2"
+msgstr ""
+
+#: ../../reference/lib/core/io.rst:69
+msgid "A variant of ``debug``. The first argument is a string. ::"
+msgstr ""
+
 #: ../../reference/lib/core/maybe.rst:3
 msgid "lib/core/maybe.egi"
 msgstr ""
@@ -719,14 +1160,14 @@ msgid "lower-case"
 msgstr ""
 
 #: ../../reference/libs.rst:3
-msgid "List of libraries"
+msgid "List of Libraries"
 msgstr ""
 
 #: ../../reference/libs.rst:6
 msgid "List of core libraries"
 msgstr ""
 
-#: ../../reference/libs.rst:21
+#: ../../reference/libs.rst:22
 msgid "List of mathematical libraries"
 msgstr ""
 
@@ -896,75 +1337,834 @@ msgstr ""
 msgid "``init``"
 msgstr ""
 
-#: ../../reference/patterns.rst:3
+#: ../../reference/pattern-matching.rst:3
 msgid "Pattern Matching"
 msgstr ""
 
-#: ../../reference/patterns.rst:6
+#: ../../reference/pattern-matching.rst:8
 msgid "Expressions for pattern matching"
 msgstr ""
 
-#: ../../reference/patterns.rst:9
-msgid "``match`` and ``matchAll``"
+#: ../../reference/pattern-matching.rst:11
+msgid "``matchAll`` expression"
 msgstr ""
 
-#: ../../reference/patterns.rst:12
-msgid "``\\match`` and ``\\matchAll``"
+#: ../../reference/pattern-matching.rst:13
+msgid ""
+"A ``matchAll`` expression takes a target, a matcher and one or more match"
+" clauses. It tries pattern matching for all match clauses, and returns a "
+"collection of the evaluation result of the body for all successful result"
+" of pattern matching."
 msgstr ""
 
-#: ../../reference/patterns.rst:15
-msgid "``matchDFS`` and ``matchAllDFS``"
+#: ../../reference/pattern-matching.rst:30
+msgid ""
+"When none of the match clauses successfully pattern-matches, ``matchAll``"
+" returns an empty collection ``[]``."
 msgstr ""
 
-#: ../../reference/patterns.rst:18
+#: ../../reference/pattern-matching.rst:38
+msgid ""
+"You can write more than one match clauses. In that case, every match "
+"clause must start with ``|`` and the ``|`` of all match clauses must be "
+"vertically aligned."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:48
+msgid "When there is only one match clause, the ``|`` can be omitted."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:55
+msgid "``match`` expression"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:57
+msgid ""
+"``match`` expressions are similar to ``matchAll`` expressions except that"
+" it returns only one value. In fact, the return value of a ``match`` "
+"expression is defined as the first element of the return value of its "
+"corresponding ``matchAll`` expression."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:66
+msgid ""
+"When none of the match clauses successfully pattern-matches, it will "
+"raise an error."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:76
+msgid "``\\matchAll`` and ``\\match``"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:78
+msgid ""
+"``\\matchAll`` and ``\\match`` are handy syntax sugar for the combination"
+" of anonymous function and ``matchAll``/``match`` expressions."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:80
+msgid ""
+"The syntax of ``\\matchAll`` expression is similar to that of "
+"``matchAll`` except that it doesn't need the target. A ``\\matchAll`` "
+"expression is desugared into an anonymous function whose body is "
+"``matchAll`` and whose argument is the target of ``matchAll``."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:83
+msgid "For example,"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:91
+msgid "is desugared into the following expression."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:101
+msgid "The semantics of ``\\match`` is similar."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:105
+msgid "``matchAllDFS`` and ``matchDFS``"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:107
+msgid ""
+"``matchAllDFS`` and ``matchDFS`` are variants of ``matchAll`` and "
+"``match``, respectively. See :ref:`match-search-order` for the "
+"description."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:111
 msgid "Pattern functions"
 msgstr ""
 
-#: ../../reference/patterns.rst:21
-msgid "``matcher`` and ``algebraicDataMatcher``"
+#: ../../reference/pattern-matching.rst:113
+msgid ""
+"A pattern function is a function that takes patterns and returns a "
+"pattern. Pattern functions allows us to reuse useful combination of "
+"patterns."
 msgstr ""
 
-#: ../../reference/patterns.rst:24
+#: ../../reference/pattern-matching.rst:116
+msgid ""
+"The syntax of pattern function is similar to that of :ref:`anonymous "
+"function <anonymous-function>` except that it uses double arrow ``=>`` "
+"instead of the sigle arrow ``->``. Also, the argument pattern must be "
+"prefixed with a ``~`` in the body of the pattern function. This is to "
+"distinguish the argument with nullary pattern constructor."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:120
+msgid ""
+"The application of pattern functions is written in the same manner as the"
+" application of pattern constructors."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:133
+msgid ""
+"Like anonymous functions, a pattern function has lexical scope for the "
+"pattern variables. Therefore, bindings for pattern variables in the "
+"argument patterns and the body of pattern functions don't conflict."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:137
 msgid "Patterns"
 msgstr ""
 
-#: ../../reference/patterns.rst:27
+#: ../../reference/pattern-matching.rst:140
 msgid "Wildcard pattern"
 msgstr ""
 
-#: ../../reference/patterns.rst:30
+#: ../../reference/pattern-matching.rst:142
+msgid ""
+"Wildcard patterns are denoted by ``_``. It can match with any values and "
+"the matched value will be discarded."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:152
 msgid "Pattern variable"
 msgstr ""
 
-#: ../../reference/patterns.rst:33
+#: ../../reference/pattern-matching.rst:154
+msgid ""
+"We can bind values to variables in pattern matching with pattern "
+"variables. It is denoted as a variable prefixed with ``$``. Any object "
+"matches pattern variables and the variable is locally bound to the "
+"object."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:170
 msgid "Indexed pattern variable"
 msgstr ""
 
-#: ../../reference/patterns.rst:36
+#: ../../reference/pattern-matching.rst:172
+msgid ""
+"Indexed pattern variables ``$x_n`` (``n`` denotes integers) are special "
+"pattern variables. When an indexed pattern variable ``$x_n`` appears in "
+"the pattern, Egison creates a :ref:`hash map <hash-maps>` and binds it to"
+" the variable ``x``. An object matched to ``$x_i`` is associated with the"
+" key ``i`` in the hash ``x``."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:185
 msgid "Inductive pattern"
 msgstr ""
 
-#: ../../reference/patterns.rst:39
+#: ../../reference/pattern-matching.rst:187
+msgid ""
+"Inductive pattern is an analogy of :ref:`inductive data <inductive-"
+"data>`. An inductive pattern consists of a **pattern constructor** and "
+"multiple (zero or more) argument patterns. The names and behaviors of "
+"pattern constructors are defined by matchers."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:191
+msgid ""
+"In the following example, ``snoc`` is a pattern constructor defined in "
+"the ``list`` matcher, and ``$x`` and ``$xs`` is applied to the pattern "
+"constructor."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:198
+msgid ""
+"The nil pattern ``[]`` and the pattern infixes such as ``::`` and ``++`` "
+"are also implemented as pattern constructors."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:201
 msgid "Value pattern"
 msgstr ""
 
-#: ../../reference/patterns.rst:42
+#: ../../reference/pattern-matching.rst:203
+msgid ""
+"A value pattern is written as ``#expr``, where ``expr`` can be any "
+"expression. An object ``obj`` can match a value pattern ``#expr`` only if"
+" the evaluation result of ``obj`` is equal to that of ``expr``. This "
+"equality is defined by the given matcher."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:228
 msgid "Predicate pattern"
 msgstr ""
 
-#: ../../reference/patterns.rst:45
-msgid "Logical patterns: and-, or- and not-pattern"
+#: ../../reference/pattern-matching.rst:230
+msgid ""
+"A predicate pattern is a pattern that matches with an object when it "
+"satisfies the predicate following ``?``. The expression following ``?`` "
+"should be a unary function that returns a boolean."
 msgstr ""
 
-#: ../../reference/patterns.rst:48
+#: ../../reference/pattern-matching.rst:245
+msgid "And-pattern"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:247
+msgid ""
+"An and-pattern ``p1 & p2`` is a pattern that matches the object if and "
+"only if both of the pattern ``p1`` and ``p2`` are matched."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:256
+msgid ""
+"We can use and-patterns like as-patterns in Haskell. For example, a "
+"pattern ``(_ :: _) & $xs`` matches with any non-empty collections and "
+"binds it to the variable ``xs``."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:270
+msgid "Or-pattern"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:272
+msgid ""
+"An or-pattern ``p1 | p2`` matches with the object if the object matches "
+"with ``p1`` or ``p2``."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:282
+msgid "Not-pattern"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:284
+msgid ""
+"A not-pattern ``!p`` matches with the object if the object does not match"
+" the pattern ``p``."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:310
 msgid "Sequential pattern"
 msgstr ""
 
-#: ../../reference/patterns.rst:51
+#: ../../reference/pattern-matching.rst:312
+msgid "See :ref:`sequential-patterns` in the tutorial."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:315
 msgid "Loop pattern"
 msgstr ""
 
-#: ../../reference/patterns.rst:54
+#: ../../reference/pattern-matching.rst:317
+msgid "See :ref:`loop-patterns` in the tutorial."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:320
 msgid "Let pattern"
 msgstr ""
+
+#: ../../reference/pattern-matching.rst:322
+msgid ""
+"A let pattern allows binding expressions to variables inside the pattern."
+" The variables bound in the ``let`` pattern can be used in the body of "
+"the ``let`` pattern."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:338
+msgid "Matchers"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:341
+msgid "``something`` matcher"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:343
+msgid ""
+"``something`` is the only built-in matcher. Only variable pattern and "
+"wildcard patterns can be used for ``something`` matcher; it does not "
+"decompose the target object."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:355
+msgid "Defining matcher with ``matcher`` expression"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:357
+msgid ""
+"This subsection describes how to define a matcher with ``matcher`` "
+"expression."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:359
+msgid ""
+"Let's think about defining a matcher ``unorderedIntegerPair``, which "
+"matches with a tuple of 2 integers ignoring the order."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:366
+msgid "This ``unorderedIntegerPair`` matcher can be defined as follows."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:377
+msgid ""
+"Line 3 and 4 corresponds with the case where we want to decompose the "
+"tuple, and line 5 and 6 is for the case where we don't want to. The "
+"expression ``pair $ $`` in line 3 is a **primitive pattern pattern** "
+"(pattern for patterns) and it defines a pattern constructor named "
+"``pair``, which enables the pattern expression like ``pair $a $b``. The "
+"following ``(integer, integer)`` indicates that the both of matched 2 "
+"terms should be recursively pattern-matched by using ``integer`` matcher."
+" The expression ``($x, $y) -> [(x, y), (y, x)]`` in line 4 defines the "
+"correspondense between the syntactic representation of the target data "
+"and pattern matching results. The ``($x, $y)`` in line 4 is called "
+"**primitive data pattern**. In the example above, the target data ``(1, "
+"2)`` is *syntactically* matched with ``($x, $y)``, making the variable "
+"``x`` bound to ``1`` and ``y`` to ``2``. As a result, the pattern "
+"matching result (specified with ``[(x, y), (y, x)]``) will be ``[(1, 2), "
+"(2, 1)]``. Then, variable ``a`` and ``b`` in the pattern expression "
+"``pair $a $b`` are bound to one of the pattern matching result. Since it "
+"is a ``matchAll`` expression, this binding enumrates for the entire "
+"results, meaning that the first ``a`` is bound to ``1`` and ``b`` to "
+"``2``, and secondly ``a`` to ``2`` and ``b`` to ``1``."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:387
+msgid ""
+"This ``unorderedIntegerPair`` matcher only works for integer tuples; "
+"however, we can make it \"polymorphic\" by making it a function that "
+"takes matchers and returns a matcher. For example, ``unorderedPair`` for "
+"an arbitrary matcher can be defined as follows:"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:407
+msgid "``algebraicDataMatcher`` expression"
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:409
+msgid ""
+"``algebraicDataMatcher`` is a convenient syntax sugar for defining normal"
+" matchers, which decompose data accordingly to their data structure. For "
+"example, the following code defines a matcher for terms in untyped lambda"
+" calculus. The first identifiers in each line of the "
+"``algebraicDataMatcher`` (``var``, ``abs`` and ``app``) must start with a"
+" lower case alphabet."
+msgstr ""
+
+#: ../../reference/pattern-matching.rst:421
+msgid "The above definition is desugared into the following one:"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:3
+msgid "List of Primitive Functions"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:7
+msgid "The following is the list of primitive (built-in) functions."
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:10
+msgid "Pure primitive functions"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:17
+msgid "numerator"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:22
+msgid "denominator"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:27
+msgid "modulo"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:32
+msgid "quotient"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:37
+msgid "remainder"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:42
+msgid "neg"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:49
+msgid "abs"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:56
+msgid "lt"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:63
+msgid "lte"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:70
+msgid "gt"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:77
+msgid "gte"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:85
+msgid "round"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:93
+msgid "floor"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:101
+msgid "ceiling"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:109
+msgid "truncate"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:116
+msgid "sqrt"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:123
+msgid "exp"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:129
+msgid "log"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:134
+msgid "sin"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:139
+msgid "cos"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:144
+msgid "tan"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:149
+msgid "asin"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:154
+msgid "acos"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:159
+msgid "atan"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:164
+msgid "sinh"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:169
+msgid "cosh"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:174
+msgid "tanh"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:179
+msgid "asinh"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:184
+msgid "acosh"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:189
+msgid "atanh"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:195
+msgid "itof"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:201
+msgid "rtof"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:206
+msgid "ctoi"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:211
+msgid "itoc"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:217
+msgid "pack"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:223
+msgid "unpack"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:228
+msgid "unconsString"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:234
+msgid "lengthString"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:242
+msgid "appendString"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:249
+msgid "splitString"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:257
+msgid "regex"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:263
+msgid "regexCg"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:271
+msgid "read"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:279
+msgid "show"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:284
+msgid "isBool"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:289
+msgid "isInteger"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:296
+msgid "isRational"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:302
+msgid "isScalar"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:308
+msgid "isFloat"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:313
+msgid "isChar"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:318
+msgid "isString"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:324
+msgid "isCollection"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:330
+msgid "isHash"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:337
+msgid "isTensor"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:342
+msgid "Primitive functions for IO operations"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:348
+msgid "return"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:345
+msgid "Takes a pure value and return an IO function that returns the value. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:355
+msgid "openInputFile"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:351
+msgid ""
+"Takes a name of a file (string) and opens the file in read-only mode. "
+"Returns a port of the opened file. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:362
+msgid "openOutputFile"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:358
+msgid ""
+"Takes a name of a file (string) and opens the file in write-only "
+"(truncate) mode. Returns a port of the opened file. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:369
+msgid "closeInputPort, closeOutputPort"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:365
+msgid "Takes a port and closes it. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:375
+msgid "readChar"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:372
+msgid "Reads one character from the standard input and returns it. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:381
+msgid "readLine"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:378
+msgid "Reads one line from the standard input and returns it. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:387
+msgid "writeChar"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:384
+msgid "Output a given character to the standard input. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:393
+msgid "write"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:390
+msgid "Output a given string to the standard input. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:399
+msgid "readCharFromPort"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:396
+msgid "Reads one character from the given port and returns it. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:405
+msgid "readLineFromPort"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:402
+msgid "Reads one line from the given port and returns it. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:411
+msgid "writeCharToPort"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:408
+msgid "Output a given character to the given port. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:417
+msgid "writeToPort"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:414
+msgid "Output a given string to the given port. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:423
+msgid "isEof"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:420
+msgid "Returns ``True`` if an EOF is given in the standard input. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:429
+msgid "flush"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:426
+msgid "Flushes the standard output. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:435
+msgid "isEofPort"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:432
+msgid "Returns ``True`` if an EOF is given in the specified port. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:441
+msgid "flushPort"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:438
+msgid "Flushes the given port. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:447
+msgid "readFile"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:444
+msgid "Takes a name of a file (string) and returns its content as a string. ::"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:450
+msgid "rand"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:450
+msgid ""
+"``rand n m`` returns an integer in the range :math:`[n, m]` (including "
+":math:`m`)."
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:453
+msgid "f.rand"
+msgstr ""
+
+#: ../../reference/primitive-functions.rst:453
+msgid "Float version of ``rand``."
+msgstr ""
+
+#: ../../reference/symbolic.rst:3
+msgid "Symbolic Computation"
+msgstr ""
+
+#: ../../reference/symbolic.rst:6
+msgid "Syntax for Symbolic computation"
+msgstr ""
+
+#: ../../reference/symbolic.rst:9
+msgid "``withSymbols`` expression"
+msgstr ""
+
+#: ../../reference/symbolic.rst:12
+msgid "``function`` expression"
+msgstr ""
+
+#: ../../reference/symbolic.rst:15
+msgid "Quoted expression"
+msgstr ""
+
+#: ../../reference/tensor.rst:3
+msgid "Tensor Computation"
+msgstr ""
+
+#: ../../reference/tensor.rst:8
+msgid "Syntax for Tensor Computation"
+msgstr ""
+
+#: ../../reference/tensor.rst:11
+msgid "``generateTensor`` expression"
+msgstr ""
+
+#: ../../reference/tensor.rst:14
+msgid "``contract`` expression"
+msgstr ""
+
+#: ../../reference/tensor.rst:17
+msgid "``tensorMap`` expression"
+msgstr ""
+
+#: ../../reference/tensor.rst:20
+msgid "``tensorMap2`` expression"
+msgstr ""
+
+#: ../../reference/tensor.rst:23
+msgid "``transpose`` expression"
+msgstr ""
+
+#: ../../reference/tensor.rst:26
+msgid "``subrefs``, ``suprefs`` and ``userRefs``"
+msgstr ""
+
+#: ../../reference/tensor.rst:29
+msgid "Wedge application expression"
+msgstr ""
+
+#~ msgid "List of Built-in Functions"
+#~ msgstr ""
+
+#~ msgid "List of libraries"
+#~ msgstr ""
+
+#~ msgid "``match`` and ``matchAll``"
+#~ msgstr ""
+
+#~ msgid "``\\match`` and ``\\matchAll``"
+#~ msgstr ""
+
+#~ msgid "``matchDFS`` and ``matchAllDFS``"
+#~ msgstr ""
+
+#~ msgid "``matcher`` and ``algebraicDataMatcher``"
+#~ msgstr ""
+
+#~ msgid "Logical patterns: and-, or- and not-pattern"
+#~ msgstr ""
 
