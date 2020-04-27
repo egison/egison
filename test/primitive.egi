@@ -61,18 +61,18 @@ assertEqual "exp" (exp (-1.0)) 0.36787944117144233
 assertEqual "log" (log e) 1
 assertEqual "log" (log 10.0) 2.302585092994046
 
-assertEqual "sin"   (sin 2.71828) 0.41078295757034533
-assertEqual "cos"   (cos 2.71828) (-0.9117331636886747)
-assertEqual "tan"   (tan 2.71828) (-0.4505517336984941)
-assertEqual "asin"  (asin 0.41078) 0.42330940969311176
-assertEqual "acos"  (acos 0.41078) 1.1474869171017847
-assertEqual "atan"  (atan 0.41078) 0.38976479923936064
-assertEqual "sinh"  (sinh 2.71828) 7.5441231880274415
-assertEqual "cosh"  (cosh 2.71828) 7.610111344529286
-assertEqual "tanh"  (tanh 2.71828) 0.9913288842285756
-assertEqual "asinh" (asinh 3.14159) 1.862294938438355
-assertEqual "acosh" (acosh 3.14159) 1.811525381452312
-assertEqual "atanh" (atanh 0.41078) 0.43654919678194676
+assertEqual "sin"   (sin 0.0) 0.0
+assertEqual "cos"   (cos 0.0) 1.0
+assertEqual "tan"   (tan 0.0) 0.0
+assertEqual "asin"  (asin 0.0) 0.0
+assertEqual "acos"  (acos 1.0) 0.0
+assertEqual "atan"  (atan 0.0) 0.0
+assertEqual "sinh"  (sinh 0.0) 0.0
+assertEqual "cosh"  (cosh 0.0) 1.0
+assertEqual "tanh"  (tanh 0.0) 0.0
+assertEqual "asinh" (asinh 0.0) 0.0
+assertEqual "acosh" (acosh 1.0) 0.0
+assertEqual "atanh" (atanh 0.0) 0.0
 
 -- tensorSize
 -- tensorToList
