@@ -137,7 +137,7 @@ The symbol `i` is defined to rewrite `i^2` to `-1` in Egison library.
 > (1 + i) * (1 + i)
 2 * i
 > (x + y * i) * (x + y * i)
-x^2 + 2 * x * y * i + -1 * y^2
+x^2 + 2 * x * y * i - y^2
 ```
 
 ### Square Root

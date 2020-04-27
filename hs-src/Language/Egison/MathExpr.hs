@@ -15,6 +15,7 @@ module Language.Egison.MathExpr
     , PolyExpr (..)
     , TermExpr (..)
     , SymbolExpr (..)
+    , Printable (..)
     , pattern ZeroExpr
     , pattern SingleSymbol
     , pattern SingleTerm
@@ -105,67 +106,81 @@ instance Eq TermExpr where
                     Nothing -> False
   _ == _ = False
 
-class Complex a where
+class Printable a where
   isAtom :: a -> Bool
+  pretty :: a -> String
 
-show' :: (Complex a, Show a) => a -> String
-show' e | isAtom e = show e
-show' e            = "(" ++ show e ++ ")"
+pretty' :: Printable a => a -> String
+pretty' e | isAtom e = pretty e
+pretty' e            = "(" ++ pretty e ++ ")"
 
-instance Complex ScalarData where
+instance Printable ScalarData where
   isAtom (Div p (Plus [Term 1 []])) = isAtom p
   isAtom _                          = False
 
-instance Complex PolyExpr where
+  pretty (Div p1 (Plus [Term 1 []])) = pretty p1
+  pretty (Div p1 p2)                 = pretty'' p1 ++ " / " ++ pretty' p2
+    where
+      pretty'' :: PolyExpr -> String
+      pretty'' p@(Plus [_]) = pretty p
+      pretty'' p            = "(" ++ pretty p ++ ")"
+
+instance Printable PolyExpr where
   isAtom (Plus [])           = True
   isAtom (Plus [Term _ []])  = True
   isAtom (Plus [Term 1 [_]]) = True
   isAtom _                   = False
 
-instance Complex SymbolExpr where
+  pretty (Plus []) = "0"
+  pretty (Plus (t:ts)) = pretty t ++ concatMap withSign ts
+    where
+      withSign (Term a xs) | a < 0 = " - " ++ pretty (Term (- a) xs)
+      withSign t                   = " + " ++ pretty t
+
+instance Printable SymbolExpr where
   isAtom Symbol{}     = True
   isAtom (Apply _ []) = True
   isAtom _            = False
 
+  pretty (Symbol _ (':':':':':':_) []) = "#"
+  pretty (Symbol _ s []) = s
+  pretty (Symbol _ s js) = s ++ concatMap show js
+  pretty (Apply fn mExprs) = unwords (map pretty' (fn : mExprs))
+  pretty (Quote mExprs) = "'" ++ pretty' mExprs
+  pretty (FunctionData name _ _ js) = pretty name ++ concatMap show js
+
+instance Printable TermExpr where
+  isAtom (Term _ [])  = True
+  isAtom (Term 1 [_]) = True
+  isAtom _            = False
+
+  pretty (Term a []) = show a
+  pretty (Term 1 xs) = intercalate " * " (map prettyPoweredSymbol xs)
+  pretty (Term (-1) xs) = "- " ++ intercalate " * " (map prettyPoweredSymbol xs)
+  pretty (Term a xs) = intercalate " * " (show a : map prettyPoweredSymbol xs)
+
+prettyPoweredSymbol :: (SymbolExpr, Integer) -> String
+prettyPoweredSymbol (x, 1) = show x
+prettyPoweredSymbol (x, n) = pretty' x ++ "^" ++ show n
+
 instance Show ScalarData where
-  show (Div p1 (Plus [Term 1 []])) = show p1
-  show (Div p1 p2)                 = show'' p1 ++ " / " ++ show' p2
-    where
-      show'' :: PolyExpr -> String
-      show'' p@(Plus [_]) = show p
-      show'' p            = "(" ++ show p ++ ")"
+  show = pretty
 
 instance Show PolyExpr where
-  show (Plus []) = "0"
-  show (Plus (t:ts)) = show t ++ concatMap showWithSign ts
-    where
-      showWithSign (Term a xs) | a < 0 = " - " ++ show (Term (- a) xs)
-      showWithSign t                   = " + " ++ show t
+  show = pretty
 
 instance Show TermExpr where
-  show (Term a []) = show a
-  show (Term 1 xs) = intercalate " * " (map showPoweredSymbol xs)
-  show (Term (-1) xs) = "- " ++ intercalate " * " (map showPoweredSymbol xs)
-  show (Term a xs) = intercalate " * " (show a : map showPoweredSymbol xs)
-
-showPoweredSymbol :: (SymbolExpr, Integer) -> String
-showPoweredSymbol (x, 1) = show x
-showPoweredSymbol (x, n) = show' x ++ "^" ++ show n
+  show = pretty
 
 instance Show SymbolExpr where
-  show (Symbol _ (':':':':':':_) []) = "#"
-  show (Symbol _ s []) = s
-  show (Symbol _ s js) = s ++ concatMap show js
-  show (Apply fn mExprs) = unwords (map show' (fn : mExprs))
-  show (Quote mExprs) = "'" ++ show' mExprs
-  show (FunctionData name _ _ js) = show name ++ concatMap show js
+  show = pretty
 
 instance Show (Index ScalarData) where
-  show (Superscript i)  = "~" ++ show i
-  show (Subscript i)    = "_" ++ show i
-  show (SupSubscript i) = "~_" ++ show i
+  show (Superscript i)  = "~" ++ pretty' i
+  show (Subscript i)    = "_" ++ pretty' i
+  show (SupSubscript i) = "~_" ++ pretty' i
   show (DFscript _ _)   = ""
-  show (Userscript i)   = "|" ++ show i
+  show (Userscript i)   = "|" ++ pretty' i
 
 --
 -- Scalars
