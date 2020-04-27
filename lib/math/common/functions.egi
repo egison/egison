@@ -50,6 +50,10 @@ tan $x :=
       | #0 -> 0
       | _ -> `tan x
 
+acos := b.acos
+asin := b.asin
+atan := b.atan
+
 cosh $x :=
   if isFloat x
     then b.cosh x
@@ -70,6 +74,10 @@ tanh $x :=
     else match x as mathExpr with
       | #0 -> 0
       | _ -> `tanh x
+
+acosh := b.acosh
+asinh := b.asinh
+atanh := b.atanh
 
 sinc $x :=
   if isFloat x
