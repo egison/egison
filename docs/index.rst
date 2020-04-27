@@ -15,6 +15,7 @@ Reference
 .. toctree::
    :maxdepth: 1
 
+   reference/install.rst
    reference/builtin-data.rst
    reference/basic-syntax.rst
    reference/pattern-matching.rst
