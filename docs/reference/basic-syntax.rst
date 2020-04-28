@@ -105,6 +105,16 @@ This syntax is inspired by `the anonymous function syntax of Clojure`_.
    1#1
    \x -> 1
 
+Section
+-------
+
+Egison has a special syntax for the partial application of infix operators,
+which is inspired by `the section notation of Haskell <https://wiki.haskell.org/Section_of_an_infix_operator>`_.
+
+* ``(+)`` is desugared into ``\x y -> x + y``
+* ``(+ 1)`` is desugared into ``\x -> x + 1``
+* ``(1 +)`` is desugared into ``\x -> 1 + x``
+
 
 ``let`` ... ``in`` expression
 -----------------------------
