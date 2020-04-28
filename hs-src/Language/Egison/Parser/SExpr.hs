@@ -126,9 +126,9 @@ quoteExpr :: Parser EgisonExpr
 quoteExpr = char '\'' >> QuoteExpr <$> expr'
 
 expr' :: Parser EgisonExpr
-expr' = try partialExpr
+expr' = try anonParamFuncExpr
             <|> try constantExpr
-            <|> try partialVarExpr
+            <|> try anonParamExpr
             <|> try freshVarExpr
             <|> try varExpr
             <|> inductiveDataExpr
@@ -383,33 +383,33 @@ applyExpr = do
     _ | all null vars ->
         let n = toInteger (length vars)
             args' = f args 1
-         in return $ PartialExpr n $ ApplyExpr func (TupleExpr args')
+         in return $ AnonParamFuncExpr n $ ApplyExpr func (TupleExpr args')
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
                let args' = map g args
-                in return $ PartialExpr (toInteger n) $ ApplyExpr func (TupleExpr args')
-             else fail "invalid partial application"
-      | otherwise -> fail "invalid partial application"
+                in return $ AnonParamFuncExpr (toInteger n) $ ApplyExpr func (TupleExpr args')
+             else fail "invalid anonymous parameter function"
+      | otherwise -> fail "invalid anonymous parameter function"
  where
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
   f [] _                   = []
-  f (Left _ : args) n      = PartialVarExpr n : f args (n + 1)
+  f (Left _ : args) n      = AnonParamExpr n : f args (n + 1)
   f (Right expr : args) n  = expr : f args n
-  g (Left arg)   = PartialVarExpr (read arg)
+  g (Left arg)   = AnonParamExpr (read arg)
   g (Right expr) = expr
 
-partialExpr :: Parser EgisonExpr
-partialExpr = (PartialExpr . read <$> index) <*> (char '#' >> expr)
+anonParamFuncExpr :: Parser EgisonExpr
+anonParamFuncExpr = (AnonParamFuncExpr . read <$> index) <*> (char '#' >> expr)
  where
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
 
-partialVarExpr :: Parser EgisonExpr
-partialVarExpr = char '%' >> PartialVarExpr <$> integerLiteral
+anonParamExpr :: Parser EgisonExpr
+anonParamExpr = char '%' >> AnonParamExpr <$> integerLiteral
 
 algebraicDataMatcherExpr :: Parser EgisonExpr
 algebraicDataMatcherExpr = keywordAlgebraicDataMatcher

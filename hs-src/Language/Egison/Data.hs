@@ -118,7 +118,7 @@ data EgisonValue =
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env [PatternDef]
   | Func (Maybe Var) Env [String] EgisonExpr
-  | PartialFunc Env Integer EgisonExpr
+  | AnonParamFunc Env Integer EgisonExpr
   | CFunc (Maybe Var) Env String EgisonExpr
   | MemoizedFunc (Maybe Var) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
@@ -332,7 +332,7 @@ instance Show EgisonValue where
   show UserMatcher{} = "#<user-matcher>"
   show (Func Nothing _ args _) = "(lambda [" ++ intercalate ", " (map show args) ++ "] ...)"
   show (Func (Just name) _ _ _) = show name
-  show (PartialFunc _ n expr) = show n ++ "#" ++ show expr
+  show (AnonParamFunc _ n expr) = show n ++ "#" ++ show expr
   show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   show (CFunc (Just name) _ _ _) = show name
   show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ intercalate ", " names ++ "] ...)"

@@ -108,8 +108,8 @@ data EgisonExpr =
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
   | CApplyExpr EgisonExpr EgisonExpr
-  | PartialExpr Integer EgisonExpr
-  | PartialVarExpr Integer
+  | AnonParamFuncExpr Integer EgisonExpr
+  | AnonParamExpr Integer
 
   | GenerateTensorExpr EgisonExpr EgisonExpr
   | TensorExpr EgisonExpr EgisonExpr

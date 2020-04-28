@@ -310,11 +310,11 @@ desugar FreshVarExpr = do
 desugar (MatcherExpr patternDefs) =
   MatcherExpr <$> mapM desugarPatternDef patternDefs
 
-desugar (PartialVarExpr n) = return $ PartialVarExpr n
+desugar (AnonParamExpr n) = return $ AnonParamExpr n
 
-desugar (PartialExpr n expr) = do
+desugar (AnonParamFuncExpr n expr) = do
   expr' <- desugar expr
-  return $ LetRecExpr [([stringToVar "::0"], PartialExpr n expr')] (stringToVarExpr "::0")
+  return $ LetRecExpr [([stringToVar "::0"], AnonParamFuncExpr n expr')] (stringToVarExpr "::0")
 
 desugar (QuoteExpr expr) =
   QuoteExpr <$> desugar expr
