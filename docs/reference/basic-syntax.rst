@@ -91,19 +91,13 @@ In this syntax, the function body is prefixed with a ``n#``, where ``n`` indicat
 There must not be any spaces between the arity number ``n`` and the ``#``.
 Also, the arguments are specified by numbers, where ``%i`` refers to the i-th argument.
 
-This syntax is inspired by `the anonymous function syntax of Clojure`_.
-
-.. _`the anonymous function syntax of Clojure`: https://clojure.org/guides/learn/functions#_anonymous_function_syntax
+This syntax is inspired by `the anonymous function syntax of Clojure <https://clojure.org/guides/learn/functions#_anonymous_function_syntax>`_.
 
 ::
 
    -- The followings are identical.
    2#(%1 + %2)
    \x y -> x + y
-
-   -- The followings are identical.
-   1#1
-   \x -> 1
 
 Section
 -------
