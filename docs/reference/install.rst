@@ -27,7 +27,6 @@ Install with Package Manager
 ::
 
    $ sudo yum install https://git.io/egison.x86_64.rpm https://git.io/egison-tutorial.x86_64.rpm
-   $ wget https://git.io/egison.x86_64.deb https://git.io/egison-tutorial.x86_64.deb
 
 .. _dpkg:
 
@@ -36,6 +35,7 @@ Install with Package Manager
 
 ::
 
+   $ wget https://git.io/egison.x86_64.deb https://git.io/egison-tutorial.x86_64.deb
    $ sudo dpkg -i ./egison*.deb
 
 .. _homebrew:
