@@ -117,14 +117,14 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
   toNonS (CApplyExpr e1 e2) = CApplyExpr (toNonS e1) (toNonS e2)
-  toNonS (PartialExpr n e) =
-    case PartialExpr n (toNonS e) of
-      PartialExpr 2 (BinaryOpExpr op (PartialVarExpr 1) (PartialVarExpr 2)) ->
+  toNonS (AnonParamFuncExpr n e) =
+    case AnonParamFuncExpr n (toNonS e) of
+      AnonParamFuncExpr 2 (BinaryOpExpr op (AnonParamExpr 1) (AnonParamExpr 2)) ->
         SectionExpr op Nothing Nothing
       -- TODO(momohatt): Check if %1 does not appear freely in e
-      -- PartialExpr 1 (BinaryOpExpr op e (PartialVarExpr 1)) ->
+      -- AnonParamFuncExpr 1 (BinaryOpExpr op e (AnonParamExpr 1)) ->
       --   SectionExpr op (Just (toNonS e)) Nothing
-      -- PartialExpr 1 (BinaryOpExpr op (PartialVarExpr 1) e) ->
+      -- AnonParamFuncExpr 1 (BinaryOpExpr op (AnonParamExpr 1) e) ->
       --   SectionExpr op Nothing (Just (toNonS e))
       e' -> e'
 

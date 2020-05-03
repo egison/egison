@@ -21,7 +21,7 @@ import           Data.Text.Prettyprint.Doc
 import qualified Data.Vector               as V
 
 import           Language.Egison.AST
-import           Language.Egison.MathExpr
+import           Language.Egison.MathExpr  hiding (Printable(..))
 import           Language.Egison.Data
 
 --
@@ -153,8 +153,8 @@ instance Pretty EgisonExpr where
   pretty (ApplyExpr x (TupleExpr ys)) = applyLike (map pretty' (x : ys))
   pretty (ApplyExpr x y) = applyLike [pretty' x, pretty' y]
   pretty (CApplyExpr e1 e2) = applyLike [pretty "capply", pretty' e1, pretty' e2]
-  pretty (PartialExpr n e) = pretty n <> pretty '#' <> pretty' e
-  pretty (PartialVarExpr n) = pretty '%' <> pretty n
+  pretty (AnonParamFuncExpr n e) = pretty n <> pretty '#' <> pretty' e
+  pretty (AnonParamExpr n) = pretty '%' <> pretty n
 
   pretty (GenerateTensorExpr gen shape) =
     applyLike [pretty "generateTensor", pretty' gen, pretty' shape]
@@ -423,7 +423,7 @@ instance PrettyS EgisonExpr where
   prettyS (IntegerExpr n) = show n
   prettyS (FloatExpr x) = show x
   prettyS (VarExpr name) = prettyS name
-  prettyS (PartialVarExpr n) = "%" ++ show n
+  prettyS (AnonParamExpr n) = "%" ++ show n
   prettyS (FunctionExpr args) = "(function [" ++ unwords (map prettyS args) ++ "])"
   prettyS (IndexedExpr True expr idxs) = prettyS expr ++ concatMap prettyS idxs
   prettyS (IndexedExpr False expr idxs) = prettyS expr ++ "..." ++ concatMap prettyS idxs
@@ -466,7 +466,7 @@ instance PrettyS EgisonValue where
   prettyS UserMatcher{} = "#<user-matcher>"
   prettyS (Func Nothing _ args _) = "(lambda [" ++ unwords (map ('$':) args) ++ "] ...)"
   prettyS (Func (Just name) _ _ _) = prettyS name
-  prettyS (PartialFunc _ n expr) = show n ++ "#" ++ prettyS expr
+  prettyS (AnonParamFunc _ n expr) = show n ++ "#" ++ prettyS expr
   prettyS (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   prettyS (CFunc (Just name) _ _ _) = prettyS name
   prettyS (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"

@@ -10,12 +10,12 @@ maybe
    ::
 
       matchAll Just 1 as maybe integer with
-          | just $x -> x
-          | nothing -> "error"
+        | just $x -> x
+        | nothing -> "error"
       ---> [1]
       matchAll Nothing as maybe integer with
-          | just _ -> "error"
-          | nothing -> True
+        | just _ -> "error"
+        | nothing -> True
       ---> [True]
 
 .. END docsgen
