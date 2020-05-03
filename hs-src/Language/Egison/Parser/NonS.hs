@@ -517,7 +517,7 @@ atomExpr = do
 
 -- Atomic expressions without index
 atomExpr' :: Parser EgisonExpr
-atomExpr' = partialExpr    -- must come before |constantExpr|
+atomExpr' = anonParamFuncExpr    -- must come before |constantExpr|
         <|> constantExpr
         <|> FreshVarExpr <$ symbol "#"
         <|> VarExpr <$> varLiteral
@@ -527,14 +527,14 @@ atomExpr' = partialExpr    -- must come before |constantExpr|
         <|> hashExpr
         <|> QuoteExpr <$> (char '\'' >> atomExpr') -- must come after |constantExpr|
         <|> QuoteSymbolExpr <$> (char '`' >> atomExpr')
-        <|> PartialVarExpr  <$> try (char '%' >> positiveIntegerLiteral)
+        <|> AnonParamExpr  <$> try (char '%' >> positiveIntegerLiteral)
         <?> "atomic expression"
 
-partialExpr :: Parser EgisonExpr
-partialExpr = do
+anonParamFuncExpr :: Parser EgisonExpr
+anonParamFuncExpr = do
   n    <- try (L.decimal <* char '#') -- No space after the index
   body <- atomExpr                    -- No space after '#'
-  return $ PartialExpr n body
+  return $ AnonParamFuncExpr n body
 
 constantExpr :: Parser EgisonExpr
 constantExpr = numericExpr

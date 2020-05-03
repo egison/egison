@@ -41,7 +41,7 @@ def template(func: str, examples: List[str]):
 
         if len(targets) > 1:
             code = ' ' * 6 + targets[0] + '\n'
-            code += "".join([' ' * 6 + t + '\n' for t in targets[1:]])
+            code += "".join([' ' * 4 + t + '\n' for t in targets[1:]])
             code += "      ---> {}\n".format(expect)
 
         else:
