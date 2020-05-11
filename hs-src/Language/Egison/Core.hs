@@ -976,7 +976,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
               processMState' (mstate { mTrees = MAtom (InductivePat name args) target matcher:trees })
 
     NotPat _ -> throwError =<< EgisonBug "should not reach here (not-pattern)" <$> getFuncNameStack
-    VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyS pattern
+    VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyPattern pattern
 
     LetPat bindings' pattern' -> do
       b <- fmap concat (mapM extractBindings bindings')
@@ -1125,13 +1125,13 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
                                          | otherwise = (k', v'):subst k nv xs
                 subst _ _ [] = []
-            IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyS pattern)
+            IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyPattern pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets (replicate (length patterns) Something) ++ trees
               return . msingleton $ mstate { mTrees = trees' }
-            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ prettyS pattern
+            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ prettyPattern pattern
         _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
