@@ -10,6 +10,7 @@ This module contains pretty printing for Egison syntax
 
 module Language.Egison.Pretty
     ( prettyTopExprs
+    , prettyPattern
     , PrettyS(..)
     , showTSV
     ) where
@@ -18,6 +19,7 @@ import           Data.Foldable             (toList)
 import qualified Data.HashMap.Strict       as HashMap
 import           Data.List                 (intercalate)
 import           Data.Text.Prettyprint.Doc
+import           Data.Text.Prettyprint.Doc.Render.String (renderString)
 import qualified Data.Vector               as V
 
 import           Language.Egison.AST
@@ -407,6 +409,13 @@ applyLike = hang 2 . sep . map group
 -- This is useful for nicely printing infix expressions.
 infixRight :: Doc ann -> Doc ann
 infixRight p = group (flatAlt (hardline <> p) (space <> p))
+
+--
+-- Pretty printer for error messages
+--
+
+prettyPattern :: EgisonPattern -> String
+prettyPattern = renderString . layoutCompact . pretty
 
 --
 -- Pretty printer for S-expression
