@@ -122,21 +122,21 @@ instance Pretty EgisonExpr where
   pretty (QuoteExpr e) = squote <> pretty' e
   pretty (QuoteSymbolExpr e) = pretty '`' <> pretty' e
 
-  pretty (UnaryOpExpr op x@(IntegerExpr _)) = pretty op <> pretty x
-  pretty (UnaryOpExpr op x)
+  pretty (PrefixExpr op x@(IntegerExpr _)) = pretty op <> pretty x
+  pretty (PrefixExpr op x)
     | isAtomOrApp x = pretty op <+> pretty x
     | otherwise     = pretty op <+> parens (pretty x)
   -- (x1 op' x2) op y
-  pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
+  pretty (InfixExpr op x@(InfixExpr op' _ _) y) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
        then parens (pretty x) <+> pretty op <> infixRight (pretty'' y)
        else pretty x          <+> pretty op <> infixRight (pretty'' y)
   -- x op (y1 op' y2)
-  pretty (BinaryOpExpr op x y@(BinaryOpExpr op' _ _)) =
+  pretty (InfixExpr op x y@(InfixExpr op' _ _)) =
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
        then pretty'' x <+> pretty op <> infixRight (parens (pretty y))
        else pretty'' x <+> pretty op <> infixRight (pretty y)
-  pretty (BinaryOpExpr op x y) =
+  pretty (InfixExpr op x y) =
     pretty'' x <+> pretty op <> infixRight (pretty'' y)
   pretty (SectionExpr op Nothing Nothing) = parens (pretty op)
   pretty (SectionExpr op (Just x) Nothing) = parens (pretty x <+> pretty op)
@@ -253,7 +253,7 @@ instance Pretty EgisonPattern where
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (BinaryOpExpr (Infix { repr = "-'" }) _ (IntegerExpr 1))) pat) =
+                                    (InfixExpr (Infix { repr = "-'" }) _ (IntegerExpr 1))) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
@@ -287,8 +287,8 @@ instance Complex EgisonExpr where
   isAtom (IntegerExpr i) | i < 0  = False
   isAtom (InductiveDataExpr _ []) = True
   isAtom (InductiveDataExpr _ _)  = False
-  isAtom UnaryOpExpr{}            = False
-  isAtom BinaryOpExpr{}           = False
+  isAtom PrefixExpr{}             = False
+  isAtom InfixExpr{}              = False
   isAtom ApplyExpr{}              = False
   isAtom CApplyExpr{}             = False
   isAtom LambdaExpr{}             = False
@@ -320,8 +320,8 @@ instance Complex EgisonExpr where
   isAtomOrApp InductiveDataExpr{} = True
   isAtomOrApp e                   = isAtom e
 
-  isInfix BinaryOpExpr{}  = True
-  isInfix _               = False
+  isInfix InfixExpr{}             = True
+  isInfix _                       = False
 
 instance Complex EgisonPattern where
   isAtom (LetPat _ _)        = False
@@ -430,8 +430,8 @@ instance PrettyS EgisonExpr where
   prettyS (TupleExpr exprs) = "[" ++ unwords (map prettyS exprs) ++ "]"
   prettyS (CollectionExpr ls) = "{" ++ unwords (map prettyS ls) ++ "}"
 
-  prettyS (UnaryOpExpr op e) = op ++ " " ++ prettyS e
-  prettyS (BinaryOpExpr op e1 e2) = "(" ++ prettyS e1 ++ " " ++ prettyS op ++ " " ++ prettyS e2 ++ ")"
+  prettyS (PrefixExpr op e) = op ++ " " ++ prettyS e
+  prettyS (InfixExpr op e1 e2) = "(" ++ prettyS e1 ++ " " ++ prettyS op ++ " " ++ prettyS e2 ++ ")"
 
   prettyS (QuoteExpr e) = "'" ++ prettyS e
   prettyS (QuoteSymbolExpr e) = "`" ++ prettyS e
