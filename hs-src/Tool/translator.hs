@@ -35,7 +35,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (SubrefsExpr b x y)   = SubrefsExpr  b (toNonS x) (toNonS y)
   toNonS (SuprefsExpr b x y)   = SuprefsExpr  b (toNonS x) (toNonS y)
   toNonS (UserrefsExpr b x y)  = UserrefsExpr b (toNonS x) (toNonS y)
-  toNonS (PowerExpr x y) = BinaryOpExpr powerOp (toNonS x) (toNonS y)
+  toNonS (PowerExpr x y) = InfixExpr powerOp (toNonS x) (toNonS y)
     where powerOp = fromJust $ find (\op -> repr op == "^") reservedExprInfix
   toNonS (InductiveDataExpr x ys) = InductiveDataExpr x (map toNonS ys)
   toNonS (TupleExpr xs)      = TupleExpr (map toNonS xs)
@@ -49,8 +49,8 @@ instance SyntaxElement EgisonExpr where
       f [] = CollectionExpr []
       f [ElementExpr x] = CollectionExpr [ElementExpr (toNonS x)]
       f [SubCollectionExpr x] = toNonS x
-      f (ElementExpr x : xs) = BinaryOpExpr cons (toNonS x) (f xs)
-      f (SubCollectionExpr x : xs) = BinaryOpExpr append (toNonS x) (f xs)
+      f (ElementExpr x : xs) = InfixExpr cons (toNonS x) (f xs)
+      f (SubCollectionExpr x : xs) = InfixExpr append (toNonS x) (f xs)
       cons = fromJust $ find (\op -> repr op == "::") reservedExprInfix
       append = fromJust $ find (\op -> repr op == "++") reservedExprInfix
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
@@ -80,16 +80,16 @@ instance SyntaxElement EgisonExpr where
   toNonS (QuoteSymbolExpr x)  = QuoteSymbolExpr (toNonS x)
   toNonS (WedgeApplyExpr (VarExpr f) (TupleExpr (y:ys)))
     | any (\op -> func op == prettyS f) reservedExprInfix =
-      optimize $ foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+      optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where
         op =
           let op' = fromJust $ find (\op -> func op == prettyS f) reservedExprInfix
            in op' { isWedge = True }
 
-        optimize (BinaryOpExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
-          UnaryOpExpr "-" (optimize e2)
-        optimize (BinaryOpExpr op e1 e2) =
-          BinaryOpExpr op (optimize e1) (optimize e2)
+        optimize (InfixExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
+          PrefixExpr "-" (optimize e2)
+        optimize (InfixExpr op e1 e2) =
+          InfixExpr op (optimize e1) (optimize e2)
         optimize e = e
   toNonS (WedgeApplyExpr x y) = WedgeApplyExpr (toNonS x) (toNonS y)
 
@@ -98,33 +98,33 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (SeqExpr e1 e2) = SeqExpr (toNonS e1) (toNonS e2)
   toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys))) | prettyS f == "and" =
-    foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+    foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where op = fromJust $ find (\op -> repr op == "&&") reservedExprInfix
   toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys))) | prettyS f == "or" =
-    foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+    foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where op = fromJust $ find (\op -> repr op == "||") reservedExprInfix
   toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys)))
     | any (\op -> func op == prettyS f) reservedExprInfix =
-      optimize $ foldl (\acc x -> BinaryOpExpr op acc (toNonS x)) (toNonS y) ys
+      optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where
         op = fromJust $ find (\op -> func op == prettyS f) reservedExprInfix
 
-        optimize (BinaryOpExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
-          UnaryOpExpr "-" (optimize e2)
-        optimize (BinaryOpExpr op e1 e2) =
-          BinaryOpExpr op (optimize e1) (optimize e2)
+        optimize (InfixExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
+          PrefixExpr "-" (optimize e2)
+        optimize (InfixExpr op e1 e2) =
+          InfixExpr op (optimize e1) (optimize e2)
         optimize e = e
 
   toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
   toNonS (CApplyExpr e1 e2) = CApplyExpr (toNonS e1) (toNonS e2)
   toNonS (AnonParamFuncExpr n e) =
     case AnonParamFuncExpr n (toNonS e) of
-      AnonParamFuncExpr 2 (BinaryOpExpr op (AnonParamExpr 1) (AnonParamExpr 2)) ->
+      AnonParamFuncExpr 2 (InfixExpr op (AnonParamExpr 1) (AnonParamExpr 2)) ->
         SectionExpr op Nothing Nothing
       -- TODO(momohatt): Check if %1 does not appear freely in e
-      -- AnonParamFuncExpr 1 (BinaryOpExpr op e (AnonParamExpr 1)) ->
+      -- AnonParamFuncExpr 1 (InfixExpr op e (AnonParamExpr 1)) ->
       --   SectionExpr op (Just (toNonS e)) Nothing
-      -- AnonParamFuncExpr 1 (BinaryOpExpr op (AnonParamExpr 1) e) ->
+      -- AnonParamFuncExpr 1 (InfixExpr op (AnonParamExpr 1) e) ->
       --   SectionExpr op Nothing (Just (toNonS e))
       e' -> e'
 

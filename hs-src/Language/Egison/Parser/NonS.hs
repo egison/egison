@@ -175,7 +175,7 @@ defineOrTestExpr = do
     convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) (TupleExpr [x, y])) = do
       args <- mapM ((TensorArg <$>) . exprToStr) [x, y]
       return $ Function (stringToVar (repr op)) args
-    convertToDefine e@(BinaryOpExpr op _ _)
+    convertToDefine e@(InfixExpr op _ _)
       | repr op == "*" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
         case args of
@@ -196,19 +196,19 @@ defineOrTestExpr = do
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
     exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (func op)]
-    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "*" = do
+    exprToArgs (InfixExpr op lhs rhs) | repr op == "*" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
       case rhs' of
         TensorArg x : xs -> return (lhs' ++ InvertedScalarArg x : xs)
         _                -> Nothing
-    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "$" = do
+    exprToArgs (InfixExpr op lhs rhs) | repr op == "$" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
       case rhs' of
         TensorArg x : xs -> return (lhs' ++ ScalarArg x : xs)
         _                -> Nothing
-    exprToArgs (BinaryOpExpr op lhs rhs) | repr op == "%" = do
+    exprToArgs (InfixExpr op lhs rhs) | repr op == "%" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
       case rhs' of
@@ -262,14 +262,14 @@ makeExprTable infixes =
   where
     -- notFollowedBy (in unary and binary) is necessary for section expression.
     unary :: String -> Parser (EgisonExpr -> EgisonExpr)
-    unary sym = UnaryOpExpr <$> try (operator sym <* notFollowedBy (symbol ")"))
+    unary sym = PrefixExpr <$> try (operator sym <* notFollowedBy (symbol ")"))
 
     binary :: Infix -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
     binary op = do
       -- Operators should be indented than pos1 in order to avoid
       -- "1\n-2" (2 topExprs, 1 and -2) to be parsed as "1 - 2".
       op <- try (indented >> infixLiteral (repr op) <* notFollowedBy (symbol ")"))
-      return $ BinaryOpExpr op
+      return $ InfixExpr op
 
     toOperator :: Infix -> Operator Parser EgisonExpr
     toOperator = infixToOperator binary
@@ -452,7 +452,7 @@ tupleOrParenExpr = do
       op      <- choice $ map (infixLiteral . repr) infixes
       rarg    <- optional expr
       case rarg of
-        Just (BinaryOpExpr op' _ _)
+        Just (InfixExpr op' _ _)
           | assoc op' /= RightAssoc && priority op >= priority op' ->
           customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op Nothing rarg)
@@ -464,7 +464,7 @@ tupleOrParenExpr = do
       larg    <- opExpr
       op      <- choice $ map (infixLiteral . repr) infixes
       case larg of
-        BinaryOpExpr op' _ _
+        InfixExpr op' _ _
           | assoc op' /= LeftAssoc && priority op >= priority op' ->
           customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op (Just larg) Nothing)
