@@ -138,7 +138,7 @@ evalExpr env (VarExpr var@(Var [name@(c:_)] [])) | isUpper c = refVar' env var >
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
   refVar' :: Env -> Var -> EgisonM ObjectRef
-  refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" $ prettyS var))) return
+  refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" $ prettyStr var))) return
                           (refVar env var)
 
 evalExpr env (AnonParamExpr n) = evalExpr env (stringToVarExpr ("::" ++ show n))
@@ -189,7 +189,7 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
         fn' = case maybe_vwi of
           Nothing -> fn
           Just (VarWithIndices name indices) ->
-            symbolScalarData' "" $ prettyS (VarWithIndices name (zipWith changeIndex indices ms))
+            symbolScalarData' "" $ prettyStr (VarWithIndices name (zipWith changeIndex indices ms))
     g x _ = x
 
 evalExpr env (TensorExpr nsExpr xsExpr) = do
@@ -311,7 +311,7 @@ evalExpr (Env _ Nothing) (FunctionExpr _) = throwError $ Default "function symbo
 
 evalExpr env@(Env _ (Just name)) (FunctionExpr args) = do
   args' <- mapM (evalExprDeep env) args >>= mapM extractScalar
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' "" (prettyS name)) (map (symbolScalarData' "" . prettyS) args) args' [], 1)])
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' "" (prettyStr name)) (map (symbolScalarData' "" . prettyStr') args) args' [], 1)])
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
@@ -812,7 +812,7 @@ recursiveBind env bindings = do
 recursiveRebind :: Env -> (Var, EgisonExpr) -> EgisonM Env
 recursiveRebind env (name, expr) = do
   case refVar env name of
-    Nothing -> throwError =<< UnboundVariable (prettyS name) <$> getFuncNameStack
+    Nothing -> throwError =<< UnboundVariable (prettyStr name) <$> getFuncNameStack
     Just ref -> case expr of
                   MemoizedLambdaExpr names body -> do
                     hashRef <- liftIO $ newIORef HL.empty
@@ -976,7 +976,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
               processMState' (mstate { mTrees = MAtom (InductivePat name args) target matcher:trees })
 
     NotPat _ -> throwError =<< EgisonBug "should not reach here (not-pattern)" <$> getFuncNameStack
-    VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyPattern pattern
+    VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyStr pattern
 
     LetPat bindings' pattern' -> do
       b <- fmap concat (mapM extractBindings bindings')
@@ -1125,13 +1125,13 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
                                          | otherwise = (k', v'):subst k nv xs
                 subst _ _ [] = []
-            IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyPattern pattern)
+            IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyStr pattern)
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets (replicate (length patterns) Something) ++ trees
               return . msingleton $ mstate { mTrees = trees' }
-            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ prettyPattern pattern
+            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ prettyStr pattern
         _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
