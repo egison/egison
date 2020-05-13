@@ -231,23 +231,23 @@ desugar (DoExpr binds expr) =
 desugar (IoExpr expr) =
   IoExpr <$> desugar expr
 
-desugar (UnaryOpExpr "-" expr) =
-  desugar (BinaryOpExpr mult (IntegerExpr (-1)) expr)
+desugar (PrefixExpr "-" expr) =
+  desugar (InfixExpr mult (IntegerExpr (-1)) expr)
     where mult = findOpFrom "*" reservedExprInfix
-desugar (UnaryOpExpr "!" (ApplyExpr expr1 expr2)) =
+desugar (PrefixExpr "!" (ApplyExpr expr1 expr2)) =
   WedgeApplyExpr <$> desugar expr1 <*> desugar expr2
-desugar (UnaryOpExpr "'" expr) = QuoteExpr <$> desugar expr
-desugar (UnaryOpExpr "`" expr) = QuoteSymbolExpr <$> desugar expr
+desugar (PrefixExpr "'" expr) = QuoteExpr <$> desugar expr
+desugar (PrefixExpr "`" expr) = QuoteSymbolExpr <$> desugar expr
 
-desugar (BinaryOpExpr op expr1 expr2) | isWedge op =
+desugar (InfixExpr op expr1 expr2) | isWedge op =
   (\x y -> WedgeApplyExpr (stringToVarExpr (func op)) (TupleExpr [x, y]))
     <$> desugar expr1 <*> desugar expr2
 
-desugar (BinaryOpExpr op expr1 expr2) | repr op == "::" =
+desugar (InfixExpr op expr1 expr2) | repr op == "::" =
   (\x y -> CollectionExpr [ElementExpr x, SubCollectionExpr y]) <$> desugar expr1 <*> desugar expr2
-desugar (BinaryOpExpr op expr1 expr2) | repr op == "++" =
+desugar (InfixExpr op expr1 expr2) | repr op == "++" =
   (\x y -> CollectionExpr [SubCollectionExpr x, SubCollectionExpr y]) <$> desugar expr1 <*> desugar expr2
-desugar (BinaryOpExpr op expr1 expr2) =
+desugar (InfixExpr op expr1 expr2) =
   (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 -- section
@@ -259,17 +259,17 @@ desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
   y <- fresh
   desugar $ LambdaExpr [TensorArg x, TensorArg y]
-                       (BinaryOpExpr op (stringToVarExpr x) (stringToVarExpr y))
+                       (InfixExpr op (stringToVarExpr x) (stringToVarExpr y))
 
 desugar (SectionExpr op Nothing (Just expr2)) = do
   x <- fresh
   desugar $ LambdaExpr [TensorArg x]
-                       (BinaryOpExpr op (stringToVarExpr x) expr2)
+                       (InfixExpr op (stringToVarExpr x) expr2)
 
 desugar (SectionExpr op (Just expr1) Nothing) = do
   y <- fresh
   desugar $ LambdaExpr [TensorArg y]
-                       (BinaryOpExpr op expr1 (stringToVarExpr y))
+                       (InfixExpr op expr1 (stringToVarExpr y))
 
 desugar SectionExpr{} = throwError $ Default "Cannot reach here: section with both arguments"
 
