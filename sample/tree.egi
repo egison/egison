@@ -1,0 +1,41 @@
+tree a := matcher
+  | leaf $ as a with
+    | Leaf $x -> [x]
+    | Node _ _ -> []
+  | node $ $ as (a, multiset (tree a)) with
+    | Leaf _ -> []
+    | Node $x $ts -> [(x, ts)]
+  | $ :: $ as (a, tree a) with
+    | Leaf _ -> []
+    | Node $x $ts -> map (\t -> (x, t)) ts
+  | $ ++ $ as (list a, tree a) with
+    | $tgt -> matchAll tgt as tree a with
+              | loop $i (1, $n) ($x_i :: ...) $t
+                -> (map (\i -> x_i) [1..n], t)
+  | $ as something with
+    | $tgt -> [tgt]
+
+treeData :=
+  Node "Programming language"
+    [Node "pattern-match-oriented" [Leaf "Egison"],
+     Node "Functional language"
+       [Node "Strictly typed" [Leaf "OCaml", Leaf "Haskell", Leaf "Curry", Leaf "Coq"],
+        Node "Dynamically typed" [Leaf "Egison", Leaf "Lisp", Leaf "Scheme", Leaf "Racket"]],
+     Node "Logic programming" [Leaf "Prolog", Leaf "Curry"],
+     Node "Object oriented" [Leaf "C++", Leaf "Java", Leaf "Ruby", Leaf "Python", Leaf "OCaml"]]
+
+ancestors x t :=
+  matchAllDFS t as tree eq with
+    | $hs ++ leaf #x -> hs
+
+assertEqual "ancestors"
+  (ancestors "Egison" treeData)
+  [["Programming language", "pattern-match-oriented"], ["Programming language", "Functional language", "Dynamically typed"]]
+
+descendants x t :=
+  matchAllDFS t as tree eq with
+    | _ ++ #x :: _ ++ leaf $y -> y
+
+assertEqual "descendants"
+  (descendants "Functional language" treeData)
+  ["OCaml", "Haskell", "Curry", "Coq", "Egison", "Lisp", "Scheme", "Racket"]
