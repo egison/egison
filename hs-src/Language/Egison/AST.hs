@@ -101,8 +101,8 @@ data EgisonExpr =
   | DoExpr [BindingExpr] EgisonExpr
   | IoExpr EgisonExpr
 
-  | UnaryOpExpr String EgisonExpr
-  | BinaryOpExpr Infix EgisonExpr EgisonExpr
+  | PrefixExpr String EgisonExpr
+  | InfixExpr Infix EgisonExpr EgisonExpr
   | SectionExpr Infix (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
 
   | SeqExpr EgisonExpr EgisonExpr

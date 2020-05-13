@@ -11,6 +11,8 @@ This module contains pretty printing for Egison syntax
 module Language.Egison.Pretty
     ( prettyTopExprs
     , PrettyS(..)
+    , prettyStr
+    , prettyStr'
     , showTSV
     ) where
 
@@ -18,6 +20,7 @@ import           Data.Foldable             (toList)
 import qualified Data.HashMap.Strict       as HashMap
 import           Data.List                 (intercalate)
 import           Data.Text.Prettyprint.Doc
+import           Data.Text.Prettyprint.Doc.Render.String (renderString)
 import qualified Data.Vector               as V
 
 import           Language.Egison.AST
@@ -122,21 +125,21 @@ instance Pretty EgisonExpr where
   pretty (QuoteExpr e) = squote <> pretty' e
   pretty (QuoteSymbolExpr e) = pretty '`' <> pretty' e
 
-  pretty (UnaryOpExpr op x@(IntegerExpr _)) = pretty op <> pretty x
-  pretty (UnaryOpExpr op x)
+  pretty (PrefixExpr op x@(IntegerExpr _)) = pretty op <> pretty x
+  pretty (PrefixExpr op x)
     | isAtomOrApp x = pretty op <+> pretty x
     | otherwise     = pretty op <+> parens (pretty x)
   -- (x1 op' x2) op y
-  pretty (BinaryOpExpr op x@(BinaryOpExpr op' _ _) y) =
+  pretty (InfixExpr op x@(InfixExpr op' _ _) y) =
     if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
        then parens (pretty x) <+> pretty op <> infixRight (pretty'' y)
        else pretty x          <+> pretty op <> infixRight (pretty'' y)
   -- x op (y1 op' y2)
-  pretty (BinaryOpExpr op x y@(BinaryOpExpr op' _ _)) =
+  pretty (InfixExpr op x y@(InfixExpr op' _ _)) =
     if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
        then pretty'' x <+> pretty op <> infixRight (parens (pretty y))
        else pretty'' x <+> pretty op <> infixRight (pretty y)
-  pretty (BinaryOpExpr op x y) =
+  pretty (InfixExpr op x y) =
     pretty'' x <+> pretty op <> infixRight (pretty'' y)
   pretty (SectionExpr op Nothing Nothing) = parens (pretty op)
   pretty (SectionExpr op (Just x) Nothing) = parens (pretty x <+> pretty op)
@@ -183,8 +186,12 @@ instance Pretty Arg where
   pretty (TensorArg x)         = pretty '%' <> pretty x
 
 instance Pretty Var where
-  -- TODO: indices
-  pretty (Var xs _) = concatWith (surround dot) (map pretty xs)
+  pretty (Var xs is) =
+    concatWith (surround dot) (map pretty xs) <> hcat (map pretty is)
+
+instance Pretty VarWithIndices where
+  pretty (VarWithIndices xs is) =
+    concatWith (surround dot) (map pretty xs) <> hcat (map pretty is)
 
 instance Pretty InnerExpr where
   pretty (ElementExpr x) = pretty x
@@ -199,6 +206,22 @@ instance {-# OVERLAPPING #-} Pretty BindingExpr where
 instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
     pipe <+> align (pretty pat) <+> indentBlock (pretty "->") [pretty expr]
+
+instance {-# OVERLAPPING #-} Pretty (Index ()) where -- Used for 'Var'
+  pretty Subscript{}    = pretty '_'
+  pretty Superscript{}  = pretty '~'
+  pretty SupSubscript{} = pretty "~_"
+  pretty DFscript{}     = pretty ""
+  pretty Userscript{}   = pretty '|'
+  pretty _              = undefined
+
+instance {-# OVERLAPPING #-} Pretty (Index String) where -- for 'VarWithIndices'
+  pretty (Superscript s)  = pretty ("~" ++ s)
+  pretty (Subscript s)    = pretty ("_" ++ s)
+  pretty (SupSubscript s) = pretty ("~_" ++ s)
+  pretty (DFscript _ _)   = pretty ""
+  pretty (Userscript i)   = pretty ("|" ++ show i)
+  pretty _                = undefined
 
 instance (Pretty a, Complex a) => Pretty (Index a) where
   pretty (Subscript i) = pretty '_' <> pretty' i
@@ -253,7 +276,7 @@ instance Pretty EgisonPattern where
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (BinaryOpExpr (Infix { repr = "-'" }) _ (IntegerExpr 1))) pat) =
+                                    (InfixExpr (Infix { repr = "-'" }) _ (IntegerExpr 1))) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
@@ -287,8 +310,8 @@ instance Complex EgisonExpr where
   isAtom (IntegerExpr i) | i < 0  = False
   isAtom (InductiveDataExpr _ []) = True
   isAtom (InductiveDataExpr _ _)  = False
-  isAtom UnaryOpExpr{}            = False
-  isAtom BinaryOpExpr{}           = False
+  isAtom PrefixExpr{}             = False
+  isAtom InfixExpr{}              = False
   isAtom ApplyExpr{}              = False
   isAtom CApplyExpr{}             = False
   isAtom LambdaExpr{}             = False
@@ -320,8 +343,8 @@ instance Complex EgisonExpr where
   isAtomOrApp InductiveDataExpr{} = True
   isAtomOrApp e                   = isAtom e
 
-  isInfix BinaryOpExpr{}  = True
-  isInfix _               = False
+  isInfix InfixExpr{}             = True
+  isInfix _                       = False
 
 instance Complex EgisonPattern where
   isAtom (LetPat _ _)        = False
@@ -409,39 +432,21 @@ infixRight :: Doc ann -> Doc ann
 infixRight p = group (flatAlt (hardline <> p) (space <> p))
 
 --
+-- Pretty printer for error messages
+--
+
+prettyStr :: Pretty a => a -> String
+prettyStr = renderString . layoutPretty (LayoutOptions Unbounded) . pretty
+
+prettyStr' :: (Pretty a, Complex a) => a -> String
+prettyStr' = renderString . layoutPretty (LayoutOptions Unbounded) . pretty'
+
+--
 -- Pretty printer for S-expression
 --
 
 class PrettyS a where
   prettyS :: a -> String
-
-instance PrettyS EgisonExpr where
-  prettyS (CharExpr c) = "c#" ++ [c]
-  prettyS (StringExpr str) = show str
-  prettyS (BoolExpr True) = "#t"
-  prettyS (BoolExpr False) = "#f"
-  prettyS (IntegerExpr n) = show n
-  prettyS (FloatExpr x) = show x
-  prettyS (VarExpr name) = prettyS name
-  prettyS (AnonParamExpr n) = "%" ++ show n
-  prettyS (FunctionExpr args) = "(function [" ++ unwords (map prettyS args) ++ "])"
-  prettyS (IndexedExpr True expr idxs) = prettyS expr ++ concatMap prettyS idxs
-  prettyS (IndexedExpr False expr idxs) = prettyS expr ++ "..." ++ concatMap prettyS idxs
-  prettyS (TupleExpr exprs) = "[" ++ unwords (map prettyS exprs) ++ "]"
-  prettyS (CollectionExpr ls) = "{" ++ unwords (map prettyS ls) ++ "}"
-
-  prettyS (UnaryOpExpr op e) = op ++ " " ++ prettyS e
-  prettyS (BinaryOpExpr op e1 e2) = "(" ++ prettyS e1 ++ " " ++ prettyS op ++ " " ++ prettyS e2 ++ ")"
-
-  prettyS (QuoteExpr e) = "'" ++ prettyS e
-  prettyS (QuoteSymbolExpr e) = "`" ++ prettyS e
-
-  prettyS (ApplyExpr fn (TupleExpr [])) = "(" ++ prettyS fn ++ ")"
-  prettyS (ApplyExpr fn (TupleExpr args)) = "(" ++ prettyS fn ++ " " ++ unwords (map prettyS args) ++ ")"
-  prettyS (ApplyExpr fn arg) = "(" ++ prettyS fn ++ " " ++ prettyS arg ++ ")"
-  prettyS (VectorExpr xs) = "[| " ++ unwords (map prettyS xs) ++ " |]"
-  prettyS (WithSymbolsExpr xs e) = "(withSymbols {" ++ unwords xs ++ "} " ++ prettyS e ++ ")"
-  prettyS _ = "(not supported)"
 
 instance PrettyS EgisonValue where
   prettyS (Char c) = "c#" ++ [c]
@@ -466,7 +471,7 @@ instance PrettyS EgisonValue where
   prettyS UserMatcher{} = "#<user-matcher>"
   prettyS (Func Nothing _ args _) = "(lambda [" ++ unwords (map ('$':) args) ++ "] ...)"
   prettyS (Func (Just name) _ _ _) = prettyS name
-  prettyS (AnonParamFunc _ n expr) = show n ++ "#" ++ prettyS expr
+  prettyS (AnonParamFunc _ n _) = show n ++ "#(...)"
   prettyS (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
   prettyS (CFunc (Just name) _ _ _) = prettyS name
   prettyS (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
@@ -482,21 +487,6 @@ instance PrettyS EgisonValue where
 
 instance PrettyS Var where
   prettyS = show
-
-instance PrettyS VarWithIndices where
-  prettyS = show
-
-instance PrettyS Infix where
-  prettyS = repr
-
-instance PrettyS InnerExpr where
-  prettyS (ElementExpr e) = prettyS e
-  prettyS (SubCollectionExpr e) = '@' : prettyS e
-
-instance PrettyS Arg where
-  prettyS (ScalarArg name)         = "$" ++ name
-  prettyS (InvertedScalarArg name) = "*$" ++ name
-  prettyS (TensorArg name)         = "%" ++ name
 
 instance PrettyS ScalarData where
   prettyS (Div p1 (Plus [Term 1 []])) = prettyS p1
@@ -551,43 +541,3 @@ instance {-# OVERLAPPING #-} PrettyS (Index EgisonValue) where
   prettyS (Userscript i) = case i of
     ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
     _ -> "|" ++ prettyS i
-
-instance PrettyS EgisonPattern where
-  prettyS WildCard = "_"
-  prettyS (PatVar var) = "$" ++ prettyS var
-  prettyS (ValuePat expr) = "," ++ prettyS expr
-  prettyS (PredPat expr) = "?" ++ prettyS expr
-  prettyS (IndexedPat pat exprs) = prettyS pat ++ concatMap (("_" ++) . prettyS) exprs
-  prettyS (LetPat bexprs pat) =
-    "(let {" ++ unwords (map (\(vars, expr) -> "[" ++ varsHelper vars ++ " " ++ prettyS expr ++ "]") bexprs) ++
-      "} " ++ prettyS pat ++ ")"
-    where varsHelper [] = ""
-          varsHelper [v] = "$" ++ prettyS v
-          varsHelper vs = "[" ++ unwords (map (("$" ++) . prettyS) vs) ++ "]"
-  prettyS (NotPat pat) = "!" ++ prettyS pat
-  prettyS (AndPat pats) = "(&" ++ concatMap ((" " ++) . prettyS) pats ++ ")"
-  prettyS (OrPat pats) = "(|" ++ concatMap ((" " ++) . prettyS) pats ++ ")"
-  prettyS (TuplePat pats) = "[" ++ unwords (map prettyS pats) ++ "]"
-  prettyS (InductivePat name pats) = "<" ++ name ++ concatMap ((" " ++) . prettyS) pats ++ ">"
-  prettyS (LoopPat var range pat endPat) = "(loop $" ++ unwords [prettyS var, prettyS range, prettyS pat, prettyS endPat] ++ ")"
-  prettyS ContPat = "..."
-  prettyS (PApplyPat expr pats) = "(" ++ unwords (prettyS expr : map prettyS pats) ++ ")"
-  prettyS (VarPat name) = name
-  prettyS SeqNilPat = "{}"
-  prettyS (SeqConsPat pat pat') = "{" ++ prettyS pat ++ seqPatHelper pat' ++ "}"
-    where seqPatHelper SeqNilPat = ""
-          seqPatHelper (SeqConsPat pat pat') = " " ++ prettyS pat ++ seqPatHelper pat'
-          seqPatHelper pat = " " ++ prettyS pat
-  prettyS LaterPatVar = "#"
-
-  prettyS (DApplyPat pat pats) = "(" ++ unwords (prettyS pat : map prettyS pats) ++ ")"
-  prettyS (DivPat pat pat') = "(/ " ++ prettyS pat ++ " " ++ prettyS pat' ++ ")"
-  prettyS (PlusPat pats) = "(+" ++ concatMap ((" " ++) . prettyS) pats
-  prettyS (MultPat pats) = "(*" ++ concatMap ((" " ++) . prettyS) pats
-  prettyS (PowerPat pat pat') = "(" ++ prettyS pat ++ " ^ " ++ prettyS pat' ++ ")"
-  prettyS _ = "(not supported)"
-
-instance PrettyS LoopRange where
-  prettyS (LoopRange start (ApplyExpr (VarExpr (Var ["from"] [])) (ApplyExpr _ (TupleExpr (x:_)))) endPat) =
-    "[" ++ show start ++ " (from " ++ show x ++ ") " ++ prettyS endPat ++ "]"
-  prettyS (LoopRange start ends endPat) = "[" ++ show start ++ " " ++ show ends ++ " " ++ prettyS endPat ++ "]"
