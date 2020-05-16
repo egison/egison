@@ -4,63 +4,63 @@ Licence     : MIT
 -}
 
 module Language.Egison.PrettyMath.Mathematica
-  ( showMathExprMathematica
+  ( showMathExpr
   ) where
 
 import           Data.List                     (intercalate)
 
 import           Language.Egison.PrettyMath.AST
 
-showMathExprMathematica :: MathExpr -> String
-showMathExprMathematica (Atom a []) = a
-showMathExprMathematica (Partial f xs) = showMathExprMathematica f ++ "_" ++ showMathExprsMathematica "_" xs
-showMathExprMathematica (NegativeAtom a) = "-" ++ a
-showMathExprMathematica (Plus []) = ""
-showMathExprMathematica (Plus (x:xs)) = showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
+showMathExpr :: MathExpr -> String
+showMathExpr (Atom a []) = a
+showMathExpr (Partial f xs) = showMathExpr f ++ "_" ++ showMathExprs "_" xs
+showMathExpr (NegativeAtom a) = "-" ++ a
+showMathExpr (Plus []) = ""
+showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
  where
-  showMathExprMathematicaForPlus :: [MathExpr] -> String
-  showMathExprMathematicaForPlus [] = ""
-  showMathExprMathematicaForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprMathematicaForPlus xs
-  showMathExprMathematicaForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExprMathematica (Multiply ys) ++ showMathExprMathematicaForPlus xs
-  showMathExprMathematicaForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExprMathematica (Multiply (Atom a []:ys)) ++ showMathExprMathematicaForPlus xs
-  showMathExprMathematicaForPlus (x:xs) = " + " ++  showMathExprMathematica x ++ showMathExprMathematicaForPlus xs
-showMathExprMathematica (Multiply []) = ""
-showMathExprMathematica (Multiply [x]) = showMathExprMathematica x
-showMathExprMathematica (Multiply (Atom "1" []:xs)) = showMathExprMathematica (Multiply xs)
-showMathExprMathematica (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExprMathematica (Multiply xs)
-showMathExprMathematica (Multiply (x:xs)) = showMathExprMathematica' x ++ " " ++ showMathExprMathematica (Multiply xs)
-showMathExprMathematica (Power lv1 lv2) = showMathExprMathematica lv1 ++ "^" ++ showMathExprMathematica lv2
-showMathExprMathematica (Func (Atom "sqrt" []) [x]) = "Sqrt[" ++ showMathExprMathematica x ++ "]"
-showMathExprMathematica (Func (Atom "rt" []) [x, y]) = "Surd[" ++ showMathExprMathematica x ++ "," ++ showMathExprMathematica y ++ "]"
-showMathExprMathematica (Func (Atom "/" []) [x, y]) = addBracket x ++ "/" ++ addBracket y
+  showMathExprForPlus :: [MathExpr] -> String
+  showMathExprForPlus [] = ""
+  showMathExprForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprForPlus xs
+  showMathExprForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExpr (Multiply ys) ++ showMathExprForPlus xs
+  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ showMathExprForPlus xs
+  showMathExprForPlus (x:xs) = " + " ++  showMathExpr x ++ showMathExprForPlus xs
+showMathExpr (Multiply []) = ""
+showMathExpr (Multiply [x]) = showMathExpr x
+showMathExpr (Multiply (Atom "1" []:xs)) = showMathExpr (Multiply xs)
+showMathExpr (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExpr (Multiply xs)
+showMathExpr (Multiply (x:xs)) = showMathExpr' x ++ " " ++ showMathExpr (Multiply xs)
+showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
+showMathExpr (Func (Atom "sqrt" []) [x]) = "Sqrt[" ++ showMathExpr x ++ "]"
+showMathExpr (Func (Atom "rt" []) [x, y]) = "Surd[" ++ showMathExpr x ++ "," ++ showMathExpr y ++ "]"
+showMathExpr (Func (Atom "/" []) [x, y]) = addBracket x ++ "/" ++ addBracket y
  where
-   addBracket x@(Atom _ []) = showMathExprMathematica x
-   addBracket x             = "(" ++ showMathExprMathematica x ++ ")"
-showMathExprMathematica (Func f xs) = showMathExprMathematica f ++ "(" ++ showMathExprMathematicaArg xs ++ ")"
-showMathExprMathematica (Tensor lvs mis)
-  | null mis = "{" ++ showMathExprMathematicaArg lvs ++ "}"
-  | not (any isSub mis) = "{" ++ showMathExprMathematicaArg lvs ++ "}^(" ++ showMathExprMathematicaIndices mis ++ ")"
-  | not (any (not . isSub) mis) = "{" ++ showMathExprMathematicaArg lvs ++ "}_(" ++ showMathExprMathematicaIndices mis ++ ")"
-  | otherwise = "{" ++ showMathExprMathematicaArg lvs ++ "}_(" ++ showMathExprMathematicaIndices (filter isSub mis) ++ ")^(" ++ showMathExprMathematicaIndices (filter (not . isSub) mis) ++ ")"
-showMathExprMathematica (Tuple xs) = "(" ++ showMathExprMathematicaArg xs ++ ")"
-showMathExprMathematica (Collection xs) = "{" ++ showMathExprMathematicaArg xs ++ "}"
-showMathExprMathematica (Exp x) = "e^(" ++ showMathExprMathematica x ++ ")"
-showMathExprMathematica (Quote x) = "(" ++ showMathExprMathematica x ++ ")"
+   addBracket x@(Atom _ []) = showMathExpr x
+   addBracket x             = "(" ++ showMathExpr x ++ ")"
+showMathExpr (Func f xs) = showMathExpr f ++ "(" ++ showMathExprArg xs ++ ")"
+showMathExpr (Tensor lvs mis)
+  | null mis = "{" ++ showMathExprArg lvs ++ "}"
+  | not (any isSub mis) = "{" ++ showMathExprArg lvs ++ "}^(" ++ showMathExprIndices mis ++ ")"
+  | not (any (not . isSub) mis) = "{" ++ showMathExprArg lvs ++ "}_(" ++ showMathExprIndices mis ++ ")"
+  | otherwise = "{" ++ showMathExprArg lvs ++ "}_(" ++ showMathExprIndices (filter isSub mis) ++ ")^(" ++ showMathExprIndices (filter (not . isSub) mis) ++ ")"
+showMathExpr (Tuple xs) = "(" ++ showMathExprArg xs ++ ")"
+showMathExpr (Collection xs) = "{" ++ showMathExprArg xs ++ "}"
+showMathExpr (Exp x) = "e^(" ++ showMathExpr x ++ ")"
+showMathExpr (Quote x) = "(" ++ showMathExpr x ++ ")"
 
-showMathExprMathematica' :: MathExpr -> String
-showMathExprMathematica' (Plus xs) = "(" ++ showMathExprMathematica (Plus xs) ++ ")"
-showMathExprMathematica' x = showMathExprMathematica x
+showMathExpr' :: MathExpr -> String
+showMathExpr' (Plus xs) = "(" ++ showMathExpr (Plus xs) ++ ")"
+showMathExpr' x = showMathExpr x
 
-showMathExprsMathematica :: String -> [MathExpr] -> String
-showMathExprsMathematica sep exprs = intercalate sep $ map showMathExprMathematica exprs
+showMathExprs :: String -> [MathExpr] -> String
+showMathExprs sep exprs = intercalate sep $ map showMathExpr exprs
 
-showMathExprMathematicaArg :: [MathExpr] -> String
-showMathExprMathematicaArg = showMathExprsMathematica ", "
+showMathExprArg :: [MathExpr] -> String
+showMathExprArg = showMathExprs ", "
 
-showMathExprMathematicaIndices :: [MathIndex] -> String
-showMathExprMathematicaIndices []  = error "unreachable"
-showMathExprMathematicaIndices lvs = concatMap showMathIndexMathematica lvs
+showMathExprIndices :: [MathIndex] -> String
+showMathExprIndices []  = error "unreachable"
+showMathExprIndices lvs = concatMap showMathIndex lvs
 
-showMathIndexMathematica :: MathIndex -> String
-showMathIndexMathematica (Super a) = showMathExprMathematica a
-showMathIndexMathematica (Sub a)   = showMathExprMathematica a
+showMathIndex :: MathIndex -> String
+showMathIndex (Super a) = showMathExpr a
+showMathIndex (Sub a)   = showMathExpr a

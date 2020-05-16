@@ -4,54 +4,54 @@ Licence     : MIT
 -}
 
 module Language.Egison.PrettyMath.AsciiMath
-  ( showMathExprAsciiMath
+  ( showMathExpr
   ) where
 
 import           Data.List                     (intercalate)
 
 import           Language.Egison.PrettyMath.AST
 
-showMathExprAsciiMath :: MathExpr -> String
-showMathExprAsciiMath (Atom func []) = func
-showMathExprAsciiMath (NegativeAtom func) = "-" ++ func
-showMathExprAsciiMath (Plus []) = ""
-showMathExprAsciiMath (Plus (x:xs)) = showMathExprAsciiMath x ++ showMathExprAsciiMathForPlus xs
+showMathExpr :: MathExpr -> String
+showMathExpr (Atom func []) = func
+showMathExpr (NegativeAtom func) = "-" ++ func
+showMathExpr (Plus []) = ""
+showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
  where
-  showMathExprAsciiMathForPlus :: [MathExpr] -> String
-  showMathExprAsciiMathForPlus [] = ""
-  showMathExprAsciiMathForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprAsciiMathForPlus xs
-  showMathExprAsciiMathForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExprAsciiMath (Multiply ys) ++ showMathExprAsciiMathForPlus xs
-  showMathExprAsciiMathForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExprAsciiMath (Multiply (Atom a []:ys)) ++ " " ++ showMathExprAsciiMathForPlus xs
-  showMathExprAsciiMathForPlus (x:xs) = " + " ++ showMathExprAsciiMath x ++ showMathExprAsciiMathForPlus xs
-showMathExprAsciiMath (Multiply []) = ""
-showMathExprAsciiMath (Multiply [a]) = showMathExprAsciiMath a
-showMathExprAsciiMath (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExprAsciiMath (Multiply lvs)
-showMathExprAsciiMath (Multiply lvs) = showMathExprAsciiMath' (head lvs) ++ " " ++ showMathExprAsciiMath (Multiply (tail lvs))
-showMathExprAsciiMath (Power lv1 lv2) = showMathExprAsciiMath lv1 ++ "^" ++ showMathExprAsciiMath lv2
-showMathExprAsciiMath (Func (Atom "sqrt" []) [x]) = "sqrt " ++ showMathExprAsciiMath x
-showMathExprAsciiMath (Func (Atom "rt" []) [x, y]) = "root " ++ showMathExprAsciiMath x ++ " " ++ showMathExprAsciiMath y
-showMathExprAsciiMath (Func (Atom "/" []) [x, y]) = "frac{" ++ showMathExprAsciiMath x ++ "}{" ++ showMathExprAsciiMath y ++ "}"
-showMathExprAsciiMath (Func f lvs) = showMathExprAsciiMath f ++ "(" ++ showMathExprAsciiMathArg lvs ++ ")"
-showMathExprAsciiMath (Tensor lvs mis)
-  | null mis = "(" ++ showMathExprAsciiMathArg lvs ++ ")"
-  | not (any isSub mis) = "(" ++ showMathExprAsciiMathArg lvs ++ ")^(" ++ showMathExprAsciiMathIndices mis ++ ")"
-  | not (any (not . isSub) mis) = "(" ++ showMathExprAsciiMathArg lvs ++ ")_(" ++ showMathExprAsciiMathIndices mis ++ ")"
-  | otherwise = "(" ++ showMathExprAsciiMathArg lvs ++ ")_(" ++ showMathExprAsciiMathIndices (filter isSub mis) ++ ")^(" ++ showMathExprAsciiMathIndices (filter (not . isSub) mis) ++ ")"
-showMathExprAsciiMath (Tuple lvs) = "(" ++ showMathExprAsciiMathArg lvs ++ ")"
-showMathExprAsciiMath (Collection lvs) = "{" ++ showMathExprAsciiMathArg lvs ++ "}"
-showMathExprAsciiMath (Exp x) = "e^(" ++ showMathExprAsciiMath x ++ ")"
+  showMathExprForPlus :: [MathExpr] -> String
+  showMathExprForPlus [] = ""
+  showMathExprForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprForPlus xs
+  showMathExprForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExpr (Multiply ys) ++ showMathExprForPlus xs
+  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ " " ++ showMathExprForPlus xs
+  showMathExprForPlus (x:xs) = " + " ++ showMathExpr x ++ showMathExprForPlus xs
+showMathExpr (Multiply []) = ""
+showMathExpr (Multiply [a]) = showMathExpr a
+showMathExpr (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExpr (Multiply lvs)
+showMathExpr (Multiply lvs) = showMathExpr' (head lvs) ++ " " ++ showMathExpr (Multiply (tail lvs))
+showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
+showMathExpr (Func (Atom "sqrt" []) [x]) = "sqrt " ++ showMathExpr x
+showMathExpr (Func (Atom "rt" []) [x, y]) = "root " ++ showMathExpr x ++ " " ++ showMathExpr y
+showMathExpr (Func (Atom "/" []) [x, y]) = "frac{" ++ showMathExpr x ++ "}{" ++ showMathExpr y ++ "}"
+showMathExpr (Func f lvs) = showMathExpr f ++ "(" ++ showMathExprArg lvs ++ ")"
+showMathExpr (Tensor lvs mis)
+  | null mis = "(" ++ showMathExprArg lvs ++ ")"
+  | not (any isSub mis) = "(" ++ showMathExprArg lvs ++ ")^(" ++ showMathExprIndices mis ++ ")"
+  | not (any (not . isSub) mis) = "(" ++ showMathExprArg lvs ++ ")_(" ++ showMathExprIndices mis ++ ")"
+  | otherwise = "(" ++ showMathExprArg lvs ++ ")_(" ++ showMathExprIndices (filter isSub mis) ++ ")^(" ++ showMathExprIndices (filter (not . isSub) mis) ++ ")"
+showMathExpr (Tuple lvs) = "(" ++ showMathExprArg lvs ++ ")"
+showMathExpr (Collection lvs) = "{" ++ showMathExprArg lvs ++ "}"
+showMathExpr (Exp x) = "e^(" ++ showMathExpr x ++ ")"
 
-showMathExprAsciiMath' :: MathExpr -> String
-showMathExprAsciiMath' (Plus lvs) = "(" ++ showMathExprAsciiMath (Plus lvs) ++ ")"
-showMathExprAsciiMath' val = showMathExprAsciiMath val
+showMathExpr' :: MathExpr -> String
+showMathExpr' (Plus lvs) = "(" ++ showMathExpr (Plus lvs) ++ ")"
+showMathExpr' val = showMathExpr val
 
-showMathExprAsciiMathArg :: [MathExpr] -> String
-showMathExprAsciiMathArg exprs = intercalate ", " $ map showMathExprAsciiMath exprs
+showMathExprArg :: [MathExpr] -> String
+showMathExprArg exprs = intercalate ", " $ map showMathExpr exprs
 
-showMathExprAsciiMathIndices :: [MathIndex] -> String
-showMathExprAsciiMathIndices []  = error "unreachable"
-showMathExprAsciiMathIndices lvs = concatMap showMathIndexAsciiMath lvs
+showMathExprIndices :: [MathIndex] -> String
+showMathExprIndices []  = error "unreachable"
+showMathExprIndices lvs = concatMap showMathIndex lvs
 
-showMathIndexAsciiMath :: MathIndex -> String
-showMathIndexAsciiMath (Super a) = showMathExprAsciiMath a
-showMathIndexAsciiMath (Sub a)   = showMathExprAsciiMath a
+showMathIndex :: MathIndex -> String
+showMathIndex (Super a) = showMathExpr a
+showMathIndex (Sub a)   = showMathExpr a
