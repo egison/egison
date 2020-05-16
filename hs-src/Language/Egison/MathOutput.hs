@@ -13,10 +13,10 @@ module Language.Egison.MathOutput
 import           Text.ParserCombinators.Parsec          (parse)
 
 import           Language.Egison.PrettyMath.AST
-import           Language.Egison.PrettyMath.AsciiMath
-import           Language.Egison.PrettyMath.Latex
-import           Language.Egison.PrettyMath.Mathematica
-import           Language.Egison.PrettyMath.Maxima
+import qualified Language.Egison.PrettyMath.AsciiMath   as AsciiMath
+import qualified Language.Egison.PrettyMath.Latex       as Latex
+import qualified Language.Egison.PrettyMath.Mathematica as Mathematica
+import qualified Language.Egison.PrettyMath.Maxima      as Maxima
 
 changeOutputInLang :: String -> String -> String
 changeOutputInLang lang input =
@@ -29,9 +29,9 @@ changeOutputInLang lang input =
                    output      -> "#" ++ lang ++ "|" ++ output ++ "|#"
 
 showMathExpr :: String -> MathExpr -> String
-showMathExpr "asciimath"   = showMathExprAsciiMath
-showMathExpr "latex"       = showMathExprLatex
-showMathExpr "mathematica" = showMathExprMathematica
-showMathExpr "maxima"      = showMathExprMaxima
+showMathExpr "asciimath"   = AsciiMath.showMathExpr
+showMathExpr "latex"       = Latex.showMathExpr
+showMathExpr "mathematica" = Mathematica.showMathExpr
+showMathExpr "maxima"      = Maxima.showMathExpr
 showMathExpr "haskell"     = show
 showMathExpr _             = error "Unreachable"
