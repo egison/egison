@@ -60,7 +60,6 @@ module Language.Egison.Data
     , SeqPatContext (..)
     -- * Errors
     , EgisonError (..)
-    , liftError
     -- * Monads
     , EgisonM (..)
     , fromEgisonM
@@ -655,9 +654,6 @@ showTrace :: CallStack -> String
 showTrace stack = "\n  stack trace: " ++ intercalate ", " stack
 
 instance Exception EgisonError
-
-liftError :: (MonadError e m) => Either e a -> m a
-liftError = either throwError return
 
 --
 -- Monads
