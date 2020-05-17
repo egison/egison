@@ -12,15 +12,11 @@ This module defines the internal state of Egison runtime.
 
 module Language.Egison.IState
   ( IState(..)
-  , FreshT(..)
-  , Fresh
-  , MonadFresh(..)
-  , runFreshT
+  , MonadEval(..)
   , modifyCounter
   ) where
 
 import           Control.Monad.Except
-import           Control.Monad.Identity
 import           Control.Monad.State
 import           Data.IORef
 
@@ -36,12 +32,7 @@ data IState = IState
   , funcNameStack :: [String]
   }
 
-newtype FreshT m a = FreshT { unFreshT :: StateT IState m a }
-  deriving (Functor, Applicative, Monad, MonadState IState, MonadTrans)
-
-type Fresh = FreshT Identity
-
-class (Applicative m, Monad m) => MonadFresh m where
+class (Applicative m, Monad m) => MonadEval m where
   fresh :: m String
   freshV :: m Var
   pushFuncName :: String -> m ()
@@ -49,37 +40,13 @@ class (Applicative m, Monad m) => MonadFresh m where
   popFuncName :: m ()
   getFuncNameStack :: m [String]
 
-instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
-  fresh = FreshT $ do
-    st <- get; modify (\st -> st { indexCounter = indexCounter st + 1 })
-    return $ "$_" ++ show (indexCounter st)
-  freshV = FreshT $ do
-    st <- get; modify (\st -> st {indexCounter = indexCounter st + 1 })
-    return $ Var ["$_" ++ show (indexCounter st)] []
-  pushFuncName name = FreshT $ do
-    st <- get
-    put $ st { funcNameStack = name : funcNameStack st }
-    return ()
-  topFuncName = FreshT $ head . funcNameStack <$> get
-  popFuncName = FreshT $ do
-    st <- get
-    put $ st { funcNameStack = tail $ funcNameStack st }
-    return ()
-  getFuncNameStack = FreshT $ funcNameStack <$> get
-
-instance (MonadFresh m) => MonadFresh (ExceptT e m) where
+instance (MonadEval m) => MonadEval (ExceptT e m) where
   fresh = lift fresh
   freshV = lift freshV
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
   popFuncName = lift popFuncName
   getFuncNameStack = lift getFuncNameStack
-
-instance MonadIO (FreshT IO) where
-  liftIO = lift
-
-runFreshT :: Monad m => IState -> FreshT m a -> m (a, IState)
-runFreshT = flip (runStateT . unFreshT)
 
 {-# NOINLINE counter #-}
 counter :: IORef Int
@@ -91,9 +58,9 @@ readCounter = readIORef counter
 updateCounter :: Int -> IO ()
 updateCounter = writeIORef counter
 
-modifyCounter :: FreshT IO a -> IO a
+modifyCounter :: MonadIO m => StateT IState m a -> m a
 modifyCounter m = do
-  x <- readCounter
-  (result, st) <- runFreshT (IState { indexCounter = x, funcNameStack = [] }) m
-  updateCounter $ indexCounter st
+  x <- liftIO $ readCounter
+  (result, st) <- runStateT m (IState { indexCounter = x, funcNameStack = [] })
+  liftIO $ updateCounter $ indexCounter st
   return result

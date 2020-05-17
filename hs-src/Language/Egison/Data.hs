@@ -73,6 +73,7 @@ import           Data.Typeable
 
 import           Control.Monad.Except      hiding (join)
 import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.State
 
 import           Data.Foldable             (toList)
 import           Data.HashMap.Strict       (HashMap)
@@ -663,14 +664,32 @@ liftError = either throwError return
 --
 
 newtype EgisonM a = EgisonM {
-    unEgisonM :: ExceptT EgisonError (FreshT IO) a
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError, MonadFresh)
+    unEgisonM :: StateT IState (ExceptT EgisonError IO) a
+  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
 
 instance MonadFail EgisonM where
-    fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
+  fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
+
+instance MonadEval EgisonM where
+  fresh = EgisonM $ do
+    st <- get; modify (\st -> st { indexCounter = indexCounter st + 1 })
+    return $ "$_" ++ show (indexCounter st)
+  freshV = EgisonM $ do
+    st <- get; modify (\st -> st {indexCounter = indexCounter st + 1 })
+    return $ Var ["$_" ++ show (indexCounter st)] []
+  pushFuncName name = EgisonM $ do
+    st <- get
+    put $ st { funcNameStack = name : funcNameStack st }
+    return ()
+  topFuncName = EgisonM $ head . funcNameStack <$> get
+  popFuncName = EgisonM $ do
+    st <- get
+    put $ st { funcNameStack = tail $ funcNameStack st }
+    return ()
+  getFuncNameStack = EgisonM $ funcNameStack <$> get
 
 fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
-fromEgisonM = modifyCounter . runExceptT . unEgisonM
+fromEgisonM = runExceptT . modifyCounter . unEgisonM
 
 type MatchM = MaybeT EgisonM
 
