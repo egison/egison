@@ -63,8 +63,6 @@ module Language.Egison.Data
     , liftError
     -- * Monads
     , EgisonM (..)
-    , runEgisonM
-    , liftEgisonM
     , fromEgisonM
     , MatchM
     , matchFail
@@ -74,7 +72,6 @@ import           Control.Exception
 import           Data.Typeable
 
 import           Control.Monad.Except      hiding (join)
-import           Control.Monad.State       (get, put)
 import           Control.Monad.Trans.Maybe
 
 import           Data.Foldable             (toList)
@@ -672,18 +669,8 @@ newtype EgisonM a = EgisonM {
 instance MonadFail EgisonM where
     fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
 
-runEgisonM :: EgisonM a -> FreshT IO (Either EgisonError a)
-runEgisonM = runExceptT . unEgisonM
-
-liftEgisonM :: Fresh (Either EgisonError a) -> EgisonM a
-liftEgisonM m = EgisonM $ ExceptT $ FreshT $ do
-  s <- get
-  (a, s') <- return $ runFresh s m
-  put s'
-  return $ either throwError return a
-
 fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
-fromEgisonM = modifyCounter . runEgisonM
+fromEgisonM = modifyCounter . runExceptT . unEgisonM
 
 type MatchM = MaybeT EgisonM
 
