@@ -16,7 +16,6 @@ module Language.Egison.IState
   , Fresh
   , MonadFresh(..)
   , runFreshT
-  , runFresh
   , modifyCounter
   ) where
 
@@ -68,18 +67,6 @@ instance (Applicative m, Monad m) => MonadFresh (FreshT m) where
     return ()
   getFuncNameStack = FreshT $ funcNameStack <$> get
 
-instance (MonadState s m) => MonadState s (FreshT m) where
-  get = lift get
-  put s = lift $ put s
-
-instance (MonadFresh m) => MonadFresh (StateT s m) where
-  fresh = lift fresh
-  freshV = lift freshV
-  pushFuncName name = lift $ pushFuncName name
-  topFuncName = lift topFuncName
-  popFuncName = lift popFuncName
-  getFuncNameStack = lift getFuncNameStack
-
 instance (MonadFresh m) => MonadFresh (ExceptT e m) where
   fresh = lift fresh
   freshV = lift freshV
@@ -93,9 +80,6 @@ instance MonadIO (FreshT IO) where
 
 runFreshT :: Monad m => IState -> FreshT m a -> m (a, IState)
 runFreshT = flip (runStateT . unFreshT)
-
-runFresh :: IState -> Fresh a -> (a, IState)
-runFresh seed m = runIdentity $ flip runStateT seed $ unFreshT m
 
 {-# NOINLINE counter #-}
 counter :: IORef Int
