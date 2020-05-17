@@ -57,14 +57,14 @@ testCases =
 runTestCase :: FilePath -> Test
 runTestCase file = TestLabel file . TestCase $ do
   env <- initialEnv defaultOption
-  assertEgisonM $ do
+  assertEvalM $ do
     exprs <- loadFile file
     let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
     env' <- recursiveBind env bindings
     forM_ tests $ evalExprDeep env'
   where
-    assertEgisonM :: EgisonM a -> Assertion
-    assertEgisonM m = fromEgisonM m >>= assertString . either show (const "")
+    assertEvalM :: EvalM a -> Assertion
+    assertEvalM m = fromEvalM m >>= assertString . either show (const "")
 
 collectDefsAndTests :: EgisonTopExpr -> ([(Var, EgisonExpr)], [EgisonExpr]) -> ([(Var, EgisonExpr)], [EgisonExpr])
 collectDefsAndTests (Define name expr) (bindings, tests) =

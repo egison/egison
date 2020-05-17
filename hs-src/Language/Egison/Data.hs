@@ -61,8 +61,8 @@ module Language.Egison.Data
     -- * Errors
     , EgisonError (..)
     -- * Monads
-    , EgisonM (..)
-    , fromEgisonM
+    , EvalM (..)
+    , fromEvalM
     , MatchM
     , matchFail
     ) where
@@ -120,7 +120,7 @@ data EgisonValue =
   | MemoizedFunc (Maybe Var) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
-  | IOFunc (EgisonM WHNFData)
+  | IOFunc (EvalM WHNFData)
   | Port Handle
   | RefBox (IORef EgisonValue)
   | Something
@@ -128,7 +128,7 @@ data EgisonValue =
 
 type Matcher = EgisonValue
 
-type PrimitiveFunc = WHNFData -> EgisonM WHNFData
+type PrimitiveFunc = WHNFData -> EvalM WHNFData
 
 data EgisonHashKey =
     IntKey Integer
@@ -150,8 +150,8 @@ class HasTensor a where
   tensorElems :: a -> V.Vector a
   tensorShape :: a -> Shape
   tensorIndices :: a -> [Index EgisonValue]
-  fromTensor :: Tensor a -> EgisonM a
-  toTensor :: a -> EgisonM (Tensor a)
+  fromTensor :: Tensor a -> EvalM a
+  toTensor :: a -> EvalM (Tensor a)
   undef :: a
 
 instance HasTensor EgisonValue where
@@ -215,7 +215,7 @@ scalarIndexToEgison (Superscript k) = InductiveData "Sup"  [ScalarData k]
 scalarIndexToEgison (Subscript k)   = InductiveData "Sub"  [ScalarData k]
 scalarIndexToEgison (Userscript k)  = InductiveData "User" [ScalarData k]
 
-egisonToScalarData :: EgisonValue -> EgisonM ScalarData
+egisonToScalarData :: EgisonValue -> EvalM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
 egisonToScalarData p1@(InductiveData "Plus" _) = Div <$> egisonToPolyExpr p1 <*> return (Plus [Term 1 []])
 egisonToScalarData t1@(InductiveData "Term" _) = do
@@ -235,15 +235,15 @@ egisonToScalarData s1@(InductiveData "Function" _) = do
   return $ SingleTerm 1 [s1']
 egisonToScalarData val = throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
 
-egisonToPolyExpr :: EgisonValue -> EgisonM PolyExpr
+egisonToPolyExpr :: EgisonValue -> EvalM PolyExpr
 egisonToPolyExpr (InductiveData "Plus" [Collection ts]) = Plus <$> mapM egisonToTermExpr (toList ts)
 egisonToPolyExpr val = throwError =<< TypeMismatch "math poly expression" (Value val) <$> getFuncNameStack
 
-egisonToTermExpr :: EgisonValue -> EgisonM TermExpr
+egisonToTermExpr :: EgisonValue -> EvalM TermExpr
 egisonToTermExpr (InductiveData "Term" [n, Collection ts]) = Term <$> fromEgison n <*> mapM egisonToSymbolExpr (toList ts)
 egisonToTermExpr val = throwError =<< TypeMismatch "math term expression" (Value val) <$> getFuncNameStack
 
-egisonToSymbolExpr :: EgisonValue -> EgisonM (SymbolExpr, Integer)
+egisonToSymbolExpr :: EgisonValue -> EvalM (SymbolExpr, Integer)
 egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
   let js = toList seq
   js' <- mapM egisonToScalarIndex js
@@ -270,7 +270,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, 
   return (FunctionData name' argnames' args' js', n')
 egisonToSymbolExpr val = throwError =<< TypeMismatch "math symbol expression" (Value val) <$> getFuncNameStack
 
-egisonToScalarIndex :: EgisonValue -> EgisonM (Index ScalarData)
+egisonToScalarIndex :: EgisonValue -> EvalM (Index ScalarData)
 egisonToScalarIndex j = case j of
   InductiveData "Sup"  [ScalarData k] -> return (Superscript k)
   InductiveData "Sub"  [ScalarData k] -> return (Subscript k)
@@ -281,11 +281,11 @@ egisonToScalarIndex j = case j of
 -- ExtractScalar
 --
 
-extractScalar :: EgisonValue -> EgisonM ScalarData
+extractScalar :: EgisonValue -> EvalM ScalarData
 extractScalar (ScalarData mExpr) = return mExpr
 extractScalar val = throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
 
-extractScalar' :: WHNFData -> EgisonM ScalarData
+extractScalar' :: WHNFData -> EvalM ScalarData
 extractScalar' (Value (ScalarData x)) = return x
 extractScalar' val = throwError =<< TypeMismatch "integer or string" val <$> getFuncNameStack
 
@@ -375,7 +375,7 @@ instance Eq EgisonValue where
 --
 class EgisonData a where
   toEgison :: a -> EgisonValue
-  fromEgison :: EgisonValue -> EgisonM a
+  fromEgison :: EgisonValue -> EvalM a
 
 instance EgisonData Char where
   toEgison = Char
@@ -462,7 +462,7 @@ instance EgisonData (IORef EgisonValue) where
 type ObjectRef = IORef Object
 
 data Object =
-    Thunk (EgisonM WHNFData)
+    Thunk (EvalM WHNFData)
   | WHNF WHNFData
 
 data WHNFData =
@@ -505,7 +505,7 @@ instance Show ObjectRef where
 --
 class EgisonData a => EgisonWHNF a where
   toWHNF :: a -> WHNFData
-  fromWHNF :: WHNFData -> EgisonM a
+  fromWHNF :: WHNFData -> EvalM a
   toWHNF = Value . toEgison
 
 instance EgisonWHNF Char where
@@ -659,35 +659,35 @@ instance Exception EgisonError
 -- Monads
 --
 
-newtype EgisonM a = EgisonM {
-    unEgisonM :: StateT IState (ExceptT EgisonError IO) a
+newtype EvalM a = EvalM {
+    unEvalM :: StateT IState (ExceptT EgisonError IO) a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
 
-instance MonadFail EgisonM where
+instance MonadFail EvalM where
   fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
 
-instance MonadEval EgisonM where
-  fresh = EgisonM $ do
+instance MonadEval EvalM where
+  fresh = EvalM $ do
     st <- get; modify (\st -> st { indexCounter = indexCounter st + 1 })
     return $ "$_" ++ show (indexCounter st)
-  freshV = EgisonM $ do
+  freshV = EvalM $ do
     st <- get; modify (\st -> st {indexCounter = indexCounter st + 1 })
     return $ Var ["$_" ++ show (indexCounter st)] []
-  pushFuncName name = EgisonM $ do
+  pushFuncName name = EvalM $ do
     st <- get
     put $ st { funcNameStack = name : funcNameStack st }
     return ()
-  topFuncName = EgisonM $ head . funcNameStack <$> get
-  popFuncName = EgisonM $ do
+  topFuncName = EvalM $ head . funcNameStack <$> get
+  popFuncName = EvalM $ do
     st <- get
     put $ st { funcNameStack = tail $ funcNameStack st }
     return ()
-  getFuncNameStack = EgisonM $ funcNameStack <$> get
+  getFuncNameStack = EvalM $ funcNameStack <$> get
 
-fromEgisonM :: EgisonM a -> IO (Either EgisonError a)
-fromEgisonM = runExceptT . modifyCounter . unEgisonM
+fromEvalM :: EvalM a -> IO (Either EgisonError a)
+fromEvalM = runExceptT . modifyCounter . unEvalM
 
-type MatchM = MaybeT EgisonM
+type MatchM = MaybeT EvalM
 
 matchFail :: MatchM a
 matchFail = MaybeT $ return Nothing

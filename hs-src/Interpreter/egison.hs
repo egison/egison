@@ -115,7 +115,7 @@ repl opts env =
   settings :: MonadIO m => FilePath -> Settings m
   settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
 
-  loop :: StateT [(Var, EgisonExpr)] EgisonM Env -> IO ()
+  loop :: StateT [(Var, EgisonExpr)] EvalM Env -> IO ()
   loop st = (do
     home <- getHomeDirectory
     input <- liftIO $ runInputT (settings home) $ getEgisonExpr opts
@@ -128,7 +128,7 @@ repl opts env =
         putStrLn "error: No IO support"
         loop st
       (_, Just topExpr) -> do
-        result <- liftIO $ fromEgisonM (desugarTopExpr topExpr >>= evalTopExpr' opts st)
+        result <- liftIO $ fromEvalM (desugarTopExpr topExpr >>= evalTopExpr' opts st)
         case result of
           Left err -> liftIO (print err) >> loop st
           Right (Nothing, st') -> loop st'
