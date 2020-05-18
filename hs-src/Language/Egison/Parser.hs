@@ -33,33 +33,33 @@ import qualified Language.Egison.Parser.SExpr   as SExpr
 import qualified Language.Egison.Parser.NonS    as NonS
 import           Paths_egison                   (getDataFileName)
 
-readTopExprs :: Bool -> String -> EgisonM [EgisonTopExpr]
+readTopExprs :: Bool -> String -> EvalM [EgisonTopExpr]
 readTopExprs useSExpr =
   either throwError (mapM desugarTopExpr) . parseTopExprs
     where parseTopExprs | useSExpr  = SExpr.parseTopExprs
                         | otherwise = NonS.parseTopExprs
 
 -- TODO(momohatt): Parse from the last state
-readTopExpr :: Bool -> String -> EgisonM EgisonTopExpr
+readTopExpr :: Bool -> String -> EvalM EgisonTopExpr
 readTopExpr useSExpr =
   either throwError desugarTopExpr . parseTopExpr
     where parseTopExpr | useSExpr  = SExpr.parseTopExpr
                        | otherwise = NonS.parseTopExpr
 
-readExprs :: Bool -> String -> EgisonM [EgisonExpr]
+readExprs :: Bool -> String -> EvalM [EgisonExpr]
 readExprs useSExpr =
   either throwError (mapM desugarExpr) . parseExprs
     where parseExprs | useSExpr  = SExpr.parseExprs
                      | otherwise = NonS.parseExprs
 
-readExpr :: Bool -> String -> EgisonM EgisonExpr
+readExpr :: Bool -> String -> EvalM EgisonExpr
 readExpr useSExpr =
   either throwError desugarExpr . parseExpr
     where parseExpr | useSExpr  = SExpr.parseExpr
                     | otherwise = NonS.parseExpr
 
 -- |Load a libary file
-loadLibraryFile :: FilePath -> EgisonM [EgisonTopExpr]
+loadLibraryFile :: FilePath -> EvalM [EgisonTopExpr]
 loadLibraryFile file = do
   homeDir <- liftIO getHomeDirectory
   doesExist <- liftIO $ doesFileExist $ homeDir ++ "/.egison/" ++ file
@@ -68,7 +68,7 @@ loadLibraryFile file = do
     else liftIO (getDataFileName file) >>= loadFile
 
 -- |Load a file
-loadFile :: FilePath -> EgisonM [EgisonTopExpr]
+loadFile :: FilePath -> EvalM [EgisonTopExpr]
 loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
@@ -97,7 +97,7 @@ hasDotEgiExtension file = drop (length file - 4) file == ".egi"
 hasDotSEgiExtension :: String -> Bool
 hasDotSEgiExtension file = drop (length file - 5) file == ".segi"
 
-checkIfUseSExpr :: String -> EgisonM Bool
+checkIfUseSExpr :: String -> EvalM Bool
 checkIfUseSExpr file
   | hasDotEgiExtension file  = return False
   | hasDotSEgiExtension file = return True

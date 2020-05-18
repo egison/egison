@@ -53,7 +53,7 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Data
 import           Language.Egison.MList
-import           Language.Egison.IState      (MonadFresh(..))
+import           Language.Egison.IState      (MonadEval(..))
 import           Language.Egison.MathExpr
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
@@ -63,7 +63,7 @@ import           Language.Egison.Tensor
 -- Evaluator
 --
 
-collectDefs :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EgisonM ([(Var, EgisonExpr)], [EgisonTopExpr])
+collectDefs :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
 collectDefs opts (expr:exprs) bindings rest =
   case expr of
     Define name expr -> collectDefs opts exprs ((name, expr) : bindings) rest
@@ -82,7 +82,7 @@ collectDefs opts (expr:exprs) bindings rest =
     InfixDecl{} -> collectDefs opts exprs bindings rest
 collectDefs _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EgisonM Env -> EgisonTopExpr -> EgisonM (Maybe String, StateT [(Var, EgisonExpr)] EgisonM Env)
+evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EvalM Env -> EgisonTopExpr -> EvalM (Maybe String, StateT [(Var, EgisonExpr)] EvalM Env)
 evalTopExpr' _ st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
 evalTopExpr' _ _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
 evalTopExpr' _ st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
@@ -109,7 +109,7 @@ evalTopExpr' opts st (LoadFile file) = do
   return (Nothing, withStateT (\defines -> bindings ++ defines) st)
 evalTopExpr' _ st InfixDecl{} = return (Nothing, st)
 
-evalExpr :: Env -> EgisonExpr -> EgisonM WHNFData
+evalExpr :: Env -> EgisonExpr -> EvalM WHNFData
 evalExpr _ (CharExpr c)    = return . Value $ Char c
 evalExpr _ (StringExpr s)  = return . Value $ toEgison s
 evalExpr _ (BoolExpr b)    = return . Value $ Bool b
@@ -131,13 +131,13 @@ evalExpr env (QuoteSymbolExpr expr) = do
 
 evalExpr env (VarExpr var@(Var [name@(c:_)] [])) | isUpper c = refVar' env var >>= evalRef
  where
-  refVar' :: Env -> Var -> EgisonM ObjectRef
+  refVar' :: Env -> Var -> EvalM ObjectRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (InductiveData name []))) return
                           (refVar env var)
 
 evalExpr env (VarExpr name) = refVar' env name >>= evalRef
  where
-  refVar' :: Env -> Var -> EgisonM ObjectRef
+  refVar' :: Env -> Var -> EvalM ObjectRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" $ prettyStr var))) return
                           (refVar env var)
 
@@ -158,7 +158,7 @@ evalExpr env (CollectionExpr inners) = do
   innersSeq <- liftIO $ newIORef $ Sq.fromList inners'
   return $ Intermediate $ ICollection innersSeq
  where
-  fromInnerExpr :: InnerExpr -> EgisonM Inner
+  fromInnerExpr :: InnerExpr -> EvalM Inner
   fromInnerExpr (ElementExpr expr) = IElement <$> newObjectRef env expr
   fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
 
@@ -171,7 +171,7 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
       mapM toTensor (zipWith f whnfs indices) >>= tConcat' >>= fromTensor
     _ -> fromTensor (Tensor [n] (V.fromList whnfs) [])
   where
-    evalWithIndex :: EgisonExpr -> Integer -> EgisonM WHNFData
+    evalWithIndex :: EgisonExpr -> Integer -> EvalM WHNFData
     evalWithIndex expr index = evalExpr env' expr
       where
         env' = case maybe_vwi of
@@ -194,7 +194,7 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
 
 evalExpr env (TensorExpr nsExpr xsExpr) = do
   nsWhnf <- evalExpr env nsExpr
-  ns <- (fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EgisonM [Integer]
+  ns <- (fromCollection nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EvalM [Integer]
   xsWhnf <- evalExpr env xsExpr
   xs <- fromCollection xsWhnf >>= fromMList >>= mapM evalRef
   if product ns == toInteger (length xs)
@@ -217,7 +217,7 @@ evalExpr env (HashExpr assocs) = do
       let keys' = map (\case IntKey i -> i) keys
       return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
  where
-  makeHashKey :: WHNFData -> EgisonM EgisonHashKey
+  makeHashKey :: WHNFData -> EvalM EgisonHashKey
   makeHashKey (Value val) =
     case val of
       ScalarData _ -> IntKey <$> fromEgison val
@@ -249,10 +249,10 @@ evalExpr env (IndexedExpr override expr indices) = do
         refArray tensor (map (ScalarData . extractIndex) js2)
   return ret -- TODO: refactor
  where
-  evalIndex :: Index EgisonExpr -> EgisonM (Index EgisonValue)
+  evalIndex :: Index EgisonExpr -> EvalM (Index EgisonValue)
   evalIndex index = traverse (evalExprDeep env) index
 
-  evalIndexToScalar :: Index EgisonExpr -> EgisonM (Index ScalarData)
+  evalIndexToScalar :: Index EgisonExpr -> EvalM (Index ScalarData)
   evalIndexToScalar index = traverse ((extractScalar =<<) . evalExprDeep env) index
 
 evalExpr env (SubrefsExpr override expr jsExpr) = do
@@ -320,7 +320,7 @@ evalExpr env (IfExpr test expr expr') = do
 evalExpr env (LetExpr bindings expr) =
   mapM extractBindings bindings >>= flip evalExpr expr . extendEnv env . concat
  where
-  extractBindings :: BindingExpr -> EgisonM [Binding]
+  extractBindings :: BindingExpr -> EvalM [Binding]
   extractBindings ([name], expr) =
     case expr of
       FunctionExpr _ ->
@@ -382,7 +382,7 @@ evalExpr env (WithSymbolsExpr vars expr) = do
   isTmpSymbol symId (Superscript  (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
   isTmpSymbol symId (SupSubscript (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
   isTmpSymbol symId (Userscript   (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
-  removeTmpScripts :: HasTensor a => String -> Tensor a -> EgisonM (Tensor a)
+  removeTmpScripts :: HasTensor a => String -> Tensor a -> EvalM (Tensor a)
   removeTmpScripts symId (Tensor s xs is) = do
     let (ds, js) = partition (isTmpSymbol symId) is
     Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
@@ -411,7 +411,7 @@ evalExpr env (MatchAllExpr pmmode target matcher clauses) = do
   matcher <- evalExpr env matcher >>= evalMatcherWHNF
   f matcher target >>= fromMList
  where
-  fromMList :: MList EgisonM WHNFData -> EgisonM WHNFData
+  fromMList :: MList EvalM WHNFData -> EvalM WHNFData
   fromMList MNil = return . Value $ Collection Sq.empty
   fromMList (MCons val m) = do
     head <- IElement <$> newEvaluatedObjectRef val
@@ -526,11 +526,11 @@ evalExpr env (MatcherExpr info) = return $ Value $ UserMatcher env info
 
 evalExpr env (GenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExpr env shapeExpr >>= collectionToList
-  ns    <- mapM fromEgison shape :: EgisonM Shape
+  ns    <- mapM fromEgison shape :: EvalM Shape
   xs    <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
   fromTensor (Tensor ns (V.fromList xs) [])
  where
-  indexToWHNF :: Env -> [EgisonValue] {- index -} -> EgisonM WHNFData
+  indexToWHNF :: Env -> [EgisonValue] {- index -} -> EvalM WHNFData
   indexToWHNF (Env frame maybe_vwi) ms = do
     let env' = maybe env (\(VarWithIndices name indices) -> Env frame $ Just $ VarWithIndices name $ zipWith changeIndex indices ms) maybe_vwi
     fn <- evalExpr env' fnExpr
@@ -557,7 +557,7 @@ evalExpr env (TensorMapExpr fnExpr tExpr) = do
       Value <$> (tMap (applyFunc' env fn) t >>= fromTensor)
     _ -> applyFunc env fn whnf
  where
-  applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
+  applyFunc' :: Env -> WHNFData -> EgisonValue -> EvalM EgisonValue
   applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
 
 evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
@@ -591,9 +591,9 @@ evalExpr env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
       return $ Intermediate (ITensor (Tensor ns ys js))
     _ -> applyFunc'' env fn whnf1 whnf2
  where
-  applyFunc' :: Env -> WHNFData -> EgisonValue -> EgisonM EgisonValue
+  applyFunc' :: Env -> WHNFData -> EgisonValue -> EvalM EgisonValue
   applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
-  applyFunc'' :: Env -> WHNFData -> WHNFData -> WHNFData -> EgisonM WHNFData
+  applyFunc'' :: Env -> WHNFData -> WHNFData -> WHNFData -> EvalM WHNFData
   applyFunc'' env fn x y = do
     xRef <- newEvaluatedObjectRef x
     yRef <- newEvaluatedObjectRef y
@@ -604,10 +604,10 @@ evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError =<< NotImplemented ("evalExpr for " ++ show expr) <$> getFuncNameStack
 
-evalExprDeep :: Env -> EgisonExpr -> EgisonM EgisonValue
+evalExprDeep :: Env -> EgisonExpr -> EvalM EgisonValue
 evalExprDeep env expr = evalExpr env expr >>= evalWHNF
 
-evalRef :: ObjectRef -> EgisonM WHNFData
+evalRef :: ObjectRef -> EvalM WHNFData
 evalRef ref = do
   obj <- liftIO $ readIORef ref
   case obj of
@@ -617,7 +617,7 @@ evalRef ref = do
       writeObjectRef ref val
       return val
 
-evalRefDeep :: ObjectRef -> EgisonM EgisonValue
+evalRefDeep :: ObjectRef -> EvalM EgisonValue
 evalRefDeep ref = do
   obj <- liftIO $ readIORef ref
   case obj of
@@ -631,7 +631,7 @@ evalRefDeep ref = do
       writeObjectRef ref $ Value val
       return val
 
-evalWHNF :: WHNFData -> EgisonM EgisonValue
+evalWHNF :: WHNFData -> EvalM EgisonValue
 evalWHNF (Value val) = return val
 evalWHNF (Intermediate (IInductiveData name refs)) =
   InductiveData name <$> mapM evalRefDeep refs
@@ -657,7 +657,7 @@ addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 valuetoTensor2 :: WHNFData -> Tensor WHNFData
 valuetoTensor2 (Intermediate (ITensor t)) = t
 
-applyFunc :: Env -> WHNFData -> WHNFData -> EgisonM WHNFData
+applyFunc :: Env -> WHNFData -> WHNFData -> EvalM WHNFData
 applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
   tds <- fromTupleWHNF tds
   if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s _ i))) -> length s - length i == 1) tds
@@ -729,7 +729,7 @@ applyFunc _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) arg = do
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
 
-refArray :: WHNFData -> [EgisonValue] -> EgisonM WHNFData
+refArray :: WHNFData -> [EgisonValue] -> EvalM WHNFData
 refArray val [] = return val
 refArray (Value (IntHash hash)) (index:indices) = do
   key <- fromEgison index
@@ -766,13 +766,13 @@ refArray val _ = throwError =<< TypeMismatch "array or hash" val <$> getFuncName
 newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr
 
-newObjectRef :: Env -> EgisonExpr -> EgisonM ObjectRef
+newObjectRef :: Env -> EgisonExpr -> EvalM ObjectRef
 newObjectRef env expr = liftIO $ newIORef $ newThunk env expr
 
-writeObjectRef :: ObjectRef -> WHNFData -> EgisonM ()
+writeObjectRef :: ObjectRef -> WHNFData -> EvalM ()
 writeObjectRef ref val = liftIO . writeIORef ref $ WHNF val
 
-newEvaluatedObjectRef :: WHNFData -> EgisonM ObjectRef
+newEvaluatedObjectRef :: WHNFData -> EvalM ObjectRef
 newEvaluatedObjectRef = liftIO . newIORef . WHNF
 
 makeBindings :: [Var] -> [ObjectRef] -> [Binding]
@@ -781,7 +781,7 @@ makeBindings = zip
 makeBindings' :: [String] -> [ObjectRef] -> [Binding]
 makeBindings' xs = zip (map stringToVar xs)
 
-recursiveBind :: Env -> [(Var, EgisonExpr)] -> EgisonM Env
+recursiveBind :: Env -> [(Var, EgisonExpr)] -> EvalM Env
 recursiveBind env bindings = do
   let (names, _) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
@@ -809,7 +809,7 @@ recursiveBind env bindings = do
   isVarWithIndices :: Var -> Bool
   isVarWithIndices (Var _ xs) = not $ null xs
 
-recursiveRebind :: Env -> (Var, EgisonExpr) -> EgisonM Env
+recursiveRebind :: Env -> (Var, EgisonExpr) -> EvalM Env
 recursiveRebind env (name, expr) = do
   case refVar env name of
     Nothing -> throwError =<< UnboundVariable (prettyStr name) <$> getFuncNameStack
@@ -832,7 +832,7 @@ recursiveRebind env (name, expr) = do
 -- Pattern Match
 --
 
-patternMatch :: PMMode -> Env -> EgisonPattern -> WHNFData -> Matcher -> EgisonM (MList EgisonM Match)
+patternMatch :: PMMode -> Env -> EgisonPattern -> WHNFData -> Matcher -> EvalM (MList EvalM Match)
 patternMatch pmmode env pattern target matcher =
   case pmmode of
     DFSMode -> processMStatesAllDFS (msingleton initMState)
@@ -845,30 +845,30 @@ patternMatch pmmode env pattern target matcher =
                         , mTrees         = [MAtom pattern target matcher]
                         }
 
-processMStatesAllDFS :: MList EgisonM MatchingState -> EgisonM (MList EgisonM Match)
+processMStatesAllDFS :: MList EvalM MatchingState -> EvalM (MList EvalM Match)
 processMStatesAllDFS MNil = return MNil
 processMStatesAllDFS (MCons (MState _ _ [] bindings []) ms) = MCons bindings . processMStatesAllDFS <$> ms
 processMStatesAllDFS (MCons mstate ms) = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFS
 
-processMStatesAllDFSForall :: MList EgisonM MatchingState -> EgisonM (MList EgisonM MatchingState)
+processMStatesAllDFSForall :: MList EvalM MatchingState -> EvalM (MList EvalM MatchingState)
 processMStatesAllDFSForall MNil = return MNil
 processMStatesAllDFSForall (MCons mstate@(MState _ _ (ForallPatContext _ _ : _) _ []) ms) = MCons mstate . processMStatesAllDFSForall <$> ms
 processMStatesAllDFSForall (MCons mstate ms) = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFSForall
 
-processMStatesAll :: [MList EgisonM MatchingState] -> EgisonM (MList EgisonM Match)
+processMStatesAll :: [MList EvalM MatchingState] -> EvalM (MList EvalM Match)
 processMStatesAll [] = return MNil
 processMStatesAll streams = do
   (matches, streams') <- mapM processMStates streams >>= extractMatches . concat
   mappend (fromList matches) $ processMStatesAll streams'
 
-processMStates :: MList EgisonM MatchingState -> EgisonM [MList EgisonM MatchingState]
+processMStates :: MList EvalM MatchingState -> EvalM [MList EvalM MatchingState]
 processMStates MNil = return []
 processMStates (MCons state stream) = (\x y -> [x, y]) <$> processMState state <*> stream
 
-extractMatches :: [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
+extractMatches :: [MList EvalM MatchingState] -> EvalM ([Match], [MList EvalM MatchingState])
 extractMatches = extractMatches' ([], [])
  where
-  extractMatches' :: ([Match], [MList EgisonM MatchingState]) -> [MList EgisonM MatchingState] -> EgisonM ([Match], [MList EgisonM MatchingState])
+  extractMatches' :: ([Match], [MList EvalM MatchingState]) -> [MList EvalM MatchingState] -> EvalM ([Match], [MList EvalM MatchingState])
   extractMatches' (xs, ys) [] = return (xs, ys)
   extractMatches' (xs, ys) (MCons (gatherBindings -> Just bindings) states : rest) = do
     states' <- states
@@ -879,7 +879,7 @@ gatherBindings :: MatchingState -> Maybe [Binding]
 gatherBindings mstate@MState{ seqPatCtx = [], mTrees = [] } = return (mStateBindings mstate)
 gatherBindings _ = Nothing
 
-processMState :: MatchingState -> EgisonM (MList EgisonM MatchingState)
+processMState :: MatchingState -> EvalM (MList EvalM MatchingState)
 processMState state =
   if nullMState state
     then processMState' state
@@ -918,7 +918,7 @@ processMState state =
     (f, mstate { mTrees = [MNode penv state1] }, mstate { mTrees = MNode penv state2 : trees })
       where (f, state1, state2) = splitMState state'
 
-processMState' :: MatchingState -> EgisonM (MList EgisonM MatchingState)
+processMState' :: MatchingState -> EvalM (MList EvalM MatchingState)
 --processMState' MState{ seqPatCtx = [], mTrees = [] } = throwError =<< EgisonBug "should not reach here (empty matching-state)" <$> getFuncNameStack
 processMState' mstate@MState{ seqPatCtx = [], mTrees = [] } = return . msingleton $ mstate -- for forall pattern used in matchAll (not matchAllDFS)
 
@@ -1004,7 +1004,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
       return . msingleton $ mstate { mTrees = MAtom (InductivePat "apply" [func, toListPat args]) target matcher:trees }
 
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
-      startNum    <- evalExpr env' start >>= fromWHNF :: (EgisonM Integer)
+      startNum    <- evalExpr env' start >>= fromWHNF :: (EvalM Integer)
       startNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum - 1)
       ends'       <- evalExpr env' ends
       case ends' of
@@ -1023,7 +1023,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
         [] -> throwError $ Default "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
           startNumWhnf <- evalRef startNumRef
-          startNum <- fromWHNF startNumWhnf :: (EgisonM Integer)
+          startNum <- fromWHNF startNumWhnf :: (EvalM Integer)
           nextNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum + 1)
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
@@ -1108,7 +1108,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                   obj <- updateHash indices (Intermediate . IIntHash $ HL.empty) >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = (name,obj):bindings, mTrees = trees }
                where
-                updateHash :: [Integer] -> WHNFData -> EgisonM WHNFData
+                updateHash :: [Integer] -> WHNFData -> EvalM WHNFData
                 updateHash [index] (Intermediate (IIntHash hash)) = do
                   targetRef <- newEvaluatedObjectRef target
                   return . Intermediate . IIntHash $ HL.insert index targetRef hash
@@ -1135,7 +1135,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
         _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
 
 inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
-                  EgisonM ([EgisonPattern], MList EgisonM ObjectRef, [Matcher])
+                  EvalM ([EgisonPattern], MList EvalM ObjectRef, [Matcher])
 inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
@@ -1230,13 +1230,13 @@ primitiveDataPatternMatch (PDConstantPat expr) whnf = do
     -- we don't need to extract call stack since detailed error information is not used
     throwError $ TypeMismatch "primitive value" whnf
 
-expandCollection :: WHNFData -> EgisonM (Seq Inner)
+expandCollection :: WHNFData -> EvalM (Seq Inner)
 expandCollection (Value (Collection vals)) =
   mapM (fmap IElement . newEvaluatedObjectRef . Value) vals
 expandCollection (Intermediate (ICollection innersRef)) = liftIO $ readIORef innersRef
 expandCollection val = throwError =<< TypeMismatch "collection" val <$> getFuncNameStack
 
-isEmptyCollection :: WHNFData -> EgisonM Bool
+isEmptyCollection :: WHNFData -> EvalM Bool
 isEmptyCollection (Value (Collection col)) = return $ Sq.null col
 isEmptyCollection coll@(Intermediate (ICollection innersRef)) = do
   inners <- liftIO $ readIORef innersRef
@@ -1292,7 +1292,7 @@ unsnocCollection _ = matchFail
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
 extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopPatContext binding _ _ _ _) -> binding) loops
 
-evalMatcherWHNF :: WHNFData -> EgisonM Matcher
+evalMatcherWHNF :: WHNFData -> EvalM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher
 evalMatcherWHNF (Value matcher@UserMatcher{}) = return matcher
 evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
@@ -1309,12 +1309,12 @@ toListPat :: [EgisonPattern] -> EgisonPattern
 toListPat []         = InductivePat "nil" []
 toListPat (pat:pats) = InductivePat "cons" [pat, toListPat pats]
 
-fromTuple :: WHNFData -> EgisonM [ObjectRef]
+fromTuple :: WHNFData -> EvalM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
 fromTuple (Value (Tuple vals)) = mapM (newEvaluatedObjectRef . Value) vals
 fromTuple whnf = return <$> newEvaluatedObjectRef whnf
 
-fromTupleWHNF :: WHNFData -> EgisonM [WHNFData]
+fromTupleWHNF :: WHNFData -> EvalM [WHNFData]
 fromTupleWHNF (Intermediate (ITuple refs)) = mapM evalRef refs
 fromTupleWHNF (Value (Tuple vals))         = return $ map Value vals
 fromTupleWHNF whnf                         = return [whnf]
@@ -1323,7 +1323,7 @@ fromTupleValue :: EgisonValue -> [EgisonValue]
 fromTupleValue (Tuple vals) = vals
 fromTupleValue val          = [val]
 
-fromCollection :: WHNFData -> EgisonM (MList EgisonM ObjectRef)
+fromCollection :: WHNFData -> EvalM (MList EvalM ObjectRef)
 fromCollection (Value (Collection vals)) =
   if Sq.null vals then return MNil
                   else fromSeq <$> mapM (newEvaluatedObjectRef . Value) vals
@@ -1337,7 +1337,7 @@ fromCollection whnf@(Intermediate (ICollection _)) = do
       return $ MCons head (fromCollection tail')
 fromCollection whnf = throwError =<< TypeMismatch "collection" whnf <$> getFuncNameStack
 
-tupleToList :: WHNFData -> EgisonM [EgisonValue]
+tupleToList :: WHNFData -> EvalM [EgisonValue]
 tupleToList whnf = do
   val <- evalWHNF whnf
   return $ tupleToList' val
@@ -1345,12 +1345,12 @@ tupleToList whnf = do
   tupleToList' (Tuple vals) = vals
   tupleToList' val          = [val]
 
-collectionToList :: WHNFData -> EgisonM [EgisonValue]
+collectionToList :: WHNFData -> EvalM [EgisonValue]
 collectionToList whnf = do
   val <- evalWHNF whnf
   collectionToList' val
  where
-  collectionToList' :: EgisonValue -> EgisonM [EgisonValue]
+  collectionToList' :: EgisonValue -> EvalM [EgisonValue]
   collectionToList' (Collection sq) = return $ toList sq
   collectionToList' val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
 
@@ -1359,19 +1359,19 @@ makeTuple []  = Tuple []
 makeTuple [x] = x
 makeTuple xs  = Tuple xs
 
-makeITuple :: [WHNFData] -> EgisonM WHNFData
+makeITuple :: [WHNFData] -> EvalM WHNFData
 makeITuple []  = return $ Intermediate (ITuple [])
 makeITuple [x] = return x
 makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
 
-makeICollection :: [WHNFData] -> EgisonM WHNFData
+makeICollection :: [WHNFData] -> EvalM WHNFData
 makeICollection xs  = do
   is <- mapM (\x -> IElement <$> newEvaluatedObjectRef x) xs
   v <- liftIO $ newIORef $ Sq.fromList is
   return $ Intermediate $ ICollection v
 
 -- Refer the specified tensor index with potential overriding of the index.
-refTensorWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EgisonM a
+refTensorWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EvalM a
 refTensorWithOverride override js (Tensor ns xs is) =
   tref js' (Tensor ns xs js') >>= toTensor >>= tContract' >>= fromTensor
     where

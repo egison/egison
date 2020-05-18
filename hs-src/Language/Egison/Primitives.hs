@@ -41,7 +41,7 @@ import qualified Database.SQLite3 as SQLite
 import           Language.Egison.AST
 import           Language.Egison.Core
 import           Language.Egison.Data
-import           Language.Egison.IState    (MonadFresh(..))
+import           Language.Egison.IState    (MonadEval(..))
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.MathExpr
@@ -65,7 +65,7 @@ primitiveEnvNoIO = do
   return $ extendEnv nullEnv bindings
 
 {-# INLINE noArg #-}
-noArg :: EgisonM EgisonValue -> PrimitiveFunc
+noArg :: EvalM EgisonValue -> PrimitiveFunc
 noArg f args = do
     args' <- tupleToList args
     case args' of
@@ -73,7 +73,7 @@ noArg f args = do
       _  -> throwError =<< ArgumentsNumPrimitive 0 (length args') <$> getFuncNameStack
 
 {-# INLINE oneArg #-}
-oneArg :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+oneArg :: (EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 oneArg f arg = do
   arg' <- evalWHNF arg
   case arg' of
@@ -83,13 +83,13 @@ oneArg f arg = do
     _ -> Value <$> f arg'
 
 {-# INLINE oneArg' #-}
-oneArg' :: (EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+oneArg' :: (EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 oneArg' f arg = do
   arg' <- evalWHNF arg
   Value <$> f arg'
 
 {-# INLINE twoArgs #-}
-twoArgs :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+twoArgs :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 twoArgs f args = do
   args' <- tupleToList args
   case args' of
@@ -104,7 +104,7 @@ twoArgs f args = do
     _ -> throwError =<< ArgumentsNumPrimitive 2 (length args') <$> getFuncNameStack
 
 {-# INLINE twoArgs' #-}
-twoArgs' :: (EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+twoArgs' :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 twoArgs' f args = do
   args' <- tupleToList args
   case args' of
@@ -112,7 +112,7 @@ twoArgs' f args = do
     _           -> throwError =<< ArgumentsNumPrimitive 2 (length args') <$> getFuncNameStack
 
 {-# INLINE threeArgs' #-}
-threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EgisonM EgisonValue) -> PrimitiveFunc
+threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 threeArgs' f args = do
   args' <- tupleToList args
   case args' of
@@ -306,8 +306,8 @@ scalarCompare :: (forall a. Ord a => a -> a -> Bool) -> PrimitiveFunc
 scalarCompare cmp = twoArgs' $ \val1 val2 ->
   case (val1, val2) of
     (ScalarData _, ScalarData _) -> do
-      r1 <- fromEgison val1 :: EgisonM Rational
-      r2 <- fromEgison val2 :: EgisonM Rational
+      r1 <- fromEgison val1 :: EvalM Rational
+      r2 <- fromEgison val2 :: EvalM Rational
       return $ Bool (cmp r1 r2)
     (Float f1, Float f2) -> return $ Bool (cmp f1 f2)
     (ScalarData _, _) -> throwError =<< TypeMismatch "number" (Value val2) <$> getFuncNameStack
@@ -380,7 +380,7 @@ pack = oneArg $ \val -> do
   str <- packStringValue val
   return $ String str
   where
-    packStringValue :: EgisonValue -> EgisonM Text
+    packStringValue :: EgisonValue -> EvalM Text
     packStringValue (Collection seq) = do
       let ls = toList seq
       str <- mapM fromEgison ls
@@ -551,10 +551,10 @@ ioPrimitives = [ ("return", return')
                , ("readIORef", readIORef')
                ]
 
-makeIO :: EgisonM EgisonValue -> EgisonValue
+makeIO :: EvalM EgisonValue -> EgisonValue
 makeIO m = IOFunc $ fmap (Value . Tuple . (World :) . (:[])) m
 
-makeIO' :: EgisonM () -> EgisonValue
+makeIO' :: EvalM () -> EgisonValue
 makeIO' m = IOFunc $ m >> return (Value $ Tuple [World, Tuple []])
 
 return' :: PrimitiveFunc
@@ -636,15 +636,15 @@ isEOFPort = oneArg' $ \val -> do
 
 randRange :: PrimitiveFunc
 randRange = twoArgs' $ \val val' -> do
-  i <- fromEgison val :: EgisonM Integer
-  i' <- fromEgison val' :: EgisonM Integer
+  i <- fromEgison val :: EvalM Integer
+  i' <- fromEgison val' :: EvalM Integer
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return $ toEgison n
 
 randRangeDouble :: PrimitiveFunc
 randRangeDouble = twoArgs' $ \val val' -> do
-  i <- fromEgison val :: EgisonM Double
-  i' <- fromEgison val' :: EgisonM Double
+  i <- fromEgison val :: EvalM Double
+  i' <- fromEgison val' :: EvalM Double
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return $ toEgison n
 

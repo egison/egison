@@ -114,6 +114,11 @@ Library
                    Language.Egison.Parser.SExpr
                    Language.Egison.Parser.NonS
                    Language.Egison.Pretty
+                   Language.Egison.PrettyMath.AST
+                   Language.Egison.PrettyMath.AsciiMath
+                   Language.Egison.PrettyMath.Latex
+                   Language.Egison.PrettyMath.Mathematica
+                   Language.Egison.PrettyMath.Maxima
                    Language.Egison.Primitives
                    Language.Egison.Tensor
                    Language.Egison.Types
