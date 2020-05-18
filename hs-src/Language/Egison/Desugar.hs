@@ -173,6 +173,9 @@ desugar (CollectionExpr (SubCollectionExpr sub:inners)) = do
   CollectionExpr inners' <- desugar (CollectionExpr inners)
   return $ CollectionExpr (SubCollectionExpr sub':inners')
 
+desugar (HashExpr exprPairs) =
+  HashExpr <$> mapM (\(expr1, expr2) -> (,) <$> desugar expr1 <*> desugar expr2) exprPairs
+
 desugar (VectorExpr exprs) =
   VectorExpr <$> mapM desugar exprs
 
