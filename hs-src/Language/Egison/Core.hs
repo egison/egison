@@ -106,11 +106,13 @@ evalTopExpr' _ env (Execute expr) = do
   case io of
     Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
     _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
+evalTopExpr' opts _ Load{} | optNoIO opts = throwError (Default "No IO support")
 evalTopExpr' opts env (Load file) = do
   exprs <- loadLibraryFile file
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
+evalTopExpr' opts _ LoadFile{} | optNoIO opts = throwError (Default "No IO support")
 evalTopExpr' opts env (LoadFile file) = do
   exprs <- loadFile file
   (bindings, _) <- collectDefs opts exprs
