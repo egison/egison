@@ -88,32 +88,35 @@ collectDefs' opts (expr:exprs) bindings rest =
     InfixDecl{} -> collectDefs' opts exprs bindings rest
 collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EvalM Env -> EgisonTopExpr -> EvalM (Maybe String, StateT [(Var, EgisonExpr)] EvalM Env)
-evalTopExpr' _ st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
+evalTopExpr' :: EgisonOpts -> Env -> EgisonTopExpr -> EvalM (Maybe String, Env)
+evalTopExpr' _ env (Define name expr) = do
+  env' <- recursiveBind env [(name, expr)]
+  return (Nothing, env')
 evalTopExpr' _ _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-evalTopExpr' _ st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
-evalTopExpr' opts st (Test expr) = do
+evalTopExpr' opts env (Test expr) = do
   pushFuncName "<stdin>"
-  val <- evalStateT st [] >>= flip evalExprDeep expr
+  val <- evalExprDeep env expr
   popFuncName
   case (optSExpr opts, optMathExpr opts) of
-    (False, Nothing) -> return (Just (show val), st)
-    _  -> return (Just (prettyS val), st)
-evalTopExpr' _ st (Execute expr) = do
+    (False, Nothing) -> return (Just (show val), env)
+    _  -> return (Just (prettyS val), env)
+evalTopExpr' _ env (Execute expr) = do
   pushFuncName "<stdin>"
-  io <- evalStateT st [] >>= flip evalExpr expr
+  io <- evalExpr env expr
   case io of
-    Value (IOFunc m) -> m >> popFuncName >> return (Nothing, st)
+    Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
     _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
-evalTopExpr' opts st (Load file) = do
+evalTopExpr' opts env (Load file) = do
   exprs <- loadLibraryFile file
   (bindings, _) <- collectDefs opts exprs
-  return (Nothing, withStateT (\defines -> bindings ++ defines) st)
-evalTopExpr' opts st (LoadFile file) = do
+  env' <- recursiveBind env bindings
+  return (Nothing, env')
+evalTopExpr' opts env (LoadFile file) = do
   exprs <- loadFile file
   (bindings, _) <- collectDefs opts exprs
-  return (Nothing, withStateT (\defines -> bindings ++ defines) st)
-evalTopExpr' _ st InfixDecl{} = return (Nothing, st)
+  env' <- recursiveBind env bindings
+  return (Nothing, env')
+evalTopExpr' _ env InfixDecl{} = return (Nothing, env)
 
 evalExpr :: Env -> EgisonExpr -> EvalM WHNFData
 evalExpr _ (CharExpr c)    = return . Value $ Char c

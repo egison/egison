@@ -56,14 +56,14 @@ evalTopExprs opts env exprs = do
 
 evalTopExpr :: EgisonOpts -> Env -> EgisonTopExpr -> EvalM Env
 evalTopExpr opts env topExpr = do
-  ret <- evalTopExpr' opts (StateT $ \defines -> (, defines) <$> recursiveBind env defines) topExpr
+  ret <- evalTopExpr' opts env topExpr
   case fst ret of
     Nothing     -> return ()
     Just output -> liftIO $
             case optMathExpr opts of
               Nothing   -> putStrLn output
               Just lang -> putStrLn $ changeOutputInLang lang output
-  evalStateT (snd ret) []
+  return (snd ret)
 
 -- |eval an Egison expression
 evalEgisonExpr :: Env -> EgisonExpr -> IO (Either EgisonError EgisonValue)
@@ -88,9 +88,9 @@ runEgisonTopExpr opts env input =
   fromEvalM $ readTopExpr (optSExpr opts) input >>= evalTopExpr opts env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EvalM Env -> String -> IO (Either EgisonError (Maybe String, StateT [(Var, EgisonExpr)] EvalM Env))
-runEgisonTopExpr' opts st input =
-  fromEvalM $ readTopExpr (optSExpr opts) input >>= evalTopExpr' opts st
+runEgisonTopExpr' :: EgisonOpts -> Env -> String -> IO (Either EgisonError (Maybe String, Env))
+runEgisonTopExpr' opts env input =
+  fromEvalM $ readTopExpr (optSExpr opts) input >>= evalTopExpr' opts env
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
