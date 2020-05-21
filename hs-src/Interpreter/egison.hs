@@ -116,7 +116,7 @@ settings home = setComplete completeEgison $ defaultSettings { historyFile = Jus
 repl :: ReplT IO ()
 repl = (do
   opts <- ask
-  env <- lift (gets environment)
+  env  <- gets environment
   home <- liftIO getHomeDirectory
   input <- liftIO $ runInputT (settings home) $ getEgisonExpr opts
   case input of
@@ -126,10 +126,10 @@ repl = (do
       case result of
         Left err -> liftIO (print err) >> repl
         Right (Nothing, env') -> do
-          lift $ modify (\s -> s { environment = env' })
+          modify (\s -> s { environment = env' })
           repl
         Right (Just output, env') -> do
-          lift $ modify (\s -> s { environment = env' })
+          modify (\s -> s { environment = env' })
           case optMathExpr opts of
             Nothing   -> liftIO $ putStrLn output
             Just lang -> liftIO $ putStrLn (changeOutputInLang lang output)

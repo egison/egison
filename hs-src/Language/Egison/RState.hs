@@ -19,14 +19,12 @@ import           Language.Egison.Data
 
 data RState = RState
   { indexCounter :: Int
-  -- , bindings :: [(Var, EgisonExpr)]
   , environment :: Env
   }
 
 initialRState :: Env -> RState
 initialRState e = RState
   { indexCounter = 0
-  -- , bindings = []
   , environment = e
   }
 
