@@ -49,7 +49,7 @@ version = P.version
 
 evalTopExprs :: EgisonOpts -> Env -> [EgisonTopExpr] -> EvalM Env
 evalTopExprs opts env exprs = do
-  (bindings, rest) <- collectDefs opts exprs [] []
+  (bindings, rest) <- collectDefs opts exprs
   env <- recursiveBind env bindings
   forM_ rest $ evalTopExpr opts env
   return env
