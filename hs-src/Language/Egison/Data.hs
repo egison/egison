@@ -88,8 +88,8 @@ import           Data.Text                 (Text)
 import           Data.Ratio
 import           System.IO
 
-import           Control.Egison hiding (Integer, MList, MNil, MCons, Matcher, Something, mappend)
-import qualified Control.Egison as M
+import           Control.Egison            (cons, join, nil, match, mc, List(..))
+import qualified Control.Egison            as M
 
 import           Language.Egison.AST hiding (PatVar)
 import           Language.Egison.IState

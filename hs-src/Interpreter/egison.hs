@@ -4,8 +4,11 @@
 
 module Main where
 
-import           Control.Exception          (AsyncException (..), catch)
+import           Control.Exception          (AsyncException (..))
+import           Control.Monad.Catch        (catch)
 import           Control.Monad.Except
+import           Control.Monad.Reader
+import           Control.Monad.State
 
 import           Data.List                  (intercalate)
 import qualified Data.Text                  as T
@@ -28,6 +31,7 @@ import           Language.Egison.Desugar
 import           Language.Egison.MathOutput
 import qualified Language.Egison.Parser.SExpr as SExpr
 import qualified Language.Egison.Parser.NonS  as NonS
+import           Language.Egison.RState
 
 import           Options.Applicative
 
@@ -82,7 +86,7 @@ runWithOptions opts = do
         -- Start the read-eval-print-loop
         _ -> do
           when (optShowBanner opts) showBanner
-          repl opts env
+          evalReplT opts env repl
           when (optShowBanner opts) showByebyeMessage
           exitSuccess
 
@@ -106,42 +110,38 @@ showBanner = do
 showByebyeMessage :: IO ()
 showByebyeMessage = putStrLn "Leaving Egison Interpreter."
 
-repl :: EgisonOpts -> Env -> IO ()
-repl opts env =
-  loop env
- where
-  settings :: MonadIO m => FilePath -> Settings m
-  settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
+settings :: MonadIO m => FilePath -> Settings m
+settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
 
-  loop :: Env -> IO ()
-  loop env = (do
-    home <- getHomeDirectory
-    input <- liftIO $ runInputT (settings home) $ getEgisonExpr opts
-    case (optNoIO opts, input) of
-      (_, Nothing) -> return ()
-      (True, Just (LoadFile _)) -> do
-        putStrLn "error: No IO support"
-        loop env
-      (True, Just (Load _)) -> do
-        putStrLn "error: No IO support"
-        loop env
-      (_, Just topExpr) -> do
-        result <- liftIO $ fromEvalM (desugarTopExpr topExpr >>= evalTopExpr' opts env)
-        case result of
-          Left err -> liftIO (print err) >> loop env
-          Right (Nothing, env') -> loop env'
-          Right (Just output, env') ->
-            case optMathExpr opts of
-              Nothing   -> putStrLn output >> loop env'
-              Just lang -> putStrLn (changeOutputInLang lang output) >> loop env'
-             )
-    `catch`
-    (\case
-        UserInterrupt -> putStrLn "" >> loop env
-        StackOverflow -> putStrLn "Stack over flow!" >> loop env
-        HeapOverflow  -> putStrLn "Heap over flow!" >> loop env
-        _             -> putStrLn "error!" >> loop env
-     )
+repl :: ReplT IO ()
+repl = (do
+  opts <- ask
+  env <- lift (gets environment)
+  home <- liftIO getHomeDirectory
+  input <- liftIO $ runInputT (settings home) $ getEgisonExpr opts
+  case input of
+    Nothing -> return ()
+    Just topExpr -> do
+      result <- liftIO $ fromEvalM (desugarTopExpr topExpr >>= evalTopExpr' opts env)
+      case result of
+        Left err -> liftIO (print err) >> repl
+        Right (Nothing, env') -> do
+          lift $ modify (\s -> s { environment = env' })
+          repl
+        Right (Just output, env') -> do
+          lift $ modify (\s -> s { environment = env' })
+          case optMathExpr opts of
+            Nothing   -> liftIO $ putStrLn output
+            Just lang -> liftIO $ putStrLn (changeOutputInLang lang output)
+          repl
+           )
+  `catch`
+  (\case
+      UserInterrupt -> liftIO (putStrLn "") >> repl
+      StackOverflow -> liftIO (putStrLn "Stack over flow!") >> repl
+      HeapOverflow  -> liftIO (putStrLn "Heap over flow!") >> repl
+      _             -> liftIO (putStrLn "error!") >> repl
+   )
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
 getEgisonExpr :: EgisonOpts -> InputT IO (Maybe EgisonTopExpr)
