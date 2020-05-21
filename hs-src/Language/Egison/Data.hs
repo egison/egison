@@ -684,6 +684,7 @@ instance MonadEval EvalM where
     return ()
   getFuncNameStack = EvalM $ funcNameStack <$> get
 
+-- TODO(momhatt): Use freshID counter from RuntimeT
 fromEvalM :: EvalM a -> IO (Either EgisonError a)
 fromEvalM = runExceptT . modifyCounter . unEvalM
 

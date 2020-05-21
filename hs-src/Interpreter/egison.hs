@@ -86,7 +86,7 @@ runWithOptions opts = do
         -- Start the read-eval-print-loop
         _ -> do
           when (optShowBanner opts) showBanner
-          evalReplT opts env repl
+          evalRuntimeT opts env repl
           when (optShowBanner opts) showByebyeMessage
           exitSuccess
 
@@ -113,7 +113,7 @@ showByebyeMessage = putStrLn "Leaving Egison Interpreter."
 settings :: MonadIO m => FilePath -> Settings m
 settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
 
-repl :: ReplT IO ()
+repl :: RuntimeT IO ()
 repl = (do
   opts <- ask
   env  <- gets environment

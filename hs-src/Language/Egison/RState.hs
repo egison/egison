@@ -4,9 +4,9 @@
 
 module Language.Egison.RState
   ( RState(..)
-  , ReplT
-  , runReplT
-  , evalReplT
+  , RuntimeT
+  , runRuntimeT
+  , evalRuntimeT
   ) where
 
 import           Control.Monad.Trans.State
@@ -28,10 +28,10 @@ initialRState e = RState
   , environment = e
   }
 
-type ReplT m = ReaderT EgisonOpts (StateT RState m)
+type RuntimeT m = ReaderT EgisonOpts (StateT RState m)
 
-runReplT :: Monad m => EgisonOpts -> Env -> ReplT m a -> m (a, RState)
-runReplT opts env = flip runStateT (initialRState env) . flip runReaderT opts
+runRuntimeT :: Monad m => EgisonOpts -> Env -> RuntimeT m a -> m (a, RState)
+runRuntimeT opts env = flip runStateT (initialRState env) . flip runReaderT opts
 
-evalReplT :: Monad m => EgisonOpts -> Env -> ReplT m a -> m a
-evalReplT opts env = flip evalStateT (initialRState env) . flip runReaderT opts
+evalRuntimeT :: Monad m => EgisonOpts -> Env -> RuntimeT m a -> m a
+evalRuntimeT opts env = flip evalStateT (initialRState env) . flip runReaderT opts
