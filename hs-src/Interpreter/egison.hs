@@ -71,7 +71,6 @@ runWithOptions opts = do
         -- Execute a script (test only)
         EgisonOpts { optTestOnly = True, optExecFile = Just (file, _) } -> do
           result <- if optNoIO opts
-                       -- TODO: Switch parsers by file extension
                        then do input <- readFile file
                                runEgisonTopExprs opts env input
                        else evalEgisonTopExprs opts env [LoadFile file]
