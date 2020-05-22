@@ -26,9 +26,7 @@ import           Text.Regex.TDFA            ((=~))
 import           Language.Egison
 import           Language.Egison.CmdOptions
 import           Language.Egison.Completion
-import           Language.Egison.Core       (evalTopExpr')
 import           Language.Egison.Desugar
-import           Language.Egison.MathOutput
 import qualified Language.Egison.Parser.SExpr as SExpr
 import qualified Language.Egison.Parser.NonS  as NonS
 import           Language.Egison.RState
@@ -122,19 +120,15 @@ repl = (do
   case input of
     Nothing -> return ()
     Just topExpr -> do
-      result <- liftIO $ fromEvalM (desugarTopExpr topExpr >>= evalTopExpr' opts env)
+      result <- liftIO $ fromEvalM (desugarTopExpr topExpr >>= evalTopExpr opts env)
       case result of
-        Left err -> liftIO (print err) >> repl
-        Right (Nothing, env') -> do
+        Left err -> do
+          liftIO (print err)
+          repl
+        Right env' -> do
           modify (\s -> s { environment = env' })
           repl
-        Right (Just output, env') -> do
-          modify (\s -> s { environment = env' })
-          case optMathExpr opts of
-            Nothing   -> liftIO $ putStrLn output
-            Just lang -> liftIO $ putStrLn (changeOutputInLang lang output)
-          repl
-           )
+  )
   `catch`
   (\case
       UserInterrupt -> liftIO (putStrLn "") >> repl
