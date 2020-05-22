@@ -56,14 +56,14 @@ evalTopExprs opts env exprs = do
 
 evalTopExpr :: EgisonOpts -> Env -> EgisonTopExpr -> EvalM Env
 evalTopExpr opts env topExpr = do
-  ret <- evalTopExpr' opts env topExpr
-  case fst ret of
+  (mOutput, env') <- evalTopExpr' opts env topExpr
+  case mOutput of
     Nothing     -> return ()
     Just output -> liftIO $
             case optMathExpr opts of
               Nothing   -> putStrLn output
               Just lang -> putStrLn $ changeOutputInLang lang output
-  return (snd ret)
+  return env'
 
 -- |eval an Egison expression
 evalEgisonExpr :: Env -> EgisonExpr -> IO (Either EgisonError EgisonValue)
