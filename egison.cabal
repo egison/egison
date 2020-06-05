@@ -55,7 +55,7 @@ Author:              Satoshi Egi, Ryo Tanaka, Takahisa Watanabe, Kentaro Honda, 
 Maintainer:          Satoshi Egi <egi@egison.org>
 Category:            Compilers/Interpreters
 Build-type:          Simple
-Cabal-version:       >=1.8
+Cabal-version:       2.0
 
 Extra-Source-Files:  benchmark/Benchmark.hs
 
@@ -71,6 +71,7 @@ source-repository head
   location: https://github.com/egison/egison.git
 
 Library
+  default-language:    Haskell2010
   Build-Depends:
       base >= 4.7 && < 5
     , array
@@ -123,9 +124,11 @@ Library
                    Language.Egison.Tensor
                    Language.Egison.Types
   Other-modules:   Paths_egison
+  autogen-modules: Paths_egison
   ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns
 
 Test-Suite test
+  default-language:    Haskell2010
   Type:           exitcode-stdio-1.0
   Hs-Source-Dirs: test
   Main-Is:        Test.hs
@@ -140,8 +143,10 @@ Test-Suite test
     , test-framework-hunit
     , filepath
   Other-modules:   Paths_egison
+  autogen-modules: Paths_egison
 
 Benchmark benchmark
+  default-language:    Haskell2010
   Type: exitcode-stdio-1.0
   Hs-Source-Dirs:  benchmark
   Main-Is: Benchmark.hs
@@ -153,8 +158,10 @@ Benchmark benchmark
     , transformers
     , mtl
   Other-modules:   Paths_egison
+  autogen-modules: Paths_egison
 
 Executable egison
+  default-language:    Haskell2010
   Main-is:             egison.hs
   Build-depends:
       egison
@@ -179,9 +186,11 @@ Executable egison
     Build-Depends: semigroups
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
+  autogen-modules: Paths_egison
   ghc-options:  -O3 -threaded -eventlog -rtsopts -Wall -Wno-name-shadowing
 
 Executable egison-translate
+  default-language:    Haskell2010
   Main-is:          translator.hs
   Build-depends:
       egison
