@@ -911,7 +911,7 @@ processMState state =
   nullMState _ = False
   splitMState :: MatchingState -> (Integer, MatchingState, MatchingState)
   splitMState mstate@MState{ mTrees = MAtom (NotPat pattern) target matcher : trees } =
-    (1, mstate { mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
+    (1, mstate { seqPatCtx = [],  mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
   splitMState mstate@MState{ mTrees = MAtom pattern target matcher : trees } =
     (0, mstate { mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
   splitMState mstate@MState{ mTrees = MNode penv state' : trees } =
