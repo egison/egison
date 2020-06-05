@@ -13,6 +13,7 @@ import           Language.Egison.PrettyMath.AST
 
 showMathExpr :: MathExpr -> String
 showMathExpr (Atom a []) = a
+showMathExpr (Atom a xs) = a ++ showMathExprIndices xs
 showMathExpr (Partial f xs) = showMathExpr f ++ "_" ++ showMathExprs "_" xs
 showMathExpr (NegativeAtom a) = "-" ++ a
 showMathExpr (Plus []) = ""
