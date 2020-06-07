@@ -1,5 +1,5 @@
 Name:                egison
-Version:             4.0.1
+Version:             4.0.2
 Synopsis:            Programming language with non-linear pattern-matching against non-free data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
