@@ -13,7 +13,7 @@ exp $x :=
       then match x as termExpr with
         | #0 -> 1
         | #1 -> e
-        | mult $a #(i * pi) -> (-1) ^ a
+        | mult $a #(i * π) -> (-1) ^ a
         | _ -> `exp x
       else `exp x
 

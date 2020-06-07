@@ -119,7 +119,7 @@ rewriteRuleForExpTerm term :=
   match term as mathExpr with
     | $a * #`exp #0 * $r -> a *' r
     | $a * #`exp #1 * $r -> a *' e *' r
-    | $a * #`exp (mult $x #(i * pi)) * $r -> a *' (-1) ^ x *' r
+    | $a * #`exp (mult $x #(i * π)) * $r -> a *' (-1) ^ x *' r
     | $a * #`exp $x ^ (?(>= 2) & $n) * $r ->
       rewriteRuleForExp (a *' exp (x * n) *' r)
     | $a * #`exp $x * #`exp $y * $r -> rewriteRuleForExp (a *' exp (x + y) *' r)
@@ -202,8 +202,8 @@ rewriteRuleForSin mExpr := mapTerms f mExpr
     f term :=
       match term as mathExpr with
         | _ * #`sin #0 * _ -> 0
-        | _ * #`sin (mult _ #pi) * _ -> 0
-        | $a * #`sin (mult $n #pi / #2) * $mr ->
+        | _ * #`sin (mult _ #π) * _ -> 0
+        | $a * #`sin (mult $n #π / #2) * $mr ->
           a *' (-1) ^ ((abs n - 1) / 2) *' mr
         | _ -> term
 
@@ -212,8 +212,8 @@ rewriteRuleForCos mExpr := mapTerms f mExpr
     f term :=
       match term as mathExpr with
         | $a * #`cos #0 * $mr -> a *' mr
-        | $a * #`cos (term $n [#pi]) * $mr -> a *' (-1) ^ abs n *' mr
-        | _ * #`cos (mult _ #pi / #2) * _ -> 0
+        | $a * #`cos (term $n [#π]) * $mr -> a *' (-1) ^ abs n *' mr
+        | _ * #`cos (mult _ #π / #2) * _ -> 0
         | _ -> term
 
 --
