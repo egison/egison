@@ -22,6 +22,7 @@ import           Data.List                 (intercalate)
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.String (renderString)
 import qualified Data.Vector               as V
+import           Text.Show.Unicode         (ushow)
 
 import           Language.Egison.AST
 import           Language.Egison.MathExpr  hiding (Printable(..))
@@ -47,7 +48,7 @@ instance Pretty EgisonTopExpr where
 instance Pretty EgisonExpr where
   -- Use |viaShow| to correctly handle escaped characters
   pretty (CharExpr x)    = viaShow x
-  pretty (StringExpr x)  = viaShow x
+  pretty (StringExpr x)  = pretty (ushow x)
   pretty (BoolExpr x)    = pretty x
   pretty (IntegerExpr x) = pretty x
   pretty (FloatExpr x)   = pretty x

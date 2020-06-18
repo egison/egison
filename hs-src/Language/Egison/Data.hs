@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE QuasiQuotes                #-}
@@ -91,6 +90,7 @@ import qualified Data.Vector               as V
 
 import           Data.List                 (intercalate)
 import           Data.Text                 (Text)
+import           Text.Show.Unicode         (ushow)
 
 import           Data.Ratio
 import           System.IO
@@ -313,7 +313,7 @@ tensorToValue t@(Tensor _ _ _) = TensorData t
 -- TODO(momohatt): Don't make it a show instance of EgisonValue.
 instance Show EgisonValue where
   show (Char c) = '\'' : c : "'"
-  show (String str) = show str
+  show (String str) = ushow str
   show (Bool True) = "True"
   show (Bool False) = "False"
   show (ScalarData mExpr) = show mExpr
