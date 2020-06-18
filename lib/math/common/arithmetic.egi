@@ -6,6 +6,18 @@
 
 toMathExpr arg := mathNormalize (toMathExpr' arg)
 
+infixl expression 6 +
+infixl expression 6 -
+infixl expression 7 *
+infixl expression 7 /
+infixl expression 8 ^
+
+infixl expression 6 +'
+infixl expression 6 -'
+infixl expression 7 *'
+infixl expression 7 /'
+infixl expression 8 ^'
+
 (+') $x $y := b.+ x y
 
 (-') $x $y := b.- x y

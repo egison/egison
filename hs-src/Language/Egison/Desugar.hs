@@ -233,9 +233,9 @@ desugar (DoExpr binds expr) =
 desugar (IoExpr expr) =
   IoExpr <$> desugar expr
 
-desugar (PrefixExpr "-" expr) =
-  desugar (InfixExpr mult (IntegerExpr (-1)) expr)
-    where mult = findOpFrom "*" reservedExprInfix
+desugar (PrefixExpr "-" expr) = do
+  expr' <- desugar expr
+  return $ makeApply "*" [IntegerExpr (-1), expr']
 desugar (PrefixExpr "!" (ApplyExpr expr1 expr2)) =
   WedgeApplyExpr <$> desugar expr1 <*> desugar expr2
 desugar (PrefixExpr "'" expr) = QuoteExpr <$> desugar expr
