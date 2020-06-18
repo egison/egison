@@ -34,6 +34,9 @@ module Language.Egison.Tensor
     , tContract'
     , tConcat
     , tConcat'
+    -- * Tensor to Egison value
+    , tensorToWHNF
+    , tensorToValue
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
@@ -46,7 +49,7 @@ import           Data.List                 (delete, find, findIndex,
 import           Control.Egison            hiding (Integer)
 import qualified Control.Egison            as M
 
-import           Language.Egison.AST hiding (PatVar)
+import           Language.Egison.AST       hiding (PatVar)
 import           Language.Egison.Data
 import           Language.Egison.EvalState     (getFuncNameStack)
 import           Language.Egison.MathExpr
@@ -404,6 +407,17 @@ tConcat' ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') []
 
+--
+-- Tensor to Egison data
+--
+
+tensorToWHNF :: Tensor WHNFData -> WHNFData
+tensorToWHNF (Scalar whnf) = whnf
+tensorToWHNF t@(Tensor _ _ _) = Intermediate (ITensor t)
+
+tensorToValue :: Tensor EgisonValue -> EgisonValue
+tensorToValue (Scalar val) = val
+tensorToValue t@(Tensor _ _ _) = TensorData t
 
 -- utility functions for tensors
 
