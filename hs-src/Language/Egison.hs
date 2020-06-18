@@ -42,6 +42,7 @@ import           Language.Egison.Data
 import           Language.Egison.MathOutput  (changeOutputInLang)
 import           Language.Egison.Parser
 import           Language.Egison.Primitives
+import           Language.Egison.RState
 
 import           Control.Monad.State
 

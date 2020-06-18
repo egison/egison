@@ -123,6 +123,7 @@ Library
                    Language.Egison.PrettyMath.Mathematica
                    Language.Egison.PrettyMath.Maxima
                    Language.Egison.Primitives
+                   Language.Egison.RState
                    Language.Egison.Tensor
                    Language.Egison.Types
   Other-modules:   Paths_egison

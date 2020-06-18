@@ -27,6 +27,7 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.Completion
 import           Language.Egison.Desugar    (desugarTopExpr)
 import           Language.Egison.Parser     (parseTopExpr)
+import           Language.Egison.RState
 
 import           Options.Applicative
 
@@ -136,7 +137,7 @@ repl env = (do
    )
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExpr :: InputT (RuntimeT IO) (Maybe EgisonTopExpr)
+getEgisonExpr :: InputT RuntimeM (Maybe EgisonTopExpr)
 getEgisonExpr = getEgisonExpr' ""
   where
     getEgisonExpr' prev = do

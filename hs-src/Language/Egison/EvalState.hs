@@ -1,8 +1,3 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE UndecidableInstances       #-}
-
 {- |
 Module      : Language.Egison.EvalState
 Licence     : MIT

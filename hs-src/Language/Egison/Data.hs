@@ -50,12 +50,6 @@ module Language.Egison.Data
     -- * Errors
     , EgisonError (..)
     -- * Monads
-    , RState (..)
-    , RuntimeT
-    , RuntimeM
-    , MonadRuntime (..)
-    , runRuntimeT
-    , evalRuntimeT
     , EvalM
     , fromEvalM
     , fromEvalT
@@ -66,7 +60,6 @@ import           Data.Typeable
 
 import           Control.Monad.Except      hiding (join)
 import           Control.Monad.Trans.State.Strict
-import           Control.Monad.Trans.Reader
 
 import           Data.Foldable             (toList)
 import           Data.HashMap.Strict       (HashMap)
@@ -90,6 +83,7 @@ import           Language.Egison.AST       hiding (PatVar)
 import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
 import           Language.Egison.MathExpr
+import           Language.Egison.RState
 
 --
 -- Values
@@ -606,47 +600,6 @@ showTrace :: CallStack -> String
 showTrace stack = "\n  stack trace: " ++ intercalate ", " stack
 
 instance Exception EgisonError
-
---
--- RState
---
-
-data RState = RState
-  { indexCounter :: Int
-  , exprInfixes :: [Infix]
-  , patternInfixes :: [Infix]
-  }
-
-initialRState :: RState
-initialRState = RState
-  { indexCounter = 0
-  , exprInfixes = reservedExprInfix
-  , patternInfixes = reservedPatternInfix
-  }
-
-type RuntimeT m = ReaderT EgisonOpts (StateT RState m)
-
-type RuntimeM = RuntimeT IO
-
-class (Applicative m, Monad m) => MonadRuntime m where
-  fresh :: m String
-  freshV :: m Var
-
-instance Monad m => MonadRuntime (RuntimeT m) where
-  fresh = do
-    st <- lift get
-    lift (modify (\st -> st { indexCounter = indexCounter st + 1 }))
-    return $ "$_" ++ show (indexCounter st)
-  freshV = do
-    st <- lift get
-    lift (modify (\st -> st {indexCounter = indexCounter st + 1 }))
-    return $ Var ["$_" ++ show (indexCounter st)] []
-
-runRuntimeT :: Monad m => EgisonOpts -> RuntimeT m a -> m (a, RState)
-runRuntimeT opts = flip runStateT initialRState . flip runReaderT opts
-
-evalRuntimeT :: Monad m => EgisonOpts -> RuntimeT m a -> m a
-evalRuntimeT opts = flip evalStateT initialRState . flip runReaderT opts
 
 --
 -- Monads

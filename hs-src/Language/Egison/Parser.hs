@@ -30,6 +30,7 @@ import           System.IO
 import           Language.Egison.AST
 import           Language.Egison.Desugar
 import           Language.Egison.Data
+import           Language.Egison.RState
 import qualified Language.Egison.Parser.SExpr   as SExpr
 import qualified Language.Egison.Parser.NonS    as NonS
 import           Paths_egison                   (getDataFileName)
