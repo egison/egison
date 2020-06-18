@@ -52,8 +52,8 @@ import qualified Data.Vector                 as V
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Data
+import           Language.Egison.EvalState   (MonadEval(..))
 import           Language.Egison.MList
-import           Language.Egison.IState      (MonadEval(..))
 import           Language.Egison.MathExpr
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
