@@ -17,12 +17,6 @@ module Language.Egison.IState
   ) where
 
 import           Control.Monad.Except
-import           Control.Monad.State
-import           Data.IORef
-
-import           System.IO.Unsafe          (unsafePerformIO)
-
-import           Language.Egison.AST
 
 
 data IState = IState
@@ -44,11 +38,3 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   topFuncName = lift topFuncName
   popFuncName = lift popFuncName
   getFuncNameStack = lift getFuncNameStack
-
--- {-# NOINLINE counter #-}
--- counter :: IORef Int
--- counter = unsafePerformIO $ newIORef 0
--- readCounter :: IO Int
--- readCounter = readIORef counter
--- updateCounter :: Int -> IO ()
--- updateCounter = writeIORef counter
