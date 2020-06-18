@@ -63,6 +63,7 @@ module Language.Egison.Data
     -- * Monads
     , RState (..)
     , RuntimeT
+    , RuntimeM
     , MonadRuntime (..)
     , runRuntimeT
     , evalRuntimeT
@@ -78,7 +79,7 @@ import           Data.Typeable
 
 import           Control.Monad.Except      hiding (join)
 import           Control.Monad.Trans.Maybe
-import           Control.Monad.Trans.State
+import           Control.Monad.Trans.State.Strict
 import           Control.Monad.Trans.Reader
 
 import           Data.Foldable             (toList)
@@ -98,7 +99,7 @@ import           System.IO
 import           Control.Egison            (cons, join, nil, match, mc, List(..))
 import qualified Control.Egison            as M
 
-import           Language.Egison.AST hiding (PatVar)
+import           Language.Egison.AST       hiding (PatVar)
 import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
 import           Language.Egison.MathExpr
@@ -670,15 +671,21 @@ instance Exception EgisonError
 data RState = RState
   { indexCounter :: Int
   , environment :: Env
+  , exprInfixes :: [Infix]
+  , patternInfixes :: [Infix]
   }
 
 initialRState :: Env -> RState
 initialRState e = RState
   { indexCounter = 0
   , environment = e
+  , exprInfixes = reservedExprInfix
+  , patternInfixes = reservedPatternInfix
   }
 
 type RuntimeT m = ReaderT EgisonOpts (StateT RState m)
+
+type RuntimeM = RuntimeT IO
 
 class (Applicative m, Monad m) => MonadRuntime m where
   fresh :: m String
