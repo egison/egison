@@ -42,22 +42,26 @@ runWithOptions opts | isInValidMathOption opts =
   hPrint stderr (Default "this output lang is not supported") >> exitFailure
 runWithOptions EgisonOpts{ optShowVersion = True } =
   putStrLn (showVersion version) >> exitSuccess
-runWithOptions opts = do
-  coreEnv <- initialEnv opts
-  mEnv <- evalEgisonTopExprs opts coreEnv $ map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)
+runWithOptions opts = evalRuntimeT opts run
+
+run :: RuntimeM ()
+run = do
+  opts <- ask
+  coreEnv <- initialEnv
+  mEnv <- evalEgisonTopExprs coreEnv $ map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)
   case mEnv of
-    Left err -> print err
+    Left err -> liftIO $ print err
     Right env ->
       case opts of
         -- Evaluate the given string
         EgisonOpts { optEvalString = Just expr }
           | optTsvOutput opts ->
-            executeEgisonTopExpr opts env $ "execute (each (\\x -> print (showTsv x)) (" ++ expr ++ "))"
+            executeEgisonTopExpr env $ "execute (each (\\x -> print (showTsv x)) (" ++ expr ++ "))"
           | otherwise -> do
-            executeEgisonTopExpr opts env $ "execute (print (show (" ++ expr ++ ")))"
+            executeEgisonTopExpr env $ "execute (print (show (" ++ expr ++ ")))"
         -- Execute the given string
         EgisonOpts { optExecuteString = Just cmd } ->
-          executeEgisonTopExpr opts env $ "execute (" ++ cmd ++ ")"
+          executeEgisonTopExpr env $ "execute (" ++ cmd ++ ")"
         -- Operate input in tsv format as infinite stream
         EgisonOpts { optSubstituteString = Just sub } ->
           let (sopts, copts) = unzip (optFieldInfo opts)
@@ -66,31 +70,31 @@ runWithOptions opts = do
               expr = "load \"lib/core/shell.egi\"\n"
                   ++ "execute (let SH.input := SH.genInput " ++ sopts' ++ " " ++ copts' ++ "\n"
                   ++ "          in each (\\x -> print (" ++ if optTsvOutput opts then "showTsv" else "show" ++ " x)) (" ++ sub ++ " SH.input))"
-            in executeEgisonTopExpr opts env expr
+            in executeEgisonTopExpr env expr
         -- Execute a script (test only)
         EgisonOpts { optTestOnly = True, optExecFile = Just (file, _) } -> do
+          exprs <- liftIO $ readFile file
           result <- if optNoIO opts
-                       then do input <- readFile file
-                               runEgisonTopExprs opts env input
-                       else evalEgisonTopExprs opts env [LoadFile file]
-          either print (const $ return ()) result
+                       then runEgisonTopExprs env exprs
+                       else evalEgisonTopExprs env [LoadFile file]
+          liftIO $ either print (const $ return ()) result
         -- Execute a script from the main function
         EgisonOpts { optExecFile = Just (file, args) } -> do
-          result <- evalEgisonTopExprs opts env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
-          either print (const $ return ()) result
+          result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
+          liftIO $ either print (const $ return ()) result
         -- Start the read-eval-print-loop
         _ -> do
-          when (optShowBanner opts) showBanner
-          evalRuntimeT opts (repl env)
-          when (optShowBanner opts) showByebyeMessage
-          exitSuccess
+          when (optShowBanner opts) (liftIO showBanner)
+          repl env
+          when (optShowBanner opts) (liftIO showByebyeMessage)
+          liftIO exitSuccess
 
-executeEgisonTopExpr :: EgisonOpts -> Env -> String -> IO ()
-executeEgisonTopExpr opts env expr = do
-  cmdRet <- runEgisonTopExprs opts env expr
+executeEgisonTopExpr :: Env -> String -> RuntimeM ()
+executeEgisonTopExpr env expr = do
+  cmdRet <- runEgisonTopExprs env expr
   case cmdRet of
-    Left err -> hPrint stderr err >> exitFailure
-    _        -> exitSuccess
+    Left err -> liftIO $ hPrint stderr err >> exitFailure
+    _        -> liftIO exitSuccess
 
 showBanner :: IO ()
 showBanner = do
@@ -108,7 +112,7 @@ showByebyeMessage = putStrLn "Leaving Egison Interpreter."
 settings :: MonadIO m => FilePath -> Settings m
 settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
 
-repl :: Env -> RuntimeT IO ()
+repl :: Env -> RuntimeM ()
 repl env = (do
   home <- liftIO getHomeDirectory
   input <- runInputT (settings home) getEgisonExpr

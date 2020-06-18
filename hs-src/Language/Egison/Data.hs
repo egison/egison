@@ -711,7 +711,7 @@ evalRuntimeT opts = flip evalStateT initialRState . flip runReaderT opts
 
 type EvalT m = StateT EvalState (ExceptT EgisonError m)
 
-type EvalM = EvalT (RuntimeT IO)
+type EvalM = EvalT RuntimeM
 
 instance {-# OVERLAPPING #-} MonadFail EvalM where
   fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
@@ -732,7 +732,7 @@ instance MonadEval EvalM where
     return ()
   getFuncNameStack = funcNameStack <$> get
 
-fromEvalT :: EvalM a -> RuntimeT IO (Either EgisonError a)
+fromEvalT :: EvalM a -> RuntimeM (Either EgisonError a)
 fromEvalT m = runExceptT (evalStateT m initialEvalState)
 
 fromEvalM :: EgisonOpts -> EvalM a -> IO (Either EgisonError a)

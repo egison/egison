@@ -3,6 +3,7 @@ module Main where
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Class      (lift)
 import           Data.IORef
 import           Data.List
 
@@ -55,16 +56,15 @@ testCases =
   ]
 
 runTestCase :: FilePath -> Test
-runTestCase file = TestLabel file . TestCase $ do
-  env <- initialEnv defaultOption
-  assertEvalM $ do
-    exprs <- loadFile file
-    let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
-    env' <- recursiveBind env bindings
-    forM_ tests $ evalExprDeep env'
-  where
-    assertEvalM :: EvalM a -> Assertion
-    assertEvalM m = fromEvalM defaultOption nullEnv m >>= assertString . either show (const "")
+runTestCase file = TestLabel file . TestCase . assertEvalM $ do
+  env <- lift $ lift initialEnv
+  exprs <- loadFile file
+  let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
+  env' <- recursiveBind env bindings
+  forM_ tests $ evalExprDeep env'
+ where
+  assertEvalM :: EvalM a -> Assertion
+  assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
 
 collectDefsAndTests :: EgisonTopExpr -> ([(Var, EgisonExpr)], [EgisonExpr]) -> ([(Var, EgisonExpr)], [EgisonExpr])
 collectDefsAndTests (Define name expr) (bindings, tests) =
