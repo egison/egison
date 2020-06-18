@@ -26,9 +26,8 @@ import           Text.Regex.TDFA            ((=~))
 import           Language.Egison
 import           Language.Egison.CmdOptions
 import           Language.Egison.Completion
-import           Language.Egison.Desugar
-import qualified Language.Egison.Parser.SExpr as SExpr
-import qualified Language.Egison.Parser.NonS  as NonS
+import           Language.Egison.Desugar    (desugarTopExpr)
+import           Language.Egison.Parser     (parseTopExpr)
 
 import           Options.Applicative
 
@@ -112,10 +111,9 @@ settings home = setComplete completeEgison $ defaultSettings { historyFile = Jus
 
 repl :: RuntimeT IO ()
 repl = (do
-  opts <- ask
   env  <- gets environment
   home <- liftIO getHomeDirectory
-  input <- liftIO $ runInputT (settings home) $ getEgisonExpr opts
+  input <- runInputT (settings home) getEgisonExpr
   case input of
     Nothing -> return ()
     Just topExpr -> do
@@ -137,31 +135,29 @@ repl = (do
    )
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExpr :: EgisonOpts -> InputT IO (Maybe EgisonTopExpr)
-getEgisonExpr opts = getEgisonExpr' opts ""
+getEgisonExpr :: InputT (RuntimeT IO) (Maybe EgisonTopExpr)
+getEgisonExpr = getEgisonExpr' ""
   where
-    getEgisonExpr' opts prev = do
+    getEgisonExpr' prev = do
+      opts <- lift ask
       mLine <- case prev of
                  "" -> getInputLine $ optPrompt opts
                  _  -> getInputLine $ replicate (length $ optPrompt opts) ' '
       case mLine of
         Nothing -> return Nothing
-        Just [] ->
-          if null prev
-            then getEgisonExpr opts
-            else getEgisonExpr' opts prev
+        Just [] | null prev -> getEgisonExpr
+        Just [] -> getEgisonExpr' prev
         Just line -> do
           history <- getHistory
           putHistory $ addHistoryUnlessConsecutiveDupe line history
           let input = prev ++ line
-          let parsedExpr = if optSExpr opts then SExpr.parseTopExpr input
-                                            else NonS.parseTopExpr input
+          parsedExpr <- lift $ parseTopExpr (optSExpr opts) input
           case parsedExpr of
             Left err | show err =~ "unexpected end of input" ->
-              getEgisonExpr' opts $ input ++ "\n"
+              getEgisonExpr' (input ++ "\n")
             Left err -> do
               liftIO $ print err
-              getEgisonExpr opts
+              getEgisonExpr
             Right topExpr -> do
               -- outputStr $ show topExpr
               return $ Just topExpr
