@@ -119,7 +119,7 @@ repl = (do
   case input of
     Nothing -> return ()
     Just topExpr -> do
-      result <- fromEvalT (desugarTopExpr topExpr >>= evalTopExpr opts env)
+      result <- fromEvalT (desugarTopExpr topExpr >>= evalTopExpr env)
       case result of
         Left err -> do
           liftIO (print err)

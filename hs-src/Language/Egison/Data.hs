@@ -66,7 +66,7 @@ module Language.Egison.Data
     , MonadRuntime (..)
     , runRuntimeT
     , evalRuntimeT
-    , EvalM (..)
+    , EvalM
     , fromEvalM
     , fromEvalT
     , MatchM
@@ -706,31 +706,29 @@ evalRuntimeT opts env = flip evalStateT (initialRState env) . flip runReaderT op
 
 type EvalT m = StateT EvalState (ExceptT EgisonError m)
 
-newtype EvalM a = EvalM {
-    unEvalM :: EvalT (RuntimeT IO) a
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
+type EvalM = EvalT (RuntimeT IO)
 
-instance MonadFail EvalM where
+instance {-# OVERLAPPING #-} MonadFail EvalM where
   fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
 
 instance MonadRuntime EvalM where
-  fresh = EvalM . lift $ lift fresh
-  freshV = EvalM . lift $ lift freshV
+  fresh = lift $ lift fresh
+  freshV = lift $ lift freshV
 
 instance MonadEval EvalM where
-  pushFuncName name = EvalM $ do
+  pushFuncName name = do
     st <- get
     put $ st { funcNameStack = name : funcNameStack st }
     return ()
-  topFuncName = EvalM $ head . funcNameStack <$> get
-  popFuncName = EvalM $ do
+  topFuncName = head . funcNameStack <$> get
+  popFuncName = do
     st <- get
     put $ st { funcNameStack = tail $ funcNameStack st }
     return ()
-  getFuncNameStack = EvalM $ funcNameStack <$> get
+  getFuncNameStack = funcNameStack <$> get
 
 fromEvalT :: EvalM a -> RuntimeT IO (Either EgisonError a)
-fromEvalT m = runExceptT (evalStateT (unEvalM m) initialEvalState)
+fromEvalT m = runExceptT (evalStateT m initialEvalState)
 
 fromEvalM :: EgisonOpts -> Env -> EvalM a -> IO (Either EgisonError a)
 fromEvalM opts env = evalRuntimeT opts env . fromEvalT
