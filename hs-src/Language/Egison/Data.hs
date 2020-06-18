@@ -50,13 +50,6 @@ module Language.Egison.Data
     , nullEnv
     , extendEnv
     , refVar
-    -- * Pattern matching
-    , Match
-    , MatchingTree (..)
-    , MatchingState (..)
-    , PatternBinding
-    , LoopPatContext (..)
-    , SeqPatContext (..)
     -- * Errors
     , EgisonError (..)
     -- * Monads
@@ -69,15 +62,12 @@ module Language.Egison.Data
     , EvalM
     , fromEvalM
     , fromEvalT
-    , MatchM
-    , matchFail
     ) where
 
 import           Control.Exception
 import           Data.Typeable
 
 import           Control.Monad.Except      hiding (join)
-import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.State.Strict
 import           Control.Monad.Trans.Reader
 
@@ -579,38 +569,6 @@ refVar e@(Env env _) var@(Var name is) =
     Just x -> Just x
 
 --
--- Pattern Match
---
-
-type Match = [Binding]
-
-data MatchingState
-  = MState { mStateEnv      :: Env
-           , loopPatCtx     :: [LoopPatContext]
-           , seqPatCtx      :: [SeqPatContext]
-           , mStateBindings :: [Binding]
-           , mTrees         :: [MatchingTree]
-           }
-
-instance Show MatchingState where
-  show ms = "(MState " ++ unwords ["_", "_", "_", show (mStateBindings ms), show (mTrees ms)] ++ ")"
-
-data MatchingTree =
-    MAtom EgisonPattern WHNFData Matcher
-  | MNode [PatternBinding] MatchingState
- deriving (Show)
-
-type PatternBinding = (String, EgisonPattern)
-
-data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
- deriving (Show)
-
-data SeqPatContext =
-    SeqPatContext [MatchingTree] EgisonPattern [Matcher] [WHNFData]
-  | ForallPatContext [Matcher] [WHNFData]
- deriving (Show)
-
---
 -- Errors
 --
 
@@ -737,8 +695,3 @@ fromEvalT m = runExceptT (evalStateT m initialEvalState)
 
 fromEvalM :: EgisonOpts -> EvalM a -> IO (Either EgisonError a)
 fromEvalM opts = evalRuntimeT opts . fromEvalT
-
-type MatchM = MaybeT EvalM
-
-matchFail :: MatchM a
-matchFail = MaybeT $ return Nothing
