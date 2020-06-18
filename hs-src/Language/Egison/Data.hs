@@ -34,9 +34,6 @@ module Language.Egison.Data
     , egisonToScalarData
     , extractScalar
     , extractScalar'
-    -- * Tensor
-    , tensorToWHNF
-    , tensorToValue
     -- * Internal data
     , Object (..)
     , ObjectRef
@@ -287,18 +284,6 @@ extractScalar val = throwError =<< TypeMismatch "math expression" (Value val) <$
 extractScalar' :: WHNFData -> EvalM ScalarData
 extractScalar' (Value (ScalarData x)) = return x
 extractScalar' val = throwError =<< TypeMismatch "integer or string" val <$> getFuncNameStack
-
---
--- Tensor
---
-
-tensorToWHNF :: Tensor WHNFData -> WHNFData
-tensorToWHNF (Scalar whnf) = whnf
-tensorToWHNF t@(Tensor _ _ _) = Intermediate (ITensor t)
-
-tensorToValue :: Tensor EgisonValue -> EgisonValue
-tensorToValue (Scalar val) = val
-tensorToValue t@(Tensor _ _ _) = TensorData t
 
 -- New-syntax version of EgisonValue pretty printer.
 -- TODO(momohatt): Don't make it a show instance of EgisonValue.
