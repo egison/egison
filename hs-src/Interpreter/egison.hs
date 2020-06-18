@@ -29,7 +29,6 @@ import           Language.Egison.Completion
 import           Language.Egison.Desugar
 import qualified Language.Egison.Parser.SExpr as SExpr
 import qualified Language.Egison.Parser.NonS  as NonS
-import           Language.Egison.RState
 
 import           Options.Applicative
 
@@ -120,7 +119,7 @@ repl = (do
   case input of
     Nothing -> return ()
     Just topExpr -> do
-      result <- liftIO $ fromEvalM (desugarTopExpr topExpr >>= evalTopExpr opts env)
+      result <- fromEvalT (desugarTopExpr topExpr >>= evalTopExpr opts env)
       case result of
         Left err -> do
           liftIO (print err)
