@@ -49,6 +49,40 @@ To load your own program, call ``loadFile`` with a full-path or a relative path 
    -- Load your program.
    loadFile "myfile.egi"
 
+Infix Declaration
+-----------------
+(From version 4.0.4)
+
+You can define your own infixes (binary operators) for expressions and patterns.
+In Egison, infix declaration consists of the following 4 parts.
+
+* Associativity ... ``infix`` (non associative), ``infixl`` (left associative) or ``infixr`` (right associative)
+* Infix type ... ``expression`` (for functions) or ``pattern`` (for pattern constructors)
+* Priority of the infix
+* Representation of infix
+
+::
+
+   -- Define a right-associative infix '&&' of priority 5.
+   infixr expression 5 &&
+
+   -- Definition of the semantics of '&&'.
+   (&&) a b := match (a, b) as (eq, eq) with
+                 | (#True, #True) -> True
+                 | _              -> False
+
+   -- Define a left-associative infix '<>' of priority 7.
+   infixl pattern 7 <>
+
+   exampleMatcher := matcher
+     | $ <> $ as (integer, integer) with
+       | $x :: $y :: [] -> [(x, y)]
+       | _              -> []
+
+   match [1, 2] as dummyMatcher with $x <> $y -> x + y
+   ---> 3
+
+
 Basic Expressions
 =================
 
