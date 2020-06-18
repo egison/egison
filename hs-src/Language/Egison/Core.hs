@@ -59,6 +59,7 @@ import           Language.Egison.MList
 import           Language.Egison.MathExpr
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
+import           Language.Egison.RState
 import           Language.Egison.Tensor
 
 --
@@ -824,25 +825,6 @@ recursiveBind env bindings = do
  where
   isVarWithIndices :: Var -> Bool
   isVarWithIndices (Var _ xs) = not $ null xs
-
-recursiveRebind :: Env -> (Var, EgisonExpr) -> EvalM Env
-recursiveRebind env (name, expr) = do
-  case refVar env name of
-    Nothing -> throwError =<< UnboundVariable (prettyStr name) <$> getFuncNameStack
-    Just ref -> case expr of
-                  MemoizedLambdaExpr names body -> do
-                    hashRef <- liftIO $ newIORef HL.empty
-                    liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc (Just name) ref hashRef env names body
-                  LambdaExpr _ _ -> do
-                    whnf <- evalExpr env expr
-                    case whnf of
-                      Value (Func _ env args body) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just name) env args body)
-                  CambdaExpr _ _ -> do
-                    whnf <- evalExpr env expr
-                    case whnf of
-                      Value (CFunc _ env arg body) -> liftIO . writeIORef ref . WHNF $ Value (CFunc (Just name) env arg body)
-                  _ -> liftIO . writeIORef ref . Thunk $ evalExpr env expr
-  return env
 
 --
 -- Pattern Match

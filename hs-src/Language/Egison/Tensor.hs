@@ -53,6 +53,7 @@ import           Language.Egison.AST       hiding (PatVar)
 import           Language.Egison.Data
 import           Language.Egison.EvalState     (getFuncNameStack)
 import           Language.Egison.MathExpr
+import           Language.Egison.RState
 
 --
 -- Tensors

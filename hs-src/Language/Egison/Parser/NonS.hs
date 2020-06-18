@@ -33,6 +33,8 @@ import qualified Text.Megaparsec.Char.Lexer     as L
 
 import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.RState
+
 
 parseTopExprs :: String -> RuntimeM (Either EgisonError [EgisonTopExpr])
 parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
