@@ -35,6 +35,7 @@ import           Prelude                     hiding (mapM, mappend, mconcat)
 import           Control.Arrow
 import           Control.Monad.Except        (throwError)
 import           Control.Monad.State         hiding (mapM, join)
+import           Control.Monad.Reader        (ask)
 import           Control.Monad.Trans.Maybe
 
 import           Data.Char                   (isUpper)
@@ -88,37 +89,40 @@ collectDefs' opts (expr:exprs) bindings rest =
     InfixDecl{} -> collectDefs' opts exprs bindings rest
 collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExpr' :: EgisonOpts -> Env -> EgisonTopExpr -> EvalM (Maybe String, Env)
-evalTopExpr' _ env (Define name expr) = do
+evalTopExpr' :: Env -> EgisonTopExpr -> EvalM (Maybe String, Env)
+evalTopExpr' env (Define name expr) = do
   env' <- recursiveBind env [(name, expr)]
   return (Nothing, env')
-evalTopExpr' _ _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-evalTopExpr' opts env (Test expr) = do
+evalTopExpr' _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
+evalTopExpr' env (Test expr) = do
   pushFuncName "<stdin>"
   val <- evalExprDeep env expr
+  opts <- ask
   popFuncName
   case (optSExpr opts, optMathExpr opts) of
     (False, Nothing) -> return (Just (show val), env)
     _  -> return (Just (prettyS val), env)
-evalTopExpr' _ env (Execute expr) = do
+evalTopExpr' env (Execute expr) = do
   pushFuncName "<stdin>"
   io <- evalExpr env expr
   case io of
     Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
     _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
-evalTopExpr' opts _ Load{} | optNoIO opts = throwError (Default "No IO support")
-evalTopExpr' opts env (Load file) = do
+evalTopExpr' env (Load file) = do
+  opts <- ask
+  when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadLibraryFile file
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
-evalTopExpr' opts _ LoadFile{} | optNoIO opts = throwError (Default "No IO support")
-evalTopExpr' opts env (LoadFile file) = do
+evalTopExpr' env (LoadFile file) = do
+  opts <- ask
+  when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadFile file
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
-evalTopExpr' _ env InfixDecl{} = return (Nothing, env)
+evalTopExpr' env InfixDecl{} = return (Nothing, env)
 
 evalExpr :: Env -> EgisonExpr -> EvalM WHNFData
 evalExpr _ (CharExpr c)    = return . Value $ Char c
