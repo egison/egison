@@ -100,7 +100,7 @@ import qualified Control.Egison            as M
 
 import           Language.Egison.AST hiding (PatVar)
 import           Language.Egison.CmdOptions
-import           Language.Egison.IState
+import           Language.Egison.EvalState
 import           Language.Egison.MathExpr
 
 --
@@ -704,7 +704,7 @@ evalRuntimeT opts env = flip evalStateT (initialRState env) . flip runReaderT op
 -- Monads
 --
 
-type EvalT m = StateT IState (ExceptT EgisonError m)
+type EvalT m = StateT EvalState (ExceptT EgisonError m)
 
 newtype EvalM a = EvalM {
     unEvalM :: EvalT (RuntimeT IO) a
@@ -730,7 +730,7 @@ instance MonadEval EvalM where
   getFuncNameStack = EvalM $ funcNameStack <$> get
 
 fromEvalT :: EvalM a -> RuntimeT IO (Either EgisonError a)
-fromEvalT m = runExceptT (evalStateT (unEvalM m) initialIState)
+fromEvalT m = runExceptT (evalStateT (unEvalM m) initialEvalState)
 
 fromEvalM :: EgisonOpts -> Env -> EvalM a -> IO (Either EgisonError a)
 fromEvalM opts env = evalRuntimeT opts env . fromEvalT

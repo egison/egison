@@ -106,7 +106,7 @@ Library
                    Language.Egison.Completion
                    Language.Egison.Desugar
                    Language.Egison.Data
-                   Language.Egison.IState
+                   Language.Egison.EvalState
                    Language.Egison.MathExpr
                    Language.Egison.MathOutput
                    Language.Egison.MList

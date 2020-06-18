@@ -4,28 +4,28 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 {- |
-Module      : Language.Egison.IState
+Module      : Language.Egison.EvalState
 Licence     : MIT
 
-This module defines the internal state of Egison runtime.
+This module defines the state during the evaluation.
 -}
 
-module Language.Egison.IState
-  ( IState(..)
-  , initialIState
+module Language.Egison.EvalState
+  ( EvalState(..)
+  , initialEvalState
   , MonadEval(..)
   ) where
 
 import           Control.Monad.Except
 
 
-data IState = IState
+data EvalState = EvalState
   -- Names of called functions for improved error message
   { funcNameStack :: [String]
   }
 
-initialIState :: IState
-initialIState = IState { funcNameStack = [] }
+initialEvalState :: EvalState
+initialEvalState = EvalState { funcNameStack = [] }
 
 class (Applicative m, Monad m) => MonadEval m where
   pushFuncName :: String -> m ()
