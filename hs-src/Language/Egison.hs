@@ -30,6 +30,8 @@ module Language.Egison
        , version
       ) where
 
+import           Control.Monad.Reader        (asks)
+
 import           Data.Version
 import qualified Paths_egison                as P
 
@@ -49,53 +51,54 @@ version = P.version
 
 evalTopExprs :: EgisonOpts -> Env -> [EgisonTopExpr] -> EvalM Env
 evalTopExprs opts env exprs = do
-  (bindings, rest) <- collectDefs opts exprs [] []
+  (bindings, rest) <- collectDefs opts exprs
   env <- recursiveBind env bindings
-  forM_ rest $ evalTopExpr opts env
+  forM_ rest $ evalTopExpr env
   return env
 
-evalTopExpr :: EgisonOpts -> Env -> EgisonTopExpr -> EvalM Env
-evalTopExpr opts env topExpr = do
-  ret <- evalTopExpr' opts (StateT $ \defines -> (, defines) <$> recursiveBind env defines) topExpr
-  case fst ret of
+evalTopExpr :: Env -> EgisonTopExpr -> EvalM Env
+evalTopExpr env topExpr = do
+  mathExpr <- asks optMathExpr
+  (mOutput, env') <- evalTopExpr' env topExpr
+  case mOutput of
     Nothing     -> return ()
     Just output -> liftIO $
-            case optMathExpr opts of
+            case mathExpr of
               Nothing   -> putStrLn output
               Just lang -> putStrLn $ changeOutputInLang lang output
-  evalStateT (snd ret) []
+  return env'
 
 -- |eval an Egison expression
 evalEgisonExpr :: Env -> EgisonExpr -> IO (Either EgisonError EgisonValue)
-evalEgisonExpr env expr = fromEvalM $ evalExprDeep env expr
+evalEgisonExpr env expr = fromEvalM defaultOption env $ evalExprDeep env expr
 
 -- |eval an Egison top expression
 evalEgisonTopExpr :: EgisonOpts -> Env -> EgisonTopExpr -> IO (Either EgisonError Env)
-evalEgisonTopExpr opts env exprs = fromEvalM $ evalTopExpr opts env exprs
+evalEgisonTopExpr opts env exprs = fromEvalM opts env $ evalTopExpr env exprs
 
 -- |eval Egison top expressions
 evalEgisonTopExprs :: EgisonOpts -> Env -> [EgisonTopExpr] -> IO (Either EgisonError Env)
-evalEgisonTopExprs opts env exprs = fromEvalM $ evalTopExprs opts env exprs
+evalEgisonTopExprs opts env exprs = fromEvalM opts env $ evalTopExprs opts env exprs
 
 -- |eval an Egison expression. Input is a Haskell string.
 runEgisonExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError EgisonValue)
 runEgisonExpr opts env input =
-  fromEvalM $ readExpr (optSExpr opts) input >>= evalExprDeep env
+  fromEvalM opts env $ readExpr (optSExpr opts) input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExpr opts env input =
-  fromEvalM $ readTopExpr (optSExpr opts) input >>= evalTopExpr opts env
+  fromEvalM opts env $ readTopExpr (optSExpr opts) input >>= evalTopExpr env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EvalM Env -> String -> IO (Either EgisonError (Maybe String, StateT [(Var, EgisonExpr)] EvalM Env))
-runEgisonTopExpr' opts st input =
-  fromEvalM $ readTopExpr (optSExpr opts) input >>= evalTopExpr' opts st
+runEgisonTopExpr' :: EgisonOpts -> Env -> String -> IO (Either EgisonError (Maybe String, Env))
+runEgisonTopExpr' opts env input =
+  fromEvalM opts env $ readTopExpr (optSExpr opts) input >>= evalTopExpr' env
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
 runEgisonTopExprs opts env input =
-  fromEvalM $ readTopExprs (optSExpr opts) input >>= evalTopExprs opts env
+  fromEvalM opts env $ readTopExprs (optSExpr opts) input >>= evalTopExprs opts env
 
 -- |load an Egison file
 loadEgisonFile :: EgisonOpts -> Env -> FilePath -> IO (Either EgisonError Env)

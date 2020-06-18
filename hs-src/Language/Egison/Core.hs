@@ -35,6 +35,7 @@ import           Prelude                     hiding (mapM, mappend, mconcat)
 import           Control.Arrow
 import           Control.Monad.Except        (throwError)
 import           Control.Monad.State         hiding (mapM, join)
+import           Control.Monad.Reader        (ask)
 import           Control.Monad.Trans.Maybe
 
 import           Data.Char                   (isUpper)
@@ -52,8 +53,8 @@ import qualified Data.Vector                 as V
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Data
+import           Language.Egison.EvalState   (MonadEval(..))
 import           Language.Egison.MList
-import           Language.Egison.IState      (MonadEval(..))
 import           Language.Egison.MathExpr
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
@@ -63,51 +64,65 @@ import           Language.Egison.Tensor
 -- Evaluator
 --
 
-collectDefs :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
-collectDefs opts (expr:exprs) bindings rest =
+collectDefs :: EgisonOpts -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
+collectDefs opts exprs | optTestOnly opts = collectDefs' opts exprs [] []
+collectDefs opts exprs = do
+  (bindings, _) <- collectDefs' opts exprs [] []
+  return (bindings, [])
+
+collectDefs' :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
+collectDefs' opts (expr:exprs) bindings rest =
   case expr of
-    Define name expr -> collectDefs opts exprs ((name, expr) : bindings) rest
+    Define name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
     DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-    Redefine _ _ -> collectDefs opts exprs bindings $ if optTestOnly opts then expr : rest else rest
-    Test _ -> collectDefs opts exprs bindings $ if optTestOnly opts then expr : rest else rest
-    Execute _ -> collectDefs opts exprs bindings $ if optTestOnly opts then rest else expr : rest
+    Redefine{} -> collectDefs' opts exprs bindings (expr : rest)
+    Test{}     -> collectDefs' opts exprs bindings (expr : rest)
+    Execute{}  -> collectDefs' opts exprs bindings (expr : rest)
     LoadFile _ | optNoIO opts -> throwError (Default "No IO support")
     LoadFile file -> do
       exprs' <- loadFile file
-      collectDefs opts (exprs' ++ exprs) bindings rest
+      collectDefs' opts (exprs' ++ exprs) bindings rest
     Load _ | optNoIO opts -> throwError (Default "No IO support")
     Load file -> do
       exprs' <- loadLibraryFile file
-      collectDefs opts (exprs' ++ exprs) bindings rest
-    InfixDecl{} -> collectDefs opts exprs bindings rest
-collectDefs _ [] bindings rest = return (bindings, reverse rest)
+      collectDefs' opts (exprs' ++ exprs) bindings rest
+    InfixDecl{} -> collectDefs' opts exprs bindings rest
+collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExpr' :: EgisonOpts -> StateT [(Var, EgisonExpr)] EvalM Env -> EgisonTopExpr -> EvalM (Maybe String, StateT [(Var, EgisonExpr)] EvalM Env)
-evalTopExpr' _ st (Define name expr) = return (Nothing, withStateT (\defines -> (name, expr):defines) st)
-evalTopExpr' _ _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-evalTopExpr' _ st (Redefine name expr) = return (Nothing, mapStateT (>>= \(env, defines) -> (, defines) <$> recursiveRebind env (name, expr)) st)
-evalTopExpr' opts st (Test expr) = do
+evalTopExpr' :: Env -> EgisonTopExpr -> EvalM (Maybe String, Env)
+evalTopExpr' env (Define name expr) = do
+  env' <- recursiveBind env [(name, expr)]
+  return (Nothing, env')
+evalTopExpr' _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
+evalTopExpr' env (Test expr) = do
   pushFuncName "<stdin>"
-  val <- evalStateT st [] >>= flip evalExprDeep expr
+  val <- evalExprDeep env expr
+  opts <- ask
   popFuncName
   case (optSExpr opts, optMathExpr opts) of
-    (False, Nothing) -> return (Just (show val), st)
-    _  -> return (Just (prettyS val), st)
-evalTopExpr' _ st (Execute expr) = do
+    (False, Nothing) -> return (Just (show val), env)
+    _  -> return (Just (prettyS val), env)
+evalTopExpr' env (Execute expr) = do
   pushFuncName "<stdin>"
-  io <- evalStateT st [] >>= flip evalExpr expr
+  io <- evalExpr env expr
   case io of
-    Value (IOFunc m) -> m >> popFuncName >> return (Nothing, st)
+    Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
     _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
-evalTopExpr' opts st (Load file) = do
+evalTopExpr' env (Load file) = do
+  opts <- ask
+  when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadLibraryFile file
-  (bindings, _) <- collectDefs opts exprs [] []
-  return (Nothing, withStateT (\defines -> bindings ++ defines) st)
-evalTopExpr' opts st (LoadFile file) = do
+  (bindings, _) <- collectDefs opts exprs
+  env' <- recursiveBind env bindings
+  return (Nothing, env')
+evalTopExpr' env (LoadFile file) = do
+  opts <- ask
+  when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadFile file
-  (bindings, _) <- collectDefs opts exprs [] []
-  return (Nothing, withStateT (\defines -> bindings ++ defines) st)
-evalTopExpr' _ st InfixDecl{} = return (Nothing, st)
+  (bindings, _) <- collectDefs opts exprs
+  env' <- recursiveBind env bindings
+  return (Nothing, env')
+evalTopExpr' env InfixDecl{} = return (Nothing, env)
 
 evalExpr :: Env -> EgisonExpr -> EvalM WHNFData
 evalExpr _ (CharExpr c)    = return . Value $ Char c

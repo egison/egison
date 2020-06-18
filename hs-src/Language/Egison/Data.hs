@@ -61,8 +61,14 @@ module Language.Egison.Data
     -- * Errors
     , EgisonError (..)
     -- * Monads
-    , EvalM (..)
+    , RState (..)
+    , RuntimeT
+    , MonadRuntime (..)
+    , runRuntimeT
+    , evalRuntimeT
+    , EvalM
     , fromEvalM
+    , fromEvalT
     , MatchM
     , matchFail
     ) where
@@ -73,6 +79,7 @@ import           Data.Typeable
 import           Control.Monad.Except      hiding (join)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.State
+import           Control.Monad.Trans.Reader
 
 import           Data.Foldable             (toList)
 import           Data.HashMap.Strict       (HashMap)
@@ -88,11 +95,12 @@ import           Data.Text                 (Text)
 import           Data.Ratio
 import           System.IO
 
-import           Control.Egison hiding (Integer, MList, MNil, MCons, Matcher, Something, mappend)
-import qualified Control.Egison as M
+import           Control.Egison            (cons, join, nil, match, mc, List(..))
+import qualified Control.Egison            as M
 
 import           Language.Egison.AST hiding (PatVar)
-import           Language.Egison.IState
+import           Language.Egison.CmdOptions
+import           Language.Egison.EvalState
 import           Language.Egison.MathExpr
 
 --
@@ -656,36 +664,74 @@ showTrace stack = "\n  stack trace: " ++ intercalate ", " stack
 instance Exception EgisonError
 
 --
+-- RState
+--
+
+data RState = RState
+  { indexCounter :: Int
+  , environment :: Env
+  }
+
+initialRState :: Env -> RState
+initialRState e = RState
+  { indexCounter = 0
+  , environment = e
+  }
+
+type RuntimeT m = ReaderT EgisonOpts (StateT RState m)
+
+class (Applicative m, Monad m) => MonadRuntime m where
+  fresh :: m String
+  freshV :: m Var
+
+instance Monad m => MonadRuntime (RuntimeT m) where
+  fresh = do
+    st <- lift get
+    lift (modify (\st -> st { indexCounter = indexCounter st + 1 }))
+    return $ "$_" ++ show (indexCounter st)
+  freshV = do
+    st <- lift get
+    lift (modify (\st -> st {indexCounter = indexCounter st + 1 }))
+    return $ Var ["$_" ++ show (indexCounter st)] []
+
+runRuntimeT :: Monad m => EgisonOpts -> Env -> RuntimeT m a -> m (a, RState)
+runRuntimeT opts env = flip runStateT (initialRState env) . flip runReaderT opts
+
+evalRuntimeT :: Monad m => EgisonOpts -> Env -> RuntimeT m a -> m a
+evalRuntimeT opts env = flip evalStateT (initialRState env) . flip runReaderT opts
+
+--
 -- Monads
 --
 
-newtype EvalM a = EvalM {
-    unEvalM :: StateT IState (ExceptT EgisonError IO) a
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
+type EvalT m = StateT EvalState (ExceptT EgisonError m)
 
-instance MonadFail EvalM where
+type EvalM = EvalT (RuntimeT IO)
+
+instance {-# OVERLAPPING #-} MonadFail EvalM where
   fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
 
+instance MonadRuntime EvalM where
+  fresh = lift $ lift fresh
+  freshV = lift $ lift freshV
+
 instance MonadEval EvalM where
-  fresh = EvalM $ do
-    st <- get; modify (\st -> st { indexCounter = indexCounter st + 1 })
-    return $ "$_" ++ show (indexCounter st)
-  freshV = EvalM $ do
-    st <- get; modify (\st -> st {indexCounter = indexCounter st + 1 })
-    return $ Var ["$_" ++ show (indexCounter st)] []
-  pushFuncName name = EvalM $ do
+  pushFuncName name = do
     st <- get
     put $ st { funcNameStack = name : funcNameStack st }
     return ()
-  topFuncName = EvalM $ head . funcNameStack <$> get
-  popFuncName = EvalM $ do
+  topFuncName = head . funcNameStack <$> get
+  popFuncName = do
     st <- get
     put $ st { funcNameStack = tail $ funcNameStack st }
     return ()
-  getFuncNameStack = EvalM $ funcNameStack <$> get
+  getFuncNameStack = funcNameStack <$> get
 
-fromEvalM :: EvalM a -> IO (Either EgisonError a)
-fromEvalM = runExceptT . modifyCounter . unEvalM
+fromEvalT :: EvalM a -> RuntimeT IO (Either EgisonError a)
+fromEvalT m = runExceptT (evalStateT m initialEvalState)
+
+fromEvalM :: EgisonOpts -> Env -> EvalM a -> IO (Either EgisonError a)
+fromEvalM opts env = evalRuntimeT opts env . fromEvalT
 
 type MatchM = MaybeT EvalM
 

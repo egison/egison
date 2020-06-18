@@ -107,7 +107,7 @@ Library
                    Language.Egison.Completion
                    Language.Egison.Desugar
                    Language.Egison.Data
-                   Language.Egison.IState
+                   Language.Egison.EvalState
                    Language.Egison.MathExpr
                    Language.Egison.MathOutput
                    Language.Egison.MList
@@ -168,6 +168,7 @@ Executable egison
     , base >= 4.0 && < 5
     , array
     , containers
+    , exceptions
     , unordered-containers
     , haskeline
     , transformers
