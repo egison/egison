@@ -22,7 +22,6 @@ import qualified Data.Set              as S
 
 import           Language.Egison.AST
 import           Language.Egison.Data
-import           Language.Egison.IState (fresh, freshV)
 
 desugarTopExpr :: EgisonTopExpr -> EvalM EgisonTopExpr
 desugarTopExpr (Define name expr)   = Define name <$> desugar expr
