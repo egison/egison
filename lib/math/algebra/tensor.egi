@@ -4,6 +4,9 @@
 --
 --
 
+infixl expression 7 .
+infixl expression 7 .'
+
 tensorOrder %A := length (tensorShape A)
 
 unitTensor ns := generateTensor kroneckerDelta ns

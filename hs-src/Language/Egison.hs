@@ -30,7 +30,7 @@ module Language.Egison
        , version
       ) where
 
-import           Control.Monad.Reader        (asks)
+import           Control.Monad.Reader        (ask, asks, local)
 
 import           Data.Version
 import qualified Paths_egison                as P
@@ -49,8 +49,9 @@ import           Control.Monad.State
 version :: Version
 version = P.version
 
-evalTopExprs :: EgisonOpts -> Env -> [EgisonTopExpr] -> EvalM Env
-evalTopExprs opts env exprs = do
+evalTopExprs :: Env -> [EgisonTopExpr] -> EvalM Env
+evalTopExprs env exprs = do
+  opts <- ask
   (bindings, rest) <- collectDefs opts exprs
   env <- recursiveBind env bindings
   forM_ rest $ evalTopExpr env
@@ -69,62 +70,79 @@ evalTopExpr env topExpr = do
   return env'
 
 -- |eval an Egison expression
-evalEgisonExpr :: Env -> EgisonExpr -> IO (Either EgisonError EgisonValue)
-evalEgisonExpr env expr = fromEvalM defaultOption env $ evalExprDeep env expr
+evalEgisonExpr :: Env -> EgisonExpr -> RuntimeM (Either EgisonError EgisonValue)
+evalEgisonExpr env expr = fromEvalT $ evalExprDeep env expr
 
 -- |eval an Egison top expression
-evalEgisonTopExpr :: EgisonOpts -> Env -> EgisonTopExpr -> IO (Either EgisonError Env)
-evalEgisonTopExpr opts env exprs = fromEvalM opts env $ evalTopExpr env exprs
+evalEgisonTopExpr :: Env -> EgisonTopExpr -> RuntimeM (Either EgisonError Env)
+evalEgisonTopExpr env exprs = fromEvalT $ evalTopExpr env exprs
 
 -- |eval Egison top expressions
-evalEgisonTopExprs :: EgisonOpts -> Env -> [EgisonTopExpr] -> IO (Either EgisonError Env)
-evalEgisonTopExprs opts env exprs = fromEvalM opts env $ evalTopExprs opts env exprs
+evalEgisonTopExprs :: Env -> [EgisonTopExpr] -> RuntimeM (Either EgisonError Env)
+evalEgisonTopExprs env exprs = fromEvalT $ evalTopExprs env exprs
 
 -- |eval an Egison expression. Input is a Haskell string.
-runEgisonExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError EgisonValue)
-runEgisonExpr opts env input =
-  fromEvalM opts env $ readExpr (optSExpr opts) input >>= evalExprDeep env
+runEgisonExpr :: Env -> String -> RuntimeM (Either EgisonError EgisonValue)
+runEgisonExpr env input = do
+  isSExpr <- asks optSExpr
+  fromEvalT $ readExpr isSExpr input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExpr opts env input =
-  fromEvalM opts env $ readTopExpr (optSExpr opts) input >>= evalTopExpr env
+runEgisonTopExpr :: Env -> String -> RuntimeM (Either EgisonError Env)
+runEgisonTopExpr env input = do
+  isSExpr <- asks optSExpr
+  fromEvalT $ readTopExpr isSExpr input >>= evalTopExpr env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr' :: EgisonOpts -> Env -> String -> IO (Either EgisonError (Maybe String, Env))
-runEgisonTopExpr' opts env input =
-  fromEvalM opts env $ readTopExpr (optSExpr opts) input >>= evalTopExpr' env
+runEgisonTopExpr' :: Env -> String -> RuntimeM (Either EgisonError (Maybe String, Env))
+runEgisonTopExpr' env input = do
+  isSExpr <- asks optSExpr
+  fromEvalT $ readTopExpr isSExpr input >>= evalTopExpr' env
 
 -- |eval Egison top expressions. Input is a Haskell string.
-runEgisonTopExprs :: EgisonOpts -> Env -> String -> IO (Either EgisonError Env)
-runEgisonTopExprs opts env input =
-  fromEvalM opts env $ readTopExprs (optSExpr opts) input >>= evalTopExprs opts env
+runEgisonTopExprs :: Env -> String -> RuntimeM (Either EgisonError Env)
+runEgisonTopExprs env input = do
+  isSExpr <- asks optSExpr
+  fromEvalT $ readTopExprs isSExpr input >>= evalTopExprs env
 
 -- |load an Egison file
-loadEgisonFile :: EgisonOpts -> Env -> FilePath -> IO (Either EgisonError Env)
-loadEgisonFile opts env path = evalEgisonTopExpr opts env (LoadFile path)
+loadEgisonFile :: Env -> FilePath -> RuntimeM (Either EgisonError Env)
+loadEgisonFile env path = evalEgisonTopExpr env (LoadFile path)
 
 -- |load an Egison library
-loadEgisonLibrary :: EgisonOpts -> Env -> FilePath -> IO (Either EgisonError Env)
-loadEgisonLibrary opts env path = evalEgisonTopExpr opts env (Load path)
+loadEgisonLibrary :: Env -> FilePath -> RuntimeM (Either EgisonError Env)
+loadEgisonLibrary env path = evalEgisonTopExpr env (Load path)
 
 -- |Environment that contains core libraries
-initialEnv :: EgisonOpts -> IO Env
-initialEnv opts = do
-  env <- if optNoIO opts then primitiveEnvNoIO
-                         else primitiveEnv
-  ret <- evalEgisonTopExprs defaultOption env $ map Load coreLibraries
+initialEnv :: RuntimeM Env
+initialEnv = do
+  isNoIO <- asks optNoIO
+  env <- liftIO $ if isNoIO then primitiveEnvNoIO else primitiveEnv
+  ret <- local (const defaultOption)
+               (evalEgisonTopExprs env $ map Load coreLibraries)
   case ret of
     Left err -> do
-      print . show $ err
+      liftIO $ print (show err)
       return env
     Right env' -> return env'
 
 coreLibraries :: [String]
 coreLibraries =
-  [ "lib/math/expression.egi"
+  -- Libs that defines user-defined infixes comes first
+  [ "lib/core/base.egi"              -- Defines (&&) (||)
+  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
+  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+
+  , "lib/core/assoc.egi"
+  , "lib/core/collection.egi"
+  , "lib/core/io.egi"
+  , "lib/core/maybe.egi"
+  , "lib/core/number.egi"
+  , "lib/core/order.egi"
+  , "lib/core/random.egi"
+  , "lib/core/string.egi"
+  , "lib/math/expression.egi"
   , "lib/math/normalize.egi"
-  , "lib/math/common/arithmetic.egi"
   , "lib/math/common/constants.egi"
   , "lib/math/common/functions.egi"
   , "lib/math/algebra/root.egi"
@@ -134,15 +152,5 @@ coreLibraries =
   , "lib/math/analysis/integral.egi"
   , "lib/math/algebra/vector.egi"
   , "lib/math/algebra/matrix.egi"
-  , "lib/math/algebra/tensor.egi"
   , "lib/math/geometry/differential-form.egi"
-  , "lib/core/assoc.egi"
-  , "lib/core/base.egi"
-  , "lib/core/collection.egi"
-  , "lib/core/io.egi"
-  , "lib/core/maybe.egi"
-  , "lib/core/number.egi"
-  , "lib/core/order.egi"
-  , "lib/core/random.egi"
-  , "lib/core/string.egi"
   ]

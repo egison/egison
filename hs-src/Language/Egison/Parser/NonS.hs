@@ -17,8 +17,7 @@ module Language.Egison.Parser.NonS
        , parseExpr
        ) where
 
-import           Control.Monad.Except           (throwError)
-import           Control.Monad.State            (evalStateT, get, put, StateT)
+import           Control.Monad.State            (get, gets, put)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
@@ -35,34 +34,23 @@ import qualified Text.Megaparsec.Char.Lexer     as L
 import           Language.Egison.AST
 import           Language.Egison.Data
 
-parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
+parseTopExprs :: String -> RuntimeM (Either EgisonError [EgisonTopExpr])
 parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
 
-parseTopExpr :: String -> Either EgisonError EgisonTopExpr
+parseTopExpr :: String -> RuntimeM (Either EgisonError EgisonTopExpr)
 parseTopExpr = doParse $ sc >> topExpr <* eof
 
-parseExprs :: String -> Either EgisonError [EgisonExpr]
+parseExprs :: String -> RuntimeM (Either EgisonError [EgisonExpr])
 parseExprs = doParse $ many (L.nonIndented sc expr) <* eof
 
-parseExpr :: String -> Either EgisonError EgisonExpr
+parseExpr :: String -> RuntimeM (Either EgisonError EgisonExpr)
 parseExpr = doParse $ sc >> expr <* eof
 
 --
 -- Parser
 --
 
-type Parser = StateT PState (Parsec CustomError String)
-
--- Parser state
-data PState
-  = PState { exprInfix :: [Infix]
-           , patternInfix :: [Infix]
-           }
-
-initialPState :: PState
-initialPState = PState { exprInfix = reservedExprInfix
-                       , patternInfix = reservedPatternInfix
-                       }
+type Parser = ParsecT CustomError String RuntimeM
 
 data CustomError
   = IllFormedSection Infix Infix
@@ -82,11 +70,12 @@ instance ShowErrorComponent CustomError where
     "The last statement in a 'do' block must be an expression."
 
 
-doParse :: Parser a -> String -> Either EgisonError a
-doParse p input =
-  case parse (evalStateT p initialPState) "egison" input of
-    Left e  -> throwError (Parser (errorBundlePretty e))
-    Right r -> return r
+doParse :: Parser a -> String -> RuntimeM (Either EgisonError a)
+doParse p input = do
+  result <- runParserT p "egison" input
+  case result of
+    Left e  -> return $ Left (Parser (errorBundlePretty e))
+    Right r -> return $ Right r
 
 --
 -- Expressions
@@ -108,17 +97,18 @@ data ConversionResult
 
 -- Sort binaryop table on the insertion
 addNewOp :: Infix -> Bool -> Parser ()
-addNewOp newop isPattern = do
+addNewOp newop isPattern | isPattern = do
   pstate <- get
-  put $! if isPattern
-            then pstate { patternInfix = insertBy
-                                           (\x y -> compare (priority y) (priority x))
-                                           newop
-                                           (patternInfix pstate) }
-            else pstate { exprInfix = insertBy
-                                        (\x y -> compare (priority y) (priority x))
-                                        newop
-                                        (exprInfix pstate) }
+  put $! pstate { patternInfixes = insertBy
+                                     (\x y -> compare (priority y) (priority x))
+                                     newop
+                                     (patternInfixes pstate) }
+addNewOp newop _ = do
+  pstate <- get
+  put $! pstate { exprInfixes = insertBy
+                                  (\x y -> compare (priority y) (priority x))
+                                  newop
+                                  (exprInfixes pstate) }
 
 infixExpr :: Parser EgisonTopExpr
 infixExpr = do
@@ -247,7 +237,7 @@ exprWithoutWhere =
 -- Also parses atomExpr
 opExpr :: Parser EgisonExpr
 opExpr = do
-  infixes <- exprInfix <$> get
+  infixes <- gets exprInfixes
   makeExprParser atomOrApplyExpr (makeExprTable infixes)
 
 makeExprTable :: [Infix] -> [[Operator Parser EgisonExpr]]
@@ -448,7 +438,7 @@ tupleOrParenExpr = do
     -- Sections without the left operand: eg. (+), (+ 1)
     leftSection :: Parser EgisonExpr
     leftSection = do
-      infixes <- exprInfix <$> get
+      infixes <- gets exprInfixes
       op      <- choice $ map (infixLiteral . repr) infixes
       rarg    <- optional expr
       case rarg of
@@ -460,7 +450,7 @@ tupleOrParenExpr = do
     -- Sections with the left operand but lacks the right operand: eg. (1 +)
     rightSection :: Parser EgisonExpr
     rightSection = do
-      infixes <- exprInfix <$> get
+      infixes <- gets exprInfixes
       larg    <- opExpr
       op      <- choice $ map (infixLiteral . repr) infixes
       case larg of
@@ -590,7 +580,7 @@ seqPattern = do
 
 opPattern :: Parser EgisonPattern
 opPattern = do
-  ops <- patternInfix <$> get
+  ops <- gets patternInfixes
   makeExprParser applyOrAtomPattern (makePatternTable ops)
 
 makePatternTable :: [Infix] -> [[Operator Parser EgisonPattern]]
@@ -652,7 +642,7 @@ atomPattern' = WildCard <$  symbol "_"
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
-        <|> do ops <- patternInfix <$> get
+        <|> do ops <- gets patternInfixes
                makeExprParser ppAtom (makeTable ops)
         <?> "primitive pattern pattern"
   where
@@ -745,7 +735,7 @@ infixLiteral :: String -> Parser Infix
 infixLiteral sym =
   try (do wedge   <- optional (char '!')
           opSym   <- operator' sym
-          infixes <- exprInfix <$> get
+          infixes <- gets exprInfixes
           let opInfo = findOpFrom opSym infixes
           return $ opInfo { isWedge = isJust wedge })
    <?> "infix"
@@ -767,7 +757,7 @@ operator sym = try $ string sym <* notFollowedBy opChar <* sc
 patInfixLiteral :: String -> Parser Infix
 patInfixLiteral sym =
   try (do opSym <- string sym <* notFollowedBy patOpChar <* sc
-          infixes <- patternInfix <$> get
+          infixes <- gets patternInfixes
           let opInfo = findOpFrom opSym infixes
           return opInfo)
 
