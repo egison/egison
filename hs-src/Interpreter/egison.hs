@@ -8,7 +8,6 @@ import           Control.Exception          (AsyncException (..))
 import           Control.Monad.Catch        (catch)
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Control.Monad.State
 
 import           Data.List                  (intercalate)
 import qualified Data.Text                  as T
@@ -82,7 +81,7 @@ runWithOptions opts = do
         -- Start the read-eval-print-loop
         _ -> do
           when (optShowBanner opts) showBanner
-          evalRuntimeT opts env repl
+          evalRuntimeT opts (repl env)
           when (optShowBanner opts) showByebyeMessage
           exitSuccess
 
@@ -109,9 +108,8 @@ showByebyeMessage = putStrLn "Leaving Egison Interpreter."
 settings :: MonadIO m => FilePath -> Settings m
 settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
 
-repl :: RuntimeT IO ()
-repl = (do
-  env  <- gets environment
+repl :: Env -> RuntimeT IO ()
+repl env = (do
   home <- liftIO getHomeDirectory
   input <- runInputT (settings home) getEgisonExpr
   case input of
@@ -121,17 +119,16 @@ repl = (do
       case result of
         Left err -> do
           liftIO (print err)
-          repl
-        Right env' -> do
-          modify (\s -> s { environment = env' })
-          repl
+          repl env
+        Right env' ->
+          repl env'
   )
   `catch`
   (\case
-      UserInterrupt -> liftIO (putStrLn "") >> repl
-      StackOverflow -> liftIO (putStrLn "Stack over flow!") >> repl
-      HeapOverflow  -> liftIO (putStrLn "Heap over flow!") >> repl
-      _             -> liftIO (putStrLn "error!") >> repl
+      UserInterrupt -> liftIO (putStrLn "") >> repl env
+      StackOverflow -> liftIO (putStrLn "Stack over flow!") >> repl env
+      HeapOverflow  -> liftIO (putStrLn "Heap over flow!") >> repl env
+      _             -> liftIO (putStrLn "error!") >> repl env
    )
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
