@@ -48,7 +48,7 @@ import qualified Control.Egison            as M
 
 import           Language.Egison.AST hiding (PatVar)
 import           Language.Egison.Data
-import           Language.Egison.IState     (fresh, getFuncNameStack)
+import           Language.Egison.IState     (getFuncNameStack)
 import           Language.Egison.MathExpr
 
 --

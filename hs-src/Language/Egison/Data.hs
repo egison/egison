@@ -61,8 +61,14 @@ module Language.Egison.Data
     -- * Errors
     , EgisonError (..)
     -- * Monads
+    , RState (..)
+    , RuntimeT
+    , MonadRuntime (..)
+    , runRuntimeT
+    , evalRuntimeT
     , EvalM (..)
     , fromEvalM
+    , fromEvalT
     , MatchM
     , matchFail
     ) where
@@ -73,6 +79,7 @@ import           Data.Typeable
 import           Control.Monad.Except      hiding (join)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.State
+import           Control.Monad.Trans.Reader
 
 import           Data.Foldable             (toList)
 import           Data.HashMap.Strict       (HashMap)
@@ -92,6 +99,7 @@ import           Control.Egison            (cons, join, nil, match, mc, List(..)
 import qualified Control.Egison            as M
 
 import           Language.Egison.AST hiding (PatVar)
+import           Language.Egison.CmdOptions
 import           Language.Egison.IState
 import           Language.Egison.MathExpr
 
@@ -656,23 +664,60 @@ showTrace stack = "\n  stack trace: " ++ intercalate ", " stack
 instance Exception EgisonError
 
 --
+-- RState
+--
+
+data RState = RState
+  { indexCounter :: Int
+  , environment :: Env
+  }
+
+initialRState :: Env -> RState
+initialRState e = RState
+  { indexCounter = 0
+  , environment = e
+  }
+
+type RuntimeT m = ReaderT EgisonOpts (StateT RState m)
+
+class (Applicative m, Monad m) => MonadRuntime m where
+  fresh :: m String
+  freshV :: m Var
+
+instance Monad m => MonadRuntime (RuntimeT m) where
+  fresh = do
+    st <- lift get
+    lift (modify (\st -> st { indexCounter = indexCounter st + 1 }))
+    return $ "$_" ++ show (indexCounter st)
+  freshV = do
+    st <- lift get
+    lift (modify (\st -> st {indexCounter = indexCounter st + 1 }))
+    return $ Var ["$_" ++ show (indexCounter st)] []
+
+runRuntimeT :: Monad m => EgisonOpts -> Env -> RuntimeT m a -> m (a, RState)
+runRuntimeT opts env = flip runStateT (initialRState env) . flip runReaderT opts
+
+evalRuntimeT :: Monad m => EgisonOpts -> Env -> RuntimeT m a -> m a
+evalRuntimeT opts env = flip evalStateT (initialRState env) . flip runReaderT opts
+
+--
 -- Monads
 --
 
+type EvalT m = StateT IState (ExceptT EgisonError m)
+
 newtype EvalM a = EvalM {
-    unEvalM :: StateT IState (ExceptT EgisonError IO) a
+    unEvalM :: EvalT (RuntimeT IO) a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadError EgisonError)
 
 instance MonadFail EvalM where
   fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
 
+instance MonadRuntime EvalM where
+  fresh = EvalM . lift $ lift fresh
+  freshV = EvalM . lift $ lift freshV
+
 instance MonadEval EvalM where
-  fresh = EvalM $ do
-    st <- get; modify (\st -> st { indexCounter = indexCounter st + 1 })
-    return $ "$_" ++ show (indexCounter st)
-  freshV = EvalM $ do
-    st <- get; modify (\st -> st {indexCounter = indexCounter st + 1 })
-    return $ Var ["$_" ++ show (indexCounter st)] []
   pushFuncName name = EvalM $ do
     st <- get
     put $ st { funcNameStack = name : funcNameStack st }
@@ -684,9 +729,11 @@ instance MonadEval EvalM where
     return ()
   getFuncNameStack = EvalM $ funcNameStack <$> get
 
--- TODO(momhatt): Use freshID counter from RuntimeT
-fromEvalM :: EvalM a -> IO (Either EgisonError a)
-fromEvalM = runExceptT . modifyCounter . unEvalM
+fromEvalT :: EvalM a -> RuntimeT IO (Either EgisonError a)
+fromEvalT m = runExceptT (evalStateT (unEvalM m) initialIState)
+
+fromEvalM :: EgisonOpts -> Env -> EvalM a -> IO (Either EgisonError a)
+fromEvalM opts env = evalRuntimeT opts env . fromEvalT
 
 type MatchM = MaybeT EvalM
 

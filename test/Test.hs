@@ -64,7 +64,7 @@ runTestCase file = TestLabel file . TestCase $ do
     forM_ tests $ evalExprDeep env'
   where
     assertEvalM :: EvalM a -> Assertion
-    assertEvalM m = fromEvalM m >>= assertString . either show (const "")
+    assertEvalM m = fromEvalM defaultOption nullEnv m >>= assertString . either show (const "")
 
 collectDefsAndTests :: EgisonTopExpr -> ([(Var, EgisonExpr)], [EgisonExpr]) -> ([(Var, EgisonExpr)], [EgisonExpr])
 collectDefsAndTests (Define name expr) (bindings, tests) =
