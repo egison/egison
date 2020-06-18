@@ -63,6 +63,7 @@ module Language.Egison.Data
     -- * Monads
     , RState (..)
     , RuntimeT
+    , RuntimeM
     , MonadRuntime (..)
     , runRuntimeT
     , evalRuntimeT
@@ -78,7 +79,7 @@ import           Data.Typeable
 
 import           Control.Monad.Except      hiding (join)
 import           Control.Monad.Trans.Maybe
-import           Control.Monad.Trans.State
+import           Control.Monad.Trans.State.Strict
 import           Control.Monad.Trans.Reader
 
 import           Data.Foldable             (toList)
@@ -98,7 +99,7 @@ import           System.IO
 import           Control.Egison            (cons, join, nil, match, mc, List(..))
 import qualified Control.Egison            as M
 
-import           Language.Egison.AST hiding (PatVar)
+import           Language.Egison.AST       hiding (PatVar)
 import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
 import           Language.Egison.MathExpr
@@ -669,16 +670,20 @@ instance Exception EgisonError
 
 data RState = RState
   { indexCounter :: Int
-  , environment :: Env
+  , exprInfixes :: [Infix]
+  , patternInfixes :: [Infix]
   }
 
-initialRState :: Env -> RState
-initialRState e = RState
+initialRState :: RState
+initialRState = RState
   { indexCounter = 0
-  , environment = e
+  , exprInfixes = reservedExprInfix
+  , patternInfixes = reservedPatternInfix
   }
 
 type RuntimeT m = ReaderT EgisonOpts (StateT RState m)
+
+type RuntimeM = RuntimeT IO
 
 class (Applicative m, Monad m) => MonadRuntime m where
   fresh :: m String
@@ -694,11 +699,11 @@ instance Monad m => MonadRuntime (RuntimeT m) where
     lift (modify (\st -> st {indexCounter = indexCounter st + 1 }))
     return $ Var ["$_" ++ show (indexCounter st)] []
 
-runRuntimeT :: Monad m => EgisonOpts -> Env -> RuntimeT m a -> m (a, RState)
-runRuntimeT opts env = flip runStateT (initialRState env) . flip runReaderT opts
+runRuntimeT :: Monad m => EgisonOpts -> RuntimeT m a -> m (a, RState)
+runRuntimeT opts = flip runStateT initialRState . flip runReaderT opts
 
-evalRuntimeT :: Monad m => EgisonOpts -> Env -> RuntimeT m a -> m a
-evalRuntimeT opts env = flip evalStateT (initialRState env) . flip runReaderT opts
+evalRuntimeT :: Monad m => EgisonOpts -> RuntimeT m a -> m a
+evalRuntimeT opts = flip evalStateT initialRState . flip runReaderT opts
 
 --
 -- Monads
@@ -706,7 +711,7 @@ evalRuntimeT opts env = flip evalStateT (initialRState env) . flip runReaderT op
 
 type EvalT m = StateT EvalState (ExceptT EgisonError m)
 
-type EvalM = EvalT (RuntimeT IO)
+type EvalM = EvalT RuntimeM
 
 instance {-# OVERLAPPING #-} MonadFail EvalM where
   fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
@@ -727,11 +732,11 @@ instance MonadEval EvalM where
     return ()
   getFuncNameStack = funcNameStack <$> get
 
-fromEvalT :: EvalM a -> RuntimeT IO (Either EgisonError a)
+fromEvalT :: EvalM a -> RuntimeM (Either EgisonError a)
 fromEvalT m = runExceptT (evalStateT m initialEvalState)
 
-fromEvalM :: EgisonOpts -> Env -> EvalM a -> IO (Either EgisonError a)
-fromEvalM opts env = evalRuntimeT opts env . fromEvalT
+fromEvalM :: EgisonOpts -> EvalM a -> IO (Either EgisonError a)
+fromEvalM opts = evalRuntimeT opts . fromEvalT
 
 type MatchM = MaybeT EvalM
 

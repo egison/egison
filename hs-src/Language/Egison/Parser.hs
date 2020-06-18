@@ -12,6 +12,7 @@ module Language.Egison.Parser
        , readTopExpr
        , readExprs
        , readExpr
+       , parseTopExpr
        -- * Parse and desugar a file
        , loadLibraryFile
        , loadFile
@@ -20,7 +21,7 @@ module Language.Egison.Parser
        , readUTF8File
        ) where
  
-import           Control.Monad.Except           (liftIO, throwError)
+import           Control.Monad.Except           (lift, liftIO, throwError)
 import           Control.Monad.State            (unless)
 
 import           System.Directory               (doesFileExist, getHomeDirectory)
@@ -34,29 +35,36 @@ import qualified Language.Egison.Parser.NonS    as NonS
 import           Paths_egison                   (getDataFileName)
 
 readTopExprs :: Bool -> String -> EvalM [EgisonTopExpr]
-readTopExprs useSExpr =
-  either throwError (mapM desugarTopExpr) . parseTopExprs
-    where parseTopExprs | useSExpr  = SExpr.parseTopExprs
-                        | otherwise = NonS.parseTopExprs
+readTopExprs useSExpr expr | useSExpr =
+  either throwError (mapM desugarTopExpr) (SExpr.parseTopExprs expr)
+readTopExprs _ expr = do
+  r <- lift . lift $ NonS.parseTopExprs expr
+  either throwError (mapM desugarTopExpr) r
 
--- TODO(momohatt): Parse from the last state
+parseTopExpr :: Bool -> String -> RuntimeM (Either EgisonError EgisonTopExpr)
+parseTopExpr useSExpr expr | useSExpr = return $ SExpr.parseTopExpr expr
+parseTopExpr _ expr = NonS.parseTopExpr expr
+
 readTopExpr :: Bool -> String -> EvalM EgisonTopExpr
-readTopExpr useSExpr =
-  either throwError desugarTopExpr . parseTopExpr
-    where parseTopExpr | useSExpr  = SExpr.parseTopExpr
-                       | otherwise = NonS.parseTopExpr
+readTopExpr useSExpr expr | useSExpr =
+  either throwError desugarTopExpr (SExpr.parseTopExpr expr)
+readTopExpr _ expr = do
+  r <- lift . lift $ NonS.parseTopExpr expr
+  either throwError desugarTopExpr r
 
 readExprs :: Bool -> String -> EvalM [EgisonExpr]
-readExprs useSExpr =
-  either throwError (mapM desugarExpr) . parseExprs
-    where parseExprs | useSExpr  = SExpr.parseExprs
-                     | otherwise = NonS.parseExprs
+readExprs useSExpr expr | useSExpr =
+  either throwError (mapM desugarExpr) (SExpr.parseExprs expr)
+readExprs _ expr = do
+  r <- lift . lift $ NonS.parseExprs expr
+  either throwError (mapM desugarExpr) r
 
 readExpr :: Bool -> String -> EvalM EgisonExpr
-readExpr useSExpr =
-  either throwError desugarExpr . parseExpr
-    where parseExpr | useSExpr  = SExpr.parseExpr
-                    | otherwise = NonS.parseExpr
+readExpr useSExpr expr | useSExpr =
+  either throwError desugarExpr (SExpr.parseExpr expr)
+readExpr _ expr = do
+  r <- lift . lift $ NonS.parseExpr expr
+  either throwError desugarExpr r
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EvalM [EgisonTopExpr]
