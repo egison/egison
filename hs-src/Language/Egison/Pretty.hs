@@ -183,7 +183,7 @@ instance Pretty EgisonExpr where
 
 instance Pretty Arg where
   pretty (ScalarArg x)         = pretty x
-  pretty (InvertedScalarArg x) = pretty "*" <> pretty x
+  pretty (InvertedScalarArg x) = pretty "*$" <> pretty x
   pretty (TensorArg x)         = pretty '%' <> pretty x
 
 instance Pretty Var where

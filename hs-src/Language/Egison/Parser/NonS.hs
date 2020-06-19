@@ -168,7 +168,7 @@ defineOrTestExpr = do
       args <- mapM ((TensorArg <$>) . exprToStr) [x, y]
       return $ Function (stringToVar (repr op)) args
     convertToDefine e@(InfixExpr op _ _)
-      | repr op == "*" || repr op == "%" || repr op == "$" = do
+      | repr op == "*$" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
         case args of
           TensorArg var : args -> return $ Function (stringToVar var) args
@@ -188,7 +188,7 @@ defineOrTestExpr = do
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
     exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (func op)]
-    exprToArgs (InfixExpr op lhs rhs) | repr op == "*" = do
+    exprToArgs (InfixExpr op lhs rhs) | repr op == "*$" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
       case rhs' of

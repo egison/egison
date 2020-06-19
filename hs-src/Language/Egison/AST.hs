@@ -242,6 +242,7 @@ instance Show BinOpAssoc where
 reservedExprInfix :: [Infix]
 reservedExprInfix =
   [ makeInfix "%"  "remainder" 7 LeftAssoc -- primitive function
+  , makeInfix "*$" "*$"        7 LeftAssoc -- For InvertedScalarArg
   , makeInfix "++" "append"    5 RightAssoc
   , makeInfix "::" "cons"      5 RightAssoc
   , makeInfix "="  "equal"     4 LeftAssoc -- primitive function
