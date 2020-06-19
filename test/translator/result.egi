@@ -393,13 +393,13 @@ assertEqual
 
 assertEqual
   "double inverted index"
-  (let f *x *y := x + y
+  (let f *$x *$y := x + y
     in (f [|1, 2, 3|]_i [|10, 20, 30|]_j))
   ([|[|11, 21, 31|], [|12, 22, 32|], [|13, 23, 33|]|]~i~j)
 
 assertEqual
   "single inverted index"
-  (let f x *y := x + y
+  (let f x *$y := x + y
     in (f [|1, 2, 3|]_i [|10, 20, 30|]_j))
   ([|[|11, 21, 31|], [|12, 22, 32|], [|13, 23, 33|]|]_i~j)
 
