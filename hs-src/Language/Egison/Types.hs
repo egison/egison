@@ -6,8 +6,7 @@ This module contains functions for dynamic type systems.
 -}
 
 module Language.Egison.Types
-  ( isBool
-  , isInteger
+  ( isInteger
   , isRational
   , isSymbol
   , isScalar
@@ -34,12 +33,9 @@ import           Language.Egison.MathExpr
 -- Typing
 --
 
-isBool :: EgisonValue -> Bool
-isBool (Bool _) = True
-isBool _        = False
-
 isBool' :: PrimitiveFunc
-isBool' (Value val) = return $ Value $ Bool $ isBool val
+isBool' (Value (Bool _)) = return $ Value $ Bool True
+isBool' (Value _)        = return $ Value $ Bool False
 
 isInteger :: EgisonValue -> Bool
 isInteger (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = True
@@ -108,8 +104,10 @@ isCollection' (Intermediate (ICollection _)) = return $ Value $ Bool True
 isCollection' _                              = return $ Value $ Bool False
 
 isHash' :: PrimitiveFunc
-isHash' (Value (IntHash _))         = return $ Value $ Bool True
-isHash' (Value (StrHash _))         = return $ Value $ Bool True
-isHash' (Intermediate (IIntHash _)) = return $ Value $ Bool True
-isHash' (Intermediate (IStrHash _)) = return $ Value $ Bool True
-isHash' _                           = return $ Value $ Bool False
+isHash' (Value (IntHash _))          = return $ Value $ Bool True
+isHash' (Value (CharHash _))         = return $ Value $ Bool True
+isHash' (Value (StrHash _))          = return $ Value $ Bool True
+isHash' (Intermediate (IIntHash _))  = return $ Value $ Bool True
+isHash' (Intermediate (ICharHash _)) = return $ Value $ Bool True
+isHash' (Intermediate (IStrHash _))  = return $ Value $ Bool True
+isHash' _                            = return $ Value $ Bool False
