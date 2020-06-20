@@ -55,11 +55,8 @@ run = do
     Right env ->
       case opts of
         -- Evaluate the given string
-        EgisonOpts { optEvalString = Just expr }
-          | optTsvOutput opts ->
-            executeEgisonTopExpr env $ "execute (each (\\x -> print (showTsv x)) (" ++ expr ++ "))"
-          | otherwise -> do
-            executeEgisonTopExpr env $ "execute (print (show (" ++ expr ++ ")))"
+        EgisonOpts { optEvalString = Just expr } ->
+          runAndPrintEgisonExpr env expr
         -- Execute the given string
         EgisonOpts { optExecuteString = Just cmd } ->
           executeEgisonTopExpr env $ "execute (" ++ cmd ++ ")"
@@ -89,6 +86,13 @@ run = do
           repl env
           when (optShowBanner opts) (liftIO showByebyeMessage)
           liftIO exitSuccess
+
+runAndPrintEgisonExpr :: Env -> String -> RuntimeM ()
+runAndPrintEgisonExpr env expr = do
+  isTsvOutput <- asks optTsvOutput
+  if isTsvOutput
+     then executeEgisonTopExpr env $ "execute (each (\\x -> print (showTsv x)) (" ++ expr ++ "))"
+     else executeEgisonTopExpr env $ "execute (print (show (" ++ expr ++ ")))"
 
 executeEgisonTopExpr :: Env -> String -> RuntimeM ()
 executeEgisonTopExpr env expr = do
