@@ -6,12 +6,7 @@ This module contains functions for dynamic type systems.
 -}
 
 module Language.Egison.Types
-  ( isInteger
-  , isRational
-  , isSymbol
-  , isScalar
-  , isTensor
-  , isTensorWithIndex
+  ( isSymbol
   , isBool'
   , isInteger'
   , isRational'
@@ -35,7 +30,7 @@ import           Language.Egison.MathExpr
 
 isBool' :: PrimitiveFunc
 isBool' (Value (Bool _)) = return $ Value $ Bool True
-isBool' (Value _)        = return $ Value $ Bool False
+isBool' _                = return $ Value $ Bool False
 
 isInteger :: EgisonValue -> Bool
 isInteger (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = True
@@ -57,17 +52,9 @@ isSymbol :: EgisonValue -> Bool
 isSymbol (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []]))) = True
 isSymbol _ = False
 
-isScalar :: EgisonValue -> Bool
-isScalar (ScalarData _) = True
-isScalar _              = False
-
 isScalar' :: PrimitiveFunc
 isScalar' (Value (ScalarData _)) = return $ Value $ Bool True
 isScalar' _                      = return $ Value $ Bool False
-
-isTensor :: EgisonValue -> Bool
-isTensor (TensorData _) = True
-isTensor _              = False
 
 isTensor' :: PrimitiveFunc
 isTensor' (Value (TensorData _))     = return $ Value $ Bool True
