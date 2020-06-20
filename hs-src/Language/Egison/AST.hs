@@ -21,7 +21,6 @@ module Language.Egison.AST
   , Index (..)
   , extractIndex
   , PMMode (..)
-  , InnerExpr (..)
   , BindingExpr
   , MatchClause
   , PatternDef
@@ -71,7 +70,9 @@ data EgisonExpr =
   | PowerExpr EgisonExpr EgisonExpr           -- TODO: delete this in v4.0.0
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
-  | CollectionExpr [InnerExpr]                -- TODO: InnerExpr should be EgisonExpr from v4.0.0
+  | CollectionExpr [EgisonExpr]
+  | ConsExpr EgisonExpr EgisonExpr
+  | JoinExpr EgisonExpr EgisonExpr
   | HashExpr [(EgisonExpr, EgisonExpr)]
   | VectorExpr [EgisonExpr]
 
@@ -153,11 +154,6 @@ extractIndex (Superscript x)  = x
 extractIndex (SupSubscript x) = x
 extractIndex (Userscript x)   = x
 extractIndex _                = error "extractIndex: Not supported"
-
-data InnerExpr =
-    ElementExpr EgisonExpr
-  | SubCollectionExpr EgisonExpr
- deriving (Show, Eq)
 
 data PMMode = BFSMode | DFSMode
  deriving (Eq, Show)

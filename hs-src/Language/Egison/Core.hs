@@ -171,13 +171,21 @@ evalExpr env (TupleExpr exprs) = Intermediate . ITuple <$> mapM (newObjectRef en
 evalExpr _ (CollectionExpr []) = return . Value $ Collection Sq.empty
 
 evalExpr env (CollectionExpr inners) = do
-  inners' <- mapM fromInnerExpr inners
+  inners' <- mapM ((IElement <$>) . newObjectRef env) inners
   innersSeq <- liftIO $ newIORef $ Sq.fromList inners'
   return $ Intermediate $ ICollection innersSeq
- where
-  fromInnerExpr :: InnerExpr -> EvalM Inner
-  fromInnerExpr (ElementExpr expr) = IElement <$> newObjectRef env expr
-  fromInnerExpr (SubCollectionExpr expr) = ISubCollection <$> newObjectRef env expr
+
+evalExpr env (ConsExpr x xs) = do
+  x' <- newObjectRef env x
+  xs' <- newObjectRef env xs
+  innersSeq <- liftIO $ newIORef $ Sq.fromList [IElement x', ISubCollection xs']
+  return $ Intermediate $ ICollection innersSeq
+
+evalExpr env (JoinExpr xs ys) = do
+  xs' <- newObjectRef env xs
+  ys' <- newObjectRef env ys
+  innersSeq <- liftIO $ newIORef $ Sq.fromList [ISubCollection xs', ISubCollection ys']
+  return $ Intermediate $ ICollection innersSeq
 
 evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
   let n = toInteger (length exprs)

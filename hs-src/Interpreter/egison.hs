@@ -78,7 +78,7 @@ run = do
           liftIO $ either print (const $ return ()) result
         -- Execute a script from the main function
         EgisonOpts { optExecFile = Just (file, args) } -> do
-          result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map ((ElementExpr . StringExpr) . T.pack) args)))]
+          result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map (StringExpr . T.pack) args)))]
           liftIO $ either print (const $ return ()) result
         -- Start the read-eval-print-loop
         _ -> do

@@ -420,7 +420,7 @@ collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr
         Just end' -> return $ makeApply' "between" [start, end']
         Nothing   -> return $ makeApply' "from" [start]
 
-    elementsExpr = CollectionExpr <$> (sepBy (ElementExpr <$> expr) comma <* symbol "]")
+    elementsExpr = CollectionExpr <$> (sepBy expr comma <* symbol "]")
 
 -- Parse an atomic expression starting with '(', which can be:
 --   * a tuple

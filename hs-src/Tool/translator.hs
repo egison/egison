@@ -85,20 +85,11 @@ instance SyntaxElement EgisonExpr where
     where powerOp = fromJust $ find (\op -> repr op == "^") exprInfix
   toNonS (InductiveDataExpr x ys) = InductiveDataExpr x (map toNonS ys)
   toNonS (TupleExpr xs)      = TupleExpr (map toNonS xs)
-  toNonS (CollectionExpr xs)
-    | all isElementExpr xs = CollectionExpr (map toNonS xs)
-    | otherwise            = f xs
-    where
-      isElementExpr :: InnerExpr -> Bool
-      isElementExpr ElementExpr{} = True
-      isElementExpr _             = False
-      f [] = CollectionExpr []
-      f [ElementExpr x] = CollectionExpr [ElementExpr (toNonS x)]
-      f [SubCollectionExpr x] = toNonS x
-      f (ElementExpr x : xs) = InfixExpr cons (toNonS x) (f xs)
-      f (SubCollectionExpr x : xs) = InfixExpr append (toNonS x) (f xs)
-      cons = fromJust $ find (\op -> repr op == "::") exprInfix
-      append = fromJust $ find (\op -> repr op == "++") exprInfix
+  toNonS (CollectionExpr xs) = CollectionExpr (map toNonS xs)
+  toNonS (ConsExpr x xs) = InfixExpr cons (toNonS x) (toNonS xs)
+    where cons = fromJust $ find (\op -> repr op == "::") exprInfix
+  toNonS (JoinExpr x xs) = InfixExpr append (toNonS x) (toNonS xs)
+    where append = fromJust $ find (\op -> repr op == "++") exprInfix
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
   toNonS (VectorExpr xs)     = VectorExpr (map toNonS xs)
 
@@ -242,10 +233,6 @@ instance SyntaxElement LoopRange where
 
 instance SyntaxElement a => SyntaxElement (Index a) where
   toNonS script = toNonS <$> script
-
-instance SyntaxElement InnerExpr where
-  toNonS (ElementExpr x) = ElementExpr (toNonS x)
-  toNonS (SubCollectionExpr _) = error "Not supported: SubCollectionExpr"
 
 instance SyntaxElement BindingExpr where
   toNonS (vars, x) = (map toNonS vars, toNonS x)
