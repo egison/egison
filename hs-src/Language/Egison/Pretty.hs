@@ -194,10 +194,6 @@ instance Pretty VarWithIndices where
   pretty (VarWithIndices xs is) =
     concatWith (surround dot) (map pretty xs) <> hcat (map pretty is)
 
-instance Pretty InnerExpr where
-  pretty (ElementExpr x) = pretty x
-  pretty (SubCollectionExpr _) = error "Not supported"
-
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
   pretty ([var], LambdaExpr args body) =
     hsep (pretty var : map pretty args) <+> indentBlock (pretty ":=") [pretty body]

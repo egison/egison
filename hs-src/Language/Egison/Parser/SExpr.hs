@@ -185,12 +185,34 @@ inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr w
 tupleExpr :: Parser EgisonExpr
 tupleExpr = brackets $ TupleExpr <$> sepEndBy expr whiteSpace
 
+data InnerExpr
+  = ElementExpr EgisonExpr
+  | SubCollectionExpr EgisonExpr
+
 collectionExpr :: Parser EgisonExpr
-collectionExpr = braces $ CollectionExpr <$> sepEndBy innerExpr whiteSpace
+collectionExpr = do
+  inners <- braces $ sepEndBy innerExpr whiteSpace
+  return $ f [] inners
  where
   innerExpr :: Parser InnerExpr
   innerExpr = (char '@' >> SubCollectionExpr <$> expr)
                <|> ElementExpr <$> expr
+
+  isElementExpr :: InnerExpr -> Bool
+  isElementExpr ElementExpr{} = True
+  isElementExpr _             = False
+
+  f :: [EgisonExpr] -> [InnerExpr] -> EgisonExpr
+  f xs [] = CollectionExpr xs
+  f xs [ElementExpr y] = CollectionExpr (xs ++ [y])
+  f []  [SubCollectionExpr y] = y
+  f [x] [SubCollectionExpr y] = ConsExpr x y
+  f xs  [SubCollectionExpr y] = JoinExpr (CollectionExpr xs) y
+  f xs (ElementExpr y : ys) = f (xs ++ [y]) ys
+  f []  (SubCollectionExpr y : ys) = JoinExpr y (f [] ys)
+  f [x] (SubCollectionExpr y : ys) = ConsExpr x (JoinExpr y (f [] ys))
+  f xs  (SubCollectionExpr y : ys) = JoinExpr (CollectionExpr xs) (JoinExpr y (f [] ys))
+
 
 vectorExpr :: Parser EgisonExpr
 vectorExpr = between lp rp $ VectorExpr <$> sepEndBy expr whiteSpace

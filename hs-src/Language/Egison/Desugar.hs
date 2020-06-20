@@ -30,7 +30,7 @@ desugarTopExpr (Define name expr)   = Define name <$> desugar expr
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr
   let indexNames = map extractIndex is
-  let indexNamesCollection = CollectionExpr (map (ElementExpr . stringToVarExpr) indexNames)
+  let indexNamesCollection = CollectionExpr (map stringToVarExpr indexNames)
   return $ Define (Var name (map (const () <$>) is))
     (WithSymbolsExpr indexNames (TransposeExpr indexNamesCollection body))
 desugarTopExpr (Redefine name expr) = Redefine name <$> desugar expr
@@ -84,7 +84,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMatcherClause pattern = do
         (ppat, matchers) <- genPrimitivePatPat pattern
         (dpat, body)     <- genPrimitiveDataPat pattern
-        return (ppat, TupleExpr matchers, [(dpat, CollectionExpr [ElementExpr . TupleExpr $ body]), (PDWildCard, matchingFailure)])
+        return (ppat, TupleExpr matchers, [(dpat, CollectionExpr [TupleExpr $ body]), (PDWildCard, matchingFailure)])
 
         where
           genPrimitivePatPat :: (String, [EgisonExpr]) -> EvalM (PrimitivePatPattern, [EgisonExpr])
@@ -103,10 +103,10 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
       genSomethingClause :: EvalM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
       genSomethingClause =
-        return (PPPatVar, TupleExpr [SomethingExpr], [(PDPatVar "tgt", CollectionExpr [ElementExpr (stringToVarExpr "tgt")])])
+        return (PPPatVar, TupleExpr [SomethingExpr], [(PDPatVar "tgt", CollectionExpr [stringToVarExpr "tgt"])])
 
       matchingSuccess :: EgisonExpr
-      matchingSuccess = CollectionExpr [ElementExpr $ TupleExpr []]
+      matchingSuccess = CollectionExpr [TupleExpr []]
 
       matchingFailure :: EgisonExpr
       matchingFailure = CollectionExpr []
@@ -164,15 +164,9 @@ desugar (TupleExpr exprs) =
 
 desugar expr@(CollectionExpr []) = return expr
 
-desugar (CollectionExpr (ElementExpr elm:inners)) = do
-  elm' <- desugar elm
-  CollectionExpr inners' <- desugar (CollectionExpr inners)
-  return $ CollectionExpr (ElementExpr elm':inners')
-
-desugar (CollectionExpr (SubCollectionExpr sub:inners)) = do
-  sub' <- desugar sub
-  CollectionExpr inners' <- desugar (CollectionExpr inners)
-  return $ CollectionExpr (SubCollectionExpr sub':inners')
+desugar (CollectionExpr xs) = CollectionExpr <$> mapM desugar xs
+desugar (ConsExpr x xs) = ConsExpr <$> desugar x <*> desugar xs
+desugar (JoinExpr x xs) = JoinExpr <$> desugar x <*> desugar xs
 
 desugar (HashExpr exprPairs) =
   HashExpr <$> mapM (\(expr1, expr2) -> (,) <$> desugar expr1 <*> desugar expr2) exprPairs
@@ -248,9 +242,9 @@ desugar (InfixExpr op expr1 expr2) | isWedge op =
     <$> desugar expr1 <*> desugar expr2
 
 desugar (InfixExpr op expr1 expr2) | repr op == "::" =
-  (\x y -> CollectionExpr [ElementExpr x, SubCollectionExpr y]) <$> desugar expr1 <*> desugar expr2
+  ConsExpr <$> desugar expr1 <*> desugar expr2
 desugar (InfixExpr op expr1 expr2) | repr op == "++" =
-  (\x y -> CollectionExpr [SubCollectionExpr x, SubCollectionExpr y]) <$> desugar expr1 <*> desugar expr2
+  JoinExpr <$> desugar expr1 <*> desugar expr2
 desugar (InfixExpr op expr1 expr2) =
   (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
