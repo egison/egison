@@ -167,7 +167,7 @@ changeIndex (Superscript s) m = Superscript (s ++ show m)
 changeIndex (Subscript s) m   = Subscript (s ++ show m)
 
 -- transIndex [a, b, c] [c, a, b] [2, 3, 4] = [4, 2, 3]
-transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> [Integer] -> EvalM [Integer]
+transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> Shape -> EvalM Shape
 transIndex is js ns = do
   mapM (\j -> matchDFS (zip is ns) (List (Pair Eql M.Something))
                [[mc| _ ++ (#j, $n) : _ -> return n |]
@@ -175,15 +175,15 @@ transIndex is js ns = do
        js
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
-tTranspose is t@(Tensor ns _ js) =
-  if length is <= length js
-    then do let js' = take (length is) js
-            let k = fromIntegral (length ns - length is)
-            let ds = map (DFscript 0) [1..k]
-            ns' <- transIndex (js' ++ ds) (is ++ ds) ns
-            xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
-            return $ Tensor ns' xs' is
-    else return t
+tTranspose is t@(Tensor _ _ js) | length is > length js =
+  return t
+tTranspose is t@(Tensor ns _ js) = do
+  let js' = take (length is) js
+  let k = fromIntegral (length ns - length is)
+  let ds = map (DFscript 0) [1..k]
+  ns' <- transIndex (js' ++ ds) (is ++ ds) ns
+  xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
+  return $ Tensor ns' xs' is
 
 tTranspose' :: HasTensor a => [EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) = do

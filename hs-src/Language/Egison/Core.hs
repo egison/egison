@@ -214,7 +214,7 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
         fn' = case maybe_vwi of
           Nothing -> fn
           Just (VarWithIndices name indices) ->
-            symbolScalarData' "" $ prettyStr (VarWithIndices name (zipWith changeIndex indices ms))
+            symbolScalarData' $ prettyStr (VarWithIndices name (zipWith changeIndex indices ms))
     g x _ = x
 
 evalExpr env (TensorExpr nsExpr xsExpr) = do
@@ -336,7 +336,7 @@ evalExpr (Env _ Nothing) (FunctionExpr _) = throwError $ Default "function symbo
 
 evalExpr env@(Env _ (Just name)) (FunctionExpr args) = do
   args' <- mapM (evalExprDeep env) args >>= mapM extractScalar
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' "" (prettyStr name)) (map (symbolScalarData' "" . prettyStr') args) args' [], 1)])
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (prettyStr name)) (map (symbolScalarData' . prettyStr') args) args' [], 1)])
 
 evalExpr env (IfExpr test expr expr') = do
   test <- evalExpr env test >>= fromWHNF
@@ -403,10 +403,8 @@ evalExpr env (WithSymbolsExpr vars expr) = do
     _ -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
-  isTmpSymbol symId (Subscript    (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
-  isTmpSymbol symId (Superscript  (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
-  isTmpSymbol symId (SupSubscript (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
-  isTmpSymbol symId (Userscript   (ScalarData (SingleTerm 1 [(Symbol id _ _, _)]))) = symId == id
+  isTmpSymbol symId index = symId == getSymId (extractIndex index)
+
   removeTmpScripts :: HasTensor a => String -> Tensor a -> EvalM (Tensor a)
   removeTmpScripts symId (Tensor s xs is) = do
     let (ds, js) = partition (isTmpSymbol symId) is

@@ -171,11 +171,11 @@ instance HasTensor WHNFData where
 symbolScalarData :: String -> String -> EgisonValue
 symbolScalarData id name = ScalarData (SingleTerm 1 [(Symbol id name [], 1)])
 
-symbolScalarData' :: String -> String -> ScalarData
-symbolScalarData' id name = SingleTerm 1 [(Symbol id name [], 1)]
+symbolScalarData' :: String -> ScalarData
+symbolScalarData' name = SingleTerm 1 [(Symbol "" name [], 1)]
 
 getSymId :: EgisonValue -> String
-getSymId (ScalarData (SingleTerm 1 [(Symbol id _ [], 1)])) = id
+getSymId (ScalarData (SingleTerm 1 [(Symbol id _ _, _)])) = id
 
 getSymName :: EgisonValue -> String
 getSymName (ScalarData (SingleTerm 1 [(Symbol _ name [], 1)])) = name
