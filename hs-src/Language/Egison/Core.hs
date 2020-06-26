@@ -1055,12 +1055,11 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
         [] -> throwError $ Default "cannot use # out of seq patterns"
         (SeqPatContext stack pat mats tgts:seqs) -> return . msingleton $ MState env loops (SeqPatContext stack pat (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
         (ForallPatContext mats tgts:seqs) -> return . msingleton $ MState env loops (ForallPatContext (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
-    AndPat patterns ->
-      let trees' = map (\pat -> MAtom pat target matcher) patterns ++ trees
+    AndPat pat1 pat2 ->
+      let trees' = [MAtom pat1 target matcher, MAtom pat2 target matcher] ++ trees
        in return . msingleton $ mstate { mTrees = trees' }
-    OrPat patterns ->
-      return $ fromList $ flip map patterns $ \pat ->
-        mstate { mTrees = MAtom pat target matcher : trees }
+    OrPat pat1 pat2 ->
+      return $ fromList [mstate { mTrees = MAtom pat1 target matcher : trees }, mstate { mTrees = MAtom pat2 target matcher : trees }]
 
     _ ->
       case matcher of

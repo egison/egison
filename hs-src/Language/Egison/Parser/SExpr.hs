@@ -542,10 +542,18 @@ contPat :: Parser EgisonPattern
 contPat = keywordCont >> pure ContPat
 
 andPat :: Parser EgisonPattern
-andPat = (reservedOp "&" <|> keywordAnd) >> AndPat <$> sepEndBy pattern whiteSpace
+andPat = do
+  pats <- (reservedOp "&" <|> keywordAnd) >> sepEndBy pattern whiteSpace
+  case pats of
+    [] -> return WildCard
+    _  -> return $ foldr1 AndPat pats
 
 orPat :: Parser EgisonPattern
-orPat = (reservedOp "|" <|> keywordOr) >> OrPat <$> sepEndBy pattern whiteSpace
+orPat = do
+  pats <- (reservedOp "|" <|> keywordOr) >> sepEndBy pattern whiteSpace
+  case pats of
+    [] -> return (NotPat WildCard)
+    _  -> return $ foldr1 OrPat pats
 
 pApplyPat :: Parser EgisonPattern
 pApplyPat = PApplyPat <$> expr <*> sepEndBy pattern whiteSpace

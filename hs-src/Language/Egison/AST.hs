@@ -162,7 +162,6 @@ type BindingExpr = ([Var], EgisonExpr)
 type MatchClause = (EgisonPattern, EgisonExpr)
 type PatternDef  = (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
 
--- TODO(momohatt): AndPat and OrPat take only 2 arguments in new syntax
 data EgisonPattern =
     WildCard
   | PatVar Var
@@ -172,8 +171,8 @@ data EgisonPattern =
   | LetPat [BindingExpr] EgisonPattern
   | InfixPat Infix EgisonPattern EgisonPattern -- Includes AndPat,OrPat,InductivePat(cons/join)
   | NotPat EgisonPattern
-  | AndPat [EgisonPattern]
-  | OrPat [EgisonPattern]
+  | AndPat EgisonPattern EgisonPattern
+  | OrPat EgisonPattern EgisonPattern
   | ForallPat EgisonPattern EgisonPattern
   | TuplePat [EgisonPattern]
   | InductivePat String [EgisonPattern]
