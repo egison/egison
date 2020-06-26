@@ -37,7 +37,9 @@ exprInfix =
   , makeInfix "<"  "lt"        4 LeftAssoc -- primitive function
   , makeInfix ">"  "gt"        4 LeftAssoc -- primitive function
   , makeInfix "&&" "&&"        3 RightAssoc
+  , makeInfix "&&" "and"       3 RightAssoc
   , makeInfix "||" "||"        2 RightAssoc
+  , makeInfix "||" "or"        2 RightAssoc
   , makeInfix "$"  "apply"     0 RightAssoc
   ]
   where
@@ -81,8 +83,6 @@ instance SyntaxElement EgisonExpr where
   toNonS (SubrefsExpr b x y)   = SubrefsExpr  b (toNonS x) (toNonS y)
   toNonS (SuprefsExpr b x y)   = SuprefsExpr  b (toNonS x) (toNonS y)
   toNonS (UserrefsExpr b x y)  = UserrefsExpr b (toNonS x) (toNonS y)
-  toNonS (PowerExpr x y) = InfixExpr powerOp (toNonS x) (toNonS y)
-    where powerOp = fromJust $ find (\op -> repr op == "^") exprInfix
   toNonS (InductiveDataExpr x ys) = InductiveDataExpr x (map toNonS ys)
   toNonS (TupleExpr xs)      = TupleExpr (map toNonS xs)
   toNonS (CollectionExpr xs) = CollectionExpr (map toNonS xs)
@@ -134,12 +134,6 @@ instance SyntaxElement EgisonExpr where
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
   toNonS (SeqExpr e1 e2) = SeqExpr (toNonS e1) (toNonS e2)
-  toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys))) | prettyS f == "and" =
-    foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
-      where op = fromJust $ find (\op -> repr op == "&&") exprInfix
-  toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys))) | prettyS f == "or" =
-    foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
-      where op = fromJust $ find (\op -> repr op == "||") exprInfix
   toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys)))
     | any (\op -> func op == prettyS f) exprInfix =
       optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
@@ -182,9 +176,9 @@ instance SyntaxElement EgisonPattern where
   toNonS (LetPat binds pat) = LetPat (map toNonS binds) (toNonS pat)
   toNonS (InfixPat op p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
   toNonS (NotPat p) = NotPat (toNonS p)
-  toNonS (AndPat p1 p2) = InfixPat op p1 p2
+  toNonS (AndPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
     where op = fromJust $ find (\op -> repr op == "&") patternInfix
-  toNonS (OrPat p1 p2) = InfixPat op p1 p2
+  toNonS (OrPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
     where op = fromJust $ find (\op -> repr op == "|") patternInfix
   toNonS ForallPat{} = error "Not supported: forall pattern"
   toNonS (TuplePat ps) = TuplePat (map toNonS ps)
