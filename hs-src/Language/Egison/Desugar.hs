@@ -338,8 +338,8 @@ desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern
    collectName (ForallPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
    collectName (InfixPat _ pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
    collectName (NotPat pattern)  = collectName pattern
-   collectName (AndPat patterns) = collectNames patterns
-   collectName (OrPat patterns)  = collectNames patterns
+   collectName (AndPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
+   collectName (OrPat pattern1 pattern2)  = collectName pattern1 `S.union` collectName pattern2
    collectName (TuplePat patterns) = collectNames patterns
    collectName (InductiveOrPApplyPat _ patterns) = collectNames patterns
    collectName (InductivePat _ patterns) = collectNames patterns
@@ -361,9 +361,9 @@ desugarPatternInfix :: EgisonPattern -> EgisonPattern
 desugarPatternInfix (IndexedPat pat es) = IndexedPat (desugarPatternInfix pat) es
 desugarPatternInfix (LetPat bindings pat) = LetPat bindings (desugarPatternInfix pat)
 desugarPatternInfix (InfixPat Infix{ repr = "&" } pat1 pat2) =
-  AndPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
+  AndPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
 desugarPatternInfix (InfixPat Infix{ repr = "|" } pat1 pat2) =
-  OrPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
+  OrPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
 desugarPatternInfix (InfixPat Infix{ repr = "^" } pat1 pat2) =
   PowerPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
 desugarPatternInfix (InfixPat Infix{ repr = "*" } pat1 pat2) =
@@ -401,8 +401,8 @@ desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
 desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
 desugarPattern' (ForallPat pattern1 pattern2) = ForallPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (AndPat patterns) = AndPat <$> mapM desugarPattern' patterns
-desugarPattern' (OrPat patterns)  =  OrPat <$> mapM desugarPattern' patterns
+desugarPattern' (AndPat pattern1 pattern2) = AndPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
+desugarPattern' (OrPat pattern1 pattern2) = OrPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
 desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
 desugarPattern' (InductiveOrPApplyPat name patterns) = InductiveOrPApplyPat name <$> mapM desugarPattern' patterns
 desugarPattern' (InductivePat name patterns) = InductivePat name <$> mapM desugarPattern' patterns

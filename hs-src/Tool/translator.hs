@@ -182,11 +182,9 @@ instance SyntaxElement EgisonPattern where
   toNonS (LetPat binds pat) = LetPat (map toNonS binds) (toNonS pat)
   toNonS (InfixPat op p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
   toNonS (NotPat p) = NotPat (toNonS p)
-  toNonS (AndPat []) = error "Not supported: empty and pattern"
-  toNonS (AndPat ps) = toNonS (foldr1 (\p acc -> InfixPat op p acc) ps)
+  toNonS (AndPat p1 p2) = InfixPat op p1 p2
     where op = fromJust $ find (\op -> repr op == "&") patternInfix
-  toNonS (OrPat []) = error "Not supported: empty or pattern"
-  toNonS (OrPat ps) = toNonS (foldr1 (\p acc -> InfixPat op p acc) ps)
+  toNonS (OrPat p1 p2) = InfixPat op p1 p2
     where op = fromJust $ find (\op -> repr op == "|") patternInfix
   toNonS ForallPat{} = error "Not supported: forall pattern"
   toNonS (TuplePat ps) = TuplePat (map toNonS ps)
