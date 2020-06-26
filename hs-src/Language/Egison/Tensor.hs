@@ -124,7 +124,7 @@ tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
     else do
       ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
       symId <- fresh
-      index <- symbolScalarData "" (":::" ++ symId)
+      let index = symbolScalarData "" (":::" ++ symId)
       case s of
         Subscript{}    -> tConcat (Subscript index) ts >>= fromTensor
         Superscript{}  -> tConcat (Superscript index) ts >>= fromTensor
