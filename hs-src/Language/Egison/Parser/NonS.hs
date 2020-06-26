@@ -444,9 +444,10 @@ tupleOrParenExpr = do
       op      <- choice $ map (infixLiteral . repr) infixes
       rarg    <- optional expr
       case rarg of
-        Just (InfixExpr op' _ _)
-          | assoc op' /= RightAssoc && priority op >= priority op' ->
-          customFailure (IllFormedSection op op')
+        -- Disabling for now... (See issue 159)
+        -- Just (InfixExpr op' _ _)
+        --   | assoc op' /= RightAssoc && priority op >= priority op' ->
+        --   customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op Nothing rarg)
 
     -- Sections with the left operand but lacks the right operand: eg. (1 +)
@@ -456,9 +457,9 @@ tupleOrParenExpr = do
       larg    <- opExpr
       op      <- choice $ map (infixLiteral . repr) infixes
       case larg of
-        InfixExpr op' _ _
-          | assoc op' /= LeftAssoc && priority op >= priority op' ->
-          customFailure (IllFormedSection op op')
+        -- InfixExpr op' _ _
+        --   | assoc op' /= LeftAssoc && priority op >= priority op' ->
+        --   customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op (Just larg) Nothing)
 
 vectorExpr :: Parser EgisonExpr
