@@ -153,9 +153,6 @@ desugar (SuprefsExpr bool expr1 expr2) =
 desugar (UserrefsExpr bool expr1 expr2) =
   UserrefsExpr bool <$> desugar expr1 <*> desugar expr2
 
-desugar (PowerExpr expr1 expr2) =
-  (\x y -> makeApply "**" [x, y]) <$> desugar expr1 <*> desugar expr2
-
 desugar (InductiveDataExpr name exprs) =
   InductiveDataExpr name <$> mapM desugar exprs
 
@@ -460,6 +457,3 @@ desugarPatternDef (pp, matcher, pds) =
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, EgisonExpr)] -> EvalM [(PrimitiveDataPattern, EgisonExpr)]
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (pd,) <$> desugar expr)
-
-makeApply :: String -> [EgisonExpr] -> EgisonExpr
-makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)

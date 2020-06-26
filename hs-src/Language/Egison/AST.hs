@@ -17,6 +17,7 @@ module Language.Egison.AST
   , Var (..)
   , VarWithIndices (..)
   , varToVarWithIndices
+  , makeApply
   , Arg (..)
   , Index (..)
   , extractIndex
@@ -67,7 +68,6 @@ data EgisonExpr =
   | SubrefsExpr Bool EgisonExpr EgisonExpr
   | SuprefsExpr Bool EgisonExpr EgisonExpr
   | UserrefsExpr Bool EgisonExpr EgisonExpr
-  | PowerExpr EgisonExpr EgisonExpr           -- TODO: delete this in v4.0.0
   | InductiveDataExpr String [EgisonExpr]
   | TupleExpr [EgisonExpr]
   | CollectionExpr [EgisonExpr]
@@ -288,6 +288,9 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
  where
    f :: Index () -> Index String
    f index = (\() -> "") <$> index
+
+makeApply :: String -> [EgisonExpr] -> EgisonExpr
+makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
 
 instance Show (Index ()) where
   show (Superscript ())  = "~"

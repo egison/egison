@@ -345,7 +345,7 @@ doExpr :: Parser EgisonExpr
 doExpr = do
   stmts <- reserved "do" >> oneLiner <|> alignSome statement
   case reverse stmts of
-    []           -> return $ DoExpr []           (makeApply' "return" [])
+    []           -> return $ DoExpr []           (makeApply "return" [])
     ([], expr):_ -> return $ DoExpr (init stmts) expr
     _:_          -> customFailure LastStmtInDoBlock
   where
@@ -417,8 +417,8 @@ collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr
       start <- try (expr <* symbol "..")
       end   <- optional expr <* symbol "]"
       case end of
-        Just end' -> return $ makeApply' "between" [start, end']
-        Nothing   -> return $ makeApply' "from" [start]
+        Just end' -> return $ makeApply "between" [start, end']
+        Nothing   -> return $ makeApply "from" [start]
 
     elementsExpr = CollectionExpr <$> (sepBy expr comma <* symbol "]")
 
@@ -495,7 +495,7 @@ atomOrApplyExpr = do
   (func, args) <- indentBlock atomExpr atomExpr
   return $ case args of
              [] -> func
-             _  -> makeApply func args
+             _  -> makeApply' func args
 
 -- (Possibly indexed) atomic expressions
 atomExpr :: Parser EgisonExpr
@@ -573,7 +573,7 @@ loopPattern =
 
     defaultEnds s =
       ApplyExpr (stringToVarExpr "from")
-                (makeApply (stringToVarExpr "-'") [s, IntegerExpr 1])
+                (makeApply' (stringToVarExpr "-'") [s, IntegerExpr 1])
 
 seqPattern :: Parser EgisonPattern
 seqPattern = do
@@ -903,12 +903,9 @@ makeTupleOrParen parser tupleCtor = do
     [elem] -> return elem
     _      -> return $ tupleCtor elems
 
-makeApply :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
-makeApply (InductiveDataExpr x []) xs = InductiveDataExpr x xs
-makeApply func xs = ApplyExpr func (TupleExpr xs)
-
-makeApply' :: String -> [EgisonExpr] -> EgisonExpr
-makeApply' func xs = ApplyExpr (stringToVarExpr func) (TupleExpr xs)
+makeApply' :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
+makeApply' (InductiveDataExpr x []) xs = InductiveDataExpr x xs
+makeApply' func xs = ApplyExpr func (TupleExpr xs)
 
 indentGuardEQ :: Pos -> Parser Pos
 indentGuardEQ pos = L.indentGuard sc EQ pos
