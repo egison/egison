@@ -329,29 +329,29 @@ desugarIndex :: Index EgisonExpr -> EvalM (Index EgisonExpr)
 desugarIndex index = traverse desugar index
 
 desugarPattern :: EgisonPattern -> EvalM EgisonPattern
-desugarPattern pattern = LetPat (map makeBinding $ S.elems $ collectName pattern) <$> desugarPattern' (desugarPatternInfix pattern)
+desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> desugarPattern' (desugarPatternInfix pat)
  where
    collectNames :: [EgisonPattern] -> Set String
-   collectNames patterns = S.unions $ map collectName patterns
+   collectNames pats = S.unions $ map collectName pats
 
    collectName :: EgisonPattern -> Set String
-   collectName (ForallPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
-   collectName (InfixPat _ pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
-   collectName (NotPat pattern)  = collectName pattern
-   collectName (AndPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
-   collectName (OrPat pattern1 pattern2)  = collectName pattern1 `S.union` collectName pattern2
-   collectName (TuplePat patterns) = collectNames patterns
-   collectName (InductiveOrPApplyPat _ patterns) = collectNames patterns
-   collectName (InductivePat _ patterns) = collectNames patterns
-   collectName (PApplyPat _ patterns) = collectNames patterns
-   collectName (DApplyPat _ patterns) = collectNames patterns
-   collectName (LoopPat _ (LoopRange _ _ endNumPat) pattern1 pattern2) = collectName endNumPat `S.union` collectName pattern1 `S.union` collectName pattern2
-   collectName (LetPat _ pattern) = collectName pattern
+   collectName (ForallPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
+   collectName (InfixPat _ pat1 pat2) = collectName pat1 `S.union` collectName pat2
+   collectName (NotPat pat)  = collectName pat
+   collectName (AndPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
+   collectName (OrPat pat1 pat2)  = collectName pat1 `S.union` collectName pat2
+   collectName (TuplePat pats) = collectNames pats
+   collectName (InductiveOrPApplyPat _ pats) = collectNames pats
+   collectName (InductivePat _ pats) = collectNames pats
+   collectName (PApplyPat _ pats) = collectNames pats
+   collectName (DApplyPat _ pats) = collectNames pats
+   collectName (LoopPat _ (LoopRange _ _ endNumPat) pat1 pat2) = collectName endNumPat `S.union` collectName pat1 `S.union` collectName pat2
+   collectName (LetPat _ pat) = collectName pat
    collectName (IndexedPat (PatVar name) _) = S.singleton $ show name
-   collectName (DivPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
-   collectName (PlusPat patterns) = collectNames patterns
-   collectName (MultPat patterns) = collectNames patterns
-   collectName (PowerPat pattern1 pattern2) = collectName pattern1 `S.union` collectName pattern2
+   collectName (DivPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
+   collectName (PlusPat pats) = collectNames pats
+   collectName (MultPat pats) = collectNames pats
+   collectName (PowerPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
    collectName _ = S.empty
 
    makeBinding :: String -> BindingExpr
@@ -399,25 +399,25 @@ desugarPatternInfix pat = pat
 desugarPattern' :: EgisonPattern -> EvalM EgisonPattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
-desugarPattern' (NotPat pattern) = NotPat <$> desugarPattern' pattern
-desugarPattern' (ForallPat pattern1 pattern2) = ForallPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (AndPat pattern1 pattern2) = AndPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (OrPat pattern1 pattern2) = OrPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (TuplePat patterns)  = TuplePat <$> mapM desugarPattern' patterns
-desugarPattern' (InductiveOrPApplyPat name patterns) = InductiveOrPApplyPat name <$> mapM desugarPattern' patterns
-desugarPattern' (InductivePat name patterns) = InductivePat name <$> mapM desugarPattern' patterns
-desugarPattern' (IndexedPat pattern exprs) = IndexedPat <$> desugarPattern' pattern <*> mapM desugar exprs
-desugarPattern' (PApplyPat expr patterns) = PApplyPat <$> desugar expr <*> mapM desugarPattern' patterns
-desugarPattern' (DApplyPat pattern patterns) = DApplyPat <$> desugarPattern' pattern <*> mapM desugarPattern' patterns
-desugarPattern' (LoopPat name range pattern1 pattern2) =  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (LetPat binds pattern) = LetPat <$> desugarBindings binds <*> desugarPattern' pattern
-desugarPattern' (SeqConsPat pattern1 pattern2)  = SeqConsPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' (DivPat pattern1 pattern2) = do
-  pat1' <- desugarPattern' pattern1
-  pat2' <- desugarPattern' pattern2
+desugarPattern' (NotPat pat) = NotPat <$> desugarPattern' pat
+desugarPattern' (ForallPat pat1 pat2) = ForallPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (AndPat pat1 pat2) = AndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (OrPat pat1 pat2) = OrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (TuplePat pats)  = TuplePat <$> mapM desugarPattern' pats
+desugarPattern' (InductiveOrPApplyPat name pats) = InductiveOrPApplyPat name <$> mapM desugarPattern' pats
+desugarPattern' (InductivePat name pats) = InductivePat name <$> mapM desugarPattern' pats
+desugarPattern' (IndexedPat pat exprs) = IndexedPat <$> desugarPattern' pat <*> mapM desugar exprs
+desugarPattern' (PApplyPat expr pats) = PApplyPat <$> desugar expr <*> mapM desugarPattern' pats
+desugarPattern' (DApplyPat pat pats) = DApplyPat <$> desugarPattern' pat <*> mapM desugarPattern' pats
+desugarPattern' (LoopPat name range pat1 pat2) =  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (LetPat binds pat) = LetPat <$> desugarBindings binds <*> desugarPattern' pat
+desugarPattern' (SeqConsPat pat1 pat2)  = SeqConsPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (DivPat pat1 pat2) = do
+  pat1' <- desugarPattern' pat1
+  pat2' <- desugarPattern' pat2
   return $ InductivePat "div" [pat1', pat2']
-desugarPattern' (PlusPat patterns) = do
-  pats' <- mapM desugarPattern' (concatMap flatten patterns)
+desugarPattern' (PlusPat pats) = do
+  pats' <- mapM desugarPattern' (concatMap flatten pats)
   case reverse pats' of
     [] -> return $ InductivePat "plus" [ValuePat (IntegerExpr 0)]
     lp:hps ->
@@ -425,8 +425,8 @@ desugarPattern' (PlusPat patterns) = do
  where
    flatten (PlusPat xs) = concatMap flatten xs
    flatten pat          = [pat]
-desugarPattern' (MultPat patterns) = do
-  intPat:pats' <- mapM desugarPattern' (concatMap flatten patterns)
+desugarPattern' (MultPat pats) = do
+  intPat:pats' <- mapM desugarPattern' (concatMap flatten pats)
   case reverse pats' of
     [] -> return $ InductivePat "mult" [intPat, ValuePat (IntegerExpr 1)]
     lp:hps -> do
@@ -441,18 +441,18 @@ desugarPattern' (MultPat patterns) = do
  where
    flatten (MultPat xs) = concatMap flatten xs
    flatten pat          = [pat]
-desugarPattern' (PowerPat pattern1 pattern2) = PowerPat <$> desugarPattern' pattern1 <*> desugarPattern' pattern2
-desugarPattern' pattern = return pattern
+desugarPattern' (PowerPat pat1 pat2) = PowerPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' pat = return pat
 
 desugarLoopRange :: LoopRange -> EvalM LoopRange
-desugarLoopRange (LoopRange sExpr eExpr pattern) =
-  LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pattern
+desugarLoopRange (LoopRange sExpr eExpr pat) =
+  LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pat
 
 desugarBindings :: [BindingExpr] -> EvalM [BindingExpr]
 desugarBindings = mapM (\(name, expr) -> (name,) <$> desugar expr)
 
 desugarMatchClauses :: [MatchClause] -> EvalM [MatchClause]
-desugarMatchClauses = mapM (\(pattern, expr) -> (,) <$> desugarPattern pattern <*> desugar expr)
+desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
 
 desugarPatternDef :: PatternDef -> EvalM PatternDef
 desugarPatternDef (pp, matcher, pds) =
