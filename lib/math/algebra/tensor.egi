@@ -13,7 +13,7 @@ unitTensor ns := generateTensor kroneckerDelta ns
 
 scalarToTensor x ns := x * unitTensor ns
 
-zeroTensor ns := generateTensor (cambda xs -> 0) ns
+zeroTensor ns := generateTensor (\xs -> 0) ns
 
 (.') %t1 %t2 := sum' (contract (t1 *' t2))
 
