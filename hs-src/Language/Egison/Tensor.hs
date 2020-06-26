@@ -2,7 +2,9 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 {- |
 Module      : Language.Egison.Tensor
@@ -45,6 +47,7 @@ import           Control.Monad.Except      hiding (join)
 import qualified Data.Vector               as V
 import           Data.List                 (delete, find, findIndex,
                                             partition, (\\))
+import           Data.Maybe                (fromJust)
 
 import           Control.Egison            hiding (Integer)
 import qualified Control.Egison            as M
@@ -98,31 +101,21 @@ tIntRef [] (Tensor [] xs _)
 tIntRef [] t = return t
 tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms
 
--- TODO(momohatt): Refactor.
+pattern SupOrSubIndex :: a -> Index a
+pattern SupOrSubIndex i <- (extractSupOrSubIndex -> Just i)
+
 tref :: HasTensor a => [Index EgisonValue] -> Tensor a -> EvalM a
 tref [] (Tensor [] xs _)
   | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
   | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
 tref [] t = fromTensor t
-tref (s@(Subscript    (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) = do
+tref (s@(SupOrSubIndex (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) = do
   let yss = split (product ns) xs
   ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
   mapM toTensor ts >>= tConcat s >>= fromTensor
-tref (s@(Superscript  (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) = do
-  let yss = split (product ns) xs
-  ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
-  mapM toTensor ts >>= tConcat s >>= fromTensor
-tref (s@(SupSubscript (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) = do
-  let yss = split (product ns) xs
-  ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
-  mapM toTensor ts >>= tConcat s >>= fromTensor
-tref (Subscript    (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref (Superscript  (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref (SupSubscript (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= toTensor >>= tref ms
-tref (Subscript    (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
-tref (Superscript  (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
-tref (SupSubscript (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
-tref (Subscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
+tref (SupOrSubIndex (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref (SupOrSubIndex (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
+tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
   if m > n
@@ -131,27 +124,11 @@ tref (Subscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
     else do
       ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
       symId <- fresh
-      tConcat (Subscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
-tref (Superscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
-  m <- fromEgison mVal
-  n <- fromEgison nVal
-  if m > n
-    then
-      fromTensor (Tensor (replicate (length is) 0) V.empty [])
-    else do
-      ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
-      symId <- fresh
-      tConcat (Superscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
-tref (SupSubscript (Tuple [mVal, nVal]):ms) t@(Tensor is _ _) = do
-  m <- fromEgison mVal
-  n <- fromEgison nVal
-  if m > n
-    then
-      fromTensor (Tensor (replicate (length is) 0) V.empty [])
-    else do
-      ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
-      symId <- fresh
-      tConcat (SupSubscript (symbolScalarData "" (":::" ++ symId))) ts >>= fromTensor
+      index <- symbolScalarData "" (":::" ++ symId)
+      case s of
+        Subscript{}    -> tConcat (Subscript index) ts >>= fromTensor
+        Superscript{}  -> tConcat (Superscript index) ts >>= fromTensor
+        SupSubscript{} -> tConcat (SupSubscript index) ts >>= fromTensor
 tref (_:_) _ = throwError $ Default "Tensor index must be an integer or a single symbol."
 
 -- Enumarates all indices (1-indexed) from shape
@@ -192,9 +169,8 @@ tTranspose' is t@(Tensor _ _ js) = do
     Just is' -> tTranspose is' t
  where
   f :: Index EgisonValue -> EgisonValue
-  f (Subscript i)    = i
-  f (Superscript i)  = i
-  f (SupSubscript i) = i
+  f index = fromJust (extractSupOrSubIndex index)
+
   g :: [EgisonValue] -> [Index EgisonValue] -> Maybe [Index EgisonValue]
   g [] _ = return []
   g (i:is) js = case find (\j -> i == f j) js of
