@@ -21,6 +21,7 @@ module Language.Egison.AST
   , Arg (..)
   , Index (..)
   , extractIndex
+  , extractSupOrSubIndex
   , PMMode (..)
   , BindingExpr
   , MatchClause
@@ -154,6 +155,12 @@ extractIndex (Superscript x)  = x
 extractIndex (SupSubscript x) = x
 extractIndex (Userscript x)   = x
 extractIndex _                = error "extractIndex: Not supported"
+
+extractSupOrSubIndex :: Index a -> Maybe a
+extractSupOrSubIndex (Subscript x)    = Just x
+extractSupOrSubIndex (Superscript x)  = Just x
+extractSupOrSubIndex (SupSubscript x) = Just x
+extractSupOrSubIndex _                = Nothing
 
 data PMMode = BFSMode | DFSMode
  deriving (Eq, Show)
