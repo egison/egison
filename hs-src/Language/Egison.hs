@@ -41,6 +41,7 @@ import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.MathOutput  (changeOutputInLang)
 import           Language.Egison.Parser
+import           Language.Egison.Pretty      (prettyS)
 import           Language.Egison.Primitives
 import           Language.Egison.RState
 
@@ -61,13 +62,15 @@ evalTopExprs env exprs = do
 evalTopExpr :: Env -> EgisonTopExpr -> EvalM Env
 evalTopExpr env topExpr = do
   mathExpr <- asks optMathExpr
-  (mOutput, env') <- evalTopExpr' env topExpr
-  case mOutput of
-    Nothing     -> return ()
-    Just output -> liftIO $
-            case mathExpr of
-              Nothing   -> putStrLn output
-              Just lang -> putStrLn $ changeOutputInLang lang output
+  isSExpr  <- asks optSExpr
+  (mVal, env') <- evalTopExpr' env topExpr
+  case mVal of
+    Nothing  -> return ()
+    Just val ->
+      liftIO . putStrLn $ case mathExpr of
+        Nothing | isSExpr -> prettyS val
+        Nothing           -> show val
+        Just lang         -> changeOutputInLang lang (prettyS val)
   return env'
 
 -- |eval an Egison expression
@@ -86,25 +89,29 @@ evalEgisonTopExprs env exprs = fromEvalT $ evalTopExprs env exprs
 runEgisonExpr :: Env -> String -> RuntimeM (Either EgisonError EgisonValue)
 runEgisonExpr env input = do
   isSExpr <- asks optSExpr
-  fromEvalT $ readExpr isSExpr input >>= evalExprDeep env
+  fromEvalT (readExpr isSExpr input >>= evalExprDeep env)
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr :: Env -> String -> RuntimeM (Either EgisonError Env)
 runEgisonTopExpr env input = do
   isSExpr <- asks optSExpr
-  fromEvalT $ readTopExpr isSExpr input >>= evalTopExpr env
+  fromEvalT (readTopExpr isSExpr input >>= evalTopExpr env)
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr' :: Env -> String -> RuntimeM (Either EgisonError (Maybe String, Env))
 runEgisonTopExpr' env input = do
   isSExpr <- asks optSExpr
-  fromEvalT $ readTopExpr isSExpr input >>= evalTopExpr' env
+  m <- fromEvalT (readTopExpr isSExpr input >>= evalTopExpr' env)
+  case m of
+    Right (Just val, env') | isSExpr -> return $ Right (Just (prettyS val), env')
+    Right (Just val, env')           -> return $ Right (Just (show val), env')
+    Left err                         -> return $ Left err
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: Env -> String -> RuntimeM (Either EgisonError Env)
 runEgisonTopExprs env input = do
   isSExpr <- asks optSExpr
-  fromEvalT $ readTopExprs isSExpr input >>= evalTopExprs env
+  fromEvalT (readTopExprs isSExpr input >>= evalTopExprs env)
 
 -- |load an Egison file
 loadEgisonFile :: Env -> FilePath -> RuntimeM (Either EgisonError Env)
