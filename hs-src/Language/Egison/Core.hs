@@ -91,7 +91,7 @@ collectDefs' opts (expr:exprs) bindings rest =
     InfixDecl{} -> collectDefs' opts exprs bindings rest
 collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExpr' :: Env -> EgisonTopExpr -> EvalM (Maybe String, Env)
+evalTopExpr' :: Env -> EgisonTopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr' env (Define name expr) = do
   env' <- recursiveBind env [(name, expr)]
   return (Nothing, env')
@@ -99,11 +99,8 @@ evalTopExpr' _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach 
 evalTopExpr' env (Test expr) = do
   pushFuncName "<stdin>"
   val <- evalExprDeep env expr
-  opts <- ask
   popFuncName
-  case (optSExpr opts, optMathExpr opts) of
-    (False, Nothing) -> return (Just (show val), env)
-    _  -> return (Just (prettyS val), env)
+  return (Just val, env)
 evalTopExpr' env (Execute expr) = do
   pushFuncName "<stdin>"
   io <- evalExpr env expr
@@ -142,7 +139,7 @@ evalExpr env (QuoteExpr expr) = do
 evalExpr env (QuoteSymbolExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value fn@(Func (Just _) _ _ _) -> return . Value $ symbolScalarData "" (prettyS fn)
+    Value fn@(Func (Just _) _ _ _) -> return . Value $ symbolScalarData "" (show fn)
     Value (ScalarData _) -> return whnf
     _ -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 
