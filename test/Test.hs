@@ -1,15 +1,8 @@
 module Main where
 
-import           Control.Applicative
 import           Control.Monad
-import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Class      (lift)
-import           Data.IORef
-import           Data.List
 
-import           System.FilePath                (replaceDirectory, splitPath,
-                                                 takeDirectory)
-import           System.FilePath.Glob           (glob)
 import           Test.Framework                 (defaultMain)
 import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
@@ -17,14 +10,14 @@ import           Test.HUnit
 import           Language.Egison
 import           Language.Egison.Core
 import           Language.Egison.CmdOptions
+import           Language.Egison.MathOutput
 import           Language.Egison.Parser
-import           Language.Egison.Pretty
-import           Language.Egison.Primitives
-import           Language.Egison.Types
+import           Language.Egison.RState
 
 main :: IO ()
-main =
-  defaultMain . hUnitTestToTests . test $ map runTestCase testCases
+main = do
+  t <- evalRuntimeT defaultOption mathOutputTest
+  defaultMain . hUnitTestToTests . test $ t : map runTestCase testCases
 
 testCases :: [FilePath]
 testCases =
@@ -72,3 +65,25 @@ collectDefsAndTests (Define name expr) (bindings, tests) =
 collectDefsAndTests (Test expr) (bindings, tests) =
   (bindings, expr : tests)
 collectDefsAndTests _ r = r
+
+mathOutputTest :: RuntimeM Test
+mathOutputTest = do
+  env <- initialEnv
+  latexTest <- mathOutputTestLatex env
+  return $ TestList [latexTest]
+
+mathOutputTestLatex :: Env -> RuntimeM Test
+mathOutputTestLatex env = do
+  TestLabel ("math output: latex") . TestList <$>
+    mapM (\(x, y, z) -> makeTest x y z)
+      [ ("div", "x / y", "\\frac{x}{y}")
+      ]
+ where
+   makeTest = makeMathOutputTest env "latex"
+
+makeMathOutputTest :: Env -> String -> String -> String -> String -> RuntimeM Test
+makeMathOutputTest env lang label expr expectedOutput = do
+  res <- runEgisonExpr env expr
+  case res of
+    Left _    -> return . TestCase $ assertFailure "Failed to evaluate the expression"
+    Right res -> return . TestCase $ assertEqual label ("#" ++ lang ++ "|" ++ expectedOutput ++ "|#") (prettyMath lang res)
