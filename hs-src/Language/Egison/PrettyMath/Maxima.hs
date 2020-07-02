@@ -27,18 +27,18 @@ showMathExpr (Multiply [x]) = showMathExpr x
 showMathExpr (Multiply (Atom "1" []:xs)) = showMathExpr (Multiply xs)
 showMathExpr (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExpr (Multiply xs)
 showMathExpr (Multiply (x:xs)) = showMathExpr' x ++ " * " ++ showMathExpr (Multiply xs)
-showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
-showMathExpr (Func (Atom "sqrt" []) [x]) = "sqrt(" ++ showMathExpr x ++ ")"
-showMathExpr (Func (Atom "rt" []) [x, y]) = showMathExpr y ++ "^(1/" ++ showMathExpr x ++ ")"
-showMathExpr (Func (Atom "/" []) [x, y]) = addBracket x ++ "/" ++ addBracket y
+showMathExpr (Div x y) = addBracket x ++ "/" ++ addBracket y
  where
    addBracket x@(Atom _ []) = showMathExpr x
    addBracket x             = "(" ++ showMathExpr x ++ ")"
+showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
+showMathExpr (Func (Atom "sqrt" []) [x]) = "sqrt(" ++ showMathExpr x ++ ")"
+showMathExpr (Func (Atom "rt" []) [x, y]) = showMathExpr y ++ "^(1/" ++ showMathExpr x ++ ")"
+showMathExpr (Func (Atom "exp" []) [x]) = "exp(" ++ showMathExpr x ++ ")"
 showMathExpr (Func f xs) = showMathExpr f ++ "(" ++ showMathExprArg xs ++ ")"
 showMathExpr (Tensor _ _) = "undefined"
 showMathExpr (Tuple _) = "undefined"
 showMathExpr (Collection xs) = "[" ++ showMathExprArg xs ++ "]"
-showMathExpr (Exp x) = "exp(" ++ showMathExpr x ++ ")"
 showMathExpr (Quote x) = "(" ++ showMathExpr x ++ ")"
 
 showMathExpr' :: MathExpr -> String
