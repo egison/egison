@@ -139,7 +139,7 @@ evalExpr env (QuoteExpr expr) = do
 evalExpr env (QuoteSymbolExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value fn@(Func (Just _) _ _ _) -> return . Value $ symbolScalarData "" (prettyS fn)
+    Value fn@(Func (Just _) _ _ _) -> return . Value $ symbolScalarData "" (show fn)
     Value (ScalarData _) -> return whnf
     _ -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 

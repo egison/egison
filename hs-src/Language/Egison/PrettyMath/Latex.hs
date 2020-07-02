@@ -41,15 +41,15 @@ showMathExpr (Multiply [x]) = showMathExpr x
 showMathExpr (Multiply (Atom "1" []:xs)) = showMathExpr (Multiply xs)
 showMathExpr (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExpr (Multiply xs)
 showMathExpr (Multiply (x:xs)) = showMathExpr' x ++ " " ++ showMathExpr (Multiply xs)
+showMathExpr (Div x y) = "\\frac{" ++ showMathExpr x ++ "}{" ++ showMathExpr y ++ "}"
 showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
 showMathExpr (Func (Atom "sqrt" []) [x]) = "\\sqrt{" ++ showMathExpr x ++ "}"
 showMathExpr (Func (Atom "rt" []) [x, y]) = "\\sqrt[" ++ showMathExpr x ++ "]{" ++ showMathExpr y ++ "}"
-showMathExpr (Func (Atom "/" []) [x, y]) = "\\frac{" ++ showMathExpr x ++ "}{" ++ showMathExpr y ++ "}"
+showMathExpr (Func (Atom "exp" []) [x]) = "e^{" ++ showMathExpr x ++ "}"
 showMathExpr (Func f xs) = showMathExpr f ++ "(" ++ showMathExprArg xs ", " ++ ")"
 showMathExpr (Tensor xs mis) = "\\begin{pmatrix} " ++ showMathExprVectors xs ++ "\\end{pmatrix}" ++ showMathExprScript mis
 showMathExpr (Tuple xs) = "(" ++ showMathExprArg xs ", " ++ ")"
 showMathExpr (Collection xs) = "\\{" ++ showMathExprArg xs ", " ++ "\\}"
-showMathExpr (Exp x) = "e^{" ++ showMathExpr x ++ "}"
 showMathExpr (Quote x) = "(" ++ showMathExpr x ++ ")"
 
 showMathExpr' :: MathExpr -> String

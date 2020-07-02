@@ -24,13 +24,14 @@ showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
   showMathExprForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ " " ++ showMathExprForPlus xs
   showMathExprForPlus (x:xs) = " + " ++ showMathExpr x ++ showMathExprForPlus xs
 showMathExpr (Multiply []) = ""
-showMathExpr (Multiply [a]) = showMathExpr a
-showMathExpr (Multiply (NegativeAtom "1":lvs)) = "-" ++ showMathExpr (Multiply lvs)
-showMathExpr (Multiply lvs) = showMathExpr' (head lvs) ++ " " ++ showMathExpr (Multiply (tail lvs))
+showMathExpr (Multiply [x]) = showMathExpr x
+showMathExpr (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExpr (Multiply xs)
+showMathExpr (Multiply (x:xs)) = showMathExpr' x ++ " " ++ showMathExpr (Multiply xs)
+showMathExpr (Div x y) = "frac{" ++ showMathExpr x ++ "}{" ++ showMathExpr y ++ "}"
 showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
 showMathExpr (Func (Atom "sqrt" []) [x]) = "sqrt " ++ showMathExpr x
 showMathExpr (Func (Atom "rt" []) [x, y]) = "root " ++ showMathExpr x ++ " " ++ showMathExpr y
-showMathExpr (Func (Atom "/" []) [x, y]) = "frac{" ++ showMathExpr x ++ "}{" ++ showMathExpr y ++ "}"
+showMathExpr (Func (Atom "exp" []) [x]) = "e^(" ++ showMathExpr x ++ ")"
 showMathExpr (Func f lvs) = showMathExpr f ++ "(" ++ showMathExprArg lvs ++ ")"
 showMathExpr (Tensor lvs mis)
   | null mis = "(" ++ showMathExprArg lvs ++ ")"
@@ -39,7 +40,6 @@ showMathExpr (Tensor lvs mis)
   | otherwise = "(" ++ showMathExprArg lvs ++ ")_(" ++ showMathExprIndices (filter isSub mis) ++ ")^(" ++ showMathExprIndices (filter (not . isSub) mis) ++ ")"
 showMathExpr (Tuple lvs) = "(" ++ showMathExprArg lvs ++ ")"
 showMathExpr (Collection lvs) = "{" ++ showMathExprArg lvs ++ "}"
-showMathExpr (Exp x) = "e^(" ++ showMathExpr x ++ ")"
 
 showMathExpr' :: MathExpr -> String
 showMathExpr' (Plus lvs) = "(" ++ showMathExpr (Plus lvs) ++ ")"

@@ -7,26 +7,23 @@ other languages / format of other computer algebra systems.
 -}
 
 module Language.Egison.MathOutput
-  ( changeOutputInLang
+  ( prettyMath
   ) where
 
-import           Text.ParserCombinators.Parsec          (parse)
-
+import           Language.Egison.Data
 import           Language.Egison.PrettyMath.AST
 import qualified Language.Egison.PrettyMath.AsciiMath   as AsciiMath
 import qualified Language.Egison.PrettyMath.Latex       as Latex
 import qualified Language.Egison.PrettyMath.Mathematica as Mathematica
 import qualified Language.Egison.PrettyMath.Maxima      as Maxima
 
-changeOutputInLang :: String -> String -> String
-changeOutputInLang lang input =
+prettyMath :: String -> EgisonValue -> String
+prettyMath lang val =
   -- 'lang' is either "asciimath", "latex", "mathematica" or "maxima"
   -- Other invalid options are rejected in Interpreter/egison.hs
-  case parse parseExpr "math-expr" input of
-    Left _ -> input
-    Right val -> case showMathExpr lang val of
-                   "undefined" -> "undefined"
-                   output      -> "#" ++ lang ++ "|" ++ output ++ "|#"
+  case showMathExpr lang (toMathExpr val) of
+    "undefined" -> "undefined"
+    output      -> "#" ++ lang ++ "|" ++ output ++ "|#"
 
 showMathExpr :: String -> MathExpr -> String
 showMathExpr "asciimath"   = AsciiMath.showMathExpr
