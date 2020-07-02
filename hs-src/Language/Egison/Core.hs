@@ -252,6 +252,7 @@ evalExpr env (HashExpr assocs) = do
   makeHashKey whnf = throwError =<< TypeMismatch "integer or string" whnf <$> getFuncNameStack
 
 evalExpr env (IndexedExpr override expr indices) = do
+  -- Tensor or hash
   tensor <- case expr of
               VarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ map (const () <$>) indices)
@@ -259,20 +260,22 @@ evalExpr env (IndexedExpr override expr indices) = do
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExpr env expr
               _ -> evalExpr env expr
-  js <- mapM evalIndex indices
-  ret <- case tensor of
-      Value (ScalarData (SingleTerm 1 [(Symbol id name [], 1)])) -> do
-        js2 <- mapM evalIndexToScalar indices
-        return $ Value (ScalarData (SingleTerm 1 [(Symbol id name js2, 1)]))
-      Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
-        js2 <- mapM evalIndexToScalar indices
-        return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
-      Value (TensorData t@Tensor{})     -> Value <$> refTensorWithOverride override js t
-      Intermediate (ITensor t@Tensor{}) -> refTensorWithOverride override js t
-      _ -> do
-        js2 <- mapM evalIndexToScalar indices
-        refArray tensor (map (ScalarData . extractIndex) js2)
-  return ret -- TODO: refactor
+  case tensor of
+    Value (ScalarData (SingleTerm 1 [(Symbol id name [], 1)])) -> do
+      js2 <- mapM evalIndexToScalar indices
+      return $ Value (ScalarData (SingleTerm 1 [(Symbol id name js2, 1)]))
+    Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
+      js2 <- mapM evalIndexToScalar indices
+      return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
+    Value (TensorData t@Tensor{}) -> do
+      js <- mapM evalIndex indices
+      Value <$> refTensorWithOverride override js t
+    Intermediate (ITensor t@Tensor{}) -> do
+      js <- mapM evalIndex indices
+      refTensorWithOverride override js t
+    _ -> do
+      js <- mapM evalIndex indices
+      refHash tensor (map extractIndex js)
  where
   evalIndex :: Index EgisonExpr -> EvalM (Index EgisonValue)
   evalIndex index = traverse (evalExprDeep env) index
@@ -752,39 +755,29 @@ applyFunc _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) arg = do
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
 
-refArray :: WHNFData -> [EgisonValue] -> EvalM WHNFData
-refArray val [] = return val
-refArray (Value (IntHash hash)) (index:indices) = do
-  key <- fromEgison index
-  case HL.lookup key hash of
-    Just val -> refArray (Value val) indices
-    Nothing  -> return $ Value Undefined
-refArray (Intermediate (IIntHash hash)) (index:indices) = do
-  key <- fromEgison index
-  case HL.lookup key hash of
-    Just ref -> evalRef ref >>= flip refArray indices
-    Nothing  -> return $ Value Undefined
-refArray (Value (CharHash hash)) (index:indices) = do
-  key <- fromEgison index
-  case HL.lookup key hash of
-    Just val -> refArray (Value val) indices
-    Nothing  -> return $ Value Undefined
-refArray (Intermediate (ICharHash hash)) (index:indices) = do
-  key <- fromEgison index
-  case HL.lookup key hash of
-    Just ref -> evalRef ref >>= flip refArray indices
-    Nothing  -> return $ Value Undefined
-refArray (Value (StrHash hash)) (index:indices) = do
-  key <- fromEgison index
-  case HL.lookup key hash of
-    Just val -> refArray (Value val) indices
-    Nothing  -> return $ Value Undefined
-refArray (Intermediate (IStrHash hash)) (index:indices) = do
-  key <- fromEgison index
-  case HL.lookup key hash of
-    Just ref -> evalRef ref >>= flip refArray indices
-    Nothing  -> return $ Value Undefined
-refArray val _ = throwError =<< TypeMismatch "array or hash" val <$> getFuncNameStack
+refHash :: WHNFData -> [EgisonValue] -> EvalM WHNFData
+refHash val [] = return val
+refHash val (index:indices) =
+  case val of
+    Value (IntHash hash)  -> refHash' hash
+    Value (CharHash hash) -> refHash' hash
+    Value (StrHash hash)  -> refHash' hash
+    Intermediate (IIntHash hash)  -> irefHash hash
+    Intermediate (ICharHash hash) -> irefHash hash
+    Intermediate (IStrHash hash)  -> irefHash hash
+    _ -> throwError =<< TypeMismatch "hash" val <$> getFuncNameStack
+ where
+  refHash' hash = do
+    key <- fromEgison index
+    case HL.lookup key hash of
+      Just val -> refHash (Value val) indices
+      Nothing  -> return $ Value Undefined
+
+  irefHash hash = do
+    key <- fromEgison index
+    case HL.lookup key hash of
+      Just ref -> evalRef ref >>= flip refHash indices
+      Nothing  -> return $ Value Undefined
 
 newThunk :: Env -> EgisonExpr -> Object
 newThunk env expr = Thunk $ evalExpr env expr

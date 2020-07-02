@@ -205,6 +205,7 @@ scalarIndexToEgison (Superscript k) = InductiveData "Sup"  [ScalarData k]
 scalarIndexToEgison (Subscript k)   = InductiveData "Sub"  [ScalarData k]
 scalarIndexToEgison (Userscript k)  = InductiveData "User" [ScalarData k]
 
+-- Implementation of 'toMathExpr' (Primitive function)
 egisonToScalarData :: EgisonValue -> EvalM ScalarData
 egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
 egisonToScalarData p1@(InductiveData "Plus" _) = Div <$> egisonToPolyExpr p1 <*> return (Plus [Term 1 []])
