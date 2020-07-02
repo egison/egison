@@ -39,7 +39,7 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
-import           Language.Egison.MathOutput  (changeOutputInLang)
+import           Language.Egison.MathOutput  (prettyMath)
 import           Language.Egison.Parser
 import           Language.Egison.Pretty      (prettyS)
 import           Language.Egison.Primitives
@@ -70,7 +70,7 @@ evalTopExpr env topExpr = do
       liftIO . putStrLn $ case mathExpr of
         Nothing | isSExpr -> prettyS val
         Nothing           -> show val
-        Just lang         -> changeOutputInLang lang (prettyS val)
+        Just lang         -> prettyMath lang val
   return env'
 
 -- |eval an Egison expression

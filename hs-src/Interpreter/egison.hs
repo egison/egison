@@ -35,7 +35,7 @@ main :: IO ()
 main = execParser cmdParser >>= runWithOptions
 
 isInValidMathOption :: EgisonOpts -> Bool
-isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = notElem lang ["asciimath", "latex", "mathematica", "maxima"]
+isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = notElem lang ["asciimath", "latex", "mathematica", "maxima", "haskell"]
 isInValidMathOption EgisonOpts{ optMathExpr = Nothing } = False
 
 runWithOptions :: EgisonOpts -> IO ()
