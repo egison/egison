@@ -65,12 +65,12 @@ primitiveEnvNoIO = do
   return $ extendEnv nullEnv bindings
 
 {-# INLINE noArg #-}
-noArg :: EvalM EgisonValue -> PrimitiveFunc
-noArg f args = do
+noArg :: String -> EvalM EgisonValue -> PrimitiveFunc
+noArg name f args = do
     args' <- tupleToList args
     case args' of
       [] -> Value <$> f
-      _  -> throwError =<< ArgumentsNumPrimitive 0 (length args') <$> getFuncNameStack
+      _  -> throwError =<< ArgumentsNumPrimitive name 0 (length args') <$> getFuncNameStack
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
@@ -89,8 +89,8 @@ oneArg' f arg = do
   Value <$> f arg'
 
 {-# INLINE twoArgs #-}
-twoArgs :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
-twoArgs f args = do
+twoArgs :: String -> (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
+twoArgs name f args = do
   args' <- tupleToList args
   case args' of
     [TensorData t1@Tensor{}, TensorData t2@Tensor{}] -> Value <$> (tProduct f t1 t2 >>= fromTensor)
@@ -101,23 +101,23 @@ twoArgs f args = do
       ds' <- V.mapM (f val) ds
       Value <$> fromTensor (Tensor ns ds' js)
     [val, val'] -> Value <$> f val val'
-    _ -> throwError =<< ArgumentsNumPrimitive 2 (length args') <$> getFuncNameStack
+    _ -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
 
 {-# INLINE twoArgs' #-}
-twoArgs' :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
-twoArgs' f args = do
+twoArgs' :: String -> (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
+twoArgs' name f args = do
   args' <- tupleToList args
   case args' of
     [val, val'] -> Value <$> f val val'
-    _           -> throwError =<< ArgumentsNumPrimitive 2 (length args') <$> getFuncNameStack
+    _           -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
 
 {-# INLINE threeArgs' #-}
-threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
-threeArgs' f args = do
+threeArgs' :: String -> (EgisonValue -> EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
+threeArgs' name f args = do
   args' <- tupleToList args
   case args' of
     [val, val', val''] -> Value <$> f val val' val''
-    _                  -> throwError =<< ArgumentsNumPrimitive 3 (length args') <$> getFuncNameStack
+    _                  -> throwError =<< ArgumentsNumPrimitive name 3 (length args') <$> getFuncNameStack
 
 --
 -- Constants
@@ -138,27 +138,27 @@ primitives = [ ("b.+", plus)
              , ("b.-", minus)
              , ("b.*", multiply)
              , ("b./", divide)
-             , ("f.+", floatBinaryOp (+))
-             , ("f.-", floatBinaryOp (-))
-             , ("f.*", floatBinaryOp (*))
-             , ("f./", floatBinaryOp (/))
+             , ("f.+", floatBinaryOp "f.+" (+))
+             , ("f.-", floatBinaryOp "f.-" (-))
+             , ("f.*", floatBinaryOp "f.*" (*))
+             , ("f./", floatBinaryOp "f./" (/))
              , ("numerator", numerator')
              , ("denominator", denominator')
              , ("fromMathExpr", fromScalarData)
              , ("toMathExpr", toScalarData)
              , ("toMathExpr'", toScalarData)
 
-             , ("modulo",    integerBinaryOp mod)
-             , ("quotient",  integerBinaryOp quot)
-             , ("remainder", integerBinaryOp rem)
+             , ("modulo",    integerBinaryOp "modulo" mod)
+             , ("quotient",  integerBinaryOp "quotient" quot)
+             , ("remainder", integerBinaryOp "remainder" rem)
              , ("b.abs", rationalUnaryOp abs)
              , ("b.neg", rationalUnaryOp negate)
 
              , ("equal",  eq)
-             , ("lt",  scalarCompare (<))
-             , ("lte", scalarCompare (<=))
-             , ("gt",  scalarCompare (>))
-             , ("gte", scalarCompare (>=))
+             , ("lt",  scalarCompare "(<)"  (<))
+             , ("lte", scalarCompare "(<=)" (<=))
+             , ("gt",  scalarCompare "(>)"  (>))
+             , ("gte", scalarCompare "(>=)" (>=))
 
              , ("round",    floatToIntegerOp round)
              , ("floor",    floatToIntegerOp floor)
@@ -231,8 +231,8 @@ unaryOp op = oneArg $ \val -> do
   v <- fromEgison val
   return $ toEgison (op v)
 
-binaryOp :: (EgisonData a, EgisonData b) => (a -> a -> b) -> PrimitiveFunc
-binaryOp op = twoArgs $ \val val' -> do
+binaryOp :: String -> (EgisonData a, EgisonData b) => (a -> a -> b) -> PrimitiveFunc
+binaryOp name op = twoArgs name $ \val val' -> do
   i <- fromEgison val
   i' <- fromEgison val'
   return $ toEgison (op i i')
@@ -240,37 +240,37 @@ binaryOp op = twoArgs $ \val val' -> do
 rationalUnaryOp :: (Rational -> Rational) -> PrimitiveFunc
 rationalUnaryOp = unaryOp
 
-integerBinaryOp :: (Integer -> Integer -> Integer) -> PrimitiveFunc
+integerBinaryOp :: String -> (Integer -> Integer -> Integer) -> PrimitiveFunc
 integerBinaryOp = binaryOp
 
 floatUnaryOp :: (Double -> Double) -> PrimitiveFunc
 floatUnaryOp = unaryOp
 
-floatBinaryOp :: (Double -> Double -> Double) -> PrimitiveFunc
+floatBinaryOp :: String -> (Double -> Double -> Double) -> PrimitiveFunc
 floatBinaryOp = binaryOp
 
 --
 -- Arith
 --
 
-scalarBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> PrimitiveFunc
-scalarBinaryOp mOp = twoArgs $ \val val' -> scalarBinaryOp' val val'
+scalarBinaryOp :: String -> (ScalarData -> ScalarData -> ScalarData) -> PrimitiveFunc
+scalarBinaryOp name mOp = twoArgs name scalarBinaryOp'
  where
   scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
   scalarBinaryOp' (ScalarData _)  val             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
   scalarBinaryOp' val             _               = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 plus :: PrimitiveFunc
-plus = scalarBinaryOp mathPlus
+plus = scalarBinaryOp "b.+" mathPlus
 
 minus :: PrimitiveFunc
-minus = scalarBinaryOp (\m1 m2 -> mathPlus m1 (mathNegate m2))
+minus = scalarBinaryOp "b.-" (\m1 m2 -> mathPlus m1 (mathNegate m2))
 
 multiply :: PrimitiveFunc
-multiply = scalarBinaryOp mathMult
+multiply = scalarBinaryOp "b.*" mathMult
 
 divide :: PrimitiveFunc
-divide = scalarBinaryOp (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1))
+divide = scalarBinaryOp "b./" (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1))
 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg numerator''
@@ -299,11 +299,11 @@ toScalarData = oneArg toScalarData'
 -- Pred
 --
 eq :: PrimitiveFunc
-eq = twoArgs' $ \val val' ->
+eq = twoArgs' "equal" $ \val val' ->
   return $ Bool $ val == val'
 
-scalarCompare :: (forall a. Ord a => a -> a -> Bool) -> PrimitiveFunc
-scalarCompare cmp = twoArgs' $ \val1 val2 ->
+scalarCompare :: String -> (forall a. Ord a => a -> a -> Bool) -> PrimitiveFunc
+scalarCompare name cmp = twoArgs' name $ \val1 val2 ->
   case (val1, val2) of
     (ScalarData _, ScalarData _) -> do
       r1 <- fromEgison val1 :: EvalM Rational
@@ -402,16 +402,16 @@ lengthString :: PrimitiveFunc
 lengthString = unaryOp (toInteger . T.length)
 
 appendString :: PrimitiveFunc
-appendString = binaryOp T.append
+appendString = binaryOp "appendString" T.append
 
 splitString :: PrimitiveFunc
-splitString = twoArgs $ \pat src -> do
+splitString = twoArgs "splitString" $ \pat src -> do
   patStr <- fromEgison pat
   srcStr <- fromEgison src
   return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
 
 regexString :: PrimitiveFunc
-regexString = twoArgs $ \pat src -> do
+regexString = twoArgs "regexString" $ \pat src -> do
   patStr <- fromEgison pat
   srcStr <- fromEgison src
   case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe (String, String, String)) of
@@ -419,7 +419,7 @@ regexString = twoArgs $ \pat src -> do
     Just (a,b,c) -> return . Collection . Sq.fromList $ [Tuple [String $ T.pack a, String $ T.pack b, String $ T.pack c]]
 
 regexStringCaptureGroup :: PrimitiveFunc
-regexStringCaptureGroup = twoArgs $ \pat src -> do
+regexStringCaptureGroup = twoArgs "regexCg" $ \pat src -> do
   patStr <- fromEgison pat
   srcStr <- fromEgison src
   case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe [[String]]) of
@@ -442,7 +442,7 @@ addPrime = oneArg $ \sym ->
     _ -> throwError =<< TypeMismatch "symbol" (Value sym) <$> getFuncNameStack
 
 addSubscript :: PrimitiveFunc
-addSubscript = twoArgs $ \fn sub ->
+addSubscript = twoArgs "addSubscript" $ \fn sub ->
   case (fn, sub) of
     (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
      ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) ->
@@ -455,7 +455,7 @@ addSubscript = twoArgs $ \fn sub ->
     _ -> throwError =<< TypeMismatch "symbol or integer" (Value fn) <$> getFuncNameStack
 
 addSuperscript :: PrimitiveFunc
-addSuperscript = twoArgs $ \fn sub ->
+addSuperscript = twoArgs "addSuperscript" $ \fn sub ->
   case (fn, sub) of
     (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
      ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) ->
@@ -468,7 +468,7 @@ addSuperscript = twoArgs $ \fn sub ->
     _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
 
 readProcess' :: PrimitiveFunc
-readProcess' = threeArgs' $ \cmd args input ->
+readProcess' = threeArgs' "readProcess" $ \cmd args input ->
   case (cmd, args, input) of
     (String cmdStr, Collection argStrs, String inputStr) -> do
       let cmd' = T.unpack cmdStr
@@ -504,14 +504,14 @@ showTSV'= oneArg' $ \val -> return $ toEgison $ T.pack $ showTSV val
 --
 
 assert ::  PrimitiveFunc
-assert = twoArgs' $ \label test -> do
+assert = twoArgs' "assert" $ \label test -> do
   test <- fromEgison test
   if test
     then return $ Bool True
     else throwError =<< Assertion (show label) <$> getFuncNameStack
 
 assertEqual :: PrimitiveFunc
-assertEqual = threeArgs' $ \label actual expected ->
+assertEqual = threeArgs' "assertEqual" $ \label actual expected ->
   if actual == expected
      then return $ Bool True
      else throwError =<< Assertion
@@ -577,7 +577,7 @@ writeChar = oneArg' $ \val -> do
   return $ makeIO' $ liftIO $ putChar c
 
 writeCharToPort :: PrimitiveFunc
-writeCharToPort = twoArgs' $ \val val' -> do
+writeCharToPort = twoArgs' "writeCharToPort" $ \val val' -> do
   port <- fromEgison val
   c <- fromEgison val'
   return $ makeIO' $ liftIO $ hPutChar port c
@@ -588,13 +588,13 @@ writeString = oneArg' $ \val -> do
   return $ makeIO' $ liftIO $ T.putStr s
 
 writeStringToPort :: PrimitiveFunc
-writeStringToPort = twoArgs' $ \val val' -> do
+writeStringToPort = twoArgs' "writeStringToPort" $ \val val' -> do
   port <- fromEgison val
   s <- fromEgison val'
   return $ makeIO' $ liftIO $ T.hPutStr port s
 
 flushStdout :: PrimitiveFunc
-flushStdout = noArg $ return $ makeIO' $ liftIO $ hFlush stdout
+flushStdout = noArg "flush" $ return $ makeIO' $ liftIO $ hFlush stdout
 
 flushPort :: PrimitiveFunc
 flushPort = oneArg' $ \val -> do
@@ -602,7 +602,7 @@ flushPort = oneArg' $ \val -> do
   return $ makeIO' $ liftIO $ hFlush port
 
 readChar :: PrimitiveFunc
-readChar = noArg $ return $ makeIO $ liftIO $ fmap Char getChar
+readChar = noArg "readChar" $ return $ makeIO $ liftIO $ fmap Char getChar
 
 readCharFromPort :: PrimitiveFunc
 readCharFromPort = oneArg' $ \val -> do
@@ -611,7 +611,7 @@ readCharFromPort = oneArg' $ \val -> do
   return $ makeIO $ return (Char c)
 
 readLine :: PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ fmap toEgison T.getLine
+readLine = noArg "readLine" $ return $ makeIO $ liftIO $ fmap toEgison T.getLine
 
 readLineFromPort :: PrimitiveFunc
 readLineFromPort = oneArg' $ \val -> do
@@ -626,7 +626,7 @@ readFile' =  oneArg' $ \val -> do
   return $ makeIO $ return $ toEgison s
 
 isEOFStdin :: PrimitiveFunc
-isEOFStdin = noArg $ return $ makeIO $ liftIO $ fmap Bool isEOF
+isEOFStdin = noArg "isEOF" $ return $ makeIO $ liftIO $ fmap Bool isEOF
 
 isEOFPort :: PrimitiveFunc
 isEOFPort = oneArg' $ \val -> do
@@ -635,26 +635,26 @@ isEOFPort = oneArg' $ \val -> do
   return $ makeIO $ return (Bool b)
 
 randRange :: PrimitiveFunc
-randRange = twoArgs' $ \val val' -> do
+randRange = twoArgs' "rand" $ \val val' -> do
   i <- fromEgison val :: EvalM Integer
   i' <- fromEgison val' :: EvalM Integer
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return $ toEgison n
 
 randRangeDouble :: PrimitiveFunc
-randRangeDouble = twoArgs' $ \val val' -> do
+randRangeDouble = twoArgs' "f.rand" $ \val val' -> do
   i <- fromEgison val :: EvalM Double
   i' <- fromEgison val' :: EvalM Double
   n <- liftIO $ getStdRandom $ randomR (i, i')
   return $ makeIO $ return $ toEgison n
 
 newIORef' :: PrimitiveFunc
-newIORef' = noArg $ do
+newIORef' = noArg "newIORef" $ do
   ref <- liftIO $ newIORef Undefined
   return $ makeIO $ return (RefBox ref)
 
 writeIORef' :: PrimitiveFunc
-writeIORef' = twoArgs $ \ref val -> do
+writeIORef' = twoArgs "writeIORef" $ \ref val -> do
   ref' <- fromEgison ref
   return $ makeIO' $ liftIO $ writeIORef ref' val
 
