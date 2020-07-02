@@ -145,7 +145,6 @@ primitives = [ ("b.+", plus)
              , ("numerator", numerator')
              , ("denominator", denominator')
              , ("fromMathExpr", fromScalarData)
-             , ("toMathExpr", toScalarData)
              , ("toMathExpr'", toScalarData)
 
              , ("modulo",    integerBinaryOp "modulo" mod)
