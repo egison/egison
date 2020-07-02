@@ -4,7 +4,7 @@
 --
 --
 
-toMathExpr arg := mathNormalize (toMathExpr arg)
+toMathExpr arg := mathNormalize (toMathExpr' arg)
 
 infixl expression 6 +
 infixl expression 6 -
