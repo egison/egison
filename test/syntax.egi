@@ -558,9 +558,13 @@ assertEqual "hash access"
   {| (1, 11), (2, 12), (3, 13), (4, 14), (5, 15), |}_3
   13
 
--- assertEqual "string hash access"
---   {| ("1", 11), ("2", 12), ("3", 13), ("4", 14), ("5", 15) |}_"3"
---   13
+assertEqual "string hash access"
+  {| ("1", 11), ("2", 12), ("3", 13), ("4", 14), ("5", 15) |}_"3"
+  13
+
+assertEqual "char hash access"
+  {| ('a', 11), ('b', 12), ('c', 13), ('d', 14), ('e', 15) |}_'c'
+  13
 
 --
 -- Partial Application
