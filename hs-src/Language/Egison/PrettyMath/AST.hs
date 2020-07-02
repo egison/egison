@@ -84,13 +84,23 @@ instance {-# OVERLAPPING #-} ToMathExpr (E.SymbolExpr, Integer) where
 
 instance ToMathExpr E.SymbolExpr where
   toMathExpr (E.Symbol _ (':':':':':':_) []) = Atom "#" []
-  toMathExpr (E.Symbol _ s js) = Atom s (map toMathIndex js)
+  toMathExpr (E.Symbol _ s js) = toMathExpr' js (Atom s [])
+    where
+      toMathExpr' [] acc = acc
+      toMathExpr' (E.Userscript x:js) (Partial e ps) =
+        toMathExpr' js (Partial e (ps ++ [toMathExpr x]))
+      toMathExpr' (E.Userscript x:js) e@Atom{} =
+        toMathExpr' js (Partial e [toMathExpr x])
+      toMathExpr' (j:js) (Atom e is) =
+        toMathExpr' js (Atom e (is ++ [toMathIndex j]))
+      toMathExpr' _ _ = undefined -- TODO
+
   toMathExpr (E.Apply fn mExprs) =
     case (toMathExpr fn, mExprs) of
       (Atom "^" [], [x, y]) -> Power (toMathExpr x) (toMathExpr y)
       _                     -> Func (toMathExpr fn) (map toMathExpr mExprs)
   toMathExpr (E.Quote mExpr) = Quote (toMathExpr mExpr)
-  toMathExpr (E.FunctionData name _ _ js) = undefined -- TODO
+  toMathExpr (E.FunctionData _ _ _ _) = undefined -- TODO
 
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
 toMathIndex (E.Subscript x) = Sub (toMathExpr x)
