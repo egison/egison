@@ -289,7 +289,7 @@ findSymbolsFromPoly $poly :=
 --
 substitute %ls $mexpr :=
   match ls as list (symbolExpr, mathExpr) with
-    | [] -> mexpr
+    | [] -> mathNormalize mexpr
     | ($x, $a) :: $rs -> substitute rs (substitute' x a mexpr)
 
 substitute' $x %a $mexpr := mapSymbols 1#(rewriteSymbol x a %1) mexpr
