@@ -18,6 +18,8 @@ list a :=
     | snoc $ $ as (a, list a) with
       | snoc $xs $x -> [(x, xs)]
       | _ -> []
+    | _ ++ $ :: _ as (a) with
+      | $tgt -> tgt
     | _ ++ $ as (list a) with
       | $tgt ->
         matchAll tgt as list a with
