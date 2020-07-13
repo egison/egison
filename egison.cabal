@@ -157,10 +157,7 @@ Benchmark benchmark
   Build-Depends:
       egison
     , base >= 4.0 && < 5
-    , deepseq
     , criterion >= 0.5
-    , transformers
-    , mtl
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
 
