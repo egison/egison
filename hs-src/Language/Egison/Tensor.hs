@@ -49,7 +49,7 @@ import           Data.List                 (delete, find, findIndex,
                                             partition, (\\))
 import           Data.Maybe                (fromJust)
 
-import           Control.Egison            hiding (Integer)
+import           Control.Egison
 import qualified Control.Egison            as M
 
 import           Language.Egison.AST       hiding (PatVar)
@@ -146,7 +146,7 @@ changeIndex (Subscript s) m   = Subscript (s ++ show m)
 -- transIndex [a, b, c] [c, a, b] [2, 3, 4] = [4, 2, 3]
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> Shape -> EvalM Shape
 transIndex is js ns = do
-  mapM (\j -> matchDFS (zip is ns) (List (Pair Eql M.Something))
+  mapM (\j -> match dfs (zip is ns) (List (Pair Eql M.Something))
                [[mc| _ ++ (#j, $n) : _ -> return n |]
                ,[mc| _ -> throwError $ Default "cannot transpose becuase of the inconsitent symbolic tensor indices" |]])
        js
