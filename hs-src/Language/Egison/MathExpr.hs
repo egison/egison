@@ -259,7 +259,7 @@ mathRemoveZero (Div (Plus ts1) (Plus ts2)) =
       _  -> Div (Plus ts1') (Plus ts2')
 
 mathFold :: ScalarData -> ScalarData
-mathFold = mathTermFold . mathSymbolFold . mathTermFold
+mathFold = mathTermFold . mathSymbolFold
 
 -- x^2 y x -> x^3 y
 mathSymbolFold :: ScalarData -> ScalarData
