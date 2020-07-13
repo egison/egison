@@ -1,12 +1,8 @@
 module Main where
 
-import           Control.Applicative ((<$>), (<*>))
-import           Control.Applicative
 import           Criterion
 import           Criterion.Main
 import           Language.Egison
-import           Language.Egison.RState
-import           Language.Egison.CmdOptions
 
 runEgisonFile :: String -> IO ()
 runEgisonFile path = evalRuntimeT defaultOption $ do

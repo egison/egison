@@ -11,6 +11,9 @@ module Language.Egison
        ( module Language.Egison.AST
        , module Language.Egison.Data
        , module Language.Egison.Primitives
+       -- * Modules needed to execute Egison
+       , module Language.Egison.CmdOptions
+       , module Language.Egison.RState
        -- * Eval Egison expressions
        , evalTopExprs
        , evalTopExpr

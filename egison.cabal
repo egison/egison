@@ -160,6 +160,7 @@ Benchmark benchmark
     , criterion >= 0.5
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
+  ghc-options:  -Wall -Wno-name-shadowing
 
 Executable egison
   default-language:    Haskell2010

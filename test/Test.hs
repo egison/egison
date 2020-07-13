@@ -9,10 +9,8 @@ import           Test.HUnit
 
 import           Language.Egison
 import           Language.Egison.Core
-import           Language.Egison.CmdOptions
 import           Language.Egison.MathOutput
 import           Language.Egison.Parser
-import           Language.Egison.RState
 
 main :: IO ()
 main = do
