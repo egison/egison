@@ -35,6 +35,7 @@ module Language.Egison.MathExpr
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Data.List                 (elemIndex, intercalate)
+import           Data.Maybe                (isJust)
 
 import           Language.Egison.AST
 
@@ -226,7 +227,7 @@ mathDivideTerm (Term a xs) (Term b ys) =
   let (sgn, zs) = f 1 xs ys in
   Term (sgn * div a b) zs
  where
-  f :: Integer -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Integer, [(SymbolExpr, Integer)])
+  f :: Integer -> Monomial -> Monomial -> (Integer, Monomial)
   f sgn xs [] = (sgn, xs)
   f sgn xs ((y, n):ys) =
     let (sgns, zs) = unzip (map (\(x, m) -> g (x, m) (y, n)) xs) in
@@ -267,14 +268,14 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
   f :: TermExpr -> TermExpr
   f (Term a xs) = let (ys, sgns) = unzip $ g [] xs
                    in Term (product sgns * a) ys
-  g :: [((SymbolExpr, Integer),Integer)] -> [(SymbolExpr, Integer)] -> [((SymbolExpr, Integer),Integer)]
+  g :: [((SymbolExpr, Integer),Integer)] -> Monomial -> [((SymbolExpr, Integer),Integer)]
   g ret [] = ret
   g ret ((x, n):xs)
     | any (p (x, n)) ret = g (map (h (x, n)) ret) xs
     | otherwise          = g (ret ++ [((x, n), 1)]) xs
   p :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> Bool
   p (Quote x, _) ((Quote y, _),_) = (x == y) || (mathNegate x == y)
-  p (x, _) ((y, _),_)             = x == y
+  p (x, _)       ((y, _),_)       = x == y
   h :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> ((SymbolExpr, Integer), Integer)
   h (Quote x, n) ((Quote y, m), sgn)
     | x == y = ((Quote y, m + n), sgn)
@@ -293,32 +294,31 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
   f' :: [TermExpr] -> [TermExpr] -> [TermExpr]
   f' ret [] = ret
   f' ret (Term a xs:ts) =
-    if any (\(Term _ ys) -> fst (p 1 xs ys)) ret
+    if any (\(Term _ ys) -> isJust (p 1 xs ys)) ret
       then f' (map (g (Term a xs)) ret) ts
       else f' (ret ++ [Term a xs]) ts
   g :: TermExpr -> TermExpr -> TermExpr
-  g (Term a xs) (Term b ys) = let (c, sgn) = p 1 xs ys in
-                                if c
-                                  then Term ((sgn * a) + b) ys
-                                  else Term b ys
-  p :: Integer -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Bool, Integer)
-  p sgn [] [] = (True, sgn)
-  p _   [] _  = (False, 0)
+  g (Term a xs) (Term b ys) =
+    case p 1 xs ys of
+      Just sgn -> Term ((sgn * a) + b) ys
+      Nothing  -> Term b ys
+  p :: Integer -> Monomial -> Monomial -> Maybe Integer
+  p sgn [] [] = return sgn
+  p _   [] _  = Nothing
   p sgn ((x, n):xs) ys =
-    let (b, ys', sgn2) = q (x, n) [] ys in
-      if b
-        then p (sgn * sgn2) xs ys'
-        else (False, 0)
-  q :: (SymbolExpr, Integer) -> [(SymbolExpr, Integer)] -> [(SymbolExpr, Integer)] -> (Bool, [(SymbolExpr, Integer)], Integer)
-  q _ _ [] = (False, [], 1)
+    case q (x, n) [] ys of
+      Just (ys', sgn2) -> p (sgn * sgn2) xs ys'
+      Nothing          -> Nothing
+  q :: (SymbolExpr, Integer) -> Monomial -> Monomial -> Maybe (Monomial, Integer)
+  q _ _ [] = Nothing
   q (Quote x, n) ret ((Quote y, m):ys)
-    | (x == y) && (n == m) = (True, ret ++ ys, 1)
-    | (mathNegate x == y) && (n == m) = if even n then (True, ret ++ ys, 1) else (True, ret ++ ys, -1)
-    | otherwise = q (Quote x, n) (ret ++ [(Quote y, m)]) ys
+    | x == y && n == m            = return (ret ++ ys, 1)
+    | mathNegate x == y && n == m = return $ if even n then (ret ++ ys, 1) else (ret ++ ys, -1)
+    | otherwise                   = q (Quote x, n) (ret ++ [(Quote y, m)]) ys
   q (Quote x, n) ret ((y,m):ys) = q (Quote x, n) (ret ++ [(y, m)]) ys
-  q (x, n) ret ((y, m):ys) = if (x == y) && (n == m)
-                               then (True, ret ++ ys, 1)
-                               else q (x, n) (ret ++ [(y, m)]) ys
+  q (x, n) ret ((y, m):ys) =
+    if x == y && n == m then return (ret ++ ys, 1)
+                        else q (x, n) (ret ++ [(y, m)]) ys
 
 --
 --  Arithmetic operations
