@@ -1,6 +1,6 @@
-(define $fact
-  (match-lambda integer
-    {[,1 1]
-     [$x (* x (fact (- x 1)))]}))
+fact :=
+  \match as integer with
+    | #1 -> 1
+    | $x -> x * fact (x - 1)
 
-(test (fact 30000))
+fact 30000
