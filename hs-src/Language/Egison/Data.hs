@@ -76,8 +76,7 @@ import           Text.Show.Unicode         (ushow)
 import           Data.Ratio
 import           System.IO
 
-import           Control.Egison            (consM, joinM, nilM, cons, join, nil,
-                                            bfs, match, mc, List(..))
+import           Control.Egison            (cons, join, nil, match, mc, List(..))
 import qualified Control.Egison            as M
 
 import           Language.Egison.AST       hiding (PatVar)
@@ -545,7 +544,7 @@ refVar :: Env -> Var -> Maybe ObjectRef
 refVar (Env env _) var@(Var _ []) = msum $ map (HashMap.lookup var) env
 refVar e@(Env env _) var@(Var name is) =
   case msum $ map (HashMap.lookup var) env of
-    Nothing -> match bfs is (List M.Something)
+    Nothing -> match is (List M.Something)
                  [[mc| $his ++ _ : [] -> refVar e (Var name his) |]]
     Just x -> Just x
 
