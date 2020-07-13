@@ -1,19 +1,11 @@
-(define $is-even
-  (lambda [$n] (eq? (modulo n 2) 0)))
+countEvens n l :=
+  match l as list integer with
+    | ?isEven :: $tl -> countEvens (n + 1) tl
+    | _ :: $tl -> countEvens n tl
+    | [] -> n
 
-(define $count-evens
-  (lambda [$n $l]
-    (match l (list integer)
-      {[<cons ?is-even $tl> (count-evens (+ n 1) tl)]
-       [<cons _ $tl> (count-evens n tl)]
-       [<nil> n]})))
+testNumbers :=
+  let from n := if n <= 0 then [0] else n :: from (n - 1)
+   in from 100000
 
-(define $test-numbers
-  (letrec {[$from
-            (lambda [$n]
-              (if (lte? n 0)
-                  {0}
-                  {n @(from (- n 1))}))]}
-    (from 100000)))
-
-(test (count-evens 0 test-numbers))
+countEvens 0 testNumbers
