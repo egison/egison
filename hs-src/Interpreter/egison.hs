@@ -23,11 +23,9 @@ import           System.IO
 import           Text.Regex.TDFA            ((=~))
 
 import           Language.Egison
-import           Language.Egison.CmdOptions
 import           Language.Egison.Completion
 import           Language.Egison.Desugar    (desugarTopExpr)
 import           Language.Egison.Parser     (parseTopExpr)
-import           Language.Egison.RState
 
 import           Options.Applicative
 
