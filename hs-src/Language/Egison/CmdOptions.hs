@@ -31,11 +31,12 @@ data EgisonOpts = EgisonOpts {
     optTestOnly         :: Bool,
     optPrompt           :: String,
     optMathExpr         :: Maybe String,
-    optSExpr            :: Bool
+    optSExpr            :: Bool,
+    optMathNormalize    :: Bool
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing False
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing False True
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -118,6 +119,9 @@ cmdArgParser = EgisonOpts
                   (short 'S'
                   <> long "sexpr-syntax"
                   <> help "Use s-expression syntax")
+            <*> flag True False
+                  (long "no-normalize"
+                  <> help "Turn off normalization of math expressions")
 
 readFieldOption :: String -> (String, String)
 readFieldOption str =

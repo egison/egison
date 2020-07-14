@@ -128,9 +128,11 @@ loadEgisonLibrary env path = evalEgisonTopExpr env (Load path)
 initialEnv :: RuntimeM Env
 initialEnv = do
   isNoIO <- asks optNoIO
+  useMathNormalize <- asks optMathNormalize
   env <- liftIO $ if isNoIO then primitiveEnvNoIO else primitiveEnv
+  let normalizeLib = if useMathNormalize then "lib/math/normalize.egi" else "lib/math/no-normalize.egi"
   ret <- local (const defaultOption)
-               (evalEgisonTopExprs env $ map Load coreLibraries)
+               (evalEgisonTopExprs env $ map Load (coreLibraries ++ [normalizeLib]))
   case ret of
     Left err -> do
       liftIO $ print (show err)
@@ -153,7 +155,6 @@ coreLibraries =
   , "lib/core/random.egi"
   , "lib/core/string.egi"
   , "lib/math/expression.egi"
-  , "lib/math/normalize.egi"
   , "lib/math/common/constants.egi"
   , "lib/math/common/functions.egi"
   , "lib/math/algebra/root.egi"
