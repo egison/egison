@@ -271,11 +271,11 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
   g :: [((SymbolExpr, Integer),Integer)] -> Monomial -> [((SymbolExpr, Integer),Integer)]
   g ret [] = ret
   g ret ((x, n):xs)
-    | any (p (x, n)) ret = g (map (h (x, n)) ret) xs
-    | otherwise          = g (ret ++ [((x, n), 1)]) xs
-  p :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> Bool
-  p (Quote x, _) ((Quote y, _),_) = (x == y) || (mathNegate x == y)
-  p (x, _)       ((y, _),_)       = x == y
+    | any (p x) ret = g (map (h (x, n)) ret) xs
+    | otherwise     = g (ret ++ [((x, n), 1)]) xs
+  p :: SymbolExpr -> ((SymbolExpr, Integer), Integer) -> Bool
+  p (Quote x) ((Quote y, _),_) = x == y || mathNegate x == y
+  p x         ((y, _),_)       = x == y
   h :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> ((SymbolExpr, Integer), Integer)
   h (Quote x, n) ((Quote y, m), sgn)
     | x == y = ((Quote y, m + n), sgn)
