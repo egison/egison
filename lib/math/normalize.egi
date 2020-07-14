@@ -4,7 +4,6 @@
 --
 --
 
---mathNormalize := id
 mathNormalize $x :=
   if isInteger x
     then x
