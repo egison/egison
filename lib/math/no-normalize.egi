@@ -1,0 +1,7 @@
+--
+--
+-- Term Rewriting
+--
+--
+
+mathNormalize := id
