@@ -34,7 +34,7 @@ quotient
 remainder
    ::
 
-      remainder (-21) 13 ---> -8
+      (-21) % 13 ---> -8
 
 neg
    ::
