@@ -31,7 +31,7 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
 
-import           Language.Egison.AST            hiding (Prefix)
+import           Language.Egison.AST            hiding (Assoc(..))
 import qualified Language.Egison.AST            as E
 import           Language.Egison.Data
 import           Language.Egison.RState
@@ -115,9 +115,9 @@ addNewOp newop _ = do
 
 infixExpr :: Parser EgisonTopExpr
 infixExpr = do
-  assoc     <- (reserved "infixl" $> LeftAssoc)
-           <|> (reserved "infixr" $> RightAssoc)
-           <|> (reserved "infix"  $> NonAssoc)
+  assoc     <- (reserved "infixl" $> E.InfixL)
+           <|> (reserved "infixr" $> E.InfixR)
+           <|> (reserved "infix"  $> E.InfixN)
   isPattern <- isRight <$> eitherP (reserved "expression") (reserved "pattern")
   priority  <- fromInteger <$> positiveIntegerLiteral
   sym       <- if isPattern then newPatOp >>= checkP else some opChar >>= check
@@ -262,10 +262,10 @@ makeExprTable infixes =
     toOperator :: Infix -> Operator Parser EgisonExpr
     toOperator op =
       case assoc op of
-        LeftAssoc  -> InfixL (binary op)
-        RightAssoc -> InfixR (binary op)
-        NonAssoc   -> InfixN (binary op)
-        E.Prefix   -> Prefix (unary (repr op))
+        E.InfixL -> InfixL (binary op)
+        E.InfixR -> InfixR (binary op)
+        E.InfixN -> InfixN (binary op)
+        E.Prefix -> Prefix (unary (repr op))
 
 ifExpr :: Parser EgisonExpr
 ifExpr = reserved "if" >> IfExpr <$> expr <* reserved "then" <*> expr <* reserved "else" <*> expr
@@ -446,7 +446,7 @@ tupleOrParenExpr = do
       case rarg of
         -- Disabling for now... (See issue 159)
         -- Just (InfixExpr op' _ _)
-        --   | assoc op' /= RightAssoc && priority op >= priority op' ->
+        --   | assoc op' /= InfixR && priority op >= priority op' ->
         --   customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op Nothing rarg)
 
@@ -458,7 +458,7 @@ tupleOrParenExpr = do
       op      <- choice $ map (infixLiteral . repr) infixes
       case larg of
         -- InfixExpr op' _ _
-        --   | assoc op' /= LeftAssoc && priority op >= priority op' ->
+        --   | assoc op' /= InfixL && priority op >= priority op' ->
         --   customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op (Just larg) Nothing)
 
@@ -935,9 +935,9 @@ indented = indentGuardGT pos1
 infixToOperator :: (Infix -> Parser (a -> a -> a)) -> Infix -> Operator Parser a
 infixToOperator opToParser op =
   case assoc op of
-    LeftAssoc  -> InfixL (opToParser op)
-    RightAssoc -> InfixR (opToParser op)
-    NonAssoc   -> InfixN (opToParser op)
+    E.InfixL -> InfixL (opToParser op)
+    E.InfixR -> InfixR (opToParser op)
+    E.InfixN -> InfixN (opToParser op)
 
 tupleOrSome :: Parser a -> Parser [a]
 tupleOrSome p = parens (sepBy p comma) <|> some p

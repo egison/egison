@@ -230,43 +230,43 @@ data Infix
   deriving (Eq, Ord, Show)
 
 data Assoc
-  = LeftAssoc
-  | RightAssoc
-  | NonAssoc
+  = InfixL
+  | InfixR
+  | InfixN
   | Prefix
   deriving (Eq, Ord)
 
 instance Show Assoc where
-  show LeftAssoc  = "infixl"
-  show RightAssoc = "infixr"
-  show NonAssoc   = "infix"
-  show Prefix     = "prefix"
+  show InfixL = "infixl"
+  show InfixR = "infixr"
+  show InfixN = "infix"
+  show Prefix = "prefix"
 
 reservedExprInfix :: [Infix]
 reservedExprInfix =
-  [ Infix "!"  8 Prefix     False -- Wedge
-  , Infix "-"  7 Prefix     False -- Negate
-  , Infix "%"  7 LeftAssoc  False -- primitive function
-  , Infix "*$" 7 LeftAssoc  False -- For InvertedScalarArg
-  , Infix "++" 5 RightAssoc False
-  , Infix "::" 5 RightAssoc False
-  , Infix "="  4 LeftAssoc  False -- primitive function
-  , Infix "<=" 4 LeftAssoc  False -- primitive function
-  , Infix ">=" 4 LeftAssoc  False -- primitive function
-  , Infix "<"  4 LeftAssoc  False -- primitive function
-  , Infix ">"  4 LeftAssoc  False -- primitive function
+  [ Infix "!"  8 Prefix False -- Wedge
+  , Infix "-"  7 Prefix False -- Negate
+  , Infix "%"  7 InfixL False -- primitive function
+  , Infix "*$" 7 InfixL False -- For InvertedScalarArg
+  , Infix "++" 5 InfixR False
+  , Infix "::" 5 InfixR False
+  , Infix "="  4 InfixL False -- primitive function
+  , Infix "<=" 4 InfixL False -- primitive function
+  , Infix ">=" 4 InfixL False -- primitive function
+  , Infix "<"  4 InfixL False -- primitive function
+  , Infix ">"  4 InfixL False -- primitive function
   ]
 
 reservedPatternInfix :: [Infix]
 reservedPatternInfix =
-  [ Infix "^"  8 LeftAssoc  False  -- PowerPat
-  , Infix "*"  7 LeftAssoc  False  -- MultPat
-  , Infix "/"  7 LeftAssoc  False  -- DivPat
-  , Infix "+"  6 LeftAssoc  False  -- PlusPat
-  , Infix "::" 5 RightAssoc False  -- cons (desugared)
-  , Infix "++" 5 RightAssoc False  -- join (desugared)
-  , Infix "&"  3 RightAssoc False
-  , Infix "|"  2 RightAssoc False
+  [ Infix "^"  8 InfixL False  -- PowerPat
+  , Infix "*"  7 InfixL False  -- MultPat
+  , Infix "/"  7 InfixL False  -- DivPat
+  , Infix "+"  6 InfixL False  -- PlusPat
+  , Infix "::" 5 InfixR False  -- cons (desugared)
+  , Infix "++" 5 InfixR False  -- join (desugared)
+  , Infix "&"  3 InfixR False
+  , Infix "|"  2 InfixR False
   ]
 
 findOpFrom :: String -> [Infix] -> Infix

@@ -132,12 +132,12 @@ instance Pretty EgisonExpr where
     | otherwise     = pretty op <+> parens (pretty x)
   -- (x1 op' x2) op y
   pretty (InfixExpr op x@(InfixExpr op' _ _) y) =
-    if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
+    if priority op > priority op' || priority op == priority op' && assoc op == InfixR
        then parens (pretty x) <+> pretty op <> infixRight (pretty'' y)
        else pretty x          <+> pretty op <> infixRight (pretty'' y)
   -- x op (y1 op' y2)
   pretty (InfixExpr op x y@(InfixExpr op' _ _)) =
-    if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
+    if priority op > priority op' || priority op == priority op' && assoc op == InfixL
        then pretty'' x <+> pretty op <> infixRight (parens (pretty y))
        else pretty'' x <+> pretty op <> infixRight (pretty y)
   pretty (InfixExpr op x y) =
@@ -240,12 +240,12 @@ instance Pretty EgisonPattern where
     pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   -- (p11 op' p12) op p2
   pretty (InfixPat op p1@(InfixPat op' _ _) p2) =
-    if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
+    if priority op > priority op' || priority op == priority op' && assoc op == InfixR
        then parens (pretty p1) <+> pretty (repr op) <+> pretty'' p2
        else pretty p1          <+> pretty (repr op) <+> pretty'' p2
   -- p1 op (p21 op' p22)
   pretty (InfixPat op p1 p2@(InfixPat op' _ _)) =
-    if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
+    if priority op > priority op' || priority op == priority op' && assoc op == InfixL
        then pretty'' p1 <+> pretty (repr op) <+> parens (pretty p2)
        else pretty'' p1 <+> pretty (repr op) <+> pretty p2
   pretty (InfixPat op p1 p2) = pretty'' p1 <+> pretty (repr op) <+> pretty'' p2

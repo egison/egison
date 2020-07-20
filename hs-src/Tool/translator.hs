@@ -16,31 +16,31 @@ import           Language.Egison.Pretty
 
 exprInfix :: [(String, Infix)]
 exprInfix =
-  [ ("**",        makeInfix "^"  8 LeftAssoc )
-  , ("**'",       makeInfix "^'" 8 LeftAssoc )
-  , ("*",         makeInfix "*"  7 LeftAssoc )
-  , ("/",         makeInfix "/"  7 LeftAssoc )
-  , ("*'",        makeInfix "*'" 7 LeftAssoc )
-  , ("/'",        makeInfix "/'" 7 LeftAssoc )
-  , (".",         makeInfix "."  7 LeftAssoc ) -- tensor multiplication
-  , (".'",        makeInfix ".'" 7 LeftAssoc ) -- tensor multiplication
-  , ("remainder", makeInfix "%"  7 LeftAssoc ) -- primitive function
-  , ("+",         makeInfix "+"  6 LeftAssoc )
-  , ("-",         makeInfix "-"  6 LeftAssoc )
-  , ("+'",        makeInfix "+'" 6 LeftAssoc )
-  , ("-'",        makeInfix "-'" 6 LeftAssoc )
-  , ("append",    makeInfix "++" 5 RightAssoc)
-  , ("cons",      makeInfix "::" 5 RightAssoc)
-  , ("equal",     makeInfix "="  4 LeftAssoc ) -- primitive function
-  , ("lte",       makeInfix "<=" 4 LeftAssoc ) -- primitive function
-  , ("gte",       makeInfix ">=" 4 LeftAssoc ) -- primitive function
-  , ("lt",        makeInfix "<"  4 LeftAssoc ) -- primitive function
-  , ("gt",        makeInfix ">"  4 LeftAssoc ) -- primitive function
-  , ("&&",        makeInfix "&&" 3 RightAssoc)
-  , ("and",       makeInfix "&&" 3 RightAssoc)
-  , ("||",        makeInfix "||" 2 RightAssoc)
-  , ("or",        makeInfix "||" 2 RightAssoc)
-  , ("apply",     makeInfix "$"  0 RightAssoc)
+  [ ("**",        makeInfix "^"  8 InfixL)
+  , ("**'",       makeInfix "^'" 8 InfixL)
+  , ("*",         makeInfix "*"  7 InfixL)
+  , ("/",         makeInfix "/"  7 InfixL)
+  , ("*'",        makeInfix "*'" 7 InfixL)
+  , ("/'",        makeInfix "/'" 7 InfixL)
+  , (".",         makeInfix "."  7 InfixL) -- tensor multiplication
+  , (".'",        makeInfix ".'" 7 InfixL) -- tensor multiplication
+  , ("remainder", makeInfix "%"  7 InfixL) -- primitive function
+  , ("+",         makeInfix "+"  6 InfixL)
+  , ("-",         makeInfix "-"  6 InfixL)
+  , ("+'",        makeInfix "+'" 6 InfixL)
+  , ("-'",        makeInfix "-'" 6 InfixL)
+  , ("append",    makeInfix "++" 5 InfixR)
+  , ("cons",      makeInfix "::" 5 InfixR)
+  , ("equal",     makeInfix "="  4 InfixL) -- primitive function
+  , ("lte",       makeInfix "<=" 4 InfixL) -- primitive function
+  , ("gte",       makeInfix ">=" 4 InfixL) -- primitive function
+  , ("lt",        makeInfix "<"  4 InfixL) -- primitive function
+  , ("gt",        makeInfix ">"  4 InfixL) -- primitive function
+  , ("&&",        makeInfix "&&" 3 InfixR)
+  , ("and",       makeInfix "&&" 3 InfixR)
+  , ("||",        makeInfix "||" 2 InfixR)
+  , ("or",        makeInfix "||" 2 InfixR)
+  , ("apply",     makeInfix "$"  0 InfixR)
   ]
   where
     makeInfix r p a =
@@ -48,14 +48,14 @@ exprInfix =
 
 patternInfix :: [(String, Infix)]
 patternInfix =
-  [ ("^",    makeInfix "^"  8 LeftAssoc )  -- PowerPat
-  , ("*",    makeInfix "*"  7 LeftAssoc )  -- MultPat
-  , ("div",  makeInfix "/"  7 LeftAssoc )  -- DivPat
-  , ("+",    makeInfix "+"  6 LeftAssoc )  -- PlusPat
-  , ("cons", makeInfix "::" 5 RightAssoc)
-  , ("join", makeInfix "++" 5 RightAssoc)
-  , ("&",    makeInfix "&"  3 RightAssoc)
-  , ("|",    makeInfix "|"  2 RightAssoc)
+  [ ("^",    makeInfix "^"  8 InfixL)  -- PowerPat
+  , ("*",    makeInfix "*"  7 InfixL)  -- MultPat
+  , ("div",  makeInfix "/"  7 InfixL)  -- DivPat
+  , ("+",    makeInfix "+"  6 InfixL)  -- PlusPat
+  , ("cons", makeInfix "::" 5 InfixR)
+  , ("join", makeInfix "++" 5 InfixR)
+  , ("&",    makeInfix "&"  3 InfixR)
+  , ("|",    makeInfix "|"  2 InfixR)
   ]
   where
     makeInfix r p a =
