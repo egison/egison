@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
 {- |
@@ -40,6 +41,7 @@ import qualified Prelude                   as Prelude
 import           Data.List                 (elemIndex, intercalate)
 import           Data.Maybe                (isJust)
 
+import           Control.Monad             ( MonadPlus(..) )
 import           Control.Egison
 
 import           Language.Egison.AST
@@ -102,7 +104,15 @@ quote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
 quote _ _ (Quote m) = pure m
 quoteM SymbolM _ = ScalarM
 
+negQuote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
+negQuote _ _ (Quote m) = pure (mathNegate m)
+negQuoteM SymbolM _ = ScalarM
 
+instance ValuePattern ScalarM ScalarData where
+  value e () ScalarM v = if e == v then pure () else mzero
+
+instance ValuePattern SymbolM SymbolExpr where
+  value e () SymbolM v = if e == v then pure () else mzero
 
 pattern ZeroExpr :: ScalarData
 pattern ZeroExpr = (Div (Plus []) (Plus [Term 1 []]))
@@ -303,24 +313,20 @@ mathSymbolFold :: ScalarData -> ScalarData
 mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f ts2))
  where
   f :: TermExpr -> TermExpr
-  f (Term a xs) = let (ys, sgns) = unzip $ g [] xs
-                   in Term (product sgns * a) ys
-  g :: [((SymbolExpr, Integer),Integer)] -> Monomial -> [((SymbolExpr, Integer),Integer)]
-  g ret [] = ret
-  g ret ((x, n):xs)
-    | any (p x) ret = g (map (h (x, n)) ret) xs
-    | otherwise     = g (ret ++ [((x, n), 1)]) xs
-  p :: SymbolExpr -> ((SymbolExpr, Integer), Integer) -> Bool
-  p (Quote x) ((Quote y, _),_) = x == y || mathNegate x == y
-  p x         ((y, _),_)       = x == y
-  h :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> ((SymbolExpr, Integer), Integer)
-  h (Quote x, n) ((Quote y, m), sgn)
-    | x == y = ((Quote y, m + n), sgn)
-    | x == mathNegate y = if even n then ((Quote y, m + n), sgn) else ((Quote y, m + n), -1 * sgn)
-    | otherwise = ((Quote y, m), sgn)
-  h (x, n) ((y, m), sgn) = if x == y
-                             then ((y, m + n), sgn)
-                             else ((y, m), sgn)
+  f (Term a xs) =
+    let (sgn, ys) = g 1 xs in Term (sgn * a) ys
+    -- let (ys, sgns) = unzip $ g 1 xs in Term (product sgns * a) ys
+
+  g :: Integer -> Monomial -> (Integer, Monomial)
+  g sgn [] = (sgn, [])
+  g sgn ((x, m):xs) =
+    match dfs (x, xs) (Pair SymbolM (Multiset (Pair SymbolM Eql)))
+      [ [mc| (quote $s, (negQuote #s, $n) : $xs) ->
+               if even n then g sgn     ((x, m + n) : xs)
+                         else g (- sgn) ((x, m + n) : xs) |]
+      , [mc| (_, (#x, $n) : $xs) -> g sgn ((x, m + n) : xs) |]
+      , [mc| _ -> let (sgn', ys) = g sgn xs in (sgn', (x, m):xs) |]
+      ]
 
 -- x^2 y + x^2 y -> 2 x^2 y
 mathTermFold :: ScalarData -> ScalarData
