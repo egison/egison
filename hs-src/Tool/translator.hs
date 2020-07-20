@@ -14,54 +14,48 @@ import           Language.Egison.Parser.SExpr
 import           Language.Egison.Pretty
 
 
-exprInfix :: [(String, Infix)]
+exprInfix :: [(String, Op)]
 exprInfix =
-  [ ("**",        makeInfix "^"  8 InfixL)
-  , ("**'",       makeInfix "^'" 8 InfixL)
-  , ("*",         makeInfix "*"  7 InfixL)
-  , ("/",         makeInfix "/"  7 InfixL)
-  , ("*'",        makeInfix "*'" 7 InfixL)
-  , ("/'",        makeInfix "/'" 7 InfixL)
-  , (".",         makeInfix "."  7 InfixL) -- tensor multiplication
-  , (".'",        makeInfix ".'" 7 InfixL) -- tensor multiplication
-  , ("remainder", makeInfix "%"  7 InfixL) -- primitive function
-  , ("+",         makeInfix "+"  6 InfixL)
-  , ("-",         makeInfix "-"  6 InfixL)
-  , ("+'",        makeInfix "+'" 6 InfixL)
-  , ("-'",        makeInfix "-'" 6 InfixL)
-  , ("append",    makeInfix "++" 5 InfixR)
-  , ("cons",      makeInfix "::" 5 InfixR)
-  , ("equal",     makeInfix "="  4 InfixL) -- primitive function
-  , ("lte",       makeInfix "<=" 4 InfixL) -- primitive function
-  , ("gte",       makeInfix ">=" 4 InfixL) -- primitive function
-  , ("lt",        makeInfix "<"  4 InfixL) -- primitive function
-  , ("gt",        makeInfix ">"  4 InfixL) -- primitive function
-  , ("&&",        makeInfix "&&" 3 InfixR)
-  , ("and",       makeInfix "&&" 3 InfixR)
-  , ("||",        makeInfix "||" 2 InfixR)
-  , ("or",        makeInfix "||" 2 InfixR)
-  , ("apply",     makeInfix "$"  0 InfixR)
+  [ ("**",        Op "^"  8 InfixL False)
+  , ("**'",       Op "^'" 8 InfixL False)
+  , ("*",         Op "*"  7 InfixL False)
+  , ("/",         Op "/"  7 InfixL False)
+  , ("*'",        Op "*'" 7 InfixL False)
+  , ("/'",        Op "/'" 7 InfixL False)
+  , (".",         Op "."  7 InfixL False) -- tensor multiplication
+  , (".'",        Op ".'" 7 InfixL False) -- tensor multiplication
+  , ("remainder", Op "%"  7 InfixL False) -- primitive function
+  , ("+",         Op "+"  6 InfixL False)
+  , ("-",         Op "-"  6 InfixL False)
+  , ("+'",        Op "+'" 6 InfixL False)
+  , ("-'",        Op "-'" 6 InfixL False)
+  , ("append",    Op "++" 5 InfixR False)
+  , ("cons",      Op "::" 5 InfixR False)
+  , ("equal",     Op "="  4 InfixL False) -- primitive function
+  , ("lte",       Op "<=" 4 InfixL False) -- primitive function
+  , ("gte",       Op ">=" 4 InfixL False) -- primitive function
+  , ("lt",        Op "<"  4 InfixL False) -- primitive function
+  , ("gt",        Op ">"  4 InfixL False) -- primitive function
+  , ("&&",        Op "&&" 3 InfixR False)
+  , ("and",       Op "&&" 3 InfixR False)
+  , ("||",        Op "||" 2 InfixR False)
+  , ("or",        Op "||" 2 InfixR False)
+  , ("apply",     Op "$"  0 InfixR False)
   ]
-  where
-    makeInfix r p a =
-      Infix { repr = r, priority = p, assoc = a, isWedge = False }
 
-patternInfix :: [(String, Infix)]
+patternInfix :: [(String, Op)]
 patternInfix =
-  [ ("^",    makeInfix "^"  8 InfixL)  -- PowerPat
-  , ("*",    makeInfix "*"  7 InfixL)  -- MultPat
-  , ("div",  makeInfix "/"  7 InfixL)  -- DivPat
-  , ("+",    makeInfix "+"  6 InfixL)  -- PlusPat
-  , ("cons", makeInfix "::" 5 InfixR)
-  , ("join", makeInfix "++" 5 InfixR)
-  , ("&",    makeInfix "&"  3 InfixR)
-  , ("|",    makeInfix "|"  2 InfixR)
+  [ ("^",    Op "^"  8 InfixL False)  -- PowerPat
+  , ("*",    Op "*"  7 InfixL False)  -- MultPat
+  , ("div",  Op "/"  7 InfixL False)  -- DivPat
+  , ("+",    Op "+"  6 InfixL False)  -- PlusPat
+  , ("cons", Op "::" 5 InfixR False)
+  , ("join", Op "++" 5 InfixR False)
+  , ("&",    Op "&"  3 InfixR False)
+  , ("|",    Op "|"  2 InfixR False)
   ]
-  where
-    makeInfix r p a =
-      Infix { repr = r, priority = p, assoc = a, isWedge = False }
 
-lookupVarExprInfix :: Var -> Maybe Infix
+lookupVarExprInfix :: Var -> Maybe Op
 lookupVarExprInfix x = lookup (prettyS x) exprInfix
 
 class SyntaxElement a where
@@ -121,7 +115,7 @@ instance SyntaxElement EgisonExpr where
       where
         op' = op { isWedge = True }
 
-        optimize (InfixExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
+        optimize (InfixExpr (Op { repr = "*" }) (IntegerExpr (-1)) e2) =
           PrefixExpr "-" (optimize e2)
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)
@@ -135,7 +129,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (ApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
     optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where
-        optimize (InfixExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
+        optimize (InfixExpr (Op { repr = "*" }) (IntegerExpr (-1)) e2) =
           PrefixExpr "-" (optimize e2)
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)

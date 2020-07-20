@@ -29,10 +29,10 @@ module Language.Egison.AST
   , LoopRange (..)
   , PrimitivePatPattern (..)
   , PrimitiveDataPattern (..)
-  , Infix (..)
+  , Op (..)
   , Assoc (..)
-  , reservedExprInfix
-  , reservedPatternInfix
+  , reservedExprOp
+  , reservedPatternOp
   , findOpFrom
   , stringToVar
   , stringToVarExpr
@@ -54,7 +54,7 @@ data EgisonTopExpr =
     -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
-  | InfixDecl Bool Infix -- True for pattern infix; False for expression infix
+  | InfixDecl Bool Op -- True for pattern infix; False for expression infix
  deriving (Show, Eq)
 
 data EgisonExpr =
@@ -104,8 +104,8 @@ data EgisonExpr =
   | IoExpr EgisonExpr
 
   | PrefixExpr String EgisonExpr
-  | InfixExpr Infix EgisonExpr EgisonExpr
-  | SectionExpr Infix (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
+  | InfixExpr Op EgisonExpr EgisonExpr
+  | SectionExpr Op (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
 
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
@@ -176,7 +176,7 @@ data EgisonPattern =
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
   | LetPat [BindingExpr] EgisonPattern
-  | InfixPat Infix EgisonPattern EgisonPattern -- Includes AndPat,OrPat,InductivePat(cons/join)
+  | InfixPat Op EgisonPattern EgisonPattern -- Includes AndPat,OrPat,InductivePat(cons/join)
   | NotPat EgisonPattern
   | AndPat EgisonPattern EgisonPattern
   | OrPat EgisonPattern EgisonPattern
@@ -221,12 +221,12 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
-data Infix
-  = Infix { repr     :: String  -- syntastic representation
-          , priority :: Int
-          , assoc    :: Assoc
-          , isWedge  :: Bool    -- True if operator is prefixed with '!'. Only used for expression infix.
-          }
+data Op
+  = Op { repr     :: String  -- syntastic representation
+       , priority :: Int
+       , assoc    :: Assoc
+       , isWedge  :: Bool    -- True if operator is prefixed with '!'. Only used for expression infix.
+       }
   deriving (Eq, Ord, Show)
 
 data Assoc
@@ -242,34 +242,34 @@ instance Show Assoc where
   show InfixN = "infix"
   show Prefix = "prefix"
 
-reservedExprInfix :: [Infix]
-reservedExprInfix =
-  [ Infix "!"  8 Prefix False -- Wedge
-  , Infix "-"  7 Prefix False -- Negate
-  , Infix "%"  7 InfixL False -- primitive function
-  , Infix "*$" 7 InfixL False -- For InvertedScalarArg
-  , Infix "++" 5 InfixR False
-  , Infix "::" 5 InfixR False
-  , Infix "="  4 InfixL False -- primitive function
-  , Infix "<=" 4 InfixL False -- primitive function
-  , Infix ">=" 4 InfixL False -- primitive function
-  , Infix "<"  4 InfixL False -- primitive function
-  , Infix ">"  4 InfixL False -- primitive function
+reservedExprOp :: [Op]
+reservedExprOp =
+  [ Op "!"  8 Prefix False -- Wedge
+  , Op "-"  7 Prefix False -- Negate
+  , Op "%"  7 InfixL False -- primitive function
+  , Op "*$" 7 InfixL False -- For InvertedScalarArg
+  , Op "++" 5 InfixR False
+  , Op "::" 5 InfixR False
+  , Op "="  4 InfixL False -- primitive function
+  , Op "<=" 4 InfixL False -- primitive function
+  , Op ">=" 4 InfixL False -- primitive function
+  , Op "<"  4 InfixL False -- primitive function
+  , Op ">"  4 InfixL False -- primitive function
   ]
 
-reservedPatternInfix :: [Infix]
-reservedPatternInfix =
-  [ Infix "^"  8 InfixL False  -- PowerPat
-  , Infix "*"  7 InfixL False  -- MultPat
-  , Infix "/"  7 InfixL False  -- DivPat
-  , Infix "+"  6 InfixL False  -- PlusPat
-  , Infix "::" 5 InfixR False  -- cons (desugared)
-  , Infix "++" 5 InfixR False  -- join (desugared)
-  , Infix "&"  3 InfixR False
-  , Infix "|"  2 InfixR False
+reservedPatternOp :: [Op]
+reservedPatternOp =
+  [ Op "^"  8 InfixL False  -- PowerPat
+  , Op "*"  7 InfixL False  -- MultPat
+  , Op "/"  7 InfixL False  -- DivPat
+  , Op "+"  6 InfixL False  -- PlusPat
+  , Op "::" 5 InfixR False  -- cons (desugared)
+  , Op "++" 5 InfixR False  -- join (desugared)
+  , Op "&"  3 InfixR False
+  , Op "|"  2 InfixR False
   ]
 
-findOpFrom :: String -> [Infix] -> Infix
+findOpFrom :: String -> [Op] -> Op
 findOpFrom op table = fromJust $ find ((== op) . repr) table
 
 instance Hashable (Index ())
