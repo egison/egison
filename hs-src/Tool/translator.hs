@@ -56,7 +56,7 @@ patternInfix =
   ]
 
 lookupVarExprInfix :: Var -> Maybe Op
-lookupVarExprInfix x = lookup (prettyS x) exprInfix
+lookupVarExprInfix x = lookup (prettyStr x) exprInfix
 
 class SyntaxElement a where
   toNonS :: a -> a

@@ -44,7 +44,6 @@ import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.MathOutput  (prettyMath)
 import           Language.Egison.Parser
-import           Language.Egison.Pretty      (prettyS)
 import           Language.Egison.Primitives
 import           Language.Egison.RState
 
@@ -65,15 +64,13 @@ evalTopExprs env exprs = do
 evalTopExpr :: Env -> EgisonTopExpr -> EvalM Env
 evalTopExpr env topExpr = do
   mathExpr <- asks optMathExpr
-  isSExpr  <- asks optSExpr
   (mVal, env') <- evalTopExpr' env topExpr
   case mVal of
     Nothing  -> return ()
     Just val ->
       liftIO . putStrLn $ case mathExpr of
-        Nothing | isSExpr -> prettyS val
-        Nothing           -> show val
-        Just lang         -> prettyMath lang val
+        Nothing   -> show val
+        Just lang -> prettyMath lang val
   return env'
 
 -- |eval an Egison expression
@@ -106,9 +103,8 @@ runEgisonTopExpr' env input = do
   isSExpr <- asks optSExpr
   m <- fromEvalT (readTopExpr isSExpr input >>= evalTopExpr' env)
   case m of
-    Right (Just val, env') | isSExpr -> return $ Right (Just (prettyS val), env')
-    Right (Just val, env')           -> return $ Right (Just (show val), env')
-    Left err                         -> return $ Left err
+    Right (Just val, env') -> return $ Right (Just (show val), env')
+    Left err               -> return $ Left err
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: Env -> String -> RuntimeM (Either EgisonError Env)
