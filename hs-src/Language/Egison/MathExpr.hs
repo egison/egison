@@ -268,22 +268,24 @@ mathDivide (Div (Plus ts1) (Plus ts2)) =
 
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
-  let (sgn, zs) = f 1 xs ys in
+  let (sgn, zs) = divMonomial xs ys in
   Term (sgn * Prelude.div a b) zs
  where
-  f :: Integer -> Monomial -> Monomial -> (Integer, Monomial)
-  f sgn xs [] = (sgn, xs)
-  f sgn xs (y:ys) =
-    let (sgns, zs) = unzip (map (`divSymbol` y) xs) in
-    f (sgn * product sgns) zs ys
-  divSymbol :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (Integer, (SymbolExpr, Integer))
-  divSymbol (Quote x, n) (Quote y, m)
-    | x == y            = (1, (Quote x, n - m))
-    | x == mathNegate y = if even m then (1, (Quote x, n - m)) else (-1, (Quote x, n - m))
-    | otherwise         = (1, (Quote x, n))
-  divSymbol (x, n) (y, m)
-    | x == y    = (1, (x, n - m))
-    | otherwise = (1, (x, n))
+  divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
+  divMonomial xs [] = (1, xs)
+  divMonomial xs (y:ys) =
+    let (sgn, xs') = divMonomial' xs y in divMonomial xs' ys
+
+  divMonomial' :: Monomial -> (SymbolExpr, Integer) -> (Integer, Monomial)
+  divMonomial' xs (y, m) =
+    match dfs (y, xs) (Pair SymbolM (Multiset (Pair SymbolM Eql)))
+      -- Because we've applied |mathFold|, we can only divide the first matching
+      -- monomial and don't need to recursively call |divMonomial'| for |xss|.
+      [ [mc| (quote $s, ($x & negQuote #s, $n) : $xss) ->
+               if even m then (1, (x, n - m) : xss) else (-1, (x, n - m) : xss) |]
+      , [mc| (_, (#y, $n) : $xss) -> (1, (y, n - m) : xss) |]
+      , [mc| _ -> (1, xs) |]
+      ]
 
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
