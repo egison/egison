@@ -30,15 +30,15 @@ import           Language.Egison.CmdOptions
 
 data RState = RState
   { indexCounter :: Int
-  , exprInfixes :: [Infix]
-  , patternInfixes :: [Infix]
+  , exprOps :: [Op]
+  , patternOps :: [Op]
   }
 
 initialRState :: RState
 initialRState = RState
   { indexCounter = 0
-  , exprInfixes = reservedExprInfix
-  , patternInfixes = reservedPatternInfix
+  , exprOps = reservedExprOp
+  , patternOps = reservedPatternOp
   }
 
 type RuntimeT m = ReaderT EgisonOpts (StateT RState m)

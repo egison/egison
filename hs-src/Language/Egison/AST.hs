@@ -29,10 +29,10 @@ module Language.Egison.AST
   , LoopRange (..)
   , PrimitivePatPattern (..)
   , PrimitiveDataPattern (..)
-  , Infix (..)
-  , BinOpAssoc (..)
-  , reservedExprInfix
-  , reservedPatternInfix
+  , Op (..)
+  , Assoc (..)
+  , reservedExprOp
+  , reservedPatternOp
   , findOpFrom
   , stringToVar
   , stringToVarExpr
@@ -54,7 +54,7 @@ data EgisonTopExpr =
     -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
-  | InfixDecl Bool Infix -- True for pattern infix; False for expression infix
+  | InfixDecl Bool Op -- True for pattern infix; False for expression infix
  deriving (Show, Eq)
 
 data EgisonExpr =
@@ -104,8 +104,8 @@ data EgisonExpr =
   | IoExpr EgisonExpr
 
   | PrefixExpr String EgisonExpr
-  | InfixExpr Infix EgisonExpr EgisonExpr
-  | SectionExpr Infix (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
+  | InfixExpr Op EgisonExpr EgisonExpr
+  | SectionExpr Op (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
 
   | SeqExpr EgisonExpr EgisonExpr
   | ApplyExpr EgisonExpr EgisonExpr
@@ -176,7 +176,7 @@ data EgisonPattern =
   | PredPat EgisonExpr
   | IndexedPat EgisonPattern [EgisonExpr]
   | LetPat [BindingExpr] EgisonPattern
-  | InfixPat Infix EgisonPattern EgisonPattern -- Includes AndPat,OrPat,InductivePat(cons/join)
+  | InfixPat Op EgisonPattern EgisonPattern -- Includes AndPat,OrPat,InductivePat(cons/join)
   | NotPat EgisonPattern
   | AndPat EgisonPattern EgisonPattern
   | OrPat EgisonPattern EgisonPattern
@@ -221,58 +221,55 @@ data PrimitiveDataPattern =
   | PDConstantPat EgisonExpr
  deriving (Show, Eq)
 
-data Infix
-  = Infix { repr     :: String  -- syntastic representation
-          , func     :: String  -- semantics
-          , priority :: Int
-          , assoc    :: BinOpAssoc
-          , isWedge  :: Bool    -- True if operator is prefixed with '!'. Only used for expression infix.
-          }
+data Op
+  = Op { repr     :: String  -- syntastic representation
+       , priority :: Int
+       , assoc    :: Assoc
+       , isWedge  :: Bool    -- True if operator is prefixed with '!'. Only used for expression infix.
+       }
   deriving (Eq, Ord, Show)
 
-data BinOpAssoc
-  = LeftAssoc
-  | RightAssoc
-  | NonAssoc
+data Assoc
+  = InfixL
+  | InfixR
+  | InfixN
+  | Prefix
   deriving (Eq, Ord)
 
-instance Show BinOpAssoc where
-  show LeftAssoc  = "infixl"
-  show RightAssoc = "infixr"
-  show NonAssoc   = "infix"
+instance Show Assoc where
+  show InfixL = "infixl"
+  show InfixR = "infixr"
+  show InfixN = "infix"
+  show Prefix = "prefix"
 
-reservedExprInfix :: [Infix]
-reservedExprInfix =
-  [ makeInfix "%"  "remainder" 7 LeftAssoc -- primitive function
-  , makeInfix "*$" "*$"        7 LeftAssoc -- For InvertedScalarArg
-  , makeInfix "++" "append"    5 RightAssoc
-  , makeInfix "::" "cons"      5 RightAssoc
-  , makeInfix "="  "equal"     4 LeftAssoc -- primitive function
-  , makeInfix "<=" "lte"       4 LeftAssoc -- primitive function
-  , makeInfix ">=" "gte"       4 LeftAssoc -- primitive function
-  , makeInfix "<"  "lt"        4 LeftAssoc -- primitive function
-  , makeInfix ">"  "gt"        4 LeftAssoc -- primitive function
+reservedExprOp :: [Op]
+reservedExprOp =
+  [ Op "!"  8 Prefix False -- Wedge
+  , Op "-"  7 Prefix False -- Negate
+  , Op "%"  7 InfixL False -- primitive function
+  , Op "*$" 7 InfixL False -- For InvertedScalarArg
+  , Op "++" 5 InfixR False
+  , Op "::" 5 InfixR False
+  , Op "="  4 InfixL False -- primitive function
+  , Op "<=" 4 InfixL False -- primitive function
+  , Op ">=" 4 InfixL False -- primitive function
+  , Op "<"  4 InfixL False -- primitive function
+  , Op ">"  4 InfixL False -- primitive function
   ]
-  where
-    makeInfix r f p a =
-      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
-reservedPatternInfix :: [Infix]
-reservedPatternInfix =
-  [ makeInfix "^"  "^"    8 LeftAssoc   -- PowerPat
-  , makeInfix "*"  "*"    7 LeftAssoc   -- MultPat
-  , makeInfix "/"  "div"  7 LeftAssoc   -- DivPat
-  , makeInfix "+"  "+"    6 LeftAssoc   -- PlusPat
-  , makeInfix "::" "cons" 5 RightAssoc
-  , makeInfix "++" "join" 5 RightAssoc
-  , makeInfix "&"  "&"    3 RightAssoc
-  , makeInfix "|"  "|"    2 RightAssoc
+reservedPatternOp :: [Op]
+reservedPatternOp =
+  [ Op "^"  8 InfixL False  -- PowerPat
+  , Op "*"  7 InfixL False  -- MultPat
+  , Op "/"  7 InfixL False  -- DivPat
+  , Op "+"  6 InfixL False  -- PlusPat
+  , Op "::" 5 InfixR False  -- cons (desugared)
+  , Op "++" 5 InfixR False  -- join (desugared)
+  , Op "&"  3 InfixR False
+  , Op "|"  2 InfixR False
   ]
-  where
-    makeInfix r f p a =
-      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
-findOpFrom :: String -> [Infix] -> Infix
+findOpFrom :: String -> [Op] -> Op
 findOpFrom op table = fromJust $ find ((== op) . repr) table
 
 instance Hashable (Index ())

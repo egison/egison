@@ -6,7 +6,7 @@ assertEqual "modulo" (modulo (-21) 13) 5
 
 assertEqual "quotient" (quotient (-21) 13) (-1)
 
-assertEqual "remainder" (remainder (-21) 13) (-8)
+assertEqual "remainder" ((-21) % 13) (-8)
 
 assertEqual "neg" (neg (-89)) 89
 

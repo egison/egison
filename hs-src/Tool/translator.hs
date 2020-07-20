@@ -1,9 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Main where
 
 import           Control.Arrow                         ((***))
-import           Data.List                             (find)
 import           Data.Maybe                            (fromJust)
 import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
 import           System.Environment                    (getArgs)
@@ -14,52 +14,49 @@ import           Language.Egison.Parser.SExpr
 import           Language.Egison.Pretty
 
 
-exprInfix :: [Infix]
+exprInfix :: [(String, Op)]
 exprInfix =
-  [ makeInfix "^"  "**"        8 LeftAssoc
-  , makeInfix "^'" "**'"       8 LeftAssoc
-  , makeInfix "*"  "*"         7 LeftAssoc
-  , makeInfix "/"  "/"         7 LeftAssoc
-  , makeInfix "*'" "*'"        7 LeftAssoc
-  , makeInfix "/'" "/'"        7 LeftAssoc
-  , makeInfix "."  "."         7 LeftAssoc -- tensor multiplication
-  , makeInfix ".'" ".'"        7 LeftAssoc -- tensor multiplication
-  , makeInfix "%"  "remainder" 7 LeftAssoc -- primitive function
-  , makeInfix "+"  "+"         6 LeftAssoc
-  , makeInfix "-"  "-"         6 LeftAssoc
-  , makeInfix "+'" "+'"        6 LeftAssoc
-  , makeInfix "-'" "-'"        6 LeftAssoc
-  , makeInfix "++" "append"    5 RightAssoc
-  , makeInfix "::" "cons"      5 RightAssoc
-  , makeInfix "="  "equal"     4 LeftAssoc -- primitive function
-  , makeInfix "<=" "lte"       4 LeftAssoc -- primitive function
-  , makeInfix ">=" "gte"       4 LeftAssoc -- primitive function
-  , makeInfix "<"  "lt"        4 LeftAssoc -- primitive function
-  , makeInfix ">"  "gt"        4 LeftAssoc -- primitive function
-  , makeInfix "&&" "&&"        3 RightAssoc
-  , makeInfix "&&" "and"       3 RightAssoc
-  , makeInfix "||" "||"        2 RightAssoc
-  , makeInfix "||" "or"        2 RightAssoc
-  , makeInfix "$"  "apply"     0 RightAssoc
+  [ ("**",        Op "^"  8 InfixL False)
+  , ("**'",       Op "^'" 8 InfixL False)
+  , ("*",         Op "*"  7 InfixL False)
+  , ("/",         Op "/"  7 InfixL False)
+  , ("*'",        Op "*'" 7 InfixL False)
+  , ("/'",        Op "/'" 7 InfixL False)
+  , (".",         Op "."  7 InfixL False) -- tensor multiplication
+  , (".'",        Op ".'" 7 InfixL False) -- tensor multiplication
+  , ("remainder", Op "%"  7 InfixL False) -- primitive function
+  , ("+",         Op "+"  6 InfixL False)
+  , ("-",         Op "-"  6 InfixL False)
+  , ("+'",        Op "+'" 6 InfixL False)
+  , ("-'",        Op "-'" 6 InfixL False)
+  , ("append",    Op "++" 5 InfixR False)
+  , ("cons",      Op "::" 5 InfixR False)
+  , ("equal",     Op "="  4 InfixL False) -- primitive function
+  , ("lte",       Op "<=" 4 InfixL False) -- primitive function
+  , ("gte",       Op ">=" 4 InfixL False) -- primitive function
+  , ("lt",        Op "<"  4 InfixL False) -- primitive function
+  , ("gt",        Op ">"  4 InfixL False) -- primitive function
+  , ("&&",        Op "&&" 3 InfixR False)
+  , ("and",       Op "&&" 3 InfixR False)
+  , ("||",        Op "||" 2 InfixR False)
+  , ("or",        Op "||" 2 InfixR False)
+  , ("apply",     Op "$"  0 InfixR False)
   ]
-  where
-    makeInfix r f p a =
-      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
-patternInfix :: [Infix]
+patternInfix :: [(String, Op)]
 patternInfix =
-  [ makeInfix "^"  "^"    8 LeftAssoc   -- PowerPat
-  , makeInfix "*"  "*"    7 LeftAssoc   -- MultPat
-  , makeInfix "/"  "div"  7 LeftAssoc   -- DivPat
-  , makeInfix "+"  "+"    6 LeftAssoc   -- PlusPat
-  , makeInfix "::" "cons" 5 RightAssoc
-  , makeInfix "++" "join" 5 RightAssoc
-  , makeInfix "&"  "&"    3 RightAssoc
-  , makeInfix "|"  "|"    2 RightAssoc
+  [ ("^",    Op "^"  8 InfixL False)  -- PowerPat
+  , ("*",    Op "*"  7 InfixL False)  -- MultPat
+  , ("div",  Op "/"  7 InfixL False)  -- DivPat
+  , ("+",    Op "+"  6 InfixL False)  -- PlusPat
+  , ("cons", Op "::" 5 InfixR False)
+  , ("join", Op "++" 5 InfixR False)
+  , ("&",    Op "&"  3 InfixR False)
+  , ("|",    Op "|"  2 InfixR False)
   ]
-  where
-    makeInfix r f p a =
-      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
+
+lookupVarExprInfix :: Var -> Maybe Op
+lookupVarExprInfix x = lookup (prettyS x) exprInfix
 
 class SyntaxElement a where
   toNonS :: a -> a
@@ -73,10 +70,8 @@ instance SyntaxElement EgisonTopExpr where
 
 instance SyntaxElement EgisonExpr where
   toNonS (IntegerExpr x) = IntegerExpr x
-  toNonS (VarExpr v) | any (\op -> func op == prettyS v) exprInfix =
+  toNonS (VarExpr (lookupVarExprInfix -> Just op)) =
     SectionExpr op Nothing Nothing
-      where
-        op = fromJust $ find (\op -> func op == prettyS v) exprInfix
   toNonS (VarExpr x) = VarExpr (toNonS x)
 
   toNonS (IndexedExpr b x ys)  = IndexedExpr  b (toNonS x) (map toNonS ys)
@@ -87,9 +82,9 @@ instance SyntaxElement EgisonExpr where
   toNonS (TupleExpr xs)      = TupleExpr (map toNonS xs)
   toNonS (CollectionExpr xs) = CollectionExpr (map toNonS xs)
   toNonS (ConsExpr x xs) = InfixExpr cons (toNonS x) (toNonS xs)
-    where cons = fromJust $ find (\op -> repr op == "::") exprInfix
+    where cons = fromJust $ lookup "cons" exprInfix
   toNonS (JoinExpr x xs) = InfixExpr append (toNonS x) (toNonS xs)
-    where append = fromJust $ find (\op -> repr op == "++") exprInfix
+    where append = fromJust $ lookup "append" exprInfix
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
   toNonS (VectorExpr xs)     = VectorExpr (map toNonS xs)
 
@@ -115,15 +110,12 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (QuoteExpr x)        = QuoteExpr (toNonS x)
   toNonS (QuoteSymbolExpr x)  = QuoteSymbolExpr (toNonS x)
-  toNonS (WedgeApplyExpr (VarExpr f) (TupleExpr (y:ys)))
-    | any (\op -> func op == prettyS f) exprInfix =
-      optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
+  toNonS (WedgeApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
+    optimize $ foldl (\acc x -> InfixExpr op' acc (toNonS x)) (toNonS y) ys
       where
-        op =
-          let op' = fromJust $ find (\op -> func op == prettyS f) exprInfix
-           in op' { isWedge = True }
+        op' = op { isWedge = True }
 
-        optimize (InfixExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
+        optimize (InfixExpr (Op { repr = "*" }) (IntegerExpr (-1)) e2) =
           PrefixExpr "-" (optimize e2)
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)
@@ -134,13 +126,10 @@ instance SyntaxElement EgisonExpr where
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
   toNonS (SeqExpr e1 e2) = SeqExpr (toNonS e1) (toNonS e2)
-  toNonS (ApplyExpr (VarExpr f) (TupleExpr (y:ys)))
-    | any (\op -> func op == prettyS f) exprInfix =
-      optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
+  toNonS (ApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
+    optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where
-        op = fromJust $ find (\op -> func op == prettyS f) exprInfix
-
-        optimize (InfixExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
+        optimize (InfixExpr (Op { repr = "*" }) (IntegerExpr (-1)) e2) =
           PrefixExpr "-" (optimize e2)
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)
@@ -177,34 +166,32 @@ instance SyntaxElement EgisonPattern where
   toNonS (InfixPat op p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
   toNonS (NotPat p) = NotPat (toNonS p)
   toNonS (AndPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
-    where op = fromJust $ find (\op -> repr op == "&") patternInfix
+    where op = fromJust $ lookup "&" patternInfix
   toNonS (OrPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
-    where op = fromJust $ find (\op -> repr op == "|") patternInfix
+    where op = fromJust $ lookup "|" patternInfix
   toNonS ForallPat{} = error "Not supported: forall pattern"
   toNonS (TuplePat ps) = TuplePat (map toNonS ps)
-  toNonS (InductivePat name [p1, p2])
-    | any (\op -> func op == name) patternInfix =
-      InfixPat op (toNonS p1) (toNonS p2)
-        where op = fromJust $ find (\op -> func op == name) patternInfix
+  toNonS (InductivePat ((`lookup` patternInfix) -> Just op) [p1, p2]) =
+    InfixPat op (toNonS p1) (toNonS p2)
   toNonS (InductivePat name ps) = InductivePat name (map toNonS ps)
   toNonS (LoopPat i range p1 p2) = LoopPat i (toNonS range) (toNonS p1) (toNonS p2)
   toNonS (PApplyPat e p) = PApplyPat (toNonS e) (map toNonS p)
   toNonS (SeqConsPat p1 p2) = SeqConsPat (toNonS p1) (toNonS p2)
   toNonS (DApplyPat p ps) = DApplyPat (toNonS p) (map toNonS ps)
   toNonS (DivPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
-    where op = fromJust $ find (\op -> repr op == "/") patternInfix
+    where op = fromJust $ lookup "/" patternInfix
   toNonS (PlusPat [])  = InductivePat "plus" []
   toNonS (PlusPat [p]) = InductivePat "plus" [toNonS p]
   toNonS (PlusPat (p:ps)) =
     foldl (\acc x -> InfixPat op acc (toNonS x)) (toNonS p) ps
-      where op = fromJust $ find (\op -> repr op == "+") patternInfix
+      where op = fromJust $ lookup "+" patternInfix
   toNonS (MultPat []) = InductivePat "mult" []
   toNonS (MultPat [p]) = InductivePat "mult" [toNonS p]
   toNonS (MultPat (p:ps)) =
     foldl (\acc x -> InfixPat op acc (toNonS x)) (toNonS p) ps
-      where op = fromJust $ find (\op -> repr op == "*") patternInfix
+      where op = fromJust $ lookup "*" patternInfix
   toNonS (PowerPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
-    where op = fromJust $ find (\op -> repr op == "^") patternInfix
+    where op = fromJust $ lookup "^" patternInfix
   toNonS p = p
 
 instance SyntaxElement PrimitivePatPattern where
