@@ -264,20 +264,16 @@ mathDivideTerm (Term a xs) (Term b ys) =
  where
   divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
   divMonomial xs [] = (1, xs)
-  divMonomial xs (y:ys) =
-    let (sgn, xs') = divMonomial' xs y
-        (sgn', xs'') = divMonomial xs' ys
-     in (sgn * sgn', xs'')
-
-  divMonomial' :: Monomial -> (SymbolExpr, Integer) -> (Integer, Monomial)
-  divMonomial' xs (y, m) =
+  divMonomial xs ((y, m):ys) =
     match dfs (y, xs) (Pair SymbolM (Multiset (Pair SymbolM Eql)))
-      -- Because we've applied |mathFold|, we can only divide the first matching
-      -- monomial and don't need to recursively call |divMonomial'| for |xss|.
+      -- Because we've applied |mathFold|, we can only divide the first matching monomial
       [ [mc| (quote $s, ($x & negQuote #s, $n) : $xss) ->
-               if even m then (1, (x, n - m) : xss) else (-1, (x, n - m) : xss) |]
-      , [mc| (_, (#y, $n) : $xss) -> (1, (y, n - m) : xss) |]
-      , [mc| _ -> (1, xs) |]
+               let (sgn, xs') = divMonomial xss ys in
+               if even m then (sgn, (x, n - m) : xs') else (- sgn, (x, n - m) : xs') |]
+      , [mc| (_, (#y, $n) : $xss) ->
+               let (sgn, xs') = divMonomial xss ys in
+               (sgn, (y, n - m) : xs') |]
+      , [mc| _ -> divMonomial xs ys |]
       ]
 
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
