@@ -1,5 +1,7 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 {- |
 Module      : Language.Egison.MathExpr
@@ -33,9 +35,12 @@ module Language.Egison.MathExpr
     , mathDenominator
     ) where
 
-import           Prelude                   hiding (foldr, mappend, mconcat)
+import           Prelude                   hiding (div, foldr, mappend, mconcat)
+import qualified Prelude                   as Prelude
 import           Data.List                 (elemIndex, intercalate)
 import           Data.Maybe                (isJust)
+
+import           Control.Egison
 
 import           Language.Egison.AST
 
@@ -66,6 +71,38 @@ data SymbolExpr
  deriving (Eq)
 
 type Id = String
+
+-- Matchers
+
+data ScalarM = ScalarM
+instance Matcher ScalarM ScalarData
+
+div :: Pattern (PP PolyExpr, PP PolyExpr) ScalarM ScalarData (PolyExpr, PolyExpr)
+div _ _ (Div p1 p2) = pure (p1, p2)
+divM ScalarM _ = (Multiset PolyM, Multiset PolyM)
+
+data PolyM = PolyM
+instance Matcher PolyM PolyExpr
+
+plus :: Pattern (PP [TermExpr]) PolyM PolyExpr [TermExpr]
+plus _ _ (Plus ts) = pure ts
+plusM PolyM _ = Multiset TermM
+
+data TermM = TermM
+instance Matcher TermM TermExpr
+
+term :: Pattern (PP Integer, PP Monomial) TermM TermExpr (Integer, Monomial)
+term _ _ (Term a mono) = pure (a, mono)
+termM TermM _ = (Eql, Multiset (SymbolM, Eql))
+
+data SymbolM = SymbolM
+instance Matcher SymbolM SymbolExpr
+
+quote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
+quote _ _ (Quote m) = pure m
+quoteM SymbolM _ = ScalarM
+
+
 
 pattern ZeroExpr :: ScalarData
 pattern ZeroExpr = (Div (Plus []) (Plus [Term 1 []]))
@@ -225,7 +262,7 @@ mathDivide (Div (Plus ts1) (Plus ts2)) =
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
   let (sgn, zs) = f 1 xs ys in
-  Term (sgn * div a b) zs
+  Term (sgn * Prelude.div a b) zs
  where
   f :: Integer -> Monomial -> Monomial -> (Integer, Monomial)
   f sgn xs [] = (sgn, xs)
