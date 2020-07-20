@@ -31,7 +31,8 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
 
-import           Language.Egison.AST
+import           Language.Egison.AST            hiding (Prefix)
+import qualified Language.Egison.AST            as E
 import           Language.Egison.Data
 import           Language.Egison.RState
 
@@ -244,13 +245,8 @@ opExpr = do
 
 makeExprTable :: [Infix] -> [[Operator Parser EgisonExpr]]
 makeExprTable infixes =
-  -- prefixes have top priority
-  let prefixes = [ [ Prefix (unary "-")
-                   , Prefix (unary "!") ] ]
-      -- Generate binary operator table from |infixes|
-      infixes' = map (map toOperator)
-        (groupBy (\x y -> priority x == priority y) infixes)
-   in prefixes ++ infixes'
+  -- Generate binary operator table from |infixes|
+  map (map toOperator) (groupBy (\x y -> priority x == priority y) infixes)
   where
     -- notFollowedBy (in unary and binary) is necessary for section expression.
     unary :: String -> Parser (EgisonExpr -> EgisonExpr)
@@ -264,8 +260,12 @@ makeExprTable infixes =
       return $ InfixExpr op
 
     toOperator :: Infix -> Operator Parser EgisonExpr
-    toOperator = infixToOperator binary
-
+    toOperator op =
+      case assoc op of
+        LeftAssoc  -> InfixL (binary op)
+        RightAssoc -> InfixR (binary op)
+        NonAssoc   -> InfixN (binary op)
+        E.Prefix   -> Prefix (unary (repr op))
 
 ifExpr :: Parser EgisonExpr
 ifExpr = reserved "if" >> IfExpr <$> expr <* reserved "then" <*> expr <* reserved "else" <*> expr

@@ -234,43 +234,41 @@ data BinOpAssoc
   = LeftAssoc
   | RightAssoc
   | NonAssoc
+  | Prefix
   deriving (Eq, Ord)
 
 instance Show BinOpAssoc where
   show LeftAssoc  = "infixl"
   show RightAssoc = "infixr"
   show NonAssoc   = "infix"
+  show Prefix     = "prefix"
 
 reservedExprInfix :: [Infix]
 reservedExprInfix =
-  [ makeInfix "%"  "remainder" 7 LeftAssoc -- primitive function
-  , makeInfix "*$" "*$"        7 LeftAssoc -- For InvertedScalarArg
-  , makeInfix "++" "append"    5 RightAssoc
-  , makeInfix "::" "cons"      5 RightAssoc
-  , makeInfix "="  "equal"     4 LeftAssoc -- primitive function
-  , makeInfix "<=" "lte"       4 LeftAssoc -- primitive function
-  , makeInfix ">=" "gte"       4 LeftAssoc -- primitive function
-  , makeInfix "<"  "lt"        4 LeftAssoc -- primitive function
-  , makeInfix ">"  "gt"        4 LeftAssoc -- primitive function
+  [ Infix "!"  "!"         8 Prefix     False -- Wedge
+  , Infix "-"  "-"         7 Prefix     False -- Negate
+  , Infix "%"  "remainder" 7 LeftAssoc  False -- primitive function
+  , Infix "*$" "*$"        7 LeftAssoc  False -- For InvertedScalarArg
+  , Infix "++" "append"    5 RightAssoc False
+  , Infix "::" "cons"      5 RightAssoc False
+  , Infix "="  "equal"     4 LeftAssoc  False -- primitive function
+  , Infix "<=" "lte"       4 LeftAssoc  False -- primitive function
+  , Infix ">=" "gte"       4 LeftAssoc  False -- primitive function
+  , Infix "<"  "lt"        4 LeftAssoc  False -- primitive function
+  , Infix ">"  "gt"        4 LeftAssoc  False -- primitive function
   ]
-  where
-    makeInfix r f p a =
-      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
 reservedPatternInfix :: [Infix]
 reservedPatternInfix =
-  [ makeInfix "^"  "^"    8 LeftAssoc   -- PowerPat
-  , makeInfix "*"  "*"    7 LeftAssoc   -- MultPat
-  , makeInfix "/"  "div"  7 LeftAssoc   -- DivPat
-  , makeInfix "+"  "+"    6 LeftAssoc   -- PlusPat
-  , makeInfix "::" "cons" 5 RightAssoc
-  , makeInfix "++" "join" 5 RightAssoc
-  , makeInfix "&"  "&"    3 RightAssoc
-  , makeInfix "|"  "|"    2 RightAssoc
+  [ Infix "^"  "^"    8 LeftAssoc  False  -- PowerPat
+  , Infix "*"  "*"    7 LeftAssoc  False  -- MultPat
+  , Infix "/"  "div"  7 LeftAssoc  False  -- DivPat
+  , Infix "+"  "+"    6 LeftAssoc  False  -- PlusPat
+  , Infix "::" "cons" 5 RightAssoc False
+  , Infix "++" "join" 5 RightAssoc False
+  , Infix "&"  "&"    3 RightAssoc False
+  , Infix "|"  "|"    2 RightAssoc False
   ]
-  where
-    makeInfix r f p a =
-      Infix { repr = r, func = f, priority = p, assoc = a, isWedge = False }
 
 findOpFrom :: String -> [Infix] -> Infix
 findOpFrom op table = fromJust $ find ((== op) . repr) table
