@@ -61,6 +61,9 @@ patternInfix =
     makeInfix r p a =
       Infix { repr = r, priority = p, assoc = a, isWedge = False }
 
+lookupVarExprInfix :: Var -> Maybe Infix
+lookupVarExprInfix x = lookup (prettyS x) exprInfix
+
 class SyntaxElement a where
   toNonS :: a -> a
 
@@ -73,7 +76,7 @@ instance SyntaxElement EgisonTopExpr where
 
 instance SyntaxElement EgisonExpr where
   toNonS (IntegerExpr x) = IntegerExpr x
-  toNonS (VarExpr ((`lookup` exprInfix) . prettyS -> Just op)) =
+  toNonS (VarExpr (lookupVarExprInfix -> Just op)) =
     SectionExpr op Nothing Nothing
   toNonS (VarExpr x) = VarExpr (toNonS x)
 
@@ -113,7 +116,7 @@ instance SyntaxElement EgisonExpr where
 
   toNonS (QuoteExpr x)        = QuoteExpr (toNonS x)
   toNonS (QuoteSymbolExpr x)  = QuoteSymbolExpr (toNonS x)
-  toNonS (WedgeApplyExpr (VarExpr ((`lookup` exprInfix) . prettyS -> Just op)) (TupleExpr (y:ys))) =
+  toNonS (WedgeApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
     optimize $ foldl (\acc x -> InfixExpr op' acc (toNonS x)) (toNonS y) ys
       where
         op' = op { isWedge = True }
@@ -129,7 +132,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
   toNonS (SeqExpr e1 e2) = SeqExpr (toNonS e1) (toNonS e2)
-  toNonS (ApplyExpr (VarExpr ((`lookup` exprInfix) . prettyS -> Just op)) (TupleExpr (y:ys))) =
+  toNonS (ApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
     optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where
         optimize (InfixExpr (Infix { repr = "*" }) (IntegerExpr (-1)) e2) =
