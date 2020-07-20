@@ -121,7 +121,7 @@ infixExpr = do
   isPattern <- isRight <$> eitherP (reserved "expression") (reserved "pattern")
   priority  <- fromInteger <$> positiveIntegerLiteral
   sym       <- if isPattern then newPatOp >>= checkP else some opChar >>= check
-  let newop = Infix { repr = sym, func = sym, priority, assoc, isWedge = False }
+  let newop = Infix { repr = sym, priority, assoc, isWedge = False }
   addNewOp newop isPattern
   return (InfixDecl isPattern newop)
   where
@@ -158,7 +158,7 @@ defineOrTestExpr = do
     convertToDefine :: EgisonExpr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
     convertToDefine (SectionExpr op Nothing Nothing) =
-      return $ Variable (stringToVar (func op))
+      return $ Variable (stringToVar (repr op))
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr [TupleExpr args])) = do
       args' <- mapM ((TensorArg <$>) . exprToStr) args
       return $ Function var args'
@@ -188,7 +188,7 @@ defineOrTestExpr = do
     exprToArgs (VarExpr v) = return [TensorArg (show v)]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
-    exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (func op)]
+    exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (repr op)]
     exprToArgs (InfixExpr op lhs rhs) | repr op == "*$" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
@@ -656,7 +656,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
     toOperator :: Infix -> Operator Parser PrimitivePatPattern
     toOperator = infixToOperator inductive2
 
-    inductive2 op = (\x y -> PPInductivePat (func op) [x, y]) <$ operator (repr op)
+    inductive2 op = (\x y -> PPInductivePat (repr op) [x, y]) <$ operator (repr op)
 
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
