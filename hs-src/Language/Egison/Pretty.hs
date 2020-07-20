@@ -273,7 +273,7 @@ instance Pretty EgisonPattern where
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (InfixExpr (Infix { repr = "-'" }) _ (IntegerExpr 1))) pat) =
+                                    (InfixExpr (Op { repr = "-'" }) _ (IntegerExpr 1))) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
@@ -294,7 +294,7 @@ instance Pretty PrimitiveDataPattern where
   pretty (PDSnocPat pdp1 pdp2) = applyLike [pretty "snoc", pretty' pdp1, pretty' pdp2]
   pretty (PDConstantPat expr) = pretty expr
 
-instance Pretty Infix where
+instance Pretty Op where
   pretty op | isWedge op = pretty ("!" ++ repr op)
             | otherwise  = pretty (repr op)
 

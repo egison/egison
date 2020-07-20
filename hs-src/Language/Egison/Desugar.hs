@@ -358,18 +358,18 @@ desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> de
 desugarPatternInfix :: EgisonPattern -> EgisonPattern
 desugarPatternInfix (IndexedPat pat es) = IndexedPat (desugarPatternInfix pat) es
 desugarPatternInfix (LetPat bindings pat) = LetPat bindings (desugarPatternInfix pat)
-desugarPatternInfix (InfixPat Infix{ repr = "&" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "&" } pat1 pat2) =
   AndPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Infix{ repr = "|" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "|" } pat1 pat2) =
   OrPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Infix{ repr = "^" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "^" } pat1 pat2) =
   PowerPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Infix{ repr = "*" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "*" } pat1 pat2) =
   MultPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
-desugarPatternInfix (InfixPat Infix{ repr = "+" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "+" } pat1 pat2) =
   PlusPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
 -- TODO(momohatt): Use repr for InductivePat
-desugarPatternInfix (InfixPat Infix{ repr = f } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = f } pat1 pat2) =
   InductivePat f [desugarPatternInfix pat1, desugarPatternInfix pat2]
 desugarPatternInfix (NotPat pat) = NotPat (desugarPatternInfix pat)
 desugarPatternInfix (ForallPat pat1 pat2) =
