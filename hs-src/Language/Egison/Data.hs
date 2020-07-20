@@ -76,7 +76,7 @@ import           Text.Show.Unicode         (ushow)
 import           Data.Ratio
 import           System.IO
 
-import           Control.Egison            (consM, joinM, nilM, cons, join, nil,
+import           Control.Egison            (joinConsM, nilM, joinCons, nil,
                                             bfs, match, mc, List(..))
 import qualified Control.Egison            as M
 
