@@ -31,8 +31,7 @@ module Language.Egison.MathExpr
     , mathDenominator
     ) where
 
-import           Prelude                   hiding (div, foldr, mappend, mconcat)
-import qualified Prelude                   as Prelude
+import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Data.List                 (elemIndex, intercalate)
 import           Data.Maybe                (isJust, fromJust)
 
@@ -74,22 +73,12 @@ type Id = String
 data ScalarM = ScalarM
 instance Matcher ScalarM ScalarData
 
-div :: Pattern (PP PolyExpr, PP PolyExpr) ScalarM ScalarData (PolyExpr, PolyExpr)
-div _ _ (Div p1 p2) = pure (p1, p2)
-divM ScalarM _ = (Multiset PolyM, Multiset PolyM)
-
-data PolyM = PolyM
-instance Matcher PolyM PolyExpr
-
-plus :: Pattern (PP [TermExpr]) PolyM PolyExpr [TermExpr]
-plus _ _ (Plus ts) = pure ts
-plusM PolyM _ = Multiset TermM
-
 data TermM = TermM
 instance Matcher TermM TermExpr
 
 term :: Pattern (PP Integer, PP Monomial) TermM TermExpr (Integer, Monomial)
 term _ _ (Term a mono) = pure (a, mono)
+termM :: TermM -> TermExpr -> (Eql, Multiset (SymbolM, Eql))
 termM TermM _ = (Eql, Multiset (SymbolM, Eql))
 
 data SymbolM = SymbolM
@@ -98,11 +87,13 @@ instance Matcher SymbolM SymbolExpr
 quote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
 quote _ _ (Quote m) = pure m
 quote _ _ _         = mzero
+quoteM :: SymbolM -> p -> ScalarM
 quoteM SymbolM _ = ScalarM
 
 negQuote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
 negQuote _ _ (Quote m) = pure (mathNegate m)
 negQuote _ _ _         = mzero
+negQuoteM :: SymbolM -> p -> ScalarM
 negQuoteM SymbolM _ = ScalarM
 
 instance ValuePattern ScalarM ScalarData where
@@ -269,12 +260,14 @@ mathDivide (Div (Plus ts1) (Plus ts2)) =
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
   let (sgn, zs) = divMonomial xs ys in
-  Term (sgn * Prelude.div a b) zs
+  Term (sgn * div a b) zs
  where
   divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
   divMonomial xs [] = (1, xs)
   divMonomial xs (y:ys) =
-    let (sgn, xs') = divMonomial' xs y in divMonomial xs' ys
+    let (sgn, xs') = divMonomial' xs y
+        (sgn', xs'') = divMonomial xs' ys
+     in (sgn * sgn', xs'')
 
   divMonomial' :: Monomial -> (SymbolExpr, Integer) -> (Integer, Monomial)
   divMonomial' xs (y, m) =
