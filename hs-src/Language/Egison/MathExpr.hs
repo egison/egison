@@ -316,18 +316,16 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
  where
   f :: TermExpr -> TermExpr
   f (Term a xs) =
-    let (sgn, ys) = g 1 xs in Term (sgn * a) ys
-    -- let (ys, sgns) = unzip $ g 1 xs in Term (product sgns * a) ys
-
-  g :: Integer -> Monomial -> (Integer, Monomial)
-  g sgn [] = (sgn, [])
-  g sgn ((x, m):xs) =
+    let (sgn, ys) = g xs in Term (sgn * a) ys
+  g :: Monomial -> (Integer, Monomial)
+  g [] = (1, [])
+  g ((x, m):xs) =
     match dfs (x, xs) (Pair SymbolM (Multiset (Pair SymbolM Eql)))
       [ [mc| (quote $s, (negQuote #s, $n) : $xs) ->
-               if even n then g sgn     ((x, m + n) : xs)
-                         else g (- sgn) ((x, m + n) : xs) |]
-      , [mc| (_, (#x, $n) : $xs) -> g sgn ((x, m + n) : xs) |]
-      , [mc| _ -> let (sgn', ys) = g sgn xs in (sgn', (x, m):xs) |]
+               let (sgn, ys) = g ((x, m + n) : xs) in
+               if even n then (sgn, ys) else (- sgn, ys) |]
+      , [mc| (_, (#x, $n) : $xs) -> g ((x, m + n) : xs) |]
+      , [mc| _ -> let (sgn', ys) = g xs in (sgn', (x, m):ys) |]
       ]
 
 -- x^2 y + x^2 y -> 2 x^2 y
