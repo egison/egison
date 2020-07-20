@@ -132,12 +132,12 @@ instance Pretty EgisonExpr where
     | otherwise     = pretty op <+> parens (pretty x)
   -- (x1 op' x2) op y
   pretty (InfixExpr op x@(InfixExpr op' _ _) y) =
-    if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
+    if priority op > priority op' || priority op == priority op' && assoc op == InfixR
        then parens (pretty x) <+> pretty op <> infixRight (pretty'' y)
        else pretty x          <+> pretty op <> infixRight (pretty'' y)
   -- x op (y1 op' y2)
   pretty (InfixExpr op x y@(InfixExpr op' _ _)) =
-    if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
+    if priority op > priority op' || priority op == priority op' && assoc op == InfixL
        then pretty'' x <+> pretty op <> infixRight (parens (pretty y))
        else pretty'' x <+> pretty op <> infixRight (pretty y)
   pretty (InfixExpr op x y) =
@@ -240,19 +240,19 @@ instance Pretty EgisonPattern where
     pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   -- (p11 op' p12) op p2
   pretty (InfixPat op p1@(InfixPat op' _ _) p2) =
-    if priority op > priority op' || priority op == priority op' && assoc op == RightAssoc
+    if priority op > priority op' || priority op == priority op' && assoc op == InfixR
        then parens (pretty p1) <+> pretty (repr op) <+> pretty'' p2
        else pretty p1          <+> pretty (repr op) <+> pretty'' p2
   -- p1 op (p21 op' p22)
   pretty (InfixPat op p1 p2@(InfixPat op' _ _)) =
-    if priority op > priority op' || priority op == priority op' && assoc op == LeftAssoc
+    if priority op > priority op' || priority op == priority op' && assoc op == InfixL
        then pretty'' p1 <+> pretty (repr op) <+> parens (pretty p2)
        else pretty'' p1 <+> pretty (repr op) <+> pretty p2
   pretty (InfixPat op p1 p2) = pretty'' p1 <+> pretty (repr op) <+> pretty'' p2
   pretty (NotPat pat) = pretty "!" <> pretty' pat
   pretty (TuplePat pats) = tupled $ map pretty pats
   pretty (InductivePat "nil" []) = pretty "[]"
-  pretty (InductivePat "cons" [p, InductivePat "nil" []]) = pretty "[" <> pretty p <> pretty "]"
+  pretty (InductivePat "::" [p, InductivePat "nil" []]) = pretty "[" <> pretty p <> pretty "]"
   pretty (InductivePat ctor xs) = hsep (pretty ctor : map pretty' xs)
   pretty (LoopPat i range p1 p2) =
     hang 2 (pretty "loop" <+> pretty '$' <> pretty i <+> pretty range <>
@@ -273,7 +273,7 @@ instance Pretty EgisonPattern where
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (InfixExpr (Infix { repr = "-'" }) _ (IntegerExpr 1))) pat) =
+                                    (InfixExpr (Op { repr = "-'" }) _ (IntegerExpr 1))) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
@@ -294,7 +294,7 @@ instance Pretty PrimitiveDataPattern where
   pretty (PDSnocPat pdp1 pdp2) = applyLike [pretty "snoc", pretty' pdp1, pretty' pdp2]
   pretty (PDConstantPat expr) = pretty expr
 
-instance Pretty Infix where
+instance Pretty Op where
   pretty op | isWedge op = pretty ("!" ++ repr op)
             | otherwise  = pretty (repr op)
 

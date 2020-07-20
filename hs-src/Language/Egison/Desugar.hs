@@ -235,7 +235,7 @@ desugar (PrefixExpr "'" expr) = QuoteExpr <$> desugar expr
 desugar (PrefixExpr "`" expr) = QuoteSymbolExpr <$> desugar expr
 
 desugar (InfixExpr op expr1 expr2) | isWedge op =
-  (\x y -> WedgeApplyExpr (stringToVarExpr (func op)) (TupleExpr [x, y]))
+  (\x y -> WedgeApplyExpr (stringToVarExpr (repr op)) (TupleExpr [x, y]))
     <$> desugar expr1 <*> desugar expr2
 
 desugar (InfixExpr op expr1 expr2) | repr op == "::" =
@@ -243,13 +243,14 @@ desugar (InfixExpr op expr1 expr2) | repr op == "::" =
 desugar (InfixExpr op expr1 expr2) | repr op == "++" =
   JoinExpr <$> desugar expr1 <*> desugar expr2
 desugar (InfixExpr op expr1 expr2) =
-  (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
+  (\x y -> makeApply (repr op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 -- section
 --
 -- If `op` is not a cambda, simply desugar it into the function
-desugar (SectionExpr op Nothing Nothing) | not (isWedge op) =
-  desugar (stringToVarExpr (func op))
+desugar (SectionExpr op Nothing Nothing)
+  | not (isWedge op || repr op `elem` ["::", "++"]) =
+    desugar (stringToVarExpr (repr op))
 desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
   y <- fresh
@@ -357,17 +358,18 @@ desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> de
 desugarPatternInfix :: EgisonPattern -> EgisonPattern
 desugarPatternInfix (IndexedPat pat es) = IndexedPat (desugarPatternInfix pat) es
 desugarPatternInfix (LetPat bindings pat) = LetPat bindings (desugarPatternInfix pat)
-desugarPatternInfix (InfixPat Infix{ repr = "&" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "&" } pat1 pat2) =
   AndPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Infix{ repr = "|" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "|" } pat1 pat2) =
   OrPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Infix{ repr = "^" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "^" } pat1 pat2) =
   PowerPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Infix{ repr = "*" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "*" } pat1 pat2) =
   MultPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
-desugarPatternInfix (InfixPat Infix{ repr = "+" } pat1 pat2) =
+desugarPatternInfix (InfixPat Op{ repr = "+" } pat1 pat2) =
   PlusPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
-desugarPatternInfix (InfixPat Infix{ func = f } pat1 pat2) =
+-- TODO(momohatt): Use repr for InductivePat
+desugarPatternInfix (InfixPat Op{ repr = f } pat1 pat2) =
   InductivePat f [desugarPatternInfix pat1, desugarPatternInfix pat2]
 desugarPatternInfix (NotPat pat) = NotPat (desugarPatternInfix pat)
 desugarPatternInfix (ForallPat pat1 pat2) =
@@ -418,7 +420,7 @@ desugarPattern' (PlusPat pats) = do
   case reverse pats' of
     [] -> return $ InductivePat "plus" [ValuePat (IntegerExpr 0)]
     lp:hps ->
-      return $ InductivePat "plus" [foldr (\p acc -> InductivePat "cons" [p, acc]) lp (reverse hps)]
+      return $ InductivePat "plus" [foldr (\p acc -> InductivePat "::" [p, acc]) lp (reverse hps)]
  where
    flatten (PlusPat xs) = concatMap flatten xs
    flatten pat          = [pat]
@@ -429,7 +431,7 @@ desugarPattern' (MultPat pats) = do
     lp:hps -> do
       let mono = foldr (\p acc -> case p of
                                     PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, acc]
-                                    _ -> InductivePat "cons" [p, acc])
+                                    _ -> InductivePat "::" [p, acc])
                        (case lp of
                           PowerPat p1 p2 -> InductivePat "ncons" [p1, p2, ValuePat (IntegerExpr 1)]
                           _ -> lp)
