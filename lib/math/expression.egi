@@ -13,7 +13,7 @@ mathExpr :=
 
 mathExpr' :=
   matcher
-    | div $ $ as (mathExpr, mathExpr) with
+    | $ / $ as (mathExpr, mathExpr) with
       | Div $p1 $p2 -> [(toMathExpr' p1, toMathExpr' p2)]
       | _ -> []
     | poly $ as (multiset mathExpr) with
