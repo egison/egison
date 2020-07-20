@@ -337,31 +337,26 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
   f' :: [TermExpr] -> [TermExpr] -> [TermExpr]
   f' ret [] = ret
   f' ret (Term a xs:ts) =
-    if any (\(Term _ ys) -> isJust (p 1 xs ys)) ret
+    if any (\(Term _ ys) -> isJust (isEqualTerm xs ys)) ret
       then f' (map (g (Term a xs)) ret) ts
       else f' (ret ++ [Term a xs]) ts
   g :: TermExpr -> TermExpr -> TermExpr
   g (Term a xs) (Term b ys) =
-    case p 1 xs ys of
+    case isEqualTerm xs ys of
       Just sgn -> Term ((sgn * a) + b) ys
       Nothing  -> Term b ys
-  p :: Integer -> Monomial -> Monomial -> Maybe Integer
-  p sgn [] [] = return sgn
-  p _   [] _  = Nothing
-  p sgn ((x, n):xs) ys =
-    case q (x, n) [] ys of
-      Just (ys', sgn2) -> p (sgn * sgn2) xs ys'
-      Nothing          -> Nothing
-  q :: (SymbolExpr, Integer) -> Monomial -> Monomial -> Maybe (Monomial, Integer)
-  q _ _ [] = Nothing
-  q (Quote x, n) ret ((Quote y, m):ys)
-    | x == y && n == m            = return (ret ++ ys, 1)
-    | mathNegate x == y && n == m = return $ if even n then (ret ++ ys, 1) else (ret ++ ys, -1)
-    | otherwise                   = q (Quote x, n) (ret ++ [(Quote y, m)]) ys
-  q (Quote x, n) ret ((y,m):ys) = q (Quote x, n) (ret ++ [(y, m)]) ys
-  q (x, n) ret ((y, m):ys) =
-    if x == y && n == m then return (ret ++ ys, 1)
-                        else q (x, n) (ret ++ [(y, m)]) ys
+
+  isEqualTerm :: Monomial -> Monomial -> Maybe Integer
+  isEqualTerm xs ys =
+    match dfs (xs, ys) (Pair (Multiset (Pair SymbolM Eql)) (Multiset (Pair SymbolM Eql)))
+      [ [mc| ((quote $s, $n) : $xss, (negQuote #s, #n) : $yss) ->
+               case isEqualTerm xss yss of
+                 Nothing -> Nothing
+                 Just sgn -> return (if even n then sgn else - sgn) |]
+      , [mc| (($x, $n) : $xss, (#x, #n) : $yss) -> isEqualTerm xss yss |]
+      , [mc| ([], []) -> return 1 |]
+      , [mc| _ -> Nothing |]
+      ]
 
 --
 --  Arithmetic operations
