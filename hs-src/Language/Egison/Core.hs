@@ -1300,7 +1300,7 @@ evalMatcherWHNF whnf = throwError =<< TypeMismatch "matcher" whnf <$> getFuncNam
 --
 toListPat :: [EgisonPattern] -> EgisonPattern
 toListPat []         = InductivePat "nil" []
-toListPat (pat:pats) = InductivePat "cons" [pat, toListPat pats]
+toListPat (pat:pats) = InductivePat "::" [pat, toListPat pats]
 
 fromTuple :: WHNFData -> EvalM [ObjectRef]
 fromTuple (Intermediate (ITuple refs)) = return refs
