@@ -10,22 +10,18 @@ This module contains pretty printing for Egison syntax
 
 module Language.Egison.Pretty
     ( prettyTopExprs
-    , PrettyS(..)
     , prettyStr
     , prettyStr'
     , showTSV
     ) where
 
 import           Data.Foldable             (toList)
-import qualified Data.HashMap.Strict       as HashMap
 import           Data.List                 (intercalate)
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.String (renderString)
-import qualified Data.Vector               as V
 import           Text.Show.Unicode         (ushow)
 
 import           Language.Egison.AST
-import           Language.Egison.MathExpr  hiding (Printable(..))
 import           Language.Egison.Data
 
 --
@@ -428,6 +424,11 @@ applyLike = hang 2 . sep . map group
 infixRight :: Doc ann -> Doc ann
 infixRight p = group (flatAlt (hardline <> p) (space <> p))
 
+showTSV :: EgisonValue -> String
+showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map show vals)
+showTSV (Collection vals) = intercalate "\t" (map show (toList vals))
+showTSV val = show val
+
 --
 -- Pretty printer for error messages
 --
@@ -437,104 +438,3 @@ prettyStr = renderString . layoutPretty (LayoutOptions Unbounded) . pretty
 
 prettyStr' :: (Pretty a, Complex a) => a -> String
 prettyStr' = renderString . layoutPretty (LayoutOptions Unbounded) . pretty'
-
---
--- Pretty printer for S-expression
---
-
-class PrettyS a where
-  prettyS :: a -> String
-
-instance PrettyS EgisonValue where
-  prettyS (Char c) = "c#" ++ [c]
-  prettyS (String str) = show str
-  prettyS (Bool True) = "#t"
-  prettyS (Bool False) = "#f"
-  prettyS (ScalarData mExpr) = prettyS mExpr
-  prettyS (TensorData (Tensor [_] xs js)) = "[| " ++ unwords (map prettyS (V.toList xs)) ++ " |]" ++ concatMap prettyS js
-  prettyS (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap prettyS js
-  prettyS (TensorData (Tensor [_, j] xs js)) = "[| " ++ f (fromIntegral j) (V.toList xs) ++ "|]" ++ concatMap prettyS js
-   where
-    f _ [] = ""
-    f j xs = "[| " ++ unwords (map prettyS (take j xs)) ++ " |] " ++ f j (drop j xs)
-  prettyS (TensorData (Tensor ns xs js)) = "(tensor {" ++ unwords (map show ns) ++ "} {" ++ unwords (map prettyS (V.toList xs)) ++ "} )" ++ concatMap prettyS js
-  prettyS (Float x) = show x
-  prettyS (InductiveData name vals) = "<" ++ name ++ concatMap ((' ':) . prettyS) vals ++ ">"
-  prettyS (Tuple vals)      = "[" ++ unwords (map prettyS vals) ++ "]"
-  prettyS (Collection vals) = "{" ++ unwords (map prettyS (toList vals)) ++ "}"
-  prettyS (IntHash hash)    = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
-  prettyS (CharHash hash)   = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
-  prettyS (StrHash hash)    = "{|" ++ unwords (map (\(key, val) -> "[" ++ show key ++ " " ++ prettyS val ++ "]") $ HashMap.toList hash) ++ "|}"
-  prettyS UserMatcher{} = "#<user-matcher>"
-  prettyS (Func Nothing _ args _) = "(lambda [" ++ unwords (map ('$':) args) ++ "] ...)"
-  prettyS (Func (Just name) _ _ _) = prettyS name
-  prettyS (AnonParamFunc _ n _) = show n ++ "#(...)"
-  prettyS (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
-  prettyS (CFunc (Just name) _ _ _) = prettyS name
-  prettyS (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ unwords names ++ "] ...)"
-  prettyS (MemoizedFunc (Just name) _ _ _ _ _) = prettyS name
-  prettyS PatternFunc{} = "#<pattern-function>"
-  prettyS (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
-  prettyS (IOFunc _) = "#<io-function>"
-  prettyS (Port _) = "#<port>"
-  prettyS Something = "something"
-  prettyS Undefined = "undefined"
-  prettyS World = "#<world>"
-  prettyS _ = "(not supported)"
-
-instance PrettyS Var where
-  prettyS = show
-
-instance PrettyS ScalarData where
-  prettyS (Div p1 (Plus [Term 1 []])) = prettyS p1
-  prettyS (Div p1 p2)                 = "(/ " ++ prettyS p1 ++ " " ++ prettyS p2 ++ ")"
-
-instance PrettyS PolyExpr where
-  prettyS (Plus [])  = "0"
-  prettyS (Plus [t]) = prettyS t
-  prettyS (Plus ts)  = "(+ " ++ unwords (map prettyS ts)  ++ ")"
-
-instance PrettyS TermExpr where
-  prettyS (Term a []) = show a
-  prettyS (Term 1 [x]) = showPoweredSymbol x
-  prettyS (Term 1 xs) = "(* " ++ unwords (map showPoweredSymbol xs) ++ ")"
-  prettyS (Term a xs) = "(* " ++ show a ++ " " ++ unwords (map showPoweredSymbol xs) ++ ")"
-
-showPoweredSymbol :: (SymbolExpr, Integer) -> String
-showPoweredSymbol (x, 1) = prettyS x
-showPoweredSymbol (x, n) = prettyS x ++ "^" ++ show n
-
-instance PrettyS SymbolExpr where
-  prettyS (Symbol _ (':':':':':':_) []) = "#"
-  prettyS (Symbol _ s []) = s
-  prettyS (Symbol _ s js) = s ++ concatMap prettyS js
-  prettyS (Apply fn mExprs) = "(" ++ prettyS fn ++ " " ++ unwords (map prettyS mExprs) ++ ")"
-  prettyS (Quote mExprs) = "'" ++ prettyS mExprs
-  prettyS (FunctionData name _ _ js) = show name ++ concatMap prettyS js
-
-showTSV :: EgisonValue -> String
-showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (prettyS val) (map prettyS vals)
-showTSV (Collection vals) = intercalate "\t" (map prettyS (toList vals))
-showTSV val = prettyS val
-
-instance PrettyS a => PrettyS (Index a) where
-  prettyS (Subscript i)    = "_" ++ prettyS i
-  prettyS (Superscript i)  = "~" ++ prettyS i
-  prettyS (SupSubscript i) = "~_" ++ prettyS i
-  prettyS (MultiSubscript x y) = "_[" ++ prettyS x ++ "]..._[" ++ prettyS y ++ "]"
-  prettyS (MultiSuperscript x y) = "~[" ++ prettyS x ++ "]...~[" ++ prettyS y ++ "]"
-  prettyS (DFscript _ _)   = ""
-  prettyS (Userscript i)   = "|" ++ prettyS i
-
-instance {-# OVERLAPPING #-} PrettyS (Index EgisonValue) where
-  prettyS (Superscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "~[" ++ prettyS i ++ "]"
-    _ -> "~" ++ prettyS i
-  prettyS (Subscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
-    _ -> "_" ++ prettyS i
-  prettyS (SupSubscript i) = "~_" ++ prettyS i
-  prettyS (DFscript i j) = "_d" ++ show i ++ show j
-  prettyS (Userscript i) = case i of
-    ScalarData (Div (Plus [Term 1 [(Symbol _ _ (_:_), 1)]]) (Plus [Term 1 []])) -> "_[" ++ prettyS i ++ "]"
-    _ -> "|" ++ prettyS i
