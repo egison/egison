@@ -24,11 +24,6 @@ module Language.Egison.MathExpr
     , pattern SingleTerm
     -- * Scalar
     , mathNormalize'
-    , mathFold
-    , mathSymbolFold
-    , mathTermFold
-    , mathRemoveZero
-    , mathDivide
     , mathPlus
     , mathMult
     , mathNegate
@@ -278,15 +273,15 @@ mathDivideTerm (Term a xs) (Term b ys) =
  where
   f :: Integer -> Monomial -> Monomial -> (Integer, Monomial)
   f sgn xs [] = (sgn, xs)
-  f sgn xs ((y, n):ys) =
-    let (sgns, zs) = unzip (map (\(x, m) -> g (x, m) (y, n)) xs) in
+  f sgn xs (y:ys) =
+    let (sgns, zs) = unzip (map (`divSymbol` y) xs) in
     f (sgn * product sgns) zs ys
-  g :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (Integer, (SymbolExpr, Integer))
-  g (Quote x, n) (Quote y, m)
+  divSymbol :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (Integer, (SymbolExpr, Integer))
+  divSymbol (Quote x, n) (Quote y, m)
     | x == y            = (1, (Quote x, n - m))
     | x == mathNegate y = if even m then (1, (Quote x, n - m)) else (-1, (Quote x, n - m))
     | otherwise         = (1, (Quote x, n))
-  g (x, n) (y, m)
+  divSymbol (x, n) (y, m)
     | x == y    = (1, (x, n - m))
     | otherwise = (1, (x, n))
 
