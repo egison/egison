@@ -235,7 +235,7 @@ desugar (PrefixExpr "'" expr) = QuoteExpr <$> desugar expr
 desugar (PrefixExpr "`" expr) = QuoteSymbolExpr <$> desugar expr
 
 desugar (InfixExpr op expr1 expr2) | isWedge op =
-  (\x y -> WedgeApplyExpr (stringToVarExpr (func op)) (TupleExpr [x, y]))
+  (\x y -> WedgeApplyExpr (stringToVarExpr (repr op)) (TupleExpr [x, y]))
     <$> desugar expr1 <*> desugar expr2
 
 desugar (InfixExpr op expr1 expr2) | repr op == "::" =
@@ -243,13 +243,14 @@ desugar (InfixExpr op expr1 expr2) | repr op == "::" =
 desugar (InfixExpr op expr1 expr2) | repr op == "++" =
   JoinExpr <$> desugar expr1 <*> desugar expr2
 desugar (InfixExpr op expr1 expr2) =
-  (\x y -> makeApply (func op) [x, y]) <$> desugar expr1 <*> desugar expr2
+  (\x y -> makeApply (repr op) [x, y]) <$> desugar expr1 <*> desugar expr2
 
 -- section
 --
 -- If `op` is not a cambda, simply desugar it into the function
-desugar (SectionExpr op Nothing Nothing) | not (isWedge op) =
-  desugar (stringToVarExpr (func op))
+desugar (SectionExpr op Nothing Nothing)
+  | not (isWedge op || repr op `elem` ["::", "++"]) =
+    desugar (stringToVarExpr (repr op))
 desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
   y <- fresh
@@ -367,7 +368,8 @@ desugarPatternInfix (InfixPat Infix{ repr = "*" } pat1 pat2) =
   MultPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
 desugarPatternInfix (InfixPat Infix{ repr = "+" } pat1 pat2) =
   PlusPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
-desugarPatternInfix (InfixPat Infix{ func = f } pat1 pat2) =
+-- TODO(momohatt): Use repr for InductivePat
+desugarPatternInfix (InfixPat Infix{ repr = f } pat1 pat2) =
   InductivePat f [desugarPatternInfix pat1, desugarPatternInfix pat2]
 desugarPatternInfix (NotPat pat) = NotPat (desugarPatternInfix pat)
 desugarPatternInfix (ForallPat pat1 pat2) =

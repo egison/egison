@@ -30,7 +30,7 @@ module Language.Egison.AST
   , PrimitivePatPattern (..)
   , PrimitiveDataPattern (..)
   , Infix (..)
-  , BinOpAssoc (..)
+  , Assoc (..)
   , reservedExprInfix
   , reservedPatternInfix
   , findOpFrom
@@ -223,21 +223,20 @@ data PrimitiveDataPattern =
 
 data Infix
   = Infix { repr     :: String  -- syntastic representation
-          , func     :: String  -- semantics
           , priority :: Int
-          , assoc    :: BinOpAssoc
+          , assoc    :: Assoc
           , isWedge  :: Bool    -- True if operator is prefixed with '!'. Only used for expression infix.
           }
   deriving (Eq, Ord, Show)
 
-data BinOpAssoc
+data Assoc
   = LeftAssoc
   | RightAssoc
   | NonAssoc
   | Prefix
   deriving (Eq, Ord)
 
-instance Show BinOpAssoc where
+instance Show Assoc where
   show LeftAssoc  = "infixl"
   show RightAssoc = "infixr"
   show NonAssoc   = "infix"
@@ -245,29 +244,29 @@ instance Show BinOpAssoc where
 
 reservedExprInfix :: [Infix]
 reservedExprInfix =
-  [ Infix "!"  "!"         8 Prefix     False -- Wedge
-  , Infix "-"  "-"         7 Prefix     False -- Negate
-  , Infix "%"  "remainder" 7 LeftAssoc  False -- primitive function
-  , Infix "*$" "*$"        7 LeftAssoc  False -- For InvertedScalarArg
-  , Infix "++" "append"    5 RightAssoc False
-  , Infix "::" "cons"      5 RightAssoc False
-  , Infix "="  "equal"     4 LeftAssoc  False -- primitive function
-  , Infix "<=" "lte"       4 LeftAssoc  False -- primitive function
-  , Infix ">=" "gte"       4 LeftAssoc  False -- primitive function
-  , Infix "<"  "lt"        4 LeftAssoc  False -- primitive function
-  , Infix ">"  "gt"        4 LeftAssoc  False -- primitive function
+  [ Infix "!"  8 Prefix     False -- Wedge
+  , Infix "-"  7 Prefix     False -- Negate
+  , Infix "%"  7 LeftAssoc  False -- primitive function
+  , Infix "*$" 7 LeftAssoc  False -- For InvertedScalarArg
+  , Infix "++" 5 RightAssoc False
+  , Infix "::" 5 RightAssoc False
+  , Infix "="  4 LeftAssoc  False -- primitive function
+  , Infix "<=" 4 LeftAssoc  False -- primitive function
+  , Infix ">=" 4 LeftAssoc  False -- primitive function
+  , Infix "<"  4 LeftAssoc  False -- primitive function
+  , Infix ">"  4 LeftAssoc  False -- primitive function
   ]
 
 reservedPatternInfix :: [Infix]
 reservedPatternInfix =
-  [ Infix "^"  "^"    8 LeftAssoc  False  -- PowerPat
-  , Infix "*"  "*"    7 LeftAssoc  False  -- MultPat
-  , Infix "/"  "div"  7 LeftAssoc  False  -- DivPat
-  , Infix "+"  "+"    6 LeftAssoc  False  -- PlusPat
-  , Infix "::" "cons" 5 RightAssoc False
-  , Infix "++" "join" 5 RightAssoc False
-  , Infix "&"  "&"    3 RightAssoc False
-  , Infix "|"  "|"    2 RightAssoc False
+  [ Infix "^"  8 LeftAssoc  False  -- PowerPat
+  , Infix "*"  7 LeftAssoc  False  -- MultPat
+  , Infix "/"  7 LeftAssoc  False  -- DivPat
+  , Infix "+"  6 LeftAssoc  False  -- PlusPat
+  , Infix "::" 5 RightAssoc False  -- cons (desugared)
+  , Infix "++" 5 RightAssoc False  -- join (desugared)
+  , Infix "&"  3 RightAssoc False
+  , Infix "|"  2 RightAssoc False
   ]
 
 findOpFrom :: String -> [Infix] -> Infix
