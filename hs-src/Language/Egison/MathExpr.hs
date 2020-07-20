@@ -1,5 +1,8 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 {- |
 Module      : Language.Egison.MathExpr
@@ -21,11 +24,6 @@ module Language.Egison.MathExpr
     , pattern SingleTerm
     -- * Scalar
     , mathNormalize'
-    , mathFold
-    , mathSymbolFold
-    , mathTermFold
-    , mathRemoveZero
-    , mathDivide
     , mathPlus
     , mathMult
     , mathNegate
@@ -35,7 +33,10 @@ module Language.Egison.MathExpr
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Data.List                 (elemIndex, intercalate)
-import           Data.Maybe                (isJust)
+import           Data.Maybe                (isJust, fromJust)
+
+import           Control.Monad             ( MonadPlus(..) )
+import           Control.Egison
 
 import           Language.Egison.AST
 
@@ -66,6 +67,40 @@ data SymbolExpr
  deriving (Eq)
 
 type Id = String
+
+-- Matchers
+
+data ScalarM = ScalarM
+instance Matcher ScalarM ScalarData
+
+data TermM = TermM
+instance Matcher TermM TermExpr
+
+term :: Pattern (PP Integer, PP Monomial) TermM TermExpr (Integer, Monomial)
+term _ _ (Term a mono) = pure (a, mono)
+termM :: TermM -> TermExpr -> (Eql, Multiset (SymbolM, Eql))
+termM TermM _ = (Eql, Multiset (SymbolM, Eql))
+
+data SymbolM = SymbolM
+instance Matcher SymbolM SymbolExpr
+
+quote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
+quote _ _ (Quote m) = pure m
+quote _ _ _         = mzero
+quoteM :: SymbolM -> p -> ScalarM
+quoteM SymbolM _ = ScalarM
+
+negQuote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
+negQuote _ _ (Quote m) = pure (mathNegate m)
+negQuote _ _ _         = mzero
+negQuoteM :: SymbolM -> p -> ScalarM
+negQuoteM SymbolM _ = ScalarM
+
+instance ValuePattern ScalarM ScalarData where
+  value e () ScalarM v = if e == v then pure () else mzero
+
+instance ValuePattern SymbolM SymbolExpr where
+  value e () SymbolM v = if e == v then pure () else mzero
 
 pattern ZeroExpr :: ScalarData
 pattern ZeroExpr = (Div (Plus []) (Plus [Term 1 []]))
@@ -224,22 +259,22 @@ mathDivide (Div (Plus ts1) (Plus ts2)) =
 
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
-  let (sgn, zs) = f 1 xs ys in
+  let (sgn, zs) = divMonomial xs ys in
   Term (sgn * div a b) zs
  where
-  f :: Integer -> Monomial -> Monomial -> (Integer, Monomial)
-  f sgn xs [] = (sgn, xs)
-  f sgn xs ((y, n):ys) =
-    let (sgns, zs) = unzip (map (\(x, m) -> g (x, m) (y, n)) xs) in
-    f (sgn * product sgns) zs ys
-  g :: (SymbolExpr, Integer) -> (SymbolExpr, Integer) -> (Integer, (SymbolExpr, Integer))
-  g (Quote x, n) (Quote y, m)
-    | x == y            = (1, (Quote x, n - m))
-    | x == mathNegate y = if even m then (1, (Quote x, n - m)) else (-1, (Quote x, n - m))
-    | otherwise         = (1, (Quote x, n))
-  g (x, n) (y, m)
-    | x == y    = (1, (x, n - m))
-    | otherwise = (1, (x, n))
+  divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
+  divMonomial xs [] = (1, xs)
+  divMonomial xs ((y, m):ys) =
+    match dfs (y, xs) (Pair SymbolM (Multiset (Pair SymbolM Eql)))
+      -- Because we've applied |mathFold|, we can only divide the first matching monomial
+      [ [mc| (quote $s, ($x & negQuote #s, $n) : $xss) ->
+               let (sgn, xs') = divMonomial xss ys in
+               if even m then (sgn, (x, n - m) : xs') else (- sgn, (x, n - m) : xs') |]
+      , [mc| (_, (#y, $n) : $xss) ->
+               let (sgn, xs') = divMonomial xss ys in
+               (sgn, (y, n - m) : xs') |]
+      , [mc| _ -> divMonomial xs ys |]
+      ]
 
 mathRemoveZeroSymbol :: ScalarData -> ScalarData
 mathRemoveZeroSymbol (Div (Plus ts1) (Plus ts2)) =
@@ -266,59 +301,45 @@ mathSymbolFold :: ScalarData -> ScalarData
 mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f ts2))
  where
   f :: TermExpr -> TermExpr
-  f (Term a xs) = let (ys, sgns) = unzip $ g [] xs
-                   in Term (product sgns * a) ys
-  g :: [((SymbolExpr, Integer),Integer)] -> Monomial -> [((SymbolExpr, Integer),Integer)]
-  g ret [] = ret
-  g ret ((x, n):xs)
-    | any (p x) ret = g (map (h (x, n)) ret) xs
-    | otherwise     = g (ret ++ [((x, n), 1)]) xs
-  p :: SymbolExpr -> ((SymbolExpr, Integer), Integer) -> Bool
-  p (Quote x) ((Quote y, _),_) = x == y || mathNegate x == y
-  p x         ((y, _),_)       = x == y
-  h :: (SymbolExpr, Integer) -> ((SymbolExpr, Integer), Integer) -> ((SymbolExpr, Integer), Integer)
-  h (Quote x, n) ((Quote y, m), sgn)
-    | x == y = ((Quote y, m + n), sgn)
-    | x == mathNegate y = if even n then ((Quote y, m + n), sgn) else ((Quote y, m + n), -1 * sgn)
-    | otherwise = ((Quote y, m), sgn)
-  h (x, n) ((y, m), sgn) = if x == y
-                             then ((y, m + n), sgn)
-                             else ((y, m), sgn)
+  f (Term a xs) =
+    let (sgn, ys) = g xs in Term (sgn * a) ys
+  g :: Monomial -> (Integer, Monomial)
+  g [] = (1, [])
+  g ((x, m):xs) =
+    match dfs (x, xs) (Pair SymbolM (Multiset (Pair SymbolM Eql)))
+      [ [mc| (quote $s, (negQuote #s, $n) : $xs) ->
+               let (sgn, ys) = g ((x, m + n) : xs) in
+               if even n then (sgn, ys) else (- sgn, ys) |]
+      , [mc| (_, (#x, $n) : $xs) -> g ((x, m + n) : xs) |]
+      , [mc| _ -> let (sgn', ys) = g xs in (sgn', (x, m):ys) |]
+      ]
 
 -- x^2 y + x^2 y -> 2 x^2 y
 mathTermFold :: ScalarData -> ScalarData
 mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
  where
   f :: [TermExpr] -> [TermExpr]
-  f = f' []
-  f' :: [TermExpr] -> [TermExpr] -> [TermExpr]
-  f' ret [] = ret
-  f' ret (Term a xs:ts) =
-    if any (\(Term _ ys) -> isJust (p 1 xs ys)) ret
-      then f' (map (g (Term a xs)) ret) ts
-      else f' (ret ++ [Term a xs]) ts
-  g :: TermExpr -> TermExpr -> TermExpr
-  g (Term a xs) (Term b ys) =
-    case p 1 xs ys of
-      Just sgn -> Term ((sgn * a) + b) ys
-      Nothing  -> Term b ys
-  p :: Integer -> Monomial -> Monomial -> Maybe Integer
-  p sgn [] [] = return sgn
-  p _   [] _  = Nothing
-  p sgn ((x, n):xs) ys =
-    case q (x, n) [] ys of
-      Just (ys', sgn2) -> p (sgn * sgn2) xs ys'
-      Nothing          -> Nothing
-  q :: (SymbolExpr, Integer) -> Monomial -> Monomial -> Maybe (Monomial, Integer)
-  q _ _ [] = Nothing
-  q (Quote x, n) ret ((Quote y, m):ys)
-    | x == y && n == m            = return (ret ++ ys, 1)
-    | mathNegate x == y && n == m = return $ if even n then (ret ++ ys, 1) else (ret ++ ys, -1)
-    | otherwise                   = q (Quote x, n) (ret ++ [(Quote y, m)]) ys
-  q (Quote x, n) ret ((y,m):ys) = q (Quote x, n) (ret ++ [(y, m)]) ys
-  q (x, n) ret ((y, m):ys) =
-    if x == y && n == m then return (ret ++ ys, 1)
-                        else q (x, n) (ret ++ [(y, m)]) ys
+  f [] = []
+  f (t:ts) =
+    -- TODO(momohatt): Can we write this without isJust and fromJust?
+    match dfs (t, ts) (Pair TermM (Multiset TermM))
+      [ [mc| (term $a $xs, term $b ($ys & ?(isJust . isEqualMonomial xs)) : $tss) ->
+               let sgn = fromJust $ isEqualMonomial xs ys in
+               f (Term (sgn * a + b) ys : tss) |]
+      , [mc| _ -> t : f ts |]
+      ]
+
+  isEqualMonomial :: Monomial -> Monomial -> Maybe Integer
+  isEqualMonomial xs ys =
+    match dfs (xs, ys) (Pair (Multiset (Pair SymbolM Eql)) (Multiset (Pair SymbolM Eql)))
+      [ [mc| ((quote $s, $n) : $xss, (negQuote #s, #n) : $yss) ->
+               case isEqualMonomial xss yss of
+                 Nothing -> Nothing
+                 Just sgn -> return (if even n then sgn else - sgn) |]
+      , [mc| (($x, $n) : $xss, (#x, #n) : $yss) -> isEqualMonomial xss yss |]
+      , [mc| ([], []) -> return 1 |]
+      , [mc| _ -> Nothing |]
+      ]
 
 --
 --  Arithmetic operations
