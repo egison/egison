@@ -39,7 +39,7 @@ module Language.Egison.MathExpr
 import           Prelude                   hiding (div, foldr, mappend, mconcat)
 import qualified Prelude                   as Prelude
 import           Data.List                 (elemIndex, intercalate)
-import           Data.Maybe                (isJust)
+import           Data.Maybe                (isJust, fromJust)
 
 import           Control.Monad             ( MonadPlus(..) )
 import           Control.Egison
@@ -333,27 +333,24 @@ mathTermFold :: ScalarData -> ScalarData
 mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
  where
   f :: [TermExpr] -> [TermExpr]
-  f = f' []
-  f' :: [TermExpr] -> [TermExpr] -> [TermExpr]
-  f' ret [] = ret
-  f' ret (Term a xs:ts) =
-    if any (\(Term _ ys) -> isJust (isEqualTerm xs ys)) ret
-      then f' (map (g (Term a xs)) ret) ts
-      else f' (ret ++ [Term a xs]) ts
-  g :: TermExpr -> TermExpr -> TermExpr
-  g (Term a xs) (Term b ys) =
-    case isEqualTerm xs ys of
-      Just sgn -> Term ((sgn * a) + b) ys
-      Nothing  -> Term b ys
+  f [] = []
+  f (t:ts) =
+    -- TODO(momohatt): Can we write this without isJust and fromJust?
+    match dfs (t, ts) (Pair TermM (Multiset TermM))
+      [ [mc| (term $a $xs, term $b ($ys & ?(isJust . isEqualMonomial xs)) : $tss) ->
+               let sgn = fromJust $ isEqualMonomial xs ys in
+               f (Term (sgn * a + b) ys : tss) |]
+      , [mc| _ -> t : f ts |]
+      ]
 
-  isEqualTerm :: Monomial -> Monomial -> Maybe Integer
-  isEqualTerm xs ys =
+  isEqualMonomial :: Monomial -> Monomial -> Maybe Integer
+  isEqualMonomial xs ys =
     match dfs (xs, ys) (Pair (Multiset (Pair SymbolM Eql)) (Multiset (Pair SymbolM Eql)))
       [ [mc| ((quote $s, $n) : $xss, (negQuote #s, #n) : $yss) ->
-               case isEqualTerm xss yss of
+               case isEqualMonomial xss yss of
                  Nothing -> Nothing
                  Just sgn -> return (if even n then sgn else - sgn) |]
-      , [mc| (($x, $n) : $xss, (#x, #n) : $yss) -> isEqualTerm xss yss |]
+      , [mc| (($x, $n) : $xss, (#x, #n) : $yss) -> isEqualMonomial xss yss |]
       , [mc| ([], []) -> return 1 |]
       , [mc| _ -> Nothing |]
       ]
