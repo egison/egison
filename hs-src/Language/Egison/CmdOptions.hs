@@ -80,12 +80,12 @@ cmdArgParser = EgisonOpts
                   <> long "substitute"
                   <> metavar "EXPR"
                   <> help "Operate input in tsv format as infinite stream"))
-            <*> optional ((\s -> "1#(map (" ++ s ++ ") %1)") <$> strOption
+            <*> optional (strOption
                   (short 'm'
                   <> long "map"
                   <> metavar "EXPR"
                   <> help "Operate input in tsv format line by line"))
-            <*> optional ((\s -> "1#(filter (" ++ s ++ ") %1)") <$> strOption
+            <*> optional (strOption
                   (short 'f'
                   <> long "filter"
                   <> metavar "EXPR"

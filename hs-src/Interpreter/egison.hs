@@ -78,6 +78,15 @@ run = do
         EgisonOpts { optExecFile = Just (file, args) } -> do
           result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map (StringExpr . T.pack) args)))]
           liftIO $ either print (const $ return ()) result
+        EgisonOpts { optMapTsvInput = Just expr } -> do
+          executeEgisonTopExpr env $
+            "load \"lib/core/shell.egi\"\n"
+            ++ if optTsvOutput opts then "execute (TSV.map (" ++ expr ++ ") showTsv)"
+                                    else "execute (TSV.map (" ++ expr ++ ") show)"
+        EgisonOpts { optFilterTsvInput = Just expr } -> do
+          executeEgisonTopExpr env $
+            "load \"lib/core/shell.egi\"\n"
+            ++ "execute (TSV.filter (" ++ expr ++ "))"
         -- Start the read-eval-print-loop
         _ -> do
           when (optShowBanner opts) (liftIO showBanner)
