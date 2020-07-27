@@ -12,6 +12,7 @@ module Language.Egison.CmdOptions
   ) where
 
 import           Data.Char           (isDigit)
+import           Data.List           (intercalate)
 import           Options.Applicative
 
 data EgisonOpts = EgisonOpts {
@@ -80,12 +81,12 @@ cmdArgParser = EgisonOpts
                   <> long "substitute"
                   <> metavar "EXPR"
                   <> help "Operate input in tsv format as infinite stream"))
-            <*> optional ((\s -> "1#(map (" ++ s ++ ") %1)") <$> strOption
+            <*> optional (strOption
                   (short 'm'
                   <> long "map"
                   <> metavar "EXPR"
                   <> help "Operate input in tsv format line by line"))
-            <*> optional ((\s -> "1#(filter (" ++ s ++ ") %1)") <$> strOption
+            <*> optional (strOption
                   (short 'f'
                   <> long "filter"
                   <> metavar "EXPR"
@@ -125,15 +126,19 @@ cmdArgParser = EgisonOpts
 
 readFieldOption :: String -> (String, String)
 readFieldOption str =
-   let (s, rs) = span isDigit str in
-   case rs of
-     ',':rs' -> let (e, opts) = span isDigit rs' in
-                case opts of
-                  ['s'] -> ("{" ++ s ++ " " ++ e ++ "}", "")
-                  ['c'] -> ("{}", "{" ++ s ++ " " ++ e ++ "}")
-                  ['s', 'c'] -> ("{" ++ s ++ " " ++ e ++ "}", "{" ++ s ++ " " ++ e ++ "}")
-                  ['c', 's'] -> ("{" ++ s ++ " " ++ e ++ "}", "{" ++ s ++ " " ++ e ++ "}")
-     ['s'] -> ("{" ++ s ++ "}", "")
-     ['c'] -> ("", "{" ++ s ++ "}")
-     ['s', 'c'] -> ("{" ++ s ++ "}", "{" ++ s ++ "}")
-     ['c', 's'] -> ("{" ++ s ++ "}", "{" ++ s ++ "}")
+  let (s, c) = readFieldOption' str in (f s, f c)
+    where
+      f x = "[" ++ intercalate ", " x ++ "]"
+      readFieldOption' str =
+        let (s, rs) = span isDigit str in
+        case rs of
+          ',':rs' -> let (e, opts) = span isDigit rs' in
+                     case opts of
+                       ['s'] -> ([s, e], [])
+                       ['c'] -> ([], [s, e])
+                       ['s', 'c'] -> ([s, e], [s, e])
+                       ['c', 's'] -> ([s, e], [s, e])
+          ['s'] -> ([s], [])
+          ['c'] -> ([], [s])
+          ['s', 'c'] -> ([s], [s])
+          ['c', 's'] -> ([s], [s])

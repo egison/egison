@@ -67,29 +67,26 @@ import           Language.Egison.Tensor
 --
 
 collectDefs :: EgisonOpts -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
-collectDefs opts exprs | optTestOnly opts = collectDefs' opts exprs [] []
-collectDefs opts exprs = do
-  (bindings, _) <- collectDefs' opts exprs [] []
-  return (bindings, [])
-
-collectDefs' :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
-collectDefs' opts (expr:exprs) bindings rest =
-  case expr of
-    Define name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
-    DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-    Redefine{} -> collectDefs' opts exprs bindings (expr : rest)
-    Test{}     -> collectDefs' opts exprs bindings (expr : rest)
-    Execute{}  -> collectDefs' opts exprs bindings (expr : rest)
-    LoadFile _ | optNoIO opts -> throwError (Default "No IO support")
-    LoadFile file -> do
-      exprs' <- loadFile file
-      collectDefs' opts (exprs' ++ exprs) bindings rest
-    Load _ | optNoIO opts -> throwError (Default "No IO support")
-    Load file -> do
-      exprs' <- loadLibraryFile file
-      collectDefs' opts (exprs' ++ exprs) bindings rest
-    InfixDecl{} -> collectDefs' opts exprs bindings rest
-collectDefs' _ [] bindings rest = return (bindings, reverse rest)
+collectDefs opts exprs = collectDefs' opts exprs [] []
+  where
+    collectDefs' :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
+    collectDefs' opts (expr:exprs) bindings rest =
+      case expr of
+        Define name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
+        DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
+        Redefine{} -> collectDefs' opts exprs bindings (expr : rest)
+        Test{}     -> collectDefs' opts exprs bindings (expr : rest)
+        Execute{}  -> collectDefs' opts exprs bindings (expr : rest)
+        LoadFile _ | optNoIO opts -> throwError (Default "No IO support")
+        LoadFile file -> do
+          exprs' <- loadFile file
+          collectDefs' opts (exprs' ++ exprs) bindings rest
+        Load _ | optNoIO opts -> throwError (Default "No IO support")
+        Load file -> do
+          exprs' <- loadLibraryFile file
+          collectDefs' opts (exprs' ++ exprs) bindings rest
+        InfixDecl{} -> collectDefs' opts exprs bindings rest
+    collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
 evalTopExpr' :: Env -> EgisonTopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr' env (Define name expr) = do
