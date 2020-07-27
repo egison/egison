@@ -110,6 +110,7 @@ instance ValuePattern ScalarM ScalarData where
 instance ValuePattern SymbolM SymbolExpr where
   value e () SymbolM v = if e == v then pure () else mzero
 
+-- TODO(momohatt): Delete this after sweet-egison 0.1.0.3
 instance ValuePattern (Pair SymbolM Eql) (SymbolExpr, Integer) where
   value (e1, e2) () (Pair SymbolM Eql) (v1, v2) =
     if e1 == v1 && e2 == v2 then pure () else mzero
