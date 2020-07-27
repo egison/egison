@@ -1,10 +1,9 @@
-SH.genInput sopts copts := do
-  let eof := isEof ()
-  if eof
-    then return []
-    else do let line := readLine ()
-            return (let x := TSV.parseLine sopts copts line
-                     in seq x (x :: SH.genInput sopts copts))
+SH.genInput sopts copts :=
+  if io isEof ()
+    then []
+    else let line := io readLine ()
+             x := TSV.parseLine sopts copts line
+          in seq x (x :: SH.genInput sopts copts)
 
 TSV.map fn showFn := do
   let eof := isEof ()
