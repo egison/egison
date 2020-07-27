@@ -65,7 +65,8 @@ run = do
               copts' = "[" ++ intercalate ", " copts ++ "]"
               expr = "load \"lib/core/shell.egi\"\n"
                   ++ "execute (let SH.input := SH.genInput " ++ sopts' ++ " " ++ copts' ++ "\n"
-                  ++ "          in each (\\x -> print (" ++ if optTsvOutput opts then "showTsv" else "show" ++ " x)) (" ++ sub ++ " SH.input))"
+                  ++ if optTsvOutput opts then ("          in each (\\x -> print (showTsv x)) ((" ++ sub ++ ") SH.input))")
+                                          else ("          in each (\\x -> print (show x)) ((" ++ sub ++ ") SH.input))")
             in executeEgisonTopExpr env expr
         -- Execute a script (test only)
         EgisonOpts { optTestOnly = True, optExecFile = Just (file, _) } -> do
