@@ -32,7 +32,7 @@ module Language.Egison.MathExpr
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
-import           Data.List                 (elemIndex, intercalate)
+import           Data.List                 (intercalate)
 
 import           Control.Monad             ( MonadPlus(..) )
 import           Control.Egison
@@ -126,33 +126,17 @@ pattern SingleTerm :: Integer -> Monomial -> ScalarData
 pattern SingleTerm coeff mono = Div (Plus [Term coeff mono]) (Plus [Term 1 []])
 
 instance Eq PolyExpr where
-  (Plus []) == (Plus []) = True
-  (Plus (x:xs)) == (Plus ys) =
-    case elemIndex x ys of
-      Just i -> let (hs, _:ts) = splitAt i ys in
-                  Plus xs == Plus (hs ++ ts)
-      Nothing -> False
+  Plus xs == Plus ys =
+    match dfs ys (Multiset Eql)
+      [ [mc| #xs -> True |]
+      , [mc| _   -> False |] ]
   _ == _ = False
 
 instance Eq TermExpr where
-  (Term a []) == (Term b []) = a == b
-  (Term a ((Quote x, n):xs)) == (Term b ys)
-    | (a /= b) && (a /= -b) = False
-    | otherwise = case elemIndex (Quote x, n) ys of
-                    Just i -> let (hs, _:ts) = splitAt i ys in
-                                Term a xs == Term b (hs ++ ts)
-                    Nothing -> case elemIndex (Quote (mathNegate x), n) ys of
-                                 Just i -> let (hs, _:ts) = splitAt i ys in
-                                             if even n
-                                               then Term a xs == Term b (hs ++ ts)
-                                               else Term (-a) xs == Term b (hs ++ ts)
-                                 Nothing -> False
-  (Term a (x:xs)) == (Term b ys)
-    | (a /= b) && (a /= -b) = False
-    | otherwise = case elemIndex x ys of
-                    Just i -> let (hs, _:ts) = splitAt i ys in
-                                Term a xs == Term b (hs ++ ts)
-                    Nothing -> False
+  Term a xs == Term b ys
+    | a == b    = isEqualMonomial xs ys == Just 1
+    | a == -b   = isEqualMonomial xs ys == Just (-1)
+    | otherwise = False
   _ == _ = False
 
 class Printable a where
