@@ -33,7 +33,6 @@ module Language.Egison.MathExpr
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Data.List                 (elemIndex, intercalate)
-import           Data.Maybe                (isJust, fromJust)
 
 import           Control.Monad             ( MonadPlus(..) )
 import           Control.Egison
@@ -78,8 +77,8 @@ instance Matcher TermM TermExpr
 
 term :: Pattern (PP Integer, PP Monomial) TermM TermExpr (Integer, Monomial)
 term _ _ (Term a mono) = pure (a, mono)
-termM :: TermM -> TermExpr -> (Eql, Multiset (SymbolM, Eql))
-termM TermM _ = (Eql, Multiset (SymbolM, Eql))
+termM :: TermM -> TermExpr -> (Eql, Multiset (Pair SymbolM Eql))
+termM TermM _ = (Eql, Multiset (Pair SymbolM Eql))
 
 data SymbolM = SymbolM
 instance Matcher SymbolM SymbolExpr
@@ -96,11 +95,25 @@ negQuote _ _ _         = mzero
 negQuoteM :: SymbolM -> p -> ScalarM
 negQuoteM SymbolM _ = ScalarM
 
+equalMonomial :: Pattern (PP Integer, PP Monomial) (Multiset (Pair SymbolM Eql)) Monomial (Integer, Monomial)
+equalMonomial (_, VP xs) _ ys = case isEqualMonomial xs ys of
+                                  Just sgn -> pure (sgn, xs)
+                                  Nothing  -> mzero
+equalMonomial _ _ _ = mzero
+equalMonomialM :: Multiset (Pair SymbolM Eql) -> p -> (Eql, Multiset (Pair SymbolM Eql))
+equalMonomialM (Multiset (Pair SymbolM Eql)) _ = (Eql, Multiset (Pair SymbolM Eql))
+
+
 instance ValuePattern ScalarM ScalarData where
   value e () ScalarM v = if e == v then pure () else mzero
 
 instance ValuePattern SymbolM SymbolExpr where
   value e () SymbolM v = if e == v then pure () else mzero
+
+instance ValuePattern (Pair SymbolM Eql) (SymbolExpr, Integer) where
+  value (e1, e2) () (Pair SymbolM Eql) (v1, v2) =
+    if e1 == v1 && e2 == v2 then pure () else mzero
+
 
 pattern ZeroExpr :: ScalarData
 pattern ZeroExpr = (Div (Plus []) (Plus [Term 1 []]))
@@ -321,25 +334,23 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
   f :: [TermExpr] -> [TermExpr]
   f [] = []
   f (t:ts) =
-    -- TODO(momohatt): Can we write this without isJust and fromJust?
     match dfs (t, ts) (Pair TermM (Multiset TermM))
-      [ [mc| (term $a $xs, term $b ($ys & ?(isJust . isEqualMonomial xs)) : $tss) ->
-               let sgn = fromJust $ isEqualMonomial xs ys in
+      [ [mc| (term $a $xs, term $b ($ys & equalMonomial $sgn #xs) : $tss) ->
                f (Term (sgn * a + b) ys : tss) |]
       , [mc| _ -> t : f ts |]
       ]
 
-  isEqualMonomial :: Monomial -> Monomial -> Maybe Integer
-  isEqualMonomial xs ys =
-    match dfs (xs, ys) (Pair (Multiset (Pair SymbolM Eql)) (Multiset (Pair SymbolM Eql)))
-      [ [mc| ((quote $s, $n) : $xss, (negQuote #s, #n) : $yss) ->
-               case isEqualMonomial xss yss of
-                 Nothing -> Nothing
-                 Just sgn -> return (if even n then sgn else - sgn) |]
-      , [mc| (($x, $n) : $xss, (#x, #n) : $yss) -> isEqualMonomial xss yss |]
-      , [mc| ([], []) -> return 1 |]
-      , [mc| _ -> Nothing |]
-      ]
+isEqualMonomial :: Monomial -> Monomial -> Maybe Integer
+isEqualMonomial xs ys =
+  match dfs (xs, ys) (Pair (Multiset (Pair SymbolM Eql)) (Multiset (Pair SymbolM Eql)))
+    [ [mc| ((quote $s, $n) : $xss, (negQuote #s, #n) : $yss) ->
+             case isEqualMonomial xss yss of
+               Nothing -> Nothing
+               Just sgn -> return (if even n then sgn else - sgn) |]
+    , [mc| (($x, $n) : $xss, (#x, #n) : $yss) -> isEqualMonomial xss yss |]
+    , [mc| ([], []) -> return 1 |]
+    , [mc| _ -> Nothing |]
+    ]
 
 --
 --  Arithmetic operations
