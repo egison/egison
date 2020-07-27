@@ -4,50 +4,66 @@ SH.genInput sopts copts :=
     else let x := io TSV.readLine sopts copts
           in seq x (x :: SH.genInput sopts copts)
 
+TSV.map fn showFn := do
+  let eof := isEof ()
+  if eof
+     then return ()
+     else do let line := readLine ()
+             print (showFn (fn (readTsv line)))
+             TSV.map fn showFn
+
+TSV.filter fn := do
+  let eof := isEof ()
+  if eof
+     then return ()
+     else do let line := readLine ()
+             if fn (readTsv line) then print line else return ()
+             TSV.filter fn
+
 TSV.readLine sopts copts :=
   do let line := readLine ()
      let fs := S.split "\t" line
-      in let fnS := \match as (list (list integer), list string) with
-                      | ([], $fs) -> fs
-                      | ( [$m] :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $ts ) ->
-                        fnS
-                          opts'
-                          (hs ++ map (\t -> S.concat ["\"", t, "\""]) ts)
-                      | ( [$m, #m] :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
-                        fnS opts' (hs ++ S.concat ["\"", mf, "\""] :: ts)
-                      | ( [$m, $n] :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length hs)) ++
-                          ($ms & ?(\ms -> n - m + 1 = length ms)) ++ $ts ) ->
-                        fnS
-                          opts'
-                          (hs ++ map (\m -> S.concat ["\"", m, "\""]) ms ++ ts)
-                      | ([$m, _] :: $opts', _) -> fnS ([m] :: opts') fs
-                      | (_, _) -> fs
-             fnC := \match as (list (list integer), list string) with
-                      | ([], $fs) -> fs
-                      | ( [$m] :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ [$mf] ) ->
-                        fnC opts' (hs ++ [S.concat ["{", mf, "}"]])
-                      | ( [$m] :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf ::
-                          snoc $tf $ms ) ->
-                        fnC
-                          opts'
-                          (hs ++ S.append "{" mf :: ms ++ [S.append tf "}"])
-                      | ( [$m, #m] :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
-                        fnC opts' (hs ++ S.concat ["{", mf, "}"] :: ts)
-                      | ( [$m, $n] :: $opts'
-                        , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf ::
-                          ($ms & ?(\ms -> n - m - 1 = length ms)) ++ $nf ::
-                          $ts ) ->
-                        fnC
-                          opts'
-                          (hs ++ S.append "{" mf :: ms ++ S.append nf "}" :: ts)
-                      | ([$m, _] :: $opts', _) -> fnC ([m] :: opts') fs
-                      | (_, _) -> fs
-          in return (readTsv (S.intercalate "\t" (fnC copts (fnS sopts fs))))
+     let fnS := \match as (list (list integer), list string) with
+                  | ([], $fs) -> fs
+                  | ( [$m] :: $opts'
+                    , ($hs & ?(\hs -> m - 1 = length hs)) ++ $ts ) ->
+                    fnS
+                      opts'
+                      (hs ++ map (\t -> S.concat ["\"", t, "\""]) ts)
+                  | ( [$m, #m] :: $opts'
+                    , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
+                    fnS opts' (hs ++ S.concat ["\"", mf, "\""] :: ts)
+                  | ( [$m, $n] :: $opts'
+                    , ($hs & ?(\hs -> m - 1 = length hs)) ++
+                      ($ms & ?(\ms -> n - m + 1 = length ms)) ++ $ts ) ->
+                    fnS
+                      opts'
+                      (hs ++ map (\m -> S.concat ["\"", m, "\""]) ms ++ ts)
+                  | ([$m, _] :: $opts', _) -> fnS ([m] :: opts') fs
+                  | (_, _) -> fs
+     let fnC := \match as (list (list integer), list string) with
+                  | ([], $fs) -> fs
+                  | ( [$m] :: $opts'
+                    , ($hs & ?(\hs -> m - 1 = length hs)) ++ [$mf] ) ->
+                    fnC opts' (hs ++ [S.concat ["{", mf, "}"]])
+                  | ( [$m] :: $opts'
+                    , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf ::
+                      snoc $tf $ms ) ->
+                    fnC
+                      opts'
+                      (hs ++ S.append "{" mf :: ms ++ [S.append tf "}"])
+                  | ( [$m, #m] :: $opts'
+                    , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf :: $ts ) ->
+                    fnC opts' (hs ++ S.concat ["{", mf, "}"] :: ts)
+                  | ( [$m, $n] :: $opts'
+                    , ($hs & ?(\hs -> m - 1 = length hs)) ++ $mf ::
+                      ($ms & ?(\ms -> n - m - 1 = length ms)) ++ $nf ::
+                      $ts ) ->
+                    fnC
+                      opts'
+                      (hs ++ S.append "{" mf :: ms ++ S.append nf "}" :: ts)
+                  | ([$m, _] :: $opts', _) -> fnC ([m] :: opts') fs
+                  | (_, _) -> fs
+     return (readTsv (S.intercalate "\t" (fnC copts (fnS sopts fs))))
 
 TSV.show := showTsv

@@ -486,7 +486,7 @@ read'= oneArg' $ \val -> do
 readTSV :: PrimitiveFunc
 readTSV= oneArg' $ \val -> do
   str   <- fromEgison val
-  exprs <- readExprs False (T.unpack str)
+  exprs <- mapM (readExpr False . T.unpack) (T.split (== '\t') str)
   rets  <- mapM (evalExprDeep nullEnv) exprs
   case rets of
     [ret] -> return ret
