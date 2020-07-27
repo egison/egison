@@ -267,6 +267,8 @@ splitAs a sep ls :=
     | $xs ++ #sep ++ $rs -> xs :: splitAs a sep rs
     | _ -> [ls]
 
+splitAt n ls := (take n ls, drop n ls)
+
 findCycle xs :=
   head
     (matchAll xs as list something with

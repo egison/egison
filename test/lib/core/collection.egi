@@ -249,6 +249,18 @@ assertEqual "splitAs"
   (splitAs integer [0] [1, 2, 0, 3, 3, 0, 4, 0])
   [[1, 2], [3, 3], [4], []]
 
+assertEqual "splitAt"
+  (splitAt 0 [1, 2, 3])
+  ([], [1, 2, 3])
+
+assertEqual "splitAt"
+  (splitAt 2 [1, 2, 3])
+  ([1, 2], [3])
+
+assertEqual "splitAt"
+  (splitAt 4 [1, 2, 3])
+  ([1, 2, 3], [])
+
 assertEqual "findCycle"
   (findCycle [1, 3, 4, 5, 2, 7, 5, 2, 7, 5, 2, 7])
   ([1, 3, 4], [5, 2, 7])
