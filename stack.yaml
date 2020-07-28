@@ -7,4 +7,4 @@ extra-deps:
 - egison-pattern-src-0.2.1.0@sha256:8f4e72f25abb4f6cf8f1283774ae0d5030c44dad32838de2423c8f9644529c78,4197
 - egison-pattern-src-th-mode-0.2.1.0@sha256:0f1325347152dbdb1c9a34aa35feb051816d3f4f690d6d0f02c44425d12f668e,2703
 - backtracking-0.1.0@sha256:ccfa0a7ab8b70d383fced32b0474b4b51b607ca38d85ce1ef5846ca650502054,1825
-- sweet-egison-0.1.0.2
+- sweet-egison-0.1.0.3

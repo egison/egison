@@ -110,11 +110,6 @@ instance ValuePattern ScalarM ScalarData where
 instance ValuePattern SymbolM SymbolExpr where
   value e () SymbolM v = if e == v then pure () else mzero
 
--- TODO(momohatt): Delete this after sweet-egison 0.1.0.3
-instance ValuePattern (Pair SymbolM Eql) (SymbolExpr, Integer) where
-  value (e1, e2) () (Pair SymbolM Eql) (v1, v2) =
-    if e1 == v1 && e2 == v2 then pure () else mzero
-
 
 pattern ZeroExpr :: ScalarData
 pattern ZeroExpr = (Div (Plus []) (Plus [Term 1 []]))
@@ -131,14 +126,12 @@ instance Eq PolyExpr where
     match dfs ys (Multiset Eql)
       [ [mc| #xs -> True |]
       , [mc| _   -> False |] ]
-  _ == _ = False
 
 instance Eq TermExpr where
   Term a xs == Term b ys
     | a == b    = isEqualMonomial xs ys == Just 1
     | a == -b   = isEqualMonomial xs ys == Just (-1)
     | otherwise = False
-  _ == _ = False
 
 class Printable a where
   isAtom :: a -> Bool
