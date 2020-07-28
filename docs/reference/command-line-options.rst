@@ -89,19 +89,18 @@ When the evaluation result is a collection of collections or a collection of tup
 Reading TSV input
 =================
 
-The follogin 3 options ( ``-s``, ``-m`` and ``-f``) allow you to work on the input in TSV format.
-
+The following 3 options ( ``-s``, ``-m`` and ``-f``) allow you to work on the input in TSV format.
 Each line of the input is interpreted as a tuple.
 
 
 ``-s`` / ``--substitute``
 -------------------------
 
-Regard the input as an infinite list and apply the given function on it.
+Regard the input as a collection and apply the given function to it.
 
 ::
 
-   $ seq 10 20 | stack exec -- egison -s '\matchAll as list integer with _ ++ $x :: _ ++ #(x + 5) :: _ -> x'
+   $ seq 10 20 | egison -s '\matchAll as list integer with _ ++ $x :: _ ++ #(x + 5) :: _ -> x'
    10
    11
    12
@@ -117,7 +116,7 @@ Read the input line by line, apply the given function and print out the result.
 
 ::
 
-   $ seq 1 5 | stack exec -- egison -m '\x -> x + 2'
+   $ seq 1 5 | egison -m '\x -> x + 2'
    3
    4
    5
@@ -128,11 +127,11 @@ Read the input line by line, apply the given function and print out the result.
 ---------------------
 
 Regard the input line by line, apply the given function and display the input only if the result is ``True``.
-``egison -m 'f'`` is equivalent to ``egison -s '\x -> filter f x'``.
+``egison -f 'f'`` is equivalent to ``egison -s '\x -> filter f x'``.
 
 ::
 
-   $ seq 1 10 | stack exec -- egison -f 'isPrime'
+   $ seq 1 10 | egison -f 'isPrime'
    2
    3
    5
