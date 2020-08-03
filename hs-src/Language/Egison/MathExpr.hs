@@ -86,8 +86,6 @@ instance Matcher SymbolM SymbolExpr
 quote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
 quote _ _ (Quote m) = pure m
 quote _ _ _         = mzero
-quoteM :: SymbolM -> p -> ScalarM
-quoteM SymbolM _ = ScalarM
 
 negQuote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
 negQuote _ _ (Quote m) = pure (mathNegate m)
