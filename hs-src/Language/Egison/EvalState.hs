@@ -14,7 +14,7 @@ module Language.Egison.EvalState
 import           Control.Monad.Except
 
 
-data EvalState = EvalState
+newtype EvalState = EvalState
   -- Names of called functions for improved error message
   { funcNameStack :: [String]
   }

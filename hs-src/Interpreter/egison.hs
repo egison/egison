@@ -1,6 +1,4 @@
 {-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE MultiWayIf    #-}
-{-# LANGUAGE TupleSections #-}
 
 module Main where
 
@@ -33,7 +31,7 @@ main :: IO ()
 main = execParser cmdParser >>= runWithOptions
 
 isInValidMathOption :: EgisonOpts -> Bool
-isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = notElem lang ["asciimath", "latex", "mathematica", "maxima", "haskell"]
+isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = lang `notElem` ["asciimath", "latex", "mathematica", "maxima", "haskell"]
 isInValidMathOption EgisonOpts{ optMathExpr = Nothing } = False
 
 runWithOptions :: EgisonOpts -> IO ()
@@ -68,8 +66,8 @@ handleOption env opts =
           copts' = "[" ++ intercalate ", " copts ++ "]"
           expr = "load \"lib/core/shell.egi\"\n"
               ++ "execute (let SH.input := SH.genInput " ++ sopts' ++ " " ++ copts' ++ "\n"
-              ++ if optTsvOutput opts then ("          in each (\\x -> print (showTsv x)) ((" ++ sub ++ ") SH.input))")
-                                      else ("          in each (\\x -> print (show x)) ((" ++ sub ++ ") SH.input))")
+              ++ if optTsvOutput opts then "          in each (\\x -> print (showTsv x)) ((" ++ sub ++ ") SH.input))"
+                                      else "          in each (\\x -> print (show x)) ((" ++ sub ++ ") SH.input))"
         in executeEgisonTopExpr env expr
     -- Execute a script (test only)
     EgisonOpts { optTestOnly = True, optExecFile = Just (file, _) } -> do
@@ -84,7 +82,7 @@ handleOption env opts =
       liftIO $ either print (const $ return ()) result
     EgisonOpts { optMapTsvInput = Just expr } ->
       handleOption env (opts { optSubstituteString = Just $ "\\x -> map (" ++ expr ++ ") x" })
-    EgisonOpts { optFilterTsvInput = Just expr } -> do
+    EgisonOpts { optFilterTsvInput = Just expr } ->
       handleOption env (opts { optSubstituteString = Just $ "\\x -> filter (" ++ expr ++ ") x" })
     -- Start the read-eval-print-loop
     _ -> do
@@ -110,8 +108,8 @@ executeEgisonTopExpr env expr = do
 showBanner :: IO ()
 showBanner = do
   putStrLn $ "Egison Version " ++ showVersion version
-  putStrLn $ "https://www.egison.org"
-  putStrLn $ "Welcome to Egison Interpreter!"
+  putStrLn   "https://www.egison.org"
+  putStrLn   "Welcome to Egison Interpreter!"
 --  putStrLn $ "** Information **"
 --  putStrLn $ "We can use the tab key to complete keywords on the interpreter."
 --  putStrLn $ "If we press the tab key after a closed parenthesis, the next closed parenthesis will be completed."

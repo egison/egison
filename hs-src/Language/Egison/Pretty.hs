@@ -269,7 +269,7 @@ instance Pretty EgisonPattern where
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (InfixExpr (Op { repr = "-'" }) _ (IntegerExpr 1))) pat) =
+                                    (InfixExpr Op{ repr = "-'" } _ (IntegerExpr 1))) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
@@ -349,12 +349,12 @@ instance Complex EgisonPattern where
   isAtom (PApplyPat _ _)     = False
   isAtom _                   = True
 
-  isAtomOrApp PApplyPat{} = True
+  isAtomOrApp PApplyPat{}    = True
   isAtomOrApp InductivePat{} = True
-  isAtomOrApp e           = isAtom e
+  isAtomOrApp e              = isAtom e
 
-  isInfix (InfixPat _ _ _)   = True
-  isInfix _                  = False
+  isInfix InfixPat{} = True
+  isInfix _          = False
 
 instance Complex PrimitiveDataPattern where
   isAtom (PDInductivePat _ []) = True
@@ -367,8 +367,8 @@ instance Complex PrimitiveDataPattern where
   isAtomOrApp PDSnocPat{}      = True
   isAtomOrApp e                = isAtom e
 
-  isInfix (PDConsPat _ _) = True
-  isInfix _               = False
+  isInfix PDConsPat{} = True
+  isInfix _           = False
 
 pretty' :: (Pretty a, Complex a) => a -> Doc ann
 pretty' x | isAtom x  = pretty x

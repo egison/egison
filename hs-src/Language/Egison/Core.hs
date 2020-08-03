@@ -886,9 +886,9 @@ processMState state =
                                    let mat' = makeTuple ms
                                    tgt' <- makeITuple ts
                                    processMStatesAllDFSForall (msingleton (MState e' l' (ForallPatContext [] []:s') b' [MAtom p2 tgt' mat']))) states
-             b <- mAny (\s -> case s of
-                                MNil -> return True
-                                _ -> return False) statess'
+             b <- mAny (\case
+                          MNil -> return True
+                          _ -> return False) statess'
              if b
                then return MNil
 --               else return MNil
