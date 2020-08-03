@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE QuasiQuotes                #-}
@@ -294,7 +293,7 @@ instance Show EgisonValue where
   show (TensorData (Tensor [_, j] xs js)) = "[| " ++ intercalate ", " (f (fromIntegral j) (V.toList xs)) ++ " |]" ++ concatMap show js
     where
       f _ [] = []
-      f j xs = ["[| " ++ intercalate ", " (map show (take j xs)) ++ " |]"] ++ f j (drop j xs)
+      f j xs = ("[| " ++ intercalate ", " (map show (take j xs)) ++ " |]") : f j (drop j xs)
   show (TensorData (Tensor ns xs js)) = "(tensor [" ++ intercalate ", " (map show ns) ++ "] [" ++ intercalate ", " (map show (V.toList xs)) ++ "] )" ++ concatMap show js
   show (Float x) = show x
   show (InductiveData name vals) = name ++ concatMap ((' ':) . show') vals
@@ -373,8 +372,8 @@ instance EgisonData Bool where
   fromEgison val      = throwError =<< TypeMismatch "bool" (Value val) <$> getFuncNameStack
 
 instance EgisonData Integer where
-  toEgison 0 = ScalarData $ mathNormalize' (Div (Plus []) (Plus [Term 1 []]))
-  toEgison i = ScalarData $ mathNormalize' (SingleTerm i [])
+  toEgison 0 = ScalarData (Div (Plus []) (Plus [Term 1 []]))
+  toEgison i = ScalarData (SingleTerm i [])
   fromEgison (ScalarData (Div (Plus []) (Plus [Term 1 []]))) = return 0
   fromEgison (ScalarData (SingleTerm x [])) = return x
   fromEgison val = throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack

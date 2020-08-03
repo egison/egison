@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections #-}
-
 {- |
 Module      : Language.Egison
 Licence     : MIT
@@ -104,6 +102,7 @@ runEgisonTopExpr' env input = do
   m <- fromEvalT (readTopExpr isSExpr input >>= evalTopExpr' env)
   case m of
     Right (Just val, env') -> return $ Right (Just (show val), env')
+    Right (Nothing,  env') -> return $ Right (Nothing, env')
     Left err               -> return $ Left err
 
 -- |eval Egison top expressions. Input is a Haskell string.
