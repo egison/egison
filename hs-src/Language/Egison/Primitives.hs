@@ -255,7 +255,7 @@ floatBinaryOp = binaryOp
 scalarBinaryOp :: String -> (ScalarData -> ScalarData -> ScalarData) -> PrimitiveFunc
 scalarBinaryOp name mOp = twoArgs name scalarBinaryOp'
  where
-  scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData . mathNormalize') (mOp m1 m2)
+  scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData) (mOp m1 m2)
   scalarBinaryOp' (ScalarData _)  val             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
   scalarBinaryOp' val             _               = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 

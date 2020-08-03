@@ -115,7 +115,7 @@ instance SyntaxElement EgisonExpr where
       where
         op' = op { isWedge = True }
 
-        optimize (InfixExpr (Op { repr = "*" }) (IntegerExpr (-1)) e2) =
+        optimize (InfixExpr Op{ repr = "*" } (IntegerExpr (-1)) e2) =
           PrefixExpr "-" (optimize e2)
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)
@@ -129,7 +129,7 @@ instance SyntaxElement EgisonExpr where
   toNonS (ApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
     optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where
-        optimize (InfixExpr (Op { repr = "*" }) (IntegerExpr (-1)) e2) =
+        optimize (InfixExpr Op{ repr = "*" } (IntegerExpr (-1)) e2) =
           PrefixExpr "-" (optimize e2)
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)

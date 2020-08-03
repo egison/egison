@@ -886,9 +886,9 @@ processMState state =
                                    let mat' = makeTuple ms
                                    tgt' <- makeITuple ts
                                    processMStatesAllDFSForall (msingleton (MState e' l' (ForallPatContext [] []:s') b' [MAtom p2 tgt' mat']))) states
-             b <- mAny (\s -> case s of
-                                MNil -> return True
-                                _ -> return False) statess'
+             b <- mAny (\case
+                          MNil -> return True
+                          _ -> return False) statess'
              if b
                then return MNil
 --               else return MNil
@@ -1038,8 +1038,10 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
     LaterPatVar ->
       case seqs of
         [] -> throwError $ Default "cannot use # out of seq patterns"
-        (SeqPatContext stack pat mats tgts:seqs) -> return . msingleton $ MState env loops (SeqPatContext stack pat (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
-        (ForallPatContext mats tgts:seqs) -> return . msingleton $ MState env loops (ForallPatContext (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
+        SeqPatContext stack pat mats tgts:seqs ->
+          return . msingleton $ MState env loops (SeqPatContext stack pat (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
+        ForallPatContext mats tgts:seqs ->
+          return . msingleton $ MState env loops (ForallPatContext (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
     AndPat pat1 pat2 ->
       let trees' = [MAtom pat1 target matcher, MAtom pat2 target matcher] ++ trees
        in return . msingleton $ mstate { mTrees = trees' }

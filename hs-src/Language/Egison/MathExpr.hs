@@ -2,7 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE QuasiQuotes           #-}
-{-# LANGUAGE TemplateHaskell       #-}
 
 {- |
 Module      : Language.Egison.MathExpr
@@ -258,10 +257,12 @@ mathDivideTerm (Term a xs) (Term b ys) =
       -- Because we've applied |mathFold|, we can only divide the first matching monomial
       [ [mc| (quote $s, ($x & negQuote #s, $n) : $xss) ->
                let (sgn, xs') = divMonomial xss ys in
-               if even m then (sgn, (x, n - m) : xs') else (- sgn, (x, n - m) : xs') |]
+               let sgn' = if even m then 1 else -1 in
+               if n == m then (sgn * sgn', xs')
+                         else (sgn * sgn', (x, n - m) : xs') |]
       , [mc| (_, (#y, $n) : $xss) ->
                let (sgn, xs') = divMonomial xss ys in
-               (sgn, (y, n - m) : xs') |]
+               if n == m then (sgn, xs') else (sgn, (y, n - m) : xs') |]
       , [mc| _ -> divMonomial xs ys |]
       ]
 
