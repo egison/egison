@@ -372,8 +372,8 @@ instance EgisonData Bool where
   fromEgison val      = throwError =<< TypeMismatch "bool" (Value val) <$> getFuncNameStack
 
 instance EgisonData Integer where
-  toEgison 0 = ScalarData $ mathNormalize' (Div (Plus []) (Plus [Term 1 []]))
-  toEgison i = ScalarData $ mathNormalize' (SingleTerm i [])
+  toEgison 0 = ScalarData (Div (Plus []) (Plus [Term 1 []]))
+  toEgison i = ScalarData (SingleTerm i [])
   fromEgison (ScalarData (Div (Plus []) (Plus [Term 1 []]))) = return 0
   fromEgison (ScalarData (SingleTerm x [])) = return x
   fromEgison val = throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack
