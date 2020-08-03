@@ -72,7 +72,7 @@ mathOutputTest = do
 
 mathOutputTestLatex :: Env -> RuntimeM Test
 mathOutputTestLatex env = do
-  TestLabel ("math output: latex") . TestList <$>
+  TestLabel "math output: latex" . TestList <$>
     mapM (\(x, y, z) -> makeTest x y z)
       [ ("div", "x / y", "\\frac{x}{y}")
       ]

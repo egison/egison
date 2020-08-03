@@ -1,6 +1,5 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TupleSections     #-}
 
 {- |
 Module      : Language.Egison.Desugar
@@ -84,7 +83,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMatcherClause pattern = do
         (ppat, matchers) <- genPrimitivePatPat pattern
         (dpat, body)     <- genPrimitiveDataPat pattern
-        return (ppat, TupleExpr matchers, [(dpat, CollectionExpr [TupleExpr $ body]), (PDWildCard, matchingFailure)])
+        return (ppat, TupleExpr matchers, [(dpat, CollectionExpr [TupleExpr body]), (PDWildCard, matchingFailure)])
 
         where
           genPrimitivePatPat :: (String, [EgisonExpr]) -> EvalM (PrimitivePatPattern, [EgisonExpr])
