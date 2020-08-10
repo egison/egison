@@ -82,7 +82,7 @@ import qualified Control.Egison            as M
 import           Language.Egison.AST       hiding (PatVar)
 import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
-import           Language.Egison.MathExpr
+import           Language.Egison.Math
 import           Language.Egison.RState
 
 --

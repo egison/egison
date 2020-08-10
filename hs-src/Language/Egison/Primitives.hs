@@ -44,7 +44,7 @@ import           Language.Egison.Data
 import           Language.Egison.EvalState (MonadEval(..))
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
-import           Language.Egison.MathExpr
+import           Language.Egison.Math
 import           Language.Egison.Types
 import           Language.Egison.Tensor
 
