@@ -16,9 +16,9 @@ module Language.Egison.PrettyMath.AST
 import           Data.Foldable             (toList)
 import           Text.ParserCombinators.Parsec hiding (spaces)
 
-import qualified Language.Egison.AST      as E
-import qualified Language.Egison.Data     as E
-import qualified Language.Egison.MathExpr as E
+import qualified Language.Egison.AST       as E
+import qualified Language.Egison.Data      as E
+import qualified Language.Egison.Math.Expr as E
 
 data MathExpr
   = Atom String [MathIndex]

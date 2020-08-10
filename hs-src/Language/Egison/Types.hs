@@ -22,7 +22,7 @@ module Language.Egison.Types
   ) where
 
 import           Language.Egison.Data
-import           Language.Egison.MathExpr
+import           Language.Egison.Math
 
 --
 -- Typing
