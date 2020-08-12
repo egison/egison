@@ -260,7 +260,7 @@ reservedPatternOp :: [Op]
 reservedPatternOp =
   [ Op "^"  8 InfixL False  -- PowerPat
   , Op "*"  7 InfixL False  -- MultPat
-  , Op "+"  6 InfixL False  -- PlusPat
+  , Op "+"  6 InfixR False  -- PlusPat
   , Op "::" 5 InfixR False  -- cons (desugared)
   , Op "++" 5 InfixR False  -- join (desugared)
   , Op "&"  3 InfixR False
