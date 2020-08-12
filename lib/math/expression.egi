@@ -88,27 +88,22 @@ multExpr :=
           | _ -> []
     | $ ^ #$k * $ as (mathExpr, multExpr) with
       | $tgt ->
-        match tgt as mathExpr with
-          | term _ $xs ->
-            matchAll xs as list (mathExpr, integer) with
-              | $hs ++ ($x, ?(>= k) & $n) :: $ts ->
-                (x, product' (map (^') (hs ++ (x, n - k) :: ts)))
-          | _ -> []
+        matchAll tgt as mathExpr with
+          | term _ (ncons $x #k $xs) -> (x, product' (map (^') xs))
     | $ ^ $ * $ as (mathExpr, integer, multExpr) with
       | $tgt ->
+        matchAll tgt as mathExpr with
+          | term _ (ncons $x $n $xs) -> (x, n, product' (map (^') xs))
+    | $ ^ $ as (mathExpr, integer) with
+      | $tgt ->
         match tgt as mathExpr with
-          | term _ $xs ->
-            matchAll xs as list (mathExpr, integer) with
-              | $hs ++ ($x, $n) :: $ts -> (x, n, product' (map (^') (hs ++ ts)))
+          | term _ (ncons $x $n []) -> [(x, n)]
           | _ -> []
     -- This pattern should come after the above 2.
     | $ * $ as (mathExpr, multExpr) with
       | $tgt ->
-        match tgt as mathExpr with
-          | term _ $xs ->
-            matchAll xs as assocMultiset mathExpr with
-              | $x :: $rs -> (x, product' (map (^') rs))
-          | _ -> []
+        matchAll tgt as mathExpr with
+          | term _ ($x :: $rs) -> (x, product' (map (^') rs))
     | $ as mathExpr with
       | $tgt -> [tgt]
 
