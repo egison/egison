@@ -193,7 +193,6 @@ data EgisonPattern =
   | LaterPatVar
   -- For symbolic computing
   | DApplyPat EgisonPattern [EgisonPattern]
-  | DivPat EgisonPattern EgisonPattern
   | PlusPat [EgisonPattern]
   | MultPat [EgisonPattern]
   | PowerPat EgisonPattern EgisonPattern
@@ -261,7 +260,6 @@ reservedPatternOp :: [Op]
 reservedPatternOp =
   [ Op "^"  8 InfixL False  -- PowerPat
   , Op "*"  7 InfixL False  -- MultPat
-  , Op "/"  7 InfixL False  -- DivPat
   , Op "+"  6 InfixL False  -- PlusPat
   , Op "::" 5 InfixR False  -- cons (desugared)
   , Op "++" 5 InfixR False  -- join (desugared)

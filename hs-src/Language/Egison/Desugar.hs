@@ -345,7 +345,6 @@ desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> de
    collectName (LoopPat _ (LoopRange _ _ endNumPat) pat1 pat2) = collectName endNumPat `S.union` collectName pat1 `S.union` collectName pat2
    collectName (LetPat _ pat) = collectName pat
    collectName (IndexedPat (PatVar name) _) = S.singleton $ show name
-   collectName (DivPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
    collectName (PlusPat pats) = collectNames pats
    collectName (MultPat pats) = collectNames pats
    collectName (PowerPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
@@ -386,8 +385,6 @@ desugarPatternInfix (SeqConsPat pat1 pat2) =
   SeqConsPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
 desugarPatternInfix (DApplyPat pat pats) =
   DApplyPat (desugarPatternInfix pat) (map desugarPatternInfix pats)
-desugarPatternInfix (DivPat pat1 pat2) =
-  DivPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
 desugarPatternInfix (PlusPat pats) = PlusPat (map desugarPatternInfix pats)
 desugarPatternInfix (MultPat pats) = MultPat (map desugarPatternInfix pats)
 desugarPatternInfix (PowerPat pat1 pat2) =
@@ -410,10 +407,6 @@ desugarPattern' (DApplyPat pat pats) = DApplyPat <$> desugarPattern' pat <*> map
 desugarPattern' (LoopPat name range pat1 pat2) =  LoopPat name <$> desugarLoopRange range <*> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (LetPat binds pat) = LetPat <$> desugarBindings binds <*> desugarPattern' pat
 desugarPattern' (SeqConsPat pat1 pat2)  = SeqConsPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
-desugarPattern' (DivPat pat1 pat2) = do
-  pat1' <- desugarPattern' pat1
-  pat2' <- desugarPattern' pat2
-  return $ InductivePat "div" [pat1', pat2']
 desugarPattern' (PlusPat pats) = do
   pats' <- mapM desugarPattern' (concatMap flatten pats)
   case reverse pats' of

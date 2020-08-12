@@ -178,8 +178,6 @@ instance SyntaxElement EgisonPattern where
   toNonS (PApplyPat e p) = PApplyPat (toNonS e) (map toNonS p)
   toNonS (SeqConsPat p1 p2) = SeqConsPat (toNonS p1) (toNonS p2)
   toNonS (DApplyPat p ps) = DApplyPat (toNonS p) (map toNonS ps)
-  toNonS (DivPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
-    where op = fromJust $ lookup "/" patternInfix
   toNonS (PlusPat [])  = InductivePat "plus" []
   toNonS (PlusPat [p]) = InductivePat "plus" [toNonS p]
   toNonS (PlusPat (p:ps)) =
