@@ -175,7 +175,7 @@ instance Pretty EgisonExpr where
   pretty SomethingExpr = pretty "something"
   pretty UndefinedExpr = pretty "undefined"
 
-  pretty _ = pretty "REPLACEME"
+  pretty p = pretty (show p)
 
 instance Pretty Arg where
   pretty (ScalarArg x)         = pretty x
@@ -265,7 +265,7 @@ instance Pretty EgisonPattern where
       f p1 p2 = [pretty p1, pretty p2]
   pretty LaterPatVar = pretty "@"
   pretty (DApplyPat p ps) = applyLike (map pretty' (p : ps))
-  pretty _            = pretty "REPLACEME"
+  pretty e            = pretty (show e)
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))

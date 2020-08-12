@@ -4,6 +4,11 @@
 --
 --
 
+infixr pattern 6 +
+infixr pattern 7 *
+infix pattern 7 /
+infix pattern 8 ^
+
 mathExpr :=
   matcher
     | #$val as () with
@@ -19,15 +24,24 @@ mathExpr' :=
     | poly $ as (multiset mathExpr) with
       | Div (Plus $ts) (Plus [Term 1 []]) -> [map toMathExpr' ts]
       | _ -> []
-    | plus $ as (plusExpr) with
+    | plus $ as (multiset mathExpr) with
       | Div (Plus $ts) (Plus [Term 1 []]) ->
-        [toMathExpr' (Div (Plus ts) (Plus [Term 1 []]))]
+          map (\t -> toMathExpr' (Div (Plus [t]) (Plus [Term 1 []]))) ts
+      | _ -> []
+    | $ + $ as (mathExpr, mathExpr) with
+      | Div (Plus $ts) (Plus [Term 1 []]) ->
+          matchAll (map toMathExpr' ts) as multiset something with
+            | $t :: $tss -> (t, sum' tss)
       | _ -> []
     | term $ $ as (integer, assocMultiset mathExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
         [(n, map 2#(toMathExpr' %1, %2) xs)]
       | _ -> []
     | mult $ $ as (integer, multExpr) with
+      | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+        [(n, product' (map 2#(toMathExpr' %1 ^' %2) xs))]
+      | _ -> []
+    | $ * $ as (integer, multExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
         [(n, product' (map 2#(toMathExpr' %1 ^' %2) xs))]
       | _ -> []
@@ -44,13 +58,13 @@ mathExpr' :=
         [toMathExpr' mexpr]
       | _ -> []
     | func $ $ $ $ as
-        (mathExpr, list mathExpr, list mathExpr, list indexExpr ) with
+        (mathExpr, list mathExpr, list mathExpr, list indexExpr) with
       | Div
           (Plus [Term 1 [(Function $name $argnames $args $js, 1)]])
           (Plus [Term 1 []]) ->
         [(name, argnames, args, js)]
       | _ -> []
-    | $ as (something) with
+    | $ as something with
       | $tgt -> [toMathExpr' tgt]
 
 indexExpr :=
@@ -65,17 +79,6 @@ termExpr := mathExpr
 
 symbolExpr := mathExpr
 
-plusExpr :=
-  matcher
-    | [] as () with
-      | $tgt -> if tgt = 0 then [()] else []
-    | $ :: $ as (mathExpr, plusExpr) with
-      | $tgt ->
-        matchAll tgt as mathExpr with
-          | poly ($t :: $ts) -> (t, sum' ts)
-    | $ as (mathExpr) with
-      | $tgt -> [tgt]
-
 multExpr :=
   matcher
     | [] as () with
@@ -83,29 +86,24 @@ multExpr :=
         match tgt as mathExpr with
           | #0 -> [()]
           | _ -> []
-    | $ :: $ as (mathExpr, multExpr) with
+    | $ ^ #$k * $ as (mathExpr, multExpr) with
+      | $tgt ->
+        matchAll tgt as mathExpr with
+          | term _ (ncons $x #k $xs) -> (x, product' (map (^') xs))
+    | $ ^ $ * $ as (mathExpr, integer, multExpr) with
+      | $tgt ->
+        matchAll tgt as mathExpr with
+          | term _ (ncons $x $n $xs) -> (x, n, product' (map (^') xs))
+    | $ ^ $ as (mathExpr, integer) with
       | $tgt ->
         match tgt as mathExpr with
-          | term _ $xs ->
-            matchAll xs as assocMultiset mathExpr with
-              | $x :: $rs -> (x, product' (map (^') rs))
+          | term _ (ncons $x $n []) -> [(x, n)]
           | _ -> []
-    | ncons $ #$k $ as (mathExpr, multExpr) with
+    | $ * $ as (mathExpr, multExpr) with
       | $tgt ->
-        match tgt as mathExpr with
-          | term _ $xs ->
-            matchAll xs as list (mathExpr, integer) with
-              | $hs ++ ($x, ?(>= k) & $n) :: $ts ->
-                (x, product' (map (^') (hs ++ (x, n - k) :: ts)))
-          | _ -> []
-    | ncons $ $ $ as (mathExpr, integer, multExpr) with
-      | $tgt ->
-        match tgt as mathExpr with
-          | term _ $xs ->
-            matchAll xs as list (mathExpr, integer) with
-              | $hs ++ ($x, $n) :: $ts -> (x, n, product' (map (^') (hs ++ ts)))
-          | _ -> []
-    | $ as (mathExpr) with
+        matchAll tgt as mathExpr with
+          | term _ ($x :: $rs) -> (x, product' (map (^') rs))
+    | $ as mathExpr with
       | $tgt -> [tgt]
 
 isSymbol %mexpr :=
