@@ -7,8 +7,7 @@
 mathNormalize $x :=
   if isInteger x
     then x
-    else symbolNormalize x
-    -- else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules))) x
+    else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules))) (symbolNormalize x)
 
 rewriteRules :=
   [ (rewriteRuleForWTerm, 1#(containSymbol w %1))
@@ -151,8 +150,6 @@ rewriteRuleForSin mExpr := mapTerms f mExpr
   where
     f term :=
       match term as mathExpr with
-        | _ * #`sin #0 * _ -> 0
-        | _ * #`sin (mult _ #π) * _ -> 0
         | $a * #`sin (mult $n #π / #2) * $mr ->
           a *' (-1) ^ ((abs n - 1) / 2) *' mr
         | _ -> term

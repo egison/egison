@@ -5,6 +5,8 @@ module Language.Egison.Math.Normalize
   , rewriteSymbol
   ) where
 
+import           Prelude                   hiding (div)
+import qualified Prelude                   as P
 import           Control.Egison
 
 import           Language.Egison.Math.Expr
@@ -48,7 +50,7 @@ mathDivide (Div (Plus ts1) (Plus ts2)) =
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
   let (sgn, zs) = divMonomial xs ys in
-  Term (sgn * div a b) zs
+  Term (sgn * P.div a b) zs
  where
   divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
   divMonomial xs [] = (1, xs)
@@ -119,7 +121,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
 
 
 rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol = rewriteLog . rewriteI
+rewriteSymbol = rewriteSin . rewriteLog . rewriteI
 
 mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
 mapTerms f (Div (Plus ts1) (Plus ts2)) =
@@ -128,23 +130,35 @@ mapTerms f (Div (Plus ts1) (Plus ts2)) =
 rewriteI :: ScalarData -> ScalarData
 rewriteI = mapTerms f
  where
-  f (Term a xs) =
+  f term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
       [ [mc| (symbol #"i", $k) : $xss ->
               if even k
                 then Term (a * (-1) ^ (quot k 2)) xss
                 else Term (a * (-1) ^ (quot k 2)) ((Symbol "" "i" [], 1) : xss) |]
-      , [mc| _ -> Term a xs |]
+      , [mc| _ -> term |]
       ]
 
 rewriteLog :: ScalarData -> ScalarData
 rewriteLog = mapTerms f
  where
-  f (Term a xs) =
+  f term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
-      [ [mc| (apply (symbol #"log") [zero], _) : _ ->
-              Term 0 [] |]
-      , [mc| (apply (symbol #"log") [singleSymbol (symbol #"e")], _) : $xss ->
-              Term a xss |]
-      , [mc| _ -> Term a xs |]
+      [ [mc| (apply #"log" [zero], _) : _ -> Term 0 [] |]
+      , [mc| (apply #"log" [singleTerm _ [(symbol #"e", $n)]], _) : $xss ->
+              Term (n * a) xss |]
+      , [mc| _ -> term |]
+      ]
+
+rewriteSin :: ScalarData -> ScalarData
+rewriteSin = mapTerms f
+ where
+  f term@(Term _ xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (apply #"sin" [zero], _) : _ -> Term 0 [] |]
+      , [mc| (apply #"sin" [singleTerm _ [(symbol #"π", #1)]], _) : _ -> Term 0 [] |]
+      -- TODO
+      -- , [mc| (apply #"sin" [div [term _ [(symbol #"π", #1)]] [term #2 _]], _) : $xss ->
+      --         Term a xss |]
+      , [mc| _ -> term |]
       ]
