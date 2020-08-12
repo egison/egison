@@ -52,21 +52,21 @@ rewriteRuleForRtu :=
     1#(mapPolys rewriteRuleForRtuPoly %1)
 
 rewriteRuleForRtuTerm := 1#(mapTerms rewriteRuleForRtuTerm' %1)
+  where
+    rewriteRuleForRtuTerm' term :=
+      match term as mathExpr with
+        | $a * #`rtu $n ^ (?(>= n) & $k) * $r -> a *' rtu n ^' (k % n) *' r
+        | _ -> term
 
 rewriteRuleForRtuPoly := 1#(mapPolys rewriteRuleForRtuPoly' %1)
-
-rewriteRuleForRtuTerm' term :=
-  match term as mathExpr with
-    | $a * #`rtu $n ^ (?(>= n) & $k) * $r -> a *' rtu n ^' (k % n) *' r
-    | _ -> term
-
-rewriteRuleForRtuPoly' poly :=
-  match poly as mathExpr with
-    | $a * #rtu $n ^ #1 * $mr + (loop $i (2, #(n - 1))
-                                   (#a * #(rtu n) ^ #i * #mr + ...)
-                                   $pr) ->
-      rewriteRuleForRtuPoly' (pr +' (-1) *' a *' mr)
-    | _ -> poly
+  where
+    rewriteRuleForRtuPoly' poly :=
+      match poly as mathExpr with
+        | $a * #rtu $n ^ #1 * $mr + (loop $i (2, #(n - 1))
+                                       (#a * #(rtu n) ^ #i * #mr + ...)
+                                       $pr) ->
+          rewriteRuleForRtuPoly' (pr +' (-1) *' a *' mr)
+        | _ -> poly
 
 --
 -- sqrt
@@ -75,7 +75,8 @@ rewriteRuleForSqrt := 1#(mapTerms rewriteRuleForSqrtTerm %1)
 
 rewriteRuleForSqrtTerm term :=
   match term as mathExpr with
-    | $a * #`sqrt $x * #`sqrt #x * $r -> rewriteRuleForSqrt (a *' x *' r)
+    | $a * #`sqrt $x * #`sqrt #x * $r ->
+      rewriteRuleForSqrt (a *' x *' r)
     | $a * #`sqrt (?isTerm & $x) * #`sqrt (?isTerm & $y) * $r ->
       let d := gcd x y
           (a1, x1) := fromMonomial (x / d)
@@ -102,8 +103,9 @@ rewriteRuleForExp := 1#(mapTerms rewriteRuleForExpTerm %1)
 rewriteRuleForExpTerm term :=
   match term as mathExpr with
     | $a * #`exp $x ^ (?(>= 2) & $n) * $r ->
-      rewriteRuleForExp (a *' exp (x * n) *' r)
-    | $a * #`exp $x * #`exp $y * $r -> rewriteRuleForExp (a *' exp (x + y) *' r)
+      rewriteRuleForExpTerm (a *' exp (x * n) *' r)
+    | $a * #`exp $x * #`exp $y * $r ->
+      rewriteRuleForExpTerm (a *' exp (x + y) *' r)
     | _ -> term
 
 --
@@ -113,11 +115,12 @@ rewriteRuleForPower := 1#(mapTerms rewriteRuleForPowerTerm %1)
 
 rewriteRuleForPowerTerm term :=
   match term as mathExpr with
-    | $a * #`(^) #1 _ ^ _ * $r -> rewriteRuleForPower (a *' r)
+    | $a * #`(^) #1 _ ^ _ * $r ->
+      rewriteRuleForPowerTerm (a *' r)
     | $a * #`(^) $x $y ^ (?(>= 2) & $n) * $r ->
-      rewriteRuleForPower (a *' x ^ (y * n) *' r)
+      rewriteRuleForPowerTerm (a *' x ^ (y * n) *' r)
     | $a * #`(^) $x $y * #`(^) #x $z * $r ->
-      rewriteRuleForPower (a *' x ^ (y + z) *' r)
+      rewriteRuleForPowerTerm (a *' x ^ (y + z) *' r)
     | _ -> term
 
 --
