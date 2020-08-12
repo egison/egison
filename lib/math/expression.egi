@@ -4,6 +4,7 @@
 --
 --
 
+infixr pattern 6 +
 infixl pattern 7 /
 
 mathExpr :=
@@ -21,9 +22,10 @@ mathExpr' :=
     | poly $ as (multiset mathExpr) with
       | Div (Plus $ts) (Plus [Term 1 []]) -> [map toMathExpr' ts]
       | _ -> []
-    | plus $ as (plusExpr) with
+    | $ + $ as (mathExpr, mathExpr) with
       | Div (Plus $ts) (Plus [Term 1 []]) ->
-        [toMathExpr' (Div (Plus ts) (Plus [Term 1 []]))]
+          matchAll (map toMathExpr' ts) as multiset something with
+            | $t :: $tss -> (t, sum' tss)
       | _ -> []
     | term $ $ as (integer, assocMultiset mathExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
@@ -46,7 +48,7 @@ mathExpr' :=
         [toMathExpr' mexpr]
       | _ -> []
     | func $ $ $ $ as
-        (mathExpr, list mathExpr, list mathExpr, list indexExpr ) with
+        (mathExpr, list mathExpr, list mathExpr, list indexExpr) with
       | Div
           (Plus [Term 1 [(Function $name $argnames $args $js, 1)]])
           (Plus [Term 1 []]) ->
@@ -66,17 +68,6 @@ polyExpr := mathExpr
 termExpr := mathExpr
 
 symbolExpr := mathExpr
-
-plusExpr :=
-  matcher
-    | [] as () with
-      | $tgt -> if tgt = 0 then [()] else []
-    | $ :: $ as (mathExpr, plusExpr) with
-      | $tgt ->
-        matchAll tgt as mathExpr with
-          | poly ($t :: $ts) -> (t, sum' ts)
-    | $ as (mathExpr) with
-      | $tgt -> [tgt]
 
 multExpr :=
   matcher
