@@ -99,7 +99,6 @@ multExpr :=
         match tgt as mathExpr with
           | term _ (ncons $x $n []) -> [(x, n)]
           | _ -> []
-    -- This pattern should come after the above 2.
     | $ * $ as (mathExpr, multExpr) with
       | $tgt ->
         matchAll tgt as mathExpr with
