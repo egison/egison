@@ -25,11 +25,21 @@ module Language.Egison.Math.Expr
     , SymbolM (..)
     , term
     , termM
+    , symbol
+    , symbolM
+    , apply
+    , applyM
     , quote
     , negQuote
     , negQuoteM
     , equalMonomial
     , equalMonomialM
+    , zero
+    , zeroM
+    , one
+    , oneM
+    , singleSymbol
+    , singleSymbolM
     , mathNegate
     ) where
 
@@ -85,6 +95,18 @@ term _ _ (Term a mono) = pure (a, mono)
 termM :: TermM -> TermExpr -> (Eql, Multiset (Pair SymbolM Eql))
 termM TermM _ = (Eql, Multiset (Pair SymbolM Eql))
 
+symbol :: Pattern (PP String) SymbolM SymbolExpr String
+symbol _ _ (Symbol _ name _) = pure name
+symbol _ _ _                 = mzero
+symbolM :: SymbolM -> p -> Eql
+symbolM SymbolM _ = Eql
+
+apply :: Pattern (PP SymbolExpr, PP [ScalarData]) SymbolM SymbolExpr (SymbolExpr, [ScalarData])
+apply _ _ (Apply (SingleSymbol fn) args) = pure (fn, args)
+apply _ _ _                              = mzero
+applyM :: SymbolM -> p -> (SymbolM, List ScalarM)
+applyM SymbolM _ = (SymbolM, List ScalarM)
+
 quote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
 quote _ _ (Quote m) = pure m
 quote _ _ _         = mzero
@@ -102,6 +124,24 @@ equalMonomial (_, VP xs) _ ys = case isEqualMonomial xs ys of
 equalMonomial _ _ _ = mzero
 equalMonomialM :: Multiset (Pair SymbolM Eql) -> p -> (Eql, Multiset (Pair SymbolM Eql))
 equalMonomialM (Multiset (Pair SymbolM Eql)) _ = (Eql, Multiset (Pair SymbolM Eql))
+
+zero :: Pattern () ScalarM ScalarData ()
+zero _ _ (Div (Plus []) _) = pure ()
+zero _ _ _                 = mzero
+zeroM :: ScalarM -> p -> ()
+zeroM ScalarM _ = ()
+
+one :: Pattern () ScalarM ScalarData ()
+one _ _ (Div (Plus [Term 1 []]) (Plus [Term 1 []])) = pure ()
+one _ _ _                                           = mzero
+oneM :: ScalarM -> p -> ()
+oneM ScalarM _ = ()
+
+singleSymbol :: Pattern (PP SymbolExpr) ScalarM ScalarData SymbolExpr
+singleSymbol _ _ (Div (Plus [Term 1 [(sym, 1)]]) (Plus [Term 1 []])) = pure sym
+singleSymbol _ _ _                                                   = mzero
+singleSymbolM :: ScalarM -> p -> SymbolM
+singleSymbolM ScalarM _ = SymbolM
 
 
 instance ValuePattern ScalarM ScalarData where

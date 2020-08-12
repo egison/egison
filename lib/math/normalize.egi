@@ -7,11 +7,11 @@
 mathNormalize $x :=
   if isInteger x
     then x
-    else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules))) x
+    else symbolNormalize x
+    -- else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules))) x
 
 rewriteRules :=
-  [ (rewriteRuleForI, 1#(containSymbol i %1))
-  , (rewriteRuleForWTerm, 1#(containSymbol w %1))
+  [ (rewriteRuleForWTerm, 1#(containSymbol w %1))
   , (rewriteRuleForRtuTerm, 1#(containFunction `rtu %1))
   , (rewriteRuleForPower, 1#(containFunction `(^) %1))
   , (rewriteRuleForExp, 1#(containFunction `exp %1))
@@ -21,22 +21,8 @@ rewriteRules :=
   , (rewriteRuleForRt, 1#(containFunction `rt %1))
   , (rewriteRuleForSin, 1#(containFunction `sin %1))
   , (rewriteRuleForCos, 1#(containFunction `cos %1))
-  , (rewriteRuleForLog, 1#(containFunction `log %1))
   , (rewriteRuleForCosToSin, 1#(containFunctionWithOrder `cos 2 %1))
   , (rewriteRuleForD/d, 1#True) ]
-
---
--- i
---
-rewriteRuleForI := rewriteRuleForITerm
-
-rewriteRuleForITerm := 1#(mapTerms rewriteRuleForITerm' %1)
-
-rewriteRuleForITerm' term :=
-  match term as mathExpr with
-    | $a * #i ^ (?isEven & $k) * $r -> a *' (-1) ^' quotient k 2 *' r
-    | $a * #i ^ $k * $r -> a *' (-1) ^' quotient k 2 *' r *' i
-    | _ -> term
 
 --
 -- w
@@ -123,17 +109,6 @@ rewriteRuleForExpTerm term :=
       rewriteRuleForExp (a *' exp (x * n) *' r)
     | $a * #`exp $x * #`exp $y * $r -> rewriteRuleForExp (a *' exp (x + y) *' r)
     | _ -> term
-
---
--- log
---
-rewriteRuleForLog mExpr := mapTerms f mExpr
-  where
-    f term :=
-      match term as mathExpr with
-        | _ * #`log #1 * _ -> 0
-        | $a * #`log #e * $mr -> a *' mr
-        | _ -> term
 
 --
 -- power

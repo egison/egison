@@ -11,6 +11,7 @@ module Language.Egison.Math
   , pattern SingleSymbol
   , pattern SingleTerm
   , mathNormalize'
+  , rewriteSymbol
   , mathPlus
   , mathMult
   , mathNumerator
