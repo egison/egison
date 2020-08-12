@@ -366,7 +366,6 @@ desugarPatternInfix (InfixPat Op{ repr = "*" } pat1 pat2) =
   MultPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
 desugarPatternInfix (InfixPat Op{ repr = "+" } pat1 pat2) =
   PlusPat [desugarPatternInfix pat1, desugarPatternInfix pat2]
--- TODO(momohatt): Use repr for InductivePat
 desugarPatternInfix (InfixPat Op{ repr = f } pat1 pat2) =
   InductivePat f [desugarPatternInfix pat1, desugarPatternInfix pat2]
 desugarPatternInfix (NotPat pat) = NotPat (desugarPatternInfix pat)
