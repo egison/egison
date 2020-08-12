@@ -409,10 +409,7 @@ desugarPattern' (LetPat binds pat) = LetPat <$> desugarBindings binds <*> desuga
 desugarPattern' (SeqConsPat pat1 pat2)  = SeqConsPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (PlusPat pats) = do
   pats' <- mapM desugarPattern' (concatMap flatten pats)
-  case reverse pats' of
-    [] -> return $ InductivePat "plus" [ValuePat (IntegerExpr 0)]
-    lp:hps ->
-      return $ InductivePat "plus" [foldr (\p acc -> InductivePat "::" [p, acc]) lp (reverse hps)]
+  return $ InductivePat "plus" [foldr1 (\p acc -> InductivePat "::" [p, acc]) pats']
  where
    flatten (PlusPat xs) = concatMap flatten xs
    flatten pat          = [pat]
