@@ -178,13 +178,6 @@ instance SyntaxElement EgisonPattern where
   toNonS (PApplyPat e p) = PApplyPat (toNonS e) (map toNonS p)
   toNonS (SeqConsPat p1 p2) = SeqConsPat (toNonS p1) (toNonS p2)
   toNonS (DApplyPat p ps) = DApplyPat (toNonS p) (map toNonS ps)
-  toNonS (MultPat []) = InductivePat "mult" []
-  toNonS (MultPat [p]) = InductivePat "mult" [toNonS p]
-  toNonS (MultPat (p:ps)) =
-    foldl (\acc x -> InfixPat op acc (toNonS x)) (toNonS p) ps
-      where op = fromJust $ lookup "*" patternInfix
-  toNonS (PowerPat p1 p2) = InfixPat op (toNonS p1) (toNonS p2)
-    where op = fromJust $ lookup "^" patternInfix
   toNonS p = p
 
 instance SyntaxElement PrimitivePatPattern where

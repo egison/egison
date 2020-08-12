@@ -118,7 +118,7 @@ rewriteRuleForExpTerm term :=
   match term as mathExpr with
     | $a * #`exp #0 * $r -> a *' r
     | $a * #`exp #1 * $r -> a *' e *' r
-    | $a * #`exp (mult $x #(i * π)) * $r -> a *' (-1) ^ x *' r
+    | $a * #`exp (mult $n #(i * π)) * $r -> a *' (-1) ^ n *' r
     | $a * #`exp $x ^ (?(>= 2) & $n) * $r ->
       rewriteRuleForExp (a *' exp (x * n) *' r)
     | $a * #`exp $x * #`exp $y * $r -> rewriteRuleForExp (a *' exp (x + y) *' r)
