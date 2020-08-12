@@ -199,8 +199,7 @@ containSymbol $x $mexpr :=
         any
           2#(match %1 as symbolExpr with
             | #x -> True
-            | apply _ $args ->
-              any id (map 1#(containSymbol x %1) args)
+            | apply _ $args -> any 1#(containSymbol x %1) args
             | _ -> False)
           xs)
 
@@ -211,7 +210,7 @@ containFunction $f $mexpr :=
         any
           2#(match %1 as symbolExpr with
             | apply #f _     -> True
-            | apply $g $args -> any id (map 1#(containFunction f %1) args)
+            | apply $g $args -> any 1#(containFunction f %1) args
             | _ -> False)
           xs)
 
@@ -220,11 +219,9 @@ containFunctionWithOrder $f $n $mexpr :=
     (\match as termExpr with
       | term _ $xs ->
         any
-          2#(match %1 as symbolExpr with
-            | apply $g $args ->
-              if f = g && %2 >= n
-                 then True
-                else any id (map 1#(containFunctionWithOrder f n %1) args)
+          (\match as (symbolExpr, integer) with
+            | (apply #f _, ?(>= n)) -> True
+            | (apply _ $args, _) -> any 1#(containFunctionWithOrder f n %1) args
             | _ -> False)
           xs)
 
@@ -237,9 +234,8 @@ containFunctionWithIndex $mexpr :=
             | apply (?isScalar & $f) $args ->
               match f as mathExpr with
                 | symbol _ ![] -> True
-                | _ -> any id (map 1#(containFunctionWithIndex %1) args)
-                | apply _ $args ->
-                  any id (map 1#(containFunctionWithIndex %1) args)
+                | _ -> any containFunctionWithIndex args
+                | apply _ $args -> any containFunctionWithIndex args
                 | _ -> False)
           xs)
 
