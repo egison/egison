@@ -38,8 +38,6 @@ module Language.Egison.Math.Expr
     , equalMonomialM
     , zero
     , zeroM
-    , one
-    , oneM
     , singleSymbol
     , singleSymbolM
     , singleTerm
@@ -139,12 +137,6 @@ zero _ _ (Div (Plus []) _) = pure ()
 zero _ _ _                 = mzero
 zeroM :: ScalarM -> p -> ()
 zeroM ScalarM _ = ()
-
-one :: Pattern () ScalarM ScalarData ()
-one _ _ (Div (Plus [Term 1 []]) (Plus [Term 1 []])) = pure ()
-one _ _ _                                           = mzero
-oneM :: ScalarM -> p -> ()
-oneM ScalarM _ = ()
 
 singleSymbol :: Pattern (PP SymbolExpr) ScalarM ScalarData SymbolExpr
 singleSymbol _ _ (Div (Plus [Term 1 [(sym, 1)]]) (Plus [Term 1 []])) = pure sym

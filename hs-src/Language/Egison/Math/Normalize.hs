@@ -121,7 +121,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
 
 
 rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol = rewriteSin . rewriteLog . rewriteI
+rewriteSymbol = rewriteExp . rewriteSin . rewriteLog . rewriteI
 
 mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
 mapTerms f (Div (Plus ts1) (Plus ts2)) =
@@ -160,5 +160,19 @@ rewriteSin = mapTerms f
       -- TODO
       -- , [mc| (apply #"sin" [div [term _ [(symbol #"π", #1)]] [term #2 _]], _) : $xss ->
       --         Term a xss |]
+      , [mc| _ -> term |]
+      ]
+
+rewriteExp :: ScalarData -> ScalarData
+rewriteExp = mapTerms f
+ where
+  f term@(Term a xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (apply #"exp" [zero], _) : $xss ->
+               f (Term a xss) |]
+      , [mc| (apply #"exp" [singleTerm #1 []], _) : $xss ->
+               f (Term a ((Symbol "" "e" [], 1) : xss)) |]
+      , [mc| (apply #"exp" [singleTerm $n [(symbol #"i", #1), (symbol #"π", #1)]], _) : $xss ->
+               f (Term ((-1) ^ n * a) xss) |]
       , [mc| _ -> term |]
       ]
