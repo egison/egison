@@ -2,11 +2,13 @@
 
 module Language.Egison.Math.Normalize
   ( mathNormalize'
+  , rewriteSymbol
   ) where
 
 import           Control.Egison
 
 import           Language.Egison.Math.Expr
+
 
 mathNormalize' :: ScalarData -> ScalarData
 mathNormalize' = mathDivide . mathRemoveZero . mathFold . mathRemoveZeroSymbol
@@ -115,3 +117,34 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
       , [mc| _ -> t : f ts |]
       ]
 
+
+rewriteSymbol :: ScalarData -> ScalarData
+rewriteSymbol = rewriteLog . rewriteI
+
+mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
+mapTerms f (Div (Plus ts1) (Plus ts2)) =
+  Div (Plus (map f ts1)) (Plus (map f ts2))
+
+rewriteI :: ScalarData -> ScalarData
+rewriteI = mapTerms f
+ where
+  f (Term a xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (symbol #"i", $k) : $xss ->
+              if even k
+                then Term (a * (-1) ^ (quot k 2)) xss
+                else Term (a * (-1) ^ (quot k 2)) ((Symbol "" "i" [], 1) : xss) |]
+      , [mc| _ -> Term a xs |]
+      ]
+
+rewriteLog :: ScalarData -> ScalarData
+rewriteLog = mapTerms f
+ where
+  f (Term a xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (apply (symbol #"log") [zero], _) : _ ->
+              Term 0 [] |]
+      , [mc| (apply (symbol #"log") [singleSymbol (symbol #"e")], _) : $xss ->
+              Term a xss |]
+      , [mc| _ -> Term a xs |]
+      ]
