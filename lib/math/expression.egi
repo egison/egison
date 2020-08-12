@@ -139,11 +139,6 @@ isMonomial %mexpr :=
 --
 -- Accessor
 --
-symbolIndices $mexpr :=
-  match mexpr as mathExpr with
-    | symbol _ $js -> js
-    | _ -> undefined
-
 fromMonomial $mexpr :=
   match mexpr as mathExpr with
     | (term $a $xs) / (term $b $ys) ->
@@ -171,21 +166,20 @@ mapTerms $fn $mexpr :=
 
 mapSymbols $fn $mexpr :=
   mapTerms
-    (\term ->
-      match term as termExpr with
-        | term $a $xs ->
-          a *' foldl
-                 (*')
-                 1
-                 (map
-                    2#(match %1 as symbolExpr with
-                      | symbol _ _ -> fn %1 ^' %2
-                      | apply $g $args ->
-                        let args' := map 1#(mapSymbols fn %1) args
-                         in if args = args'
-                              then %1 ^' %2
-                              else fn (capply g args') ^' %2)
-                    xs))
+    (\match as termExpr with
+      | term $a $xs ->
+        a *' foldl
+               (*')
+               1
+               (map
+                  2#(match %1 as symbolExpr with
+                    | symbol _ _ -> fn %1 ^' %2
+                    | apply $g $args ->
+                      let args' := map 1#(mapSymbols fn %1) args
+                       in if args = args'
+                            then %1 ^' %2
+                            else fn (capply g args') ^' %2)
+                  xs))
     mexpr
 
 scanAllTerms $mexpr $f :=
@@ -239,10 +233,6 @@ containFunctionWithIndex $mexpr :=
                 | _ -> False)
           xs)
 
-findSymbolsFromPoly $poly :=
-  matchAll poly as mathExpr with
-    | poly (term _ ((symbol _ _ & $s) :: _) :: _) -> s
-
 --
 -- Substitute
 --
@@ -273,10 +263,7 @@ expandAll $mexpr :=
     -- polynomial
     | poly $ts -> sum (map expandAll ts)
     -- quotient
-    | $p1 / $p2 ->
-      let p1' := expandAll p1
-          p2' := expandAll p2
-       in p1' / p2'
+    | $p1 / $p2 -> expandAll p1 / expandAll p2
 
 expandAll' $mexpr :=
   match mexpr as mathExpr with
@@ -290,10 +277,7 @@ expandAll' $mexpr :=
     -- polynomial
     | poly $ts -> sum' (map expandAll' ts)
     -- quotient
-    | $p1 / $p2 ->
-      let p1' := expandAll' p1
-          p2' := expandAll' p2
-       in p1' /' p2'
+    | $p1 / $p2 -> expandAll' p1 / expandAll' p2
 
 --
 -- Coefficient
@@ -315,8 +299,8 @@ coefficient $f $x $m :=
 coefficient' $f $x $m :=
   sum
     (matchAll f as mathExpr with
-      | poly (term $a (ncons #x $k $ts) :: _) / _ ->
-        if m = k then foldl (*') a (map (^') ts) else 0) / denominator f
+      | poly (term $a (ncons #x #m $ts) :: _) / _ ->
+        foldl (*') a (map (^') ts)) / denominator f
 
 coefficient2 $f $x $y :=
   sum
