@@ -22,6 +22,10 @@ mathExpr' :=
     | poly $ as (multiset mathExpr) with
       | Div (Plus $ts) (Plus [Term 1 []]) -> [map toMathExpr' ts]
       | _ -> []
+    | plus $ as (multiset mathExpr) with
+      | Div (Plus $ts) (Plus [Term 1 []]) ->
+          map (\t -> toMathExpr' (Div (Plus [t]) (Plus [Term 1 []]))) ts
+      | _ -> []
     | $ + $ as (mathExpr, mathExpr) with
       | Div (Plus $ts) (Plus [Term 1 []]) ->
           matchAll (map toMathExpr' ts) as multiset something with
