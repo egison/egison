@@ -188,95 +188,68 @@ mapSymbols $fn $mexpr :=
                     xs))
     mexpr
 
+scanAllTerms $mexpr $f :=
+  match mexpr as mathExpr with
+    | poly $ts1 / poly $ts2 -> any id (map f (ts1 ++ ts2))
+
 containSymbol $x $mexpr :=
-  any
-    id
-    (match mexpr as mathExpr with
-      | poly $ts1 / poly $ts2 ->
-        map
-          (\term ->
-            match term as termExpr with
-              | term _ $xs ->
-                any
-                  id
-                  (map
-                     2#(match %1 as symbolExpr with
-                       | #x -> True
-                       | apply _ $args ->
-                         any id (map 1#(containSymbol x %1) args)
-                       | _ -> False)
-                     xs))
-          (ts1 ++ ts2))
+  scanAllTerms mexpr
+    (\match as termExpr with
+      | term _ $xs ->
+        any
+          id
+          (map
+             2#(match %1 as symbolExpr with
+               | #x -> True
+               | apply _ $args ->
+                 any id (map 1#(containSymbol x %1) args)
+               | _ -> False)
+             xs))
 
 containFunction $f $mexpr :=
-  any
-    id
-    (match mexpr as mathExpr with
-      | poly $ts1 / poly $ts2 ->
-        map
-          (\term ->
-            match term as termExpr with
-              | term _ $xs ->
-                any
-                  id
-                  (map
-                     2#(match %1 as symbolExpr with
-                       | apply $g $args ->
-                         if f = g
-                           then True
-                           else any id (map 1#(containFunction f %1) args)
-                       | _ -> False)
-                     xs))
-          (ts1 ++ ts2))
+  scanAllTerms mexpr
+    (\match as termExpr with
+      | term _ $xs ->
+        any
+          id
+          (map
+             2#(match %1 as symbolExpr with
+               | apply #f _     -> True
+               | apply $g $args -> any id (map 1#(containFunction f %1) args)
+               | _ -> False)
+             xs))
 
 containFunctionWithOrder $f $n $mexpr :=
-  any
-    id
-    (match mexpr as mathExpr with
-      | poly $ts1 / poly $ts2 ->
-        map
-          (\term ->
-            match term as termExpr with
-              | term _ $xs ->
-                any
-                  id
-                  (map
-                     2#(match %1 as symbolExpr with
-                       | apply $g $args ->
-                         if f = g && %2 >= n
-                           then True
-                           else any
-                                  id
-                                  (map
-                                     1#(containFunctionWithOrder f n %1)
-                                     args)
-                       | _ -> False)
-                     xs))
-          (ts1 ++ ts2))
+  scanAllTerms mexpr
+    (\match as termExpr with
+      | term _ $xs ->
+        any
+          id
+          (map
+             2#(match %1 as symbolExpr with
+               | apply $g $args ->
+                 if f = g && %2 >= n
+                   then True
+                   else any id (map 1#(containFunctionWithOrder f n %1) args)
+               | _ -> False)
+             xs))
 
 containFunctionWithIndex $mexpr :=
-  any
-    id
-    (match mexpr as mathExpr with
-      | poly $ts1 / poly $ts2 ->
-        map
-          (\term ->
-            match term as termExpr with
-              | term _ $xs ->
-                any
-                  id
-                  (map
-                     2#(match %1 as symbolExpr with
-                       | apply (?isScalar & $f) $args ->
-                         match f as mathExpr with
-                           | symbol _ ![] -> True
-                           | _ ->
-                             any id (map 1#(containFunctionWithIndex %1) args)
-                       | apply _ $args ->
-                         any id (map 1#(containFunctionWithIndex %1) args)
-                       | _ -> False)
-                     xs))
-          (ts1 ++ ts2))
+  scanAllTerms mexpr
+    (\match as termExpr with
+      | term _ $xs ->
+        any
+          id
+          (map
+             2#(match %1 as symbolExpr with
+               | apply (?isScalar & $f) $args ->
+                 match f as mathExpr with
+                   | symbol _ ![] -> True
+                   | _ -> any id (map 1#(containFunctionWithIndex %1) args)
+               | apply _ $args ->
+                 any id (map 1#(containFunctionWithIndex %1) args)
+               | _ -> False)
+             xs))
 
 findSymbolsFromPoly $poly :=
   matchAll poly as mathExpr with
