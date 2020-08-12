@@ -140,6 +140,7 @@ coreLibraries =
   [ "lib/core/base.egi"              -- Defines (&&) (||)
   , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
   , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
 
   , "lib/core/assoc.egi"
   , "lib/core/collection.egi"
@@ -149,7 +150,6 @@ coreLibraries =
   , "lib/core/order.egi"
   , "lib/core/random.egi"
   , "lib/core/string.egi"
-  , "lib/math/expression.egi"
   , "lib/math/common/constants.egi"
   , "lib/math/common/functions.egi"
   , "lib/math/algebra/root.egi"

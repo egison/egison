@@ -496,7 +496,6 @@ pattern' = wildCard
                     <|> orPat
                     <|> loopPat
                     <|> letPat
-                    <|> try multPat
                     <|> try dApplyPat
                     <|> try pApplyPat
                     )
@@ -582,13 +581,6 @@ seqPat = braces $ do
 
 laterPatVar :: Parser EgisonPattern
 laterPatVar = char '#' >> pure LaterPatVar
-
-multPat :: Parser EgisonPattern
-multPat = reservedOp "*" >> MultPat <$> sepEndBy powerPat whiteSpace
-
-powerPat :: Parser EgisonPattern
-powerPat = try (PowerPat <$> pattern <* char '^' <*> pattern)
-            <|> pattern
 
 -- Constants
 
