@@ -79,7 +79,7 @@ In Egison, infix declaration consists of the following 4 parts.
        | $x :: $y :: [] -> [(x, y)]
        | _              -> []
 
-   match [1, 2] as dummyMatcher with $x <> $y -> x + y
+   match [1, 2] as exampleMatcher with $x <> $y -> x + y
    ---> 3
 
 
