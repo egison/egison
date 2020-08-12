@@ -4,6 +4,8 @@
 --
 --
 
+infixl pattern 7 /
+
 mathExpr :=
   matcher
     | #$val as () with
