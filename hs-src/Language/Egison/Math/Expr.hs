@@ -96,7 +96,7 @@ termM TermM _ = (Eql, Multiset (Pair SymbolM Eql))
 
 symbol :: Pattern (PP String) SymbolM SymbolExpr String
 symbol _ _ (Symbol _ name []) = pure name
-symbol _ _ _                 = mzero
+symbol _ _ _                  = mzero
 symbolM :: SymbolM -> p -> Eql
 symbolM SymbolM _ = Eql
 
