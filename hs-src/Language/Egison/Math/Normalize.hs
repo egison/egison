@@ -4,8 +4,6 @@ module Language.Egison.Math.Normalize
   ( mathNormalize'
   ) where
 
-import           Prelude                   hiding (div)
-import qualified Prelude                   as P
 import           Control.Egison
 
 import           Language.Egison.Math.Expr
@@ -49,7 +47,7 @@ mathDivide (Div (Plus ts1) (Plus ts2)) =
 mathDivideTerm :: TermExpr -> TermExpr -> TermExpr
 mathDivideTerm (Term a xs) (Term b ys) =
   let (sgn, zs) = divMonomial xs ys in
-  Term (sgn * P.div a b) zs
+  Term (sgn * div a b) zs
  where
   divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
   divMonomial xs [] = (1, xs)
