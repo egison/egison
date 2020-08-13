@@ -8,6 +8,7 @@ import           Control.Egison
 
 import           Language.Egison.Math.Expr
 
+
 mathNormalize' :: ScalarData -> ScalarData
 mathNormalize' = mathDivide . mathRemoveZero . mathFold . mathRemoveZeroSymbol
 
@@ -114,4 +115,3 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
                f (Term (sgn * a + b) ys : tss) |]
       , [mc| _ -> t : f ts |]
       ]
-

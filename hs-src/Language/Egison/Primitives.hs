@@ -146,6 +146,7 @@ primitives = [ ("b.+", plus)
              , ("denominator", denominator')
              , ("fromMathExpr", fromScalarData)
              , ("toMathExpr'", toScalarData)
+             , ("symbolNormalize", symbolNormalize)
 
              , ("modulo",   integerBinaryOp "modulo" mod)
              , ("quotient", integerBinaryOp "quotient" quot)
@@ -290,9 +291,15 @@ fromScalarData = oneArg fromScalarData'
   fromScalarData' val = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
 
 toScalarData :: PrimitiveFunc
-toScalarData = oneArg toScalarData'
- where
-  toScalarData' val = ScalarData . mathNormalize' <$> egisonToScalarData val
+toScalarData = oneArg $ \val ->
+  ScalarData . mathNormalize' <$> egisonToScalarData val
+
+symbolNormalize :: PrimitiveFunc
+symbolNormalize = oneArg $ \val ->
+  case val of
+    ScalarData s -> return $ ScalarData (rewriteSymbol s)
+    _ -> throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
+
 
 --
 -- Pred

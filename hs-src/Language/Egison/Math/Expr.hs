@@ -25,11 +25,20 @@ module Language.Egison.Math.Expr
     , SymbolM (..)
     , term
     , termM
+    , symbol
+    , symbolM
+    , apply
+    , applyM
     , quote
     , negQuote
     , negQuoteM
     , equalMonomial
     , equalMonomialM
+    , zero
+    , zeroM
+    , singleTerm
+    , singleTermM
+    , mathScalarMult
     , mathNegate
     ) where
 
@@ -85,6 +94,18 @@ term _ _ (Term a mono) = pure (a, mono)
 termM :: TermM -> TermExpr -> (Eql, Multiset (Pair SymbolM Eql))
 termM TermM _ = (Eql, Multiset (Pair SymbolM Eql))
 
+symbol :: Pattern (PP String) SymbolM SymbolExpr String
+symbol _ _ (Symbol _ name []) = pure name
+symbol _ _ _                  = mzero
+symbolM :: SymbolM -> p -> Eql
+symbolM SymbolM _ = Eql
+
+apply :: Pattern (PP String, PP [ScalarData]) SymbolM SymbolExpr (String, [ScalarData])
+apply _ _ (Apply (SingleSymbol (Symbol _ fn _)) args) = pure (fn, args)
+apply _ _ _                                           = mzero
+applyM :: SymbolM -> p -> (Eql, List ScalarM)
+applyM SymbolM _ = (Eql, List ScalarM)
+
 quote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
 quote _ _ (Quote m) = pure m
 quote _ _ _         = mzero
@@ -102,6 +123,18 @@ equalMonomial (_, VP xs) _ ys = case isEqualMonomial xs ys of
 equalMonomial _ _ _ = mzero
 equalMonomialM :: Multiset (Pair SymbolM Eql) -> p -> (Eql, Multiset (Pair SymbolM Eql))
 equalMonomialM (Multiset (Pair SymbolM Eql)) _ = (Eql, Multiset (Pair SymbolM Eql))
+
+zero :: Pattern () ScalarM ScalarData ()
+zero _ _ (Div (Plus []) _) = pure ()
+zero _ _ _                 = mzero
+zeroM :: ScalarM -> p -> ()
+zeroM ScalarM _ = ()
+
+singleTerm :: Pattern (PP Integer, PP Integer, PP Monomial) ScalarM ScalarData (Integer, Integer, Monomial)
+singleTerm _ _ (Div (Plus [Term c mono]) (Plus [Term c2 []])) = pure (c, c2, mono)
+singleTerm _ _ _                                              = mzero
+singleTermM :: ScalarM -> p -> (Eql, Eql, Multiset (Pair SymbolM Eql))
+singleTermM ScalarM _ = (Eql, Eql, Multiset (Pair SymbolM Eql))
 
 
 instance ValuePattern ScalarM ScalarData where
@@ -149,10 +182,13 @@ isEqualMonomial xs ys =
 --  Arithmetic operations
 --
 
-mathNegate :: ScalarData -> ScalarData
-mathNegate (Div m n) = Div (mathNegate' m) n
+mathScalarMult :: Integer -> ScalarData -> ScalarData
+mathScalarMult c (Div m n) = Div (f c m) n
   where
-    mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> Term (-a) xs) ts)
+    f c (Plus ts) = Plus (map (\(Term a xs) -> Term (c * a) xs) ts)
+
+mathNegate :: ScalarData -> ScalarData
+mathNegate = mathScalarMult (-1)
 
 --
 -- Pretty printing
