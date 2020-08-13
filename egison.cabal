@@ -113,6 +113,7 @@ Library
                    Language.Egison.Math.Arith
                    Language.Egison.Math.Expr
                    Language.Egison.Math.Normalize
+                   Language.Egison.Math.Rewrite
                    Language.Egison.Math
                    Language.Egison.MathOutput
                    Language.Egison.MList

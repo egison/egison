@@ -18,13 +18,10 @@ infixl expression 7 *'
 infixl expression 7 /'
 infixl expression 8 ^'
 
-(+') $x $y := b.+ x y
-
-(-') $x $y := b.- x y
-
-(*') $x $y := b.* x y
-
-(/') $x $y := b./ x y
+(+') := b.+
+(-') := b.-
+(*') := b.*
+(/') := b./
 
 (+) $x $y :=
   match (isFloat x, isFloat y) as eq with
