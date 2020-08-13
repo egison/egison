@@ -10,9 +10,7 @@ mathNormalize $x :=
     else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules))) (symbolNormalize x)
 
 rewriteRules :=
-  [ (rewriteRuleForWTerm, 1#(containSymbol w %1))
-  , (rewriteRuleForRtuTerm, 1#(containFunction `rtu %1))
-  , (rewriteRuleForWPoly, 1#(containSymbol w %1))
+  [ (rewriteRuleForRtuTerm, 1#(containFunction `rtu %1))
   , (rewriteRuleForRtuPoly, 1#(containFunction `rtu %1))
   , (rewriteRuleForSqrt, 1#(containFunction `sqrt %1))
   , (rewriteRuleForRt, 1#(containFunction `rt %1))
@@ -20,26 +18,6 @@ rewriteRules :=
   , (rewriteRuleForCos, 1#(containFunction `cos %1))
   , (rewriteRuleForCosToSin, 1#(containFunctionWithOrder `cos 2 %1))
   , (rewriteRuleForD/d, 1#True) ]
-
---
--- w
---
-rewriteRuleForW := 1#(compose rewriteRuleForWTerm rewriteRuleForWPoly %1)
-
-rewriteRuleForWTerm := 1#(mapTerms rewriteRuleForWTerm' %1)
-
-rewriteRuleForWPoly := 1#(mapPolys rewriteRuleForWPoly' %1)
-
-rewriteRuleForWTerm' term :=
-  match term as mathExpr with
-    | $a * #w ^ (?(>= 3) & $k) * $r -> a *' r *' w ^' (k % 3)
-    | _ -> term
-
-rewriteRuleForWPoly' poly :=
-  match poly as mathExpr with
-    | $a * #w ^ #2 * $mr + $b * #w * #mr + $pr ->
-      rewriteRuleForWPoly' (pr +' (-1) *' a *' mr +' (b - a) *' mr *' w)
-    | _ -> poly
 
 --
 -- rtu (include i and w)
