@@ -25,16 +25,14 @@ rewriteRuleForRtu :=
   compose
     1#(mapTerms rewriteRuleForRtuTerm %1)
     1#(mapPolys rewriteRuleForRtuPoly %1)
-
-rewriteRuleForRtuTerm := 1#(mapTerms rewriteRuleForRtuTerm' %1)
   where
+    rewriteRuleForRtuTerm := 1#(mapTerms rewriteRuleForRtuTerm' %1)
     rewriteRuleForRtuTerm' term :=
       match term as mathExpr with
         | $a * #`rtu $n ^ (?(>= n) & $k) * $r -> a *' rtu n ^' (k % n) *' r
         | _ -> term
 
-rewriteRuleForRtuPoly := 1#(mapPolys rewriteRuleForRtuPoly' %1)
-  where
+    rewriteRuleForRtuPoly := 1#(mapPolys rewriteRuleForRtuPoly' %1)
     rewriteRuleForRtuPoly' poly :=
       match poly as mathExpr with
         | $a * #rtu $n ^ #1 * $mr + (loop $i (2, #(n - 1))
@@ -47,39 +45,39 @@ rewriteRuleForRtuPoly := 1#(mapPolys rewriteRuleForRtuPoly' %1)
 -- sqrt
 --
 rewriteRuleForSqrt := 1#(mapTerms rewriteRuleForSqrtTerm %1)
-
-rewriteRuleForSqrtTerm term :=
-  match term as mathExpr with
-    | $a * #`sqrt $x * #`sqrt #x * $r ->
-      rewriteRuleForSqrt (a *' x *' r)
-    | $a * #`sqrt (?isTerm & $x) * #`sqrt (?isTerm & $y) * $r ->
-      let d := gcd x y
-          (a1, x1) := fromMonomial (x / d)
-          (a2, y1) := fromMonomial (y / d)
-       in a *' d *' sqrt (a1 *' a2) *' sqrt x1 *' sqrt y1 *' r
-    | _ -> term
+  where
+    rewriteRuleForSqrtTerm term :=
+      match term as mathExpr with
+        | $a * #`sqrt $x * #`sqrt #x * $r ->
+          rewriteRuleForSqrt (a *' x *' r)
+        | $a * #`sqrt (?isTerm & $x) * #`sqrt (?isTerm & $y) * $r ->
+          let d := gcd x y
+              (a1, x1) := fromMonomial (x / d)
+              (a2, y1) := fromMonomial (y / d)
+           in a *' d *' sqrt (a1 *' a2) *' sqrt x1 *' sqrt y1 *' r
+        | _ -> term
 
 --
 -- rt (include sqrt)
 --
 rewriteRuleForRt := 1#(mapTerms rewriteRuleForRtTerm %1)
-
-rewriteRuleForRtTerm term :=
-  match term as mathExpr with
-    | $a * #`rt $n $x ^ (?(>= n) & $k) * $r ->
-      a *' x ^' quotient k n *' rt n x ^' (k % n) *' r
-    | _ -> term
+  where
+    rewriteRuleForRtTerm term :=
+      match term as mathExpr with
+        | $a * #`rt $n $x ^ (?(>= n) & $k) * $r ->
+          a *' x ^' quotient k n *' rt n x ^' (k % n) *' r
+        | _ -> term
 
 --
 -- cos, sin
 --
 rewriteRuleForCosToSin := 1#(mapTerms rewriteRuleForCosToSinTerm' %1)
-
-rewriteRuleForCosToSinTerm' term :=
-  match term as mathExpr with
-    | $a * #`cos $x ^ #2 * $mr ->
-      a *' (1 -' sin x ^ 2) *' rewriteRuleForCosToSinTerm' mr
-    | _ -> term
+  where
+    rewriteRuleForCosToSinTerm' term :=
+      match term as mathExpr with
+        | $a * #`cos $x ^ #2 * $mr ->
+          a *' (1 -' sin x ^ 2) *' rewriteRuleForCosToSinTerm' mr
+        | _ -> term
 
 rewriteRuleForSin mExpr := mapTerms f mExpr
   where
@@ -93,10 +91,11 @@ rewriteRuleForSin mExpr := mapTerms f mExpr
 -- d/d
 --
 rewriteRuleForD/d := 1#(mapPolys rewriteRuleForD/dPoly %1)
-
-rewriteRuleForD/dPoly poly :=
-  match poly as mathExpr with
-    | $a * ($f & (func $g _ $arg $js)) ^ $n * $mr +
-        $b * func #g _ #arg ?1#(eqAs (multiset something) js %1) ^ #n * #mr + $pr ->
-      rewriteRuleForD/dPoly ((a + b) *' f ^ n *' mr +' pr)
-    | _ -> poly
+  where
+    rewriteRuleForD/dPoly poly :=
+      match poly as mathExpr with
+        | $a * ($f & (func $g _ $arg $js)) ^ $n * $mr +
+            $b * func #g _ #arg ?1#(eqAs (multiset something) js %1) ^ #n * #mr +
+              $pr ->
+          rewriteRuleForD/dPoly ((a + b) *' f ^ n *' mr +' pr)
+        | _ -> poly
