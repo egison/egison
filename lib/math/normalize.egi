@@ -10,8 +10,7 @@ mathNormalize $x :=
     else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules))) (symbolNormalize x)
 
 rewriteRules :=
-  [ (rewriteRuleForRtuTerm, 1#(containFunction `rtu %1))
-  , (rewriteRuleForRtuPoly, 1#(containFunction `rtu %1))
+  [ (rewriteRuleForRtu, 1#(containFunction `rtu %1))
   , (rewriteRuleForSqrt, 1#(containFunction `sqrt %1))
   , (rewriteRuleForRt, 1#(containFunction `rt %1))
   , (rewriteRuleForSin, 1#(containFunction `sin %1))
