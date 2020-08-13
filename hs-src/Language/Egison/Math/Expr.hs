@@ -42,6 +42,7 @@ module Language.Egison.Math.Expr
     , singleSymbolM
     , singleTerm
     , singleTermM
+    , mathScalarMult
     , mathNegate
     ) where
 
@@ -196,10 +197,13 @@ isEqualMonomial xs ys =
 --  Arithmetic operations
 --
 
-mathNegate :: ScalarData -> ScalarData
-mathNegate (Div m n) = Div (mathNegate' m) n
+mathScalarMult :: Integer -> ScalarData -> ScalarData
+mathScalarMult c (Div m n) = Div (f c m) n
   where
-    mathNegate' (Plus ts) = Plus (map (\(Term a xs) -> Term (-a) xs) ts)
+    f c (Plus ts) = Plus (map (\(Term a xs) -> Term (c * a) xs) ts)
+
+mathNegate :: ScalarData -> ScalarData
+mathNegate = mathScalarMult (-1)
 
 --
 -- Pretty printing

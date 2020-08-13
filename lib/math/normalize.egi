@@ -13,7 +13,6 @@ rewriteRules :=
   [ (rewriteRuleForWTerm, 1#(containSymbol w %1))
   , (rewriteRuleForRtuTerm, 1#(containFunction `rtu %1))
   , (rewriteRuleForPower, 1#(containFunction `(^) %1))
-  , (rewriteRuleForExp, 1#(containFunction `exp %1))
   , (rewriteRuleForWPoly, 1#(containSymbol w %1))
   , (rewriteRuleForRtuPoly, 1#(containFunction `rtu %1))
   , (rewriteRuleForSqrt, 1#(containFunction `sqrt %1))
@@ -93,19 +92,6 @@ rewriteRuleForRtTerm term :=
   match term as mathExpr with
     | $a * #`rt $n $x ^ (?(>= n) & $k) * $r ->
       a *' x ^' quotient k n *' rt n x ^' (k % n) *' r
-    | _ -> term
-
---
--- exp
---
-rewriteRuleForExp := 1#(mapTerms rewriteRuleForExpTerm %1)
-
-rewriteRuleForExpTerm term :=
-  match term as mathExpr with
-    | $a * #`exp $x ^ (?(>= 2) & $n) * $r ->
-      rewriteRuleForExpTerm (a *' exp (x * n) *' r)
-    | $a * #`exp $x * #`exp $y * $r ->
-      rewriteRuleForExpTerm (a *' exp (x + y) *' r)
     | _ -> term
 
 --
