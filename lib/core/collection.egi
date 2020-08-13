@@ -107,16 +107,6 @@ takeWhileBy pred xs :=
     | [] -> []
     | $x :: $rs -> if pred x then x :: takeWhileBy pred rs else [x]
 
-taileUntil pred xs :=
-  match xs as list something with
-    | [] -> []
-    | $x :: $rs -> if not (pred x) then x :: takeUntil pred rs else []
-
-takeUntilBy pred xs :=
-  match xs as list something with
-    | [] -> []
-    | $x :: $rs -> if not (pred x) then x :: takeUntilBy pred rs else [x]
-
 dropWhile pred xs :=
   match xs as list something with
     | [] -> []
