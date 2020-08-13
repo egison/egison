@@ -12,7 +12,7 @@ import           Language.Egison.Math.Expr
 
 
 rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol = rewriteExp . rewriteSin . rewriteLog . rewriteI
+rewriteSymbol = rewritePower . rewriteExp . rewriteSin . rewriteLog . rewriteI
 
 mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
 mapTerms f (Div (Plus ts1) (Plus ts2)) =
@@ -60,6 +60,19 @@ rewriteExp = mapTerms f
                f (Term a ((makeApply "exp" [mathScalarMult n x], 1) : xss)) |]
       , [mc| (apply #"exp" [$x], #1) : (apply #"exp" [$y], #1) : $xss ->
                f (Term a ((makeApply "exp" [mathPlus x y], 1) : xss)) |]
+      , [mc| _ -> term |]
+      ]
+
+rewritePower :: ScalarData -> ScalarData
+rewritePower = mapTerms f
+ where
+  f term@(Term a xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (apply #"^" [singleTerm #1 [], _], _) : $xss -> f (Term a xss) |]
+      , [mc| (apply #"^" [$x, $y], $n & ?(>= 2)) : $xss ->
+               f (Term a ((makeApply "^" [x, mathScalarMult n y], 1) : xss)) |]
+      , [mc| (apply #"^" [$x, $y], #1) : (apply #"^" [#x, $z], #1) : $xss ->
+               f (Term a ((makeApply "^" [x, mathPlus y z], 1) : xss)) |]
       , [mc| _ -> term |]
       ]
 

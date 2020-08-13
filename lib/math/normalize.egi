@@ -12,7 +12,6 @@ mathNormalize $x :=
 rewriteRules :=
   [ (rewriteRuleForWTerm, 1#(containSymbol w %1))
   , (rewriteRuleForRtuTerm, 1#(containFunction `rtu %1))
-  , (rewriteRuleForPower, 1#(containFunction `(^) %1))
   , (rewriteRuleForWPoly, 1#(containSymbol w %1))
   , (rewriteRuleForRtuPoly, 1#(containFunction `rtu %1))
   , (rewriteRuleForSqrt, 1#(containFunction `sqrt %1))
@@ -92,21 +91,6 @@ rewriteRuleForRtTerm term :=
   match term as mathExpr with
     | $a * #`rt $n $x ^ (?(>= n) & $k) * $r ->
       a *' x ^' quotient k n *' rt n x ^' (k % n) *' r
-    | _ -> term
-
---
--- power
---
-rewriteRuleForPower := 1#(mapTerms rewriteRuleForPowerTerm %1)
-
-rewriteRuleForPowerTerm term :=
-  match term as mathExpr with
-    | $a * #`(^) #1 _ ^ _ * $r ->
-      rewriteRuleForPowerTerm (a *' r)
-    | $a * #`(^) $x $y ^ (?(>= 2) & $n) * $r ->
-      rewriteRuleForPowerTerm (a *' x ^ (y * n) *' r)
-    | $a * #`(^) $x $y * #`(^) #x $z * $r ->
-      rewriteRuleForPowerTerm (a *' x ^ (y + z) *' r)
     | _ -> term
 
 --
