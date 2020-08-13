@@ -24,15 +24,20 @@ completeEgison _   arg@('(':_, _) = completeWord Nothing "" completeNothing arg
 completeEgison _   arg@(' ':_, _) = completeWord Nothing "" completeNothing arg
 completeEgison _   arg@('[':_, _) = completeWord Nothing "" completeNothing arg
 completeEgison _   arg@([], _)    = completeWord Nothing "" completeNothing arg
-completeEgison env arg@(_, _)     = completeWord Nothing " \t[]{}$," (completeEgisonKeyword env) arg
+completeEgison env arg            = completeWord Nothing " \t[]{}$," (completeEgisonKeyword env) arg
 
 completeNothing :: Monad m => String -> m [Completion]
 completeNothing _ = return []
 
 completeEgisonKeyword :: Monad m => Env -> String -> m [Completion]
 completeEgisonKeyword (Env env _) str = do
-  let definedWords = map show $ concatMap keys env
+  let definedWords = filter f $ map show $ concatMap keys env
   return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) (egisonKeywords ++ definedWords)
+ where
+   f [_]         = False
+   f [_, '\'']   = False
+   f ('b':'.':_) = False
+   f _           = True
 
 egisonKeywords :: [String]
 egisonKeywords = upperReservedWords ++ lowerReservedWords
