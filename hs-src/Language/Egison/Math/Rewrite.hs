@@ -12,11 +12,14 @@ import           Language.Egison.Math.Expr
 
 
 rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol = rewritePower . rewriteExp . rewriteSin . rewriteLog . rewriteI
+rewriteSymbol = rewritePower . rewriteExp . rewriteSin . rewriteLog . rewriteW . rewriteI
 
 mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
 mapTerms f (Div (Plus ts1) (Plus ts2)) =
   Div (Plus (map f ts1)) (Plus (map f ts2))
+
+mapPolys :: (PolyExpr -> PolyExpr) -> ScalarData -> ScalarData
+mapPolys f (Div p1 p2) = Div (f p1) (f p2)
 
 rewriteI :: ScalarData -> ScalarData
 rewriteI = mapTerms f
@@ -28,6 +31,24 @@ rewriteI = mapTerms f
                 then Term (a * (-1) ^ (quot k 2)) xss
                 else Term (a * (-1) ^ (quot k 2)) ((Symbol "" "i" [], 1) : xss) |]
       , [mc| _ -> term |]
+      ]
+
+rewriteW :: ScalarData -> ScalarData
+rewriteW = mapPolys g . mapTerms f
+ where
+  f term@(Term a xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (symbol #"w", $k & ?(>= 3)) : $xss ->
+               Term a ((Symbol "" "w" [], k `mod` 3) : xss) |]
+      , [mc| _ -> term |]
+      ]
+  g poly@(Plus ts) =
+    match dfs ts (Multiset TermM)
+      [ [mc| term $a ((symbol #"w", #2) : $mr) :
+             term $b ((symbol #"w", #1) : #mr) : $pr ->
+               g (Plus (Term (-a) mr :
+                        Term (b - a) ((Symbol "" "w" [], 1) : mr) : pr)) |]
+      , [mc| _ -> poly |]
       ]
 
 rewriteLog :: ScalarData -> ScalarData
