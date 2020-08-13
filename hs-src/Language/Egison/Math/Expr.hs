@@ -23,8 +23,6 @@ module Language.Egison.Math.Expr
     , ScalarM (..)
     , TermM (..)
     , SymbolM (..)
-    , div
-    , divM
     , term
     , termM
     , symbol
@@ -38,15 +36,13 @@ module Language.Egison.Math.Expr
     , equalMonomialM
     , zero
     , zeroM
-    , singleSymbol
-    , singleSymbolM
     , singleTerm
     , singleTermM
     , mathScalarMult
     , mathNegate
     ) where
 
-import           Prelude                   hiding (div, foldr, mappend, mconcat)
+import           Prelude                   hiding (foldr, mappend, mconcat)
 import           Data.List                 (intercalate)
 
 import           Control.Monad             ( MonadPlus(..) )
@@ -93,18 +89,13 @@ instance Matcher TermM TermExpr
 data SymbolM = SymbolM
 instance Matcher SymbolM SymbolExpr
 
-div :: Pattern (PP [TermExpr], PP [TermExpr]) ScalarM ScalarData ([TermExpr], [TermExpr])
-div _ _ (Div (Plus ts1) (Plus ts2)) = pure (ts1, ts2)
-divM :: ScalarM -> ScalarData -> (Multiset TermM, Multiset TermM)
-divM ScalarM _ = (Multiset TermM, Multiset TermM)
-
 term :: Pattern (PP Integer, PP Monomial) TermM TermExpr (Integer, Monomial)
 term _ _ (Term a mono) = pure (a, mono)
 termM :: TermM -> TermExpr -> (Eql, Multiset (Pair SymbolM Eql))
 termM TermM _ = (Eql, Multiset (Pair SymbolM Eql))
 
 symbol :: Pattern (PP String) SymbolM SymbolExpr String
-symbol _ _ (Symbol _ name _) = pure name
+symbol _ _ (Symbol _ name []) = pure name
 symbol _ _ _                 = mzero
 symbolM :: SymbolM -> p -> Eql
 symbolM SymbolM _ = Eql
@@ -139,17 +130,11 @@ zero _ _ _                 = mzero
 zeroM :: ScalarM -> p -> ()
 zeroM ScalarM _ = ()
 
-singleSymbol :: Pattern (PP SymbolExpr) ScalarM ScalarData SymbolExpr
-singleSymbol _ _ (Div (Plus [Term 1 [(sym, 1)]]) (Plus [Term 1 []])) = pure sym
-singleSymbol _ _ _                                                   = mzero
-singleSymbolM :: ScalarM -> p -> SymbolM
-singleSymbolM ScalarM _ = SymbolM
-
-singleTerm :: Pattern (PP Integer, PP Monomial) ScalarM ScalarData (Integer, Monomial)
-singleTerm _ _ (Div (Plus [Term coeff mono]) (Plus [Term 1 []])) = pure (coeff, mono)
-singleTerm _ _ _                                                 = mzero
-singleTermM :: ScalarM -> p -> (Eql, Multiset (Pair SymbolM Eql))
-singleTermM ScalarM _ = (Eql, Multiset (Pair SymbolM Eql))
+singleTerm :: Pattern (PP Integer, PP Integer, PP Monomial) ScalarM ScalarData (Integer, Integer, Monomial)
+singleTerm _ _ (Div (Plus [Term c mono]) (Plus [Term c2 []])) = pure (c, c2, mono)
+singleTerm _ _ _                                              = mzero
+singleTermM :: ScalarM -> p -> (Eql, Eql, Multiset (Pair SymbolM Eql))
+singleTermM ScalarM _ = (Eql, Eql, Multiset (Pair SymbolM Eql))
 
 
 instance ValuePattern ScalarM ScalarData where

@@ -15,7 +15,6 @@ rewriteRules :=
   , (rewriteRuleForSqrt, 1#(containFunction `sqrt %1))
   , (rewriteRuleForRt, 1#(containFunction `rt %1))
   , (rewriteRuleForSin, 1#(containFunction `sin %1))
-  , (rewriteRuleForCos, 1#(containFunction `cos %1))
   , (rewriteRuleForCosToSin, 1#(containFunctionWithOrder `cos 2 %1))
   , (rewriteRuleForD/d, 1#True) ]
 
@@ -74,18 +73,6 @@ rewriteRuleForRtTerm term :=
 --
 -- cos, sin
 --
-rewriteRuleForCosAndSin := 1#(mapPolys rewriteRuleForCosAndSinPoly %1)
-
-rewriteRuleForCosAndSinPoly poly :=
-  match poly as mathExpr with
-    | $a * #`cos $x ^ #2 * $mr + #a * #`sin #x ^ #2 * #mr + $pr ->
-      rewriteRuleForCosAndSinPoly (pr +' a *' mr)
-    | $a * $mr + #(- a) * #`sin $x ^ #2 * #mr + $pr ->
-      rewriteRuleForCosAndSinPoly (pr +' a *' cos x ^ 2 *' mr)
-    | $a * $mr + #(- a) * #`cos $x ^ #2 * #mr + $pr ->
-      rewriteRuleForCosAndSinPoly (pr +' a *' sin x ^ 2 *' mr)
-    | _ -> poly
-
 rewriteRuleForCosToSin := 1#(mapTerms rewriteRuleForCosToSinTerm' %1)
 
 rewriteRuleForCosToSinTerm' term :=
@@ -100,15 +87,6 @@ rewriteRuleForSin mExpr := mapTerms f mExpr
       match term as mathExpr with
         | $a * #`sin (mult $n #π / #2) * $mr ->
           a *' (-1) ^ ((abs n - 1) / 2) *' mr
-        | _ -> term
-
-rewriteRuleForCos mExpr := mapTerms f mExpr
-  where
-    f term :=
-      match term as mathExpr with
-        | $a * #`cos #0 * $mr -> a *' mr
-        | $a * #`cos (term $n [#π]) * $mr -> a *' (-1) ^ abs n *' mr
-        | _ * #`cos (mult _ #π / #2) * _ -> 0
         | _ -> term
 
 --

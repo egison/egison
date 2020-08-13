@@ -4,7 +4,6 @@ module Language.Egison.Math.Rewrite
   ( rewriteSymbol
   ) where
 
-import           Prelude                   hiding (div)
 import           Control.Egison
 
 import           Language.Egison.Math.Arith
@@ -12,7 +11,7 @@ import           Language.Egison.Math.Expr
 
 
 rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol = rewritePower . rewriteExp . rewriteSin . rewriteLog . rewriteW . rewriteI
+rewriteSymbol = rewritePower . rewriteExp . rewriteSinCos . rewriteLog . rewriteW . rewriteI
 
 mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
 mapTerms f (Div (Plus ts1) (Plus ts2)) =
@@ -57,7 +56,7 @@ rewriteLog = mapTerms f
   f term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
       [ [mc| (apply #"log" [zero], _) : _ -> Term 0 [] |]
-      , [mc| (apply #"log" [singleTerm _ [(symbol #"e", $n)]], _) : $xss ->
+      , [mc| (apply #"log" [singleTerm _ #1 [(symbol #"e", $n)]], _) : $xss ->
               Term (n * a) xss |]
       , [mc| _ -> term |]
       ]
@@ -73,9 +72,9 @@ rewriteExp = mapTerms f
     match dfs xs (Multiset (Pair SymbolM Eql))
       [ [mc| (apply #"exp" [zero], _) : $xss ->
                f (Term a xss) |]
-      , [mc| (apply #"exp" [singleTerm #1 []], _) : $xss ->
+      , [mc| (apply #"exp" [singleTerm #1 #1 []], _) : $xss ->
                f (Term a ((Symbol "" "e" [], 1) : xss)) |]
-      , [mc| (apply #"exp" [singleTerm $n [(symbol #"i", #1), (symbol #"π", #1)]], _) : $xss ->
+      , [mc| (apply #"exp" [singleTerm $n #1 [(symbol #"i", #1), (symbol #"π", #1)]], _) : $xss ->
                f (Term ((-1) ^ n * a) xss) |]
       , [mc| (apply #"exp" [$x], $n & ?(>= 2)) : $xss ->
                f (Term a ((makeApply "exp" [mathScalarMult n x], 1) : xss)) |]
@@ -89,7 +88,7 @@ rewritePower = mapTerms f
  where
   f term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
-      [ [mc| (apply #"^" [singleTerm #1 [], _], _) : $xss -> f (Term a xss) |]
+      [ [mc| (apply #"^" [singleTerm #1 #1 [], _], _) : $xss -> f (Term a xss) |]
       , [mc| (apply #"^" [$x, $y], $n & ?(>= 2)) : $xss ->
                f (Term a ((makeApply "^" [x, mathScalarMult n y], 1) : xss)) |]
       , [mc| (apply #"^" [$x, $y], #1) : (apply #"^" [#x, $z], #1) : $xss ->
@@ -97,15 +96,18 @@ rewritePower = mapTerms f
       , [mc| _ -> term |]
       ]
 
-rewriteSin :: ScalarData -> ScalarData
-rewriteSin = mapTerms f
+rewriteSinCos :: ScalarData -> ScalarData
+rewriteSinCos = mapTerms f
  where
-  f term@(Term _ xs) =
+  f term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
       [ [mc| (apply #"sin" [zero], _) : _ -> Term 0 [] |]
-      , [mc| (apply #"sin" [singleTerm _ [(symbol #"π", #1)]], _) : _ -> Term 0 [] |]
-      -- TODO
-      -- , [mc| (apply #"sin" [div [term _ [(symbol #"π", #1)]] [term #2 _]], _) : $xss ->
-      --         Term a xss |]
+      , [mc| (apply #"sin" [singleTerm _ #1 [(symbol #"π", #1)]], _) : _ ->
+               Term 0 [] |]
+      , [mc| (apply #"cos" [singleTerm _ #2 [(symbol #"π", #1)]], _) : _ ->
+              Term 0 [] |]
+      , [mc| (apply #"cos" [zero], _) : $xss -> Term a xss |]
+      , [mc| (apply #"cos" [singleTerm $n #1 [(symbol #"π", #1)]], $m) : $xss ->
+               Term (a * (-1) ^ (abs n * m)) xss |]
       , [mc| _ -> term |]
       ]
