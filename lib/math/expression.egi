@@ -141,7 +141,7 @@ isMonomial %mexpr :=
 --
 fromMonomial $mexpr :=
   match mexpr as mathExpr with
-    | (term $a $xs) / (term $b $ys) ->
+    | term $a $xs / term $b $ys ->
       (a / b, foldl (*') 1 (map (^') xs) / foldl (*') 1 (map (^') ys))
 
 --
@@ -229,8 +229,8 @@ containFunctionWithIndex $mexpr :=
               match f as mathExpr with
                 | symbol _ ![] -> True
                 | _ -> any containFunctionWithIndex args
-                | apply _ $args -> any containFunctionWithIndex args
-                | _ -> False)
+            | apply _ $args -> any containFunctionWithIndex args
+            | _ -> False)
           xs)
 
 --
