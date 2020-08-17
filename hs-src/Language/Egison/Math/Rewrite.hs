@@ -12,7 +12,19 @@ import           Language.Egison.Math.Normalize
 
 
 rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol = rewriteDd . rewriteRt . rewriteSqrt . rewritePower . rewriteExp . rewriteSinCos . rewriteLog . rewriteW . rewriteI
+rewriteSymbol =
+  foldl1 (\acc f -> f . acc)
+    [ rewriteI
+    , rewriteW
+    , rewriteLog
+    , rewriteSinCos
+    , rewriteExp
+    , rewritePower
+    , rewriteSqrt
+    , rewriteRt
+    , rewriteRtu
+    , rewriteDd
+    ]
 
 mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
 mapTerms f (Div (Plus ts1) (Plus ts2)) =
@@ -153,10 +165,20 @@ rewriteRt = mapTerms' f
  where
   f term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
-      [ [mc| (apply #"rt" [$m & singleTerm $n #1 [], $x], ?(>= n) & $k) : $xss ->
-               mathMult (SingleTerm a ((makeApply "rt" [m, x], k `mod` n) : xss))
+      [ [mc| (apply #"rt" [singleTerm $n #1 [], $x] & $rtnx, ?(>= n) & $k) : $xss ->
+               mathMult (SingleTerm a ((rtnx, k `mod` n) : xss))
                         (mathPower x (div k n)) |]
       , [mc| _ -> Div (Plus [term]) (Plus [Term 1 []]) |]
+      ]
+
+rewriteRtu :: ScalarData -> ScalarData
+rewriteRtu = mapTerms f
+ where
+  f term@(Term a xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (apply #"rtu" [singleTerm $n #1 []] & $rtun, ?(>= n) & $k) : $r ->
+               Term a ((rtun, k `mod` n) : r) |]
+      , [mc| _ -> term |]
       ]
 
 rewriteDd :: ScalarData -> ScalarData
