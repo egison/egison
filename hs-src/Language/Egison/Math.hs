@@ -14,6 +14,7 @@ module Language.Egison.Math
   , rewriteSymbol
   , mathPlus
   , mathMult
+  , mathDiv
   , mathNumerator
   , mathDenominator
   , mathNegate
