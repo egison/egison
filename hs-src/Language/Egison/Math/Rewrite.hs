@@ -134,19 +134,19 @@ rewriteSinCos = mapTerms' h . mapTerms (g . f)
                Term (a * (-1) ^ (abs n * m)) xss |]
       , [mc| _ -> term |]
       ]
-  h term@(Term a xs) =
+  h (Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
       [ [mc| (apply #"cos" [$x], #2) : $mr ->
                mathMult
                  (mathMinus (SingleTerm 1 []) (SingleTerm 1 [(makeApply "sin" [x], 2)]))
                  (h (Term a mr)) |]
-      , [mc| _ -> Div (Plus [term]) (Plus [Term 1 []]) |]
+      , [mc| _ -> SingleTerm a xs |]
       ]
 
 rewriteSqrt :: ScalarData -> ScalarData
 rewriteSqrt = mapTerms' f
  where
-  f term@(Term a xs) =
+  f (Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
       [ [mc| (apply #"sqrt" [$x], ?(> 1) & $k) : $xss ->
                rewriteSqrt
@@ -154,29 +154,28 @@ rewriteSqrt = mapTerms' f
                            (mathPower x (div k 2))) |]
       , [mc| (apply #"sqrt" [singleTerm $n #1 $x], #1) :
                (apply #"sqrt" [singleTerm $m #1 $y], #1) : $xss ->
-             let d = termsGcd [Term n x, Term m y]
+             let d@(Term c z) = termsGcd [Term n x, Term m y]
                  Term n' x' = mathDivideTerm (Term n x) d
                  Term m' y' = mathDivideTerm (Term m y) d
                  sqrtxy = (if x' == [] then [] else [(makeApply "sqrt" [SingleTerm 1 x'], 1)]) ++ 
                             (if y' == [] then [] else [(makeApply "sqrt" [SingleTerm 1 y'], 1)])
               in mathMult
-                   (Div (Plus [d]) (Plus [Term 1 []]))
+                   (SingleTerm c z)
                    (SingleTerm
                      a
-                     (sqrtxy ++
-                      (makeApply "sqrt" [SingleTerm (n' * m') []], 1) : xss)) |]
-      , [mc| _ -> Div (Plus [term]) (Plus [Term 1 []]) |]
+                     ((makeApply "sqrt" [SingleTerm (n' * m') []], 1) : sqrtxy ++ xss)) |]
+      , [mc| _ -> SingleTerm a xs |]
       ]
 
 rewriteRt :: ScalarData -> ScalarData
 rewriteRt = mapTerms' f
  where
-  f term@(Term a xs) =
+  f (Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
       [ [mc| (apply #"rt" [singleTerm $n #1 [], $x] & $rtnx, ?(>= n) & $k) : $xss ->
                mathMult (SingleTerm a ((rtnx, k `mod` n) : xss))
                         (mathPower x (div k n)) |]
-      , [mc| _ -> Div (Plus [term]) (Plus [Term 1 []]) |]
+      , [mc| _ -> SingleTerm a xs |]
       ]
 
 rewriteRtu :: ScalarData -> ScalarData
