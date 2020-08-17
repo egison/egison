@@ -11,7 +11,6 @@ mathNormalize $x :=
 
 rewriteRules :=
   [ (rewriteRuleForRtu, 1#(containFunction `rtu %1))
-  , (rewriteRuleForCosToSin, 1#(containFunctionWithOrder `cos 2 %1))
   ]
 
 --
