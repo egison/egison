@@ -13,7 +13,6 @@ rewriteRules :=
   [ (rewriteRuleForRtu, 1#(containFunction `rtu %1))
   , (rewriteRuleForSqrt, 1#(containFunction `sqrt %1))
   , (rewriteRuleForRt, 1#(containFunction `rt %1))
-  , (rewriteRuleForSin, 1#(containFunction `sin %1))
   , (rewriteRuleForCosToSin, 1#(containFunctionWithOrder `cos 2 %1))
   , (rewriteRuleForD/d, 1#True) ]
 
@@ -76,14 +75,6 @@ rewriteRuleForCosToSin := 1#(mapTerms rewriteRuleForCosToSinTerm' %1)
       match term as mathExpr with
         | $a * #`cos $x ^ #2 * $mr ->
           a *' (1 -' sin x ^ 2) *' rewriteRuleForCosToSinTerm' mr
-        | _ -> term
-
-rewriteRuleForSin mExpr := mapTerms f mExpr
-  where
-    f term :=
-      match term as mathExpr with
-        | $a * #`sin (mult $n #π / #2) * $mr ->
-          a *' (-1) ^ ((abs n - 1) / 2) *' mr
         | _ -> term
 
 --
