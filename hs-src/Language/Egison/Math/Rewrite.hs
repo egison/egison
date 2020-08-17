@@ -114,7 +114,7 @@ rewritePower = mapTerms f
       ]
 
 rewriteSinCos :: ScalarData -> ScalarData
-rewriteSinCos = mapTerms (g . f)
+rewriteSinCos = mapTerms' h . mapTerms (g . f)
  where
   f term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
@@ -133,6 +133,14 @@ rewriteSinCos = mapTerms (g . f)
       , [mc| (apply #"cos" [singleTerm $n #1 [(symbol #"π", #1)]], $m) : $xss ->
                Term (a * (-1) ^ (abs n * m)) xss |]
       , [mc| _ -> term |]
+      ]
+  h term@(Term a xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (apply #"cos" [$x], #2) : $mr ->
+               mathMult
+                 (mathMinus (SingleTerm 1 []) (SingleTerm 1 [(makeApply "sin" [x], 2)]))
+                 (h (Term a mr)) |]
+      , [mc| _ -> Div (Plus [term]) (Plus [Term 1 []]) |]
       ]
 
 rewriteSqrt :: ScalarData -> ScalarData

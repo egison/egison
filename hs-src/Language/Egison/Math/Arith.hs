@@ -1,5 +1,6 @@
 module Language.Egison.Math.Arith
   ( mathPlus
+  , mathMinus
   , mathMult
   , mathDiv
   , mathPower
@@ -15,6 +16,9 @@ mathPlus (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathPlusPoly (mathMultP
 
 mathPlusPoly :: PolyExpr -> PolyExpr -> PolyExpr
 mathPlusPoly (Plus ts1) (Plus ts2) = Plus (ts1 ++ ts2)
+
+mathMinus :: ScalarData -> ScalarData -> ScalarData
+mathMinus s1 s2 = mathPlus s1 (mathNegate s2)
 
 mathMult :: ScalarData -> ScalarData -> ScalarData
 mathMult (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
