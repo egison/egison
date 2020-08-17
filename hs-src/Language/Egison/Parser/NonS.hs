@@ -15,6 +15,8 @@ module Language.Egison.Parser.NonS
        , parseTopExpr
        , parseExprs
        , parseExpr
+       , upperReservedWords
+       , lowerReservedWords
        ) where
 
 import           Control.Monad.State            (get, gets, put)
