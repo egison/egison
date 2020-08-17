@@ -27,6 +27,8 @@ module Language.Egison.Math.Expr
     , termM
     , symbol
     , symbolM
+    , func
+    , funcM
     , apply
     , applyM
     , quote
@@ -99,6 +101,13 @@ symbol _ _ (Symbol _ name []) = pure name
 symbol _ _ _                  = mzero
 symbolM :: SymbolM -> p -> Eql
 symbolM SymbolM _ = Eql
+
+func :: Pattern (PP ScalarData, PP [ScalarData], PP [Index ScalarData])
+                SymbolM SymbolExpr (ScalarData, [ScalarData], [Index ScalarData])
+func _ _ (FunctionData name _ args js) = pure (name, args, js)
+func _ _ _                             = mzero
+funcM :: SymbolM -> SymbolExpr -> (ScalarM, List ScalarM, Multiset Eql)
+funcM SymbolM _ = (ScalarM, List ScalarM, Multiset Eql)
 
 apply :: Pattern (PP String, PP [ScalarData]) SymbolM SymbolExpr (String, [ScalarData])
 apply _ _ (Apply (SingleSymbol (Symbol _ fn _)) args) = pure (fn, args)

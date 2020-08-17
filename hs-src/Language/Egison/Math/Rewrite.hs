@@ -12,7 +12,7 @@ import           Language.Egison.Math.Normalize
 
 
 rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol = rewriteRt . rewriteSqrt . rewritePower . rewriteExp . rewriteSinCos . rewriteLog . rewriteW . rewriteI
+rewriteSymbol = rewriteDd . rewriteRt . rewriteSqrt . rewritePower . rewriteExp . rewriteSinCos . rewriteLog . rewriteW . rewriteI
 
 mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
 mapTerms f (Div (Plus ts1) (Plus ts2)) =
@@ -157,4 +157,16 @@ rewriteRt = mapTerms' f
                mathMult (SingleTerm a ((makeApply "rt" [m, x], k `mod` n) : xss))
                         (mathPower x (div k n)) |]
       , [mc| _ -> Div (Plus [term]) (Plus [Term 1 []]) |]
+      ]
+
+rewriteDd :: ScalarData -> ScalarData
+rewriteDd (Div (Plus p1) (Plus p2)) =
+  Div (Plus (rewriteDdPoly p1)) (Plus (rewriteDdPoly p2))
+ where
+  rewriteDdPoly poly =
+    match dfs poly (Multiset TermM)
+      [ [mc| term $a (($f & func $g $arg $js, $n) : $mr) :
+               term $b ((func #g #arg #js, #n) : #mr) : $pr ->
+                 rewriteDdPoly (Term (a + b) ((f, n) : mr) : pr) |]
+      , [mc| _ -> poly |]
       ]
