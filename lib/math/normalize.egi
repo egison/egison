@@ -7,11 +7,7 @@
 mathNormalize $x :=
   if isInteger x
     then x
-    else (foldr compose id (map 2#%1 (filter 2#(%2 x) rewriteRules))) (symbolNormalize x)
-
-rewriteRules :=
-  [ (rewriteRuleForRtu, 1#(containFunction `rtu %1))
-  ]
+    else rewriteRuleForRtu (symbolNormalize x)
 
 --
 -- rtu (include i and w)
