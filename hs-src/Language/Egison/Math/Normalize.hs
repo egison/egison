@@ -2,6 +2,8 @@
 
 module Language.Egison.Math.Normalize
   ( mathNormalize'
+  , termsGcd
+  , mathDivideTerm
   ) where
 
 import           Control.Egison

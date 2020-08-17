@@ -1,6 +1,8 @@
 module Language.Egison.Math.Arith
   ( mathPlus
   , mathMult
+  , mathDiv
+  , mathPower
   , mathNumerator
   , mathDenominator
   ) where
@@ -21,6 +23,14 @@ mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
 mathMultPoly (Plus []) (Plus _) = Plus []
 mathMultPoly (Plus _) (Plus []) = Plus []
 mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> Plus (map (\(Term b ys) -> Term (a * b) (xs ++ ys)) ts2)) ts1)
+
+mathDiv :: ScalarData -> ScalarData -> ScalarData
+mathDiv s (Div p1 p2) = mathMult s (Div p2 p1)
+
+mathPower :: ScalarData -> Integer -> ScalarData
+mathPower _ 0          = SingleTerm 1 []
+mathPower s 1          = s
+mathPower s n | n >= 2 = mathMult s (mathPower s (n - 1))
 
 mathNumerator :: ScalarData -> ScalarData
 mathNumerator (Div m _) = Div m (Plus [Term 1 []])
