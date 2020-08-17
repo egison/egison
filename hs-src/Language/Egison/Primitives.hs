@@ -270,7 +270,7 @@ multiply :: PrimitiveFunc
 multiply = scalarBinaryOp "b.*" mathMult
 
 divide :: PrimitiveFunc
-divide = scalarBinaryOp "b./" (\m1 (Div p1 p2) -> mathMult m1 (Div p2 p1))
+divide = scalarBinaryOp "b./" mathDiv
 
 numerator' :: PrimitiveFunc
 numerator' =  oneArg numerator''
