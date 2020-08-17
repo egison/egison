@@ -22,14 +22,3 @@ rewriteRuleForRtu := 1#(mapPolys rewriteRuleForRtuPoly %1)
                                        $pr) ->
           rewriteRuleForRtuPoly' (pr +' (-1) *' a *' mr)
         | _ -> poly
-
---
--- cos, sin
---
-rewriteRuleForCosToSin := 1#(mapTerms rewriteRuleForCosToSinTerm' %1)
-  where
-    rewriteRuleForCosToSinTerm' term :=
-      match term as mathExpr with
-        | $a * #`cos $x ^ #2 * $mr ->
-          a *' (1 -' sin x ^ 2) *' rewriteRuleForCosToSinTerm' mr
-        | _ -> term
