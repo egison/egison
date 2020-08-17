@@ -118,13 +118,13 @@ showBanner = do
 showByebyeMessage :: IO ()
 showByebyeMessage = putStrLn "Leaving Egison Interpreter."
 
-settings :: MonadIO m => FilePath -> Settings m
-settings home = setComplete completeEgison $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
+settings :: MonadIO m => FilePath -> Env -> Settings m
+settings home env = setComplete (completeEgison env) $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
 
 repl :: Env -> RuntimeM ()
 repl env = (do
   home <- liftIO getHomeDirectory
-  input <- runInputT (settings home) getEgisonExpr
+  input <- runInputT (settings home env) getEgisonExpr
   case input of
     Nothing -> return ()
     Just topExpr -> do
