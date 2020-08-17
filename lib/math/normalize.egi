@@ -7,7 +7,9 @@
 mathNormalize $x :=
   if isInteger x
     then x
-    else rewriteRuleForRtu (symbolNormalize x)
+    else if containFunction `rtu x
+          then rewriteRuleForRtu (symbolNormalize x)
+          else symbolNormalize x
 
 --
 -- rtu (include i and w)
