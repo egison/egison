@@ -104,15 +104,15 @@ rewriteSinCos = mapTerms (g . f)
       [ [mc| (apply #"sin" [zero], _) : _ -> Term 0 [] |]
       , [mc| (apply #"sin" [singleTerm _ #1 [(symbol #"π", #1)]], _) : _ ->
                Term 0 [] |]
-      , [mc| (apply #"sin" [singleTerm $n #2 [(symbol #"π", #1)]], _) : $xss ->
-              Term (a * (-1) ^ (div (abs n - 1) 2)) xss |]
+      , [mc| (apply #"sin" [singleTerm $n #2 [(symbol #"π", #1)]], $m) : $xss ->
+              Term (a * (-1) ^ (div (abs n - 1) 2) * m) xss |]
       , [mc| _ -> term |]
       ]
   g term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
-      [ [mc| (apply #"cos" [singleTerm _ #2 [(symbol #"π", #1)]], _) : _ ->
+      [ [mc| (apply #"cos" [zero], _) : $xss -> Term a xss |]
+      , [mc| (apply #"cos" [singleTerm _ #2 [(symbol #"π", #1)]], _) : _ ->
               Term 0 [] |]
-      , [mc| (apply #"cos" [zero], _) : $xss -> Term a xss |]
       , [mc| (apply #"cos" [singleTerm $n #1 [(symbol #"π", #1)]], $m) : $xss ->
                Term (a * (-1) ^ (abs n * m)) xss |]
       , [mc| _ -> term |]
