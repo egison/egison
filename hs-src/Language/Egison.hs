@@ -20,7 +20,6 @@ module Language.Egison
        , evalEgisonTopExprs
        , runEgisonExpr
        , runEgisonTopExpr
-       , runEgisonTopExpr'
        , runEgisonTopExprs
        -- * Load Egison files
        , loadEgisonLibrary
@@ -90,20 +89,13 @@ runEgisonExpr env input = do
   readExpr isSExpr input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr :: Env -> String -> EvalM Env
+runEgisonTopExpr :: Env -> String -> EvalM (Maybe String, Env)
 runEgisonTopExpr env input = do
   isSExpr <- asks optSExpr
-  readTopExpr isSExpr input >>= evalTopExpr env
-
--- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr' :: Env -> String -> RuntimeM (Either EgisonError (Maybe String, Env))
-runEgisonTopExpr' env input = do
-  isSExpr <- asks optSExpr
-  m <- fromEvalT (readTopExpr isSExpr input >>= evalTopExpr' env)
+  (m, env') <- readTopExpr isSExpr input >>= evalTopExpr' env
   case m of
-    Right (Just val, env') -> return $ Right (Just (show val), env')
-    Right (Nothing,  env') -> return $ Right (Nothing, env')
-    Left err               -> return $ Left err
+    Just val -> return (Just (show val), env')
+    Nothing -> return (Nothing, env')
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: Env -> String -> EvalM Env
