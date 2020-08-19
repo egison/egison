@@ -57,7 +57,7 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   assertEvalM :: EvalM a -> Assertion
   assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
 
-collectDefsAndTests :: EgisonTopExpr -> ([(Var, EgisonExpr)], [EgisonExpr]) -> ([(Var, EgisonExpr)], [EgisonExpr])
+collectDefsAndTests :: TopExpr -> ([(Var, Expr)], [Expr]) -> ([(Var, Expr)], [Expr])
 collectDefsAndTests (Define name expr) (bindings, tests) =
   ((name, expr) : bindings, tests)
 collectDefsAndTests (Test expr) (bindings, tests) =
