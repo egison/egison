@@ -130,7 +130,7 @@ evalExpr _ (FloatExpr x)   = return . Value $ Float x
 evalExpr env (QuoteExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value (ScalarData s) -> return . Value $ ScalarData $ SingleTerm 1 [(Quote s, 1)]
+    Value (ScalarData s) -> return . Value . ScalarData $ SingleTerm 1 [(Quote s, 1)]
     _ -> throwError =<< TypeMismatch "scalar in quote" whnf <$> getFuncNameStack
 
 evalExpr env (QuoteSymbolExpr expr) = do
@@ -475,7 +475,6 @@ evalExpr env (CApplyExpr func arg) = do
 evalExpr env (ApplyExpr func arg) = do
   func <- evalExpr env func >>= appendDFscripts 0
   case func of
---    Value (ScalarData (SingleTerm 1 [(Symbol "" name@(c:_) [], 1)])) | isUpper c ->
     Value (InductiveData name []) ->
       case arg of
         TupleExpr exprs ->
