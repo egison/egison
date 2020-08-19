@@ -305,12 +305,12 @@ desugar FreshVarExpr = do
 desugar (MatcherExpr patternDefs) =
   MatcherExpr <$> mapM desugarPatternDef patternDefs
 
-desugar (AnonParamExpr n) = return $ stringToVarExpr ("::" ++ show n)
+desugar (AnonParamExpr n) = return $ stringToVarExpr ('%' : show n)
 
 desugar (AnonParamFuncExpr n expr) = do
   expr' <- desugar expr
-  let lambda = LambdaExpr (map (\n -> TensorArg ("::" ++ show n)) [1..n]) expr'
-  return $ LetRecExpr [([stringToVar "::0"], lambda)] (stringToVarExpr "::0")
+  let lambda = LambdaExpr (map (\n -> TensorArg ('%' : show n)) [1..n]) expr'
+  return $ LetRecExpr [([stringToVar "%0"], lambda)] (stringToVarExpr "%0")
 
 desugar (QuoteExpr expr) =
   QuoteExpr <$> desugar expr
