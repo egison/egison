@@ -487,13 +487,13 @@ readProcess' = threeArgs' "readProcess" $ \cmd args input ->
 read' :: PrimitiveFunc
 read'= oneArg' $ \val -> do
   str <- fromEgison val
-  ast <- readExpr False (T.unpack str)
+  ast <- readExpr (T.unpack str)
   evalExprDeep nullEnv ast
 
 readTSV :: PrimitiveFunc
 readTSV = oneArg' $ \val -> do
   str   <- fromEgison val
-  exprs <- mapM (readExpr False . T.unpack) (T.split (== '\t') str)
+  exprs <- mapM (readExpr . T.unpack) (T.split (== '\t') str)
   rets  <- mapM (evalExprDeep nullEnv) exprs
   case rets of
     [ret] -> return ret

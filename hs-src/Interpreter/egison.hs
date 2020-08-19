@@ -159,7 +159,7 @@ getEgisonExpr = getEgisonExpr' ""
           history <- getHistory
           putHistory $ addHistoryUnlessConsecutiveDupe line history
           let input = prev ++ line
-          parsedExpr <- lift $ parseTopExpr (optSExpr opts) input
+          parsedExpr <- lift $ parseTopExpr input
           case parsedExpr of
             Left err | show err =~ "unexpected end of input" ->
               getEgisonExpr' (input ++ "\n")
