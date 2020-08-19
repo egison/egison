@@ -28,10 +28,10 @@ import           Language.Egison.Data
 -- Pretty printing for Non-S syntax
 --
 
-prettyTopExprs :: [EgisonTopExpr] -> Doc [EgisonTopExpr]
+prettyTopExprs :: [TopExpr] -> Doc [TopExpr]
 prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
-instance Pretty EgisonTopExpr where
+instance Pretty TopExpr where
   pretty (Define x (LambdaExpr args body)) =
     hsep (pretty x : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (Define x expr) =
@@ -41,7 +41,7 @@ instance Pretty EgisonTopExpr where
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
   pretty _ = error "Unsupported topexpr"
 
-instance Pretty EgisonExpr where
+instance Pretty Expr where
   -- Use |viaShow| to correctly handle escaped characters
   pretty (CharExpr x)    = viaShow x
   pretty (StringExpr x)  = pretty (ushow x)
@@ -87,7 +87,6 @@ instance Pretty EgisonExpr where
   pretty (LetRecExpr bindings body) =
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
   pretty (LetExpr _ _) = error "unreachable"
-  pretty (LetStarExpr _ _) = error "unreachable"
   pretty (WithSymbolsExpr xs e) =
     indentBlock (pretty "withSymbols" <+> list (map pretty xs)) [pretty e]
 
@@ -225,7 +224,7 @@ instance (Pretty a, Complex a) => Pretty (Index a) where
   pretty (DFscript _ _) = undefined
   pretty (Userscript i) = pretty '|' <> pretty' i
 
-instance Pretty EgisonPattern where
+instance Pretty Pattern where
   pretty WildCard     = pretty "_"
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
@@ -299,7 +298,7 @@ class Complex a where
   isAtomOrApp :: a -> Bool
   isInfix :: a -> Bool
 
-instance Complex EgisonExpr where
+instance Complex Expr where
   isAtom (IntegerExpr i) | i < 0  = False
   isAtom (InductiveDataExpr _ []) = True
   isAtom (InductiveDataExpr _ _)  = False
@@ -339,7 +338,7 @@ instance Complex EgisonExpr where
   isInfix InfixExpr{}             = True
   isInfix _                       = False
 
-instance Complex EgisonPattern where
+instance Complex Pattern where
   isAtom (LetPat _ _)        = False
   isAtom (InductivePat _ []) = True
   isAtom (InductivePat _ _)  = False
@@ -383,7 +382,7 @@ prettyDoBinds :: BindingExpr -> Doc ann
 prettyDoBinds ([], expr) = pretty expr
 prettyDoBinds (vs, expr) = pretty "let" <+> pretty (vs, expr)
 
-prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
+prettyMatch :: Expr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
   pretty "as" <> group (flatAlt (hardline <> pretty matcher) (space <> pretty matcher) <+> pretty "with") <> hardline <>
     align (vsep (map pretty clauses))

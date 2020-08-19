@@ -24,7 +24,7 @@ import           Language.Egison.Data
 import           Language.Egison.RState
 
 
-desugarTopExpr :: EgisonTopExpr -> EvalM EgisonTopExpr
+desugarTopExpr :: TopExpr -> EvalM TopExpr
 desugarTopExpr (Define name expr)   = Define name <$> desugar expr
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr
@@ -37,17 +37,17 @@ desugarTopExpr (Test expr)          = Test <$> desugar expr
 desugarTopExpr (Execute expr)       = Execute <$> desugar expr
 desugarTopExpr expr                 = return expr
 
-desugarExpr :: EgisonExpr -> EvalM EgisonExpr
+desugarExpr :: Expr -> EvalM Expr
 desugarExpr = desugar
 
-desugar :: EgisonExpr -> EvalM EgisonExpr
+desugar :: Expr -> EvalM Expr
 desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- freshV
   let matcherRef = VarExpr matcherName
   matcher <- genMatcherClauses patterns matcherRef
   return $ LetRecExpr [([matcherName], matcher)] matcherRef
     where
-      genMatcherClauses :: [(String, [EgisonExpr])] ->  EgisonExpr -> EvalM EgisonExpr
+      genMatcherClauses :: [(String, [Expr])] ->  Expr -> EvalM Expr
       genMatcherClauses patterns matcher = do
         main <- genMainClause patterns matcher
         body <- mapM genMatcherClause patterns
@@ -55,7 +55,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         let clauses = [main] ++ body ++ [footer]
         return $ MatcherExpr clauses
 
-      genMainClause :: [(String, [EgisonExpr])] -> EgisonExpr -> EvalM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+      genMainClause :: [(String, [Expr])] -> Expr -> EvalM (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", TupleExpr []
@@ -64,34 +64,34 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
                                             (TupleExpr [matcher, matcher])
                                              clauses)])
         where
-          genClauses :: [(String, [EgisonExpr])] -> EvalM [MatchClause]
+          genClauses :: [(String, [Expr])] -> EvalM [MatchClause]
           genClauses patterns = (++) <$> mapM genClause patterns
                                      <*> pure [(TuplePat [WildCard, WildCard], matchingFailure)]
 
-          genClause :: (String, [EgisonExpr]) -> EvalM MatchClause
+          genClause :: (String, [Expr]) -> EvalM MatchClause
           genClause pattern = do
             (pat0, pat1) <- genMatchingPattern pattern
             return (TuplePat [pat0, pat1], matchingSuccess)
 
-          genMatchingPattern :: (String, [EgisonExpr]) -> EvalM (EgisonPattern, EgisonPattern)
+          genMatchingPattern :: (String, [Expr]) -> EvalM (Pattern, Pattern)
           genMatchingPattern (name, patterns) = do
             names <- mapM (const freshV) patterns
             return (InductivePat name (map PatVar names),
                     InductivePat name (map (ValuePat . VarExpr) names))
 
-      genMatcherClause :: (String, [EgisonExpr]) -> EvalM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+      genMatcherClause :: (String, [Expr]) -> EvalM (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
       genMatcherClause pattern = do
         (ppat, matchers) <- genPrimitivePatPat pattern
         (dpat, body)     <- genPrimitiveDataPat pattern
         return (ppat, TupleExpr matchers, [(dpat, CollectionExpr [TupleExpr body]), (PDWildCard, matchingFailure)])
 
         where
-          genPrimitivePatPat :: (String, [EgisonExpr]) -> EvalM (PrimitivePatPattern, [EgisonExpr])
+          genPrimitivePatPat :: (String, [Expr]) -> EvalM (PrimitivePatPattern, [Expr])
           genPrimitivePatPat (name, matchers) = do
             patterns' <- mapM (const $ return PPPatVar) matchers
             return (PPInductivePat name patterns', matchers)
 
-          genPrimitiveDataPat :: (String, [EgisonExpr]) -> EvalM (PrimitiveDataPattern, [EgisonExpr])
+          genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [Expr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const freshV) patterns
             return (PDInductivePat (capitalize name) $ map (PDPatVar . show) patterns', map VarExpr patterns')
@@ -100,14 +100,14 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           capitalize (x:xs) = toUpper x : xs
 
 
-      genSomethingClause :: EvalM (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+      genSomethingClause :: EvalM (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
       genSomethingClause =
         return (PPPatVar, TupleExpr [SomethingExpr], [(PDPatVar "tgt", CollectionExpr [stringToVarExpr "tgt"])])
 
-      matchingSuccess :: EgisonExpr
+      matchingSuccess :: Expr
       matchingSuccess = CollectionExpr [TupleExpr []]
 
-      matchingFailure :: EgisonExpr
+      matchingFailure :: Expr
       matchingFailure = CollectionExpr []
 
 desugar (MatchAllLambdaExpr matcher clauses) = do
@@ -178,7 +178,7 @@ desugar (LambdaExpr names expr) = do
   expr'' <- desugar expr'
   return $ LambdaExpr args' expr''
   where
-    desugarInvertedArgs :: Arg -> ([Arg], EgisonExpr) -> ([Arg], EgisonExpr)
+    desugarInvertedArgs :: Arg -> ([Arg], Expr) -> ([Arg], Expr)
     desugarInvertedArgs (TensorArg x) (args, expr) = (TensorArg x : args, expr)
     desugarInvertedArgs (ScalarArg x) (args, expr) =
       (TensorArg x : args,
@@ -204,11 +204,6 @@ desugar (LetRecExpr binds expr) =
 
 desugar (LetExpr binds expr) =
   LetExpr <$> desugarBindings binds <*> desugar expr
-
-desugar (LetStarExpr binds expr) = do
-  binds' <- desugarBindings binds
-  expr' <- desugar expr
-  return $ foldr (\bind ret -> LetExpr [bind] ret) expr' binds'
 
 desugar (WithSymbolsExpr vars expr) =
   WithSymbolsExpr vars <$> desugar expr
@@ -323,16 +318,16 @@ desugar (WedgeApplyExpr expr0 expr1) =
 
 desugar expr = return expr
 
-desugarIndex :: Index EgisonExpr -> EvalM (Index EgisonExpr)
+desugarIndex :: Index Expr -> EvalM (Index Expr)
 desugarIndex index = traverse desugar index
 
-desugarPattern :: EgisonPattern -> EvalM EgisonPattern
-desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> desugarPattern' (desugarPatternInfix pat)
+desugarPattern :: Pattern -> EvalM Pattern
+desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> desugarPattern' pat
  where
-   collectNames :: [EgisonPattern] -> Set String
+   collectNames :: [Pattern] -> Set String
    collectNames pats = S.unions $ map collectName pats
 
-   collectName :: EgisonPattern -> Set String
+   collectName :: Pattern -> Set String
    collectName (ForallPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
    collectName (InfixPat _ pat1 pat2) = collectName pat1 `S.union` collectName pat2
    collectName (NotPat pat)  = collectName pat
@@ -351,40 +346,19 @@ desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> de
    makeBinding :: String -> BindingExpr
    makeBinding name = ([stringToVar name], HashExpr [])
 
-desugarPatternInfix :: EgisonPattern -> EgisonPattern
-desugarPatternInfix (IndexedPat pat es) = IndexedPat (desugarPatternInfix pat) es
-desugarPatternInfix (LetPat bindings pat) = LetPat bindings (desugarPatternInfix pat)
-desugarPatternInfix (InfixPat Op{ repr = "&" } pat1 pat2) =
-  AndPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Op{ repr = "|" } pat1 pat2) =
-  OrPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Op{ repr = f } pat1 pat2) =
-  InductivePat f [desugarPatternInfix pat1, desugarPatternInfix pat2]
-desugarPatternInfix (NotPat pat) = NotPat (desugarPatternInfix pat)
-desugarPatternInfix (ForallPat pat1 pat2) =
-  ForallPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (TuplePat pats) = TuplePat (map desugarPatternInfix pats)
-desugarPatternInfix (InductivePat ctor pats) =
-  InductivePat ctor (map desugarPatternInfix pats)
-desugarPatternInfix (LoopPat name range pat1 pat2) =
-  LoopPat name range (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (PApplyPat expr pats) =
-  PApplyPat expr (map desugarPatternInfix pats)
-desugarPatternInfix (InductiveOrPApplyPat name pats) =
-  InductiveOrPApplyPat name (map desugarPatternInfix pats)
-desugarPatternInfix (SeqConsPat pat1 pat2) =
-  SeqConsPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (DApplyPat pat pats) =
-  DApplyPat (desugarPatternInfix pat) (map desugarPatternInfix pats)
-desugarPatternInfix pat = pat
-
-desugarPattern' :: EgisonPattern -> EvalM EgisonPattern
+desugarPattern' :: Pattern -> EvalM Pattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
 desugarPattern' (NotPat pat) = NotPat <$> desugarPattern' pat
 desugarPattern' (ForallPat pat1 pat2) = ForallPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (AndPat pat1 pat2) = AndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (OrPat pat1 pat2) = OrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (InfixPat Op{ repr = "&" } pat1 pat2) =
+  AndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (InfixPat Op{ repr = "|" } pat1 pat2) =
+  OrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (InfixPat Op{ repr = f } pat1 pat2) =
+  (\x y -> InductivePat f [x, y]) <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (TuplePat pats)  = TuplePat <$> mapM desugarPattern' pats
 desugarPattern' (InductiveOrPApplyPat name pats) = InductiveOrPApplyPat name <$> mapM desugarPattern' pats
 desugarPattern' (InductivePat name pats) = InductivePat name <$> mapM desugarPattern' pats
@@ -410,5 +384,5 @@ desugarPatternDef :: PatternDef -> EvalM PatternDef
 desugarPatternDef (pp, matcher, pds) =
   (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
-desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, EgisonExpr)] -> EvalM [(PrimitiveDataPattern, EgisonExpr)]
+desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(PrimitiveDataPattern, Expr)]
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (pd,) <$> desugar expr)

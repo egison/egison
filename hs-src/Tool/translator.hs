@@ -61,14 +61,14 @@ lookupVarExprInfix x = lookup (prettyStr x) exprInfix
 class SyntaxElement a where
   toNonS :: a -> a
 
-instance SyntaxElement EgisonTopExpr where
+instance SyntaxElement TopExpr where
   toNonS (Define x y)   = Define (toNonS x) (toNonS y)
   toNonS (Redefine _ _) = error "Not supported"
   toNonS (Test x)       = Test (toNonS x)
   toNonS (Execute x)    = Execute (toNonS x)
   toNonS x              = x
 
-instance SyntaxElement EgisonExpr where
+instance SyntaxElement Expr where
   toNonS (IntegerExpr x) = IntegerExpr x
   toNonS (VarExpr (lookupVarExprInfix -> Just op)) =
     SectionExpr op Nothing Nothing
@@ -96,7 +96,6 @@ instance SyntaxElement EgisonExpr where
   toNonS (IfExpr x y z)         = IfExpr (toNonS x) (toNonS y) (toNonS z)
   toNonS (LetRecExpr xs y)      = LetRecExpr (map toNonS xs) (toNonS y)
   toNonS (LetExpr xs y)         = LetRecExpr (map toNonS xs) (toNonS y)
-  toNonS (LetStarExpr xs y)     = LetRecExpr (map toNonS xs) (toNonS y)
   toNonS (WithSymbolsExpr xs y) = WithSymbolsExpr xs (toNonS y)
 
   toNonS (MatchExpr pmmode m p xs)    = MatchExpr pmmode (toNonS m) (toNonS p) (map toNonS xs)
@@ -158,7 +157,7 @@ instance SyntaxElement EgisonExpr where
 
   toNonS x = x
 
-instance SyntaxElement EgisonPattern where
+instance SyntaxElement Pattern where
   toNonS (ValuePat e) = ValuePat (toNonS e)
   toNonS (PredPat e) = PredPat (toNonS e)
   toNonS (IndexedPat p es) = IndexedPat (toNonS p) (map toNonS es)

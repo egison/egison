@@ -11,9 +11,9 @@ This module defines the syntax of Egison.
 -}
 
 module Language.Egison.AST
-  ( EgisonTopExpr (..)
-  , EgisonExpr (..)
-  , EgisonPattern (..)
+  ( TopExpr (..)
+  , Expr (..)
+  , Pattern (..)
   , Var (..)
   , VarWithIndices (..)
   , varToVarWithIndices
@@ -45,19 +45,19 @@ import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
 
-data EgisonTopExpr =
-    Define Var EgisonExpr
-  | DefineWithIndices VarWithIndices EgisonExpr
-  | Redefine Var EgisonExpr
-  | Test EgisonExpr
-  | Execute EgisonExpr
+data TopExpr =
+    Define Var Expr
+  | DefineWithIndices VarWithIndices Expr
+  | Redefine Var Expr
+  | Test Expr
+  | Execute Expr
     -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
   | InfixDecl Bool Op -- True for pattern infix; False for expression infix
  deriving (Show, Eq)
 
-data EgisonExpr =
+data Expr =
     CharExpr Char
   | StringExpr Text
   | BoolExpr Bool
@@ -65,63 +65,62 @@ data EgisonExpr =
   | FloatExpr Double
   | VarExpr Var
   | FreshVarExpr
-  | IndexedExpr Bool EgisonExpr [Index EgisonExpr]  -- True -> delete old index and append new one
-  | SubrefsExpr Bool EgisonExpr EgisonExpr
-  | SuprefsExpr Bool EgisonExpr EgisonExpr
-  | UserrefsExpr Bool EgisonExpr EgisonExpr
-  | InductiveDataExpr String [EgisonExpr]
-  | TupleExpr [EgisonExpr]
-  | CollectionExpr [EgisonExpr]
-  | ConsExpr EgisonExpr EgisonExpr
-  | JoinExpr EgisonExpr EgisonExpr
-  | HashExpr [(EgisonExpr, EgisonExpr)]
-  | VectorExpr [EgisonExpr]
+  | IndexedExpr Bool Expr [Index Expr]  -- True -> delete old index and append new one
+  | SubrefsExpr Bool Expr Expr
+  | SuprefsExpr Bool Expr Expr
+  | UserrefsExpr Bool Expr Expr
+  | InductiveDataExpr String [Expr]
+  | TupleExpr [Expr]
+  | CollectionExpr [Expr]
+  | ConsExpr Expr Expr
+  | JoinExpr Expr Expr
+  | HashExpr [(Expr, Expr)]
+  | VectorExpr [Expr]
 
-  | LambdaExpr [Arg] EgisonExpr
-  | MemoizedLambdaExpr [String] EgisonExpr
-  | CambdaExpr String EgisonExpr
-  | PatternFunctionExpr [String] EgisonPattern
+  | LambdaExpr [Arg] Expr
+  | MemoizedLambdaExpr [String] Expr
+  | CambdaExpr String Expr
+  | PatternFunctionExpr [String] Pattern
 
-  | IfExpr EgisonExpr EgisonExpr EgisonExpr
-  | LetRecExpr [BindingExpr] EgisonExpr
-  | LetExpr [BindingExpr] EgisonExpr
-  | LetStarExpr [BindingExpr] EgisonExpr
-  | WithSymbolsExpr [String] EgisonExpr
+  | IfExpr Expr Expr Expr
+  | LetRecExpr [BindingExpr] Expr
+  | LetExpr [BindingExpr] Expr
+  | WithSymbolsExpr [String] Expr
 
-  | MatchExpr PMMode EgisonExpr EgisonExpr [MatchClause]
-  | MatchAllExpr PMMode EgisonExpr EgisonExpr [MatchClause]
-  | MatchLambdaExpr EgisonExpr [MatchClause]
-  | MatchAllLambdaExpr EgisonExpr [MatchClause]
+  | MatchExpr PMMode Expr Expr [MatchClause]
+  | MatchAllExpr PMMode Expr Expr [MatchClause]
+  | MatchLambdaExpr Expr [MatchClause]
+  | MatchAllLambdaExpr Expr [MatchClause]
 
   | MatcherExpr [PatternDef]
-  | AlgebraicDataMatcherExpr [(String, [EgisonExpr])]
+  | AlgebraicDataMatcherExpr [(String, [Expr])]
 
-  | QuoteExpr EgisonExpr
-  | QuoteSymbolExpr EgisonExpr
-  | WedgeApplyExpr EgisonExpr EgisonExpr
+  | QuoteExpr Expr
+  | QuoteSymbolExpr Expr
+  | WedgeApplyExpr Expr Expr
 
-  | DoExpr [BindingExpr] EgisonExpr
-  | IoExpr EgisonExpr
+  | DoExpr [BindingExpr] Expr
+  | IoExpr Expr
 
-  | PrefixExpr String EgisonExpr
-  | InfixExpr Op EgisonExpr EgisonExpr
-  | SectionExpr Op (Maybe EgisonExpr) (Maybe EgisonExpr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
+  | PrefixExpr String Expr
+  | InfixExpr Op Expr Expr
+  | SectionExpr Op (Maybe Expr) (Maybe Expr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
 
-  | SeqExpr EgisonExpr EgisonExpr
-  | ApplyExpr EgisonExpr EgisonExpr
-  | CApplyExpr EgisonExpr EgisonExpr
-  | AnonParamFuncExpr Integer EgisonExpr
+  | SeqExpr Expr Expr
+  | ApplyExpr Expr Expr
+  | CApplyExpr Expr Expr
+  | AnonParamFuncExpr Integer Expr
   | AnonParamExpr Integer
 
-  | GenerateTensorExpr EgisonExpr EgisonExpr
-  | TensorExpr EgisonExpr EgisonExpr
-  | TensorContractExpr EgisonExpr
-  | TensorMapExpr EgisonExpr EgisonExpr
-  | TensorMap2Expr EgisonExpr EgisonExpr EgisonExpr
-  | TransposeExpr EgisonExpr EgisonExpr
-  | FlipIndicesExpr EgisonExpr                              -- Does not appear in user program
+  | GenerateTensorExpr Expr Expr
+  | TensorExpr Expr Expr
+  | TensorContractExpr Expr
+  | TensorMapExpr Expr Expr
+  | TensorMap2Expr Expr Expr Expr
+  | TransposeExpr Expr Expr
+  | FlipIndicesExpr Expr                              -- Does not appear in user program
 
-  | FunctionExpr [EgisonExpr]
+  | FunctionExpr [Expr]
 
   | SomethingExpr
   | UndefinedExpr
@@ -165,37 +164,37 @@ extractSupOrSubIndex _                = Nothing
 data PMMode = BFSMode | DFSMode
  deriving (Eq, Show)
 
-type BindingExpr = ([Var], EgisonExpr)
-type MatchClause = (EgisonPattern, EgisonExpr)
-type PatternDef  = (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+type BindingExpr = ([Var], Expr)
+type MatchClause = (Pattern, Expr)
+type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 
-data EgisonPattern =
+data Pattern =
     WildCard
   | PatVar Var
-  | ValuePat EgisonExpr
-  | PredPat EgisonExpr
-  | IndexedPat EgisonPattern [EgisonExpr]
-  | LetPat [BindingExpr] EgisonPattern
-  | InfixPat Op EgisonPattern EgisonPattern -- Includes AndPat,OrPat,InductivePat(cons/join)
-  | NotPat EgisonPattern
-  | AndPat EgisonPattern EgisonPattern
-  | OrPat EgisonPattern EgisonPattern
-  | ForallPat EgisonPattern EgisonPattern
-  | TuplePat [EgisonPattern]
-  | InductivePat String [EgisonPattern]
-  | LoopPat Var LoopRange EgisonPattern EgisonPattern
+  | ValuePat Expr
+  | PredPat Expr
+  | IndexedPat Pattern [Expr]
+  | LetPat [BindingExpr] Pattern
+  | InfixPat Op Pattern Pattern -- Includes AndPat,OrPat,InductivePat(cons/join)
+  | NotPat Pattern
+  | AndPat Pattern Pattern
+  | OrPat Pattern Pattern
+  | ForallPat Pattern Pattern
+  | TuplePat [Pattern]
+  | InductivePat String [Pattern]
+  | LoopPat Var LoopRange Pattern Pattern
   | ContPat
-  | PApplyPat EgisonExpr [EgisonPattern]
+  | PApplyPat Expr [Pattern]
   | VarPat String
-  | InductiveOrPApplyPat String [EgisonPattern]
+  | InductiveOrPApplyPat String [Pattern]
   | SeqNilPat
-  | SeqConsPat EgisonPattern EgisonPattern
+  | SeqConsPat Pattern Pattern
   | LaterPatVar
   -- For symbolic computing
-  | DApplyPat EgisonPattern [EgisonPattern]
+  | DApplyPat Pattern [Pattern]
  deriving (Eq, Show)
 
-data LoopRange = LoopRange EgisonExpr EgisonExpr EgisonPattern
+data LoopRange = LoopRange Expr Expr Pattern
  deriving (Eq, Show)
 
 data PrimitivePatPattern =
@@ -214,7 +213,7 @@ data PrimitiveDataPattern =
   | PDEmptyPat
   | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
   | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
-  | PDConstantPat EgisonExpr
+  | PDConstantPat Expr
  deriving (Show, Eq)
 
 data Op
@@ -270,7 +269,7 @@ instance Hashable Var
 stringToVar :: String -> Var
 stringToVar name = Var (splitOn "." name) []
 
-stringToVarExpr :: String -> EgisonExpr
+stringToVarExpr :: String -> Expr
 stringToVarExpr = VarExpr . stringToVar
 
 instance Show Var where
@@ -285,7 +284,7 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f :: Index () -> Index String
    f index = (\() -> "") <$> index
 
-makeApply :: String -> [EgisonExpr] -> EgisonExpr
+makeApply :: String -> [Expr] -> Expr
 makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
 
 instance Show (Index ()) where
@@ -302,7 +301,7 @@ instance Show (Index String) where
   show (DFscript _ _)   = ""
   show (Userscript i)   = "|" ++ show i
 
-instance Show (Index EgisonExpr) where
+instance Show (Index Expr) where
   show (Superscript i)  = "~" ++ show i
   show (Subscript i)    = "_" ++ show i
   show (SupSubscript i) = "~_" ++ show i
