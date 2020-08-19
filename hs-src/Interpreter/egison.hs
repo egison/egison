@@ -45,7 +45,7 @@ run :: RuntimeM ()
 run = do
   opts <- ask
   coreEnv <- initialEnv
-  mEnv <- evalEgisonTopExprs coreEnv $ map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)
+  mEnv <- fromEvalT $ evalEgisonTopExprs coreEnv $ map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)
   case mEnv of
     Left err -> liftIO $ print err
     Right env -> handleOption env opts
@@ -73,12 +73,12 @@ handleOption env opts =
     EgisonOpts { optTestOnly = True, optExecFile = Just (file, _) } -> do
       exprs <- liftIO $ readFile file
       result <- if optNoIO opts
-                   then runEgisonTopExprs env exprs
-                   else evalEgisonTopExprs env [LoadFile file]
+                   then fromEvalT (runEgisonTopExprs env exprs)
+                   else fromEvalT (evalEgisonTopExprs env [LoadFile file])
       liftIO $ either print (const $ return ()) result
     -- Execute a script from the main function
     EgisonOpts { optExecFile = Just (file, args) } -> do
-      result <- evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map (StringExpr . T.pack) args)))]
+      result <- fromEvalT $ evalEgisonTopExprs env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map (StringExpr . T.pack) args)))]
       liftIO $ either print (const $ return ()) result
     EgisonOpts { optMapTsvInput = Just expr } ->
       handleOption env (opts { optSubstituteString = Just $ "\\x -> map (" ++ expr ++ ") x" })
@@ -100,7 +100,7 @@ runAndPrintEgisonExpr env expr = do
 
 executeEgisonTopExpr :: Env -> String -> RuntimeM ()
 executeEgisonTopExpr env expr = do
-  cmdRet <- runEgisonTopExprs env expr
+  cmdRet <- fromEvalT (runEgisonTopExprs env expr)
   case cmdRet of
     Left err -> liftIO $ hPrint stderr err >> exitFailure
     _        -> liftIO exitSuccess

@@ -72,28 +72,28 @@ evalTopExpr env topExpr = do
   return env'
 
 -- |eval an Egison expression
-evalEgisonExpr :: Env -> Expr -> RuntimeM (Either EgisonError EgisonValue)
-evalEgisonExpr env expr = fromEvalT $ evalExprDeep env expr
+evalEgisonExpr :: Env -> Expr -> EvalM EgisonValue
+evalEgisonExpr = evalExprDeep
 
 -- |eval an Egison top expression
-evalEgisonTopExpr :: Env -> TopExpr -> RuntimeM (Either EgisonError Env)
-evalEgisonTopExpr env exprs = fromEvalT $ evalTopExpr env exprs
+evalEgisonTopExpr :: Env -> TopExpr -> EvalM Env
+evalEgisonTopExpr = evalTopExpr
 
 -- |eval Egison top expressions
-evalEgisonTopExprs :: Env -> [TopExpr] -> RuntimeM (Either EgisonError Env)
-evalEgisonTopExprs env exprs = fromEvalT $ evalTopExprs env exprs
+evalEgisonTopExprs :: Env -> [TopExpr] -> EvalM Env
+evalEgisonTopExprs = evalTopExprs
 
 -- |eval an Egison expression. Input is a Haskell string.
-runEgisonExpr :: Env -> String -> RuntimeM (Either EgisonError EgisonValue)
+runEgisonExpr :: Env -> String -> EvalM EgisonValue
 runEgisonExpr env input = do
   isSExpr <- asks optSExpr
-  fromEvalT (readExpr isSExpr input >>= evalExprDeep env)
+  readExpr isSExpr input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
-runEgisonTopExpr :: Env -> String -> RuntimeM (Either EgisonError Env)
+runEgisonTopExpr :: Env -> String -> EvalM Env
 runEgisonTopExpr env input = do
   isSExpr <- asks optSExpr
-  fromEvalT (readTopExpr isSExpr input >>= evalTopExpr env)
+  readTopExpr isSExpr input >>= evalTopExpr env
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr' :: Env -> String -> RuntimeM (Either EgisonError (Maybe String, Env))
@@ -106,17 +106,17 @@ runEgisonTopExpr' env input = do
     Left err               -> return $ Left err
 
 -- |eval Egison top expressions. Input is a Haskell string.
-runEgisonTopExprs :: Env -> String -> RuntimeM (Either EgisonError Env)
+runEgisonTopExprs :: Env -> String -> EvalM Env
 runEgisonTopExprs env input = do
   isSExpr <- asks optSExpr
-  fromEvalT (readTopExprs isSExpr input >>= evalTopExprs env)
+  readTopExprs isSExpr input >>= evalTopExprs env
 
 -- |load an Egison file
-loadEgisonFile :: Env -> FilePath -> RuntimeM (Either EgisonError Env)
+loadEgisonFile :: Env -> FilePath -> EvalM Env
 loadEgisonFile env path = evalEgisonTopExpr env (LoadFile path)
 
 -- |load an Egison library
-loadEgisonLibrary :: Env -> FilePath -> RuntimeM (Either EgisonError Env)
+loadEgisonLibrary :: Env -> FilePath -> EvalM Env
 loadEgisonLibrary env path = evalEgisonTopExpr env (Load path)
 
 -- |Environment that contains core libraries
@@ -127,7 +127,7 @@ initialEnv = do
   env <- liftIO $ if isNoIO then primitiveEnvNoIO else primitiveEnv
   let normalizeLib = if useMathNormalize then "lib/math/normalize.egi" else "lib/math/no-normalize.egi"
   ret <- local (const defaultOption)
-               (evalEgisonTopExprs env $ map Load (coreLibraries ++ [normalizeLib]))
+               (fromEvalT (evalEgisonTopExprs env $ map Load (coreLibraries ++ [normalizeLib])))
   case ret of
     Left err -> do
       liftIO $ print (show err)
