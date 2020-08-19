@@ -15,12 +15,8 @@ module Language.Egison.Core
     -- * Egison code evaluation
       collectDefs
     , evalTopExpr'
-    , evalExpr
     , evalExprDeep
-    , evalRef
-    , evalRefDeep
     , evalWHNF
-    , applyFunc
     -- * Environment
     , recursiveBind
     -- * Pattern matching
