@@ -343,24 +343,21 @@ evalExpr env (LetExpr bindings expr) =
   extractBindings (names, expr) =
     makeBindings names <$> (evalExpr env expr >>= fromTuple)
 
-evalExpr env (LetRecExpr bindings expr) =
-  let bindings' = evalState (concat <$> mapM extractBindings bindings) 0
-  in recursiveBind env bindings' >>= flip evalExpr expr
+evalExpr env (LetRecExpr bindings expr) = do
+  bindings' <- concat <$> mapM extractBindings bindings
+  recursiveBind env bindings' >>= flip evalExpr expr
  where
-  extractBindings :: BindingExpr -> State Int [(Var, EgisonExpr)]
+  extractBindings :: BindingExpr -> EvalM [(Var, EgisonExpr)]
   extractBindings ([name], expr) = return [(name, expr)]
   extractBindings (names, expr) = do
-    var <- genVar
+    var <- stringToVar <$> fresh
     let target = VarExpr var
         matcher = TupleExpr $ map (const SomethingExpr) names
         nth n =
           let pattern = TuplePat $ flip map [1..length names] $ \i ->
                 if i == n then PatVar (stringToVar "#_") else WildCard
           in MatchExpr BFSMode target matcher [(pattern, stringToVarExpr "#_")]
-    return ((var, expr) : map (second nth) (zip names [1..]))
-
-  genVar :: State Int Var
-  genVar = modify (1+) >> gets (stringToVar . ('#':) . show)
+    return ((var, expr) : map (\(name, i) -> (name, nth i)) (zip names [1..]))
 
 evalExpr env (TransposeExpr vars expr) = do
   syms <- evalExpr env vars >>= collectionToList
