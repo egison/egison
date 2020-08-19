@@ -106,7 +106,7 @@ data EgisonValue =
   | Func (Maybe String) Env [String] EgisonExpr
   | CFunc Env String EgisonExpr
   | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
-  | PatternFunc Env [String] EgisonPattern
+  | PatternFunc Env [String] Pattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EvalM WHNFData)
   | Port Handle

@@ -224,7 +224,7 @@ instance (Pretty a, Complex a) => Pretty (Index a) where
   pretty (DFscript _ _) = undefined
   pretty (Userscript i) = pretty '|' <> pretty' i
 
-instance Pretty EgisonPattern where
+instance Pretty Pattern where
   pretty WildCard     = pretty "_"
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
@@ -338,7 +338,7 @@ instance Complex EgisonExpr where
   isInfix InfixExpr{}             = True
   isInfix _                       = False
 
-instance Complex EgisonPattern where
+instance Complex Pattern where
   isAtom (LetPat _ _)        = False
   isAtom (InductivePat _ []) = True
   isAtom (InductivePat _ _)  = False

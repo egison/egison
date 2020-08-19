@@ -547,22 +547,22 @@ numericExpr = FloatExpr <$> try positiveFloatLiteral
 -- Pattern
 --
 
-pattern :: Parser EgisonPattern
+pattern :: Parser Pattern
 pattern = letPattern
       <|> forallPattern
       <|> loopPattern
       <|> opPattern
       <?> "pattern"
 
-letPattern :: Parser EgisonPattern
+letPattern :: Parser Pattern
 letPattern =
   reserved "let" >> LetPat <$> alignSome binding <*> (reserved "in" >> pattern)
 
-forallPattern :: Parser EgisonPattern
+forallPattern :: Parser Pattern
 forallPattern =
   reserved "forall" >> ForallPat <$> atomPattern <*> atomPattern
 
-loopPattern :: Parser EgisonPattern
+loopPattern :: Parser Pattern
 loopPattern =
   LoopPat <$> (reserved "loop" >> patVarLiteral) <*> loopRange
           <*> atomPattern <*> atomPattern
@@ -578,30 +578,30 @@ loopPattern =
       ApplyExpr (stringToVarExpr "from")
                 (makeApply' (stringToVarExpr "-'") [s, IntegerExpr 1])
 
-seqPattern :: Parser EgisonPattern
+seqPattern :: Parser Pattern
 seqPattern = do
   pats <- braces $ sepBy pattern comma
   return $ foldr SeqConsPat SeqNilPat pats
 
-opPattern :: Parser EgisonPattern
+opPattern :: Parser Pattern
 opPattern = do
   ops <- gets patternOps
   makeExprParser applyOrAtomPattern (makePatternTable ops)
 
-makePatternTable :: [Op] -> [[Operator Parser EgisonPattern]]
+makePatternTable :: [Op] -> [[Operator Parser Pattern]]
 makePatternTable ops =
   let ops' = map toOperator ops
    in map (map snd) (groupBy (\x y -> fst x == fst y) ops')
   where
-    toOperator :: Op -> (Int, Operator Parser EgisonPattern)
+    toOperator :: Op -> (Int, Operator Parser Pattern)
     toOperator op = (priority op, infixToOperator binary op)
 
-    binary :: Op -> Parser (EgisonPattern -> EgisonPattern -> EgisonPattern)
+    binary :: Op -> Parser (Pattern -> Pattern -> Pattern)
     binary op = do
       op <- try (indented >> patInfixLiteral (repr op))
       return $ InfixPat op
 
-applyOrAtomPattern :: Parser EgisonPattern
+applyOrAtomPattern :: Parser Pattern
 applyOrAtomPattern = (do
     (func, args) <- indentBlock (try atomPattern) atomPattern
     case (func, args) of
@@ -612,7 +612,7 @@ applyOrAtomPattern = (do
     (func, args) <- indentBlock atomExpr atomPattern
     return $ PApplyPat func args)
 
-collectionPattern :: Parser EgisonPattern
+collectionPattern :: Parser Pattern
 collectionPattern = brackets $ do
   elems <- sepBy pattern comma
   return $ foldr (InfixPat consOp) nilPat elems
@@ -621,7 +621,7 @@ collectionPattern = brackets $ do
       consOp = findOpFrom "::" reservedPatternOp
 
 -- (Possibly indexed) atomic pattern
-atomPattern :: Parser EgisonPattern
+atomPattern :: Parser Pattern
 atomPattern = do
   pat     <- atomPattern'
   indices <- many . try $ char '_' >> atomExpr'
@@ -630,7 +630,7 @@ atomPattern = do
              _  -> IndexedPat pat indices
 
 -- Atomic pattern without index
-atomPattern' :: Parser EgisonPattern
+atomPattern' :: Parser Pattern
 atomPattern' = WildCard <$  symbol "_"
            <|> PatVar   <$> patVarLiteral
            <|> NotPat   <$> (symbol "!" >> atomPattern)
