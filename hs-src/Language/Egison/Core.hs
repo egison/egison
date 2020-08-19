@@ -357,7 +357,7 @@ evalExpr env (LetRecExpr bindings expr) = do
           let pattern = TuplePat $ flip map [1..length names] $ \i ->
                 if i == n then PatVar (stringToVar "#_") else WildCard
           in MatchExpr BFSMode target matcher [(pattern, stringToVarExpr "#_")]
-    return ((var, expr) : map (\(name, i) -> (name, nth i)) (zip names [1..]))
+    return ((var, expr) : zipWith (\name i -> (name, nth i)) names [1..])
 
 evalExpr env (TransposeExpr vars expr) = do
   syms <- evalExpr env vars >>= collectionToList
@@ -777,26 +777,25 @@ recursiveBind env bindings = do
   let (names, _) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
-  let Env frame _ = env'
-  zipWithM_ (\ref (name,expr) ->
-               case expr of
-                 MemoizedLambdaExpr names body -> do
-                   hashRef <- liftIO $ newIORef HL.empty
-                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
-                 LambdaExpr _ _ -> do
-                   whnf <- evalExpr env' expr
-                   case whnf of
-                     Value (Func _ env args body) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just (show name)) env args body)
-                 CambdaExpr _ _ -> do
-                   whnf <- evalExpr env' expr
-                   case whnf of
-                     Value (CFunc env arg body) -> liftIO . writeIORef ref . WHNF $ Value (CFunc env arg body)
-                 FunctionExpr args -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) $ FunctionExpr args
-                 _ | isVarWithIndices name -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) expr
-                   | otherwise -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
-            refs bindings
+  zipWithM_ (f env') refs bindings
   return env'
  where
+  f env' ref (_, MemoizedLambdaExpr names body) = do
+    hashRef <- liftIO $ newIORef HL.empty
+    liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
+  f env' ref (name, expr@LambdaExpr{}) = do
+    whnf <- evalExpr env' expr
+    case whnf of
+      Value (Func _ env args body) ->
+        liftIO . writeIORef ref . WHNF $ Value (Func (Just (show name)) env args body)
+  f env' ref (_, CambdaExpr arg body) =
+    liftIO . writeIORef ref . WHNF . Value $ CFunc env' arg body
+  f (Env frame _) ref (name, expr@FunctionExpr{}) =
+      liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) expr
+  f env'@(Env frame _) ref (name, expr) =
+    if isVarWithIndices name
+       then liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) expr
+       else liftIO . writeIORef ref . Thunk $ evalExpr env' expr
   isVarWithIndices :: Var -> Bool
   isVarWithIndices (Var _ xs) = not $ null xs
 
