@@ -55,27 +55,30 @@ evalTopExprs env exprs = do
   opts <- ask
   (bindings, rest) <- collectDefs opts exprs
   env <- recursiveBind env bindings
-  forM_ rest $ evalTopExpr env
+  forM_ rest $ \expr -> do
+    (str, _) <- evalTopExpr env expr
+    case str of
+      Nothing  -> return ()
+      Just str -> liftIO $ putStrLn str
   return env
 
-evalTopExpr :: Env -> TopExpr -> EvalM Env
+evalTopExpr :: Env -> TopExpr -> EvalM (Maybe String, Env)
 evalTopExpr env topExpr = do
   mathExpr <- asks optMathExpr
   (mVal, env') <- evalTopExpr' env topExpr
   case mVal of
-    Nothing  -> return ()
+    Nothing  -> return (Nothing, env')
     Just val ->
-      liftIO . putStrLn $ case mathExpr of
-        Nothing   -> show val
-        Just lang -> prettyMath lang val
-  return env'
+      case mathExpr of
+        Nothing   -> return (Just (show val), env')
+        Just lang -> return (Just (prettyMath lang val), env')
 
 -- |eval an Egison expression
 evalEgisonExpr :: Env -> Expr -> EvalM EgisonValue
 evalEgisonExpr = evalExprDeep
 
 -- |eval an Egison top expression
-evalEgisonTopExpr :: Env -> TopExpr -> EvalM Env
+evalEgisonTopExpr :: Env -> TopExpr -> EvalM (Maybe String, Env)
 evalEgisonTopExpr = evalTopExpr
 
 -- |eval Egison top expressions
@@ -92,10 +95,7 @@ runEgisonExpr env input = do
 runEgisonTopExpr :: Env -> String -> EvalM (Maybe String, Env)
 runEgisonTopExpr env input = do
   isSExpr <- asks optSExpr
-  (m, env') <- readTopExpr isSExpr input >>= evalTopExpr' env
-  case m of
-    Just val -> return (Just (show val), env')
-    Nothing -> return (Nothing, env')
+  readTopExpr isSExpr input >>= evalTopExpr env
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: Env -> String -> EvalM Env
@@ -105,11 +105,15 @@ runEgisonTopExprs env input = do
 
 -- |load an Egison file
 loadEgisonFile :: Env -> FilePath -> EvalM Env
-loadEgisonFile env path = evalEgisonTopExpr env (LoadFile path)
+loadEgisonFile env path = do
+  (_, env') <- evalEgisonTopExpr env (LoadFile path)
+  return env'
 
 -- |load an Egison library
 loadEgisonLibrary :: Env -> FilePath -> EvalM Env
-loadEgisonLibrary env path = evalEgisonTopExpr env (Load path)
+loadEgisonLibrary env path = do
+  (_, env') <- evalEgisonTopExpr env (Load path)
+  return env'
 
 -- |Environment that contains core libraries
 initialEnv :: RuntimeM Env
