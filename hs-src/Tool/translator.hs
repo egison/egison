@@ -61,7 +61,7 @@ lookupVarExprInfix x = lookup (prettyStr x) exprInfix
 class SyntaxElement a where
   toNonS :: a -> a
 
-instance SyntaxElement EgisonTopExpr where
+instance SyntaxElement TopExpr where
   toNonS (Define x y)   = Define (toNonS x) (toNonS y)
   toNonS (Redefine _ _) = error "Not supported"
   toNonS (Test x)       = Test (toNonS x)

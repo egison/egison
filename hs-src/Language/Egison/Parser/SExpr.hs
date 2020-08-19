@@ -38,13 +38,13 @@ import qualified Text.Parsec.Token       as P
 import           Language.Egison.AST
 import           Language.Egison.Data
 
-parseTopExprs :: String -> Either EgisonError [EgisonTopExpr]
+parseTopExprs :: String -> Either EgisonError [TopExpr]
 parseTopExprs = doParse $ do
   ret <- whiteSpace >> endBy topExpr whiteSpace
   eof
   return ret
 
-parseTopExpr :: String -> Either EgisonError EgisonTopExpr
+parseTopExpr :: String -> Either EgisonError TopExpr
 parseTopExpr = doParse $ do
   ret <- whiteSpace >> topExpr
   whiteSpace >> eof
@@ -79,7 +79,7 @@ doParse' p input = case doParse p input of
 --
 -- Expressions
 --
-topExpr :: Parser EgisonTopExpr
+topExpr :: Parser TopExpr
 topExpr = try (Test <$> expr)
       <|> try defineExpr
       <|> try (parens (redefineExpr
@@ -89,23 +89,23 @@ topExpr = try (Test <$> expr)
                    <|> loadExpr))
       <?> "top-level expression"
 
-defineExpr :: Parser EgisonTopExpr
+defineExpr :: Parser TopExpr
 defineExpr = try (parens (keywordDefine >> Define <$> (char '$' >> identVar) <*> expr))
          <|> try (parens (keywordDefine >> DefineWithIndices <$> (char '$' >> identVarWithIndices) <*> expr))
 
-redefineExpr :: Parser EgisonTopExpr
+redefineExpr :: Parser TopExpr
 redefineExpr = (keywordRedefine <|> keywordSet) >> Redefine <$> (char '$' >> identVar) <*> expr
 
-testExpr :: Parser EgisonTopExpr
+testExpr :: Parser TopExpr
 testExpr = keywordTest >> Test <$> expr
 
-executeExpr :: Parser EgisonTopExpr
+executeExpr :: Parser TopExpr
 executeExpr = keywordExecute >> Execute <$> expr
 
-loadFileExpr :: Parser EgisonTopExpr
+loadFileExpr :: Parser TopExpr
 loadFileExpr = keywordLoadFile >> LoadFile <$> stringLiteral
 
-loadExpr :: Parser EgisonTopExpr
+loadExpr :: Parser TopExpr
 loadExpr = keywordLoad >> Load <$> stringLiteral
 
 expr :: Parser EgisonExpr

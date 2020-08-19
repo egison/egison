@@ -66,10 +66,10 @@ import           Language.Egison.Tensor
 -- Evaluator
 --
 
-collectDefs :: EgisonOpts -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
+collectDefs :: EgisonOpts -> [TopExpr] -> EvalM ([(Var, EgisonExpr)], [TopExpr])
 collectDefs opts exprs = collectDefs' opts exprs [] []
   where
-    collectDefs' :: EgisonOpts -> [EgisonTopExpr] -> [(Var, EgisonExpr)] -> [EgisonTopExpr] -> EvalM ([(Var, EgisonExpr)], [EgisonTopExpr])
+    collectDefs' :: EgisonOpts -> [TopExpr] -> [(Var, EgisonExpr)] -> [TopExpr] -> EvalM ([(Var, EgisonExpr)], [TopExpr])
     collectDefs' opts (expr:exprs) bindings rest =
       case expr of
         Define name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
@@ -88,7 +88,7 @@ collectDefs opts exprs = collectDefs' opts exprs [] []
         InfixDecl{} -> collectDefs' opts exprs bindings rest
     collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExpr' :: Env -> EgisonTopExpr -> EvalM (Maybe EgisonValue, Env)
+evalTopExpr' :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr' env (Define name expr) = do
   env' <- recursiveBind env [(name, expr)]
   return (Nothing, env')

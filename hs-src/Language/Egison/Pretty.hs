@@ -28,10 +28,10 @@ import           Language.Egison.Data
 -- Pretty printing for Non-S syntax
 --
 
-prettyTopExprs :: [EgisonTopExpr] -> Doc [EgisonTopExpr]
+prettyTopExprs :: [TopExpr] -> Doc [TopExpr]
 prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
-instance Pretty EgisonTopExpr where
+instance Pretty TopExpr where
   pretty (Define x (LambdaExpr args body)) =
     hsep (pretty x : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (Define x expr) =

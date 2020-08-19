@@ -39,10 +39,10 @@ import           Language.Egison.Data
 import           Language.Egison.RState
 
 
-parseTopExprs :: String -> RuntimeM (Either EgisonError [EgisonTopExpr])
+parseTopExprs :: String -> RuntimeM (Either EgisonError [TopExpr])
 parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
 
-parseTopExpr :: String -> RuntimeM (Either EgisonError EgisonTopExpr)
+parseTopExpr :: String -> RuntimeM (Either EgisonError TopExpr)
 parseTopExpr = doParse $ sc >> topExpr <* eof
 
 parseExprs :: String -> RuntimeM (Either EgisonError [EgisonExpr])
@@ -86,7 +86,7 @@ doParse p input = do
 -- Expressions
 --
 
-topExpr :: Parser EgisonTopExpr
+topExpr :: Parser TopExpr
 topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
@@ -115,7 +115,7 @@ addNewOp newop _ = do
                                   newop
                                   (exprOps pstate) }
 
-infixExpr :: Parser EgisonTopExpr
+infixExpr :: Parser TopExpr
 infixExpr = do
   assoc     <- (reserved "infixl" $> E.InfixL)
            <|> (reserved "infixr" $> E.InfixR)
@@ -140,12 +140,12 @@ infixExpr = do
     reservedOp = [":", ":=", "->"]
     reservedPOp = ["&", "|", ":=", "->"]
 
-defineOrTestExpr :: Parser EgisonTopExpr
+defineOrTestExpr :: Parser TopExpr
 defineOrTestExpr = do
   e <- expr
   defineExpr e <|> return (Test e)
   where
-    defineExpr :: EgisonExpr -> Parser EgisonTopExpr
+    defineExpr :: EgisonExpr -> Parser TopExpr
     defineExpr e = do
       _    <- symbol ":="
       -- When ":=" is observed and the current expression turns out to be a
