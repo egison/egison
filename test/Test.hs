@@ -53,7 +53,7 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   exprs <- loadFile file
   (bindings, tests) <- collectDefs defaultOption exprs
   env' <- recursiveBind env bindings
-  forM_ tests $ evalTopExpr' env'
+  forM_ tests $ evalTopExpr env'
  where
   assertEvalM :: EvalM a -> Assertion
   assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")

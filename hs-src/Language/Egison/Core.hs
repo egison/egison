@@ -11,10 +11,8 @@ This module provides functions to evaluate various objects.
 -}
 
 module Language.Egison.Core
-    (
     -- * Egison code evaluation
-      collectDefs
-    , evalTopExpr'
+    ( evalExprShallow
     , evalExprDeep
     , evalWHNF
     -- * Environment
@@ -31,7 +29,6 @@ import           Prelude                     hiding (mapM, mappend, mconcat)
 import           Control.Arrow
 import           Control.Monad.Except        (throwError)
 import           Control.Monad.State         hiding (mapM, join)
-import           Control.Monad.Reader        (ask)
 import           Control.Monad.Trans.Maybe
 
 import           Data.Char                   (isUpper)
@@ -47,74 +44,15 @@ import qualified Data.HashMap.Lazy           as HL
 import qualified Data.Vector                 as V
 
 import           Language.Egison.AST
-import           Language.Egison.CmdOptions
 import           Language.Egison.Data
 import           Language.Egison.EvalState   (MonadEval(..))
 import           Language.Egison.Match
 import           Language.Egison.Math
 import           Language.Egison.MList
-import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.RState
 import           Language.Egison.Tensor
 
---
--- Evaluator
---
-
-collectDefs :: EgisonOpts -> [TopExpr] -> EvalM ([(Var, Expr)], [TopExpr])
-collectDefs opts exprs = collectDefs' opts exprs [] []
-  where
-    collectDefs' :: EgisonOpts -> [TopExpr] -> [(Var, Expr)] -> [TopExpr] -> EvalM ([(Var, Expr)], [TopExpr])
-    collectDefs' opts (expr:exprs) bindings rest =
-      case expr of
-        Define name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
-        DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-        Redefine{} -> collectDefs' opts exprs bindings (expr : rest)
-        Test{}     -> collectDefs' opts exprs bindings (expr : rest)
-        Execute{}  -> collectDefs' opts exprs bindings (expr : rest)
-        LoadFile _ | optNoIO opts -> throwError (Default "No IO support")
-        LoadFile file -> do
-          exprs' <- loadFile file
-          collectDefs' opts (exprs' ++ exprs) bindings rest
-        Load _ | optNoIO opts -> throwError (Default "No IO support")
-        Load file -> do
-          exprs' <- loadLibraryFile file
-          collectDefs' opts (exprs' ++ exprs) bindings rest
-        InfixDecl{} -> collectDefs' opts exprs bindings rest
-    collectDefs' _ [] bindings rest = return (bindings, reverse rest)
-
-evalTopExpr' :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
-evalTopExpr' env (Define name expr) = do
-  env' <- recursiveBind env [(name, expr)]
-  return (Nothing, env')
-evalTopExpr' _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-evalTopExpr' env (Test expr) = do
-  pushFuncName "<stdin>"
-  val <- evalExprDeep env expr
-  popFuncName
-  return (Just val, env)
-evalTopExpr' env (Execute expr) = do
-  pushFuncName "<stdin>"
-  io <- evalExprShallow env expr
-  case io of
-    Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
-    _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
-evalTopExpr' env (Load file) = do
-  opts <- ask
-  when (optNoIO opts) $ throwError (Default "No IO support")
-  exprs <- loadLibraryFile file
-  (bindings, _) <- collectDefs opts exprs
-  env' <- recursiveBind env bindings
-  return (Nothing, env')
-evalTopExpr' env (LoadFile file) = do
-  opts <- ask
-  when (optNoIO opts) $ throwError (Default "No IO support")
-  exprs <- loadFile file
-  (bindings, _) <- collectDefs opts exprs
-  env' <- recursiveBind env bindings
-  return (Nothing, env')
-evalTopExpr' env InfixDecl{} = return (Nothing, env)
 
 evalExprShallow :: Env -> Expr -> EvalM WHNFData
 evalExprShallow _ (CharExpr c)    = return . Value $ Char c
