@@ -130,11 +130,9 @@ repl env = (do
     Just topExpr -> do
       result <- fromEvalT (desugarTopExpr topExpr >>= evalTopExpr env)
       case result of
-        Left err -> do
-          liftIO (print err)
-          repl env
-        Right env' ->
-          repl env'
+        Left err -> liftIO (print err) >> repl env
+        Right (Just str, env') -> liftIO (putStrLn str) >> repl env'
+        Right (Nothing, env')  -> repl env'
   )
   `catch`
   (\case
