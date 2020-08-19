@@ -274,7 +274,7 @@ evalExpr env (SubrefsExpr override expr jsExpr) = do
   js <- map Subscript <$> (evalExpr env jsExpr >>= collectionToList)
   tensor <- case expr of
               VarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ replicate (length js) (Subscript ()))
+                let mObjRef = refVar env (Var xs $ is ++ map (\_ -> Subscript ()) js)
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExpr env expr
@@ -289,7 +289,7 @@ evalExpr env (SuprefsExpr override expr jsExpr) = do
   js <- map Superscript <$> (evalExpr env jsExpr >>= collectionToList)
   tensor <- case expr of
               VarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ replicate (length js) (Superscript ()))
+                let mObjRef = refVar env (Var xs $ is ++ map (\_ -> Superscript ()) js)
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExpr env expr
@@ -351,11 +351,10 @@ evalExpr env (LetRecExpr bindings expr) =
   extractBindings ([name], expr) = return [(name, expr)]
   extractBindings (names, expr) = do
     var <- genVar
-    let k = length names
-        target = VarExpr var
-        matcher = TupleExpr $ replicate k SomethingExpr
+    let target = VarExpr var
+        matcher = TupleExpr $ map (const SomethingExpr) names
         nth n =
-          let pattern = TuplePat $ flip map [1..k] $ \i ->
+          let pattern = TuplePat $ flip map [1..length names] $ \i ->
                 if i == n then PatVar (stringToVar "#_") else WildCard
           in MatchExpr BFSMode target matcher [(pattern, stringToVarExpr "#_")]
     return ((var, expr) : map (second nth) (zip names [1..]))
@@ -1106,7 +1105,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             TuplePat patterns -> do
               targets <- fromTupleWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
-              let trees' = zipWith3 MAtom patterns targets (replicate (length patterns) Something) ++ trees
+              let trees' = zipWith3 MAtom patterns targets (map (const Something) patterns) ++ trees
               return . msingleton $ mstate { mTrees = trees' }
             _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ prettyStr pattern
         _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
