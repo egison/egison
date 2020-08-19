@@ -23,6 +23,7 @@ import           Text.Regex.TDFA            ((=~))
 import           Language.Egison
 import           Language.Egison.Completion
 import           Language.Egison.Desugar    (desugarTopExpr)
+import           Language.Egison.Eval
 import           Language.Egison.Parser     (parseTopExpr)
 
 import           Options.Applicative
