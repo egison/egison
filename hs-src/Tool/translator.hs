@@ -157,7 +157,7 @@ instance SyntaxElement EgisonExpr where
 
   toNonS x = x
 
-instance SyntaxElement EgisonPattern where
+instance SyntaxElement Pattern where
   toNonS (ValuePat e) = ValuePat (toNonS e)
   toNonS (PredPat e) = PredPat (toNonS e)
   toNonS (IndexedPat p es) = IndexedPat (toNonS p) (map toNonS es)

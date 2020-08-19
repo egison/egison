@@ -803,7 +803,7 @@ recursiveBind env bindings = do
 -- Pattern Match
 --
 
-patternMatch :: PMMode -> Env -> EgisonPattern -> WHNFData -> Matcher -> EvalM (MList EvalM Match)
+patternMatch :: PMMode -> Env -> Pattern -> WHNFData -> Matcher -> EvalM (MList EvalM Match)
 patternMatch pmmode env pattern target matcher =
   case pmmode of
     DFSMode -> processMStatesAllDFS (msingleton initMState)
@@ -1106,8 +1106,8 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ prettyStr pattern
         _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
 
-inductiveMatch :: Env -> EgisonPattern -> WHNFData -> Matcher ->
-                  EvalM ([EgisonPattern], MList EvalM ObjectRef, [Matcher])
+inductiveMatch :: Env -> Pattern -> WHNFData -> Matcher ->
+                  EvalM ([Pattern], MList EvalM ObjectRef, [Matcher])
 inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
   foldr tryPPMatchClause failPPPatternMatch clauses
  where
@@ -1133,8 +1133,8 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
   failPPPatternMatch = throwError $ Default "failed primitive pattern pattern match"
   failPDPatternMatch = throwError $ Default "failed primitive data pattern match"
 
-primitivePatPatternMatch :: Env -> PrimitivePatPattern -> EgisonPattern ->
-                            MatchM ([EgisonPattern], [Binding])
+primitivePatPatternMatch :: Env -> PrimitivePatPattern -> Pattern ->
+                            MatchM ([Pattern], [Binding])
 primitivePatPatternMatch _ PPWildCard WildCard = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
 primitivePatPatternMatch env (PPValuePat name) (ValuePat expr) = do
@@ -1277,7 +1277,7 @@ evalMatcherWHNF whnf = throwError =<< TypeMismatch "matcher" whnf <$> getFuncNam
 --
 -- Util
 --
-toListPat :: [EgisonPattern] -> EgisonPattern
+toListPat :: [Pattern] -> Pattern
 toListPat []         = InductivePat "nil" []
 toListPat (pat:pats) = InductivePat "::" [pat, toListPat pats]
 

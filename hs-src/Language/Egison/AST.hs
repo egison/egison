@@ -13,7 +13,7 @@ This module defines the syntax of Egison.
 module Language.Egison.AST
   ( EgisonTopExpr (..)
   , EgisonExpr (..)
-  , EgisonPattern (..)
+  , Pattern (..)
   , Var (..)
   , VarWithIndices (..)
   , varToVarWithIndices
@@ -80,7 +80,7 @@ data EgisonExpr =
   | LambdaExpr [Arg] EgisonExpr
   | MemoizedLambdaExpr [String] EgisonExpr
   | CambdaExpr String EgisonExpr
-  | PatternFunctionExpr [String] EgisonPattern
+  | PatternFunctionExpr [String] Pattern
 
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetRecExpr [BindingExpr] EgisonExpr
@@ -165,36 +165,36 @@ data PMMode = BFSMode | DFSMode
  deriving (Eq, Show)
 
 type BindingExpr = ([Var], EgisonExpr)
-type MatchClause = (EgisonPattern, EgisonExpr)
+type MatchClause = (Pattern, EgisonExpr)
 type PatternDef  = (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
 
-data EgisonPattern =
+data Pattern =
     WildCard
   | PatVar Var
   | ValuePat EgisonExpr
   | PredPat EgisonExpr
-  | IndexedPat EgisonPattern [EgisonExpr]
-  | LetPat [BindingExpr] EgisonPattern
-  | InfixPat Op EgisonPattern EgisonPattern -- Includes AndPat,OrPat,InductivePat(cons/join)
-  | NotPat EgisonPattern
-  | AndPat EgisonPattern EgisonPattern
-  | OrPat EgisonPattern EgisonPattern
-  | ForallPat EgisonPattern EgisonPattern
-  | TuplePat [EgisonPattern]
-  | InductivePat String [EgisonPattern]
-  | LoopPat Var LoopRange EgisonPattern EgisonPattern
+  | IndexedPat Pattern [EgisonExpr]
+  | LetPat [BindingExpr] Pattern
+  | InfixPat Op Pattern Pattern -- Includes AndPat,OrPat,InductivePat(cons/join)
+  | NotPat Pattern
+  | AndPat Pattern Pattern
+  | OrPat Pattern Pattern
+  | ForallPat Pattern Pattern
+  | TuplePat [Pattern]
+  | InductivePat String [Pattern]
+  | LoopPat Var LoopRange Pattern Pattern
   | ContPat
-  | PApplyPat EgisonExpr [EgisonPattern]
+  | PApplyPat EgisonExpr [Pattern]
   | VarPat String
-  | InductiveOrPApplyPat String [EgisonPattern]
+  | InductiveOrPApplyPat String [Pattern]
   | SeqNilPat
-  | SeqConsPat EgisonPattern EgisonPattern
+  | SeqConsPat Pattern Pattern
   | LaterPatVar
   -- For symbolic computing
-  | DApplyPat EgisonPattern [EgisonPattern]
+  | DApplyPat Pattern [Pattern]
  deriving (Eq, Show)
 
-data LoopRange = LoopRange EgisonExpr EgisonExpr EgisonPattern
+data LoopRange = LoopRange EgisonExpr EgisonExpr Pattern
  deriving (Eq, Show)
 
 data PrimitivePatPattern =

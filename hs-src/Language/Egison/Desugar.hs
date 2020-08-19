@@ -73,7 +73,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
             (pat0, pat1) <- genMatchingPattern pattern
             return (TuplePat [pat0, pat1], matchingSuccess)
 
-          genMatchingPattern :: (String, [EgisonExpr]) -> EvalM (EgisonPattern, EgisonPattern)
+          genMatchingPattern :: (String, [EgisonExpr]) -> EvalM (Pattern, Pattern)
           genMatchingPattern (name, patterns) = do
             names <- mapM (const freshV) patterns
             return (InductivePat name (map PatVar names),
@@ -321,13 +321,13 @@ desugar expr = return expr
 desugarIndex :: Index EgisonExpr -> EvalM (Index EgisonExpr)
 desugarIndex index = traverse desugar index
 
-desugarPattern :: EgisonPattern -> EvalM EgisonPattern
+desugarPattern :: Pattern -> EvalM Pattern
 desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> desugarPattern' pat
  where
-   collectNames :: [EgisonPattern] -> Set String
+   collectNames :: [Pattern] -> Set String
    collectNames pats = S.unions $ map collectName pats
 
-   collectName :: EgisonPattern -> Set String
+   collectName :: Pattern -> Set String
    collectName (ForallPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
    collectName (InfixPat _ pat1 pat2) = collectName pat1 `S.union` collectName pat2
    collectName (NotPat pat)  = collectName pat
@@ -346,7 +346,7 @@ desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> de
    makeBinding :: String -> BindingExpr
    makeBinding name = ([stringToVar name], HashExpr [])
 
-desugarPattern' :: EgisonPattern -> EvalM EgisonPattern
+desugarPattern' :: Pattern -> EvalM Pattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
 desugarPattern' (NotPat pat) = NotPat <$> desugarPattern' pat

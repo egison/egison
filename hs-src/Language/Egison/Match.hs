@@ -39,17 +39,17 @@ instance Show MatchingState where
   show ms = "(MState " ++ unwords ["_", "_", "_", show (mStateBindings ms), show (mTrees ms)] ++ ")" 
 
 data MatchingTree =
-    MAtom EgisonPattern WHNFData Matcher
+    MAtom Pattern WHNFData Matcher
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
-type PatternBinding = (String, EgisonPattern)
+type PatternBinding = (String, Pattern)
 
-data LoopPatContext = LoopPatContext Binding ObjectRef EgisonPattern EgisonPattern EgisonPattern
+data LoopPatContext = LoopPatContext Binding ObjectRef Pattern Pattern Pattern
  deriving (Show)
 
 data SeqPatContext =
-    SeqPatContext [MatchingTree] EgisonPattern [Matcher] [WHNFData]
+    SeqPatContext [MatchingTree] Pattern [Matcher] [WHNFData]
   | ForallPatContext [Matcher] [WHNFData]
  deriving (Show)
 

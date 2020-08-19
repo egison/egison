@@ -50,7 +50,7 @@ import           Data.List                 (intercalate)
 import           Control.Monad             ( MonadPlus(..) )
 import           Control.Egison
 
-import           Language.Egison.AST
+import           Language.Egison.AST       (Index(..))
 
 --
 -- Data

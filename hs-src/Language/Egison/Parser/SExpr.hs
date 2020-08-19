@@ -473,11 +473,11 @@ userrefsExpr = (keywordUserrefs >> UserrefsExpr False <$> expr <*> expr)
 
 -- Patterns
 
-pattern :: Parser EgisonPattern
+pattern :: Parser Pattern
 pattern = P.lexeme lexer (do pattern <- pattern'
                              option pattern $ IndexedPat pattern <$> many1 (try $ char '_' >> expr'))
 
-pattern' :: Parser EgisonPattern
+pattern' :: Parser Pattern
 pattern' = wildCard
             <|> contPat
             <|> patVar
@@ -500,65 +500,65 @@ pattern' = wildCard
                     <|> try pApplyPat
                     )
 
-pattern'' :: Parser EgisonPattern
+pattern'' :: Parser Pattern
 pattern'' = wildCard
             <|> patVar
             <|> valuePat
 
-wildCard :: Parser EgisonPattern
+wildCard :: Parser Pattern
 wildCard = reservedOp "_" >> pure WildCard
 
-patVar :: Parser EgisonPattern
+patVar :: Parser Pattern
 patVar = char '$' >> PatVar <$> identVarWithoutIndex
 
-varPat :: Parser EgisonPattern
+varPat :: Parser Pattern
 varPat = VarPat <$> ident
 
-valuePat :: Parser EgisonPattern
+valuePat :: Parser Pattern
 valuePat = char ',' >> ValuePat <$> expr
 
-predPat :: Parser EgisonPattern
+predPat :: Parser Pattern
 predPat = char '?' >> PredPat <$> expr
 
-letPat :: Parser EgisonPattern
+letPat :: Parser Pattern
 letPat = keywordLet >> LetPat <$> bindings <*> pattern
 
-notPat :: Parser EgisonPattern
+notPat :: Parser Pattern
 notPat = char '!' >> NotPat <$> pattern
 
-notPat' :: Parser EgisonPattern
+notPat' :: Parser Pattern
 notPat' = keywordNot >> NotPat <$> pattern
 
-tuplePat :: Parser EgisonPattern
+tuplePat :: Parser Pattern
 tuplePat = brackets $ TuplePat <$> sepEndBy pattern whiteSpace
 
-inductivePat :: Parser EgisonPattern
+inductivePat :: Parser Pattern
 inductivePat = angles $ InductivePat <$> lowerName <*> sepEndBy pattern whiteSpace
 
-contPat :: Parser EgisonPattern
+contPat :: Parser Pattern
 contPat = keywordCont >> pure ContPat
 
-andPat :: Parser EgisonPattern
+andPat :: Parser Pattern
 andPat = do
   pats <- (reservedOp "&" <|> keywordAnd) >> sepEndBy pattern whiteSpace
   case pats of
     [] -> return WildCard
     _  -> return $ foldr1 AndPat pats
 
-orPat :: Parser EgisonPattern
+orPat :: Parser Pattern
 orPat = do
   pats <- (reservedOp "|" <|> keywordOr) >> sepEndBy pattern whiteSpace
   case pats of
     [] -> return (NotPat WildCard)
     _  -> return $ foldr1 OrPat pats
 
-pApplyPat :: Parser EgisonPattern
+pApplyPat :: Parser Pattern
 pApplyPat = PApplyPat <$> expr <*> sepEndBy pattern whiteSpace
 
-dApplyPat :: Parser EgisonPattern
+dApplyPat :: Parser Pattern
 dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace
 
-loopPat :: Parser EgisonPattern
+loopPat :: Parser Pattern
 loopPat = keywordLoop >> char '$' >> LoopPat <$> identVarWithoutIndex <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
 loopRange :: Parser LoopRange
@@ -567,19 +567,19 @@ loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard patte
                               ep <- option WildCard pattern
                               return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
 
-seqNilPat :: Parser EgisonPattern
+seqNilPat :: Parser Pattern
 seqNilPat = braces $ pure SeqNilPat
 
-seqConsPat :: Parser EgisonPattern
+seqConsPat :: Parser Pattern
 seqConsPat = braces $ SeqConsPat <$> pattern <*> (char '@' >> pattern)
 
-seqPat :: Parser EgisonPattern
+seqPat :: Parser Pattern
 seqPat = braces $ do
   pats <- sepEndBy pattern whiteSpace
   tailPat <- option SeqNilPat (char '@' >> pattern)
   return $ foldr SeqConsPat tailPat pats
 
-laterPatVar :: Parser EgisonPattern
+laterPatVar :: Parser Pattern
 laterPatVar = char '#' >> pure LaterPatVar
 
 -- Constants
