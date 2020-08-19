@@ -74,7 +74,7 @@ mathOutputTestLatex env = do
 
 makeMathOutputTest :: Env -> String -> String -> String -> String -> RuntimeM Test
 makeMathOutputTest env lang label expr expectedOutput = do
-  res <- runEgisonExpr env expr
+  res <- fromEvalT (runEgisonExpr env expr)
   case res of
     Left _    -> return . TestCase $ assertFailure "Failed to evaluate the expression"
     Right res -> return . TestCase $ assertEqual label ("#" ++ lang ++ "|" ++ expectedOutput ++ "|#") (prettyMath lang res)
