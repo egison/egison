@@ -9,6 +9,7 @@ import           Test.HUnit
 
 import           Language.Egison
 import           Language.Egison.Core
+import           Language.Egison.Eval
 import           Language.Egison.MathOutput
 import           Language.Egison.Parser
 
