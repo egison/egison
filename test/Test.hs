@@ -50,19 +50,12 @@ runTestCase :: FilePath -> Test
 runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   env <- lift $ lift initialEnv
   exprs <- loadFile file
-  let (bindings, tests) = foldr collectDefsAndTests ([], []) exprs
+  (bindings, tests) <- collectDefs defaultOption exprs
   env' <- recursiveBind env bindings
-  forM_ tests $ evalExprDeep env'
+  forM_ tests $ evalTopExpr' env'
  where
   assertEvalM :: EvalM a -> Assertion
   assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
-
-collectDefsAndTests :: TopExpr -> ([(Var, Expr)], [Expr]) -> ([(Var, Expr)], [Expr])
-collectDefsAndTests (Define name expr) (bindings, tests) =
-  ((name, expr) : bindings, tests)
-collectDefsAndTests (Test expr) (bindings, tests) =
-  (bindings, expr : tests)
-collectDefsAndTests _ r = r
 
 mathOutputTest :: RuntimeM Test
 mathOutputTest = do
