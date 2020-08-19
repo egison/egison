@@ -104,10 +104,9 @@ data EgisonValue =
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env [PatternDef]
-  | Func (Maybe Var) Env [String] EgisonExpr
-  | AnonParamFunc Env Integer EgisonExpr
-  | CFunc (Maybe Var) Env String EgisonExpr
-  | MemoizedFunc (Maybe Var) ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
+  | Func (Maybe String) Env [String] EgisonExpr
+  | CFunc Env String EgisonExpr
+  | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
   | PatternFunc Env [String] EgisonPattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EvalM WHNFData)
@@ -306,13 +305,9 @@ instance Show EgisonValue where
   show (CharHash hash) = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash)  = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show UserMatcher{} = "#<user-matcher>"
-  show (Func Nothing _ args _) = "(lambda [" ++ intercalate ", " (map show args) ++ "] ...)"
-  show (Func (Just name) _ _ _) = show name
-  show (AnonParamFunc _ n expr) = show n ++ "#" ++ show expr
-  show (CFunc Nothing _ name _) = "(cambda " ++ name ++ " ...)"
-  show (CFunc (Just name) _ _ _) = show name
-  show (MemoizedFunc Nothing _ _ _ names _) = "(memoized-lambda [" ++ intercalate ", " names ++ "] ...)"
-  show (MemoizedFunc (Just name) _ _ _ _ _) = show name
+  show (Func _ _ args _) = "#<lambda [" ++ intercalate ", " (map show args) ++ "] ...>"
+  show (CFunc _ name _) = "#<cambda " ++ name ++ " ...>"
+  show (MemoizedFunc _ _ _ names _) = "#<memoized-lambda [" ++ intercalate ", " names ++ "] ...>"
   show PatternFunc{} = "#<pattern-function>"
   show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
   show (IOFunc _) = "#<io-function>"
@@ -345,8 +340,6 @@ instance Eq EgisonValue where
  -- Temporary: searching a better solution
  (Func Nothing _ xs1 expr1) == (Func Nothing _ xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
  (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
- (CFunc Nothing _ x1 expr1) == (CFunc Nothing _ x2 expr2) = (x1 == x2) && (expr1 == expr2)
- (CFunc (Just name1) _ _ _) == (CFunc (Just name2) _ _ _) = name1 == name2
  _ == _ = False
 
 --
