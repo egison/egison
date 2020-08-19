@@ -556,7 +556,6 @@ data EgisonError =
   | Parser String
   | EgisonBug String CallStack
   | MatchFailure String CallStack
-  | UnknownFileExtension String
   | Default String
   deriving Typeable
 
@@ -579,10 +578,6 @@ instance Show EgisonError where
   show (Parser err) = "Parse error at: " ++ err
   show (EgisonBug message stack) = "Egison Error: " ++ message ++ showTrace stack
   show (MatchFailure currentFunc stack) = "Failed pattern match in: " ++ currentFunc ++ showTrace stack
-  show (UnknownFileExtension name) =
-    "Unknown file extension: " ++ name ++
-      "\nFile name should be suffixed with either \".egi\" (for Haskell-like syntax)" ++
-      " or \".segi\" (for S-expression syntax)"
   show (Default message) = "Error: " ++ message
 
 showTrace :: CallStack -> String

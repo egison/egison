@@ -82,7 +82,7 @@ loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
   input <- liftIO $ readUTF8File file
-  useSExpr <- checkIfUseSExpr file
+  let useSExpr = checkIfUseSExpr file
   exprs <- readTopExprs useSExpr $ removeShebang useSExpr input
   concat <$> mapM recursiveLoad exprs
  where
@@ -100,14 +100,5 @@ readUTF8File name = do
   hSetEncoding h utf8
   hGetContents h
 
-hasDotEgiExtension :: String -> Bool
-hasDotEgiExtension file = drop (length file - 4) file == ".egi"
-
-hasDotSEgiExtension :: String -> Bool
-hasDotSEgiExtension file = drop (length file - 5) file == ".segi"
-
-checkIfUseSExpr :: String -> EvalM Bool
-checkIfUseSExpr file
-  | hasDotEgiExtension file  = return False
-  | hasDotSEgiExtension file = return True
-  | otherwise                = throwError (UnknownFileExtension file)
+checkIfUseSExpr :: String -> Bool
+checkIfUseSExpr file = drop (length file - 5) file == ".segi"
