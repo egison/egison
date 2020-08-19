@@ -322,7 +322,7 @@ desugarIndex :: Index EgisonExpr -> EvalM (Index EgisonExpr)
 desugarIndex index = traverse desugar index
 
 desugarPattern :: EgisonPattern -> EvalM EgisonPattern
-desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> desugarPattern' (desugarPatternInfix pat)
+desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> desugarPattern' pat
  where
    collectNames :: [EgisonPattern] -> Set String
    collectNames pats = S.unions $ map collectName pats
@@ -346,33 +346,6 @@ desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> de
    makeBinding :: String -> BindingExpr
    makeBinding name = ([stringToVar name], HashExpr [])
 
-desugarPatternInfix :: EgisonPattern -> EgisonPattern
-desugarPatternInfix (IndexedPat pat es) = IndexedPat (desugarPatternInfix pat) es
-desugarPatternInfix (LetPat bindings pat) = LetPat bindings (desugarPatternInfix pat)
-desugarPatternInfix (InfixPat Op{ repr = "&" } pat1 pat2) =
-  AndPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Op{ repr = "|" } pat1 pat2) =
-  OrPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (InfixPat Op{ repr = f } pat1 pat2) =
-  InductivePat f [desugarPatternInfix pat1, desugarPatternInfix pat2]
-desugarPatternInfix (NotPat pat) = NotPat (desugarPatternInfix pat)
-desugarPatternInfix (ForallPat pat1 pat2) =
-  ForallPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (TuplePat pats) = TuplePat (map desugarPatternInfix pats)
-desugarPatternInfix (InductivePat ctor pats) =
-  InductivePat ctor (map desugarPatternInfix pats)
-desugarPatternInfix (LoopPat name range pat1 pat2) =
-  LoopPat name range (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (PApplyPat expr pats) =
-  PApplyPat expr (map desugarPatternInfix pats)
-desugarPatternInfix (InductiveOrPApplyPat name pats) =
-  InductiveOrPApplyPat name (map desugarPatternInfix pats)
-desugarPatternInfix (SeqConsPat pat1 pat2) =
-  SeqConsPat (desugarPatternInfix pat1) (desugarPatternInfix pat2)
-desugarPatternInfix (DApplyPat pat pats) =
-  DApplyPat (desugarPatternInfix pat) (map desugarPatternInfix pats)
-desugarPatternInfix pat = pat
-
 desugarPattern' :: EgisonPattern -> EvalM EgisonPattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
 desugarPattern' (PredPat expr) = PredPat <$> desugar expr
@@ -380,6 +353,12 @@ desugarPattern' (NotPat pat) = NotPat <$> desugarPattern' pat
 desugarPattern' (ForallPat pat1 pat2) = ForallPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (AndPat pat1 pat2) = AndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (OrPat pat1 pat2) = OrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (InfixPat Op{ repr = "&" } pat1 pat2) =
+  AndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (InfixPat Op{ repr = "|" } pat1 pat2) =
+  OrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (InfixPat Op{ repr = f } pat1 pat2) =
+  (\x y -> InductivePat f [x, y]) <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (TuplePat pats)  = TuplePat <$> mapM desugarPattern' pats
 desugarPattern' (InductiveOrPApplyPat name pats) = InductiveOrPApplyPat name <$> mapM desugarPattern' pats
 desugarPattern' (InductivePat name pats) = InductivePat name <$> mapM desugarPattern' pats
