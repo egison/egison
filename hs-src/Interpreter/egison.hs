@@ -128,7 +128,7 @@ repl env = (do
   case input of
     Nothing -> return ()
     Just topExpr -> do
-      result <- fromEvalT (desugarTopExpr topExpr >>= evalTopExpr env)
+      result <- fromEvalT (desugarTopExpr topExpr >>= evalEgisonTopExpr env)
       case result of
         Left err -> liftIO (print err) >> repl env
         Right (Just str, env') -> liftIO (putStrLn str) >> repl env'
