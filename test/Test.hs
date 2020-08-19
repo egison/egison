@@ -9,6 +9,7 @@ import           Test.HUnit
 
 import           Language.Egison
 import           Language.Egison.Core
+import           Language.Egison.Eval
 import           Language.Egison.MathOutput
 import           Language.Egison.Parser
 
@@ -52,7 +53,7 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   exprs <- loadFile file
   (bindings, tests) <- collectDefs defaultOption exprs
   env' <- recursiveBind env bindings
-  forM_ tests $ evalTopExpr' env'
+  forM_ tests $ evalTopExpr env'
  where
   assertEvalM :: EvalM a -> Assertion
   assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
@@ -74,7 +75,7 @@ mathOutputTestLatex env = do
 
 makeMathOutputTest :: Env -> String -> String -> String -> String -> RuntimeM Test
 makeMathOutputTest env lang label expr expectedOutput = do
-  res <- runEgisonExpr env expr
+  res <- fromEvalT (runExpr env expr)
   case res of
     Left _    -> return . TestCase $ assertFailure "Failed to evaluate the expression"
     Right res -> return . TestCase $ assertEqual label ("#" ++ lang ++ "|" ++ expectedOutput ++ "|#") (prettyMath lang res)
