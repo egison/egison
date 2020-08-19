@@ -140,11 +140,12 @@ evalExpr env (QuoteSymbolExpr expr) = do
     Value (ScalarData _) -> return whnf
     _ -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 
-evalExpr env (VarExpr var@(Var [name@(c:_)] [])) =
+evalExpr env (VarExpr var@(Var _ [])) =
   case refVar env var of
-    Nothing | isUpper c -> return $ Value (InductiveData name [])
-    Nothing             -> return $ Value (symbolScalarData "" $ prettyStr var)
-    Just ref            -> evalRef ref
+    Nothing | isUpper (head (show var)) ->
+      return $ Value (InductiveData (show var) [])
+    Nothing  -> return $ Value (symbolScalarData "" $ prettyStr var)
+    Just ref -> evalRef ref
 
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
