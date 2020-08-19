@@ -53,14 +53,14 @@ readTopExpr _ expr = do
   r <- lift . lift $ NonS.parseTopExpr expr
   either throwError desugarTopExpr r
 
-readExprs :: Bool -> String -> EvalM [EgisonExpr]
+readExprs :: Bool -> String -> EvalM [Expr]
 readExprs useSExpr expr | useSExpr =
   either throwError (mapM desugarExpr) (SExpr.parseExprs expr)
 readExprs _ expr = do
   r <- lift . lift $ NonS.parseExprs expr
   either throwError (mapM desugarExpr) r
 
-readExpr :: Bool -> String -> EvalM EgisonExpr
+readExpr :: Bool -> String -> EvalM Expr
 readExpr useSExpr expr | useSExpr =
   either throwError desugarExpr (SExpr.parseExpr expr)
 readExpr _ expr = do

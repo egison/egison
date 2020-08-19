@@ -72,7 +72,7 @@ evalTopExpr env topExpr = do
   return env'
 
 -- |eval an Egison expression
-evalEgisonExpr :: Env -> EgisonExpr -> RuntimeM (Either EgisonError EgisonValue)
+evalEgisonExpr :: Env -> Expr -> RuntimeM (Either EgisonError EgisonValue)
 evalEgisonExpr env expr = fromEvalT $ evalExprDeep env expr
 
 -- |eval an Egison top expression

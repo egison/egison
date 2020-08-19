@@ -45,10 +45,10 @@ parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
 parseTopExpr :: String -> RuntimeM (Either EgisonError TopExpr)
 parseTopExpr = doParse $ sc >> topExpr <* eof
 
-parseExprs :: String -> RuntimeM (Either EgisonError [EgisonExpr])
+parseExprs :: String -> RuntimeM (Either EgisonError [Expr])
 parseExprs = doParse $ many (L.nonIndented sc expr) <* eof
 
-parseExpr :: String -> RuntimeM (Either EgisonError EgisonExpr)
+parseExpr :: String -> RuntimeM (Either EgisonError Expr)
 parseExpr = doParse $ sc >> expr <* eof
 
 --
@@ -145,7 +145,7 @@ defineOrTestExpr = do
   e <- expr
   defineExpr e <|> return (Test e)
   where
-    defineExpr :: EgisonExpr -> Parser TopExpr
+    defineExpr :: Expr -> Parser TopExpr
     defineExpr e = do
       _    <- symbol ":="
       -- When ":=" is observed and the current expression turns out to be a
@@ -157,7 +157,7 @@ defineOrTestExpr = do
         Just (Function var args) -> Define var . LambdaExpr args <$> expr
         Just (IndexedVar var)    -> DefineWithIndices var <$> expr
 
-    convertToDefine :: EgisonExpr -> Maybe ConversionResult
+    convertToDefine :: Expr -> Maybe ConversionResult
     convertToDefine (VarExpr var) = return $ Variable var
     convertToDefine (SectionExpr op Nothing Nothing) =
       return $ Variable (stringToVar (repr op))
@@ -177,16 +177,16 @@ defineOrTestExpr = do
           TensorArg var : args -> return $ Function (stringToVar var) args
           _                    -> Nothing
     convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) = do
-      -- [Index EgisonExpr] -> Maybe [Index String]
+      -- [Index Expr] -> Maybe [Index String]
       indices' <- mapM (traverse exprToStr) indices
       return $ IndexedVar (VarWithIndices var indices')
     convertToDefine _ = Nothing
 
-    exprToStr :: EgisonExpr -> Maybe String
+    exprToStr :: Expr -> Maybe String
     exprToStr (VarExpr v) = Just (show v)
     exprToStr _           = Nothing
 
-    exprToArgs :: EgisonExpr -> Maybe [Arg]
+    exprToArgs :: Expr -> Maybe [Arg]
     exprToArgs (VarExpr v) = return [TensorArg (show v)]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
@@ -211,7 +211,7 @@ defineOrTestExpr = do
         _               -> Nothing
     exprToArgs _ = Nothing
 
-expr :: Parser EgisonExpr
+expr :: Parser Expr
 expr = do
   body <- exprWithoutWhere
   bindings <- optional (reserved "where" >> alignSome binding)
@@ -219,7 +219,7 @@ expr = do
              Nothing -> body
              Just bindings -> LetRecExpr bindings body
 
-exprWithoutWhere :: Parser EgisonExpr
+exprWithoutWhere :: Parser Expr
 exprWithoutWhere =
        ifExpr
    <|> patternMatchExpr
@@ -240,28 +240,28 @@ exprWithoutWhere =
    <?> "expression"
 
 -- Also parses atomExpr
-opExpr :: Parser EgisonExpr
+opExpr :: Parser Expr
 opExpr = do
   ops <- gets exprOps
   makeExprParser atomOrApplyExpr (makeExprTable ops)
 
-makeExprTable :: [Op] -> [[Operator Parser EgisonExpr]]
+makeExprTable :: [Op] -> [[Operator Parser Expr]]
 makeExprTable ops =
   -- Generate binary operator table from |ops|
   map (map toOperator) (groupBy (\x y -> priority x == priority y) ops)
   where
     -- notFollowedBy (in unary and binary) is necessary for section expression.
-    unary :: String -> Parser (EgisonExpr -> EgisonExpr)
+    unary :: String -> Parser (Expr -> Expr)
     unary sym = PrefixExpr <$> try (operator sym <* notFollowedBy (symbol ")"))
 
-    binary :: Op -> Parser (EgisonExpr -> EgisonExpr -> EgisonExpr)
+    binary :: Op -> Parser (Expr -> Expr -> Expr)
     binary op = do
       -- Operators should be indented than pos1 in order to avoid
       -- "1\n-2" (2 topExprs, 1 and -2) to be parsed as "1 - 2".
       op <- try (indented >> infixLiteral (repr op) <* notFollowedBy (symbol ")"))
       return $ InfixExpr op
 
-    toOperator :: Op -> Operator Parser EgisonExpr
+    toOperator :: Op -> Operator Parser Expr
     toOperator op =
       case assoc op of
         E.InfixL -> InfixL (binary op)
@@ -269,10 +269,10 @@ makeExprTable ops =
         E.InfixN -> InfixN (binary op)
         E.Prefix -> Prefix (unary (repr op))
 
-ifExpr :: Parser EgisonExpr
+ifExpr :: Parser Expr
 ifExpr = reserved "if" >> IfExpr <$> expr <* reserved "then" <*> expr <* reserved "else" <*> expr
 
-patternMatchExpr :: Parser EgisonExpr
+patternMatchExpr :: Parser Expr
 patternMatchExpr = makeMatchExpr (reserved "match")       (MatchExpr BFSMode)
                <|> makeMatchExpr (reserved "matchDFS")    (MatchExpr DFSMode)
                <|> makeMatchExpr (reserved "matchAll")    (MatchAllExpr BFSMode)
@@ -295,7 +295,7 @@ matchClauses1 =
     matchClause :: Parser MatchClause
     matchClause = (,) <$> (symbol "|" >> pattern) <*> (symbol "->" >> expr)
 
-lambdaExpr :: Parser EgisonExpr
+lambdaExpr :: Parser Expr
 lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr (reserved "match")    MatchLambdaExpr
   <|> makeMatchLambdaExpr (reserved "matchAll") MatchAllLambdaExpr
@@ -308,7 +308,7 @@ lambdaExpr = symbol "\\" >> (
       clauses <- reserved "with" >> matchClauses1
       return $ ctor matcher clauses
 
-lambdaLikeExpr :: Parser EgisonExpr
+lambdaLikeExpr :: Parser Expr
 lambdaLikeExpr =
         (reserved "memoizedLambda" >> MemoizedLambdaExpr <$> tupleOrSome lowerId <*> (symbol "->" >> expr))
     <|> (reserved "cambda"         >> CambdaExpr         <$> lowerId      <*> (symbol "->" >> expr))
@@ -320,7 +320,7 @@ arg = InvertedScalarArg <$> (char '*' >> ident)
   <|> TensorArg         <$> ident
   <?> "argument"
 
-letExpr :: Parser EgisonExpr
+letExpr :: Parser Expr
 letExpr = do
   binds <- reserved "let" >> oneLiner <|> alignSome binding
   body  <- reserved "in" >> expr
@@ -340,10 +340,10 @@ binding = do
              [] -> (vars, body)
              _  -> (vars, LambdaExpr args body)
 
-withSymbolsExpr :: Parser EgisonExpr
+withSymbolsExpr :: Parser Expr
 withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy ident comma)) <*> expr
 
-doExpr :: Parser EgisonExpr
+doExpr :: Parser Expr
 doExpr = do
   stmts <- reserved "do" >> oneLiner <|> alignSome statement
   case reverse stmts of
@@ -357,16 +357,16 @@ doExpr = do
     oneLiner :: Parser [BindingExpr]
     oneLiner = braces $ sepBy statement (symbol ";")
 
-ioExpr :: Parser EgisonExpr
+ioExpr :: Parser Expr
 ioExpr = IoExpr <$> (reserved "io" >> expr)
 
-seqExpr :: Parser EgisonExpr
+seqExpr :: Parser Expr
 seqExpr = SeqExpr <$> (reserved "seq" >> atomExpr) <*> atomExpr
 
-capplyExpr :: Parser EgisonExpr
+capplyExpr :: Parser Expr
 capplyExpr = CApplyExpr <$> (reserved "capply" >> atomExpr) <*> atomExpr
 
-matcherExpr :: Parser EgisonExpr
+matcherExpr :: Parser Expr
 matcherExpr = do
   reserved "matcher"
   -- Assuming it is unlikely that users want to write matchers with only 1
@@ -374,24 +374,24 @@ matcherExpr = do
   -- expression.
   MatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
-    patternDef :: Parser (PrimitivePatPattern, EgisonExpr, [(PrimitiveDataPattern, EgisonExpr)])
+    patternDef :: Parser (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
     patternDef = do
       pp <- ppPattern
       returnMatcher <- reserved "as" >> expr <* reserved "with"
       datapat <- alignSome (symbol "|" >> dataCases)
       return (pp, returnMatcher, datapat)
 
-    dataCases :: Parser (PrimitiveDataPattern, EgisonExpr)
+    dataCases :: Parser (PrimitiveDataPattern, Expr)
     dataCases = (,) <$> pdPattern <*> (symbol "->" >> expr)
 
-algebraicDataMatcherExpr :: Parser EgisonExpr
+algebraicDataMatcherExpr :: Parser Expr
 algebraicDataMatcherExpr = do
   reserved "algebraicDataMatcher"
   AlgebraicDataMatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
     patternDef = indentBlock lowerId atomExpr
 
-tensorExpr :: Parser EgisonExpr
+tensorExpr :: Parser Expr
 tensorExpr =
       (reserved "tensor"         >> TensorExpr         <$> atomExpr <*> atomExpr)
   <|> (reserved "generateTensor" >> GenerateTensorExpr <$> atomExpr <*> atomExpr)
@@ -400,10 +400,10 @@ tensorExpr =
   <|> (reserved "tensorMap2"     >> TensorMap2Expr     <$> atomExpr <*> atomExpr <*> atomExpr)
   <|> (reserved "transpose"      >> TransposeExpr      <$> atomExpr <*> atomExpr)
 
-functionExpr :: Parser EgisonExpr
+functionExpr :: Parser Expr
 functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
 
-refsExpr :: Parser EgisonExpr
+refsExpr :: Parser Expr
 refsExpr =
       (reserved "subrefs"   >> SubrefsExpr  False <$> atomExpr <*> atomExpr)
   <|> (reserved "subrefs!"  >> SubrefsExpr  True  <$> atomExpr <*> atomExpr)
@@ -412,7 +412,7 @@ refsExpr =
   <|> (reserved "userRefs"  >> UserrefsExpr False <$> atomExpr <*> atomExpr)
   <|> (reserved "userRefs!" >> UserrefsExpr True  <$> atomExpr <*> atomExpr)
 
-collectionExpr :: Parser EgisonExpr
+collectionExpr :: Parser Expr
 collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr
   where
     betweenOrFromExpr = do
@@ -428,19 +428,19 @@ collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr
 --   * a tuple
 --   * an arbitrary expression wrapped with parenthesis
 --   * section
-tupleOrParenExpr :: Parser EgisonExpr
+tupleOrParenExpr :: Parser Expr
 tupleOrParenExpr = do
   elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (section <* symbol ")")
   case elems of
     [x] -> return x                 -- expression wrapped in parenthesis
     _   -> return $ TupleExpr elems -- tuple
   where
-    section :: Parser [EgisonExpr]
+    section :: Parser [Expr]
     -- Start from right, in order to parse expressions like (-1 +) correctly
     section = (:[]) <$> (rightSection <|> leftSection)
 
     -- Sections without the left operand: eg. (+), (+ 1)
-    leftSection :: Parser EgisonExpr
+    leftSection :: Parser Expr
     leftSection = do
       ops  <- gets exprOps
       op   <- choice $ map (infixLiteral . repr) ops
@@ -453,7 +453,7 @@ tupleOrParenExpr = do
         _ -> return (SectionExpr op Nothing rarg)
 
     -- Sections with the left operand but lacks the right operand: eg. (1 +)
-    rightSection :: Parser EgisonExpr
+    rightSection :: Parser Expr
     rightSection = do
       ops  <- gets exprOps
       larg <- opExpr
@@ -464,16 +464,16 @@ tupleOrParenExpr = do
         --   customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op (Just larg) Nothing)
 
-vectorExpr :: Parser EgisonExpr
+vectorExpr :: Parser Expr
 vectorExpr = VectorExpr <$> between (symbol "[|") (symbol "|]") (sepEndBy expr comma)
 
-hashExpr :: Parser EgisonExpr
+hashExpr :: Parser Expr
 hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
   where
     hashBraces = between (symbol "{|") (symbol "|}")
     hashElem = parens $ (,) <$> expr <*> (comma >> expr)
 
-index :: Parser (Index EgisonExpr)
+index :: Parser (Index Expr)
 index = SupSubscript <$> (string "~_" >> atomExpr')
     <|> try (char '_' >> subscript)
     <|> try (char '~' >> superscript)
@@ -493,7 +493,7 @@ index = SupSubscript <$> (string "~_" >> atomExpr')
         Nothing  -> return $ Superscript e1
         Just e2' -> return $ MultiSuperscript e1 e2'
 
-atomOrApplyExpr :: Parser EgisonExpr
+atomOrApplyExpr :: Parser Expr
 atomOrApplyExpr = do
   (func, args) <- indentBlock atomExpr atomExpr
   return $ case args of
@@ -501,7 +501,7 @@ atomOrApplyExpr = do
              _  -> makeApply' func args
 
 -- (Possibly indexed) atomic expressions
-atomExpr :: Parser EgisonExpr
+atomExpr :: Parser Expr
 atomExpr = do
   e <- atomExpr'
   override <- isNothing <$> optional (try (string "..." <* lookAhead index))
@@ -511,7 +511,7 @@ atomExpr = do
              _  -> IndexedExpr override e indices
 
 -- Atomic expressions without index
-atomExpr' :: Parser EgisonExpr
+atomExpr' :: Parser Expr
 atomExpr' = anonParamFuncExpr    -- must come before |constantExpr|
         <|> constantExpr
         <|> FreshVarExpr <$ symbol "#"
@@ -525,13 +525,13 @@ atomExpr' = anonParamFuncExpr    -- must come before |constantExpr|
         <|> AnonParamExpr  <$> try (char '%' >> positiveIntegerLiteral)
         <?> "atomic expression"
 
-anonParamFuncExpr :: Parser EgisonExpr
+anonParamFuncExpr :: Parser Expr
 anonParamFuncExpr = do
   n    <- try (L.decimal <* char '#') -- No space after the index
   body <- atomExpr                    -- No space after '#'
   return $ AnonParamFuncExpr n body
 
-constantExpr :: Parser EgisonExpr
+constantExpr :: Parser Expr
 constantExpr = numericExpr
            <|> BoolExpr <$> boolLiteral
            <|> CharExpr <$> try charLiteral        -- try for quoteExpr
@@ -539,7 +539,7 @@ constantExpr = numericExpr
            <|> SomethingExpr <$ reserved "something"
            <|> UndefinedExpr <$ reserved "undefined"
 
-numericExpr :: Parser EgisonExpr
+numericExpr :: Parser Expr
 numericExpr = FloatExpr <$> try positiveFloatLiteral
           <|> IntegerExpr <$> positiveIntegerLiteral
           <?> "numeric expression"
@@ -906,7 +906,7 @@ makeTupleOrParen parser tupleCtor = do
     [elem] -> return elem
     _      -> return $ tupleCtor elems
 
-makeApply' :: EgisonExpr -> [EgisonExpr] -> EgisonExpr
+makeApply' :: Expr -> [Expr] -> Expr
 makeApply' (InductiveDataExpr x []) xs = InductiveDataExpr x xs
 makeApply' func xs = ApplyExpr func (TupleExpr xs)
 

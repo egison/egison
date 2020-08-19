@@ -66,10 +66,10 @@ import           Language.Egison.Tensor
 -- Evaluator
 --
 
-collectDefs :: EgisonOpts -> [TopExpr] -> EvalM ([(Var, EgisonExpr)], [TopExpr])
+collectDefs :: EgisonOpts -> [TopExpr] -> EvalM ([(Var, Expr)], [TopExpr])
 collectDefs opts exprs = collectDefs' opts exprs [] []
   where
-    collectDefs' :: EgisonOpts -> [TopExpr] -> [(Var, EgisonExpr)] -> [TopExpr] -> EvalM ([(Var, EgisonExpr)], [TopExpr])
+    collectDefs' :: EgisonOpts -> [TopExpr] -> [(Var, Expr)] -> [TopExpr] -> EvalM ([(Var, Expr)], [TopExpr])
     collectDefs' opts (expr:exprs) bindings rest =
       case expr of
         Define name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
@@ -120,7 +120,7 @@ evalTopExpr' env (LoadFile file) = do
   return (Nothing, env')
 evalTopExpr' env InfixDecl{} = return (Nothing, env)
 
-evalExpr :: Env -> EgisonExpr -> EvalM WHNFData
+evalExpr :: Env -> Expr -> EvalM WHNFData
 evalExpr _ (CharExpr c)    = return . Value $ Char c
 evalExpr _ (StringExpr s)  = return . Value $ toEgison s
 evalExpr _ (BoolExpr b)    = return . Value $ Bool b
@@ -183,7 +183,7 @@ evalExpr env@(Env frame maybe_vwi) (VectorExpr exprs) = do
       mapM toTensor (zipWith f whnfs indices) >>= tConcat' >>= fromTensor
     _ -> fromTensor (Tensor [n] (V.fromList whnfs) [])
   where
-    evalWithIndex :: EgisonExpr -> Integer -> EvalM WHNFData
+    evalWithIndex :: Expr -> Integer -> EvalM WHNFData
     evalWithIndex expr index = evalExpr env' expr
       where
         env' = case maybe_vwi of
@@ -264,10 +264,10 @@ evalExpr env (IndexedExpr override expr indices) = do
       js <- mapM evalIndex indices
       refHash tensor (map extractIndex js)
  where
-  evalIndex :: Index EgisonExpr -> EvalM (Index EgisonValue)
+  evalIndex :: Index Expr -> EvalM (Index EgisonValue)
   evalIndex index = traverse (evalExprDeep env) index
 
-  evalIndexToScalar :: Index EgisonExpr -> EvalM (Index ScalarData)
+  evalIndexToScalar :: Index Expr -> EvalM (Index ScalarData)
   evalIndexToScalar index = traverse ((extractScalar =<<) . evalExprDeep env) index
 
 evalExpr env (SubrefsExpr override expr jsExpr) = do
@@ -347,7 +347,7 @@ evalExpr env (LetRecExpr bindings expr) = do
   bindings' <- concat <$> mapM extractBindings bindings
   recursiveBind env bindings' >>= flip evalExpr expr
  where
-  extractBindings :: BindingExpr -> EvalM [(Var, EgisonExpr)]
+  extractBindings :: BindingExpr -> EvalM [(Var, Expr)]
   extractBindings ([name], expr) = return [(name, expr)]
   extractBindings (names, expr) = do
     var <- stringToVar <$> fresh
@@ -610,7 +610,7 @@ evalExpr _ SomethingExpr = return $ Value Something
 evalExpr _ UndefinedExpr = return $ Value Undefined
 evalExpr _ expr = throwError =<< NotImplemented ("evalExpr for " ++ show expr) <$> getFuncNameStack
 
-evalExprDeep :: Env -> EgisonExpr -> EvalM EgisonValue
+evalExprDeep :: Env -> Expr -> EvalM EgisonValue
 evalExprDeep env expr = evalExpr env expr >>= evalWHNF
 
 evalRef :: ObjectRef -> EvalM WHNFData
@@ -754,10 +754,10 @@ refHash val (index:indices) =
       Just ref -> evalRef ref >>= flip refHash indices
       Nothing  -> return $ Value Undefined
 
-newThunk :: Env -> EgisonExpr -> Object
+newThunk :: Env -> Expr -> Object
 newThunk env expr = Thunk $ evalExpr env expr
 
-newObjectRef :: Env -> EgisonExpr -> EvalM ObjectRef
+newObjectRef :: Env -> Expr -> EvalM ObjectRef
 newObjectRef env expr = liftIO $ newIORef $ newThunk env expr
 
 writeObjectRef :: ObjectRef -> WHNFData -> EvalM ()
@@ -772,7 +772,7 @@ makeBindings = zip
 makeBindings' :: [String] -> [ObjectRef] -> [Binding]
 makeBindings' xs = zip (map stringToVar xs)
 
-recursiveBind :: Env -> [(Var, EgisonExpr)] -> EvalM Env
+recursiveBind :: Env -> [(Var, Expr)] -> EvalM Env
 recursiveBind env bindings = do
   let (names, _) = unzip bindings
   refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
