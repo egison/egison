@@ -68,7 +68,7 @@ instance SyntaxElement TopExpr where
   toNonS (Execute x)    = Execute (toNonS x)
   toNonS x              = x
 
-instance SyntaxElement EgisonExpr where
+instance SyntaxElement Expr where
   toNonS (IntegerExpr x) = IntegerExpr x
   toNonS (VarExpr (lookupVarExprInfix -> Just op)) =
     SectionExpr op Nothing Nothing

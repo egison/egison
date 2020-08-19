@@ -103,9 +103,9 @@ data EgisonValue =
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env [PatternDef]
-  | Func (Maybe String) Env [String] EgisonExpr
-  | CFunc Env String EgisonExpr
-  | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] EgisonExpr
+  | Func (Maybe String) Env [String] Expr
+  | CFunc Env String Expr
+  | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] Expr
   | PatternFunc Env [String] Pattern
   | PrimitiveFunc String PrimitiveFunc
   | IOFunc (EvalM WHNFData)

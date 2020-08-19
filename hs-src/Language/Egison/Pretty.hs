@@ -41,7 +41,7 @@ instance Pretty TopExpr where
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
   pretty _ = error "Unsupported topexpr"
 
-instance Pretty EgisonExpr where
+instance Pretty Expr where
   -- Use |viaShow| to correctly handle escaped characters
   pretty (CharExpr x)    = viaShow x
   pretty (StringExpr x)  = pretty (ushow x)
@@ -298,7 +298,7 @@ class Complex a where
   isAtomOrApp :: a -> Bool
   isInfix :: a -> Bool
 
-instance Complex EgisonExpr where
+instance Complex Expr where
   isAtom (IntegerExpr i) | i < 0  = False
   isAtom (InductiveDataExpr _ []) = True
   isAtom (InductiveDataExpr _ _)  = False
@@ -382,7 +382,7 @@ prettyDoBinds :: BindingExpr -> Doc ann
 prettyDoBinds ([], expr) = pretty expr
 prettyDoBinds (vs, expr) = pretty "let" <+> pretty (vs, expr)
 
-prettyMatch :: EgisonExpr -> [MatchClause] -> Doc ann
+prettyMatch :: Expr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
   pretty "as" <> group (flatAlt (hardline <> pretty matcher) (space <> pretty matcher) <+> pretty "with") <> hardline <>
     align (vsep (map pretty clauses))
