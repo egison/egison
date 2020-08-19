@@ -13,8 +13,6 @@ module Language.Egison
        , module Language.Egison.CmdOptions
        , module Language.Egison.RState
        -- * Eval Egison expressions
-       , evalTopExprs
-       , evalTopExpr
        , evalEgisonExpr
        , evalEgisonTopExpr
        , evalEgisonTopExprs
