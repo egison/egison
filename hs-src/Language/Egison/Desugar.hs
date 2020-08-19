@@ -205,11 +205,6 @@ desugar (LetRecExpr binds expr) =
 desugar (LetExpr binds expr) =
   LetExpr <$> desugarBindings binds <*> desugar expr
 
-desugar (LetStarExpr binds expr) = do
-  binds' <- desugarBindings binds
-  expr' <- desugar expr
-  return $ foldr (\bind ret -> LetExpr [bind] ret) expr' binds'
-
 desugar (WithSymbolsExpr vars expr) =
   WithSymbolsExpr vars <$> desugar expr
 

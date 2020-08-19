@@ -347,7 +347,7 @@ letExpr :: Parser EgisonExpr
 letExpr = keywordLet >> LetExpr <$> bindings <*> expr
 
 letStarExpr :: Parser EgisonExpr
-letStarExpr = keywordLetStar >> LetStarExpr <$> bindings <*> expr
+letStarExpr = keywordLetStar >> LetRecExpr <$> bindings <*> expr
 
 withSymbolsExpr :: Parser EgisonExpr
 withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> braces (sepEndBy ident whiteSpace) <*> expr

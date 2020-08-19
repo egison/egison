@@ -85,7 +85,6 @@ data EgisonExpr =
   | IfExpr EgisonExpr EgisonExpr EgisonExpr
   | LetRecExpr [BindingExpr] EgisonExpr
   | LetExpr [BindingExpr] EgisonExpr
-  | LetStarExpr [BindingExpr] EgisonExpr
   | WithSymbolsExpr [String] EgisonExpr
 
   | MatchExpr PMMode EgisonExpr EgisonExpr [MatchClause]
