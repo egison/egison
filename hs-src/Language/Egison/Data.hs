@@ -32,7 +32,6 @@ module Language.Egison.Data
     , mathExprToEgison
     , egisonToScalarData
     , extractScalar
-    , extractScalar'
     -- * Internal data
     , Object (..)
     , ObjectRef
@@ -274,10 +273,6 @@ egisonToScalarIndex j = case j of
 extractScalar :: EgisonValue -> EvalM ScalarData
 extractScalar (ScalarData mExpr) = return mExpr
 extractScalar val = throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
-
-extractScalar' :: WHNFData -> EvalM ScalarData
-extractScalar' (Value (ScalarData x)) = return x
-extractScalar' val = throwError =<< TypeMismatch "integer or string" val <$> getFuncNameStack
 
 -- New-syntax version of EgisonValue pretty printer.
 -- TODO(momohatt): Don't make it a show instance of EgisonValue.
