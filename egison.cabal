@@ -109,6 +109,7 @@ Library
                    Language.Egison.Desugar
                    Language.Egison.Data
                    Language.Egison.EvalState
+                   Language.Egison.Eval
                    Language.Egison.Match
                    Language.Egison.Math.Arith
                    Language.Egison.Math.Expr
