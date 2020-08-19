@@ -152,8 +152,6 @@ evalExpr env (VarExpr name) = refVar' env name >>= evalRef
   refVar' env var = maybe (newEvaluatedObjectRef (Value (symbolScalarData "" $ prettyStr var))) return
                           (refVar env var)
 
-evalExpr env (AnonParamExpr n) = evalExpr env (stringToVarExpr ("::" ++ show n))
-
 evalExpr _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
 evalExpr env (InductiveDataExpr name exprs) =
   Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs
@@ -322,8 +320,6 @@ evalExpr env (LambdaExpr names expr) = do
                      TensorArg name' -> return name'
                      ScalarArg _ -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
   return . Value $ Func Nothing env names' expr
-
-evalExpr env (AnonParamFuncExpr n expr) = return . Value $ AnonParamFunc env n expr
 
 evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name expr
 
@@ -702,11 +698,6 @@ applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
       makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds))) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
-applyFunc _ (Value (AnonParamFunc env n body)) arg = do
-  refs <- fromTuple arg
-  if n == fromIntegral (length refs)
-    then evalExpr (extendEnv env $ makeBindings (map (\n -> stringToVar $ "::" ++ show n) [1..n]) refs) body
-    else throwError =<< ArgumentsNumWithNames ["anonymous parameter function"] (fromIntegral n) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (Func (Just (Var [funcname] _)) env [name] body)) arg = do
   pushFuncName funcname
   ref <- newEvaluatedObjectRef arg
