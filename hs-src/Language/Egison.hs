@@ -87,21 +87,18 @@ evalEgisonTopExprs = evalTopExprs
 
 -- |eval an Egison expression. Input is a Haskell string.
 runEgisonExpr :: Env -> String -> EvalM EgisonValue
-runEgisonExpr env input = do
-  isSExpr <- asks optSExpr
-  readExpr isSExpr input >>= evalExprDeep env
+runEgisonExpr env input =
+  readExpr input >>= evalExprDeep env
 
 -- |eval an Egison top expression. Input is a Haskell string.
 runEgisonTopExpr :: Env -> String -> EvalM (Maybe String, Env)
-runEgisonTopExpr env input = do
-  isSExpr <- asks optSExpr
-  readTopExpr isSExpr input >>= evalTopExpr env
+runEgisonTopExpr env input =
+  readTopExpr input >>= evalTopExpr env
 
 -- |eval Egison top expressions. Input is a Haskell string.
 runEgisonTopExprs :: Env -> String -> EvalM Env
-runEgisonTopExprs env input = do
-  isSExpr <- asks optSExpr
-  readTopExprs isSExpr input >>= evalTopExprs env
+runEgisonTopExprs env input =
+  readTopExprs input >>= evalTopExprs env
 
 -- |load an Egison file
 loadEgisonFile :: Env -> FilePath -> EvalM Env
