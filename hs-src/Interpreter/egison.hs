@@ -145,7 +145,7 @@ repl env = (do
    )
 
 -- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExpr :: InputT RuntimeM (Maybe EgisonTopExpr)
+getEgisonExpr :: InputT RuntimeM (Maybe TopExpr)
 getEgisonExpr = getEgisonExpr' ""
   where
     getEgisonExpr' prev = do

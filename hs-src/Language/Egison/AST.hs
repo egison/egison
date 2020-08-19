@@ -11,7 +11,7 @@ This module defines the syntax of Egison.
 -}
 
 module Language.Egison.AST
-  ( EgisonTopExpr (..)
+  ( TopExpr (..)
   , EgisonExpr (..)
   , Pattern (..)
   , Var (..)
@@ -45,7 +45,7 @@ import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
 
-data EgisonTopExpr =
+data TopExpr =
     Define Var EgisonExpr
   | DefineWithIndices VarWithIndices EgisonExpr
   | Redefine Var EgisonExpr

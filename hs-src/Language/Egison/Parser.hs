@@ -35,18 +35,18 @@ import qualified Language.Egison.Parser.SExpr   as SExpr
 import qualified Language.Egison.Parser.NonS    as NonS
 import           Paths_egison                   (getDataFileName)
 
-readTopExprs :: Bool -> String -> EvalM [EgisonTopExpr]
+readTopExprs :: Bool -> String -> EvalM [TopExpr]
 readTopExprs useSExpr expr | useSExpr =
   either throwError (mapM desugarTopExpr) (SExpr.parseTopExprs expr)
 readTopExprs _ expr = do
   r <- lift . lift $ NonS.parseTopExprs expr
   either throwError (mapM desugarTopExpr) r
 
-parseTopExpr :: Bool -> String -> RuntimeM (Either EgisonError EgisonTopExpr)
+parseTopExpr :: Bool -> String -> RuntimeM (Either EgisonError TopExpr)
 parseTopExpr useSExpr expr | useSExpr = return $ SExpr.parseTopExpr expr
 parseTopExpr _ expr = NonS.parseTopExpr expr
 
-readTopExpr :: Bool -> String -> EvalM EgisonTopExpr
+readTopExpr :: Bool -> String -> EvalM TopExpr
 readTopExpr useSExpr expr | useSExpr =
   either throwError desugarTopExpr (SExpr.parseTopExpr expr)
 readTopExpr _ expr = do
@@ -68,7 +68,7 @@ readExpr _ expr = do
   either throwError desugarExpr r
 
 -- |Load a libary file
-loadLibraryFile :: FilePath -> EvalM [EgisonTopExpr]
+loadLibraryFile :: FilePath -> EvalM [TopExpr]
 loadLibraryFile file = do
   homeDir <- liftIO getHomeDirectory
   doesExist <- liftIO $ doesFileExist $ homeDir ++ "/.egison/" ++ file
@@ -77,7 +77,7 @@ loadLibraryFile file = do
     else liftIO (getDataFileName file) >>= loadFile
 
 -- |Load a file
-loadFile :: FilePath -> EvalM [EgisonTopExpr]
+loadFile :: FilePath -> EvalM [TopExpr]
 loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)

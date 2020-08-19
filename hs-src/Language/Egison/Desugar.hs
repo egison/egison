@@ -24,7 +24,7 @@ import           Language.Egison.Data
 import           Language.Egison.RState
 
 
-desugarTopExpr :: EgisonTopExpr -> EvalM EgisonTopExpr
+desugarTopExpr :: TopExpr -> EvalM TopExpr
 desugarTopExpr (Define name expr)   = Define name <$> desugar expr
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr

@@ -51,7 +51,7 @@ import           Control.Monad.State
 version :: Version
 version = P.version
 
-evalTopExprs :: Env -> [EgisonTopExpr] -> EvalM Env
+evalTopExprs :: Env -> [TopExpr] -> EvalM Env
 evalTopExprs env exprs = do
   opts <- ask
   (bindings, rest) <- collectDefs opts exprs
@@ -59,7 +59,7 @@ evalTopExprs env exprs = do
   forM_ rest $ evalTopExpr env
   return env
 
-evalTopExpr :: Env -> EgisonTopExpr -> EvalM Env
+evalTopExpr :: Env -> TopExpr -> EvalM Env
 evalTopExpr env topExpr = do
   mathExpr <- asks optMathExpr
   (mVal, env') <- evalTopExpr' env topExpr
@@ -76,11 +76,11 @@ evalEgisonExpr :: Env -> EgisonExpr -> RuntimeM (Either EgisonError EgisonValue)
 evalEgisonExpr env expr = fromEvalT $ evalExprDeep env expr
 
 -- |eval an Egison top expression
-evalEgisonTopExpr :: Env -> EgisonTopExpr -> RuntimeM (Either EgisonError Env)
+evalEgisonTopExpr :: Env -> TopExpr -> RuntimeM (Either EgisonError Env)
 evalEgisonTopExpr env exprs = fromEvalT $ evalTopExpr env exprs
 
 -- |eval Egison top expressions
-evalEgisonTopExprs :: Env -> [EgisonTopExpr] -> RuntimeM (Either EgisonError Env)
+evalEgisonTopExprs :: Env -> [TopExpr] -> RuntimeM (Either EgisonError Env)
 evalEgisonTopExprs env exprs = fromEvalT $ evalTopExprs env exprs
 
 -- |eval an Egison expression. Input is a Haskell string.
