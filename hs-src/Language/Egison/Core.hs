@@ -136,7 +136,7 @@ evalExpr env (QuoteExpr expr) = do
 evalExpr env (QuoteSymbolExpr expr) = do
   whnf <- evalExpr env expr
   case whnf of
-    Value fn@(Func (Just _) _ _ _) -> return . Value $ symbolScalarData "" (show fn)
+    Value (Func (Just name) _ _ _) -> return . Value $ symbolScalarData "" name
     Value (ScalarData _) -> return whnf
     _ -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 
@@ -321,7 +321,7 @@ evalExpr env (LambdaExpr names expr) = do
                      ScalarArg _ -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
   return . Value $ Func Nothing env names' expr
 
-evalExpr env (CambdaExpr name expr) = return . Value $ CFunc Nothing env name expr
+evalExpr env (CambdaExpr name expr) = return . Value $ CFunc env name expr
 
 evalExpr env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
@@ -463,7 +463,7 @@ evalExpr env (CApplyExpr func arg) = do
   func <- evalExpr env func
   args <- evalExpr env arg >>= collectionToList
   case func of
-    Value (MemoizedFunc name ref hashRef env names body) -> do
+    Value (MemoizedFunc ref hashRef env names body) -> do
       indices' <- mapM fromEgison args
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices' hash of
@@ -474,7 +474,7 @@ evalExpr env (CApplyExpr func arg) = do
           retRef <- newEvaluatedObjectRef whnf
           hash <- liftIO $ readIORef hashRef
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
+          writeObjectRef ref func
           return whnf
     _ -> applyFunc env func (Value (makeTuple args))
 
@@ -493,7 +493,7 @@ evalExpr env (ApplyExpr func arg) = do
     Intermediate (ITensor t@Tensor{}) -> do
       arg <- evalExpr env arg
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
-    Value (MemoizedFunc name ref hashRef env' names body) -> do
+    Value (MemoizedFunc ref hashRef env' names body) -> do
       arg <- evalExpr env arg
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
@@ -506,7 +506,7 @@ evalExpr env (ApplyExpr func arg) = do
           retRef <- newEvaluatedObjectRef whnf
           hash <- liftIO $ readIORef hashRef
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env' names body))
+          writeObjectRef ref func
           return whnf
     _ -> do
       arg <- evalExpr env arg
@@ -522,7 +522,7 @@ evalExpr env (WedgeApplyExpr func arg) = do
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor)
     Intermediate (ITensor t@Tensor{}) ->
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
-    Value (MemoizedFunc name ref hashRef env names body) -> do
+    Value (MemoizedFunc ref hashRef env names body) -> do
       indices <- evalWHNF arg
       indices' <- mapM fromEgison $ fromTupleValue indices
       hash <- liftIO $ readIORef hashRef
@@ -534,7 +534,7 @@ evalExpr env (WedgeApplyExpr func arg) = do
           retRef <- newEvaluatedObjectRef whnf
           hash <- liftIO $ readIORef hashRef
           liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-          writeObjectRef ref (Value (MemoizedFunc name ref hashRef env names body))
+          writeObjectRef ref (Value (MemoizedFunc ref hashRef env names body))
           return whnf
     _ -> applyFunc env func arg >>= removeDFscripts
 
@@ -698,7 +698,7 @@ applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
       makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds))) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
-applyFunc _ (Value (Func (Just (Var [funcname] _)) env [name] body)) arg = do
+applyFunc _ (Value (Func (Just funcname) env [name] body)) arg = do
   pushFuncName funcname
   ref <- newEvaluatedObjectRef arg
   result <- evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
@@ -707,7 +707,7 @@ applyFunc _ (Value (Func (Just (Var [funcname] _)) env [name] body)) arg = do
 applyFunc _ (Value (Func _ env [name] body)) arg = do
   ref <- newEvaluatedObjectRef arg
   evalExpr (extendEnv env $ makeBindings' [name] [ref]) body
-applyFunc _ (Value (Func (Just (Var [funcname] _)) env names body)) arg = do
+applyFunc _ (Value (Func (Just funcname) env names body)) arg = do
   pushFuncName funcname
   refs <- fromTuple arg
   result <- if length names == length refs
@@ -720,7 +720,7 @@ applyFunc _ (Value (Func _ env names body)) arg = do
   if length names == length refs
     then evalExpr (extendEnv env $ makeBindings' names refs) body
     else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
-applyFunc _ (Value (CFunc _ env name body)) arg = do
+applyFunc _ (Value (CFunc env name body)) arg = do
   refs <- fromTuple arg
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection seqRef
@@ -792,15 +792,15 @@ recursiveBind env bindings = do
                case expr of
                  MemoizedLambdaExpr names body -> do
                    hashRef <- liftIO $ newIORef HL.empty
-                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc (Just name) ref hashRef env' names body
+                   liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
                  LambdaExpr _ _ -> do
                    whnf <- evalExpr env' expr
                    case whnf of
-                     Value (Func _ env args body) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just name) env args body)
+                     Value (Func _ env args body) -> liftIO . writeIORef ref . WHNF $ Value (Func (Just (show name)) env args body)
                  CambdaExpr _ _ -> do
                    whnf <- evalExpr env' expr
                    case whnf of
-                     Value (CFunc _ env arg body) -> liftIO . writeIORef ref . WHNF $ Value (CFunc (Just name) env arg body)
+                     Value (CFunc env arg body) -> liftIO . writeIORef ref . WHNF $ Value (CFunc env arg body)
                  FunctionExpr args -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) $ FunctionExpr args
                  _ | isVarWithIndices name -> liftIO . writeIORef ref . Thunk $ evalExpr (Env frame (Just $ varToVarWithIndices name)) expr
                    | otherwise -> liftIO . writeIORef ref . Thunk $ evalExpr env' expr)
