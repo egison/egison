@@ -106,16 +106,11 @@ permutate x y xs :=
 
 M.determinant %m :=
   match tensorShape m as list integer with
-    | #0 :: #0 :: [] -> 1
-    | $n :: #n :: [] ->
+    | [#0, #0] -> 1
+    | [$n, #n] ->
       let (es, os) := evenAndOddPermutations' n
-       in sum
-            (map
-               (\e -> product (map2 (\i j -> m_i_j) (between 1 n) e))
-               es) - sum
-                       (map
-                          (\o -> product (map2 (\i j -> m_i_j) (between 1 n) o))
-                          os)
+       in sum (map (\e -> product (map2 (\i j -> m_i_j) (between 1 n) e)) es) -
+            sum (map (\o -> product (map2 (\i j -> m_i_j) (between 1 n) o)) os)
     | _ -> undefined
 
 M.det := M.determinant
@@ -125,14 +120,14 @@ M.det := M.determinant
 --
 M.eigenvalues %m :=
   match tensorShape m as list integer with
-    | #2 :: #2 :: [] ->
+    | [#2, #2] ->
       let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
        in [e1, e2]
     | _ -> undefined
 
 M.eigenvectors %m :=
   match tensorShape m as list integer with
-    | #2 :: #2 :: [] ->
+    | [#2, #2] ->
       let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
        in [ (e1, clearIndex (T.- m (scalarToTensor e1 [2, 2]))_i_1)
           , (e2, clearIndex (T.- m (scalarToTensor e2 [2, 2]))_i_1) ]
@@ -143,7 +138,7 @@ M.eigenvectors %m :=
 --
 M.LU %x :=
   match tensorShape x as list integer with
-    | #2 :: #2 :: [] ->
+    | [#2, #2] ->
       let L := generateTensor
                  2#(match compare %1 %2 as ordering with
                    | less -> 0
@@ -162,7 +157,7 @@ M.LU %x :=
                    , (m_2_1, x_2_1, b_2_1)
                    , (m_2_2, x_2_2, c_2_2) ]
        in (substitute ret L, substitute ret U)
-    | #3 :: #3 :: [] ->
+    | [#3, #3] ->
       let L := generateTensor
                  2#(match compare %1 %2 as ordering with
                    | less -> 0

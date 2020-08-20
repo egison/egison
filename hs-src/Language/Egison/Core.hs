@@ -876,7 +876,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
     VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyStr pattern
 
     LetPat bindings' pattern' -> do
-      b <- fmap concat (mapM extractBindings bindings')
+      b <- concat <$> mapM extractBindings bindings'
       return . msingleton $ mstate { mStateBindings = b ++ bindings, mTrees = MAtom pattern' target matcher:trees }
         where
           extractBindings ([name], expr) = makeBindings [name] . (:[]) <$> newObjectRef env' expr
