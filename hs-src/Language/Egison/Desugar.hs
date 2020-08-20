@@ -9,8 +9,7 @@ This module provide desugar functions.
 -}
 
 module Language.Egison.Desugar
-    (
-      desugarTopExpr
+    ( desugarTopExpr
     , desugarExpr
     ) where
 
@@ -155,11 +154,7 @@ desugar (UserrefsExpr bool expr1 expr2) =
 desugar (InductiveDataExpr name exprs) =
   InductiveDataExpr name <$> mapM desugar exprs
 
-desugar (TupleExpr exprs) =
-  TupleExpr <$> mapM desugar exprs
-
-desugar expr@(CollectionExpr []) = return expr
-
+desugar (TupleExpr exprs) = TupleExpr <$> mapM desugar exprs
 desugar (CollectionExpr xs) = CollectionExpr <$> mapM desugar xs
 desugar (ConsExpr x xs) = ConsExpr <$> desugar x <*> desugar xs
 desugar (JoinExpr x xs) = JoinExpr <$> desugar x <*> desugar xs
