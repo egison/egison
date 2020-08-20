@@ -12,6 +12,7 @@ module Language.Egison.Match
     , PatternBinding
     , LoopPatContext (..)
     , SeqPatContext (..)
+    , nullMState
     , MatchM
     , matchFail
     ) where
@@ -38,8 +39,8 @@ data MatchingState
 instance Show MatchingState where
   show ms = "(MState " ++ unwords ["_", "_", "_", show (mStateBindings ms), show (mTrees ms)] ++ ")" 
 
-data MatchingTree =
-    MAtom Pattern WHNFData Matcher
+data MatchingTree
+  = MAtom Pattern WHNFData Matcher
   | MNode [PatternBinding] MatchingState
  deriving (Show)
 
@@ -48,10 +49,15 @@ type PatternBinding = (String, Pattern)
 data LoopPatContext = LoopPatContext Binding ObjectRef Pattern Pattern Pattern
  deriving (Show)
 
-data SeqPatContext =
-    SeqPatContext [MatchingTree] Pattern [Matcher] [WHNFData]
+data SeqPatContext
+  = SeqPatContext [MatchingTree] Pattern [Matcher] [WHNFData]
   | ForallPatContext [Matcher] [WHNFData]
  deriving (Show)
+
+nullMState :: MatchingState -> Bool
+nullMState MState{ mTrees = [] } = True
+nullMState MState{ mTrees = MNode _ state : _ } = nullMState state
+nullMState _ = False
 
 --
 -- Monads
