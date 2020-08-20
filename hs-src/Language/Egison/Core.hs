@@ -397,8 +397,7 @@ evalExprShallow env (CApplyExpr func arg) = do
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) (Value (makeTuple args))
           retRef <- newEvaluatedObjectRef whnf
-          hash <- liftIO $ readIORef hashRef
-          liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+          liftIO $ modifyIORef hashRef (HL.insert indices' retRef)
           writeObjectRef ref func
           return whnf
     _ -> applyFunc env func (Value (makeTuple args))
@@ -428,8 +427,7 @@ evalExprShallow env (ApplyExpr func arg) = do
         Nothing -> do
           whnf <- applyFunc env' (Value (Func Nothing env' names body)) arg
           retRef <- newEvaluatedObjectRef whnf
-          hash <- liftIO $ readIORef hashRef
-          liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
+          liftIO $ modifyIORef hashRef (HL.insert indices' retRef)
           writeObjectRef ref func
           return whnf
     _ -> do
@@ -456,9 +454,8 @@ evalExprShallow env (WedgeApplyExpr func arg) = do
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) arg
           retRef <- newEvaluatedObjectRef whnf
-          hash <- liftIO $ readIORef hashRef
-          liftIO $ writeIORef hashRef (HL.insert indices' retRef hash)
-          writeObjectRef ref (Value (MemoizedFunc ref hashRef env names body))
+          liftIO $ modifyIORef hashRef (HL.insert indices' retRef)
+          writeObjectRef ref func
           return whnf
     _ -> applyFunc env func arg >>= removeDFscripts
 
@@ -781,39 +778,34 @@ extractMatches = extractMatches' ([], [])
   extractMatches' (xs, ys) (stream:rest) = extractMatches' (xs, ys ++ [stream]) rest
 
 gatherBindings :: MatchingState -> Maybe [Binding]
-gatherBindings mstate@MState{ seqPatCtx = [], mTrees = [] } = return (mStateBindings mstate)
+gatherBindings MState{ seqPatCtx = [], mStateBindings = b, mTrees = [] } = return b
 gatherBindings _ = Nothing
 
 processMState :: MatchingState -> EvalM (MList EvalM MatchingState)
+processMState state | nullMState state = processMState' state
 processMState state =
-  if nullMState state
-    then processMState' state
-    else case splitMState state of
-           (1, state1, state2) -> do
-             result <- processMStatesAllDFS (msingleton state1)
-             case result of
-               MNil -> return $ msingleton state2
-               _    -> return MNil
-           (0, MState e l s b [MAtom (ForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
-             states <- processMStatesAllDFSForall (msingleton (MState e l (ForallPatContext [] []:s) b [MAtom p1 m t]))
-             statess' <- mmap (\(MState e' l' (ForallPatContext ms ts:s') b' []) -> do
-                                   let mat' = makeTuple ms
-                                   tgt' <- makeITuple ts
-                                   processMStatesAllDFSForall (msingleton (MState e' l' (ForallPatContext [] []:s') b' [MAtom p2 tgt' mat']))) states
-             b <- mAny (\case
-                          MNil -> return True
-                          _ -> return False) statess'
-             if b
-               then return MNil
---               else return MNil
-               else do nstatess <- mmap (\states' -> mmap (\(MState e' l' (ForallPatContext [] []:s') b' []) -> return $ MState e' l' s' b' trees) states') statess'
-                       mconcat nstatess
-           _ -> processMState' state
+  case splitMState state of
+    (1, state1, state2) -> do
+      result <- processMStatesAllDFS (msingleton state1)
+      case result of
+        MNil -> return $ msingleton state2
+        _    -> return MNil
+    (0, MState e l s b [MAtom (ForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
+      states <- processMStatesAllDFSForall (msingleton (MState e l (ForallPatContext [] []:s) b [MAtom p1 m t]))
+      statess' <- mmap (\(MState e' l' (ForallPatContext ms ts:s') b' []) -> do
+                            let mat' = makeTuple ms
+                            tgt' <- makeITuple ts
+                            processMStatesAllDFSForall (msingleton (MState e' l' (ForallPatContext [] []:s') b' [MAtom p2 tgt' mat']))) states
+      b <- mAny (\case
+                   MNil -> return True
+                   _ -> return False) statess'
+      if b
+        then return MNil
+--        else return MNil
+        else do nstatess <- mmap (\states' -> mmap (\(MState e' l' (ForallPatContext [] []:s') b' []) -> return $ MState e' l' s' b' trees) states') statess'
+                mconcat nstatess
+    _ -> processMState' state
  where
-  nullMState :: MatchingState -> Bool
-  nullMState MState{ mTrees = [] } = True
-  nullMState MState{ mTrees = MNode _ state : _ } = nullMState state
-  nullMState _ = False
   splitMState :: MatchingState -> (Integer, MatchingState, MatchingState)
   splitMState mstate@MState{ mTrees = MAtom (NotPat pattern) target matcher : trees } =
     (1, mstate { seqPatCtx = [],  mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
