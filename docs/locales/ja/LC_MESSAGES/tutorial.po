@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Egison \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-27 18:19+0900\n"
+"POT-Creation-Date: 2020-08-24 15:53+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -75,6 +75,93 @@ msgid ""
 "function defined in the file. The ``main`` should be a unary (1 argument)"
 " function that returns an IO function. Command line arguments are given "
 "to the ``main`` function as a collection of string."
+msgstr ""
+
+#: ../../tutorial/io.rst:3
+msgid "Basics of I/O"
+msgstr ""
+
+#: ../../tutorial/io.rst:7
+msgid "This chapter explains how to use IO operation in Egison."
+msgstr ""
+
+#: ../../tutorial/io.rst:10
+msgid "Hello World!"
+msgstr ""
+
+#: ../../tutorial/io.rst:12
+msgid ""
+"Let's start this tutorial by greeting the world. The following is the "
+"\"Hello world\" program in Egison."
+msgstr ""
+
+#: ../../tutorial/io.rst:20
+msgid "We can execute the above program as follows."
+msgstr ""
+
+#: ../../tutorial/io.rst:27
+msgid ""
+"Egison I/O works via a function named ``main``. In main, we can use I/O "
+"functions such as ``write``. (The list of I/O primitive functions is "
+"given in :doc:`../reference/primitive-functions`.)"
+msgstr ""
+
+#: ../../tutorial/io.rst:32
+msgid "Command Line Arguments"
+msgstr ""
+
+#: ../../tutorial/io.rst:34
+msgid ""
+"Command line arguments are given to the ``main`` as its argument as a "
+"collection of strings."
+msgstr ""
+
+#: ../../tutorial/io.rst:36
+msgid "For instance, assume the following program."
+msgstr ""
+
+#: ../../tutorial/io.rst:44
+msgid ""
+"If you execute the following commands, you will see that the arguments "
+"are given to ``main`` as ``args``."
+msgstr ""
+
+#: ../../tutorial/io.rst:54
+msgid "``do`` expressions"
+msgstr ""
+
+#: ../../tutorial/io.rst:56
+msgid ""
+"To combine several I/O operations to one, we can use ``do`` expressions. "
+"The feature of ``do`` expressions is *serial* execution; the I/O "
+"functions in the ``do`` expressions are executed from the top in order. "
+"If you know Haskell, you probably notice that it is the same with the "
+"``do`` expressions in Haskell."
+msgstr ""
+
+#: ../../tutorial/io.rst:73
+msgid ""
+"Then, execute it as follow. Note that ``write \"input: \"``, ``flush "
+"()``, ``readLine ()`` and ``write input`` are executed in the order."
+msgstr ""
+
+#: ../../tutorial/io.rst:88
+msgid "Check out :ref:`do-expression` for more detail."
+msgstr ""
+
+#: ../../tutorial/io.rst:91
+msgid "``io`` expressions"
+msgstr ""
+
+#: ../../tutorial/io.rst:93
+msgid ""
+"We can use ``io`` expression to execute IO functions anywhere. For "
+"example, the following is a definition of the ``pureRand`` function in "
+"``lib/core/io.egi``."
+msgstr ""
+
+#: ../../tutorial/io.rst:100
+msgid "Check out :ref:`io-expression` for more detail."
 msgstr ""
 
 #: ../../tutorial/quick-tour.rst:3

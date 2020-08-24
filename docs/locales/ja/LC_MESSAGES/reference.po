@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Egison \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-27 18:19+0900\n"
+"POT-Creation-Date: 2020-08-24 15:53+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -58,31 +58,65 @@ msgid ""
 msgstr ""
 
 #: ../../reference/basic-syntax.rst:53
-msgid "Basic Expressions"
+msgid "Infix Declaration"
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:58
-msgid "Anonymous function"
+#: ../../reference/basic-syntax.rst:54
+msgid "(From version 4.0.4)"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:56
+msgid ""
+"You can define your own infixes (binary operators) for expressions and "
+"patterns. In Egison, infix declaration consists of the following 4 parts."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:59
+msgid ""
+"Associativity ... ``infix`` (non associative), ``infixl`` (left "
+"associative) or ``infixr`` (right associative)"
 msgstr ""
 
 #: ../../reference/basic-syntax.rst:60
+msgid ""
+"Infix type ... ``expression`` (for functions) or ``pattern`` (for pattern"
+" constructors)"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:61
+msgid "Priority of the infix"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:62
+msgid "Representation of infix"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:87
+msgid "Basic Expressions"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:92
+msgid "Anonymous function"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:94
 msgid ""
 "An anonymous function consists of two parts: arguments and a body. The "
 "arguments are written between ``\\`` and ``->``, and the body is written "
 "at the right of ``->``."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:77
+#: ../../reference/basic-syntax.rst:111
 msgid ""
 "The arguments can be simply aligned (separated with whitespace) or packed"
 " in a tuple. Namely, the following two notations are identical."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:87
+#: ../../reference/basic-syntax.rst:121
 msgid "Anonymous parameter function"
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:89
+#: ../../reference/basic-syntax.rst:123
 #, python-format
 msgid ""
 "Egison has a shorthand notation for the anonymous function. In this "
@@ -92,74 +126,99 @@ msgid ""
 "by numbers, where ``%i`` refers to the i-th argument."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:94
-msgid "This syntax is inspired by `the anonymous function syntax of Clojure`_."
+#: ../../reference/basic-syntax.rst:128
+msgid ""
+"This syntax is inspired by `the anonymous function syntax of Clojure "
+"<https://clojure.org/guides/learn/functions#_anonymous_function_syntax>`_."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:110
+#: ../../reference/basic-syntax.rst:137
+msgid "Section"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:139
+msgid ""
+"Egison has a special syntax for the partial application of infix "
+"operators, which is inspired by `the section notation of Haskell "
+"<https://wiki.haskell.org/Section_of_an_infix_operator>`_."
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:142
+msgid "``(+)`` is desugared into ``\\x y -> x + y``"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:143
+msgid "``(+ 1)`` is desugared into ``\\x -> x + 1``"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:144
+msgid "``(1 +)`` is desugared into ``\\x -> 1 + x``"
+msgstr ""
+
+#: ../../reference/basic-syntax.rst:148
 msgid "``let`` ... ``in`` expression"
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:112
+#: ../../reference/basic-syntax.rst:150
 msgid ""
 "A ``let`` ... ``in`` expression (or simply a ``let`` expression) locally "
 "binds expressions to variables. Bindings defined in a ``let`` expression "
 "cannot be referred to outside of the ``let`` expression."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:119
+#: ../../reference/basic-syntax.rst:157
 msgid ""
 "You can write multiple bindings in a single ``let`` expression. Note that"
 " the head of the binding must be aligned vertically in order to be parsed"
 " correctly."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:129
+#: ../../reference/basic-syntax.rst:167
 msgid ""
 "The above expression can be written in a single line as follows. The "
 "bindings must be wrapped with ``{`` ``}`` and separated with ``;``."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:136
+#: ../../reference/basic-syntax.rst:174
 msgid ""
 "Bindings in the same ``let`` expression can depend on each other. The "
 "bindings do not necessarily be aligned in the order of dependency."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:152
+#: ../../reference/basic-syntax.rst:190
 msgid "As a result, note the following behavior."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:165
+#: ../../reference/basic-syntax.rst:203
 msgid "``where`` expression"
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:167
+#: ../../reference/basic-syntax.rst:205
 msgid ""
 "``where`` is a syntax sugar for the above ``let`` expression. Unlike the "
 "``let`` expression, the bindings in ``where`` expressions come after the "
 "body expression."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:170
+#: ../../reference/basic-syntax.rst:208
 msgid "For example, the following two expressions are identical."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:186
+#: ../../reference/basic-syntax.rst:224
 msgid "``if`` expression"
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:188
+#: ../../reference/basic-syntax.rst:226
 msgid ""
 "It is the ordinary ``if`` expression. The guard expression (the one right"
 " after ``if``) must be evaluated to a boolean (``True`` or ``False``)."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:197
+#: ../../reference/basic-syntax.rst:237
 msgid "``do`` expression"
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:199
+#: ../../reference/basic-syntax.rst:239
 msgid ""
 "A ``do`` expression can group several IO functions into one IO function. "
 "You can bind expressions to values with ``let`` in the ``do`` expression "
@@ -168,38 +227,38 @@ msgid ""
 "lines in the ``do`` block must be aligned vertically."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:214
+#: ../../reference/basic-syntax.rst:254
 msgid ""
 "A ``do`` expression can be written in one line as follows. The "
 "expressions needs to be wrapped with ``{`` ``}`` and separated by ``;``."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:222
+#: ../../reference/basic-syntax.rst:262
 msgid ""
 "The last statement in a ``do`` block must be an expression. The last "
 "expression in a ``do`` block is interpreted as the evaluation result of "
 "the ``do`` expression."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:233
+#: ../../reference/basic-syntax.rst:273
 msgid "``io`` expression"
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:235
+#: ../../reference/basic-syntax.rst:275
 msgid ""
 "An ``io`` expression takes an IO function and executes it. This is "
 "similar to the ``unsafePerformIO`` in Haskell."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:245
+#: ../../reference/basic-syntax.rst:285
 msgid "``seq`` expression"
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:247
+#: ../../reference/basic-syntax.rst:287
 msgid "This expression is inspired by the ``seq`` function in Haskell."
 msgstr ""
 
-#: ../../reference/basic-syntax.rst:249
+#: ../../reference/basic-syntax.rst:289
 msgid ""
 "A ``seq`` expression takes two arguments. The first argument of ``seq`` "
 "is strictly evaluated. The most popular use case of seq is in the "
@@ -432,46 +491,124 @@ msgstr ""
 msgid "Execute the given expression, which should evaluate to an IO function. ::"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:56
-msgid "``-T`` / ``--tsv``"
-msgstr ""
-
-#: ../../reference/command-line-options.rst:58
-msgid "Output the evaluation result in the TSV form."
+#: ../../reference/command-line-options.rst:57
+msgid "Display results in TSV"
 msgstr ""
 
 #: ../../reference/command-line-options.rst:60
+msgid "``-T`` / ``--tsv``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:62
+msgid "Output the evaluation result in the TSV form."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:64
 msgid ""
 "When the evaluation result is a colleciton, each of its elements is "
 "printed in a single line. ::"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:75
+#: ../../reference/command-line-options.rst:79
 msgid ""
 "When the evaluation result is a collection of collections or a collection"
 " of tuples, the elements of the inner collections are separated by a tab."
 " ::"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:86
+#: ../../reference/command-line-options.rst:90
+msgid "Reading TSV input"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:92
+msgid ""
+"The following 3 options ( ``-s``, ``-m`` and ``-f``) allow you to work on"
+" the input in TSV format. Each line of the input is interpreted as a "
+"tuple."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:97
+msgid "``-s`` / ``--substitute``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:99
+msgid "Regard the input as a collection and apply the given function to it."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:112
+msgid "``-m`` / ``--map``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:114
+msgid ""
+"Read the input line by line, apply the given function and print out the "
+"result. ``egison -m 'f'`` is equivalent to ``egison -s '\\x -> map f "
+"x'``."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:127
+msgid "``-f`` / ``--filter``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:129
+msgid ""
+"Regard the input line by line, apply the given function and display the "
+"input only if the result is ``True``. ``egison -f 'f'`` is equivalent to "
+"``egison -s '\\x -> filter f x'``."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:141
+msgid "``-F`` / ``--field``"
+msgstr ""
+
+#: ../../reference/command-line-options.rst:143
+msgid "You can specify how the TSV should be interepreted with this option."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:145
+msgid ""
+"For example, if you give ``-F 2c`` to the interpreter, all the elements "
+"from the 2nd row is packed up in a collection."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:164
+msgid ""
+"If you give ``-F 2,4c``, elements in 2nd, 3rd and 4th column is packed in"
+" a collection."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:181
+msgid ""
+"If you replace the ``c`` with ``s``, the elements are respectively "
+"interpreted as strings (i.e. surrounded with ``\"\"``). For instance, if "
+"you give ``-F 2,2s``, the elements in the 2nd column is stringified."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:194
+msgid ""
+"Likewise, giving ``-F 2,4s`` will stringify all the elements in the 2nd, "
+"3rd and 4th columns."
+msgstr ""
+
+#: ../../reference/command-line-options.rst:198
 msgid "``-M`` / ``--math``"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:88
+#: ../../reference/command-line-options.rst:200
 msgid ""
 "Output the evaluation result in the specified format. The format can be "
 "chosen from ``latex``, ``asciimath``, ``mathematica`` and ``maxima``."
 msgstr ""
 
-#: ../../reference/command-line-options.rst:98
+#: ../../reference/command-line-options.rst:210
 msgid "``-S`` / ``--sexpr-syntax``"
 msgstr ""
 
-#: ../../reference/command-line-options.rst:100
+#: ../../reference/command-line-options.rst:212
 msgid "Use the old S-expression syntax in REPL."
 msgstr ""
 
-#: ../../reference/command-line-options.rst:111
+#: ../../reference/command-line-options.rst:223
 msgid ""
 "When parsing programs in files, Egison switches the parser by the file "
 "extension. If the source file has extension ``.egi``, it is interpreted "
@@ -479,14 +616,14 @@ msgid ""
 "interpreted in the old (S-expression) syntax."
 msgstr ""
 
-#: ../../reference/command-line-options.rst:117
+#: ../../reference/command-line-options.rst:229
 msgid ""
 "Since we are no longer taking care of the backward compatibility with the"
 " old syntax (before version 4.0.0), we recommend using the new syntax if "
 "possible."
 msgstr ""
 
-#: ../../reference/command-line-options.rst:120
+#: ../../reference/command-line-options.rst:232
 msgid ""
 "As for Egison programs written in the old syntax, we have a tool to "
 "translate them in the new syntax. Please see :doc:`migration-guide-for-"
@@ -549,7 +686,7 @@ msgstr ""
 msgid "``yum``"
 msgstr ""
 
-#: ../../reference/install.rst:35
+#: ../../reference/install.rst:34
 msgid "``dpkg``"
 msgstr ""
 
@@ -1091,6 +1228,42 @@ msgstr ""
 msgid "sort/fn"
 msgstr ""
 
+#: ../../reference/lib/core/random.rst:3
+msgid "lib/core/random.egi"
+msgstr ""
+
+#: ../../reference/lib/core/random.rst:16
+msgid "R.multiset"
+msgstr ""
+
+#: ../../reference/lib/core/random.rst:28
+msgid "R.set"
+msgstr ""
+
+#: ../../reference/lib/core/random.rst:33
+msgid "pureRand"
+msgstr ""
+
+#: ../../reference/lib/core/random.rst:39
+msgid "randomize"
+msgstr ""
+
+#: ../../reference/lib/core/random.rst:45
+msgid "R.between"
+msgstr ""
+
+#: ../../reference/lib/core/random.rst:51
+msgid "R.uncons"
+msgstr ""
+
+#: ../../reference/lib/core/random.rst:57
+msgid "R.head"
+msgstr ""
+
+#: ../../reference/lib/core/random.rst:62
+msgid "R.tail"
+msgstr ""
+
 #: ../../reference/lib/core/string.rst:3
 msgid "lib/core/string.egi"
 msgstr ""
@@ -1167,7 +1340,7 @@ msgstr ""
 msgid "List of core libraries"
 msgstr ""
 
-#: ../../reference/libs.rst:22
+#: ../../reference/libs.rst:23
 msgid "List of mathematical libraries"
 msgstr ""
 
@@ -2006,7 +2179,7 @@ msgid "readCharFromPort"
 msgstr ""
 
 #: ../../reference/primitive-functions.rst:396
-msgid "Reads one character from the given port and returns it. ::"
+msgid "A variant of ``readChar`` that reads from the given port. ::"
 msgstr ""
 
 #: ../../reference/primitive-functions.rst:405
@@ -2014,7 +2187,7 @@ msgid "readLineFromPort"
 msgstr ""
 
 #: ../../reference/primitive-functions.rst:402
-msgid "Reads one line from the given port and returns it. ::"
+msgid "A variant of ``readLine`` that reads from the given port. ::"
 msgstr ""
 
 #: ../../reference/primitive-functions.rst:411
@@ -2022,7 +2195,7 @@ msgid "writeCharToPort"
 msgstr ""
 
 #: ../../reference/primitive-functions.rst:408
-msgid "Output a given character to the given port. ::"
+msgid "A variant of ``writeChar`` that writes to the given port. ::"
 msgstr ""
 
 #: ../../reference/primitive-functions.rst:417
@@ -2030,7 +2203,7 @@ msgid "writeToPort"
 msgstr ""
 
 #: ../../reference/primitive-functions.rst:414
-msgid "Output a given string to the given port. ::"
+msgid "A variant of ``write`` that writes to the given port. ::"
 msgstr ""
 
 #: ../../reference/primitive-functions.rst:423
@@ -2166,5 +2339,20 @@ msgstr ""
 #~ msgstr ""
 
 #~ msgid "Logical patterns: and-, or- and not-pattern"
+#~ msgstr ""
+
+#~ msgid "This syntax is inspired by `the anonymous function syntax of Clojure`_."
+#~ msgstr ""
+
+#~ msgid "Reads one character from the given port and returns it. ::"
+#~ msgstr ""
+
+#~ msgid "Reads one line from the given port and returns it. ::"
+#~ msgstr ""
+
+#~ msgid "Output a given character to the given port. ::"
+#~ msgstr ""
+
+#~ msgid "Output a given string to the given port. ::"
 #~ msgstr ""
 

@@ -11,6 +11,11 @@ Tutorial
    tutorial/quick-tour.rst
    tutorial/io.rst
 
+Tutorial in Japanese
+====================
+
+`プログラミング言語Egison入門 (PDF) <https://www.egison.org/tutorial.pdf>`_
+
 Reference
 =========
 .. toctree::
