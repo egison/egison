@@ -41,6 +41,7 @@ import qualified Database.SQLite3 as SQLite
 import           Language.Egison.AST
 import           Language.Egison.Core
 import           Language.Egison.Data
+import           Language.Egison.Data.Utils
 import           Language.Egison.EvalState (MonadEval(..))
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
@@ -67,7 +68,7 @@ primitiveEnvNoIO = do
 {-# INLINE noArg #-}
 noArg :: String -> EvalM EgisonValue -> PrimitiveFunc
 noArg name f args = do
-    args' <- tupleToList args
+    args' <- tupleToList <$> evalWHNF args
     case args' of
       [] -> Value <$> f
       _  -> throwError =<< ArgumentsNumPrimitive name 0 (length args') <$> getFuncNameStack
@@ -91,7 +92,7 @@ oneArg' f arg = do
 {-# INLINE twoArgs #-}
 twoArgs :: String -> (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 twoArgs name f args = do
-  args' <- tupleToList args
+  args' <- tupleToList <$> evalWHNF args
   case args' of
     [TensorData t1@Tensor{}, TensorData t2@Tensor{}] -> Value <$> (tProduct f t1 t2 >>= fromTensor)
     [TensorData(Tensor ns ds js), val] -> do
@@ -106,7 +107,7 @@ twoArgs name f args = do
 {-# INLINE twoArgs' #-}
 twoArgs' :: String -> (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 twoArgs' name f args = do
-  args' <- tupleToList args
+  args' <- tupleToList <$> evalWHNF args
   case args' of
     [val, val'] -> Value <$> f val val'
     _           -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
@@ -114,7 +115,7 @@ twoArgs' name f args = do
 {-# INLINE threeArgs' #-}
 threeArgs' :: String -> (EgisonValue -> EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 threeArgs' name f args = do
-  args' <- tupleToList args
+  args' <- tupleToList <$> evalWHNF args
   case args' of
     [val, val', val''] -> Value <$> f val val' val''
     _                  -> throwError =<< ArgumentsNumPrimitive name 3 (length args') <$> getFuncNameStack
