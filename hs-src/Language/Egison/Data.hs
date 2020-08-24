@@ -304,7 +304,7 @@ instance Show EgisonValue where
   show (CFunc _ name _) = "#<cambda " ++ name ++ " ...>"
   show (MemoizedFunc _ _ _ names _) = "#<memoized-lambda [" ++ intercalate ", " names ++ "] ...>"
   show PatternFunc{} = "#<pattern-function>"
-  show (PrimitiveFunc name _) = "#<primitive-function " ++ name ++ ">"
+  show PrimitiveFunc{} = "#<primitive-function>"
   show (IOFunc _) = "#<io-function>"
   show (Port _) = "#<port>"
   show Something = "something"
