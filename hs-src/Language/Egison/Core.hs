@@ -490,9 +490,6 @@ evalExprShallow env (TensorMapExpr fnExpr tExpr) = do
     Value (TensorData t) ->
       Value <$> (tMap (applyFunc' env fn) t >>= fromTensor)
     _ -> applyFunc env fn whnf
- where
-  applyFunc' :: Env -> WHNFData -> EgisonValue -> EvalM EgisonValue
-  applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
 
 evalExprShallow env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
   fn <- evalExprShallow env fnExpr
@@ -525,8 +522,6 @@ evalExprShallow env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
       return $ Intermediate (ITensor (Tensor ns ys js))
     _ -> applyFunc'' env fn whnf1 whnf2
  where
-  applyFunc' :: Env -> WHNFData -> EgisonValue -> EvalM EgisonValue
-  applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
   applyFunc'' :: Env -> WHNFData -> WHNFData -> WHNFData -> EvalM WHNFData
   applyFunc'' env fn x y = do
     xRef <- newEvaluatedObjectRef x
@@ -634,6 +629,9 @@ applyFunc _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) arg = do
                             _ -> throwError =<< EgisonBug "to use undefined functions, you have to use ScalarData args" <$> getFuncNameStack) args
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
+
+applyFunc' :: Env -> WHNFData -> EgisonValue -> EvalM EgisonValue
+applyFunc' env fn x = applyFunc env fn (Value x) >>= evalWHNF
 
 refHash :: WHNFData -> [EgisonValue] -> EvalM WHNFData
 refHash val [] = return val
