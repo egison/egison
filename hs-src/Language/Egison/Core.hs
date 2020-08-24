@@ -620,7 +620,7 @@ applyFunc _ (Value (CFunc env name body)) arg = do
   if not (null refs)
     then evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
     else throwError =<< ArgumentsNumWithNames [name] 1 0 <$> getFuncNameStack
-applyFunc _ (Value (PrimitiveFunc _ func)) arg = func arg
+applyFunc _ (Value (PrimitiveFunc func)) arg = func arg
 applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
