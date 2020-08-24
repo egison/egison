@@ -180,7 +180,10 @@ freshVarExpr :: Parser Expr
 freshVarExpr = char '#' >> return FreshVarExpr
 
 inductiveDataExpr :: Parser Expr
-inductiveDataExpr = angles $ InductiveDataExpr <$> upperName <*> sepEndBy expr whiteSpace
+inductiveDataExpr = angles $ do
+  name <- upperName
+  args <- sepEndBy expr whiteSpace
+  return $ ApplyExpr (stringToVarExpr name) (TupleExpr args)
 
 tupleExpr :: Parser Expr
 tupleExpr = brackets $ TupleExpr <$> sepEndBy expr whiteSpace
