@@ -444,34 +444,26 @@ regexStringCaptureGroup = twoArgs "regexCg" $ \pat src -> do
 addPrime :: PrimitiveFunc
 addPrime = oneArg $ \sym ->
   case sym of
-    ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])) ->
-      return (ScalarData (Div (Plus [Term 1 [(Symbol id (name ++ "'") is, 1)]]) (Plus [Term 1 []])))
+    ScalarData (SingleSymbol (Symbol id name is)) ->
+      return (ScalarData (SingleSymbol (Symbol id (name ++ "'") is)))
     _ -> throwError =<< TypeMismatch "symbol" (Value sym) <$> getFuncNameStack
 
 addSubscript :: PrimitiveFunc
 addSubscript = twoArgs "addSubscript" $ \fn sub ->
   case (fn, sub) of
-    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
-     ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) ->
-       return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
-    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
-     ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) ->
-       return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Subscript s]), 1)]]) (Plus [Term 1 []])))
-    (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
-     _) -> throwError =<< TypeMismatch "symbol or integer" (Value sub) <$> getFuncNameStack
+    (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleSymbol (Symbol _ _ []))) ->
+      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Subscript s]))))
+    (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
+      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Subscript s]))))
     _ -> throwError =<< TypeMismatch "symbol or integer" (Value fn) <$> getFuncNameStack
 
 addSuperscript :: PrimitiveFunc
 addSuperscript = twoArgs "addSuperscript" $ \fn sub ->
   case (fn, sub) of
-    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
-     ScalarData s@(Div (Plus [Term 1 [(Symbol _ _ [], 1)]]) (Plus [Term 1 []]))) ->
-       return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
-    (ScalarData (Div (Plus [Term 1 [(Symbol id name is, 1)]]) (Plus [Term 1 []])),
-     ScalarData s@(Div (Plus [Term _ []]) (Plus [Term 1 []]))) ->
-       return (ScalarData (Div (Plus [Term 1 [(Symbol id name (is ++ [Superscript s]), 1)]]) (Plus [Term 1 []])))
-    (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []])),
-     _) -> throwError =<< TypeMismatch "symbol" (Value sub) <$> getFuncNameStack
+    (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleSymbol (Symbol _ _ []))) ->
+      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Superscript s]))))
+    (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
+      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Superscript s]))))
     _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
 
 readProcess' :: PrimitiveFunc
