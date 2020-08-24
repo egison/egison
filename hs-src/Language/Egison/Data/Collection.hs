@@ -5,11 +5,13 @@ module Language.Egison.Data.Collection
   , isEmptyCollection
   , unconsCollection
   , unsnocCollection
+  , collectionToList
   ) where
 
 import           Control.Monad.Except        (throwError)
 import           Control.Monad.State         hiding (join)
 
+import           Data.Foldable               (toList)
 import           Data.IORef
 import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
 import qualified Data.Sequence               as Sq
@@ -77,3 +79,7 @@ unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
       liftIO $ writeIORef innersRef (hInners >< tInners)
       unsnocCollection coll
 unsnocCollection _ = matchFail
+
+collectionToList :: EgisonValue -> EvalM [EgisonValue]
+collectionToList (Collection sq) = return $ toList sq
+collectionToList val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack

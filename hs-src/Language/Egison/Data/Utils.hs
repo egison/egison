@@ -6,9 +6,9 @@ module Language.Egison.Data.Utils
   , newEvaluatedObjectRef
   , makeBindings
   , makeBindings'
-  , fromTuple
-  , fromTupleWHNF
-  , fromTupleValue
+  , tupleToRefs
+  , tupleToListWHNF
+  , tupleToList
   , makeTuple
   , makeITuple
   ) where
@@ -43,19 +43,19 @@ makeBindings = zip
 makeBindings' :: [String] -> [ObjectRef] -> [Binding]
 makeBindings' xs = zip (map stringToVar xs)
 
-fromTuple :: WHNFData -> EvalM [ObjectRef]
-fromTuple (Intermediate (ITuple refs)) = return refs
-fromTuple (Value (Tuple vals)) = mapM (newEvaluatedObjectRef . Value) vals
-fromTuple whnf = return <$> newEvaluatedObjectRef whnf
+tupleToRefs :: WHNFData -> EvalM [ObjectRef]
+tupleToRefs (Intermediate (ITuple refs)) = return refs
+tupleToRefs (Value (Tuple vals)) = mapM (newEvaluatedObjectRef . Value) vals
+tupleToRefs whnf = return <$> newEvaluatedObjectRef whnf
 
-fromTupleWHNF :: WHNFData -> EvalM [WHNFData]
-fromTupleWHNF (Intermediate (ITuple refs)) = mapM evalRef refs
-fromTupleWHNF (Value (Tuple vals))         = return $ map Value vals
-fromTupleWHNF whnf                         = return [whnf]
+tupleToListWHNF :: WHNFData -> EvalM [WHNFData]
+tupleToListWHNF (Intermediate (ITuple refs)) = mapM evalRef refs
+tupleToListWHNF (Value (Tuple vals))         = return $ map Value vals
+tupleToListWHNF whnf                         = return [whnf]
 
-fromTupleValue :: EgisonValue -> [EgisonValue]
-fromTupleValue (Tuple vals) = vals
-fromTupleValue val          = [val]
+tupleToList :: EgisonValue -> [EgisonValue]
+tupleToList (Tuple vals) = vals
+tupleToList val          = [val]
 
 makeTuple :: [EgisonValue] -> EgisonValue
 makeTuple []  = Tuple []
