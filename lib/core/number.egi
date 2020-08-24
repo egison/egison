@@ -55,7 +55,7 @@ divisor n d := 0 = n % d
 findFactor :=
   memoizedLambda n ->
     match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
-      | _ ++ (?1#(divisor n %1) & $x) :: _ -> x
+      | _ ++ (?(divisor n) & $x) :: _ -> x
       | _ -> n
 
 primeFactorization :=
