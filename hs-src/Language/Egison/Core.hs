@@ -45,7 +45,7 @@ import qualified Data.Vector                 as V
 
 import           Language.Egison.AST
 import           Language.Egison.Data
-import           Language.Egison.EvalState   (MonadEval(..))
+import           Language.Egison.EvalState   (MonadEval(..), mLabelFuncName)
 import           Language.Egison.Match
 import           Language.Egison.Math
 import           Language.Egison.MList
@@ -619,28 +619,16 @@ applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
       makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds))) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
-applyFunc _ (Value (Func (Just funcname) env [name] body)) arg = do
-  pushFuncName funcname
-  ref <- newEvaluatedObjectRef arg
-  result <- evalExprShallow (extendEnv env $ makeBindings' [name] [ref]) body
-  popFuncName
-  return result
-applyFunc _ (Value (Func _ env [name] body)) arg = do
-  ref <- newEvaluatedObjectRef arg
-  evalExprShallow (extendEnv env $ makeBindings' [name] [ref]) body
-applyFunc _ (Value (Func (Just funcname) env names body)) arg = do
-  pushFuncName funcname
-  refs <- fromTuple arg
-  result <- if length names == length refs
-              then evalExprShallow (extendEnv env $ makeBindings' names refs) body
-              else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
-  popFuncName
-  return result
-applyFunc _ (Value (Func _ env names body)) arg = do
-  refs <- fromTuple arg
-  if length names == length refs
-    then evalExprShallow (extendEnv env $ makeBindings' names refs) body
-    else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
+applyFunc _ (Value (Func mFuncName env [name] body)) arg =
+  mLabelFuncName mFuncName $ do
+    ref <- newEvaluatedObjectRef arg
+    evalExprShallow (extendEnv env $ makeBindings' [name] [ref]) body
+applyFunc _ (Value (Func mFuncName env names body)) arg =
+  mLabelFuncName mFuncName $ do
+    refs <- fromTuple arg
+    if length names == length refs
+      then evalExprShallow (extendEnv env $ makeBindings' names refs) body
+      else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (CFunc env name body)) arg = do
   refs <- fromTuple arg
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
