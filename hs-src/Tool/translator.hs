@@ -78,7 +78,6 @@ instance SyntaxElement Expr where
   toNonS (SubrefsExpr b x y)   = SubrefsExpr  b (toNonS x) (toNonS y)
   toNonS (SuprefsExpr b x y)   = SuprefsExpr  b (toNonS x) (toNonS y)
   toNonS (UserrefsExpr b x y)  = UserrefsExpr b (toNonS x) (toNonS y)
-  toNonS (InductiveDataExpr x ys) = InductiveDataExpr x (map toNonS ys)
   toNonS (TupleExpr xs)      = TupleExpr (map toNonS xs)
   toNonS (CollectionExpr xs) = CollectionExpr (map toNonS xs)
   toNonS (ConsExpr x xs) = InfixExpr cons (toNonS x) (toNonS xs)

@@ -62,8 +62,6 @@ instance Pretty Expr where
     applyLike [pretty "userRefs" <> (if b then pretty "!" else emptyDoc),
                pretty' e1, pretty' e2]
 
-  pretty (InductiveDataExpr c xs) = nest 2 (sep (pretty c : map pretty' xs))
-
   pretty (TupleExpr xs) = tupled (map pretty xs)
   pretty (CollectionExpr xs)
     | length xs < 20 = list (map pretty xs)
@@ -300,8 +298,6 @@ class Complex a where
 
 instance Complex Expr where
   isAtom (IntegerExpr i) | i < 0  = False
-  isAtom (InductiveDataExpr _ []) = True
-  isAtom (InductiveDataExpr _ _)  = False
   isAtom PrefixExpr{}             = False
   isAtom InfixExpr{}              = False
   isAtom ApplyExpr{}              = False
@@ -332,7 +328,6 @@ instance Complex Expr where
   isAtom _                        = True
 
   isAtomOrApp ApplyExpr{}         = True
-  isAtomOrApp InductiveDataExpr{} = True
   isAtomOrApp e                   = isAtom e
 
   isInfix InfixExpr{}             = True

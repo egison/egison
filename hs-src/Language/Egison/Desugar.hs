@@ -151,9 +151,6 @@ desugar (SuprefsExpr bool expr1 expr2) =
 desugar (UserrefsExpr bool expr1 expr2) =
   UserrefsExpr bool <$> desugar expr1 <*> desugar expr2
 
-desugar (InductiveDataExpr name exprs) =
-  InductiveDataExpr name <$> mapM desugar exprs
-
 desugar (TupleExpr exprs) = TupleExpr <$> mapM desugar exprs
 desugar (CollectionExpr xs) = CollectionExpr <$> mapM desugar xs
 desugar (ConsExpr x xs) = ConsExpr <$> desugar x <*> desugar xs

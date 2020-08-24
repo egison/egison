@@ -69,7 +69,6 @@ data Expr =
   | SubrefsExpr Bool Expr Expr
   | SuprefsExpr Bool Expr Expr
   | UserrefsExpr Bool Expr Expr
-  | InductiveDataExpr String [Expr]
   | TupleExpr [Expr]
   | CollectionExpr [Expr]
   | ConsExpr Expr Expr

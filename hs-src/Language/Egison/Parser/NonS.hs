@@ -907,7 +907,6 @@ makeTupleOrParen parser tupleCtor = do
     _      -> return $ tupleCtor elems
 
 makeApply' :: Expr -> [Expr] -> Expr
-makeApply' (InductiveDataExpr x []) xs = InductiveDataExpr x xs
 makeApply' func xs = ApplyExpr func (TupleExpr xs)
 
 indentGuardEQ :: Pos -> Parser Pos

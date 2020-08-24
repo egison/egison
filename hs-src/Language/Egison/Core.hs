@@ -78,10 +78,6 @@ evalExprShallow env (VarExpr var@(Var _ [])) =
     Nothing  -> return $ Value (symbolScalarData "" $ prettyStr var)
     Just ref -> evalRef ref
 
-evalExprShallow _ (InductiveDataExpr name []) = return . Value $ InductiveData name []
-evalExprShallow env (InductiveDataExpr name exprs) =
-  Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs
-
 evalExprShallow _ (TupleExpr []) = return . Value $ Tuple []
 evalExprShallow env (TupleExpr [expr]) = evalExprShallow env expr
 evalExprShallow env (TupleExpr exprs) = Intermediate . ITuple <$> mapM (newObjectRef env) exprs
