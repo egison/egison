@@ -656,11 +656,8 @@ refHash val (index:indices) =
       Just ref -> evalRef ref >>= flip refHash indices
       Nothing  -> return $ Value Undefined
 
-newThunk :: Env -> Expr -> Object
-newThunk env expr = Thunk $ evalExprShallow env expr
-
 newObjectRef :: Env -> Expr -> EvalM ObjectRef
-newObjectRef env expr = liftIO $ newIORef $ newThunk env expr
+newObjectRef env expr = liftIO . newIORef . Thunk $ evalExprShallow env expr
 
 recursiveBind :: Env -> [(Var, Expr)] -> EvalM Env
 recursiveBind env bindings = do
