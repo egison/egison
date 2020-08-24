@@ -9,6 +9,7 @@ module Language.Egison.EvalState
   ( EvalState(..)
   , initialEvalState
   , MonadEval(..)
+  , mLabelFuncName
   ) where
 
 import           Control.Monad.Except
@@ -33,3 +34,11 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   topFuncName = lift topFuncName
   popFuncName = lift popFuncName
   getFuncNameStack = lift getFuncNameStack
+
+mLabelFuncName :: MonadEval m => Maybe String -> m a -> m a
+mLabelFuncName Nothing m = m
+mLabelFuncName (Just name) m = do
+  pushFuncName name
+  v <- m
+  popFuncName
+  return v
