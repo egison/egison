@@ -381,15 +381,15 @@ evalExprShallow env (CApplyExpr func arg) = do
   args <- evalExprDeep env arg >>= collectionToList
   case func of
     Value (MemoizedFunc ref hashRef env names body) -> do
-      indices' <- mapM fromEgison args
+      indices <- mapM fromEgison args
       hash <- liftIO $ readIORef hashRef
-      case HL.lookup indices' hash of
+      case HL.lookup indices hash of
         Just objRef ->
           evalRef objRef
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) (Value (makeTuple args))
           retRef <- newEvaluatedObjectRef whnf
-          liftIO $ modifyIORef hashRef (HL.insert indices' retRef)
+          liftIO $ modifyIORef hashRef (HL.insert indices retRef)
           writeObjectRef ref func
           return whnf
     _ -> applyFunc env func (Value (makeTuple args))
@@ -410,16 +410,16 @@ evalExprShallow env (ApplyExpr func arg) = do
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc ref hashRef env' names body) -> do
       arg <- evalExprShallow env arg
-      indices <- evalWHNF arg
-      indices' <- mapM fromEgison $ tupleToList indices
+      indices' <- evalWHNF arg
+      indices <- mapM fromEgison $ tupleToList indices'
       hash <- liftIO $ readIORef hashRef
-      case HL.lookup indices' hash of
+      case HL.lookup indices hash of
         Just objRef ->
           evalRef objRef
         Nothing -> do
           whnf <- applyFunc env' (Value (Func Nothing env' names body)) arg
           retRef <- newEvaluatedObjectRef whnf
-          liftIO $ modifyIORef hashRef (HL.insert indices' retRef)
+          liftIO $ modifyIORef hashRef (HL.insert indices retRef)
           writeObjectRef ref func
           return whnf
     _ -> do
@@ -438,15 +438,15 @@ evalExprShallow env (WedgeApplyExpr func arg) = do
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc ref hashRef env names body) -> do
       indices <- evalWHNF arg
-      indices' <- mapM fromEgison $ tupleToList indices
+      indices <- mapM fromEgison $ tupleToList indices
       hash <- liftIO $ readIORef hashRef
-      case HL.lookup indices' hash of
+      case HL.lookup indices hash of
         Just objRef ->
           evalRef objRef
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) arg
           retRef <- newEvaluatedObjectRef whnf
-          liftIO $ modifyIORef hashRef (HL.insert indices' retRef)
+          liftIO $ modifyIORef hashRef (HL.insert indices retRef)
           writeObjectRef ref func
           return whnf
     _ -> applyFunc env func arg >>= removeDFscripts
@@ -801,8 +801,8 @@ processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ 
   case lookup name penv of
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
-      indices' <- mapM (evalExprShallow env'' >=> fmap fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map IntegerExpr indices'
+      indices <- mapM (evalExprShallow env'' >=> fmap fromInteger . fromWHNF) indices
+      let pattern' = IndexedPat pattern $ map IntegerExpr indices
       case trees' of
         [] -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:trees }
         _  -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:MNode penv (ms2 { mTrees = trees' }):trees }
@@ -840,8 +840,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
 
     PredPat predicate -> do
       func <- evalExprShallow env' predicate
-      let arg = target
-      result <- applyFunc env func arg >>= fromWHNF
+      result <- applyFunc env func target >>= fromWHNF
       if result then return . msingleton $ mstate { mTrees = trees }
                 else return MNil
 
