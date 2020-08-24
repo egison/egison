@@ -107,7 +107,7 @@ data EgisonValue =
   | CFunc Env String Expr
   | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] Expr
   | PatternFunc Env [String] Pattern
-  | PrimitiveFunc String PrimitiveFunc
+  | PrimitiveFunc PrimitiveFunc
   | IOFunc (EvalM WHNFData)
   | Port Handle
   | RefBox (IORef EgisonValue)
@@ -331,7 +331,6 @@ instance Eq EgisonValue where
  (IntHash vals) == (IntHash vals') = vals == vals'
  (CharHash vals) == (CharHash vals') = vals == vals'
  (StrHash vals) == (StrHash vals') = vals == vals'
- (PrimitiveFunc name1 _) == (PrimitiveFunc name2 _) = name1 == name2
  -- Temporary: searching a better solution
  (Func Nothing _ xs1 expr1) == (Func Nothing _ xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
  (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
