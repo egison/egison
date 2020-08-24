@@ -1110,26 +1110,6 @@ toListPat :: [Pattern] -> Pattern
 toListPat []         = InductivePat "nil" []
 toListPat (pat:pats) = InductivePat "::" [pat, toListPat pats]
 
-collectionToRefs :: WHNFData -> EvalM (MList EvalM ObjectRef)
-collectionToRefs (Value (Collection vals)) =
-  if Sq.null vals then return MNil
-                  else fromSeq <$> mapM (newEvaluatedObjectRef . Value) vals
-collectionToRefs whnf@(Intermediate (ICollection _)) = do
-  isEmpty <- isEmptyCollection whnf
-  if isEmpty
-    then return MNil
-    else do
-      (head, tail) <- fromJust <$> runMaybeT (unconsCollection whnf)
-      tail' <- evalRef tail
-      return $ MCons head (collectionToRefs tail')
-collectionToRefs whnf = throwError =<< TypeMismatch "collection" whnf <$> getFuncNameStack
-
-makeICollection :: [WHNFData] -> EvalM WHNFData
-makeICollection xs  = do
-  is <- mapM (\x -> IElement <$> newEvaluatedObjectRef x) xs
-  v <- liftIO $ newIORef $ Sq.fromList is
-  return $ Intermediate $ ICollection v
-
 -- Refer the specified tensor index with potential overriding of the index.
 refTensorWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EvalM a
 refTensorWithOverride override js (Tensor ns xs is) =

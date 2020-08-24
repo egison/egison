@@ -5,14 +5,17 @@ module Language.Egison.Data.Collection
   , isEmptyCollection
   , unconsCollection
   , unsnocCollection
+  , collectionToRefs
   , collectionToList
+  , makeICollection
   ) where
 
-import           Control.Monad.Except        (throwError)
-import           Control.Monad.State         hiding (join)
+import           Control.Monad.Except        (throwError, lift, liftIO)
+import           Control.Monad.Trans.Maybe   (runMaybeT)
 
 import           Data.Foldable               (toList)
 import           Data.IORef
+import           Data.Maybe                  (fromJust)
 import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
 import qualified Data.Sequence               as Sq
 
@@ -20,6 +23,7 @@ import           Language.Egison.Data
 import           Language.Egison.Data.Utils
 import           Language.Egison.EvalState   (MonadEval(..))
 import           Language.Egison.Match
+import           Language.Egison.MList
 
 expandCollection :: WHNFData -> EvalM (Seq Inner)
 expandCollection (Value (Collection vals)) =
@@ -80,6 +84,26 @@ unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
       unsnocCollection coll
 unsnocCollection _ = matchFail
 
+collectionToRefs :: WHNFData -> EvalM (MList EvalM ObjectRef)
+collectionToRefs (Value (Collection vals)) =
+  if Sq.null vals then return MNil
+                  else fromSeq <$> mapM (newEvaluatedObjectRef . Value) vals
+collectionToRefs whnf@(Intermediate (ICollection _)) = do
+  isEmpty <- isEmptyCollection whnf
+  if isEmpty
+    then return MNil
+    else do
+      (head, tail) <- fromJust <$> runMaybeT (unconsCollection whnf)
+      tail' <- evalRef tail
+      return $ MCons head (collectionToRefs tail')
+collectionToRefs whnf = throwError =<< TypeMismatch "collection" whnf <$> getFuncNameStack
+
 collectionToList :: EgisonValue -> EvalM [EgisonValue]
 collectionToList (Collection sq) = return $ toList sq
 collectionToList val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
+
+makeICollection :: [WHNFData] -> EvalM WHNFData
+makeICollection xs  = do
+  is <- mapM (\x -> IElement <$> newEvaluatedObjectRef x) xs
+  v <- liftIO $ newIORef $ Sq.fromList is
+  return $ Intermediate $ ICollection v
