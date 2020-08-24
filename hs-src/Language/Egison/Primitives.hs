@@ -51,7 +51,7 @@ import           Language.Egison.Tensor
 
 primitiveEnv :: IO Env
 primitiveEnv = do
-  let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) (primitives ++ ioPrimitives)
+  let ops = map (\(name, fn) -> (name, PrimitiveFunc fn)) (primitives ++ ioPrimitives)
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
@@ -59,7 +59,7 @@ primitiveEnv = do
 
 primitiveEnvNoIO :: IO Env
 primitiveEnvNoIO = do
-  let ops = map (\(name, fn) -> (name, PrimitiveFunc name fn)) primitives
+  let ops = map (\(name, fn) -> (name, PrimitiveFunc fn)) primitives
   bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
@@ -102,6 +102,7 @@ twoArgs name f args = do
       ds' <- V.mapM (f val) ds
       Value <$> fromTensor (Tensor ns ds' js)
     [val, val'] -> Value <$> f val val'
+    [val] -> return . Value . PrimitiveFunc $ oneArg (f val)
     _ -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
 
 {-# INLINE twoArgs' #-}
@@ -110,6 +111,7 @@ twoArgs' name f args = do
   args' <- tupleToList <$> evalWHNF args
   case args' of
     [val, val'] -> Value <$> f val val'
+    [val]       -> return . Value . PrimitiveFunc $ oneArg' (f val)
     _           -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
 
 {-# INLINE threeArgs' #-}
@@ -118,6 +120,8 @@ threeArgs' name f args = do
   args' <- tupleToList <$> evalWHNF args
   case args' of
     [val, val', val''] -> Value <$> f val val' val''
+    [val, val']        -> return . Value . PrimitiveFunc $ oneArg' (f val val')
+    [val]              -> return . Value . PrimitiveFunc $ twoArgs' name (f val)
     _                  -> throwError =<< ArgumentsNumPrimitive name 3 (length args') <$> getFuncNameStack
 
 --

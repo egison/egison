@@ -14,9 +14,9 @@ mathNormalize $x :=
 --
 -- rtu (include i and w)
 --
-rewriteRuleForRtu := 1#(mapPolys rewriteRuleForRtuPoly %1)
+rewriteRuleForRtu := mapPolys rewriteRuleForRtuPoly
   where
-    rewriteRuleForRtuPoly := 1#(mapPolys rewriteRuleForRtuPoly' %1)
+    rewriteRuleForRtuPoly := mapPolys rewriteRuleForRtuPoly'
     rewriteRuleForRtuPoly' poly :=
       match poly as mathExpr with
         | $a * #rtu $n ^ #1 * $mr + (loop $i (2, #(n - 1))

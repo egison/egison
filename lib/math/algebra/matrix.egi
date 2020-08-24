@@ -92,11 +92,11 @@ evenAndOddPermutations' n :=
           os' := map (++ [n]) os
        in ( es' ++ concat
                      (map
-                        (\i -> map 1#(permutate i n %1) os')
+                        (\i -> map (permutate i n) os')
                         (between 1 (n - 1)))
           , os' ++ concat
                      (map
-                        (\i -> map 1#(permutate i n %1) es')
+                        (\i -> map (permutate i n) es')
                         (between 1 (n - 1))) )
 
 permutate x y xs :=
