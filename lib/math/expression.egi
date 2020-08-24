@@ -116,7 +116,7 @@ isApply %mexpr :=
     | apply _ _ -> True
     | _ -> False
 
-isSimpleTerm := 1#(isSymbol %1 || isApply %1)
+isSimpleTerm mexpr := isSymbol mexpr || isApply mexpr
 
 isTerm %mexpr :=
   match mexpr as mathExpr with
@@ -175,7 +175,7 @@ mapSymbols $fn $mexpr :=
                   2#(match %1 as symbolExpr with
                     | symbol _ _ -> fn %1 ^' %2
                     | apply $g $args ->
-                      let args' := map 1#(mapSymbols fn %1) args
+                      let args' := map (mapSymbols fn) args
                        in if args = args'
                             then %1 ^' %2
                             else fn (capply g args') ^' %2)
@@ -193,7 +193,7 @@ containSymbol $x $mexpr :=
         any
           2#(match %1 as symbolExpr with
             | #x -> True
-            | apply _ $args -> any 1#(containSymbol x %1) args
+            | apply _ $args -> any (containSymbol x) args
             | _ -> False)
           xs)
 
@@ -204,7 +204,7 @@ containFunction $f $mexpr :=
         any
           2#(match %1 as symbolExpr with
             | apply #f _     -> True
-            | apply $g $args -> any 1#(containFunction f %1) args
+            | apply $g $args -> any (containFunction f) args
             | _ -> False)
           xs)
 
@@ -215,7 +215,7 @@ containFunctionWithOrder $f $n $mexpr :=
         any
           (\match as (symbolExpr, integer) with
             | (apply #f _, ?(>= n)) -> True
-            | (apply _ $args, _) -> any 1#(containFunctionWithOrder f n %1) args
+            | (apply _ $args, _) -> any (containFunctionWithOrder f n) args
             | _ -> False)
           xs)
 
@@ -241,7 +241,7 @@ substitute %ls $mexpr :=
     | [] -> mathNormalize mexpr
     | ($x, $a) :: $rs -> substitute rs (substitute' x a mexpr)
 
-substitute' $x %a $mexpr := mapSymbols 1#(rewriteSymbol x a %1) mexpr
+substitute' $x %a $mexpr := mapSymbols (rewriteSymbol x a) mexpr
 
 rewriteSymbol $x $a $sexpr :=
   match sexpr as symbolExpr with
@@ -286,7 +286,7 @@ coefficients $f $x :=
   let m := maximum
              (0 :: (matchAll f as mathExpr with
                | poly (term $a (ncons #x $k $ts) :: _) / _ -> k))
-   in map 1#(coefficient f x %1) (between 0 m)
+   in map (coefficient f x) (between 0 m)
 
 coefficient $f $x $m :=
   if m = 0

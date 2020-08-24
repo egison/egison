@@ -35,7 +35,7 @@ minimum $xs := foldl1 min xs
 
 maximum $xs := foldl1 max xs
 
-splitByOrdering := 2#(splitByOrdering/fn compare %1 %2)
+splitByOrdering := splitByOrdering/fn compare
 
 splitByOrdering/fn f p xs :=
   match xs as list something with
@@ -47,7 +47,7 @@ splitByOrdering/fn f p xs :=
             | equal -> (ys1, x :: ys2, ys3)
             | greater -> (ys1, ys2, x :: ys3)
 
-sort := 1#(sort/fn compare %1)
+sort := sort/fn compare
 
 sort/fn f xs :=
   match xs as list something with

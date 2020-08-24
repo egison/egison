@@ -308,8 +308,7 @@ evalExprShallow env (FlipIndicesExpr expr) = do
 evalExprShallow env (WithSymbolsExpr vars expr) = do
   symId <- fresh
   syms <- mapM (newEvaluatedObjectRef . Value . symbolScalarData symId) vars
-  let bindings = zip (map stringToVar vars) syms
-  whnf <- evalExprShallow (extendEnv env bindings) expr
+  whnf <- evalExprShallow (extendEnv env (makeBindings' vars syms)) expr
   case whnf of
     Value (TensorData t@Tensor{}) ->
       Value . TensorData <$> removeTmpScripts symId t
@@ -607,9 +606,13 @@ applyFunc _ (Value (Func mFuncName env [name] body)) arg =
 applyFunc _ (Value (Func mFuncName env names body)) arg =
   mLabelFuncName mFuncName $ do
     refs <- tupleToRefs arg
-    if length names == length refs
-      then evalExprShallow (extendEnv env $ makeBindings' names refs) body
-      else throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
+    if | length names == length refs ->
+         evalExprShallow (extendEnv env (makeBindings' names refs)) body
+       | length names > length refs -> -- Currying
+         let (bound, rest) = splitAt (length refs) names
+          in return . Value $ Func mFuncName (extendEnv env (makeBindings' bound refs)) rest body
+       | otherwise ->
+           throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
 applyFunc _ (Value (CFunc env name body)) arg = do
   refs <- tupleToRefs arg
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
@@ -617,7 +620,7 @@ applyFunc _ (Value (CFunc env name body)) arg = do
   if not (null refs)
     then evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
     else throwError =<< ArgumentsNumWithNames [name] 1 0 <$> getFuncNameStack
-applyFunc _ (Value (PrimitiveFunc _ func)) arg = func arg
+applyFunc _ (Value (PrimitiveFunc func)) arg = func arg
 applyFunc _ (Value (IOFunc m)) arg =
   case arg of
      Value World -> m
