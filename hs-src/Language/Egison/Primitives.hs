@@ -102,6 +102,7 @@ twoArgs name f args = do
       ds' <- V.mapM (f val) ds
       Value <$> fromTensor (Tensor ns ds' js)
     [val, val'] -> Value <$> f val val'
+    [val] -> return . Value $ PrimitiveFunc name (oneArg (f val))
     _ -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
 
 {-# INLINE twoArgs' #-}
@@ -110,6 +111,7 @@ twoArgs' name f args = do
   args' <- tupleToList <$> evalWHNF args
   case args' of
     [val, val'] -> Value <$> f val val'
+    [val]       -> return . Value $ PrimitiveFunc name (oneArg' (f val))
     _           -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
 
 {-# INLINE threeArgs' #-}
@@ -118,6 +120,8 @@ threeArgs' name f args = do
   args' <- tupleToList <$> evalWHNF args
   case args' of
     [val, val', val''] -> Value <$> f val val' val''
+    [val, val']        -> return . Value $ PrimitiveFunc name (oneArg' (f val val'))
+    [val]              -> return . Value $ PrimitiveFunc name (twoArgs' name (f val))
     _                  -> throwError =<< ArgumentsNumPrimitive name 3 (length args') <$> getFuncNameStack
 
 --
