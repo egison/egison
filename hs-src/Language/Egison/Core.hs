@@ -19,9 +19,8 @@ module Language.Egison.Core
     , recursiveBind
     -- * Pattern matching
     , patternMatch
-    -- * Tuple, Collection
+    -- * Tuple
     , tupleToList
-    , collectionToList
     ) where
 
 import           Prelude                     hiding (mapM, mappend, mconcat)
@@ -36,7 +35,6 @@ import           Data.Foldable               (toList)
 import           Data.IORef
 import           Data.List                   (partition)
 import           Data.Maybe
-import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
 import qualified Data.Sequence               as Sq
 import           Data.Traversable            (mapM)
 
@@ -45,6 +43,8 @@ import qualified Data.Vector                 as V
 
 import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.Data.Collection
+import           Language.Egison.Data.Utils
 import           Language.Egison.EvalState   (MonadEval(..), mLabelFuncName)
 import           Language.Egison.Match
 import           Language.Egison.Math
@@ -536,23 +536,12 @@ evalExprShallow env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
     yRef <- newEvaluatedObjectRef y
     applyFunc env fn (Intermediate (ITuple [xRef, yRef]))
 
-
 evalExprShallow _ SomethingExpr = return $ Value Something
 evalExprShallow _ UndefinedExpr = return $ Value Undefined
 evalExprShallow _ expr = throwError =<< NotImplemented ("evalExprShallow for " ++ show expr) <$> getFuncNameStack
 
 evalExprDeep :: Env -> Expr -> EvalM EgisonValue
 evalExprDeep env expr = evalExprShallow env expr >>= evalWHNF
-
-evalRef :: ObjectRef -> EvalM WHNFData
-evalRef ref = do
-  obj <- liftIO $ readIORef ref
-  case obj of
-    WHNF val -> return val
-    Thunk thunk -> do
-      val <- thunk
-      writeObjectRef ref val
-      return val
 
 evalRefDeep :: ObjectRef -> EvalM EgisonValue
 evalRefDeep ref = do
@@ -678,18 +667,6 @@ newThunk env expr = Thunk $ evalExprShallow env expr
 
 newObjectRef :: Env -> Expr -> EvalM ObjectRef
 newObjectRef env expr = liftIO $ newIORef $ newThunk env expr
-
-writeObjectRef :: ObjectRef -> WHNFData -> EvalM ()
-writeObjectRef ref val = liftIO . writeIORef ref $ WHNF val
-
-newEvaluatedObjectRef :: WHNFData -> EvalM ObjectRef
-newEvaluatedObjectRef = liftIO . newIORef . WHNF
-
-makeBindings :: [Var] -> [ObjectRef] -> [Binding]
-makeBindings = zip
-
-makeBindings' :: [String] -> [ObjectRef] -> [Binding]
-makeBindings' xs = zip (map stringToVar xs)
 
 recursiveBind :: Env -> [(Var, Expr)] -> EvalM Env
 recursiveBind env bindings = do
@@ -1116,65 +1093,6 @@ primitiveDataPatternMatch (PDConstantPat expr) whnf = do
     -- we don't need to extract call stack since detailed error information is not used
     throwError $ TypeMismatch "primitive value" whnf
 
-expandCollection :: WHNFData -> EvalM (Seq Inner)
-expandCollection (Value (Collection vals)) =
-  mapM (fmap IElement . newEvaluatedObjectRef . Value) vals
-expandCollection (Intermediate (ICollection innersRef)) = liftIO $ readIORef innersRef
-expandCollection val = throwError =<< TypeMismatch "collection" val <$> getFuncNameStack
-
-isEmptyCollection :: WHNFData -> EvalM Bool
-isEmptyCollection (Value (Collection col)) = return $ Sq.null col
-isEmptyCollection coll@(Intermediate (ICollection innersRef)) = do
-  inners <- liftIO $ readIORef innersRef
-  case Sq.viewl inners of
-    EmptyL -> return True
-    ISubCollection ref' :< tInners -> do
-      hInners <- evalRef ref' >>= expandCollection
-      liftIO $ writeIORef innersRef (hInners >< tInners)
-      isEmptyCollection coll
-    _ -> return False
-isEmptyCollection _ = return False
-
-unconsCollection :: WHNFData -> MatchM (ObjectRef, ObjectRef)
-unconsCollection (Value (Collection col)) =
-  case Sq.viewl col of
-    EmptyL -> matchFail
-    val :< vals ->
-      lift $ (,) <$> newEvaluatedObjectRef (Value val)
-                 <*> newEvaluatedObjectRef (Value $ Collection vals)
-unconsCollection coll@(Intermediate (ICollection innersRef)) = do
-  inners <- liftIO $ readIORef innersRef
-  case Sq.viewl inners of
-    EmptyL -> matchFail
-    IElement ref' :< tInners -> do
-      tInnersRef <- liftIO $ newIORef tInners
-      lift $ (ref', ) <$> newEvaluatedObjectRef (Intermediate $ ICollection tInnersRef)
-    ISubCollection ref' :< tInners -> do
-      hInners <- lift $ evalRef ref' >>= expandCollection
-      liftIO $ writeIORef innersRef (hInners >< tInners)
-      unconsCollection coll
-unconsCollection _ = matchFail
-
-unsnocCollection :: WHNFData -> MatchM (ObjectRef, ObjectRef)
-unsnocCollection (Value (Collection col)) =
-  case Sq.viewr col of
-    EmptyR -> matchFail
-    vals :> val ->
-      lift $ (,) <$> newEvaluatedObjectRef (Value $ Collection vals)
-                 <*> newEvaluatedObjectRef (Value val)
-unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
-  inners <- liftIO $ readIORef innersRef
-  case Sq.viewr inners of
-    EmptyR -> matchFail
-    hInners :> IElement ref' -> do
-      hInnersRef <- liftIO $ newIORef hInners
-      lift $ (, ref') <$> newEvaluatedObjectRef (Intermediate $ ICollection hInnersRef)
-    hInners :> ISubCollection ref' -> do
-      tInners <- lift $ evalRef ref' >>= expandCollection
-      liftIO $ writeIORef innersRef (hInners >< tInners)
-      unsnocCollection coll
-unsnocCollection _ = matchFail
-
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
 extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopPatContext binding _ _ _ _) -> binding) loops
 
@@ -1195,20 +1113,6 @@ toListPat :: [Pattern] -> Pattern
 toListPat []         = InductivePat "nil" []
 toListPat (pat:pats) = InductivePat "::" [pat, toListPat pats]
 
-fromTuple :: WHNFData -> EvalM [ObjectRef]
-fromTuple (Intermediate (ITuple refs)) = return refs
-fromTuple (Value (Tuple vals)) = mapM (newEvaluatedObjectRef . Value) vals
-fromTuple whnf = return <$> newEvaluatedObjectRef whnf
-
-fromTupleWHNF :: WHNFData -> EvalM [WHNFData]
-fromTupleWHNF (Intermediate (ITuple refs)) = mapM evalRef refs
-fromTupleWHNF (Value (Tuple vals))         = return $ map Value vals
-fromTupleWHNF whnf                         = return [whnf]
-
-fromTupleValue :: EgisonValue -> [EgisonValue]
-fromTupleValue (Tuple vals) = vals
-fromTupleValue val          = [val]
-
 fromCollection :: WHNFData -> EvalM (MList EvalM ObjectRef)
 fromCollection (Value (Collection vals)) =
   if Sq.null vals then return MNil
@@ -1224,12 +1128,7 @@ fromCollection whnf@(Intermediate (ICollection _)) = do
 fromCollection whnf = throwError =<< TypeMismatch "collection" whnf <$> getFuncNameStack
 
 tupleToList :: WHNFData -> EvalM [EgisonValue]
-tupleToList whnf = do
-  val <- evalWHNF whnf
-  return $ tupleToList' val
- where
-  tupleToList' (Tuple vals) = vals
-  tupleToList' val          = [val]
+tupleToList whnf = fromTupleValue <$> evalWHNF whnf
 
 collectionToList :: WHNFData -> EvalM [EgisonValue]
 collectionToList whnf = do
@@ -1239,16 +1138,6 @@ collectionToList whnf = do
   collectionToList' :: EgisonValue -> EvalM [EgisonValue]
   collectionToList' (Collection sq) = return $ toList sq
   collectionToList' val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
-
-makeTuple :: [EgisonValue] -> EgisonValue
-makeTuple []  = Tuple []
-makeTuple [x] = x
-makeTuple xs  = Tuple xs
-
-makeITuple :: [WHNFData] -> EvalM WHNFData
-makeITuple []  = return $ Intermediate (ITuple [])
-makeITuple [x] = return x
-makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
 
 makeICollection :: [WHNFData] -> EvalM WHNFData
 makeICollection xs  = do
