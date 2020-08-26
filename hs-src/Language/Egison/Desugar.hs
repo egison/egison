@@ -370,7 +370,6 @@ desugarLoopRange (LoopRange sExpr eExpr pat) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pat
 
 desugarBindings :: [BindingExpr] -> EvalM [BindingExpr]
-<<<<<<< HEAD
 desugarBindings = mapM f
   where
     f (name, expr) = do
@@ -378,9 +377,6 @@ desugarBindings = mapM f
       case expr' of
         LambdaExpr Nothing args body -> return (name, LambdaExpr (Just (show name)) args body)
         _                            -> return (name, expr')
-=======
-desugarBindings = mapM (\(pd, expr) -> (pd,) <$> desugar expr)
->>>>>>> wip
 
 desugarMatchClauses :: [MatchClause] -> EvalM [MatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
