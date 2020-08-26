@@ -387,12 +387,10 @@ evalExprShallow env (CApplyExpr func arg) = do
       indices <- mapM fromEgison args
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices hash of
-        Just objRef ->
-          evalRef objRef
+        Just whnf -> return whnf
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) (Value (makeTuple args))
-          retRef <- newEvaluatedObjectRef whnf
-          liftIO $ modifyIORef hashRef (HL.insert indices retRef)
+          liftIO $ modifyIORef hashRef (HL.insert indices whnf)
           return whnf
     _ -> applyFunc env func (Value (makeTuple args))
 
@@ -416,12 +414,10 @@ evalExprShallow env (ApplyExpr func arg) = do
       indices <- mapM fromEgison $ tupleToList indices'
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices hash of
-        Just objRef ->
-          evalRef objRef
+        Just whnf -> return whnf
         Nothing -> do
           whnf <- applyFunc env' (Value (Func Nothing env' names body)) arg
-          retRef <- newEvaluatedObjectRef whnf
-          liftIO $ modifyIORef hashRef (HL.insert indices retRef)
+          liftIO $ modifyIORef hashRef (HL.insert indices whnf)
           return whnf
     _ -> do
       arg <- evalExprShallow env arg
@@ -441,12 +437,10 @@ evalExprShallow env (WedgeApplyExpr func arg) = do
       indices <- mapM fromEgison $ tupleToList indices
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices hash of
-        Just objRef ->
-          evalRef objRef
+        Just whnf -> return whnf
         Nothing -> do
           whnf <- applyFunc env (Value (Func Nothing env names body)) arg
-          retRef <- newEvaluatedObjectRef whnf
-          liftIO $ modifyIORef hashRef (HL.insert indices retRef)
+          liftIO $ modifyIORef hashRef (HL.insert indices whnf)
           return whnf
     _ -> applyFunc env func arg >>= removeDFscripts
 
