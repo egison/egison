@@ -87,13 +87,13 @@ loadEgisonLibrary env path = do
 -- Helper functions
 --
 
-collectDefs :: EgisonOpts -> [TopExpr] -> EvalM ([(Var, Expr)], [TopExpr])
+collectDefs :: EgisonOpts -> [TopExpr] -> EvalM ([BindingExpr], [TopExpr])
 collectDefs opts exprs = collectDefs' opts exprs [] []
   where
-    collectDefs' :: EgisonOpts -> [TopExpr] -> [(Var, Expr)] -> [TopExpr] -> EvalM ([(Var, Expr)], [TopExpr])
+    collectDefs' :: EgisonOpts -> [TopExpr] -> [BindingExpr] -> [TopExpr] -> EvalM ([BindingExpr], [TopExpr])
     collectDefs' opts (expr:exprs) bindings rest =
       case expr of
-        Define name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
+        Define name expr -> collectDefs' opts exprs ((PDPatVar name, expr) : bindings) rest
         DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
         Redefine{} -> collectDefs' opts exprs bindings (expr : rest)
         Test{}     -> collectDefs' opts exprs bindings (expr : rest)
@@ -111,7 +111,7 @@ collectDefs opts exprs = collectDefs' opts exprs [] []
 
 evalTopExpr' :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr' env (Define name expr) = do
-  env' <- recursiveBind env [(name, expr)]
+  env' <- recursiveBind env [(PDPatVar name, expr)]
   return (Nothing, env')
 evalTopExpr' _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
 evalTopExpr' env (Test expr) = do

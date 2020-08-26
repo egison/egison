@@ -198,7 +198,7 @@ instance SyntaxElement a => SyntaxElement (Index a) where
   toNonS script = toNonS <$> script
 
 instance SyntaxElement BindingExpr where
-  toNonS (vars, x) = (map toNonS vars, toNonS x)
+  toNonS (pdp, x) = (toNonS pdp, toNonS x)
 
 instance SyntaxElement MatchClause where
   toNonS (pat, body) = (toNonS pat, toNonS body)
