@@ -649,9 +649,14 @@ recursiveBind :: Env -> [BindingExpr] -> EvalM Env
 recursiveBind env bindings = do
   let names = concatMap (\(pd, _) -> collectNames pd) bindings
   binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv UndefinedExpr) names
-  let env' = extendEnv env binds
+  let env'@(Env frame _) = extendEnv env binds
   forM_ bindings $ \(pd, expr) -> do
-    binds <- runMaybeT $ primitiveDataPatternMatch pd (newThunk env' expr)
+    let env'' =
+          case (pd, expr) of
+            (PDPatVar var, FunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
+            (PDPatVar var@(Var _ is), _) | not (null is) -> Env frame (Just (varToVarWithIndices var))
+            _ -> env'
+    binds <- runMaybeT $ primitiveDataPatternMatch pd (newThunk env'' expr)
     case binds of
       Just binds -> forM_ binds $ \(var, objref) -> do
         obj <- liftIO $ readIORef objref
@@ -659,13 +664,6 @@ recursiveBind env bindings = do
         liftIO $ writeIORef ref obj
       Nothing -> return ()
   return env'
- where
-  f (Env frame _) ref (name, expr@FunctionExpr{}) =
-    liftIO . writeIORef ref . Thunk $ evalExprShallow (Env frame (Just $ varToVarWithIndices name)) expr
-  f env' ref (Var _ [], expr) =
-    liftIO . writeIORef ref . Thunk $ evalExprShallow env' expr
-  f (Env frame _) ref (name, expr) =
-    liftIO . writeIORef ref . Thunk $ evalExprShallow (Env frame (Just $ varToVarWithIndices name)) expr
 
 collectNames :: PrimitiveDataPattern -> [Var]
 collectNames (PDPatVar var) = [var]
