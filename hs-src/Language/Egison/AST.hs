@@ -206,7 +206,7 @@ data PrimitivePatPattern =
 
 data PrimitiveDataPattern =
     PDWildCard
-  | PDPatVar String
+  | PDPatVar Var
   | PDInductivePat String [PrimitiveDataPattern]
   | PDTuplePat [PrimitiveDataPattern]
   | PDEmptyPat

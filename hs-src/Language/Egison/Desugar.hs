@@ -57,7 +57,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", TupleExpr []
-               ,[(PDPatVar "tgt", MatchExpr BFSMode
+               ,[(PDPatVar (stringToVar "tgt"), MatchExpr BFSMode
                                             (TupleExpr [stringToVarExpr "val", stringToVarExpr "tgt"])
                                             (TupleExpr [matcher, matcher])
                                              clauses)])
@@ -92,7 +92,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [Expr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const freshV) patterns
-            return (PDInductivePat (capitalize name) $ map (PDPatVar . show) patterns', map VarExpr patterns')
+            return (PDInductivePat (capitalize name) $ map (PDPatVar . stringToVar . show) patterns', map VarExpr patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
@@ -100,7 +100,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
       genSomethingClause :: EvalM (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
       genSomethingClause =
-        return (PPPatVar, TupleExpr [SomethingExpr], [(PDPatVar "tgt", CollectionExpr [stringToVarExpr "tgt"])])
+        return (PPPatVar, TupleExpr [SomethingExpr], [(PDPatVar (stringToVar "tgt"), CollectionExpr [stringToVarExpr "tgt"])])
 
       matchingSuccess :: Expr
       matchingSuccess = CollectionExpr [TupleExpr []]
