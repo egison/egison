@@ -525,7 +525,7 @@ nullEnv :: Env
 nullEnv = Env [] Nothing
 
 extendEnv :: Env -> [Binding] -> Env
-extendEnv (Env env idx) bdg = Env ((: env) $ HashMap.fromList bdg) idx
+extendEnv (Env env idx) bdg = Env (HashMap.fromList bdg : env) idx
 
 refVar :: Env -> Var -> Maybe ObjectRef
 refVar (Env env _) var@(Var _ []) = msum $ map (HashMap.lookup var) env

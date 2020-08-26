@@ -331,14 +331,12 @@ letExpr = do
 
 binding :: Parser BindingExpr
 binding = do
-  (vars, args) <- (,[]) <$> parens (sepBy varLiteral comma)
-              <|> do var <- varLiteral
-                     args <- many arg
-                     return ([var], args)
+  var <- pdAtom
+  args <- many arg
   body <- symbol ":=" >> expr
   return $ case args of
-             [] -> (vars, body)
-             _  -> (vars, LambdaExpr Nothing args body)
+             [] -> (var, body)
+             _  -> (var, LambdaExpr Nothing args body)
 
 withSymbolsExpr :: Parser Expr
 withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy ident comma)) <*> expr
@@ -347,12 +345,12 @@ doExpr :: Parser Expr
 doExpr = do
   stmts <- reserved "do" >> oneLiner <|> alignSome statement
   case reverse stmts of
-    []           -> return $ DoExpr []           (makeApply "return" [])
-    ([], expr):_ -> return $ DoExpr (init stmts) expr
-    _:_          -> customFailure LastStmtInDoBlock
+    []                      -> return $ DoExpr []           (makeApply "return" [])
+    (PDTuplePat [], expr):_ -> return $ DoExpr (init stmts) expr
+    _:_                     -> customFailure LastStmtInDoBlock
   where
     statement :: Parser BindingExpr
-    statement = (reserved "let" >> binding) <|> ([],) <$> expr
+    statement = (reserved "let" >> binding) <|> (PDTuplePat [],) <$> expr
 
     oneLiner :: Parser [BindingExpr]
     oneLiner = braces $ sepBy statement (symbol ";")
@@ -681,17 +679,18 @@ pdPattern = makeExprParser pdApplyOrAtom table
                 <|> PDSnocPat <$> (symbol "snoc" >> pdAtom) <*> pdAtom
                 <|> pdAtom
 
+pdAtom :: Parser PrimitiveDataPattern
+pdAtom = PDWildCard    <$ symbol "_"
+     <|> PDPatVar      <$> patVarLiteral
+     <|> PDPatVar      <$> varLiteral
+     <|> PDConstantPat <$> constantExpr
+     <|> pdCollection
+     <|> makeTupleOrParen pdPattern PDTuplePat
+  where
     pdCollection :: Parser PrimitiveDataPattern
     pdCollection = do
       elts <- brackets (sepBy pdPattern comma)
       return (foldr PDConsPat PDEmptyPat elts)
-
-    pdAtom :: Parser PrimitiveDataPattern
-    pdAtom = PDWildCard    <$ symbol "_"
-         <|> PDPatVar      <$> patVarLiteral
-         <|> PDConstantPat <$> constantExpr
-         <|> pdCollection
-         <|> makeTupleOrParen pdPattern PDTuplePat
 
 --
 -- Tokens

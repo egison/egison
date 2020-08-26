@@ -672,3 +672,20 @@ assertEqual "user-defined pattern infix"
 assertEqual "user-defined pattern infix"
   (match [1, 2] as dummyMatcher with $x <?> $y :: _ -> x + y)
   3
+
+-- Primitive data pattern match with let expression
+assertEqual "let pattern match"
+  (let (x :: xs) := [1, 2, 3] in (x, xs))
+  (1, [2, 3])
+
+assertEqual "let pattern match"
+  (let (snoc xs x) := [1, 2, 3] in (x, xs))
+  (3, [1, 2])
+
+assertEqual "let pattern match"
+  (let (Just x) := Just 1 in x)
+  1
+
+assertEqual "let pattern match"
+  (let (x, y) := (2, 3) in x + y)
+  5
