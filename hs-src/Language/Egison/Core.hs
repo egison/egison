@@ -243,6 +243,10 @@ evalExprShallow env (LambdaExpr names expr) = do
                      ScalarArg _ -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
   return . Value $ Func Nothing env names' expr
 
+evalExprShallow env (MemoizedLambdaExpr names body) = do
+  hashRef <- liftIO $ newIORef HL.empty
+  return . Value $ MemoizedFunc hashRef env names body
+
 evalExprShallow env (CambdaExpr name expr) = return . Value $ CFunc env name expr
 
 evalExprShallow env (PatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
@@ -380,7 +384,7 @@ evalExprShallow env (CApplyExpr func arg) = do
   func <- evalExprShallow env func
   args <- evalExprDeep env arg >>= collectionToList
   case func of
-    Value (MemoizedFunc ref hashRef env names body) -> do
+    Value (MemoizedFunc hashRef env names body) -> do
       indices <- mapM fromEgison args
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices hash of
@@ -390,7 +394,6 @@ evalExprShallow env (CApplyExpr func arg) = do
           whnf <- applyFunc env (Value (Func Nothing env names body)) (Value (makeTuple args))
           retRef <- newEvaluatedObjectRef whnf
           liftIO $ modifyIORef hashRef (HL.insert indices retRef)
-          writeObjectRef ref func
           return whnf
     _ -> applyFunc env func (Value (makeTuple args))
 
@@ -408,7 +411,7 @@ evalExprShallow env (ApplyExpr func arg) = do
     Intermediate (ITensor t@Tensor{}) -> do
       arg <- evalExprShallow env arg
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
-    Value (MemoizedFunc ref hashRef env' names body) -> do
+    Value (MemoizedFunc hashRef env' names body) -> do
       arg <- evalExprShallow env arg
       indices' <- evalWHNF arg
       indices <- mapM fromEgison $ tupleToList indices'
@@ -420,7 +423,6 @@ evalExprShallow env (ApplyExpr func arg) = do
           whnf <- applyFunc env' (Value (Func Nothing env' names body)) arg
           retRef <- newEvaluatedObjectRef whnf
           liftIO $ modifyIORef hashRef (HL.insert indices retRef)
-          writeObjectRef ref func
           return whnf
     _ -> do
       arg <- evalExprShallow env arg
@@ -436,7 +438,7 @@ evalExprShallow env (WedgeApplyExpr func arg) = do
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor)
     Intermediate (ITensor t@Tensor{}) ->
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
-    Value (MemoizedFunc ref hashRef env names body) -> do
+    Value (MemoizedFunc hashRef env names body) -> do
       indices <- evalWHNF arg
       indices <- mapM fromEgison $ tupleToList indices
       hash <- liftIO $ readIORef hashRef
@@ -447,7 +449,6 @@ evalExprShallow env (WedgeApplyExpr func arg) = do
           whnf <- applyFunc env (Value (Func Nothing env names body)) arg
           retRef <- newEvaluatedObjectRef whnf
           liftIO $ modifyIORef hashRef (HL.insert indices retRef)
-          writeObjectRef ref func
           return whnf
     _ -> applyFunc env func arg >>= removeDFscripts
 
@@ -667,14 +668,14 @@ recursiveBind env bindings = do
   zipWithM_ (f env') refs bindings
   return env'
  where
-  f env' ref (_, MemoizedLambdaExpr names body) = do
-    hashRef <- liftIO $ newIORef HL.empty
-    liftIO . writeIORef ref . WHNF . Value $ MemoizedFunc ref hashRef env' names body
   f env' ref (name, expr@LambdaExpr{}) = do
     whnf <- evalExprShallow env' expr
     case whnf of
       Value (Func _ env args body) ->
         liftIO . writeIORef ref . WHNF $ Value (Func (Just (show name)) env args body)
+  f env' ref (_, expr@MemoizedLambdaExpr{}) = do
+    whnf <- evalExprShallow env' expr
+    liftIO $ writeIORef ref (WHNF whnf)
   f env' ref (_, expr@CambdaExpr{}) = do
     whnf <- evalExprShallow env' expr
     liftIO $ writeIORef ref (WHNF whnf)

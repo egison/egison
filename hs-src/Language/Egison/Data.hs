@@ -105,7 +105,7 @@ data EgisonValue =
   | UserMatcher Env [PatternDef]
   | Func (Maybe String) Env [String] Expr
   | CFunc Env String Expr
-  | MemoizedFunc ObjectRef (IORef (HashMap [Integer] ObjectRef)) Env [String] Expr
+  | MemoizedFunc (IORef (HashMap [Integer] ObjectRef)) Env [String] Expr
   | PatternFunc Env [String] Pattern
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EvalM WHNFData)
@@ -302,7 +302,7 @@ instance Show EgisonValue where
   show UserMatcher{} = "#<user-matcher>"
   show (Func _ _ args _) = "#<lambda [" ++ intercalate ", " (map show args) ++ "] ...>"
   show (CFunc _ name _) = "#<cambda " ++ name ++ " ...>"
-  show (MemoizedFunc _ _ _ names _) = "#<memoized-lambda [" ++ intercalate ", " names ++ "] ...>"
+  show (MemoizedFunc _ _ names _) = "#<memoized-lambda [" ++ intercalate ", " names ++ "] ...>"
   show PatternFunc{} = "#<pattern-function>"
   show PrimitiveFunc{} = "#<primitive-function>"
   show (IOFunc _) = "#<io-function>"
