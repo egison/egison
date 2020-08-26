@@ -32,7 +32,7 @@ prettyTopExprs :: [TopExpr] -> Doc [TopExpr]
 prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty TopExpr where
-  pretty (Define x (LambdaExpr args body)) =
+  pretty (Define x (LambdaExpr _ args body)) =
     hsep (pretty x : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (Define x expr) =
     pretty x <+> indentBlock (pretty ":=") [pretty expr]
@@ -70,7 +70,7 @@ instance Pretty Expr where
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
-  pretty (LambdaExpr xs e) =
+  pretty (LambdaExpr _ xs e) =
     lambdaLike (pretty "\\") (map pretty xs) (pretty "->") (pretty e)
   pretty (MemoizedLambdaExpr xs e)  =
     lambdaLike (pretty "memoizedLambda ") (map pretty xs) (pretty "->") (pretty e)
@@ -188,7 +188,7 @@ instance Pretty VarWithIndices where
     concatWith (surround dot) (map pretty xs) <> hcat (map pretty is)
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
-  pretty ([var], LambdaExpr args body) =
+  pretty ([var], LambdaExpr _ args body) =
     hsep (pretty var : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
   pretty ([var], expr) = pretty var <+> pretty ":=" <+> align (pretty expr)
   pretty (vars, expr) = tupled (map pretty vars) <+> pretty ":=" <+> align (pretty expr)

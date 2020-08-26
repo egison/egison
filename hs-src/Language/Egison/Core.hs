@@ -236,11 +236,11 @@ evalExprShallow env (UserrefsExpr _ expr jsExpr) = do
       return $ Value (ScalarData (SingleTerm 1 [(FunctionData name argnames args (is ++ js), 1)]))
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
-evalExprShallow env (LambdaExpr names expr) = do
+evalExprShallow env (LambdaExpr fnname names expr) = do
   names' <- mapM (\case
                      TensorArg name' -> return name'
                      ScalarArg _ -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
-  return . Value $ Func Nothing env names' expr
+  return . Value $ Func fnname env names' expr
 
 evalExprShallow env (MemoizedLambdaExpr names body) = do
   hashRef <- liftIO $ newIORef HL.empty
@@ -660,11 +660,9 @@ recursiveBind env bindings = do
   zipWithM_ (f env') refs bindings
   return env'
  where
-  f env' ref (name, expr@LambdaExpr{}) = do
+  f env' ref (_, expr@LambdaExpr{}) = do
     whnf <- evalExprShallow env' expr
-    case whnf of
-      Value (Func _ env args body) ->
-        liftIO . writeIORef ref . WHNF $ Value (Func (Just (show name)) env args body)
+    liftIO $ writeIORef ref (WHNF whnf)
   f env' ref (_, expr@MemoizedLambdaExpr{}) = do
     whnf <- evalExprShallow env' expr
     liftIO $ writeIORef ref (WHNF whnf)

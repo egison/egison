@@ -23,7 +23,11 @@ import           Language.Egison.RState
 
 
 desugarTopExpr :: TopExpr -> EvalM TopExpr
-desugarTopExpr (Define name expr)   = Define name <$> desugar expr
+desugarTopExpr (Define name expr) = do
+  expr' <- desugar expr
+  case expr' of
+    LambdaExpr Nothing args body -> return $ Define name (LambdaExpr (Just (show name)) args body)
+    _                            -> return $ Define name expr'
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr
   let indexNames = map extractIndex is
@@ -110,11 +114,11 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
 desugar (MatchAllLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr BFSMode (stringToVarExpr name) matcher clauses)
+  desugar $ LambdaExpr Nothing [TensorArg name] (MatchAllExpr BFSMode (stringToVarExpr name) matcher clauses)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchExpr BFSMode (stringToVarExpr name) matcher clauses)
+  desugar $ LambdaExpr Nothing [TensorArg name] (MatchExpr BFSMode (stringToVarExpr name) matcher clauses)
 
 -- TODO: Allow nested MultiSubscript and MultiSuperscript
 desugar (IndexedExpr b expr indices) =
@@ -138,7 +142,7 @@ desugar (IndexedExpr b expr indices) =
     desugarMultiScript refExpr b1 e1 n1 n2 = do
       k <- fresh
       return $ refExpr b expr (makeApply "map"
-                                         [LambdaExpr [TensorArg k] (IndexedExpr b1 e1 [Subscript $ stringToVarExpr k]),
+                                         [LambdaExpr Nothing [TensorArg k] (IndexedExpr b1 e1 [Subscript $ stringToVarExpr k]),
                                           makeApply "between" [extractIndex n1, extractIndex n2]])
 
 desugar (SubrefsExpr bool expr1 expr2) =
@@ -164,19 +168,19 @@ desugar (VectorExpr exprs) =
 desugar (TensorExpr nsExpr xsExpr) =
   TensorExpr <$> desugar nsExpr <*> desugar xsExpr
 
-desugar (LambdaExpr names expr) = do
+desugar (LambdaExpr Nothing names expr) = do
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
   expr'' <- desugar expr'
-  return $ LambdaExpr args' expr''
+  return $ LambdaExpr Nothing args' expr''
   where
     desugarInvertedArgs :: Arg -> ([Arg], Expr) -> ([Arg], Expr)
     desugarInvertedArgs (TensorArg x) (args, expr) = (TensorArg x : args, expr)
     desugarInvertedArgs (ScalarArg x) (args, expr) =
       (TensorArg x : args,
-       TensorMapExpr (LambdaExpr [TensorArg x] expr) (stringToVarExpr x))
+       TensorMapExpr (LambdaExpr Nothing [TensorArg x] expr) (stringToVarExpr x))
     desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
       (TensorArg x : args,
-       TensorMapExpr (LambdaExpr [TensorArg x] expr) (FlipIndicesExpr (stringToVarExpr x)))
+       TensorMapExpr (LambdaExpr Nothing [TensorArg x] expr) (FlipIndicesExpr (stringToVarExpr x)))
 
 desugar (MemoizedLambdaExpr names expr) =
   MemoizedLambdaExpr names <$> desugar expr
@@ -239,17 +243,17 @@ desugar (SectionExpr op Nothing Nothing)
 desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
   y <- fresh
-  desugar $ LambdaExpr [TensorArg x, TensorArg y]
+  desugar $ LambdaExpr Nothing [TensorArg x, TensorArg y]
                        (InfixExpr op (stringToVarExpr x) (stringToVarExpr y))
 
 desugar (SectionExpr op Nothing (Just expr2)) = do
   x <- fresh
-  desugar $ LambdaExpr [TensorArg x]
+  desugar $ LambdaExpr Nothing [TensorArg x]
                        (InfixExpr op (stringToVarExpr x) expr2)
 
 desugar (SectionExpr op (Just expr1) Nothing) = do
   y <- fresh
-  desugar $ LambdaExpr [TensorArg y]
+  desugar $ LambdaExpr Nothing [TensorArg y]
                        (InfixExpr op expr1 (stringToVarExpr y))
 
 desugar SectionExpr{} = throwError $ Default "Cannot reach here: section with both arguments"
@@ -263,8 +267,8 @@ desugar (GenerateTensorExpr fnExpr sizeExpr) =
 desugar (TensorContractExpr tExpr) =
   TensorContractExpr <$> desugar tExpr
 
-desugar (TensorMapExpr (LambdaExpr [x] (TensorMapExpr (LambdaExpr [y] expr) b)) a) =
-  desugar (TensorMap2Expr (LambdaExpr [x, y] expr) a b)
+desugar (TensorMapExpr (LambdaExpr Nothing [x] (TensorMapExpr (LambdaExpr Nothing [y] expr) b)) a) =
+  desugar (TensorMap2Expr (LambdaExpr Nothing [x, y] expr) a b)
 
 desugar (TensorMapExpr fnExpr tExpr) =
   TensorMapExpr <$> desugar fnExpr <*> desugar tExpr
@@ -295,7 +299,7 @@ desugar (AnonParamExpr n) = return $ stringToVarExpr ('%' : show n)
 
 desugar (AnonParamFuncExpr n expr) = do
   expr' <- desugar expr
-  let lambda = LambdaExpr (map (\n -> TensorArg ('%' : show n)) [1..n]) expr'
+  let lambda = LambdaExpr Nothing (map (\n -> TensorArg ('%' : show n)) [1..n]) expr'
   return $ LetRecExpr [([stringToVar "%0"], lambda)] (stringToVarExpr "%0")
 
 desugar (QuoteExpr expr) =
@@ -366,7 +370,13 @@ desugarLoopRange (LoopRange sExpr eExpr pat) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pat
 
 desugarBindings :: [BindingExpr] -> EvalM [BindingExpr]
-desugarBindings = mapM (\(name, expr) -> (name,) <$> desugar expr)
+desugarBindings = mapM f
+  where
+    f (name, expr) = do
+      expr' <- desugar expr
+      case expr' of
+        LambdaExpr Nothing args body -> return (name, LambdaExpr (Just (show name)) args body)
+        _                            -> return (name, expr')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [MatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)

@@ -87,7 +87,7 @@ instance SyntaxElement Expr where
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
   toNonS (VectorExpr xs)     = VectorExpr (map toNonS xs)
 
-  toNonS (LambdaExpr xs e)          = LambdaExpr xs (toNonS e)
+  toNonS (LambdaExpr m xs e)        = LambdaExpr m xs (toNonS e)
   toNonS (MemoizedLambdaExpr xs e)  = MemoizedLambdaExpr xs (toNonS e)
   toNonS (CambdaExpr x e)           = CambdaExpr x (toNonS e)
   toNonS (PatternFunctionExpr xs p) = PatternFunctionExpr xs (toNonS p)
