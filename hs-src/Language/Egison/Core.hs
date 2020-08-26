@@ -270,10 +270,7 @@ evalExprShallow env (LetExpr bindings expr) = do
      in makeBindings [name] . (:[]) <$> newThunkRef (Env frame (Just $ varToVarWithIndices name)) expr
   extractBindings (pdp, expr) = do
     thunk <- newThunkRef env expr
-    r <- runMaybeT $ primitiveDataPatternMatch pdp thunk
-    case r of
-      Nothing -> throwError $ Default "failed primitive data pattern match"
-      Just binding -> return binding
+    bindPrimitiveDataPattern pdp thunk
 
 evalExprShallow env (LetRecExpr bindings expr) = do
   env' <- recursiveBind env bindings
@@ -657,13 +654,11 @@ recursiveBind env bindings = do
             (PDPatVar var@(Var _ is), _) | not (null is) -> Env frame (Just (varToVarWithIndices var))
             _ -> env'
     thunk <- newThunkRef env'' expr
-    binds <- runMaybeT $ primitiveDataPatternMatch pd thunk
-    case binds of
-      Just binds -> forM_ binds $ \(var, objref) -> do
-        obj <- liftIO $ readIORef objref
-        let ref = fromJust (refVar env' var)
-        liftIO $ writeIORef ref obj
-      Nothing -> return ()
+    binds <- bindPrimitiveDataPattern pd thunk
+    forM_ binds $ \(var, objref) -> do
+      obj <- liftIO $ readIORef objref
+      let ref = fromJust (refVar env' var)
+      liftIO $ writeIORef ref obj
   return env'
 
 collectNames :: PrimitiveDataPattern -> [Var]
@@ -825,10 +820,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
         where
           extractBindings (pdp, expr) = do
             thunk <- newThunkRef (extendEnv env bindings) expr
-            r <- runMaybeT $ primitiveDataPatternMatch pdp thunk
-            case r of
-              Nothing -> throwError $ Default "failed primitive data pattern match"
-              Just binding -> return binding
+            bindPrimitiveDataPattern pdp thunk
 
     PredPat predicate -> do
       func <- evalExprShallow env' predicate
@@ -1023,6 +1015,13 @@ primitivePatPatternMatch env (PPTuplePat patterns) (TuplePat exprs)
     (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
   | otherwise = matchFail
 primitivePatPatternMatch _ _ _ = matchFail
+
+bindPrimitiveDataPattern :: PrimitiveDataPattern -> ObjectRef -> EvalM [Binding]
+bindPrimitiveDataPattern pdp ref = do
+  r <- runMaybeT $ primitiveDataPatternMatch pdp ref
+  case r of
+    Nothing -> throwError $ Default "failed primitive data pattern match"
+    Just binding -> return binding
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _        = return []
