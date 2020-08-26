@@ -660,23 +660,12 @@ recursiveBind env bindings = do
   zipWithM_ (f env') refs bindings
   return env'
  where
-  f env' ref (_, expr@LambdaExpr{}) = do
-    whnf <- evalExprShallow env' expr
-    liftIO $ writeIORef ref (WHNF whnf)
-  f env' ref (_, expr@MemoizedLambdaExpr{}) = do
-    whnf <- evalExprShallow env' expr
-    liftIO $ writeIORef ref (WHNF whnf)
-  f env' ref (_, expr@CambdaExpr{}) = do
-    whnf <- evalExprShallow env' expr
-    liftIO $ writeIORef ref (WHNF whnf)
   f (Env frame _) ref (name, expr@FunctionExpr{}) =
-      liftIO . writeIORef ref . Thunk $ evalExprShallow (Env frame (Just $ varToVarWithIndices name)) expr
-  f env'@(Env frame _) ref (name, expr) =
-    if isVarWithIndices name
-       then liftIO . writeIORef ref . Thunk $ evalExprShallow (Env frame (Just $ varToVarWithIndices name)) expr
-       else liftIO . writeIORef ref . Thunk $ evalExprShallow env' expr
-  isVarWithIndices :: Var -> Bool
-  isVarWithIndices (Var _ xs) = not $ null xs
+    liftIO . writeIORef ref . Thunk $ evalExprShallow (Env frame (Just $ varToVarWithIndices name)) expr
+  f env' ref (Var _ [], expr) =
+    liftIO . writeIORef ref . Thunk $ evalExprShallow env' expr
+  f (Env frame _) ref (name, expr) =
+    liftIO . writeIORef ref . Thunk $ evalExprShallow (Env frame (Just $ varToVarWithIndices name)) expr
 
 --
 -- Pattern Match
