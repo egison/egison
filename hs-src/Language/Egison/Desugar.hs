@@ -47,7 +47,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- freshV
   let matcherRef = VarExpr matcherName
   matcher <- genMatcherClauses patterns matcherRef
-  return $ LetRecExpr [([matcherName], matcher)] matcherRef
+  return $ LetRecExpr [(PDPatVar matcherName, matcher)] matcherRef
     where
       genMatcherClauses :: [(String, [Expr])] ->  Expr -> EvalM Expr
       genMatcherClauses patterns matcher = do
@@ -300,7 +300,7 @@ desugar (AnonParamExpr n) = return $ stringToVarExpr ('%' : show n)
 desugar (AnonParamFuncExpr n expr) = do
   expr' <- desugar expr
   let lambda = LambdaExpr Nothing (map (\n -> TensorArg ('%' : show n)) [1..n]) expr'
-  return $ LetRecExpr [([stringToVar "%0"], lambda)] (stringToVarExpr "%0")
+  return $ LetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (stringToVarExpr "%0")
 
 desugar (QuoteExpr expr) =
   QuoteExpr <$> desugar expr
@@ -335,11 +335,11 @@ desugarPattern pat = LetPat (map makeBinding (collectName pat)) <$> desugarPatte
    collectName (DApplyPat _ pats) = collectNames pats
    collectName (LoopPat _ (LoopRange _ _ endNumPat) pat1 pat2) = collectName endNumPat `union` collectName pat1 `union` collectName pat2
    collectName (LetPat _ pat) = collectName pat
-   collectName (IndexedPat (PatVar name) _) = [name]
+   collectName (IndexedPat (PatVar var) _) = [var]
    collectName _ = []
 
    makeBinding :: Var -> BindingExpr
-   makeBinding name = ([name], HashExpr [])
+   makeBinding var = (PDPatVar var, HashExpr [])
 
 desugarPattern' :: Pattern -> EvalM Pattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
@@ -370,6 +370,7 @@ desugarLoopRange (LoopRange sExpr eExpr pat) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pat
 
 desugarBindings :: [BindingExpr] -> EvalM [BindingExpr]
+<<<<<<< HEAD
 desugarBindings = mapM f
   where
     f (name, expr) = do
@@ -377,6 +378,9 @@ desugarBindings = mapM f
       case expr' of
         LambdaExpr Nothing args body -> return (name, LambdaExpr (Just (show name)) args body)
         _                            -> return (name, expr')
+=======
+desugarBindings = mapM (\(pd, expr) -> (pd,) <$> desugar expr)
+>>>>>>> wip
 
 desugarMatchClauses :: [MatchClause] -> EvalM [MatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)

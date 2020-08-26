@@ -188,10 +188,9 @@ instance Pretty VarWithIndices where
     concatWith (surround dot) (map pretty xs) <> hcat (map pretty is)
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
-  pretty ([var], LambdaExpr _ args body) =
-    hsep (pretty var : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
-  pretty ([var], expr) = pretty var <+> pretty ":=" <+> align (pretty expr)
-  pretty (vars, expr) = tupled (map pretty vars) <+> pretty ":=" <+> align (pretty expr)
+  pretty (PDPatVar f, LambdaExpr _ args body) =
+    hsep (pretty f : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
+  pretty (pat, expr) = pretty pat <+> pretty ":=" <+> align (pretty expr)
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
@@ -279,7 +278,7 @@ instance Pretty PrimitivePatPattern where
 
 instance Pretty PrimitiveDataPattern where
   pretty PDWildCard   = pretty "_"
-  pretty (PDPatVar x) = pretty '$' <> pretty x
+  pretty (PDPatVar x) = pretty x
   pretty (PDInductivePat x pdpats) = applyLike (pretty x : map pretty' pdpats)
   pretty (PDTuplePat pdpats) = tupled (map pretty pdpats)
   pretty PDEmptyPat = pretty "[]"
@@ -374,7 +373,7 @@ pretty'' x | isAtomOrApp x || isInfix x = pretty x
 
 -- Display "hoge" instead of "() := hoge"
 prettyDoBinds :: BindingExpr -> Doc ann
-prettyDoBinds ([], expr) = pretty expr
+prettyDoBinds (PDTuplePat [], expr) = pretty expr
 prettyDoBinds (vs, expr) = pretty "let" <+> pretty (vs, expr)
 
 prettyMatch :: Expr -> [MatchClause] -> Doc ann
