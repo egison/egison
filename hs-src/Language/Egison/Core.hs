@@ -103,11 +103,10 @@ evalExprShallow env (JoinExpr xs ys) = do
 
 evalExprShallow env@(Env frame maybe_vwi) (VectorExpr exprs) = do
   let n = toInteger (length exprs)
-  let indices = [1 .. (n + 1)]
-  whnfs <- zipWithM evalWithIndex exprs indices
+  whnfs <- zipWithM evalWithIndex exprs [1..]
   case whnfs of
     Intermediate (ITensor Tensor{}):_ ->
-      mapM toTensor (zipWith f whnfs indices) >>= tConcat' >>= fromTensor
+      mapM toTensor (zipWith f whnfs [1..]) >>= tConcat' >>= fromTensor
     _ -> fromTensor (Tensor [n] (V.fromList whnfs) [])
   where
     evalWithIndex :: Expr -> Integer -> EvalM WHNFData
@@ -431,8 +430,7 @@ evalExprShallow env (ApplyExpr func arg) = do
 evalExprShallow env (WedgeApplyExpr func arg) = do
   func <- evalExprShallow env func >>= appendDFscripts 0
   arg <- evalExprShallow env arg >>= tupleToListWHNF
-  let k = fromIntegral (length arg)
-  arg <- zipWithM appendDFscripts [1..k] arg >>= makeITuple
+  arg <- zipWithM appendDFscripts [1..] arg >>= makeITuple
   case func of
     Value (TensorData t@Tensor{}) ->
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor)
