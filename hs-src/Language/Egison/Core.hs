@@ -260,34 +260,24 @@ evalExprShallow env (IfExpr test expr expr') = do
   test <- evalExprShallow env test >>= fromWHNF
   evalExprShallow env $ if test then expr else expr'
 
-evalExprShallow env (LetExpr bindings expr) =
-  mapM extractBindings bindings >>= flip evalExprShallow expr . extendEnv env . concat
+evalExprShallow env (LetExpr bindings expr) = do
+  binding <- concat <$> mapM extractBindings bindings
+  evalExprShallow (extendEnv env binding) expr
  where
   extractBindings :: BindingExpr -> EvalM [Binding]
-  extractBindings ([name], expr) =
-    case expr of
-      FunctionExpr _ ->
-        let Env frame _ = env
-         in makeBindings [name] . (:[]) <$> newThunkRef (Env frame (Just $ varToVarWithIndices name)) expr
-      _ -> makeBindings [name] . (:[]) <$> newThunkRef env expr
-  extractBindings (names, expr) =
-    makeBindings names <$> (evalExprShallow env expr >>= tupleToRefs)
+  extractBindings (PDPatVar name, expr@FunctionExpr{}) =
+    let Env frame _ = env
+     in makeBindings [name] . (:[]) <$> newThunkRef (Env frame (Just $ varToVarWithIndices name)) expr
+  extractBindings (pdp, expr) = do
+    let thunk = newThunk env expr
+    r <- runMaybeT $ primitiveDataPatternMatch pdp thunk
+    case r of
+      Nothing -> throwError $ Default "failed primitive data pattern match"
+      Just binding -> return binding
 
 evalExprShallow env (LetRecExpr bindings expr) = do
-  bindings' <- concat <$> mapM extractBindings bindings
-  recursiveBind env bindings' >>= flip evalExprShallow expr
- where
-  extractBindings :: BindingExpr -> EvalM [(Var, Expr)]
-  extractBindings ([name], expr) = return [(name, expr)]
-  extractBindings (names, expr) = do
-    var <- stringToVar <$> fresh
-    let target = VarExpr var
-        matcher = TupleExpr $ map (const SomethingExpr) names
-        nth n =
-          let pattern = TuplePat $ flip map [1..length names] $ \i ->
-                if i == n then PatVar (stringToVar "#_") else WildCard
-          in MatchExpr BFSMode target matcher [(pattern, stringToVarExpr "#_")]
-    return ((var, expr) : zipWith (\name i -> (name, nth i)) names [1..])
+  env' <- recursiveBind env bindings
+  evalExprShallow env' expr
 
 evalExprShallow env (TransposeExpr vars expr) = do
   syms <- evalExprDeep env vars >>= collectionToList
@@ -330,7 +320,7 @@ evalExprShallow env (DoExpr bindings expr) = return $ Value $ IOFunc $ do
   applyFunc env (Value $ Func Nothing env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
-    LetExpr [(map stringToVar ["#1", "#2"], ApplyExpr expr $ TupleExpr [stringToVarExpr "#1"])] $
+    LetExpr [(PDTuplePat (map (PDPatVar . stringToVar) ["#1", "#2"]), ApplyExpr expr $ TupleExpr [stringToVarExpr "#1"])] $
     LetExpr [(names, stringToVarExpr "#2")] expr'
 
 evalExprShallow env (IoExpr expr) = do
@@ -649,15 +639,25 @@ refHash val (index:indices) =
       Just ref -> evalRef ref >>= flip refHash indices
       Nothing  -> return $ Value Undefined
 
-newThunkRef :: Env -> Expr -> EvalM ObjectRef
-newThunkRef env expr = liftIO . newIORef . Thunk $ evalExprShallow env expr
+newThunk :: Env -> Expr -> Object
+newThunk env expr = Thunk $ evalExprShallow env expr
 
-recursiveBind :: Env -> [(Var, Expr)] -> EvalM Env
+newThunkRef :: Env -> Expr -> EvalM ObjectRef
+newThunkRef env expr = liftIO . newIORef $ newThunk env expr
+
+recursiveBind :: Env -> [BindingExpr] -> EvalM Env
 recursiveBind env bindings = do
-  let (names, _) = unzip bindings
-  refs <- replicateM (length bindings) $ newThunkRef nullEnv UndefinedExpr
-  let env' = extendEnv env $ makeBindings names refs
-  zipWithM_ (f env') refs bindings
+  let names = concatMap (\(pd, _) -> collectNames pd) bindings
+  binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv UndefinedExpr) names
+  let env' = extendEnv env binds
+  forM_ bindings $ \(pd, expr) -> do
+    binds <- runMaybeT $ primitiveDataPatternMatch pd (newThunk env' expr)
+    case binds of
+      Just binds -> forM_ binds $ \(var, objref) -> do
+        obj <- liftIO $ readIORef objref
+        let ref = fromJust (refVar env' var)
+        liftIO $ writeIORef ref obj
+      Nothing -> return ()
   return env'
  where
   f (Env frame _) ref (name, expr@FunctionExpr{}) =
@@ -666,6 +666,14 @@ recursiveBind env bindings = do
     liftIO . writeIORef ref . Thunk $ evalExprShallow env' expr
   f (Env frame _) ref (name, expr) =
     liftIO . writeIORef ref . Thunk $ evalExprShallow (Env frame (Just $ varToVarWithIndices name)) expr
+
+collectNames :: PrimitiveDataPattern -> [Var]
+collectNames (PDPatVar var) = [var]
+collectNames (PDInductivePat _ ps) = concatMap collectNames ps
+collectNames (PDTuplePat ps) = concatMap collectNames ps
+collectNames (PDConsPat p1 p2) = collectNames p1 ++ collectNames p2
+collectNames (PDSnocPat p1 p2) = collectNames p1 ++ collectNames p2
+collectNames _ = []
 
 --
 -- Pattern Match
@@ -816,8 +824,11 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
       b <- concat <$> mapM extractBindings bindings'
       return . msingleton $ mstate { mStateBindings = b ++ bindings, mTrees = MAtom pattern' target matcher:trees }
         where
-          extractBindings ([name], expr) = makeBindings [name] . (:[]) <$> newThunkRef env' expr
-          extractBindings (names, expr)  = makeBindings names <$> (evalExprShallow env' expr >>= tupleToRefs)
+          extractBindings (pdp, expr) = do
+            r <- runMaybeT $ primitiveDataPatternMatch pdp (newThunk env expr)
+            case r of
+              Nothing -> throwError $ Default "failed primitive data pattern match"
+              Just binding -> return binding
 
     PredPat predicate -> do
       func <- evalExprShallow env' predicate
@@ -986,7 +997,7 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
         return (patterns, targetss, matchers)
       _ -> cont
   tryPDMatchClause bindings (pat, expr) cont = do
-    result <- runMaybeT $ primitiveDataPatternMatch pat target
+    result <- runMaybeT $ primitiveDataPatternMatch pat (WHNF target)
     case result of
       Just bindings' -> do
         let env = extendEnv matcherEnv $ bindings ++ bindings'
@@ -1012,49 +1023,54 @@ primitivePatPatternMatch env (PPTuplePat patterns) (TuplePat exprs)
   | otherwise = matchFail
 primitivePatPatternMatch _ _ _ = matchFail
 
-primitiveDataPatternMatch :: PrimitiveDataPattern -> WHNFData -> MatchM [Binding]
+primitiveDataPatternMatch :: PrimitiveDataPattern -> Object -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _ = return []
-primitiveDataPatternMatch (PDPatVar var) whnf = do
-  ref <- lift $ newEvaluatedObjectRef whnf
-  return [(var, ref)]
-primitiveDataPatternMatch (PDInductivePat name patterns) whnf =
-  case whnf of
-    Intermediate (IInductiveData name' refs) | name == name' -> do
-      whnfs <- lift $ mapM evalRef refs
-      concat <$> zipWithM primitiveDataPatternMatch patterns whnfs
-    Value (InductiveData name' vals) | name == name' -> do
-      let whnfs = map Value vals
-      concat <$> zipWithM primitiveDataPatternMatch patterns whnfs
-    _ -> matchFail
-primitiveDataPatternMatch (PDTuplePat patterns) whnf =
-  case whnf of
-    Intermediate (ITuple refs) -> do
-      whnfs <- lift $ mapM evalRef refs
-      concat <$> zipWithM primitiveDataPatternMatch patterns whnfs
-    Value (Tuple vals) -> do
-      let whnfs = map Value vals
-      concat <$> zipWithM primitiveDataPatternMatch patterns whnfs
-    _ -> matchFail
-primitiveDataPatternMatch PDEmptyPat whnf = do
-  isEmpty <- lift $ isEmptyCollection whnf
-  if isEmpty then return [] else matchFail
-primitiveDataPatternMatch (PDConsPat pattern pattern') whnf = do
-  (head, tail) <- unconsCollection whnf
-  head' <- lift $ evalRef head
-  tail' <- lift $ evalRef tail
-  (++) <$> primitiveDataPatternMatch pattern head'
-       <*> primitiveDataPatternMatch pattern' tail'
-primitiveDataPatternMatch (PDSnocPat pattern pattern') whnf = do
-  (init, last) <- unsnocCollection whnf
-  init' <- lift $ evalRef init
-  last' <- lift $ evalRef last
-  (++) <$> primitiveDataPatternMatch pattern init'
-       <*> primitiveDataPatternMatch pattern' last'
-primitiveDataPatternMatch (PDConstantPat expr) whnf = do
-  target <- either (const matchFail) return $ extractPrimitiveValue whnf
-  isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
-  if isEqual then return [] else matchFail
+primitiveDataPatternMatch (PDPatVar name) obj = do
+  ref <- liftIO (newIORef obj)
+  return [(name, ref)]
+primitiveDataPatternMatch pdp (Thunk thunk) = do
+  whnf <- lift thunk
+  pdpmWHNF pdp whnf
  where
+  pdpmWHNF :: PrimitiveDataPattern -> WHNFData -> MatchM [Binding]
+  pdpmWHNF (PDInductivePat name patterns) whnf =
+    case whnf of
+      Intermediate (IInductiveData name' refs) | name == name' -> do
+        whnfs <- lift $ mapM evalRef refs
+        concat <$> zipWithM pdpmWHNF patterns whnfs
+      Value (InductiveData name' vals) | name == name' -> do
+        let whnfs = map Value vals
+        concat <$> zipWithM pdpmWHNF patterns whnfs
+      _ -> matchFail
+  pdpmWHNF (PDTuplePat patterns) whnf =
+    case whnf of
+      Intermediate (ITuple refs) -> do
+        whnfs <- lift $ mapM evalRef refs
+        concat <$> zipWithM pdpmWHNF patterns whnfs
+      Value (Tuple vals) -> do
+        let whnfs = map Value vals
+        concat <$> zipWithM pdpmWHNF patterns whnfs
+      _ -> matchFail
+  pdpmWHNF PDEmptyPat whnf = do
+    isEmpty <- lift $ isEmptyCollection whnf
+    if isEmpty then return [] else matchFail
+  pdpmWHNF (PDConsPat pattern pattern') whnf = do
+    (head, tail) <- unconsCollection whnf
+    head' <- lift $ evalRef head
+    tail' <- lift $ evalRef tail
+    (++) <$> pdpmWHNF pattern head'
+         <*> pdpmWHNF pattern' tail'
+  pdpmWHNF (PDSnocPat pattern pattern') whnf = do
+    (init, last) <- unsnocCollection whnf
+    init' <- lift $ evalRef init
+    last' <- lift $ evalRef last
+    (++) <$> pdpmWHNF pattern init'
+         <*> pdpmWHNF pattern' last'
+  pdpmWHNF (PDConstantPat expr) whnf = do
+    target <- either (const matchFail) return $ extractPrimitiveValue whnf
+    isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
+    if isEqual then return [] else matchFail
+
   extractPrimitiveValue :: WHNFData -> Either ([String] -> EgisonError) EgisonValue
   extractPrimitiveValue (Value val@(Char _)) = return val
   extractPrimitiveValue (Value val@(Bool _)) = return val

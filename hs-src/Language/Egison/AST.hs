@@ -163,7 +163,7 @@ extractSupOrSubIndex _                = Nothing
 data PMMode = BFSMode | DFSMode
  deriving (Eq, Show)
 
-type BindingExpr = ([Var], Expr)
+type BindingExpr = (PrimitiveDataPattern, Expr)
 type MatchClause = (Pattern, Expr)
 type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 
