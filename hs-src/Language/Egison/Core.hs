@@ -644,10 +644,14 @@ newThunkRef env expr = liftIO . newIORef $ newThunk env expr
 
 recursiveBind :: Env -> [BindingExpr] -> EvalM Env
 recursiveBind env bindings = do
+  -- List of variables defined in |bindings|
   let names = concatMap (\(pd, _) -> collectNames pd) bindings
+  -- Create dummy bindings for |names| first. Since this is a reference,
+  -- it can be overwritten later.
   binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv UndefinedExpr) names
   let env'@(Env frame _) = extendEnv env binds
   forM_ bindings $ \(pd, expr) -> do
+    -- Modify |env'| for some cases
     let env'' =
           case (pd, expr) of
             (PDPatVar var, FunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
@@ -656,6 +660,7 @@ recursiveBind env bindings = do
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
     forM_ binds $ \(var, objref) -> do
+      -- |obj| is an Object being bound to |var|.
       obj <- liftIO $ readIORef objref
       let ref = fromJust (refVar env' var)
       liftIO $ writeIORef ref obj
