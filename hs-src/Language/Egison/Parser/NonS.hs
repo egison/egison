@@ -688,7 +688,7 @@ pdPattern = makeExprParser pdApplyOrAtom table
 
     pdAtom :: Parser PrimitiveDataPattern
     pdAtom = PDWildCard    <$ symbol "_"
-         <|> PDPatVar      <$> (char '$' >> ident)
+         <|> PDPatVar      <$> patVarLiteral
          <|> PDConstantPat <$> constantExpr
          <|> pdCollection
          <|> makeTupleOrParen pdPattern PDTuplePat

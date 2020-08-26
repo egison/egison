@@ -279,7 +279,7 @@ instance Pretty PrimitivePatPattern where
 
 instance Pretty PrimitiveDataPattern where
   pretty PDWildCard   = pretty "_"
-  pretty (PDPatVar x) = pretty ('$' : x)
+  pretty (PDPatVar x) = pretty '$' <> pretty x
   pretty (PDInductivePat x pdpats) = applyLike (pretty x : map pretty' pdpats)
   pretty (PDTuplePat pdpats) = tupled (map pretty pdpats)
   pretty PDEmptyPat = pretty "[]"

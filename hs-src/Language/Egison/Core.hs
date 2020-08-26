@@ -1033,9 +1033,9 @@ primitivePatPatternMatch _ _ _ = matchFail
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> WHNFData -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _ = return []
-primitiveDataPatternMatch (PDPatVar name) whnf = do
+primitiveDataPatternMatch (PDPatVar var) whnf = do
   ref <- lift $ newEvaluatedObjectRef whnf
-  return [(stringToVar name, ref)]
+  return [(var, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) whnf =
   case whnf of
     Intermediate (IInductiveData name' refs) | name == name' -> do

@@ -313,7 +313,7 @@ pdPattern = P.lexeme lexer pdPattern'
 
 pdPattern' :: Parser PrimitiveDataPattern
 pdPattern' = reservedOp "_" $> PDWildCard
-                    <|> (char '$' >> PDPatVar <$> ident)
+                    <|> (char '$' >> PDPatVar <$> identVar)
                     <|> braces ((PDConsPat <$> pdPattern <*> (char '@' *> pdPattern))
                             <|> (PDSnocPat <$> (char '@' *> pdPattern) <*> pdPattern)
                             <|> pure PDEmptyPat)
