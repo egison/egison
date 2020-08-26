@@ -331,10 +331,8 @@ letExpr = do
 
 binding :: Parser BindingExpr
 binding = do
-  (var, args) <- (,[]) <$> pdPattern
-              <|> do var <- varLiteral
-                     args <- many arg
-                     return (PDPatVar var, args)
+  var <- pdAtom
+  args <- many arg
   body <- symbol ":=" >> expr
   return $ case args of
              [] -> (var, body)
@@ -681,18 +679,18 @@ pdPattern = makeExprParser pdApplyOrAtom table
                 <|> PDSnocPat <$> (symbol "snoc" >> pdAtom) <*> pdAtom
                 <|> pdAtom
 
+pdAtom :: Parser PrimitiveDataPattern
+pdAtom = PDWildCard    <$ symbol "_"
+     <|> PDPatVar      <$> patVarLiteral
+     <|> PDPatVar      <$> varLiteral
+     <|> PDConstantPat <$> constantExpr
+     <|> pdCollection
+     <|> makeTupleOrParen pdPattern PDTuplePat
+  where
     pdCollection :: Parser PrimitiveDataPattern
     pdCollection = do
       elts <- brackets (sepBy pdPattern comma)
       return (foldr PDConsPat PDEmptyPat elts)
-
-    pdAtom :: Parser PrimitiveDataPattern
-    pdAtom = PDWildCard    <$ symbol "_"
-         <|> PDPatVar      <$> patVarLiteral
-         <|> PDPatVar      <$> varLiteral
-         <|> PDConstantPat <$> constantExpr
-         <|> pdCollection
-         <|> makeTupleOrParen pdPattern PDTuplePat
 
 --
 -- Tokens
