@@ -675,8 +675,9 @@ recursiveBind env bindings = do
     case whnf of
       Value (Func _ env args body) ->
         liftIO . writeIORef ref . WHNF $ Value (Func (Just (show name)) env args body)
-  f env' ref (_, CambdaExpr arg body) =
-    liftIO . writeIORef ref . WHNF . Value $ CFunc env' arg body
+  f env' ref (_, expr@CambdaExpr{}) = do
+    whnf <- evalExprShallow env' expr
+    liftIO $ writeIORef ref (WHNF whnf)
   f (Env frame _) ref (name, expr@FunctionExpr{}) =
       liftIO . writeIORef ref . Thunk $ evalExprShallow (Env frame (Just $ varToVarWithIndices name)) expr
   f env'@(Env frame _) ref (name, expr) =
