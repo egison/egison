@@ -824,7 +824,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
       return . msingleton $ mstate { mStateBindings = b ++ bindings, mTrees = MAtom pattern' target matcher:trees }
         where
           extractBindings (pdp, expr) = do
-            thunk <- newThunkRef env expr
+            thunk <- newThunkRef (extendEnv env bindings) expr
             r <- runMaybeT $ primitiveDataPatternMatch pdp thunk
             case r of
               Nothing -> throwError $ Default "failed primitive data pattern match"
