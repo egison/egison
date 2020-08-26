@@ -80,24 +80,24 @@ evalExprShallow env (VarExpr var@(Var _ [])) =
 
 evalExprShallow _ (TupleExpr []) = return . Value $ Tuple []
 evalExprShallow env (TupleExpr [expr]) = evalExprShallow env expr
-evalExprShallow env (TupleExpr exprs) = Intermediate . ITuple <$> mapM (newObjectRef env) exprs
+evalExprShallow env (TupleExpr exprs) = Intermediate . ITuple <$> mapM (newThunkRef env) exprs
 
 evalExprShallow _ (CollectionExpr []) = return . Value $ Collection Sq.empty
 
 evalExprShallow env (CollectionExpr inners) = do
-  inners' <- mapM ((IElement <$>) . newObjectRef env) inners
+  inners' <- mapM ((IElement <$>) . newThunkRef env) inners
   innersSeq <- liftIO $ newIORef $ Sq.fromList inners'
   return $ Intermediate $ ICollection innersSeq
 
 evalExprShallow env (ConsExpr x xs) = do
-  x' <- newObjectRef env x
-  xs' <- newObjectRef env xs
+  x' <- newThunkRef env x
+  xs' <- newThunkRef env xs
   innersSeq <- liftIO $ newIORef $ Sq.fromList [IElement x', ISubCollection xs']
   return $ Intermediate $ ICollection innersSeq
 
 evalExprShallow env (JoinExpr xs ys) = do
-  xs' <- newObjectRef env xs
-  ys' <- newObjectRef env ys
+  xs' <- newThunkRef env xs
+  ys' <- newThunkRef env ys
   innersSeq <- liftIO $ newIORef $ Sq.fromList [ISubCollection xs', ISubCollection ys']
   return $ Intermediate $ ICollection innersSeq
 
@@ -143,7 +143,7 @@ evalExprShallow env (HashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
   keyWhnfs <- mapM (evalExprShallow env) keyExprs
   keys <- mapM makeHashKey keyWhnfs
-  refs <- mapM (newObjectRef env) exprs
+  refs <- mapM (newThunkRef env) exprs
   case keys of
     CharKey _ : _ -> do
       let keys' = map (\case CharKey c -> c) keys
@@ -268,8 +268,8 @@ evalExprShallow env (LetExpr bindings expr) =
     case expr of
       FunctionExpr _ ->
         let Env frame _ = env
-         in makeBindings [name] . (:[]) <$> newObjectRef (Env frame (Just $ varToVarWithIndices name)) expr
-      _ -> makeBindings [name] . (:[]) <$> newObjectRef env expr
+         in makeBindings [name] . (:[]) <$> newThunkRef (Env frame (Just $ varToVarWithIndices name)) expr
+      _ -> makeBindings [name] . (:[]) <$> newThunkRef env expr
   extractBindings (names, expr) =
     makeBindings names <$> (evalExprShallow env expr >>= tupleToRefs)
 
@@ -400,7 +400,7 @@ evalExprShallow env (ApplyExpr func arg) = do
     Value (InductiveData name []) ->
       case arg of
         TupleExpr exprs ->
-          Intermediate . IInductiveData name <$> mapM (newObjectRef env) exprs
+          Intermediate . IInductiveData name <$> mapM (newThunkRef env) exprs
         _ -> throwError $ Default "argument is not a tuple"
     Value (TensorData t@Tensor{}) -> do
       arg <- evalExprShallow env arg
@@ -649,13 +649,13 @@ refHash val (index:indices) =
       Just ref -> evalRef ref >>= flip refHash indices
       Nothing  -> return $ Value Undefined
 
-newObjectRef :: Env -> Expr -> EvalM ObjectRef
-newObjectRef env expr = liftIO . newIORef . Thunk $ evalExprShallow env expr
+newThunkRef :: Env -> Expr -> EvalM ObjectRef
+newThunkRef env expr = liftIO . newIORef . Thunk $ evalExprShallow env expr
 
 recursiveBind :: Env -> [(Var, Expr)] -> EvalM Env
 recursiveBind env bindings = do
   let (names, _) = unzip bindings
-  refs <- replicateM (length bindings) $ newObjectRef nullEnv UndefinedExpr
+  refs <- replicateM (length bindings) $ newThunkRef nullEnv UndefinedExpr
   let env' = extendEnv env $ makeBindings names refs
   zipWithM_ (f env') refs bindings
   return env'
@@ -829,7 +829,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
       b <- concat <$> mapM extractBindings bindings'
       return . msingleton $ mstate { mStateBindings = b ++ bindings, mTrees = MAtom pattern' target matcher:trees }
         where
-          extractBindings ([name], expr) = makeBindings [name] . (:[]) <$> newObjectRef env' expr
+          extractBindings ([name], expr) = makeBindings [name] . (:[]) <$> newThunkRef env' expr
           extractBindings (names, expr)  = makeBindings names <$> (evalExprShallow env' expr >>= tupleToRefs)
 
     PredPat predicate -> do
@@ -1013,7 +1013,7 @@ primitivePatPatternMatch :: Env -> PrimitivePatPattern -> Pattern ->
 primitivePatPatternMatch _ PPWildCard WildCard = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
 primitivePatPatternMatch env (PPValuePat name) (ValuePat expr) = do
-  ref <- lift $ newObjectRef env expr
+  ref <- lift $ newThunkRef env expr
   return ([], [(stringToVar name, ref)])
 primitivePatPatternMatch env (PPInductivePat name patterns) (InductivePat name' exprs)
   | name == name' && length patterns == length exprs =
