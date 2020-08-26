@@ -363,8 +363,8 @@ statements = braces $ sepEndBy statement whiteSpace
 
 statement :: Parser BindingExpr
 statement = try binding
-        <|> try (brackets (([],) <$> expr))
-        <|> (([],) <$> expr)
+        <|> try (brackets ((PDTuplePat [],) <$> expr))
+        <|> ((PDTuplePat [],) <$> expr)
 
 bindings :: Parser [BindingExpr]
 bindings = braces $ sepEndBy binding whiteSpace
@@ -376,9 +376,9 @@ varNames :: Parser [String]
 varNames = return <$> (char '$' >> ident)
             <|> brackets (sepEndBy (char '$' >> ident) whiteSpace)
 
-varNames' :: Parser [Var]
-varNames' = return <$> (char '$' >> identVar)
-            <|> brackets (sepEndBy (char '$' >> identVar) whiteSpace)
+varNames' :: Parser PrimitiveDataPattern
+varNames' = PDPatVar <$> (char '$' >> identVar)
+        <|> PDTuplePat <$> brackets (sepEndBy (PDPatVar <$> (char '$' >> identVar)) whiteSpace)
 
 argNames :: Parser [Arg]
 argNames = return <$> argName
