@@ -660,14 +660,14 @@ recursiveBind env bindings = do
       let ref = fromJust (refVar env' var)
       liftIO $ writeIORef ref obj
   return env'
-
-collectNames :: PrimitiveDataPattern -> [Var]
-collectNames (PDPatVar var) = [var]
-collectNames (PDInductivePat _ ps) = concatMap collectNames ps
-collectNames (PDTuplePat ps) = concatMap collectNames ps
-collectNames (PDConsPat p1 p2) = collectNames p1 ++ collectNames p2
-collectNames (PDSnocPat p1 p2) = collectNames p1 ++ collectNames p2
-collectNames _ = []
+ where
+  collectNames :: PrimitiveDataPattern -> [Var]
+  collectNames (PDPatVar var) = [var]
+  collectNames (PDInductivePat _ ps) = concatMap collectNames ps
+  collectNames (PDTuplePat ps) = concatMap collectNames ps
+  collectNames (PDConsPat p1 p2) = collectNames p1 ++ collectNames p2
+  collectNames (PDSnocPat p1 p2) = collectNames p1 ++ collectNames p2
+  collectNames _ = []
 
 --
 -- Pattern Match
