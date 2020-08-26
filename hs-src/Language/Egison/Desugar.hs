@@ -15,8 +15,7 @@ module Language.Egison.Desugar
 
 import           Control.Monad.Except  (throwError)
 import           Data.Char             (toUpper)
-import           Data.Set              (Set)
-import qualified Data.Set              as S
+import           Data.List             (union)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
@@ -314,29 +313,29 @@ desugarIndex :: Index Expr -> EvalM (Index Expr)
 desugarIndex index = traverse desugar index
 
 desugarPattern :: Pattern -> EvalM Pattern
-desugarPattern pat = LetPat (map makeBinding $ S.elems $ collectName pat) <$> desugarPattern' pat
+desugarPattern pat = LetPat (map makeBinding (collectName pat)) <$> desugarPattern' pat
  where
-   collectNames :: [Pattern] -> Set String
-   collectNames pats = S.unions $ map collectName pats
+   collectNames :: [Pattern] -> [Var]
+   collectNames pats = foldl union [] (map collectName pats)
 
-   collectName :: Pattern -> Set String
-   collectName (ForallPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
-   collectName (InfixPat _ pat1 pat2) = collectName pat1 `S.union` collectName pat2
+   collectName :: Pattern -> [Var]
+   collectName (ForallPat pat1 pat2) = collectName pat1 `union` collectName pat2
+   collectName (InfixPat _ pat1 pat2) = collectName pat1 `union` collectName pat2
    collectName (NotPat pat)  = collectName pat
-   collectName (AndPat pat1 pat2) = collectName pat1 `S.union` collectName pat2
-   collectName (OrPat pat1 pat2)  = collectName pat1 `S.union` collectName pat2
+   collectName (AndPat pat1 pat2) = collectName pat1 `union` collectName pat2
+   collectName (OrPat pat1 pat2)  = collectName pat1 `union` collectName pat2
    collectName (TuplePat pats) = collectNames pats
    collectName (InductiveOrPApplyPat _ pats) = collectNames pats
    collectName (InductivePat _ pats) = collectNames pats
    collectName (PApplyPat _ pats) = collectNames pats
    collectName (DApplyPat _ pats) = collectNames pats
-   collectName (LoopPat _ (LoopRange _ _ endNumPat) pat1 pat2) = collectName endNumPat `S.union` collectName pat1 `S.union` collectName pat2
+   collectName (LoopPat _ (LoopRange _ _ endNumPat) pat1 pat2) = collectName endNumPat `union` collectName pat1 `union` collectName pat2
    collectName (LetPat _ pat) = collectName pat
-   collectName (IndexedPat (PatVar name) _) = S.singleton $ show name
-   collectName _ = S.empty
+   collectName (IndexedPat (PatVar name) _) = [name]
+   collectName _ = []
 
-   makeBinding :: String -> BindingExpr
-   makeBinding name = ([stringToVar name], HashExpr [])
+   makeBinding :: Var -> BindingExpr
+   makeBinding name = ([name], HashExpr [])
 
 desugarPattern' :: Pattern -> EvalM Pattern
 desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
