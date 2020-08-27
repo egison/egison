@@ -23,6 +23,7 @@ import           Text.Show.Unicode         (ushow)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.IExpr
 
 --
 -- Pretty printing for Non-S syntax
@@ -264,6 +265,18 @@ instance Pretty Pattern where
   pretty LaterPatVar = pretty "@"
   pretty (DApplyPat p ps) = applyLike (map pretty' (p : ps))
   pretty e            = pretty (show e)
+
+-- TODO(momohatt)
+instance Pretty IExpr where
+  pretty _ = undefined
+
+instance Complex IExpr where
+  isAtom _      = undefined
+  isAtomOrApp _ = undefined
+  isInfix _     = undefined
+
+instance Pretty IPattern where
+  pretty _ = undefined
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))

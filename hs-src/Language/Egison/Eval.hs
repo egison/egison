@@ -22,16 +22,17 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.EvalState   (MonadEval(..))
+import           Language.Egison.IExpr
 import           Language.Egison.MathOutput  (prettyMath)
 import           Language.Egison.Parser
 
 
 -- | Evaluate an Egison expression.
-evalExpr :: Env -> Expr -> EvalM EgisonValue
+evalExpr :: Env -> IExpr -> EvalM EgisonValue
 evalExpr = evalExprDeep
 
 -- | Evaluate an Egison top expression.
-evalTopExpr :: Env -> TopExpr -> EvalM (Maybe String, Env)
+evalTopExpr :: Env -> ITopExpr -> EvalM (Maybe String, Env)
 evalTopExpr env topExpr = do
   mathExpr <- asks optMathExpr
   (mVal, env') <- evalTopExpr' env topExpr
@@ -43,7 +44,7 @@ evalTopExpr env topExpr = do
         Just lang -> return (Just (prettyMath lang val), env')
 
 -- | Evaluate Egison top expressions.
-evalTopExprs :: Env -> [TopExpr] -> EvalM Env
+evalTopExprs :: Env -> [ITopExpr] -> EvalM Env
 evalTopExprs env exprs = do
   opts <- ask
   (bindings, rest) <- collectDefs opts exprs
@@ -73,13 +74,13 @@ runTopExprs env input =
 -- | Load an Egison file.
 loadEgisonFile :: Env -> FilePath -> EvalM Env
 loadEgisonFile env path = do
-  (_, env') <- evalTopExpr env (LoadFile path)
+  (_, env') <- evalTopExpr env (ILoadFile path)
   return env'
 
 -- | Load an Egison library.
 loadEgisonLibrary :: Env -> FilePath -> EvalM Env
 loadEgisonLibrary env path = do
-  (_, env') <- evalTopExpr env (Load path)
+  (_, env') <- evalTopExpr env (ILoad path)
   return env'
 
 
@@ -87,55 +88,51 @@ loadEgisonLibrary env path = do
 -- Helper functions
 --
 
-collectDefs :: EgisonOpts -> [TopExpr] -> EvalM ([BindingExpr], [TopExpr])
+collectDefs :: EgisonOpts -> [ITopExpr] -> EvalM ([IBindingExpr], [ITopExpr])
 collectDefs opts exprs = collectDefs' opts exprs [] []
   where
-    collectDefs' :: EgisonOpts -> [TopExpr] -> [BindingExpr] -> [TopExpr] -> EvalM ([BindingExpr], [TopExpr])
+    collectDefs' :: EgisonOpts -> [ITopExpr] -> [IBindingExpr] -> [ITopExpr] -> EvalM ([IBindingExpr], [ITopExpr])
     collectDefs' opts (expr:exprs) bindings rest =
       case expr of
-        Define name expr -> collectDefs' opts exprs ((PDPatVar name, expr) : bindings) rest
-        DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-        Test{}     -> collectDefs' opts exprs bindings (expr : rest)
-        Execute{}  -> collectDefs' opts exprs bindings (expr : rest)
-        LoadFile _ | optNoIO opts -> throwError (Default "No IO support")
-        LoadFile file -> do
+        IDefine name expr -> collectDefs' opts exprs ((PDPatVar name, expr) : bindings) rest
+        ITest{}     -> collectDefs' opts exprs bindings (expr : rest)
+        IExecute{}  -> collectDefs' opts exprs bindings (expr : rest)
+        ILoadFile _ | optNoIO opts -> throwError (Default "No IO support")
+        ILoadFile file -> do
           exprs' <- loadFile file
           collectDefs' opts (exprs' ++ exprs) bindings rest
-        Load _ | optNoIO opts -> throwError (Default "No IO support")
-        Load file -> do
+        ILoad _ | optNoIO opts -> throwError (Default "No IO support")
+        ILoad file -> do
           exprs' <- loadLibraryFile file
           collectDefs' opts (exprs' ++ exprs) bindings rest
-        InfixDecl{} -> collectDefs' opts exprs bindings rest
     collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExpr' :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
-evalTopExpr' env (Define name expr) = do
+evalTopExpr' :: Env -> ITopExpr -> EvalM (Maybe EgisonValue, Env)
+evalTopExpr' env (IDefine name expr) = do
   env' <- recursiveBind env [(PDPatVar name, expr)]
   return (Nothing, env')
-evalTopExpr' _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-evalTopExpr' env (Test expr) = do
+evalTopExpr' env (ITest expr) = do
   pushFuncName "<stdin>"
   val <- evalExprDeep env expr
   popFuncName
   return (Just val, env)
-evalTopExpr' env (Execute expr) = do
+evalTopExpr' env (IExecute expr) = do
   pushFuncName "<stdin>"
   io <- evalExprShallow env expr
   case io of
     Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
     _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
-evalTopExpr' env (Load file) = do
+evalTopExpr' env (ILoad file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadLibraryFile file
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
-evalTopExpr' env (LoadFile file) = do
+evalTopExpr' env (ILoadFile file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadFile file
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
-evalTopExpr' env InfixDecl{} = return (Nothing, env)

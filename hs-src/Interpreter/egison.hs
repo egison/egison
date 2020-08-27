@@ -24,6 +24,7 @@ import           Language.Egison
 import           Language.Egison.Completion
 import           Language.Egison.Desugar    (desugarTopExpr)
 import           Language.Egison.Eval
+import           Language.Egison.IExpr
 import           Language.Egison.Parser     (parseTopExpr)
 
 import           Options.Applicative
@@ -46,7 +47,7 @@ run :: RuntimeM ()
 run = do
   opts <- ask
   coreEnv <- initialEnv
-  mEnv <- fromEvalT $ evalTopExprs coreEnv $ map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)
+  mEnv <- fromEvalT $ evalTopExprs coreEnv $ map ILoad (optLoadLibs opts) ++ map ILoadFile (optLoadFiles opts)
   case mEnv of
     Left err -> liftIO $ print err
     Right env -> handleOption env opts
@@ -75,11 +76,11 @@ handleOption env opts =
       exprs <- liftIO $ readFile file
       result <- if optNoIO opts
                    then fromEvalT (runTopExprs env exprs)
-                   else fromEvalT (evalTopExprs env [LoadFile file])
+                   else fromEvalT (evalTopExprs env [ILoadFile file])
       liftIO $ either print (const $ return ()) result
     -- Execute a script from the main function
     EgisonOpts { optExecFile = Just (file, args) } -> do
-      result <- fromEvalT $ evalTopExprs env [LoadFile file, Execute (ApplyExpr (stringToVarExpr "main") (CollectionExpr (map (StringExpr . T.pack) args)))]
+      result <- fromEvalT $ evalTopExprs env [ILoadFile file, IExecute (makeIApply "main" (map (IConstantExpr . StringExpr . T.pack) args))]
       liftIO $ either print (const $ return ()) result
     EgisonOpts { optMapTsvInput = Just expr } ->
       handleOption env (opts { optSubstituteString = Just $ "\\x -> map (" ++ expr ++ ") x" })

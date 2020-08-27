@@ -28,6 +28,7 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Data
 import           Language.Egison.Eval
+import           Language.Egison.IExpr
 import           Language.Egison.Primitives
 import           Language.Egison.RState
 
@@ -43,7 +44,7 @@ initialEnv = do
   env <- liftIO $ if isNoIO then primitiveEnvNoIO else primitiveEnv
   let normalizeLib = if useMathNormalize then "lib/math/normalize.egi" else "lib/math/no-normalize.egi"
   ret <- local (const defaultOption)
-               (fromEvalT (evalTopExprs env $ map Load (coreLibraries ++ [normalizeLib])))
+               (fromEvalT (evalTopExprs env $ map ILoad (coreLibraries ++ [normalizeLib])))
   case ret of
     Left err -> do
       liftIO $ print (show err)

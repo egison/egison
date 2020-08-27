@@ -968,7 +968,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                 subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
                                          | otherwise = (k', v'):subst k nv xs
                 subst _ _ [] = []
-            IIndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyStr pattern)
+            IIndexedPat pattern _ -> throwError $ Default $ "invalid indexed-pattern" ++ prettyStr pattern
             ITuplePat patterns -> do
               targets <- tupleToListWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
