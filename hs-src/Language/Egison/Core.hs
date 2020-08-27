@@ -173,7 +173,7 @@ evalExprShallow env (IHashExpr assocs) = do
 evalExprShallow env (IIndexedExpr override expr indices) = do
   -- Tensor or hash
   tensor <- case expr of
-              VarExpr (Var xs is) -> do
+              IVarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ map (const () <$>) indices)
                 case mObjRef of
                   Just objRef -> evalRef objRef
@@ -205,7 +205,7 @@ evalExprShallow env (IIndexedExpr override expr indices) = do
 evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
   js <- map Subscript <$> (evalExprDeep env jsExpr >>= collectionToList)
   tensor <- case expr of
-              VarExpr (Var xs is) -> do
+              IVarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ map (\_ -> Subscript ()) js)
                 case mObjRef of
                   Just objRef -> evalRef objRef
@@ -220,7 +220,7 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
 evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
   js <- map Superscript <$> (evalExprDeep env jsExpr >>= collectionToList)
   tensor <- case expr of
-              VarExpr (Var xs is) -> do
+              IVarExpr (Var xs is) -> do
                 let mObjRef = refVar env (Var xs $ is ++ map (\_ -> Superscript ()) js)
                 case mObjRef of
                   Just objRef -> evalRef objRef
@@ -243,10 +243,7 @@ evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
 evalExprShallow env (ILambdaExpr fnname names expr) = do
-  names' <- mapM (\case
-                     TensorArg name' -> return name'
-                     ScalarArg _ -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
-  return . Value $ Func fnname env names' expr
+  return . Value $ Func fnname env names expr
 
 evalExprShallow env (IMemoizedLambdaExpr names body) = do
   hashRef <- liftIO $ newIORef HL.empty
@@ -271,7 +268,7 @@ evalExprShallow env (ILetExpr bindings expr) = do
   evalExprShallow (extendEnv env binding) expr
  where
   extractBindings :: IBindingExpr -> EvalM [Binding]
-  extractBindings (PDPatVar name, expr@FunctionExpr{}) =
+  extractBindings (PDPatVar name, expr@IFunctionExpr{}) =
     let Env frame _ = env
      in makeBindings [name] . (:[]) <$> newThunkRef (Env frame (Just $ varToVarWithIndices name)) expr
   extractBindings (pdp, expr) = do
@@ -319,12 +316,12 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
 
 
 evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
-  let body = foldr genLet (IApplyExpr expr $ ITupleExpr [stringToVarExpr "#1"]) bindings
+  let body = foldr genLet (IApplyExpr expr $ ITupleExpr [stringToIVarExpr "#1"]) bindings
   applyFunc env (Value $ Func Nothing env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
-    ILetExpr [(PDTuplePat (map (PDPatVar . stringToVar) ["#1", "#2"]), IApplyExpr expr $ ITupleExpr [stringToVarExpr "#1"])] $
-    ILetExpr [(names, stringToVarExpr "#2")] expr'
+    ILetExpr [(PDTuplePat (map (PDPatVar . stringToVar) ["#1", "#2"]), IApplyExpr expr $ ITupleExpr [stringToIVarExpr "#1"])] $
+    ILetExpr [(names, stringToIVarExpr "#2")] expr'
 
 evalExprShallow env (IIoExpr expr) = do
   io <- evalExprShallow env expr
@@ -392,7 +389,7 @@ evalExprShallow env (IApplyExpr func arg) = do
   case func of
     Value (InductiveData name []) ->
       case arg of
-        TupleExpr exprs ->
+        ITupleExpr exprs ->
           Intermediate . IInductiveData name <$> mapM (newThunkRef env) exprs
         _ -> throwError $ Default "argument is not a tuple"
     Value (TensorData t@Tensor{}) -> do
@@ -563,7 +560,7 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
       let argnum = length tds
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
-      dot <- evalExprShallow env (stringToVarExpr ".")
+      dot <- evalExprShallow env (stringToIVarExpr ".")
       makeITuple (Value (TensorData (Tensor s1 t1 (i1 ++ supjs))):map (Intermediate . ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
@@ -575,7 +572,7 @@ applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
       let argnum = length tds
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
-      dot <- evalExprShallow env (stringToVarExpr ".")
+      dot <- evalExprShallow env (stringToIVarExpr ".")
       makeITuple (map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)):map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds))) >>= applyFunc env dot
     else throwError $ Default "applyfunc"
 
@@ -652,13 +649,13 @@ recursiveBind env bindings = do
   let names = concatMap (\(pd, _) -> collectNames pd) bindings
   -- Create dummy bindings for |names| first. Since this is a reference,
   -- it can be overwritten later.
-  binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv UndefinedExpr) names
+  binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
   let env'@(Env frame _) = extendEnv env binds
   forM_ bindings $ \(pd, expr) -> do
     -- Modify |env'| for some cases
     let env'' =
           case (pd, expr) of
-            (PDPatVar var, FunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
+            (PDPatVar var, IFunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
             (PDPatVar var@(Var _ is), _) | not (null is) -> Env frame (Just (varToVarWithIndices var))
             _ -> env'
     thunk <- newThunkRef env'' expr
@@ -738,7 +735,7 @@ processMState state =
       case result of
         MNil -> return $ msingleton state2
         _    -> return MNil
-    (0, MState e l s b [MAtom (ForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
+    (0, MState e l s b [MAtom (IForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
       states <- processMStatesAllDFSForall (msingleton (MState e l (ForallPatContext [] []:s) b [MAtom p1 m t]))
       statess' <- mmap (\(MState e' l' (ForallPatContext ms ts:s') b' []) -> do
                             let mat' = makeTuple ms
@@ -755,7 +752,7 @@ processMState state =
     _ -> processMState' state
  where
   splitMState :: MatchingState -> (Integer, MatchingState, MatchingState)
-  splitMState mstate@MState{ mTrees = MAtom (NotPat pattern) target matcher : trees } =
+  splitMState mstate@MState{ mTrees = MAtom (INotPat pattern) target matcher : trees } =
     (1, mstate { seqPatCtx = [],  mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
   splitMState mstate@MState{ mTrees = MAtom pattern target matcher : trees } =
     (0, mstate { mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
@@ -768,7 +765,7 @@ processMState' :: MatchingState -> EvalM (MList EvalM MatchingState)
 processMState' mstate@MState{ seqPatCtx = [], mTrees = [] } = return . msingleton $ mstate -- for forall pattern used in matchAll (not matchAllDFS)
 
 -- Sequential patterns and forall pattern
-processMState' mstate@MState{ seqPatCtx = SeqPatContext stack SeqNilPat [] []:seqs, mTrees = [] } =
+processMState' mstate@MState{ seqPatCtx = SeqPatContext stack ISeqNilPat [] []:seqs, mTrees = [] } =
   return . msingleton $ mstate { seqPatCtx = seqs, mTrees = stack }
 processMState' mstate@MState{ seqPatCtx = SeqPatContext stack seqPat mats tgts:seqs, mTrees = [] } = do
   let mat' = makeTuple mats
@@ -781,7 +778,7 @@ processMState' mstate@MState{ seqPatCtx = ForallPatContext _ _:_, mTrees = [] } 
 --processMState' MState{ mTrees = MNode _ MState{ mStateBindings = [], mTrees = [] }:_ } = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
 processMState' mstate@MState{ mTrees = MNode _ MState{ seqPatCtx = [], mTrees = [] }:trees } = return . msingleton $ mstate { mTrees = trees }
 
-processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (VarPat name) target matcher:trees' }:trees } =
+processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (IVarPat name) target matcher:trees' }:trees } =
   case lookup name penv of
     Just pattern ->
       case trees' of
@@ -789,12 +786,12 @@ processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (VarPa
         _  -> return . msingleton $ ms1 { mTrees = MAtom pattern target matcher:MNode penv (ms2 { mTrees = trees' }):trees }
     Nothing -> throwError =<< UnboundVariable name <$> getFuncNameStack
 
-processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ _ (MAtom (IndexedPat (VarPat name) indices) target matcher:trees')):trees)) =
+processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ _ (MAtom (IIndexedPat (IVarPat name) indices) target matcher:trees')):trees)) =
   case lookup name penv of
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
       indices <- mapM (evalExprShallow env'' >=> fmap fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map IntegerExpr indices
+      let pattern' = IIndexedPat pattern $ map (IConstantExpr . IntegerExpr) indices
       case trees' of
         [] -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:trees }
         _  -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:MNode penv (ms2 { mTrees = trees' }):trees }
@@ -811,14 +808,14 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
   case pattern of
     IInductiveOrPApplyPat name args ->
       case refVar env (stringToVar name) of
-        Nothing -> processMState' (mstate { mTrees = MAtom (InductivePat name args) target matcher:trees })
+        Nothing -> processMState' (mstate { mTrees = MAtom (IInductivePat name args) target matcher:trees })
         Just ref -> do
           whnf <- evalRef ref
           case whnf of
             Value PatternFunc{} ->
-              processMState' (mstate { mTrees = MAtom (PApplyPat (VarExpr (stringToVar name)) args) target matcher:trees })
+              processMState' (mstate { mTrees = MAtom (IPApplyPat (IVarExpr (stringToVar name)) args) target matcher:trees })
             _                   ->
-              processMState' (mstate { mTrees = MAtom (InductivePat name args) target matcher:trees })
+              processMState' (mstate { mTrees = MAtom (IInductivePat name args) target matcher:trees })
 
     INotPat _ -> throwError =<< EgisonBug "should not reach here (not-pattern)" <$> getFuncNameStack
     IVarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyStr pattern
@@ -846,7 +843,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
         _ -> throwError =<< TypeMismatch "pattern constructor" func' <$> getFuncNameStack
 
     IDApplyPat func args ->
-      return . msingleton $ mstate { mTrees = MAtom (InductivePat "apply" [func, toListPat args]) target matcher:trees }
+      return . msingleton $ mstate { mTrees = MAtom (IInductivePat "apply" [func, toListPat args]) target matcher:trees }
 
     ILoopPat name (ILoopRange start ends endPat) pat pat' -> do
       startNum    <- evalExprShallow env' start >>= fromWHNF :: (EvalM Integer)
@@ -858,11 +855,11 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
           inners   <- liftIO . newIORef $ Sq.fromList [IElement endsRef]
           endsRef' <- liftIO $ newIORef (WHNF (Intermediate (ICollection inners)))
           return . msingleton $ mstate { loopPatCtx = LoopPatContext (name, startNumRef) endsRef' endPat pat pat':loops
-                                       , mTrees = MAtom ContPat target matcher:trees }
+                                       , mTrees = MAtom IContPat target matcher:trees }
         _ -> do -- the case when the end numbers are a collection
           endsRef <- newEvaluatedObjectRef ends'
           return . msingleton $ mstate { loopPatCtx = LoopPatContext (name, startNumRef) endsRef endPat pat pat':loops
-                                       , mTrees = MAtom ContPat target matcher:trees }
+                                       , mTrees = MAtom IContPat target matcher:trees }
     IContPat ->
       case loops of
         [] -> throwError $ Default "cannot use cont pattern except in loop pattern"
