@@ -345,18 +345,18 @@ desugarPattern pat = ILetPat (map makeBinding (collectName pat)) <$> desugarPatt
    makeBinding var = (PDPatVar var, IHashExpr [])
 
 desugarPattern' :: Pattern -> EvalM IPattern
-desugarPattern' WildCard     = return $ IWildCard
-desugarPattern' ContPat      = return $ IContPat
-desugarPattern' SeqNilPat    = return $ ISeqNilPat
-desugarPattern' LaterPatVar  = return $ ILaterPatVar
-desugarPattern' (PatVar var) = return $ IPatVar var
-desugarPattern' (VarPat var) = return $ IVarPat var
+desugarPattern' WildCard        = return IWildCard
+desugarPattern' ContPat         = return IContPat
+desugarPattern' SeqNilPat       = return ISeqNilPat
+desugarPattern' LaterPatVar     = return ILaterPatVar
+desugarPattern' (PatVar var)    = return (IPatVar var)
+desugarPattern' (VarPat var)    = return (IVarPat var)
 desugarPattern' (ValuePat expr) = IValuePat <$> desugar expr
-desugarPattern' (PredPat expr) = IPredPat <$> desugar expr
-desugarPattern' (NotPat pat) = INotPat <$> desugarPattern' pat
+desugarPattern' (PredPat expr)  = IPredPat <$> desugar expr
+desugarPattern' (NotPat pat)    = INotPat <$> desugarPattern' pat
 desugarPattern' (ForallPat pat1 pat2) = IForallPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
-desugarPattern' (AndPat pat1 pat2) = IAndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
-desugarPattern' (OrPat pat1 pat2) = IOrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (AndPat pat1 pat2)    = IAndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (OrPat pat1 pat2)     = IOrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (InfixPat Op{ repr = "&" } pat1 pat2) =
   IAndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (InfixPat Op{ repr = "|" } pat1 pat2) =
@@ -384,7 +384,7 @@ desugarBindings = mapM f
       expr' <- desugar expr
       case expr' of
         ILambdaExpr Nothing args body -> return (name, ILambdaExpr (Just (show name)) args body)
-        _                            -> return (name, expr')
+        _                             -> return (name, expr')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)

@@ -25,7 +25,7 @@ data ITopExpr
 data IExpr
   = IConstantExpr ConstantExpr
   | IVarExpr Var
-  | IIndexedExpr Bool IExpr [Index IExpr]  -- True -> delete old index and append new one
+  | IIndexedExpr Bool IExpr [Index IExpr]
   | ISubrefsExpr Bool IExpr IExpr
   | ISuprefsExpr Bool IExpr IExpr
   | IUserrefsExpr Bool IExpr IExpr
@@ -61,7 +61,7 @@ data IExpr
   | ITensorMapExpr IExpr IExpr
   | ITensorMap2Expr IExpr IExpr IExpr
   | ITransposeExpr IExpr IExpr
-  | IFlipIndicesExpr IExpr                              -- Does not appear in user program
+  | IFlipIndicesExpr IExpr
   | IFunctionExpr [IExpr]
  deriving (Eq, Show)
 
@@ -90,7 +90,6 @@ data IPattern
   | ISeqNilPat
   | ISeqConsPat IPattern IPattern
   | ILaterPatVar
-  -- For symbolic computing
   | IDApplyPat IPattern [IPattern]
  deriving (Eq, Show)
 
