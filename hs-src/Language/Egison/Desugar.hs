@@ -24,12 +24,12 @@ import           Language.Egison.RState
 
 
 desugarTopExpr :: TopExpr -> EvalM ITopExpr
-desugarTopExpr (Define name expr) = do
+desugarTopExpr (Define (VarWithIndices name []) expr) = do
   expr' <- desugar expr
   case expr' of
-    ILambdaExpr Nothing args body -> return $ IDefine name (ILambdaExpr (Just (show name)) args body)
-    _                             -> return $ IDefine name expr'
-desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
+    ILambdaExpr Nothing args body -> return $ IDefine (Var name []) (ILambdaExpr (Just (show name)) args body)
+    _                             -> return $ IDefine (Var name []) expr'
+desugarTopExpr (Define (VarWithIndices name is) expr) = do
   body <- desugar expr
   let indexNames = map extractIndex is
   let indexNamesCollection = ICollectionExpr (map stringToIVarExpr indexNames)

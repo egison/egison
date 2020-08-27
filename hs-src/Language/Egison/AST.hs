@@ -37,6 +37,7 @@ module Language.Egison.AST
   , findOpFrom
   , stringToVar
   , stringToVarExpr
+  , stringToVarWithIndices
   ) where
 
 import           Data.Hashable   (Hashable)
@@ -47,8 +48,7 @@ import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
 
 data TopExpr
-  = Define Var Expr
-  | DefineWithIndices VarWithIndices Expr
+  = Define VarWithIndices Expr
   | Test Expr
   | Execute Expr
     -- temporary : we will replace load to import and export
@@ -271,6 +271,9 @@ stringToVar name = Var (splitOn "." name) []
 
 stringToVarExpr :: String -> Expr
 stringToVarExpr = VarExpr . stringToVar
+
+stringToVarWithIndices :: String -> VarWithIndices
+stringToVarWithIndices name = VarWithIndices (splitOn "." name) []
 
 instance Show Var where
   show (Var xs is) = intercalate "." xs ++ concatMap show is
