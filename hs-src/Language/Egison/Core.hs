@@ -637,6 +637,25 @@ refHash val (index:indices) =
       Just ref -> evalRef ref >>= flip refHash indices
       Nothing  -> return $ Value Undefined
 
+updateHash :: [Integer] -> WHNFData -> WHNFData -> EvalM WHNFData
+updateHash [index] tgt (Intermediate (IIntHash hash)) = do
+  targetRef <- newEvaluatedObjectRef tgt
+  return . Intermediate . IIntHash $ HL.insert index targetRef hash
+updateHash (index:indices) tgt (Intermediate (IIntHash hash)) = do
+  val <- maybe (return $ Intermediate $ IIntHash HL.empty) evalRef $ HL.lookup index hash
+  ref <- updateHash indices tgt val >>= newEvaluatedObjectRef
+  return . Intermediate . IIntHash $ HL.insert index ref hash
+updateHash indices tgt (Value (IntHash hash)) = do
+  let keys = HL.keys hash
+  vals <- mapM (newEvaluatedObjectRef . Value) $ HL.elems hash
+  updateHash indices tgt (Intermediate $ IIntHash $ HL.fromList $ zip keys vals)
+updateHash _ _ v = throwError $ Default $ "expected hash value: " ++ show v
+
+subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
+subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
+                         | otherwise = (k', v'):subst k nv xs
+subst _ _ [] = []
+
 newThunk :: Env -> IExpr -> Object
 newThunk env expr = Thunk $ evalExprShallow env expr
 
@@ -945,29 +964,11 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
               indices <- mapM (evalExprShallow env' >=> fmap fromInteger . fromWHNF) indices
               case lookup name bindings of
                 Just ref -> do
-                  obj <- evalRef ref >>= updateHash indices >>= newEvaluatedObjectRef
+                  obj <- evalRef ref >>= updateHash indices target >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = subst name obj bindings, mTrees = trees }
                 Nothing  -> do
-                  obj <- updateHash indices (Intermediate . IIntHash $ HL.empty) >>= newEvaluatedObjectRef
+                  obj <- updateHash indices target (Intermediate . IIntHash $ HL.empty) >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = (name,obj):bindings, mTrees = trees }
-               where
-                updateHash :: [Integer] -> WHNFData -> EvalM WHNFData
-                updateHash [index] (Intermediate (IIntHash hash)) = do
-                  targetRef <- newEvaluatedObjectRef target
-                  return . Intermediate . IIntHash $ HL.insert index targetRef hash
-                updateHash (index:indices) (Intermediate (IIntHash hash)) = do
-                  val <- maybe (return $ Intermediate $ IIntHash HL.empty) evalRef $ HL.lookup index hash
-                  ref <- updateHash indices val >>= newEvaluatedObjectRef
-                  return . Intermediate . IIntHash $ HL.insert index ref hash
-                updateHash indices (Value (IntHash hash)) = do
-                  let keys = HL.keys hash
-                  vals <- mapM (newEvaluatedObjectRef . Value) $ HL.elems hash
-                  updateHash indices (Intermediate $ IIntHash $ HL.fromList $ zip keys vals)
-                updateHash _ v = throwError $ Default $ "expected hash value: " ++ show v
-                subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
-                subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
-                                         | otherwise = (k', v'):subst k nv xs
-                subst _ _ [] = []
             IIndexedPat pattern _ -> throwError $ Default $ "invalid indexed-pattern" ++ prettyStr pattern
             ITuplePat patterns -> do
               targets <- tupleToListWHNF target
