@@ -88,8 +88,8 @@ import           Language.Egison.RState
 -- Values
 --
 
-data EgisonValue =
-    World
+data EgisonValue
+  = World
   | Char Char
   | String Text
   | Bool Bool
@@ -118,8 +118,8 @@ type Matcher = EgisonValue
 
 type PrimitiveFunc = WHNFData -> EvalM WHNFData
 
-data EgisonHashKey =
-    IntKey Integer
+data EgisonHashKey
+  = IntKey Integer
   | CharKey Char
   | StrKey Text
 
@@ -427,16 +427,16 @@ instance EgisonData (IORef EgisonValue) where
 -- |For memoization
 type ObjectRef = IORef Object
 
-data Object =
-    Thunk (EvalM WHNFData)
+data Object
+  = Thunk (EvalM WHNFData)
   | WHNF WHNFData
 
-data WHNFData =
-    Intermediate Intermediate
+data WHNFData
+  = Intermediate Intermediate
   | Value EgisonValue
 
-data Intermediate =
-    IInductiveData String [ObjectRef]
+data Intermediate
+  = IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
   | ICollection (IORef (Seq Inner))
   | IIntHash (HashMap Integer ObjectRef)
@@ -444,8 +444,8 @@ data Intermediate =
   | IStrHash (HashMap Text ObjectRef)
   | ITensor (Tensor WHNFData)
 
-data Inner =
-    IElement ObjectRef
+data Inner
+  = IElement ObjectRef
   | ISubCollection ObjectRef
 
 instance Show WHNFData where
@@ -541,8 +541,8 @@ refVar e@(Env env _) var@(Var name is) =
 
 type CallStack = [String]
 
-data EgisonError =
-    UnboundVariable String CallStack
+data EgisonError
+  = UnboundVariable String CallStack
   | TypeMismatch String WHNFData CallStack
   | ArgumentsNumWithNames [String] Int Int CallStack
   | ArgumentsNumPrimitive String Int Int CallStack
