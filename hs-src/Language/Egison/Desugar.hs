@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections     #-}
-{-# OPTIONS_GHC -Wincomplete-patterns #-} -- Since we will soon deprecate this parser
 
 {- |
 Module      : Language.Egison.Desugar
@@ -46,14 +45,8 @@ desugarExpr :: Expr -> EvalM IExpr
 desugarExpr = desugar
 
 desugar :: Expr -> EvalM IExpr
-desugar (CharExpr x)    = return $ IConstantExpr (toEgison x)
-desugar (StringExpr x)  = return $ IConstantExpr (toEgison x)
-desugar (BoolExpr x)    = return $ IConstantExpr (toEgison x)
-desugar (IntegerExpr x) = return $ IConstantExpr (toEgison x)
-desugar (FloatExpr x)   = return $ IConstantExpr (toEgison x)
-desugar SomethingExpr   = return $ IConstantExpr Something
-desugar UndefinedExpr   = return $ IConstantExpr Undefined
-desugar (VarExpr v)     = return $ IVarExpr v
+desugar (ConstantExpr c) = return $ IConstantExpr c
+desugar (VarExpr v)      = return $ IVarExpr v
 
 desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- freshV
@@ -116,7 +109,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
       genSomethingClause :: EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
       genSomethingClause =
-        return (PPPatVar, ITupleExpr [IConstantExpr Something], [(PDPatVar (stringToVar "tgt"), ICollectionExpr [stringToIVarExpr "tgt"])])
+        return (PPPatVar, ITupleExpr [IConstantExpr SomethingExpr], [(PDPatVar (stringToVar "tgt"), ICollectionExpr [stringToIVarExpr "tgt"])])
 
       matchingSuccess :: IExpr
       matchingSuccess = ICollectionExpr [ITupleExpr []]
@@ -233,7 +226,7 @@ desugar (IoExpr expr) =
 
 desugar (PrefixExpr "-" expr) = do
   expr' <- desugar expr
-  return $ makeIApply "*" [IConstantExpr (toEgison (-1 :: Integer)), expr']
+  return $ makeIApply "*" [IConstantExpr (IntegerExpr (-1)), expr']
 desugar (PrefixExpr "!" (ApplyExpr expr1 expr2)) =
   IWedgeApplyExpr <$> desugar expr1 <*> desugar expr2
 desugar (PrefixExpr "'" expr) = IQuoteExpr <$> desugar expr

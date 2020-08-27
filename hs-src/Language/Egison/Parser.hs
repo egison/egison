@@ -32,12 +32,13 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Desugar
 import           Language.Egison.Data
+import           Language.Egison.IExpr
 import           Language.Egison.RState
 import qualified Language.Egison.Parser.SExpr   as SExpr
 import qualified Language.Egison.Parser.NonS    as NonS
 import           Paths_egison                   (getDataFileName)
 
-readTopExprs :: String -> EvalM [TopExpr]
+readTopExprs :: String -> EvalM [ITopExpr]
 readTopExprs expr = do
   isSExpr <- asks optSExpr
   if isSExpr
@@ -52,7 +53,7 @@ parseTopExpr expr = do
      then return (SExpr.parseTopExpr expr)
      else NonS.parseTopExpr expr
 
-readTopExpr :: String -> EvalM TopExpr
+readTopExpr :: String -> EvalM ITopExpr
 readTopExpr expr = do
   isSExpr <- asks optSExpr
   if isSExpr
@@ -60,7 +61,7 @@ readTopExpr expr = do
      else do r <- lift . lift $ NonS.parseTopExpr expr
              either throwError desugarTopExpr r
 
-readExprs :: String -> EvalM [Expr]
+readExprs :: String -> EvalM [IExpr]
 readExprs expr = do
   isSExpr <- asks optSExpr
   if isSExpr
@@ -68,7 +69,7 @@ readExprs expr = do
      else do r <- lift . lift $ NonS.parseExprs expr
              either throwError (mapM desugarExpr) r
 
-readExpr :: String -> EvalM Expr
+readExpr :: String -> EvalM IExpr
 readExpr expr = do
   isSExpr <- asks optSExpr
   if isSExpr
@@ -77,7 +78,7 @@ readExpr expr = do
              either throwError desugarExpr r
 
 -- |Load a libary file
-loadLibraryFile :: FilePath -> EvalM [TopExpr]
+loadLibraryFile :: FilePath -> EvalM [ITopExpr]
 loadLibraryFile file = do
   homeDir <- liftIO getHomeDirectory
   doesExist <- liftIO $ doesFileExist $ homeDir ++ "/.egison/" ++ file
@@ -86,7 +87,7 @@ loadLibraryFile file = do
     else liftIO (getDataFileName file) >>= loadFile
 
 -- |Load a file
-loadFile :: FilePath -> EvalM [TopExpr]
+loadFile :: FilePath -> EvalM [ITopExpr]
 loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
@@ -96,9 +97,9 @@ loadFile file = do
                  (readTopExprs (removeShebang useSExpr input))
   concat <$> mapM recursiveLoad exprs
  where
-  recursiveLoad (Load file)     = loadLibraryFile file
-  recursiveLoad (LoadFile file) = loadFile file
-  recursiveLoad expr            = return [expr]
+  recursiveLoad (ILoad file)     = loadLibraryFile file
+  recursiveLoad (ILoadFile file) = loadFile file
+  recursiveLoad expr             = return [expr]
 
 removeShebang :: Bool -> String -> String
 removeShebang useSExpr cs@('#':'!':_) = if useSExpr then ';' : cs else "--" ++ cs

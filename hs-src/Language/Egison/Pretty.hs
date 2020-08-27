@@ -41,13 +41,18 @@ instance Pretty TopExpr where
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
   pretty _ = error "Unsupported topexpr"
 
-instance Pretty Expr where
-  -- Use |viaShow| to correctly handle escaped characters
+instance Pretty ConstantExpr where
   pretty (CharExpr x)    = viaShow x
   pretty (StringExpr x)  = pretty (ushow x)
   pretty (BoolExpr x)    = pretty x
   pretty (IntegerExpr x) = pretty x
   pretty (FloatExpr x)   = pretty x
+  pretty SomethingExpr = pretty "something"
+  pretty UndefinedExpr = pretty "undefined"
+
+instance Pretty Expr where
+  pretty (ConstantExpr c) = pretty c
+  -- Use |viaShow| to correctly handle escaped characters
   pretty (VarExpr x)     = pretty x
   pretty FreshVarExpr    = pretty "#"
   pretty (IndexedExpr True e indices) = pretty' e <> cat (map pretty indices)
@@ -119,7 +124,7 @@ instance Pretty Expr where
   pretty (QuoteExpr e) = squote <> pretty' e
   pretty (QuoteSymbolExpr e) = pretty '`' <> pretty' e
 
-  pretty (PrefixExpr op x@(IntegerExpr _)) = pretty op <> pretty x
+  pretty (PrefixExpr op x@(ConstantExpr (IntegerExpr _))) = pretty op <> pretty x
   pretty (PrefixExpr op x)
     | isAtomOrApp x = pretty op <+> pretty x
     | otherwise     = pretty op <+> parens (pretty x)
@@ -168,9 +173,6 @@ instance Pretty Expr where
   pretty (FlipIndicesExpr _) = error "unreachable"
 
   pretty (FunctionExpr xs) = pretty "function" <+> tupled (map pretty xs)
-
-  pretty SomethingExpr = pretty "something"
-  pretty UndefinedExpr = pretty "undefined"
 
   pretty p = pretty (show p)
 
@@ -265,7 +267,7 @@ instance Pretty Pattern where
 
 instance Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (InfixExpr Op{ repr = "-'" } _ (IntegerExpr 1))) pat) =
+                                    (InfixExpr Op{ repr = "-'" } _ (ConstantExpr (IntegerExpr 1)))) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
@@ -296,7 +298,7 @@ class Complex a where
   isInfix :: a -> Bool
 
 instance Complex Expr where
-  isAtom (IntegerExpr i) | i < 0  = False
+  isAtom (ConstantExpr (IntegerExpr i)) | i < 0  = False
   isAtom PrefixExpr{}             = False
   isAtom InfixExpr{}              = False
   isAtom ApplyExpr{}              = False

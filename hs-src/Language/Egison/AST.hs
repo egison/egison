@@ -13,6 +13,7 @@ This module defines the syntax of Egison.
 module Language.Egison.AST
   ( TopExpr (..)
   , Expr (..)
+  , ConstantExpr (..)
   , Pattern (..)
   , Var (..)
   , VarWithIndices (..)
@@ -56,12 +57,18 @@ data TopExpr
   | InfixDecl Bool Op -- True for pattern infix; False for expression infix
  deriving (Show, Eq)
 
-data Expr
+data ConstantExpr
   = CharExpr Char
   | StringExpr Text
   | BoolExpr Bool
   | IntegerExpr Integer
   | FloatExpr Double
+  | SomethingExpr
+  | UndefinedExpr
+ deriving (Show, Eq)
+
+data Expr
+  = ConstantExpr ConstantExpr
   | VarExpr Var
   | FreshVarExpr
   | IndexedExpr Bool Expr [Index Expr]  -- True -> delete old index and append new one
@@ -119,9 +126,6 @@ data Expr
   | FlipIndicesExpr Expr                              -- Does not appear in user program
 
   | FunctionExpr [Expr]
-
-  | SomethingExpr
-  | UndefinedExpr
  deriving (Eq, Show)
 
 data Var = Var [String] [Index ()]
@@ -211,7 +215,7 @@ data PrimitiveDataPattern
   | PDEmptyPat
   | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
   | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
-  | PDConstantPat Expr
+  | PDConstantPat ConstantExpr
  deriving (Show, Eq)
 
 data Op

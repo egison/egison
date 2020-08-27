@@ -79,6 +79,7 @@ import           Control.Egison            (joinConsM, joinCons, nil,
 import qualified Control.Egison            as M
 
 import           Language.Egison.AST       hiding (PatVar)
+import           Language.Egison.IExpr
 import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
 import           Language.Egison.Math
@@ -102,10 +103,10 @@ data EgisonValue
   | IntHash (HashMap Integer EgisonValue)
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
-  | UserMatcher Env [PatternDef]
-  | Func (Maybe String) Env [String] Expr
-  | CFunc Env String Expr
-  | MemoizedFunc (IORef (HashMap [Integer] WHNFData)) Env [String] Expr
+  | UserMatcher Env [IPatternDef]
+  | Func (Maybe String) Env [String] IExpr
+  | CFunc Env String IExpr
+  | MemoizedFunc (IORef (HashMap [Integer] WHNFData)) Env [String] IExpr
   | PatternFunc Env [String] Pattern
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EvalM WHNFData)

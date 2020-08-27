@@ -511,7 +511,7 @@ atomExpr = do
 -- Atomic expressions without index
 atomExpr' :: Parser Expr
 atomExpr' = anonParamFuncExpr    -- must come before |constantExpr|
-        <|> constantExpr
+        <|> ConstantExpr <$> constantExpr
         <|> FreshVarExpr <$ symbol "#"
         <|> VarExpr <$> varLiteral
         <|> vectorExpr     -- must come before |collectionExpr|
@@ -529,7 +529,7 @@ anonParamFuncExpr = do
   body <- atomExpr                    -- No space after '#'
   return $ AnonParamFuncExpr n body
 
-constantExpr :: Parser Expr
+constantExpr :: Parser ConstantExpr
 constantExpr = numericExpr
            <|> BoolExpr <$> boolLiteral
            <|> CharExpr <$> try charLiteral        -- try for quoteExpr
@@ -537,7 +537,7 @@ constantExpr = numericExpr
            <|> SomethingExpr <$ reserved "something"
            <|> UndefinedExpr <$ reserved "undefined"
 
-numericExpr :: Parser Expr
+numericExpr :: Parser ConstantExpr
 numericExpr = FloatExpr <$> try positiveFloatLiteral
           <|> IntegerExpr <$> positiveIntegerLiteral
           <?> "numeric expression"
@@ -574,7 +574,7 @@ loopPattern =
 
     defaultEnds s =
       ApplyExpr (stringToVarExpr "from")
-                (makeApply' (stringToVarExpr "-'") [s, IntegerExpr 1])
+                (makeApply' (stringToVarExpr "-'") [s, ConstantExpr (IntegerExpr 1)])
 
 seqPattern :: Parser Pattern
 seqPattern = do
