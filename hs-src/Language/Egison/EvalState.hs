@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 {- |
 Module      : Language.Egison.EvalState
 Licence     : MIT
@@ -13,6 +15,7 @@ module Language.Egison.EvalState
   ) where
 
 import           Control.Monad.Except
+import           Control.Monad.Trans.State.Strict
 
 
 newtype EvalState = EvalState
@@ -28,6 +31,18 @@ class (Applicative m, Monad m) => MonadEval m where
   topFuncName :: m String
   popFuncName :: m ()
   getFuncNameStack :: m [String]
+
+instance Monad m => MonadEval (StateT EvalState m) where
+  pushFuncName name = do
+    st <- get
+    put $ st { funcNameStack = name : funcNameStack st }
+    return ()
+  topFuncName = head . funcNameStack <$> get
+  popFuncName = do
+    st <- get
+    put $ st { funcNameStack = tail $ funcNameStack st }
+    return ()
+  getFuncNameStack = funcNameStack <$> get
 
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
