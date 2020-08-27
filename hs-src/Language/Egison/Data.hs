@@ -599,18 +599,6 @@ instance MonadRuntime EvalM where
   fresh = lift $ lift fresh
   freshV = lift $ lift freshV
 
-instance MonadEval EvalM where
-  pushFuncName name = do
-    st <- get
-    put $ st { funcNameStack = name : funcNameStack st }
-    return ()
-  topFuncName = head . funcNameStack <$> get
-  popFuncName = do
-    st <- get
-    put $ st { funcNameStack = tail $ funcNameStack st }
-    return ()
-  getFuncNameStack = funcNameStack <$> get
-
 fromEvalT :: EvalM a -> RuntimeM (Either EgisonError a)
 fromEvalT m = runExceptT (evalStateT m initialEvalState)
 
