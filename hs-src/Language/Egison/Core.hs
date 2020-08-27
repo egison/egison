@@ -1065,18 +1065,11 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
        <*> primitiveDataPatternMatch pattern' last
 primitiveDataPatternMatch (PDConstantPat expr) ref = do
   whnf <- lift $ evalRef ref
-  target <- either (const matchFail) return $ extractPrimitiveValue whnf
-  isEqual <- lift $ (==) <$> evalExprDeep nullEnv expr <*> pure target
-  if isEqual then return [] else matchFail
- where
-  extractPrimitiveValue :: WHNFData -> Either ([String] -> EgisonError) EgisonValue
-  extractPrimitiveValue (Value val@(Char _)) = return val
-  extractPrimitiveValue (Value val@(Bool _)) = return val
-  extractPrimitiveValue (Value val@(ScalarData _)) = return val
-  extractPrimitiveValue (Value val@(Float _)) = return val
-  extractPrimitiveValue whnf =
-    -- we don't need to extract call stack since detailed error information is not used
-    throwError $ TypeMismatch "primitive value" whnf
+  case whnf of
+    Value val -> do
+      val' <- lift $ evalExprDeep nullEnv expr
+      if val == val' then return [] else matchFail
+    _ -> matchFail
 
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
 extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopPatContext binding _ _ _ _) -> binding) loops
