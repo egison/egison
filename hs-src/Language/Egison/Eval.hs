@@ -2,6 +2,7 @@ module Language.Egison.Eval
   -- * Eval Egison expressions
   ( evalExpr
   , evalTopExpr
+  , evalTopExprStr
   , evalTopExprs
   , runExpr
   , runTopExpr
@@ -21,50 +22,65 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
+import           Language.Egison.Desugar
 import           Language.Egison.EvalState   (MonadEval(..))
 import           Language.Egison.IExpr
 import           Language.Egison.MathOutput  (prettyMath)
 import           Language.Egison.Parser
+import           Language.Egison.RState
 
 
 -- | Evaluate an Egison expression.
-evalExpr :: Env -> IExpr -> EvalM EgisonValue
-evalExpr = evalExprDeep
+evalExpr :: Env -> Expr -> EvalM EgisonValue
+evalExpr env expr =
+  desugarExpr expr >>= evalExprDeep env
 
 -- | Evaluate an Egison top expression.
-evalTopExpr :: Env -> ITopExpr -> EvalM (Maybe String, Env)
+evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
-  mathExpr <- asks optMathExpr
-  (mVal, env') <- evalTopExpr' env topExpr
+  topExpr <- desugarTopExpr topExpr
+  evalTopExpr' env topExpr
+
+-- | Evaluate an Egison top expression.
+evalTopExprStr :: Env -> TopExpr -> EvalM (Maybe String, Env)
+evalTopExprStr env topExpr = do
+  (mVal, env') <- evalTopExpr env topExpr
   case mVal of
     Nothing  -> return (Nothing, env')
-    Just val ->
-      case mathExpr of
-        Nothing   -> return (Just (show val), env')
-        Just lang -> return (Just (prettyMath lang val), env')
+    Just val -> do str <- lift . lift $ valueToString val
+                   return (Just str, env')
 
 -- | Evaluate Egison top expressions.
-evalTopExprs :: Env -> [ITopExpr] -> EvalM Env
+evalTopExprs :: Env -> [TopExpr] -> EvalM Env
 evalTopExprs env exprs = do
   opts <- ask
+  exprs <- mapM desugarTopExpr exprs
   (bindings, rest) <- collectDefs opts exprs
   env <- recursiveBind env bindings
   forM_ rest $ \expr -> do
-    (str, _) <- evalTopExpr env expr
-    case str of
+    (mVal, _) <- evalTopExpr' env expr
+    case mVal of
       Nothing  -> return ()
-      Just str -> liftIO $ putStrLn str
+      Just val -> lift (lift (valueToString val)) >>= liftIO . putStrLn 
   return env
+
+valueToString :: EgisonValue -> RuntimeM String
+valueToString val = do
+  mathExpr <- asks optMathExpr
+  case mathExpr of
+    Nothing   -> return $ show val
+    Just lang -> return $ prettyMath lang val
 
 -- | Evaluate an Egison expression. Input is a Haskell string.
 runExpr :: Env -> String -> EvalM EgisonValue
 runExpr env input =
-  readExpr input >>= evalExprDeep env
+  readExpr input >>= evalExpr env
 
 -- | Evaluate an Egison top expression. Input is a Haskell string.
 runTopExpr :: Env -> String -> EvalM (Maybe String, Env)
-runTopExpr env input =
-  readTopExpr input >>= evalTopExpr env
+runTopExpr env input = do
+  topExpr <- readTopExpr input
+  evalTopExprStr env topExpr
 
 -- | Evaluate Egison top expressions. Input is a Haskell string.
 runTopExprs :: Env -> String -> EvalM Env
@@ -74,13 +90,13 @@ runTopExprs env input =
 -- | Load an Egison file.
 loadEgisonFile :: Env -> FilePath -> EvalM Env
 loadEgisonFile env path = do
-  (_, env') <- evalTopExpr env (ILoadFile path)
+  (_, env') <- evalTopExpr env (LoadFile path)
   return env'
 
 -- | Load an Egison library.
 loadEgisonLibrary :: Env -> FilePath -> EvalM Env
 loadEgisonLibrary env path = do
-  (_, env') <- evalTopExpr env (ILoad path)
+  (_, env') <- evalTopExpr env (Load path)
   return env'
 
 
@@ -99,11 +115,11 @@ collectDefs opts exprs = collectDefs' opts exprs [] []
         IExecute{}  -> collectDefs' opts exprs bindings (expr : rest)
         ILoadFile _ | optNoIO opts -> throwError (Default "No IO support")
         ILoadFile file -> do
-          exprs' <- loadFile file
+          exprs' <- loadFile file >>= mapM desugarTopExpr
           collectDefs' opts (exprs' ++ exprs) bindings rest
         ILoad _ | optNoIO opts -> throwError (Default "No IO support")
         ILoad file -> do
-          exprs' <- loadLibraryFile file
+          exprs' <- loadLibraryFile file >>= mapM desugarTopExpr
           collectDefs' opts (exprs' ++ exprs) bindings rest
     collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
@@ -125,14 +141,14 @@ evalTopExpr' env (IExecute expr) = do
 evalTopExpr' env (ILoad file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
-  exprs <- loadLibraryFile file
+  exprs <- loadLibraryFile file >>= mapM desugarTopExpr
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
 evalTopExpr' env (ILoadFile file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
-  exprs <- loadFile file
+  exprs <- loadFile file >>= mapM desugarTopExpr
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')

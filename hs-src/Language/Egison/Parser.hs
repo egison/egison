@@ -30,21 +30,19 @@ import           System.IO
 
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
-import           Language.Egison.Desugar
 import           Language.Egison.Data
-import           Language.Egison.IExpr
 import           Language.Egison.RState
 import qualified Language.Egison.Parser.SExpr   as SExpr
 import qualified Language.Egison.Parser.NonS    as NonS
 import           Paths_egison                   (getDataFileName)
 
-readTopExprs :: String -> EvalM [ITopExpr]
+readTopExprs :: String -> EvalM [TopExpr]
 readTopExprs expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError (mapM desugarTopExpr) (SExpr.parseTopExprs expr)
+     then either throwError return (SExpr.parseTopExprs expr)
      else do r <- lift . lift $ NonS.parseTopExprs expr
-             either throwError (mapM desugarTopExpr) r
+             either throwError return r
 
 parseTopExpr :: String -> RuntimeM (Either EgisonError TopExpr)
 parseTopExpr expr = do
@@ -53,32 +51,29 @@ parseTopExpr expr = do
      then return (SExpr.parseTopExpr expr)
      else NonS.parseTopExpr expr
 
-readTopExpr :: String -> EvalM ITopExpr
+readTopExpr :: String -> EvalM TopExpr
 readTopExpr expr = do
-  isSExpr <- asks optSExpr
-  if isSExpr
-     then either throwError desugarTopExpr (SExpr.parseTopExpr expr)
-     else do r <- lift . lift $ NonS.parseTopExpr expr
-             either throwError desugarTopExpr r
+  expr <- lift . lift $ parseTopExpr expr
+  either throwError return expr
 
-readExprs :: String -> EvalM [IExpr]
+readExprs :: String -> EvalM [Expr]
 readExprs expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError (mapM desugarExpr) (SExpr.parseExprs expr)
+     then either throwError return (SExpr.parseExprs expr)
      else do r <- lift . lift $ NonS.parseExprs expr
-             either throwError (mapM desugarExpr) r
+             either throwError return r
 
-readExpr :: String -> EvalM IExpr
+readExpr :: String -> EvalM Expr
 readExpr expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError desugarExpr (SExpr.parseExpr expr)
+     then either throwError return (SExpr.parseExpr expr)
      else do r <- lift . lift $ NonS.parseExpr expr
-             either throwError desugarExpr r
+             either throwError return r
 
 -- |Load a libary file
-loadLibraryFile :: FilePath -> EvalM [ITopExpr]
+loadLibraryFile :: FilePath -> EvalM [TopExpr]
 loadLibraryFile file = do
   homeDir <- liftIO getHomeDirectory
   doesExist <- liftIO $ doesFileExist $ homeDir ++ "/.egison/" ++ file
@@ -87,7 +82,7 @@ loadLibraryFile file = do
     else liftIO (getDataFileName file) >>= loadFile
 
 -- |Load a file
-loadFile :: FilePath -> EvalM [ITopExpr]
+loadFile :: FilePath -> EvalM [TopExpr]
 loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
@@ -97,9 +92,9 @@ loadFile file = do
                  (readTopExprs (removeShebang useSExpr input))
   concat <$> mapM recursiveLoad exprs
  where
-  recursiveLoad (ILoad file)     = loadLibraryFile file
-  recursiveLoad (ILoadFile file) = loadFile file
-  recursiveLoad expr             = return [expr]
+  recursiveLoad (Load file)     = loadLibraryFile file
+  recursiveLoad (LoadFile file) = loadFile file
+  recursiveLoad expr            = return [expr]
 
 removeShebang :: Bool -> String -> String
 removeShebang useSExpr cs@('#':'!':_) = if useSExpr then ';' : cs else "--" ++ cs
