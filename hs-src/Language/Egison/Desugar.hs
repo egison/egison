@@ -34,10 +34,9 @@ desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   let indexNamesCollection = CollectionExpr (map stringToVarExpr indexNames)
   return $ Define (Var name (map (const () <$>) is))
     (WithSymbolsExpr indexNames (TransposeExpr indexNamesCollection body))
-desugarTopExpr (Redefine name expr) = Redefine name <$> desugar expr
-desugarTopExpr (Test expr)          = Test <$> desugar expr
-desugarTopExpr (Execute expr)       = Execute <$> desugar expr
-desugarTopExpr expr                 = return expr
+desugarTopExpr (Test expr)    = Test <$> desugar expr
+desugarTopExpr (Execute expr) = Execute <$> desugar expr
+desugarTopExpr expr           = return expr
 
 desugarExpr :: Expr -> EvalM Expr
 desugarExpr = desugar

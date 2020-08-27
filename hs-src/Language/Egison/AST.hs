@@ -48,7 +48,6 @@ import           GHC.Generics    (Generic)
 data TopExpr =
     Define Var Expr
   | DefineWithIndices VarWithIndices Expr
-  | Redefine Var Expr
   | Test Expr
   | Execute Expr
     -- temporary : we will replace load to import and export
