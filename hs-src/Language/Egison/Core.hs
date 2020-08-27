@@ -358,9 +358,8 @@ evalExprShallow env (MatchExpr pmmode target matcher clauses) = do
             case result of
               MCons bindings _ -> evalExprShallow (extendEnv env bindings) expr
               MNil             -> cont
-      currentFuncName <- topFuncName
       callstack <- getFuncNameStack
-      foldr tryMatchClause (throwError $ MatchFailure currentFuncName callstack) clauses
+      foldr tryMatchClause (throwError $ MatchFailure callstack) clauses
 
 evalExprShallow env (SeqExpr expr1 expr2) = do
   _ <- evalExprDeep env expr1
