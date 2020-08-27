@@ -85,14 +85,13 @@ instance SyntaxElement Expr where
   toNonS (HashExpr xs)       = HashExpr (map (toNonS *** toNonS) xs)
   toNonS (VectorExpr xs)     = VectorExpr (map toNonS xs)
 
-  toNonS (LambdaExpr m xs e)        = LambdaExpr m xs (toNonS e)
+  toNonS (LambdaExpr xs e)        = LambdaExpr xs (toNonS e)
   toNonS (MemoizedLambdaExpr xs e)  = MemoizedLambdaExpr xs (toNonS e)
   toNonS (CambdaExpr x e)           = CambdaExpr x (toNonS e)
   toNonS (PatternFunctionExpr xs p) = PatternFunctionExpr xs (toNonS p)
 
   toNonS (IfExpr x y z)         = IfExpr (toNonS x) (toNonS y) (toNonS z)
   toNonS (LetRecExpr xs y)      = LetRecExpr (map toNonS xs) (toNonS y)
-  toNonS (LetExpr xs y)         = LetRecExpr (map toNonS xs) (toNonS y)
   toNonS (WithSymbolsExpr xs y) = WithSymbolsExpr xs (toNonS y)
 
   toNonS (MatchExpr pmmode m p xs)    = MatchExpr pmmode (toNonS m) (toNonS p) (map toNonS xs)
@@ -150,7 +149,6 @@ instance SyntaxElement Expr where
   toNonS (TensorMapExpr e1 e2) = TensorMapExpr (toNonS e1) (toNonS e2)
   toNonS (TensorMap2Expr e1 e2 e3) = TensorMap2Expr (toNonS e1) (toNonS e2) (toNonS e3)
   toNonS (TransposeExpr e1 e2) = TransposeExpr (toNonS e1) (toNonS e2)
-  toNonS (FlipIndicesExpr _) = error "Not supported: FlipIndicesExpr"
 
   toNonS x = x
 

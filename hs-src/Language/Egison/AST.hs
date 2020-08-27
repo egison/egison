@@ -82,14 +82,13 @@ data Expr
   | HashExpr [(Expr, Expr)]
   | VectorExpr [Expr]
 
-  | LambdaExpr (Maybe String) [Arg] Expr
+  | LambdaExpr [Arg] Expr
   | MemoizedLambdaExpr [String] Expr
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
 
   | IfExpr Expr Expr Expr
   | LetRecExpr [BindingExpr] Expr
-  | LetExpr [BindingExpr] Expr
   | WithSymbolsExpr [String] Expr
 
   | MatchExpr PMMode Expr Expr [MatchClause]
@@ -123,7 +122,6 @@ data Expr
   | TensorMapExpr Expr Expr
   | TensorMap2Expr Expr Expr Expr
   | TransposeExpr Expr Expr
-  | FlipIndicesExpr Expr                              -- Does not appear in user program
 
   | FunctionExpr [Expr]
  deriving (Eq, Show)

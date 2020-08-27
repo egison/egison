@@ -119,11 +119,11 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
 desugar (MatchAllLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr Nothing [TensorArg name] (MatchAllExpr BFSMode (stringToVarExpr name) matcher clauses)
+  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr BFSMode (stringToVarExpr name) matcher clauses)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr Nothing [TensorArg name] (MatchExpr BFSMode (stringToVarExpr name) matcher clauses)
+  desugar $ LambdaExpr [TensorArg name] (MatchExpr BFSMode (stringToVarExpr name) matcher clauses)
 
 -- TODO: Allow nested MultiSubscript and MultiSuperscript
 desugar (IndexedExpr b expr indices) =
@@ -177,19 +177,17 @@ desugar (VectorExpr exprs) =
 desugar (TensorExpr nsExpr xsExpr) =
   ITensorExpr <$> desugar nsExpr <*> desugar xsExpr
 
-desugar (LambdaExpr name names expr) = do
+desugar (LambdaExpr names expr) = do
+  expr <- desugar expr
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
-  expr'' <- desugar expr'
-  return $ ILambdaExpr name args' expr''
+  return $ ILambdaExpr Nothing args' expr'
   where
-    desugarInvertedArgs :: Arg -> ([String], Expr) -> ([String], Expr)
+    desugarInvertedArgs :: Arg -> ([String], IExpr) -> ([String], IExpr)
     desugarInvertedArgs (TensorArg x) (args, expr) = (x : args, expr)
-    desugarInvertedArgs (ScalarArg x) (args, expr) =
-      (x : args,
-       TensorMapExpr (LambdaExpr Nothing [TensorArg x] expr) (stringToVarExpr x))
+    desugarInvertedArgs (ScalarArg x) (args, expr) = 
+      (x : args, ITensorMapExpr (ILambdaExpr Nothing [x] expr) (stringToIVarExpr x))
     desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
-      (x : args,
-       TensorMapExpr (LambdaExpr Nothing [TensorArg x] expr) (FlipIndicesExpr (stringToVarExpr x)))
+      (x : args, ITensorMapExpr (ILambdaExpr Nothing [x] expr) (IFlipIndicesExpr (stringToIVarExpr x)))
 
 desugar (MemoizedLambdaExpr names expr) =
   IMemoizedLambdaExpr names <$> desugar expr
@@ -205,9 +203,6 @@ desugar (IfExpr expr0 expr1 expr2) =
 
 desugar (LetRecExpr binds expr) =
   ILetRecExpr <$> desugarBindings binds <*> desugar expr
-
-desugar (LetExpr binds expr) =
-  ILetExpr <$> desugarBindings binds <*> desugar expr
 
 desugar (WithSymbolsExpr vars expr) =
   IWithSymbolsExpr vars <$> desugar expr
@@ -253,17 +248,17 @@ desugar (SectionExpr op Nothing Nothing)
 desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
   y <- fresh
-  desugar $ LambdaExpr Nothing [TensorArg x, TensorArg y]
+  desugar $ LambdaExpr [TensorArg x, TensorArg y]
                        (InfixExpr op (stringToVarExpr x) (stringToVarExpr y))
 
 desugar (SectionExpr op Nothing (Just expr2)) = do
   x <- fresh
-  desugar $ LambdaExpr Nothing [TensorArg x]
+  desugar $ LambdaExpr [TensorArg x]
                        (InfixExpr op (stringToVarExpr x) expr2)
 
 desugar (SectionExpr op (Just expr1) Nothing) = do
   y <- fresh
-  desugar $ LambdaExpr Nothing [TensorArg y]
+  desugar $ LambdaExpr [TensorArg y]
                        (InfixExpr op expr1 (stringToVarExpr y))
 
 desugar SectionExpr{} = throwError $ Default "Cannot reach here: section with both arguments"
@@ -277,8 +272,8 @@ desugar (GenerateTensorExpr fnExpr sizeExpr) =
 desugar (TensorContractExpr tExpr) =
   ITensorContractExpr <$> desugar tExpr
 
-desugar (TensorMapExpr (LambdaExpr Nothing [x] (TensorMapExpr (LambdaExpr Nothing [y] expr) b)) a) =
-  desugar (TensorMap2Expr (LambdaExpr Nothing [x, y] expr) a b)
+desugar (TensorMapExpr (LambdaExpr [x] (TensorMapExpr (LambdaExpr [y] expr) b)) a) =
+  desugar (TensorMap2Expr (LambdaExpr [x, y] expr) a b)
 
 desugar (TensorMapExpr fnExpr tExpr) =
   ITensorMapExpr <$> desugar fnExpr <*> desugar tExpr
@@ -288,9 +283,6 @@ desugar (TensorMap2Expr fnExpr t1Expr t2Expr) =
 
 desugar (TransposeExpr vars expr) =
   ITransposeExpr <$> desugar vars <*> desugar expr
-
-desugar (FlipIndicesExpr expr) =
-  IFlipIndicesExpr <$> desugar expr
 
 desugar (ApplyExpr expr0 expr1) =
   IApplyExpr <$> desugar expr0 <*> desugar expr1
