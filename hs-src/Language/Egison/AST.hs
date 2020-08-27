@@ -45,8 +45,8 @@ import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
 
-data TopExpr =
-    Define Var Expr
+data TopExpr
+  = Define Var Expr
   | DefineWithIndices VarWithIndices Expr
   | Test Expr
   | Execute Expr
@@ -56,8 +56,8 @@ data TopExpr =
   | InfixDecl Bool Op -- True for pattern infix; False for expression infix
  deriving (Show, Eq)
 
-data Expr =
-    CharExpr Char
+data Expr
+  = CharExpr Char
   | StringExpr Text
   | BoolExpr Bool
   | IntegerExpr Integer
@@ -130,14 +130,14 @@ data Var = Var [String] [Index ()]
 data VarWithIndices = VarWithIndices [String] [Index String]
  deriving (Eq)
 
-data Arg =
-    ScalarArg String
+data Arg
+  = ScalarArg String
   | InvertedScalarArg String
   | TensorArg String
  deriving (Eq, Show)
 
-data Index a =
-    Subscript a
+data Index a
+  = Subscript a
   | Superscript a
   | SupSubscript a
   | MultiSubscript a a
@@ -166,8 +166,8 @@ type BindingExpr = (PrimitiveDataPattern, Expr)
 type MatchClause = (Pattern, Expr)
 type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 
-data Pattern =
-    WildCard
+data Pattern
+  = WildCard
   | PatVar Var
   | ValuePat Expr
   | PredPat Expr
@@ -195,16 +195,16 @@ data Pattern =
 data LoopRange = LoopRange Expr Expr Pattern
  deriving (Eq, Show)
 
-data PrimitivePatPattern =
-    PPWildCard
+data PrimitivePatPattern
+  = PPWildCard
   | PPPatVar
   | PPValuePat String
   | PPInductivePat String [PrimitivePatPattern]
   | PPTuplePat [PrimitivePatPattern]
  deriving (Show, Eq)
 
-data PrimitiveDataPattern =
-    PDWildCard
+data PrimitiveDataPattern
+  = PDWildCard
   | PDPatVar Var
   | PDInductivePat String [PrimitiveDataPattern]
   | PDTuplePat [PrimitiveDataPattern]
