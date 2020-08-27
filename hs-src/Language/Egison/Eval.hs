@@ -95,7 +95,6 @@ collectDefs opts exprs = collectDefs' opts exprs [] []
       case expr of
         Define name expr -> collectDefs' opts exprs ((PDPatVar name, expr) : bindings) rest
         DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-        Redefine{} -> collectDefs' opts exprs bindings (expr : rest)
         Test{}     -> collectDefs' opts exprs bindings (expr : rest)
         Execute{}  -> collectDefs' opts exprs bindings (expr : rest)
         LoadFile _ | optNoIO opts -> throwError (Default "No IO support")
