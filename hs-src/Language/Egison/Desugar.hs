@@ -139,10 +139,14 @@ desugar (IndexedExpr b expr indices) =
     _ -> IndexedExpr b <$> desugar expr <*> mapM desugarIndex indices
   where
     desugarMultiScript refExpr b1 e1 n1 n2 = do
-      k <- fresh
-      return $ refExpr b expr (makeApply "map"
-                                         [LambdaExpr Nothing [TensorArg k] (IndexedExpr b1 e1 [Subscript $ stringToVarExpr k]),
-                                          makeApply "between" [extractIndex n1, extractIndex n2]])
+      k     <- fresh
+      n1'   <- desugar (extractIndex n1)
+      n2'   <- desugar (extractIndex n2)
+      e1'   <- desugar e1
+      expr' <- desugar expr
+      return $ refExpr b expr' (makeApply "map"
+                                         [LambdaExpr Nothing [TensorArg k] (IndexedExpr b1 e1' [Subscript $ stringToVarExpr k]),
+                                          makeApply "between" [n1', n2']])
 
 desugar (SubrefsExpr bool expr1 expr2) =
   SubrefsExpr bool <$> desugar expr1 <*> desugar expr2
