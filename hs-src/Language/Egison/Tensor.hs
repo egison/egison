@@ -262,7 +262,6 @@ tDiag t@(Tensor _ _ js) =
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
-  p (Subscript _) _               = False
   p _ _                           = False
 tDiag t = return t
 
@@ -274,7 +273,6 @@ tDiagIndex js =
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
-  p (Subscript _) _               = False
   p _ _                           = False
 
 tSum :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
