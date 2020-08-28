@@ -12,6 +12,7 @@ This module defines the syntax of Egison.
 
 module Language.Egison.AST
   ( TopExpr (..)
+  , ConstantExpr (..)
   , Expr (..)
   , ConstantExpr (..)
   , Pattern (..)

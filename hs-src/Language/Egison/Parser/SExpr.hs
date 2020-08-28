@@ -583,7 +583,7 @@ laterPatVar = char '#' >> pure LaterPatVar
 -- Constants
 
 constantExpr :: Parser ConstantExpr
-constantExpr = (StringExpr . T.pack <$> stringLiteral)
+constantExpr = StringExpr . T.pack <$> stringLiteral
                  <|> BoolExpr <$> boolLiteral
                  <|> try (CharExpr <$> oneChar)
                  <|> try (FloatExpr <$> positiveFloatLiteral)
