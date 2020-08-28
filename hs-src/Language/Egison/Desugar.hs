@@ -154,10 +154,10 @@ desugar (IndexedExpr b expr indices) =
     _ -> IIndexedExpr b <$> desugar expr <*> mapM desugarIndex indices
   where
     desugarMultiScript refExpr b1 e1 n1 n2 = do
-      k <- fresh
-      n1' <- desugar (extractIndex n1)
-      n2' <- desugar (extractIndex n2)
-      e1' <- desugar e1
+      k     <- fresh
+      n1'   <- desugar (extractIndex n1)
+      n2'   <- desugar (extractIndex n2)
+      e1'   <- desugar e1
       expr' <- desugar expr
       return $ refExpr b expr' (makeIApply "map"
                                          [ILambdaExpr Nothing [k] (IIndexedExpr b1 e1' [Subscript $ stringToIVarExpr k]),
