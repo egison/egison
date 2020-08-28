@@ -62,7 +62,7 @@ data IExpr
   | ITensorMap2Expr IExpr IExpr IExpr
   | ITransposeExpr IExpr IExpr
   | IFlipIndicesExpr IExpr
-  | IFunctionExpr [IExpr]
+  | IFunctionExpr [Var]
  deriving (Eq, Show)
 
 type IBindingExpr = (PrimitiveDataPattern, IExpr)

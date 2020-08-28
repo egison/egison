@@ -123,7 +123,7 @@ data Expr
   | TensorMap2Expr Expr Expr Expr
   | TransposeExpr Expr Expr
 
-  | FunctionExpr [Expr]
+  | FunctionExpr [Var]
  deriving (Eq, Show)
 
 data Var = Var [String] [Index ()]

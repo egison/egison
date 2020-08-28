@@ -11,7 +11,6 @@ This module contains pretty printing for Egison syntax
 module Language.Egison.Pretty
     ( prettyTopExprs
     , prettyStr
-    , prettyStr'
     , showTSV
     ) where
 
@@ -441,6 +440,3 @@ showTSV val = show val
 
 prettyStr :: Pretty a => a -> String
 prettyStr = renderString . layoutPretty (LayoutOptions Unbounded) . pretty
-
-prettyStr' :: (Pretty a, Complex a) => a -> String
-prettyStr' = renderString . layoutPretty (LayoutOptions Unbounded) . pretty'

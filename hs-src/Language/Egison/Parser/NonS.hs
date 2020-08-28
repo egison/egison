@@ -397,7 +397,7 @@ tensorExpr =
   <|> (reserved "transpose"      >> TransposeExpr      <$> atomExpr <*> atomExpr)
 
 functionExpr :: Parser Expr
-functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy expr comma))
+functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy varLiteral comma))
 
 refsExpr :: Parser Expr
 refsExpr =
