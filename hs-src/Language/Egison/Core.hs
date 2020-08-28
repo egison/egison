@@ -968,8 +968,8 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                 Nothing  -> do
                   obj <- updateHash indices target (Intermediate . IIntHash $ HL.empty) >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = (name,obj):bindings, mTrees = trees }
-            IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyStr pattern)
-            TuplePat patterns -> do
+            IIndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyStr pattern)
+            ITuplePat patterns -> do
               targets <- tupleToListWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets (map (const Something) patterns) ++ trees
