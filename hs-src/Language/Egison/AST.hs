@@ -14,7 +14,6 @@ module Language.Egison.AST
   ( TopExpr (..)
   , ConstantExpr (..)
   , Expr (..)
-  , ConstantExpr (..)
   , Pattern (..)
   , Var (..)
   , VarWithIndices (..)
