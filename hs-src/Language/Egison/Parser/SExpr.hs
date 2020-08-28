@@ -123,7 +123,7 @@ quoteExpr = char '\'' >> QuoteExpr <$> expr'
 
 expr' :: Parser Expr
 expr' = try anonParamFuncExpr
-            <|> try constantExpr
+            <|> try (ConstantExpr <$> constantExpr)
             <|> try anonParamExpr
             <|> try freshVarExpr
             <|> try varExpr
@@ -564,7 +564,7 @@ loopRange :: Parser LoopRange
 loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
                       <|> (do s <- expr
                               ep <- option WildCard pattern
-                              return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, IntegerExpr 1]))) ep)))
+                              return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, ConstantExpr (IntegerExpr 1)]))) ep)))
 
 seqNilPat :: Parser Pattern
 seqNilPat = braces $ pure SeqNilPat
@@ -583,30 +583,15 @@ laterPatVar = char '#' >> pure LaterPatVar
 
 -- Constants
 
-constantExpr :: Parser Expr
-constantExpr = stringExpr
-                 <|> boolExpr
-                 <|> try charExpr
-                 <|> try floatExpr
-                 <|> try integerExpr
+constantExpr :: Parser ConstantExpr
+constantExpr = StringExpr . T.pack <$> stringLiteral
+                 <|> BoolExpr <$> boolLiteral
+                 <|> try (CharExpr <$> oneChar)
+                 <|> try (FloatExpr <$> positiveFloatLiteral)
+                 <|> try (IntegerExpr <$> integerLiteral)
                  <|> (keywordSomething $> SomethingExpr)
                  <|> (keywordUndefined $> UndefinedExpr)
                  <?> "constant"
-
-charExpr :: Parser Expr
-charExpr = CharExpr <$> oneChar
-
-stringExpr :: Parser Expr
-stringExpr = StringExpr . T.pack <$> stringLiteral
-
-boolExpr :: Parser Expr
-boolExpr = BoolExpr <$> boolLiteral
-
-floatExpr :: Parser Expr
-floatExpr = FloatExpr <$> positiveFloatLiteral
-
-integerExpr :: Parser Expr
-integerExpr = IntegerExpr <$> integerLiteral
 
 positiveFloatLiteral :: Parser Double
 positiveFloatLiteral = do

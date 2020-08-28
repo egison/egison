@@ -103,7 +103,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
       genSomethingClause :: EvalM (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
       genSomethingClause =
-        return (PPPatVar, TupleExpr [SomethingExpr], [(PDPatVar (stringToVar "tgt"), CollectionExpr [stringToVarExpr "tgt"])])
+        return (PPPatVar, TupleExpr [ConstantExpr SomethingExpr], [(PDPatVar (stringToVar "tgt"), CollectionExpr [stringToVarExpr "tgt"])])
 
       matchingSuccess :: Expr
       matchingSuccess = CollectionExpr [TupleExpr []]
@@ -216,7 +216,7 @@ desugar (IoExpr expr) =
 
 desugar (PrefixExpr "-" expr) = do
   expr' <- desugar expr
-  return $ makeApply "*" [IntegerExpr (-1), expr']
+  return $ makeApply "*" [ConstantExpr (IntegerExpr (-1)), expr']
 desugar (PrefixExpr "!" (ApplyExpr expr1 expr2)) =
   WedgeApplyExpr <$> desugar expr1 <*> desugar expr2
 desugar (PrefixExpr "'" expr) = QuoteExpr <$> desugar expr

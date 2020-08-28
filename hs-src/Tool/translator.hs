@@ -68,7 +68,6 @@ instance SyntaxElement TopExpr where
   toNonS x              = x
 
 instance SyntaxElement Expr where
-  toNonS (IntegerExpr x) = IntegerExpr x
   toNonS (VarExpr (lookupVarExprInfix -> Just op)) =
     SectionExpr op Nothing Nothing
   toNonS (VarExpr x) = VarExpr (toNonS x)
@@ -112,7 +111,7 @@ instance SyntaxElement Expr where
       where
         op' = op { isWedge = True }
 
-        optimize (InfixExpr Op{ repr = "*" } (IntegerExpr (-1)) e2) =
+        optimize (InfixExpr Op{ repr = "*" } (ConstantExpr (IntegerExpr (-1))) e2) =
           PrefixExpr "-" (optimize e2)
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)
@@ -126,7 +125,7 @@ instance SyntaxElement Expr where
   toNonS (ApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
     optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where
-        optimize (InfixExpr Op{ repr = "*" } (IntegerExpr (-1)) e2) =
+        optimize (InfixExpr Op{ repr = "*" } (ConstantExpr (IntegerExpr (-1))) e2) =
           PrefixExpr "-" (optimize e2)
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)
@@ -187,7 +186,6 @@ instance SyntaxElement PrimitiveDataPattern where
   toNonS (PDTuplePat pds) = PDTuplePat (map toNonS pds)
   toNonS (PDConsPat pd1 pd2) = PDConsPat (toNonS pd1) (toNonS pd2)
   toNonS (PDSnocPat pd1 pd2) = PDSnocPat (toNonS pd1) (toNonS pd2)
-  toNonS (PDConstantPat e) = PDConstantPat (toNonS e)
   toNonS pd = pd
 
 instance SyntaxElement LoopRange where
