@@ -25,10 +25,10 @@ import           Language.Egison.RState
 
 
 desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
-desugarTopExpr (Define (VarWithIndices name []) expr) = do
+desugarTopExpr (Define var@(VarWithIndices name []) expr) = do
   expr' <- desugar expr
   case expr' of
-    ILambdaExpr Nothing args body -> return . Just $ IDefine (Var name []) (ILambdaExpr (Just (show name)) args body)
+    ILambdaExpr Nothing args body -> return . Just $ IDefine (Var name []) (ILambdaExpr (Just (show var)) args body)
     _                             -> return . Just $ IDefine (Var name []) expr'
 desugarTopExpr (Define (VarWithIndices name is) expr) = do
   body <- desugar expr
@@ -391,9 +391,10 @@ desugarBindings = mapM f
   where
     f (name, expr) = do
       expr' <- desugar expr
-      case expr' of
-        ILambdaExpr Nothing args body -> return (name, ILambdaExpr (Just (show name)) args body)
-        _                             -> return (name, expr')
+      case (name, expr') of
+        (PDPatVar var, ILambdaExpr Nothing args body) ->
+          return (name, ILambdaExpr (Just (show var)) args body)
+        _ -> return (name, expr')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
