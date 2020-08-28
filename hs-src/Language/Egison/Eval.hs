@@ -64,7 +64,7 @@ evalTopExprs env exprs = do
     (mVal, _) <- evalTopExpr' env expr
     case mVal of
       Nothing  -> return ()
-      Just val -> lift (lift (valueToString val)) >>= liftIO . putStrLn 
+      Just val -> lift (lift (valueToString val)) >>= liftIO . putStrLn
   return env
 
 -- | Evaluate Egison top expressions.

@@ -193,7 +193,7 @@ desugar (LambdaExpr names expr) = do
   where
     desugarInvertedArgs :: Arg -> ([String], IExpr) -> ([String], IExpr)
     desugarInvertedArgs (TensorArg x) (args, expr) = (x : args, expr)
-    desugarInvertedArgs (ScalarArg x) (args, expr) = 
+    desugarInvertedArgs (ScalarArg x) (args, expr) =
       (x : args, ITensorMapExpr (ILambdaExpr Nothing [x] expr) (stringToIVarExpr x))
     desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
       (x : args, ITensorMapExpr (ILambdaExpr Nothing [x] expr) (IFlipIndicesExpr (stringToIVarExpr x)))
