@@ -10,12 +10,13 @@ This module provide desugar functions.
 
 module Language.Egison.Desugar
     ( desugarTopExpr
+    , desugarTopExprs
     , desugarExpr
     ) where
 
-import           Control.Monad.Except  (throwError)
-import           Data.Char             (toUpper)
-import           Data.List             (union)
+import           Control.Monad.Except   (throwError)
+import           Data.Char              (toUpper)
+import           Data.List              (union)
 
 import           Language.Egison.AST
 import           Language.Egison.IExpr
@@ -23,23 +24,31 @@ import           Language.Egison.Data
 import           Language.Egison.RState
 
 
-desugarTopExpr :: TopExpr -> EvalM ITopExpr
+desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
 desugarTopExpr (Define (VarWithIndices name []) expr) = do
   expr' <- desugar expr
   case expr' of
-    ILambdaExpr Nothing args body -> return $ IDefine (Var name []) (ILambdaExpr (Just (show name)) args body)
-    _                             -> return $ IDefine (Var name []) expr'
+    ILambdaExpr Nothing args body -> return . Just $ IDefine (Var name []) (ILambdaExpr (Just (show name)) args body)
+    _                             -> return . Just $ IDefine (Var name []) expr'
 desugarTopExpr (Define (VarWithIndices name is) expr) = do
   body <- desugar expr
   let indexNames = map extractIndex is
   let indexNamesCollection = ICollectionExpr (map stringToIVarExpr indexNames)
-  return $ IDefine (Var name (map (const () <$>) is))
+  return . Just $ IDefine (Var name (map (const () <$>) is))
     (IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
-desugarTopExpr (Test expr)     = ITest <$> desugar expr
-desugarTopExpr (Execute expr)  = IExecute <$> desugar expr
-desugarTopExpr (LoadFile file) = return $ ILoadFile file
-desugarTopExpr (Load file)     = return $ ILoad file
-desugarTopExpr InfixDecl{}     = fail "Unreachable"
+desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
+desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
+desugarTopExpr (LoadFile file) = return . Just $ ILoadFile file
+desugarTopExpr (Load file)     = return . Just $ ILoad file
+desugarTopExpr InfixDecl{}     = return Nothing
+
+desugarTopExprs :: [TopExpr] -> EvalM [ITopExpr]
+desugarTopExprs []             = return []
+desugarTopExprs (expr : exprs) = do
+  expr' <- desugarTopExpr expr
+  case expr' of
+    Nothing -> desugarTopExprs exprs
+    Just expr' -> (expr' :) <$> desugarTopExprs exprs
 
 desugarExpr :: Expr -> EvalM IExpr
 desugarExpr = desugar
