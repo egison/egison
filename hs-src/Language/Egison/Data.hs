@@ -555,7 +555,7 @@ data EgisonError
   | Assertion String CallStack
   | Parser String
   | EgisonBug String CallStack
-  | MatchFailure String CallStack
+  | MatchFailure CallStack
   | Default String
   deriving Typeable
 
@@ -577,7 +577,7 @@ instance Show EgisonError where
   show (Assertion message stack) = "Assertion failed: " ++ message ++ showTrace stack
   show (Parser err) = "Parse error at: " ++ err
   show (EgisonBug message stack) = "Egison Error: " ++ message ++ showTrace stack
-  show (MatchFailure currentFunc stack) = "Failed pattern match in: " ++ currentFunc ++ showTrace stack
+  show (MatchFailure stack) = "Pattern match failed" ++ showTrace stack
   show (Default message) = "Error: " ++ message
 
 showTrace :: CallStack -> String
@@ -599,18 +599,6 @@ instance {-# OVERLAPPING #-} MonadFail EvalM where
 instance MonadRuntime EvalM where
   fresh = lift $ lift fresh
   freshV = lift $ lift freshV
-
-instance MonadEval EvalM where
-  pushFuncName name = do
-    st <- get
-    put $ st { funcNameStack = name : funcNameStack st }
-    return ()
-  topFuncName = head . funcNameStack <$> get
-  popFuncName = do
-    st <- get
-    put $ st { funcNameStack = tail $ funcNameStack st }
-    return ()
-  getFuncNameStack = funcNameStack <$> get
 
 fromEvalT :: EvalM a -> RuntimeM (Either EgisonError a)
 fromEvalT m = runExceptT (evalStateT m initialEvalState)

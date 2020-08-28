@@ -361,9 +361,8 @@ evalExprShallow env (IMatchExpr pmmode target matcher clauses) = do
             case result of
               MCons bindings _ -> evalExprShallow (extendEnv env bindings) expr
               MNil             -> cont
-      currentFuncName <- topFuncName
       callstack <- getFuncNameStack
-      foldr tryMatchClause (throwError $ MatchFailure currentFuncName callstack) clauses
+      foldr tryMatchClause (throwError $ MatchFailure callstack) clauses
 
 evalExprShallow env (ISeqExpr expr1 expr2) = do
   _ <- evalExprDeep env expr1
@@ -969,8 +968,8 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                 Nothing  -> do
                   obj <- updateHash indices target (Intermediate . IIntHash $ HL.empty) >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = (name,obj):bindings, mTrees = trees }
-            IIndexedPat pattern _ -> throwError $ Default $ "invalid indexed-pattern" ++ prettyStr pattern
-            ITuplePat patterns -> do
+            IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyStr pattern)
+            TuplePat patterns -> do
               targets <- tupleToListWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets (map (const Something) patterns) ++ trees
