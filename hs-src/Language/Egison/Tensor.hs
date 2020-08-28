@@ -45,8 +45,7 @@ import           Prelude                   hiding (foldr, mappend, mconcat)
 
 import           Control.Monad.Except      hiding (join)
 import qualified Data.Vector               as V
-import           Data.List                 (delete, find, findIndex,
-                                            partition, (\\))
+import           Data.List                 (delete, find, partition, (\\))
 import           Data.Maybe                (fromJust)
 
 import           Control.Egison
@@ -354,14 +353,15 @@ tContract t = do
 -- TODO: refactor in PMOP
 tContract' :: HasTensor a => Tensor a -> EvalM (Tensor a)
 tContract' t@(Tensor ns _ js) =
-  case findPair p js of
-    Nothing -> return t
-    Just (m, n) -> do
-      let (hjs, mjs, tjs) = removePair (m,n) js
-      xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (SingleTerm i []))] ++ mjs
-                                   ++ [Subscript (ScalarData (SingleTerm i []))] ++ tjs) t)
-                  [1..(ns !! m)]
-      mapM toTensor xs' >>= tConcat (js !! m) >>= tTranspose (hjs ++ [js !! m] ++ mjs ++ tjs) >>= tContract'
+  match dfs js (List M.Something)
+    [ [mc| $hjs ++ $a : $mjs ++ ?(p a) : $tjs -> do
+             let m = fromIntegral (length hjs)
+             xs' <- mapM (\i -> tref (hjs ++ (Subscript (ScalarData (SingleTerm i [])) : mjs)
+                                          ++ (Subscript (ScalarData (SingleTerm i [])) : tjs)) t)
+                         [1..(ns !! m)]
+             mapM toTensor xs' >>= tConcat a >>= tTranspose (hjs ++ a : mjs ++ tjs) >>= tContract' |]
+    , [mc| _ -> return t |]
+    ]
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Superscript j)   = i == j
@@ -411,25 +411,6 @@ split w xs
 getScalar :: Tensor a -> EvalM a
 getScalar (Scalar x) = return x
 getScalar _          = throwError $ Default "Inconsitent Tensor order"
-
-findPair :: (a -> a -> Bool) -> [a] -> Maybe (Int, Int)
-findPair p xs = findPair' 0 p xs
-
--- TODO: refactor in PMOP
-findPair' :: Int -> (a -> a -> Bool) -> [a] -> Maybe (Int, Int)
-findPair' _ _ [] = Nothing
-findPair' m p (x:xs) = case findIndex (p x) xs of
-                    Just i  -> Just (m, m + i + 1)
-                    Nothing -> findPair' (m + 1) p xs
-
--- TODO: refactor in PMOP
-removePair :: (Int, Int) -> [a] -> ([a],[a],[a])
-removePair (m, n) xs =          -- (0,1) [i i]
-  let (hms, tts) = splitAt n xs  -- [i] [i]
-      ts = tail tts              -- []
-      (hs, tms) = splitAt m hms  -- [] [i]
-      ms = tail tms              -- []
-   in (hs, ms, ts)               -- [] [] []
 
 reverseIndex :: Index EgisonValue -> Index EgisonValue
 reverseIndex (Superscript i) = Subscript i
