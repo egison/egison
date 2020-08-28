@@ -45,7 +45,7 @@ import           Prelude                   hiding (foldr, mappend, mconcat)
 
 import           Control.Monad.Except      hiding (join)
 import qualified Data.Vector               as V
-import           Data.List                 (delete, find, partition, (\\))
+import           Data.List                 (delete, find, intersect, partition, (\\))
 import           Data.Maybe                (fromJust)
 
 import           Control.Egison
@@ -236,9 +236,9 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ map (DFscript 0) [1..k1]
   let k2 = fromIntegral $ length ns2 - length js2'
   let js2 = js2' ++ map (DFscript 0) [1..k2]
-  let (cjs, tjs1, tjs2) = h js1 js2
-  t1' <- tTranspose (cjs ++ tjs1) (Tensor ns1 xs1 js1)
-  t2' <- tTranspose (cjs ++ tjs2) (Tensor ns2 xs2 js2)
+  let cjs = js1 `intersect` js2
+  t1' <- tTranspose (cjs ++ (js1 \\ cjs)) (Tensor ns1 xs1 js1)
+  t2' <- tTranspose (cjs ++ (js2 \\ cjs)) (Tensor ns2 xs2 js2)
   let cns = take (length cjs) (tShape t1')
   rts1 <- mapM (`tIntRef` t1') (enumTensorIndices cns)
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
@@ -246,9 +246,6 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let ret = Tensor (cns ++ tShape (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
   tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
  where
-  h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
-  h js1 js2 = let cjs = filter (`elem` js2) js1 in
-                (cjs, js1 \\ cjs, js2 \\ cjs)
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
@@ -350,7 +347,6 @@ tContract t = do
       return $ concat tss
     _ -> return [t']
 
--- TODO: refactor in PMOP
 tContract' :: HasTensor a => Tensor a -> EvalM (Tensor a)
 tContract' t@(Tensor ns _ js) =
   match dfs js (List M.Something)
