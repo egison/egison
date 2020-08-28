@@ -51,12 +51,17 @@ import           Language.Egison.RState
 import           Language.Egison.Tensor
 
 
+evalConstant :: ConstantExpr -> EgisonValue
+evalConstant (CharExpr c)    = Char c
+evalConstant (StringExpr s)  = toEgison s
+evalConstant (BoolExpr b)    = Bool b
+evalConstant (IntegerExpr x) = toEgison x
+evalConstant (FloatExpr x)   = Float x
+evalConstant SomethingExpr   = Something
+evalConstant UndefinedExpr   = Undefined
+
 evalExprShallow :: Env -> Expr -> EvalM WHNFData
-evalExprShallow _ (CharExpr c)    = return . Value $ Char c
-evalExprShallow _ (StringExpr s)  = return . Value $ toEgison s
-evalExprShallow _ (BoolExpr b)    = return . Value $ Bool b
-evalExprShallow _ (IntegerExpr x) = return . Value $ toEgison x
-evalExprShallow _ (FloatExpr x)   = return . Value $ Float x
+evalExprShallow _ (ConstantExpr c) = return $ Value (evalConstant c)
 
 evalExprShallow env (QuoteExpr expr) = do
   whnf <- evalExprShallow env expr
@@ -502,8 +507,6 @@ evalExprShallow env (TensorMap2Expr fnExpr t1Expr t2Expr) = do
     yRef <- newEvaluatedObjectRef y
     applyFunc env fn (Intermediate (ITuple [xRef, yRef]))
 
-evalExprShallow _ SomethingExpr = return $ Value Something
-evalExprShallow _ UndefinedExpr = return $ Value Undefined
 evalExprShallow _ expr = throwError =<< NotImplemented ("evalExprShallow for " ++ show expr) <$> getFuncNameStack
 
 evalExprDeep :: Env -> Expr -> EvalM EgisonValue
@@ -666,7 +669,7 @@ recursiveBind env bindings = do
   let names = concatMap (\(pd, _) -> collectNames pd) bindings
   -- Create dummy bindings for |names| first. Since this is a reference,
   -- it can be overwritten later.
-  binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv UndefinedExpr) names
+  binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv (ConstantExpr UndefinedExpr)) names
   let env'@(Env frame _) = extendEnv env binds
   forM_ bindings $ \(pd, expr) -> do
     -- Modify |env'| for some cases
@@ -808,7 +811,7 @@ processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ 
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
       indices <- mapM (evalExprShallow env'' >=> fmap fromInteger . fromWHNF) indices
-      let pattern' = IndexedPat pattern $ map IntegerExpr indices
+      let pattern' = IndexedPat pattern $ map (ConstantExpr . IntegerExpr) indices
       case trees' of
         [] -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:trees }
         _  -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:MNode penv (ms2 { mTrees = trees' }):trees }
@@ -1066,9 +1069,7 @@ primitiveDataPatternMatch (PDSnocPat pattern pattern') ref = do
 primitiveDataPatternMatch (PDConstantPat expr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value val -> do
-      val' <- lift $ evalExprDeep nullEnv expr
-      if val == val' then return [] else matchFail
+    Value val | val == evalConstant expr -> return []
     _ -> matchFail
 
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
