@@ -155,8 +155,7 @@ tTranspose is t@(Tensor _ _ js) | length is > length js =
   return t
 tTranspose is t@(Tensor ns _ js) = do
   let js' = take (length is) js
-  let k = fromIntegral (length ns - length is)
-  let ds = map (DFscript 0) [1..k]
+  let ds = complementWithDFscript ns is
   ns' <- transIndex (js' ++ ds) (is ++ ds) ns
   xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
   return $ Tensor ns' xs' is
@@ -212,14 +211,12 @@ removeDFscripts whnf = return whnf
 
 tMap :: HasTensor a => (a -> EvalM a) -> Tensor a -> EvalM (Tensor a)
 tMap f (Tensor ns xs js') = do
-  let k = fromIntegral $ length ns - length js'
-  let js = js' ++ map (DFscript 0) [1..k]
+  let js = js' ++ complementWithDFscript ns js'
   xs' <- V.fromList <$> mapM f (V.toList xs)
   t <- toTensor (V.head xs')
   case t of
     Tensor ns1 _ js1' -> do
-      let k1 = fromIntegral $ length ns1 - length js1'
-      let js1 = js1' ++ map (DFscript 0) [1..k1]
+      let js1 = js1' ++ complementWithDFscript ns1 js1'
       tContract' $ Tensor (ns ++ ns1) (V.concat (V.toList (V.map tensorElems xs'))) (js ++ js1)
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
@@ -232,10 +229,8 @@ tMapN f xs = Scalar <$> (mapM fromTensor xs >>= f)
 
 tMap2 :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
-  let k1 = fromIntegral $ length ns1 - length js1'
-  let js1 = js1' ++ map (DFscript 0) [1..k1]
-  let k2 = fromIntegral $ length ns2 - length js2'
-  let js2 = js2' ++ map (DFscript 0) [1..k2]
+  let js1 = js1' ++ complementWithDFscript ns1 js1'
+  let js2 = js2' ++ complementWithDFscript ns2 js2'
   let cjs = js1 `intersect` js2
   t1' <- tTranspose (cjs ++ (js1 \\ cjs)) (Tensor ns1 xs1 js1)
   t2' <- tTranspose (cjs ++ (js2 \\ cjs)) (Tensor ns2 xs2 js2)
@@ -293,10 +288,8 @@ tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
 
 tProduct :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
-  let k1 = fromIntegral $ length ns1 - length js1'
-  let js1 = js1' ++ map (DFscript 0) [1..k1]
-  let k2 = fromIntegral $ length ns2 - length js2'
-  let js2 = js2' ++ map (DFscript 0) [1..k2]
+  let js1 = js1' ++ complementWithDFscript ns1 js1'
+  let js2 = js2' ++ complementWithDFscript ns2 js2'
   let (cjs1, cjs2, tjs1, tjs2) = h js1 js2
   let t1 = Tensor ns1 xs1 js1
   let t2 = Tensor ns2 xs2 js2
@@ -415,3 +408,7 @@ reverseIndex (Subscript i)   = Superscript i
 toSupSubscript :: Index EgisonValue -> Index EgisonValue
 toSupSubscript (Superscript i) = SupSubscript i
 toSupSubscript (Subscript i)   = SupSubscript i
+
+complementWithDFscript :: Shape -> [Index a] -> [Index a]
+complementWithDFscript ns js' = map (DFscript 0) [1..k]
+  where k = fromIntegral $ length ns - length js'
