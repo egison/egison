@@ -1,6 +1,5 @@
 module Main where
 
-import           Control.Monad
 import           Control.Monad.Trans.Class      (lift)
 
 import           Test.Framework                 (defaultMain)
@@ -8,7 +7,6 @@ import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
 
 import           Language.Egison
-import           Language.Egison.Core
 import           Language.Egison.Eval
 import           Language.Egison.MathOutput
 import           Language.Egison.Parser
@@ -51,9 +49,7 @@ runTestCase :: FilePath -> Test
 runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   env <- lift $ lift initialEnv
   exprs <- loadFile file
-  (bindings, tests) <- collectDefs defaultOption exprs
-  env' <- recursiveBind env bindings
-  forM_ tests $ evalTopExpr env'
+  evalTopExprsNoPrint env exprs
  where
   assertEvalM :: EvalM a -> Assertion
   assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")

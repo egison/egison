@@ -3,6 +3,7 @@ module Language.Egison.Eval
   ( evalExpr
   , evalTopExpr
   , evalTopExprs
+  , evalTopExprsNoPrint
   , runExpr
   , runTopExpr
   , runTopExprs
@@ -53,6 +54,15 @@ evalTopExprs env exprs = do
     case str of
       Nothing  -> return ()
       Just str -> liftIO $ putStrLn str
+  return env
+
+-- | Evaluate Egison top expressions.
+evalTopExprsNoPrint :: Env -> [TopExpr] -> EvalM Env
+evalTopExprsNoPrint env exprs = do
+  opts <- ask
+  (bindings, rest) <- collectDefs opts exprs
+  env <- recursiveBind env bindings
+  forM_ rest $ evalTopExpr env
   return env
 
 -- | Evaluate an Egison expression. Input is a Haskell string.
