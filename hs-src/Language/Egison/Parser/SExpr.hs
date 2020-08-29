@@ -234,7 +234,7 @@ wedgeExpr = do
     ApplyExpr e1 e2 -> return $ WedgeApplyExpr e1 e2
 
 functionWithArgExpr :: Parser Expr
-functionWithArgExpr = keywordFunction >> FunctionExpr <$> between lp rp (sepEndBy expr whiteSpace)
+functionWithArgExpr = keywordFunction >> FunctionExpr <$> between lp rp (sepEndBy identVar whiteSpace)
   where
     lp = P.lexeme lexer (char '[')
     rp = char ']'

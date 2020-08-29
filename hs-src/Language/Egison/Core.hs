@@ -258,8 +258,8 @@ evalExprShallow env (PatternFunctionExpr names pattern) = return . Value $ Patte
 evalExprShallow (Env _ Nothing) (FunctionExpr _) = throwError $ Default "function symbol is not bound to a variable"
 
 evalExprShallow env@(Env _ (Just name)) (FunctionExpr args) = do
-  args' <- mapM (evalExprDeep env) args >>= mapM extractScalar
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (prettyStr name)) (map (symbolScalarData' . prettyStr') args) args' [], 1)])
+  args' <- mapM (evalExprDeep env . VarExpr) args >>= mapM extractScalar
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (prettyStr name)) (map (symbolScalarData' . prettyStr) args) args' [], 1)])
 
 evalExprShallow env (IfExpr test expr expr') = do
   test <- evalExprShallow env test >>= fromWHNF
