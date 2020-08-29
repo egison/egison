@@ -57,6 +57,22 @@ import           Language.Egison.EvalState     (getFuncNameStack)
 import           Language.Egison.Math
 import           Language.Egison.RState
 
+
+data IndexM m = IndexM m
+instance M.Matcher m a => M.Matcher (IndexM m) (Index a)
+
+subscript :: M.Matcher m a => M.Pattern (PP a) (IndexM m) (Index a) a
+subscript _ _ (Subscript a) = pure a
+subscript _ _ _             = mzero
+subscriptM :: M.Matcher m a => IndexM m -> Index a -> m
+subscriptM (IndexM m) _ = m
+
+superscript :: M.Matcher m a => M.Pattern (PP a) (IndexM m) (Index a) a
+superscript _ _ (Superscript a) = pure a
+superscript _ _ _               = mzero
+superscriptM :: M.Matcher m a => IndexM m -> Index a -> m
+superscriptM (IndexM m) _ = m
+
 --
 -- Tensors
 --
@@ -267,19 +283,19 @@ tDiag t = return t
 
 tDiagIndex :: [Index EgisonValue] -> [Index EgisonValue]
 tDiagIndex js =
-  let xs = filter (\j -> any (p j) js) js
-      ys = js \\ (xs ++ map reverseIndex xs)
-   in map toSupSubscript xs ++ ys
- where
-  p :: Index EgisonValue -> Index EgisonValue -> Bool
-  p (Superscript i) (Subscript j) = i == j
-  p _ _                           = False
+  match dfs js (List (IndexM Eql))
+    [ [mc| $hjs ++ superscript $i : $mjs ++ subscript #i : $tjs ->
+             tDiagIndex (SupSubscript i : hjs ++ mjs ++ tjs) |]
+    , [mc| $hjs ++ subscript $i : $mjs ++ superscript #i : $tjs ->
+             tDiagIndex (SupSubscript i : hjs ++ mjs ++ tjs) |]
+    , [mc| _ -> js |]
+    ]
 
 tSum :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
   t2' <- tTranspose js1 t2
   case t2' of
-    (Tensor ns2 xs2 _)
+    Tensor ns2 xs2 _
       | ns2 == ns1 -> do ys <- V.mapM (uncurry f) (V.zip xs1 xs2)
                          return (Tensor ns1 ys js1)
       | otherwise -> throwError =<< InconsistentTensorShape <$> getFuncNameStack
@@ -332,7 +348,7 @@ tContract :: HasTensor a => Tensor a -> EvalM [Tensor a]
 tContract t = do
   t' <- tDiag t
   case t' of
-    (Tensor (n:_) _ (SupSubscript _ : _)) -> do
+    Tensor (n:_) _ (SupSubscript _ : _) -> do
       ts <- mapM (`tIntRef'` t') [1..n]
       tss <- mapM toTensor ts >>= mapM tContract
       return $ concat tss
