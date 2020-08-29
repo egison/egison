@@ -45,8 +45,7 @@ import           Prelude                   hiding (foldr, mappend, mconcat)
 
 import           Control.Monad.Except      hiding (join)
 import qualified Data.Vector               as V
-import           Data.List                 (delete, find, findIndex,
-                                            partition, (\\))
+import           Data.List                 (delete, find, intersect, partition, (\\))
 import           Data.Maybe                (fromJust)
 
 import           Control.Egison
@@ -57,6 +56,22 @@ import           Language.Egison.Data
 import           Language.Egison.EvalState     (getFuncNameStack)
 import           Language.Egison.Math
 import           Language.Egison.RState
+
+
+data IndexM m = IndexM m
+instance M.Matcher m a => M.Matcher (IndexM m) (Index a)
+
+subscript :: M.Matcher m a => M.Pattern (PP a) (IndexM m) (Index a) a
+subscript _ _ (Subscript a) = pure a
+subscript _ _ _             = mzero
+subscriptM :: M.Matcher m a => IndexM m -> Index a -> m
+subscriptM (IndexM m) _ = m
+
+superscript :: M.Matcher m a => M.Pattern (PP a) (IndexM m) (Index a) a
+superscript _ _ (Superscript a) = pure a
+superscript _ _ _               = mzero
+superscriptM :: M.Matcher m a => IndexM m -> Index a -> m
+superscriptM (IndexM m) _ = m
 
 --
 -- Tensors
@@ -156,8 +171,7 @@ tTranspose is t@(Tensor _ _ js) | length is > length js =
   return t
 tTranspose is t@(Tensor ns _ js) = do
   let js' = take (length is) js
-  let k = fromIntegral (length ns - length is)
-  let ds = map (DFscript 0) [1..k]
+  let ds = complementWithDFscript ns is
   ns' <- transIndex (js' ++ ds) (is ++ ds) ns
   xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
   return $ Tensor ns' xs' is
@@ -213,14 +227,12 @@ removeDFscripts whnf = return whnf
 
 tMap :: HasTensor a => (a -> EvalM a) -> Tensor a -> EvalM (Tensor a)
 tMap f (Tensor ns xs js') = do
-  let k = fromIntegral $ length ns - length js'
-  let js = js' ++ map (DFscript 0) [1..k]
+  let js = js' ++ complementWithDFscript ns js'
   xs' <- V.fromList <$> mapM f (V.toList xs)
   t <- toTensor (V.head xs')
   case t of
     Tensor ns1 _ js1' -> do
-      let k1 = fromIntegral $ length ns1 - length js1'
-      let js1 = js1' ++ map (DFscript 0) [1..k1]
+      let js1 = js1' ++ complementWithDFscript ns1 js1'
       tContract' $ Tensor (ns ++ ns1) (V.concat (V.toList (V.map tensorElems xs'))) (js ++ js1)
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
@@ -233,13 +245,11 @@ tMapN f xs = Scalar <$> (mapM fromTensor xs >>= f)
 
 tMap2 :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
-  let k1 = fromIntegral $ length ns1 - length js1'
-  let js1 = js1' ++ map (DFscript 0) [1..k1]
-  let k2 = fromIntegral $ length ns2 - length js2'
-  let js2 = js2' ++ map (DFscript 0) [1..k2]
-  let (cjs, tjs1, tjs2) = h js1 js2
-  t1' <- tTranspose (cjs ++ tjs1) (Tensor ns1 xs1 js1)
-  t2' <- tTranspose (cjs ++ tjs2) (Tensor ns2 xs2 js2)
+  let js1 = js1' ++ complementWithDFscript ns1 js1'
+  let js2 = js2' ++ complementWithDFscript ns2 js2'
+  let cjs = js1 `intersect` js2
+  t1' <- tTranspose (cjs ++ (js1 \\ cjs)) (Tensor ns1 xs1 js1)
+  t2' <- tTranspose (cjs ++ (js2 \\ cjs)) (Tensor ns2 xs2 js2)
   let cns = take (length cjs) (tShape t1')
   rts1 <- mapM (`tIntRef` t1') (enumTensorIndices cns)
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
@@ -247,9 +257,6 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let ret = Tensor (cns ++ tShape (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
   tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
  where
-  h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
-  h js1 js2 = let cjs = filter (`elem` js2) js1 in
-                (cjs, js1 \\ cjs, js2 \\ cjs)
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
@@ -271,36 +278,32 @@ tDiag t@(Tensor _ _ js) =
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Subscript j) = i == j
-  p (Subscript _) _               = False
   p _ _                           = False
 tDiag t = return t
 
 tDiagIndex :: [Index EgisonValue] -> [Index EgisonValue]
 tDiagIndex js =
-  let xs = filter (\j -> any (p j) js) js
-      ys = js \\ (xs ++ map reverseIndex xs)
-   in map toSupSubscript xs ++ ys
- where
-  p :: Index EgisonValue -> Index EgisonValue -> Bool
-  p (Superscript i) (Subscript j) = i == j
-  p (Subscript _) _               = False
-  p _ _                           = False
+  match dfs js (List (IndexM Eql))
+    [ [mc| $hjs ++ superscript $i : $mjs ++ subscript #i : $tjs ->
+             tDiagIndex (SupSubscript i : hjs ++ mjs ++ tjs) |]
+    , [mc| $hjs ++ subscript $i : $mjs ++ superscript #i : $tjs ->
+             tDiagIndex (SupSubscript i : hjs ++ mjs ++ tjs) |]
+    , [mc| _ -> js |]
+    ]
 
 tSum :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
   t2' <- tTranspose js1 t2
   case t2' of
-    (Tensor ns2 xs2 _)
+    Tensor ns2 xs2 _
       | ns2 == ns1 -> do ys <- V.mapM (uncurry f) (V.zip xs1 xs2)
                          return (Tensor ns1 ys js1)
       | otherwise -> throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 tProduct :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
-  let k1 = fromIntegral $ length ns1 - length js1'
-  let js1 = js1' ++ map (DFscript 0) [1..k1]
-  let k2 = fromIntegral $ length ns2 - length js2'
-  let js2 = js2' ++ map (DFscript 0) [1..k2]
+  let js1 = js1' ++ complementWithDFscript ns1 js1'
+  let js2 = js2' ++ complementWithDFscript ns2 js2'
   let (cjs1, cjs2, tjs1, tjs2) = h js1 js2
   let t1 = Tensor ns1 xs1 js1
   let t2 = Tensor ns2 xs2 js2
@@ -345,23 +348,23 @@ tContract :: HasTensor a => Tensor a -> EvalM [Tensor a]
 tContract t = do
   t' <- tDiag t
   case t' of
-    (Tensor (n:_) _ (SupSubscript _ : _)) -> do
+    Tensor (n:_) _ (SupSubscript _ : _) -> do
       ts <- mapM (`tIntRef'` t') [1..n]
       tss <- mapM toTensor ts >>= mapM tContract
       return $ concat tss
     _ -> return [t']
 
--- TODO: refactor in PMOP
 tContract' :: HasTensor a => Tensor a -> EvalM (Tensor a)
 tContract' t@(Tensor ns _ js) =
-  case findPair p js of
-    Nothing -> return t
-    Just (m, n) -> do
-      let (hjs, mjs, tjs) = removePair (m,n) js
-      xs' <- mapM (\i -> tref (hjs ++ [Subscript (ScalarData (SingleTerm i []))] ++ mjs
-                                   ++ [Subscript (ScalarData (SingleTerm i []))] ++ tjs) t)
-                  [1..(ns !! m)]
-      mapM toTensor xs' >>= tConcat (js !! m) >>= tTranspose (hjs ++ [js !! m] ++ mjs ++ tjs) >>= tContract'
+  match dfs js (List M.Something)
+    [ [mc| $hjs ++ $a : $mjs ++ ?(p a) : $tjs -> do
+             let m = fromIntegral (length hjs)
+             xs' <- mapM (\i -> tref (hjs ++ (Subscript (ScalarData (SingleTerm i [])) : mjs)
+                                          ++ (Subscript (ScalarData (SingleTerm i [])) : tjs)) t)
+                         [1..(ns !! m)]
+             mapM toTensor xs' >>= tConcat a >>= tTranspose (hjs ++ a : mjs ++ tjs) >>= tContract' |]
+    , [mc| _ -> return t |]
+    ]
  where
   p :: Index EgisonValue -> Index EgisonValue -> Bool
   p (Superscript i) (Superscript j)   = i == j
@@ -412,25 +415,6 @@ getScalar :: Tensor a -> EvalM a
 getScalar (Scalar x) = return x
 getScalar _          = throwError $ Default "Inconsitent Tensor order"
 
-findPair :: (a -> a -> Bool) -> [a] -> Maybe (Int, Int)
-findPair p xs = findPair' 0 p xs
-
--- TODO: refactor in PMOP
-findPair' :: Int -> (a -> a -> Bool) -> [a] -> Maybe (Int, Int)
-findPair' _ _ [] = Nothing
-findPair' m p (x:xs) = case findIndex (p x) xs of
-                    Just i  -> Just (m, m + i + 1)
-                    Nothing -> findPair' (m + 1) p xs
-
--- TODO: refactor in PMOP
-removePair :: (Int, Int) -> [a] -> ([a],[a],[a])
-removePair (m, n) xs =          -- (0,1) [i i]
-  let (hms, tts) = splitAt n xs  -- [i] [i]
-      ts = tail tts              -- []
-      (hs, tms) = splitAt m hms  -- [] [i]
-      ms = tail tms              -- []
-   in (hs, ms, ts)               -- [] [] []
-
 reverseIndex :: Index EgisonValue -> Index EgisonValue
 reverseIndex (Superscript i) = Subscript i
 reverseIndex (Subscript i)   = Superscript i
@@ -438,3 +422,7 @@ reverseIndex (Subscript i)   = Superscript i
 toSupSubscript :: Index EgisonValue -> Index EgisonValue
 toSupSubscript (Superscript i) = SupSubscript i
 toSupSubscript (Subscript i)   = SupSubscript i
+
+complementWithDFscript :: Shape -> [Index a] -> [Index a]
+complementWithDFscript ns js' = map (DFscript 0) [1..k]
+  where k = fromIntegral $ length ns - length js'
