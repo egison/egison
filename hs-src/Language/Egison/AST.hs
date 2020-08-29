@@ -125,7 +125,7 @@ data Expr
   | TransposeExpr Expr Expr
   | FlipIndicesExpr Expr                              -- Does not appear in user program
 
-  | FunctionExpr [Expr]
+  | FunctionExpr [Var]
  deriving (Eq, Show)
 
 data Var = Var [String] [Index ()]
