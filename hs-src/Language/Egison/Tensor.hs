@@ -193,11 +193,7 @@ tTranspose' is t@(Tensor _ _ js) = do
                                 return $ j':js'
 
 tFlipIndices :: HasTensor a => Tensor a -> EvalM (Tensor a)
-tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map flipIndex js)
- where
-  flipIndex (Subscript i)   = Superscript i
-  flipIndex (Superscript i) = Subscript i
-  flipIndex x               = x
+tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map reverseIndex js)
 
 appendDFscripts :: Integer -> WHNFData -> EvalM WHNFData
 appendDFscripts id (Intermediate (ITensor (Tensor s xs is))) = do
@@ -415,11 +411,12 @@ getScalar :: Tensor a -> EvalM a
 getScalar (Scalar x) = return x
 getScalar _          = throwError $ Default "Inconsitent Tensor order"
 
-reverseIndex :: Index EgisonValue -> Index EgisonValue
+reverseIndex :: Index a -> Index a
 reverseIndex (Superscript i) = Subscript i
 reverseIndex (Subscript i)   = Superscript i
+reverseIndex x               = x
 
-toSupSubscript :: Index EgisonValue -> Index EgisonValue
+toSupSubscript :: Index a -> Index a
 toSupSubscript (Superscript i) = SupSubscript i
 toSupSubscript (Subscript i)   = SupSubscript i
 
