@@ -155,7 +155,7 @@ defineOrTestExpr = do
       case convertToDefine e of
         Nothing -> customFailure IllFormedDefine
         Just (Variable var)      -> Define var <$> expr
-        Just (Function var args) -> Define var . LambdaExpr Nothing args <$> expr
+        Just (Function var args) -> Define var . LambdaExpr args <$> expr
         Just (IndexedVar var)    -> DefineWithIndices var <$> expr
 
     convertToDefine :: Expr -> Maybe ConversionResult
@@ -300,7 +300,7 @@ lambdaExpr :: Parser Expr
 lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr (reserved "match")    MatchLambdaExpr
   <|> makeMatchLambdaExpr (reserved "matchAll") MatchAllLambdaExpr
-  <|> try (LambdaExpr Nothing <$> tupleOrSome arg <* symbol "->") <*> expr
+  <|> try (LambdaExpr <$> tupleOrSome arg <* symbol "->") <*> expr
   <|> PatternFunctionExpr <$> tupleOrSome lowerId <*> (symbol "=>" >> pattern))
   <?> "lambda or pattern function expression"
   where
@@ -337,7 +337,7 @@ binding = do
   body <- symbol ":=" >> expr
   return $ case args of
              [] -> (var, body)
-             _  -> (var, LambdaExpr Nothing args body)
+             _  -> (var, LambdaExpr args body)
 
 withSymbolsExpr :: Parser Expr
 withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy ident comma)) <*> expr

@@ -322,7 +322,7 @@ ifExpr :: Parser Expr
 ifExpr = keywordIf >> IfExpr <$> expr <*> expr <*> expr
 
 lambdaExpr :: Parser Expr
-lambdaExpr = keywordLambda >> LambdaExpr Nothing <$> argNames <*> expr
+lambdaExpr = keywordLambda >> LambdaExpr <$> argNames <*> expr
 
 memoizedLambdaExpr :: Parser Expr
 memoizedLambdaExpr = keywordMemoizedLambda >> MemoizedLambdaExpr <$> varNames <*> expr
