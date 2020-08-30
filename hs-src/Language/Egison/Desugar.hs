@@ -10,6 +10,7 @@ This module provide desugar functions.
 
 module Language.Egison.Desugar
     ( desugarTopExpr
+    , desugarTopExprs
     , desugarExpr
     ) where
 
@@ -38,6 +39,9 @@ desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
 desugarTopExpr (Test expr)    = Test <$> desugar expr
 desugarTopExpr (Execute expr) = Execute <$> desugar expr
 desugarTopExpr expr           = return expr
+
+desugarTopExprs :: [TopExpr] -> EvalM [TopExpr]
+desugarTopExprs = mapM desugarTopExpr
 
 desugarExpr :: Expr -> EvalM Expr
 desugarExpr = desugar
