@@ -239,9 +239,7 @@ evalExprShallow env (UserrefsExpr _ expr jsExpr) = do
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
 evalExprShallow env (LambdaExpr fnname names expr) = do
-  names' <- mapM (\case
-                     TensorArg name' -> return name'
-                     ScalarArg _ -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
+  let names' = map (\case TensorArg name -> name) names
   return . Value $ Func fnname env names' expr
 
 evalExprShallow env (MemoizedLambdaExpr names body) = do

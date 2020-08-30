@@ -20,28 +20,36 @@ import           Data.List             (union)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.IExpr
 import           Language.Egison.Pretty
 import           Language.Egison.RState
 
 
-desugarTopExpr :: TopExpr -> EvalM TopExpr
+desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
 desugarTopExpr (Define name expr) = do
   expr' <- desugar expr
   case expr' of
-    LambdaExpr Nothing args body -> return $ Define name (LambdaExpr (Just (prettyStr name)) args body)
-    _                            -> return $ Define name expr'
+    LambdaExpr Nothing args body -> return . Just $ IDefine name (LambdaExpr (Just (prettyStr name)) args body)
+    _                            -> return . Just $ IDefine name expr'
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr
   let indexNames = map extractIndex is
   let indexNamesCollection = CollectionExpr (map stringToVarExpr indexNames)
-  return $ Define (Var name (map (const () <$>) is))
+  return . Just $ IDefine (Var name (map (const () <$>) is))
     (WithSymbolsExpr indexNames (TransposeExpr indexNamesCollection body))
-desugarTopExpr (Test expr)    = Test <$> desugar expr
-desugarTopExpr (Execute expr) = Execute <$> desugar expr
-desugarTopExpr expr           = return expr
+desugarTopExpr (Test expr)    = Just . ITest <$> desugar expr
+desugarTopExpr (Execute expr) = Just . IExecute <$> desugar expr
+desugarTopExpr (Load file)     = return . Just $ ILoad file
+desugarTopExpr (LoadFile file) = return . Just $ ILoadFile file
+desugarTopExpr _               = return Nothing
 
-desugarTopExprs :: [TopExpr] -> EvalM [TopExpr]
-desugarTopExprs = mapM desugarTopExpr
+desugarTopExprs :: [TopExpr] -> EvalM [ITopExpr]
+desugarTopExprs [] = return []
+desugarTopExprs (expr : exprs) = do
+  expr' <- desugarTopExpr expr
+  case expr' of
+    Nothing -> desugarTopExprs exprs
+    Just expr' -> (expr' :) <$> desugarTopExprs exprs
 
 desugarExpr :: Expr -> EvalM Expr
 desugarExpr = desugar
