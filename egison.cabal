@@ -112,6 +112,7 @@ Library
                    Language.Egison.Data.Utils
                    Language.Egison.EvalState
                    Language.Egison.Eval
+                   Language.Egison.IExpr
                    Language.Egison.Match
                    Language.Egison.Math.Arith
                    Language.Egison.Math.Expr

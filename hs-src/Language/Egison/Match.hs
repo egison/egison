@@ -19,8 +19,8 @@ module Language.Egison.Match
 
 import           Control.Monad.Trans.Maybe
 
-import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.IExpr
 
 --
 -- Pattern Matching

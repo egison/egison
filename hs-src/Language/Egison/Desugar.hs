@@ -20,28 +20,36 @@ import           Data.List             (union)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
-import           Language.Egison.Pretty
+import           Language.Egison.IExpr
+import           Language.Egison.Pretty (prettyStr)
 import           Language.Egison.RState
 
 
-desugarTopExpr :: TopExpr -> EvalM TopExpr
+desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
 desugarTopExpr (Define name expr) = do
   expr' <- desugar expr
   case expr' of
-    LambdaExpr Nothing args body -> return $ Define name (LambdaExpr (Just (prettyStr name)) args body)
-    _                            -> return $ Define name expr'
+    LambdaExpr Nothing args body -> return . Just $ IDefine name (LambdaExpr (Just (prettyStr name)) args body)
+    _                            -> return . Just $ IDefine name expr'
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr
   let indexNames = map extractIndex is
   let indexNamesCollection = CollectionExpr (map stringToVarExpr indexNames)
-  return $ Define (Var name (map (const () <$>) is))
+  return . Just $ IDefine (Var name (map (const () <$>) is))
     (WithSymbolsExpr indexNames (TransposeExpr indexNamesCollection body))
-desugarTopExpr (Test expr)    = Test <$> desugar expr
-desugarTopExpr (Execute expr) = Execute <$> desugar expr
-desugarTopExpr expr           = return expr
+desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
+desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
+desugarTopExpr (Load file)     = return . Just $ ILoad file
+desugarTopExpr (LoadFile file) = return . Just $ ILoadFile file
+desugarTopExpr _               = return Nothing
 
-desugarTopExprs :: [TopExpr] -> EvalM [TopExpr]
-desugarTopExprs = mapM desugarTopExpr
+desugarTopExprs :: [TopExpr] -> EvalM [ITopExpr]
+desugarTopExprs [] = return []
+desugarTopExprs (expr : exprs) = do
+  expr' <- desugarTopExpr expr
+  case expr' of
+    Nothing -> desugarTopExprs exprs
+    Just expr' -> (expr' :) <$> desugarTopExprs exprs
 
 desugarExpr :: Expr -> EvalM Expr
 desugarExpr = desugar
@@ -95,7 +103,8 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitivePatPat :: (String, [Expr]) -> EvalM (PrimitivePatPattern, [Expr])
           genPrimitivePatPat (name, matchers) = do
             patterns' <- mapM (const $ return PPPatVar) matchers
-            return (PPInductivePat name patterns', matchers)
+            matchers' <- mapM desugar matchers
+            return (PPInductivePat name patterns', matchers')
 
           genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [Expr])
           genPrimitiveDataPat (name, patterns) = do
@@ -179,15 +188,15 @@ desugar (TensorExpr nsExpr xsExpr) =
 desugar (LambdaExpr Nothing names expr) = do
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
   expr'' <- desugar expr'
-  return $ LambdaExpr Nothing args' expr''
+  return $ LambdaExpr Nothing (map TensorArg args') expr''
   where
-    desugarInvertedArgs :: Arg -> ([Arg], Expr) -> ([Arg], Expr)
-    desugarInvertedArgs (TensorArg x) (args, expr) = (TensorArg x : args, expr)
+    desugarInvertedArgs :: Arg -> ([String], Expr) -> ([String], Expr)
+    desugarInvertedArgs (TensorArg x) (args, expr) = (x : args, expr)
     desugarInvertedArgs (ScalarArg x) (args, expr) =
-      (TensorArg x : args,
+      (x : args,
        TensorMapExpr (LambdaExpr Nothing [TensorArg x] expr) (stringToVarExpr x))
     desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
-      (TensorArg x : args,
+      (x : args,
        TensorMapExpr (LambdaExpr Nothing [TensorArg x] expr) (FlipIndicesExpr (stringToVarExpr x)))
 
 desugar (MemoizedLambdaExpr names expr) =

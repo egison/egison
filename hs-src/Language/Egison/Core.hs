@@ -38,11 +38,11 @@ import           Data.Traversable            (mapM)
 import qualified Data.HashMap.Lazy           as HL
 import qualified Data.Vector                 as V
 
-import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection
 import           Language.Egison.Data.Utils
 import           Language.Egison.EvalState   (MonadEval(..), mLabelFuncName)
+import           Language.Egison.IExpr
 import           Language.Egison.Match
 import           Language.Egison.Math
 import           Language.Egison.MList
@@ -239,9 +239,7 @@ evalExprShallow env (UserrefsExpr _ expr jsExpr) = do
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
 evalExprShallow env (LambdaExpr fnname names expr) = do
-  names' <- mapM (\case
-                     TensorArg name' -> return name'
-                     ScalarArg _ -> throwError =<< EgisonBug "scalar-arg remained" <$> getFuncNameStack) names
+  let names' = map (\case TensorArg name -> name) names
   return . Value $ Func fnname env names' expr
 
 evalExprShallow env (MemoizedLambdaExpr names body) = do
