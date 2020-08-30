@@ -21,7 +21,7 @@ import           Data.List             (union)
 import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.IExpr
-import           Language.Egison.Pretty
+import           Language.Egison.Pretty (prettyStr)
 import           Language.Egison.RState
 
 
@@ -37,8 +37,8 @@ desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   let indexNamesCollection = CollectionExpr (map stringToVarExpr indexNames)
   return . Just $ IDefine (Var name (map (const () <$>) is))
     (WithSymbolsExpr indexNames (TransposeExpr indexNamesCollection body))
-desugarTopExpr (Test expr)    = Just . ITest <$> desugar expr
-desugarTopExpr (Execute expr) = Just . IExecute <$> desugar expr
+desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
+desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
 desugarTopExpr (Load file)     = return . Just $ ILoad file
 desugarTopExpr (LoadFile file) = return . Just $ ILoadFile file
 desugarTopExpr _               = return Nothing

@@ -38,11 +38,11 @@ import           Data.Traversable            (mapM)
 import qualified Data.HashMap.Lazy           as HL
 import qualified Data.Vector                 as V
 
-import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection
 import           Language.Egison.Data.Utils
 import           Language.Egison.EvalState   (MonadEval(..), mLabelFuncName)
+import           Language.Egison.IExpr
 import           Language.Egison.Match
 import           Language.Egison.Math
 import           Language.Egison.MList
