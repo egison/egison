@@ -19,6 +19,7 @@ import           Data.List             (union)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.Pretty
 import           Language.Egison.RState
 
 
@@ -26,7 +27,7 @@ desugarTopExpr :: TopExpr -> EvalM TopExpr
 desugarTopExpr (Define name expr) = do
   expr' <- desugar expr
   case expr' of
-    LambdaExpr Nothing args body -> return $ Define name (LambdaExpr (Just (show name)) args body)
+    LambdaExpr Nothing args body -> return $ Define name (LambdaExpr (Just (prettyStr name)) args body)
     _                            -> return $ Define name expr'
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr
@@ -379,7 +380,7 @@ desugarBindings = mapM f
       expr' <- desugar expr
       case (name, expr') of
         (PDPatVar var, LambdaExpr Nothing args body) ->
-          return (name, LambdaExpr (Just (show var)) args body)
+          return (name, LambdaExpr (Just (prettyStr var)) args body)
         _ -> return (name, expr')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [MatchClause]
