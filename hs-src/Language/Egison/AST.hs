@@ -40,7 +40,7 @@ module Language.Egison.AST
   ) where
 
 import           Data.Hashable   (Hashable)
-import           Data.List       (find, intercalate)
+import           Data.List       (find)
 import           Data.Maybe      (fromJust)
 import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
@@ -129,9 +129,10 @@ data Expr
  deriving Show
 
 data Var = Var [String] [Index ()]
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Show)
 
 data VarWithIndices = VarWithIndices [String] [Index String]
+  deriving Show
 
 data Arg
   = ScalarArg String
@@ -272,12 +273,6 @@ stringToVar name = Var (splitOn "." name) []
 
 stringToVarExpr :: String -> Expr
 stringToVarExpr = VarExpr . stringToVar
-
-instance Show Var where
-  show (Var xs is) = intercalate "." xs ++ concatMap show is
-
-instance Show VarWithIndices where
-  show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
 
 varToVarWithIndices :: Var -> VarWithIndices
 varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
