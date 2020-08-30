@@ -95,7 +95,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [Expr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const freshV) patterns
-            return (PDInductivePat (capitalize name) $ map (PDPatVar . stringToVar . show) patterns', map VarExpr patterns')
+            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map VarExpr patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
@@ -377,9 +377,10 @@ desugarBindings = mapM f
   where
     f (name, expr) = do
       expr' <- desugar expr
-      case expr' of
-        LambdaExpr Nothing args body -> return (name, LambdaExpr (Just (show name)) args body)
-        _                            -> return (name, expr')
+      case (name, expr') of
+        (PDPatVar var, LambdaExpr Nothing args body) ->
+          return (name, LambdaExpr (Just (show var)) args body)
+        _ -> return (name, expr')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [MatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
