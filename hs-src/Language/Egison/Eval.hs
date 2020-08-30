@@ -23,6 +23,7 @@ import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Desugar
 import           Language.Egison.EvalState   (MonadEval(..))
+import           Language.Egison.IExpr
 import           Language.Egison.MathOutput  (prettyMath)
 import           Language.Egison.Parser
 
@@ -35,7 +36,9 @@ evalExpr env expr = desugarExpr expr >>= evalExprDeep env
 evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
   topExpr <- desugarTopExpr topExpr
-  evalTopExpr' env topExpr
+  case topExpr of
+    Nothing -> return (Nothing, env)
+    Just topExpr -> evalTopExpr' env topExpr
 
 -- | Evaluate an Egison top expression.
 evalTopExprStr :: Env -> TopExpr -> EvalM (Maybe String, Env)
@@ -109,55 +112,51 @@ loadEgisonLibrary env path = do
 -- Helper functions
 --
 
-collectDefs :: EgisonOpts -> [TopExpr] -> EvalM ([BindingExpr], [TopExpr])
+collectDefs :: EgisonOpts -> [ITopExpr] -> EvalM ([BindingExpr], [ITopExpr])
 collectDefs opts exprs = collectDefs' opts exprs [] []
   where
-    collectDefs' :: EgisonOpts -> [TopExpr] -> [BindingExpr] -> [TopExpr] -> EvalM ([BindingExpr], [TopExpr])
+    collectDefs' :: EgisonOpts -> [ITopExpr] -> [BindingExpr] -> [ITopExpr] -> EvalM ([BindingExpr], [ITopExpr])
     collectDefs' opts (expr:exprs) bindings rest =
       case expr of
-        Define name expr -> collectDefs' opts exprs ((PDPatVar name, expr) : bindings) rest
-        DefineWithIndices{} -> throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-        Test{}     -> collectDefs' opts exprs bindings (expr : rest)
-        Execute{}  -> collectDefs' opts exprs bindings (expr : rest)
-        LoadFile _ | optNoIO opts -> throwError (Default "No IO support")
-        LoadFile file -> do
+        IDefine name expr -> collectDefs' opts exprs ((PDPatVar name, expr) : bindings) rest
+        ITest{}     -> collectDefs' opts exprs bindings (expr : rest)
+        IExecute{}  -> collectDefs' opts exprs bindings (expr : rest)
+        ILoadFile _ | optNoIO opts -> throwError (Default "No IO support")
+        ILoadFile file -> do
           exprs' <- loadFile file >>= desugarTopExprs
           collectDefs' opts (exprs' ++ exprs) bindings rest
-        Load _ | optNoIO opts -> throwError (Default "No IO support")
-        Load file -> do
+        ILoad _ | optNoIO opts -> throwError (Default "No IO support")
+        ILoad file -> do
           exprs' <- loadLibraryFile file >>= desugarTopExprs
           collectDefs' opts (exprs' ++ exprs) bindings rest
-        InfixDecl{} -> collectDefs' opts exprs bindings rest
     collectDefs' _ [] bindings rest = return (bindings, reverse rest)
 
-evalTopExpr' :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
-evalTopExpr' env (Define name expr) = do
+evalTopExpr' :: Env -> ITopExpr -> EvalM (Maybe EgisonValue, Env)
+evalTopExpr' env (IDefine name expr) = do
   env' <- recursiveBind env [(PDPatVar name, expr)]
   return (Nothing, env')
-evalTopExpr' _ DefineWithIndices{} = throwError =<< EgisonBug "should not reach here (desugared)" <$> getFuncNameStack
-evalTopExpr' env (Test expr) = do
+evalTopExpr' env (ITest expr) = do
   pushFuncName "<stdin>"
   val <- evalExprDeep env expr
   popFuncName
   return (Just val, env)
-evalTopExpr' env (Execute expr) = do
+evalTopExpr' env (IExecute expr) = do
   pushFuncName "<stdin>"
   io <- evalExprShallow env expr
   case io of
     Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
     _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
-evalTopExpr' env (Load file) = do
+evalTopExpr' env (ILoad file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadLibraryFile file >>= desugarTopExprs
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
-evalTopExpr' env (LoadFile file) = do
+evalTopExpr' env (ILoadFile file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadFile file >>= desugarTopExprs
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
-evalTopExpr' env InfixDecl{} = return (Nothing, env)

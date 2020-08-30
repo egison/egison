@@ -178,7 +178,7 @@ data PatternCore expr
   | ValuePat expr
   | PredPat expr
   | IndexedPat (PatternCore expr) [expr]
-  | LetPat [BindingExpr] (PatternCore expr)
+  | LetPat [(PrimitiveDataPattern, expr)] (PatternCore expr)
   | InfixPat Op (PatternCore expr) (PatternCore expr) -- Includes AndPat,OrPat,InductivePat(cons/join)
   | NotPat (PatternCore expr)
   | AndPat (PatternCore expr) (PatternCore expr)

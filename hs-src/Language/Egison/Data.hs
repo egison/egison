@@ -78,9 +78,9 @@ import           Control.Egison            (joinConsM, joinCons, nil,
                                             bfs, match, mc, List(..))
 import qualified Control.Egison            as M
 
-import           Language.Egison.AST       hiding (PatVar)
 import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
+import           Language.Egison.IExpr
 import           Language.Egison.Math
 import           Language.Egison.RState
 
