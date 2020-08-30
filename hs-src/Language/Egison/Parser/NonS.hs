@@ -97,9 +97,8 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
 
 -- Return type of |convertToDefine|.
 data ConversionResult
-  = Variable Var        -- Definition of a variable with no arguments on lhs.
-  | Function Var [Arg]  -- Definition of a function with some arguments on lhs.
-  | IndexedVar VarWithIndices
+  = Variable VarWithIndices       -- Definition of a variable with no arguments on lhs.
+  | Function VarWithIndices [Arg] -- Definition of a function with some arguments on lhs.
 
 -- Sort binaryop table on the insertion
 addNewOp :: Op -> Bool -> Parser ()
@@ -156,31 +155,30 @@ defineOrTestExpr = do
         Nothing -> customFailure IllFormedDefine
         Just (Variable var)      -> Define var <$> expr
         Just (Function var args) -> Define var . LambdaExpr args <$> expr
-        Just (IndexedVar var)    -> DefineWithIndices var <$> expr
 
     convertToDefine :: Expr -> Maybe ConversionResult
-    convertToDefine (VarExpr var) = return $ Variable var
+    convertToDefine (VarExpr var) = return $ Variable (varToVarWithIndices var)
     convertToDefine (SectionExpr op Nothing Nothing) =
-      return $ Variable (stringToVar (repr op))
+      return $ Variable (stringToVarWithIndices (repr op))
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr [TupleExpr args])) = do
       args' <- mapM ((TensorArg <$>) . exprToStr) args
-      return $ Function var args'
+      return $ Function (varToVarWithIndices var) args'
     convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
       args' <- mapM ((TensorArg <$>) . exprToStr) args
-      return $ Function var args'
+      return $ Function (varToVarWithIndices var) args'
     convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) (TupleExpr [x, y])) = do
       args <- mapM ((TensorArg <$>) . exprToStr) [x, y]
-      return $ Function (stringToVar (repr op)) args
+      return $ Function (stringToVarWithIndices (repr op)) args
     convertToDefine e@(InfixExpr op _ _)
       | repr op == "*$" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
         case args of
-          TensorArg var : args -> return $ Function (stringToVar var) args
+          TensorArg var : args -> return $ Function (stringToVarWithIndices var) args
           _                    -> Nothing
     convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) = do
       -- [Index Expr] -> Maybe [Index String]
       indices' <- mapM (traverse exprToStr) indices
-      return $ IndexedVar (VarWithIndices var indices')
+      return $ Variable (VarWithIndices var indices')
     convertToDefine _ = Nothing
 
     exprToStr :: Expr -> Maybe String

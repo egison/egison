@@ -89,8 +89,7 @@ topExpr = try (Test <$> expr)
       <?> "top-level expression"
 
 defineExpr :: Parser TopExpr
-defineExpr = try (parens (keywordDefine >> Define <$> (char '$' >> identVar) <*> expr))
-         <|> try (parens (keywordDefine >> DefineWithIndices <$> (char '$' >> identVarWithIndices) <*> expr))
+defineExpr = parens (keywordDefine >> Define <$> (char '$' >> identVarWithIndices) <*> expr)
 
 testExpr :: Parser TopExpr
 testExpr = keywordTest >> Test <$> expr
