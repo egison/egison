@@ -103,7 +103,8 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitivePatPat :: (String, [Expr]) -> EvalM (PrimitivePatPattern, [Expr])
           genPrimitivePatPat (name, matchers) = do
             patterns' <- mapM (const $ return PPPatVar) matchers
-            return (PPInductivePat name patterns', matchers)
+            matchers' <- mapM desugar matchers
+            return (PPInductivePat name patterns', matchers')
 
           genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [Expr])
           genPrimitiveDataPat (name, patterns) = do
@@ -187,15 +188,15 @@ desugar (TensorExpr nsExpr xsExpr) =
 desugar (LambdaExpr Nothing names expr) = do
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
   expr'' <- desugar expr'
-  return $ LambdaExpr Nothing args' expr''
+  return $ LambdaExpr Nothing (map TensorArg args') expr''
   where
-    desugarInvertedArgs :: Arg -> ([Arg], Expr) -> ([Arg], Expr)
-    desugarInvertedArgs (TensorArg x) (args, expr) = (TensorArg x : args, expr)
+    desugarInvertedArgs :: Arg -> ([String], Expr) -> ([String], Expr)
+    desugarInvertedArgs (TensorArg x) (args, expr) = (x : args, expr)
     desugarInvertedArgs (ScalarArg x) (args, expr) =
-      (TensorArg x : args,
+      (x : args,
        TensorMapExpr (LambdaExpr Nothing [TensorArg x] expr) (stringToVarExpr x))
     desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
-      (TensorArg x : args,
+      (x : args,
        TensorMapExpr (LambdaExpr Nothing [TensorArg x] expr) (FlipIndicesExpr (stringToVarExpr x)))
 
 desugar (MemoizedLambdaExpr names expr) =
