@@ -40,7 +40,7 @@ module Language.Egison.AST
   ) where
 
 import           Data.Hashable   (Hashable)
-import           Data.List       (find, intercalate)
+import           Data.List       (find)
 import           Data.Maybe      (fromJust)
 import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
@@ -55,7 +55,7 @@ data TopExpr
   | LoadFile String
   | Load String
   | InfixDecl Bool Op -- True for pattern infix; False for expression infix
- deriving (Show, Eq)
+ deriving Show
 
 data ConstantExpr
   = CharExpr Char
@@ -65,7 +65,7 @@ data ConstantExpr
   | FloatExpr Double
   | SomethingExpr
   | UndefinedExpr
- deriving (Show, Eq)
+  deriving Show
 
 data Expr
   = ConstantExpr ConstantExpr
@@ -126,19 +126,19 @@ data Expr
   | FlipIndicesExpr Expr                              -- Does not appear in user program
 
   | FunctionExpr [Var]
- deriving (Eq, Show)
+  deriving Show
 
 data Var = Var [String] [Index ()]
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Show)
 
 data VarWithIndices = VarWithIndices [String] [Index String]
- deriving (Eq)
+  deriving Show
 
 data Arg
   = ScalarArg String
   | InvertedScalarArg String
   | TensorArg String
- deriving (Eq, Show)
+  deriving Show
 
 data Index a
   = Subscript a
@@ -148,7 +148,7 @@ data Index a
   | MultiSuperscript a a
   | DFscript Integer Integer -- DifferentialForm
   | Userscript a
- deriving (Eq, Functor, Foldable, Generic, Traversable)
+  deriving (Eq, Functor, Foldable, Generic, Traversable)
 
 extractIndex :: Index a -> a
 extractIndex (Subscript x)    = x
@@ -164,7 +164,7 @@ extractSupOrSubIndex (SupSubscript x) = Just x
 extractSupOrSubIndex _                = Nothing
 
 data PMMode = BFSMode | DFSMode
- deriving (Eq, Show)
+  deriving Show
 
 type BindingExpr = (PrimitiveDataPattern, Expr)
 type MatchClause = (Pattern, Expr)
@@ -194,10 +194,10 @@ data Pattern
   | LaterPatVar
   -- For symbolic computing
   | DApplyPat Pattern [Pattern]
- deriving (Eq, Show)
+  deriving Show
 
 data LoopRange = LoopRange Expr Expr Pattern
- deriving (Eq, Show)
+  deriving Show
 
 data PrimitivePatPattern
   = PPWildCard
@@ -205,7 +205,7 @@ data PrimitivePatPattern
   | PPValuePat String
   | PPInductivePat String [PrimitivePatPattern]
   | PPTuplePat [PrimitivePatPattern]
- deriving (Show, Eq)
+  deriving Show
 
 data PrimitiveDataPattern
   = PDWildCard
@@ -216,7 +216,7 @@ data PrimitiveDataPattern
   | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
   | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
   | PDConstantPat ConstantExpr
- deriving (Show, Eq)
+  deriving Show
 
 data Op
   = Op { repr     :: String  -- syntastic representation
@@ -273,12 +273,6 @@ stringToVar name = Var (splitOn "." name) []
 
 stringToVarExpr :: String -> Expr
 stringToVarExpr = VarExpr . stringToVar
-
-instance Show Var where
-  show (Var xs is) = intercalate "." xs ++ concatMap show is
-
-instance Show VarWithIndices where
-  show (VarWithIndices xs is) = intercalate "." xs ++ concatMap show is
 
 varToVarWithIndices :: Var -> VarWithIndices
 varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is

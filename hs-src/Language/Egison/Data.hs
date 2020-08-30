@@ -127,10 +127,10 @@ data EgisonHashKey
 -- Scalar and Tensor Types
 --
 
-data Tensor a =
-    Tensor Shape (V.Vector a) [Index EgisonValue]
+data Tensor a
+  = Tensor Shape (V.Vector a) [Index EgisonValue]
   | Scalar a
- deriving (Show)
+ deriving Show
 
 type Shape = [Integer]
 
@@ -319,22 +319,21 @@ isAtomic (ScalarData m) = isAtom m
 isAtomic _ = True
 
 instance Eq EgisonValue where
- (Char c) == (Char c') = c == c'
- (String str) == (String str') = str == str'
- (Bool b) == (Bool b') = b == b'
- (ScalarData x) == (ScalarData y) = x == y
- (TensorData (Tensor js xs _)) == (TensorData (Tensor js' xs' _)) = (js == js') && (xs == xs')
- (Float x) == (Float x') = x == x'
- (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
- (Tuple vals) == (Tuple vals') = vals == vals'
- (Collection vals) == (Collection vals') = vals == vals'
- (IntHash vals) == (IntHash vals') = vals == vals'
- (CharHash vals) == (CharHash vals') = vals == vals'
- (StrHash vals) == (StrHash vals') = vals == vals'
- -- Temporary: searching a better solution
- (Func Nothing _ xs1 expr1) == (Func Nothing _ xs2 expr2) = (xs1 == xs2) && (expr1 == expr2)
- (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
- _ == _ = False
+  (Char c) == (Char c') = c == c'
+  (String str) == (String str') = str == str'
+  (Bool b) == (Bool b') = b == b'
+  (ScalarData x) == (ScalarData y) = x == y
+  (TensorData (Tensor js xs _)) == (TensorData (Tensor js' xs' _)) = js == js' && xs == xs'
+  (Float x) == (Float x') = x == x'
+  (InductiveData name vals) == (InductiveData name' vals') = name == name' && vals == vals'
+  (Tuple vals) == (Tuple vals') = vals == vals'
+  (Collection vals) == (Collection vals') = vals == vals'
+  (IntHash vals) == (IntHash vals') = vals == vals'
+  (CharHash vals) == (CharHash vals') = vals == vals'
+  (StrHash vals) == (StrHash vals') = vals == vals'
+  -- Temporary: searching a better solution
+  (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
+  _ == _ = False
 
 --
 -- Egison data and Haskell data
@@ -504,7 +503,6 @@ instance EgisonWHNF Handle where
 --
 
 data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
- deriving (Show)
 
 type Binding = (Var, ObjectRef)
 
