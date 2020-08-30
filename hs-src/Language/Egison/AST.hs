@@ -90,7 +90,6 @@ data Expr
 
   | IfExpr Expr Expr Expr
   | LetRecExpr [BindingExpr] Expr
-  | LetExpr [BindingExpr] Expr
   | WithSymbolsExpr [String] Expr
 
   | MatchExpr PMMode Expr Expr [MatchClause]

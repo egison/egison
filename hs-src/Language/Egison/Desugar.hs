@@ -217,9 +217,6 @@ desugar (IfExpr expr0 expr1 expr2) =
 desugar (LetRecExpr binds expr) =
   ILetRecExpr <$> desugarBindings binds <*> desugar expr
 
-desugar (LetExpr binds expr) =
-  ILetExpr <$> desugarBindings binds <*> desugar expr
-
 desugar (WithSymbolsExpr vars expr) =
   IWithSymbolsExpr vars <$> desugar expr
 

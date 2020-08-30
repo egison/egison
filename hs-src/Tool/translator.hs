@@ -92,7 +92,6 @@ instance SyntaxElement Expr where
 
   toNonS (IfExpr x y z)         = IfExpr (toNonS x) (toNonS y) (toNonS z)
   toNonS (LetRecExpr xs y)      = LetRecExpr (map toNonS xs) (toNonS y)
-  toNonS (LetExpr xs y)         = LetRecExpr (map toNonS xs) (toNonS y)
   toNonS (WithSymbolsExpr xs y) = WithSymbolsExpr xs (toNonS y)
 
   toNonS (MatchExpr pmmode m p xs)    = MatchExpr pmmode (toNonS m) (toNonS p) (map toNonS xs)
