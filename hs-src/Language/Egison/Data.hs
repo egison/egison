@@ -503,7 +503,6 @@ instance EgisonWHNF Handle where
 --
 
 data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
- deriving (Show)
 
 type Binding = (Var, ObjectRef)
 
