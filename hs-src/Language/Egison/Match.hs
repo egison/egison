@@ -40,16 +40,16 @@ instance Show MatchingState where
   show ms = "(MState " ++ unwords ["_", "_", "_", show (mStateBindings ms), show (mTrees ms)] ++ ")" 
 
 data MatchingTree
-  = MAtom Pattern WHNFData Matcher
+  = MAtom IPattern WHNFData Matcher
   | MNode [PatternBinding] MatchingState
   deriving Show
 
-type PatternBinding = (String, Pattern)
+type PatternBinding = (String, IPattern)
 
-data LoopPatContext = LoopPatContext Binding ObjectRef Pattern Pattern Pattern
+data LoopPatContext = LoopPatContext Binding ObjectRef IPattern IPattern IPattern
 
 data SeqPatContext
-  = SeqPatContext [MatchingTree] Pattern [Matcher] [WHNFData]
+  = SeqPatContext [MatchingTree] IPattern [Matcher] [WHNFData]
   | ForallPatContext [Matcher] [WHNFData]
 
 nullMState :: MatchingState -> Bool

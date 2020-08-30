@@ -102,11 +102,11 @@ data EgisonValue
   | IntHash (HashMap Integer EgisonValue)
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
-  | UserMatcher Env [PatternDef]
-  | Func (Maybe String) Env [String] Expr
-  | CFunc Env String Expr
-  | MemoizedFunc (IORef (HashMap [Integer] WHNFData)) Env [String] Expr
-  | PatternFunc Env [String] Pattern
+  | UserMatcher Env [IPatternDef]
+  | Func (Maybe String) Env [String] IExpr
+  | CFunc Env String IExpr
+  | MemoizedFunc (IORef (HashMap [Integer] WHNFData)) Env [String] IExpr
+  | PatternFunc Env [String] IPattern
   | PrimitiveFunc PrimitiveFunc
   | IOFunc (EvalM WHNFData)
   | Port Handle

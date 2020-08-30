@@ -22,6 +22,7 @@ import           Text.Show.Unicode         (ushow)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.IExpr
 
 --
 -- Pretty printing for Non-S syntax
@@ -293,6 +294,14 @@ instance Pretty PrimitiveDataPattern where
 instance Pretty Op where
   pretty op | isWedge op = pretty ("!" ++ repr op)
             | otherwise  = pretty (repr op)
+
+instance Pretty IExpr where
+  pretty = undefined
+
+instance Complex IExpr where
+  isAtom = undefined
+  isAtomOrApp = undefined
+  isInfix = undefined
 
 class Complex a where
   isAtom :: a -> Bool
