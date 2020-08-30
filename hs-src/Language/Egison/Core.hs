@@ -179,9 +179,6 @@ evalExprShallow env (IndexedExpr override expr indices) = do
                   Nothing     -> evalExprShallow env expr
               _ -> evalExprShallow env expr
   case tensor of
-    Value (ScalarData (SingleTerm 1 [(Symbol id name [], 1)])) -> do
-      js2 <- mapM evalIndexToScalar indices
-      return $ Value (ScalarData (SingleTerm 1 [(Symbol id name js2, 1)]))
     Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
       js2 <- mapM evalIndexToScalar indices
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
