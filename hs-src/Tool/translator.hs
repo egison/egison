@@ -205,6 +205,8 @@ instance SyntaxElement PatternDef where
 instance SyntaxElement Var where
   toNonS = id
 
+instance SyntaxElement VarWithIndices where
+  toNonS = id
 
 main :: IO ()
 main = do
