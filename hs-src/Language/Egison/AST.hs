@@ -83,7 +83,7 @@ data Expr
   | HashExpr [(Expr, Expr)]
   | VectorExpr [Expr]
 
-  | LambdaExpr (Maybe String) [Arg] Expr
+  | LambdaExpr [Arg] Expr
   | MemoizedLambdaExpr [String] Expr
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
