@@ -36,6 +36,7 @@ import qualified Text.Megaparsec.Char.Lexer     as L
 import           Language.Egison.AST            hiding (Assoc(..))
 import qualified Language.Egison.AST            as E
 import           Language.Egison.Data
+import           Language.Egison.Pretty         (prettyStr)
 import           Language.Egison.RState
 
 
@@ -183,11 +184,11 @@ defineOrTestExpr = do
     convertToDefine _ = Nothing
 
     exprToStr :: Expr -> Maybe String
-    exprToStr (VarExpr v) = Just (show v)
+    exprToStr (VarExpr v) = Just (prettyStr v)
     exprToStr _           = Nothing
 
     exprToArgs :: Expr -> Maybe [Arg]
-    exprToArgs (VarExpr v) = return [TensorArg (show v)]
+    exprToArgs (VarExpr v) = return [TensorArg (prettyStr v)]
     exprToArgs (ApplyExpr func (TupleExpr args)) =
       (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
     exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (repr op)]

@@ -78,8 +78,8 @@ evalExprShallow env (QuoteSymbolExpr expr) = do
 
 evalExprShallow env (VarExpr var@(Var _ [])) =
   case refVar env var of
-    Nothing | isUpper (head (show var)) ->
-      return $ Value (InductiveData (show var) [])
+    Nothing | isUpper (head (prettyStr var)) ->
+      return $ Value (InductiveData (prettyStr var) [])
     Nothing  -> return $ Value (symbolScalarData "" $ prettyStr var)
     Just ref -> evalRef ref
 

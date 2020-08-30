@@ -19,6 +19,7 @@ import           Data.List             (union)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.Pretty
 import           Language.Egison.RState
 
 
@@ -26,7 +27,7 @@ desugarTopExpr :: TopExpr -> EvalM TopExpr
 desugarTopExpr (Define name expr) = do
   expr' <- desugar expr
   case expr' of
-    LambdaExpr Nothing args body -> return $ Define name (LambdaExpr (Just (show name)) args body)
+    LambdaExpr Nothing args body -> return $ Define name (LambdaExpr (Just (prettyStr name)) args body)
     _                            -> return $ Define name expr'
 desugarTopExpr (DefineWithIndices (VarWithIndices name is) expr) = do
   body <- desugar expr
@@ -95,7 +96,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [Expr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const freshV) patterns
-            return (PDInductivePat (capitalize name) $ map (PDPatVar . stringToVar . show) patterns', map VarExpr patterns')
+            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map VarExpr patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
@@ -377,9 +378,10 @@ desugarBindings = mapM f
   where
     f (name, expr) = do
       expr' <- desugar expr
-      case expr' of
-        LambdaExpr Nothing args body -> return (name, LambdaExpr (Just (show name)) args body)
-        _                            -> return (name, expr')
+      case (name, expr') of
+        (PDPatVar var, LambdaExpr Nothing args body) ->
+          return (name, LambdaExpr (Just (prettyStr var)) args body)
+        _ -> return (name, expr')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [MatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
