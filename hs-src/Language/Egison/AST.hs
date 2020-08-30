@@ -14,7 +14,8 @@ module Language.Egison.AST
   ( TopExpr (..)
   , ConstantExpr (..)
   , Expr (..)
-  , Pattern (..)
+  , PatternCore (..)
+  , Pattern
   , Var (..)
   , VarWithIndices (..)
   , varToVarWithIndices
@@ -166,37 +167,38 @@ extractSupOrSubIndex _                = Nothing
 data PMMode = BFSMode | DFSMode
   deriving Show
 
+type Pattern = PatternCore Expr
 type BindingExpr = (PrimitiveDataPattern, Expr)
 type MatchClause = (Pattern, Expr)
 type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 
-data Pattern
+data PatternCore expr
   = WildCard
   | PatVar Var
-  | ValuePat Expr
-  | PredPat Expr
-  | IndexedPat Pattern [Expr]
-  | LetPat [BindingExpr] Pattern
-  | InfixPat Op Pattern Pattern -- Includes AndPat,OrPat,InductivePat(cons/join)
-  | NotPat Pattern
-  | AndPat Pattern Pattern
-  | OrPat Pattern Pattern
-  | ForallPat Pattern Pattern
-  | TuplePat [Pattern]
-  | InductivePat String [Pattern]
-  | LoopPat Var LoopRange Pattern Pattern
+  | ValuePat expr
+  | PredPat expr
+  | IndexedPat (PatternCore expr) [expr]
+  | LetPat [BindingExpr] (PatternCore expr)
+  | InfixPat Op (PatternCore expr) (PatternCore expr) -- Includes AndPat,OrPat,InductivePat(cons/join)
+  | NotPat (PatternCore expr)
+  | AndPat (PatternCore expr) (PatternCore expr)
+  | OrPat (PatternCore expr) (PatternCore expr)
+  | ForallPat (PatternCore expr) (PatternCore expr)
+  | TuplePat [PatternCore expr]
+  | InductivePat String [PatternCore expr]
+  | LoopPat Var (LoopRange expr) (PatternCore expr) (PatternCore expr)
   | ContPat
-  | PApplyPat Expr [Pattern]
+  | PApplyPat expr [PatternCore expr]
   | VarPat String
-  | InductiveOrPApplyPat String [Pattern]
+  | InductiveOrPApplyPat String [PatternCore expr]
   | SeqNilPat
-  | SeqConsPat Pattern Pattern
+  | SeqConsPat (PatternCore expr) (PatternCore expr)
   | LaterPatVar
   -- For symbolic computing
-  | DApplyPat Pattern [Pattern]
+  | DApplyPat (PatternCore expr) [PatternCore expr]
   deriving Show
 
-data LoopRange = LoopRange Expr Expr Pattern
+data LoopRange expr = LoopRange expr expr (PatternCore expr)
   deriving Show
 
 data PrimitivePatPattern
