@@ -222,7 +222,7 @@ instance (Pretty a, Complex a) => Pretty (Index a) where
   pretty (DFscript _ _) = undefined
   pretty (Userscript i) = pretty '|' <> pretty' i
 
-instance Pretty Pattern where
+instance (Pretty expr, Complex expr, Show expr) => Pretty (PatternCore expr) where
   pretty WildCard     = pretty "_"
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
@@ -264,10 +264,13 @@ instance Pretty Pattern where
   pretty (DApplyPat p ps) = applyLike (map pretty' (p : ps))
   pretty e            = pretty (show e)
 
-instance Pretty LoopRange where
+instance {-# OVERLAPPING #-} Pretty (LoopRange Expr) where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
                                     (InfixExpr Op{ repr = "-'" } _ (ConstantExpr (IntegerExpr 1)))) pat) =
     tupled [pretty from, pretty pat]
+  pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
+
+instance (Pretty expr, Complex expr, Show expr) => Pretty (LoopRange expr) where
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
 instance Pretty PrimitivePatPattern where
@@ -333,7 +336,7 @@ instance Complex Expr where
   isInfix InfixExpr{}             = True
   isInfix _                       = False
 
-instance Complex Pattern where
+instance Complex (PatternCore expr) where
   isAtom (LetPat _ _)        = False
   isAtom (InductivePat _ []) = True
   isAtom (InductivePat _ _)  = False

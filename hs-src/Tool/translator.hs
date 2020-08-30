@@ -188,7 +188,7 @@ instance SyntaxElement PrimitiveDataPattern where
   toNonS (PDSnocPat pd1 pd2) = PDSnocPat (toNonS pd1) (toNonS pd2)
   toNonS pd = pd
 
-instance SyntaxElement LoopRange where
+instance SyntaxElement (LoopRange Expr) where
   toNonS (LoopRange e1 e2 p) = LoopRange (toNonS e1) (toNonS e2) (toNonS p)
 
 instance SyntaxElement a => SyntaxElement (Index a) where

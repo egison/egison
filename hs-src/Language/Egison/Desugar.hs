@@ -369,7 +369,7 @@ desugarPattern' (LetPat binds pat) = LetPat <$> desugarBindings binds <*> desuga
 desugarPattern' (SeqConsPat pat1 pat2)  = SeqConsPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' pat = return pat
 
-desugarLoopRange :: LoopRange -> EvalM LoopRange
+desugarLoopRange :: LoopRange Expr -> EvalM (LoopRange Expr)
 desugarLoopRange (LoopRange sExpr eExpr pat) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pat
 
