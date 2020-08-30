@@ -42,17 +42,15 @@ instance Show MatchingState where
 data MatchingTree
   = MAtom Pattern WHNFData Matcher
   | MNode [PatternBinding] MatchingState
- deriving (Show)
+  deriving Show
 
 type PatternBinding = (String, Pattern)
 
 data LoopPatContext = LoopPatContext Binding ObjectRef Pattern Pattern Pattern
- deriving (Show)
 
 data SeqPatContext
   = SeqPatContext [MatchingTree] Pattern [Matcher] [WHNFData]
   | ForallPatContext [Matcher] [WHNFData]
- deriving (Show)
 
 nullMState :: MatchingState -> Bool
 nullMState MState{ mTrees = [] } = True

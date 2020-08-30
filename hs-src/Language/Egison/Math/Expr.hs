@@ -59,7 +59,7 @@ import           Language.Egison.AST       (Index(..))
 
 data ScalarData
   = Div PolyExpr PolyExpr
- deriving (Eq)
+ deriving Eq
 
 newtype PolyExpr
   = Plus [TermExpr]
@@ -76,7 +76,7 @@ data SymbolExpr
   | Apply ScalarData [ScalarData]
   | Quote ScalarData
   | FunctionData ScalarData [ScalarData] [ScalarData] [Index ScalarData] -- fnname argnames args indices
- deriving (Eq)
+  deriving Eq
 
 type Id = String
 

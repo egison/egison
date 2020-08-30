@@ -127,10 +127,10 @@ data EgisonHashKey
 -- Scalar and Tensor Types
 --
 
-data Tensor a =
-    Tensor Shape (V.Vector a) [Index EgisonValue]
+data Tensor a
+  = Tensor Shape (V.Vector a) [Index EgisonValue]
   | Scalar a
- deriving (Show)
+ deriving Show
 
 type Shape = [Integer]
 
