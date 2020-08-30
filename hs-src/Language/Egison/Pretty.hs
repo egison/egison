@@ -89,7 +89,6 @@ instance Pretty Expr where
       [pretty "then" <+> pretty y, pretty "else" <+> pretty z]
   pretty (LetRecExpr bindings body) =
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
-  pretty (LetExpr _ _) = error "unreachable"
   pretty (WithSymbolsExpr xs e) =
     indentBlock (pretty "withSymbols" <+> list (map pretty xs)) [pretty e]
 
