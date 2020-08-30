@@ -319,21 +319,21 @@ isAtomic (ScalarData m) = isAtom m
 isAtomic _ = True
 
 instance Eq EgisonValue where
- (Char c) == (Char c') = c == c'
- (String str) == (String str') = str == str'
- (Bool b) == (Bool b') = b == b'
- (ScalarData x) == (ScalarData y) = x == y
- (TensorData (Tensor js xs _)) == (TensorData (Tensor js' xs' _)) = (js == js') && (xs == xs')
- (Float x) == (Float x') = x == x'
- (InductiveData name vals) == (InductiveData name' vals') = (name == name') && (vals == vals')
- (Tuple vals) == (Tuple vals') = vals == vals'
- (Collection vals) == (Collection vals') = vals == vals'
- (IntHash vals) == (IntHash vals') = vals == vals'
- (CharHash vals) == (CharHash vals') = vals == vals'
- (StrHash vals) == (StrHash vals') = vals == vals'
- -- Temporary: searching a better solution
- (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
- _ == _ = False
+  (Char c) == (Char c') = c == c'
+  (String str) == (String str') = str == str'
+  (Bool b) == (Bool b') = b == b'
+  (ScalarData x) == (ScalarData y) = x == y
+  (TensorData (Tensor js xs _)) == (TensorData (Tensor js' xs' _)) = js == js' && xs == xs'
+  (Float x) == (Float x') = x == x'
+  (InductiveData name vals) == (InductiveData name' vals') = name == name' && vals == vals'
+  (Tuple vals) == (Tuple vals') = vals == vals'
+  (Collection vals) == (Collection vals') = vals == vals'
+  (IntHash vals) == (IntHash vals') = vals == vals'
+  (CharHash vals) == (CharHash vals') = vals == vals'
+  (StrHash vals) == (StrHash vals') = vals == vals'
+  -- Temporary: searching a better solution
+  (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _) = name1 == name2
+  _ == _ = False
 
 --
 -- Egison data and Haskell data
