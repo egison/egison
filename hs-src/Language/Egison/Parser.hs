@@ -7,13 +7,13 @@ This module provides the parser interface.
 
 module Language.Egison.Parser
        (
-       -- * Parse and desugar
+       -- * Parse
          readTopExprs
        , readTopExpr
        , readExprs
        , readExpr
        , parseTopExpr
-       -- * Parse and desugar a file
+       -- * Parse a file
        , loadLibraryFile
        , loadFile
        -- * Parser utils (for translator)
@@ -30,7 +30,6 @@ import           System.IO
 
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
-import           Language.Egison.Desugar
 import           Language.Egison.Data
 import           Language.Egison.RState
 import qualified Language.Egison.Parser.SExpr   as SExpr
@@ -41,9 +40,9 @@ readTopExprs :: String -> EvalM [TopExpr]
 readTopExprs expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError (mapM desugarTopExpr) (SExpr.parseTopExprs expr)
+     then either throwError return (SExpr.parseTopExprs expr)
      else do r <- lift . lift $ NonS.parseTopExprs expr
-             either throwError (mapM desugarTopExpr) r
+             either throwError return r
 
 parseTopExpr :: String -> RuntimeM (Either EgisonError TopExpr)
 parseTopExpr expr = do
@@ -56,25 +55,25 @@ readTopExpr :: String -> EvalM TopExpr
 readTopExpr expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError desugarTopExpr (SExpr.parseTopExpr expr)
+     then either throwError return (SExpr.parseTopExpr expr)
      else do r <- lift . lift $ NonS.parseTopExpr expr
-             either throwError desugarTopExpr r
+             either throwError return r
 
 readExprs :: String -> EvalM [Expr]
 readExprs expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError (mapM desugarExpr) (SExpr.parseExprs expr)
+     then either throwError return (SExpr.parseExprs expr)
      else do r <- lift . lift $ NonS.parseExprs expr
-             either throwError (mapM desugarExpr) r
+             either throwError return r
 
 readExpr :: String -> EvalM Expr
 readExpr expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError desugarExpr (SExpr.parseExpr expr)
+     then either throwError return (SExpr.parseExpr expr)
      else do r <- lift . lift $ NonS.parseExpr expr
-             either throwError desugarExpr r
+             either throwError return r
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EvalM [TopExpr]
