@@ -112,8 +112,8 @@ assertEqual "lambda with case"
   1
 
 assertEqual "lambda with case"
-  ((\(x, y, z) -> x + y + z) (1, 2, 3))
-  6
+  ((\(x, y, z) -> x - y - z) (1, 2, 3))
+  (-4)
 
 assertEqual "append op" ([1] ++ [2]) [1, 2]
 assertEqual "append op" ((++) [1] [2]) [1, 2]
