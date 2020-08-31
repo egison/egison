@@ -380,9 +380,12 @@ argNames = return <$> argName
             <|> brackets (sepEndBy argName whiteSpace)
 
 argName :: Parser Arg
-argName = try (ScalarArg <$> (char '$' >> ident))
-      <|> try (InvertedScalarArg <$> (string "*$" >> ident))
-      <|> try (TensorArg <$> (char '%' >> ident))
+argName = try (ScalarArg <$> (char '$' >> argPattern))
+      <|> try (InvertedScalarArg <$> (string "*$" >> argPattern))
+      <|> try (TensorArg <$> (char '%' >> argPattern))
+
+argPattern :: Parser ArgPattern
+argPattern = APPatVar <$> ident
 
 ioExpr :: Parser Expr
 ioExpr = keywordIo >> IoExpr <$> expr
