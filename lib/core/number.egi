@@ -43,10 +43,8 @@ evens := 2 :: map (+ 2) evens
 
 fibs := [1, 1] ++ map2 (+) fibs (tail fibs)
 
-isPrime :=
-  \match as integer with
-    | ?(< 2) -> False
-    | $n -> n = findFactor n
+isPrime n :=
+  if n < 2 then False else n = findFactor n
 
 primes := 2 :: filter isPrime (drop 2 nats)
 
