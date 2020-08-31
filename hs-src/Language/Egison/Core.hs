@@ -312,11 +312,11 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
 
 
 evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
-  let body = foldr genLet (IApplyExpr expr $ ITupleExpr [stringToIVarExpr "#1"]) bindings
+  let body = foldr genLet (IApplyExpr expr [stringToIVarExpr "#1"]) bindings
   applyFunc env (Value $ Func Nothing env ["#1"] body) $ Value World
  where
   genLet (names, expr) expr' =
-    ILetExpr [(PDTuplePat (map (PDPatVar . stringToVar) ["#1", "#2"]), IApplyExpr expr $ ITupleExpr [stringToIVarExpr "#1"])] $
+    ILetExpr [(PDTuplePat (map (PDPatVar . stringToVar) ["#1", "#2"]), IApplyExpr expr [stringToIVarExpr "#1"])] $
     ILetExpr [(names, stringToIVarExpr "#2")] expr'
 
 evalExprShallow env (IIoExpr expr) = do
@@ -379,47 +379,43 @@ evalExprShallow env (ICApplyExpr func arg) = do
           return whnf
     _ -> applyFunc env func (Value (makeTuple args))
 
-evalExprShallow env (IApplyExpr func arg) = do
+evalExprShallow env (IApplyExpr func args) = do
   func <- evalExprShallow env func >>= appendDFscripts 0
   case func of
     Value (InductiveData name []) ->
-      case arg of
-        ITupleExpr exprs ->
-          Intermediate . IInductiveData name <$> mapM (newThunkRef env) exprs
-        _ -> throwError $ Default "argument is not a tuple"
+      Intermediate . IInductiveData name <$> mapM (newThunkRef env) args
     Value (TensorData t@Tensor{}) -> do
-      arg <- evalExprShallow env arg
+      arg <- evalExprShallow env (ITupleExpr args)
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor) >>= removeDFscripts
     Intermediate (ITensor t@Tensor{}) -> do
-      arg <- evalExprShallow env arg
+      arg <- evalExprShallow env (ITupleExpr args)
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc hashRef env' names body) -> do
-      arg <- evalExprShallow env arg
-      indices' <- evalWHNF arg
-      indices <- mapM fromEgison $ tupleToList indices'
+      args <- mapM (evalExprDeep env) args
+      indices <- mapM fromEgison args
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices hash of
         Just whnf -> return whnf
         Nothing -> do
-          whnf <- applyFunc env' (Value (Func Nothing env' names body)) arg
+          whnf <- applyFunc env' (Value (Func Nothing env' names body)) (Value (Tuple args))
           liftIO $ modifyIORef hashRef (HL.insert indices whnf)
           return whnf
     _ -> do
-      arg <- evalExprShallow env arg
+      arg <- evalExprShallow env (ITupleExpr args)
       applyFunc env func arg >>= removeDFscripts
 
-evalExprShallow env (IWedgeApplyExpr func arg) = do
+evalExprShallow env (IWedgeApplyExpr func args) = do
   func <- evalExprShallow env func >>= appendDFscripts 0
-  arg <- evalExprShallow env arg >>= tupleToListWHNF
-  arg <- zipWithM appendDFscripts [1..] arg >>= makeITuple
+  args <- mapM (evalExprShallow env) args
+  args <- zipWithM appendDFscripts [1..] args
+  arg <- makeITuple args
   case func of
     Value (TensorData t@Tensor{}) ->
       Value <$> (tMap (\f -> applyFunc env (Value f) arg >>= evalWHNF) t >>= fromTensor)
     Intermediate (ITensor t@Tensor{}) ->
       tMap (\f -> applyFunc env f arg) t >>= fromTensor
     Value (MemoizedFunc hashRef env names body) -> do
-      indices <- evalWHNF arg
-      indices <- mapM fromEgison $ tupleToList indices
+      indices <- mapM (\arg -> evalWHNF arg >>= fromEgison) args
       hash <- liftIO $ readIORef hashRef
       case HL.lookup indices hash of
         Just whnf -> return whnf

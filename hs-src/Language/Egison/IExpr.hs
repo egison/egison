@@ -73,11 +73,11 @@ data IExpr
   | IMatcherExpr [IPatternDef]
   | IQuoteExpr IExpr
   | IQuoteSymbolExpr IExpr
-  | IWedgeApplyExpr IExpr IExpr
+  | IWedgeApplyExpr IExpr [IExpr]
   | IDoExpr [IBindingExpr] IExpr
   | IIoExpr IExpr
   | ISeqExpr IExpr IExpr
-  | IApplyExpr IExpr IExpr
+  | IApplyExpr IExpr [IExpr]
   | ICApplyExpr IExpr IExpr
   | IGenerateTensorExpr IExpr IExpr
   | ITensorExpr IExpr IExpr
@@ -105,4 +105,4 @@ stringToIVarExpr :: String -> IExpr
 stringToIVarExpr = IVarExpr . stringToVar
 
 makeIApply :: String -> [IExpr] -> IExpr
-makeIApply func args = IApplyExpr (stringToIVarExpr func) (ITupleExpr args)
+makeIApply func args = IApplyExpr (stringToIVarExpr func) args

@@ -102,7 +102,7 @@ data Expr
 
   | QuoteExpr Expr
   | QuoteSymbolExpr Expr
-  | WedgeApplyExpr Expr Expr
+  | WedgeApplyExpr Expr [Expr]
 
   | DoExpr [BindingExpr] Expr
   | IoExpr Expr
@@ -112,7 +112,7 @@ data Expr
   | SectionExpr Op (Maybe Expr) (Maybe Expr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
 
   | SeqExpr Expr Expr
-  | ApplyExpr Expr Expr
+  | ApplyExpr Expr [Expr]
   | CApplyExpr Expr Expr
   | AnonParamFuncExpr Integer Expr
   | AnonParamExpr Integer
@@ -285,7 +285,7 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f index = (\() -> "") <$> index
 
 makeApply :: String -> [Expr] -> Expr
-makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
+makeApply func args = ApplyExpr (stringToVarExpr func) args
 
 instance Show (Index ()) where
   show (Superscript ())  = "~"

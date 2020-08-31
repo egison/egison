@@ -235,14 +235,14 @@ desugar (IoExpr expr) =
 desugar (PrefixExpr "-" expr) = do
   expr' <- desugar expr
   return $ makeIApply "*" [IConstantExpr (IntegerExpr (-1)), expr']
-desugar (PrefixExpr "!" (ApplyExpr expr1 expr2)) =
-  IWedgeApplyExpr <$> desugar expr1 <*> desugar expr2
+desugar (PrefixExpr "!" (ApplyExpr expr args)) =
+  IWedgeApplyExpr <$> desugar expr <*> mapM desugar args
 desugar (PrefixExpr "'" expr) = IQuoteExpr <$> desugar expr
 desugar (PrefixExpr "`" expr) = IQuoteSymbolExpr <$> desugar expr
 desugar PrefixExpr{} = fail "Unknown prefix"
 
 desugar (InfixExpr op expr1 expr2) | isWedge op =
-  (\x y -> IWedgeApplyExpr (stringToIVarExpr (repr op)) (ITupleExpr [x, y]))
+  (\x y -> IWedgeApplyExpr (stringToIVarExpr (repr op)) [x, y])
     <$> desugar expr1 <*> desugar expr2
 
 desugar (InfixExpr op expr1 expr2) | repr op == "::" =
@@ -300,8 +300,8 @@ desugar (TransposeExpr vars expr) =
 desugar (FlipIndicesExpr expr) =
   IFlipIndicesExpr <$> desugar expr
 
-desugar (ApplyExpr expr0 expr1) =
-  IApplyExpr <$> desugar expr0 <*> desugar expr1
+desugar (ApplyExpr expr args) =
+  IApplyExpr <$> desugar expr <*> mapM desugar args
 
 desugar (CApplyExpr expr0 expr1) =
   ICApplyExpr <$> desugar expr0 <*> desugar expr1
@@ -326,8 +326,8 @@ desugar (QuoteExpr expr) =
 desugar (QuoteSymbolExpr expr) =
   IQuoteSymbolExpr <$> desugar expr
 
-desugar (WedgeApplyExpr expr0 expr1) =
-  IWedgeApplyExpr <$> desugar expr0 <*> desugar expr1
+desugar (WedgeApplyExpr expr args) =
+  IWedgeApplyExpr <$> desugar expr <*> mapM desugar args
 
 desugar (FunctionExpr args) = return $ IFunctionExpr args
 

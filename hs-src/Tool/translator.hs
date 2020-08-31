@@ -105,7 +105,7 @@ instance SyntaxElement Expr where
 
   toNonS (QuoteExpr x)        = QuoteExpr (toNonS x)
   toNonS (QuoteSymbolExpr x)  = QuoteSymbolExpr (toNonS x)
-  toNonS (WedgeApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
+  toNonS (WedgeApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (y:ys)) =
     optimize $ foldl (\acc x -> InfixExpr op' acc (toNonS x)) (toNonS y) ys
       where
         op' = op { isWedge = True }
@@ -115,13 +115,13 @@ instance SyntaxElement Expr where
         optimize (InfixExpr op e1 e2) =
           InfixExpr op (optimize e1) (optimize e2)
         optimize e = e
-  toNonS (WedgeApplyExpr x y) = WedgeApplyExpr (toNonS x) (toNonS y)
+  toNonS (WedgeApplyExpr x ys) = WedgeApplyExpr (toNonS x) (map toNonS ys)
 
   toNonS (DoExpr xs y) = DoExpr (map toNonS xs) (toNonS y)
   toNonS (IoExpr x)    = IoExpr (toNonS x)
 
   toNonS (SeqExpr e1 e2) = SeqExpr (toNonS e1) (toNonS e2)
-  toNonS (ApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (TupleExpr (y:ys))) =
+  toNonS (ApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (y:ys)) =
     optimize $ foldl (\acc x -> InfixExpr op acc (toNonS x)) (toNonS y) ys
       where
         optimize (InfixExpr Op{ repr = "*" } (ConstantExpr (IntegerExpr (-1))) e2) =
@@ -130,7 +130,7 @@ instance SyntaxElement Expr where
           InfixExpr op (optimize e1) (optimize e2)
         optimize e = e
 
-  toNonS (ApplyExpr x y) = ApplyExpr (toNonS x) (toNonS y)
+  toNonS (ApplyExpr x ys) = ApplyExpr (toNonS x) (map toNonS ys)
   toNonS (CApplyExpr e1 e2) = CApplyExpr (toNonS e1) (toNonS e2)
   toNonS (AnonParamFuncExpr n e) =
     case AnonParamFuncExpr n (toNonS e) of
