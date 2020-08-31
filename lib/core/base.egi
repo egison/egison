@@ -22,9 +22,8 @@ float := eq
 
 id := 1#%1
 
-fst := 2#%1
-
-snd := 2#%2
+fst (x, y) := x
+snd (x, y) := y
 
 infixr expression 0 $
 

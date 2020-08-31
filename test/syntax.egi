@@ -211,16 +211,16 @@ assertEqual "capply"
   (capply (+) [1, 2])
   3
 
--- f0 () := 1
--- f2 (x, y) := x + y
+f0 () := 1
+f2 (x, y) := x + y
 
--- assertEqual "nullary function definition"
---   (f0 ())
---   1
+assertEqual "nullary function definition"
+  (f0 ())
+  1
 
--- assertEqual "function definition with tupled argument"
---   (f2 1 2)
---   3
+assertEqual "function definition with tupled argument"
+  (f2 (1, 2))
+  3
 
 {-
   This is a comment

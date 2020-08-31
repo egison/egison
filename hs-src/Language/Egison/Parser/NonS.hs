@@ -19,12 +19,13 @@ module Language.Egison.Parser.NonS
        , lowerReservedWords
        ) where
 
-import           Control.Monad.State            (get, gets, put)
+import           Control.Monad.State            (get, gets, put, lift)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
 import           Data.Functor                   (($>))
 import           Data.List                      (groupBy, insertBy)
+import           Data.List.Split                (splitOn)
 import           Data.Maybe                     (isJust, isNothing)
 import           Data.Text                      (pack)
 
@@ -95,11 +96,6 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> defineOrTestExpr
       <?> "toplevel expression"
 
--- Return type of |convertToDefine|.
-data ConversionResult
-  = Variable VarWithIndices       -- Definition of a variable with no arguments on lhs.
-  | Function VarWithIndices [Arg] -- Definition of a function with some arguments on lhs.
-
 -- Sort binaryop table on the insertion
 addNewOp :: Op -> Bool -> Parser ()
 addNewOp newop isPattern | isPattern = do
@@ -151,65 +147,32 @@ defineOrTestExpr = do
       -- When ":=" is observed and the current expression turns out to be a
       -- definition, we do not start over from scratch but re-interpret
       -- what's parsed so far as the lhs of definition.
-      case convertToDefine e of
+      r <- lift $ convertToDefine e
+      case r of
         Nothing -> customFailure IllFormedDefine
-        Just (Variable var)      -> Define var <$> expr
-        Just (Function var args) -> Define var . LambdaExpr args <$> expr
+        Just (var, [])   -> Define var <$> expr
+        Just (var, args) -> Define var . LambdaExpr args <$> expr
 
-    convertToDefine :: Expr -> Maybe ConversionResult
-    convertToDefine (VarExpr var) = return $ Variable (varToVarWithIndices var)
-    convertToDefine (SectionExpr op Nothing Nothing) =
-      return $ Variable (stringToVarWithIndices (repr op))
-    convertToDefine (ApplyExpr (VarExpr var) [TupleExpr args]) = do
-      args' <- mapM ((TensorArg . APPatVar <$>) . exprToStr) args
-      return $ Function (varToVarWithIndices var) args'
-    convertToDefine (ApplyExpr (VarExpr var) args) = do
-      args' <- mapM ((TensorArg . APPatVar <$>) . exprToStr) args
-      return $ Function (varToVarWithIndices var) args'
-    convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) [x, y]) = do
-      args <- mapM ((TensorArg . APPatVar <$>) . exprToStr) [x, y]
-      return $ Function (stringToVarWithIndices (repr op)) args
-    convertToDefine e@(InfixExpr op _ _)
-      | repr op == "*$" || repr op == "%" || repr op == "$" = do
-        args <- exprToArgs e
-        case args of
-          TensorArg (APPatVar var) : args ->
-            return $ Function (stringToVarWithIndices var) args
-          _ -> Nothing
-    convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) = do
-      -- [Index Expr] -> Maybe [Index String]
-      indices' <- mapM (traverse ((prettyStr <$>) . exprToStr)) indices
-      return $ Variable (VarWithIndices var indices')
-    convertToDefine _ = Nothing
+    convertToDefine :: Expr -> RuntimeM (Maybe (VarWithIndices, [Arg]))
+    convertToDefine expr = do
+      r <- runParserT p "egison" (prettyStr expr)
+      case r of
+        Left _ -> return Nothing
+        Right (v, args) -> return $ Just (v, args)
+     where
+       p :: Parser (VarWithIndices, [Arg])
+       p = do
+         ops <- gets exprOps
+         f   <-   parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
+              <|> varWithIndicesLiteral
+         args <- many arg'
+         return (f, args)
 
-    exprToStr :: Expr -> Maybe String
-    exprToStr (VarExpr v) = Just (prettyStr v)
-    exprToStr _           = Nothing
-
-    exprToArgs :: Expr -> Maybe [Arg]
-    exprToArgs (VarExpr v) = return [TensorArg (APPatVar (prettyStr v))]
-    exprToArgs (ApplyExpr func args) =
-      (++) <$> exprToArgs func <*> mapM ((TensorArg . APPatVar <$>) . exprToStr) args
-    exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (APPatVar (repr op))]
-    exprToArgs (InfixExpr op lhs rhs) | repr op == "*$" = do
-      lhs' <- exprToArgs lhs
-      rhs' <- exprToArgs rhs
-      case rhs' of
-        TensorArg x : xs -> return (lhs' ++ InvertedScalarArg x : xs)
-        _                -> Nothing
-    exprToArgs (InfixExpr op lhs rhs) | repr op == "$" = do
-      lhs' <- exprToArgs lhs
-      rhs' <- exprToArgs rhs
-      case rhs' of
-        TensorArg x : xs -> return (lhs' ++ ScalarArg x : xs)
-        _                -> Nothing
-    exprToArgs (InfixExpr op lhs rhs) | repr op == "%" = do
-      lhs' <- exprToArgs lhs
-      rhs' <- exprToArgs rhs
-      case rhs' of
-        TensorArg _ : _ -> return (lhs' ++ rhs')
-        _               -> Nothing
-    exprToArgs _ = Nothing
+       arg' :: Parser Arg
+       arg' = InvertedScalarArg <$> (symbol "*$" >> argPatternAtom)
+          <|> TensorArg         <$> (symbol "%"  >> argPatternAtom)
+          <|> ScalarArg         <$> (symbol "$"  >> argPatternAtom)
+          <|> TensorArg         <$> argPattern
 
 expr :: Parser Expr
 expr = do
@@ -481,22 +444,22 @@ hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
     hashBraces = between (symbol "{|") (symbol "|}")
     hashElem = parens $ (,) <$> expr <*> (comma >> expr)
 
-index :: Parser (Index Expr)
-index = SupSubscript <$> (string "~_" >> atomExpr')
+index :: Parser a -> Parser (Index a)
+index p = SupSubscript <$> (string "~_" >> p)
     <|> try (char '_' >> subscript)
     <|> try (char '~' >> superscript)
-    <|> try (Userscript <$> (char '|' >> atomExpr'))
+    <|> try (Userscript <$> (char '|' >> p))
     <?> "index"
   where
     subscript = do
-      e1 <- atomExpr'
-      e2 <- optional (string "..._" >> atomExpr')
+      e1 <- p
+      e2 <- optional (string "..._" >> p)
       case e2 of
         Nothing  -> return $ Subscript e1
         Just e2' -> return $ MultiSubscript e1 e2'
     superscript = do
-      e1 <- atomExpr'
-      e2 <- optional (string "...~" >> atomExpr')
+      e1 <- p
+      e2 <- optional (string "...~" >> p)
       case e2 of
         Nothing  -> return $ Superscript e1
         Just e2' -> return $ MultiSuperscript e1 e2'
@@ -512,8 +475,8 @@ atomOrApplyExpr = do
 atomExpr :: Parser Expr
 atomExpr = do
   e <- atomExpr'
-  override <- isNothing <$> optional (try (string "..." <* lookAhead index))
-  indices <- many index
+  override <- isNothing <$> optional (try (string "..." <* lookAhead (index atomExpr')))
+  indices <- many (index atomExpr')
   return $ case indices of
              [] -> e
              _  -> IndexedExpr override e indices
@@ -739,6 +702,10 @@ positiveFloatLiteral = lexeme L.float
 
 varLiteral :: Parser Var
 varLiteral = stringToVar <$> ident
+
+varWithIndicesLiteral :: Parser VarWithIndices
+varWithIndicesLiteral = do
+  VarWithIndices <$> (splitOn "." <$> ident) <*> many (index ident)
 
 patVarLiteral :: Parser Var
 patVarLiteral = stringToVar <$> (char '$' >> ident)
