@@ -112,6 +112,6 @@ assertEqual
 assertEqual
   "regularContinuedFractionOfSqrt case 2"
   (rtof
-     (regularContinuedFraction
-        ((\(x, y) -> (x, take 100 y)) (regularContinuedFractionOfSqrt 2))))
+     (let (x, y) := regularContinuedFractionOfSqrt 2
+       in regularContinuedFraction x (take 100 y)))
   1.4142135623730951
