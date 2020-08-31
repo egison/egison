@@ -45,7 +45,7 @@ rtPositiveTerm1 n x :=
       g n x :=
         let d := match x as termExpr with
                    | term $m $xs ->
-                     gcd n (reduce gcd (map 2#%2 (toAssoc (pF m) ++ xs)))
+                     gcd n (reduce gcd (map snd (toAssoc (pF m) ++ xs)))
          in rt'' (n / d) (rt d x)
    in match x as termExpr with
         | term $m $xs ->
