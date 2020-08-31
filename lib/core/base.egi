@@ -49,10 +49,7 @@ infixr expression 2 ||
 (&&) b1 b2 := if b1 then b2 else False
 (||) b1 b2 := if b1 then True else b2
 
-not b :=
-  match b as bool with
-    | #True -> False
-    | #False -> True
+not b := if b then False else True
 
 --
 -- Unordered Pair
