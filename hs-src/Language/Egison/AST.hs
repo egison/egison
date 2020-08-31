@@ -138,14 +138,14 @@ data VarWithIndices = VarWithIndices [String] [Index String]
   deriving Show
 
 data Arg
-  = WildCardArg
-  | ScalarArg ArgPattern
+  = ScalarArg ArgPattern
   | InvertedScalarArg ArgPattern
   | TensorArg ArgPattern
   deriving Show
 
 data ArgPattern
-  = APPatVar String
+  = APWildCard
+  | APPatVar String
   | APInductivePat String [Arg]
   | APTuplePat [Arg]
   | APEmptyPat
@@ -154,8 +154,7 @@ data ArgPattern
   deriving Show
 
 data Arg'
-  = WildCardArg'
-  | ScalarArg' String
+  = ScalarArg' String
   | InvertedScalarArg' String
   | TensorArg' String
   deriving Show
