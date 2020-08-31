@@ -161,23 +161,24 @@ defineOrTestExpr = do
     convertToDefine (SectionExpr op Nothing Nothing) =
       return $ Variable (stringToVarWithIndices (repr op))
     convertToDefine (ApplyExpr (VarExpr var) [TupleExpr args]) = do
-      args' <- mapM ((TensorArg <$>) . exprToStr) args
+      args' <- mapM ((TensorArg . APPatVar <$>) . exprToStr) args
       return $ Function (varToVarWithIndices var) args'
     convertToDefine (ApplyExpr (VarExpr var) args) = do
-      args' <- mapM ((TensorArg <$>) . exprToStr) args
+      args' <- mapM ((TensorArg . APPatVar <$>) . exprToStr) args
       return $ Function (varToVarWithIndices var) args'
     convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) [x, y]) = do
-      args <- mapM ((TensorArg <$>) . exprToStr) [x, y]
+      args <- mapM ((TensorArg . APPatVar <$>) . exprToStr) [x, y]
       return $ Function (stringToVarWithIndices (repr op)) args
     convertToDefine e@(InfixExpr op _ _)
       | repr op == "*$" || repr op == "%" || repr op == "$" = do
         args <- exprToArgs e
         case args of
-          TensorArg var : args -> return $ Function (stringToVarWithIndices var) args
-          _                    -> Nothing
+          TensorArg (APPatVar var) : args ->
+            return $ Function (stringToVarWithIndices var) args
+          _ -> Nothing
     convertToDefine (IndexedExpr True (VarExpr (Var var [])) indices) = do
       -- [Index Expr] -> Maybe [Index String]
-      indices' <- mapM (traverse exprToStr) indices
+      indices' <- mapM (traverse ((prettyStr <$>) . exprToStr)) indices
       return $ Variable (VarWithIndices var indices')
     convertToDefine _ = Nothing
 
@@ -186,10 +187,10 @@ defineOrTestExpr = do
     exprToStr _           = Nothing
 
     exprToArgs :: Expr -> Maybe [Arg]
-    exprToArgs (VarExpr v) = return [TensorArg (prettyStr v)]
+    exprToArgs (VarExpr v) = return [TensorArg (APPatVar (prettyStr v))]
     exprToArgs (ApplyExpr func args) =
-      (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
-    exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (repr op)]
+      (++) <$> exprToArgs func <*> mapM ((TensorArg . APPatVar <$>) . exprToStr) args
+    exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (APPatVar (repr op))]
     exprToArgs (InfixExpr op lhs rhs) | repr op == "*$" = do
       lhs' <- exprToArgs lhs
       rhs' <- exprToArgs rhs
@@ -313,11 +314,15 @@ lambdaLikeExpr =
     <|> (reserved "cambda"         >> CambdaExpr         <$> lowerId      <*> (symbol "->" >> expr))
 
 arg :: Parser Arg
-arg = InvertedScalarArg <$> (char '*' >> ident)
-  <|> TensorArg         <$> (char '%' >> ident)
-  <|> ScalarArg         <$> (char '$' >> ident)
-  <|> TensorArg         <$> ident
+arg = InvertedScalarArg <$> (string "*$" >> argPattern)
+  <|> TensorArg         <$> (char '%' >> argPattern)
+  <|> ScalarArg         <$> (char '$' >> argPattern)
+  <|> TensorArg         <$> argPattern
+  <|> (symbol "_" $> WildCardArg)
   <?> "argument"
+
+argPattern :: Parser ArgPattern
+argPattern = APPatVar <$> ident
 
 letExpr :: Parser Expr
 letExpr = do

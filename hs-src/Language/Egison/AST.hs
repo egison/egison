@@ -21,6 +21,8 @@ module Language.Egison.AST
   , varToVarWithIndices
   , makeApply
   , Arg (..)
+  , ArgPattern (..)
+  , Arg' (..)
   , Index (..)
   , extractIndex
   , extractSupOrSubIndex
@@ -84,6 +86,7 @@ data Expr
   | VectorExpr [Expr]
 
   | LambdaExpr [Arg] Expr
+  | LambdaExpr' [Arg'] Expr
   | MemoizedLambdaExpr [String] Expr
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
@@ -135,9 +138,26 @@ data VarWithIndices = VarWithIndices [String] [Index String]
   deriving Show
 
 data Arg
-  = ScalarArg String
-  | InvertedScalarArg String
-  | TensorArg String
+  = WildCardArg
+  | ScalarArg ArgPattern
+  | InvertedScalarArg ArgPattern
+  | TensorArg ArgPattern
+  deriving Show
+
+data ArgPattern
+  = APPatVar String
+  | APInductivePat String [Arg]
+  | APTuplePat [Arg]
+  | APEmptyPat
+  | APConsPat Arg Arg
+  | APSnocPat Arg Arg
+  deriving Show
+
+data Arg'
+  = WildCardArg'
+  | ScalarArg' String
+  | InvertedScalarArg' String
+  | TensorArg' String
   deriving Show
 
 data Index a
