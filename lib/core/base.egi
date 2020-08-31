@@ -38,6 +38,9 @@ eqAs a x y :=
     | #y -> True
     | _ -> False
 
+curry f x y := f (x, y)
+uncurry f (x, y) := f x y
+
 --
 -- Boolean
 --

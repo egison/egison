@@ -172,6 +172,6 @@ regularContinuedFractionOfSqrt' m :=
                                 m
                                 (n / x)
                                 (1 / x))
-              in (n, map 3#%3 s, map 3#%3 c)
+              in (n, map (\(_, _, x) -> x) s, map (\(_, _, x) -> x) c)
 
 pi := f.pi
