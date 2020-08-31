@@ -222,7 +222,7 @@ instance (Pretty a, Complex a) => Pretty (Index a) where
   pretty (DFscript _ _) = undefined
   pretty (Userscript i) = pretty '|' <> pretty' i
 
-instance (Pretty expr, Complex expr, Show expr) => Pretty (PatternCore expr) where
+instance (Pretty expr, Complex expr, Show expr) => Pretty (PatternBase expr) where
   pretty WildCard     = pretty "_"
   pretty (PatVar x)   = pretty "$" <> pretty x
   pretty (ValuePat v) = pretty "#" <> pretty' v
@@ -344,7 +344,7 @@ instance Complex Expr where
   isInfix InfixExpr{}             = True
   isInfix _                       = False
 
-instance Complex (PatternCore expr) where
+instance Complex (PatternBase expr) where
   isAtom (LetPat _ _)        = False
   isAtom (InductivePat _ []) = True
   isAtom (InductivePat _ _)  = False

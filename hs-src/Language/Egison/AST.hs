@@ -14,7 +14,7 @@ module Language.Egison.AST
   ( TopExpr (..)
   , ConstantExpr (..)
   , Expr (..)
-  , PatternCore (..)
+  , PatternBase (..)
   , Pattern
   , Var (..)
   , VarWithIndices (..)
@@ -166,38 +166,38 @@ extractSupOrSubIndex _                = Nothing
 data PMMode = BFSMode | DFSMode
   deriving Show
 
-type Pattern = PatternCore Expr
+type Pattern = PatternBase Expr
 type BindingExpr = (PrimitiveDataPattern, Expr)
 type MatchClause = (Pattern, Expr)
 type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 
-data PatternCore expr
+data PatternBase expr
   = WildCard
   | PatVar Var
   | ValuePat expr
   | PredPat expr
-  | IndexedPat (PatternCore expr) [expr]
-  | LetPat [(PrimitiveDataPattern, expr)] (PatternCore expr)
-  | InfixPat Op (PatternCore expr) (PatternCore expr) -- Includes AndPat,OrPat,InductivePat(cons/join)
-  | NotPat (PatternCore expr)
-  | AndPat (PatternCore expr) (PatternCore expr)
-  | OrPat (PatternCore expr) (PatternCore expr)
-  | ForallPat (PatternCore expr) (PatternCore expr)
-  | TuplePat [PatternCore expr]
-  | InductivePat String [PatternCore expr]
-  | LoopPat Var (LoopRange expr) (PatternCore expr) (PatternCore expr)
+  | IndexedPat (PatternBase expr) [expr]
+  | LetPat [(PrimitiveDataPattern, expr)] (PatternBase expr)
+  | InfixPat Op (PatternBase expr) (PatternBase expr) -- Includes AndPat,OrPat,InductivePat(cons/join)
+  | NotPat (PatternBase expr)
+  | AndPat (PatternBase expr) (PatternBase expr)
+  | OrPat (PatternBase expr) (PatternBase expr)
+  | ForallPat (PatternBase expr) (PatternBase expr)
+  | TuplePat [PatternBase expr]
+  | InductivePat String [PatternBase expr]
+  | LoopPat Var (LoopRange expr) (PatternBase expr) (PatternBase expr)
   | ContPat
-  | PApplyPat expr [PatternCore expr]
+  | PApplyPat expr [PatternBase expr]
   | VarPat String
-  | InductiveOrPApplyPat String [PatternCore expr]
+  | InductiveOrPApplyPat String [PatternBase expr]
   | SeqNilPat
-  | SeqConsPat (PatternCore expr) (PatternCore expr)
+  | SeqConsPat (PatternBase expr) (PatternBase expr)
   | LaterPatVar
   -- For symbolic computing
-  | DApplyPat (PatternCore expr) [PatternCore expr]
+  | DApplyPat (PatternBase expr) [PatternBase expr]
   deriving Show
 
-data LoopRange expr = LoopRange expr expr (PatternCore expr)
+data LoopRange expr = LoopRange expr expr (PatternBase expr)
   deriving Show
 
 data PrimitivePatPattern

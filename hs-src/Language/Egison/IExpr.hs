@@ -13,7 +13,7 @@ module Language.Egison.IExpr
   , ConstantExpr (..)
   , Var (..)
   , VarWithIndices (..)
-  , PatternCore (..)
+  , PatternBase (..)
   , LoopRange (..)
   , stringToVar
   , varToVarWithIndices
@@ -27,7 +27,7 @@ module Language.Egison.IExpr
 import           Language.Egison.AST ( ConstantExpr (..)
                                      , Var (..)
                                      , VarWithIndices (..)
-                                     , PatternCore (..)
+                                     , PatternBase (..)
                                      , LoopRange (..)
                                      , stringToVar
                                      , varToVarWithIndices
@@ -89,7 +89,7 @@ data IExpr
   | IFunctionExpr [Var]
   deriving Show
 
-type IPattern = PatternCore IExpr
+type IPattern = PatternBase IExpr
 type IBindingExpr = (PrimitiveDataPattern, IExpr)
 type IMatchClause = (IPattern, IExpr)
 type IPatternDef  = (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
