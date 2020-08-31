@@ -992,8 +992,8 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
         let env = extendEnv matcherEnv $ bindings ++ bindings'
         evalExprShallow env expr >>= collectionToRefs
       _ -> cont
-  failPPPatternMatch = throwError $ Default "failed primitive pattern pattern match"
-  failPDPatternMatch = throwError $ Default "failed primitive data pattern match"
+  failPPPatternMatch = throwError (Default "failed primitive pattern pattern match")
+  failPDPatternMatch = throwError =<< PrimitiveMatchFailure <$> getFuncNameStack
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->
                             MatchM ([IPattern], [Binding])
@@ -1016,7 +1016,7 @@ bindPrimitiveDataPattern :: PrimitiveDataPattern -> ObjectRef -> EvalM [Binding]
 bindPrimitiveDataPattern pdp ref = do
   r <- runMaybeT $ primitiveDataPatternMatch pdp ref
   case r of
-    Nothing -> throwError $ Default "failed primitive data pattern match"
+    Nothing -> throwError =<< PrimitiveMatchFailure <$> getFuncNameStack
     Just binding -> return binding
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
