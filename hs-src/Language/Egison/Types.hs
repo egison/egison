@@ -39,6 +39,7 @@ isInteger _                                                        = False
 
 isInteger' :: PrimitiveFunc
 isInteger' (Value val) = return $ Value $ Bool $ isInteger val
+isInteger' _           = return $ Value $ Bool False
 
 isRational :: EgisonValue -> Bool
 isRational (ScalarData (Div (Plus []) (Plus [Term _ []])))          = True
@@ -47,6 +48,7 @@ isRational _                                                        = False
 
 isRational' :: PrimitiveFunc
 isRational' (Value val) = return $ Value $ Bool $ isRational val
+isRational' _           = return $ Value $ Bool False
 
 isSymbol :: EgisonValue -> Bool
 isSymbol (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []]))) = True
