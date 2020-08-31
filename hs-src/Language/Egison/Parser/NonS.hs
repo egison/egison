@@ -160,13 +160,13 @@ defineOrTestExpr = do
     convertToDefine (VarExpr var) = return $ Variable (varToVarWithIndices var)
     convertToDefine (SectionExpr op Nothing Nothing) =
       return $ Variable (stringToVarWithIndices (repr op))
-    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr [TupleExpr args])) = do
+    convertToDefine (ApplyExpr (VarExpr var) [TupleExpr args]) = do
       args' <- mapM ((TensorArg <$>) . exprToStr) args
       return $ Function (varToVarWithIndices var) args'
-    convertToDefine (ApplyExpr (VarExpr var) (TupleExpr args)) = do
+    convertToDefine (ApplyExpr (VarExpr var) args) = do
       args' <- mapM ((TensorArg <$>) . exprToStr) args
       return $ Function (varToVarWithIndices var) args'
-    convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) (TupleExpr [x, y])) = do
+    convertToDefine (ApplyExpr (SectionExpr op Nothing Nothing) [x, y]) = do
       args <- mapM ((TensorArg <$>) . exprToStr) [x, y]
       return $ Function (stringToVarWithIndices (repr op)) args
     convertToDefine e@(InfixExpr op _ _)
@@ -187,7 +187,7 @@ defineOrTestExpr = do
 
     exprToArgs :: Expr -> Maybe [Arg]
     exprToArgs (VarExpr v) = return [TensorArg (prettyStr v)]
-    exprToArgs (ApplyExpr func (TupleExpr args)) =
+    exprToArgs (ApplyExpr func args) =
       (++) <$> exprToArgs func <*> mapM ((TensorArg <$>) . exprToStr) args
     exprToArgs (SectionExpr op Nothing Nothing) = return [TensorArg (repr op)]
     exprToArgs (InfixExpr op lhs rhs) | repr op == "*$" = do
@@ -495,7 +495,7 @@ atomOrApplyExpr = do
   (func, args) <- indentBlock atomExpr atomExpr
   return $ case args of
              [] -> func
-             _  -> makeApply' func args
+             _  -> ApplyExpr func args
 
 -- (Possibly indexed) atomic expressions
 atomExpr :: Parser Expr
@@ -572,8 +572,8 @@ loopPattern =
                   return $ LoopRange start ends as
 
     defaultEnds s =
-      ApplyExpr (stringToVarExpr "from")
-                (makeApply' (stringToVarExpr "-'") [s, ConstantExpr (IntegerExpr 1)])
+      makeApply "from"
+                [makeApply "-'" [s, ConstantExpr (IntegerExpr 1)]]
 
 seqPattern :: Parser Pattern
 seqPattern = do
@@ -903,9 +903,6 @@ makeTupleOrParen parser tupleCtor = do
   case elems of
     [elem] -> return elem
     _      -> return $ tupleCtor elems
-
-makeApply' :: Expr -> [Expr] -> Expr
-makeApply' func xs = ApplyExpr func (TupleExpr xs)
 
 indentGuardEQ :: Pos -> Parser Pos
 indentGuardEQ pos = L.indentGuard sc EQ pos

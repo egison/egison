@@ -144,15 +144,13 @@ instance Pretty Expr where
   pretty (SectionExpr op Nothing (Just x)) = parens (pretty op <+> pretty x)
 
   pretty (DoExpr [] y) = pretty "do" <+> pretty y
-  pretty (DoExpr xs (ApplyExpr (VarExpr (Var ["return"] [])) (TupleExpr []))) =
+  pretty (DoExpr xs (ApplyExpr (VarExpr (Var ["return"] [])) [])) =
     pretty "do" <+> align (hsepHard (map prettyDoBinds xs))
   pretty (DoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
   pretty (SeqExpr e1 e2) = applyLike [pretty "seq", pretty' e1, pretty' e2]
-  pretty (ApplyExpr x y@(TupleExpr [])) = applyLike (map pretty' [x, y])
-  pretty (ApplyExpr x (TupleExpr ys)) = applyLike (map pretty' (x : ys))
-  pretty (ApplyExpr x y) = applyLike [pretty' x, pretty' y]
+  pretty (ApplyExpr x ys) = applyLike (map pretty' (x : ys))
   pretty (CApplyExpr e1 e2) = applyLike [pretty "capply", pretty' e1, pretty' e2]
   pretty (AnonParamFuncExpr n e) = pretty n <> pretty '#' <> pretty' e
   pretty (AnonParamExpr n) = pretty '%' <> pretty n
@@ -266,7 +264,7 @@ instance (Pretty expr, Complex expr, Show expr) => Pretty (PatternBase expr) whe
 
 instance {-# OVERLAPPING #-} Pretty (LoopRange Expr) where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (InfixExpr Op{ repr = "-'" } _ (ConstantExpr (IntegerExpr 1)))) pat) =
+                                    [InfixExpr Op{ repr = "-'" } _ (ConstantExpr (IntegerExpr 1))]) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
