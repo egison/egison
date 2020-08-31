@@ -299,7 +299,7 @@ lambdaExpr :: Parser Expr
 lambdaExpr = symbol "\\" >> (
       makeMatchLambdaExpr (reserved "match")    MatchLambdaExpr
   <|> makeMatchLambdaExpr (reserved "matchAll") MatchAllLambdaExpr
-  <|> try (LambdaExpr <$> tupleOrSome arg <* symbol "->") <*> expr
+  <|> try (LambdaExpr <$> some arg <* symbol "->") <*> expr
   <|> PatternFunctionExpr <$> tupleOrSome lowerId <*> (symbol "=>" >> pattern))
   <?> "lambda or pattern function expression"
   where
@@ -314,15 +314,21 @@ lambdaLikeExpr =
     <|> (reserved "cambda"         >> CambdaExpr         <$> lowerId      <*> (symbol "->" >> expr))
 
 arg :: Parser Arg
-arg = InvertedScalarArg <$> (string "*$" >> argPattern)
-  <|> TensorArg         <$> (char '%' >> argPattern)
-  <|> ScalarArg         <$> (char '$' >> argPattern)
+arg = InvertedScalarArg <$> (string "*$" >> argPatternAtom)
+  <|> TensorArg         <$> (char '%' >> argPatternAtom)
+  <|> ScalarArg         <$> (char '$' >> argPatternAtom)
   <|> TensorArg         <$> argPattern
   <|> (symbol "_" $> WildCardArg)
   <?> "argument"
 
 argPattern :: Parser ArgPattern
-argPattern = APPatVar <$> ident
+argPattern =
+  argPatternAtom
+
+argPatternAtom :: Parser ArgPattern
+argPatternAtom
+    = APPatVar <$> ident
+  <|> APTuplePat <$> parens (sepBy arg comma)
 
 letExpr :: Parser Expr
 letExpr = do
