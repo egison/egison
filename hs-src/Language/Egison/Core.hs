@@ -397,7 +397,7 @@ evalExprShallow env (IApplyExpr func args) = do
       case HL.lookup indices hash of
         Just whnf -> return whnf
         Nothing -> do
-          whnf <- applyFunc env' (Value (Func Nothing env' names body)) (Value (Tuple args))
+          whnf <- applyFunc env' (Value (Func Nothing env' names body)) (Value (makeTuple args))
           liftIO $ modifyIORef hashRef (HL.insert indices whnf)
           return whnf
     _ -> do
