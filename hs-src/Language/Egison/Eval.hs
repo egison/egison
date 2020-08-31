@@ -112,10 +112,10 @@ loadEgisonLibrary env path = do
 -- Helper functions
 --
 
-collectDefs :: EgisonOpts -> [ITopExpr] -> EvalM ([BindingExpr], [ITopExpr])
+collectDefs :: EgisonOpts -> [ITopExpr] -> EvalM ([IBindingExpr], [ITopExpr])
 collectDefs opts exprs = collectDefs' opts exprs [] []
   where
-    collectDefs' :: EgisonOpts -> [ITopExpr] -> [BindingExpr] -> [ITopExpr] -> EvalM ([BindingExpr], [ITopExpr])
+    collectDefs' :: EgisonOpts -> [ITopExpr] -> [IBindingExpr] -> [ITopExpr] -> EvalM ([IBindingExpr], [ITopExpr])
     collectDefs' opts (expr:exprs) bindings rest =
       case expr of
         IDefine name expr -> collectDefs' opts exprs ((PDPatVar name, expr) : bindings) rest

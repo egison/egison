@@ -38,6 +38,7 @@ module Language.Egison.AST
   , findOpFrom
   , stringToVar
   , stringToVarExpr
+  , stringToVarWithIndices
   ) where
 
 import           Data.Hashable   (Hashable)
@@ -48,8 +49,7 @@ import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
 
 data TopExpr
-  = Define Var Expr
-  | DefineWithIndices VarWithIndices Expr
+  = Define VarWithIndices Expr
   | Test Expr
   | Execute Expr
     -- temporary : we will replace load to import and export
@@ -83,14 +83,13 @@ data Expr
   | HashExpr [(Expr, Expr)]
   | VectorExpr [Expr]
 
-  | LambdaExpr (Maybe String) [Arg] Expr
+  | LambdaExpr [Arg] Expr
   | MemoizedLambdaExpr [String] Expr
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
 
   | IfExpr Expr Expr Expr
   | LetRecExpr [BindingExpr] Expr
-  | LetExpr [BindingExpr] Expr
   | WithSymbolsExpr [String] Expr
 
   | MatchExpr PMMode Expr Expr [MatchClause]
@@ -275,6 +274,9 @@ stringToVar name = Var (splitOn "." name) []
 
 stringToVarExpr :: String -> Expr
 stringToVarExpr = VarExpr . stringToVar
+
+stringToVarWithIndices :: String -> VarWithIndices
+stringToVarWithIndices name = VarWithIndices (splitOn "." name) []
 
 varToVarWithIndices :: Var -> VarWithIndices
 varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is

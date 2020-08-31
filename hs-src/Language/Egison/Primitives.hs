@@ -42,6 +42,7 @@ import           Language.Egison.AST
 import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Data.Utils
+import           Language.Egison.Eval
 import           Language.Egison.EvalState (MonadEval(..))
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
@@ -485,13 +486,13 @@ read' :: PrimitiveFunc
 read'= oneArg' $ \val -> do
   str <- fromEgison val
   ast <- readExpr (T.unpack str)
-  evalExprDeep nullEnv ast
+  evalExpr nullEnv ast
 
 readTSV :: PrimitiveFunc
 readTSV = oneArg' $ \val -> do
   str   <- fromEgison val
   exprs <- mapM (readExpr . T.unpack) (T.split (== '\t') str)
-  rets  <- mapM (evalExprDeep nullEnv) exprs
+  rets  <- mapM (evalExpr nullEnv) exprs
   case rets of
     [ret] -> return ret
     _     -> return (Tuple rets)

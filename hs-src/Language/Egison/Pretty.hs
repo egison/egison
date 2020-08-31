@@ -22,6 +22,7 @@ import           Text.Show.Unicode         (ushow)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.IExpr
 
 --
 -- Pretty printing for Non-S syntax
@@ -31,7 +32,7 @@ prettyTopExprs :: [TopExpr] -> Doc [TopExpr]
 prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty TopExpr where
-  pretty (Define x (LambdaExpr _ args body)) =
+  pretty (Define x (LambdaExpr args body)) =
     hsep (pretty x : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (Define x expr) =
     pretty x <+> indentBlock (pretty ":=") [pretty expr]
@@ -74,7 +75,7 @@ instance Pretty Expr where
   pretty (HashExpr xs)   = listoid "{|" "|}" (map (\(x, y) -> tupled [pretty x, pretty y]) xs)
   pretty (VectorExpr xs) = listoid "[|" "|]" (map pretty xs)
 
-  pretty (LambdaExpr _ xs e) =
+  pretty (LambdaExpr xs e) =
     lambdaLike (pretty "\\") (map pretty xs) (pretty "->") (pretty e)
   pretty (MemoizedLambdaExpr xs e)  =
     lambdaLike (pretty "memoizedLambda ") (map pretty xs) (pretty "->") (pretty e)
@@ -88,7 +89,6 @@ instance Pretty Expr where
       [pretty "then" <+> pretty y, pretty "else" <+> pretty z]
   pretty (LetRecExpr bindings body) =
     hang 1 (pretty "let" <+> align (vsep (map pretty bindings)) <> hardline <> pretty "in" <+> align (pretty body))
-  pretty (LetExpr _ _) = error "unreachable"
   pretty (WithSymbolsExpr xs e) =
     indentBlock (pretty "withSymbols" <+> list (map pretty xs)) [pretty e]
 
@@ -189,7 +189,7 @@ instance Pretty VarWithIndices where
     concatWith (surround dot) (map pretty xs) <> hcat (map pretty is)
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
-  pretty (PDPatVar f, LambdaExpr _ args body) =
+  pretty (PDPatVar f, LambdaExpr args body) =
     hsep (pretty f : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (pat, expr) = pretty pat <+> pretty ":=" <+> align (pretty expr)
 
@@ -293,6 +293,14 @@ instance Pretty PrimitiveDataPattern where
 instance Pretty Op where
   pretty op | isWedge op = pretty ("!" ++ repr op)
             | otherwise  = pretty (repr op)
+
+instance Pretty IExpr where
+  pretty = undefined
+
+instance Complex IExpr where
+  isAtom = undefined
+  isAtomOrApp = undefined
+  isInfix = undefined
 
 class Complex a where
   isAtom :: a -> Bool
