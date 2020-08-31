@@ -199,7 +199,6 @@ desugar (LambdaExpr args expr) = do
   desugar $ LambdaExpr' args' expr'
   where
     desugarArg :: Arg -> ([Arg'], Expr) -> EvalM ([Arg'], Expr)
-    desugarArg WildCardArg   (args, expr) = return (WildCardArg' : args, expr)
     desugarArg (TensorArg x) (args, expr) = do
       (var, expr') <- desugarArgPat x expr
       return (TensorArg' var : args, expr')
@@ -214,6 +213,9 @@ desugar (LambdaExpr args expr) = do
     -- \$(%x, %y) -> expr   ==> \$tmp -> let (tmp1, tmp2) := tmp in (\%x %y -> expr) tmp1 tmp2
     -- \(x, (y, z)) -> expr ==> \tmp  -> let (tmp1, tmp2) := tmp in (\x (y, z) -> expr) tmp1 tmp2
     desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
+    desugarArgPat APWildCard expr = do
+      tmp <- fresh
+      return (tmp, LetRecExpr [(PDWildCard, stringToVarExpr tmp)] expr)
     desugarArgPat (APPatVar var) expr = return (var, expr)
     desugarArgPat (APTuplePat args) expr = do
       tmp  <- fresh

@@ -174,12 +174,12 @@ instance Pretty Expr where
   pretty p = pretty (show p)
 
 instance Pretty Arg where
-  pretty WildCardArg           = pretty "_"
   pretty (ScalarArg x)         = pretty "$" <> pretty' x
   pretty (InvertedScalarArg x) = pretty "*$" <> pretty' x
   pretty (TensorArg x)         = pretty x
 
 instance Pretty ArgPattern where
+  pretty APWildCard              = pretty "_"
   pretty (APPatVar x)            = pretty x
   pretty (APInductivePat x args) = applyLike (pretty x : map pretty' args)
   pretty (APTuplePat args)       = tupled (map pretty args)
@@ -360,11 +360,11 @@ instance Complex Arg where
   isInfix _ = False
 
 instance Complex ArgPattern where
-  isAtom APPatVar{}            = True
-  isAtom APTuplePat{}          = True
-  isAtom APEmptyPat            = True
   isAtom (APInductivePat _ []) = True
-  isAtom _                     = False
+  isAtom APInductivePat{}      = False
+  isAtom APConsPat{}           = False
+  isAtom APSnocPat{}           = False
+  isAtom _                     = True
 
   isAtomOrApp = isAtom
   isInfix _ = False

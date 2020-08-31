@@ -318,7 +318,6 @@ arg = InvertedScalarArg <$> (string "*$" >> argPatternAtom)
   <|> TensorArg         <$> (char '%' >> argPatternAtom)
   <|> ScalarArg         <$> (char '$' >> argPatternAtom)
   <|> TensorArg         <$> argPattern
-  <|> (symbol "_" $> WildCardArg)
   <?> "argument"
 
 argPattern :: Parser ArgPattern
@@ -327,8 +326,9 @@ argPattern =
 
 argPatternAtom :: Parser ArgPattern
 argPatternAtom
-    = APPatVar <$> ident
+  =   APWildCard <$  symbol "_"
   <|> APTuplePat <$> parens (sepBy arg comma)
+  <|> APPatVar   <$> ident
 
 letExpr :: Parser Expr
 letExpr = do
