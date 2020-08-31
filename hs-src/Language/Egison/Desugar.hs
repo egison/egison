@@ -191,10 +191,9 @@ desugar (VectorExpr exprs) =
 desugar (TensorExpr nsExpr xsExpr) =
   ITensorExpr <$> desugar nsExpr <*> desugar xsExpr
 
--- \%($x, $y) -> expr   => \%tmp -> let (x, y) := tmp in (\$x $y -> expr) x y
--- \$(%x, %y) -> expr   => \$tmp -> let (x, y) := tmp in (\%x %y -> expr) x y
--- \(x, (y, z)) -> expr => \tmp  -> let (x, tmp2) := tmp in (\x (y, z) -> expr) x tmp2
-
+-- Desugar of LambdaExpr takes place in 2 stages.
+-- * LambdaExpr -> LambdaExpr'  : Desugar pattern matches at the arg positions
+-- * LambdaExpr' -> ILambdaExpr : Desugar ScalarArg and InvertedScalarArg
 desugar (LambdaExpr args expr) = do
   (args', expr') <- foldrM desugarArg ([], expr) args
   desugar $ LambdaExpr' args' expr'
@@ -211,6 +210,9 @@ desugar (LambdaExpr args expr) = do
       (var, expr') <- desugarArgPat x expr
       return (InvertedScalarArg' var : args, expr')
 
+    -- Desugar argument patterns. Examples:
+    -- \$(%x, %y) -> expr   ==> \$tmp -> let (tmp1, tmp2) := tmp in (\%x %y -> expr) tmp1 tmp2
+    -- \(x, (y, z)) -> expr ==> \tmp  -> let (tmp1, tmp2) := tmp in (\x (y, z) -> expr) tmp1 tmp2
     desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
     desugarArgPat (APPatVar var) expr = return (var, expr)
     desugarArgPat (APTuplePat args) expr = do
@@ -238,7 +240,6 @@ desugar (LambdaExpr args expr) = do
       tmp2 <- freshV
       return (tmp, LetRecExpr [(PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2), stringToVarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
-
 
 desugar (LambdaExpr' names expr) = do
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
