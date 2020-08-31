@@ -264,6 +264,7 @@ reservedExprOp =
   [ Op "!"  8 Prefix False -- Wedge
   , Op "-"  7 Prefix False -- Negate
   , Op "%"  7 InfixL False -- primitive function
+  , Op "*$" 7 Prefix False -- For InvertedScalarArg
   , Op "*$" 7 InfixL False -- For InvertedScalarArg
   , Op "++" 5 InfixR False
   , Op "::" 5 InfixR False

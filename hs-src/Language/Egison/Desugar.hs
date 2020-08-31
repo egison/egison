@@ -294,7 +294,7 @@ desugar (PrefixExpr "!" (ApplyExpr expr args)) =
   IWedgeApplyExpr <$> desugar expr <*> mapM desugar args
 desugar (PrefixExpr "'" expr) = IQuoteExpr <$> desugar expr
 desugar (PrefixExpr "`" expr) = IQuoteSymbolExpr <$> desugar expr
-desugar PrefixExpr{} = fail "Unknown prefix"
+desugar (PrefixExpr op _) = fail ("Unknown prefix " ++ op)
 
 desugar (InfixExpr op expr1 expr2) | isWedge op =
   (\x y -> IWedgeApplyExpr (stringToIVarExpr (repr op)) [x, y])
