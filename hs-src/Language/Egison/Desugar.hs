@@ -335,7 +335,10 @@ desugarIndex :: Index Expr -> EvalM (Index IExpr)
 desugarIndex index = traverse desugar index
 
 desugarPattern :: Pattern -> EvalM IPattern
-desugarPattern pat = LetPat (map makeBinding (collectName pat)) <$> desugarPattern' pat
+desugarPattern pat =
+  case collectName pat of
+    []    -> desugarPattern' pat
+    names -> LetPat (map makeBinding names) <$> desugarPattern' pat
  where
    collectNames :: [Pattern] -> [Var]
    collectNames pats = foldl union [] (map collectName pats)
