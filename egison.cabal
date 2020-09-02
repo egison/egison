@@ -131,9 +131,9 @@ Library
                    Language.Egison.PrettyMath.Mathematica
                    Language.Egison.PrettyMath.Maxima
                    Language.Egison.Primitives
+                   Language.Egison.Primitives.Types
                    Language.Egison.RState
                    Language.Egison.Tensor
-                   Language.Egison.Types
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
   ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns

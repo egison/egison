@@ -5,21 +5,26 @@ Licence     : MIT
 This module contains functions for dynamic type systems.
 -}
 
-module Language.Egison.Types
-  ( isBool
-  , isInteger
-  , isRational
-  , isScalar
-  , isFloat
-  , isTensor
-  , isChar
-  , isString
-  , isCollection
-  , isHash
+module Language.Egison.Primitives.Types
+  ( primitiveTypeFunctions
   ) where
 
 import           Language.Egison.Data
 import           Language.Egison.Math
+
+primitiveTypeFunctions :: [(String, EgisonValue -> EvalM EgisonValue)]
+primitiveTypeFunctions =
+  [ ("isBool",       isBool)
+  , ("isInteger",    isInteger)
+  , ("isRational",   isRational)
+  , ("isScalar",     isScalar)
+  , ("isFloat",      isFloat)
+  , ("isChar",       isChar)
+  , ("isString",     isString)
+  , ("isCollection", isCollection)
+  , ("isHash",       isHash)
+  , ("isTensor",     isTensor)
+  ]
 
 --
 -- Typing
