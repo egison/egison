@@ -33,7 +33,7 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty TopExpr where
   pretty (Define x (LambdaExpr args body)) =
-    hsep (pretty x : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
+    hsep (pretty x : map pretty' args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (Define x expr) =
     pretty x <+> indentBlock (pretty ":=") [pretty expr]
   pretty (Test expr) = pretty expr
@@ -144,15 +144,13 @@ instance Pretty Expr where
   pretty (SectionExpr op Nothing (Just x)) = parens (pretty op <+> pretty x)
 
   pretty (DoExpr [] y) = pretty "do" <+> pretty y
-  pretty (DoExpr xs (ApplyExpr (VarExpr (Var ["return"] [])) (TupleExpr []))) =
+  pretty (DoExpr xs (ApplyExpr (VarExpr (Var ["return"] [])) [])) =
     pretty "do" <+> align (hsepHard (map prettyDoBinds xs))
   pretty (DoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
 
   pretty (SeqExpr e1 e2) = applyLike [pretty "seq", pretty' e1, pretty' e2]
-  pretty (ApplyExpr x y@(TupleExpr [])) = applyLike (map pretty' [x, y])
-  pretty (ApplyExpr x (TupleExpr ys)) = applyLike (map pretty' (x : ys))
-  pretty (ApplyExpr x y) = applyLike [pretty' x, pretty' y]
+  pretty (ApplyExpr x ys) = applyLike (map pretty' (x : ys))
   pretty (CApplyExpr e1 e2) = applyLike [pretty "capply", pretty' e1, pretty' e2]
   pretty (AnonParamFuncExpr n e) = pretty n <> pretty '#' <> pretty' e
   pretty (AnonParamExpr n) = pretty '%' <> pretty n
@@ -176,9 +174,18 @@ instance Pretty Expr where
   pretty p = pretty (show p)
 
 instance Pretty Arg where
-  pretty (ScalarArg x)         = pretty x
-  pretty (InvertedScalarArg x) = pretty "*$" <> pretty x
-  pretty (TensorArg x)         = pretty '%' <> pretty x
+  pretty (ScalarArg x)         = pretty "$" <> pretty' x
+  pretty (InvertedScalarArg x) = pretty "*$" <> pretty' x
+  pretty (TensorArg x)         = pretty x
+
+instance Pretty ArgPattern where
+  pretty APWildCard              = pretty "_"
+  pretty (APPatVar x)            = pretty x
+  pretty (APInductivePat x args) = applyLike (pretty x : map pretty' args)
+  pretty (APTuplePat args)       = tupled (map pretty args)
+  pretty APEmptyPat              = pretty "[]"
+  pretty (APConsPat arg1 arg2)   = pretty'' arg1 <+> pretty "::" <+> pretty'' arg2
+  pretty (APSnocPat arg1 arg2)   = applyLike [pretty "snoc", pretty' arg1, pretty' arg2]
 
 instance Pretty Var where
   pretty (Var xs is) =
@@ -190,7 +197,7 @@ instance Pretty VarWithIndices where
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
   pretty (PDPatVar f, LambdaExpr args body) =
-    hsep (pretty f : map pretty args) <+> indentBlock (pretty ":=") [pretty body]
+    hsep (pretty f : map pretty' args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (pat, expr) = pretty pat <+> pretty ":=" <+> align (pretty expr)
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
@@ -266,7 +273,7 @@ instance (Pretty expr, Complex expr, Show expr) => Pretty (PatternBase expr) whe
 
 instance {-# OVERLAPPING #-} Pretty (LoopRange Expr) where
   pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
-                                    (InfixExpr Op{ repr = "-'" } _ (ConstantExpr (IntegerExpr 1)))) pat) =
+                                    [InfixExpr Op{ repr = "-'" } _ (ConstantExpr (IntegerExpr 1))]) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
@@ -343,6 +350,24 @@ instance Complex Expr where
 
   isInfix InfixExpr{}             = True
   isInfix _                       = False
+
+instance Complex Arg where
+  isAtom (TensorArg x) = isAtom x
+  isAtom _             = True
+
+  isAtomOrApp = isAtom
+
+  isInfix _ = False
+
+instance Complex ArgPattern where
+  isAtom (APInductivePat _ []) = True
+  isAtom APInductivePat{}      = False
+  isAtom APConsPat{}           = False
+  isAtom APSnocPat{}           = False
+  isAtom _                     = True
+
+  isAtomOrApp = isAtom
+  isInfix _ = False
 
 instance Complex (PatternBase expr) where
   isAtom (LetPat _ _)        = False

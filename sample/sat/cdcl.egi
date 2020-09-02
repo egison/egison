@@ -23,7 +23,7 @@ assignment :=
 
 toCnf cs := map (\c -> (c, c)) cs
 
-fromCnf cs := map 2#%1 cs
+fromCnf cs := map fst cs
 
 -- VSIDS
 
@@ -31,7 +31,7 @@ initVars vs := map (\v -> (neg v, 0)) vs ++ map (\v -> (v, 0)) vs
 
 addVars vs vars :=
   matchDFS (vs, vars) as (list literal, list (literal, integer)) with
-    | ([], _) -> sort/fn (\xc yc -> compare (2#%2 yc) (2#%2 xc)) vars
+    | ([], _) -> sort/fn (\xc yc -> compare (snd yc) (snd xc)) vars
     | ($v :: $vs', $hs ++ (#v, $c) :: $ts) ->
       addVars vs' (hs ++ (v, c + 1) :: ts)
 
@@ -50,9 +50,9 @@ getStage l trail :=
 deleteLiteral l cnf :=
   map
     (\c ->
-      ( matchAllDFS 2#%1 c as multiset literal with
+      ( matchAllDFS fst c as multiset literal with
         | (!#l & $m) :: _ -> m
-      , 2#%2 c ))
+      , snd c ))
     cnf
 
 deleteClausesWith l cnf :=
@@ -86,7 +86,7 @@ learn stage cl trail :=
   matchDFS (trail, cl) as (list assignment, multiset taggedLiteral) with
     -- not more than 2 literals from the current stage
     | (_, !((_, #stage) :: (_, #stage) :: _)) ->
-      (minimum (map 2#%2 cl), map 2#%1 cl)
+      (minimum (map snd cl), map fst cl)
     -- otherwise
     | (_ ++ deduced ($l, #stage) $ds :: $trail', (#(neg l), #stage) :: $rs) ->
       learn stage (union rs ds) trail'

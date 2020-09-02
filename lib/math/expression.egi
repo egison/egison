@@ -35,15 +35,15 @@ mathExpr' :=
       | _ -> []
     | term $ $ as (integer, assocMultiset mathExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-        [(n, map 2#(toMathExpr' %1, %2) xs)]
+        [(n, map (\(x, n) -> (toMathExpr' x, n)) xs)]
       | _ -> []
     | mult $ $ as (integer, multExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-        [(n, product' (map 2#(toMathExpr' %1 ^' %2) xs))]
+        [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
       | _ -> []
     | $ * $ as (integer, multExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-        [(n, product' (map 2#(toMathExpr' %1 ^' %2) xs))]
+        [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
       | _ -> []
     | symbol $ $ as (eq, list indexExpr) with
       | Div (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
@@ -89,11 +89,11 @@ multExpr :=
     | $ ^ #$k * $ as (mathExpr, multExpr) with
       | $tgt ->
         matchAll tgt as mathExpr with
-          | term _ (ncons $x #k $xs) -> (x, product' (map (^') xs))
+          | term _ (ncons $x #k $xs) -> (x, product' (map (uncurry (^')) xs))
     | $ ^ $ * $ as (mathExpr, integer, multExpr) with
       | $tgt ->
         matchAll tgt as mathExpr with
-          | term _ (ncons $x $n $xs) -> (x, n, product' (map (^') xs))
+          | term _ (ncons $x $n $xs) -> (x, n, product' (map (uncurry (^')) xs))
     | $ ^ $ as (mathExpr, integer) with
       | $tgt ->
         match tgt as mathExpr with
@@ -102,7 +102,7 @@ multExpr :=
     | $ * $ as (mathExpr, multExpr) with
       | $tgt ->
         matchAll tgt as mathExpr with
-          | term _ ($x :: $rs) -> (x, product' (map (^') rs))
+          | term _ ($x :: $rs) -> (x, product' (map (uncurry (^')) rs))
     | $ as mathExpr with
       | $tgt -> [tgt]
 
@@ -142,7 +142,7 @@ isMonomial %mexpr :=
 fromMonomial $mexpr :=
   match mexpr as mathExpr with
     | term $a $xs / term $b $ys ->
-      (a / b, foldl (*') 1 (map (^') xs) / foldl (*') 1 (map (^') ys))
+      (a / b, foldl (*') 1 (map (uncurry (^')) xs) / foldl (*') 1 (map (uncurry (^')) ys))
 
 --
 -- Map
@@ -172,13 +172,13 @@ mapSymbols $fn $mexpr :=
                (*')
                1
                (map
-                  2#(match %1 as symbolExpr with
-                    | symbol _ _ -> fn %1 ^' %2
+                  (\(x, n) -> match x as symbolExpr with
+                    | symbol _ _ -> fn x ^' n
                     | apply $g $args ->
                       let args' := map (mapSymbols fn) args
                        in if args = args'
-                            then %1 ^' %2
-                            else fn (capply g args') ^' %2)
+                            then x ^' n
+                            else fn (capply g args') ^' n)
                   xs))
     mexpr
 
@@ -191,7 +191,7 @@ containSymbol $x $mexpr :=
     (\match as termExpr with
       | term _ $xs ->
         any
-          2#(match %1 as symbolExpr with
+          (\(y, _) -> match y as symbolExpr with
             | #x -> True
             | apply _ $args -> any (containSymbol x) args
             | _ -> False)
@@ -202,34 +202,9 @@ containFunction $f $mexpr :=
     (\match as termExpr with
       | term _ $xs ->
         any
-          2#(match %1 as symbolExpr with
+          (\(y, _) -> match y as symbolExpr with
             | apply #f _     -> True
             | apply $g $args -> any (containFunction f) args
-            | _ -> False)
-          xs)
-
-containFunctionWithOrder $f $n $mexpr :=
-  scanAllTerms mexpr
-    (\match as termExpr with
-      | term _ $xs ->
-        any
-          (\match as (symbolExpr, integer) with
-            | (apply #f _, ?(>= n)) -> True
-            | (apply _ $args, _) -> any (containFunctionWithOrder f n) args
-            | _ -> False)
-          xs)
-
-containFunctionWithIndex $mexpr :=
-  scanAllTerms mexpr
-    (\match as termExpr with
-      | term _ $xs ->
-        any
-          2#(match %1 as symbolExpr with
-            | apply (?isScalar & $f) $args ->
-              match f as mathExpr with
-                | symbol _ ![] -> True
-                | _ -> any containFunctionWithIndex args
-            | apply _ $args -> any containFunctionWithIndex args
             | _ -> False)
           xs)
 
@@ -259,7 +234,7 @@ expandAll $mexpr :=
     -- quote
     | quote $g -> g
     -- term (multiplication)
-    | term $a $ps -> a * product (map 2#(expandAll %1 ^ expandAll %2) ps)
+    | term $a $ps -> a * product (map (\(x, n) -> expandAll x ^ expandAll n) ps)
     -- polynomial
     | poly $ts -> sum (map expandAll ts)
     -- quotient
@@ -273,7 +248,7 @@ expandAll' $mexpr :=
     -- quote
     | quote $g -> g
     -- term (multiplication)
-    | term $a $ps -> a *' product' (map 2#(expandAll' %1 ^' expandAll' %2) ps)
+    | term $a $ps -> a *' product' (map (\(x, n) -> expandAll' x ^' expandAll' n) ps)
     -- polynomial
     | poly $ts -> sum' (map expandAll' ts)
     -- quotient

@@ -57,9 +57,7 @@ assertEqual
   [|[|1, 1|], [|1, 1|]|]_i_j
 
 g_i_j := (generateTensor
-            (\match as (integer, integer) with
-               | ($n, #n) -> function (x, y, z)
-               | (_, _) -> 0)
+            (\n m -> if n = m then function (x, y, z) else 0)
             [3, 3])_i_j
 
 assertEqual

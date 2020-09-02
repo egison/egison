@@ -21,6 +21,8 @@ module Language.Egison.AST
   , varToVarWithIndices
   , makeApply
   , Arg (..)
+  , ArgPattern (..)
+  , Arg' (..)
   , Index (..)
   , extractIndex
   , extractSupOrSubIndex
@@ -84,6 +86,7 @@ data Expr
   | VectorExpr [Expr]
 
   | LambdaExpr [Arg] Expr
+  | LambdaExpr' [Arg'] Expr
   | MemoizedLambdaExpr [String] Expr
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
@@ -102,7 +105,7 @@ data Expr
 
   | QuoteExpr Expr
   | QuoteSymbolExpr Expr
-  | WedgeApplyExpr Expr Expr
+  | WedgeApplyExpr Expr [Expr]
 
   | DoExpr [BindingExpr] Expr
   | IoExpr Expr
@@ -112,7 +115,7 @@ data Expr
   | SectionExpr Op (Maybe Expr) (Maybe Expr) -- There cannot be 'SectionExpr op (Just _) (Just _)'
 
   | SeqExpr Expr Expr
-  | ApplyExpr Expr Expr
+  | ApplyExpr Expr [Expr]
   | CApplyExpr Expr Expr
   | AnonParamFuncExpr Integer Expr
   | AnonParamExpr Integer
@@ -135,9 +138,25 @@ data VarWithIndices = VarWithIndices [String] [Index String]
   deriving Show
 
 data Arg
-  = ScalarArg String
-  | InvertedScalarArg String
-  | TensorArg String
+  = ScalarArg ArgPattern
+  | InvertedScalarArg ArgPattern
+  | TensorArg ArgPattern
+  deriving Show
+
+data ArgPattern
+  = APWildCard
+  | APPatVar String
+  | APInductivePat String [Arg]
+  | APTuplePat [Arg]
+  | APEmptyPat
+  | APConsPat Arg Arg
+  | APSnocPat Arg Arg
+  deriving Show
+
+data Arg'
+  = ScalarArg' String
+  | InvertedScalarArg' String
+  | TensorArg' String
   deriving Show
 
 data Index a
@@ -245,6 +264,7 @@ reservedExprOp =
   [ Op "!"  8 Prefix False -- Wedge
   , Op "-"  7 Prefix False -- Negate
   , Op "%"  7 InfixL False -- primitive function
+  , Op "*$" 7 Prefix False -- For InvertedScalarArg
   , Op "*$" 7 InfixL False -- For InvertedScalarArg
   , Op "++" 5 InfixR False
   , Op "::" 5 InfixR False
@@ -285,7 +305,7 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f index = (\() -> "") <$> index
 
 makeApply :: String -> [Expr] -> Expr
-makeApply func args = ApplyExpr (stringToVarExpr func) (TupleExpr args)
+makeApply func args = ApplyExpr (stringToVarExpr func) args
 
 instance Show (Index ()) where
   show (Superscript ())  = "~"

@@ -245,7 +245,7 @@ intersperse sep ws :=
     | [] -> []
     | $w :: $rs -> foldl (\s1 s2 -> s1 ++ [sep, s2]) [w] rs
 
-intercalate := compose intersperse concat
+intercalate sep ws := concat (intersperse sep ws)
 
 split sep ls :=
   match ls as list something with
@@ -421,20 +421,10 @@ memberAs a x ys :=
 -- Counting
 --
 count x xs :=
-  foldl
-    (\match as (something, something) with
-      | ($r, #x) -> r + 1
-      | ($r, $y) -> r)
-    0
-    xs
+  foldl (\acc y -> if x = y then acc + 1 else acc) 0 xs
 
 countAs a x xs :=
-  foldl
-    (\match as (a, a) with
-      | ($r, #x) -> r + 1
-      | ($r, $y) -> r)
-    0
-    xs
+  foldl (\acc y -> if eqAs a x y then acc + 1 else acc) 0 xs
 
 frequency xs :=
   let us := unique xs

@@ -2,6 +2,7 @@
 
 module Language.Egison.Data.Utils
   ( evalRef
+  , evalObj
   , writeObjectRef
   , newEvaluatedObjectRef
   , makeBindings
@@ -30,6 +31,10 @@ evalRef ref = do
       val <- thunk
       writeObjectRef ref val
       return val
+
+evalObj :: Object -> EvalM WHNFData
+evalObj (WHNF val) = return val
+evalObj (Thunk thunk) = thunk
 
 writeObjectRef :: ObjectRef -> WHNFData -> EvalM ()
 writeObjectRef ref val = liftIO . writeIORef ref $ WHNF val
