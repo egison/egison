@@ -39,7 +39,6 @@ import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
 import           Language.Egison.AST
-import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Data.Utils
 import           Language.Egison.Eval
@@ -69,60 +68,58 @@ primitiveEnvNoIO = do
 {-# INLINE noArg #-}
 noArg :: String -> EvalM EgisonValue -> PrimitiveFunc
 noArg name f args = do
-    args' <- tupleToList <$> evalWHNF args
-    case args' of
-      [] -> Value <$> f
-      _  -> throwError =<< ArgumentsNumPrimitive name 0 (length args') <$> getFuncNameStack
+  let args' = tupleToList args
+  case args' of
+    [] -> f
+    _  -> throwError =<< ArgumentsNumPrimitive name 0 (length args') <$> getFuncNameStack
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 oneArg f arg = do
-  arg' <- evalWHNF arg
-  case arg' of
+  case arg of
     (TensorData (Tensor ns ds js)) -> do
       ds' <- V.mapM f ds
-      Value <$> fromTensor (Tensor ns ds' js)
-    _ -> Value <$> f arg'
+      fromTensor (Tensor ns ds' js)
+    _ -> f arg
 
 {-# INLINE oneArg' #-}
 oneArg' :: (EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
-oneArg' f arg = do
-  arg' <- evalWHNF arg
-  Value <$> f arg'
+oneArg' f arg = f arg
 
 {-# INLINE twoArgs #-}
 twoArgs :: String -> (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 twoArgs name f args = do
-  args' <- tupleToList <$> evalWHNF args
+  let args' = tupleToList args
   case args' of
-    [TensorData t1@Tensor{}, TensorData t2@Tensor{}] -> Value <$> (tProduct f t1 t2 >>= fromTensor)
+    [TensorData t1@Tensor{}, TensorData t2@Tensor{}] ->
+      tProduct f t1 t2 >>= fromTensor
     [TensorData(Tensor ns ds js), val] -> do
       ds' <- V.mapM (`f` val) ds
-      Value <$> fromTensor (Tensor ns ds' js)
+      fromTensor (Tensor ns ds' js)
     [val, TensorData (Tensor ns ds js)] -> do
       ds' <- V.mapM (f val) ds
-      Value <$> fromTensor (Tensor ns ds' js)
-    [val, val'] -> Value <$> f val val'
-    [val] -> return . Value . PrimitiveFunc $ oneArg (f val)
+      fromTensor (Tensor ns ds' js)
+    [val, val'] -> f val val'
+    [val] -> return . PrimitiveFunc $ oneArg (f val)
     _ -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
 
 {-# INLINE twoArgs' #-}
 twoArgs' :: String -> (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 twoArgs' name f args = do
-  args' <- tupleToList <$> evalWHNF args
+  let args' = tupleToList args
   case args' of
-    [val, val'] -> Value <$> f val val'
-    [val]       -> return . Value . PrimitiveFunc $ oneArg' (f val)
+    [val, val'] -> f val val'
+    [val]       -> return . PrimitiveFunc $ oneArg' (f val)
     _           -> throwError =<< ArgumentsNumPrimitive name 2 (length args') <$> getFuncNameStack
 
 {-# INLINE threeArgs' #-}
 threeArgs' :: String -> (EgisonValue -> EgisonValue -> EgisonValue -> EvalM EgisonValue) -> PrimitiveFunc
 threeArgs' name f args = do
-  args' <- tupleToList <$> evalWHNF args
+  let args' = tupleToList args
   case args' of
-    [val, val', val''] -> Value <$> f val val' val''
-    [val, val']        -> return . Value . PrimitiveFunc $ oneArg' (f val val')
-    [val]              -> return . Value . PrimitiveFunc $ twoArgs' name (f val)
+    [val, val', val''] -> f val val' val''
+    [val, val']        -> return . PrimitiveFunc $ oneArg' (f val val')
+    [val]              -> return . PrimitiveFunc $ twoArgs' name (f val)
     _                  -> throwError =<< ArgumentsNumPrimitive name 3 (length args') <$> getFuncNameStack
 
 --

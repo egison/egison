@@ -29,8 +29,8 @@ import           Language.Egison.Math
 --
 
 isBool' :: PrimitiveFunc
-isBool' (Value (Bool _)) = return $ Value $ Bool True
-isBool' _                = return $ Value $ Bool False
+isBool' (Bool _) = return $ Bool True
+isBool' _        = return $ Bool False
 
 isInteger :: EgisonValue -> Bool
 isInteger (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = True
@@ -38,8 +38,7 @@ isInteger (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = True
 isInteger _                                                        = False
 
 isInteger' :: PrimitiveFunc
-isInteger' (Value val) = return $ Value $ Bool $ isInteger val
-isInteger' _           = return $ Value $ Bool False
+isInteger' val = return $ Bool $ isInteger val
 
 isRational :: EgisonValue -> Bool
 isRational (ScalarData (Div (Plus []) (Plus [Term _ []])))          = True
@@ -47,56 +46,49 @@ isRational (ScalarData (Div (Plus [Term _ []]) (Plus [Term _ []]))) = True
 isRational _                                                        = False
 
 isRational' :: PrimitiveFunc
-isRational' (Value val) = return $ Value $ Bool $ isRational val
-isRational' _           = return $ Value $ Bool False
+isRational' val = return $ Bool $ isRational val
 
 isSymbol :: EgisonValue -> Bool
 isSymbol (ScalarData (Div (Plus [Term 1 [(Symbol{}, 1)]]) (Plus [Term 1 []]))) = True
 isSymbol _ = False
 
 isScalar' :: PrimitiveFunc
-isScalar' (Value (ScalarData _)) = return $ Value $ Bool True
-isScalar' _                      = return $ Value $ Bool False
+isScalar' (ScalarData _) = return $ Bool True
+isScalar' _              = return $ Bool False
 
 isTensor' :: PrimitiveFunc
-isTensor' (Value (TensorData _))     = return $ Value $ Bool True
-isTensor' (Intermediate (ITensor _)) = return $ Value $ Bool True
-isTensor' _                          = return $ Value $ Bool False
+isTensor' (TensorData _) = return $ Bool True
+isTensor' _              = return $ Bool False
 
 isTensorWithIndex :: EgisonValue -> Bool
 isTensorWithIndex (TensorData (Tensor _ _ (_:_))) = True
 isTensorWithIndex _                               = False
 
 isTensorWithIndex' :: PrimitiveFunc
-isTensorWithIndex' (Value val) = return $ Value $ Bool $ isTensorWithIndex val
-isTensorWithIndex' _           = return $ Value $ Bool False
+isTensorWithIndex' val = return $ Bool $ isTensorWithIndex val
 
 isFloat' :: PrimitiveFunc
-isFloat' (Value (Float _)) = return $ Value $ Bool True
-isFloat' _                 = return $ Value $ Bool False
+isFloat' (Float _) = return $ Bool True
+isFloat' _         = return $ Bool False
 
 isComplex' :: PrimitiveFunc
-isComplex' (Value (Float _)) = return $ Value $ Bool True
-isComplex' _                 = return $ Value $ Bool False
+isComplex' (Float _) = return $ Bool True
+isComplex' _         = return $ Bool False
 
 isChar' :: PrimitiveFunc
-isChar' (Value (Char _)) = return $ Value $ Bool True
-isChar' _                = return $ Value $ Bool False
+isChar' (Char _) = return $ Bool True
+isChar' _        = return $ Bool False
 
 isString' :: PrimitiveFunc
-isString' (Value (String _)) = return $ Value $ Bool True
-isString' _                  = return $ Value $ Bool False
+isString' (String _) = return $ Bool True
+isString' _          = return $ Bool False
 
 isCollection' :: PrimitiveFunc
-isCollection' (Value (Collection _))         = return $ Value $ Bool True
-isCollection' (Intermediate (ICollection _)) = return $ Value $ Bool True
-isCollection' _                              = return $ Value $ Bool False
+isCollection' (Collection _) = return $ Bool True
+isCollection' _              = return $ Bool False
 
 isHash' :: PrimitiveFunc
-isHash' (Value (IntHash _))          = return $ Value $ Bool True
-isHash' (Value (CharHash _))         = return $ Value $ Bool True
-isHash' (Value (StrHash _))          = return $ Value $ Bool True
-isHash' (Intermediate (IIntHash _))  = return $ Value $ Bool True
-isHash' (Intermediate (ICharHash _)) = return $ Value $ Bool True
-isHash' (Intermediate (IStrHash _))  = return $ Value $ Bool True
-isHash' _                            = return $ Value $ Bool False
+isHash' (IntHash _)  = return $ Bool True
+isHash' (CharHash _) = return $ Bool True
+isHash' (StrHash _)  = return $ Bool True
+isHash' _            = return $ Bool False
