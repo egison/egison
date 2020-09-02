@@ -56,15 +56,13 @@ S.last str :=
 
 S.map f xs := pack (map f (unpack xs))
 
-S.length xs := lengthString xs
-
-S.split sep ls := splitString sep ls
-
-S.append xs ys := appendString xs ys
+S.length := lengthString
+S.split  := splitString
+S.append := appendString
 
 S.concat xss := foldr (\xs rs -> S.append xs rs) "" xss
 
-S.intercalate := compose intersperse S.concat
+S.intercalate sep ss := S.concat (intersperse sep ss)
 
 S.replace before after str := S.intercalate after (S.split before str)
 

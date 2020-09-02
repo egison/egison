@@ -107,13 +107,17 @@ assertEqual "application with binops"
   ((\x y -> x + y) 1 2 + 3)
   6
 
-assertEqual "lambda with 0 argument"
+assertEqual "lambda with case"
   ((\() -> 1) ())
   1
 
-assertEqual "lambda with tuple argument"
-  ((\(x, y, z) -> x + y + z) 1 2 3)
-  6
+assertEqual "lambda with case"
+  ((\(x, y, z) -> x - y - z) (1, 2, 3))
+  (-4)
+
+assertEqual "lambda with case"
+  ((\_ -> 1) 2)
+  1
 
 assertEqual "append op" ([1] ++ [2]) [1, 2]
 assertEqual "append op" ((++) [1] [2]) [1, 2]
@@ -215,7 +219,7 @@ assertEqual "nullary function definition"
   1
 
 assertEqual "function definition with tupled argument"
-  (f2 1 2)
+  (f2 (1, 2))
   3
 
 {-

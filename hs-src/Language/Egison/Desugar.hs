@@ -16,6 +16,7 @@ module Language.Egison.Desugar
 
 import           Control.Monad.Except  (throwError)
 import           Data.Char             (toUpper)
+import           Data.Foldable         (foldrM)
 import           Data.List             (union)
 
 import           Language.Egison.AST
@@ -130,11 +131,13 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
 desugar (MatchAllLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchAllExpr BFSMode (stringToVarExpr name) matcher clauses)
+  ILambdaExpr Nothing [name] <$>
+    desugar (MatchAllExpr BFSMode (stringToVarExpr name) matcher clauses)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
-  desugar $ LambdaExpr [TensorArg name] (MatchExpr BFSMode (stringToVarExpr name) matcher clauses)
+  ILambdaExpr Nothing [name] <$>
+    desugar (MatchExpr BFSMode (stringToVarExpr name) matcher clauses)
 
 -- TODO: Allow nested MultiSubscript and MultiSuperscript
 desugar (IndexedExpr b expr indices) =
@@ -188,19 +191,71 @@ desugar (VectorExpr exprs) =
 desugar (TensorExpr nsExpr xsExpr) =
   ITensorExpr <$> desugar nsExpr <*> desugar xsExpr
 
-desugar (LambdaExpr names expr) = do
+-- Desugar of LambdaExpr takes place in 2 stages.
+-- * LambdaExpr -> LambdaExpr'  : Desugar pattern matches at the arg positions
+-- * LambdaExpr' -> ILambdaExpr : Desugar ScalarArg and InvertedScalarArg
+desugar (LambdaExpr args expr) = do
+  (args', expr') <- foldrM desugarArg ([], expr) args
+  desugar $ LambdaExpr' args' expr'
+  where
+    desugarArg :: Arg -> ([Arg'], Expr) -> EvalM ([Arg'], Expr)
+    desugarArg (TensorArg x) (args, expr) = do
+      (var, expr') <- desugarArgPat x expr
+      return (TensorArg' var : args, expr')
+    desugarArg (ScalarArg x) (args, expr) = do
+      (var, expr') <- desugarArgPat x expr
+      return (ScalarArg' var : args, expr')
+    desugarArg (InvertedScalarArg x) (args, expr) = do
+      (var, expr') <- desugarArgPat x expr
+      return (InvertedScalarArg' var : args, expr')
+
+    -- Desugar argument patterns. Examples:
+    -- \$(%x, %y) -> expr   ==> \$tmp -> let (tmp1, tmp2) := tmp in (\%x %y -> expr) tmp1 tmp2
+    -- \(x, (y, z)) -> expr ==> \tmp  -> let (tmp1, tmp2) := tmp in (\x (y, z) -> expr) tmp1 tmp2
+    desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
+    desugarArgPat APWildCard expr = do
+      tmp <- fresh
+      return (tmp, LetRecExpr [(PDWildCard, stringToVarExpr tmp)] expr)
+    desugarArgPat (APPatVar var) expr = return (var, expr)
+    desugarArgPat (APTuplePat args) expr = do
+      tmp  <- fresh
+      tmps <- mapM (const freshV) args
+      return (tmp, LetRecExpr [(PDTuplePat (map PDPatVar tmps), stringToVarExpr tmp)]
+                     (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
+    desugarArgPat (APInductivePat ctor args) expr = do
+      tmp  <- fresh
+      tmps <- mapM (const freshV) args
+      return (tmp, LetRecExpr [(PDInductivePat ctor (map PDPatVar tmps), stringToVarExpr tmp)]
+                     (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
+    desugarArgPat APEmptyPat expr = do
+      tmp <- fresh
+      return (tmp, LetRecExpr [(PDEmptyPat, stringToVarExpr tmp)] expr)
+    desugarArgPat (APConsPat arg1 arg2) expr = do
+      tmp  <- fresh
+      tmp1 <- freshV
+      tmp2 <- freshV
+      return (tmp, LetRecExpr [(PDConsPat (PDPatVar tmp1) (PDPatVar tmp2), stringToVarExpr tmp)]
+                     (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+    desugarArgPat (APSnocPat arg1 arg2) expr = do
+      tmp  <- fresh
+      tmp1 <- freshV
+      tmp2 <- freshV
+      return (tmp, LetRecExpr [(PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2), stringToVarExpr tmp)]
+                     (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+
+desugar (LambdaExpr' names expr) = do
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
   expr' <- desugar expr'
   return $ ILambdaExpr Nothing args' expr'
   where
-    desugarInvertedArgs :: Arg -> ([String], Expr) -> ([String], Expr)
-    desugarInvertedArgs (TensorArg x) (args, expr) = (x : args, expr)
-    desugarInvertedArgs (ScalarArg x) (args, expr) =
+    desugarInvertedArgs :: Arg' -> ([String], Expr) -> ([String], Expr)
+    desugarInvertedArgs (TensorArg' x) (args, expr) = (x : args, expr)
+    desugarInvertedArgs (ScalarArg' x) (args, expr) =
       (x : args,
-       TensorMapExpr (LambdaExpr [TensorArg x] expr) (stringToVarExpr x))
-    desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
+       TensorMapExpr (LambdaExpr' [TensorArg' x] expr) (stringToVarExpr x))
+    desugarInvertedArgs (InvertedScalarArg' x) (args, expr) =
       (x : args,
-       TensorMapExpr (LambdaExpr [TensorArg x] expr) (FlipIndicesExpr (stringToVarExpr x)))
+       TensorMapExpr (LambdaExpr' [TensorArg' x] expr) (FlipIndicesExpr (stringToVarExpr x)))
 
 desugar (MemoizedLambdaExpr names expr) =
   IMemoizedLambdaExpr names <$> desugar expr
@@ -235,14 +290,14 @@ desugar (IoExpr expr) =
 desugar (PrefixExpr "-" expr) = do
   expr' <- desugar expr
   return $ makeIApply "*" [IConstantExpr (IntegerExpr (-1)), expr']
-desugar (PrefixExpr "!" (ApplyExpr expr1 expr2)) =
-  IWedgeApplyExpr <$> desugar expr1 <*> desugar expr2
+desugar (PrefixExpr "!" (ApplyExpr expr args)) =
+  IWedgeApplyExpr <$> desugar expr <*> mapM desugar args
 desugar (PrefixExpr "'" expr) = IQuoteExpr <$> desugar expr
 desugar (PrefixExpr "`" expr) = IQuoteSymbolExpr <$> desugar expr
-desugar PrefixExpr{} = fail "Unknown prefix"
+desugar (PrefixExpr op _) = fail ("Unknown prefix " ++ op)
 
 desugar (InfixExpr op expr1 expr2) | isWedge op =
-  (\x y -> IWedgeApplyExpr (stringToIVarExpr (repr op)) (ITupleExpr [x, y]))
+  (\x y -> IWedgeApplyExpr (stringToIVarExpr (repr op)) [x, y])
     <$> desugar expr1 <*> desugar expr2
 
 desugar (InfixExpr op expr1 expr2) | repr op == "::" =
@@ -261,18 +316,15 @@ desugar (SectionExpr op Nothing Nothing)
 desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
   y <- fresh
-  desugar $ LambdaExpr [TensorArg x, TensorArg y]
-                       (InfixExpr op (stringToVarExpr x) (stringToVarExpr y))
+  ILambdaExpr Nothing [x, y] <$> desugar (InfixExpr op (stringToVarExpr x) (stringToVarExpr y))
 
 desugar (SectionExpr op Nothing (Just expr2)) = do
   x <- fresh
-  desugar $ LambdaExpr [TensorArg x]
-                       (InfixExpr op (stringToVarExpr x) expr2)
+  ILambdaExpr Nothing [x] <$> desugar (InfixExpr op (stringToVarExpr x) expr2)
 
 desugar (SectionExpr op (Just expr1) Nothing) = do
   y <- fresh
-  desugar $ LambdaExpr [TensorArg y]
-                       (InfixExpr op expr1 (stringToVarExpr y))
+  ILambdaExpr Nothing [y] <$> desugar (InfixExpr op expr1 (stringToVarExpr y))
 
 desugar SectionExpr{} = throwError $ Default "Cannot reach here: section with both arguments"
 
@@ -285,6 +337,8 @@ desugar (GenerateTensorExpr fnExpr sizeExpr) =
 desugar (TensorContractExpr tExpr) =
   ITensorContractExpr <$> desugar tExpr
 
+desugar (TensorMapExpr (LambdaExpr' [x] (TensorMapExpr (LambdaExpr' [y] expr) b)) a) =
+  desugar (TensorMap2Expr (LambdaExpr' [x, y] expr) a b)
 desugar (TensorMapExpr (LambdaExpr [x] (TensorMapExpr (LambdaExpr [y] expr) b)) a) =
   desugar (TensorMap2Expr (LambdaExpr [x, y] expr) a b)
 
@@ -300,8 +354,8 @@ desugar (TransposeExpr vars expr) =
 desugar (FlipIndicesExpr expr) =
   IFlipIndicesExpr <$> desugar expr
 
-desugar (ApplyExpr expr0 expr1) =
-  IApplyExpr <$> desugar expr0 <*> desugar expr1
+desugar (ApplyExpr expr args) =
+  IApplyExpr <$> desugar expr <*> mapM desugar args
 
 desugar (CApplyExpr expr0 expr1) =
   ICApplyExpr <$> desugar expr0 <*> desugar expr1
@@ -326,8 +380,8 @@ desugar (QuoteExpr expr) =
 desugar (QuoteSymbolExpr expr) =
   IQuoteSymbolExpr <$> desugar expr
 
-desugar (WedgeApplyExpr expr0 expr1) =
-  IWedgeApplyExpr <$> desugar expr0 <*> desugar expr1
+desugar (WedgeApplyExpr expr args) =
+  IWedgeApplyExpr <$> desugar expr <*> mapM desugar args
 
 desugar (FunctionExpr args) = return $ IFunctionExpr args
 
@@ -396,9 +450,9 @@ desugarLoopRange (LoopRange sExpr eExpr pat) =
   LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pat
 
 desugarBindings :: [BindingExpr] -> EvalM [IBindingExpr]
-desugarBindings = mapM f
+desugarBindings = mapM desugarBinding
   where
-    f (name, expr) = do
+    desugarBinding (name, expr) = do
       expr' <- desugar expr
       case (name, expr') of
         (PDPatVar var, ILambdaExpr Nothing args body) ->

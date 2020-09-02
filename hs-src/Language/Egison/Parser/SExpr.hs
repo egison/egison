@@ -178,7 +178,7 @@ inductiveDataExpr :: Parser Expr
 inductiveDataExpr = angles $ do
   name <- upperName
   args <- sepEndBy expr whiteSpace
-  return $ ApplyExpr (stringToVarExpr name) (TupleExpr args)
+  return $ makeApply name args
 
 tupleExpr :: Parser Expr
 tupleExpr = brackets $ TupleExpr <$> sepEndBy expr whiteSpace
@@ -351,7 +351,7 @@ withSymbolsExpr :: Parser Expr
 withSymbolsExpr = keywordWithSymbols >> WithSymbolsExpr <$> braces (sepEndBy ident whiteSpace) <*> expr
 
 doExpr :: Parser Expr
-doExpr = keywordDo >> DoExpr <$> statements <*> option (ApplyExpr (stringToVarExpr "return") (TupleExpr [])) expr
+doExpr = keywordDo >> DoExpr <$> statements <*> option (makeApply "return" []) expr
 
 statements :: Parser [BindingExpr]
 statements = braces $ sepEndBy statement whiteSpace
@@ -380,9 +380,12 @@ argNames = return <$> argName
             <|> brackets (sepEndBy argName whiteSpace)
 
 argName :: Parser Arg
-argName = try (ScalarArg <$> (char '$' >> ident))
-      <|> try (InvertedScalarArg <$> (string "*$" >> ident))
-      <|> try (TensorArg <$> (char '%' >> ident))
+argName = try (ScalarArg <$> (char '$' >> argPattern))
+      <|> try (InvertedScalarArg <$> (string "*$" >> argPattern))
+      <|> try (TensorArg <$> (char '%' >> argPattern))
+
+argPattern :: Parser ArgPattern
+argPattern = APPatVar <$> ident
 
 ioExpr :: Parser Expr
 ioExpr = keywordIo >> IoExpr <$> expr
@@ -399,18 +402,18 @@ applyExpr = do
   args <- sepEndBy arg whiteSpace
   let vars = lefts args
   case vars of
-    [] -> return . ApplyExpr func . TupleExpr $ rights args
+    [] -> return $ ApplyExpr func (rights args)
     _ | all null vars ->
         let n = toInteger (length vars)
             args' = f args 1
-         in return $ AnonParamFuncExpr n $ ApplyExpr func (TupleExpr args')
+         in return $ AnonParamFuncExpr n $ ApplyExpr func args'
       | all (not . null) vars ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
              then
                let args' = map g args
-                in return $ AnonParamFuncExpr (toInteger n) $ ApplyExpr func (TupleExpr args')
+                in return $ AnonParamFuncExpr (toInteger n) $ ApplyExpr func args'
              else fail "invalid anonymous parameter function"
       | otherwise -> fail "invalid anonymous parameter function"
  where
@@ -563,7 +566,7 @@ loopRange :: Parser (LoopRange Expr)
 loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
                       <|> (do s <- expr
                               ep <- option WildCard pattern
-                              return (LoopRange s (ApplyExpr (stringToVarExpr "from") (ApplyExpr (stringToVarExpr "-'") (TupleExpr [s, ConstantExpr (IntegerExpr 1)]))) ep)))
+                              return (LoopRange s (makeApply "from" [makeApply "-'" [s, ConstantExpr (IntegerExpr 1)]]) ep)))
 
 seqNilPat :: Parser Pattern
 seqNilPat = braces $ pure SeqNilPat
