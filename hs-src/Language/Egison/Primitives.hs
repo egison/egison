@@ -93,7 +93,7 @@ oneArg' f name args =
 
 {-# INLINE twoArgs #-}
 twoArgs :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
-twoArgs f name args = do
+twoArgs f name args =
   case args of
     [TensorData t1@Tensor{}, TensorData t2@Tensor{}] ->
       tProduct f t1 t2 >>= fromTensor
@@ -109,7 +109,7 @@ twoArgs f name args = do
 
 {-# INLINE twoArgs' #-}
 twoArgs' :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
-twoArgs' f name args = do
+twoArgs' f name args =
   case args of
     [val, val'] -> f val val'
     [val]       -> return . PrimitiveFunc $ oneArg' (f val) name
@@ -117,7 +117,7 @@ twoArgs' f name args = do
 
 {-# INLINE threeArgs' #-}
 threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
-threeArgs' f name args = do
+threeArgs' f name args =
   case args of
     [val, val', val''] -> f val val' val''
     [val, val']        -> return . PrimitiveFunc $ oneArg' (f val val') name
