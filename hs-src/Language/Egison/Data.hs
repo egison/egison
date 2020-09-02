@@ -116,7 +116,7 @@ data EgisonValue
 
 type Matcher = EgisonValue
 
-type PrimitiveFunc = EgisonValue -> EvalM EgisonValue
+type PrimitiveFunc = [EgisonValue] -> EvalM EgisonValue
 
 data EgisonHashKey
   = IntKey Integer
