@@ -2,7 +2,7 @@
 
 ## Latest
 
-* Enabled user-defined infixes for expressions and patterns.
+* Enabled user-defined infixes for expressions and patterns: <https://egison.readthedocs.io/en/latest/reference/basic-syntax.html#infix-declaration>
 * Added a command line option `--no-normalize` to turn off math normalization implemented in the standard math library.
 * Revived TSV input options: <https://egison.readthedocs.io/en/latest/reference/command-line-options.html#reading-tsv-input>
 * Reimplemented math normalization, which was originally implemented in Egison, to the interpreter in Haskell. This led to a huge speedup of some of the mathematical programs.
