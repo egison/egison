@@ -585,7 +585,7 @@ applyFunc _ (Value (CFunc env name body)) args = do
     else throwError =<< ArgumentsNumWithNames [name] 1 0 <$> getFuncNameStack
 applyFunc _ (Value (PrimitiveFunc func)) args = do
   vals <- mapM (\arg -> evalObj arg >>= evalWHNF) args
-  func (Value (makeTuple vals))
+  Value <$> func (makeTuple vals)
 applyFunc _ (Value (IOFunc m)) args = do
   args <- mapM evalObj args
   case args of
