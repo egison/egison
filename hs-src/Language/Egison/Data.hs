@@ -1,10 +1,7 @@
-{-# LANGUAGE DeriveDataTypeable         #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE UndecidableInstances       #-}
-{-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE QuasiQuotes           #-}
 
 {- |
 Module      : Language.Egison.Data
@@ -54,7 +51,6 @@ module Language.Egison.Data
     ) where
 
 import           Control.Exception
-import           Data.Typeable
 
 import           Control.Monad.Except      hiding (join)
 import           Control.Monad.Trans.State.Strict
@@ -555,7 +551,6 @@ data EgisonError
   | MatchFailure CallStack
   | PrimitiveMatchFailure CallStack
   | Default String
-  deriving Typeable
 
 instance Show EgisonError where
   show (UnboundVariable var stack) =

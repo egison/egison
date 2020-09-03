@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections   #-}
-
 module Language.Egison.Data.Utils
   ( evalRef
   , evalObj

@@ -1,5 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TupleSections #-}
 
 {- |
 Module      : Language.Egison.Desugar

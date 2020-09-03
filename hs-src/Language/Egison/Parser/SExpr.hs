@@ -1,7 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections    #-}
-{-# LANGUAGE ViewPatterns     #-}
-{-# OPTIONS_GHC -Wno-all      #-} -- Since we will soon deprecate this parser
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns  #-}
+{-# OPTIONS_GHC -Wno-all   #-} -- Since we will soon deprecate this parser
 
 {- |
 Module      : Language.Egison.Parser.SExpr
