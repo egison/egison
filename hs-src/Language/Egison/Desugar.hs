@@ -198,16 +198,16 @@ desugar (LambdaExpr args expr) = do
   (args', expr') <- foldrM desugarArg ([], expr) args
   desugar $ LambdaExpr' args' expr'
   where
-    desugarArg :: Arg -> ([Arg'], Expr) -> EvalM ([Arg'], Expr)
+    desugarArg :: Arg ArgPattern -> ([Arg String], Expr) -> EvalM ([Arg String], Expr)
     desugarArg (TensorArg x) (args, expr) = do
       (var, expr') <- desugarArgPat x expr
-      return (TensorArg' var : args, expr')
+      return (TensorArg var : args, expr')
     desugarArg (ScalarArg x) (args, expr) = do
       (var, expr') <- desugarArgPat x expr
-      return (ScalarArg' var : args, expr')
+      return (ScalarArg var : args, expr')
     desugarArg (InvertedScalarArg x) (args, expr) = do
       (var, expr') <- desugarArgPat x expr
-      return (InvertedScalarArg' var : args, expr')
+      return (InvertedScalarArg var : args, expr')
 
     -- Desugar argument patterns. Examples:
     -- \$(%x, %y) -> expr   ==> \$tmp -> let (tmp1, tmp2) := tmp in (\%x %y -> expr) tmp1 tmp2
@@ -248,14 +248,14 @@ desugar (LambdaExpr' names expr) = do
   expr' <- desugar expr'
   return $ ILambdaExpr Nothing args' expr'
   where
-    desugarInvertedArgs :: Arg' -> ([String], Expr) -> ([String], Expr)
-    desugarInvertedArgs (TensorArg' x) (args, expr) = (x : args, expr)
-    desugarInvertedArgs (ScalarArg' x) (args, expr) =
+    desugarInvertedArgs :: Arg String -> ([String], Expr) -> ([String], Expr)
+    desugarInvertedArgs (TensorArg x) (args, expr) = (x : args, expr)
+    desugarInvertedArgs (ScalarArg x) (args, expr) =
       (x : args,
-       TensorMapExpr (LambdaExpr' [TensorArg' x] expr) (stringToVarExpr x))
-    desugarInvertedArgs (InvertedScalarArg' x) (args, expr) =
+       TensorMapExpr (LambdaExpr' [TensorArg x] expr) (stringToVarExpr x))
+    desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
       (x : args,
-       TensorMapExpr (LambdaExpr' [TensorArg' x] expr) (FlipIndicesExpr (stringToVarExpr x)))
+       TensorMapExpr (LambdaExpr' [TensorArg x] expr) (FlipIndicesExpr (stringToVarExpr x)))
 
 desugar (MemoizedLambdaExpr names expr) =
   IMemoizedLambdaExpr names <$> desugar expr

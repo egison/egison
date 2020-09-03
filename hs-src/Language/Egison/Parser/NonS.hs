@@ -153,14 +153,14 @@ defineOrTestExpr = do
         Just (var, [])   -> Define var <$> expr
         Just (var, args) -> Define var . LambdaExpr args <$> expr
 
-    convertToDefine :: Expr -> RuntimeM (Maybe (VarWithIndices, [Arg]))
+    convertToDefine :: Expr -> RuntimeM (Maybe (VarWithIndices, [Arg ArgPattern]))
     convertToDefine expr = do
       r <- runParserT p "egison" (prettyStr expr)
       case r of
         Left _ -> return Nothing
         Right (v, args) -> return $ Just (v, args)
      where
-       p :: Parser (VarWithIndices, [Arg])
+       p :: Parser (VarWithIndices, [Arg ArgPattern])
        p = do
          ops <- gets exprOps
          f   <-   parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
@@ -168,7 +168,7 @@ defineOrTestExpr = do
          args <- many arg'
          return (f, args)
 
-       arg' :: Parser Arg
+       arg' :: Parser (Arg ArgPattern)
        arg' = InvertedScalarArg <$> (symbol "*$" >> argPatternAtom)
           <|> TensorArg         <$> (symbol "%"  >> argPatternAtom)
           <|> ScalarArg         <$> (symbol "$"  >> argPatternAtom)
@@ -276,7 +276,7 @@ lambdaLikeExpr =
         (reserved "memoizedLambda" >> MemoizedLambdaExpr <$> tupleOrSome lowerId <*> (symbol "->" >> expr))
     <|> (reserved "cambda"         >> CambdaExpr         <$> lowerId      <*> (symbol "->" >> expr))
 
-arg :: Parser Arg
+arg :: Parser (Arg ArgPattern)
 arg = InvertedScalarArg <$> (string "*$" >> argPatternAtom)
   <|> TensorArg         <$> (char '%' >> argPatternAtom)
   <|> ScalarArg         <$> (char '$' >> argPatternAtom)

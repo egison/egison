@@ -22,7 +22,6 @@ module Language.Egison.AST
   , makeApply
   , Arg (..)
   , ArgPattern (..)
-  , Arg' (..)
   , Index (..)
   , extractIndex
   , extractSupOrSubIndex
@@ -85,8 +84,8 @@ data Expr
   | HashExpr [(Expr, Expr)]
   | VectorExpr [Expr]
 
-  | LambdaExpr [Arg] Expr
-  | LambdaExpr' [Arg'] Expr
+  | LambdaExpr [Arg ArgPattern] Expr
+  | LambdaExpr' [Arg String] Expr
   | MemoizedLambdaExpr [String] Expr
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
@@ -137,26 +136,20 @@ data Var = Var [String] [Index ()]
 data VarWithIndices = VarWithIndices [String] [Index String]
   deriving Show
 
-data Arg
-  = ScalarArg ArgPattern
-  | InvertedScalarArg ArgPattern
-  | TensorArg ArgPattern
+data Arg a
+  = ScalarArg a
+  | InvertedScalarArg a
+  | TensorArg a
   deriving Show
 
 data ArgPattern
   = APWildCard
   | APPatVar String
-  | APInductivePat String [Arg]
-  | APTuplePat [Arg]
+  | APInductivePat String [Arg ArgPattern]
+  | APTuplePat [Arg ArgPattern]
   | APEmptyPat
-  | APConsPat Arg Arg
-  | APSnocPat Arg Arg
-  deriving Show
-
-data Arg'
-  = ScalarArg' String
-  | InvertedScalarArg' String
-  | TensorArg' String
+  | APConsPat (Arg ArgPattern) (Arg ArgPattern)
+  | APSnocPat (Arg ArgPattern) (Arg ArgPattern)
   deriving Show
 
 data Index a
