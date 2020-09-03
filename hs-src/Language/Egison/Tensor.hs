@@ -1,9 +1,7 @@
 {-# LANGUAGE QuasiQuotes           #-}
-{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE PatternSynonyms       #-}
-{-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE ViewPatterns          #-}
 
 {- |
