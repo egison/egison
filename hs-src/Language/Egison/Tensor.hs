@@ -45,8 +45,7 @@ import           Prelude                   hiding (foldr, mappend, mconcat)
 
 import           Control.Monad.Except      hiding (join)
 import qualified Data.Vector               as V
-import           Data.List                 (delete, find, intersect, partition, (\\))
-import           Data.Maybe                (fromJust)
+import           Data.List                 (delete, intersect, partition, (\\))
 
 import           Control.Egison
 import qualified Control.Egison            as M
@@ -72,6 +71,12 @@ superscript _ _ (Superscript a) = pure a
 superscript _ _ _               = mzero
 superscriptM :: M.Matcher m a => IndexM m -> Index a -> m
 superscriptM (IndexM m) _ = m
+
+supsubscript :: M.Matcher m a => M.Pattern (PP a) (IndexM m) (Index a) a
+supsubscript _ _ (SupSubscript a) = pure a
+supsubscript _ _ _                = mzero
+supsubscriptM :: M.Matcher m a => IndexM m -> Index a -> m
+supsubscriptM (IndexM m) _ = m
 
 --
 -- Tensors
@@ -178,19 +183,16 @@ tTranspose is t@(Tensor ns _ js) = do
 
 tTranspose' :: HasTensor a => [EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) = do
-  case g is js of
+  case mapM (\i -> f i js) is of
     Nothing -> return t
     Just is' -> tTranspose is' t
  where
-  f :: Index EgisonValue -> EgisonValue
-  f index = fromJust (extractSupOrSubIndex index)
-
-  g :: [EgisonValue] -> [Index EgisonValue] -> Maybe [Index EgisonValue]
-  g [] _ = return []
-  g (i:is) js = case find (\j -> i == f j) js of
-                  Nothing -> Nothing
-                  Just j' -> do js' <- g is js
-                                return $ j':js'
+  f :: EgisonValue -> [Index EgisonValue] -> Maybe (Index EgisonValue)
+  f i js =
+    match dfs js (List (IndexM Eql))
+      [ [mc| _ ++ ($j & (subscript #i | superscript #i | supsubscript #i)) : _ -> Just j |]
+      , [mc| _ -> Nothing |]
+      ]
 
 tFlipIndices :: HasTensor a => Tensor a -> EvalM (Tensor a)
 tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map reverseIndex js)
@@ -403,9 +405,9 @@ cdr (_:ts) = ts
 
 split :: Integer -> V.Vector a -> [V.Vector a]
 split w xs
- | V.null xs = []
- | otherwise = let (hs, ts) = V.splitAt (fromIntegral w) xs in
-                 hs:split w ts
+  | V.null xs = []
+  | otherwise = let (hs, ts) = V.splitAt (fromIntegral w) xs in
+                    hs:split w ts
 
 getScalar :: Tensor a -> EvalM a
 getScalar (Scalar x) = return x
