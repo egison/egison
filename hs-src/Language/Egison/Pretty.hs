@@ -173,7 +173,7 @@ instance Pretty Expr where
 
   pretty p = pretty (show p)
 
-instance Pretty Arg where
+instance (Pretty a, Complex a) => Pretty (Arg a) where
   pretty (ScalarArg x)         = pretty "$" <> pretty' x
   pretty (InvertedScalarArg x) = pretty "*$" <> pretty' x
   pretty (TensorArg x)         = pretty x
@@ -351,7 +351,7 @@ instance Complex Expr where
   isInfix InfixExpr{}             = True
   isInfix _                       = False
 
-instance Complex Arg where
+instance Complex a => Complex (Arg a) where
   isAtom (TensorArg x) = isAtom x
   isAtom _             = True
 

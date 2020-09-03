@@ -375,11 +375,11 @@ varNames' :: Parser PrimitiveDataPattern
 varNames' = PDPatVar <$> (char '$' >> identVar)
         <|> PDTuplePat <$> brackets (sepEndBy (PDPatVar <$> (char '$' >> identVar)) whiteSpace)
 
-argNames :: Parser [Arg]
+argNames :: Parser [Arg ArgPattern]
 argNames = return <$> argName
             <|> brackets (sepEndBy argName whiteSpace)
 
-argName :: Parser Arg
+argName :: Parser (Arg ArgPattern)
 argName = try (ScalarArg <$> (char '$' >> argPattern))
       <|> try (InvertedScalarArg <$> (string "*$" >> argPattern))
       <|> try (TensorArg <$> (char '%' >> argPattern))
