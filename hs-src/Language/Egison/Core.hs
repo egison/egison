@@ -251,8 +251,8 @@ evalExprShallow env (IPatternFunctionExpr names pattern) = return . Value $ Patt
 evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "function symbol is not bound to a variable"
 
 evalExprShallow env@(Env _ (Just name)) (IFunctionExpr args) = do
-  args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (prettyStr name)) (map (symbolScalarData' . prettyStr) args) args' [], 1)])
+  args' <- mapM (evalExprDeep env . stringToIVarExpr) args >>= mapM extractScalar
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (prettyStr name)) (map symbolScalarData' args) args' [], 1)])
 
 evalExprShallow env (IIfExpr test expr expr') = do
   test <- evalExprShallow env test >>= fromWHNF

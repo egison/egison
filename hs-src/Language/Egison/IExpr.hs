@@ -90,7 +90,7 @@ data IExpr
   | ITensorMap2Expr IExpr IExpr IExpr
   | ITransposeExpr IExpr IExpr
   | IFlipIndicesExpr IExpr
-  | IFunctionExpr [Var]
+  | IFunctionExpr [String]
   deriving Show
 
 type IPattern = PatternBase IExpr
