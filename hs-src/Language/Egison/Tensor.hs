@@ -164,9 +164,9 @@ changeIndex (Subscript s) m   = Subscript (s ++ show m)
 -- transIndex [a, b, c] [c, a, b] [2, 3, 4] = [4, 2, 3]
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> Shape -> EvalM Shape
 transIndex is js ns = do
-  mapM (\j -> match dfs (zip is ns) (List (Pair Eql M.Something))
-               [[mc| _ ++ (#j, $n) : _ -> return n |]
-               ,[mc| _ -> throwError $ Default "cannot transpose becuase of the inconsitent symbolic tensor indices" |]])
+  mapM (\j -> case lookup j (zip is ns) of
+                Just n  -> return n
+                Nothing -> throwError $ Default "cannot transpose becuase of the inconsitent symbolic tensor indices")
        js
 
 tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
@@ -195,14 +195,14 @@ tTranspose' is t@(Tensor _ _ js) = do
 tFlipIndices :: HasTensor a => Tensor a -> EvalM (Tensor a)
 tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map reverseIndex js)
 
-appendDFscripts :: Integer -> WHNFData -> EvalM WHNFData
-appendDFscripts id (Intermediate (ITensor (Tensor s xs is))) = do
+appendDFscripts :: Integer -> WHNFData -> WHNFData
+appendDFscripts id (Intermediate (ITensor (Tensor s xs is))) =
   let k = fromIntegral (length s - length is)
-  return $ Intermediate (ITensor (Tensor s xs (is ++ map (DFscript id) [1..k])))
-appendDFscripts id (Value (TensorData (Tensor s xs is))) = do
+   in Intermediate (ITensor (Tensor s xs (is ++ map (DFscript id) [1..k])))
+appendDFscripts id (Value (TensorData (Tensor s xs is))) =
   let k = fromIntegral (length s - length is)
-  return $ Value (TensorData (Tensor s xs (is ++ map (DFscript id) [1..k])))
-appendDFscripts _ whnf = return whnf
+   in Value (TensorData (Tensor s xs (is ++ map (DFscript id) [1..k])))
+appendDFscripts _ whnf = whnf
 
 removeDFscripts :: WHNFData -> EvalM WHNFData
 removeDFscripts (Intermediate (ITensor (Tensor s xs is))) = do

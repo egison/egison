@@ -368,19 +368,12 @@ evalExprShallow env (ICApplyExpr func arg) = do
   func <- evalExprShallow env func
   args <- evalExprDeep env arg >>= collectionToList
   case func of
-    Value (MemoizedFunc hashRef env names body) -> do
-      indices <- mapM fromEgison args
-      hash <- liftIO $ readIORef hashRef
-      case HL.lookup indices hash of
-        Just whnf -> return whnf
-        Nothing -> do
-          whnf <- applyFunc env (Value (Func Nothing env names body)) (map (WHNF . Value) args)
-          liftIO $ modifyIORef hashRef (HL.insert indices whnf)
-          return whnf
+    Value (MemoizedFunc hashRef env names body) ->
+      evalMemoizedFunc hashRef env names body args
     _ -> applyFunc env func (map (WHNF . Value) args)
 
 evalExprShallow env (IApplyExpr func args) = do
-  func <- evalExprShallow env func >>= appendDFscripts 0
+  func <- appendDFscripts 0 <$> evalExprShallow env func
   case func of
     Value (InductiveData name []) ->
       Intermediate . IInductiveData name <$> mapM (newThunkRef env) args
@@ -392,37 +385,23 @@ evalExprShallow env (IApplyExpr func args) = do
       tMap (\f -> applyFunc env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env' names body) -> do
       args <- mapM (evalExprDeep env) args
-      indices <- mapM fromEgison args
-      hash <- liftIO $ readIORef hashRef
-      case HL.lookup indices hash of
-        Just whnf -> return whnf
-        Nothing -> do
-          whnf <- applyFunc env' (Value (Func Nothing env' names body)) (map (WHNF . Value) args)
-          liftIO $ modifyIORef hashRef (HL.insert indices whnf)
-          return whnf
+      evalMemoizedFunc hashRef env' names body args
     _ -> do
       let args' = map (newThunk env) args
       applyFunc env func args' >>= removeDFscripts
 
 evalExprShallow env (IWedgeApplyExpr func args) = do
-  func <- evalExprShallow env func >>= appendDFscripts 0
+  func <- appendDFscripts 0 <$> evalExprShallow env func
   args <- mapM (evalExprShallow env) args
-  args <- zipWithM appendDFscripts [1..] args
-  let args' = map WHNF args
+  let args' = map WHNF (zipWith appendDFscripts [1..] args)
   case func of
     Value (TensorData t@Tensor{}) ->
       Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor)
     Intermediate (ITensor t@Tensor{}) ->
       tMap (\f -> applyFunc env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env names body) -> do
-      indices <- mapM (\arg -> evalWHNF arg >>= fromEgison) args
-      hash <- liftIO $ readIORef hashRef
-      case HL.lookup indices hash of
-        Just whnf -> return whnf
-        Nothing -> do
-          whnf <- applyFunc env (Value (Func Nothing env names body)) args'
-          liftIO $ modifyIORef hashRef (HL.insert indices whnf)
-          return whnf
+      args <- mapM evalWHNF args
+      evalMemoizedFunc hashRef env names body args
     _ -> applyFunc env func args' >>= removeDFscripts
 
 evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info
@@ -512,6 +491,19 @@ evalRefDeep ref = do
       val <- thunk >>= evalWHNF
       writeObjectRef ref $ Value val
       return val
+
+evalMemoizedFunc
+  :: (IORef (HL.HashMap [Integer] WHNFData)) -> Env -> [String] -> IExpr
+  -> [EgisonValue] -> EvalM WHNFData
+evalMemoizedFunc hashRef env names body args = do
+  indices <- mapM fromEgison args
+  hash <- liftIO $ readIORef hashRef
+  case HL.lookup indices hash of
+    Just whnf -> return whnf
+    Nothing -> do
+      whnf <- applyFunc env (Value (Func Nothing env names body)) (map (WHNF . Value) args)
+      liftIO $ modifyIORef hashRef (HL.insert indices whnf)
+      return whnf
 
 evalWHNF :: WHNFData -> EvalM EgisonValue
 evalWHNF (Value val) = return val
