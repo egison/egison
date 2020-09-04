@@ -268,7 +268,7 @@ tDiag t@(Tensor _ _ js) =
       let ys = js \\ (xs ++ map reverseIndex xs)
       t2 <- tTranspose (xs ++ map reverseIndex xs ++ ys) t
       let (ns1, tmp) = splitAt (length xs) (tShape t2)
-      let (_, ns2) = splitAt (length xs) tmp
+      let ns2 = drop (length xs) tmp
       ts <- mapM (\is -> tIntRef (is ++ is) t2) (enumTensorIndices ns1)
       return $ Tensor (ns1 ++ ns2) (V.concat (map tToVector ts)) (map toSupSubscript xs ++ ys)
  where
