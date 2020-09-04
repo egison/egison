@@ -265,13 +265,13 @@ evalExprShallow env (ILetExpr bindings expr) = do
   extractBindings :: IBindingExpr -> EvalM [Binding]
   extractBindings (PDPatVar name, expr@IFunctionExpr{}) =
     let Env frame _ = env
-     in makeBindings [name] . (:[]) <$> newThunkRef (Env frame (Just $ varToVarWithIndices name)) expr
+     in makeBindings [stringToVar name] . (:[]) <$> newThunkRef (Env frame (Just $ stringToVarWithIndices name)) expr
   extractBindings (pdp, expr) = do
     thunk <- newThunkRef env expr
     bindPrimitiveDataPattern pdp thunk
 
 evalExprShallow env (ILetRecExpr bindings expr) = do
-  env' <- recursiveBind env bindings
+  env' <- recursiveMatchBind env bindings
   evalExprShallow env' expr
 
 evalExprShallow env (ITransposeExpr vars expr) = do
@@ -315,7 +315,7 @@ evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
   applyFunc env (Value $ Func Nothing env ["#1"] body) [WHNF (Value World)]
  where
   genLet (names, expr) expr' =
-    ILetExpr [(PDTuplePat (map (PDPatVar . stringToVar) ["#1", "#2"]), IApplyExpr expr [stringToIVarExpr "#1"])] $
+    ILetExpr [(PDTuplePat (map PDPatVar ["#1", "#2"]), IApplyExpr expr [stringToIVarExpr "#1"])] $
     ILetExpr [(names, stringToIVarExpr "#2")] expr'
 
 evalExprShallow env (IIoExpr expr) = do
@@ -644,20 +644,35 @@ newThunk env expr = Thunk $ evalExprShallow env expr
 newThunkRef :: Env -> IExpr -> EvalM ObjectRef
 newThunkRef env expr = liftIO . newIORef $ newThunk env expr
 
-recursiveBind :: Env -> [IBindingExpr] -> EvalM Env
+recursiveBind :: Env -> [(Var, IExpr)] -> EvalM Env
 recursiveBind env bindings = do
+  -- Create dummy bindings first. Since this is a reference,
+  -- it can be overwritten later.
+  binds <- mapM (\(var, _) -> (var,) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) bindings
+  let env'@(Env frame _) = extendEnv env binds
+  forM_ bindings $ \(var, expr) -> do
+    -- Modify |env'| for some cases
+    let env'' =
+          case expr of
+            IFunctionExpr{} -> Env frame (Just (varToVarWithIndices var))
+            _ -> env'
+    let ref = fromJust (refVar env' var)
+    liftIO $ writeIORef ref (newThunk env'' expr)
+  return env'
+
+recursiveMatchBind :: Env -> [IBindingExpr] -> EvalM Env
+recursiveMatchBind env bindings = do
   -- List of variables defined in |bindings|
   let names = concatMap (\(pd, _) -> collectNames pd) bindings
   -- Create dummy bindings for |names| first. Since this is a reference,
   -- it can be overwritten later.
-  binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
+  binds <- mapM (\name -> (stringToVar name, ) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
   let env'@(Env frame _) = extendEnv env binds
   forM_ bindings $ \(pd, expr) -> do
     -- Modify |env'| for some cases
     let env'' =
           case (pd, expr) of
-            (PDPatVar var, IFunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
-            (PDPatVar var@(Var _ is), _) | not (null is) -> Env frame (Just (varToVarWithIndices var))
+            (PDPatVar var, IFunctionExpr{}) -> Env frame (Just (stringToVarWithIndices var))
             _ -> env'
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
@@ -668,7 +683,7 @@ recursiveBind env bindings = do
       liftIO $ writeIORef ref obj
   return env'
  where
-  collectNames :: PrimitiveDataPattern -> [Var]
+  collectNames :: PrimitiveDataPattern -> [String]
   collectNames (PDPatVar var) = [var]
   collectNames (PDInductivePat _ ps) = concatMap collectNames ps
   collectNames (PDTuplePat ps) = concatMap collectNames ps
@@ -941,8 +956,9 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             WildCard -> return . msingleton $ mstate { mTrees = trees }
             PatVar name -> do
               targetRef <- newEvaluatedObjectRef target
-              return . msingleton $ mstate { mStateBindings = (name, targetRef):bindings, mTrees = trees }
-            IndexedPat (PatVar name) indices -> do
+              return . msingleton $ mstate { mStateBindings = (stringToVar name, targetRef):bindings, mTrees = trees }
+            IndexedPat (PatVar name') indices -> do
+              let name = stringToVar name'
               indices <- mapM (evalExprShallow env' >=> fmap fromInteger . fromWHNF) indices
               case lookup name bindings of
                 Just ref -> do
@@ -1014,7 +1030,7 @@ bindPrimitiveDataPattern pdp ref = do
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _        = return []
-primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
+primitiveDataPatternMatch (PDPatVar name) ref = return [(stringToVar name, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
   whnf <- lift $ evalRef ref
   case whnf of

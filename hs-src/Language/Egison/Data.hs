@@ -580,7 +580,6 @@ instance {-# OVERLAPPING #-} MonadFail EvalM where
 
 instance MonadRuntime EvalM where
   fresh = lift $ lift fresh
-  freshV = lift $ lift freshV
 
 fromEvalT :: EvalM a -> RuntimeM (Either EgisonError a)
 fromEvalT m = runExceptT (evalStateT m initialEvalState)

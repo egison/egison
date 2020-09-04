@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE FlexibleInstances  #-}
 
 module Language.Egison.IExpr
@@ -7,12 +8,13 @@ module Language.Egison.IExpr
   , IBindingExpr
   , IMatchClause
   , IPatternDef
+  , Var (..)
   , stringToIVarExpr
   , makeIApply
   -- Re-export from AST
   , ConstantExpr (..)
-  , Var (..)
   , VarWithIndices (..)
+  , stringToVarWithIndices
   , PatternBase (..)
   , LoopRange (..)
   , stringToVar
@@ -24,13 +26,15 @@ module Language.Egison.IExpr
   , PrimitiveDataPattern (..)
   ) where
 
+import           Data.Hashable       (Hashable)
+import           Data.List.Split     (splitOn)
+import           GHC.Generics        (Generic)
+
 import           Language.Egison.AST ( ConstantExpr (..)
-                                     , Var (..)
                                      , VarWithIndices (..)
+                                     , stringToVarWithIndices
                                      , PatternBase (..)
                                      , LoopRange (..)
-                                     , stringToVar
-                                     , varToVarWithIndices
                                      , extractIndex
                                      , Index (..)
                                      , PMMode (..)
@@ -101,8 +105,22 @@ instance Show (Index IExpr) where
   show (DFscript _ _)   = ""
   show (Userscript i)   = "|" ++ show i
 
+data Var = Var [String] [Index ()]
+  deriving (Eq, Generic, Show)
+
+instance Hashable Var
+
+stringToVar :: String -> Var
+stringToVar name = Var (splitOn "." name) []
+
 stringToIVarExpr :: String -> IExpr
 stringToIVarExpr = IVarExpr . stringToVar
+
+varToVarWithIndices :: Var -> VarWithIndices
+varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
+ where
+   f :: Index () -> Index String
+   f index = (\() -> "") <$> index
 
 makeIApply :: String -> [IExpr] -> IExpr
 makeIApply func args = IApplyExpr (stringToIVarExpr func) args

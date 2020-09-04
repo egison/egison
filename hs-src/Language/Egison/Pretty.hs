@@ -144,7 +144,7 @@ instance Pretty Expr where
   pretty (SectionExpr op Nothing (Just x)) = parens (pretty op <+> pretty x)
 
   pretty (DoExpr [] y) = pretty "do" <+> pretty y
-  pretty (DoExpr xs (ApplyExpr (VarExpr (Var ["return"] [])) [])) =
+  pretty (DoExpr xs (ApplyExpr (VarExpr "return") [])) =
     pretty "do" <+> align (hsepHard (map prettyDoBinds xs))
   pretty (DoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyDoBinds xs ++ [pretty y]))
   pretty (IoExpr x) = pretty "io" <+> pretty x
@@ -272,7 +272,7 @@ instance (Pretty expr, Complex expr, Show expr) => Pretty (PatternBase expr) whe
   pretty e            = pretty (show e)
 
 instance {-# OVERLAPPING #-} Pretty (LoopRange Expr) where
-  pretty (LoopRange from (ApplyExpr (VarExpr (Var ["from"] []))
+  pretty (LoopRange from (ApplyExpr (VarExpr "from")
                                     [InfixExpr Op{ repr = "-'" } _ (ConstantExpr (IntegerExpr 1))]) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
