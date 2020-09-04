@@ -557,23 +557,25 @@ applyFunc env (ITensor (Tensor s1 t1 i1)) tds = do
       applyFunc env dot (map WHNF args')
     else throwError $ Default "applyfunc"
 
-applyFunc _ (Value (Func mFuncName env names body)) args =
-  mLabelFuncName mFuncName $ do
-    refs <- liftIO $ mapM newIORef args
-    if | length names == length refs ->
+applyFunc env' (Value (Func mFuncName env names body)) args =
+  mLabelFuncName mFuncName $
+    if | length names == length args -> do
+         refs <- liftIO $ mapM newIORef args
          evalExprShallow (extendEnv env (makeBindings' names refs)) body
-       | length names > length refs -> -- Currying
-         let (bound, rest) = splitAt (length refs) names
-          in return . Value $ Func mFuncName (extendEnv env (makeBindings' bound refs)) rest body
-       | otherwise ->
-           throwError =<< ArgumentsNumWithNames names (length names) (length refs) <$> getFuncNameStack
+       | length names > length args -> do -- Currying
+         refs <- liftIO $ mapM newIORef args
+         let (bound, rest) = splitAt (length args) names
+         return . Value $ Func mFuncName (extendEnv env (makeBindings' bound refs)) rest body
+       | otherwise -> do
+         let (used, rest) = splitAt (length names) args
+         refs <- liftIO $ mapM newIORef used
+         func <- evalExprShallow (extendEnv env (makeBindings' names refs)) body
+         applyFunc env' func rest
 applyFunc _ (Value (CFunc env name body)) args = do
   refs <- liftIO $ mapM newIORef args
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ ICollection seqRef
-  if not (null refs)
-    then evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
-    else throwError =<< ArgumentsNumWithNames [name] 1 0 <$> getFuncNameStack
+  evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
 applyFunc _ (Value (PrimitiveFunc func)) args = do
   vals <- mapM (\arg -> evalObj arg >>= evalWHNF) args
   Value <$> func vals
