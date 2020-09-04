@@ -41,7 +41,6 @@ module Language.Egison.AST
 import           Data.Hashable   (Hashable)
 import           Data.List       (find)
 import           Data.Maybe      (fromJust)
-import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
 
@@ -126,7 +125,7 @@ data Expr
   | FunctionExpr [String]
   deriving Show
 
-data VarWithIndices = VarWithIndices [String] [Index String]
+data VarWithIndices = VarWithIndices String [Index String]
   deriving Show
 
 data Arg a
@@ -275,7 +274,7 @@ findOpFrom op table = fromJust $ find ((== op) . repr) table
 instance Hashable (Index ())
 
 stringToVarWithIndices :: String -> VarWithIndices
-stringToVarWithIndices name = VarWithIndices (splitOn "." name) []
+stringToVarWithIndices name = VarWithIndices name []
 
 makeApply :: String -> [Expr] -> Expr
 makeApply func args = ApplyExpr (VarExpr func) args

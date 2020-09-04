@@ -25,7 +25,6 @@ import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
 import           Data.Functor                   (($>))
 import           Data.List                      (groupBy, insertBy)
-import           Data.List.Split                (splitOn)
 import           Data.Maybe                     (isJust, isNothing)
 import           Data.Text                      (pack)
 
@@ -702,7 +701,7 @@ positiveFloatLiteral = lexeme L.float
 
 varWithIndicesLiteral :: Parser VarWithIndices
 varWithIndicesLiteral = do
-  VarWithIndices <$> (splitOn "." <$> ident) <*> many (index ident)
+  VarWithIndices <$> ident <*> many (index ident)
 
 patVarLiteral :: Parser String
 patVarLiteral = char '$' >> ident
