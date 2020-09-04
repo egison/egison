@@ -9,7 +9,6 @@ module Language.Egison.IExpr
   , IMatchClause
   , IPatternDef
   , Var (..)
-  , stringToIVarExpr
   , makeIApply
   -- Re-export from AST
   , ConstantExpr (..)
@@ -51,7 +50,7 @@ data ITopExpr
 
 data IExpr
   = IConstantExpr ConstantExpr
-  | IVarExpr Var
+  | IVarExpr String
   | IIndexedExpr Bool IExpr [Index IExpr]
   | ISubrefsExpr Bool IExpr IExpr
   | ISuprefsExpr Bool IExpr IExpr
@@ -112,9 +111,6 @@ instance Hashable Var
 stringToVar :: String -> Var
 stringToVar name = Var name []
 
-stringToIVarExpr :: String -> IExpr
-stringToIVarExpr = IVarExpr . stringToVar
-
 varToVarWithIndices :: Var -> VarWithIndices
 varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
  where
@@ -122,4 +118,4 @@ varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
    f index = (\() -> "") <$> index
 
 makeIApply :: String -> [IExpr] -> IExpr
-makeIApply func args = IApplyExpr (stringToIVarExpr func) args
+makeIApply func args = IApplyExpr (IVarExpr func) args
