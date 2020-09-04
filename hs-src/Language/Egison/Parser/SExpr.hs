@@ -168,7 +168,7 @@ expr' = try anonParamFuncExpr
             <?> "expression"
 
 varExpr :: Parser Expr
-varExpr = VarExpr <$> identVarWithoutIndex
+varExpr = VarExpr <$> ident
 
 freshVarExpr :: Parser Expr
 freshVarExpr = char '#' >> return FreshVarExpr
@@ -232,7 +232,7 @@ wedgeExpr = do
     ApplyExpr e1 e2 -> return $ WedgeApplyExpr e1 e2
 
 functionWithArgExpr :: Parser Expr
-functionWithArgExpr = keywordFunction >> FunctionExpr <$> between lp rp (sepEndBy identVar whiteSpace)
+functionWithArgExpr = keywordFunction >> FunctionExpr <$> between lp rp (sepEndBy ident whiteSpace)
   where
     lp = P.lexeme lexer (char '[')
     rp = char ']'
@@ -307,7 +307,7 @@ pdPattern = P.lexeme lexer pdPattern'
 
 pdPattern' :: Parser PrimitiveDataPattern
 pdPattern' = reservedOp "_" $> PDWildCard
-                    <|> (char '$' >> PDPatVar <$> identVar)
+                    <|> (char '$' >> PDPatVar <$> ident)
                     <|> braces ((PDConsPat <$> pdPattern <*> (char '@' *> pdPattern))
                             <|> (PDSnocPat <$> (char '@' *> pdPattern) <*> pdPattern)
                             <|> pure PDEmptyPat)
@@ -371,8 +371,8 @@ varNames = return <$> (char '$' >> ident)
             <|> brackets (sepEndBy (char '$' >> ident) whiteSpace)
 
 varNames' :: Parser PrimitiveDataPattern
-varNames' = PDPatVar <$> (char '$' >> identVar)
-        <|> PDTuplePat <$> brackets (sepEndBy (PDPatVar <$> (char '$' >> identVar)) whiteSpace)
+varNames' = PDPatVar <$> (char '$' >> ident)
+        <|> PDTuplePat <$> brackets (sepEndBy (PDPatVar <$> (char '$' >> ident)) whiteSpace)
 
 argNames :: Parser [Arg ArgPattern]
 argNames = return <$> argName
@@ -509,7 +509,7 @@ wildCard :: Parser Pattern
 wildCard = reservedOp "_" >> pure WildCard
 
 patVar :: Parser Pattern
-patVar = char '$' >> PatVar <$> identVarWithoutIndex
+patVar = char '$' >> PatVar <$> ident
 
 varPat :: Parser Pattern
 varPat = VarPat <$> ident
@@ -559,7 +559,7 @@ dApplyPat :: Parser Pattern
 dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace
 
 loopPat :: Parser Pattern
-loopPat = keywordLoop >> char '$' >> LoopPat <$> identVarWithoutIndex <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
+loopPat = keywordLoop >> char '$' >> LoopPat <$> ident <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
 loopRange :: Parser (LoopRange Expr)
 loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
@@ -791,20 +791,11 @@ angles = P.angles lexer
 ident :: Parser String
 ident = toCamelCase <$> P.identifier lexer
 
-identVar :: Parser Var
-identVar = P.lexeme lexer (do
-  name <- ident
-  is <- many indexType
-  return $ Var (splitOn "." name) is)
-
-identVarWithoutIndex :: Parser Var
-identVarWithoutIndex = stringToVar <$> ident
-
 identVarWithIndices :: Parser VarWithIndices
 identVarWithIndices = P.lexeme lexer (do
   name <- ident
   is <- many indexForVar
-  return $ VarWithIndices (splitOn "." name) is)
+  return $ VarWithIndices name is)
 
 indexForVar :: Parser (Index String)
 indexForVar = try (char '~' >> Superscript <$> ident)

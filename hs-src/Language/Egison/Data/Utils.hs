@@ -16,8 +16,8 @@ import           Control.Monad.State   (liftIO)
 
 import           Data.IORef
 
-import           Language.Egison.AST
 import           Language.Egison.Data
+import           Language.Egison.IExpr (Var, stringToVar)
 
 
 evalRef :: ObjectRef -> EvalM WHNFData

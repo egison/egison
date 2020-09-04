@@ -16,9 +16,7 @@ module Language.Egison.AST
   , Expr (..)
   , PatternBase (..)
   , Pattern
-  , Var (..)
   , VarWithIndices (..)
-  , varToVarWithIndices
   , makeApply
   , Arg (..)
   , ArgPattern (..)
@@ -37,15 +35,12 @@ module Language.Egison.AST
   , reservedExprOp
   , reservedPatternOp
   , findOpFrom
-  , stringToVar
-  , stringToVarExpr
   , stringToVarWithIndices
   ) where
 
 import           Data.Hashable   (Hashable)
 import           Data.List       (find)
 import           Data.Maybe      (fromJust)
-import           Data.List.Split (splitOn)
 import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
 
@@ -71,7 +66,7 @@ data ConstantExpr
 
 data Expr
   = ConstantExpr ConstantExpr
-  | VarExpr Var
+  | VarExpr String
   | FreshVarExpr
   | IndexedExpr Bool Expr [Index Expr]  -- True -> delete old index and append new one
   | SubrefsExpr Bool Expr Expr
@@ -127,13 +122,10 @@ data Expr
   | TransposeExpr Expr Expr
   | FlipIndicesExpr Expr                              -- Does not appear in user program
 
-  | FunctionExpr [Var]
+  | FunctionExpr [String]
   deriving Show
 
-data Var = Var [String] [Index ()]
-  deriving (Eq, Generic, Show)
-
-data VarWithIndices = VarWithIndices [String] [Index String]
+data VarWithIndices = VarWithIndices String [Index String]
   deriving Show
 
 data Arg a
@@ -185,7 +177,7 @@ type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 
 data PatternBase expr
   = WildCard
-  | PatVar Var
+  | PatVar String
   | ValuePat expr
   | PredPat expr
   | IndexedPat (PatternBase expr) [expr]
@@ -197,7 +189,7 @@ data PatternBase expr
   | ForallPat (PatternBase expr) (PatternBase expr)
   | TuplePat [PatternBase expr]
   | InductivePat String [PatternBase expr]
-  | LoopPat Var (LoopRange expr) (PatternBase expr) (PatternBase expr)
+  | LoopPat String (LoopRange expr) (PatternBase expr) (PatternBase expr)
   | ContPat
   | PApplyPat expr [PatternBase expr]
   | VarPat String
@@ -222,7 +214,7 @@ data PrimitivePatPattern
 
 data PrimitiveDataPattern
   = PDWildCard
-  | PDPatVar Var
+  | PDPatVar String
   | PDInductivePat String [PrimitiveDataPattern]
   | PDTuplePat [PrimitiveDataPattern]
   | PDEmptyPat
@@ -280,25 +272,12 @@ findOpFrom :: String -> [Op] -> Op
 findOpFrom op table = fromJust $ find ((== op) . repr) table
 
 instance Hashable (Index ())
-instance Hashable Var
-
-stringToVar :: String -> Var
-stringToVar name = Var (splitOn "." name) []
-
-stringToVarExpr :: String -> Expr
-stringToVarExpr = VarExpr . stringToVar
 
 stringToVarWithIndices :: String -> VarWithIndices
-stringToVarWithIndices name = VarWithIndices (splitOn "." name) []
-
-varToVarWithIndices :: Var -> VarWithIndices
-varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
- where
-   f :: Index () -> Index String
-   f index = (\() -> "") <$> index
+stringToVarWithIndices name = VarWithIndices name []
 
 makeApply :: String -> [Expr] -> Expr
-makeApply func args = ApplyExpr (stringToVarExpr func) args
+makeApply func args = ApplyExpr (VarExpr func) args
 
 instance Show (Index ()) where
   show (Superscript ())  = "~"

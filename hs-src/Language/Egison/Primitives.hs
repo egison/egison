@@ -35,6 +35,7 @@ import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.Eval
 import           Language.Egison.EvalState (MonadEval(..))
+import           Language.Egison.IExpr     (stringToVar)
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.Primitives.Arith

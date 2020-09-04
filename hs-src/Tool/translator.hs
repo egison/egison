@@ -55,8 +55,8 @@ patternInfix =
   , ("|",    Op "|"  2 InfixR False)
   ]
 
-lookupVarExprInfix :: Var -> Maybe Op
-lookupVarExprInfix x = lookup (prettyStr x) exprInfix
+lookupVarExprInfix :: String -> Maybe Op
+lookupVarExprInfix x = lookup x exprInfix
 
 class SyntaxElement a where
   toNonS :: a -> a
@@ -70,7 +70,7 @@ instance SyntaxElement TopExpr where
 instance SyntaxElement Expr where
   toNonS (VarExpr (lookupVarExprInfix -> Just op)) =
     SectionExpr op Nothing Nothing
-  toNonS (VarExpr x) = VarExpr (toNonS x)
+  toNonS (VarExpr x) = VarExpr x
 
   toNonS (IndexedExpr b x ys)  = IndexedExpr  b (toNonS x) (map toNonS ys)
   toNonS (SubrefsExpr b x y)   = SubrefsExpr  b (toNonS x) (toNonS y)
@@ -201,9 +201,6 @@ instance SyntaxElement MatchClause where
 
 instance SyntaxElement PatternDef where
   toNonS (x, y, zs) = (toNonS x, toNonS y, map (\(z, w) -> (toNonS z, toNonS w)) zs)
-
-instance SyntaxElement Var where
-  toNonS = id
 
 instance SyntaxElement VarWithIndices where
   toNonS = id
