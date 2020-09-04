@@ -27,7 +27,6 @@ module Language.Egison.IExpr
   ) where
 
 import           Data.Hashable       (Hashable)
-import           Data.List.Split     (splitOn)
 import           GHC.Generics        (Generic)
 
 import           Language.Egison.AST ( ConstantExpr (..)
@@ -105,13 +104,13 @@ instance Show (Index IExpr) where
   show (DFscript _ _)   = ""
   show (Userscript i)   = "|" ++ show i
 
-data Var = Var [String] [Index ()]
+data Var = Var String [Index ()]
   deriving (Eq, Generic, Show)
 
 instance Hashable Var
 
 stringToVar :: String -> Var
-stringToVar name = Var (splitOn "." name) []
+stringToVar name = Var name []
 
 stringToIVarExpr :: String -> IExpr
 stringToIVarExpr = IVarExpr . stringToVar
