@@ -112,13 +112,13 @@ loadEgisonLibrary env path = do
 -- Helper functions
 --
 
-collectDefs :: EgisonOpts -> [ITopExpr] -> EvalM ([IBindingExpr], [ITopExpr])
+collectDefs :: EgisonOpts -> [ITopExpr] -> EvalM ([(Var, IExpr)], [ITopExpr])
 collectDefs opts exprs = collectDefs' opts exprs [] []
   where
-    collectDefs' :: EgisonOpts -> [ITopExpr] -> [IBindingExpr] -> [ITopExpr] -> EvalM ([IBindingExpr], [ITopExpr])
+    collectDefs' :: EgisonOpts -> [ITopExpr] -> [(Var, IExpr)] -> [ITopExpr] -> EvalM ([(Var, IExpr)], [ITopExpr])
     collectDefs' opts (expr:exprs) bindings rest =
       case expr of
-        IDefine name expr -> collectDefs' opts exprs ((PDPatVar name, expr) : bindings) rest
+        IDefine name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
         ITest{}     -> collectDefs' opts exprs bindings (expr : rest)
         IExecute{}  -> collectDefs' opts exprs bindings (expr : rest)
         ILoadFile _ | optNoIO opts -> throwError (Default "No IO support")
@@ -133,7 +133,7 @@ collectDefs opts exprs = collectDefs' opts exprs [] []
 
 evalTopExpr' :: Env -> ITopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr' env (IDefine name expr) = do
-  env' <- recursiveBind env [(PDPatVar name, expr)]
+  env' <- recursiveBind env [(name, expr)]
   return (Nothing, env')
 evalTopExpr' env (ITest expr) = do
   pushFuncName "<stdin>"

@@ -76,11 +76,11 @@ evalExprShallow env (IQuoteSymbolExpr expr) = do
     Value (ScalarData _) -> return whnf
     _ -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
 
-evalExprShallow env (IVarExpr var@(Var _ [])) =
-  case refVar env var of
-    Nothing | isUpper (head (prettyStr var)) ->
-      return $ Value (InductiveData (prettyStr var) [])
-    Nothing  -> return $ Value (symbolScalarData "" $ prettyStr var)
+evalExprShallow env (IVarExpr name) =
+  case refVar env (Var name []) of
+    Nothing | isUpper (head name) ->
+      return $ Value (InductiveData name [])
+    Nothing  -> return $ Value (symbolScalarData "" name)
     Just ref -> evalRef ref
 
 evalExprShallow _ (ITupleExpr []) = return . Value $ Tuple []
@@ -171,8 +171,8 @@ evalExprShallow env (IHashExpr assocs) = do
 evalExprShallow env (IIndexedExpr override expr indices) = do
   -- Tensor or hash
   tensor <- case expr of
-              IVarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ map (const () <$>) indices)
+              IVarExpr xs -> do
+                let mObjRef = refVar env (Var xs (map (const () <$>) indices))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -200,8 +200,8 @@ evalExprShallow env (IIndexedExpr override expr indices) = do
 evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
   js <- map Subscript <$> (evalExprDeep env jsExpr >>= collectionToList)
   tensor <- case expr of
-              IVarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ map (\_ -> Subscript ()) js)
+              IVarExpr xs -> do
+                let mObjRef = refVar env (Var xs (map (\_ -> Subscript ()) js))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -215,8 +215,8 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
 evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
   js <- map Superscript <$> (evalExprDeep env jsExpr >>= collectionToList)
   tensor <- case expr of
-              IVarExpr (Var xs is) -> do
-                let mObjRef = refVar env (Var xs $ is ++ map (\_ -> Superscript ()) js)
+              IVarExpr xs -> do
+                let mObjRef = refVar env (Var xs (map (\_ -> Superscript ()) js))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -252,7 +252,7 @@ evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "functi
 
 evalExprShallow env@(Env _ (Just name)) (IFunctionExpr args) = do
   args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (prettyStr name)) (map (symbolScalarData' . prettyStr) args) args' [], 1)])
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (prettyStr name)) (map symbolScalarData' args) args' [], 1)])
 
 evalExprShallow env (IIfExpr test expr expr') = do
   test <- evalExprShallow env test >>= fromWHNF
@@ -265,13 +265,13 @@ evalExprShallow env (ILetExpr bindings expr) = do
   extractBindings :: IBindingExpr -> EvalM [Binding]
   extractBindings (PDPatVar name, expr@IFunctionExpr{}) =
     let Env frame _ = env
-     in makeBindings [name] . (:[]) <$> newThunkRef (Env frame (Just $ varToVarWithIndices name)) expr
+     in makeBindings [stringToVar name] . (:[]) <$> newThunkRef (Env frame (Just $ stringToVarWithIndices name)) expr
   extractBindings (pdp, expr) = do
     thunk <- newThunkRef env expr
     bindPrimitiveDataPattern pdp thunk
 
 evalExprShallow env (ILetRecExpr bindings expr) = do
-  env' <- recursiveBind env bindings
+  env' <- recursiveMatchBind env bindings
   evalExprShallow env' expr
 
 evalExprShallow env (ITransposeExpr vars expr) = do
@@ -311,12 +311,12 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
 
 
 evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
-  let body = foldr genLet (IApplyExpr expr [stringToIVarExpr "#1"]) bindings
+  let body = foldr genLet (IApplyExpr expr [IVarExpr "#1"]) bindings
   applyFunc env (Value $ Func Nothing env ["#1"] body) [WHNF (Value World)]
  where
   genLet (names, expr) expr' =
-    ILetExpr [(PDTuplePat (map (PDPatVar . stringToVar) ["#1", "#2"]), IApplyExpr expr [stringToIVarExpr "#1"])] $
-    ILetExpr [(names, stringToIVarExpr "#2")] expr'
+    ILetExpr [(PDTuplePat (map PDPatVar ["#1", "#2"]), IApplyExpr expr [IVarExpr "#1"])] $
+    ILetExpr [(names, IVarExpr "#2")] expr'
 
 evalExprShallow env (IIoExpr expr) = do
   io <- evalExprShallow env expr
@@ -539,7 +539,7 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
       let argnum = length tds
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
-      dot <- evalExprShallow env (stringToIVarExpr ".")
+      dot <- evalExprShallow env (IVarExpr ".")
       let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
       applyFunc env dot (map WHNF args')
     else throwError $ Default "applyfunc"
@@ -552,7 +552,7 @@ applyFunc env (ITensor (Tensor s1 t1 i1)) tds = do
       let argnum = length tds
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
-      dot <- evalExprShallow env (stringToIVarExpr ".")
+      dot <- evalExprShallow env (IVarExpr ".")
       let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
       applyFunc env dot (map WHNF args')
     else throwError $ Default "applyfunc"
@@ -644,20 +644,36 @@ newThunk env expr = Thunk $ evalExprShallow env expr
 newThunkRef :: Env -> IExpr -> EvalM ObjectRef
 newThunkRef env expr = liftIO . newIORef $ newThunk env expr
 
-recursiveBind :: Env -> [IBindingExpr] -> EvalM Env
+recursiveBind :: Env -> [(Var, IExpr)] -> EvalM Env
 recursiveBind env bindings = do
+  -- Create dummy bindings first. Since this is a reference,
+  -- it can be overwritten later.
+  binds <- mapM (\(var, _) -> (var,) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) bindings
+  let env'@(Env frame _) = extendEnv env binds
+  forM_ bindings $ \(var, expr) -> do
+    -- Modify |env'| for some cases
+    let env'' =
+          case (var, expr) of
+            (_, IFunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
+            (Var _ is, _) | not (null is) -> Env frame (Just (varToVarWithIndices var))
+            _ -> env'
+    let ref = fromJust (refVar env' var)
+    liftIO $ writeIORef ref (newThunk env'' expr)
+  return env'
+
+recursiveMatchBind :: Env -> [IBindingExpr] -> EvalM Env
+recursiveMatchBind env bindings = do
   -- List of variables defined in |bindings|
   let names = concatMap (\(pd, _) -> collectNames pd) bindings
   -- Create dummy bindings for |names| first. Since this is a reference,
   -- it can be overwritten later.
-  binds <- mapM (\name -> (name, ) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
+  binds <- mapM (\name -> (stringToVar name, ) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
   let env'@(Env frame _) = extendEnv env binds
   forM_ bindings $ \(pd, expr) -> do
     -- Modify |env'| for some cases
     let env'' =
           case (pd, expr) of
-            (PDPatVar var, IFunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
-            (PDPatVar var@(Var _ is), _) | not (null is) -> Env frame (Just (varToVarWithIndices var))
+            (PDPatVar var, IFunctionExpr{}) -> Env frame (Just (stringToVarWithIndices var))
             _ -> env'
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
@@ -668,7 +684,7 @@ recursiveBind env bindings = do
       liftIO $ writeIORef ref obj
   return env'
  where
-  collectNames :: PrimitiveDataPattern -> [Var]
+  collectNames :: PrimitiveDataPattern -> [String]
   collectNames (PDPatVar var) = [var]
   collectNames (PDInductivePat _ ps) = concatMap collectNames ps
   collectNames (PDTuplePat ps) = concatMap collectNames ps
@@ -814,7 +830,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
           whnf <- evalRef ref
           case whnf of
             Value PatternFunc{} ->
-              processMState' (mstate { mTrees = MAtom (PApplyPat (IVarExpr (stringToVar name)) args) target matcher:trees })
+              processMState' (mstate { mTrees = MAtom (PApplyPat (IVarExpr name) args) target matcher:trees })
             _                   ->
               processMState' (mstate { mTrees = MAtom (InductivePat name args) target matcher:trees })
 
@@ -941,8 +957,9 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             WildCard -> return . msingleton $ mstate { mTrees = trees }
             PatVar name -> do
               targetRef <- newEvaluatedObjectRef target
-              return . msingleton $ mstate { mStateBindings = (name, targetRef):bindings, mTrees = trees }
-            IndexedPat (PatVar name) indices -> do
+              return . msingleton $ mstate { mStateBindings = (stringToVar name, targetRef):bindings, mTrees = trees }
+            IndexedPat (PatVar name') indices -> do
+              let name = stringToVar name'
               indices <- mapM (evalExprShallow env' >=> fmap fromInteger . fromWHNF) indices
               case lookup name bindings of
                 Just ref -> do
@@ -1014,7 +1031,7 @@ bindPrimitiveDataPattern pdp ref = do
 
 primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _        = return []
-primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
+primitiveDataPatternMatch (PDPatVar name) ref = return [(stringToVar name, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
@@ -1054,7 +1071,7 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
     _ -> matchFail
 
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
-extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopPatContext binding _ _ _ _) -> binding) loops
+extendEnvForNonLinearPatterns env bindings loops = extendEnv env $ bindings ++ map (\(LoopPatContext (name, ref) _ _ _ _) -> (stringToVar name, ref)) loops
 
 evalMatcherWHNF :: WHNFData -> EvalM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher

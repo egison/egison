@@ -25,7 +25,6 @@ import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
 import           Data.Functor                   (($>))
 import           Data.List                      (groupBy, insertBy)
-import           Data.List.Split                (splitOn)
 import           Data.Maybe                     (isJust, isNothing)
 import           Data.Text                      (pack)
 
@@ -372,7 +371,7 @@ tensorExpr =
   <|> (reserved "transpose"      >> TransposeExpr      <$> atomExpr <*> atomExpr)
 
 functionExpr :: Parser Expr
-functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy varLiteral comma))
+functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy ident comma))
 
 refsExpr :: Parser Expr
 refsExpr =
@@ -486,7 +485,7 @@ atomExpr' :: Parser Expr
 atomExpr' = anonParamFuncExpr    -- must come before |constantExpr|
         <|> ConstantExpr <$> constantExpr
         <|> FreshVarExpr <$ symbol "#"
-        <|> VarExpr <$> varLiteral
+        <|> VarExpr <$> ident
         <|> vectorExpr     -- must come before |collectionExpr|
         <|> collectionExpr
         <|> tupleOrParenExpr
@@ -535,7 +534,7 @@ forallPattern =
 
 loopPattern :: Parser Pattern
 loopPattern =
-  LoopPat <$> (reserved "loop" >> patVarLiteral) <*> loopRange
+  LoopPat <$> (reserved "loop" >> char '$' >> ident) <*> loopRange
           <*> atomPattern <*> atomPattern
   where
     loopRange :: Parser (LoopRange Expr)
@@ -655,7 +654,7 @@ pdPattern = makeExprParser pdApplyOrAtom table
 pdAtom :: Parser PrimitiveDataPattern
 pdAtom = PDWildCard    <$ symbol "_"
      <|> PDPatVar      <$> patVarLiteral
-     <|> PDPatVar      <$> varLiteral
+     <|> PDPatVar      <$> ident
      <|> PDConstantPat <$> constantExpr
      <|> pdCollection
      <|> makeTupleOrParen pdPattern PDTuplePat
@@ -700,15 +699,12 @@ positiveFloatLiteral :: Parser Double
 positiveFloatLiteral = lexeme L.float
            <?> "unsigned float"
 
-varLiteral :: Parser Var
-varLiteral = stringToVar <$> ident
-
 varWithIndicesLiteral :: Parser VarWithIndices
 varWithIndicesLiteral = do
-  VarWithIndices <$> (splitOn "." <$> ident) <*> many (index ident)
+  VarWithIndices <$> ident <*> many (index ident)
 
-patVarLiteral :: Parser Var
-patVarLiteral = stringToVar <$> (char '$' >> ident)
+patVarLiteral :: Parser String
+patVarLiteral = char '$' >> ident
 
 -- Parse infix (binary operator) literal.
 -- If the operator is prefixed with '!', |isWedge| is turned to true.
