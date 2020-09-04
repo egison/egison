@@ -28,12 +28,12 @@ import           Language.Egison.MList
 expandCollection :: WHNFData -> EvalM (Seq Inner)
 expandCollection (Value (Collection vals)) =
   mapM (fmap IElement . newEvaluatedObjectRef . Value) vals
-expandCollection (Intermediate (ICollection innersRef)) = liftIO $ readIORef innersRef
+expandCollection (ICollection innersRef) = liftIO $ readIORef innersRef
 expandCollection val = throwError =<< TypeMismatch "collection" val <$> getFuncNameStack
 
 isEmptyCollection :: WHNFData -> EvalM Bool
 isEmptyCollection (Value (Collection col)) = return $ Sq.null col
-isEmptyCollection coll@(Intermediate (ICollection innersRef)) = do
+isEmptyCollection coll@(ICollection innersRef) = do
   inners <- liftIO $ readIORef innersRef
   case Sq.viewl inners of
     EmptyL -> return True
@@ -51,13 +51,13 @@ unconsCollection (Value (Collection col)) =
     val :< vals ->
       lift $ (,) <$> newEvaluatedObjectRef (Value val)
                  <*> newEvaluatedObjectRef (Value $ Collection vals)
-unconsCollection coll@(Intermediate (ICollection innersRef)) = do
+unconsCollection coll@(ICollection innersRef) = do
   inners <- liftIO $ readIORef innersRef
   case Sq.viewl inners of
     EmptyL -> matchFail
     IElement ref' :< tInners -> do
       tInnersRef <- liftIO $ newIORef tInners
-      lift $ (ref', ) <$> newEvaluatedObjectRef (Intermediate $ ICollection tInnersRef)
+      lift $ (ref', ) <$> newEvaluatedObjectRef (ICollection tInnersRef)
     ISubCollection ref' :< tInners -> do
       hInners <- lift $ evalRef ref' >>= expandCollection
       liftIO $ writeIORef innersRef (hInners >< tInners)
@@ -71,13 +71,13 @@ unsnocCollection (Value (Collection col)) =
     vals :> val ->
       lift $ (,) <$> newEvaluatedObjectRef (Value $ Collection vals)
                  <*> newEvaluatedObjectRef (Value val)
-unsnocCollection coll@(Intermediate (ICollection innersRef)) = do
+unsnocCollection coll@(ICollection innersRef) = do
   inners <- liftIO $ readIORef innersRef
   case Sq.viewr inners of
     EmptyR -> matchFail
     hInners :> IElement ref' -> do
       hInnersRef <- liftIO $ newIORef hInners
-      lift $ (, ref') <$> newEvaluatedObjectRef (Intermediate $ ICollection hInnersRef)
+      lift $ (, ref') <$> newEvaluatedObjectRef (ICollection hInnersRef)
     hInners :> ISubCollection ref' -> do
       tInners <- lift $ evalRef ref' >>= expandCollection
       liftIO $ writeIORef innersRef (hInners >< tInners)
@@ -88,7 +88,7 @@ collectionToRefs :: WHNFData -> EvalM (MList EvalM ObjectRef)
 collectionToRefs (Value (Collection vals)) =
   if Sq.null vals then return MNil
                   else fromSeq <$> mapM (newEvaluatedObjectRef . Value) vals
-collectionToRefs whnf@(Intermediate (ICollection _)) = do
+collectionToRefs whnf@(ICollection _) = do
   isEmpty <- isEmptyCollection whnf
   if isEmpty
     then return MNil
@@ -106,4 +106,4 @@ makeICollection :: [WHNFData] -> EvalM WHNFData
 makeICollection xs  = do
   is <- mapM (\x -> IElement <$> newEvaluatedObjectRef x) xs
   v <- liftIO $ newIORef $ Sq.fromList is
-  return $ Intermediate $ ICollection v
+  return $ ICollection v

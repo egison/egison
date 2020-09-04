@@ -47,14 +47,14 @@ makeBindings' :: [String] -> [ObjectRef] -> [Binding]
 makeBindings' xs = zip (map stringToVar xs)
 
 tupleToRefs :: WHNFData -> EvalM [ObjectRef]
-tupleToRefs (Intermediate (ITuple refs)) = return refs
+tupleToRefs (ITuple refs) = return refs
 tupleToRefs (Value (Tuple vals)) = mapM (newEvaluatedObjectRef . Value) vals
 tupleToRefs whnf = return <$> newEvaluatedObjectRef whnf
 
 tupleToListWHNF :: WHNFData -> EvalM [WHNFData]
-tupleToListWHNF (Intermediate (ITuple refs)) = mapM evalRef refs
-tupleToListWHNF (Value (Tuple vals))         = return $ map Value vals
-tupleToListWHNF whnf                         = return [whnf]
+tupleToListWHNF (ITuple refs)        = mapM evalRef refs
+tupleToListWHNF (Value (Tuple vals)) = return $ map Value vals
+tupleToListWHNF whnf                 = return [whnf]
 
 tupleToList :: EgisonValue -> [EgisonValue]
 tupleToList (Tuple vals) = vals
@@ -66,6 +66,6 @@ makeTuple [x] = x
 makeTuple xs  = Tuple xs
 
 makeITuple :: [WHNFData] -> EvalM WHNFData
-makeITuple []  = return $ Intermediate (ITuple [])
+makeITuple []  = return (ITuple [])
 makeITuple [x] = return x
-makeITuple xs  = Intermediate . ITuple <$> mapM newEvaluatedObjectRef xs
+makeITuple xs  = ITuple <$> mapM newEvaluatedObjectRef xs

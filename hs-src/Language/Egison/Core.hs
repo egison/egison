@@ -85,32 +85,32 @@ evalExprShallow env (IVarExpr var@(Var _ [])) =
 
 evalExprShallow _ (ITupleExpr []) = return . Value $ Tuple []
 evalExprShallow env (ITupleExpr [expr]) = evalExprShallow env expr
-evalExprShallow env (ITupleExpr exprs) = Intermediate . ITuple <$> mapM (newThunkRef env) exprs
+evalExprShallow env (ITupleExpr exprs) = ITuple <$> mapM (newThunkRef env) exprs
 
 evalExprShallow _ (ICollectionExpr []) = return . Value $ Collection Sq.empty
 
 evalExprShallow env (ICollectionExpr inners) = do
   inners' <- mapM ((IElement <$>) . newThunkRef env) inners
   innersSeq <- liftIO $ newIORef $ Sq.fromList inners'
-  return $ Intermediate $ ICollection innersSeq
+  return $ ICollection innersSeq
 
 evalExprShallow env (IConsExpr x xs) = do
   x' <- newThunkRef env x
   xs' <- newThunkRef env xs
   innersSeq <- liftIO $ newIORef $ Sq.fromList [IElement x', ISubCollection xs']
-  return $ Intermediate $ ICollection innersSeq
+  return $ ICollection innersSeq
 
 evalExprShallow env (IJoinExpr xs ys) = do
   xs' <- newThunkRef env xs
   ys' <- newThunkRef env ys
   innersSeq <- liftIO $ newIORef $ Sq.fromList [ISubCollection xs', ISubCollection ys']
-  return $ Intermediate $ ICollection innersSeq
+  return $ ICollection innersSeq
 
 evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
   let n = toInteger (length exprs)
   whnfs <- zipWithM evalWithIndex exprs [1..]
   case whnfs of
-    Intermediate (ITensor Tensor{}):_ ->
+    ITensor Tensor{}:_ ->
       mapM toTensor (zipWith f whnfs [1..]) >>= tConcat' >>= fromTensor
     _ -> fromTensor (Tensor [n] (V.fromList whnfs) [])
   where
@@ -121,8 +121,7 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
           Nothing -> env
           Just (VarWithIndices name indices) ->
             Env frame (Just (VarWithIndices name (zipWith changeIndex indices [toEgison index])))
-    f (Intermediate (ITensor (Tensor ns xs indices))) i =
-      Intermediate (ITensor (Tensor ns xs' indices))
+    f (ITensor (Tensor ns xs indices)) i = ITensor (Tensor ns xs' indices)
       where
         xs' = V.fromList $ zipWith g (V.toList xs) $ map (\ms -> map toEgison (i:ms)) $ enumTensorIndices ns
     f x _ = x
@@ -152,13 +151,13 @@ evalExprShallow env (IHashExpr assocs) = do
   case keys of
     CharKey _ : _ -> do
       let keys' = map (\case CharKey c -> c) keys
-      return . Intermediate . ICharHash $ HL.fromList $ zip keys' refs
+      return . ICharHash $ HL.fromList $ zip keys' refs
     StrKey _ : _ -> do
       let keys' = map (\case StrKey s -> s) keys
-      return . Intermediate . IStrHash $ HL.fromList $ zip keys' refs
+      return . IStrHash $ HL.fromList $ zip keys' refs
     _ -> do
       let keys' = map (\case IntKey i -> i) keys
-      return . Intermediate . IIntHash $ HL.fromList $ zip keys' refs
+      return . IIntHash $ HL.fromList $ zip keys' refs
  where
   makeHashKey :: WHNFData -> EvalM EgisonHashKey
   makeHashKey (Value val) =
@@ -185,7 +184,7 @@ evalExprShallow env (IIndexedExpr override expr indices) = do
     Value (TensorData t@Tensor{}) -> do
       js <- mapM evalIndex indices
       Value <$> refTensorWithOverride override js t
-    Intermediate (ITensor t@Tensor{}) -> do
+    ITensor t@Tensor{} -> do
       js <- mapM evalIndex indices
       refTensorWithOverride override js t
     _ -> do
@@ -208,9 +207,9 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
                   Nothing     -> evalExprShallow env expr
               _ -> evalExprShallow env expr
   case tensor of
-    Value (ScalarData _)              -> return tensor
-    Value (TensorData t@Tensor{})     -> Value <$> refTensorWithOverride override js t
-    Intermediate (ITensor t@Tensor{}) -> refTensorWithOverride override js t
+    Value (ScalarData _)          -> return tensor
+    Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
+    ITensor t@Tensor{}            -> refTensorWithOverride override js t
     _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
 
 evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
@@ -223,9 +222,9 @@ evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
                   Nothing     -> evalExprShallow env expr
               _ -> evalExprShallow env expr
   case tensor of
-    Value (ScalarData _)              -> return tensor
-    Value (TensorData t@Tensor{})     -> Value <$> refTensorWithOverride override js t
-    Intermediate (ITensor t@Tensor{}) -> refTensorWithOverride override js t
+    Value (ScalarData _)          -> return tensor
+    Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
+    ITensor t@Tensor{}            -> refTensorWithOverride override js t
     _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
 
 evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
@@ -279,16 +278,16 @@ evalExprShallow env (ITransposeExpr vars expr) = do
   syms <- evalExprDeep env vars >>= collectionToList
   whnf <- evalExprShallow env expr
   case whnf of
-    Intermediate (ITensor t) -> Intermediate . ITensor <$> tTranspose' syms t
-    Value (TensorData t)     -> Value . TensorData <$> tTranspose' syms t
-    _                        -> return whnf
+    ITensor t            -> ITensor <$> tTranspose' syms t
+    Value (TensorData t) -> Value . TensorData <$> tTranspose' syms t
+    _                    -> return whnf
 
 evalExprShallow env (IFlipIndicesExpr expr) = do
   whnf <- evalExprShallow env expr
   case whnf of
-    Intermediate (ITensor t) -> Intermediate . ITensor <$> tFlipIndices t
-    Value (TensorData t)     -> Value . TensorData <$> tFlipIndices t
-    _                        -> return whnf
+    ITensor t            -> ITensor <$> tFlipIndices t
+    Value (TensorData t) -> Value . TensorData <$> tFlipIndices t
+    _                    -> return whnf
 
 evalExprShallow env (IWithSymbolsExpr vars expr) = do
   symId <- fresh
@@ -297,8 +296,8 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
   case whnf of
     Value (TensorData t@Tensor{}) ->
       Value . TensorData <$> removeTmpScripts symId t
-    Intermediate (ITensor t@Tensor{}) ->
-      Intermediate . ITensor <$> removeTmpScripts symId t
+    ITensor t@Tensor{} ->
+      ITensor <$> removeTmpScripts symId t
     _ -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
@@ -339,7 +338,7 @@ evalExprShallow env (IMatchAllExpr pmmode target matcher clauses) = do
     head <- IElement <$> newEvaluatedObjectRef val
     tail <- ISubCollection <$> (liftIO . newIORef . Thunk $ m >>= fromMList)
     seqRef <- liftIO . newIORef $ Sq.fromList [head, tail]
-    return . Intermediate $ ICollection seqRef
+    return $ ICollection seqRef
   f matcher target = do
       let tryMatchClause (pattern, expr) results = do
             result <- patternMatch pmmode env pattern target matcher
@@ -376,11 +375,11 @@ evalExprShallow env (IApplyExpr func args) = do
   func <- appendDFscripts 0 <$> evalExprShallow env func
   case func of
     Value (InductiveData name []) ->
-      Intermediate . IInductiveData name <$> mapM (newThunkRef env) args
+      IInductiveData name <$> mapM (newThunkRef env) args
     Value (TensorData t@Tensor{}) -> do
       let args' = map (newThunk env) args
       Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor) >>= removeDFscripts
-    Intermediate (ITensor t@Tensor{}) -> do
+    ITensor t@Tensor{} -> do
       let args' = map (newThunk env) args
       tMap (\f -> applyFunc env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env' names body) -> do
@@ -397,7 +396,7 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
   case func of
     Value (TensorData t@Tensor{}) ->
       Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor)
-    Intermediate (ITensor t@Tensor{}) ->
+    ITensor t@Tensor{} ->
       tMap (\f -> applyFunc env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env names body) -> do
       args <- mapM evalWHNF args
@@ -421,7 +420,7 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
 evalExprShallow env (ITensorContractExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
   case whnf of
-    Intermediate (ITensor t@Tensor{}) -> do
+    ITensor t@Tensor{} -> do
       ts <- tContract t
       makeICollection (map tensorToWHNF ts)
     Value (TensorData t@Tensor{}) -> do
@@ -433,7 +432,7 @@ evalExprShallow env (ITensorMapExpr fnExpr tExpr) = do
   fn <- evalExprShallow env fnExpr
   whnf <- evalExprShallow env tExpr
   case whnf of
-    Intermediate (ITensor t) ->
+    ITensor t ->
       tMap (\t -> applyFunc env fn [WHNF t]) t >>= fromTensor
     Value (TensorData t) ->
       Value <$> (tMap (\t -> applyFunc' env fn [t]) t >>= fromTensor)
@@ -445,29 +444,29 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
   whnf2 <- evalExprShallow env t2Expr
   case (whnf1, whnf2) of
     -- both of arguments are tensors
-    (Intermediate (ITensor t1), Intermediate (ITensor t2)) ->
+    (ITensor t1, ITensor t2) ->
       tMap2 (applyFunc'' env fn) t1 t2 >>= fromTensor
-    (Intermediate (ITensor t), Value (TensorData (Tensor ns xs js))) -> do
+    (ITensor t, Value (TensorData (Tensor ns xs js))) -> do
       let xs' = V.map Value xs
       tMap2 (applyFunc'' env fn) t (Tensor ns xs' js) >>= fromTensor
-    (Value (TensorData (Tensor ns xs js)), Intermediate (ITensor t)) -> do
+    (Value (TensorData (Tensor ns xs js)), ITensor t) -> do
       let xs' = V.map Value xs
       tMap2 (applyFunc'' env fn) (Tensor ns xs' js) t >>= fromTensor
     (Value (TensorData t1), Value (TensorData t2)) ->
       Value <$> (tMap2 (\x y -> applyFunc' env fn [x, y]) t1 t2 >>= fromTensor)
     -- an argument is scalar
-    (Intermediate (ITensor (Tensor ns xs js)), whnf) -> do
+    (ITensor (Tensor ns xs js), whnf) -> do
       ys <- V.mapM (\x -> applyFunc'' env fn x whnf) xs
-      return $ Intermediate (ITensor (Tensor ns ys js))
-    (whnf, Intermediate (ITensor (Tensor ns xs js))) -> do
+      return (ITensor (Tensor ns ys js))
+    (whnf, ITensor (Tensor ns xs js)) -> do
       ys <- V.mapM (applyFunc'' env fn whnf) xs
-      return $ Intermediate (ITensor (Tensor ns ys js))
+      return (ITensor (Tensor ns ys js))
     (Value (TensorData (Tensor ns xs js)), whnf) -> do
       ys <- V.mapM (\x -> applyFunc'' env fn (Value x) whnf) xs
-      return $ Intermediate (ITensor (Tensor ns ys js))
+      return (ITensor (Tensor ns ys js))
     (whnf, Value (TensorData (Tensor ns xs js))) -> do
       ys <- V.mapM (applyFunc'' env fn whnf . Value) xs
-      return $ Intermediate (ITensor (Tensor ns ys js))
+      return (ITensor (Tensor ns ys js))
     _ -> applyFunc'' env fn whnf1 whnf2
  where
   applyFunc'' :: Env -> WHNFData -> WHNFData -> WHNFData -> EvalM WHNFData
@@ -507,20 +506,20 @@ evalMemoizedFunc hashRef env names body args = do
 
 evalWHNF :: WHNFData -> EvalM EgisonValue
 evalWHNF (Value val) = return val
-evalWHNF (Intermediate (IInductiveData name refs)) =
+evalWHNF (IInductiveData name refs) =
   InductiveData name <$> mapM evalRefDeep refs
-evalWHNF (Intermediate (IIntHash refs)) = do
+evalWHNF (IIntHash refs) = do
   refs' <- mapM evalRefDeep refs
   return $ IntHash refs'
-evalWHNF (Intermediate (ICharHash refs)) = do
+evalWHNF (ICharHash refs) = do
   refs' <- mapM evalRefDeep refs
   return $ CharHash refs'
-evalWHNF (Intermediate (IStrHash refs)) = do
+evalWHNF (IStrHash refs) = do
   refs' <- mapM evalRefDeep refs
   return $ StrHash refs'
-evalWHNF (Intermediate (ITuple [ref])) = evalRefDeep ref
-evalWHNF (Intermediate (ITuple refs)) = Tuple <$> mapM evalRefDeep refs
-evalWHNF (Intermediate (ITensor (Tensor ns whnfs js))) = do
+evalWHNF (ITuple [ref]) = evalRefDeep ref
+evalWHNF (ITuple refs) = Tuple <$> mapM evalRefDeep refs
+evalWHNF (ITensor (Tensor ns whnfs js)) = do
   vals <- mapM evalWHNF (V.toList whnfs)
   return $ TensorData $ Tensor ns (V.fromList vals) js
 evalWHNF coll = Collection <$> (collectionToRefs coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
@@ -529,32 +528,32 @@ addscript :: (Index EgisonValue, Tensor a) -> Tensor a
 addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 
 valuetoTensor2 :: WHNFData -> Tensor WHNFData
-valuetoTensor2 (Intermediate (ITensor t)) = t
+valuetoTensor2 (ITensor t) = t
 
 applyFunc :: Env -> WHNFData -> [Object] -> EvalM WHNFData
 applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
   tds <- mapM evalObj tds
-  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s _ i))) -> length s - length i == 1) tds
+  if length s1 > length i1 && all (\(ITensor (Tensor s _ i)) -> length s - length i == 1) tds
     then do
       symId <- fresh
       let argnum = length tds
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (stringToIVarExpr ".")
-      let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (Intermediate . ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
+      let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
       applyFunc env dot (map WHNF args')
     else throwError $ Default "applyfunc"
 
-applyFunc env (Intermediate (ITensor (Tensor s1 t1 i1))) tds = do
+applyFunc env (ITensor (Tensor s1 t1 i1)) tds = do
   tds <- mapM evalObj tds
-  if length s1 > length i1 && all (\(Intermediate (ITensor (Tensor s _ i))) -> length s - length i == 1) tds
+  if length s1 > length i1 && all (\(ITensor (Tensor s _ i)) -> length s - length i == 1) tds
     then do
       symId <- fresh
       let argnum = length tds
           subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (stringToIVarExpr ".")
-      let args' = map Intermediate (ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds))
+      let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
       applyFunc env dot (map WHNF args')
     else throwError $ Default "applyfunc"
 
@@ -571,7 +570,7 @@ applyFunc _ (Value (Func mFuncName env names body)) args =
 applyFunc _ (Value (CFunc env name body)) args = do
   refs <- liftIO $ mapM newIORef args
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
-  col <- liftIO . newIORef $ WHNF $ Intermediate $ ICollection seqRef
+  col <- liftIO . newIORef $ WHNF $ ICollection seqRef
   if not (null refs)
     then evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
     else throwError =<< ArgumentsNumWithNames [name] 1 0 <$> getFuncNameStack
@@ -601,9 +600,9 @@ refHash val (index:indices) =
     Value (IntHash hash)  -> refHash' hash
     Value (CharHash hash) -> refHash' hash
     Value (StrHash hash)  -> refHash' hash
-    Intermediate (IIntHash hash)  -> irefHash hash
-    Intermediate (ICharHash hash) -> irefHash hash
-    Intermediate (IStrHash hash)  -> irefHash hash
+    IIntHash hash         -> irefHash hash
+    ICharHash hash        -> irefHash hash
+    IStrHash hash         -> irefHash hash
     _ -> throwError =<< TypeMismatch "hash" val <$> getFuncNameStack
  where
   refHash' hash = do
@@ -619,17 +618,17 @@ refHash val (index:indices) =
       Nothing  -> return $ Value Undefined
 
 updateHash :: [Integer] -> WHNFData -> WHNFData -> EvalM WHNFData
-updateHash [index] tgt (Intermediate (IIntHash hash)) = do
+updateHash [index] tgt (IIntHash hash) = do
   targetRef <- newEvaluatedObjectRef tgt
-  return . Intermediate . IIntHash $ HL.insert index targetRef hash
-updateHash (index:indices) tgt (Intermediate (IIntHash hash)) = do
-  val <- maybe (return $ Intermediate $ IIntHash HL.empty) evalRef $ HL.lookup index hash
+  return . IIntHash $ HL.insert index targetRef hash
+updateHash (index:indices) tgt (IIntHash hash) = do
+  val <- maybe (return $ IIntHash HL.empty) evalRef $ HL.lookup index hash
   ref <- updateHash indices tgt val >>= newEvaluatedObjectRef
-  return . Intermediate . IIntHash $ HL.insert index ref hash
+  return . IIntHash $ HL.insert index ref hash
 updateHash indices tgt (Value (IntHash hash)) = do
   let keys = HL.keys hash
   vals <- mapM (newEvaluatedObjectRef . Value) $ HL.elems hash
-  updateHash indices tgt (Intermediate $ IIntHash $ HL.fromList $ zip keys vals)
+  updateHash indices tgt (IIntHash $ HL.fromList $ zip keys vals)
 updateHash _ _ v = throwError $ Default $ "expected hash value: " ++ show v
 
 subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
@@ -853,7 +852,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
         Value (ScalarData _) -> do -- the case when the end numbers are an integer
           endsRef  <- newEvaluatedObjectRef ends'
           inners   <- liftIO . newIORef $ Sq.fromList [IElement endsRef]
-          endsRef' <- liftIO $ newIORef (WHNF (Intermediate (ICollection inners)))
+          endsRef' <- liftIO $ newIORef (WHNF (ICollection inners))
           return . msingleton $ mstate { loopPatCtx = LoopPatContext (name, startNumRef) endsRef' endPat pat pat':loops
                                        , mTrees = MAtom ContPat target matcher:trees }
         _ -> do -- the case when the end numbers are a collection
@@ -948,7 +947,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                   obj <- evalRef ref >>= updateHash indices target >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = subst name obj bindings, mTrees = trees }
                 Nothing  -> do
-                  obj <- updateHash indices target (Intermediate . IIntHash $ HL.empty) >>= newEvaluatedObjectRef
+                  obj <- updateHash indices target (IIntHash (HL.empty)) >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = (name,obj):bindings, mTrees = trees }
             IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyStr pattern)
             TuplePat patterns -> do
@@ -1017,7 +1016,7 @@ primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Intermediate (IInductiveData name' refs) | name == name' ->
+    IInductiveData name' refs | name == name' ->
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
     Value (InductiveData name' vals) | name == name' -> do
       whnfs <- lift $ mapM (newEvaluatedObjectRef . Value) vals
@@ -1026,7 +1025,7 @@ primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
 primitiveDataPatternMatch (PDTuplePat patterns) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Intermediate (ITuple refs) -> do
+    ITuple refs -> do
       concat <$> zipWithM primitiveDataPatternMatch patterns refs
     Value (Tuple vals) -> do
       whnfs <- lift $ mapM (newEvaluatedObjectRef . Value) vals
@@ -1059,7 +1058,7 @@ evalMatcherWHNF :: WHNFData -> EvalM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher
 evalMatcherWHNF (Value matcher@UserMatcher{}) = return matcher
 evalMatcherWHNF (Value (Tuple ms)) = Tuple <$> mapM (evalMatcherWHNF . Value) ms
-evalMatcherWHNF (Intermediate (ITuple refs)) = do
+evalMatcherWHNF (ITuple refs) = do
   whnfs <- mapM evalRef refs
   ms <- mapM evalMatcherWHNF whnfs
   return $ Tuple ms
