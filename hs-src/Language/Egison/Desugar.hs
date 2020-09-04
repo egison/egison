@@ -382,7 +382,7 @@ desugar (QuoteSymbolExpr expr) =
 desugar (WedgeApplyExpr expr args) =
   IWedgeApplyExpr <$> desugar expr <*> mapM desugar args
 
-desugar (FunctionExpr args) = return $ IFunctionExpr (map stringToVar args)
+desugar (FunctionExpr args) = return $ IFunctionExpr args
 
 desugarIndex :: Index Expr -> EvalM (Index IExpr)
 desugarIndex index = traverse desugar index
