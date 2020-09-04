@@ -47,17 +47,12 @@ type RuntimeM = RuntimeT IO
 
 class (Applicative m, Monad m) => MonadRuntime m where
   fresh :: m String
-  freshV :: m Var
 
 instance Monad m => MonadRuntime (RuntimeT m) where
   fresh = do
     st <- lift get
     lift (modify (\st -> st { indexCounter = indexCounter st + 1 }))
     return $ "$_" ++ show (indexCounter st)
-  freshV = do
-    st <- lift get
-    lift (modify (\st -> st {indexCounter = indexCounter st + 1 }))
-    return $ Var ["$_" ++ show (indexCounter st)] []
 
 runRuntimeT :: Monad m => EgisonOpts -> RuntimeT m a -> m (a, RState)
 runRuntimeT opts = flip runStateT initialRState . flip runReaderT opts

@@ -16,9 +16,7 @@ module Language.Egison.AST
   , Expr (..)
   , PatternBase (..)
   , Pattern
-  , Var (..)
   , VarWithIndices (..)
-  , varToVarWithIndices
   , makeApply
   , Arg (..)
   , ArgPattern (..)
@@ -37,8 +35,6 @@ module Language.Egison.AST
   , reservedExprOp
   , reservedPatternOp
   , findOpFrom
-  , stringToVar
-  , stringToVarExpr
   , stringToVarWithIndices
   ) where
 
@@ -71,7 +67,7 @@ data ConstantExpr
 
 data Expr
   = ConstantExpr ConstantExpr
-  | VarExpr Var
+  | VarExpr String
   | FreshVarExpr
   | IndexedExpr Bool Expr [Index Expr]  -- True -> delete old index and append new one
   | SubrefsExpr Bool Expr Expr
@@ -127,11 +123,8 @@ data Expr
   | TransposeExpr Expr Expr
   | FlipIndicesExpr Expr                              -- Does not appear in user program
 
-  | FunctionExpr [Var]
+  | FunctionExpr [String]
   deriving Show
-
-data Var = Var [String] [Index ()]
-  deriving (Eq, Generic, Show)
 
 data VarWithIndices = VarWithIndices [String] [Index String]
   deriving Show
@@ -185,7 +178,7 @@ type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 
 data PatternBase expr
   = WildCard
-  | PatVar Var
+  | PatVar String
   | ValuePat expr
   | PredPat expr
   | IndexedPat (PatternBase expr) [expr]
@@ -222,7 +215,7 @@ data PrimitivePatPattern
 
 data PrimitiveDataPattern
   = PDWildCard
-  | PDPatVar Var
+  | PDPatVar String
   | PDInductivePat String [PrimitiveDataPattern]
   | PDTuplePat [PrimitiveDataPattern]
   | PDEmptyPat
@@ -280,25 +273,12 @@ findOpFrom :: String -> [Op] -> Op
 findOpFrom op table = fromJust $ find ((== op) . repr) table
 
 instance Hashable (Index ())
-instance Hashable Var
-
-stringToVar :: String -> Var
-stringToVar name = Var (splitOn "." name) []
-
-stringToVarExpr :: String -> Expr
-stringToVarExpr = VarExpr . stringToVar
 
 stringToVarWithIndices :: String -> VarWithIndices
 stringToVarWithIndices name = VarWithIndices (splitOn "." name) []
 
-varToVarWithIndices :: Var -> VarWithIndices
-varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
- where
-   f :: Index () -> Index String
-   f index = (\() -> "") <$> index
-
 makeApply :: String -> [Expr] -> Expr
-makeApply func args = ApplyExpr (stringToVarExpr func) args
+makeApply func args = ApplyExpr (VarExpr func) args
 
 instance Show (Index ()) where
   show (Superscript ())  = "~"
