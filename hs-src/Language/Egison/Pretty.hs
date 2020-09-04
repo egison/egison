@@ -188,12 +188,10 @@ instance Pretty ArgPattern where
   pretty (APSnocPat arg1 arg2)   = applyLike [pretty "snoc", pretty' arg1, pretty' arg2]
 
 instance Pretty Var where
-  pretty (Var xs is) =
-    concatWith (surround dot) (map pretty xs) <> hcat (map pretty is)
+  pretty (Var xs is) = pretty xs <> hcat (map pretty is)
 
 instance Pretty VarWithIndices where
-  pretty (VarWithIndices xs is) =
-    concatWith (surround dot) (map pretty xs) <> hcat (map pretty is)
+  pretty (VarWithIndices xs is) = pretty xs <> hcat (map pretty is)
 
 instance {-# OVERLAPPING #-} Pretty BindingExpr where
   pretty (PDPatVar f, LambdaExpr args body) =
