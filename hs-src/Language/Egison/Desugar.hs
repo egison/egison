@@ -34,7 +34,7 @@ desugarTopExpr (Define var@(VarWithIndices name []) expr) = do
 desugarTopExpr (Define (VarWithIndices name is) expr) = do
   body <- desugar expr
   let indexNames = map extractIndex is
-  let indexNamesCollection = ICollectionExpr (map stringToIVarExpr indexNames)
+  let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
   return . Just $ IDefine (Var name (map (const () <$>) is))
     (IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
@@ -56,11 +56,11 @@ desugarExpr = desugar
 
 desugar :: Expr -> EvalM IExpr
 desugar (ConstantExpr c) = return $ IConstantExpr c
-desugar (VarExpr var)    = return $ stringToIVarExpr var
+desugar (VarExpr var)    = return $ IVarExpr var
 
 desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- fresh
-  let matcherRef = stringToIVarExpr matcherName
+  let matcherRef = IVarExpr matcherName
   matcher <- genMatcherClauses patterns matcherRef
   return $ ILetRecExpr [(PDPatVar matcherName, matcher)] matcherRef
     where
@@ -77,7 +77,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         clauses <- genClauses patterns
         return (PPValuePat "val", ITupleExpr [],
                 [(PDPatVar "tgt", IMatchExpr BFSMode
-                                    (ITupleExpr [stringToIVarExpr "val", stringToIVarExpr "tgt"])
+                                    (ITupleExpr [IVarExpr "val", IVarExpr "tgt"])
                                     (ITupleExpr [matcher, matcher])
                                     clauses)])
         where
@@ -94,7 +94,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genMatchingPattern (name, patterns) = do
             names <- mapM (const fresh) patterns
             return (InductivePat name (map PatVar names),
-                    InductivePat name (map (ValuePat . stringToIVarExpr) names))
+                    InductivePat name (map (ValuePat . IVarExpr) names))
 
       genMatcherClause :: (String, [Expr]) -> EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
       genMatcherClause pattern = do
@@ -112,7 +112,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
           genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [IExpr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const fresh) patterns
-            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map stringToIVarExpr patterns')
+            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map IVarExpr patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
@@ -120,7 +120,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
       genSomethingClause :: EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
       genSomethingClause =
-        return (PPPatVar, ITupleExpr [IConstantExpr SomethingExpr], [(PDPatVar "tgt", ICollectionExpr [stringToIVarExpr "tgt"])])
+        return (PPPatVar, ITupleExpr [IConstantExpr SomethingExpr], [(PDPatVar "tgt", ICollectionExpr [IVarExpr "tgt"])])
 
       matchingSuccess :: IExpr
       matchingSuccess = ICollectionExpr [ITupleExpr []]
@@ -164,7 +164,7 @@ desugar (IndexedExpr b expr indices) =
       e1'   <- desugar e1
       expr' <- desugar expr
       return $ refExpr b expr' (makeIApply "map"
-                                           [ILambdaExpr Nothing [k] (IIndexedExpr b1 e1' [Subscript $ stringToIVarExpr k]),
+                                           [ILambdaExpr Nothing [k] (IIndexedExpr b1 e1' [Subscript $ IVarExpr k]),
                                             makeIApply "between" [n1', n2']])
 
 desugar (SubrefsExpr bool expr1 expr2) =
@@ -296,7 +296,7 @@ desugar (PrefixExpr "`" expr) = IQuoteSymbolExpr <$> desugar expr
 desugar (PrefixExpr op _) = fail ("Unknown prefix " ++ op)
 
 desugar (InfixExpr op expr1 expr2) | isWedge op =
-  (\x y -> IWedgeApplyExpr (stringToIVarExpr (repr op)) [x, y])
+  (\x y -> IWedgeApplyExpr (IVarExpr (repr op)) [x, y])
     <$> desugar expr1 <*> desugar expr2
 
 desugar (InfixExpr op expr1 expr2) | repr op == "::" =
@@ -361,17 +361,17 @@ desugar (CApplyExpr expr0 expr1) =
 
 desugar FreshVarExpr = do
   id <- fresh
-  return $ stringToIVarExpr (":::" ++ id)
+  return $ IVarExpr (":::" ++ id)
 
 desugar (MatcherExpr patternDefs) =
   IMatcherExpr <$> mapM desugarPatternDef patternDefs
 
-desugar (AnonParamExpr n) = return $ stringToIVarExpr ('%' : show n)
+desugar (AnonParamExpr n) = return $ IVarExpr ('%' : show n)
 
 desugar (AnonParamFuncExpr n expr) = do
   expr' <- desugar expr
   let lambda = ILambdaExpr Nothing (map (\n -> '%' : show n) [1..n]) expr'
-  return $ ILetRecExpr [(PDPatVar "%0", lambda)] (stringToIVarExpr "%0")
+  return $ ILetRecExpr [(PDPatVar "%0", lambda)] (IVarExpr "%0")
 
 desugar (QuoteExpr expr) =
   IQuoteExpr <$> desugar expr
