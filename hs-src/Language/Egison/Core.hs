@@ -653,8 +653,9 @@ recursiveBind env bindings = do
   forM_ bindings $ \(var, expr) -> do
     -- Modify |env'| for some cases
     let env'' =
-          case expr of
-            IFunctionExpr{} -> Env frame (Just (varToVarWithIndices var))
+          case (var, expr) of
+            (_, IFunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
+            (Var _ is, _) | not (null is) -> Env frame (Just (varToVarWithIndices var))
             _ -> env'
     let ref = fromJust (refVar env' var)
     liftIO $ writeIORef ref (newThunk env'' expr)
