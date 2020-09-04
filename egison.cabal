@@ -131,7 +131,10 @@ Library
                    Language.Egison.PrettyMath.Mathematica
                    Language.Egison.PrettyMath.Maxima
                    Language.Egison.Primitives
+                   Language.Egison.Primitives.Arith
+                   Language.Egison.Primitives.IO
                    Language.Egison.Primitives.Types
+                   Language.Egison.Primitives.Utils
                    Language.Egison.RState
                    Language.Egison.Tensor
   Other-modules:   Paths_egison

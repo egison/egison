@@ -9,21 +9,33 @@ module Language.Egison.Primitives.Types
   ( primitiveTypeFunctions
   ) where
 
-import           Language.Egison.Data
-import           Language.Egison.Math
+import           Control.Monad.Except
 
-primitiveTypeFunctions :: [(String, EgisonValue -> EvalM EgisonValue)]
+import           Data.Char                        (chr, ord)
+import           Data.Ratio                       ((%))
+
+import           Language.Egison.Data
+import           Language.Egison.EvalState        (MonadEval(..))
+import           Language.Egison.Math
+import           Language.Egison.Primitives.Utils
+
+primitiveTypeFunctions :: [(String, String -> PrimitiveFunc)]
 primitiveTypeFunctions =
-  [ ("isBool",       isBool)
-  , ("isInteger",    isInteger)
-  , ("isRational",   isRational)
-  , ("isScalar",     isScalar)
-  , ("isFloat",      isFloat)
-  , ("isChar",       isChar)
-  , ("isString",     isString)
-  , ("isCollection", isCollection)
-  , ("isHash",       isHash)
-  , ("isTensor",     isTensor)
+  [ ("isBool",       oneArg' isBool)
+  , ("isInteger",    oneArg' isInteger)
+  , ("isRational",   oneArg' isRational)
+  , ("isScalar",     oneArg' isScalar)
+  , ("isFloat",      oneArg' isFloat)
+  , ("isChar",       oneArg' isChar)
+  , ("isString",     oneArg' isString)
+  , ("isCollection", oneArg' isCollection)
+  , ("isHash",       oneArg' isHash)
+  , ("isTensor",     oneArg' isTensor)
+
+  , ("itof", integerToFloat)
+  , ("rtof", rationalToFloat)
+  , ("ctoi", charToInteger)
+  , ("itoc", integerToChar)
   ]
 
 --
@@ -73,3 +85,28 @@ isHash (IntHash _)  = return $ Bool True
 isHash (CharHash _) = return $ Bool True
 isHash (StrHash _)  = return $ Bool True
 isHash _            = return $ Bool False
+
+--
+-- Transform
+--
+integerToFloat :: String -> PrimitiveFunc
+integerToFloat = rationalToFloat
+
+rationalToFloat :: String -> PrimitiveFunc
+rationalToFloat = oneArg $ \val ->
+  case val of
+    ScalarData (Div (Plus []) _) -> return $ Float 0
+    ScalarData (Div (Plus [Term x []]) (Plus [Term y []])) -> return $ Float (fromRational (x % y))
+    _ -> throwError =<< TypeMismatch "integer or rational number" (Value val) <$> getFuncNameStack
+
+charToInteger :: String -> PrimitiveFunc
+charToInteger = unaryOp ctoi
+  where
+    ctoi :: Char -> Integer
+    ctoi = fromIntegral . ord
+
+integerToChar :: String -> PrimitiveFunc
+integerToChar = unaryOp itoc
+  where
+    itoc :: Integer -> Char
+    itoc = chr . fromIntegral

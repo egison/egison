@@ -33,7 +33,6 @@ module Language.Egison.Data
     , Object (..)
     , ObjectRef
     , WHNFData (..)
-    , Intermediate (..)
     , Inner (..)
     , EgisonWHNF (..)
     -- * Environment
@@ -149,13 +148,13 @@ instance HasTensor EgisonValue where
   undef = Undefined
 
 instance HasTensor WHNFData where
-  tensorElems (Intermediate (ITensor (Tensor _ xs _))) = xs
-  tensorShape (Intermediate (ITensor (Tensor ns _ _))) = ns
-  tensorIndices (Intermediate (ITensor (Tensor _ _ js))) = js
-  fromTensor t@Tensor{} = return $ Intermediate $ ITensor t
+  tensorElems (ITensor (Tensor _ xs _)) = xs
+  tensorShape (ITensor (Tensor ns _ _)) = ns
+  tensorIndices (ITensor (Tensor _ _ js)) = js
+  fromTensor t@Tensor{} = return (ITensor t)
   fromTensor (Scalar x) = return x
-  toTensor (Intermediate (ITensor t)) = return t
-  toTensor x                          = return $ Scalar x
+  toTensor (ITensor t) = return t
+  toTensor x           = return (Scalar x)
   undef = Value Undefined
 
 --
@@ -427,11 +426,8 @@ data Object
   | WHNF WHNFData
 
 data WHNFData
-  = Intermediate Intermediate
-  | Value EgisonValue
-
-data Intermediate
-  = IInductiveData String [ObjectRef]
+  = Value EgisonValue
+  | IInductiveData String [ObjectRef]
   | ITuple [ObjectRef]
   | ICollection (IORef (Seq Inner))
   | IIntHash (HashMap Integer ObjectRef)
@@ -445,14 +441,14 @@ data Inner
 
 instance Show WHNFData where
   show (Value val) = show val
-  show (Intermediate (IInductiveData name _)) = "<" ++ name ++ " ...>"
-  show (Intermediate (ITuple _)) = "[...]"
-  show (Intermediate (ICollection _)) = "{...}"
-  show (Intermediate (IIntHash _)) = "{|...|}"
-  show (Intermediate (ICharHash _)) = "{|...|}"
-  show (Intermediate (IStrHash _)) = "{|...|}"
-  show (Intermediate (ITensor (Tensor ns xs _))) = "[|" ++ show (length ns) ++ show (V.length xs) ++ "|]"
-  show (Intermediate (ITensor (Scalar _))) = "scalar"
+  show (IInductiveData name _) = "<" ++ name ++ " ...>"
+  show (ITuple _) = "(...)"
+  show (ICollection _) = "[...]"
+  show (IIntHash _) = "{|...|}"
+  show (ICharHash _) = "{|...|}"
+  show (IStrHash _) = "{|...|}"
+  show (ITensor (Tensor ns xs _)) = "[|" ++ show (length ns) ++ show (V.length xs) ++ "|]"
+  show (ITensor (Scalar _)) = "scalar"
 
 instance Show Object where
   show (Thunk _)   = "#<thunk>"
@@ -538,7 +534,6 @@ type CallStack = [String]
 data EgisonError
   = UnboundVariable String CallStack
   | TypeMismatch String WHNFData CallStack
-  | ArgumentsNumWithNames [String] Int Int CallStack
   | ArgumentsNumPrimitive String Int Int CallStack
   | TupleLength Int Int CallStack
   | InconsistentTensorShape CallStack
@@ -557,8 +552,6 @@ instance Show EgisonError where
     "Unbound variable: " ++ show var ++ showTrace stack
   show (TypeMismatch expected found stack) =
     "Expected " ++  expected ++ ", but found: " ++ show found ++ showTrace stack
-  show (ArgumentsNumWithNames names expected got stack) =
-    "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (ArgumentsNumPrimitive name expected got stack) =
     "Wrong number of arguments for a primitive function '" ++ name ++ "': expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (TupleLength expected got stack) =

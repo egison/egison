@@ -196,19 +196,19 @@ tFlipIndices :: HasTensor a => Tensor a -> EvalM (Tensor a)
 tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map reverseIndex js)
 
 appendDFscripts :: Integer -> WHNFData -> WHNFData
-appendDFscripts id (Intermediate (ITensor (Tensor s xs is))) =
+appendDFscripts id (ITensor (Tensor s xs is)) =
   let k = fromIntegral (length s - length is)
-   in Intermediate (ITensor (Tensor s xs (is ++ map (DFscript id) [1..k])))
+   in ITensor (Tensor s xs (is ++ map (DFscript id) [1..k]))
 appendDFscripts id (Value (TensorData (Tensor s xs is))) =
   let k = fromIntegral (length s - length is)
    in Value (TensorData (Tensor s xs (is ++ map (DFscript id) [1..k])))
 appendDFscripts _ whnf = whnf
 
 removeDFscripts :: WHNFData -> EvalM WHNFData
-removeDFscripts (Intermediate (ITensor (Tensor s xs is))) = do
+removeDFscripts (ITensor (Tensor s xs is)) = do
   let (ds, js) = partition isDF is
   Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
-  return (Intermediate (ITensor (Tensor s ys js)))
+  return (ITensor (Tensor s ys js))
  where
   isDF (DFscript _ _) = True
   isDF _              = False
@@ -388,8 +388,8 @@ tConcat' ts = do
 --
 
 tensorToWHNF :: Tensor WHNFData -> WHNFData
-tensorToWHNF (Scalar whnf) = whnf
-tensorToWHNF t@(Tensor _ _ _) = Intermediate (ITensor t)
+tensorToWHNF (Scalar whnf)    = whnf
+tensorToWHNF t@(Tensor _ _ _) = ITensor t
 
 tensorToValue :: Tensor EgisonValue -> EgisonValue
 tensorToValue (Scalar val) = val
