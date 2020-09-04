@@ -69,10 +69,6 @@ import           Text.Show.Unicode         (ushow)
 import           Data.Ratio
 import           System.IO
 
-import           Control.Egison            (joinConsM, joinCons, nil,
-                                            bfs, match, mc, List(..))
-import qualified Control.Egison            as M
-
 import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
 import           Language.Egison.IExpr
@@ -521,9 +517,8 @@ refVar :: Env -> Var -> Maybe ObjectRef
 refVar (Env env _) var@(Var _ []) = msum $ map (HashMap.lookup var) env
 refVar e@(Env env _) var@(Var name is) =
   case msum $ map (HashMap.lookup var) env of
-    Nothing -> match bfs is (List M.Something)
-                 [[mc| $his ++ _ : [] -> refVar e (Var name his) |]]
-    Just x -> Just x
+    Nothing -> refVar e (Var name (init is))
+    Just x  -> Just x
 
 --
 -- Errors
