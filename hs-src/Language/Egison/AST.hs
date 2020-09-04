@@ -197,7 +197,7 @@ data PatternBase expr
   | ForallPat (PatternBase expr) (PatternBase expr)
   | TuplePat [PatternBase expr]
   | InductivePat String [PatternBase expr]
-  | LoopPat Var (LoopRange expr) (PatternBase expr) (PatternBase expr)
+  | LoopPat String (LoopRange expr) (PatternBase expr) (PatternBase expr)
   | ContPat
   | PApplyPat expr [PatternBase expr]
   | VarPat String

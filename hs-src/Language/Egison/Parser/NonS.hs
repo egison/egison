@@ -535,7 +535,7 @@ forallPattern =
 
 loopPattern :: Parser Pattern
 loopPattern =
-  LoopPat <$> (reserved "loop" >> patVarLiteral) <*> loopRange
+  LoopPat <$> (reserved "loop" >> char '$' >> ident) <*> loopRange
           <*> atomPattern <*> atomPattern
   where
     loopRange :: Parser (LoopRange Expr)
