@@ -46,7 +46,7 @@ data MatchingTree
 
 type PatternBinding = (String, IPattern)
 
-data LoopPatContext = LoopPatContext Binding ObjectRef IPattern IPattern IPattern
+data LoopPatContext = LoopPatContext (String, ObjectRef) ObjectRef IPattern IPattern IPattern
 
 data SeqPatContext
   = SeqPatContext [MatchingTree] IPattern [Matcher] [WHNFData]

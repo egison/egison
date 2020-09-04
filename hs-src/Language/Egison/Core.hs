@@ -1054,7 +1054,7 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
     _ -> matchFail
 
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
-extendEnvForNonLinearPatterns env bindings loops =  extendEnv env $ bindings ++ map (\(LoopPatContext binding _ _ _ _) -> binding) loops
+extendEnvForNonLinearPatterns env bindings loops = extendEnv env $ bindings ++ map (\(LoopPatContext (name, ref) _ _ _ _) -> (stringToVar name, ref)) loops
 
 evalMatcherWHNF :: WHNFData -> EvalM Matcher
 evalMatcherWHNF (Value matcher@Something) = return matcher
