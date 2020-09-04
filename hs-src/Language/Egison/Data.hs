@@ -534,7 +534,6 @@ type CallStack = [String]
 data EgisonError
   = UnboundVariable String CallStack
   | TypeMismatch String WHNFData CallStack
-  | ArgumentsNumWithNames [String] Int Int CallStack
   | ArgumentsNumPrimitive String Int Int CallStack
   | TupleLength Int Int CallStack
   | InconsistentTensorShape CallStack
@@ -553,8 +552,6 @@ instance Show EgisonError where
     "Unbound variable: " ++ show var ++ showTrace stack
   show (TypeMismatch expected found stack) =
     "Expected " ++  expected ++ ", but found: " ++ show found ++ showTrace stack
-  show (ArgumentsNumWithNames names expected got stack) =
-    "Wrong number of arguments: " ++ show names ++ ": expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (ArgumentsNumPrimitive name expected got stack) =
     "Wrong number of arguments for a primitive function '" ++ name ++ "': expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (TupleLength expected got stack) =
