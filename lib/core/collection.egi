@@ -231,8 +231,6 @@ def repeatedSquaring fn %x n :=
       let y := repeatedSquaring fn x (quotient n 2)
        in fn (fn y y) x
 
-def append xs ys := xs ++ ys
-
 def concat xss := foldr (\%xs %rs -> xs ++ rs) [] xss
 
 def reverse xs :=
