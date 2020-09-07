@@ -136,7 +136,7 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
 
 evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   nsWhnf <- evalExprShallow env nsExpr
-  ns <- (collectionToRefs nsWhnf >>= fromMList >>= mapM evalRef >>= mapM fromWHNF) :: EvalM [Integer]
+  ns <- (collectionToRefs nsWhnf >>= fromMList >>= mapM evalRefDeep >>= mapM fromEgison) :: EvalM [Integer]
   xsWhnf <- evalExprShallow env xsExpr
   xs <- collectionToRefs xsWhnf >>= fromMList >>= mapM evalRef
   if product ns == toInteger (length xs)
@@ -255,7 +255,7 @@ evalExprShallow env@(Env _ (Just (name, is))) (IFunctionExpr args) = do
   return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (name ++ concatMap show is)) (map symbolScalarData' args) args' [], 1)])
 
 evalExprShallow env (IIfExpr test expr expr') = do
-  test <- evalExprShallow env test >>= fromWHNF
+  test <- evalExprDeep env test >>= fromEgison
   evalExprShallow env $ if test then expr else expr'
 
 evalExprShallow env (ILetExpr bindings expr) = do
@@ -810,7 +810,7 @@ processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ 
   case lookup name penv of
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
-      indices <- mapM (evalExprShallow env'' >=> fmap fromInteger . fromWHNF) indices
+      indices <- mapM (evalExprDeep env'' >=> fmap fromInteger . fromEgison) indices
       let pattern' = IndexedPat pattern $ map (IConstantExpr . IntegerExpr) indices
       case trees' of
         [] -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:trees }
@@ -850,7 +850,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
 
     PredPat predicate -> do
       func <- evalExprShallow env' predicate
-      result <- applyFunc env func [WHNF target] >>= fromWHNF
+      result <- applyFunc env func [WHNF target] >>= evalWHNF >>= fromEgison
       if result then return . msingleton $ mstate { mTrees = trees }
                 else return MNil
 
@@ -866,7 +866,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
       return . msingleton $ mstate { mTrees = MAtom (InductivePat "apply" [func, toListPat args]) target matcher:trees }
 
     LoopPat name (LoopRange start ends endPat) pat pat' -> do
-      startNum    <- evalExprShallow env' start >>= fromWHNF :: (EvalM Integer)
+      startNum    <- evalExprDeep env' start >>= fromEgison :: (EvalM Integer)
       startNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum - 1)
       ends'       <- evalExprShallow env' ends
       case ends' of
@@ -884,8 +884,8 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
       case loops of
         [] -> throwError $ Default "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
-          startNumWhnf <- evalRef startNumRef
-          startNum <- fromWHNF startNumWhnf :: (EvalM Integer)
+          startNumVal <- evalRefDeep startNumRef
+          startNum <- fromEgison startNumVal :: (EvalM Integer)
           nextNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum + 1)
           ends <- evalRef endsRef
           b <- isEmptyCollection ends
@@ -894,13 +894,13 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             else do
               (carEndsRef, cdrEndsRef) <- fromJust <$> runMaybeT (unconsCollection ends)
               b2 <- evalRef cdrEndsRef >>= isEmptyCollection
-              carEndsNum <- evalRef carEndsRef >>= fromWHNF
+              carEndsNum <- evalRefDeep carEndsRef >>= fromEgison
               return $ if
                 | startNum >  carEndsNum -> MNil
                 | startNum == carEndsNum && b2 ->
-                  fromList [mstate { loopPatCtx = loops', mTrees = MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees }]
+                  fromList [mstate { loopPatCtx = loops', mTrees = MAtom endPat (Value startNumVal) Something:MAtom pat' target matcher:trees }]
                 | startNum == carEndsNum ->
-                  fromList [mstate { loopPatCtx = loops', mTrees = MAtom endPat startNumWhnf Something:MAtom pat' target matcher:trees },
+                  fromList [mstate { loopPatCtx = loops', mTrees = MAtom endPat (Value startNumVal) Something:MAtom pat' target matcher:trees },
                             mstate { loopPatCtx = LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat':loops', mTrees = MAtom pat target matcher:trees }]
                 | otherwise ->
                   fromList [mstate { loopPatCtx = LoopPatContext (name, nextNumRef) endsRef endPat pat pat':loops', mTrees = MAtom pat target matcher:trees }]
@@ -963,7 +963,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
               return . msingleton $ mstate { mStateBindings = (stringToVar name, targetRef):bindings, mTrees = trees }
             IndexedPat (PatVar name') indices -> do
               let name = stringToVar name'
-              indices <- mapM (evalExprShallow env' >=> fmap fromInteger . fromWHNF) indices
+              indices <- mapM (evalExprDeep env' >=> fmap fromInteger . fromEgison) indices
               case lookup name bindings of
                 Just ref -> do
                   obj <- evalRef ref >>= updateHash indices target >>= newEvaluatedObjectRef
