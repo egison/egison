@@ -12,7 +12,7 @@ rt n x :=
     then match x as mathExpr with
       | #0 -> 0
       | ?isMonomial -> rtMonomial n x
-      | (poly $xs) / (poly $ys) ->
+      | poly $xs / poly $ys ->
         let xd := reduce gcd xs
             yd := reduce gcd ys
             d := rtMonomial n (xd / yd)
