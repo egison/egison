@@ -40,11 +40,11 @@ readTopExprs :: String -> EvalM [TopExpr]
 readTopExprs expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError return (SExpr.parseTopExprs expr)
+     then either (throwError . Parser) return (SExpr.parseTopExprs expr)
      else do r <- lift . lift $ NonS.parseTopExprs expr
-             either throwError return r
+             either (throwError . Parser) return r
 
-parseTopExpr :: String -> RuntimeM (Either EgisonError TopExpr)
+parseTopExpr :: String -> RuntimeM (Either String TopExpr)
 parseTopExpr expr = do
   isSExpr <- asks optSExpr
   if isSExpr
@@ -55,25 +55,25 @@ readTopExpr :: String -> EvalM TopExpr
 readTopExpr expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError return (SExpr.parseTopExpr expr)
+     then either (throwError . Parser) return (SExpr.parseTopExpr expr)
      else do r <- lift . lift $ NonS.parseTopExpr expr
-             either throwError return r
+             either (throwError . Parser) return r
 
 readExprs :: String -> EvalM [Expr]
 readExprs expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError return (SExpr.parseExprs expr)
+     then either (throwError . Parser) return (SExpr.parseExprs expr)
      else do r <- lift . lift $ NonS.parseExprs expr
-             either throwError return r
+             either (throwError . Parser) return r
 
 readExpr :: String -> EvalM Expr
 readExpr expr = do
   isSExpr <- asks optSExpr
   if isSExpr
-     then either throwError return (SExpr.parseExpr expr)
+     then either (throwError . Parser) return (SExpr.parseExpr expr)
      else do r <- lift . lift $ NonS.parseExpr expr
-             either throwError return r
+             either (throwError . Parser) return r
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EvalM [TopExpr]

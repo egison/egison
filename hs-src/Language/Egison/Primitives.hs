@@ -31,11 +31,10 @@ import qualified Data.Text                 as T
 import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
-import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.Eval
 import           Language.Egison.EvalState (MonadEval(..))
-import           Language.Egison.IExpr     (stringToVar)
+import           Language.Egison.IExpr     (stringToVar, Index(..))
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.Primitives.Arith
@@ -193,18 +192,18 @@ addSubscript :: String -> PrimitiveFunc
 addSubscript = twoArgs $ \fn sub ->
   case (fn, sub) of
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleSymbol (Symbol _ _ []))) ->
-      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Subscript s]))))
+      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sub s]))))
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
-      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Subscript s]))))
+      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sub s]))))
     _ -> throwError =<< TypeMismatch "symbol or integer" (Value fn) <$> getFuncNameStack
 
 addSuperscript :: String -> PrimitiveFunc
 addSuperscript = twoArgs $ \fn sub ->
   case (fn, sub) of
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleSymbol (Symbol _ _ []))) ->
-      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Superscript s]))))
+      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
-      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Superscript s]))))
+      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
 
 readProcess' :: String -> PrimitiveFunc

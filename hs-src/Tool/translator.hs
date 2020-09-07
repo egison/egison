@@ -190,7 +190,7 @@ instance SyntaxElement PrimitiveDataPattern where
 instance SyntaxElement (LoopRange Expr) where
   toNonS (LoopRange e1 e2 p) = LoopRange (toNonS e1) (toNonS e2) (toNonS p)
 
-instance SyntaxElement a => SyntaxElement (Index a) where
+instance SyntaxElement a => SyntaxElement (IndexExpr a) where
   toNonS script = toNonS <$> script
 
 instance SyntaxElement BindingExpr where

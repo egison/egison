@@ -191,9 +191,6 @@ instance Pretty ArgPattern where
   pretty (APConsPat arg1 arg2)   = pretty'' arg1 <+> pretty "::" <+> pretty'' arg2
   pretty (APSnocPat arg1 arg2)   = applyLike [pretty "snoc", pretty' arg1, pretty' arg2]
 
-instance Pretty Var where
-  pretty (Var xs is) = pretty xs <> hcat (map pretty is)
-
 instance Pretty VarWithIndices where
   pretty (VarWithIndices xs is) = pretty xs <> hcat (map pretty is)
 
@@ -206,29 +203,19 @@ instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
     pipe <+> align (pretty pat) <+> indentBlock (pretty "->") [pretty expr]
 
-instance {-# OVERLAPPING #-} Pretty (Index ()) where -- Used for 'Var'
-  pretty Subscript{}    = pretty '_'
-  pretty Superscript{}  = pretty '~'
-  pretty SupSubscript{} = pretty "~_"
-  pretty DFscript{}     = pretty ""
-  pretty Userscript{}   = pretty '|'
-  pretty _              = undefined
-
-instance {-# OVERLAPPING #-} Pretty (Index String) where -- for 'VarWithIndices'
+instance {-# OVERLAPPING #-} Pretty (IndexExpr String) where -- for 'VarWithIndices'
   pretty (Superscript s)  = pretty ("~" ++ s)
   pretty (Subscript s)    = pretty ("_" ++ s)
   pretty (SupSubscript s) = pretty ("~_" ++ s)
-  pretty (DFscript _ _)   = pretty ""
   pretty (Userscript i)   = pretty ("|" ++ show i)
   pretty _                = undefined
 
-instance (Pretty a, Complex a) => Pretty (Index a) where
+instance (Pretty a, Complex a) => Pretty (IndexExpr a) where
   pretty (Subscript i) = pretty '_' <> pretty' i
   pretty (Superscript i) = pretty '~' <> pretty' i
   pretty (SupSubscript i) = pretty "~_" <> pretty' i
   pretty (MultiSubscript i j) = pretty '_' <> pretty' i <> pretty "..._" <> pretty' j
   pretty (MultiSuperscript i j) = pretty '~' <> pretty' i <> pretty "...~" <> pretty' j
-  pretty (DFscript _ _) = undefined
   pretty (Userscript i) = pretty '|' <> pretty' i
 
 instance (Pretty expr, Complex expr, Show expr) => Pretty (PatternBase expr) where
