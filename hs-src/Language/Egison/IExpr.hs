@@ -11,8 +11,10 @@ module Language.Egison.IExpr
   , IMatchClause
   , IPatternDef
   , Var (..)
+  , stringToVar
   , Index (..)
   , extractSupOrSubIndex
+  , extractIndex
   , makeIApply
   -- Re-export from AST
   , ConstantExpr (..)
@@ -20,8 +22,6 @@ module Language.Egison.IExpr
   , stringToVarWithIndices
   , PatternBase (..)
   , LoopRange (..)
-  , stringToVar
-  , extractIndex
   , PMMode (..)
   , PrimitivePatPattern (..)
   , PrimitiveDataPattern (..)
@@ -128,13 +128,6 @@ stringToVar name = Var name []
 
 makeIApply :: String -> [IExpr] -> IExpr
 makeIApply func args = IApplyExpr (IVarExpr func) args
-
--- instance Show (Index ()) where
---   show (Sup ())    = "~"
---   show (Sub ())    = "_"
---   show (SupSub ()) = "~_"
---   show (User _)    = "|"
---   show (DF _ _)    = ""
 
 instance {-# OVERLAPPING #-} Show (Index String) where
   show (Sup s)    = "~" ++ s
