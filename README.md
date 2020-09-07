@@ -31,7 +31,7 @@ We can use pattern matching for enumeration.
 The following code enumerates all twin primes from the infinite list of prime numbers with pattern matching!
 
 ```hs
-twinPrimes :=
+def twinPrimes :=
   matchAll primes as list integer with
   | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 
@@ -45,7 +45,7 @@ The following code is the program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
 ```hs
-poker cs :=
+def poker cs :=
   match cs as multiset card with
   | card $s $n :: card #s #(n-1) :: card #s #(n-2) :: card #s #(n-3) :: card #s #(n-4) :: _
     -> "Straight flush"
@@ -72,16 +72,16 @@ We can pattern-match against graphs.
 We can write program to solve the travelling salesman problem in a single pattern-matching expression.
 
 ```hs
-graph := multiset (string, multiset (string, integer))
+def graph := multiset (string, multiset (string, integer))
 
-graphData :=
+def graphData :=
   [("Berlin", [("New York", 14), ("London", 2), ("Tokyo", 14), ("Vancouver", 13)]),
    ("New York", [("Berlin", 14), ("London", 12), ("Tokyo", 18), ("Vancouver", 6)]),
    ("London", [("Berlin", 2), ("New York", 12), ("Tokyo", 15), ("Vancouver", 10)]),
    ("Tokyo", [("Berlin", 14), ("New York", 18), ("London", 15), ("Vancouver", 12)]),
    ("Vancouver", [("Berlin", 13), ("New York", 6), ("London", 10), ("Tokyo", 12)])]
 
-trips :=
+def trips :=
   let n := length graphData in
     matchAll graphData as graph with
     | (#"Berlin", (($s_1,$p_1) : _)) ::
@@ -164,10 +164,10 @@ The following is a sample to calculate the 5th roots of unity.
 ```
 > qF' 1 1 (-1)
 ((-1 + sqrt 5) / 2, (-1 - sqrt 5) / 2)
-> t := fst (qF' 1 1 (-1))
+> def t := fst (qF' 1 1 (-1))
 > qF' 1 (-t) 1
 ((-1 + sqrt 5 + sqrt 2 * sqrt (-5 - sqrt 5)) / 4, (-1 + sqrt 5 - sqrt 2 * sqrt (-5 - sqrt 5)) / 4)
-> z := fst (qF' 1 (-t) 1)
+> def z := fst (qF' 1 (-t) 1)
 > z
 (-1 + sqrt 5 + sqrt 2 * sqrt (-5 - sqrt 5)) / 4
 > z ^ 5
@@ -221,36 +221,36 @@ The following sample is from [Riemann Curvature Tensor of S2 - Egison Mathematic
 
 ```hs
 -- Parameters
-x := [| θ, φ |]
+def x := [| θ, φ |]
 
-X := [| r * (sin θ) * (cos φ) -- x
+def X := [| r * (sin θ) * (cos φ) -- x
       , r * (sin θ) * (sin φ) -- y
       , r * (cos θ)           -- z
       |]
 
-e_i_j := (∂/∂ X_j x~i)
+def e_i_j := (∂/∂ X_j x~i)
 
 -- Metric tensors
-g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
-g~i~j := M.inverse g_#_#
+def g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
+def g~i~j := M.inverse g_#_#
 
 g_#_# -- [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
 g~#~# -- [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
 
 -- Christoffel symbols
-Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 Γ_1_#_# -- [| [| 0, 0 |], [| 0, -1 * r^2 * (sin θ) * (cos θ) |] |]_#_#
 Γ_2_#_# -- [| [| 0, r^2 * (sin θ) * (cos θ) |], [| r^2 * (sin θ) * (cos θ), 0 |] |]_#_#
 
-Γ~i_j_k := withSymbols [m]
+def Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
 
 Γ~1_#_# -- [| [| 0, 0 |], [| 0, -1 * (sin θ) * (cos θ) |] |]_#_#
 Γ~2_#_# -- [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
 
 -- Riemann curvature
-R~i_j_k_l := withSymbols [m]
+def R~i_j_k_l := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
 R~#_#_1_1 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
@@ -267,29 +267,29 @@ The following sample is from [Curvature Form - Egison Mathematics Notebook](http
 
 ```hs
 -- Parameters and metric tensor
-x := [| θ, φ |]
+def x := [| θ, φ |]
 
-g_i_j := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
-g~i~j := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
+def g_i_j := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
+def g~i~j := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
 
 -- Christoffel symbols
-Γ_j_l_k := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
+def Γ_j_l_k := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
 
-Γ~i_k_l := withSymbols [j] g~i~j . Γ_j_l_k
+def Γ~i_k_l := withSymbols [j] g~i~j . Γ_j_l_k
 
 -- Exterior derivative
-d %t := !(flip ∂/∂) x t
+def d %t := !(flip ∂/∂) x t
 
 -- Wedge product
 infixl expression 7 ∧
 
-(∧) %x %y := x !. y
+def (∧) %x %y := x !. y
 
 -- Connection form
-ω~i_j := Γ~i_j_#
+def ω~i_j := Γ~i_j_#
 
 -- Curvature form
-Ω~i_j := withSymbols [k]
+def Ω~i_j := withSymbols [k]
   antisymmetrize (d ω~i_j + ω~i_k ∧ ω~k_j)
 
 Ω~#_#_1_1 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
