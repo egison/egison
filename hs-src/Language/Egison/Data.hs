@@ -34,7 +34,6 @@ module Language.Egison.Data
     , ObjectRef
     , WHNFData (..)
     , Inner (..)
-    , EgisonWHNF (..)
     -- * Environment
     , Env (..)
     , Binding
@@ -452,39 +451,6 @@ instance Show Object where
 
 instance Show ObjectRef where
   show _ = "#<ref>"
-
---
--- Extract data from WHNF
---
-class EgisonData a => EgisonWHNF a where
-  toWHNF :: a -> WHNFData
-  fromWHNF :: WHNFData -> EvalM a
-  toWHNF = Value . toEgison
-
-instance EgisonWHNF Char where
-  fromWHNF (Value (Char c)) = return c
-  fromWHNF whnf             = throwError =<< TypeMismatch "char" whnf <$> getFuncNameStack
-
-instance EgisonWHNF Text where
-  fromWHNF (Value (String str)) = return str
-  fromWHNF whnf                 = throwError =<< TypeMismatch "string" whnf <$> getFuncNameStack
-
-instance EgisonWHNF Bool where
-  fromWHNF (Value (Bool b)) = return b
-  fromWHNF whnf             = throwError =<< TypeMismatch "bool" whnf <$> getFuncNameStack
-
-instance EgisonWHNF Integer where
-  fromWHNF (Value (ScalarData (Div (Plus []) (Plus [Term 1 []])))) = return 0
-  fromWHNF (Value (ScalarData (SingleTerm x []))) = return x
-  fromWHNF whnf = throwError =<< TypeMismatch "integer" whnf <$> getFuncNameStack
-
-instance EgisonWHNF Double where
-  fromWHNF (Value (Float f)) = return f
-  fromWHNF whnf              = throwError =<< TypeMismatch "float" whnf <$> getFuncNameStack
-
-instance EgisonWHNF Handle where
-  fromWHNF (Value (Port h)) = return h
-  fromWHNF whnf             = throwError =<< TypeMismatch "port" whnf <$> getFuncNameStack
 
 --
 -- Environment
