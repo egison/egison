@@ -4,14 +4,14 @@
 --
 --
 
-toAssoc xs :=
+def toAssoc xs :=
   match xs as list something with
     | [] -> []
     | $x :: (loop $i (2, $n)
                (#x :: ...)
                (!(#x :: _) & $rs)) -> (x, n) :: toAssoc rs
 
-fromAssoc xs :=
+def fromAssoc xs :=
   match xs as list (something, integer) with
     | [] -> []
     | ($x, $n) :: $rs -> take n (repeat1 x) ++ fromAssoc rs
@@ -19,7 +19,7 @@ fromAssoc xs :=
 --
 -- Assoc List
 --
-assocList a :=
+def assocList a :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -49,7 +49,7 @@ assocList a :=
 --
 -- Assoc Multiset
 --
-assocMultiset a :=
+def assocMultiset a :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -85,10 +85,10 @@ assocMultiset a :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-AC.intersect xs ys :=
+def AC.intersect xs ys :=
   matchAll (xs, ys) as (assocMultiset something, assocMultiset something) with
     | (ncons $x $m _, ncons #x $n _) -> (x, min m n)
 
-AC.intersectAs a xs ys :=
+def AC.intersectAs a xs ys :=
   matchAll (xs, ys) as (assocMultiset a, assocMultiset a) with
     | (ncons $x $m _, ncons #x $n _) -> (x, min m n)

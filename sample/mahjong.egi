@@ -7,13 +7,13 @@
 --
 -- Matcher definitions
 --
-suit :=
+def suit :=
   algebraicDataMatcher
     | wan
     | pin
     | sou
 
-honor :=
+def honor :=
   algebraicDataMatcher
     | ton
     | nan
@@ -23,7 +23,7 @@ honor :=
     | hatsu
     | chun
 
-tile :=
+def tile :=
   algebraicDataMatcher
     | num suit integer
     | hnr honor
@@ -31,18 +31,18 @@ tile :=
 --
 -- Pattern modularization
 --
-twin := \pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
+def twin := \pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
 
-shuntsu :=
+def shuntsu :=
   \pat1 pat2 =>
     (num $s $n & ~pat1) :: num #s #(n + 1) :: num #s #(n + 2) :: ~pat2
 
-kohtsu := \pat1 pat2 => ($pat & ~pat1) :: #pat :: #pat :: ~pat2
+def kohtsu := \pat1 pat2 => ($pat & ~pat1) :: #pat :: #pat :: ~pat2
 
 --
 -- A function that determines whether the hand is completed or not.
 --
-complete? :=
+def complete? :=
   \match as multiset tile with
     | twin
         $th_1

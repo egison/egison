@@ -1,4 +1,4 @@
-refTest x y :=
+def refTest x y :=
   do let w := newIORef ()
      writeIORef w x
      let w1 := readIORef w
@@ -8,4 +8,4 @@ refTest x y :=
      print (show w2)
      flush ()
 
-main args := refTest 1 2
+def main args := refTest 1 2

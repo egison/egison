@@ -4,7 +4,7 @@
 --
 --
 
-string :=
+def string :=
   matcher
     | regexCg #$regexpr $ $ $ as (string, list string, string) with
       | $tgt -> regexCg regexpr tgt
@@ -38,45 +38,45 @@ string :=
 --
 -- String as collection
 --
-S.isEmpty xs := xs = ""
+def S.isEmpty xs := xs = ""
 
-S.cons x xs := appendString (pack [x]) xs
+def S.cons x xs := appendString (pack [x]) xs
 
-S.head xs :=
+def S.head xs :=
   match xs as string with
     | $x :: _ -> x
 
-S.tail xs :=
+def S.tail xs :=
   match xs as string with
     | _ :: $r -> r
 
-S.last str :=
+def S.last str :=
   match str as string with
     | _ ++ $c :: [] -> c
 
-S.map f xs := pack (map f (unpack xs))
+def S.map f xs := pack (map f (unpack xs))
 
-S.length := lengthString
-S.split  := splitString
-S.append := appendString
+def S.length := lengthString
+def S.split  := splitString
+def S.append := appendString
 
-S.concat xss := foldr (\xs rs -> S.append xs rs) "" xss
+def S.concat xss := foldr (\xs rs -> S.append xs rs) "" xss
 
-S.intercalate sep ss := S.concat (intersperse sep ss)
+def S.intercalate sep ss := S.concat (intersperse sep ss)
 
-S.replace before after str := S.intercalate after (S.split before str)
+def S.replace before after str := S.intercalate after (S.split before str)
 
 --
 -- Alphabet
 --
-C.between c1 c2 := map itoc (between (ctoi c1) (ctoi c2))
+def C.between c1 c2 := map itoc (between (ctoi c1) (ctoi c2))
 
-C.isBetween c1 c2 c := ctoi c >= ctoi c1 && ctoi c <= ctoi c2
+def C.isBetween c1 c2 c := ctoi c >= ctoi c1 && ctoi c <= ctoi c2
 
-isAlphabet c := C.isBetween 'a' 'z' c || C.isBetween 'A' 'Z' c
+def isAlphabet c := C.isBetween 'a' 'z' c || C.isBetween 'A' 'Z' c
 
-isAlphabetString s := all isAlphabet (unpack s)
+def isAlphabetString s := all isAlphabet (unpack s)
 
-upperCase c := if C.isBetween 'a' 'z' c then itoc (ctoi c - 32) else c
+def upperCase c := if C.isBetween 'a' 'z' c then itoc (ctoi c - 32) else c
 
-lowerCase c := if C.isBetween 'A' 'Z' c then itoc (ctoi c + 32) else c
+def lowerCase c := if C.isBetween 'A' 'Z' c then itoc (ctoi c + 32) else c

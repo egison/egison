@@ -1,13 +1,13 @@
-suit := algebraicDataMatcher
+def suit := algebraicDataMatcher
   | spade
   | heart
   | club
   | diamond
 
-card := algebraicDataMatcher
+def card := algebraicDataMatcher
   | card suit (mod 13)
 
-poker cs :=
+def poker cs :=
   match cs as multiset card with
   | [card $s $n, card #s #(n-1), card #s #(n-2), card #s #(n-3), card #s #(n-4)]
     -> "Straight flush"

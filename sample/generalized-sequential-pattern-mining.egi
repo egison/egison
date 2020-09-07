@@ -6,32 +6,32 @@
 -- Configuration
 --
 
-items := [a, b, c, d, e, f]
+def items := [a, b, c, d, e, f]
 
-ISDB :=
+def ISDB :=
   [[[(0, [a]), (86400, [a, b, c]), (259200, [a, c])]]
   ,[[(0, [a, d]), (259200, [c])]]
   ,[[(0, [a, e, f]), (172800, [a, b])]]]
 
-N := length ISDB
-minSup := ceiling (0.5 * N)
+def N := length ISDB
+def minSup := ceiling (0.5 * N)
 
-C1 := 0      -- min_interval
-C2 := 172800 -- max_interval
-C3 := 0      -- min_whole_interval
-C4 := 300000 -- max_whole_interval
+def C1 := 0      -- min_interval
+def C2 := 172800 -- max_interval
+def C3 := 0      -- min_whole_interval
+def C4 := 300000 -- max_whole_interval
 
-I t := floor (rtof (t / (60 * 60 * 24)))
+def I t := floor (rtof (t / (60 * 60 * 24)))
 
 --
 -- Utils
 --
 
-query := list (integer, eq)
+def query := list (integer, eq)
 
-sequence := list (time, list eq)
+def sequence := list (time, list eq)
 
-time := matcher
+def time := matcher
   | interval $ $ as (integer, integer) with
     | $t -> [(I t, t)]
   | $ as something with
@@ -43,13 +43,13 @@ time := matcher
 --
 
 -- calculate ISDB|α
-project α ISDB := match α as query with
+def project α ISDB := match α as query with
   | (#0, $x) :: $α' -> project' α' (map (\xss -> matchAllDFS xss as set sequence with
                                                  | (_ ++ ($t, _ ++ #x :: $cs) :: $ls) :: _
                                                  -> (0, cs) :: (map (\t' xs -> (t' - t, xs)) ls))
                                         ISDB)
 
-project' α ISDB := match α as query with
+def project' α ISDB := match α as query with
   | [] -> ISDB
   | ($a, $x) :: $α' -> project' (map (\b y -> (b - a, y))  α')
                                 (map (\xss -> matchAllDFS xss as set sequence with
@@ -58,7 +58,7 @@ project' α ISDB := match α as query with
                                      ISDB)
   
 -- main function
-gspm items ISDB I minSup C1 C2 C3 C4 :=
+def gspm items ISDB I minSup C1 C2 C3 C4 :=
   let φ := [] in
   let R := [] in
   let fs := filter (\α ISDB' -> match ISDB' as multiset sequence with
@@ -68,7 +68,7 @@ gspm items ISDB I minSup C1 C2 C3 C4 :=
   let iss := map (\α ISDB' -> α) fs in
   iss ++ concat (map (\α ISDB' -> projection α ISDB' I minSup C1 C2 C3 C4) fs)
 
-projection α ISDB' I minSup C1 C2 C3 C4 :=
+def projection α ISDB' I minSup C1 C2 C3 C4 :=
   let fs := filter (\a t x -> C1 <= t && t <= C2) (freqItem ISDB' minSup C1 C2 C3 C4) in
   let iss' := map (\a t x -> α ++ [(a, x)]) fs in
   -- TODO: apply C4
@@ -76,7 +76,7 @@ projection α ISDB' I minSup C1 C2 C3 C4 :=
   iss' ++ concat (map (\α' -> projection α' (project α' ISDB) I minSup C1 C2 C3 C4)
                       iss')
 
-freqItem ISDB minSup C1 C2 C3 C4 :=
+def freqItem ISDB minSup C1 C2 C3 C4 :=
   matchAll ISDB as list (list sequence) with
   | first (interval $a $t) $x
       (loop $i (2, minSup)
@@ -84,7 +84,7 @@ freqItem ISDB minSup C1 C2 C3 C4 :=
          !(first (interval #a _) #x _))
   -> (a, t, x)
 
-first := \pt px ps =>
+def first := \pt px ps =>
   {@ ++ (@ ++ (@ ++ ((interval $t _ & ~pt), _ ++ ($x & ~px) :: _) :: _) :: _) :: @,
    (!(_ ++ (_ ++ (_ ++ (interval #t _, _ ++ #x :: _) :: _) :: _) :: _),
     !(_ ++ (_ ++ (interval #t _, _ ++ #x :: _) :: _) :: _),

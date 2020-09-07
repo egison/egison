@@ -25,6 +25,10 @@ Primitive data pattern match failed
 > let add x y := x + y in map (add 1) [1, 2, 3]
 [2, 3, 4]
 ```
+* Change syntax to start definitions with `def` keyword.
+```
+def x := 1
+```
 
 ## 4.0.3
 

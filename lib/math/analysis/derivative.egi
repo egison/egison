@@ -4,7 +4,7 @@
 --
 --
 
-∂/∂ $f *$x :=
+def ∂/∂ $f *$x :=
   match f as mathExpr with
     -- symbol
     | #x -> 1
@@ -43,21 +43,21 @@
           p2' := ∂/∂ p2 x
        in (p1' * p2 - p2' * p1) / p2 ^ 2
 
-d/d := ∂/∂
+def d/d := ∂/∂
 
-pd/pd := ∂/∂
+def pd/pd := ∂/∂
 
-∇ := ∂/∂
+def ∇ := ∂/∂
 
-nabla := ∇
+def nabla := ∇
 
-grad := ∇
+def grad := ∇
 
-taylorExpansion $f $x $a := multivariateTaylorExpansion f [|x|] [|a|]
+def taylorExpansion $f $x $a := multivariateTaylorExpansion f [|x|] [|a|]
 
-maclaurinExpansion := 2#(taylorExpansion %1 %2 0)
+def maclaurinExpansion := 2#(taylorExpansion %1 %2 0)
 
-multivariateTaylorExpansion $f %xs %ys :=
+def multivariateTaylorExpansion $f %xs %ys :=
   withSymbols [h]
     let hs := generateTensor 1#h_%1 (tensorShape xs)
      in map2
@@ -69,9 +69,9 @@ multivariateTaylorExpansion $f %xs %ys :=
                 1#(V.substitute hs (withSymbols [i] xs_i - ys_i) %1))
              (iterate (compose 1#(∇ %1 xs) 1#(V.* hs %1)) f))
 
-multivariateMaclaurinExpansion $f %xs :=
+def multivariateMaclaurinExpansion $f %xs :=
   multivariateTaylorExpansion f xs (tensorMap 1#0 xs)
 
-addUserScript $f $i :=
+def addUserScript $f $i :=
   let (g, is) := deconsUserScripts f
    in appendUserScripts g (sort (is ++ [i]))

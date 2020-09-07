@@ -4,11 +4,11 @@
 --
 --
 
-solve1 f expr x := inverse expr f x
+def solve1 f expr x := inverse expr f x
 
-solve eqs := solve' eqs []
+def solve eqs := solve' eqs []
 
-solve' eqs rets :=
+def solve' eqs rets :=
   match eqs as list (mathExpr, mathExpr, symbolExpr) with
     | [] -> rets
     | ($f, $expr, $x) :: $rs ->
@@ -19,26 +19,26 @@ solve' eqs rets :=
 --
 -- Quadratic Equations
 --
-quadraticFormula := qF
+def quadraticFormula := qF
 
-qF f x :=
+def qF f x :=
   match coefficients f x as list mathExpr with
     | $a_0 :: $a_1 :: $a_2 :: [] -> qF' a_2 a_1 a_0
 
-qF' a b c :=
+def qF' a b c :=
   ( ((- b) + sqrt (b ^ 2 - 4 * a * c)) / 2 * a
   , ((- b) - sqrt (b ^ 2 - 4 * a * c)) / 2 * a )
 
 --
 -- Cubic Equations
 --
-cubicFormula := cF
+def cubicFormula := cF
 
-cF f x :=
+def cF f x :=
   match coefficients f x as list mathExpr with
     | $a_0 :: $a_1 :: $a_2 :: $a_3 :: [] -> cF' a_3 a_2 a_1 a_0
 
-cF' a b c d :=
+def cF' a b c d :=
   match (a, b, c, d) as (mathExpr, mathExpr, mathExpr, mathExpr) with
     | (#1, #0, $p, $q) ->
       let (s1, s2) := (\(x, y) -> (rt 3 x, rt 3 y)) (qF' 1 (27 * q) ((-27) * p ^ 3))

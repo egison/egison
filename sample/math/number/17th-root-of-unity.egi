@@ -1,56 +1,56 @@
-z := rtu 17
+def z := rtu 17
 
-a1 := z ^ 1 + z ^ 16
-a2 := z ^ 2 + z ^ 15
-a3 := z ^ 3 + z ^ 14
-a4 := z ^ 4 + z ^ 13
-a5 := z ^ 5 + z ^ 12
-a6 := z ^ 6 + z ^ 11
-a7 := z ^ 7 + z ^ 10
-a8 := z ^ 8 + z ^ 9
+def a1 := z ^ 1 + z ^ 16
+def a2 := z ^ 2 + z ^ 15
+def a3 := z ^ 3 + z ^ 14
+def a4 := z ^ 4 + z ^ 13
+def a5 := z ^ 5 + z ^ 12
+def a6 := z ^ 6 + z ^ 11
+def a7 := z ^ 7 + z ^ 10
+def a8 := z ^ 8 + z ^ 9
 
-b11 := a1 + a4
-b12 := a1 - a4
+def b11 := a1 + a4
+def b12 := a1 - a4
 
-b21 := a2 + a8
-b22 := a2 - a8
+def b21 := a2 + a8
+def b22 := a2 - a8
 
-b31 := a3 + a5
-b32 := a3 - a5
+def b31 := a3 + a5
+def b32 := a3 - a5
 
-b41 := a6 + a7
-b42 := a6 - a7
+def b41 := a6 + a7
+def b42 := a6 - a7
 
-c11 := b11 + b21
-c12 := b11 - b21
+def c11 := b11 + b21
+def c12 := b11 - b21
 
-c21 := b31 + b41
-c22 := b31 - b41
+def c21 := b31 + b41
+def c22 := b31 - b41
 
-d10 := c11 + c21
-d11 := c11 - c21
-d12 := c21 - c11
+def d10 := c11 + c21
+def d11 := c11 - c21
+def d12 := c21 - c11
 
-d10' := -1
+def d10' := -1
 
-d11' := sqrt 17
+def d11' := sqrt 17
 
-c11' := (d10' + d11') / 2
-c21' := (d10' - d11') / 2
-c12' := sqrt (8 + (- c11'))
-c22' := sqrt (8 + (- c21'))
+def c11' := (d10' + d11') / 2
+def c21' := (d10' - d11') / 2
+def c12' := sqrt (8 + (- c11'))
+def c22' := sqrt (8 + (- c21'))
 
-b11' := (c11' + c12') / 2
-b21' := (c11' - c12') / 2
-b31' := (c21' + c22') / 2
-b41' := (c21' - c22') / 2
+def b11' := (c11' + c12') / 2
+def b21' := (c11' - c12') / 2
+def b31' := (c21' + c22') / 2
+def b41' := (c21' - c22') / 2
 
-b12' := sqrt (4 + b21' + (-2) * b31')
-b22' := sqrt (4 + b21' + (-2) * b41')
-b32' := sqrt (4 + b41' + (-2) * b21')
-b42' := sqrt (4 + b31' + (-2) * b21')
+def b12' := sqrt (4 + b21' + (-2) * b31')
+def b22' := sqrt (4 + b21' + (-2) * b41')
+def b32' := sqrt (4 + b41' + (-2) * b21')
+def b42' := sqrt (4 + b31' + (-2) * b21')
 
-a1' := (b11' + b12') / 2
+def a1' := (b11' + b12') / 2
 
 assertEqual
   "17th-root-of-unity"

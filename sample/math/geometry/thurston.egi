@@ -2,81 +2,82 @@
 --- Calculation of the WCS Invariant on the Thurston Example
 ---
 
-x~i := [| θ₁, θ₂, θ₃, θ₄ |]~i
+def x~i := [| θ₁, θ₂, θ₃, θ₄ |]~i
 
-g_i_j :=
+def g_i_j :=
   [|[| 1, 0, 0, 0 |],
     [| 0, 1, 0, 0 |],
     [| 0, 0, κ / (sqrt β), (-1 * θ₂ * κ) / (sqrt β)  |],
     [| 0, 0, (-1 * θ₂ * κ) / (sqrt β), ('(1 + θ₂) * κ) / (sqrt β) |]|]
 
-g~i~j :=
+def g~i~j :=
   [|[| 1, 0, 0, 0 |],
     [| 0, 1, 0, 0 |],
     [| 0, 0, '(1 + θ₂) / (κ * (sqrt β)), θ₂ / ((sqrt β) * κ) |],
     [| 0, 0, θ₂ / ((sqrt β) * κ), 1 / ((sqrt β) * κ) |]|]
 
-β := '(1 + θ₂ - θ₂^2)
+def β := '(1 + θ₂ - θ₂^2)
 
-Γ~c_a_b := withSymbols [e]
+def Γ~c_a_b := withSymbols [e]
   (1 / 2) * g~c~e . (∂/∂ g_b_e x~a + ∂/∂ g_a_e x~b - ∂/∂ g_a_b x~e)
 
-R_i_j_k~l := withSymbols [a]
+def R_i_j_k~l := withSymbols [a]
   ∂/∂ Γ~l_j_k x~i - ∂/∂ Γ~l_i_k x~j + Γ~l_i_a . Γ~a_j_k - Γ~l_j_a . Γ~a_i_k
 
-R_i_j_k_l := withSymbols [a] R_i_j_k~a . g_a_l
+def R_i_j_k_l := withSymbols [a] R_i_j_k~a . g_a_l
 
-J_a_b :=
+def J_a_b :=
   [|[| 0, 1, 0, 0 |],
     [| -1, 0, 0, 0 |],
     [| 0, 0, 0, κ |],
     [| 0, 0, -1 * κ, 0 |]|]
 
-J_a~c := J_a_b . g~b~c
+def J_a~c := J_a_b . g~b~c
 
-∇J_m_a_b :=
+def ∇J_m_a_b :=
   withSymbols [n]
     ∂/∂ J_a_b x~m + Γ~n_m_a . J_n_b + Γ~n_m_b . J_a_n
 
-∇J~m_a_b :=
+def ∇J~m_a_b :=
   withSymbols [t]
     ∇J_t_a_b . g~t~m
 
-∇J_m~a_b :=
+def ∇J_m~a_b :=
   withSymbols [t]
     ∇J_m_t_b . g~t~a
 
-∇J_m_a~b :=
+def ∇J_m_a~b :=
   withSymbols [t]
     ∇J_m_a_t . g~t~b
 
-δ :=
+def δ :=
   generateTensor
     (\match as (integer, integer) with
        | ($n, #n) -> 1
        | (_, _) -> 0)
     [5, 5]
 
-R'_i_j_k~l :=
+def R'_i_j_k~l :=
   generateTensor
-    (\match as (integer, integer, integer, integer) with
-       | (#1, #1, _, _) -> 0
-       | (_, _, #1, #1) -> 0
-       | (#1, $b, #1, $d) -> -1 * p^2 * δ~(b - 1)_(d - 1)
-       | ($a, #1, #1, $d) ->      p^2 * δ~(a - 1)_(d - 1)
-       | (#1, $b, $c, #1) ->      p^2 * g_(b - 1)_(c - 1)
-       | ($a, #1, $c, #1) -> -1 * p^2 * g_(a - 1)_(c - 1)
-       | (#1, $b, $c, $d) -> -1 * p * ∇J_(b - 1)_(c - 1)~(d - 1)
-       | ($a, #1, $c, $d) ->      p * ∇J_(a - 1)_(c - 1)~(d - 1)
-       | ($a, $b, #1, $d) -> -1 * p * ∇J~(d - 1)_(a - 1)_(b - 1)
-       | ($a, $b, $c, #1) ->      p * ∇J_(c - 1)_(a - 1)_(b - 1)
-       | ($a, $b, $c, $d) -> R_(a - 1)_(b - 1)_(c - 1)~(d - 1)
-                             + -1 * p^2 * J_(b - 1)_(c - 1) * J_(a - 1)~(d - 1)
-                             +      p^2 * J_(a - 1)_(c - 1) * J_(b - 1)~(d - 1)
-                             +  2 * p^2 * J_(a - 1)_(b - 1) * J_(c - 1)~(d - 1))
+    (\a b c d ->
+      match (a, b, c, d) as (integer, integer, integer, integer) with
+      | (#1, #1,  _,  _) -> 0
+      | ( _,  _, #1, #1) -> 0
+      | (#1,  _, #1,  _) -> -1 * p^2 * δ~(b - 1)_(d - 1)
+      | ( _, #1, #1,  _) ->      p^2 * δ~(a - 1)_(d - 1)
+      | (#1,  _,  _, #1) ->      p^2 * g_(b - 1)_(c - 1)
+      | ( _, #1,  _, #1) -> -1 * p^2 * g_(a - 1)_(c - 1)
+      | (#1,  _,  _,  _) -> -1 * p * ∇J_(b - 1)_(c - 1)~(d - 1)
+      | ( _, #1,  _,  _) ->      p * ∇J_(a - 1)_(c - 1)~(d - 1)
+      | ( _,  _, #1,  _) -> -1 * p * ∇J~(d - 1)_(a - 1)_(b - 1)
+      | ( _,  _,  _, #1) ->      p * ∇J_(c - 1)_(a - 1)_(b - 1)
+      | ( _,  _,  _,  _) -> R_(a - 1)_(b - 1)_(c - 1)~(d - 1)
+                            + -1 * p^2 * J_(b - 1)_(c - 1) * J_(a - 1)~(d - 1)
+                            +      p^2 * J_(a - 1)_(c - 1) * J_(b - 1)~(d - 1)
+                            +  2 * p^2 * J_(a - 1)_(b - 1) * J_(c - 1)~(d - 1))
     [5, 5, 5, 5]
 
-S :=
+def S :=
   withSymbols [i, j, k]
     let (es, os) := evenAndOddPermutations 5 in
       sum (map (\$σ -> R'_(σ 1)_j_1~i . R'_(σ 2)_(σ 3)_k~j . R'_(σ 4)_(σ 5)_i~k) es) -
