@@ -130,7 +130,6 @@ class HasTensor a where
   tensorIndices :: a -> [Index EgisonValue]
   fromTensor :: Tensor a -> EvalM a
   toTensor :: a -> EvalM (Tensor a)
-  undef :: a
 
 instance HasTensor EgisonValue where
   tensorElems (TensorData (Tensor _ xs _)) = xs
@@ -140,7 +139,6 @@ instance HasTensor EgisonValue where
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
   toTensor x              = return $ Scalar x
-  undef = Undefined
 
 instance HasTensor WHNFData where
   tensorElems (ITensor (Tensor _ xs _)) = xs
@@ -150,7 +148,6 @@ instance HasTensor WHNFData where
   fromTensor (Scalar x) = return x
   toTensor (ITensor t) = return t
   toTensor x           = return (Scalar x)
-  undef = Value Undefined
 
 --
 -- Scalars
