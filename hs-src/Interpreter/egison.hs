@@ -161,10 +161,10 @@ getEgisonExpr = getEgisonExpr' ""
           let input = prev ++ line
           parsedExpr <- lift $ parseTopExpr input
           case parsedExpr of
-            Left err | show err =~ "unexpected end of input" ->
+            Left err | err =~ "unexpected end of input" ->
               getEgisonExpr' (input ++ "\n")
             Left err -> do
-              liftIO $ print err
+              liftIO $ putStrLn ("Parse error at: " ++ err)
               getEgisonExpr
             Right topExpr -> do
               -- outputStr $ show topExpr

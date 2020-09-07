@@ -14,8 +14,8 @@ import           Data.List
 import           System.Console.Haskeline    hiding (catch, handle, throwTo)
 
 import           Language.Egison.Data        (Env (..))
+import           Language.Egison.IExpr       (Var (..))
 import           Language.Egison.Parser.NonS (upperReservedWords, lowerReservedWords)
-import           Language.Egison.Pretty      (prettyStr)
 
 -- |Complete Egison keywords
 completeEgison :: Monad m => Env -> CompletionFunc m
@@ -32,7 +32,7 @@ completeNothing _ = return []
 
 completeEgisonKeyword :: Monad m => Env -> String -> m [Completion]
 completeEgisonKeyword (Env env _) str = do
-  let definedWords = filter f $ map prettyStr $ concatMap keys env
+  let definedWords = filter f $ map (\(Var name _) -> name) $ concatMap keys env
   return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) (egisonKeywords ++ definedWords)
  where
    f [_]         = False

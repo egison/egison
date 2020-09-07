@@ -50,7 +50,7 @@ import           Data.List                 (intercalate)
 import           Control.Monad             ( MonadPlus(..) )
 import           Control.Egison
 
-import           Language.Egison.AST       (Index(..))
+import           Language.Egison.IExpr     (Index(..))
 
 --
 -- Data
@@ -272,9 +272,9 @@ instance Show TermExpr where
 instance Show SymbolExpr where
   show = pretty
 
-instance Show (Index ScalarData) where
-  show (Superscript i)  = "~" ++ pretty' i
-  show (Subscript i)    = "_" ++ pretty' i
-  show (SupSubscript i) = "~_" ++ pretty' i
-  show (DFscript _ _)   = ""
-  show (Userscript i)   = "|" ++ pretty' i
+instance {-# OVERLAPPING #-} Show (Index ScalarData) where
+  show (Sup i)    = "~" ++ pretty' i
+  show (Sub i)    = "_" ++ pretty' i
+  show (SupSub i) = "~_" ++ pretty' i
+  show (DF _ _)   = ""
+  show (User i)   = "|" ++ pretty' i

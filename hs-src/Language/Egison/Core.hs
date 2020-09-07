@@ -119,8 +119,8 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
       where
         env' = case maybe_vwi of
           Nothing -> env
-          Just (VarWithIndices name indices) ->
-            Env frame (Just (VarWithIndices name (zipWith changeIndex indices [toEgison index])))
+          Just (name, indices) ->
+            Env frame (Just (name, zipWith changeIndex indices [toEgison index]))
     f (ITensor (Tensor ns xs indices)) i = ITensor (Tensor ns xs' indices)
       where
         xs' = V.fromList $ zipWith g (V.toList xs) $ map (\ms -> map toEgison (i:ms)) $ enumTensorIndices ns
@@ -130,8 +130,8 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
       where
         fn' = case maybe_vwi of
           Nothing -> fn
-          Just (VarWithIndices name indices) ->
-            symbolScalarData' $ prettyStr (VarWithIndices name (zipWith changeIndex indices ms))
+          Just (name, indices) ->
+            symbolScalarData' (name ++ concatMap show (zipWith changeIndex indices ms))
     g x _ = x
 
 evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
@@ -198,10 +198,10 @@ evalExprShallow env (IIndexedExpr override expr indices) = do
   evalIndexToScalar index = traverse ((extractScalar =<<) . evalExprDeep env) index
 
 evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
-  js <- map Subscript <$> (evalExprDeep env jsExpr >>= collectionToList)
+  js <- map Sub <$> (evalExprDeep env jsExpr >>= collectionToList)
   tensor <- case expr of
               IVarExpr xs -> do
-                let mObjRef = refVar env (Var xs (map (\_ -> Subscript ()) js))
+                let mObjRef = refVar env (Var xs (map (\_ -> Sub ()) js))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -213,10 +213,10 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
     _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
 
 evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
-  js <- map Superscript <$> (evalExprDeep env jsExpr >>= collectionToList)
+  js <- map Sup <$> (evalExprDeep env jsExpr >>= collectionToList)
   tensor <- case expr of
               IVarExpr xs -> do
-                let mObjRef = refVar env (Var xs (map (\_ -> Superscript ()) js))
+                let mObjRef = refVar env (Var xs (map (\_ -> Sup ()) js))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -229,7 +229,7 @@ evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
 
 evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
-  js <- map Userscript <$> (evalExprDeep env jsExpr >>= collectionToList >>= mapM extractScalar)
+  js <- map User <$> (evalExprDeep env jsExpr >>= collectionToList >>= mapM extractScalar)
   case val of
     ScalarData (SingleTerm 1 [(Symbol id name is, 1)]) ->
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (is ++ js), 1)]))
@@ -250,9 +250,9 @@ evalExprShallow env (IPatternFunctionExpr names pattern) = return . Value $ Patt
 
 evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "function symbol is not bound to a variable"
 
-evalExprShallow env@(Env _ (Just name)) (IFunctionExpr args) = do
+evalExprShallow env@(Env _ (Just (name, is))) (IFunctionExpr args) = do
   args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (prettyStr name)) (map symbolScalarData' args) args' [], 1)])
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (name ++ concatMap show is)) (map symbolScalarData' args) args' [], 1)])
 
 evalExprShallow env (IIfExpr test expr expr') = do
   test <- evalExprShallow env test >>= fromWHNF
@@ -265,7 +265,7 @@ evalExprShallow env (ILetExpr bindings expr) = do
   extractBindings :: IBindingExpr -> EvalM [Binding]
   extractBindings (PDPatVar name, expr@IFunctionExpr{}) =
     let Env frame _ = env
-     in makeBindings [stringToVar name] . (:[]) <$> newThunkRef (Env frame (Just $ stringToVarWithIndices name)) expr
+     in makeBindings [stringToVar name] . (:[]) <$> newThunkRef (Env frame (Just (name, []))) expr
   extractBindings (pdp, expr) = do
     thunk <- newThunkRef env expr
     bindPrimitiveDataPattern pdp thunk
@@ -372,13 +372,13 @@ evalExprShallow env (ICApplyExpr func arg) = do
     _ -> applyFunc env func (map (WHNF . Value) args)
 
 evalExprShallow env (IApplyExpr func args) = do
-  func <- appendDFscripts 0 <$> evalExprShallow env func
+  func <- appendDF 0 <$> evalExprShallow env func
   case func of
     Value (InductiveData name []) ->
       IInductiveData name <$> mapM (newThunkRef env) args
     Value (TensorData t@Tensor{}) -> do
       let args' = map (newThunk env) args
-      Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor) >>= removeDFscripts
+      Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor) >>= removeDF
     ITensor t@Tensor{} -> do
       let args' = map (newThunk env) args
       tMap (\f -> applyFunc env f args') t >>= fromTensor
@@ -387,12 +387,12 @@ evalExprShallow env (IApplyExpr func args) = do
       evalMemoizedFunc hashRef env' names body args
     _ -> do
       let args' = map (newThunk env) args
-      applyFunc env func args' >>= removeDFscripts
+      applyFunc env func args' >>= removeDF
 
 evalExprShallow env (IWedgeApplyExpr func args) = do
-  func <- appendDFscripts 0 <$> evalExprShallow env func
+  func <- appendDF 0 <$> evalExprShallow env func
   args <- mapM (evalExprShallow env) args
-  let args' = map WHNF (zipWith appendDFscripts [1..] args)
+  let args' = map WHNF (zipWith appendDF [1..] args)
   case func of
     Value (TensorData t@Tensor{}) ->
       Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor)
@@ -401,7 +401,7 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
     Value (MemoizedFunc hashRef env names body) -> do
       args <- mapM evalWHNF args
       evalMemoizedFunc hashRef env names body args
-    _ -> applyFunc env func args' >>= removeDFscripts
+    _ -> applyFunc env func args' >>= removeDF
 
 evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info
 
@@ -413,7 +413,7 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
  where
   indexToWHNF :: Env -> [EgisonValue] {- index -} -> EvalM WHNFData
   indexToWHNF (Env frame maybe_vwi) ms = do
-    let env' = maybe env (\(VarWithIndices name indices) -> Env frame $ Just $ VarWithIndices name $ zipWith changeIndex indices ms) maybe_vwi
+    let env' = maybe env (\(name, indices) -> Env frame $ Just (name, zipWith changeIndex indices ms)) maybe_vwi
     fn <- evalExprShallow env' fnExpr
     applyFunc env fn (map (WHNF . Value) ms)
 
@@ -537,8 +537,8 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
     then do
       symId <- fresh
       let argnum = length tds
-          subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
-          supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
+          subjs = map (Sub . symbolScalarData symId . show) [1 .. argnum]
+          supjs = map (Sup . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (IVarExpr ".")
       let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
       applyFunc env dot (map WHNF args')
@@ -550,8 +550,8 @@ applyFunc env (ITensor (Tensor s1 t1 i1)) tds = do
     then do
       symId <- fresh
       let argnum = length tds
-          subjs = map (Subscript . symbolScalarData symId . show) [1 .. argnum]
-          supjs = map (Superscript . symbolScalarData symId . show) [1 .. argnum]
+          subjs = map (Sub . symbolScalarData symId . show) [1 .. argnum]
+          supjs = map (Sup . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (IVarExpr ".")
       let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
       applyFunc env dot (map WHNF args')
@@ -654,12 +654,15 @@ recursiveBind env bindings = do
     -- Modify |env'| for some cases
     let env'' =
           case (var, expr) of
-            (_, IFunctionExpr{}) -> Env frame (Just (varToVarWithIndices var))
-            (Var _ is, _) | not (null is) -> Env frame (Just (varToVarWithIndices var))
+            (Var name is, IFunctionExpr{}) -> Env frame (Just (name, map f is))
+            (Var name is, _) | not (null is) -> Env frame (Just (name, map f is))
             _ -> env'
     let ref = fromJust (refVar env' var)
     liftIO $ writeIORef ref (newThunk env'' expr)
   return env'
+ where
+  f :: Index () -> Index String
+  f = ((\() -> "") <$>)
 
 recursiveMatchBind :: Env -> [IBindingExpr] -> EvalM Env
 recursiveMatchBind env bindings = do
@@ -673,7 +676,7 @@ recursiveMatchBind env bindings = do
     -- Modify |env'| for some cases
     let env'' =
           case (pd, expr) of
-            (PDPatVar var, IFunctionExpr{}) -> Env frame (Just (stringToVarWithIndices var))
+            (PDPatVar var, IFunctionExpr{}) -> Env frame (Just (var, []))
             _ -> env'
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk

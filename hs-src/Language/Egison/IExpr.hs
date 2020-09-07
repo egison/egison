@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DeriveFunctor      #-}
+{-# LANGUAGE DeriveTraversable  #-}
 {-# LANGUAGE FlexibleInstances  #-}
 
 module Language.Egison.IExpr
@@ -9,6 +11,8 @@ module Language.Egison.IExpr
   , IMatchClause
   , IPatternDef
   , Var (..)
+  , Index (..)
+  , extractSupOrSubIndex
   , makeIApply
   -- Re-export from AST
   , ConstantExpr (..)
@@ -17,9 +21,7 @@ module Language.Egison.IExpr
   , PatternBase (..)
   , LoopRange (..)
   , stringToVar
-  , varToVarWithIndices
   , extractIndex
-  , Index (..)
   , PMMode (..)
   , PrimitivePatPattern (..)
   , PrimitiveDataPattern (..)
@@ -33,8 +35,6 @@ import           Language.Egison.AST ( ConstantExpr (..)
                                      , stringToVarWithIndices
                                      , PatternBase (..)
                                      , LoopRange (..)
-                                     , extractIndex
-                                     , Index (..)
                                      , PMMode (..)
                                      , PrimitivePatPattern (..)
                                      , PrimitiveDataPattern (..)
@@ -96,26 +96,49 @@ type IBindingExpr = (PrimitiveDataPattern, IExpr)
 type IMatchClause = (IPattern, IExpr)
 type IPatternDef  = (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
 
-instance Show (Index IExpr) where
-  show (Superscript i)  = "~" ++ show i
-  show (Subscript i)    = "_" ++ show i
-  show (SupSubscript i) = "~_" ++ show i
-  show (DFscript _ _)   = ""
-  show (Userscript i)   = "|" ++ show i
+data Index a
+  = Sub a
+  | Sup a
+  | SupSub a
+  | User a
+  | DF Integer Integer
+  deriving (Show, Eq, Functor, Foldable, Generic, Traversable)
+
+extractSupOrSubIndex :: Index a -> Maybe a
+extractSupOrSubIndex (Sub x)    = Just x
+extractSupOrSubIndex (Sup x)    = Just x
+extractSupOrSubIndex (SupSub x) = Just x
+extractSupOrSubIndex _          = Nothing
+
+extractIndex :: Index a -> a
+extractIndex (Sub x)    = x
+extractIndex (Sup x)    = x
+extractIndex (SupSub x) = x
+extractIndex (User x)   = x
+extractIndex DF{}       = undefined
 
 data Var = Var String [Index ()]
   deriving (Eq, Generic, Show)
 
+instance Hashable (Index ())
 instance Hashable Var
 
 stringToVar :: String -> Var
 stringToVar name = Var name []
 
-varToVarWithIndices :: Var -> VarWithIndices
-varToVarWithIndices (Var xs is) = VarWithIndices xs $ map f is
- where
-   f :: Index () -> Index String
-   f index = (\() -> "") <$> index
-
 makeIApply :: String -> [IExpr] -> IExpr
 makeIApply func args = IApplyExpr (IVarExpr func) args
+
+-- instance Show (Index ()) where
+--   show (Sup ())    = "~"
+--   show (Sub ())    = "_"
+--   show (SupSub ()) = "~_"
+--   show (User _)    = "|"
+--   show (DF _ _)    = ""
+
+instance {-# OVERLAPPING #-} Show (Index String) where
+  show (Sup s)    = "~" ++ s
+  show (Sub s)    = "_" ++ s
+  show (SupSub s) = "~_" ++ s
+  show (User s)   = "|" ++ s
+  show (DF _ _)   = ""

@@ -35,27 +35,26 @@ import           Text.Parsec.String
 import qualified Text.Parsec.Token       as P
 
 import           Language.Egison.AST
-import           Language.Egison.Data
 
-parseTopExprs :: String -> Either EgisonError [TopExpr]
+parseTopExprs :: String -> Either String [TopExpr]
 parseTopExprs = doParse $ do
   ret <- whiteSpace >> endBy topExpr whiteSpace
   eof
   return ret
 
-parseTopExpr :: String -> Either EgisonError TopExpr
+parseTopExpr :: String -> Either String TopExpr
 parseTopExpr = doParse $ do
   ret <- whiteSpace >> topExpr
   whiteSpace >> eof
   return ret
 
-parseExprs :: String -> Either EgisonError [Expr]
+parseExprs :: String -> Either String [Expr]
 parseExprs = doParse $ do
   ret <- whiteSpace >> endBy expr whiteSpace
   eof
   return ret
 
-parseExpr :: String -> Either EgisonError Expr
+parseExpr :: String -> Either String Expr
 parseExpr = doParse $ do
   ret <- whiteSpace >> expr
   whiteSpace >> eof
@@ -65,11 +64,8 @@ parseExpr = doParse $ do
 -- Parser
 --
 
-doParse :: Parser a -> String -> Either EgisonError a
-doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
-  where
-    fromParsecError :: ParseError -> EgisonError
-    fromParsecError = Parser . show
+doParse :: Parser a -> String -> Either String a
+doParse p input = either (throwError . show) return $ parse p "egison" input
 
 doParse' :: Parser a -> String -> a
 doParse' p input = case doParse p input of
@@ -107,7 +103,7 @@ expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr
                           expr1 <- option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
                                                   <|> IndexedExpr True expr0 <$> parseindex
                           option expr1 $ (\x -> makeApply "**" [expr1, x]) <$> try (char '^' >> expr'))
-                            where parseindex :: Parser [Index Expr]
+                            where parseindex :: Parser [IndexExpr Expr]
                                   parseindex = many1 (try (MultiSubscript   <$> (char '_' >> expr') <*> (string "..._" >> expr'))
                                                   <|> try (MultiSuperscript <$> (char '~' >> expr') <*> (string "...~" >> expr'))
                                                   <|> try (Subscript    <$> (char '_' >> expr'))
@@ -797,11 +793,11 @@ identVarWithIndices = P.lexeme lexer (do
   is <- many indexForVar
   return $ VarWithIndices name is)
 
-indexForVar :: Parser (Index String)
+indexForVar :: Parser (IndexExpr String)
 indexForVar = try (char '~' >> Superscript <$> ident)
         <|> try (char '_' >> Subscript <$> ident)
 
-indexType :: Parser (Index ())
+indexType :: Parser (IndexExpr ())
 indexType = try (char '~' >> return (Superscript ()))
         <|> try (char '_' >> return (Subscript ()))
 
