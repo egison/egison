@@ -137,20 +137,20 @@ assertEqual "not section" (- 2) (1 - 3)
 
 -- user-defined infix
 infixl expression 5 @
-(@) x y := x - y
+def (@) x y := x - y
 
 assertEqual "user defined infix"
   (4 @ 3 @ 5)
   (-4)
 
 infixl expression 5 @@
-(@@) %x y := x - y
+def (@@) %x y := x - y
 
 assertEqual "user defined infix with tensor arg"
   (4 @@ 3 @@ 2)
   (-1)
 
-findFactor :=
+def findFactor :=
   memoizedLambda n ->
     match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
     | _ ++ (?(\m -> divisor n m) & $x) :: _ -> x
@@ -160,7 +160,7 @@ assertEqual "memoized lambda"
   (map findFactor [1..10])
   [1, 2, 3, 2, 5, 2, 7, 2, 3, 2]
 
-twinPrimes :=
+def twinPrimes :=
   matchAll primes as list integer with
   | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 
@@ -168,7 +168,7 @@ assertEqual "twin primes"
   (take 10 twinPrimes)
   [(3, 5), (5, 7), (11, 13), (17, 19), (29, 31), (41, 43), (59, 61), (71, 73), (101, 103), (107, 109)]
 
-primeTriplets :=
+def primeTriplets :=
   matchAll primes as list integer with
   | _ ++ $p :: ((#(p + 2) | #(p + 4)) & $m) :: #(p + 6) ::  _
   -> (p, m, p + 6)
@@ -177,21 +177,21 @@ assertEqual "prime triplets"
   (take 10 primeTriplets)
   [(5, 7, 11), (7, 11, 13), (11, 13, 17), (13, 17, 19), (17, 19, 23), (37, 41, 43), (41, 43, 47), (67, 71, 73), (97, 101, 103), (101, 103, 107)]
 
-someFunction x y z :=
+def someFunction x y z :=
   x + y * z
 
 assertEqual "function definition"
   (someFunction 1 2 3)
   7
 
-someFunctionWithDollar $x $y $z :=
+def someFunctionWithDollar $x $y $z :=
   x + y + z
 
 assertEqual "function definition with '$' scalar arg"
   (someFunctionWithDollar 1 2 3)
   6
 
-gcd m n :=
+def gcd m n :=
   if m >= n then
             if n = 0 then m
                      else gcd n (m % n)
@@ -201,7 +201,7 @@ assertEqual "recursive function definition"
   (gcd 143 22)
   11
 
-A x := 1
+def A x := 1
 
 assertEqual "definition of upper-case identifier"
   (A 2)
@@ -211,8 +211,8 @@ assertEqual "capply"
   (capply (+) [1, 2])
   3
 
-f0 () := 1
-f2 (x, y) := x + y
+def f0 () := 1
+def f2 (x, y) := x + y
 
 assertEqual "nullary function definition"
   (f0 ())
@@ -441,11 +441,11 @@ assertEqual "permutations"
    | $x :: $y :: _ -> (x, y))
   [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)]
 
-tree a := algebraicDataMatcher
+def tree a := algebraicDataMatcher
   | leaf
   | node (tree a) a (tree a)
 
-treeInsert n t :=
+def treeInsert n t :=
   match t as tree integer with
   | leaf -> Node Leaf n Leaf
   | node $t1 $m $t2 -> match (compare n m) as ordering with
@@ -453,7 +453,7 @@ treeInsert n t :=
       | equal   -> Node t1 n t2
       | greater -> Node t1 m (treeInsert n t2)
 
-treeMember n t :=
+def treeMember n t :=
   match t as tree integer with
   | leaf -> False
   | node $t1 $m $t2 -> match (compare n m) as ordering with
@@ -539,12 +539,16 @@ assertEqual "multi subscript"
     in x_(i_1)..._(i_3))
   6
 
-TestT := generateTensor 3#x_%1_%2_%3 [2,3,4]
-TestC_c_a_b := TestT_a_b_c
+def TestT := generateTensor 3#x_%1_%2_%3 [2,3,4]
+def TestC_c_a_b := TestT_a_b_c
 
 assertEqual "transpose"
   TestC_#_#_#
-  (tensor [4, 2, 3] [x_1_1_1, x_1_2_1, x_1_3_1, x_2_1_1, x_2_2_1, x_2_3_1, x_1_1_2, x_1_2_2, x_1_3_2, x_2_1_2, x_2_2_2, x_2_3_2, x_1_1_3, x_1_2_3, x_1_3_3, x_2_1_3, x_2_2_3, x_2_3_3, x_1_1_4, x_1_2_4, x_1_3_4, x_2_1_4, x_2_2_4, x_2_3_4] )_#_#_#
+  (tensor [4, 2, 3]
+   [x_1_1_1, x_1_2_1, x_1_3_1, x_2_1_1, x_2_2_1, x_2_3_1,
+    x_1_1_2, x_1_2_2, x_1_3_2, x_2_1_2, x_2_2_2, x_2_3_2,
+    x_1_1_3, x_1_2_3, x_1_3_3, x_2_1_3, x_2_2_3, x_2_3_3,
+    x_1_1_4, x_1_2_4, x_1_3_4, x_2_1_4, x_2_2_4, x_2_3_4])_#_#_#
 
 --
 -- Hash
@@ -582,13 +586,13 @@ assertEqual "recursive partial application '#'"
   (take 10 (1#(%1 :: (%0 (%1 * 2))) 2))
   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 
-f *$x *$y := x + y
+def f *$x *$y := x + y
 
 assertEqual "double inverted index"
   (f [|1, 2, 3|]_i [|10, 20, 30|]_j)
   [| [| 11, 21, 31, |], [| 12, 22, 32, |], [| 13, 23, 33, |], |]~i~j
 
-g $x *$y := x + y
+def g $x *$y := x + y
 
 assertEqual "single inverted index"
   (g [|1, 2, 3|]_i  [|10, 20, 30|]_j)
@@ -598,7 +602,7 @@ assertEqual "single inverted index"
 -- matcherExpr
 --
 
-list a := matcher
+def list a := matcher
   | [] as () with
     | [] -> [()]
     | _  -> []
@@ -624,7 +628,7 @@ list a := matcher
   | $ as something with
     | $tgt -> [tgt]
 
-multiset a := matcher
+def multiset a := matcher
   | [] as () with
     | $tgt -> match tgt as (mutiset a) with
                 | [] -> [()]
@@ -645,7 +649,7 @@ assertEqual "matcher definition"
    | $x :: _ -> x)
   [1, 2, 3]
 
-nishiwakiIf b e1 e2 :=
+def nishiwakiIf b e1 e2 :=
   head (matchAll b as (matcher
                       | $ as something with
                           | True  -> [e1]
@@ -661,7 +665,7 @@ assertEqual "case 3" (nishiwakiIf (1 = 1) 1 2) 1
 infixl pattern 7 <>
 infixl pattern 4 <?> -- '?' is allowed from the 2nd character
 
-dummyMatcher := matcher
+def dummyMatcher := matcher
   | $ <> $ as (integer, integer) with
     | $x :: $y :: [] -> [(x, y)]
     | _              -> []
