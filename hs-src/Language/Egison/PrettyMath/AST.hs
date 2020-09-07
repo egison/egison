@@ -16,8 +16,8 @@ module Language.Egison.PrettyMath.AST
 import           Data.Foldable             (toList)
 import           Text.ParserCombinators.Parsec hiding (spaces)
 
-import qualified Language.Egison.AST       as E
 import qualified Language.Egison.Data      as E
+import qualified Language.Egison.IExpr     as E
 import qualified Language.Egison.Math.Expr as E
 
 data MathExpr
@@ -87,9 +87,9 @@ instance ToMathExpr E.SymbolExpr where
   toMathExpr (E.Symbol _ s js) = toMathExpr' js (Atom s [])
     where
       toMathExpr' [] acc = acc
-      toMathExpr' (E.Userscript x:js) (Partial e ps) =
+      toMathExpr' (E.User x:js) (Partial e ps) =
         toMathExpr' js (Partial e (ps ++ [toMathExpr x]))
-      toMathExpr' (E.Userscript x:js) e@Atom{} =
+      toMathExpr' (E.User x:js) e@Atom{} =
         toMathExpr' js (Partial e [toMathExpr x])
       toMathExpr' (j:js) (Atom e is) =
         toMathExpr' js (Atom e (is ++ [toMathIndex j]))
@@ -103,8 +103,8 @@ instance ToMathExpr E.SymbolExpr where
   toMathExpr (E.FunctionData _ _ _ _) = undefined -- TODO
 
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
-toMathIndex (E.Subscript x) = Sub (toMathExpr x)
-toMathIndex (E.Superscript x) = Super (toMathExpr x)
+toMathIndex (E.Sub x) = Sub (toMathExpr x)
+toMathIndex (E.Sup x) = Super (toMathExpr x)
 toMathIndex _ = undefined -- TODO
 
 --

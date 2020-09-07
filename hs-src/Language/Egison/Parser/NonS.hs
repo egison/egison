@@ -417,7 +417,7 @@ hashExpr = HashExpr <$> hashBraces (sepEndBy hashElem comma)
     hashBraces = between (symbol "{|") (symbol "|}")
     hashElem = parens $ (,) <$> expr <*> (comma >> expr)
 
-index :: Parser a -> Parser (Index a)
+index :: Parser a -> Parser (IndexExpr a)
 index p = SupSubscript <$> (string "~_" >> p)
     <|> try (char '_' >> subscript)
     <|> try (char '~' >> superscript)

@@ -190,9 +190,9 @@ symbolExprToEgison (FunctionData name argnames args js, n) =
   f js = Collection (Sq.fromList (map scalarIndexToEgison js))
 
 scalarIndexToEgison :: Index ScalarData -> EgisonValue
-scalarIndexToEgison (Superscript k) = InductiveData "Sup"  [ScalarData k]
-scalarIndexToEgison (Subscript k)   = InductiveData "Sub"  [ScalarData k]
-scalarIndexToEgison (Userscript k)  = InductiveData "User" [ScalarData k]
+scalarIndexToEgison (Sup k)   = InductiveData "Sup"  [ScalarData k]
+scalarIndexToEgison (Sub k)   = InductiveData "Sub"  [ScalarData k]
+scalarIndexToEgison (User k)  = InductiveData "User" [ScalarData k]
 
 -- Implementation of 'toMathExpr' (Primitive function)
 egisonToScalarData :: EgisonValue -> EvalM ScalarData
@@ -252,9 +252,9 @@ egisonToSymbolExpr val = throwError =<< TypeMismatch "math symbol expression" (V
 
 egisonToScalarIndex :: EgisonValue -> EvalM (Index ScalarData)
 egisonToScalarIndex j = case j of
-  InductiveData "Sup"  [ScalarData k] -> return (Superscript k)
-  InductiveData "Sub"  [ScalarData k] -> return (Subscript k)
-  InductiveData "User" [ScalarData k] -> return (Userscript k)
+  InductiveData "Sup"  [ScalarData k] -> return (Sup k)
+  InductiveData "Sub"  [ScalarData k] -> return (Sub k)
+  InductiveData "User" [ScalarData k] -> return (User k)
   _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
 
 --
@@ -490,22 +490,22 @@ instance EgisonWHNF Handle where
 -- Environment
 --
 
-data Env = Env [HashMap Var ObjectRef] (Maybe VarWithIndices)
+data Env = Env [HashMap Var ObjectRef] (Maybe (String, [Index String]))
 
 type Binding = (Var, ObjectRef)
 
-instance Show (Index EgisonValue) where
-  show (Superscript i) = case i of
+instance {-# OVERLAPPING #-} Show (Index EgisonValue) where
+  show (Sup i) = case i of
     ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "~[" ++ show i ++ "]"
     _ -> "~" ++ show i
-  show (Subscript i) = case i of
+  show (Sub i) = case i of
     ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
     _ -> "_" ++ show i
-  show (SupSubscript i) = "~_" ++ show i
-  show (DFscript i j) = "_d" ++ show i ++ show j
-  show (Userscript i) = case i of
+  show (SupSub i) = "~_" ++ show i
+  show (User i) = case i of
     ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
     _ -> "|" ++ show i
+  show (DF i j) = "_d" ++ show i ++ show j
 
 nullEnv :: Env
 nullEnv = Env [] Nothing
