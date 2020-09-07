@@ -1,7 +1,5 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveFunctor      #-}
+{-# LANGUAGE DeriveTraversable  #-}
 
 {- |
 Module      : Language.Egison.AST
@@ -20,9 +18,8 @@ module Language.Egison.AST
   , makeApply
   , Arg (..)
   , ArgPattern (..)
-  , Index (..)
-  , extractIndex
-  , extractSupOrSubIndex
+  , IndexExpr (..)
+  , extractIndexExpr
   , PMMode (..)
   , BindingExpr
   , MatchClause
@@ -38,11 +35,9 @@ module Language.Egison.AST
   , stringToVarWithIndices
   ) where
 
-import           Data.Hashable   (Hashable)
 import           Data.List       (find)
 import           Data.Maybe      (fromJust)
 import           Data.Text       (Text)
-import           GHC.Generics    (Generic)
 
 data TopExpr
   = Define VarWithIndices Expr
@@ -68,7 +63,7 @@ data Expr
   = ConstantExpr ConstantExpr
   | VarExpr String
   | FreshVarExpr
-  | IndexedExpr Bool Expr [Index Expr]  -- True -> delete old index and append new one
+  | IndexedExpr Bool Expr [IndexExpr Expr]  -- True -> delete old index and append new one
   | SubrefsExpr Bool Expr Expr
   | SuprefsExpr Bool Expr Expr
   | UserrefsExpr Bool Expr Expr
@@ -125,7 +120,7 @@ data Expr
   | FunctionExpr [String]
   deriving Show
 
-data VarWithIndices = VarWithIndices String [Index String]
+data VarWithIndices = VarWithIndices String [IndexExpr String]
   deriving Show
 
 data Arg a
@@ -144,28 +139,21 @@ data ArgPattern
   | APSnocPat (Arg ArgPattern) (Arg ArgPattern)
   deriving Show
 
-data Index a
+data IndexExpr a
   = Subscript a
   | Superscript a
   | SupSubscript a
   | MultiSubscript a a
   | MultiSuperscript a a
-  | DFscript Integer Integer -- DifferentialForm
   | Userscript a
-  deriving (Eq, Functor, Foldable, Generic, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
 
-extractIndex :: Index a -> a
-extractIndex (Subscript x)    = x
-extractIndex (Superscript x)  = x
-extractIndex (SupSubscript x) = x
-extractIndex (Userscript x)   = x
-extractIndex _                = error "extractIndex: Not supported"
-
-extractSupOrSubIndex :: Index a -> Maybe a
-extractSupOrSubIndex (Subscript x)    = Just x
-extractSupOrSubIndex (Superscript x)  = Just x
-extractSupOrSubIndex (SupSubscript x) = Just x
-extractSupOrSubIndex _                = Nothing
+extractIndexExpr :: IndexExpr a -> a
+extractIndexExpr (Subscript x)    = x
+extractIndexExpr (Superscript x)  = x
+extractIndexExpr (SupSubscript x) = x
+extractIndexExpr (Userscript x)   = x
+extractIndexExpr _                = error "extractIndexExpr: Not supported"
 
 data PMMode = BFSMode | DFSMode
   deriving Show
@@ -271,31 +259,8 @@ reservedPatternOp =
 findOpFrom :: String -> [Op] -> Op
 findOpFrom op table = fromJust $ find ((== op) . repr) table
 
-instance Hashable (Index ())
-
 stringToVarWithIndices :: String -> VarWithIndices
 stringToVarWithIndices name = VarWithIndices name []
 
 makeApply :: String -> [Expr] -> Expr
 makeApply func args = ApplyExpr (VarExpr func) args
-
-instance Show (Index ()) where
-  show (Superscript ())  = "~"
-  show (Subscript ())    = "_"
-  show (SupSubscript ()) = "~_"
-  show (DFscript _ _)    = ""
-  show (Userscript _)    = "|"
-
-instance Show (Index String) where
-  show (Superscript s)  = "~" ++ s
-  show (Subscript s)    = "_" ++ s
-  show (SupSubscript s) = "~_" ++ s
-  show (DFscript _ _)   = ""
-  show (Userscript i)   = "|" ++ show i
-
-instance Show (Index Expr) where
-  show (Superscript i)  = "~" ++ show i
-  show (Subscript i)    = "_" ++ show i
-  show (SupSubscript i) = "~_" ++ show i
-  show (DFscript _ _)   = ""
-  show (Userscript i)   = "|" ++ show i

@@ -107,7 +107,7 @@ expr = P.lexeme lexer (do expr0 <- expr' <|> quoteExpr
                           expr1 <- option expr0 $ try (string "..." >> IndexedExpr False expr0 <$> parseindex)
                                                   <|> IndexedExpr True expr0 <$> parseindex
                           option expr1 $ (\x -> makeApply "**" [expr1, x]) <$> try (char '^' >> expr'))
-                            where parseindex :: Parser [Index Expr]
+                            where parseindex :: Parser [IndexExpr Expr]
                                   parseindex = many1 (try (MultiSubscript   <$> (char '_' >> expr') <*> (string "..._" >> expr'))
                                                   <|> try (MultiSuperscript <$> (char '~' >> expr') <*> (string "...~" >> expr'))
                                                   <|> try (Subscript    <$> (char '_' >> expr'))
@@ -797,11 +797,11 @@ identVarWithIndices = P.lexeme lexer (do
   is <- many indexForVar
   return $ VarWithIndices name is)
 
-indexForVar :: Parser (Index String)
+indexForVar :: Parser (IndexExpr String)
 indexForVar = try (char '~' >> Superscript <$> ident)
         <|> try (char '_' >> Subscript <$> ident)
 
-indexType :: Parser (Index ())
+indexType :: Parser (IndexExpr ())
 indexType = try (char '~' >> return (Superscript ()))
         <|> try (char '_' >> return (Subscript ()))
 

@@ -21,21 +21,25 @@ import           Data.List             (union)
 import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.IExpr
-import           Language.Egison.Pretty (prettyStr)
 import           Language.Egison.RState
 
 
 desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
-desugarTopExpr (Define var@(VarWithIndices name []) expr) = do
+desugarTopExpr (Define (VarWithIndices name []) expr) = do
   expr' <- desugar expr
   case expr' of
-    ILambdaExpr Nothing args body -> return . Just $ IDefine (Var name []) (ILambdaExpr (Just (prettyStr var)) args body)
+    ILambdaExpr Nothing args body -> return . Just $ IDefine (Var name []) (ILambdaExpr (Just name) args body)
     _                             -> return . Just $ IDefine (Var name []) expr'
 desugarTopExpr (Define (VarWithIndices name is) expr) = do
   body <- desugar expr
-  let indexNames = map extractIndex is
+  let indexNames = map extractIndexExpr is
   let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
-  return . Just $ IDefine (Var name (map (const () <$>) is))
+  -- TODO
+  let is' = map (\s -> case s of
+                         Superscript _ -> Sup ()
+                         Subscript _ -> Sub ()
+                         _ -> undefined) is
+  return . Just $ IDefine (Var name is')
     (IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
 desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
@@ -145,26 +149,22 @@ desugar (IndexedExpr b expr indices) =
       case (x, y) of
         (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2]) ->
           desugarMultiScript ISubrefsExpr b1 e1 n1 n2
-        (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr _ _ [n2]]) ->
-          desugarMultiScript ISubrefsExpr b1 e1 n1 n2
         _ -> throwError $ Default "Index should be IndexedExpr for multi subscript"
     [MultiSuperscript x y] ->
       case (x, y) of
         (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2]) ->
-          desugarMultiScript ISuprefsExpr b1 e1 n1 n2
-        (TupleExpr [IndexedExpr b1 e1 [n1]], TupleExpr [IndexedExpr _ _ [n2]]) ->
           desugarMultiScript ISuprefsExpr b1 e1 n1 n2
         _ -> throwError $ Default "Index should be IndexedExpr for multi superscript"
     _ -> IIndexedExpr b <$> desugar expr <*> mapM desugarIndex indices
   where
     desugarMultiScript refExpr b1 e1 n1 n2 = do
       k     <- fresh
-      n1'   <- desugar (extractIndex n1)
-      n2'   <- desugar (extractIndex n2)
+      n1'   <- desugar (extractIndexExpr n1)
+      n2'   <- desugar (extractIndexExpr n2)
       e1'   <- desugar e1
       expr' <- desugar expr
       return $ refExpr b expr' (makeIApply "map"
-                                           [ILambdaExpr Nothing [k] (IIndexedExpr b1 e1' [Subscript $ IVarExpr k]),
+                                           [ILambdaExpr Nothing [k] (IIndexedExpr b1 e1' [Sub (IVarExpr k)]),
                                             makeIApply "between" [n1', n2']])
 
 desugar (SubrefsExpr bool expr1 expr2) =
@@ -384,8 +384,12 @@ desugar (WedgeApplyExpr expr args) =
 
 desugar (FunctionExpr args) = return $ IFunctionExpr args
 
-desugarIndex :: Index Expr -> EvalM (Index IExpr)
-desugarIndex index = traverse desugar index
+desugarIndex :: IndexExpr Expr -> EvalM (Index IExpr)
+desugarIndex (Subscript e)    = Sub <$> desugar e
+desugarIndex (Superscript e)  = Sup <$> desugar e
+desugarIndex (SupSubscript e) = SupSub <$> desugar e
+desugarIndex (Userscript e)   = User <$> desugar e
+desugarIndex _                = undefined
 
 desugarPattern :: Pattern -> EvalM IPattern
 desugarPattern pat =
@@ -455,7 +459,7 @@ desugarBindings = mapM desugarBinding
       expr' <- desugar expr
       case (name, expr') of
         (PDPatVar var, ILambdaExpr Nothing args body) ->
-          return (name, ILambdaExpr (Just (prettyStr var)) args body)
+          return (name, ILambdaExpr (Just var) args body)
         _ -> return (name, expr')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
