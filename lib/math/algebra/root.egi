@@ -7,7 +7,7 @@
 --
 -- Root
 --
-rt n x :=
+def rt n x :=
   if isInteger n
     then match x as mathExpr with
       | #0 -> 0
@@ -20,22 +20,22 @@ rt n x :=
       | _ -> rt'' n x
     else rt'' n x
 
-rtMonomial n x :=
+def rtMonomial n x :=
   rtTerm n (numerator x * denominator x ^ (n - 1)) / denominator x
 
-rtTerm n x :=
+def rtTerm n x :=
   match x as termExpr with
     | term $a _ ->
       if a < 0 then rtm1 n *' rtPositiveTerm n (- x) else rtPositiveTerm n x
 
-rtPositiveTerm n x :=
+def rtPositiveTerm n x :=
   match (n, x) as (mathExpr, mathExpr) with
     | (#3, $a * #i * $r) -> (- i) * rt 3 (a *' r)
     | (_, $a * #sqrt $b * $r) -> rt (n * 2) (a ^' 2 *' b) *' rt n r
     | (_, $a * #rt $n' $b * $r) -> rt (n * n') (a ^' n' *' b) *' rt n r
     | (_, _) -> rtPositiveTerm1 n x
 
-rtPositiveTerm1 n x :=
+def rtPositiveTerm1 n x :=
   let f xs :=
         match xs as assocMultiset mathExpr with
           | [] -> (1, 1)
@@ -53,30 +53,30 @@ rtPositiveTerm1 n x :=
             | ($a, #1) -> a
             | ($a, $b) -> a *' g n b
 
-rt'' n x :=
+def rt'' n x :=
   match (n, x) as (integer, integer) with
     | (#2, _) -> `sqrt x
     | (_, _) -> `rt n x
 
-rtm1 n :=
+def rtm1 n :=
   match n as integer with
     | #1 -> -1
     | #2 -> i
     | ?isOdd -> -1
     | _ -> undefined
 
-sqrt x :=
+def sqrt x :=
   if isScalar x
     then let m := numerator x
              n := denominator x
           in rt 2 (m * n) / n
     else b.sqrt x
 
-rtOfUnity := rtu
+def rtOfUnity := rtu
 
-rtu n := rtu' n
+def rtu n := rtu' n
 
-rtu' n :=
+def rtu' n :=
   if isInteger n
     then match n as integer with
       | #1 -> 1

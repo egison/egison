@@ -4,42 +4,42 @@
 --
 --
 
-eq :=
+def eq :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
 
-bool := eq
-char := eq
-integer := eq
-float := eq
+def bool := eq
+def char := eq
+def integer := eq
+def float := eq
 
 --
 -- Utility
 --
 
-id := 1#%1
+def id := 1#%1
 
-fst (x, y) := x
-snd (x, y) := y
+def fst (x, y) := x
+def snd (x, y) := y
 
 infixr expression 0 $
 
-($) f x := f x
+def ($) f x := f x
 
-compose f g := \x -> g (f x)
+def compose f g := \x -> g (f x)
 
-flip fn := \$x $y -> fn y x
+def flip fn := \$x $y -> fn y x
 
-eqAs a x y :=
+def eqAs a x y :=
   match x as a with
     | #y -> True
     | _ -> False
 
-curry f x y := f (x, y)
-uncurry f (x, y) := f x y
+def curry f x y := f (x, y)
+def uncurry f (x, y) := f x y
 
 --
 -- Boolean
@@ -48,16 +48,16 @@ uncurry f (x, y) := f x y
 infixr expression 3 &&
 infixr expression 2 ||
 
-(&&) b1 b2 := if b1 then b2 else False
-(||) b1 b2 := if b1 then True else b2
+def (&&) b1 b2 := if b1 then b2 else False
+def (||) b1 b2 := if b1 then True else b2
 
-not b := if b then False else True
+def not b := if b then False else True
 
 --
 -- Unordered Pair
 --
 
-unorderedPair m :=
+def unorderedPair m :=
   matcher
     | ($, $) as (m, m) with
       | ($x, $y) -> [(x, y), (y, x)]

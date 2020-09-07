@@ -2,7 +2,7 @@
 -- Inverse
 --
 
-inverse t f x :=
+def inverse t f x :=
   match f as mathExpr with
     | ?isSimpleTerm ->
       match f as symbolExpr with
