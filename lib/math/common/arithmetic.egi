@@ -54,15 +54,12 @@ def (/) $x $y :=
 def reduceFraction := id
 
 def sum xs := foldl (+) 0 xs
-
 def sum' xs := foldl (+') 0 xs
 
 def product xs := foldl (*) 1 xs
-
 def product' xs := foldl (*') 1 xs
 
 def power $x $n := mathNormalize (power' x n)
-
 def power' $x $n := foldl (*') 1 (take n (repeat1 x))
 
 def (^) $x $n :=
