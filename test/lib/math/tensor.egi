@@ -56,18 +56,18 @@ assertEqual
     in f A_i)
   [|[|1, 1|], [|1, 1|]|]_i_j
 
-g_i_j := (generateTensor
-            (\n m -> if n = m then function (x, y, z) else 0)
-            [3, 3])_i_j
+def g_i_j := (generateTensor
+                (\n m -> if n = m then function (x, y, z) else 0)
+                [3, 3])_i_j
 
 assertEqual
   "generate_tensor by using function expr"
   (show (withSymbols [i, j] d/d g_i_j x))
   "[| [| g_1_1|x, 0, 0 |], [| 0, g_2_2|x, 0 |], [| 0, 0, g_3_3|x |] |]"
 
-h_i_j := [|[|function (x, y, z), 0, 0|]
-         , [|0, function (x, y, z), 0|]
-         , [|0, 0, function (x, y, z)|]|]_i_j
+def h_i_j := [|[|function (x, y, z), 0, 0|]
+             , [|0, function (x, y, z), 0|]
+             , [|0, 0, function (x, y, z)|]|]_i_j
 
 assertEqual
   "define tensor having value of function expr"

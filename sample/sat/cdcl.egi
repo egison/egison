@@ -1,10 +1,10 @@
-literal := integer
+def literal := integer
 
-stage := integer
+def stage := integer
 
-taggedLiteral := (literal, stage)
+def taggedLiteral := (literal, stage)
 
-assignment :=
+def assignment :=
   matcher
     | deduced $ $ as (taggedLiteral, multiset taggedLiteral) with
       | Deduced $e $es -> [(e, es)]
@@ -21,33 +21,33 @@ assignment :=
 
 -- Data structure for CNF
 
-toCnf cs := map (\c -> (c, c)) cs
+def toCnf cs := map (\c -> (c, c)) cs
 
-fromCnf cs := map fst cs
+def fromCnf cs := map fst cs
 
 -- VSIDS
 
-initVars vs := map (\v -> (neg v, 0)) vs ++ map (\v -> (v, 0)) vs
+def initVars vs := map (\v -> (neg v, 0)) vs ++ map (\v -> (v, 0)) vs
 
-addVars vs vars :=
+def addVars vs vars :=
   matchDFS (vs, vars) as (list literal, list (literal, integer)) with
     | ([], _) -> sort/fn (\xc yc -> compare (snd yc) (snd xc)) vars
     | ($v :: $vs', $hs ++ (#v, $c) :: $ts) ->
       addVars vs' (hs ++ (v, c + 1) :: ts)
 
-deleteVar v vars :=
+def deleteVar v vars :=
   matchDFS vars as multiset (literal, integer) with
     | (#v, _) :: (#(neg v), _) :: $vars' -> vars2
     | _ -> "error: not matched in delete-var"
 
 -- Utility functions for literlas and cnfs
 
-getStage l trail :=
+def getStage l trail :=
   matchDFS trail as list assignment with
     | _ ++ whichever (#(neg l), $s) :: _ -> s
     | _ -> "error: not matched in get-stage"
 
-deleteLiteral l cnf :=
+def deleteLiteral l cnf :=
   map
     (\c ->
       ( matchAllDFS fst c as multiset literal with
@@ -55,21 +55,21 @@ deleteLiteral l cnf :=
       , snd c ))
     cnf
 
-deleteClausesWith l cnf :=
+def deleteClausesWith l cnf :=
   matchAllDFS cnf as multiset (multiset literal, multiset literal) with
     | ((!(#l :: _), _) & $c) :: _ -> c
 
-assignTrue l cnf := deleteLiteral (neg l) (deleteClausesWith l cnf)
+def assignTrue l cnf := deleteLiteral (neg l) (deleteClausesWith l cnf)
 
-unitPropagate stage cnf trail := unitPropagate' stage cnf trail trail
+def unitPropagate stage cnf trail := unitPropagate' stage cnf trail trail
 
-unitPropagate' stage cnf trail otrail :=
+def unitPropagate' stage cnf trail otrail :=
   matchDFS trail as list assignment with
     | whichever ($l, _) :: $trail' ->
       unitPropagate' stage (assignTrue l cnf) trail' otrail
     | [] -> unitPropagate'' stage (assignTrue l cnf) otrail
 
-unitPropagate'' stage cnf trail :=
+def unitPropagate'' stage cnf trail :=
   matchDFS cnf as multiset (multiset literal, multiset literal) with
     -- empty literal
     | ([], _) :: _ -> (cnf, trail)
@@ -82,7 +82,7 @@ unitPropagate'' stage cnf trail :=
     -- otherwise
     | _ -> (cnf, trail)
 
-learn stage cl trail :=
+def learn stage cl trail :=
   matchDFS (trail, cl) as (list assignment, multiset taggedLiteral) with
     -- not more than 2 literals from the current stage
     | (_, !((_, #stage) :: (_, #stage) :: _)) ->
@@ -91,18 +91,18 @@ learn stage cl trail :=
     | (_ ++ deduced ($l, #stage) $ds :: $trail', (#(neg l), #stage) :: $rs) ->
       learn stage (union rs ds) trail'
 
-backjump stage trail :=
+def backjump stage trail :=
   matchDFS trail as list assignment with
     | _ ++ (guessed (_, #stage) :: _ & $trail') -> trail'
     | _ -> trail
 
-guess vars trail :=
+def guess vars trail :=
   matchDFS (vars, trail) as (list (literal, integer), list assignment) with
     | (_ ++ ($l, _) :: _, !(_ ++ whichever (#l | #(neg l), _) :: _)) -> neg l
 
-cdcl vars cnf := cdcl' 0 0 (initVars vars) (toCnf cnf) []
+def cdcl vars cnf := cdcl' 0 0 (initVars vars) (toCnf cnf) []
 
-cdcl' count stage vars cnf trail :=
+def cdcl' count stage vars cnf trail :=
   let (cnf', trail') := unitPropagate stage cnf trail
    in matchDFS cnf' as multiset (multiset literal, multiset literal) with
         | [] -> True
@@ -130,7 +130,7 @@ cdcl' count stage vars cnf trail :=
                 cnf
                 (Guessed (g, stage + 1) :: trail')
 
-problem20 :=
+def problem20 :=
   [[4, -18, 19], [3, 18, -5], [-5, -8, -15], [-20, 7, -16], [10, -13, -7],
    [-12, -9, 17], [17, 19, 5], [-16, 9, 15], [11, -5, -14], [18, -10, 13],
    [-3, 11, 12], [-6, -17, -8], [-18, 14, 1], [-19, -15, 10], [12, 18, -19],
@@ -151,7 +151,7 @@ problem20 :=
    [-5, -17, -19], [-20, -18, 11], [-9, 1, -5], [-19, 9, 17], [12, -2, 17],
    [4, -16, -5]]
 
-problem50 :=
+def problem50 :=
   [[18, -8, 29], [-16, 3, 18], [-36, -11, -30], [-50, 20, 32], [-6, 9, 35],
    [42, -38, 29], [43, -15, 10], [-48, -47, 1], [-45, -16, 33], [38, 42, 22],
    [-49, 41, -34], [12, 17, 35], [22, -49, 7], [-10, -11, -39], [-28, -36, -37],
