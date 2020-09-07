@@ -4,4 +4,4 @@
 --
 --
 
-mathNormalize := id
+def mathNormalize := id

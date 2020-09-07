@@ -1,34 +1,34 @@
 -- Parameters and metrics
 
-N := 2
+def N := 2
 
-x := [|r, θ|]
+def x := [|r, θ|]
 
-g_i_j := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
-g~i~j := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
+def g_i_j := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
+def g~i~j := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
 
 -- Hodge Laplacian
 
-d %A := !(flip ∂/∂) x A
+def d %A := !(flip ∂/∂) x A
 
-hodge %A :=
+def hodge %A :=
   let k := dfOrder A in
     withSymbols [i, j]
       (sqrt (abs (M.det g_#_#))) * (foldl (.) ((ε' N k)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
                                               (map 1#g~(i_%1)~(j_%1) [1..k]))
 
 
-δ %A :=
+def δ %A :=
   let k := dfOrder A in
     -1^(N * (k + 1) + 1) * (hodge (d (hodge A)))
 
-Δ %A :=
+def Δ %A :=
   match (dfOrder A) as integer with
   | #0 -> δ (d A)
   | #N -> d (δ A)
   | _  -> d (δ A) + δ (d A)
 
-f := function (r, θ)
+def f := function (r, θ)
 
 assertEqual "exterior derivative" (d f) [| ∂/∂ f r, ∂/∂ f θ |]
 

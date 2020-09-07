@@ -1,4 +1,4 @@
-tree a := matcher
+def tree a := matcher
   | leaf $ as a with
     | Leaf $x -> [x]
     | Node _ _ -> []
@@ -15,7 +15,7 @@ tree a := matcher
   | $ as something with
     | $tgt -> [tgt]
 
-treeData :=
+def treeData :=
   Node "Programming language"
     [Node "pattern-match-oriented" [Leaf "Egison"],
      Node "Functional language"
@@ -24,7 +24,7 @@ treeData :=
      Node "Logic programming" [Leaf "Prolog", Leaf "Curry"],
      Node "Object oriented" [Leaf "C++", Leaf "Java", Leaf "Ruby", Leaf "Python", Leaf "OCaml"]]
 
-ancestors x t :=
+def ancestors x t :=
   matchAllDFS t as tree eq with
     | $hs ++ leaf #x -> hs
 
@@ -32,7 +32,7 @@ assertEqual "ancestors"
   (ancestors "Egison" treeData)
   [["Programming language", "pattern-match-oriented"], ["Programming language", "Functional language", "Dynamically typed"]]
 
-descendants x t :=
+def descendants x t :=
   matchAllDFS t as tree eq with
     | _ ++ #x :: _ ++ leaf $y -> y
 

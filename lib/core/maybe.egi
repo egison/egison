@@ -4,7 +4,7 @@
 --
 --
 
-maybe a :=
+def maybe a :=
   matcher
     | nothing as () with
       | Nothing -> [()]

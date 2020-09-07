@@ -2,5 +2,5 @@
 -- Mathematical constants
 --
 
-MinkowskiMetric :=
+def MinkowskiMetric :=
   [|[|-1, 0, 0, 0|], [|0, 1, 0, 0|], [|0, 0, 1, 0|], [|0, 0, 0, 1|]|]

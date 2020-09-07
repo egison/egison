@@ -4,18 +4,18 @@
 --
 --
 
-ordering :=
+def ordering :=
   algebraicDataMatcher
     | less
     | equal
     | greater
 
-compare m n :=
+def compare m n :=
   if isCollection m
     then compareC m n
     else if m < n then Less else if m = n then Equal else Greater
 
-compareC c1 c2 :=
+def compareC c1 c2 :=
   match (c1, c2) as (list something, list something) with
     | ([], []) -> Equal
     | ([], _) -> Less
@@ -23,21 +23,18 @@ compareC c1 c2 :=
     | ($x :: $xs, #x :: $ys) -> compareC xs ys
     | ($x :: _, $y :: _) -> compare x y
 
-min $x $y := if x < y then x else y
+def min $x $y := if x < y then x else y
+def max $x $y := if x > y then x else y
 
-max $x $y := if x > y then x else y
+def min/fn f $xs := foldl1 2#(if f %1 %2 = Less then %1 else %2) xs
+def max/fn f $xs := foldl1 2#(if f %1 %2 = Greater then %1 else %2) xs
 
-min/fn f $xs := foldl1 2#(if f %1 %2 = Less then %1 else %2) xs
+def minimum $xs := foldl1 min xs
+def maximum $xs := foldl1 max xs
 
-max/fn f $xs := foldl1 2#(if f %1 %2 = Greater then %1 else %2) xs
+def splitByOrdering := splitByOrdering/fn compare
 
-minimum $xs := foldl1 min xs
-
-maximum $xs := foldl1 max xs
-
-splitByOrdering := splitByOrdering/fn compare
-
-splitByOrdering/fn f p xs :=
+def splitByOrdering/fn f p xs :=
   match xs as list something with
     | [] -> ([], [], [])
     | $x :: $rs ->
@@ -47,9 +44,9 @@ splitByOrdering/fn f p xs :=
             | equal -> (ys1, x :: ys2, ys3)
             | greater -> (ys1, ys2, x :: ys3)
 
-sort := sort/fn compare
+def sort := sort/fn compare
 
-sort/fn f xs :=
+def sort/fn f xs :=
   match xs as list something with
     | [] -> []
     | $x :: [] -> [x]
@@ -59,25 +56,25 @@ sort/fn f xs :=
           (ys1, ys2, ys3) := splitByOrdering/fn f p xs
        in sort/fn f ys1 ++ ys2 ++ sort/fn f ys3
 
-sortStrings xs :=
+def sortStrings xs :=
   sort/fn 2#(compareC (map ctoi (unpack %1)) (map ctoi (unpack %2))) xs
 
-merge xs ys :=
+def merge xs ys :=
   match (xs, ys) as (list something, list something) with
     | ([], _) -> ys
     | (_, []) -> xs
     | ($x :: $txs, ?(>= x) :: _) -> x :: merge txs ys
     | (_, $y :: $tys) -> y :: merge xs tys
 
-merge/fn f xs ys :=
+def merge/fn f xs ys :=
   match (xs, ys) as (list something, list something) with
     | ([], _) -> ys
     | (_, []) -> xs
     | ($x :: $txs, ?1#(f %1 x = Greater) :: _) -> x :: merge txs ys
     | (_, $y :: $tys) -> y :: merge xs tys
 
-minimize f xs :=
+def minimize f xs :=
   foldl1 2#(if compare (f %1) (f %2) = Less then %1 else %2) xs
 
-maximize f xs :=
+def maximize f xs :=
   foldl1 2#(if compare (f %1) (f %2) = Greater then %1 else %2) xs

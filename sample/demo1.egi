@@ -1,5 +1,5 @@
 -- Extract all twin primes from the infinite list of prime numbers with pattern matching!
-twinPrimes :=
+def twinPrimes :=
   matchAll primes as list integer with
     | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 

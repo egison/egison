@@ -4,7 +4,7 @@
 --
 --
 
-mathNormalize $x :=
+def mathNormalize $x :=
   if isInteger x
     then x
     else if containFunction `rtu x
@@ -14,7 +14,7 @@ mathNormalize $x :=
 --
 -- rtu (include i and w)
 --
-rewriteRuleForRtu := mapPolys rewriteRuleForRtuPoly
+def rewriteRuleForRtu := mapPolys rewriteRuleForRtuPoly
   where
     rewriteRuleForRtuPoly := mapPolys rewriteRuleForRtuPoly'
     rewriteRuleForRtuPoly' poly :=

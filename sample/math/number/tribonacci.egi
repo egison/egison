@@ -1,6 +1,6 @@
-m := 3
+def m := 3
 
-A :=
+def A :=
   generateTensor
     (\match as (integer, integer) with
       | (#1, _) -> 1
@@ -11,7 +11,7 @@ A :=
 A
 -- [| [| 1, 1, 1 |], [| 1, 0, 0 |], [| 0, 1, 0 |] |]
 
-B :=
+def B :=
   generateTensor
     (\match as integer with
       | #1 -> 1
