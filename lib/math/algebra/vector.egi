@@ -2,15 +2,15 @@
 -- Vectors
 --
 
-dotProduct %v1 %v2 := withSymbols [i] v1~i . v2_i
+def dotProduct %v1 %v2 := withSymbols [i] v1~i . v2_i
 
-V.* := dotProduct
+def V.* := dotProduct
 
-crossProduct/fn fn %a %b :=
+def crossProduct/fn fn %a %b :=
   [|fn a_2 b_3 - fn a_3 b_2, fn a_3 b_1 - fn a_1 b_3, fn a_1 b_2 - fn a_2 b_1|]
 
-crossProduct %a %b := crossProduct/fn (*) a b
+def crossProduct %a %b := crossProduct/fn (*) a b
 
-div %A %xs := trace (∇ A xs)
+def div %A %xs := trace (∇ A xs)
 
-rot %A %xs := crossProduct/fn ∂/∂ A xs
+def rot %A %xs := crossProduct/fn ∂/∂ A xs

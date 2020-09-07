@@ -7,22 +7,22 @@
 --
 -- IO
 --
-print x :=
+def print x :=
   do write x
      write "\n"
      flush ()
 
-printToPort port x :=
+def printToPort port x :=
   do writeToPort port x
      writeToPort port "\n"
 
-display x :=
+def display x :=
   do write x
      flush ()
 
-displayToPort port x := do writeToPort port x
+def displayToPort port x := do writeToPort port x
 
-eachLine proc :=
+def eachLine proc :=
   do let eof := isEof ()
      if eof
        then return ()
@@ -30,7 +30,7 @@ eachLine proc :=
                proc line
                eachLine proc
 
-eachLineFromPort port proc :=
+def eachLineFromPort port proc :=
   do let eof := isEofPort port
      if eof
        then return ()
@@ -38,7 +38,7 @@ eachLineFromPort port proc :=
                proc line
                eachLineFromPort port proc
 
-eachFile files proc :=
+def eachFile files proc :=
   match files as list string with
     | [] -> return ()
     | $file :: $rest ->
@@ -50,7 +50,7 @@ eachFile files proc :=
 --
 -- Collection
 --
-each proc xs :=
+def each proc xs :=
   match xs as list something with
     | [] -> do return ()
     | $x :: $rs ->
@@ -60,11 +60,11 @@ each proc xs :=
 --
 -- Debug
 --
-debug %expr :=
+def debug %expr :=
   io do print (show expr)
         return expr
 
-debug2 %msg %expr :=
+def debug2 %msg %expr :=
   io do display msg
         print (show expr)
         return expr

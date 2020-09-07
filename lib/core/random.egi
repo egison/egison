@@ -4,11 +4,11 @@
 --
 --
 
-rands s e := pureRand s e :: rands s e
+def rands s e := pureRand s e :: rands s e
 
-pureRand s e := io rand s e
+def pureRand s e := io rand s e
 
-randomize xs :=
+def randomize xs :=
   let randomize' xs n :=
         if n = 0
           then []
@@ -17,9 +17,9 @@ randomize xs :=
                 in x :: randomize' (deleteFirst x xs) (n - 1)
    in randomize' xs (length xs)
 
-R.between s e := randomize [s..e]
+def R.between s e := randomize [s..e]
 
-R.multiset a :=
+def R.multiset a :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -37,24 +37,24 @@ R.multiset a :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-R.uncons xs :=
+def R.uncons xs :=
   head
     (matchAll xs as R.multiset something with
       | $x :: $rs -> (x, rs))
 
-R.head xs :=
+def R.head xs :=
   head
     (matchAll xs as R.multiset something with
       | $x :: _ -> x)
 
-R.tail xs :=
+def R.tail xs :=
   head
     (matchAll xs as R.multiset something with
       | _ :: $rs -> rs)
 
-sample := R.head
+def sample := R.head
 
-R.set a :=
+def R.set a :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -71,6 +71,6 @@ R.set a :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-f.rands s e := f.pureRand s e :: f.rands s e
+def f.rands s e := f.pureRand s e :: f.rands s e
 
-f.pureRand s e := io f.rand s e
+def f.pureRand s e := io f.rand s e

@@ -4,26 +4,26 @@
 --
 --
 
-databaseTable :=
+def databaseTable :=
   algebraicDataMatcher
     | databaseTable string string
 
-databaseName data :=
+def databaseName data :=
   match data as databaseTable with
     | databaseTable $n _ -> n
 
-tableName data :=
+def tableName data :=
   match data as databaseTable with
     | databaseTable _ $n -> n
 
 --
 -- Generate SQL
 --
-simpleSelect whats tableName wheres :=
+def simpleSelect whats tableName wheres :=
   "select " ++ intercalate "," whats ++ " from " ++ tableName ++
     " " ++ simpleWhere wheres
 
-simpleWhere wheres :=
+def simpleWhere wheres :=
   let loopFn wheres :=
         match wheres as list (string, something) with
           | [] -> ""
@@ -35,4 +35,4 @@ simpleWhere wheres :=
 --
 -- For SQLite
 --
-pureSqlite db q := io sqlite db q
+def pureSqlite db q := io sqlite db q

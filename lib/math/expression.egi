@@ -9,14 +9,14 @@ infixr pattern 7 *
 infix pattern 7 /
 infix pattern 8 ^
 
-mathExpr :=
+def mathExpr :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (mathExpr') with
       | $tgt -> [fromMathExpr tgt]
 
-mathExpr' :=
+def mathExpr' :=
   matcher
     | $ / $ as (mathExpr, mathExpr) with
       | Div $p1 $p2 -> [(toMathExpr' p1, toMathExpr' p2)]
@@ -67,19 +67,19 @@ mathExpr' :=
     | $ as something with
       | $tgt -> [toMathExpr' tgt]
 
-indexExpr :=
+def indexExpr :=
   algebraicDataMatcher
     | sub mathExpr
     | sup mathExpr
     | user mathExpr
 
-polyExpr := mathExpr
+def polyExpr := mathExpr
 
-termExpr := mathExpr
+def termExpr := mathExpr
 
-symbolExpr := mathExpr
+def symbolExpr := mathExpr
 
-multExpr :=
+def multExpr :=
   matcher
     | [] as () with
       | $tgt ->
@@ -106,31 +106,31 @@ multExpr :=
     | $ as mathExpr with
       | $tgt -> [tgt]
 
-isSymbol %mexpr :=
+def isSymbol %mexpr :=
   match mexpr as mathExpr with
     | symbol _ _ -> True
     | _ -> False
 
-isApply %mexpr :=
+def isApply %mexpr :=
   match mexpr as mathExpr with
     | apply _ _ -> True
     | _ -> False
 
-isSimpleTerm mexpr := isSymbol mexpr || isApply mexpr
+def isSimpleTerm mexpr := isSymbol mexpr || isApply mexpr
 
-isTerm %mexpr :=
+def isTerm %mexpr :=
   match mexpr as mathExpr with
     | term _ _ -> True
     | #0 -> True
     | _ -> False
 
-isPolynomial %mexpr :=
+def isPolynomial %mexpr :=
   match mexpr as mathExpr with
     | poly _ -> True
     | #0 -> True
     | _ -> False
 
-isMonomial %mexpr :=
+def isMonomial %mexpr :=
   match mexpr as mathExpr with
     | poly [term _ _] / poly [term _ _] -> True
     | #0 -> True
@@ -139,7 +139,7 @@ isMonomial %mexpr :=
 --
 -- Accessor
 --
-fromMonomial $mexpr :=
+def fromMonomial $mexpr :=
   match mexpr as mathExpr with
     | term $a $xs / term $b $ys ->
       (a / b, foldl (*') 1 (map (uncurry (^')) xs) / foldl (*') 1 (map (uncurry (^')) ys))
@@ -147,24 +147,24 @@ fromMonomial $mexpr :=
 --
 -- Map
 --
-mapPolys $fn $mexpr :=
+def mapPolys $fn $mexpr :=
   match mexpr as mathExpr with
     | $p1 / $p2 -> fn p1 /' fn p2
 
-fromPoly $mexpr :=
+def fromPoly $mexpr :=
   match mexpr as mathExpr with
     | poly $ts1 / $q -> map (\t1 -> t1 /' q) ts1
 
-mapPoly $fn $mexpr :=
+def mapPoly $fn $mexpr :=
   match mexpr as mathExpr with
     | poly $ts1 / $q -> foldl (+') 0 (map (\t1 -> fn (t1 /' q)) ts1)
 
-mapTerms $fn $mexpr :=
+def mapTerms $fn $mexpr :=
   match mexpr as mathExpr with
     | poly $ts1 / poly $ts2 ->
       foldl (+') 0 (map fn ts1) /' foldl (+') 0 (map fn ts2)
 
-mapSymbols $fn $mexpr :=
+def mapSymbols $fn $mexpr :=
   mapTerms
     (\match as termExpr with
       | term $a $xs ->
@@ -182,11 +182,11 @@ mapSymbols $fn $mexpr :=
                   xs))
     mexpr
 
-scanAllTerms $mexpr $f :=
+def scanAllTerms $mexpr $f :=
   match mexpr as mathExpr with
     | poly $ts1 / poly $ts2 -> any f (ts1 ++ ts2)
 
-containSymbol $x $mexpr :=
+def containSymbol $x $mexpr :=
   scanAllTerms mexpr
     (\match as termExpr with
       | term _ $xs ->
@@ -197,7 +197,7 @@ containSymbol $x $mexpr :=
             | _ -> False)
           xs)
 
-containFunction $f $mexpr :=
+def containFunction $f $mexpr :=
   scanAllTerms mexpr
     (\match as termExpr with
       | term _ $xs ->
@@ -211,22 +211,22 @@ containFunction $f $mexpr :=
 --
 -- Substitute
 --
-substitute %ls $mexpr :=
+def substitute %ls $mexpr :=
   match ls as list (symbolExpr, mathExpr) with
     | [] -> mathNormalize mexpr
     | ($x, $a) :: $rs -> substitute rs (substitute' x a mexpr)
 
-substitute' $x %a $mexpr := mapSymbols (rewriteSymbol x a) mexpr
+def substitute' $x %a $mexpr := mapSymbols (rewriteSymbol x a) mexpr
 
-rewriteSymbol $x $a $sexpr :=
+def rewriteSymbol $x $a $sexpr :=
   match sexpr as symbolExpr with
     | #x -> a
     | _ -> sexpr
 
-V.substitute %xs %ys $mexpr :=
+def V.substitute %xs %ys $mexpr :=
   substitute (zip (tensorToList xs) (tensorToList ys)) mexpr
 
-expandAll $mexpr :=
+def expandAll $mexpr :=
   match mexpr as mathExpr with
     | ?isSymbol -> mexpr
     -- function application
@@ -240,7 +240,7 @@ expandAll $mexpr :=
     -- quotient
     | $p1 / $p2 -> expandAll p1 / expandAll p2
 
-expandAll' $mexpr :=
+def expandAll' $mexpr :=
   match mexpr as mathExpr with
     | ?isSymbol -> mexpr
     -- function application
@@ -257,13 +257,13 @@ expandAll' $mexpr :=
 --
 -- Coefficient
 --
-coefficients $f $x :=
+def coefficients $f $x :=
   let m := maximum
              (0 :: (matchAll f as mathExpr with
                | poly (term $a (ncons #x $k $ts) :: _) / _ -> k))
    in map (coefficient f x) (between 0 m)
 
-coefficient $f $x $m :=
+def coefficient $f $x $m :=
   if m = 0
     then sum
            (matchAll f as mathExpr with
@@ -271,13 +271,13 @@ coefficient $f $x $m :=
                foldl (*') a (map (^') ts)) / denominator f
     else coefficient' f x m
 
-coefficient' $f $x $m :=
+def coefficient' $f $x $m :=
   sum
     (matchAll f as mathExpr with
       | poly (term $a (ncons #x #m $ts) :: _) / _ ->
         foldl (*') a (map (^') ts)) / denominator f
 
-coefficient2 $f $x $y :=
+def coefficient2 $f $x $y :=
   sum
     (matchAll f as mathExpr with
       | poly (term $a (#x :: #y :: $ts) :: _) / _ ->

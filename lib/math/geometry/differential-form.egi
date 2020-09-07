@@ -1,4 +1,4 @@
-dfNormalize %X :=
+def dfNormalize %X :=
   let p := dfOrder X
       (es, os) := evenAndOddPermutations p
    in withSymbols [i]
@@ -6,15 +6,15 @@ dfNormalize %X :=
        - sum (map (\σ -> subrefs X (map 1#i_(σ %1) (between 1 p))) os))
        / fact p
 
-antisymmetrize := dfNormalize
+def antisymmetrize := dfNormalize
 
-wedge %X %Y := X !. Y
+def wedge %X %Y := X !. Y
 
-Lie.wedge %X %Y := X !. Y - Y !. X
+def Lie.wedge %X %Y := X !. Y - Y !. X
 
-ι %X %Y := withSymbols [i] dfOrder Y * (X...~i . dfNormalize Y..._i)
+def ι %X %Y := withSymbols [i] dfOrder Y * (X...~i . dfNormalize Y..._i)
 
-Lie %X %Y :=
+def Lie %X %Y :=
   match dfOrder Y as integer with
     | #0 -> ι X (d Y)
     | #N -> d (ι X Y)

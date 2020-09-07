@@ -19,7 +19,7 @@ module Language.Egison.Parser.NonS
        , lowerReservedWords
        ) where
 
-import           Control.Monad.State            (get, gets, put, lift)
+import           Control.Monad.State            (get, gets, put)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
@@ -36,7 +36,6 @@ import qualified Text.Megaparsec.Char.Lexer     as L
 import           Language.Egison.AST            hiding (Assoc(..))
 import qualified Language.Egison.AST            as E
 import           Language.Egison.Data
-import           Language.Egison.Pretty         (prettyStr)
 import           Language.Egison.RState
 
 
@@ -91,8 +90,9 @@ topExpr :: Parser TopExpr
 topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
+      <|> (reserved "def" >> defineExpr)
       <|> infixExpr
-      <|> defineOrTestExpr
+      <|> Test     <$> expr
       <?> "toplevel expression"
 
 -- Sort binaryop table on the insertion
@@ -135,43 +135,17 @@ infixExpr = do
     reservedOp = [":", ":=", "->"]
     reservedPOp = ["&", "|", ":=", "->"]
 
-defineOrTestExpr :: Parser TopExpr
-defineOrTestExpr = do
-  e <- expr
-  defineExpr e <|> return (Test e)
-  where
-    defineExpr :: Expr -> Parser TopExpr
-    defineExpr e = do
-      _    <- symbol ":="
-      -- When ":=" is observed and the current expression turns out to be a
-      -- definition, we do not start over from scratch but re-interpret
-      -- what's parsed so far as the lhs of definition.
-      r <- lift $ convertToDefine e
-      case r of
-        Nothing -> customFailure IllFormedDefine
-        Just (var, [])   -> Define var <$> expr
-        Just (var, args) -> Define var . LambdaExpr args <$> expr
-
-    convertToDefine :: Expr -> RuntimeM (Maybe (VarWithIndices, [Arg ArgPattern]))
-    convertToDefine expr = do
-      r <- runParserT p "egison" (prettyStr expr)
-      case r of
-        Left _ -> return Nothing
-        Right (v, args) -> return $ Just (v, args)
-     where
-       p :: Parser (VarWithIndices, [Arg ArgPattern])
-       p = do
-         ops <- gets exprOps
-         f   <-   parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
-              <|> varWithIndicesLiteral
-         args <- many arg'
-         return (f, args)
-
-       arg' :: Parser (Arg ArgPattern)
-       arg' = InvertedScalarArg <$> (symbol "*$" >> argPatternAtom)
-          <|> TensorArg         <$> (symbol "%"  >> argPatternAtom)
-          <|> ScalarArg         <$> (symbol "$"  >> argPatternAtom)
-          <|> TensorArg         <$> argPattern
+defineExpr :: Parser TopExpr
+defineExpr = do
+  ops  <- gets exprOps
+  f    <-   parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
+        <|> varWithIndicesLiteral
+  args <- many arg
+  _    <- symbol ":="
+  body <- expr
+  case args of
+    [] -> return (Define f body)
+    _  -> return (Define f (LambdaExpr args body))
 
 expr :: Parser Expr
 expr = do
@@ -824,6 +798,7 @@ lowerReservedWords :: [String]
 lowerReservedWords =
   [ "loadFile"
   , "load"
+  , "def"
   , "if"
   , "then"
   , "else"

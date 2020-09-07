@@ -5,7 +5,7 @@
 --
 
 -- Extract all twin primes from the infinite list of prime numbers with pattern-matching!
-twinPrimes :=
+def twinPrimes :=
   matchAll primes as list integer with
     | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 
@@ -24,7 +24,7 @@ assertEqual "first 10 twin prime"
   , (107, 109) ]
 
 -- Extract all prime-triplets from the infinite list of prime numbers with pattern-matching!
-primeTriplets :=
+def primeTriplets :=
   matchAll primes as list integer with
     | _ ++ $p :: ($m & (#(p + 2) | #(p + 4))) :: #(p + 6) :: _ -> (p, m, p + 6)
 

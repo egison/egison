@@ -1,5 +1,9 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS_GHC -Wno-orphans   #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE ViewPatterns           #-}
+{-# OPTIONS_GHC -Wno-orphans        #-}
 
 {- |
 Module      : Language.Egison.PrettyPrint
@@ -33,9 +37,9 @@ prettyTopExprs exprs = vsep $ punctuate line (map pretty exprs)
 
 instance Pretty TopExpr where
   pretty (Define x (LambdaExpr args body)) =
-    hsep (pretty x : map pretty' args) <+> indentBlock (pretty ":=") [pretty body]
+    hsep (pretty "def" : pretty x : map pretty' args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (Define x expr) =
-    pretty x <+> indentBlock (pretty ":=") [pretty expr]
+    pretty "def" <+> pretty x <+> indentBlock (pretty ":=") [pretty expr]
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
@@ -235,7 +239,7 @@ instance (Pretty expr, Complex expr, Show expr) => Pretty (PatternBase expr) whe
   pretty (IndexedPat p indices) =
     pretty p <> hcat (map (\i -> pretty '_' <> pretty' i) indices)
   pretty (LetPat binds pat) =
-    pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
+    pretty "let" <+> align (vsep (map (\(p, e) -> pretty p <+> pretty ":=" <+> align (pretty e)) binds)) <+> pretty "in" <+> pretty pat
   -- (p11 op' p12) op p2
   pretty (InfixPat op p1@(InfixPat op' _ _) p2) =
     if priority op > priority op' || priority op == priority op' && assoc op == InfixR
@@ -316,6 +320,7 @@ instance Complex Expr where
   isAtom (ConstantExpr (IntegerExpr i)) | i < 0  = False
   isAtom PrefixExpr{}             = False
   isAtom InfixExpr{}              = False
+  isAtom (ApplyExpr _ [])         = True
   isAtom ApplyExpr{}              = False
   isAtom CApplyExpr{}             = False
   isAtom LambdaExpr{}             = False

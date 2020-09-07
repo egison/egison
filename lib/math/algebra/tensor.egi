@@ -7,14 +7,14 @@
 infixl expression 7 .
 infixl expression 7 .'
 
-tensorOrder %A := length (tensorShape A)
+def tensorOrder %A := length (tensorShape A)
 
-unitTensor ns := generateTensor kroneckerDelta ns
+def unitTensor ns := generateTensor kroneckerDelta ns
 
-scalarToTensor x ns := x * unitTensor ns
+def scalarToTensor x ns := x * unitTensor ns
 
-zeroTensor ns := generateTensor (\xs -> 0) ns
+def zeroTensor ns := generateTensor (\xs -> 0) ns
 
-(.') %t1 %t2 := sum' (contract (t1 *' t2))
+def (.') %t1 %t2 := sum' (contract (t1 *' t2))
 
-(.) %t1 %t2 := sum (contract (t1 * t2))
+def (.) %t1 %t2 := sum (contract (t1 * t2))

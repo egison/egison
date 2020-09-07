@@ -4,7 +4,7 @@
 --
 --
 
-toMathExpr arg := mathNormalize (toMathExpr' arg)
+def toMathExpr arg := mathNormalize (toMathExpr' arg)
 
 infixl expression 6 +
 infixl expression 6 -
@@ -18,54 +18,51 @@ infixl expression 7 *'
 infixl expression 7 /'
 infixl expression 8 ^'
 
-(+') := b.+
-(-') := b.-
-(*') := b.*
-(/') := b./
+def (+') := b.+
+def (-') := b.-
+def (*') := b.*
+def (/') := b./
 
-(+) $x $y :=
+def (+) $x $y :=
   match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f.+ x y
     | #(True, False) -> f.+ x (itof y)
     | #(False, True) -> f.+ (itof x) y
     | _              -> mathNormalize (x +' y)
 
-(-) $x $y :=
+def (-) $x $y :=
   match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f.- x y
     | #(True, False) -> f.- x (itof y)
     | #(False, True) -> f.- (itof x) y
     | _              -> mathNormalize (x -' y)
 
-(*) $x $y :=
+def (*) $x $y :=
   match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f.* x y
     | #(True, False) -> f.* x (itof y)
     | #(False, True) -> f.* (itof x) y
     | _              -> mathNormalize (x *' y)
 
-(/) $x $y :=
+def (/) $x $y :=
   match (isFloat x, isFloat y) as eq with
     | #(True, True)  -> f./ x y
     | #(True, False) -> f./ x (itof y)
     | #(False, True) -> f./ (itof x) y
     | _              -> x /' y
 
-reduceFraction := id
+def reduceFraction := id
 
-sum xs := foldl (+) 0 xs
+def sum xs := foldl (+) 0 xs
+def sum' xs := foldl (+') 0 xs
 
-sum' xs := foldl (+') 0 xs
+def product xs := foldl (*) 1 xs
+def product' xs := foldl (*') 1 xs
 
-product xs := foldl (*) 1 xs
+def power $x $n := mathNormalize (power' x n)
+def power' $x $n := foldl (*') 1 (take n (repeat1 x))
 
-product' xs := foldl (*') 1 xs
-
-power $x $n := mathNormalize (power' x n)
-
-power' $x $n := foldl (*') 1 (take n (repeat1 x))
-
-(^) $x $n :=
+def (^) $x $n :=
   if x = e
     then exp n
     else if isRational n
@@ -74,7 +71,7 @@ power' $x $n := foldl (*') 1 (take n (repeat1 x))
         else 1 / x ^ neg n
       else `(^) x n
 
-(^') $x $n :=
+def (^') $x $n :=
   if x = e
     then exp n
     else if isRational n
@@ -83,21 +80,21 @@ power' $x $n := foldl (*') 1 (take n (repeat1 x))
         else 1 /' x ^' neg n
       else `(^) x n
 
-gcd $x $y :=
+def gcd $x $y :=
   match (x, y) as (termExpr, termExpr) with
     | (_, #0) -> x
     | (#0, _) -> y
     | (term $a $xs, term $b $ys) ->
       gcd' (abs a) (abs b) *' foldl (*') 1 (map (^') (AC.intersect xs ys))
 
-gcd' $x $y :=
+def gcd' $x $y :=
   match (x, y) as (integer, integer) with
     | (_, #0) -> x
     | (#0, _) -> y
     | (_, ?(>= x)) -> gcd' (modulo y x) x
     | (_, _) -> gcd' y x
 
-P./ fx $gx $x :=
+def P./ fx $gx $x :=
   let xs := reverse (coefficients fx x)
       ys := reverse (coefficients gx x)
       (zs, rs) := L./ xs ys
