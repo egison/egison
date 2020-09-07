@@ -35,20 +35,19 @@ import qualified Text.Megaparsec.Char.Lexer     as L
 
 import           Language.Egison.AST            hiding (Assoc(..))
 import qualified Language.Egison.AST            as E
-import           Language.Egison.Data
 import           Language.Egison.RState
 
 
-parseTopExprs :: String -> RuntimeM (Either EgisonError [TopExpr])
+parseTopExprs :: String -> RuntimeM (Either String [TopExpr])
 parseTopExprs = doParse $ many (L.nonIndented sc topExpr) <* eof
 
-parseTopExpr :: String -> RuntimeM (Either EgisonError TopExpr)
+parseTopExpr :: String -> RuntimeM (Either String TopExpr)
 parseTopExpr = doParse $ sc >> topExpr <* eof
 
-parseExprs :: String -> RuntimeM (Either EgisonError [Expr])
+parseExprs :: String -> RuntimeM (Either String [Expr])
 parseExprs = doParse $ many (L.nonIndented sc expr) <* eof
 
-parseExpr :: String -> RuntimeM (Either EgisonError Expr)
+parseExpr :: String -> RuntimeM (Either String Expr)
 parseExpr = doParse $ sc >> expr <* eof
 
 --
@@ -75,11 +74,11 @@ instance ShowErrorComponent CustomError where
     "The last statement in a 'do' block must be an expression."
 
 
-doParse :: Parser a -> String -> RuntimeM (Either EgisonError a)
+doParse :: Parser a -> String -> RuntimeM (Either String a)
 doParse p input = do
   result <- runParserT p "egison" input
   case result of
-    Left e  -> return $ Left (Parser (errorBundlePretty e))
+    Left e  -> return $ Left (errorBundlePretty e)
     Right r -> return $ Right r
 
 --

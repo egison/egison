@@ -35,27 +35,26 @@ import           Text.Parsec.String
 import qualified Text.Parsec.Token       as P
 
 import           Language.Egison.AST
-import           Language.Egison.Data
 
-parseTopExprs :: String -> Either EgisonError [TopExpr]
+parseTopExprs :: String -> Either String [TopExpr]
 parseTopExprs = doParse $ do
   ret <- whiteSpace >> endBy topExpr whiteSpace
   eof
   return ret
 
-parseTopExpr :: String -> Either EgisonError TopExpr
+parseTopExpr :: String -> Either String TopExpr
 parseTopExpr = doParse $ do
   ret <- whiteSpace >> topExpr
   whiteSpace >> eof
   return ret
 
-parseExprs :: String -> Either EgisonError [Expr]
+parseExprs :: String -> Either String [Expr]
 parseExprs = doParse $ do
   ret <- whiteSpace >> endBy expr whiteSpace
   eof
   return ret
 
-parseExpr :: String -> Either EgisonError Expr
+parseExpr :: String -> Either String Expr
 parseExpr = doParse $ do
   ret <- whiteSpace >> expr
   whiteSpace >> eof
@@ -65,11 +64,8 @@ parseExpr = doParse $ do
 -- Parser
 --
 
-doParse :: Parser a -> String -> Either EgisonError a
-doParse p input = either (throwError . fromParsecError) return $ parse p "egison" input
-  where
-    fromParsecError :: ParseError -> EgisonError
-    fromParsecError = Parser . show
+doParse :: Parser a -> String -> Either String a
+doParse p input = either (throwError . show) return $ parse p "egison" input
 
 doParse' :: Parser a -> String -> a
 doParse' p input = case doParse p input of
