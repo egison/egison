@@ -409,7 +409,7 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExprDeep env shapeExpr >>= collectionToList
   ns    <- mapM fromEgison shape :: EvalM Shape
   xs    <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
-  fromTensor (Tensor ns (V.fromList xs) [])
+  return $ ITensor (Tensor ns (V.fromList xs) [])
  where
   indexToWHNF :: Env -> [EgisonValue] {- index -} -> EvalM WHNFData
   indexToWHNF (Env frame maybe_vwi) ms = do
