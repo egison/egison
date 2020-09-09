@@ -75,15 +75,11 @@ supsubM (IndexM m) _ = m
 
 class HasTensor a where
   tensorElems :: a -> V.Vector a
-  tensorShape :: a -> Shape
-  tensorIndices :: a -> [Index EgisonValue]
   fromTensor :: Tensor a -> EvalM a
   toTensor :: a -> EvalM (Tensor a)
 
 instance HasTensor EgisonValue where
   tensorElems (TensorData (Tensor _ xs _)) = xs
-  tensorShape (TensorData (Tensor ns _ _)) = ns
-  tensorIndices (TensorData (Tensor _ _ js)) = js
   fromTensor t@Tensor{} = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
@@ -91,8 +87,6 @@ instance HasTensor EgisonValue where
 
 instance HasTensor WHNFData where
   tensorElems (ITensor (Tensor _ xs _)) = xs
-  tensorShape (ITensor (Tensor ns _ _)) = ns
-  tensorIndices (ITensor (Tensor _ _ js)) = js
   fromTensor t@Tensor{} = return (ITensor t)
   fromTensor (Scalar x) = return x
   toTensor (ITensor t) = return t
