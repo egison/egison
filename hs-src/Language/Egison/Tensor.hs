@@ -228,7 +228,7 @@ removeDF (Value (TensorData (Tensor s xs is))) = do
   isDF _        = False
 removeDF whnf = return whnf
 
-tMap :: HasTensor a => (a -> EvalM a) -> Tensor a -> EvalM (Tensor a)
+tMap :: HasTensor b => (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
   xs' <- V.mapM f xs
@@ -240,7 +240,7 @@ tMap f (Tensor ns xs js') = do
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 
-tMap2 :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
+tMap2 :: (HasTensor a, HasTensor b, HasTensor c) => (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
@@ -288,7 +288,7 @@ tDiagIndex js =
     , [mc| _ -> js |]
     ]
 
-tProduct :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
+tProduct :: (HasTensor a, HasTensor b, HasTensor c) => (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'

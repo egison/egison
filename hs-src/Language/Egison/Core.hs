@@ -378,7 +378,7 @@ evalExprShallow env (IApplyExpr func args) = do
       IInductiveData name <$> mapM (newThunkRef env) args
     Value (TensorData t@Tensor{}) -> do
       let args' = map (newThunk env) args
-      Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor) >>= removeDF
+      tMap (\f -> applyFunc env (Value f) args') t >>= fromTensor >>= removeDF
     ITensor t@Tensor{} -> do
       let args' = map (newThunk env) args
       tMap (\f -> applyFunc env f args') t >>= fromTensor
@@ -395,7 +395,7 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
   let args' = map WHNF (zipWith appendDF [1..] args)
   case func of
     Value (TensorData t@Tensor{}) ->
-      Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor)
+      tMap (\f -> applyFunc env (Value f) args') t >>= fromTensor
     ITensor t@Tensor{} ->
       tMap (\f -> applyFunc env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env names body) -> do
@@ -435,7 +435,7 @@ evalExprShallow env (ITensorMapExpr fnExpr tExpr) = do
     ITensor t ->
       tMap (\t -> applyFunc env fn [WHNF t]) t >>= fromTensor
     Value (TensorData t) ->
-      Value <$> (tMap (\t -> applyFunc' env fn [t]) t >>= fromTensor)
+      tMap (\t -> applyFunc env fn [WHNF (Value t)]) t >>= fromTensor
     _ -> applyFunc env fn [WHNF whnf]
 
 evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
@@ -446,14 +446,12 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
     -- both of arguments are tensors
     (ITensor t1, ITensor t2) ->
       tMap2 (applyFunc'' env fn) t1 t2 >>= fromTensor
-    (ITensor t, Value (TensorData (Tensor ns xs js))) -> do
-      let xs' = V.map Value xs
-      tMap2 (applyFunc'' env fn) t (Tensor ns xs' js) >>= fromTensor
-    (Value (TensorData (Tensor ns xs js)), ITensor t) -> do
-      let xs' = V.map Value xs
-      tMap2 (applyFunc'' env fn) (Tensor ns xs' js) t >>= fromTensor
+    (ITensor t1, Value (TensorData t2)) ->
+      tMap2 (\x y -> applyFunc env fn [WHNF x, WHNF (Value y)]) t1 t2 >>= fromTensor
+    (Value (TensorData t1), ITensor t2) -> do
+      tMap2 (\x y -> applyFunc env fn [WHNF (Value x), WHNF y]) t1 t2 >>= fromTensor
     (Value (TensorData t1), Value (TensorData t2)) ->
-      Value <$> (tMap2 (\x y -> applyFunc' env fn [x, y]) t1 t2 >>= fromTensor)
+      tMap2 (\x y -> applyFunc env fn [WHNF (Value x), WHNF (Value y)]) t1 t2 >>= fromTensor
     -- an argument is scalar
     (ITensor (Tensor ns xs js), whnf) -> do
       ys <- V.mapM (\x -> applyFunc'' env fn x whnf) xs
@@ -591,9 +589,6 @@ applyFunc _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) args = do
                             _ -> throwError =<< EgisonBug "to use undefined functions, you have to use ScalarData args" <$> getFuncNameStack) args
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
-
-applyFunc' :: Env -> WHNFData -> [EgisonValue] -> EvalM EgisonValue
-applyFunc' env fn xs = applyFunc env fn (map (WHNF . Value) xs) >>= evalWHNF
 
 refHash :: WHNFData -> [EgisonValue] -> EvalM WHNFData
 refHash val [] = return val
