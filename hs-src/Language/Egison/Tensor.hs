@@ -12,9 +12,9 @@ This module contains functions for tensors.
 -}
 
 module Language.Egison.Tensor
-    (
+    ( HasTensor (..)
     -- * Tensor
-      initTensor
+    , initTensor
     , tToList
     , tIndex
     , tref
@@ -79,6 +79,31 @@ supsubM (IndexM m) _ = m
 --
 -- Tensors
 --
+
+class HasTensor a where
+  tensorElems :: a -> V.Vector a
+  tensorShape :: a -> Shape
+  tensorIndices :: a -> [Index EgisonValue]
+  fromTensor :: Tensor a -> EvalM a
+  toTensor :: a -> EvalM (Tensor a)
+
+instance HasTensor EgisonValue where
+  tensorElems (TensorData (Tensor _ xs _)) = xs
+  tensorShape (TensorData (Tensor ns _ _)) = ns
+  tensorIndices (TensorData (Tensor _ _ js)) = js
+  fromTensor t@Tensor{} = return $ TensorData t
+  fromTensor (Scalar x) = return x
+  toTensor (TensorData t) = return t
+  toTensor x              = return $ Scalar x
+
+instance HasTensor WHNFData where
+  tensorElems (ITensor (Tensor _ xs _)) = xs
+  tensorShape (ITensor (Tensor ns _ _)) = ns
+  tensorIndices (ITensor (Tensor _ _ js)) = js
+  fromTensor t@Tensor{} = return (ITensor t)
+  fromTensor (Scalar x) = return x
+  toTensor (ITensor t) = return t
+  toTensor x           = return (Scalar x)
 
 initTensor :: Shape -> [a] -> Tensor a
 initTensor ns xs = Tensor ns (V.fromList xs) []
@@ -211,14 +236,14 @@ removeDF (ITensor (Tensor s xs is)) = do
   return (ITensor (Tensor s ys js))
  where
   isDF (DF _ _) = True
-  isDF _              = False
+  isDF _        = False
 removeDF (Value (TensorData (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
   Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
   return (Value (TensorData (Tensor s ys js)))
  where
   isDF (DF _ _) = True
-  isDF _              = False
+  isDF _        = False
 removeDF whnf = return whnf
 
 tMap :: HasTensor a => (a -> EvalM a) -> Tensor a -> EvalM (Tensor a)
