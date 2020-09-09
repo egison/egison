@@ -187,7 +187,7 @@ tTranspose is t@(Tensor ns _ js) = do
   return $ Tensor ns' xs' is
 
 tTranspose' :: HasTensor a => [EgisonValue] -> Tensor a -> EvalM (Tensor a)
-tTranspose' is t@(Tensor _ _ js) = do
+tTranspose' is t@(Tensor _ _ js) =
   case mapM (\i -> f i js) is of
     Nothing -> return t
     Just is' -> tTranspose is' t
