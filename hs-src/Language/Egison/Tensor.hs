@@ -25,7 +25,6 @@ module Language.Egison.Tensor
     , removeDF
     , tMap
     , tMap2
-    , tMapN
     , tProduct
     , tContract
     , tContract'
@@ -130,15 +129,15 @@ tIntRef (m:ms) t = tIntRef' m t >>= tIntRef ms
 pattern SupOrSubIndex :: a -> Index a
 pattern SupOrSubIndex i <- (extractSupOrSubIndex -> Just i)
 
-tref :: HasTensor a => [Index EgisonValue] -> Tensor a -> EvalM a
+tref :: [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tref [] (Tensor [] xs _)
-  | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
+  | V.length xs == 1 = return $ Scalar (xs V.! 0)
   | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
-tref [] t = fromTensor t
+tref [] t = return t
 tref (s@(SupOrSubIndex (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) = do
   let yss = split (product ns) xs
   ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
-  mapM toTensor ts >>= tConcat s >>= fromTensor
+  tConcat s ts
 tref (SupOrSubIndex (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= tref ms
 tref (SupOrSubIndex (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
 tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
@@ -146,15 +145,15 @@ tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   n <- fromEgison nVal
   if m > n
     then
-      fromTensor (Tensor (replicate (length is) 0) V.empty [])
+      return $ Tensor (replicate (length is) 0) V.empty []
     else do
-      ts <- mapM (\i -> tIntRef' i t >>= tref ms >>= toTensor) [m..n]
+      ts <- mapM (\i -> tIntRef' i t >>= tref ms) [m..n]
       symId <- fresh
       let index = symbolScalarData "" (":::" ++ symId)
       case s of
-        Sub{}    -> tConcat (Sub index) ts >>= fromTensor
-        Sup{}    -> tConcat (Sup index) ts >>= fromTensor
-        SupSub{} -> tConcat (SupSub index) ts >>= fromTensor
+        Sub{}    -> tConcat (Sub index) ts
+        Sup{}    -> tConcat (Sup index) ts
+        SupSub{} -> tConcat (SupSub index) ts
 tref (_:_) _ = throwError $ Default "Tensor index must be an integer or a single symbol."
 
 -- Enumarates all indices (1-indexed) from shape
@@ -240,12 +239,6 @@ tMap f (Tensor ns xs js') = do
       tContract' $ Tensor (ns ++ ns1) (V.concat (V.toList (V.map tensorElems xs'))) (js ++ js1)
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
-
-tMapN :: HasTensor a => ([a] -> EvalM a) -> [Tensor a] -> EvalM (Tensor a)
-tMapN f ts@(Tensor ns _ js : _) = do
-  xs' <- mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
-  return $ Tensor ns (V.fromList xs') js
-tMapN f xs = Scalar <$> (mapM fromTensor xs >>= f)
 
 tMap2 :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
@@ -358,7 +351,7 @@ tContract' t@(Tensor ns _ js) =
              xs' <- mapM (\i -> tref (hjs ++ (Sub (ScalarData (SingleTerm i [])) : mjs)
                                           ++ (Sub (ScalarData (SingleTerm i [])) : tjs)) t)
                          [1..(ns !! m)]
-             mapM toTensor xs' >>= tConcat a >>= tTranspose (hjs ++ a : mjs ++ tjs) >>= tContract' |]
+             tConcat a xs' >>= tTranspose (hjs ++ a : mjs ++ tjs) >>= tContract' |]
     , [mc| _ -> return t |]
     ]
  where
@@ -369,14 +362,14 @@ tContract' t@(Tensor ns _ js) =
   p _ _                   = False
 tContract' val = return val
 
-tConcat :: HasTensor a => Index EgisonValue -> [Tensor a] -> EvalM (Tensor a)
+tConcat :: Index EgisonValue -> [Tensor a] -> EvalM (Tensor a)
 tConcat s (Tensor ns@(0:_) _ js:_) = return $ Tensor (0:ns) V.empty (s:js)
 tConcat s ts@(Tensor ns _ js:_) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) (s:js)
 tConcat s ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') [s]
 
-tConcat' :: HasTensor a => [Tensor a] -> EvalM (Tensor a)
+tConcat' :: [Tensor a] -> EvalM (Tensor a)
 tConcat' (Tensor ns@(0:_) _ _ : _) = return $ Tensor (0:ns) V.empty []
 tConcat' ts@(Tensor ns _ _ : _) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) []
 tConcat' ts = do
