@@ -107,25 +107,25 @@ tIndex :: Tensor a -> [Index EgisonValue]
 tIndex (Tensor _ _ js) = js
 tIndex (Scalar _)      = []
 
-tIntRef' :: HasTensor a => Integer -> Tensor a -> EvalM a
+tIntRef' :: Integer -> Tensor a -> EvalM (Tensor a)
 tIntRef' i (Tensor [n] xs _) =
   if 0 < i && i <= n
-     then fromTensor $ Scalar $ xs V.! fromIntegral (i - 1)
+     then return . Scalar $ xs V.! fromIntegral (i - 1)
      else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
 tIntRef' i (Tensor (n:ns) xs js) =
   if 0 < i && i <= n
-   then let w = fromIntegral (product ns) in
-        let ys = V.take w (V.drop (w * fromIntegral (i - 1)) xs) in
-          fromTensor $ Tensor ns ys (cdr js)
+   then let w = fromIntegral (product ns)
+            ys = V.take w (V.drop (w * fromIntegral (i - 1)) xs)
+         in return $ Tensor ns ys (cdr js)
    else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
 tIntRef' _ _ = throwError $ Default "More indices than the order of the tensor"
 
-tIntRef :: HasTensor a => [Integer] -> Tensor a -> EvalM (Tensor a)
+tIntRef :: [Integer] -> Tensor a -> EvalM (Tensor a)
 tIntRef [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
   | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
 tIntRef [] t = return t
-tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms
+tIntRef (m:ms) t = tIntRef' m t >>= tIntRef ms
 
 pattern SupOrSubIndex :: a -> Index a
 pattern SupOrSubIndex i <- (extractSupOrSubIndex -> Just i)
@@ -139,7 +139,7 @@ tref (s@(SupOrSubIndex (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) 
   let yss = split (product ns) xs
   ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
   mapM toTensor ts >>= tConcat s >>= fromTensor
-tref (SupOrSubIndex (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= toTensor >>= tref ms
+tref (SupOrSubIndex (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= tref ms
 tref (SupOrSubIndex (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
 tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
@@ -148,7 +148,7 @@ tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
     then
       fromTensor (Tensor (replicate (length is) 0) V.empty [])
     else do
-      ts <- mapM (\i -> tIntRef' i t >>= toTensor >>= tref ms >>= toTensor) [m..n]
+      ts <- mapM (\i -> tIntRef' i t >>= tref ms >>= toTensor) [m..n]
       symId <- fresh
       let index = symbolScalarData "" (":::" ++ symId)
       case s of
@@ -200,7 +200,7 @@ tTranspose' is t@(Tensor _ _ js) = do
       , [mc| _ -> Nothing |]
       ]
 
-tFlipIndices :: HasTensor a => Tensor a -> EvalM (Tensor a)
+tFlipIndices :: Tensor a -> EvalM (Tensor a)
 tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map reverseIndex js)
 
 appendDF :: Integer -> WHNFData -> WHNFData
@@ -346,7 +346,7 @@ tContract t = do
   case t' of
     Tensor (n:_) _ (SupSub _ : _) -> do
       ts <- mapM (`tIntRef'` t') [1..n]
-      tss <- mapM toTensor ts >>= mapM tContract
+      tss <- mapM tContract ts
       return $ concat tss
     _ -> return [t']
 
