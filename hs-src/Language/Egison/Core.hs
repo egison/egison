@@ -123,7 +123,7 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
             Env frame (Just (name, zipWith changeIndex indices [toEgison index]))
     f (ITensor (Tensor ns xs indices)) i = ITensor (Tensor ns xs' indices)
       where
-        xs' = V.fromList $ zipWith g (V.toList xs) $ map (\ms -> map toEgison (i:ms)) $ enumTensorIndices ns
+        xs' = V.zipWith g xs (V.fromList (map (\ms -> map toEgison (i:ms)) $ enumTensorIndices ns))
     f x _ = x
     g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p))) ms =
       Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p))
@@ -520,8 +520,8 @@ evalWHNF (IStrHash refs) = do
 evalWHNF (ITuple [ref]) = evalRefDeep ref
 evalWHNF (ITuple refs) = Tuple <$> mapM evalRefDeep refs
 evalWHNF (ITensor (Tensor ns whnfs js)) = do
-  vals <- mapM evalWHNF (V.toList whnfs)
-  return $ TensorData $ Tensor ns (V.fromList vals) js
+  vals <- V.mapM evalWHNF whnfs
+  return $ TensorData $ Tensor ns vals js
 evalWHNF coll = Collection <$> (collectionToRefs coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 addscript :: (Index EgisonValue, Tensor a) -> Tensor a

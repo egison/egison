@@ -15,8 +15,6 @@ module Language.Egison.Tensor
     ( HasTensor (..)
     -- * Tensor
     , initTensor
-    , tToList
-    , tIndex
     , tref
     , enumTensorIndices
     , changeIndex
@@ -111,10 +109,6 @@ initTensor ns xs = Tensor ns (V.fromList xs) []
 tShape :: Tensor a -> Shape
 tShape (Tensor ns _ _) = ns
 tShape (Scalar _)      = []
-
-tToList :: Tensor a -> [a]
-tToList (Tensor _ xs _) = V.toList xs
-tToList (Scalar x)      = [x]
 
 tToVector :: Tensor a -> V.Vector a
 tToVector (Tensor _ xs _) = xs
@@ -249,7 +243,7 @@ removeDF whnf = return whnf
 tMap :: HasTensor a => (a -> EvalM a) -> Tensor a -> EvalM (Tensor a)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
-  xs' <- V.fromList <$> mapM f (V.toList xs)
+  xs' <- V.mapM f xs
   t <- toTensor (V.head xs')
   case t of
     Tensor ns1 _ js1' -> do
@@ -330,13 +324,14 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let t2 = Tensor ns2 xs2 js2
   case cjs1 of
     [] -> do
-      xs' <- V.fromList <$> mapM (\is -> do
-                              let is1 = take (length ns1) is
-                              let is2 = take (length ns2) (drop (length ns1) is)
-                              x1 <- tIntRef is1 t1 >>= fromTensor
-                              x2 <- tIntRef is2 t2 >>= fromTensor
-                              f x1 x2) (enumTensorIndices (ns1 ++ ns2))
-      tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
+      xs' <- mapM
+               (\is -> do let is1 = take (length ns1) is
+                          let is2 = take (length ns2) (drop (length ns1) is)
+                          x1 <- tIntRef is1 t1 >>= fromTensor
+                          x2 <- tIntRef is2 t2 >>= fromTensor
+                          f x1 x2)
+               (enumTensorIndices (ns1 ++ ns2))
+      tContract' (Tensor (ns1 ++ ns2) (V.fromList xs') (js1 ++ js2))
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
       t2' <- tTranspose (cjs2 ++ tjs2) t2
