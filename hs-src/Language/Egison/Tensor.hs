@@ -26,15 +26,10 @@ module Language.Egison.Tensor
     , tMap
     , tMap2
     , tMapN
-    , tSum
     , tProduct
     , tContract
     , tContract'
-    , tConcat
     , tConcat'
-    -- * Tensor to Egison value
-    , tensorToWHNF
-    , tensorToValue
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
@@ -306,15 +301,6 @@ tDiagIndex js =
     , [mc| _ -> js |]
     ]
 
-tSum :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
-tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
-  t2' <- tTranspose js1 t2
-  case t2' of
-    Tensor ns2 xs2 _
-      | ns2 == ns1 -> do ys <- V.mapM (uncurry f) (V.zip xs1 xs2)
-                         return (Tensor ns1 ys js1)
-      | otherwise -> throwError =<< InconsistentTensorShape <$> getFuncNameStack
-
 tProduct :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
@@ -402,18 +388,6 @@ tConcat' ts@(Tensor ns _ _ : _) = return $ Tensor (fromIntegral (length ts):ns) 
 tConcat' ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') []
-
---
--- Tensor to Egison data
---
-
-tensorToWHNF :: Tensor WHNFData -> WHNFData
-tensorToWHNF (Scalar whnf)    = whnf
-tensorToWHNF t@(Tensor _ _ _) = ITensor t
-
-tensorToValue :: Tensor EgisonValue -> EgisonValue
-tensorToValue (Scalar val) = val
-tensorToValue t@(Tensor _ _ _) = TensorData t
 
 -- utility functions for tensors
 
