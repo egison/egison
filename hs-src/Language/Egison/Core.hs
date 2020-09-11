@@ -421,11 +421,11 @@ evalExprShallow env (ITensorContractExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
   case whnf of
     ITensor t@Tensor{} -> do
-      ts <- tContract t
-      makeICollection (map tensorToWHNF ts)
+      ts <- tContract t >>= mapM fromTensor
+      makeICollection ts
     Value (TensorData t@Tensor{}) -> do
-      ts <- tContract t
-      return $ Value $ Collection $ Sq.fromList $ map tensorToValue ts
+      ts <- tContract t >>= mapM fromTensor
+      return $ Value $ Collection $ Sq.fromList ts
     _ -> makeICollection [whnf]
 
 evalExprShallow env (ITensorMapExpr fnExpr tExpr) = do
