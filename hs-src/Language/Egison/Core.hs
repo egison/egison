@@ -527,6 +527,7 @@ evalWHNF coll = Collection <$> (collectionToRefs coll >>= fromMList >>= mapM eva
 addscript :: (Index EgisonValue, Tensor a) -> Tensor a
 addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 
+-- TODO: We can use the toTensor function instead of valueToTensor.
 valueToTensor :: WHNFData -> Tensor WHNFData
 valueToTensor (ITensor t) = t
 
