@@ -241,12 +241,12 @@ removeDF whnf = return whnf
 tMap :: (TensorComponent a, TensorComponent b) => (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
-  xs' <- V.fromList <$> mapM f (V.toList xs)
+  xs' <- V.mapM f xs
   t <- toTensor (V.head xs')
   case t of
     Tensor ns1 _ js1' -> do
       let js1 = js1' ++ complementWithDF ns1 js1'
-      tContract' $ Tensor (ns ++ ns1) (V.concat (V.toList (V.map tensorElems xs'))) (js ++ js1)
+      tContract' $ Tensor (ns ++ ns1) (V.concatMap tensorElems xs') (js ++ js1)
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 
