@@ -12,11 +12,9 @@ This module contains functions for tensors.
 -}
 
 module Language.Egison.Tensor
-    (
+    ( TensorComponent (..)
     -- * Tensor
-      initTensor
-    , tToList
-    , tIndex
+    , initTensor
     , tref
     , enumTensorIndices
     , changeIndex
@@ -27,8 +25,6 @@ module Language.Egison.Tensor
     , removeDF
     , tMap
     , tMap2
-    , tMapN
-    , tSum
     , tProduct
     , tContract
     , tContract'
@@ -80,16 +76,37 @@ supsubM (IndexM m) _ = m
 -- Tensors
 --
 
+class TensorComponent a where
+  tensorElems :: a -> V.Vector a
+  tensorShape :: a -> Shape
+  tensorIndices :: a -> [Index EgisonValue]
+  fromTensor :: Tensor a -> EvalM a
+  toTensor :: a -> EvalM (Tensor a)
+
+instance TensorComponent EgisonValue where
+  tensorElems (TensorData (Tensor _ xs _)) = xs
+  tensorShape (TensorData (Tensor ns _ _)) = ns
+  tensorIndices (TensorData (Tensor _ _ js)) = js
+  fromTensor t@Tensor{} = return $ TensorData t
+  fromTensor (Scalar x) = return x
+  toTensor (TensorData t) = return t
+  toTensor x              = return $ Scalar x
+
+instance TensorComponent WHNFData where
+  tensorElems (ITensor (Tensor _ xs _)) = xs
+  tensorShape (ITensor (Tensor ns _ _)) = ns
+  tensorIndices (ITensor (Tensor _ _ js)) = js
+  fromTensor t@Tensor{} = return (ITensor t)
+  fromTensor (Scalar x) = return x
+  toTensor (ITensor t) = return t
+  toTensor x           = return (Scalar x)
+
 initTensor :: Shape -> [a] -> Tensor a
 initTensor ns xs = Tensor ns (V.fromList xs) []
 
 tShape :: Tensor a -> Shape
 tShape (Tensor ns _ _) = ns
 tShape (Scalar _)      = []
-
-tToList :: Tensor a -> [a]
-tToList (Tensor _ xs _) = V.toList xs
-tToList (Scalar x)      = [x]
 
 tToVector :: Tensor a -> V.Vector a
 tToVector (Tensor _ xs _) = xs
@@ -233,13 +250,7 @@ tMap f (Tensor ns xs js') = do
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 
-tMapN :: (TensorComponent a, TensorComponent b) => ([a] -> EvalM b) -> [Tensor a] -> EvalM (Tensor b)
-tMapN f ts@(Tensor ns _ js : _) = do
-  xs' <- mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
-  return $ Tensor ns (V.fromList xs') js
-tMapN f xs = Scalar <$> (mapM fromTensor xs >>= f)
-
-tMap2 :: (TensorComponent a, TensorComponent b) => (a -> a -> EvalM b) -> Tensor a -> Tensor a -> EvalM (Tensor b)
+tMap2 :: (TensorComponent a, TensorComponent b, TensorComponent c) => (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
@@ -287,16 +298,7 @@ tDiagIndex js =
     , [mc| _ -> js |]
     ]
 
-tSum :: TensorComponent a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
-tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
-  t2' <- tTranspose js1 t2
-  case t2' of
-    Tensor ns2 xs2 _
-      | ns2 == ns1 -> do ys <- V.mapM (uncurry f) (V.zip xs1 xs2)
-                         return (Tensor ns1 ys js1)
-      | otherwise -> throwError =<< InconsistentTensorShape <$> getFuncNameStack
-
-tProduct :: (TensorComponent a, TensorComponent b) => (a -> a -> EvalM b) -> Tensor a -> Tensor a -> EvalM (Tensor b)
+tProduct :: (TensorComponent a, TensorComponent b, TensorComponent c) => (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
