@@ -312,7 +312,7 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
 
 evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
   let body = foldr genLet (IApplyExpr expr [IVarExpr "#1"]) bindings
-  applyFunc env (Value $ Func Nothing env ["#1"] body) [WHNF (Value World)]
+  applyObj env (Value $ Func Nothing env ["#1"] body) [WHNF (Value World)]
  where
   genLet (names, expr) expr' =
     ILetExpr [(PDTuplePat (map PDPatVar ["#1", "#2"]), IApplyExpr expr [IVarExpr "#1"])] $
@@ -369,7 +369,7 @@ evalExprShallow env (ICApplyExpr func arg) = do
   case func of
     Value (MemoizedFunc hashRef env names body) ->
       evalMemoizedFunc hashRef env names body args
-    _ -> applyFunc env func (map (WHNF . Value) args)
+    _ -> applyObj env func (map (WHNF . Value) args)
 
 evalExprShallow env (IApplyExpr func args) = do
   func <- appendDF 0 <$> evalExprShallow env func
@@ -378,16 +378,16 @@ evalExprShallow env (IApplyExpr func args) = do
       IInductiveData name <$> mapM (newThunkRef env) args
     Value (TensorData t@Tensor{}) -> do
       let args' = map (newThunk env) args
-      Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor) >>= removeDF
+      Value <$> (tMap (\f -> applyObj env (Value f) args' >>= evalWHNF) t >>= fromTensor) >>= removeDF
     ITensor t@Tensor{} -> do
       let args' = map (newThunk env) args
-      tMap (\f -> applyFunc env f args') t >>= fromTensor
+      tMap (\f -> applyObj env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env' names body) -> do
       args <- mapM (evalExprDeep env) args
       evalMemoizedFunc hashRef env' names body args
     _ -> do
       let args' = map (newThunk env) args
-      applyFunc env func args' >>= removeDF
+      applyObj env func args' >>= removeDF
 
 evalExprShallow env (IWedgeApplyExpr func args) = do
   func <- appendDF 0 <$> evalExprShallow env func
@@ -395,13 +395,13 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
   let args' = map WHNF (zipWith appendDF [1..] args)
   case func of
     Value (TensorData t@Tensor{}) ->
-      Value <$> (tMap (\f -> applyFunc env (Value f) args' >>= evalWHNF) t >>= fromTensor)
+      Value <$> (tMap (\f -> applyObj env (Value f) args' >>= evalWHNF) t >>= fromTensor)
     ITensor t@Tensor{} ->
-      tMap (\f -> applyFunc env f args') t >>= fromTensor
+      tMap (\f -> applyObj env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env names body) -> do
       args <- mapM evalWHNF args
       evalMemoizedFunc hashRef env names body args
-    _ -> applyFunc env func args' >>= removeDF
+    _ -> applyObj env func args' >>= removeDF
 
 evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info
 
@@ -415,7 +415,7 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   indexToWHNF (Env frame maybe_vwi) ms = do
     let env' = maybe env (\(name, indices) -> Env frame $ Just (name, zipWith changeIndex indices ms)) maybe_vwi
     fn <- evalExprShallow env' fnExpr
-    applyFunc env fn (map (WHNF . Value) ms)
+    applyObj env fn (map (WHNF . Value) ms)
 
 evalExprShallow env (ITensorContractExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
@@ -433,10 +433,10 @@ evalExprShallow env (ITensorMapExpr fnExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
   case whnf of
     ITensor t ->
-      tMap (\t -> applyFunc env fn [WHNF t]) t >>= fromTensor
+      tMap (\t -> applyObj env fn [WHNF t]) t >>= fromTensor
     Value (TensorData t) ->
-      Value <$> (tMap (\t -> applyFunc' env fn [t]) t >>= fromTensor)
-    _ -> applyFunc env fn [WHNF whnf]
+      Value <$> (tMap (\t -> applyVal env fn [t]) t >>= fromTensor)
+    _ -> applyObj env fn [WHNF whnf]
 
 evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
   fn <- evalExprShallow env fnExpr
@@ -445,32 +445,32 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
   case (whnf1, whnf2) of
     -- both of arguments are tensors
     (ITensor t1, ITensor t2) ->
-      tMap2 (applyFunc'' env fn) t1 t2 >>= fromTensor
+      tMap2 (applyWHNFPair env fn) t1 t2 >>= fromTensor
     (ITensor t, Value (TensorData (Tensor ns xs js))) -> do
       let xs' = V.map Value xs
-      tMap2 (applyFunc'' env fn) t (Tensor ns xs' js) >>= fromTensor
+      tMap2 (applyWHNFPair env fn) t (Tensor ns xs' js) >>= fromTensor
     (Value (TensorData (Tensor ns xs js)), ITensor t) -> do
       let xs' = V.map Value xs
-      tMap2 (applyFunc'' env fn) (Tensor ns xs' js) t >>= fromTensor
+      tMap2 (applyWHNFPair env fn) (Tensor ns xs' js) t >>= fromTensor
     (Value (TensorData t1), Value (TensorData t2)) ->
-      Value <$> (tMap2 (\x y -> applyFunc' env fn [x, y]) t1 t2 >>= fromTensor)
+      Value <$> (tMap2 (\x y -> applyVal env fn [x, y]) t1 t2 >>= fromTensor)
     -- an argument is scalar
     (ITensor (Tensor ns xs js), whnf) -> do
-      ys <- V.mapM (\x -> applyFunc'' env fn x whnf) xs
+      ys <- V.mapM (\x -> applyWHNFPair env fn x whnf) xs
       return (ITensor (Tensor ns ys js))
     (whnf, ITensor (Tensor ns xs js)) -> do
-      ys <- V.mapM (applyFunc'' env fn whnf) xs
+      ys <- V.mapM (applyWHNFPair env fn whnf) xs
       return (ITensor (Tensor ns ys js))
     (Value (TensorData (Tensor ns xs js)), whnf) -> do
-      ys <- V.mapM (\x -> applyFunc'' env fn (Value x) whnf) xs
+      ys <- V.mapM (\x -> applyWHNFPair env fn (Value x) whnf) xs
       return (ITensor (Tensor ns ys js))
     (whnf, Value (TensorData (Tensor ns xs js))) -> do
-      ys <- V.mapM (applyFunc'' env fn whnf . Value) xs
+      ys <- V.mapM (applyWHNFPair env fn whnf . Value) xs
       return (ITensor (Tensor ns ys js))
-    _ -> applyFunc'' env fn whnf1 whnf2
+    _ -> applyWHNFPair env fn whnf1 whnf2
  where
-  applyFunc'' :: Env -> WHNFData -> WHNFData -> WHNFData -> EvalM WHNFData
-  applyFunc'' env fn x y = applyFunc env fn [WHNF x, WHNF y]
+  applyWHNFPair :: Env -> WHNFData -> WHNFData -> WHNFData -> EvalM WHNFData
+  applyWHNFPair env fn x y = applyObj env fn [WHNF x, WHNF y]
 
 evalExprShallow _ expr = throwError =<< NotImplemented ("evalExprShallow for " ++ show expr) <$> getFuncNameStack
 
@@ -500,7 +500,7 @@ evalMemoizedFunc hashRef env names body args = do
   case HL.lookup indices hash of
     Just whnf -> return whnf
     Nothing -> do
-      whnf <- applyFunc env (Value (Func Nothing env names body)) (map (WHNF . Value) args)
+      whnf <- applyObj env (Value (Func Nothing env names body)) (map (WHNF . Value) args)
       liftIO $ modifyIORef hashRef (HL.insert indices whnf)
       return whnf
 
@@ -530,8 +530,8 @@ addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 valuetoTensor2 :: WHNFData -> Tensor WHNFData
 valuetoTensor2 (ITensor t) = t
 
-applyFunc :: Env -> WHNFData -> [Object] -> EvalM WHNFData
-applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
+applyObj :: Env -> WHNFData -> [Object] -> EvalM WHNFData
+applyObj env (Value (TensorData (Tensor s1 t1 i1))) tds = do
   tds <- mapM evalObj tds
   if length s1 > length i1 && all (\(ITensor (Tensor s _ i)) -> length s - length i == 1) tds
     then do
@@ -541,10 +541,10 @@ applyFunc env (Value (TensorData (Tensor s1 t1 i1))) tds = do
           supjs = map (Sup . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (IVarExpr ".")
       let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
-      applyFunc env dot (map WHNF args')
-    else throwError $ Default "applyfunc"
+      applyObj env dot (map WHNF args')
+    else throwError $ Default "applyObj"
 
-applyFunc env (ITensor (Tensor s1 t1 i1)) tds = do
+applyObj env (ITensor (Tensor s1 t1 i1)) tds = do
   tds <- mapM evalObj tds
   if length s1 > length i1 && all (\(ITensor (Tensor s _ i)) -> length s - length i == 1) tds
     then do
@@ -554,10 +554,10 @@ applyFunc env (ITensor (Tensor s1 t1 i1)) tds = do
           supjs = map (Sup . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (IVarExpr ".")
       let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
-      applyFunc env dot (map WHNF args')
+      applyObj env dot (map WHNF args')
     else throwError $ Default "applyfunc"
 
-applyFunc env' (Value (Func mFuncName env names body)) args =
+applyObj env' (Value (Func mFuncName env names body)) args =
   mLabelFuncName mFuncName $
     if | length names == length args -> do
          refs <- liftIO $ mapM newIORef args
@@ -570,30 +570,30 @@ applyFunc env' (Value (Func mFuncName env names body)) args =
          let (used, rest) = splitAt (length names) args
          refs <- liftIO $ mapM newIORef used
          func <- evalExprShallow (extendEnv env (makeBindings' names refs)) body
-         applyFunc env' func rest
-applyFunc _ (Value (CFunc env name body)) args = do
+         applyObj env' func rest
+applyObj _ (Value (CFunc env name body)) args = do
   refs <- liftIO $ mapM newIORef args
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ ICollection seqRef
   evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
-applyFunc _ (Value (PrimitiveFunc func)) args = do
+applyObj _ (Value (PrimitiveFunc func)) args = do
   vals <- mapM (\arg -> evalObj arg >>= evalWHNF) args
   Value <$> func vals
-applyFunc _ (Value (IOFunc m)) args = do
+applyObj _ (Value (IOFunc m)) args = do
   args <- mapM evalObj args
   case args of
     [Value World] -> m
     arg : _ -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
-applyFunc _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) args = do
+applyObj _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) args = do
   args <- mapM (\arg -> evalObj arg >>= evalWHNF) args
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
                             _ -> throwError =<< EgisonBug "to use undefined functions, you have to use ScalarData args" <$> getFuncNameStack) args
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
-applyFunc _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
+applyObj _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
 
-applyFunc' :: Env -> WHNFData -> [EgisonValue] -> EvalM EgisonValue
-applyFunc' env fn xs = applyFunc env fn (map (WHNF . Value) xs) >>= evalWHNF
+applyVal :: Env -> WHNFData -> [EgisonValue] -> EvalM EgisonValue
+applyVal env fn xs = applyObj env fn (map (WHNF . Value) xs) >>= evalWHNF
 
 refHash :: WHNFData -> [EgisonValue] -> EvalM WHNFData
 refHash val [] = return val
@@ -850,7 +850,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
 
     PredPat predicate -> do
       func <- evalExprShallow env' predicate
-      result <- applyFunc env func [WHNF target] >>= evalWHNF >>= fromEgison
+      result <- applyObj env func [WHNF target] >>= evalWHNF >>= fromEgison
       if result then return . msingleton $ mstate { mTrees = trees }
                 else return MNil
 
