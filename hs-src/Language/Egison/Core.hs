@@ -378,7 +378,7 @@ evalExprShallow env (IApplyExpr func args) = do
       IInductiveData name <$> mapM (newThunkRef env) args
     Value (TensorData t@Tensor{}) -> do
       let args' = map (newThunk env) args
-      Value <$> (tMap (\f -> applyObj env (Value f) args' >>= evalWHNF) t >>= fromTensor) >>= removeDF
+      tMap (\f -> applyObj env (Value f) args') t >>= fromTensor >>= removeDF
     ITensor t@Tensor{} -> do
       let args' = map (newThunk env) args
       tMap (\f -> applyObj env f args') t >>= fromTensor
@@ -395,7 +395,7 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
   let args' = map WHNF (zipWith appendDF [1..] args)
   case func of
     Value (TensorData t@Tensor{}) ->
-      Value <$> (tMap (\f -> applyObj env (Value f) args' >>= evalWHNF) t >>= fromTensor)
+      tMap (\f -> applyObj env (Value f) args') t >>= fromTensor
     ITensor t@Tensor{} ->
       tMap (\f -> applyObj env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env names body) -> do
@@ -433,9 +433,9 @@ evalExprShallow env (ITensorMapExpr fnExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
   case whnf of
     ITensor t ->
-      tMap (\t -> applyObj env fn [WHNF t]) t >>= fromTensor
+      tMap (\x -> applyObj env fn [WHNF x]) t >>= fromTensor
     Value (TensorData t) ->
-      Value <$> (tMap (\t -> applyVal env fn [t]) t >>= fromTensor)
+      tMap (\x -> applyVal env fn [x]) t >>= fromTensor
     _ -> applyObj env fn [WHNF whnf]
 
 evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
@@ -453,7 +453,7 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
       let xs' = V.map Value xs
       tMap2 (applyWHNFPair env fn) (Tensor ns xs' js) t >>= fromTensor
     (Value (TensorData t1), Value (TensorData t2)) ->
-      Value <$> (tMap2 (\x y -> applyVal env fn [x, y]) t1 t2 >>= fromTensor)
+      tMap2 (\x y -> applyVal env fn [x, y]) t1 t2 >>= fromTensor
     -- an argument is scalar
     (ITensor (Tensor ns xs js), whnf) -> do
       ys <- V.mapM (\x -> applyWHNFPair env fn x whnf) xs
@@ -592,8 +592,8 @@ applyObj _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) args = do
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 applyObj _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
 
-applyVal :: Env -> WHNFData -> [EgisonValue] -> EvalM EgisonValue
-applyVal env fn xs = applyObj env fn (map (WHNF . Value) xs) >>= evalWHNF
+applyVal :: Env -> WHNFData -> [EgisonValue] -> EvalM WHNFData
+applyVal env fn xs = applyObj env fn (map (WHNF . Value) xs)
 
 refHash :: WHNFData -> [EgisonValue] -> EvalM WHNFData
 refHash val [] = return val
