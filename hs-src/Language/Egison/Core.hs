@@ -530,9 +530,9 @@ addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 valuetoTensor2 :: WHNFData -> Tensor WHNFData
 valuetoTensor2 (ITensor t) = t
 
-applyObj :: Env -> WHNFData -> [Object] -> EvalM WHNFData
-applyObj env (Value (TensorData (Tensor s1 t1 i1))) tds = do
-  tds <- mapM evalObj tds
+applyRef :: Env -> WHNFData -> [ObjectRef] -> EvalM WHNFData
+applyRef env (Value (TensorData (Tensor s1 t1 i1))) refs = do
+  tds <- mapM evalRef refs
   if length s1 > length i1 && all (\(ITensor (Tensor s _ i)) -> length s - length i == 1) tds
     then do
       symId <- fresh
@@ -543,9 +543,8 @@ applyObj env (Value (TensorData (Tensor s1 t1 i1))) tds = do
       let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
       applyObj env dot (map WHNF args')
     else throwError $ Default "applyObj"
-
-applyObj env (ITensor (Tensor s1 t1 i1)) tds = do
-  tds <- mapM evalObj tds
+applyRef env (ITensor (Tensor s1 t1 i1)) refs = do
+  tds <- mapM evalRef refs
   if length s1 > length i1 && all (\(ITensor (Tensor s _ i)) -> length s - length i == 1) tds
     then do
       symId <- fresh
@@ -556,41 +555,41 @@ applyObj env (ITensor (Tensor s1 t1 i1)) tds = do
       let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
       applyObj env dot (map WHNF args')
     else throwError $ Default "applyfunc"
-
-applyObj env' (Value (Func mFuncName env names body)) args =
+applyRef env' (Value (Func mFuncName env names body)) refs =
   mLabelFuncName mFuncName $
-    if | length names == length args -> do
-         refs <- liftIO $ mapM newIORef args
+    if | length names == length refs -> do
          evalExprShallow (extendEnv env (makeBindings' names refs)) body
-       | length names > length args -> do -- Currying
-         refs <- liftIO $ mapM newIORef args
-         let (bound, rest) = splitAt (length args) names
+       | length names > length refs -> do -- Currying
+         let (bound, rest) = splitAt (length refs) names
          return . Value $ Func mFuncName (extendEnv env (makeBindings' bound refs)) rest body
        | otherwise -> do
-         let (used, rest) = splitAt (length names) args
-         refs <- liftIO $ mapM newIORef used
-         func <- evalExprShallow (extendEnv env (makeBindings' names refs)) body
-         applyObj env' func rest
-applyObj _ (Value (CFunc env name body)) args = do
-  refs <- liftIO $ mapM newIORef args
+         let (used, rest) = splitAt (length names) refs
+         func <- evalExprShallow (extendEnv env (makeBindings' names used)) body
+         applyRef env' func rest
+applyRef _ (Value (CFunc env name body)) refs = do
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ ICollection seqRef
   evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
-applyObj _ (Value (PrimitiveFunc func)) args = do
-  vals <- mapM (\arg -> evalObj arg >>= evalWHNF) args
+applyRef _ (Value (PrimitiveFunc func)) refs = do
+  vals <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   Value <$> func vals
-applyObj _ (Value (IOFunc m)) args = do
-  args <- mapM evalObj args
+applyRef _ (Value (IOFunc m)) refs = do
+  args <- mapM evalRef refs
   case args of
     [Value World] -> m
     arg : _ -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
-applyObj _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) args = do
-  args <- mapM (\arg -> evalObj arg >>= evalWHNF) args
+applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) refs = do
+  args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
                             _ -> throwError =<< EgisonBug "to use undefined functions, you have to use ScalarData args" <$> getFuncNameStack) args
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
-applyObj _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
+applyRef _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
+
+applyObj :: Env -> WHNFData -> [Object] -> EvalM WHNFData
+applyObj env fn args = do
+  refs <- liftIO $ mapM newIORef args
+  applyRef env fn refs
 
 applyVal :: Env -> WHNFData -> [EgisonValue] -> EvalM WHNFData
 applyVal env fn xs = applyObj env fn (map (WHNF . Value) xs)
