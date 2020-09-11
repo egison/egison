@@ -99,7 +99,7 @@ tIndex :: Tensor a -> [Index EgisonValue]
 tIndex (Tensor _ _ js) = js
 tIndex (Scalar _)      = []
 
-tIntRef' :: HasTensor a => Integer -> Tensor a -> EvalM a
+tIntRef' :: TensorComponent a => Integer -> Tensor a -> EvalM a
 tIntRef' i (Tensor [n] xs _) =
   if 0 < i && i <= n
      then fromTensor $ Scalar $ xs V.! fromIntegral (i - 1)
@@ -112,7 +112,7 @@ tIntRef' i (Tensor (n:ns) xs js) =
    else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
 tIntRef' _ _ = throwError $ Default "More indices than the order of the tensor"
 
-tIntRef :: HasTensor a => [Integer] -> Tensor a -> EvalM (Tensor a)
+tIntRef :: TensorComponent a => [Integer] -> Tensor a -> EvalM (Tensor a)
 tIntRef [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
   | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
@@ -122,7 +122,7 @@ tIntRef (m:ms) t = tIntRef' m t >>= toTensor >>= tIntRef ms
 pattern SupOrSubIndex :: a -> Index a
 pattern SupOrSubIndex i <- (extractSupOrSubIndex -> Just i)
 
-tref :: HasTensor a => [Index EgisonValue] -> Tensor a -> EvalM a
+tref :: TensorComponent a => [Index EgisonValue] -> Tensor a -> EvalM a
 tref [] (Tensor [] xs _)
   | V.length xs == 1 = fromTensor $ Scalar (xs V.! 0)
   | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
@@ -169,7 +169,7 @@ transIndex is js ns = do
                 Nothing -> throwError $ Default "cannot transpose becuase of the inconsitent symbolic tensor indices")
        js
 
-tTranspose :: HasTensor a => [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
+tTranspose :: TensorComponent a => [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose is t@(Tensor _ _ js) | length is > length js =
   return t
 tTranspose is t@(Tensor ns _ js) = do
@@ -179,7 +179,7 @@ tTranspose is t@(Tensor ns _ js) = do
   xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
   return $ Tensor ns' xs' is
 
-tTranspose' :: HasTensor a => [EgisonValue] -> Tensor a -> EvalM (Tensor a)
+tTranspose' :: TensorComponent a => [EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) = do
   case mapM (\i -> f i js) is of
     Nothing -> return t
@@ -192,7 +192,7 @@ tTranspose' is t@(Tensor _ _ js) = do
       , [mc| _ -> Nothing |]
       ]
 
-tFlipIndices :: HasTensor a => Tensor a -> EvalM (Tensor a)
+tFlipIndices :: TensorComponent a => Tensor a -> EvalM (Tensor a)
 tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map reverseIndex js)
 
 appendDF :: Integer -> WHNFData -> WHNFData
@@ -221,7 +221,7 @@ removeDF (Value (TensorData (Tensor s xs is))) = do
   isDF _              = False
 removeDF whnf = return whnf
 
-tMap :: (HasTensor a, HasTensor b) => (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
+tMap :: (TensorComponent a, TensorComponent b) => (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
   xs' <- V.fromList <$> mapM f (V.toList xs)
@@ -233,13 +233,13 @@ tMap f (Tensor ns xs js') = do
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 
-tMapN :: (HasTensor a, HasTensor b) => ([a] -> EvalM b) -> [Tensor a] -> EvalM (Tensor b)
+tMapN :: (TensorComponent a, TensorComponent b) => ([a] -> EvalM b) -> [Tensor a] -> EvalM (Tensor b)
 tMapN f ts@(Tensor ns _ js : _) = do
   xs' <- mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
   return $ Tensor ns (V.fromList xs') js
 tMapN f xs = Scalar <$> (mapM fromTensor xs >>= f)
 
-tMap2 :: (HasTensor a, HasTensor b) => (a -> a -> EvalM b) -> Tensor a -> Tensor a -> EvalM (Tensor b)
+tMap2 :: (TensorComponent a, TensorComponent b) => (a -> a -> EvalM b) -> Tensor a -> Tensor a -> EvalM (Tensor b)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
@@ -260,7 +260,7 @@ tMap2 f t@Tensor{} (Scalar x) = tMap (`f` x) t
 tMap2 f (Scalar x) t@Tensor{} = tMap (f x) t
 tMap2 f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
 
-tDiag :: HasTensor a => Tensor a -> EvalM (Tensor a)
+tDiag :: TensorComponent a => Tensor a -> EvalM (Tensor a)
 tDiag t@(Tensor _ _ js) =
   case filter (\j -> any (p j) js) js of
     [] -> return t
@@ -287,7 +287,7 @@ tDiagIndex js =
     , [mc| _ -> js |]
     ]
 
-tSum :: HasTensor a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
+tSum :: TensorComponent a => (a -> a -> EvalM a) -> Tensor a -> Tensor a -> EvalM (Tensor a)
 tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
   t2' <- tTranspose js1 t2
   case t2' of
@@ -296,7 +296,7 @@ tSum f (Tensor ns1 xs1 js1) t2@Tensor{} = do
                          return (Tensor ns1 ys js1)
       | otherwise -> throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
-tProduct :: (HasTensor a, HasTensor b) => (a -> a -> EvalM b) -> Tensor a -> Tensor a -> EvalM (Tensor b)
+tProduct :: (TensorComponent a, TensorComponent b) => (a -> a -> EvalM b) -> Tensor a -> Tensor a -> EvalM (Tensor b)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
@@ -340,7 +340,7 @@ tProduct f (Tensor ns xs js) (Scalar x) = do
   return $ Tensor ns xs' js
 tProduct f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
 
-tContract :: HasTensor a => Tensor a -> EvalM [Tensor a]
+tContract :: TensorComponent a => Tensor a -> EvalM [Tensor a]
 tContract t = do
   t' <- tDiag t
   case t' of
@@ -350,7 +350,7 @@ tContract t = do
       return $ concat tss
     _ -> return [t']
 
-tContract' :: HasTensor a => Tensor a -> EvalM (Tensor a)
+tContract' :: TensorComponent a => Tensor a -> EvalM (Tensor a)
 tContract' t@(Tensor ns _ js) =
   match dfs js (List M.Something)
     [ [mc| $hjs ++ $a : $mjs ++ ?(p a) : $tjs -> do
@@ -369,14 +369,14 @@ tContract' t@(Tensor ns _ js) =
   p _ _                   = False
 tContract' val = return val
 
-tConcat :: HasTensor a => Index EgisonValue -> [Tensor a] -> EvalM (Tensor a)
+tConcat :: TensorComponent a => Index EgisonValue -> [Tensor a] -> EvalM (Tensor a)
 tConcat s (Tensor ns@(0:_) _ js:_) = return $ Tensor (0:ns) V.empty (s:js)
 tConcat s ts@(Tensor ns _ js:_) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) (s:js)
 tConcat s ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') [s]
 
-tConcat' :: HasTensor a => [Tensor a] -> EvalM (Tensor a)
+tConcat' :: TensorComponent a => [Tensor a] -> EvalM (Tensor a)
 tConcat' (Tensor ns@(0:_) _ _ : _) = return $ Tensor (0:ns) V.empty []
 tConcat' ts@(Tensor ns _ _ : _) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) []
 tConcat' ts = do

@@ -20,7 +20,7 @@ module Language.Egison.Data
     , EgisonData (..)
     , Tensor (..)
     , Shape
-    , HasTensor (..)
+    , TensorComponent (..)
     -- * Scalar
     , symbolScalarData
     , symbolScalarData'
@@ -124,14 +124,14 @@ data Tensor a
 
 type Shape = [Integer]
 
-class HasTensor a where
+class TensorComponent a where
   tensorElems :: a -> V.Vector a
   tensorShape :: a -> Shape
   tensorIndices :: a -> [Index EgisonValue]
   fromTensor :: Tensor a -> EvalM a
   toTensor :: a -> EvalM (Tensor a)
 
-instance HasTensor EgisonValue where
+instance TensorComponent EgisonValue where
   tensorElems (TensorData (Tensor _ xs _)) = xs
   tensorShape (TensorData (Tensor ns _ _)) = ns
   tensorIndices (TensorData (Tensor _ _ js)) = js
@@ -140,7 +140,7 @@ instance HasTensor EgisonValue where
   toTensor (TensorData t) = return t
   toTensor x              = return $ Scalar x
 
-instance HasTensor WHNFData where
+instance TensorComponent WHNFData where
   tensorElems (ITensor (Tensor _ xs _)) = xs
   tensorShape (ITensor (Tensor ns _ _)) = ns
   tensorIndices (ITensor (Tensor _ _ js)) = js
