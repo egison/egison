@@ -197,7 +197,7 @@ tTranspose is t@(Tensor ns _ js) = do
   return $ Tensor ns' xs' is
 
 tTranspose' :: TensorComponent a => [EgisonValue] -> Tensor a -> EvalM (Tensor a)
-tTranspose' is t@(Tensor _ _ js) = do
+tTranspose' is t@(Tensor _ _ js) =
   case mapM (\i -> f i js) is of
     Nothing -> return t
     Just is' -> tTranspose is' t
@@ -209,7 +209,7 @@ tTranspose' is t@(Tensor _ _ js) = do
       , [mc| _ -> Nothing |]
       ]
 
-tFlipIndices :: TensorComponent a => Tensor a -> EvalM (Tensor a)
+tFlipIndices :: Tensor a -> EvalM (Tensor a)
 tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map reverseIndex js)
 
 appendDF :: Integer -> WHNFData -> WHNFData
@@ -228,14 +228,14 @@ removeDF (ITensor (Tensor s xs is)) = do
   return (ITensor (Tensor s ys js))
  where
   isDF (DF _ _) = True
-  isDF _              = False
+  isDF _        = False
 removeDF (Value (TensorData (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
   Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
   return (Value (TensorData (Tensor s ys js)))
  where
   isDF (DF _ _) = True
-  isDF _              = False
+  isDF _        = False
 removeDF whnf = return whnf
 
 tMap :: (TensorComponent a, TensorComponent b) => (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
@@ -371,14 +371,14 @@ tContract' t@(Tensor ns _ js) =
   p _ _                   = False
 tContract' val = return val
 
-tConcat :: TensorComponent a => Index EgisonValue -> [Tensor a] -> EvalM (Tensor a)
+tConcat :: Index EgisonValue -> [Tensor a] -> EvalM (Tensor a)
 tConcat s (Tensor ns@(0:_) _ js:_) = return $ Tensor (0:ns) V.empty (s:js)
 tConcat s ts@(Tensor ns _ js:_) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) (s:js)
 tConcat s ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') [s]
 
-tConcat' :: TensorComponent a => [Tensor a] -> EvalM (Tensor a)
+tConcat' :: [Tensor a] -> EvalM (Tensor a)
 tConcat' (Tensor ns@(0:_) _ _ : _) = return $ Tensor (0:ns) V.empty []
 tConcat' ts@(Tensor ns _ _ : _) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) []
 tConcat' ts = do

@@ -446,12 +446,10 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
     -- both of arguments are tensors
     (ITensor t1, ITensor t2) ->
       tMap2 (applyWHNFPair env fn) t1 t2 >>= fromTensor
-    (ITensor t, Value (TensorData (Tensor ns xs js))) -> do
-      let xs' = V.map Value xs
-      tMap2 (applyWHNFPair env fn) t (Tensor ns xs' js) >>= fromTensor
-    (Value (TensorData (Tensor ns xs js)), ITensor t) -> do
-      let xs' = V.map Value xs
-      tMap2 (applyWHNFPair env fn) (Tensor ns xs' js) t >>= fromTensor
+    (ITensor t1, Value (TensorData t2@Tensor{})) -> do
+      tMap2 (\x y -> applyWHNFPair env fn x (Value y)) t1 t2 >>= fromTensor
+    (Value (TensorData t1@Tensor{}), ITensor t2) -> do
+      tMap2 (\x y -> applyWHNFPair env fn (Value x) y) t1 t2 >>= fromTensor
     (Value (TensorData t1), Value (TensorData t2)) ->
       tMap2 (\x y -> applyVal env fn [x, y]) t1 t2 >>= fromTensor
     -- an argument is scalar
