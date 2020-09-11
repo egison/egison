@@ -531,6 +531,12 @@ addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 valueToTensor :: WHNFData -> Tensor WHNFData
 valueToTensor (ITensor t) = t
 
+newApplyThunk :: Env -> WHNFData -> [ObjectRef] -> Object
+newApplyThunk env fn refs = Thunk $ applyRef env fn refs
+
+newApplyThunkRef :: Env -> WHNFData -> [ObjectRef] -> EvalM ObjectRef
+newApplyThunkRef env fn refs = liftIO . newIORef $ newApplyThunk env fn refs
+
 applyRef :: Env -> WHNFData -> [ObjectRef] -> EvalM WHNFData
 applyRef env (Value (TensorData (Tensor s1 t1 i1))) refs = do
   tds <- mapM evalRef refs
