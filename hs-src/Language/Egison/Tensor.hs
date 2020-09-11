@@ -297,20 +297,21 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let t2 = Tensor ns2 xs2 js2
   case cjs1 of
     [] -> do
-      xs' <- V.fromList <$> mapM (\is -> do
-                              let is1 = take (length ns1) is
-                              let is2 = take (length ns2) (drop (length ns1) is)
-                              x1 <- tIntRef is1 t1 >>= fromTensor
-                              x2 <- tIntRef is2 t2 >>= fromTensor
-                              f x1 x2) (enumTensorIndices (ns1 ++ ns2))
-      tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
+      xs' <- mapM (\is -> do let is1 = take (length ns1) is
+                             let is2 = take (length ns2) (drop (length ns1) is)
+                             x1 <- tIntRef is1 t1 >>= fromTensor
+                             x2 <- tIntRef is2 t2 >>= fromTensor
+                             f x1 x2)
+                  (enumTensorIndices (ns1 ++ ns2))
+      tContract' (Tensor (ns1 ++ ns2) (V.fromList xs') (js1 ++ js2))
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
       t2' <- tTranspose (cjs2 ++ tjs2) t2
       let (cns1, _) = splitAt (length cjs1) (tShape t1')
       rts' <- mapM (\is -> do rt1 <- tIntRef is t1'
                               rt2 <- tIntRef is t2'
-                              tProduct f rt1 rt2) (enumTensorIndices cns1)
+                              tProduct f rt1 rt2)
+                   (enumTensorIndices cns1)
       let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map toSupSub cjs1 ++ tIndex (head rts'))
       tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret
  where

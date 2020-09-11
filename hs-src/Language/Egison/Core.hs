@@ -111,8 +111,8 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
   whnfs <- zipWithM evalWithIndex exprs [1..]
   case whnfs of
     ITensor Tensor{}:_ ->
-      mapM toTensor (zipWith f whnfs [1..]) >>= tConcat' >>= fromTensor
-    _ -> fromTensor (Tensor [n] (V.fromList whnfs) [])
+      tConcat' (zipWith f whnfs [1..]) >>= fromTensor
+    _ -> return $ ITensor (Tensor [n] (V.fromList whnfs) [])
   where
     evalWithIndex :: IExpr -> Integer -> EvalM WHNFData
     evalWithIndex expr index = evalExprShallow env' expr
@@ -121,10 +121,10 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
           Nothing -> env
           Just (name, indices) ->
             Env frame (Just (name, zipWith changeIndex indices [toEgison index]))
-    f (ITensor (Tensor ns xs indices)) i = ITensor (Tensor ns xs' indices)
+    f (ITensor (Tensor ns xs indices)) i = Tensor ns xs' indices
       where
         xs' = V.zipWith g xs $ V.fromList (map (\ms -> map toEgison (i:ms)) $ enumTensorIndices ns)
-    f x _ = x
+    f x _ = Scalar x
     g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p))) ms =
       Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p))
       where
@@ -140,7 +140,7 @@ evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   xsWhnf <- evalExprShallow env xsExpr
   xs <- collectionToRefs xsWhnf >>= fromMList >>= mapM evalRef
   if product ns == toInteger (length xs)
-    then fromTensor (initTensor ns xs)
+    then return $ ITensor (initTensor ns xs)
     else throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 evalExprShallow env (IHashExpr assocs) = do
@@ -409,7 +409,7 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExprDeep env shapeExpr >>= collectionToList
   ns    <- mapM fromEgison shape :: EvalM Shape
   xs    <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
-  fromTensor (Tensor ns (V.fromList xs) [])
+  return $ ITensor (Tensor ns (V.fromList xs) [])
  where
   indexToWHNF :: Env -> [EgisonValue] {- index -} -> EvalM WHNFData
   indexToWHNF (Env frame maybe_vwi) ms = do
