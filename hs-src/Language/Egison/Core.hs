@@ -303,7 +303,7 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
   isTmpSymbol :: String -> Index EgisonValue -> Bool
   isTmpSymbol symId index = symId == getSymId (extractIndex index)
 
-  removeTmpScripts :: HasTensor a => String -> Tensor a -> EvalM (Tensor a)
+  removeTmpScripts :: TensorComponent a => String -> Tensor a -> EvalM (Tensor a)
   removeTmpScripts symId (Tensor s xs is) = do
     let (ds, js) = partition (isTmpSymbol symId) is
     Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
@@ -527,8 +527,8 @@ evalWHNF coll = Collection <$> (collectionToRefs coll >>= fromMList >>= mapM eva
 addscript :: (Index EgisonValue, Tensor a) -> Tensor a
 addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 
-valuetoTensor2 :: WHNFData -> Tensor WHNFData
-valuetoTensor2 (ITensor t) = t
+valueToTensor :: WHNFData -> Tensor WHNFData
+valueToTensor (ITensor t) = t
 
 applyRef :: Env -> WHNFData -> [ObjectRef] -> EvalM WHNFData
 applyRef env (Value (TensorData (Tensor s1 t1 i1))) refs = do
@@ -540,7 +540,7 @@ applyRef env (Value (TensorData (Tensor s1 t1 i1))) refs = do
           subjs = map (Sub . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Sup . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (IVarExpr ".")
-      let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
+      let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs $ map valueToTensor tds)
       applyObj env dot (map WHNF args')
     else throwError $ Default "applyObj"
 applyRef env (ITensor (Tensor s1 t1 i1)) refs = do
@@ -552,7 +552,7 @@ applyRef env (ITensor (Tensor s1 t1 i1)) refs = do
           subjs = map (Sub . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Sup . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (IVarExpr ".")
-      let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valuetoTensor2 tds)
+      let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valueToTensor tds)
       applyObj env dot (map WHNF args')
     else throwError $ Default "applyfunc"
 applyRef env' (Value (Func mFuncName env names body)) refs =
@@ -1093,7 +1093,7 @@ toListPat []         = InductivePat "nil" []
 toListPat (pat:pats) = InductivePat "::" [pat, toListPat pats]
 
 -- Refer the specified tensor index with potential overriding of the index.
-refTensorWithOverride :: HasTensor a => Bool -> [Index EgisonValue] -> Tensor a -> EvalM a
+refTensorWithOverride :: TensorComponent a => Bool -> [Index EgisonValue] -> Tensor a -> EvalM a
 refTensorWithOverride override js (Tensor ns xs is) =
   tref js' (Tensor ns xs js') >>= toTensor >>= tContract' >>= fromTensor
     where
