@@ -29,9 +29,6 @@ module Language.Egison.Tensor
     , tContract
     , tContract'
     , tConcat'
-    -- * Tensor to Egison value
-    , tensorToWHNF
-    , tensorToValue
     ) where
 
 import           Prelude                   hiding (foldr, mappend, mconcat)
@@ -77,15 +74,11 @@ supsubM (IndexM m) _ = m
 
 class TensorComponent a where
   tensorElems :: a -> V.Vector a
-  tensorShape :: a -> Shape
-  tensorIndices :: a -> [Index EgisonValue]
   fromTensor :: Tensor a -> EvalM a
   toTensor :: a -> EvalM (Tensor a)
 
 instance TensorComponent EgisonValue where
   tensorElems (TensorData (Tensor _ xs _)) = xs
-  tensorShape (TensorData (Tensor ns _ _)) = ns
-  tensorIndices (TensorData (Tensor _ _ js)) = js
   fromTensor t@Tensor{} = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
@@ -93,8 +86,6 @@ instance TensorComponent EgisonValue where
 
 instance TensorComponent WHNFData where
   tensorElems (ITensor (Tensor _ xs _)) = xs
-  tensorShape (ITensor (Tensor ns _ _)) = ns
-  tensorIndices (ITensor (Tensor _ _ js)) = js
   fromTensor t@Tensor{} = return (ITensor t)
   fromTensor (Scalar x) = return x
   toTensor (ITensor t) = return t
@@ -383,18 +374,6 @@ tConcat' ts@(Tensor ns _ _ : _) = return $ Tensor (fromIntegral (length ts):ns) 
 tConcat' ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') []
-
---
--- Tensor to Egison data
---
-
-tensorToWHNF :: Tensor WHNFData -> WHNFData
-tensorToWHNF (Scalar whnf)    = whnf
-tensorToWHNF t@(Tensor _ _ _) = ITensor t
-
-tensorToValue :: Tensor EgisonValue -> EgisonValue
-tensorToValue (Scalar val) = val
-tensorToValue t@(Tensor _ _ _) = TensorData t
 
 -- utility functions for tensors
 
