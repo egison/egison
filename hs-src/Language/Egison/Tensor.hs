@@ -221,7 +221,7 @@ removeDF (Value (TensorData (Tensor s xs is))) = do
   isDF _              = False
 removeDF whnf = return whnf
 
-tMap :: HasTensor a => (a -> EvalM WHNFData) -> Tensor a -> EvalM (Tensor WHNFData)
+tMap :: (HasTensor a, HasTensor b) => (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
   xs' <- V.fromList <$> mapM f (V.toList xs)
@@ -233,13 +233,13 @@ tMap f (Tensor ns xs js') = do
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 
-tMapN :: HasTensor a => ([a] -> EvalM WHNFData) -> [Tensor a] -> EvalM (Tensor WHNFData)
+tMapN :: (HasTensor a, HasTensor b) => ([a] -> EvalM b) -> [Tensor a] -> EvalM (Tensor b)
 tMapN f ts@(Tensor ns _ js : _) = do
   xs' <- mapM (\is -> mapM (tIntRef is) ts >>= mapM fromTensor >>= f) (enumTensorIndices ns)
   return $ Tensor ns (V.fromList xs') js
 tMapN f xs = Scalar <$> (mapM fromTensor xs >>= f)
 
-tMap2 :: HasTensor a => (a -> a -> EvalM WHNFData) -> Tensor a -> Tensor a -> EvalM (Tensor WHNFData)
+tMap2 :: (HasTensor a, HasTensor b) => (a -> a -> EvalM b) -> Tensor a -> Tensor a -> EvalM (Tensor b)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
