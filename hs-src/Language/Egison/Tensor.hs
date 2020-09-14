@@ -305,6 +305,7 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
                              x2 <- tIntRef1 is2 t2
                              f x1 x2)
                   (enumTensorIndices (ns1 ++ ns2))
+      -- |tConcat'| never returns a scalar.
       Tensor _ xs' _ <- tConcat' xs'
       tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
     _ -> do
