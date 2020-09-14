@@ -464,17 +464,17 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
       tMap2 (\x y -> applyVal env fn [x, y] >>= toTensor) t1 t2 >>= fromTensor
     -- an argument is scalar
     (ITensor t1, _) ->
-      tMap2 (\x y -> do
+      tMap (\x -> do
         x <- liftIO $ readIORef x
-        applyObj env fn [x, WHNF y] >>= toTensor) t1 (Scalar whnf2) >>= fromTensor
+        applyObj env fn [x, WHNF whnf2] >>= toTensor) t1 >>= fromTensor
     (_, ITensor t2) ->
-      tMap2 (\x y -> do
+      tMap (\y -> do
         y <- liftIO $ readIORef y
-        applyObj env fn [WHNF x, y] >>= toTensor) (Scalar whnf1) t2 >>= fromTensor
+        applyObj env fn [WHNF whnf1, y] >>= toTensor) t2 >>= fromTensor
     (Value (TensorData t1), _) ->
-      tMap2 (\x y -> applyObj env fn [WHNF (Value x), WHNF y] >>= toTensor) t1 (Scalar whnf2) >>= fromTensor
+      tMap (\x -> applyObj env fn [WHNF (Value x), WHNF whnf2] >>= toTensor) t1 >>= fromTensor
     (_, Value (TensorData t2)) ->
-      tMap2 (\x y -> applyObj env fn [WHNF x, WHNF (Value y)] >>= toTensor) (Scalar whnf1) t2 >>= fromTensor
+      tMap (\y -> applyObj env fn [WHNF whnf1, WHNF (Value y)] >>= toTensor) t2 >>= fromTensor
     _ -> applyObj env fn [WHNF whnf1, WHNF whnf2]
 
 evalExprShallow _ expr = throwError =<< NotImplemented ("evalExprShallow for " ++ show expr) <$> getFuncNameStack
