@@ -124,6 +124,12 @@ tIntRef [] (Tensor [] xs _)
 tIntRef [] t = return t
 tIntRef (m:ms) t = tIntRef' m t >>= tIntRef ms
 
+tIntRef1 :: [Integer] -> Tensor a -> EvalM a
+tIntRef1 [] (Scalar x) = return x
+tIntRef1 [] (Tensor [] xs _) | V.length xs == 1 = return (xs V.! 0)
+tIntRef1 [] _ = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
+tIntRef1 (m:ms) t = tIntRef' m t >>= tIntRef1 ms
+
 pattern SupOrSubIndex :: a -> Index a
 pattern SupOrSubIndex i <- (extractSupOrSubIndex -> Just i)
 
@@ -174,17 +180,17 @@ transIndex is js ns = do
                 Nothing -> throwError $ Default "cannot transpose becuase of the inconsitent symbolic tensor indices")
        js
 
-tTranspose :: TensorComponent a => [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
+tTranspose :: [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose is t@(Tensor _ _ js) | length is > length js =
   return t
 tTranspose is t@(Tensor ns _ js) = do
   let js' = take (length is) js
   let ds = complementWithDF ns is
   ns' <- transIndex (js' ++ ds) (is ++ ds) ns
-  xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef` t) >>= mapM fromTensor
+  xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef1` t)
   return $ Tensor ns' xs' is
 
-tTranspose' :: TensorComponent a => [EgisonValue] -> Tensor a -> EvalM (Tensor a)
+tTranspose' :: [EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) =
   case mapM (\i -> f i js) is of
     Nothing -> return t
@@ -239,7 +245,7 @@ tMap f (Tensor ns xs js') = do
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 
-tMap2 :: (TensorComponent a, TensorComponent b, TensorComponent c) => (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
+tMap2 :: TensorComponent c => (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
@@ -260,7 +266,7 @@ tMap2 f t@Tensor{} (Scalar x) = tMap (`f` x) t
 tMap2 f (Scalar x) t@Tensor{} = tMap (f x) t
 tMap2 f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
 
-tDiag :: TensorComponent a => Tensor a -> EvalM (Tensor a)
+tDiag :: Tensor a -> EvalM (Tensor a)
 tDiag t@(Tensor _ _ js) =
   case filter (\j -> any (p j) js) js of
     [] -> return t
@@ -287,7 +293,7 @@ tDiagIndex js =
     , [mc| _ -> js |]
     ]
 
-tProduct :: (TensorComponent a, TensorComponent b, TensorComponent c) => (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
+tProduct :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
@@ -298,8 +304,8 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
     [] -> do
       xs' <- mapM (\is -> do let is1 = take (length ns1) is
                              let is2 = take (length ns2) (drop (length ns1) is)
-                             x1 <- tIntRef is1 t1 >>= fromTensor
-                             x2 <- tIntRef is2 t2 >>= fromTensor
+                             x1 <- tIntRef1 is1 t1
+                             x2 <- tIntRef1 is2 t2
                              f x1 x2)
                   (enumTensorIndices (ns1 ++ ns2))
       tContract' (Tensor (ns1 ++ ns2) (V.fromList xs') (js1 ++ js2))
@@ -332,7 +338,7 @@ tProduct f (Tensor ns xs js) (Scalar x) = do
   return $ Tensor ns xs' js
 tProduct f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
 
-tContract :: TensorComponent a => Tensor a -> EvalM [Tensor a]
+tContract :: Tensor a -> EvalM [Tensor a]
 tContract t = do
   t' <- tDiag t
   case t' of
@@ -342,7 +348,7 @@ tContract t = do
       return $ concat tss
     _ -> return [t']
 
-tContract' :: TensorComponent a => Tensor a -> EvalM (Tensor a)
+tContract' :: Tensor a -> EvalM (Tensor a)
 tContract' t@(Tensor ns _ js) =
   match dfs js (List M.Something)
     [ [mc| $hjs ++ $a : $mjs ++ ?(p a) : $tjs -> do
