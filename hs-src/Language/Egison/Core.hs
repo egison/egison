@@ -1104,7 +1104,7 @@ makeITensor s xs = do
   return $ ITensor (Tensor s (V.fromList xs') [])
 
 -- Refer the specified tensor index with potential overriding of the index.
-refTensorWithOverride :: TensorComponent a => Bool -> [Index EgisonValue] -> Tensor (Component a) -> EvalM a
+refTensorWithOverride :: TensorComponent a b => Bool -> [Index EgisonValue] -> Tensor b -> EvalM a
 refTensorWithOverride override js (Tensor ns xs is) =
   tref js' (Tensor ns xs js') >>= tContract' >>= fromTensor
     where

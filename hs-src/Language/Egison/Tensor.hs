@@ -1,9 +1,10 @@
-{-# LANGUAGE QuasiQuotes           #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE PatternSynonyms       #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE QuasiQuotes            #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE PatternSynonyms        #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE ViewPatterns           #-}
 
 {- |
 Module      : Language.Egison.Tensor
@@ -14,7 +15,6 @@ This module contains functions for tensors.
 
 module Language.Egison.Tensor
     ( TensorComponent (..)
-    , Component
     -- * Tensor
     , tref
     , enumTensorIndices
@@ -74,21 +74,17 @@ supsubM (IndexM m) _ = m
 -- Tensors
 --
 
-type family Component a where
-  Component EgisonValue = EgisonValue
-  Component WHNFData = ObjectRef
+class TensorComponent a b | a -> b where
+  fromTensor :: Tensor b -> EvalM a
+  toTensor :: a -> EvalM (Tensor b)
 
-class TensorComponent a where
-  fromTensor :: Tensor (Component a) -> EvalM a
-  toTensor :: a -> EvalM (Tensor (Component a))
-
-instance TensorComponent EgisonValue where
+instance TensorComponent EgisonValue EgisonValue where
   fromTensor t@Tensor{} = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
   toTensor x              = return $ Scalar x
 
-instance TensorComponent WHNFData where
+instance TensorComponent WHNFData ObjectRef where
   fromTensor t@Tensor{} = return $ ITensor t
   fromTensor (Scalar x) = evalRef x
   toTensor (ITensor t) = return t
