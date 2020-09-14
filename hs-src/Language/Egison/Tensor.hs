@@ -14,7 +14,6 @@ This module contains functions for tensors.
 module Language.Egison.Tensor
     ( TensorComponent (..)
     -- * Tensor
-    , initTensor
     , tref
     , enumTensorIndices
     , changeIndex
@@ -73,26 +72,25 @@ supsubM (IndexM m) _ = m
 --
 
 class TensorComponent a where
-  tensorElems :: a -> V.Vector a
   fromTensor :: Tensor a -> EvalM a
   toTensor :: a -> EvalM (Tensor a)
 
 instance TensorComponent EgisonValue where
-  tensorElems (TensorData (Tensor _ xs _)) = xs
   fromTensor t@Tensor{} = return $ TensorData t
   fromTensor (Scalar x) = return x
   toTensor (TensorData t) = return t
   toTensor x              = return $ Scalar x
 
 instance TensorComponent WHNFData where
-  tensorElems (ITensor (Tensor _ xs _)) = xs
   fromTensor t@Tensor{} = return (ITensor t)
   fromTensor (Scalar x) = return x
   toTensor (ITensor t) = return t
   toTensor x           = return (Scalar x)
 
-initTensor :: Shape -> [a] -> Tensor a
-initTensor ns xs = Tensor ns (V.fromList xs) []
+tensorElems :: TensorComponent a => a -> EvalM (V.Vector a)
+tensorElems t = do
+  Tensor _ xs _ <- toTensor t
+  return xs
 
 tShape :: Tensor a -> Shape
 tShape (Tensor ns _ _) = ns
@@ -236,7 +234,8 @@ tMap f (Tensor ns xs js') = do
   case t of
     Tensor ns1 _ js1' -> do
       let js1 = js1' ++ complementWithDF ns1 js1'
-      tContract' $ Tensor (ns ++ ns1) (V.concatMap tensorElems xs') (js ++ js1)
+      xs'' <- V.concat <$> mapM tensorElems (V.toList xs')
+      tContract' $ Tensor (ns ++ ns1) xs'' (js ++ js1)
     _ -> return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 

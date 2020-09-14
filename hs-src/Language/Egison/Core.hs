@@ -140,7 +140,7 @@ evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   xsWhnf <- evalExprShallow env xsExpr
   xs <- collectionToRefs xsWhnf >>= fromMList >>= mapM evalRef
   if product ns == toInteger (length xs)
-    then return $ ITensor (initTensor ns xs)
+    then return $ ITensor (Tensor ns (V.fromList xs) [])
     else throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 evalExprShallow env (IHashExpr assocs) = do
