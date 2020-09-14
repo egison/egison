@@ -445,30 +445,27 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
   case (whnf1, whnf2) of
     -- both of arguments are tensors
     (ITensor t1, ITensor t2) ->
-      tMap2 (applyWHNFPair env fn) t1 t2 >>= fromTensor
+      tMap2 (\x y -> applyObj env fn [WHNF x, WHNF y]) t1 t2 >>= fromTensor
     (ITensor t1, Value (TensorData t2@Tensor{})) -> do
-      tMap2 (\x y -> applyWHNFPair env fn x (Value y)) t1 t2 >>= fromTensor
+      tMap2 (\x y -> applyObj env fn [WHNF x, WHNF (Value y)]) t1 t2 >>= fromTensor
     (Value (TensorData t1@Tensor{}), ITensor t2) -> do
-      tMap2 (\x y -> applyWHNFPair env fn (Value x) y) t1 t2 >>= fromTensor
+      tMap2 (\x y -> applyObj env fn [WHNF (Value x), WHNF y]) t1 t2 >>= fromTensor
     (Value (TensorData t1), Value (TensorData t2)) ->
       tMap2 (\x y -> applyVal env fn [x, y]) t1 t2 >>= fromTensor
     -- an argument is scalar
     (ITensor (Tensor ns xs js), whnf) -> do
-      ys <- V.mapM (\x -> applyWHNFPair env fn x whnf) xs
+      ys <- V.mapM (\x -> applyObj env fn [WHNF x, WHNF whnf]) xs
       return (ITensor (Tensor ns ys js))
     (whnf, ITensor (Tensor ns xs js)) -> do
-      ys <- V.mapM (applyWHNFPair env fn whnf) xs
+      ys <- V.mapM (\x -> applyObj env fn [WHNF whnf, WHNF x]) xs
       return (ITensor (Tensor ns ys js))
     (Value (TensorData (Tensor ns xs js)), whnf) -> do
-      ys <- V.mapM (\x -> applyWHNFPair env fn (Value x) whnf) xs
+      ys <- V.mapM (\x -> applyObj env fn [WHNF (Value x), WHNF whnf]) xs
       return (ITensor (Tensor ns ys js))
     (whnf, Value (TensorData (Tensor ns xs js))) -> do
-      ys <- V.mapM (applyWHNFPair env fn whnf . Value) xs
+      ys <- V.mapM (\x -> applyObj env fn [WHNF whnf, WHNF (Value x)]) xs
       return (ITensor (Tensor ns ys js))
-    _ -> applyWHNFPair env fn whnf1 whnf2
- where
-  applyWHNFPair :: Env -> WHNFData -> WHNFData -> WHNFData -> EvalM WHNFData
-  applyWHNFPair env fn x y = applyObj env fn [WHNF x, WHNF y]
+    _ -> applyObj env fn [WHNF whnf1, WHNF whnf2]
 
 evalExprShallow _ expr = throwError =<< NotImplemented ("evalExprShallow for " ++ show expr) <$> getFuncNameStack
 
