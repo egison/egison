@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE ViewPatterns          #-}
 
 {- |
@@ -13,6 +14,7 @@ This module contains functions for tensors.
 
 module Language.Egison.Tensor
     ( TensorComponent (..)
+    , Component
     -- * Tensor
     , tref
     , enumTensorIndices
@@ -40,6 +42,7 @@ import           Control.Egison
 import qualified Control.Egison            as M
 
 import           Language.Egison.Data
+import           Language.Egison.Data.Utils
 import           Language.Egison.EvalState (getFuncNameStack)
 import           Language.Egison.IExpr     (Index(..), extractSupOrSubIndex)
 import           Language.Egison.Math
@@ -71,9 +74,13 @@ supsubM (IndexM m) _ = m
 -- Tensors
 --
 
+type family Component a where
+  Component EgisonValue = EgisonValue
+  Component WHNFData = ObjectRef
+
 class TensorComponent a where
-  fromTensor :: Tensor a -> EvalM a
-  toTensor :: a -> EvalM (Tensor a)
+  fromTensor :: Tensor (Component a) -> EvalM a
+  toTensor :: a -> EvalM (Tensor (Component a))
 
 instance TensorComponent EgisonValue where
   fromTensor t@Tensor{} = return $ TensorData t
@@ -82,15 +89,10 @@ instance TensorComponent EgisonValue where
   toTensor x              = return $ Scalar x
 
 instance TensorComponent WHNFData where
-  fromTensor t@Tensor{} = return (ITensor t)
-  fromTensor (Scalar x) = return x
+  fromTensor t@Tensor{} = return $ ITensor t
+  fromTensor (Scalar x) = evalRef x
   toTensor (ITensor t) = return t
-  toTensor x           = return (Scalar x)
-
-tensorElems :: TensorComponent a => a -> EvalM (V.Vector a)
-tensorElems t = do
-  Tensor _ xs _ <- toTensor t
-  return xs
+  toTensor x           = Scalar <$> newEvaluatedObjectRef x
 
 tShape :: Tensor a -> Shape
 tShape (Tensor ns _ _) = ns
@@ -232,20 +234,20 @@ removeDF (Value (TensorData (Tensor s xs is))) = do
   isDF _        = False
 removeDF whnf = return whnf
 
-tMap :: TensorComponent b => (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
+tMap :: (a -> EvalM (Tensor b)) -> Tensor a -> EvalM (Tensor b)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
   xs' <- V.mapM f xs
-  t <- toTensor (V.head xs')
-  case t of
+  case V.head xs' of
     Tensor ns1 _ js1' -> do
       let js1 = js1' ++ complementWithDF ns1 js1'
-      xs'' <- V.concat <$> mapM tensorElems (V.toList xs')
-      tContract' $ Tensor (ns ++ ns1) xs'' (js ++ js1)
-    _ -> return $ Tensor ns xs' js
-tMap f (Scalar x) = Scalar <$> f x
+      tContract' $ Tensor (ns ++ ns1) (V.concatMap tToVector xs') (js ++ js1)
+    _ -> do
+      xs'' <- V.mapM getScalar xs'
+      return $ Tensor ns xs'' js
+tMap f (Scalar x) = f x
 
-tMap2 :: TensorComponent c => (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
+tMap2 :: (a -> b -> EvalM (Tensor c)) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
@@ -264,7 +266,7 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   uniq (x:xs) = x:uniq (delete x xs)
 tMap2 f t@Tensor{} (Scalar x) = tMap (`f` x) t
 tMap2 f (Scalar x) t@Tensor{} = tMap (f x) t
-tMap2 f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
+tMap2 f (Scalar x1) (Scalar x2) = f x1 x2
 
 tDiag :: Tensor a -> EvalM (Tensor a)
 tDiag t@(Tensor _ _ js) =
@@ -293,7 +295,7 @@ tDiagIndex js =
     , [mc| _ -> js |]
     ]
 
-tProduct :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
+tProduct :: (a -> b -> EvalM (Tensor c)) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
@@ -308,7 +310,8 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
                              x2 <- tIntRef1 is2 t2
                              f x1 x2)
                   (enumTensorIndices (ns1 ++ ns2))
-      tContract' (Tensor (ns1 ++ ns2) (V.fromList xs') (js1 ++ js2))
+      Tensor _ xs' _ <- tConcat' xs'
+      tContract' (Tensor (ns1 ++ ns2) xs' (js1 ++ js2))
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
       t2' <- tTranspose (cjs2 ++ tjs2) t2
@@ -330,13 +333,9 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
-tProduct f (Scalar x) (Tensor ns xs js) = do
-  xs' <- V.mapM (f x) xs
-  return $ Tensor ns xs' js
-tProduct f (Tensor ns xs js) (Scalar x) = do
-  xs' <- V.mapM (`f` x) xs
-  return $ Tensor ns xs' js
-tProduct f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
+tProduct f (Scalar x) t@Tensor{} = tMap (f x) t
+tProduct f t@Tensor{} (Scalar x) = tMap (`f` x) t
+tProduct f (Scalar x1) (Scalar x2) = f x1 x2
 
 tContract :: Tensor a -> EvalM [Tensor a]
 tContract t = do
