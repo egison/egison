@@ -112,7 +112,7 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
   case whnfs of
     ITensor Tensor{}:_ ->
       zipWithM f whnfs [1..] >>= tConcat' >>= fromTensor
-    _ -> makeITensor [n] whnfs
+    _ -> makeITensorFromWHNF [n] whnfs
   where
     evalWithIndex :: IExpr -> Integer -> EvalM WHNFData
     evalWithIndex expr index = evalExprShallow env' expr
@@ -142,7 +142,7 @@ evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   xsWhnf <- evalExprShallow env xsExpr
   xs <- collectionToRefs xsWhnf >>= fromMList >>= mapM evalRef
   if product ns == toInteger (length xs)
-    then makeITensor ns xs
+    then makeITensorFromWHNF ns xs
     else throwError =<< InconsistentTensorShape <$> getFuncNameStack
 
 evalExprShallow env (IHashExpr assocs) = do
@@ -380,12 +380,12 @@ evalExprShallow env (IApplyExpr func args) = do
       IInductiveData name <$> mapM (newThunkRef env) args
     Value (TensorData t@Tensor{}) -> do
       let args' = map (newThunk env) args
-      tMap (\f -> applyObj env (Value f) args' >>= toTensor) t >>= fromTensor >>= removeDF
+      tMap (\f -> newApplyObjThunkRef env (Value f) args') t >>= fromTensor >>= removeDF
     ITensor t@Tensor{} -> do
       let args' = map (newThunk env) args
       tMap (\f -> do
         f <- evalRef f
-        applyObj env f args' >>= toTensor) t >>= fromTensor
+        newApplyObjThunkRef env f args') t >>= fromTensor >>= removeDF
     Value (MemoizedFunc hashRef env' names body) -> do
       args <- mapM (evalExprDeep env) args
       evalMemoizedFunc hashRef env' names body args
@@ -399,11 +399,11 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
   let args' = map WHNF (zipWith appendDF [1..] args)
   case func of
     Value (TensorData t@Tensor{}) ->
-      tMap (\f -> applyObj env (Value f) args' >>= toTensor) t >>= fromTensor
+      tMap (\f -> newApplyObjThunkRef env (Value f) args') t >>= fromTensor
     ITensor t@Tensor{} ->
       tMap (\f -> do
         f <- evalRef f
-        applyObj env f args' >>= toTensor) t >>= fromTensor
+        newApplyObjThunkRef env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env names body) -> do
       args <- mapM evalWHNF args
       evalMemoizedFunc hashRef env names body args
@@ -415,13 +415,13 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExprDeep env shapeExpr >>= collectionToList
   ns    <- mapM fromEgison shape :: EvalM Shape
   xs    <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
-  makeITensor ns xs
+  return $ newITensor ns xs
  where
-  indexToWHNF :: Env -> [EgisonValue] {- index -} -> EvalM WHNFData
+  indexToWHNF :: Env -> [EgisonValue] {- index -} -> EvalM ObjectRef
   indexToWHNF (Env frame maybe_vwi) ms = do
     let env' = maybe env (\(name, indices) -> Env frame $ Just (name, zipWith changeIndex indices ms)) maybe_vwi
     fn <- evalExprShallow env' fnExpr
-    applyObj env fn (map (WHNF . Value) ms)
+    newApplyObjThunkRef env fn (map (WHNF . Value) ms)
 
 evalExprShallow env (ITensorContractExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
@@ -439,9 +439,9 @@ evalExprShallow env (ITensorMapExpr fnExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
   case whnf of
     ITensor t ->
-      tMap (\x -> applyRef env fn [x] >>= toTensor) t >>= fromTensor
+      tMap (\x -> newApplyThunkRef env fn [x]) t >>= fromTensor
     Value (TensorData t) ->
-      tMap (\x -> applyVal env fn [x] >>= toTensor) t >>= fromTensor
+      tMap (\x -> newApplyObjThunkRef env fn [WHNF (Value x)]) t >>= fromTensor
     _ -> applyObj env fn [WHNF whnf]
 
 evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
@@ -451,30 +451,34 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
   case (whnf1, whnf2) of
     -- both of arguments are tensors
     (ITensor t1, ITensor t2) ->
-      tMap2 (\x y -> applyRef env fn [x, y] >>= toTensor) t1 t2 >>= fromTensor
+      tMap2 (\x y -> newApplyThunkRef env fn [x, y]) t1 t2 >>= fromTensor
     (ITensor t1, Value (TensorData t2)) -> do
       tMap2 (\x y -> do
-        x <- liftIO $ readIORef x
-        applyObj env fn [x, WHNF (Value y)] >>= toTensor) t1 t2 >>= fromTensor
+        y <- newEvaluatedObjectRef (Value y)
+        newApplyThunkRef env fn [x, y]) t1 t2 >>= fromTensor
     (Value (TensorData t1), ITensor t2) -> do
       tMap2 (\x y -> do
-        y <- liftIO $ readIORef y
-        applyObj env fn [WHNF (Value x), y] >>= toTensor) t1 t2 >>= fromTensor
+        x <- newEvaluatedObjectRef (Value x)
+        newApplyThunkRef env fn [x, y]) t1 t2 >>= fromTensor
     (Value (TensorData t1), Value (TensorData t2)) ->
-      tMap2 (\x y -> applyVal env fn [x, y] >>= toTensor) t1 t2 >>= fromTensor
+      tMap2 (\x y -> newApplyObjThunkRef env fn [WHNF (Value x), WHNF (Value y)]) t1 t2 >>= fromTensor
     -- an argument is scalar
-    (ITensor t1, _) ->
+    (ITensor t1, _) -> do
+      ref2 <- newEvaluatedObjectRef whnf2
+      tMap2 (\x y -> newApplyThunkRef env fn [x, y]) t1 (Scalar ref2) >>= fromTensor
+    (_, ITensor t2) -> do
+      ref1 <- newEvaluatedObjectRef whnf1
+      tMap2 (\x y -> newApplyThunkRef env fn [x, y]) (Scalar ref1) t2 >>= fromTensor
+    (Value (TensorData t1), _) -> do
+      ref2 <- newEvaluatedObjectRef whnf2
       tMap2 (\x y -> do
-        x <- liftIO $ readIORef x
-        applyObj env fn [x, WHNF y] >>= toTensor) t1 (Scalar whnf2) >>= fromTensor
-    (_, ITensor t2) ->
+        x <- newEvaluatedObjectRef (Value x)
+        newApplyThunkRef env fn [x, y]) t1 (Scalar ref2) >>= fromTensor
+    (_, Value (TensorData t2)) -> do
+      ref1 <- newEvaluatedObjectRef whnf1
       tMap2 (\x y -> do
-        y <- liftIO $ readIORef y
-        applyObj env fn [WHNF x, y] >>= toTensor) (Scalar whnf1) t2 >>= fromTensor
-    (Value (TensorData t1), _) ->
-      tMap2 (\x y -> applyObj env fn [WHNF (Value x), WHNF y] >>= toTensor) t1 (Scalar whnf2) >>= fromTensor
-    (_, Value (TensorData t2)) ->
-      tMap2 (\x y -> applyObj env fn [WHNF x, WHNF (Value y)] >>= toTensor) (Scalar whnf1) t2 >>= fromTensor
+        y <- newEvaluatedObjectRef (Value y)
+        newApplyThunkRef env fn [x, y]) (Scalar ref1) t2 >>= fromTensor
     _ -> applyObj env fn [WHNF whnf1, WHNF whnf2]
 
 evalExprShallow _ expr = throwError =<< NotImplemented ("evalExprShallow for " ++ show expr) <$> getFuncNameStack
@@ -536,6 +540,18 @@ addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 valueToTensor :: WHNFData -> Tensor ObjectRef
 valueToTensor (ITensor t) = t
 
+newApplyThunk :: Env -> WHNFData -> [ObjectRef] -> Object
+newApplyThunk env fn refs = Thunk $ applyRef env fn refs
+
+newApplyThunkRef :: Env -> WHNFData -> [ObjectRef] -> EvalM ObjectRef
+newApplyThunkRef env fn refs = liftIO . newIORef $ newApplyThunk env fn refs
+
+newApplyObjThunk :: Env -> WHNFData -> [Object] -> Object
+newApplyObjThunk env fn objs = Thunk $ applyObj env fn objs
+
+newApplyObjThunkRef :: Env -> WHNFData -> [Object] -> EvalM ObjectRef
+newApplyObjThunkRef env fn objs = liftIO . newIORef $ newApplyObjThunk env fn objs
+
 applyRef :: Env -> WHNFData -> [ObjectRef] -> EvalM WHNFData
 applyRef env (Value (TensorData (Tensor s1 t1 i1))) refs = do
   tds <- mapM evalRef refs
@@ -596,9 +612,6 @@ applyObj :: Env -> WHNFData -> [Object] -> EvalM WHNFData
 applyObj env fn args = do
   refs <- liftIO $ mapM newIORef args
   applyRef env fn refs
-
-applyVal :: Env -> WHNFData -> [EgisonValue] -> EvalM WHNFData
-applyVal env fn xs = applyObj env fn (map (WHNF . Value) xs)
 
 refHash :: WHNFData -> [EgisonValue] -> EvalM WHNFData
 refHash val [] = return val
@@ -1098,10 +1111,13 @@ toListPat :: [IPattern] -> IPattern
 toListPat []         = InductivePat "nil" []
 toListPat (pat:pats) = InductivePat "::" [pat, toListPat pats]
 
-makeITensor :: Shape -> [WHNFData] -> EvalM WHNFData
-makeITensor s xs = do
+makeITensorFromWHNF :: Shape -> [WHNFData] -> EvalM WHNFData
+makeITensorFromWHNF s xs = do
   xs' <- mapM newEvaluatedObjectRef xs
   return $ ITensor (Tensor s (V.fromList xs') [])
+
+newITensor :: Shape -> [ObjectRef] -> WHNFData
+newITensor s refs = ITensor (Tensor s (V.fromList refs) [])
 
 -- Refer the specified tensor index with potential overriding of the index.
 refTensorWithOverride :: TensorComponent a b => Bool -> [Index EgisonValue] -> Tensor b -> EvalM a
