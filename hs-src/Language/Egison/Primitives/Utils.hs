@@ -50,7 +50,7 @@ twoArgs :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> Primit
 twoArgs f name args =
   case args of
     [TensorData t1@Tensor{}, TensorData t2@Tensor{}] ->
-      tProduct (\x y -> Scalar <$> f x y) t1 t2 >>= fromTensor
+      tProduct (\x y -> f x y) t1 t2 >>= fromTensor
     [TensorData(Tensor ns ds js), val] -> do
       ds' <- V.mapM (`f` val) ds
       return $ TensorData (Tensor ns ds' js)
