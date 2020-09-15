@@ -464,21 +464,21 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
       tMap2 (\x y -> newApplyObjThunkRef env fn [WHNF (Value x), WHNF (Value y)]) t1 t2 >>= fromTensor
     -- an argument is scalar
     (ITensor t1, _) -> do
-      ref2 <- newEvaluatedObjectRef whnf2
-      tMap2 (\x y -> newApplyThunkRef env fn [x, y]) t1 (Scalar ref2) >>= fromTensor
+      y <- newEvaluatedObjectRef whnf2
+      tMap (\x -> newApplyThunkRef env fn [x, y]) t1 >>= fromTensor
     (_, ITensor t2) -> do
-      ref1 <- newEvaluatedObjectRef whnf1
-      tMap2 (\x y -> newApplyThunkRef env fn [x, y]) (Scalar ref1) t2 >>= fromTensor
+      x <- newEvaluatedObjectRef whnf1
+      tMap (\y -> newApplyThunkRef env fn [x, y]) t2 >>= fromTensor
     (Value (TensorData t1), _) -> do
-      ref2 <- newEvaluatedObjectRef whnf2
-      tMap2 (\x y -> do
+      y <- newEvaluatedObjectRef whnf2
+      tMap (\x -> do
         x <- newEvaluatedObjectRef (Value x)
-        newApplyThunkRef env fn [x, y]) t1 (Scalar ref2) >>= fromTensor
+        newApplyThunkRef env fn [x, y]) t1 >>= fromTensor
     (_, Value (TensorData t2)) -> do
-      ref1 <- newEvaluatedObjectRef whnf1
-      tMap2 (\x y -> do
+      x <- newEvaluatedObjectRef whnf1
+      tMap (\y -> do
         y <- newEvaluatedObjectRef (Value y)
-        newApplyThunkRef env fn [x, y]) (Scalar ref1) t2 >>= fromTensor
+        newApplyThunkRef env fn [x, y]) t2 >>= fromTensor
     _ -> applyObj env fn [WHNF whnf1, WHNF whnf2]
 
 evalExprShallow _ expr = throwError =<< NotImplemented ("evalExprShallow for " ++ show expr) <$> getFuncNameStack
