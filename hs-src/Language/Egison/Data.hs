@@ -399,7 +399,7 @@ data WHNFData
   | IIntHash (HashMap Integer ObjectRef)
   | ICharHash (HashMap Char ObjectRef)
   | IStrHash (HashMap Text ObjectRef)
-  | ITensor (Tensor WHNFData)
+  | ITensor (Tensor ObjectRef)
 
 data Inner
   = IElement ObjectRef
