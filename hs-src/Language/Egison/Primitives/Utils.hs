@@ -32,7 +32,7 @@ oneArg f name args =
   case args of
     [TensorData (Tensor ns ds js)] -> do
       ds' <- V.mapM f ds
-      fromTensor (Tensor ns ds' js)
+      return $ TensorData (Tensor ns ds' js)
     [arg] -> f arg
     _ ->
       throwError =<< ArgumentsNumPrimitive name 1 (length args) <$> getFuncNameStack
@@ -50,13 +50,13 @@ twoArgs :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> Primit
 twoArgs f name args =
   case args of
     [TensorData t1@Tensor{}, TensorData t2@Tensor{}] ->
-      tProduct f t1 t2 >>= fromTensor
+      tProduct (\x y -> f x y) t1 t2 >>= fromTensor
     [TensorData(Tensor ns ds js), val] -> do
       ds' <- V.mapM (`f` val) ds
-      fromTensor (Tensor ns ds' js)
+      return $ TensorData (Tensor ns ds' js)
     [val, TensorData (Tensor ns ds js)] -> do
       ds' <- V.mapM (f val) ds
-      fromTensor (Tensor ns ds' js)
+      return $ TensorData (Tensor ns ds' js)
     [val, val'] -> f val val'
     [val] -> return . PrimitiveFunc $ oneArg (f val) name
     _ -> throwError =<< ArgumentsNumPrimitive name 2 (length args) <$> getFuncNameStack
