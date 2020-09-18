@@ -268,6 +268,9 @@ evalExprShallow env (ILetExpr bindings expr) = do
   extractBindings (PDPatVar var@(Var name is), expr@IFunctionExpr{}) =
     let Env frame _ = env
      in makeBindings [var] . (:[]) <$> newThunkRef (Env frame (Just (name, map (fmap (\() -> "")) is))) expr
+  extractBindings (PDPatVar var@(Var name is), expr) | not (null is) =
+    let Env frame _ = env
+     in makeBindings [var] . (:[]) <$> newThunkRef (Env frame (Just (name, map (fmap (\() -> "")) is))) expr
   extractBindings (pdp, expr) = do
     thunk <- newThunkRef env expr
     bindPrimitiveDataPattern pdp thunk
@@ -693,6 +696,7 @@ recursiveMatchBind env bindings = do
     let env'' =
           case (pd, expr) of
             (PDPatVar (Var var is), IFunctionExpr{}) -> Env frame (Just (var, map (fmap (\() -> "")) is))
+            (PDPatVar (Var var is), _) | not (null is) -> Env frame (Just (var, map (fmap (\() -> "")) is))
             _ -> env'
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
