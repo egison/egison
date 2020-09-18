@@ -598,7 +598,7 @@ applyRef _ (Value (TFunc env name body)) refs = do
   tuple <- liftIO . newIORef $ WHNF $ ITuple refs
   evalExprShallow (extendEnv env $ makeBindings' [name] [tuple]) body
 applyRef _ (Value (PrimitiveFunc func)) refs = do
-  vals <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
+  vals <- mapM evalRefDeep refs
   Value <$> func vals
 applyRef _ (Value (IOFunc m)) refs = do
   args <- mapM evalRef refs
