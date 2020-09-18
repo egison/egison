@@ -516,15 +516,9 @@ evalWHNF :: WHNFData -> EvalM EgisonValue
 evalWHNF (Value val) = return val
 evalWHNF (IInductiveData name refs) =
   InductiveData name <$> mapM evalRefDeep refs
-evalWHNF (IIntHash refs) = do
-  refs' <- mapM evalRefDeep refs
-  return $ IntHash refs'
-evalWHNF (ICharHash refs) = do
-  refs' <- mapM evalRefDeep refs
-  return $ CharHash refs'
-evalWHNF (IStrHash refs) = do
-  refs' <- mapM evalRefDeep refs
-  return $ StrHash refs'
+evalWHNF (IIntHash refs)  = IntHash  <$> mapM evalRefDeep refs
+evalWHNF (ICharHash refs) = CharHash <$> mapM evalRefDeep refs
+evalWHNF (IStrHash refs)  = StrHash  <$> mapM evalRefDeep refs
 evalWHNF (ITuple [ref]) = evalRefDeep ref
 evalWHNF (ITuple refs) = Tuple <$> mapM evalRefDeep refs
 evalWHNF (ITensor (Tensor ns whnfs js)) = do
