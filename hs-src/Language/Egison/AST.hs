@@ -20,7 +20,7 @@ module Language.Egison.AST
   , IndexExpr (..)
   , extractIndexExpr
   , PMMode (..)
-  , BindingExpr
+  , BindingExpr (..)
   , MatchClause
   , PatternDef
   , LoopRange (..)
@@ -158,7 +158,11 @@ extractIndexExpr _                = error "extractIndexExpr: Not supported"
 data PMMode = BFSMode | DFSMode
   deriving Show
 
-type BindingExpr = (PrimitiveDataPattern, Expr)
+data BindingExpr
+  = Bind PrimitiveDataPattern Expr
+  | BindWithIndices VarWithIndices Expr
+  deriving Show
+
 type MatchClause = (Pattern, Expr)
 type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 

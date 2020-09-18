@@ -194,10 +194,11 @@ instance Pretty ArgPattern where
 instance Pretty VarWithIndices where
   pretty (VarWithIndices xs is) = pretty xs <> hcat (map pretty is)
 
-instance {-# OVERLAPPING #-} Pretty BindingExpr where
-  pretty (PDPatVar f, LambdaExpr args body) =
+instance Pretty BindingExpr where
+  pretty (Bind (PDPatVar f) (LambdaExpr args body)) =
     hsep (pretty f : map pretty' args) <+> indentBlock (pretty ":=") [pretty body]
-  pretty (pat, expr) = pretty pat <+> pretty ":=" <+> align (pretty expr)
+  pretty (Bind pat expr) = pretty pat <+> pretty ":=" <+> align (pretty expr)
+  pretty (BindWithIndices var expr) = pretty var <+> pretty ":=" <+> align (pretty expr)
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
@@ -226,7 +227,7 @@ instance Pretty Pattern where
   pretty (IndexedPat p indices) =
     pretty p <> hcat (map (\i -> pretty '_' <> pretty' i) indices)
   pretty (LetPat binds pat) =
-    pretty "let" <+> align (vsep (map (\(p, e) -> pretty p <+> pretty ":=" <+> align (pretty e)) binds)) <+> pretty "in" <+> pretty pat
+    pretty "let" <+> align (vsep (map pretty binds)) <+> pretty "in" <+> pretty pat
   -- (p11 op' p12) op p2
   pretty (InfixPat op p1@(InfixPat op' _ _) p2) =
     if priority op > priority op' || priority op == priority op' && assoc op == InfixR
@@ -397,8 +398,8 @@ pretty'' x | isAtomOrApp x || isInfix x = pretty x
 
 -- Display "hoge" instead of "() := hoge"
 prettyDoBinds :: BindingExpr -> Doc ann
-prettyDoBinds (PDTuplePat [], expr) = pretty expr
-prettyDoBinds (vs, expr) = pretty "let" <+> pretty (vs, expr)
+prettyDoBinds (Bind (PDTuplePat []) expr) = pretty expr
+prettyDoBinds bind = pretty "let" <+> pretty bind
 
 prettyMatch :: Expr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
