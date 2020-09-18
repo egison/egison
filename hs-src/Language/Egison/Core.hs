@@ -594,6 +594,8 @@ applyRef _ (Value (CFunc env name body)) refs = do
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ ICollection seqRef
   evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
+applyRef _ (Value (TFunc env name body)) [ref] =
+  evalExprShallow (extendEnv env $ makeBindings' [name] [ref]) body
 applyRef _ (Value (TFunc env name body)) refs = do
   tuple <- liftIO . newIORef $ WHNF $ ITuple refs
   evalExprShallow (extendEnv env $ makeBindings' [name] [tuple]) body
