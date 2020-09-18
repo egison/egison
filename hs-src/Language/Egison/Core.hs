@@ -46,7 +46,6 @@ import           Language.Egison.IExpr
 import           Language.Egison.Match
 import           Language.Egison.Math
 import           Language.Egison.MList
-import           Language.Egison.Pretty
 import           Language.Egison.RState
 import           Language.Egison.Tensor
 
@@ -771,7 +770,7 @@ processMState state =
       case result of
         MNil -> return $ msingleton state2
         _    -> return MNil
-    (0, MState e l s b [MAtom (ForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
+    (0, MState e l s b [MAtom (IForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
       states <- processMStatesAllDFSForall (msingleton (MState e l (ForallPatContext [] []:s) b [MAtom p1 m t]))
       statess' <- mmap (\(MState e' l' (ForallPatContext ms ts:s') b' []) -> do
                             let mat' = makeTuple ms
@@ -788,7 +787,7 @@ processMState state =
     _ -> processMState' state
  where
   splitMState :: MatchingState -> (Integer, MatchingState, MatchingState)
-  splitMState mstate@MState{ mTrees = MAtom (NotPat pattern) target matcher : trees } =
+  splitMState mstate@MState{ mTrees = MAtom (INotPat pattern) target matcher : trees } =
     (1, mstate { seqPatCtx = [],  mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
   splitMState mstate@MState{ mTrees = MAtom pattern target matcher : trees } =
     (0, mstate { mTrees = [MAtom pattern target matcher] }, mstate { mTrees = trees })
@@ -801,7 +800,7 @@ processMState' :: MatchingState -> EvalM (MList EvalM MatchingState)
 processMState' mstate@MState{ seqPatCtx = [], mTrees = [] } = return . msingleton $ mstate -- for forall pattern used in matchAll (not matchAllDFS)
 
 -- Sequential patterns and forall pattern
-processMState' mstate@MState{ seqPatCtx = SeqPatContext stack SeqNilPat [] []:seqs, mTrees = [] } =
+processMState' mstate@MState{ seqPatCtx = SeqPatContext stack ISeqNilPat [] []:seqs, mTrees = [] } =
   return . msingleton $ mstate { seqPatCtx = seqs, mTrees = stack }
 processMState' mstate@MState{ seqPatCtx = SeqPatContext stack seqPat mats tgts:seqs, mTrees = [] } = do
   let mat' = makeTuple mats
@@ -814,7 +813,7 @@ processMState' mstate@MState{ seqPatCtx = ForallPatContext _ _:_, mTrees = [] } 
 --processMState' MState{ mTrees = MNode _ MState{ mStateBindings = [], mTrees = [] }:_ } = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
 processMState' mstate@MState{ mTrees = MNode _ MState{ seqPatCtx = [], mTrees = [] }:trees } = return . msingleton $ mstate { mTrees = trees }
 
-processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (VarPat name) target matcher:trees' }:trees } =
+processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (IVarPat name) target matcher:trees' }:trees } =
   case lookup name penv of
     Just pattern ->
       case trees' of
@@ -822,12 +821,12 @@ processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (VarPa
         _  -> return . msingleton $ ms1 { mTrees = MAtom pattern target matcher:MNode penv (ms2 { mTrees = trees' }):trees }
     Nothing -> throwError =<< UnboundVariable name <$> getFuncNameStack
 
-processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ _ (MAtom (IndexedPat (VarPat name) indices) target matcher:trees')):trees)) =
+processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ _ (MAtom (IIndexedPat (IVarPat name) indices) target matcher:trees')):trees)) =
   case lookup name penv of
     Just pattern -> do
       let env'' = extendEnvForNonLinearPatterns env' bindings loops'
       indices <- mapM (evalExprDeep env'' >=> fmap fromInteger . fromEgison) indices
-      let pattern' = IndexedPat pattern $ map (IConstantExpr . IntegerExpr) indices
+      let pattern' = IIndexedPat pattern $ map (IConstantExpr . IntegerExpr) indices
       case trees' of
         [] -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:trees }
         _  -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:MNode penv (ms2 { mTrees = trees' }):trees }
@@ -842,21 +841,21 @@ processMState' mstate@MState{ mTrees = MNode penv state:trees } =
 processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matcher:trees)) =
   let env' = extendEnvForNonLinearPatterns env bindings loops in
   case pattern of
-    InductiveOrPApplyPat name args ->
+    IInductiveOrPApplyPat name args ->
       case refVar env (stringToVar name) of
-        Nothing -> processMState' (mstate { mTrees = MAtom (InductivePat name args) target matcher:trees })
+        Nothing -> processMState' (mstate { mTrees = MAtom (IInductivePat name args) target matcher:trees })
         Just ref -> do
           whnf <- evalRef ref
           case whnf of
             Value PatternFunc{} ->
-              processMState' (mstate { mTrees = MAtom (PApplyPat (IVarExpr name) args) target matcher:trees })
+              processMState' (mstate { mTrees = MAtom (IPApplyPat (IVarExpr name) args) target matcher:trees })
             _                   ->
-              processMState' (mstate { mTrees = MAtom (InductivePat name args) target matcher:trees })
+              processMState' (mstate { mTrees = MAtom (IInductivePat name args) target matcher:trees })
 
-    NotPat _ -> throwError =<< EgisonBug "should not reach here (not-pattern)" <$> getFuncNameStack
-    VarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ prettyStr pattern
+    INotPat _ -> throwError =<< EgisonBug "should not reach here (not-pattern)" <$> getFuncNameStack
+    IVarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ show pattern
 
-    LetPat bindings' pattern' -> do
+    ILetPat bindings' pattern' -> do
       b <- concat <$> mapM extractBindings bindings'
       return . msingleton $ mstate { mStateBindings = b ++ bindings, mTrees = MAtom pattern' target matcher:trees }
         where
@@ -864,13 +863,13 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             thunk <- newThunkRef (extendEnv env bindings) expr
             bindPrimitiveDataPattern pdp thunk
 
-    PredPat predicate -> do
+    IPredPat predicate -> do
       func <- evalExprShallow env' predicate
       result <- applyObj env func [WHNF target] >>= evalWHNF >>= fromEgison
       if result then return . msingleton $ mstate { mTrees = trees }
                 else return MNil
 
-    PApplyPat func args -> do
+    IPApplyPat func args -> do
       func' <- evalExprShallow env' func
       case func' of
         Value (PatternFunc env'' names expr) ->
@@ -878,10 +877,10 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             where penv = zip names args
         _ -> throwError =<< TypeMismatch "pattern constructor" func' <$> getFuncNameStack
 
-    DApplyPat func args ->
-      return . msingleton $ mstate { mTrees = MAtom (InductivePat "apply" [func, toListPat args]) target matcher:trees }
+    IDApplyPat func args ->
+      return . msingleton $ mstate { mTrees = MAtom (IInductivePat "apply" [func, toListPat args]) target matcher:trees }
 
-    LoopPat name (LoopRange start ends endPat) pat pat' -> do
+    ILoopPat name (ILoopRange start ends endPat) pat pat' -> do
       startNum    <- evalExprDeep env' start >>= fromEgison :: (EvalM Integer)
       startNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum - 1)
       ends'       <- evalExprShallow env' ends
@@ -891,12 +890,12 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
           inners   <- liftIO . newIORef $ Sq.fromList [IElement endsRef]
           endsRef' <- liftIO $ newIORef (WHNF (ICollection inners))
           return . msingleton $ mstate { loopPatCtx = LoopPatContext (name, startNumRef) endsRef' endPat pat pat':loops
-                                       , mTrees = MAtom ContPat target matcher:trees }
+                                       , mTrees = MAtom IContPat target matcher:trees }
         _ -> do -- the case when the end numbers are a collection
           endsRef <- newEvaluatedObjectRef ends'
           return . msingleton $ mstate { loopPatCtx = LoopPatContext (name, startNumRef) endsRef endPat pat pat':loops
-                                       , mTrees = MAtom ContPat target matcher:trees }
-    ContPat ->
+                                       , mTrees = MAtom IContPat target matcher:trees }
+    IContPat ->
       case loops of
         [] -> throwError $ Default "cannot use cont pattern except in loop pattern"
         LoopPatContext (name, startNumRef) endsRef endPat pat pat' : loops' -> do
@@ -920,19 +919,19 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                             mstate { loopPatCtx = LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat':loops', mTrees = MAtom pat target matcher:trees }]
                 | otherwise ->
                   fromList [mstate { loopPatCtx = LoopPatContext (name, nextNumRef) endsRef endPat pat pat':loops', mTrees = MAtom pat target matcher:trees }]
-    SeqNilPat -> throwError =<< EgisonBug "should not reach here (seq nil pattern)" <$> getFuncNameStack
-    SeqConsPat pattern pattern' -> return . msingleton $ MState env loops (SeqPatContext trees pattern' [] []:seqs) bindings [MAtom pattern target matcher]
-    LaterPatVar ->
+    ISeqNilPat -> throwError =<< EgisonBug "should not reach here (seq nil pattern)" <$> getFuncNameStack
+    ISeqConsPat pattern pattern' -> return . msingleton $ MState env loops (SeqPatContext trees pattern' [] []:seqs) bindings [MAtom pattern target matcher]
+    ILaterPatVar ->
       case seqs of
         [] -> throwError $ Default "cannot use # out of seq patterns"
         SeqPatContext stack pat mats tgts:seqs ->
           return . msingleton $ MState env loops (SeqPatContext stack pat (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
         ForallPatContext mats tgts:seqs ->
           return . msingleton $ MState env loops (ForallPatContext (mats ++ [matcher]) (tgts ++ [target]):seqs) bindings trees
-    AndPat pat1 pat2 ->
+    IAndPat pat1 pat2 ->
       let trees' = [MAtom pat1 target matcher, MAtom pat2 target matcher] ++ trees
        in return . msingleton $ mstate { mTrees = trees' }
-    OrPat pat1 pat2 ->
+    IOrPat pat1 pat2 ->
       return $ fromList [mstate { mTrees = MAtom pat1 target matcher : trees }, mstate { mTrees = MAtom pat2 target matcher : trees }]
 
     _ ->
@@ -953,11 +952,11 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
 
         Tuple matchers ->
           case pattern of
-            ValuePat _ -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
-            WildCard   -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
-            PatVar _   -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
-            IndexedPat _ _ -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
-            TuplePat patterns -> do
+            IValuePat _ -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
+            IWildCard   -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
+            IPatVar _   -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
+            IIndexedPat _ _ -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
+            ITuplePat patterns -> do
               targets <- tupleToListWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
               when (length patterns /= length matchers) $ throwError =<< TupleLength (length patterns) (length matchers) <$> getFuncNameStack
@@ -967,17 +966,17 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
 
         Something ->
           case pattern of
-            ValuePat valExpr -> do
+            IValuePat valExpr -> do
               val <- evalExprDeep env' valExpr
               tgtVal <- evalWHNF target
               if val == tgtVal
                 then return . msingleton $ mstate { mTrees = trees }
                 else return MNil
-            WildCard -> return . msingleton $ mstate { mTrees = trees }
-            PatVar name -> do
+            IWildCard -> return . msingleton $ mstate { mTrees = trees }
+            IPatVar name -> do
               targetRef <- newEvaluatedObjectRef target
               return . msingleton $ mstate { mStateBindings = (stringToVar name, targetRef):bindings, mTrees = trees }
-            IndexedPat (PatVar name') indices -> do
+            IIndexedPat (IPatVar name') indices -> do
               let name = stringToVar name'
               indices <- mapM (evalExprDeep env' >=> fmap fromInteger . fromEgison) indices
               case lookup name bindings of
@@ -987,13 +986,13 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                 Nothing  -> do
                   obj <- updateHash indices target (IIntHash (HL.empty)) >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = (name,obj):bindings, mTrees = trees }
-            IndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ prettyStr pattern)
-            TuplePat patterns -> do
+            IIndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
+            ITuplePat patterns -> do
               targets <- tupleToListWHNF target
               when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
               let trees' = zipWith3 MAtom patterns targets (map (const Something) patterns) ++ trees
               return . msingleton $ mstate { mTrees = trees' }
-            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ prettyStr pattern
+            _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ show pattern
         _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
 
 inductiveMatch :: Env -> IPattern -> WHNFData -> Matcher ->
@@ -1026,16 +1025,16 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->
                             MatchM ([IPattern], [Binding])
-primitivePatPatternMatch _ PPWildCard WildCard = return ([], [])
+primitivePatPatternMatch _ PPWildCard IWildCard = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
-primitivePatPatternMatch env (PPValuePat name) (ValuePat expr) = do
+primitivePatPatternMatch env (PPValuePat name) (IValuePat expr) = do
   ref <- lift $ newThunkRef env expr
   return ([], [(stringToVar name, ref)])
-primitivePatPatternMatch env (PPInductivePat name patterns) (InductivePat name' exprs)
+primitivePatPatternMatch env (PPInductivePat name patterns) (IInductivePat name' exprs)
   | name == name' && length patterns == length exprs =
     (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
   | otherwise = matchFail
-primitivePatPatternMatch env (PPTuplePat patterns) (TuplePat exprs)
+primitivePatPatternMatch env (PPTuplePat patterns) (ITuplePat exprs)
   | length patterns == length exprs =
     (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
   | otherwise = matchFail
@@ -1106,8 +1105,8 @@ evalMatcherWHNF whnf = throwError =<< TypeMismatch "matcher" whnf <$> getFuncNam
 -- Util
 --
 toListPat :: [IPattern] -> IPattern
-toListPat []         = InductivePat "nil" []
-toListPat (pat:pats) = InductivePat "::" [pat, toListPat pats]
+toListPat []         = IInductivePat "nil" []
+toListPat (pat:pats) = IInductivePat "::" [pat, toListPat pats]
 
 makeITensorFromWHNF :: Shape -> [WHNFData] -> EvalM WHNFData
 makeITensorFromWHNF s xs = do

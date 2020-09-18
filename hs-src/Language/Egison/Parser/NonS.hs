@@ -510,7 +510,7 @@ loopPattern =
   LoopPat <$> (reserved "loop" >> char '$' >> ident) <*> loopRange
           <*> atomPattern <*> atomPattern
   where
-    loopRange :: Parser (LoopRange Expr)
+    loopRange :: Parser LoopRange
     loopRange =
       parens $ do start <- expr
                   ends  <- option (defaultEnds start) (try $ comma >> expr)
