@@ -66,7 +66,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- fresh
   let matcherRef = IVarExpr matcherName
   matcher <- genMatcherClauses patterns matcherRef
-  return $ ILetRecExpr [(PDPatVar matcherName, matcher)] matcherRef
+  return $ ILetRecExpr [(PDPatVar (stringToVar matcherName), matcher)] matcherRef
     where
       genMatcherClauses :: [(String, [Expr])] ->  IExpr -> EvalM IExpr
       genMatcherClauses patterns matcher = do
@@ -76,31 +76,32 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         let clauses = [main] ++ body ++ [footer]
         return $ IMatcherExpr clauses
 
-      genMainClause :: [(String, [Expr])] -> IExpr -> EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
+      genMainClause :: [(String, [Expr])] -> IExpr -> EvalM (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", ITupleExpr [],
-                [(PDPatVar "tgt", IMatchExpr BFSMode
-                                    (ITupleExpr [IVarExpr "val", IVarExpr "tgt"])
-                                    (ITupleExpr [matcher, matcher])
-                                    clauses)])
+                [(PDPatVar (stringToVar "tgt"),
+                    IMatchExpr BFSMode
+                               (ITupleExpr [IVarExpr "val", IVarExpr "tgt"])
+                               (ITupleExpr [matcher, matcher])
+                               clauses)])
         where
           genClauses :: [(String, [Expr])] -> EvalM [IMatchClause]
           genClauses patterns = (++) <$> mapM genClause patterns
-                                     <*> pure [(TuplePat [WildCard, WildCard], matchingFailure)]
+                                     <*> pure [(ITuplePat [IWildCard, IWildCard], matchingFailure)]
 
           genClause :: (String, [Expr]) -> EvalM IMatchClause
           genClause pattern = do
             (pat0, pat1) <- genMatchingPattern pattern
-            return (TuplePat [pat0, pat1], matchingSuccess)
+            return (ITuplePat [pat0, pat1], matchingSuccess)
 
           genMatchingPattern :: (String, [Expr]) -> EvalM (IPattern, IPattern)
           genMatchingPattern (name, patterns) = do
             names <- mapM (const fresh) patterns
-            return (InductivePat name (map PatVar names),
-                    InductivePat name (map (ValuePat . IVarExpr) names))
+            return (IInductivePat name (map IPatVar names),
+                    IInductivePat name (map (IValuePat . IVarExpr) names))
 
-      genMatcherClause :: (String, [Expr]) -> EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
+      genMatcherClause :: (String, [Expr]) -> EvalM (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
       genMatcherClause pattern = do
         (ppat, matchers) <- genPrimitivePatPat pattern
         (dpat, body)     <- genPrimitiveDataPat pattern
@@ -113,18 +114,18 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
             matchers' <- mapM desugar matchers
             return (PPInductivePat name patterns', matchers')
 
-          genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [IExpr])
+          genPrimitiveDataPat :: (String, [Expr]) -> EvalM (IPrimitiveDataPattern, [IExpr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const fresh) patterns
-            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map IVarExpr patterns')
+            return (PDInductivePat (capitalize name) $ map (PDPatVar . stringToVar) patterns', map IVarExpr patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
 
 
-      genSomethingClause :: EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
+      genSomethingClause :: EvalM (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
       genSomethingClause =
-        return (PPPatVar, ITupleExpr [IConstantExpr SomethingExpr], [(PDPatVar "tgt", ICollectionExpr [IVarExpr "tgt"])])
+        return (PPPatVar, ITupleExpr [IConstantExpr SomethingExpr], [(PDPatVar (stringToVar "tgt"), ICollectionExpr [IVarExpr "tgt"])])
 
       matchingSuccess :: IExpr
       matchingSuccess = ICollectionExpr [ITupleExpr []]
@@ -214,32 +215,32 @@ desugar (LambdaExpr args expr) = do
     desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
     desugarArgPat APWildCard expr = do
       tmp <- fresh
-      return (tmp, LetRecExpr [(PDWildCard, VarExpr tmp)] expr)
+      return (tmp, LetRecExpr [Bind PDWildCard (VarExpr tmp)] expr)
     desugarArgPat (APPatVar var) expr = return (var, expr)
     desugarArgPat (APTuplePat args) expr = do
       tmp  <- fresh
       tmps <- mapM (const fresh) args
-      return (tmp, LetRecExpr [(PDTuplePat (map PDPatVar tmps), VarExpr tmp)]
+      return (tmp, LetRecExpr [Bind (PDTuplePat (map PDPatVar tmps)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat (APInductivePat ctor args) expr = do
       tmp  <- fresh
       tmps <- mapM (const fresh) args
-      return (tmp, LetRecExpr [(PDInductivePat ctor (map PDPatVar tmps), VarExpr tmp)]
+      return (tmp, LetRecExpr [Bind (PDInductivePat ctor (map PDPatVar tmps)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat APEmptyPat expr = do
       tmp <- fresh
-      return (tmp, LetRecExpr [(PDEmptyPat, VarExpr tmp)] expr)
+      return (tmp, LetRecExpr [Bind PDEmptyPat (VarExpr tmp)] expr)
     desugarArgPat (APConsPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetRecExpr [(PDConsPat (PDPatVar tmp1) (PDPatVar tmp2), VarExpr tmp)]
+      return (tmp, LetRecExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
     desugarArgPat (APSnocPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetRecExpr [(PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2), VarExpr tmp)]
+      return (tmp, LetRecExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
 
 desugar (LambdaExpr' names expr) = do
@@ -371,7 +372,7 @@ desugar (AnonParamExpr n) = return $ IVarExpr ('%' : show n)
 desugar (AnonParamFuncExpr n expr) = do
   expr' <- desugar expr
   let lambda = ILambdaExpr Nothing (map (\n -> '%' : show n) [1..n]) expr'
-  return $ ILetRecExpr [(PDPatVar "%0", lambda)] (IVarExpr "%0")
+  return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (QuoteExpr expr) =
   IQuoteExpr <$> desugar expr
@@ -395,7 +396,7 @@ desugarPattern :: Pattern -> EvalM IPattern
 desugarPattern pat =
   case collectName pat of
     []    -> desugarPattern' pat
-    names -> LetPat (map makeBinding names) <$> desugarPattern' pat
+    names -> ILetPat (map makeBinding names) <$> desugarPattern' pat
  where
    collectNames :: [Pattern] -> [String]
    collectNames pats = foldl union [] (map collectName pats)
@@ -417,50 +418,61 @@ desugarPattern pat =
    collectName _ = []
 
    makeBinding :: String -> IBindingExpr
-   makeBinding var = (PDPatVar var, IHashExpr [])
+   makeBinding var = (PDPatVar (stringToVar var), IHashExpr [])
 
 desugarPattern' :: Pattern -> EvalM IPattern
-desugarPattern' WildCard        = return WildCard
-desugarPattern' ContPat         = return ContPat
-desugarPattern' SeqNilPat       = return SeqNilPat
-desugarPattern' LaterPatVar     = return LaterPatVar
-desugarPattern' (VarPat v)      = return (VarPat v)
-desugarPattern' (PatVar var)    = return (PatVar var)
-desugarPattern' (ValuePat expr) = ValuePat <$> desugar expr
-desugarPattern' (PredPat expr)  = PredPat <$> desugar expr
-desugarPattern' (NotPat pat)       = NotPat <$> desugarPattern' pat
-desugarPattern' (AndPat pat1 pat2) = AndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
-desugarPattern' (OrPat pat1 pat2)  = OrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
-desugarPattern' (ForallPat pat1 pat2) = ForallPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' WildCard        = return IWildCard
+desugarPattern' ContPat         = return IContPat
+desugarPattern' SeqNilPat       = return ISeqNilPat
+desugarPattern' LaterPatVar     = return ILaterPatVar
+desugarPattern' (VarPat v)      = return (IVarPat v)
+desugarPattern' (PatVar var)    = return (IPatVar var)
+desugarPattern' (ValuePat expr) = IValuePat <$> desugar expr
+desugarPattern' (PredPat expr)  = IPredPat <$> desugar expr
+desugarPattern' (NotPat pat)       = INotPat <$> desugarPattern' pat
+desugarPattern' (AndPat pat1 pat2) = IAndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (OrPat pat1 pat2)  = IOrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (ForallPat pat1 pat2) = IForallPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (InfixPat Op{ repr = "&" } pat1 pat2) =
-  AndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+  IAndPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (InfixPat Op{ repr = "|" } pat1 pat2) =
-  OrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+  IOrPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (InfixPat Op{ repr = f } pat1 pat2) =
-  (\x y -> InductivePat f [x, y]) <$> desugarPattern' pat1 <*> desugarPattern' pat2
-desugarPattern' (TuplePat pats) = TuplePat <$> mapM desugarPattern' pats
-desugarPattern' (InductiveOrPApplyPat name pats) = InductiveOrPApplyPat name <$> mapM desugarPattern' pats
-desugarPattern' (InductivePat name pats) = InductivePat name <$> mapM desugarPattern' pats
-desugarPattern' (IndexedPat pat exprs) = IndexedPat <$> desugarPattern' pat <*> mapM desugar exprs
-desugarPattern' (PApplyPat expr pats) = PApplyPat <$> desugar expr <*> mapM desugarPattern' pats
-desugarPattern' (DApplyPat pat pats) = DApplyPat <$> desugarPattern' pat <*> mapM desugarPattern' pats
-desugarPattern' (LoopPat name range pat1 pat2) = LoopPat name <$> desugarLoopRange range <*> desugarPattern' pat1 <*> desugarPattern' pat2
-desugarPattern' (LetPat binds pat) = LetPat <$> desugarBindings binds <*> desugarPattern' pat
-desugarPattern' (SeqConsPat pat1 pat2) = SeqConsPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
+  (\x y -> IInductivePat f [x, y]) <$> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (TuplePat pats) = ITuplePat <$> mapM desugarPattern' pats
+desugarPattern' (InductiveOrPApplyPat name pats) = IInductiveOrPApplyPat name <$> mapM desugarPattern' pats
+desugarPattern' (InductivePat name pats) = IInductivePat name <$> mapM desugarPattern' pats
+desugarPattern' (IndexedPat pat exprs) = IIndexedPat <$> desugarPattern' pat <*> mapM desugar exprs
+desugarPattern' (PApplyPat expr pats) = IPApplyPat <$> desugar expr <*> mapM desugarPattern' pats
+desugarPattern' (DApplyPat pat pats) = IDApplyPat <$> desugarPattern' pat <*> mapM desugarPattern' pats
+desugarPattern' (LoopPat name range pat1 pat2) = ILoopPat name <$> desugarLoopRange range <*> desugarPattern' pat1 <*> desugarPattern' pat2
+desugarPattern' (LetPat binds pat) = ILetPat <$> desugarBindings binds <*> desugarPattern' pat
+desugarPattern' (SeqConsPat pat1 pat2) = ISeqConsPat <$> desugarPattern' pat1 <*> desugarPattern' pat2
 
-desugarLoopRange :: LoopRange Expr -> EvalM (LoopRange IExpr)
+desugarLoopRange :: LoopRange -> EvalM ILoopRange
 desugarLoopRange (LoopRange sExpr eExpr pat) =
-  LoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pat
+  ILoopRange <$> desugar sExpr <*> desugar eExpr <*> desugarPattern' pat
 
 desugarBindings :: [BindingExpr] -> EvalM [IBindingExpr]
 desugarBindings = mapM desugarBinding
   where
-    desugarBinding (name, expr) = do
+    desugarBinding (Bind name expr) = do
+      let name' = fmap stringToVar name
       expr' <- desugar expr
       case (name, expr') of
         (PDPatVar var, ILambdaExpr Nothing args body) ->
-          return (name, ILambdaExpr (Just var) args body)
-        _ -> return (name, expr')
+          return (name', ILambdaExpr (Just var) args body)
+        _ -> return (name', expr')
+    desugarBinding (BindWithIndices (VarWithIndices name is) expr) = do
+      body <- desugar expr
+      let indexNames = map extractIndexExpr is
+      let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
+      let is' = map (\s -> case s of
+                             Superscript _ -> Sup ()
+                             Subscript _ -> Sub ()
+                             _ -> undefined) is
+      return (PDPatVar (Var name is'),
+        IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
@@ -469,5 +481,5 @@ desugarPatternDef :: PatternDef -> EvalM IPatternDef
 desugarPatternDef (pp, matcher, pds) =
   (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
-desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(PrimitiveDataPattern, IExpr)]
-desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (pd,) <$> desugar expr)
+desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IPrimitiveDataPattern, IExpr)]
+desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)

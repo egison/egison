@@ -6,10 +6,12 @@
 module Language.Egison.IExpr
   ( ITopExpr (..)
   , IExpr (..)
-  , IPattern
+  , IPattern (..)
+  , ILoopRange (..)
   , IBindingExpr
   , IMatchClause
   , IPatternDef
+  , IPrimitiveDataPattern
   , Var (..)
   , stringToVar
   , Index (..)
@@ -20,11 +22,9 @@ module Language.Egison.IExpr
   , ConstantExpr (..)
   , VarWithIndices (..)
   , stringToVarWithIndices
-  , PatternBase (..)
-  , LoopRange (..)
   , PMMode (..)
   , PrimitivePatPattern (..)
-  , PrimitiveDataPattern (..)
+  , PDPatternBase (..)
   ) where
 
 import           Data.Hashable       (Hashable)
@@ -33,11 +33,9 @@ import           GHC.Generics        (Generic)
 import           Language.Egison.AST ( ConstantExpr (..)
                                      , VarWithIndices (..)
                                      , stringToVarWithIndices
-                                     , PatternBase (..)
-                                     , LoopRange (..)
                                      , PMMode (..)
                                      , PrimitivePatPattern (..)
-                                     , PrimitiveDataPattern (..)
+                                     , PDPatternBase (..)
                                      )
 
 data ITopExpr
@@ -91,10 +89,38 @@ data IExpr
   | IFunctionExpr [String]
   deriving Show
 
-type IPattern = PatternBase IExpr
-type IBindingExpr = (PrimitiveDataPattern, IExpr)
+type IBindingExpr = (IPrimitiveDataPattern, IExpr)
 type IMatchClause = (IPattern, IExpr)
-type IPatternDef  = (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
+type IPatternDef  = (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
+type IPrimitiveDataPattern = PDPatternBase Var
+
+data IPattern
+  = IWildCard
+  | IPatVar String
+  | IValuePat IExpr
+  | IPredPat IExpr
+  | IIndexedPat IPattern [IExpr]
+  | ILetPat [IBindingExpr] IPattern
+  | INotPat IPattern
+  | IAndPat IPattern IPattern
+  | IOrPat IPattern IPattern
+  | IForallPat IPattern IPattern
+  | ITuplePat [IPattern]
+  | IInductivePat String [IPattern]
+  | ILoopPat String ILoopRange IPattern IPattern
+  | IContPat
+  | IPApplyPat IExpr [IPattern]
+  | IVarPat String
+  | IInductiveOrPApplyPat String [IPattern]
+  | ISeqNilPat
+  | ISeqConsPat IPattern IPattern
+  | ILaterPatVar
+  -- For symbolic computing
+  | IDApplyPat IPattern [IPattern]
+  deriving Show
+
+data ILoopRange = ILoopRange IExpr IExpr IPattern
+  deriving Show
 
 data Index a
   = Sub a

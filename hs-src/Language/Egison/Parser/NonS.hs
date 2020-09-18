@@ -276,12 +276,14 @@ letExpr = do
 
 binding :: Parser BindingExpr
 binding = do
-  var <- pdAtom
+  id <- Left <$> try varWithIndicesLiteral' <|> Right <$> pdAtom
   args <- many arg
   body <- symbol ":=" >> expr
-  return $ case args of
-             [] -> (var, body)
-             _  -> (var, LambdaExpr args body)
+  case (id, args) of
+    (Left var, [])  -> return $ BindWithIndices var body
+    (Right pdp, []) -> return $ Bind pdp body
+    (Right pdp, _)  -> return $ Bind pdp (LambdaExpr args body)
+    _               -> error "unreachable"
 
 withSymbolsExpr :: Parser Expr
 withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy ident comma)) <*> expr
@@ -290,12 +292,12 @@ doExpr :: Parser Expr
 doExpr = do
   stmts <- reserved "do" >> oneLiner <|> alignSome statement
   case reverse stmts of
-    []                      -> return $ DoExpr []           (makeApply "return" [])
-    (PDTuplePat [], expr):_ -> return $ DoExpr (init stmts) expr
-    _:_                     -> customFailure LastStmtInDoBlock
+    []                          -> return $ DoExpr []           (makeApply "return" [])
+    Bind (PDTuplePat []) expr:_ -> return $ DoExpr (init stmts) expr
+    _:_                         -> customFailure LastStmtInDoBlock
   where
     statement :: Parser BindingExpr
-    statement = (reserved "let" >> binding) <|> (PDTuplePat [],) <$> expr
+    statement = (reserved "let" >> binding) <|> Bind (PDTuplePat []) <$> expr
 
     oneLiner :: Parser [BindingExpr]
     oneLiner = braces $ sepBy statement (symbol ";")
@@ -510,7 +512,7 @@ loopPattern =
   LoopPat <$> (reserved "loop" >> char '$' >> ident) <*> loopRange
           <*> atomPattern <*> atomPattern
   where
-    loopRange :: Parser (LoopRange Expr)
+    loopRange :: Parser LoopRange
     loopRange =
       parens $ do start <- expr
                   ends  <- option (defaultEnds start) (try $ comma >> expr)
@@ -673,8 +675,12 @@ positiveFloatLiteral = lexeme L.float
            <?> "unsigned float"
 
 varWithIndicesLiteral :: Parser VarWithIndices
-varWithIndicesLiteral = do
-  VarWithIndices <$> ident <*> many (index ident)
+varWithIndicesLiteral =
+  lexeme (VarWithIndices <$> ident' <*> many (index ident'))
+
+varWithIndicesLiteral' :: Parser VarWithIndices
+varWithIndicesLiteral' =
+  lexeme (VarWithIndices <$> ident' <*> some (index ident'))
 
 patVarLiteral :: Parser String
 patVarLiteral = char '$' >> ident
@@ -780,6 +786,16 @@ upperId = (lexeme . try) (p >>= check)
 -- union of lowerId and upperId
 ident :: Parser String
 ident = (lexeme . try) (p >>= check)
+  where
+    p = (:) <$> satisfy checkHead <*> identString
+    checkHead c = c `elem` mathSymbols || isLetter c
+    check x = if x `elem` (lowerReservedWords ++ upperReservedWords)
+                then fail $ "keyword " ++ show x ++ " cannot be an identifier"
+                else return x
+
+-- |ident| not followed by a space
+ident' :: Parser String
+ident' = try (p >>= check)
   where
     p = (:) <$> satisfy checkHead <*> identString
     checkHead c = c `elem` mathSymbols || isLetter c

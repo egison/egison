@@ -187,14 +187,15 @@ instance SyntaxElement PrimitiveDataPattern where
   toNonS (PDSnocPat pd1 pd2) = PDSnocPat (toNonS pd1) (toNonS pd2)
   toNonS pd = pd
 
-instance SyntaxElement (LoopRange Expr) where
+instance SyntaxElement LoopRange where
   toNonS (LoopRange e1 e2 p) = LoopRange (toNonS e1) (toNonS e2) (toNonS p)
 
 instance SyntaxElement a => SyntaxElement (IndexExpr a) where
   toNonS script = toNonS <$> script
 
 instance SyntaxElement BindingExpr where
-  toNonS (pdp, x) = (toNonS pdp, toNonS x)
+  toNonS (Bind pdp x) = Bind (toNonS pdp) (toNonS x)
+  toNonS (BindWithIndices var x) = BindWithIndices var (toNonS x)
 
 instance SyntaxElement MatchClause where
   toNonS (pat, body) = (toNonS pat, toNonS body)

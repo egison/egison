@@ -12,8 +12,7 @@ module Language.Egison.AST
   ( TopExpr (..)
   , ConstantExpr (..)
   , Expr (..)
-  , PatternBase (..)
-  , Pattern
+  , Pattern (..)
   , VarWithIndices (..)
   , makeApply
   , Arg (..)
@@ -21,12 +20,13 @@ module Language.Egison.AST
   , IndexExpr (..)
   , extractIndexExpr
   , PMMode (..)
-  , BindingExpr
+  , BindingExpr (..)
   , MatchClause
   , PatternDef
   , LoopRange (..)
   , PrimitivePatPattern (..)
-  , PrimitiveDataPattern (..)
+  , PDPatternBase (..)
+  , PrimitiveDataPattern
   , Op (..)
   , Assoc (..)
   , reservedExprOp
@@ -158,38 +158,41 @@ extractIndexExpr _                = error "extractIndexExpr: Not supported"
 data PMMode = BFSMode | DFSMode
   deriving Show
 
-type Pattern = PatternBase Expr
-type BindingExpr = (PrimitiveDataPattern, Expr)
+data BindingExpr
+  = Bind PrimitiveDataPattern Expr
+  | BindWithIndices VarWithIndices Expr
+  deriving Show
+
 type MatchClause = (Pattern, Expr)
 type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
 
-data PatternBase expr
+data Pattern
   = WildCard
   | PatVar String
-  | ValuePat expr
-  | PredPat expr
-  | IndexedPat (PatternBase expr) [expr]
-  | LetPat [(PrimitiveDataPattern, expr)] (PatternBase expr)
-  | InfixPat Op (PatternBase expr) (PatternBase expr) -- Includes AndPat,OrPat,InductivePat(cons/join)
-  | NotPat (PatternBase expr)
-  | AndPat (PatternBase expr) (PatternBase expr)
-  | OrPat (PatternBase expr) (PatternBase expr)
-  | ForallPat (PatternBase expr) (PatternBase expr)
-  | TuplePat [PatternBase expr]
-  | InductivePat String [PatternBase expr]
-  | LoopPat String (LoopRange expr) (PatternBase expr) (PatternBase expr)
+  | ValuePat Expr
+  | PredPat Expr
+  | IndexedPat Pattern [Expr]
+  | LetPat [BindingExpr] Pattern
+  | InfixPat Op Pattern Pattern -- Includes AndPat,OrPat,InductivePat(cons/join)
+  | NotPat Pattern
+  | AndPat Pattern Pattern
+  | OrPat Pattern Pattern
+  | ForallPat Pattern Pattern
+  | TuplePat [Pattern]
+  | InductivePat String [Pattern]
+  | LoopPat String LoopRange Pattern Pattern
   | ContPat
-  | PApplyPat expr [PatternBase expr]
+  | PApplyPat Expr [Pattern]
   | VarPat String
-  | InductiveOrPApplyPat String [PatternBase expr]
+  | InductiveOrPApplyPat String [Pattern]
   | SeqNilPat
-  | SeqConsPat (PatternBase expr) (PatternBase expr)
+  | SeqConsPat Pattern Pattern
   | LaterPatVar
   -- For symbolic computing
-  | DApplyPat (PatternBase expr) [PatternBase expr]
+  | DApplyPat Pattern [Pattern]
   deriving Show
 
-data LoopRange expr = LoopRange expr expr (PatternBase expr)
+data LoopRange = LoopRange Expr Expr Pattern
   deriving Show
 
 data PrimitivePatPattern
@@ -200,16 +203,18 @@ data PrimitivePatPattern
   | PPTuplePat [PrimitivePatPattern]
   deriving Show
 
-data PrimitiveDataPattern
+data PDPatternBase var
   = PDWildCard
-  | PDPatVar String
-  | PDInductivePat String [PrimitiveDataPattern]
-  | PDTuplePat [PrimitiveDataPattern]
+  | PDPatVar var
+  | PDInductivePat String [PDPatternBase var]
+  | PDTuplePat [PDPatternBase var]
   | PDEmptyPat
-  | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
-  | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
+  | PDConsPat (PDPatternBase var) (PDPatternBase var)
+  | PDSnocPat (PDPatternBase var) (PDPatternBase var)
   | PDConstantPat ConstantExpr
-  deriving Show
+  deriving (Functor, Foldable, Show)
+
+type PrimitiveDataPattern = PDPatternBase String
 
 data Op
   = Op { repr     :: String  -- syntastic representation
