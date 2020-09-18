@@ -679,7 +679,7 @@ recursiveBind env bindings = do
 recursiveMatchBind :: Env -> [IBindingExpr] -> EvalM Env
 recursiveMatchBind env bindings = do
   -- List of variables defined in |bindings|
-  let names = concatMap (\(pd, _) -> collectNames pd) bindings
+  let names = concatMap (\(pd, _) -> toList pd) bindings
   -- Create dummy bindings for |names| first. Since this is a reference,
   -- it can be overwritten later.
   binds <- mapM (\name -> (name,) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
@@ -698,9 +698,6 @@ recursiveMatchBind env bindings = do
       let ref = fromJust (refVar env' var)
       liftIO $ writeIORef ref obj
   return env'
- where
-  collectNames :: PDPatternBase Var -> [Var]
-  collectNames = toList
 
 --
 -- Pattern Match
