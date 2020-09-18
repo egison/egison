@@ -557,7 +557,7 @@ dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace
 loopPat :: Parser Pattern
 loopPat = keywordLoop >> char '$' >> LoopPat <$> ident <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
-loopRange :: Parser (LoopRange Expr)
+loopRange :: Parser LoopRange
 loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
                       <|> (do s <- expr
                               ep <- option WildCard pattern
