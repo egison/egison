@@ -265,10 +265,7 @@ evalExprShallow env (ILetExpr bindings expr) = do
   evalExprShallow (extendEnv env binding) expr
  where
   extractBindings :: IBindingExpr -> EvalM [Binding]
-  extractBindings (PDPatVar var@(Var name is), expr@IFunctionExpr{}) =
-    let Env frame _ = env
-     in makeBindings [var] . (:[]) <$> newThunkRef (Env frame (Just (name, map (fmap (\() -> "")) is))) expr
-  extractBindings (PDPatVar var@(Var name is), expr) | not (null is) =
+  extractBindings (PDPatVar var@(Var name is), expr) =
     let Env frame _ = env
      in makeBindings [var] . (:[]) <$> newThunkRef (Env frame (Just (name, map (fmap (\() -> "")) is))) expr
   extractBindings (pdp, expr) = do
@@ -669,13 +666,9 @@ recursiveBind env bindings = do
   -- it can be overwritten later.
   binds <- mapM (\(var, _) -> (var,) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) bindings
   let env'@(Env frame _) = extendEnv env binds
-  forM_ bindings $ \(var, expr) -> do
+  forM_ bindings $ \(var@(Var name is), expr) -> do
     -- Modify |env'| for some cases
-    let env'' =
-          case (var, expr) of
-            (Var name is, IFunctionExpr{}) -> Env frame (Just (name, map f is))
-            (Var name is, _) | not (null is) -> Env frame (Just (name, map f is))
-            _ -> env'
+    let env'' = Env frame (Just (name, map f is))
     let ref = fromJust (refVar env' var)
     liftIO $ writeIORef ref (newThunk env'' expr)
   return env'
@@ -694,9 +687,8 @@ recursiveMatchBind env bindings = do
   forM_ bindings $ \(pd, expr) -> do
     -- Modify |env'| for some cases
     let env'' =
-          case (pd, expr) of
-            (PDPatVar (Var var is), IFunctionExpr{}) -> Env frame (Just (var, map (fmap (\() -> "")) is))
-            (PDPatVar (Var var is), _) | not (null is) -> Env frame (Just (var, map (fmap (\() -> "")) is))
+          case pd of
+            PDPatVar (Var var is) -> Env frame (Just (var, map (fmap (\() -> "")) is))
             _ -> env'
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
