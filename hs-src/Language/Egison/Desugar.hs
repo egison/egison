@@ -66,7 +66,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
   matcherName <- fresh
   let matcherRef = IVarExpr matcherName
   matcher <- genMatcherClauses patterns matcherRef
-  return $ ILetRecExpr [(PDPatVar matcherName, matcher)] matcherRef
+  return $ ILetRecExpr [(PDPatVar (stringToVar matcherName), matcher)] matcherRef
     where
       genMatcherClauses :: [(String, [Expr])] ->  IExpr -> EvalM IExpr
       genMatcherClauses patterns matcher = do
@@ -76,14 +76,15 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
         let clauses = [main] ++ body ++ [footer]
         return $ IMatcherExpr clauses
 
-      genMainClause :: [(String, [Expr])] -> IExpr -> EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
+      genMainClause :: [(String, [Expr])] -> IExpr -> EvalM (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
         return (PPValuePat "val", ITupleExpr [],
-                [(PDPatVar "tgt", IMatchExpr BFSMode
-                                    (ITupleExpr [IVarExpr "val", IVarExpr "tgt"])
-                                    (ITupleExpr [matcher, matcher])
-                                    clauses)])
+                [(PDPatVar (stringToVar "tgt"),
+                    IMatchExpr BFSMode
+                               (ITupleExpr [IVarExpr "val", IVarExpr "tgt"])
+                               (ITupleExpr [matcher, matcher])
+                               clauses)])
         where
           genClauses :: [(String, [Expr])] -> EvalM [IMatchClause]
           genClauses patterns = (++) <$> mapM genClause patterns
@@ -100,7 +101,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
             return (IInductivePat name (map IPatVar names),
                     IInductivePat name (map (IValuePat . IVarExpr) names))
 
-      genMatcherClause :: (String, [Expr]) -> EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
+      genMatcherClause :: (String, [Expr]) -> EvalM (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
       genMatcherClause pattern = do
         (ppat, matchers) <- genPrimitivePatPat pattern
         (dpat, body)     <- genPrimitiveDataPat pattern
@@ -113,18 +114,18 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
             matchers' <- mapM desugar matchers
             return (PPInductivePat name patterns', matchers')
 
-          genPrimitiveDataPat :: (String, [Expr]) -> EvalM (PrimitiveDataPattern, [IExpr])
+          genPrimitiveDataPat :: (String, [Expr]) -> EvalM (IPrimitiveDataPattern, [IExpr])
           genPrimitiveDataPat (name, patterns) = do
             patterns' <- mapM (const fresh) patterns
-            return (PDInductivePat (capitalize name) $ map PDPatVar patterns', map IVarExpr patterns')
+            return (PDInductivePat (capitalize name) $ map (PDPatVar . stringToVar) patterns', map IVarExpr patterns')
 
           capitalize :: String -> String
           capitalize (x:xs) = toUpper x : xs
 
 
-      genSomethingClause :: EvalM (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
+      genSomethingClause :: EvalM (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
       genSomethingClause =
-        return (PPPatVar, ITupleExpr [IConstantExpr SomethingExpr], [(PDPatVar "tgt", ICollectionExpr [IVarExpr "tgt"])])
+        return (PPPatVar, ITupleExpr [IConstantExpr SomethingExpr], [(PDPatVar (stringToVar "tgt"), ICollectionExpr [IVarExpr "tgt"])])
 
       matchingSuccess :: IExpr
       matchingSuccess = ICollectionExpr [ITupleExpr []]
@@ -371,7 +372,7 @@ desugar (AnonParamExpr n) = return $ IVarExpr ('%' : show n)
 desugar (AnonParamFuncExpr n expr) = do
   expr' <- desugar expr
   let lambda = ILambdaExpr Nothing (map (\n -> '%' : show n) [1..n]) expr'
-  return $ ILetRecExpr [(PDPatVar "%0", lambda)] (IVarExpr "%0")
+  return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (QuoteExpr expr) =
   IQuoteExpr <$> desugar expr
@@ -417,7 +418,7 @@ desugarPattern pat =
    collectName _ = []
 
    makeBinding :: String -> IBindingExpr
-   makeBinding var = (PDPatVar var, IHashExpr [])
+   makeBinding var = (PDPatVar (stringToVar var), IHashExpr [])
 
 desugarPattern' :: Pattern -> EvalM IPattern
 desugarPattern' WildCard        = return IWildCard
@@ -456,11 +457,12 @@ desugarBindings :: [BindingExpr] -> EvalM [IBindingExpr]
 desugarBindings = mapM desugarBinding
   where
     desugarBinding (name, expr) = do
+      let name' = fmap stringToVar name
       expr' <- desugar expr
-      case (name, expr') of
-        (PDPatVar var, ILambdaExpr Nothing args body) ->
-          return (name, ILambdaExpr (Just var) args body)
-        _ -> return (name, expr')
+      case (name', expr') of
+        (PDPatVar (Var var []), ILambdaExpr Nothing args body) ->
+          return (name', ILambdaExpr (Just var) args body)
+        _ -> return (name', expr')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
@@ -469,5 +471,5 @@ desugarPatternDef :: PatternDef -> EvalM IPatternDef
 desugarPatternDef (pp, matcher, pds) =
   (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
-desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(PrimitiveDataPattern, IExpr)]
-desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (pd,) <$> desugar expr)
+desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IPrimitiveDataPattern, IExpr)]
+desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
