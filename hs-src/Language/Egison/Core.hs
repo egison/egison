@@ -239,7 +239,7 @@ evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
       return $ Value (ScalarData (SingleTerm 1 [(FunctionData name argnames args (is ++ js), 1)]))
     _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
 
-evalExprShallow env (ILambdaExpr fnname names expr) = do
+evalExprShallow env (ILambdaExpr fnname names expr) =
   return . Value $ Func fnname env names expr
 
 evalExprShallow env (IMemoizedLambdaExpr names body) = do
@@ -247,6 +247,8 @@ evalExprShallow env (IMemoizedLambdaExpr names body) = do
   return . Value $ MemoizedFunc hashRef env names body
 
 evalExprShallow env (ICambdaExpr name expr) = return . Value $ CFunc env name expr
+
+evalExprShallow env (ITambdaExpr name expr) = return . Value $ TFunc env name expr
 
 evalExprShallow env (IPatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
 
@@ -592,6 +594,9 @@ applyRef _ (Value (CFunc env name body)) refs = do
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
   col <- liftIO . newIORef $ WHNF $ ICollection seqRef
   evalExprShallow (extendEnv env $ makeBindings' [name] [col]) body
+applyRef _ (Value (TFunc env name body)) refs = do
+  tuple <- liftIO . newIORef $ WHNF $ ITuple refs
+  evalExprShallow (extendEnv env $ makeBindings' [name] [tuple]) body
 applyRef _ (Value (PrimitiveFunc func)) refs = do
   vals <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   Value <$> func vals

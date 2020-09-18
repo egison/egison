@@ -134,12 +134,12 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
 desugar (MatchAllLambdaExpr matcher clauses) = do
   name <- fresh
-  ILambdaExpr Nothing [name] <$>
+  ITambdaExpr name <$>
     desugar (MatchAllExpr BFSMode (VarExpr name) matcher clauses)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
-  ILambdaExpr Nothing [name] <$>
+  ITambdaExpr name <$>
     desugar (MatchExpr BFSMode (VarExpr name) matcher clauses)
 
 -- TODO: Allow nested MultiSubscript and MultiSuperscript

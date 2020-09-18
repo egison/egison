@@ -65,6 +65,7 @@ data IExpr
   | ILambdaExpr (Maybe String) [String] IExpr
   | IMemoizedLambdaExpr [String] IExpr
   | ICambdaExpr String IExpr
+  | ITambdaExpr String IExpr
   | IPatternFunctionExpr [String] IPattern
   | IIfExpr IExpr IExpr IExpr
   | ILetRecExpr [IBindingExpr] IExpr
