@@ -13,7 +13,6 @@ module Language.Egison.AST
   , ConstantExpr (..)
   , Expr (..)
   , Pattern (..)
-  , Pattern
   , VarWithIndices (..)
   , makeApply
   , Arg (..)
@@ -26,7 +25,8 @@ module Language.Egison.AST
   , PatternDef
   , LoopRange (..)
   , PrimitivePatPattern (..)
-  , PrimitiveDataPattern (..)
+  , PDPatternBase (..)
+  , PrimitiveDataPattern
   , Op (..)
   , Assoc (..)
   , reservedExprOp
@@ -199,16 +199,18 @@ data PrimitivePatPattern
   | PPTuplePat [PrimitivePatPattern]
   deriving Show
 
-data PrimitiveDataPattern
+data PDPatternBase var
   = PDWildCard
-  | PDPatVar String
-  | PDInductivePat String [PrimitiveDataPattern]
-  | PDTuplePat [PrimitiveDataPattern]
+  | PDPatVar var
+  | PDInductivePat String [PDPatternBase var]
+  | PDTuplePat [PDPatternBase var]
   | PDEmptyPat
-  | PDConsPat PrimitiveDataPattern PrimitiveDataPattern
-  | PDSnocPat PrimitiveDataPattern PrimitiveDataPattern
+  | PDConsPat (PDPatternBase var) (PDPatternBase var)
+  | PDSnocPat (PDPatternBase var) (PDPatternBase var)
   | PDConstantPat ConstantExpr
-  deriving Show
+  deriving (Functor, Foldable, Show)
+
+type PrimitiveDataPattern = PDPatternBase String
 
 data Op
   = Op { repr     :: String  -- syntastic representation

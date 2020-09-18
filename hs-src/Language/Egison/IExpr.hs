@@ -11,6 +11,7 @@ module Language.Egison.IExpr
   , IBindingExpr
   , IMatchClause
   , IPatternDef
+  , IPrimitiveDataPattern
   , Var (..)
   , stringToVar
   , Index (..)
@@ -23,7 +24,7 @@ module Language.Egison.IExpr
   , stringToVarWithIndices
   , PMMode (..)
   , PrimitivePatPattern (..)
-  , PrimitiveDataPattern (..)
+  , PDPatternBase (..)
   ) where
 
 import           Data.Hashable       (Hashable)
@@ -34,7 +35,7 @@ import           Language.Egison.AST ( ConstantExpr (..)
                                      , stringToVarWithIndices
                                      , PMMode (..)
                                      , PrimitivePatPattern (..)
-                                     , PrimitiveDataPattern (..)
+                                     , PDPatternBase (..)
                                      )
 
 data ITopExpr
@@ -88,9 +89,10 @@ data IExpr
   | IFunctionExpr [String]
   deriving Show
 
-type IBindingExpr = (PrimitiveDataPattern, IExpr)
+type IBindingExpr = (IPrimitiveDataPattern, IExpr)
 type IMatchClause = (IPattern, IExpr)
-type IPatternDef  = (PrimitivePatPattern, IExpr, [(PrimitiveDataPattern, IExpr)])
+type IPatternDef  = (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
+type IPrimitiveDataPattern = PDPatternBase Var
 
 data IPattern
   = IWildCard

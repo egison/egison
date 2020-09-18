@@ -29,6 +29,7 @@ import           Control.Monad.State         hiding (mapM, join)
 import           Control.Monad.Trans.Maybe
 
 import           Data.Char                   (isUpper)
+import           Data.Foldable               (toList)
 import           Data.IORef
 import           Data.List                   (partition)
 import           Data.Maybe
@@ -264,9 +265,9 @@ evalExprShallow env (ILetExpr bindings expr) = do
   evalExprShallow (extendEnv env binding) expr
  where
   extractBindings :: IBindingExpr -> EvalM [Binding]
-  extractBindings (PDPatVar name, expr@IFunctionExpr{}) =
+  extractBindings (PDPatVar var@(Var name is), expr@IFunctionExpr{}) =
     let Env frame _ = env
-     in makeBindings [stringToVar name] . (:[]) <$> newThunkRef (Env frame (Just (name, []))) expr
+     in makeBindings [var] . (:[]) <$> newThunkRef (Env frame (Just (name, map (fmap (\() -> "")) is))) expr
   extractBindings (pdp, expr) = do
     thunk <- newThunkRef env expr
     bindPrimitiveDataPattern pdp thunk
@@ -316,7 +317,7 @@ evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
   applyObj env (Value $ Func Nothing env ["#1"] body) [WHNF (Value World)]
  where
   genLet (names, expr) expr' =
-    ILetExpr [(PDTuplePat (map PDPatVar ["#1", "#2"]), IApplyExpr expr [IVarExpr "#1"])] $
+    ILetExpr [(PDTuplePat (map PDPatVar [stringToVar "#1", stringToVar "#2"]), IApplyExpr expr [IVarExpr "#1"])] $
     ILetExpr [(names, IVarExpr "#2")] expr'
 
 evalExprShallow env (IIoExpr expr) = do
@@ -685,13 +686,13 @@ recursiveMatchBind env bindings = do
   let names = concatMap (\(pd, _) -> collectNames pd) bindings
   -- Create dummy bindings for |names| first. Since this is a reference,
   -- it can be overwritten later.
-  binds <- mapM (\name -> (stringToVar name, ) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
+  binds <- mapM (\name -> (name,) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
   let env'@(Env frame _) = extendEnv env binds
   forM_ bindings $ \(pd, expr) -> do
     -- Modify |env'| for some cases
     let env'' =
           case (pd, expr) of
-            (PDPatVar var, IFunctionExpr{}) -> Env frame (Just (var, []))
+            (PDPatVar (Var var is), IFunctionExpr{}) -> Env frame (Just (var, map (fmap (\() -> "")) is))
             _ -> env'
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
@@ -702,13 +703,8 @@ recursiveMatchBind env bindings = do
       liftIO $ writeIORef ref obj
   return env'
  where
-  collectNames :: PrimitiveDataPattern -> [String]
-  collectNames (PDPatVar var) = [var]
-  collectNames (PDInductivePat _ ps) = concatMap collectNames ps
-  collectNames (PDTuplePat ps) = concatMap collectNames ps
-  collectNames (PDConsPat p1 p2) = collectNames p1 ++ collectNames p2
-  collectNames (PDSnocPat p1 p2) = collectNames p1 ++ collectNames p2
-  collectNames _ = []
+  collectNames :: PDPatternBase Var -> [Var]
+  collectNames = toList
 
 --
 -- Pattern Match
@@ -1040,16 +1036,16 @@ primitivePatPatternMatch env (PPTuplePat patterns) (ITuplePat exprs)
   | otherwise = matchFail
 primitivePatPatternMatch _ _ _ = matchFail
 
-bindPrimitiveDataPattern :: PrimitiveDataPattern -> ObjectRef -> EvalM [Binding]
+bindPrimitiveDataPattern :: IPrimitiveDataPattern -> ObjectRef -> EvalM [Binding]
 bindPrimitiveDataPattern pdp ref = do
   r <- runMaybeT $ primitiveDataPatternMatch pdp ref
   case r of
     Nothing -> throwError =<< PrimitiveMatchFailure <$> getFuncNameStack
     Just binding -> return binding
 
-primitiveDataPatternMatch :: PrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
+primitiveDataPatternMatch :: IPrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _        = return []
-primitiveDataPatternMatch (PDPatVar name) ref = return [(stringToVar name, ref)]
+primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
 primitiveDataPatternMatch (PDInductivePat name patterns) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
