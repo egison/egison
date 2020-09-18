@@ -536,10 +536,6 @@ evalWHNF coll = Collection <$> (collectionToRefs coll >>= fromMList >>= mapM eva
 addscript :: (Index EgisonValue, Tensor a) -> Tensor a
 addscript (subj, Tensor s t i) = Tensor s t (i ++ [subj])
 
--- TODO: We can use the toTensor function instead of valueToTensor.
-valueToTensor :: WHNFData -> Tensor ObjectRef
-valueToTensor (ITensor t) = t
-
 newApplyThunk :: Env -> WHNFData -> [ObjectRef] -> Object
 newApplyThunk env fn refs = Thunk $ applyRef env fn refs
 
@@ -562,7 +558,8 @@ applyRef env (Value (TensorData (Tensor s1 t1 i1))) refs = do
           subjs = map (Sub . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Sup . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (IVarExpr ".")
-      let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs $ map valueToTensor tds)
+      tds' <- mapM toTensor tds
+      let args' = Value (TensorData (Tensor s1 t1 (i1 ++ supjs))) : map (ITensor . addscript) (zip subjs tds')
       applyObj env dot (map WHNF args')
     else throwError $ Default "applyObj"
 applyRef env (ITensor (Tensor s1 t1 i1)) refs = do
@@ -574,7 +571,8 @@ applyRef env (ITensor (Tensor s1 t1 i1)) refs = do
           subjs = map (Sub . symbolScalarData symId . show) [1 .. argnum]
           supjs = map (Sup . symbolScalarData symId . show) [1 .. argnum]
       dot <- evalExprShallow env (IVarExpr ".")
-      let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs $ map valueToTensor tds)
+      tds' <- mapM toTensor tds
+      let args' = ITensor (Tensor s1 t1 (i1 ++ supjs)) : map (ITensor . addscript) (zip subjs tds')
       applyObj env dot (map WHNF args')
     else throwError $ Default "applyfunc"
 applyRef env' (Value (Func mFuncName env names body)) refs =
