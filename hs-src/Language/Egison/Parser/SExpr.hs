@@ -353,14 +353,20 @@ statements = braces $ sepEndBy statement whiteSpace
 
 statement :: Parser BindingExpr
 statement = try binding
-        <|> try (brackets ((PDTuplePat [],) <$> expr))
-        <|> ((PDTuplePat [],) <$> expr)
+        <|> try (brackets (Bind (PDTuplePat []) <$> expr))
+        <|> (Bind (PDTuplePat []) <$> expr)
+
+bindings' :: Parser [(PrimitiveDataPattern, Expr)]
+bindings' = braces $ sepEndBy binding' whiteSpace
+
+binding' :: Parser (PrimitiveDataPattern, Expr)
+binding' = brackets $ (,) <$> varNames' <*> expr
 
 bindings :: Parser [BindingExpr]
 bindings = braces $ sepEndBy binding whiteSpace
 
 binding :: Parser BindingExpr
-binding = brackets $ (,) <$> varNames' <*> expr
+binding = brackets $ Bind <$> varNames' <*> expr
 
 varNames :: Parser [String]
 varNames = return <$> (char '$' >> ident)
@@ -557,7 +563,7 @@ dApplyPat = DApplyPat <$> pattern'' <*> sepEndBy pattern whiteSpace
 loopPat :: Parser Pattern
 loopPat = keywordLoop >> char '$' >> LoopPat <$> ident <*> loopRange <*> pattern <*> option (NotPat WildCard) pattern
 
-loopRange :: Parser (LoopRange Expr)
+loopRange :: Parser LoopRange
 loopRange = brackets (try (LoopRange <$> expr <*> expr <*> option WildCard pattern)
                       <|> (do s <- expr
                               ep <- option WildCard pattern
