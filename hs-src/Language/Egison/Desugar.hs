@@ -215,32 +215,32 @@ desugar (LambdaExpr args expr) = do
     desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
     desugarArgPat APWildCard expr = do
       tmp <- fresh
-      return (tmp, LetRecExpr [(PDWildCard, VarExpr tmp)] expr)
+      return (tmp, LetRecExpr [Bind PDWildCard (VarExpr tmp)] expr)
     desugarArgPat (APPatVar var) expr = return (var, expr)
     desugarArgPat (APTuplePat args) expr = do
       tmp  <- fresh
       tmps <- mapM (const fresh) args
-      return (tmp, LetRecExpr [(PDTuplePat (map PDPatVar tmps), VarExpr tmp)]
+      return (tmp, LetRecExpr [Bind (PDTuplePat (map PDPatVar tmps)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat (APInductivePat ctor args) expr = do
       tmp  <- fresh
       tmps <- mapM (const fresh) args
-      return (tmp, LetRecExpr [(PDInductivePat ctor (map PDPatVar tmps), VarExpr tmp)]
+      return (tmp, LetRecExpr [Bind (PDInductivePat ctor (map PDPatVar tmps)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat APEmptyPat expr = do
       tmp <- fresh
-      return (tmp, LetRecExpr [(PDEmptyPat, VarExpr tmp)] expr)
+      return (tmp, LetRecExpr [Bind PDEmptyPat (VarExpr tmp)] expr)
     desugarArgPat (APConsPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetRecExpr [(PDConsPat (PDPatVar tmp1) (PDPatVar tmp2), VarExpr tmp)]
+      return (tmp, LetRecExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
     desugarArgPat (APSnocPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetRecExpr [(PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2), VarExpr tmp)]
+      return (tmp, LetRecExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
 
 desugar (LambdaExpr' names expr) = do
@@ -456,13 +456,23 @@ desugarLoopRange (LoopRange sExpr eExpr pat) =
 desugarBindings :: [BindingExpr] -> EvalM [IBindingExpr]
 desugarBindings = mapM desugarBinding
   where
-    desugarBinding (name, expr) = do
+    desugarBinding (Bind name expr) = do
       let name' = fmap stringToVar name
       expr' <- desugar expr
-      case (name', expr') of
-        (PDPatVar (Var var []), ILambdaExpr Nothing args body) ->
+      case (name, expr') of
+        (PDPatVar var, ILambdaExpr Nothing args body) ->
           return (name', ILambdaExpr (Just var) args body)
         _ -> return (name', expr')
+    desugarBinding (BindWithIndices (VarWithIndices name is) expr) = do
+      body <- desugar expr
+      let indexNames = map extractIndexExpr is
+      let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
+      let is' = map (\s -> case s of
+                             Superscript _ -> Sup ()
+                             Subscript _ -> Sub ()
+                             _ -> undefined) is
+      return (PDPatVar (Var name is'),
+        IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)

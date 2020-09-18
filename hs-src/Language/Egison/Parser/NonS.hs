@@ -280,8 +280,8 @@ binding = do
   args <- many arg
   body <- symbol ":=" >> expr
   return $ case args of
-             [] -> (var, body)
-             _  -> (var, LambdaExpr args body)
+             [] -> Bind var body
+             _  -> Bind var (LambdaExpr args body)
 
 withSymbolsExpr :: Parser Expr
 withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy ident comma)) <*> expr
@@ -290,12 +290,12 @@ doExpr :: Parser Expr
 doExpr = do
   stmts <- reserved "do" >> oneLiner <|> alignSome statement
   case reverse stmts of
-    []                      -> return $ DoExpr []           (makeApply "return" [])
-    (PDTuplePat [], expr):_ -> return $ DoExpr (init stmts) expr
-    _:_                     -> customFailure LastStmtInDoBlock
+    []                          -> return $ DoExpr []           (makeApply "return" [])
+    Bind (PDTuplePat []) expr:_ -> return $ DoExpr (init stmts) expr
+    _:_                         -> customFailure LastStmtInDoBlock
   where
     statement :: Parser BindingExpr
-    statement = (reserved "let" >> binding) <|> (PDTuplePat [],) <$> expr
+    statement = (reserved "let" >> binding) <|> Bind (PDTuplePat []) <$> expr
 
     oneLiner :: Parser [BindingExpr]
     oneLiner = braces $ sepBy statement (symbol ";")
