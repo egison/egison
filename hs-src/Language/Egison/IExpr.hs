@@ -20,8 +20,6 @@ module Language.Egison.IExpr
   , makeIApply
   -- Re-export from AST
   , ConstantExpr (..)
-  , VarWithIndices (..)
-  , stringToVarWithIndices
   , PMMode (..)
   , PrimitivePatPattern (..)
   , PDPatternBase (..)
@@ -31,8 +29,6 @@ import           Data.Hashable       (Hashable)
 import           GHC.Generics        (Generic)
 
 import           Language.Egison.AST ( ConstantExpr (..)
-                                     , VarWithIndices (..)
-                                     , stringToVarWithIndices
                                      , PMMode (..)
                                      , PrimitivePatPattern (..)
                                      , PDPatternBase (..)
