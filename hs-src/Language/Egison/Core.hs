@@ -265,9 +265,8 @@ evalExprShallow env (ILetExpr bindings expr) = do
   evalExprShallow (extendEnv env binding) expr
  where
   extractBindings :: IBindingExpr -> EvalM [Binding]
-  extractBindings (PDPatVar var@(Var name is), expr) =
-    let Env frame _ = env
-     in makeBindings [var] . (:[]) <$> newThunkRef (Env frame (Just (name, map (fmap (\() -> "")) is))) expr
+  extractBindings (PDPatVar var, expr) =
+    makeBindings [var] . (:[]) <$> newThunkRef (memorizeVarInEnv env var) expr
   extractBindings (pdp, expr) = do
     thunk <- newThunkRef env expr
     bindPrimitiveDataPattern pdp thunk
@@ -665,16 +664,12 @@ recursiveBind env bindings = do
   -- Create dummy bindings first. Since this is a reference,
   -- it can be overwritten later.
   binds <- mapM (\(var, _) -> (var,) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) bindings
-  let env'@(Env frame _) = extendEnv env binds
-  forM_ bindings $ \(var@(Var name is), expr) -> do
-    -- Modify |env'| for some cases
-    let env'' = Env frame (Just (name, map f is))
+  let env' = extendEnv env binds
+  forM_ bindings $ \(var, expr) -> do
+    let env'' = memorizeVarInEnv env' var
     let ref = fromJust (refVar env' var)
     liftIO $ writeIORef ref (newThunk env'' expr)
   return env'
- where
-  f :: Index () -> Index String
-  f = ((\() -> "") <$>)
 
 recursiveMatchBind :: Env -> [IBindingExpr] -> EvalM Env
 recursiveMatchBind env bindings = do
@@ -683,13 +678,12 @@ recursiveMatchBind env bindings = do
   -- Create dummy bindings for |names| first. Since this is a reference,
   -- it can be overwritten later.
   binds <- mapM (\name -> (name,) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) names
-  let env'@(Env frame _) = extendEnv env binds
+  let env' = extendEnv env binds
   forM_ bindings $ \(pd, expr) -> do
     -- Modify |env'| for some cases
-    let env'' =
-          case pd of
-            PDPatVar (Var var is) -> Env frame (Just (var, map (fmap (\() -> "")) is))
-            _ -> env'
+    let env'' = case pd of
+                  PDPatVar var -> memorizeVarInEnv env' var
+                  _ -> env'
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
     forM_ binds $ \(var, objref) -> do
@@ -698,6 +692,10 @@ recursiveMatchBind env bindings = do
       let ref = fromJust (refVar env' var)
       liftIO $ writeIORef ref obj
   return env'
+
+memorizeVarInEnv :: Env -> Var -> Env
+memorizeVarInEnv (Env frame _) (Var var is) =
+  Env frame (Just (var, map (fmap (const "")) is))
 
 --
 -- Pattern Match
