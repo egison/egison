@@ -13,6 +13,8 @@ $ make html
 ```
 
 ## How to add/manage Japanese translation
+NOTE: We have deprecated Japanese version of the documentation.
+
 See <https://docs.readthedocs.io/en/stable/guides/manage-translations.html> for the detail.
 
 ### Update `locale/`
