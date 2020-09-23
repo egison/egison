@@ -18,7 +18,7 @@ module Language.Egison.AST
   , Arg (..)
   , ArgPattern (..)
   , IndexExpr (..)
-  , extractIndexExpr
+  , VarIndex (..)
   , PMMode (..)
   , BindingExpr (..)
   , MatchClause
@@ -120,7 +120,7 @@ data Expr
   | FunctionExpr [String]
   deriving Show
 
-data VarWithIndices = VarWithIndices String [IndexExpr String]
+data VarWithIndices = VarWithIndices String [VarIndex]
   deriving Show
 
 data Arg a
@@ -139,6 +139,11 @@ data ArgPattern
   | APSnocPat (Arg ArgPattern) (Arg ArgPattern)
   deriving Show
 
+data VarIndex
+  = VSubscript String
+  | VSuperscript String
+  deriving Show
+
 data IndexExpr a
   = Subscript a
   | Superscript a
@@ -147,13 +152,6 @@ data IndexExpr a
   | MultiSuperscript a a
   | Userscript a
   deriving (Show, Eq, Functor, Foldable, Traversable)
-
-extractIndexExpr :: IndexExpr a -> a
-extractIndexExpr (Subscript x)    = x
-extractIndexExpr (Superscript x)  = x
-extractIndexExpr (SupSubscript x) = x
-extractIndexExpr (Userscript x)   = x
-extractIndexExpr _                = error "extractIndexExpr: Not supported"
 
 data PMMode = BFSMode | DFSMode
   deriving Show

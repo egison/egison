@@ -32,13 +32,11 @@ desugarTopExpr (Define (VarWithIndices name []) expr) = do
     _                             -> return . Just $ IDefine (Var name []) expr'
 desugarTopExpr (Define (VarWithIndices name is) expr) = do
   body <- desugar expr
-  let indexNames = map extractIndexExpr is
+  let indexNames = map extractVarIndex is
   let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
-  -- TODO
   let is' = map (\s -> case s of
-                         Superscript _ -> Sup ()
-                         Subscript _ -> Sub ()
-                         _ -> undefined) is
+                         VSuperscript _ -> Sup ()
+                         VSubscript _ -> Sub ()) is
   return . Just $ IDefine (Var name is')
     (IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
@@ -465,12 +463,11 @@ desugarBindings = mapM desugarBinding
         _ -> return (name', expr')
     desugarBinding (BindWithIndices (VarWithIndices name is) expr) = do
       body <- desugar expr
-      let indexNames = map extractIndexExpr is
+      let indexNames = map extractVarIndex is
       let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
       let is' = map (\s -> case s of
-                             Superscript _ -> Sup ()
-                             Subscript _ -> Sub ()
-                             _ -> undefined) is
+                             VSuperscript _ -> Sup ()
+                             VSubscript _ -> Sub ()) is
       return (PDPatVar (Var name is'),
         IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 
@@ -483,3 +480,18 @@ desugarPatternDef (pp, matcher, pds) =
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IPrimitiveDataPattern, IExpr)]
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
+
+--
+-- Utils
+--
+
+extractIndexExpr :: IndexExpr a -> a
+extractIndexExpr (Subscript x)    = x
+extractIndexExpr (Superscript x)  = x
+extractIndexExpr (SupSubscript x) = x
+extractIndexExpr (Userscript x)   = x
+extractIndexExpr _                = error "extractIndexExpr: Not supported"
+
+extractVarIndex :: VarIndex -> String
+extractVarIndex (VSubscript x)   = x
+extractVarIndex (VSuperscript x) = x
