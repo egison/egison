@@ -1,0 +1,37 @@
+--
+-- Sort
+--
+
+-- input:  collection of integers
+-- output: a tuple of type (int, tensor)
+--   where the first element is 1 if the number of swap needed to sort the input
+--   is even, and -1 otherwise
+--   and the second element is the sorted collection represented as a 1-d tensor
+--   (vector)
+def sortWithSign xs :=
+  (do let t := return (colToTensor xs)
+      let n := return (length xs)
+      let sgn := sort' 1 2 n t 1
+      let xs' := return (tensorMap (\i -> io readIORef i) t)
+      return (sgn, xs'))
+ where
+  colToTensor xs :=
+    generateTensor (\n -> io do let t := newIORef ()
+                                writeIORef t (nth n xs)
+                                return t) [length xs]
+
+  sort' i j n ts sgn :=
+    if i = n
+       then return sgn
+       else do let x := readIORef ts_i
+               let y := readIORef ts_j
+               if x > y then swap ts i j else return ()
+               let swapped := return (if x > y then -1 else 1)
+               if j = n then sort' (i + 1) (i + 2) n ts (sgn * swapped)
+                        else sort' i (j + 1) n ts (sgn * swapped)
+
+  swap ts i j := do
+    let tmpi := readIORef ts_i
+    let tmpj := readIORef ts_j
+    writeIORef ts_i tmpj
+    writeIORef ts_j tmpi
