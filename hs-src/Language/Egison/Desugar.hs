@@ -30,15 +30,9 @@ desugarTopExpr (Define (VarWithIndices name []) expr) = do
   case expr' of
     ILambdaExpr Nothing args body -> return . Just $ IDefine (Var name []) (ILambdaExpr (Just name) args body)
     _                             -> return . Just $ IDefine (Var name []) expr'
-desugarTopExpr (Define (VarWithIndices name is) expr) = do
-  body <- desugar expr
-  let indexNames = map extractVarIndex is
-  let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
-  let is' = map (\s -> case s of
-                         VSuperscript _ -> Sup ()
-                         VSubscript _ -> Sub ()) is
-  return . Just $ IDefine (Var name is')
-    (IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
+desugarTopExpr (Define vwi expr) = do
+  (var, iexpr) <- desugarDefineWithIndices vwi expr
+  return . Just $ IDefine var iexpr
 desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
 desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
 desugarTopExpr (Load file)     = return . Just $ ILoad file
@@ -461,15 +455,9 @@ desugarBindings = mapM desugarBinding
         (PDPatVar var, ILambdaExpr Nothing args body) ->
           return (name', ILambdaExpr (Just var) args body)
         _ -> return (name', expr')
-    desugarBinding (BindWithIndices (VarWithIndices name is) expr) = do
-      body <- desugar expr
-      let indexNames = map extractVarIndex is
-      let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
-      let is' = map (\s -> case s of
-                             VSuperscript _ -> Sup ()
-                             VSubscript _ -> Sub ()) is
-      return (PDPatVar (Var name is'),
-        IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
+    desugarBinding (BindWithIndices vwi expr) = do
+      (var, iexpr) <- desugarDefineWithIndices vwi expr
+      return (PDPatVar var, iexpr)
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
@@ -480,6 +468,17 @@ desugarPatternDef (pp, matcher, pds) =
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IPrimitiveDataPattern, IExpr)]
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
+
+desugarDefineWithIndices :: VarWithIndices -> Expr -> EvalM (Var, IExpr)
+desugarDefineWithIndices (VarWithIndices name is) expr = do
+  body <- desugar expr
+  let indexNames = map extractVarIndex is
+  let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
+  let is' = map (\s -> case s of
+                         VSuperscript _ -> Sup ()
+                         VSubscript _ -> Sub ()) is
+  return (Var name is', IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
+
 
 --
 -- Utils
