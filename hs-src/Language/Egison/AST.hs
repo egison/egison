@@ -81,6 +81,7 @@ data Expr
   | PatternFunctionExpr [String] Pattern
 
   | IfExpr Expr Expr Expr
+  | LetExpr [BindingExpr] Expr
   | LetRecExpr [BindingExpr] Expr
   | WithSymbolsExpr [String] Expr
 
@@ -142,6 +143,8 @@ data ArgPattern
 data VarIndex
   = VSubscript String
   | VSuperscript String
+  | VSymmScripts [VarIndex]
+  | VAntiSymmScripts [VarIndex]
   deriving Show
 
 data IndexExpr a
