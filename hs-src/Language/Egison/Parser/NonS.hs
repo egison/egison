@@ -685,6 +685,8 @@ varWithIndicesLiteral' =
 varIndex :: Parser VarIndex
 varIndex = (char '_' >> VSubscript <$> ident')
        <|> (char '~' >> VSuperscript <$> ident')
+       <|> braces (VSymmScripts <$> some varIndex)
+       <|> brackets (VAntiSymmScripts <$> some varIndex)
 
 patVarLiteral :: Parser String
 patVarLiteral = char '$' >> ident
