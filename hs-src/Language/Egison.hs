@@ -66,6 +66,7 @@ coreLibraries =
   , "lib/core/order.egi"
   , "lib/core/random.egi"
   , "lib/core/string.egi"
+  , "lib/core/sort.egi"
   , "lib/math/common/constants.egi"
   , "lib/math/common/functions.egi"
   , "lib/math/algebra/root.egi"
