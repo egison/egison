@@ -207,32 +207,32 @@ desugar (LambdaExpr args expr) = do
     desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
     desugarArgPat APWildCard expr = do
       tmp <- fresh
-      return (tmp, LetRecExpr [Bind PDWildCard (VarExpr tmp)] expr)
+      return (tmp, LetExpr [Bind PDWildCard (VarExpr tmp)] expr)
     desugarArgPat (APPatVar var) expr = return (var, expr)
     desugarArgPat (APTuplePat args) expr = do
       tmp  <- fresh
       tmps <- mapM (const fresh) args
-      return (tmp, LetRecExpr [Bind (PDTuplePat (map PDPatVar tmps)) (VarExpr tmp)]
+      return (tmp, LetExpr [Bind (PDTuplePat (map PDPatVar tmps)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat (APInductivePat ctor args) expr = do
       tmp  <- fresh
       tmps <- mapM (const fresh) args
-      return (tmp, LetRecExpr [Bind (PDInductivePat ctor (map PDPatVar tmps)) (VarExpr tmp)]
+      return (tmp, LetExpr [Bind (PDInductivePat ctor (map PDPatVar tmps)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat APEmptyPat expr = do
       tmp <- fresh
-      return (tmp, LetRecExpr [Bind PDEmptyPat (VarExpr tmp)] expr)
+      return (tmp, LetExpr [Bind PDEmptyPat (VarExpr tmp)] expr)
     desugarArgPat (APConsPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetRecExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
+      return (tmp, LetExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
     desugarArgPat (APSnocPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetRecExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
+      return (tmp, LetExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
 
 desugar (LambdaExpr' names expr) = do
@@ -260,6 +260,9 @@ desugar (PatternFunctionExpr names pattern) =
 
 desugar (IfExpr expr0 expr1 expr2) =
   IIfExpr <$> desugar expr0 <*> desugar expr1 <*> desugar expr2
+
+desugar (LetExpr binds expr) =
+  ILetExpr <$> desugarBindings binds <*> desugar expr
 
 desugar (LetRecExpr binds expr) =
   ILetRecExpr <$> desugarBindings binds <*> desugar expr
