@@ -8,7 +8,7 @@
 --   is even, and -1 otherwise
 --   and the second element is the sorted collection represented as a 1-d tensor
 --   (vector)
-def sortWithSign xs :=
+def sortWithSign xs := io
   (do let t := return (colToTensor xs)
       let n := return (length xs)
       let sgn := sort' 1 2 n t 1
