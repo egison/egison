@@ -473,27 +473,34 @@ desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IP
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
 
 desugarDefineWithIndices :: VarWithIndices -> Expr -> EvalM (Var, IExpr)
-desugarDefineWithIndices (VarWithIndices name is) expr = do
+desugarDefineWithIndices (VarWithIndices name is) expr | any isExtendedIndice is = do
   let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is
-  expr <- desugarExtendedIndices is indexNames expr
+  expr <- desugarExtendedIndices is isSubs indexNames expr
   body <- desugar expr
   let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
   let is' = map (\b -> if b then Sub () else Sup ()) isSubs
   return (Var name is', IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
- where
-  extractSubSupIndex :: VarIndex -> [(Bool, String)]
-  extractSubSupIndex (VSubscript x)   = [(True, x)]
-  extractSubSupIndex (VSuperscript x) = [(False, x)]
-  extractSubSupIndex (VSymmScripts xs)     = concatMap extractSubSupIndex xs
-  extractSubSupIndex (VAntiSymmScripts xs) = concatMap extractSubSupIndex xs
+desugarDefineWithIndices (VarWithIndices name is) expr = do
+  let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is
+  body <- desugar expr
+  let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
+  let is' = map (\b -> if b then Sub () else Sup ()) isSubs
+  return (Var name is', IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 
-desugarExtendedIndices :: [VarIndex] -> [String] -> Expr -> EvalM Expr
-desugarExtendedIndices indices indexNames tensorBody = do
+extractSubSupIndex :: VarIndex -> [(Bool, String)]
+extractSubSupIndex (VSubscript x)   = [(True, x)]
+extractSubSupIndex (VSuperscript x) = [(False, x)]
+extractSubSupIndex (VSymmScripts xs)     = concatMap extractSubSupIndex xs
+extractSubSupIndex (VAntiSymmScripts xs) = concatMap extractSubSupIndex xs
+
+desugarExtendedIndices :: [VarIndex] -> [Bool] -> [String] -> Expr -> EvalM Expr
+desugarExtendedIndices indices isSubs indexNames tensorBody = do
   tensorName <- fresh
+  let tensorIndices = zipWith (\isSub name -> if isSub then VSubscript name else VSuperscript name) isSubs indexNames
   tensorGenExpr <- f indices (VarExpr tensorName) [] []
   let indexFunctionExpr = LambdaExpr' (map TensorArg indexNames) tensorGenExpr
   let genTensorExpr = GenerateTensorExpr indexFunctionExpr (makeApply "tensorShape" [VarExpr tensorName])
-  return $ LetExpr [Bind (PDPatVar tensorName) tensorBody] genTensorExpr
+  return $ LetExpr [BindWithIndices (VarWithIndices tensorName tensorIndices) tensorBody] genTensorExpr
  where
   f :: [VarIndex] -> Expr -> [String] -> [BindingExpr] -> EvalM Expr
   f [] expr [] bindings = return $ LetExpr bindings expr
@@ -554,3 +561,8 @@ extractIndexExpr (Superscript x)  = x
 extractIndexExpr (SupSubscript x) = x
 extractIndexExpr (Userscript x)   = x
 extractIndexExpr _                = error "extractIndexExpr: Not supported"
+
+isExtendedIndice :: VarIndex -> Bool
+isExtendedIndice VSubscript{}   = False
+isExtendedIndice VSuperscript{} = False
+isExtendedIndice _              = True
