@@ -56,6 +56,22 @@ assertEqual "riemann curvature"
   R~#_#_2_2
   [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
+-- Riemann curvature 2
+def R_i_j_k_l := withSymbols [m] g_i_m . R~m_j_k_l
+
+assertEqual "riemann curvature"
+  R_#_#_1_1
+  [| [| 0, 0 |], [| 0, 0 |] |]_#_#
+assertEqual "riemann curvature"
+  R_#_#_1_2
+  [| [| 0, a * '(a * cos θ + b) * cos θ |], [| - '(a * cos θ + b) * a * cos θ, 0 |] |]_#_#
+assertEqual "riemann curvature"
+  R_#_#_2_1
+  [| [| 0, - a * '(a * cos θ + b) * cos θ |], [| '(a * cos θ + b) * a * cos θ, 0 |] |]_#_#
+assertEqual "riemann curvature"
+  R_#_#_2_2
+  [| [| 0, 0 |], [| 0, 0 |] |]_#_#
+
 -- Ricci curvature
 def Ric_i_j := withSymbols [m]
   sum (contract R~m_i_m_j)
