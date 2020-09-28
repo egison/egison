@@ -505,23 +505,13 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
     return $ LetExpr bindings (makeApply "b.*" [makeApply "product" [CollectionExpr (map VarExpr signs)], expr])
   f (index:indices) expr signs bindings = do
     (name, signs', bindings') <- genBindings index
-    let n = countBaseScript index
     let isSub = isSubScript index
-    f indices (IndexedExpr True expr [makeMultiscript isSub name n])
+    f indices (makeRefsExpr isSub expr name)
       (signs ++ signs') (bindings ++ bindings')
 
-  makeMultiscript :: Bool -> String -> Integer -> IndexExpr Expr
-  makeMultiscript isSub name n =
-    let start = IndexedExpr True (VarExpr name) [Subscript (ConstantExpr (IntegerExpr 1))]
-        end   = IndexedExpr True (VarExpr name) [Subscript (ConstantExpr (IntegerExpr n))]
-     in if isSub then MultiSubscript start end
-                 else MultiSuperscript start end
-
-  countBaseScript :: VarIndex -> Integer
-  countBaseScript VSubscript{}   = 1
-  countBaseScript VSuperscript{} = 1
-  countBaseScript (VSymmScripts xs)     = sum (map countBaseScript xs)
-  countBaseScript (VAntiSymmScripts xs) = sum (map countBaseScript xs)
+  makeRefsExpr :: Bool -> Expr -> String -> Expr
+  makeRefsExpr True  expr name = SubrefsExpr True expr (VarExpr name)
+  makeRefsExpr False expr name = SuprefsExpr True expr (VarExpr name)
 
   isSubScript :: VarIndex -> Bool
   isSubScript VSubscript{}   = True

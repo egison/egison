@@ -12,8 +12,8 @@ def sortWithSign xs := io
   (do let t := return (colToTensor xs)
       let n := return (length xs)
       let sgn := sort' 1 2 n t 1
-      let xs' := return (tensorMap (\i -> io readIORef i) t)
-      return (sgn, xs'))
+      let xs' := return (map (\i -> io readIORef t_i) [1..n])
+      return (if isCollection (head xs') then (sgn, concat xs') else (sgn, xs')))
  where
   colToTensor xs :=
     generateTensor (\n -> io do let t := newIORef ()
@@ -25,8 +25,8 @@ def sortWithSign xs := io
        then return sgn
        else do let x := readIORef ts_i
                let y := readIORef ts_j
-               if x > y then swap ts i j else return ()
-               let swapped := return (if x > y then -1 else 1)
+               if compare x y = Greater then swap ts i j else return ()
+               let swapped := return (if compare x y = Greater then -1 else 1)
                if j = n then sort' (i + 1) (i + 2) n ts (sgn * swapped)
                         else sort' i (j + 1) n ts (sgn * swapped)
 
