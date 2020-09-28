@@ -30,17 +30,9 @@ desugarTopExpr (Define (VarWithIndices name []) expr) = do
   case expr' of
     ILambdaExpr Nothing args body -> return . Just $ IDefine (Var name []) (ILambdaExpr (Just name) args body)
     _                             -> return . Just $ IDefine (Var name []) expr'
-desugarTopExpr (Define (VarWithIndices name is) expr) = do
-  body <- desugar expr
-  let indexNames = map extractIndexExpr is
-  let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
-  -- TODO
-  let is' = map (\s -> case s of
-                         Superscript _ -> Sup ()
-                         Subscript _ -> Sub ()
-                         _ -> undefined) is
-  return . Just $ IDefine (Var name is')
-    (IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
+desugarTopExpr (Define vwi expr) = do
+  (var, iexpr) <- desugarDefineWithIndices vwi expr
+  return . Just $ IDefine var iexpr
 desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
 desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
 desugarTopExpr (Load file)     = return . Just $ ILoad file
@@ -215,32 +207,32 @@ desugar (LambdaExpr args expr) = do
     desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
     desugarArgPat APWildCard expr = do
       tmp <- fresh
-      return (tmp, LetRecExpr [Bind PDWildCard (VarExpr tmp)] expr)
+      return (tmp, LetExpr [Bind PDWildCard (VarExpr tmp)] expr)
     desugarArgPat (APPatVar var) expr = return (var, expr)
     desugarArgPat (APTuplePat args) expr = do
       tmp  <- fresh
       tmps <- mapM (const fresh) args
-      return (tmp, LetRecExpr [Bind (PDTuplePat (map PDPatVar tmps)) (VarExpr tmp)]
+      return (tmp, LetExpr [Bind (PDTuplePat (map PDPatVar tmps)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat (APInductivePat ctor args) expr = do
       tmp  <- fresh
       tmps <- mapM (const fresh) args
-      return (tmp, LetRecExpr [Bind (PDInductivePat ctor (map PDPatVar tmps)) (VarExpr tmp)]
+      return (tmp, LetExpr [Bind (PDInductivePat ctor (map PDPatVar tmps)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat APEmptyPat expr = do
       tmp <- fresh
-      return (tmp, LetRecExpr [Bind PDEmptyPat (VarExpr tmp)] expr)
+      return (tmp, LetExpr [Bind PDEmptyPat (VarExpr tmp)] expr)
     desugarArgPat (APConsPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetRecExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
+      return (tmp, LetExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
     desugarArgPat (APSnocPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetRecExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
+      return (tmp, LetExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
 
 desugar (LambdaExpr' names expr) = do
@@ -268,6 +260,9 @@ desugar (PatternFunctionExpr names pattern) =
 
 desugar (IfExpr expr0 expr1 expr2) =
   IIfExpr <$> desugar expr0 <*> desugar expr1 <*> desugar expr2
+
+desugar (LetExpr binds expr) =
+  ILetExpr <$> desugarBindings binds <*> desugar expr
 
 desugar (LetRecExpr binds expr) =
   ILetRecExpr <$> desugarBindings binds <*> desugar expr
@@ -463,16 +458,9 @@ desugarBindings = mapM desugarBinding
         (PDPatVar var, ILambdaExpr Nothing args body) ->
           return (name', ILambdaExpr (Just var) args body)
         _ -> return (name', expr')
-    desugarBinding (BindWithIndices (VarWithIndices name is) expr) = do
-      body <- desugar expr
-      let indexNames = map extractIndexExpr is
-      let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
-      let is' = map (\s -> case s of
-                             Superscript _ -> Sup ()
-                             Subscript _ -> Sub ()
-                             _ -> undefined) is
-      return (PDPatVar (Var name is'),
-        IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
+    desugarBinding (BindWithIndices vwi expr) = do
+      (var, iexpr) <- desugarDefineWithIndices vwi expr
+      return (PDPatVar var, iexpr)
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
@@ -483,3 +471,85 @@ desugarPatternDef (pp, matcher, pds) =
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IPrimitiveDataPattern, IExpr)]
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
+
+desugarDefineWithIndices :: VarWithIndices -> Expr -> EvalM (Var, IExpr)
+desugarDefineWithIndices (VarWithIndices name is) expr = do
+  let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is
+  expr <- if any isExtendedIndice is
+             then desugarExtendedIndices is isSubs indexNames expr
+             else return expr
+  body <- desugar expr
+  let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
+  let is' = map (\b -> if b then Sub () else Sup ()) isSubs
+  return (Var name is', IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
+
+extractSubSupIndex :: VarIndex -> [(Bool, String)]
+extractSubSupIndex (VSubscript x)   = [(True, x)]
+extractSubSupIndex (VSuperscript x) = [(False, x)]
+extractSubSupIndex (VSymmScripts xs)     = concatMap extractSubSupIndex xs
+extractSubSupIndex (VAntiSymmScripts xs) = concatMap extractSubSupIndex xs
+
+desugarExtendedIndices :: [VarIndex] -> [Bool] -> [String] -> Expr -> EvalM Expr
+desugarExtendedIndices indices isSubs indexNames tensorBody = do
+  tensorName <- fresh
+  tensorGenExpr <- f indices (VarExpr tensorName) [] []
+  let indexFunctionExpr = LambdaExpr' (map TensorArg indexNames) tensorGenExpr
+  let genTensorExpr = GenerateTensorExpr indexFunctionExpr (makeApply "tensorShape" [VarExpr tensorName])
+  let tensorIndices = zipWith (\isSub name -> if isSub then Subscript (VarExpr name) else Superscript (VarExpr name)) isSubs indexNames
+  return $ LetExpr [Bind (PDPatVar tensorName) tensorBody] (IndexedExpr True genTensorExpr tensorIndices)
+ where
+  f :: [VarIndex] -> Expr -> [String] -> [BindingExpr] -> EvalM Expr
+  f [] expr [] []       = return expr
+  f [] expr [] bindings = return $ LetRecExpr bindings expr
+  f [] expr signs bindings =
+    return $ LetRecExpr bindings (makeApply "product" [CollectionExpr (map VarExpr signs ++ [expr])])
+  f (index:indices) expr signs bindings = do
+    (name, signs', bindings') <- genBindings index
+    let isSub = isSubScript index
+    f indices (makeRefsExpr isSub expr name)
+      (signs ++ signs') (bindings ++ bindings')
+
+  makeRefsExpr :: Bool -> Expr -> String -> Expr
+  makeRefsExpr True  expr name = SubrefsExpr True expr (VarExpr name)
+  makeRefsExpr False expr name = SuprefsExpr True expr (VarExpr name)
+
+  isSubScript :: VarIndex -> Bool
+  isSubScript VSubscript{}   = True
+  isSubScript VSuperscript{} = False
+  isSubScript (VSymmScripts xs)     = isSubScript (head xs)
+  isSubScript (VAntiSymmScripts xs) = isSubScript (head xs)
+
+  genBindings :: VarIndex -> EvalM (String, [String], [BindingExpr])
+  genBindings (VSubscript x)    = return (x, [], [])
+  genBindings (VSuperscript x)  = return (x, [], [])
+  genBindings (VSymmScripts xs) = do
+    (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
+    let signs = concat signss
+    let bindings = concat bindingss
+    sortedTensorName <- fresh
+    let newBindings = bindings ++ [Bind (PDTuplePat [PDWildCard, PDPatVar sortedTensorName]) (makeApply "sortWithSign" [CollectionExpr (map VarExpr names)])]
+    return (sortedTensorName, signs, newBindings)
+  genBindings (VAntiSymmScripts xs) = do
+    (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
+    let signs = concat signss
+    let bindings = concat bindingss
+    sortedTensorName <- fresh
+    signName <- fresh
+    let newBindings = bindings ++ [Bind (PDTuplePat [PDPatVar signName, PDPatVar sortedTensorName]) (makeApply "sortWithSign" [CollectionExpr (map VarExpr names)])]
+    return (sortedTensorName, signName : signs, newBindings)
+
+--
+-- Utils
+--
+
+extractIndexExpr :: IndexExpr a -> a
+extractIndexExpr (Subscript x)    = x
+extractIndexExpr (Superscript x)  = x
+extractIndexExpr (SupSubscript x) = x
+extractIndexExpr (Userscript x)   = x
+extractIndexExpr _                = error "extractIndexExpr: Not supported"
+
+isExtendedIndice :: VarIndex -> Bool
+isExtendedIndice VSubscript{}   = False
+isExtendedIndice VSuperscript{} = False
+isExtendedIndice _              = True

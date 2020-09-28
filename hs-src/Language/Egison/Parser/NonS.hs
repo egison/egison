@@ -676,11 +676,17 @@ positiveFloatLiteral = lexeme L.float
 
 varWithIndicesLiteral :: Parser VarWithIndices
 varWithIndicesLiteral =
-  lexeme (VarWithIndices <$> ident' <*> many (index ident'))
+  lexeme (VarWithIndices <$> ident' <*> many varIndex)
 
 varWithIndicesLiteral' :: Parser VarWithIndices
 varWithIndicesLiteral' =
-  lexeme (VarWithIndices <$> ident' <*> some (index ident'))
+  lexeme (VarWithIndices <$> ident' <*> some varIndex)
+
+varIndex :: Parser VarIndex
+varIndex = (char '_' >> VSubscript <$> ident')
+       <|> (char '~' >> VSuperscript <$> ident')
+       <|> braces (VSymmScripts <$> some varIndex)
+       <|> brackets (VAntiSymmScripts <$> some varIndex)
 
 patVarLiteral :: Parser String
 patVarLiteral = char '$' >> ident
