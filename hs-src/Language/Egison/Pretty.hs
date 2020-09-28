@@ -194,6 +194,12 @@ instance Pretty ArgPattern where
 instance Pretty VarWithIndices where
   pretty (VarWithIndices xs is) = pretty xs <> hcat (map pretty is)
 
+instance Pretty VarIndex where
+  pretty (VSubscript x)   = pretty ('_' : x)
+  pretty (VSuperscript x) = pretty ('~' : x)
+  pretty (VSymmScripts xs)     = pretty '{' <> hcat (map pretty xs) <> pretty '}'
+  pretty (VAntiSymmScripts xs) = pretty '[' <> hcat (map pretty xs) <> pretty ']'
+
 instance Pretty BindingExpr where
   pretty (Bind (PDPatVar f) (LambdaExpr args body)) =
     hsep (pretty f : map pretty' args) <+> indentBlock (pretty ":=") [pretty body]

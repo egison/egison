@@ -799,9 +799,9 @@ identVarWithIndices = P.lexeme lexer (do
   is <- many indexForVar
   return $ VarWithIndices name is)
 
-indexForVar :: Parser (IndexExpr String)
-indexForVar = try (char '~' >> Superscript <$> ident)
-        <|> try (char '_' >> Subscript <$> ident)
+indexForVar :: Parser VarIndex
+indexForVar = try (char '~' >> VSuperscript <$> ident)
+        <|> try (char '_' >> VSubscript <$> ident)
 
 indexType :: Parser (IndexExpr ())
 indexType = try (char '~' >> return (Superscript ()))

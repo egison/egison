@@ -550,6 +550,26 @@ assertEqual "transpose"
     x_1_1_3, x_1_2_3, x_1_3_3, x_2_1_3, x_2_2_3, x_2_3_3,
     x_1_1_4, x_1_2_4, x_1_3_4, x_2_1_4, x_2_2_4, x_2_3_4])_#_#_#
 
+def symmT{_i_j} :=
+  [| [| 0, 1, 2 |],
+     [| 1, 0, 3 |],
+     [| 2, 3, 0 |] |]
+
+def asymmT[_i_j] :=
+  [| [| 0, 1, 2 |],
+     [| -1, 0, 3 |],
+     [| -2, -3, 0 |] |]
+
+assert "symmetric tensor"
+  (symmT_1_1 = 0 && symmT_1_2 = 1 && symmT_1_3 = 2 &&
+   symmT_2_1 = 1 && symmT_2_2 = 0 && symmT_2_3 = 3 &&
+   symmT_3_1 = 2 && symmT_3_2 = 3 && symmT_3_3 = 0)
+
+assert "symmetric tensor"
+  (asymmT_1_1 = 0  && asymmT_1_2 = 1  && asymmT_1_3 = 2 &&
+   asymmT_2_1 = -1 && asymmT_2_2 = 0  && asymmT_2_3 = 3 &&
+   asymmT_3_1 = -2 && asymmT_3_2 = -3 && asymmT_3_3 = 0)
+
 --
 -- Hash
 --

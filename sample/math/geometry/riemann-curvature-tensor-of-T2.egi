@@ -57,7 +57,7 @@ assertEqual "riemann curvature"
   [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
 -- Riemann curvature 2
-def R_i_j_k_l := withSymbols [m] g_i_m . R~m_j_k_l
+def R{[_i_j][_k_l]} := withSymbols [m] g_i_m . R~m_j_k_l
 
 assertEqual "riemann curvature"
   R_#_#_1_1
