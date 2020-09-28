@@ -500,9 +500,9 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
  where
   f :: [VarIndex] -> Expr -> [String] -> [BindingExpr] -> EvalM Expr
   f [] expr [] []       = return expr
-  f [] expr [] bindings = return $ LetExpr bindings expr
+  f [] expr [] bindings = return $ LetRecExpr bindings expr
   f [] expr signs bindings =
-    return $ LetExpr bindings (makeApply "product" [CollectionExpr (map VarExpr signs ++ [expr])])
+    return $ LetRecExpr bindings (makeApply "product" [CollectionExpr (map VarExpr signs ++ [expr])])
   f (index:indices) expr signs bindings = do
     (name, signs', bindings') <- genBindings index
     let isSub = isSubScript index
