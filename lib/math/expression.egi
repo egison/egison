@@ -268,17 +268,17 @@ def coefficient $f $x $m :=
     then sum
            (matchAll f as mathExpr with
              | poly (term $a (!(#x :: _) & $ts) :: _) / _ ->
-               foldl (*') a (map (^') ts)) / denominator f
+               foldl (*') a (map (uncurry (^')) ts)) / denominator f
     else coefficient' f x m
 
 def coefficient' $f $x $m :=
   sum
     (matchAll f as mathExpr with
       | poly (term $a (ncons #x #m $ts) :: _) / _ ->
-        foldl (*') a (map (^') ts)) / denominator f
+        foldl (*') a (map (uncurry (^')) ts)) / denominator f
 
 def coefficient2 $f $x $y :=
   sum
     (matchAll f as mathExpr with
       | poly (term $a (#x :: #y :: $ts) :: _) / _ ->
-        foldl (*') a (map (^') ts)) / denominator f
+        foldl (*') a (map (uncurry (^')) ts)) / denominator f
