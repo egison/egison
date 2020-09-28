@@ -8,12 +8,20 @@
 --   is even, and -1 otherwise
 --   and the second element is the sorted collection represented as a 1-d tensor
 --   (vector)
-def sortWithSign xs := io
-  (do let t := return (colToTensor xs)
-      let n := return (length xs)
-      let sgn := sort' 1 2 n t 1
-      let xs' := return (map (\i -> io readIORef t_i) [1..n])
-      return (if isCollection (head xs') then (sgn, concat xs') else (sgn, xs')))
+def sortWithSign xs :=
+  match xs as list something with
+  -- Optimization for the case where the length is less than 3
+  | [] | [_] -> return
+  | [$x, $y] ->
+    if isCollection x
+       then if compare x y = Greater then (-1, y ++ x) else (1, x ++ y)
+       else if compare x y = Greater then (-1, [y, x]) else (1, [x, y])
+  | _ -> io
+    (do let t := return (colToTensor xs)
+        let n := return (length xs)
+        let sgn := sort' 1 2 n t 1
+        let xs' := return (map (\i -> io readIORef t_i) [1..n])
+        return (if isCollection (head xs') then (sgn, concat xs') else (sgn, xs')))
  where
   colToTensor xs :=
     generateTensor (\n -> io do let t := newIORef ()
