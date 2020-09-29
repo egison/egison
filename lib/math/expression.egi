@@ -274,7 +274,7 @@ def coefficient $f $x $m :=
 def coefficient' $f $x $m :=
   sum
     (matchAll f as mathExpr with
-      | poly (term $a (ncons #x #m $ts) :: _) / _ ->
+      | poly (term $a (ncons #x #m (!(#x :: _) & $ts)) :: _) / _ ->
         foldl (*') a (map (uncurry (^')) ts)) / denominator f
 
 def coefficient2 $f $x $y :=
