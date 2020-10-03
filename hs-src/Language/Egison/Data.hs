@@ -16,6 +16,7 @@ module Language.Egison.Data
       EgisonValue (..)
     , Matcher
     , PrimitiveFunc
+    , LazyPrimitiveFunc
     , EgisonHashKey (..)
     , EgisonData (..)
     , Tensor (..)
@@ -97,6 +98,7 @@ data EgisonValue
   | MemoizedFunc (IORef (HashMap [Integer] WHNFData)) Env [String] IExpr
   | PatternFunc Env [String] IPattern
   | PrimitiveFunc PrimitiveFunc
+  | LazyPrimitiveFunc LazyPrimitiveFunc
   | IOFunc (EvalM WHNFData)
   | Port Handle
   | RefBox (IORef EgisonValue)
@@ -106,6 +108,7 @@ data EgisonValue
 type Matcher = EgisonValue
 
 type PrimitiveFunc = [EgisonValue] -> EvalM EgisonValue
+type LazyPrimitiveFunc = [WHNFData] -> EvalM WHNFData
 
 data EgisonHashKey
   = IntKey Integer
@@ -266,6 +269,7 @@ instance Show EgisonValue where
   show (MemoizedFunc _ _ names _) = "#<memoized-lambda [" ++ intercalate ", " names ++ "] ...>"
   show PatternFunc{} = "#<pattern-function>"
   show PrimitiveFunc{} = "#<primitive-function>"
+  show LazyPrimitiveFunc{} = "#<primitive-function>"
   show IOFunc{} = "#<io-function>"
   show Port{}   = "#<port>"
   show RefBox{} = "#<refbox>"
