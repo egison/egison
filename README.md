@@ -323,9 +323,9 @@ Please read <a target="_blank" href="https://arxiv.org/abs/1808.10603">our paper
 
 ## Installation
 
-Installation guide for [MacOS](https://www.egison.org/getting-started/getting-started-mac.html), [Linux](https://www.egison.org/getting-started/getting-started-linux.html) and [Windows](https://www.egison.org/getting-started/getting-started-windows.html) are available on our website.
+[Installation guide](https://egison.readthedocs.io/en/latest/reference/install.html) is available on our website.
 
-If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egison/egison-tutorial">`egison-tutorial`</a>.
+If you are a beginner of Egison, it would be better to install <a target="_blank" href="https://github.com/egison/egison-tutorial">`egison-tutorial`</a> as well.
 
 We also have [online interpreter](http://console.egison.org) and [online tutorial](http://try.egison.org/).
 Enjoy!
