@@ -155,7 +155,11 @@ expr = do
              Just bindings -> LetRecExpr bindings body
 
 exprWithoutWhere :: Parser Expr
-exprWithoutWhere =
+exprWithoutWhere = opExpr
+
+-- Expressions that can be the arguments for the operators.
+exprInOp :: Parser Expr
+exprInOp =
        ifExpr
    <|> patternMatchExpr
    <|> lambdaExpr
@@ -171,14 +175,14 @@ exprWithoutWhere =
    <|> tensorExpr
    <|> functionExpr
    <|> refsExpr
-   <|> opExpr
+   <|> atomOrApplyExpr
    <?> "expression"
 
--- Also parses atomExpr
+-- Also parses exprInOp
 opExpr :: Parser Expr
 opExpr = do
   ops <- gets exprOps
-  makeExprParser atomOrApplyExpr (makeExprTable ops)
+  makeExprParser exprInOp (makeExprTable ops)
 
 makeExprTable :: [Op] -> [[Operator Parser Expr]]
 makeExprTable ops =
