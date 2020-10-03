@@ -21,7 +21,7 @@ def sortWithSign xs :=
         let n := return (length xs)
         let sgn := sort' 1 2 n t 1
         let xs' := return (map (\i -> io readIORef t_i) [1..n])
-        return (if isCollection (head xs') then (sgn, concat xs') else (sgn, xs')))
+        return $ if isCollection (head xs') then (sgn, concat xs') else (sgn, xs'))
  where
   colToTensor xs :=
     generateTensor (\n -> io do let t := newIORef ()
