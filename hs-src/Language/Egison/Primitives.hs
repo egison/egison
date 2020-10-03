@@ -32,6 +32,7 @@ import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
 import           Language.Egison.Data
+import           Language.Egison.Data.Collection (makeICollection)
 import           Language.Egison.Eval
 import           Language.Egison.EvalState (MonadEval(..))
 import           Language.Egison.IExpr     (stringToVar, Index(..))
@@ -46,7 +47,8 @@ import           Language.Egison.Math
 primitiveEnv :: IO Env
 primitiveEnv = do
   let ops = map (\(name, fn) -> (name, PrimitiveFunc (fn name))) (primitives ++ ioPrimitives)
-  bindings <- forM (constants ++ ops) $ \(name, op) -> do
+  let lazyOps = map (\(name, fn) -> (name, LazyPrimitiveFunc (fn name))) lazyPrimitives
+  bindings <- forM (constants ++ ops ++ lazyOps) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
   return $ extendEnv nullEnv bindings
@@ -54,7 +56,8 @@ primitiveEnv = do
 primitiveEnvNoIO :: IO Env
 primitiveEnvNoIO = do
   let ops = map (\(name, fn) -> (name, PrimitiveFunc (fn name))) primitives
-  bindings <- forM (constants ++ ops) $ \(name, op) -> do
+  let lazyOps = map (\(name, fn) -> (name, LazyPrimitiveFunc (fn name))) lazyPrimitives
+  bindings <- forM (constants ++ ops ++ lazyOps) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
   return $ extendEnv nullEnv bindings
@@ -74,11 +77,7 @@ constants = [ ("f.pi", Float 3.141592653589793)
 
 primitives :: [(String, String -> PrimitiveFunc)]
 primitives =
-  [ ("tensorShape", tensorShape')
-  , ("tensorToList", tensorToList')
-  , ("dfOrder", dfOrder')
-
-  , ("pack", pack)
+  [ ("pack", pack)
   , ("unpack", unpack)
   , ("unconsString", unconsString)
   , ("lengthString", lengthString)
@@ -104,27 +103,50 @@ primitives =
   ++ primitiveTypeFunctions
   ++ primitiveArithFunctions
 
+lazyPrimitives :: [(String, String -> LazyPrimitiveFunc)]
+lazyPrimitives =
+  [ ("tensorShape", tensorShape')
+  , ("tensorToList", tensorToList')
+  , ("dfOrder", dfOrder')
+  ]
+
 --
 -- Tensor
 --
 
-tensorShape' :: String -> PrimitiveFunc
-tensorShape' = oneArg' tensorShape''
- where
-  tensorShape'' (TensorData (Tensor ns _ _)) = return . Collection . Sq.fromList $ map toEgison ns
-  tensorShape'' _ = return . Collection $ Sq.fromList []
+lazyOneArg :: (WHNFData -> EvalM WHNFData) -> String -> LazyPrimitiveFunc
+lazyOneArg f name args =
+  case args of
+    [arg] -> f arg
+    _     -> throwError =<< ArgumentsNumPrimitive name 1 (length args) <$> getFuncNameStack
 
-tensorToList' :: String -> PrimitiveFunc
-tensorToList' = oneArg' tensorToList''
+tensorShape' :: String -> LazyPrimitiveFunc
+tensorShape' = lazyOneArg tensorShape''
  where
-  tensorToList'' (TensorData (Tensor _ xs _)) = return . Collection . Sq.fromList $ V.toList xs
-  tensorToList'' x = return . Collection $ Sq.fromList [x]
+  tensorShape'' (Value (TensorData (Tensor ns _ _))) =
+    return . Value . Collection . Sq.fromList $ map toEgison ns
+  tensorShape'' (ITensor (Tensor ns _ _)) =
+    return . Value . Collection . Sq.fromList $ map toEgison ns
+  tensorShape'' _ = return . Value . Collection $ Sq.fromList []
 
-dfOrder' :: String -> PrimitiveFunc
-dfOrder' = oneArg' dfOrder''
+tensorToList' :: String -> LazyPrimitiveFunc
+tensorToList' = lazyOneArg tensorToList''
  where
-  dfOrder'' (TensorData (Tensor ns _ is)) = return (toEgison (fromIntegral (length ns - length is) :: Integer))
-  dfOrder'' _ = return (toEgison (0 :: Integer))
+  tensorToList'' (Value (TensorData (Tensor _ xs _))) =
+    return . Value . Collection . Sq.fromList $ V.toList xs
+  tensorToList'' (ITensor (Tensor _ xs _)) = do
+    inners <- liftIO . newIORef $ Sq.fromList (map IElement (V.toList xs))
+    return (ICollection inners)
+  tensorToList'' x = makeICollection [x]
+
+dfOrder' :: String -> LazyPrimitiveFunc
+dfOrder' = lazyOneArg dfOrder''
+ where
+  dfOrder'' (Value (TensorData (Tensor ns _ is))) =
+    return $ Value (toEgison (fromIntegral (length ns - length is) :: Integer))
+  dfOrder'' (ITensor (Tensor ns _ is)) =
+    return $ Value (toEgison (fromIntegral (length ns - length is) :: Integer))
+  dfOrder'' _ = return $ Value (toEgison (0 :: Integer))
 
 --
 -- String
