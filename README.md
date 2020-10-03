@@ -20,9 +20,9 @@ For more information, visit <a target="_blank" href="https://www.egison.org">our
 
 ## Non-Linear Pattern Matching for Non-Free Data Types
 
-We can describe non-linear pattern matching for non-free data types in Egison.
-A non-free data type is a data type whose data have no canonical form, a standard way to represent that object.
-For example, multisets are non-free data types because the multiset {a,b,b} has two other equivalent but literally different forms {b,a,b} and {b,b,a}.
+We can use non-linear pattern matching for non-free data types in Egison.
+A non-free data type is a data type whose data have no canonical form, or a standard way to represent that object.
+For example, multisets are non-free data types because a multiset {a,b,b} has two other syntastically different representations: {b,a,b} and {b,b,a}.
 Expressive pattern matching for these data types enables us to write elegant programs.
 
 ### Twin Primes
@@ -41,7 +41,7 @@ take 8 twinPrimes
 
 ### Poker Hands
 
-The following code is the program that determines poker-hands written in Egison.
+The following code is a program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
 ```hs
@@ -69,7 +69,7 @@ def poker cs :=
 ### Graphs
 
 We can pattern-match against graphs.
-We can write program to solve the travelling salesman problem in a single pattern-matching expression.
+We can write a program to solve the travelling salesman problem in a single pattern-matching expression.
 
 ```hs
 def graph := multiset (string, multiset (string, integer))
@@ -319,7 +319,7 @@ Additionally, it fulfills the following requirements.
 3. Polymorphism of patterns.
 4. Pattern matching with infinitely many results.
 
-Please read <a target="_blank" href="https://arxiv.org/abs/1808.10603">our paper</a> for details.
+Check out <a target="_blank" href="https://arxiv.org/abs/1808.10603">our paper</a> for details.
 
 ## Installation
 
