@@ -37,16 +37,14 @@ import           Language.Egison.Math
 
 primitiveEnv :: IO Env
 primitiveEnv = do
-  let ops = primitives ++ ioPrimitives
-  bindings <- forM (constants ++ ops) $ \(name, op) -> do
+  bindings <- forM (constants ++ primitives ++ ioPrimitives) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
   return $ extendEnv nullEnv bindings
 
 primitiveEnvNoIO :: IO Env
 primitiveEnvNoIO = do
-  let ops = primitives
-  bindings <- forM (constants ++ ops) $ \(name, op) -> do
+  bindings <- forM (constants ++ primitives) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
   return $ extendEnv nullEnv bindings
@@ -86,7 +84,7 @@ primitives =
         ]
 
 --
--- Tensor
+-- Miscellaneous primitive functions
 --
 
 tensorShape' :: String -> LazyPrimitiveFunc
@@ -134,10 +132,6 @@ addSuperscript = twoArgs $ \fn sub ->
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
-
---
--- Test
---
 
 assert ::  String -> PrimitiveFunc
 assert = twoArgs' $ \label test -> do
