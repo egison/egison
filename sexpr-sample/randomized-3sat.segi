@@ -38,4 +38,3 @@
 
 (R.sat-solver p1 4 3);=><Nothing>
 (R.sat-solver p2 4 3);=><Just [|#f #f #t #t|]>, <Just [|#f #t #t #t|]>, or sometimes <Nothing>
-

@@ -450,7 +450,6 @@ tensorExpr = keywordTensor >> TensorExpr <$> expr <*> expr
 
 tensorContractExpr :: Parser Expr
 tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr
---tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr <*> expr
 
 tensorMapExpr :: Parser Expr
 tensorMapExpr = keywordTensorMap >> TensorMapExpr <$> expr <*> expr
