@@ -7,7 +7,7 @@ module Language.Egison.Primitives.Arith
 
 import           Control.Monad.Except
 import           Language.Egison.Data
-import           Language.Egison.EvalState (MonadEval(..))
+import           Language.Egison.EvalState        (MonadEval(..))
 import           Language.Egison.Primitives.Utils
 import           Language.Egison.Math
 

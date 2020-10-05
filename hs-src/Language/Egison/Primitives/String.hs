@@ -4,16 +4,13 @@ module Language.Egison.Primitives.String
 
 import           Control.Monad.Except
 
-import           Data.Foldable                    (toList)
 import qualified Data.Sequence                    as Sq
-import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 
 import           Text.Regex.TDFA                  ((=~~))
 
 import           Language.Egison.Data
 import           Language.Egison.Eval
-import           Language.Egison.EvalState        (MonadEval(..))
 import           Language.Egison.Parser
 import           Language.Egison.Pretty
 import           Language.Egison.Primitives.Utils
@@ -41,17 +38,7 @@ strictPrimitives =
   ]
 
 pack :: String -> PrimitiveFunc
-pack = oneArg $ \val -> do
-  str <- packStringValue val
-  return $ String str
-  where
-    packStringValue :: EgisonValue -> EvalM Text
-    packStringValue (Collection seq) = do
-      let ls = toList seq
-      str <- mapM fromEgison ls
-      return $ T.pack str
-    packStringValue (Tuple [val]) = packStringValue val
-    packStringValue val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
+pack = unaryOp T.pack
 
 unpack :: String -> PrimitiveFunc
 unpack = unaryOp T.unpack
