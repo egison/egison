@@ -5,6 +5,7 @@ module Language.Egison.Primitives.Utils
   , twoArgs
   , twoArgs'
   , threeArgs'
+  , lazyOneArg
   , unaryOp
   , binaryOp
   ) where
@@ -77,6 +78,12 @@ threeArgs' f name args =
     [val, val']        -> return . PrimitiveFunc $ oneArg' (f val val') name
     [val]              -> return . PrimitiveFunc $ twoArgs' (f val) name
     _                  -> throwError =<< ArgumentsNumPrimitive name 3 (length args) <$> getFuncNameStack
+
+lazyOneArg :: (WHNFData -> EvalM WHNFData) -> String -> LazyPrimitiveFunc
+lazyOneArg f name args =
+  case args of
+    [arg] -> f arg
+    _     -> throwError =<< ArgumentsNumPrimitive name 1 (length args) <$> getFuncNameStack
 
 unaryOp :: (EgisonData a, EgisonData b) => (a -> b) -> String -> PrimitiveFunc
 unaryOp op = oneArg $ \val -> do

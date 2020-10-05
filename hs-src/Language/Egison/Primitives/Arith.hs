@@ -11,8 +11,12 @@ import           Language.Egison.EvalState (MonadEval(..))
 import           Language.Egison.Primitives.Utils
 import           Language.Egison.Math
 
-primitiveArithFunctions :: [(String, String -> PrimitiveFunc)]
+primitiveArithFunctions :: [(String, EgisonValue)]
 primitiveArithFunctions =
+  map (\(name, fn) -> (name, PrimitiveFunc (fn name))) strictPrimitives
+
+strictPrimitives :: [(String, String -> PrimitiveFunc)]
+strictPrimitives =
   [ ("b.+", plus)
   , ("b.-", minus)
   , ("b.*", multiply)

@@ -133,6 +133,7 @@ Library
                    Language.Egison.Primitives
                    Language.Egison.Primitives.Arith
                    Language.Egison.Primitives.IO
+                   Language.Egison.Primitives.String
                    Language.Egison.Primitives.Types
                    Language.Egison.Primitives.Utils
                    Language.Egison.RState

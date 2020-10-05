@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Language.Egison.Primitives.IO
   ( ioPrimitives
   ) where
@@ -9,13 +7,15 @@ import           Control.Monad.Except
 import           Data.IORef
 
 import           System.IO
-import           System.Process            (readProcess)
-import           System.Random             (getStdRandom, randomR)
+import           System.Process                   (readProcess)
+import           System.Random                    (getStdRandom, randomR)
 
-import qualified Data.Text                 as T
-import qualified Data.Text.IO              as T
+import qualified Data.Text                        as T
+import qualified Data.Text.IO                     as T
 
+import           Language.Egison.Core             (evalWHNF)
 import           Language.Egison.Data
+import           Language.Egison.EvalState        (MonadEval(..))
 import           Language.Egison.Primitives.Utils
 
 
@@ -23,8 +23,13 @@ import           Language.Egison.Primitives.Utils
 -- IO Primitives
 --
 
-ioPrimitives :: [(String, String -> PrimitiveFunc)]
+ioPrimitives :: [(String, EgisonValue)]
 ioPrimitives =
+  map (\(name, fn) -> (name, PrimitiveFunc (fn name))) ioStrictPrimitives ++
+    map (\(name, fn) -> (name, LazyPrimitiveFunc (fn name))) ioLazyPrimitives
+
+ioStrictPrimitives :: [(String, String -> PrimitiveFunc)]
+ioStrictPrimitives =
   [ ("return",          return')
   , ("openInputFile",   makePort ReadMode)
   , ("openOutputFile",  makePort WriteMode)
@@ -54,6 +59,11 @@ ioPrimitives =
   , ("readIORef",  readIORef')
 
   , ("readProcess", readProcess')
+  ]
+
+ioLazyPrimitives :: [(String, String -> LazyPrimitiveFunc)]
+ioLazyPrimitives =
+  [ ("io", io)
   ]
 
 makeIO :: EvalM EgisonValue -> EgisonValue
@@ -170,3 +180,13 @@ readProcess' = threeArgs' $ \cmd args input -> do
   return $ makeIO $ do
     outputStr <- liftIO $ readProcess cmd' args' input'
     return (String (T.pack outputStr))
+
+io :: String -> LazyPrimitiveFunc
+io = lazyOneArg io'
+  where
+    io' (Value (IOFunc m)) = do
+      val <- m >>= evalWHNF
+      case val of
+        Tuple [_, val'] -> return $ Value val'
+        _ -> throwError =<< TypeMismatch "io" (Value val) <$> getFuncNameStack
+    io' whnf = throwError =<< TypeMismatch "io" whnf <$> getFuncNameStack

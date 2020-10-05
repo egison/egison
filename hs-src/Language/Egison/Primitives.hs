@@ -15,48 +15,38 @@ module Language.Egison.Primitives
 
 import           Control.Monad.Except
 
-import           Data.Foldable             (toList)
 import           Data.IORef
-import           Text.Regex.TDFA           ((=~~))
 
 import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
-
-import           Data.Text                 (Text)
-import qualified Data.Text                 as T
 
  {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
-import           Language.Egison.Core      (evalWHNF)
 import           Language.Egison.Data
-import           Language.Egison.Data.Collection (makeICollection)
-import           Language.Egison.Eval
-import           Language.Egison.EvalState (MonadEval(..))
-import           Language.Egison.IExpr     (stringToVar, Index(..))
-import           Language.Egison.Parser
-import           Language.Egison.Pretty
+import           Language.Egison.Data.Collection  (makeICollection)
+import           Language.Egison.EvalState        (MonadEval(..))
+import           Language.Egison.IExpr            (stringToVar, Index(..))
 import           Language.Egison.Primitives.Arith
 import           Language.Egison.Primitives.IO
+import           Language.Egison.Primitives.String
 import           Language.Egison.Primitives.Types
 import           Language.Egison.Primitives.Utils
 import           Language.Egison.Math
 
 primitiveEnv :: IO Env
 primitiveEnv = do
-  let ops = map (\(name, fn) -> (name, PrimitiveFunc (fn name))) (primitives ++ ioPrimitives)
-  let lazyOps = map (\(name, fn) -> (name, LazyPrimitiveFunc (fn name))) lazyPrimitives
-  bindings <- forM (constants ++ ops ++ lazyOps) $ \(name, op) -> do
+  let ops = primitives ++ ioPrimitives
+  bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
   return $ extendEnv nullEnv bindings
 
 primitiveEnvNoIO :: IO Env
 primitiveEnvNoIO = do
-  let ops = map (\(name, fn) -> (name, PrimitiveFunc (fn name))) primitives
-  let lazyOps = map (\(name, fn) -> (name, LazyPrimitiveFunc (fn name))) lazyPrimitives
-  bindings <- forM (constants ++ ops ++ lazyOps) $ \(name, op) -> do
+  let ops = primitives
+  bindings <- forM (constants ++ ops) $ \(name, op) -> do
     ref <- newIORef . WHNF $ Value op
     return (stringToVar name, ref)
   return $ extendEnv nullEnv bindings
@@ -74,48 +64,30 @@ constants = [ ("f.pi", Float 3.141592653589793)
 -- Primitives
 --
 
-primitives :: [(String, String -> PrimitiveFunc)]
+primitives :: [(String, EgisonValue)]
 primitives =
-  [ ("pack", pack)
-  , ("unpack", unpack)
-  , ("unconsString", unconsString)
-  , ("lengthString", lengthString)
-  , ("appendString", appendString)
-  , ("splitString", splitString)
-  , ("regex", regexString)
-  , ("regexCg", regexStringCaptureGroup)
-
-  , ("addSubscript", addSubscript)
-  , ("addSuperscript", addSuperscript)
-
-  , ("read", read')
-  , ("readTsv", readTSV)
-  , ("show", show')
-  , ("showTsv", showTSV')
-
-  , ("assert",      assert)
-  , ("assertEqual", assertEqual)
-  ]
-  ++ primitiveTypeFunctions
+  map (\(name, fn) -> (name, PrimitiveFunc (fn name))) strictPrimitives
+  ++ map (\(name, fn) -> (name, LazyPrimitiveFunc (fn name))) lazyPrimitives
   ++ primitiveArithFunctions
+  ++ primitiveStringFunctions
+  ++ primitiveTypeFunctions
+    where
+      strictPrimitives =
+        [ ("addSubscript", addSubscript)
+        , ("addSuperscript", addSuperscript)
 
-lazyPrimitives :: [(String, String -> LazyPrimitiveFunc)]
-lazyPrimitives =
-  [ ("tensorShape", tensorShape')
-  , ("tensorToList", tensorToList')
-  , ("dfOrder", dfOrder')
-  , ("io", io)
-  ]
+        , ("assert",      assert)
+        , ("assertEqual", assertEqual)
+        ]
+      lazyPrimitives =
+        [ ("tensorShape", tensorShape')
+        , ("tensorToList", tensorToList')
+        , ("dfOrder", dfOrder')
+        ]
 
 --
 -- Tensor
 --
-
-lazyOneArg :: (WHNFData -> EvalM WHNFData) -> String -> LazyPrimitiveFunc
-lazyOneArg f name args =
-  case args of
-    [arg] -> f arg
-    _     -> throwError =<< ArgumentsNumPrimitive name 1 (length args) <$> getFuncNameStack
 
 tensorShape' :: String -> LazyPrimitiveFunc
 tensorShape' = lazyOneArg tensorShape''
@@ -145,71 +117,6 @@ dfOrder' = lazyOneArg dfOrder''
     return $ Value (toEgison (fromIntegral (length ns - length is) :: Integer))
   dfOrder'' _ = return $ Value (toEgison (0 :: Integer))
 
-io :: String -> LazyPrimitiveFunc
-io = lazyOneArg io'
-  where
-    io' (Value (IOFunc m)) = do
-      val <- m >>= evalWHNF
-      case val of
-        Tuple [_, val'] -> return $ Value val'
-        _ -> throwError =<< TypeMismatch "io" (Value val) <$> getFuncNameStack
-    io' whnf = throwError =<< TypeMismatch "io" whnf <$> getFuncNameStack
-
---
--- String
---
-pack :: String -> PrimitiveFunc
-pack = oneArg $ \val -> do
-  str <- packStringValue val
-  return $ String str
-  where
-    packStringValue :: EgisonValue -> EvalM Text
-    packStringValue (Collection seq) = do
-      let ls = toList seq
-      str <- mapM fromEgison ls
-      return $ T.pack str
-    packStringValue (Tuple [val]) = packStringValue val
-    packStringValue val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
-
-unpack :: String -> PrimitiveFunc
-unpack = unaryOp T.unpack
-
-unconsString :: String -> PrimitiveFunc
-unconsString = oneArg $ \val -> do
-  str <- fromEgison val
-  case T.uncons str of
-    Just (c, rest) -> return $ Tuple [Char c, String rest]
-    Nothing -> throwError $ Default "Tried to unsnoc empty string"
-
-lengthString :: String -> PrimitiveFunc
-lengthString = unaryOp (toInteger . T.length)
-
-appendString :: String -> PrimitiveFunc
-appendString = binaryOp T.append
-
-splitString :: String -> PrimitiveFunc
-splitString = twoArgs $ \pat src -> do
-  patStr <- fromEgison pat
-  srcStr <- fromEgison src
-  return . Collection . Sq.fromList $ map String $ T.splitOn patStr srcStr
-
-regexString :: String -> PrimitiveFunc
-regexString = twoArgs $ \pat src -> do
-  patStr <- fromEgison pat
-  srcStr <- fromEgison src
-  case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe (String, String, String)) of
-    Nothing -> return . Collection . Sq.fromList $ []
-    Just (a,b,c) -> return . Collection . Sq.fromList $ [Tuple [String (T.pack a), String (T.pack b), String (T.pack c)]]
-
-regexStringCaptureGroup :: String -> PrimitiveFunc
-regexStringCaptureGroup = twoArgs $ \pat src -> do
-  patStr <- fromEgison pat
-  srcStr <- fromEgison src
-  case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe [[String]]) of
-    Nothing -> return . Collection . Sq.fromList $ []
-    Just ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
-                          return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
-
 addSubscript :: String -> PrimitiveFunc
 addSubscript = twoArgs $ \fn sub ->
   case (fn, sub) of
@@ -227,27 +134,6 @@ addSuperscript = twoArgs $ \fn sub ->
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
-
-read' :: String -> PrimitiveFunc
-read'= oneArg' $ \val -> do
-  str <- fromEgison val
-  ast <- readExpr (T.unpack str)
-  evalExpr nullEnv ast
-
-readTSV :: String -> PrimitiveFunc
-readTSV = oneArg' $ \val -> do
-  str   <- fromEgison val
-  exprs <- mapM (readExpr . T.unpack) (T.split (== '\t') str)
-  rets  <- mapM (evalExpr nullEnv) exprs
-  case rets of
-    [ret] -> return ret
-    _     -> return (Tuple rets)
-
-show' :: String -> PrimitiveFunc
-show'= oneArg' $ \val -> return $ toEgison $ T.pack $ show val
-
-showTSV' :: String -> PrimitiveFunc
-showTSV'= oneArg' $ \val -> return $ toEgison $ T.pack $ showTSV val
 
 --
 -- Test

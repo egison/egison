@@ -19,8 +19,12 @@ import           Language.Egison.EvalState        (MonadEval(..))
 import           Language.Egison.Math
 import           Language.Egison.Primitives.Utils
 
-primitiveTypeFunctions :: [(String, String -> PrimitiveFunc)]
+primitiveTypeFunctions :: [(String, EgisonValue)]
 primitiveTypeFunctions =
+  map (\(name, fn) -> (name, PrimitiveFunc (fn name))) strictPrimitives
+
+strictPrimitives :: [(String, String -> PrimitiveFunc)]
+strictPrimitives =
   [ ("isBool",       oneArg' isBool)
   , ("isInteger",    oneArg' isInteger)
   , ("isRational",   oneArg' isRational)
