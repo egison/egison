@@ -1,0 +1,60 @@
+--
+--
+-- Graph demonstration
+--
+--
+
+--
+-- Matcher definition
+--
+def graph $a := set (edge a)
+
+def edge $a :=
+  algebraicDataMatcher
+    | edge a a
+
+--
+-- Sample data
+--
+def graphData1 :=
+  [Edge 1 4, Edge 2 1, Edge 3 1, Edge 3 2, Edge 4 3, Edge 5 1, Edge 5 4]
+
+def graphData2 :=
+  [Edge  1  4, Edge  1  5, Edge  1  8, Edge  1 10, Edge  2  3, Edge  2  6, Edge  2 12,
+   Edge  3  2, Edge  3  7, Edge  3  9, Edge  4  1, Edge  4  6, Edge  5  1, Edge  5  8,
+   Edge  5  9, Edge  5 11, Edge  6  2, Edge  6  4, Edge  6 10, Edge  6 12, Edge  7  3,
+   Edge  7  9, Edge  7 11, Edge  8  1, Edge  8  5, Edge  9  3, Edge  9  5, Edge  9  7,
+   Edge 10  1, Edge 10  6, Edge 10 12, Edge 11  5, Edge 11  7, Edge 12  2, Edge 12  6,
+   Edge 12 10]
+
+--
+-- Demonstration code
+--
+-- find all nodes who have an edge from 's' but not have an edge to 's'
+let s := 1
+ in matchAll graphData1 as graph integer with
+      | edge #s $x :: !(edge #x #s :: _) -> x
+
+-- find all nodes in two paths from 's'
+let s := 1
+ in matchAll graphData1 as graph integer with
+      | edge (#s & $x_1) $x_2 :: edge #x_2 $x_3 :: _ -> x
+
+-- enumerate first 5 paths from 's' to 'e'
+take
+  5
+  (let s := 1
+       e := 2
+    in matchAll graphData2 as graph integer with
+         | edge (#s & $x_1) $x_2 :: (loop $i (4, $n)
+                                       (edge #x_(i - 2) $x_(i - 1) :: ...)
+                                       (edge #x_(n - 1) (#e & $x_n) :: _)) -> x)
+
+-- find all cliques whose size is 'n'
+let n := 3
+ in matchAll graphData2 as graph integer with
+      | edge $x_1 $x_2 :: (loop $i (3, n, _)
+                             (edge #x_1 $x_i :: (loop $j (2, i - 1, _)
+                                                   (edge #x_j #x_i :: ...)
+                                                   ...))
+                             _) -> x
