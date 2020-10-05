@@ -98,7 +98,6 @@ data Expr
   | WedgeApplyExpr Expr [Expr]
 
   | DoExpr [BindingExpr] Expr
-  | IoExpr Expr
 
   | PrefixExpr String Expr
   | InfixExpr Op Expr Expr

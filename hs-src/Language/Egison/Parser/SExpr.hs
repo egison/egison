@@ -138,7 +138,6 @@ expr' = try anonParamFuncExpr
                         <|> letStarExpr
                         <|> withSymbolsExpr
                         <|> doExpr
-                        <|> ioExpr
                         <|> matchAllExpr
                         <|> matchAllDFSExpr
                         <|> matchExpr
@@ -387,9 +386,6 @@ argName = try (ScalarArg <$> (char '$' >> argPattern))
 
 argPattern :: Parser ArgPattern
 argPattern = APPatVar <$> ident
-
-ioExpr :: Parser Expr
-ioExpr = keywordIo >> IoExpr <$> expr
 
 seqExpr :: Parser Expr
 seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr
@@ -663,7 +659,6 @@ reservedKeywords =
   , "match-lambda"
   , "matcher"
   , "do"
-  , "io"
   , "algebraic-data-matcher"
   , "generate-tensor"
   , "tensor"

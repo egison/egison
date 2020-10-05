@@ -151,7 +151,6 @@ instance Pretty Expr where
   pretty (DoExpr xs (ApplyExpr (VarExpr "return") [])) =
     pretty "do" <+> align (hsepHard (map prettyDoBinds xs))
   pretty (DoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyDoBinds xs ++ [pretty y]))
-  pretty (IoExpr x) = pretty "io" <+> pretty x
 
   pretty (SeqExpr e1 e2) = applyLike [pretty "seq", pretty' e1, pretty' e2]
   pretty (ApplyExpr x ys) = applyLike (map pretty' (x : ys))
