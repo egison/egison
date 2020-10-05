@@ -29,6 +29,16 @@ Primitive data pattern match failed
 ```
 def x := 1
 ```
+* `io` was previously defined as a syntastic constructs, but it is changed into a primitive function.
+Namely, users will need to wrap the arguments to `io` in a parenthesis, or insert `$` after `io`.
+```
+-- Invalid
+io isEof ()
+
+-- OK
+io (isEOF ())
+io $ isEOF ()
+```
 
 ## 4.0.3
 
