@@ -19,8 +19,6 @@ import           Data.Foldable             (toList)
 import           Data.IORef
 import           Text.Regex.TDFA           ((=~~))
 
-import           System.Process            (readProcess)
-
 import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
@@ -31,6 +29,7 @@ import qualified Data.Text                 as T
 import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
+import           Language.Egison.Core      (evalWHNF)
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection (makeICollection)
 import           Language.Egison.Eval
@@ -89,8 +88,6 @@ primitives =
   , ("addSubscript", addSubscript)
   , ("addSuperscript", addSuperscript)
 
-  , ("readProcess", readProcess')
-
   , ("read", read')
   , ("readTsv", readTSV)
   , ("show", show')
@@ -107,6 +104,7 @@ lazyPrimitives =
   [ ("tensorShape", tensorShape')
   , ("tensorToList", tensorToList')
   , ("dfOrder", dfOrder')
+  , ("io", io)
   ]
 
 --
@@ -146,6 +144,16 @@ dfOrder' = lazyOneArg dfOrder''
   dfOrder'' (ITensor (Tensor ns _ is)) =
     return $ Value (toEgison (fromIntegral (length ns - length is) :: Integer))
   dfOrder'' _ = return $ Value (toEgison (0 :: Integer))
+
+io :: String -> LazyPrimitiveFunc
+io = lazyOneArg io'
+  where
+    io' (Value (IOFunc m)) = do
+      val <- m >>= evalWHNF
+      case val of
+        Tuple [_, val'] -> return $ Value val'
+        _ -> throwError =<< TypeMismatch "io" (Value val) <$> getFuncNameStack
+    io' whnf = throwError =<< TypeMismatch "io" whnf <$> getFuncNameStack
 
 --
 -- String
@@ -219,17 +227,6 @@ addSuperscript = twoArgs $ \fn sub ->
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
-
-readProcess' :: String -> PrimitiveFunc
-readProcess' = threeArgs' $ \cmd args input ->
-  case (cmd, args, input) of
-    (String cmdStr, Collection argStrs, String inputStr) -> do
-      let cmd' = T.unpack cmdStr
-      let args' = map (\case String argStr -> T.unpack argStr) (toList argStrs)
-      let input' = T.unpack inputStr
-      outputStr <- liftIO $ readProcess cmd' args' input'
-      return (String (T.pack outputStr))
-    (_, _, _) -> throwError =<< TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input])) <$> getFuncNameStack
 
 read' :: String -> PrimitiveFunc
 read'= oneArg' $ \val -> do

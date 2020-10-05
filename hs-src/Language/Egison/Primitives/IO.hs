@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Language.Egison.Primitives.IO
   ( ioPrimitives
   ) where
@@ -7,6 +9,7 @@ import           Control.Monad.Except
 import           Data.IORef
 
 import           System.IO
+import           System.Process            (readProcess)
 import           System.Random             (getStdRandom, randomR)
 
 import qualified Data.Text                 as T
@@ -49,6 +52,8 @@ ioPrimitives =
   , ("newIORef",   newIORef')
   , ("writeIORef", writeIORef')
   , ("readIORef",  readIORef')
+
+  , ("readProcess", readProcess')
   ]
 
 makeIO :: EvalM EgisonValue -> EgisonValue
@@ -102,51 +107,45 @@ flushPort = oneArg' $ \val -> do
   return $ makeIO' $ liftIO $ hFlush port
 
 readChar :: String -> PrimitiveFunc
-readChar = noArg $ return $ makeIO $ liftIO $ fmap Char getChar
+readChar = noArg $ return $ makeIO $ liftIO (Char <$> getChar)
 
 readCharFromPort :: String -> PrimitiveFunc
 readCharFromPort = oneArg' $ \val -> do
   port <- fromEgison val
-  c <- liftIO $ hGetChar port
-  return $ makeIO $ return (Char c)
+  return . makeIO $ liftIO (Char <$> hGetChar port)
 
 readLine :: String -> PrimitiveFunc
-readLine = noArg $ return $ makeIO $ liftIO $ fmap toEgison T.getLine
+readLine = noArg $ return $ makeIO $ liftIO (toEgison <$> T.getLine)
 
 readLineFromPort :: String -> PrimitiveFunc
 readLineFromPort = oneArg' $ \val -> do
   port <- fromEgison val
-  s <- liftIO $ T.hGetLine port
-  return $ makeIO $ return $ toEgison s
+  return $ makeIO $ liftIO (toEgison <$> T.hGetLine port)
 
 readFile' :: String -> PrimitiveFunc
 readFile' =  oneArg' $ \val -> do
   filename <- fromEgison val
-  s <- liftIO $ T.readFile $ T.unpack filename
-  return $ makeIO $ return $ toEgison s
+  return $ makeIO $ liftIO (toEgison <$> T.readFile (T.unpack filename))
 
 isEOFStdin :: String -> PrimitiveFunc
-isEOFStdin = noArg $ return $ makeIO $ liftIO $ fmap Bool isEOF
+isEOFStdin = noArg $ return $ makeIO $ liftIO (Bool <$> isEOF)
 
 isEOFPort :: String -> PrimitiveFunc
 isEOFPort = oneArg' $ \val -> do
   port <- fromEgison val
-  b <- liftIO $ hIsEOF port
-  return $ makeIO $ return (Bool b)
+  return $ makeIO $ liftIO (Bool <$> hIsEOF port)
 
 randRange :: String -> PrimitiveFunc
 randRange = twoArgs' $ \val val' -> do
   i <- fromEgison val :: EvalM Integer
   i' <- fromEgison val' :: EvalM Integer
-  n <- liftIO $ getStdRandom $ randomR (i, i')
-  return $ makeIO $ return $ toEgison n
+  return $ makeIO $ liftIO (toEgison <$> getStdRandom (randomR (i, i')))
 
 randRangeDouble :: String -> PrimitiveFunc
 randRangeDouble = twoArgs' $ \val val' -> do
   i <- fromEgison val :: EvalM Double
   i' <- fromEgison val' :: EvalM Double
-  n <- liftIO $ getStdRandom $ randomR (i, i')
-  return $ makeIO $ return $ toEgison n
+  return $ makeIO $ liftIO (toEgison <$> getStdRandom (randomR (i, i')))
 
 newIORef' :: String -> PrimitiveFunc
 newIORef' = noArg $ do
@@ -161,5 +160,13 @@ writeIORef' = twoArgs $ \ref val -> do
 readIORef' :: String -> PrimitiveFunc
 readIORef' = oneArg $ \ref -> do
   ref' <- fromEgison ref
-  val <- liftIO $ readIORef ref'
-  return $ makeIO $ return val
+  return $ makeIO $ liftIO $ readIORef ref'
+
+readProcess' :: String -> PrimitiveFunc
+readProcess' = threeArgs' $ \cmd args input -> do
+  cmd'   <- T.unpack <$> fromEgison cmd
+  args'  <- map T.unpack <$> fromEgison args
+  input' <- T.unpack <$> fromEgison input
+  return $ makeIO $ do
+    outputStr <- liftIO $ readProcess cmd' args' input'
+    return (String (T.pack outputStr))

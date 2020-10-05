@@ -118,7 +118,6 @@ instance SyntaxElement Expr where
   toNonS (WedgeApplyExpr x ys) = WedgeApplyExpr (toNonS x) (map toNonS ys)
 
   toNonS (DoExpr xs y) = DoExpr (map toNonS xs) (toNonS y)
-  toNonS (IoExpr x)    = IoExpr (toNonS x)
 
   toNonS (SeqExpr e1 e2) = SeqExpr (toNonS e1) (toNonS e2)
   toNonS (ApplyExpr (VarExpr (lookupVarExprInfix -> Just op)) (y:ys)) =

@@ -167,7 +167,6 @@ exprInOp =
    <|> letExpr
    <|> withSymbolsExpr
    <|> doExpr
-   <|> ioExpr
    <|> seqExpr
    <|> capplyExpr
    <|> matcherExpr
@@ -305,9 +304,6 @@ doExpr = do
 
     oneLiner :: Parser [BindingExpr]
     oneLiner = braces $ sepBy statement (symbol ";")
-
-ioExpr :: Parser Expr
-ioExpr = IoExpr <$> (reserved "io" >> expr)
 
 seqExpr :: Parser Expr
 seqExpr = SeqExpr <$> (reserved "seq" >> atomExpr) <*> atomExpr
@@ -845,7 +841,6 @@ lowerReservedWords =
   , "with"
   , "matcher"
   , "do"
-  , "io"
   , "something"
   , "undefined"
   , "algebraicDataMatcher"

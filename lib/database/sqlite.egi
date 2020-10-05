@@ -35,4 +35,4 @@ def simpleWhere wheres :=
 --
 -- For SQLite
 --
-def pureSqlite db q := io sqlite db q
+def pureSqlite db q := io (sqlite db q)
