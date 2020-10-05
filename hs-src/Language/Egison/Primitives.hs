@@ -86,7 +86,6 @@ primitives =
   , ("regex", regexString)
   , ("regexCg", regexStringCaptureGroup)
 
-  , ("addPrime", addPrime)
   , ("addSubscript", addSubscript)
   , ("addSuperscript", addSuperscript)
 
@@ -202,13 +201,6 @@ regexStringCaptureGroup = twoArgs $ \pat src -> do
     Nothing -> return . Collection . Sq.fromList $ []
     Just ((x:xs):_) -> do let (a, c) = T.breakOn (T.pack x) srcStr
                           return . Collection . Sq.fromList $ [Tuple [String a, Collection (Sq.fromList (map (String . T.pack) xs)), String (T.drop (length x) c)]]
-
-addPrime :: String -> PrimitiveFunc
-addPrime = oneArg $ \sym ->
-  case sym of
-    ScalarData (SingleSymbol (Symbol id name is)) ->
-      return (ScalarData (SingleSymbol (Symbol id (name ++ "'") is)))
-    _ -> throwError =<< TypeMismatch "symbol" (Value sym) <$> getFuncNameStack
 
 addSubscript :: String -> PrimitiveFunc
 addSubscript = twoArgs $ \fn sub ->
