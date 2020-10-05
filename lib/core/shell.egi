@@ -1,7 +1,7 @@
 def SH.genInput sopts copts :=
-  if io isEof ()
+  if io $ isEof ()
     then []
-    else let line := io readLine ()
+    else let line := io $ readLine ()
              x := TSV.parseLine sopts copts line
           in seq x (x :: SH.genInput sopts copts)
 

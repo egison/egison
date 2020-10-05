@@ -279,10 +279,6 @@ desugar (MatchAllExpr pmmode expr0 expr1 clauses) =
 desugar (DoExpr binds expr) =
   IDoExpr <$> desugarBindings binds <*> desugar expr
 
-desugar (IoExpr expr) = do
-  expr' <- desugar expr
-  return $ makeIApply "io" [expr']
-
 desugar (PrefixExpr "-" expr) = do
   expr' <- desugar expr
   return $ makeIApply "*" [IConstantExpr (IntegerExpr (-1)), expr']

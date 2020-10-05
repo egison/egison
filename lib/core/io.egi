@@ -61,10 +61,10 @@ def each proc xs :=
 -- Debug
 --
 def debug %expr :=
-  io do print (show expr)
-        return expr
+  io $ do print (show expr)
+          return expr
 
 def debug2 %msg %expr :=
-  io do display msg
-        print (show expr)
-        return expr
+  io $ do display msg
+          print (show expr)
+          return expr

@@ -6,7 +6,7 @@
 
 def rands s e := pureRand s e :: rands s e
 
-def pureRand s e := io rand s e
+def pureRand s e := io (rand s e)
 
 def randomize xs :=
   let randomize' xs n :=
@@ -73,4 +73,4 @@ def R.set a :=
 
 def f.rands s e := f.pureRand s e :: f.rands s e
 
-def f.pureRand s e := io f.rand s e
+def f.pureRand s e := io (f.rand s e)
