@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Language.Egison.Primitives.IO
   ( ioPrimitives
   ) where
@@ -7,6 +9,7 @@ import           Control.Monad.Except
 import           Data.IORef
 
 import           System.IO
+import           System.Process            (readProcess)
 import           System.Random             (getStdRandom, randomR)
 
 import qualified Data.Text                 as T
@@ -49,6 +52,8 @@ ioPrimitives =
   , ("newIORef",   newIORef')
   , ("writeIORef", writeIORef')
   , ("readIORef",  readIORef')
+
+  , ("readProcess", readProcess')
   ]
 
 makeIO :: EvalM EgisonValue -> EgisonValue
@@ -163,3 +168,12 @@ readIORef' = oneArg $ \ref -> do
   ref' <- fromEgison ref
   val <- liftIO $ readIORef ref'
   return $ makeIO $ return val
+
+readProcess' :: String -> PrimitiveFunc
+readProcess' = threeArgs' $ \cmd args input -> do
+  cmd'   <- T.unpack <$> fromEgison cmd
+  args'  <- map T.unpack <$> fromEgison args
+  input' <- T.unpack <$> fromEgison input
+  return $ makeIO $ do
+    outputStr <- liftIO $ readProcess cmd' args' input'
+    return (String (T.pack outputStr))

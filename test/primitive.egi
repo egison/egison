@@ -113,10 +113,8 @@ assertEqual "regex" (regex "a*" "") [("", "", "")]
 
 assertEqual "regexCg" (regexCg "([0-9]+),([0-9]+)" "abc,123,45,defg") [("abc,", ["123", "45"], ",defg")]
 
--- addPrime
 -- addSubscript
 -- addSuperscript
--- readProcess
 
 assertEqual "read" (read "3")                3
 assertEqual "read" (read "3.14")             3.14

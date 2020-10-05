@@ -19,8 +19,6 @@ import           Data.Foldable             (toList)
 import           Data.IORef
 import           Text.Regex.TDFA           ((=~~))
 
-import           System.Process            (readProcess)
-
 import qualified Data.Sequence             as Sq
 import qualified Data.Vector               as V
 
@@ -90,8 +88,6 @@ primitives =
   , ("addPrime", addPrime)
   , ("addSubscript", addSubscript)
   , ("addSuperscript", addSuperscript)
-
-  , ("readProcess", readProcess')
 
   , ("read", read')
   , ("readTsv", readTSV)
@@ -239,17 +235,6 @@ addSuperscript = twoArgs $ \fn sub ->
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
-
-readProcess' :: String -> PrimitiveFunc
-readProcess' = threeArgs' $ \cmd args input ->
-  case (cmd, args, input) of
-    (String cmdStr, Collection argStrs, String inputStr) -> do
-      let cmd' = T.unpack cmdStr
-      let args' = map (\case String argStr -> T.unpack argStr) (toList argStrs)
-      let input' = T.unpack inputStr
-      outputStr <- liftIO $ readProcess cmd' args' input'
-      return (String (T.pack outputStr))
-    (_, _, _) -> throwError =<< TypeMismatch "(string, collection, string)" (Value (Tuple [cmd, args, input])) <$> getFuncNameStack
 
 read' :: String -> PrimitiveFunc
 read'= oneArg' $ \val -> do
