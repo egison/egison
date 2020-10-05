@@ -71,7 +71,6 @@ data IExpr
   | IQuoteSymbolExpr IExpr
   | IWedgeApplyExpr IExpr [IExpr]
   | IDoExpr [IBindingExpr] IExpr
-  | IIoExpr IExpr
   | ISeqExpr IExpr IExpr
   | IApplyExpr IExpr [IExpr]
   | ICApplyExpr IExpr IExpr

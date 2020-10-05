@@ -31,6 +31,7 @@ import qualified Data.Text                 as T
 import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
+import           Language.Egison.Core      (evalWHNF)
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection (makeICollection)
 import           Language.Egison.Eval
@@ -108,6 +109,7 @@ lazyPrimitives =
   [ ("tensorShape", tensorShape')
   , ("tensorToList", tensorToList')
   , ("dfOrder", dfOrder')
+  , ("io", io)
   ]
 
 --
@@ -147,6 +149,16 @@ dfOrder' = lazyOneArg dfOrder''
   dfOrder'' (ITensor (Tensor ns _ is)) =
     return $ Value (toEgison (fromIntegral (length ns - length is) :: Integer))
   dfOrder'' _ = return $ Value (toEgison (0 :: Integer))
+
+io :: String -> LazyPrimitiveFunc
+io = lazyOneArg io'
+  where
+    io' (Value (IOFunc m)) = do
+      val <- m >>= evalWHNF
+      case val of
+        Tuple [_, val'] -> return $ Value val'
+        _ -> throwError =<< TypeMismatch "io" (Value val) <$> getFuncNameStack
+    io' whnf = throwError =<< TypeMismatch "io" whnf <$> getFuncNameStack
 
 --
 -- String

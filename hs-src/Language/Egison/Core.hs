@@ -319,15 +319,6 @@ evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
     ILetExpr [(PDTuplePat (map PDPatVar [stringToVar "#1", stringToVar "#2"]), IApplyExpr expr [IVarExpr "#1"])] $
     ILetExpr [(names, IVarExpr "#2")] expr'
 
-evalExprShallow env (IIoExpr expr) = do
-  io <- evalExprShallow env expr
-  case io of
-    Value (IOFunc m) -> do
-      val <- m >>= evalWHNF
-      case val of
-        Tuple [_, val'] -> return $ Value val'
-    _ -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
-
 evalExprShallow env (IMatchAllExpr pmmode target matcher clauses) = do
   target <- evalExprShallow env target
   matcher <- evalExprShallow env matcher >>= evalMatcherWHNF
