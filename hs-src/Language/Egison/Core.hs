@@ -586,6 +586,9 @@ applyRef _ (Value (CFunc env name body)) refs = do
 applyRef _ (Value (PrimitiveFunc func)) refs = do
   vals <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   Value <$> func vals
+applyRef _ (Value (LazyPrimitiveFunc func)) refs = do
+  whnfs <- mapM evalRef refs
+  func whnfs
 applyRef _ (Value (IOFunc m)) refs = do
   args <- mapM evalRef refs
   case args of
