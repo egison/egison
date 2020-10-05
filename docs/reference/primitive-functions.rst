@@ -345,7 +345,7 @@ return
    Takes a pure value and return an IO function that returns the value.
    ::
 
-      io return 1 ---> 1
+      io (return 1) ---> 1
 
 openInputFile
    Takes a name of a file (string) and opens the file in read-only mode.
@@ -451,6 +451,13 @@ rand
 
 f.rand
    Float version of ``rand``.
+
+readProcess
+   Executes a shell command.
+   ::
+
+      io (readProcess "echo" ["hello"] "")
+      -- "hello\n"
 
 .. newIORef
 .. writeIORef
