@@ -517,23 +517,27 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
   isSubScript (VAntiSymmScripts xs) = isSubScript (head xs)
 
   genBindings :: VarIndex -> EvalM (String, [String], [BindingExpr])
-  genBindings (VSubscript x)    = return (x, [], [])
-  genBindings (VSuperscript x)  = return (x, [], [])
+  genBindings (VSubscript x) = do
+    singletonName <- fresh
+    return (singletonName, [], [Bind (PDPatVar singletonName) (CollectionExpr [VarExpr x])])
+  genBindings (VSuperscript x) = do
+    singletonName <- fresh
+    return (singletonName, [], [Bind (PDPatVar singletonName) (CollectionExpr [VarExpr x])])
   genBindings (VSymmScripts xs) = do
     (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
     let signs = concat signss
     let bindings = concat bindingss
-    sortedTensorName <- fresh
-    let newBindings = bindings ++ [Bind (PDTuplePat [PDWildCard, PDPatVar sortedTensorName]) (makeApply "sortWithSign" [CollectionExpr (map VarExpr names)])]
-    return (sortedTensorName, signs, newBindings)
+    sortedCollectionName <- fresh
+    let newBindings = bindings ++ [Bind (PDTuplePat [PDWildCard, PDPatVar sortedCollectionName]) (makeApply "sortWithSign" [CollectionExpr (map VarExpr names)])]
+    return (sortedCollectionName, signs, newBindings)
   genBindings (VAntiSymmScripts xs) = do
     (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
     let signs = concat signss
     let bindings = concat bindingss
-    sortedTensorName <- fresh
+    sortedCollectionName <- fresh
     signName <- fresh
-    let newBindings = bindings ++ [Bind (PDTuplePat [PDPatVar signName, PDPatVar sortedTensorName]) (makeApply "sortWithSign" [CollectionExpr (map VarExpr names)])]
-    return (sortedTensorName, signName : signs, newBindings)
+    let newBindings = bindings ++ [Bind (PDTuplePat [PDPatVar signName, PDPatVar sortedCollectionName]) (makeApply "sortWithSign" [CollectionExpr (map VarExpr names)])]
+    return (sortedCollectionName, signName : signs, newBindings)
 
 --
 -- Utils
