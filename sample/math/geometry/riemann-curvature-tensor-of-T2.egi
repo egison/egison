@@ -9,8 +9,8 @@ def X := [| '(a * cos θ + b) * cos φ -- x
 def e_i_j := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
-def g~i~j := M.inverse g_#_#
+def g{_i_j} := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
+def g{~i~j} := M.inverse g_#_#
 
 assertEqual "Metric tensor"
   g_#_#
@@ -20,7 +20,7 @@ assertEqual "Metric tensor"
   [| [| 1 / a^2, 0 |], [| 0, 1 / '(a * cos θ + b)^2 |] |]~#~#
 
 -- Christoffel symbols
-def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i{_j_k} := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 assertEqual "Christoffel symbols of the first kind"
   Γ_1_#_#
