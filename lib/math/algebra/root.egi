@@ -26,14 +26,12 @@ def rtMonomial n x :=
 def rtTerm n x :=
   match x as termExpr with
     | term $a _ ->
-      if a < 0 then rtm1 n *' rtPositiveTerm n (- x) else rtPositiveTerm n x
-  where
-    rtm1 n :=
-      match n as integer with
-        | #1 -> -1
-        | #2 -> i
-        | ?isOdd -> -1
-        | _ -> undefined
+      let rtm1 n := match n as integer with
+                    | #1 -> -1
+                    | #2 -> i
+                    | ?isOdd -> -1
+                    | _ -> undefined
+       in if a < 0 then rtm1 n *' rtPositiveTerm n (- x) else rtPositiveTerm n x
 
 def rtPositiveTerm n x :=
   match (n, x) as (mathExpr, mathExpr) with
