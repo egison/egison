@@ -52,7 +52,7 @@ def S.tail xs :=
 
 def S.last str :=
   match str as string with
-    | _ ++ $c :: [] -> c
+    | _ ++ [$c] -> c
 
 def S.map f xs := pack (map f (unpack xs))
 
