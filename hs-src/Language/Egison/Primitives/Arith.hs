@@ -1,6 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes       #-}
 
+{- |
+Module      : Language.Egison.Primitives.Arith
+Licence     : MIT
+
+This module implements arithmetic primitive functions.
+-}
+
 module Language.Egison.Primitives.Arith
   ( primitiveArithFunctions
   ) where

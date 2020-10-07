@@ -1,5 +1,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 
+{- |
+Module      : Language.Egison.Math.Expr
+Licence     : MIT
+
+This module implements the normalization of polynomials. Normalization rules
+for particular mathematical functions (such as sqrt and sin/cos) are defined
+in Rewrite.hs.
+-}
+
 module Language.Egison.Math.Normalize
   ( mathNormalize'
   , termsGcd

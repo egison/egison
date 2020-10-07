@@ -1,3 +1,8 @@
+{- |
+Module      : Language.Egison.Primitives.Utils
+Licence     : MIT
+-}
+
 module Language.Egison.Primitives.Utils
   ( noArg
   , oneArg

@@ -1,5 +1,12 @@
 {-# LANGUAGE QuasiQuotes #-}
 
+{- |
+Module      : Language.Egison.Math.Rewrite
+Licence     : MIT
+
+This module implements rewrite rules for common mathematical functions.
+-}
+
 module Language.Egison.Math.Rewrite
   ( rewriteSymbol
   ) where

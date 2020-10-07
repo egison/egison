@@ -1,3 +1,10 @@
+{- |
+Module      : Language.Egison.Primitives.String
+Licence     : MIT
+
+This module implements primitive functions that operates on / returns strings.
+-}
+
 module Language.Egison.Primitives.String
   ( primitiveStringFunctions
   ) where

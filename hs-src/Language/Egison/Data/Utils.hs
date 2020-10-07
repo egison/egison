@@ -1,3 +1,10 @@
+{- |
+Module      : Language.Egison.Data.Utils
+Licence     : MIT
+
+This module provides some helper functions for handling Egison data.
+-}
+
 module Language.Egison.Data.Utils
   ( evalRef
   , evalObj

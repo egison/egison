@@ -1,5 +1,13 @@
 {-# LANGUAGE TupleSections   #-}
 
+{- |
+Module      : Language.Egison.Data.Collection
+Licence     : MIT
+
+This module provides some helper functions that operates on / returns
+collections.
+-}
+
 module Language.Egison.Data.Collection
   ( expandCollection
   , isEmptyCollection
