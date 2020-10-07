@@ -2,7 +2,7 @@ def m := 3
 
 def A :=
   generateTensor
-    (\match as (integer, integer) with
+    (\x y -> match (x, y) as (integer, integer) with
       | (#1, _) -> 1
       | ($x, #(x - 1)) -> 1
       | (_, _) -> 0)
@@ -13,9 +13,7 @@ A
 
 def B :=
   generateTensor
-    (\match as integer with
-      | #1 -> 1
-      | _ -> 0)
+    (\x -> if x = 1 then 1 else 0)
     [m]
 
 B

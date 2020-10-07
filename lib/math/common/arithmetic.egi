@@ -51,8 +51,6 @@ def (/) $x $y :=
     | #(False, True) -> f./ (itof x) y
     | _              -> x /' y
 
-def reduceFraction := id
-
 def sum xs := foldl (+) 0 xs
 def sum' xs := foldl (+') 0 xs
 

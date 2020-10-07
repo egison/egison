@@ -4,17 +4,17 @@
 --
 --
 
-def solve1 f expr x := inverse expr f x
-
 def solve eqs := solve' eqs []
+  where
+    solve1 f expr x := inverse expr f x
 
-def solve' eqs rets :=
-  match eqs as list (mathExpr, mathExpr, symbolExpr) with
-    | [] -> rets
-    | ($f, $expr, $x) :: $rs ->
-      solve'
-        rs
-        (rets ++ [(x, solve1 (substitute rets f) (substitute rets expr) x)])
+    solve' eqs rets :=
+      match eqs as list (mathExpr, mathExpr, symbolExpr) with
+        | [] -> rets
+        | ($f, $expr, $x) :: $rs ->
+          solve'
+            rs
+            (rets ++ [(x, solve1 (substitute rets f) (substitute rets expr) x)])
 
 --
 -- Quadratic Equations

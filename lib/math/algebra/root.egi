@@ -26,7 +26,12 @@ def rtMonomial n x :=
 def rtTerm n x :=
   match x as termExpr with
     | term $a _ ->
-      if a < 0 then rtm1 n *' rtPositiveTerm n (- x) else rtPositiveTerm n x
+      let rtm1 n := match n as integer with
+                    | #1 -> -1
+                    | #2 -> i
+                    | ?isOdd -> -1
+                    | _ -> undefined
+       in if a < 0 then rtm1 n *' rtPositiveTerm n (- x) else rtPositiveTerm n x
 
 def rtPositiveTerm n x :=
   match (n, x) as (mathExpr, mathExpr) with
@@ -34,36 +39,29 @@ def rtPositiveTerm n x :=
     | (_, $a * #sqrt $b * $r) -> rt (n * 2) (a ^' 2 *' b) *' rt n r
     | (_, $a * #rt $n' $b * $r) -> rt (n * n') (a ^' n' *' b) *' rt n r
     | (_, _) -> rtPositiveTerm1 n x
-
-def rtPositiveTerm1 n x :=
-  let f xs :=
-        match xs as assocMultiset mathExpr with
-          | [] -> (1, 1)
-          | ncons $p $k $rs ->
-            let (a, b) := f rs
-             in (p ^' quotient k n *' a, p ^' (k % n) *' b)
-      g n x :=
-        let d := match x as termExpr with
-                   | term $m $xs ->
-                     gcd n (reduce gcd (map snd (toAssoc (pF m) ++ xs)))
-         in rt'' (n / d) (rt d x)
-   in match x as termExpr with
-        | term $m $xs ->
-          match f (toAssoc (pF (abs m)) ++ xs) as (integer, integer) with
-            | ($a, #1) -> a
-            | ($a, $b) -> a *' g n b
+  where
+    rtPositiveTerm1 n x :=
+      let f xs :=
+            match xs as assocMultiset mathExpr with
+              | [] -> (1, 1)
+              | ncons $p $k $rs ->
+                let (a, b) := f rs
+                 in (p ^' quotient k n *' a, p ^' (k % n) *' b)
+          g n x :=
+            let d := match x as termExpr with
+                       | term $m $xs ->
+                         gcd n (reduce gcd (map snd (toAssoc (pF m) ++ xs)))
+             in rt'' (n / d) (rt d x)
+       in match x as termExpr with
+            | term $m $xs ->
+              match f (toAssoc (pF (abs m)) ++ xs) as (integer, integer) with
+                | ($a, #1) -> a
+                | ($a, $b) -> a *' g n b
 
 def rt'' n x :=
   match (n, x) as (integer, integer) with
     | (#2, _) -> `sqrt x
     | (_, _) -> `rt n x
-
-def rtm1 n :=
-  match n as integer with
-    | #1 -> -1
-    | #2 -> i
-    | ?isOdd -> -1
-    | _ -> undefined
 
 def sqrt x :=
   if isScalar x
@@ -74,9 +72,7 @@ def sqrt x :=
 
 def rtOfUnity := rtu
 
-def rtu n := rtu' n
-
-def rtu' n :=
+def rtu n :=
   if isInteger n
     then match n as integer with
       | #1 -> 1

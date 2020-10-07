@@ -71,7 +71,3 @@ def multivariateTaylorExpansion $f %xs %ys :=
 
 def multivariateMaclaurinExpansion $f %xs :=
   multivariateTaylorExpansion f xs (tensorMap 1#0 xs)
-
-def addUserScript $f $i :=
-  let (g, is) := deconsUserScripts f
-   in appendUserScripts g (sort (is ++ [i]))
