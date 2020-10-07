@@ -3,6 +3,13 @@
 {-# LANGUAGE DeriveTraversable  #-}
 {-# LANGUAGE FlexibleInstances  #-}
 
+{- |
+Module      : Language.Egison.IExpr
+Licence     : MIT
+
+This module defines internal representation of Egison language.
+-}
+
 module Language.Egison.IExpr
   ( ITopExpr (..)
   , IExpr (..)

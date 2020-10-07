@@ -1,3 +1,11 @@
+{- |
+Module      : Language.Egison.Math.Arith
+Licence     : MIT
+
+This module defines some basic arithmetic operations for Egison's computer
+algebra system.
+-}
+
 module Language.Egison.Math.Arith
   ( mathPlus
   , mathMinus

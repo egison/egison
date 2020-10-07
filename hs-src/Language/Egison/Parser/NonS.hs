@@ -5,7 +5,7 @@
 Module      : Language.Egison.Parser.NonS
 Licence     : MIT
 
-This module provides the new parser of Egison.
+This module provides the parser for the new syntax.
 -}
 
 module Language.Egison.Parser.NonS

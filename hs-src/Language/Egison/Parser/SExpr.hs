@@ -6,7 +6,7 @@
 Module      : Language.Egison.Parser.SExpr
 Licence     : MIT
 
-This module provides Egison parser.
+This module implements the parser for the old S-expression syntax.
 -}
 
 module Language.Egison.Parser.SExpr

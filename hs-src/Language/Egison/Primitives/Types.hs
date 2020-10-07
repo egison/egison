@@ -1,8 +1,9 @@
 {- |
-Module      : Language.Egison.Types
+Module      : Language.Egison.Primitives.Types
 Licence     : MIT
 
-This module contains functions for dynamic type systems.
+This module implements primitive functions that dynamically checks the types of
+objects.
 -}
 
 module Language.Egison.Primitives.Types

@@ -1,4 +1,11 @@
-{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE PatternSynonyms #-}
+
+{- |
+Module      : Language.Egison.Math
+Licence     : MIT
+
+This module provides the interface of Egison's computer algebra system.
+-}
 
 module Language.Egison.Math
   ( ScalarData (..)

@@ -1,3 +1,10 @@
+{- |
+Module      : Language.Egison.Primitives.IO
+Licence     : MIT
+
+This module implements primitive functions that performs IO operations.
+-}
+
 module Language.Egison.Primitives.IO
   ( ioPrimitives
   ) where

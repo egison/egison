@@ -4,10 +4,11 @@
 {-# LANGUAGE QuasiQuotes           #-}
 
 {- |
-Module      : Language.Egison.MathExpr
+Module      : Language.Egison.Math.Expr
 Licence     : MIT
 
-This module contains functions for mathematical expressions.
+This module defines the internal representation of mathematic objects such as
+polynominals, and some useful patterns.
 -}
 
 module Language.Egison.Math.Expr

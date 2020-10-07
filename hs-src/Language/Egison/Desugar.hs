@@ -4,7 +4,7 @@
 Module      : Language.Egison.Desugar
 Licence     : MIT
 
-This module provide desugar functions.
+This module provides desugar functions.
 -}
 
 module Language.Egison.Desugar
