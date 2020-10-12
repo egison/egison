@@ -22,74 +22,83 @@ import           Language.Egison.Primitives.Utils
 
 primitiveTypeFunctions :: [(String, EgisonValue)]
 primitiveTypeFunctions =
-  map (\(name, fn) -> (name, PrimitiveFunc (fn name))) strictPrimitives
+  map (\(name, fn) -> (name, PrimitiveFunc (fn name))) strictPrimitives ++
+    map (\(name, fn) -> (name, LazyPrimitiveFunc (fn name))) lazyPrimitives
 
 strictPrimitives :: [(String, String -> PrimitiveFunc)]
 strictPrimitives =
-  [ ("isBool",       oneArg' isBool)
-  , ("isInteger",    oneArg' isInteger)
-  , ("isRational",   oneArg' isRational)
-  , ("isScalar",     oneArg' isScalar)
-  , ("isFloat",      oneArg' isFloat)
-  , ("isChar",       oneArg' isChar)
-  , ("isString",     oneArg' isString)
-  , ("isCollection", oneArg' isCollection)
-  , ("isHash",       oneArg' isHash)
-  , ("isTensor",     oneArg' isTensor)
-
-  , ("itof", integerToFloat)
+  [ ("itof", integerToFloat)
   , ("rtof", rationalToFloat)
   , ("ctoi", charToInteger)
   , ("itoc", integerToChar)
+  ]
+
+lazyPrimitives :: [(String, String -> LazyPrimitiveFunc)]
+lazyPrimitives =
+  [ ("isBool",       lazyOneArg isBool)
+  , ("isInteger",    lazyOneArg isInteger)
+  , ("isRational",   lazyOneArg isRational)
+  , ("isScalar",     lazyOneArg isScalar)
+  , ("isFloat",      lazyOneArg isFloat)
+  , ("isChar",       lazyOneArg isChar)
+  , ("isString",     lazyOneArg isString)
+  , ("isCollection", lazyOneArg isCollection)
+  , ("isHash",       lazyOneArg isHash)
+  , ("isTensor",     lazyOneArg isTensor)
   ]
 
 --
 -- Typing
 --
 
-isBool :: EgisonValue -> EvalM EgisonValue
-isBool (Bool _) = return $ Bool True
-isBool _        = return $ Bool False
+isBool :: WHNFdata -> EvalM WHNFData
+isBool (Value (Bool _)) = return . Value $ Bool True
+isBool _                = return . Value $ Bool False
 
-isInteger :: EgisonValue -> EvalM EgisonValue
-isInteger (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = return $ Bool True
-isInteger (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = return $ Bool True
-isInteger _                                                        = return $ Bool False
+isInteger :: WHNFData -> EvalM WHNFData
+isInteger (Value (ScalarData (Div (Plus []) (Plus [Term 1 []]))))          = return . Value $ Bool True
+isInteger (Value (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []])))) = return . Value $ Bool True
+isInteger _                                                                = return . Value $ Bool False
 
-isRational :: EgisonValue -> EvalM EgisonValue
-isRational (ScalarData (Div (Plus []) (Plus [Term _ []])))          = return $ Bool True
-isRational (ScalarData (Div (Plus [Term _ []]) (Plus [Term _ []]))) = return $ Bool True
-isRational _                                                        = return $ Bool False
+isRational :: WHNFData -> EvalM WHNFData
+isRational (Value (ScalarData (Div (Plus []) (Plus [Term _ []]))))          = return . Value $ Bool True
+isRational (Value (ScalarData (Div (Plus [Term _ []]) (Plus [Term _ []])))) = return . Value $ Bool True
+isRational _                                                                = return . Value $ Bool False
 
-isScalar :: EgisonValue -> EvalM EgisonValue
-isScalar (ScalarData _) = return $ Bool True
-isScalar _              = return $ Bool False
+isScalar :: WHNFData -> EvalM WHNFData
+isScalar (Value (ScalarData _)) = return . Value $ Bool True
+isScalar _                      = return . Value $ Bool False
 
-isTensor :: EgisonValue -> EvalM EgisonValue
-isTensor (TensorData _) = return $ Bool True
-isTensor _              = return $ Bool False
+isTensor :: WHNFData -> EvalM WHNFData
+isTensor (Value (TensorData _)) = return . Value $ Bool True
+isTensor (ITensor _)            = return . Value $ Bool True
+isTensor _                      = return . Value $ Bool False
 
-isFloat :: EgisonValue -> EvalM EgisonValue
-isFloat (Float _) = return $ Bool True
-isFloat _         = return $ Bool False
+isFloat :: WHNFData -> EvalM WHNFData
+isFloat (Value (Float _)) = return . Value $ Bool True
+isFloat _                 = return . Value $ Bool False
 
-isChar :: EgisonValue -> EvalM EgisonValue
-isChar (Char _) = return $ Bool True
-isChar _        = return $ Bool False
+isChar :: WHNFData -> EvalM WHNFData
+isChar (Value (Char _)) = return . Value $ Bool True
+isChar _                = return . Value $ Bool False
 
-isString :: EgisonValue -> EvalM EgisonValue
-isString (String _) = return $ Bool True
-isString _          = return $ Bool False
+isString :: WHNFData -> EvalM WHNFData
+isString (Value (String _)) = return . Value $ Bool True
+isString _                  = return . Value $ Bool False
 
-isCollection :: EgisonValue -> EvalM EgisonValue
-isCollection (Collection _) = return $ Bool True
-isCollection _              = return $ Bool False
+isCollection :: WHNFData -> EvalM WHNFData
+isCollection (Value (Collection _)) = return . Value $ Bool True
+isCollection (ICollection _)        = return . Value $ Bool True
+isCollection _                      = return . Value $ Bool False
 
-isHash :: EgisonValue -> EvalM EgisonValue
-isHash (IntHash _)  = return $ Bool True
-isHash (CharHash _) = return $ Bool True
-isHash (StrHash _)  = return $ Bool True
-isHash _            = return $ Bool False
+isHash :: WHNFData -> EvalM WHNFData
+isHash (Value (IntHash _))  = return . Value $ Bool True
+isHash (Value (CharHash _)) = return . Value $ Bool True
+isHash (Value (StrHash _))  = return . Value $ Bool True
+isHash (IIntHash _)         = return . Value $ Bool True
+isHash (ICharHash _)        = return . Value $ Bool True
+isHash (IStrHash _)         = return . Value $ Bool True
+isHash _                    = return $ Bool False
 
 --
 -- Transform
