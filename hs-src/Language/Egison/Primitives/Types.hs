@@ -51,7 +51,7 @@ lazyPrimitives =
 -- Typing
 --
 
-isBool :: WHNFdata -> EvalM WHNFData
+isBool :: WHNFData -> EvalM WHNFData
 isBool (Value (Bool _)) = return . Value $ Bool True
 isBool _                = return . Value $ Bool False
 
@@ -98,7 +98,7 @@ isHash (Value (StrHash _))  = return . Value $ Bool True
 isHash (IIntHash _)         = return . Value $ Bool True
 isHash (ICharHash _)        = return . Value $ Bool True
 isHash (IStrHash _)         = return . Value $ Bool True
-isHash _                    = return $ Bool False
+isHash _                    = return . Value $ Bool False
 
 --
 -- Transform
