@@ -347,6 +347,17 @@ return
 
       io (return 1) ---> 1
 
+
+.. _io-primitive-function:
+
+io
+    Takes an IO function and executes it. This is similar to the ``unsafePerformIO`` in Haskell.
+    ::
+
+       > io (print "hoge")
+       hoge
+       ()
+
 openInputFile
    Takes a name of a file (string) and opens the file in read-only mode.
    Returns a port of the opened file.

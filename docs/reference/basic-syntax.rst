@@ -267,20 +267,6 @@ The last expression in a ``do`` block is interpreted as the evaluation result of
    > io do { return 1; return 2; return 3 }
    3
 
-.. _io-expression:
-
-``io`` expression
------------------
-
-An ``io`` expression takes an IO function and executes it.
-This is similar to the ``unsafePerformIO`` in Haskell.
-
-::
-
-   > io print "hoge"
-   hoge
-   ()
-
 ``seq`` expression
 ------------------
 

@@ -87,14 +87,12 @@ Note that ``write "input: "``, ``flush ()``, ``readLine ()`` and ``write input``
 
 Check out :ref:`do-expression` for more detail.
 
-``io`` expressions
-==================
+``io`` primitive function
+=========================
 
-We can use ``io`` expression to execute IO functions anywhere.
+We can use ``io`` (primitive function) to execute IO functions anywhere.
 For example, the following is a definition of the ``pureRand`` function in ``lib/core/io.egi``.
 
 ::
 
-   pureRand s e := io rand s e
-
-Check out :ref:`io-expression` for more detail.
+   pureRand s e := io (rand s e)

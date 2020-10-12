@@ -202,7 +202,7 @@ IO Function
 
 IO functions are functions that will yield IO operation when executed.
 
-Any IO functions can be executed with :ref:`io expressions<io-expression>`.
+Any IO functions can be executed with a primitive function :ref:`io<io-primitive-function>`.
 
 ::
 
