@@ -523,8 +523,16 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
   genBindings (VSuperscript x) = return (CollectionExpr [VarExpr x], [], [])
   genBindings (VGroupScripts xs) = do
     (indices, signss, bindingss) <- unzip3 <$> mapM genBindings xs
-    let newIndices = makeApply "concat" [CollectionExpr indices]
+    let newIndices =
+          -- If indices are all CollectionExpr, we can calculate the concatenated result of them
+          case allCollections indices of
+            Just xs -> CollectionExpr xs
+            Nothing -> makeApply "concat" [CollectionExpr indices]
     return (newIndices, concat signss, concat bindingss)
+    where
+      allCollections []                          = Just []
+      allCollections (CollectionExpr xs : exprs) = (xs ++) <$> allCollections exprs
+      allCollections _                           = Nothing
   genBindings (VSymmScripts xs) = do
     (indices, signss, bindingss) <- unzip3 <$> mapM genBindings xs
     let signs = concat signss
