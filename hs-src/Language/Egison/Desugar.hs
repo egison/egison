@@ -483,6 +483,7 @@ desugarDefineWithIndices (VarWithIndices name is) expr = do
 extractSubSupIndex :: VarIndex -> [(Bool, String)]
 extractSubSupIndex (VSubscript x)   = [(True, x)]
 extractSubSupIndex (VSuperscript x) = [(False, x)]
+extractSubSupIndex (VGroupScripts xs)    = concatMap extractSubSupIndex xs
 extractSubSupIndex (VSymmScripts xs)     = concatMap extractSubSupIndex xs
 extractSubSupIndex (VAntiSymmScripts xs) = concatMap extractSubSupIndex xs
 
@@ -511,8 +512,9 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
   makeRefsExpr False expr name = SuprefsExpr True expr (VarExpr name)
 
   isSubScript :: VarIndex -> Bool
-  isSubScript VSubscript{}   = True
-  isSubScript VSuperscript{} = False
+  isSubScript VSubscript{}          = True
+  isSubScript VSuperscript{}        = False
+  isSubScript (VGroupScripts xs)    = isSubScript (head xs)
   isSubScript (VSymmScripts xs)     = isSubScript (head xs)
   isSubScript (VAntiSymmScripts xs) = isSubScript (head xs)
 
@@ -523,6 +525,13 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
   genBindings (VSuperscript x) = do
     singletonName <- fresh
     return (singletonName, [], [Bind (PDPatVar singletonName) (CollectionExpr [VarExpr x])])
+  genBindings (VGroupScripts xs) = do
+    (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
+    let signs = concat signss
+    let bindings = concat bindingss
+    collectionName <- fresh
+    let newBindings = bindings ++ [Bind (PDPatVar collectionName) (makeApply "concat" [CollectionExpr (map VarExpr names)])]
+    return (collectionName, signs, newBindings)
   genBindings (VSymmScripts xs) = do
     (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
     let signs = concat signss
@@ -551,6 +560,7 @@ extractIndexExpr (Userscript x)   = x
 extractIndexExpr _                = error "extractIndexExpr: Not supported"
 
 isExtendedIndice :: VarIndex -> Bool
-isExtendedIndice VSubscript{}   = False
-isExtendedIndice VSuperscript{} = False
-isExtendedIndice _              = True
+isExtendedIndice VSubscript{}       = False
+isExtendedIndice VSuperscript{}     = False
+isExtendedIndice (VGroupScripts xs) = isExtendedIndice (head xs)
+isExtendedIndice _                  = True

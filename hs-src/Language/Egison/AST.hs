@@ -142,6 +142,7 @@ data ArgPattern
 data VarIndex
   = VSubscript String
   | VSuperscript String
+  | VGroupScripts [VarIndex]
   | VSymmScripts [VarIndex]
   | VAntiSymmScripts [VarIndex]
   deriving Show

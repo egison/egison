@@ -685,6 +685,7 @@ varWithIndicesLiteral' =
 varIndex :: Parser VarIndex
 varIndex = (char '_' >> VSubscript <$> ident')
        <|> (char '~' >> VSuperscript <$> ident')
+       <|> parens (VGroupScripts <$> some varIndex)
        <|> braces (VSymmScripts <$> some varIndex)
        <|> brackets (VAntiSymmScripts <$> some varIndex)
 
