@@ -502,14 +502,14 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
   f [] expr signs bindings =
     return $ LetRecExpr bindings (makeApply "product" [CollectionExpr (map VarExpr signs ++ [expr])])
   f (index:indices) expr signs bindings = do
-    (name, signs', bindings') <- genBindings index
+    (indices', signs', bindings') <- genBindings index
     let isSub = isSubScript index
-    f indices (makeRefsExpr isSub expr name)
+    f indices (makeRefsExpr isSub expr indices')
       (signs ++ signs') (bindings ++ bindings')
 
-  makeRefsExpr :: Bool -> Expr -> String -> Expr
-  makeRefsExpr True  expr name = SubrefsExpr True expr (VarExpr name)
-  makeRefsExpr False expr name = SuprefsExpr True expr (VarExpr name)
+  makeRefsExpr :: Bool -> Expr -> Expr -> Expr
+  makeRefsExpr True  expr indices = SubrefsExpr True expr indices
+  makeRefsExpr False expr indices = SuprefsExpr True expr indices
 
   isSubScript :: VarIndex -> Bool
   isSubScript VSubscript{}          = True
@@ -518,35 +518,28 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
   isSubScript (VSymmScripts xs)     = isSubScript (head xs)
   isSubScript (VAntiSymmScripts xs) = isSubScript (head xs)
 
-  genBindings :: VarIndex -> EvalM (String, [String], [BindingExpr])
-  genBindings (VSubscript x) = do
-    singletonName <- fresh
-    return (singletonName, [], [Bind (PDPatVar singletonName) (CollectionExpr [VarExpr x])])
-  genBindings (VSuperscript x) = do
-    singletonName <- fresh
-    return (singletonName, [], [Bind (PDPatVar singletonName) (CollectionExpr [VarExpr x])])
+  genBindings :: VarIndex -> EvalM (Expr, [String], [BindingExpr])
+  genBindings (VSubscript x)   = return (CollectionExpr [VarExpr x], [], [])
+  genBindings (VSuperscript x) = return (CollectionExpr [VarExpr x], [], [])
   genBindings (VGroupScripts xs) = do
-    (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
-    let signs = concat signss
-    let bindings = concat bindingss
-    collectionName <- fresh
-    let newBindings = bindings ++ [Bind (PDPatVar collectionName) (makeApply "concat" [CollectionExpr (map VarExpr names)])]
-    return (collectionName, signs, newBindings)
+    (indices, signss, bindingss) <- unzip3 <$> mapM genBindings xs
+    let newIndices = makeApply "concat" [CollectionExpr indices]
+    return (newIndices, concat signss, concat bindingss)
   genBindings (VSymmScripts xs) = do
-    (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
+    (indices, signss, bindingss) <- unzip3 <$> mapM genBindings xs
     let signs = concat signss
     let bindings = concat bindingss
     sortedCollectionName <- fresh
-    let newBindings = bindings ++ [Bind (PDTuplePat [PDWildCard, PDPatVar sortedCollectionName]) (makeApply "sortWithSign" [CollectionExpr (map VarExpr names)])]
-    return (sortedCollectionName, signs, newBindings)
+    let newBindings = bindings ++ [Bind (PDTuplePat [PDWildCard, PDPatVar sortedCollectionName]) (makeApply "sortWithSign" [CollectionExpr indices])]
+    return (VarExpr sortedCollectionName, signs, newBindings)
   genBindings (VAntiSymmScripts xs) = do
-    (names, signss, bindingss) <- unzip3 <$> mapM genBindings xs
+    (indices, signss, bindingss) <- unzip3 <$> mapM genBindings xs
     let signs = concat signss
     let bindings = concat bindingss
     sortedCollectionName <- fresh
     signName <- fresh
-    let newBindings = bindings ++ [Bind (PDTuplePat [PDPatVar signName, PDPatVar sortedCollectionName]) (makeApply "sortWithSign" [CollectionExpr (map VarExpr names)])]
-    return (sortedCollectionName, signName : signs, newBindings)
+    let newBindings = bindings ++ [Bind (PDTuplePat [PDPatVar signName, PDPatVar sortedCollectionName]) (makeApply "sortWithSign" [CollectionExpr indices])]
+    return (VarExpr sortedCollectionName, signName : signs, newBindings)
 
 --
 -- Utils
