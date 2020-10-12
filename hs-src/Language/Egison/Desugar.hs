@@ -503,20 +503,18 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
     return $ LetRecExpr bindings (makeApply "product" [CollectionExpr (map VarExpr signs ++ [expr])])
   f (index:indices) expr signs bindings = do
     (indices', signs', bindings') <- genBindings index
-    let isSub = isSubScript index
-    f indices (makeRefsExpr isSub expr indices')
-      (signs ++ signs') (bindings ++ bindings')
+    let isSubs = subOrSupScripts index
+    symbols <- mapM (const fresh) isSubs
+    let is = zipWith (\x isSub -> (if isSub then Subscript else Superscript) (VarExpr x)) symbols isSubs
+    f indices (IndexedExpr True expr is)
+      (signs ++ signs') (bindings ++ bindings' ++ [Bind (foldr PDConsPat PDEmptyPat (map PDPatVar symbols)) indices'])
 
-  makeRefsExpr :: Bool -> Expr -> Expr -> Expr
-  makeRefsExpr True  expr indices = SubrefsExpr True expr indices
-  makeRefsExpr False expr indices = SuprefsExpr True expr indices
-
-  isSubScript :: VarIndex -> Bool
-  isSubScript VSubscript{}          = True
-  isSubScript VSuperscript{}        = False
-  isSubScript (VGroupScripts xs)    = isSubScript (head xs)
-  isSubScript (VSymmScripts xs)     = isSubScript (head xs)
-  isSubScript (VAntiSymmScripts xs) = isSubScript (head xs)
+  subOrSupScripts :: VarIndex -> [Bool]
+  subOrSupScripts VSubscript{}          = [True]
+  subOrSupScripts VSuperscript{}        = [False]
+  subOrSupScripts (VGroupScripts xs)    = concatMap subOrSupScripts xs
+  subOrSupScripts (VSymmScripts xs)     = concatMap subOrSupScripts xs
+  subOrSupScripts (VAntiSymmScripts xs) = concatMap subOrSupScripts xs
 
   genBindings :: VarIndex -> EvalM (Expr, [String], [BindingExpr])
   genBindings (VSubscript x)   = return (CollectionExpr [VarExpr x], [], [])
