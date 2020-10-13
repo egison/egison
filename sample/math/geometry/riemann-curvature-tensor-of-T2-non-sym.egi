@@ -9,8 +9,8 @@ def X := [| '(a * cos θ + b) * cos φ -- x
 def e_i_j := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g{_i_j} := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
-def g{~i~j} := M.inverse g_#_#
+def g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
+def g~i~j := M.inverse g_#_#
 
 assertEqual "Metric tensor"
   g_#_#
@@ -20,7 +20,7 @@ assertEqual "Metric tensor"
   [| [| 1 / a^2, 0 |], [| 0, 1 / '(a * cos θ + b)^2 |] |]~#~#
 
 -- Christoffel symbols
-def Γ_i{_j_k} := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 assertEqual "Christoffel symbols of the first kind"
   Γ_1_#_#
@@ -29,7 +29,7 @@ assertEqual "Christoffel symbols of the first kind"
   Γ_2_#_#
   [| [| 0, -1 * '(a * cos θ + b) * a * sin θ |], [| -1 * '(a * cos θ + b) * a * sin θ, 0 |] |]_#_#
 
-def Γ~i{_j_k} := withSymbols [m]
+def Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
 
 assertEqual "Christoffel symbols of the second kind"
@@ -57,7 +57,7 @@ assertEqual "riemann curvature"
   [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
 -- Riemann curvature 2
-def R{[_i_j][_k_l]} := withSymbols [m] g_i_m . R~m_j_k_l
+def R_i_j_k_l := withSymbols [m] g_i_m . R~m_j_k_l
 
 assertEqual "riemann curvature"
   R_#_#_1_1
@@ -73,7 +73,7 @@ assertEqual "riemann curvature"
   [| [| 0, 0 |], [| 0, 0 |] |]_#_#
 
 -- Ricci curvature
-def Ric[_i_j] := withSymbols [m]
+def Ric_i_j := withSymbols [m]
   sum (contract R~m_i_m_j)
 
 -- Scalar curvature
