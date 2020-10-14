@@ -25,6 +25,8 @@ def Γ~i[_j_k] := withSymbols [m]
 def R~i_j[_k_l] := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
+--R~#_#_#_#
+
 --def R{[_a_b][_c_d]} := withSymbols [i] g_a_i . R~i_b_c_d
 
 -- Ricci curvature
@@ -37,23 +39,16 @@ Ric_#_# -- 7.422 sec
 def scalarCurvature := withSymbols [i, j]
   g~i~j . Ric_i_j
 
---;;
---;; Conformal curvature tensor
---;;
---
---(define $C_i_k_l_m
---  (+ (. R_i_k_l_m)
---     (+ (- (. Ric_i_m g_k_l) (. Ric_i_l g_k_m))
---        (- (. Ric_k_l g_i_m) (. Ric_k_m g_i_l)))
---     (* (/ scalar-curvature 2) (- (. g_i_l g_k_m) (. g_i_m g_k_l)))))
---
+-- Conformal curvature tensor
+def C_i_k_l_m := R_i_k_l_m +
+                 (Ric_i_m . g_k_l - Ric_i_l . g_k_m + Ric_k_l . g_i_m - Ric_k_m . g_i_l) +
+                 (scalarCurvature / 2) * (g_i_l . g_k_m - g_i_m . g_k_l)
 --C_#_#_#_#
---
---;;
---;; Wodzicki-Chern-Simons class
---;;
---
---(let {[[$es $os] (even-and-odd-permutations 5)]}
---  (- (sum (map (lambda [$σ] (. R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) es))
---     (sum (map (lambda [$σ] (. R~u_1_s_(σ 1) R~s_t_(σ 3)_(σ 2) R~t_u_(σ 5)_(σ 4))) os))))
---;0
+
+-- Wodzicki-Chern-Simons class
+def S :=
+ let (es, os) := evenAndOddPermutations 5 in
+   sum (map (\σ -> R~u_1_s_(σ 1) . R~s_t_(σ 3)_(σ 2) . R~t_u_(σ 5)_(σ 4)) es) -
+   sum (map (\σ -> R~u_1_s_(σ 1) . R~s_t_(σ 3)_(σ 2) . R~t_u_(σ 5)_(σ 4)) os)
+
+--S -- 0 -- 16.957 sec
