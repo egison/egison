@@ -9,7 +9,6 @@ cabal.sandbox.config
 egison.prof
 euler/
 test.egi
-stack.yaml
 stack.yaml.lock
 .stack-work
 docs/_build
