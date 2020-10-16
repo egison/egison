@@ -2,11 +2,9 @@
 
 ## Latest
 
+## 4.1.0
+### New Features
 * Enabled user-defined infixes for expressions and patterns: <https://egison.readthedocs.io/en/latest/reference/basic-syntax.html#infix-declaration>
-* Added a command line option `--no-normalize` to turn off math normalization implemented in the standard math library.
-* Revived TSV input options: <https://egison.readthedocs.io/en/latest/reference/command-line-options.html#reading-tsv-input>
-* Reimplemented math normalization, which was originally implemented in Egison, to the interpreter in Haskell. This led to a huge speedup of some of the mathematical programs.
-* Deprecated `redefine`.
 * Allowed `let` expression to decompose data. Unlike `match` expressions (of Egison), this does not require matchers and the decomposition pattern is limited.
 ```
 > let (x :: _) := [1, 2, 3] in x
@@ -25,10 +23,18 @@ Primitive data pattern match failed
 > let add x y := x + y in map (add 1) [1, 2, 3]
 [2, 3, 4]
 ```
-* Change syntax to start definitions with `def` keyword.
+* Huge speedup in mathematical programs:
+    * Reimplemented math normalization, which was originally implemented in Egison, to the interpreter in Haskell.
+    * Implemented lazy evaluation on tensor elements.
+* Added new syntax for symmetric / anti-symmetric tensors.
+
+### Backward-incompatible Changes
+
+* Changed the syntax to start definitions with `def` keyword.
 ```
 def x := 1
 ```
+
 * `io` was previously defined as a syntastic constructs, but it is changed into a primitive function.
 Namely, users will need to wrap the arguments to `io` in a parenthesis, or insert `$` after `io`.
 ```
@@ -39,6 +45,11 @@ io isEof ()
 io (isEOF ())
 io $ isEOF ()
 ```
+
+### Miscellaneous
+* Added a command line option `--no-normalize` to turn off math normalization implemented in the standard math library.
+* Revived TSV input options: <https://egison.readthedocs.io/en/latest/reference/command-line-options.html#reading-tsv-input>
+* Deprecated `redefine`.
 
 ## 4.0.3
 
