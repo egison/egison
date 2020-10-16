@@ -11,8 +11,9 @@ This module provides functions to evaluate various objects.
 -}
 
 module Language.Egison.Core
-    -- * Egison code evaluation
-    ( evalExprShallow
+    (
+    -- * Evaluation
+      evalExprShallow
     , evalExprDeep
     , evalWHNF
     -- * Environment
@@ -675,7 +676,7 @@ recursiveMatchBind env bindings = do
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
     forM_ binds $ \(var, objref) -> do
-      -- |obj| is an Object being bound to |var|.
+      -- Get an Object |obj| being bound to |var|.
       obj <- liftIO $ readIORef objref
       let ref = fromJust (refVar env' var)
       liftIO $ writeIORef ref obj

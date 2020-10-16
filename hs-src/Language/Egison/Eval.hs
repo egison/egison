@@ -6,8 +6,9 @@ This module provides interface for evaluating Egison expressions.
 -}
 
 module Language.Egison.Eval
+  (
   -- * Eval Egison expressions
-  ( evalExpr
+    evalExpr
   , evalTopExpr
   , evalTopExprStr
   , evalTopExprs
