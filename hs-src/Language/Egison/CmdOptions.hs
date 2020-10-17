@@ -11,9 +11,11 @@ module Language.Egison.CmdOptions
   , cmdParser
   ) where
 
-import           Data.Char           (isDigit)
+import           Data.Functor        (($>))
 import           Data.List           (intercalate)
+import           Data.Maybe          (maybeToList)
 import           Options.Applicative
+import qualified Text.Parsec as P
 
 data EgisonOpts = EgisonOpts {
     optExecFile         :: Maybe (String, [String]),
@@ -61,7 +63,7 @@ cmdArgParser = EgisonOpts
                   <> long "command"
                   <> metavar "EXPR"
                   <> help "Execute the argument string"))
-            <*> many (readFieldOption <$> strOption
+            <*> many (option readFieldOption
                   (short 'F'
                   <> long "field"
                   <> metavar "FIELD"
@@ -124,21 +126,22 @@ cmdArgParser = EgisonOpts
                   (long "no-normalize"
                   <> help "Turn off normalization of math expressions")
 
-readFieldOption :: String -> (String, String)
-readFieldOption str =
-  let (s, c) = readFieldOption' str in (f s, f c)
-    where
-      f x = "[" ++ intercalate ", " x ++ "]"
-      readFieldOption' str =
-        let (s, rs) = span isDigit str in
-        case rs of
-          ',':rs' -> let (e, opts) = span isDigit rs' in
-                     case opts of
-                       ['s'] -> ([s, e], [])
-                       ['c'] -> ([], [s, e])
-                       ['s', 'c'] -> ([s, e], [s, e])
-                       ['c', 's'] -> ([s, e], [s, e])
-          ['s'] -> ([s], [])
-          ['c'] -> ([], [s])
-          ['s', 'c'] -> ([s], [s])
-          ['c', 's'] -> ([s], [s])
+readFieldOption :: ReadM (String, String)
+readFieldOption = eitherReader $ \str ->
+  case P.parse parseFieldOption "(argument)" str of
+    Left err -> Left $ show err
+    Right ok -> Right ok
+
+parseFieldOption :: P.Parsec String () (String, String)
+parseFieldOption = do
+  s <- P.many1 P.digit
+  e <- P.optionMaybe (P.char ',' >> P.many1 P.digit)
+  let se = s : maybeToList e
+  (rs, rc)
+    <-  P.try (P.string "sc") $> (se, se)
+    <|> P.try (P.string "cs") $> (se, se)
+    <|> P.try (P.string "s" ) $> (se, [])
+    <|> P.try (P.string "c" ) $> ([], se)
+  P.eof
+  let f x = "[" ++ intercalate ", " x ++ "]"
+  return (f rs, f rc)
