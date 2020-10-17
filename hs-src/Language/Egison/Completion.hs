@@ -9,9 +9,9 @@ module Language.Egison.Completion
   ( completeEgison
   ) where
 
-import           Data.HashMap.Strict        (keys)
+import           Data.HashMap.Strict         (keys)
 import           Data.List
-import           System.Console.Haskeline    hiding (catch, handle, throwTo)
+import           System.Console.Haskeline    (Completion (..), CompletionFunc, completeWord)
 
 import           Language.Egison.Data        (Env (..))
 import           Language.Egison.IExpr       (Var (..))

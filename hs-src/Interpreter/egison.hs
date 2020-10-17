@@ -2,28 +2,29 @@
 
 module Main where
 
-import           Control.Exception          (AsyncException (..))
-import           Control.Monad.Catch        (catch)
+import           Control.Exception                (AsyncException (..))
+import           Control.Monad.Catch              (catch)
 import           Control.Monad.Except
 import           Control.Monad.Reader
 
-import           Data.List                  (intercalate)
-import qualified Data.Text                  as T
+import           Data.List                        (intercalate)
+import qualified Data.Text                        as T
 
 import           Data.Version
 
-import           System.Console.Haskeline   hiding (catch, handle, throwTo)
+import           System.Console.Haskeline         (InputT, getInputLine, getHistory, putHistory,
+                                                   runInputT, Settings (..))
 import           System.Console.Haskeline.History (addHistoryUnlessConsecutiveDupe)
-import           System.Directory           (getHomeDirectory)
-import           System.Exit                (exitFailure, exitSuccess)
-import           System.FilePath            ((</>))
+import           System.Directory                 (getHomeDirectory)
+import           System.Exit                      (exitFailure, exitSuccess)
+import           System.FilePath                  ((</>))
 import           System.IO
-import           Text.Regex.TDFA            ((=~))
+import           Text.Regex.TDFA                  ((=~))
 
 import           Language.Egison
 import           Language.Egison.Completion
 import           Language.Egison.Eval
-import           Language.Egison.Parser     (parseTopExpr)
+import           Language.Egison.Parser           (parseTopExpr)
 
 import           Options.Applicative
 
@@ -119,7 +120,11 @@ showByebyeMessage :: IO ()
 showByebyeMessage = putStrLn "Leaving Egison Interpreter."
 
 settings :: MonadIO m => FilePath -> Env -> Settings m
-settings home env = setComplete (completeEgison env) $ defaultSettings { historyFile = Just (home </> ".egison_history"), autoAddHistory = False }
+settings home env =
+  Settings { complete       = completeEgison env
+           , historyFile    = Just (home </> ".egison_history")
+           , autoAddHistory = False
+           }
 
 repl :: Env -> RuntimeM ()
 repl env = (do
