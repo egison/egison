@@ -79,7 +79,7 @@ handleOption env opts =
       liftIO $ either print (const $ return ()) result
     -- Execute a script from the main function
     EgisonOpts { optExecFile = Just (file, args) } -> do
-      result <- fromEvalT $ evalTopExprs env [LoadFile file, Execute (makeApply "main" (map (ConstantExpr . StringExpr . T.pack) args))]
+      result <- fromEvalT $ evalTopExprs env [LoadFile file, Execute (makeApply "main" [CollectionExpr (map (ConstantExpr . StringExpr . T.pack) args)])]
       liftIO $ either print (const $ return ()) result
     EgisonOpts { optMapTsvInput = Just expr } ->
       handleOption env (opts { optSubstituteString = Just $ "\\x -> map (" ++ expr ++ ") x" })
