@@ -191,7 +191,7 @@ As a result, note the following behavior.
 
 ::
 
-   x := 3
+   def x := 3
 
    let y := x
        x := 1
