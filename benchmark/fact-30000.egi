@@ -1,4 +1,4 @@
-fact :=
+def fact :=
   \match as integer with
     | #1 -> 1
     | $x -> x * fact (x - 1)
