@@ -61,7 +61,7 @@ When there is only one match clause, we can omit the ``|`` before the match clau
 
    matchAll target as matcher with pattern -> body
 
-   
+
 The following is an example of pattern matching with multiple results.
 ``++`` is called **join pattern**, which splits a list into two segments.
 The ``matchAll`` evaluates the body for every possible matching result of the join pattern.
@@ -97,7 +97,7 @@ This ``matchAll`` extracts all twin primes from this infinite list of prime numb
 
 ::
 
-   twinPrimes := matchAll primes as list integer with
+   def twinPrimes := matchAll primes as list integer with
      | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 
    take 8 twinPrimes
@@ -111,7 +111,7 @@ A predicate pattern is prepended with ``?``, and a unary predicate follows after
 
 ::
 
-   twinPrimes := matchAll primes as list integer with
+   def twinPrimes := matchAll primes as list integer with
      | _ ++ $p :: ?(\q -> q = p + 2) :: _ -> (p, p + 2)
 
 
@@ -202,7 +202,7 @@ If we use ``matchAll``, the outcome will be the alternation of the elements in t
 
 ::
 
-   concat' xss := matchAll xss as list (list something) with
+   def concat' xss := matchAll xss as list (list something) with
      | _ ++ (_ ++ $x :: _) :: _ -> x
 
    concat' [[1,2,3],[4,5,6],[7,8,9]]
@@ -212,7 +212,7 @@ To fix this, we should use ``matchAllDFS`` instead.
 
 ::
 
-   concat xss := matchAllDFS xss as list (list something) with
+   def concat xss := matchAllDFS xss as list (list something) with
      | _ ++ (_ ++ $x :: _) :: _ -> x
 
    concat [[1,2,3],[4,5,6],[7,8,9]]
@@ -236,7 +236,7 @@ This usage of and-pattern is similar to the as-pattern in Haskell.
 
 ::
 
-   primeTriples := matchAll primes as list integer with
+   def primeTriples := matchAll primes as list integer with
      | _ ++ $p :: ((#(p + 2) | #(p + 4)) & $m) :: #(p + 6) :: _
      -> (p, m, p + 6)
 
@@ -267,7 +267,7 @@ It can be written using ``matchAll`` as follows.
 
 ::
 
-   comb2 xs := matchAll xs as list something with
+   def comb2 xs := matchAll xs as list something with
      | _ ++ $x_1 :: _ ++ $x_2 :: _ -> [x_1, x_2]
 
    comb2 [1,2,3,4] -- [[1,2],[1,3],[2,3],[1,4],[2,4],[3,4]]
@@ -283,7 +283,7 @@ Now, we generalize ``comb2``. The loop patterns can be used for this purpose.
 
 ::
 
-   comb n xs := matchAll xs as list something with
+   def comb n xs := matchAll xs as list something with
      | loop $i                 -- index variable
             (1, n)             -- index range
             (_ ++ $x_i :: ...) -- repeat pattern
@@ -366,7 +366,7 @@ Such combination of sequential patterns and not patterns is often useful when wr
 
 ::
 
-   singleCommonElem :=
+   def singleCommonElem :=
      match (xs, ys) as (multiset eq, multiset eq) with
        | [($x :: @, #x :: @),
          !($y :: _, #y :: _)] -> True
@@ -397,7 +397,7 @@ This is necessary for distinguishing variable patterns from nullary pattern cons
 
 ::
 
-   twin := \pat1 pat2 => (~pat1 & $x) :: #x :: ~pat2
+   def twin := \pat1 pat2 => (~pat1 & $x) :: #x :: ~pat2
 
    match [1, 1, 2, 3] as list integer with
    | twin $n $ns -> [n, ns]
@@ -421,7 +421,7 @@ For example, we can define the intersect function using a matcher for tuples of 
 
 ::
 
-   intersect xs ys := matchAll (xs,ys) as (multiset eq, multiset eq) with
+   def intersect xs ys := matchAll (xs,ys) as (multiset eq, multiset eq) with
      | ($x :: _, #x :: _) -> x
 
 ``eq`` is a user-defined matcher for data types for which equality is defined.
@@ -431,14 +431,14 @@ For example, we can define a matcher for a graph as a set of edges as follows, w
 
 ::
 
-   graph := multiset (integer, integer)
+   def graph := multiset (integer, integer)
 
 A matcher for adjacency graphs can also be defined.
 An adjacency graph is defined as a multiset of tuples of an integer and a multiset of integers.
 
 ::
 
-   adjacencyGraph := multiset (integer, multiset integer)
+   def adjacencyGraph := multiset (integer, multiset integer)
 
 Egison provides a handy syntactic sugar for defining a matcher for algebraic data types,
 while it can also be defined with ``matcher`` expressions.
@@ -446,7 +446,7 @@ For example, a matcher for binary trees can be defined using ``algebraicDataMatc
 
 ::
 
-   binaryTree a := algebraicDataMatcher
+   def binaryTree a := algebraicDataMatcher
      | bLeaf a
      | bNode a (binaryTree a) (binaryTree a)
 
@@ -457,6 +457,6 @@ For example, we can define a matcher for trees whose nodes have an arbitrary num
 
 ::
 
-   tree a := algebraicDataMatcher
+   def tree a := algebraicDataMatcher
      | leaf a
      | node a (multiset (tree a))

@@ -14,7 +14,7 @@ Let's start this tutorial by greeting the world. The following is the "Hello wor
 ::
 
    -- Save this code as a "hello.egi" file
-   main args :=
+   def main args :=
      write "Hello, World!\n"
 
 We can execute the above program as follows.
@@ -38,7 +38,7 @@ For instance, assume the following program.
 ::
 
    -- Save this code as a "args.egi" file
-   main args :=
+   def main args :=
      write (show args)
 
 If you execute the following commands, you will see that the arguments are given to ``main`` as ``args``.
@@ -60,7 +60,7 @@ If you know Haskell, you probably notice that it is the same with the ``do`` exp
 ::
 
    -- Save this code as a "repl.egi" file
-   repl := do
+   def repl := do
      write "input: "
      flush ()
      let input := readLine ()
@@ -68,7 +68,7 @@ If you know Haskell, you probably notice that it is the same with the ``do`` exp
      print ""
      repl
 
-   main args := repl
+   def main args := repl
 
 Then, execute it as follow.
 Note that ``write "input: "``, ``flush ()``, ``readLine ()`` and ``write input`` are executed in the order.
@@ -95,4 +95,4 @@ For example, the following is a definition of the ``pureRand`` function in ``lib
 
 ::
 
-   pureRand s e := io (rand s e)
+   def pureRand s e := io (rand s e)

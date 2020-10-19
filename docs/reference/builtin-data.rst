@@ -156,7 +156,7 @@ The :math:`i`-th element of a tensor ``t`` can be retrieved by ``t_i``. Note tha
 
 ::
 
-   t := [| 1, 2, 3, 4, 5 |]
+   def t := [| 1, 2, 3, 4, 5 |]
 
    t_1 ---> 1
 
