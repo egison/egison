@@ -57,12 +57,24 @@ Category:            Compilers/Interpreters
 Build-type:          Simple
 Cabal-version:       2.0
 
-Extra-Source-Files:  benchmark/Benchmark.hs
+Data-files:          lib/core/*.egi
+                     lib/math/*.egi
+                     lib/math/common/*.egi
+                     lib/math/algebra/*.egi
+                     lib/math/analysis/*.egi
+                     lib/math/geometry/*.egi
 
-Data-files:          lib/core/shell.egi
-                     lib/core/*.egi lib/math/*.egi lib/math/common/*.egi lib/math/algebra/*.egi lib/math/analysis/*.egi lib/math/geometry/*.egi
+Extra-source-files:  README.md
+                     Changelog.md
+                     benchmark/Benchmark.hs
+                     benchmark/*.egi
+                     test/lib/math/*.egi
+                     test/lib/core/*.egi
+                     sample/*.egi
+                     sample/sat/*.egi
+                     sample/math/geometry/*.egi
+                     sample/math/number/*.egi
                      elisp/egison-mode.el
-
 
 source-repository head
   type: git
