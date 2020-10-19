@@ -38,7 +38,7 @@ Note that the statements (such as definitions and ``loadFile``) are not expressi
 ::
 
    $ cat name-of-file-to-test.egi
-   x := 1
+   def x := 1
    x + 2
    "This is the third line"
 
@@ -53,7 +53,7 @@ Command line arguments are given to the ``main`` function as a collection of str
 ::
 
    $ cat name-of-file-to-run.egi
-   main args :=
+   def main args :=
       print "Hello, world!"
 
    $ egison name-of-file-to-run.egi

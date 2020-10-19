@@ -15,11 +15,11 @@ When defining functions, the argument variable can be placed in the left hand si
 
 ::
 
-   x := 1
+   def x := 1
 
    -- The following two definitions are identical.
-   f := \x -> x + 1
-   f x := x + 1
+   def f := \x -> x + 1
+   def f x := x + 1
 
 Expression
 ----------
@@ -30,8 +30,8 @@ These expressions are evaluated only when the ``-t`` option (see :ref:`command-o
 ::
 
    -- definitions
-   x := 1
-   y := 2
+   def x := 1
+   def y := 2
 
    -- A top-level expression which will evaluate to 3.
    x + y
@@ -67,14 +67,14 @@ In Egison, infix declaration consists of the following 4 parts.
    infixr expression 5 &&
 
    -- Definition of the semantics of '&&'.
-   (&&) a b := match (a, b) as (eq, eq) with
+   def (&&) a b := match (a, b) as (eq, eq) with
                  | (#True, #True) -> True
                  | _              -> False
 
    -- Define a left-associative infix '<>' of priority 7.
    infixl pattern 7 <>
 
-   exampleMatcher := matcher
+   def exampleMatcher := matcher
      | $ <> $ as (integer, integer) with
        | $x :: $y :: [] -> [(x, y)]
        | _              -> []
@@ -191,7 +191,7 @@ As a result, note the following behavior.
 
 ::
 
-   x := 3
+   def x := 3
 
    let y := x
        x := 1
@@ -243,7 +243,7 @@ Note that all the lines in the ``do`` block must be aligned vertically.
 
 ::
 
-   repl := do
+   def repl := do
      write ">>> "
      flush ()
      let line := readLine ()
@@ -278,7 +278,7 @@ The most popular use case of seq is in the definition of the foldl function.
 
 ::
 
-   foldl $fn $init $ls :=
+   def foldl $fn $init $ls :=
      match ls as list something with
        | [] -> init
        | $x :: $xs ->
