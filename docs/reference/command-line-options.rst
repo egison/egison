@@ -9,7 +9,7 @@ Load definitions from the given file.
 ::
 
    $ cat name-of-file-to-load.egi
-   x := 1
+   def x := 1
 
    $ egison -l name-of-file-to-load.egi
    > x
@@ -25,7 +25,7 @@ Evaluate expressions in the given file.
 ::
 
    $ cat name-of-file-to-test.egi
-   x := 1
+   def x := 1
    x + 2
    "This is the third line"
 

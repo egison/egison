@@ -122,7 +122,7 @@ The application of pattern functions is written in the same manner as the applic
 ::
 
    -- Defining a pattern function 'twin'
-   twin := \ pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
+   def twin := \ pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
 
    matchAll [1, 2, 1, 3] as multiset integer with twin $n _ -> n
    ---> [1, 1]
@@ -289,13 +289,13 @@ A not-pattern ``!p`` matches with the object if the object does not match the pa
    ---> True
 
    -- Returns True if and only if the collection does not contain 1
-   f :=
+   def f :=
      \match as multiset integer with
       | !(#1 :: _) -> True
       | _          -> False
 
    -- Returns True if and only if the collection has an element other than 1
-   g :=
+   def g :=
      \match as multiset integer with
       | !#1 :: _ -> True
       | _        -> False
@@ -324,7 +324,7 @@ The variables bound in the ``let`` pattern can be used in the body of the ``let`
 
 ::
 
-   f x :=
+   def f x :=
      match x as multiset integer with
      | let n := length x in #n :: #n :: _ -> True
      | _                                  -> False
@@ -367,7 +367,7 @@ This ``unorderedIntegerPair`` matcher can be defined as follows.
 
 ::
 
-   unorderedIntegerPair :=
+   def unorderedIntegerPair :=
      matcher
        | pair $ $ as (integer, integer) with
          | ($x, $y) -> [(x, y), (y, x)]
@@ -390,7 +390,7 @@ For example, ``unorderedPair`` for an arbitrary matcher can be defined as follow
 
 ::
 
-   unorderedPair m :=
+   def unorderedPair m :=
      matcher
        | pair $ $ as (m, m) with
          | ($x, $y) -> [(x, y), (y, x)]
@@ -412,7 +412,7 @@ The first identifiers in each line of the ``algebraicDataMatcher`` (``var``, ``a
 
 ::
 
-   term :=
+   def term :=
      algebraicDataMatcher
        | var string       -- variable
        | abs string term  -- lambda abstraction
@@ -422,7 +422,7 @@ The above definition is desugared into the following one:
 
 ::
 
-   term :=
+   def term :=
      matcher
        | var $ as string with
          | Var $x -> [x]
