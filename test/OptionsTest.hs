@@ -13,11 +13,11 @@ main :: IO ()
 main = defaultMain . hUnitTestToTests . test $ TestList
     [ TestLabel "load-file option" . TestCase $ assertEgisonCmd
         (interpreter "1\n")
-        ["--load-file", "test/fixture/name-of-file-to-load.egi"]
+        ["--load-file", "test/fixture/a.egi"]
         "x"
     , TestLabel "load-file option" . TestCase $ assertEgisonCmd
         "3\n\"This is the third line\"\n"
-        ["--test", "test/fixture/name-of-file-to-test.egi"]
+        ["--test", "test/fixture/b.egi"]
         ""
     , TestLabel "eval option" . TestCase $ assertEgisonCmd
         "[[], [1], [1, 2], [1, 2, 3]]\n"
