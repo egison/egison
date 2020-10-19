@@ -7,9 +7,7 @@ import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
 
 import           Language.Egison
-import           Language.Egison.Eval
 import           Language.Egison.MathOutput
-import           Language.Egison.Parser
 
 main :: IO ()
 main = do
