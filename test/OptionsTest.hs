@@ -15,7 +15,7 @@ main = defaultMain . hUnitTestToTests . test $ TestList
         (interpreter "1\n")
         ["--load-file", "test/fixture/a.egi"]
         "x"
-    , TestLabel "load-file option" . TestCase $ assertEgisonCmd
+    , TestLabel "test option" . TestCase $ assertEgisonCmd
         "3\n\"This is the third line\"\n"
         ["--test", "test/fixture/b.egi"]
         ""
