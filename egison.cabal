@@ -161,6 +161,22 @@ Test-Suite test
   autogen-modules: Paths_egison
   ghc-options:  -Wall -Wno-name-shadowing
 
+Test-Suite test-cli
+  default-language:    Haskell2010
+  Type:           exitcode-stdio-1.0
+  Hs-Source-Dirs: test
+  Main-Is:        OptionsTest.hs
+  Build-Depends:
+      egison
+    , base >= 4.0 && < 5
+    , process
+    , HUnit
+    , test-framework
+    , test-framework-hunit
+  Other-modules:   Paths_egison
+  autogen-modules: Paths_egison
+  ghc-options:  -Wall -Wno-name-shadowing
+
 Benchmark benchmark
   default-language:    Haskell2010
   Type: exitcode-stdio-1.0
