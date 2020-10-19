@@ -170,6 +170,7 @@ Benchmark benchmark
       egison
     , base >= 4.0 && < 5
     , criterion >= 0.5
+    , transformers
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
   ghc-options:  -Wall -Wno-name-shadowing

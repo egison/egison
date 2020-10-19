@@ -1,10 +1,10 @@
-countEvens n l :=
+def countEvens n l :=
   match l as list integer with
     | ?isEven :: $tl -> countEvens (n + 1) tl
     | _ :: $tl -> countEvens n tl
     | [] -> n
 
-testNumbers :=
+def testNumbers :=
   let from n := if n <= 0 then [0] else n :: from (n - 1)
    in from 10000
 

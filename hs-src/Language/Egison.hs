@@ -8,6 +8,8 @@ This is the top module of Egison.
 module Language.Egison
        ( module Language.Egison.AST
        , module Language.Egison.Data
+       , module Language.Egison.Eval
+       , module Language.Egison.Parser
        , module Language.Egison.Primitives
        -- * Modules needed to execute Egison
        , module Language.Egison.CmdOptions
@@ -28,6 +30,7 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Data
 import           Language.Egison.Eval
+import           Language.Egison.Parser
 import           Language.Egison.Primitives
 import           Language.Egison.RState
 
