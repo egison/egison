@@ -59,6 +59,10 @@ main = defaultMain . hUnitTestToTests . test $ TestList
         (interpreter "3\n")
         ["--sexpr-syntax"]
         "(+ 1 2)"
+    , TestLabel "execute main function" . TestCase $ assertEgisonCmd
+        "[\"a\", \"b\", \"c\"]\n"
+        ["test/fixture/c.egi", "a", "b", "c"]
+        ""
     ]
 
 assertEgisonCmd
