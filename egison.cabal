@@ -68,6 +68,7 @@ Extra-source-files:  README.md
                      Changelog.md
                      benchmark/Benchmark.hs
                      benchmark/*.egi
+                     test/fixture/*.egi
                      test/lib/math/*.egi
                      test/lib/core/*.egi
                      sample/*.egi
