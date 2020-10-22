@@ -1,8 +1,8 @@
-resolver: nightly-2020-10-16
+resolver: lts-16.19
 
 packages:
 - .
 
 extra-deps:
 - backtracking-0.1.0@sha256:ccfa0a7ab8b70d383fced32b0474b4b51b607ca38d85ce1ef5846ca650502054,1825
-- sweet-egison-0.1.1.2
+- sweet-egison-0.1.1.3@sha256:b890af689a6faad908bebe3478d6b9f820ad5f216a078f7b9280d051095937a8,3734
