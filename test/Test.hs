@@ -1,8 +1,9 @@
 module Main where
 
 import           Control.Monad.Trans.Class      (lift)
+import           System.Environment             (getArgs)
 
-import           Test.Framework                 (defaultMain)
+import           Test.Framework                 (defaultMainWithArgs)
 import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
 
@@ -12,7 +13,8 @@ import           Language.Egison.MathOutput
 main :: IO ()
 main = do
   t <- evalRuntimeT defaultOption mathOutputTest
-  defaultMain . hUnitTestToTests . test $ t : map runTestCase testCases
+  args <- getArgs
+  flip defaultMainWithArgs args . hUnitTestToTests . test $ t : map runTestCase testCases
 
 testCases :: [FilePath]
 testCases =
