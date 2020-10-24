@@ -717,3 +717,16 @@ assertEqual "let pattern match"
 assertEqual "let pattern match"
   (let (x, y) := (2, 3) in x + y)
   5
+
+-- Functions to become binary operator (of infixl 7) when surrounded with 2 backquotes
+assertEqual "function to become binary operator"
+  (10 `modulo` 4 + 5)
+  7
+
+assertEqual "function to become binary operator with space"
+  (10` modulo `4)
+  2
+
+assertEqual "function to become binary operator with section"
+  ((`modulo` 4) 10)
+  2
