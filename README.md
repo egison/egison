@@ -332,17 +332,13 @@ Enjoy!
 
 ## Notes for Developers
 
-### How to Build
+You can build Egison as follows:
 ```
 $ stack init
 $ stack build --fast
 ```
 
-### How to Run Test
-```
-$ stack init
-$ stack test
-```
+For testing, see [test/README.md](test/README.md).
 
 ## Community
 
