@@ -8,7 +8,7 @@ print
    Prints the given string and a newline to the standard output.
    ::
 
-      > io print "foo"
+      > io (print "foo")
       foo
       ()
 
@@ -23,7 +23,7 @@ display
    Prints the given string to the standard output.
    ::
 
-      > io display "foo"
+      > io (display "foo")
       foo()
 
 displayToPort

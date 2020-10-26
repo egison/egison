@@ -20,11 +20,11 @@ Just typing ``egison`` starts the REPL (read-eval-print loop) of the interpreter
    $ egison
 
 You can load definitions from a file by passing ``-l`` option.
-The following example is equivalent to starting the REPL and then executing ``loadFile "name-of-file-to-load.egi"``.
+The following example is equivalent to starting the REPL and then executing ``loadFile "foo.egi"``.
 
 ::
 
-   $ egison -l name-of-file-to-load.egi
+   $ egison -l foo.egi
 
 
 Executing a program in files
@@ -37,12 +37,12 @@ Note that the statements (such as definitions and ``loadFile``) are not expressi
 
 ::
 
-   $ cat name-of-file-to-test.egi
+   $ cat foo.egi
    def x := 1
    x + 2
    "This is the third line"
 
-   $ egison -t name-of-file-to-test.egi
+   $ egison -t foo.egi
    3
    "This is the third line"
 
@@ -52,9 +52,11 @@ Command line arguments are given to the ``main`` function as a collection of str
 
 ::
 
-   $ cat name-of-file-to-run.egi
-   def main args :=
+   $ cat foo.egi
+   def main args := do
       print "Hello, world!"
+      print (show args)
 
-   $ egison name-of-file-to-run.egi
+   $ egison foo.egi a b c
    Hello, world!
+   ["a", "b", "c"]
