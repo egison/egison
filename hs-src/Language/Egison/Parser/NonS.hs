@@ -23,8 +23,9 @@ import           Control.Monad.State            (get, gets, put)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
+import           Data.Function                  (on)
 import           Data.Functor                   (($>))
-import           Data.List                      (groupBy, insertBy)
+import           Data.List                      (groupBy, insertBy, sortOn)
 import           Data.Maybe                     (isJust, isNothing)
 import           Data.Text                      (pack)
 
@@ -186,7 +187,8 @@ opExpr = do
 makeExprTable :: [Op] -> [[Operator Parser Expr]]
 makeExprTable ops =
   -- Generate binary operator table from |ops|
-  map (map toOperator) (groupBy (\x y -> priority x == priority y) ops)
+  reverse $ map (map snd) $ groupBy ((==) `on` fst) $ sortOn fst $
+    (infixFuncOpPriority, infixFuncOperator) : map (\op -> (priority op, toOperator op)) ops
   where
     -- notFollowedBy (in unary and binary) is necessary for section expression.
     unary :: String -> Parser (Expr -> Expr)
@@ -206,6 +208,17 @@ makeExprTable ops =
         E.InfixR -> InfixR (binary op)
         E.InfixN -> InfixN (binary op)
         E.Prefix -> Prefix (unary (repr op))
+
+    infixFuncOperator :: Operator Parser Expr
+    infixFuncOperator = InfixL $ InfixExpr <$> infixFuncOp
+
+infixFuncOp :: Parser Op
+infixFuncOp = do
+  func <- try (indented >> between (symbol "`") (symbol "`") ident)
+  return $ Op { repr = func, priority = infixFuncOpPriority, assoc = E.InfixL, isWedge = False }
+
+infixFuncOpPriority :: Int
+infixFuncOpPriority = 7
 
 ifExpr :: Parser Expr
 ifExpr = reserved "if" >> IfExpr <$> expr <* reserved "then" <*> expr <* reserved "else" <*> expr
@@ -388,7 +401,7 @@ tupleOrParenExpr = do
     leftSection :: Parser Expr
     leftSection = do
       ops  <- gets exprOps
-      op   <- choice $ map (infixLiteral . repr) ops
+      op   <- choice $ infixFuncOp : map (infixLiteral . repr) ops
       rarg <- optional expr
       case rarg of
         -- Disabling for now... (See issue 159)
@@ -402,7 +415,7 @@ tupleOrParenExpr = do
     rightSection = do
       ops  <- gets exprOps
       larg <- opExpr
-      op   <- choice $ map (infixLiteral . repr) ops
+      op   <- choice $ infixFuncOp : map (infixLiteral . repr) ops
       case larg of
         -- InfixExpr op' _ _
         --   | assoc op' /= InfixL && priority op >= priority op' ->
@@ -466,7 +479,7 @@ atomExpr' = anonParamFuncExpr    -- must come before |constantExpr|
         <|> tupleOrParenExpr
         <|> hashExpr
         <|> QuoteExpr <$> (char '\'' >> atomExpr') -- must come after |constantExpr|
-        <|> QuoteSymbolExpr <$> (char '`' >> atomExpr')
+        <|> QuoteSymbolExpr <$> try (char '`' >> atomExpr' <* notFollowedBy (char '`'))
         <|> AnonParamExpr  <$> try (char '%' >> positiveIntegerLiteral)
         <?> "atomic expression"
 
