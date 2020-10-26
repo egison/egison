@@ -21,14 +21,14 @@ def inverse t f x :=
         | term _ (ncons $n #x _) ->
           let a := f / x ^ n
            in inverse (t / a) (f / a) x
-        | _ -> `inverse t f x
+        | _ -> 'inverse t f x
     | ?isPolynomial ->
       match coefficients x f as list mathExpr with
         | $c :: (loop $i (1, $n)
                    (#0 :: ...)
                    ($a :: [])) -> inverse ((t - c) / a) (x ^ (n + 1)) x
-        | _ -> `inverse t f x
+        | _ -> 'inverse t f x
     | _ ->
       match f as mathExpr with
         | $p1 / $p2 -> inverse (p2 * t) p1 x
-    | _ -> `inverse t f x
+    | _ -> 'inverse t f x

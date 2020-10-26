@@ -17,7 +17,7 @@ def Sd x f :=
     | #(^) $a #x -> a ^ x / log a
     | #(^) $a $y ->
       withSymbols [t] substitute [(t, y)] (Sd t (a ^ t * d/d (inverse t y x) t))
-    | #Sd $y $g -> `Sd x (`Sd y g)
+    | #Sd $y $g -> 'Sd x ('Sd y g)
     | $f $y ->
       withSymbols [t] substitute [(t, y)] (Sd t (f t * d/d (inverse t y x) t))
     -- term (constant)
@@ -25,12 +25,12 @@ def Sd x f :=
     | term $c [] -> c * x
     -- term (multiplication)
     | mult $a (ncons $n #x $r) ->
-      if containSymbol x r then `Sd x f else a / (n + 1) * x ^ (n + 1) * r
+      if containSymbol x r then 'Sd x f else a / (n + 1) * x ^ (n + 1) * r
     -- polynomial
     | poly $ts -> sum (map 1#(Sd x %1) ts)
     -- quotient
     | plus $ts / $p2 -> sum (map 1#(Sd x (%1 / p2)) ts)
-    | $p1 / $p2 -> if containSymbol x p2 then `Sd x f else Sd x p1 / p2
+    | $p1 / $p2 -> if containSymbol x p2 then 'Sd x f else Sd x p1 / p2
 
 def multSd x f g :=
   let F := Sd x f

@@ -65,18 +65,18 @@ def (^) $x $n :=
     then exp n
     else if isRational n
       then if n >= 0
-        then if isInteger n then power x n else `(^) x n
+        then if isInteger n then power x n else '(^) x n
         else 1 / x ^ neg n
-      else `(^) x n
+      else '(^) x n
 
 def (^') $x $n :=
   if x = e
     then exp n
     else if isRational n
       then if n >= 0
-        then if isInteger n then power' x n else `(^) x n
+        then if isInteger n then power' x n else '(^) x n
         else 1 /' x ^' neg n
-      else `(^) x n
+      else '(^) x n
 
 def gcd $x $y :=
   match (x, y) as (termExpr, termExpr) with

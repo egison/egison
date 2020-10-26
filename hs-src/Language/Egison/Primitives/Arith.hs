@@ -12,9 +12,7 @@ module Language.Egison.Primitives.Arith
   ( primitiveArithFunctions
   ) where
 
-import           Control.Monad.Except
 import           Language.Egison.Data
-import           Language.Egison.EvalState        (MonadEval (..))
 import           Language.Egison.Math
 import           Language.Egison.Primitives.Utils
 

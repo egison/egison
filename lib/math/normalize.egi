@@ -7,7 +7,7 @@
 def mathNormalize $x :=
   if isInteger x
     then x
-    else if containFunction `rtu x
+    else if containFunction 'rtu x
           then rewriteRuleForRtu (symbolNormalize x)
           else symbolNormalize x
 
