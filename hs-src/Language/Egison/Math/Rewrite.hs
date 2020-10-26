@@ -164,7 +164,7 @@ rewriteSqrt = mapTerms' f
              let d@(Term c z) = termsGcd [Term n x, Term m y]
                  Term n' x' = mathDivideTerm (Term n x) d
                  Term m' y' = mathDivideTerm (Term m y) d
-                 sqrtxy = (if x' == [] then [] else [(makeApply "sqrt" [SingleTerm 1 x'], 1)]) ++ 
+                 sqrtxy = (if x' == [] then [] else [(makeApply "sqrt" [SingleTerm 1 x'], 1)]) ++
                             (if y' == [] then [] else [(makeApply "sqrt" [SingleTerm 1 y'], 1)])
               in mathMult
                    (SingleTerm c z)

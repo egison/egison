@@ -20,11 +20,11 @@ module Language.Egison
        , version
       ) where
 
-import           Control.Monad.Reader        (asks, local)
+import           Control.Monad.Reader       (asks, local)
 import           Control.Monad.State
 
 import           Data.Version
-import qualified Paths_egison                as P
+import qualified Paths_egison               as P
 
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions

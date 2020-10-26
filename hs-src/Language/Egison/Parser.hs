@@ -20,21 +20,21 @@ module Language.Egison.Parser
        , removeShebang
        , readUTF8File
        ) where
- 
-import           Control.Monad.Except           (lift, liftIO, throwError)
-import           Control.Monad.State            (unless)
-import           Control.Monad.Reader           (asks, local)
 
-import           System.Directory               (doesFileExist, getHomeDirectory)
+import           Control.Monad.Except         (lift, liftIO, throwError)
+import           Control.Monad.Reader         (asks, local)
+import           Control.Monad.State          (unless)
+
+import           System.Directory             (doesFileExist, getHomeDirectory)
 import           System.IO
 
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Data
+import qualified Language.Egison.Parser.NonS  as NonS
+import qualified Language.Egison.Parser.SExpr as SExpr
 import           Language.Egison.RState
-import qualified Language.Egison.Parser.SExpr   as SExpr
-import qualified Language.Egison.Parser.NonS    as NonS
-import           Paths_egison                   (getDataFileName)
+import           Paths_egison                 (getDataFileName)
 
 readTopExprs :: String -> EvalM [TopExpr]
 readTopExprs expr = do

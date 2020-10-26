@@ -17,11 +17,11 @@ showMathExpr (Plus []) = ""
 showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
  where
   showMathExprForPlus :: [MathExpr] -> String
-  showMathExprForPlus [] = ""
-  showMathExprForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprForPlus xs
+  showMathExprForPlus []                                  = ""
+  showMathExprForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathExprForPlus xs
   showMathExprForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExpr (Multiply ys) ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ showMathExprForPlus xs
-  showMathExprForPlus (x:xs) = " + " ++  showMathExpr x ++ showMathExprForPlus xs
+  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ showMathExprForPlus xs
+  showMathExprForPlus (x:xs)                              = " + " ++  showMathExpr x ++ showMathExprForPlus xs
 showMathExpr (Multiply []) = ""
 showMathExpr (Multiply [x]) = showMathExpr x
 showMathExpr (Multiply (Atom "1" []:xs)) = showMathExpr (Multiply xs)
@@ -43,10 +43,10 @@ showMathExpr (Quote x) = "(" ++ showMathExpr x ++ ")"
 
 showMathExpr' :: MathExpr -> String
 showMathExpr' x@(Plus _) = "(" ++ showMathExpr x ++ ")"
-showMathExpr' x         = showMathExpr x
+showMathExpr' x          = showMathExpr x
 
 showMathExprArg :: [MathExpr] -> String
-showMathExprArg [] = ""
+showMathExprArg []            = ""
 showMathExprArg [Tensor _ []] = "undefined"
-showMathExprArg [a] = showMathExpr a
-showMathExprArg lvs = showMathExpr (head lvs) ++ ", " ++ showMathExprArg (tail lvs)
+showMathExprArg [a]           = showMathExpr a
+showMathExprArg lvs           = showMathExpr (head lvs) ++ ", " ++ showMathExprArg (tail lvs)

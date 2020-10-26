@@ -15,7 +15,7 @@ import           Data.Functor        (($>))
 import           Data.List           (intercalate)
 import           Data.Maybe          (maybeToList)
 import           Options.Applicative
-import qualified Text.Parsec as P
+import qualified Text.Parsec         as P
 
 data EgisonOpts = EgisonOpts {
     optExecFile         :: Maybe (String, [String]),

@@ -32,8 +32,8 @@ mathMult :: ScalarData -> ScalarData -> ScalarData
 mathMult (Div m1 n1) (Div m2 n2) = mathNormalize' $ Div (mathMultPoly m1 m2) (mathMultPoly n1 n2)
 
 mathMultPoly :: PolyExpr -> PolyExpr -> PolyExpr
-mathMultPoly (Plus []) (Plus _) = Plus []
-mathMultPoly (Plus _) (Plus []) = Plus []
+mathMultPoly (Plus []) (Plus _)    = Plus []
+mathMultPoly (Plus _) (Plus [])    = Plus []
 mathMultPoly (Plus ts1) (Plus ts2) = foldl mathPlusPoly (Plus []) (map (\(Term a xs) -> Plus (map (\(Term b ys) -> Term (a * b) (xs ++ ys)) ts2)) ts1)
 
 mathDiv :: ScalarData -> ScalarData -> ScalarData

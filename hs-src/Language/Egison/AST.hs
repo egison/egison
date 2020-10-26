@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveFunctor      #-}
-{-# LANGUAGE DeriveTraversable  #-}
+{-# LANGUAGE DeriveTraversable #-}
 
 {- |
 Module      : Language.Egison.AST
@@ -35,9 +34,9 @@ module Language.Egison.AST
   , stringToVarWithIndices
   ) where
 
-import           Data.List       (find)
-import           Data.Maybe      (fromJust)
-import           Data.Text       (Text)
+import           Data.List  (find)
+import           Data.Maybe (fromJust)
+import           Data.Text  (Text)
 
 data TopExpr
   = Define VarWithIndices Expr

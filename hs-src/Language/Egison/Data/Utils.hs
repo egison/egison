@@ -38,7 +38,7 @@ evalRef ref = do
       return val
 
 evalObj :: Object -> EvalM WHNFData
-evalObj (WHNF val) = return val
+evalObj (WHNF val)    = return val
 evalObj (Thunk thunk) = thunk
 
 writeObjectRef :: ObjectRef -> WHNFData -> EvalM ()
@@ -54,9 +54,9 @@ makeBindings' :: [String] -> [ObjectRef] -> [Binding]
 makeBindings' xs = zip (map stringToVar xs)
 
 tupleToRefs :: WHNFData -> EvalM [ObjectRef]
-tupleToRefs (ITuple refs) = return refs
+tupleToRefs (ITuple refs)        = return refs
 tupleToRefs (Value (Tuple vals)) = mapM (newEvaluatedObjectRef . Value) vals
-tupleToRefs whnf = return <$> newEvaluatedObjectRef whnf
+tupleToRefs whnf                 = return <$> newEvaluatedObjectRef whnf
 
 tupleToListWHNF :: WHNFData -> EvalM [WHNFData]
 tupleToListWHNF (ITuple refs)        = mapM evalRef refs

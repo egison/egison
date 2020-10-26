@@ -55,7 +55,7 @@ unconsString = oneArg $ \val -> do
   str <- fromEgison val
   case T.uncons str of
     Just (c, rest) -> return $ Tuple [Char c, String rest]
-    Nothing -> throwError $ Default "Tried to unsnoc empty string"
+    Nothing        -> throwError $ Default "Tried to unsnoc empty string"
 
 lengthString :: String -> PrimitiveFunc
 lengthString = unaryOp (toInteger . T.length)
@@ -74,7 +74,7 @@ regexString = twoArgs $ \pat src -> do
   patStr <- fromEgison pat
   srcStr <- fromEgison src
   case (T.unpack srcStr =~~ T.unpack patStr) :: (Maybe (String, String, String)) of
-    Nothing -> return . Collection . Sq.fromList $ []
+    Nothing      -> return . Collection . Sq.fromList $ []
     Just (a,b,c) -> return . Collection . Sq.fromList $ [Tuple [String (T.pack a), String (T.pack b), String (T.pack c)]]
 
 regexStringCaptureGroup :: String -> PrimitiveFunc

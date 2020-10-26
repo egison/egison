@@ -27,7 +27,7 @@ module Language.Egison.Math
   , mathNegate
   ) where
 
-import           Language.Egison.Math.Expr
 import           Language.Egison.Math.Arith
+import           Language.Egison.Math.Expr
 import           Language.Egison.Math.Normalize
 import           Language.Egison.Math.Rewrite

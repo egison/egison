@@ -1,8 +1,6 @@
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE UndecidableInstances   #-}
-{-# LANGUAGE ViewPatterns           #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances  #-}
 {-# OPTIONS_GHC -Wno-orphans        #-}
 
 {- |
@@ -18,11 +16,11 @@ module Language.Egison.Pretty
     , showTSV
     ) where
 
-import           Data.Foldable             (toList)
-import           Data.List                 (intercalate)
+import           Data.Foldable                           (toList)
+import           Data.List                               (intercalate)
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.String (renderString)
-import           Text.Show.Unicode         (ushow)
+import           Text.Show.Unicode                       (ushow)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
@@ -51,8 +49,8 @@ instance Pretty ConstantExpr where
   pretty (BoolExpr x)    = pretty x
   pretty (IntegerExpr x) = pretty x
   pretty (FloatExpr x)   = pretty x
-  pretty SomethingExpr = pretty "something"
-  pretty UndefinedExpr = pretty "undefined"
+  pretty SomethingExpr   = pretty "something"
+  pretty UndefinedExpr   = pretty "undefined"
 
 instance Pretty Expr where
   pretty (ConstantExpr c) = pretty c
@@ -194,8 +192,8 @@ instance Pretty VarWithIndices where
   pretty (VarWithIndices xs is) = pretty xs <> hcat (map pretty is)
 
 instance Pretty VarIndex where
-  pretty (VSubscript x)   = pretty ('_' : x)
-  pretty (VSuperscript x) = pretty ('~' : x)
+  pretty (VSubscript x)        = pretty ('_' : x)
+  pretty (VSuperscript x)      = pretty ('~' : x)
   pretty (VSymmScripts xs)     = pretty '{' <> hcat (map pretty xs) <> pretty '}'
   pretty (VAntiSymmScripts xs) = pretty '[' <> hcat (map pretty xs) <> pretty ']'
 
@@ -217,12 +215,12 @@ instance {-# OVERLAPPING #-} Pretty (IndexExpr String) where -- for 'VarWithIndi
   pretty _                = undefined
 
 instance (Pretty a, Complex a) => Pretty (IndexExpr a) where
-  pretty (Subscript i) = pretty '_' <> pretty' i
-  pretty (Superscript i) = pretty '~' <> pretty' i
-  pretty (SupSubscript i) = pretty "~_" <> pretty' i
-  pretty (MultiSubscript i j) = pretty '_' <> pretty' i <> pretty "..._" <> pretty' j
+  pretty (Subscript i)          = pretty '_' <> pretty' i
+  pretty (Superscript i)        = pretty '~' <> pretty' i
+  pretty (SupSubscript i)       = pretty "~_" <> pretty' i
+  pretty (MultiSubscript i j)   = pretty '_' <> pretty' i <> pretty "..._" <> pretty' j
   pretty (MultiSuperscript i j) = pretty '~' <> pretty' i <> pretty "...~" <> pretty' j
-  pretty (Userscript i) = pretty '|' <> pretty' i
+  pretty (Userscript i)         = pretty '|' <> pretty' i
 
 instance Pretty Pattern where
   pretty WildCard     = pretty "_"
@@ -259,9 +257,9 @@ instance Pretty Pattern where
   pretty SeqNilPat = pretty "{}"
   pretty (SeqConsPat p1 p2) = listoid "{" "}" (f p1 p2)
     where
-      f p1 SeqNilPat = [pretty p1]
+      f p1 SeqNilPat          = [pretty p1]
       f p1 (SeqConsPat p2 p3) = pretty p1 : f p2 p3
-      f p1 p2 = [pretty p1, pretty p2]
+      f p1 p2                 = [pretty p1, pretty p2]
   pretty LaterPatVar = pretty "@"
   pretty (DApplyPat p ps) = applyLike (map pretty' (p : ps))
   pretty e            = pretty (show e)
@@ -273,21 +271,21 @@ instance {-# OVERLAPPING #-} Pretty LoopRange where
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
 instance Pretty PrimitivePatPattern where
-  pretty PPWildCard     = pretty "_"
-  pretty PPPatVar       = pretty "$"
-  pretty (PPValuePat x) = pretty ('#' : '$' : x)
+  pretty PPWildCard                = pretty "_"
+  pretty PPPatVar                  = pretty "$"
+  pretty (PPValuePat x)            = pretty ('#' : '$' : x)
   pretty (PPInductivePat x pppats) = hsep (pretty x : map pretty pppats)
-  pretty (PPTuplePat pppats) = tupled (map pretty pppats)
+  pretty (PPTuplePat pppats)       = tupled (map pretty pppats)
 
 instance Pretty PrimitiveDataPattern where
-  pretty PDWildCard   = pretty "_"
-  pretty (PDPatVar x) = pretty x
+  pretty PDWildCard                = pretty "_"
+  pretty (PDPatVar x)              = pretty x
   pretty (PDInductivePat x pdpats) = applyLike (pretty x : map pretty' pdpats)
-  pretty (PDTuplePat pdpats) = tupled (map pretty pdpats)
-  pretty PDEmptyPat = pretty "[]"
-  pretty (PDConsPat pdp1 pdp2) = pretty'' pdp1 <+> pretty "::" <+> pretty'' pdp2
-  pretty (PDSnocPat pdp1 pdp2) = applyLike [pretty "snoc", pretty' pdp1, pretty' pdp2]
-  pretty (PDConstantPat expr) = pretty expr
+  pretty (PDTuplePat pdpats)       = tupled (map pretty pdpats)
+  pretty PDEmptyPat                = pretty "[]"
+  pretty (PDConsPat pdp1 pdp2)     = pretty'' pdp1 <+> pretty "::" <+> pretty'' pdp2
+  pretty (PDSnocPat pdp1 pdp2)     = applyLike [pretty "snoc", pretty' pdp1, pretty' pdp2]
+  pretty (PDConstantPat expr)      = pretty expr
 
 instance Pretty Op where
   pretty op | isWedge op = pretty ("!" ++ repr op)
@@ -338,11 +336,11 @@ instance Complex Expr where
   isAtom TransposeExpr{}          = False
   isAtom _                        = True
 
-  isAtomOrApp ApplyExpr{}         = True
-  isAtomOrApp e                   = isAtom e
+  isAtomOrApp ApplyExpr{} = True
+  isAtomOrApp e           = isAtom e
 
-  isInfix InfixExpr{}             = True
-  isInfix _                       = False
+  isInfix InfixExpr{} = True
+  isInfix _           = False
 
 instance Complex a => Complex (Arg a) where
   isAtom (TensorArg x) = isAtom x
@@ -363,11 +361,11 @@ instance Complex ArgPattern where
   isInfix _ = False
 
 instance Complex Pattern where
-  isAtom (LetPat _ _)        = False
+  isAtom LetPat{}            = False
   isAtom (InductivePat _ []) = True
   isAtom (InductivePat _ _)  = False
-  isAtom (InfixPat _ _ _)    = False
-  isAtom (LoopPat _ _ _ _)   = False
+  isAtom InfixPat{}          = False
+  isAtom LoopPat{}           = False
   isAtom (PApplyPat _ [])    = True
   isAtom (PApplyPat _ _)     = False
   isAtom _                   = True
@@ -382,8 +380,8 @@ instance Complex Pattern where
 instance Complex PrimitiveDataPattern where
   isAtom (PDInductivePat _ []) = True
   isAtom (PDInductivePat _ _)  = False
-  isAtom (PDConsPat _ _)       = False
-  isAtom (PDSnocPat _ _)       = False
+  isAtom PDConsPat{}           = False
+  isAtom PDSnocPat{}           = False
   isAtom _                     = True
 
   isAtomOrApp PDInductivePat{} = True
@@ -404,7 +402,7 @@ pretty'' x | isAtomOrApp x || isInfix x = pretty x
 -- Display "hoge" instead of "() := hoge"
 prettyDoBinds :: BindingExpr -> Doc ann
 prettyDoBinds (Bind (PDTuplePat []) expr) = pretty expr
-prettyDoBinds bind = pretty "let" <+> pretty bind
+prettyDoBinds bind                        = pretty "let" <+> pretty bind
 
 prettyMatch :: Expr -> [MatchClause] -> Doc ann
 prettyMatch matcher clauses =
@@ -449,8 +447,8 @@ infixRight p = group (flatAlt (hardline <> p) (space <> p))
 
 showTSV :: EgisonValue -> String
 showTSV (Tuple (val:vals)) = foldl (\r x -> r ++ "\t" ++ x) (show val) (map show vals)
-showTSV (Collection vals) = intercalate "\t" (map show (toList vals))
-showTSV val = show val
+showTSV (Collection vals)  = intercalate "\t" (map show (toList vals))
+showTSV val                = show val
 
 --
 -- Pretty printer for error messages

@@ -45,13 +45,13 @@ module Language.Egison.Math.Expr
     , mathNegate
     ) where
 
-import           Prelude                   hiding (foldr, mappend, mconcat)
-import           Data.List                 (intercalate)
+import           Data.List             (intercalate)
+import           Prelude               hiding (foldr, mappend, mconcat)
 
-import           Control.Monad             ( MonadPlus(..) )
 import           Control.Egison
+import           Control.Monad         (MonadPlus (..))
 
-import           Language.Egison.IExpr     (Index(..))
+import           Language.Egison.IExpr (Index (..))
 
 --
 -- Data
@@ -241,21 +241,21 @@ instance Printable SymbolExpr where
   isAtom _            = False
 
   pretty (Symbol _ (':':':':':':_) []) = "#"
-  pretty (Symbol _ s []) = s
-  pretty (Symbol _ s js) = s ++ concatMap show js
-  pretty (Apply fn mExprs) = unwords (map pretty' (fn : mExprs))
-  pretty (Quote mExprs) = "'" ++ pretty' mExprs
-  pretty (FunctionData name _ _ js) = pretty name ++ concatMap show js
+  pretty (Symbol _ s [])               = s
+  pretty (Symbol _ s js)               = s ++ concatMap show js
+  pretty (Apply fn mExprs)             = unwords (map pretty' (fn : mExprs))
+  pretty (Quote mExprs)                = "'" ++ pretty' mExprs
+  pretty (FunctionData name _ _ js)    = pretty name ++ concatMap show js
 
 instance Printable TermExpr where
   isAtom (Term _ [])  = True
   isAtom (Term 1 [_]) = True
   isAtom _            = False
 
-  pretty (Term a []) = show a
-  pretty (Term 1 xs) = intercalate " * " (map prettyPoweredSymbol xs)
+  pretty (Term a [])    = show a
+  pretty (Term 1 xs)    = intercalate " * " (map prettyPoweredSymbol xs)
   pretty (Term (-1) xs) = "- " ++ intercalate " * " (map prettyPoweredSymbol xs)
-  pretty (Term a xs) = intercalate " * " (show a : map prettyPoweredSymbol xs)
+  pretty (Term a xs)    = intercalate " * " (show a : map prettyPoweredSymbol xs)
 
 prettyPoweredSymbol :: (SymbolExpr, Integer) -> String
 prettyPoweredSymbol (x, 1) = show x
