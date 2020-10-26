@@ -60,3 +60,19 @@ Command line arguments are given to the ``main`` function as a collection of str
    $ egison foo.egi a b c
    Hello, world!
    ["a", "b", "c"]
+
+
+Editor Settings
+===============
+
+Emacs
+-----
+
+You can get the latest version of ``egison-model.el`` from `here <https://github.com/egison/egison/blob/master/elisp/egison-mode.el>`_.
+Put it in your load-path of Emacs, and add the following to your ``.emacs``.
+
+::
+
+   (autoload 'egison-mode "egison-mode" "Major mode for editing Egison code." t)
+   (setq auto-mode-alist
+     (cons `("\\.egi$" . egison-mode) auto-mode-alist))
