@@ -22,7 +22,6 @@ import qualified Data.Text.IO                     as T
 
 import           Language.Egison.Core             (evalWHNF)
 import           Language.Egison.Data
-import           Language.Egison.EvalState        (MonadEval (..))
 import           Language.Egison.Primitives.Utils
 
 

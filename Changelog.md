@@ -1,6 +1,13 @@
 # Changelog
 
 ## Latest
+* Swapped the notation for `QuoteExpr` and `QuoteSymbolExpr`. ([#262](https://github.com/egison/egison/issues/262))
+```hs
+> `(a + b) + `(a + b) -- QuoteExpr, which prevents (a + b) from unpacking
+2 * '(a + b)
+> 'exp x              -- QuoteSymbolExpr
+exp x
+```
 
 ## 4.1.0
 ### New Features
