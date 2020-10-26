@@ -403,7 +403,7 @@ applyExpr = do
         let n = toInteger (length vars)
             args' = f args 1
          in return $ AnonParamFuncExpr n $ ApplyExpr func args'
-      | all (not . null) vars ->
+      | not (any null vars) ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n

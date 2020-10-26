@@ -15,12 +15,9 @@ module Language.Egison.Primitives.Utils
   , binaryOp
   ) where
 
-import           Control.Monad.Except
-
 import qualified Data.Vector               as V
 
 import           Language.Egison.Data
-import           Language.Egison.EvalState (MonadEval(..))
 import           Language.Egison.Tensor
 
 {-# INLINE noArg #-}
@@ -56,7 +53,7 @@ twoArgs :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> Primit
 twoArgs f name args =
   case args of
     [TensorData t1@Tensor{}, TensorData t2@Tensor{}] ->
-      tProduct (\x y -> f x y) t1 t2 >>= fromTensor
+      tProduct f t1 t2 >>= fromTensor
     [TensorData(Tensor ns ds js), val] -> do
       ds' <- V.mapM (`f` val) ds
       return $ TensorData (Tensor ns ds' js)

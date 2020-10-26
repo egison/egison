@@ -36,7 +36,7 @@ showMathExpr (Func f lvs) = showMathExpr f ++ "(" ++ showMathExprArg lvs ++ ")"
 showMathExpr (Tensor lvs mis)
   | null mis = "(" ++ showMathExprArg lvs ++ ")"
   | not (any isSub mis) = "(" ++ showMathExprArg lvs ++ ")^(" ++ showMathExprIndices mis ++ ")"
-  | not (any (not . isSub) mis) = "(" ++ showMathExprArg lvs ++ ")_(" ++ showMathExprIndices mis ++ ")"
+  | all isSub mis = "(" ++ showMathExprArg lvs ++ ")_(" ++ showMathExprIndices mis ++ ")"
   | otherwise = "(" ++ showMathExprArg lvs ++ ")_(" ++ showMathExprIndices (filter isSub mis) ++ ")^(" ++ showMathExprIndices (filter (not . isSub) mis) ++ ")"
 showMathExpr (Tuple lvs) = "(" ++ showMathExprArg lvs ++ ")"
 showMathExpr (Collection lvs) = "{" ++ showMathExprArg lvs ++ "}"

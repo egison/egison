@@ -42,7 +42,7 @@ showMathExpr (Func f xs) = showMathExpr f ++ "(" ++ showMathExprArg xs ++ ")"
 showMathExpr (Tensor lvs mis)
   | null mis = "{" ++ showMathExprArg lvs ++ "}"
   | not (any isSub mis) = "{" ++ showMathExprArg lvs ++ "}^(" ++ showMathExprIndices mis ++ ")"
-  | not (any (not . isSub) mis) = "{" ++ showMathExprArg lvs ++ "}_(" ++ showMathExprIndices mis ++ ")"
+  | all isSub mis = "{" ++ showMathExprArg lvs ++ "}_(" ++ showMathExprIndices mis ++ ")"
   | otherwise = "{" ++ showMathExprArg lvs ++ "}_(" ++ showMathExprIndices (filter isSub mis) ++ ")^(" ++ showMathExprIndices (filter (not . isSub) mis) ++ ")"
 showMathExpr (Tuple xs) = "(" ++ showMathExprArg xs ++ ")"
 showMathExpr (Collection xs) = "{" ++ showMathExprArg xs ++ "}"

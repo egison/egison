@@ -758,7 +758,7 @@ processMState state =
       if b
         then return MNil
 --        else return MNil
-        else do nstatess <- mmap (\states' -> mmap (\(MState e' l' (ForallPatContext [] []:s') b' []) -> return $ MState e' l' s' b' trees) states') statess'
+        else do nstatess <- mmap (mmap (\(MState e' l' (ForallPatContext [] []:s') b' []) -> return $ MState e' l' s' b' trees)) statess'
                 mconcat nstatess
     _ -> processMState' state
  where

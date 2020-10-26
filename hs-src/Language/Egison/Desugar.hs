@@ -507,7 +507,7 @@ desugarExtendedIndices indices isSubs indexNames tensorBody = do
     symbols <- mapM (const fresh) isSubs
     let is = zipWith (\x isSub -> (if isSub then Subscript else Superscript) (VarExpr x)) symbols isSubs
     f indices (IndexedExpr True expr is)
-      (signs ++ signs') (bindings ++ bindings' ++ [Bind (foldr PDConsPat PDEmptyPat (map PDPatVar symbols)) indices'])
+      (signs ++ signs') (bindings ++ bindings' ++ [Bind (foldr (PDConsPat . PDPatVar) PDEmptyPat symbols) indices'])
 
   subOrSupScripts :: VarIndex -> [Bool]
   subOrSupScripts VSubscript{}          = [True]
