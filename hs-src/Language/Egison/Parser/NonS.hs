@@ -122,7 +122,7 @@ infixExpr = do
   return (InfixDecl isPattern newop)
   where
     check :: String -> Parser String
-    check ('!':_) = fail $ "cannot declare infix starting with '!'"
+    check ('!':_) = fail "cannot declare infix starting with '!'"
     check x | x `elem` reservedOp = fail $ show x ++ " cannot be a new infix"
             | otherwise           = return x
 

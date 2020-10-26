@@ -492,7 +492,7 @@ evalRefDeep ref = do
       return val
 
 evalMemoizedFunc
-  :: (IORef (HL.HashMap [Integer] WHNFData)) -> Env -> [String] -> IExpr
+  :: IORef (HL.HashMap [Integer] WHNFData) -> Env -> [String] -> IExpr
   -> [EgisonValue] -> EvalM WHNFData
 evalMemoizedFunc hashRef env names body args = do
   indices <- mapM fromEgison args

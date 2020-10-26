@@ -100,7 +100,7 @@ instance ToMathExpr E.SymbolExpr where
       (Atom "^" [], [x, y]) -> Power (toMathExpr x) (toMathExpr y)
       _                     -> Func (toMathExpr fn) (map toMathExpr mExprs)
   toMathExpr (E.Quote mExpr) = Quote (toMathExpr mExpr)
-  toMathExpr (E.FunctionData _ _ _ _) = undefined -- TODO
+  toMathExpr E.FunctionData{} = undefined -- TODO
 
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
 toMathIndex (E.Sub x) = Sub (toMathExpr x)

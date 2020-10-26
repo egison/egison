@@ -361,11 +361,11 @@ instance Complex ArgPattern where
   isInfix _ = False
 
 instance Complex Pattern where
-  isAtom (LetPat _ _)        = False
+  isAtom LetPat{}            = False
   isAtom (InductivePat _ []) = True
   isAtom (InductivePat _ _)  = False
-  isAtom (InfixPat _ _ _)    = False
-  isAtom (LoopPat _ _ _ _)   = False
+  isAtom InfixPat{}          = False
+  isAtom LoopPat{}           = False
   isAtom (PApplyPat _ [])    = True
   isAtom (PApplyPat _ _)     = False
   isAtom _                   = True
@@ -380,8 +380,8 @@ instance Complex Pattern where
 instance Complex PrimitiveDataPattern where
   isAtom (PDInductivePat _ []) = True
   isAtom (PDInductivePat _ _)  = False
-  isAtom (PDConsPat _ _)       = False
-  isAtom (PDSnocPat _ _)       = False
+  isAtom PDConsPat{}           = False
+  isAtom PDSnocPat{}           = False
   isAtom _                     = True
 
   isAtomOrApp PDInductivePat{} = True
