@@ -42,6 +42,7 @@ module Language.Egison.Data
     , refVar
     -- * Errors
     , EgisonError (..)
+    , throwErrorWithTrace
     -- * Monads
     , EvalM
     , fromEvalM
@@ -186,15 +187,15 @@ egisonToScalarData s1@(InductiveData "Quote" _) = do
 egisonToScalarData s1@(InductiveData "Function" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ SingleTerm 1 [s1']
-egisonToScalarData val = throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
+egisonToScalarData val = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 egisonToPolyExpr :: EgisonValue -> EvalM PolyExpr
 egisonToPolyExpr (InductiveData "Plus" [Collection ts]) = Plus <$> mapM egisonToTermExpr (toList ts)
-egisonToPolyExpr val = throwError =<< TypeMismatch "math poly expression" (Value val) <$> getFuncNameStack
+egisonToPolyExpr val = throwErrorWithTrace (TypeMismatch "math poly expression" (Value val))
 
 egisonToTermExpr :: EgisonValue -> EvalM TermExpr
 egisonToTermExpr (InductiveData "Term" [n, Collection ts]) = Term <$> fromEgison n <*> mapM egisonToSymbolExpr (toList ts)
-egisonToTermExpr val = throwError =<< TypeMismatch "math term expression" (Value val) <$> getFuncNameStack
+egisonToTermExpr val = throwErrorWithTrace (TypeMismatch "math term expression" (Value val))
 
 egisonToSymbolExpr :: EgisonValue -> EvalM (SymbolExpr, Integer)
 egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
@@ -221,14 +222,14 @@ egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, 
   js' <- mapM egisonToScalarIndex js
   n' <- fromEgison n
   return (FunctionData name' argnames' args' js', n')
-egisonToSymbolExpr val = throwError =<< TypeMismatch "math symbol expression" (Value val) <$> getFuncNameStack
+egisonToSymbolExpr val = throwErrorWithTrace (TypeMismatch "math symbol expression" (Value val))
 
 egisonToScalarIndex :: EgisonValue -> EvalM (Index ScalarData)
 egisonToScalarIndex j = case j of
   InductiveData "Sup"  [ScalarData k] -> return (Sup k)
   InductiveData "Sub"  [ScalarData k] -> return (Sub k)
   InductiveData "User" [ScalarData k] -> return (User k)
-  _ -> throwError =<< TypeMismatch "math symbol expression" (Value j) <$> getFuncNameStack
+  _ -> throwErrorWithTrace (TypeMismatch "math symbol expression" (Value j))
 
 --
 -- ExtractScalar
@@ -236,7 +237,7 @@ egisonToScalarIndex j = case j of
 
 extractScalar :: EgisonValue -> EvalM ScalarData
 extractScalar (ScalarData mExpr) = return mExpr
-extractScalar val = throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
+extractScalar val = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 -- New-syntax version of EgisonValue pretty printer.
 -- TODO(momohatt): Don't make it a show instance of EgisonValue.
@@ -311,55 +312,55 @@ class EgisonData a where
 instance EgisonData Char where
   toEgison = Char
   fromEgison (Char c) = return c
-  fromEgison val      = throwError =<< TypeMismatch "char" (Value val) <$> getFuncNameStack
+  fromEgison val      = throwErrorWithTrace (TypeMismatch "char" (Value val))
 
 instance EgisonData Text where
   toEgison = String
   fromEgison (String str) = return str
-  fromEgison val          = throwError =<< TypeMismatch "string" (Value val) <$> getFuncNameStack
+  fromEgison val          = throwErrorWithTrace (TypeMismatch "string" (Value val))
 
 instance EgisonData Bool where
   toEgison = Bool
   fromEgison (Bool b) = return b
-  fromEgison val      = throwError =<< TypeMismatch "bool" (Value val) <$> getFuncNameStack
+  fromEgison val      = throwErrorWithTrace (TypeMismatch "bool" (Value val))
 
 instance EgisonData Integer where
   toEgison 0 = ScalarData (Div (Plus []) (Plus [Term 1 []]))
   toEgison i = ScalarData (SingleTerm i [])
   fromEgison (ScalarData (Div (Plus []) (Plus [Term 1 []]))) = return 0
   fromEgison (ScalarData (SingleTerm x [])) = return x
-  fromEgison val = throwError =<< TypeMismatch "integer" (Value val) <$> getFuncNameStack
+  fromEgison val = throwErrorWithTrace (TypeMismatch "integer" (Value val))
 
 instance EgisonData Rational where
   toEgison r = ScalarData $ mathNormalize' (Div (Plus [Term (numerator r) []]) (Plus [Term (denominator r) []]))
   fromEgison (ScalarData (Div (Plus []) _)) = return 0
   fromEgison (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return (x % y)
-  fromEgison val = throwError =<< TypeMismatch "rational" (Value val) <$> getFuncNameStack
+  fromEgison val = throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 instance EgisonData Double where
   toEgison f = Float f
   fromEgison (Float f) = return f
-  fromEgison val       = throwError =<< TypeMismatch "float" (Value val) <$> getFuncNameStack
+  fromEgison val       = throwErrorWithTrace (TypeMismatch "float" (Value val))
 
 instance EgisonData Handle where
   toEgison = Port
   fromEgison (Port h) = return h
-  fromEgison val      = throwError =<< TypeMismatch "port" (Value val) <$> getFuncNameStack
+  fromEgison val      = throwErrorWithTrace (TypeMismatch "port" (Value val))
 
 instance EgisonData a => EgisonData [a] where
   toEgison xs = Collection $ Sq.fromList (map toEgison xs)
   fromEgison (Collection seq) = mapM fromEgison (toList seq)
-  fromEgison val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
+  fromEgison val = throwErrorWithTrace (TypeMismatch "collection" (Value val))
 
 instance EgisonData () where
   toEgison () = Tuple []
   fromEgison (Tuple []) = return ()
-  fromEgison val = throwError =<< TypeMismatch "zero element tuple" (Value val) <$> getFuncNameStack
+  fromEgison val = throwErrorWithTrace (TypeMismatch "zero element tuple" (Value val))
 
 instance (EgisonData a, EgisonData b) => EgisonData (a, b) where
   toEgison (x, y) = Tuple [toEgison x, toEgison y]
   fromEgison (Tuple [x, y]) = liftM2 (,) (fromEgison x) (fromEgison y)
-  fromEgison val = throwError =<< TypeMismatch "two elements tuple" (Value val) <$> getFuncNameStack
+  fromEgison val = throwErrorWithTrace (TypeMismatch "two elements tuple" (Value val))
 
 instance (EgisonData a, EgisonData b, EgisonData c) => EgisonData (a, b, c) where
   toEgison (x, y, z) = Tuple [toEgison x, toEgison y, toEgison z]
@@ -368,7 +369,7 @@ instance (EgisonData a, EgisonData b, EgisonData c) => EgisonData (a, b, c) wher
     y' <- fromEgison y
     z' <- fromEgison z
     return (x', y', z')
-  fromEgison val = throwError =<< TypeMismatch "two elements tuple" (Value val) <$> getFuncNameStack
+  fromEgison val = throwErrorWithTrace (TypeMismatch "two elements tuple" (Value val))
 
 instance (EgisonData a, EgisonData b, EgisonData c, EgisonData d) => EgisonData (a, b, c, d) where
   toEgison (x, y, z, w) = Tuple [toEgison x, toEgison y, toEgison z, toEgison w]
@@ -378,12 +379,12 @@ instance (EgisonData a, EgisonData b, EgisonData c, EgisonData d) => EgisonData 
     z' <- fromEgison z
     w' <- fromEgison w
     return (x', y', z', w')
-  fromEgison val = throwError =<< TypeMismatch "two elements tuple" (Value val) <$> getFuncNameStack
+  fromEgison val = throwErrorWithTrace (TypeMismatch "two elements tuple" (Value val))
 
 instance EgisonData (IORef EgisonValue) where
   toEgison = RefBox
   fromEgison (RefBox ref) = return ref
-  fromEgison val      = throwError =<< TypeMismatch "ioRef" (Value val) <$> getFuncNameStack
+  fromEgison val      = throwErrorWithTrace (TypeMismatch "ioRef" (Value val))
 
 --
 -- Internal Data
@@ -517,8 +518,8 @@ type EvalT m = StateT EvalState (ExceptT EgisonError m)
 
 type EvalM = EvalT RuntimeM
 
-instance {-# OVERLAPPING #-} MonadFail EvalM where
-  fail msg = throwError =<< EgisonBug msg <$> getFuncNameStack
+throwErrorWithTrace :: (CallStack -> EgisonError) -> EvalM a
+throwErrorWithTrace e = throwError . e =<< getFuncNameStack
 
 instance MonadRuntime EvalM where
   fresh = lift $ lift fresh

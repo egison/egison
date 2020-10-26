@@ -153,7 +153,7 @@ evalTopExpr' env (IExecute expr) = do
   io <- evalExprShallow env expr
   case io of
     Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
-    _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
+    _                -> throwErrorWithTrace (TypeMismatch "io" io)
 evalTopExpr' env (ILoad file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")

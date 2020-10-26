@@ -122,7 +122,7 @@ addSubscript = twoArgs $ \fn sub ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sub s]))))
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sub s]))))
-    _ -> throwError =<< TypeMismatch "symbol or integer" (Value fn) <$> getFuncNameStack
+    _ -> throwErrorWithTrace (TypeMismatch "symbol or integer" (Value fn))
 
 addSuperscript :: String -> PrimitiveFunc
 addSuperscript = twoArgs $ \fn sub ->
@@ -131,14 +131,14 @@ addSuperscript = twoArgs $ \fn sub ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
-    _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
+    _ -> throwErrorWithTrace (TypeMismatch "symbol" (Value fn))
 
 assert ::  String -> PrimitiveFunc
 assert = twoArgs' $ \label test -> do
   test <- fromEgison test
   if test
     then return $ Bool True
-    else throwError =<< Assertion (show label) <$> getFuncNameStack
+    else throwErrorWithTrace (Assertion (show label))
 
 assertEqual :: String -> PrimitiveFunc
 assertEqual = threeArgs' $ \label actual expected ->

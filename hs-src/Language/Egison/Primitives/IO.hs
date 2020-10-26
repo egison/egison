@@ -195,5 +195,5 @@ io = lazyOneArg io'
       val <- m >>= evalWHNF
       case val of
         Tuple [_, val'] -> return $ Value val'
-        _ -> throwError =<< TypeMismatch "io" (Value val) <$> getFuncNameStack
-    io' whnf = throwError =<< TypeMismatch "io" whnf <$> getFuncNameStack
+        _ -> throwErrorWithTrace (TypeMismatch "io" (Value val))
+    io' whnf = throwErrorWithTrace (TypeMismatch "io" whnf)

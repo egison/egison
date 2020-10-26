@@ -68,14 +68,14 @@ evalExprShallow env (IQuoteExpr expr) = do
   whnf <- evalExprShallow env expr
   case whnf of
     Value (ScalarData s) -> return . Value . ScalarData $ SingleTerm 1 [(Quote s, 1)]
-    _ -> throwError =<< TypeMismatch "scalar in quote" whnf <$> getFuncNameStack
+    _ -> throwErrorWithTrace (TypeMismatch "scalar in quote" whnf)
 
 evalExprShallow env (IQuoteSymbolExpr expr) = do
   whnf <- evalExprShallow env expr
   case whnf of
     Value (Func (Just name) _ _ _) -> return . Value $ symbolScalarData "" name
     Value (ScalarData _) -> return whnf
-    _ -> throwError =<< TypeMismatch "value in quote-function" whnf <$> getFuncNameStack
+    _ -> throwErrorWithTrace (TypeMismatch "value in quote-function" whnf)
 
 evalExprShallow env (IVarExpr name) =
   case refVar env (Var name []) of
@@ -144,7 +144,7 @@ evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   xs <- collectionToRefs xsWhnf >>= fromMList >>= mapM evalRef
   if product ns == toInteger (length xs)
     then makeITensorFromWHNF ns xs
-    else throwError =<< InconsistentTensorShape <$> getFuncNameStack
+    else throwErrorWithTrace (InconsistentTensorShape)
 
 evalExprShallow env (IHashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -168,8 +168,8 @@ evalExprShallow env (IHashExpr assocs) = do
       ScalarData _ -> IntKey <$> fromEgison val
       Char c       -> return (CharKey c)
       String str   -> return (StrKey str)
-      _ -> throwError =<< TypeMismatch "integer or string" (Value val) <$> getFuncNameStack
-  makeHashKey whnf = throwError =<< TypeMismatch "integer or string" whnf <$> getFuncNameStack
+      _ -> throwErrorWithTrace (TypeMismatch "integer or string" (Value val))
+  makeHashKey whnf = throwErrorWithTrace (TypeMismatch "integer or string" whnf)
 
 evalExprShallow env (IIndexedExpr override expr indices) = do
   -- Tensor or hash
@@ -213,7 +213,7 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
     Value (ScalarData _)          -> return tensor
     Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
     ITensor t@Tensor{}            -> refTensorWithOverride override js t
-    _ -> throwError =<< NotImplemented "subrefs" <$> getFuncNameStack
+    _ -> throwErrorWithTrace (NotImplemented "subrefs")
 
 evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
   js <- map Sup <$> (evalExprDeep env jsExpr >>= collectionToList)
@@ -228,7 +228,7 @@ evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
     Value (ScalarData _)          -> return tensor
     Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
     ITensor t@Tensor{}            -> refTensorWithOverride override js t
-    _ -> throwError =<< NotImplemented "suprefs" <$> getFuncNameStack
+    _ -> throwErrorWithTrace (NotImplemented "suprefs")
 
 evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
@@ -238,7 +238,7 @@ evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (is ++ js), 1)]))
     ScalarData (SingleTerm 1 [(FunctionData name argnames args is, 1)]) ->
       return $ Value (ScalarData (SingleTerm 1 [(FunctionData name argnames args (is ++ js), 1)]))
-    _ -> throwError =<< NotImplemented "user-refs" <$> getFuncNameStack
+    _ -> throwErrorWithTrace (NotImplemented "user-refs")
 
 evalExprShallow env (ILambdaExpr fnname names expr) = do
   return . Value $ Func fnname env names expr
@@ -472,7 +472,7 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
         newApplyThunkRef env fn [x, y]) t2 >>= fromTensor
     _ -> applyObj env fn [WHNF whnf1, WHNF whnf2]
 
-evalExprShallow _ expr = throwError =<< NotImplemented ("evalExprShallow for " ++ show expr) <$> getFuncNameStack
+evalExprShallow _ expr = throwErrorWithTrace (NotImplemented ("evalExprShallow for " ++ show expr))
 
 evalExprDeep :: Env -> IExpr -> EvalM EgisonValue
 evalExprDeep env expr = evalExprShallow env expr >>= evalWHNF
@@ -585,14 +585,14 @@ applyRef _ (Value (IOFunc m)) refs = do
   args <- mapM evalRef refs
   case args of
     [Value World] -> m
-    arg : _ -> throwError =<< TypeMismatch "world" arg <$> getFuncNameStack
+    arg : _ -> throwErrorWithTrace (TypeMismatch "world" arg)
 applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) refs = do
   args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
-                            _ -> throwError =<< EgisonBug "to use undefined functions, you have to use ScalarData args" <$> getFuncNameStack) args
+                            _ -> throwErrorWithTrace (EgisonBug "to use undefined functions, you have to use ScalarData args")) args
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
-applyRef _ whnf _ = throwError =<< TypeMismatch "function" whnf <$> getFuncNameStack
+applyRef _ whnf _ = throwErrorWithTrace (TypeMismatch "function" whnf)
 
 applyObj :: Env -> WHNFData -> [Object] -> EvalM WHNFData
 applyObj env fn args = do
@@ -609,7 +609,7 @@ refHash val (index:indices) =
     IIntHash hash         -> irefHash hash
     ICharHash hash        -> irefHash hash
     IStrHash hash         -> irefHash hash
-    _ -> throwError =<< TypeMismatch "hash" val <$> getFuncNameStack
+    _ -> throwErrorWithTrace (TypeMismatch "hash" val)
  where
   refHash' hash = do
     key <- fromEgison index
@@ -772,7 +772,7 @@ processMState state =
       where (f, state1, state2) = splitMState state'
 
 processMState' :: MatchingState -> EvalM (MList EvalM MatchingState)
---processMState' MState{ seqPatCtx = [], mTrees = [] } = throwError =<< EgisonBug "should not reach here (empty matching-state)" <$> getFuncNameStack
+--processMState' MState{ seqPatCtx = [], mTrees = [] } = throwErrorWithTrace (EgisonBug "should not reach here (empty matching-state)")
 processMState' mstate@MState{ seqPatCtx = [], mTrees = [] } = return . msingleton $ mstate -- for forall pattern used in matchAll (not matchAllDFS)
 
 -- Sequential patterns and forall pattern
@@ -786,7 +786,7 @@ processMState' mstate@MState{ seqPatCtx = ForallPatContext _ _:_, mTrees = [] } 
   return . msingleton $ mstate
 
 -- Matching Nodes
---processMState' MState{ mTrees = MNode _ MState{ mStateBindings = [], mTrees = [] }:_ } = throwError =<< EgisonBug "should not reach here (empty matching-node)" <$> getFuncNameStack
+--processMState' MState{ mTrees = MNode _ MState{ mStateBindings = [], mTrees = [] }:_ } = throwErrorWithTrace (EgisonBug "should not reach here (empty matching-node)")
 processMState' mstate@MState{ mTrees = MNode _ MState{ seqPatCtx = [], mTrees = [] }:trees } = return . msingleton $ mstate { mTrees = trees }
 
 processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (IVarPat name) target matcher:trees' }:trees } =
@@ -795,7 +795,7 @@ processMState' ms1@MState{ mTrees = MNode penv ms2@MState{ mTrees = MAtom (IVarP
       case trees' of
         [] -> return . msingleton $ ms1 { mTrees = MAtom pattern target matcher:trees }
         _  -> return . msingleton $ ms1 { mTrees = MAtom pattern target matcher:MNode penv (ms2 { mTrees = trees' }):trees }
-    Nothing -> throwError =<< UnboundVariable name <$> getFuncNameStack
+    Nothing -> throwErrorWithTrace (UnboundVariable name)
 
 processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ _ (MAtom (IIndexedPat (IVarPat name) indices) target matcher:trees')):trees)) =
   case lookup name penv of
@@ -806,7 +806,7 @@ processMState' ms1@(MState _ _ _ bindings (MNode penv ms2@(MState env' loops' _ 
       case trees' of
         [] -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:trees }
         _  -> return . msingleton $ ms1 { mTrees = MAtom pattern' target matcher:MNode penv (ms2 { mTrees = trees' }):trees }
-    Nothing -> throwError =<< UnboundVariable name <$> getFuncNameStack
+    Nothing -> throwErrorWithTrace (UnboundVariable name)
 
 processMState' mstate@MState{ mTrees = MNode penv state:trees } =
   processMState' state >>= mmap (\state' -> case state' of
@@ -828,7 +828,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             _                   ->
               processMState' (mstate { mTrees = MAtom (IInductivePat name args) target matcher:trees })
 
-    INotPat _ -> throwError =<< EgisonBug "should not reach here (not-pattern)" <$> getFuncNameStack
+    INotPat _ -> throwErrorWithTrace (EgisonBug "should not reach here (not-pattern)")
     IVarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ show pattern
 
     ILetPat bindings' pattern' -> do
@@ -851,7 +851,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
         Value (PatternFunc env'' names expr) ->
           return . msingleton $ mstate { mTrees = MNode penv (MState env'' [] [] [] [MAtom expr target matcher]) : trees }
             where penv = zip names args
-        _ -> throwError =<< TypeMismatch "pattern constructor" func' <$> getFuncNameStack
+        _ -> throwErrorWithTrace (TypeMismatch "pattern constructor" func')
 
     IDApplyPat func args ->
       return . msingleton $ mstate { mTrees = MAtom (IInductivePat "apply" [func, toListPat args]) target matcher:trees }
@@ -895,7 +895,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                             mstate { loopPatCtx = LoopPatContext (name, nextNumRef) cdrEndsRef endPat pat pat':loops', mTrees = MAtom pat target matcher:trees }]
                 | otherwise ->
                   fromList [mstate { loopPatCtx = LoopPatContext (name, nextNumRef) endsRef endPat pat pat':loops', mTrees = MAtom pat target matcher:trees }]
-    ISeqNilPat -> throwError =<< EgisonBug "should not reach here (seq nil pattern)" <$> getFuncNameStack
+    ISeqNilPat -> throwErrorWithTrace (EgisonBug "should not reach here (seq nil pattern)")
     ISeqConsPat pattern pattern' -> return . msingleton $ MState env loops (SeqPatContext trees pattern' [] []:seqs) bindings [MAtom pattern target matcher]
     ILaterPatVar ->
       case seqs of
@@ -934,8 +934,8 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             IIndexedPat _ _ -> return . msingleton $ mstate { mTrees = MAtom pattern target Something:trees }
             ITuplePat patterns -> do
               targets <- tupleToListWHNF target
-              when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
-              when (length patterns /= length matchers) $ throwError =<< TupleLength (length patterns) (length matchers) <$> getFuncNameStack
+              when (length patterns /= length targets) $ throwErrorWithTrace (TupleLength (length patterns) (length targets))
+              when (length patterns /= length matchers) $ throwErrorWithTrace (TupleLength (length patterns) (length matchers))
               let trees' = zipWith3 MAtom patterns targets matchers ++ trees
               return . msingleton $ mstate { mTrees = trees' }
             _ ->  throwError $ Default $ "should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern
@@ -965,11 +965,11 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
             IIndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
             ITuplePat patterns -> do
               targets <- tupleToListWHNF target
-              when (length patterns /= length targets) $ throwError =<< TupleLength (length patterns) (length targets) <$> getFuncNameStack
+              when (length patterns /= length targets) $ throwErrorWithTrace (TupleLength (length patterns) (length targets))
               let trees' = zipWith3 MAtom patterns targets (map (const Something) patterns) ++ trees
               return . msingleton $ mstate { mTrees = trees' }
             _ -> throwError $ Default $ "something can only match with a pattern variable. not: " ++ show pattern
-        _ ->  throwError =<< EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern) <$> getFuncNameStack
+        _ ->  throwErrorWithTrace (EgisonBug ("should not reach here. matcher: " ++ show matcher ++ ", pattern:  " ++ show pattern))
 
 inductiveMatch :: Env -> IPattern -> WHNFData -> Matcher ->
                   EvalM ([IPattern], MList EvalM ObjectRef, [Matcher])
@@ -997,7 +997,7 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
         evalExprShallow env expr >>= collectionToRefs
       _ -> cont
   failPPPatternMatch = throwError (Default "failed primitive pattern pattern match")
-  failPDPatternMatch = throwError =<< PrimitiveMatchFailure <$> getFuncNameStack
+  failPDPatternMatch = throwErrorWithTrace (PrimitiveMatchFailure)
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->
                             MatchM ([IPattern], [Binding])
@@ -1020,7 +1020,7 @@ bindPrimitiveDataPattern :: IPrimitiveDataPattern -> ObjectRef -> EvalM [Binding
 bindPrimitiveDataPattern pdp ref = do
   r <- runMaybeT $ primitiveDataPatternMatch pdp ref
   case r of
-    Nothing -> throwError =<< PrimitiveMatchFailure <$> getFuncNameStack
+    Nothing -> throwErrorWithTrace (PrimitiveMatchFailure)
     Just binding -> return binding
 
 primitiveDataPatternMatch :: IPrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
@@ -1075,7 +1075,7 @@ evalMatcherWHNF (ITuple refs) = do
   whnfs <- mapM evalRef refs
   ms <- mapM evalMatcherWHNF whnfs
   return $ Tuple ms
-evalMatcherWHNF whnf = throwError =<< TypeMismatch "matcher" whnf <$> getFuncNameStack
+evalMatcherWHNF whnf = throwErrorWithTrace (TypeMismatch "matcher" whnf)
 
 --
 -- Util
