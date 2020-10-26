@@ -15,7 +15,7 @@ module Language.Egison.Primitives.Utils
   , binaryOp
   ) where
 
-import qualified Data.Vector               as V
+import qualified Data.Vector            as V
 
 import           Language.Egison.Data
 import           Language.Egison.Tensor
@@ -45,7 +45,7 @@ oneArg' :: (EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
 oneArg' f name args =
   case args of
     [arg] -> f arg
-    _     -> 
+    _     ->
       throwErrorWithTrace (ArgumentsNumPrimitive name 1 (length args))
 
 {-# INLINE twoArgs #-}

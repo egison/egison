@@ -7,7 +7,7 @@ module Language.Egison.PrettyMath.Latex
   ( showMathExpr
   ) where
 
-import           Data.List                     (intercalate)
+import           Data.List                      (intercalate)
 
 import           Language.Egison.PrettyMath.AST
 
@@ -31,11 +31,11 @@ showMathExpr (Plus []) = ""
 showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
  where
   showMathExprForPlus :: [MathExpr] -> String
-  showMathExprForPlus [] = ""
-  showMathExprForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprForPlus xs
+  showMathExprForPlus []                                  = ""
+  showMathExprForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathExprForPlus xs
   showMathExprForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExpr (Multiply ys) ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ showMathExprForPlus xs
-  showMathExprForPlus (x:xs) = " + " ++  showMathExpr x ++ showMathExprForPlus xs
+  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ showMathExprForPlus xs
+  showMathExprForPlus (x:xs)                              = " + " ++  showMathExpr x ++ showMathExprForPlus xs
 showMathExpr (Multiply []) = ""
 showMathExpr (Multiply [x]) = showMathExpr x
 showMathExpr (Multiply (Atom "1" []:xs)) = showMathExpr (Multiply xs)
@@ -74,10 +74,10 @@ showMathExprScript [] = ""
 showMathExprScript is = "_{" ++ concatMap showMathExprSub is ++ "}^{" ++ concatMap showMathExprSuper is ++ "}"
 
 showMathExprVectors :: [MathExpr] -> String
-showMathExprVectors [] = ""
+showMathExprVectors []                = ""
 showMathExprVectors (Tensor lvs []:r) = showMathExprArg lvs " & " ++ " \\\\ " ++ showMathExprVectors r
-showMathExprVectors lvs = showMathExprArg lvs " \\\\ " ++ "\\\\ "
+showMathExprVectors lvs               = showMathExprArg lvs " \\\\ " ++ "\\\\ "
 
 elemCount :: Eq a => [a] -> [(a, Int)]
-elemCount [] = []
+elemCount []     = []
 elemCount (x:xs) = (x, length (filter (== x) xs) + 1) : elemCount (filter (/= x) xs)

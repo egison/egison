@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE QuasiQuotes            #-}
 {-# LANGUAGE PatternSynonyms        #-}
+{-# LANGUAGE QuasiQuotes            #-}
 {-# LANGUAGE ViewPatterns           #-}
 
 {- |
@@ -30,18 +30,18 @@ module Language.Egison.Tensor
     , tConcat'
     ) where
 
-import           Prelude                   hiding (foldr, mappend, mconcat)
+import           Prelude                    hiding (foldr, mappend, mconcat)
 
-import           Control.Monad.Except      (throwError, mzero, zipWithM)
-import qualified Data.Vector               as V
-import           Data.List                 (delete, intersect, partition, (\\))
+import           Control.Monad.Except       (mzero, throwError, zipWithM)
+import           Data.List                  (delete, intersect, partition, (\\))
+import qualified Data.Vector                as V
 
 import           Control.Egison
-import qualified Control.Egison            as M
+import qualified Control.Egison             as M
 
 import           Language.Egison.Data
 import           Language.Egison.Data.Utils
-import           Language.Egison.IExpr     (Index(..), extractSupOrSubIndex)
+import           Language.Egison.IExpr      (Index (..), extractSupOrSubIndex)
 import           Language.Egison.Math
 import           Language.Egison.RState
 
@@ -160,7 +160,7 @@ tref (_:_) _ = throwError $ Default "Tensor index must be an integer or a single
 -- >>> enumTensorIndices [2,2,2]
 -- [[1,1,1],[1,1,2],[1,2,1],[1,2,2],[2,1,1],[2,1,2],[2,2,1],[2,2,2]]
 enumTensorIndices :: Shape -> [[Integer]]
-enumTensorIndices [] = [[]]
+enumTensorIndices []     = [[]]
 enumTensorIndices (n:ns) = concatMap (\i -> map (i:) (enumTensorIndices ns)) [1..n]
 
 changeIndex :: Index String -> EgisonValue -> Index String
@@ -188,7 +188,7 @@ tTranspose is t@(Tensor ns _ js) = do
 tTranspose' :: [EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) =
   case mapM (\i -> f i js) is of
-    Nothing -> return t
+    Nothing  -> return t
     Just is' -> tTranspose is' t
  where
   f :: EgisonValue -> [Index EgisonValue] -> Maybe (Index EgisonValue)

@@ -22,7 +22,7 @@ import qualified Data.Text.IO                     as T
 
 import           Language.Egison.Core             (evalWHNF)
 import           Language.Egison.Data
-import           Language.Egison.EvalState        (MonadEval(..))
+import           Language.Egison.EvalState        (MonadEval (..))
 import           Language.Egison.Primitives.Utils
 
 
@@ -195,5 +195,5 @@ io = lazyOneArg io'
       val <- m >>= evalWHNF
       case val of
         Tuple [_, val'] -> return $ Value val'
-        _ -> throwErrorWithTrace (TypeMismatch "io" (Value val))
+        _               -> throwErrorWithTrace (TypeMismatch "io" (Value val))
     io' whnf = throwErrorWithTrace (TypeMismatch "io" whnf)

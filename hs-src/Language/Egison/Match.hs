@@ -37,7 +37,7 @@ data MatchingState
            }
 
 instance Show MatchingState where
-  show ms = "(MState " ++ unwords ["_", "_", "_", show (mStateBindings ms), show (mTrees ms)] ++ ")" 
+  show ms = "(MState " ++ unwords ["_", "_", "_", show (mStateBindings ms), show (mTrees ms)] ++ ")"
 
 data MatchingTree
   = MAtom IPattern WHNFData Matcher
@@ -53,9 +53,9 @@ data SeqPatContext
   | ForallPatContext [Matcher] [WHNFData]
 
 nullMState :: MatchingState -> Bool
-nullMState MState{ mTrees = [] } = True
+nullMState MState{ mTrees = [] }                = True
 nullMState MState{ mTrees = MNode _ state : _ } = nullMState state
-nullMState _ = False
+nullMState _                                    = False
 
 --
 -- Monads

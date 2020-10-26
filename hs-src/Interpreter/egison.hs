@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Main where
 
@@ -12,8 +12,7 @@ import qualified Data.Text                        as T
 
 import           Data.Version
 
-import           System.Console.Haskeline         (InputT, getInputLine, getHistory, putHistory,
-                                                   runInputT, Settings (..))
+import           System.Console.Haskeline         (InputT, Settings (..), getHistory, getInputLine, putHistory, runInputT)
 import           System.Console.Haskeline.History (addHistoryUnlessConsecutiveDupe)
 import           System.Directory                 (getHomeDirectory)
 import           System.Exit                      (exitFailure, exitSuccess)
@@ -31,7 +30,7 @@ main = execParser cmdParser >>= runWithOptions
 
 isInValidMathOption :: EgisonOpts -> Bool
 isInValidMathOption EgisonOpts{ optMathExpr = Just lang } = lang `notElem` ["asciimath", "latex", "mathematica", "maxima", "haskell"]
-isInValidMathOption EgisonOpts{ optMathExpr = Nothing } = False
+isInValidMathOption EgisonOpts{ optMathExpr = Nothing }   = False
 
 runWithOptions :: EgisonOpts -> IO ()
 runWithOptions opts | isInValidMathOption opts =
@@ -46,7 +45,7 @@ run = do
   coreEnv <- initialEnv
   mEnv <- fromEvalT $ evalTopExprs coreEnv $ map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)
   case mEnv of
-    Left err -> liftIO $ print err
+    Left err  -> liftIO $ print err
     Right env -> handleOption env opts
 
 handleOption :: Env -> EgisonOpts -> RuntimeM ()
@@ -133,7 +132,7 @@ repl env = (do
     Just topExpr -> do
       result <- fromEvalT (evalTopExprStr env topExpr)
       case result of
-        Left err -> liftIO (print err) >> repl env
+        Left err               -> liftIO (print err) >> repl env
         Right (Just str, env') -> liftIO (putStrLn str) >> repl env'
         Right (Nothing, env')  -> repl env'
   )

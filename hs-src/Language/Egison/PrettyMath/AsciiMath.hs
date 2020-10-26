@@ -7,7 +7,7 @@ module Language.Egison.PrettyMath.AsciiMath
   ( showMathExpr
   ) where
 
-import           Data.List                     (intercalate)
+import           Data.List                      (intercalate)
 
 import           Language.Egison.PrettyMath.AST
 
@@ -18,11 +18,11 @@ showMathExpr (Plus []) = ""
 showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
  where
   showMathExprForPlus :: [MathExpr] -> String
-  showMathExprForPlus [] = ""
-  showMathExprForPlus (NegativeAtom a:xs) = " - " ++ a ++ showMathExprForPlus xs
+  showMathExprForPlus []                                  = ""
+  showMathExprForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathExprForPlus xs
   showMathExprForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExpr (Multiply ys) ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs) = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ " " ++ showMathExprForPlus xs
-  showMathExprForPlus (x:xs) = " + " ++ showMathExpr x ++ showMathExprForPlus xs
+  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ " " ++ showMathExprForPlus xs
+  showMathExprForPlus (x:xs)                              = " + " ++ showMathExpr x ++ showMathExprForPlus xs
 showMathExpr (Multiply []) = ""
 showMathExpr (Multiply [x]) = showMathExpr x
 showMathExpr (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExpr (Multiply xs)
@@ -43,7 +43,7 @@ showMathExpr (Collection lvs) = "{" ++ showMathExprArg lvs ++ "}"
 
 showMathExpr' :: MathExpr -> String
 showMathExpr' (Plus lvs) = "(" ++ showMathExpr (Plus lvs) ++ ")"
-showMathExpr' val = showMathExpr val
+showMathExpr' val        = showMathExpr val
 
 showMathExprArg :: [MathExpr] -> String
 showMathExprArg exprs = intercalate ", " $ map showMathExpr exprs

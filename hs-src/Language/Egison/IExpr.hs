@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE DeriveTraversable  #-}
-{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 {- |
 Module      : Language.Egison.IExpr
@@ -34,11 +34,7 @@ module Language.Egison.IExpr
 import           Data.Hashable       (Hashable)
 import           GHC.Generics        (Generic)
 
-import           Language.Egison.AST ( ConstantExpr (..)
-                                     , PMMode (..)
-                                     , PrimitivePatPattern (..)
-                                     , PDPatternBase (..)
-                                     )
+import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMMode (..), PrimitivePatPattern (..))
 
 data ITopExpr
   = IDefine Var IExpr

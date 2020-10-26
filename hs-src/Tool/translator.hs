@@ -62,10 +62,10 @@ class SyntaxElement a where
   toNonS :: a -> a
 
 instance SyntaxElement TopExpr where
-  toNonS (Define x y)   = Define (toNonS x) (toNonS y)
-  toNonS (Test x)       = Test (toNonS x)
-  toNonS (Execute x)    = Execute (toNonS x)
-  toNonS x              = x
+  toNonS (Define x y) = Define (toNonS x) (toNonS y)
+  toNonS (Test x)     = Test (toNonS x)
+  toNonS (Execute x)  = Execute (toNonS x)
+  toNonS x            = x
 
 instance SyntaxElement Expr where
   toNonS (VarExpr (lookupVarExprInfix -> Just op)) =
@@ -176,15 +176,15 @@ instance SyntaxElement Pattern where
 
 instance SyntaxElement PrimitivePatPattern where
   toNonS (PPInductivePat x pps) = PPInductivePat x (map toNonS pps)
-  toNonS (PPTuplePat pps) = PPTuplePat (map toNonS pps)
-  toNonS pp = pp
+  toNonS (PPTuplePat pps)       = PPTuplePat (map toNonS pps)
+  toNonS pp                     = pp
 
 instance SyntaxElement PrimitiveDataPattern where
   toNonS (PDInductivePat x pds) = PDInductivePat x (map toNonS pds)
-  toNonS (PDTuplePat pds) = PDTuplePat (map toNonS pds)
-  toNonS (PDConsPat pd1 pd2) = PDConsPat (toNonS pd1) (toNonS pd2)
-  toNonS (PDSnocPat pd1 pd2) = PDSnocPat (toNonS pd1) (toNonS pd2)
-  toNonS pd = pd
+  toNonS (PDTuplePat pds)       = PDTuplePat (map toNonS pds)
+  toNonS (PDConsPat pd1 pd2)    = PDConsPat (toNonS pd1) (toNonS pd2)
+  toNonS (PDSnocPat pd1 pd2)    = PDSnocPat (toNonS pd1) (toNonS pd2)
+  toNonS pd                     = pd
 
 instance SyntaxElement LoopRange where
   toNonS (LoopRange e1 e2 p) = LoopRange (toNonS e1) (toNonS e2) (toNonS p)
@@ -193,7 +193,7 @@ instance SyntaxElement a => SyntaxElement (IndexExpr a) where
   toNonS script = toNonS <$> script
 
 instance SyntaxElement BindingExpr where
-  toNonS (Bind pdp x) = Bind (toNonS pdp) (toNonS x)
+  toNonS (Bind pdp x)            = Bind (toNonS pdp) (toNonS x)
   toNonS (BindWithIndices var x) = BindWithIndices var (toNonS x)
 
 instance SyntaxElement MatchClause where

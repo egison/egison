@@ -1,7 +1,7 @@
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE TupleSections   #-}
-{-# LANGUAGE ViewPatterns    #-}
-{-# LANGUAGE MultiWayIf      #-}
+{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE MultiWayIf    #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns  #-}
 
 {- |
 Module      : Language.Egison.Core
@@ -22,32 +22,32 @@ module Language.Egison.Core
     , patternMatch
     ) where
 
-import           Prelude                     hiding (mapM, mappend, mconcat)
+import           Prelude                         hiding (mapM, mappend, mconcat)
 
 import           Control.Arrow
-import           Control.Monad.Except        (throwError)
-import           Control.Monad.State         hiding (mapM, join)
+import           Control.Monad.Except            (throwError)
+import           Control.Monad.State             hiding (join, mapM)
 import           Control.Monad.Trans.Maybe
 
-import           Data.Char                   (isUpper)
-import           Data.Foldable               (toList)
+import           Data.Char                       (isUpper)
+import           Data.Foldable                   (toList)
 import           Data.IORef
-import           Data.List                   (partition)
+import           Data.List                       (partition)
 import           Data.Maybe
-import qualified Data.Sequence               as Sq
-import           Data.Traversable            (mapM)
+import qualified Data.Sequence                   as Sq
+import           Data.Traversable                (mapM)
 
-import qualified Data.HashMap.Lazy           as HL
-import qualified Data.Vector                 as V
+import qualified Data.HashMap.Lazy               as HL
+import qualified Data.Vector                     as V
 
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection
 import           Language.Egison.Data.Utils
-import           Language.Egison.EvalState   (MonadEval(..), mLabelFuncName)
+import           Language.Egison.EvalState       (MonadEval (..), mLabelFuncName)
 import           Language.Egison.IExpr
+import           Language.Egison.MList
 import           Language.Egison.Match
 import           Language.Egison.Math
-import           Language.Egison.MList
 import           Language.Egison.RState
 import           Language.Egison.Tensor
 
@@ -68,14 +68,14 @@ evalExprShallow env (IQuoteExpr expr) = do
   whnf <- evalExprShallow env expr
   case whnf of
     Value (ScalarData s) -> return . Value . ScalarData $ SingleTerm 1 [(Quote s, 1)]
-    _ -> throwErrorWithTrace (TypeMismatch "scalar in quote" whnf)
+    _                    -> throwErrorWithTrace (TypeMismatch "scalar in quote" whnf)
 
 evalExprShallow env (IQuoteSymbolExpr expr) = do
   whnf <- evalExprShallow env expr
   case whnf of
     Value (Func (Just name) _ _ _) -> return . Value $ symbolScalarData "" name
-    Value (ScalarData _) -> return whnf
-    _ -> throwErrorWithTrace (TypeMismatch "value in quote-function" whnf)
+    Value (ScalarData _)           -> return whnf
+    _                              -> throwErrorWithTrace (TypeMismatch "value in quote-function" whnf)
 
 evalExprShallow env (IVarExpr name) =
   case refVar env (Var name []) of
@@ -168,7 +168,7 @@ evalExprShallow env (IHashExpr assocs) = do
       ScalarData _ -> IntKey <$> fromEgison val
       Char c       -> return (CharKey c)
       String str   -> return (StrKey str)
-      _ -> throwErrorWithTrace (TypeMismatch "integer or string" (Value val))
+      _            -> throwErrorWithTrace (TypeMismatch "integer or string" (Value val))
   makeHashKey whnf = throwErrorWithTrace (TypeMismatch "integer or string" whnf)
 
 evalExprShallow env (IIndexedExpr override expr indices) = do
@@ -213,7 +213,7 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
     Value (ScalarData _)          -> return tensor
     Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
     ITensor t@Tensor{}            -> refTensorWithOverride override js t
-    _ -> throwErrorWithTrace (NotImplemented "subrefs")
+    _                             -> throwErrorWithTrace (NotImplemented "subrefs")
 
 evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
   js <- map Sup <$> (evalExprDeep env jsExpr >>= collectionToList)
@@ -228,7 +228,7 @@ evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
     Value (ScalarData _)          -> return tensor
     Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
     ITensor t@Tensor{}            -> refTensorWithOverride override js t
-    _ -> throwErrorWithTrace (NotImplemented "suprefs")
+    _                             -> throwErrorWithTrace (NotImplemented "suprefs")
 
 evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
@@ -585,12 +585,12 @@ applyRef _ (Value (IOFunc m)) refs = do
   args <- mapM evalRef refs
   case args of
     [Value World] -> m
-    arg : _ -> throwErrorWithTrace (TypeMismatch "world" arg)
+    arg : _       -> throwErrorWithTrace (TypeMismatch "world" arg)
 applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) refs = do
   args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
-                            _ -> throwErrorWithTrace (EgisonBug "to use undefined functions, you have to use ScalarData args")) args
+                            _            -> throwErrorWithTrace (EgisonBug "to use undefined functions, you have to use ScalarData args")) args
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 applyRef _ whnf _ = throwErrorWithTrace (TypeMismatch "function" whnf)
 
@@ -609,7 +609,7 @@ refHash val (index:indices) =
     IIntHash hash         -> irefHash hash
     ICharHash hash        -> irefHash hash
     IStrHash hash         -> irefHash hash
-    _ -> throwErrorWithTrace (TypeMismatch "hash" val)
+    _                     -> throwErrorWithTrace (TypeMismatch "hash" val)
  where
   refHash' hash = do
     key <- fromEgison index
@@ -672,7 +672,7 @@ recursiveMatchBind env bindings = do
     -- Modify |env'| for some cases
     let env'' = case pd of
                   PDPatVar var -> memorizeVarInEnv env' var
-                  _ -> env'
+                  _            -> env'
     thunk <- newThunkRef env'' expr
     binds <- bindPrimitiveDataPattern pd thunk
     forM_ binds $ \(var, objref) -> do
@@ -704,14 +704,14 @@ patternMatch pmmode env pattern target matcher =
                         }
 
 processMStatesAllDFS :: MList EvalM MatchingState -> EvalM (MList EvalM Match)
-processMStatesAllDFS MNil = return MNil
+processMStatesAllDFS MNil                                   = return MNil
 processMStatesAllDFS (MCons (MState _ _ [] bindings []) ms) = MCons bindings . processMStatesAllDFS <$> ms
-processMStatesAllDFS (MCons mstate ms) = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFS
+processMStatesAllDFS (MCons mstate ms)                      = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFS
 
 processMStatesAllDFSForall :: MList EvalM MatchingState -> EvalM (MList EvalM MatchingState)
-processMStatesAllDFSForall MNil = return MNil
+processMStatesAllDFSForall MNil                                                           = return MNil
 processMStatesAllDFSForall (MCons mstate@(MState _ _ (ForallPatContext _ _ : _) _ []) ms) = MCons mstate . processMStatesAllDFSForall <$> ms
-processMStatesAllDFSForall (MCons mstate ms) = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFSForall
+processMStatesAllDFSForall (MCons mstate ms)                                              = processMState mstate >>= (`mappend` ms) >>= processMStatesAllDFSForall
 
 processMStatesAll :: [MList EvalM MatchingState] -> EvalM (MList EvalM Match)
 processMStatesAll [] = return MNil
@@ -720,7 +720,7 @@ processMStatesAll streams = do
   mappend (fromList matches) $ processMStatesAll streams'
 
 processMStates :: MList EvalM MatchingState -> EvalM [MList EvalM MatchingState]
-processMStates MNil = return []
+processMStates MNil                 = return []
 processMStates (MCons state stream) = (\x y -> [x, y]) <$> processMState state <*> stream
 
 extractMatches :: [MList EvalM MatchingState] -> EvalM ([Match], [MList EvalM MatchingState])
@@ -735,7 +735,7 @@ extractMatches = extractMatches' ([], [])
 
 gatherBindings :: MatchingState -> Maybe [Binding]
 gatherBindings MState{ seqPatCtx = [], mStateBindings = b, mTrees = [] } = return b
-gatherBindings _ = Nothing
+gatherBindings _                                                         = Nothing
 
 processMState :: MatchingState -> EvalM (MList EvalM MatchingState)
 processMState state | nullMState state = processMState' state
@@ -754,7 +754,7 @@ processMState state =
                             processMStatesAllDFSForall (msingleton (MState e' l' (ForallPatContext [] []:s') b' [MAtom p2 tgt' mat']))) states
       b <- mAny (\case
                    MNil -> return True
-                   _ -> return False) statess'
+                   _    -> return False) statess'
       if b
         then return MNil
 --        else return MNil
@@ -1020,7 +1020,7 @@ bindPrimitiveDataPattern :: IPrimitiveDataPattern -> ObjectRef -> EvalM [Binding
 bindPrimitiveDataPattern pdp ref = do
   r <- runMaybeT $ primitiveDataPatternMatch pdp ref
   case r of
-    Nothing -> throwErrorWithTrace PrimitiveMatchFailure
+    Nothing      -> throwErrorWithTrace PrimitiveMatchFailure
     Just binding -> return binding
 
 primitiveDataPatternMatch :: IPrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
@@ -1062,7 +1062,7 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value val | val == evalConstant expr -> return []
-    _ -> matchFail
+    _                                    -> matchFail
 
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
 extendEnvForNonLinearPatterns env bindings loops = extendEnv env $ bindings ++ map (\(LoopPatContext (name, ref) _ _ _ _) -> (stringToVar name, ref)) loops

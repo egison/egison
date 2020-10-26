@@ -19,8 +19,8 @@ module Language.Egison.MList
   , mAny
   ) where
 
-import           Prelude       hiding (mappend, mconcat,)
 import           Data.Sequence (Seq)
+import           Prelude       hiding (mappend, mconcat)
 
 data MList m a = MNil | MCons a (m (MList m a))
 

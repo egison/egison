@@ -14,9 +14,9 @@ module Language.Egison.Primitives.Arith
 
 import           Control.Monad.Except
 import           Language.Egison.Data
-import           Language.Egison.EvalState        (MonadEval(..))
-import           Language.Egison.Primitives.Utils
+import           Language.Egison.EvalState        (MonadEval (..))
 import           Language.Egison.Math
+import           Language.Egison.Primitives.Utils
 
 primitiveArithFunctions :: [(String, EgisonValue)]
 primitiveArithFunctions =
@@ -115,19 +115,19 @@ numerator' :: String -> PrimitiveFunc
 numerator' = oneArg numerator''
  where
   numerator'' (ScalarData m) = return $ ScalarData (mathNumerator m)
-  numerator'' val = throwErrorWithTrace (TypeMismatch "rational" (Value val))
+  numerator'' val            = throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 denominator' :: String -> PrimitiveFunc
 denominator' = oneArg denominator''
  where
   denominator'' (ScalarData m) = return $ ScalarData (mathDenominator m)
-  denominator'' val = throwErrorWithTrace (TypeMismatch "rational" (Value val))
+  denominator'' val            = throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 fromScalarData :: String -> PrimitiveFunc
 fromScalarData = oneArg fromScalarData'
  where
   fromScalarData' (ScalarData m) = return $ mathExprToEgison m
-  fromScalarData' val = throwErrorWithTrace (TypeMismatch "number" (Value val))
+  fromScalarData' val            = throwErrorWithTrace (TypeMismatch "number" (Value val))
 
 toScalarData :: String -> PrimitiveFunc
 toScalarData = oneArg $ \val ->
@@ -137,7 +137,7 @@ symbolNormalize :: String -> PrimitiveFunc
 symbolNormalize = oneArg $ \val ->
   case val of
     ScalarData s -> return $ ScalarData (rewriteSymbol s)
-    _ -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
+    _            -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 --
 -- Pred
@@ -161,7 +161,7 @@ scalarCompare cmp = twoArgs' $ \val1 val2 ->
 truncate' :: String -> PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
-  numberUnaryOp' (ScalarData (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
+  numberUnaryOp' (ScalarData (Div (Plus []) _))                           = return $ toEgison (0 :: Integer)
   numberUnaryOp' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return $ toEgison (quot x y)
-  numberUnaryOp' (Float x)             = return $ toEgison (truncate x :: Integer)
-  numberUnaryOp' val                   = throwErrorWithTrace (TypeMismatch "rational or float" (Value val))
+  numberUnaryOp' (Float x)                                                = return $ toEgison (truncate x :: Integer)
+  numberUnaryOp' val                                                      = throwErrorWithTrace (TypeMismatch "rational or float" (Value val))

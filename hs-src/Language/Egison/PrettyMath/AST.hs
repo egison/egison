@@ -13,12 +13,12 @@ module Language.Egison.PrettyMath.AST
   , parseExpr
   ) where
 
-import           Data.Foldable             (toList)
+import           Data.Foldable                 (toList)
 import           Text.ParserCombinators.Parsec hiding (spaces)
 
-import qualified Language.Egison.Data      as E
-import qualified Language.Egison.IExpr     as E
-import qualified Language.Egison.Math.Expr as E
+import qualified Language.Egison.Data          as E
+import qualified Language.Egison.IExpr         as E
+import qualified Language.Egison.Math.Expr     as E
 
 data MathExpr
   = Atom String [MathIndex]
@@ -49,19 +49,19 @@ class ToMathExpr a where
   toMathExpr :: a -> MathExpr
 
 instance ToMathExpr E.EgisonValue where
-  toMathExpr (E.ScalarData s) = toMathExpr s
-  toMathExpr (E.Tuple es) = Tuple (map toMathExpr es)
+  toMathExpr (E.ScalarData s)  = toMathExpr s
+  toMathExpr (E.Tuple es)      = Tuple (map toMathExpr es)
   toMathExpr (E.Collection es) = Collection (map toMathExpr (toList es))
-  toMathExpr (E.TensorData t) = toMathExpr t
-  toMathExpr e = Atom (show e) []
+  toMathExpr (E.TensorData t)  = toMathExpr t
+  toMathExpr e                 = Atom (show e) []
 
 instance ToMathExpr a => ToMathExpr (E.Tensor a) where
-  toMathExpr (E.Scalar _) = undefined
+  toMathExpr (E.Scalar _)       = undefined
   toMathExpr (E.Tensor _ xs js) = Tensor (map toMathExpr (toList xs)) (map toMathIndex js)
 
 instance ToMathExpr E.ScalarData where
   toMathExpr (E.Div p (E.Plus [E.Term 1 []])) = toMathExpr p
-  toMathExpr (E.Div p1 p2) = Div (toMathExpr p1) (toMathExpr p2)
+  toMathExpr (E.Div p1 p2)                    = Div (toMathExpr p1) (toMathExpr p2)
 
 instance ToMathExpr E.PolyExpr where
   toMathExpr (E.Plus [])  = Atom "0" []
@@ -105,7 +105,7 @@ instance ToMathExpr E.SymbolExpr where
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
 toMathIndex (E.Sub x) = Sub (toMathExpr x)
 toMathIndex (E.Sup x) = Super (toMathExpr x)
-toMathIndex _ = undefined -- TODO
+toMathIndex _         = undefined -- TODO
 
 --
 -- Parser

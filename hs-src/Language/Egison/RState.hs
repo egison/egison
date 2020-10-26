@@ -29,8 +29,8 @@ import           Language.Egison.CmdOptions
 
 data RState = RState
   { indexCounter :: Int
-  , exprOps :: [Op]
-  , patternOps :: [Op]
+  , exprOps      :: [Op]
+  , patternOps   :: [Op]
   }
 
 initialRState :: RState

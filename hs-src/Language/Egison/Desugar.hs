@@ -13,10 +13,10 @@ module Language.Egison.Desugar
     , desugarExpr
     ) where
 
-import           Control.Monad.Except  (throwError)
-import           Data.Char             (toUpper)
-import           Data.Foldable         (foldrM)
-import           Data.List             (union)
+import           Control.Monad.Except   (throwError)
+import           Data.Char              (toUpper)
+import           Data.Foldable          (foldrM)
+import           Data.List              (union)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
@@ -394,20 +394,20 @@ desugarPattern pat =
    collectNames pats = foldl union [] (map collectName pats)
 
    collectName :: Pattern -> [String]
-   collectName (ForallPat pat1 pat2) = collectName pat1 `union` collectName pat2
-   collectName (InfixPat _ pat1 pat2) = collectName pat1 `union` collectName pat2
-   collectName (NotPat pat)  = collectName pat
-   collectName (AndPat pat1 pat2) = collectName pat1 `union` collectName pat2
-   collectName (OrPat pat1 pat2)  = collectName pat1 `union` collectName pat2
-   collectName (TuplePat pats) = collectNames pats
-   collectName (InductiveOrPApplyPat _ pats) = collectNames pats
-   collectName (InductivePat _ pats) = collectNames pats
-   collectName (PApplyPat _ pats) = collectNames pats
-   collectName (DApplyPat _ pats) = collectNames pats
+   collectName (ForallPat pat1 pat2)                           = collectName pat1 `union` collectName pat2
+   collectName (InfixPat _ pat1 pat2)                          = collectName pat1 `union` collectName pat2
+   collectName (NotPat pat)                                    = collectName pat
+   collectName (AndPat pat1 pat2)                              = collectName pat1 `union` collectName pat2
+   collectName (OrPat pat1 pat2)                               = collectName pat1 `union` collectName pat2
+   collectName (TuplePat pats)                                 = collectNames pats
+   collectName (InductiveOrPApplyPat _ pats)                   = collectNames pats
+   collectName (InductivePat _ pats)                           = collectNames pats
+   collectName (PApplyPat _ pats)                              = collectNames pats
+   collectName (DApplyPat _ pats)                              = collectNames pats
    collectName (LoopPat _ (LoopRange _ _ endNumPat) pat1 pat2) = collectName endNumPat `union` collectName pat1 `union` collectName pat2
-   collectName (LetPat _ pat) = collectName pat
-   collectName (IndexedPat (PatVar var) _) = [var]
-   collectName _ = []
+   collectName (LetPat _ pat)                                  = collectName pat
+   collectName (IndexedPat (PatVar var) _)                     = [var]
+   collectName _                                               = []
 
    makeBinding :: String -> IBindingExpr
    makeBinding var = (PDPatVar (stringToVar var), IHashExpr [])
@@ -481,8 +481,8 @@ desugarDefineWithIndices (VarWithIndices name is) expr = do
   return (Var name is', IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 
 extractSubSupIndex :: VarIndex -> [(Bool, String)]
-extractSubSupIndex (VSubscript x)   = [(True, x)]
-extractSubSupIndex (VSuperscript x) = [(False, x)]
+extractSubSupIndex (VSubscript x)        = [(True, x)]
+extractSubSupIndex (VSuperscript x)      = [(False, x)]
 extractSubSupIndex (VGroupScripts xs)    = concatMap extractSubSupIndex xs
 extractSubSupIndex (VSymmScripts xs)     = concatMap extractSubSupIndex xs
 extractSubSupIndex (VAntiSymmScripts xs) = concatMap extractSubSupIndex xs

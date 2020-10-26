@@ -16,22 +16,22 @@ import           Control.Monad.Except
 
 import           Data.IORef
 
-import qualified Data.Sequence             as Sq
-import qualified Data.Vector               as V
+import qualified Data.Sequence                     as Sq
+import qualified Data.Vector                       as V
 
  {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
 import           Language.Egison.Data
-import           Language.Egison.Data.Collection  (makeICollection)
-import           Language.Egison.IExpr            (stringToVar, Index(..))
+import           Language.Egison.Data.Collection   (makeICollection)
+import           Language.Egison.IExpr             (Index (..), stringToVar)
+import           Language.Egison.Math
 import           Language.Egison.Primitives.Arith
 import           Language.Egison.Primitives.IO
 import           Language.Egison.Primitives.String
 import           Language.Egison.Primitives.Types
 import           Language.Egison.Primitives.Utils
-import           Language.Egison.Math
 
 primitiveEnv :: IO Env
 primitiveEnv = do
