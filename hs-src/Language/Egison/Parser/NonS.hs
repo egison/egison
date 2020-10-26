@@ -477,8 +477,8 @@ atomExpr' = anonParamFuncExpr    -- must come before |constantExpr|
         <|> collectionExpr
         <|> tupleOrParenExpr
         <|> hashExpr
-        <|> QuoteExpr <$> (char '\'' >> atomExpr') -- must come after |constantExpr|
-        <|> QuoteSymbolExpr <$> try (char '`' >> atomExpr' <* notFollowedBy (char '`'))
+        <|> QuoteExpr <$> (try (char '`' <* notFollowedBy ident) >> atomExpr') -- must come after |constantExpr|
+        <|> QuoteSymbolExpr <$> try (char '\'' >> atomExpr')
         <|> AnonParamExpr  <$> try (char '%' >> positiveIntegerLiteral)
         <?> "atomic expression"
 

@@ -13,22 +13,22 @@ def ∂/∂ $f *$x :=
     | func _ $argnames $args _ ->
       sum (map2 (\s r -> (userRefs f [s]) * ∂/∂ r x) argnames args)
     -- function application
-    | #`exp $g -> exp g * ∂/∂ g x
-    | #`log $g -> 1 / g * ∂/∂ g x
-    | #`sqrt $g -> 1 / (2 * sqrt g) * ∂/∂ g x
-    | #`(^) $g $h -> f * ∂/∂ (log g * h) x
-    | #`cos $g -> (- sin g) * ∂/∂ g x
-    | #`sin $g -> cos g * ∂/∂ g x
-    | #`arccos $g -> 1 / sqrt (1 - g ^ 2) * ∂/∂ g x
+    | #'exp $g -> exp g * ∂/∂ g x
+    | #'log $g -> 1 / g * ∂/∂ g x
+    | #'sqrt $g -> 1 / (2 * sqrt g) * ∂/∂ g x
+    | #'(^) $g $h -> f * ∂/∂ (log g * h) x
+    | #'cos $g -> (- sin g) * ∂/∂ g x
+    | #'sin $g -> cos g * ∂/∂ g x
+    | #'arccos $g -> 1 / sqrt (1 - g ^ 2) * ∂/∂ g x
     | apply $g $args ->
-      sum (map2 2#((capply `(userRefs g [%1]) args) * ∂/∂ %2 x) nats args)
+      sum (map2 2#((capply '(userRefs g [%1]) args) * ∂/∂ %2 x) nats args)
     -- quote
     | quote $g ->
       let g' := ∂/∂ g x
        in if isMonomial g'
             then g'
             else let d := capply gcd (fromPoly g')
-                  in d *' '(mapPoly (/' d) g')
+                  in d *' `(mapPoly (/' d) g')
     -- term (constant)
     | #0 -> 0
     | _ * #1 -> 0
