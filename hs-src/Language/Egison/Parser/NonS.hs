@@ -1,5 +1,4 @@
-{-# LANGUAGE TupleSections    #-}
-{-# LANGUAGE NamedFieldPuns   #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 {- |
 Module      : Language.Egison.Parser.NonS
@@ -34,7 +33,7 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer     as L
 
-import           Language.Egison.AST            hiding (Assoc(..))
+import           Language.Egison.AST            hiding (Assoc (..))
 import qualified Language.Egison.AST            as E
 import           Language.Egison.RState
 
@@ -123,7 +122,7 @@ infixExpr = do
   return (InfixDecl isPattern newop)
   where
     check :: String -> Parser String
-    check ('!':_) = fail $ "cannot declare infix starting with '!'"
+    check ('!':_) = fail "cannot declare infix starting with '!'"
     check x | x `elem` reservedOp = fail $ show x ++ " cannot be a new infix"
             | otherwise           = return x
 
@@ -152,7 +151,7 @@ expr = do
   body <- exprWithoutWhere
   bindings <- optional (reserved "where" >> alignSome binding)
   return $ case bindings of
-             Nothing -> body
+             Nothing       -> body
              Just bindings -> LetRecExpr bindings body
 
 exprWithoutWhere :: Parser Expr

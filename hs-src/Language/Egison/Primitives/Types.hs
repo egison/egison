@@ -16,7 +16,7 @@ import           Data.Char                        (chr, ord)
 import           Data.Ratio                       ((%))
 
 import           Language.Egison.Data
-import           Language.Egison.EvalState        (MonadEval(..))
+import           Language.Egison.EvalState        (MonadEval (..))
 import           Language.Egison.Math
 import           Language.Egison.Primitives.Utils
 
@@ -109,9 +109,9 @@ integerToFloat = rationalToFloat
 rationalToFloat :: String -> PrimitiveFunc
 rationalToFloat = oneArg $ \val ->
   case val of
-    ScalarData (Div (Plus []) _) -> return $ Float 0
+    ScalarData (Div (Plus []) _)                           -> return $ Float 0
     ScalarData (Div (Plus [Term x []]) (Plus [Term y []])) -> return $ Float (fromRational (x % y))
-    _ -> throwError =<< TypeMismatch "integer or rational number" (Value val) <$> getFuncNameStack
+    _                                                      -> throwErrorWithTrace (TypeMismatch "integer or rational number" (Value val))
 
 charToInteger :: String -> PrimitiveFunc
 charToInteger = unaryOp ctoi

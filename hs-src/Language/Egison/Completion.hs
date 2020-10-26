@@ -15,7 +15,7 @@ import           System.Console.Haskeline    (Completion (..), CompletionFunc, c
 
 import           Language.Egison.Data        (Env (..))
 import           Language.Egison.IExpr       (Var (..))
-import           Language.Egison.Parser.NonS (upperReservedWords, lowerReservedWords)
+import           Language.Egison.Parser.NonS (lowerReservedWords, upperReservedWords)
 
 -- |Complete Egison keywords
 completeEgison :: Monad m => Env -> CompletionFunc m
@@ -52,12 +52,12 @@ closeParen :: String -> Maybe String
 closeParen str = closeParen' 0 $ removeCharAndStringLiteral str
 
 removeCharAndStringLiteral :: String -> String
-removeCharAndStringLiteral [] = []
-removeCharAndStringLiteral ('"':'\\':str) = '"':'\\':removeCharAndStringLiteral str
-removeCharAndStringLiteral ('"':str) = removeCharAndStringLiteral' str
+removeCharAndStringLiteral []              = []
+removeCharAndStringLiteral ('"':'\\':str)  = '"':'\\':removeCharAndStringLiteral str
+removeCharAndStringLiteral ('"':str)       = removeCharAndStringLiteral' str
 removeCharAndStringLiteral ('\'':'\\':str) = '\'':'\\':removeCharAndStringLiteral str
-removeCharAndStringLiteral ('\'':str) = removeCharAndStringLiteral' str
-removeCharAndStringLiteral (c:str) = c:removeCharAndStringLiteral str
+removeCharAndStringLiteral ('\'':str)      = removeCharAndStringLiteral' str
+removeCharAndStringLiteral (c:str)         = c:removeCharAndStringLiteral str
 
 removeCharAndStringLiteral' :: String -> String
 removeCharAndStringLiteral' []              = []

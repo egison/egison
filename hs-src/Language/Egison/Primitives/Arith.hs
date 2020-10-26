@@ -14,9 +14,9 @@ module Language.Egison.Primitives.Arith
 
 import           Control.Monad.Except
 import           Language.Egison.Data
-import           Language.Egison.EvalState        (MonadEval(..))
-import           Language.Egison.Primitives.Utils
+import           Language.Egison.EvalState        (MonadEval (..))
 import           Language.Egison.Math
+import           Language.Egison.Primitives.Utils
 
 primitiveArithFunctions :: [(String, EgisonValue)]
 primitiveArithFunctions =
@@ -96,8 +96,8 @@ scalarBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> String -> Primitiv
 scalarBinaryOp mOp = twoArgs scalarBinaryOp'
  where
   scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData) (mOp m1 m2)
-  scalarBinaryOp' (ScalarData _)  val             = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
-  scalarBinaryOp' val             _               = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  scalarBinaryOp' (ScalarData _)  val             = throwErrorWithTrace (TypeMismatch "number" (Value val))
+  scalarBinaryOp' val             _               = throwErrorWithTrace (TypeMismatch "number" (Value val))
 
 plus :: String -> PrimitiveFunc
 plus = scalarBinaryOp mathPlus
@@ -115,19 +115,19 @@ numerator' :: String -> PrimitiveFunc
 numerator' = oneArg numerator''
  where
   numerator'' (ScalarData m) = return $ ScalarData (mathNumerator m)
-  numerator'' val = throwError =<< TypeMismatch "rational" (Value val) <$> getFuncNameStack
+  numerator'' val            = throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 denominator' :: String -> PrimitiveFunc
 denominator' = oneArg denominator''
  where
   denominator'' (ScalarData m) = return $ ScalarData (mathDenominator m)
-  denominator'' val = throwError =<< TypeMismatch "rational" (Value val) <$> getFuncNameStack
+  denominator'' val            = throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 fromScalarData :: String -> PrimitiveFunc
 fromScalarData = oneArg fromScalarData'
  where
   fromScalarData' (ScalarData m) = return $ mathExprToEgison m
-  fromScalarData' val = throwError =<< TypeMismatch "number" (Value val) <$> getFuncNameStack
+  fromScalarData' val            = throwErrorWithTrace (TypeMismatch "number" (Value val))
 
 toScalarData :: String -> PrimitiveFunc
 toScalarData = oneArg $ \val ->
@@ -137,7 +137,7 @@ symbolNormalize :: String -> PrimitiveFunc
 symbolNormalize = oneArg $ \val ->
   case val of
     ScalarData s -> return $ ScalarData (rewriteSymbol s)
-    _ -> throwError =<< TypeMismatch "math expression" (Value val) <$> getFuncNameStack
+    _            -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 --
 -- Pred
@@ -154,14 +154,14 @@ scalarCompare cmp = twoArgs' $ \val1 val2 ->
       r2 <- fromEgison val2 :: EvalM Rational
       return $ Bool (cmp r1 r2)
     (Float f1, Float f2) -> return $ Bool (cmp f1 f2)
-    (ScalarData _, _) -> throwError =<< TypeMismatch "number" (Value val2) <$> getFuncNameStack
-    (Float _,      _) -> throwError =<< TypeMismatch "float"  (Value val2) <$> getFuncNameStack
-    _                 -> throwError =<< TypeMismatch "number" (Value val1) <$> getFuncNameStack
+    (ScalarData _, _) -> throwErrorWithTrace (TypeMismatch "number" (Value val2))
+    (Float _,      _) -> throwErrorWithTrace (TypeMismatch "float"  (Value val2))
+    _                 -> throwErrorWithTrace (TypeMismatch "number" (Value val1))
 
 truncate' :: String -> PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
-  numberUnaryOp' (ScalarData (Div (Plus []) _)) = return $ toEgison (0 :: Integer)
+  numberUnaryOp' (ScalarData (Div (Plus []) _))                           = return $ toEgison (0 :: Integer)
   numberUnaryOp' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return $ toEgison (quot x y)
-  numberUnaryOp' (Float x)             = return $ toEgison (truncate x :: Integer)
-  numberUnaryOp' val                   = throwError =<< TypeMismatch "rational or float" (Value val) <$> getFuncNameStack
+  numberUnaryOp' (Float x)                                                = return $ toEgison (truncate x :: Integer)
+  numberUnaryOp' val                                                      = throwErrorWithTrace (TypeMismatch "rational or float" (Value val))

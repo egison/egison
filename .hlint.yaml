@@ -51,9 +51,9 @@
 # Ignore some builtin hints
 # - ignore: {name: Use let}
 # - ignore: {name: Use const, within: SpecialModule} # Only within certain modules
-# - ignore: {name: Reduce duplication}
 # - ignore: {name: Use String, within: Language.Egison.Types}
-
+- ignore: {name: Reduce duplication}
+- ignore: {name: Eta reduce}
 
 # Define some custom infix operators
 # - fixity: infixr 3 ~^#^~

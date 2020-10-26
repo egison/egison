@@ -1,8 +1,7 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE QuasiQuotes            #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE PatternSynonyms        #-}
+{-# LANGUAGE QuasiQuotes            #-}
 {-# LANGUAGE ViewPatterns           #-}
 
 {- |
@@ -31,19 +30,18 @@ module Language.Egison.Tensor
     , tConcat'
     ) where
 
-import           Prelude                   hiding (foldr, mappend, mconcat)
+import           Prelude                    hiding (foldr, mappend, mconcat)
 
-import           Control.Monad.Except      hiding (join)
-import qualified Data.Vector               as V
-import           Data.List                 (delete, intersect, partition, (\\))
+import           Control.Monad.Except       (mzero, throwError, zipWithM)
+import           Data.List                  (delete, intersect, partition, (\\))
+import qualified Data.Vector                as V
 
 import           Control.Egison
-import qualified Control.Egison            as M
+import qualified Control.Egison             as M
 
 import           Language.Egison.Data
 import           Language.Egison.Data.Utils
-import           Language.Egison.EvalState (getFuncNameStack)
-import           Language.Egison.IExpr     (Index(..), extractSupOrSubIndex)
+import           Language.Egison.IExpr      (Index (..), extractSupOrSubIndex)
 import           Language.Egison.Math
 import           Language.Egison.RState
 
@@ -105,26 +103,26 @@ tIntRef' :: Integer -> Tensor a -> EvalM (Tensor a)
 tIntRef' i (Tensor [n] xs _) =
   if 0 < i && i <= n
      then return . Scalar $ xs V.! fromIntegral (i - 1)
-     else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
+     else throwErrorWithTrace (TensorIndexOutOfBounds i n)
 tIntRef' i (Tensor (n:ns) xs js) =
   if 0 < i && i <= n
    then let w = fromIntegral (product ns)
             ys = V.take w (V.drop (w * fromIntegral (i - 1)) xs)
          in return $ Tensor ns ys (cdr js)
-   else throwError =<< TensorIndexOutOfBounds i n <$> getFuncNameStack
+   else throwErrorWithTrace (TensorIndexOutOfBounds i n)
 tIntRef' _ _ = throwError $ Default "More indices than the order of the tensor"
 
 tIntRef :: [Integer] -> Tensor a -> EvalM (Tensor a)
 tIntRef [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
-  | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
+  | otherwise = throwErrorWithTrace (EgisonBug "sevaral elements in scalar tensor")
 tIntRef [] t = return t
 tIntRef (m:ms) t = tIntRef' m t >>= tIntRef ms
 
 tIntRef1 :: [Integer] -> Tensor a -> EvalM a
 tIntRef1 [] (Scalar x) = return x
 tIntRef1 [] (Tensor [] xs _) | V.length xs == 1 = return (xs V.! 0)
-tIntRef1 [] _ = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
+tIntRef1 [] _ = throwErrorWithTrace (EgisonBug "sevaral elements in scalar tensor")
 tIntRef1 (m:ms) t = tIntRef' m t >>= tIntRef1 ms
 
 pattern SupOrSubIndex :: a -> Index a
@@ -133,7 +131,7 @@ pattern SupOrSubIndex i <- (extractSupOrSubIndex -> Just i)
 tref :: [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tref [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
-  | otherwise = throwError =<< EgisonBug "sevaral elements in scalar tensor" <$> getFuncNameStack
+  | otherwise = throwErrorWithTrace (EgisonBug "sevaral elements in scalar tensor")
 tref [] t = return t
 tref (s@(SupOrSubIndex (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) = do
   let yss = split (product ns) xs
@@ -162,7 +160,7 @@ tref (_:_) _ = throwError $ Default "Tensor index must be an integer or a single
 -- >>> enumTensorIndices [2,2,2]
 -- [[1,1,1],[1,1,2],[1,2,1],[1,2,2],[2,1,1],[2,1,2],[2,2,1],[2,2,2]]
 enumTensorIndices :: Shape -> [[Integer]]
-enumTensorIndices [] = [[]]
+enumTensorIndices []     = [[]]
 enumTensorIndices (n:ns) = concatMap (\i -> map (i:) (enumTensorIndices ns)) [1..n]
 
 changeIndex :: Index String -> EgisonValue -> Index String
@@ -184,13 +182,13 @@ tTranspose is t@(Tensor ns _ js) = do
   let js' = take (length is) js
   let ds = complementWithDF ns is
   ns' <- transIndex (js' ++ ds) (is ++ ds) ns
-  xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef1` t)
+  xs' <- mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef1` t) . V.fromList
   return $ Tensor ns' xs' is
 
 tTranspose' :: [EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) =
   case mapM (\i -> f i js) is of
-    Nothing -> return t
+    Nothing  -> return t
     Just is' -> tTranspose is' t
  where
   f :: EgisonValue -> [Index EgisonValue] -> Maybe (Index EgisonValue)

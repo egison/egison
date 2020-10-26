@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase       #-}
 
 {- |
 Module      : Language.Egison.Primitives
@@ -17,23 +16,22 @@ import           Control.Monad.Except
 
 import           Data.IORef
 
-import qualified Data.Sequence             as Sq
-import qualified Data.Vector               as V
+import qualified Data.Sequence                     as Sq
+import qualified Data.Vector                       as V
 
  {--  -- for 'egison-sqlite'
 import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
 import           Language.Egison.Data
-import           Language.Egison.Data.Collection  (makeICollection)
-import           Language.Egison.EvalState        (MonadEval(..))
-import           Language.Egison.IExpr            (stringToVar, Index(..))
+import           Language.Egison.Data.Collection   (makeICollection)
+import           Language.Egison.IExpr             (Index (..), stringToVar)
+import           Language.Egison.Math
 import           Language.Egison.Primitives.Arith
 import           Language.Egison.Primitives.IO
 import           Language.Egison.Primitives.String
 import           Language.Egison.Primitives.Types
 import           Language.Egison.Primitives.Utils
-import           Language.Egison.Math
 
 primitiveEnv :: IO Env
 primitiveEnv = do
@@ -122,7 +120,7 @@ addSubscript = twoArgs $ \fn sub ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sub s]))))
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sub s]))))
-    _ -> throwError =<< TypeMismatch "symbol or integer" (Value fn) <$> getFuncNameStack
+    _ -> throwErrorWithTrace (TypeMismatch "symbol or integer" (Value fn))
 
 addSuperscript :: String -> PrimitiveFunc
 addSuperscript = twoArgs $ \fn sub ->
@@ -131,21 +129,21 @@ addSuperscript = twoArgs $ \fn sub ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
-    _ -> throwError =<< TypeMismatch "symbol" (Value fn) <$> getFuncNameStack
+    _ -> throwErrorWithTrace (TypeMismatch "symbol" (Value fn))
 
 assert ::  String -> PrimitiveFunc
 assert = twoArgs' $ \label test -> do
   test <- fromEgison test
   if test
     then return $ Bool True
-    else throwError =<< Assertion (show label) <$> getFuncNameStack
+    else throwErrorWithTrace (Assertion (show label))
 
 assertEqual :: String -> PrimitiveFunc
 assertEqual = threeArgs' $ \label actual expected ->
   if actual == expected
      then return $ Bool True
-     else throwError =<< Assertion
-       (show label ++ "\n expected: " ++ show expected ++ "\n but found: " ++ show actual) <$> getFuncNameStack
+     else throwErrorWithTrace (Assertion
+            (show label ++ "\n expected: " ++ show expected ++ "\n but found: " ++ show actual))
 
  {-- -- for 'egison-sqlite'
 sqlite :: PrimitiveFunc

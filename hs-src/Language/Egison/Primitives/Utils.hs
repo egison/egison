@@ -15,12 +15,9 @@ module Language.Egison.Primitives.Utils
   , binaryOp
   ) where
 
-import           Control.Monad.Except
-
-import qualified Data.Vector               as V
+import qualified Data.Vector            as V
 
 import           Language.Egison.Data
-import           Language.Egison.EvalState (MonadEval(..))
 import           Language.Egison.Tensor
 
 {-# INLINE noArg #-}
@@ -30,7 +27,7 @@ noArg f name args =
     [] -> f
     [Tuple []] -> f
     _ ->
-      throwError =<< ArgumentsNumPrimitive name 1 (length args) <$> getFuncNameStack
+      throwErrorWithTrace (ArgumentsNumPrimitive name 1 (length args))
 
 {-# INLINE oneArg #-}
 oneArg :: (EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
@@ -41,22 +38,22 @@ oneArg f name args =
       return $ TensorData (Tensor ns ds' js)
     [arg] -> f arg
     _ ->
-      throwError =<< ArgumentsNumPrimitive name 1 (length args) <$> getFuncNameStack
+      throwErrorWithTrace (ArgumentsNumPrimitive name 1 (length args))
 
 {-# INLINE oneArg' #-}
 oneArg' :: (EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
 oneArg' f name args =
   case args of
     [arg] -> f arg
-    _     -> 
-      throwError =<< ArgumentsNumPrimitive name 1 (length args) <$> getFuncNameStack
+    _     ->
+      throwErrorWithTrace (ArgumentsNumPrimitive name 1 (length args))
 
 {-# INLINE twoArgs #-}
 twoArgs :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
 twoArgs f name args =
   case args of
     [TensorData t1@Tensor{}, TensorData t2@Tensor{}] ->
-      tProduct (\x y -> f x y) t1 t2 >>= fromTensor
+      tProduct f t1 t2 >>= fromTensor
     [TensorData(Tensor ns ds js), val] -> do
       ds' <- V.mapM (`f` val) ds
       return $ TensorData (Tensor ns ds' js)
@@ -65,7 +62,7 @@ twoArgs f name args =
       return $ TensorData (Tensor ns ds' js)
     [val, val'] -> f val val'
     [val] -> return . PrimitiveFunc $ oneArg (f val) name
-    _ -> throwError =<< ArgumentsNumPrimitive name 2 (length args) <$> getFuncNameStack
+    _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 2 (length args))
 
 {-# INLINE twoArgs' #-}
 twoArgs' :: (EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
@@ -73,7 +70,7 @@ twoArgs' f name args =
   case args of
     [val, val'] -> f val val'
     [val]       -> return . PrimitiveFunc $ oneArg' (f val) name
-    _           -> throwError =<< ArgumentsNumPrimitive name 2 (length args) <$> getFuncNameStack
+    _           -> throwErrorWithTrace (ArgumentsNumPrimitive name 2 (length args))
 
 {-# INLINE threeArgs' #-}
 threeArgs' :: (EgisonValue -> EgisonValue -> EgisonValue -> EvalM EgisonValue) -> String -> PrimitiveFunc
@@ -82,13 +79,13 @@ threeArgs' f name args =
     [val, val', val''] -> f val val' val''
     [val, val']        -> return . PrimitiveFunc $ oneArg' (f val val') name
     [val]              -> return . PrimitiveFunc $ twoArgs' (f val) name
-    _                  -> throwError =<< ArgumentsNumPrimitive name 3 (length args) <$> getFuncNameStack
+    _                  -> throwErrorWithTrace (ArgumentsNumPrimitive name 3 (length args))
 
 lazyOneArg :: (WHNFData -> EvalM WHNFData) -> String -> LazyPrimitiveFunc
 lazyOneArg f name args =
   case args of
     [arg] -> f arg
-    _     -> throwError =<< ArgumentsNumPrimitive name 1 (length args) <$> getFuncNameStack
+    _     -> throwErrorWithTrace (ArgumentsNumPrimitive name 1 (length args))
 
 unaryOp :: (EgisonData a, EgisonData b) => (a -> b) -> String -> PrimitiveFunc
 unaryOp op = oneArg $ \val -> do

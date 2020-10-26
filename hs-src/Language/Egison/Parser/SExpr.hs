@@ -1,6 +1,5 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ViewPatterns  #-}
-{-# OPTIONS_GHC -Wno-all   #-} -- Since we will soon deprecate this parser
+{-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-all  #-} -- Since we will soon deprecate this parser
 
 {- |
 Module      : Language.Egison.Parser.SExpr
@@ -18,21 +17,21 @@ module Language.Egison.Parser.SExpr
        , parseExpr
        ) where
 
-import           Control.Applicative     (pure, (*>), (<$>), (<*), (<*>))
-import           Control.Monad.Except    (throwError)
-import           Control.Monad.Identity  (Identity)
+import           Control.Applicative    (pure, (*>), (<$>), (<*), (<*>))
+import           Control.Monad.Except   (throwError)
+import           Control.Monad.Identity (Identity)
 
-import           Data.Char               (isLower, isUpper, toUpper)
+import           Data.Char              (isLower, isUpper, toUpper)
 import           Data.Either
-import           Data.Functor            (($>))
-import           Data.List.Split         (splitOn)
+import           Data.Functor           (($>))
+import           Data.List.Split        (splitOn)
 import           Data.Ratio
-import qualified Data.Set                as Set
-import qualified Data.Text               as T
+import qualified Data.Set               as Set
+import qualified Data.Text              as T
 
 import           Text.Parsec
 import           Text.Parsec.String
-import qualified Text.Parsec.Token       as P
+import qualified Text.Parsec.Token      as P
 
 import           Language.Egison.AST
 
@@ -195,12 +194,12 @@ collectionExpr = do
   isElementExpr _             = False
 
   f :: [Expr] -> [InnerExpr] -> Expr
-  f xs [] = CollectionExpr xs
-  f xs [ElementExpr y] = CollectionExpr (xs ++ [y])
-  f []  [SubCollectionExpr y] = y
-  f [x] [SubCollectionExpr y] = ConsExpr x y
-  f xs  [SubCollectionExpr y] = JoinExpr (CollectionExpr xs) y
-  f xs (ElementExpr y : ys) = f (xs ++ [y]) ys
+  f xs []                          = CollectionExpr xs
+  f xs [ElementExpr y]             = CollectionExpr (xs ++ [y])
+  f []  [SubCollectionExpr y]      = y
+  f [x] [SubCollectionExpr y]      = ConsExpr x y
+  f xs  [SubCollectionExpr y]      = JoinExpr (CollectionExpr xs) y
+  f xs (ElementExpr y : ys)        = f (xs ++ [y]) ys
   f []  (SubCollectionExpr y : ys) = JoinExpr y (f [] ys)
   f [x] (SubCollectionExpr y : ys) = ConsExpr x (JoinExpr y (f [] ys))
   f xs  (SubCollectionExpr y : ys) = JoinExpr (CollectionExpr xs) (JoinExpr y (f [] ys))
@@ -404,7 +403,7 @@ applyExpr = do
         let n = toInteger (length vars)
             args' = f args 1
          in return $ AnonParamFuncExpr n $ ApplyExpr func args'
-      | all (not . null) vars ->
+      | not (any null vars) ->
         let ns = Set.fromList $ map read vars
             n = Set.size ns
         in if Set.findMin ns == 1 && Set.findMax ns == n
@@ -417,9 +416,9 @@ applyExpr = do
   arg = try (Right <$> expr)
          <|> char '$' *> (Left <$> option "" index)
   index = (:) <$> satisfy (\c -> '1' <= c && c <= '9') <*> many digit
-  f [] _                   = []
-  f (Left _ : args) n      = AnonParamExpr n : f args (n + 1)
-  f (Right expr : args) n  = expr : f args n
+  f [] _                  = []
+  f (Left _ : args) n     = AnonParamExpr n : f args (n + 1)
+  f (Right expr : args) n = expr : f args n
   g (Left arg)   = AnonParamExpr (read arg)
   g (Right expr) = expr
 
@@ -873,5 +872,5 @@ toCamelCase x =
   let heads:tails = splitOn "-" x
    in concat $ heads : map capitalize tails
   where
-    capitalize [] = "-"
+    capitalize []     = "-"
     capitalize (x:xs) = toUpper x : xs

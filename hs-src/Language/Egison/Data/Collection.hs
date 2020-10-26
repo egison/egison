@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections   #-}
+{-# LANGUAGE TupleSections #-}
 
 {- |
 Module      : Language.Egison.Data.Collection
@@ -18,26 +18,25 @@ module Language.Egison.Data.Collection
   , makeICollection
   ) where
 
-import           Control.Monad.Except        (throwError, lift, liftIO)
-import           Control.Monad.Trans.Maybe   (runMaybeT)
+import           Control.Monad.Except       (lift, liftIO)
+import           Control.Monad.Trans.Maybe  (runMaybeT)
 
-import           Data.Foldable               (toList)
+import           Data.Foldable              (toList)
 import           Data.IORef
-import           Data.Maybe                  (fromJust)
-import           Data.Sequence               (Seq, ViewL (..), ViewR (..), (><))
-import qualified Data.Sequence               as Sq
+import           Data.Maybe                 (fromJust)
+import           Data.Sequence              (Seq, ViewL (..), ViewR (..), (><))
+import qualified Data.Sequence              as Sq
 
 import           Language.Egison.Data
 import           Language.Egison.Data.Utils
-import           Language.Egison.EvalState   (MonadEval(..))
-import           Language.Egison.Match
 import           Language.Egison.MList
+import           Language.Egison.Match
 
 expandCollection :: WHNFData -> EvalM (Seq Inner)
 expandCollection (Value (Collection vals)) =
   mapM (fmap IElement . newEvaluatedObjectRef . Value) vals
 expandCollection (ICollection innersRef) = liftIO $ readIORef innersRef
-expandCollection val = throwError =<< TypeMismatch "collection" val <$> getFuncNameStack
+expandCollection val = throwErrorWithTrace (TypeMismatch "collection" val)
 
 isEmptyCollection :: WHNFData -> EvalM Bool
 isEmptyCollection (Value (Collection col)) = return $ Sq.null col
@@ -104,11 +103,11 @@ collectionToRefs whnf@(ICollection _) = do
       (head, tail) <- fromJust <$> runMaybeT (unconsCollection whnf)
       tail' <- evalRef tail
       return $ MCons head (collectionToRefs tail')
-collectionToRefs whnf = throwError =<< TypeMismatch "collection" whnf <$> getFuncNameStack
+collectionToRefs whnf = throwErrorWithTrace (TypeMismatch "collection" whnf)
 
 collectionToList :: EgisonValue -> EvalM [EgisonValue]
 collectionToList (Collection sq) = return $ toList sq
-collectionToList val = throwError =<< TypeMismatch "collection" (Value val) <$> getFuncNameStack
+collectionToList val             = throwErrorWithTrace (TypeMismatch "collection" (Value val))
 
 makeICollection :: [WHNFData] -> EvalM WHNFData
 makeICollection xs  = do

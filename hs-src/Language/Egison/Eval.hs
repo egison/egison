@@ -21,8 +21,8 @@ module Language.Egison.Eval
   , loadEgisonFile
   ) where
 
-import           Control.Monad.Except        (throwError)
-import           Control.Monad.Reader        (ask, asks)
+import           Control.Monad.Except       (throwError)
+import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
 
 import           Language.Egison.AST
@@ -30,9 +30,9 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Desugar
-import           Language.Egison.EvalState   (MonadEval(..))
+import           Language.Egison.EvalState  (MonadEval (..))
 import           Language.Egison.IExpr
-import           Language.Egison.MathOutput  (prettyMath)
+import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 
 
@@ -45,7 +45,7 @@ evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
   topExpr <- desugarTopExpr topExpr
   case topExpr of
-    Nothing -> return (Nothing, env)
+    Nothing      -> return (Nothing, env)
     Just topExpr -> evalTopExpr' env topExpr
 
 -- | Evaluate an Egison top expression.
@@ -153,7 +153,7 @@ evalTopExpr' env (IExecute expr) = do
   io <- evalExprShallow env expr
   case io of
     Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
-    _                -> throwError =<< TypeMismatch "io" io <$> getFuncNameStack
+    _                -> throwErrorWithTrace (TypeMismatch "io" io)
 evalTopExpr' env (ILoad file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
