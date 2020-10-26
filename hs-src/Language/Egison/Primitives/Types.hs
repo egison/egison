@@ -10,13 +10,10 @@ module Language.Egison.Primitives.Types
   ( primitiveTypeFunctions
   ) where
 
-import           Control.Monad.Except
-
 import           Data.Char                        (chr, ord)
 import           Data.Ratio                       ((%))
 
 import           Language.Egison.Data
-import           Language.Egison.EvalState        (MonadEval (..))
 import           Language.Egison.Math
 import           Language.Egison.Primitives.Utils
 
