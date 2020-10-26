@@ -13,7 +13,7 @@ Let's start this tutorial by greeting the world. The following is the "Hello wor
 
 ::
 
-   -- Save this code as a "hello.egi" file
+   -- hello.egi
    def main args :=
      write "Hello, World!\n"
 
@@ -37,7 +37,7 @@ For instance, assume the following program.
 
 ::
 
-   -- Save this code as a "args.egi" file
+   -- args.egi
    def main args :=
      write (show args)
 

@@ -8,10 +8,10 @@ Command-Line Options
 Load definitions from the given file.
 ::
 
-   $ cat name-of-file-to-load.egi
+   $ cat foo.egi
    def x := 1
 
-   $ egison -l name-of-file-to-load.egi
+   $ egison -l foo.egi
    > x
    1
 
@@ -24,12 +24,12 @@ Load definitions from the given file.
 Evaluate expressions in the given file.
 ::
 
-   $ cat name-of-file-to-test.egi
+   $ cat foo.egi
    def x := 1
    x + 2
    "This is the third line"
 
-   $ egison -t name-of-file-to-test.egi
+   $ egison -t foo.egi
    3
    "This is the third line"
 

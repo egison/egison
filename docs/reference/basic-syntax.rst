@@ -11,6 +11,7 @@ Definition
 ----------
 
 You can bind an expression to a variable by connecting them with ``:=``.
+If you want to declare it at the top level of a program, start with a ``def`` keyword.
 When defining functions, the argument variable can be placed in the left hand side of the ``:=``.
 
 ::
@@ -20,6 +21,13 @@ When defining functions, the argument variable can be placed in the left hand si
    -- The following two definitions are identical.
    def f := \x -> x + 1
    def f x := x + 1
+
+You can decompose data at the argument position as follows.
+
+::
+
+   def uncurry f (x, y) := f x y
+   uncurry (+) (1, 2) -- 3
 
 Expression
 ----------
@@ -108,13 +116,15 @@ The arguments are written between ``\`` and ``->``, and the body is written at t
    -- Function application
    (\x y -> x + y) 3 7  ---> 10
 
-The arguments can be simply aligned (separated with whitespace) or packed in a tuple.
-Namely, the following two notations are identical.
+You can also decompose data at the argument position as follows.
+Unlike the pattern-matching with ``match`` expressions, you can write only one pattern for
+each argument.
+Also, this decomposition works the same way as the 'pattern matching' in OCaml or Haskell, since you
+cannot specify matchers.
 
 ::
 
-   (\x y -> x + y)) 3 7    ---> 10
-   (\(x, y) -> x + y) 3 7  ---> 10
+   (\(x, y) -> x + y) (3, 7)  ---> 10
 
 
 Anonymous parameter function
@@ -198,6 +208,26 @@ As a result, note the following behavior.
     in y
    ---> 1 (not 3)
 
+You can also decompose data as follows.
+This decomposition does not require matchers and you can only specify one pattern.
+To support multiple patterns, use the ``match`` expression.
+
+::
+
+   let (x, y) := (1, 2) in x + y -- 3
+   let (x :: _) := [1, 2, 3] in x -- 1
+   let (x :: _) := [] in x -- pattern match failure
+
+The patterns must be syntactically atomic. If you want to use infix patterns (ex. ``::``) or
+data constructor patterns with arguments, surround them with parentheses.
+
+::
+
+   let (x :: _) := [1, 2, 3] in x -- 1
+   -- let x :: _ := [1, 2, 3] in x -- parse error!
+
+   let (Just x) := Just 1 in x -- 1
+   -- let Just x := Just 1 in x -- parse error!
 
 ``where`` expression
 --------------------
@@ -264,7 +294,7 @@ The last expression in a ``do`` block is interpreted as the evaluation result of
 
 ::
 
-   > io do { return 1; return 2; return 3 }
+   > io (do { return 1; return 2; return 3 })
    3
 
 ``seq`` expression
