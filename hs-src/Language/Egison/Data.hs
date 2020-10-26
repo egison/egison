@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE QuasiQuotes           #-}
 
 {- |
 Module      : Language.Egison.Data

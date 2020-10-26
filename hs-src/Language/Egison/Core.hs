@@ -144,7 +144,7 @@ evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   xs <- collectionToRefs xsWhnf >>= fromMList >>= mapM evalRef
   if product ns == toInteger (length xs)
     then makeITensorFromWHNF ns xs
-    else throwErrorWithTrace (InconsistentTensorShape)
+    else throwErrorWithTrace InconsistentTensorShape
 
 evalExprShallow env (IHashExpr assocs) = do
   let (keyExprs, exprs) = unzip assocs
@@ -960,7 +960,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                   obj <- evalRef ref >>= updateHash indices target >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = subst name obj bindings, mTrees = trees }
                 Nothing  -> do
-                  obj <- updateHash indices target (IIntHash (HL.empty)) >>= newEvaluatedObjectRef
+                  obj <- updateHash indices target (IIntHash HL.empty) >>= newEvaluatedObjectRef
                   return . msingleton $ mstate { mStateBindings = (name,obj):bindings, mTrees = trees }
             IIndexedPat pattern _ -> throwError $ Default ("invalid indexed-pattern: " ++ show pattern)
             ITuplePat patterns -> do
@@ -997,7 +997,7 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
         evalExprShallow env expr >>= collectionToRefs
       _ -> cont
   failPPPatternMatch = throwError (Default "failed primitive pattern pattern match")
-  failPDPatternMatch = throwErrorWithTrace (PrimitiveMatchFailure)
+  failPDPatternMatch = throwErrorWithTrace PrimitiveMatchFailure
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->
                             MatchM ([IPattern], [Binding])
@@ -1020,7 +1020,7 @@ bindPrimitiveDataPattern :: IPrimitiveDataPattern -> ObjectRef -> EvalM [Binding
 bindPrimitiveDataPattern pdp ref = do
   r <- runMaybeT $ primitiveDataPatternMatch pdp ref
   case r of
-    Nothing -> throwErrorWithTrace (PrimitiveMatchFailure)
+    Nothing -> throwErrorWithTrace PrimitiveMatchFailure
     Just binding -> return binding
 
 primitiveDataPatternMatch :: IPrimitiveDataPattern -> ObjectRef -> MatchM [Binding]

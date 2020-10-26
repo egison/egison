@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE QuasiQuotes            #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE PatternSynonyms        #-}
 {-# LANGUAGE ViewPatterns           #-}
 
@@ -183,7 +182,7 @@ tTranspose is t@(Tensor ns _ js) = do
   let js' = take (length is) js
   let ds = complementWithDF ns is
   ns' <- transIndex (js' ++ ds) (is ++ ds) ns
-  xs' <- V.fromList <$> mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef1` t)
+  xs' <- mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef1` t) . V.fromList
   return $ Tensor ns' xs' is
 
 tTranspose' :: [EgisonValue] -> Tensor a -> EvalM (Tensor a)

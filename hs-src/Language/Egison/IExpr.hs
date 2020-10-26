@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE DeriveFunctor      #-}
 {-# LANGUAGE DeriveTraversable  #-}
 {-# LANGUAGE FlexibleInstances  #-}
 

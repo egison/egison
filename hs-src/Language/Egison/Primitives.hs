@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase       #-}
 
 {- |
 Module      : Language.Egison.Primitives
@@ -26,7 +25,6 @@ import qualified Database.SQLite3 as SQLite
 
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection  (makeICollection)
-import           Language.Egison.EvalState        (MonadEval(..))
 import           Language.Egison.IExpr            (stringToVar, Index(..))
 import           Language.Egison.Primitives.Arith
 import           Language.Egison.Primitives.IO
@@ -144,8 +142,8 @@ assertEqual :: String -> PrimitiveFunc
 assertEqual = threeArgs' $ \label actual expected ->
   if actual == expected
      then return $ Bool True
-     else throwError =<< Assertion
-       (show label ++ "\n expected: " ++ show expected ++ "\n but found: " ++ show actual) <$> getFuncNameStack
+     else throwErrorWithTrace (Assertion
+            (show label ++ "\n expected: " ++ show expected ++ "\n but found: " ++ show actual))
 
  {-- -- for 'egison-sqlite'
 sqlite :: PrimitiveFunc

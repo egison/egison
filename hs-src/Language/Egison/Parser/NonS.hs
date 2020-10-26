@@ -1,5 +1,4 @@
-{-# LANGUAGE TupleSections    #-}
-{-# LANGUAGE NamedFieldPuns   #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 {- |
 Module      : Language.Egison.Parser.NonS
