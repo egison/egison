@@ -84,7 +84,7 @@ source-repository head
 Library
   default-language:    Haskell2010
   Build-Depends:
-      base                 >= 4.7     && < 5
+      base                 >= 4.8     && < 5
     , random               == 1.*
     , containers           == 0.6.*
     , unordered-containers >= 0.1.0.0 && < 0.3
@@ -96,7 +96,7 @@ Library
     , parser-combinators   >= 1.0     && < 2.0
     , directory            >= 1.3.0
     , text                 >= 0.2     && < 1.3
-    , regex-tdfa
+    , regex-tdfa           >= 1.2.0
     , process              >= 1.0     && < 2.0
     , vector               == 0.12.*
     , hashable             >= 1.0     && < 2.0
@@ -156,7 +156,7 @@ Test-Suite test
   Main-Is:        Test.hs
   Build-Depends:
       egison
-    , base >= 4.0 && < 5
+    , base >= 4.8 && < 5
     , transformers
     , mtl
     , Glob
@@ -175,7 +175,7 @@ Test-Suite test-cli
   Main-Is:        OptionsTest.hs
   Build-Depends:
       egison
-    , base >= 4.0 && < 5
+    , base >= 4.8 && < 5
     , process
     , HUnit
     , test-framework
@@ -191,7 +191,7 @@ Benchmark benchmark
   Main-Is: Benchmark.hs
   Build-Depends:
       egison
-    , base >= 4.0 && < 5
+    , base >= 4.8 && < 5
     , criterion >= 0.5
     , transformers
   Other-modules:   Paths_egison
@@ -224,7 +224,7 @@ Executable egison-translate
   Main-is:          translator.hs
   Build-depends:
       egison
-    , base >= 4.0 && < 5
+    , base >= 4.8 && < 5
     , prettyprinter
   Hs-Source-Dirs:   hs-src/Tool
   ghc-options:  -Wall -Wno-name-shadowing
