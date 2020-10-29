@@ -89,22 +89,22 @@ Library
     , containers           == 0.6.*
     , unordered-containers >= 0.1.0.0 && < 0.3
     , haskeline            >= 0.7     && < 0.9
-    , transformers
-    , mtl                  >= 2.2.1
+    , transformers         >= 0.4     && < 0.6
+    , mtl                  >= 2.2.2   && < 3.0
     , parsec               >= 3.0
-    , megaparsec           >= 7.0.0
-    , parser-combinators
-    , directory
-    , text
+    , megaparsec           >= 7.0.0   && < 12.0
+    , parser-combinators   >= 1.0     && < 2.0
+    , directory            >= 1.3.0
+    , text                 >= 0.2     && < 1.3
     , regex-tdfa
-    , process
-    , vector
+    , process              >= 1.0     && < 2.0
+    , vector               == 0.12.*
     , split
-    , hashable
-    , optparse-applicative
-    , prettyprinter
-    , unicode-show
-    , sweet-egison         >= 0.1.1.3
+    , hashable             >= 1.0     && < 2.0
+    , optparse-applicative >= 0.14    && < 0.20
+    , prettyprinter        >= 1.0     && < 2.0
+    , unicode-show         == 0.1.*
+    , sweet-egison         == 0.1.1.3
   if !impl(ghc > 8.0)
     Build-Depends: fail
   Hs-Source-Dirs:  hs-src
