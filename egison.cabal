@@ -99,7 +99,6 @@ Library
     , regex-tdfa
     , process              >= 1.0     && < 2.0
     , vector               == 0.12.*
-    , split
     , hashable             >= 1.0     && < 2.0
     , optparse-applicative >= 0.14    && < 0.20
     , prettyprinter        >= 1.0     && < 2.0
@@ -227,6 +226,5 @@ Executable egison-translate
       egison
     , base >= 4.0 && < 5
     , prettyprinter
-    , split
   Hs-Source-Dirs:   hs-src/Tool
   ghc-options:  -Wall -Wno-name-shadowing
