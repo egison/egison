@@ -95,8 +95,6 @@ Library
     , megaparsec           >= 7.0.0
     , parser-combinators
     , directory
-    , ghc
-    , ghc-paths
     , text
     , regex-tdfa
     , process
@@ -207,21 +205,13 @@ Executable egison
   Build-depends:
       egison
     , base >= 4.0 && < 5
-    , containers
     , exceptions
-    , unordered-containers
     , haskeline
-    , transformers
     , mtl
-    , parsec >= 3.1
     , directory
-    , ghc
-    , ghc-paths
     , filepath
     , text
-    , process
     , regex-tdfa
-    , vector
     , optparse-applicative
   if !impl(ghc > 8.0)
     Build-Depends: semigroups
