@@ -238,13 +238,14 @@ instance Printable PolyExpr where
 instance Printable SymbolExpr where
   isAtom Symbol{}     = True
   isAtom (Apply _ []) = True
+  isAtom Quote{}      = True
   isAtom _            = False
 
   pretty (Symbol _ (':':':':':':_) []) = "#"
   pretty (Symbol _ s [])               = s
   pretty (Symbol _ s js)               = s ++ concatMap show js
   pretty (Apply fn mExprs)             = unwords (map pretty' (fn : mExprs))
-  pretty (Quote mExprs)                = "'" ++ pretty' mExprs
+  pretty (Quote mExprs)                = "`" ++ pretty' mExprs
   pretty (FunctionData name _ _ js)    = pretty name ++ concatMap show js
 
 instance Printable TermExpr where
