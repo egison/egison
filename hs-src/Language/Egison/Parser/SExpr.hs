@@ -24,7 +24,6 @@ import           Control.Monad.Identity (Identity)
 import           Data.Char              (isLower, isUpper, toUpper)
 import           Data.Either
 import           Data.Functor           (($>))
-import           Data.List.Split        (splitOn)
 import           Data.Ratio
 import qualified Data.Set               as Set
 import qualified Data.Text              as T
@@ -858,8 +857,17 @@ renamedFunctions =
   , ("rdc",         "init")
   ]
 
+splitOn :: Eq a => a -> [a] -> [[a]]
+splitOn sep list =
+  case span (/= sep) list of
+    ([], [])    -> []
+    ([], _ : t) -> splitOn sep t
+    (h, [])     -> [h]
+    (h, _ : t)  -> h : splitOn sep t
+
 -- Translate identifiers for Non-S syntax
 toCamelCase :: String -> String
+toCamelCase "-" = "-"
 toCamelCase "-'" = "-'"
 toCamelCase "f.-'" = "f.-'"
 toCamelCase "b.." = "b."
@@ -869,7 +877,7 @@ toCamelCase (flip lookup renamedFunctions -> Just name') =
 toCamelCase (reverse -> 'm':'/':xs) =
   toCamelCase (reverse xs ++ "-as")
 toCamelCase x =
-  let heads:tails = splitOn "-" x
+  let heads:tails = splitOn '-' x
    in concat $ heads : map capitalize tails
   where
     capitalize []     = "-"
