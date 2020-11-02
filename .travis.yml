@@ -2,6 +2,8 @@ language: haskell
 
 dist: xenial
 
+cabal: "2.4"
+
 # Caching so the next build will be fast too.
 cache:
   directories:
