@@ -48,7 +48,7 @@ install:
 script:
   - case "$BUILD" in
       cabal)
-        cabal test
+        cabal test test
         ;;
       stack)
         stack --no-terminal $ARGS --skip-ghc-check test
