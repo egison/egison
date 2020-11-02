@@ -32,7 +32,8 @@ before_install:
 install:
   - case "$BUILD" in
       cabal)
-        cabal update
+        cabal update;
+        cabal install --only-dependencies --enable-tests
         ;;
       stack)
         mkdir -p ~/.local/bin;
