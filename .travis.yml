@@ -27,6 +27,7 @@ before_install:
       stack)
         export PATH=$HOME/.local/bin:$PATH
         ;;
+    esac
 
 install:
   - case "$BUILD" in
@@ -37,6 +38,7 @@ install:
         mkdir -p ~/.local/bin;
         travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
         ;;
+    esac
 
 script:
   - case "$BUILD" in
@@ -46,6 +48,7 @@ script:
       stack)
         stack --no-terminal $ARGS --skip-ghc-check test
         ;;
+    esac
 
 branches:
   only:
