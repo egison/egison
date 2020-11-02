@@ -33,6 +33,7 @@ install:
   - case "$BUILD" in
       cabal)
         cabal update;
+        cabal install happy;
         cabal install --only-dependencies --enable-tests
         ;;
       stack)
