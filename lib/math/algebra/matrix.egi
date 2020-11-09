@@ -13,7 +13,7 @@ def M.comm %m1 %m2 := withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
 def M.inverse %m :=
   let d := M.det m
    in generateTensor
-        (\(i, j) ->
+        (\[i, j] ->
           match m as matrix with
           | cons #j #i _ $A $B $C $D ->
             if isEven (i + j)
@@ -64,11 +64,11 @@ def M.join %A %B %C %D :=
       n1 := max c1 d1
       n2 := max b2 d2
    in generateTensor
-        (\match as (integer, integer) with
-          | ($i & ?(<= a1), $j & ?(<= a2)) -> A_i_j
-          | ($i & ?(<= m1), $j)            -> B_i_(j - a2)
-          | ($i,            $j & ?(<= m2)) -> C_(i - a1)_j
-          | ($i,            $j)            -> D_(i - m1)_(j - m2))
+        (\match as list integer with
+          | [$i & ?(<= a1), $j & ?(<= a2)] -> A_i_j
+          | [$i & ?(<= m1), $j]            -> B_i_(j - a2)
+          | [$i,            $j & ?(<= m2)] -> C_(i - a1)_j
+          | [$i,            $j]            -> D_(i - m1)_(j - m2))
         [m1 + n1, m2 + n2]
 
 --
