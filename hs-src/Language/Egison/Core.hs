@@ -412,7 +412,7 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   indexToWHNF (Env frame maybe_vwi) ms = do
     let env' = maybe env (\(name, indices) -> Env frame $ Just (name, zipWith changeIndex indices ms)) maybe_vwi
     fn <- evalExprShallow env' fnExpr
-    newApplyObjThunkRef env fn (map (WHNF . Value) ms)
+    newApplyObjThunkRef env fn [WHNF (Value (Tuple ms))]
 
 evalExprShallow env (ITensorContractExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
