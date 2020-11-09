@@ -1,6 +1,14 @@
 # Changelog
 
 ## Latest
+### New Features
+* Added binary function notation for arbitrary 2-ary functions. ([#260](https://github.com/egison/egison/pull/260))
+```hs
+> let mod x y := x % y in 103 `mod` 10
+3
+```
+
+### Backward-incompatible Changes
 * Swapped the notation for `QuoteExpr` and `QuoteSymbolExpr`. ([#262](https://github.com/egison/egison/issues/262))
 ```hs
 > `(a + b) + `(a + b) -- QuoteExpr, which prevents (a + b) from unpacking
@@ -8,6 +16,15 @@
 > 'exp x              -- QuoteSymbolExpr
 exp x
 ```
+* Changed the specification of `generateTensor` so that the generation function takes indices as tuples. ([#267](https://github.com/egison/egison/pull/267))
+* Changed the specification of anonymous parameter functions to behave like uncurried functions. ([#267](https://github.com/egison/egison/pull/267))
+Namely, expressions like `2#(%1 + %2)` is now desugared into `\(x, y) -> x + y`, while it was previously `\x y -> x + y`.
+
+## 4.1.2
+* Nothing changed (bumped version of `sweet-egison` package)
+
+## 4.1.1
+* Fix compilation issue with GHC 8.10 ([#248](https://github.com/egison/egison/issues/248))
 
 ## 4.1.0
 ### New Features
