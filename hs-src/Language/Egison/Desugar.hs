@@ -236,7 +236,6 @@ desugar (LambdaExpr args expr) = do
       return (tmp, LetExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [TensorArg arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
 
-
 desugar (LambdaExpr' names expr) = do
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
   expr' <- desugar expr'
