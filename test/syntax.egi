@@ -513,6 +513,10 @@ assertEqual "generate-tensor"
   (generateTensor (uncurry (*)) [3, 5])
   [| [| 1, 2, 3, 4, 5 |], [| 2, 4, 6, 8, 10 |], [| 3, 6, 9, 12, 15 |] |]
 
+assertEqual "generate vector using generate-tensor"
+  (generateTensor (+ 1) [3])
+  [| 2, 3, 4 |]
+
 assertEqual "tensor"
   (tensor [2, 5] [1, 2, 3, 4, 5, 2, 4, 6, 8, 10])
   [| [| 1, 2, 3, 4, 5 |], [| 2, 4, 6, 8, 10 |] |]
