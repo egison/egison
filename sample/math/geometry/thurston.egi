@@ -52,14 +52,14 @@ def ∇J_m_a~b :=
 
 def δ :=
   generateTensor
-    (\x y -> match (x, y) as (integer, integer) with
+    (\match as (integer, integer) with
        | ($n, #n) -> 1
        | (_, _) -> 0)
     [5, 5]
 
 def R'[_i_j]_k~l :=
   generateTensor
-    (\x y z w -> match (x, y, z, w) as (integer, integer, integer, integer) with
+    (\match as (integer, integer, integer, integer) with
        | (#1, #1, _, _) -> 0
        | (_, _, #1, #1) -> 0
        | (#1, $b, #1, $d) -> -1 * p^2 * δ~(b - 1)_(d - 1)

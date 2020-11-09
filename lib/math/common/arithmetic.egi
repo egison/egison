@@ -96,5 +96,5 @@ def P./ fx $gx $x :=
   let xs := reverse (coefficients fx x)
       ys := reverse (coefficients gx x)
       (zs, rs) := L./ xs ys
-   in ( sum' (map2 2#(%1 *' x ^' %2) (reverse zs) nats0)
-      , sum' (map2 2#(%1 *' x ^' %2) (reverse rs) nats0) )
+   in ( sum' (map2 (\c n -> c *' x ^' n) (reverse zs) nats0)
+      , sum' (map2 (\c n -> c *' x ^' n) (reverse rs) nats0) )

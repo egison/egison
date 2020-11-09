@@ -510,7 +510,7 @@ assertEqual "forall pattern 4"
 --
 
 assertEqual "generate-tensor"
-  (generateTensor (*) [3, 5])
+  (generateTensor (uncurry (*)) [3, 5])
   [| [| 1, 2, 3, 4, 5 |], [| 2, 4, 6, 8, 10 |], [| 3, 6, 9, 12, 15 |] |]
 
 assertEqual "tensor"
@@ -535,7 +535,7 @@ assertEqual "tensor multiplication"
 
 assertEqual "multi subscript"
   (let i := {| (1, 1), (2, 2), (3, 3) |}
-       x := generateTensor (\x y z -> x + y + z) [5, 5, 5]
+       x := generateTensor 3#(%1 + %2 + %3) [5, 5, 5]
     in x_(i_1)..._(i_3))
   6
 
@@ -599,7 +599,7 @@ assertEqual "char hash access"
 --
 
 assertEqual "partial application '#'"
-  (2#(10 * %1 + %2) 1 2)
+  (2#(10 * %1 + %2) (1, 2))
   12
 
 assertEqual "recursive partial application '#'"

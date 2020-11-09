@@ -21,7 +21,7 @@ def ∂/∂ $f *$x :=
     | #'sin $g -> cos g * ∂/∂ g x
     | #'arccos $g -> 1 / sqrt (1 - g ^ 2) * ∂/∂ g x
     | apply $g $args ->
-      sum (map2 2#((capply '(userRefs g [%1]) args) * ∂/∂ %2 x) nats args)
+      sum (map2 (\nat arg -> (capply '(userRefs g [nat]) args) * ∂/∂ arg x) nats args)
     -- quote
     | quote $g ->
       let g' := ∂/∂ g x
@@ -55,7 +55,7 @@ def grad := ∇
 
 def taylorExpansion $f $x $a := multivariateTaylorExpansion f [|x|] [|a|]
 
-def maclaurinExpansion := 2#(taylorExpansion %1 %2 0)
+def maclaurinExpansion f x := taylorExpansion f x 0
 
 def multivariateTaylorExpansion $f %xs %ys :=
   withSymbols [h]
