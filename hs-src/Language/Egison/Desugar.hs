@@ -361,6 +361,9 @@ desugar (MatcherExpr patternDefs) =
 
 desugar (AnonParamExpr n) = return $ IVarExpr ('%' : show n)
 
+desugar (AnonParamFuncExpr 1 expr) = do
+  lambda <- desugar $ LambdaExpr' [TensorArg "%1"] expr
+  return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 desugar (AnonParamFuncExpr n expr) = do
   let args = map (\n -> '%' : show n) [1..n]
   lambda <- desugar $
