@@ -204,6 +204,7 @@ desugar (LambdaExpr args expr) = do
     -- Desugar argument patterns. Examples:
     -- \$(%x, %y) -> expr   ==> \$tmp -> let (tmp1, tmp2) := tmp in (\%x %y -> expr) tmp1 tmp2
     -- \(x, (y, z)) -> expr ==> \tmp  -> let (tmp1, tmp2) := tmp in (\x (y, z) -> expr) tmp1 tmp2
+    -- \%($x :: xs) -> expr ==> \%tmp -> let (tmp1 :: xs) := tmp in (\$x %xs -> expr) tmp1 tmp2
     desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
     desugarArgPat APWildCard expr = do
       tmp <- fresh
@@ -227,13 +228,14 @@ desugar (LambdaExpr args expr) = do
       tmp1 <- fresh
       tmp2 <- fresh
       return (tmp, LetExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
-                     (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+                     (ApplyExpr (LambdaExpr [arg1, TensorArg arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
     desugarArgPat (APSnocPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
       return (tmp, LetExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
-                     (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+                     (ApplyExpr (LambdaExpr [TensorArg arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+
 
 desugar (LambdaExpr' names expr) = do
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
@@ -495,7 +497,7 @@ desugarExtendedIndices :: [VarIndex] -> [Bool] -> [String] -> Expr -> EvalM Expr
 desugarExtendedIndices indices isSubs indexNames tensorBody = do
   tensorName <- fresh
   tensorGenExpr <- f indices (VarExpr tensorName) [] []
-  let indexFunctionExpr = LambdaExpr [TensorArg (APTuplePat $ map (TensorArg . APPatVar) indexNames)] tensorGenExpr
+  let indexFunctionExpr = LambdaExpr [TensorArg $ foldr APConsPat APEmptyPat (map (TensorArg . APPatVar) indexNames)] tensorGenExpr
   let genTensorExpr = GenerateTensorExpr indexFunctionExpr (makeApply "tensorShape" [VarExpr tensorName])
   let tensorIndices = zipWith (\isSub name -> if isSub then Subscript (VarExpr name) else Superscript (VarExpr name)) isSubs indexNames
   return $ LetExpr [Bind (PDPatVar tensorName) tensorBody] (IndexedExpr True genTensorExpr tensorIndices)

@@ -278,7 +278,12 @@ argPatternAtom :: Parser ArgPattern
 argPatternAtom
   =   APWildCard <$  symbol "_"
   <|> APTuplePat <$> parens (sepBy arg comma)
+  <|> collectionPattern
   <|> APPatVar   <$> ident
+    where
+      collectionPattern = brackets $ do
+        elems <- sepBy arg comma
+        return $ foldr APConsPat APEmptyPat elems
 
 letExpr :: Parser Expr
 letExpr = do
