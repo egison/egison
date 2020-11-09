@@ -9,7 +9,7 @@ def X := [| `(a * cos θ + b) * cos φ -- x
 def e_i_j := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g_i_j := generateTensor 2#(V.* e_%1_# e_%2_#) [2, 2]
+def g_i_j := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
 def g~i~j := M.inverse g_#_#
 
 assertEqual "Metric tensor"
