@@ -35,15 +35,15 @@ def mathExpr' :=
       | _ -> []
     | term $ $ as (integer, assocMultiset mathExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-        [(n, map (\(x, n) -> (toMathExpr' x, n)) xs)]
+        [(n, map 2#(toMathExpr' %1, %2) xs)]
       | _ -> []
     | mult $ $ as (integer, multExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-        [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
+        [(n, product' (map 2#(toMathExpr' %1 ^' %2) xs))]
       | _ -> []
     | $ * $ as (integer, multExpr) with
       | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-        [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
+        [(n, product' (map 2#(toMathExpr' %1 ^' %2) xs))]
       | _ -> []
     | symbol $ $ as (eq, list indexExpr) with
       | Div (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
