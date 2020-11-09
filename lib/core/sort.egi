@@ -23,9 +23,10 @@ def sortWithSign xs :=
        return (sgn, concat xs')
  where
   colToTensor xs :=
-    generateTensor (\n -> io $ do let t := newIORef ()
-                                  writeIORef t (nth n xs)
-                                  return t) [length xs]
+    generateTensor (\[n] -> io $
+      do let t := newIORef ()
+         writeIORef t (nth n xs)
+         return t) [length xs]
 
   sort' i j n ts sgn :=
     if i = n

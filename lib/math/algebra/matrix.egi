@@ -141,13 +141,13 @@ def M.LU %x :=
   match tensorShape x as list integer with
     | [#2, #2] ->
       let L := generateTensor
-                 (\(i, j) -> match compare i j as ordering with
+                 (\[i, j] -> match compare i j as ordering with
                    | less -> 0
                    | equal -> 1
                    | greater -> b_i_j)
                  [2, 2]
           U := generateTensor
-                 (\(i, j) -> match compare i j as ordering with
+                 (\[i, j] -> match compare i j as ordering with
                    | greater -> 0
                    | _ -> c_i_j)
                  [2, 2]
@@ -160,13 +160,13 @@ def M.LU %x :=
        in (substitute ret L, substitute ret U)
     | [#3, #3] ->
       let L := generateTensor
-                 (\(i, j) -> match compare i j as ordering with
+                 (\[i, j] -> match compare i j as ordering with
                    | less -> 0
                    | equal -> 1
                    | greater -> b_i_j)
                  [3, 3]
           U := generateTensor
-                 (\(i, j) -> match compare i j as ordering with
+                 (\[i, j] -> match compare i j as ordering with
                    | greater -> 0
                    | _ -> c_i_j)
                  [3, 3]
@@ -189,5 +189,5 @@ def M.LU %x :=
 --
 def generateMatrixFromQuadraticExpr f xs :=
   generateTensor
-    (\(i, j) -> coefficient2 f (nth i xs) (nth j xs))
+    (\[i, j] -> coefficient2 f (nth i xs) (nth j xs))
     [length xs, length xs]

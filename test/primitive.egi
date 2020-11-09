@@ -156,4 +156,4 @@ assertEqual "isHash" (isHash {| (1, 2) |}) True
 
 assertEqual "isTensor" (isTensor 1)       False
 assertEqual "isTensor" (isTensor [| 1 |]) True
-assertEqual "isTensor" (isTensor (generateTensor (uncurry (+)) [1, 2])) True
+assertEqual "isTensor" (isTensor (generateTensor sum [1, 2])) True

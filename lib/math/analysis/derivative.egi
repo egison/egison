@@ -59,7 +59,7 @@ def maclaurinExpansion f x := taylorExpansion f x 0
 
 def multivariateTaylorExpansion $f %xs %ys :=
   withSymbols [h]
-    let hs := generateTensor 1#h_%1 (tensorShape xs)
+    let hs := generateTensor (\[x] -> h_x) (tensorShape xs)
      in map2
           (*)
           (map 1#(1 / fact %1) nats0)
