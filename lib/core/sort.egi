@@ -15,12 +15,12 @@ def sortWithSign xs :=
   | [$x] -> (1, x)
   | [$x, $y] ->
     if compare x y = Greater then (-1, y ++ x) else (1, x ++ y)
-  | _ -> io $
-    do let t := return (colToTensor xs)
-       let n := return (length xs)
-       let sgn := sort' 1 2 n t 1
-       let xs' := return (map (\i -> io $ readIORef t_i) [1..n])
-       return (sgn, concat xs')
+  | _ ->
+    io (do let t := return (colToTensor xs)
+           let n := return (length xs)
+           let sgn := sort' 1 2 n t 1
+           let xs' := return (map (\i -> io $ readIORef t_i) [1..n])
+           return (sgn, concat xs'))
  where
   colToTensor xs :=
     generateTensor (\n -> io $ do let t := newIORef ()
