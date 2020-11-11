@@ -30,7 +30,16 @@ R.set
 pureRand
    ::
 
-      pureRand 1 6 ---> 1, 2, 3, 4, 5 or 6
+      pureRand 1 6
+      ---> returns a random integer uniformly distributed over the closed interval [1, 6]
+
+rands
+   ::
+
+      take 10 (rands 1 6)
+      ---> returns a collection of 10 random integers
+      ---> uniformly distributed over the closed interval [1, 6]
+      ---> [3, 3, 6, 3, 3, 4, 5, 5, 1, 4] for example
 
 randomize
    ::
@@ -61,3 +70,17 @@ R.tail
 
       R.tail [1, 2]
       ---> [2] or [1]
+
+f.pureRand
+   ::
+
+      f.pureRand 1.0 2.0
+      ---> returns a random double value uniformly distributed over the
+      ---> closed interval [1.0, 2.0].
+
+f.rands
+   ::
+
+      take 10 (f.rands 1.0 2.0)
+      ---> returns a collection of 10 random double values uniformly distributed
+      ---> over the closed interval [1.0, 2.0].
