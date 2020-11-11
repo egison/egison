@@ -1,0 +1,51 @@
+def main args := do
+  display "display"
+  write " write"
+  print " print"
+  testPrintToPort
+  testEach
+  testEachLineFromPort
+  let _ := return $ debug (1 + 2)
+  let _ := return $ debug2 "1 + 2 = " (1 + 2)
+  return ()
+
+def testPrintToPort := do
+  let op := openOutputFile "out.txt"
+  displayToPort op "displayToPort"
+  writeToPort op " writeToPort"
+  printToPort op " printToPort"
+  closeOutputPort op
+  let out := readProcess "cat" ["out.txt"] ""
+  let _ := return $
+    assertEqual "testPrintToPort" (S.split "\n" out)
+      ["displayToPort writeToPort printToPort", ""]
+  let _ := readProcess "rm" ["out.txt"] ""
+  return ()
+
+def testEach := do
+  let op := openOutputFile "out.txt"
+  each (printToPort op) ["foo", "bar"]
+  closeOutputPort op
+  let out := readProcess "cat" ["out.txt"] ""
+  let _ := return $
+    assertEqual "testEach" (S.split "\n" out) ["foo", "bar", ""]
+  let _ := readProcess "rm" ["out.txt"] ""
+  return ()
+
+def testEachLineFromPort := do
+  let ip := openInputFile "test/fixture/lorem-ipsum.txt"
+  let op := openOutputFile "out.txt"
+  eachLineFromPort ip (\x -> printToPort op (S.map upperCase x))
+  closeInputPort ip
+  closeOutputPort op
+  let out := readProcess "cat" ["out.txt"] ""
+  let _ := return $
+    assertEqual "testEachLineFromPort" (S.split "\n" out)
+      [ "LOREM IPSUM DOLOR SIT AMET, CONSECTETUR ADIPISCING ELIT, SED DO EIUSMOD TEMPOR INCIDIDUNT UT LABORE ET DOLORE MAGNA ALIQUA."
+      , "UT ENIM AD MINIM VENIAM, QUIS NOSTRUD EXERCITATION ULLAMCO LABORIS NISI UT ALIQUIP EX EA COMMODO CONSEQUAT."
+      , "DUIS AUTE IRURE DOLOR IN REPREHENDERIT IN VOLUPTATE VELIT ESSE CILLUM DOLORE EU FUGIAT NULLA PARIATUR."
+      , "EXCEPTEUR SINT OCCAECAT CUPIDATAT NON PROIDENT, SUNT IN CULPA QUI OFFICIA DESERUNT MOLLIT ANIM ID EST LABORUM."
+      , ""
+      ]
+  let _ := readProcess "rm" ["out.txt"] ""
+  return ()

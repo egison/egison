@@ -63,6 +63,10 @@ main = defaultMain . hUnitTestToTests . test $ TestList
         "[\"a\", \"b\", \"c\"]\n"
         ["test/fixture/c.egi", "a", "b", "c"]
         ""
+    , TestLabel "io function" . TestCase $ assertEgisonCmd
+        "display write print\n3\n1 + 2 = 3\n"
+        ["test/lib/core/io.egi"]
+        ""
     ]
 
 assertEgisonCmd
