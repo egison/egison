@@ -2,7 +2,7 @@ def coordinates := [x, y, z, w]
 
 def metric :=
   generateTensor
-    (\match as (integer, integer) with
-      | ($n, #n) -> 1
-      | (_, _) -> 0)
+    (\match as list integer with
+      | [$n, #n] -> 1
+      | _        -> 0)
     [4, 4]

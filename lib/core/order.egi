@@ -26,8 +26,8 @@ def compareC c1 c2 :=
 def min $x $y := if x < y then x else y
 def max $x $y := if x > y then x else y
 
-def min/fn f $xs := foldl1 2#(if f %1 %2 = Less then %1 else %2) xs
-def max/fn f $xs := foldl1 2#(if f %1 %2 = Greater then %1 else %2) xs
+def min/fn f $xs := foldl1 (\x y -> if f x y = Less then x else y) xs
+def max/fn f $xs := foldl1 (\x y -> if f x y = Greater then x else y) xs
 
 def minimum $xs := foldl1 min xs
 def maximum $xs := foldl1 max xs
@@ -57,7 +57,7 @@ def sort/fn f xs :=
        in sort/fn f ys1 ++ ys2 ++ sort/fn f ys3
 
 def sortStrings xs :=
-  sort/fn 2#(compareC (map ctoi (unpack %1)) (map ctoi (unpack %2))) xs
+  sort/fn (\x y -> compareC (map ctoi (unpack x)) (map ctoi (unpack y))) xs
 
 def merge xs ys :=
   match (xs, ys) as (list something, list something) with
@@ -74,7 +74,7 @@ def merge/fn f xs ys :=
     | (_, $y :: $tys) -> y :: merge xs tys
 
 def minimize f xs :=
-  foldl1 2#(if compare (f %1) (f %2) = Less then %1 else %2) xs
+  foldl1 (\x y -> if compare (f x) (f y) = Less then x else y) xs
 
 def maximize f xs :=
-  foldl1 2#(if compare (f %1) (f %2) = Greater then %1 else %2) xs
+  foldl1 (\x y -> if compare (f x) (f y) = Greater then x else y) xs

@@ -22,8 +22,8 @@ def float := eq
 
 def id := 1#%1
 
-def fst (x, y) := x
-def snd (x, y) := y
+def fst (x, _) := x
+def snd (_, y) := y
 
 infixr expression 0 $
 

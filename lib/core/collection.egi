@@ -148,7 +148,7 @@ def isEmpty xs :=
     | [] -> True
     | _  -> False
 
-def length xs := foldl 2#(%1 + 1) 0 xs
+def length xs := foldl (\acc _ -> acc + 1) 0 xs
 
 def map fn xs :=
   match xs as list something with

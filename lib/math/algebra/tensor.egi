@@ -13,7 +13,7 @@ def unitTensor ns := generateTensor kroneckerDelta ns
 
 def scalarToTensor x ns := x * unitTensor ns
 
-def zeroTensor ns := generateTensor (\xs -> 0) ns
+def zeroTensor ns := generateTensor (\_ -> 0) ns
 
 def (.') %t1 %t2 := sum' (contract (t1 *' t2))
 
