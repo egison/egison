@@ -204,6 +204,7 @@ desugar (LambdaExpr args expr) = do
     -- Desugar argument patterns. Examples:
     -- \$(%x, %y) -> expr   ==> \$tmp -> let (tmp1, tmp2) := tmp in (\%x %y -> expr) tmp1 tmp2
     -- \(x, (y, z)) -> expr ==> \tmp  -> let (tmp1, tmp2) := tmp in (\x (y, z) -> expr) tmp1 tmp2
+    -- \%($x :: xs) -> expr ==> \%tmp -> let (tmp1 :: xs) := tmp in (\$x %xs -> expr) tmp1 tmp2
     desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
     desugarArgPat APWildCard expr = do
       tmp <- fresh
@@ -362,8 +363,8 @@ desugar (MatcherExpr patternDefs) =
 desugar (AnonParamExpr n) = return $ IVarExpr ('%' : show n)
 
 desugar (AnonParamFuncExpr n expr) = do
-  expr' <- desugar expr
-  let lambda = ILambdaExpr Nothing (map (\n -> '%' : show n) [1..n]) expr'
+  let args = map (\n -> '%' : show n) [1..n]
+  lambda <- desugar $ LambdaExpr' (map TensorArg args) expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (AnonTupleParamFuncExpr 1 expr) = do
@@ -506,7 +507,7 @@ desugarExtendedIndices :: [VarIndex] -> [Bool] -> [String] -> Expr -> EvalM Expr
 desugarExtendedIndices indices isSubs indexNames tensorBody = do
   tensorName <- fresh
   tensorGenExpr <- f indices (VarExpr tensorName) [] []
-  let indexFunctionExpr = LambdaExpr' (map TensorArg indexNames) tensorGenExpr
+  let indexFunctionExpr = LambdaExpr [TensorArg $ foldr APConsPat APEmptyPat (map (TensorArg . APPatVar) indexNames)] tensorGenExpr
   let genTensorExpr = GenerateTensorExpr indexFunctionExpr (makeApply "tensorShape" [VarExpr tensorName])
   let tensorIndices = zipWith (\isSub name -> if isSub then Subscript (VarExpr name) else Superscript (VarExpr name)) isSubs indexNames
   return $ LetExpr [Bind (PDPatVar tensorName) tensorBody] (IndexedExpr True genTensorExpr tensorIndices)

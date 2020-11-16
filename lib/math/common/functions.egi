@@ -88,7 +88,7 @@ def sinc $x :=
 
 def sigmoid $z := 1 / (1 + exp (- z))
 
-def kroneckerDelta := cambda js -> if all (= head js) (tail js) then 1 else 0
+def kroneckerDelta js := if all (= head js) (tail js) then 1 else 0
 
 def eulerTotientFunction $n := n * product (map (\p -> 1 - 1 / p) (unique (pF n)))
 
@@ -96,17 +96,15 @@ def ε :=
   memoizedLambda n ->
     let (es, os) := evenAndOddPermutations' n
      in generateTensor
-          (cambda is ->
-            if member is es then 1 else if member is os then -1 else 0)
+          (\is -> if member is es then 1 else if member is os then -1 else 0)
           (take n (repeat1 n))
 
 def ε' :=
   memoizedLambda n k ->
     let (es, os) := evenAndOddPermutations' n
      in generateTensor
-          (cambda is ->
+          (\is ->
             match drop k is as list integer with
               | _ ++ $x :: _ ++ ?(< x) :: _ -> 0
-              | _ ->
-                if member is es then 1 else if member is os then -1 else 0)
+              | _ -> if member is es then 1 else if member is os then -1 else 0)
           (take n (repeat1 n))

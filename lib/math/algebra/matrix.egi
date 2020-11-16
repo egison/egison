@@ -13,9 +13,10 @@ def M.comm %m1 %m2 := withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
 def M.inverse %m :=
   let d := M.det m
    in generateTensor
-        2#(match m as matrix with
-          | cons #%2 #%1 _ $A $B $C $D ->
-            if isEven (%1 + %2)
+        (\[i, j] ->
+          match m as matrix with
+          | cons #j #i _ $A $B $C $D ->
+            if isEven (i + j)
               then M.det (M.join A B C D) / d
               else - (M.det (M.join A B C D) / d))
         (tensorShape m)
@@ -63,11 +64,11 @@ def M.join %A %B %C %D :=
       n1 := max c1 d1
       n2 := max b2 d2
    in generateTensor
-        2#(match (%1, %2) as (integer, integer) with
-          | (?(<= a1), ?(<= a2)) -> A_%1_%2
-          | (?(<= m1), _) -> B_%1_(%2 - a2)
-          | (_, ?(<= m2)) -> C_(%1 - a1)_%2
-          | (_, _) -> D_(%1 - m1)_(%2 - m2))
+        (\match as list integer with
+          | [$i & ?(<= a1), $j & ?(<= a2)] -> A_i_j
+          | [$i & ?(<= m1), $j]            -> B_i_(j - a2)
+          | [$i,            $j & ?(<= m2)] -> C_(i - a1)_j
+          | [$i,            $j]            -> D_(i - m1)_(j - m2))
         [m1 + n1, m2 + n2]
 
 --
@@ -140,15 +141,15 @@ def M.LU %x :=
   match tensorShape x as list integer with
     | [#2, #2] ->
       let L := generateTensor
-                 2#(match compare %1 %2 as ordering with
+                 (\[i, j] -> match compare i j as ordering with
                    | less -> 0
                    | equal -> 1
-                   | greater -> b_%1_%2)
+                   | greater -> b_i_j)
                  [2, 2]
           U := generateTensor
-                 2#(match compare %1 %2 as ordering with
+                 (\[i, j] -> match compare i j as ordering with
                    | greater -> 0
-                   | _ -> c_%1_%2)
+                   | _ -> c_i_j)
                  [2, 2]
           m := M.* L U
           ret := solve
@@ -159,15 +160,15 @@ def M.LU %x :=
        in (substitute ret L, substitute ret U)
     | [#3, #3] ->
       let L := generateTensor
-                 2#(match compare %1 %2 as ordering with
+                 (\[i, j] -> match compare i j as ordering with
                    | less -> 0
                    | equal -> 1
-                   | greater -> b_%1_%2)
+                   | greater -> b_i_j)
                  [3, 3]
           U := generateTensor
-                 2#(match compare %1 %2 as ordering with
+                 (\[i, j] -> match compare i j as ordering with
                    | greater -> 0
-                   | _ -> c_%1_%2)
+                   | _ -> c_i_j)
                  [3, 3]
           m := M.* L U
           ret := solve
@@ -188,5 +189,5 @@ def M.LU %x :=
 --
 def generateMatrixFromQuadraticExpr f xs :=
   generateTensor
-    2#(coefficient2 f (nth %1 xs) (nth %2 xs))
+    (\[i, j] -> coefficient2 f (nth i xs) (nth j xs))
     [length xs, length xs]
