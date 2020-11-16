@@ -612,6 +612,13 @@ assertEqual "anonymous tuple parameter function"
 assertEqual "anonymous tuple parameter function"
   ((2)#(%1 + %2) (10, 20))
   30
+assertEqual "anonymous list parameter function"
+  ([0]#10 [])
+  10
+assertEqual "anonymous list parameter function"
+  ([2]#(%1 + %2) [10, 20])
+  30
+
 
 def f *$x *$y := x + y
 

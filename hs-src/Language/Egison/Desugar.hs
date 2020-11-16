@@ -227,13 +227,13 @@ desugar (LambdaExpr args expr) = do
       tmp1 <- fresh
       tmp2 <- fresh
       return (tmp, LetExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
-                     (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+                     (ApplyExpr (LambdaExpr [arg1, TensorArg arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
     desugarArgPat (APSnocPat arg1 arg2) expr = do
       tmp  <- fresh
       tmp1 <- fresh
       tmp2 <- fresh
       return (tmp, LetExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
-                     (ApplyExpr (LambdaExpr [arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+                     (ApplyExpr (LambdaExpr [TensorArg arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
 
 desugar (LambdaExpr' names expr) = do
   let (args', expr') = foldr desugarInvertedArgs ([], expr) names
@@ -376,10 +376,9 @@ desugar (AnonTupleParamFuncExpr n expr) = do
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (AnonListParamFuncExpr n expr) = do
-  let args = map (\n -> '%' : show n) [1..n]
-  -- TODO: Pattern match against list
-  lambda <- desugar $
-    LambdaExpr [TensorArg (APTuplePat $ map (TensorArg . APPatVar) args)] expr
+  let args' = map (\n -> TensorArg (APPatVar ('%' : show n))) [1..n]
+  let args = foldr APConsPat APEmptyPat args'
+  lambda <- desugar $ LambdaExpr [TensorArg args] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (QuoteExpr expr) =
