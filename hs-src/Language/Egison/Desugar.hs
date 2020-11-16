@@ -362,13 +362,24 @@ desugar (MatcherExpr patternDefs) =
 
 desugar (AnonParamExpr n) = return $ IVarExpr ('%' : show n)
 
-desugar (AnonParamFuncExpr 1 expr) = do
+desugar (AnonParamFuncExpr n expr) = do
+  let args = map (\n -> '%' : show n) [1..n]
+  lambda <- desugar $ LambdaExpr' (map TensorArg args) expr
+  return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
+
+desugar (AnonTupleParamFuncExpr 1 expr) = do
   lambda <- desugar $ LambdaExpr' [TensorArg "%1"] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
-desugar (AnonParamFuncExpr n expr) = do
+desugar (AnonTupleParamFuncExpr n expr) = do
   let args = map (\n -> '%' : show n) [1..n]
   lambda <- desugar $
     LambdaExpr [TensorArg (APTuplePat $ map (TensorArg . APPatVar) args)] expr
+  return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
+
+desugar (AnonListParamFuncExpr n expr) = do
+  let args' = map (\n -> TensorArg (APPatVar ('%' : show n))) [1..n]
+  let args = foldr APConsPat APEmptyPat args'
+  lambda <- desugar $ LambdaExpr [TensorArg args] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (QuoteExpr expr) =

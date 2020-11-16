@@ -1,25 +1,16 @@
+-- Get input and parse them into the format specified with sopts and copts.
+-- Used in --map and --filter options.
 def SH.genInput sopts copts :=
-  if io $ isEof ()
-    then []
-    else let line := io $ readLine ()
-             x := TSV.parseLine sopts copts line
-          in seq x (x :: SH.genInput sopts copts)
-
-def TSV.map fn showFn := do
-  let eof := isEof ()
-  if eof
-     then return ()
-     else do let line := readLine ()
-             print (showFn (fn (readTsv line)))
-             TSV.map fn showFn
-
-def TSV.filter fn := do
-  let eof := isEof ()
-  if eof
-     then return ()
-     else do let line := readLine ()
-             if fn (readTsv line) then print line else return ()
-             TSV.filter fn
+  map (TSV.parseLine sopts copts) (io (readLines ()))
+  where
+    -- Read multiple lines from stdin until EOF.
+    readLines () := do
+      let eof := isEof ()
+      if eof
+        then return []
+        else do let line := readLine ()
+                let lines := readLines ()
+                return (line :: lines)
 
 def TSV.parseLine sopts copts line :=
   readTsv (S.intercalate "\t" (fnC copts (fnS sopts (S.split "\t" line))))
@@ -33,7 +24,7 @@ def TSV.parseLine sopts copts line :=
           let (hs, ts') := splitAt (m - 1) xs
               (mf, ts)  := uncons ts'
            in fnS opts' (hs ++ S.concat ["\"", mf, "\""] :: ts)
-        | [$m, $n] :: $opts' ->
+        | [$m, $n & ?(> m)] :: $opts' ->
           let (hs, ts') := splitAt (m - 1) xs
               (ms, ts)  := splitAt (n - m + 1) ts'
            in fnS opts' (hs ++ map (\m -> S.concat ["\"", m, "\""]) ms ++ ts)
@@ -48,7 +39,7 @@ def TSV.parseLine sopts copts line :=
           let (hs, ts') := splitAt (m - 1) xs
               (mf, ts)  := uncons ts'
            in fnC opts' (hs ++ S.concat ["[", mf, "]"] :: ts)
-        | [$m, $n] :: $opts' ->
+        | [$m, $n & ?(> m)] :: $opts' ->
           let (hs, ts') := splitAt (m - 1) xs
               (ms, ts)  := splitAt (n - m + 1) ts'
            in fnC opts' (hs ++ S.concat ["[", S.intercalate ", " ms, "]"] :: ts)

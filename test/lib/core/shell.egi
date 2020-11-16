@@ -1,0 +1,14 @@
+load "lib/core/shell.egi"
+
+assertEqual "TSV.parseLine" (TSV.parseLine [[2]] []   "1\t2\t3") (1, "2", "3")
+assertEqual "TSV.parseLine" (TSV.parseLine [[2,2]] [] "1\t2\t3") (1, "2", 3)
+assertEqual "TSV.parseLine" (TSV.parseLine [[2,1]] [] "1\t2\t3") (1, "2", "3")
+
+assertEqual "TSV.parseLine" (TSV.parseLine [] [[2]] "1\t2\t3") (1, [2, 3])
+assertEqual "TSV.parseLine" (TSV.parseLine [] [[2,2]] "1\t2\t3") (1, [2], 3)
+assertEqual "TSV.parseLine" (TSV.parseLine [] [[2,1]] "1\t2\t3") (1, [2, 3])
+
+-- TODO: Is this intended behavior?
+assertEqual "TSV.parseLine"
+  (TSV.parseLine [[3,4], [6,9]] [[2,3], [5,7]] "1\t2\t3\t4\t5\t6\t7\t8\t9\t10")
+  (1, [2, "3"], "4", 5, ["6", "7", "8"], "9", 10)
