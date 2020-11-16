@@ -595,16 +595,23 @@ assertEqual "char hash access"
   13
 
 --
--- Partial Application
+-- Anonymous parameter function
 --
 
-assertEqual "partial application '#'"
+assertEqual "anonymous parameter function"
   (2#(10 * %1 + %2) 1 2)
   12
 
-assertEqual "recursive partial application '#'"
+assertEqual "anonymous parameter recursive function"
   (take 10 (1#(%1 :: (%0 (%1 * 2))) 2))
   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+
+assertEqual "anonymous tuple parameter function"
+  ((1)#(%1 + %1) 10)
+  20
+assertEqual "anonymous tuple parameter function"
+  ((2)#(%1 + %2) (10, 20))
+  30
 
 def f *$x *$y := x + y
 

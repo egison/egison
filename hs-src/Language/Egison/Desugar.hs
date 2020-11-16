@@ -366,6 +366,22 @@ desugar (AnonParamFuncExpr n expr) = do
   let lambda = ILambdaExpr Nothing (map (\n -> '%' : show n) [1..n]) expr'
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
+desugar (AnonTupleParamFuncExpr 1 expr) = do
+  lambda <- desugar $ LambdaExpr' [TensorArg "%1"] expr
+  return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
+desugar (AnonTupleParamFuncExpr n expr) = do
+  let args = map (\n -> '%' : show n) [1..n]
+  lambda <- desugar $
+    LambdaExpr [TensorArg (APTuplePat $ map (TensorArg . APPatVar) args)] expr
+  return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
+
+desugar (AnonListParamFuncExpr n expr) = do
+  let args = map (\n -> '%' : show n) [1..n]
+  -- TODO: Pattern match against list
+  lambda <- desugar $
+    LambdaExpr [TensorArg (APTuplePat $ map (TensorArg . APPatVar) args)] expr
+  return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
+
 desugar (QuoteExpr expr) =
   IQuoteExpr <$> desugar expr
 

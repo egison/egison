@@ -469,7 +469,9 @@ atomExpr = do
 
 -- Atomic expressions without index
 atomExpr' :: Parser Expr
-atomExpr' = anonParamFuncExpr    -- must come before |constantExpr|
+atomExpr' = anonParamFuncExpr      -- must come before |constantExpr|
+        <|> anonTupleParamFuncExpr -- must come before |tupleOrParenExpr|
+        <|> anonListParamFuncExpr  -- must come before |collectionExpr|
         <|> ConstantExpr <$> constantExpr
         <|> FreshVarExpr <$ symbol "#"
         <|> VarExpr <$> ident
@@ -487,6 +489,16 @@ anonParamFuncExpr = do
   n    <- try (L.decimal <* char '#') -- No space after the index
   body <- atomExpr                    -- No space after '#'
   return $ AnonParamFuncExpr n body
+
+anonTupleParamFuncExpr :: Parser Expr
+anonTupleParamFuncExpr = do
+  n <- try (char '(' *> L.decimal <* string ")#")
+  AnonTupleParamFuncExpr n <$> atomExpr
+
+anonListParamFuncExpr :: Parser Expr
+anonListParamFuncExpr = do
+  n <- try (char '[' *> L.decimal <* string "]#")
+  AnonListParamFuncExpr n <$> atomExpr
 
 constantExpr :: Parser ConstantExpr
 constantExpr = numericExpr

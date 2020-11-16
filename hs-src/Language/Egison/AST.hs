@@ -106,6 +106,8 @@ data Expr
   | ApplyExpr Expr [Expr]
   | CApplyExpr Expr Expr
   | AnonParamFuncExpr Integer Expr
+  | AnonTupleParamFuncExpr Integer Expr
+  | AnonListParamFuncExpr Integer Expr
   | AnonParamExpr Integer
 
   | GenerateTensorExpr Expr Expr
