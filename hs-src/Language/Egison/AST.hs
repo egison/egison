@@ -106,6 +106,8 @@ data Expr
   | ApplyExpr Expr [Expr]
   | CApplyExpr Expr Expr
   | AnonParamFuncExpr Integer Expr
+  | AnonTupleParamFuncExpr Integer Expr
+  | AnonListParamFuncExpr Integer Expr
   | AnonParamExpr Integer
 
   | GenerateTensorExpr Expr Expr
@@ -134,8 +136,8 @@ data ArgPattern
   | APInductivePat String [Arg ArgPattern]
   | APTuplePat [Arg ArgPattern]
   | APEmptyPat
-  | APConsPat (Arg ArgPattern) (Arg ArgPattern)
-  | APSnocPat (Arg ArgPattern) (Arg ArgPattern)
+  | APConsPat (Arg ArgPattern) ArgPattern
+  | APSnocPat ArgPattern (Arg ArgPattern)
   deriving Show
 
 data VarIndex
