@@ -41,7 +41,7 @@ def cF f x :=
 def cF' a b c d :=
   match (a, b, c, d) as (mathExpr, mathExpr, mathExpr, mathExpr) with
     | (#1, #0, $p, $q) ->
-      let (s1, s2) := 2#(rt 3 %1, rt 3 %2) (qF' 1 (27 * q) ((-27) * p ^ 3))
+      let (s1, s2) := (2)#(rt 3 %1, rt 3 %2) (qF' 1 (27 * q) ((-27) * p ^ 3))
        in ( (s1 + s2) / 3               -- r1
           , (w ^ 2 * s1 + w * s2) / 3   -- r2
           , (w * s1 + w ^ 2 * s2) / 3)  -- r3

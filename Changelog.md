@@ -17,8 +17,6 @@
 exp x
 ```
 * Changed the specification of `generateTensor` so that the generation function takes indices as a collection. ([#267](https://github.com/egison/egison/pull/267))
-* Changed the specification of anonymous parameter functions to behave like uncurried functions. ([#267](https://github.com/egison/egison/pull/267))
-Namely, expressions like `2#(%1 + %2)` is now desugared into `\(x, y) -> x + y`, while it was previously `\x y -> x + y`.
 
 ## 4.1.2
 * Nothing changed (bumped version of `sweet-egison` package)

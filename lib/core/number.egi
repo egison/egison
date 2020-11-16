@@ -120,7 +120,7 @@ def rtod' x :=
    in (q, map fst s, map fst c)
 
 def showDecimal c x :=
-  match 2#(%1, take c %2) (rtod x) as (integer, list integer) with
+  match (2)#(%1, take c %2) (rtod x) as (integer, list integer) with
     | ($q, $sc) -> foldl S.append (S.append (show q) ".") (map show sc)
 
 def showDecimal' x :=
@@ -158,7 +158,7 @@ def regularContinuedFractionOfSqrt m :=
    in if x = 0
         then (n, [])
         else ( n
-        , map 3#%3 (regularContinuedFractionOfSqrtHelper m (n / x) (1 / x)) )
+        , map (3)#%3 (regularContinuedFractionOfSqrtHelper m (n / x) (1 / x)) )
 
 def regularContinuedFractionOfSqrt' m :=
   let n := floor (sqrt (rtof m))
@@ -170,6 +170,6 @@ def regularContinuedFractionOfSqrt' m :=
                                 m
                                 (n / x)
                                 (1 / x))
-              in (n, map 3#%3 s, map 3#%3 c)
+              in (n, map (3)#%3 s, map (3)#%3 c)
 
 def pi := f.pi

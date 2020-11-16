@@ -70,7 +70,7 @@ assertEqual "nAdic" (nAdic 10 123) [1, 2, 3]
 assertEqual "nAdic" (nAdic 2 10) [1, 0, 1, 0]
 
 assertEqual "rtod"
-  (2#(%1, take 10 %2) (rtod (6 / 35)))
+  ((2)#(%1, take 10 %2) (rtod (6 / 35)))
   (0, [1, 7, 1, 4, 2, 8, 5, 7, 1, 4])
 
 assertEqual "rtod'" (rtod' (6 / 35)) (0, [1], [7, 1, 4, 2, 8, 5])
@@ -106,7 +106,7 @@ assertEqual "continued-fraction pi"
 
 assertEqual
   "regularContinuedFractionOfSqrt case 1"
-  (2#(%1, take 10 %2) (regularContinuedFractionOfSqrt 2))
+  ((2)#(%1, take 10 %2) (regularContinuedFractionOfSqrt 2))
   (1, [2, 2, 2, 2, 2, 2, 2, 2, 2, 2])
 
 assertEqual
