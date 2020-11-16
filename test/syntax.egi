@@ -607,6 +607,9 @@ assertEqual "anonymous parameter recursive function"
   [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 
 assertEqual "anonymous tuple parameter function"
+  ((0)#10 ())
+  10
+assertEqual "anonymous tuple parameter function"
   ((1)#(%1 + %1) 10)
   20
 assertEqual "anonymous tuple parameter function"
