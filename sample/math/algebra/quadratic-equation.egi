@@ -24,7 +24,7 @@ qF (x ^ 2 + b * x + c) x
 -- ((- b + sqrt (b^2 - 4 * c)) / 2, (- b - sqrt (b^2 - 4 * c)) / 2)
 
 qF (a * x ^ 2 + b * x + c) x
--- ((- b + 2 * sqrt (b^2 - 4 * a * c) * a) / (2 * a), (- b - 2 * sqrt (b^2 - 4 * a * c) * a) / (2 * a))
+-- ((- b + sqrt (b^2 - 4 * a * c)) / (2 * a), (- b - sqrt (b^2 - 4 * a * c)) / (2 * a))
 
 qF (a * x ^ 2 + 2 * b * x + c) x
--- ((- b + sqrt (b^2 - a * c) * a) / a, (- b - sqrt (b^2 - a * c) * a) / a)
+-- ((- b + sqrt (b^2 - a * c)) / a, (- b - sqrt (b^2 - a * c)) / a)

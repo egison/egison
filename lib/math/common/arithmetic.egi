@@ -83,7 +83,7 @@ def gcd $x $y :=
     | (_, #0) -> x
     | (#0, _) -> y
     | (term $a $xs, term $b $ys) ->
-      gcd' (abs a) (abs b) *' foldl (*') 1 (map (^') (AC.intersect xs ys))
+      gcd' (abs a) (abs b) *' foldl (*') 1 (map (\(s, n) -> s ^' n) (AC.intersect xs ys))
 
 def gcd' $x $y :=
   match (x, y) as (integer, integer) with

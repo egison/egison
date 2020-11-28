@@ -23,7 +23,7 @@ def quadraticFormula := qF
 
 def qF f x :=
   match coefficients f x as list mathExpr with
-    | $a_0 :: $a_1 :: $a_2 :: [] -> qF' a_2 a_1 a_0
+    | [$a_0, $a_1, $a_2] -> qF' a_2 a_1 a_0
 
 def qF' a b c :=
   ( ((- b) + sqrt (b ^ 2 - 4 * a * c)) / 2 * a
