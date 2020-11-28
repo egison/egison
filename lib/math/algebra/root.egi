@@ -67,7 +67,7 @@ def sqrt x :=
   if isScalar x
     then let m := numerator x
              n := denominator x
-          in rt 2 ((m * n) / n)
+          in rt 2 (m * n) / n
     else b.sqrt x
 
 def rtOfUnity := rtu
