@@ -186,13 +186,21 @@ rewriteRt = mapTerms' f
       ]
 
 rewriteRtu :: ScalarData -> ScalarData
-rewriteRtu = mapTerms f
+rewriteRtu = mapTerms' g . mapTerms f
  where
   f term@(Term a xs) =
     match dfs xs (Multiset (Pair SymbolM Eql))
       [ [mc| (apply #"rtu" [singleTerm $n #1 []] & $rtun, ?(>= n) & $k) : $r ->
                Term a ((rtun, k `mod` n) : r) |]
       , [mc| _ -> term |]
+      ]
+  g (Term a xs) =
+    match dfs xs (Multiset (Pair SymbolM Eql))
+      [ [mc| (apply #"rtu" [singleTerm $n #1 []] & $rtun, ?(== n - 1)) : $mr ->
+               mathMult
+                 (foldl mathMinus (SingleTerm (-1) []) (map (\k -> SingleTerm 1 [(rtun, k)]) [1..(n-2)]))
+                 (g (Term a mr)) |]
+      , [mc| _ -> SingleTerm a xs |]
       ]
 
 rewriteDd :: ScalarData -> ScalarData
