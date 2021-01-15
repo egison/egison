@@ -57,7 +57,12 @@ instance ToMathExpr E.EgisonValue where
 
 instance ToMathExpr a => ToMathExpr (E.Tensor a) where
   toMathExpr (E.Scalar _)       = undefined
-  toMathExpr (E.Tensor _ xs js) = Tensor (map toMathExpr (toList xs)) (map toMathIndex js)
+  toMathExpr (E.Tensor [_] xs js) = Tensor (map toMathExpr (toList xs)) (map toMathIndex js)
+  toMathExpr (E.Tensor [_, n] xs js) = Tensor (f (fromIntegral n) (map toMathExpr (toList xs))) (map toMathIndex js)
+    where
+      f _ [] = []
+      f n xs = Tensor (take n xs) [] : f n (drop n xs)
+  toMathExpr (E.Tensor _ xs js) = undefined
 
 instance ToMathExpr E.ScalarData where
   toMathExpr (E.Div p (E.Plus [E.Term 1 []])) = toMathExpr p
