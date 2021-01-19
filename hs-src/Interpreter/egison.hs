@@ -161,7 +161,7 @@ getEgisonExpr = getEgisonExpr' ""
           history <- getHistory
           putHistory $ addHistoryUnlessConsecutiveDupe line history
           let input = prev ++ line
-          parsedExpr <- lift $ parseTopExpr input
+          parsedExpr <- lift $ parseTopExpr (replaceNewLine input)
           case parsedExpr of
             Left err | err =~ "unexpected end of input" ->
               getEgisonExpr' (input ++ "\n")
@@ -171,3 +171,10 @@ getEgisonExpr = getEgisonExpr' ""
             Right topExpr -> do
               -- outputStr $ show topExpr
               return $ Just topExpr
+
+replaceNewLine :: String -> String
+replaceNewLine input =
+  let (before, _, after) = input =~ "#newline" :: (String, String, String) in
+    case after of
+      "" -> before
+      _ -> before ++ "\n" ++ replaceNewLine after
