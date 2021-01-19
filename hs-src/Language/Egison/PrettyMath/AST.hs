@@ -32,6 +32,7 @@ data MathExpr
   | Tuple [MathExpr]
   | Collection [MathExpr]
   | Quote MathExpr
+  | FunctionSymbol String
   | Partial MathExpr [MathExpr]
   deriving (Eq, Show)
 
@@ -105,7 +106,14 @@ instance ToMathExpr E.SymbolExpr where
       (Atom "^" [], [x, y]) -> Power (toMathExpr x) (toMathExpr y)
       _                     -> Func (toMathExpr fn) (map toMathExpr mExprs)
   toMathExpr (E.Quote mExpr) = Quote (toMathExpr mExpr)
-  toMathExpr E.FunctionData{} = undefined -- TODO
+  toMathExpr (E.FunctionData name _ _ js) = toMathExpr' js (FunctionSymbol (show name))
+    where
+      toMathExpr' [] acc = acc
+      toMathExpr' (E.User x:js) (Partial e ps) =
+        toMathExpr' js (Partial e (ps ++ [toMathExpr x]))
+      toMathExpr' (E.User x:js) e@FunctionSymbol{} =
+        toMathExpr' js (Partial e [toMathExpr x])
+      toMathExpr' _ acc = undefined -- TODO
 
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
 toMathIndex (E.Sub x) = Sub (toMathExpr x)
