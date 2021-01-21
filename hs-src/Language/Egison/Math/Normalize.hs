@@ -122,7 +122,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
   f [] = []
   f (t:ts) =
     match dfs (t, ts) (Pair TermM (Multiset TermM))
-      [ [mc| (term $a $xs, term $b ($ys & equalMonomial $sgn #xs) : $tss) ->
+      [ [mc| (term $a $xs, term $b (equalMonomial $sgn #xs) : $tss) ->
                f (Term (sgn * a + b) xs : tss) |]
       , [mc| _ -> t : f ts |]
       ]
