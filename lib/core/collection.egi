@@ -4,6 +4,8 @@
 --
 --
 
+infixr pattern 5 ++
+
 --
 -- List
 --

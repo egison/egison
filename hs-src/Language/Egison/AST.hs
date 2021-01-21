@@ -257,8 +257,7 @@ reservedExprOp =
 
 reservedPatternOp :: [Op]
 reservedPatternOp =
-  [ Op "::" 5 InfixR False  -- cons (desugared)
-  , Op "++" 5 InfixR False  -- join (desugared)
+  [ Op "::" 5 InfixR False  -- required for desugaring collection pattern
   , Op "&"  3 InfixR False
   , Op "|"  2 InfixR False
   ]

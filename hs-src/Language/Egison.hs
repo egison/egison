@@ -59,10 +59,10 @@ coreLibraries =
   [ "lib/core/base.egi"              -- Defines (&&) (||)
   , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
   , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+  , "lib/core/collection.egi"        -- Defines (++) for patterns
   , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
 
   , "lib/core/assoc.egi"
-  , "lib/core/collection.egi"
   , "lib/core/io.egi"
   , "lib/core/maybe.egi"
   , "lib/core/number.egi"
