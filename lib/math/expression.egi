@@ -18,6 +18,9 @@ def mathExpr :=
 
 def mathExpr' :=
   matcher
+    | div $ $ as (mathExpr, mathExpr) with
+      | Div $p1 $p2 -> [(toMathExpr' p1, toMathExpr' p2)]
+      | _ -> []
     | $ / $ as (mathExpr, mathExpr) with
       | Div $p1 $p2 -> [(toMathExpr' p1, toMathExpr' p2)]
       | _ -> []
