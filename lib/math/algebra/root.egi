@@ -44,7 +44,7 @@ def rtPositiveTerm n x :=
       let f xs :=
             match xs as assocMultiset mathExpr with
               | [] -> (1, 1)
-              | ncons $p $k $rs ->
+              | $p ^ $k :: $rs ->
                 let (a, b) := f rs
                  in (p ^' quotient k n *' a, p ^' (k % n) *' b)
           g n x :=

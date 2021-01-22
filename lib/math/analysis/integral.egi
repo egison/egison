@@ -24,7 +24,7 @@ def Sd x f :=
     | #0 -> 0
     | term $c [] -> c * x
     -- term (multiplication)
-    | mult $a (ncons $n #x $r) ->
+    | mult $a ($n ^ #x :: $r) ->
       if containSymbol x r then 'Sd x f else a / (n + 1) * x ^ (n + 1) * r
     -- polynomial
     | poly $ts -> sum (map 1#(Sd x %1) ts)
