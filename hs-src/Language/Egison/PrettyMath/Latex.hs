@@ -51,7 +51,6 @@ showMathExpr (Tensor xs mis) = "\\begin{pmatrix} " ++ showMathExprVectors xs ++ 
 showMathExpr (Tuple xs) = "(" ++ showMathExprArg xs ", " ++ ")"
 showMathExpr (Collection xs) = "\\{" ++ showMathExprArg xs ", " ++ "\\}"
 showMathExpr (Quote x) = "(" ++ showMathExpr x ++ ")"
-showMathExpr (FunctionSymbol x) = x
 
 showMathExpr' :: MathExpr -> String
 showMathExpr' (Plus xs) = "(" ++ showMathExpr (Plus xs) ++ ")"
