@@ -60,10 +60,10 @@ def mathExpr' :=
       | Div (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
         [toMathExpr' mexpr]
       | _ -> []
-    | func $ $ $ $ as
-        (mathExpr, list mathExpr, list mathExpr, list indexExpr) with
+    | func $ $ $ as
+        (mathExpr, list mathExpr, list mathExpr) with
       | Div
-          (Plus [Term 1 [(Function $name $argnames $args $js, 1)]])
+          (Plus [Term 1 [(Function $name $argnames $args, 1)]])
           (Plus [Term 1 []]) ->
         [(name, argnames, args, js)]
       | _ -> []

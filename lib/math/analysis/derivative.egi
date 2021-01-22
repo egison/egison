@@ -10,7 +10,7 @@ def ∂/∂ $f *$x :=
     | #x -> 1
     | ?isSymbol -> 0
     -- function expression
-    | func _ $argnames $args _ ->
+    | func _ $argnames $args ->
       sum (map2 (\s r -> (userRefs f [s]) * ∂/∂ r x) argnames args)
     -- function application
     | #'exp $g -> exp g * ∂/∂ g x

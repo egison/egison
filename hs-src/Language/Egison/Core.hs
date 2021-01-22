@@ -128,8 +128,8 @@ evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
       xs' <- mapM newEvaluatedObjectRef xs'
       return $ Tensor ns xs' indices
     f x _ = Scalar <$> newEvaluatedObjectRef x
-    g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args js, 1)]]) p))) ms =
-      Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn' argnames args js, 1)]]) p))
+    g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args, 1)]]) p))) ms =
+      Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn' argnames args, 1)]]) p))
       where
         fn' = case maybe_vwi of
           Nothing -> fn
@@ -236,8 +236,12 @@ evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   case val of
     ScalarData (SingleTerm 1 [(Symbol id name is, 1)]) ->
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (is ++ js), 1)]))
-    ScalarData (SingleTerm 1 [(FunctionData name argnames args is, 1)]) ->
-      return $ Value (ScalarData (SingleTerm 1 [(FunctionData name argnames args (is ++ js), 1)]))
+    ScalarData (SingleTerm 1 [(FunctionData sym argnames args, 1)]) ->
+      case sym of
+        SingleTerm 1 [(Symbol id name is, 1)] -> do
+          let sym' = SingleTerm 1 [(Symbol id name (is ++ js), 1)]
+          return $ Value (ScalarData (SingleTerm 1 [(FunctionData sym' argnames args, 1)]))
+        _ -> throwErrorWithTrace (NotImplemented "user-refs")
     _ -> throwErrorWithTrace (NotImplemented "user-refs")
 
 evalExprShallow env (ILambdaExpr fnname names expr) = do
@@ -255,7 +259,9 @@ evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "functi
 
 evalExprShallow env@(Env _ (Just (name, is))) (IFunctionExpr args) = do
   args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (name ++ concatMap show is)) (map symbolScalarData' args) args' [], 1)])
+--  TODO FIX
+--  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) (map symbolScalarData' args) args', 1)])
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (name ++ concatMap show is)) (map symbolScalarData' args) args', 1)])
 
 evalExprShallow env (IIfExpr test expr expr') = do
   test <- evalExprDeep env test >>= fromEgison

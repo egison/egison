@@ -76,7 +76,7 @@ data SymbolExpr
   = Symbol Id String [Index ScalarData]
   | Apply ScalarData [ScalarData]
   | Quote ScalarData
-  | FunctionData ScalarData [ScalarData] [ScalarData] [Index ScalarData] -- fnname argnames args indices
+  | FunctionData ScalarData [ScalarData] [ScalarData] -- fnname argnames args
   deriving Eq
 
 type Id = String
@@ -103,12 +103,12 @@ symbol _ _ _                  = mzero
 symbolM :: SymbolM -> p -> Eql
 symbolM SymbolM _ = Eql
 
-func :: Pattern (PP ScalarData, PP [ScalarData], PP [Index ScalarData])
-                SymbolM SymbolExpr (ScalarData, [ScalarData], [Index ScalarData])
-func _ _ (FunctionData name _ args js) = pure (name, args, js)
+func :: Pattern (PP ScalarData, PP [ScalarData])
+                SymbolM SymbolExpr (ScalarData, [ScalarData])
+func _ _ (FunctionData name _ args) = pure (name, args)
 func _ _ _                             = mzero
-funcM :: SymbolM -> SymbolExpr -> (ScalarM, List ScalarM, Multiset Eql)
-funcM SymbolM _ = (ScalarM, List ScalarM, Multiset Eql)
+funcM :: SymbolM -> SymbolExpr -> (ScalarM, List ScalarM)
+funcM SymbolM _ = (ScalarM, List ScalarM)
 
 apply :: Pattern (PP String, PP [ScalarData]) SymbolM SymbolExpr (String, [ScalarData])
 apply _ _ (Apply (SingleSymbol (Symbol _ fn _)) args) = pure (fn, args)
@@ -246,7 +246,7 @@ instance Printable SymbolExpr where
   pretty (Symbol _ s js)               = s ++ concatMap show js
   pretty (Apply fn mExprs)             = unwords (map pretty' (fn : mExprs))
   pretty (Quote mExprs)                = "`" ++ pretty' mExprs
-  pretty (FunctionData name _ _ js)    = pretty name ++ concatMap show js
+  pretty (FunctionData name _ _)    = pretty name
 
 instance Printable TermExpr where
   isAtom (Term _ [])  = True

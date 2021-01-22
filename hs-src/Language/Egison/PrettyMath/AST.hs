@@ -32,7 +32,6 @@ data MathExpr
   | Tuple [MathExpr]
   | Collection [MathExpr]
   | Quote MathExpr
-  | FunctionSymbol String
   | Partial MathExpr [MathExpr]
   deriving (Eq, Show)
 
@@ -63,7 +62,7 @@ instance ToMathExpr a => ToMathExpr (E.Tensor a) where
     where
       f _ [] = []
       f n xs = Tensor (take n xs) [] : f n (drop n xs)
-  toMathExpr (E.Tensor _ xs js) = undefined
+  toMathExpr (E.Tensor _ _ _) = undefined
 
 instance ToMathExpr E.ScalarData where
   toMathExpr (E.Div p (E.Plus [E.Term 1 []])) = toMathExpr p
@@ -106,14 +105,16 @@ instance ToMathExpr E.SymbolExpr where
       (Atom "^" [], [x, y]) -> Power (toMathExpr x) (toMathExpr y)
       _                     -> Func (toMathExpr fn) (map toMathExpr mExprs)
   toMathExpr (E.Quote mExpr) = Quote (toMathExpr mExpr)
-  toMathExpr (E.FunctionData name _ _ js) = toMathExpr' js (FunctionSymbol (show name))
+  toMathExpr (E.FunctionData (E.SingleTerm 1 [(E.Symbol _ s js, 1)]) _ _) = toMathExpr' js (Atom s [])
     where
       toMathExpr' [] acc = acc
       toMathExpr' (E.User x:js) (Partial e ps) =
         toMathExpr' js (Partial e (ps ++ [toMathExpr x]))
-      toMathExpr' (E.User x:js) e@FunctionSymbol{} =
+      toMathExpr' (E.User x:js) e@Atom{} =
         toMathExpr' js (Partial e [toMathExpr x])
-      toMathExpr' _ acc = undefined -- TODO
+      toMathExpr' (j:js) (Atom e is) =
+        toMathExpr' js (Atom e (is ++ [toMathIndex j]))
+      toMathExpr' _ _ = undefined -- TODO
 
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
 toMathIndex (E.Sub x) = Sub (toMathExpr x)
