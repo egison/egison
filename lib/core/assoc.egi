@@ -17,36 +17,6 @@ def fromAssoc xs :=
     | ($x, $n) :: $rs -> take n (repeat1 x) ++ fromAssoc rs
 
 --
--- Assoc List
---
-def assocList a :=
-  matcher
-    | [] as () with
-      | [] -> [()]
-      | _ -> []
-    | $ :: $ as (a, assocList a) with
-      | $tgt ->
-        match tgt as list (something, integer) with
-          | ($x, #1) :: $rs -> [(x, rs)]
-          | ($x, $n) :: $rs -> [(x, (x, n - 1) :: rs)]
-          | _ -> []
-    | ncons $ #$k $ as (a, assocList a) with
-      | $tgt ->
-        match tgt as list (something, integer) with
-          | ($x, #k) :: $rs -> [(x, rs)]
-          | ($x, ?(> k) & $n) :: $rs -> [(x, (x, n - k) :: rs)]
-          | _ -> []
-    | ncons $ $ $ as (a, integer, assocList a) with
-      | $tgt ->
-        match tgt as list (something, integer) with
-          | ($x, $k) :: $rs -> [(x, k, rs)]
-          | _ -> []
-    | #$val as () with
-      | $tgt -> if val = tgt then [()] else []
-    | $ as (something) with
-      | $tgt -> [tgt]
-
---
 -- Assoc Multiset
 --
 def assocMultiset a :=
@@ -54,6 +24,24 @@ def assocMultiset a :=
     | [] as () with
       | [] -> [()]
       | _ -> []
+    | #$x ^ #$n :: $ as (assocMultiset a) with
+      | $tgt ->
+        matchAll tgt as list (a, integer) with
+          | $hs ++ (#x, ?(>= n) & $k) :: $ts ->
+            if k - n = 0 then hs ++ ts else hs ++ (x, k - n) :: ts
+    | $ ^ #$n :: $ as (a, assocMultiset a) with
+      | $tgt ->
+        matchAll tgt as list (a, integer) with
+          | $hs ++ ($x, ?(>= n) & $k) :: $ts ->
+            if k - n = 0 then (x, hs ++ ts) else (x, hs ++ (x, k - n) :: ts)
+    | #$x ^ $ :: $ as (integer, assocMultiset a) with
+      | $tgt ->
+        matchAll tgt as list (a, integer) with
+          | $hs ++ (#x, $n) :: $ts -> (n, hs ++ ts)
+    | $ ^ $ :: $ as (a, integer, assocMultiset a) with
+      | $tgt ->
+        matchAll tgt as list (a, integer) with
+          | $hs ++ ($x, $n) :: $ts -> (x, n, hs ++ ts)
     | #$x :: $ as (assocMultiset a) with
       | $tgt ->
         matchAll tgt as list (a, integer) with
@@ -64,31 +52,13 @@ def assocMultiset a :=
         matchAll tgt as list (a, integer) with
           | $hs ++ ($x, $n) :: $ts ->
             if n = 1 then (x, hs ++ ts) else (x, hs ++ (x, n - 1) :: ts)
-    | ncons #$x #$n $ as (assocMultiset a) with
-      | $tgt ->
-        matchAll tgt as list (a, integer) with
-          | $hs ++ (#x, ?(>= n) & $k) :: $ts ->
-            if k - n = 0 then hs ++ ts else hs ++ (x, k - n) :: ts
-    | ncons $ #$n $ as (a, assocMultiset a) with
-      | $tgt ->
-        matchAll tgt as list (a, integer) with
-          | $hs ++ ($x, ?(>= n) & $k) :: $ts ->
-            if k - n = 0 then (x, hs ++ ts) else (x, hs ++ (x, k - n) :: ts)
-    | ncons #$x $ $ as (integer, assocMultiset a) with
-      | $tgt ->
-        matchAll tgt as list (a, integer) with
-          | $hs ++ (#x, $n) :: $ts -> (n, hs ++ ts)
-    | ncons $ $ $ as (a, integer, assocMultiset a) with
-      | $tgt ->
-        matchAll tgt as list (a, integer) with
-          | $hs ++ ($x, $n) :: $ts -> (x, n, hs ++ ts)
     | $ as (something) with
       | $tgt -> [tgt]
 
 def AC.intersect xs ys :=
   matchAll (xs, ys) as (assocMultiset something, assocMultiset something) with
-    | (ncons $x $m _, ncons #x $n _) -> (x, min m n)
+    | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)
 
 def AC.intersectAs a xs ys :=
   matchAll (xs, ys) as (assocMultiset a, assocMultiset a) with
-    | (ncons $x $m _, ncons #x $n _) -> (x, min m n)
+    | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)

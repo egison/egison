@@ -92,15 +92,15 @@ def multExpr :=
     | $ ^ #$k * $ as (mathExpr, multExpr) with
       | $tgt ->
         matchAll tgt as mathExpr with
-          | term _ (ncons $x #k $xs) -> (x, product' (map (uncurry (^')) xs))
+          | term _ ($x ^ #k :: $xs) -> (x, product' (map (uncurry (^')) xs))
     | $ ^ $ * $ as (mathExpr, integer, multExpr) with
       | $tgt ->
         matchAll tgt as mathExpr with
-          | term _ (ncons $x $n $xs) -> (x, n, product' (map (uncurry (^')) xs))
+          | term _ ($x ^ $n :: $xs) -> (x, n, product' (map (uncurry (^')) xs))
     | $ ^ $ as (mathExpr, integer) with
       | $tgt ->
         match tgt as mathExpr with
-          | term _ (ncons $x $n []) -> [(x, n)]
+          | term _ ($x ^ $n :: []) -> [(x, n)]
           | _ -> []
     | $ * $ as (mathExpr, multExpr) with
       | $tgt ->
@@ -263,7 +263,7 @@ def expandAll' $mexpr :=
 def coefficients $f $x :=
   let m := maximum
              (0 :: (matchAll f as mathExpr with
-               | poly (term $a (ncons #x $k $ts) :: _) / _ -> k))
+               | poly (term $a (#x ^ $k :: $ts) :: _) / _ -> k))
    in map (coefficient f x) (between 0 m)
 
 def coefficient $f $x $m :=
@@ -277,7 +277,7 @@ def coefficient $f $x $m :=
 def coefficient' $f $x $m :=
   sum
     (matchAll f as mathExpr with
-      | poly (term $a (ncons #x #m (!(#x :: _) & $ts)) :: _) / _ ->
+      | poly (term $a (#x ^ #m :: (!(#x :: _) & $ts)) :: _) / _ ->
         foldl (*') a (map (uncurry (^')) ts)) / denominator f
 
 def coefficient2 $f $x $y :=
