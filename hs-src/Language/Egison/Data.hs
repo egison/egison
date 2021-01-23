@@ -159,8 +159,6 @@ symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [ScalarDa
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (FunctionData name argnames args, n) =
   Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList (map ScalarData args))], toEgison n]
- where
-  f js = Collection (Sq.fromList (map scalarIndexToEgison js))
 
 scalarIndexToEgison :: Index ScalarData -> EgisonValue
 scalarIndexToEgison (Sup k)  = InductiveData "Sup"  [ScalarData k]
@@ -430,7 +428,7 @@ instance Show ObjectRef where
 -- Environment
 --
 
-data Env = Env [HashMap Var ObjectRef] (Maybe (String, [Index String]))
+data Env = Env [HashMap Var ObjectRef] (Maybe (String, [Index (Maybe ScalarData)]))
 
 type Binding = (Var, ObjectRef)
 

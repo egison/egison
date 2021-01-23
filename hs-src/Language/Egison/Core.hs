@@ -107,35 +107,19 @@ evalExprShallow env (IJoinExpr xs ys) = do
   innersSeq <- liftIO $ newIORef $ Sq.fromList [ISubCollection xs', ISubCollection ys']
   return $ ICollection innersSeq
 
-evalExprShallow env@(Env frame maybe_vwi) (IVectorExpr exprs) = do
+evalExprShallow env (IVectorExpr exprs) = do
   let n = toInteger (length exprs)
-  whnfs <- zipWithM evalWithIndex exprs [1..]
+  whnfs <- mapM (evalExprShallow env) exprs
   case whnfs of
     ITensor Tensor{}:_ ->
-      zipWithM f whnfs [1..] >>= tConcat' >>= fromTensor
+      mapM f whnfs >>= tConcat' >>= fromTensor
     _ -> makeITensorFromWHNF [n] whnfs
   where
-    evalWithIndex :: IExpr -> Integer -> EvalM WHNFData
-    evalWithIndex expr index = evalExprShallow env' expr
-      where
-        env' = case maybe_vwi of
-          Nothing -> env
-          Just (name, indices) ->
-            Env frame (Just (name, zipWith changeIndex indices [toEgison index]))
-    f (ITensor (Tensor ns xs indices)) i = do
-      xs <- mapM evalRef xs
-      let xs' = V.zipWith g xs $ V.fromList (map (\ms -> map toEgison (i:ms)) $ enumTensorIndices ns)
-      xs' <- mapM newEvaluatedObjectRef xs'
-      return $ Tensor ns xs' indices
-    f x _ = Scalar <$> newEvaluatedObjectRef x
-    g (Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn argnames args, 1)]]) p))) ms =
-      Value (ScalarData (Div (Plus [Term 1 [(FunctionData fn' argnames args, 1)]]) p))
-      where
-        fn' = case maybe_vwi of
-          Nothing -> fn
-          Just (name, indices) ->
-            symbolScalarData' (name ++ concatMap show (zipWith changeIndex indices ms))
-    g x _ = x
+    f (ITensor (Tensor ns xs indices)) = do
+      xs' <- mapM evalRef xs
+      xs'' <- mapM newEvaluatedObjectRef xs'
+      return $ Tensor ns xs'' indices
+    f x = Scalar <$> newEvaluatedObjectRef x
 
 evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   nsWhnf <- evalExprShallow env nsExpr
@@ -259,9 +243,15 @@ evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "functi
 
 evalExprShallow env@(Env _ (Just (name, is))) (IFunctionExpr args) = do
   args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
---  TODO FIX
---  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) (map symbolScalarData' args) args', 1)])
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (symbolScalarData' (name ++ concatMap show is)) (map symbolScalarData' args) args', 1)])
+  is' <- mapM unwrapMaybeFromIndex is
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) (map symbolScalarData' args) args', 1)])
+ where
+  unwrapMaybeFromIndex :: Index (Maybe ScalarData) -> EvalM (Index ScalarData) -- Maybe we can refactor this function
+--  unwrapMaybeFromIndex = return . (fmap fromJust)
+  unwrapMaybeFromIndex (Sub Nothing) = throwError $ Default "function symbol can be used only with generateTensor"
+  unwrapMaybeFromIndex (Sup Nothing) = throwError $ Default "function symbol can be used only with generateTensor"
+  unwrapMaybeFromIndex (Sub (Just i)) = return (Sub i)
+  unwrapMaybeFromIndex (Sup (Just i)) = return (Sup i)
 
 evalExprShallow env (IIfExpr test expr expr') = do
   test <- evalExprDeep env test >>= fromEgison
@@ -411,14 +401,17 @@ evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info
 evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExprDeep env shapeExpr >>= collectionToList
   ns    <- mapM fromEgison shape :: EvalM Shape
-  xs    <- mapM (indexToWHNF env . map toEgison) (enumTensorIndices ns)
+  xs    <- mapM (evalWithIndex env . map (\n -> SingleTerm n [])) (enumTensorIndices ns)
   return $ newITensor ns xs
  where
-  indexToWHNF :: Env -> [EgisonValue] {- index -} -> EvalM ObjectRef
-  indexToWHNF (Env frame maybe_vwi) ms = do
+  evalWithIndex :: Env -> [ScalarData] {- index -} -> EvalM ObjectRef
+  evalWithIndex env@(Env frame maybe_vwi) ms = do
     let env' = maybe env (\(name, indices) -> Env frame $ Just (name, zipWith changeIndex indices ms)) maybe_vwi
     fn <- evalExprShallow env' fnExpr
-    newApplyObjThunkRef env fn [WHNF (Value (Collection (Sq.fromList ms)))]
+    newApplyObjThunkRef env fn [WHNF (Value (Collection (Sq.fromList (map ScalarData ms))))]
+  changeIndex :: Index (Maybe a) -> a -> Index (Maybe a) -- Maybe we can refactor this function
+  changeIndex (Sup Nothing) m = Sup (Just m)
+  changeIndex (Sub Nothing) m = Sub (Just m)
 
 evalExprShallow env (ITensorContractExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
@@ -690,7 +683,7 @@ recursiveMatchBind env bindings = do
 
 memorizeVarInEnv :: Env -> Var -> Env
 memorizeVarInEnv (Env frame _) (Var var is) =
-  Env frame (Just (var, map (fmap (const "")) is))
+  Env frame (Just (var, map (fmap (\() -> Nothing)) is))
 
 --
 -- Pattern Match
