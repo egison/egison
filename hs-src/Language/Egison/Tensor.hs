@@ -16,7 +16,6 @@ module Language.Egison.Tensor
     -- * Tensor
     , tref
     , enumTensorIndices
-    , changeIndex
     , tTranspose
     , tTranspose'
     , tFlipIndices
@@ -162,10 +161,6 @@ tref (_:_) _ = throwError $ Default "Tensor index must be an integer or a single
 enumTensorIndices :: Shape -> [[Integer]]
 enumTensorIndices []     = [[]]
 enumTensorIndices (n:ns) = concatMap (\i -> map (i:) (enumTensorIndices ns)) [1..n]
-
-changeIndex :: Index String -> EgisonValue -> Index String
-changeIndex (Sup s) m = Sup (s ++ show m)
-changeIndex (Sub s) m = Sub (s ++ show m)
 
 -- transIndex [a, b, c] [c, a, b] [2, 3, 4] = [4, 2, 3]
 transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> Shape -> EvalM Shape
