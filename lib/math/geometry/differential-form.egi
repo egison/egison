@@ -10,6 +10,10 @@ def antisymmetrize := dfNormalize
 
 def wedge %X %Y := X !. Y
 
+infixl expression 7 ∧
+
+def (∧) := wedge
+
 def Lie.wedge %X %Y := X !. Y - Y !. X
 
 def ι %X %Y := withSymbols [i] dfOrder Y * (X...~i . dfNormalize Y..._i)
