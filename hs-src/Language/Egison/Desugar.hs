@@ -486,7 +486,9 @@ desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IP
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
 
 desugarDefineWithIndices :: VarWithIndices -> Expr -> EvalM (Var, IExpr)
-desugarDefineWithIndices (VarWithIndices name is) expr@(LambdaExpr _ _) = do undefined
+desugarDefineWithIndices var@(VarWithIndices _ _) expr@(LambdaExpr _ _) = do
+  expr' <- desugar expr
+  return (varWithIndicesToVar var, expr')
 desugarDefineWithIndices (VarWithIndices name is) expr = do
   let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is
   expr <- if any isExtendedIndice is
@@ -496,6 +498,16 @@ desugarDefineWithIndices (VarWithIndices name is) expr = do
   let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
   let is' = map (\b -> if b then Sub Nothing else Sup Nothing) isSubs
   return (Var name is', IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
+
+varWithIndicesToVar :: VarWithIndices -> Var
+varWithIndicesToVar (VarWithIndices name is) = Var name (concatMap transVarIndex is)
+
+transVarIndex :: VarIndex -> [Index (Maybe Var)]
+transVarIndex (VSubscript x)        = [Sub (Just (stringToVar x))]
+transVarIndex (VSuperscript x)      = [Sup (Just (stringToVar x))]
+transVarIndex (VGroupScripts xs)    = concatMap transVarIndex xs
+transVarIndex (VSymmScripts xs)     = concatMap transVarIndex xs
+transVarIndex (VAntiSymmScripts xs) = concatMap transVarIndex xs
 
 extractSubSupIndex :: VarIndex -> [(Bool, String)]
 extractSubSupIndex (VSubscript x)        = [(True, x)]
