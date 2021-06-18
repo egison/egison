@@ -140,10 +140,10 @@ extractIndex (SupSub x) = x
 extractIndex (User x)   = x
 extractIndex DF{}       = undefined
 
-data Var = Var String [Index ()]
+data Var = Var String [Index (Maybe Var)]
   deriving (Eq, Generic, Show)
 
-instance Hashable (Index ())
+instance Hashable a => Hashable (Index a)
 instance Hashable Var
 
 stringToVar :: String -> Var
