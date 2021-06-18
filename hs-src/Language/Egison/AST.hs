@@ -133,6 +133,7 @@ data Arg a
 data ArgPattern
   = APWildCard
   | APPatVar String
+  | APPatVarWithIndices String [VarIndex]
   | APInductivePat String [Arg ArgPattern]
   | APTuplePat [Arg ArgPattern]
   | APEmptyPat
@@ -143,6 +144,8 @@ data ArgPattern
 data VarIndex
   = VSubscript String
   | VSuperscript String
+  | VMultiSubscript String String String   -- _(a_1)..._(a_n) -> VMultiSubscript "a" "1" "n"
+  | VMultiSuperscript String String String -- ~(a_1)...~(a_n) -> VMultiSuperscript "a" "1" "n"
   | VGroupScripts [VarIndex]
   | VSymmScripts [VarIndex]
   | VAntiSymmScripts [VarIndex]

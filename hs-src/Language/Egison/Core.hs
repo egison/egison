@@ -159,7 +159,7 @@ evalExprShallow env (IIndexedExpr override expr indices) = do
   -- Tensor or hash
   tensor <- case expr of
               IVarExpr xs -> do
-                let mObjRef = refVar env (Var xs (map (const () <$>) indices))
+                let mObjRef = refVar env (Var xs (map (const Nothing <$>) indices))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -188,7 +188,7 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
   js <- map Sub <$> (evalExprDeep env jsExpr >>= collectionToList)
   tensor <- case expr of
               IVarExpr xs -> do
-                let mObjRef = refVar env (Var xs (map (\_ -> Sub ()) js))
+                let mObjRef = refVar env (Var xs (map (\_ -> Sub Nothing) js))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -203,7 +203,7 @@ evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
   js <- map Sup <$> (evalExprDeep env jsExpr >>= collectionToList)
   tensor <- case expr of
               IVarExpr xs -> do
-                let mObjRef = refVar env (Var xs (map (\_ -> Sup ()) js))
+                let mObjRef = refVar env (Var xs (map (\_ -> Sup Nothing) js))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -683,7 +683,7 @@ recursiveMatchBind env bindings = do
 
 memorizeVarInEnv :: Env -> Var -> Env
 memorizeVarInEnv (Env frame _) (Var var is) =
-  Env frame (Just (var, map (fmap (\() -> Nothing)) is))
+  Env frame (Just (var, map (fmap (\_ -> Nothing)) is))
 
 --
 -- Pattern Match

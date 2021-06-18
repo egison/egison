@@ -486,6 +486,7 @@ desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IP
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
 
 desugarDefineWithIndices :: VarWithIndices -> Expr -> EvalM (Var, IExpr)
+desugarDefineWithIndices (VarWithIndices name is) expr@(LambdaExpr _ _) = do undefined
 desugarDefineWithIndices (VarWithIndices name is) expr = do
   let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is
   expr <- if any isExtendedIndice is
@@ -493,7 +494,7 @@ desugarDefineWithIndices (VarWithIndices name is) expr = do
              else return expr
   body <- desugar expr
   let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
-  let is' = map (\b -> if b then Sub () else Sup ()) isSubs
+  let is' = map (\b -> if b then Sub Nothing else Sup Nothing) isSubs
   return (Var name is', IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 
 extractSubSupIndex :: VarIndex -> [(Bool, String)]
