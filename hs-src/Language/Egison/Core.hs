@@ -157,14 +157,14 @@ evalExprShallow env (IHashExpr assocs) = do
 
 evalExprShallow env (IIndexedExpr override expr indices) = do
   -- Tensor or hash
-  tensor <- case expr of
+  whnf <- case expr of
               IVarExpr xs -> do
                 let mObjRef = refVar env (Var xs (map (const Nothing <$>) indices))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
               _ -> evalExprShallow env expr
-  case tensor of
+  case whnf of
     Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
       js2 <- mapM evalIndexToScalar indices
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
@@ -176,7 +176,7 @@ evalExprShallow env (IIndexedExpr override expr indices) = do
       refTensorWithOverride override js t
     _ -> do
       js <- mapM evalIndex indices
-      refHash tensor (map extractIndex js)
+      refHash whnf (map extractIndex js)
  where
   evalIndex :: Index IExpr -> EvalM (Index EgisonValue)
   evalIndex index = traverse (evalExprDeep env) index

@@ -31,7 +31,7 @@ module Language.Egison.IExpr
   , PDPatternBase (..)
   ) where
 
-import           Data.Hashable       (Hashable)
+import           Data.Hashable
 import           GHC.Generics        (Generic)
 
 import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMMode (..), PrimitivePatPattern (..))
@@ -143,8 +143,14 @@ extractIndex DF{}       = undefined
 data Var = Var String [Index (Maybe Var)]
   deriving (Eq, Generic, Show)
 
+-- for hashing
+data Var' = Var' String [Index ()]
+  deriving (Eq, Generic, Show)
+
 instance Hashable a => Hashable (Index a)
-instance Hashable Var
+instance Hashable Var'
+instance Hashable Var where
+  hashWithSalt salt (Var name is) = hashWithSalt salt (Var' name (map (fmap (\_ -> ())) is))
 
 stringToVar :: String -> Var
 stringToVar name = Var name []
