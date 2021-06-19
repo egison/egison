@@ -28,6 +28,8 @@ import           Control.Arrow
 import           Control.Monad.Except            (throwError)
 import           Control.Monad.State             hiding (join, mapM)
 import           Control.Monad.Trans.Maybe
+import           Data.Hashable
+import qualified Data.HashMap.Strict              as HashMap
 
 import           Data.Char                       (isUpper)
 import           Data.Foldable                   (toList)
@@ -155,11 +157,11 @@ evalExprShallow env (IHashExpr assocs) = do
       _            -> throwErrorWithTrace (TypeMismatch "integer or string" (Value val))
   makeHashKey whnf = throwErrorWithTrace (TypeMismatch "integer or string" whnf)
 
-evalExprShallow env (IIndexedExpr override expr indices) = do
+evalExprShallow env@(Env fs _) (IIndexedExpr override expr indices) = do
   -- Tensor or hash
   whnf <- case expr of
-              IVarExpr xs -> do
-                let mObjRef = refVar env (Var xs (map (const Nothing <$>) indices))
+              IVarExpr v -> do
+                let mObjRef = refVar env (Var v (map (fmap (const Nothing)) indices))
                 case mObjRef of
                   Just objRef -> evalRef objRef
                   Nothing     -> evalExprShallow env expr
@@ -168,6 +170,10 @@ evalExprShallow env (IIndexedExpr override expr indices) = do
     Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
       js2 <- mapM evalIndexToScalar indices
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
+    Value (Func fnname env args body) -> do
+      js <- mapM evalIndex indices
+      env' <- undefined
+      return $ Value (Func fnname env' args body)
     Value (TensorData t@Tensor{}) -> do
       js <- mapM evalIndex indices
       Value <$> refTensorWithOverride override js t

@@ -25,11 +25,6 @@ import           Language.Egison.RState
 
 
 desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
-desugarTopExpr (Define (VarWithIndices name []) expr) = do
-  expr' <- desugar expr
-  case expr' of
-    ILambdaExpr Nothing args body -> return . Just $ IDefine (Var name []) (ILambdaExpr (Just name) args body)
-    _                             -> return . Just $ IDefine (Var name []) expr'
 desugarTopExpr (Define vwi expr) = do
   (var, iexpr) <- desugarDefineWithIndices vwi expr
   return . Just $ IDefine var iexpr
@@ -486,9 +481,11 @@ desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IP
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
 
 desugarDefineWithIndices :: VarWithIndices -> Expr -> EvalM (Var, IExpr)
-desugarDefineWithIndices var@(VarWithIndices _ _) expr@(LambdaExpr _ _) = do
+desugarDefineWithIndices var@(VarWithIndices name _) expr@(LambdaExpr _ _) = do
   expr' <- desugar expr
-  return (varWithIndicesToVar var, expr')
+  case expr' of
+    ILambdaExpr Nothing args body -> return (varWithIndicesToVar var, ILambdaExpr (Just name) args body)
+    _                             -> return (varWithIndicesToVar var, expr')
 desugarDefineWithIndices (VarWithIndices name is) expr = do
   let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is
   expr <- if any isExtendedIndice is
