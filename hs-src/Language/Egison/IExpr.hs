@@ -141,16 +141,20 @@ extractIndex (User x)   = x
 extractIndex DF{}       = undefined
 
 data Var = Var String [Index (Maybe Var)]
-  deriving (Eq, Generic, Show)
+  deriving (Generic, Show)
 
--- for hashing
+-- for eq and hashable
 data Var' = Var' String [Index ()]
   deriving (Eq, Generic, Show)
+
+instance Eq Var where
+  Var name is == Var name' is' = Var' name (map (fmap (\_ -> ())) is) == Var' name' (map (fmap (\_ -> ())) is')
 
 instance Hashable a => Hashable (Index a)
 instance Hashable Var'
 instance Hashable Var where
   hashWithSalt salt (Var name is) = hashWithSalt salt (Var' name (map (fmap (\_ -> ())) is))
+
 
 stringToVar :: String -> Var
 stringToVar name = Var name []
