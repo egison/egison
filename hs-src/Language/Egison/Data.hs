@@ -73,6 +73,7 @@ import           Language.Egison.EvalState
 import           Language.Egison.IExpr
 import           Language.Egison.Math
 import           Language.Egison.RState
+import           Language.Egison.AST (VarWithIndices (..))
 
 --
 -- Values
@@ -93,7 +94,7 @@ data EgisonValue
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env [IPatternDef]
-  | Func (Maybe String) Env [String] IExpr
+  | Func (Maybe VarWithIndices) Env [String] IExpr
   | CFunc Env String IExpr
   | MemoizedFunc (IORef (HashMap [Integer] WHNFData)) Env [String] IExpr
   | PatternFunc Env [String] IPattern
@@ -462,7 +463,7 @@ refVar e@(Env env _) var@(Var name is) =
 -- Errors
 --
 
-type CallStack = [String]
+type CallStack = [VarWithIndices]
 
 data EgisonError
   = UnboundVariable String CallStack
@@ -501,7 +502,7 @@ instance Show EgisonError where
   show (Default message) = "Error: " ++ message
 
 showTrace :: CallStack -> String
-showTrace stack = "\n  stack trace: " ++ intercalate ", " stack
+showTrace stack = "\n  stack trace: " ++ intercalate ", " (map show stack)
 
 instance Exception EgisonError
 

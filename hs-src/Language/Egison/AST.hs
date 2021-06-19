@@ -122,7 +122,7 @@ data Expr
   deriving Show
 
 data VarWithIndices = VarWithIndices String [VarIndex]
-  deriving Show
+  deriving (Show, Eq)
 
 data Arg a
   = ScalarArg a
@@ -149,7 +149,7 @@ data VarIndex
   | VGroupScripts [VarIndex]
   | VSymmScripts [VarIndex]
   | VAntiSymmScripts [VarIndex]
-  deriving Show
+  deriving (Show, Eq)
 
 data IndexExpr a
   = Subscript a

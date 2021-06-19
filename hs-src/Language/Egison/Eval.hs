@@ -144,12 +144,12 @@ evalTopExpr' env (IDefine name expr) = do
   env' <- recursiveBind env [(name, expr)]
   return (Nothing, env')
 evalTopExpr' env (ITest expr) = do
-  pushFuncName "<stdin>"
+  pushFuncName (stringToVarWithIndices "<stdin>")
   val <- evalExprDeep env expr
   popFuncName
   return (Just val, env)
 evalTopExpr' env (IExecute expr) = do
-  pushFuncName "<stdin>"
+  pushFuncName (stringToVarWithIndices "<stdin>")
   io <- evalExprShallow env expr
   case io of
     Value (IOFunc m) -> m >> popFuncName >> return (Nothing, env)
