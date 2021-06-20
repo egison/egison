@@ -28,8 +28,6 @@ import           Control.Arrow
 import           Control.Monad.Except            (throwError)
 import           Control.Monad.State             hiding (join, mapM)
 import           Control.Monad.Trans.Maybe
-import           Data.Hashable
-import qualified Data.HashMap.Strict              as HashMap
 
 import           Data.Char                       (isUpper)
 import           Data.Foldable                   (toList)
@@ -169,10 +167,11 @@ evalExprShallow env@(Env fs _) (IIndexedExpr override expr indices) = do
     Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
       js2 <- mapM evalIndexToScalar indices
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
-    Value (Func fnname env args body) -> do
+    Value (Func v@(Just (Var fnName is)) env args body) -> do
       js <- mapM evalIndex indices
-      env' <- undefined
-      return $ Value (Func fnname env' args body)
+      frame <- pmIndices is js
+      let env' = extendEnv env frame
+      return $ Value (Func v env' args body)
     Value (TensorData t@Tensor{}) -> do
       js <- mapM evalIndex indices
       Value <$> refTensorWithOverride override js t
