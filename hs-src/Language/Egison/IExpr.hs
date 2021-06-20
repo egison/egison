@@ -20,6 +20,7 @@ module Language.Egison.IExpr
   , IPrimitiveDataPattern
   , Var (..)
   , stringToVar
+  , extractNameFromVar
   , Index (..)
   , extractSupOrSubIndex
   , extractIndex
@@ -58,7 +59,7 @@ data IExpr
   | IJoinExpr IExpr IExpr
   | IHashExpr [(IExpr, IExpr)]
   | IVectorExpr [IExpr]
-  | ILambdaExpr (Maybe Var) [String] IExpr
+  | ILambdaExpr (Maybe Var) [Var] IExpr
   | IMemoizedLambdaExpr [String] IExpr
   | ICambdaExpr String IExpr
   | IPatternFunctionExpr [String] IPattern
@@ -155,9 +156,11 @@ instance Hashable Var'
 instance Hashable Var where
   hashWithSalt salt (Var name is) = hashWithSalt salt (Var' name (map (fmap (\_ -> ())) is))
 
-
 stringToVar :: String -> Var
 stringToVar name = Var name []
+
+extractNameFromVar :: Var -> String
+extractNameFromVar (Var name _) = name
 
 makeIApply :: String -> [IExpr] -> IExpr
 makeIApply func args = IApplyExpr (IVarExpr func) args

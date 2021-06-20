@@ -122,12 +122,12 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
 
 desugar (MatchAllLambdaExpr matcher clauses) = do
   name <- fresh
-  ILambdaExpr Nothing [name] <$>
+  ILambdaExpr Nothing [stringToVar name] <$>
     desugar (MatchAllExpr BFSMode (VarExpr name) matcher clauses)
 
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
-  ILambdaExpr Nothing [name] <$>
+  ILambdaExpr Nothing [stringToVar name] <$>
     desugar (MatchExpr BFSMode (VarExpr name) matcher clauses)
 
 -- TODO: Allow nested MultiSubscript and MultiSuperscript
@@ -152,7 +152,7 @@ desugar (IndexedExpr b expr indices) =
       e1'   <- desugar e1
       expr' <- desugar expr
       return $ refExpr b expr' (makeIApply "map"
-                                           [ILambdaExpr Nothing [k] (IIndexedExpr b1 e1' [Sub (IVarExpr k)]),
+                                           [ILambdaExpr Nothing [stringToVar k] (IIndexedExpr b1 e1' [Sub (IVarExpr k)]),
                                             makeIApply "between" [n1', n2']])
 
 desugar (SubrefsExpr bool expr1 expr2) =
@@ -185,7 +185,7 @@ desugar (LambdaExpr args expr) = do
   (args', expr') <- foldrM desugarArg ([], expr) args
   desugar $ LambdaExpr' args' expr'
   where
-    desugarArg :: Arg ArgPattern -> ([Arg String], Expr) -> EvalM ([Arg String], Expr)
+    desugarArg :: Arg ArgPattern -> ([Arg VarWithIndices], Expr) -> EvalM ([Arg VarWithIndices], Expr)
     desugarArg (TensorArg x) (args, expr) = do
       (var, expr') <- desugarArgPat x expr
       return (TensorArg var : args, expr')
@@ -200,50 +200,57 @@ desugar (LambdaExpr args expr) = do
     -- \$(%x, %y) -> expr   ==> \$tmp -> let (tmp1, tmp2) := tmp in (\%x %y -> expr) tmp1 tmp2
     -- \(x, (y, z)) -> expr ==> \tmp  -> let (tmp1, tmp2) := tmp in (\x (y, z) -> expr) tmp1 tmp2
     -- \%($x :: xs) -> expr ==> \%tmp -> let (tmp1 :: xs) := tmp in (\$x %xs -> expr) tmp1 tmp2
-    desugarArgPat :: ArgPattern -> Expr -> EvalM (String, Expr)
+    desugarArgPat :: ArgPattern -> Expr -> EvalM (VarWithIndices, Expr)
     desugarArgPat APWildCard expr = do
       tmp <- fresh
-      return (tmp, LetExpr [Bind PDWildCard (VarExpr tmp)] expr)
+      let tmp' = stringToVarWithIndices tmp
+      return (tmp', LetExpr [Bind PDWildCard (VarExpr tmp)] expr)
     desugarArgPat (APPatVar var) expr = return (var, expr)
     desugarArgPat (APTuplePat args) expr = do
       tmp  <- fresh
+      let tmp' = stringToVarWithIndices tmp
       tmps <- mapM (const fresh) args
-      return (tmp, LetExpr [Bind (PDTuplePat (map PDPatVar tmps)) (VarExpr tmp)]
-                     (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
+      return (tmp', LetExpr [Bind (PDTuplePat (map PDPatVar tmps)) (VarExpr tmp)]
+                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat (APInductivePat ctor args) expr = do
       tmp  <- fresh
+      let tmp' = stringToVarWithIndices tmp
       tmps <- mapM (const fresh) args
-      return (tmp, LetExpr [Bind (PDInductivePat ctor (map PDPatVar tmps)) (VarExpr tmp)]
-                     (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
+      return (tmp', LetExpr [Bind (PDInductivePat ctor (map PDPatVar tmps)) (VarExpr tmp)]
+                      (ApplyExpr (LambdaExpr args expr) (map VarExpr tmps)))
     desugarArgPat APEmptyPat expr = do
       tmp <- fresh
-      return (tmp, LetExpr [Bind PDEmptyPat (VarExpr tmp)] expr)
+      let tmp' = stringToVarWithIndices tmp
+      return (tmp', LetExpr [Bind PDEmptyPat (VarExpr tmp)] expr)
     desugarArgPat (APConsPat arg1 arg2) expr = do
       tmp  <- fresh
+      let tmp' = stringToVarWithIndices tmp
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
+      return (tmp', LetExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [arg1, TensorArg arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
     desugarArgPat (APSnocPat arg1 arg2) expr = do
       tmp  <- fresh
+      let tmp' = stringToVarWithIndices tmp
       tmp1 <- fresh
       tmp2 <- fresh
-      return (tmp, LetExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
+      return (tmp', LetExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
                      (ApplyExpr (LambdaExpr [TensorArg arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
 
-desugar (LambdaExpr' names expr) = do
-  let (args', expr') = foldr desugarInvertedArgs ([], expr) names
+desugar (LambdaExpr' vwis expr) = do
+  let (vwis', expr') = foldr desugarInvertedArgs ([], expr) vwis
+  let args' = map varWithIndicesToVar vwis'
   expr' <- desugar expr'
   return $ ILambdaExpr Nothing args' expr'
   where
-    desugarInvertedArgs :: Arg String -> ([String], Expr) -> ([String], Expr)
+    desugarInvertedArgs :: Arg VarWithIndices -> ([VarWithIndices], Expr) -> ([VarWithIndices], Expr)
     desugarInvertedArgs (TensorArg x) (args, expr) = (x : args, expr)
     desugarInvertedArgs (ScalarArg x) (args, expr) =
       (x : args,
-       TensorMapExpr (LambdaExpr' [TensorArg x] expr) (VarExpr x))
+       TensorMapExpr (LambdaExpr' [TensorArg x] expr) (VarExpr (extractNameFromVarWithIndices x)))
     desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
       (x : args,
-       TensorMapExpr (LambdaExpr' [TensorArg x] expr) (FlipIndicesExpr (VarExpr x)))
+       TensorMapExpr (LambdaExpr' [TensorArg x] expr) (FlipIndicesExpr (VarExpr (extractNameFromVarWithIndices x))))
 
 desugar (MemoizedLambdaExpr names expr) =
   IMemoizedLambdaExpr names <$> desugar expr
@@ -304,15 +311,15 @@ desugar (SectionExpr op Nothing Nothing)
 desugar (SectionExpr op Nothing Nothing) = do
   x <- fresh
   y <- fresh
-  ILambdaExpr Nothing [x, y] <$> desugar (InfixExpr op (VarExpr x) (VarExpr y))
+  ILambdaExpr Nothing [stringToVar x, stringToVar y] <$> desugar (InfixExpr op (VarExpr x) (VarExpr y))
 
 desugar (SectionExpr op Nothing (Just expr2)) = do
   x <- fresh
-  ILambdaExpr Nothing [x] <$> desugar (InfixExpr op (VarExpr x) expr2)
+  ILambdaExpr Nothing [stringToVar x] <$> desugar (InfixExpr op (VarExpr x) expr2)
 
 desugar (SectionExpr op (Just expr1) Nothing) = do
   y <- fresh
-  ILambdaExpr Nothing [y] <$> desugar (InfixExpr op expr1 (VarExpr y))
+  ILambdaExpr Nothing [stringToVar y] <$> desugar (InfixExpr op expr1 (VarExpr y))
 
 desugar SectionExpr{} = throwError $ Default "Cannot reach here: section with both arguments"
 
@@ -358,21 +365,21 @@ desugar (MatcherExpr patternDefs) =
 desugar (AnonParamExpr n) = return $ IVarExpr ('%' : show n)
 
 desugar (AnonParamFuncExpr n expr) = do
-  let args = map (\n -> '%' : show n) [1..n]
+  let args = map (\n -> stringToVarWithIndices ('%' : show n)) [1..n]
   lambda <- desugar $ LambdaExpr' (map TensorArg args) expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (AnonTupleParamFuncExpr 1 expr) = do
-  lambda <- desugar $ LambdaExpr' [TensorArg "%1"] expr
+  lambda <- desugar $ LambdaExpr' [TensorArg (stringToVarWithIndices "%1")] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 desugar (AnonTupleParamFuncExpr n expr) = do
-  let args = map (\n -> '%' : show n) [1..n]
+  let args = map (\n -> stringToVarWithIndices ('%' : show n)) [1..n]
   lambda <- desugar $
     LambdaExpr [TensorArg (APTuplePat $ map (TensorArg . APPatVar) args)] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (AnonListParamFuncExpr n expr) = do
-  let args' = map (\n -> TensorArg (APPatVar ('%' : show n))) [1..n]
+  let args' = map (\n -> TensorArg (APPatVar (stringToVarWithIndices ('%' : show n)))) [1..n]
   let args = foldr APConsPat APEmptyPat args'
   lambda <- desugar $ LambdaExpr [TensorArg args] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
@@ -518,7 +525,7 @@ desugarExtendedIndices :: [VarIndex] -> [Bool] -> [String] -> Expr -> EvalM Expr
 desugarExtendedIndices indices isSubs indexNames tensorBody = do
   tensorName <- fresh
   tensorGenExpr <- f indices (VarExpr tensorName) [] []
-  let indexFunctionExpr = LambdaExpr [TensorArg $ foldr APConsPat APEmptyPat (map (TensorArg . APPatVar) indexNames)] tensorGenExpr
+  let indexFunctionExpr = LambdaExpr [TensorArg $ foldr APConsPat APEmptyPat (map (TensorArg . APPatVar) (map stringToVarWithIndices indexNames))] tensorGenExpr
   let genTensorExpr = GenerateTensorExpr indexFunctionExpr (makeApply "tensorShape" [VarExpr tensorName])
   let tensorIndices = zipWith (\isSub name -> if isSub then Subscript (VarExpr name) else Superscript (VarExpr name)) isSubs indexNames
   return $ LetExpr [Bind (PDPatVar tensorName) tensorBody] (IndexedExpr True genTensorExpr tensorIndices)

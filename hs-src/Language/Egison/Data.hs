@@ -93,7 +93,7 @@ data EgisonValue
   | CharHash (HashMap Char EgisonValue)
   | StrHash (HashMap Text EgisonValue)
   | UserMatcher Env [IPatternDef]
-  | Func (Maybe Var) Env [String] IExpr
+  | Func (Maybe Var) Env [Var] IExpr
   | CFunc Env String IExpr
   | MemoizedFunc (IORef (HashMap [Integer] WHNFData)) Env [String] IExpr
   | PatternFunc Env [String] IPattern
