@@ -10,8 +10,6 @@ module Language.Egison.Data.Utils
   , evalObj
   , writeObjectRef
   , newEvaluatedObjectRef
-  , makeBindings
-  , makeBindings'
   , tupleToRefs
   , tupleToListWHNF
   , tupleToList
@@ -47,12 +45,6 @@ writeObjectRef ref val = liftIO . writeIORef ref $ WHNF val
 
 newEvaluatedObjectRef :: WHNFData -> EvalM ObjectRef
 newEvaluatedObjectRef = liftIO . newIORef . WHNF
-
-makeBindings :: [Var] -> [ObjectRef] -> [Binding]
-makeBindings = zip
-
-makeBindings' :: [String] -> [ObjectRef] -> [Binding]
-makeBindings' xs = zip (map stringToVar xs)
 
 tupleToRefs :: WHNFData -> EvalM [ObjectRef]
 tupleToRefs (ITuple refs)        = return refs
