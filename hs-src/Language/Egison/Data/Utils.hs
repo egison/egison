@@ -17,6 +17,7 @@ module Language.Egison.Data.Utils
   , tupleToList
   , makeTuple
   , makeITuple
+  , pmIndices
   ) where
 
 import           Control.Monad.State   (liftIO)
@@ -24,7 +25,7 @@ import           Control.Monad.State   (liftIO)
 import           Data.IORef
 
 import           Language.Egison.Data
-import           Language.Egison.IExpr (Var, stringToVar)
+import           Language.Egison.IExpr
 
 
 evalRef :: ObjectRef -> EvalM WHNFData
@@ -76,3 +77,20 @@ makeITuple :: [WHNFData] -> EvalM WHNFData
 makeITuple []  = return (ITuple [])
 makeITuple [x] = return x
 makeITuple xs  = ITuple <$> mapM newEvaluatedObjectRef xs
+
+pmIndices :: [Index (Maybe Var)] -> [Index EgisonValue] -> EvalM [Binding]
+pmIndices [] [] = return []
+pmIndices (x:xs) (v:vs) = do
+  bs <- pmIndex x v
+  bs' <- pmIndices xs vs
+  return (bs ++ bs')
+pmIndices _ _ = throwErrorWithTrace InconsistentTensorIndex
+
+pmIndex :: Index (Maybe Var) -> Index EgisonValue -> EvalM [Binding]
+pmIndex (Sub (Just var)) (Sub val) = do
+  ref <- newEvaluatedObjectRef (Value val)
+  return [(var, ref)]
+pmIndex (Sup (Just var)) (Sup val) = do
+  ref <- newEvaluatedObjectRef (Value val)
+  return [(var, ref)]
+pmIndex _ _ = throwErrorWithTrace InconsistentTensorIndex
