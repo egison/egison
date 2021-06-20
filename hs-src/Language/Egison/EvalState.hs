@@ -17,22 +17,22 @@ module Language.Egison.EvalState
 import           Control.Monad.Except
 import           Control.Monad.Trans.State.Strict
 
-import           Language.Egison.AST (VarWithIndices (..))
+import           Language.Egison.IExpr
 
 
 newtype EvalState = EvalState
   -- Names of called functions for improved error message
-  { funcNameStack :: [VarWithIndices]
+  { funcNameStack :: [Var]
   }
 
 initialEvalState :: EvalState
 initialEvalState = EvalState { funcNameStack = [] }
 
 class (Applicative m, Monad m) => MonadEval m where
-  pushFuncName :: VarWithIndices -> m ()
-  topFuncName :: m VarWithIndices
+  pushFuncName :: Var -> m ()
+  topFuncName :: m Var
   popFuncName :: m ()
-  getFuncNameStack :: m [VarWithIndices]
+  getFuncNameStack :: m [Var]
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -52,7 +52,7 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   popFuncName = lift popFuncName
   getFuncNameStack = lift getFuncNameStack
 
-mLabelFuncName :: MonadEval m => Maybe VarWithIndices -> m a -> m a
+mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m
 mLabelFuncName (Just name) m = do
   pushFuncName name
