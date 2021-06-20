@@ -267,7 +267,7 @@ evalExprShallow env (ILetExpr bindings expr) = do
  where
   extractBindings :: IBindingExpr -> EvalM [Binding]
   extractBindings (PDPatVar var, expr) =
-    makeBindings [var] . (:[]) <$> newThunkRef (memorizeVarInEnv env var) expr
+    newThunkRef (memorizeVarInEnv env var) expr >>= makeBindings [var] . (:[])
   extractBindings (pdp, expr) = do
     thunk <- newThunkRef env expr
     bindPrimitiveDataPattern pdp thunk
@@ -566,13 +566,16 @@ applyRef env (ITensor (Tensor s1 t1 i1)) refs = do
 applyRef env' (Value (Func mFuncName env names body)) refs =
   mLabelFuncName mFuncName $
     if | length names == length refs -> do
-         evalExprShallow (extendEnv env (makeBindings names refs)) body
+         frame <- makeBindings names refs
+         evalExprShallow (extendEnv env frame) body
        | length names > length refs -> do -- Currying
          let (bound, rest) = splitAt (length refs) names
-         return . Value $ Func mFuncName (extendEnv env (makeBindings bound refs)) rest body
+         frame <- makeBindings bound refs
+         return . Value $ Func mFuncName (extendEnv env frame) rest body
        | otherwise -> do
          let (used, rest) = splitAt (length names) refs
-         func <- evalExprShallow (extendEnv env (makeBindings names used)) body
+         frame <- makeBindings names used
+         func <- evalExprShallow (extendEnv env frame) body
          applyRef env' func rest
 applyRef _ (Value (CFunc env name body)) refs = do
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)
@@ -1101,3 +1104,20 @@ refTensorWithOverride override js (Tensor ns xs is) =
   tref js' (Tensor ns xs js') >>= tContract' >>= fromTensor
     where
       js' = if override then js else is ++ js
+
+makeBindings :: [Var] -> [ObjectRef] -> EvalM [Binding]
+makeBindings vs refs = zipWithM makeBinding vs refs >>= return . concat
+  where
+    makeBinding :: Var -> ObjectRef -> EvalM [Binding]
+    makeBinding v@(Var _ [])    ref = return [(v, ref)]
+    makeBinding v@(Var name is) ref = do
+      val <- evalRefDeep ref
+      case val of
+        TensorData (Tensor _ _ js) -> do
+          frame <- pmIndices is js
+          return ((v, ref) : frame)
+        _ -> throwErrorWithTrace (TypeMismatch "tensor" (Value val))
+
+makeBindings' :: [String] -> [ObjectRef] -> [Binding]
+makeBindings' xs = zip (map stringToVar xs)
+
