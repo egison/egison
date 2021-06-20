@@ -314,7 +314,7 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
 
 evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
   let body = foldr genLet (IApplyExpr expr [IVarExpr "#1"]) bindings
-  applyObj env (Value $ Func Nothing env ["#1"] body) [WHNF (Value World)]
+  applyObj env (Value $ Func Nothing env [stringToVar "#1"] body) [WHNF (Value World)]
  where
   genLet (names, expr) expr' =
     ILetExpr [(PDTuplePat (map PDPatVar [stringToVar "#1", stringToVar "#2"]), IApplyExpr expr [IVarExpr "#1"])] $
@@ -503,7 +503,7 @@ evalMemoizedFunc hashRef env names body args = do
   case HL.lookup indices hash of
     Just whnf -> return whnf
     Nothing -> do
-      whnf <- applyObj env (Value (Func Nothing env names body)) (map (WHNF . Value) args)
+      whnf <- applyObj env (Value (Func Nothing env (map stringToVar names) body)) (map (WHNF . Value) args)
       liftIO $ modifyIORef hashRef (HL.insert indices whnf)
       return whnf
 
@@ -566,13 +566,13 @@ applyRef env (ITensor (Tensor s1 t1 i1)) refs = do
 applyRef env' (Value (Func mFuncName env names body)) refs =
   mLabelFuncName mFuncName $
     if | length names == length refs -> do
-         evalExprShallow (extendEnv env (makeBindings' names refs)) body
+         evalExprShallow (extendEnv env (makeBindings names refs)) body
        | length names > length refs -> do -- Currying
          let (bound, rest) = splitAt (length refs) names
-         return . Value $ Func mFuncName (extendEnv env (makeBindings' bound refs)) rest body
+         return . Value $ Func mFuncName (extendEnv env (makeBindings bound refs)) rest body
        | otherwise -> do
          let (used, rest) = splitAt (length names) refs
-         func <- evalExprShallow (extendEnv env (makeBindings' names used)) body
+         func <- evalExprShallow (extendEnv env (makeBindings names used)) body
          applyRef env' func rest
 applyRef _ (Value (CFunc env name body)) refs = do
   seqRef <- liftIO . newIORef $ Sq.fromList (map IElement refs)

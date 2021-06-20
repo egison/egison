@@ -383,7 +383,7 @@ argName = try (ScalarArg <$> (char '$' >> argPattern))
       <|> try (TensorArg <$> (char '%' >> argPattern))
 
 argPattern :: Parser ArgPattern
-argPattern = APPatVar <$> ident
+argPattern = APPatVar <$> identVarWithIndices
 
 seqExpr :: Parser Expr
 seqExpr = keywordSeq >> SeqExpr <$> expr <*> expr

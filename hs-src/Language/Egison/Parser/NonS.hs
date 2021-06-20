@@ -279,7 +279,7 @@ argPatternAtom
   =   APWildCard <$  symbol "_"
   <|> APTuplePat <$> parens (sepBy arg comma)
   <|> collectionPattern
-  <|> APPatVar   <$> ident
+  <|> APPatVar   <$> varWithIndicesLiteral
     where
       collectionPattern = brackets $ do
         elems <- sepBy arg comma

@@ -32,6 +32,7 @@ module Language.Egison.AST
   , reservedPatternOp
   , findOpFrom
   , stringToVarWithIndices
+  , extractNameFromVarWithIndices
   ) where
 
 import           Data.List  (find)
@@ -74,7 +75,7 @@ data Expr
   | VectorExpr [Expr]
 
   | LambdaExpr [Arg ArgPattern] Expr
-  | LambdaExpr' [Arg String] Expr
+  | LambdaExpr' [Arg VarWithIndices] Expr
   | MemoizedLambdaExpr [String] Expr
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
@@ -132,8 +133,7 @@ data Arg a
 
 data ArgPattern
   = APWildCard
-  | APPatVar String
-  | APPatVarWithIndices String [VarIndex]
+  | APPatVar VarWithIndices
   | APInductivePat String [Arg ArgPattern]
   | APTuplePat [Arg ArgPattern]
   | APEmptyPat
@@ -268,8 +268,12 @@ reservedPatternOp =
 findOpFrom :: String -> [Op] -> Op
 findOpFrom op table = fromJust $ find ((== op) . repr) table
 
+makeApply :: String -> [Expr] -> Expr
+makeApply func args = ApplyExpr (VarExpr func) args
+
 stringToVarWithIndices :: String -> VarWithIndices
 stringToVarWithIndices name = VarWithIndices name []
 
-makeApply :: String -> [Expr] -> Expr
-makeApply func args = ApplyExpr (VarExpr func) args
+extractNameFromVarWithIndices :: VarWithIndices -> String
+extractNameFromVarWithIndices (VarWithIndices name _) = name
+
