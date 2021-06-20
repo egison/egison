@@ -34,7 +34,7 @@ module Language.Egison.IExpr
 import           Data.Hashable
 import           GHC.Generics        (Generic)
 
-import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMMode (..), PrimitivePatPattern (..), VarWithIndices (..))
+import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMMode (..), PrimitivePatPattern (..))
 
 data ITopExpr
   = IDefine Var IExpr
@@ -58,7 +58,7 @@ data IExpr
   | IJoinExpr IExpr IExpr
   | IHashExpr [(IExpr, IExpr)]
   | IVectorExpr [IExpr]
-  | ILambdaExpr (Maybe VarWithIndices) [String] IExpr
+  | ILambdaExpr (Maybe Var) [String] IExpr
   | IMemoizedLambdaExpr [String] IExpr
   | ICambdaExpr String IExpr
   | IPatternFunctionExpr [String] IPattern

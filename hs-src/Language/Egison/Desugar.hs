@@ -464,7 +464,7 @@ desugarBindings = mapM desugarBinding
       expr' <- desugar expr
       case (name, expr') of
         (PDPatVar var, ILambdaExpr Nothing args body) ->
-          return (name', ILambdaExpr (Just (VarWithIndices var [])) args body)
+          return (name', ILambdaExpr (Just (Var var [])) args body)
         _ -> return (name', expr')
     desugarBinding (BindWithIndices vwi expr) = do
       (var, iexpr) <- desugarDefineWithIndices vwi expr
@@ -485,7 +485,7 @@ desugarDefineWithIndices var@(VarWithIndices _ _) expr@(LambdaExpr _ _) = do
   let var' = varWithIndicesToVar var
   expr' <- desugar expr
   case expr' of
-    ILambdaExpr Nothing args body -> return (var', ILambdaExpr (Just var) args body)
+    ILambdaExpr Nothing args body -> return (var', ILambdaExpr (Just var') args body)
     _                             -> return (var', expr')
 desugarDefineWithIndices (VarWithIndices name is) expr = do
   let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is

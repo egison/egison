@@ -52,7 +52,6 @@ import           Language.Egison.Match
 import           Language.Egison.Math
 import           Language.Egison.RState
 import           Language.Egison.Tensor
-import           Language.Egison.AST (VarWithIndices (..))
 
 evalConstant :: ConstantExpr -> EgisonValue
 evalConstant (CharExpr c)    = Char c
@@ -75,9 +74,9 @@ evalExprShallow env (IQuoteExpr expr) = do
 evalExprShallow env (IQuoteSymbolExpr expr) = do
   whnf <- evalExprShallow env expr
   case whnf of
-    Value (Func (Just (VarWithIndices name [])) _ _ _) -> return . Value $ symbolScalarData "" name
-    Value (ScalarData _)           -> return whnf
-    _                              -> throwErrorWithTrace (TypeMismatch "value in quote-function" whnf)
+    Value (Func (Just (Var name [])) _ _ _) -> return . Value $ symbolScalarData "" name
+    Value (ScalarData _)                    -> return whnf
+    _                                       -> throwErrorWithTrace (TypeMismatch "value in quote-function" whnf)
 
 evalExprShallow env (IVarExpr name) =
   case refVar env (Var name []) of
