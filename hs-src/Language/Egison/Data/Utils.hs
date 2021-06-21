@@ -81,7 +81,6 @@ pmIndices (MultiSub (Just a) s (Just e):xs) vs = do
   let l = fromIntegral (length vs1)
   eRef <- newEvaluatedObjectRef (Value (toEgison l))
   let hash = (IIntHash HL.empty)
-  liftIO $ putStrLn $ show l
   hash <- foldM (\hash (i, v) -> updateHash [i] v hash) hash (zip [s..(s + l - 1)] (map (\(Sub v) -> Value v) vs1)) 
   aRef <- newEvaluatedObjectRef hash
   bs <- pmIndices xs vs2
@@ -94,7 +93,6 @@ pmIndices (MultiSup (Just a) s (Just e):xs) vs = do
   let l = fromIntegral (length vs1)
   eRef <- newEvaluatedObjectRef (Value (toEgison l))
   let hash = (IIntHash HL.empty)
-  liftIO $ putStrLn $ show l
   hash <- foldM (\hash (i, v) -> updateHash [i] v hash) hash (zip [s..(s + l - 1)] (map (\(Sup v) -> Value v) vs1)) 
   aRef <- newEvaluatedObjectRef hash
   bs <- pmIndices xs vs2
