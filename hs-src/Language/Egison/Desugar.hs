@@ -508,11 +508,13 @@ varWithIndicesToVar :: VarWithIndices -> Var
 varWithIndicesToVar (VarWithIndices name is) = Var name (concatMap transVarIndex is)
 
 transVarIndex :: VarIndex -> [Index (Maybe Var)]
-transVarIndex (VSubscript x)        = [Sub (Just (stringToVar x))]
-transVarIndex (VSuperscript x)      = [Sup (Just (stringToVar x))]
-transVarIndex (VGroupScripts xs)    = concatMap transVarIndex xs
-transVarIndex (VSymmScripts xs)     = concatMap transVarIndex xs
-transVarIndex (VAntiSymmScripts xs) = concatMap transVarIndex xs
+transVarIndex (VSubscript x)            = [Sub (Just (stringToVar x))]
+transVarIndex (VSuperscript x)          = [Sup (Just (stringToVar x))]
+transVarIndex (VMultiSubscript x s e)   = [MultiSub (Just (stringToVar x)) s (Just (stringToVar e))]
+transVarIndex (VMultiSuperscript x s e) = [MultiSup (Just (stringToVar x)) s (Just (stringToVar e))]
+transVarIndex (VGroupScripts xs)        = concatMap transVarIndex xs
+transVarIndex (VSymmScripts xs)         = concatMap transVarIndex xs
+transVarIndex (VAntiSymmScripts xs)     = concatMap transVarIndex xs
 
 extractSubSupIndex :: VarIndex -> [(Bool, String)]
 extractSubSupIndex (VSubscript x)        = [(True, x)]

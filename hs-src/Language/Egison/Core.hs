@@ -629,20 +629,6 @@ refHash val (index:indices) =
       Just ref -> evalRef ref >>= flip refHash indices
       Nothing  -> return $ Value Undefined
 
-updateHash :: [Integer] -> WHNFData -> WHNFData -> EvalM WHNFData
-updateHash [index] tgt (IIntHash hash) = do
-  targetRef <- newEvaluatedObjectRef tgt
-  return . IIntHash $ HL.insert index targetRef hash
-updateHash (index:indices) tgt (IIntHash hash) = do
-  val <- maybe (return $ IIntHash HL.empty) evalRef $ HL.lookup index hash
-  ref <- updateHash indices tgt val >>= newEvaluatedObjectRef
-  return . IIntHash $ HL.insert index ref hash
-updateHash indices tgt (Value (IntHash hash)) = do
-  let keys = HL.keys hash
-  vals <- mapM (newEvaluatedObjectRef . Value) $ HL.elems hash
-  updateHash indices tgt (IIntHash $ HL.fromList $ zip keys vals)
-updateHash _ _ v = throwError $ Default $ "expected hash value: " ++ show v
-
 subst :: (Eq a) => a -> b -> [(a, b)] -> [(a, b)]
 subst k nv ((k', v'):xs) | k == k'   = (k', nv):subst k nv xs
                          | otherwise = (k', v'):subst k nv xs

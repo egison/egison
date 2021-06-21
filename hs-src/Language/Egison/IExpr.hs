@@ -123,6 +123,8 @@ data ILoopRange = ILoopRange IExpr IExpr IPattern
 data Index a
   = Sub a
   | Sup a
+  | MultiSub a Integer a
+  | MultiSup a Integer a
   | SupSub a
   | User a
   | DF Integer Integer
