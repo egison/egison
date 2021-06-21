@@ -40,10 +40,7 @@ def ∇_c T~(a_1)...~(a_r)_(b_1)..._(b_k) :=
   - sum (map (\i -> Γ~d_(b_i)_c . T~(a_1)...~(a_r)_(b_1)..._(b_(i-1))_d_(b_(i+1))..._(b_k)) [1..k])
 
 def ∇J_m_a_b :=
-  withSymbols [n]
-    ∂/∂ J_a_b x~m - Γ~n_m_a . J_n_b - Γ~n_m_b . J_a_n
-
---∇J_m_a_b - (transpose [m,a,b] (∇_m J_a_b))
+    ∇_m J_a_b -- ∂/∂ J_a_b x~m - Γ~n_m_a . J_n_b - Γ~n_m_b . J_a_n
 
 def ∇J~m_a_b :=
   withSymbols [t]
