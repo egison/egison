@@ -151,11 +151,17 @@ data Var' = Var' String [Index ()]
   deriving (Eq, Generic, Show)
 
 instance Eq Var where
-  Var name is == Var name' is' = Var' name (map (fmap (\_ -> ())) is) == Var' name' (map (fmap (\_ -> ())) is')
+  Var name (MultiSup _ _ _:_) == Var name' is' = Var name [] == Var name' is'
+  Var name (MultiSub _ _ _:_) == Var name' is' = Var name [] == Var name' is'
+  Var name is == Var name' (MultiSup _ _ _:_)  = Var name is == Var name' []
+  Var name is == Var name' (MultiSub _ _ _:_)  = Var name is == Var name' []
+  Var name is == Var name' is'                 = Var' name (map (fmap (\_ -> ())) is) == Var' name' (map (fmap (\_ -> ())) is')
 
 instance Hashable a => Hashable (Index a)
 instance Hashable Var'
 instance Hashable Var where
+  hashWithSalt salt (Var name (MultiSup _ _ _:_)) = hashWithSalt salt (Var' name [])
+  hashWithSalt salt (Var name (MultiSub _ _ _:_)) = hashWithSalt salt (Var' name [])
   hashWithSalt salt (Var name is) = hashWithSalt salt (Var' name (map (fmap (\_ -> ())) is))
 
 stringToVar :: String -> Var
