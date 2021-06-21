@@ -130,29 +130,31 @@ desugar (MatchLambdaExpr matcher clauses) = do
   ILambdaExpr Nothing [stringToVar name] <$>
     desugar (MatchExpr BFSMode (VarExpr name) matcher clauses)
 
--- TODO: Allow mixed (single) scripts and multi-scripts.
 desugar (IndexedExpr b expr indices) = do
   expr' <- desugar expr
-  case indices of
-    [MultiSubscript x y] ->
-      case (x, y) of
-        (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2]) ->
-          desugarMultiScript expr' b ISubrefsExpr b1 e1 n1 n2
-        _ -> throwError $ Default "Index should be IndexedExpr for multi subscript"
-    [MultiSuperscript x y] ->
-      case (x, y) of
-        (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2]) ->
-          desugarMultiScript expr' b ISuprefsExpr b1 e1 n1 n2
-        _ -> throwError $ Default "Index should be IndexedExpr for multi superscript"
-    [MultiSuperscript x y, MultiSubscript x' y'] ->
-      case (x, y, x', y') of
-        (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2], IndexedExpr b1' e1' [n1'], IndexedExpr _ _ [n2']) -> do
-          expr'' <- desugarMultiScript expr' b ISuprefsExpr b1 e1 n1 n2
-          desugarMultiScript expr'' False ISubrefsExpr b1' e1' n1' n2'
-        _ -> throwError $ Default "Index should be IndexedExpr for multi subscript"
-    _ -> IIndexedExpr b <$> return expr' <*> mapM desugarIndex indices
+  desugarIndexedExpr b expr' indices
   where
-    desugarMultiScript expr' b refExpr b1 e1 n1 n2 = do
+    desugarIndexedExpr :: Bool -> IExpr -> [IndexExpr Expr] -> EvalM IExpr
+    desugarIndexedExpr b expr' indices =
+      case indices of
+        [] -> return expr'
+        (MultiSubscript x y:indices') ->
+          case (x, y) of
+            (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2]) -> do
+              expr'' <- desugarMultiScript b expr' ISubrefsExpr b1 e1 n1 n2
+              desugarIndexedExpr False expr'' indices'
+            _ -> throwError $ Default "Index should be IndexedExpr for multi subscript"
+        (MultiSuperscript x y:indices') ->
+          case (x, y) of
+            (IndexedExpr b1 e1 [n1], IndexedExpr _ _ [n2]) -> do
+              expr'' <- desugarMultiScript b expr' ISuprefsExpr b1 e1 n1 n2
+              desugarIndexedExpr False expr'' indices'
+            _ -> throwError $ Default "Index should be IndexedExpr for multi superscript"
+        _ -> do
+          let (is, indices') = break isMulti indices
+          expr'' <- IIndexedExpr b expr' <$> mapM desugarIndex is
+          desugarIndexedExpr False expr'' indices'
+    desugarMultiScript b expr' refExpr b1 e1 n1 n2 = do
       k     <- fresh
       n1'   <- desugar (extractIndexExpr n1)
       n2'   <- desugar (extractIndexExpr n2)
@@ -160,6 +162,10 @@ desugar (IndexedExpr b expr indices) = do
       return $ refExpr b expr' (makeIApply "map"
                                            [ILambdaExpr Nothing [stringToVar k] (IIndexedExpr b1 e1' [Sub (IVarExpr k)]),
                                             makeIApply "between" [n1', n2']])
+    isMulti (MultiSubscript _ _)   = True
+    isMulti (MultiSuperscript _ _) = True
+    isMulti _                      = False
+
 
 desugar (SubrefsExpr bool expr1 expr2) =
   ISubrefsExpr bool <$> desugar expr1 <*> desugar expr2
