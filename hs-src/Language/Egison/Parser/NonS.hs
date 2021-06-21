@@ -712,11 +712,24 @@ varWithIndicesLiteral' =
   lexeme (VarWithIndices <$> ident' <*> some varIndex)
 
 varIndex :: Parser VarIndex
-varIndex = (char '_' >> VSubscript <$> ident')
-       <|> (char '~' >> VSuperscript <$> ident')
+varIndex = (char '_' >> subscript)
+       <|> (char '~' >> supscript)
        <|> parens (VGroupScripts <$> some varIndex)
        <|> braces (VSymmScripts <$> some varIndex)
        <|> brackets (VAntiSymmScripts <$> some varIndex)
+  where
+    subscript = VSubscript <$> ident'
+            <|> (do
+              (n, s) <- parens $ (,) <$> ident' <*> (char '_' >> positiveIntegerLiteral)
+              _ <- string "..." >> char '_'
+              e <- parens $ string n >> char '_' >> ident'
+              return (VMultiSubscript n s e))
+    supscript = VSuperscript <$> ident'
+            <|> (do
+              (n, s) <- parens $ (,) <$> ident' <*> (char '_' >> positiveIntegerLiteral)
+              _ <- string "..." >> char '~'
+              e <- parens $ string n >> char '_' >> ident'
+              return (VMultiSuperscript n s e))
 
 patVarLiteral :: Parser String
 patVarLiteral = char '$' >> ident

@@ -144,8 +144,8 @@ data ArgPattern
 data VarIndex
   = VSubscript String
   | VSuperscript String
-  | VMultiSubscript String String String   -- _(a_1)..._(a_n) -> VMultiSubscript "a" "1" "n"
-  | VMultiSuperscript String String String -- ~(a_1)...~(a_n) -> VMultiSuperscript "a" "1" "n"
+  | VMultiSubscript String Integer String   -- _(a_1)..._(a_n) -> VMultiSubscript "a" 1 "n"
+  | VMultiSuperscript String Integer String -- ~(a_1)...~(a_n) -> VMultiSuperscript "a" 1 "n"
   | VGroupScripts [VarIndex]
   | VSymmScripts [VarIndex]
   | VAntiSymmScripts [VarIndex]
