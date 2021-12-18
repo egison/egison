@@ -15,6 +15,7 @@ module Language.Egison.Eval
   , evalTopExprsNoPrint
   , runExpr
   , runTopExpr
+  , runTopExprStr
   , runTopExprs
   -- * Load Egison files
   , loadEgisonLibrary
@@ -97,6 +98,11 @@ runExpr env input =
 runTopExpr :: Env -> String -> EvalM (Maybe EgisonValue, Env)
 runTopExpr env input =
   readTopExpr input >>= evalTopExpr env
+
+-- | Evaluate an Egison top expression. Input is a Haskell string.
+runTopExprStr :: Env -> String -> EvalM (Maybe String, Env)
+runTopExprStr env input =
+  readTopExpr input >>= evalTopExprStr env
 
 -- | Evaluate Egison top expressions. Input is a Haskell string.
 runTopExprs :: Env -> String -> EvalM Env
