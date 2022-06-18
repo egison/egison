@@ -81,6 +81,16 @@ source-repository head
   type: git
   location: https://github.com/egison/egison.git
 
+if os(windows)
+  flag _regex-posix-clib
+    manual: True
+    default: True
+    description: Use <//hackage.haskell.org/package/regex-posix-clib/regex-posix-clib> package from Windows Compile.
+else 
+  flag _regex-posix-clib
+      manual: False
+      default: False
+
 Library
   default-language:    Haskell2010
   Build-Depends:
