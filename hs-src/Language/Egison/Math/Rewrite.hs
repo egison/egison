@@ -39,7 +39,7 @@ mapTerms f (Div (Plus ts1) (Plus ts2)) =
 
 mapTerms' :: (TermExpr -> ScalarData) -> ScalarData -> ScalarData
 mapTerms' f (Div (Plus ts1) (Plus ts2)) =
-  mathDiv (foldl1 mathPlus (map f ts1)) (foldl1 mathPlus (map f ts2))
+  mathDiv (foldl mathPlus (Div (Plus []) (Plus [Term 1 []])) (map f ts1)) (foldl mathPlus (Div (Plus []) (Plus [Term 1 []])) (map f ts2))
 
 mapPolys :: (PolyExpr -> PolyExpr) -> ScalarData -> ScalarData
 mapPolys f (Div p1 p2) = Div (f p1) (f p2)
