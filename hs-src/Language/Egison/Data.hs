@@ -50,10 +50,12 @@ module Language.Egison.Data
 
 import           Control.Exception
 
-import           Control.Monad.Except             hiding (join)
+import           Control.Monad                    (liftM2)
+import           Control.Monad.Except
+import           Control.Monad.Trans.Class        (lift)
 import           Control.Monad.Trans.State.Strict
 
-import           Data.Foldable                    (toList)
+import           Data.Foldable                    (msum, toList)
 import           Data.HashMap.Strict              (HashMap)
 import qualified Data.HashMap.Strict              as HashMap
 import           Data.IORef

@@ -21,9 +21,11 @@ module Language.Egison.Parser
        , readUTF8File
        ) where
 
-import           Control.Monad.Except         (lift, liftIO, throwError)
+import           Control.Monad                 (unless)
+import           Control.Monad.Except         (throwError)
+import           Control.Monad.IO.Class       (liftIO)
 import           Control.Monad.Reader         (asks, local)
-import           Control.Monad.State          (unless)
+import           Control.Monad.Trans.Class    (lift)
 
 import           System.Directory             (doesFileExist, getHomeDirectory)
 import           System.IO

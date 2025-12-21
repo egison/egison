@@ -48,7 +48,7 @@ rewriteI :: ScalarData -> ScalarData
 rewriteI = mapTerms f
  where
   f term@(Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (symbol #"i", $k) : $xss ->
               if even k
                 then Term (a * (-1) ^ (quot k 2)) xss
@@ -60,7 +60,7 @@ rewriteW :: ScalarData -> ScalarData
 rewriteW = mapPolys g . mapTerms f
  where
   f term@(Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (symbol #"w", $k & ?(>= 3)) : $xss ->
                Term a ((Symbol "" "w" [], k `mod` 3) : xss) |]
       , [mc| _ -> term |]
@@ -78,7 +78,7 @@ rewriteLog :: ScalarData -> ScalarData
 rewriteLog = mapTerms f
  where
   f term@(Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"log" [zero], _) : _ -> Term 0 [] |]
       , [mc| (apply #"log" [singleTerm _ #1 [(symbol #"e", $n)]], _) : $xss ->
               Term (n * a) xss |]
@@ -93,7 +93,7 @@ rewriteExp :: ScalarData -> ScalarData
 rewriteExp = mapTerms f
  where
   f term@(Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"exp" [zero], _) : $xss ->
                f (Term a xss) |]
       , [mc| (apply #"exp" [singleTerm #1 #1 []], _) : $xss ->
@@ -111,7 +111,7 @@ rewritePower :: ScalarData -> ScalarData
 rewritePower = mapTerms f
  where
   f term@(Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"^" [singleTerm #1 #1 [], _], _) : $xss -> f (Term a xss) |]
       , [mc| (apply #"^" [$x, $y], $n & ?(>= 2)) : $xss ->
                f (Term a ((makeApply "^" [x, mathScalarMult n y], 1) : xss)) |]
@@ -124,7 +124,7 @@ rewriteSinCos :: ScalarData -> ScalarData
 rewriteSinCos = mapTerms' h . mapTerms (g . f)
  where
   f term@(Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"sin" [zero], _) : _ -> Term 0 [] |]
       , [mc| (apply #"sin" [singleTerm _ #1 [(symbol #"π", #1)]], _) : _ ->
                Term 0 [] |]
@@ -133,7 +133,7 @@ rewriteSinCos = mapTerms' h . mapTerms (g . f)
       , [mc| _ -> term |]
       ]
   g term@(Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"cos" [zero], _) : $xss -> Term a xss |]
       , [mc| (apply #"cos" [singleTerm _ #2 [(symbol #"π", #1)]], _) : _ ->
               Term 0 [] |]
@@ -142,7 +142,7 @@ rewriteSinCos = mapTerms' h . mapTerms (g . f)
       , [mc| _ -> term |]
       ]
   h (Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"cos" [$x], #2) : $mr ->
                mathMult
                  (mathMinus (SingleTerm 1 []) (SingleTerm 1 [(makeApply "sin" [x], 2)]))
@@ -154,7 +154,7 @@ rewriteSqrt :: ScalarData -> ScalarData
 rewriteSqrt = mapTerms' f
  where
   f (Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"sqrt" [$x], ?(> 1) & $k) : $xss ->
                rewriteSqrt
                  (mathMult (SingleTerm a ((makeApply "sqrt" [x], k `mod` 2) : xss))
@@ -174,7 +174,7 @@ rewriteRt :: ScalarData -> ScalarData
 rewriteRt = mapTerms' f
  where
   f (Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"rt" [singleTerm $n #1 [], $x] & $rtnx, ?(>= n) & $k) : $xss ->
                mathMult (SingleTerm a ((rtnx, k `mod` n) : xss))
                         (mathPower x (div k n)) |]
@@ -185,13 +185,13 @@ rewriteRtu :: ScalarData -> ScalarData
 rewriteRtu = mapTerms' g . mapTerms f
  where
   f term@(Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"rtu" [singleTerm $n #1 []] & $rtun, ?(>= n) & $k) : $r ->
                Term a ((rtun, k `mod` n) : r) |]
       , [mc| _ -> term |]
       ]
   g (Term a xs) =
-    match dfs xs (Multiset (Pair SymbolM Eql))
+    match dfs xs (Multiset (SymbolM, Eql))
       [ [mc| (apply #"rtu" [singleTerm $n #1 []] & $rtun, ?(== n - 1)) : $mr ->
                mathMult
                  (foldl mathMinus (SingleTerm (-1) []) (map (\k -> SingleTerm 1 [(rtun, k)]) [1..(n-2)]))

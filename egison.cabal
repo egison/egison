@@ -1,5 +1,5 @@
 Name:                egison
-Version:             4.1.3
+Version:             4.2.1
 Synopsis:            Programming language with non-linear pattern-matching against non-free data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
@@ -12,41 +12,6 @@ Description:
   An non-free data type is a data type whose data have no canonical form, a standard way to represent that object.
   It enables us to write elegant programs.
   .
-  /Twin Primes/
-  .
-  We can use pattern-matching for enumeration.
-  The following code enumerates all twin primes from the infinite list of prime numbers with pattern-matching!
-  .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/twin-primes-w700.png>>
-  .
-  /Poker Hands/
-  .
-  The following code is the program that determines poker-hands written in Egison.
-  All hands are expressed in a single pattern.
-  .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/poker-hands-w700.png>>
-  .
-  /Mahjong/
-  .
-  We can write a pattern even against mahjong tiles.
-  We modularize patterns to represent complex mahjong hands.
-  .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/mahjong-w700.png>>
-  .
-  /Graphs/
-  .
-  We can pattern-match against graphs.
-  We can write program to solve the travelling salesman problem in a single pattern-matching expression.
-  .
-  <<https://raw.githubusercontent.com/egison/egison/master/images/salesman-w700.png>>
-  .
-  Aren't thsese exciting?
-  We can run these demonstrations on our website!
-  Please view and try more demonstrations!
-  .
-  <http://www.egison.org>
-  .
-  Egison makes programming dramatically simple.
   Please enjoy Egison!
 Homepage:            http://www.egison.org
 License:             MIT
@@ -81,39 +46,29 @@ source-repository head
   type: git
   location: https://github.com/egison/egison.git
 
-if os(windows)
-  flag _regex-posix-clib
-    manual: True
-    default: True
-    description: Use <//hackage.haskell.org/package/regex-posix-clib/regex-posix-clib> package from Windows Compile.
-else 
-  flag _regex-posix-clib
-      manual: False
-      default: False
-
 Library
-  default-language:    Haskell2010
+  default-language:    GHC2021
   Build-Depends:
       base                 >= 4.8     && < 5
-    , random               == 1.*
-    , containers           == 0.6.*
+    , random               >= 1.0     && < 2.0
+    , containers           >= 0.6     && < 0.8
     , unordered-containers >= 0.1.0.0 && < 0.3
     , haskeline            >= 0.7     && < 0.9
-    , transformers         >= 0.4     && < 0.6
+    , transformers         >= 0.4     && < 0.7
     , mtl                  >= 2.2.2   && < 3.0
-    , parsec               >= 3.0
+    , parsec               >= 3.0     && < 4.0
     , megaparsec           >= 7.0.0   && < 12.0
     , parser-combinators   >= 1.0     && < 2.0
-    , directory            >= 1.3.0
-    , text                 >= 0.2     && < 1.3
-    , regex-tdfa           >= 1.2.0
+    , directory            >= 1.3.0   && < 2.0
+    , text                 >= 0.2     && < 2.2
+    , regex-tdfa           >= 1.2.0   && < 2.0
     , process              >= 1.0     && < 2.0
-    , vector               == 0.12.*
+    , vector               >= 0.12    && < 0.14
     , hashable             >= 1.0     && < 2.0
     , optparse-applicative >= 0.14    && < 0.20
     , prettyprinter        >= 1.0     && < 2.0
-    , unicode-show         == 0.1.*
-    , sweet-egison         == 0.1.1.3
+    , unicode-show         >= 0.1     && < 0.2
+    , sweet-egison         >= 0.1.2.1 && < 0.2
   if !impl(ghc > 8.0)
     Build-Depends: fail
   Hs-Source-Dirs:  hs-src
@@ -160,7 +115,7 @@ Library
   ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns
 
 Test-Suite test
-  default-language:    Haskell2010
+  default-language:    GHC2021
   Type:           exitcode-stdio-1.0
   Hs-Source-Dirs: test
   Main-Is:        Test.hs
@@ -179,7 +134,7 @@ Test-Suite test
   ghc-options:  -Wall -Wno-name-shadowing
 
 Test-Suite test-cli
-  default-language:    Haskell2010
+  default-language:    GHC2021
   Type:           exitcode-stdio-1.0
   Hs-Source-Dirs: test
   Main-Is:        CLITest.hs
@@ -195,7 +150,7 @@ Test-Suite test-cli
   ghc-options:  -Wall -Wno-name-shadowing
 
 Benchmark benchmark
-  default-language:    Haskell2010
+  default-language:    GHC2021
   Type: exitcode-stdio-1.0
   Hs-Source-Dirs:  benchmark
   Main-Is: Benchmark.hs
@@ -209,16 +164,16 @@ Benchmark benchmark
   ghc-options:  -Wall -Wno-name-shadowing
 
 Executable egison
-  default-language:    Haskell2010
+  default-language:    GHC2021
   Main-is:             egison.hs
   Build-depends:
       egison
     , base >= 4.0 && < 5
-    , exceptions
+    , exceptions           >= 0.10    && < 0.11
     , haskeline
     , mtl
     , directory
-    , filepath
+    , filepath             >= 1.4     && < 2.0
     , text
     , regex-tdfa
     , optparse-applicative
@@ -227,10 +182,10 @@ Executable egison
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
   autogen-modules: Paths_egison
-  ghc-options:  -O3 -threaded -eventlog -rtsopts -Wall -Wno-name-shadowing
+  ghc-options:  -O3 -threaded -rtsopts -Wall -Wno-name-shadowing
 
 Executable egison-translate
-  default-language:    Haskell2010
+  default-language:    GHC2021
   Main-is:          translator.hs
   Build-depends:
       egison

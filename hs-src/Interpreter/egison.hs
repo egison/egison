@@ -3,8 +3,8 @@
 module Main where
 
 import           Control.Exception                (AsyncException (..))
+import           Control.Monad                    (when)
 import           Control.Monad.Catch              (catch)
-import           Control.Monad.Except
 import           Control.Monad.Reader
 
 import           Data.List                        (intercalate)

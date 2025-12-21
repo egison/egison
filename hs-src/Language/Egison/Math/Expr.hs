@@ -94,8 +94,8 @@ instance Matcher SymbolM SymbolExpr
 
 term :: Pattern (PP Integer, PP Monomial) TermM TermExpr (Integer, Monomial)
 term _ _ (Term a mono) = pure (a, mono)
-termM :: TermM -> TermExpr -> (Eql, Multiset (Pair SymbolM Eql))
-termM TermM _ = (Eql, Multiset (Pair SymbolM Eql))
+termM :: TermM -> TermExpr -> (Eql, Multiset (SymbolM, Eql))
+termM TermM _ = (Eql, Multiset (SymbolM, Eql))
 
 symbol :: Pattern (PP String) SymbolM SymbolExpr String
 symbol _ _ (Symbol _ name []) = pure name
@@ -126,13 +126,13 @@ negQuote _ _ _         = mzero
 negQuoteM :: SymbolM -> p -> ScalarM
 negQuoteM SymbolM _ = ScalarM
 
-equalMonomial :: Pattern (PP Integer, PP Monomial) (Multiset (Pair SymbolM Eql)) Monomial (Integer, Monomial)
+equalMonomial :: Pattern (PP Integer, PP Monomial) (Multiset (SymbolM, Eql)) Monomial (Integer, Monomial)
 equalMonomial (_, VP xs) _ ys = case isEqualMonomial xs ys of
                                   Just sgn -> pure (sgn, xs)
                                   Nothing  -> mzero
 equalMonomial _ _ _ = mzero
-equalMonomialM :: Multiset (Pair SymbolM Eql) -> p -> (Eql, Multiset (Pair SymbolM Eql))
-equalMonomialM (Multiset (Pair SymbolM Eql)) _ = (Eql, Multiset (Pair SymbolM Eql))
+equalMonomialM :: Multiset (SymbolM, Eql) -> p -> (Eql, Multiset (SymbolM, Eql))
+equalMonomialM (Multiset (SymbolM, Eql)) _ = (Eql, Multiset (SymbolM, Eql))
 
 zero :: Pattern () ScalarM ScalarData ()
 zero _ _ (Div (Plus []) _) = pure ()
@@ -143,8 +143,8 @@ zeroM ScalarM _ = ()
 singleTerm :: Pattern (PP Integer, PP Integer, PP Monomial) ScalarM ScalarData (Integer, Integer, Monomial)
 singleTerm _ _ (Div (Plus [Term c mono]) (Plus [Term c2 []])) = pure (c, c2, mono)
 singleTerm _ _ _                                              = mzero
-singleTermM :: ScalarM -> p -> (Eql, Eql, Multiset (Pair SymbolM Eql))
-singleTermM ScalarM _ = (Eql, Eql, Multiset (Pair SymbolM Eql))
+singleTermM :: ScalarM -> p -> (Eql, Eql, Multiset (SymbolM, Eql))
+singleTermM ScalarM _ = (Eql, Eql, Multiset (SymbolM, Eql))
 
 
 instance ValuePattern ScalarM ScalarData where
@@ -178,7 +178,7 @@ instance Eq TermExpr where
 
 isEqualMonomial :: Monomial -> Monomial -> Maybe Integer
 isEqualMonomial xs ys =
-  match dfs (xs, ys) (Pair (Multiset (Pair SymbolM Eql)) (Multiset (Pair SymbolM Eql)))
+  match dfs (xs, ys) (Multiset (SymbolM, Eql), Multiset (SymbolM, Eql))
     [ [mc| ((quote $s, $n) : $xss, (negQuote #s, #n) : $yss) ->
              case isEqualMonomial xss yss of
                Nothing -> Nothing

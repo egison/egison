@@ -16,11 +16,11 @@ module Language.Egison.Pretty
     , showTSV
     ) where
 
-import           Data.Foldable                           (toList)
-import           Data.List                               (intercalate)
-import           Data.Text.Prettyprint.Doc
-import           Data.Text.Prettyprint.Doc.Render.String (renderString)
-import           Text.Show.Unicode                       (ushow)
+import           Data.Foldable                  (toList)
+import           Data.List                      (intercalate)
+import           Prettyprinter
+import           Prettyprinter.Render.String    (renderString)
+import           Text.Show.Unicode              (ushow)
 
 import           Language.Egison.AST
 import           Language.Egison.Data

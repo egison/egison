@@ -9,11 +9,11 @@ module Language.Egison.Primitives.IO
   ( ioPrimitives
   ) where
 
-import           Control.Monad.Except
+import           Control.Monad.IO.Class           (liftIO)
 
 import           Data.IORef
 
-import           System.IO
+import           System.IO                        hiding (readFile')
 import           System.Process                   (readProcess)
 import           System.Random                    (getStdRandom, randomR)
 
