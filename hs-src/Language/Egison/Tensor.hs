@@ -31,7 +31,8 @@ module Language.Egison.Tensor
 
 import           Prelude                    hiding (foldr, mappend, mconcat)
 
-import           Control.Monad.Except       (mzero, throwError, zipWithM)
+import           Control.Monad              (mzero, zipWithM)
+import           Control.Monad.Except       (throwError)
 import           Data.List                  (delete, intersect, partition, (\\))
 import qualified Data.Vector                as V
 

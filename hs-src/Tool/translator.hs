@@ -3,10 +3,10 @@
 
 module Main where
 
-import           Control.Arrow                         ((***))
-import           Data.Maybe                            (fromJust)
-import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
-import           System.Environment                    (getArgs)
+import           Control.Arrow              ((***))
+import           Data.Maybe                 (fromJust)
+import           Prettyprinter.Render.Text  (putDoc)
+import           System.Environment         (getArgs)
 
 import           Language.Egison.AST
 import           Language.Egison.Parser                (readUTF8File, removeShebang)

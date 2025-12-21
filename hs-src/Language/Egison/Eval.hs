@@ -22,6 +22,7 @@ module Language.Egison.Eval
   , loadEgisonFile
   ) where
 
+import           Control.Monad              (forM_, when)
 import           Control.Monad.Except       (throwError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State

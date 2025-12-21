@@ -15,6 +15,7 @@ module Language.Egison.EvalState
   ) where
 
 import           Control.Monad.Except
+import           Control.Monad.Trans.Class        (lift)
 import           Control.Monad.Trans.State.Strict
 
 import           Language.Egison.IExpr

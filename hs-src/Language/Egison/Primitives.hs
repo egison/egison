@@ -12,7 +12,8 @@ module Language.Egison.Primitives
   , primitiveEnvNoIO
   ) where
 
-import           Control.Monad.Except
+import           Control.Monad                     (forM)
+import           Control.Monad.IO.Class            (liftIO)
 
 import           Data.IORef
 

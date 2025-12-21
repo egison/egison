@@ -63,7 +63,7 @@ mathDivideTerm (Term a xs) (Term b ys) =
   divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
   divMonomial xs [] = (1, xs)
   divMonomial xs ((y, m):ys) =
-    match dfs (y, xs) (Pair SymbolM (Multiset (Pair SymbolM Eql)))
+    match dfs (y, xs) (SymbolM, Multiset (SymbolM, Eql))
       -- Because we've applied |mathFold|, we can only divide the first matching monomial
       [ [mc| (quote $s, ($x & negQuote #s, $n) : $xss) ->
                let (sgn, xs') = divMonomial xss ys in
@@ -106,7 +106,7 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
   g :: Monomial -> (Integer, Monomial)
   g [] = (1, [])
   g ((x, m):xs) =
-    match dfs (x, xs) (Pair SymbolM (Multiset (Pair SymbolM Eql)))
+    match dfs (x, xs) (SymbolM, Multiset (SymbolM, Eql))
       [ [mc| (quote $s, (negQuote #s, $n) : $xs) ->
                let (sgn, ys) = g ((x, m + n) : xs) in
                if even n then (sgn, ys) else (- sgn, ys) |]
@@ -121,7 +121,7 @@ mathTermFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (f ts1)) (Plus (f ts2))
   f :: [TermExpr] -> [TermExpr]
   f [] = []
   f (t:ts) =
-    match dfs (t, ts) (Pair TermM (Multiset TermM))
+    match dfs (t, ts) (TermM, Multiset TermM)
       [ [mc| (term $a $xs, term $b (equalMonomial $sgn #xs) : $tss) ->
                f (Term (sgn * a + b) xs : tss) |]
       , [mc| _ -> t : f ts |]

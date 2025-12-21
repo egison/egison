@@ -25,8 +25,9 @@ module Language.Egison.Core
 import           Prelude                         hiding (mapM, mappend, mconcat)
 
 import           Control.Arrow
+import           Control.Monad                   (forM_, when, zipWithM, (>=>))
 import           Control.Monad.Except            (throwError)
-import           Control.Monad.State             hiding (join, mapM)
+import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 
 import           Data.Char                       (isUpper)

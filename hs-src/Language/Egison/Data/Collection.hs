@@ -18,7 +18,8 @@ module Language.Egison.Data.Collection
   , makeICollection
   ) where
 
-import           Control.Monad.Except       (lift, liftIO)
+import           Control.Monad.IO.Class     (liftIO)
+import           Control.Monad.Trans.Class  (lift)
 import           Control.Monad.Trans.Maybe  (runMaybeT)
 
 import           Data.Foldable              (toList)
