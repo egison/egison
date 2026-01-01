@@ -78,7 +78,7 @@ def nAdic (n: Integer) (x: Integer) : [Integer] :=
   if x = 0
     then []
     else let q := quotient x n
-             r := x % n
+             r := modulo x n
           in nAdic n q ++ [r]
 
 --
@@ -99,31 +99,31 @@ def exp2 (x: Float) (y: Float) : Float := exp (log x * y)
 --
 -- Decimal Fractions
 --
-def rtodHelper m n :=
+def rtodHelper (m: Integer) (n: Integer) : [(Integer, Integer)] :=
   let q := quotient (m * 10) n
-      r := m * 10 % n
+      r := modulo (m * 10) n
    in (q, r) :: rtodHelper r n
 
-def rtod x :=
+def rtod (x: Integer) : (Integer, [Integer]) :=
   let m := numerator x
       n := denominator x
       q := quotient m n
-      r := m % n
+      r := modulo m n
    in (q, map fst (rtodHelper r n))
 
-def rtod' x :=
+def rtod' (x: Integer) : (Integer, [Integer], [Integer]) :=
   let m := numerator x
       n := denominator x
       q := quotient m n
-      r := m % n
+      r := modulo m n
       (s, c) := findCycle (rtodHelper r n)
    in (q, map fst s, map fst c)
 
-def showDecimal c x :=
+def showDecimal (c: Integer) (x: Integer) : String :=
   match (2)#(%1, take c %2) (rtod x) as (integer, list integer) with
     | ($q, $sc) -> foldl S.append (S.append (show q) ".") (map show sc)
 
-def showDecimal' x :=
+def showDecimal' (x: Integer) : String :=
   match rtod' x as (integer, list integer, list integer) with
     | ($q, $s, $c) ->
       foldl
@@ -134,7 +134,7 @@ def showDecimal' x :=
 --
 -- Continued Fraction
 --
-def regularContinuedFraction n xs := n + foldr (\a r -> 1 / (a + r)) 0 xs
+def regularContinuedFraction (n: Integer) (xs: [Integer]) : Integer := n + foldr (\a r -> 1 / (a + r)) 0 xs
 
 def continuedFraction n xs ys :=
   match (xs, ys) as (list integer, list integer) with

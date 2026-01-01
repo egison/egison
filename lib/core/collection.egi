@@ -79,7 +79,7 @@ def nth (n: Integer) (xs: [a]) : a :=
         (_ :: ...)
         ($x :: _) -> x
 
-def takeAndDrop n xs :=
+def takeAndDrop (n: Integer) (xs: [a]) : ([a], [a]) :=
   match xs as list something with
     | loop $i (1, n, _)
         ($a_i :: ...)
@@ -99,17 +99,17 @@ def drop (n: Integer) (xs: [a]) : [a] :=
       | _ :: $xs -> drop (n - 1) xs
       | [] -> []
 
-def takeWhile pred xs :=
+def takeWhile (pred: a -> Bool) (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $x :: $rs -> if pred x then x :: takeWhile pred rs else []
 
-def takeWhileBy pred xs :=
+def takeWhileBy (pred: a -> Bool) (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $x :: $rs -> if pred x then x :: takeWhileBy pred rs else [x]
 
-def dropWhile pred xs :=
+def dropWhile (pred: a -> Bool) (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $x :: $rs -> if pred x then dropWhile pred rs else xs
@@ -133,11 +133,11 @@ def init (xs: [a]) : [a] :=
   match xs as list something with
     | snoc _ $ys -> ys
 
-def uncons xs :=
+def uncons (xs: [a]) : (a, [a]) :=
   match xs as list something with
     | $x :: $ys -> (x, ys)
 
-def unsnoc xs :=
+def unsnoc (xs: [a]) : ([a], a) :=
   match xs as list something with
     | snoc $x $ys -> (ys, x)
 
@@ -186,11 +186,11 @@ def partition (pred: a -> Bool) (xs: [a]) : ([a], [a]) := (filter pred xs, filte
 
 def zip (xs: [a]) (ys: [b]) : [(a, b)] := map2 (\x y -> (x, y)) xs ys
 
-def zip3 xs ys zs := map3 (\x y z -> (x, y, z)) xs ys zs
+def zip3 (xs: [a]) (ys: [b]) (zs: [c]) : [(a, b, c)] := map3 (\x y z -> (x, y, z)) xs ys zs
 
-def zip4 xs ys zs ws := map4 (\x y z w -> (x, y, z, w)) xs ys zs ws
+def zip4 (xs: [a]) (ys: [b]) (zs: [c]) (ws: [d]) : [(a, b, c, d)] := map4 (\x y z w -> (x, y, z, w)) xs ys zs ws
 
-def lookup k ls :=
+def lookup (k: a) (ls: [(a, b)]) : b :=
   match ls as list (something, something) with
     | _ ++ (#k, $x) :: _ -> x
 
@@ -252,14 +252,14 @@ def split (sep: [a]) (ls: [a]) : [[a]] :=
     | $xs ++ #sep ++ $rs -> xs :: split sep rs
     | _ -> [ls]
 
-def splitAs a sep ls :=
+def splitAs (a: Matcher b) (sep: [b]) (ls: [b]) : [[b]] :=
   match ls as list a with
     | $xs ++ #sep ++ $rs -> xs :: splitAs a sep rs
     | _ -> [ls]
 
 def splitAt (n: Integer) (ls: [a]) : ([a], [a]) := (take n ls, drop n ls)
 
-def findCycle xs :=
+def findCycle (xs: [a]) : ([a], [a]) :=
   head
     (matchAll xs as list something with
       | $ys ++ (_ :: _ & $cs) ++ #cs ++ _ -> (ys, cs))
@@ -354,13 +354,13 @@ def deleteFirstAs a %x xs :=
     | #x :: $rs -> rs
     | $y :: $rs -> y :: deleteFirstAs a x rs
 
-def delete x xs :=
+def delete (x: a) (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $hs ++ #x :: $ts -> hs ++ delete x ts
     | _ -> xs
 
-def deleteAs a x xs :=
+def deleteAs (a: Matcher b) (x: b) (xs: [b]) : [b] :=
   match xs as list a with
     | [] -> []
     | $hs ++ #x :: $ts -> hs ++ deleteAs a x ts
@@ -371,7 +371,7 @@ def difference (xs: [a]) (ys: [a]) : [a] :=
     | [] -> xs
     | $y :: $rs -> difference (deleteFirst y xs) rs
 
-def differenceAs a xs ys :=
+def differenceAs (a: Matcher b) (xs: [b]) (ys: [b]) : [b] :=
   match ys as list a with
     | [] -> xs
     | $y :: $rs -> differenceAs a (deleteFirstAs a y xs) rs
@@ -382,7 +382,7 @@ def include (xs: [a]) (ys: [a]) : Bool :=
     | $y :: $rs ->
       if member y xs then include (deleteFirst y xs) rs else False
 
-def includeAs a xs ys :=
+def includeAs (a: Matcher b) (xs: [b]) (ys: [b]) : Bool :=
   match ys as list a with
     | [] -> True
     | $y :: $rs ->
@@ -392,7 +392,7 @@ def union (xs: [a]) (ys: [a]) : [a] :=
   xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
     | ($y :: _, !(#y :: _)) -> y)
 
-def unionAs a xs ys :=
+def unionAs (a: Matcher b) (xs: [b]) (ys: [b]) : [b] :=
   xs ++ (matchAll (ys, xs) as (multiset a, multiset a) with
     | ($y :: _, !(#y :: _)) -> y)
 
@@ -400,7 +400,7 @@ def intersect (xs: [a]) (ys: [a]) : [a] :=
   matchAll (xs, ys) as (multiset something, multiset something) with
     | ($x :: _, #x :: _) -> x
 
-def intersectAs a xs ys :=
+def intersectAs (a: Matcher b) (xs: [b]) (ys: [b]) : [b] :=
   matchAll (xs, ys) as (multiset a, multiset a) with
     | ($x :: _, #x :: _) -> x
 
@@ -412,7 +412,7 @@ def member (x: a) (ys: [a]) : Bool :=
     | _ ++ #x :: _ -> True
     | _ -> False
 
-def memberAs a x ys :=
+def memberAs (a: Matcher b) (x: b) (ys: [b]) : Bool :=
   match ys as list a with
     | _ ++ #x :: _ -> True
     | _ -> False
@@ -423,13 +423,13 @@ def memberAs a x ys :=
 def count (x: a) (xs: [a]) : Integer :=
   foldl (\acc y -> if x = y then acc + 1 else acc) 0 xs
 
-def countAs a x xs :=
+def countAs (a: Matcher b) (x: b) (xs: [b]) : Integer :=
   foldl (\acc y -> if eqAs a x y then acc + 1 else acc) 0 xs
 
 def frequency (xs: [a]) : [(a, Integer)] :=
   map (\u -> (u, count u xs)) (unique xs)
 
-def frequencyAs a xs :=
+def frequencyAs (a: Matcher b) (xs: [b]) : [(b, Integer)] :=
   map (\u -> (u, countAs a u xs)) (uniqueAs a xs)
 
 --
@@ -475,15 +475,15 @@ def set (a: Matcher b) : Matcher [b] :=
 --
 -- set operation
 --
-def add x xs := if member x xs then xs else xs ++ [x]
+def add (x: a) (xs: [a]) : [a] := if member x xs then xs else xs ++ [x]
 
-def addAs a x xs := if memberAs a x xs then xs else xs ++ [x]
+def addAs (a: Matcher b) (x: b) (xs: [b]) : [b] := if memberAs a x xs then xs else xs ++ [x]
 
-def fastUnique xs :=
+def fastUnique (xs: [a]) : [a] :=
   matchAll sort xs as list something with
     | _ ++ $x :: !(#x :: _) -> x
 
-def unique xs :=
+def unique (xs: [a]) : [a] :=
   reverse
     (matchAll reverse xs as list something with
       | _ ++ $x :: !(_ ++ #x :: _) -> x)

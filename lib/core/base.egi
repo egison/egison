@@ -11,10 +11,10 @@ def eq : Matcher a :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def bool := eq
-def char := eq
-def integer := eq
-def float := eq
+def bool : Matcher Bool := eq
+def char : Matcher Char := eq
+def integer : Matcher Integer := eq
+def float : Matcher Float := eq
 
 --
 -- Utility
@@ -27,13 +27,13 @@ def snd (_: a, y: b) : b := y
 
 infixr expression 0 $
 
-def ($) f x := f x
+def ($) (f: a -> b) (x: a) : b := f x
 
 def compose (f: a -> b) (g: b -> c) : a -> c := \x -> g (f x)
 
 def flip (fn: a -> b -> c) : b -> a -> c := \$x $y -> fn y x
 
-def eqAs a x y :=
+def eqAs (a: Matcher b) (x: b) (y: b) : Bool :=
   match x as a with
     | #y -> True
     | _ -> False
@@ -48,8 +48,8 @@ def uncurry (f: a -> b -> c) (x: a, y: b) : c := f x y
 infixr expression 3 &&
 infixr expression 2 ||
 
-def (&&) b1 b2 := if b1 then b2 else False
-def (||) b1 b2 := if b1 then True else b2
+def (&&) (b1: Bool) (b2: Bool) : Bool := if b1 then b2 else False
+def (||) (b1: Bool) (b2: Bool) : Bool := if b1 then True else b2
 
 def not (b: Bool) : Bool := if b then False else True
 
