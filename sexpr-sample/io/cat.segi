@@ -1,5 +1,0 @@
-(define $main
-  (lambda [$args]
-    (match args (list string)
-      {[<nil> (each-line print)]
-       [_ (each-file args print)]})))

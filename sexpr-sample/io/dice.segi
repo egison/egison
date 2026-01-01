@@ -1,5 +1,0 @@
-(define $main
-  (lambda [$argv]
-    (do {[$v (rand 1 6)]
-         (write (show v))
-         (write-char '\n')})))

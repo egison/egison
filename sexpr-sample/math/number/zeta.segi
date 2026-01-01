@@ -1,9 +1,0 @@
-(define $zeta
-  (lambda [$n]
-    (rtof (foldl + 0 (take n (map (lambda [$n] (* (/ 1 n) (/ 1 n))) nats))))))
-
-(test (zeta 100))
-(test (zeta 1000))
-(test (zeta 10000))
-
-(test (/ (* pi pi) 6))

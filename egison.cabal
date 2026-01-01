@@ -95,7 +95,6 @@ Library
                    Language.Egison.MList
                    Language.Egison.Parser
                    Language.Egison.Parser.NonS
-                   Language.Egison.Parser.SExpr
                    Language.Egison.Pretty
                    Language.Egison.PrettyMath.AST
                    Language.Egison.PrettyMath.AsciiMath
@@ -194,15 +193,3 @@ Executable egison
   Other-modules:       Paths_egison
   autogen-modules: Paths_egison
   ghc-options:  -O3 -threaded -rtsopts -Wall -Wno-name-shadowing
-
-Executable egison-translate
-  default-language:    GHC2021
-  Main-is:             translator.hs
-  Build-depends:
-      egison
-    , base >= 4.0 && < 5
-    , prettyprinter
-    , text
-  Hs-Source-Dirs:      hs-src/Tool
-  ghc-options:  -O3 -Wall -Wno-name-shadowing
-

@@ -1,3 +1,0 @@
-(define $main
-  (lambda [$args]
-    (print "Hello, world!")))
