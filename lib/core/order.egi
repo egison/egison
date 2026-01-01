@@ -32,6 +32,7 @@ def max/fn f $xs := foldl1 (\x y -> if f x y = Greater then x else y) xs
 def minimum $xs := foldl1 min xs
 def maximum $xs := foldl1 max xs
 
+-- splitByOrdering uses $x pattern which doesn't support type annotations
 def splitByOrdering := splitByOrdering/fn compare
 
 def splitByOrdering/fn f p xs :=

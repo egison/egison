@@ -42,7 +42,7 @@ desugarTopExpr (DefineWithType typedVwi expr) = do
       return . Just $ IDefine var iexpr
     _  -> do
       -- Create lambda arguments from typed parameters
-      let argPatterns = map (\(pname, _) -> ScalarArg (APPatVar (VarWithIndices pname []))) params
+      let argPatterns = map typedParamToArgPattern params
           lambdaExpr = LambdaExpr argPatterns expr
       (var, iexpr) <- desugarDefineWithIndices vwi lambdaExpr
       return . Just $ IDefine var iexpr
@@ -51,6 +51,19 @@ desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
 desugarTopExpr (Load file)     = return . Just $ ILoad file
 desugarTopExpr (LoadFile file) = return . Just $ ILoadFile file
 desugarTopExpr _               = return Nothing
+
+-- | Convert TypedParam to Arg ArgPattern for lambda expressions
+typedParamToArgPattern :: TypedParam -> Arg ArgPattern
+typedParamToArgPattern (TPVar pname _) =
+  ScalarArg (APPatVar (VarWithIndices pname []))
+typedParamToArgPattern (TPTuple elems) =
+  ScalarArg (APTuplePat (map typedParamToArgPattern elems))
+typedParamToArgPattern (TPWildcard _) =
+  ScalarArg APWildCard
+typedParamToArgPattern (TPUntypedVar pname) =
+  ScalarArg (APPatVar (VarWithIndices pname []))
+typedParamToArgPattern TPUntypedWildcard =
+  ScalarArg APWildCard
 
 desugarTopExprs :: [TopExpr] -> EvalM [ITopExpr]
 desugarTopExprs [] = return []

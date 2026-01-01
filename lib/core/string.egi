@@ -38,45 +38,45 @@ def string :=
 --
 -- String as collection
 --
-def S.isEmpty xs := xs = ""
+def S.isEmpty (xs: String) : Bool := xs = ""
 
-def S.cons x xs := appendString (pack [x]) xs
+def S.cons (x: Char) (xs: String) : String := appendString (pack [x]) xs
 
-def S.head xs :=
+def S.head (xs: String) : Char :=
   match xs as string with
     | $x :: _ -> x
 
-def S.tail xs :=
+def S.tail (xs: String) : String :=
   match xs as string with
     | _ :: $r -> r
 
-def S.last str :=
+def S.last (str: String) : Char :=
   match str as string with
     | _ ++ [$c] -> c
 
-def S.map f xs := pack (map f (unpack xs))
+def S.map (f: Char -> Char) (xs: String) : String := pack (map f (unpack xs))
 
-def S.length := lengthString
-def S.split  := splitString
-def S.append := appendString
+def S.length : String -> Integer := lengthString
+def S.split : String -> String -> [String] := splitString
+def S.append : String -> String -> String := appendString
 
-def S.concat xss := foldr (\xs rs -> S.append xs rs) "" xss
+def S.concat (xss: [String]) : String := foldr (\xs rs -> S.append xs rs) "" xss
 
-def S.intercalate sep ss := S.concat (intersperse sep ss)
+def S.intercalate (sep: String) (ss: [String]) : String := S.concat (intersperse sep ss)
 
-def S.replace before after str := S.intercalate after (S.split before str)
+def S.replace (before: String) (after: String) (str: String) : String := S.intercalate after (S.split before str)
 
 --
 -- Alphabet
 --
-def C.between c1 c2 := map itoc (between (ctoi c1) (ctoi c2))
+def C.between (c1: Char) (c2: Char) : [Char] := map itoc (between (ctoi c1) (ctoi c2))
 
-def C.isBetween c1 c2 c := ctoi c >= ctoi c1 && ctoi c <= ctoi c2
+def C.isBetween (c1: Char) (c2: Char) (c: Char) : Bool := ctoi c >= ctoi c1 && ctoi c <= ctoi c2
 
-def isAlphabet c := C.isBetween 'a' 'z' c || C.isBetween 'A' 'Z' c
+def isAlphabet (c: Char) : Bool := C.isBetween 'a' 'z' c || C.isBetween 'A' 'Z' c
 
-def isAlphabetString s := all isAlphabet (unpack s)
+def isAlphabetString (s: String) : Bool := all isAlphabet (unpack s)
 
-def upperCase c := if C.isBetween 'a' 'z' c then itoc (ctoi c - 32) else c
+def upperCase (c: Char) : Char := if C.isBetween 'a' 'z' c then itoc (ctoi c - 32) else c
 
-def lowerCase c := if C.isBetween 'A' 'Z' c then itoc (ctoi c + 32) else c
+def lowerCase (c: Char) : Char := if C.isBetween 'A' 'Z' c then itoc (ctoi c + 32) else c

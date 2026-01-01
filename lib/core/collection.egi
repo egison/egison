@@ -73,7 +73,7 @@ def sortedList a :=
 --
 -- Accessors
 --
-def nth n xs :=
+def nth (n: Integer) (xs: [a]) : a :=
   match xs as list something with
     | loop $i (1, n - 1, _)
         (_ :: ...)
@@ -85,14 +85,14 @@ def takeAndDrop n xs :=
         ($a_i :: ...)
         $rs -> (map (\i -> a_i) [1..n], rs)
 
-def take n xs :=
+def take (n: Integer) (xs: [a]) : [a] :=
   if n = 0
     then []
     else match xs as list something with
       | $x :: $xs -> x :: take (n - 1) xs
       | [] -> []
 
-def drop n xs :=
+def drop (n: Integer) (xs: [a]) : [a] :=
   if n = 0
     then xs
     else match xs as list something with
@@ -117,19 +117,19 @@ def dropWhile pred xs :=
 --
 -- head, tail, uncons, unsnoc
 --
-def head xs :=
+def head (xs: [a]) : a :=
   match xs as list something with
     | $x :: _ -> x
 
-def tail xs :=
+def tail (xs: [a]) : [a] :=
   match xs as list something with
     | _ :: $ys -> ys
 
-def last xs :=
+def last (xs: [a]) : a :=
   match xs as list something with
     | snoc $x _ -> x
 
-def init xs :=
+def init (xs: [a]) : [a] :=
   match xs as list something with
     | snoc _ $ys -> ys
 
@@ -145,19 +145,19 @@ def unsnoc xs :=
 --
 -- list functions
 --
-def isEmpty xs :=
+def isEmpty (xs: [a]) : Bool :=
   match xs as list something with
     | [] -> True
     | _  -> False
 
-def length xs := foldl (\acc _ -> acc + 1) 0 xs
+def length (xs: [a]) : Integer := foldl (\acc _ -> acc + 1) 0 xs
 
-def map fn xs :=
+def map (fn: a -> b) (xs: [a]) : [b] :=
   match xs as list something with
     | [] -> []
     | $x :: $rs -> fn x :: map fn rs
 
-def map2 fn xs ys :=
+def map2 (fn: a -> b -> c) (xs: [a]) (ys: [b]) : [c] :=
   match (xs, ys) as (list something, list something) with
     | ([], _) -> []
     | (_, []) -> []
@@ -180,11 +180,11 @@ def map4 fn xs ys zs ws :=
     | ($x :: $xs2, $y :: $ys2, $z :: $zs2, $w :: $ws2) ->
       fn x y z w :: map4 fn xs2 ys2 zs2 ws2
 
-def filter pred xs := foldr (\%y %ys -> if pred y then y :: ys else ys) [] xs
+def filter (pred: a -> Bool) (xs: [a]) : [a] := foldr (\%y %ys -> if pred y then y :: ys else ys) [] xs
 
-def partition pred xs := (filter pred xs, filter 1#(not (pred %1)) xs)
+def partition (pred: a -> Bool) (xs: [a]) : ([a], [a]) := (filter pred xs, filter 1#(not (pred %1)) xs)
 
-def zip xs ys := map2 (\x y -> (x, y)) xs ys
+def zip (xs: [a]) (ys: [b]) : [(a, b)] := map2 (\x y -> (x, y)) xs ys
 
 def zip3 xs ys zs := map3 (\x y z -> (x, y, z)) xs ys zs
 
@@ -233,21 +233,21 @@ def repeatedSquaring fn %x n :=
       let y := repeatedSquaring fn x (quotient n 2)
        in fn (fn y y) x
 
-def concat xss := foldr (\%xs %rs -> xs ++ rs) [] xss
+def concat (xss: [[a]]) : [a] := foldr (\%xs %rs -> xs ++ rs) [] xss
 
-def reverse xs :=
+def reverse (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | snoc $x $rs -> x :: reverse rs
 
-def intersperse sep ws :=
+def intersperse (sep: a) (ws: [a]) : [a] :=
   match ws as list something with
     | [] -> []
     | $w :: $rs -> foldl (\s1 s2 -> s1 ++ [sep, s2]) [w] rs
 
-def intercalate sep ws := concat (intersperse sep ws)
+def intercalate (sep: [a]) (ws: [[a]]) : [a] := concat (intersperse sep ws)
 
-def split sep ls :=
+def split (sep: [a]) (ls: [a]) : [[a]] :=
   match ls as list something with
     | $xs ++ #sep ++ $rs -> xs :: split sep rs
     | _ -> [ls]
@@ -257,7 +257,7 @@ def splitAs a sep ls :=
     | $xs ++ #sep ++ $rs -> xs :: splitAs a sep rs
     | _ -> [ls]
 
-def splitAt n ls := (take n ls, drop n ls)
+def splitAt (n: Integer) (ls: [a]) : ([a], [a]) := (take n ls, drop n ls)
 
 def findCycle xs :=
   head
@@ -271,22 +271,22 @@ def repeat1 %x := x :: repeat1 x
 --
 -- Others
 --
-def all pred xs :=
+def all (pred: a -> Bool) (xs: [a]) : Bool :=
   match xs as list something with
     | [] -> True
     | $x :: $rs -> if pred x then all pred rs else False
 
-def any pred xs :=
+def any (pred: a -> Bool) (xs: [a]) : Bool :=
   match xs as list something with
     | [] -> False
     | $x :: $rs -> if pred x then True else any pred rs
 
-def from s :=
+def from (s: Integer) : [Integer] :=
   [s, s + 1, s + 2, s + 3, s + 4, s + 5, s + 6, s + 7, s + 8, s + 9, s + 10] ++
     from (s + 11)
 
 -- Note. `between` is used in the definition of the list matcher.
-def between s e :=
+def between (s: Integer) (e: Integer) : [Integer] :=
   if s = e then [s] else if s < e then s :: between (s + 1) e else []
 
 def L./ xs ys :=
@@ -366,7 +366,7 @@ def deleteAs a x xs :=
     | $hs ++ #x :: $ts -> hs ++ deleteAs a x ts
     | _ -> xs
 
-def difference xs ys :=
+def difference (xs: [a]) (ys: [a]) : [a] :=
   match ys as list something with
     | [] -> xs
     | $y :: $rs -> difference (deleteFirst y xs) rs
@@ -376,7 +376,7 @@ def differenceAs a xs ys :=
     | [] -> xs
     | $y :: $rs -> differenceAs a (deleteFirstAs a y xs) rs
 
-def include xs ys :=
+def include (xs: [a]) (ys: [a]) : Bool :=
   match ys as list something with
     | [] -> True
     | $y :: $rs ->
@@ -388,7 +388,7 @@ def includeAs a xs ys :=
     | $y :: $rs ->
       if memberAs a y xs then includeAs a (deleteFirst y xs) rs else False
 
-def union xs ys :=
+def union (xs: [a]) (ys: [a]) : [a] :=
   xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
     | ($y :: _, !(#y :: _)) -> y)
 
@@ -396,7 +396,7 @@ def unionAs a xs ys :=
   xs ++ (matchAll (ys, xs) as (multiset a, multiset a) with
     | ($y :: _, !(#y :: _)) -> y)
 
-def intersect xs ys :=
+def intersect (xs: [a]) (ys: [a]) : [a] :=
   matchAll (xs, ys) as (multiset something, multiset something) with
     | ($x :: _, #x :: _) -> x
 
@@ -407,7 +407,7 @@ def intersectAs a xs ys :=
 --
 -- Simple predicate
 --
-def member x ys :=
+def member (x: a) (ys: [a]) : Bool :=
   match ys as list something with
     | _ ++ #x :: _ -> True
     | _ -> False
@@ -420,13 +420,13 @@ def memberAs a x ys :=
 --
 -- Counting
 --
-def count x xs :=
+def count (x: a) (xs: [a]) : Integer :=
   foldl (\acc y -> if x = y then acc + 1 else acc) 0 xs
 
 def countAs a x xs :=
   foldl (\acc y -> if eqAs a x y then acc + 1 else acc) 0 xs
 
-def frequency xs :=
+def frequency (xs: [a]) : [(a, Integer)] :=
   map (\u -> (u, count u xs)) (unique xs)
 
 def frequencyAs a xs :=
@@ -435,7 +435,7 @@ def frequencyAs a xs :=
 --
 -- Index
 --
-def elemIndices x xs :=
+def elemIndices (x: a) (xs: [a]) : [Integer] :=
   matchAll xs as list something with
     | $hs ++ #x :: _ -> 1 + length hs
 

@@ -98,6 +98,9 @@ instantiate (Forall vs t) counter =
     substVar old new (TCollection t') = TCollection (substVar old new t')
     substVar old new (THash k v) = THash (substVar old new k) (substVar old new v)
     substVar old new (TIORef t') = TIORef (substVar old new t')
+    substVar old new (TIO t') = TIO (substVar old new t')
+    substVar old new (TPatternFunc argTs retT) =
+      TPatternFunc (map (substVar old new) argTs) (substVar old new retT)
 
 -- | Apply a substitution to the type environment
 applySubstEnv :: Subst -> TypeEnv -> TypeEnv

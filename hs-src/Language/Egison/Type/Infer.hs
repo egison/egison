@@ -13,6 +13,7 @@ module Language.Egison.Type.Infer
   ( -- * Type inference
     inferExpr
   , inferTopExpr
+  , inferTopExprs
   , Infer
   , InferState(..)
   , InferConfig(..)
@@ -21,6 +22,9 @@ module Language.Egison.Type.Infer
   , permissiveInferConfig
   , runInfer
   , runInferWithWarnings
+    -- * File loading support
+  , setFileLoader
+  , FileLoader
     -- * Type conversion
   , typeExprToType
   , typeToTypeExpr
@@ -28,7 +32,8 @@ module Language.Egison.Type.Infer
 
 import           Control.Monad              (foldM, when, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
-import           Control.Monad.State.Strict (State, evalState, runState, get, modify, put)
+import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
+import           Control.Monad.IO.Class     (liftIO, MonadIO)
 import           Data.IORef                 (IORef)
 
 import           Language.Egison.AST hiding (Subscript, Superscript)
@@ -41,17 +46,29 @@ import           Language.Egison.Type.Tensor
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
 
+-- | File loader type: takes a file path and returns parsed TopExprs
+type FileLoader = FilePath -> IO (Either String [TopExpr])
+
 -- | Inference configuration
 data InferConfig = InferConfig
-  { cfgPermissive     :: Bool   -- ^ Treat unbound variables as warnings, not errors
-  , cfgCollectWarnings :: Bool  -- ^ Collect warnings during inference
-  } deriving (Show)
+  { cfgPermissive      :: Bool             -- ^ Treat unbound variables as warnings, not errors
+  , cfgCollectWarnings :: Bool             -- ^ Collect warnings during inference
+  , cfgFileLoader      :: Maybe FileLoader -- ^ Optional file loader for Load/LoadFile
+  }
+
+instance Show InferConfig where
+  show cfg = "InferConfig { cfgPermissive = " ++ show (cfgPermissive cfg)
+           ++ ", cfgCollectWarnings = " ++ show (cfgCollectWarnings cfg)
+           ++ ", cfgFileLoader = " ++ (if isLoaderSet cfg then "Just <loader>" else "Nothing")
+           ++ " }"
+    where isLoaderSet = maybe False (const True) . cfgFileLoader
 
 -- | Default configuration (strict mode)
 defaultInferConfig :: InferConfig
 defaultInferConfig = InferConfig
   { cfgPermissive = False
   , cfgCollectWarnings = False
+  , cfgFileLoader = Nothing
   }
 
 -- | Permissive configuration (for gradual adoption)
@@ -59,7 +76,12 @@ permissiveInferConfig :: InferConfig
 permissiveInferConfig = InferConfig
   { cfgPermissive = True
   , cfgCollectWarnings = True
+  , cfgFileLoader = Nothing
   }
+
+-- | Set file loader in config
+setFileLoader :: FileLoader -> InferConfig -> InferConfig
+setFileLoader loader cfg = cfg { cfgFileLoader = Just loader }
 
 -- | Inference state
 data InferState = InferState
@@ -77,18 +99,18 @@ initialInferState = InferState 0 emptyEnv [] defaultInferConfig
 initialInferStateWithConfig :: InferConfig -> InferState
 initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg
 
--- | Inference monad
-type Infer a = ExceptT TypeError (State InferState) a
+-- | Inference monad (with IO for loading files)
+type Infer a = ExceptT TypeError (StateT InferState IO) a
 
 -- | Run type inference
-runInfer :: Infer a -> InferState -> Either TypeError a
-runInfer m st = evalState (runExceptT m) st
+runInfer :: Infer a -> InferState -> IO (Either TypeError a)
+runInfer m st = evalStateT (runExceptT m) st
 
 -- | Run type inference and also return warnings
-runInferWithWarnings :: Infer a -> InferState -> (Either TypeError a, [TypeWarning])
-runInferWithWarnings m st =
-  let (result, finalState) = runState (runExceptT m) st
-  in (result, inferWarnings finalState)
+runInferWithWarnings :: Infer a -> InferState -> IO (Either TypeError a, [TypeWarning])
+runInferWithWarnings m st = do
+  (result, finalState) <- runStateT (runExceptT m) st
+  return (result, inferWarnings finalState)
 
 -- | Add a warning
 addWarning :: TypeWarning -> Infer ()
@@ -1326,20 +1348,70 @@ inferTopExpr topExpr = case topExpr of
 
   DefineWithType typedVar expr -> do
     let name = typedVarName typedVar
-        paramTypes = map (typeExprToType . snd) (typedVarParams typedVar)
+        params = typedVarParams typedVar
+        paramTypes = map typedParamToType params
+        paramBindings = extractTypedParamBindings params
         retType = typeExprToType (typedVarRetType typedVar)
         expectedType = foldr TFun retType paramTypes
-    (inferredType, s) <- inferExpr expr
-    _ <- unifyTypes (applySubst s inferredType) expectedType
+    -- Add parameter bindings to environment before inferring body
+    -- The body should have the return type, not the full function type
+    (inferredType, s) <- withEnv paramBindings $ inferExpr expr
+    -- Unify the body type with the declared return type
+    _ <- unifyTypes (applySubst s inferredType) retType
     env <- getEnv
+    -- Register the function with its full type (including parameters)
     let scheme = generalize env expectedType
     setEnv $ extendEnv name scheme env
 
   Test _ -> return ()
   Execute _ -> return ()
-  LoadFile _ -> return ()
-  Load _ -> return ()
+
+  LoadFile path -> loadAndInferFile path
+  Load path -> loadAndInferFile path
+
   InfixDecl _ _ -> return ()
+
+-- | Convert TypedParam to Type
+typedParamToType :: TypedParam -> Type
+typedParamToType (TPVar _ ty) = typeExprToType ty
+typedParamToType (TPTuple elems) = TTuple (map typedParamToType elems)
+typedParamToType (TPWildcard ty) = typeExprToType ty
+typedParamToType (TPUntypedVar _) = TAny  -- Infer type later
+typedParamToType TPUntypedWildcard = TAny  -- Infer type later
+
+-- | Extract variable bindings from typed parameters for environment
+extractTypedParamBindings :: [TypedParam] -> [(String, TypeScheme)]
+extractTypedParamBindings = concatMap extractFromParam
+  where
+    extractFromParam :: TypedParam -> [(String, TypeScheme)]
+    extractFromParam (TPVar name ty) = [(name, Forall [] (typeExprToType ty))]
+    extractFromParam (TPTuple elems) = concatMap extractFromParam elems
+    extractFromParam (TPWildcard _) = []  -- Wildcards don't bind variables
+    extractFromParam (TPUntypedVar name) = [(name, Forall [] TAny)]
+    extractFromParam TPUntypedWildcard = []
+
+-- | Load a file and infer types for its contents
+loadAndInferFile :: FilePath -> Infer ()
+loadAndInferFile path = do
+  cfg <- inferConfig <$> get
+  case cfgFileLoader cfg of
+    Nothing -> return ()  -- No loader configured, skip
+    Just loader -> do
+      result <- liftIO $ loader path
+      case result of
+        Left _err -> return ()  -- Skip on parse error (will be caught during evaluation)
+        Right exprs -> do
+          -- Try to infer types for each expression, but continue on errors
+          -- This allows library functions without type annotations to still work
+          forM_ exprs $ \expr -> do
+            catchError (inferTopExpr expr) $ \_ -> return ()
+  where
+    forM_ :: [a] -> (a -> Infer ()) -> Infer ()
+    forM_ xs f = mapM_ f xs
+
+-- | Infer types for multiple top-level expressions
+inferTopExprs :: [TopExpr] -> Infer ()
+inferTopExprs = mapM_ inferTopExpr
 
 -- | Convert TypeExpr (AST) to Type (internal representation)
 typeExprToType :: TypeExpr -> Type
@@ -1359,6 +1431,7 @@ typeExprToType (TEFun t1 t2) =
     Nothing -> TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
 typeExprToType (TEPattern t) = TPattern (typeExprToType t)
+typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TETensor t shape indices) =
   TTensor (typeExprToType t) (shapeExprToShape shape) (indexExprsToIndices indices)
 typeExprToType (TEApp constr args) =
@@ -1429,6 +1502,7 @@ typeToTypeExpr (TTensor t shape indices) =
 typeToTypeExpr (TCollection t) = TEList (typeToTypeExpr t)
 typeToTypeExpr (THash k v) = TEApp (TEVar "Hash") [typeToTypeExpr k, typeToTypeExpr v]
 typeToTypeExpr (TPattern t) = TEPattern (typeToTypeExpr t)
+typeToTypeExpr (TIO t) = TEIO (typeToTypeExpr t)
 typeToTypeExpr (TPatternFunc argTypes retType) =
   -- Convert Pattern a -> Pattern b -> Pattern c to TEFun form
   foldr TEFun (TEPattern (typeToTypeExpr retType)) (map (\t -> TEPattern (typeToTypeExpr t)) argTypes)

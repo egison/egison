@@ -26,6 +26,7 @@ import           Control.Monad              (forM_, when)
 import           Control.Monad.Except       (throwError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
+import           System.IO                  (hPutStrLn, stderr)
 
 import           Language.Egison.AST
 import           Language.Egison.CmdOptions
@@ -38,8 +39,14 @@ import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import           Language.Egison.Type.Check (TypeCheckConfig (..), TypeCheckError (..),
                                               defaultConfig, strictConfig, permissiveConfig,
-                                              typeCheckWithWarnings)
+                                              typeCheckWithWarnings, typeCheckWithLoader,
+                                              FileLoader)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning, TypeWarning)
+import qualified Language.Egison.Parser.NonS as NonS
+import           Language.Egison.RState     (evalRuntimeT)
+import           System.Directory           (doesFileExist, getHomeDirectory)
+import           Paths_egison               (getDataFileName)
+import           Language.Egison.CmdOptions (defaultOption)
 
 
 -- | Evaluate an Egison expression.
@@ -53,15 +60,15 @@ evalTopExpr env topExpr = do
   -- Run type checking if enabled
   when (optTypeCheck opts || optTypeCheckStrict opts) $ do
     let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
-    let (result, warnings) = typeCheckWithWarnings config [topExpr]
-    -- Print warnings
+    (result, warnings) <- liftIO $ typeCheckWithLoader config makeFileLoader [topExpr]
+    -- Print warnings to stderr (so they don't interfere with normal output)
     when (not (null warnings)) $ do
-      liftIO $ mapM_ (putStrLn . formatTypeWarning) warnings
+      liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
     -- Handle errors
     case result of
       Left errs -> do
-        liftIO $ putStrLn "Type errors found:"
-        liftIO $ mapM_ (putStrLn . ("  " ++) . formatTypeError . tceError) errs
+        liftIO $ hPutStrLn stderr "Type errors found:"
+        liftIO $ mapM_ (hPutStrLn stderr . ("  " ++) . formatTypeError . tceError) errs
         throwError $ Default "Type checking failed"
       Right _env -> return ()
   topExpr' <- desugarTopExpr topExpr
@@ -94,15 +101,15 @@ evalTopExprs env exprs = do
   -- Run type checking if enabled
   when (optTypeCheck opts || optTypeCheckStrict opts) $ do
     let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
-    let (result, warnings) = typeCheckWithWarnings config exprs
-    -- Print warnings
+    (result, warnings) <- liftIO $ typeCheckWithLoader config makeFileLoader exprs
+    -- Print warnings to stderr (so they don't interfere with normal output)
     when (not (null warnings)) $ do
-      liftIO $ mapM_ (putStrLn . formatTypeWarning) warnings
+      liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
     -- Handle errors
     case result of
       Left errs -> do
-        liftIO $ putStrLn "Type errors found:"
-        liftIO $ mapM_ (putStrLn . ("  " ++) . formatTypeError . tceError) errs
+        liftIO $ hPutStrLn stderr "Type errors found:"
+        liftIO $ mapM_ (hPutStrLn stderr . ("  " ++) . formatTypeError . tceError) errs
         throwError $ Default "Type checking failed"
       Right _env -> return ()
   -- Continue with evaluation
@@ -213,3 +220,29 @@ evalTopExpr' env (ILoadFile file) = do
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
+
+-- | Create a file loader for type checking
+-- This loader parses Egison files and returns their TopExprs
+makeFileLoader :: FileLoader
+makeFileLoader path = do
+  -- Resolve the file path (check ~/.egison/ first, then data directory)
+  homeDir <- getHomeDirectory
+  let homePath = homeDir ++ "/.egison/" ++ path
+  homeExists <- doesFileExist homePath
+  actualPath <- if homeExists
+    then return homePath
+    else do
+      dataPath <- getDataFileName path
+      dataExists <- doesFileExist dataPath
+      return $ if dataExists then dataPath else path
+
+  -- Check if file exists
+  exists <- doesFileExist actualPath
+  if not exists
+    then return $ Left $ "File not found: " ++ path
+    else do
+      -- Read and parse the file
+      content <- readUTF8File actualPath
+      let cleanContent = removeShebang content
+      -- Parse using the NonS parser with evalRuntimeT
+      evalRuntimeT defaultOption (NonS.parseTopExprs cleanContent)

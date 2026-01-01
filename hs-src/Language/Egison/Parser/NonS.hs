@@ -162,11 +162,54 @@ defineExpr = try defineWithType <|> defineWithoutType
     extractVarWithIndices :: VarWithIndices -> (String, [VarIndex])
     extractVarWithIndices (VarWithIndices name indices) = (name, indices)
 
-    typedParam = parens $ do
+    -- Parse a typed parameter: supports both simple (x: a) and tuple ((x: a), (y: b)) patterns
+    typedParam :: Parser TypedParam
+    typedParam = parens typedParamInner
+
+    -- Parse the inner part of a typed parameter (inside parentheses)
+    typedParamInner :: Parser TypedParam
+    typedParamInner = try typedTupleParam <|> typedSimpleParam
+
+    -- Parse a tuple pattern with typed elements: (x: a), (y: b) or x: a, y: b
+    typedTupleParam :: Parser TypedParam
+    typedTupleParam = do
+      first <- typedTupleElement
+      _ <- symbol ","
+      rest <- typedTupleElement `sepBy1` symbol ","
+      return $ TPTuple (first : rest)
+
+    -- Parse an element in a typed tuple
+    typedTupleElement :: Parser TypedParam
+    typedTupleElement =
+          try (parens typedParamInner)  -- Nested: ((x: a))
+      <|> try typedWildcard             -- Wildcard with type: _: a
+      <|> try typedVar                  -- Variable with type: x: a
+      <|> untypedWildcard               -- Just wildcard: _
+      <|> untypedVar                    -- Just variable: x
+
+    -- Simple typed parameter: x: a or _: a
+    typedSimpleParam :: Parser TypedParam
+    typedSimpleParam = try typedWildcard <|> typedVar
+
+    typedVar :: Parser TypedParam
+    typedVar = do
       paramName <- ident
       _ <- symbol ":"
       paramType <- typeExpr
-      return (paramName, paramType)
+      return $ TPVar paramName paramType
+
+    typedWildcard :: Parser TypedParam
+    typedWildcard = do
+      _ <- symbol "_"
+      _ <- symbol ":"
+      paramType <- typeExpr
+      return $ TPWildcard paramType
+
+    untypedVar :: Parser TypedParam
+    untypedVar = TPUntypedVar <$> ident
+
+    untypedWildcard :: Parser TypedParam
+    untypedWildcard = TPUntypedWildcard <$ symbol "_"
 
 -- | Parse a type expression
 typeExpr :: Parser TypeExpr
@@ -185,14 +228,17 @@ typeAtomOrParenType =
       try parenTypeOrTuple  -- Allow (a -> b) or (a, b) as a type atom
   <|> typeAtom
 
--- Parse parenthesized type or tuple type
+-- Parse parenthesized type or tuple type (including unit type ())
 parenTypeOrTuple :: Parser TypeExpr
 parenTypeOrTuple = parens $ do
-  t <- typeExpr
-  rest <- optional (symbol "," >> typeExpr `sepBy1` symbol ",")
-  return $ case rest of
-    Nothing  -> t              -- Just parenthesized: (a -> b)
-    Just ts  -> TETuple (t:ts) -- Tuple: (a, b, c)
+  first <- optional typeExpr
+  case first of
+    Nothing -> return $ TETuple []  -- Unit type: ()
+    Just t -> do
+      rest <- optional (symbol "," >> typeExpr `sepBy1` symbol ",")
+      return $ case rest of
+        Nothing  -> t              -- Just parenthesized: (a -> b)
+        Just ts  -> TETuple (t:ts) -- Tuple: (a, b, c)
 
 typeAtom :: Parser TypeExpr
 typeAtom =
@@ -202,6 +248,7 @@ typeAtom =
   <|> TEBool    <$ reserved "Bool"
   <|> TEChar    <$ reserved "Char"
   <|> TEString  <$ reserved "String"
+  <|> TEIO      <$> (reserved "IO" >> typeAtomOrParenType)
   <|> TEList    <$> brackets typeExpr
   <|> try tensorTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtom)

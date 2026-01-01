@@ -22,7 +22,7 @@ def nat :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def nats :=
+def nats : [Integer] :=
   [1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
    11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
    21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
@@ -35,19 +35,19 @@ def nats :=
    91, 92, 93, 94, 95, 96, 97, 98, 99, 100] ++
     map (+ 100) nats
 
-def nats0 := 0 :: nats
+def nats0 : [Integer] := 0 :: nats
 
-def odds := 1 :: map (+ 2) odds
-def evens := 2 :: map (+ 2) evens
+def odds : [Integer] := 1 :: map (+ 2) odds
+def evens : [Integer] := 2 :: map (+ 2) evens
 
-def fibs := [1, 1] ++ map2 (+) fibs (tail fibs)
+def fibs : [Integer] := [1, 1] ++ map2 (+) fibs (tail fibs)
 
-def isPrime n :=
+def isPrime (n: Integer) : Bool :=
   if n < 2 then False else n = findFactor n
 
-def primes := 2 :: filter isPrime (drop 2 nats)
+def primes : [Integer] := 2 :: filter isPrime (drop 2 nats)
 
-def divisor n d := 0 = n % d
+def divisor (n: Integer) (d: Integer) : Bool := 0 = n % d
 
 def findFactor :=
   memoizedLambda n ->
@@ -63,18 +63,18 @@ def primeFactorization :=
       let p := findFactor n
        in p :: primeFactorization (quotient n p)
 
-def pF := primeFactorization
+def pF : Integer -> [Integer] := primeFactorization
 
-def isEven n := 0 = modulo n 2
-def isOdd n := 1 = modulo n 2
+def isEven (n: Integer) : Bool := 0 = modulo n 2
+def isOdd (n: Integer) : Bool := 1 = modulo n 2
 
-def fact n := foldl (*) 1 [1..n]
+def fact (n: Integer) : Integer := foldl (*) 1 [1..n]
 
-def perm n r := foldl (*) 1 [(n - (r - 1))..n]
+def perm (n: Integer) (r: Integer) : Integer := foldl (*) 1 [(n - (r - 1))..n]
 
-def comb n r := perm n r / fact r
+def comb (n: Integer) (r: Integer) : Integer := perm n r / fact r
 
-def nAdic n x :=
+def nAdic (n: Integer) (x: Integer) : [Integer] :=
   if x = 0
     then []
     else let q := quotient x n
@@ -94,7 +94,7 @@ def mod m :=
 --
 -- Floats
 --
-def exp2 x y := exp (log x * y)
+def exp2 (x: Float) (y: Float) : Float := exp (log x * y)
 
 --
 -- Decimal Fractions
