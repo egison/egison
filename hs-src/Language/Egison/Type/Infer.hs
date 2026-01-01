@@ -14,6 +14,8 @@ module Language.Egison.Type.Infer
     inferExpr
   , inferTopExpr
   , inferTopExprs
+  , loadAndInferFile
+  , clearWarnings
   , Infer
   , InferState(..)
   , InferConfig(..)
@@ -34,6 +36,7 @@ import           Control.Monad              (foldM, when, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
 import           Control.Monad.IO.Class     (liftIO, MonadIO)
+import           Data.Char                  (toUpper)
 import           Data.IORef                 (IORef)
 
 import           Language.Egison.AST hiding (Subscript, Superscript)
@@ -115,6 +118,10 @@ runInferWithWarnings m st = do
 -- | Add a warning
 addWarning :: TypeWarning -> Infer ()
 addWarning w = modify $ \st -> st { inferWarnings = w : inferWarnings st }
+
+-- | Clear all accumulated warnings
+clearWarnings :: Infer ()
+clearWarnings = modify $ \st -> st { inferWarnings = [] }
 
 -- | Check if we're in permissive mode
 isPermissive :: Infer Bool
@@ -1386,6 +1393,9 @@ inferTopExpr topExpr = case topExpr of
     env <- getEnv
     let scheme = generalize env finalType
     setEnv $ extendEnv name scheme env
+    -- Register constructors if this is an algebraicDataMatcher
+    -- Use the definition name (capitalized) as the type for constructors
+    registerAlgebraicConstructors name expr
 
   DefineWithType typedVar expr -> do
     let name = typedVarName typedVar
@@ -1403,6 +1413,9 @@ inferTopExpr topExpr = case topExpr of
     -- Register the function with its full type (including parameters)
     let scheme = generalize env expectedType
     setEnv $ extendEnv name scheme env
+    -- Register constructors if this is an algebraicDataMatcher
+    -- Use the definition name (capitalized) as the type for constructors
+    registerAlgebraicConstructors name expr
 
   Test _ -> return ()
   Execute _ -> return ()
@@ -1411,6 +1424,58 @@ inferTopExpr topExpr = case topExpr of
   Load path -> loadAndInferFile path
 
   InfixDecl _ _ -> return ()
+
+  -- Inductive data type declaration
+  -- e.g., inductive Ordering := | Less | Equal | Greater
+  --       inductive Nat := | O | S Nat
+  InductiveDecl typeName typeParams constructors -> do
+    -- Create the type for this inductive data type
+    -- For simplicity, we use a single TVar for the full type name
+    -- Type parameters are quantified in the constructor schemes
+    let adtType = TVar (TyVar typeName)
+    env <- getEnv
+    -- Register each constructor with the type parameters quantified
+    mapM_ (registerInductiveConstructor adtType typeParams env) constructors
+    where
+      registerInductiveConstructor :: Type -> [String] -> TypeEnv -> InductiveConstructor -> Infer ()
+      registerInductiveConstructor resultType params env (InductiveConstructor ctorName argTypeExprs) = do
+        -- Convert argument type expressions to types
+        let argTypes = map typeExprToType argTypeExprs
+        -- Create the constructor type: argTypes -> resultType
+        let constructorType = foldr TFun resultType argTypes
+            -- Quantify over type parameters
+            tyVars = map TyVar params
+            scheme = Forall tyVars constructorType
+        setEnv $ extendEnv ctorName scheme env
+
+-- | Register algebraic data constructors to the type environment
+-- For example, `def ordering := algebraicDataMatcher | less | equal | greater`
+-- will register `Less : Ordering`, `Equal : Ordering`, `Greater : Ordering`
+registerAlgebraicConstructors :: String -> Expr -> Infer ()
+registerAlgebraicConstructors defName (AlgebraicDataMatcherExpr constructors) = do
+  -- Use the definition name (capitalized) as the ADT type name
+  -- e.g., "ordering" -> "Ordering"
+  let adtTypeName = capitalizeFirst defName
+      adtType = TVar (TyVar adtTypeName)
+  env <- getEnv
+  -- Register each constructor
+  mapM_ (registerConstructor adtType env) constructors
+  where
+    registerConstructor :: Type -> TypeEnv -> (String, [Expr]) -> Infer ()
+    registerConstructor resultType env (name, argExprs) = do
+      -- Capitalize the constructor name (e.g., "less" -> "Less")
+      let constructorName = capitalizeFirst name
+      -- Create the constructor type: argTypes -> resultType
+      -- For now, we use TAny for argument types since we don't have full type info
+      let argTypes = replicate (length argExprs) TAny
+          constructorType = foldr TFun resultType argTypes
+          scheme = Forall [] constructorType
+      setEnv $ extendEnv constructorName scheme env
+    
+    capitalizeFirst :: String -> String
+    capitalizeFirst [] = []
+    capitalizeFirst (c:cs) = toUpper c : cs
+registerAlgebraicConstructors _ _ = return ()  -- Not an algebraicDataMatcher
 
 -- | Convert TypedParam to Type
 typedParamToType :: TypedParam -> Type

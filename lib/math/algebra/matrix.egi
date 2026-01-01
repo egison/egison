@@ -23,7 +23,7 @@ def M.inverse %m :=
 
 def trace %t := withSymbols [i] sum (contract t~i_i)
 
-def matrix :=
+def matrix : Matcher Integer :=
   matcher
     | quadCons $ $ $ $ as (mathExpr, matrix, matrix, matrix) with
       | $tgt ->

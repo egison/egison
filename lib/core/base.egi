@@ -4,7 +4,7 @@
 --
 --
 
-def eq :=
+def eq : Matcher a :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
@@ -57,7 +57,7 @@ def not (b: Bool) : Bool := if b then False else True
 -- Unordered Pair
 --
 
-def unorderedPair m :=
+def unorderedPair (m: Matcher a) : Matcher (a, a) :=
   matcher
     | ($, $) as (m, m) with
       | ($x, $y) -> [(x, y), (y, x)]

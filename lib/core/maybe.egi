@@ -4,7 +4,11 @@
 --
 --
 
-def maybe a :=
+inductive Maybe a :=
+  | Nothing
+  | Just a
+
+def maybe (a: Matcher b) : Matcher (Maybe b) :=
   matcher
     | nothing as () with
       | Nothing -> [()]

@@ -90,9 +90,115 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
       <|> (reserved "def" >> defineExpr)
+      <|> inductiveExpr
       <|> infixExpr
       <|> Test     <$> expr
       <?> "toplevel expression"
+
+-- | Parse inductive data type declaration
+-- e.g., inductive Ordering := | Less | Equal | Greater
+--       inductive Nat := | O | S Nat
+--       inductive Ordering := Less | Equal | Greater  (also valid)
+inductiveExpr :: Parser TopExpr
+inductiveExpr = try $ do
+  pos <- L.indentLevel
+  reserved "inductive"
+  typeName <- upperId
+  -- Parse optional type parameters (lowercase identifiers)
+  typeParams <- many typeVarIdent
+  _ <- symbol ":="
+  -- Parse constructors - they must be indented more than the 'inductive' keyword
+  -- or on the same line separated by |
+  constructors <- inductiveConstructors pos
+  return $ InductiveDecl typeName typeParams constructors
+
+-- | Parse constructors for inductive data type
+-- Constructors must be indented more than the base position, or separated by |
+inductiveConstructors :: Pos -> Parser [InductiveConstructor]
+inductiveConstructors basePos = do
+  -- Optional leading |
+  _ <- optional (symbol "|")
+  first <- inductiveConstructor
+  rest <- many $ try $ do
+    -- Either | separator or indented on new line
+    (symbol "|" >> inductiveConstructor) <|> (indentGuardGT basePos >> inductiveConstructor)
+  return (first : rest)
+
+-- | Parse a single constructor
+-- e.g., Less, S Nat, Node Tree Tree
+inductiveConstructor :: Parser InductiveConstructor
+inductiveConstructor = do
+  name <- upperId
+  -- Parse argument types using typeAtom (handles both uppercase and lowercase)
+  args <- many (try inductiveArgType)
+  return $ InductiveConstructor name args
+
+-- | Parse an argument type for inductive constructor
+-- Only parses simple type atoms that are clearly types
+inductiveArgType :: Parser TypeExpr
+inductiveArgType = try $ do
+  -- Don't parse if next token is | (constructor separator)
+  notFollowedBy (symbol "|")
+  -- Parse type atom, but use a restricted version that only accepts:
+  -- - Builtin types (Integer, Bool, etc.)
+  -- - Type names (uppercase identifiers)
+  -- - Type variables (lowercase, but short to avoid function names)
+  -- - List types [a]
+  -- - Tuple types (a, b)
+  inductiveTypeAtom
+
+-- | Restricted type atom parser for inductive constructors
+inductiveTypeAtom :: Parser TypeExpr
+inductiveTypeAtom =
+      TEInt     <$ reserved "Integer"
+  <|> TEMathExpr <$ reserved "MathExpr"
+  <|> TEFloat   <$ reserved "Float"
+  <|> TEBool    <$ reserved "Bool"
+  <|> TEChar    <$ reserved "Char"
+  <|> TEString  <$ reserved "String"
+  <|> TEList    <$> brackets typeExpr
+  <|> TEVar     <$> typeNameIdent     -- Uppercase type names (Nat, Tree, etc.)
+  <|> TEVar     <$> inductiveTypeVar  -- Short lowercase type variables
+  <|> inductiveParenType              -- Parenthesized types like (Tree a)
+  <?> "type expression in inductive constructor"
+
+-- | Parse parenthesized type in inductive context
+-- Handles both simple parens (Tree a) and tuples (a, b)
+inductiveParenType :: Parser TypeExpr
+inductiveParenType = parens $ do
+  first <- optional inductiveTypeExprInParen
+  case first of
+    Nothing -> return $ TETuple []  -- Unit type: ()
+    Just t -> do
+      rest <- optional (symbol "," >> inductiveTypeExprInParen `sepBy1` symbol ",")
+      return $ case rest of
+        Nothing  -> t              -- Just parenthesized: (Tree a)
+        Just ts  -> TETuple (t:ts) -- Tuple: (a, b)
+
+-- | Type expression inside parentheses in inductive context
+-- Allows function types and type applications
+inductiveTypeExprInParen :: Parser TypeExpr
+inductiveTypeExprInParen = do
+  atoms <- some inductiveTypeAtom
+  -- For now, just return the first atom (type application not fully supported)
+  -- In the future, we could add proper type application
+  case atoms of
+    [t] -> return t
+    _   -> return $ TEVar "Complex"  -- Placeholder for type application
+
+-- | Parse type variable in inductive context (must be short)
+inductiveTypeVar :: Parser String
+inductiveTypeVar = lexeme $ try $ do
+  c <- lowerChar
+  cs <- many alphaNumChar
+  let name = c : cs
+  -- Reject if it looks like a keyword or function name (> 2 chars usually)
+  -- Common type vars: a, b, c, t, k, v, xs, elem
+  if length name > 4 || name `elem` inductiveReserved
+    then fail $ "Not a type variable: " ++ name
+    else return name
+  where
+    inductiveReserved = ["def", "let", "if", "match", "load", "assert", "true", "false"]
 
 -- Sort binaryop table on the insertion
 addNewOp :: Op -> Bool -> Parser ()
@@ -149,7 +255,9 @@ defineExpr = try defineWithType <|> defineWithoutType
         _  -> return (Define f (LambdaExpr args body))
 
     defineWithType = do
-      varWithIdx <- varWithIndicesLiteral
+      ops <- gets exprOps
+      varWithIdx <- parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
+                    <|> varWithIndicesLiteral
       let (name, indices) = extractVarWithIndices varWithIdx
       typedParams <- many typedParam
       _ <- symbol ":"
@@ -252,10 +360,24 @@ typeAtom =
   <|> TEIO      <$> (reserved "IO" >> typeAtomOrParenType)
   <|> TEList    <$> brackets typeExpr
   <|> try tensorTypeExpr
-  <|> TEMatcher <$> (reserved "Matcher" >> typeAtom)
-  <|> TEPattern <$> (reserved "Pattern" >> typeAtom)
-  <|> TEVar     <$> typeVarIdent
+  <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
+  <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
+  <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
+  <|> TEVar     <$> typeNameIdent     -- uppercase type names (Nat, Tree, Ordering, etc.)
   <?> "type expression"
+
+-- | Parse an uppercase type name (for user-defined inductive types)
+typeNameIdent :: Parser String
+typeNameIdent = lexeme $ do
+  c <- upperChar
+  cs <- many alphaNumChar
+  let name = c : cs
+  -- Don't consume reserved type keywords
+  if name `elem` typeReservedKeywords
+    then fail $ "Reserved type keyword: " ++ name
+    else return name
+  where
+    typeReservedKeywords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "IO"]
 
 tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do

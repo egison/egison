@@ -40,6 +40,8 @@ module Language.Egison.AST
   , TensorIndexExpr (..)
   , TypedParam (..)
   , TypedVarWithIndices (..)
+  -- Inductive data types
+  , InductiveConstructor (..)
   ) where
 
 import           Data.List  (find)
@@ -55,7 +57,19 @@ data TopExpr
   | LoadFile String
   | Load String
   | InfixDecl Bool Op -- True for pattern infix; False for expression infix
+  | InductiveDecl String [String] [InductiveConstructor]
+    -- ^ Inductive data type declaration with type parameters
+    -- e.g., inductive Ordering := | Less | Equal | Greater
+    --       inductive Maybe a := | Nothing | Just a
+    -- String: type name, [String]: type parameters, [InductiveConstructor]: constructors
  deriving Show
+
+-- | Constructor for inductive data type
+-- e.g., Less, S Nat, Node Tree Tree
+data InductiveConstructor = InductiveConstructor
+  { inductiveCtorName :: String      -- ^ Constructor name (e.g., "Less", "S", "Node")
+  , inductiveCtorArgs :: [TypeExpr]  -- ^ Constructor argument types (e.g., [], [Nat], [Tree, Tree])
+  } deriving (Show, Eq)
 
 data ConstantExpr
   = CharExpr Char

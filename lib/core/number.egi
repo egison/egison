@@ -7,7 +7,7 @@
 --
 -- Natural Numbers
 --
-def nat :=
+def nat : Matcher Integer :=
   matcher
     | o as () with
       | 0 -> [()]
@@ -84,7 +84,7 @@ def nAdic (n: Integer) (x: Integer) : [Integer] :=
 --
 -- Integers
 --
-def mod m :=
+def mod (m: Integer) : Matcher Integer :=
   matcher
     | #$n as () with
       | $tgt -> if modulo tgt m = modulo n m then [()] else []

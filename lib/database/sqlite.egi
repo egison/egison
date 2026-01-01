@@ -4,7 +4,9 @@
 --
 --
 
-def databaseTable :=
+inductive DatabaseTable := | DatabaseTable String String
+
+def databaseTable : Matcher (String, String) :=
   algebraicDataMatcher
     | databaseTable string string
 
