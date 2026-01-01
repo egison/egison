@@ -945,14 +945,20 @@ inferMatcherTargetType patternDefs = do
 
 -- | Infer type of a constant
 inferConstant :: ConstantExpr -> Infer (Type, Subst)
-inferConstant c = return $ case c of
-  CharExpr _    -> (TChar, emptySubst)
-  StringExpr _  -> (TString, emptySubst)
-  BoolExpr _    -> (TBool, emptySubst)
-  IntegerExpr _ -> (TInt, emptySubst)
-  FloatExpr _   -> (TFloat, emptySubst)
-  SomethingExpr -> (TAny, emptySubst)
-  UndefinedExpr -> (TAny, emptySubst)
+inferConstant c = case c of
+  CharExpr _    -> return (TChar, emptySubst)
+  StringExpr _  -> return (TString, emptySubst)
+  BoolExpr _    -> return (TBool, emptySubst)
+  IntegerExpr _ -> return (TInt, emptySubst)
+  FloatExpr _   -> return (TFloat, emptySubst)
+  -- something : Matcher a (polymorphic matcher that matches any type)
+  SomethingExpr -> do
+    elemType <- freshVar "a"
+    return (TMatcher elemType, emptySubst)
+  -- undefined has a fresh type variable (bottom-like, can be any type)
+  UndefinedExpr -> do
+    t <- freshVar "undefined"
+    return (t, emptySubst)
 
 -- | Infer type for scalar operation lifted to tensors
 -- For operators like +, -, *, / when applied to tensors
