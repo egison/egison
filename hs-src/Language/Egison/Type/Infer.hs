@@ -39,7 +39,7 @@ import           Control.Monad.IO.Class     (liftIO, MonadIO)
 import           Data.Char                  (toUpper)
 import           Data.IORef                 (IORef)
 
-import           Language.Egison.AST hiding (Subscript, Superscript)
+import           Language.Egison.AST hiding (Subscript, Superscript, Constraint)
 import qualified Language.Egison.AST as AST
 import           Language.Egison.Type.Env
 import           Language.Egison.Type.Error
@@ -47,6 +47,7 @@ import           Language.Egison.Type.Index as TI
 import           Language.Egison.Type.Subst
 import           Language.Egison.Type.Tensor
 import           Language.Egison.Type.Types
+import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Unify as TU
 
 -- | File loader type: takes a file path and returns parsed TopExprs
@@ -92,15 +93,16 @@ data InferState = InferState
   , inferEnv      :: TypeEnv          -- ^ Current type environment
   , inferWarnings :: [TypeWarning]    -- ^ Collected warnings
   , inferConfig   :: InferConfig      -- ^ Configuration
+  , inferClassEnv :: ClassEnv         -- ^ Type class environment
   } deriving (Show)
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv
 
 -- | Inference monad (with IO for loading files)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -143,6 +145,14 @@ getEnv = inferEnv <$> get
 setEnv :: TypeEnv -> Infer ()
 setEnv env = modify $ \st -> st { inferEnv = env }
 
+-- | Get the class environment
+getClassEnv :: Infer ClassEnv
+getClassEnv = inferClassEnv <$> get
+
+-- | Modify the class environment
+modifyClassEnv :: (ClassEnv -> ClassEnv) -> Infer ()
+modifyClassEnv f = modify $ \st -> st { inferClassEnv = f (inferClassEnv st) }
+
 -- | Extend the environment temporarily
 withEnv :: [(String, TypeScheme)] -> Infer a -> Infer a
 withEnv bindings action = do
@@ -159,7 +169,8 @@ lookupVar name = do
   case lookupEnv name env of
     Just scheme -> do
       st <- get
-      let (t, newCounter) = instantiate scheme (inferCounter st)
+      let (_constraints, t, newCounter) = instantiate scheme (inferCounter st)
+      -- TODO: Track constraints for type class resolution
       modify $ \s -> s { inferCounter = newCounter }
       return t
     Nothing -> do
@@ -234,12 +245,12 @@ inferExpr expr = case expr of
       extractFromArgPattern (APPatVar (VarWithIndices n _)) = n
       extractFromArgPattern _ = "_"
       makeBinding name t = (name, t)
-      toScheme (name, t) = (name, Forall [] t)
+      toScheme (name, t) = (name, Forall [] [] t)
 
   -- Typed lambda expressions
   TypedLambdaExpr params retTypeExpr body -> do
     let paramTypes = map (typeExprToType . snd) params
-        paramBindings = zipWith (\(n, _) t -> (n, Forall [] t)) params paramTypes
+        paramBindings = zipWith (\(n, _) t -> (n, Forall [] [] t)) params paramTypes
     (bodyType, s) <- withEnv paramBindings $ inferExpr body
     let expectedRetType = typeExprToType retTypeExpr
     s' <- unifyTypes (applySubst s bodyType) expectedRetType
@@ -480,7 +491,7 @@ inferExpr expr = case expr of
     -- First, add all bindings with fresh type variables
     freshTypes <- mapM (\_ -> freshVar "letrec") bindings
     let bindingNames = map extractBindingName bindings
-        initialBindings = zip bindingNames (map (Forall []) freshTypes)
+        initialBindings = zip bindingNames (map (Forall [] []) freshTypes)
     -- Infer types with recursive bindings in scope
     s <- withEnv initialBindings $ foldM inferRecBinding emptySubst (zip bindings freshTypes)
     -- Infer body type
@@ -765,7 +776,7 @@ inferExpr expr = case expr of
   -- MemoizedLambda: similar to regular lambda but with memoization
   MemoizedLambdaExpr params body -> do
     paramTypes <- mapM (\p -> freshVar ("memoParam_" ++ p)) params
-    let paramBindings = zipWith (\n t -> (n, Forall [] t)) params paramTypes
+    let paramBindings = zipWith (\n t -> (n, Forall [] [] t)) params paramTypes
     (bodyType, s) <- withEnv paramBindings $ inferExpr body
     let funType = foldr TFun bodyType (map (applySubst s) paramTypes)
     return (funType, s)
@@ -852,7 +863,7 @@ extractDataPatternBindings t pat = go t pat
   where
     go :: Type -> PrimitiveDataPattern -> Infer [(String, TypeScheme)]
     go _ PDWildCard = return []
-    go ty (PDPatVar var) = return [(var, Forall [] ty)]
+    go ty (PDPatVar var) = return [(var, Forall [] [] ty)]
     go _ PDEmptyPat = return []
     go _ (PDConstantPat _) = return []
     go ty (PDTuplePat pats) = do
@@ -1046,7 +1057,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
 
     go _tgt _m ty WildCard = return []
 
-    go _tgt _m ty (PatVar name) = return [(name, Forall [] ty)]
+    go _tgt _m ty (PatVar name) = return [(name, Forall [] [] ty)]
 
     go _tgt _m _ (ValuePat _) = return []
 
@@ -1190,7 +1201,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
     -- - Continuation pattern (p2): matched against target (the whole list/collection type)
     go tgt m ty (LoopPat indexVar (LoopRange _startExpr _endExpr endPat) bodyPat contPat) = do
       -- Loop index variable is Integer
-      let indexBinding = (indexVar, Forall [] TInt)
+      let indexBinding = (indexVar, Forall [] [] TInt)
       
       -- Extract bindings from end pattern (matched against Integer)
       endBindings <- go TInt m TInt endPat
@@ -1213,7 +1224,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
           -- Indexed pattern variable: $h_i -> Hash Integer elemType
           IndexedPat (PatVar name) _indices -> do
             -- Indexed pattern variables are hashes from Integer to element type
-            return [(name, Forall [] (THash TInt ty'))]
+            return [(name, Forall [] [] (THash TInt ty'))]
           
           -- Recurse for other patterns
           IndexedPat p _ -> extractLoopBodyBindings tgt' m' ty' p
@@ -1274,8 +1285,8 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
                 concat <$> zipWithM (\t' p -> extractLoopBodyBindings t' m' t' p) freshTypes pats
           
           -- For simple pattern variables (not indexed), use normal type
-          PatVar name -> return [(name, Forall [] ty')]
-          VarPat name -> return [(name, Forall [] ty')]
+          PatVar name -> return [(name, Forall [] [] ty')]
+          VarPat name -> return [(name, Forall [] [] ty')]
           
           -- Other patterns delegate to go
           _ -> go tgt' m' ty' pat'
@@ -1298,7 +1309,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
           freshTypes <- mapM (\_ -> freshVar "papp") argPats
           concat <$> zipWithM (\t p -> go t m t p) freshTypes argPats
 
-    go _tgt _m ty (VarPat name) = return [(name, Forall [] ty)]
+    go _tgt _m ty (VarPat name) = return [(name, Forall [] [] ty)]
 
     go tgt m ty (InductiveOrPApplyPat name pats) = do
       -- Similar to InductivePat - interpret based on target type
@@ -1445,8 +1456,48 @@ inferTopExpr topExpr = case topExpr of
         let constructorType = foldr TFun resultType argTypes
             -- Quantify over type parameters
             tyVars = map TyVar params
-            scheme = Forall tyVars constructorType
+            scheme = Forall tyVars [] constructorType
         setEnv $ extendEnv ctorName scheme env
+
+  -- Type class declaration
+  -- e.g., class Eq a where (==) (x: a) (y: a) : Bool
+  ClassDeclExpr (ClassDecl classNm [typeParam] _supers methods) -> do
+    env <- getEnv
+    -- Register each class method to the type environment
+    -- Methods have a constrained polymorphic type: ClassName a => methodType
+    let tyVar = TyVar typeParam
+        constraint = Types.Constraint classNm (TVar tyVar)
+    mapM_ (registerClassMethod env tyVar [constraint]) methods
+    where
+      registerClassMethod :: TypeEnv -> TyVar -> [Types.Constraint] -> ClassMethod -> Infer ()
+      registerClassMethod env tyVar constraints (ClassMethod methName params retType _defaultImpl) = do
+        -- Build the method type from parameters and return type
+        let paramTypes = map typedParamToType params
+            methodType = foldr TFun (typeExprToType retType) paramTypes
+            scheme = Forall [tyVar] constraints methodType
+        setEnv $ extendEnv methName scheme env
+
+  ClassDeclExpr _ -> return ()  -- Unsupported class declaration format
+
+  -- Type class instance declaration
+  -- e.g., instance Eq Integer where (==) x y := x = y
+  InstanceDeclExpr (InstanceDecl context className instTypes _methods) -> do
+    -- Register the instance in the class environment
+    -- Note: instType expects a single Type, so we take the head (main instance type)
+    let mainInstType = case instTypes of
+          []    -> TAny
+          (t:_) -> typeExprToType t
+        instInfo = InstanceInfo 
+          { instContext = map constraintToInternal context
+          , instClass   = className
+          , instType    = mainInstType
+          , instMethods = []  -- Placeholder, methods handled by desugar
+          }
+    modifyClassEnv $ addInstance className instInfo
+    return ()
+    where
+      constraintToInternal (AST.ConstraintExpr clsName tyExprs) =
+        Types.Constraint clsName (case tyExprs of { [] -> TAny; (t:_) -> typeExprToType t })
 
 -- | Register algebraic data constructors to the type environment
 -- For example, `def ordering := algebraicDataMatcher | less | equal | greater`
@@ -1469,7 +1520,7 @@ registerAlgebraicConstructors defName (AlgebraicDataMatcherExpr constructors) = 
       -- For now, we use TAny for argument types since we don't have full type info
       let argTypes = replicate (length argExprs) TAny
           constructorType = foldr TFun resultType argTypes
-          scheme = Forall [] constructorType
+          scheme = Forall [] [] constructorType
       setEnv $ extendEnv constructorName scheme env
     
     capitalizeFirst :: String -> String
@@ -1490,10 +1541,10 @@ extractTypedParamBindings :: [TypedParam] -> [(String, TypeScheme)]
 extractTypedParamBindings = concatMap extractFromParam
   where
     extractFromParam :: TypedParam -> [(String, TypeScheme)]
-    extractFromParam (TPVar name ty) = [(name, Forall [] (typeExprToType ty))]
+    extractFromParam (TPVar name ty) = [(name, Forall [] [] (typeExprToType ty))]
     extractFromParam (TPTuple elems) = concatMap extractFromParam elems
     extractFromParam (TPWildcard _) = []  -- Wildcards don't bind variables
-    extractFromParam (TPUntypedVar name) = [(name, Forall [] TAny)]
+    extractFromParam (TPUntypedVar name) = [(name, Forall [] [] TAny)]
     extractFromParam TPUntypedWildcard = []
 
 -- | Load a file and infer types for its contents

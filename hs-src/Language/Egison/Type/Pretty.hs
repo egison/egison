@@ -17,6 +17,7 @@ import           Data.List                  (intercalate)
 
 import           Language.Egison.AST        (ShapeDim (..), TensorIndexExpr (..), TensorShapeExpr (..),
                                              TypeExpr (..))
+import           Language.Egison.Type.Types (Constraint(..))
 import           Language.Egison.Type.Index (Index (..), IndexKind (..), IndexSpec)
 import           Language.Egison.Type.Types (ShapeDimType (..), TensorShape (..), TyVar (..), Type (..),
                                              TypeScheme (..))
@@ -64,9 +65,23 @@ prettyTypeAtom t            = "(" ++ prettyType t ++ ")"
 
 -- | Pretty print a TypeScheme
 prettyTypeScheme :: TypeScheme -> String
-prettyTypeScheme (Forall [] t) = prettyType t
-prettyTypeScheme (Forall vs t) =
+prettyTypeScheme (Forall [] [] t) = prettyType t
+prettyTypeScheme (Forall [] cs t) =
+  prettyConstraints cs ++ " => " ++ prettyType t
+prettyTypeScheme (Forall vs [] t) =
   "∀" ++ unwords (map (\(TyVar v) -> v) vs) ++ ". " ++ prettyType t
+prettyTypeScheme (Forall vs cs t) =
+  "∀" ++ unwords (map (\(TyVar v) -> v) vs) ++ ". " ++ prettyConstraints cs ++ " => " ++ prettyType t
+
+-- | Pretty print constraints
+prettyConstraints :: [Constraint] -> String
+prettyConstraints []  = ""
+prettyConstraints [c] = prettyConstraint c
+prettyConstraints cs  = "(" ++ intercalate ", " (map prettyConstraint cs) ++ ")"
+
+-- | Pretty print a single constraint
+prettyConstraint :: Constraint -> String
+prettyConstraint (Constraint cls ty) = cls ++ " " ++ prettyTypeAtom ty
 
 -- | Pretty print a TensorShape
 prettyTensorShape :: TensorShape -> String

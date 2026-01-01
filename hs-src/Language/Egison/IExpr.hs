@@ -39,6 +39,7 @@ import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMM
 
 data ITopExpr
   = IDefine Var IExpr
+  | IDefineMany [(Var, IExpr)]  -- Multiple definitions (for type class instances)
   | ITest IExpr
   | IExecute IExpr
   | ILoadFile String

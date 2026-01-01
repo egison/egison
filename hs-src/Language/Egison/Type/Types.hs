@@ -13,6 +13,9 @@ module Language.Egison.Type.Types
   , TyVar(..)
   , TensorShape(..)
   , ShapeDimType(..)
+  , Constraint(..)
+  , ClassInfo(..)
+  , InstanceInfo(..)
   , freshTyVar
   , freeTyVars
   , isTensorType
@@ -73,9 +76,31 @@ data Type
 tMathExpr :: Type
 tMathExpr = TInt
 
--- | Type scheme for polymorphic types (∀a. Type)
-data TypeScheme = Forall [TyVar] Type
+-- | Type scheme for polymorphic types (∀a. C a => Type)
+-- Includes type constraints for type class support
+data TypeScheme = Forall [TyVar] [Constraint] Type
   deriving (Eq, Show, Generic)
+
+-- | Type class constraint, e.g., "Eq a"
+data Constraint = Constraint
+  { constraintClass :: String  -- ^ Class name, e.g., "Eq"
+  , constraintType  :: Type    -- ^ Type argument, e.g., TVar "a"
+  } deriving (Eq, Show, Generic)
+
+-- | Information about a type class
+data ClassInfo = ClassInfo
+  { classSupers  :: [String]           -- ^ Superclass names
+  , classParam   :: TyVar              -- ^ Type parameter (e.g., 'a' in "class Eq a")
+  , classMethods :: [(String, Type)]   -- ^ Method names and their types
+  } deriving (Eq, Show, Generic)
+
+-- | Information about a type class instance
+data InstanceInfo = InstanceInfo
+  { instContext :: [Constraint]        -- ^ Instance context (e.g., "Eq a" in "Eq a => Eq [a]")
+  , instClass   :: String              -- ^ Class name
+  , instType    :: Type                -- ^ Instance type
+  , instMethods :: [(String, ())]      -- ^ Method implementations (placeholder for now)
+  } deriving (Eq, Show, Generic)
 
 -- | Generate a fresh type variable with a given prefix
 freshTyVar :: String -> Int -> TyVar

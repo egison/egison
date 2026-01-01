@@ -12,6 +12,7 @@ module Language.Egison.Primitives.Types
 
 import           Data.Char                        (chr, ord)
 import           Data.Ratio                       ((%))
+import qualified Data.Text                        as T
 
 import           Language.Egison.Data
 import           Language.Egison.Math
@@ -42,6 +43,7 @@ lazyPrimitives =
   , ("isCollection", lazyOneArg isCollection)
   , ("isHash",       lazyOneArg isHash)
   , ("isTensor",     lazyOneArg isTensor)
+  , ("typeName",     lazyOneArg typeName)
   ]
 
 --
@@ -96,6 +98,30 @@ isHash (IIntHash _)         = return . Value $ Bool True
 isHash (ICharHash _)        = return . Value $ Bool True
 isHash (IStrHash _)         = return . Value $ Bool True
 isHash _                    = return . Value $ Bool False
+
+-- | Get the type name of a value as a string
+-- This is used for type class instance resolution
+typeName :: WHNFData -> EvalM WHNFData
+typeName (Value (Bool _))         = return . Value $ String (T.pack "Bool")
+typeName (Value (ScalarData (Div (Plus []) (Plus [Term 1 []]))))          = return . Value $ String (T.pack "Integer")
+typeName (Value (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []])))) = return . Value $ String (T.pack "Integer")
+typeName (Value (ScalarData _))   = return . Value $ String (T.pack "MathExpr")
+typeName (Value (Float _))        = return . Value $ String (T.pack "Float")
+typeName (Value (Char _))         = return . Value $ String (T.pack "Char")
+typeName (Value (String _))       = return . Value $ String (T.pack "String")
+typeName (Value (Collection _))   = return . Value $ String (T.pack "List")
+typeName (ICollection _)          = return . Value $ String (T.pack "List")
+typeName (Value (Tuple _))        = return . Value $ String (T.pack "Tuple")
+typeName (Value (IntHash _))      = return . Value $ String (T.pack "Hash")
+typeName (Value (CharHash _))     = return . Value $ String (T.pack "Hash")
+typeName (Value (StrHash _))      = return . Value $ String (T.pack "Hash")
+typeName (IIntHash _)             = return . Value $ String (T.pack "Hash")
+typeName (ICharHash _)            = return . Value $ String (T.pack "Hash")
+typeName (IStrHash _)             = return . Value $ String (T.pack "Hash")
+typeName (Value (TensorData _))   = return . Value $ String (T.pack "Tensor")
+typeName (ITensor _)              = return . Value $ String (T.pack "Tensor")
+typeName (Value (InductiveData name _)) = return . Value $ String (T.pack name)
+typeName _                        = return . Value $ String (T.pack "Unknown")
 
 --
 -- Transform

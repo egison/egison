@@ -1,0 +1,231 @@
+--
+-- Type Class Tests
+--
+
+--
+-- Test 1: Basic class and instance definition
+--
+
+class Eq a where
+  (==) (x: a) (y: a) : Bool
+  (/=) (x: a) (y: a) : Bool
+
+instance Eq Integer where
+  (==) x y := x = y
+  (/=) x y := not (x = y)
+
+-- Test direct method call
+assertEqual "eqIntegerEq 1 1" (eqIntegerEq 1 1) True
+assertEqual "eqIntegerEq 1 2" (eqIntegerEq 1 2) False
+assertEqual "eqIntegerNeq 1 1" (eqIntegerNeq 1 1) False
+assertEqual "eqIntegerNeq 1 2" (eqIntegerNeq 1 2) True
+
+-- Test dictionary access
+assertEqual "eqInteger dict eq" (eqInteger_"eq" 5 5) True
+assertEqual "eqInteger dict neq" (eqInteger_"neq" 5 6) True
+
+-- Test class wrapper (dictionary-passing style)
+assertEqual "classEqEq wrapper" (classEqEq eqInteger 10 10) True
+assertEqual "classEqNeq wrapper" (classEqNeq eqInteger 10 20) True
+
+--
+-- Test 2: Multiple instances for the same class
+--
+
+instance Eq String where
+  (==) x y := x = y
+  (/=) x y := not (x = y)
+
+assertEqual "eqStringEq" (eqStringEq "hello" "hello") True
+assertEqual "eqStringEq diff" (eqStringEq "hello" "world") False
+assertEqual "classEqEq String" (classEqEq eqString "foo" "foo") True
+
+--
+-- Test 3: Multiple type classes
+--
+
+class Ord a where
+  compare (x: a) (y: a) : Integer
+  (<) (x: a) (y: a) : Bool
+  (>) (x: a) (y: a) : Bool
+
+instance Ord Integer where
+  compare x y := if x < y then -1 else if x > y then 1 else 0
+  (<) x y := x < y
+  (>) x y := x > y
+
+assertEqual "ordIntegerCompare lt" (ordIntegerCompare 3 5) (-1)
+assertEqual "ordIntegerCompare eq" (ordIntegerCompare 5 5) 0
+assertEqual "ordIntegerCompare gt" (ordIntegerCompare 7 5) 1
+assertEqual "ordIntegerLt" (ordIntegerLt 3 5) True
+assertEqual "ordIntegerGt" (ordIntegerGt 7 5) True
+
+-- Test class wrapper for Ord
+assertEqual "classOrdCompare" (classOrdCompare ordInteger 1 2) (-1)
+assertEqual "classOrdLt" (classOrdLt ordInteger 1 2) True
+assertEqual "classOrdGt" (classOrdGt ordInteger 3 2) True
+
+--
+-- Test 4: Instance for Float
+--
+
+instance Eq Float where
+  (==) x y := x = y
+  (/=) x y := not (x = y)
+
+assertEqual "eqFloatEq" (eqFloatEq 1.5 1.5) True
+assertEqual "eqFloatEq diff" (eqFloatEq 1.5 2.5) False
+
+--
+-- Test 5: Instance for Bool
+--
+
+instance Eq Bool where
+  (==) x y := x = y
+  (/=) x y := not (x = y)
+
+assertEqual "eqBoolEq true" (eqBoolEq True True) True
+assertEqual "eqBoolEq false" (eqBoolEq False False) True
+assertEqual "eqBoolEq diff" (eqBoolEq True False) False
+
+--
+-- Test 6: Using type class methods in higher-order functions
+--
+
+def areEqual dict x y := classEqEq dict x y
+
+assertEqual "higher-order eq" (areEqual eqInteger 42 42) True
+assertEqual "higher-order eq diff" (areEqual eqInteger 42 43) False
+assertEqual "higher-order eq string" (areEqual eqString "test" "test") True
+
+--
+-- Test 7: Composing class methods
+--
+
+def allEqual dict xs :=
+  match xs as list something with
+    | [] -> True
+    | [$x] -> True
+    | $x :: $y :: $rest -> 
+        if classEqEq dict x y
+          then allEqual dict (y :: rest)
+          else False
+
+assertEqual "allEqual empty" (allEqual eqInteger []) True
+assertEqual "allEqual single" (allEqual eqInteger [1]) True
+assertEqual "allEqual same" (allEqual eqInteger [1, 1, 1]) True
+assertEqual "allEqual diff" (allEqual eqInteger [1, 2, 1]) False
+
+--
+-- Test 8: Custom method names (non-operator)
+--
+
+class Show a where
+  show (x: a) : String
+
+instance Show Integer where
+  show x := show x
+
+assertEqual "showIntegerShow" (showIntegerShow 42) "42"
+assertEqual "classShowShow" (classShowShow showInteger 123) "123"
+
+--
+-- Test 9: Multiple methods with different arities
+--
+
+class Container a where
+  isEmpty (c: a) : Bool
+  size (c: a) : Integer
+
+instance Container [a] where
+  isEmpty xs := isEmpty xs
+  size xs := length xs
+
+assertEqual "containerListIsEmpty empty" (containerListIsEmpty []) True
+assertEqual "containerListIsEmpty nonempty" (containerListIsEmpty [1, 2]) False
+assertEqual "containerListSize" (containerListSize [1, 2, 3]) 3
+assertEqual "classContainerIsEmpty" (classContainerIsEmpty containerList []) True
+assertEqual "classContainerSize" (classContainerSize containerList [1, 2, 3, 4]) 4
+
+--
+-- Test 10: Auto-dispatch using typeName and resolveEq
+--
+
+-- Load the typeclass library
+loadFile "lib/core/typeclass.egi"
+
+-- Test typeName function
+assertEqual "typeName Integer" (typeName 42) "Integer"
+assertEqual "typeName Float" (typeName 3.14) "Float"
+assertEqual "typeName String" (typeName "test") "String"
+assertEqual "typeName Bool" (typeName True) "Bool"
+assertEqual "typeName List" (typeName [1, 2]) "List"
+
+-- Test auto-dispatch with resolveEq
+assertEqual "autoEq Integer same" (autoEq 1 1) True
+assertEqual "autoEq Integer diff" (autoEq 1 2) False
+assertEqual "autoEq Float same" (autoEq 1.5 1.5) True
+assertEqual "autoEq String same" (autoEq "hello" "hello") True
+assertEqual "autoEq String diff" (autoEq "hello" "world") False
+assertEqual "autoEq Bool same" (autoEq True True) True
+assertEqual "autoEq Bool diff" (autoEq True False) False
+
+-- Test autoNeq
+assertEqual "autoNeq Integer diff" (autoNeq 1 2) True
+assertEqual "autoNeq Integer same" (autoNeq 1 1) False
+
+--
+-- Test 11: Auto-dispatch for Ord class
+--
+
+-- Add more Ord instances for auto-dispatch testing
+instance Ord Float where
+  compare x y := if x < y then -1 else if x > y then 1 else 0
+  (<) x y := x < y
+  (>) x y := x > y
+
+-- Test resolveOrd and auto-dispatch
+assertEqual "autoCompare Integer lt" (autoCompare 1 2) (-1)
+assertEqual "autoCompare Integer eq" (autoCompare 5 5) 0
+assertEqual "autoCompare Integer gt" (autoCompare 7 3) 1
+assertEqual "autoCompare Float lt" (autoCompare 1.0 2.0) (-1)
+
+-- Test autoLt and autoGt
+assertEqual "autoLt Integer" (autoLt 3 5) True
+assertEqual "autoLt Integer false" (autoLt 5 3) False
+assertEqual "autoGt Integer" (autoGt 5 3) True
+assertEqual "autoGt Integer false" (autoGt 3 5) False
+assertEqual "autoLt Float" (autoLt 1.5 2.5) True
+assertEqual "autoGt Float" (autoGt 2.5 1.5) True
+
+--
+-- Test 12: Verify that all instances are correctly generated
+--
+
+-- Verify dictionary names follow the convention: <lowerClassName><TypeName>
+-- eqInteger, eqFloat, eqString, eqBool
+-- ordInteger, ordFloat
+
+-- Test that dictionaries contain the expected methods
+assertEqual "eqInteger has eq" (eqInteger_"eq" 1 1) True
+assertEqual "eqFloat has eq" (eqFloat_"eq" 1.0 1.0) True
+assertEqual "eqString has eq" (eqString_"eq" "x" "x") True
+assertEqual "eqBool has eq" (eqBool_"eq" True True) True
+
+assertEqual "ordInteger has compare" (ordInteger_"compare" 1 2) (-1)
+assertEqual "ordFloat has compare" (ordFloat_"compare" 1.0 2.0) (-1)
+
+--
+-- Test 13: Mixed usage - using both explicit dict and auto-dispatch
+--
+
+def compareWithDict dict x y := classOrdCompare dict x y
+def compareAuto x y := autoCompare x y
+
+assertEqual "explicit dict compare" (compareWithDict ordInteger 10 20) (-1)
+assertEqual "auto compare same value" (compareAuto 10 20) (-1)
+
+-- Both should give the same result
+assertEqual "explicit vs auto consistency" 
+  (compareWithDict ordInteger 5 5 = compareAuto 5 5) True
+

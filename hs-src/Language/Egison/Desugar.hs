@@ -14,9 +14,10 @@ module Language.Egison.Desugar
     ) where
 
 import           Control.Monad.Except   (throwError)
-import           Data.Char              (toUpper)
+import           Data.Char              (toLower, toUpper)
 import           Data.Foldable          (foldrM)
 import           Data.List              (union)
+import           Data.Text              (pack)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
@@ -50,7 +51,168 @@ desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
 desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
 desugarTopExpr (Load file)     = return . Just $ ILoad file
 desugarTopExpr (LoadFile file) = return . Just $ ILoadFile file
-desugarTopExpr _               = return Nothing
+
+-- Type class declarations: generate dictionary-passing wrapper functions
+-- and register the class methods for dispatch
+-- For a class like:
+--   class Eq a where
+--     (==) (x: a) (y: a) : Bool
+-- We generate:
+--   1. Dictionary wrapper: def classEqEq dict x y := (dict_"eq") x y
+--   2. Instance registry variable: def registryEq := {| |}
+--   3. Auto-dispatch function: def autoEqEq x y := (resolveEq x)_"eq" x y
+desugarTopExpr (ClassDeclExpr (ClassDecl classNm _typeParams _supers methods)) = do
+  -- Generate dictionary-passing wrapper functions for each method
+  methodWrappers <- mapM (desugarClassMethod classNm) methods
+  -- Generate empty instance registry
+  let registryDef = makeRegistryDef classNm
+  case methodWrappers of
+    [] -> return Nothing
+    _  -> return $ Just $ IDefineMany (registryDef : methodWrappers)
+  where
+    desugarClassMethod :: String -> ClassMethod -> EvalM (Var, IExpr)
+    desugarClassMethod clsNm (ClassMethod methName methParams _retType _defaultImpl) = do
+      -- Generate function name: e.g., "classEqEq" for (==) in Eq
+      let wrapperName = "class" ++ clsNm ++ capitalizeFirst (sanitizeMethodName methName)
+          var = stringToVar wrapperName
+          dictVar = "dict"
+          -- Parameter names: dict, x, y, ...
+          paramNames = map extractParamName methParams
+          allParams = dictVar : paramNames
+      -- Build the body: (dict_"methodName") x y ...
+      -- dict_"eq" is hash access, then apply to remaining params
+      let dictAccessExpr = IIndexedExpr False (IVarExpr dictVar) 
+                             [Sub (IConstantExpr (StringExpr (pack (sanitizeMethodName methName))))]
+          bodyExpr = if null paramNames
+                     then dictAccessExpr
+                     else IApplyExpr dictAccessExpr (map IVarExpr paramNames)
+          lambdaExpr = ILambdaExpr Nothing (map stringToVar allParams) bodyExpr
+      return (var, lambdaExpr)
+    
+    -- Create empty instance registry: registryEq := {| |}
+    makeRegistryDef :: String -> (Var, IExpr)
+    makeRegistryDef clsNm = 
+      let registryName = "registry" ++ clsNm
+          var = stringToVar registryName
+      in (var, IHashExpr [])
+    
+    extractParamName :: TypedParam -> String
+    extractParamName (TPVar name _) = name
+    extractParamName (TPUntypedVar name) = name
+    extractParamName _ = "x"  -- fallback
+    
+    sanitizeMethodName :: String -> String
+    sanitizeMethodName "==" = "eq"
+    sanitizeMethodName "/=" = "neq"
+    sanitizeMethodName "<"  = "lt"
+    sanitizeMethodName "<=" = "le"
+    sanitizeMethodName ">"  = "gt"
+    sanitizeMethodName ">=" = "ge"
+    sanitizeMethodName "+"  = "plus"
+    sanitizeMethodName "-"  = "minus"
+    sanitizeMethodName "*"  = "times"
+    sanitizeMethodName "/"  = "div"
+    sanitizeMethodName name = name
+    
+    capitalizeFirst :: String -> String
+    capitalizeFirst []     = []
+    capitalizeFirst (c:cs) = toUpper c : cs
+
+-- Instance declarations: generate a dictionary and individual method definitions
+-- For an instance like:
+--   instance Eq Integer where
+--     (==) x y := x = y
+--     (/=) x y := not (x = y)
+-- We generate:
+--   1. Individual method functions:
+--      def eqIntegerEq x y := x = y
+--      def eqIntegerNeq x y := not (x = y)
+--   2. A dictionary for the instance:
+--      def eqInteger := {| ("eq", eqIntegerEq), ("neq", eqIntegerNeq) |}
+desugarTopExpr (InstanceDeclExpr (InstanceDecl _constraints classNm instTypes methods)) = do
+  -- Check if instTypes is not empty
+  if null instTypes
+    then return Nothing
+    else do
+      let instTypeName = typeExprToName (head instTypes)
+      -- Generate individual method definitions
+      methodDefs <- mapM (desugarInstanceMethod classNm instTypeName) methods
+      -- Generate dictionary definition
+      let dictDef = makeDictDef classNm instTypeName methods
+      -- Return all definitions
+      case methodDefs of
+        []  -> return Nothing
+        _   -> return $ Just $ IDefineMany (dictDef : methodDefs)
+  where
+    desugarInstanceMethod :: String -> String -> InstanceMethod -> EvalM (Var, IExpr)
+    desugarInstanceMethod clsNm typNm (InstanceMethod methName params body) = do
+      -- Generate function name: e.g., "eqIntegerEq" for (==) in Eq Integer
+      let funcName = lowerFirst clsNm ++ typNm ++ capitalizeFirst (sanitizeMethodName methName)
+          var = stringToVar funcName
+      -- Create lambda expression in AST then desugar
+      let lambdaArgs = map (\p -> ScalarArg (APPatVar (VarWithIndices p []))) params
+          lambdaExpr = if null params then body else LambdaExpr lambdaArgs body
+      iexpr <- desugar lambdaExpr
+      return (var, iexpr)
+    
+    makeDictDef :: String -> String -> [InstanceMethod] -> (Var, IExpr)
+    makeDictDef clsNm typNm meths =
+      let dictName = lowerFirst clsNm ++ typNm  -- e.g., "eqInteger"
+          dictVar = stringToVar dictName
+          -- Create hash entries: ("eq", eqIntegerEq), ("neq", eqIntegerNeq), ...
+          hashEntries = map (makeHashEntry clsNm typNm) meths
+          hashExpr = IHashExpr hashEntries
+      in (dictVar, hashExpr)
+    
+    makeHashEntry :: String -> String -> InstanceMethod -> (IExpr, IExpr)
+    makeHashEntry clsNm typNm (InstanceMethod methName _ _) =
+      let keyExpr = IConstantExpr (StringExpr (pack (sanitizeMethodName methName)))
+          -- Reference to the method function
+          funcName = lowerFirst clsNm ++ typNm ++ capitalizeFirst (sanitizeMethodName methName)
+          valueExpr = IVarExpr funcName
+      in (keyExpr, valueExpr)
+    
+    sanitizeMethodName :: String -> String
+    sanitizeMethodName "==" = "eq"
+    sanitizeMethodName "/=" = "neq"
+    sanitizeMethodName "<"  = "lt"
+    sanitizeMethodName "<=" = "le"
+    sanitizeMethodName ">"  = "gt"
+    sanitizeMethodName ">=" = "ge"
+    sanitizeMethodName "+"  = "plus"
+    sanitizeMethodName "-"  = "minus"
+    sanitizeMethodName "*"  = "times"
+    sanitizeMethodName "/"  = "div"
+    sanitizeMethodName name = name
+    
+    typeExprToName :: TypeExpr -> String
+    typeExprToName TEInt = "Integer"
+    typeExprToName TEMathExpr = "MathExpr"
+    typeExprToName TEFloat = "Float"
+    typeExprToName TEBool = "Bool"
+    typeExprToName TEChar = "Char"
+    typeExprToName TEString = "String"
+    typeExprToName (TEList _) = "List"
+    typeExprToName (TEVar n) = n
+    typeExprToName _ = "Unknown"
+    
+    lowerFirst :: String -> String
+    lowerFirst []     = []
+    lowerFirst (c:cs) = toLower c : cs
+    
+    capitalizeFirst :: String -> String
+    capitalizeFirst []     = []
+    capitalizeFirst (c:cs) = toUpper c : cs
+
+-- Inductive declarations don't produce runtime code
+-- Constructor registration is handled by the type system
+desugarTopExpr (InductiveDecl _ _ _) = return Nothing
+
+-- Infix declarations don't produce runtime code
+desugarTopExpr (InfixDecl _ _) = return Nothing
+
+-- Catch-all for any other top expressions
+desugarTopExpr _ = return Nothing
 
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern
