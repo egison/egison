@@ -15,40 +15,69 @@ def e_i_j := ∂/∂ X_j x~i
 def g_i_j := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [5, 5]
 def g~i~j := M.inverse g_#_#
 
+assertEqual "Metric tensor g_1_#"
+  g_1_#
+  [| r^2, 0, 0, 0, 0 |]_#
+assertEqual "Metric tensor g_2_#"
+  g_2_#
+  [| 0, r^2 * (sin θ)^2, 0, 0, 0 |]_#
+
 -- Christoffel symbols
 def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 def Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
 
+assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
+  Γ~1_#_#
+  [| [| 0, 0, 0, 0, 0 |]
+   , [| 0, -1 * sin θ * cos θ, 0, 0, 0 |]
+   , [| 0, 0, -1 * sin θ * cos θ * (sin φ)^2, 0, 0 |]
+   , [| 0, 0, 0, -1 * sin θ * cos θ * (sin φ)^2 * (sin ψ)^2, 0 |]
+   , [| 0, 0, 0, 0, -1 * sin θ * cos θ * (sin φ)^2 * (sin ψ)^2 * (sin η)^2 |]
+   |]_#_#
+assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
+  Γ~2_#_#
+  [| [| 0, (cos θ) / (sin θ), 0, 0, 0 |]
+   , [| (cos θ) / (sin θ), 0, 0, 0, 0 |]
+   , [| 0, 0, -1 * sin φ * cos φ, 0, 0 |]
+   , [| 0, 0, 0, -1 * sin φ * cos φ * (sin ψ)^2, 0 |]
+   , [| 0, 0, 0, 0, -1 * sin φ * cos φ * (sin ψ)^2 * (sin η)^2 |]
+   |]_#_#
+
 -- Riemann curvature
 def R~i_j_k_l := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
-
---R~#_#_#_#
-
---def R_a_b_c_d := withSymbols [i] g_a_i . R~i_b_c_d
 
 -- Ricci curvature
 def Ric_a_b := withSymbols [m, n]
   sum (contract (R~m_a_m_b))
 
-Ric_#_#
+assertEqual "Ricci curvature Ric_1_#"
+  Ric_1_#
+  [| 4, 0, 0, 0, 0 |]_#
+assertEqual "Ricci curvature Ric_2_#"
+  Ric_2_#
+  [| 0, 4 * (sin θ)^2, 0, 0, 0 |]_#
 
 -- Scalar curvature
 def scalarCurvature := withSymbols [i, j]
   g~i~j . Ric_i_j
 
--- Conformal curvature tensor
+assertEqual "scalar curvature"
+  scalarCurvature
+  (20 / r^2)
+
+-- Riemann curvature with all lower indices
+def R_a_b_c_d := withSymbols [i] g_a_i . R~i_b_c_d
+
+-- Conformal curvature tensor (Weyl tensor)
 def C_i_k_l_m := R_i_k_l_m +
                  (Ric_i_m . g_k_l - Ric_i_l . g_k_m + Ric_k_l . g_i_m - Ric_k_m . g_i_l) +
                  (scalarCurvature / 2) * (g_i_l . g_k_m - g_i_m . g_k_l)
---C_#_#_#_#
 
 -- Wodzicki-Chern-Simons class
 def S :=
  let (es, os) := evenAndOddPermutations 5 in
    sum (map (\σ -> R~u_1_s_(σ 1) . R~s_t_(σ 3)_(σ 2) . R~t_u_(σ 5)_(σ 4)) es) -
    sum (map (\σ -> R~u_1_s_(σ 1) . R~s_t_(σ 3)_(σ 2) . R~t_u_(σ 5)_(σ 4)) os)
-
---S

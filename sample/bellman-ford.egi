@@ -1,3 +1,5 @@
+-- Bellman-Ford algorithm for shortest paths
+
 -- initiate a distance graph
 def A :=
   [|[|0, 19, 36, 66, 99, 65|]
@@ -10,11 +12,12 @@ def A :=
 def G.* t1 t2 := withSymbols [i]
   reduce min (contract (t1~#_i + t2~i_#))
 
-match iterate (\P -> G.* P A) A as list something with
-  | _ ++ $P :: #P :: _ -> P
--- [|[|  0, 19, 36, 66, 59, 50 |]
---   [| 19,  0, 25, 59, 40, 31 |]
---   [| 36, 25,  0, 57, 37, 28 |]
---   [| 66, 59, 57,  0, 38, 29 |]
---   [| 59, 40, 37, 38,  0,  9 |]
---   [| 50, 31, 28, 29,  9,  0 |]|]
+assertEqual "all-pairs shortest paths"
+  (match iterate (\P -> G.* P A) A as list something with
+    | _ ++ $P :: #P :: _ -> P)
+  [|[|  0, 19, 36, 66, 59, 50 |]
+  , [| 19,  0, 25, 59, 40, 31 |]
+  , [| 36, 25,  0, 57, 37, 28 |]
+  , [| 66, 59, 57,  0, 38, 29 |]
+  , [| 59, 40, 37, 38,  0,  9 |]
+  , [| 50, 31, 28, 29,  9,  0 |]|]

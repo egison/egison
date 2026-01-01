@@ -1,3 +1,5 @@
+-- Cubic Formula (Cardano's formula)
+
 def cubicFormula := cF
 
 def cF f x :=
@@ -17,13 +19,13 @@ def cF' a b c d :=
 
 def w := ((-1) + i * sqrt 3) / 2
 
+-- Solution for x^3 + p*x + q = 0 (depressed cubic)
 (3)#%1 (cF (x ^ 3 + p * x + q) x)
--- (rt 3 12 * rt 3 (-9 * q + sqrt 3 * sqrt (27 * q^2 + 4 * p^3)) + rt 3 12 * rt 3 (-9 * q - sqrt 3 * sqrt (27 * q^2 + 4 * p^3))) / 6
 
-cF ((x - 1) * (x - 2) * (x - 3)) x
--- (2, (- sqrt 3 * rt 3 (3 * sqrt 3) + 6) / 3, (sqrt 3 * rt 3 (3 * sqrt 3) + 6) / 3)
+-- Verify: (x-1)(x-2)(x-3) = x^3 - 6x^2 + 11x - 6
+assertEqual "cubic (x-1)(x-2)(x-3)"
+  (cF ((x - 1) * (x - 2) * (x - 3)) x)
+  (2, (- sqrt 3 * rt 3 (3 * sqrt 3) + 6) / 3, (sqrt 3 * rt 3 (3 * sqrt 3) + 6) / 3)
 
+-- General form
 (3)#%1 (cF (a * x ^ 3 + b * x ^ 2 + c * x + d) x)
--- (rt 3 4 * rt 3 (-2 * b^3 + 9 * a * c * b - 27 * a^2 * d + 3 * a * sqrt 3 * sqrt (4 * d * b^3 - c^2 * b^2 - 18 * a * d * c * b + 27 * a^2 * d^2 + 4 * a * c^3)) + rt 3 4 * rt 3 (-2 * b^3 + 9 * a * c * b - 27 * a^2 * d - 3 * a * sqrt 3 * sqrt (4 * d * b^3 - c^2 * b^2 - 18 * a * d * c * b + 27 * a^2 * d^2 + 4 * a * c^3)) - 2 * b) / (6 * a)
-
-

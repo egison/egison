@@ -26,4 +26,6 @@ def Γ~i_j_k := withSymbols [i, j, k, l]
 def Laplacian := withSymbols [i, j, k]
   g~i~j . ∂/∂ (∂/∂ (f r θ φ) x~j) x~i - g~i~j . Γ~k_i_j . ∂/∂ (f r θ φ) x~k
 
-Laplacian
+assertEqual "Laplacian in spherical coordinates"
+  Laplacian
+  (f|1|1 r θ φ + 2 * f|1 r θ φ / r + f|2|2 r θ φ / r^2 + cos θ * f|2 r θ φ / (r^2 * sin θ) + f|3|3 r θ φ / (r^2 * (sin θ)^2))

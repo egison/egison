@@ -24,13 +24,47 @@ def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k
 def Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
 
+assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
+  Γ~1_#_#
+  [| [| 0, 0, 0 |], [| 0, -1 * sin θ * cos θ, 0 |], [| 0, 0, -1 * sin θ * cos θ * (sin φ)^2 |] |]_#_#
+assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
+  Γ~2_#_#
+  [| [| 0, (cos θ) / (sin θ), 0 |], [| (cos θ) / (sin θ), 0, 0 |], [| 0, 0, -1 * sin φ * cos φ |] |]_#_#
+assertEqual "Christoffel symbols of the second kind Γ~3_#_#"
+  Γ~3_#_#
+  [| [| 0, 0, (cos θ) / (sin θ) |], [| 0, 0, (cos φ) / (sin φ) |], [| (cos θ) / (sin θ), (cos φ) / (sin φ), 0 |] |]_#_#
+
 -- Riemann curvature
 def R~i_j_k_l := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
+assertEqual "Riemann curvature R~#_#_1_1"
+  R~#_#_1_1
+  [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~#_#
 assertEqual "Riemann curvature R~#_#_1_2"
   R~#_#_1_2
   [| [| 0, (sin θ)^2, 0 |], [| -1, 0, 0 |], [| 0, 0, 0 |] |]~#_#
+assertEqual "Riemann curvature R~#_#_1_3"
+  R~#_#_1_3
+  [| [| 0, 0, (sin θ)^2 * (sin φ)^2 |], [| 0, 0, 0 |], [| -1, 0, 0 |] |]~#_#
+assertEqual "Riemann curvature R~#_#_2_1"
+  R~#_#_2_1
+  [| [| 0, -1 * (sin θ)^2, 0 |], [| 1, 0, 0 |], [| 0, 0, 0 |] |]~#_#
+assertEqual "Riemann curvature R~#_#_2_2"
+  R~#_#_2_2
+  [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~#_#
+assertEqual "Riemann curvature R~#_#_2_3"
+  R~#_#_2_3
+  [| [| 0, 0, 0 |], [| 0, 0, (sin φ)^2 |], [| 0, -1, 0 |] |]~#_#
+assertEqual "Riemann curvature R~#_#_3_1"
+  R~#_#_3_1
+  [| [| 0, 0, -1 * (sin θ)^2 * (sin φ)^2 |], [| 0, 0, 0 |], [| 1, 0, 0 |] |]~#_#
+assertEqual "Riemann curvature R~#_#_3_2"
+  R~#_#_3_2
+  [| [| 0, 0, 0 |], [| 0, 0, -1 * (sin φ)^2 |], [| 0, 1, 0 |] |]~#_#
+assertEqual "Riemann curvature R~#_#_3_3"
+  R~#_#_3_3
+  [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~#_#
 
 -- Ricci curvature
 def Ric_i_j := withSymbols [m]

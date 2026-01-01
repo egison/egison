@@ -77,9 +77,13 @@ def add x xs := matchDFS xs as list (integer, integer) with
   | _ -> (x, 1) :: xs
 
 
-"move"
-move (1, [(2,1)], [(1,1), (5,1)]) -- [(2, [(2, 1)], [(3, 1), (5, 1)]), (2, [(2, 1)], [(1, 1)])]
-move (2, [(1,1), (5,1)], [(2,1)]) -- [(1, [(3, 1), (5, 1)], [(2, 1)])]
+assertEqual "move (player 1)"
+  (move (1, [(2,1)], [(1,1), (5,1)]))
+  [(2, [(2, 1)], [(3, 1), (5, 1)]), (2, [(2, 1)], [(1, 1)])]
+
+assertEqual "move (player 2)"
+  (move (2, [(1,1), (5,1)], [(2,1)]))
+  [(1, [(3, 1), (5, 1)], [(2, 1)])]
 
 
 assertEqual "add"
@@ -148,17 +152,20 @@ def winning c :=
          (node ((#(neg h), _, _) & $l) _ :: _))
   -> c :: concat (map (\i -> [f_i, s_i]) [1..n]) ++ [l]
 
-"winning (first)"
-io (each (compose (\l -> (map transformState l)) (compose show print)) (winning init))
+-- winning strategies are complex to verify - showing the structure
+-- io (each (compose (\l -> (map transformState l)) (compose show print)) (winning init))
 
-"winning (second)"
-winning (2, [(1, 2)], [(2, 1), (1, 1)])
+assertEqual "winning (second player)"
+  (winning (2, [(1, 2)], [(2, 1), (1, 1)]))
+  []
 
-"winning"
-winning (1, [(5, 2)], [(5, 1)])
+assertEqual "winning strategy exists"
+  (length (winning (1, [(5, 2)], [(5, 1)])) > 0)
+  True
 
-"winning"
-winning (1, [(2, 1)], [(1, 1)])
+assertEqual "winning strategy for (1, [(2, 1)], [(1, 1)])"
+  (length (winning (1, [(2, 1)], [(1, 1)])) > 0)
+  True
 
 assertEqual "winningNot (first)"
   (winningNot init)
