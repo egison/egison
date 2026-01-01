@@ -42,6 +42,12 @@ module Language.Egison.AST
   , TypedVarWithIndices (..)
   -- Inductive data types
   , InductiveConstructor (..)
+  -- Type classes
+  , ClassDecl (..)
+  , ClassMethod (..)
+  , InstanceDecl (..)
+  , InstanceMethod (..)
+  , ConstraintExpr (..)
   ) where
 
 import           Data.List  (find)
@@ -62,7 +68,58 @@ data TopExpr
     -- e.g., inductive Ordering := | Less | Equal | Greater
     --       inductive Maybe a := | Nothing | Just a
     -- String: type name, [String]: type parameters, [InductiveConstructor]: constructors
+  | ClassDeclExpr ClassDecl
+    -- ^ Type class declaration
+    -- e.g., class Eq a where (==) (x: a) (y: a) : Bool
+  | InstanceDeclExpr InstanceDecl
+    -- ^ Type class instance declaration
+    -- e.g., instance Eq Integer where (==) x y := x = y
  deriving Show
+
+-- | Type class declaration
+-- e.g., class Eq a where ...
+--       class Eq a => Ord a where ...
+data ClassDecl = ClassDecl
+  { className       :: String           -- ^ Class name (e.g., "Eq", "Ord")
+  , classTypeParams :: [String]         -- ^ Type parameters (e.g., ["a"])
+  , classSuperclasses :: [ConstraintExpr] -- ^ Superclass constraints (e.g., [Eq a] for Ord)
+  , classMethods    :: [ClassMethod]    -- ^ Method declarations
+  } deriving Show
+
+-- | Type class method declaration
+-- e.g., (==) (x: a) (y: a) : Bool
+--       (/=) (x: a) (y: a) : Bool := not (x == y)
+data ClassMethod = ClassMethod
+  { methodName    :: String             -- ^ Method name (e.g., "==")
+  , methodParams  :: [TypedParam]       -- ^ Method parameters with types
+  , methodRetType :: TypeExpr           -- ^ Return type
+  , methodDefault :: Maybe Expr         -- ^ Optional default implementation
+  } deriving Show
+
+-- | Type class instance declaration
+-- e.g., instance Eq Integer where ...
+--       instance Eq a => Eq [a] where ...
+data InstanceDecl = InstanceDecl
+  { instanceConstraints :: [ConstraintExpr] -- ^ Instance constraints (e.g., [Eq a] for Eq [a])
+  , instanceClass       :: String           -- ^ Class name (e.g., "Eq")
+  , instanceTypes       :: [TypeExpr]       -- ^ Instance types (e.g., [Integer] or [[a]])
+  , instanceMethods     :: [InstanceMethod] -- ^ Method implementations
+  } deriving Show
+
+-- | Instance method implementation
+-- e.g., (==) x y := x = y
+data InstanceMethod = InstanceMethod
+  { instMethodName   :: String          -- ^ Method name
+  , instMethodParams :: [String]        -- ^ Parameter names
+  , instMethodBody   :: Expr            -- ^ Method body
+  } deriving Show
+
+-- | Type constraint expression
+-- e.g., Eq a, Ord a
+data ConstraintExpr = ConstraintExpr
+  { constraintClass :: String           -- ^ Class name
+  , constraintTypes :: [TypeExpr]       -- ^ Type arguments
+  } deriving (Show, Eq)
 
 -- | Constructor for inductive data type
 -- e.g., Less, S Nat, Node Tree Tree
@@ -327,6 +384,8 @@ data TypeExpr
                                       -- ^ Tensor type with shape and indices
                                       --   e.g., Tensor Integer [2, 2]_#_#
   | TEApp TypeExpr [TypeExpr]          -- ^ Type application, e.g., List a
+  | TEConstrained [ConstraintExpr] TypeExpr
+                                      -- ^ Constrained type, e.g., Eq a => a
   deriving (Show, Eq)
 
 -- | Tensor shape expression

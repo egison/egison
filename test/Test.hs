@@ -34,8 +34,9 @@ testCases =
   , "test/lib/math/analysis.egi"
   , "test/lib/math/arithmetic.egi"
   , "test/lib/math/tensor.egi"
-  , "test/lib/type/basic.egi"   -- for testing typed functions
-  , "test/lib/type/infer.egi"   -- for testing type inference of various expressions
+  , "test/lib/type/basic.egi"      -- for testing typed functions
+  , "test/lib/type/infer.egi"      -- for testing type inference of various expressions
+  , "test/lib/type/typeclass.egi"  -- for testing type class (class/instance declarations)
 
   , "sample/mahjong.egi" -- for testing pattern functions
   , "sample/primes.egi" -- for testing pattern matching with infinitely many results

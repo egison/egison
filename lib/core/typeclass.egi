@@ -1,0 +1,39 @@
+--
+-- Type Class Support Library
+--
+-- This module provides helpers for type class dispatch.
+-- Due to Egison's dynamic nature, we provide runtime-based dispatch
+-- using type inspection.
+--
+
+-- | Get the type name of a value
+def getTypeName x := typeName x
+
+-- | Resolve Eq instance for a value based on its runtime type
+def resolveEq x :=
+  let tyName := typeName x in
+  if tyName = "Integer" then eqInteger
+  else if tyName = "Float" then eqFloat
+  else if tyName = "String" then eqString
+  else if tyName = "Bool" then eqBool
+  else undefined
+
+-- | Auto-dispatching equality check
+def autoEq x y := (resolveEq x)_"eq" x y
+
+-- | Auto-dispatching inequality check
+def autoNeq x y := (resolveEq x)_"neq" x y
+
+-- | Resolve Ord instance for a value based on its runtime type
+-- Note: String comparison is not supported in Egison's built-in operators
+def resolveOrd x :=
+  let tyName := typeName x in
+  if tyName = "Integer" then ordInteger
+  else if tyName = "Float" then ordFloat
+  else undefined
+
+-- | Auto-dispatching comparison
+def autoCompare x y := (resolveOrd x)_"compare" x y
+def autoLt x y := (resolveOrd x)_"lt" x y
+def autoGt x y := (resolveOrd x)_"gt" x y
+

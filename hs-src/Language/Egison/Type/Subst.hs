@@ -27,7 +27,7 @@ import qualified Data.Set                   as Set
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (Index (..), IndexSpec, IndexTyVar (..))
-import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..))
+import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..), Constraint(..))
 
 -- | Type substitution: a mapping from type variables to types
 newtype Subst = Subst { unSubst :: Map TyVar Type }
@@ -71,9 +71,14 @@ applySubst s (TIO t)          = TIO (applySubst s t)
 
 -- | Apply a substitution to a type scheme
 applySubstScheme :: Subst -> TypeScheme -> TypeScheme
-applySubstScheme (Subst m) (Forall vs t) =
+applySubstScheme (Subst m) (Forall vs cs t) =
   let m' = foldr Map.delete m vs
-  in Forall vs (applySubst (Subst m') t)
+      s' = Subst m'
+  in Forall vs (map (applySubstConstraint s') cs) (applySubst s' t)
+
+-- | Apply a substitution to a constraint
+applySubstConstraint :: Subst -> Constraint -> Constraint
+applySubstConstraint s (Constraint cls ty) = Constraint cls (applySubst s ty)
 
 -- | Index substitution: mapping from index variables to indices
 newtype SubstIndex = SubstIndex { unSubstIndex :: Map IndexTyVar Index }

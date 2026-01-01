@@ -179,6 +179,7 @@ collectDefs opts exprs = collectDefs' opts exprs [] []
     collectDefs' opts (expr:exprs) bindings rest =
       case expr of
         IDefine name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
+        IDefineMany defs  -> collectDefs' opts exprs (defs ++ bindings) rest
         ITest{}     -> collectDefs' opts exprs bindings (expr : rest)
         IExecute{}  -> collectDefs' opts exprs bindings (expr : rest)
         ILoadFile _ | optNoIO opts -> throwError (Default "No IO support")
@@ -194,6 +195,9 @@ collectDefs opts exprs = collectDefs' opts exprs [] []
 evalTopExpr' :: Env -> ITopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr' env (IDefine name expr) = do
   env' <- recursiveBind env [(name, expr)]
+  return (Nothing, env')
+evalTopExpr' env (IDefineMany defs) = do
+  env' <- recursiveBind env defs
   return (Nothing, env')
 evalTopExpr' env (ITest expr) = do
   pushFuncName (stringToVar "<stdin>")

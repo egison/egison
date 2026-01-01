@@ -16,6 +16,14 @@ module Language.Egison.Type.Env
   , freeVarsInEnv
   , generalize
   , instantiate
+  -- * Class environment
+  , ClassEnv
+  , emptyClassEnv
+  , addClass
+  , addInstance
+  , lookupClass
+  , lookupInstances
+  , classEnvToList
   ) where
 
 import           Data.Map.Strict            (Map)
@@ -25,6 +33,7 @@ import qualified Data.Set                   as Set
 
 import           Language.Egison.Type.Subst (Subst, applySubst, applySubstScheme)
 import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..),
+                                             Constraint(..), ClassInfo(..), InstanceInfo(..),
                                              freeTyVars, freshTyVar)
 
 -- | Type environment: maps variable names to type schemes
@@ -59,25 +68,37 @@ envToList (TypeEnv env) = Map.toList env
 freeVarsInEnv :: TypeEnv -> Set TyVar
 freeVarsInEnv (TypeEnv env) = Set.unions $ map freeVarsInScheme $ Map.elems env
   where
-    freeVarsInScheme (Forall vs t) = freeTyVars t `Set.difference` Set.fromList vs
+    freeVarsInScheme (Forall vs _ t) = freeTyVars t `Set.difference` Set.fromList vs
 
--- | Generalize a type to a type scheme
+-- | Generalize a type to a type scheme (without constraints)
 -- Generalize all free type variables that are not in the environment
 generalize :: TypeEnv -> Type -> TypeScheme
 generalize env t =
   let envFreeVars = freeVarsInEnv env
       typeFreeVars = freeTyVars t
       genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
-  in Forall genVars t
+  in Forall genVars [] t
+
+-- | Generalize a type to a type scheme with constraints
+generalizeWithConstraints :: TypeEnv -> [Constraint] -> Type -> TypeScheme
+generalizeWithConstraints env cs t =
+  let envFreeVars = freeVarsInEnv env
+      typeFreeVars = freeTyVars t
+      genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
+  in Forall genVars cs t
 
 -- | Instantiate a type scheme with fresh type variables
--- Returns a tuple of (instantiated type, fresh variable counter)
-instantiate :: TypeScheme -> Int -> (Type, Int)
-instantiate (Forall vs t) counter =
+-- Returns a tuple of (constraints, instantiated type, fresh variable counter)
+instantiate :: TypeScheme -> Int -> ([Constraint], Type, Int)
+instantiate (Forall vs cs t) counter =
   let freshVars = zipWith (\v i -> (v, TVar (freshTyVar "t" (counter + i)))) vs [0..]
-      subst = foldr (\(old, new) acc -> substVar old new acc) t freshVars
-  in (subst, counter + length vs)
+      substType = foldr (\(old, new) acc -> substVar old new acc) t freshVars
+      substCs = map (substConstraint freshVars) cs
+  in (substCs, substType, counter + length vs)
   where
+    substConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
+    substConstraint vars (Constraint cls ty) =
+      Constraint cls (foldr (\(old, new) acc -> substVar old new acc) ty vars)
     substVar :: TyVar -> Type -> Type -> Type
     substVar _ _ TInt = TInt
     substVar _ _ TFloat = TFloat
@@ -105,4 +126,40 @@ instantiate (Forall vs t) counter =
 -- | Apply a substitution to the type environment
 applySubstEnv :: Subst -> TypeEnv -> TypeEnv
 applySubstEnv s (TypeEnv env) = TypeEnv $ Map.map (applySubstScheme s) env
+
+--------------------------------------------------------------------------------
+-- Class Environment
+--------------------------------------------------------------------------------
+
+-- | Class environment: maps class names to class info and instances
+data ClassEnv = ClassEnv
+  { classEnvClasses   :: Map String ClassInfo      -- ^ Class definitions
+  , classEnvInstances :: Map String [InstanceInfo] -- ^ Instances per class
+  } deriving (Eq, Show)
+
+-- | Empty class environment
+emptyClassEnv :: ClassEnv
+emptyClassEnv = ClassEnv Map.empty Map.empty
+
+-- | Add a class to the environment
+addClass :: String -> ClassInfo -> ClassEnv -> ClassEnv
+addClass name info (ClassEnv classes insts) =
+  ClassEnv (Map.insert name info classes) insts
+
+-- | Add an instance to the environment
+addInstance :: String -> InstanceInfo -> ClassEnv -> ClassEnv
+addInstance className inst (ClassEnv classes insts) =
+  ClassEnv classes (Map.insertWith (++) className [inst] insts)
+
+-- | Look up a class definition
+lookupClass :: String -> ClassEnv -> Maybe ClassInfo
+lookupClass name (ClassEnv classes _) = Map.lookup name classes
+
+-- | Look up instances for a class
+lookupInstances :: String -> ClassEnv -> [InstanceInfo]
+lookupInstances name (ClassEnv _ insts) = Map.findWithDefault [] name insts
+
+-- | Convert class environment to list
+classEnvToList :: ClassEnv -> [(String, ClassInfo)]
+classEnvToList (ClassEnv classes _) = Map.toList classes
 

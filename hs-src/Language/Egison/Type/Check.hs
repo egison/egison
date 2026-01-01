@@ -98,7 +98,7 @@ toInferConfig cfg = InferConfig
 typeCheckExpr :: TypeCheckConfig -> TypeEnv -> Expr -> IO (Either TypeCheckError TypeCheckResult)
 typeCheckExpr config env expr = do
   let inferCfg = toInferConfig config
-      initialState = InferState 0 env [] inferCfg
+      initialState = InferState 0 env [] inferCfg emptyClassEnv
   (result, warnings) <- runInferWithWarnings (inferExpr expr) initialState
   return $ case result of
     Left err -> Left $ TypeCheckError err Nothing
@@ -112,7 +112,7 @@ typeCheckExpr config env expr = do
 typeCheckTopExprs :: TypeCheckConfig -> [TopExpr] -> IO (Either TypeCheckError TypeEnv)
 typeCheckTopExprs config exprs = do
   let inferCfg = toInferConfig config
-      initialState = InferState 0 builtinEnv [] inferCfg
+      initialState = InferState 0 builtinEnv [] inferCfg emptyClassEnv
       checkAndGetEnv = do
         mapM_ inferTopExpr exprs
         inferEnv <$> get
@@ -125,7 +125,7 @@ typeCheckTopExprs config exprs = do
 typeCheckWithWarnings :: TypeCheckConfig -> [TopExpr] -> IO (Either [TypeCheckError] TypeEnv, [TypeWarning])
 typeCheckWithWarnings config exprs = do
   let inferCfg = toInferConfig config
-      initialState = InferState 0 builtinEnv [] inferCfg
+      initialState = InferState 0 builtinEnv [] inferCfg emptyClassEnv
       checkAndGetEnv = do
         mapM_ inferTopExpr exprs
         inferEnv <$> get
@@ -146,7 +146,7 @@ typeCheck config exprs = do
 typeCheckWithLoader :: TypeCheckConfig -> FileLoader -> [TopExpr] -> IO (Either [TypeCheckError] TypeEnv, [TypeWarning])
 typeCheckWithLoader config loader exprs = do
   let inferCfg = setFileLoader loader (toInferConfig config)
-      initialState = InferState 0 builtinEnv [] inferCfg
+      initialState = InferState 0 builtinEnv [] inferCfg emptyClassEnv
       loadLibsAndCheck = do
         -- First, load all core libraries to build the type environment
         -- We ignore warnings during library loading (they are internal to the libraries)
@@ -258,28 +258,28 @@ builtinTypes = concat
 
     -- | Make a binary operator type scheme (no type variables)
     binOp :: Type -> Type -> Type -> TypeScheme
-    binOp t1 t2 t3 = Forall [] $ binOpT t1 t2 t3
+    binOp t1 t2 t3 = Forall [] [] $ binOpT t1 t2 t3
 
     -- | Unary operation
     unaryOp :: Type -> Type -> TypeScheme
-    unaryOp t1 t2 = Forall [] $ TFun t1 t2
+    unaryOp t1 t2 = Forall [] [] $ TFun t1 t2
 
     forallA :: Type -> TypeScheme
-    forallA = Forall [a]
+    forallA = Forall [a] []
 
     forallAB :: Type -> TypeScheme
-    forallAB = Forall [a, b]
+    forallAB = Forall [a, b] []
 
     forallABC :: Type -> TypeScheme
-    forallABC = Forall [a, b, c]
+    forallABC = Forall [a, b, c] []
 
     -- | forallA with binary op
     forallABinOp :: Type -> Type -> Type -> TypeScheme
-    forallABinOp t1 t2 t3 = Forall [a] $ binOpT t1 t2 t3
+    forallABinOp t1 t2 t3 = Forall [a] [] $ binOpT t1 t2 t3
 
     -- | forallAB with binary op
     forallABBinOp :: Type -> Type -> Type -> TypeScheme
-    forallABBinOp t1 t2 t3 = Forall [a, b] $ binOpT t1 t2 t3
+    forallABBinOp t1 t2 t3 = Forall [a, b] [] $ binOpT t1 t2 t3
 
     -- Arithmetic operators
     arithTypes =
@@ -311,8 +311,8 @@ builtinTypes = concat
       , ("f.*",  binOp TFloat TFloat TFloat)
       , ("f./",  binOp TFloat TFloat TFloat)
       -- Floating point constants
-      , ("f.pi", Forall [] TFloat)
-      , ("f.e", Forall [] TFloat)
+      , ("f.pi", Forall [] [] TFloat)
+      , ("f.e", Forall [] [] TFloat)
       -- Math functions
       , ("sqrt", unaryOp TFloat TFloat)
       , ("exp", unaryOp TFloat TFloat)
@@ -472,23 +472,23 @@ builtinTypes = concat
     -- Note: In Egison's do-notation, IO functions return IO types
     ioTypes =
       [ ("print", forallA $ TFun (TVar a) (TIO TUnit))
-      , ("read", Forall [] (TIO TString))
+      , ("read", Forall [] [] (TIO TString))
       , ("return", forallA $ TFun (TVar a) (TIO (TVar a)))
       , ("io", forallA $ TFun (TIO (TVar a)) (TVar a))
       , ("openInputFile", unaryOp TString (TIO TUnit))
       , ("openOutputFile", unaryOp TString (TIO TUnit))
       , ("closeInputPort", unaryOp TUnit (TIO TUnit))
       , ("closeOutputPort", unaryOp TUnit (TIO TUnit))
-      , ("readChar", Forall [] (TIO TChar))
-      , ("readLine", Forall [] (TIO TString))
+      , ("readChar", Forall [] [] (TIO TChar))
+      , ("readLine", Forall [] [] (TIO TString))
       , ("writeChar", unaryOp TChar (TIO TUnit))
       , ("write", forallA $ TFun (TVar a) (TIO TUnit))
       , ("readFile", unaryOp TString (TIO TString))
-      , ("isEof", Forall [] (TIO TBool))
+      , ("isEof", Forall [] [] (TIO TBool))
       , ("flush", unaryOp TUnit (TIO TUnit))
       , ("rand", binOp TInt TInt (TIO TInt))
       , ("f.rand", binOp TFloat TFloat (TIO TFloat))
-      , ("readProcess", Forall [a] $ ternOpT TString (TList TString) TString (TIO TString))
+      , ("readProcess", Forall [a] [] $ ternOpT TString (TList TString) TString (TIO TString))
       , ("show", forallA $ TFun (TVar a) TString)
       ]
 
@@ -529,11 +529,11 @@ builtinTypes = concat
     -- Matchers
     matcherTypes =
       [ ("something", forallA $ TMatcher (TVar a))
-      , ("integer", Forall [] $ TMatcher TInt)
-      , ("bool", Forall [] $ TMatcher TBool)
-      , ("char", Forall [] $ TMatcher TChar)
-      , ("string", Forall [] $ TMatcher TString)
-      , ("float", Forall [] $ TMatcher TFloat)
+      , ("integer", Forall [] [] $ TMatcher TInt)
+      , ("bool", Forall [] [] $ TMatcher TBool)
+      , ("char", Forall [] [] $ TMatcher TChar)
+      , ("string", Forall [] [] $ TMatcher TString)
+      , ("float", Forall [] [] $ TMatcher TFloat)
       , ("eq", forallA $ TMatcher (TVar a))
       , ("list", forallA $ TFun (TMatcher (TVar a)) (TMatcher (TList (TVar a))))
       , ("multiset", forallA $ TFun (TMatcher (TVar a)) (TMatcher (TList (TVar a))))
@@ -545,9 +545,9 @@ builtinTypes = concat
 
     -- String functions
     stringTypes =
-      [ ("pack", Forall [] $ TFun (TList TChar) TString)
-      , ("unpack", Forall [] $ TFun TString (TList TChar))
-      , ("unconsString", Forall [] $ TFun TString (TTuple [TChar, TString]))
+      [ ("pack", Forall [] [] $ TFun (TList TChar) TString)
+      , ("unpack", Forall [] [] $ TFun TString (TList TChar))
+      , ("unconsString", Forall [] [] $ TFun TString (TTuple [TChar, TString]))
       , ("lengthString", unaryOp TString TInt)
       , ("appendString", binOp TString TString TString)
       , ("splitString", binOp TString TString (TList TString))
@@ -559,8 +559,8 @@ builtinTypes = concat
 
     -- Math expressions
     mathTypes =
-      [ ("primes", Forall [] $ TList TInt)
-      , ("nats", Forall [] $ TList TInt)
+      [ ("primes", Forall [] [] $ TList TInt)
+      , ("nats", Forall [] [] $ TList TInt)
       ]
 
     -- Utility functions
@@ -588,11 +588,11 @@ builtinTypes = concat
       , ("isHash", forallA $ TFun (TVar a) TBool)
       , ("isTensor", forallA $ TFun (TVar a) TBool)
       -- Boolean constructors
-      , ("True", Forall [] TBool)
-      , ("False", Forall [] TBool)
+      , ("True", Forall [] [] TBool)
+      , ("False", Forall [] [] TBool)
       -- Forward-declared functions (used before their definition in library loading order)
       , ("mathNormalize", forallA $ TFun (TVar a) (TVar a))
-      , ("termExpr", Forall [] $ TMatcher TInt)  -- mathExpr alias
+      , ("termExpr", Forall [] [] $ TMatcher TInt)  -- mathExpr alias
       , ("coefficients", forallA $ TFun (TVar a) (TList TInt))
       , ("compareC", forallA $ TFun (TList (TVar a)) (TFun (TList (TVar a)) TAny))
       -- Note: Ordering constructors (Less, Equal, Greater), Maybe constructors (Nothing, Just),

@@ -91,6 +91,8 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
       <|> (reserved "def" >> defineExpr)
       <|> inductiveExpr
+      <|> classExpr
+      <|> instanceExpr
       <|> infixExpr
       <|> Test     <$> expr
       <?> "toplevel expression"
@@ -198,7 +200,150 @@ inductiveTypeVar = lexeme $ try $ do
     then fail $ "Not a type variable: " ++ name
     else return name
   where
-    inductiveReserved = ["def", "let", "if", "match", "load", "assert", "true", "false"]
+    inductiveReserved = ["def", "let", "if", "match", "load", "assert", "true", "false", "class", "instance", "where"]
+
+-- | Parse type class declaration
+-- e.g., class Eq a where
+--         (==) (x: a) (y: a) : Bool
+--         (/=) (x: a) (y: a) : Bool := not (x == y)
+--       class Eq a => Ord a where
+--         compare (x: a) (y: a) : Ordering
+classExpr :: Parser TopExpr
+classExpr = try $ do
+  pos <- L.indentLevel
+  reserved "class"
+  -- Parse optional superclass constraints: Eq a =>
+  (superclasses, classNm, typeParams) <- classHeader
+  reserved "where"
+  -- Parse methods - use alignSome for consistent indentation handling
+  methods <- many $ try $ do
+    _ <- indentGuardGT pos
+    -- Check that this looks like a method definition
+    notFollowedBy (reserved "def" <|> reserved "class" <|> reserved "instance" <|> reserved "inductive")
+    classMethod
+  return $ ClassDeclExpr $ ClassDecl classNm typeParams superclasses methods
+
+-- | Parse class header: "Eq a" or "Eq a => Ord a"
+-- Note: type parameters are parsed until "where" is encountered
+classHeader :: Parser ([ConstraintExpr], String, [String])
+classHeader = try withConstraints <|> withoutConstraints
+  where
+    withConstraints = do
+      constraints <- constraintList
+      _ <- symbol "=>"
+      classNm <- upperId
+      typeParams <- manyTill typeVarIdent (lookAhead (reserved "where"))
+      return (constraints, classNm, typeParams)
+
+    withoutConstraints = do
+      classNm <- upperId
+      typeParams <- manyTill typeVarIdent (lookAhead (reserved "where"))
+      return ([], classNm, typeParams)
+
+-- | Parse constraint list: "Eq a" or "(Eq a, Ord b)"
+constraintList :: Parser [ConstraintExpr]
+constraintList = try parenConstraints <|> ((:[]) <$> singleConstraint)
+  where
+    parenConstraints = parens $ singleConstraint `sepBy1` symbol ","
+    singleConstraint = do
+      classNm <- upperId
+      typeArgs <- some typeAtomSimple
+      return $ ConstraintExpr classNm typeArgs
+
+-- | Parse class methods
+classMethodsParser :: Pos -> Parser [ClassMethod]
+classMethodsParser basePos = many $ try $ do
+  -- Check that we're indented more than the class keyword
+  _ <- indentGuardGT basePos
+  -- And that this looks like a method (starts with operator or non-reserved identifier)
+  lookAhead (try parenOperatorLookahead <|> try nonReservedLowerId)
+  classMethod
+  where
+    parenOperatorLookahead = do
+      _ <- char '('
+      _ <- some (oneOf ("!#$%&*+./<=>?@\\^|-~:" :: String))
+      return ()
+    nonReservedLowerId = do
+      c <- lowerChar
+      cs <- many alphaNumChar
+      let name = c : cs
+      if name `elem` reservedWordsForClass
+        then fail "reserved word"
+        else return ()
+    reservedWordsForClass = ["def", "class", "instance", "inductive", "load", "loadFile", "where", "let", "if", "match"]
+
+-- | Parse a single class method
+-- e.g., (==) (x: a) (y: a) : Bool
+--       (/=) (x: a) (y: a) : Bool := not (x == y)
+classMethod :: Parser ClassMethod
+classMethod = do
+  name <- methodName'
+  params <- many (try typedParam)
+  _ <- symbol ":"
+  -- Use typeAtomSimple to avoid consuming too much
+  retType <- typeAtomSimple
+  -- Check if there's a default implementation on the same line (not crossing to new unindented line)
+  defaultImpl <- optional $ try $ do
+    _ <- symbol ":="
+    expr
+  return $ ClassMethod name params retType defaultImpl
+
+-- | Parse method name (can be operator in parens or regular identifier)
+methodName' :: Parser String
+methodName' = try parenOperator <|> lowerId
+  where
+    parenOperator = do
+      _ <- symbol "("
+      op <- some (oneOf ("!#$%&*+./<=>?@\\^|-~:" :: String))
+      _ <- symbol ")"
+      return op
+
+-- | Parse type class instance declaration
+-- e.g., instance Eq Integer where
+--         (==) x y := x = y
+--       instance Eq a => Eq [a] where
+--         (==) xs ys := ...
+instanceExpr :: Parser TopExpr
+instanceExpr = try $ do
+  pos <- L.indentLevel
+  reserved "instance"
+  -- Parse optional instance constraints: Eq a =>
+  (constraints, classNm, instTypes) <- instanceHeader
+  reserved "where"
+  -- Parse method implementations (indented)
+  methods <- instanceMethodsParser pos
+  return $ InstanceDeclExpr $ InstanceDecl constraints classNm instTypes methods
+
+-- | Parse instance header: "Eq Integer" or "Eq a => Eq [a]"
+-- Note: instance types are parsed until "where" is encountered
+instanceHeader :: Parser ([ConstraintExpr], String, [TypeExpr])
+instanceHeader = try withConstraints <|> withoutConstraints
+  where
+    withConstraints = do
+      constraints <- constraintList
+      _ <- symbol "=>"
+      classNm <- upperId
+      instTypes <- someTill typeAtomSimple (lookAhead (reserved "where"))
+      return (constraints, classNm, instTypes)
+
+    withoutConstraints = do
+      classNm <- upperId
+      instTypes <- someTill typeAtomSimple (lookAhead (reserved "where"))
+      return ([], classNm, instTypes)
+
+-- | Parse instance methods
+instanceMethodsParser :: Pos -> Parser [InstanceMethod]
+instanceMethodsParser basePos = many (try $ indentGuardGT basePos >> instanceMethod)
+
+-- | Parse a single instance method
+-- e.g., (==) x y := x = y
+instanceMethod :: Parser InstanceMethod
+instanceMethod = do
+  name <- methodName'
+  params <- many lowerId
+  _ <- symbol ":="
+  body <- expr
+  return $ InstanceMethod name params body
 
 -- Sort binaryop table on the insertion
 addNewOp :: Op -> Bool -> Parser ()
