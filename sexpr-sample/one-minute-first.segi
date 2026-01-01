@@ -1,8 +1,0 @@
-; enumerate the elements of the collection that appear twice
-(test (match-all {1 2 3 4 3 5 2 6} (multiset integer) [<cons $x <cons ,x _>> x]))
-
-; enumerate the elements of the collection that appear only once
-(test (match-all {1 2 3 4 3 5 2 6} (multiset integer) [<cons $x !<cons ,x _>> x]))
-
-; enumerate the elements of the collection if all of the three consecutive numbers from it are contained in the collection.
-(test (match-all {1 2 13 14 3 15 2 6} (multiset integer) [<cons $x <cons ,(+ x 1) <cons ,(+ x 2) _>>> x]))
