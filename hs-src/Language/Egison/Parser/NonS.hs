@@ -340,14 +340,47 @@ typeAtomOrParenType =
 -- Parse parenthesized type or tuple type (including unit type ())
 parenTypeOrTuple :: Parser TypeExpr
 parenTypeOrTuple = parens $ do
-  first <- optional typeExpr
+  first <- optional typeExprWithApp
   case first of
     Nothing -> return $ TETuple []  -- Unit type: ()
     Just t -> do
-      rest <- optional (symbol "," >> typeExpr `sepBy1` symbol ",")
+      rest <- optional (symbol "," >> typeExprWithApp `sepBy1` symbol ",")
       return $ case rest of
-        Nothing  -> t              -- Just parenthesized: (a -> b)
+        Nothing  -> t              -- Just parenthesized: (a -> b) or (Maybe a)
         Just ts  -> TETuple (t:ts) -- Tuple: (a, b, c)
+
+-- | Type expression with type application support
+-- e.g., Maybe a, List Integer, Tree a b
+typeExprWithApp :: Parser TypeExpr
+typeExprWithApp = do
+  atoms <- some typeAtomSimple
+  rest <- optional (symbol "->" >> typeExprWithApp)
+  let baseType = case atoms of
+                   [t]    -> t
+                   (t:ts) -> TEApp t ts
+                   []     -> error "unreachable"
+  return $ case rest of
+    Nothing -> baseType
+    Just r  -> TEFun baseType r
+
+-- | Simple type atom (no function arrows)
+typeAtomSimple :: Parser TypeExpr
+typeAtomSimple =
+      TEInt     <$ reserved "Integer"
+  <|> TEMathExpr <$ reserved "MathExpr"
+  <|> TEFloat   <$ reserved "Float"
+  <|> TEBool    <$ reserved "Bool"
+  <|> TEChar    <$ reserved "Char"
+  <|> TEString  <$ reserved "String"
+  <|> TEIO      <$> (reserved "IO" >> typeAtomOrParenType)
+  <|> TEList    <$> brackets typeExpr
+  <|> try tensorTypeExpr
+  <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
+  <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
+  <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
+  <|> TEVar     <$> typeNameIdent     -- uppercase type names (Nat, Tree, Ordering, etc.)
+  <|> parenTypeOrTuple                -- Parenthesized or tuple types
+  <?> "type expression"
 
 typeAtom :: Parser TypeExpr
 typeAtom =
