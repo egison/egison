@@ -443,7 +443,14 @@ tensorExpr :: Parser Expr
 tensorExpr = keywordTensor >> TensorExpr <$> expr <*> expr
 
 tensorContractExpr :: Parser Expr
-tensorContractExpr = keywordTensorContract >> TensorContractExpr <$> expr
+tensorContractExpr = do
+  _ <- keywordTensorContract
+  -- Support both old syntax (contract op expr) and new syntax (contract expr)
+  e1 <- expr
+  me2 <- optionMaybe expr
+  case me2 of
+    Nothing -> return $ TensorContractExpr e1
+    Just e2 -> return $ TensorContractExpr e2  -- Ignore the first arg (op) for backward compat
 
 tensorMapExpr :: Parser Expr
 tensorMapExpr = keywordTensorMap >> TensorMapExpr <$> expr <*> expr
@@ -792,8 +799,8 @@ identVarWithIndices = P.lexeme lexer (do
   return $ VarWithIndices name is)
 
 indexForVar :: Parser VarIndex
-indexForVar = try (char '~' >> VSuperscript <$> ident)
-        <|> try (char '_' >> VSubscript <$> ident)
+indexForVar = try (char '~' >> VSuperscript <$> option "" ident)
+        <|> try (char '_' >> VSubscript <$> option "" ident)
 
 indexType :: Parser (IndexExpr ())
 indexType = try (char '~' >> return (Superscript ()))

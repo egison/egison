@@ -1,0 +1,143 @@
+-- Tensor type system tests
+
+-- Basic tensor creation
+def vec1 := [| 1, 2, 3 |]
+
+assertEqual "basic vector" (tensorShape vec1) [3]
+
+-- 2D tensor (matrix)
+def mat1 := [| [| 1, 0 |], [| 0, 1 |] |]
+
+assertEqual "matrix shape" (tensorShape mat1) [2, 2]
+
+-- Tensor operations
+def vec2 := [| 4, 5, 6 |]
+
+-- Element-wise operations
+assertEqual "tensor add" (vec1 + vec2) [| 5, 7, 9 |]
+assertEqual "tensor mul" (vec1 * vec2) [| 4, 10, 18 |]
+
+-- Scalar-tensor operations
+assertEqual "scalar mul" (2 * vec1) [| 2, 4, 6 |]
+assertEqual "tensor scalar mul" (vec1 * 2) [| 2, 4, 6 |]
+
+-- Tensor contraction (dot product style)
+def dotProduct t1 t2 := foldl (\acc x -> acc + x) 0 (tensorToList (t1 * t2))
+
+assertEqual "dot product" (dotProduct vec1 vec2) 32
+
+-- Generate tensor
+def zeros3 := generateTensor (\_ -> 0) [3]
+assertEqual "generate zeros" zeros3 [| 0, 0, 0 |]
+
+def indexTensor := generateTensor (\idx -> match idx as list integer with | $i :: _ -> i) [5]
+assertEqual "index tensor" (tensorToList indexTensor) [1, 2, 3, 4, 5]
+
+-- ==========================================
+-- Type annotation tests for tensors
+-- ==========================================
+
+-- Typed vector definition
+def typedVec (xs : [Integer]) : [Integer] := xs
+
+assertEqual "typed vec identity" (typedVec [1, 2, 3]) [1, 2, 3]
+
+-- Function that works on tensor elements
+def doubleAll (xs : [Integer]) : [Integer] := map (\x -> x * 2) xs
+
+assertEqual "doubleAll" (doubleAll [1, 2, 3]) [2, 4, 6]
+
+-- Higher-order function with tensor-related type
+def applyToTensorList (f : Integer -> Integer) (xs : [Integer]) : [Integer] := map f xs
+
+assertEqual "applyToTensorList" (applyToTensorList (\x -> x + 10) [1, 2, 3]) [11, 12, 13]
+
+-- Nested type annotations
+def sumPair (p : (Integer, Integer)) : Integer :=
+  match p as (integer, integer) with
+    | ($x, $y) -> x + y
+
+assertEqual "sumPair" (sumPair (3, 4)) 7
+
+-- Matrix operation test
+def mat2x3' := [| [| 1, 2, 3 |], [| 4, 5, 6 |] |]
+
+assertEqual "mat2x3 shape" (tensorShape mat2x3') [2, 3]
+
+-- ==========================================
+-- Tensor index notation tests
+-- ==========================================
+
+-- Tensor with subscript indices
+def g_i_j := [| [| 1, 0 |], [| 0, 1 |] |]_i_j
+
+assertEqual "subscript tensor shape" (tensorShape g_i_j) [2, 2]
+
+-- Tensor with superscript indices
+def g~i~j := [| [| 1, 0 |], [| 0, 1 |] |]~i~j
+
+assertEqual "superscript tensor shape" (tensorShape g~i~j) [2, 2]
+
+-- Tensor contraction (dot product with index contraction)
+-- g_i_j . g~j~k should contract on j, resulting in tensor with indices _i~k
+def contracted := g_i_j . g~j~k
+
+assertEqual "contraction shape" (tensorShape contracted) [2, 2]
+
+-- Tensor type annotation with shape
+def typedMat : Tensor Integer [2, 2] := [| [| 1, 2 |], [| 3, 4 |] |]
+
+assertEqual "typed tensor shape" (tensorShape typedMat) [2, 2]
+
+-- Tensor type annotation with indices
+def typedMatIdx : Tensor Integer [2, 2]_i_j := [| [| 1, 2 |], [| 3, 4 |] |]
+
+assertEqual "typed tensor with indices shape" (tensorShape typedMatIdx) [2, 2]
+
+-- ==========================================
+-- Parameterized tensor size tests
+-- ==========================================
+
+-- Function that creates a zero matrix of given size (parameterized shape)
+def zeroMatrix (n : Integer) : Tensor Integer [n, n] := generateTensor (\_ -> 0) [n, n]
+
+assertEqual "zero matrix 2x2" (tensorShape (zeroMatrix 2)) [2, 2]
+assertEqual "zero matrix 3x3" (tensorShape (zeroMatrix 3)) [3, 3]
+
+-- Function with mixed shape (some dimensions concrete, some parameterized)
+def makeVector (n : Integer) : Tensor Integer [n] := generateTensor (\_ -> 1) [n]
+
+assertEqual "make vector 4" (tensorShape (makeVector 4)) [4]
+assertEqual "make vector 5" (tensorToList (makeVector 5)) [1, 1, 1, 1, 1]
+
+-- ==========================================
+-- Tensor contraction and scalar lifting tests
+-- ==========================================
+
+-- Tensor contraction with dot product
+-- g_i_j . g~j~k contracts on j, producing tensor with _i~k
+def metric_i_j := [| [| 1, 0 |], [| 0, 1 |] |]_i_j
+def invMetric~i~j := [| [| 1, 0 |], [| 0, 1 |] |]~i~j
+
+-- Contraction produces identity with indices _i~j
+def delta := metric_i_j . invMetric~j~k
+
+assertEqual "contraction result" (tensorShape delta) [2, 2]
+
+-- Full contraction (trace): g_i_j . g~i~j -> scalar
+def trace := metric_i_j . invMetric~i~j
+
+assertEqual "trace result" trace 2
+
+-- Scalar operations lifted to tensors
+def vec_i := [| 1, 2, 3 |]_i
+def vec_j := [| 4, 5, 6 |]_j
+
+-- Addition with same indices -> element-wise
+assertEqual "element-wise add" (tensorToList (vec_i + vec_i)) [2, 4, 6]
+
+-- Multiplication with same indices -> element-wise
+assertEqual "element-wise mul" (tensorToList (vec_i * vec_i)) [1, 4, 9]
+
+-- Scalar multiplication
+assertEqual "scalar mul tensor" (tensorToList (2 * vec_i)) [2, 4, 6]

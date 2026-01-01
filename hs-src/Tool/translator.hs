@@ -3,10 +3,10 @@
 
 module Main where
 
-import           Control.Arrow              ((***))
-import           Data.Maybe                 (fromJust)
-import           Prettyprinter.Render.Text  (putDoc)
-import           System.Environment         (getArgs)
+import           Control.Arrow                         ((***))
+import           Data.Maybe                            (fromJust)
+import           Prettyprinter.Render.Text             (putDoc)
+import           System.Environment                    (getArgs)
 
 import           Language.Egison.AST
 import           Language.Egison.Parser                (readUTF8File, removeShebang)
@@ -210,7 +210,7 @@ main = do
   args <- getArgs
   input <- readUTF8File $ head args
   -- 'ast' is not desugared
-  let ast = parseTopExprs (removeShebang True input)
+  let ast = parseTopExprs (removeShebang input)
   case ast of
     Left err ->
       print err

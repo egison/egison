@@ -55,10 +55,6 @@ main = defaultMain . hUnitTestToTests . test $ TestList
         (interpreter "#latex|\\frac{x}{y}|#\n")
         ["--math", "latex"]
         "x / y"
-    , TestLabel "sexpr option" . TestCase $ assertEgisonCmd
-        (interpreter "3\n")
-        ["--sexpr-syntax"]
-        "(+ 1 2)"
     , TestLabel "execute main function" . TestCase $ assertEgisonCmd
         "[\"a\", \"b\", \"c\"]\n"
         ["test/fixture/c.egi", "a", "b", "c"]

@@ -1,0 +1,80 @@
+-- Type checking test for Riemann curvature tensor of S2
+-- Based on sample/math/geometry/riemann-curvature-tensor-of-S2.egi
+
+-- Parameters (coordinates)
+def x : Tensor MathExpr [2] := [| θ, φ |]
+
+-- Embedding in R^3
+def X : Tensor MathExpr [3] := [| r * sin θ * cos φ   -- x
+                                , r * sin θ * sin φ   -- y
+                                , r * cos θ           -- z
+                                |]
+
+-- Basis vectors (tangent vectors)
+def e_i_j : Tensor MathExpr [2, 3] _i _j := ∂/∂ X_j x~i
+
+-- Metric tensor (covariant, g_ij)
+def g_i_j : Tensor MathExpr [2, 2] _i _j := generateTensor (\[a, b] -> V.* e_a_# e_b_#) [2, 2]
+
+-- Inverse metric tensor (contravariant, g^ij)
+def g~i~j : Tensor MathExpr [2, 2] ~i ~j := M.inverse g_#_#
+
+-- Test metric tensor
+assertEqual "Metric tensor g_i_j"
+  g_#_#
+  [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
+
+assertEqual "Inverse metric tensor g~i~j"
+  g~#~#
+  [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
+
+-- Christoffel symbols of the first kind (Γ_ijk)
+def Γ_i_j_k : Tensor MathExpr [2, 2, 2] _i _j _k :=
+  (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+
+-- Christoffel symbols of the second kind (Γ^i_jk)
+def Γ~i_j_k : Tensor MathExpr [2, 2, 2] ~i _j _k := withSymbols [m]
+  g~i~m . Γ_m_j_k
+
+assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
+  Γ~1_#_#
+  [| [| 0, 0 |], [| 0, -1 * sin θ * cos θ |] |]_#_#
+
+assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
+  Γ~2_#_#
+  [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
+
+-- Riemann curvature tensor (R^i_jkl)
+def R~i_j_k_l : Tensor MathExpr [2, 2, 2, 2] ~i _j _k _l := withSymbols [m]
+  ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
+
+assertEqual "Riemann curvature R~#_#_1_2"
+  R~#_#_1_2
+  [| [| 0, (sin θ)^2 |], [| -1, 0 |] |]~#_#
+
+assertEqual "Riemann curvature R~#_#_2_1"
+  R~#_#_2_1
+  [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |] |]~#_#
+
+-- Ricci curvature tensor (R_ij = R^m_imj)
+def Ric_i_j : Tensor MathExpr [2, 2] _i _j := withSymbols [m]
+  sum (contract R~m_i_m_j)
+
+-- Scalar curvature (R = g^ij R_ij)
+def scalarCurvature : MathExpr := withSymbols [i, j]
+  g~i~j . Ric_i_j
+
+assertEqual "Scalar curvature of S2"
+  scalarCurvature
+  (2 / r^2)
+
+-- ==========================================
+-- Test tensor shapes
+-- ==========================================
+
+assertEqual "coordinates shape" (tensorShape x) [2]
+assertEqual "embedding shape" (tensorShape X) [3]
+assertEqual "metric tensor shape" (tensorShape g_#_#) [2, 2]
+assertEqual "Christoffel symbol shape" (tensorShape Γ_#_#_#) [2, 2, 2]
+assertEqual "Riemann tensor shape" (tensorShape R~#_#_#_#) [2, 2, 2, 2]
+assertEqual "Ricci tensor shape" (tensorShape Ric_#_#) [2, 2]

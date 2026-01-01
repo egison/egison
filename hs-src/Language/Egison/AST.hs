@@ -33,6 +33,12 @@ module Language.Egison.AST
   , findOpFrom
   , stringToVarWithIndices
   , extractNameFromVarWithIndices
+  -- Type annotations
+  , TypeExpr (..)
+  , TensorShapeExpr (..)
+  , ShapeDim (..)
+  , TensorIndexExpr (..)
+  , TypedVarWithIndices (..)
   ) where
 
 import           Data.List  (find)
@@ -41,6 +47,7 @@ import           Data.Text  (Text)
 
 data TopExpr
   = Define VarWithIndices Expr
+  | DefineWithType TypedVarWithIndices Expr  -- ^ Definition with type annotation
   | Test Expr
   | Execute Expr
     -- temporary : we will replace load to import and export
@@ -76,6 +83,7 @@ data Expr
 
   | LambdaExpr [Arg ArgPattern] Expr
   | LambdaExpr' [Arg VarWithIndices] Expr
+  | TypedLambdaExpr [(String, TypeExpr)] TypeExpr Expr  -- ^ Lambda with typed parameters and return type
   | MemoizedLambdaExpr [String] Expr
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
@@ -120,6 +128,8 @@ data Expr
   | FlipIndicesExpr Expr                              -- Does not appear in user program
 
   | FunctionExpr [String]
+
+  | TypeAnnotation Expr TypeExpr  -- ^ Expression with type annotation (expr : type)
   deriving Show
 
 data VarWithIndices = VarWithIndices String [VarIndex]
@@ -276,4 +286,57 @@ stringToVarWithIndices name = VarWithIndices name []
 
 extractNameFromVarWithIndices :: VarWithIndices -> String
 extractNameFromVarWithIndices (VarWithIndices name _) = name
+
+--
+-- Type expressions (for type annotations)
+--
+
+-- | Type expression in source code
+data TypeExpr
+  = TEInt                              -- ^ Integer (= MathExpr)
+  | TEMathExpr                         -- ^ MathExpr (= Integer)
+  | TEFloat                            -- ^ Float
+  | TEBool                             -- ^ Bool
+  | TEChar                             -- ^ Char
+  | TEString                           -- ^ String
+  | TEVar String                       -- ^ Type variable, e.g., a
+  | TEList TypeExpr                    -- ^ List type, e.g., [a]
+  | TETuple [TypeExpr]                 -- ^ Tuple type, e.g., (a, b)
+  | TEFun TypeExpr TypeExpr            -- ^ Function type, e.g., a -> b
+  | TEMatcher TypeExpr                 -- ^ Matcher type
+  | TEPattern TypeExpr                 -- ^ Pattern type, e.g., Pattern a
+  | TETensor TypeExpr TensorShapeExpr [TensorIndexExpr]
+                                      -- ^ Tensor type with shape and indices
+                                      --   e.g., Tensor Integer [2, 2]_#_#
+  | TEApp TypeExpr [TypeExpr]          -- ^ Type application, e.g., List a
+  deriving (Show, Eq)
+
+-- | Tensor shape expression
+data TensorShapeExpr
+  = TSLit [Integer]                    -- ^ Concrete shape, e.g., [2, 2]
+  | TSVar String                       -- ^ Shape variable
+  | TSMixed [ShapeDim]                 -- ^ Mixed shape, e.g., [n, m, 2]
+  deriving (Show, Eq)
+
+-- | Shape dimension (can be concrete or variable)
+data ShapeDim
+  = SDLit Integer                      -- ^ Concrete dimension, e.g., 2
+  | SDVar String                       -- ^ Dimension variable, e.g., n
+  deriving (Show, Eq)
+
+-- | Tensor index expression
+data TensorIndexExpr
+  = TISub String                       -- ^ Subscript, e.g., _i
+  | TISup String                       -- ^ Superscript, e.g., ~i
+  | TIPlaceholderSub                   -- ^ Subscript placeholder, _#
+  | TIPlaceholderSup                   -- ^ Superscript placeholder, ~#
+  deriving (Show, Eq)
+
+-- | Variable with type annotation
+data TypedVarWithIndices = TypedVarWithIndices
+  { typedVarName    :: String
+  , typedVarIndices :: [VarIndex]
+  , typedVarParams  :: [(String, TypeExpr)]  -- ^ Typed parameters
+  , typedVarRetType :: TypeExpr              -- ^ Return type
+  } deriving (Show, Eq)
 

@@ -22,6 +22,10 @@ import           Text.Regex.TDFA                  ((=~))
 
 import           Language.Egison
 import           Language.Egison.Completion
+import qualified Language.Egison.Parser.NonS  as NonS
+import           Language.Egison.Type.Check  (TypeCheckError (..), TypeCheckResult (..),
+                                               defaultConfig, typeCheckExpr, builtinEnv)
+import           Language.Egison.Type.Pretty (prettyType)
 
 import           Options.Applicative
 
@@ -126,15 +130,29 @@ settings home env =
 repl :: Env -> RuntimeM ()
 repl env = (do
   home <- liftIO getHomeDirectory
-  input <- runInputT (settings home env) getEgisonExpr
+  input <- runInputT (settings home env) (getReplInput env)
   case input of
     Nothing -> return ()
-    Just topExpr -> do
+    Just (ReplExpr topExpr) -> do
       result <- fromEvalT (evalTopExprStr env topExpr)
       case result of
         Left err               -> liftIO (print err) >> repl env
         Right (Just str, env') -> liftIO (putStrLn str) >> repl env'
         Right (Nothing, env')  -> repl env'
+    Just (ReplTypeStr exprStr) -> do
+      -- Parse and type check the expression
+      parsedExpr <- NonS.parseExpr exprStr
+      case parsedExpr of
+        Left err -> liftIO $ putStrLn $ "Parse error: " ++ err
+        Right expr -> do
+          case typeCheckExpr defaultConfig builtinEnv expr of
+            Left err -> liftIO $ putStrLn $ "Type error: " ++ show (tceError err)
+            Right result -> liftIO $ putStrLn $ prettyType (tcrType result)
+      repl env
+    Just ReplHelp -> do
+      liftIO showReplHelp
+      repl env
+    Just ReplQuit -> return ()
   )
   `catch`
   (\case
@@ -143,34 +161,74 @@ repl env = (do
       HeapOverflow  -> liftIO (putStrLn "Heap over flow!") >> repl env
       _             -> liftIO (putStrLn "error!") >> repl env
    )
-
--- |Get Egison expression from the prompt. We can handle multiline input.
-getEgisonExpr :: InputT RuntimeM (Maybe TopExpr)
-getEgisonExpr = getEgisonExpr' ""
   where
-    getEgisonExpr' prev = do
+    tceError (TypeCheckError err _) = err
+
+-- | REPL input types
+data ReplInput
+  = ReplExpr TopExpr      -- ^ Regular expression to evaluate
+  | ReplTypeStr String    -- ^ :type command with expression string
+  | ReplHelp              -- ^ :help command
+  | ReplQuit              -- ^ :quit command
+
+-- | Show REPL help
+showReplHelp :: IO ()
+showReplHelp = do
+  putStrLn "REPL Commands:"
+  putStrLn "  :type <expr>  - Show the type of an expression"
+  putStrLn "  :t <expr>     - Short for :type"
+  putStrLn "  :help         - Show this help"
+  putStrLn "  :h            - Short for :help"
+  putStrLn "  :quit         - Exit the REPL"
+  putStrLn "  :q            - Short for :quit"
+
+-- |Get REPL input from the prompt. We can handle multiline input and special commands.
+getReplInput :: Env -> InputT RuntimeM (Maybe ReplInput)
+getReplInput env = getReplInput' ""
+  where
+    getReplInput' prev = do
       opts <- lift ask
       mLine <- case prev of
                  "" -> getInputLine $ optPrompt opts
                  _  -> getInputLine $ replicate (length $ optPrompt opts) ' '
       case mLine of
         Nothing -> return Nothing
-        Just [] | null prev -> getEgisonExpr
-        Just [] -> getEgisonExpr' prev
+        Just [] | null prev -> getReplInput env
+        Just [] -> getReplInput' prev
         Just line -> do
           history <- getHistory
           putHistory $ addHistoryUnlessConsecutiveDupe line history
           let input = prev ++ line
-          parsedExpr <- lift $ parseTopExpr (replaceNewLine input)
-          case parsedExpr of
-            Left err | err =~ "unexpected end of input" ->
-              getEgisonExpr' (input ++ "\n")
-            Left err -> do
-              liftIO $ putStrLn ("Parse error at: " ++ err)
-              getEgisonExpr
-            Right topExpr -> do
-              -- outputStr $ show topExpr
-              return $ Just topExpr
+          -- Check for special commands
+          case parseReplCommand input of
+            Just cmd -> return $ Just cmd
+            Nothing -> do
+              parsedExpr <- lift $ parseTopExpr (replaceNewLine input)
+              case parsedExpr of
+                Left err | err =~ "unexpected end of input" ->
+                  getReplInput' (input ++ "\n")
+                Left err -> do
+                  liftIO $ putStrLn ("Parse error at: " ++ err)
+                  getReplInput env
+                Right topExpr ->
+                  return $ Just (ReplExpr topExpr)
+
+-- | Parse REPL special commands
+parseReplCommand :: String -> Maybe ReplInput
+parseReplCommand input = case words input of
+  [":quit"]     -> Just ReplQuit
+  [":q"]        -> Just ReplQuit
+  [":help"]     -> Just ReplHelp
+  [":h"]        -> Just ReplHelp
+  (":type":rest) -> parseTypeCommand (unwords rest)
+  (":t":rest)    -> parseTypeCommand (unwords rest)
+  _             -> Nothing
+
+-- | Parse :type command (returns expression string to be parsed later)
+parseTypeCommand :: String -> Maybe ReplInput
+parseTypeCommand exprStr
+  | null exprStr = Nothing
+  | otherwise    = Just $ ReplTypeStr exprStr
 
 replaceNewLine :: String -> String
 replaceNewLine input =
