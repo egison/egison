@@ -1,0 +1,313 @@
+-- Type inference tests for newly implemented expression types
+-- Tests for: HashExpr, SeqExpr, ConsExpr, JoinExpr, SectionExpr,
+--            QuoteExpr, AnonParamFuncExpr, LetRecExpr, MatchLambdaExpr, etc.
+--
+-- Each definition includes type annotations (in comments or where syntax allows)
+-- to demonstrate what types are being inferred by the type system.
+
+--
+-- HashExpr tests
+-- Inferred type: Hash Integer String
+-- Hash k v is a hash map from keys of type k to values of type v
+--
+def testHash1 := {| (1, "one"), (2, "two"), (3, "three") |}
+-- testHash1 : Hash Integer String
+
+assertEqual "HashExpr basic" testHash1_1 "one"
+assertEqual "HashExpr lookup" testHash1_2 "two"
+assertEqual "HashExpr lookup 3" testHash1_3 "three"
+
+def testHash2 := {| ("a", 1), ("b", 2) |}
+-- testHash2 : Hash String Integer
+
+assertEqual "HashExpr string keys" testHash2_"a" 1
+assertEqual "HashExpr string keys 2" testHash2_"b" 2
+
+--
+-- ConsExpr tests
+-- Type: a -> [a] -> [a]
+-- The :: operator prepends an element to a list
+--
+def consInt (x : Integer) (xs : [Integer]) : [Integer] := x :: xs
+def consStr (s : String) (ss : [String]) : [String] := s :: ss
+
+assertEqual "ConsExpr basic" (consInt 1 [2, 3]) [1, 2, 3]
+assertEqual "ConsExpr nested" (1 :: 2 :: [3]) [1, 2, 3]
+assertEqual "ConsExpr empty" (consInt 1 []) [1]
+assertEqual "ConsExpr string" (consStr "a" ["b", "c"]) ["a", "b", "c"]
+
+--
+-- JoinExpr tests
+-- Type: [a] -> [a] -> [a]
+-- The ++ operator concatenates two lists
+--
+def joinInt (xs : [Integer]) (ys : [Integer]) : [Integer] := xs ++ ys
+def joinStr (xs : [String]) (ys : [String]) : [String] := xs ++ ys
+
+assertEqual "JoinExpr basic" (joinInt [1, 2] [3, 4]) [1, 2, 3, 4]
+assertEqual "JoinExpr empty left" (joinInt [] [1, 2]) [1, 2]
+assertEqual "JoinExpr empty right" (joinInt [1, 2] []) [1, 2]
+assertEqual "JoinExpr triple" ([1] ++ [2] ++ [3]) [1, 2, 3]
+assertEqual "JoinExpr string" (joinStr ["a"] ["b"]) ["a", "b"]
+
+--
+-- SectionExpr tests
+-- Type: Sections create partially applied functions
+-- (+ 1) : Integer -> Integer  -- right section
+-- (10 -) : Integer -> Integer -- left section
+-- (+) : Integer -> Integer -> Integer -- operator section
+--
+def applySection (f : Integer -> Integer) (x : Integer) : Integer := f x
+
+assertEqual "SectionExpr right section" (map (+ 1) [1, 2, 3]) [2, 3, 4]
+assertEqual "SectionExpr right section 2" (map (* 2) [1, 2, 3]) [2, 4, 6]
+assertEqual "SectionExpr left section" (map (10 -) [1, 2, 3]) [9, 8, 7]
+assertEqual "SectionExpr as function" (applySection (+ 1) 5) 6
+assertEqual "SectionExpr multiply" (applySection (* 2) 7) 14
+
+--
+-- QuoteExpr tests
+-- Type: 'expr : MathExpr (= Integer)
+-- Quote creates a symbolic mathematical expression
+--
+-- 'x : MathExpr
+-- 'x + 'y : MathExpr
+assertEqual "QuoteExpr symbol" 'x 'x
+assertEqual "QuoteExpr in expression" ('x + 'y) ('x + 'y)
+
+--
+-- AnonParamFuncExpr tests
+-- Type: n#expr creates an n-argument function
+-- 1#(%1 + 1) : Integer -> Integer
+-- 2#(%1 + %2) : Integer -> Integer -> Integer
+--
+def applyAnonFunc1 (f : Integer -> Integer) (x : Integer) : Integer := f x
+def applyAnonFunc2 (f : Integer -> Integer -> Integer) (x : Integer) (y : Integer) : Integer := f x y
+
+assertEqual "AnonParamFuncExpr 1 arg" (map 1#(%1 + 1) [1, 2, 3]) [2, 3, 4]
+assertEqual "AnonParamFuncExpr 1 arg multiply" (map 1#(%1 * 2) [1, 2, 3]) [2, 4, 6]
+assertEqual "AnonParamFuncExpr 2 args" (applyAnonFunc2 2#(%1 + %2) 3 4) 7
+assertEqual "AnonParamFuncExpr with map2" (map2 2#(%1 + %2) [1, 2, 3] [10, 20, 30]) [11, 22, 33]
+
+--
+-- LetRecExpr tests (recursive let)
+-- Type: Recursive bindings allow defining recursive functions locally
+-- In Egison, 'let' supports recursion (internally LetRecExpr).
+--
+-- testFactorial : Integer -> Integer
+-- testFibonacci : Integer -> Integer
+--
+def testFactorial (n : Integer) : Integer :=
+  let fact m := if m = 0 then 1 else m * fact (m - 1)
+   in fact n
+
+def testFibonacci (n : Integer) : Integer :=
+  let fib m := if m <= 1 then m else fib (m - 1) + fib (m - 2)
+   in fib n
+
+assertEqual "LetRecExpr factorial 0" (testFactorial 0) 1
+assertEqual "LetRecExpr factorial 5" (testFactorial 5) 120
+assertEqual "LetRecExpr factorial 10" (testFactorial 10) 3628800
+assertEqual "LetRecExpr fibonacci 0" (testFibonacci 0) 0
+assertEqual "LetRecExpr fibonacci 1" (testFibonacci 1) 1
+assertEqual "LetRecExpr fibonacci 10" (testFibonacci 10) 55
+
+--
+-- MatchLambdaExpr tests
+-- Type: \match as matcher with ... : a -> b
+-- Creates a function that immediately pattern matches its argument
+--
+-- sumList : [Integer] -> Integer
+-- headOrZero : [Integer] -> Integer
+--
+def sumList :=
+  \match as list integer with
+    | [] -> 0
+    | $x :: $xs -> x + sumList xs
+
+def headOrZero :=
+  \match as list integer with
+    | [] -> 0
+    | $x :: _ -> x
+
+assertEqual "MatchLambdaExpr sumList empty" (sumList []) 0
+assertEqual "MatchLambdaExpr sumList" (sumList [1, 2, 3, 4, 5]) 15
+assertEqual "MatchLambdaExpr headOrZero empty" (headOrZero []) 0
+assertEqual "MatchLambdaExpr headOrZero" (headOrZero [5, 4, 3]) 5
+
+--
+-- MatchAllLambdaExpr tests
+-- Type: \matchAll as matcher with ... : a -> [b]
+-- Creates a function that returns all pattern match results as a list
+--
+-- allPairs : [a] -> [(a, a)]
+--
+def allPairs :=
+  \matchAll as list something with
+    | $x :: $y :: _ -> (x, y)
+
+assertEqual "MatchAllLambdaExpr allPairs" (allPairs [1, 2, 3]) [(1, 2)]
+
+--
+-- GenerateTensorExpr tests
+-- Type: generateTensor : ([Integer] -> a) -> [Integer] -> Tensor a shape
+--
+-- zeroTensor : Tensor Integer [2, 2]
+-- identityMatrix : Tensor Integer [3, 3]
+--
+def zeroTensor := generateTensor (\_ -> 0) [2, 2]
+def identityMatrix := generateTensor (\[i, j] -> if i = j then 1 else 0) [3, 3]
+
+assertEqual "GenerateTensorExpr zero tensor" (tensorToList zeroTensor) [0, 0, 0, 0]
+assertEqual "GenerateTensorExpr identity diag" identityMatrix_1_1 1
+assertEqual "GenerateTensorExpr identity off-diag" identityMatrix_1_2 0
+
+--
+-- TensorMapExpr tests
+-- Type: tensorMap : (a -> b) -> Tensor a shape -> Tensor b shape
+--
+-- tensor1 : Tensor Integer [3]
+-- doubleTensor : Tensor Integer [3]
+-- squareTensor : Tensor Integer [3]
+--
+def tensor1 := [| 1, 2, 3 |]
+def tensor2 := [| 10, 20, 30 |]
+
+def doubleTensor := tensorMap (\x -> x * 2) tensor1
+def squareTensor := tensorMap (\x -> x * x) tensor1
+
+assertEqual "TensorMapExpr double" (tensorToList doubleTensor) [2, 4, 6]
+assertEqual "TensorMapExpr square" (tensorToList squareTensor) [1, 4, 9]
+
+--
+-- TensorMap2Expr tests
+-- Type: tensorMap2 : (a -> b -> c) -> Tensor a shape -> Tensor b shape -> Tensor c shape
+--
+-- tensorSum : Tensor Integer [3]
+-- tensorProduct : Tensor Integer [3]
+--
+def tensorSum := tensorMap2 (\x y -> x + y) tensor1 tensor2
+def tensorProduct := tensorMap2 (\x y -> x * y) tensor1 tensor2
+
+assertEqual "TensorMap2Expr add" (tensorToList tensorSum) [11, 22, 33]
+assertEqual "TensorMap2Expr multiply" (tensorToList tensorProduct) [10, 40, 90]
+
+--
+-- TransposeExpr tests
+-- Type: transpose : [Integer] -> Tensor a shape1 -> Tensor a shape2
+--
+-- testMatrix : Tensor Integer [2, 2]
+-- transposedMatrix : Tensor Integer [2, 2]
+--
+def testMatrix := [| [| 1, 2 |], [| 3, 4 |] |]
+def transposedMatrix := transpose [2, 1] testMatrix
+
+assertEqual "TransposeExpr basic" transposedMatrix_1_1 1
+assertEqual "TransposeExpr element" testMatrix_1_2 2
+
+--
+-- WithSymbolsExpr tests
+-- Type: withSymbols [symbols] expr - binds index symbols in scope
+--
+-- testWithSymbols : Tensor Integer [2, 2]_i_j
+--
+def testWithSymbols :=
+  withSymbols [i, j]
+    [| [| 1, 0 |], [| 0, 1 |] |]_i_j
+
+assertEqual "WithSymbolsExpr basic" testWithSymbols_1_1 1
+assertEqual "WithSymbolsExpr off-diag" testWithSymbols_1_2 0
+
+--
+-- FlipIndicesExpr tests (internal, tested via tensor operations)
+-- Type: Tensors can have covariant (_) or contravariant (~) indices
+--
+-- covariantVector : Tensor Integer [3]_#
+-- testIndexFlip : Tensor Integer [3]_i
+--
+def covariantVector := [| 1, 2, 3 |]_#
+def testIndexFlip := withSymbols [i] covariantVector_i
+
+assertEqual "Index operations" testIndexFlip_1 1
+
+--
+-- PrefixExpr tests
+-- Type: - : Integer -> Integer (negation)
+--
+def negate (x : Integer) : Integer := - x
+def negateAndDouble (x : Integer) : Integer := (- x) * 2
+
+assertEqual "PrefixExpr negation" (negate 5) (-5)
+assertEqual "PrefixExpr double negation" (negate (negate 5)) 5
+assertEqual "PrefixExpr in function" (negateAndDouble 3) (-6)
+
+--
+-- Currying tests
+-- Type: Functions are automatically curried in Egison
+-- curriedAdd : Integer -> Integer -> Integer -> Integer
+-- Partial application creates new functions:
+-- curriedAdd 10 : Integer -> Integer -> Integer
+-- curriedAdd 10 5 : Integer -> Integer
+--
+def curriedAdd (x : Integer) (y : Integer) (z : Integer) : Integer := x + y + z
+
+-- partialAdd : Integer -> Integer -> Integer
+def partialAdd := curriedAdd 10
+
+assertEqual "Currying partial 1" ((curriedAdd 1) 2 3) 6
+assertEqual "Currying partial 2" (((curriedAdd 1) 2) 3) 6
+assertEqual "Currying stored partial" (partialAdd 5 3) 18
+
+--
+-- Higher-order function tests
+-- Type: Functions can take and return other functions
+--
+-- compose : (b -> c) -> (a -> b) -> a -> c
+-- twice : (a -> a) -> a -> a
+--
+def compose (f : b -> c) (g : a -> b) (x : a) : c := f (g x)
+def twice (f : Integer -> Integer) (x : Integer) : Integer := f (f x)
+
+assertEqual "Higher-order compose" (compose (+ 1) (* 2) 3) 7
+assertEqual "Higher-order twice" (twice (+ 1) 5) 7
+
+--
+-- Polymorphic function tests
+-- Type: Functions can be polymorphic over type variables
+--
+-- identity : a -> a
+-- const : a -> b -> a
+-- swap : (a, b) -> (b, a)
+--
+def identity (x : a) : a := x
+def const (x : a) (y : b) : a := x
+def swap (p : (a, b)) : (b, a) :=
+  match p as (something, something) with
+    | ($x, $y) -> (y, x)
+
+assertEqual "Polymorphic identity Int" (identity 42) 42
+assertEqual "Polymorphic identity String" (identity "hello") "hello"
+assertEqual "Polymorphic const" (const 1 "ignored") 1
+assertEqual "Polymorphic swap" (swap (1, "a")) ("a", 1)
+
+--
+-- Complex combined tests
+-- Demonstrating type inference across multiple expressions
+--
+def complexTest1 :=
+  let xs := [1, 2, 3, 4, 5]
+      -- xs : [Integer]
+      doubled := map (* 2) xs
+      -- doubled : [Integer]
+      summed := foldl (+) 0 doubled
+      -- summed : Integer
+   in summed
+
+def complexTest2 :=
+  let h := {| (1, 10), (2, 20), (3, 30) |}
+      -- h : Hash Integer Integer
+   in [h_1, h_2, h_3]
+      -- result : [Integer]
+
+assertEqual "Complex test 1" complexTest1 30
+assertEqual "Complex test 2" complexTest2 [10, 20, 30]
