@@ -34,4 +34,6 @@ def Δ A :=
     | _ -> d (δ A) + δ (d A)
 
 -- Apply to scalar function
-Δ (f r θ φ)
+assertEqual "Laplacian in spherical coordinates"
+  (Δ (f r θ φ))
+  (f|1|1 r θ φ + 2 * f|1 r θ φ / r + f|2|2 r θ φ / r^2 + cos θ * f|2 r θ φ / (r^2 * sin θ) + f|3|3 r θ φ / (r^2 * (sin θ)^2))

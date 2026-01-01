@@ -121,17 +121,15 @@ assertEqual "freqItem"
      minSup C1 C2 C3 C4)
   [(0, 0, b), (3, 259200, c), (2, 172800, a)]
 
-(filter (\a t x -> C1 <= t && t <= C2)
-  (freqItem
-     [[[(0, []), (86400, [a, b, c]), (259200, [a, c])], [(0, [b, c]), (172800, [a, c])], [(0, [c])]],
-      [[(0, [d]), (259200, [c])]],
-      [[(0, [b])]]]
-     minSup C1 C2 C3 C4))
---[(0, 0, b)]
+assertEqual "filter freqItem by interval"
+  (filter (\a t x -> C1 <= t && t <= C2)
+    (freqItem
+       [[[(0, []), (86400, [a, b, c]), (259200, [a, c])], [(0, [b, c]), (172800, [a, c])], [(0, [c])]],
+        [[(0, [d]), (259200, [c])]],
+        [[(0, [b])]]]
+       minSup C1 C2 C3 C4))
+  [(0, 0, b)]
 
-gspm items ISDB I minSup C1 C2 C3 C4
-[[(0, a)],
- [(0, b)],
- [(0, c)],
- [(0, a), (0, b)],
- [(0, a), (2, a)]]
+assertEqual "gspm result"
+  (gspm items ISDB I minSup C1 C2 C3 C4)
+  [[(0, a)], [(0, b)], [(0, c)], [(0, a), (0, b)], [(0, a), (2, a)]]

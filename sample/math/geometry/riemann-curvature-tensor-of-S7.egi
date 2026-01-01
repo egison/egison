@@ -19,11 +19,39 @@ def e := (flip ∂/∂) x~# X_#
 def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [7, 7]
 def g~i~j := M.inverse g_#_#
 
+assertEqual "Metric tensor g_1_#"
+  g_1_#
+  [| r^2, 0, 0, 0, 0, 0, 0 |]_#
+assertEqual "Metric tensor g_2_#"
+  g_2_#
+  [| 0, r^2 * (sin α)^2, 0, 0, 0, 0, 0 |]_#
+
 -- Christoffel symbols
 def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 def Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
+
+assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
+  Γ~1_#_#
+  [| [| 0, 0, 0, 0, 0, 0, 0 |]
+   , [| 0, -1 * sin α * cos α, 0, 0, 0, 0, 0 |]
+   , [| 0, 0, -1 * sin α * cos α * (sin β)^2, 0, 0, 0, 0 |]
+   , [| 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2, 0, 0, 0 |]
+   , [| 0, 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2 * (sin δ)^2, 0, 0 |]
+   , [| 0, 0, 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2 * (sin δ)^2 * (sin ε)^2, 0 |]
+   , [| 0, 0, 0, 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2 * (sin δ)^2 * (sin ε)^2 * (sin ζ)^2 |]
+   |]_#_#
+assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
+  Γ~2_#_#
+  [| [| 0, (cos α) / (sin α), 0, 0, 0, 0, 0 |]
+   , [| (cos α) / (sin α), 0, 0, 0, 0, 0, 0 |]
+   , [| 0, 0, -1 * sin β * cos β, 0, 0, 0, 0 |]
+   , [| 0, 0, 0, -1 * sin β * cos β * (sin γ)^2, 0, 0, 0 |]
+   , [| 0, 0, 0, 0, -1 * sin β * cos β * (sin γ)^2 * (sin δ)^2, 0, 0 |]
+   , [| 0, 0, 0, 0, 0, -1 * sin β * cos β * (sin γ)^2 * (sin δ)^2 * (sin ε)^2, 0 |]
+   , [| 0, 0, 0, 0, 0, 0, -1 * sin β * cos β * (sin γ)^2 * (sin δ)^2 * (sin ε)^2 * (sin ζ)^2 |]
+   |]_#_#
 
 -- Riemann curvature
 def R~i_j_k_l := withSymbols [m]
@@ -33,11 +61,18 @@ def R~i_j_k_l := withSymbols [m]
 def Ric_i_j := withSymbols [m]
   sum (contract R~m_i_m_j)
 
-Ric_#_#
+assertEqual "Ricci curvature Ric_1_#"
+  Ric_1_#
+  [| 6, 0, 0, 0, 0, 0, 0 |]_#
+assertEqual "Ricci curvature Ric_2_#"
+  Ric_2_#
+  [| 0, 6 * (sin α)^2, 0, 0, 0, 0, 0 |]_#
 
 -- Scalar curvature
 def scalarCurvature := withSymbols [i, j]
   g~i~j . Ric_i_j
 
--- Expected: 42 / r^2 (for S^7, scalar curvature is n(n-1)/r^2 = 7*6/r^2 = 42/r^2)
-scalarCurvature
+-- For S^7, scalar curvature is n(n-1)/r^2 = 7*6/r^2 = 42/r^2
+assertEqual "scalar curvature"
+  scalarCurvature
+  (42 / r^2)

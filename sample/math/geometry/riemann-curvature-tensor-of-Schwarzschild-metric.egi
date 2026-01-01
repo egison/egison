@@ -12,11 +12,53 @@ def g_i_j :=
 
 def g~i~j := M.inverse g_#_#
 
+assertEqual "Metric tensor g_1_#"
+  g_1_#
+  [| '(c^2 * r - 2 * G * M) / (c^2 * r), 0, 0, 0 |]_#
+assertEqual "Metric tensor g_2_#"
+  g_2_#
+  [| 0, (-1) / ('(c^2 * r - 2 * G * M) / (c^2 * r)), 0, 0 |]_#
+assertEqual "Metric tensor g_3_#"
+  g_3_#
+  [| 0, 0, -r^2, 0 |]_#
+assertEqual "Metric tensor g_4_#"
+  g_4_#
+  [| 0, 0, 0, -r^2 * (sin θ)^2 |]_#
+
 -- Christoffel symbols
 def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 def Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
+
+assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
+  Γ~1_#_#
+  [| [| 0, G * M / (c^2 * r^2 - 2 * G * M * r), 0, 0 |]
+   , [| G * M / (c^2 * r^2 - 2 * G * M * r), 0, 0, 0 |]
+   , [| 0, 0, 0, 0 |]
+   , [| 0, 0, 0, 0 |]
+   |]_#_#
+assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
+  Γ~2_#_#
+  [| [| G * M * (c^2 * r - 2 * G * M) / (c^4 * r^4), 0, 0, 0 |]
+   , [| 0, -1 * G * M / (c^2 * r^2 - 2 * G * M * r), 0, 0 |]
+   , [| 0, 0, -1 * r + 2 * G * M / c^2, 0 |]
+   , [| 0, 0, 0, (-1 * r + 2 * G * M / c^2) * (sin θ)^2 |]
+   |]_#_#
+assertEqual "Christoffel symbols of the second kind Γ~3_#_#"
+  Γ~3_#_#
+  [| [| 0, 0, 0, 0 |]
+   , [| 0, 0, 1 / r, 0 |]
+   , [| 0, 1 / r, 0, 0 |]
+   , [| 0, 0, 0, -1 * sin θ * cos θ |]
+   |]_#_#
+assertEqual "Christoffel symbols of the second kind Γ~4_#_#"
+  Γ~4_#_#
+  [| [| 0, 0, 0, 0 |]
+   , [| 0, 0, 0, 1 / r |]
+   , [| 0, 0, 0, (cos θ) / (sin θ) |]
+   , [| 0, 1 / r, (cos θ) / (sin θ), 0 |]
+   |]_#_#
 
 -- Riemann curvature
 def R~i_j_k_l := withSymbols [m]
@@ -29,4 +71,15 @@ def Ric_i_j := withSymbols [m]
   sum (contract R~m_i_m_j)
 
 -- The Schwarzschild metric is a vacuum solution: Ric = 0
-Ric_#_#
+assertEqual "Ricci curvature Ric_1_#"
+  Ric_1_#
+  [| 0, 0, 0, 0 |]_#
+assertEqual "Ricci curvature Ric_2_#"
+  Ric_2_#
+  [| 0, 0, 0, 0 |]_#
+assertEqual "Ricci curvature Ric_3_#"
+  Ric_3_#
+  [| 0, 0, 0, 0 |]_#
+assertEqual "Ricci curvature Ric_4_#"
+  Ric_4_#
+  [| 0, 0, 0, 0 |]_#

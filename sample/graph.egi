@@ -31,30 +31,37 @@ def graphData2 :=
 -- Demonstration code
 --
 -- find all nodes who have an edge from 's' but not have an edge to 's'
-let s := 1
- in matchAll graphData1 as graph integer with
-      | edge #s $x :: !(edge #x #s :: _) -> x
+assertEqual "nodes with edge from 1 but not to 1"
+  (let s := 1
+    in matchAll graphData1 as graph integer with
+         | edge #s $x :: !(edge #x #s :: _) -> x)
+  [4]
 
 -- find all nodes in two paths from 's'
-let s := 1
- in matchAll graphData1 as graph integer with
-      | edge (#s & $x_1) $x_2 :: edge #x_2 $x_3 :: _ -> x
+assertEqual "two-hop paths from 1"
+  (let s := 1
+    in matchAll graphData1 as graph integer with
+         | edge (#s & $x_1) $x_2 :: edge #x_2 $x_3 :: _ -> x)
+  [{|1, 4, 3|}, {|1, 4, 3|}, {|1, 4, 3|}, {|1, 4, 3|}]
 
 -- enumerate first 5 paths from 's' to 'e'
-take
-  5
-  (let s := 1
-       e := 2
-    in matchAll graphData2 as graph integer with
-         | edge (#s & $x_1) $x_2 :: (loop $i (4, $n)
-                                       (edge #x_(i - 2) $x_(i - 1) :: ...)
-                                       (edge #x_(n - 1) (#e & $x_n) :: _)) -> x)
+assertEqual "first 5 paths from 1 to 2"
+  (take 5
+    (let s := 1
+         e := 2
+      in matchAll graphData2 as graph integer with
+           | edge (#s & $x_1) $x_2 :: (loop $i (4, $n)
+                                         (edge #x_(i - 2) $x_(i - 1) :: ...)
+                                         (edge #x_(n - 1) (#e & $x_n) :: _)) -> x))
+  [{|1, 4, 6, 2|}, {|1, 10, 6, 2|}, {|1, 5, 9, 3, 2|}, {|1, 10, 12, 2|}, {|1, 8, 5, 9, 3, 2|}]
 
 -- find all cliques whose size is 'n'
-let n := 3
- in matchAll graphData2 as graph integer with
-      | edge $x_1 $x_2 :: (loop $i (3, n, _)
-                             (edge #x_1 $x_i :: (loop $j (2, i - 1, _)
-                                                   (edge #x_j #x_i :: ...)
-                                                   ...))
-                             _) -> x
+assertEqual "all 3-cliques"
+  (let n := 3
+    in matchAll graphData2 as graph integer with
+         | edge $x_1 $x_2 :: (loop $i (3, n, _)
+                                (edge #x_1 $x_i :: (loop $j (2, i - 1, _)
+                                                      (edge #x_j #x_i :: ...)
+                                                      ...))
+                                _) -> x)
+  [{|1, 4, 6|}, {|1, 5, 8|}, {|1, 6, 10|}, {|1, 10, 4|}, {|2, 3, 7|}, {|2, 6, 12|}, {|2, 12, 6|}, {|3, 7, 9|}, {|3, 9, 5|}, {|5, 7, 11|}, {|5, 9, 7|}, {|6, 10, 12|}, {|6, 12, 10|}]

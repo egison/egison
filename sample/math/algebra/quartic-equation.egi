@@ -1,3 +1,5 @@
+-- Quartic Formula (Ferrari's method)
+
 def quarticFormula := qtF
 
 def qtF $f $x :=
@@ -33,5 +35,7 @@ def qtF' $a $b $c $d $e :=
 
 def w := ((-1) + i * sqrt 3) / 2
 
-qtF ((x - 1) * (x - 2) * (x - 3) * (x - 4)) x
--- (4, 1, 3, 2)
+-- Verify: (x-1)(x-2)(x-3)(x-4) should give roots 1, 2, 3, 4
+assertEqual "quartic (x-1)(x-2)(x-3)(x-4)"
+  (qtF ((x - 1) * (x - 2) * (x - 3) * (x - 4)) x)
+  (4, 1, 3, 2)

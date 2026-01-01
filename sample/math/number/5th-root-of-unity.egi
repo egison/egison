@@ -50,4 +50,6 @@ assertEqual
   ((-1 + sqrt 5 + sqrt (-5 - 2 * sqrt 5) + sqrt (-5 + 2 * sqrt 5)) / 4)
 
 
-z1'^5
+assertEqual "z1'^5 = 1"
+  z1'^5
+  1

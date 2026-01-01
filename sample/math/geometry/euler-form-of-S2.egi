@@ -42,4 +42,7 @@ def Ω := withSymbols [i, j, k]
 -- Euler form
 def eulerForm := (1 / (2 * π)) * (Ω~1_2 - Ω~2_1)
 
-eulerForm
+-- The Euler form integrates to the Euler characteristic χ = 2 for S²
+assertEqual "Euler form of S2"
+  eulerForm
+  [| [| sin θ / (r^2 * π), 0 |], [| 0, sin θ / (r^2 * π) |] |]

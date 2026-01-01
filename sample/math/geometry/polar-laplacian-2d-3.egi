@@ -25,4 +25,6 @@ assertEqual "sqrt(det(g))"
 def Laplacian := withSymbols [i, j]
   sum (contract (∂/∂ (sqrtG * (g~i~j . ∂/∂ (f r θ) x~j)) x~i)) / sqrtG
 
-Laplacian
+assertEqual "Laplacian in polar coordinates (coordinate-free)"
+  Laplacian
+  (f|1|1 r θ + f|1 r θ / r + f|2|2 r θ / r^2)
