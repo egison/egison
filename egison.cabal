@@ -94,8 +94,8 @@ Library
                    Language.Egison.MathOutput
                    Language.Egison.MList
                    Language.Egison.Parser
-                   Language.Egison.Parser.SExpr
                    Language.Egison.Parser.NonS
+                   Language.Egison.Parser.SExpr
                    Language.Egison.Pretty
                    Language.Egison.PrettyMath.AST
                    Language.Egison.PrettyMath.AsciiMath
@@ -110,6 +110,17 @@ Library
                    Language.Egison.Primitives.Utils
                    Language.Egison.RState
                    Language.Egison.Tensor
+                   Language.Egison.Type
+                   Language.Egison.Type.Check
+                   Language.Egison.Type.Env
+                   Language.Egison.Type.Error
+                   Language.Egison.Type.Index
+                   Language.Egison.Type.Infer
+                   Language.Egison.Type.Subst
+                   Language.Egison.Type.Tensor
+                   Language.Egison.Type.Types
+                   Language.Egison.Type.Unify
+                   Language.Egison.Type.Pretty
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
   ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns
@@ -186,10 +197,12 @@ Executable egison
 
 Executable egison-translate
   default-language:    GHC2021
-  Main-is:          translator.hs
+  Main-is:             translator.hs
   Build-depends:
       egison
-    , base >= 4.8 && < 5
+    , base >= 4.0 && < 5
     , prettyprinter
-  Hs-Source-Dirs:   hs-src/Tool
-  ghc-options:  -Wall -Wno-name-shadowing
+    , text
+  Hs-Source-Dirs:      hs-src/Tool
+  ghc-options:  -O3 -Wall -Wno-name-shadowing
+

@@ -28,6 +28,24 @@ desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
 desugarTopExpr (Define vwi expr) = do
   (var, iexpr) <- desugarDefineWithIndices vwi expr
   return . Just $ IDefine var iexpr
+desugarTopExpr (DefineWithType typedVwi expr) = do
+  -- Convert typed definition to regular definition
+  -- Type information is used for type checking, but the runtime representation is the same
+  let name = typedVarName typedVwi
+      indices = typedVarIndices typedVwi
+      params = typedVarParams typedVwi
+      vwi = VarWithIndices name indices
+  -- If there are typed parameters, wrap the body in a lambda
+  case params of
+    [] -> do
+      (var, iexpr) <- desugarDefineWithIndices vwi expr
+      return . Just $ IDefine var iexpr
+    _  -> do
+      -- Create lambda arguments from typed parameters
+      let argPatterns = map (\(pname, _) -> ScalarArg (APPatVar (VarWithIndices pname []))) params
+          lambdaExpr = LambdaExpr argPatterns expr
+      (var, iexpr) <- desugarDefineWithIndices vwi lambdaExpr
+      return . Just $ IDefine var iexpr
 desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
 desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
 desugarTopExpr (Load file)     = return . Just $ ILoad file
@@ -406,6 +424,14 @@ desugar (WedgeApplyExpr expr args) =
   IWedgeApplyExpr <$> desugar expr <*> mapM desugar args
 
 desugar (FunctionExpr args) = return $ IFunctionExpr args
+
+-- Type annotation is erased at runtime
+desugar (TypeAnnotation expr _typeExpr) = desugar expr
+
+-- Typed lambda is desugared to regular lambda
+desugar (TypedLambdaExpr params _retType body) = do
+  let args = map (\(name, _) -> TensorArg (APPatVar (VarWithIndices name []))) params
+  desugar $ LambdaExpr args body
 
 desugarIndex :: IndexExpr Expr -> EvalM (Index IExpr)
 desugarIndex (Subscript e)    = Sub <$> desugar e

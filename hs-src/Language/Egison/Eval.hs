@@ -36,6 +36,9 @@ import           Language.Egison.EvalState  (MonadEval (..))
 import           Language.Egison.IExpr
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
+import           Language.Egison.Type.Check (TypeCheckConfig (..), TypeCheckError (..),
+                                              defaultConfig, strictConfig, typeCheck)
+import           Language.Egison.Type.Error (formatTypeError)
 
 
 -- | Evaluate an Egison expression.
@@ -45,10 +48,22 @@ evalExpr env expr = desugarExpr expr >>= evalExprDeep env
 -- | Evaluate an Egison top expression.
 evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
-  topExpr <- desugarTopExpr topExpr
-  case topExpr of
+  opts <- ask
+  -- Run type checking if enabled
+  when (optTypeCheck opts || optTypeCheckStrict opts) $ do
+    let config = if optTypeCheckStrict opts then strictConfig else defaultConfig
+    case typeCheck config [topExpr] of
+      Left errs -> do
+        liftIO $ putStrLn "Type errors found:"
+        liftIO $ mapM_ (putStrLn . ("  " ++) . formatTypeError . tceError) errs
+        throwError $ Default "Type checking failed"
+      Right _env -> return ()
+  topExpr' <- desugarTopExpr topExpr
+  case topExpr' of
     Nothing      -> return (Nothing, env)
-    Just topExpr -> evalTopExpr' env topExpr
+    Just topExpr'' -> evalTopExpr' env topExpr''
+  where
+    tceError (TypeCheckError err _) = err
 
 -- | Evaluate an Egison top expression.
 evalTopExprStr :: Env -> TopExpr -> EvalM (Maybe String, Env)
@@ -69,16 +84,28 @@ valueToStr val = do
 -- | Evaluate Egison top expressions.
 evalTopExprs :: Env -> [TopExpr] -> EvalM Env
 evalTopExprs env exprs = do
-  exprs <- desugarTopExprs exprs
   opts <- ask
-  (bindings, rest) <- collectDefs opts exprs
-  env <- recursiveBind env bindings
+  -- Run type checking if enabled
+  when (optTypeCheck opts || optTypeCheckStrict opts) $ do
+    let config = if optTypeCheckStrict opts then strictConfig else defaultConfig
+    case typeCheck config exprs of
+      Left errs -> do
+        liftIO $ putStrLn "Type errors found:"
+        liftIO $ mapM_ (putStrLn . ("  " ++) . formatTypeError . tceError) errs
+        throwError $ Default "Type checking failed"
+      Right _env -> return ()
+  -- Continue with evaluation
+  desugaredExprs <- desugarTopExprs exprs
+  (bindings, rest) <- collectDefs opts desugaredExprs
+  env' <- recursiveBind env bindings
   forM_ rest $ \expr -> do
-    (val, _) <- evalTopExpr' env expr
+    (val, _) <- evalTopExpr' env' expr
     case val of
       Nothing  -> return ()
       Just val -> valueToStr val >>= liftIO . putStrLn
-  return env
+  return env'
+  where
+    tceError (TypeCheckError err _) = err
 
 -- | Evaluate Egison top expressions.
 evalTopExprsNoPrint :: Env -> [TopExpr] -> EvalM Env

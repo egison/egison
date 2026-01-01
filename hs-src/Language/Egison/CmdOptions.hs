@@ -34,12 +34,13 @@ data EgisonOpts = EgisonOpts {
     optTestOnly         :: Bool,
     optPrompt           :: String,
     optMathExpr         :: Maybe String,
-    optSExpr            :: Bool,
-    optMathNormalize    :: Bool
+    optMathNormalize    :: Bool,
+    optTypeCheck        :: Bool,       -- ^ Enable type checking
+    optTypeCheckStrict  :: Bool        -- ^ Strict type checking mode
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing False True
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True False False
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -118,13 +119,15 @@ cmdArgParser = EgisonOpts
                   <> long "math"
                   <> metavar "(asciimath|latex|mathematica|maxima)"
                   <> help "Output in AsciiMath, Latex, Mathematica, or Maxima format"))
-            <*> flag False True
-                  (short 'S'
-                  <> long "sexpr-syntax"
-                  <> help "Use s-expression syntax")
             <*> flag True False
                   (long "no-normalize"
                   <> help "Turn off normalization of math expressions")
+            <*> switch
+                  (long "type-check"
+                  <> help "Enable type checking before evaluation")
+            <*> switch
+                  (long "type-check-strict"
+                  <> help "Strict type checking (all types must be known)")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

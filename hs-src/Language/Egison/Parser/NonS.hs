@@ -135,16 +135,124 @@ infixExpr = do
     reservedPOp = ["&", "|", ":=", "->"]
 
 defineExpr :: Parser TopExpr
-defineExpr = do
-  ops  <- gets exprOps
-  f    <-   parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
-        <|> varWithIndicesLiteral
-  args <- many arg
-  _    <- symbol ":="
-  body <- expr
-  case args of
-    [] -> return (Define f body)
-    _  -> return (Define f (LambdaExpr args body))
+defineExpr = try defineWithType <|> defineWithoutType
+  where
+    defineWithoutType = do
+      ops  <- gets exprOps
+      f    <-   parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
+            <|> varWithIndicesLiteral
+      args <- many arg
+      _    <- symbol ":="
+      body <- expr
+      case args of
+        [] -> return (Define f body)
+        _  -> return (Define f (LambdaExpr args body))
+
+    defineWithType = do
+      varWithIdx <- varWithIndicesLiteral
+      let (name, indices) = extractVarWithIndices varWithIdx
+      typedParams <- many typedParam
+      _ <- symbol ":"
+      retType <- typeExpr
+      _ <- symbol ":="
+      body <- expr
+      let typedVar = TypedVarWithIndices name indices typedParams retType
+      return (DefineWithType typedVar body)
+
+    extractVarWithIndices :: VarWithIndices -> (String, [VarIndex])
+    extractVarWithIndices (VarWithIndices name indices) = (name, indices)
+
+    typedParam = parens $ do
+      paramName <- ident
+      _ <- symbol ":"
+      paramType <- typeExpr
+      return (paramName, paramType)
+
+-- | Parse a type expression
+typeExpr :: Parser TypeExpr
+typeExpr = makeTypeExprParser
+
+makeTypeExprParser :: Parser TypeExpr
+makeTypeExprParser = do
+  t <- typeAtomOrParenType
+  rest <- optional (symbol "->" >> makeTypeExprParser)
+  return $ case rest of
+    Nothing -> t
+    Just r  -> TEFun t r
+
+typeAtomOrParenType :: Parser TypeExpr
+typeAtomOrParenType =
+      try parenTypeOrTuple  -- Allow (a -> b) or (a, b) as a type atom
+  <|> typeAtom
+
+-- Parse parenthesized type or tuple type
+parenTypeOrTuple :: Parser TypeExpr
+parenTypeOrTuple = parens $ do
+  t <- typeExpr
+  rest <- optional (symbol "," >> typeExpr `sepBy1` symbol ",")
+  return $ case rest of
+    Nothing  -> t              -- Just parenthesized: (a -> b)
+    Just ts  -> TETuple (t:ts) -- Tuple: (a, b, c)
+
+typeAtom :: Parser TypeExpr
+typeAtom =
+      TEInt     <$ reserved "Integer"
+  <|> TEMathExpr <$ reserved "MathExpr"
+  <|> TEFloat   <$ reserved "Float"
+  <|> TEBool    <$ reserved "Bool"
+  <|> TEChar    <$ reserved "Char"
+  <|> TEString  <$ reserved "String"
+  <|> TEList    <$> brackets typeExpr
+  <|> try tensorTypeExpr
+  <|> TEMatcher <$> (reserved "Matcher" >> typeAtom)
+  <|> TEPattern <$> (reserved "Pattern" >> typeAtom)
+  <|> TEVar     <$> typeVarIdent
+  <?> "type expression"
+
+tensorTypeExpr :: Parser TypeExpr
+tensorTypeExpr = do
+  _ <- reserved "Tensor"
+  elemType <- typeAtom
+  shape <- tensorShapeExpr
+  indices <- many tensorIndexExpr
+  return $ TETensor elemType shape indices
+
+tensorShapeExpr :: Parser TensorShapeExpr
+tensorShapeExpr =
+      try (brackets mixedShape)
+  <|> TSVar <$> ident
+  where
+    mixedShape = do
+      dims <- shapeDim `sepBy` symbol ","
+      -- If all literals, use TSLit for backwards compatibility
+      let allLits = all isLitDim dims
+      return $ if allLits
+                 then TSLit (map extractLit dims)
+                 else TSMixed dims
+    shapeDim = SDLit <$> positiveIntegerLiteral
+           <|> SDVar <$> ident
+    isLitDim (SDLit _) = True
+    isLitDim _         = False
+    extractLit (SDLit n) = n
+    extractLit _         = 0  -- Should not happen
+
+tensorIndexExpr :: Parser TensorIndexExpr
+tensorIndexExpr =
+      TIPlaceholderSub <$ try (symbol "_#")
+  <|> TIPlaceholderSup <$ try (symbol "~#")
+  <|> TISub <$> (char '_' *> ident)
+  <|> TISup <$> (char '~' *> ident)
+
+typeVarIdent :: Parser String
+typeVarIdent = lexeme $ do
+  c <- lowerChar
+  cs <- many (alphaNumChar <|> char '_')
+  let name = c : cs
+  if name `elem` typeReservedWords
+    then fail $ "Reserved word: " ++ name
+    else return name
+  where
+    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor"]
 
 expr :: Parser Expr
 expr = do

@@ -24,58 +24,39 @@ module Language.Egison.Parser
 import           Control.Monad                 (unless)
 import           Control.Monad.Except         (throwError)
 import           Control.Monad.IO.Class       (liftIO)
-import           Control.Monad.Reader         (asks, local)
 import           Control.Monad.Trans.Class    (lift)
 
 import           System.Directory             (doesFileExist, getHomeDirectory)
 import           System.IO
 
 import           Language.Egison.AST
-import           Language.Egison.CmdOptions
 import           Language.Egison.Data
 import qualified Language.Egison.Parser.NonS  as NonS
-import qualified Language.Egison.Parser.SExpr as SExpr
 import           Language.Egison.RState
 import           Paths_egison                 (getDataFileName)
 
 readTopExprs :: String -> EvalM [TopExpr]
 readTopExprs expr = do
-  isSExpr <- asks optSExpr
-  if isSExpr
-     then either (throwError . Parser) return (SExpr.parseTopExprs expr)
-     else do r <- lift . lift $ NonS.parseTopExprs expr
-             either (throwError . Parser) return r
+  r <- lift . lift $ NonS.parseTopExprs expr
+  either (throwError . Parser) return r
 
 parseTopExpr :: String -> RuntimeM (Either String TopExpr)
-parseTopExpr expr = do
-  isSExpr <- asks optSExpr
-  if isSExpr
-     then return (SExpr.parseTopExpr expr)
-     else NonS.parseTopExpr expr
+parseTopExpr = NonS.parseTopExpr
 
 readTopExpr :: String -> EvalM TopExpr
 readTopExpr expr = do
-  isSExpr <- asks optSExpr
-  if isSExpr
-     then either (throwError . Parser) return (SExpr.parseTopExpr expr)
-     else do r <- lift . lift $ NonS.parseTopExpr expr
-             either (throwError . Parser) return r
+  r <- lift . lift $ NonS.parseTopExpr expr
+  either (throwError . Parser) return r
 
 readExprs :: String -> EvalM [Expr]
 readExprs expr = do
-  isSExpr <- asks optSExpr
-  if isSExpr
-     then either (throwError . Parser) return (SExpr.parseExprs expr)
-     else do r <- lift . lift $ NonS.parseExprs expr
-             either (throwError . Parser) return r
+  r <- lift . lift $ NonS.parseExprs expr
+  either (throwError . Parser) return r
 
 readExpr :: String -> EvalM Expr
 readExpr expr = do
-  isSExpr <- asks optSExpr
-  if isSExpr
-     then either (throwError . Parser) return (SExpr.parseExpr expr)
-     else do r <- lift . lift $ NonS.parseExpr expr
-             either (throwError . Parser) return r
+  r <- lift . lift $ NonS.parseExpr expr
+  either (throwError . Parser) return r
 
 -- |Load a libary file
 loadLibraryFile :: FilePath -> EvalM [TopExpr]
@@ -92,24 +73,19 @@ loadFile file = do
   doesExist <- liftIO $ doesFileExist file
   unless doesExist $ throwError $ Default ("file does not exist: " ++ file)
   input <- liftIO $ readUTF8File file
-  let useSExpr = checkIfUseSExpr file
-  exprs <- local (\opt -> opt { optSExpr = useSExpr })
-                 (readTopExprs (removeShebang useSExpr input))
+  exprs <- readTopExprs (removeShebang input)
   concat <$> mapM recursiveLoad exprs
  where
-  recursiveLoad (Load file)     = loadLibraryFile file
-  recursiveLoad (LoadFile file) = loadFile file
-  recursiveLoad expr            = return [expr]
+  recursiveLoad (Load file')     = loadLibraryFile file'
+  recursiveLoad (LoadFile file') = loadFile file'
+  recursiveLoad expr             = return [expr]
 
-removeShebang :: Bool -> String -> String
-removeShebang useSExpr cs@('#':'!':_) = if useSExpr then ';' : cs else "--" ++ cs
-removeShebang _        cs             = cs
+removeShebang :: String -> String
+removeShebang cs@('#':'!':_) = "--" ++ cs
+removeShebang cs             = cs
 
 readUTF8File :: FilePath -> IO String
 readUTF8File name = do
   h <- openFile name ReadMode
   hSetEncoding h utf8
   hGetContents h
-
-checkIfUseSExpr :: String -> Bool
-checkIfUseSExpr file = drop (length file - 5) file == ".segi"
