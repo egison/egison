@@ -40,7 +40,8 @@ data EgisonOpts = EgisonOpts {
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True False False
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True True False
+--                                                                                                                                 ^^^^ optTypeCheck is now True by default
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -122,9 +123,9 @@ cmdArgParser = EgisonOpts
             <*> flag True False
                   (long "no-normalize"
                   <> help "Turn off normalization of math expressions")
-            <*> switch
-                  (long "type-check"
-                  <> help "Enable type checking before evaluation")
+            <*> flag True False
+                  (long "no-type-check"
+                  <> help "Disable type checking before evaluation")
             <*> switch
                   (long "type-check-strict"
                   <> help "Strict type checking (all types must be known)")

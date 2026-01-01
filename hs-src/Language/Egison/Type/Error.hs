@@ -10,7 +10,14 @@ This module defines type errors for the Egison type system.
 module Language.Egison.Type.Error
   ( TypeError(..)
   , TypeErrorContext(..)
+  , TypeWarning(..)
+  , SourceLocation(..)
   , formatTypeError
+  , formatTypeWarning
+  , emptyContext
+  , withLocation
+  , withExpr
+  , withContext
   ) where
 
 import           GHC.Generics               (Generic)
@@ -18,12 +25,49 @@ import           GHC.Generics               (Generic)
 import           Language.Egison.Type.Index (IndexSpec, Index(..), IndexKind(..))
 import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..))
 
+-- | Source location information
+data SourceLocation = SourceLocation
+  { srcFile   :: Maybe FilePath     -- ^ Source file path
+  , srcLine   :: Maybe Int          -- ^ Line number (1-based)
+  , srcColumn :: Maybe Int          -- ^ Column number (1-based)
+  } deriving (Eq, Show, Generic)
+
 -- | Context information for where a type error occurred
 data TypeErrorContext = TypeErrorContext
-  { errorLocation :: Maybe String   -- ^ File location if available
-  , errorExpr     :: Maybe String   -- ^ Expression that caused the error
-  , errorContext  :: Maybe String   -- ^ Additional context (e.g., "in function application")
+  { errorLocation :: Maybe SourceLocation  -- ^ Precise source location
+  , errorExpr     :: Maybe String          -- ^ Expression that caused the error
+  , errorContext  :: Maybe String          -- ^ Additional context (e.g., "in function application")
   } deriving (Eq, Show, Generic)
+
+-- | Empty error context
+emptyContext :: TypeErrorContext
+emptyContext = TypeErrorContext Nothing Nothing Nothing
+
+-- | Add location to a context
+withLocation :: SourceLocation -> TypeErrorContext -> TypeErrorContext
+withLocation loc ctx = ctx { errorLocation = Just loc }
+
+-- | Add expression to a context
+withExpr :: String -> TypeErrorContext -> TypeErrorContext
+withExpr expr ctx = ctx { errorExpr = Just expr }
+
+-- | Add context message
+withContext :: String -> TypeErrorContext -> TypeErrorContext
+withContext ctxMsg ctx = ctx { errorContext = Just ctxMsg }
+
+-- | Type warnings (non-fatal issues)
+data TypeWarning
+  = UnboundVariableWarning String TypeErrorContext
+    -- ^ Variable not in type environment (treated as Any in permissive mode)
+  | AnyTypeWarning String TypeErrorContext
+    -- ^ Expression has 'Any' type
+  | PartiallyTypedWarning String Type TypeErrorContext
+    -- ^ Expression is only partially typed
+  | UnsupportedExpressionWarning String TypeErrorContext
+    -- ^ Expression type cannot be inferred (treated as Any)
+  | DeprecatedFeatureWarning String TypeErrorContext
+    -- ^ Feature is deprecated
+  deriving (Eq, Show, Generic)
 
 -- | Type errors
 data TypeError
@@ -53,9 +97,6 @@ data TypeError
     -- ^ Feature not yet implemented
   deriving (Eq, Show, Generic)
 
--- | Empty context (for future use)
-_emptyContext :: TypeErrorContext
-_emptyContext = TypeErrorContext Nothing Nothing Nothing
 
 -- | Format a type error for display
 formatTypeError :: TypeError -> String
@@ -125,7 +166,7 @@ formatTypeError err = case err of
 formatWithContext :: TypeErrorContext -> String -> String
 formatWithContext ctx msg =
   let locStr = case errorLocation ctx of
-        Just loc -> "At " ++ loc ++ ":\n"
+        Just loc -> "At " ++ formatSourceLocation loc ++ ":\n"
         Nothing  -> ""
       exprStr = case errorExpr ctx of
         Just expr -> "In expression: " ++ expr ++ "\n"
@@ -134,6 +175,38 @@ formatWithContext ctx msg =
         Just c -> "(" ++ c ++ ")\n"
         Nothing -> ""
   in locStr ++ exprStr ++ ctxStr ++ msg
+
+-- | Format source location
+formatSourceLocation :: SourceLocation -> String
+formatSourceLocation loc =
+  let file = maybe "<unknown>" id (srcFile loc)
+      line = maybe "?" show (srcLine loc)
+      col  = maybe "" ((":" ++) . show) (srcColumn loc)
+  in file ++ ":" ++ line ++ col
+
+-- | Format a type warning for display
+formatTypeWarning :: TypeWarning -> String
+formatTypeWarning warn = case warn of
+  UnboundVariableWarning name ctx ->
+    formatWithContext ctx $
+      "Warning: Unbound variable '" ++ name ++ "' (assuming type 'Any')"
+
+  AnyTypeWarning desc ctx ->
+    formatWithContext ctx $
+      "Warning: Expression has 'Any' type: " ++ desc
+
+  PartiallyTypedWarning desc ty ctx ->
+    formatWithContext ctx $
+      "Warning: Partially typed expression: " ++ desc ++ "\n" ++
+      "  Inferred type: " ++ prettyType ty
+
+  UnsupportedExpressionWarning desc ctx ->
+    formatWithContext ctx $
+      "Warning: Cannot infer type for: " ++ desc ++ " (assuming 'Any')"
+
+  DeprecatedFeatureWarning feature ctx ->
+    formatWithContext ctx $
+      "Warning: Deprecated feature: " ++ feature
 
 -- | Pretty print a type
 prettyType :: Type -> String
@@ -155,6 +228,10 @@ prettyType (TTensor t sh is) =
 prettyType (TCollection t) = "Collection " ++ prettyType t
 prettyType (THash k v) = "Hash " ++ prettyType k ++ " " ++ prettyType v
 prettyType (TIORef t) = "IORef " ++ prettyType t
+prettyType (TIO t) = "IO " ++ prettyType t
+prettyType (TPatternFunc args ret) =
+  "(" ++ unwords (map (\a -> "Pattern " ++ prettyType a) args) ++
+  " -> Pattern " ++ prettyType ret ++ ")"
 
 -- | Pretty print a tensor shape
 prettyShape :: TensorShape -> String

@@ -37,8 +37,9 @@ import           Language.Egison.IExpr
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import           Language.Egison.Type.Check (TypeCheckConfig (..), TypeCheckError (..),
-                                              defaultConfig, strictConfig, typeCheck)
-import           Language.Egison.Type.Error (formatTypeError)
+                                              defaultConfig, strictConfig, permissiveConfig,
+                                              typeCheckWithWarnings)
+import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning, TypeWarning)
 
 
 -- | Evaluate an Egison expression.
@@ -51,8 +52,13 @@ evalTopExpr env topExpr = do
   opts <- ask
   -- Run type checking if enabled
   when (optTypeCheck opts || optTypeCheckStrict opts) $ do
-    let config = if optTypeCheckStrict opts then strictConfig else defaultConfig
-    case typeCheck config [topExpr] of
+    let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
+    let (result, warnings) = typeCheckWithWarnings config [topExpr]
+    -- Print warnings
+    when (not (null warnings)) $ do
+      liftIO $ mapM_ (putStrLn . formatTypeWarning) warnings
+    -- Handle errors
+    case result of
       Left errs -> do
         liftIO $ putStrLn "Type errors found:"
         liftIO $ mapM_ (putStrLn . ("  " ++) . formatTypeError . tceError) errs
@@ -87,8 +93,13 @@ evalTopExprs env exprs = do
   opts <- ask
   -- Run type checking if enabled
   when (optTypeCheck opts || optTypeCheckStrict opts) $ do
-    let config = if optTypeCheckStrict opts then strictConfig else defaultConfig
-    case typeCheck config exprs of
+    let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
+    let (result, warnings) = typeCheckWithWarnings config exprs
+    -- Print warnings
+    when (not (null warnings)) $ do
+      liftIO $ mapM_ (putStrLn . formatTypeWarning) warnings
+    -- Handle errors
+    case result of
       Left errs -> do
         liftIO $ putStrLn "Type errors found:"
         liftIO $ mapM_ (putStrLn . ("  " ++) . formatTypeError . tceError) errs

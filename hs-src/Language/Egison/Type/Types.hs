@@ -63,6 +63,7 @@ data Type
   | TCollection Type                  -- ^ Collection (for internal use)
   | THash Type Type                   -- ^ Hash map type
   | TIORef Type                       -- ^ IORef type
+  | TIO Type                          -- ^ IO type (for IO actions)
   | TUnit                             -- ^ Unit type ()
   | TAny                              -- ^ Any type (for gradual typing)
   deriving (Eq, Show, Generic)
@@ -100,6 +101,7 @@ freeTyVars (TTensor t _ _)  = freeTyVars t
 freeTyVars (TCollection t)  = freeTyVars t
 freeTyVars (THash k v)      = freeTyVars k `Set.union` freeTyVars v
 freeTyVars (TIORef t)       = freeTyVars t
+freeTyVars (TIO t)          = freeTyVars t
 
 -- | Check if a type is a tensor type
 isTensorType :: Type -> Bool
