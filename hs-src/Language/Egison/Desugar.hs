@@ -298,6 +298,17 @@ desugar (LambdaExpr' vwis expr) = do
 desugar (MemoizedLambdaExpr names expr) =
   IMemoizedLambdaExpr names <$> desugar expr
 
+-- Typed memoized lambda is desugared the same way (type info used only for type checking)
+desugar (TypedMemoizedLambdaExpr params _ body) =
+  IMemoizedLambdaExpr (extractParamNames params) <$> desugar body
+  where
+    extractParamNames = concatMap extractName
+    extractName (TPVar name _) = [name]
+    extractName (TPTuple elems) = concatMap extractName elems
+    extractName (TPWildcard _) = []
+    extractName (TPUntypedVar name) = [name]
+    extractName TPUntypedWildcard = []
+
 desugar (CambdaExpr name expr) =
   ICambdaExpr name <$> desugar expr
 
@@ -527,6 +538,19 @@ desugarBindings = mapM desugarBinding
     desugarBinding (BindWithIndices vwi expr) = do
       (var, iexpr) <- desugarDefineWithIndices vwi expr
       return (PDPatVar var, iexpr)
+    -- BindWithType: desugar like DefineWithType
+    desugarBinding (BindWithType typedVarWI body) = do
+      let name = typedVarName typedVarWI
+          params = typedVarParams typedVarWI
+          argPatterns = map typedParamToArgPattern params
+          lambdaExpr = if null argPatterns
+                         then body
+                         else LambdaExpr argPatterns body
+      body' <- desugar lambdaExpr
+      let body'' = case body' of
+            ILambdaExpr Nothing args b -> ILambdaExpr (Just (Var name [])) args b
+            other -> other
+      return (PDPatVar (Var name []), body'')
 
 desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)

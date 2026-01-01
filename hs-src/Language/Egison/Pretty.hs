@@ -81,6 +81,8 @@ instance Pretty Expr where
     lambdaLike (pretty "\\") (map pretty xs) (pretty "->") (pretty e)
   pretty (MemoizedLambdaExpr xs e)  =
     lambdaLike (pretty "memoizedLambda ") (map pretty xs) (pretty "->") (pretty e)
+  pretty (TypedMemoizedLambdaExpr params retType e) =
+    lambdaLike (pretty "memoizedLambda ") (map pretty params) (pretty ":" <+> pretty retType <+> pretty "->") (pretty e)
   pretty (CambdaExpr x e) =
     indentBlock (pretty "cambda" <+> pretty x <+> pretty "->") [pretty e]
   pretty (PatternFunctionExpr xs p) =
@@ -106,7 +108,6 @@ instance Pretty Expr where
     nest 2 (pretty "\\match"     <+> prettyMatch matcher clauses)
   pretty (MatchAllLambdaExpr matcher clauses) =
     nest 2 (pretty "\\matchAll"  <+> prettyMatch matcher clauses)
-
   pretty (MatcherExpr patDefs) =
     nest 2 (pretty "matcher" <> hardline <> align (vsep (map prettyPatDef patDefs)))
       where
@@ -202,6 +203,34 @@ instance Pretty BindingExpr where
     hsep (pretty f : map pretty' args) <+> indentBlock (pretty ":=") [pretty body]
   pretty (Bind pat expr) = pretty pat <+> pretty ":=" <+> align (pretty expr)
   pretty (BindWithIndices var expr) = pretty var <+> pretty ":=" <+> align (pretty expr)
+  pretty (BindWithType typedVar expr) =
+    hsep (pretty (typedVarName typedVar) : map pretty (typedVarParams typedVar)) <+>
+    pretty ":" <+> pretty (typedVarRetType typedVar) <+> pretty ":=" <+> align (pretty expr)
+
+instance Pretty TypedParam where
+  pretty (TPVar name ty) = parens (pretty name <+> pretty ":" <+> pretty ty)
+  pretty (TPTuple elems) = parens (hsep (punctuate comma (map pretty elems)))
+  pretty (TPWildcard ty) = parens (pretty "_" <+> pretty ":" <+> pretty ty)
+  pretty (TPUntypedVar name) = pretty name
+  pretty TPUntypedWildcard = pretty "_"
+
+instance Pretty TypeExpr where
+  pretty TEInt = pretty "Integer"
+  pretty TEMathExpr = pretty "MathExpr"
+  pretty TEFloat = pretty "Float"
+  pretty TEBool = pretty "Bool"
+  pretty TEChar = pretty "Char"
+  pretty TEString = pretty "String"
+  pretty (TEVar v) = pretty v
+  pretty (TEList t) = brackets (pretty t)
+  pretty (TETuple []) = pretty "()"
+  pretty (TETuple ts) = parens (hsep (punctuate comma (map pretty ts)))
+  pretty (TEFun t1 t2) = pretty t1 <+> pretty "->" <+> pretty t2
+  pretty (TEMatcher t) = pretty "Matcher" <+> pretty t
+  pretty (TEPattern t) = pretty "Pattern" <+> pretty t
+  pretty (TEIO t) = pretty "IO" <+> pretty t
+  pretty (TETensor t _ _) = pretty "Tensor" <+> pretty t
+  pretty (TEApp t args) = hsep (pretty t : map pretty args)
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
@@ -313,6 +342,7 @@ instance Complex Expr where
   isAtom CApplyExpr{}             = False
   isAtom LambdaExpr{}             = False
   isAtom MemoizedLambdaExpr{}     = False
+  isAtom TypedMemoizedLambdaExpr{} = False
   isAtom CambdaExpr{}             = False
   isAtom PatternFunctionExpr{}    = False
   isAtom IfExpr{}                 = False

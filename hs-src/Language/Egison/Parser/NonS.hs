@@ -159,57 +159,58 @@ defineExpr = try defineWithType <|> defineWithoutType
       let typedVar = TypedVarWithIndices name indices typedParams retType
       return (DefineWithType typedVar body)
 
-    extractVarWithIndices :: VarWithIndices -> (String, [VarIndex])
-    extractVarWithIndices (VarWithIndices name indices) = (name, indices)
+-- | Extract name and indices from VarWithIndices
+extractVarWithIndices :: VarWithIndices -> (String, [VarIndex])
+extractVarWithIndices (VarWithIndices name indices) = (name, indices)
 
-    -- Parse a typed parameter: supports both simple (x: a) and tuple ((x: a), (y: b)) patterns
-    typedParam :: Parser TypedParam
-    typedParam = parens typedParamInner
+-- | Parse a typed parameter: supports both simple (x: a) and tuple ((x: a), (y: b)) patterns
+typedParam :: Parser TypedParam
+typedParam = parens typedParamInner
 
-    -- Parse the inner part of a typed parameter (inside parentheses)
-    typedParamInner :: Parser TypedParam
-    typedParamInner = try typedTupleParam <|> typedSimpleParam
+-- Parse the inner part of a typed parameter (inside parentheses)
+typedParamInner :: Parser TypedParam
+typedParamInner = try typedTupleParam <|> typedSimpleParam
 
-    -- Parse a tuple pattern with typed elements: (x: a), (y: b) or x: a, y: b
-    typedTupleParam :: Parser TypedParam
-    typedTupleParam = do
-      first <- typedTupleElement
-      _ <- symbol ","
-      rest <- typedTupleElement `sepBy1` symbol ","
-      return $ TPTuple (first : rest)
+-- Parse a tuple pattern with typed elements: (x: a), (y: b) or x: a, y: b
+typedTupleParam :: Parser TypedParam
+typedTupleParam = do
+  first <- typedTupleElement
+  _ <- symbol ","
+  rest <- typedTupleElement `sepBy1` symbol ","
+  return $ TPTuple (first : rest)
 
-    -- Parse an element in a typed tuple
-    typedTupleElement :: Parser TypedParam
-    typedTupleElement =
-          try (parens typedParamInner)  -- Nested: ((x: a))
-      <|> try typedWildcard             -- Wildcard with type: _: a
-      <|> try typedVar                  -- Variable with type: x: a
-      <|> untypedWildcard               -- Just wildcard: _
-      <|> untypedVar                    -- Just variable: x
+-- Parse an element in a typed tuple
+typedTupleElement :: Parser TypedParam
+typedTupleElement =
+      try (parens typedParamInner)  -- Nested: ((x: a))
+  <|> try typedWildcard             -- Wildcard with type: _: a
+  <|> try typedVar                  -- Variable with type: x: a
+  <|> untypedWildcard               -- Just wildcard: _
+  <|> untypedVar                    -- Just variable: x
 
-    -- Simple typed parameter: x: a or _: a
-    typedSimpleParam :: Parser TypedParam
-    typedSimpleParam = try typedWildcard <|> typedVar
+-- Simple typed parameter: x: a or _: a
+typedSimpleParam :: Parser TypedParam
+typedSimpleParam = try typedWildcard <|> typedVar
 
-    typedVar :: Parser TypedParam
-    typedVar = do
-      paramName <- ident
-      _ <- symbol ":"
-      paramType <- typeExpr
-      return $ TPVar paramName paramType
+typedVar :: Parser TypedParam
+typedVar = do
+  paramName <- ident
+  _ <- symbol ":"
+  paramType <- typeExpr
+  return $ TPVar paramName paramType
 
-    typedWildcard :: Parser TypedParam
-    typedWildcard = do
-      _ <- symbol "_"
-      _ <- symbol ":"
-      paramType <- typeExpr
-      return $ TPWildcard paramType
+typedWildcard :: Parser TypedParam
+typedWildcard = do
+  _ <- symbol "_"
+  _ <- symbol ":"
+  paramType <- typeExpr
+  return $ TPWildcard paramType
 
-    untypedVar :: Parser TypedParam
-    untypedVar = TPUntypedVar <$> ident
+untypedVar :: Parser TypedParam
+untypedVar = TPUntypedVar <$> ident
 
-    untypedWildcard :: Parser TypedParam
-    untypedWildcard = TPUntypedWildcard <$ symbol "_"
+untypedWildcard :: Parser TypedParam
+untypedWildcard = TPUntypedWildcard <$ symbol "_"
 
 -- | Parse a type expression
 typeExpr :: Parser TypeExpr
@@ -415,8 +416,20 @@ lambdaExpr = symbol "\\" >> (
 
 lambdaLikeExpr :: Parser Expr
 lambdaLikeExpr =
-        (reserved "memoizedLambda" >> MemoizedLambdaExpr <$> tupleOrSome lowerId <*> (symbol "->" >> expr))
+        try typedMemoizedLambda
+    <|> (reserved "memoizedLambda" >> MemoizedLambdaExpr <$> tupleOrSome lowerId <*> (symbol "->" >> expr))
     <|> (reserved "cambda"         >> CambdaExpr         <$> lowerId      <*> (symbol "->" >> expr))
+  where
+    -- memoizedLambda (x: Integer) : Integer -> body
+    -- Note: retType must be parsed with typeAtomOrParenType to avoid consuming the "->" arrow
+    typedMemoizedLambda = do
+      reserved "memoizedLambda"
+      params <- some typedParam
+      _ <- symbol ":"
+      retType <- typeAtomOrParenType
+      _ <- symbol "->"
+      body <- expr
+      return $ TypedMemoizedLambdaExpr params retType body
 
 arg :: Parser (Arg ArgPattern)
 arg = InvertedScalarArg <$> (string "*$" >> argPatternAtom)
@@ -450,15 +463,30 @@ letExpr = do
     oneLiner = braces $ sepBy binding (symbol ";")
 
 binding :: Parser BindingExpr
-binding = do
-  id <- Left <$> try varWithIndicesLiteral' <|> Right <$> pdAtom
-  args <- many arg
-  body <- symbol ":=" >> expr
-  case (id, args) of
-    (Left var, [])  -> return $ BindWithIndices var body
-    (Right pdp, []) -> return $ Bind pdp body
-    (Right pdp, _)  -> return $ Bind pdp (LambdaExpr args body)
-    _               -> error "unreachable"
+binding = try bindingWithType <|> bindingWithoutType
+  where
+    -- Binding with type annotation: f (x: Integer) : Integer := body
+    bindingWithType = do
+      varWithIdx <- varWithIndicesLiteral
+      let (name, indices) = extractVarWithIndices varWithIdx
+      typedParams <- many typedParam
+      _ <- symbol ":"
+      retType <- typeExpr
+      _ <- symbol ":="
+      body <- expr
+      let typedVar = TypedVarWithIndices name indices typedParams retType
+      return $ BindWithType typedVar body
+
+    -- Original binding without type annotation
+    bindingWithoutType = do
+      id <- Left <$> try varWithIndicesLiteral' <|> Right <$> pdAtom
+      args <- many arg
+      body <- symbol ":=" >> expr
+      case (id, args) of
+        (Left var, [])  -> return $ BindWithIndices var body
+        (Right pdp, []) -> return $ Bind pdp body
+        (Right pdp, _)  -> return $ Bind pdp (LambdaExpr args body)
+        _               -> error "unreachable"
 
 withSymbolsExpr :: Parser Expr
 withSymbolsExpr = WithSymbolsExpr <$> (reserved "withSymbols" >> brackets (sepBy ident comma)) <*> expr

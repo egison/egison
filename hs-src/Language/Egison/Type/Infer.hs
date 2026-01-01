@@ -482,6 +482,7 @@ inferExpr expr = case expr of
     where
       extractBindingName (Bind (PDPatVar name) _) = name
       extractBindingName (BindWithIndices (VarWithIndices name _) _) = name
+      extractBindingName (BindWithType tv _) = typedVarName tv
       extractBindingName _ = "_"
       
       inferRecBinding s (Bind _ e, expectedType) = do
@@ -492,8 +493,16 @@ inferExpr expr = case expr of
         (t, s') <- inferExpr e
         s'' <- unifyTypes (applySubst s' t) (applySubst s' expectedType)
         return $ composeSubst s'' (composeSubst s' s)
+      inferRecBinding s (BindWithType typedVar e, _expectedType) = do
+        -- For typed bindings, use the declared type
+        let params = typedVarParams typedVar
+            paramBindings = extractTypedParamBindings params
+            retType = typeExprToType (typedVarRetType typedVar)
+        (t, s') <- withEnv paramBindings $ inferExpr e
+        s'' <- unifyTypes (applySubst s' t) retType
+        return $ composeSubst s'' (composeSubst s' s)
 
-  -- Match lambda expression: \x -> match x as matcher with ...
+  -- Match lambda expression: \match as matcher with ...
   -- Equivalent to a lambda that immediately matches
   MatchLambdaExpr matcher clauses -> do
     argType <- freshVar "matchLamArg"
@@ -514,7 +523,7 @@ inferExpr expr = case expr of
           s' <- unifyTypes (applySubst s bodyType) expectedType
           return $ composeSubst s' s
 
-  -- MatchAll lambda expression
+  -- MatchAll lambda expression: \matchAll as matcher with ...
   MatchAllLambdaExpr matcher clauses -> do
     argType <- freshVar "matchAllLamArg"
     (matcherType, s1) <- inferExpr matcher
@@ -699,6 +708,19 @@ inferExpr expr = case expr of
         let scheme = generalize env (applySubst s' t)
         setEnv $ extendEnv name scheme env
         return $ composeSubst s' s
+      inferDoBinding s (BindWithType typedVar e) = do
+        let name = typedVarName typedVar
+            params = typedVarParams typedVar
+            paramTypes = map typedParamToType params
+            paramBindings = extractTypedParamBindings params
+            retType = typeExprToType (typedVarRetType typedVar)
+            expectedType = foldr TFun retType paramTypes
+        (inferredType, s') <- withEnv paramBindings $ inferExpr e
+        s'' <- unifyTypes (applySubst s' inferredType) retType
+        env <- getEnv
+        let scheme = generalize env expectedType
+        setEnv $ extendEnv name scheme env
+        return $ composeSubst s'' (composeSubst s' s)
 
   -- Prefix expression (unary operators like -)
   PrefixExpr op expr -> do
@@ -732,6 +754,25 @@ inferExpr expr = case expr of
     case applySubst s12 dataType of
       TList elemTy -> return (TTensor elemTy ShapeUnknown [], s12)
       _ -> return (TTensor (applySubst s12 dataType) ShapeUnknown [], s12)
+
+  -- MemoizedLambda: similar to regular lambda but with memoization
+  MemoizedLambdaExpr params body -> do
+    paramTypes <- mapM (\p -> freshVar ("memoParam_" ++ p)) params
+    let paramBindings = zipWith (\n t -> (n, Forall [] t)) params paramTypes
+    (bodyType, s) <- withEnv paramBindings $ inferExpr body
+    let funType = foldr TFun bodyType (map (applySubst s) paramTypes)
+    return (funType, s)
+
+  -- Typed memoized lambda
+  TypedMemoizedLambdaExpr typedParams retTypeExpr body -> do
+    let paramTypes = map typedParamToType typedParams
+        paramBindings = extractTypedParamBindings typedParams
+        retType = typeExprToType retTypeExpr
+    (bodyType, s) <- withEnv paramBindings $ inferExpr body
+    s' <- unifyTypes (applySubst s bodyType) retType
+    let finalS = composeSubst s' s
+        funType = foldr TFun (applySubst finalS retType) (map (applySubst finalS) paramTypes)
+    return (funType, finalS)
 
   -- Default case for any remaining unhandled expressions
   _ -> do

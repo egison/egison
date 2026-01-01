@@ -86,6 +86,7 @@ data Expr
   | LambdaExpr' [Arg VarWithIndices] Expr
   | TypedLambdaExpr [(String, TypeExpr)] TypeExpr Expr  -- ^ Lambda with typed parameters and return type
   | MemoizedLambdaExpr [String] Expr
+  | TypedMemoizedLambdaExpr [TypedParam] TypeExpr Expr  -- ^ Memoized lambda with typed parameters
   | CambdaExpr String Expr
   | PatternFunctionExpr [String] Pattern
 
@@ -177,6 +178,7 @@ data PMMode = BFSMode | DFSMode
 data BindingExpr
   = Bind PrimitiveDataPattern Expr
   | BindWithIndices VarWithIndices Expr
+  | BindWithType TypedVarWithIndices Expr  -- ^ Binding with type annotation (for where clauses)
   deriving Show
 
 type MatchClause = (Pattern, Expr)
