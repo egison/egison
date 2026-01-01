@@ -4,14 +4,14 @@
 --
 --
 
-def toAssoc xs :=
+def toAssoc (xs: [a]) : [(a, Integer)] :=
   match xs as list something with
     | [] -> []
     | $x :: (loop $i (2, $n)
                (#x :: ...)
                (!(#x :: _) & $rs)) -> (x, n) :: toAssoc rs
 
-def fromAssoc xs :=
+def fromAssoc (xs: [(a, Integer)]) : [a] :=
   match xs as list (something, integer) with
     | [] -> []
     | ($x, $n) :: $rs -> take n (repeat1 x) ++ fromAssoc rs

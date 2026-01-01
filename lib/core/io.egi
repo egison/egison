@@ -7,22 +7,22 @@
 --
 -- IO
 --
-def print x :=
+def print (x: a) : IO () :=
   do write x
      write "\n"
      flush ()
 
-def printToPort port x :=
+def printToPort (port: a) (x: b) : IO () :=
   do writeToPort port x
      writeToPort port "\n"
 
-def display x :=
+def display (x: a) : IO () :=
   do write x
      flush ()
 
-def displayToPort port x := do writeToPort port x
+def displayToPort (port: a) (x: b) : IO () := do writeToPort port x
 
-def eachLine proc :=
+def eachLine (proc: String -> IO ()) : IO () :=
   do let eof := isEof ()
      if eof
        then return ()
@@ -30,7 +30,7 @@ def eachLine proc :=
                proc line
                eachLine proc
 
-def eachLineFromPort port proc :=
+def eachLineFromPort (port: a) (proc: String -> IO ()) : IO () :=
   do let eof := isEofPort port
      if eof
        then return ()
@@ -38,7 +38,7 @@ def eachLineFromPort port proc :=
                proc line
                eachLineFromPort port proc
 
-def eachFile files proc :=
+def eachFile (files: [String]) (proc: String -> IO ()) : IO () :=
   match files as list string with
     | [] -> return ()
     | $file :: $rest ->
@@ -50,7 +50,7 @@ def eachFile files proc :=
 --
 -- Collection
 --
-def each proc xs :=
+def each (proc: a -> IO ()) (xs: [a]) : IO () :=
   match xs as list something with
     | [] -> do return ()
     | $x :: $rs ->

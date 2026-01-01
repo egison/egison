@@ -11,6 +11,7 @@ module Language.Egison.Type.Check
   , typeCheckExpr
   , typeCheckTopExprs
   , typeCheckWithWarnings
+  , typeCheckWithLoader
     -- * Type checking results
   , TypeCheckResult(..)
   , TypeCheckError(..)
@@ -21,13 +22,11 @@ module Language.Egison.Type.Check
   , permissiveConfig
     -- * Built-in environment
   , builtinEnv
+    -- * File loading
+  , FileLoader
   ) where
 
-import           Control.Monad              (foldM, forM, when)
-import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
-import           Control.Monad.State.Strict (State, evalState, get, modify)
-import           Data.Map.Strict            (Map)
-import qualified Data.Map.Strict            as Map
+import           Control.Monad.State.Strict (get)
 
 import           Language.Egison.AST
 import           Language.Egison.Type.Env
@@ -92,15 +91,16 @@ toInferConfig :: TypeCheckConfig -> InferConfig
 toInferConfig cfg = InferConfig
   { cfgPermissive = tcPermissive cfg
   , cfgCollectWarnings = tcCollectWarnings cfg
+  , cfgFileLoader = Nothing
   }
 
--- | Type check a single expression
-typeCheckExpr :: TypeCheckConfig -> TypeEnv -> Expr -> Either TypeCheckError TypeCheckResult
-typeCheckExpr config env expr =
+-- | Type check a single expression (IO version)
+typeCheckExpr :: TypeCheckConfig -> TypeEnv -> Expr -> IO (Either TypeCheckError TypeCheckResult)
+typeCheckExpr config env expr = do
   let inferCfg = toInferConfig config
       initialState = InferState 0 env [] inferCfg
-      (result, warnings) = runInferWithWarnings (inferExpr expr) initialState
-  in case result of
+  (result, warnings) <- runInferWithWarnings (inferExpr expr) initialState
+  return $ case result of
     Left err -> Left $ TypeCheckError err Nothing
     Right (ty, _) -> Right $ TypeCheckResult
       { tcrType = ty
@@ -108,37 +108,52 @@ typeCheckExpr config env expr =
       , tcrEnv = env
       }
 
--- | Type check multiple top-level expressions
-typeCheckTopExprs :: TypeCheckConfig -> [TopExpr] -> Either TypeCheckError TypeEnv
-typeCheckTopExprs config exprs =
+-- | Type check multiple top-level expressions (IO version)
+typeCheckTopExprs :: TypeCheckConfig -> [TopExpr] -> IO (Either TypeCheckError TypeEnv)
+typeCheckTopExprs config exprs = do
   let inferCfg = toInferConfig config
       initialState = InferState 0 builtinEnv [] inferCfg
       checkAndGetEnv = do
         mapM_ inferTopExpr exprs
         inferEnv <$> get
-  in case runInfer checkAndGetEnv initialState of
+  result <- runInfer checkAndGetEnv initialState
+  return $ case result of
     Left err -> Left $ TypeCheckError err Nothing
     Right env -> Right env
 
--- | Type check and return both result and warnings
-typeCheckWithWarnings :: TypeCheckConfig -> [TopExpr] -> (Either [TypeCheckError] TypeEnv, [TypeWarning])
-typeCheckWithWarnings config exprs =
+-- | Type check and return both result and warnings (IO version)
+typeCheckWithWarnings :: TypeCheckConfig -> [TopExpr] -> IO (Either [TypeCheckError] TypeEnv, [TypeWarning])
+typeCheckWithWarnings config exprs = do
   let inferCfg = toInferConfig config
       initialState = InferState 0 builtinEnv [] inferCfg
       checkAndGetEnv = do
         mapM_ inferTopExpr exprs
         inferEnv <$> get
-      (result, warnings) = runInferWithWarnings checkAndGetEnv initialState
-  in case result of
+  (result, warnings) <- runInferWithWarnings checkAndGetEnv initialState
+  return $ case result of
     Left err -> (Left [TypeCheckError err Nothing], warnings)
     Right env -> (Right env, warnings)
 
--- | Main entry point for type checking
-typeCheck :: TypeCheckConfig -> [TopExpr] -> Either [TypeCheckError] TypeEnv
-typeCheck config exprs =
-  case typeCheckTopExprs config exprs of
+-- | Main entry point for type checking (IO version)
+typeCheck :: TypeCheckConfig -> [TopExpr] -> IO (Either [TypeCheckError] TypeEnv)
+typeCheck config exprs = do
+  result <- typeCheckTopExprs config exprs
+  return $ case result of
     Left err -> Left [err]
     Right env -> Right env
+
+-- | Type check with a custom file loader (for loading library types)
+typeCheckWithLoader :: TypeCheckConfig -> FileLoader -> [TopExpr] -> IO (Either [TypeCheckError] TypeEnv, [TypeWarning])
+typeCheckWithLoader config loader exprs = do
+  let inferCfg = setFileLoader loader (toInferConfig config)
+      initialState = InferState 0 builtinEnv [] inferCfg
+      checkAndGetEnv = do
+        inferTopExprs exprs
+        inferEnv <$> get
+  (result, warnings) <- runInferWithWarnings checkAndGetEnv initialState
+  return $ case result of
+    Left err -> (Left [TypeCheckError err Nothing], warnings)
+    Right env -> (Right env, warnings)
 
 -- | Collect warnings from a type
 collectWarnings :: TypeCheckConfig -> Type -> [TypeWarning]
@@ -402,25 +417,27 @@ builtinTypes = concat
       ]
 
     -- IO functions
+    -- Note: In Egison's do-notation, IO functions return IO types
     ioTypes =
-      [ ("print", forallA $ TFun (TVar a) TUnit)
-      , ("read", Forall [] TString)
+      [ ("print", forallA $ TFun (TVar a) (TIO TUnit))
+      , ("read", Forall [] (TIO TString))
       , ("return", forallA $ TFun (TVar a) (TIO (TVar a)))
       , ("io", forallA $ TFun (TIO (TVar a)) (TVar a))
-      , ("openInputFile", unaryOp TString TUnit)
-      , ("openOutputFile", unaryOp TString TUnit)
-      , ("closeInputPort", unaryOp TUnit TUnit)
-      , ("closeOutputPort", unaryOp TUnit TUnit)
+      , ("openInputFile", unaryOp TString (TIO TUnit))
+      , ("openOutputFile", unaryOp TString (TIO TUnit))
+      , ("closeInputPort", unaryOp TUnit (TIO TUnit))
+      , ("closeOutputPort", unaryOp TUnit (TIO TUnit))
       , ("readChar", Forall [] (TIO TChar))
       , ("readLine", Forall [] (TIO TString))
       , ("writeChar", unaryOp TChar (TIO TUnit))
-      , ("write", unaryOp TString (TIO TUnit))
+      , ("write", forallA $ TFun (TVar a) (TIO TUnit))
       , ("readFile", unaryOp TString (TIO TString))
       , ("isEof", Forall [] (TIO TBool))
-      , ("flush", Forall [] (TIO TUnit))
+      , ("flush", unaryOp TUnit (TIO TUnit))
       , ("rand", binOp TInt TInt (TIO TInt))
       , ("f.rand", binOp TFloat TFloat (TIO TFloat))
       , ("readProcess", Forall [a] $ ternOpT TString (TList TString) TString (TIO TString))
+      , ("show", forallA $ TFun (TVar a) TString)
       ]
 
     -- Type conversion functions

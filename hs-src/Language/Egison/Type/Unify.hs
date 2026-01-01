@@ -43,6 +43,9 @@ unify' TBool TBool = Right emptySubst
 unify' TChar TChar = Right emptySubst
 unify' TString TString = Right emptySubst
 unify' TUnit TUnit = Right emptySubst
+-- Unit is equivalent to empty tuple
+unify' TUnit (TTuple []) = Right emptySubst
+unify' (TTuple []) TUnit = Right emptySubst
 
 -- Type variables
 unify' (TVar v) t = unifyVar v t

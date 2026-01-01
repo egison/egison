@@ -20,26 +20,26 @@ def float := eq
 -- Utility
 --
 
-def id := 1#%1
+def id (x: a) : a := x
 
-def fst (x, _) := x
-def snd (_, y) := y
+def fst (x: a, _: b) : a := x
+def snd (_: a, y: b) : b := y
 
 infixr expression 0 $
 
 def ($) f x := f x
 
-def compose f g := \x -> g (f x)
+def compose (f: a -> b) (g: b -> c) : a -> c := \x -> g (f x)
 
-def flip fn := \$x $y -> fn y x
+def flip (fn: a -> b -> c) : b -> a -> c := \$x $y -> fn y x
 
 def eqAs a x y :=
   match x as a with
     | #y -> True
     | _ -> False
 
-def curry f x y := f (x, y)
-def uncurry f (x, y) := f x y
+def curry (f: (a, b) -> c) (x: a) (y: b) : c := f (x, y)
+def uncurry (f: a -> b -> c) (x: a, y: b) : c := f x y
 
 --
 -- Boolean
@@ -51,7 +51,7 @@ infixr expression 2 ||
 def (&&) b1 b2 := if b1 then b2 else False
 def (||) b1 b2 := if b1 then True else b2
 
-def not b := if b then False else True
+def not (b: Bool) : Bool := if b then False else True
 
 --
 -- Unordered Pair

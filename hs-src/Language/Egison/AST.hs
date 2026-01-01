@@ -38,6 +38,7 @@ module Language.Egison.AST
   , TensorShapeExpr (..)
   , ShapeDim (..)
   , TensorIndexExpr (..)
+  , TypedParam (..)
   , TypedVarWithIndices (..)
   ) where
 
@@ -305,6 +306,7 @@ data TypeExpr
   | TEFun TypeExpr TypeExpr            -- ^ Function type, e.g., a -> b
   | TEMatcher TypeExpr                 -- ^ Matcher type
   | TEPattern TypeExpr                 -- ^ Pattern type, e.g., Pattern a
+  | TEIO TypeExpr                      -- ^ IO type, e.g., IO ()
   | TETensor TypeExpr TensorShapeExpr [TensorIndexExpr]
                                       -- ^ Tensor type with shape and indices
                                       --   e.g., Tensor Integer [2, 2]_#_#
@@ -332,11 +334,20 @@ data TensorIndexExpr
   | TIPlaceholderSup                   -- ^ Superscript placeholder, ~#
   deriving (Show, Eq)
 
+-- | Typed parameter pattern
+data TypedParam
+  = TPVar String TypeExpr                    -- ^ Simple variable with type: (x: a)
+  | TPTuple [TypedParam]                     -- ^ Tuple pattern: ((x: a), (y: b)) or (x: a, y: b)
+  | TPWildcard TypeExpr                      -- ^ Wildcard with type: (_: a)
+  | TPUntypedVar String                      -- ^ Untyped variable in tuple: x (inferred)
+  | TPUntypedWildcard                        -- ^ Untyped wildcard: _
+  deriving (Show, Eq)
+
 -- | Variable with type annotation
 data TypedVarWithIndices = TypedVarWithIndices
   { typedVarName    :: String
   , typedVarIndices :: [VarIndex]
-  , typedVarParams  :: [(String, TypeExpr)]  -- ^ Typed parameters
+  , typedVarParams  :: [TypedParam]          -- ^ Typed parameters (can include tuples)
   , typedVarRetType :: TypeExpr              -- ^ Return type
   } deriving (Show, Eq)
 

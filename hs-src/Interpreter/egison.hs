@@ -145,9 +145,10 @@ repl env = (do
       case parsedExpr of
         Left err -> liftIO $ putStrLn $ "Parse error: " ++ err
         Right expr -> do
-          case typeCheckExpr defaultConfig builtinEnv expr of
+          result <- liftIO $ typeCheckExpr defaultConfig builtinEnv expr
+          case result of
             Left err -> liftIO $ putStrLn $ "Type error: " ++ show (tceError err)
-            Right result -> liftIO $ putStrLn $ prettyType (tcrType result)
+            Right tcResult -> liftIO $ putStrLn $ prettyType (tcrType tcResult)
       repl env
     Just ReplHelp -> do
       liftIO showReplHelp
