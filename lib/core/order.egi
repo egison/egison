@@ -4,7 +4,9 @@
 --
 --
 
-def ordering :=
+inductive Ordering := | Less | Equal | Greater
+
+def ordering : Matcher a :=
   algebraicDataMatcher
     | less
     | equal

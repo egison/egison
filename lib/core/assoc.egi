@@ -19,7 +19,7 @@ def fromAssoc (xs: [(a, Integer)]) : [a] :=
 --
 -- Assoc Multiset
 --
-def assocMultiset a :=
+def assocMultiset (a: Matcher b) : Matcher [(b, Integer)] :=
   matcher
     | [] as () with
       | [] -> [()]

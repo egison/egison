@@ -9,7 +9,7 @@ infixr pattern 5 ++
 --
 -- List
 --
-def list a :=
+def list (a: Matcher b) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -45,7 +45,7 @@ def list a :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def sortedList a :=
+def sortedList (a: Matcher b) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -305,7 +305,7 @@ def L./ xs ys :=
 --
 -- Multiset
 --
-def multiset a :=
+def multiset (a: Matcher b) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -442,7 +442,7 @@ def elemIndices (x: a) (xs: [a]) : [Integer] :=
 --
 -- Set
 --
-def set a :=
+def set (a: Matcher b) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]

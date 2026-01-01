@@ -19,7 +19,7 @@ def randomize (xs: [a]) : [a] :=
 
 def R.between (s: Integer) (e: Integer) : [Integer] := randomize [s..e]
 
-def R.multiset a :=
+def R.multiset (a: Matcher b) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -54,7 +54,7 @@ def R.tail xs :=
 
 def sample : [a] -> a := R.head
 
-def R.set a :=
+def R.set (a: Matcher b) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]

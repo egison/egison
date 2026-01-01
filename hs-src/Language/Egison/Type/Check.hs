@@ -147,13 +147,65 @@ typeCheckWithLoader :: TypeCheckConfig -> FileLoader -> [TopExpr] -> IO (Either 
 typeCheckWithLoader config loader exprs = do
   let inferCfg = setFileLoader loader (toInferConfig config)
       initialState = InferState 0 builtinEnv [] inferCfg
-      checkAndGetEnv = do
-        inferTopExprs exprs
+      loadLibsAndCheck = do
+        -- First, load all core libraries to build the type environment
+        -- We ignore warnings during library loading (they are internal to the libraries)
+        mapM_ loadCoreLibrary coreLibraries
+        -- Clear warnings accumulated during library loading
+        clearWarnings
+        -- Then, type check the user's expressions
+        -- Note: We use inferTopExprs which will NOT trigger recursive library loading
+        -- because the file loader is already set, but user code should not have Load statements
+        mapM_ inferTopExprNoLoad exprs
         inferEnv <$> get
-  (result, warnings) <- runInferWithWarnings checkAndGetEnv initialState
+  (result, warnings) <- runInferWithWarnings loadLibsAndCheck initialState
   return $ case result of
     Left err -> (Left [TypeCheckError err Nothing], warnings)
     Right env -> (Right env, warnings)
+
+-- | Infer types for a top expression without loading files
+-- This is used for user code after libraries are already loaded
+inferTopExprNoLoad :: TopExpr -> Infer ()
+inferTopExprNoLoad (Load _) = return ()  -- Don't load again
+inferTopExprNoLoad (LoadFile _) = return ()  -- Don't load again
+inferTopExprNoLoad expr = inferTopExpr expr
+
+-- | Load a core library for type checking
+loadCoreLibrary :: FilePath -> Infer ()
+loadCoreLibrary path = loadAndInferFile path
+
+-- | List of core libraries in load order
+-- This must match the order in Language.Egison.coreLibraries
+coreLibraries :: [String]
+coreLibraries =
+  -- Libs that defines user-defined infixes comes first
+  [ "lib/core/base.egi"              -- Defines (&&) (||)
+  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
+  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+  , "lib/core/collection.egi"        -- Defines (++) for patterns
+  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
+
+  , "lib/core/assoc.egi"
+  , "lib/core/io.egi"
+  , "lib/core/maybe.egi"
+  , "lib/core/number.egi"
+  , "lib/core/order.egi"
+  , "lib/core/random.egi"
+  , "lib/core/string.egi"
+  , "lib/core/sort.egi"
+  , "lib/math/common/constants.egi"
+  , "lib/math/common/functions.egi"
+  , "lib/math/algebra/root.egi"
+  , "lib/math/algebra/equations.egi"
+  , "lib/math/algebra/inverse.egi"
+  , "lib/math/analysis/derivative.egi"
+  , "lib/math/analysis/integral.egi"
+  , "lib/math/algebra/vector.egi"
+  , "lib/math/algebra/matrix.egi"
+  , "lib/math/geometry/differential-form.egi"
+  -- Normalize library (loaded after core libraries)
+  , "lib/math/normalize.egi"
+  ]
 
 -- | Collect warnings from a type
 collectWarnings :: TypeCheckConfig -> Type -> [TypeWarning]
@@ -535,5 +587,16 @@ builtinTypes = concat
       , ("isCollection", forallA $ TFun (TVar a) TBool)
       , ("isHash", forallA $ TFun (TVar a) TBool)
       , ("isTensor", forallA $ TFun (TVar a) TBool)
+      -- Boolean constructors
+      , ("True", Forall [] TBool)
+      , ("False", Forall [] TBool)
+      -- Forward-declared functions (used before their definition in library loading order)
+      , ("mathNormalize", forallA $ TFun (TVar a) (TVar a))
+      , ("termExpr", Forall [] $ TMatcher TInt)  -- mathExpr alias
+      , ("coefficients", forallA $ TFun (TVar a) (TList TInt))
+      , ("compareC", forallA $ TFun (TList (TVar a)) (TFun (TList (TVar a)) TAny))
+      -- Note: Ordering constructors (Less, Equal, Greater), Maybe constructors (Nothing, Just),
+      -- and other algebraicDataMatcher constructors are now automatically registered
+      -- when the matcher is defined via registerAlgebraicConstructors
       ]
 

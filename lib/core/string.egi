@@ -4,7 +4,7 @@
 --
 --
 
-def string :=
+def string : Matcher String :=
   matcher
     | regexCg #$regexpr $ $ $ as (string, list string, string) with
       | $tgt -> regexCg regexpr tgt

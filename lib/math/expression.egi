@@ -9,14 +9,14 @@ infixr pattern 7 *
 infix pattern 7 /
 infix pattern 8 ^
 
-def mathExpr :=
+def mathExpr : Matcher Integer :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (mathExpr') with
       | $tgt -> [fromMathExpr tgt]
 
-def mathExpr' :=
+def mathExpr' : Matcher Integer :=
   matcher
     | div $ $ as (mathExpr, mathExpr) with
       | Div $p1 $p2 -> [(toMathExpr' p1, toMathExpr' p2)]
@@ -70,7 +70,9 @@ def mathExpr' :=
     | $ as something with
       | $tgt -> [toMathExpr' tgt]
 
-def indexExpr :=
+inductive IndexExpr a := | Sub a | Sup a | User a
+
+def indexExpr : Matcher Integer :=
   algebraicDataMatcher
     | sub mathExpr
     | sup mathExpr
@@ -82,7 +84,7 @@ def termExpr := mathExpr
 
 def symbolExpr := mathExpr
 
-def multExpr :=
+def multExpr : Matcher Integer :=
   matcher
     | [] as () with
       | $tgt ->
