@@ -42,6 +42,8 @@ import           Language.Egison.Type.Check (TypeCheckConfig (..), TypeCheckErro
                                               typeCheckWithWarnings, typeCheckWithLoader,
                                               FileLoader)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning, TypeWarning)
+import           Language.Egison.Type.TypeClassExpand (expandTopExpr)
+import           Language.Egison.Type.Env (emptyEnv)
 import qualified Language.Egison.Parser.NonS as NonS
 import           Language.Egison.RState     (evalRuntimeT)
 import           System.Directory           (doesFileExist, getHomeDirectory)
@@ -54,24 +56,35 @@ evalExpr :: Env -> Expr -> EvalM EgisonValue
 evalExpr env expr = desugarExpr expr >>= evalExprDeep env
 
 -- | Evaluate an Egison top expression.
+-- Pipeline: Parse → TypeCheck → TypeClassExpand → Desugar → Eval
 evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
   opts <- ask
-  -- Run type checking if enabled
-  when (optTypeCheck opts || optTypeCheckStrict opts) $ do
-    let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
-    (result, warnings) <- liftIO $ typeCheckWithLoader config makeFileLoader [topExpr]
-    -- Print warnings to stderr (so they don't interfere with normal output)
-    when (not (null warnings)) $ do
-      liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
-    -- Handle errors
-    case result of
-      Left errs -> do
-        liftIO $ hPutStrLn stderr "Type errors found:"
-        liftIO $ mapM_ (hPutStrLn stderr . ("  " ++) . formatTypeError . tceError) errs
-        throwError $ Default "Type checking failed"
-      Right _env -> return ()
-  topExpr' <- desugarTopExpr topExpr
+  
+  -- Step 1: Run type checking if enabled
+  typeEnv <- if optTypeCheck opts || optTypeCheckStrict opts
+    then do
+      let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
+      (result, warnings) <- liftIO $ typeCheckWithLoader config makeFileLoader [topExpr]
+      -- Print warnings to stderr (so they don't interfere with normal output)
+      when (not (null warnings)) $ do
+        liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
+      -- Handle errors
+      case result of
+        Left errs -> do
+          liftIO $ hPutStrLn stderr "Type errors found:"
+          liftIO $ mapM_ (hPutStrLn stderr . ("  " ++) . formatTypeError . tceError) errs
+          throwError $ Default "Type checking failed"
+        Right env' -> return env'
+    else return emptyEnv
+  
+  -- Step 2: Expand type class methods using type information
+  let expandedTopExpr = expandTopExpr typeEnv topExpr
+  
+  -- Step 3: Desugar using existing Desugar.hs
+  topExpr' <- desugarTopExpr expandedTopExpr
+  
+  -- Step 4: Evaluate
   case topExpr' of
     Nothing      -> return (Nothing, env)
     Just topExpr'' -> evalTopExpr' env topExpr''
@@ -95,25 +108,35 @@ valueToStr val = do
     Just lang -> return (prettyMath lang val)
 
 -- | Evaluate Egison top expressions.
+-- Pipeline: Parse → TypeCheck → TypeClassExpand → Desugar → Eval
 evalTopExprs :: Env -> [TopExpr] -> EvalM Env
 evalTopExprs env exprs = do
   opts <- ask
-  -- Run type checking if enabled
-  when (optTypeCheck opts || optTypeCheckStrict opts) $ do
-    let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
-    (result, warnings) <- liftIO $ typeCheckWithLoader config makeFileLoader exprs
-    -- Print warnings to stderr (so they don't interfere with normal output)
-    when (not (null warnings)) $ do
-      liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
-    -- Handle errors
-    case result of
-      Left errs -> do
-        liftIO $ hPutStrLn stderr "Type errors found:"
-        liftIO $ mapM_ (hPutStrLn stderr . ("  " ++) . formatTypeError . tceError) errs
-        throwError $ Default "Type checking failed"
-      Right _env -> return ()
-  -- Continue with evaluation
-  desugaredExprs <- desugarTopExprs exprs
+  
+  -- Step 1: Run type checking if enabled
+  typeEnv <- if optTypeCheck opts || optTypeCheckStrict opts
+    then do
+      let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
+      (result, warnings) <- liftIO $ typeCheckWithLoader config makeFileLoader exprs
+      -- Print warnings to stderr (so they don't interfere with normal output)
+      when (not (null warnings)) $ do
+        liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
+      -- Handle errors
+      case result of
+        Left errs -> do
+          liftIO $ hPutStrLn stderr "Type errors found:"
+          liftIO $ mapM_ (hPutStrLn stderr . ("  " ++) . formatTypeError . tceError) errs
+          throwError $ Default "Type checking failed"
+        Right env' -> return env'
+    else return emptyEnv
+  
+  -- Step 2: Expand type class methods using type information
+  let expandedExprs = map (expandTopExpr typeEnv) exprs
+  
+  -- Step 3: Desugar using existing Desugar.hs
+  desugaredExprs <- desugarTopExprs expandedExprs
+  
+  -- Step 4: Evaluate
   (bindings, rest) <- collectDefs opts desugaredExprs
   env' <- recursiveBind env bindings
   forM_ rest $ \expr -> do
