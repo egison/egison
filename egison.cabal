@@ -116,6 +116,7 @@ Library
                    Language.Egison.Type.Index
                    Language.Egison.Type.Infer
                    Language.Egison.Type.Subst
+                   Language.Egison.Type.TypeClassExpand
                    Language.Egison.Type.Tensor
                    Language.Egison.Type.Types
                    Language.Egison.Type.Unify
