@@ -2,14 +2,16 @@
 Module      : Language.Egison.Type.TypedDesugar
 Licence     : MIT
 
-This module provides desugaring from typed AST (TypedExpr) to internal expressions (IExpr).
-The key advantage is that type information is available during desugaring,
-enabling type class instance resolution.
+This module provides desugaring from typed AST (TypedExpr) to typed internal expressions (TIExpr).
+Type information is preserved during desugaring, enabling type-based dispatch during evaluation.
 -}
 
 module Language.Egison.Type.TypedDesugar
   ( desugarTypedExpr
   , desugarTypedTopExpr
+  -- Typed versions that preserve type information
+  , desugarTypedExprT
+  , desugarTypedTopExprT
   ) where
 
 import           Control.Monad              (forM)
@@ -570,4 +572,42 @@ capitalizeFirst (c:cs) = toUpper c : cs
 lowerFirst :: String -> String
 lowerFirst []     = []
 lowerFirst (c:cs) = toLower c : cs
+
+--
+-- Typed Desugaring (preserves type information)
+--
+
+-- | Desugar a typed expression to typed internal expression (TIExpr)
+-- The type is preserved and can be used during evaluation
+desugarTypedExprT :: TypedExpr -> EvalM TIExpr
+desugarTypedExprT te@(TypedExpr ty _) = do
+  iexpr <- desugarTypedExpr te
+  return $ TIExpr ty iexpr
+
+-- | Desugar a typed top expression to typed internal top expression (TITopExpr)
+desugarTypedTopExprT :: TypedTopExpr -> EvalM (Maybe TITopExpr)
+desugarTypedTopExprT (TDefine var texpr) = do
+  let ty = texprType texpr  -- Get the type from the TypedExpr
+  tiexpr <- desugarTypedExprT texpr
+  return $ Just $ TIDefine ty (stringToVar var) tiexpr
+
+desugarTypedTopExprT (TDefineWithType var _params retType texpr) = do
+  tiexpr <- desugarTypedExprT texpr
+  return $ Just $ TIDefine retType (stringToVar var) tiexpr
+
+desugarTypedTopExprT (TTest texpr) = do
+  tiexpr <- desugarTypedExprT texpr
+  return $ Just $ TITest tiexpr
+
+desugarTypedTopExprT (TExecute texpr) = do
+  tiexpr <- desugarTypedExprT texpr
+  return $ Just $ TIExecute tiexpr
+
+desugarTypedTopExprT (TLoadFile file) = return $ Just $ TILoadFile file
+desugarTypedTopExprT (TLoad file) = return $ Just $ TILoad file
+
+-- For expressions that don't produce runtime code
+desugarTypedTopExprT (TInductiveDecl {}) = return Nothing
+desugarTypedTopExprT (TClassDecl {}) = return Nothing
+desugarTypedTopExprT (TInstanceDecl {}) = return Nothing
 

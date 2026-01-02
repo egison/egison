@@ -7,6 +7,17 @@ It transforms Expr to Expr, replacing type class method calls with
 dictionary-based dispatch.
 
 Pipeline: Parse → Infer → TypeClassExpand → Desugar → Eval
+
+For example, if we have:
+  class Eq a where (==) : a -> a -> Bool
+  instance Eq Integer where (==) x y := x = y
+
+Then a call like:
+  autoEq 1 2
+becomes:
+  eqIntegerEq 1 2
+
+This eliminates the need for runtime dispatch functions like resolveEq.
 -}
 
 module Language.Egison.Type.TypeClassExpand
@@ -14,151 +25,213 @@ module Language.Egison.Type.TypeClassExpand
   , expandTopExpr
   ) where
 
-import           Data.Text              (pack)
+import           Data.Char              (toLower, toUpper)
+import qualified Data.Map.Strict        as Map
 
 import           Language.Egison.AST
-import           Language.Egison.Type.Env (TypeEnv)
+import           Language.Egison.Type.Check (TypeCheckEnv(..))
+import           Language.Egison.Type.Env (TypeEnv, ClassEnv(..), ClassInfo(..), InstanceInfo(..))
 import           Language.Egison.Type.Types (Type(..), TyVar(..))
 
 -- | Expand type class method calls in an expression
--- For now, this is a placeholder that returns the expression unchanged.
--- Type class expansion will be implemented when we have proper type class
--- method detection during type inference.
-expandTypeClassMethods :: TypeEnv -> Expr -> Expr
-expandTypeClassMethods _env expr = expandExpr expr
+expandTypeClassMethods :: TypeCheckEnv -> Expr -> Expr
+expandTypeClassMethods tcEnv expr = expandExpr (tceClassEnv tcEnv) expr
 
 -- | Expand type class methods in a top-level expression
-expandTopExpr :: TypeEnv -> TopExpr -> TopExpr
-expandTopExpr env topExpr = case topExpr of
-  Define vwi e -> Define vwi (expandTypeClassMethods env e)
-  DefineWithType tvwi e -> DefineWithType tvwi (expandTypeClassMethods env e)
-  Test e -> Test (expandTypeClassMethods env e)
-  Execute e -> Execute (expandTypeClassMethods env e)
+expandTopExpr :: TypeCheckEnv -> TopExpr -> TopExpr
+expandTopExpr tcEnv topExpr = case topExpr of
+  Define vwi e -> Define vwi (expandTypeClassMethods tcEnv e)
+  DefineWithType tvwi e -> DefineWithType tvwi (expandTypeClassMethods tcEnv e)
+  Test e -> Test (expandTypeClassMethods tcEnv e)
+  Execute e -> Execute (expandTypeClassMethods tcEnv e)
   -- Other top-level expressions don't contain expressions to expand
   _ -> topExpr
 
 -- | Recursively expand type class methods in an expression
--- Currently just traverses the expression tree without modification.
--- Type class expansion will be added when type inference provides
--- the necessary type information.
-expandExpr :: Expr -> Expr
-expandExpr expr = case expr of
+expandExpr :: ClassEnv -> Expr -> Expr
+expandExpr classEnv expr = case expr of
   -- Literals and variables - no expansion needed
   ConstantExpr c -> ConstantExpr c
   VarExpr v -> VarExpr v
   FreshVarExpr -> FreshVarExpr
   
   -- Indexed expressions
-  IndexedExpr b e idxs -> IndexedExpr b (expandExpr e) (map (fmap expandExpr) idxs)
-  SubrefsExpr b e1 e2 -> SubrefsExpr b (expandExpr e1) (expandExpr e2)
-  SuprefsExpr b e1 e2 -> SuprefsExpr b (expandExpr e1) (expandExpr e2)
-  UserrefsExpr b e1 e2 -> UserrefsExpr b (expandExpr e1) (expandExpr e2)
+  IndexedExpr b e idxs -> IndexedExpr b (go e) (map (fmap go) idxs)
+  SubrefsExpr b e1 e2 -> SubrefsExpr b (go e1) (go e2)
+  SuprefsExpr b e1 e2 -> SuprefsExpr b (go e1) (go e2)
+  UserrefsExpr b e1 e2 -> UserrefsExpr b (go e1) (go e2)
   
   -- Collections
-  TupleExpr es -> TupleExpr (map expandExpr es)
-  CollectionExpr es -> CollectionExpr (map expandExpr es)
-  ConsExpr e1 e2 -> ConsExpr (expandExpr e1) (expandExpr e2)
-  JoinExpr e1 e2 -> JoinExpr (expandExpr e1) (expandExpr e2)
-  HashExpr pairs -> HashExpr [(expandExpr k, expandExpr v) | (k, v) <- pairs]
-  VectorExpr es -> VectorExpr (map expandExpr es)
+  TupleExpr es -> TupleExpr (map go es)
+  CollectionExpr es -> CollectionExpr (map go es)
+  ConsExpr e1 e2 -> ConsExpr (go e1) (go e2)
+  JoinExpr e1 e2 -> JoinExpr (go e1) (go e2)
+  HashExpr pairs -> HashExpr [(go k, go v) | (k, v) <- pairs]
+  VectorExpr es -> VectorExpr (map go es)
   
   -- Lambda expressions
-  LambdaExpr args body -> LambdaExpr args (expandExpr body)
-  LambdaExpr' args body -> LambdaExpr' args (expandExpr body)
-  TypedLambdaExpr params retTy body -> TypedLambdaExpr params retTy (expandExpr body)
-  MemoizedLambdaExpr params body -> MemoizedLambdaExpr params (expandExpr body)
-  TypedMemoizedLambdaExpr params retTy body -> TypedMemoizedLambdaExpr params retTy (expandExpr body)
-  CambdaExpr name body -> CambdaExpr name (expandExpr body)
-  PatternFunctionExpr names pat -> PatternFunctionExpr names (expandPattern pat)
+  LambdaExpr args body -> LambdaExpr args (go body)
+  LambdaExpr' args body -> LambdaExpr' args (go body)
+  TypedLambdaExpr params retTy body -> TypedLambdaExpr params retTy (go body)
+  MemoizedLambdaExpr params body -> MemoizedLambdaExpr params (go body)
+  TypedMemoizedLambdaExpr params retTy body -> TypedMemoizedLambdaExpr params retTy (go body)
+  CambdaExpr name body -> CambdaExpr name (go body)
+  PatternFunctionExpr names pat -> PatternFunctionExpr names (expandPattern classEnv pat)
   
   -- Control flow
-  IfExpr c t e -> IfExpr (expandExpr c) (expandExpr t) (expandExpr e)
-  LetExpr binds body -> LetExpr (map expandBinding binds) (expandExpr body)
-  LetRecExpr binds body -> LetRecExpr (map expandBinding binds) (expandExpr body)
-  WithSymbolsExpr syms body -> WithSymbolsExpr syms (expandExpr body)
+  IfExpr c t e -> IfExpr (go c) (go t) (go e)
+  LetExpr binds body -> LetExpr (map (expandBinding classEnv) binds) (go body)
+  LetRecExpr binds body -> LetRecExpr (map (expandBinding classEnv) binds) (go body)
+  WithSymbolsExpr syms body -> WithSymbolsExpr syms (go body)
   
   -- Pattern matching
   MatchExpr mode tgt matcher clauses -> 
-    MatchExpr mode (expandExpr tgt) (expandExpr matcher) (map expandClause clauses)
+    MatchExpr mode (go tgt) (go matcher) (map (expandClause classEnv) clauses)
   MatchAllExpr mode tgt matcher clauses ->
-    MatchAllExpr mode (expandExpr tgt) (expandExpr matcher) (map expandClause clauses)
+    MatchAllExpr mode (go tgt) (go matcher) (map (expandClause classEnv) clauses)
   MatchLambdaExpr matcher clauses ->
-    MatchLambdaExpr (expandExpr matcher) (map expandClause clauses)
+    MatchLambdaExpr (go matcher) (map (expandClause classEnv) clauses)
   MatchAllLambdaExpr matcher clauses ->
-    MatchAllLambdaExpr (expandExpr matcher) (map expandClause clauses)
+    MatchAllLambdaExpr (go matcher) (map (expandClause classEnv) clauses)
   
   -- Matchers
   MatcherExpr patDefs -> 
-    MatcherExpr [(pp, expandExpr e, [(dp, expandExpr b) | (dp, b) <- cs]) | (pp, e, cs) <- patDefs]
+    MatcherExpr [(pp, go e, [(dp, go b) | (dp, b) <- cs]) | (pp, e, cs) <- patDefs]
   AlgebraicDataMatcherExpr ctors ->
-    AlgebraicDataMatcherExpr [(n, map expandExpr args) | (n, args) <- ctors]
+    AlgebraicDataMatcherExpr [(n, map go args) | (n, args) <- ctors]
   
   -- Quote/math expressions
-  QuoteExpr e -> QuoteExpr (expandExpr e)
-  QuoteSymbolExpr e -> QuoteSymbolExpr (expandExpr e)
-  WedgeApplyExpr func args -> WedgeApplyExpr (expandExpr func) (map expandExpr args)
+  QuoteExpr e -> QuoteExpr (go e)
+  QuoteSymbolExpr e -> QuoteSymbolExpr (go e)
+  WedgeApplyExpr func args -> WedgeApplyExpr (go func) (map go args)
   
   -- IO
-  DoExpr binds body -> DoExpr (map expandBinding binds) (expandExpr body)
+  DoExpr binds body -> DoExpr (map (expandBinding classEnv) binds) (go body)
   
   -- Operators
-  PrefixExpr op e -> PrefixExpr op (expandExpr e)
-  InfixExpr op e1 e2 -> InfixExpr op (expandExpr e1) (expandExpr e2)
-  SectionExpr op mL mR -> SectionExpr op (fmap expandExpr mL) (fmap expandExpr mR)
+  PrefixExpr op e -> PrefixExpr op (go e)
+  InfixExpr op e1 e2 -> InfixExpr op (go e1) (go e2)
+  SectionExpr op mL mR -> SectionExpr op (fmap go mL) (fmap go mR)
   
   -- Sequence and apply
-  SeqExpr e1 e2 -> SeqExpr (expandExpr e1) (expandExpr e2)
-  ApplyExpr func args -> ApplyExpr (expandExpr func) (map expandExpr args)
-  CApplyExpr f a -> CApplyExpr (expandExpr f) (expandExpr a)
+  SeqExpr e1 e2 -> SeqExpr (go e1) (go e2)
+  
+  -- Function application - this is where we expand type class methods!
+  ApplyExpr func args ->
+    case tryExpandTypeClassCall classEnv func args of
+      Just expanded -> expanded
+      Nothing -> ApplyExpr (go func) (map go args)
+  
+  CApplyExpr f a -> CApplyExpr (go f) (go a)
   
   -- Anonymous parameters
-  AnonParamFuncExpr n body -> AnonParamFuncExpr n (expandExpr body)
-  AnonTupleParamFuncExpr n body -> AnonTupleParamFuncExpr n (expandExpr body)
-  AnonListParamFuncExpr n body -> AnonListParamFuncExpr n (expandExpr body)
+  AnonParamFuncExpr n body -> AnonParamFuncExpr n (go body)
+  AnonTupleParamFuncExpr n body -> AnonTupleParamFuncExpr n (go body)
+  AnonListParamFuncExpr n body -> AnonListParamFuncExpr n (go body)
   AnonParamExpr n -> AnonParamExpr n
   
   -- Tensor operations
-  GenerateTensorExpr gen shape -> GenerateTensorExpr (expandExpr gen) (expandExpr shape)
-  TensorExpr d s -> TensorExpr (expandExpr d) (expandExpr s)
-  TensorContractExpr e -> TensorContractExpr (expandExpr e)
-  TensorMapExpr f t -> TensorMapExpr (expandExpr f) (expandExpr t)
-  TensorMap2Expr f t1 t2 -> TensorMap2Expr (expandExpr f) (expandExpr t1) (expandExpr t2)
-  TransposeExpr idxs t -> TransposeExpr (expandExpr idxs) (expandExpr t)
-  FlipIndicesExpr e -> FlipIndicesExpr (expandExpr e)
+  GenerateTensorExpr gen shape -> GenerateTensorExpr (go gen) (go shape)
+  TensorExpr d s -> TensorExpr (go d) (go s)
+  TensorContractExpr e -> TensorContractExpr (go e)
+  TensorMapExpr f t -> TensorMapExpr (go f) (go t)
+  TensorMap2Expr f t1 t2 -> TensorMap2Expr (go f) (go t1) (go t2)
+  TransposeExpr idxs t -> TransposeExpr (go idxs) (go t)
+  FlipIndicesExpr e -> FlipIndicesExpr (go e)
+  where
+    go = expandExpr classEnv
+
+-- | Try to expand a type class method call
+-- For example: autoEq x y -> eqIntegerEq x y (if x has type Integer)
+-- Currently expands calls to known auto-dispatch functions
+tryExpandTypeClassCall :: ClassEnv -> Expr -> [Expr] -> Maybe Expr
+tryExpandTypeClassCall _classEnv func args = case func of
+  -- Expand autoEq x y -> eqIntegerEq x y (based on first argument's type)
+  VarExpr "autoEq" | length args >= 2 ->
+    case getTypeFromExpr (head args) of
+      Just ty -> Just $ ApplyExpr 
+        (VarExpr (resolveMethodName "Eq" "eq" ty))
+        args
+      Nothing -> Nothing
+  
+  VarExpr "autoNeq" | length args >= 2 ->
+    case getTypeFromExpr (head args) of
+      Just ty -> Just $ ApplyExpr 
+        (VarExpr (resolveMethodName "Eq" "neq" ty))
+        args
+      Nothing -> Nothing
+  
+  _ -> Nothing
+
+-- | Try to get a type from an expression with type annotation
+getTypeFromExpr :: Expr -> Maybe String
+getTypeFromExpr expr = case expr of
+  -- Look for type-annotated expressions
+  -- For now, we can infer types from literal constants
+  ConstantExpr c -> getTypeFromConstant c
+  -- For typed lambda arguments
+  _ -> Nothing
+
+-- | Get type name from a constant
+getTypeFromConstant :: ConstantExpr -> Maybe String
+getTypeFromConstant c = case c of
+  IntegerExpr _ -> Just "Integer"
+  FloatExpr _ -> Just "Float"
+  StringExpr _ -> Just "String"
+  BoolExpr _ -> Just "Bool"
+  CharExpr _ -> Just "Char"
+  _ -> Nothing
+
+-- | Resolve a type class method name for a specific type
+-- e.g., resolveMethodName "Eq" "eq" "Integer" -> "eqIntegerEq"
+resolveMethodName :: String -> String -> String -> String
+resolveMethodName className methodName typeName =
+  lowerFirst className ++ typeName ++ capitalizeFirst methodName
+
+-- | Capitalize first character
+capitalizeFirst :: String -> String
+capitalizeFirst []     = []
+capitalizeFirst (c:cs) = toUpper c : cs
+
+-- | Lowercase first character
+lowerFirst :: String -> String
+lowerFirst []     = []
+lowerFirst (c:cs) = toLower c : cs
 
 -- | Expand type class methods in a binding
-expandBinding :: BindingExpr -> BindingExpr
-expandBinding (Bind pat e) = Bind pat (expandExpr e)
-expandBinding (BindWithIndices vwi e) = BindWithIndices vwi (expandExpr e)
-expandBinding (BindWithType tvwi e) = BindWithType tvwi (expandExpr e)
+expandBinding :: ClassEnv -> BindingExpr -> BindingExpr
+expandBinding classEnv (Bind pat e) = Bind pat (expandExpr classEnv e)
+expandBinding classEnv (BindWithIndices vwi e) = BindWithIndices vwi (expandExpr classEnv e)
+expandBinding classEnv (BindWithType tvwi e) = BindWithType tvwi (expandExpr classEnv e)
 
 -- | Expand type class methods in a match clause
-expandClause :: MatchClause -> MatchClause
-expandClause (pat, body) = (expandPattern pat, expandExpr body)
+expandClause :: ClassEnv -> MatchClause -> MatchClause
+expandClause classEnv (pat, body) = (expandPattern classEnv pat, expandExpr classEnv body)
 
 -- | Expand type class methods in a pattern
-expandPattern :: Pattern -> Pattern
-expandPattern pat = case pat of
+expandPattern :: ClassEnv -> Pattern -> Pattern
+expandPattern classEnv pat = case pat of
   WildCard -> WildCard
   PatVar v -> PatVar v
-  ValuePat e -> ValuePat (expandExpr e)
-  PredPat e -> PredPat (expandExpr e)
-  IndexedPat p idxs -> IndexedPat (expandPattern p) (map expandExpr idxs)
-  LetPat binds p -> LetPat (map expandBinding binds) (expandPattern p)
-  NotPat p -> NotPat (expandPattern p)
-  AndPat p1 p2 -> AndPat (expandPattern p1) (expandPattern p2)
-  OrPat p1 p2 -> OrPat (expandPattern p1) (expandPattern p2)
-  ForallPat p1 p2 -> ForallPat (expandPattern p1) (expandPattern p2)
-  TuplePat ps -> TuplePat (map expandPattern ps)
-  InductivePat name ps -> InductivePat name (map expandPattern ps)
-  InfixPat op p1 p2 -> InfixPat op (expandPattern p1) (expandPattern p2)
-  LoopPat v range p1 p2 -> LoopPat v range (expandPattern p1) (expandPattern p2)
+  ValuePat e -> ValuePat (expandExpr classEnv e)
+  PredPat e -> PredPat (expandExpr classEnv e)
+  IndexedPat p idxs -> IndexedPat (go p) (map (expandExpr classEnv) idxs)
+  LetPat binds p -> LetPat (map (expandBinding classEnv) binds) (go p)
+  NotPat p -> NotPat (go p)
+  AndPat p1 p2 -> AndPat (go p1) (go p2)
+  OrPat p1 p2 -> OrPat (go p1) (go p2)
+  ForallPat p1 p2 -> ForallPat (go p1) (go p2)
+  TuplePat ps -> TuplePat (map go ps)
+  InductivePat name ps -> InductivePat name (map go ps)
+  InfixPat op p1 p2 -> InfixPat op (go p1) (go p2)
+  LoopPat v range p1 p2 -> LoopPat v range (go p1) (go p2)
   ContPat -> ContPat
-  PApplyPat e ps -> PApplyPat (expandExpr e) (map expandPattern ps)
+  PApplyPat e ps -> PApplyPat (expandExpr classEnv e) (map go ps)
   VarPat name -> VarPat name
   SeqNilPat -> SeqNilPat
-  SeqConsPat p1 p2 -> SeqConsPat (expandPattern p1) (expandPattern p2)
+  SeqConsPat p1 p2 -> SeqConsPat (go p1) (go p2)
   LaterPatVar -> LaterPatVar
-  DApplyPat p ps -> DApplyPat (expandPattern p) (map expandPattern ps)
-  InductiveOrPApplyPat name ps -> InductiveOrPApplyPat name (map expandPattern ps)
-
+  DApplyPat p ps -> DApplyPat (go p) (map go ps)
+  InductiveOrPApplyPat name ps -> InductiveOrPApplyPat name (map go ps)
+  where
+    go = expandPattern classEnv

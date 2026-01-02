@@ -6,6 +6,7 @@ This module defines the type system for Egison.
 -}
 
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Language.Egison.Type.Types
   ( Type(..)
@@ -22,21 +23,22 @@ module Language.Egison.Type.Types
   , isScalarType
   ) where
 
+import           Data.Hashable    (Hashable)
 import           Data.Set         (Set)
 import qualified Data.Set         as Set
 import           GHC.Generics     (Generic)
 
-import           Language.Egison.Type.Index (IndexSpec)
+import           Language.Egison.Type.Index (IndexSpec, IndexKind, Index)
 
 -- | Type variable
 newtype TyVar = TyVar String
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | Shape dimension (can be concrete or variable)
 data ShapeDimType
   = DimLit Integer        -- ^ Concrete dimension, e.g., 2
   | DimVar String         -- ^ Dimension variable, e.g., n
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | Tensor shape (dimension sizes)
 data TensorShape
@@ -44,7 +46,7 @@ data TensorShape
   | ShapeVar String           -- ^ Shape variable, e.g., ns in zeroTensor
   | ShapeMixed [ShapeDimType] -- ^ Mixed shape, e.g., [n, m, 2]
   | ShapeUnknown              -- ^ To be inferred
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | Egison types
 data Type
@@ -69,7 +71,10 @@ data Type
   | TIO Type                          -- ^ IO type (for IO actions)
   | TUnit                             -- ^ Unit type ()
   | TAny                              -- ^ Any type (for gradual typing)
-  deriving (Eq, Show, Generic)
+  | TInductive String [Type]          -- ^ Inductive data type with type arguments
+                                      --   e.g., TInductive "Maybe" [TInt] = Maybe Integer
+                                      --   e.g., TInductive "Ordering" [] = Ordering
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | Type alias: MathExpr = Integer in Egison
 -- Both names refer to the same type (TInt)
@@ -127,6 +132,7 @@ freeTyVars (TCollection t)  = freeTyVars t
 freeTyVars (THash k v)      = freeTyVars k `Set.union` freeTyVars v
 freeTyVars (TIORef t)       = freeTyVars t
 freeTyVars (TIO t)          = freeTyVars t
+freeTyVars (TInductive _ ts) = Set.unions (map freeTyVars ts)
 
 -- | Check if a type is a tensor type
 isTensorType :: Type -> Bool

@@ -7,6 +7,7 @@ Indices can be superscript (contravariant, ~i) or subscript (covariant, _i).
 -}
 
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Language.Egison.Type.Index
   ( IndexKind(..)
@@ -21,20 +22,21 @@ module Language.Egison.Type.Index
   , flipIndexKind
   ) where
 
+import           Data.Hashable (Hashable)
 import           GHC.Generics (Generic)
 
 -- | The kind of tensor index
 data IndexKind
   = Superscript    -- ^ Contravariant index, written as ~i
   | Subscript      -- ^ Covariant index, written as _i
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | A tensor index
 data Index
   = IndexSym IndexKind String      -- ^ Named index, e.g., _i, ~j
   | IndexPlaceholder IndexKind     -- ^ Placeholder index, e.g., _#, ~#
   | IndexVar String                -- ^ Index variable (for type-level computation)
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | A sequence of indices
 type IndexSpec = [Index]

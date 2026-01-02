@@ -62,6 +62,7 @@ coreLibraries =
   , "lib/core/collection.egi"        -- Defines (++) for patterns
   , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
 
+  , "lib/core/typeclass.egi"         -- Type class definitions and instances
   , "lib/core/assoc.egi"
   , "lib/core/io.egi"
   , "lib/core/maybe.egi"

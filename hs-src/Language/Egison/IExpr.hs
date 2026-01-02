@@ -18,6 +18,16 @@ module Language.Egison.IExpr
   , IMatchClause
   , IPatternDef
   , IPrimitiveDataPattern
+  -- Typed versions
+  , TITopExpr (..)
+  , TIExpr (..)
+  , TIPattern (..)
+  , TILoopRange (..)
+  , TIBindingExpr
+  , TIMatchClause
+  , tiExprType
+  , stripType
+  , stripTypeTopExpr
   , Var (..)
   , stringToVar
   , extractNameFromVar
@@ -36,6 +46,7 @@ import           Data.Hashable
 import           GHC.Generics        (Generic)
 
 import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMMode (..), PrimitivePatPattern (..))
+import           Language.Egison.Type.Types (Type(..))
 
 data ITopExpr
   = IDefine Var IExpr
@@ -172,7 +183,64 @@ extractNameFromVar :: Var -> String
 extractNameFromVar (Var name _) = name
 
 makeIApply :: String -> [IExpr] -> IExpr
-makeIApply func args = IApplyExpr (IVarExpr func) args
+makeIApply fn args = IApplyExpr (IVarExpr fn) args
+
+--
+-- Typed Internal Expressions
+--
+-- TIExpr carries type information alongside the expression.
+-- This allows type-based dispatch during evaluation.
+--
+
+-- | Typed top-level expression
+data TITopExpr
+  = TIDefine Type Var TIExpr           -- ^ Typed definition
+  | TIDefineMany [(Var, TIExpr)]       -- ^ Multiple definitions
+  | TITest TIExpr                      -- ^ Test expression
+  | TIExecute TIExpr                   -- ^ Execute expression
+  | TILoadFile String                  -- ^ Load file
+  | TILoad String                      -- ^ Load library
+  deriving Show
+
+-- | Typed internal expression
+-- Each expression carries its inferred type
+data TIExpr = TIExpr
+  { tiType :: Type      -- ^ The type of this expression
+  , tiExpr :: IExpr     -- ^ The underlying untyped expression
+  } deriving Show
+
+-- | Get the type of a typed expression
+tiExprType :: TIExpr -> Type
+tiExprType = tiType
+
+-- | Strip type information, returning the untyped expression
+stripType :: TIExpr -> IExpr
+stripType = tiExpr
+
+-- | Strip type information from top-level expression
+stripTypeTopExpr :: TITopExpr -> ITopExpr
+stripTypeTopExpr (TIDefine _ var expr) = IDefine var (stripType expr)
+stripTypeTopExpr (TIDefineMany bindings) = IDefineMany [(v, stripType e) | (v, e) <- bindings]
+stripTypeTopExpr (TITest expr) = ITest (stripType expr)
+stripTypeTopExpr (TIExecute expr) = IExecute (stripType expr)
+stripTypeTopExpr (TILoadFile file) = ILoadFile file
+stripTypeTopExpr (TILoad file) = ILoad file
+
+-- | Typed pattern (for future use)
+data TIPattern = TIPattern
+  { tipType :: Type
+  , tipPattern :: IPattern
+  } deriving Show
+
+-- | Typed loop range
+data TILoopRange = TILoopRange TIExpr TIExpr TIPattern
+  deriving Show
+
+-- | Typed binding expression
+type TIBindingExpr = (IPrimitiveDataPattern, TIExpr)
+
+-- | Typed match clause
+type TIMatchClause = (TIPattern, TIExpr)
 
 instance {-# OVERLAPPING #-} Show (Index String) where
   show (Sup s)    = "~" ++ s

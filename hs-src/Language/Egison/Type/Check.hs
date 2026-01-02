@@ -15,6 +15,7 @@ module Language.Egison.Type.Check
     -- * Type checking results
   , TypeCheckResult(..)
   , TypeCheckError(..)
+  , TypeCheckEnv(..)
     -- * Configuration
   , TypeCheckConfig(..)
   , defaultConfig
@@ -33,6 +34,12 @@ import           Language.Egison.Type.Env
 import           Language.Egison.Type.Error
 import           Language.Egison.Type.Infer
 import           Language.Egison.Type.Types
+
+-- | Result of type checking, containing both type environment and class environment
+data TypeCheckEnv = TypeCheckEnv
+  { tceTypeEnv  :: TypeEnv   -- ^ Type environment (variable → type scheme)
+  , tceClassEnv :: ClassEnv  -- ^ Class environment (class definitions and instances)
+  } deriving (Show, Eq)
 
 -- | Type check configuration
 data TypeCheckConfig = TypeCheckConfig
@@ -143,7 +150,7 @@ typeCheck config exprs = do
     Right env -> Right env
 
 -- | Type check with a custom file loader (for loading library types)
-typeCheckWithLoader :: TypeCheckConfig -> FileLoader -> [TopExpr] -> IO (Either [TypeCheckError] TypeEnv, [TypeWarning])
+typeCheckWithLoader :: TypeCheckConfig -> FileLoader -> [TopExpr] -> IO (Either [TypeCheckError] TypeCheckEnv, [TypeWarning])
 typeCheckWithLoader config loader exprs = do
   let inferCfg = setFileLoader loader (toInferConfig config)
       initialState = InferState 0 builtinEnv [] inferCfg emptyClassEnv
@@ -157,7 +164,8 @@ typeCheckWithLoader config loader exprs = do
         -- Note: We use inferTopExprs which will NOT trigger recursive library loading
         -- because the file loader is already set, but user code should not have Load statements
         mapM_ inferTopExprNoLoad exprs
-        inferEnv <$> get
+        st <- get
+        return $ TypeCheckEnv (inferEnv st) (inferClassEnv st)
   (result, warnings) <- runInferWithWarnings loadLibsAndCheck initialState
   return $ case result of
     Left err -> (Left [TypeCheckError err Nothing], warnings)

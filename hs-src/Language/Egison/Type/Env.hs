@@ -17,7 +17,9 @@ module Language.Egison.Type.Env
   , generalize
   , instantiate
   -- * Class environment
-  , ClassEnv
+  , ClassEnv(..)
+  , ClassInfo(..)
+  , InstanceInfo(..)
   , emptyClassEnv
   , addClass
   , addInstance
