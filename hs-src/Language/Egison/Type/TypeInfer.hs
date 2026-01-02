@@ -15,6 +15,7 @@ module Language.Egison.Type.TypeInfer
   , inferTypedPattern
     -- * Running inference
   , runTypedInfer
+  , runTypedInferTopExpr
   , TypedInferResult(..)
   ) where
 
@@ -26,12 +27,13 @@ import qualified Data.Text                  as T
 import           Language.Egison.AST
 import           Language.Egison.Type.Env
 import           Language.Egison.Type.Error
-import           Language.Egison.Type.Infer (Infer, InferState(..), 
+import           Language.Egison.Type.Infer (Infer, InferState(..), InferConfig(..),
                                              freshVar, getEnv, setEnv, withEnv, 
                                              runInferWithWarnings, typeExprToType,
                                              typedParamToType, extractTypedParamBindings,
                                              extractLetPatternBindings, generalize,
-                                             inferConstant, lookupVar, unifyTypes)
+                                             inferConstant, lookupVar, unifyTypes,
+                                             defaultInferConfig)
 import qualified Language.Egison.Type.Infer as Infer
 import           Language.Egison.Type.Subst (Subst, emptySubst, composeSubst, applySubst)
 import           Language.Egison.Type.TypedAST
@@ -50,7 +52,27 @@ runTypedInfer state expr = do
   (result, warnings) <- runInferWithWarnings (inferTypedExpr expr) state
   return $ case result of
     Left err -> (Left err, warnings)
-    Right ((texpr, _subst), _finalState) -> (Right $ TypedInferResult texpr (texprType texpr) warnings, warnings)
+    Right (texpr, _subst) -> (Right $ TypedInferResult texpr (texprType texpr) warnings, warnings)
+
+-- | Run typed inference on a top expression
+-- Returns Maybe TypedTopExpr (Nothing for declarations that don't produce code)
+-- Note: Uses permissive mode if the Bool parameter is True
+-- Load/LoadFile should already be expanded before calling this
+runTypedInferTopExpr :: Bool -> TopExpr -> IO (Either TypeError (Maybe TypedTopExpr), [TypeWarning])
+runTypedInferTopExpr permissive topExpr = do
+  -- Create initial state with empty environment
+  let inferCfg = defaultInferConfig { cfgPermissive = permissive }
+      initialState = InferState 
+        { inferCounter = 0
+        , inferEnv = emptyEnv
+        , inferClassEnv = emptyClassEnv
+        , inferWarnings = []
+        , inferConfig = inferCfg
+        }
+  (result, warnings) <- runInferWithWarnings (inferTypedTopExpr topExpr) initialState
+  return $ case result of
+    Left err -> (Left err, warnings)
+    Right mTypedTop -> (Right mTypedTop, warnings)
 
 -- | Infer type and produce typed expression
 inferTypedExpr :: Expr -> Infer (TypedExpr, Subst)

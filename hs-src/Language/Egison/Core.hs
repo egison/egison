@@ -16,8 +16,18 @@ module Language.Egison.Core
       evalExprShallow
     , evalExprDeep
     , evalWHNF
+    -- * Typed evaluation
+    , evalTIExprShallow
+    , evalTIExprDeep
+    , TWHNFData(..)
+    , twhnfType
+    , twhnfData
+    -- * Type utilities
+    , valueToType
+    , whnfToType
     -- * Environment
     , recursiveBind
+    , makeBindings'
     -- * Pattern matching
     , patternMatch
     ) where
@@ -39,7 +49,10 @@ import qualified Data.Sequence                   as Sq
 import           Data.Traversable                (mapM)
 
 import qualified Data.HashMap.Lazy               as HL
+import qualified Data.HashMap.Strict             as HashMap
 import qualified Data.Vector                     as V
+import           Data.Text                       (Text)
+import qualified Data.Text                       as T
 
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection
@@ -51,6 +64,63 @@ import           Language.Egison.Match
 import           Language.Egison.Math
 import           Language.Egison.RState
 import           Language.Egison.Tensor
+import           Language.Egison.Type.Types      (Type(..), TensorShape(..))
+
+-- | Get the Type of an EgisonValue
+-- Used for type class method dispatch
+valueToType :: EgisonValue -> Type
+valueToType (Bool _)         = TBool
+valueToType (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = TInt
+valueToType (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = TInt
+valueToType (ScalarData _)   = TInt  -- MathExpr = TInt in Egison
+valueToType (Float _)        = TFloat
+valueToType (Char _)         = TChar
+valueToType (String _)       = TString
+valueToType (Collection _)   = TList TAny  -- TODO: infer element type
+valueToType (Tuple vs)       = TTuple (map valueToType vs)
+valueToType (IntHash _)      = THash TInt TAny
+valueToType (CharHash _)     = THash TChar TAny
+valueToType (StrHash _)      = THash TString TAny
+valueToType (TensorData _)   = TTensor TAny ShapeUnknown []
+valueToType (InductiveData name _) = TInductive name []  -- TODO: infer type args
+valueToType _                = TAny
+
+-- | Get the Type of a WHNFData
+-- This extracts type information from WHNF without fully evaluating
+whnfToType :: WHNFData -> Type
+whnfToType (Value val) = valueToType val
+whnfToType (IInductiveData name _) = TInductive name []
+whnfToType (ITuple refs) = TTuple (replicate (length refs) TAny)  -- Can't know element types without evaluation
+whnfToType (ICollection _) = TList TAny
+whnfToType (IIntHash _) = THash TInt TAny
+whnfToType (ICharHash _) = THash TChar TAny
+whnfToType (IStrHash _) = THash TString TAny
+whnfToType (ITensor _) = TTensor TAny ShapeUnknown []
+
+-- | Typed WHNF data: WHNF with type information
+data TWHNFData = TWHNFData
+  { twhnfType :: Type       -- ^ The type of this value
+  , twhnfData :: WHNFData   -- ^ The underlying WHNF data
+  } deriving Show
+
+-- | Get the type name of an EgisonValue as Text (legacy, kept for compatibility)
+-- Used for type class method dispatch
+typeName' :: EgisonValue -> Text
+typeName' (Bool _)         = T.pack "Bool"
+typeName' (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = T.pack "Integer"
+typeName' (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = T.pack "Integer"
+typeName' (ScalarData _)   = T.pack "MathExpr"
+typeName' (Float _)        = T.pack "Float"
+typeName' (Char _)         = T.pack "Char"
+typeName' (String _)       = T.pack "String"
+typeName' (Collection _)   = T.pack "List"
+typeName' (Tuple _)        = T.pack "Tuple"
+typeName' (IntHash _)      = T.pack "Hash"
+typeName' (CharHash _)     = T.pack "Hash"
+typeName' (StrHash _)      = T.pack "Hash"
+typeName' (TensorData _)   = T.pack "Tensor"
+typeName' (InductiveData name _) = T.pack name
+typeName' _                = T.pack "Unknown"
 
 evalConstant :: ConstantExpr -> EgisonValue
 evalConstant (CharExpr c)    = Char c
@@ -60,6 +130,34 @@ evalConstant (IntegerExpr x) = toEgison x
 evalConstant (FloatExpr x)   = Float x
 evalConstant SomethingExpr   = Something
 evalConstant UndefinedExpr   = Undefined
+
+--
+-- Typed Evaluation
+--
+-- These functions evaluate typed internal expressions (TIExpr) and return
+-- typed WHNF data (TWHNFData), preserving type information for dispatch.
+--
+
+-- | Evaluate a typed internal expression to typed WHNF
+evalTIExprShallow :: Env -> TIExpr -> EvalM TWHNFData
+evalTIExprShallow env (TIExpr ty iexpr) = do
+  whnf <- evalExprShallow env iexpr
+  -- Use the static type from TIExpr, falling back to dynamic type if TAny
+  let finalType = case ty of
+        TAny -> whnfToType whnf
+        _    -> ty
+  return $ TWHNFData finalType whnf
+
+-- | Evaluate a typed internal expression deeply
+evalTIExprDeep :: Env -> TIExpr -> EvalM (Type, EgisonValue)
+evalTIExprDeep env tiexpr = do
+  twhnf <- evalTIExprShallow env tiexpr
+  val <- evalWHNF (twhnfData twhnf)
+  return (twhnfType twhnf, val)
+
+--
+-- Untyped Evaluation
+--
 
 evalExprShallow :: Env -> IExpr -> EvalM WHNFData
 evalExprShallow _ (IConstantExpr c) = return $ Value (evalConstant c)
@@ -599,6 +697,28 @@ applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) refs = do
                             ScalarData _ -> extractScalar arg
                             _            -> throwErrorWithTrace (EgisonBug "to use undefined functions, you have to use ScalarData args")) args
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
+-- Type class method dispatch: look up implementation based on first argument's type
+-- Uses Type from Types.hs for dispatch (not String-based typeName)
+applyRef env (Value (ClassMethodRef clsName methName)) refs = do
+  case refs of
+    [] -> return $ Value (ClassMethodRef clsName methName)  -- Partial application
+    (firstRef:_) -> do
+      -- Evaluate to WHNF and get Type directly (without full evaluation)
+      firstArgWhnf <- evalRef firstRef
+      let argType = whnfToType firstArgWhnf
+      -- Look up implementation from instance environment using Type
+      mImpl <- lookupInstance clsName methName argType
+      case mImpl of
+        Just implName -> do
+          -- Look up the implementation function by name and apply
+          case refVar env (stringToVar implName) of
+            Just implRef -> do
+              impl <- evalRef implRef
+              applyRef env impl refs  -- Apply all arguments to the implementation
+            Nothing -> throwError (Default 
+              ("Instance method not found: " ++ implName))
+        Nothing -> throwError (Default 
+          ("No instance of " ++ clsName ++ " for type " ++ show argType))
 applyRef _ whnf _ = throwErrorWithTrace (TypeMismatch "function" whnf)
 
 applyObj :: Env -> WHNFData -> [Object] -> EvalM WHNFData

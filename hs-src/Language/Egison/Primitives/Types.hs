@@ -13,10 +13,15 @@ module Language.Egison.Primitives.Types
 import           Data.Char                        (chr, ord)
 import           Data.Ratio                       ((%))
 import qualified Data.Text                        as T
+import qualified Data.HashMap.Strict              as HashMap
 
 import           Language.Egison.Data
+import           Language.Egison.Data.Utils       (evalRef)
+import           Language.Egison.EvalState        (MonadEval(..))
+import           Language.Egison.IExpr            (Var(..))
 import           Language.Egison.Math
 import           Language.Egison.Primitives.Utils
+import           Language.Egison.Type.Types       (Type(..))
 
 primitiveTypeFunctions :: [(String, EgisonValue)]
 primitiveTypeFunctions =
@@ -44,6 +49,7 @@ lazyPrimitives =
   , ("isHash",       lazyOneArg isHash)
   , ("isTensor",     lazyOneArg isTensor)
   , ("typeName",     lazyOneArg typeName)
+  , ("makeClassMethod", lazyThreeArg makeClassMethod)
   ]
 
 --
@@ -112,6 +118,7 @@ typeName (Value (String _))       = return . Value $ String (T.pack "String")
 typeName (Value (Collection _))   = return . Value $ String (T.pack "List")
 typeName (ICollection _)          = return . Value $ String (T.pack "List")
 typeName (Value (Tuple _))        = return . Value $ String (T.pack "Tuple")
+typeName (ITuple _)               = return . Value $ String (T.pack "Tuple")
 typeName (Value (IntHash _))      = return . Value $ String (T.pack "Hash")
 typeName (Value (CharHash _))     = return . Value $ String (T.pack "Hash")
 typeName (Value (StrHash _))      = return . Value $ String (T.pack "Hash")
@@ -121,6 +128,7 @@ typeName (IStrHash _)             = return . Value $ String (T.pack "Hash")
 typeName (Value (TensorData _))   = return . Value $ String (T.pack "Tensor")
 typeName (ITensor _)              = return . Value $ String (T.pack "Tensor")
 typeName (Value (InductiveData name _)) = return . Value $ String (T.pack name)
+typeName (IInductiveData name _)  = return . Value $ String (T.pack name)
 typeName _                        = return . Value $ String (T.pack "Unknown")
 
 --
@@ -147,3 +155,60 @@ integerToChar = unaryOp itoc
   where
     itoc :: Integer -> Char
     itoc = chr . fromIntegral
+
+--
+-- Type Class Support
+--
+
+-- | Create a ClassMethodRef from class name and method name
+-- The third argument (dict) registers instances into the instance environment
+-- Usage: makeClassMethod "Eq" "eq" {| ("Integer", eqIntegerEq), ("Float", eqFloatEq) |}
+makeClassMethod :: WHNFData -> WHNFData -> WHNFData -> EvalM WHNFData
+makeClassMethod clsArg methArg dictArg = do
+  clsName <- extractString clsArg
+  methName <- extractString methArg
+  -- Register instances from the dictionary
+  registerInstancesFromDict clsName methName dictArg
+  -- Return a ClassMethodRef that will look up instances at call time
+  return $ Value $ ClassMethodRef clsName methName
+  where
+    extractString :: WHNFData -> EvalM String
+    extractString (Value (String s)) = return $ T.unpack s
+    extractString whnf = throwErrorWithTrace (TypeMismatch "string" whnf)
+    
+    -- Register instances from a string hash
+    registerInstancesFromDict :: String -> String -> WHNFData -> EvalM ()
+    registerInstancesFromDict cls meth (Value (StrHash hash)) = do
+      mapM_ (\(typeName, impl) -> do
+        let ty = stringToType (T.unpack typeName)
+            implName = getFuncName impl
+        registerInstance cls meth ty implName
+        ) (HashMap.toList hash)
+    registerInstancesFromDict cls meth (IStrHash refs) = do
+      mapM_ (\(typeName, ref) -> do
+        impl <- evalRef ref >>= evalWHNF'
+        let ty = stringToType (T.unpack typeName)
+            implName = getFuncName impl
+        registerInstance cls meth ty implName
+        ) (HashMap.toList refs)
+    registerInstancesFromDict _ _ whnf = throwErrorWithTrace (TypeMismatch "string hash" whnf)
+    
+    -- Convert type name string to Type
+    stringToType :: String -> Type
+    stringToType "Integer" = TInt
+    stringToType "Float" = TFloat
+    stringToType "Bool" = TBool
+    stringToType "Char" = TChar
+    stringToType "String" = TString
+    stringToType name = TInductive name []
+    
+    -- Get function name from a value (assumes it's stored as a Func)
+    getFuncName :: EgisonValue -> String
+    getFuncName (Func (Just (Var name _)) _ _ _) = name
+    getFuncName (Func Nothing _ _ _) = "<anonymous>"
+    getFuncName (PrimitiveFunc _) = "<primitive>"
+    getFuncName _ = "<unknown>"
+    
+    evalWHNF' :: WHNFData -> EvalM EgisonValue
+    evalWHNF' (Value v) = return v
+    evalWHNF' _ = throwErrorWithTrace (TypeMismatch "value" (Value Undefined))

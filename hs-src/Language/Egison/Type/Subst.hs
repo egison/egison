@@ -68,6 +68,7 @@ applySubst s (TCollection t)  = TCollection (applySubst s t)
 applySubst s (THash k v)      = THash (applySubst s k) (applySubst s v)
 applySubst s (TIORef t)       = TIORef (applySubst s t)
 applySubst s (TIO t)          = TIO (applySubst s t)
+applySubst s (TInductive name ts) = TInductive name (map (applySubst s) ts)
 
 -- | Apply a substitution to a type scheme
 applySubstScheme :: Subst -> TypeScheme -> TypeScheme

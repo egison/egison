@@ -20,6 +20,7 @@ module Language.Egison.Type.Infer
   , InferState(..)
   , InferConfig(..)
   , initialInferState
+  , initialInferStateWithConfig
   , defaultInferConfig
   , permissiveInferConfig
   , runInfer
@@ -30,6 +31,18 @@ module Language.Egison.Type.Infer
     -- * Type conversion
   , typeExprToType
   , typeToTypeExpr
+    -- * Internal utilities (for TypeInfer module)
+  , freshVar
+  , getEnv
+  , setEnv
+  , withEnv
+  , typedParamToType
+  , extractTypedParamBindings
+  , extractLetPatternBindings
+  , generalize
+  , inferConstant
+  , lookupVar
+  , unifyTypes
   ) where
 
 import           Control.Monad              (foldM, when, zipWithM)
@@ -1445,11 +1458,12 @@ inferTopExpr topExpr = case topExpr of
   -- Inductive data type declaration
   -- e.g., inductive Ordering := | Less | Equal | Greater
   --       inductive Nat := | O | S Nat
+  --       inductive Maybe a := | Nothing | Just a
   InductiveDecl typeName typeParams constructors -> do
     -- Create the type for this inductive data type
-    -- For simplicity, we use a single TVar for the full type name
-    -- Type parameters are quantified in the constructor schemes
-    let adtType = TVar (TyVar typeName)
+    -- Use TInductive with type parameters as type variables
+    let typeParamVars = map (TVar . TyVar) typeParams
+        adtType = TInductive typeName typeParamVars
     env <- getEnv
     -- Register each constructor with the type parameters quantified
     mapM_ (registerInductiveConstructor adtType typeParams env) constructors

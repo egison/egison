@@ -106,6 +106,10 @@ data EgisonValue
   | RefBox (IORef EgisonValue)
   | Something
   | Undefined
+  -- | Type class method reference: dispatches based on argument type at runtime
+  -- ClassMethodRef className methodName
+  -- Looks up implementation from the instance environment in EvalState
+  | ClassMethodRef String String
 
 type Matcher = EgisonValue
 
@@ -274,6 +278,7 @@ instance Show EgisonValue where
   show Something = "something"
   show Undefined = "undefined"
   show World = "#<world>"
+  show (ClassMethodRef clsName methName) = "#<class-method " ++ clsName ++ "." ++ methName ++ ">"
 
 -- False if we have to put parenthesis around it to make it an atomic expression.
 isAtomic :: EgisonValue -> Bool

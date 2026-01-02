@@ -83,6 +83,11 @@ unify' (THash k1 v1) (THash k2 v2) = do
 unify' (TIORef t1) (TIORef t2) = unify t1 t2
 unify' (TIO t1) (TIO t2) = unify t1 t2
 
+-- Inductive types
+unify' (TInductive n1 ts1) (TInductive n2 ts2)
+  | n1 == n2 && length ts1 == length ts2 = unifyMany ts1 ts2
+  | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
+
 -- Tensor types
 unify' (TTensor t1 sh1 is1) (TTensor t2 sh2 is2) = do
   s1 <- unify t1 t2

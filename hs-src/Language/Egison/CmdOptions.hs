@@ -123,9 +123,7 @@ cmdArgParser = EgisonOpts
             <*> flag True False
                   (long "no-normalize"
                   <> help "Turn off normalization of math expressions")
-            <*> flag True False
-                  (long "no-type-check"
-                  <> help "Disable type checking before evaluation")
+            <*> pure True  -- Type checking is always enabled
             <*> switch
                   (long "type-check-strict"
                   <> help "Strict type checking (all types must be known)")

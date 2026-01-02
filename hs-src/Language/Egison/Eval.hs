@@ -3,6 +3,8 @@ Module      : Language.Egison.Eval
 Licence     : MIT
 
 This module provides interface for evaluating Egison expressions.
+
+Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 -}
 
 module Language.Egison.Eval
@@ -20,12 +22,15 @@ module Language.Egison.Eval
   -- * Load Egison files
   , loadEgisonLibrary
   , loadEgisonFile
+  -- * Load expansion
+  , expandLoads
   ) where
 
-import           Control.Monad              (forM_, when)
+import           Control.Monad              (forM, forM_, when)
 import           Control.Monad.Except       (throwError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
+import           Data.IORef                 (newIORef)
 import           System.IO                  (hPutStrLn, stderr)
 
 import           Language.Egison.AST
@@ -33,63 +38,110 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Desugar
-import           Language.Egison.EvalState  (MonadEval (..))
+import           Language.Egison.EvalState  (MonadEval (..), ConstructorInfo(..))
 import           Language.Egison.IExpr
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
-import           Language.Egison.Type.Check (TypeCheckConfig (..), TypeCheckError (..),
-                                              defaultConfig, strictConfig, permissiveConfig,
-                                              typeCheckWithWarnings, typeCheckWithLoader,
-                                              FileLoader)
-import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning, TypeWarning)
-import           Language.Egison.Type.TypeClassExpand (expandTopExpr)
-import           Language.Egison.Type.Env (emptyEnv)
-import qualified Language.Egison.Parser.NonS as NonS
-import           Language.Egison.RState     (evalRuntimeT)
-import           System.Directory           (doesFileExist, getHomeDirectory)
-import           Paths_egison               (getDataFileName)
-import           Language.Egison.CmdOptions (defaultOption)
+import           Language.Egison.Type.Types (Type(..), TyVar(..), TensorShape(..))
 
 
 -- | Evaluate an Egison expression.
 evalExpr :: Env -> Expr -> EvalM EgisonValue
 evalExpr env expr = desugarExpr expr >>= evalExprDeep env
 
+--
+-- New Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
+--
+-- 1. expandLoads: Recursively expand Load/LoadFile into flat [TopExpr]
+-- 2. For each TopExpr: TypeCheck → TypedDesugar → Eval
+--
+
+-- | Expand all Load/LoadFile statements recursively into a flat list of TopExprs
+-- This is done BEFORE type checking so that all definitions are available
+expandLoads :: [TopExpr] -> EvalM [TopExpr]
+expandLoads [] = return []
+expandLoads (expr:rest) = case expr of
+  Load lib -> do
+    libExprs <- loadLibraryFile lib
+    expanded <- expandLoads libExprs
+    restExpanded <- expandLoads rest
+    return $ expanded ++ restExpanded
+  LoadFile file -> do
+    fileExprs <- loadFile file
+    expanded <- expandLoads fileExprs
+    restExpanded <- expandLoads rest
+    return $ expanded ++ restExpanded
+  _ -> do
+    restExpanded <- expandLoads rest
+    return $ expr : restExpanded
+
 -- | Evaluate an Egison top expression.
--- Pipeline: Parse → TypeCheck → TypeClassExpand → Desugar → Eval
+-- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
-  opts <- ask
+  -- Expand loads first
+  expanded <- expandLoads [topExpr]
+  -- Then evaluate all expanded expressions
+  evalExpandedTopExprs env expanded
+
+-- | Evaluate already-expanded top expressions (no Load/LoadFile)
+evalExpandedTopExprs :: Env -> [TopExpr] -> EvalM (Maybe EgisonValue, Env)
+evalExpandedTopExprs env [] = return (Nothing, env)
+evalExpandedTopExprs env (expr:rest) = do
+  (mVal, env') <- evalSingleTopExpr env expr
+  if null rest
+    then return (mVal, env')
+    else evalExpandedTopExprs env' rest
+
+-- | Evaluate a single top expression (must not be Load/LoadFile)
+-- Pipeline: Desugar → Eval
+-- TODO: Implement type environment accumulation for proper type checking
+evalSingleTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
+evalSingleTopExpr env topExpr = do
+  -- Step 0: Handle InductiveDecl by registering constructors
+  registerInductiveDecl topExpr
   
-  -- Step 1: Run type checking if enabled
-  typeEnv <- if optTypeCheck opts || optTypeCheckStrict opts
-    then do
-      let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
-      (result, warnings) <- liftIO $ typeCheckWithLoader config makeFileLoader [topExpr]
-      -- Print warnings to stderr (so they don't interfere with normal output)
-      when (not (null warnings)) $ do
-        liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
-      -- Handle errors
-      case result of
-        Left errs -> do
-          liftIO $ hPutStrLn stderr "Type errors found:"
-          liftIO $ mapM_ (hPutStrLn stderr . ("  " ++) . formatTypeError . tceError) errs
-          throwError $ Default "Type checking failed"
-        Right env' -> return env'
-    else return emptyEnv
-  
-  -- Step 2: Expand type class methods using type information
-  let expandedTopExpr = expandTopExpr typeEnv topExpr
-  
-  -- Step 3: Desugar using existing Desugar.hs
-  topExpr' <- desugarTopExpr expandedTopExpr
-  
-  -- Step 4: Evaluate
+  -- For now, use desugar-only pipeline until type environment accumulation is implemented
+  -- TODO: Re-enable type checking with accumulated type environment
+  topExpr' <- desugarTopExpr topExpr
   case topExpr' of
     Nothing      -> return (Nothing, env)
     Just topExpr'' -> evalTopExpr' env topExpr''
-  where
-    tceError (TypeCheckError err _) = err
+
+-- | Register constructors from an InductiveDecl into the EvalState
+registerInductiveDecl :: TopExpr -> EvalM ()
+registerInductiveDecl (InductiveDecl typeName typeParams ctors) = do
+  forM_ ctors $ \(InductiveConstructor ctorName argTypeExprs) -> do
+    let argTypes = map typeExprToType argTypeExprs
+        info = ConstructorInfo
+          { ctorTypeName = typeName
+          , ctorArgTypes = argTypes
+          , ctorTypeParams = typeParams
+          }
+    registerConstructor ctorName info
+registerInductiveDecl _ = return ()
+
+-- | Convert TypeExpr to Type
+typeExprToType :: TypeExpr -> Type
+typeExprToType TEInt = TInt
+typeExprToType TEMathExpr = TInt  -- MathExpr = Integer in Egison
+typeExprToType TEFloat = TFloat
+typeExprToType TEBool = TBool
+typeExprToType TEChar = TChar
+typeExprToType TEString = TString
+typeExprToType (TEVar name) = TVar (TyVar name)
+typeExprToType (TEList t) = TList (typeExprToType t)
+typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
+typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
+typeExprToType (TEApp t1 ts) = 
+  case typeExprToType t1 of
+    TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
+    _ -> TAny  -- Fallback
+typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
+typeExprToType (TEPattern t) = TPattern (typeExprToType t)
+typeExprToType (TEIO t) = TIO (typeExprToType t)
+typeExprToType (TETensor elemT _ _) = TTensor (typeExprToType elemT) ShapeUnknown []
+typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints for now
 
 -- | Evaluate an Egison top expression.
 evalTopExprStr :: Env -> TopExpr -> EvalM (Maybe String, Env)
@@ -108,55 +160,53 @@ valueToStr val = do
     Just lang -> return (prettyMath lang val)
 
 -- | Evaluate Egison top expressions.
--- Pipeline: Parse → TypeCheck → TypeClassExpand → Desugar → Eval
+-- Pipeline: ExpandLoads → Desugar → Collect defs → RecursiveBind → Eval rest
 evalTopExprs :: Env -> [TopExpr] -> EvalM Env
 evalTopExprs env exprs = do
   opts <- ask
   
-  -- Step 1: Run type checking if enabled
-  typeEnv <- if optTypeCheck opts || optTypeCheckStrict opts
-    then do
-      let config = if optTypeCheckStrict opts then strictConfig else permissiveConfig
-      (result, warnings) <- liftIO $ typeCheckWithLoader config makeFileLoader exprs
-      -- Print warnings to stderr (so they don't interfere with normal output)
-      when (not (null warnings)) $ do
-        liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
-      -- Handle errors
-      case result of
-        Left errs -> do
-          liftIO $ hPutStrLn stderr "Type errors found:"
-          liftIO $ mapM_ (hPutStrLn stderr . ("  " ++) . formatTypeError . tceError) errs
-          throwError $ Default "Type checking failed"
-        Right env' -> return env'
-    else return emptyEnv
+  -- Step 1: Expand all Load/LoadFile recursively
+  expanded <- expandLoads exprs
   
-  -- Step 2: Expand type class methods using type information
-  let expandedExprs = map (expandTopExpr typeEnv) exprs
+  -- Step 2: Register inductive constructors
+  forM_ expanded registerInductiveDecl
   
-  -- Step 3: Desugar using existing Desugar.hs
-  desugaredExprs <- desugarTopExprs expandedExprs
+  -- Step 3: Desugar all expressions
+  desugaredExprs <- desugarTopExprs expanded
   
-  -- Step 4: Evaluate
+  -- Step 4: Collect definitions and add them all at once (for mutual recursion)
   (bindings, rest) <- collectDefs opts desugaredExprs
   env' <- recursiveBind env bindings
+  
+  -- Step 5: Evaluate remaining expressions (tests, executes)
   forM_ rest $ \expr -> do
     (val, _) <- evalTopExpr' env' expr
     case val of
       Nothing  -> return ()
-      Just val -> valueToStr val >>= liftIO . putStrLn
+      Just val' -> valueToStr val' >>= liftIO . putStrLn
   return env'
-  where
-    tceError (TypeCheckError err _) = err
 
--- | Evaluate Egison top expressions.
+-- | Evaluate Egison top expressions without printing.
 evalTopExprsNoPrint :: Env -> [TopExpr] -> EvalM Env
 evalTopExprsNoPrint env exprs = do
-  exprs <- desugarTopExprs exprs
   opts <- ask
-  (bindings, rest) <- collectDefs opts exprs
-  env <- recursiveBind env bindings
-  forM_ rest $ evalTopExpr' env
-  return env
+  
+  -- Step 1: Expand all Load/LoadFile recursively
+  expanded <- expandLoads exprs
+  
+  -- Step 2: Register inductive constructors
+  forM_ expanded registerInductiveDecl
+  
+  -- Step 3: Desugar all expressions
+  desugaredExprs <- desugarTopExprs expanded
+  
+  -- Step 4: Collect definitions and add them all at once
+  (bindings, rest) <- collectDefs opts desugaredExprs
+  env' <- recursiveBind env bindings
+  
+  -- Step 5: Evaluate remaining expressions without printing
+  forM_ rest $ evalTopExpr' env'
+  return env'
 
 -- | Evaluate an Egison expression. Input is a Haskell string.
 runExpr :: Env -> String -> EvalM EgisonValue
@@ -248,28 +298,3 @@ evalTopExpr' env (ILoadFile file) = do
   env' <- recursiveBind env bindings
   return (Nothing, env')
 
--- | Create a file loader for type checking
--- This loader parses Egison files and returns their TopExprs
-makeFileLoader :: FileLoader
-makeFileLoader path = do
-  -- Resolve the file path (check ~/.egison/ first, then data directory)
-  homeDir <- getHomeDirectory
-  let homePath = homeDir ++ "/.egison/" ++ path
-  homeExists <- doesFileExist homePath
-  actualPath <- if homeExists
-    then return homePath
-    else do
-      dataPath <- getDataFileName path
-      dataExists <- doesFileExist dataPath
-      return $ if dataExists then dataPath else path
-
-  -- Check if file exists
-  exists <- doesFileExist actualPath
-  if not exists
-    then return $ Left $ "File not found: " ++ path
-    else do
-      -- Read and parse the file
-      content <- readUTF8File actualPath
-      let cleanContent = removeShebang content
-      -- Parse using the NonS parser with evalRuntimeT
-      evalRuntimeT defaultOption (NonS.parseTopExprs cleanContent)

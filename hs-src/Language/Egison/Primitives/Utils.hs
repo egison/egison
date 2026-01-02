@@ -11,6 +11,7 @@ module Language.Egison.Primitives.Utils
   , twoArgs'
   , threeArgs'
   , lazyOneArg
+  , lazyThreeArg
   , unaryOp
   , binaryOp
   ) where
@@ -86,6 +87,12 @@ lazyOneArg f name args =
   case args of
     [arg] -> f arg
     _     -> throwErrorWithTrace (ArgumentsNumPrimitive name 1 (length args))
+
+lazyThreeArg :: (WHNFData -> WHNFData -> WHNFData -> EvalM WHNFData) -> String -> LazyPrimitiveFunc
+lazyThreeArg f name args =
+  case args of
+    [arg1, arg2, arg3] -> f arg1 arg2 arg3
+    _     -> throwErrorWithTrace (ArgumentsNumPrimitive name 3 (length args))
 
 unaryOp :: (EgisonData a, EgisonData b) => (a -> b) -> String -> PrimitiveFunc
 unaryOp op = oneArg $ \val -> do
