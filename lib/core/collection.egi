@@ -45,7 +45,7 @@ def list (a: Matcher b) : Matcher [b] :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def sortedList (a: Matcher b) : Matcher [b] :=
+def sortedList (a: Matcher {Ordering b}) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -190,25 +190,25 @@ def zip3 (xs: [a]) (ys: [b]) (zs: [c]) : [(a, b, c)] := map3 (\x y z -> (x, y, z
 
 def zip4 (xs: [a]) (ys: [b]) (zs: [c]) (ws: [d]) : [(a, b, c, d)] := map4 (\x y z w -> (x, y, z, w)) xs ys zs ws
 
-def lookup (k: a) (ls: [(a, b)]) : b :=
+def lookup (k: {Eq a}) (ls: [(a, b)]) : b :=
   match ls as list (something, something) with
     | _ ++ (#k, $x) :: _ -> x
 
-def foldr fn %init %ls :=
+def foldr (fn : a -> b -> b) (init : b) (ls : [a]) : b :=
   match ls as list something with
     | [] -> init
     | $x :: $xs -> fn x (foldr fn init xs)
 
-def foldl fn %init %ls :=
+def foldl (fn : b -> a -> b) (init : b) (ls : [a]) : b :=
   match ls as list something with
     | [] -> init
     | $x :: $xs ->
       let z := fn init x
        in seq z (foldl fn z xs)
 
-def foldl1 fn %ls := foldl fn (head ls) (tail ls)
+def foldl1 (fn : b -> a -> b) (ls : [a]) : b := foldl fn (head ls) (tail ls)
 
-def reduce fn %ls := foldl fn (head ls) (tail ls)
+def reduce (fn : b -> a -> b) (ls : [a]) := foldl fn (head ls) (tail ls)
 
 def scanl fn %init %ls :=
   init :: (match ls as list something with

@@ -26,7 +26,7 @@ module Language.Egison.Eval
   , expandLoads
   ) where
 
-import           Control.Monad              (forM, forM_, when)
+import           Control.Monad              (foldM, forM, forM_, when)
 import           Control.Monad.Except       (throwError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
@@ -37,12 +37,18 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
-import           Language.Egison.Desugar
+import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorInfo(..))
 import           Language.Egison.IExpr
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TensorShape(..))
+import           Language.Egison.Type.TypeInfer (runTypedInferTopExprWithEnv)
+import           Language.Egison.EvalState (getTypeEnv, setTypeEnv, getClassEnv, setClassEnv, extendTypeEnv)
+import           Language.Egison.Type.Env (generalize)
+import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
+import           Language.Egison.Type.TypedAST (TypedTopExpr(..), texprType)
+import           Language.Egison.Type.Error (formatTypeWarning)
 
 
 -- | Evaluate an Egison expression.
@@ -79,34 +85,149 @@ expandLoads (expr:rest) = case expr of
 -- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
-  -- Expand loads first
+  -- Expand all Load/LoadFile recursively
   expanded <- expandLoads [topExpr]
   -- Then evaluate all expanded expressions
-  evalExpandedTopExprs env expanded
+  evalExpandedTopExprsTyped env expanded
 
--- | Evaluate already-expanded top expressions (no Load/LoadFile)
-evalExpandedTopExprs :: Env -> [TopExpr] -> EvalM (Maybe EgisonValue, Env)
-evalExpandedTopExprs env [] = return (Nothing, env)
-evalExpandedTopExprs env (expr:rest) = do
-  (mVal, env') <- evalSingleTopExpr env expr
-  if null rest
-    then return (mVal, env')
-    else evalExpandedTopExprs env' rest
-
--- | Evaluate a single top expression (must not be Load/LoadFile)
--- Pipeline: Desugar → Eval
+-- | Evaluate expanded top expressions using typed pipeline
 -- TODO: Implement type environment accumulation for proper type checking
-evalSingleTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
-evalSingleTopExpr env topExpr = do
-  -- Step 0: Handle InductiveDecl by registering constructors
-  registerInductiveDecl topExpr
+evalExpandedTopExprsTyped :: Env -> [TopExpr] -> EvalM (Maybe EgisonValue, Env)
+evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
+
+-- | Evaluate expanded top expressions using typed pipeline with optional printing
+evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> EvalM (Maybe EgisonValue, Env)
+evalExpandedTopExprsTyped' env exprs printValues = do
+  opts <- ask
   
-  -- For now, use desugar-only pipeline until type environment accumulation is implemented
-  -- TODO: Re-enable type checking with accumulated type environment
-  topExpr' <- desugarTopExpr topExpr
-  case topExpr' of
-    Nothing      -> return (Nothing, env)
-    Just topExpr'' -> evalTopExpr' env topExpr''
+  -- Register all inductive constructors first
+  forM_ exprs registerInductiveDecl
+  
+  -- Get initial type and class environments from EvalState
+  initialTypeEnv <- getTypeEnv
+  initialClassEnv <- getClassEnv
+  
+  -- Try to type check and desugar each expression, accumulating type environment
+  let permissive = not (optTypeCheckStrict opts)
+  
+  -- Process each expression sequentially, accumulating type environment
+  (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) expr -> do
+    -- Get current type and class environments from EvalState
+    currentTypeEnv <- getTypeEnv
+    currentClassEnv <- getClassEnv
+    
+    -- Type check with current environments
+    (result, warnings, updatedTypeEnv, updatedClassEnv) <- liftIO $ 
+      runTypedInferTopExprWithEnv permissive expr currentTypeEnv currentClassEnv
+    
+    -- Print warnings
+    when (not (null warnings)) $ do
+      liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
+    
+    -- Update type and class environments in EvalState
+    setTypeEnv updatedTypeEnv
+    setClassEnv updatedClassEnv
+    
+    case result of
+      Left err -> do
+        liftIO $ hPutStrLn stderr $ "Type error in expression: " ++ show err
+        -- Fall back to untyped evaluation for this expression
+        topExpr' <- desugarTopExpr expr
+        case topExpr' of
+          Nothing -> return (lastVal, currentEnv)
+          Just topExpr'' -> do
+            (mVal, env') <- evalTopExpr' currentEnv topExpr''
+            when printValues $ case mVal of
+              Nothing -> return ()
+              Just val -> valueToStr val >>= liftIO . putStrLn
+            return (mVal, env')
+      Right Nothing -> 
+        -- No code generated (e.g., InductiveDecl), continue
+        return (lastVal, currentEnv)
+      Right (Just typedTopExpr) -> do
+        -- Add definition types to type environment before desugaring
+        case typedTopExpr of
+          TDefine varName typedExpr -> do
+            typeEnv <- getTypeEnv
+            let ty = texprType typedExpr
+                typeScheme = generalize typeEnv ty
+            extendTypeEnv varName typeScheme
+          TDefineWithType varName _params retType _typedExpr -> do
+            typeEnv <- getTypeEnv
+            let ty = retType  -- Use explicit return type
+                typeScheme = generalize typeEnv ty
+            extendTypeEnv varName typeScheme
+          _ -> return ()  -- Other expressions don't define variables
+        
+        -- TypedDesugar to TITopExpr
+        mTiTopExpr <- desugarTypedTopExprT typedTopExpr
+        case mTiTopExpr of
+          Nothing -> return (lastVal, currentEnv)
+          Just tiTopExpr -> do
+            -- Evaluate TITopExpr
+            (mVal, env') <- evalTITopExpr currentEnv tiTopExpr
+            -- Print value if requested
+            when printValues $ case mVal of
+              Nothing -> return ()
+              Just val -> valueToStr val >>= liftIO . putStrLn
+            return (mVal, env')
+    ) (Nothing, env) exprs
+  
+  return (lastVal, finalEnv)
+
+-- | Evaluate a typed internal top expression
+evalTITopExpr :: Env -> TITopExpr -> EvalM (Maybe EgisonValue, Env)
+evalTITopExpr env tiTopExpr = case tiTopExpr of
+  TIDefine ty var tiexpr -> do
+    -- Add type to type environment
+    typeEnv <- getTypeEnv
+    let typeScheme = generalize typeEnv ty
+    extendTypeEnv (extractNameFromVar var) typeScheme
+    
+    -- Evaluate using typed evaluation
+    twhnf <- evalTIExprShallow env tiexpr
+    ref <- liftIO $ newIORef $ WHNF (twhnfData twhnf)
+    let env' = extendEnv env [(var, ref)]  -- Direct binding
+    -- Recursive binding
+    _ <- recursiveBind env' [(var, tiExpr tiexpr)]
+    return (Nothing, env')
+  
+  TIDefineMany bindings -> do
+    -- Add types to type environment
+    typeEnv <- getTypeEnv
+    forM_ bindings $ \(var, tiexpr) -> do
+      let ty = tiType tiexpr
+          typeScheme = generalize typeEnv ty
+      extendTypeEnv (extractNameFromVar var) typeScheme
+    
+    refs <- forM bindings $ \(var, tiexpr) -> do
+      twhnf <- evalTIExprShallow env tiexpr
+      ref <- liftIO $ newIORef $ WHNF (twhnfData twhnf)
+      return (var, ref)
+    let env' = extendEnv env refs  -- Direct binding
+    forM_ bindings $ \(var, tiexpr) -> recursiveBind env' [(var, tiExpr tiexpr)]
+    return (Nothing, env')
+  
+  TITest tiexpr -> do
+    (_ty, val) <- evalTIExprDeep env tiexpr
+    return (Just val, env)
+  
+  TIExecute tiexpr -> do
+    twhnf <- evalTIExprShallow env tiexpr
+    -- Execute IO action
+    _ <- evalWHNF (twhnfData twhnf)
+    return (Nothing, env)
+  
+  -- These should not appear after expandLoads, but handle them anyway
+  TILoadFile file -> do
+    exprs <- loadFile file
+    env' <- evalTopExprs env exprs
+    return (Nothing, env')
+  
+  TILoad file -> do
+    exprs <- loadLibraryFile file
+    env' <- evalTopExprs env exprs
+    return (Nothing, env')
 
 -- | Register constructors from an InductiveDecl into the EvalState
 registerInductiveDecl :: TopExpr -> EvalM ()
@@ -160,52 +281,23 @@ valueToStr val = do
     Just lang -> return (prettyMath lang val)
 
 -- | Evaluate Egison top expressions.
--- Pipeline: ExpandLoads → Desugar → Collect defs → RecursiveBind → Eval rest
+-- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 evalTopExprs :: Env -> [TopExpr] -> EvalM Env
 evalTopExprs env exprs = do
-  opts <- ask
-  
-  -- Step 1: Expand all Load/LoadFile recursively
+  -- Expand all Load/LoadFile recursively
   expanded <- expandLoads exprs
-  
-  -- Step 2: Register inductive constructors
-  forM_ expanded registerInductiveDecl
-  
-  -- Step 3: Desugar all expressions
-  desugaredExprs <- desugarTopExprs expanded
-  
-  -- Step 4: Collect definitions and add them all at once (for mutual recursion)
-  (bindings, rest) <- collectDefs opts desugaredExprs
-  env' <- recursiveBind env bindings
-  
-  -- Step 5: Evaluate remaining expressions (tests, executes)
-  forM_ rest $ \expr -> do
-    (val, _) <- evalTopExpr' env' expr
-    case val of
-      Nothing  -> return ()
-      Just val' -> valueToStr val' >>= liftIO . putStrLn
+  -- Evaluate using typed pipeline with printing
+  (_, env') <- evalExpandedTopExprsTyped' env expanded True
   return env'
 
 -- | Evaluate Egison top expressions without printing.
+-- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 evalTopExprsNoPrint :: Env -> [TopExpr] -> EvalM Env
 evalTopExprsNoPrint env exprs = do
-  opts <- ask
-  
-  -- Step 1: Expand all Load/LoadFile recursively
+  -- Expand all Load/LoadFile recursively
   expanded <- expandLoads exprs
-  
-  -- Step 2: Register inductive constructors
-  forM_ expanded registerInductiveDecl
-  
-  -- Step 3: Desugar all expressions
-  desugaredExprs <- desugarTopExprs expanded
-  
-  -- Step 4: Collect definitions and add them all at once
-  (bindings, rest) <- collectDefs opts desugaredExprs
-  env' <- recursiveBind env bindings
-  
-  -- Step 5: Evaluate remaining expressions without printing
-  forM_ rest $ evalTopExpr' env'
+  -- Evaluate using typed pipeline
+  (_, env') <- evalExpandedTopExprsTyped env expanded
   return env'
 
 -- | Evaluate an Egison expression. Input is a Haskell string.

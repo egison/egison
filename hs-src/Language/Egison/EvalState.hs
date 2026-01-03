@@ -26,7 +26,8 @@ import qualified Data.HashMap.Strict              as HashMap
 import           Data.HashMap.Strict              (HashMap)
 
 import           Language.Egison.IExpr
-import           Language.Egison.Type.Types       (Type)
+import           Language.Egison.Type.Types       (Type, TypeScheme)
+import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, emptyEnv, emptyClassEnv, extendEnv)
 
 -- | Instance environment: maps class name -> method name -> type -> implementation
 -- The implementation is stored as a function reference (Var name)
@@ -45,8 +46,10 @@ type ConstructorEnv = HashMap String ConstructorInfo
 
 data EvalState = EvalState
   { funcNameStack  :: [Var]          -- ^ Names of called functions for improved error message
-  , instanceEnv    :: InstanceEnv    -- ^ Type class instance environment
+  , instanceEnv    :: InstanceEnv    -- ^ Type class instance environment (runtime dispatch)
   , constructorEnv :: ConstructorEnv -- ^ Inductive data constructor environment
+  , typeEnv        :: TypeEnv        -- ^ Type environment (for type inference)
+  , classEnv       :: ClassEnv       -- ^ Class environment (for type inference)
   }
 
 initialEvalState :: EvalState
@@ -54,6 +57,8 @@ initialEvalState = EvalState
   { funcNameStack = [] 
   , instanceEnv = HashMap.empty
   , constructorEnv = HashMap.empty
+  , typeEnv = emptyEnv
+  , classEnv = emptyClassEnv
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -69,6 +74,13 @@ class (Applicative m, Monad m) => MonadEval m where
   getConstructorEnv :: m ConstructorEnv
   registerConstructor :: String -> ConstructorInfo -> m ()
   lookupConstructor :: String -> m (Maybe ConstructorInfo)
+  -- Type environment operations
+  getTypeEnv :: m TypeEnv
+  setTypeEnv :: TypeEnv -> m ()
+  extendTypeEnv :: String -> TypeScheme -> m ()
+  -- Class environment operations
+  getClassEnv :: m ClassEnv
+  setClassEnv :: ClassEnv -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -112,6 +124,20 @@ instance Monad m => MonadEval (StateT EvalState m) where
   lookupConstructor ctorName = do
     env <- constructorEnv <$> get
     return $ HashMap.lookup ctorName env
+  
+  getTypeEnv = typeEnv <$> get
+  setTypeEnv env = do
+    st <- get
+    put $ st { typeEnv = env }
+  extendTypeEnv name scheme = do
+    st <- get
+    let env' = extendEnv name scheme (typeEnv st)
+    put $ st { typeEnv = env' }
+  
+  getClassEnv = classEnv <$> get
+  setClassEnv env = do
+    st <- get
+    put $ st { classEnv = env }
 
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
@@ -124,6 +150,11 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   getConstructorEnv = lift getConstructorEnv
   registerConstructor cn info = lift $ registerConstructor cn info
   lookupConstructor cn = lift $ lookupConstructor cn
+  getTypeEnv = lift getTypeEnv
+  setTypeEnv = lift . setTypeEnv
+  extendTypeEnv name scheme = lift $ extendTypeEnv name scheme
+  getClassEnv = lift getClassEnv
+  setClassEnv = lift . setClassEnv
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m
