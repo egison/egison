@@ -103,25 +103,6 @@ data TWHNFData = TWHNFData
   , twhnfData :: WHNFData   -- ^ The underlying WHNF data
   } deriving Show
 
--- | Get the type name of an EgisonValue as Text (legacy, kept for compatibility)
--- Used for type class method dispatch
-typeName' :: EgisonValue -> Text
-typeName' (Bool _)         = T.pack "Bool"
-typeName' (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = T.pack "Integer"
-typeName' (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = T.pack "Integer"
-typeName' (ScalarData _)   = T.pack "MathExpr"
-typeName' (Float _)        = T.pack "Float"
-typeName' (Char _)         = T.pack "Char"
-typeName' (String _)       = T.pack "String"
-typeName' (Collection _)   = T.pack "List"
-typeName' (Tuple _)        = T.pack "Tuple"
-typeName' (IntHash _)      = T.pack "Hash"
-typeName' (CharHash _)     = T.pack "Hash"
-typeName' (StrHash _)      = T.pack "Hash"
-typeName' (TensorData _)   = T.pack "Tensor"
-typeName' (InductiveData name _) = T.pack name
-typeName' _                = T.pack "Unknown"
-
 evalConstant :: ConstantExpr -> EgisonValue
 evalConstant (CharExpr c)    = Char c
 evalConstant (StringExpr s)  = toEgison s

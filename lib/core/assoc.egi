@@ -55,10 +55,10 @@ def assocMultiset (a: Matcher b) : Matcher [(b, Integer)] :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def AC.intersect xs ys :=
+def AC.intersect (xs : [{Eq a}]) (ys : [a]) :=
   matchAll (xs, ys) as (assocMultiset something, assocMultiset something) with
     | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)
 
-def AC.intersectAs a xs ys :=
+def AC.intersectAs (a : Matcher {Eq b}) (xs : [b]) (ys : [b]) :=
   matchAll (xs, ys) as (assocMultiset a, assocMultiset a) with
     | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)

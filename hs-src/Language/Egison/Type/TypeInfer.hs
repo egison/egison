@@ -16,6 +16,7 @@ module Language.Egison.Type.TypeInfer
     -- * Running inference
   , runTypedInfer
   , runTypedInferTopExpr
+  , runTypedInferTopExprWithEnv
   , TypedInferResult(..)
   ) where
 
@@ -29,7 +30,7 @@ import           Language.Egison.Type.Env
 import           Language.Egison.Type.Error
 import           Language.Egison.Type.Infer (Infer, InferState(..), InferConfig(..),
                                              freshVar, getEnv, setEnv, withEnv, 
-                                             runInferWithWarnings, typeExprToType,
+                                             runInferWithWarnings, runInferWithWarningsAndState, typeExprToType,
                                              typedParamToType, extractTypedParamBindings,
                                              extractLetPatternBindings, generalize,
                                              inferConstant, lookupVar, unifyTypes,
@@ -60,19 +61,27 @@ runTypedInfer state expr = do
 -- Load/LoadFile should already be expanded before calling this
 runTypedInferTopExpr :: Bool -> TopExpr -> IO (Either TypeError (Maybe TypedTopExpr), [TypeWarning])
 runTypedInferTopExpr permissive topExpr = do
-  -- Create initial state with empty environment
+  (result, warnings, _, _) <- runTypedInferTopExprWithEnv permissive topExpr emptyEnv emptyClassEnv
+  return (result, warnings)
+
+-- | Run type inference with initial type and class environments
+-- Returns (result, warnings, updated type env, updated class env)
+runTypedInferTopExprWithEnv :: Bool -> TopExpr -> TypeEnv -> ClassEnv -> IO (Either TypeError (Maybe TypedTopExpr), [TypeWarning], TypeEnv, ClassEnv)
+runTypedInferTopExprWithEnv permissive topExpr initialTypeEnv initialClassEnv = do
   let inferCfg = defaultInferConfig { cfgPermissive = permissive }
       initialState = InferState 
         { inferCounter = 0
-        , inferEnv = emptyEnv
-        , inferClassEnv = emptyClassEnv
+        , inferEnv = initialTypeEnv
+        , inferClassEnv = initialClassEnv
         , inferWarnings = []
         , inferConfig = inferCfg
         }
-  (result, warnings) <- runInferWithWarnings (inferTypedTopExpr topExpr) initialState
+  (result, warnings, finalState) <- runInferWithWarningsAndState (inferTypedTopExpr topExpr) initialState
+  let updatedTypeEnv = inferEnv finalState
+      updatedClassEnv = inferClassEnv finalState
   return $ case result of
-    Left err -> (Left err, warnings)
-    Right mTypedTop -> (Right mTypedTop, warnings)
+    Left err -> (Left err, warnings, updatedTypeEnv, updatedClassEnv)
+    Right mTypedTop -> (Right mTypedTop, warnings, updatedTypeEnv, updatedClassEnv)
 
 -- | Infer type and produce typed expression
 inferTypedExpr :: Expr -> Infer (TypedExpr, Subst)

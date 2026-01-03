@@ -25,6 +25,7 @@ module Language.Egison.Type.Infer
   , permissiveInferConfig
   , runInfer
   , runInferWithWarnings
+  , runInferWithWarningsAndState
     -- * File loading support
   , setFileLoader
   , FileLoader
@@ -129,6 +130,12 @@ runInferWithWarnings :: Infer a -> InferState -> IO (Either TypeError a, [TypeWa
 runInferWithWarnings m st = do
   (result, finalState) <- runStateT (runExceptT m) st
   return (result, inferWarnings finalState)
+
+-- | Run inference and return result, warnings, and final state
+runInferWithWarningsAndState :: Infer a -> InferState -> IO (Either TypeError a, [TypeWarning], InferState)
+runInferWithWarningsAndState m st = do
+  (result, finalState) <- runStateT (runExceptT m) st
+  return (result, inferWarnings finalState, finalState)
 
 -- | Add a warning
 addWarning :: TypeWarning -> Infer ()

@@ -4,7 +4,7 @@
 --
 --
 
-def eq : Matcher a :=
+def eq : Matcher {Eq a} :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
