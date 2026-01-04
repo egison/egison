@@ -1,16 +1,16 @@
 -- Parameters
-def x := [| θ, φ |]
+def x : Vector MathExpr := [| θ, φ |]
 
-def X := [| r * sin θ * cos φ -- x
+def X : Vector MathExpr := [| r * sin θ * cos φ -- x
           , r * sin θ * sin φ -- y
           , r * cos θ         -- z
           |]
 
-def e_i_j := ∂/∂ X_j x~i
+def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g_i_j := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
-def g~i~j := M.inverse g_#_#
+def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
+def g~i~j : Matrix MathExpr := M.inverse g_#_#
 
 assertEqual "Metric tensor"
   g_#_#
@@ -20,7 +20,7 @@ assertEqual "Metric tensor"
   [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
 
 -- Christoffel symbols
-def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i_j_k : Tensor MathExpr := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 assertEqual "Christoffel symbols of the first kind"
   Γ_1_#_#
@@ -29,7 +29,7 @@ assertEqual "Christoffel symbols of the first kind"
   Γ_2_#_#
   [| [| 0, r^2 * (sin θ) * (cos θ) |], [| r^2 * (sin θ) * (cos θ), 0 |] |]_#_#
 
-def Γ~i_j_k := withSymbols [m]
+def Γ~i_j_k : Tensor MathExpr := withSymbols [m]
   g~i~m . Γ_m_j_k
 
 assertEqual "Christoffel symbols of the second kind"
@@ -40,7 +40,7 @@ assertEqual "Christoffel symbols of the second kind"
   [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
 
 -- Riemann curvature
-def R~i_j_k_l := withSymbols [m]
+def R~i_j_k_l : Tensor MathExpr := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
 assertEqual "riemann curvature"
@@ -57,11 +57,11 @@ assertEqual "riemann curvature"
   [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
 -- Ricci curvature
-def Ric_i_j := withSymbols [m]
+def Ric_i_j : Matrix MathExpr := withSymbols [m]
   sum (contract R~m_i_m_j)
 
 -- Scalar curvature
-def scalarCurvature := withSymbols [i, j]
+def scalarCurvature : MathExpr := withSymbols [i, j]
   g~i~j . Ric_i_j
 
 assertEqual "scalar curvature"

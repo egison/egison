@@ -1,10 +1,10 @@
-def suit := algebraicDataMatcher
+def suit {a} : Matcher Suit := algebraicDataMatcher
   | spade
   | heart
   | club
   | diamond
 
-def card := matcher
+def card {a, b} : Matcher Card := matcher
   | card $ $ as (suit, mod 13) with
     | Card $x $y -> [(x, y)]
     | Joker -> matchAll ([Spade, Heart, Club, Diamnond], [1..13]) as (set something, set something) with
@@ -12,7 +12,7 @@ def card := matcher
   | $ as something with
     | $tgt -> [tgt]
 
-def poker cs :=
+def poker (cs: [Card]) : String :=
   match cs as multiset card with
   | card $s $n :: card #s #(n-1) :: card #s #(n-2) :: card #s #(n-3) :: card #s #(n-4) :: _
     -> "Straight flush"

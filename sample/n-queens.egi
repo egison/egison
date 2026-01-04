@@ -1,6 +1,6 @@
 -- N-Queens problem
 
-def fourQueens := matchAll [1,2,3,4] as multiset integer with
+def fourQueens : [[Integer]] := matchAll [1,2,3,4] as multiset integer with
   | $a_1 ::
      (!#(a_1 - 1) & !#(a_1 + 1) & $a_2) ::
       (!#(a_1 - 2) & !#(a_1 + 2) & !#(a_2 - 1) & !#(a_2 + 1) & $a_3) ::
@@ -12,7 +12,7 @@ assertEqual "four queens"
   fourQueens
   [[2,4,1,3],[3,1,4,2]]
 
-def nQueens n := matchAll [1..n] as multiset integer with
+def nQueens (n: Integer) : [[Integer]] := matchAll [1..n] as multiset integer with
   | $a_1 ::
       (loop $i (2, n)
          ((loop $j (1, i - 1)

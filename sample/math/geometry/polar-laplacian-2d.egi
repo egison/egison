@@ -2,19 +2,19 @@
 -- 2D Polar Laplacian
 --
 
-def x := r * cos θ
-def y := r * sin θ
+def x : MathExpr := r * cos θ
+def y : MathExpr := r * sin θ
 
-def uR := ∂/∂ (u x y) r
+def uR : MathExpr := ∂/∂ (u x y) r
 
 assertEqual "∂u/∂r"
   uR
   (cos θ * u|1 (r * cos θ) (r * sin θ) + sin θ * u|2 (r * cos θ) (r * sin θ))
 
-def uRR := ∂/∂ (∂/∂ (u x y) r) r
+def uRR : MathExpr := ∂/∂ (∂/∂ (u x y) r) r
 
-def uΘ := ∂/∂ (u x y) θ
-def uΘΘ := ∂/∂ (∂/∂ (u x y) θ) θ
+def uΘ : MathExpr := ∂/∂ (u x y) θ
+def uΘΘ : MathExpr := ∂/∂ (∂/∂ (u x y) θ) θ
 
 -- Laplacian in polar coordinates: ∂²u/∂r² + (1/r)∂u/∂r + (1/r²)∂²u/∂θ²
 assertEqual "Laplacian in polar coordinates (without 1/r term)"

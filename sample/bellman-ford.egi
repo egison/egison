@@ -1,7 +1,7 @@
 -- Bellman-Ford algorithm for shortest paths
 
 -- initiate a distance graph
-def A :=
+def A : Matrix Integer :=
   [|[|0, 19, 36, 66, 99, 65|]
   , [|19, 0, 25, 59, 64, 31|]
   , [|36, 25, 0, 84, 48, 28|]
@@ -9,7 +9,7 @@ def A :=
   , [|99, 64, 48, 59, 0, 9|]
   , [|65, 31, 28, 29, 9, 0|]|]
 
-def G.* t1 t2 := withSymbols [i]
+def G.* {Ord a} (t1: Matrix a) (t2: Matrix a) : Matrix a := withSymbols [i]
   reduce min (contract (t1~#_i + t2~i_#))
 
 assertEqual "all-pairs shortest paths"

@@ -6,32 +6,32 @@
 -- Configuration
 --
 
-def items := [a, b, c, d, e, f]
+def items {a} : [a] := [a, b, c, d, e, f]
 
-def ISDB :=
+def ISDB {a} : [[[(Integer, [a])]]] :=
   [[[(0, [a]), (86400, [a, b, c]), (259200, [a, c])]]
   ,[[(0, [a, d]), (259200, [c])]]
   ,[[(0, [a, e, f]), (172800, [a, b])]]]
 
-def N := length ISDB
-def minSup := ceiling (0.5 * N)
+def N : Integer := length ISDB
+def minSup : Integer := ceiling (0.5 * N)
 
-def C1 := 0      -- min_interval
-def C2 := 172800 -- max_interval
-def C3 := 0      -- min_whole_interval
-def C4 := 300000 -- max_whole_interval
+def C1 : Integer := 0      -- min_interval
+def C2 : Integer := 172800 -- max_interval
+def C3 : Integer := 0      -- min_whole_interval
+def C4 : Integer := 300000 -- max_whole_interval
 
-def I t := floor (rtof (t / (60 * 60 * 24)))
+def I (t: Integer) : Integer := floor (rtof (t / (60 * 60 * 24)))
 
 --
 -- Utils
 --
 
-def query := list (integer, eq)
+def query {a, b, c} : Matcher [(Integer, a)] := list (integer, eq)
 
-def sequence := list (time, list eq)
+def sequence {a, b, c} : Matcher [(Integer, [a])] := list (time, list eq)
 
-def time := matcher
+def time {a, b} : Matcher Integer := matcher
   | interval $ $ as (integer, integer) with
     | $t -> [(I t, t)]
   | $ as something with
@@ -43,7 +43,7 @@ def time := matcher
 --
 
 -- calculate ISDB|α
-def project α ISDB := match α as query with
+def project {Eq a} (α: [(Integer, a)]) (ISDB: [[[(Integer, [a])]]]) : [[[(Integer, [a])]]] := match α as query with
   | (#0, $x) :: $α' -> project' α' (map (\xss -> matchAllDFS xss as set sequence with
                                                  | (_ ++ ($t, _ ++ #x :: $cs) :: $ls) :: _
                                                  -> (0, cs) :: (map (\t' xs -> (t' - t, xs)) ls))

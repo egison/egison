@@ -31,18 +31,18 @@ def tile :=
 --
 -- Pattern modularization
 --
-def twin := \pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
+def twin {a} : Pattern a -> Pattern a -> Pattern [a] := \pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
 
-def shuntsu :=
+def shuntsu : Pattern Tile -> Pattern Tile -> Pattern [Tile] :=
   \pat1 pat2 =>
     (num $s $n & ~pat1) :: num #s #(n + 1) :: num #s #(n + 2) :: ~pat2
 
-def kohtsu := \pat1 pat2 => ($pat & ~pat1) :: #pat :: #pat :: ~pat2
+def kohtsu {a} : Pattern a -> Pattern a -> Pattern [a] := \pat1 pat2 => ($pat & ~pat1) :: #pat :: #pat :: ~pat2
 
 --
 -- A function that determines whether the hand is completed or not.
 --
-def complete? :=
+def complete? : [Tile] -> Bool :=
   \match as multiset tile with
     | twin
         $th_1

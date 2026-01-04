@@ -1,12 +1,12 @@
 -- Quartic Formula (Ferrari's method)
 
-def quarticFormula := qtF
+def quarticFormula : MathExpr -> MathExpr -> (MathExpr, MathExpr, MathExpr, MathExpr) := qtF
 
-def qtF $f $x :=
+def qtF (f: MathExpr) (x: MathExpr) : (MathExpr, MathExpr, MathExpr, MathExpr) :=
   match coefficients f x as list mathExpr with
     | $a_0 :: $a_1 :: $a_2 :: $a_3 :: $a_4 :: [] -> qtF' a_4 a_3 a_2 a_1 a_0
 
-def qtF' $a $b $c $d $e :=
+def qtF' (a: MathExpr) (b: MathExpr) (c: MathExpr) (d: MathExpr) (e: MathExpr) : (MathExpr, MathExpr, MathExpr, MathExpr) :=
   match (a, b, c, d, e) as
     (mathExpr, mathExpr, mathExpr, mathExpr, mathExpr) with
     | (#1, #0, $p, #0, $q) ->
