@@ -94,7 +94,7 @@ data TypedExprNode
   | TJoinExpr TypedExpr TypedExpr
   
   -- Functions
-  -- TLambdaExpr holds Arg String to preserve ScalarArg/TensorArg info
+  -- TLambdaExpr holds Arg String to preserve Arg/InvertedArg info
   | TLambdaExpr [Arg String] TypedExpr
   | TTypedLambdaExpr [(String, Type)] Type TypedExpr
   | TMemoizedLambdaExpr [String] TypedExpr

@@ -1,6 +1,6 @@
 ;;; egison-mode.el --- Egison editing mode
 
-;; Copyright (C) 2011-2015 Satoshi Egi
+;; Copyright (C) 2011-2026 Satoshi Egi
 
 ;; Permission is hereby granted, free of charge, to any person obtaining
 ;; a copy of this software and associated documentation files (the "Software"),
@@ -20,8 +20,8 @@
 ;; OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ;;; Author: Satoshi Egi <egisatoshi@gmail.com>
-;;; URL: https://github.com/egisatoshi/egison3/blob/master/elisp/egison-mode.el
-;;; Version: 0.1.5
+;;; URL: https://github.com/egisatoshi/egison/blob/master/elisp/egison-mode.el
+;;; Version: 0.2.0
 
 ;;; Commentary:
 
@@ -38,55 +38,88 @@
 (defconst egison-font-lock-keywords-1
   (eval-when-compile
     (list
+     ;; Module and import
      "\\<load\\>"
      "\\<loadFile\\>"
 
+     ;; Definition keywords
+     "\\<def\\>"
      "\\<let\\>"
-     "\\<withSymbols\\>"
+     "\\<where\\>"
+
+     ;; Control flow
      "\\<if\\>"
-     "\\<generateArray\\>"
-     "\\<arrayBounds\\>"
-     "\\<arrayRef\\>"
+     "\\<then\\>"
+     "\\<else\\>"
+
+     ;; Pattern matching
+     "\\<match\\>"
+     "\\<matchAll\\>"
+     "\\<matchAllDFS\\>"
+     "\\<matchDFS\\>"
+     "\\<as\\>"
+     "\\<with\\>"
+     
+     ;; Matcher definition
+     "\\<matcher\\>"
+     "\\<algebraicDataMatcher\\>"
+
+     ;; Symbols
+     "\\<withSymbols\\>"
+     
+     ;; Tensor operations
      "\\<tensor\\>"
      "\\<generateTensor\\>"
      "\\<contract\\>"
      "\\<tensorMap\\>"
+     "\\<tensorShape\\>"
+     "\\<generateArray\\>"
+     "\\<arrayBounds\\>"
+     "\\<arrayRef\\>"
 
-     "\\<loop\\>"
-     "\\<match\\>"
-     "\\<matchDFS\\>"
-     "\\<matchAll\\>"
-     "\\<matchAllDFS\\>"
-     "\\<as\\>"
-     "\\<with\\>"
-     "\\<matcher\\>"
-     "\\<algebraicDataMatcher\\>"
-
+     ;; IO operations
      "\\<do\\>"
      "\\<io\\>"
      "\\<seq\\>"
 
+     ;; Special values
      "\\<undefined\\>"
      "\\<something\\>"
 
-;     ":="
+     ;; Infix operators
+     "\\<infixr\\>"
+     "\\<infixl\\>"
+     "\\<infix\\>"
+     "\\<expression\\>"
+
+     ;; Built-in types
+     "\\<Bool\\>"
+     "\\<Integer\\>"
+     "\\<Float\\>"
+     "\\<Char\\>"
+     "\\<String\\>"
+     "\\<List\\>"
+     "\\<Vector\\>"
+     "\\<Matrix\\>"
+     "\\<Tensor\\>"
+     "\\<Matcher\\>"
+     "\\<Pattern\\>"
+
+     ;; Boolean values
+     "\\<True\\>"
+     "\\<False\\>"
+
+     ;; Testing
+     "\\<assert\\>"
+     "\\<assertEqual\\>"
+     "\\<assertEqualM\\>"
+
+     ;; Operators and symbols (as regexps)
      "::"
      "++"
-     "\\\.\\\.\\\."
+     "=>"
      "->"
-     "#"
-;     "'"
-     "`"
-     "\\\#"
-     "|"
-     "\\\&"
-     "@"
-     "!"
-     "?"
-;     "\\<_\\>"
-
-     "\\<assert\\>"
-     "\\<assert-equal\\>"
+     "\\.\\.\\."
      ))
   "Subdued expressions to highlight in Egison modes.")
 
@@ -94,8 +127,14 @@
   (append egison-font-lock-keywords-1
    (eval-when-compile
      (list
-      (cons "\\\$\\\w*" font-lock-variable-name-face)
-      (cons "\\\%\\\w*" font-lock-variable-name-face)
+      ;; Pattern variables ($x, $pat, etc.)
+      (cons "\\\$[a-zA-Z_][a-zA-Z0-9_']*" font-lock-variable-name-face)
+      ;; Value patterns (#x, #(expr), etc.) 
+      (cons "\\\#[a-zA-Z_][a-zA-Z0-9_']*" font-lock-constant-face)
+      ;; Type variables in definitions {a}, {a : Eq}
+      (cons "{[a-zA-Z_][a-zA-Z0-9_',: ]*}" font-lock-type-face)
+      ;; Type annotations (after :)
+      (cons ":[[:space:]]*\\([A-Z][a-zA-Z0-9_]*\\)" '(1 font-lock-type-face))
       )))
   "Gaudy expressions to highlight in Egison modes.")
 
@@ -117,15 +156,30 @@
 
 (defvar egison-mode-syntax-table
   (let ((table (make-syntax-table)))
-
+    ;; Block comments: {- ... -}
     (modify-syntax-entry ?\{  "(}1nb" table)
     (modify-syntax-entry ?\}  "){4nb" table)
     (modify-syntax-entry ?-  "_ 123" table)
-    (modify-syntax-entry ?\-  "_ 123" table)
-;    (modify-syntax-entry ?\;  "_ 123" table)
     (modify-syntax-entry ?\n ">" table)
+    
+    ;; String literals
+    (modify-syntax-entry ?\" "\"" table)
+    (modify-syntax-entry ?\' "\"" table)
+    
+    ;; Operators that are part of words
+    (modify-syntax-entry ?_ "w" table)
+    (modify-syntax-entry ?~ "w" table)
+    
+    ;; Special symbols
+    (modify-syntax-entry ?$ "'" table)
+    (modify-syntax-entry ?# "'" table)
+    (modify-syntax-entry ?& "." table)
+    (modify-syntax-entry ?| "." table)
+    (modify-syntax-entry ?! "." table)
+    (modify-syntax-entry ?? "." table)
+    (modify-syntax-entry ?@ "." table)
+    
     table)
-  ;; (copy-syntax-table lisp-mode-syntax-table)
   "Syntax table for Egison mode")
 
 (defun egison-mode-set-variables ()
@@ -133,14 +187,21 @@
   (set (make-local-variable 'font-lock-defaults)
        '((egison-font-lock-keywords
           egison-font-lock-keywords-1 egison-font-lock-keywords-2)
-         nil t (("+*/=!?%:_~.'∂∇αβγδεζχθικλμνξοπρςστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ" . "w"))
+         nil t 
+         ;; Include special characters and mathematical symbols as word constituents
+         (("+*/=!?%:_~.'∂∇αβγδεζηθικλμνξοπρςστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ" . "w"))
          ))
   (set (make-local-variable 'indent-line-function) 'egison-indent-line)
-  (set (make-local-variable 'comment-start) "--")
+  
+  ;; Comment settings for -- and {- -}
+  (set (make-local-variable 'comment-start) "-- ")
   (set (make-local-variable 'comment-end) "")
   (set (make-local-variable 'comment-start-skip) "{-+ *\\|--+ *")
   (set (make-local-variable 'comment-add) 1)
   (set (make-local-variable 'comment-end-skip) nil)
+  
+  ;; Block comment delimiters
+  (set (make-local-variable 'comment-multi-line) t)
   )
 
 

@@ -2,8 +2,24 @@
 Module      : Language.Egison.Type.TypeInfer
 Licence     : MIT
 
-This module provides type inference that produces typed AST.
-It transforms untyped Expr into TypedExpr with inferred types.
+This module implements Phase 5-6: Type Inference and Type Checking.
+It transforms untyped Expr into TypedExpr with inferred/checked types.
+
+Type Inference Phase (Phase 5):
+  - Constraint generation (assign type variables to expressions)
+  - Constraint solving (unification via Hindley-Milner algorithm)
+  - Type class constraint processing (collect constraints, resolve instances)
+
+Type Check Phase (Phase 6):
+  - Verify type annotations match inferred types
+  - Check type class constraints are satisfiable
+  
+This module also handles Phase 2 (Environment Building) implicitly:
+  - Register type classes during inference (ClassDeclExpr)
+  - Register instances during inference (InstanceDeclExpr)
+  - Data constructors are registered separately in Eval.hs
+
+Output: TypedExpr (Phase 7) - Typed AST ready for TypedDesugar (Phase 8)
 -}
 
 {-# LANGUAGE LambdaCase #-}
@@ -162,7 +178,7 @@ inferTypedExpr expr = case expr of
     return (TypedExpr (THash keyType valType) (THashExpr typedPairs), subst)
   
   -- Lambda
-  -- Preserve ScalarArg/TensorArg info for proper desugaring
+  -- Preserve Arg/InvertedArg info for proper desugaring
   LambdaExpr args body -> do
     paramTypes <- mapM (\_ -> freshVar "param") args
     let paramNames = map extractArgName args
@@ -172,15 +188,13 @@ inferTypedExpr expr = case expr of
     let funType = foldr TFun (texprType bodyTyped) (map (applySubst s) paramTypes)
     return (TypedExpr funType (TLambdaExpr argParams bodyTyped), s)
     where
-      extractArgName (ScalarArg (APPatVar (VarWithIndices n _))) = n
-      extractArgName (TensorArg (APPatVar (VarWithIndices n _))) = n
-      extractArgName (InvertedScalarArg (APPatVar (VarWithIndices n _))) = n
+      extractArgName (Arg (APPatVar (VarWithIndices n _))) = n
+      extractArgName (InvertedArg (APPatVar (VarWithIndices n _))) = n
       extractArgName _ = "_"
       
-      convertArg (ScalarArg (APPatVar (VarWithIndices n _))) = ScalarArg n
-      convertArg (TensorArg (APPatVar (VarWithIndices n _))) = TensorArg n
-      convertArg (InvertedScalarArg (APPatVar (VarWithIndices n _))) = InvertedScalarArg n
-      convertArg _ = TensorArg "_"
+      convertArg (Arg (APPatVar (VarWithIndices n _))) = Arg n
+      convertArg (InvertedArg (APPatVar (VarWithIndices n _))) = InvertedArg n
+      convertArg _ = Arg "_"
   
   -- Typed Lambda
   TypedLambdaExpr params retTypeExpr body -> do
@@ -382,7 +396,7 @@ inferTypedExpr expr = case expr of
   
   -- Matcher expressions
   MatcherExpr patDefs -> do
-    typedPatDefs <- forM patDefs $ \(patPat, nextMatcher, clauses) -> do
+    typedPatDefs <- forM patDefs $ \(PatternDef _constraints patPat nextMatcher clauses) -> do
       -- Extract bindings from primitive pattern pattern (e.g., "val", "tgt")
       patPatBindings <- extractPrimPatPatBindings patPat
       (nextMatcherTyped, _) <- withEnv patPatBindings $ inferTypedExpr nextMatcher
@@ -488,10 +502,9 @@ makeFallbackTypedExpr expr = case expr of
     bodyTyped <- makeFallbackTypedExpr body
     return $ TypedExpr TAny (TLambdaExpr argParams bodyTyped)
     where
-      convertArg (ScalarArg (APPatVar (VarWithIndices n _))) = ScalarArg n
-      convertArg (TensorArg (APPatVar (VarWithIndices n _))) = TensorArg n
-      convertArg (InvertedScalarArg (APPatVar (VarWithIndices n _))) = InvertedScalarArg n
-      convertArg _ = TensorArg "_"
+      convertArg (Arg (APPatVar (VarWithIndices n _))) = Arg n
+      convertArg (InvertedArg (APPatVar (VarWithIndices n _))) = InvertedArg n
+      convertArg _ = Arg "_"
   ApplyExpr f argList -> do
     fTyped <- makeFallbackTypedExpr f
     argsTyped <- mapM makeFallbackTypedExpr argList
@@ -723,12 +736,12 @@ extractPatternVarBindings pat targetType = go pat targetType
     extractLoopRangeBindings (LoopRange _ _ p) = go p TInt
 
 -- | Extract bindings from PrimitivePatPattern (used in matcher definitions)
--- e.g., PPValuePat "val" -> [("val", Forall [] [] TAny)]
+-- e.g., PPValuePat [] "val" -> [("val", Forall [] [] TAny)]
 extractPrimPatPatBindings :: PrimitivePatPattern -> Infer [(String, TypeScheme)]
 extractPrimPatPatBindings ppp = case ppp of
   PPWildCard -> return []
   PPPatVar -> return []  -- PatVar doesn't bind a named variable here
-  PPValuePat name -> return [(name, Forall [] [] TAny)]
+  PPValuePat _ name -> return [(name, Forall [] [] TAny)]
   PPInductivePat _ pats -> concat <$> mapM extractPrimPatPatBindings pats
   PPTuplePat pats -> concat <$> mapM extractPrimPatPatBindings pats
 
@@ -771,7 +784,7 @@ inferTypedTopExpr topExpr = case topExpr of
         setEnv $ extendEnv name scheme env
         return $ Just $ TDefine name eTyped
   
-  DefineWithType (TypedVarWithIndices name _ params retType) body -> do
+  DefineWithType (TypedVarWithIndices name _ _ params retType) body -> do
     let paramTypes = map typedParamToType params
         paramBindings = extractTypedParamBindings params
         retTy = typeExprToType retType

@@ -25,7 +25,7 @@ import           Data.Either                    (isRight)
 import           Data.Function                  (on)
 import           Data.Functor                   (($>))
 import           Data.List                      (groupBy, insertBy, sortOn)
-import           Data.Maybe                     (isJust, isNothing)
+import           Data.Maybe                     (catMaybes, isJust, isNothing)
 import           Data.Text                      (pack)
 
 import           Control.Monad.Combinators.Expr
@@ -206,13 +206,13 @@ inductiveTypeVar = lexeme $ try $ do
 -- e.g., class Eq a where
 --         (==) (x: a) (y: a) : Bool
 --         (/=) (x: a) (y: a) : Bool := not (x == y)
---       class Eq a => Ord a where
+--       class Ord a extends Eq a where
 --         compare (x: a) (y: a) : Ordering
 classExpr :: Parser TopExpr
 classExpr = try $ do
   pos <- L.indentLevel
   reserved "class"
-  -- Parse optional superclass constraints: Eq a =>
+  -- Parse optional superclass constraints: extends Eq a
   (superclasses, classNm, typeParams) <- classHeader
   reserved "where"
   -- Parse methods - use alignSome for consistent indentation handling
@@ -223,54 +223,25 @@ classExpr = try $ do
     classMethod
   return $ ClassDeclExpr $ ClassDecl classNm typeParams superclasses methods
 
--- | Parse class header: "Eq a" or "Eq a => Ord a"
--- Note: type parameters are parsed until "where" is encountered
+-- | Parse class header: "Ord a extends Eq a" or "Eq a"
+-- Note: type parameters are parsed until "where" or "extends" is encountered
 classHeader :: Parser ([ConstraintExpr], String, [String])
-classHeader = try withConstraints <|> withoutConstraints
+classHeader = try withExtends <|> withoutExtends
   where
-    withConstraints = do
-      constraints <- constraintList
-      _ <- symbol "=>"
+    withExtends = do
       classNm <- upperId
-      typeParams <- manyTill typeVarIdent (lookAhead (reserved "where"))
+      typeParams <- someTill typeVarIdent (lookAhead (reserved "extends"))
+      reserved "extends"
+      -- Parse superclass constraints (single constraint only for now)
+      superClassName <- upperId
+      superTypeArgs <- manyTill typeVarIdent (lookAhead (reserved "where"))
+      let constraints = [ConstraintExpr superClassName (map TEVar superTypeArgs)]
       return (constraints, classNm, typeParams)
 
-    withoutConstraints = do
+    withoutExtends = do
       classNm <- upperId
       typeParams <- manyTill typeVarIdent (lookAhead (reserved "where"))
       return ([], classNm, typeParams)
-
--- | Parse constraint list: "Eq a" or "(Eq a, Ord b)"
-constraintList :: Parser [ConstraintExpr]
-constraintList = try parenConstraints <|> ((:[]) <$> singleConstraint)
-  where
-    parenConstraints = parens $ singleConstraint `sepBy1` symbol ","
-    singleConstraint = do
-      classNm <- upperId
-      typeArgs <- some typeAtomSimple
-      return $ ConstraintExpr classNm typeArgs
-
--- | Parse class methods
-classMethodsParser :: Pos -> Parser [ClassMethod]
-classMethodsParser basePos = many $ try $ do
-  -- Check that we're indented more than the class keyword
-  _ <- indentGuardGT basePos
-  -- And that this looks like a method (starts with operator or non-reserved identifier)
-  lookAhead (try parenOperatorLookahead <|> try nonReservedLowerId)
-  classMethod
-  where
-    parenOperatorLookahead = do
-      _ <- char '('
-      _ <- some (oneOf ("!#$%&*+./<=>?@\\^|-~:" :: String))
-      return ()
-    nonReservedLowerId = do
-      c <- lowerChar
-      cs <- many alphaNumChar
-      let name = c : cs
-      if name `elem` reservedWordsForClass
-        then fail "reserved word"
-        else return ()
-    reservedWordsForClass = ["def", "class", "instance", "inductive", "load", "loadFile", "where", "let", "if", "match"]
 
 -- | Parse a single class method
 -- e.g., (==) (x: a) (y: a) : Bool
@@ -314,14 +285,14 @@ instanceExpr = try $ do
   methods <- instanceMethodsParser pos
   return $ InstanceDeclExpr $ InstanceDecl constraints classNm instTypes methods
 
--- | Parse instance header: "Eq Integer" or "Eq a => Eq [a]"
+-- | Parse instance header: "Eq Integer" or "{Eq a} Eq [a]"
 -- Note: instance types are parsed until "where" is encountered
 instanceHeader :: Parser ([ConstraintExpr], String, [TypeExpr])
 instanceHeader = try withConstraints <|> withoutConstraints
   where
+    -- New syntax: {Eq a} Eq [a]
     withConstraints = do
-      constraints <- constraintList
-      _ <- symbol "=>"
+      constraints <- typeConstraints
       classNm <- upperId
       instTypes <- someTill typeAtomSimple (lookAhead (reserved "where"))
       return (constraints, classNm, instTypes)
@@ -333,7 +304,9 @@ instanceHeader = try withConstraints <|> withoutConstraints
 
 -- | Parse instance methods
 instanceMethodsParser :: Pos -> Parser [InstanceMethod]
-instanceMethodsParser basePos = many (try $ indentGuardGT basePos >> instanceMethod)
+instanceMethodsParser basePos = option [] $ do
+  _ <- indentGuardGT basePos
+  alignSome instanceMethod
 
 -- | Parse a single instance method
 -- e.g., (==) x y := x = y
@@ -404,17 +377,49 @@ defineExpr = try defineWithType <|> defineWithoutType
       varWithIdx <- parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
                     <|> varWithIndicesLiteral
       let (name, indices) = extractVarWithIndices varWithIdx
+      -- Parse optional type class constraints: {a : Eq, b : Ord}
+      constraints <- option [] typeConstraints
       typedParams <- many typedParam
       _ <- symbol ":"
       retType <- typeExpr
       _ <- symbol ":="
       body <- expr
-      let typedVar = TypedVarWithIndices name indices typedParams retType
+      let typedVar = TypedVarWithIndices name indices constraints typedParams retType
       return (DefineWithType typedVar body)
 
 -- | Extract name and indices from VarWithIndices
 extractVarWithIndices :: VarWithIndices -> (String, [VarIndex])
 extractVarWithIndices (VarWithIndices name indices) = (name, indices)
+
+-- | Parse type class constraints: {Eq a, Ord b} or type variables: {a, b}
+-- Type variables without constraints are ignored (they are inferred automatically)
+-- Two formats supported:
+--   1. {Eq a, Ord b}  -- for matcher patterns (className typeVar)
+--   2. {a : Eq, b : Ord}  -- for function definitions (typeVar : className)
+--   3. {a : Eq, b}  -- mixed: some with constraints, some without
+--   4. {}  -- empty (no constraints)
+typeConstraints :: Parser [ConstraintExpr]
+typeConstraints = braces $ (catMaybes <$> (typeConstraintOrVar `sepBy1` symbol ",")) <|> return []
+  where
+    typeConstraintOrVar = (Just <$> try typeConstraint) <|> (try typeVar >> return Nothing)
+    
+    typeConstraint = try classFirst <|> try typeVarFirst
+    
+    -- Format 1: {Eq a} - for matcher patterns
+    classFirst = do
+      className <- upperId
+      typeVar <- typeVarIdent
+      return $ ConstraintExpr className [TEVar typeVar]
+    
+    -- Format 2: {a : Eq} - for function definitions
+    typeVarFirst = do
+      typeVar <- typeVarIdent
+      _ <- symbol ":"
+      className <- upperId
+      return $ ConstraintExpr className [TEVar typeVar]
+    
+    -- Type variable without constraint (ignored)
+    typeVar = typeVarIdent
 
 -- | Parse a typed parameter: supports both simple (x: a) and tuple ((x: a), (y: b)) patterns
 typedParam :: Parser TypedParam
@@ -465,17 +470,9 @@ untypedVar = TPUntypedVar <$> ident
 untypedWildcard :: Parser TypedParam
 untypedWildcard = TPUntypedWildcard <$ symbol "_"
 
--- | Parse a type expression
+-- | Parse a type expression (used in typedParam - stops at closing paren/comma)
 typeExpr :: Parser TypeExpr
-typeExpr = makeTypeExprParser
-
-makeTypeExprParser :: Parser TypeExpr
-makeTypeExprParser = do
-  t <- typeAtomOrParenType
-  rest <- optional (symbol "->" >> makeTypeExprParser)
-  return $ case rest of
-    Nothing -> t
-    Just r  -> TEFun t r
+typeExpr = typeExprWithApp
 
 typeAtomOrParenType :: Parser TypeExpr
 typeAtomOrParenType =
@@ -561,9 +558,13 @@ tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
   _ <- reserved "Tensor"
   elemType <- typeAtom
-  shape <- tensorShapeExpr
-  indices <- many tensorIndexExpr
-  return $ TETensor elemType shape indices
+  -- Shape and indices are optional (for simple type application like "Tensor a")
+  maybeShape <- optional tensorShapeExpr
+  case maybeShape of
+    Nothing -> return $ TEApp (TEVar "Tensor") [elemType]  -- Simple type application
+    Just shape -> do
+      indices <- many tensorIndexExpr
+      return $ TETensor elemType shape indices
 
 tensorShapeExpr :: Parser TensorShapeExpr
 tensorShapeExpr =
@@ -732,10 +733,8 @@ lambdaLikeExpr =
       return $ TypedMemoizedLambdaExpr params retType body
 
 arg :: Parser (Arg ArgPattern)
-arg = InvertedScalarArg <$> (string "*$" >> argPatternAtom)
-  <|> TensorArg         <$> (char '%' >> argPatternAtom)
-  <|> ScalarArg         <$> (char '$' >> argPatternAtom)
-  <|> TensorArg         <$> argPattern
+arg = InvertedArg <$> (char '!' >> argPatternAtom)
+  <|> Arg         <$> argPattern
   <?> "argument"
 
 argPattern :: Parser ArgPattern
@@ -750,10 +749,10 @@ argPattern = makeExprParser argPatternAtom table
       ]
     
     apConsPatOp :: ArgPattern -> ArgPattern -> ArgPattern
-    apConsPatOp lhs rhs = APConsPat (TensorArg lhs) rhs
+    apConsPatOp lhs rhs = APConsPat (Arg lhs) rhs
     
     apSnocPatOp :: ArgPattern -> ArgPattern -> ArgPattern
-    apSnocPatOp lhs rhs = APSnocPat lhs (TensorArg rhs)
+    apSnocPatOp lhs rhs = APSnocPat lhs (Arg rhs)
 
 argPatternAtom :: Parser ArgPattern
 argPatternAtom
@@ -778,16 +777,18 @@ letExpr = do
 binding :: Parser BindingExpr
 binding = try bindingWithType <|> bindingWithoutType
   where
-    -- Binding with type annotation: f (x: Integer) : Integer := body
+    -- Binding with type annotation: f {a : Eq} (x: Integer) : Integer := body
     bindingWithType = do
       varWithIdx <- varWithIndicesLiteral
       let (name, indices) = extractVarWithIndices varWithIdx
+      -- Parse optional type class constraints
+      constraints <- option [] typeConstraints
       typedParams <- many typedParam
       _ <- symbol ":"
       retType <- typeExpr
       _ <- symbol ":="
       body <- expr
-      let typedVar = TypedVarWithIndices name indices typedParams retType
+      let typedVar = TypedVarWithIndices name indices constraints typedParams retType
       return $ BindWithType typedVar body
 
     -- Original binding without type annotation
@@ -832,12 +833,15 @@ matcherExpr = do
   -- expression.
   MatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
-    patternDef :: Parser (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
+    patternDef :: Parser PatternDef
     patternDef = do
+      -- Parse optional type class constraints before the pattern
+      -- e.g., {Eq a} #$val as () with ...
+      constraints <- (try typeConstraints <|> return [])
       pp <- ppPattern
       returnMatcher <- reserved "as" >> expr <* reserved "with"
       datapat <- alignSome (symbol "|" >> dataCases)
-      return (pp, returnMatcher, datapat)
+      return $ PatternDef constraints pp returnMatcher datapat
 
     dataCases :: Parser (PrimitiveDataPattern, Expr)
     dataCases = (,) <$> pdPattern <*> (symbol "->" >> expr)
@@ -982,7 +986,7 @@ atomExpr' = anonParamFuncExpr      -- must come before |constantExpr|
         <|> hashExpr
         <|> QuoteExpr <$> (try (symbol "`" <* notFollowedBy ident) >> atomExpr') -- must come after |constantExpr|
         <|> QuoteSymbolExpr <$> try (char '\'' >> atomExpr')
-        <|> AnonParamExpr  <$> try (char '%' >> positiveIntegerLiteral)
+        <|> AnonParamExpr  <$> try (char '$' >> positiveIntegerLiteral)
         <?> "atomic expression"
 
 anonParamFuncExpr :: Parser Expr
@@ -1133,7 +1137,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
          <|> PPPatVar   <$ symbol "$"
-         <|> PPValuePat <$> (string "#$" >> lowerId)
+         <|> PPValuePat [] <$> (string "#$" >> lowerId)
          <|> PPInductivePat "nil" [] <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen ppPattern PPTuplePat
 
@@ -1265,7 +1269,7 @@ patInfixLiteral sym =
 
 -- Characters that can consist expression operators.
 opChar :: Parser Char
-opChar = oneOf ("%^&*-+\\|:<>?!./'#@$" ++ "∧")
+opChar = oneOf ("%^&*-+\\|:<>=?!./'#@$" ++ "∧")
 
 -- Characters that can consist pattern operators.
 -- ! ? # @ $ are omitted because they can appear at the beginning of atomPattern

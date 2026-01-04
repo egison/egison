@@ -2,8 +2,25 @@
 Module      : Language.Egison.Type.TypedDesugar
 Licence     : MIT
 
-This module provides desugaring from typed AST (TypedExpr) to typed internal expressions (TIExpr).
-Type information is preserved during desugaring, enabling type-based dispatch during evaluation.
+This module implements Phase 8 of the processing flow: TypedDesugar.
+It performs type-driven transformations from typed AST (TypedExpr) to 
+typed internal expressions (TIExpr).
+
+Type-Driven Transformations (Phase 8):
+  1. Type class dictionary passing
+     - Instance selection based on types
+     - Method call concretization
+  2. tensorMap automatic insertion
+     - Detect mismatches between Tensor MathExpr and MathExpr
+     - Insert tensorMap at appropriate positions
+  3. Type information optimization and embedding
+     - Preserve type info for better error messages during evaluation
+     - Each node in TIExpr contains its type
+
+Type information is preserved throughout desugaring, enabling:
+  - Better runtime error messages with type information
+  - Type-based dispatch during evaluation
+  - Debugging support with type annotations
 -}
 
 module Language.Egison.Type.TypedDesugar
@@ -73,30 +90,23 @@ desugarTypedExpr (TypedExpr _ty node) = case node of
     return $ IJoinExpr lExpr rExpr
   
   -- Lambda
-  -- Handle ScalarArg/TensorArg properly:
-  -- ScalarArg => wrap body in TensorMapExpr to map over tensor components
-  -- TensorArg => use directly (tensor passed as-is)
+  -- Handle Arg/InvertedArg properly:
+  -- InvertedArg => flip indices
+  -- Arg => use directly (type determines tensor/scalar)
   -- This matches the behavior in Desugar.hs for LambdaExpr'
   TLambdaExpr argParams body -> do
     bodyExpr <- desugarTypedExpr body
     -- Apply scalar argument transformation in reverse order (foldr)
-    -- For ScalarArg x: wrap body in TensorMapExpr to map function over tensor
+    -- For InvertedArg: flip indices (type determines tensor/scalar behavior)
     let (vars, bodyExpr') = foldr desugarArg ([], bodyExpr) argParams
     return $ ILambdaExpr Nothing vars bodyExpr'
     where
       desugarArg :: Arg String -> ([Var], IExpr) -> ([Var], IExpr)
-      desugarArg (TensorArg x) (vars, expr) = 
+      desugarArg (Arg x) (vars, expr) = 
         (stringToVar x : vars, expr)
-      desugarArg (ScalarArg x) (vars, expr) = 
-        -- For scalar arg: wrap the body expression in tensorMap
-        -- tensorMap (\x -> body) x
-        -- This maps the function over each component of the tensor
-        (stringToVar x : vars, 
-         ITensorMapExpr (ILambdaExpr Nothing [stringToVar x] expr) (IVarExpr x))
-      desugarArg (InvertedScalarArg x) (vars, expr) = 
-        -- For inverted scalar: same but flip indices first
-        (stringToVar x : vars,
-         ITensorMapExpr (ILambdaExpr Nothing [stringToVar x] expr) (IFlipIndicesExpr (IVarExpr x)))
+      desugarArg (InvertedArg x) (vars, expr) = 
+        -- For inverted arg: flip indices
+        (stringToVar x : vars, IFlipIndicesExpr (IVarExpr x))
   
   -- Typed Lambda (type info erased at runtime)
   TTypedLambdaExpr params _retType body -> do

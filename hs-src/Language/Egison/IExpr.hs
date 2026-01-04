@@ -187,26 +187,37 @@ makeIApply fn args = IApplyExpr (IVarExpr fn) args
 
 --
 -- Typed Internal Expressions
+--------------------------------------------------------------------------------
+-- Phase 9: TIExpr - Evaluatable Typed IR with Type Info Preserved
+--------------------------------------------------------------------------------
+-- TIExpr is the result of Phase 8 (TypedDesugar) and input to Phase 10 (Evaluation).
+-- It carries type information alongside the expression for:
+--   - Better runtime error messages with type information
+--   - Type-based dispatch during evaluation
+--   - Debugging support with type annotations
 --
--- TIExpr carries type information alongside the expression.
--- This allows type-based dispatch during evaluation.
---
+-- Design Decision (design/implementation.md):
+-- Type information is preserved after TypedDesugar for better error messages.
+-- Type classes have already been resolved to dictionary passing, so no type class
+-- constraints are needed here.
 
--- | Typed top-level expression
+-- | Typed top-level expression (Phase 9: TITopExpr)
+-- Result of TypedDesugar phase, ready for evaluation.
 data TITopExpr
-  = TIDefine Type Var TIExpr           -- ^ Typed definition
-  | TIDefineMany [(Var, TIExpr)]       -- ^ Multiple definitions
-  | TITest TIExpr                      -- ^ Test expression
-  | TIExecute TIExpr                   -- ^ Execute expression
-  | TILoadFile String                  -- ^ Load file
-  | TILoad String                      -- ^ Load library
+  = TIDefine Type Var TIExpr           -- ^ Typed definition with explicit type
+  | TIDefineMany [(Var, TIExpr)]       -- ^ Multiple definitions (letrec)
+  | TITest TIExpr                      -- ^ Test expression (REPL)
+  | TIExecute TIExpr                   -- ^ Execute IO expression
+  | TILoadFile String                  -- ^ Load file (should not appear after expandLoads)
+  | TILoad String                      -- ^ Load library (should not appear after expandLoads)
   deriving Show
 
--- | Typed internal expression
--- Each expression carries its inferred type
+-- | Typed internal expression (Phase 9: TIExpr)
+-- Each expression node carries its inferred/checked type.
+-- Type info is preserved for better error messages during evaluation.
 data TIExpr = TIExpr
-  { tiType :: Type      -- ^ The type of this expression
-  , tiExpr :: IExpr     -- ^ The underlying untyped expression
+  { tiType :: Type      -- ^ The type of this expression (from type inference/checking)
+  , tiExpr :: IExpr     -- ^ The underlying internal expression
   } deriving Show
 
 -- | Get the type of a typed expression

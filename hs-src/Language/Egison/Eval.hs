@@ -4,7 +4,17 @@ Licence     : MIT
 
 This module provides interface for evaluating Egison expressions.
 
-Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
+Processing Flow (design/implementation.md):
+  1. TopExpr (Parse result)
+  2. expandLoads (File loading with caching)
+  3. Environment Building Phase (Collect data constructors, type classes, instances, type signatures)
+  4. Desugar (Syntactic desugaring)
+  5. Type Inference Phase (Constraint generation, unification, type class constraint processing)
+  6. Type Check Phase (Verify type annotations, check type class constraints)
+  7. TypedTopExpr (Typed AST)
+  8. TypedDesugar (Type-driven transformations: dictionary passing, tensorMap insertion)
+  9. TITopExpr (Evaluatable typed IR with type info preserved)
+ 10. Evaluation (Pattern matching execution, expression evaluation, IO actions)
 -}
 
 module Language.Egison.Eval
@@ -38,32 +48,34 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
-import           Language.Egison.EvalState  (MonadEval (..), ConstructorInfo(..))
+import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
+import           Language.Egison.EvalState  (MonadEval (..))
 import           Language.Egison.IExpr
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TensorShape(..))
 import           Language.Egison.Type.TypeInfer (runTypedInferTopExprWithEnv)
-import           Language.Egison.EvalState (getTypeEnv, setTypeEnv, getClassEnv, setClassEnv, extendTypeEnv)
 import           Language.Egison.Type.Env (generalize)
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.TypedAST (TypedTopExpr(..), texprType)
 import           Language.Egison.Type.Error (formatTypeWarning)
+import qualified Data.HashMap.Strict as HashMap
 
 
 -- | Evaluate an Egison expression.
 evalExpr :: Env -> Expr -> EvalM EgisonValue
 evalExpr env expr = desugarExpr expr >>= evalExprDeep env
 
---
--- New Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
---
--- 1. expandLoads: Recursively expand Load/LoadFile into flat [TopExpr]
--- 2. For each TopExpr: TypeCheck → TypedDesugar → Eval
---
+--------------------------------------------------------------------------------
+-- Phase 1: expandLoads - File Loading with Caching
+--------------------------------------------------------------------------------
+-- Recursively expand all Load/LoadFile statements into a flat list of TopExprs.
+-- This phase handles file reading and prevents duplicate loading through caching.
+-- After this phase, all source code is loaded and ready for environment building.
 
--- | Expand all Load/LoadFile statements recursively into a flat list of TopExprs
--- This is done BEFORE type checking so that all definitions are available
+-- | Expand all Load/LoadFile statements recursively into a flat list of TopExprs.
+-- Files are loaded recursively and deduplicated (same file loaded multiple times
+-- will only appear once in the final list).
 expandLoads :: [TopExpr] -> EvalM [TopExpr]
 expandLoads [] = return []
 expandLoads (expr:rest) = case expr of
@@ -81,13 +93,19 @@ expandLoads (expr:rest) = case expr of
     restExpanded <- expandLoads rest
     return $ expr : restExpanded
 
+--------------------------------------------------------------------------------
+-- Main Pipeline Entry Point
+--------------------------------------------------------------------------------
+
 -- | Evaluate an Egison top expression.
--- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
+-- Implements the complete processing flow:
+--   expandLoads → Environment Building → Desugar → Type Inference/Check → 
+--   TypedDesugar → Evaluation
 evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
-  -- Expand all Load/LoadFile recursively
+  -- Phase 1: Expand all Load/LoadFile recursively
   expanded <- expandLoads [topExpr]
-  -- Then evaluate all expanded expressions
+  -- Phase 2-10: Process all expanded expressions through remaining pipeline
   evalExpandedTopExprsTyped env expanded
 
 -- | Evaluate expanded top expressions using typed pipeline
@@ -95,32 +113,54 @@ evalTopExpr env topExpr = do
 evalExpandedTopExprsTyped :: Env -> [TopExpr] -> EvalM (Maybe EgisonValue, Env)
 evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
 
--- | Evaluate expanded top expressions using typed pipeline with optional printing
+--------------------------------------------------------------------------------
+-- Phase 2-10: Environment Building → Desugar → Type Inference/Check → 
+--             TypedDesugar → Evaluation
+--------------------------------------------------------------------------------
+
+-- | Evaluate expanded top expressions using the typed pipeline with optional printing.
+-- This function implements phases 2-10 of the processing flow.
 evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> EvalM (Maybe EgisonValue, Env)
 evalExpandedTopExprsTyped' env exprs printValues = do
   opts <- ask
   
-  -- Register all inductive constructors first
-  forM_ exprs registerInductiveDecl
+  --------------------------------------------------------------------------------
+  -- Phase 2: Environment Building Phase (完全に独立したフェーズ)
+  --------------------------------------------------------------------------------
+  -- Collect ALL environment information BEFORE type inference begins:
+  --   1. Data constructor definitions (from InductiveDecl)
+  --   2. Type class definitions (from ClassDeclExpr)
+  --   3. Instance definitions (from InstanceDeclExpr)
+  --   4. Type signatures (from DefineWithType)
+  envResult <- buildEnvironments exprs
   
-  -- Get initial type and class environments from EvalState
-  initialTypeEnv <- getTypeEnv
-  initialClassEnv <- getClassEnv
+  -- Update EvalState with collected environments
+  setTypeEnv (ebrTypeEnv envResult)
+  setClassEnv (ebrClassEnv envResult)
   
-  -- Try to type check and desugar each expression, accumulating type environment
+  -- Register constructors to EvalState
+  forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
+    registerConstructor ctorName ctorInfo
+  
+  -- Get the environments for type inference
+  -- Permissive mode allows falling back to untyped evaluation on type errors
   let permissive = not (optTypeCheckStrict opts)
   
-  -- Process each expression sequentially, accumulating type environment
+  -- Process each expression sequentially through phases 3-10, accumulating environments
   (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) expr -> do
     -- Get current type and class environments from EvalState
     currentTypeEnv <- getTypeEnv
     currentClassEnv <- getClassEnv
     
-    -- Type check with current environments
+    -- Phase 3: Desugar (implicit - done inside type inference)
+    -- Phase 4: Type Inference (implicit - done inside runTypedInferTopExprWithEnv)
+    -- Phase 5: Type Inference Phase (constraint generation, unification, type class constraints)
+    -- Phase 6: Type Check Phase (verify type annotations, check type class constraints)
+    -- Note: Phases 3-6 are combined in runTypedInferTopExprWithEnv
     (result, warnings, updatedTypeEnv, updatedClassEnv) <- liftIO $ 
       runTypedInferTopExprWithEnv permissive expr currentTypeEnv currentClassEnv
     
-    -- Print warnings
+    -- Print type warnings if any
     when (not (null warnings)) $ do
       liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
     
@@ -131,7 +171,7 @@ evalExpandedTopExprsTyped' env exprs printValues = do
     case result of
       Left err -> do
         liftIO $ hPutStrLn stderr $ "Type error in expression: " ++ show err
-        -- Fall back to untyped evaluation for this expression
+        -- Fallback: Use untyped evaluation if type checking fails (permissive mode)
         topExpr' <- desugarTopExpr expr
         case topExpr' of
           Nothing -> return (lastVal, currentEnv)
@@ -141,11 +181,15 @@ evalExpandedTopExprsTyped' env exprs printValues = do
               Nothing -> return ()
               Just val -> valueToStr val >>= liftIO . putStrLn
             return (mVal, env')
+      
       Right Nothing -> 
-        -- No code generated (e.g., InductiveDecl), continue
+        -- No code generated (e.g., InductiveDecl, ClassDecl, InstanceDecl)
         return (lastVal, currentEnv)
+      
       Right (Just typedTopExpr) -> do
-        -- Add definition types to type environment before desugaring
+        -- Phase 7: TypedTopExpr obtained
+        
+        -- Add definition types to type environment for future references
         case typedTopExpr of
           TDefine varName typedExpr -> do
             typeEnv <- getTypeEnv
@@ -159,13 +203,19 @@ evalExpandedTopExprsTyped' env exprs printValues = do
             extendTypeEnv varName typeScheme
           _ -> return ()  -- Other expressions don't define variables
         
-        -- TypedDesugar to TITopExpr
+        -- Phase 8: TypedDesugar (Type-driven transformations)
+        --   - Type class dictionary passing
+        --   - tensorMap automatic insertion
+        --   - Type info optimization and embedding
         mTiTopExpr <- desugarTypedTopExprT typedTopExpr
         case mTiTopExpr of
           Nothing -> return (lastVal, currentEnv)
           Just tiTopExpr -> do
-            -- Evaluate TITopExpr
+            -- Phase 9: TITopExpr (Evaluatable typed IR with type info preserved)
+            
+            -- Phase 10: Evaluation (pattern matching, expression evaluation, IO actions)
             (mVal, env') <- evalTITopExpr currentEnv tiTopExpr
+            
             -- Print value if requested
             when printValues $ case mVal of
               Nothing -> return ()
@@ -175,7 +225,14 @@ evalExpandedTopExprsTyped' env exprs printValues = do
   
   return (lastVal, finalEnv)
 
--- | Evaluate a typed internal top expression
+--------------------------------------------------------------------------------
+-- Phase 10: Evaluation of Typed IR (TITopExpr)
+--------------------------------------------------------------------------------
+
+-- | Evaluate a typed internal top expression (TITopExpr).
+-- This is the final evaluation phase where pattern matching is executed,
+-- expressions are evaluated, and IO actions are performed.
+-- Type information is preserved in TITopExpr for better error messages.
 evalTITopExpr :: Env -> TITopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTITopExpr env tiTopExpr = case tiTopExpr of
   TIDefine ty var tiexpr -> do
@@ -229,41 +286,13 @@ evalTITopExpr env tiTopExpr = case tiTopExpr of
     env' <- evalTopExprs env exprs
     return (Nothing, env')
 
--- | Register constructors from an InductiveDecl into the EvalState
-registerInductiveDecl :: TopExpr -> EvalM ()
-registerInductiveDecl (InductiveDecl typeName typeParams ctors) = do
-  forM_ ctors $ \(InductiveConstructor ctorName argTypeExprs) -> do
-    let argTypes = map typeExprToType argTypeExprs
-        info = ConstructorInfo
-          { ctorTypeName = typeName
-          , ctorArgTypes = argTypes
-          , ctorTypeParams = typeParams
-          }
-    registerConstructor ctorName info
-registerInductiveDecl _ = return ()
+--------------------------------------------------------------------------------
+-- Phase 2 Helper: Environment Building (DEPRECATED - moved to EnvBuilder module)
+--------------------------------------------------------------------------------
 
--- | Convert TypeExpr to Type
-typeExprToType :: TypeExpr -> Type
-typeExprToType TEInt = TInt
-typeExprToType TEMathExpr = TInt  -- MathExpr = Integer in Egison
-typeExprToType TEFloat = TFloat
-typeExprToType TEBool = TBool
-typeExprToType TEChar = TChar
-typeExprToType TEString = TString
-typeExprToType (TEVar name) = TVar (TyVar name)
-typeExprToType (TEList t) = TList (typeExprToType t)
-typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
-typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
-typeExprToType (TEApp t1 ts) = 
-  case typeExprToType t1 of
-    TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
-    _ -> TAny  -- Fallback
-typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
-typeExprToType (TEPattern t) = TPattern (typeExprToType t)
-typeExprToType (TEIO t) = TIO (typeExprToType t)
-typeExprToType (TETensor elemT _ _) = TTensor (typeExprToType elemT) ShapeUnknown []
-typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints for now
-
+-- | DEPRECATED: This function is no longer used.
+-- Environment building is now handled by Language.Egison.EnvBuilder module.
+-- Kept for backward compatibility only.
 -- | Evaluate an Egison top expression.
 evalTopExprStr :: Env -> TopExpr -> EvalM (Maybe String, Env)
 evalTopExprStr env topExpr = do

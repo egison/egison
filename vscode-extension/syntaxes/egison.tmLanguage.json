@@ -1,0 +1,263 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Egison",
+  "scopeName": "source.egison",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#pattern-variables"
+    },
+    {
+      "include": "#value-patterns"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#type-variables"
+    },
+    {
+      "include": "#tensor-indices"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#type-annotations"
+    },
+    {
+      "include": "#mathematical-symbols"
+    },
+    {
+      "include": "#function-calls"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-dash.egison",
+          "begin": "--",
+          "end": "$",
+          "patterns": []
+        },
+        {
+          "name": "comment.block.egison",
+          "begin": "\\{-",
+          "end": "-\\}",
+          "patterns": [
+            {
+              "include": "#comments"
+            }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.egison",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.egison",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.egison",
+          "match": "\\b(if|then|else|match|matchAll|matchDFS|matchAllDFS|as|with|do|io|seq)\\b"
+        },
+        {
+          "name": "keyword.other.egison",
+          "match": "\\b(def|let|where|withSymbols|matcher|algebraicDataMatcher)\\b"
+        },
+        {
+          "name": "keyword.operator.egison",
+          "match": "\\b(infixr|infixl|infix|expression)\\b"
+        },
+        {
+          "name": "keyword.other.tensor.egison",
+          "match": "\\b(tensor|generateTensor|contract|tensorMap|tensorShape|generateArray|arrayBounds|arrayRef)\\b"
+        },
+        {
+          "name": "keyword.other.special.egison",
+          "match": "\\b(undefined|something|load|loadFile)\\b"
+        },
+        {
+          "name": "keyword.other.test.egison",
+          "match": "\\b(assert|assertEqual|assertEqualM)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.builtin.egison",
+          "match": "\\b(Bool|Integer|Float|Char|String|List|Vector|Matrix|Tensor|Matcher|Pattern|MathExpr)\\b"
+        },
+        {
+          "name": "support.type.egison",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.egison",
+          "match": "\\b(True|False)\\b"
+        },
+        {
+          "name": "constant.other.constructor.egison",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.egison",
+          "match": "\\b[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.egison",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.egison",
+          "match": "(->|=>)"
+        },
+        {
+          "name": "keyword.operator.cons.egison",
+          "match": "::"
+        },
+        {
+          "name": "keyword.operator.append.egison",
+          "match": "\\+\\+"
+        },
+        {
+          "name": "keyword.operator.composition.egison",
+          "match": "\\."
+        },
+        {
+          "name": "keyword.operator.logical.egison",
+          "match": "(&&|\\|\\||not\\b)"
+        },
+        {
+          "name": "keyword.operator.comparison.egison",
+          "match": "(==|/=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.egison",
+          "match": "(\\+|-|\\*|/|%|\\^)"
+        },
+        {
+          "name": "keyword.operator.pattern.egison",
+          "match": "(&|\\||!|\\?|@|~)"
+        },
+        {
+          "name": "keyword.operator.assignment.egison",
+          "match": ":="
+        },
+        {
+          "name": "keyword.operator.type-annotation.egison",
+          "match": ":"
+        }
+      ]
+    },
+    "pattern-variables": {
+      "patterns": [
+        {
+          "name": "variable.parameter.pattern.egison",
+          "match": "\\$[a-zA-Z_][a-zA-Z0-9_']*"
+        },
+        {
+          "name": "variable.parameter.pattern.wildcard.egison",
+          "match": "\\$(?![a-zA-Z0-9_(])"
+        }
+      ]
+    },
+    "value-patterns": {
+      "patterns": [
+        {
+          "name": "constant.other.value-pattern.egison",
+          "match": "#[a-zA-Z_][a-zA-Z0-9_']*"
+        },
+        {
+          "name": "constant.other.value-pattern.paren.egison",
+          "match": "#(?=\\()"
+        }
+      ]
+    },
+    "type-variables": {
+      "patterns": [
+        {
+          "name": "entity.name.type.variable.egison",
+          "match": "\\{[a-zA-Z_][a-zA-Z0-9_',: ]*\\}"
+        }
+      ]
+    },
+    "type-annotations": {
+      "patterns": [
+        {
+          "name": "storage.type.annotation.egison",
+          "match": ":\\s*[A-Z][a-zA-Z0-9_]*"
+        }
+      ]
+    },
+    "tensor-indices": {
+      "patterns": [
+        {
+          "name": "variable.other.tensor-index.egison",
+          "match": "(_|~)[a-zA-Z0-9_#]+"
+        }
+      ]
+    },
+    "mathematical-symbols": {
+      "patterns": [
+        {
+          "name": "constant.character.math.egison",
+          "match": "[∂∇∫∑∏√±×÷≠≤≥∞∈∉∀∃∧∨¬⊕⊗⊥⊤⊆⊇⊂⊃∪∩]"
+        },
+        {
+          "name": "constant.character.greek.egison",
+          "match": "[αβγδεζηθικλμνξοπρςστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ]"
+        }
+      ]
+    },
+    "function-calls": {
+      "patterns": [
+        {
+          "name": "entity.name.function.egison",
+          "match": "\\b[a-z_][a-zA-Z0-9_']*(?=\\s*[({\\[])"
+        }
+      ]
+    }
+  }
+}
+

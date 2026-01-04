@@ -96,7 +96,7 @@ expandExpr classEnv expr = case expr of
   
   -- Matchers
   MatcherExpr patDefs -> 
-    MatcherExpr [(pp, go e, [(dp, go b) | (dp, b) <- cs]) | (pp, e, cs) <- patDefs]
+    MatcherExpr [PatternDef constraints pp (go e) [(dp, go b) | (dp, b) <- cs] | PatternDef constraints pp e cs <- patDefs]
   AlgebraicDataMatcherExpr ctors ->
     AlgebraicDataMatcherExpr [(n, map go args) | (n, args) <- ctors]
   
