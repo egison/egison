@@ -19,16 +19,16 @@ def randomize {a : Eq} (xs: [a]) : [a] :=
 
 def R.between (s: Integer) (e: Integer) : [Integer] := randomize [s..e]
 
-def R.multiset {b} (a: Matcher b) : Matcher [b] :=
+def R.multiset {a} (m: Matcher a) : Matcher [a] :=
   matcher
     | [] as () with
       | [] -> [()]
       | _ -> []
-    | $ :: $ as (a, R.multiset a) with
+    | $ :: $ as (m, R.multiset m) with
       | $tgt ->
         map
           (\i ->
-            match tgt as list a with
+            match tgt as list m with
               | loop $j (1, i - 1, _)
                   ($xa_j :: ...)
                   ($x :: $ts) ->
@@ -54,16 +54,16 @@ def R.tail {a} (xs: [a]) : [a] :=
 
 def sample {a} : [a] -> a := R.head
 
-def R.set {b} (a: Matcher b) : Matcher [b] :=
+def R.set {a} (m: Matcher a) : Matcher [a] :=
   matcher
     | [] as () with
       | [] -> [()]
       | _ -> []
-    | $ :: $ as (a, R.multiset a) with
+    | $ :: $ as (m, R.multiset m) with
       | $tgt ->
         map
           (\i ->
-            match tgt as list a with
+            match tgt as list m with
               | loop $j (1, i - 1, _)
                   (_ :: ...)
                   ($x :: _) -> (x, tgt))

@@ -36,6 +36,10 @@ instance {Eq a} Eq [a] where
       | _ -> False
   (/=) xs ys := not (xs == ys)
 
+instance {Eq a} Eq (Tensor a) where
+  (==) t1 t2 := t1 = t2
+  (/=) t1 t2 := not (t1 == t2)
+
 -- | Type class for comparison and ordering
 class Ord a extends Eq a where
   compare (x: a) (y: a) : Ordering
