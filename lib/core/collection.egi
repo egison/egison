@@ -177,7 +177,7 @@ def map4 {a, b, c, d, e} (fn: a -> b -> c -> d -> e) (xs: [a]) (ys: [b]) (zs: [c
 
 def filter {a} (pred: a -> Bool) (xs: [a]) : [a] := foldr (\y ys -> if pred y then y :: ys else ys) [] xs
 
-def partition {a} (pred: a -> Bool) (xs: [a]) : ([a], [a]) := (filter pred xs, filter 1#(not (pred %1)) xs)
+def partition {a} (pred: a -> Bool) (xs: [a]) : ([a], [a]) := (filter pred xs, filter 1#(not (pred $1)) xs)
 
 def zip {a, b} (xs: [a]) (ys: [b]) : [(a, b)] := map2 (\x y -> (x, y)) xs ys
 

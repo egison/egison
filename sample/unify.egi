@@ -39,7 +39,7 @@ def tsubst :=
       match σ as multiset (integer, term) with
         | cons (#n, $t) _ -> t
         | _ -> Var n
-    | ($σ, compound $f $xs) -> Compound f (map 1#(tsubst σ %1) xs)
+    | ($σ, compound $f $xs) -> Compound f (map 1#(tsubst σ $1) xs)
 
 def unify :=
   \match as unorderedPair term with
@@ -57,7 +57,7 @@ def unifyList :=
       match unify x y as maybe something with
         | nothing -> Nothing
         | just $σ1 ->
-          match unifyList (map 1#(tsubst σ1 %1) xs) (map 1#(tsubst σ1 %1) ys) as
+          match unifyList (map 1#(tsubst σ1 $1) xs) (map 1#(tsubst σ1 $1) ys) as
             maybe something with
             | nothing -> Nothing
             | just $σ2 -> Just JoinExpr (VarExpr "\963\&1") (VarExpr "\963\&2")

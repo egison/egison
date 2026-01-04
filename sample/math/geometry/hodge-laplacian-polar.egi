@@ -15,7 +15,7 @@ def hodge %A :=
   let k := dfOrder A in
     withSymbols [i, j]
       (sqrt (abs (M.det g_#_#))) * (foldl (.) ((ε' N k)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
-                                              (map 1#g~(i_%1)~(j_%1) [1..k]))
+                                              (map 1#g~(i_$1)~(j_$1) [1..k]))
 
 
 def δ %A :=

@@ -10,7 +10,7 @@ def qF' (a: MathExpr) (b: MathExpr) (c: MathExpr) : (MathExpr, MathExpr) :=
   match (a, b, c) as (mathExpr, mathExpr, mathExpr) with
     | (#1, #0, _) -> (sqrt (- c), - sqrt (- c))
     | (#1, _, _) ->
-      (2)#((- (b / 2)) + %1, (- (b / 2)) + %2)
+      (2)#((- (b / 2)) + $1, (- (b / 2)) + $2)
         (withSymbols [x, y]
           qF (substitute [(x, y - b / 2)] (x ^ 2 + b * x + c)) y)
     | (_, _, _) -> qF' 1 (b / a) (c / a)

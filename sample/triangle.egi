@@ -12,11 +12,11 @@ def onALine? : ((Integer, Integer), (Integer, Integer), (Integer, Integer)) -> B
 -- Enumerate triangles
 -- Expected: [((3, 1), (4, 5), (7, 7)), ((3, 1), (4, 5), (8, 1)), ...]
 matchAll points as list (integer, integer) with
-  | _ ++ $p1 :: _ ++ $p2 :: _ ++ (!?1#(onALine? p1 p2 %1) & $p3) :: _ ->
+  | _ ++ $p1 :: _ ++ $p2 :: _ ++ (!?1#(onALine? p1 p2 $1) & $p3) :: _ ->
     (p1, p2, p3)
 
 -- Enumerate triplets of points on a line
 -- Expected: [((3, 1), (4, 5), (1, 9)), ((3, 1), (4, 5), (3, 1)), ...]
 matchAll points as list (integer, integer) with
-  | _ ++ $p1 :: _ ++ $p2 :: _ ++ (?1#(onALine? p1 p2 %1) & $p3) :: _ ->
+  | _ ++ $p1 :: _ ++ $p2 :: _ ++ (?1#(onALine? p1 p2 $1) & $p3) :: _ ->
     (p1, p2, p3)

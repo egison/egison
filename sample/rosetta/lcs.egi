@@ -47,4 +47,4 @@ def splitByOrderingBy f p xs :=
             | equal -> (ys1, x :: ys2, ys3)
             | greater -> (ys1, ys2, x :: ys3)
 
-sortBy 2#(compare (2#%1 %1) (2#%1 %2)) (lcs "thisisatest" "testing123testing")
+sortBy 2#(compare (2#$1 $1) (2#$1 $2)) (lcs "thisisatest" "testing123testing")
