@@ -29,9 +29,30 @@ def fromCnf cs := map fst cs
 
 def initVars vs := map (\v -> (neg v, 0)) vs ++ map (\v -> (v, 0)) vs
 
+-- Local sortBy function for custom comparison
+def sortBy f xs :=
+  match xs as list something with
+    | [] -> []
+    | $x :: [] -> [x]
+    | _ ->
+      let n := length xs
+          p := nth (quotient n 2) xs
+          (ys1, ys2, ys3) := splitByOrderingBy f p xs
+       in sortBy f ys1 ++ ys2 ++ sortBy f ys3
+       
+def splitByOrderingBy f p xs :=
+  match xs as list something with
+    | [] -> ([], [], [])
+    | $x :: $rs ->
+      let (ys1, ys2, ys3) := splitByOrderingBy f p rs
+       in match f x p as ordering with
+            | less -> (x :: ys1, ys2, ys3)
+            | equal -> (ys1, x :: ys2, ys3)
+            | greater -> (ys1, ys2, x :: ys3)
+
 def addVars vs vars :=
   matchDFS (vs, vars) as (list literal, list (literal, integer)) with
-    | ([], _) -> sort/fn (\xc yc -> compare (snd yc) (snd xc)) vars
+    | ([], _) -> sortBy (\xc yc -> compare (snd yc) (snd xc)) vars
     | ($v :: $vs', $hs ++ (#v, $c) :: $ts) ->
       addVars vs' (hs ++ (v, c + 1) :: ts)
 

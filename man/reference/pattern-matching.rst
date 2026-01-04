@@ -188,12 +188,12 @@ Inductive pattern is an analogy of :ref:`inductive data <inductive-data>`.
 An inductive pattern consists of a **pattern constructor** and multiple (zero or more) argument patterns.
 The names and behaviors of pattern constructors are defined by matchers.
 
-In the following example, ``snoc`` is a pattern constructor defined in the ``list`` matcher, and ``$x`` and ``$xs`` is applied to the pattern constructor.
+In the following example, ``*:`` is a pattern constructor defined in the ``list`` matcher, and ``$xs`` and ``$x`` is applied to the pattern constructor.
 
 ::
 
-   matchAll [1, 2, 3] as list integer with snoc $x $xs -> (x, xs)
-   ---> (3, [1, 2])
+   matchAll [1, 2, 3] as list integer with $xs *: $x -> (xs, x)
+   ---> ([1, 2], 3)
 
 The nil pattern ``[]`` and the pattern infixes such as ``::`` and ``++`` are also implemented as pattern constructors.
 
@@ -249,8 +249,8 @@ An and-pattern ``p1 & p2`` is a pattern that matches the object if and only if b
 ::
 
    match [1, 3, 2] as list integer with
-   | (#1 :: _) & snoc #2 _ -> OK
-   | _                     -> KO
+   | (#1 :: _) & _ *: #2 -> OK
+   | _                   -> KO
    ---> OK
 
 We can use and-patterns like as-patterns in Haskell.
@@ -274,8 +274,8 @@ An or-pattern ``p1 | p2`` matches with the object if the object matches with ``p
 ::
 
    match [1, 3, 3] as list integer with
-   | (#1 :: _) | snoc #2 _ -> OK
-   | _                     -> KO
+   | (#1 :: _) | _ *: #2 -> OK
+   | _                   -> KO
    ---> OK
 
 Not-pattern

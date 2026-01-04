@@ -285,7 +285,7 @@ assert "value pattern" (match 1 as integer with #1 -> True)
 
 assert "inductive pattern"
   (match [1, 2, 3] as list integer with
-   | snoc #3 _ -> True)
+   | _ *: #3 -> True)
 
 assert "collection pattern - nil"
   (match [] as list integer with
@@ -303,7 +303,7 @@ assertEqual "collection pattern"
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
-   | #1 :: _ & snoc #3 _ -> True)
+   | #1 :: _ & _ *: #3 -> True)
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
@@ -312,7 +312,7 @@ assert "and pattern"
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
-   | snoc #1 _ | snoc #3 _ -> True)
+   | _ *: #1 | _ *: #3 -> True)
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
@@ -320,7 +320,7 @@ assert "or pattern"
 
 assert "not pattern"
   (match [1, 2] as list integer with
-   | snoc !#1 _ -> True
+   | _ *: !#1 -> True
    | !#1 :: _ -> False)
 
 assertEqual "not pattern"
@@ -345,7 +345,7 @@ assertEqual "indexed pattern variable"
 assert "loop pattern"
   (match [3, 2, 1] as list integer with
    | loop $i (1, [3], _)
-       (snoc #i ...)
+       (... *: #i)
        [] -> True)
 
 assertEqual "loop pattern"
@@ -358,7 +358,7 @@ assertEqual "loop pattern"
 assert "loop pattern"
   (match [3, 2, 1] as list integer with
    | loop $i (1, [3], _)
-       (snoc #i ...)
+       (... *: #i)
        [] -> True)
 
 assertEqual "double loop pattern"
@@ -650,9 +650,9 @@ def list a := matcher
   | $ :: $    as (a, list a) with
     | $x :: $xs -> [(x, xs)]
     | _         -> []
-  | snoc $ $ as (a, list a) with
-    | snoc $xs $x -> [(x, xs)]
-    | _           -> []
+  | $ *: $ as (list a, a) with
+    | $xs *: $x -> [(xs, x)]
+    | _         -> []
   | _ ++ $ as (list a) with
     | $tgt -> matchAll tgt as list a with
               | loop $i (1, _) (_ :: ...) $rs -> rs
@@ -660,10 +660,6 @@ def list a := matcher
     | $tgt -> matchAll tgt as list a with
               | loop $i (1, $n) ($xa_i :: ...) $rs ->
                 (foldr (\%i %r -> xa_i :: r) [] [1..n], rs)
-  | nioj $ $ as (list a, list a) with
-    | $tgt -> matchAll tgt as list a with
-              | loop $i (1, $n) (snoc $xa_i ...) $rs ->
-                (foldr (\%i %r -> r ++ [xa_i]) [] [1..n], rs)
   | #$val as () with
     | $tgt -> if val = tgt then [()] else []
   | $ as something with
@@ -728,8 +724,8 @@ assertEqual "let pattern match"
   (1, [2, 3])
 
 assertEqual "let pattern match"
-  (let (snoc xs x) := [1, 2, 3] in (x, xs))
-  (3, [1, 2])
+  (let (xs *: x) := [1, 2, 3] in (xs, x))
+  ([1, 2], 3)
 
 assertEqual "let pattern match"
   (let (Just x) := Just 1 in x)

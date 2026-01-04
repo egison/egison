@@ -12,72 +12,42 @@ def ordering {a} : Matcher a :=
     | equal
     | greater
 
-def compare {a} (m: a) (n: a) : Ordering :=
-  if isCollection m
-    then compareC m n
-    else if m < n then Less else if m = n then Equal else Greater
+def min {Ord a} (x: a) (y: a) : a := if x < y then x else y
+def max {Ord a} (x: a) (y: a) : a := if x > y then x else y
 
-def compareC {a : Eq} (c1: [a]) (c2: [a]) : Ordering :=
-  match (c1, c2) as (list something, list something) with
-    | ([], []) -> Equal
-    | ([], _) -> Less
-    | (_, []) -> Greater
-    | ($x :: $xs, #x :: $ys) -> compareC xs ys
-    | ($x :: _, $y :: _) -> compare x y
-
-def min {a} (x: a) (y: a) : a := if x < y then x else y
-def max {a} (x: a) (y: a) : a := if x > y then x else y
-
-def min/fn {a} (f: a -> a -> Ordering) (xs: [a]) : a := foldl1 (\x y -> if f x y = Less then x else y) xs
-def max/fn {a} (f: a -> a -> Ordering) (xs: [a]) : a := foldl1 (\x y -> if f x y = Greater then x else y) xs
-
-def minimum {a} (xs: [a]) : a := foldl1 min xs
-def maximum {a} (xs: [a]) : a := foldl1 max xs
+def minimum {Ord a} (xs: [a]) : a := foldl1 min xs
+def maximum {Ord a} (xs: [a]) : a := foldl1 max xs
 
 -- splitByOrdering uses $x pattern which doesn't support type annotations
-def splitByOrdering := splitByOrdering/fn compare
-
-def splitByOrdering/fn f p xs :=
+def splitByOrdering {Ord a} (p: a) (xs: [a]) : ([a], [a], [a]) :=
   match xs as list something with
     | [] -> ([], [], [])
     | $x :: $rs ->
-      let (ys1, ys2, ys3) := splitByOrdering/fn f p rs
-       in match f x p as ordering with
+      let (ys1, ys2, ys3) := splitByOrdering p rs
+       in match compare x p as ordering with
             | less -> (x :: ys1, ys2, ys3)
             | equal -> (ys1, x :: ys2, ys3)
             | greater -> (ys1, ys2, x :: ys3)
 
-def sort {a} (xs: [a]) : [a] := sort/fn compare xs
-
-def sort/fn {a} (f: a -> a -> Ordering) (xs: [a]) : [a] :=
+def sort {Ord a} (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $x :: [] -> [x]
     | _ ->
       let n := length xs
           p := nth (quotient n 2) xs
-          (ys1, ys2, ys3) := splitByOrdering/fn f p xs
-       in sort/fn f ys1 ++ ys2 ++ sort/fn f ys3
+          (ys1, ys2, ys3) := splitByOrdering p xs
+       in sort ys1 ++ ys2 ++ sort ys3
 
-def sortStrings (xs: [String]) : [String] :=
-  sort/fn (\x y -> compareC (map ctoi (unpack x)) (map ctoi (unpack y))) xs
-
-def merge {a} (xs: [a]) (ys: [a]) : [a] :=
+def merge {Ord a} (xs: [a]) (ys: [a]) : [a] :=
   match (xs, ys) as (list something, list something) with
     | ([], _) -> ys
     | (_, []) -> xs
     | ($x :: $txs, ?(>= x) :: _) -> x :: merge txs ys
     | (_, $y :: $tys) -> y :: merge xs tys
 
-def merge/fn f xs ys :=
-  match (xs, ys) as (list something, list something) with
-    | ([], _) -> ys
-    | (_, []) -> xs
-    | ($x :: $txs, ?1#(f %1 x = Greater) :: _) -> x :: merge txs ys
-    | (_, $y :: $tys) -> y :: merge xs tys
-
-def minimize {a, b} (f: a -> b) (xs: [a]) : a :=
+def minimize {a, Ord b} (f: a -> b) (xs: [a]) : a :=
   foldl1 (\x y -> if compare (f x) (f y) = Less then x else y) xs
 
-def maximize {a, b} (f: a -> b) (xs: [a]) : a :=
+def maximize {a, Ord b} (f: a -> b) (xs: [a]) : a :=
   foldl1 (\x y -> if compare (f x) (f y) = Greater then x else y) xs

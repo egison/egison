@@ -22,13 +22,14 @@ def sortWithSign {a : Ord} (xs: [[a]]) : (Integer, [a]) :=
            let xs' := return (map (\i -> io $ readIORef t_i) [1..n])
            return (sgn, concat xs'))
  where
-  colToTensor {a} (xs: [[a]]) : b :=
+  colToTensor {a} (xs: [[a]]) : Tensor (IORef [a]) :=
     generateTensor (\[n] -> io $
       do let t := newIORef ()
          writeIORef t (nth n xs)
          return t) [length xs]
 
-  sort' {a, b} (i: Integer) (j: Integer) (n: Integer) (ts: a) (sgn: Integer) : IO Integer :=
+  sort' {a : Ord} (i: Integer) (j: Integer) (n: Integer) (ts: Tensor (IORef [a])) (sgn: Integer) 
+    : IO Integer :=
     if i = n
        then return sgn
        else do let x := readIORef ts_i
@@ -38,7 +39,7 @@ def sortWithSign {a : Ord} (xs: [[a]]) : (Integer, [a]) :=
                if j = n then sort' (i + 1) (i + 2) n ts (sgn * swapped)
                         else sort' i (j + 1) n ts (sgn * swapped)
 
-  swap {a, b} (ts: a) (i: Integer) (j: Integer) : IO () := do
+  swap {a} (ts: Tensor (IORef [a])) (i: Integer) (j: Integer) : IO () := do
     let tmpi := readIORef ts_i
     let tmpj := readIORef ts_j
     writeIORef ts_i tmpj

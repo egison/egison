@@ -33,15 +33,15 @@ assertEqual
   [2, 3]
 
 assertEqual
-  "list's snoc"
+  "list's *:"
   (match [1, 2, 3] as list integer with
-    | snoc $n $ns -> (n, ns))
-  (3, [1, 2])
+    | $ns *: $n -> (ns, n))
+  ([1, 2], 3)
 
 assertEqual
-  "list's snoc with value pattern"
+  "list's *: with value pattern"
   (match [1, 2, 3] as list integer with
-    | snoc #3 $ns -> ns)
+    | $ns *: #3 -> ns)
   [1, 2]
 
 assertEqual
@@ -55,18 +55,6 @@ assertEqual
   (match [1, 2, 3] as list integer with
     | #[1] ++ $ns -> ns)
   [2, 3]
-
-assertEqual
-  "list's nioj"
-  (matchAll [1, 2, 3] as list integer with
-    | nioj $xs $ys -> (xs, ys))
-  [([], [1, 2, 3]), ([3], [1, 2]), ([2, 3], [1]), ([1, 2, 3], [])]
-
-assertEqual
-  "list's nioj with value pattern"
-  (match [1, 2, 3] as list integer with
-    | nioj #[3] $ns -> ns)
-  [1, 2]
 
 assertEqual
   "sorted-list - join-cons 1"

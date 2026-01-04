@@ -23,33 +23,17 @@ def (-') : MathExpr -> MathExpr -> MathExpr := b.-
 def (*') : MathExpr -> MathExpr -> MathExpr := b.*
 def (/') : MathExpr -> MathExpr -> MathExpr := b./
 
-def (+) $x $y :=
-  match (isFloat x, isFloat y) as eq with
-    | #(True, True)  -> f.+ x y
-    | #(True, False) -> f.+ x (itof y)
-    | #(False, True) -> f.+ (itof x) y
-    | _              -> mathNormalize (x +' y)
+def plusForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+  mathNormalize (x +' y)
 
-def (-) $x $y :=
-  match (isFloat x, isFloat y) as eq with
-    | #(True, True)  -> f.- x y
-    | #(True, False) -> f.- x (itof y)
-    | #(False, True) -> f.- (itof x) y
-    | _              -> mathNormalize (x -' y)
+def minusForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+  mathNormalize (x -' y)
 
-def (*) $x $y :=
-  match (isFloat x, isFloat y) as eq with
-    | #(True, True)  -> f.* x y
-    | #(True, False) -> f.* x (itof y)
-    | #(False, True) -> f.* (itof x) y
-    | _              -> mathNormalize (x *' y)
+def multForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+  mathNormalize (x *' y)
 
-def (/) $x $y :=
-  match (isFloat x, isFloat y) as eq with
-    | #(True, True)  -> f./ x y
-    | #(True, False) -> f./ x (itof y)
-    | #(False, True) -> f./ (itof x) y
-    | _              -> x /' y
+def divForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+  x /' y
 
 def sum {a} (xs: [a]) : a := foldl (+) 0 xs
 def sum' (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
@@ -57,10 +41,10 @@ def sum' (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
 def product {a} (xs: [a]) : a := foldl (*) 1 xs
 def product' (xs: [MathExpr]) : MathExpr := foldl (*') 1 xs
 
-def power $x $n := mathNormalize (power' x n)
-def power' $x $n := foldl (*') 1 (take n (repeat1 x))
+def power (x: MathExpr) (n: MathExpr) : MathExpr := mathNormalize (power' x n)
+def power' (x: MathExpr) (n: MathExpr) : MathExpr := foldl (*') 1 (take n (repeat1 x))
 
-def (^) $x $n :=
+def (^) (x: MathExpr) (n: MathExpr) : MathExpr :=
   if x = e
     then exp n
     else if isRational n
@@ -69,7 +53,7 @@ def (^) $x $n :=
         else 1 / x ^ neg n
       else '(^) x n
 
-def (^') $x $n :=
+def (^') (x: MathExpr) (n: MathExpr) : MathExpr :=
   if x = e
     then exp n
     else if isRational n
@@ -78,14 +62,14 @@ def (^') $x $n :=
         else 1 /' x ^' neg n
       else '(^) x n
 
-def gcd $x $y :=
+def gcd (x: MathExpr) (y: MathExpr) : MathExpr :=
   match (x, y) as (termExpr, termExpr) with
     | (_, #0) -> x
     | (#0, _) -> y
     | (term $a $xs, term $b $ys) ->
       gcd' (abs a) (abs b) *' foldl (*') 1 (map (\(s, n) -> s ^' n) (AC.intersect xs ys))
 
-def gcd' $x $y :=
+def gcd' (x: Integer) (y: Integer) : Integer :=
   match (x, y) as (integer, integer) with
     | (_, #0) -> x
     | (#0, _) -> y

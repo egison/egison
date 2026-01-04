@@ -26,4 +26,25 @@ def lcs $xs $ys :=
         (_ ++ ccons $c_i ...)
         _ -> (n, pack (map (\$i -> c_i) (between 1 n)))
 
-sort/fn 2#(compare (2#%1 %1) (2#%1 %2)) (lcs "thisisatest" "testing123testing")
+-- Local sortBy function for custom comparison
+def sortBy f xs :=
+  match xs as list something with
+    | [] -> []
+    | $x :: [] -> [x]
+    | _ ->
+      let n := length xs
+          p := nth (quotient n 2) xs
+          (ys1, ys2, ys3) := splitByOrderingBy f p xs
+       in sortBy f ys1 ++ ys2 ++ sortBy f ys3
+       
+def splitByOrderingBy f p xs :=
+  match xs as list something with
+    | [] -> ([], [], [])
+    | $x :: $rs ->
+      let (ys1, ys2, ys3) := splitByOrderingBy f p rs
+       in match f x p as ordering with
+            | less -> (x :: ys1, ys2, ys3)
+            | equal -> (ys1, x :: ys2, ys3)
+            | greater -> (ys1, ys2, x :: ys3)
+
+sortBy 2#(compare (2#%1 %1) (2#%1 %2)) (lcs "thisisatest" "testing123testing")

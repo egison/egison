@@ -43,21 +43,23 @@ def ∂/∂ (f : MathExpr) (!x : MathExpr) : MathExpr :=
           p2' := ∂/∂ p2 x
        in (p1' * p2 - p2' * p1) / p2 ^ 2
 
-def d/d := ∂/∂
+def d/d : MathExpr -> MathExpr -> MathExpr := ∂/∂
 
-def pd/pd := ∂/∂
+def pd/pd : MathExpr -> MathExpr -> MathExpr := ∂/∂
 
-def ∇ := ∂/∂
+def ∇ : MathExpr -> MathExpr -> MathExpr := ∂/∂
 
-def nabla := ∇
+def nabla : MathExpr -> MathExpr -> MathExpr := ∇
 
-def grad := ∇
+def grad : MathExpr -> MathExpr -> MathExpr := ∇
 
-def taylorExpansion $f $x $a := multivariateTaylorExpansion f [|x|] [|a|]
+def taylorExpansion (f: MathExpr) (x: MathExpr) (a: MathExpr) : [MathExpr] := 
+  multivariateTaylorExpansion f [|x|] [|a|]
 
-def maclaurinExpansion f x := taylorExpansion f x 0
+def maclaurinExpansion (f: MathExpr) (x: MathExpr) : [MathExpr] := taylorExpansion f x 0
 
-def multivariateTaylorExpansion $f %xs %ys :=
+def multivariateTaylorExpansion (f: MathExpr) (xs: Vector MathExpr) (ys: Vector MathExpr) 
+  : [MathExpr] :=
   withSymbols [h]
     let hs := generateTensor (\[x] -> h_x) (tensorShape xs)
      in map2
@@ -69,5 +71,5 @@ def multivariateTaylorExpansion $f %xs %ys :=
                 1#(V.substitute hs (withSymbols [i] xs_i - ys_i) %1))
              (iterate (compose 1#(∇ %1 xs) 1#(V.* hs %1)) f))
 
-def multivariateMaclaurinExpansion $f %xs :=
+def multivariateMaclaurinExpansion (f: MathExpr) (xs: Vector MathExpr) : [MathExpr] :=
   multivariateTaylorExpansion f xs (tensorMap 1#0 xs)
