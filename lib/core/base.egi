@@ -33,8 +33,8 @@ def compose {a, b, c} (f: a -> b) (g: b -> c) : a -> c := \x -> g (f x)
 
 def flip {a, b, c} (fn: a -> b -> c) : b -> a -> c := \$x $y -> fn y x
 
-def eqAs {b} (a: Matcher b) (x: b) (y: b) : Bool :=
-  match x as a with
+def eqAs {a} (m: Matcher a) (x: a) (y: a) : Bool :=
+  match x as m with
     | #y -> True
     | _ -> False
 

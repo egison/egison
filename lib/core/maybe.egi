@@ -8,12 +8,12 @@ inductive Maybe a :=
   | Nothing
   | Just a
 
-def maybe (a: Matcher b) : Matcher (Maybe b) :=
+def maybe {a} (m: Matcher a) : Matcher (Maybe a) :=
   matcher
     | nothing as () with
       | Nothing -> [()]
       | _ -> []
-    | just $ as (a) with
+    | just $ as (m) with
       | Just $x -> [x]
       | _ -> []
     | $ as (something) with

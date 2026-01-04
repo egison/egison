@@ -10,57 +10,57 @@ infixl pattern 5 *:
 --
 -- List
 --
-def list {a, b} (a: Matcher b) : Matcher [b] :=
+def list {a} (m: Matcher a) : Matcher [a] :=
   matcher
     | [] as () with
       | [] -> [()]
       | _ -> []
-    | $ :: $ as (a, list a) with
+    | $ :: $ as (m, list m) with
       | $x :: $xs -> [(x, xs)]
       | _ -> []
-    | $ *: $ as (list a, a) with
+    | $ *: $ as (list m, m) with
       | $xs *: $x -> [(xs, x)]
       | _ -> []
-    | _ ++ $ :: _ as (a) with
+    | _ ++ $ :: _ as (m) with
       | $tgt -> tgt
-    | _ ++ $ as (list a) with
+    | _ ++ $ as (list m) with
       | $tgt ->
-        matchAll tgt as list a with
+        matchAll tgt as list m with
           | loop $i (1, _)
               (_ :: ...)
               $rs -> rs
-    | $ ++ $ as (list a, list a) with
+    | $ ++ $ as (list m, list m) with
       | $tgt ->
-        matchAll tgt as list a with
+        matchAll tgt as list m with
           | loop $i (1, $n)
               ($xa_i :: ...)
               $rs -> (foldr (\i r -> xa_i :: r) [] [1..n], rs)
-    | #$val as () with
+    | {Eq a} #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
 
-def sortedList {b} (a: Matcher {Ordering b}) : Matcher [b] :=
+def sortedList {Ord a} (m: Matcher a) : Matcher [a] :=
   matcher
     | [] as () with
       | [] -> [()]
       | _ -> []
-    | $ ++ #$px :: $ as (sortedList a, sortedList a) with
+    | $ ++ #$px :: $ as (sortedList m, sortedList m) with
       | $tgt ->
-        matchAll tgt as list a with
+        matchAll tgt as list m with
           | loop $i (1, $n)
               ((?(< px) & $xa_i) :: ...)
               (#px :: $rs) -> (map (\i -> xa_i) [1..n], rs)
-    | $ ++ $ as (sortedList a, sortedList a) with
+    | $ ++ $ as (sortedList m, sortedList m) with
       | $tgt ->
-        matchAll tgt as list a with
+        matchAll tgt as list m with
           | loop $i (1, $n)
               ($xa_i :: ...)
               $rs -> (map (\i -> xa_i) [1..n], rs)
-    | $ :: $ as (a, sortedList a) with
+    | $ :: $ as (m, sortedList m) with
       | $x :: $xs -> [(x, xs)]
       | _ -> []
-    | #$val as () with
+    | {Eq a} #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
@@ -175,7 +175,7 @@ def map4 {a, b, c, d, e} (fn: a -> b -> c -> d -> e) (xs: [a]) (ys: [b]) (zs: [c
     | ($x :: $xs2, $y :: $ys2, $z :: $zs2, $w :: $ws2) ->
       fn x y z w :: map4 fn xs2 ys2 zs2 ws2
 
-def filter {a} (pred: a -> Bool) (xs: [a]) : [a] := foldr (\%y %ys -> if pred y then y :: ys else ys) [] xs
+def filter {a} (pred: a -> Bool) (xs: [a]) : [a] := foldr (\y ys -> if pred y then y :: ys else ys) [] xs
 
 def partition {a} (pred: a -> Bool) (xs: [a]) : ([a], [a]) := (filter pred xs, filter 1#(not (pred %1)) xs)
 
@@ -205,12 +205,12 @@ def foldl1 {a, b} (fn : b -> a -> b) (ls : [a]) : b := foldl fn (head ls) (tail 
 
 def reduce {a, b} (fn : b -> a -> b) (ls : [a]) : b := foldl fn (head ls) (tail ls)
 
-def scanl fn %init %ls :=
+def scanl {a, b} (fn: b -> a -> b) (init: b) (ls: [a]) : [b] :=
   init :: (match ls as list something with
     | [] -> []
     | $x :: $xs -> scanl fn (fn init x) xs)
 
-def iterate fn %x :=
+def iterate {a} (fn: a -> a) (x: a) : [a] :=
   let nx1 := fn x
       nx2 := fn nx1
       nx3 := fn nx2
@@ -218,7 +218,7 @@ def iterate fn %x :=
       nx5 := fn nx4
    in x :: nx1 :: nx2 :: nx3 :: nx4 :: iterate fn nx5
 
-def repeatedSquaring fn %x n :=
+def repeatedSquaring {a} (fn: a -> a -> a) (x: a) (n: Integer) : a :=
   match n as integer with
     | #1 -> x
     | ?isEven ->
@@ -228,7 +228,7 @@ def repeatedSquaring fn %x n :=
       let y := repeatedSquaring fn x (quotient n 2)
        in fn (fn y y) x
 
-def concat {a} (xss: [[a]]) : [a] := foldr (\%xs %rs -> xs ++ rs) [] xss
+def concat {a} (xss: [[a]]) : [a] := foldr (\xs rs -> xs ++ rs) [] xss
 
 def reverse {a} (xs: [a]) : [a] :=
   match xs as list something with
@@ -247,9 +247,9 @@ def split {a : Eq} (sep: [a]) (ls: [a]) : [[a]] :=
     | $xs ++ #sep ++ $rs -> xs :: split sep rs
     | _ -> [ls]
 
-def splitAs {b} (a: Matcher b) (sep: [b]) (ls: [b]) : [[b]] :=
-  match ls as list a with
-    | $xs ++ #sep ++ $rs -> xs :: splitAs a sep rs
+def splitAs {a} (m: Matcher a) (sep: [a]) (ls: [a]) : [[a]] :=
+  match ls as list m with
+    | $xs ++ #sep ++ $rs -> xs :: splitAs m sep rs
     | _ -> [ls]
 
 def splitAt {a} (n: Integer) (ls: [a]) : ([a], [a]) := (take n ls, drop n ls)
@@ -259,9 +259,9 @@ def findCycle {a} (xs: [a]) : ([a], [a]) :=
     (matchAll xs as list something with
       | $ys ++ (_ :: _ & $cs) ++ #cs ++ _ -> (ys, cs))
 
-def repeat %xs := xs ++ repeat xs
+def repeat {a} (xs: [a]) : [a] := xs ++ repeat xs
 
-def repeat1 %x := x :: repeat1 x
+def repeat1 {a} (x: a) : [a] := x :: repeat1 x
 
 --
 -- Others
@@ -284,7 +284,7 @@ def from (s: Integer) : [Integer] :=
 def between (s: Integer) (e: Integer) : [Integer] :=
   if s = e then [s] else if s < e then s :: between (s + 1) e else []
 
-def L./ xs ys :=
+def L./ (xs: [MathExpr]) (ys: [MathExpr]) : ([MathExpr], [MathExpr]) :=
   if length xs < length ys
     then ([], xs)
     else match (ys, xs) as (list mathExpr, list mathExpr) with
@@ -300,34 +300,34 @@ def L./ xs ys :=
 --
 -- Multiset
 --
-def multiset {b} (a: Matcher b) : Matcher [b] :=
+def multiset {a} (m: Matcher a) : Matcher [a] :=
   matcher
     | [] as () with
       | [] -> [()]
       | _ -> []
-    | $ :: _ as (a) with
+    | $ :: _ as (m) with
       | $tgt -> tgt
-    | $ :: $ as (a, multiset a) with
+    | $ :: $ as (m, multiset m) with
       | $tgt ->
-        matchAll tgt as list a with
+        matchAll tgt as list m with
           | $hs ++ $x :: $ts -> (x, hs ++ ts)
-    | #$pxs ++ $ as (multiset a) with
+    | {Eq a} #$pxs ++ $ as (multiset m) with
       | $tgt ->
-        match (pxs, tgt) as (list a, multiset a) with
+        match (pxs, tgt) as (list m, multiset m) with
           | loop $i (1, length pxs, _)
               {($x_i :: @, #x_i :: @), ...}
               ([], $rs) -> [rs]
           | _ -> []
-    | $ ++ $ as (multiset a, multiset a) with
+    | $ ++ $ as (multiset m, multiset m) with
       | $tgt ->
-        matchAll tgt as list a with
+        matchAll tgt as list m with
           | loop $i (1, $n)
               ($rs_i ++ $x_i :: ...)
               $ts ->
             (map (\i -> x_i) [1..n], concat (map (\i -> rs_i) [1..n] ++ [ts]))
-    | #$val as () with
+    | {Eq a} #$val as () with
       | $tgt ->
-        match (val, tgt) as (list a, multiset a) with
+        match (val, tgt) as (list m, multiset m) with
           | ([], []) -> [()]
           | ($x :: $xs, #x :: #xs) -> [()]
           | (_, _) -> []
@@ -343,11 +343,11 @@ def deleteFirst {a : Eq} (x : a) (xs : [a]) : [a] :=
     | #x :: $rs -> rs
     | $y :: $rs -> y :: deleteFirst x rs
 
-def deleteFirstAs a %x xs :=
-  match xs as list a with
+def deleteFirstAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] :=
+  match xs as list m with
     | [] -> []
     | #x :: $rs -> rs
-    | $y :: $rs -> y :: deleteFirstAs a x rs
+    | $y :: $rs -> y :: deleteFirstAs m x rs
 
 def delete {a : Eq} (x: a) (xs: [a]) : [a] :=
   match xs as list something with
@@ -355,10 +355,10 @@ def delete {a : Eq} (x: a) (xs: [a]) : [a] :=
     | $hs ++ #x :: $ts -> hs ++ delete x ts
     | _ -> xs
 
-def deleteAs {b} (a: Matcher b) (x: b) (xs: [b]) : [b] :=
-  match xs as list a with
+def deleteAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] :=
+  match xs as list m with
     | [] -> []
-    | $hs ++ #x :: $ts -> hs ++ deleteAs a x ts
+    | $hs ++ #x :: $ts -> hs ++ deleteAs m x ts
     | _ -> xs
 
 def difference {a : Eq} (xs: [a]) (ys: [a]) : [a] :=
@@ -366,10 +366,10 @@ def difference {a : Eq} (xs: [a]) (ys: [a]) : [a] :=
     | [] -> xs
     | $y :: $rs -> difference (deleteFirst y xs) rs
 
-def differenceAs {b} (a: Matcher b) (xs: [b]) (ys: [b]) : [b] :=
-  match ys as list a with
+def differenceAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
+  match ys as list m with
     | [] -> xs
-    | $y :: $rs -> differenceAs a (deleteFirstAs a y xs) rs
+    | $y :: $rs -> differenceAs m (deleteFirstAs m y xs) rs
 
 def include {a : Eq} (xs: [a]) (ys: [a]) : Bool :=
   match ys as list something with
@@ -377,26 +377,26 @@ def include {a : Eq} (xs: [a]) (ys: [a]) : Bool :=
     | $y :: $rs ->
       if member y xs then include (deleteFirst y xs) rs else False
 
-def includeAs {b} (a: Matcher b) (xs: [b]) (ys: [b]) : Bool :=
-  match ys as list a with
+def includeAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : Bool :=
+  match ys as list m with
     | [] -> True
     | $y :: $rs ->
-      if memberAs a y xs then includeAs a (deleteFirst y xs) rs else False
+      if memberAs m y xs then includeAs m (deleteFirst y xs) rs else False
 
 def union {a : Eq} (xs: [a]) (ys: [a]) : [a] :=
   xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
     | ($y :: _, !(#y :: _)) -> y)
 
-def unionAs {b} (a: Matcher b) (xs: [b]) (ys: [b]) : [b] :=
-  xs ++ (matchAll (ys, xs) as (multiset a, multiset a) with
+def unionAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
+  xs ++ (matchAll (ys, xs) as (multiset m, multiset m) with
     | ($y :: _, !(#y :: _)) -> y)
 
 def intersect {a : Eq} (xs: [a]) (ys: [a]) : [a] :=
   matchAll (xs, ys) as (multiset something, multiset something) with
     | ($x :: _, #x :: _) -> x
 
-def intersectAs {b} (a: Matcher b) (xs: [b]) (ys: [b]) : [b] :=
-  matchAll (xs, ys) as (multiset a, multiset a) with
+def intersectAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
+  matchAll (xs, ys) as (multiset m, multiset m) with
     | ($x :: _, #x :: _) -> x
 
 --
@@ -407,8 +407,8 @@ def member {a : Eq} (x: a) (ys: [a]) : Bool :=
     | _ ++ #x :: _ -> True
     | _ -> False
 
-def memberAs {b} (a: Matcher b) (x: b) (ys: [b]) : Bool :=
-  match ys as list a with
+def memberAs {a} (m: Matcher a) (x: a) (ys: [a]) : Bool :=
+  match ys as list m with
     | _ ++ #x :: _ -> True
     | _ -> False
 
@@ -418,14 +418,14 @@ def memberAs {b} (a: Matcher b) (x: b) (ys: [b]) : Bool :=
 def count {a : Eq} (x: a) (xs: [a]) : Integer :=
   foldl (\acc y -> if x = y then acc + 1 else acc) 0 xs
 
-def countAs {b} (a: Matcher b) (x: b) (xs: [b]) : Integer :=
-  foldl (\acc y -> if eqAs a x y then acc + 1 else acc) 0 xs
+def countAs {a} (m: Matcher a) (x: a) (xs: [a]) : Integer :=
+  foldl (\acc y -> if eqAs m x y then acc + 1 else acc) 0 xs
 
 def frequency {a : Eq} (xs: [a]) : [(a, Integer)] :=
   map (\u -> (u, count u xs)) (unique xs)
 
-def frequencyAs {b} (a: Matcher b) (xs: [b]) : [(b, Integer)] :=
-  map (\u -> (u, countAs a u xs)) (uniqueAs a xs)
+def frequencyAs {a} (m: Matcher a) (xs: [a]) : [(a, Integer)] :=
+  map (\u -> (u, countAs m u xs)) (uniqueAs m xs)
 
 --
 -- Index
@@ -437,30 +437,30 @@ def elemIndices {a : Eq} (x: a) (xs: [a]) : [Integer] :=
 --
 -- Set
 --
-def set {b} (a: Matcher b) : Matcher [b] :=
+def set {a} (m: Matcher a) : Matcher [a] :=
   matcher
     | [] as () with
       | [] -> [()]
       | _ -> []
-    | $ :: $ as (a, set a) with
+    | $ :: $ as (m, set m) with
       | $tgt ->
-        matchAll tgt as list a with
+        matchAll tgt as list m with
           | _ ++ $x :: _ -> (x, tgt)
-    | #$pxs ++ $ as (set a) with
+    | {Eq a} #$pxs ++ $ as (set m) with
       | $tgt ->
-        match (pxs, tgt) as (list a, set a) with
+        match (pxs, tgt) as (list m, set m) with
           | ( loop $i (1, $n) ($x_i :: ...) []
             , loop $i (1, n)  (#x_i :: ...) _ ) -> [tgt]
           | _ -> []
-    | $ ++ $ as (set a, set a) with
+    | $ ++ $ as (set m, set m) with
       | $tgt ->
-        matchAll tgt as list a with
+        matchAll tgt as list m with
           | loop $i (1, $n)
               ($rs_i ++ $x_i :: ...)
               $ts -> (map (\i -> x_i) [1..n], tgt)
-    | #$val as () with
+    | {Eq a} #$val as () with
       | $tgt ->
-        match (unique val, unique tgt) as (list a, multiset a) with
+        match (unique val, unique tgt) as (list m, multiset m) with
           | ([], []) -> [()]
           | ($x :: $xs, #x :: #xs) -> [()]
           | (_, _) -> []
@@ -472,7 +472,7 @@ def set {b} (a: Matcher b) : Matcher [b] :=
 --
 def add {a : Eq} (x: a) (xs: [a]) : [a] := if member x xs then xs else xs ++ [x]
 
-def addAs {b} (a: Matcher b) (x: b) (xs: [b]) : [b] := if memberAs a x xs then xs else xs ++ [x]
+def addAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] := if memberAs m x xs then xs else xs ++ [x]
 
 def fastUnique {a : Eq} (xs: [a]) : [a] :=
   matchAll sort xs as list something with
@@ -483,10 +483,10 @@ def unique {a : Eq} (xs: [a]) : [a] :=
     (matchAll reverse xs as list something with
       | _ ++ $x :: !(_ ++ #x :: _) -> x)
 
-def uniqueAs {b} (a: Matcher b) (xs: [b]) : [b] := loopFn xs []
+def uniqueAs {a} (m: Matcher a) (xs: [a]) : [a] := loopFn xs []
   where
-    loopFn (xs: [b]) (ys: [b]) : [b] :=
-      match (xs, ys) as (list a, multiset a) with
+    loopFn (xs: [a]) (ys: [a]) : [a] :=
+      match (xs, ys) as (list m, multiset m) with
         | ([], _) -> ys
         | ($x :: $rs, #x :: _) -> loopFn rs ys
         | ($x :: $rs, _) -> loopFn rs (ys ++ [x])
