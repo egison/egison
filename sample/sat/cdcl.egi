@@ -1,10 +1,10 @@
-def literal := integer
+def literal : Matcher Integer := integer
 
-def stage := integer
+def stage : Matcher Integer := integer
 
-def taggedLiteral := (literal, stage)
+def taggedLiteral : Matcher (Integer, Integer) := (literal, stage)
 
-def assignment :=
+def assignment {a, b} : Matcher (Assignment a) :=
   matcher
     | deduced $ $ as (taggedLiteral, multiset taggedLiteral) with
       | Deduced $e $es -> [(e, es)]
@@ -21,16 +21,16 @@ def assignment :=
 
 -- Data structure for CNF
 
-def toCnf cs := map (\c -> (c, c)) cs
+def toCnf {a} (cs: [[a]]) : [([a], [a])] := map (\c -> (c, c)) cs
 
-def fromCnf cs := map fst cs
+def fromCnf {a} (cs: [([a], [a])]) : [[a]] := map fst cs
 
 -- VSIDS
 
-def initVars vs := map (\v -> (neg v, 0)) vs ++ map (\v -> (v, 0)) vs
+def initVars (vs: [Integer]) : [(Integer, Integer)] := map (\v -> (neg v, 0)) vs ++ map (\v -> (v, 0)) vs
 
 -- Local sortBy function for custom comparison
-def sortBy f xs :=
+def sortBy {a} (f: a -> a -> Ordering) (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $x :: [] -> [x]
@@ -40,7 +40,7 @@ def sortBy f xs :=
           (ys1, ys2, ys3) := splitByOrderingBy f p xs
        in sortBy f ys1 ++ ys2 ++ sortBy f ys3
        
-def splitByOrderingBy f p xs :=
+def splitByOrderingBy {a} (f: a -> a -> Ordering) (p: a) (xs: [a]) : ([a], [a], [a]) :=
   match xs as list something with
     | [] -> ([], [], [])
     | $x :: $rs ->
@@ -50,13 +50,13 @@ def splitByOrderingBy f p xs :=
             | equal -> (ys1, x :: ys2, ys3)
             | greater -> (ys1, ys2, x :: ys3)
 
-def addVars vs vars :=
+def addVars (vs: [Integer]) (vars: [(Integer, Integer)]) : [(Integer, Integer)] :=
   matchDFS (vs, vars) as (list literal, list (literal, integer)) with
     | ([], _) -> sortBy (\xc yc -> compare (snd yc) (snd xc)) vars
     | ($v :: $vs', $hs ++ (#v, $c) :: $ts) ->
       addVars vs' (hs ++ (v, c + 1) :: ts)
 
-def deleteVar v vars :=
+def deleteVar (v: Integer) (vars: [(Integer, Integer)]) : [(Integer, Integer)] :=
   matchDFS vars as multiset (literal, integer) with
     | (#v, _) :: (#(neg v), _) :: $vars' -> vars2
     | _ -> "error: not matched in delete-var"

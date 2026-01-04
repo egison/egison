@@ -1,6 +1,6 @@
 -- Euler's totient function φ(n)
 
-def φ $n := n * product (map (\$p -> 1 - 1 / p) (unique (pF n)))
+def φ (n: Integer) : Rational := n * product (map (\$p -> 1 - 1 / p) (unique (pF n)))
 
 assertEqual "first 20 values of φ with factorization"
   (take 20 (map2 (\n1 n2 -> (n1, n2, pF n1)) nats (map φ nats)))

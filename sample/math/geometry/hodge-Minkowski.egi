@@ -2,13 +2,13 @@
 -- Hodge star operator in Minkowski spacetime
 --
 
-def N := 4
+def N : Integer := 4
 
-def params := [|t, x, y, z|]
+def params : Vector MathExpr := [|t, x, y, z|]
 
-def g := [|[|-1, 0, 0, 0|], [|0, 1, 0, 0|], [|0, 0, 1, 0|], [|0, 0, 0, 1|]|]
+def g : Matrix MathExpr := [|[|-1, 0, 0, 0|], [|0, 1, 0, 0|], [|0, 0, 1, 0|], [|0, 0, 0, 1|]|]
 
-def hodge A :=
+def hodge (A: DiffForm MathExpr) : DiffForm MathExpr :=
   let k := dfOrder A
    in withSymbols [i, j]
         sqrt (abs (M.det g_#_#)) *
@@ -17,10 +17,10 @@ def hodge A :=
           ((ε' N k)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
           (map (\n -> g~(i_n)~(j_n)) (between 1 k))
 
-def dt := [|1, 0, 0, 0|]
-def dx := [|0, 1, 0, 0|]
-def dy := [|0, 0, 1, 0|]
-def dz := [|0, 0, 0, 1|]
+def dt : DiffForm MathExpr := [|1, 0, 0, 0|]
+def dx : DiffForm MathExpr := [|0, 1, 0, 0|]
+def dy : DiffForm MathExpr := [|0, 0, 1, 0|]
+def dz : DiffForm MathExpr := [|0, 0, 0, 1|]
 
 assertEqual "Hodge star of dt ∧ dx"
   (hodge (wedge dt dx))

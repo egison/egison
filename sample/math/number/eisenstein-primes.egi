@@ -1,7 +1,7 @@
 -- Eisenstein primes: primes in Z[w] where w = (-1 + sqrt(3)*i) / 2
 
 -- Generate Eisenstein integers and their norms
-def eisensteinNorms :=
+def eisensteinNorms : [(MathExpr, MathExpr)] :=
   map (\(x, y) -> (x + y * w, (x + y * w) * (x + y * w ^ 2)))
       (matchAll take 10 nats as set integer with
         | $x :: $y :: _ -> (x, y))
@@ -12,7 +12,7 @@ assertEqual "first few Eisenstein integers with norms"
    (3 + w, 7), (1 + 4 * w, 13), (2 + 3 * w, 7), (3 + 2 * w, 7), (4 + w, 13)]
 
 -- Filter to get Eisenstein primes (those with prime norm)
-def eisensteinPrimes :=
+def eisensteinPrimes : [(MathExpr, MathExpr)] :=
   filter
     (\(_, n) -> isPrime n)
     (map (\(x, y) -> (x + y * w, (x + y * w) * (x + y * w ^ 2)))

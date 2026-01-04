@@ -1,27 +1,27 @@
 -- Parameters
-def x := [| θ, φ, ψ |]
+def x : Vector MathExpr := [| θ, φ, ψ |]
 
-def X := [| r * cos θ
+def X : Vector MathExpr := [| r * cos θ
           , r * sin θ * cos φ
           , r * sin θ * sin φ * cos ψ
           , r * sin θ * sin φ * sin ψ
           |]
 
 -- Local basis
-def e := (flip ∂/∂) x~# X_#
+def e : Matrix MathExpr := (flip ∂/∂) x~# X_#
 
 -- Metric tensors
-def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [3, 3]
-def g~i~j := M.inverse g_#_#
+def g_i_j : Matrix MathExpr := generateTensor (\[a, b] -> V.* e_a e_b) [3, 3]
+def g~i~j : Matrix MathExpr := M.inverse g_#_#
 
 assertEqual "Metric tensor g_#_#"
   g_#_#
   [| [| r^2, 0, 0 |], [| 0, r^2 * (sin θ)^2, 0 |], [| 0, 0, r^2 * (sin θ)^2 * (sin φ)^2 |] |]_#_#
 
 -- Christoffel symbols
-def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i_j_k : Tensor MathExpr := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
-def Γ~i_j_k := withSymbols [m]
+def Γ~i_j_k : Tensor MathExpr := withSymbols [m]
   g~i~m . Γ_m_j_k
 
 assertEqual "Christoffel symbols of the second kind Γ~1_#_#"

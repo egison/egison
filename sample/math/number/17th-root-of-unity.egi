@@ -1,22 +1,22 @@
-def z := rtu 17
+def z : MathExpr := rtu 17
 
-def a1 := z ^ 1 + z ^ 16
-def a2 := z ^ 2 + z ^ 15
-def a3 := z ^ 3 + z ^ 14
-def a4 := z ^ 4 + z ^ 13
-def a5 := z ^ 5 + z ^ 12
-def a6 := z ^ 6 + z ^ 11
-def a7 := z ^ 7 + z ^ 10
-def a8 := z ^ 8 + z ^ 9
+def a1 : MathExpr := z ^ 1 + z ^ 16
+def a2 : MathExpr := z ^ 2 + z ^ 15
+def a3 : MathExpr := z ^ 3 + z ^ 14
+def a4 : MathExpr := z ^ 4 + z ^ 13
+def a5 : MathExpr := z ^ 5 + z ^ 12
+def a6 : MathExpr := z ^ 6 + z ^ 11
+def a7 : MathExpr := z ^ 7 + z ^ 10
+def a8 : MathExpr := z ^ 8 + z ^ 9
 
-def b11 := a1 + a4
-def b12 := a1 - a4
+def b11 : MathExpr := a1 + a4
+def b12 : MathExpr := a1 - a4
 
-def b21 := a2 + a8
-def b22 := a2 - a8
+def b21 : MathExpr := a2 + a8
+def b22 : MathExpr := a2 - a8
 
-def b31 := a3 + a5
-def b32 := a3 - a5
+def b31 : MathExpr := a3 + a5
+def b32 : MathExpr := a3 - a5
 
 def b41 := a6 + a7
 def b42 := a6 - a7

@@ -1,12 +1,12 @@
 -- Quadratic Formula
 
-def quadraticFormula := qF
+def quadraticFormula : MathExpr -> MathExpr -> (MathExpr, MathExpr) := qF
 
-def qF f x :=
+def qF (f: MathExpr) (x: MathExpr) : (MathExpr, MathExpr) :=
   match coefficients f x as list mathExpr with
     | [$a_0, $a_1, $a_2] -> qF' a_2 a_1 a_0
 
-def qF' a b c :=
+def qF' (a: MathExpr) (b: MathExpr) (c: MathExpr) : (MathExpr, MathExpr) :=
   match (a, b, c) as (mathExpr, mathExpr, mathExpr) with
     | (#1, #0, _) -> (sqrt (- c), - sqrt (- c))
     | (#1, _, _) ->

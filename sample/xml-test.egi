@@ -4,7 +4,7 @@
 
 load "lib/tree/xml.egi"
 
-def xml1 :=
+def xml1 : XMLTree :=
   Node
     "top"
     [ Node

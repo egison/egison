@@ -1,5 +1,5 @@
 -- 素数の無限リストから全ての双子素数をパターンマッチにより抽出
-def twinPrimes :=
+def twinPrimes : [(Integer, Integer)] :=
   matchAll primes as list integer with
     | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 

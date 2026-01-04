@@ -1,7 +1,7 @@
 -- Parameters
-def x := [| θ, φ, ψ, η |]
+def x : Vector MathExpr := [| θ, φ, ψ, η |]
 
-def X := [| r * cos θ
+def X : Vector MathExpr := [| r * cos θ
           , r * sin θ * cos φ
           , r * sin θ * sin φ * cos ψ
           , r * sin θ * sin φ * sin ψ * cos η
@@ -9,11 +9,11 @@ def X := [| r * cos θ
           |]
 
 -- Local basis
-def e := (flip ∂/∂) x~# X_#
+def e : Matrix MathExpr := (flip ∂/∂) x~# X_#
 
 -- Metric tensors
-def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [4, 4]
-def g~i~j := M.inverse g_#_#
+def g_i_j : Matrix MathExpr := generateTensor (\[a, b] -> V.* e_a e_b) [4, 4]
+def g~i~j : Matrix MathExpr := M.inverse g_#_#
 
 assertEqual "Metric tensor g_1_#"
   g_1_#

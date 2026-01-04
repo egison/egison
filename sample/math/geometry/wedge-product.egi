@@ -2,17 +2,17 @@
 -- Wedge Product
 --
 
-def N := 3
+def N : Integer := 3
 
-def params := [|x, y, z|]
+def params : Vector MathExpr := [|x, y, z|]
 
-def g := [|[|1, 0, 0|], [|0, 1, 0|], [|0, 0, 1|]|]
+def g : Matrix Integer := [|[|1, 0, 0|], [|0, 1, 0|], [|0, 0, 1|]|]
 
-def wedge X Y := X !. Y
+def wedge {a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a := X !. Y
 
-def dx := [|1, 0, 0|]
-def dy := [|0, 1, 0|]
-def dz := [|0, 0, 1|]
+def dx : DiffForm Integer := [|1, 0, 0|]
+def dy : DiffForm Integer := [|0, 1, 0|]
+def dz : DiffForm Integer := [|0, 0, 1|]
 
 assertEqual "dx ∧ dy"
   (wedge dx dy)

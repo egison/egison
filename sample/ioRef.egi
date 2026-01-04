@@ -1,4 +1,4 @@
-def refTest x y :=
+def refTest {a} (x: a) (y: a) : IO () :=
   do let w := newIORef ()
      writeIORef w x
      let w1 := readIORef w
@@ -8,4 +8,4 @@ def refTest x y :=
      print (show w2)
      flush ()
 
-def main args := refTest 1 2
+def main (args: [String]) : IO () := refTest 1 2

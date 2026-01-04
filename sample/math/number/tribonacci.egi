@@ -1,8 +1,8 @@
 -- Tribonacci sequence using matrix exponentiation
 
-def m := 3
+def m : Integer := 3
 
-def A :=
+def A : Matrix Integer :=
   generateTensor
     (\match as list integer with
       | [#1, _] -> 1
@@ -14,7 +14,7 @@ assertEqual "transition matrix A"
   A
   [| [| 1, 1, 1 |], [| 1, 0, 0 |], [| 0, 1, 0 |] |]
 
-def B :=
+def B : Vector Integer :=
   generateTensor
     (\[x] -> if x = 1 then 1 else 0)
     [m]

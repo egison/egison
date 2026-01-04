@@ -2,16 +2,16 @@
 -- Exterior Derivative
 --
 
-def N := 3
+def N : Integer := 3
 
-def params := [|x, y, z|]
+def params : Vector MathExpr := [|x, y, z|]
 
-def g := [|[|1, 0, 0|], [|0, 1, 0|], [|0, 0, 1|]|]
+def g : Matrix Integer := [|[|1, 0, 0|], [|0, 1, 0|], [|0, 0, 1|]|]
 
-def d X :=
+def d {a} (X: a) : DiffForm a :=
   WedgeApplyExpr (ApplyExpr (VarExpr "flip") [VarExpr "\8706/\8706"]) [VarExpr "params",VarExpr "X"]
 
-def f := function (x, y, z)
+def f : MathExpr := function (x, y, z)
 
 -- The exterior derivative of f is the gradient 1-form
 assertEqual "d(f)"

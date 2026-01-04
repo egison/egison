@@ -1,7 +1,7 @@
 -- Gaussian primes: primes in Z[i]
 
 -- Generate Gaussian integers and their norms
-def gaussianNorms :=
+def gaussianNorms : [(MathExpr, MathExpr)] :=
   map (\(x, y) -> (x + y * i, (x + y * i) * (x - y * i)))
       (matchAll take 10 nats as set integer with
         | $x :: $y :: _ -> (x, y))
@@ -12,7 +12,7 @@ assertEqual "first few Gaussian integers with norms"
    (3 + i, 10), (1 + 4 * i, 17), (2 + 3 * i, 13), (3 + 2 * i, 13), (4 + i, 17)]
 
 -- Filter to get Gaussian primes (those with prime norm)
-def gaussianPrimes :=
+def gaussianPrimes : [(MathExpr, MathExpr)] :=
   filter
     (\(_, n) -> isPrime n)
     (map (\(x, y) -> (x + y * i, (x + y * i) * (x - y * i)))
