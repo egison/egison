@@ -2,6 +2,10 @@
 -- Type Class Support Library
 --
 
+-- | Infix declarations for equality operators
+infixl expression 4 ==
+infixl expression 4 /=
+
 -- | Type class for equality
 class Eq a where
   (==) (x: a) (y: a) : Bool

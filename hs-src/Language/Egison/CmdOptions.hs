@@ -30,6 +30,7 @@ data EgisonOpts = EgisonOpts {
     optFilterTsvInput   :: Maybe String,
     optTsvOutput        :: Bool,
     optNoIO             :: Bool,
+    optNoPrelude        :: Bool,       -- ^ Do not load core libraries
     optShowBanner       :: Bool,
     optTestOnly         :: Bool,
     optPrompt           :: String,
@@ -40,8 +41,9 @@ data EgisonOpts = EgisonOpts {
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False True False "> " Nothing True True False
---                                                                                                                                 ^^^^ optTypeCheck is now True by default
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False False True False "> " Nothing True True False
+--                                                                                                     ^^^^^ optNoPrelude
+--                                                                                                                                      ^^^^ optTypeCheck is now True by default
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -102,6 +104,9 @@ cmdArgParser = EgisonOpts
             <*> switch
                   (long "no-io"
                   <> help "Prohibit all io primitives")
+            <*> switch
+                  (long "no-prelude"
+                  <> help "Do not load core libraries")
             <*> flag True False
                   (long "no-banner"
                   <> help "Do not display banner")

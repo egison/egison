@@ -53,7 +53,8 @@ import           Control.Monad.IO.Class     (liftIO, MonadIO)
 import           Data.Char                  (toUpper)
 import           Data.IORef                 (IORef)
 
-import           Language.Egison.AST hiding (Subscript, Superscript, Constraint)
+import           Language.Egison.AST hiding (Subscript, Superscript, Constraint, PatternDef)
+import           Language.Egison.AST (PatternDef(..))
 import qualified Language.Egison.AST as AST
 import           Language.Egison.Type.Env
 import           Language.Egison.Type.Error
@@ -258,9 +259,8 @@ inferExpr expr = case expr of
     return (funType, s)
     where
       extractArgNames = map extractArgName
-      extractArgName (ScalarArg ap)         = extractFromArgPattern ap
-      extractArgName (InvertedScalarArg ap) = extractFromArgPattern ap
-      extractArgName (TensorArg ap)         = extractFromArgPattern ap
+      extractArgName (Arg ap)         = extractFromArgPattern ap
+      extractArgName (InvertedArg ap) = extractFromArgPattern ap
       extractFromArgPattern APWildCard = "_"
       extractFromArgPattern (APPatVar (VarWithIndices n _)) = n
       extractFromArgPattern _ = "_"
@@ -828,7 +828,7 @@ inferExpr expr = case expr of
 --   2. Data pattern variables are typed based on target type
 --   3. Body must return a list of next targets: [nextMatcherType]
 checkPatternDef :: Type -> PatternDef -> Infer ()
-checkPatternDef targetType (primPatPat, nextMatcherExpr, primMatchClauses) = do
+checkPatternDef targetType (PatternDef _constraints primPatPat nextMatcherExpr primMatchClauses) = do
   -- Count pattern holes in primitive pattern-pattern
   let holeCount = countPatternHoles primPatPat
   
@@ -853,7 +853,7 @@ checkPatternDef targetType (primPatPat, nextMatcherExpr, primMatchClauses) = do
 countPatternHoles :: PrimitivePatPattern -> Int
 countPatternHoles PPWildCard = 0
 countPatternHoles PPPatVar = 1  -- $ is a pattern hole
-countPatternHoles (PPValuePat _) = 0
+countPatternHoles (PPValuePat _ _) = 0
 countPatternHoles (PPInductivePat _ args) = sum (map countPatternHoles args)
 countPatternHoles (PPTuplePat args) = sum (map countPatternHoles args)
 
@@ -952,7 +952,7 @@ inferMatcherTargetType patternDefs = do
   where
     -- Get data patterns from a pattern definition
     getDataPatterns :: PatternDef -> [PrimitiveDataPattern]
-    getDataPatterns (_, _, dataPats) = map fst dataPats
+    getDataPatterns (PatternDef _ _ _ dataPats) = map fst dataPats
     
     -- Check if a data pattern contains cons (::) or snoc (*:)
     hasConsDataPattern :: PrimitiveDataPattern -> Bool
@@ -1455,65 +1455,24 @@ inferTopExpr topExpr = case topExpr of
   -- e.g., inductive Ordering := | Less | Equal | Greater
   --       inductive Nat := | O | S Nat
   --       inductive Maybe a := | Nothing | Just a
-  InductiveDecl typeName typeParams constructors -> do
-    -- Create the type for this inductive data type
-    -- Use TInductive with type parameters as type variables
-    let typeParamVars = map (TVar . TyVar) typeParams
-        adtType = TInductive typeName typeParamVars
-    env <- getEnv
-    -- Register each constructor with the type parameters quantified
-    mapM_ (registerInductiveConstructor adtType typeParams env) constructors
-    where
-      registerInductiveConstructor :: Type -> [String] -> TypeEnv -> InductiveConstructor -> Infer ()
-      registerInductiveConstructor resultType params env (InductiveConstructor ctorName argTypeExprs) = do
-        -- Convert argument type expressions to types
-        let argTypes = map typeExprToType argTypeExprs
-        -- Create the constructor type: argTypes -> resultType
-        let constructorType = foldr TFun resultType argTypes
-            -- Quantify over type parameters
-            tyVars = map TyVar params
-            scheme = Forall tyVars [] constructorType
-        setEnv $ extendEnv ctorName scheme env
+  -- NOTE: Environment building (constructor registration) is now handled in Phase 2
+  --       by Language.Egison.EnvBuilder module. Here we just skip it.
+  InductiveDecl _typeName _typeParams _constructors -> 
+    return ()  -- Already handled by EnvBuilder in Phase 2
 
   -- Type class declaration
   -- e.g., class Eq a where (==) (x: a) (y: a) : Bool
-  ClassDeclExpr (ClassDecl classNm [typeParam] _supers methods) -> do
-    env <- getEnv
-    -- Register each class method to the type environment
-    -- Methods have a constrained polymorphic type: ClassName a => methodType
-    let tyVar = TyVar typeParam
-        constraint = Types.Constraint classNm (TVar tyVar)
-    mapM_ (registerClassMethod env tyVar [constraint]) methods
-    where
-      registerClassMethod :: TypeEnv -> TyVar -> [Types.Constraint] -> ClassMethod -> Infer ()
-      registerClassMethod env tyVar constraints (ClassMethod methName params retType _defaultImpl) = do
-        -- Build the method type from parameters and return type
-        let paramTypes = map typedParamToType params
-            methodType = foldr TFun (typeExprToType retType) paramTypes
-            scheme = Forall [tyVar] constraints methodType
-        setEnv $ extendEnv methName scheme env
-
-  ClassDeclExpr _ -> return ()  -- Unsupported class declaration format
+  -- NOTE: Environment building (class registration) is now handled in Phase 2
+  --       by Language.Egison.EnvBuilder module. Here we just skip it.
+  ClassDeclExpr _ -> 
+    return ()  -- Already handled by EnvBuilder in Phase 2
 
   -- Type class instance declaration
   -- e.g., instance Eq Integer where (==) x y := x = y
-  InstanceDeclExpr (InstanceDecl context className instTypes _methods) -> do
-    -- Register the instance in the class environment
-    -- Note: instType expects a single Type, so we take the head (main instance type)
-    let mainInstType = case instTypes of
-          []    -> TAny
-          (t:_) -> typeExprToType t
-        instInfo = InstanceInfo 
-          { instContext = map constraintToInternal context
-          , instClass   = className
-          , instType    = mainInstType
-          , instMethods = []  -- Placeholder, methods handled by desugar
-          }
-    modifyClassEnv $ addInstance className instInfo
-    return ()
-    where
-      constraintToInternal (AST.ConstraintExpr clsName tyExprs) =
-        Types.Constraint clsName (case tyExprs of { [] -> TAny; (t:_) -> typeExprToType t })
+  -- NOTE: Environment building (instance registration) is now handled in Phase 2
+  --       by Language.Egison.EnvBuilder module. Here we just skip it.
+  InstanceDeclExpr _ -> 
+    return ()  -- Already handled by EnvBuilder in Phase 2
 
 -- | Register algebraic data constructors to the type environment
 -- For example, `def ordering := algebraicDataMatcher | less | equal | greater`

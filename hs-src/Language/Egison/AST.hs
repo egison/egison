@@ -21,7 +21,7 @@ module Language.Egison.AST
   , PMMode (..)
   , BindingExpr (..)
   , MatchClause
-  , PatternDef
+  , PatternDef (..)
   , LoopRange (..)
   , PrimitivePatPattern (..)
   , PDPatternBase (..)
@@ -187,10 +187,10 @@ data Expr
   | SeqExpr Expr Expr
   | ApplyExpr Expr [Expr]
   | CApplyExpr Expr Expr
-  | AnonParamFuncExpr Integer Expr
-  | AnonTupleParamFuncExpr Integer Expr
-  | AnonListParamFuncExpr Integer Expr
-  | AnonParamExpr Integer
+  | AnonParamFuncExpr Integer Expr      -- e.g. 2#2, 3#$1, 2#($1 + $2)
+  | AnonTupleParamFuncExpr Integer Expr -- e.g. (2)#2, (3)#$1, (2)#($1 + $2)
+  | AnonListParamFuncExpr Integer Expr  -- e.g. [2]#2, [3]#$1, [2]#($1 + $2)
+  | AnonParamExpr Integer               -- e.g. $1, $2
 
   | GenerateTensorExpr Expr Expr
   | TensorExpr Expr Expr
@@ -209,9 +209,8 @@ data VarWithIndices = VarWithIndices String [VarIndex]
   deriving (Show, Eq)
 
 data Arg a
-  = ScalarArg a
-  | InvertedScalarArg a
-  | TensorArg a
+  = Arg a
+  | InvertedArg a
   deriving Show
 
 data ArgPattern
@@ -253,7 +252,14 @@ data BindingExpr
   deriving Show
 
 type MatchClause = (Pattern, Expr)
-type PatternDef  = (PrimitivePatPattern, Expr, [(PrimitiveDataPattern, Expr)])
+
+-- | Pattern definition in a matcher (with optional type class constraints)
+data PatternDef = PatternDef
+  { patDefConstraints :: [ConstraintExpr]       -- ^ Type class constraints (e.g., [Eq a])
+  , patDefPattern     :: PrimitivePatPattern
+  , patDefMatcher     :: Expr
+  , patDefClauses     :: [(PrimitiveDataPattern, Expr)]
+  } deriving Show
 
 data Pattern
   = WildCard
@@ -287,7 +293,7 @@ data LoopRange = LoopRange Expr Expr Pattern
 data PrimitivePatPattern
   = PPWildCard
   | PPPatVar
-  | PPValuePat String
+  | PPValuePat [ConstraintExpr] String  -- Constraints and variable name
   | PPInductivePat String [PrimitivePatPattern]
   | PPTuplePat [PrimitivePatPattern]
   deriving Show
@@ -328,18 +334,20 @@ instance Show Assoc where
 
 reservedExprOp :: [Op]
 reservedExprOp =
-  [ Op "!"  8 Prefix False -- Wedge
+  [ Op "!"  8 Prefix False -- Wedge and InvertedArg prefix
   , Op "-"  7 Prefix False -- Negate
   , Op "%"  7 InfixL False -- primitive function
-  , Op "*$" 7 Prefix False -- For InvertedScalarArg
-  , Op "*$" 7 InfixL False -- For InvertedScalarArg
   , Op "++" 5 InfixR False
   , Op "::" 5 InfixR False
+  , Op "==" 4 InfixL False -- equality (from type class)
+  , Op "/=" 4 InfixL False -- inequality (from type class)
   , Op "="  4 InfixL False -- primitive function
   , Op "<=" 4 InfixL False -- primitive function
   , Op ">=" 4 InfixL False -- primitive function
   , Op "<"  4 InfixL False -- primitive function
   , Op ">"  4 InfixL False -- primitive function
+  , Op "&&" 3 InfixR False -- logical and (from base)
+  , Op "||" 2 InfixR False -- logical or (from base)
   ]
 
 reservedPatternOp :: [Op]
@@ -420,9 +428,10 @@ data TypedParam
 
 -- | Variable with type annotation
 data TypedVarWithIndices = TypedVarWithIndices
-  { typedVarName    :: String
-  , typedVarIndices :: [VarIndex]
-  , typedVarParams  :: [TypedParam]          -- ^ Typed parameters (can include tuples)
-  , typedVarRetType :: TypeExpr              -- ^ Return type
+  { typedVarName        :: String
+  , typedVarIndices     :: [VarIndex]
+  , typedVarConstraints :: [ConstraintExpr]  -- ^ Type class constraints
+  , typedVarParams      :: [TypedParam]      -- ^ Typed parameters (can include tuples)
+  , typedVarRetType     :: TypeExpr          -- ^ Return type
   } deriving (Show, Eq)
 

@@ -1,0 +1,51 @@
+{
+  "name": "egison",
+  "displayName": "Egison Language Support",
+  "description": "Syntax highlighting and language support for Egison programming language",
+  "version": "0.2.0",
+  "publisher": "egison",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "egison",
+    "pattern-matching",
+    "functional-programming"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/egison/egison"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "contributes": {
+    "languages": [
+      {
+        "id": "egison",
+        "aliases": [
+          "Egison",
+          "egison"
+        ],
+        "extensions": [
+          ".egi"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.png",
+          "dark": "./icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "egison",
+        "scopeName": "source.egison",
+        "path": "./syntaxes/egison.tmLanguage.json"
+      }
+    ]
+  }
+}
+

@@ -111,7 +111,7 @@ instance Pretty Expr where
   pretty (MatcherExpr patDefs) =
     nest 2 (pretty "matcher" <> hardline <> align (vsep (map prettyPatDef patDefs)))
       where
-        prettyPatDef (pppat, expr, body) =
+        prettyPatDef (PatternDef _constraints pppat expr body) =
           nest 2 (pipe <+> pretty pppat <+> pretty "as" <+>
             group (pretty expr) <+> pretty "with" <> hardline <>
               align (vsep (map prettyPatBody body)))
@@ -176,9 +176,8 @@ instance Pretty Expr where
   pretty p = pretty (show p)
 
 instance (Pretty a, Complex a) => Pretty (Arg a) where
-  pretty (ScalarArg x)         = pretty "$" <> pretty' x
-  pretty (InvertedScalarArg x) = pretty "*$" <> pretty' x
-  pretty (TensorArg x)         = pretty x
+  pretty (Arg x)         = pretty x
+  pretty (InvertedArg x) = pretty "!" <> pretty' x
 
 instance Pretty ArgPattern where
   pretty APWildCard              = pretty "_"
@@ -204,8 +203,12 @@ instance Pretty BindingExpr where
   pretty (Bind pat expr) = pretty pat <+> pretty ":=" <+> align (pretty expr)
   pretty (BindWithIndices var expr) = pretty var <+> pretty ":=" <+> align (pretty expr)
   pretty (BindWithType typedVar expr) =
-    hsep (pretty (typedVarName typedVar) : map pretty (typedVarParams typedVar)) <+>
-    pretty ":" <+> pretty (typedVarRetType typedVar) <+> pretty ":=" <+> align (pretty expr)
+    let constraints = typedVarConstraints typedVar
+        constraintsDoc = if null constraints
+                         then mempty
+                         else pretty "{" <> hsep (punctuate (pretty ",") (map pretty constraints)) <> pretty "}" <> space
+    in hsep (pretty (typedVarName typedVar) : [constraintsDoc | not (null constraints)] ++ map pretty (typedVarParams typedVar)) <+>
+       pretty ":" <+> pretty (typedVarRetType typedVar) <+> pretty ":=" <+> align (pretty expr)
 
 instance Pretty TypedParam where
   pretty (TPVar name ty) = parens (pretty name <+> pretty ":" <+> pretty ty)
@@ -231,6 +234,9 @@ instance Pretty TypeExpr where
   pretty (TEIO t) = pretty "IO" <+> pretty t
   pretty (TETensor t _ _) = pretty "Tensor" <+> pretty t
   pretty (TEApp t args) = hsep (pretty t : map pretty args)
+
+instance Pretty ConstraintExpr where
+  pretty (ConstraintExpr cls types) = hsep (pretty cls : map pretty types)
 
 instance {-# OVERLAPPING #-} Pretty MatchClause where
   pretty (pat, expr) =
@@ -302,7 +308,7 @@ instance {-# OVERLAPPING #-} Pretty LoopRange where
 instance Pretty PrimitivePatPattern where
   pretty PPWildCard                = pretty "_"
   pretty PPPatVar                  = pretty "$"
-  pretty (PPValuePat x)            = pretty ('#' : '$' : x)
+  pretty (PPValuePat _ x)          = pretty ('#' : '$' : x)
   pretty (PPInductivePat x pppats) = hsep (pretty x : map pretty pppats)
   pretty (PPTuplePat pppats)       = tupled (map pretty pppats)
 
@@ -373,8 +379,8 @@ instance Complex Expr where
   isInfix _           = False
 
 instance Complex a => Complex (Arg a) where
-  isAtom (TensorArg x) = isAtom x
-  isAtom _             = True
+  isAtom (Arg x) = isAtom x
+  isAtom _       = True
 
   isAtomOrApp = isAtom
 

@@ -7,7 +7,21 @@
 Module      : Language.Egison.Core
 Licence     : MIT
 
-This module provides functions to evaluate various objects.
+This module implements Phase 10: Evaluation.
+It provides functions to evaluate expressions and perform pattern matching.
+
+Evaluation Phase (Phase 10):
+  - Pattern matching execution (patternMatch function)
+    * Egison's powerful non-linear pattern matching with backtracking
+    * Pattern matching is NOT desugared but executed during evaluation
+  - Expression evaluation (evalExprShallow, evalExprDeep)
+  - IO action execution
+  - WHNF (Weak Head Normal Form) evaluation
+
+Design Note (design/implementation.md):
+Pattern matching is processed during evaluation, not during desugaring.
+This allows Egison's sophisticated pattern matching features to be implemented
+directly in the evaluator, keeping the desugaring phase simple.
 -}
 
 module Language.Egison.Core
@@ -1097,7 +1111,7 @@ primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->
                             MatchM ([IPattern], [Binding])
 primitivePatPatternMatch _ PPWildCard IWildCard = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
-primitivePatPatternMatch env (PPValuePat name) (IValuePat expr) = do
+primitivePatPatternMatch env (PPValuePat _ name) (IValuePat expr) = do
   ref <- lift $ newThunkRef env expr
   return ([], [(stringToVar name, ref)])
 primitivePatPatternMatch env (PPInductivePat name patterns) (IInductivePat name' exprs)

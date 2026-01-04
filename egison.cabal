@@ -80,10 +80,11 @@ Library
                    Language.Egison.Completion
                    Language.Egison.Desugar
                    Language.Egison.Data
-                   Language.Egison.Data.Collection
-                   Language.Egison.Data.Utils
-                   Language.Egison.EvalState
-                   Language.Egison.Eval
+                  Language.Egison.Data.Collection
+                  Language.Egison.Data.Utils
+                  Language.Egison.EnvBuilder
+                  Language.Egison.EvalState
+                  Language.Egison.Eval
                    Language.Egison.IExpr
                    Language.Egison.Match
                    Language.Egison.Math.Arith

@@ -4,7 +4,19 @@
 Module      : Language.Egison.Desugar
 Licence     : MIT
 
-This module provides desugar functions.
+This module implements Phase 3-4: Syntactic Desugaring (for untyped path).
+For the typed path, desugaring is done inside type inference.
+
+Syntactic Desugaring (Phase 3-4):
+  - Operator desugaring (infix to function application)
+  - Anonymous function expansion (cambda: 1#($1 + $2) etc.)
+  - Match-lambda expansion (convert to match expressions)
+  - Other syntactic sugar expansions
+  
+Design Note (design/implementation.md):
+Pattern matching itself is NOT desugared here. Match expressions (IMatchExpr, 
+IMatchAllExpr) are kept as-is and processed during evaluation (Phase 10).
+This allows Egison's sophisticated pattern matching to be implemented in the evaluator.
 -}
 
 module Language.Egison.Desugar
@@ -150,7 +162,7 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl _constraints classNm instTypes me
       let funcName = lowerFirst clsNm ++ typNm ++ capitalizeFirst (sanitizeMethodName methName)
           var = stringToVar funcName
       -- Create lambda expression in AST then desugar
-      let lambdaArgs = map (\p -> ScalarArg (APPatVar (VarWithIndices p []))) params
+      let lambdaArgs = map (\p -> Arg (APPatVar (VarWithIndices p []))) params
           lambdaExpr = if null params then body else LambdaExpr lambdaArgs body
       iexpr <- desugar lambdaExpr
       return (var, iexpr)
@@ -211,21 +223,18 @@ desugarTopExpr (InductiveDecl _ _ _) = return Nothing
 -- Infix declarations don't produce runtime code
 desugarTopExpr (InfixDecl _ _) = return Nothing
 
--- Catch-all for any other top expressions
-desugarTopExpr _ = return Nothing
-
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern
 typedParamToArgPattern (TPVar pname _) =
-  ScalarArg (APPatVar (VarWithIndices pname []))
+  Arg (APPatVar (VarWithIndices pname []))
 typedParamToArgPattern (TPTuple elems) =
-  ScalarArg (APTuplePat (map typedParamToArgPattern elems))
+  Arg (APTuplePat (map typedParamToArgPattern elems))
 typedParamToArgPattern (TPWildcard _) =
-  ScalarArg APWildCard
+  Arg APWildCard
 typedParamToArgPattern (TPUntypedVar pname) =
-  ScalarArg (APPatVar (VarWithIndices pname []))
+  Arg (APPatVar (VarWithIndices pname []))
 typedParamToArgPattern TPUntypedWildcard =
-  ScalarArg APWildCard
+  Arg APWildCard
 
 desugarTopExprs :: [TopExpr] -> EvalM [ITopExpr]
 desugarTopExprs [] = return []
@@ -259,7 +268,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMainClause :: [(String, [Expr])] -> IExpr -> EvalM (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
-        return (PPValuePat "val", ITupleExpr [],
+        return (PPValuePat [] "val", ITupleExpr [],
                 [(PDPatVar (stringToVar "tgt"),
                     IMatchExpr BFSMode
                                (ITupleExpr [IVarExpr "val", IVarExpr "tgt"])
@@ -385,21 +394,18 @@ desugar (TensorExpr nsExpr xsExpr) =
 
 -- Desugar of LambdaExpr takes place in 2 stages.
 -- * LambdaExpr -> LambdaExpr'  : Desugar pattern matches at the arg positions
--- * LambdaExpr' -> ILambdaExpr : Desugar ScalarArg and InvertedScalarArg
+-- * LambdaExpr' -> ILambdaExpr : Desugar Arg and InvertedArg
 desugar (LambdaExpr args expr) = do
   (args', expr') <- foldrM desugarArg ([], expr) args
   desugar $ LambdaExpr' args' expr'
   where
     desugarArg :: Arg ArgPattern -> ([Arg VarWithIndices], Expr) -> EvalM ([Arg VarWithIndices], Expr)
-    desugarArg (TensorArg x) (args, expr) = do
+    desugarArg (Arg x) (args, expr) = do
       (var, expr') <- desugarArgPat x expr
-      return (TensorArg var : args, expr')
-    desugarArg (ScalarArg x) (args, expr) = do
+      return (Arg var : args, expr')
+    desugarArg (InvertedArg x) (args, expr) = do
       (var, expr') <- desugarArgPat x expr
-      return (ScalarArg var : args, expr')
-    desugarArg (InvertedScalarArg x) (args, expr) = do
-      (var, expr') <- desugarArgPat x expr
-      return (InvertedScalarArg var : args, expr')
+      return (InvertedArg var : args, expr')
 
     -- Desugar argument patterns. Examples:
     -- \$(%x, %y) -> expr   ==> \$tmp -> let (tmp1, tmp2) := tmp in (\%x %y -> expr) tmp1 tmp2
@@ -433,14 +439,14 @@ desugar (LambdaExpr args expr) = do
       tmp1 <- fresh
       tmp2 <- fresh
       return (tmp', LetExpr [Bind (PDConsPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
-                     (ApplyExpr (LambdaExpr [arg1, TensorArg arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+                     (ApplyExpr (LambdaExpr [arg1, Arg arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
     desugarArgPat (APSnocPat arg1 arg2) expr = do
       tmp  <- fresh
       let tmp' = stringToVarWithIndices tmp
       tmp1 <- fresh
       tmp2 <- fresh
       return (tmp', LetExpr [Bind (PDSnocPat (PDPatVar tmp1) (PDPatVar tmp2)) (VarExpr tmp)]
-                     (ApplyExpr (LambdaExpr [TensorArg arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
+                     (ApplyExpr (LambdaExpr [Arg arg1, arg2] expr) [VarExpr tmp1, VarExpr tmp2]))
 
 desugar (LambdaExpr' vwis expr) = do
   let (vwis', expr') = foldr desugarInvertedArgs ([], expr) vwis
@@ -449,13 +455,9 @@ desugar (LambdaExpr' vwis expr) = do
   return $ ILambdaExpr Nothing args' expr'
   where
     desugarInvertedArgs :: Arg VarWithIndices -> ([VarWithIndices], Expr) -> ([VarWithIndices], Expr)
-    desugarInvertedArgs (TensorArg x) (args, expr) = (x : args, expr)
-    desugarInvertedArgs (ScalarArg x) (args, expr) =
-      (x : args,
-       TensorMapExpr (LambdaExpr' [TensorArg x] expr) (VarExpr (extractNameFromVarWithIndices x)))
-    desugarInvertedArgs (InvertedScalarArg x) (args, expr) =
-      (x : args,
-       TensorMapExpr (LambdaExpr' [TensorArg x] expr) (FlipIndicesExpr (VarExpr (extractNameFromVarWithIndices x))))
+    desugarInvertedArgs (Arg x) (args, expr) = (x : args, expr)
+    desugarInvertedArgs (InvertedArg x) (args, _expr) =
+      (x : args, FlipIndicesExpr (VarExpr (extractNameFromVarWithIndices x)))
 
 desugar (MemoizedLambdaExpr names expr) =
   IMemoizedLambdaExpr names <$> desugar expr
@@ -582,22 +584,22 @@ desugar (AnonParamExpr n) = return $ IVarExpr ('%' : show n)
 
 desugar (AnonParamFuncExpr n expr) = do
   let args = map (\n -> stringToVarWithIndices ('%' : show n)) [1..n]
-  lambda <- desugar $ LambdaExpr' (map TensorArg args) expr
+  lambda <- desugar $ LambdaExpr' (map Arg args) expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (AnonTupleParamFuncExpr 1 expr) = do
-  lambda <- desugar $ LambdaExpr' [TensorArg (stringToVarWithIndices "%1")] expr
+  lambda <- desugar $ LambdaExpr' [Arg (stringToVarWithIndices "%1")] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 desugar (AnonTupleParamFuncExpr n expr) = do
   let args = map (\n -> stringToVarWithIndices ('%' : show n)) [1..n]
   lambda <- desugar $
-    LambdaExpr [TensorArg (APTuplePat $ map (TensorArg . APPatVar) args)] expr
+    LambdaExpr [Arg (APTuplePat $ map (Arg . APPatVar) args)] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (AnonListParamFuncExpr n expr) = do
-  let args' = map (\n -> TensorArg (APPatVar (stringToVarWithIndices ('%' : show n)))) [1..n]
+  let args' = map (\n -> Arg (APPatVar (stringToVarWithIndices ('%' : show n)))) [1..n]
   let args = foldr APConsPat APEmptyPat args'
-  lambda <- desugar $ LambdaExpr [TensorArg args] expr
+  lambda <- desugar $ LambdaExpr [Arg args] expr
   return $ ILetRecExpr [(PDPatVar (stringToVar "%0"), lambda)] (IVarExpr "%0")
 
 desugar (QuoteExpr expr) =
@@ -616,7 +618,7 @@ desugar (TypeAnnotation expr _typeExpr) = desugar expr
 
 -- Typed lambda is desugared to regular lambda
 desugar (TypedLambdaExpr params _retType body) = do
-  let args = map (\(name, _) -> TensorArg (APPatVar (VarWithIndices name []))) params
+  let args = map (\(name, _) -> Arg (APPatVar (VarWithIndices name []))) params
   desugar $ LambdaExpr args body
 
 desugarIndex :: IndexExpr Expr -> EvalM (Index IExpr)
@@ -718,7 +720,7 @@ desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
 
 desugarPatternDef :: PatternDef -> EvalM IPatternDef
-desugarPatternDef (pp, matcher, pds) =
+desugarPatternDef (PatternDef _constraints pp matcher pds) =
   (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IPrimitiveDataPattern, IExpr)]
@@ -764,7 +766,7 @@ desugarExtendedIndices :: [VarIndex] -> [Bool] -> [String] -> Expr -> EvalM Expr
 desugarExtendedIndices indices isSubs indexNames tensorBody = do
   tensorName <- fresh
   tensorGenExpr <- f indices (VarExpr tensorName) [] []
-  let indexFunctionExpr = LambdaExpr [TensorArg $ foldr APConsPat APEmptyPat (map (TensorArg . APPatVar) (map stringToVarWithIndices indexNames))] tensorGenExpr
+  let indexFunctionExpr = LambdaExpr [Arg $ foldr APConsPat APEmptyPat (map (Arg . APPatVar) (map stringToVarWithIndices indexNames))] tensorGenExpr
   let genTensorExpr = GenerateTensorExpr indexFunctionExpr (makeApply "tensorShape" [VarExpr tensorName])
   let tensorIndices = zipWith (\isSub name -> if isSub then Subscript (VarExpr name) else Superscript (VarExpr name)) isSubs indexNames
   return $ LetExpr [Bind (PDPatVar tensorName) tensorBody] (IndexedExpr True genTensorExpr tensorIndices)

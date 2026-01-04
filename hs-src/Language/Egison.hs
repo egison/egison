@@ -42,16 +42,21 @@ version = P.version
 initialEnv :: RuntimeM Env
 initialEnv = do
   isNoIO <- asks optNoIO
+  isNoPrelude <- asks optNoPrelude
   useMathNormalize <- asks optMathNormalize
   env <- liftIO $ if isNoIO then primitiveEnvNoIO else primitiveEnv
-  let normalizeLib = if useMathNormalize then "lib/math/normalize.egi" else "lib/math/no-normalize.egi"
-  ret <- local (const defaultOption)
-               (fromEvalT (evalTopExprs env $ map Load (coreLibraries ++ [normalizeLib])))
-  case ret of
-    Left err -> do
-      liftIO $ print (show err)
-      return env
-    Right env' -> return env'
+  -- If --no-prelude is set, skip loading core libraries
+  if isNoPrelude
+    then return env
+    else do
+      let normalizeLib = if useMathNormalize then "lib/math/normalize.egi" else "lib/math/no-normalize.egi"
+      ret <- local (const defaultOption)
+                   (fromEvalT (evalTopExprs env $ map Load (coreLibraries ++ [normalizeLib])))
+      case ret of
+        Left err -> do
+          liftIO $ print (show err)
+          return env
+        Right env' -> return env'
 
 coreLibraries :: [String]
 coreLibraries =
