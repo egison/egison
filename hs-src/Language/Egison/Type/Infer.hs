@@ -954,12 +954,11 @@ inferMatcherTargetType patternDefs = do
     getDataPatterns :: PatternDef -> [PrimitiveDataPattern]
     getDataPatterns (_, _, dataPats) = map fst dataPats
     
-    -- Check if a data pattern contains cons (::)
+    -- Check if a data pattern contains cons (::) or snoc (*:)
     hasConsDataPattern :: PrimitiveDataPattern -> Bool
     hasConsDataPattern (PDConsPat _ _) = True
-    hasConsDataPattern (PDSnocPat _ _) = True  -- snoc also implies list
+    hasConsDataPattern (PDSnocPat _ _) = True  -- *: also implies list
     hasConsDataPattern (PDInductivePat "cons" _) = True
-    hasConsDataPattern (PDInductivePat "snoc" _) = True
     hasConsDataPattern (PDTuplePat pats) = any hasConsDataPattern pats
     hasConsDataPattern _ = False
 
@@ -1178,16 +1177,6 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
               
         "nil" -> return []
         
-        "snoc" | [initPat, lastPat] <- pats -> do
-          case tgt of
-            TList elemTy -> do
-              initBindings <- go tgt m tgt initPat
-              lastBindings <- go elemTy m elemTy lastPat
-              return (initBindings ++ lastBindings)
-            _ -> do
-              freshTypes <- mapM (\_ -> freshVar "snoc") pats
-              concat <$> zipWithM (\t p -> go t m t p) freshTypes pats
-              
         _ -> do
           -- For unknown pattern constructors, use fresh types
           freshTypes <- mapM (\_ -> freshVar "ind") pats

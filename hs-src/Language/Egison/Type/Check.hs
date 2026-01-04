@@ -602,7 +602,6 @@ builtinTypes = concat
       , ("mathNormalize", forallA $ TFun (TVar a) (TVar a))
       , ("termExpr", Forall [] [] $ TMatcher TInt)  -- mathExpr alias
       , ("coefficients", forallA $ TFun (TVar a) (TList TInt))
-      , ("compareC", forallA $ TFun (TList (TVar a)) (TFun (TList (TVar a)) TAny))
       -- Note: Ordering constructors (Less, Equal, Greater), Maybe constructors (Nothing, Just),
       -- and other algebraicDataMatcher constructors are now automatically registered
       -- when the matcher is defined via registerAlgebraicConstructors

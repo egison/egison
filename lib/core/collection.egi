@@ -5,6 +5,7 @@
 --
 
 infixr pattern 5 ++
+infixl pattern 5 *:
 
 --
 -- List
@@ -17,8 +18,8 @@ def list {a, b} (a: Matcher b) : Matcher [b] :=
     | $ :: $ as (a, list a) with
       | $x :: $xs -> [(x, xs)]
       | _ -> []
-    | snoc $ $ as (a, list a) with
-      | snoc $xs $x -> [(x, xs)]
+    | $ *: $ as (list a, a) with
+      | $xs *: $x -> [(xs, x)]
       | _ -> []
     | _ ++ $ :: _ as (a) with
       | $tgt -> tgt
@@ -33,13 +34,7 @@ def list {a, b} (a: Matcher b) : Matcher [b] :=
         matchAll tgt as list a with
           | loop $i (1, $n)
               ($xa_i :: ...)
-              $rs -> (foldr (\%i %r -> xa_i :: r) [] [1..n], rs)
-    | nioj $ $ as (list a, list a) with
-      | $tgt ->
-        matchAll tgt as list a with
-          | loop $i (1, $n)
-              (snoc $xa_i ...)
-              $rs -> (foldr (\%i %r -> r ++ [xa_i]) [] [1..n], rs)
+              $rs -> (foldr (\i r -> xa_i :: r) [] [1..n], rs)
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
@@ -127,11 +122,11 @@ def tail {a} (xs: [a]) : [a] :=
 
 def last {a} (xs: [a]) : a :=
   match xs as list something with
-    | snoc $x _ -> x
+    | _ *: $x -> x
 
 def init {a} (xs: [a]) : [a] :=
   match xs as list something with
-    | snoc _ $ys -> ys
+    | $ys *: _ -> ys
 
 def uncons {a} (xs: [a]) : (a, [a]) :=
   match xs as list something with
@@ -139,7 +134,7 @@ def uncons {a} (xs: [a]) : (a, [a]) :=
 
 def unsnoc {a} (xs: [a]) : ([a], a) :=
   match xs as list something with
-    | snoc $x $ys -> (ys, x)
+    | $ys *: $x -> (ys, x)
 
 
 --
@@ -238,7 +233,7 @@ def concat {a} (xss: [[a]]) : [a] := foldr (\%xs %rs -> xs ++ rs) [] xss
 def reverse {a} (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
-    | snoc $x $rs -> x :: reverse rs
+    | $rs *: $x -> x :: reverse rs
 
 def intersperse {a} (sep: a) (ws: [a]) : [a] :=
   match ws as list something with

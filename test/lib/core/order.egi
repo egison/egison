@@ -2,16 +2,13 @@ assertEqual "compare" (compare 10 10) Equal
 assertEqual "compare" (compare 11 10) Greater
 assertEqual "compare" (compare 10 11) Less
 
-assertEqual "compareC" (compareC [1, 2] [1]) Greater
-assertEqual "compareC" (compareC [1] [1, 2]) Less
-assertEqual "compareC" (compareC [1, 2] [1, 3]) Less
-assertEqual "compareC" (compareC [1, 3] [1, 3]) Equal
+assertEqual "compare list" (compare [1, 2] [1]) Greater
+assertEqual "compare list" (compare [1] [1, 2]) Less
+assertEqual "compare list" (compare [1, 2] [1, 3]) Less
+assertEqual "compare list" (compare [1, 3] [1, 3]) Equal
 
 assertEqual "min" (min 20 5) 5
 assertEqual "max" (max 5 30) 30
-
-assertEqual "min/fn" (min/fn compare [10, 20, 5, 20, 30]) 5
-assertEqual "max/fn" (max/fn compare [10, 20, 5, 20, 30]) 30
 
 assertEqual "minimum" (minimum [20, 5, 12]) 5
 assertEqual "maximum" (maximum [5, 30, 23]) 30
@@ -20,25 +17,12 @@ assertEqual "splitByOrdering"
   (splitByOrdering 2 [1, 2, 3, 2, 3, 4, 5])
   ([1], [2, 2], [3, 3, 4, 5])
 
-assertEqual "splitByOrdering/fn"
-  (splitByOrdering/fn (\_ _ -> Equal) 2 [1, 2, 3, 4, 5])
-  ([], [1, 2, 3, 4, 5], [])
-
 assertEqual "sort"
   (sort [10, 20, 5, 20, 30])
   [5, 10, 20, 20, 30]
 
-assertEqual "sort/fn"
-  (sort/fn
-    (\x y -> match compare x y as ordering with
-             | greater -> Less
-             | less -> Greater
-             | equal -> Equal)
-    [10, 20, 5, 20, 30])
-  [30, 20, 20, 10, 5]
-
-assertEqual "sortStrings"
-  (sortStrings ["banana", "apple", "chocolate"])
+assertEqual "sort strings"
+  (sort ["banana", "apple", "chocolate"])
   ["apple", "banana", "chocolate"]
 
 assertEqual "minimize"

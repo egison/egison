@@ -28,6 +28,14 @@ instance Eq Char where
   (==) x y := eqForChar x y
   (/=) x y := not (x == y)
 
+instance {Eq a} Eq [a] where
+  (==) xs ys :=
+    match (xs, ys) as (list something, list something) with
+      | ([], []) -> True
+      | ($x :: $xs', $y :: $ys') -> x == y && xs' == ys'
+      | _ -> False
+  (/=) xs ys := not (xs == ys)
+
 -- | Type class for comparison and ordering
 class Ord a extends Eq a where
   compare (x: a) (y: a) : Ordering
@@ -65,3 +73,53 @@ instance Ord Char where
   (>=) x y := ctoi x >= ctoi y
   min x y := if ctoi x < ctoi y then x else y
   max x y := if ctoi x > ctoi y then x else y
+
+instance Ord String where
+  compare s1 s2 := compare (unpack s1) (unpack s2)
+  (<) s1 s2 := compare s1 s2 = Less
+  (<=) s1 s2 := compare s1 s2 != Greater
+  (>) s1 s2 := compare s1 s2 = Greater
+  (>=) s1 s2 := compare s1 s2 != Less
+  min s1 s2 := if compare s1 s2 = Less then s1 else s2
+  max s1 s2 := if compare s1 s2 = Greater then s1 else s2
+
+instance {Ord a} Ord [a] where
+  compare c1 c2 :=
+    match (c1, c2) as (list something, list something) with
+      | ([], []) -> Equal
+      | ([], _) -> Less
+      | (_, []) -> Greater
+      | ($x :: $xs, #x :: $ys) -> compare xs ys
+      | ($x :: _, $y :: _) -> compare x y
+  (<) xs ys := compare xs ys = Less
+  (<=) xs ys := compare xs ys != Greater
+  (>) xs ys := compare xs ys = Greater
+  (>=) xs ys := compare xs ys != Less
+  min xs ys := if compare xs ys = Less then xs else ys
+  max xs ys := if compare xs ys = Greater then xs else ys
+
+-- | Type class for numeric types
+class Num a where
+  (+) (x: a) (y: a) : a
+  (-) (x: a) (y: a) : a
+  (*) (x: a) (y: a) : a
+  negate (x: a) : a
+  abs (x: a) : a
+  fromInteger (n: Integer) : a
+
+-- | Num instances for basic types
+instance Num MathExpr where
+  (+) x y := plusForMathExpr x y
+  (-) x y := minusForMathExpr x y
+  (*) x y := multForMathExpr x y
+  negate x := neg x
+  abs x := abs x
+  fromInteger n := n
+
+instance Num Float where
+  (+) x y := f.+ x y
+  (-) x y := f.- x y
+  (*) x y := f.* x y
+  negate x := f.neg x
+  abs x := f.abs x
+  fromInteger n := itof n

@@ -25,6 +25,6 @@ main = defaultMainWith defaultConfig
          , bgroup "collection"
            [ bench "cons-bench"       $ whnfIO $ runEgisonFile "benchmark/collection-bench-cons.egi"
            , bench "cons-bench-large" $ whnfIO $ runEgisonFile "benchmark/collection-bench-cons-large.egi"
-           , bench "snoc-bench"       $ whnfIO $ runEgisonFile "benchmark/collection-bench-snoc.egi"
+           , bench "*:-bench"         $ whnfIO $ runEgisonFile "benchmark/collection-bench-*:.egi"
            ]
          ]

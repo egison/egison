@@ -187,7 +187,7 @@ instance Pretty ArgPattern where
   pretty (APTuplePat args)       = tupled (map pretty args)
   pretty APEmptyPat              = pretty "[]"
   pretty (APConsPat arg1 arg2)   = pretty'' arg1 <+> pretty "::" <+> pretty'' arg2
-  pretty (APSnocPat arg1 arg2)   = applyLike [pretty "snoc", pretty' arg1, pretty' arg2]
+  pretty (APSnocPat arg1 arg2)   = pretty'' arg1 <+> pretty "*:" <+> pretty' arg2
 
 instance Pretty VarWithIndices where
   pretty (VarWithIndices xs is) = pretty xs <> hcat (map pretty is)
@@ -313,7 +313,7 @@ instance Pretty PrimitiveDataPattern where
   pretty (PDTuplePat pdpats)       = tupled (map pretty pdpats)
   pretty PDEmptyPat                = pretty "[]"
   pretty (PDConsPat pdp1 pdp2)     = pretty'' pdp1 <+> pretty "::" <+> pretty'' pdp2
-  pretty (PDSnocPat pdp1 pdp2)     = applyLike [pretty "snoc", pretty' pdp1, pretty' pdp2]
+  pretty (PDSnocPat pdp1 pdp2)     = pretty'' pdp1 <+> pretty "*:" <+> pretty' pdp2
   pretty (PDConstantPat expr)      = pretty expr
 
 instance Pretty Op where

@@ -2,15 +2,20 @@
 -- Matrices
 --
 
-def M.* %s %t := withSymbols [i, j, k] s~i~j . t_j
-def M.*' %s %t := withSymbols [i, j, k] s~i~j .' t_j
+def M.* {Num a} (s: Matrix a) (t: Matrix a) : Matrix a := 
+  withSymbols [i, j, k] s~i~j . t_j
 
-def M.power %t n := foldl M.* t (take (n - 1) (repeat1 t))
---M.power %m n := repeatedSquaring M.* m n
+def M.*' (s: Matrix MathExpr) (t: Matrix MathExpr) : Matrix MathExpr := 
+  withSymbols [i, j, k] s~i~j .' t_j
 
-def M.comm %m1 %m2 := withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
+def M.power {Num a} (t: Matrix a) (k: Integer) : Matrix a := 
+  foldl M.* t (take (k - 1) (repeat1 t))
+--M.power (m: Matrix a) k := repeatedSquaring M.* m k
 
-def M.inverse %m :=
+def M.comm {Num a} (m1: Matrix a) (m2: Matrix a) : Matrix a := 
+  withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
+
+def M.inverse {Num a} (m: Matrix a) : Matrix a :=
   let d := M.det m
    in generateTensor
         (\[i, j] ->
@@ -21,7 +26,8 @@ def M.inverse %m :=
               else - (M.det (M.join A B C D) / d))
         (tensorShape m)
 
-def trace %t := withSymbols [i] sum (contract t~i_i)
+def trace {Num a} (t: Matrix a) : a := 
+  withSymbols [i] sum (contract t~i_i)
 
 def matrix {} : Matcher Integer :=
   matcher
@@ -46,7 +52,8 @@ def matrix {} : Matcher Integer :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def M.join %A %B %C %D :=
+def M.join {a} (A: Matrix a) (B: Matrix a) (C: Matrix a) (D: Matrix a) 
+  : Matrix a :=
   let ashape := tensorShape A
       a1 := nth 1 ashape
       a2 := nth 2 ashape
@@ -74,16 +81,16 @@ def M.join %A %B %C %D :=
 --
 -- Determinant
 --
-def evenAndOddPermutations n :=
+def evenAndOddPermutations {a} (n: Integer) : ([[a] -> a], [[a] -> a]) :=
   let (es, os) := evenAndOddPermutations' n
    in (map 1#(\i -> nth i %1) es, map 1#(\i -> nth i %1) os)
 
-def evenAndOddPermutations0 n :=
+def evenAndOddPermutations0 {a} (n: Integer) : ([[a] -> a], [[a] -> a]) :=
   let (es, os) := evenAndOddPermutations' n
    in ( map 1#(\i -> nth (i + 1) (map 1#(%1 - 1) %1)) es
       , map 1#(\i -> nth (i + 1) (map 1#(%1 - 1) %1)) os )
 
-def evenAndOddPermutations' n :=
+def evenAndOddPermutations' (n: Integer) : ([[Integer]], [[Integer]]) :=
   match n as integer with
     | #1 -> ([[1]], [])
     | #2 -> ([[1, 2]], [[2, 1]])
@@ -100,12 +107,12 @@ def evenAndOddPermutations' n :=
                         (\i -> map (permutate i n) es')
                         (between 1 (n - 1))) )
 
-def permutate x y xs :=
+def permutate {a : Eq} (x: a) (y: a) (xs: [a]) : [a] :=
   match xs as list eq with
     | $hs ++ #x :: $ms ++ #y :: $ts -> hs ++ y :: ms ++ x :: ts
     | $hs ++ #y :: $ms ++ #x :: $ts -> hs ++ x :: ms ++ y :: ts
 
-def M.determinant %m :=
+def M.determinant {Num a} (m: Matrix a) : a :=
   match tensorShape m as list integer with
     | [#0, #0] -> 1
     | [$n, #n] ->
@@ -114,30 +121,24 @@ def M.determinant %m :=
             sum (map (\o -> product (map2 (\i j -> m_i_j) (between 1 n) o)) os)
     | _ -> undefined
 
-def M.det := M.determinant
+def M.det {Num a} : Matrix a -> a := M.determinant
 
 --
 -- Eigenvalues and eigenvectors
 --
-def M.eigenvalues %m :=
-  match tensorShape m as list integer with
-    | [#2, #2] ->
-      let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
-       in [e1, e2]
-    | _ -> undefined
+def M.eigenvalues {Num a} (m: Matrix a) : [a] :=
+  let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
+   in [e1, e2]
 
-def M.eigenvectors %m :=
-  match tensorShape m as list integer with
-    | [#2, #2] ->
-      let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
-       in [ (e1, clearIndex (T.- m (scalarToTensor e1 [2, 2]))_i_1)
-          , (e2, clearIndex (T.- m (scalarToTensor e2 [2, 2]))_i_1) ]
-    | _ -> undefined
+def M.eigenvectors {Num a} (m: Matrix a) : [(a, Vector a)] :=
+  let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
+   in [ (e1, clearIndex (T.- m (scalarToTensor e1 [2, 2]))_i_1)
+      , (e2, clearIndex (T.- m (scalarToTensor e2 [2, 2]))_i_1) ]
 
 --
 -- LU decomposition
 --
-def M.LU %x :=
+def M.LU {Num a} (x: Matrix a) : (Matrix a, Matrix a) :=
   match tensorShape x as list integer with
     | [#2, #2] ->
       let L := generateTensor
@@ -187,7 +188,7 @@ def M.LU %x :=
 --
 -- Utility
 --
-def generateMatrixFromQuadraticExpr f xs :=
+def generateMatrixFromQuadraticExpr {a} (f: a) (xs: [a]) : Matrix a :=
   generateTensor
     (\[i, j] -> coefficient2 f (nth i xs) (nth j xs))
     [length xs, length xs]

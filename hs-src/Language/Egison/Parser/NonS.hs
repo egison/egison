@@ -739,8 +739,21 @@ arg = InvertedScalarArg <$> (string "*$" >> argPatternAtom)
   <?> "argument"
 
 argPattern :: Parser ArgPattern
-argPattern =
-  argPatternAtom
+argPattern = makeExprParser argPatternAtom table
+        <?> "argument pattern"
+  where
+    table :: [[Operator Parser ArgPattern]]
+    table =
+      [ [ InfixR (apConsPatOp <$ symbol "::")
+        , InfixL (apSnocPatOp <$ symbol "*:")
+        ]
+      ]
+    
+    apConsPatOp :: ArgPattern -> ArgPattern -> ArgPattern
+    apConsPatOp lhs rhs = APConsPat (TensorArg lhs) rhs
+    
+    apSnocPatOp :: ArgPattern -> ArgPattern -> ArgPattern
+    apSnocPatOp lhs rhs = APSnocPat lhs (TensorArg rhs)
 
 argPatternAtom :: Parser ArgPattern
 argPatternAtom
@@ -1130,12 +1143,13 @@ pdPattern = makeExprParser pdApplyOrAtom table
   where
     table :: [[Operator Parser PrimitiveDataPattern]]
     table =
-      [ [ InfixR (PDConsPat <$ symbol "::") ]
+      [ [ InfixR (PDConsPat <$ symbol "::")
+        , InfixL (PDSnocPat <$ symbol "*:")
+        ]
       ]
 
     pdApplyOrAtom :: Parser PrimitiveDataPattern
     pdApplyOrAtom = PDInductivePat <$> upperId <*> many pdAtom
-                <|> PDSnocPat <$> (symbol "snoc" >> pdAtom) <*> pdAtom
                 <|> pdAtom
 
 pdAtom :: Parser PrimitiveDataPattern

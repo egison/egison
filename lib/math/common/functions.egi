@@ -2,104 +2,88 @@
 -- Mathematical Functions
 --
 
-def abs $x := if isRational x then b.abs x else x
+def abs (x: MathExpr) : MathExpr := if isRational x then b.abs x else 'abs x
 
-def neg $x := if isRational x then b.neg x else - x
+def neg (x: MathExpr) : MathExpr := if isRational x then b.neg x else - x
 
-def exp $x :=
-  if isFloat x
-    then b.exp x
-    else if isTerm x
-      then match x as termExpr with
-        | #0 -> 1
-        | #1 -> e
-        | mult $a #(i * π) -> (-1) ^ a
-        | _ -> 'exp x
-      else 'exp x
-
-def log $x :=
-  if isFloat x
-    then b.log x
-    else match x as mathExpr with
-      | #1 -> 0
-      | #e -> 1
-      | _ -> 'log x
-
-def cos $x :=
-  if isFloat x
-    then b.cos x
-    else match x as mathExpr with
+def exp (x: MathExpr) : MathExpr :=
+  if isTerm x
+    then match x as termExpr with
       | #0 -> 1
-      | term $n [#π] -> (-1) ^ abs n
-      | (mult _ #π) / #2 -> 0
-      | _ -> 'cos x
+      | #1 -> e
+      | mult $a #(i * π) -> (-1) ^ a
+      | _ -> 'exp x
+    else 'exp x
 
-def sin $x :=
-  if isFloat x
-    then b.sin x
-    else match x as mathExpr with
-      | #0 -> 0
-      | mult _ #π -> 0
-      | (mult $n #π) / #2 -> (-1) ^ ((abs n - 1) / 2)
-      | _ -> 'sin x
+def log (x: MathExpr) : MathExpr :=
+  match x as mathExpr with
+    | #1 -> 0
+    | #e -> 1
+    | _ -> 'log x
 
-def tan $x :=
-  if isFloat x
-    then b.tan x
-    else match x as mathExpr with
-      | #0 -> 0
-      | _ -> 'tan x
+def cos (x: MathExpr) : MathExpr :=
+  match x as mathExpr with
+    | #0 -> 1
+    | term $n [#π] -> (-1) ^ abs n
+    | (mult _ #π) / #2 -> 0
+    | _ -> 'cos x
 
-def acos := b.acos
-def asin := b.asin
-def atan := b.atan
+def sin (x: MathExpr) : MathExpr :=
+  match x as mathExpr with
+    | #0 -> 0
+    | mult _ #π -> 0
+    | (mult $n #π) / #2 -> (-1) ^ ((abs n - 1) / 2)
+    | _ -> 'sin x
 
-def cosh $x :=
-  if isFloat x
-    then b.cosh x
-    else match x as mathExpr with
-      | #0 -> 1
-      | _ -> 'cosh x
+def tan (x: MathExpr) : MathExpr :=
+  match x as mathExpr with
+    | #0 -> 0
+    | _ -> 'tan x
 
-def sinh $x :=
-  if isFloat x
-    then b.sinh x
-    else match x as mathExpr with
-      | #0 -> 0
-      | _ -> 'sinh x
+def acos : MathExpr -> MathExpr := b.acos
+def asin : MathExpr -> MathExpr := b.asin
+def atan : MathExpr -> MathExpr := b.atan
 
-def tanh $x :=
-  if isFloat x
-    then b.tanh x
-    else match x as mathExpr with
-      | #0 -> 0
-      | _ -> 'tanh x
+def cosh (x: MathExpr) : MathExpr :=
+  match x as mathExpr with
+    | #0 -> 1
+    | _ -> 'cosh x
 
-def acosh := b.acosh
-def asinh := b.asinh
-def atanh := b.atanh
+def sinh (x: MathExpr) : MathExpr :=
+  match x as mathExpr with
+    | #0 -> 0
+    | _ -> 'sinh x
 
-def sinc $x :=
-  if isFloat x
-    then if x = 0.0 then 1.0 else b.sin x / x
-    else match x as mathExpr with
-      | #0 -> 1
-      | _ -> sin x / x
+def tanh (x: MathExpr) : MathExpr :=
+  match x as mathExpr with
+    | #0 -> 0
+    | _ -> 'tanh x
 
-def sigmoid $z := 1 / (1 + exp (- z))
+def acosh : MathExpr -> MathExpr := b.acosh
+def asinh : MathExpr -> MathExpr := b.asinh
+def atanh : MathExpr -> MathExpr := b.atanh
 
-def kroneckerDelta js := if all (= head js) (tail js) then 1 else 0
+def sinc (x: MathExpr) : MathExpr :=
+  match x as mathExpr with
+    | #0 -> 1
+    | _ -> sin x / x
 
-def eulerTotientFunction $n := n * product (map (\p -> 1 - 1 / p) (unique (pF n)))
+def sigmoid (z: MathExpr) : MathExpr := 1 / (1 + exp (- z))
 
-def ε :=
+def kroneckerDelta (js: [Integer]) : Integer := 
+  if all (= head js) (tail js) then 1 else 0
+
+def eulerTotientFunction (n: Integer) : MathExpr := 
+  n * product (map (\p -> 1 - 1 / p) (unique (pF n)))
+
+def ε : Integer -> Tensor Integer :=
   memoizedLambda n ->
     let (es, os) := evenAndOddPermutations' n
      in generateTensor
           (\is -> if member is es then 1 else if member is os then -1 else 0)
           (take n (repeat1 n))
 
-def ε' :=
+def ε' : Integer -> Integer -> Tensor Integer :=
   memoizedLambda n k ->
     let (es, os) := evenAndOddPermutations' n
      in generateTensor

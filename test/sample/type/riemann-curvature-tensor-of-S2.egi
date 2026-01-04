@@ -2,22 +2,22 @@
 -- Based on sample/math/geometry/riemann-curvature-tensor-of-S2.egi
 
 -- Parameters (coordinates)
-def x : Tensor MathExpr [2] := [| θ, φ |]
+def x : Vector MathExpr := [| θ, φ |]
 
 -- Embedding in R^3
-def X : Tensor MathExpr [3] := [| r * sin θ * cos φ   -- x
-                                , r * sin θ * sin φ   -- y
-                                , r * cos θ           -- z
-                                |]
+def X : Vector MathExpr := [| r * sin θ * cos φ   -- x
+                            , r * sin θ * sin φ   -- y
+                            , r * cos θ           -- z
+                            |]
 
--- Basis vectors (tangent vectors)
-def e_i_j : Tensor MathExpr [2, 3] _i _j := ∂/∂ X_j x~i
+-- Basis vectors (tangent vectors) - 2x3 matrix
+def e : Matrix MathExpr_i_j := ∂/∂ X_j x~i
 
--- Metric tensor (covariant, g_ij)
-def g_i_j : Tensor MathExpr [2, 2] _i _j := generateTensor (\[a, b] -> V.* e_a_# e_b_#) [2, 2]
+-- Metric tensor (covariant, g_ij) - 2x2 matrix
+def g : Matrix MathExpr_i_j := generateTensor (\[a, b] -> V.* e_a_# e_b_#) [2, 2]
 
--- Inverse metric tensor (contravariant, g^ij)
-def g~i~j : Tensor MathExpr [2, 2] ~i ~j := M.inverse g_#_#
+-- Inverse metric tensor (contravariant, g^ij) - 2x2 matrix
+def g_inv : Matrix MathExpr~i~j := M.inverse g_#_#
 
 -- Test metric tensor
 assertEqual "Metric tensor g_i_j"
@@ -25,28 +25,28 @@ assertEqual "Metric tensor g_i_j"
   [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
 
 assertEqual "Inverse metric tensor g~i~j"
-  g~#~#
+  g_inv~#~#
   [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
 
 -- Christoffel symbols of the first kind (Γ_ijk)
-def Γ_i_j_k : Tensor MathExpr [2, 2, 2] _i _j _k :=
+def Γ : Tensor MathExpr_i_j_k :=
   (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 -- Christoffel symbols of the second kind (Γ^i_jk)
-def Γ~i_j_k : Tensor MathExpr [2, 2, 2] ~i _j _k := withSymbols [m]
-  g~i~m . Γ_m_j_k
+def Γ_up : Tensor MathExpr~i_j_k := withSymbols [m]
+  g_inv~i~m . Γ_m_j_k
 
 assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
-  Γ~1_#_#
+  Γ_up~1_#_#
   [| [| 0, 0 |], [| 0, -1 * sin θ * cos θ |] |]_#_#
 
 assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
-  Γ~2_#_#
+  Γ_up~2_#_#
   [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
 
 -- Riemann curvature tensor (R^i_jkl)
-def R~i_j_k_l : Tensor MathExpr [2, 2, 2, 2] ~i _j _k _l := withSymbols [m]
-  ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
+def R : Tensor MathExpr~i_j_k_l := withSymbols [m]
+  ∂/∂ Γ_up~i_j_l x~k - ∂/∂ Γ_up~i_j_k x~l + Γ_up~m_j_l . Γ_up~i_m_k - Γ_up~m_j_k . Γ_up~i_m_l
 
 assertEqual "Riemann curvature R~#_#_1_2"
   R~#_#_1_2
@@ -57,12 +57,12 @@ assertEqual "Riemann curvature R~#_#_2_1"
   [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |] |]~#_#
 
 -- Ricci curvature tensor (R_ij = R^m_imj)
-def Ric_i_j : Tensor MathExpr [2, 2] _i _j := withSymbols [m]
+def Ric : Tensor MathExpr_i_j := withSymbols [m]
   sum (contract R~m_i_m_j)
 
 -- Scalar curvature (R = g^ij R_ij)
 def scalarCurvature : MathExpr := withSymbols [i, j]
-  g~i~j . Ric_i_j
+  g_inv~i~j . Ric_i_j
 
 assertEqual "Scalar curvature of S2"
   scalarCurvature

@@ -1,7 +1,7 @@
 def countEvens n l :=
   match l as list integer with
-    | snoc ?isEven $tl -> countEvens (n + 1) tl
-    | snoc _ $tl -> countEvens n tl
+    | $tl *: ?isEven -> countEvens (n + 1) tl
+    | $tl *: _ -> countEvens n tl
     | [] -> n
 
 def testNumbers :=

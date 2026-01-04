@@ -4,7 +4,7 @@
 
 def mickey' $cs :=
   match cs as list char with
-    | snoc $z (snoc $y (snoc $x (snoc _ _ & $hs))) ->
+    | (($hs & _ *: _) *: $x) *: $y *: $z ->
       mickey' hs ++ [',', x, y, z]
     | _ -> cs
 
