@@ -1,10 +1,10 @@
 -- Get input and parse them into the format specified with sopts and copts.
 -- Used in --map and --filter options.
-def SH.genInput sopts copts :=
+def SH.genInput (sopts: [[Integer]]) (copts: [[Integer]]) : [a] :=
   map (TSV.parseLine sopts copts) (io (readLines ()))
   where
     -- Read multiple lines from stdin until EOF.
-    readLines () := do
+    readLines (unit: ()) : IO [String] := do
       let eof := isEof ()
       if eof
         then return []
@@ -12,10 +12,10 @@ def SH.genInput sopts copts :=
                 let lines := readLines ()
                 return (line :: lines)
 
-def TSV.parseLine sopts copts line :=
+def TSV.parseLine (sopts: [[Integer]]) (copts: [[Integer]]) (line: String) : a :=
   readTsv (S.intercalate "\t" (fnC copts (fnS sopts (S.split "\t" line))))
     where
-      fnS sopts xs :=
+      fnS (sopts: [[Integer]]) (xs: [String]) : [String] :=
         match sopts as list (list integer) with
         | [$m] :: $opts' ->
           let (hs, ts) := splitAt (m - 1) xs
@@ -30,7 +30,7 @@ def TSV.parseLine sopts copts line :=
            in fnS opts' (hs ++ map (\m -> S.concat ["\"", m, "\""]) ms ++ ts)
         | [$m, _] :: $opts' -> fnS ([m] :: opts') xs
         | _ -> xs
-      fnC copts xs :=
+      fnC (copts: [[Integer]]) (xs: [String]) : [String] :=
         match copts as list (list integer) with
         | [$m] :: $opts' ->
           let (hs, ts) := splitAt (m - 1) xs
@@ -46,4 +46,4 @@ def TSV.parseLine sopts copts line :=
         | [$m, _] :: $opts' -> fnC ([m] :: opts') xs
         | _ -> xs
 
-def TSV.show := showTsv
+def TSV.show {a} : a -> String := showTsv

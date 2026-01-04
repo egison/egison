@@ -7,7 +7,7 @@
 --
 -- Root
 --
-def rt n x :=
+def rt (n: MathExpr) (x: MathExpr) : MathExpr :=
   if isInteger n
     then match x as mathExpr with
       | #0 -> 0
@@ -20,34 +20,34 @@ def rt n x :=
       | _ -> rt'' n x
     else rt'' n x
 
-def rtMonomial n x :=
+def rtMonomial (n: MathExpr) (x: MathExpr) : MathExpr :=
   rtTerm n (numerator x * denominator x ^ (n - 1)) / denominator x
 
-def rtTerm n x :=
+def rtTerm (n: MathExpr) (x: MathExpr) : MathExpr :=
   match x as termExpr with
     | term $a _ ->
-      let rtm1 n := match n as integer with
+      let rtm1 (n: MathExpr) : MathExpr := match n as integer with
                     | #1 -> -1
                     | #2 -> i
                     | ?isOdd -> -1
                     | _ -> undefined
        in if a < 0 then rtm1 n *' rtPositiveTerm n (- x) else rtPositiveTerm n x
 
-def rtPositiveTerm n x :=
+def rtPositiveTerm (n: MathExpr) (x: MathExpr) : MathExpr :=
   match (n, x) as (mathExpr, mathExpr) with
     | (#3, $a * #i * $r) -> (- i) * rt 3 (a *' r)
     | (_, $a * #sqrt $b * $r) -> rt (n * 2) (a ^' 2 *' b) *' rt n r
     | (_, $a * #rt $n' $b * $r) -> rt (n * n') (a ^' n' *' b) *' rt n r
     | (_, _) -> rtPositiveTerm1 n x
   where
-    rtPositiveTerm1 n x :=
-      let f xs :=
+    rtPositiveTerm1 (n: MathExpr) (x: MathExpr) : MathExpr :=
+      let f (xs: [(MathExpr, MathExpr)]) : (MathExpr, MathExpr) :=
             match xs as assocMultiset mathExpr with
               | [] -> (1, 1)
               | $p ^ $k :: $rs ->
                 let (a, b) := f rs
                  in (p ^' quotient k n *' a, p ^' (k % n) *' b)
-          g n x :=
+          g (n: MathExpr) (x: MathExpr) : MathExpr :=
             let d := match x as termExpr with
                        | term $m $xs ->
                          gcd n (reduce gcd (map snd (toAssoc (pF m) ++ xs)))
@@ -58,21 +58,21 @@ def rtPositiveTerm n x :=
                 | ($a, #1) -> a
                 | ($a, $b) -> a *' g n b
 
-def rt'' n x :=
+def rt'' (n: MathExpr) (x: MathExpr) : MathExpr :=
   match (n, x) as (integer, integer) with
     | (#2, _) -> 'sqrt x
     | (_, _) -> 'rt n x
 
-def sqrt x :=
+def sqrt {a} (x: a) : a :=
   if isScalar x
     then let m := numerator x
              n := denominator x
           in rt 2 (m * n) / n
     else b.sqrt x
 
-def rtOfUnity := rtu
+def rtOfUnity : MathExpr -> MathExpr := rtu
 
-def rtu n :=
+def rtu (n: MathExpr) : MathExpr :=
   if isInteger n
     then match n as integer with
       | #1 -> 1

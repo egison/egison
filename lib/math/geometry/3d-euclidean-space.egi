@@ -1,6 +1,6 @@
-def coordinates := [x, y, z]
+def coordinates {} : [a] := [x, y, z]
 
-def metric :=
+def metric {} : b :=
   generateTensor
     (\match as list integer with
       | [$n, #n] -> 1
