@@ -55,10 +55,11 @@ import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TensorShape(..))
 import           Language.Egison.Type.TypeInfer (runTypedInferTopExprWithEnv)
-import           Language.Egison.Type.Env (generalize)
+import           Language.Egison.Type.Env (generalize, extendEnvMany, envToList)
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.TypedAST (TypedTopExpr(..), texprType)
 import           Language.Egison.Type.Error (formatTypeWarning)
+import           Language.Egison.Type.Check (builtinEnv)
 import qualified Data.HashMap.Strict as HashMap
 
 
@@ -134,8 +135,12 @@ evalExpandedTopExprsTyped' env exprs printValues = do
   --   4. Type signatures (from DefineWithType)
   envResult <- buildEnvironments exprs
   
-  -- Update EvalState with collected environments
-  setTypeEnv (ebrTypeEnv envResult)
+  -- Merge builtinEnv (primitive functions) with user-defined types
+  -- builtinEnv is the base, user definitions extend it (can override primitives)
+  let initialTypeEnv = extendEnvMany (envToList (ebrTypeEnv envResult)) builtinEnv
+  
+  -- Update EvalState with collected environments (including builtinEnv)
+  setTypeEnv initialTypeEnv
   setClassEnv (ebrClassEnv envResult)
   
   -- Register constructors to EvalState
