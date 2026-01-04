@@ -12,5 +12,5 @@ def cut (file: String) (nums: [Integer]) : IO () :=
        port
        (\$line ->
          let fs := S.split "," line
-          in print (S.intercalate "," (map 1#(nth %1 fs) nums)))
+          in print (S.intercalate "," (map 1#(nth $1 fs) nums)))
      closeInputPort port

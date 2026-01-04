@@ -15,7 +15,7 @@ def qtF' (a: MathExpr) (b: MathExpr) (c: MathExpr) (d: MathExpr) (e: MathExpr) :
           (r3, r4) := qF' 1 0 (- s2)
        in (r1, r2, r3, r4)
     | (#1, #0, $p, $q, $r) ->
-      let u := (3)#%1
+      let u := (3)#$1
                  (withSymbols [u]
                    cF (u * (p + u) ^ 2 + (-4) * r * u + (- (q ^ 2))) u)
           (r1, r2) := qF (y ^ 2 + (p + u) / 2 + sqrt u * (y - q / (2 * u))) y
@@ -24,7 +24,7 @@ def qtF' (a: MathExpr) (b: MathExpr) (c: MathExpr) (d: MathExpr) (e: MathExpr) :
                         y
        in (r1, r2, r3, r4)
     | (#1, _, _, _, _) ->
-      (4)#(%1 - b / 4, %2 - b / 4, %3 - b / 4, %4 - b / 4)
+      (4)#($1 - b / 4, $2 - b / 4, $3 - b / 4, $4 - b / 4)
         (withSymbols [x, y]
           qtF
             (substitute

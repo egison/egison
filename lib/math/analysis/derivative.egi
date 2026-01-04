@@ -36,7 +36,7 @@ def ∂/∂ (f : MathExpr) (!x : MathExpr) : MathExpr :=
     | #1 * $fx ^ $n -> n * fx ^ (n - 1) * ∂/∂ fx x
     | $a * $fx ^ $n * $r -> a * ∂/∂ (fx ^' n) x * r + a * fx ^' n * ∂/∂ r x
     -- polynomial
-    | poly $ts -> sum (map 1#(∂/∂ %1 x) ts)
+    | poly $ts -> sum (map 1#(∂/∂ $1 x) ts)
     -- quotient
     | $p1 / $p2 ->
       let p1' := ∂/∂ p1 x
@@ -64,12 +64,12 @@ def multivariateTaylorExpansion (f: MathExpr) (xs: Vector MathExpr) (ys: Vector 
     let hs := generateTensor (\[x] -> h_x) (tensorShape xs)
      in map2
           (*)
-          (map 1#(1 / fact %1) nats0)
+          (map 1#(1 / fact $1) nats0)
           (map
              (compose
-                1#(V.substitute xs ys %1)
-                1#(V.substitute hs (withSymbols [i] xs_i - ys_i) %1))
-             (iterate (compose 1#(∇ %1 xs) 1#(V.* hs %1)) f))
+                1#(V.substitute xs ys $1)
+                1#(V.substitute hs (withSymbols [i] xs_i - ys_i) $1))
+             (iterate (compose 1#(∇ $1 xs) 1#(V.* hs $1)) f))
 
 def multivariateMaclaurinExpansion (f: MathExpr) (xs: Vector MathExpr) : [MathExpr] :=
   multivariateTaylorExpansion f xs (tensorMap 1#0 xs)

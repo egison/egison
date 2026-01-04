@@ -83,12 +83,12 @@ def M.join {a} (A: Matrix a) (B: Matrix a) (C: Matrix a) (D: Matrix a)
 --
 def evenAndOddPermutations {a} (n: Integer) : ([[a] -> a], [[a] -> a]) :=
   let (es, os) := evenAndOddPermutations' n
-   in (map 1#(\i -> nth i %1) es, map 1#(\i -> nth i %1) os)
+   in (map 1#(\i -> nth i $1) es, map 1#(\i -> nth i $1) os)
 
 def evenAndOddPermutations0 {a} (n: Integer) : ([[a] -> a], [[a] -> a]) :=
   let (es, os) := evenAndOddPermutations' n
-   in ( map 1#(\i -> nth (i + 1) (map 1#(%1 - 1) %1)) es
-      , map 1#(\i -> nth (i + 1) (map 1#(%1 - 1) %1)) os )
+   in ( map 1#(\i -> nth (i + 1) (map 1#($1 - 1) $1)) es
+      , map 1#(\i -> nth (i + 1) (map 1#($1 - 1) $1)) os )
 
 def evenAndOddPermutations' (n: Integer) : ([[Integer]], [[Integer]]) :=
   match n as integer with
