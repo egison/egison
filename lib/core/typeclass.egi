@@ -1,10 +1,6 @@
 --
 -- Type Class Support Library
 --
--- This module provides type class definitions and instances.
--- Type class methods are represented as ClassMethodValue, which dispatches
--- to the appropriate implementation based on argument type at runtime.
---
 
 -- | Type class for equality
 class Eq a where
@@ -13,75 +9,59 @@ class Eq a where
 
 -- | Eq instances for basic types
 instance Eq Integer where
-  (==) x y := x = y
-  (/=) x y := not (x = y)
+  (==) x y := eqForInteger x y
+  (/=) x y := not (x == y)
 
 instance Eq Float where
-  (==) x y := x = y
-  (/=) x y := not (x = y)
+  (==) x y := eqForFloat x y
+  (/=) x y := not (x == y)
 
 instance Eq String where
-  (==) x y := x = y
-  (/=) x y := not (x = y)
+  (==) x y := eqForString x y
+  (/=) x y := not (x == y)
 
 instance Eq Bool where
-  (==) x y := x = y
-  (/=) x y := not (x = y)
+  (==) x y := eqForBool x y
+  (/=) x y := not (x == y)
 
 instance Eq Char where
-  (==) x y := x = y
-  (/=) x y := not (x = y)
+  (==) x y := eqForChar x y
+  (/=) x y := not (x == y)
 
---
--- Create ClassMethodValue for each type class method
--- These dispatch to the appropriate instance implementation at runtime
---
+-- | Type class for comparison and ordering
+class Ord a extends Eq a where
+  compare (x: a) (y: a) : Ordering
+  (<) (x: a) (y: a) : Bool
+  (<=) (x: a) (y: a) : Bool
+  (>) (x: a) (y: a) : Bool
+  (>=) (x: a) (y: a) : Bool
+  min (x: a) (y: a) : a
+  max (x: a) (y: a) : a
 
-def classEq := makeClassMethod "Eq" "eq" {|
-  ("Integer", eqIntegerEq),
-  ("Float", eqFloatEq),
-  ("String", eqStringEq),
-  ("Bool", eqBoolEq),
-  ("Char", eqCharEq)
-|}
+-- | Ord instances for basic types
+instance Ord Integer where
+  compare x y := if x < y then Less else if x > y then Greater else Equal
+  (<) x y := x < y
+  (<=) x y := x <= y
+  (>) x y := x > y
+  (>=) x y := x >= y
+  min x y := if x < y then x else y
+  max x y := if x > y then x else y
 
-def classNeq := makeClassMethod "Eq" "neq" {|
-  ("Integer", eqIntegerNeq),
-  ("Float", eqFloatNeq),
-  ("String", eqStringNeq),
-  ("Bool", eqBoolNeq),
-  ("Char", eqCharNeq)
-|}
+instance Ord Float where
+  compare x y := if x < y then Less else if x > y then Greater else Equal
+  (<) x y := x < y
+  (<=) x y := x <= y
+  (>) x y := x > y
+  (>=) x y := x >= y
+  min x y := if x < y then x else y
+  max x y := if x > y then x else y
 
--- Note: Ord type class is not defined here because (<) and (>) are 
--- primitive operators in Egison. The compare function is defined in
--- lib/core/order.egi and uses the primitive operators directly.
-
---
--- Auto-dispatch functions using ClassMethodValue
--- These are the user-facing functions that automatically dispatch
--- to the correct implementation
---
-
-def autoEq x y := classEq x y
-def autoNeq x y := classNeq x y
-
--- | Runtime dispatch for Ord-like operations
--- Note: These use primitive operators directly since Ord is not a type class
-def autoCompare x y :=
-  let tyName := typeName x in
-  if tyName = "Integer" || tyName = "Float"
-    then if x < y then -1 else if x > y then 1 else 0
-    else undefined
-
-def autoLt x y :=
-  let tyName := typeName x in
-  if tyName = "Integer" || tyName = "Float"
-    then x < y
-    else undefined
-
-def autoGt x y :=
-  let tyName := typeName x in
-  if tyName = "Integer" || tyName = "Float"
-    then x > y
-    else undefined
+instance Ord Char where
+  compare x y := if ctoi x < ctoi y then Less else if ctoi x > ctoi y then Greater else Equal
+  (<) x y := ctoi x < ctoi y
+  (<=) x y := ctoi x <= ctoi y
+  (>) x y := ctoi x > ctoi y
+  (>=) x y := ctoi x >= ctoi y
+  min x y := if ctoi x < ctoi y then x else y
+  max x y := if ctoi x > ctoi y then x else y

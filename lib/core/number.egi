@@ -49,13 +49,13 @@ def primes : [Integer] := 2 :: filter isPrime (drop 2 nats)
 
 def divisor (n: Integer) (d: Integer) : Bool := 0 = n % d
 
-def findFactor :=
+def findFactor : Integer -> Integer :=
   memoizedLambda n ->
     match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
       | _ ++ (?(divisor n) & $x) :: _ -> x
       | _ -> n
 
-def primeFactorization :=
+def primeFactorization : Integer -> [Integer] :=
   \match as integer with
     | #1 -> []
     | ?(< 0) & $n -> (-1) :: primeFactorization (neg n)
@@ -136,12 +136,12 @@ def showDecimal' (x: Integer) : String :=
 --
 def regularContinuedFraction (n: Integer) (xs: [Integer]) : Integer := n + foldr (\a r -> 1 / (a + r)) 0 xs
 
-def continuedFraction n xs ys :=
+def continuedFraction (n: Integer) (xs: [Integer]) (ys: [Integer]) : Integer :=
   match (xs, ys) as (list integer, list integer) with
     | ($x :: $xs, $y :: $ys) -> n + y / continuedFraction x xs ys
     | ([], []) -> n
 
-def regularContinuedFractionOfSqrtHelper m a b :=
+def regularContinuedFractionOfSqrtHelper (m: Integer) (a: Integer) (b: Integer) : [(Integer, Integer, Integer)] :=
   let n := floor (f.+ (rtof a) (f.* (rtof b) (sqrt (rtof m))))
       x := m - power n 2
    in if x = 0
@@ -152,7 +152,7 @@ def regularContinuedFractionOfSqrtHelper m a b :=
                                 ((a - n) / y)
                                 (neg (b / y))
 
-def regularContinuedFractionOfSqrt m :=
+def regularContinuedFractionOfSqrt (m: Integer) : (Integer, [Integer]) :=
   let n := floor (sqrt (rtof m))
       x := m - power n 2
    in if x = 0
@@ -160,7 +160,7 @@ def regularContinuedFractionOfSqrt m :=
         else ( n
         , map (3)#%3 (regularContinuedFractionOfSqrtHelper m (n / x) (1 / x)) )
 
-def regularContinuedFractionOfSqrt' m :=
+def regularContinuedFractionOfSqrt' (m: Integer) : (Integer, [Integer], [Integer]) :=
   let n := floor (sqrt (rtof m))
       x := m - power n 2
    in if x = 0

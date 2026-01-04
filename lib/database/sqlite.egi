@@ -6,26 +6,26 @@
 
 inductive DatabaseTable := | DatabaseTable String String
 
-def databaseTable : Matcher (String, String) :=
+def databaseTable {} : Matcher (String, String) :=
   algebraicDataMatcher
     | databaseTable string string
 
-def databaseName data :=
+def databaseName (data: (String, String)) : String :=
   match data as databaseTable with
     | databaseTable $n _ -> n
 
-def tableName data :=
+def tableName (data: (String, String)) : String :=
   match data as databaseTable with
     | databaseTable _ $n -> n
 
 --
 -- Generate SQL
 --
-def simpleSelect whats tableName wheres :=
+def simpleSelect {a} (whats: [String]) (tableName: String) (wheres: [(String, a)]) : String :=
   "select " ++ intercalate "," whats ++ " from " ++ tableName ++
     " " ++ simpleWhere wheres
 
-def simpleWhere wheres :=
+def simpleWhere {a} (wheres: [(String, a)]) : String :=
   let loopFn wheres :=
         match wheres as list (string, something) with
           | [] -> ""
@@ -37,4 +37,4 @@ def simpleWhere wheres :=
 --
 -- For SQLite
 --
-def pureSqlite db q := io (sqlite db q)
+def pureSqlite {a} (db: String) (q: String) : a := io (sqlite db q)

@@ -8,7 +8,7 @@
 --   is even, and -1 otherwise
 --   and the second element is the sorted collection represented as a 1-d tensor
 --   (vector)
-def sortWithSign xs :=
+def sortWithSign {a : Ord} (xs: [[a]]) : (Integer, [a]) :=
   match xs as list something with
   -- Optimization for the case where the length is less than 3
   | [] -> (1, xs)
@@ -22,13 +22,13 @@ def sortWithSign xs :=
            let xs' := return (map (\i -> io $ readIORef t_i) [1..n])
            return (sgn, concat xs'))
  where
-  colToTensor xs :=
+  colToTensor {a} (xs: [[a]]) : b :=
     generateTensor (\[n] -> io $
       do let t := newIORef ()
          writeIORef t (nth n xs)
          return t) [length xs]
 
-  sort' i j n ts sgn :=
+  sort' {a, b} (i: Integer) (j: Integer) (n: Integer) (ts: a) (sgn: Integer) : IO Integer :=
     if i = n
        then return sgn
        else do let x := readIORef ts_i
@@ -38,7 +38,7 @@ def sortWithSign xs :=
                if j = n then sort' (i + 1) (i + 2) n ts (sgn * swapped)
                         else sort' i (j + 1) n ts (sgn * swapped)
 
-  swap ts i j := do
+  swap {a, b} (ts: a) (i: Integer) (j: Integer) : IO () := do
     let tmpi := readIORef ts_i
     let tmpj := readIORef ts_j
     writeIORef ts_i tmpj

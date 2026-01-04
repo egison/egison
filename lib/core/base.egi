@@ -4,7 +4,7 @@
 --
 --
 
-def eq : Matcher {Eq a} :=
+def eq {a : Eq} : Matcher a :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
@@ -20,26 +20,26 @@ def float : Matcher Float := eq
 -- Utility
 --
 
-def id (x: a) : a := x
+def id {a} (x: a) : a := x
 
-def fst (x: a, _: b) : a := x
-def snd (_: a, y: b) : b := y
+def fst {a, b} (x: a, _: b) : a := x
+def snd {a, b} (_: a, y: b) : b := y
 
 infixr expression 0 $
 
-def ($) (f: a -> b) (x: a) : b := f x
+def ($) {a, b} (f: a -> b) (x: a) : b := f x
 
-def compose (f: a -> b) (g: b -> c) : a -> c := \x -> g (f x)
+def compose {a, b, c} (f: a -> b) (g: b -> c) : a -> c := \x -> g (f x)
 
-def flip (fn: a -> b -> c) : b -> a -> c := \$x $y -> fn y x
+def flip {a, b, c} (fn: a -> b -> c) : b -> a -> c := \$x $y -> fn y x
 
-def eqAs (a: Matcher b) (x: b) (y: b) : Bool :=
+def eqAs {b} (a: Matcher b) (x: b) (y: b) : Bool :=
   match x as a with
     | #y -> True
     | _ -> False
 
-def curry (f: (a, b) -> c) (x: a) (y: b) : c := f (x, y)
-def uncurry (f: a -> b -> c) (x: a, y: b) : c := f x y
+def curry {a, b, c} (f: (a, b) -> c) (x: a) (y: b) : c := f (x, y)
+def uncurry {a, b, c} (f: a -> b -> c) (x: a, y: b) : c := f x y
 
 --
 -- Boolean
@@ -57,7 +57,7 @@ def not (b: Bool) : Bool := if b then False else True
 -- Unordered Pair
 --
 
-def unorderedPair (m: Matcher a) : Matcher (a, a) :=
+def unorderedPair {a} (m: Matcher a) : Matcher (a, a) :=
   matcher
     | ($, $) as (m, m) with
       | ($x, $y) -> [(x, y), (y, x)]

@@ -8,7 +8,7 @@ def rands (s: Integer) (e: Integer) : [Integer] := pureRand s e :: rands s e
 
 def pureRand (s: Integer) (e: Integer) : Integer := io (rand s e)
 
-def randomize (xs: [a]) : [a] :=
+def randomize {a : Eq} (xs: [a]) : [a] :=
   let randomize' xs n :=
         if n = 0
           then []
@@ -19,7 +19,7 @@ def randomize (xs: [a]) : [a] :=
 
 def R.between (s: Integer) (e: Integer) : [Integer] := randomize [s..e]
 
-def R.multiset (a: Matcher b) : Matcher [b] :=
+def R.multiset {b} (a: Matcher b) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -37,24 +37,24 @@ def R.multiset (a: Matcher b) : Matcher [b] :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def R.uncons xs :=
+def R.uncons {a} (xs: [a]) : (a, [a]) :=
   head
     (matchAll xs as R.multiset something with
       | $x :: $rs -> (x, rs))
 
-def R.head xs :=
+def R.head {a} (xs: [a]) : a :=
   head
     (matchAll xs as R.multiset something with
       | $x :: _ -> x)
 
-def R.tail xs :=
+def R.tail {a} (xs: [a]) : [a] :=
   head
     (matchAll xs as R.multiset something with
       | _ :: $rs -> rs)
 
-def sample : [a] -> a := R.head
+def sample {a} : [a] -> a := R.head
 
-def R.set (a: Matcher b) : Matcher [b] :=
+def R.set {b} (a: Matcher b) : Matcher [b] :=
   matcher
     | [] as () with
       | [] -> [()]

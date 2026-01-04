@@ -4,7 +4,7 @@
 
 def dotProduct %v1 %v2 := withSymbols [i] v1~i . v2_i
 
-def V.* := dotProduct
+def V.* {a} : a -> a -> a := dotProduct
 
 def crossProduct/fn fn %a %b :=
   [|fn a_2 b_3 - fn a_3 b_2, fn a_3 b_1 - fn a_1 b_3, fn a_1 b_2 - fn a_2 b_1|]

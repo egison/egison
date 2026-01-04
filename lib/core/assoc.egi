@@ -4,14 +4,14 @@
 --
 --
 
-def toAssoc (xs: [a]) : [(a, Integer)] :=
+def toAssoc {a : Eq} (xs: [a]) : [(a, Integer)] :=
   match xs as list something with
     | [] -> []
     | $x :: (loop $i (2, $n)
                (#x :: ...)
                (!(#x :: _) & $rs)) -> (x, n) :: toAssoc rs
 
-def fromAssoc (xs: [(a, Integer)]) : [a] :=
+def fromAssoc {a} (xs: [(a, Integer)]) : [a] :=
   match xs as list (something, integer) with
     | [] -> []
     | ($x, $n) :: $rs -> take n (repeat1 x) ++ fromAssoc rs
@@ -19,7 +19,7 @@ def fromAssoc (xs: [(a, Integer)]) : [a] :=
 --
 -- Assoc Multiset
 --
-def assocMultiset (a: Matcher b) : Matcher [(b, Integer)] :=
+def assocMultiset {b} (a: Matcher b) : Matcher [(b, Integer)] :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -55,10 +55,10 @@ def assocMultiset (a: Matcher b) : Matcher [(b, Integer)] :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def AC.intersect (xs : [{Eq a}]) (ys : [a]) :=
+def AC.intersect {a : Eq} (xs : [a]) (ys : [a]) : [(a, Integer)] :=
   matchAll (xs, ys) as (assocMultiset something, assocMultiset something) with
     | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)
 
-def AC.intersectAs (a : Matcher {Eq b}) (xs : [b]) (ys : [b]) :=
+def AC.intersectAs {b : Eq} (a : Matcher b) (xs : [b]) (ys : [b]) : [(b, Integer)] :=
   matchAll (xs, ys) as (assocMultiset a, assocMultiset a) with
     | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)
