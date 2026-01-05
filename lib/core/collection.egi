@@ -8,9 +8,9 @@ infixr pattern 5 ++
 infixl pattern 5 *:
 
 inductive pattern [a] :=
-    | (::) a [a]
-    | (++) [a] [a]
-    | (*:) [a] [a]
+    | a :: [a]
+    | [a] ++ [a]
+    | [a] *: [a]
 
 --
 -- List
@@ -190,7 +190,7 @@ def zip3 {a, b, c} (xs: [a]) (ys: [b]) (zs: [c]) : [(a, b, c)] := map3 (\x y z -
 
 def zip4 {a, b, c, d} (xs: [a]) (ys: [b]) (zs: [c]) (ws: [d]) : [(a, b, c, d)] := map4 (\x y z w -> (x, y, z, w)) xs ys zs ws
 
-def lookup {a : Eq, b} (k : a) (xs : [(a, b)]) : b :=
+def lookup {Eq a, b} (k : a) (xs : [(a, b)]) : b :=
   match xs as list (eq, something) with
     | _ ++ (#k, $v) :: _ -> v
 
@@ -247,7 +247,7 @@ def intersperse {a} (sep: a) (ws: [a]) : [a] :=
 
 def intercalate {a} (sep: [a]) (ws: [[a]]) : [a] := concat (intersperse sep ws)
 
-def split {a : Eq} (sep: [a]) (ls: [a]) : [[a]] :=
+def split {Eq a} (sep: [a]) (ls: [a]) : [[a]] :=
   match ls as list something with
     | $xs ++ #sep ++ $rs -> xs :: split sep rs
     | _ -> [ls]
@@ -316,7 +316,7 @@ def multiset {a} (m: Matcher a) : Matcher [a] :=
       | $tgt ->
         matchAll tgt as list m with
           | $hs ++ $x :: $ts -> (x, hs ++ ts)
-    | {Eq a} #$pxs ++ $ as (multiset m) with
+    | #$pxs ++ $ as (multiset m) with
       | $tgt ->
         match (pxs, tgt) as (list m, multiset m) with
           | loop $i (1, length pxs, _)
@@ -342,7 +342,7 @@ def multiset {a} (m: Matcher a) : Matcher [a] :=
 --
 -- multiset operation
 --
-def deleteFirst {a : Eq} (x : a) (xs : [a]) : [a] :=
+def deleteFirst {Eq a} (x : a) (xs : [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | #x :: $rs -> rs
@@ -354,7 +354,7 @@ def deleteFirstAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] :=
     | #x :: $rs -> rs
     | $y :: $rs -> y :: deleteFirstAs m x rs
 
-def delete {a : Eq} (x: a) (xs: [a]) : [a] :=
+def delete {Eq a} (x: a) (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $hs ++ #x :: $ts -> hs ++ delete x ts
@@ -366,7 +366,7 @@ def deleteAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] :=
     | $hs ++ #x :: $ts -> hs ++ deleteAs m x ts
     | _ -> xs
 
-def difference {a : Eq} (xs: [a]) (ys: [a]) : [a] :=
+def difference {Eq a} (xs: [a]) (ys: [a]) : [a] :=
   match ys as list something with
     | [] -> xs
     | $y :: $rs -> difference (deleteFirst y xs) rs
@@ -376,7 +376,7 @@ def differenceAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
     | [] -> xs
     | $y :: $rs -> differenceAs m (deleteFirstAs m y xs) rs
 
-def include {a : Eq} (xs: [a]) (ys: [a]) : Bool :=
+def include {Eq a} (xs: [a]) (ys: [a]) : Bool :=
   match ys as list something with
     | [] -> True
     | $y :: $rs ->
@@ -388,7 +388,7 @@ def includeAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : Bool :=
     | $y :: $rs ->
       if memberAs m y xs then includeAs m (deleteFirst y xs) rs else False
 
-def union {a : Eq} (xs: [a]) (ys: [a]) : [a] :=
+def union {Eq a} (xs: [a]) (ys: [a]) : [a] :=
   xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
     | ($y :: _, !(#y :: _)) -> y)
 
@@ -396,7 +396,7 @@ def unionAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
   xs ++ (matchAll (ys, xs) as (multiset m, multiset m) with
     | ($y :: _, !(#y :: _)) -> y)
 
-def intersect {a : Eq} (xs: [a]) (ys: [a]) : [a] :=
+def intersect {Eq a} (xs: [a]) (ys: [a]) : [a] :=
   matchAll (xs, ys) as (multiset something, multiset something) with
     | ($x :: _, #x :: _) -> x
 
@@ -407,7 +407,7 @@ def intersectAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
 --
 -- Simple predicate
 --
-def member {a : Eq} (x: a) (ys: [a]) : Bool :=
+def member {Eq a} (x: a) (ys: [a]) : Bool :=
   match ys as list something with
     | _ ++ #x :: _ -> True
     | _ -> False
@@ -420,13 +420,13 @@ def memberAs {a} (m: Matcher a) (x: a) (ys: [a]) : Bool :=
 --
 -- Counting
 --
-def count {a : Eq} (x: a) (xs: [a]) : Integer :=
+def count {Eq a} (x: a) (xs: [a]) : Integer :=
   foldl (\acc y -> if x = y then acc + 1 else acc) 0 xs
 
 def countAs {a} (m: Matcher a) (x: a) (xs: [a]) : Integer :=
   foldl (\acc y -> if eqAs m x y then acc + 1 else acc) 0 xs
 
-def frequency {a : Eq} (xs: [a]) : [(a, Integer)] :=
+def frequency {Eq a} (xs: [a]) : [(a, Integer)] :=
   map (\u -> (u, count u xs)) (unique xs)
 
 def frequencyAs {a} (m: Matcher a) (xs: [a]) : [(a, Integer)] :=
@@ -435,7 +435,7 @@ def frequencyAs {a} (m: Matcher a) (xs: [a]) : [(a, Integer)] :=
 --
 -- Index
 --
-def elemIndices {a : Eq} (x: a) (xs: [a]) : [Integer] :=
+def elemIndices {Eq a} (x: a) (xs: [a]) : [Integer] :=
   matchAll xs as list something with
     | $hs ++ #x :: _ -> 1 + length hs
 
@@ -451,7 +451,7 @@ def set {a} (m: Matcher a) : Matcher [a] :=
       | $tgt ->
         matchAll tgt as list m with
           | _ ++ $x :: _ -> (x, tgt)
-    | {Eq a} #$pxs ++ $ as (set m) with
+    | #$pxs ++ $ as (set m) with
       | $tgt ->
         match (pxs, tgt) as (list m, set m) with
           | ( loop $i (1, $n) ($x_i :: ...) []
@@ -475,15 +475,15 @@ def set {a} (m: Matcher a) : Matcher [a] :=
 --
 -- set operation
 --
-def add {a : Eq} (x: a) (xs: [a]) : [a] := if member x xs then xs else xs ++ [x]
+def add {Eq a} (x: a) (xs: [a]) : [a] := if member x xs then xs else xs ++ [x]
 
 def addAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] := if memberAs m x xs then xs else xs ++ [x]
 
-def fastUnique {a : Eq} (xs: [a]) : [a] :=
+def fastUnique {Eq a} (xs: [a]) : [a] :=
   matchAll sort xs as list something with
     | _ ++ $x :: !(#x :: _) -> x
 
-def unique {a : Eq} (xs: [a]) : [a] :=
+def unique {Eq a} (xs: [a]) : [a] :=
   reverse
     (matchAll reverse xs as list something with
       | _ ++ $x :: !(_ ++ #x :: _) -> x)

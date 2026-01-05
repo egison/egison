@@ -4,7 +4,7 @@
 --
 --
 
-def toAssoc {a : Eq} (xs: [a]) : [(a, Integer)] :=
+def toAssoc {Eq a} (xs: [a]) : [(a, Integer)] :=
   match xs as list something with
     | [] -> []
     | $x :: (loop $i (2, $n)
@@ -55,10 +55,10 @@ def assocMultiset {a} (m: Matcher a) : Matcher [(a, Integer)] :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def AC.intersect {a : Eq} (xs : [a]) (ys : [a]) : [(a, Integer)] :=
+def AC.intersect {Eq a} (xs : [a]) (ys : [a]) : [(a, Integer)] :=
   matchAll (xs, ys) as (assocMultiset something, assocMultiset something) with
     | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)
 
-def AC.intersectAs {a : Eq} (m : Matcher a) (xs : [a]) (ys : [a]) : [(a, Integer)] :=
+def AC.intersectAs {Eq a} (m : Matcher a) (xs : [a]) (ys : [a]) : [(a, Integer)] :=
   matchAll (xs, ys) as (assocMultiset m, assocMultiset m) with
     | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)

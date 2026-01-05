@@ -38,14 +38,16 @@ data EgisonOpts = EgisonOpts {
     optMathNormalize    :: Bool,
     optTypeCheck        :: Bool,       -- ^ Enable type checking
     optTypeCheckStrict  :: Bool,       -- ^ Strict type checking mode
-    optDumpEnv          :: Bool        -- ^ Dump environment after Phase 2
+    optDumpEnv          :: Bool,       -- ^ Dump environment after Phase 2
+    optDumpDesugared    :: Bool        -- ^ Dump desugared AST after Phase 3
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False False True False "> " Nothing True True False False
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False False True False "> " Nothing True True False False False
 --                                                                                                     ^^^^^ optNoPrelude
 --                                                                                                                                      ^^^^ optTypeCheck is now True by default
 --                                                                                                                                              ^^^^^ optDumpEnv
+--                                                                                                                                                      ^^^^^ optDumpDesugared
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -137,6 +139,9 @@ cmdArgParser = EgisonOpts
             <*> switch
                   (long "dump-env"
                   <> help "Dump environment information after Phase 2 (environment building)")
+            <*> switch
+                  (long "dump-desugared"
+                  <> help "Dump desugared AST after Phase 3 (desugaring)")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

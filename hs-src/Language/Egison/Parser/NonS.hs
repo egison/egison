@@ -100,19 +100,30 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
 
 -- | Parse pattern inductive type declaration
 -- e.g., inductive pattern MyList a := | myNil | myCons a (MyList a)
+--       inductive pattern [a] := | (::) a [a] | (++) [a] [a]
 patternInductiveExpr :: Parser TopExpr
 patternInductiveExpr = try $ do
   pos <- L.indentLevel
   reserved "inductive"
   reserved "pattern"
-  typeName <- upperId
-  -- Parse optional type parameters (lowercase identifiers)
-  typeParams <- many typeVarIdent
+  -- Type name can be either uppercase identifier or list type [a]
+  (typeName, typeParams) <- try listTypeName <|> regularTypeName
   _ <- symbol ":="
   -- Parse constructors - they must be indented more than the 'inductive pattern' keyword
   -- or on the same line separated by |
   constructors <- patternConstructors pos
   return $ PatternInductiveDecl typeName typeParams constructors
+  where
+    regularTypeName = do
+      name <- upperId
+      params <- many typeVarIdent
+      return (name, params)
+    listTypeName = do
+      -- Parse [a] as type name "[]" with type parameter "a"
+      _ <- symbol "["
+      param <- typeVarIdent
+      _ <- symbol "]"
+      return ("[]", [param])
 
 -- | Parse constructors for pattern inductive type
 patternConstructors :: Pos -> Parser [PatternConstructor]
@@ -126,13 +137,49 @@ patternConstructors basePos = do
   return (first : rest)
 
 -- | Parse a single pattern constructor
--- e.g., myNil, myCons a (MyList a)
+-- e.g., myNil, myCons a (MyList a), (::) a [a], (++) [a] [a]
+--      a :: [a], [a] ++ [a], [a] *: [a]  (infix operator notation)
 patternConstructor :: Parser PatternConstructor
-patternConstructor = do
-  name <- lowerId  -- Pattern constructors use lowercase
-  -- Parse argument types
-  args <- many (try inductiveArgType)
-  return $ PatternConstructor name args
+patternConstructor = try infixPatternConstructor <|> prefixPatternConstructor
+  where
+    -- Infix operator notation: a :: [a], [a] ++ [a]
+    -- Parse as: leftArg op rightArg
+    infixPatternConstructor = do
+      -- Parse left argument (must be a complete type expression)
+      leftArg <- inductiveTypeAtom
+      -- Try to parse an infix operator after whitespace
+      ops <- gets patternOps
+      op <- choice $ map (try . infixPatternOp . repr) ops
+      -- Parse right argument
+      rightArg <- inductiveTypeAtom
+      return $ PatternConstructor (repr op) [leftArg, rightArg]
+    
+    -- Infix operator parser for pattern constructors
+    -- Must be followed by whitespace and then a type atom start
+    infixPatternOp :: String -> Parser Op
+    infixPatternOp sym = do
+      -- Parse the operator symbol
+      opSym <- string sym
+      -- Ensure operator is followed by whitespace (not another operator char)
+      -- This allows operators to appear after ] or ) from the left argument
+      notFollowedBy patOpChar
+      sc  -- consume whitespace
+      ops <- gets patternOps
+      let opInfo = findOpFrom opSym ops
+      return opInfo
+    
+    -- Prefix notation: myNil, myCons a (MyList a), (::) a [a]
+    prefixPatternConstructor = do
+      name <- try parenOperator <|> lowerId  -- Pattern constructors can be lowercase or operator in parens
+      -- Parse argument types
+      args <- many (try inductiveArgType)
+      return $ PatternConstructor name args
+    
+    parenOperator = do
+      _ <- symbol "("
+      op <- some (oneOf ("!#$%&*+./<=>?@\\^|-~:" :: String))
+      _ <- symbol ")"
+      return op
 
 -- | Parse inductive data type declaration
 -- e.g., inductive Ordering := | Less | Equal | Greater
@@ -452,31 +499,19 @@ defineExpr = try defineWithType <|> defineWithoutType
 extractVarWithIndices :: VarWithIndices -> (String, [VarIndex])
 extractVarWithIndices (VarWithIndices name indices) = (name, indices)
 
--- | Parse type class constraints: {Eq a, Ord b} or type variables: {a, b}
+-- | Parse type class constraints: {Eq a, Ord b}
 -- Type variables without constraints are ignored (they are inferred automatically)
--- Two formats supported:
---   1. {Eq a, Ord b}  -- for matcher patterns (className typeVar)
---   2. {a : Eq, b : Ord}  -- for function definitions (typeVar : className)
---   3. {a : Eq, b}  -- mixed: some with constraints, some without
---   4. {}  -- empty (no constraints)
+-- Format: {Eq a, Ord b}  -- className typeVar
+--         {}  -- empty (no constraints)
 typeConstraints :: Parser [ConstraintExpr]
 typeConstraints = braces $ (catMaybes <$> (typeConstraintOrVar `sepBy1` symbol ",")) <|> return []
   where
     typeConstraintOrVar = (Just <$> try typeConstraint) <|> (try typeVar >> return Nothing)
     
-    typeConstraint = try classFirst <|> try typeVarFirst
-    
-    -- Format 1: {Eq a} - for matcher patterns
-    classFirst = do
+    -- Format: {Eq a} - className typeVar
+    typeConstraint = do
       className <- upperId
       typeVar <- typeVarIdent
-      return $ ConstraintExpr className [TEVar typeVar]
-    
-    -- Format 2: {a : Eq} - for function definitions
-    typeVarFirst = do
-      typeVar <- typeVarIdent
-      _ <- symbol ":"
-      className <- upperId
       return $ ConstraintExpr className [TEVar typeVar]
     
     -- Type variable without constraint (ignored)

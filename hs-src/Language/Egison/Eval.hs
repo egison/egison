@@ -155,6 +155,11 @@ evalExpandedTopExprsTyped' env exprs printValues = do
     dumpEnvironment initialTypeEnv (ebrClassEnv envResult) (ebrConstructorEnv envResult) 
                     (ebrPatternConstructorEnv envResult) (ebrPatternTypeEnv envResult)
   
+  -- Dump desugared AST if requested
+  when (optDumpDesugared opts) $ do
+    desugaredExprs <- desugarTopExprs exprs
+    dumpDesugared (map Just desugaredExprs)
+  
   -- Get the environments for type inference
   -- Permissive mode allows falling back to untyped evaluation on type errors
   let permissive = not (optTypeCheckStrict opts)
@@ -514,4 +519,19 @@ dumpEnvironment typeEnv classEnv ctorEnv patternCtorEnv patternEnv = do
     putStrLn ""
     
     putStrLn "=== End of Environment Information ==="
+
+-- | Dump desugared AST after Phase 3 (Desugaring)
+dumpDesugared :: [Maybe ITopExpr] -> EvalM ()
+dumpDesugared desugaredExprs = do
+  liftIO $ do
+    putStrLn "=== Desugared AST (Phase 3: Desugaring) ==="
+    putStrLn ""
+    if null desugaredExprs
+      then putStrLn "  (none)"
+      else forM_ (zip [1..] desugaredExprs) $ \(i, mExpr) ->
+        case mExpr of
+          Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
+          Just expr -> putStrLn $ "  [" ++ show i ++ "] " ++ show expr
+    putStrLn ""
+    putStrLn "=== End of Desugared AST ==="
 
