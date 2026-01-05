@@ -222,6 +222,8 @@ desugarTopExpr (InductiveDecl _ _ _) = return Nothing
 
 -- Infix declarations don't produce runtime code
 desugarTopExpr (InfixDecl _ _) = return Nothing
+desugarTopExpr (PatternInductiveDecl _ _ _) = return Nothing  -- Handled in environment building phase
+desugarTopExpr (PatternFunctionDecl _ _ _ _ _) = return Nothing  -- Handled in environment building phase
 
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern

@@ -46,37 +46,11 @@ unify' (TTuple []) TUnit = Right emptySubst
 unify' (TVar v) t = unifyVar v t
 unify' t (TVar v) = unifyVar v t
 
--- TAny unifies with anything
-unify' TAny _ = Right emptySubst
-unify' _ TAny = Right emptySubst
-
--- Compound types
-unify' (TList t1) (TList t2) = unify t1 t2
-
 unify' (TTuple ts1) (TTuple ts2)
   | length ts1 == length ts2 = unifyMany ts1 ts2
   | otherwise = Left $ TypeMismatch (TTuple ts1) (TTuple ts2)
 
-unify' (TFun a1 r1) (TFun a2 r2) = do
-  s1 <- unify a1 a2
-  s2 <- unify (applySubst s1 r1) (applySubst s1 r2)
-  Right $ composeSubst s2 s1
-
-unify' (TMatcher t1) (TMatcher t2) = unify t1 t2
-unify' (TPattern t1) (TPattern t2) = unify t1 t2
-unify' (TPatternFunc args1 ret1) (TPatternFunc args2 ret2)
-  | length args1 == length args2 = do
-    s1 <- unifyMany args1 args2
-    s2 <- unify (applySubst s1 ret1) (applySubst s1 ret2)
-    Right $ composeSubst s2 s1
-  | otherwise = Left $ TypeMismatch (TPatternFunc args1 ret1) (TPatternFunc args2 ret2)
 unify' (TCollection t1) (TCollection t2) = unify t1 t2
-unify' (THash k1 v1) (THash k2 v2) = do
-  s1 <- unify k1 k2
-  s2 <- unify (applySubst s1 v1) (applySubst s1 v2)
-  Right $ composeSubst s2 s1
-unify' (TIORef t1) (TIORef t2) = unify t1 t2
-unify' (TIO t1) (TIO t2) = unify t1 t2
 
 -- Inductive types
 unify' (TInductive n1 ts1) (TInductive n2 ts2)
@@ -86,6 +60,26 @@ unify' (TInductive n1 ts1) (TInductive n2 ts2)
 -- Tensor types
 -- Tensor a and Tensor b unify if a and b unify
 unify' (TTensor t1) (TTensor t2) = unify t1 t2
+
+unify' (THash k1 v1) (THash k2 v2) = do
+  s1 <- unify k1 k2
+  s2 <- unify (applySubst s1 v1) (applySubst s1 v2)
+  Right $ composeSubst s2 s1
+
+unify' (TMatcher t1) (TMatcher t2) = unify t1 t2
+
+unify' (TFun a1 r1) (TFun a2 r2) = do
+  s1 <- unify a1 a2
+  s2 <- unify (applySubst s1 r1) (applySubst s1 r2)
+  Right $ composeSubst s2 s1
+
+unify' (TIO t1) (TIO t2) = unify t1 t2
+
+unify' (TIORef t1) (TIORef t2) = unify t1 t2
+
+-- TAny unifies with anything
+unify' TAny _ = Right emptySubst
+unify' _ TAny = Right emptySubst
 
 -- Tensor a and a unify as a (according to type-tensor-simple.md)
 -- Tensor MathExpr unifies with MathExpr as MathExpr

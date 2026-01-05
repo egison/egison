@@ -222,13 +222,16 @@ collectWarnings config ty
       [AnyTypeWarning "Expression contains 'Any' type" emptyContext]
   | otherwise = []
   where
-    containsAny TAny = True
-    containsAny (TList t) = containsAny t
     containsAny (TTuple ts) = any containsAny ts
-    containsAny (TFun t1 t2) = containsAny t1 || containsAny t2
-    containsAny (TMatcher t) = containsAny t
+    containsAny (TCollection t) = containsAny t
+    containsAny (TInductive _ ts) = any containsAny ts
     containsAny (TTensor t) = containsAny t
+    containsAny (THash k v) = containsAny k || containsAny v
+    containsAny (TMatcher t) = containsAny t
+    containsAny (TFun t1 t2) = containsAny t1 || containsAny t2
     containsAny (TIO t) = containsAny t
+    containsAny (TIORef t) = containsAny t
+    containsAny TAny = True
     containsAny _ = False
 
 -- | Built-in type environment with primitive functions
@@ -299,8 +302,8 @@ builtinTypes = concat
       , ("addSuperscript", binOp TInt TInt TInt)  -- MathExpr operations
       , ("assert", binOp TString TBool TBool)
       , ("assertEqual", forallA $ ternOpT TString (TVar a) (TVar a) TBool)
-      , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TList TInt))
-      , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TList (TVar a)))
+      , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
+      , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))
       , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)
       ]
 
@@ -379,7 +382,7 @@ builtinTypes = concat
       , ("flush", unaryOp TUnit (TIO TUnit))
       , ("rand", binOp TInt TInt (TIO TInt))
       , ("f.rand", binOp TFloat TFloat (TIO TFloat))
-      , ("readProcess", Forall [a] [] $ ternOpT TString (TList TString) TString (TIO TString))
+      , ("readProcess", Forall [a] [] $ ternOpT TString (TCollection TString) TString (TIO TString))
       ]
 
     -- Type conversion functions (from Primitives.Types.hs)
@@ -400,14 +403,14 @@ builtinTypes = concat
 
     -- String functions (from Primitives.String.hs)
     stringTypes =
-      [ ("pack", Forall [] [] $ TFun (TList TChar) TString)
-      , ("unpack", Forall [] [] $ TFun TString (TList TChar))
+      [ ("pack", Forall [] [] $ TFun (TCollection TChar) TString)
+      , ("unpack", Forall [] [] $ TFun TString (TCollection TChar))
       , ("unconsString", Forall [] [] $ TFun TString (TTuple [TChar, TString]))
       , ("lengthString", unaryOp TString TInt)
       , ("appendString", binOp TString TString TString)
-      , ("splitString", binOp TString TString (TList TString))
-      , ("regex", binOp TString TString (TList (TTuple [TString, TString, TString])))
-      , ("regexCg", binOp TString TString (TList (TTuple [TString, TList TString, TString])))
+      , ("splitString", binOp TString TString (TCollection TString))
+      , ("regex", binOp TString TString (TCollection (TTuple [TString, TString, TString])))
+      , ("regexCg", binOp TString TString (TCollection (TTuple [TString, TCollection TString, TString])))
       , ("read", Forall [] [] (TIO TString))
       , ("readTsv", unaryOp TString (TVar a))
       , ("show", forallA $ TFun (TVar a) TString)

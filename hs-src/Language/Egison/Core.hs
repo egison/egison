@@ -90,7 +90,7 @@ valueToType (ScalarData _)   = TInt  -- MathExpr = TInt in Egison
 valueToType (Float _)        = TFloat
 valueToType (Char _)         = TChar
 valueToType (String _)       = TString
-valueToType (Collection _)   = TList TAny  -- TODO: infer element type
+valueToType (Collection _)   = TCollection TAny  -- TODO: infer element type
 valueToType (Tuple vs)       = TTuple (map valueToType vs)
 valueToType (IntHash _)      = THash TInt TAny
 valueToType (CharHash _)     = THash TChar TAny
@@ -105,7 +105,7 @@ whnfToType :: WHNFData -> Type
 whnfToType (Value val) = valueToType val
 whnfToType (IInductiveData name _) = TInductive name []
 whnfToType (ITuple refs) = TTuple (replicate (length refs) TAny)  -- Can't know element types without evaluation
-whnfToType (ICollection _) = TList TAny
+whnfToType (ICollection _) = TCollection TAny
 whnfToType (IIntHash _) = THash TInt TAny
 whnfToType (ICharHash _) = THash TChar TAny
 whnfToType (IStrHash _) = THash TString TAny

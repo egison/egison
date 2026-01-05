@@ -26,6 +26,12 @@ module Language.Egison.Type.Env
   , lookupClass
   , lookupInstances
   , classEnvToList
+  -- * Pattern type environment
+  , PatternTypeEnv(..)
+  , emptyPatternEnv
+  , extendPatternEnv
+  , lookupPatternEnv
+  , patternEnvToList
   ) where
 
 import           Data.Map.Strict            (Map)
@@ -40,6 +46,11 @@ import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (
 
 -- | Type environment: maps variable names to type schemes
 newtype TypeEnv = TypeEnv { unTypeEnv :: Map String TypeScheme }
+  deriving (Eq, Show)
+
+-- | Pattern type environment: maps pattern function names to type schemes
+-- This is separate from the value type environment
+newtype PatternTypeEnv = PatternTypeEnv { unPatternTypeEnv :: Map String TypeScheme }
   deriving (Eq, Show)
 
 -- | Empty type environment
@@ -108,22 +119,19 @@ instantiate (Forall vs cs t) counter =
     substVar _ _ TChar = TChar
     substVar _ _ TString = TString
     substVar _ _ TUnit = TUnit
-    substVar _ _ TAny = TAny
     substVar old new (TVar v)
       | v == old = new
       | otherwise = TVar v
-    substVar old new (TList t') = TList (substVar old new t')
     substVar old new (TTuple ts) = TTuple (map (substVar old new) ts)
-    substVar old new (TFun t1 t2) = TFun (substVar old new t1) (substVar old new t2)
-    substVar old new (TMatcher t') = TMatcher (substVar old new t')
-    substVar old new (TPattern t') = TPattern (substVar old new t')
-    substVar old new (TTensor t') = TTensor (substVar old new t')
     substVar old new (TCollection t') = TCollection (substVar old new t')
+    substVar old new (TInductive name ts) = TInductive name (map (substVar old new) ts)
+    substVar old new (TTensor t') = TTensor (substVar old new t')
     substVar old new (THash k v) = THash (substVar old new k) (substVar old new v)
-    substVar old new (TIORef t') = TIORef (substVar old new t')
+    substVar old new (TMatcher t') = TMatcher (substVar old new t')
+    substVar old new (TFun t1 t2) = TFun (substVar old new t1) (substVar old new t2)
     substVar old new (TIO t') = TIO (substVar old new t')
-    substVar old new (TPatternFunc argTs retT) =
-      TPatternFunc (map (substVar old new) argTs) (substVar old new retT)
+    substVar old new (TIORef t') = TIORef (substVar old new t')
+    substVar _ _ TAny = TAny
 
 -- | Apply a substitution to the type environment
 applySubstEnv :: Subst -> TypeEnv -> TypeEnv
@@ -164,4 +172,24 @@ lookupInstances name (ClassEnv _ insts) = Map.findWithDefault [] name insts
 -- | Convert class environment to list
 classEnvToList :: ClassEnv -> [(String, ClassInfo)]
 classEnvToList (ClassEnv classes _) = Map.toList classes
+
+--------------------------------------------------------------------------------
+-- Pattern Type Environment
+--------------------------------------------------------------------------------
+
+-- | Empty pattern type environment
+emptyPatternEnv :: PatternTypeEnv
+emptyPatternEnv = PatternTypeEnv Map.empty
+
+-- | Extend the pattern type environment with a new binding
+extendPatternEnv :: String -> TypeScheme -> PatternTypeEnv -> PatternTypeEnv
+extendPatternEnv name scheme (PatternTypeEnv env) = PatternTypeEnv $ Map.insert name scheme env
+
+-- | Look up a pattern constructor/function in the environment
+lookupPatternEnv :: String -> PatternTypeEnv -> Maybe TypeScheme
+lookupPatternEnv name (PatternTypeEnv env) = Map.lookup name env
+
+-- | Convert pattern type environment to list
+patternEnvToList :: PatternTypeEnv -> [(String, TypeScheme)]
+patternEnvToList (PatternTypeEnv env) = Map.toList env
 

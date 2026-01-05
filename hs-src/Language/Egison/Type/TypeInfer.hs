@@ -158,7 +158,7 @@ inferTypedExpr expr = case expr of
                 then freshVar "elem"
                 else return $ texprType (head typedExprs)
     let subst = foldr composeSubst emptySubst (map snd results)
-    return (TypedExpr (TList elemType) (TCollectionExpr typedExprs), subst)
+    return (TypedExpr (TCollection elemType) (TCollectionExpr typedExprs), subst)
   
   -- Hash
   HashExpr pairs -> do
@@ -271,7 +271,7 @@ inferTypedExpr expr = case expr of
     let elemType = if null typedClauses
                    then TVar (TyVar "a")
                    else texprType (snd (head typedClauses))
-    return (TypedExpr (TList elemType) (TMatchAllExpr mode targetTyped matcherTyped typedClauses), s12)
+    return (TypedExpr (TCollection elemType) (TMatchAllExpr mode targetTyped matcherTyped typedClauses), s12)
   
   -- Quote
   QuoteExpr e -> do
@@ -309,7 +309,7 @@ inferTypedExpr expr = case expr of
     (shapeTyped, s2) <- inferTypedExpr shapeE
     let s12 = composeSubst s2 s1
     elemType <- case texprType dataTyped of
-      TList e -> return e
+      TCollection e -> return e
       _ -> freshVar "tensorElem"
     return (TypedExpr (TTensor elemType) (TTensorExpr dataTyped shapeTyped), s12)
   
@@ -386,8 +386,8 @@ inferTypedExpr expr = case expr of
   -- Pattern function
   PatternFunctionExpr params body -> do
     typedBody <- inferTypedPattern body (TVar (TyVar "a"))
-    let paramTypes = replicate (length params) (TPattern (TVar (TyVar "a")))
-        resultType = TPatternFunc paramTypes (TVar (TyVar "a"))
+    let paramTypes = replicate (length params) (TVar (TyVar "a"))
+        resultType = foldr TFun (TVar (TyVar "a")) paramTypes
     return (TypedExpr resultType (TPatternFunctionExpr params typedBody), emptySubst)
   
   -- Function expression (for symbolic computation)
@@ -430,7 +430,7 @@ inferTypedExpr expr = case expr of
     (hTyped, s1) <- inferTypedExpr h
     (tTyped, s2) <- inferTypedExpr t
     let s12 = composeSubst s2 s1
-    s3 <- unifyTypes (TList (texprType hTyped)) (texprType tTyped)
+    s3 <- unifyTypes (TCollection (texprType hTyped)) (texprType tTyped)
     let finalS = composeSubst s3 s12
     return (TypedExpr (applySubst finalS (texprType tTyped)) (TConsExpr hTyped tTyped), finalS)
   
@@ -477,7 +477,7 @@ inferTypedExpr expr = case expr of
                    then TVar (TyVar "a")
                    else texprType (snd (head typedClauses))
     argType <- freshVar "matchArg"
-    return (TypedExpr (TFun argType (TList elemType)) (TMatchAllLambdaExpr matcherTyped typedClauses), s1)
+    return (TypedExpr (TFun argType (TCollection elemType)) (TMatchAllLambdaExpr matcherTyped typedClauses), s1)
   
   -- Default: use fallback for unhandled expressions
   _ -> do
@@ -636,13 +636,13 @@ inferTypedPattern pat ty = case pat of
     return $ TypedPattern ty (TPTuplePat psTyped)
   InductivePat name ps -> do
     elemType <- case ty of
-      TList e -> return e
+      TCollection e -> return e
       _ -> freshVar "indElem"
     psTyped <- mapM (\p -> inferTypedPattern p elemType) ps
     return $ TypedPattern ty (TPInductivePat name psTyped)
   InfixPat op p1 p2 -> do
     elemType <- case ty of
-      TList e -> return e
+      TCollection e -> return e
       _ -> freshVar "infixElem"
     p1Typed <- inferTypedPattern p1 elemType
     p2Typed <- inferTypedPattern p2 ty
@@ -652,7 +652,7 @@ inferTypedPattern pat ty = case pat of
   SeqNilPat -> return $ TypedPattern ty TPSeqNilPat
   SeqConsPat p1 p2 -> do
     elemType <- case ty of
-      TList e -> return e
+      TCollection e -> return e
       _ -> freshVar "seqElem"
     p1Typed <- inferTypedPattern p1 elemType
     p2Typed <- inferTypedPattern p2 ty
@@ -685,19 +685,19 @@ extractPatternVarBindings pat targetType = go pat targetType
       concat <$> zipWithM go ps elemTypes
     go (InductivePat "cons" [h, t]) ty = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "consElem"
       hBindings <- go h elemTy
       tBindings <- go t ty
       return (hBindings ++ tBindings)
     go (InductivePat _ ps) ty = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "indElem"
       concat <$> mapM (\p -> go p elemTy) ps
     go (InfixPat _ p1 p2) ty = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "infixElem"
       (++) <$> go p1 elemTy <*> go p2 ty
     go (LetPat _ p) ty = go p ty
@@ -708,12 +708,12 @@ extractPatternVarBindings pat targetType = go pat targetType
       return (pBindings ++ psBindings)
     go (PApplyPat _ ps) ty = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "papplyElem"
       concat <$> mapM (\p -> go p elemTy) ps
     go (InductiveOrPApplyPat _ ps) ty = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "iopElem"
       concat <$> mapM (\p -> go p elemTy) ps
     go (VarPat name) ty = return [(name, Forall [] [] ty)]
@@ -727,7 +727,7 @@ extractPatternVarBindings pat targetType = go pat targetType
     go SeqNilPat _ = return []
     go (SeqConsPat p1 p2) ty = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "seqElem"
       (++) <$> go p1 elemTy <*> go p2 ty
     go LaterPatVar _ = return []
@@ -841,6 +841,19 @@ inferTypedTopExpr topExpr = case topExpr of
       return (name, params, bodyTyped)
     let contextTypes = map (\(ConstraintExpr _ ts) -> map typeExprToType ts) constraints
     return $ Just $ TInstanceDecl (concat contextTypes) className (map typeExprToType instTypes) typedMethods
+  
+  PatternInductiveDecl typeName typeParams constructors -> do
+    -- Pattern inductive declarations are handled in environment building phase
+    _ <- Infer.inferTopExpr topExpr
+    let typedConstrs = map (\(PatternConstructor n ts) -> (n, map typeExprToType ts)) constructors
+    return $ Just $ TInductiveDecl typeName typeParams typedConstrs  -- Reuse TInductiveDecl for now
+  
+  PatternFunctionDecl name typeParams params retType body -> do
+    -- Pattern function declarations are handled in environment building phase
+    -- Here we just verify the pattern body type
+    _ <- Infer.inferTopExpr topExpr
+    -- Pattern functions don't produce runtime code, so return Nothing
+    return Nothing
   
   _ -> do
     -- For other top expressions, just run the regular inference

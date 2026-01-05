@@ -16,6 +16,7 @@ module Language.Egison.EvalState
   , MethodDict
   , ConstructorEnv
   , ConstructorInfo(..)
+  , PatternConstructorEnv
   ) where
 
 import           Control.Monad.Except
@@ -27,7 +28,7 @@ import           Data.HashMap.Strict              (HashMap)
 
 import           Language.Egison.IExpr
 import           Language.Egison.Type.Types       (Type, TypeScheme)
-import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, emptyEnv, emptyClassEnv, extendEnv)
+import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv, extendEnv, extendPatternEnv)
 
 -- | Instance environment: maps class name -> method name -> type -> implementation
 -- The implementation is stored as a function reference (Var name)
@@ -43,6 +44,10 @@ data ConstructorInfo = ConstructorInfo
   } deriving (Show, Eq)
 
 type ConstructorEnv = HashMap String ConstructorInfo
+
+-- | Pattern constructor environment: maps pattern constructor name -> type scheme
+-- This uses the same format as PatternTypeEnv for consistency
+type PatternConstructorEnv = PatternTypeEnv
 
 data EvalState = EvalState
   { funcNameStack  :: [Var]          -- ^ Names of called functions for improved error message

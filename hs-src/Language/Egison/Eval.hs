@@ -50,13 +50,13 @@ import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
-import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv)
+import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
 import           Language.Egison.IExpr
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.TypeInfer (runTypedInferTopExprWithEnv)
-import           Language.Egison.Type.Env (TypeEnv, ClassEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances)
+import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.TypedAST (TypedTopExpr(..), texprType)
 import           Language.Egison.Type.Error (formatTypeWarning)
@@ -152,7 +152,8 @@ evalExpandedTopExprsTyped' env exprs printValues = do
   
   -- Dump environment if requested
   when (optDumpEnv opts) $ do
-    dumpEnvironment initialTypeEnv (ebrClassEnv envResult) (ebrConstructorEnv envResult)
+    dumpEnvironment initialTypeEnv (ebrClassEnv envResult) (ebrConstructorEnv envResult) 
+                    (ebrPatternConstructorEnv envResult) (ebrPatternTypeEnv envResult)
   
   -- Get the environments for type inference
   -- Permissive mode allows falling back to untyped evaluation on type errors
@@ -436,8 +437,8 @@ evalTopExpr' env (ILoadFile file) = do
 --------------------------------------------------------------------------------
 
 -- | Dump environment information after Phase 2 (Environment Building)
-dumpEnvironment :: TypeEnv -> ClassEnv -> ConstructorEnv -> EvalM ()
-dumpEnvironment typeEnv classEnv ctorEnv = do
+dumpEnvironment :: TypeEnv -> ClassEnv -> ConstructorEnv -> PatternConstructorEnv -> PatternTypeEnv -> EvalM ()
+dumpEnvironment typeEnv classEnv ctorEnv patternCtorEnv patternEnv = do
   liftIO $ do
     putStrLn "=== Environment Information (Phase 2: Environment Building) ==="
     putStrLn ""
@@ -492,6 +493,24 @@ dumpEnvironment typeEnv classEnv ctorEnv = do
               then retType
               else intercalate " -> " (map prettyType (ctorArgTypes ctorInfo) ++ [retType])
         putStrLn $ "  " ++ ctorName ++ " : " ++ ctorType
+    putStrLn ""
+    
+    -- 5. Pattern Constructors
+    putStrLn "--- Pattern Constructors ---"
+    let patternCtorBindings = patternEnvToList patternCtorEnv
+    if null patternCtorBindings
+      then putStrLn "  (none)"
+      else forM_ patternCtorBindings $ \(ctorName, scheme) ->
+        putStrLn $ "  " ++ ctorName ++ " : " ++ prettyTypeScheme scheme
+    putStrLn ""
+    
+    -- 6. Pattern Functions
+    putStrLn "--- Pattern Functions ---"
+    let patternBindings = patternEnvToList patternEnv
+    if null patternBindings
+      then putStrLn "  (none)"
+      else forM_ patternBindings $ \(name, scheme) ->
+        putStrLn $ "  " ++ name ++ " : " ++ prettyTypeScheme scheme
     putStrLn ""
     
     putStrLn "=== End of Environment Information ==="

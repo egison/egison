@@ -42,6 +42,8 @@ module Language.Egison.AST
   , TypedVarWithIndices (..)
   -- Inductive data types
   , InductiveConstructor (..)
+  -- Pattern inductive types
+  , PatternConstructor (..)
   -- Type classes
   , ClassDecl (..)
   , ClassMethod (..)
@@ -74,6 +76,14 @@ data TopExpr
   | InstanceDeclExpr InstanceDecl
     -- ^ Type class instance declaration
     -- e.g., instance Eq Integer where (==) x y := x = y
+  | PatternInductiveDecl String [String] [PatternConstructor]
+    -- ^ Pattern inductive type declaration
+    -- e.g., inductive pattern MyList a := | myNil | myCons a (MyList a)
+    -- String: pattern type name, [String]: type parameters, [PatternConstructor]: constructors
+  | PatternFunctionDecl String [String] [(String, TypeExpr)] TypeExpr Pattern
+    -- ^ Pattern function declaration
+    -- e.g., def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a := ...
+    -- String: function name, [String]: type parameters, [(String, TypeExpr)]: parameters, TypeExpr: return type, Pattern: body
  deriving Show
 
 -- | Type class declaration
@@ -126,6 +136,13 @@ data ConstraintExpr = ConstraintExpr
 data InductiveConstructor = InductiveConstructor
   { inductiveCtorName :: String      -- ^ Constructor name (e.g., "Less", "S", "Node")
   , inductiveCtorArgs :: [TypeExpr]  -- ^ Constructor argument types (e.g., [], [Nat], [Tree, Tree])
+  } deriving (Show, Eq)
+
+-- | Constructor for pattern inductive type
+-- e.g., myNil, myCons a (MyList a)
+data PatternConstructor = PatternConstructor
+  { patternCtorName :: String      -- ^ Pattern constructor name (e.g., "myNil", "myCons")
+  , patternCtorArgs :: [TypeExpr]  -- ^ Pattern constructor argument types (e.g., [], [a, MyList a])
   } deriving (Show, Eq)
 
 data ConstantExpr

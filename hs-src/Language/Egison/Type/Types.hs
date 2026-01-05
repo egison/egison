@@ -55,25 +55,18 @@ data Type
   | TBool                             -- ^ Bool
   | TChar                             -- ^ Char
   | TString                           -- ^ String
-  | TVar TyVar                        -- ^ Type variable, e.g., a
-  | TList Type                        -- ^ List type, e.g., [a]
-  | TTuple [Type]                     -- ^ Tuple type, e.g., (a, b)
-  | TFun Type Type                    -- ^ Function type, e.g., a -> b
-  | TMatcher Type                     -- ^ Matcher type, e.g., Matcher a
-  | TPattern Type                     -- ^ Pattern type for matcher definitions
-  | TPatternFunc [Type] Type          -- ^ Pattern function type
-                                      --   e.g., Pattern a -> Pattern [a] -> Pattern [a]
-  | TTensor Type                      -- ^ Tensor type (only element type is kept)
-                                      --   e.g., Tensor Integer
-  | TCollection Type                  -- ^ Collection (for internal use)
-  | THash Type Type                   -- ^ Hash map type
-  | TIORef Type                       -- ^ IORef type
-  | TIO Type                          -- ^ IO type (for IO actions)
   | TUnit                             -- ^ Unit type ()
-  | TAny                              -- ^ Any type (for gradual typing)
+  | TVar TyVar                        -- ^ Type variable, e.g., a
+  | TTuple [Type]                     -- ^ Tuple type, e.g., (a, b)
+  | TCollection Type                  -- ^ Collection type, e.g., [a]
   | TInductive String [Type]          -- ^ Inductive data type with type arguments
-                                      --   e.g., TInductive "Maybe" [TInt] = Maybe Integer
-                                      --   e.g., TInductive "Ordering" [] = Ordering
+  | TTensor Type                      -- ^ Tensor type (only element type is kept)
+  | THash Type Type                   -- ^ Hash map type
+  | TMatcher Type                     -- ^ Matcher type, e.g., Matcher a
+  | TFun Type Type                    -- ^ Function type, e.g., a -> b
+  | TIO Type                          -- ^ IO type (for IO actions)
+  | TIORef Type                       -- ^ IORef type
+  | TAny                              -- ^ Any type (for gradual typing)
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | Type alias: MathExpr = Integer in Egison
@@ -101,7 +94,7 @@ data ClassInfo = ClassInfo
 
 -- | Information about a type class instance
 data InstanceInfo = InstanceInfo
-  { instContext :: [Constraint]        -- ^ Instance context (e.g., "Eq a" in "Eq a => Eq [a]")
+  { instContext :: [Constraint]        -- ^ Instance context (e.g., "Eq a" in "{Eq a} Eq [a]")
   , instClass   :: String              -- ^ Class name
   , instType    :: Type                -- ^ Instance type
   , instMethods :: [(String, ())]      -- ^ Method implementations (placeholder for now)
@@ -119,20 +112,17 @@ freeTyVars TBool            = Set.empty
 freeTyVars TChar            = Set.empty
 freeTyVars TString          = Set.empty
 freeTyVars TUnit            = Set.empty
-freeTyVars TAny             = Set.empty
 freeTyVars (TVar v)         = Set.singleton v
-freeTyVars (TList t)        = freeTyVars t
 freeTyVars (TTuple ts)      = Set.unions (map freeTyVars ts)
-freeTyVars (TFun t1 t2)     = freeTyVars t1 `Set.union` freeTyVars t2
-freeTyVars (TMatcher t)     = freeTyVars t
-freeTyVars (TPattern t)     = freeTyVars t
-freeTyVars (TPatternFunc ts t) = Set.unions (map freeTyVars ts) `Set.union` freeTyVars t
-freeTyVars (TTensor t)      = freeTyVars t
 freeTyVars (TCollection t)  = freeTyVars t
-freeTyVars (THash k v)      = freeTyVars k `Set.union` freeTyVars v
-freeTyVars (TIORef t)       = freeTyVars t
-freeTyVars (TIO t)          = freeTyVars t
 freeTyVars (TInductive _ ts) = Set.unions (map freeTyVars ts)
+freeTyVars (TTensor t)      = freeTyVars t
+freeTyVars (THash k v)      = freeTyVars k `Set.union` freeTyVars v
+freeTyVars (TMatcher t)     = freeTyVars t
+freeTyVars (TFun t1 t2)     = freeTyVars t1 `Set.union` freeTyVars t2
+freeTyVars (TIO t)          = freeTyVars t
+freeTyVars (TIORef t)       = freeTyVars t
+freeTyVars TAny             = Set.empty
 
 -- | Check if a type is a tensor type
 isTensorType :: Type -> Bool

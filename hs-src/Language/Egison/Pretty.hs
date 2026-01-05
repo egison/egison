@@ -41,6 +41,19 @@ instance Pretty TopExpr where
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
+  pretty (PatternInductiveDecl typeName typeParams constructors) =
+    let typeParamsDoc = if null typeParams then emptyDoc else hsep (map pretty typeParams)
+        constructorsDoc = vsep $ map (\(PatternConstructor name args) ->
+          pretty "|" <+> pretty name <+> hsep (map pretty args)) constructors
+    in pretty "inductive" <+> pretty "pattern" <+> pretty typeName <+> typeParamsDoc <+> 
+       pretty ":=" <+> constructorsDoc
+  pretty (PatternFunctionDecl name typeParams params retType body) =
+    let typeParamsDoc = if null typeParams then emptyDoc 
+                        else braces (hsep $ punctuate (pretty ",") (map pretty typeParams))
+        paramsDoc = hsep $ map (\(pname, ptype) -> 
+          parens (pretty pname <+> pretty ":" <+> pretty ptype)) params
+    in pretty "def" <+> pretty "pattern" <+> pretty name <+> typeParamsDoc <+> 
+       paramsDoc <+> pretty ":" <+> pretty retType <+> pretty ":=" <+> pretty body
   pretty _ = error "Unsupported topexpr"
 
 instance Pretty ConstantExpr where
