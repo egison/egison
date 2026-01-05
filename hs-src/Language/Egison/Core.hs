@@ -95,7 +95,7 @@ valueToType (Tuple vs)       = TTuple (map valueToType vs)
 valueToType (IntHash _)      = THash TInt TAny
 valueToType (CharHash _)     = THash TChar TAny
 valueToType (StrHash _)      = THash TString TAny
-valueToType (TensorData _)   = TTensor TAny ShapeUnknown []
+valueToType (TensorData _)   = TTensor TAny
 valueToType (InductiveData name _) = TInductive name []  -- TODO: infer type args
 valueToType _                = TAny
 
@@ -109,7 +109,7 @@ whnfToType (ICollection _) = TList TAny
 whnfToType (IIntHash _) = THash TInt TAny
 whnfToType (ICharHash _) = THash TChar TAny
 whnfToType (IStrHash _) = THash TString TAny
-whnfToType (ITensor _) = TTensor TAny ShapeUnknown []
+whnfToType (ITensor _) = TTensor TAny
 
 -- | Typed WHNF data: WHNF with type information
 data TWHNFData = TWHNFData

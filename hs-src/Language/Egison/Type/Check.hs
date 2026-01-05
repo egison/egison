@@ -227,7 +227,7 @@ collectWarnings config ty
     containsAny (TTuple ts) = any containsAny ts
     containsAny (TFun t1 t2) = containsAny t1 || containsAny t2
     containsAny (TMatcher t) = containsAny t
-    containsAny (TTensor t _ _) = containsAny t
+    containsAny (TTensor t) = containsAny t
     containsAny (TIO t) = containsAny t
     containsAny _ = False
 
@@ -236,19 +236,17 @@ builtinEnv :: TypeEnv
 builtinEnv = extendEnvMany builtinTypes emptyEnv
 
 -- | Types for built-in functions
+-- Only functions defined in Primitives.hs are included here.
+-- Functions defined in lib/ are NOT included (they are loaded from files).
 builtinTypes :: [(String, TypeScheme)]
 builtinTypes = concat
-  [ arithTypes
-  , comparisonTypes
-  , booleanTypes
-  , listTypes
-  , tupleTypes
-  , ioTypes
-  , conversionTypes
-  , tensorTypes
-  , matcherTypes
+  [ constantsTypes
+  , primitivesTypes
+  , arithTypes
   , stringTypes
-  , mathTypes
+  , typeFunctionsTypes
+  , ioTypes
+  , matcherTypes
   , utilityTypes
   ]
   where
@@ -289,55 +287,62 @@ builtinTypes = concat
     forallABBinOp :: Type -> Type -> Type -> TypeScheme
     forallABBinOp t1 t2 t3 = Forall [a, b] [] $ binOpT t1 t2 t3
 
-    -- Arithmetic operators
+    -- Constants (from Primitives.hs)
+    constantsTypes =
+      [ ("f.pi", Forall [] [] TFloat)
+      , ("f.e", Forall [] [] TFloat)
+      ]
+
+    -- Primitives from Primitives.hs (strictPrimitives and lazyPrimitives)
+    primitivesTypes =
+      [ ("addSubscript", binOp TInt TInt TInt)  -- MathExpr operations
+      , ("addSuperscript", binOp TInt TInt TInt)  -- MathExpr operations
+      , ("assert", binOp TString TBool TBool)
+      , ("assertEqual", forallA $ ternOpT TString (TVar a) (TVar a) TBool)
+      , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TList TInt))
+      , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TList (TVar a)))
+      , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)
+      ]
+
+    -- Arithmetic operators (from Primitives.Arith.hs)
+    -- Note: +, -, *, /, mod, ^, abs, neg, +., -., *., /., sqrt, exp, log, sin, cos, tan, etc.
+    -- are defined in lib/ and are NOT included here
     arithTypes =
-      [ ("+",  binOp TInt TInt TInt)
-      , ("-",  binOp TInt TInt TInt)
-      , ("*",  binOp TInt TInt TInt)
-      , ("/",  binOp TInt TInt TInt)
-      , ("mod", binOp TInt TInt TInt)
-      , ("modulo", binOp TInt TInt TInt)
-      , ("quotient", binOp TInt TInt TInt)
-      , ("%", binOp TInt TInt TInt)
-      , ("^",  binOp TInt TInt TInt)
-      , ("abs", unaryOp TInt TInt)
-      , ("neg", unaryOp TInt TInt)
-      -- Internal base operators (b.+ etc.)
-      , ("b.+", binOp TInt TInt TInt)
+      [ -- Internal base operators
+        ("b.+", binOp TInt TInt TInt)
       , ("b.-", binOp TInt TInt TInt)
       , ("b.*", binOp TInt TInt TInt)
       , ("b./", binOp TInt TInt TInt)
+      -- Floating point arithmetic
+      , ("f.+", binOp TFloat TFloat TFloat)
+      , ("f.-", binOp TFloat TFloat TFloat)
+      , ("f.*", binOp TFloat TFloat TFloat)
+      , ("f./", binOp TFloat TFloat TFloat)
+      -- Fraction operations
+      , ("numerator", unaryOp TInt TInt)
+      , ("denominator", unaryOp TInt TInt)
+      -- MathExpr operations
+      , ("fromMathExpr", unaryOp TInt TInt)
+      , ("toMathExpr'", unaryOp TInt TInt)
+      , ("symbolNormalize", unaryOp TInt TInt)
+      -- Integer operations
+      , ("modulo", binOp TInt TInt TInt)
+      , ("quotient", binOp TInt TInt TInt)
+      , ("%", binOp TInt TInt TInt)
       , ("b.abs", unaryOp TInt TInt)
       , ("b.neg", unaryOp TInt TInt)
-      -- Floating point arithmetic
-      , ("+.",  binOp TFloat TFloat TFloat)
-      , ("-.",  binOp TFloat TFloat TFloat)
-      , ("*.",  binOp TFloat TFloat TFloat)
-      , ("/.",  binOp TFloat TFloat TFloat)
-      , ("f.+",  binOp TFloat TFloat TFloat)
-      , ("f.-",  binOp TFloat TFloat TFloat)
-      , ("f.*",  binOp TFloat TFloat TFloat)
-      , ("f./",  binOp TFloat TFloat TFloat)
-      -- Floating point constants
-      , ("f.pi", Forall [] [] TFloat)
-      , ("f.e", Forall [] [] TFloat)
+      -- Comparison operators
+      , ("=", forallABinOp (TVar a) (TVar a) TBool)
+      , ("<", forallABinOp (TVar a) (TVar a) TBool)
+      , ("<=", forallABinOp (TVar a) (TVar a) TBool)
+      , (">", forallABinOp (TVar a) (TVar a) TBool)
+      , (">=", forallABinOp (TVar a) (TVar a) TBool)
+      -- Rounding functions
+      , ("round", unaryOp TFloat TInt)
+      , ("floor", unaryOp TFloat TInt)
+      , ("ceiling", unaryOp TFloat TInt)
+      , ("truncate", unaryOp TFloat TInt)
       -- Math functions
-      , ("sqrt", unaryOp TFloat TFloat)
-      , ("exp", unaryOp TFloat TFloat)
-      , ("log", unaryOp TFloat TFloat)
-      , ("sin", unaryOp TFloat TFloat)
-      , ("cos", unaryOp TFloat TFloat)
-      , ("tan", unaryOp TFloat TFloat)
-      , ("asin", unaryOp TFloat TFloat)
-      , ("acos", unaryOp TFloat TFloat)
-      , ("atan", unaryOp TFloat TFloat)
-      , ("sinh", unaryOp TFloat TFloat)
-      , ("cosh", unaryOp TFloat TFloat)
-      , ("tanh", unaryOp TFloat TFloat)
-      , ("asinh", unaryOp TFloat TFloat)
-      , ("acosh", unaryOp TFloat TFloat)
-      , ("atanh", unaryOp TFloat TFloat)
-      -- Internal base math (b.sqrt etc.)
       , ("b.sqrt", unaryOp TFloat TFloat)
       , ("b.sqrt'", unaryOp TFloat TFloat)
       , ("b.exp", unaryOp TFloat TFloat)
@@ -354,134 +359,12 @@ builtinTypes = concat
       , ("b.asinh", unaryOp TFloat TFloat)
       , ("b.acosh", unaryOp TFloat TFloat)
       , ("b.atanh", unaryOp TFloat TFloat)
-      -- Rounding functions
-      , ("round", unaryOp TFloat TInt)
-      , ("floor", unaryOp TFloat TInt)
-      , ("ceiling", unaryOp TFloat TInt)
-      , ("truncate", unaryOp TFloat TInt)
-      -- Fraction operations
-      , ("numerator", unaryOp TInt TInt)
-      , ("denominator", unaryOp TInt TInt)
       ]
 
-    -- Comparison operators
-    comparisonTypes =
-      [ ("=",  forallABinOp (TVar a) (TVar a) TBool)
-      , ("/=", forallABinOp (TVar a) (TVar a) TBool)
-      , ("<",  forallABinOp (TVar a) (TVar a) TBool)
-      , (">",  forallABinOp (TVar a) (TVar a) TBool)
-      , ("<=", forallABinOp (TVar a) (TVar a) TBool)
-      , (">=", forallABinOp (TVar a) (TVar a) TBool)
-      , ("compare", forallABinOp (TVar a) (TVar a) TInt)
-      , ("min", forallABinOp (TVar a) (TVar a) (TVar a))
-      , ("max", forallABinOp (TVar a) (TVar a) (TVar a))
-      ]
 
-    -- Boolean operators
-    booleanTypes =
-      [ ("&&", binOp TBool TBool TBool)
-      , ("||", binOp TBool TBool TBool)
-      , ("not", unaryOp TBool TBool)
-      ]
-
-    -- List functions
-    listTypes =
-      [ ("head", forallA $ TFun (TList (TVar a)) (TVar a))
-      , ("tail", forallA $ TFun (TList (TVar a)) (TList (TVar a)))
-      , ("last", forallA $ TFun (TList (TVar a)) (TVar a))
-      , ("init", forallA $ TFun (TList (TVar a)) (TList (TVar a)))
-      , ("::",  forallABinOp (TVar a) (TList (TVar a)) (TList (TVar a)))
-      , ("++",  forallABinOp (TList (TVar a)) (TList (TVar a)) (TList (TVar a)))
-      , ("length", forallA $ TFun (TList (TVar a)) TInt)
-      , ("take", forallABinOp TInt (TList (TVar a)) (TList (TVar a)))
-      , ("drop", forallABinOp TInt (TList (TVar a)) (TList (TVar a)))
-      , ("takeWhile", forallABinOp (TFun (TVar a) TBool) (TList (TVar a)) (TList (TVar a)))
-      , ("dropWhile", forallABinOp (TFun (TVar a) TBool) (TList (TVar a)) (TList (TVar a)))
-      , ("nth", forallABinOp TInt (TList (TVar a)) (TVar a))
-      , ("map", forallABBinOp (TFun (TVar a) (TVar b)) (TList (TVar a)) (TList (TVar b)))
-      , ("map2", forallABC $ ternOpT (TFun (TVar a) (TFun (TVar b) (TVar c)))
-                                     (TList (TVar a))
-                                     (TList (TVar b))
-                                     (TList (TVar c)))
-      , ("filter", forallABinOp (TFun (TVar a) TBool) (TList (TVar a)) (TList (TVar a)))
-      , ("partition", forallA $ binOpT (TFun (TVar a) TBool)
-                                       (TList (TVar a))
-                                       (TTuple [TList (TVar a), TList (TVar a)]))
-      , ("foldl", forallAB $ ternOpT (TFun (TVar b) (TFun (TVar a) (TVar b)))
-                                     (TVar b)
-                                     (TList (TVar a))
-                                     (TVar b))
-      , ("foldl1", forallA $ binOpT (TFun (TVar a) (TFun (TVar a) (TVar a)))
-                                    (TList (TVar a))
-                                    (TVar a))
-      , ("foldr", forallAB $ ternOpT (TFun (TVar a) (TFun (TVar b) (TVar b)))
-                                     (TVar b)
-                                     (TList (TVar a))
-                                     (TVar b))
-      , ("reduce", forallA $ binOpT (TFun (TVar a) (TFun (TVar a) (TVar a)))
-                                    (TList (TVar a))
-                                    (TVar a))
-      , ("scanl", forallAB $ ternOpT (TFun (TVar b) (TFun (TVar a) (TVar b)))
-                                     (TVar b)
-                                     (TList (TVar a))
-                                     (TList (TVar b)))
-      , ("zip", forallAB $ binOpT (TList (TVar a))
-                                  (TList (TVar b))
-                                  (TList (TTuple [TVar a, TVar b])))
-      , ("zip3", forallABC $ ternOpT (TList (TVar a))
-                                     (TList (TVar b))
-                                     (TList (TVar c))
-                                     (TList (TTuple [TVar a, TVar b, TVar c])))
-      , ("concat", forallA $ TFun (TList (TList (TVar a))) (TList (TVar a)))
-      , ("reverse", forallA $ TFun (TList (TVar a)) (TList (TVar a)))
-      , ("intersperse", forallABinOp (TVar a) (TList (TVar a)) (TList (TVar a)))
-      , ("intercalate", forallABinOp (TList (TVar a)) (TList (TList (TVar a))) (TList (TVar a)))
-      , ("split", forallABinOp (TVar a) (TList (TVar a)) (TList (TList (TVar a))))
-      , ("splitAt", forallA $ binOpT TInt (TList (TVar a)) (TTuple [TList (TVar a), TList (TVar a)]))
-      , ("takeAndDrop", forallA $ binOpT TInt (TList (TVar a)) (TTuple [TList (TVar a), TList (TVar a)]))
-      , ("repeat", forallA $ TFun (TList (TVar a)) (TList (TVar a)))
-      , ("repeat1", forallA $ TFun (TVar a) (TList (TVar a)))
-      , ("iterate", forallABinOp (TFun (TVar a) (TVar a)) (TVar a) (TList (TVar a)))
-      , ("all", forallABinOp (TFun (TVar a) TBool) (TList (TVar a)) TBool)
-      , ("any", forallABinOp (TFun (TVar a) TBool) (TList (TVar a)) TBool)
-      , ("member", forallABinOp (TVar a) (TList (TVar a)) TBool)
-      , ("count", forallABinOp (TVar a) (TList (TVar a)) TInt)
-      , ("unique", forallA $ TFun (TList (TVar a)) (TList (TVar a)))
-      , ("isEmpty", forallA $ TFun (TList (TVar a)) TBool)
-      , ("from", unaryOp TInt (TList TInt))
-      , ("between", binOp TInt TInt (TList TInt))
-      , ("uncons", forallA $ TFun (TList (TVar a)) (TTuple [TVar a, TList (TVar a)]))
-      , ("unsnoc", forallA $ TFun (TList (TVar a)) (TTuple [TList (TVar a), TVar a]))
-      , ("deleteFirst", forallABinOp (TVar a) (TList (TVar a)) (TList (TVar a)))
-      , ("delete", forallABinOp (TVar a) (TList (TVar a)) (TList (TVar a)))
-      , ("difference", forallABinOp (TList (TVar a)) (TList (TVar a)) (TList (TVar a)))
-      , ("include", forallABinOp (TList (TVar a)) (TList (TVar a)) TBool)
-      , ("union", forallABinOp (TList (TVar a)) (TList (TVar a)) (TList (TVar a)))
-      , ("intersect", forallABinOp (TList (TVar a)) (TList (TVar a)) (TList (TVar a)))
-      , ("add", forallABinOp (TVar a) (TList (TVar a)) (TList (TVar a)))
-      , ("frequency", forallA $ TFun (TList (TVar a)) (TList (TTuple [TVar a, TInt])))
-      , ("elemIndices", forallABinOp (TVar a) (TList (TVar a)) (TList TInt))
-      , ("lookup", forallAB $ binOpT (TVar a) (TList (TTuple [TVar a, TVar b])) (TVar b))
-      ]
-
-    -- Tuple functions
-    tupleTypes =
-      [ ("fst", forallAB $ TFun (TTuple [TVar a, TVar b]) (TVar a))
-      , ("snd", forallAB $ TFun (TTuple [TVar a, TVar b]) (TVar b))
-      , ("curry", forallABC $ binOpT (TFun (TTuple [TVar a, TVar b]) (TVar c))
-                                     (TVar a)
-                                     (TFun (TVar b) (TVar c)))
-      , ("uncurry", forallABC $ binOpT (TFun (TVar a) (TFun (TVar b) (TVar c)))
-                                       (TTuple [TVar a, TVar b])
-                                       (TVar c))
-      ]
-
-    -- IO functions
-    -- Note: In Egison's do-notation, IO functions return IO types
+    -- IO functions (from Primitives.IO.hs)
     ioTypes =
-      [ ("print", forallA $ TFun (TVar a) (TIO TUnit))
-      , ("read", Forall [] [] (TIO TString))
-      , ("return", forallA $ TFun (TVar a) (TIO (TVar a)))
+      [ ("return", forallA $ TFun (TVar a) (TIO (TVar a)))
       , ("io", forallA $ TFun (TIO (TVar a)) (TVar a))
       , ("openInputFile", unaryOp TString (TIO TUnit))
       , ("openOutputFile", unaryOp TString (TIO TUnit))
@@ -497,61 +380,25 @@ builtinTypes = concat
       , ("rand", binOp TInt TInt (TIO TInt))
       , ("f.rand", binOp TFloat TFloat (TIO TFloat))
       , ("readProcess", Forall [a] [] $ ternOpT TString (TList TString) TString (TIO TString))
-      , ("show", forallA $ TFun (TVar a) TString)
       ]
 
-    -- Type conversion functions
-    conversionTypes =
+    -- Type conversion functions (from Primitives.Types.hs)
+    typeFunctionsTypes =
       [ ("itof", unaryOp TInt TFloat)
       , ("rtof", unaryOp TInt TFloat)
-      , ("integerToFloat", unaryOp TInt TFloat)
-      , ("rationalToFloat", unaryOp TInt TFloat)
-      , ("floatToInteger", unaryOp TFloat TInt)
       , ("ctoi", unaryOp TChar TInt)
       , ("itoc", unaryOp TInt TChar)
-      , ("charToInteger", unaryOp TChar TInt)
-      , ("integerToChar", unaryOp TInt TChar)
-      , ("show", forallA $ TFun (TVar a) TString)
-      , ("fromMathExpr", unaryOp TInt TInt)  -- MathExpr operations
-      , ("toMathExpr'", unaryOp TInt TInt)
-      , ("symbolNormalize", unaryOp TInt TInt)
+      , ("isInteger", forallA $ TFun (TVar a) TBool)
+      , ("isRational", forallA $ TFun (TVar a) TBool)
       ]
 
-    -- Tensor operations
-    tensorTypes =
-      [ ("generateTensor", forallABinOp (TFun (TList TInt) (TVar a))
-                                        (TList TInt)
-                                        (TTensor (TVar a) ShapeUnknown []))
-      , ("tensorShape", forallA $ TFun (TTensor (TVar a) ShapeUnknown []) (TList TInt))
-      , ("tensorToList", forallA $ TFun (TTensor (TVar a) ShapeUnknown []) (TList (TVar a)))
-      , ("transpose", forallABinOp (TList TInt)
-                                   (TTensor (TVar a) ShapeUnknown [])
-                                   (TTensor (TVar a) ShapeUnknown []))
-      , ("contract", forallA $ TFun (TTensor (TVar a) ShapeUnknown [])
-                                    (TTensor (TVar a) ShapeUnknown []))
-      , ("dfOrder", forallA $ TFun (TTensor (TVar a) ShapeUnknown []) TInt)
-      , ("addSubscript", binOp TInt TInt TInt)
-      , ("addSuperscript", binOp TInt TInt TInt)
-      ]
-
-    -- Matchers
+    -- Matchers (only primitive matchers defined in Haskell)
+    -- Note: integer, bool, char, string, float, list, multiset, set, sortedList, unorderedPair, eq are defined in lib/
     matcherTypes =
       [ ("something", forallA $ TMatcher (TVar a))
-      , ("integer", Forall [] [] $ TMatcher TInt)
-      , ("bool", Forall [] [] $ TMatcher TBool)
-      , ("char", Forall [] [] $ TMatcher TChar)
-      , ("string", Forall [] [] $ TMatcher TString)
-      , ("float", Forall [] [] $ TMatcher TFloat)
-      , ("eq", forallA $ TMatcher (TVar a))
-      , ("list", forallA $ TFun (TMatcher (TVar a)) (TMatcher (TList (TVar a))))
-      , ("multiset", forallA $ TFun (TMatcher (TVar a)) (TMatcher (TList (TVar a))))
-      , ("set", forallA $ TFun (TMatcher (TVar a)) (TMatcher (TList (TVar a))))
-      , ("sortedList", forallA $ TFun (TMatcher (TVar a)) (TMatcher (TList (TVar a))))
-      , ("unorderedPair", forallA $ TFun (TMatcher (TVar a))
-                                         (TMatcher (TTuple [TVar a, TVar a])))
       ]
 
-    -- String functions
+    -- String functions (from Primitives.String.hs)
     stringTypes =
       [ ("pack", Forall [] [] $ TFun (TList TChar) TString)
       , ("unpack", Forall [] [] $ TFun TString (TList TChar))
@@ -561,47 +408,19 @@ builtinTypes = concat
       , ("splitString", binOp TString TString (TList TString))
       , ("regex", binOp TString TString (TList (TTuple [TString, TString, TString])))
       , ("regexCg", binOp TString TString (TList (TTuple [TString, TList TString, TString])))
+      , ("read", Forall [] [] (TIO TString))
       , ("readTsv", unaryOp TString (TVar a))
+      , ("show", forallA $ TFun (TVar a) TString)
       , ("showTsv", forallA $ TFun (TVar a) TString)
       ]
 
-    -- Math expressions
-    mathTypes =
-      [ ("primes", Forall [] [] $ TList TInt)
-      , ("nats", Forall [] [] $ TList TInt)
-      ]
-
-    -- Utility functions
+    -- Utility functions (from Primitives.hs)
+    -- Note: assert and assertEqual are already in primitivesTypes
+    -- Note: isInteger and isRational are already in typeFunctionsTypes
     utilityTypes =
-      [ ("id", forallA $ TFun (TVar a) (TVar a))
-      , ("$", forallAB $ binOpT (TFun (TVar a) (TVar b)) (TVar a) (TVar b))
-      , ("compose", forallABC $ binOpT (TFun (TVar a) (TVar b))
-                                       (TFun (TVar b) (TVar c))
-                                       (TFun (TVar a) (TVar c)))
-      , ("flip", forallABC $ TFun (TFun (TVar a) (TFun (TVar b) (TVar c)))
-                                  (TFun (TVar b) (TFun (TVar a) (TVar c))))
-      , ("eqAs", forallA $ ternOpT (TMatcher (TVar a)) (TVar a) (TVar a) TBool)
-      , ("seq", forallAB $ binOpT (TVar a) (TVar b) (TVar b))
-      , ("assert", binOp TString TBool TBool)
-      , ("assertEqual", forallA $ ternOpT TString (TVar a) (TVar a) TBool)
-      -- Type checking predicates
-      , ("isBool", forallA $ TFun (TVar a) TBool)
-      , ("isInteger", forallA $ TFun (TVar a) TBool)
-      , ("isRational", forallA $ TFun (TVar a) TBool)
-      , ("isScalar", forallA $ TFun (TVar a) TBool)
-      , ("isFloat", forallA $ TFun (TVar a) TBool)
-      , ("isChar", forallA $ TFun (TVar a) TBool)
-      , ("isString", forallA $ TFun (TVar a) TBool)
-      , ("isCollection", forallA $ TFun (TVar a) TBool)
-      , ("isHash", forallA $ TFun (TVar a) TBool)
-      , ("isTensor", forallA $ TFun (TVar a) TBool)
-      -- Boolean constructors
-      , ("True", Forall [] [] TBool)
+      [ -- Boolean constructors
+        ("True", Forall [] [] TBool)
       , ("False", Forall [] [] TBool)
-      -- Forward-declared functions (used before their definition in library loading order)
-      , ("mathNormalize", forallA $ TFun (TVar a) (TVar a))
-      , ("termExpr", Forall [] [] $ TMatcher TInt)  -- mathExpr alias
-      , ("coefficients", forallA $ TFun (TVar a) (TList TInt))
       -- Note: Ordering constructors (Less, Equal, Greater), Maybe constructors (Nothing, Just),
       -- and other algebraicDataMatcher constructors are now automatically registered
       -- when the matcher is defined via registerAlgebraicConstructors

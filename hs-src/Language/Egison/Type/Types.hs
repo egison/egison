@@ -63,8 +63,8 @@ data Type
   | TPattern Type                     -- ^ Pattern type for matcher definitions
   | TPatternFunc [Type] Type          -- ^ Pattern function type
                                       --   e.g., Pattern a -> Pattern [a] -> Pattern [a]
-  | TTensor Type TensorShape IndexSpec -- ^ Tensor type with shape and indices
-                                      --   e.g., Tensor Integer [2, 2]_#_#
+  | TTensor Type                      -- ^ Tensor type (only element type is kept)
+                                      --   e.g., Tensor Integer
   | TCollection Type                  -- ^ Collection (for internal use)
   | THash Type Type                   -- ^ Hash map type
   | TIORef Type                       -- ^ IORef type
@@ -127,7 +127,7 @@ freeTyVars (TFun t1 t2)     = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (TMatcher t)     = freeTyVars t
 freeTyVars (TPattern t)     = freeTyVars t
 freeTyVars (TPatternFunc ts t) = Set.unions (map freeTyVars ts) `Set.union` freeTyVars t
-freeTyVars (TTensor t _ _)  = freeTyVars t
+freeTyVars (TTensor t)      = freeTyVars t
 freeTyVars (TCollection t)  = freeTyVars t
 freeTyVars (THash k v)      = freeTyVars k `Set.union` freeTyVars v
 freeTyVars (TIORef t)       = freeTyVars t
@@ -136,8 +136,8 @@ freeTyVars (TInductive _ ts) = Set.unions (map freeTyVars ts)
 
 -- | Check if a type is a tensor type
 isTensorType :: Type -> Bool
-isTensorType (TTensor _ _ _) = True
-isTensorType _               = False
+isTensorType (TTensor _) = True
+isTensorType _           = False
 
 -- | Check if a type is a scalar (non-tensor) type
 isScalarType :: Type -> Bool

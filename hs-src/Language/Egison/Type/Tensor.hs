@@ -36,9 +36,9 @@ import           Language.Egison.Type.Index
 import           Language.Egison.Type.Types
 
 -- | Normalize tensor types
--- Key rule: Tensor a [] = a (0-rank tensor is a scalar)
+-- According to type-tensor-simple.md, Tensor MathExpr unifies with MathExpr
+-- So Tensor a can unify with a (scalar)
 normalizeTensorType :: Type -> Type
-normalizeTensorType (TTensor a (ShapeLit []) []) = a
 normalizeTensorType t = t
 
 -- | Merge two index specifications (for tensor product)
@@ -87,89 +87,77 @@ removeShapeDims (ShapeLit dims) originalLen newLen =
 removeShapeDims s _ _ = s
 
 -- | Type rule for contractWith
--- contractWith : (a -> a -> a) -> Tensor a is -> Tensor a (RemoveSupSubPairs is)
+-- contractWith : (a -> a -> a) -> Tensor a -> Tensor a (or a if contracted to scalar)
+-- According to type-tensor-simple.md, Tensor MathExpr unifies with MathExpr
 typeOfContractWith :: Type -> Type -> Either String Type
 typeOfContractWith opTy tensorTy = case (opTy, tensorTy) of
-  (TFun a1 (TFun a2 a3), TTensor elemTy shape indices)
+  (TFun a1 (TFun a2 a3), TTensor elemTy)
     | a1 == a2 && a2 == a3 && a1 == elemTy ->
-        let newIndices = removeSupSubPairs indices
-            newShape = removeShapeDims shape (length indices) (length newIndices)
-        in Right $ normalizeTensorType $ TTensor elemTy newShape newIndices
-  _ -> Left "contractWith: type mismatch - expected (a -> a -> a) and Tensor a is"
+        -- Contracted result can be Tensor a or a (scalar)
+        -- Return Tensor a, unification will handle Tensor a => a
+        Right $ TTensor elemTy
+  _ -> Left "contractWith: type mismatch - expected (a -> a -> a) and Tensor a"
 
 -- | Type rule for tensor dot product (.)
--- (.) : Tensor a is1 -> Tensor a is2 -> Tensor a (RemoveSupSubPairs (mergeIndices is1 is2))
+-- (.) : Tensor a -> Tensor a -> Tensor a (or a if contracted to scalar)
+-- According to type-tensor-simple.md, Tensor MathExpr unifies with MathExpr
 typeOfTensorDot :: Type -> Type -> Either String Type
 typeOfTensorDot t1 t2 = case (t1, t2) of
-  (TTensor a1 sh1 is1, TTensor a2 sh2 is2)
+  (TTensor a1, TTensor a2)
     | a1 == a2 ->
-        let merged = mergeIndices is1 is2
-            contracted = removeSupSubPairs merged
-            -- Calculate new shape based on contraction
-            numContracted = (length merged - length contracted) `div` 2
-            newShape = contractedShape sh1 sh2 numContracted
-        in Right $ normalizeTensorType $ TTensor a1 newShape contracted
+        -- Contracted result can be Tensor a or a (scalar)
+        -- Return Tensor a, unification will handle Tensor a => a
+        Right $ TTensor a1
   _ -> Left "(.): type mismatch - expected two tensors of the same element type"
-  where
-    contractedShape (ShapeLit d1) (ShapeLit d2) n =
-      ShapeLit $ take (length d1 - n) d1 ++ take (length d2 - n) d2
-    contractedShape _ _ _ = ShapeUnknown
 
 -- | Type rule for tensor product (*)
--- When indices are the same: element-wise multiplication
--- When indices differ: outer product
+-- (*) : Tensor a -> Tensor a -> Tensor a
+-- (*) : a -> Tensor a -> Tensor a (scalar * tensor)
+-- (*) : Tensor a -> a -> Tensor a (tensor * scalar)
 typeOfTensorProduct :: Type -> Type -> Either String Type
 typeOfTensorProduct t1 t2 = case (t1, t2) of
-  (TTensor a1 sh1 is1, TTensor a2 sh2 is2)
-    | a1 == a2 ->
-        if is1 == is2
-          then Right $ TTensor a1 sh1 is1  -- Element-wise
-          else Right $ TTensor a1 (mergeShapes sh1 sh2) (mergeIndices is1 is2)  -- Outer product
+  (TTensor a1, TTensor a2)
+    | a1 == a2 -> Right $ TTensor a1
   -- Scalar * Tensor
-  (t, TTensor a sh is) | t == a -> Right $ TTensor a sh is
-  (TTensor a sh is, t) | t == a -> Right $ TTensor a sh is
+  (t, TTensor a) | t == a -> Right $ TTensor a
+  (TTensor a, t) | t == a -> Right $ TTensor a
   _ -> Left "(*): type mismatch for tensor product"
 
 -- | Type rule for distinct product (!*)
--- !* : Tensor a is1 -> Tensor a is2 -> Tensor a (is1' ++ is2)
--- where is1' has renamed indices
+-- !* : Tensor a -> Tensor a -> Tensor a
 typeOfDistinctProduct :: Type -> Type -> Either String Type
 typeOfDistinctProduct t1 t2 = case (t1, t2) of
-  (TTensor a1 sh1 is1, TTensor a2 sh2 is2)
-    | a1 == a2 ->
-        let renamedIs1 = renameIndices is1
-        in Right $ TTensor a1 (mergeShapes sh1 sh2) (renamedIs1 ++ is2)
+  (TTensor a1, TTensor a2)
+    | a1 == a2 -> Right $ TTensor a1
   _ -> Left "(!*): type mismatch - expected two tensors of the same element type"
 
 -- | Lift a scalar binary operation to tensors
 -- If op : a -> a -> a, then:
---   op : Tensor a is -> Tensor a is -> Tensor a is (element-wise)
---   op : Tensor a is1 -> Tensor a is2 -> Tensor a (merge is1 is2) (broadcast)
+--   op : Tensor a -> Tensor a -> Tensor a
+--   op : a -> Tensor a -> Tensor a (scalar * tensor)
+--   op : Tensor a -> a -> Tensor a (tensor * scalar)
 liftScalarBinOp :: Type -> Type -> Type -> Either String Type
 liftScalarBinOp opTy t1 t2 = case opTy of
   TFun a (TFun b c) | a == b && b == c -> liftBinOp a t1 t2
   _ -> Left "liftScalarBinOp: expected binary operator type"
   where
-    liftBinOp elemTy (TTensor a1 sh1 is1) (TTensor a2 sh2 is2)
-      | a1 == a2 && a1 == elemTy =
-          if is1 == is2
-            then Right $ TTensor a1 sh1 is1
-            else Right $ TTensor a1 (mergeShapes sh1 sh2) (mergeIndices is1 is2)
-    liftBinOp elemTy (TTensor a sh is) scalar
-      | a == elemTy && scalar == elemTy = Right $ TTensor a sh is
-    liftBinOp elemTy scalar (TTensor a sh is)
-      | a == elemTy && scalar == elemTy = Right $ TTensor a sh is
+    liftBinOp elemTy (TTensor a1) (TTensor a2)
+      | a1 == a2 && a1 == elemTy = Right $ TTensor a1
+    liftBinOp elemTy (TTensor a) scalar
+      | a == elemTy && scalar == elemTy = Right $ TTensor a
+    liftBinOp elemTy scalar (TTensor a)
+      | a == elemTy && scalar == elemTy = Right $ TTensor a
     liftBinOp _ x y
       | x == y = Right x
       | otherwise = Left "liftScalarBinOp: type mismatch"
 
 -- | Lift a scalar unary operation to tensors
--- If op : a -> b, then op : Tensor a is -> Tensor b is
+-- If op : a -> b, then op : Tensor a -> Tensor b
 liftScalarUnaryOp :: Type -> Type -> Either String Type
 liftScalarUnaryOp opTy argTy = case opTy of
   TFun a b -> case argTy of
-    TTensor elemA sh is
-      | elemA == a -> Right $ TTensor b sh is
+    TTensor elemA
+      | elemA == a -> Right $ TTensor b
     t | t == a -> Right b
     _ -> Left "liftScalarUnaryOp: argument type mismatch"
   _ -> Left "liftScalarUnaryOp: expected unary function type"

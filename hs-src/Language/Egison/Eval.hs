@@ -37,6 +37,7 @@ module Language.Egison.Eval
   ) where
 
 import           Control.Monad              (foldM, forM, forM_, when)
+import           Data.List                  (intercalate)
 import           Control.Monad.Except       (throwError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
@@ -49,17 +50,19 @@ import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
-import           Language.Egison.EvalState  (MonadEval (..))
+import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv)
 import           Language.Egison.IExpr
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
-import           Language.Egison.Type.Types (Type(..), TyVar(..), TensorShape(..))
+import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.TypeInfer (runTypedInferTopExprWithEnv)
-import           Language.Egison.Type.Env (generalize, extendEnvMany, envToList)
+import           Language.Egison.Type.Env (TypeEnv, ClassEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances)
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.TypedAST (TypedTopExpr(..), texprType)
 import           Language.Egison.Type.Error (formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
+import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
+import           Language.Egison.EvalState (ConstructorInfo(..))
 import qualified Data.HashMap.Strict as HashMap
 
 
@@ -146,6 +149,10 @@ evalExpandedTopExprsTyped' env exprs printValues = do
   -- Register constructors to EvalState
   forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
     registerConstructor ctorName ctorInfo
+  
+  -- Dump environment if requested
+  when (optDumpEnv opts) $ do
+    dumpEnvironment initialTypeEnv (ebrClassEnv envResult) (ebrConstructorEnv envResult)
   
   -- Get the environments for type inference
   -- Permissive mode allows falling back to untyped evaluation on type errors
@@ -423,4 +430,69 @@ evalTopExpr' env (ILoadFile file) = do
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
+
+--------------------------------------------------------------------------------
+-- Environment Dumping
+--------------------------------------------------------------------------------
+
+-- | Dump environment information after Phase 2 (Environment Building)
+dumpEnvironment :: TypeEnv -> ClassEnv -> ConstructorEnv -> EvalM ()
+dumpEnvironment typeEnv classEnv ctorEnv = do
+  liftIO $ do
+    putStrLn "=== Environment Information (Phase 2: Environment Building) ==="
+    putStrLn ""
+    
+    -- 1. Type Signatures
+    putStrLn "--- Type Signatures ---"
+    let typeBindings = envToList typeEnv
+    if null typeBindings
+      then putStrLn "  (none)"
+      else forM_ typeBindings $ \(name, scheme) ->
+        putStrLn $ "  " ++ name ++ " : " ++ prettyTypeScheme scheme
+    putStrLn ""
+    
+    -- 2. Type Classes
+    putStrLn "--- Type Classes ---"
+    let classBindings = classEnvToList classEnv
+    if null classBindings
+      then putStrLn "  (none)"
+      else forM_ classBindings $ \(className, classInfo) -> do
+        let paramName = case Types.classParam classInfo of
+              Types.TyVar name -> name
+        putStrLn $ "  class " ++ className ++ " " ++ paramName ++ " where"
+        forM_ (Types.classMethods classInfo) $ \(methName, methType) ->
+          putStrLn $ "    " ++ methName ++ " : " ++ prettyType methType
+    putStrLn ""
+    
+    -- 3. Instances
+    putStrLn "--- Type Class Instances ---"
+    let allInstances = concatMap (\(clsName, _) -> 
+          map (\inst -> (clsName, inst)) (lookupInstances clsName classEnv)) classBindings
+    if null allInstances
+      then putStrLn "  (none)"
+      else forM_ allInstances $ \(className, instInfo) -> do
+        let contextStr = if null (Types.instContext instInfo)
+              then ""
+              else let showConstraint (Types.Constraint cls ty) = cls ++ " " ++ prettyType ty
+                   in intercalate ", " (map showConstraint (Types.instContext instInfo)) ++ " => "
+        putStrLn $ "  instance " ++ contextStr ++ className ++ " " ++ prettyType (Types.instType instInfo)
+    putStrLn ""
+    
+    -- 4. Data Constructors
+    putStrLn "--- Data Constructors ---"
+    let ctorBindings = HashMap.toList ctorEnv
+    if null ctorBindings
+      then putStrLn "  (none)"
+      else forM_ ctorBindings $ \(ctorName, ctorInfo) -> do
+        let typeParams = ctorTypeParams ctorInfo
+        let retType = if null typeParams
+              then ctorTypeName ctorInfo
+              else ctorTypeName ctorInfo ++ " " ++ unwords typeParams
+        let ctorType = if null (ctorArgTypes ctorInfo)
+              then retType
+              else intercalate " -> " (map prettyType (ctorArgTypes ctorInfo) ++ [retType])
+        putStrLn $ "  " ++ ctorName ++ " : " ++ ctorType
+    putStrLn ""
+    
+    putStrLn "=== End of Environment Information ==="
 
