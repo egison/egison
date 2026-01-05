@@ -8,7 +8,7 @@ def rands (s: Integer) (e: Integer) : [Integer] := pureRand s e :: rands s e
 
 def pureRand (s: Integer) (e: Integer) : Integer := io (rand s e)
 
-def randomize {a : Eq} (xs: [a]) : [a] :=
+def randomize {Eq a} (xs: [a]) : [a] :=
   let randomize' xs n :=
         if n = 0
           then []

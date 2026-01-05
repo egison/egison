@@ -107,7 +107,7 @@ def evenAndOddPermutations' (n: Integer) : ([[Integer]], [[Integer]]) :=
                         (\i -> map (permutate i n) es')
                         (between 1 (n - 1))) )
 
-def permutate {a : Eq} (x: a) (y: a) (xs: [a]) : [a] :=
+def permutate {Eq a} (x: a) (y: a) (xs: [a]) : [a] :=
   match xs as list eq with
     | $hs ++ #x :: $ms ++ #y :: $ts -> hs ++ y :: ms ++ x :: ts
     | $hs ++ #y :: $ms ++ #x :: $ts -> hs ++ x :: ms ++ y :: ts
