@@ -1,7 +1,7 @@
-inductive pattern [a] := | nil | cons a [a] | join [a] [a]
+inductive pattern MyList a := | myNil | myCons a (MyList a) | myJoin (MyList a) (MyList a)
 
-def twin (p1 : Pattern a) (p2 : Pattern [a]) : Pattern [a] := 
-  cons ($pat & ~p1) (cons #pat :: ~p2)
+def pattern twin (p1 : a) (p2 : MyList a) : (MyList a) := 
+  myCons ($pat & ~p1) (myCons #pat :: ~p2)
 
 ## 実装方針
 
@@ -24,11 +24,13 @@ def twin (p1 : Pattern a) (p2 : Pattern [a]) : Pattern [a] :=
    - 宣言されていないコンストラクタの使用はエラーとする
 
 3. **マッチャー内のコンストラクタ処理**
-   - マッチャー定義内の `PPInductivePat` は既存の処理を維持
-   - `primitivePatPatternMatch` で `PPInductivePat` と `IInductivePat` をマッチングする処理は、宣言されたパターンコンストラクタのみを許可するように変更
+   - マッチャー定義内の `PPInductivePat` は宣言されたパターンコンストラクタのみを許可するように変更
+   - `primitivePatPatternMatch` で `PPInductivePat` と `IInductivePat` をマッチングする処理は既存の処理を維持
 
 4. **型チェック時の検証**
-   - 型推論・型チェック時に、`IInductivePat` で使用されるコンストラクタが宣言されているかを検証
+   - 型推論・型チェック時に、マッチ節のパターン内の `IInductivePat` で使用されるコンストラクタが inductive pattern かパターン関数として宣言されているかを検証
+   - マッチャー節のprimitivePatternPatternは inductive patternで宣言されたパターンコンストラクタのみが使える
+   - マッチ節では、inductive patternで宣言されたパターンコンストラクタとパターン関数の両方が使える
 
 5. **`PrimitivePatPattern` の型検査**
    - `PPInductivePat` の型検査を `inductive pattern` のコンストラクタ定義に基づいて実施
@@ -55,15 +57,9 @@ def twin (p1 : Pattern a) (p2 : Pattern [a]) : Pattern [a] :=
 
 #### 実装方針
 
-1. **パターンコンストラクタ情報の定義**
+1. **パターンコンストラクタとパターン関数の情報のを環境に追加**
    ```haskell
-   data PatternConstructorInfo = PatternConstructorInfo
-     { patternCtorName      :: String      -- コンストラクタ名（例: "cons", "nil"）
-     , patternCtorArgTypes  :: [TypeExpr]  -- 引数の型（パターン型）
-     , patternCtorTypeParams :: [String]   -- 型パラメータ（例: ["a"]）
-     } deriving (Show, Eq)
-   
-   type PatternConstructorEnv = HashMap String PatternConstructorInfo
+   newtype PatternTypeEnv = TypeEnv { unPatternTypeEnv :: Map String TypeScheme }
    ```
 
 2. **`checkPatternDef` の拡張**
@@ -79,43 +75,59 @@ def twin (p1 : Pattern a) (p2 : Pattern [a]) : Pattern [a] :=
 
 4. **型検査の例**
    ```egison
-   inductive pattern [a] := | nil | cons a [a]
+   inductive pattern MyList a := | nil | cons a MyList a
    
    -- マッチャー定義内で使用
    matcher
-     | cons $ $ as (integer, list integer) with ...
+     | cons $ $ as (integer, myList integer) with ...
    ```
    - `PPInductivePat "cons" [PPPatVar, PPPatVar]` の場合
-   - パターンコンストラクタ環境から `cons : Pattern a -> Pattern [a] -> Pattern [a]` を取得
-   - 第1引数は `Pattern a`、第2引数は `Pattern [a]` として型推論
-   - `as (integer, list integer)` と照合して型を統一
+   - パターンコンストラクタ環境から `cons : a -> MyList a -> MyList a` を取得
+   - 第1引数は `a`、第2引数は `MyList a` として型推論
+   - `as (integer, myList integer)` と照合して型を統一
 
-5. **実装の詳細**
-   - `checkPatternDef` 関数内で `PPInductivePat` を処理する際:
-     ```haskell
-     checkPrimitivePatPattern :: PrimitivePatPattern -> Infer ()
-     checkPrimitivePatPattern (PPInductivePat name args) = do
-       -- パターンコンストラクタ環境から型情報を取得
-       patternCtorEnv <- getPatternConstructorEnv
-       case HashMap.lookup name patternCtorEnv of
-         Nothing -> throwError $ "Pattern constructor '" ++ name ++ "' is not declared"
-         Just (PatternConstructorInfo _ argTypes typeParams) -> do
-           -- 引数の数を検証
-           when (length args /= length argTypes) $
-             throwError $ "Pattern constructor '" ++ name ++ "' expects " ++ 
-                         show (length argTypes) ++ " arguments, but got " ++ 
-                         show (length args)
-           -- 各引数パターンの型を推論・検証
-           zipWithM_ checkArgPattern args argTypes
-     ```
-   - 型推論時に、`PPInductivePat` の引数パターンの型を推論:
-     ```haskell
-     inferPrimitivePatPattern :: PrimitivePatPattern -> Infer [Type]
-     inferPrimitivePatPattern (PPInductivePat name args) = do
-       patternCtorEnv <- getPatternConstructorEnv
-       case HashMap.lookup name patternCtorEnv of
-         Nothing -> throwError $ "Pattern constructor '" ++ name ++ "' is not declared"
-         Just (PatternConstructorInfo _ argTypes _) -> do
-           -- 各引数パターンの型を推論
-           mapM inferArgPatternType (zip args argTypes)
-     ```
+
+# Value patternの扱い
+
+primitive value patternを含むmatcher節は、mがvalue patternを処理できることを要求している。
+aがEqクラスに属することは要求していない。
+
+```
+def multiset {a} (m: Matcher a) : Matcher [a] :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: _ as (m) with
+      | $tgt -> tgt
+    | $ :: $ as (m, multiset m) with
+      | $tgt ->
+        matchAll tgt as list m with
+          | $hs ++ $x :: $ts -> (x, hs ++ ts)
+    | #$pxs ++ $ as (multiset m) with
+      | $tgt ->
+        match (pxs, tgt) as (list m, multiset m) with
+          | loop $i (1, length pxs, _)
+              {($x_i :: @, #x_i :: @), ...}
+              ([], $rs) -> [rs]
+          | _ -> []
+    | $ ++ $ as (multiset m, multiset m) with
+      | $tgt ->
+        matchAll tgt as list m with
+          | loop $i (1, $n)
+              ($rs_i ++ $x_i :: ...)
+              $ts ->
+            (map (\i -> x_i) [1..n], concat (map (\i -> rs_i) [1..n] ++ [ts]))
+    | #$val as () with
+      | $tgt ->
+        match (val, tgt) as (list m, multiset m) with
+          | ([], []) -> [()]
+          | ($x :: $xs, #x :: #xs) -> [()]
+          | (_, _) -> []
+    | $ as (something) with
+      | $tgt -> [tgt]
+```
+
+この問題に対処するために、something matcherがvalue patternも扱えるようにする。
+something matcherはvalue patternを処理するために、組み込みの投下演算子である `=` を使う。
+eq matcherではEqクラスのメソッドであるユーザ定義の `==` を使うようにライブラリで定義する。
