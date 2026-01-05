@@ -1508,6 +1508,7 @@ registerAlgebraicConstructors _ _ = return ()  -- Not an algebraicDataMatcher
 -- | Convert TypedParam to Type
 typedParamToType :: TypedParam -> Type
 typedParamToType (TPVar _ ty) = typeExprToType ty
+typedParamToType (TPInvertedVar _ ty) = typeExprToType ty
 typedParamToType (TPTuple elems) = TTuple (map typedParamToType elems)
 typedParamToType (TPWildcard ty) = typeExprToType ty
 typedParamToType (TPUntypedVar _) = TAny  -- Infer type later
@@ -1519,6 +1520,7 @@ extractTypedParamBindings = concatMap extractFromParam
   where
     extractFromParam :: TypedParam -> [(String, TypeScheme)]
     extractFromParam (TPVar name ty) = [(name, Forall [] [] (typeExprToType ty))]
+    extractFromParam (TPInvertedVar name ty) = [(name, Forall [] [] (typeExprToType ty))]
     extractFromParam (TPTuple elems) = concatMap extractFromParam elems
     extractFromParam (TPWildcard _) = []  -- Wildcards don't bind variables
     extractFromParam (TPUntypedVar name) = [(name, Forall [] [] TAny)]

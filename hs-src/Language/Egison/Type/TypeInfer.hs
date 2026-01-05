@@ -830,6 +830,7 @@ inferTypedTopExpr topExpr = case topExpr of
       convertMethod (ClassMethod name params retType _) =
         (name, map (\tp -> (extractParamName tp, typedParamToType tp)) params, typeExprToType retType)
       extractParamName (TPVar n _) = n
+      extractParamName (TPInvertedVar n _) = n
       extractParamName (TPUntypedVar n) = n
       extractParamName _ = "_"
       constraintToString (ConstraintExpr cls _) = cls
@@ -865,6 +866,7 @@ extractTypedParamBindingsWithTypes :: [TypedParam] -> [(String, Type)]
 extractTypedParamBindingsWithTypes = concatMap go
   where
     go (TPVar name ty) = [(name, typeExprToType ty)]
+    go (TPInvertedVar name ty) = [(name, typeExprToType ty)]
     go (TPTuple elems) = concatMap go elems
     go (TPWildcard _) = []
     go (TPUntypedVar name) = [(name, TAny)]

@@ -305,6 +305,7 @@ registerPatternConstructor typeName typeParams resultType patternCtorEnv
 -- | Convert TypedParam to Type
 typedParamToType :: TypedParam -> Type
 typedParamToType (TPVar _ ty) = typeExprToType ty
+typedParamToType (TPInvertedVar _ ty) = typeExprToType ty
 typedParamToType (TPTuple elems) = TTuple (map typedParamToType elems)
 typedParamToType (TPWildcard ty) = typeExprToType ty
 typedParamToType (TPUntypedVar _) = TVar (TyVar "a")  -- Will be inferred

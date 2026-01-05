@@ -26,7 +26,8 @@ import           Control.Monad.Except         (throwError)
 import           Control.Monad.IO.Class       (liftIO)
 import           Control.Monad.Trans.Class    (lift)
 
-import           System.Directory             (doesFileExist, getHomeDirectory)
+import           System.Directory             (doesFileExist, getCurrentDirectory, getHomeDirectory)
+import           System.FilePath              (takeDirectory, (</>))
 import           System.IO
 
 import           Language.Egison.AST
@@ -59,13 +60,40 @@ readExpr expr = do
   either (throwError . Parser) return r
 
 -- |Load a libary file
+-- Priority order:
+-- 1. ~/.egison/lib/ (user customizations)
+-- 2. Project lib/ directory (development - current directory or parent directories)
+-- 3. Installed data files (getDataFileName)
 loadLibraryFile :: FilePath -> EvalM [TopExpr]
 loadLibraryFile file = do
   homeDir <- liftIO getHomeDirectory
-  doesExist <- liftIO $ doesFileExist $ homeDir ++ "/.egison/" ++ file
-  if doesExist
-    then loadFile $ homeDir ++ "/.egison/" ++ file
-    else liftIO (getDataFileName file) >>= loadFile
+  let userLibPath = homeDir </> ".egison" </> file
+  userExists <- liftIO $ doesFileExist userLibPath
+  if userExists
+    then loadFile userLibPath
+    else do
+      -- Try project lib directory (for development)
+      -- Start from current directory and go up to find lib directory
+      projectLibPath <- liftIO $ do
+        currentDir <- getCurrentDirectory
+        let findLibDir dir = do
+              let libPath = dir </> "lib" </> file
+              exists <- doesFileExist libPath
+              if exists
+                then return (Just libPath)
+                else do
+                  let parentDir = takeDirectory dir
+                  if parentDir == dir  -- reached root
+                    then return Nothing
+                    else findLibDir parentDir
+        findLibDir currentDir
+      case projectLibPath of
+        Just path -> loadFile path
+        Nothing -> do
+          -- Fall back to installed data files
+          -- This may fail if not installed, but that's expected in development
+          installedPath <- liftIO (getDataFileName file)
+          loadFile installedPath
 
 -- |Load a file
 loadFile :: FilePath -> EvalM [TopExpr]

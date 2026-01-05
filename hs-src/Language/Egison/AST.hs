@@ -436,6 +436,7 @@ data TensorIndexExpr
 -- | Typed parameter pattern
 data TypedParam
   = TPVar String TypeExpr                    -- ^ Simple variable with type: (x: a)
+  | TPInvertedVar String TypeExpr            -- ^ Inverted variable with type: (!x: a)
   | TPTuple [TypedParam]                     -- ^ Tuple pattern: ((x: a), (y: b)) or (x: a, y: b)
   | TPWildcard TypeExpr                      -- ^ Wildcard with type: (_: a)
   | TPUntypedVar String                      -- ^ Untyped variable in tuple: x (inferred)

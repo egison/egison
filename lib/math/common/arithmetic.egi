@@ -76,7 +76,7 @@ def gcd' (x: Integer) (y: Integer) : Integer :=
     | (_, ?(>= x)) -> gcd' (modulo y x) x
     | (_, _) -> gcd' y x
 
-def P./ fx $gx $x :=
+def P./ fx gx x :=
   let xs := reverse (coefficients fx x)
       ys := reverse (coefficients gx x)
       (zs, rs) := L./ xs ys
