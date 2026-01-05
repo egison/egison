@@ -35,7 +35,7 @@ def list {a} (m: Matcher a) : Matcher [a] :=
           | loop $i (1, $n)
               ($xa_i :: ...)
               $rs -> (foldr (\i r -> xa_i :: r) [] [1..n], rs)
-    | {Eq a} #$val as () with
+    | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
@@ -60,7 +60,7 @@ def sortedList {Ord a} (m: Matcher a) : Matcher [a] :=
     | $ :: $ as (m, sortedList m) with
       | $x :: $xs -> [(x, xs)]
       | _ -> []
-    | {Eq a} #$val as () with
+    | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
@@ -325,7 +325,7 @@ def multiset {a} (m: Matcher a) : Matcher [a] :=
               ($rs_i ++ $x_i :: ...)
               $ts ->
             (map (\i -> x_i) [1..n], concat (map (\i -> rs_i) [1..n] ++ [ts]))
-    | {Eq a} #$val as () with
+    | #$val as () with
       | $tgt ->
         match (val, tgt) as (list m, multiset m) with
           | ([], []) -> [()]
@@ -458,7 +458,7 @@ def set {a} (m: Matcher a) : Matcher [a] :=
           | loop $i (1, $n)
               ($rs_i ++ $x_i :: ...)
               $ts -> (map (\i -> x_i) [1..n], tgt)
-    | {Eq a} #$val as () with
+    | #$val as () with
       | $tgt ->
         match (unique val, unique tgt) as (list m, multiset m) with
           | ([], []) -> [()]

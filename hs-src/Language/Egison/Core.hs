@@ -1111,7 +1111,7 @@ primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->
                             MatchM ([IPattern], [Binding])
 primitivePatPatternMatch _ PPWildCard IWildCard = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
-primitivePatPatternMatch env (PPValuePat _ name) (IValuePat expr) = do
+primitivePatPatternMatch env (PPValuePat name) (IValuePat expr) = do
   ref <- lift $ newThunkRef env expr
   return ([], [(stringToVar name, ref)])
 primitivePatPatternMatch env (PPInductivePat name patterns) (IInductivePat name' exprs)

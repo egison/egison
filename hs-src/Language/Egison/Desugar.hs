@@ -268,7 +268,7 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
       genMainClause :: [(String, [Expr])] -> IExpr -> EvalM (PrimitivePatPattern, IExpr, [(IPrimitiveDataPattern, IExpr)])
       genMainClause patterns matcher = do
         clauses <- genClauses patterns
-        return (PPValuePat [] "val", ITupleExpr [],
+        return (PPValuePat "val", ITupleExpr [],
                 [(PDPatVar (stringToVar "tgt"),
                     IMatchExpr BFSMode
                                (ITupleExpr [IVarExpr "val", IVarExpr "tgt"])
@@ -720,7 +720,7 @@ desugarMatchClauses :: [MatchClause] -> EvalM [IMatchClause]
 desugarMatchClauses = mapM (\(pat, expr) -> (,) <$> desugarPattern pat <*> desugar expr)
 
 desugarPatternDef :: PatternDef -> EvalM IPatternDef
-desugarPatternDef (PatternDef _constraints pp matcher pds) =
+desugarPatternDef (PatternDef pp matcher pds) =
   (pp,,) <$> desugar matcher <*> desugarPrimitiveDataMatchClauses pds
 
 desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IPrimitiveDataPattern, IExpr)]
