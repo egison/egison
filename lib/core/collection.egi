@@ -70,6 +70,14 @@ def sortedList {Ord a} (m: Matcher a) : Matcher [a] :=
     | $ as (something) with
       | $tgt -> [tgt]
 
+instance {Eq a} Eq [a] where
+  (==) xs ys :=
+    match (xs, ys) as (list something, list something) with
+      | ([], []) -> True
+      | ($x :: $xs', $y :: $ys') -> x == y && xs' == ys'
+      | _ -> False
+  (/=) xs ys := not (xs == ys)
+  
 --
 -- Accessors
 --

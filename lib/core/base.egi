@@ -15,32 +15,24 @@ class Eq a where
 
 -- | Eq instances for basic types
 instance Eq Integer where
-  (==) x y := eqForInteger x y
+  (==) x y := x = y
   (/=) x y := not (x == y)
 
 instance Eq Float where
-  (==) x y := eqForFloat x y
+  (==) x y := x = y
   (/=) x y := not (x == y)
 
 instance Eq String where
-  (==) x y := eqForString x y
+  (==) x y := x = y
   (/=) x y := not (x == y)
 
 instance Eq Bool where
-  (==) x y := eqForBool x y
+  (==) x y := x = y
   (/=) x y := not (x == y)
 
 instance Eq Char where
-  (==) x y := eqForChar x y
+  (==) x y := x = y
   (/=) x y := not (x == y)
-
-instance {Eq a} Eq [a] where
-  (==) xs ys :=
-    match (xs, ys) as (list something, list something) with
-      | ([], []) -> True
-      | ($x :: $xs', $y :: $ys') -> x == y && xs' == ys'
-      | _ -> False
-  (/=) xs ys := not (xs == ys)
 
 instance {Eq a} Eq (Tensor a) where
   (==) t1 t2 := t1 = t2
