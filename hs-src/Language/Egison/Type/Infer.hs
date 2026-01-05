@@ -817,7 +817,7 @@ inferExpr expr = case expr of
 --   2. Data pattern variables are typed based on target type
 --   3. Body must return a list of next targets: [nextMatcherType]
 checkPatternDef :: Type -> PatternDef -> Infer ()
-checkPatternDef targetType (PatternDef _constraints primPatPat nextMatcherExpr primMatchClauses) = do
+checkPatternDef targetType (PatternDef primPatPat nextMatcherExpr primMatchClauses) = do
   -- Count pattern holes in primitive pattern-pattern
   let holeCount = countPatternHoles primPatPat
   
@@ -842,7 +842,7 @@ checkPatternDef targetType (PatternDef _constraints primPatPat nextMatcherExpr p
 countPatternHoles :: PrimitivePatPattern -> Int
 countPatternHoles PPWildCard = 0
 countPatternHoles PPPatVar = 1  -- $ is a pattern hole
-countPatternHoles (PPValuePat _ _) = 0
+countPatternHoles (PPValuePat _) = 0
 countPatternHoles (PPInductivePat _ args) = sum (map countPatternHoles args)
 countPatternHoles (PPTuplePat args) = sum (map countPatternHoles args)
 
@@ -941,7 +941,7 @@ inferMatcherTargetType patternDefs = do
   where
     -- Get data patterns from a pattern definition
     getDataPatterns :: PatternDef -> [PrimitiveDataPattern]
-    getDataPatterns (PatternDef _ _ _ dataPats) = map fst dataPats
+    getDataPatterns (PatternDef _ _ dataPats) = map fst dataPats
     
     -- Check if a data pattern contains cons (::) or snoc (*:)
     hasConsDataPattern :: PrimitiveDataPattern -> Bool

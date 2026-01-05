@@ -111,7 +111,7 @@ instance Pretty Expr where
   pretty (MatcherExpr patDefs) =
     nest 2 (pretty "matcher" <> hardline <> align (vsep (map prettyPatDef patDefs)))
       where
-        prettyPatDef (PatternDef _constraints pppat expr body) =
+        prettyPatDef (PatternDef pppat expr body) =
           nest 2 (pipe <+> pretty pppat <+> pretty "as" <+>
             group (pretty expr) <+> pretty "with" <> hardline <>
               align (vsep (map prettyPatBody body)))
@@ -308,7 +308,7 @@ instance {-# OVERLAPPING #-} Pretty LoopRange where
 instance Pretty PrimitivePatPattern where
   pretty PPWildCard                = pretty "_"
   pretty PPPatVar                  = pretty "$"
-  pretty (PPValuePat _ x)          = pretty ('#' : '$' : x)
+  pretty (PPValuePat x)          = pretty ('#' : '$' : x)
   pretty (PPInductivePat x pppats) = hsep (pretty x : map pretty pppats)
   pretty (PPTuplePat pppats)       = tupled (map pretty pppats)
 

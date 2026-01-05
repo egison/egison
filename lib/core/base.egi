@@ -7,7 +7,7 @@
 def eq {a : Eq} : Matcher a :=
   matcher
     | #$val as () with
-      | $tgt -> if val = tgt then [()] else []
+      | $tgt -> if val == tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
 

@@ -255,8 +255,7 @@ type MatchClause = (Pattern, Expr)
 
 -- | Pattern definition in a matcher (with optional type class constraints)
 data PatternDef = PatternDef
-  { patDefConstraints :: [ConstraintExpr]       -- ^ Type class constraints (e.g., [Eq a])
-  , patDefPattern     :: PrimitivePatPattern
+  { patDefPattern     :: PrimitivePatPattern
   , patDefMatcher     :: Expr
   , patDefClauses     :: [(PrimitiveDataPattern, Expr)]
   } deriving Show
@@ -293,7 +292,7 @@ data LoopRange = LoopRange Expr Expr Pattern
 data PrimitivePatPattern
   = PPWildCard
   | PPPatVar
-  | PPValuePat [ConstraintExpr] String  -- Constraints and variable name
+  | PPValuePat String  -- Variable name
   | PPInductivePat String [PrimitivePatPattern]
   | PPTuplePat [PrimitivePatPattern]
   deriving Show

@@ -396,7 +396,7 @@ inferTypedExpr expr = case expr of
   
   -- Matcher expressions
   MatcherExpr patDefs -> do
-    typedPatDefs <- forM patDefs $ \(PatternDef _constraints patPat nextMatcher clauses) -> do
+    typedPatDefs <- forM patDefs $ \(PatternDef patPat nextMatcher clauses) -> do
       -- Extract bindings from primitive pattern pattern (e.g., "val", "tgt")
       patPatBindings <- extractPrimPatPatBindings patPat
       (nextMatcherTyped, _) <- withEnv patPatBindings $ inferTypedExpr nextMatcher
@@ -741,7 +741,7 @@ extractPrimPatPatBindings :: PrimitivePatPattern -> Infer [(String, TypeScheme)]
 extractPrimPatPatBindings ppp = case ppp of
   PPWildCard -> return []
   PPPatVar -> return []  -- PatVar doesn't bind a named variable here
-  PPValuePat _ name -> return [(name, Forall [] [] TAny)]
+  PPValuePat name -> return [(name, Forall [] [] TAny)]
   PPInductivePat _ pats -> concat <$> mapM extractPrimPatPatBindings pats
   PPTuplePat pats -> concat <$> mapM extractPrimPatPatBindings pats
 

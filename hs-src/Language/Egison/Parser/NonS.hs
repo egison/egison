@@ -835,13 +835,10 @@ matcherExpr = do
   where
     patternDef :: Parser PatternDef
     patternDef = do
-      -- Parse optional type class constraints before the pattern
-      -- e.g., {Eq a} #$val as () with ...
-      constraints <- (try typeConstraints <|> return [])
       pp <- ppPattern
       returnMatcher <- reserved "as" >> expr <* reserved "with"
       datapat <- alignSome (symbol "|" >> dataCases)
-      return $ PatternDef constraints pp returnMatcher datapat
+      return $ PatternDef pp returnMatcher datapat
 
     dataCases :: Parser (PrimitiveDataPattern, Expr)
     dataCases = (,) <$> pdPattern <*> (symbol "->" >> expr)
@@ -1137,7 +1134,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
          <|> PPPatVar   <$ symbol "$"
-         <|> PPValuePat [] <$> (string "#$" >> lowerId)
+         <|> PPValuePat <$> (string "#$" >> lowerId)
          <|> PPInductivePat "nil" [] <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen ppPattern PPTuplePat
 
