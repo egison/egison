@@ -110,6 +110,7 @@ desugarTopExpr (ClassDeclExpr (ClassDecl classNm _typeParams _supers methods)) =
     
     extractParamName :: TypedParam -> String
     extractParamName (TPVar name _) = name
+    extractParamName (TPInvertedVar name _) = name
     extractParamName (TPUntypedVar name) = name
     extractParamName _ = "x"  -- fallback
     
@@ -229,6 +230,8 @@ desugarTopExpr (PatternFunctionDecl _ _ _ _ _) = return Nothing  -- Handled in e
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern
 typedParamToArgPattern (TPVar pname _) =
   Arg (APPatVar (VarWithIndices pname []))
+typedParamToArgPattern (TPInvertedVar pname _) =
+  InvertedArg (APPatVar (VarWithIndices pname []))
 typedParamToArgPattern (TPTuple elems) =
   Arg (APTuplePat (map typedParamToArgPattern elems))
 typedParamToArgPattern (TPWildcard _) =
@@ -470,6 +473,7 @@ desugar (TypedMemoizedLambdaExpr params _ body) =
   where
     extractParamNames = concatMap extractName
     extractName (TPVar name _) = [name]
+    extractName (TPInvertedVar name _) = [name]
     extractName (TPTuple elems) = concatMap extractName elems
     extractName (TPWildcard _) = []
     extractName (TPUntypedVar name) = [name]

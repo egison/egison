@@ -60,11 +60,11 @@ def each {a} (proc: a -> IO ()) (xs: [a]) : IO () :=
 --
 -- Debug
 --
-def debug %expr :=
+def debug expr :=
   io $ do print (show expr)
           return expr
 
-def debug2 %msg %expr :=
+def debug2 msg expr :=
   io $ do display msg
           print (show expr)
           return expr

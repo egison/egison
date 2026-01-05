@@ -538,13 +538,14 @@ typedTupleElement :: Parser TypedParam
 typedTupleElement =
       try (parens typedParamInner)  -- Nested: ((x: a))
   <|> try typedWildcard             -- Wildcard with type: _: a
+  <|> try typedInvertedVar         -- Inverted variable with type: !x: a
   <|> try typedVar                  -- Variable with type: x: a
   <|> untypedWildcard               -- Just wildcard: _
   <|> untypedVar                    -- Just variable: x
 
--- Simple typed parameter: x: a or _: a
+-- Simple typed parameter: x: a, !x: a, or _: a
 typedSimpleParam :: Parser TypedParam
-typedSimpleParam = try typedWildcard <|> typedVar
+typedSimpleParam = try typedWildcard <|> try typedInvertedVar <|> typedVar
 
 typedVar :: Parser TypedParam
 typedVar = do
@@ -552,6 +553,14 @@ typedVar = do
   _ <- symbol ":"
   paramType <- typeExpr
   return $ TPVar paramName paramType
+
+typedInvertedVar :: Parser TypedParam
+typedInvertedVar = do
+  _ <- symbol "!"
+  paramName <- ident
+  _ <- symbol ":"
+  paramType <- typeExpr
+  return $ TPInvertedVar paramName paramType
 
 typedWildcard :: Parser TypedParam
 typedWildcard = do
@@ -653,7 +662,7 @@ typeNameIdent = lexeme $ do
 tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
   _ <- reserved "Tensor"
-  elemType <- typeAtom
+  elemType <- typeAtomOrParenType  -- Allow parenthesized types like (IORef [a])
   -- Shape and indices are optional (for simple type application like "Tensor a")
   maybeShape <- optional tensorShapeExpr
   case maybeShape of

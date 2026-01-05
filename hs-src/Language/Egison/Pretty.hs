@@ -225,6 +225,7 @@ instance Pretty BindingExpr where
 
 instance Pretty TypedParam where
   pretty (TPVar name ty) = parens (pretty name <+> pretty ":" <+> pretty ty)
+  pretty (TPInvertedVar name ty) = parens (pretty "!" <+> pretty name <+> pretty ":" <+> pretty ty)
   pretty (TPTuple elems) = parens (hsep (punctuate comma (map pretty elems)))
   pretty (TPWildcard ty) = parens (pretty "_" <+> pretty ":" <+> pretty ty)
   pretty (TPUntypedVar name) = pretty name

@@ -8,7 +8,7 @@ def eq {Eq a} : Matcher a :=
   matcher
     | #$val as () with
       | $tgt -> if val == tgt then [()] else []
-    | $ as (something) with
+    | $ as something with
       | $tgt -> [tgt]
 
 def bool : Matcher Bool := eq
@@ -61,5 +61,5 @@ def unorderedPair {a} (m: Matcher a) : Matcher (a, a) :=
   matcher
     | ($, $) as (m, m) with
       | ($x, $y) -> [(x, y), (y, x)]
-    | $ as (eq) with
+    | $ as something with
       | $tgt -> [tgt]
