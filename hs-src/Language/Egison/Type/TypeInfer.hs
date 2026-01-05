@@ -855,7 +855,12 @@ inferTypedTopExpr topExpr = case topExpr of
   InstanceDeclExpr (InstanceDecl constraints className instTypes methods) -> do
     _ <- Infer.inferTopExpr topExpr
     typedMethods <- forM methods $ \(InstanceMethod name params body) -> do
-      (bodyTyped, _) <- inferTypedExpr body
+      -- Create bindings for method parameters with fresh type variables
+      paramBindings <- mapM (\param -> do
+        ty <- freshVar ("param_" ++ param)
+        return (param, Forall [] [] ty)) params
+      -- Infer body with parameters in environment
+      (bodyTyped, _) <- withEnv paramBindings $ inferTypedExpr body
       return (name, params, bodyTyped)
     let contextTypes = map (\(ConstraintExpr _ ts) -> map typeExprToType ts) constraints
     return $ Just $ TInstanceDecl (concat contextTypes) className (map typeExprToType instTypes) typedMethods
