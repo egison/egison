@@ -446,7 +446,7 @@ desugarTypedTopExpr texpr = case texpr of
     bodyExpr <- desugarTypedExpr body
     return $ Just $ IDefine (stringToVar name) bodyExpr
   
-  TDefineWithType name params _retType body -> do
+  TDefineWithType name _constraints params _retType body -> do
     bodyExpr <- desugarTypedExpr body
     let paramNames = map fst params
         lambdaExpr = if null paramNames
@@ -601,9 +601,19 @@ desugarTypedTopExprT (TDefine var texpr) = do
   tiexpr <- desugarTypedExprT texpr
   return $ Just $ TIDefine ty (stringToVar var) tiexpr
 
-desugarTypedTopExprT (TDefineWithType var _params retType texpr) = do
+desugarTypedTopExprT (TDefineWithType var _constraints params retType texpr) = do
   tiexpr <- desugarTypedExprT texpr
-  return $ Just $ TIDefine retType (stringToVar var) tiexpr
+  -- If there are parameters, wrap the body in a lambda expression
+  let paramNames = map fst params
+      paramTypes = map snd params
+      funType = if null paramNames
+                then retType
+                else foldr TFun retType paramTypes
+      lambdaTIExpr = if null paramNames
+                     then tiexpr
+                     else TIExpr funType
+                          (ILambdaExpr Nothing (map stringToVar paramNames) (tiExpr tiexpr))
+  return $ Just $ TIDefine funType (stringToVar var) lambdaTIExpr
 
 desugarTypedTopExprT (TTest texpr) = do
   tiexpr <- desugarTypedExprT texpr
