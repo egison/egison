@@ -47,7 +47,8 @@ run :: RuntimeM ()
 run = do
   opts <- ask
   coreEnv <- initialEnv
-  mEnv <- fromEvalT $ evalTopExprs coreEnv $ map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)
+  -- Load libs without dumping typed AST (dumpTyped should only show user's file)
+  mEnv <- fromEvalT $ evalTopExprs' coreEnv (map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)) True False
   case mEnv of
     Left err  -> liftIO $ print err
     Right env -> handleOption env opts

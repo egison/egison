@@ -24,6 +24,7 @@ module Language.Egison.Eval
   , evalTopExpr
   , evalTopExprStr
   , evalTopExprs
+  , evalTopExprs'
   , evalTopExprsNoPrint
   , runExpr
   , runTopExpr
@@ -37,8 +38,8 @@ module Language.Egison.Eval
   ) where
 
 import           Control.Monad              (foldM, forM, forM_, when)
-import           Data.List                  (intercalate)
-import           Control.Monad.Except       (throwError)
+import           Data.List                  (intercalate, unwords)
+import           Control.Monad.Except       (throwError, catchError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
 import           Data.IORef                 (newIORef)
@@ -58,7 +59,7 @@ import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.TypeInfer (runTypedInferTopExprWithEnv)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
-import           Language.Egison.Type.TypedAST (TypedTopExpr(..), texprType)
+import           Language.Egison.Type.TypedAST (TypedTopExpr(..), texprType, prettyTypedTopExpr)
 import           Language.Egison.Type.Error (formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
@@ -115,7 +116,7 @@ evalTopExpr env topExpr = do
 -- | Evaluate expanded top expressions using typed pipeline
 -- TODO: Implement type environment accumulation for proper type checking
 evalExpandedTopExprsTyped :: Env -> [TopExpr] -> EvalM (Maybe EgisonValue, Env)
-evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
+evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False True
 
 --------------------------------------------------------------------------------
 -- Phase 2-10: Environment Building → Desugar → Type Inference/Check → 
@@ -124,8 +125,8 @@ evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
 
 -- | Evaluate expanded top expressions using the typed pipeline with optional printing.
 -- This function implements phases 2-10 of the processing flow.
-evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> EvalM (Maybe EgisonValue, Env)
-evalExpandedTopExprsTyped' env exprs printValues = do
+evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM (Maybe EgisonValue, Env)
+evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   opts <- ask
   
   --------------------------------------------------------------------------------
@@ -165,7 +166,8 @@ evalExpandedTopExprsTyped' env exprs printValues = do
   let permissive = not (optTypeCheckStrict opts)
   
   -- Process each expression sequentially through phases 3-10, accumulating environments
-  (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) expr -> do
+  -- Also collect typed ASTs if dump-typed is enabled
+  ((lastVal, finalEnv), typedExprs) <- foldM (\((lastVal, currentEnv), typedExprs) expr -> do
     -- Get current type and class environments from EvalState
     currentTypeEnv <- getTypeEnv
     currentClassEnv <- getClassEnv
@@ -192,20 +194,24 @@ evalExpandedTopExprsTyped' env exprs printValues = do
         -- Fallback: Use untyped evaluation if type checking fails (permissive mode)
         topExpr' <- desugarTopExpr expr
         case topExpr' of
-          Nothing -> return (lastVal, currentEnv)
+          Nothing -> return ((lastVal, currentEnv), typedExprs)
           Just topExpr'' -> do
             (mVal, env') <- evalTopExpr' currentEnv topExpr''
             when printValues $ case mVal of
               Nothing -> return ()
               Just val -> valueToStr val >>= liftIO . putStrLn
-            return (mVal, env')
+            return ((mVal, env'), typedExprs)
       
       Right Nothing -> 
-        -- No code generated (e.g., InductiveDecl, ClassDecl, InstanceDecl)
-        return (lastVal, currentEnv)
+        -- No code generated (e.g., PatternFunctionDecl, InfixDecl, etc.)
+        -- Note: InductiveDecl, ClassDecl, InstanceDecl actually return Just, not Nothing
+        return ((lastVal, currentEnv), typedExprs)
       
       Right (Just typedTopExpr) -> do
         -- Phase 7: TypedTopExpr obtained
+        
+        -- Collect typed AST for dumping if requested
+        let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just typedTopExpr] else typedExprs
         
         -- Add definition types to type environment for future references
         case typedTopExpr of
@@ -214,7 +220,7 @@ evalExpandedTopExprsTyped' env exprs printValues = do
             let ty = texprType typedExpr
                 typeScheme = generalize typeEnv ty
             extendTypeEnv varName typeScheme
-          TDefineWithType varName _params retType _typedExpr -> do
+          TDefineWithType varName _constraints _params retType _typedExpr -> do
             typeEnv <- getTypeEnv
             let ty = retType  -- Use explicit return type
                 typeScheme = generalize typeEnv ty
@@ -227,19 +233,33 @@ evalExpandedTopExprsTyped' env exprs printValues = do
         --   - Type info optimization and embedding
         mTiTopExpr <- desugarTypedTopExprT typedTopExpr
         case mTiTopExpr of
-          Nothing -> return (lastVal, currentEnv)
+          Nothing -> return ((lastVal, currentEnv), typedExprs')
           Just tiTopExpr -> do
             -- Phase 9: TITopExpr (Evaluatable typed IR with type info preserved)
             
             -- Phase 10: Evaluation (pattern matching, expression evaluation, IO actions)
-            (mVal, env') <- evalTITopExpr currentEnv tiTopExpr
+            -- Catch errors during evaluation to preserve typedExprs for dumping
+            evalResult <- catchError
+              (Right <$> evalTITopExpr currentEnv tiTopExpr)
+              (\err -> do
+                liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
+                return $ Left err)
             
-            -- Print value if requested
-            when printValues $ case mVal of
-              Nothing -> return ()
-              Just val -> valueToStr val >>= liftIO . putStrLn
-            return (mVal, env')
-    ) (Nothing, env) exprs
+            case evalResult of
+              Left _ -> 
+                -- Error occurred, but preserve typedExprs for dumping
+                return ((lastVal, currentEnv), typedExprs')
+              Right (mVal, env') -> do
+                -- Print value if requested
+                when printValues $ case mVal of
+                  Nothing -> return ()
+                  Just val -> valueToStr val >>= liftIO . putStrLn
+                return ((mVal, env'), typedExprs')
+    ) ((Nothing, env), []) exprs
+  
+  -- Dump typed AST if requested and shouldDumpTyped is True
+  when (optDumpTyped opts && shouldDumpTyped) $ do
+    dumpTyped typedExprs
   
   return (lastVal, finalEnv)
 
@@ -330,22 +350,21 @@ valueToStr val = do
 -- | Evaluate Egison top expressions.
 -- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 evalTopExprs :: Env -> [TopExpr] -> EvalM Env
-evalTopExprs env exprs = do
+evalTopExprs env exprs = evalTopExprs' env exprs True True
+
+-- | Evaluate Egison top expressions with control over printing and dumping.
+evalTopExprs' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM Env
+evalTopExprs' env exprs printValues shouldDumpTyped = do
   -- Expand all Load/LoadFile recursively
   expanded <- expandLoads exprs
   -- Evaluate using typed pipeline with printing
-  (_, env') <- evalExpandedTopExprsTyped' env expanded True
+  (_, env') <- evalExpandedTopExprsTyped' env expanded printValues shouldDumpTyped
   return env'
 
 -- | Evaluate Egison top expressions without printing.
 -- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 evalTopExprsNoPrint :: Env -> [TopExpr] -> EvalM Env
-evalTopExprsNoPrint env exprs = do
-  -- Expand all Load/LoadFile recursively
-  expanded <- expandLoads exprs
-  -- Evaluate using typed pipeline
-  (_, env') <- evalExpandedTopExprsTyped env expanded
-  return env'
+evalTopExprsNoPrint env exprs = evalTopExprs' env exprs False True
 
 -- | Evaluate an Egison expression. Input is a Haskell string.
 runExpr :: Env -> String -> EvalM EgisonValue
@@ -534,4 +553,20 @@ dumpDesugared desugaredExprs = do
           Just expr -> putStrLn $ "  [" ++ show i ++ "] " ++ show expr
     putStrLn ""
     putStrLn "=== End of Desugared AST ==="
+
+-- | Dump typed AST after Phase 6 (Type Inference & Check)
+dumpTyped :: [Maybe TypedTopExpr] -> EvalM ()
+dumpTyped typedExprs = do
+  liftIO $ do
+    putStrLn "=== Typed AST (Phase 6: Type Inference & Check) ==="
+    putStrLn ""
+    if null typedExprs
+      then putStrLn "  (none)"
+      else forM_ (zip [1..] typedExprs) $ \(i, mExpr) ->
+        case mExpr of
+          Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
+          Just expr -> do
+            putStrLn $ "  [" ++ show i ++ "] " ++ prettyTypedTopExpr expr
+    putStrLn ""
+    putStrLn "=== End of Typed AST ==="
 

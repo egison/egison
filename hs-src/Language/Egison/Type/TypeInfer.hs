@@ -41,7 +41,8 @@ import           Control.Monad.Except       (throwError, catchError)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 
-import           Language.Egison.AST
+import           Language.Egison.AST hiding (Constraint)
+import qualified Language.Egison.AST as AST
 import           Language.Egison.Type.Env
 import           Language.Egison.Type.Error
 import           Language.Egison.Type.Infer (Infer, InferState(..), InferConfig(..),
@@ -185,8 +186,11 @@ inferTypedExpr expr = case expr of
         argParams = map convertArg args  -- Preserve arg type info
         paramBindings = zipWith (\n t -> (n, Forall [] [] t)) paramNames paramTypes
     (bodyTyped, s) <- withEnv paramBindings $ inferTypedExpr body
-    let funType = foldr TFun (texprType bodyTyped) (map (applySubst s) paramTypes)
-    return (TypedExpr funType (TLambdaExpr argParams bodyTyped), s)
+    let finalParamTypes = map (applySubst s) paramTypes
+        finalBodyType = applySubst s (texprType bodyTyped)
+        funType = foldr TFun finalBodyType finalParamTypes
+        bodyTyped' = applySubstToTypedExpr s bodyTyped
+    return (TypedExpr funType (TLambdaExpr argParams bodyTyped'), s)
     where
       extractArgName (Arg (APPatVar (VarWithIndices n _))) = n
       extractArgName (InvertedArg (APPatVar (VarWithIndices n _))) = n
@@ -207,7 +211,8 @@ inferTypedExpr expr = case expr of
         finalParamTypes = map (applySubst finalS) paramTypes
         funType = foldr TFun (applySubst finalS retType) finalParamTypes
         typedParams = zipWith (\(n, _) t -> (n, t)) params finalParamTypes
-    return (TypedExpr funType (TTypedLambdaExpr typedParams (applySubst finalS retType) bodyTyped), finalS)
+        bodyTyped' = applySubstToTypedExpr finalS bodyTyped
+    return (TypedExpr funType (TTypedLambdaExpr typedParams (applySubst finalS retType) bodyTyped'), finalS)
   
   -- Function application
   ApplyExpr func args -> do
@@ -216,11 +221,13 @@ inferTypedExpr expr = case expr of
     let argsTyped = map fst argsResults
         argsSubst = foldr composeSubst s1 (map snd argsResults)
     resultType <- freshVar "result"
-    let expectedFuncType = foldr TFun resultType (map texprType argsTyped)
+    let expectedFuncType = foldr TFun resultType (map (applySubst argsSubst . texprType) argsTyped)
     s2 <- unifyTypes (applySubst argsSubst (texprType funcTyped)) expectedFuncType
     let finalS = composeSubst s2 argsSubst
         finalResultType = applySubst finalS resultType
-    return (TypedExpr finalResultType (TApplyExpr funcTyped argsTyped), finalS)
+        funcTyped' = applySubstToTypedExpr finalS funcTyped
+        argsTyped' = map (applySubstToTypedExpr finalS) argsTyped
+    return (TypedExpr finalResultType (TApplyExpr funcTyped' argsTyped'), finalS)
   
   -- If expression
   IfExpr cond thenE elseE -> do
@@ -784,7 +791,8 @@ inferTypedTopExpr topExpr = case topExpr of
         setEnv $ extendEnv name scheme env
         return $ Just $ TDefine name eTyped
   
-  DefineWithType (TypedVarWithIndices name _ _ params retType) body -> do
+  DefineWithType (TypedVarWithIndices name _ typeConstraints params retType) body -> do
+    env <- getEnv
     let paramTypes = map typedParamToType params
         paramBindings = extractTypedParamBindings params
         retTy = typeExprToType retType
@@ -793,11 +801,20 @@ inferTypedTopExpr topExpr = case topExpr of
     let finalS = composeSubst s' s
         finalParamTypes = map (applySubst finalS) paramTypes
         funType = foldr TFun (applySubst finalS retTy) finalParamTypes
-        scheme = generalize emptyEnv funType
+        scheme = generalize env funType
         typedParams = extractTypedParamBindingsWithTypes params
-    env <- getEnv
+        -- Apply finalS to bodyTyped to resolve all type variables
+        bodyTyped' = applySubstToTypedExpr finalS bodyTyped
+        -- Convert ConstraintExpr to Constraint for TypedAST
+        constraints = map constraintExprToConstraint typeConstraints
+        
+        constraintExprToConstraint (AST.ConstraintExpr className typeExprs) =
+          -- For type class constraints like {Eq a}, use the first type argument
+          case typeExprs of
+            [] -> Constraint className TAny  -- Should not happen
+            (te:_) -> Constraint className (typeExprToType te)
     setEnv $ extendEnv name scheme env
-    return $ Just $ TDefineWithType name typedParams (applySubst finalS retTy) bodyTyped
+    return $ Just $ TDefineWithType name constraints typedParams (applySubst finalS retTy) bodyTyped'
   
   Test e -> do
     (eTyped, _) <- inferTypedExpr e

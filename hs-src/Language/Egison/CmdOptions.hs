@@ -39,15 +39,17 @@ data EgisonOpts = EgisonOpts {
     optTypeCheck        :: Bool,       -- ^ Enable type checking
     optTypeCheckStrict  :: Bool,       -- ^ Strict type checking mode
     optDumpEnv          :: Bool,       -- ^ Dump environment after Phase 2
-    optDumpDesugared    :: Bool        -- ^ Dump desugared AST after Phase 3
+    optDumpDesugared    :: Bool,       -- ^ Dump desugared AST after Phase 3
+    optDumpTyped        :: Bool        -- ^ Dump typed AST after Phase 6 (type inference & check)
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False False True False "> " Nothing True True False False False
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False False True False "> " Nothing True True False False False False
 --                                                                                                     ^^^^^ optNoPrelude
 --                                                                                                                                      ^^^^ optTypeCheck is now True by default
 --                                                                                                                                              ^^^^^ optDumpEnv
 --                                                                                                                                                      ^^^^^ optDumpDesugared
+--                                                                                                                                                              ^^^^^ optDumpTyped
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -142,6 +144,9 @@ cmdArgParser = EgisonOpts
             <*> switch
                   (long "dump-desugared"
                   <> help "Dump desugared AST after Phase 3 (desugaring)")
+            <*> switch
+                  (long "dump-typed"
+                  <> help "Dump typed AST after Phase 6 (type inference & check)")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->
