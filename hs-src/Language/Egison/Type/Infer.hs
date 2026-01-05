@@ -218,8 +218,8 @@ unifyTypes t1 t2 = case unify t1 t2 of
   Left err -> case err of
     TU.OccursCheck v t -> throwError $ OccursCheckError v t emptyCtx
     TU.TypeMismatch a b -> throwError $ UnificationError a b emptyCtx
-    TU.ShapeMismatch s1 s2 -> throwError $ TensorShapeMismatch s1 s2 emptyCtx
-    TU.IndexMismatch i1 i2 -> throwError $ TensorIndexMismatch i1 i2 emptyCtx
+    -- Shape and index mismatches are no longer part of UnifyError
+    -- Tensor types now only track element types
 
 -- | Infer the type of an expression
 inferExpr :: Expr -> Infer (Type, Subst)
@@ -337,7 +337,7 @@ inferExpr expr = case expr of
       s' <- unifyTypes (applySubst acc elemType) t
       return $ composeSubst s' acc) emptySubst ts
     let n = length es
-    return (TTensor (applySubst s elemType) (ShapeLit [fromIntegral n]) [], s)
+    return (TTensor (applySubst s elemType), s)
 
   -- Indexed expressions (tensor indexing)
   -- e.g., g_i_j, X~i, A_i~j
@@ -346,20 +346,12 @@ inferExpr expr = case expr of
     -- Convert AST indices to type system indices
     let typeIndices = map convertIndexExpr indices
     case baseType of
-      TTensor elemTy shape existingIndices ->
-        -- Combine or replace indices
-        let newIndices = if null existingIndices
-                           then typeIndices
-                           else existingIndices ++ typeIndices
-            contracted = removeSupSubPairs newIndices
-            numContracted = (length newIndices - length contracted) `div` 2
-            newShape = case shape of
-                         ShapeLit dims -> ShapeLit (drop numContracted dims)
-                         _ -> shape
-        in return (normalizeTensorType $ TTensor elemTy newShape contracted, s)
+      TTensor elemTy ->
+        -- Indices are not part of the type anymore
+        return (TTensor elemTy, s)
       _ ->
-        -- If base is not a tensor, create a tensor type with the indices
-        return (baseType, s)
+        -- If base is not a tensor, create a tensor type
+        return (TTensor baseType, s)
 
   -- Infix expressions
   InfixExpr op left right -> do
@@ -625,18 +617,16 @@ inferExpr expr = case expr of
     elemType <- freshVar "tensorElem"
     s4 <- unifyTypes (applySubst (composeSubst s3 s12) funcType) (TFun (TList TInt) elemType)
     let finalS = foldr composeSubst emptySubst [s4, s3, s2, s1]
-    return (TTensor (applySubst finalS elemType) ShapeUnknown [], finalS)
+    return (TTensor (applySubst finalS elemType), finalS)
 
   -- Tensor contract expression
   TensorContractExpr tensor -> do
     (tensorType, s) <- inferExpr tensor
     case tensorType of
-      TTensor elemTy shape indices ->
-        let contracted = removeSupSubPairs indices
-            newShape = case shape of
-                         ShapeLit dims -> ShapeLit (drop ((length indices - length contracted) `div` 2) dims)
-                         _ -> shape
-        in return (normalizeTensorType $ TTensor elemTy newShape contracted, s)
+      TTensor elemTy ->
+        -- Contracted result can be Tensor a or a (scalar)
+        -- Return Tensor a, unification will handle Tensor a => a
+        return (TTensor elemTy, s)
       _ -> return (tensorType, s)
 
   -- Tensor map expression: tensorMap f tensor
@@ -645,10 +635,10 @@ inferExpr expr = case expr of
     (tensorType, s2) <- inferExpr tensorExpr
     let s12 = composeSubst s2 s1
     case (applySubst s12 funcType, applySubst s12 tensorType) of
-      (TFun argTy resultTy, TTensor elemTy shape indices) -> do
+      (TFun argTy resultTy, TTensor elemTy) -> do
         s3 <- unifyTypes argTy elemTy
         let finalS = composeSubst s3 s12
-        return (TTensor (applySubst finalS resultTy) shape indices, finalS)
+        return (TTensor (applySubst finalS resultTy), finalS)
       _ -> do
         resultType <- freshVar "tensorMapResult"
         return (resultType, s12)
@@ -662,11 +652,11 @@ inferExpr expr = case expr of
     case applySubst s123 funcType of
       TFun arg1Ty (TFun arg2Ty resultTy) ->
         case (applySubst s123 tensor1Type, applySubst s123 tensor2Type) of
-          (TTensor elem1Ty shape1 indices1, TTensor elem2Ty _shape2 _indices2) -> do
+          (TTensor elem1Ty, TTensor elem2Ty) -> do
             s4 <- unifyTypes arg1Ty elem1Ty
             s5 <- unifyTypes arg2Ty elem2Ty
             let finalS = foldr composeSubst s123 [s5, s4]
-            return (TTensor (applySubst finalS resultTy) shape1 indices1, finalS)
+            return (TTensor (applySubst finalS resultTy), finalS)
           _ -> do
             resultType <- freshVar "tensorMap2Result"
             return (resultType, s123)
@@ -687,9 +677,8 @@ inferExpr expr = case expr of
     (tensorType, s) <- inferExpr tensorExpr
     -- Flipping indices swaps superscript and subscript
     case tensorType of
-      TTensor elemTy shape indices ->
-        let flippedIndices = map flipIndex indices
-        in return (TTensor elemTy shape flippedIndices, s)
+      TTensor elemTy ->
+        return (TTensor elemTy, s)
       _ -> return (tensorType, s)
     where
       flipIndex (IndexSym Subscript name) = IndexSym Superscript name
@@ -790,8 +779,8 @@ inferExpr expr = case expr of
     (_, s2) <- inferExpr shapeExpr
     let s12 = composeSubst s2 s1
     case applySubst s12 dataType of
-      TList elemTy -> return (TTensor elemTy ShapeUnknown [], s12)
-      _ -> return (TTensor (applySubst s12 dataType) ShapeUnknown [], s12)
+      TList elemTy -> return (TTensor elemTy, s12)
+      _ -> return (TTensor (applySubst s12 dataType), s12)
 
   -- MemoizedLambda: similar to regular lambda but with memoization
   MemoizedLambdaExpr params body -> do
@@ -1564,8 +1553,8 @@ typeExprToType (TEFun t1 t2) =
 typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
 typeExprToType (TEPattern t) = TPattern (typeExprToType t)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
-typeExprToType (TETensor t shape indices) =
-  TTensor (typeExprToType t) (shapeExprToShape shape) (indexExprsToIndices indices)
+typeExprToType (TETensor t _shape _indices) =
+  TTensor (typeExprToType t)
 typeExprToType (TEApp constr args) =
   -- Handle common type constructors
   case (constr, args) of
@@ -1629,8 +1618,8 @@ typeToTypeExpr (TList t) = TEList (typeToTypeExpr t)
 typeToTypeExpr (TTuple ts) = TETuple (map typeToTypeExpr ts)
 typeToTypeExpr (TFun t1 t2) = TEFun (typeToTypeExpr t1) (typeToTypeExpr t2)
 typeToTypeExpr (TMatcher t) = TEMatcher (typeToTypeExpr t)
-typeToTypeExpr (TTensor t shape indices) =
-  TETensor (typeToTypeExpr t) (shapeToShapeExpr shape) (indicesToIndexExprs indices)
+typeToTypeExpr (TTensor t) =
+  TETensor (typeToTypeExpr t) (TSVar "?") []  -- Shape and indices are not part of the type
 typeToTypeExpr (TCollection t) = TEList (typeToTypeExpr t)
 typeToTypeExpr (THash k v) = TEApp (TEVar "Hash") [typeToTypeExpr k, typeToTypeExpr v]
 typeToTypeExpr (TPattern t) = TEPattern (typeToTypeExpr t)
@@ -1685,10 +1674,5 @@ convertVarIndex (VAntiSymmScripts _) = IndexPlaceholder TI.Subscript
 -- e.g., addIndicesToType (Tensor Integer [2,2] []) [_i, _j] = Tensor Integer [2,2] [_i, _j]
 -- e.g., addIndicesToType Integer [_i] = (keep as Integer, indices recorded separately)
 addIndicesToType :: Type -> IndexSpec -> Type
-addIndicesToType t [] = t
-addIndicesToType (TTensor elemTy shape existingIndices) newIndices =
-  TTensor elemTy shape (existingIndices ++ newIndices)
-addIndicesToType t indices =
-  -- For non-tensor types with indices, we keep the indices attached
-  -- This is a simplification - ideally we'd track indices separately
-  TTensor t ShapeUnknown indices
+addIndicesToType t _indices = t
+  -- Indices are not part of the type anymore according to type-tensor-simple.md

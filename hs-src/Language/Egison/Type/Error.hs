@@ -223,8 +223,7 @@ prettyType (TTuple ts) = "(" ++ unwords (map prettyType ts) ++ ")"
 prettyType (TFun t1 t2) = prettyType t1 ++ " -> " ++ prettyType t2
 prettyType (TMatcher t) = "Matcher " ++ prettyType t
 prettyType (TPattern t) = "Pattern " ++ prettyType t
-prettyType (TTensor t sh is) =
-  "Tensor " ++ prettyType t ++ " " ++ prettyShape sh ++ prettyIndices is
+prettyType (TTensor t) = "Tensor " ++ prettyType t
 prettyType (TCollection t) = "Collection " ++ prettyType t
 prettyType (THash k v) = "Hash " ++ prettyType k ++ " " ++ prettyType v
 prettyType (TIORef t) = "IORef " ++ prettyType t

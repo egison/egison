@@ -11,22 +11,17 @@ module Language.Egison.Type.Unify
   , UnifyError(..)
   ) where
 
-import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 
-import           Language.Egison.Type.Index  (IndexSpec)
 import           Language.Egison.Type.Subst  (Subst, applySubst, composeSubst,
                                               emptySubst, singletonSubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
-import           Language.Egison.Type.Types  (TensorShape (..), TyVar (..),
-                                              Type (..), freeTyVars)
+import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars)
 
 -- | Unification errors
 data UnifyError
   = OccursCheck TyVar Type        -- ^ Infinite type detected
   | TypeMismatch Type Type        -- ^ Types cannot be unified
-  | ShapeMismatch TensorShape TensorShape  -- ^ Tensor shapes don't match
-  | IndexMismatch IndexSpec IndexSpec      -- ^ Tensor indices don't match
   deriving (Eq, Show)
 
 -- | Unify two types, returning a substitution if successful
@@ -89,28 +84,20 @@ unify' (TInductive n1 ts1) (TInductive n2 ts2)
   | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
 
 -- Tensor types
-unify' (TTensor t1 sh1 is1) (TTensor t2 sh2 is2) = do
-  s1 <- unify t1 t2
-  s2 <- unifyShape sh1 sh2
-  s3 <- unifyIndices is1 is2
-  Right $ composeSubst s3 (composeSubst s2 s1)
-  where
-    unifyShape :: TensorShape -> TensorShape -> Either UnifyError Subst
-    unifyShape ShapeUnknown _ = Right emptySubst
-    unifyShape _ ShapeUnknown = Right emptySubst
-    unifyShape (ShapeLit d1) (ShapeLit d2)
-      | d1 == d2 = Right emptySubst
-      | otherwise = Left $ ShapeMismatch (ShapeLit d1) (ShapeLit d2)
-    unifyShape (ShapeVar _) _ = Right emptySubst  -- Shape polymorphism
-    unifyShape _ (ShapeVar _) = Right emptySubst
+-- Tensor a and Tensor b unify if a and b unify
+unify' (TTensor t1) (TTensor t2) = unify t1 t2
 
-    unifyIndices :: IndexSpec -> IndexSpec -> Either UnifyError Subst
-    -- For now, indices must match exactly or one is empty (placeholder)
-    unifyIndices [] _ = Right emptySubst
-    unifyIndices _ [] = Right emptySubst
-    unifyIndices i1 i2
-      | i1 == i2 = Right emptySubst
-      | otherwise = Left $ IndexMismatch i1 i2
+-- Tensor a and a unify as a (according to type-tensor-simple.md)
+-- Tensor MathExpr unifies with MathExpr as MathExpr
+unify' (TTensor t1) t2 = do
+  s <- unify t1 t2
+  -- Return substitution that unifies t1 with t2, result type is t2 (scalar)
+  Right s
+
+unify' t1 (TTensor t2) = do
+  s <- unify t1 t2
+  -- Return substitution that unifies t1 with t2, result type is t1 (scalar)
+  Right s
 
 -- Mismatched types
 unify' t1 t2 = Left $ TypeMismatch t1 t2

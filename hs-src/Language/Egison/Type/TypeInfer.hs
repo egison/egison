@@ -301,7 +301,7 @@ inferTypedExpr expr = case expr of
     (shapeTyped, s2) <- inferTypedExpr shape
     let s12 = composeSubst s2 s1
     elemType <- freshVar "tensorElem"
-    return (TypedExpr (TTensor elemType ShapeUnknown []) (TGenerateTensorExpr genTyped shapeTyped), s12)
+    return (TypedExpr (TTensor elemType) (TGenerateTensorExpr genTyped shapeTyped), s12)
   
   -- Tensor operations
   TensorExpr dataE shapeE -> do
@@ -311,7 +311,7 @@ inferTypedExpr expr = case expr of
     elemType <- case texprType dataTyped of
       TList e -> return e
       _ -> freshVar "tensorElem"
-    return (TypedExpr (TTensor elemType ShapeUnknown []) (TTensorExpr dataTyped shapeTyped), s12)
+    return (TypedExpr (TTensor elemType) (TTensorExpr dataTyped shapeTyped), s12)
   
   TensorContractExpr e -> do
     (te, s) <- inferTypedExpr e

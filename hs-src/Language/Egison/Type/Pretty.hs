@@ -43,11 +43,13 @@ prettyType (TMatcher t)     = "Matcher " ++ prettyTypeAtom t
 prettyType (TPattern t)     = "Pattern " ++ prettyTypeAtom t
 prettyType (TPatternFunc argTypes retType) =
   intercalate " -> " (map (\t -> "Pattern " ++ prettyTypeAtom t) argTypes ++ ["Pattern " ++ prettyTypeAtom retType])
-prettyType (TTensor t sh is) =
-  "Tensor " ++ prettyTypeAtom t ++ " " ++ prettyTensorShape sh ++ prettyIndices is
+prettyType (TTensor t) = "Tensor " ++ prettyTypeAtom t
 prettyType (TCollection t)  = "Collection " ++ prettyTypeAtom t
 prettyType (THash k v)      = "Hash " ++ prettyTypeAtom k ++ " " ++ prettyTypeAtom v
 prettyType (TIORef t)       = "IORef " ++ prettyTypeAtom t
+prettyType (TIO t)          = "IO " ++ prettyTypeAtom t
+prettyType (TInductive name []) = name
+prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyTypeAtom args)
 
 -- | Pretty print an atomic type (with parentheses if needed)
 prettyTypeAtom :: Type -> String

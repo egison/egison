@@ -246,7 +246,7 @@ typeExprToType (TEApp t1 ts) =
 typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
 typeExprToType (TEPattern t) = TPattern (typeExprToType t)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
-typeExprToType (TETensor elemT _ _) = TTensor (typeExprToType elemT) ShapeUnknown []
+typeExprToType (TETensor elemT _ _) = TTensor (typeExprToType elemT)
 typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
 
 -- | Convert TypedParam to Type
