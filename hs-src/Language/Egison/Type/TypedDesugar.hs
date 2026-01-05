@@ -555,7 +555,7 @@ typeToName TFloat = "Float"
 typeToName TBool = "Bool"
 typeToName TChar = "Char"
 typeToName TString = "String"
-typeToName (TList _) = "List"
+typeToName (TCollection _) = "Collection"
 typeToName (TVar (TyVar n)) = n
 typeToName _ = "Unknown"
 

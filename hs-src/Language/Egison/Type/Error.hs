@@ -216,21 +216,18 @@ prettyType TBool = "Bool"
 prettyType TChar = "Char"
 prettyType TString = "String"
 prettyType TUnit = "()"
-prettyType TAny = "_"
 prettyType (TVar (TyVar v)) = v
-prettyType (TList t) = "[" ++ prettyType t ++ "]"
 prettyType (TTuple ts) = "(" ++ unwords (map prettyType ts) ++ ")"
-prettyType (TFun t1 t2) = prettyType t1 ++ " -> " ++ prettyType t2
-prettyType (TMatcher t) = "Matcher " ++ prettyType t
-prettyType (TPattern t) = "Pattern " ++ prettyType t
+prettyType (TCollection t) = "[" ++ prettyType t ++ "]"
+prettyType (TInductive name []) = name
+prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyType args)
 prettyType (TTensor t) = "Tensor " ++ prettyType t
-prettyType (TCollection t) = "Collection " ++ prettyType t
 prettyType (THash k v) = "Hash " ++ prettyType k ++ " " ++ prettyType v
-prettyType (TIORef t) = "IORef " ++ prettyType t
+prettyType (TMatcher t) = "Matcher " ++ prettyType t
+prettyType (TFun t1 t2) = prettyType t1 ++ " -> " ++ prettyType t2
 prettyType (TIO t) = "IO " ++ prettyType t
-prettyType (TPatternFunc args ret) =
-  "(" ++ unwords (map (\a -> "Pattern " ++ prettyType a) args) ++
-  " -> Pattern " ++ prettyType ret ++ ")"
+prettyType (TIORef t) = "IORef " ++ prettyType t
+prettyType TAny = "_"
 
 -- | Pretty print a tensor shape
 prettyShape :: TensorShape -> String

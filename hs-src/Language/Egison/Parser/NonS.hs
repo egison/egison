@@ -89,13 +89,50 @@ topExpr :: Parser TopExpr
 topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
-      <|> (reserved "def" >> defineExpr)
+      <|> (reserved "def" >> try patternFunctionExpr <|> defineExpr)
+      <|> try patternInductiveExpr
       <|> inductiveExpr
       <|> classExpr
       <|> instanceExpr
       <|> infixExpr
       <|> Test     <$> expr
       <?> "toplevel expression"
+
+-- | Parse pattern inductive type declaration
+-- e.g., inductive pattern MyList a := | myNil | myCons a (MyList a)
+patternInductiveExpr :: Parser TopExpr
+patternInductiveExpr = try $ do
+  pos <- L.indentLevel
+  reserved "inductive"
+  reserved "pattern"
+  typeName <- upperId
+  -- Parse optional type parameters (lowercase identifiers)
+  typeParams <- many typeVarIdent
+  _ <- symbol ":="
+  -- Parse constructors - they must be indented more than the 'inductive pattern' keyword
+  -- or on the same line separated by |
+  constructors <- patternConstructors pos
+  return $ PatternInductiveDecl typeName typeParams constructors
+
+-- | Parse constructors for pattern inductive type
+patternConstructors :: Pos -> Parser [PatternConstructor]
+patternConstructors basePos = do
+  -- Optional leading |
+  _ <- optional (symbol "|")
+  first <- patternConstructor
+  rest <- many $ try $ do
+    -- Either | separator or indented on new line
+    (symbol "|" >> patternConstructor) <|> (indentGuardGT basePos >> patternConstructor)
+  return (first : rest)
+
+-- | Parse a single pattern constructor
+-- e.g., myNil, myCons a (MyList a)
+patternConstructor :: Parser PatternConstructor
+patternConstructor = do
+  name <- lowerId  -- Pattern constructors use lowercase
+  -- Parse argument types
+  args <- many (try inductiveArgType)
+  return $ PatternConstructor name args
 
 -- | Parse inductive data type declaration
 -- e.g., inductive Ordering := | Less | Equal | Greater
@@ -180,13 +217,7 @@ inductiveParenType = parens $ do
 -- | Type expression inside parentheses in inductive context
 -- Allows function types and type applications
 inductiveTypeExprInParen :: Parser TypeExpr
-inductiveTypeExprInParen = do
-  atoms <- some inductiveTypeAtom
-  -- For now, just return the first atom (type application not fully supported)
-  -- In the future, we could add proper type application
-  case atoms of
-    [t] -> return t
-    _   -> return $ TEVar "Complex"  -- Placeholder for type application
+inductiveTypeExprInParen = typeExprWithApp
 
 -- | Parse type variable in inductive context (must be short)
 inductiveTypeVar :: Parser String
@@ -357,6 +388,36 @@ infixExpr = do
 
     reservedOp = [":", ":=", "->"]
     reservedPOp = ["&", "|", ":=", "->"]
+
+-- | Parse pattern function declaration
+-- e.g., def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a := ...
+patternFunctionExpr :: Parser TopExpr
+patternFunctionExpr = do
+  reserved "pattern"
+  ops <- gets exprOps
+  varWithIdx <- parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
+            <|> varWithIndicesLiteral
+  let (name, indices) = extractVarWithIndices varWithIdx
+  -- Parse optional type parameters: {a, b}
+  typeParams <- option [] (braces $ typeVarIdent `sepBy1` symbol ",")
+  -- Parse parameters with types: (p1 : a) (p2 : MyList a)
+  params <- many $
+    try (parens $ do
+      paramName <- lowerId
+      _ <- symbol ":"
+      paramType <- typeExpr
+      return (paramName, paramType)
+    ) <|> do
+      paramName <- lowerId
+      _ <- symbol ":"
+      paramType <- typeExpr
+      return (paramName, paramType)
+  _ <- symbol ":"
+  retType <- typeExpr
+  _ <- symbol ":="
+  -- Parse pattern body
+  body <- pattern
+  return $ PatternFunctionDecl name typeParams params retType body
 
 defineExpr :: Parser TopExpr
 defineExpr = try defineWithType <|> defineWithoutType

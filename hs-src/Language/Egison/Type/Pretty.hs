@@ -30,26 +30,22 @@ prettyType TBool            = "Bool"
 prettyType TChar            = "Char"
 prettyType TString          = "String"
 prettyType TUnit            = "()"
-prettyType TAny             = "_"
 prettyType (TVar (TyVar v)) = v
-prettyType (TList t)        = "[" ++ prettyType t ++ "]"
 prettyType (TTuple [])      = "()"
 prettyType (TTuple ts)      = "(" ++ intercalate ", " (map prettyType ts) ++ ")"
+prettyType (TCollection t)  = "[" ++ prettyType t ++ "]"
+prettyType (TInductive name []) = name
+prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyTypeAtom args)
+prettyType (TTensor t)      = "Tensor " ++ prettyTypeAtom t
+prettyType (THash k v)      = "Hash " ++ prettyTypeAtom k ++ " " ++ prettyTypeAtom v
+prettyType (TMatcher t)     = "Matcher " ++ prettyTypeAtom t
 prettyType (TFun t1 t2)     = prettyTypeArg t1 ++ " -> " ++ prettyType t2
   where
     prettyTypeArg t@(TFun _ _) = "(" ++ prettyType t ++ ")"
     prettyTypeArg t            = prettyType t
-prettyType (TMatcher t)     = "Matcher " ++ prettyTypeAtom t
-prettyType (TPattern t)     = "Pattern " ++ prettyTypeAtom t
-prettyType (TPatternFunc argTypes retType) =
-  intercalate " -> " (map (\t -> "Pattern " ++ prettyTypeAtom t) argTypes ++ ["Pattern " ++ prettyTypeAtom retType])
-prettyType (TTensor t) = "Tensor " ++ prettyTypeAtom t
-prettyType (TCollection t)  = "Collection " ++ prettyTypeAtom t
-prettyType (THash k v)      = "Hash " ++ prettyTypeAtom k ++ " " ++ prettyTypeAtom v
-prettyType (TIORef t)       = "IORef " ++ prettyTypeAtom t
 prettyType (TIO t)          = "IO " ++ prettyTypeAtom t
-prettyType (TInductive name []) = name
-prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyTypeAtom args)
+prettyType (TIORef t)       = "IORef " ++ prettyTypeAtom t
+prettyType TAny             = "_"
 
 -- | Pretty print an atomic type (with parentheses if needed)
 prettyTypeAtom :: Type -> String
@@ -59,10 +55,9 @@ prettyTypeAtom t@TBool      = prettyType t
 prettyTypeAtom t@TChar      = prettyType t
 prettyTypeAtom t@TString    = prettyType t
 prettyTypeAtom t@TUnit      = prettyType t
-prettyTypeAtom t@TAny       = prettyType t
 prettyTypeAtom t@(TVar _)   = prettyType t
-prettyTypeAtom t@(TList _)  = prettyType t
 prettyTypeAtom t@(TTuple _) = prettyType t
+prettyTypeAtom t@(TCollection _) = prettyType t
 prettyTypeAtom t            = "(" ++ prettyType t ++ ")"
 
 -- | Pretty print a TypeScheme

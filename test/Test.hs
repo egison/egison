@@ -14,7 +14,8 @@ main :: IO ()
 main = do
   t <- evalRuntimeT defaultOption mathOutputTest
   args <- getArgs
-  flip defaultMainWithArgs args . hUnitTestToTests . test $ t : map runTestCase testCases
+  flip defaultMainWithArgs args . hUnitTestToTests . test $ 
+    t : runPatternEnvDumpTest : map runTestCase testCases
 
 testCases :: [FilePath]
 testCases =
@@ -37,6 +38,7 @@ testCases =
   , "test/lib/type/basic.egi"      -- for testing typed functions
   , "test/lib/type/infer.egi"      -- for testing type inference of various expressions
   , "test/lib/type/typeclass.egi"  -- for testing type class (class/instance declarations)
+  , "test/lib/type/pattern-env.egi" -- for testing pattern inductive and pattern function environment
 
   , "sample/mahjong.egi" -- for testing pattern functions
   , "sample/primes.egi" -- for testing pattern matching with infinitely many results
@@ -56,9 +58,19 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   env <- lift $ lift initialEnv
   exprs <- loadFile file
   evalTopExprsNoPrint env exprs
- where
+where
   assertEvalM :: EvalM a -> Assertion
   assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
+
+-- Test case for pattern environment dump
+runPatternEnvDumpTest :: Test
+runPatternEnvDumpTest = TestLabel "pattern-env-dump" . TestCase . assertEvalMWithDump $ do
+  env <- lift $ lift initialEnv
+  exprs <- loadFile "mini-test/pattern-env-dump.egi"
+  evalTopExprsNoPrint env exprs
+where
+  assertEvalMWithDump :: EvalM a -> Assertion
+  assertEvalMWithDump m = fromEvalM (defaultOption { optDumpEnv = True }) m >>= assertString . either show (const "")
 
 mathOutputTest :: RuntimeM Test
 mathOutputTest = do

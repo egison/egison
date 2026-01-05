@@ -31,13 +31,12 @@ def tile :=
 --
 -- Pattern modularization
 --
-def twin {a} : Pattern a -> Pattern a -> Pattern [a] := \pat1 pat2 => ($pat & ~pat1) :: #pat :: ~pat2
+def pattern twin {a} (pat1 : a) (pat2 : [a]) : [a] := ($pat & ~pat1) :: #pat :: ~pat2
 
-def shuntsu : Pattern Tile -> Pattern Tile -> Pattern [Tile] :=
-  \pat1 pat2 =>
-    (num $s $n & ~pat1) :: num #s #(n + 1) :: num #s #(n + 2) :: ~pat2
+def pattern shuntsu {a} (pat1 : a) (pat2 : [a]) : [a] :=
+  (num $s $n & ~pat1) :: num #s #(n + 1) :: num #s #(n + 2) :: ~pat2
 
-def kohtsu {a} : Pattern a -> Pattern a -> Pattern [a] := \pat1 pat2 => ($pat & ~pat1) :: #pat :: #pat :: ~pat2
+def pattern kohtsu {a} (pat1 : a) (pat2 : [a]) : [a] := ($pat & ~pat1) :: #pat :: #pat :: ~pat2
 
 --
 -- A function that determines whether the hand is completed or not.

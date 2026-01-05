@@ -1,9 +1,26 @@
 inductive pattern MyList a := | myNil | myCons a (MyList a) | myJoin (MyList a) (MyList a)
 
-def pattern twin (p1 : a) (p2 : MyList a) : (MyList a) := 
+def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a := 
   myCons ($pat & ~p1) (myCons #pat :: ~p2)
 
 ## 実装方針
+
+### パターン関数の定義
+
+パターン関数は `def pattern` キーワードで定義する。
+
+- **型パラメータ**: `{a}` で明示的に指定可能
+- **引数の型**: パターンの型として扱う（`Pattern a` への変換は不要）
+- **戻り値の型**: パターンの型として扱う（`Pattern (MyList a)` への変換は不要）
+- **本体**: パターン式を直接記述（パターン関数リテラル `\pat1 pat2 => ...` は不要）
+
+### パターン型環境の分離
+
+パターンコンストラクタとパターン関数の型環境は、値の型環境と分離する。
+
+- **パターン型環境**: パターンコンストラクタとパターン関数の型情報を保持
+- **値型環境**: 通常の関数や値の型情報を保持
+- **型推論**: パターンの型推論は値の型推論と独立して行う
 
 ### パターンコンストラクタの制限
 
@@ -14,10 +31,11 @@ def pattern twin (p1 : a) (p2 : MyList a) : (MyList a) :=
 
 ### 実装上の変更点
 
-1. **パターンコンストラクタ環境の追加**
-   - `EvalState` に `patternConstructorEnv :: PatternConstructorEnv` を追加
-   - `EnvBuildResult` に `ebrPatternConstructorEnv :: PatternConstructorEnv` を追加
+1. **パターン型環境の追加**
+   - `EvalState` に `patternTypeEnv :: PatternTypeEnv` を追加（パターンコンストラクタとパターン関数の型情報）
+   - `EnvBuildResult` に `ebrPatternTypeEnv :: PatternTypeEnv` を追加
    - `PatternInductiveDecl` を処理してパターンコンストラクタを登録
+   - `PatternFunctionDecl` を処理してパターン関数を登録
 
 2. **`IInductivePat` の解決時の検証**
    - `IInductivePat` の解決時に、パターンコンストラクタ環境のみを参照
@@ -31,8 +49,14 @@ def pattern twin (p1 : a) (p2 : MyList a) : (MyList a) :=
    - 型推論・型チェック時に、マッチ節のパターン内の `IInductivePat` で使用されるコンストラクタが inductive pattern かパターン関数として宣言されているかを検証
    - マッチャー節のprimitivePatternPatternは inductive patternで宣言されたパターンコンストラクタのみが使える
    - マッチ節では、inductive patternで宣言されたパターンコンストラクタとパターン関数の両方が使える
+   - パターン関数の型推論は、パターン型環境を使用して独立して行う
 
-5. **`PrimitivePatPattern` の型検査**
+5. **パターン関数の型推論**
+   - パターン関数の引数型は `Pattern a` への変換は行わない（`a` のまま）
+   - パターン関数の戻り値型も `Pattern (MyList a)` への変換は行わない（`MyList a` のまま）
+   - パターン型環境で型推論を行うため、値の型環境とは独立
+
+6. **`PrimitivePatPattern` の型検査**
    - `PPInductivePat` の型検査を `inductive pattern` のコンストラクタ定義に基づいて実施
    - パターンコンストラクタ環境から、コンストラクタの型情報（引数の型）を取得
    - `PPInductivePat` の引数パターンの型を、宣言されたコンストラクタの引数の型と照合
@@ -57,9 +81,14 @@ def pattern twin (p1 : a) (p2 : MyList a) : (MyList a) :=
 
 #### 実装方針
 
-1. **パターンコンストラクタとパターン関数の情報のを環境に追加**
+1. **パターン型環境の定義**
    ```haskell
-   newtype PatternTypeEnv = TypeEnv { unPatternTypeEnv :: Map String TypeScheme }
+   -- パターンコンストラクタとパターン関数の型情報を保持
+   -- 値の型環境とは分離されている
+   newtype PatternTypeEnv = PatternTypeEnv { unPatternTypeEnv :: Map String TypeScheme }
+   
+   -- パターンコンストラクタ環境（PatternTypeEnvと同じ形式）
+   type PatternConstructorEnv = PatternTypeEnv
    ```
 
 2. **`checkPatternDef` の拡張**
@@ -85,6 +114,53 @@ def pattern twin (p1 : a) (p2 : MyList a) : (MyList a) :=
    - パターンコンストラクタ環境から `cons : a -> MyList a -> MyList a` を取得
    - 第1引数は `a`、第2引数は `MyList a` として型推論
    - `as (integer, myList integer)` と照合して型を統一
+
+### パターン関数の実装詳細
+
+#### 構文
+
+```egison
+-- 型パラメータあり
+def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a := 
+  myCons ($pat & ~p1) (myCons #pat :: ~p2)
+
+-- 型パラメータなし（型変数は引数から推論）
+def pattern pair (p1 : Integer) (p2 : Integer) : (Integer, Integer) := 
+  (p1, p2)
+```
+
+#### 実装方針
+
+1. **ASTへの追加**
+   ```haskell
+   data TopExpr
+     = ...
+     | PatternFunctionDecl String [String] [(String, TypeExpr)] TypeExpr Pattern
+     -- String: 関数名
+     -- [String]: 型パラメータ（例: ["a"]）
+     -- [(String, TypeExpr)]: 引数（名前と型）
+     -- TypeExpr: 戻り値の型
+     -- Pattern: 本体（パターン式）
+   ```
+
+2. **パーサーの拡張**
+   - `def pattern` キーワードを追加
+   - 型パラメータ `{a}` のパース
+   - 本体をパターン式として解析
+
+3. **環境構築フェーズ**
+   - `PatternFunctionDecl` を処理してパターン関数をパターン型環境に登録
+   - 型パラメータを考慮した型スキームを作成
+
+4. **型推論**
+   - パターン型環境を使用して型推論
+   - 引数の型は `Pattern a` への変換は行わない
+   - 戻り値の型も `Pattern (MyList a)` への変換は行わない
+   - 型パラメータの統一を行う
+
+5. **評価時の処理**
+   - パターン関数は `PatternFunc` 値として評価
+   - `IInductivePat` の解決時に、パターン型環境からパターン関数を検索
 
 
 # Value patternの扱い

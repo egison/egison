@@ -242,7 +242,7 @@ inferExpr expr = case expr of
   CollectionExpr es -> do
     elemType <- freshVar "elem"
     s <- foldM (inferListElem elemType) emptySubst es
-    return (TList (applySubst s elemType), s)
+    return (TCollection (applySubst s elemType), s)
     where
       inferListElem eType s e = do
         (t, s') <- inferExpr e
@@ -319,7 +319,7 @@ inferExpr expr = case expr of
   MatchExpr _ target matcher clauses -> inferMatch target matcher clauses
   MatchAllExpr _ target matcher clauses -> do
     (t, s) <- inferMatch target matcher clauses
-    return (TList t, s)
+    return (TCollection t, s)
 
   -- Type annotation
   TypeAnnotation e typeExpr -> do
@@ -418,10 +418,10 @@ inferExpr expr = case expr of
   PatternFunctionExpr argNames _bodyPat -> do
     -- Each argument is a pattern, so its type is Pattern t for some t
     argTypes <- mapM (\_ -> freshVar "patArg") argNames
-    -- The result type is also a pattern type
+    -- The result type
     resultType <- freshVar "patResult"
-    -- Construct the pattern function type
-    let patFuncType = TPatternFunc argTypes resultType
+    -- Construct the function type (pattern functions use regular function types)
+    let patFuncType = foldr TFun resultType argTypes
     return (patFuncType, emptySubst)
 
   -- Hash expression: {| (k1, v1), (k2, v2), ... |}
@@ -454,7 +454,7 @@ inferExpr expr = case expr of
     (headType, s1) <- inferExpr headExpr
     (tailType, s2) <- inferExpr tailExpr
     let s12 = composeSubst s2 s1
-    s3 <- unifyTypes (TList (applySubst s12 headType)) (applySubst s12 tailType)
+    s3 <- unifyTypes (TCollection (applySubst s12 headType)) (applySubst s12 tailType)
     let finalS = composeSubst s3 s12
     return (applySubst finalS tailType, finalS)
 
@@ -563,7 +563,7 @@ inferExpr expr = case expr of
     clauseSubsts <- mapM (inferMatchLambdaClause argType matcherType elemType resultType) clauses
     let finalS = foldr composeSubst s12 clauseSubsts
     -- matchAll returns a list
-    return (TFun (applySubst finalS argType) (TList (applySubst finalS resultType)), finalS)
+    return (TFun (applySubst finalS argType) (TCollection (applySubst finalS resultType)), finalS)
     where
       inferMatchLambdaClause tgtType mType elemType expectedType (pat, body) = do
         patBindings <- extractPatternBindings tgtType mType elemType pat
@@ -612,10 +612,10 @@ inferExpr expr = case expr of
     (shapeType, s2) <- inferExpr shapeExpr
     let s12 = composeSubst s2 s1
     -- shapeExpr should be [Integer]
-    s3 <- unifyTypes (applySubst s12 shapeType) (TList TInt)
+    s3 <- unifyTypes (applySubst s12 shapeType) (TCollection TInt)
     -- funcType should be [Integer] -> a
     elemType <- freshVar "tensorElem"
-    s4 <- unifyTypes (applySubst (composeSubst s3 s12) funcType) (TFun (TList TInt) elemType)
+    s4 <- unifyTypes (applySubst (composeSubst s3 s12) funcType) (TFun (TCollection TInt) elemType)
     let finalS = foldr composeSubst emptySubst [s4, s3, s2, s1]
     return (TTensor (applySubst finalS elemType), finalS)
 
@@ -695,8 +695,8 @@ inferExpr expr = case expr of
     resultType <- freshVar "capplyResult"
     -- CApply applies a function to all elements of a collection
     case applySubst s12 argType of
-      TList elemTy -> do
-        s3 <- unifyTypes (applySubst s12 funcType) (TFun (TList elemTy) resultType)
+      TCollection elemTy -> do
+        s3 <- unifyTypes (applySubst s12 funcType) (TFun (TCollection elemTy) resultType)
         let finalS = composeSubst s3 s12
         return (applySubst finalS resultType, finalS)
       _ -> do
@@ -779,7 +779,7 @@ inferExpr expr = case expr of
     (_, s2) <- inferExpr shapeExpr
     let s12 = composeSubst s2 s1
     case applySubst s12 dataType of
-      TList elemTy -> return (TTensor elemTy, s12)
+      TCollection elemTy -> return (TTensor elemTy, s12)
       _ -> return (TTensor (applySubst s12 dataType), s12)
 
   -- MemoizedLambda: similar to regular lambda but with memoization
@@ -861,7 +861,7 @@ checkPrimMatchClause targetType nextMatcherType (dataPat, body) = do
     
     -- Body should return [nextMatcherType] (list of next targets)
     -- For example: [(x, y), (y, x)] for next matcher type (a, a)
-    let expectedBodyType = TList nextMatcherType
+    let expectedBodyType = TCollection nextMatcherType
     _ <- unifyTypes bodyType expectedBodyType
     return ()
 
@@ -883,21 +883,21 @@ extractDataPatternBindings t pat = go t pat
       concat <$> zipWithM go elemTypes pats
     go ty (PDConsPat headPat tailPat) = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "consElem"
       headBindings <- go elemTy headPat
       tailBindings <- go ty tailPat
       return (headBindings ++ tailBindings)
     go ty (PDSnocPat initPat lastPat) = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "snocElem"
       initBindings <- go ty initPat
       lastBindings <- go elemTy lastPat
       return (initBindings ++ lastBindings)
     go ty (PDInductivePat "cons" [headPat, tailPat]) = do
       elemTy <- case ty of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "consElem"
       headBindings <- go elemTy headPat
       tailBindings <- go ty tailPat
@@ -935,7 +935,7 @@ inferMatcherTargetType patternDefs = do
     then do
       -- Data pattern uses ::, so target is a list type
       elemType <- freshVar "elem"
-      return $ TList elemType
+      return $ TCollection elemType
     else
       return targetType
   where
@@ -1025,8 +1025,8 @@ inferMatch target matcher clauses = do
 checkMatcherTargetCompatibility :: Type -> Type -> Infer (Type, Subst)
 checkMatcherTargetCompatibility matcherType targetType = case matcherType of
   -- Matcher [a] should match [a]
-  TMatcher (TList elemTy) -> do
-    s <- unifyTypes (TList elemTy) targetType
+  TMatcher (TCollection elemTy) -> do
+    s <- unifyTypes (TCollection elemTy) targetType
     return (applySubst s elemTy, s)
 
   -- Matcher a should match a
@@ -1046,9 +1046,9 @@ checkMatcherTargetCompatibility matcherType targetType = case matcherType of
 -- | Extract element type from matcher type
 -- e.g., Matcher (List a) with target [Integer] -> Integer
 extractElementType :: Type -> Type -> Type
-extractElementType (TMatcher (TList elemTy)) _ = elemTy
+extractElementType (TMatcher (TCollection elemTy)) _ = elemTy
 extractElementType (TMatcher ty) _ = ty
-extractElementType _ (TList elemTy) = elemTy
+extractElementType _ (TCollection elemTy) = elemTy
 extractElementType _ ty = ty
 
 -- | Extract variable bindings from a pattern
@@ -1060,12 +1060,12 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
   where
     -- Helper to check if matcher is a list-like matcher
     isListMatcher :: Type -> Bool
-    isListMatcher (TMatcher (TList _)) = True
+    isListMatcher (TMatcher (TCollection _)) = True
     isListMatcher _ = False
     
     -- Helper to get element type from matcher
     getMatcherElemType :: Type -> Maybe Type
-    getMatcherElemType (TMatcher (TList e)) = Just e
+    getMatcherElemType (TMatcher (TCollection e)) = Just e
     getMatcherElemType (TMatcher t) = Just t
     getMatcherElemType _ = Nothing
 
@@ -1143,7 +1143,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
           -- If matcher is list-like, cons splits into (element, list)
           -- Otherwise, use fresh types
           case tgt of
-            TList elemTy -> do
+            TCollection elemTy -> do
               headBindings <- go elemTy m elemTy headPat
               -- For tail, matcher becomes same matcher (list a -> list a)
               tailBindings <- go tgt m tgt tailPat
@@ -1156,7 +1156,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
         "join" | [leftPat, rightPat] <- pats -> do
           -- Join splits a collection into two parts of the same type
           case tgt of
-            TList _ -> do
+            TCollection _ -> do
               leftBindings <- go tgt m ty leftPat
               rightBindings <- go tgt m ty rightPat
               return (leftBindings ++ rightBindings)
@@ -1177,7 +1177,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
         "::" -> do
           -- cons pattern - only list-like if target is list
           case tgt of
-            TList elemTy -> do
+            TCollection elemTy -> do
               b1 <- go elemTy m elemTy p1
               b2 <- go tgt m tgt p2
               return (b1 ++ b2)
@@ -1248,7 +1248,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
             case repr op' of
               "::" -> do
                 case tgt' of
-                  TList elemTy -> do
+                  TCollection elemTy -> do
                     b1 <- extractLoopBodyBindings elemTy m' elemTy p1
                     b2 <- extractLoopBodyBindings tgt' m' tgt' p2
                     return (b1 ++ b2)
@@ -1277,7 +1277,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
             case name of
               "cons" | [headPat, tailPat] <- pats -> do
                 case tgt' of
-                  TList elemTy -> do
+                  TCollection elemTy -> do
                     headBindings <- extractLoopBodyBindings elemTy m' elemTy headPat
                     tailBindings <- extractLoopBodyBindings tgt' m' tgt' tailPat
                     return (headBindings ++ tailBindings)
@@ -1302,16 +1302,23 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
     go tgt m _ty (PApplyPat funcExpr argPats) = do
       -- Infer the type of the pattern function
       (funcType, _) <- inferExpr funcExpr
-      -- Extract argument types from the pattern function type
-      case funcType of
-        TPatternFunc argTypes _resultType
+      -- Extract argument types from the function type
+      case extractArgTypes funcType of
+        Just argTypes
           | length argTypes == length argPats -> do
-            -- Use the declared argument types (inner types of Pattern a)
+            -- Use the declared argument types
             concat <$> zipWithM (\t p -> go t m t p) argTypes argPats
         _ -> do
           -- Type unknown or mismatch - use fresh types
           freshTypes <- mapM (\_ -> freshVar "papp") argPats
           concat <$> zipWithM (\t p -> go t m t p) freshTypes argPats
+      where
+        extractArgTypes :: Type -> Maybe [Type]
+        extractArgTypes (TFun arg ret) = 
+          case extractArgTypes ret of
+            Just args -> Just (arg : args)
+            Nothing -> Just [arg]
+        extractArgTypes _ = Nothing
 
     go _tgt _m ty (VarPat name) = return [(name, Forall [] [] ty)]
 
@@ -1320,7 +1327,7 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
       case name of
         "cons" | [headPat, tailPat] <- pats -> do
           case tgt of
-            TList elemTy -> do
+            TCollection elemTy -> do
               headBindings <- go elemTy m elemTy headPat
               tailBindings <- go tgt m tgt tailPat
               return (headBindings ++ tailBindings)
@@ -1335,13 +1342,13 @@ extractPatternBindings targetType matcherType elemType pat = go targetType match
 
     go tgt m ty (SeqConsPat p1 p2) = do
       case tgt of
-        TList elemTy -> do
+        TCollection elemTy -> do
           b1 <- go elemTy m elemTy p1
           b2 <- go tgt m tgt p2
           return (b1 ++ b2)
         _ -> do
           b1 <- go ty m ty p1
-          b2 <- go (TList ty) m (TList ty) p2
+          b2 <- go (TCollection ty) m (TCollection ty) p2
           return (b1 ++ b2)
 
     go _tgt _m _ LaterPatVar = return []
@@ -1372,21 +1379,21 @@ extractLetPatternBindings ty pat = do
         concat <$> zipWithM go freshTypes pats
     go t (PDConsPat headPat tailPat) = do
       elemTy <- case t of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "letElem"
       headBindings <- go elemTy headPat
       tailBindings <- go t tailPat
       return (headBindings ++ tailBindings)
     go t (PDSnocPat initPat lastPat) = do
       elemTy <- case t of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "letElem"
       initBindings <- go t initPat
       lastBindings <- go elemTy lastPat
       return (initBindings ++ lastBindings)
     go t (PDInductivePat "cons" [headPat, tailPat]) = do
       elemTy <- case t of
-        TList e -> return e
+        TCollection e -> return e
         _ -> freshVar "letElem"
       headBindings <- go elemTy headPat
       tailBindings <- go t tailPat
@@ -1456,6 +1463,12 @@ inferTopExpr topExpr = case topExpr of
   ClassDeclExpr _ -> 
     return ()  -- Already handled by EnvBuilder in Phase 2
 
+  PatternInductiveDecl _typeName _typeParams _constructors ->
+    return ()  -- Already handled by EnvBuilder in Phase 2
+  
+  PatternFunctionDecl _name _typeParams _params _retType _body ->
+    return ()  -- Already handled by EnvBuilder in Phase 2
+  
   -- Type class instance declaration
   -- e.g., instance Eq Integer where (==) x y := x = y
   -- NOTE: Environment building (instance registration) is now handled in Phase 2
@@ -1543,46 +1556,24 @@ typeExprToType TEBool = TBool
 typeExprToType TEChar = TChar
 typeExprToType TEString = TString
 typeExprToType (TEVar v) = TVar (TyVar v)
-typeExprToType (TEList t) = TList (typeExprToType t)
 typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
-typeExprToType (TEFun t1 t2) =
-  -- Check if this is a pattern function type: Pattern a -> Pattern b -> Pattern c
-  case tryParsePatternFuncType (TEFun t1 t2) of
-    Just (argTypes, retType) -> TPatternFunc argTypes retType
-    Nothing -> TFun (typeExprToType t1) (typeExprToType t2)
-typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
-typeExprToType (TEPattern t) = TPattern (typeExprToType t)
-typeExprToType (TEIO t) = TIO (typeExprToType t)
-typeExprToType (TETensor t _shape _indices) =
-  TTensor (typeExprToType t)
+typeExprToType (TEList t) = TCollection (typeExprToType t)
 typeExprToType (TEApp constr args) =
   -- Handle common type constructors
   case (constr, args) of
-    (TEVar "List", [t]) -> TList (typeExprToType t)
-    (TEVar "Maybe", [t]) -> TList (typeExprToType t)  -- Approximate Maybe as List
-    (TEVar "Hash", [k, v]) -> THash (typeExprToType k) (typeExprToType v)
-    (TEVar "IORef", [t]) -> TIORef (typeExprToType t)
-    (TEVar "Matcher", [t]) -> TMatcher (typeExprToType t)
-    (TEVar "Pattern", [t]) -> TPattern (typeExprToType t)
+    (TEVar "List", [t]) -> TCollection (typeExprToType t)
+    (TEVar "Maybe", [t]) -> TCollection (typeExprToType t)  -- Approximate Maybe as List
+    (TEVar name, ts) -> TInductive name (map typeExprToType ts)
     _ -> TAny  -- Unsupported type application
-
--- | Try to parse a function type as a pattern function type
--- Pattern a -> Pattern b -> Pattern c => Just ([a, b], c)
--- Returns Nothing if not a pattern function type
-tryParsePatternFuncType :: TypeExpr -> Maybe ([Type], Type)
-tryParsePatternFuncType te = go te []
-  where
-    go :: TypeExpr -> [Type] -> Maybe ([Type], Type)
-    -- Base case: return type is a Pattern
-    go (TEPattern innerType) accArgs =
-      if null accArgs
-        then Nothing  -- Just Pattern a, not a function
-        else Just (reverse accArgs, typeExprToType innerType)
-    -- Recursive case: Pattern a -> rest
-    go (TEFun (TEPattern argType) rest) accArgs =
-      go rest (typeExprToType argType : accArgs)
-    -- Not a pattern function type
-    go _ _ = Nothing
+typeExprToType (TETensor t _shape _indices) =
+  TTensor (typeExprToType t)
+typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
+typeExprToType (TEFun t1 t2) =
+  TFun (typeExprToType t1) (typeExprToType t2)
+typeExprToType (TEIO t) = TIO (typeExprToType t)
+typeExprToType (TEApp (TEVar "Hash") [k, v]) = THash (typeExprToType k) (typeExprToType v)
+typeExprToType (TEApp (TEVar "IORef") [t]) = TIORef (typeExprToType t)
+typeExprToType _ = TAny  -- Unsupported type expression
 
 -- | Convert TensorShapeExpr to TensorShape
 shapeExprToShape :: TensorShapeExpr -> TensorShape
@@ -1612,22 +1603,18 @@ typeToTypeExpr TBool = TEBool
 typeToTypeExpr TChar = TEChar
 typeToTypeExpr TString = TEString
 typeToTypeExpr TUnit = TETuple []
-typeToTypeExpr TAny = TEVar "_"
 typeToTypeExpr (TVar (TyVar v)) = TEVar v
-typeToTypeExpr (TList t) = TEList (typeToTypeExpr t)
 typeToTypeExpr (TTuple ts) = TETuple (map typeToTypeExpr ts)
-typeToTypeExpr (TFun t1 t2) = TEFun (typeToTypeExpr t1) (typeToTypeExpr t2)
-typeToTypeExpr (TMatcher t) = TEMatcher (typeToTypeExpr t)
+typeToTypeExpr (TCollection t) = TEList (typeToTypeExpr t)
+typeToTypeExpr (TInductive name ts) = TEApp (TEVar name) (map typeToTypeExpr ts)
 typeToTypeExpr (TTensor t) =
   TETensor (typeToTypeExpr t) (TSVar "?") []  -- Shape and indices are not part of the type
-typeToTypeExpr (TCollection t) = TEList (typeToTypeExpr t)
 typeToTypeExpr (THash k v) = TEApp (TEVar "Hash") [typeToTypeExpr k, typeToTypeExpr v]
-typeToTypeExpr (TPattern t) = TEPattern (typeToTypeExpr t)
+typeToTypeExpr (TMatcher t) = TEMatcher (typeToTypeExpr t)
+typeToTypeExpr (TFun t1 t2) = TEFun (typeToTypeExpr t1) (typeToTypeExpr t2)
 typeToTypeExpr (TIO t) = TEIO (typeToTypeExpr t)
-typeToTypeExpr (TPatternFunc argTypes retType) =
-  -- Convert Pattern a -> Pattern b -> Pattern c to TEFun form
-  foldr TEFun (TEPattern (typeToTypeExpr retType)) (map (\t -> TEPattern (typeToTypeExpr t)) argTypes)
 typeToTypeExpr (TIORef t) = TEApp (TEVar "IORef") [typeToTypeExpr t]
+typeToTypeExpr TAny = TEVar "_"
 
 -- | Convert TensorShape to TensorShapeExpr
 shapeToShapeExpr :: TensorShape -> TensorShapeExpr

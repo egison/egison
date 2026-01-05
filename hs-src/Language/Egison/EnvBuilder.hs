@@ -27,9 +27,9 @@ import qualified Data.HashMap.Strict        as HashMap
 
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM)
-import           Language.Egison.EvalState  (ConstructorInfo(..), ConstructorEnv)
-import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, emptyEnv, emptyClassEnv, 
-                                             extendEnv, addClass, addInstance)
+import           Language.Egison.EvalState  (ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
+import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
+                                             extendEnv, extendPatternEnv, addClass, addInstance)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..), TensorShape(..),
                                              ClassInfo, InstanceInfo)
@@ -39,6 +39,8 @@ data EnvBuildResult = EnvBuildResult
   { ebrTypeEnv        :: TypeEnv         -- ^ Type signatures for definitions
   , ebrClassEnv       :: ClassEnv        -- ^ Type class and instance information
   , ebrConstructorEnv :: ConstructorEnv  -- ^ Data constructor information
+  , ebrPatternConstructorEnv :: PatternConstructorEnv  -- ^ Pattern constructor information
+  , ebrPatternTypeEnv :: PatternTypeEnv  -- ^ Pattern function information
   } deriving (Show)
 
 --------------------------------------------------------------------------------
@@ -55,6 +57,8 @@ buildEnvironments exprs = do
         { ebrTypeEnv = emptyEnv
         , ebrClassEnv = emptyClassEnv
         , ebrConstructorEnv = HashMap.empty
+        , ebrPatternConstructorEnv = emptyPatternEnv
+        , ebrPatternTypeEnv = emptyPatternEnv
         }
   
   -- Process each top-level expression to collect declarations
@@ -153,6 +157,35 @@ processTopExpr result topExpr = case topExpr of
     
     return result { ebrTypeEnv = typeEnv' }
   
+  -- 5. Pattern Inductive Declarations (from PatternInductiveDecl)
+  PatternInductiveDecl typeName typeParams constructors -> do
+    let typeParamVars = map (TVar . TyVar) typeParams
+        patternType = TInductive typeName typeParamVars
+        patternCtorEnv = ebrPatternConstructorEnv result
+    
+    -- Register each pattern constructor to pattern constructor environment
+    patternCtorEnv' <- foldM (registerPatternConstructor typeName typeParams patternType) 
+                              patternCtorEnv 
+                              constructors
+    
+    return result { ebrPatternConstructorEnv = patternCtorEnv' }
+  
+  -- 6. Pattern Function Declarations (from PatternFunctionDecl)
+  PatternFunctionDecl name typeParams params retType _body -> do
+    let paramTypes = map (typeExprToType . snd) params
+        retType' = typeExprToType retType
+        -- Pattern function type: arg1 -> arg2 -> ... -> retType (without Pattern wrapper)
+        patternFuncType = foldr TFun retType' paramTypes
+        
+        -- Quantify over type parameters
+        tyVars = map TyVar typeParams
+        typeScheme = Types.Forall tyVars [] patternFuncType
+        
+        patternEnv = ebrPatternTypeEnv result
+        patternEnv' = extendPatternEnv name typeScheme patternEnv
+    
+    return result { ebrPatternTypeEnv = patternEnv' }
+  
   -- Other expressions don't contribute to environment building
   Define {} -> return result
   Test {} -> return result
@@ -236,18 +269,38 @@ typeExprToType TEBool = TBool
 typeExprToType TEChar = TChar
 typeExprToType TEString = TString
 typeExprToType (TEVar name) = TVar (TyVar name)
-typeExprToType (TEList t) = TList (typeExprToType t)
 typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
-typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
+typeExprToType (TEList t) = TCollection (typeExprToType t)
 typeExprToType (TEApp t1 ts) = 
   case typeExprToType t1 of
+    TVar (TyVar name) -> TInductive name (map typeExprToType ts)  -- Type application: MyList a
     TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
     baseType -> baseType  -- Can't apply to non-inductive types
-typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
-typeExprToType (TEPattern t) = TPattern (typeExprToType t)
-typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TETensor elemT _ _) = TTensor (typeExprToType elemT)
+typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
+typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
+typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
+
+-- | Register a single pattern constructor
+registerPatternConstructor :: String -> [String] -> Type 
+                           -> PatternConstructorEnv -> PatternConstructor 
+                           -> EvalM PatternConstructorEnv
+registerPatternConstructor typeName typeParams resultType patternCtorEnv 
+                          (PatternConstructor ctorName argTypeExprs) = do
+  let argTypes = map typeExprToType argTypeExprs
+      
+      -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType (without Pattern wrapper)
+      patternCtorType = foldr TFun resultType argTypes
+      
+      -- Quantify over type parameters
+      tyVars = map TyVar typeParams
+      typeScheme = Types.Forall tyVars [] patternCtorType
+      
+      -- Add to pattern constructor environment (same format as PatternTypeEnv)
+      patternCtorEnv' = extendPatternEnv ctorName typeScheme patternCtorEnv
+  
+  return patternCtorEnv'
 
 -- | Convert TypedParam to Type
 typedParamToType :: TypedParam -> Type

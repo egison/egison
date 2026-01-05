@@ -55,20 +55,17 @@ applySubst _ TBool            = TBool
 applySubst _ TChar            = TChar
 applySubst _ TString          = TString
 applySubst _ TUnit            = TUnit
-applySubst _ TAny             = TAny
 applySubst (Subst m) t@(TVar v) = Map.findWithDefault t v m
-applySubst s (TList t)        = TList (applySubst s t)
 applySubst s (TTuple ts)      = TTuple (map (applySubst s) ts)
-applySubst s (TFun t1 t2)     = TFun (applySubst s t1) (applySubst s t2)
-applySubst s (TMatcher t)     = TMatcher (applySubst s t)
-applySubst s (TPattern t)     = TPattern (applySubst s t)
-applySubst s (TPatternFunc ts t) = TPatternFunc (map (applySubst s) ts) (applySubst s t)
-applySubst s (TTensor t) = TTensor (applySubst s t)
 applySubst s (TCollection t)  = TCollection (applySubst s t)
-applySubst s (THash k v)      = THash (applySubst s k) (applySubst s v)
-applySubst s (TIORef t)       = TIORef (applySubst s t)
-applySubst s (TIO t)          = TIO (applySubst s t)
 applySubst s (TInductive name ts) = TInductive name (map (applySubst s) ts)
+applySubst s (TTensor t)      = TTensor (applySubst s t)
+applySubst s (THash k v)      = THash (applySubst s k) (applySubst s v)
+applySubst s (TMatcher t)     = TMatcher (applySubst s t)
+applySubst s (TFun t1 t2)     = TFun (applySubst s t1) (applySubst s t2)
+applySubst s (TIO t)          = TIO (applySubst s t)
+applySubst s (TIORef t)       = TIORef (applySubst s t)
+applySubst _ TAny             = TAny
 
 -- | Apply a substitution to a type scheme
 applySubstScheme :: Subst -> TypeScheme -> TypeScheme
