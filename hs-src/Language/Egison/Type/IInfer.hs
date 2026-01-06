@@ -342,14 +342,31 @@ inferIExpr expr = case expr of
     return (t2, composeSubst s2 s1)
   
   -- Inductive Data Constructor
-  IInductiveDataExpr _name args -> do
-    _ <- mapM inferIExpr args
-    -- TODO: Look up constructor type in environment
-    -- For now, return TAny
-    return (TAny, emptySubst)
+  IInductiveDataExpr name args -> do
+    -- Look up constructor type in environment
+    env <- getEnv
+    case lookupEnv name env of
+      Just scheme -> do
+        -- Instantiate the type scheme
+        st <- get
+        let (_constraints, constructorType, newCounter) = instantiate scheme (inferCounter st)
+        modify $ \s -> s { inferCounter = newCounter }
+        -- Treat constructor as a function application
+        inferIApplication constructorType args emptySubst
+      Nothing -> do
+        -- Constructor not found in environment
+        permissive <- isPermissive
+        if permissive
+          then do
+            -- In permissive mode, treat as a warning and return a fresh type variable
+            addWarning $ UnboundVariableWarning name emptyContext
+            resultType <- freshVar "ctor"
+            return (resultType, emptySubst)
+          else throwError $ UnboundVariable name emptyContext
   
   -- Matchers (return Matcher type)
   IMatcherExpr _patDefs -> do
+    -- TODO: Not implemented
     matchedTy <- freshVar "matched"
     return (TMatcher matchedTy, emptySubst)
   

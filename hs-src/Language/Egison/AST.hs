@@ -350,25 +350,45 @@ instance Show Assoc where
 
 reservedExprOp :: [Op]
 reservedExprOp =
-  [ Op "!"  8 Prefix False -- Wedge and InvertedArg prefix
-  , Op "-"  7 Prefix False -- Negate
-  , Op "%"  7 InfixL False -- primitive function
-  , Op "++" 5 InfixR False
-  , Op "::" 5 InfixR False
-  , Op "==" 4 InfixL False -- equality (from type class)
-  , Op "/=" 4 InfixL False -- inequality (from type class)
-  , Op "="  4 InfixL False -- primitive function
-  , Op "<=" 4 InfixL False -- primitive function
-  , Op ">=" 4 InfixL False -- primitive function
-  , Op "<"  4 InfixL False -- primitive function
-  , Op ">"  4 InfixL False -- primitive function
-  , Op "&&" 3 InfixR False -- logical and (from base)
-  , Op "||" 2 InfixR False -- logical or (from base)
+  [ Op "!"    8 Prefix False -- Wedge and InvertedArg prefix
+  , Op "-"    7 Prefix False -- Negate
+  , Op "%"    7 InfixL False -- primitive function
+  , Op "++"   5 InfixR False
+  , Op "::"   5 InfixR False
+  , Op "=="   4 InfixL False -- equality (from type class)
+  , Op "/="   4 InfixL False -- inequality (from type class)
+  , Op "="    4 InfixL False -- primitive function
+  , Op "<="   4 InfixL False -- primitive function
+  , Op ">="   4 InfixL False -- primitive function
+  , Op "<"    4 InfixL False -- primitive function
+  , Op ">"    4 InfixL False -- primitive function
+  , Op "&&"   3 InfixR False -- logical and (from base)
+  , Op "||"   2 InfixR False -- logical or (from base)
+  , Op "$"    0 InfixR False -- right-associative lowest-priority (application)
+  , Op "+"    6 InfixL False
+  , Op "-"    6 InfixL False
+  , Op "*"    7 InfixL False
+  , Op "/"    7 InfixL False
+  , Op "^"    8 InfixL False
+  , Op "+'"   6 InfixL False
+  , Op "-'"   6 InfixL False
+  , Op "*'"   7 InfixL False
+  , Op "/'"   7 InfixL False
+  , Op "^'"   8 InfixL False
+  , Op "∧"    7 InfixL False
+  , Op "."    7 InfixL False
+  , Op ".'"   7 InfixL False
   ]
 
 reservedPatternOp :: [Op]
 reservedPatternOp =
-  [ Op "::" 5 InfixR False  -- required for desugaring collection pattern
+  [ Op "++" 5 InfixR False
+  , Op "*:" 5 InfixL False
+  , Op "+" 6 InfixR False
+  , Op "*" 7 InfixR False
+  , Op "/" 7 InfixN False
+  , Op "^" 8 InfixN False
+  , Op "::" 5 InfixR False  -- required for desugaring collection pattern
   , Op "&"  3 InfixR False
   , Op "|"  2 InfixR False
   ]
