@@ -630,7 +630,10 @@ prettyTypeDoc Types.TBool = pretty "Bool"
 prettyTypeDoc Types.TChar = pretty "Char"
 prettyTypeDoc Types.TString = pretty "String"
 prettyTypeDoc (Types.TVar (Types.TyVar v)) = pretty v
-prettyTypeDoc (Types.TFun t1 t2) = prettyTypeDoc t1 <+> pretty "->" <+> prettyTypeDoc t2
+prettyTypeDoc (Types.TFun t1 t2) = prettyTypeArg t1 <+> pretty "->" <+> prettyTypeDoc t2
+  where
+    prettyTypeArg t@(Types.TFun _ _) = parens (prettyTypeDoc t)
+    prettyTypeArg t = prettyTypeDoc t
 prettyTypeDoc (Types.TTuple ts) = tupled (map prettyTypeDoc ts)
 prettyTypeDoc (Types.TCollection t) = brackets (prettyTypeDoc t)
 prettyTypeDoc (Types.THash k v) = 
