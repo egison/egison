@@ -58,7 +58,7 @@ import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
 import           Language.Egison.IExpr (TIExpr(..), TITopExpr(..), ITopExpr(..), extractNameFromVar)
-import           Language.Egison.Type.Error (formatTypeWarning)
+import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
 import           Language.Egison.Pretty (prettyStr)
@@ -209,7 +209,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
         
         case result of
           Left err -> do
-            liftIO $ hPutStrLn stderr $ "Type error in expression: " ++ show err
+            liftIO $ hPutStrLn stderr $ "Type error:\n" ++ formatTypeError err
             -- Fallback: Use untyped evaluation if type checking fails (permissive mode)
             topExpr' <- desugarTopExpr expr
             case topExpr' of
