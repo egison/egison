@@ -120,7 +120,6 @@ Library
                    Language.Egison.Type.Subst
                    Language.Egison.Type.TypeClassExpand
                    Language.Egison.Type.Tensor
-                   Language.Egison.Type.TypedIAST
                    Language.Egison.Type.TypedDesugar
                    Language.Egison.Type.Types
                    Language.Egison.Type.Unify

@@ -4,13 +4,16 @@ Licence     : MIT
 
 This module provides type inference for IExpr (Internal Expression).
 This is the unified type inference module for Phase 5-6 of the Egison compiler:
-  IExpr (Desugared, no types) → TypedIExpr (Typed, constraints collected)
+  IExpr (Desugared, no types) → (Type, Subst)
 
 This module consolidates all type inference functionality, including:
   - Hindley-Milner type inference
   - Type class constraint collection
   - Infer monad and state management
   - All helper functions
+
+Note: This module only performs type inference and returns Type information.
+The typed AST (TIExpr) is created in a separate phase by combining IExpr with Type.
 
 Previous modules (Infer.hs for Expr, TypeInfer.hs for Expr→TypedExpr) are deprecated.
 -}
@@ -60,7 +63,6 @@ import           Language.Egison.Type.Error
 import           Language.Egison.Type.Subst
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
-import           Language.Egison.Type.TypedIAST
 
 --------------------------------------------------------------------------------
 -- * Infer Monad and State
@@ -491,19 +493,9 @@ extractIBindingsFromPattern pat ty = case pat of
       _ -> []
   _ -> []
 
--- | Convert IExpr inference result to TypedIExpr
-toTypedIExpr :: IExpr -> Type -> Subst -> TypedIExpr
-toTypedIExpr iexpr ty subst =
-  TypedIExpr (applySubst subst ty) (toTypedINode iexpr ty subst)
-
-toTypedINode :: IExpr -> Type -> Subst -> TypedINode
-toTypedINode iexpr _ty _subst = case iexpr of
-  IConstantExpr c -> TIConstantExpr c
-  IVarExpr name -> TIVarExpr name
-  _ -> TIVarExpr "<todo>"  -- TODO: implement all cases
-
--- | Infer top-level IExpr
-inferITopExpr :: ITopExpr -> Infer (Maybe TypedITopExpr, Subst)
+-- | Infer top-level IExpr and return (ITopExpr, Type) instead of TypedITopExpr
+-- The typed AST (TITopExpr) will be created in a separate phase.
+inferITopExpr :: ITopExpr -> Infer (Maybe (ITopExpr, Type), Subst)
 inferITopExpr topExpr = case topExpr of
   IDefine var expr -> do
     (exprType, subst) <- inferIExpr expr
@@ -513,27 +505,23 @@ inferITopExpr topExpr = case topExpr of
     modify $ \s -> s { inferEnv = extendEnv (extractNameFromVar var) scheme (inferEnv s) }
     
     let finalType = applySubst subst exprType
-    -- TODO: Convert expr to TypedIExpr properly
-    let typedExpr = toTypedIExpr expr finalType subst
-    return (Just (TypedIDefine (extractNameFromVar var) [] finalType typedExpr), subst)
+    return (Just (topExpr, finalType), subst)
   
   ITest expr -> do
     (exprType, subst) <- inferIExpr expr
-    let typedExpr = toTypedIExpr expr exprType subst
-    return (Just (TypedITest typedExpr), subst)
+    return (Just (topExpr, exprType), subst)
   
   IExecute expr -> do
     (exprType, subst) <- inferIExpr expr
-    let typedExpr = toTypedIExpr expr exprType subst
-    return (Just (TypedIExecute typedExpr), subst)
+    return (Just (topExpr, exprType), subst)
   
-  ILoadFile path -> return (Just (TypedILoadFile path), emptySubst)
-  ILoad lib -> return (Just (TypedILoad lib), emptySubst)
+  ILoadFile _path -> return (Nothing, emptySubst)
+  ILoad _lib -> return (Nothing, emptySubst)
   
   _ -> return (Nothing, emptySubst)
 
 -- | Infer multiple top-level IExprs
-inferITopExprs :: [ITopExpr] -> Infer ([Maybe TypedITopExpr], Subst)
+inferITopExprs :: [ITopExpr] -> Infer ([Maybe (ITopExpr, Type)], Subst)
 inferITopExprs [] = return ([], emptySubst)
 inferITopExprs (e:es) = do
   (tyE, s1) <- inferITopExpr e
