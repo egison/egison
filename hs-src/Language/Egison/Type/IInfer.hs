@@ -498,14 +498,43 @@ extractIBindingsFromPattern pat ty = case pat of
 inferITopExpr :: ITopExpr -> Infer (Maybe (ITopExpr, Type), Subst)
 inferITopExpr topExpr = case topExpr of
   IDefine var expr -> do
-    (exprType, subst) <- inferIExpr expr
+    varName <- return $ extractNameFromVar var
     env <- getEnv
-    let scheme = generalize env exprType
-    -- Add to environment
-    modify $ \s -> s { inferEnv = extendEnv (extractNameFromVar var) scheme (inferEnv s) }
-    
-    let finalType = applySubst subst exprType
-    return (Just (topExpr, finalType), subst)
+    -- Check if there's an explicit type signature in the environment
+    -- (added by EnvBuilder from DefineWithType)
+    case lookupEnv varName env of
+      Just existingScheme -> do
+        -- There's an explicit type signature: check that the inferred type matches
+        st <- get
+        let (_constraints, expectedType, newCounter) = instantiate existingScheme (inferCounter st)
+        modify $ \s -> s { inferCounter = newCounter }
+        
+        -- Infer the expression type
+        (exprType, subst1) <- inferIExpr expr
+        
+        -- Unify inferred type with expected type
+        subst2 <- unifyTypes (applySubst subst1 exprType) (applySubst subst1 expectedType)
+        let finalSubst = composeSubst subst2 subst1
+        
+        -- For display purposes, use the original type from the scheme (before instantiation)
+        -- This preserves the original type variable names (a, b, c) instead of fresh ones (t0, t1, t2)
+        -- Extract the type from the scheme and apply the substitution
+        let (Forall _ _ originalType) = existingScheme
+        let finalType = applySubst finalSubst originalType
+        
+        -- Keep the existing scheme (with explicit type signature) in the environment
+        -- Don't override it with the generalized inferred type
+        return (Just (topExpr, finalType), finalSubst)
+      
+      Nothing -> do
+        -- No explicit type signature: infer and generalize as before
+        (exprType, subst) <- inferIExpr expr
+        let scheme = generalize env exprType
+        -- Add to environment
+        modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
+        
+        let finalType = applySubst subst exprType
+        return (Just (topExpr, finalType), subst)
   
   ITest expr -> do
     (exprType, subst) <- inferIExpr expr
