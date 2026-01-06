@@ -41,7 +41,7 @@ import           Language.Egison.AST        (Arg (..), ConstantExpr (..), IndexE
                                              PDPatternBase (..), PrimitivePatPattern (..))
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.IExpr
-import           Language.Egison.Type.TypedAST
+import           Language.Egison.Type.TypedIAST
 import           Language.Egison.Type.Types (Type(..), TyVar(..))
 
 -- | Desugar a typed expression to internal expression

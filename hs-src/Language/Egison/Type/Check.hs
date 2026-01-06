@@ -32,7 +32,7 @@ import           Control.Monad.State.Strict (get)
 import           Language.Egison.AST
 import           Language.Egison.Type.Env
 import           Language.Egison.Type.Error
-import           Language.Egison.Type.Infer
+import           Language.Egison.Type.IInfer
 import           Language.Egison.Type.Types
 
 -- | Result of type checking, containing both type environment and class environment
