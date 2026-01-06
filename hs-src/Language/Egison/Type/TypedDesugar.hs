@@ -307,12 +307,6 @@ desugarTypedExpr (TypedExpr _ty node) = case node of
   TPrefixExpr op e -> do
     expr <- desugarTypedExpr e
     return $ IApplyExpr (IVarExpr op) [expr]
-  
-  -- Infix operator
-  TInfixExpr op e1 e2 -> do
-    e1Expr <- desugarTypedExpr e1
-    e2Expr <- desugarTypedExpr e2
-    return $ IApplyExpr (IVarExpr (repr op)) [e1Expr, e2Expr]
 
 -- | Helper to convert algebraic data matcher constructors to IExpr
 -- This creates the appropriate matcher expression

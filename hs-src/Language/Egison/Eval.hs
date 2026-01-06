@@ -50,6 +50,7 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
+import           Language.Egison.PreDesugar (preDesugarTopExpr)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
 import           Language.Egison.IExpr
@@ -172,13 +173,15 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
     currentTypeEnv <- getTypeEnv
     currentClassEnv <- getClassEnv
     
-    -- Phase 3: Desugar (implicit - done inside type inference)
-    -- Phase 4: Type Inference (implicit - done inside runTypedInferTopExprWithEnv)
-    -- Phase 5: Type Inference Phase (constraint generation, unification, type class constraints)
+    -- Phase 3: PreDesugar (syntactic desugaring before type inference)
+    let desugaredExpr = preDesugarTopExpr expr
+    
+    -- Phase 4-6: Type Inference & Check
+    -- Phase 4: Type Inference (constraint generation, unification)
+    -- Phase 5: Type class constraint processing
     -- Phase 6: Type Check Phase (verify type annotations, check type class constraints)
-    -- Note: Phases 3-6 are combined in runTypedInferTopExprWithEnv
     (result, warnings, updatedTypeEnv, updatedClassEnv) <- liftIO $ 
-      runTypedInferTopExprWithEnv permissive expr currentTypeEnv currentClassEnv
+      runTypedInferTopExprWithEnv permissive desugaredExpr currentTypeEnv currentClassEnv
     
     -- Print type warnings if any
     when (not (null warnings)) $ do
@@ -562,7 +565,7 @@ dumpTyped typedExprs = do
     putStrLn ""
     if null typedExprs
       then putStrLn "  (none)"
-      else forM_ (zip [1..] typedExprs) $ \(i, mExpr) ->
+      else forM_ (zip [1::Int ..] typedExprs) $ \(i, mExpr) ->
         case mExpr of
           Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
           Just expr -> do

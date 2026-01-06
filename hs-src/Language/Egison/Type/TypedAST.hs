@@ -132,7 +132,6 @@ applySubstToTypedExpr s (TypedExpr ty node) =
     applySubstToNode _ (TAnonParamExpr n) = TAnonParamExpr n
     applySubstToNode _ TFreshVarExpr = TFreshVarExpr
     applySubstToNode s' (TPrefixExpr op e) = TPrefixExpr op (applySubstToTypedExpr s' e)
-    applySubstToNode s' (TInfixExpr op e1 e2) = TInfixExpr op (applySubstToTypedExpr s' e1) (applySubstToTypedExpr s' e2)
     
     applySubstToBinding :: Subst -> TypedBinding -> TypedBinding
     applySubstToBinding s' (TBind pat e) = TBind pat (applySubstToTypedExpr s' e)
@@ -275,9 +274,6 @@ data TypedExprNode
   -- Prefix operator
   | TPrefixExpr String TypedExpr
   
-  -- Infix operator
-  | TInfixExpr Op TypedExpr TypedExpr
-  
   deriving (Show)
 
 -- | Typed pattern
@@ -366,9 +362,22 @@ prettyTypedTopExpr (TInductiveDecl name params constructors) =
 prettyTypedTopExpr (TClassDecl name params supers methods) =
   "class " ++ name ++ " " ++ unwords params ++ " " ++
   (if null supers then "" else "extends " ++ intercalate ", " supers ++ " ") ++
-  "where " ++ intercalate "; " (map (\(n, ps, t) -> n ++ " " ++ show ps ++ " : " ++ prettyType t) methods)
+  "where " ++ intercalate "; " (map prettyClassMethod methods)
+  where
+    prettyClassMethod (methodName, methodParams, retType) =
+      methodName ++ " " ++ prettyMethodParams methodParams ++ ": " ++ prettyType retType
+    
+    prettyMethodParams [] = ""
+    prettyMethodParams ps = "(" ++ intercalate ", " (map (\(n, t) -> n ++ ": " ++ prettyType t) ps) ++ ") "
 prettyTypedTopExpr (TInstanceDecl context className instTypes methods) =
-  "instance " ++ show context ++ " " ++ className ++ " " ++ unwords (map prettyType instTypes) ++ " where ..."
+  let contextStr = if null context 
+                   then "" 
+                   else "{" ++ intercalate ", " (map prettyType context) ++ "} "
+  in "instance " ++ contextStr ++ className ++ " " ++ unwords (map prettyType instTypes) ++ 
+     " where " ++ intercalate "; " (map prettyInstanceMethod methods)
+  where
+    prettyInstanceMethod (methodName, methodParams, _body) =
+      methodName ++ " " ++ unwords methodParams ++ " := ..."
 
 -- | Check if a TypedExprNode is an atom (doesn't need parentheses)
 isTypedAtom :: TypedExprNode -> Bool

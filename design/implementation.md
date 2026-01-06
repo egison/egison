@@ -3,51 +3,86 @@
 ```
 TopExpr (構文解析結果)
   ↓
-expandLoads (ファイル読み込み)
+Phase 1: expandLoads (ファイル読み込み)
   - load文で指定されたファイルの読み込み
   - ファイルの存在チェック
   - 同じファイルの重複読み込み防止（キャッシング）
   - (将来: モジュールシステム導入時は依存関係の解決と循環参照チェックも必要)
   ↓
-環境構築フェーズ
+Phase 2: 環境構築フェーズ
   ├─ データコンストラクタ定義収集
   ├─ 型クラス定義収集  
   ├─ インスタンス定義収集
   └─ 型シグネチャ収集
   ↓
-Desugar (構文糖衣展開)
-  ├─ 演算子の脱糖
-  ├─ 無名関数の展開 (2#($1 + $2) など)
-  ├─ Match-lambda の展開 (matchAll 式への変換)
+Phase 3-4: Desugar (構文糖衣展開) TopExpr → ITopExpr, Expr → IExpr
+  入力: TopExpr/Expr (高レベルAST)
+  出力: ITopExpr/IExpr (内部表現、糖衣構文が展開済み)
+  
+  処理内容:
+  ├─ 中置演算子の展開 (InfixExpr → ApplyExpr)
+  ├─ 無名関数の展開 (2#($1 + $2) など → Lambda)
+  ├─ Match-lambda の展開 (matchAll式への変換)
+  ├─ Cambda展開 (ICambdaExpr)
   └─ その他の糖衣構文展開
-  注: パターンマッチ自体はEval段階で処理される
+  
+  注意:
+  - パターンマッチ自体は展開せず、IMatchExpr/IMatchAllExprとして保持
+  - 評価時に強力なパターンマッチエンジンで処理
+  - 型情報はまだ付与されない（型推論前）
+  
+  実装: Language.Egison.Desugar (desugar :: Expr -> EvalM IExpr)
   ↓
-型推論フェーズ
+Phase 5-6: 型推論フェーズ IExpr → TypedIExpr
+  入力: IExpr (内部表現、型情報なし)
+  出力: TypedIExpr (型情報付き内部表現)
+  
+  処理内容:
   ├─ 制約生成 (型変数の割り当て)
   ├─ 制約解決 (Unification)
-  └─ 型クラス制約の処理
+  ├─ 型クラス制約の収集
+  └─ 型注釈との整合性確認
+  
+  TypedIExpr の構造:
+  - 各ノードに型情報が付与された IExpr
+  - 例: IApplyExpr → TIApplyExpr Type IExpr IExpr
+  - 型クラス制約は収集されるが、まだ解決されない
+  
+  実装: 新規作成予定 (inferIExpr :: IExpr -> Infer (TypedIExpr, Subst))
   ↓
-型チェックフェーズ
-  ├─ 型注釈との整合性確認
-  └─ 型クラス制約の充足性確認
-  ↓
-TypedTopExpr (型付きAST)
-  ↓
-TypedDesugar (型駆動の変換)
+Phase 7-8: TypedDesugar (型駆動の変換) TypedIExpr → TIExpr
+  入力: TypedIExpr (型情報あり、型クラス未解決)
+  出力: TIExpr (型情報あり、型クラス解決済み、実行可能)
+  
+  処理内容:
   ├─ 型クラス辞書渡し変換
-  │   - インスタンス選択
+  │   - インスタンス選択（型情報を使用）
   │   - メソッド呼び出しの具体化
+  │   - 辞書パラメータの追加
   ├─ tensorMap 自動挿入
-  │   - Tensor MathExpr と MathExpr の不一致検出
-  │   - 適切な位置に tensorMap を挿入
-  └─ 型情報の最適化・埋め込み
+  │   - Tensor型とスカラー型の不一致検出
+  │   - 適切な位置に tensorMap/tensorMap2 を挿入
+  └─ 型情報の最適化
+      - デバッグ用に型情報を保持
+      - 必要に応じて部分的に型消去
+  
+  TIExpr の構造:
+  - TypedIExpr とほぼ同じだが、型クラスメソッド呼び出しが辞書に解決済み
+  - 例: TClassMethodCall → 具体的な辞書関数呼び出し
+  
+  実装: Language.Egison.Type.TypedDesugar
   ↓
-TITopExpr (評価可能な型付きIR)
-  ↓
-評価 (Evaluation)
+Phase 9-10: 評価 (Evaluation) TIExpr → EgisonValue
+  入力: TIExpr (実行可能な型付き内部表現)
+  出力: EgisonValue (評価結果)
+  
+  処理内容:
   - パターンマッチングの実行 (patternMatch関数)
   - 式の評価と値の計算
   - IOアクションの実行
+  - 型情報を使った詳細なエラーメッセージ
+  
+  実装: Language.Egison.Core (evalExpr)
 ```
 
 ## 各段階で発生しうるエラー
@@ -87,55 +122,167 @@ TITopExpr (評価可能な型付きIR)
 
 ## 段階的実装の戦略
 
-### Phase 1: 基本的な型チェック
+### 現状: Phase 3 (型クラス実装中)
 ```
-TopExpr → Desugar → 単純な型チェック → 評価
+TopExpr → Desugar(Expr→IExpr) → 型推論(Expr→TypedExpr) → TypedDesugar → 評価
 ```
-- 型クラスなし
-- tensorMapなし
-- 基本的な型のみ (Integer, Bool, String, [a], (a, b) など)
+**問題点**: 
+- 型推論が`Expr`ベース（糖衣構文が残っている）
+- `PreDesugar`と`Desugar`が分離していて複雑
 
-### Phase 2: 型推論の追加
-```
-TopExpr → Desugar → 型推論 → 型チェック → 評価
-```
-- Hindley-Milner型推論
-- まだ型クラスなし
-- let多相の実装
+### リファクタリング計画: IExprベースの型推論
 
-### Phase 3: 型クラスの追加
+#### ステップ1: 型推論をIExprベースに移行
 ```
-TopExpr → Desugar → 型推論+制約 → TypedDesugar(辞書渡し) → 評価
+TopExpr → Desugar(Expr→IExpr) → 型推論(IExpr→TypedIExpr) → TypedDesugar → 評価
 ```
-- 型クラス制約の推論
-- 辞書渡しの実装
-- Eq, Ord, Num などの基本型クラス
+**変更内容**:
+- `Infer.hs`を`IExpr`用に書き換え
+- `TypedIExpr`データ型を新規作成
+- `TypeInfer.hs`を削除または統合
+- `PreDesugar.hs`を削除（不要）
 
-### Phase 4: tensorMapの自動挿入
+**メリット**:
+- 構文糖衣展開が1箇所に集約
+- 型推論がシンプルな構造に対して動作
+- 保守性向上
+
+#### ステップ2: 型クラス辞書渡しの完成
 ```
-完全なフロー (TypedDesugarでtensorMapも処理)
+完全なフロー: すべて動作
 ```
-- Tensor型の処理
+- 型クラスメソッド呼び出しを辞書に解決
+- インスタンス選択ロジックの完成
+- エラーメッセージの改善
+
+#### ステップ3: tensorMapの自動挿入
+```
+完全なフロー + tensorMap最適化
+```
+- Tensor型の検出
 - 自動tensorMap挿入
 - テンソル添字記法のサポート
+
+### 実装の優先順位
+
+1. **最優先: ステップ1（IExprベース型推論）**
+   - 設計の根本を正す
+   - 以降の実装が容易になる
+   
+   **作業内容**:
+   - [ ] `Language.Egison.Type.IInfer`を新規作成（IExpr用の型推論）
+   - [ ] `TypedIExpr`データ型を`Language.Egison.Type.TypedIAST`に定義
+   - [ ] `Language.Egison.Type.Infer`を`IExpr`対応に拡張
+   - [ ] `Language.Egison.Eval`のパイプラインを変更
+   - [ ] `Language.Egison.PreDesugar`を削除
+   - [ ] `Language.Egison.Type.TypeInfer`を削除または統合
+   - [ ] `Language.Egison.Type.TypedAST`を削除または`TypedIAST`に置き換え
+
+2. **次: ステップ2（型クラス完成）**
+   - 既存の型クラス実装を完成させる
+   
+   **作業内容**:
+   - [ ] `Language.Egison.Type.TypedDesugar`を`TypedIExpr → TIExpr`に対応
+   - [ ] `Language.Egison.Type.TypeClassExpand`の辞書渡し変換を完成
+   - [ ] インスタンス選択ロジックの実装
+   - [ ] エラーメッセージの改善
+
+3. **最後: ステップ3（tensorMap）**
+   - 高度な機能
+   
+   **作業内容**:
+   - [ ] Tensor型の検出ロジック
+   - [ ] 自動tensorMap挿入
+   - [ ] テンソル添字記法のサポート
 
 ## 中間表現 (IR) の設計
 
 各段階で適切な中間表現を定義：
 
 ```haskell
--- 構文解析後
-data TopExpr = ...
+-- Phase 0: 構文解析後 (Language.Egison.AST)
+data TopExpr = Define VarWithIndices Expr
+             | DefineWithType TypedVarWithIndices Expr
+             | Test Expr
+             | Execute Expr
+             | ...
 
--- Desugar後 (糖衣構文が展開されている)
-data DesugaredExpr = ...
+data Expr = ConstantExpr ConstantExpr
+          | VarExpr String
+          | InfixExpr Op Expr Expr  -- 中置演算子（Desugarで展開）
+          | ApplyExpr Expr [Expr]
+          | LambdaExpr [Arg] Expr
+          | IfExpr Expr Expr Expr
+          | MatchExpr PMMode Expr Expr [MatchClause]
+          | ...
 
--- 型推論後 (型注釈が付いている)
-data TypedExpr = ...
+-- Phase 3-4: Desugar後 (Language.Egison.IExpr)
+-- 糖衣構文が展開され、内部表現に変換されている
+data ITopExpr = IDefine Var IExpr
+              | ITest IExpr
+              | IExecute IExpr
+              | ...
 
--- TypedDesugar後 (実行可能形式)
-data TIExpr = ...  -- Type-Inferred Expression
+data IExpr = IConstantExpr ConstantExpr
+           | IVarExpr Var
+           | IApplyExpr IExpr [IExpr]        -- InfixExprは展開済み
+           | ILambdaExpr (Maybe String) [Var] IExpr
+           | ICambdaExpr String IExpr        -- 無名関数展開の中間形式
+           | IIfExpr IExpr IExpr IExpr
+           | IMatchExpr PMMode IExpr IExpr [IMatchClause]  -- パターンマッチは保持
+           | ...
+
+-- Phase 5-6: 型推論後 (新規作成予定)
+-- IExpr に型情報が付与されている
+data TypedIExpr = TypedIExpr 
+  { tiExprType :: Type        -- この式の型
+  , tiExprNode :: TypedINode  -- 型付きノード
+  }
+
+data TypedINode 
+  = TIConstantExpr ConstantExpr
+  | TIVarExpr Var
+  | TIApplyExpr TypedIExpr [TypedIExpr]
+  | TILambdaExpr (Maybe String) [(Var, Type)] TypedIExpr
+  | TIIfExpr TypedIExpr TypedIExpr TypedIExpr
+  | TIMatchExpr PMMode TypedIExpr TypedIExpr [TypedIMatchClause]
+  -- 型クラスメソッド呼び出し（まだ辞書に解決されていない）
+  | TIClassMethodCall String String [TypedIExpr]  -- className methodName args
+  | ...
+
+-- Phase 7-8: TypedDesugar後 (実行可能形式)
+-- 型クラスが辞書に解決され、tensorMapが挿入されている
+data TIExpr = TIExpr
+  { tieType :: Type           -- デバッグ用に型情報を保持
+  , tieNode :: TINode
+  }
+
+data TINode
+  = TICon ConstantExpr
+  | TIVar Var
+  | TIApp TIExpr [TIExpr]
+  | TILam (Maybe String) [(Var, Type)] TIExpr
+  | TIIf TIExpr TIExpr TIExpr
+  | TIMatch PMMode TIExpr TIExpr [TIMatchClause]
+  -- 型クラスメソッド呼び出しは辞書パラメータ付き関数呼び出しに変換済み
+  | TIDictApp TIExpr TIExpr [TIExpr]  -- dict method args
+  -- tensorMapが必要な箇所に自動挿入される
+  | TITensorMap TIExpr TIExpr         -- tensorMap fn tensor
+  | ...
+
+-- Phase 9-10: 評価結果
+data EgisonValue = ...
 ```
+
+### 各表現の役割
+
+| 表現 | 段階 | 型情報 | 糖衣構文 | 型クラス | 特徴 |
+|------|------|--------|----------|----------|------|
+| `Expr` | パース後 | ❌ | ⭕ | ❌ | 高レベルAST |
+| `IExpr` | Desugar後 | ❌ | ❌ | ❌ | 糖衣構文展開済み |
+| `TypedIExpr` | 型推論後 | ⭕ | ❌ | 未解決 | 型情報付き |
+| `TIExpr` | 実行前 | ⭕ | ❌ | 解決済み | 実行可能 |
+| `EgisonValue` | 実行後 | ⭕ | ❌ | ❌ | 評価結果 |
 
 ## 型情報の保持戦略
 
@@ -241,12 +388,38 @@ TIExpr が保持すべき型情報：
 各段階の出力を確認できるオプション：
 
 ```bash
-egison --dump-loads file.egi       # モジュール読み込み後
-egison --dump-env file.egi         # 環境構築後
-egison --dump-desugared file.egi   # 脱糖後
-egison --dump-typed file.egi       # 型推論・チェック後
-egison --dump-ti file.egi          # TypedDesugar後
+egison --dump-loads file.egi       # Phase 1: モジュール読み込み後
+egison --dump-env file.egi         # Phase 2: 環境構築後
+egison --dump-desugared file.egi   # Phase 3-4: Desugar後 (IExpr)
+egison --dump-typed file.egi       # Phase 5-6: 型推論後 (TypedIExpr)
+egison --dump-ti file.egi          # Phase 7-8: TypedDesugar後 (TIExpr)
 egison --verbose file.egi          # 全段階の詳細出力
+```
+
+### 各ダンプの出力例
+
+```bash
+# IExprのダンプ例
+$ egison --dump-desugared test.egi
+=== Desugared IR (Phase 3-4) ===
+def add := ILambdaExpr Nothing [x, y] 
+  (IApplyExpr (IVarExpr "+") [IVarExpr "x", IVarExpr "y"])
+
+# TypedIExprのダンプ例  
+$ egison --dump-typed test.egi
+=== Typed IR (Phase 5-6) ===
+def add : Integer -> Integer -> Integer
+  := TILambdaExpr [(x, Integer), (y, Integer)]
+       (TIApplyExpr (Integer -> Integer -> Integer)
+         (TIVarExpr "+")
+         [TIVarExpr "x", TIVarExpr "y"])
+
+# TIExprのダンプ例
+$ egison --dump-ti test.egi
+=== Executable IR (Phase 7-8) ===
+def add : Integer -> Integer -> Integer
+  := TILam [(x, Integer), (y, Integer)]
+       (TIApp (TIVar "+") [TIVar "x", TIVar "y"])
 ```
 
 ## 実装の手順の流れ
