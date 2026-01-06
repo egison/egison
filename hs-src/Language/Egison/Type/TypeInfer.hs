@@ -36,7 +36,7 @@ module Language.Egison.Type.TypeInfer
   , TypedInferResult(..)
   ) where
 
-import           Control.Monad              (forM)
+import           Control.Monad              (forM, foldM)
 import           Control.Monad.Except       (throwError, catchError)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
@@ -144,22 +144,36 @@ inferTypedExpr expr = case expr of
     return (TypedExpr resultType (TIndexedExpr override baseTyped indicesTyped), s1)
   
   -- Tuples
+  -- Use Infer.inferExpr for type inference, then build TypedAST
   TupleExpr es -> do
+    -- Infer each element to get TypedExpr
     results <- mapM inferTypedExpr es
     let typedExprs = map fst results
-        types = map texprType typedExprs
         subst = foldr composeSubst emptySubst (map snd results)
+        -- Get types from typed expressions
+        types = map (applySubst subst . texprType) typedExprs
     return (TypedExpr (TTuple types) (TTupleExpr typedExprs), subst)
   
   -- Collections
+  -- Use proper type unification for all elements (not just the first)
   CollectionExpr exprs -> do
-    results <- mapM inferTypedExpr exprs
-    let typedExprs = map fst results
-    elemType <- if null typedExprs
-                then freshVar "elem"
-                else return $ texprType (head typedExprs)
-    let subst = foldr composeSubst emptySubst (map snd results)
-    return (TypedExpr (TCollection elemType) (TCollectionExpr typedExprs), subst)
+    elemType <- freshVar "elem"
+    (typedExprs, finalSubst) <- inferCollectionElems elemType exprs
+    let finalElemType = applySubst finalSubst elemType
+    return (TypedExpr (TCollection finalElemType) (TCollectionExpr typedExprs), finalSubst)
+    where
+      inferCollectionElems :: Type -> [Expr] -> Infer ([TypedExpr], Subst)
+      inferCollectionElems eType es = do
+        (results, s) <- foldM processElem ([], emptySubst) es
+        return (reverse results, s)
+        where
+          processElem (acc, s) e = do
+            (typedE, s') <- inferTypedExpr e
+            -- Unify element type with expected type (like Infer.hs does)
+            s'' <- unifyTypes (applySubst s eType) (texprType typedE)
+            let finalS = composeSubst s'' (composeSubst s' s)
+                typedE' = applySubstToTypedExpr finalS typedE
+            return (typedE' : acc, finalS)
   
   -- Hash
   HashExpr pairs -> do
@@ -352,19 +366,10 @@ inferTypedExpr expr = case expr of
         rightTyped = fmap fst mRightTyped
     return (TypedExpr resultType (TSectionExpr op leftTyped rightTyped), emptySubst)
   
-  -- Infix expressions (e.g., 1 + 2)
-  InfixExpr op e1 e2 -> do
-    (e1Typed, s1) <- inferTypedExpr e1
-    (e2Typed, s2) <- inferTypedExpr e2
-    let s12 = composeSubst s2 s1
-    -- The operator is a function, look up its type
-    opType <- lookupVar (repr op)
-    resultType <- freshVar "infixResult"
-    -- Unify: opType should be a -> b -> resultType
-    let expectedType = TFun (texprType e1Typed) (TFun (texprType e2Typed) resultType)
-    s3 <- unifyTypes (applySubst s12 opType) expectedType
-    let finalS = composeSubst s3 s12
-    return (TypedExpr (applySubst finalS resultType) (TInfixExpr op e1Typed e2Typed), finalS)
+  -- Infix expressions should have been desugared by PreDesugar
+  -- If we see one here, it's a bug in the pipeline
+  InfixExpr op e1 e2 -> 
+    throwError $ UnboundVariable ("BUG: InfixExpr " ++ repr op ++ " not desugared") emptyContext
   
   -- Anonymous parameters
   AnonParamFuncExpr arity body -> do
@@ -521,10 +526,8 @@ makeFallbackTypedExpr expr = case expr of
     tTyped <- makeFallbackTypedExpr t
     eTyped <- makeFallbackTypedExpr e
     return $ TypedExpr TAny (TIfExpr cTyped tTyped eTyped)
-  InfixExpr op e1 e2 -> do
-    e1Typed <- makeFallbackTypedExpr e1
-    e2Typed <- makeFallbackTypedExpr e2
-    return $ TypedExpr TAny (TInfixExpr op e1Typed e2Typed)
+  InfixExpr _ _ _ -> 
+    return $ TypedExpr TAny (TVarExpr "ERROR:InfixExpr_not_desugared")
   SectionExpr op mLeft mRight -> do
     mLeftTyped <- traverse makeFallbackTypedExpr mLeft
     mRightTyped <- traverse makeFallbackTypedExpr mRight

@@ -6,7 +6,7 @@ This module provides type environment for the Egison type system.
 -}
 
 module Language.Egison.Type.Env
-  ( TypeEnv
+  ( TypeEnv(..)
   , emptyEnv
   , extendEnv
   , extendEnvMany
