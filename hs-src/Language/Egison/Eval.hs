@@ -37,12 +37,11 @@ module Language.Egison.Eval
   , expandLoads
   ) where
 
-import           Control.Monad              (foldM, forM, forM_, when)
+import           Control.Monad              (foldM, forM_, when)
 import           Data.List                  (intercalate)
 import           Control.Monad.Except       (throwError, catchError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
-import           Data.IORef                 (newIORef)
 import           System.IO                  (hPutStrLn, stderr)
 
 import           Language.Egison.AST
@@ -241,36 +240,31 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                 extendTypeEnv (extractNameFromVar var) typeScheme
               _ -> return ()  -- Other expressions don't define variables
             
-            -- Phase 8: TypedDesugar (Type-driven transformations)
-            --   - Type class dictionary passing
-            --   - tensorMap automatic insertion
-            --   - Type info optimization and embedding
-            -- TODO: Enable TypedDesugar when tensorMap and type class expansion are implemented
-            -- For now, skip TypedDesugar and evaluate directly
-            let mTiTopExpr = Nothing  -- Placeholder: Just tiTopExpr when TypedDesugar is ready
-            case mTiTopExpr of
-              Nothing -> return ((lastVal, currentEnv), typedExprs')
-              Just _tiTopExpr' -> do
-                -- Phase 9: TITopExpr (Evaluatable typed IR with type info preserved)
-                
-                -- Phase 10: Evaluation (pattern matching, expression evaluation, IO actions)
-                -- Catch errors during evaluation to preserve typedExprs for dumping
-                evalResult <- catchError
-                  (Right <$> evalTITopExpr currentEnv tiTopExpr)
-                  (\err -> do
-                    liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
-                    return $ Left err)
-                
-                case evalResult of
-                  Left _ -> 
-                    -- Error occurred, but preserve typedExprs for dumping
-                    return ((lastVal, currentEnv), typedExprs')
-                  Right (mVal, env') -> do
-                    -- Print value if requested
-                    when printValues $ case mVal of
-                      Nothing -> return ()
-                      Just val -> valueToStr val >>= liftIO . putStrLn
-                    return ((mVal, env'), typedExprs')
+            -- Phase 8-10: TypedDesugar → Evaluation
+            -- Note: TypedDesugar is currently a stub (TIExpr → TIExpr identity function)
+            -- For evaluation, we use IExpr directly (with type info stripped) to:
+            --   1. Allow existing eval logic in Core.hs to work unchanged
+            --   2. Optimize by removing unnecessary type info from runtime
+            --   3. Keep TIExpr only for --dump-typed and future TypedDesugar
+            
+            -- Phase 9-10: Evaluation using IExpr (type info stripped)
+            -- Catch errors during evaluation to preserve typedExprs for dumping
+            evalResult <- catchError
+              (Right <$> evalTopExpr' currentEnv iTopExpr')
+              (\err -> do
+                liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
+                return $ Left err)
+            
+            case evalResult of
+              Left _ -> 
+                -- Error occurred, but preserve typedExprs for dumping
+                return ((lastVal, currentEnv), typedExprs')
+              Right (mVal, env') -> do
+                -- Print value if requested
+                when printValues $ case mVal of
+                  Nothing -> return ()
+                  Just val -> valueToStr val >>= liftIO . putStrLn
+                return ((mVal, env'), typedExprs')
     ) ((Nothing, env), []) exprs
   
   -- Dump typed AST if requested and shouldDumpTyped is True
@@ -280,73 +274,8 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   return (lastVal, finalEnv)
 
 --------------------------------------------------------------------------------
--- Phase 10: Evaluation of Typed IR (TITopExpr)
+-- Phase 2 Helper: Environment Building (moved to EnvBuilder module)
 --------------------------------------------------------------------------------
-
--- | Evaluate a typed internal top expression (TITopExpr).
--- This is the final evaluation phase where pattern matching is executed,
--- expressions are evaluated, and IO actions are performed.
--- Type information is preserved in TITopExpr for better error messages.
-evalTITopExpr :: Env -> TITopExpr -> EvalM (Maybe EgisonValue, Env)
-evalTITopExpr env tiTopExpr = case tiTopExpr of
-  TIDefine ty var tiexpr -> do
-    -- Add type to type environment
-    typeEnv <- getTypeEnv
-    let typeScheme = generalize typeEnv ty
-    extendTypeEnv (extractNameFromVar var) typeScheme
-    
-    -- Evaluate using typed evaluation
-    twhnf <- evalTIExprShallow env tiexpr
-    ref <- liftIO $ newIORef $ WHNF (twhnfData twhnf)
-    let env' = extendEnv env [(var, ref)]  -- Direct binding
-    -- Recursive binding
-    _ <- recursiveBind env' [(var, tiExpr tiexpr)]
-    return (Nothing, env')
-  
-  TIDefineMany bindings -> do
-    -- Add types to type environment
-    typeEnv <- getTypeEnv
-    forM_ bindings $ \(var, tiexpr) -> do
-      let ty = tiType tiexpr
-          typeScheme = generalize typeEnv ty
-      extendTypeEnv (extractNameFromVar var) typeScheme
-    
-    refs <- forM bindings $ \(var, tiexpr) -> do
-      twhnf <- evalTIExprShallow env tiexpr
-      ref <- liftIO $ newIORef $ WHNF (twhnfData twhnf)
-      return (var, ref)
-    let env' = extendEnv env refs  -- Direct binding
-    forM_ bindings $ \(var, tiexpr) -> recursiveBind env' [(var, tiExpr tiexpr)]
-    return (Nothing, env')
-  
-  TITest tiexpr -> do
-    (_ty, val) <- evalTIExprDeep env tiexpr
-    return (Just val, env)
-  
-  TIExecute tiexpr -> do
-    twhnf <- evalTIExprShallow env tiexpr
-    -- Execute IO action
-    _ <- evalWHNF (twhnfData twhnf)
-    return (Nothing, env)
-  
-  -- These should not appear after expandLoads, but handle them anyway
-  TILoadFile file -> do
-    exprs <- loadFile file
-    env' <- evalTopExprs env exprs
-    return (Nothing, env')
-  
-  TILoad file -> do
-    exprs <- loadLibraryFile file
-    env' <- evalTopExprs env exprs
-    return (Nothing, env')
-
---------------------------------------------------------------------------------
--- Phase 2 Helper: Environment Building (DEPRECATED - moved to EnvBuilder module)
---------------------------------------------------------------------------------
-
--- | DEPRECATED: This function is no longer used.
--- Environment building is now handled by Language.Egison.EnvBuilder module.
--- Kept for backward compatibility only.
 -- | Evaluate an Egison top expression.
 evalTopExprStr :: Env -> TopExpr -> EvalM (Maybe String, Env)
 evalTopExprStr env topExpr = do
