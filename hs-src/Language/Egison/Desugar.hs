@@ -733,12 +733,12 @@ desugarPrimitiveDataMatchClauses :: [(PrimitiveDataPattern, Expr)] -> EvalM [(IP
 desugarPrimitiveDataMatchClauses = mapM (\(pd, expr) -> (fmap stringToVar pd,) <$> desugar expr)
 
 desugarDefineWithIndices :: VarWithIndices -> Expr -> EvalM (Var, IExpr)
-desugarDefineWithIndices var@(VarWithIndices _ _) expr@(LambdaExpr _ _) = do
-  let var' = varWithIndicesToVar var
+-- Case 1: No indices - simple desugaring without withSymbols/transpose
+desugarDefineWithIndices (VarWithIndices name []) expr = do
   expr' <- desugar expr
-  case expr' of
-    ILambdaExpr Nothing args body -> return (var', ILambdaExpr (Just var') args body)
-    _                             -> return (var', expr')
+  return (Var name [], expr')
+
+-- Case 2: Non-empty indices - wrap with withSymbols and transpose
 desugarDefineWithIndices (VarWithIndices name is) expr = do
   let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is
   expr <- if any isExtendedIndice is
