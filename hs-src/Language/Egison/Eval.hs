@@ -58,10 +58,11 @@ import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
-import           Language.Egison.Type.TypedIAST (TypedITopExpr(..), prettyTypedITopExpr)
+import           Language.Egison.IExpr (TIExpr(..), TITopExpr(..), ITopExpr(..), extractNameFromVar)
 import           Language.Egison.Type.Error (formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
+import           Language.Egison.Pretty (prettyStr)
 import           Language.Egison.EvalState (ConstructorInfo(..))
 import qualified Data.HashMap.Strict as HashMap
 
@@ -124,6 +125,16 @@ evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
 
 -- | Evaluate expanded top expressions using the typed pipeline with optional printing.
 -- This function implements phases 2-10 of the processing flow.
+-- | Helper: Convert ITopExpr + Type to TITopExpr
+iTopExprToTITopExpr :: ITopExpr -> Types.Type -> TITopExpr
+iTopExprToTITopExpr iTopExpr ty = case iTopExpr of
+  IDefine var iexpr -> TIDefine ty var (TIExpr ty iexpr)
+  ITest iexpr -> TITest (TIExpr ty iexpr)
+  IExecute iexpr -> TIExecute (TIExpr ty iexpr)
+  ILoadFile path -> TILoadFile path
+  ILoad _lib -> error "ILoad should not appear after expandLoads"
+  IDefineMany bindings -> TIDefineMany [(var, TIExpr ty iexpr) | (var, iexpr) <- bindings]
+
 evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM (Maybe EgisonValue, Env)
 evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   opts <- ask
@@ -215,30 +226,31 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             -- No code generated (e.g., load statements that are already processed)
             return ((lastVal, currentEnv), typedExprs)
           
-          Right (Just typedITopExpr, _subst) -> do
-            -- Phase 7: TypedITopExpr obtained
+          Right (Just (iTopExpr', ty), _subst) -> do
+            -- Phase 7: Convert ITopExpr + Type to TITopExpr
+            let tiTopExpr = iTopExprToTITopExpr iTopExpr' ty
             
             -- Collect typed AST for dumping if requested
-            let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just typedITopExpr] else typedExprs
+            let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExpr] else typedExprs
             
             -- Add definition types to type environment for future references
-            case typedITopExpr of
-              TypedIDefine varName _constraints ty _typedExpr -> do
+            case iTopExpr' of
+              IDefine var _iexpr -> do
                 typeEnv <- getTypeEnv
                 let typeScheme = generalize typeEnv ty
-                extendTypeEnv varName typeScheme
+                extendTypeEnv (extractNameFromVar var) typeScheme
               _ -> return ()  -- Other expressions don't define variables
             
             -- Phase 8: TypedDesugar (Type-driven transformations)
             --   - Type class dictionary passing
             --   - tensorMap automatic insertion
             --   - Type info optimization and embedding
-            -- TODO: Update desugarTypedTopExprT to accept TypedITopExpr
+            -- TODO: Enable TypedDesugar when tensorMap and type class expansion are implemented
             -- For now, skip TypedDesugar and evaluate directly
-            let mTiTopExpr = Nothing  -- Placeholder until TypedDesugar is updated
+            let mTiTopExpr = Nothing  -- Placeholder: Just tiTopExpr when TypedDesugar is ready
             case mTiTopExpr of
               Nothing -> return ((lastVal, currentEnv), typedExprs')
-              Just tiTopExpr -> do
+              Just _tiTopExpr' -> do
                 -- Phase 9: TITopExpr (Evaluatable typed IR with type info preserved)
                 
                 -- Phase 10: Evaluation (pattern matching, expression evaluation, IO actions)
@@ -551,26 +563,26 @@ dumpDesugared desugaredExprs = do
     putStrLn ""
     if null desugaredExprs
       then putStrLn "  (none)"
-      else forM_ (zip [1..] desugaredExprs) $ \(i, mExpr) ->
+      else forM_ (zip [1 :: Int ..] desugaredExprs) $ \(i :: Int, mExpr) ->
         case mExpr of
           Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
-          Just expr -> putStrLn $ "  [" ++ show i ++ "] " ++ show expr
+          Just expr -> putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
     putStrLn ""
     putStrLn "=== End of Desugared AST ==="
 
 -- | Dump typed AST after Phase 6 (Type Inference & Check)
-dumpTyped :: [Maybe TypedITopExpr] -> EvalM ()
+dumpTyped :: [Maybe TITopExpr] -> EvalM ()
 dumpTyped typedExprs = do
   liftIO $ do
     putStrLn "=== Typed AST (Phase 5-6: Type Inference) ==="
     putStrLn ""
     if null typedExprs
       then putStrLn "  (none)"
-      else forM_ (zip [1::Int ..] typedExprs) $ \(i, mExpr) ->
+      else forM_ (zip [1 :: Int ..] typedExprs) $ \(i :: Int, mExpr) ->
         case mExpr of
           Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
           Just expr -> do
-            putStrLn $ "  [" ++ show i ++ "] " ++ prettyTypedITopExpr expr
+            putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
     putStrLn ""
     putStrLn "=== End of Typed AST ==="
 

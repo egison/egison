@@ -23,8 +23,7 @@ import           Text.Regex.TDFA                  ((=~))
 import           Language.Egison
 import           Language.Egison.Completion
 import qualified Language.Egison.Parser.NonS  as NonS
-import           Language.Egison.Type.Check  (TypeCheckError (..), TypeCheckResult (..),
-                                               defaultConfig, typeCheckExpr, builtinEnv)
+import           Language.Egison.Type.Check  (TypeCheckError (..), defaultConfig, builtinEnv)
 import           Language.Egison.Type.Pretty (prettyType)
 
 import           Options.Applicative
@@ -142,14 +141,10 @@ repl env = (do
         Right (Nothing, env')  -> repl env'
     Just (ReplTypeStr exprStr) -> do
       -- Parse and type check the expression
-      parsedExpr <- NonS.parseExpr exprStr
-      case parsedExpr of
-        Left err -> liftIO $ putStrLn $ "Parse error: " ++ err
-        Right expr -> do
-          result <- liftIO $ typeCheckExpr defaultConfig builtinEnv expr
-          case result of
-            Left err -> liftIO $ putStrLn $ "Type error: " ++ show (tceError err)
-            Right tcResult -> liftIO $ putStrLn $ prettyType (tcrType tcResult)
+      -- Note: This feature is temporarily disabled due to refactoring.
+      -- TODO: Re-implement using IInfer pipeline.
+      liftIO $ putStrLn $ "Type checking in REPL is temporarily disabled during refactoring."
+      liftIO $ putStrLn $ "Expression: " ++ exprStr
       repl env
     Just ReplHelp -> do
       liftIO showReplHelp

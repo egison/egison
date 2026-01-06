@@ -25,6 +25,7 @@ import           Text.Show.Unicode              (ushow)
 import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.IExpr
+import qualified Language.Egison.Type.Types as Types
 
 --
 -- Pretty printing for Non-S syntax
@@ -341,12 +342,306 @@ instance Pretty Op where
             | otherwise  = pretty (repr op)
 
 instance Pretty IExpr where
-  pretty = undefined
+  pretty (IConstantExpr c) = pretty c
+  pretty (IVarExpr name) = pretty name
+  
+  pretty (IIndexedExpr override expr indices) =
+    pretty' expr <> (if override then pretty "..." else emptyDoc) <> hcat (map prettyIndex indices)
+    where
+      prettyIndex (Sub e) = pretty "_" <> prettyIndexExpr e
+      prettyIndex (Sup e) = pretty "~" <> prettyIndexExpr e
+      prettyIndex (SupSub e) = pretty "~_" <> prettyIndexExpr e
+      prettyIndex (User e) = pretty "|" <> prettyIndexExpr e
+      prettyIndex (DF _ _) = emptyDoc
+      prettyIndex (MultiSub _ _ _) = pretty "_..."
+      prettyIndex (MultiSup _ _ _) = pretty "~..."
+      prettyIndexExpr e = if isAtom e then pretty e else parens (pretty e)
+  
+  pretty (ISubrefsExpr override expr subExpr) =
+    pretty' expr <> (if override then pretty "..." else emptyDoc) <> pretty "._" <> prettyRefExpr subExpr
+  pretty (ISuprefsExpr override expr supExpr) =
+    pretty' expr <> (if override then pretty "..." else emptyDoc) <> pretty ".~" <> prettyRefExpr supExpr
+  pretty (IUserrefsExpr override expr userExpr) =
+    pretty' expr <> (if override then pretty "..." else emptyDoc) <> pretty ".|" <> prettyRefExpr userExpr
+  
+  pretty (IInductiveDataExpr name args)
+    | null args = pretty name
+    | otherwise = applyLike (pretty name : map pretty' args)
+  
+  pretty (ITupleExpr []) = pretty "[" <> pretty "]"
+  pretty (ITupleExpr xs) = tupled (map pretty xs)
+  
+  pretty (ICollectionExpr xs) = list (map pretty xs)
+  
+  pretty (IConsExpr x xs) = pretty'' x <+> pretty "::" <+> pretty'' xs
+  pretty (IJoinExpr x xs) = pretty'' x <+> pretty "++" <+> pretty'' xs
+  
+  pretty (IHashExpr pairs) = 
+    pretty "{|" <+> hsep (punctuate comma (map prettyPair pairs)) <+> pretty "|}"
+    where prettyPair (k, v) = parens (pretty k <> comma <+> pretty v)
+  
+  pretty (IVectorExpr xs) = 
+    pretty "[|" <+> hsep (punctuate comma (map pretty xs)) <+> pretty "|]"
+  
+  pretty (ILambdaExpr _mVar params body) =
+    lambdaLike (pretty "\\") (map prettyVar params) (pretty "->") (pretty body)
+    where prettyVar (Var name []) = pretty name
+          prettyVar v = pretty (show v)  -- fallback for complex vars
+  
+  pretty (IMemoizedLambdaExpr xs e) =
+    lambdaLike (pretty "memoizedLambda") (map pretty xs) (pretty "->") (pretty e)
+  
+  pretty (ICambdaExpr x e) =
+    indentBlock (pretty "cambda" <+> pretty x <+> pretty "->") [pretty e]
+  
+  pretty (IPatternFunctionExpr xs p) =
+    lambdaLike (pretty "\\") (map pretty xs) (pretty "=>") (pretty p)
+  
+  pretty (IIfExpr cond thenE elseE) =
+    indentBlock (pretty "if" <+> pretty cond)
+      [pretty "then" <+> pretty thenE, pretty "else" <+> pretty elseE]
+  
+  pretty (ILetRecExpr bindings body) =
+    hang 1 (pretty "let" <+> align (vsep (map prettyIBinding bindings)) <> hardline <> 
+            pretty "in" <+> align (pretty body))
+  
+  pretty (ILetExpr bindings body) =
+    hang 1 (pretty "let" <+> align (vsep (map prettyIBinding bindings)) <> hardline <> 
+            pretty "in" <+> align (pretty body))
+  
+  pretty (IWithSymbolsExpr xs e) =
+    indentBlock (pretty "withSymbols" <+> list (map pretty xs)) [pretty e]
+  
+  pretty (IMatchExpr BFSMode tgt matcher clauses) =
+    nest 2 (pretty "match" <+> pretty tgt <+> prettyIMatch matcher clauses)
+  pretty (IMatchExpr DFSMode tgt matcher clauses) =
+    nest 2 (pretty "matchDFS" <+> pretty tgt <+> prettyIMatch matcher clauses)
+  
+  pretty (IMatchAllExpr BFSMode tgt matcher clauses) =
+    nest 2 (pretty "matchAll" <+> pretty tgt <+> prettyIMatch matcher clauses)
+  pretty (IMatchAllExpr DFSMode tgt matcher clauses) =
+    nest 2 (pretty "matchAllDFS" <+> pretty tgt <+> prettyIMatch matcher clauses)
+  
+  pretty (IMatcherExpr patDefs) =
+    nest 2 (pretty "matcher" <> hardline <> align (vsep (map prettyIPatDef patDefs)))
+    where
+      prettyIPatDef (pppat, expr, body) =
+        nest 2 (pipe <+> pretty pppat <+> pretty "as" <+>
+          group (pretty expr) <+> pretty "with" <> hardline <>
+            align (vsep (map prettyIPatBody body)))
+      prettyIPatBody (pdpat, expr) =
+        indentBlock (pipe <+> align (pretty pdpat) <+> pretty "->") [pretty expr]
+  
+  pretty (IQuoteExpr e) = squote <> pretty' e
+  pretty (IQuoteSymbolExpr e) = pretty '`' <> pretty' e
+  
+  pretty (IWedgeApplyExpr op args) = applyLike (pretty' op : map pretty' args)
+  
+  pretty (IDoExpr [] y) = pretty "do" <+> pretty y
+  pretty (IDoExpr xs y) = pretty "do" <+> align (hsepHard (map prettyIDoBinds xs ++ [pretty y]))
+  
+  pretty (ISeqExpr e1 e2) = applyLike [pretty "seq", pretty' e1, pretty' e2]
+  
+  pretty (IApplyExpr fn args) = applyLike (map pretty' (fn : args))
+  
+  pretty (ICApplyExpr e1 e2) = applyLike [pretty "capply", pretty' e1, pretty' e2]
+  
+  pretty (IGenerateTensorExpr gen shape) =
+    applyLike [pretty "generateTensor", pretty' gen, pretty' shape]
+  
+  pretty (ITensorExpr e1 e2) =
+    applyLike [pretty "tensor", pretty' e1, pretty' e2]
+  
+  pretty (ITensorContractExpr e1) =
+    applyLike [pretty "contract", pretty' e1]
+  
+  pretty (ITensorMapExpr e1 e2) =
+    applyLike [pretty "tensorMap", pretty' e1, pretty' e2]
+  
+  pretty (ITensorMap2Expr e1 e2 e3) =
+    applyLike [pretty "tensorMap2", pretty' e1, pretty' e2, pretty' e3]
+  
+  pretty (ITransposeExpr e1 e2) =
+    applyLike [pretty "transpose", pretty' e1, pretty' e2]
+  
+  pretty (IFlipIndicesExpr e) =
+    applyLike [pretty "flipIndices", pretty' e]
+  
+  pretty (IFunctionExpr xs) = pretty "function" <+> tupled (map pretty xs)
+
+prettyRefExpr :: IExpr -> Doc ann
+prettyRefExpr e = if isAtom e then pretty e else parens (pretty e)
+
+prettyIBinding :: IBindingExpr -> Doc ann
+prettyIBinding (pdpat, expr) = pretty pdpat <+> pretty ":=" <+> align (pretty expr)
+
+prettyIDoBinds :: IBindingExpr -> Doc ann
+prettyIDoBinds (pdpat, expr) = pretty pdpat <+> pretty "<-" <+> pretty expr
+
+prettyIMatch :: IExpr -> [IMatchClause] -> Doc ann
+prettyIMatch matcher clauses =
+  pretty "as" <+> pretty matcher <+> pretty "with" <> hardline <>
+    indent 2 (vsep (map prettyIClause clauses))
+  where
+    prettyIClause (pat, body) =
+      indentBlock (pipe <+> pretty pat <+> pretty "->") [pretty body]
 
 instance Complex IExpr where
-  isAtom = undefined
-  isAtomOrApp = undefined
-  isInfix = undefined
+  isAtom (IConstantExpr (IntegerExpr i)) | i < 0 = False
+  isAtom (IConstantExpr _) = True
+  isAtom (IVarExpr _) = True
+  isAtom ITupleExpr{} = True
+  isAtom ICollectionExpr{} = True
+  isAtom IHashExpr{} = True
+  isAtom IVectorExpr{} = True
+  isAtom IMatcherExpr{} = True
+  isAtom (IIndexedExpr _ e _) = isAtom e
+  isAtom (IInductiveDataExpr _ []) = True
+  isAtom _ = False
+  
+  isAtomOrApp (IApplyExpr _ _) = True
+  isAtomOrApp (IInductiveDataExpr _ (_:_)) = True
+  isAtomOrApp e = isAtom e
+  
+  isInfix _ = False  -- IExpr doesn't have infix expressions (they're desugared)
+
+instance Pretty IPrimitiveDataPattern where
+  pretty (PDPatVar (Var name [])) = pretty name
+  pretty (PDPatVar var) = pretty (show var)
+  pretty PDWildCard = pretty "_"
+  pretty (PDInductivePat name []) = pretty name
+  pretty (PDInductivePat name pats) = applyLike (pretty name : map pretty pats)
+  pretty (PDTuplePat pats) = tupled (map pretty pats)
+  pretty PDEmptyPat = pretty "[]"
+  pretty (PDConsPat pat1 pat2) = pretty pat1 <+> pretty "::" <+> pretty pat2
+  pretty (PDSnocPat pat1 pat2) = pretty pat1 <+> pretty "*:" <+> pretty pat2
+
+instance Pretty IPattern where
+  pretty IWildCard = pretty "_"
+  pretty (IPatVar name) = pretty name
+  pretty (IValuePat expr) = pretty "#" <> pretty' expr
+  pretty (IPredPat expr) = pretty "?" <> pretty' expr
+  pretty (IIndexedPat pat indices) =
+    pretty' pat <> hcat (map prettyIndex indices)
+    where
+      prettyIndex e = if isAtom e then pretty e else parens (pretty e)
+  pretty (ILetPat bindings pat) =
+    pretty "let" <+> align (vsep (map prettyIBinding bindings)) <+> pretty "in" <+> pretty pat
+  pretty (INotPat pat) = pretty "!" <> pretty' pat
+  pretty (IAndPat pat1 pat2) = pretty' pat1 <+> pretty "&" <+> pretty' pat2
+  pretty (IOrPat pat1 pat2) = pretty' pat1 <+> pretty "|" <+> pretty' pat2
+  pretty (IForallPat var pat) = pretty "forall" <+> pretty var <+> pretty pat
+  pretty (ITuplePat pats) = tupled (map pretty pats)
+  pretty (IInductivePat name []) = pretty name
+  pretty (IInductivePat name pats) = applyLike (pretty name : map pretty' pats)
+  pretty (ILoopPat var (ILoopRange start end pat) bodyPat restPat) =
+    pretty "loop" <+> pretty "$" <> pretty var <+>
+    brackets (pretty start <> comma <+> pretty end <> comma <+> pretty pat) <+>
+    pretty' bodyPat <+> pretty' restPat
+  pretty IContPat = pretty "..."
+  pretty (IPApplyPat expr pats) = applyLike (pretty' expr : map pretty' pats)
+  pretty (IVarPat name) = pretty "$" <> pretty name
+  pretty (IInductiveOrPApplyPat name pats)
+    | null pats = pretty name
+    | otherwise = applyLike (pretty name : map pretty' pats)
+  pretty ISeqNilPat = pretty "[]"
+  pretty (ISeqConsPat pat1 pat2) = pretty' pat1 <+> pretty "::" <+> pretty' pat2
+  pretty ILaterPatVar = pretty "$"
+  pretty (IDApplyPat pat pats) = applyLike (pretty' pat : map pretty' pats)
+
+instance Complex IPattern where
+  isAtom IWildCard = True
+  isAtom (IPatVar _) = True
+  isAtom (ITuplePat _) = True
+  isAtom (IInductivePat _ []) = True
+  isAtom ISeqNilPat = True
+  isAtom _ = False
+  
+  isAtomOrApp (IPApplyPat _ _) = True
+  isAtomOrApp (IInductiveOrPApplyPat _ (_:_)) = True
+  isAtomOrApp (IInductivePat _ (_:_)) = True
+  isAtomOrApp pat = isAtom pat
+  
+  isInfix _ = False
+
+-- Pretty print for ITopExpr
+instance Pretty ITopExpr where
+  pretty (IDefine var iexpr) =
+    pretty "def" <+> prettyVar var <+> indentBlock (pretty ":=") [pretty iexpr]
+  pretty (IDefineMany bindings) =
+    vsep (map prettyDefineMany bindings)
+    where
+      prettyDefineMany (var, iexpr) =
+        pretty "def" <+> prettyVar var <+> pretty ":=" <+> pretty iexpr
+  pretty (ITest iexpr) = 
+    pretty iexpr
+  pretty (IExecute iexpr) =
+    pretty "execute" <+> pretty iexpr
+  pretty (ILoadFile path) =
+    pretty "loadFile" <+> pretty (show path)
+  pretty (ILoad lib) =
+    pretty "load" <+> pretty (show lib)
+
+-- Pretty print for TIExpr and TITopExpr
+instance Pretty TIExpr where
+  pretty (TIExpr ty iexpr) = 
+    parens (pretty iexpr <+> pretty ":" <+> prettyTypeDoc ty)
+
+instance Pretty TITopExpr where
+  pretty (TIDefine ty var tiexpr) =
+    pretty "def" <+> prettyVar var <+> pretty ":" <+> prettyTypeDoc ty <+> 
+    indentBlock (pretty ":=") [pretty tiexpr]
+  pretty (TITest tiexpr) = 
+    pretty tiexpr
+  pretty (TIExecute tiexpr) =
+    pretty "execute" <+> pretty tiexpr
+  pretty (TILoadFile path) =
+    pretty "loadFile" <+> pretty (show path)
+  pretty (TILoad lib) =
+    pretty "load" <+> pretty (show lib)
+  pretty (TIDefineMany bindings) =
+    vsep (map prettyBinding bindings)
+    where
+      prettyBinding (var, tiexpr) =
+        prettyVar var <+> pretty ":=" <+> pretty tiexpr
+
+-- Helper function to pretty print Var
+prettyVar :: Var -> Doc ann
+prettyVar (Var name []) = pretty name
+prettyVar (Var name indices) = pretty name <> hcat (map prettyVarIndex indices)
+  where
+    prettyVarIndex (Sub Nothing) = pretty "_"
+    prettyVarIndex (Sub (Just v)) = pretty "_" <> prettyVar v
+    prettyVarIndex (Sup Nothing) = pretty "~"
+    prettyVarIndex (Sup (Just v)) = pretty "~" <> prettyVar v
+    prettyVarIndex (SupSub Nothing) = pretty "~_"
+    prettyVarIndex (SupSub (Just v)) = pretty "~_" <> prettyVar v
+    prettyVarIndex (User Nothing) = pretty "|"
+    prettyVarIndex (User (Just v)) = pretty "|" <> prettyVar v
+    prettyVarIndex (MultiSub _ _ _) = pretty "_..."
+    prettyVarIndex (MultiSup _ _ _) = pretty "~..."
+    prettyVarIndex (DF _ _) = emptyDoc
+
+-- Helper function to pretty print Type as Doc
+prettyTypeDoc :: Types.Type -> Doc ann
+prettyTypeDoc Types.TInt = pretty "Integer"
+prettyTypeDoc Types.TFloat = pretty "Float"
+prettyTypeDoc Types.TBool = pretty "Bool"
+prettyTypeDoc Types.TChar = pretty "Char"
+prettyTypeDoc Types.TString = pretty "String"
+prettyTypeDoc (Types.TVar (Types.TyVar v)) = pretty v
+prettyTypeDoc (Types.TFun t1 t2) = prettyTypeDoc t1 <+> pretty "->" <+> prettyTypeDoc t2
+prettyTypeDoc (Types.TTuple ts) = tupled (map prettyTypeDoc ts)
+prettyTypeDoc (Types.TCollection t) = brackets (prettyTypeDoc t)
+prettyTypeDoc (Types.THash k v) = 
+  pretty "Hash" <+> prettyTypeDoc k <+> prettyTypeDoc v
+prettyTypeDoc (Types.TMatcher t) = pretty "Matcher" <+> prettyTypeDoc t
+prettyTypeDoc (Types.TIO t) = pretty "IO" <+> prettyTypeDoc t
+prettyTypeDoc (Types.TIORef t) = pretty "IORef" <+> prettyTypeDoc t
+prettyTypeDoc (Types.TTensor t) = pretty "Tensor" <+> prettyTypeDoc t
+prettyTypeDoc (Types.TInductive name []) = pretty name
+prettyTypeDoc (Types.TInductive name ts) = hsep (pretty name : map prettyTypeDoc ts)
+prettyTypeDoc Types.TAny = pretty "_"
 
 class Complex a where
   isAtom :: a -> Bool

@@ -59,18 +59,19 @@
 ### Phase 5-6: 型推論（リファクタリング後）
 | ファイル | 役割 | 主要な型・関数 | 状態 |
 |---------|------|---------------|------|
-| `hs-src/Language/Egison/Type/IInfer.hs` | 【統合】IExpr型推論（すべて） | `inferIExpr`, `inferITopExpr`, `Infer`モナド, 補助関数 | 作成中 |
-| `hs-src/Language/Egison/Type/TypedIAST.hs` | 【新規】型付きAST (IExprベース) | `TypedIExpr`, `TypedITopExpr` | ✅完成 |
-| `hs-src/Language/Egison/Type/Infer.hs` | - | - | 削除予定（IInfer.hsに統合） |
-| `hs-src/Language/Egison/Type/TypeInfer.hs` | - | - | 削除予定 |
-| `hs-src/Language/Egison/Type/TypedAST.hs` | - | - | 削除予定 |
-| `hs-src/Language/Egison/PreDesugar.hs` | - | - | 削除予定 |
+| `hs-src/Language/Egison/Type/IInfer.hs` | 【統合】IExpr型推論 | `inferIExpr :: IExpr -> Infer (Type, Subst)` | ✅完成 |
+| `hs-src/Language/Egison/IExpr.hs` | TIExpr定義（既存） | `TIExpr`, `TITopExpr`（型情報付きIExpr） | ✅既存 |
+| `hs-src/Language/Egison/Type/TypedIAST.hs` | - | - | ❌削除予定（不要・TIExprを使う） |
+| `hs-src/Language/Egison/Type/Infer.hs` | - | - | ✅削除済み（IInfer.hsに統合） |
+| `hs-src/Language/Egison/Type/TypeInfer.hs` | - | - | ✅削除済み |
+| `hs-src/Language/Egison/Type/TypedAST.hs` | - | - | ✅削除済み |
+| `hs-src/Language/Egison/PreDesugar.hs` | - | - | ✅削除済み |
 
 ### Phase 7-8: TypedDesugar（リファクタリング後）
 | ファイル | 役割 | 主要な型・関数 | 状態 |
 |---------|------|---------------|------|
-| `hs-src/Language/Egison/Type/TypedDesugar.hs` | TypedIExpr → TIExpr | `desugarTypedIExpr` | 修正予定 |
-| `hs-src/Language/Egison/Type/TypeClassExpand.hs` | 型クラス辞書展開 | 辞書関数への変換 | 修正予定 |
+| `hs-src/Language/Egison/Type/TypedDesugar.hs` | IExpr+Type → TIExpr | テンソルDesugar + 型クラス辞書渡し | 修正予定 |
+| `hs-src/Language/Egison/Type/TypeClassExpand.hs` | 型クラス辞書展開（本格実装） | 辞書関数への変換 | 実装予定 |
 
 ## コマンドラインオプションとの対応
 
@@ -150,8 +151,8 @@
 - [ ] `hs-src/Language/Egison/Type/TypedAST.hs`
 
 ### 作成するファイル
-- [ ] `hs-src/Language/Egison/Type/IInfer.hs` (Infer.hsの内容も統合)
-- [x] `hs-src/Language/Egison/Type/TypedIAST.hs`
+- [x] `hs-src/Language/Egison/Type/IInfer.hs` (Infer.hsの内容も統合) ✅完成
+- [ ] ~~`hs-src/Language/Egison/Type/TypedIAST.hs`~~ ❌不要（TIExprを使用）
 
 ### 修正するファイル
 - [ ] `hs-src/Language/Egison/Type/TypedDesugar.hs` (TypedIExpr対応)
@@ -173,4 +174,9 @@ TIExprは元のIExprの形に型をつけたものなので、元のDesugar.hs�
 現在のTypeClassExpand.hsはほとんど何もしていない。
 これから実装する必要がある。
 
-TypedDesugar.hsでは、型クラスのクラス辞書を渡すDesugarをした後、テンソル関連のDesugarを行う。
+TypedDesugar.hsでは、テンソル関連のDesugarの後、型クラスのクラス辞書を渡すDesugarを行う。
+
+---
+
+**注**: 上記の方針が正しいことが確認され、`REFACTORING_IEXPR_V2.md`に詳細を記載。
+`TypedIAST.hs`（新規作成したもの）も同様に不要であり、既存の`TIExpr`を使用すべき。

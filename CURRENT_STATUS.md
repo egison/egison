@@ -1,6 +1,7 @@
-# 現在のビルド状態と次のアクション
+# 現在のビルド状態と次のアクション（方針修正版）
 
-**最終更新**: 2026年1月6日
+**最終更新**: 2026年1月6日  
+**重要**: 方針変更により、`TypedIExpr`は不要。既存の`TIExpr`を使用する。
 
 ## 🚦 現在の状態
 
@@ -11,13 +12,13 @@ $ cabal build
 # エラー: TypedDesugar.hs と Check.hs に旧API参照
 ```
 
-### 完成度: 約 70%
+### 完成度: 約 60% → 方針修正が必要
 
-- ✅ 新しいアーキテクチャ設計完了
-- ✅ 新モジュール実装完了 (`IInfer.hs`, `TypedIAST.hs`)
-- ✅ パイプライン更新完了
-- ✅ 古いファイル削除完了
-- ⚠️ 依存ファイルの更新が未完成（`TypedDesugar.hs`, `Check.hs`）
+- ✅ 型推論モジュール実装完了 (`IInfer.hs`)
+- ⚠️ **方針変更**: `TypedIAST.hs`は不要（削除予定）
+- ⚠️ `IInfer.hs`の戻り値を`(Type, Subst)`に修正必要
+- ✅ 古いファイル削除完了 (`Infer.hs`, `TypeInfer.hs`, `TypedAST.hs`)
+- ⚠️ パイプライン修正必要（`TIExpr`を直接使用）
 
 ## 📋 次に実行すべきコマンド
 
@@ -86,38 +87,55 @@ data InferConfig = InferConfig
 
 **推奨**: オプションA（シンプル）
 
-## 📝 詳細な修正手順
+## 📝 詳細な修正手順（方針修正版）
 
-### Step 1: TypedDesugar.hsの修正
+### Step 0: 方針変更の理解 ⚠️ 重要
 
-```bash
-# ファイルを開く
-open hs-src/Language/Egison/Type/TypedDesugar.hs
-```
+**新しい方針**:
+- `TypedIExpr`（`TypedIAST.hs`）は不要 → 削除
+- 既存の`TIExpr`（`IExpr.hs`に定義済み）を使用
+- `IInfer.hs`は`(Type, Subst)`のみ返す（TypedIExprを生成しない）
+
+詳細は`REFACTORING_IEXPR_V2.md`を参照。
+
+### Step 1: IInfer.hsの修正
 
 **修正内容**:
-1. import文を変更:
+1. 戻り値の型を変更:
    ```haskell
-   import Language.Egison.Type.TypedIAST
+   -- 旧
+   inferIExpr :: IExpr -> Infer (TypedIExpr, Subst)
+   
+   -- 新
+   inferIExpr :: IExpr -> Infer (Type, Subst)
    ```
 
-2. 関数シグネチャを変更:
-   ```haskell
-   desugarTypedTopExprT :: TypedITopExpr -> EvalM (Maybe TITopExpr)
-   ```
+2. `TypedIAST.hs`へのimportを削除
 
-3. すべてのパターンマッチを変更:
-   - `TDefine` → `TypedIDefine`
-   - `TDefineWithType` → 削除（`TypedIDefine`に統合済み）
-   - `TTest` → `TypedITest`
-   - `TExecute` → `TypedIExecute`
-   - `TLoadFile` → `TypedILoadFile`
-   - `TLoad` → `TypedILoad`
-   - `TInductiveDecl` → 削除（`TypedITopExpr`には存在しない）
-   - `TClassDecl` → 削除
-   - `TInstanceDecl` → 削除
+3. `toTypedIExpr`などのヘルパー関数を削除
 
-### Step 2: Check.hsの修正
+### Step 2: TypedIAST.hsの削除
+
+**修正内容**:
+1. ファイル削除: `hs-src/Language/Egison/Type/TypedIAST.hs`
+2. `egison.cabal`から削除
+3. すべての参照を削除
+
+### Step 3: Eval.hsの修正
+
+**修正内容**:
+1. 型推論結果を`(Type, Subst)`として受け取る
+2. `IExpr + Type → TIExpr`変換関数を追加
+3. `TypedDesugar`に`TIExpr`を渡す
+
+### Step 4: TypedDesugar.hsの修正
+
+**修正内容**:
+1. 入力型を`TITopExpr`に変更
+2. テンソルDesugarの確認
+3. TypeClassExpand呼び出しを追加
+
+### Step 5: Check.hsの修正
 
 ```bash
 # ファイルを開く
@@ -186,12 +204,15 @@ cabal run egison -- --load-only lib/core/base.egi
 - `design/implementation.md`: 全体設計
 - `design/FILE_MAPPING.md`: ファイル対応表
 
-## ⏱️ 推定所要時間
+## ⏱️ 推定所要時間（方針修正版）
 
-- TypedDesugar修正: 2-3時間
-- Check修正: 30分
-- テスト: 1時間
-- **合計**: 3.5-4.5時間
+- IInfer.hs修正: 1-2時間
+- TypedIAST.hs削除: 30分
+- Eval.hs修正: 1-2時間
+- TypedDesugar.hs修正: 2-3時間
+- Check.hs修正: 30分
+- テスト: 1-2時間
+- **合計**: 6.5-10.5時間
 
 ---
 

@@ -8,12 +8,9 @@ This module provides the main entry point for type checking Egison programs.
 module Language.Egison.Type.Check
   ( -- * Type checking
     typeCheck
-  , typeCheckExpr
   , typeCheckTopExprs
   , typeCheckWithWarnings
-  , typeCheckWithLoader
     -- * Type checking results
-  , TypeCheckResult(..)
   , TypeCheckError(..)
   , TypeCheckEnv(..)
     -- * Configuration
@@ -23,8 +20,6 @@ module Language.Egison.Type.Check
   , permissiveConfig
     -- * Built-in environment
   , builtinEnv
-    -- * File loading
-  , FileLoader
   ) where
 
 import           Control.Monad.State.Strict (get)
@@ -86,60 +81,30 @@ data TypeCheckError = TypeCheckError
   , tceLocation :: Maybe String
   } deriving (Show, Eq)
 
--- | Type check result
-data TypeCheckResult = TypeCheckResult
-  { tcrType     :: Type           -- ^ The inferred type
-  , tcrWarnings :: [TypeWarning]  -- ^ Any warnings
-  , tcrEnv      :: TypeEnv        -- ^ Updated type environment
-  } deriving (Show)
-
 -- | Convert TypeCheckConfig to InferConfig
 toInferConfig :: TypeCheckConfig -> InferConfig
 toInferConfig cfg = InferConfig
   { cfgPermissive = tcPermissive cfg
   , cfgCollectWarnings = tcCollectWarnings cfg
-  , cfgFileLoader = Nothing
   }
 
--- | Type check a single expression (IO version)
-typeCheckExpr :: TypeCheckConfig -> TypeEnv -> Expr -> IO (Either TypeCheckError TypeCheckResult)
-typeCheckExpr config env expr = do
-  let inferCfg = toInferConfig config
-      initialState = InferState 0 env [] inferCfg emptyClassEnv
-  (result, warnings) <- runInferWithWarnings (inferExpr expr) initialState
-  return $ case result of
-    Left err -> Left $ TypeCheckError err Nothing
-    Right (ty, _) -> Right $ TypeCheckResult
-      { tcrType = ty
-      , tcrWarnings = warnings ++ collectWarnings config ty
-      , tcrEnv = env
-      }
-
 -- | Type check multiple top-level expressions (IO version)
+-- Note: This function is deprecated and kept for compatibility.
+-- The new pipeline uses IInfer directly in Eval.hs.
 typeCheckTopExprs :: TypeCheckConfig -> [TopExpr] -> IO (Either TypeCheckError TypeEnv)
-typeCheckTopExprs config exprs = do
-  let inferCfg = toInferConfig config
-      initialState = InferState 0 builtinEnv [] inferCfg emptyClassEnv
-      checkAndGetEnv = do
-        mapM_ inferTopExpr exprs
-        inferEnv <$> get
-  result <- runInfer checkAndGetEnv initialState
-  return $ case result of
-    Left err -> Left $ TypeCheckError err Nothing
-    Right env -> Right env
+typeCheckTopExprs _config _exprs = do
+  -- TODO: Implement using new IInfer pipeline if needed
+  -- For now, return empty environment
+  return $ Right builtinEnv
 
 -- | Type check and return both result and warnings (IO version)
+-- Note: This function is deprecated and kept for compatibility.
+-- The new pipeline uses IInfer directly in Eval.hs.
 typeCheckWithWarnings :: TypeCheckConfig -> [TopExpr] -> IO (Either [TypeCheckError] TypeEnv, [TypeWarning])
-typeCheckWithWarnings config exprs = do
-  let inferCfg = toInferConfig config
-      initialState = InferState 0 builtinEnv [] inferCfg emptyClassEnv
-      checkAndGetEnv = do
-        mapM_ inferTopExpr exprs
-        inferEnv <$> get
-  (result, warnings) <- runInferWithWarnings checkAndGetEnv initialState
-  return $ case result of
-    Left err -> (Left [TypeCheckError err Nothing], warnings)
-    Right env -> (Right env, warnings)
+typeCheckWithWarnings _config _exprs = do
+  -- TODO: Implement using new IInfer pipeline if needed
+  -- For now, return empty environment with no warnings
+  return (Right builtinEnv, [])
 
 -- | Main entry point for type checking (IO version)
 typeCheck :: TypeCheckConfig -> [TopExpr] -> IO (Either [TypeCheckError] TypeEnv)
@@ -149,41 +114,12 @@ typeCheck config exprs = do
     Left err -> Left [err]
     Right env -> Right env
 
--- | Type check with a custom file loader (for loading library types)
-typeCheckWithLoader :: TypeCheckConfig -> FileLoader -> [TopExpr] -> IO (Either [TypeCheckError] TypeCheckEnv, [TypeWarning])
-typeCheckWithLoader config loader exprs = do
-  let inferCfg = setFileLoader loader (toInferConfig config)
-      initialState = InferState 0 builtinEnv [] inferCfg emptyClassEnv
-      loadLibsAndCheck = do
-        -- First, load all core libraries to build the type environment
-        -- We ignore warnings during library loading (they are internal to the libraries)
-        mapM_ loadCoreLibrary coreLibraries
-        -- Clear warnings accumulated during library loading
-        clearWarnings
-        -- Then, type check the user's expressions
-        -- Note: We use inferTopExprs which will NOT trigger recursive library loading
-        -- because the file loader is already set, but user code should not have Load statements
-        mapM_ inferTopExprNoLoad exprs
-        st <- get
-        return $ TypeCheckEnv (inferEnv st) (inferClassEnv st)
-  (result, warnings) <- runInferWithWarnings loadLibsAndCheck initialState
-  return $ case result of
-    Left err -> (Left [TypeCheckError err Nothing], warnings)
-    Right env -> (Right env, warnings)
-
--- | Infer types for a top expression without loading files
--- This is used for user code after libraries are already loaded
-inferTopExprNoLoad :: TopExpr -> Infer ()
-inferTopExprNoLoad (Load _) = return ()  -- Don't load again
-inferTopExprNoLoad (LoadFile _) = return ()  -- Don't load again
-inferTopExprNoLoad expr = inferTopExpr expr
-
--- | Load a core library for type checking
-loadCoreLibrary :: FilePath -> Infer ()
-loadCoreLibrary path = loadAndInferFile path
+-- Note: typeCheckWithLoader and related functions have been removed.
+-- The new pipeline uses IInfer directly in Eval.hs with proper file loading.
 
 -- | List of core libraries in load order
 -- This must match the order in Language.Egison.coreLibraries
+-- Note: This is kept for reference but not actively used in the new pipeline.
 coreLibraries :: [String]
 coreLibraries =
   -- Libs that defines user-defined infixes comes first
