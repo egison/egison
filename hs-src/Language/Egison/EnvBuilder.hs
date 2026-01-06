@@ -32,7 +32,8 @@ import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, 
                                              extendEnv, extendPatternEnv, addClass, addInstance)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..), TensorShape(..),
-                                             ClassInfo, InstanceInfo)
+                                             ClassInfo, InstanceInfo, freeTyVars)
+import qualified Data.Set as Set
 
 -- | Result of environment building phase
 data EnvBuildResult = EnvBuildResult
@@ -148,9 +149,10 @@ processTopExpr result topExpr = case topExpr of
         -- Build function type
         funType = foldr TFun retType paramTypes
         
-        -- Create type scheme (no quantification yet - will be done during inference)
-        -- For now, just store the type
-        typeScheme = Types.Forall [] [] funType
+        -- Generalize free type variables in the type signature
+        -- This handles type parameters like {a, b, c} in def compose {a, b, c} ...
+        freeVars = Set.toList (freeTyVars funType)
+        typeScheme = Types.Forall freeVars [] funType
         
         typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv name typeScheme typeEnv
