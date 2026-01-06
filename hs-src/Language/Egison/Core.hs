@@ -30,12 +30,6 @@ module Language.Egison.Core
       evalExprShallow
     , evalExprDeep
     , evalWHNF
-    -- * Typed evaluation
-    , evalTIExprShallow
-    , evalTIExprDeep
-    , TWHNFData(..)
-    , twhnfType
-    , twhnfData
     -- * Type utilities
     , valueToType
     , whnfToType
@@ -78,7 +72,7 @@ import           Language.Egison.Match
 import           Language.Egison.Math
 import           Language.Egison.RState
 import           Language.Egison.Tensor
-import           Language.Egison.Type.Types      (Type(..), TensorShape(..))
+import           Language.Egison.Type.Types      (Type(..))
 
 -- | Get the Type of an EgisonValue
 -- Used for type class method dispatch
@@ -111,12 +105,6 @@ whnfToType (ICharHash _) = THash TChar TAny
 whnfToType (IStrHash _) = THash TString TAny
 whnfToType (ITensor _) = TTensor TAny
 
--- | Typed WHNF data: WHNF with type information
-data TWHNFData = TWHNFData
-  { twhnfType :: Type       -- ^ The type of this value
-  , twhnfData :: WHNFData   -- ^ The underlying WHNF data
-  } deriving Show
-
 evalConstant :: ConstantExpr -> EgisonValue
 evalConstant (CharExpr c)    = Char c
 evalConstant (StringExpr s)  = toEgison s
@@ -127,31 +115,7 @@ evalConstant SomethingExpr   = Something
 evalConstant UndefinedExpr   = Undefined
 
 --
--- Typed Evaluation
---
--- These functions evaluate typed internal expressions (TIExpr) and return
--- typed WHNF data (TWHNFData), preserving type information for dispatch.
---
-
--- | Evaluate a typed internal expression to typed WHNF
-evalTIExprShallow :: Env -> TIExpr -> EvalM TWHNFData
-evalTIExprShallow env (TIExpr ty iexpr) = do
-  whnf <- evalExprShallow env iexpr
-  -- Use the static type from TIExpr, falling back to dynamic type if TAny
-  let finalType = case ty of
-        TAny -> whnfToType whnf
-        _    -> ty
-  return $ TWHNFData finalType whnf
-
--- | Evaluate a typed internal expression deeply
-evalTIExprDeep :: Env -> TIExpr -> EvalM (Type, EgisonValue)
-evalTIExprDeep env tiexpr = do
-  twhnf <- evalTIExprShallow env tiexpr
-  val <- evalWHNF (twhnfData twhnf)
-  return (twhnfType twhnf, val)
-
---
--- Untyped Evaluation
+-- IExpr Evaluation
 --
 
 evalExprShallow :: Env -> IExpr -> EvalM WHNFData
