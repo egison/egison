@@ -110,7 +110,7 @@
              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase 2: buildEnvironments (EnvBuilder.hs)                  │
-│   TypeEnv, ClassEnv, ConstructorEnv                         │
+│   TypeEnv, ClassEnv, ConstructorEnv, PatternConstructorEnv, PatternFuncEnv│
 └────────────┬────────────────────────────────────────────────┘
              │
              ↓
@@ -122,21 +122,21 @@
              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase 5-6: Type Inference (IInfer.hs ← 作成予定)            │
-│   IExpr → TypedIExpr                                        │
+│   IExpr → TIExpr                                        │
 │   基盤: Infer.hs, Unify.hs, Subst.hs                       │
 └────────────┬────────────────────────────────────────────────┘
              │
              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase 7-8: TypedDesugar (TypedDesugar.hs)                   │
-│   TypedIExpr → TIExpr                                       │
+│   TIExpr → IExpr                                       │
 │   補助: TypeClassExpand.hs                                  │
 └────────────┬────────────────────────────────────────────────┘
              │
              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase 9-10: Evaluation (Core.hs)                            │
-│   TIExpr → EgisonValue                                      │
+│   IExpr → EgisonValue                                      │
 │   補助: Primitives.hs, Match.hs                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -163,3 +163,14 @@
 - [ ] `lib/core/base.egi`が正しく型チェックされること
 - [ ] `--dump-desugared`, `--dump-typed`, `--dump-ti`が正しく動作すること
 
+
+# 修正・追記したいこと
+
+TypedAST.hsで定義されているTypedExprは、TIExprと役割が被るためいらない。
+元のIExprの形を保存しているTypedExprよりもTIExprを使うべき。
+TIExprは元のIExprの形に型をつけたものなので、元のDesugar.hsがほとんどそのまま使えるはず。
+
+現在のTypeClassExpand.hsはほとんど何もしていない。
+これから実装する必要がある。
+
+TypedDesugar.hsでは、型クラスのクラス辞書を渡すDesugarをした後、テンソル関連のDesugarを行う。
