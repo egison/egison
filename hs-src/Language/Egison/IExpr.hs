@@ -26,6 +26,10 @@ module Language.Egison.IExpr
   , TIBindingExpr
   , TIMatchClause
   , tiExprType
+  , tiExprScheme
+  , tiExprTypeVars
+  , tiExprConstraints
+  , tipType
   , stripType
   , stripTypeTopExpr
   , Var (..)
@@ -46,7 +50,7 @@ import           Data.Hashable
 import           GHC.Generics        (Generic)
 
 import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMMode (..), PrimitivePatPattern (..))
-import           Language.Egison.Type.Types (Type(..))
+import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..), TyVar(..))
 
 data ITopExpr
   = IDefine Var IExpr
@@ -204,7 +208,7 @@ makeIApply fn args = IApplyExpr (IVarExpr fn) args
 -- | Typed top-level expression (Phase 9: TITopExpr)
 -- Result of TypedDesugar phase, ready for evaluation.
 data TITopExpr
-  = TIDefine Type Var TIExpr           -- ^ Typed definition with explicit type
+  = TIDefine TypeScheme Var TIExpr     -- ^ Typed definition with type scheme (includes type vars & constraints)
   | TIDefineMany [(Var, TIExpr)]       -- ^ Multiple definitions (letrec)
   | TITest TIExpr                      -- ^ Test expression (REPL)
   | TIExecute TIExpr                   -- ^ Execute IO expression
@@ -213,16 +217,29 @@ data TITopExpr
   deriving Show
 
 -- | Typed internal expression (Phase 9: TIExpr)
--- Each expression node carries its inferred/checked type.
--- Type info is preserved for better error messages during evaluation.
+-- Each expression node carries its inferred/checked type scheme with type variables and constraints.
+-- TypeScheme info is preserved for Phase 8 (TypedDesugar) to perform type-driven transformations
+-- such as type class dictionary passing and tensorMap insertion.
 data TIExpr = TIExpr
-  { tiType :: Type      -- ^ The type of this expression (from type inference/checking)
-  , tiExpr :: IExpr     -- ^ The underlying internal expression
+  { tiScheme :: TypeScheme  -- ^ Type scheme with type variables, constraints, and type
+  , tiExpr :: IExpr         -- ^ The underlying internal expression
   } deriving Show
 
--- | Get the type of a typed expression
+-- | Get the type of a typed expression (extracts Type from TypeScheme)
 tiExprType :: TIExpr -> Type
-tiExprType = tiType
+tiExprType (TIExpr (Forall _ _ t) _) = t
+
+-- | Get the type scheme of a typed expression
+tiExprScheme :: TIExpr -> TypeScheme
+tiExprScheme = tiScheme
+
+-- | Get the type variables of a typed expression
+tiExprTypeVars :: TIExpr -> [TyVar]
+tiExprTypeVars (TIExpr (Forall tvs _ _) _) = tvs
+
+-- | Get the constraints of a typed expression
+tiExprConstraints :: TIExpr -> [Constraint]
+tiExprConstraints (TIExpr (Forall _ cs _) _) = cs
 
 -- | Strip type information, returning the untyped expression
 stripType :: TIExpr -> IExpr
@@ -230,7 +247,7 @@ stripType = tiExpr
 
 -- | Strip type information from top-level expression
 stripTypeTopExpr :: TITopExpr -> ITopExpr
-stripTypeTopExpr (TIDefine _ var expr) = IDefine var (stripType expr)
+stripTypeTopExpr (TIDefine _scheme var expr) = IDefine var (stripType expr)
 stripTypeTopExpr (TIDefineMany bindings) = IDefineMany [(v, stripType e) | (v, e) <- bindings]
 stripTypeTopExpr (TITest expr) = ITest (stripType expr)
 stripTypeTopExpr (TIExecute expr) = IExecute (stripType expr)
@@ -239,9 +256,13 @@ stripTypeTopExpr (TILoad file) = ILoad file
 
 -- | Typed pattern (for future use)
 data TIPattern = TIPattern
-  { tipType :: Type
-  , tipPattern :: IPattern
+  { tipScheme :: TypeScheme  -- ^ Type scheme with type variables and constraints
+  , tipPattern :: IPattern   -- ^ The underlying pattern
   } deriving Show
+
+-- | Get the type of a typed pattern (extracts Type from TypeScheme)
+tipType :: TIPattern -> Type
+tipType (TIPattern (Forall _ _ t) _) = t
 
 -- | Typed loop range
 data TILoopRange = TILoopRange TIExpr TIExpr TIPattern
