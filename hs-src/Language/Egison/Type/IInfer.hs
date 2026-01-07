@@ -54,9 +54,11 @@ import           Control.Monad              (foldM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
 import           Data.Maybe                  (catMaybes)
-import           Language.Egison.AST        (ConstantExpr (..))
+import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..), PMMode (..))
 import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..)
                                             , IBindingExpr
+                                            , IMatchClause, IPatternDef
+                                            , IPattern (..), ILoopRange (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
                                             , extractNameFromVar)
 import           Language.Egison.Pretty     (prettyStr)
@@ -407,13 +409,78 @@ inferIExprWithContext expr ctx = case expr of
           else throwError $ UnboundVariable name exprCtx
   
   -- Matchers (return Matcher type)
-  IMatcherExpr _patDefs -> do
-    -- TODO: Not implemented
-    matchedTy <- freshVar "matched"
-    return (TMatcher matchedTy, emptySubst)
+  IMatcherExpr patDefs -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    -- Infer type of each pattern definition (matcher clause)
+    -- Each clause has: (PrimitivePatPattern, nextMatcherExpr, [(primitiveDataPat, targetExpr)])
+    results <- mapM (inferPatternDef exprCtx) patDefs
+    
+    -- Collect all substitutions
+    let substs = concatMap snd results
+        finalSubst = foldr composeSubst emptySubst substs
+    
+    -- All clauses should agree on the matched type
+    -- For now, we use the first clause's matched type
+    matchedTy <- case results of
+      ((ty, _):_) -> return $ applySubst finalSubst ty
+      [] -> freshVar "matched"  -- Empty matcher (edge case)
+    
+    return (TMatcher matchedTy, finalSubst)
+    where
+      -- Infer a single pattern definition (matcher clause)
+      -- Returns (matched type, [substitutions])
+      inferPatternDef :: TypeErrorContext -> IPatternDef -> Infer (Type, [Subst])
+      inferPatternDef ctx (ppPat, nextMatcherExpr, dataClauses) = do
+        -- Infer the type of next matcher expression
+        -- It should be either a Matcher type or a tuple of Matcher types
+        (nextMatcherType, s1) <- inferIExprWithContext nextMatcherExpr ctx
+        
+        -- Infer the type of data clauses
+        -- Each data clause: (primitiveDataPattern, targetListExpr)
+        dataClauseSubsts <- mapM (inferDataClause ctx) dataClauses
+        let s2 = foldr composeSubst emptySubst dataClauseSubsts
+        
+        -- Extract the matched type from the matcher clause
+        -- For primitive-pattern pattern ($, $), we need to infer from next matcher
+        matchedType <- inferMatchedTypeFromPP ppPat nextMatcherType
+        
+        return (matchedType, [s1, s2])
+      
+      -- Infer a data clause: (pattern, expr) -> expr should return a list of targets
+      inferDataClause :: TypeErrorContext -> (IPrimitiveDataPattern, IExpr) -> Infer Subst
+      inferDataClause ctx (_pdPat, targetExpr) = do
+        -- The target expression should return a collection of tuples/values
+        (exprType, s) <- inferIExprWithContext targetExpr ctx
+        -- We don't enforce specific type here for flexibility
+        return s
+      
+      -- Infer matched type from primitive-pattern pattern and next matcher type
+      inferMatchedTypeFromPP :: PrimitivePatPattern -> Type -> Infer Type
+      inferMatchedTypeFromPP ppPat matcherType = case ppPat of
+        PPWildCard -> freshVar "matched"
+        PPPatVar -> freshVar "matched"
+        PPValuePat _ -> freshVar "matched"
+        PPTuplePat pps -> do
+          -- For tuple patterns, extract types from matcher types
+          case matcherType of
+            TTuple matcherTypes -> do
+              -- Extract inner types from each Matcher type
+              innerTypes <- mapM extractMatcherInnerType matcherTypes
+              return $ TTuple innerTypes
+            TMatcher (TTuple ts) -> return $ TTuple ts
+            _ -> freshVar "matched"
+        PPInductivePat name pps -> do
+          -- For inductive patterns, return the inductive type
+          argTypes <- mapM (\_ -> freshVar "arg") pps
+          return $ TInductive name argTypes
+      
+      -- Extract inner type from Matcher a -> a
+      extractMatcherInnerType :: Type -> Infer Type
+      extractMatcherInnerType (TMatcher t) = return t
+      extractMatcherInnerType t = return t
   
   -- Match expressions (pattern matching)
-  IMatchExpr _mode target matcher _clauses -> do
+  IMatchExpr _mode target matcher clauses -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (targetType, s1) <- inferIExprWithContext target exprCtx
     (matcherType, s2) <- inferIExprWithContext matcher exprCtx
@@ -426,13 +493,21 @@ inferIExprWithContext expr ctx = case expr of
     let s123 = composeSubst s3 s12
     s4 <- unifyTypesWithContext (applySubst s123 targetType) (applySubst s123 matchedTy) exprCtx
     
-    -- TODO: Infer match clauses result type
-    resultTy <- freshVar "matchResult"
-    let finalS = composeSubst s4 s123
-    return (applySubst finalS resultTy, finalS)
+    -- Infer match clauses result type
+    let s1234 = composeSubst s4 s123
+    case clauses of
+      [] -> do
+        -- No clauses: this should not happen, but handle gracefully
+        resultTy <- freshVar "matchResult"
+        return (applySubst s1234 resultTy, s1234)
+      _ -> do
+        -- Infer type of each clause and unify them
+        (resultTy, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedTy) clauses s1234
+        let finalS = composeSubst clauseSubst s1234
+        return (applySubst finalS resultTy, finalS)
   
   -- MatchAll expressions
-  IMatchAllExpr _mode target matcher _clauses -> do
+  IMatchAllExpr _mode target matcher clauses -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (targetType, s1) <- inferIExprWithContext target exprCtx
     (matcherType, s2) <- inferIExprWithContext matcher exprCtx
@@ -444,10 +519,18 @@ inferIExprWithContext expr ctx = case expr of
     let s123 = composeSubst s3 s12
     s4 <- unifyTypesWithContext (applySubst s123 targetType) (applySubst s123 matchedTy) exprCtx
     
-    -- MatchAll returns a collection of results
-    resultElemTy <- freshVar "matchAllElem"
-    let finalS = composeSubst s4 s123
-    return (TCollection (applySubst finalS resultElemTy), finalS)
+    -- MatchAll returns a collection of results from match clauses
+    let s1234 = composeSubst s4 s123
+    case clauses of
+      [] -> do
+        -- No clauses: return empty collection type
+        resultElemTy <- freshVar "matchAllElem"
+        return (TCollection (applySubst s1234 resultElemTy), s1234)
+      _ -> do
+        -- Infer type of each clause (they should all have the same type)
+        (resultElemTy, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedTy) clauses s1234
+        let finalS = composeSubst clauseSubst s1234
+        return (TCollection (applySubst finalS resultElemTy), finalS)
   
   -- Memoized Lambda
   IMemoizedLambdaExpr args body -> do
@@ -483,6 +566,69 @@ inferIExprWithContext expr ctx = case expr of
   
   -- Other cases: return TAny for now
   _ -> return (TAny, emptySubst)
+
+-- | Infer match clauses type
+-- All clauses should return the same type
+inferMatchClauses :: TypeErrorContext -> Type -> [IMatchClause] -> Subst -> Infer (Type, Subst)
+inferMatchClauses ctx matchedType clauses initSubst = do
+  case clauses of
+    [] -> do
+      -- No clauses (should not happen)
+      ty <- freshVar "clauseResult"
+      return (ty, initSubst)
+    (firstClause:restClauses) -> do
+      -- Infer first clause
+      (firstType, s1) <- inferMatchClause ctx matchedType firstClause initSubst
+      
+      -- Infer rest clauses and unify with first
+      (finalType, finalSubst) <- foldM (inferAndUnifyClause ctx matchedType) (firstType, s1) restClauses
+      return (finalType, finalSubst)
+  where
+    inferAndUnifyClause :: TypeErrorContext -> Type -> (Type, Subst) -> IMatchClause -> Infer (Type, Subst)
+    inferAndUnifyClause ctx' matchedTy (expectedType, accSubst) clause = do
+      (clauseType, s1) <- inferMatchClause ctx' (applySubst accSubst matchedTy) clause accSubst
+      s2 <- unifyTypesWithContext (applySubst s1 expectedType) clauseType ctx'
+      let finalS = composeSubst s2 (composeSubst s1 accSubst)
+      return (applySubst finalS expectedType, finalS)
+
+-- | Infer a single match clause
+inferMatchClause :: TypeErrorContext -> Type -> IMatchClause -> Subst -> Infer (Type, Subst)
+inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
+  -- Extract pattern variable bindings from the pattern
+  -- All pattern variables will have the matched type for now
+  -- (A more sophisticated implementation would track types through pattern decomposition)
+  let patternVars = extractPatternVars pattern
+      bindings = [(var, Forall [] [] matchedType) | var <- patternVars]
+  
+  -- Infer body expression type with pattern variables in scope
+  (bodyType, s) <- withEnv bindings $ inferIExprWithContext bodyExpr ctx
+  let finalS = composeSubst s initSubst
+  return (applySubst finalS bodyType, finalS)
+
+-- | Extract pattern variables from a pattern
+extractPatternVars :: IPattern -> [String]
+extractPatternVars pat = case pat of
+  IWildCard -> []
+  IPatVar name -> [name]
+  IValuePat _ -> []
+  IPredPat _ -> []
+  IIndexedPat p _ -> extractPatternVars p
+  ILetPat _ p -> extractPatternVars p
+  INotPat p -> extractPatternVars p
+  IAndPat p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
+  IOrPat p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
+  IForallPat p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
+  ITuplePat ps -> concatMap extractPatternVars ps
+  IInductivePat _ ps -> concatMap extractPatternVars ps
+  ILoopPat _ _ p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
+  IContPat -> []
+  IPApplyPat _ ps -> concatMap extractPatternVars ps
+  IVarPat name -> [name]
+  IInductiveOrPApplyPat _ ps -> concatMap extractPatternVars ps
+  ISeqNilPat -> []
+  ISeqConsPat p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
+  ILaterPatVar -> []
+  IDApplyPat p ps -> extractPatternVars p ++ concatMap extractPatternVars ps
 
 -- | Infer application (helper)
 inferIApplication :: Type -> [IExpr] -> Subst -> Infer (Type, Subst)
