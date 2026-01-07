@@ -3,10 +3,11 @@ Module      : Language.Egison.Type.TypedDesugar
 Licence     : MIT
 
 This module implements Phase 8 of the processing flow: TypedDesugar.
-It performs type-driven transformations on TIExpr (Typed Internal Expressions).
+It orchestrates type-driven transformations on TIExpr (Typed Internal Expressions)
+by calling specialized expansion modules.
 
 Type-Driven Transformations (Phase 8):
-  1. tensorMap automatic insertion
+  1. tensorMap automatic insertion (via TypeTensorExpand)
      - Detect mismatches between Tensor MathExpr and MathExpr
      - Insert tensorMap at appropriate positions
   2. Type class dictionary passing (via TypeClassExpand)
@@ -29,18 +30,31 @@ module Language.Egison.Type.TypedDesugar
 
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..))
+import           Language.Egison.Type.TypeTensorExpand (expandTensorApplications)
+-- TODO: Import expandTypeClassMethods for TIExpr when implemented
+-- import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethods)
 
 -- | Desugar a typed expression (TIExpr) with type-driven transformations
--- For now, this is a placeholder that returns the input unchanged.
--- TODO: Implement tensorMap insertion and type class dictionary passing.
+-- This function orchestrates the transformation pipeline:
+--   1. Expand tensor applications (tensorMap insertion)
+--   2. Expand type class methods (dictionary passing)
+-- 
+-- The order matters: tensor expansion should happen before type class expansion
+-- because type class methods might operate on tensor types.
 desugarTypedExprT :: TIExpr -> EvalM TIExpr
-desugarTypedExprT tiexpr = 
-  -- For now, just return the input unchanged
-  -- Future work: 
-  --   1. Traverse tiExpr and detect tensor type mismatches
-  --   2. Insert tensorMap where needed
-  --   3. Call TypeClassExpand for dictionary passing
-  return tiexpr
+desugarTypedExprT tiexpr = do
+  -- Step 1: Expand tensor applications (insert tensorMap where needed)
+  tiexpr' <- expandTensorApplications tiexpr
+  
+  -- Step 2: Expand type class methods (dictionary passing)
+  -- TODO: Implement expandTypeClassMethods for TIExpr
+  -- For now, TypeClassExpand works on Expr, not TIExpr
+  -- We need to either:
+  --   a) Convert TIExpr to Expr, expand, then convert back, or
+  --   b) Implement a TIExpr version of expandTypeClassMethods
+  -- tiexpr'' <- expandTypeClassMethods tiexpr'
+  
+  return tiexpr'
 
 -- | Desugar a top-level typed expression (TITopExpr)
 -- This is the main entry point for Phase 8 transformations.
@@ -69,3 +83,4 @@ desugarTypedTopExprT topExpr = case topExpr of
       tiexpr' <- desugarTypedExprT tiexpr
       return (var, tiexpr')) bindings
     return $ Just (TIDefineMany bindings')
+
