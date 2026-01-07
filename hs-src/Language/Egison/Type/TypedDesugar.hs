@@ -31,8 +31,7 @@ module Language.Egison.Type.TypedDesugar
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..))
 import           Language.Egison.Type.TypeTensorExpand (expandTensorApplications)
--- TODO: Import expandTypeClassMethods for TIExpr when implemented
--- import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethods)
+import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT)
 
 -- | Desugar a typed expression (TIExpr) with type-driven transformations
 -- This function orchestrates the transformation pipeline:
@@ -47,14 +46,9 @@ desugarTypedExprT tiexpr = do
   tiexpr' <- expandTensorApplications tiexpr
   
   -- Step 2: Expand type class methods (dictionary passing)
-  -- TODO: Implement expandTypeClassMethods for TIExpr
-  -- For now, TypeClassExpand works on Expr, not TIExpr
-  -- We need to either:
-  --   a) Convert TIExpr to Expr, expand, then convert back, or
-  --   b) Implement a TIExpr version of expandTypeClassMethods
-  -- tiexpr'' <- expandTypeClassMethods tiexpr'
+  tiexpr'' <- expandTypeClassMethodsT tiexpr'
   
-  return tiexpr'
+  return tiexpr''
 
 -- | Desugar a top-level typed expression (TITopExpr)
 -- This is the main entry point for Phase 8 transformations.
