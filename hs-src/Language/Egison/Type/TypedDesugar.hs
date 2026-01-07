@@ -46,9 +46,9 @@ desugarTypedExprT tiexpr =
 -- This is the main entry point for Phase 8 transformations.
 desugarTypedTopExprT :: TITopExpr -> EvalM (Maybe TITopExpr)
 desugarTypedTopExprT topExpr = case topExpr of
-  TIDefine ty var tiexpr -> do
+  TIDefine scheme var tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr
-    return $ Just (TIDefine ty var tiexpr')
+    return $ Just (TIDefine scheme var tiexpr')
   
   TITest tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr

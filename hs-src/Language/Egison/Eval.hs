@@ -51,13 +51,13 @@ import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
-import           Language.Egison.IExpr
+import           Language.Egison.IExpr (TIExpr(..), TITopExpr(..), ITopExpr(..), IExpr(..), Var, extractNameFromVar, stringToVar)
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
-import           Language.Egison.IExpr (TIExpr(..), TITopExpr(..), ITopExpr(..), extractNameFromVar)
+import qualified Language.Egison.Type.Env as Env
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
@@ -124,15 +124,40 @@ evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
 
 -- | Evaluate expanded top expressions using the typed pipeline with optional printing.
 -- This function implements phases 2-10 of the processing flow.
--- | Helper: Convert ITopExpr + Type to TITopExpr
-iTopExprToTITopExpr :: ITopExpr -> Types.Type -> TITopExpr
-iTopExprToTITopExpr iTopExpr ty = case iTopExpr of
-  IDefine var iexpr -> TIDefine ty var (TIExpr ty iexpr)
-  ITest iexpr -> TITest (TIExpr ty iexpr)
-  IExecute iexpr -> TIExecute (TIExpr ty iexpr)
+-- | Helper: Convert ITopExpr + TypeScheme to TITopExpr
+-- Takes a type environment to generalize types appropriately
+iTopExprToTITopExpr :: Env.TypeEnv -> ITopExpr -> Types.Type -> TITopExpr
+iTopExprToTITopExpr typeEnv iTopExpr ty = case iTopExpr of
+  IDefine var iexpr -> 
+    let typeScheme = Env.generalize typeEnv ty
+    in TIDefine typeScheme var (TIExpr typeScheme iexpr)
+  ITest iexpr -> 
+    let typeScheme = Types.Forall [] [] ty  -- No generalization for test expressions
+    in TITest (TIExpr typeScheme iexpr)
+  IExecute iexpr -> 
+    let typeScheme = Types.Forall [] [] ty  -- No generalization for execute expressions
+    in TIExecute (TIExpr typeScheme iexpr)
   ILoadFile path -> TILoadFile path
   ILoad _lib -> error "ILoad should not appear after expandLoads"
-  IDefineMany bindings -> TIDefineMany [(var, TIExpr ty iexpr) | (var, iexpr) <- bindings]
+  IDefineMany bindings -> 
+    let typeScheme = Types.Forall [] [] ty  -- TODO: Properly handle multiple bindings
+    in TIDefineMany [(var, TIExpr typeScheme iexpr) | (var, iexpr) <- bindings]
+
+-- | Helper: Convert ITopExpr + TypeScheme to TITopExpr (directly from scheme)
+-- This version uses the type scheme directly, preserving original type variable names
+iTopExprToTITopExprFromScheme :: Env.TypeEnv -> ITopExpr -> Types.TypeScheme -> TITopExpr
+iTopExprToTITopExprFromScheme _typeEnv iTopExpr typeScheme = case iTopExpr of
+  IDefine var iexpr -> 
+    TIDefine typeScheme var (TIExpr typeScheme iexpr)
+  ITest iexpr -> 
+    TITest (TIExpr typeScheme iexpr)
+  IExecute iexpr -> 
+    TIExecute (TIExpr typeScheme iexpr)
+  ILoadFile path -> TILoadFile path
+  ILoad _lib -> error "ILoad should not appear after expandLoads"
+  IDefineMany bindings -> 
+    -- TODO: Properly handle multiple bindings with individual type schemes
+    TIDefineMany [(var, TIExpr typeScheme iexpr) | (var, iexpr) <- bindings]
 
 evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM (Maybe EgisonValue, Env)
 evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
@@ -226,19 +251,30 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             return ((lastVal, currentEnv), typedExprs)
           
           Right (Just (iTopExpr', ty), _subst) -> do
-            -- Phase 7: Convert ITopExpr + Type to TITopExpr
-            let tiTopExpr = iTopExprToTITopExpr iTopExpr' ty
+            -- Phase 7: Convert ITopExpr + Type to TITopExpr with generalization
+            -- Note: inferITopExpr already added the type scheme to the environment,
+            -- so we should retrieve it from the updated environment instead of re-generalizing
+            let tiTopExpr = case iTopExpr' of
+                  IDefine var _iexpr -> 
+                    -- Get the type scheme from the updated environment (already generalized by inferITopExpr)
+                    let varName = extractNameFromVar var
+                    in case Env.lookupEnv varName updatedTypeEnv of
+                      Just typeScheme -> 
+                        -- Use the type scheme from the environment (preserves original type variable names)
+                        iTopExprToTITopExprFromScheme updatedTypeEnv iTopExpr' typeScheme
+                      Nothing -> 
+                        -- Fallback: generalize if not found (should not happen)
+                        let typeScheme = Env.generalize updatedTypeEnv ty
+                        in iTopExprToTITopExprFromScheme updatedTypeEnv iTopExpr' typeScheme
+                  _ -> 
+                    -- For non-definition expressions, use the type directly
+                    let typeScheme = Types.Forall [] [] ty
+                    in iTopExprToTITopExprFromScheme updatedTypeEnv iTopExpr' typeScheme
             
             -- Collect typed AST for dumping if requested
             let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExpr] else typedExprs
             
-            -- Add definition types to type environment for future references
-            case iTopExpr' of
-              IDefine var _iexpr -> do
-                typeEnv <- getTypeEnv
-                let typeScheme = generalize typeEnv ty
-                extendTypeEnv (extractNameFromVar var) typeScheme
-              _ -> return ()  -- Other expressions don't define variables
+            -- Type scheme is already in the environment (added by inferITopExpr), no need to add again
             
             -- Phase 8-10: TypedDesugar → Evaluation
             -- Note: TypedDesugar is currently a stub (TIExpr → TIExpr identity function)

@@ -26,6 +26,7 @@ import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.IExpr
 import qualified Language.Egison.Type.Types as Types
+import           Language.Egison.Type.Pretty (prettyTypeScheme)
 
 --
 -- Pretty printing for Non-S syntax
@@ -584,13 +585,15 @@ instance Pretty ITopExpr where
 
 -- Pretty print for TIExpr and TITopExpr
 instance Pretty TIExpr where
-  pretty (TIExpr ty iexpr) = 
-    parens (pretty iexpr <+> pretty ":" <+> prettyTypeDoc ty)
+  pretty (TIExpr scheme iexpr) = 
+    let (Types.Forall _ _ ty) = scheme
+    in parens (pretty iexpr <+> pretty ":" <+> prettyTypeDoc ty)
 
 instance Pretty TITopExpr where
-  pretty (TIDefine ty var tiexpr) =
-    pretty "def" <+> prettyVar var <+> pretty ":" <+> prettyTypeDoc ty <+> 
-    indentBlock (pretty ":=") [pretty tiexpr]
+  pretty (TIDefine scheme var tiexpr) =
+    let typeStr = prettyTypeScheme scheme
+    in pretty "def" <+> prettyVar var <+> pretty ":" <+> pretty typeStr <+> 
+       indentBlock (pretty ":=") [pretty tiexpr]
   pretty (TITest tiexpr) = 
     pretty tiexpr
   pretty (TIExecute tiexpr) =
