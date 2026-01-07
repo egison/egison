@@ -8,9 +8,10 @@ infixr pattern 5 ++
 infixl pattern 5 *:
 
 inductive pattern [a] :=
-    | a :: [a]
-    | [a] ++ [a]
-    | [a] *: [a]
+    | []
+    | (::) a [a]
+    | (++) [a] [a]
+    | (*:) [a] a
 
 --
 -- List

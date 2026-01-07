@@ -137,43 +137,23 @@ patternConstructors basePos = do
   return (first : rest)
 
 -- | Parse a single pattern constructor
--- e.g., myNil, myCons a (MyList a), (::) a [a], (++) [a] [a]
---      a :: [a], [a] ++ [a], [a] *: [a]  (infix operator notation)
+-- e.g., [], myNil, myCons a (MyList a), (::) a [a], (++) [a] [a]
+-- Note: Infix operator notation (e.g., a :: [a]) is not supported.
+--       Only prefix notation with operators in parentheses (e.g., (::) a [a]) is allowed.
 patternConstructor :: Parser PatternConstructor
-patternConstructor = try infixPatternConstructor <|> prefixPatternConstructor
+patternConstructor = prefixPatternConstructor
   where
-    -- Infix operator notation: a :: [a], [a] ++ [a]
-    -- Parse as: leftArg op rightArg
-    infixPatternConstructor = do
-      -- Parse left argument (must be a complete type expression)
-      leftArg <- inductiveTypeAtom
-      -- Try to parse an infix operator after whitespace
-      ops <- gets patternOps
-      op <- choice $ map (try . infixPatternOp . repr) ops
-      -- Parse right argument
-      rightArg <- inductiveTypeAtom
-      return $ PatternConstructor (repr op) [leftArg, rightArg]
-    
-    -- Infix operator parser for pattern constructors
-    -- Must be followed by whitespace and then a type atom start
-    infixPatternOp :: String -> Parser Op
-    infixPatternOp sym = do
-      -- Parse the operator symbol
-      opSym <- string sym
-      -- Ensure operator is followed by whitespace (not another operator char)
-      -- This allows operators to appear after ] or ) from the left argument
-      notFollowedBy patOpChar
-      sc  -- consume whitespace
-      ops <- gets patternOps
-      let opInfo = findOpFrom opSym ops
-      return opInfo
-    
-    -- Prefix notation: myNil, myCons a (MyList a), (::) a [a]
+    -- Prefix notation: [], myNil, myCons a (MyList a), (::) a [a]
     prefixPatternConstructor = do
-      name <- try parenOperator <|> lowerId  -- Pattern constructors can be lowercase or operator in parens
+      name <- try emptyListConstructor <|> try parenOperator <|> lowerId  -- Pattern constructors can be [], operator in parens, or lowercase identifier
       -- Parse argument types
       args <- many (try inductiveArgType)
       return $ PatternConstructor name args
+    
+    -- Empty list constructor: []
+    emptyListConstructor = do
+      _ <- symbol "[]"
+      return "[]"
     
     parenOperator = do
       _ <- symbol "("

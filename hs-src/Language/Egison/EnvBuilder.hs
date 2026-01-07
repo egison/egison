@@ -162,7 +162,10 @@ processTopExpr result topExpr = case topExpr of
   -- 5. Pattern Inductive Declarations (from PatternInductiveDecl)
   PatternInductiveDecl typeName typeParams constructors -> do
     let typeParamVars = map (TVar . TyVar) typeParams
-        patternType = TInductive typeName typeParamVars
+        -- Special case: [a] should be treated as TCollection, not TInductive "[]"
+        patternType = case (typeName == "[]", typeParams) of
+                        (True, [param]) -> TCollection (TVar (TyVar param))
+                        _               -> TInductive typeName typeParamVars
         patternCtorEnv = ebrPatternConstructorEnv result
     
     -- Register each pattern constructor to pattern constructor environment
