@@ -20,6 +20,7 @@ module Language.Egison.Type.Error
   , withContext
   ) where
 
+import           Data.List                  (intercalate)
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (IndexSpec, Index(..), IndexKind(..))
@@ -217,7 +218,8 @@ prettyType TChar = "Char"
 prettyType TString = "String"
 prettyType TUnit = "()"
 prettyType (TVar (TyVar v)) = v
-prettyType (TTuple ts) = "(" ++ unwords (map prettyType ts) ++ ")"
+prettyType (TTuple []) = "()"
+prettyType (TTuple ts) = "(" ++ intercalate ", " (map prettyType ts) ++ ")"
 prettyType (TCollection t) = "[" ++ prettyType t ++ "]"
 prettyType (TInductive name []) = name
 prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyType args)
