@@ -142,6 +142,7 @@ evalExprShallow env (IVarExpr name) =
     Just ref -> evalRef ref
 
 evalExprShallow _ (ITupleExpr []) = return . Value $ Tuple []
+evalExprShallow _ (ITupleExpr []) = return . Value $ Tuple []  -- Unit value ()
 evalExprShallow env (ITupleExpr [expr]) = evalExprShallow env expr
 evalExprShallow env (ITupleExpr exprs) = ITuple <$> mapM (newThunkRef env) exprs
 

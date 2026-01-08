@@ -101,20 +101,21 @@ permissiveInferConfig = InferConfig
 
 -- | Inference state
 data InferState = InferState
-  { inferCounter  :: Int              -- ^ Fresh variable counter
-  , inferEnv      :: TypeEnv          -- ^ Current type environment
-  , inferWarnings :: [TypeWarning]    -- ^ Collected warnings
-  , inferConfig   :: InferConfig      -- ^ Configuration
-  , inferClassEnv :: ClassEnv         -- ^ Type class environment
+  { inferCounter    :: Int              -- ^ Fresh variable counter
+  , inferEnv        :: TypeEnv          -- ^ Current type environment
+  , inferWarnings   :: [TypeWarning]    -- ^ Collected warnings
+  , inferConfig     :: InferConfig      -- ^ Configuration
+  , inferClassEnv   :: ClassEnv         -- ^ Type class environment
+  , inferPatternEnv :: PatternTypeEnv   -- ^ Pattern constructor environment
   } deriving (Show)
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -166,6 +167,14 @@ getEnv = inferEnv <$> get
 -- | Set the type environment
 setEnv :: TypeEnv -> Infer ()
 setEnv env = modify $ \st -> st { inferEnv = env }
+
+-- | Get the current pattern type environment
+getPatternEnv :: Infer PatternTypeEnv
+getPatternEnv = inferPatternEnv <$> get
+
+-- | Set the pattern type environment
+setPatternEnv :: PatternTypeEnv -> Infer ()
+setPatternEnv penv = modify $ \st -> st { inferPatternEnv = penv }
 
 -- | Extend the environment temporarily
 withEnv :: [(String, TypeScheme)] -> Infer a -> Infer a
@@ -248,28 +257,33 @@ inferIExprWithContext expr ctx = case expr of
   -- Tuples
   ITupleExpr elems -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    results <- mapM (\e -> inferIExprWithContext e exprCtx) elems
-    let elemTypes = map fst results
-        s = foldr composeSubst emptySubst (map snd results)
-    
-    -- Check if all elements are Matcher types
-    -- If so, return Matcher (Tuple ...) instead of (Matcher ..., Matcher ...)
-    let appliedElemTypes = map (applySubst s) elemTypes
-        matcherTypes = catMaybes (map extractMatcherType appliedElemTypes)
-    
-    if length matcherTypes == length appliedElemTypes && not (null appliedElemTypes)
-      then do
-        -- All elements are matchers: return Matcher (Tuple ...)
-        let tupleType = TTuple matcherTypes
-        return (TMatcher tupleType, s)
-      else
-        -- Not all elements are matchers: return regular tuple
-        return (TTuple appliedElemTypes, s)
-    where
-      -- Extract the inner type from Matcher a -> Just a, otherwise Nothing
-      extractMatcherType :: Type -> Maybe Type
-      extractMatcherType (TMatcher t) = Just t
-      extractMatcherType _ = Nothing
+    case elems of
+      [] -> do
+        -- Empty tuple: unit type ()
+        return (TTuple [], emptySubst)
+      _ -> do
+        results <- mapM (\e -> inferIExprWithContext e exprCtx) elems
+        let elemTypes = map fst results
+            s = foldr composeSubst emptySubst (map snd results)
+        
+        -- Check if all elements are Matcher types
+        -- If so, return Matcher (Tuple ...) instead of (Matcher ..., Matcher ...)
+        let appliedElemTypes = map (applySubst s) elemTypes
+            matcherTypes = catMaybes (map extractMatcherType appliedElemTypes)
+        
+        if length matcherTypes == length appliedElemTypes && not (null appliedElemTypes)
+          then do
+            -- All elements are matchers: return Matcher (Tuple ...)
+            let tupleType = TTuple matcherTypes
+            return (TMatcher tupleType, s)
+          else
+            -- Not all elements are matchers: return regular tuple
+            return (TTuple appliedElemTypes, s)
+        where
+          -- Extract the inner type from Matcher a -> Just a, otherwise Nothing
+          extractMatcherType :: Type -> Maybe Type
+          extractMatcherType (TMatcher t) = Just t
+          extractMatcherType _ = Nothing
   
   -- Collections (Lists)
   ICollectionExpr elems -> do
@@ -536,7 +550,7 @@ inferIExprWithContext expr ctx = case expr of
       inferDataClauseWithCheck ctx numHoles nextMatcherTypes (pdPat, targetExpr) = do
         -- Extract expected element type from next matchers (the target type)
         targetType <- case numHoles of
-          0 -> return TUnit  -- No pattern holes, should match ()
+          0 -> return (TTuple [])  -- No pattern holes: empty tuple () case
           1 -> case nextMatcherTypes of
                  [TMatcher innerType] -> return innerType
                  [ty] -> return ty  -- May be 'something' which is polymorphic
@@ -555,7 +569,7 @@ inferIExprWithContext expr ctx = case expr of
         (exprType, s1) <- withEnv bindings $ inferIExprWithContext targetExpr ctx
         
         -- Unify with actual expression type
-        -- Expected: [targetType] or [(targetType)]
+        -- Expected: [targetType]
         let expectedType = TCollection (applySubst s1 targetType)
         
         s2 <- unifyTypesWithContext (applySubst s1 exprType) expectedType ctx
@@ -610,9 +624,32 @@ inferIExprWithContext expr ctx = case expr of
             TMatcher (TTuple ts) -> return $ TTuple ts
             _ -> freshVar "matched"
         PPInductivePat name pps -> do
-          -- For inductive patterns, return the inductive type
-          argTypes <- mapM (\_ -> freshVar "arg") pps
-          return $ TInductive name argTypes
+          -- For inductive patterns, look up the pattern constructor in the environment
+          patternEnv <- getPatternEnv
+          case lookupPatternEnv name patternEnv of
+            Just scheme -> do
+              -- Found in pattern environment
+              -- Instantiate the scheme to get the concrete type
+              st <- get
+              let (_constraints, ty, newCounter) = instantiate scheme (inferCounter st)
+              modify $ \s -> s { inferCounter = newCounter }
+              
+              -- Extract the matched type from the pattern constructor type
+              -- Pattern constructor type is: arg1 -> arg2 -> ... -> resultType
+              -- For example: myNil : MyList a, myCons : a -> MyList a -> MyList a
+              -- We need to extract the result type (the last type in the chain)
+              return $ extractResultType ty
+            Nothing -> do
+              -- Not found in pattern environment, use default behavior
+              -- General inductive pattern
+              argTypes <- mapM (\_ -> freshVar "arg") pps
+              return $ TInductive name argTypes
+          where
+            -- Extract result type from function type chain
+            -- e.g., a -> MyList a -> MyList a => MyList a
+            extractResultType :: Type -> Type
+            extractResultType (TFun _ rest) = extractResultType rest
+            extractResultType t = t
       
       -- Extract inner type from Matcher a -> a
       extractMatcherInnerType :: Type -> Infer Type

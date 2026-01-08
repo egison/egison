@@ -369,7 +369,7 @@ instance Pretty IExpr where
     | null args = pretty name
     | otherwise = applyLike (pretty name : map pretty' args)
   
-  pretty (ITupleExpr []) = pretty "[" <> pretty "]"
+  pretty (ITupleExpr []) = pretty "(" <> pretty ")"
   pretty (ITupleExpr xs) = tupled (map pretty xs)
   
   pretty (ICollectionExpr xs) = list (map pretty xs)
@@ -632,6 +632,7 @@ prettyTypeDoc Types.TFloat = pretty "Float"
 prettyTypeDoc Types.TBool = pretty "Bool"
 prettyTypeDoc Types.TChar = pretty "Char"
 prettyTypeDoc Types.TString = pretty "String"
+prettyTypeDoc (Types.TTuple []) = pretty "()"
 prettyTypeDoc (Types.TVar (Types.TyVar v)) = pretty v
 prettyTypeDoc (Types.TFun t1 t2) = prettyTypeArg t1 <+> pretty "->" <+> prettyTypeDoc t2
   where

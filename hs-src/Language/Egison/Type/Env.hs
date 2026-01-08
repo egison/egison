@@ -118,7 +118,6 @@ instantiate (Forall vs cs t) counter =
     substVar _ _ TBool = TBool
     substVar _ _ TChar = TChar
     substVar _ _ TString = TString
-    substVar _ _ TUnit = TUnit
     substVar old new (TVar v)
       | v == old = new
       | otherwise = TVar v

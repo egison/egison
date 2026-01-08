@@ -54,7 +54,6 @@ applySubst _ TFloat           = TFloat
 applySubst _ TBool            = TBool
 applySubst _ TChar            = TChar
 applySubst _ TString          = TString
-applySubst _ TUnit            = TUnit
 applySubst (Subst m) t@(TVar v) = Map.findWithDefault t v m
 applySubst s (TTuple ts)      = TTuple (map (applySubst s) ts)
 applySubst s (TCollection t)  = TCollection (applySubst s t)
