@@ -384,11 +384,11 @@ reservedPatternOp :: [Op]
 reservedPatternOp =
   [ Op "++" 5 InfixR False
   , Op "*:" 5 InfixL False
-  , Op "+" 6 InfixR False
-  , Op "*" 7 InfixR False
-  , Op "/" 7 InfixN False
-  , Op "^" 8 InfixN False
-  , Op "::" 5 InfixR False  -- required for desugaring collection pattern
+  , Op "+" 7 InfixR False
+  , Op "*" 8 InfixR False
+  , Op "/" 8 InfixN False
+  , Op "^" 9 InfixN False
+  , Op "::" 6 InfixR False  -- required for desugaring collection pattern (priority 6 > ++ priority 5)
   , Op "&"  3 InfixR False
   , Op "|"  2 InfixR False
   ]

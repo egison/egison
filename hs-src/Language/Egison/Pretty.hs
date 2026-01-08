@@ -317,7 +317,7 @@ instance Pretty Pattern where
 
 instance {-# OVERLAPPING #-} Pretty LoopRange where
   pretty (LoopRange from (ApplyExpr (VarExpr "from")
-                                    [InfixExpr Op{ repr = "-'" } _ (ConstantExpr (IntegerExpr 1))]) pat) =
+                                    [ApplyExpr (VarExpr "b.-") [_, ConstantExpr (IntegerExpr 1)]]) pat) =
     tupled [pretty from, pretty pat]
   pretty (LoopRange from to pat) = tupled [pretty from, pretty to, pretty pat]
 
