@@ -1173,7 +1173,7 @@ collectionPattern = brackets $ do
   elems <- sepBy pattern comma
   return $ foldr (InfixPat consOp) nilPat elems
     where
-      nilPat = InductivePat "nil" []
+      nilPat = InductivePat "[]" []
       consOp = findOpFrom "::" reservedPatternOp
 
 -- (Possibly indexed) atomic pattern
@@ -1220,7 +1220,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
     ppAtom = PPWildCard <$ symbol "_"
          <|> PPPatVar   <$ symbol "$"
          <|> PPValuePat <$> (string "#$" >> lowerId)
-         <|> PPInductivePat "nil" [] <$ (symbol "[" >> symbol "]")
+         <|> PPInductivePat "[]" [] <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen ppPattern PPTuplePat
 
 pdPattern :: Parser PrimitiveDataPattern
