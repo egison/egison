@@ -50,7 +50,7 @@ module Language.Egison.Type.IInfer
   , clearWarnings
   ) where
 
-import           Control.Monad              (foldM)
+import           Control.Monad              (foldM, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
 import           Data.Maybe                  (catMaybes)
@@ -456,28 +456,163 @@ inferIExprWithContext expr ctx = case expr of
         s1' <- constrainTypeVarsAsMatcher nextMatcherType s1
         let nextMatcherType' = applySubst s1' nextMatcherType
         
-        -- Count the number of pattern holes in the primitive-pattern pattern
-        let numPatternHoles = countPatternHoles ppPat
-        
-        -- Extract next matcher types (should match number of pattern holes)
-        nextMatcherTypes <- extractNextMatcherTypes numPatternHoles nextMatcherType'
-        
-        -- Extract the matched type from the matcher clause
-        -- For primitive-pattern pattern ($, $), we need to infer from next matcher
-        matchedType <- inferMatchedTypeFromPP ppPat nextMatcherType'
+        -- Infer PrimitivePatPattern type to get matched type and pattern hole types
+        (matchedType, patternHoleTypes, s_pp) <- inferPrimitivePatPattern ppPat nextMatcherType' ctx
+        let s1'' = composeSubst s_pp s1'
+            matchedType' = applySubst s1'' matchedType
+            patternHoleTypes' = map (applySubst s1'') patternHoleTypes
         
         -- Extract variables from primitive-pattern pattern (e.g., #$val)
         -- These variables are bound to the matched type
         let ppPatternVars = extractPPPatternVars ppPat
-            ppBindings = [(var, Forall [] [] matchedType) | var <- ppPatternVars]
+            ppBindings = [(var, Forall [] [] matchedType') | var <- ppPatternVars]
+        
+        -- Verify consistency: number of pattern holes should match next matcher structure
+        let numPatternHoles = length patternHoleTypes'
+        nextMatcherTypes <- extractNextMatcherTypes numPatternHoles nextMatcherType'
+        
+        -- Check that pattern hole types are consistent with next matcher types
+        s_consistency <- checkPatternHoleConsistency patternHoleTypes' nextMatcherTypes ctx
+        let s1''' = composeSubst s_consistency s1''
         
         -- Infer the type of data clauses with pp variables in scope
         -- Each data clause: (primitiveDataPattern, targetListExpr)
         dataClauseResults <- withEnv ppBindings $ 
-          mapM (inferDataClauseWithCheck ctx numPatternHoles nextMatcherTypes) dataClauses
+          mapM (inferDataClauseWithCheck ctx numPatternHoles nextMatcherTypes matchedType') dataClauses
         let s2 = foldr composeSubst emptySubst dataClauseResults
         
-        return (matchedType, [s1', s2])
+        return (matchedType', [s1''', s2])
+      
+      -- Infer PrimitivePatPattern type
+      -- Returns (matched type, pattern hole types, substitution)
+      -- Pattern hole types correspond to the types that pattern holes ($) should match
+      inferPrimitivePatPattern :: PrimitivePatPattern -> Type -> TypeErrorContext -> Infer (Type, [Type], Subst)
+      inferPrimitivePatPattern ppPat nextMatcherType ctx = case ppPat of
+        PPWildCard -> do
+          -- Wildcard pattern: no pattern holes, matched type is arbitrary
+          matchedTy <- freshVar "matched"
+          return (matchedTy, [], emptySubst)
+        
+        PPPatVar -> do
+          -- Pattern variable ($): one pattern hole
+          -- Matched type comes from next matcher
+          matchedTy <- extractMatchedTypeFromMatcher nextMatcherType
+          return (matchedTy, [nextMatcherType], emptySubst)
+        
+        PPValuePat _var -> do
+          -- Value pattern (#$val): no pattern holes
+          -- Matched type is the type of val (any type)
+          matchedTy <- freshVar "matched"
+          return (matchedTy, [], emptySubst)
+        
+        PPTuplePat ppPats -> do
+          -- Tuple pattern: ($p1, $p2, ...)
+          -- Extract matcher types for each element
+          matcherTypes <- case nextMatcherType of
+            TTuple mts -> return mts
+            TMatcher (TTuple ts) -> return $ map TMatcher ts
+            _ -> do
+              -- Create fresh matcher types for each element
+              mapM (\_ -> freshVar "matcher") ppPats
+          
+          -- Recursively infer each sub-pattern
+          results <- zipWithM (\pp mt -> inferPrimitivePatPattern pp mt ctx) ppPats matcherTypes
+          let (matchedTypes, patternHoleLists, substs) = unzip3 results
+              allPatternHoles = concat patternHoleLists
+              finalSubst = foldr composeSubst emptySubst substs
+          
+          -- Matched type is tuple of matched types
+          let matchedTy = TTuple (map (applySubst finalSubst) matchedTypes)
+          return (matchedTy, map (applySubst finalSubst) allPatternHoles, finalSubst)
+        
+        PPInductivePat name ppPats -> do
+          -- Inductive pattern: look up pattern constructor type from pattern environment
+          patternEnv <- getPatternEnv
+          case lookupPatternEnv name patternEnv of
+            Just scheme -> do
+              -- Found in pattern environment: use the declared type
+              st <- get
+              let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
+              modify $ \s -> s { inferCounter = newCounter }
+              
+              -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType
+              -- Extract argument types and result type
+              let (argTypes, resultType) = extractFunctionArgs ctorType
+              
+              -- Check argument count matches
+              if length argTypes /= length ppPats
+                then throwError $ TE.TypeMismatch
+                       (foldr TFun resultType (replicate (length ppPats) (TVar (TyVar "a"))))
+                       ctorType
+                       ("Pattern constructor " ++ name ++ " expects " ++ show (length argTypes) 
+                        ++ " arguments, but got " ++ show (length ppPats))
+                       ctx
+                else do
+                  -- Recursively infer each sub-pattern with corresponding argument type
+                  -- For inductive patterns, the "next matcher" for each argument is derived from the arg type
+                  results <- zipWithM (\pp argTy -> do
+                      -- If argTy is Matcher a, use it; otherwise create Matcher argTy
+                      let argMatcher = case argTy of
+                            TMatcher _ -> argTy
+                            _ -> TMatcher argTy
+                      inferPrimitivePatPattern pp argMatcher ctx
+                    ) ppPats argTypes
+                  
+                  let (matchedTypes, patternHoleLists, substs) = unzip3 results
+                      allPatternHoles = concat patternHoleLists
+                      s = foldr composeSubst emptySubst substs
+                  
+                  -- Verify that inferred matched types match expected argument types
+                  s' <- foldM (\accS (inferredTy, expectedTy) -> do
+                      s'' <- unifyTypesWithContext (applySubst accS inferredTy) (applySubst accS expectedTy) ctx
+                      return $ composeSubst s'' accS
+                    ) s (zip matchedTypes argTypes)
+                  
+                  return (applySubst s' resultType, map (applySubst s') allPatternHoles, s')
+            
+            Nothing -> do
+              -- Not found in pattern environment: use generic inference
+              -- This is for backward compatibility
+              argTypes <- mapM (\_ -> freshVar "arg") ppPats
+              results <- zipWithM (\pp argTy -> inferPrimitivePatPattern pp (TMatcher argTy) ctx) ppPats argTypes
+              let (matchedTypes, patternHoleLists, substs) = unzip3 results
+                  allPatternHoles = concat patternHoleLists
+                  s = foldr composeSubst emptySubst substs
+              
+              -- Result type is inductive type
+              let resultType = TInductive name (map (applySubst s) matchedTypes)
+              return (resultType, map (applySubst s) allPatternHoles, s)
+      
+      -- Extract function argument types and result type
+      -- e.g., a -> b -> c -> d  =>  ([a, b, c], d)
+      extractFunctionArgs :: Type -> ([Type], Type)
+      extractFunctionArgs (TFun arg rest) = 
+        let (args, result) = extractFunctionArgs rest
+        in (arg : args, result)
+      extractFunctionArgs t = ([], t)
+      
+      -- Extract matched type from Matcher type
+      extractMatchedTypeFromMatcher :: Type -> Infer Type
+      extractMatchedTypeFromMatcher (TMatcher t) = return t
+      extractMatchedTypeFromMatcher t = return t  -- If not Matcher, return as-is
+      
+      -- Check consistency between pattern hole types and next matcher types
+      checkPatternHoleConsistency :: [Type] -> [Type] -> TypeErrorContext -> Infer Subst
+      checkPatternHoleConsistency [] [] _ctx = return emptySubst
+      checkPatternHoleConsistency patternHoles nextMatchers ctx
+        | length patternHoles /= length nextMatchers = 
+            throwError $ TE.TypeMismatch
+              (TTuple nextMatchers)
+              (TTuple patternHoles)
+              ("Inconsistent number of pattern holes (" ++ show (length patternHoles) 
+               ++ ") and next matchers (" ++ show (length nextMatchers) ++ ")")
+              ctx
+        | otherwise = do
+            -- Unify each pattern hole type with corresponding next matcher type
+            foldM (\accS (holeTy, matcherTy) -> do
+                s <- unifyTypesWithContext (applySubst accS holeTy) (applySubst accS matcherTy) ctx
+                return $ composeSubst s accS
+              ) emptySubst (zip patternHoles nextMatchers)
       
       -- Constrain type variables in next matcher expression to be Matcher types
       -- If we have a type variable t0 appearing in matcher context, unify t0 with Matcher t_new
@@ -493,15 +628,6 @@ inferIExprWithContext expr ctx = case expr of
           foldM (\accS t -> constrainTypeVarsAsMatcher t accS) s tys
         TMatcher _ -> return s  -- Already a Matcher type, no constraint needed
         _ -> return s  -- Other types: no constraint needed
-      
-      -- Count pattern holes ($) in primitive-pattern pattern
-      countPatternHoles :: PrimitivePatPattern -> Int
-      countPatternHoles ppPat = case ppPat of
-        PPWildCard -> 0
-        PPPatVar -> 1
-        PPValuePat _ -> 0
-        PPTuplePat pps -> sum (map countPatternHoles pps)
-        PPInductivePat _ pps -> sum (map countPatternHoles pps)
       
       -- Extract variables from primitive-pattern pattern
       -- For example, #$val in PPValuePat extracts "val"
@@ -568,9 +694,11 @@ inferIExprWithContext expr ctx = case expr of
       
       -- Infer a data clause with type checking
       -- Check that the target expression returns a list of values with types matching next matchers
-      inferDataClauseWithCheck :: TypeErrorContext -> Int -> [Type] -> (IPrimitiveDataPattern, IExpr) -> Infer Subst
-      inferDataClauseWithCheck ctx numHoles nextMatcherTypes (pdPat, targetExpr) = do
+      -- Also uses matched type for validation
+      inferDataClauseWithCheck :: TypeErrorContext -> Int -> [Type] -> Type -> (IPrimitiveDataPattern, IExpr) -> Infer Subst
+      inferDataClauseWithCheck ctx numHoles nextMatcherTypes matchedType (pdPat, targetExpr) = do
         -- Extract expected element type from next matchers (the target type)
+        -- This is the type of elements in the list returned by the target expression
         targetType <- case numHoles of
           0 -> return (TTuple [])  -- No pattern holes: empty tuple () case
           1 -> case nextMatcherTypes of
@@ -583,100 +711,198 @@ inferIExprWithContext expr ctx = case expr of
                    innerTypes <- mapM extractMatcherInner types
                    return (TTuple innerTypes)
         
-        -- Extract variable bindings from primitive data pattern
-        -- These variables are bound to parts of the target type
-        let bindings = extractPDPatternBindings pdPat targetType
+        -- Infer PrimitiveDataPattern with matched type
+        -- Primitive data pattern matches against values of the matched type
+        -- and produces bindings and next targets
+        (pdTargetType, bindings, s_pd) <- inferPrimitiveDataPattern pdPat matchedType ctx
+        
+        -- The primitive data pattern should match the matched type
+        -- No need to unify pdTargetType with targetType - they serve different purposes
+        -- pdTargetType: type of data that pdPat matches (should be matchedType)
+        -- targetType: type of next targets returned by the target expression
+        
+        -- Verify that pdTargetType is consistent with matchedType
+        s_match <- unifyTypesWithContext (applySubst s_pd pdTargetType) (applySubst s_pd matchedType) ctx
+        let s_pd' = composeSubst s_match s_pd
         
         -- Infer the target expression with pattern variables in scope
         (exprType, s1) <- withEnv bindings $ inferIExprWithContext targetExpr ctx
+        let s_combined = composeSubst s1 s_pd'
         
         -- Unify with actual expression type
         -- Expected: [targetType]
-        let expectedType = TCollection (applySubst s1 targetType)
+        let expectedType = TCollection (applySubst s_combined targetType)
         
-        s2 <- unifyTypesWithContext (applySubst s1 exprType) expectedType ctx
-        return $ composeSubst s2 s1
+        s2 <- unifyTypesWithContext (applySubst s_combined exprType) expectedType ctx
+        return $ composeSubst s2 s_combined
         where
           extractMatcherInner :: Type -> Infer Type
           extractMatcherInner (TMatcher t) = return t
           extractMatcherInner t = return t
       
-      -- Extract variable bindings from primitive data pattern with target type
-      extractPDPatternBindings :: IPrimitiveDataPattern -> Type -> [(String, TypeScheme)]
-      extractPDPatternBindings pdPat targetType = case pdPat of
-        PDWildCard -> []
-        PDPatVar var -> [(extractNameFromVar var, Forall [] [] targetType)]
-        PDInductivePat _ pats -> 
-          -- For inductive patterns, we'd need to look up constructor types
-          -- For now, bind each sub-pattern to the whole target type
-          concatMap (\p -> extractPDPatternBindings p targetType) pats
-        PDTuplePat pats -> 
-          case targetType of
-            TTuple types | length types == length pats ->
-              concat $ zipWith extractPDPatternBindings pats types
-            _ -> 
-              -- Type mismatch, but let bindings be inferred as target type
-              concatMap (\p -> extractPDPatternBindings p targetType) pats
-        PDEmptyPat -> []
-        PDConsPat p1 p2 ->
-          case targetType of
-            TCollection elemType ->
-              extractPDPatternBindings p1 elemType ++ extractPDPatternBindings p2 targetType
-            _ -> []
-        PDSnocPat p1 p2 ->
-          case targetType of
-            TCollection elemType ->
-              extractPDPatternBindings p1 targetType ++ extractPDPatternBindings p2 elemType
-            _ -> []
-        PDConstantPat _ -> []
-      
-      -- Infer matched type from primitive-pattern pattern and next matcher type
-      inferMatchedTypeFromPP :: PrimitivePatPattern -> Type -> Infer Type
-      inferMatchedTypeFromPP ppPat matcherType = case ppPat of
-        PPWildCard -> freshVar "matched"
-        PPPatVar -> freshVar "matched"
-        PPValuePat _ -> freshVar "matched"
-        PPTuplePat pps -> do
-          -- For tuple patterns, extract types from matcher types
-          case matcherType of
-            TTuple matcherTypes -> do
-              -- Extract inner types from each Matcher type
-              innerTypes <- mapM extractMatcherInnerType matcherTypes
-              return $ TTuple innerTypes
-            TMatcher (TTuple ts) -> return $ TTuple ts
-            _ -> freshVar "matched"
-        PPInductivePat name pps -> do
-          -- For inductive patterns, look up the pattern constructor in the environment
-          patternEnv <- getPatternEnv
-          case lookupPatternEnv name patternEnv of
+      -- Infer PrimitiveDataPattern type
+      -- Returns (inferred target type, variable bindings, substitution)
+      -- This is similar to pattern matching in Haskell for algebraic data types
+      inferPrimitiveDataPattern :: IPrimitiveDataPattern -> Type -> TypeErrorContext -> Infer (Type, [(String, TypeScheme)], Subst)
+      inferPrimitiveDataPattern pdPat expectedType ctx = case pdPat of
+        PDWildCard -> do
+          -- Wildcard: matches any type, no bindings
+          return (expectedType, [], emptySubst)
+        
+        PDPatVar var -> do
+          -- Pattern variable: binds to the expected type
+          let varName = extractNameFromVar var
+          return (expectedType, [(varName, Forall [] [] expectedType)], emptySubst)
+        
+        PDConstantPat c -> do
+          -- Constant pattern: must match the constant's type
+          constTy <- inferConstant c
+          s <- unifyTypesWithContext constTy expectedType ctx
+          return (applySubst s expectedType, [], s)
+        
+        PDTuplePat pats -> do
+          -- Tuple pattern: expected type should be a tuple
+          case expectedType of
+            TTuple types | length types == length pats -> do
+              -- Types match: infer each sub-pattern
+              results <- zipWithM (\p t -> inferPrimitiveDataPattern p t ctx) pats types
+              let (_, bindingsList, substs) = unzip3 results
+                  allBindings = concat bindingsList
+                  s = foldr composeSubst emptySubst substs
+              return (applySubst s expectedType, allBindings, s)
+            
+            TVar _ -> do
+              -- Expected type is a type variable: create fresh types for each element
+              elemTypes <- mapM (\_ -> freshVar "elem") pats
+              let tupleTy = TTuple elemTypes
+              s <- unifyTypesWithContext expectedType tupleTy ctx
+              
+              -- Recursively infer each sub-pattern
+              results <- zipWithM (\p t -> inferPrimitiveDataPattern p (applySubst s t) ctx) pats elemTypes
+              let (_, bindingsList, substs) = unzip3 results
+                  allBindings = concat bindingsList
+                  s' = foldr composeSubst s substs
+              return (applySubst s' tupleTy, allBindings, s')
+            
+            _ -> do
+              -- Type mismatch
+              throwError $ TE.TypeMismatch
+                (TTuple (replicate (length pats) (TVar (TyVar "a"))))
+                expectedType
+                "Tuple pattern but target is not a tuple type"
+                ctx
+        
+        PDEmptyPat -> do
+          -- Empty collection pattern: expected type should be [a] for some a
+          elemTy <- freshVar "elem"
+          s <- unifyTypesWithContext expectedType (TCollection elemTy) ctx
+          return (applySubst s (TCollection elemTy), [], s)
+        
+        PDConsPat p1 p2 -> do
+          -- Cons pattern: expected type should be [a] for some a
+          case expectedType of
+            TCollection elemType -> do
+              -- Infer head pattern with element type
+              (_, bindings1, s1) <- inferPrimitiveDataPattern p1 elemType ctx
+              -- Infer tail pattern with collection type
+              (_, bindings2, s2) <- inferPrimitiveDataPattern p2 (applySubst s1 expectedType) ctx
+              let s = composeSubst s2 s1
+              return (applySubst s expectedType, bindings1 ++ bindings2, s)
+            
+            TVar _ -> do
+              -- Expected type is a type variable: constrain it to be a collection
+              elemTy <- freshVar "elem"
+              s <- unifyTypesWithContext expectedType (TCollection elemTy) ctx
+              let collTy = applySubst s (TCollection elemTy)
+                  elemTy' = applySubst s elemTy
+              (_, bindings1, s1) <- inferPrimitiveDataPattern p1 elemTy' ctx
+              (_, bindings2, s2) <- inferPrimitiveDataPattern p2 (applySubst s1 collTy) ctx
+              let s' = composeSubst s2 (composeSubst s1 s)
+              return (applySubst s' collTy, bindings1 ++ bindings2, s')
+            
+            _ -> do
+              throwError $ TE.TypeMismatch
+                (TCollection (TVar (TyVar "a")))
+                expectedType
+                "Cons pattern but target is not a collection type"
+                ctx
+        
+        PDSnocPat p1 p2 -> do
+          -- Snoc pattern: similar to cons but reversed
+          case expectedType of
+            TCollection elemType -> do
+              (_, bindings1, s1) <- inferPrimitiveDataPattern p1 expectedType ctx
+              (_, bindings2, s2) <- inferPrimitiveDataPattern p2 (applySubst s1 elemType) ctx
+              let s = composeSubst s2 s1
+              return (applySubst s expectedType, bindings1 ++ bindings2, s)
+            
+            TVar _ -> do
+              elemTy <- freshVar "elem"
+              s <- unifyTypesWithContext expectedType (TCollection elemTy) ctx
+              let collTy = applySubst s (TCollection elemTy)
+                  elemTy' = applySubst s elemTy
+              (_, bindings1, s1) <- inferPrimitiveDataPattern p1 collTy ctx
+              (_, bindings2, s2) <- inferPrimitiveDataPattern p2 (applySubst s1 elemTy') ctx
+              let s' = composeSubst s2 (composeSubst s1 s)
+              return (applySubst s' collTy, bindings1 ++ bindings2, s')
+            
+            _ -> do
+              throwError $ TE.TypeMismatch
+                (TCollection (TVar (TyVar "a")))
+                expectedType
+                "Snoc pattern but target is not a collection type"
+                ctx
+        
+        PDInductivePat name pats -> do
+          -- Inductive pattern: look up data constructor type from environment
+          env <- getEnv
+          case lookupEnv name env of
             Just scheme -> do
-              -- Found in pattern environment
-              -- Instantiate the scheme to get the concrete type
+              -- Found in environment: use the declared type
               st <- get
-              let (_constraints, ty, newCounter) = instantiate scheme (inferCounter st)
+              let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
               modify $ \s -> s { inferCounter = newCounter }
               
-              -- Extract the matched type from the pattern constructor type
-              -- Pattern constructor type is: arg1 -> arg2 -> ... -> resultType
-              -- For example: myNil : MyList a, myCons : a -> MyList a -> MyList a
-              -- We need to extract the result type (the last type in the chain)
-              return $ extractResultType ty
+              -- Data constructor type: arg1 -> arg2 -> ... -> resultType
+              let (argTypes, resultType) = extractFunctionArgs ctorType
+              
+              -- Check argument count matches
+              if length argTypes /= length pats
+                then throwError $ TE.TypeMismatch
+                       (foldr TFun resultType (replicate (length pats) (TVar (TyVar "a"))))
+                       ctorType
+                       ("Data constructor " ++ name ++ " expects " ++ show (length argTypes) 
+                        ++ " arguments, but got " ++ show (length pats))
+                       ctx
+                else do
+                  -- Unify result type with expected type
+                  s0 <- unifyTypesWithContext resultType expectedType ctx
+                  let resultType' = applySubst s0 resultType
+                      argTypes' = map (applySubst s0) argTypes
+                  
+                  -- Recursively infer each sub-pattern
+                  results <- zipWithM (\p argTy -> inferPrimitiveDataPattern p argTy ctx) pats argTypes'
+                  let (_, bindingsList, substs) = unzip3 results
+                      allBindings = concat bindingsList
+                      s = foldr composeSubst s0 substs
+                  
+                  -- Return the result type, not expected type
+                  return (applySubst s resultType', allBindings, s)
+            
             Nothing -> do
-              -- Not found in pattern environment, use default behavior
-              -- General inductive pattern
-              argTypes <- mapM (\_ -> freshVar "arg") pps
-              return $ TInductive name argTypes
-          where
-            -- Extract result type from function type chain
-            -- e.g., a -> MyList a -> MyList a => MyList a
-            extractResultType :: Type -> Type
-            extractResultType (TFun _ rest) = extractResultType rest
-            extractResultType t = t
-      
-      -- Extract inner type from Matcher a -> a
-      extractMatcherInnerType :: Type -> Infer Type
-      extractMatcherInnerType (TMatcher t) = return t
-      extractMatcherInnerType t = return t
+              -- Not found in environment: use generic inference
+              argTypes <- mapM (\_ -> freshVar "arg") pats
+              let resultType = TInductive name argTypes
+              
+              s0 <- unifyTypesWithContext resultType expectedType ctx
+              let resultType' = applySubst s0 resultType
+              
+              results <- zipWithM (\p argTy -> inferPrimitiveDataPattern p (applySubst s0 argTy) ctx) pats argTypes
+              let (_, bindingsList, substs) = unzip3 results
+                  allBindings = concat bindingsList
+                  s = foldr composeSubst s0 substs
+              
+              return (applySubst s resultType', allBindings, s)
   
   -- Match expressions (pattern matching)
   IMatchExpr _mode target matcher clauses -> do
