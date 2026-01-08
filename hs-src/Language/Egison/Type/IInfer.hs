@@ -437,22 +437,48 @@ inferIExprWithContext expr ctx = case expr of
         -- It should be either a Matcher type or a tuple of Matcher types
         (nextMatcherType, s1) <- inferIExprWithContext nextMatcherExpr ctx
         
+        -- If next matcher type contains type variables, constrain them to be Matcher types
+        -- This prevents infinite type errors when using matcher parameters
+        s1' <- constrainTypeVarsAsMatcher nextMatcherType s1
+        let nextMatcherType' = applySubst s1' nextMatcherType
+        
         -- Count the number of pattern holes in the primitive-pattern pattern
         let numPatternHoles = countPatternHoles ppPat
         
         -- Extract next matcher types (should match number of pattern holes)
-        nextMatcherTypes <- extractNextMatcherTypes numPatternHoles nextMatcherType
-        
-        -- Infer the type of data clauses and check consistency
-        -- Each data clause: (primitiveDataPattern, targetListExpr)
-        dataClauseResults <- mapM (inferDataClauseWithCheck ctx numPatternHoles nextMatcherTypes) dataClauses
-        let s2 = foldr composeSubst emptySubst dataClauseResults
+        nextMatcherTypes <- extractNextMatcherTypes numPatternHoles nextMatcherType'
         
         -- Extract the matched type from the matcher clause
         -- For primitive-pattern pattern ($, $), we need to infer from next matcher
-        matchedType <- inferMatchedTypeFromPP ppPat nextMatcherType
+        matchedType <- inferMatchedTypeFromPP ppPat nextMatcherType'
         
-        return (matchedType, [s1, s2])
+        -- Extract variables from primitive-pattern pattern (e.g., #$val)
+        -- These variables are bound to the matched type
+        let ppPatternVars = extractPPPatternVars ppPat
+            ppBindings = [(var, Forall [] [] matchedType) | var <- ppPatternVars]
+        
+        -- Infer the type of data clauses with pp variables in scope
+        -- Each data clause: (primitiveDataPattern, targetListExpr)
+        dataClauseResults <- withEnv ppBindings $ 
+          mapM (inferDataClauseWithCheck ctx numPatternHoles nextMatcherTypes) dataClauses
+        let s2 = foldr composeSubst emptySubst dataClauseResults
+        
+        return (matchedType, [s1', s2])
+      
+      -- Constrain type variables in next matcher expression to be Matcher types
+      -- If we have a type variable t0 appearing in matcher context, unify t0 with Matcher t_new
+      constrainTypeVarsAsMatcher :: Type -> Subst -> Infer Subst
+      constrainTypeVarsAsMatcher ty s = case ty of
+        TVar v -> do
+          -- Type variable in matcher position: constrain to Matcher type
+          innerTy <- freshVar "inner"
+          s' <- unifyTypes (applySubst s (TVar v)) (TMatcher innerTy)
+          return $ composeSubst s' s
+        TTuple tys -> do
+          -- Tuple of matchers: constrain each element
+          foldM (\accS t -> constrainTypeVarsAsMatcher t accS) s tys
+        TMatcher _ -> return s  -- Already a Matcher type, no constraint needed
+        _ -> return s  -- Other types: no constraint needed
       
       -- Count pattern holes ($) in primitive-pattern pattern
       countPatternHoles :: PrimitivePatPattern -> Int
@@ -462,6 +488,16 @@ inferIExprWithContext expr ctx = case expr of
         PPValuePat _ -> 0
         PPTuplePat pps -> sum (map countPatternHoles pps)
         PPInductivePat _ pps -> sum (map countPatternHoles pps)
+      
+      -- Extract variables from primitive-pattern pattern
+      -- For example, #$val in PPValuePat extracts "val"
+      extractPPPatternVars :: PrimitivePatPattern -> [String]
+      extractPPPatternVars ppPat = case ppPat of
+        PPWildCard -> []
+        PPPatVar -> []
+        PPValuePat varName -> [varName]  -- Extract variable from value pattern
+        PPTuplePat pps -> concatMap extractPPPatternVars pps
+        PPInductivePat _ pps -> concatMap extractPPPatternVars pps
       
       -- Extract next matcher types from the next matcher type
       -- If n=1, returns [TMatcher a] for TMatcher a
@@ -763,13 +799,56 @@ inferIBindings bindings env s = inferIBindingsWithContext bindings env s emptyCo
 inferIBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([(String, TypeScheme)], Subst)
 inferIBindingsWithContext [] _env s _ctx = return ([], s)
 inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
+  -- Infer the type of the expression
   (exprType, s1) <- inferIExprWithContext expr ctx
-  let bindings = extractIBindingsFromPattern pat (applySubst s1 exprType)
-      s' = composeSubst s1 s
+  
+  -- Create expected type from pattern and unify with expression type
+  -- This helps resolve type variables in the expression type
+  (patternType, s2) <- inferPatternType pat
+  let s12 = composeSubst s2 s1
+  s3 <- unifyTypesWithContext (applySubst s12 exprType) (applySubst s12 patternType) ctx
+  
+  -- Apply all substitutions and extract bindings
+  let finalS = composeSubst s3 s12
+      finalExprType = applySubst finalS exprType
+      bindings = extractIBindingsFromPattern pat finalExprType
+      s' = composeSubst finalS s
+  
   _env' <- getEnv
   let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
-  (restBindings, s2) <- withEnv extendedEnvList $ inferIBindingsWithContext bs env s' ctx
-  return (bindings ++ restBindings, s2)
+  (restBindings, s2') <- withEnv extendedEnvList $ inferIBindingsWithContext bs env s' ctx
+  return (bindings ++ restBindings, s2')
+  where
+    -- Infer the type that a pattern expects
+    inferPatternType :: IPrimitiveDataPattern -> Infer (Type, Subst)
+    inferPatternType PDWildCard = do
+      t <- freshVar "wild"
+      return (t, emptySubst)
+    inferPatternType (PDPatVar _) = do
+      t <- freshVar "patvar"
+      return (t, emptySubst)
+    inferPatternType (PDTuplePat pats) = do
+      results <- mapM inferPatternType pats
+      let types = map fst results
+          substs = map snd results
+          s = foldr composeSubst emptySubst substs
+      return (TTuple types, s)
+    inferPatternType PDEmptyPat = return (TCollection (TVar (TyVar "a")), emptySubst)
+    inferPatternType (PDConsPat _ _) = do
+      elemType <- freshVar "elem"
+      return (TCollection elemType, emptySubst)
+    inferPatternType (PDSnocPat _ _) = do
+      elemType <- freshVar "elem"
+      return (TCollection elemType, emptySubst)
+    inferPatternType (PDInductivePat name pats) = do
+      results <- mapM inferPatternType pats
+      let types = map fst results
+          substs = map snd results
+          s = foldr composeSubst emptySubst substs
+      return (TInductive name types, s)
+    inferPatternType (PDConstantPat c) = do
+      ty <- inferConstant c
+      return (ty, emptySubst)
 
 -- | Infer letrec bindings (recursive)
 inferIRecBindings :: [IBindingExpr] -> TypeEnv -> Subst -> Infer ([(String, TypeScheme)], Subst)
@@ -799,6 +878,8 @@ inferIRecBindingsWithContext bindings _env s ctx = do
   return (finalBindings, finalS)
 
 -- | Extract bindings from pattern
+-- This function extracts variable bindings from a primitive data pattern
+-- given the type that the pattern should match against
 extractIBindingsFromPattern :: IPrimitiveDataPattern -> Type -> [(String, TypeScheme)]
 extractIBindingsFromPattern pat ty = case pat of
   PDWildCard -> []
@@ -806,8 +887,14 @@ extractIBindingsFromPattern pat ty = case pat of
   PDInductivePat _ pats -> concatMap (\p -> extractIBindingsFromPattern p ty) pats
   PDTuplePat pats -> 
     case ty of
-      TTuple tys -> concat $ zipWith extractIBindingsFromPattern pats tys
-      _ -> []  -- Type mismatch
+      TTuple tys | length pats == length tys -> 
+        -- Types match: bind each pattern variable to corresponding type
+        concat $ zipWith extractIBindingsFromPattern pats tys
+      _ -> 
+        -- Type is not a matching tuple: this might be a type variable
+        -- In this case, we cannot extract precise types, so return empty
+        -- The type inference will handle this later
+        []
   PDEmptyPat -> []
   PDConsPat p1 p2 ->
     case ty of
