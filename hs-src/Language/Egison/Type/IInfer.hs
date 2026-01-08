@@ -514,12 +514,29 @@ inferIExprWithContext expr ctx = case expr of
         PPInductivePat _ pps -> concatMap extractPPPatternVars pps
       
       -- Extract next matcher types from the next matcher type
-      -- If n=1, returns [TMatcher a] for TMatcher a
+      -- If n=1, returns [matcherType] as-is (keeping tuple structure if present)
+      --   Special case: (Matcher a, Matcher b, ...) is treated as Matcher (a, b, ...)
+      --   This matches the runtime behavior where single pattern hole keeps tuple intact
       -- If n>1, returns [TMatcher a, TMatcher b, ...] for (TMatcher a, TMatcher b, ...) or Matcher (a, b, ...)
       extractNextMatcherTypes :: Int -> Type -> Infer [Type]
       extractNextMatcherTypes n matcherType
         | n == 0 = return []
-        | n == 1 = return [matcherType]
+        | n == 1 = do
+            -- For single pattern hole, keep the matcher type as-is
+            -- But if it's a tuple of matchers (Matcher a, Matcher b, ...), 
+            -- convert it to Matcher (a, b, ...) to match ITupleExpr behavior
+            case matcherType of
+              TTuple types -> do
+                -- Check if all elements are Matcher types
+                let matcherInners = mapM extractMatcherInner types
+                case matcherInners of
+                  Just inners -> 
+                    -- All elements are matchers: return Matcher (a, b, ...)
+                    return [TMatcher (TTuple inners)]
+                  Nothing ->
+                    -- Not all matchers: keep as tuple
+                    return [matcherType]
+              _ -> return [matcherType]
         | otherwise = case matcherType of
             TTuple types -> 
               if length types == n
@@ -543,6 +560,11 @@ inferIExprWithContext expr ctx = case expr of
                    matcherType  -- Actual
                    ("Expected tuple of " ++ show n ++ " matchers")
                    emptyContext
+      
+      -- Helper: Extract inner type from Matcher a -> Just a, otherwise Nothing
+      extractMatcherInner :: Type -> Maybe Type
+      extractMatcherInner (TMatcher t) = Just t
+      extractMatcherInner _ = Nothing
       
       -- Infer a data clause with type checking
       -- Check that the target expression returns a list of values with types matching next matchers
