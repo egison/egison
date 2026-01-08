@@ -1187,8 +1187,16 @@ inferIPattern pat expectedType ctx = case pat of
   
   ILetPat bindings p -> do
     -- Let pattern: infer bindings and then the pattern
-    -- For now, skip bindings inference
-    inferIPattern p expectedType ctx
+    -- Infer bindings first
+    env <- getEnv
+    (bindingSchemes, s1) <- inferIBindingsWithContext bindings env emptySubst ctx
+    
+    -- Infer pattern with bindings in scope
+    (patBindings, s2) <- withEnv bindingSchemes $ inferIPattern p (applySubst s1 expectedType) ctx
+    
+    let s = composeSubst s2 s1
+    -- Let bindings are not exported, only pattern bindings
+    return (patBindings, s)
   
   INotPat p -> do
     -- Not pattern: infer the sub-pattern but don't use its bindings
@@ -1197,26 +1205,38 @@ inferIPattern pat expectedType ctx = case pat of
   
   IAndPat p1 p2 -> do
     -- And pattern: both patterns must match the same type
+    -- Left bindings should be available to right pattern
     (bindings1, s1) <- inferIPattern p1 expectedType ctx
-    (bindings2, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
+    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     let s = composeSubst s2 s1
-    return (bindings1 ++ bindings2, s)
+        -- Apply substitution to left bindings
+        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
+    return (bindings1' ++ bindings2, s)
   
   IOrPat p1 p2 -> do
     -- Or pattern: both patterns must match the same type
-    -- But bindings might differ, so we only take common bindings
-    -- For now, just take bindings from first pattern
+    -- Left bindings should be available to right pattern for non-linear patterns
     (bindings1, s1) <- inferIPattern p1 expectedType ctx
-    (_, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
+    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     let s = composeSubst s2 s1
-    return (bindings1, s)
+        -- Apply substitution to left bindings
+        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
+    -- For or patterns, ideally both branches should have same variables
+    -- For now, we take union of bindings
+    return (bindings1' ++ bindings2, s)
   
   IForallPat p1 p2 -> do
     -- Forall pattern: similar to and pattern
+    -- Left bindings should be available to right pattern
     (bindings1, s1) <- inferIPattern p1 expectedType ctx
-    (bindings2, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
+    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     let s = composeSubst s2 s1
-    return (bindings1 ++ bindings2, s)
+        -- Apply substitution to left bindings
+        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
+    return (bindings1' ++ bindings2, s)
   
   ILoopPat var range p1 p2 -> do
     -- Loop pattern: $var is the loop variable (Integer), range contains pattern
@@ -1226,14 +1246,22 @@ inferIPattern pat expectedType ctx = case pat of
     
     -- Add loop variable binding (always Integer for loop index)
     let loopVarBinding = (var, TInt)
+        initialBindings = loopVarBinding : rangeBindings
+        schemes0 = [(v, Forall [] [] ty) | (v, ty) <- initialBindings]
     
-    -- Infer sub-patterns
-    (bindings1, s1) <- inferIPattern p1 expectedType ctx
-    (bindings2, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    -- Infer p1 with loop variable and range bindings in scope
+    (bindings1, s1) <- withEnv schemes0 $ inferIPattern p1 (applySubst s_range expectedType) ctx
+    
+    -- Infer p2 with all previous bindings in scope
+    let allPrevBindings = [(v, applySubst s1 ty) | (v, ty) <- initialBindings] ++ bindings1
+        schemes1 = [(v, Forall [] [] ty) | (v, ty) <- allPrevBindings]
+    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    
     let s = foldr composeSubst emptySubst [s2, s1, s_range]
+        -- Apply final substitution to all bindings
+        finalBindings = [(v, applySubst s ty) | (v, ty) <- loopVarBinding : rangeBindings ++ bindings1 ++ bindings2]
     
-    -- Combine all bindings: loop variable + range pattern + sub-patterns
-    return (loopVarBinding : rangeBindings ++ bindings1 ++ bindings2, s)
+    return (finalBindings, s)
   
   IContPat -> do
     -- Continuation pattern: no bindings
@@ -1244,12 +1272,9 @@ inferIPattern pat expectedType ctx = case pat of
     (funcType, s1) <- inferIExprWithContext funcExpr ctx
     
     -- Pattern function should return a pattern that matches expectedType
-    -- For now, just infer argument patterns with fresh types
+    -- Infer argument patterns left-to-right with fresh types
     argTypes <- mapM (\_ -> freshVar "parg") argPats
-    results <- zipWithM (\p t -> inferIPattern p t ctx) argPats argTypes
-    let (bindingsList, substs) = unzip results
-        allBindings = concat bindingsList
-        s2 = foldr composeSubst s1 substs
+    (allBindings, s2) <- inferPatternsLeftToRight argPats argTypes [] s1 ctx
     
     return (allBindings, s2)
   
@@ -1268,10 +1293,14 @@ inferIPattern pat expectedType ctx = case pat of
   
   ISeqConsPat p1 p2 -> do
     -- Sequence cons: infer both patterns
+    -- Left bindings should be available to right pattern
     (bindings1, s1) <- inferIPattern p1 expectedType ctx
-    (bindings2, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
+    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     let s = composeSubst s2 s1
-    return (bindings1 ++ bindings2, s)
+        -- Apply substitution to left bindings
+        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
+    return (bindings1' ++ bindings2, s)
   
   ILaterPatVar -> do
     -- Later pattern variable: no immediate binding
@@ -1279,12 +1308,18 @@ inferIPattern pat expectedType ctx = case pat of
   
   IDApplyPat p pats -> do
     -- D-apply pattern: infer base pattern and argument patterns
+    -- Base pattern bindings should be available to argument patterns
     (bindings1, s1) <- inferIPattern p expectedType ctx
-    results <- mapM (\pat -> inferIPattern pat (TVar (TyVar "a")) ctx) pats
-    let (bindingsList, substs) = unzip results
-        allBindings = bindings1 ++ concat bindingsList
-        s = foldr composeSubst s1 substs
-    return (allBindings, s)
+    
+    -- Infer argument patterns left-to-right with base pattern bindings in scope
+    argTypes <- mapM (\_ -> freshVar "darg") pats
+    let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
+    (argBindings, s2) <- withEnv schemes1 $ inferPatternsLeftToRight pats argTypes [] s1 ctx
+    
+    let s = composeSubst s2 s1
+        -- Apply substitution to base bindings
+        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
+    return (bindings1' ++ argBindings, s)
   where
     -- Extract function argument types and result type
     -- e.g., a -> b -> c -> d  =>  ([a, b, c], d)
