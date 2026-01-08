@@ -78,3 +78,35 @@ inverted scalar argumentは以下のように仮引数に！をつけること�
 ```
 def ∂/∂ (f : MathExpr) (!x : MathExpr) : MathExpr :=
 ```
+
+# 実装の手順
+
+関数の仮引数の型と引数の型がすでに正しく推論されていると仮定する。
+下記のIApplyExprの型推論の際に型検査が失敗したら、tensorMapを挿入して型推論が通るようにプログラムを書き換える。
+```
+inferIExprWithContext :: IExpr -> TypeErrorContext -> Infer (Type, Subst)
+inferIExprWithContext expr ctx = case expr of
+
+  -- Function Application
+  IApplyExpr func args -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (funcType, s1) <- inferIExprWithContext func exprCtx
+    inferIApplicationWithContext funcType args s1 exprCtx
+
+-- | Infer application (helper) with context
+inferIApplicationWithContext :: Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (Type, Subst)
+inferIApplicationWithContext funcType args initSubst ctx = do
+  -- Infer argument types
+  argResults <- mapM (\arg -> inferIExprWithContext arg ctx) args
+  let argTypes = map fst argResults
+      argSubst = foldr composeSubst initSubst (map snd argResults)
+  
+  -- Create expected function type
+  resultType <- freshVar "result"
+  let expectedFuncType = foldr TFun resultType argTypes
+  
+  -- Unify
+  s <- unifyTypesWithContext (applySubst argSubst funcType) expectedFuncType ctx
+  let finalS = composeSubst s argSubst
+  return (applySubst finalS resultType, finalS)
+```
