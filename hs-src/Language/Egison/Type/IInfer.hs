@@ -63,7 +63,9 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..)
                                             , extractNameFromVar)
 import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
-import           Language.Egison.Type.Error
+import qualified Language.Egison.Type.Error as TE
+import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
+                                              emptyContext, withExpr, withContext)
 import           Language.Egison.Type.Subst
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
@@ -435,10 +437,16 @@ inferIExprWithContext expr ctx = case expr of
         -- It should be either a Matcher type or a tuple of Matcher types
         (nextMatcherType, s1) <- inferIExprWithContext nextMatcherExpr ctx
         
-        -- Infer the type of data clauses
+        -- Count the number of pattern holes in the primitive-pattern pattern
+        let numPatternHoles = countPatternHoles ppPat
+        
+        -- Extract next matcher types (should match number of pattern holes)
+        nextMatcherTypes <- extractNextMatcherTypes numPatternHoles nextMatcherType
+        
+        -- Infer the type of data clauses and check consistency
         -- Each data clause: (primitiveDataPattern, targetListExpr)
-        dataClauseSubsts <- mapM (inferDataClause ctx) dataClauses
-        let s2 = foldr composeSubst emptySubst dataClauseSubsts
+        dataClauseResults <- mapM (inferDataClauseWithCheck ctx numPatternHoles nextMatcherTypes) dataClauses
+        let s2 = foldr composeSubst emptySubst dataClauseResults
         
         -- Extract the matched type from the matcher clause
         -- For primitive-pattern pattern ($, $), we need to infer from next matcher
@@ -446,13 +454,109 @@ inferIExprWithContext expr ctx = case expr of
         
         return (matchedType, [s1, s2])
       
-      -- Infer a data clause: (pattern, expr) -> expr should return a list of targets
-      inferDataClause :: TypeErrorContext -> (IPrimitiveDataPattern, IExpr) -> Infer Subst
-      inferDataClause ctx (_pdPat, targetExpr) = do
-        -- The target expression should return a collection of tuples/values
-        (exprType, s) <- inferIExprWithContext targetExpr ctx
-        -- We don't enforce specific type here for flexibility
-        return s
+      -- Count pattern holes ($) in primitive-pattern pattern
+      countPatternHoles :: PrimitivePatPattern -> Int
+      countPatternHoles ppPat = case ppPat of
+        PPWildCard -> 0
+        PPPatVar -> 1
+        PPValuePat _ -> 0
+        PPTuplePat pps -> sum (map countPatternHoles pps)
+        PPInductivePat _ pps -> sum (map countPatternHoles pps)
+      
+      -- Extract next matcher types from the next matcher type
+      -- If n=1, returns [TMatcher a] for TMatcher a
+      -- If n>1, returns [TMatcher a, TMatcher b, ...] for (TMatcher a, TMatcher b, ...) or Matcher (a, b, ...)
+      extractNextMatcherTypes :: Int -> Type -> Infer [Type]
+      extractNextMatcherTypes n matcherType
+        | n == 0 = return []
+        | n == 1 = return [matcherType]
+        | otherwise = case matcherType of
+            TTuple types -> 
+              if length types == n
+                then return types
+                else throwError $ TE.TypeMismatch 
+                       (TTuple (replicate n (TVar (TyVar "a"))))  -- Expected
+                       matcherType  -- Actual
+                       ("Expected " ++ show n ++ " matchers, but got " ++ show (length types))
+                       emptyContext
+            -- Special case: Matcher (a, b, ...) can be expanded to (Matcher a, Matcher b, ...)
+            TMatcher (TTuple innerTypes) ->
+              if length innerTypes == n
+                then return (map TMatcher innerTypes)
+                else throwError $ TE.TypeMismatch
+                       (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))  -- Expected
+                       matcherType  -- Actual
+                       ("Expected matcher for tuple of " ++ show n ++ " elements, but got " ++ show (length innerTypes))
+                       emptyContext
+            _ -> throwError $ TE.TypeMismatch
+                   (TTuple (replicate n (TVar (TyVar "a"))))  -- Expected
+                   matcherType  -- Actual
+                   ("Expected tuple of " ++ show n ++ " matchers")
+                   emptyContext
+      
+      -- Infer a data clause with type checking
+      -- Check that the target expression returns a list of values with types matching next matchers
+      inferDataClauseWithCheck :: TypeErrorContext -> Int -> [Type] -> (IPrimitiveDataPattern, IExpr) -> Infer Subst
+      inferDataClauseWithCheck ctx numHoles nextMatcherTypes (pdPat, targetExpr) = do
+        -- Extract expected element type from next matchers (the target type)
+        targetType <- case numHoles of
+          0 -> return TUnit  -- No pattern holes, should match ()
+          1 -> case nextMatcherTypes of
+                 [TMatcher innerType] -> return innerType
+                 [ty] -> return ty  -- May be 'something' which is polymorphic
+                 _ -> freshVar "target"
+          _ -> case nextMatcherTypes of
+                 types -> do
+                   -- Extract inner types from Matcher types
+                   innerTypes <- mapM extractMatcherInner types
+                   return (TTuple innerTypes)
+        
+        -- Extract variable bindings from primitive data pattern
+        -- These variables are bound to parts of the target type
+        let bindings = extractPDPatternBindings pdPat targetType
+        
+        -- Infer the target expression with pattern variables in scope
+        (exprType, s1) <- withEnv bindings $ inferIExprWithContext targetExpr ctx
+        
+        -- Unify with actual expression type
+        -- Expected: [targetType] or [(targetType)]
+        let expectedType = TCollection (applySubst s1 targetType)
+        
+        s2 <- unifyTypesWithContext (applySubst s1 exprType) expectedType ctx
+        return $ composeSubst s2 s1
+        where
+          extractMatcherInner :: Type -> Infer Type
+          extractMatcherInner (TMatcher t) = return t
+          extractMatcherInner t = return t
+      
+      -- Extract variable bindings from primitive data pattern with target type
+      extractPDPatternBindings :: IPrimitiveDataPattern -> Type -> [(String, TypeScheme)]
+      extractPDPatternBindings pdPat targetType = case pdPat of
+        PDWildCard -> []
+        PDPatVar var -> [(extractNameFromVar var, Forall [] [] targetType)]
+        PDInductivePat _ pats -> 
+          -- For inductive patterns, we'd need to look up constructor types
+          -- For now, bind each sub-pattern to the whole target type
+          concatMap (\p -> extractPDPatternBindings p targetType) pats
+        PDTuplePat pats -> 
+          case targetType of
+            TTuple types | length types == length pats ->
+              concat $ zipWith extractPDPatternBindings pats types
+            _ -> 
+              -- Type mismatch, but let bindings be inferred as target type
+              concatMap (\p -> extractPDPatternBindings p targetType) pats
+        PDEmptyPat -> []
+        PDConsPat p1 p2 ->
+          case targetType of
+            TCollection elemType ->
+              extractPDPatternBindings p1 elemType ++ extractPDPatternBindings p2 targetType
+            _ -> []
+        PDSnocPat p1 p2 ->
+          case targetType of
+            TCollection elemType ->
+              extractPDPatternBindings p1 targetType ++ extractPDPatternBindings p2 elemType
+            _ -> []
+        PDConstantPat _ -> []
       
       -- Infer matched type from primitive-pattern pattern and next matcher type
       inferMatchedTypeFromPP :: PrimitivePatPattern -> Type -> Infer Type
