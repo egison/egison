@@ -55,9 +55,8 @@ data Type
   | TBool                             -- ^ Bool
   | TChar                             -- ^ Char
   | TString                           -- ^ String
-  | TUnit                             -- ^ Unit type ()
   | TVar TyVar                        -- ^ Type variable, e.g., a
-  | TTuple [Type]                     -- ^ Tuple type, e.g., (a, b)
+  | TTuple [Type]                     -- ^ Tuple type, e.g., (a, b). Unit type () is TTuple []
   | TCollection Type                  -- ^ Collection type, e.g., [a]
   | TInductive String [Type]          -- ^ Inductive data type with type arguments
   | TTensor Type                      -- ^ Tensor type (only element type is kept)
@@ -111,7 +110,6 @@ freeTyVars TFloat           = Set.empty
 freeTyVars TBool            = Set.empty
 freeTyVars TChar            = Set.empty
 freeTyVars TString          = Set.empty
-freeTyVars TUnit            = Set.empty
 freeTyVars (TVar v)         = Set.singleton v
 freeTyVars (TTuple ts)      = Set.unions (map freeTyVars ts)
 freeTyVars (TCollection t)  = freeTyVars t

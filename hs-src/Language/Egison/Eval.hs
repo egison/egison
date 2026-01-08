@@ -216,7 +216,8 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
         let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
         let initState = (initialInferStateWithConfig inferConfig) { 
               inferEnv = currentTypeEnv,
-              inferClassEnv = currentClassEnv 
+              inferClassEnv = currentClassEnv,
+              inferPatternEnv = ebrPatternConstructorEnv envResult
             }
         (result, warnings, finalState) <- liftIO $ 
           runInferWithWarningsAndState (inferITopExpr iTopExpr) initState

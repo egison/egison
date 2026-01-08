@@ -37,10 +37,7 @@ unify' TFloat TFloat = Right emptySubst
 unify' TBool TBool = Right emptySubst
 unify' TChar TChar = Right emptySubst
 unify' TString TString = Right emptySubst
-unify' TUnit TUnit = Right emptySubst
--- Unit is equivalent to empty tuple
-unify' TUnit (TTuple []) = Right emptySubst
-unify' (TTuple []) TUnit = Right emptySubst
+-- Unit type is represented as empty tuple TTuple []
 
 -- Type variables
 unify' (TVar v) t = unifyVar v t
@@ -115,5 +112,5 @@ unifyMany (t1:ts1) (t2:ts2) = do
   s1 <- unify t1 t2
   s2 <- unifyMany (map (applySubst s1) ts1) (map (applySubst s1) ts2)
   Right $ composeSubst s2 s1
-unifyMany _ _ = Left $ TypeMismatch TUnit TUnit  -- Length mismatch
+unifyMany _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])  -- Length mismatch
 
