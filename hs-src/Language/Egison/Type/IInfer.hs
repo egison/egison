@@ -1019,18 +1019,282 @@ inferMatchClauses ctx matchedType clauses initSubst = do
 -- | Infer a single match clause
 inferMatchClause :: TypeErrorContext -> Type -> IMatchClause -> Subst -> Infer (Type, Subst)
 inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
-  -- Extract pattern variable bindings from the pattern
-  -- All pattern variables will have the matched type for now
-  -- (A more sophisticated implementation would track types through pattern decomposition)
-  let patternVars = extractPatternVars pattern
-      bindings = [(var, Forall [] [] matchedType) | var <- patternVars]
+  -- Infer pattern type and extract pattern variable bindings
+  -- Use pattern constructor and pattern function type information
+  (bindings, s_pat) <- inferIPattern pattern matchedType ctx
+  let s1 = composeSubst s_pat initSubst
+  
+  -- Convert bindings to TypeScheme format
+  let schemes = [(var, Forall [] [] ty) | (var, ty) <- bindings]
   
   -- Infer body expression type with pattern variables in scope
-  (bodyType, s) <- withEnv bindings $ inferIExprWithContext bodyExpr ctx
-  let finalS = composeSubst s initSubst
+  (bodyType, s2) <- withEnv schemes $ inferIExprWithContext bodyExpr ctx
+  let finalS = composeSubst s2 s1
   return (applySubst finalS bodyType, finalS)
 
--- | Extract pattern variables from a pattern
+-- | Infer multiple patterns left-to-right, making left bindings available to right patterns
+-- This enables non-linear patterns like ($p, #(p + 1))
+inferPatternsLeftToRight :: [IPattern] -> [Type] -> [(String, Type)] -> Subst -> TypeErrorContext 
+                         -> Infer ([(String, Type)], Subst)
+inferPatternsLeftToRight [] [] accBindings accSubst _ctx = 
+  return (accBindings, accSubst)
+inferPatternsLeftToRight (p:ps) (t:ts) accBindings accSubst ctx = do
+  -- Add accumulated bindings to environment for this pattern
+  let schemes = [(var, Forall [] [] ty) | (var, ty) <- accBindings]
+  
+  -- Infer this pattern with left bindings in scope
+  (newBindings, s) <- withEnv schemes $ inferIPattern p (applySubst accSubst t) ctx
+  
+  -- Compose substitutions
+  let accSubst' = composeSubst s accSubst
+  
+  -- Apply substitution to accumulated bindings
+  let accBindings' = [(v, applySubst s ty) | (v, ty) <- accBindings] ++ newBindings
+  
+  -- Continue with remaining patterns
+  inferPatternsLeftToRight ps ts accBindings' accSubst' ctx
+inferPatternsLeftToRight _ _ accBindings accSubst _ = 
+  return (accBindings, accSubst)  -- Mismatched lengths
+
+-- | Infer IPattern type and extract pattern variable bindings
+-- Returns (bindings, substitution)
+-- bindings: [(variable name, type)]
+inferIPattern :: IPattern -> Type -> TypeErrorContext -> Infer ([(String, Type)], Subst)
+inferIPattern pat expectedType ctx = case pat of
+  IWildCard -> do
+    -- Wildcard: no bindings
+    return ([], emptySubst)
+  
+  IPatVar name -> do
+    -- Pattern variable: bind to expected type
+    return ([(name, expectedType)], emptySubst)
+  
+  IValuePat expr -> do
+    -- Value pattern: infer expression type and unify with expected type
+    (exprType, s) <- inferIExprWithContext expr ctx
+    s' <- unifyTypesWithContext (applySubst s exprType) (applySubst s expectedType) ctx
+    return ([], composeSubst s' s)
+  
+  IPredPat _expr -> do
+    -- Predicate pattern: no bindings, but should check predicate type
+    -- For now, just accept any expected type
+    return ([], emptySubst)
+  
+  ITuplePat pats -> do
+    -- Tuple pattern: decompose expected type
+    case expectedType of
+      TTuple types | length types == length pats -> do
+        -- Types match: infer each sub-pattern left-to-right
+        -- Left patterns' bindings are available for right patterns (for non-linear patterns)
+        (allBindings, s) <- inferPatternsLeftToRight pats types [] emptySubst ctx
+        return (allBindings, s)
+      
+      TVar _ -> do
+        -- Expected type is a type variable: create tuple type
+        elemTypes <- mapM (\_ -> freshVar "elem") pats
+        let tupleTy = TTuple elemTypes
+        s <- unifyTypesWithContext expectedType tupleTy ctx
+        
+        -- Recursively infer each sub-pattern left-to-right
+        let elemTypes' = map (applySubst s) elemTypes
+        (allBindings, s') <- inferPatternsLeftToRight pats elemTypes' [] s ctx
+        return (allBindings, s')
+      
+      _ -> do
+        -- Type mismatch
+        throwError $ TE.TypeMismatch
+          (TTuple (replicate (length pats) (TVar (TyVar "a"))))
+          expectedType
+          "Tuple pattern but matched type is not a tuple"
+          ctx
+  
+  IInductivePat name pats -> do
+    -- Inductive pattern: look up pattern constructor type from pattern environment
+    patternEnv <- getPatternEnv
+    case lookupPatternEnv name patternEnv of
+      Just scheme -> do
+        -- Found in pattern environment: use the declared type
+        st <- get
+        let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
+        modify $ \s -> s { inferCounter = newCounter }
+        
+        -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType
+        let (argTypes, resultType) = extractFunctionArgs ctorType
+        
+        -- Check argument count matches
+        if length argTypes /= length pats
+          then throwError $ TE.TypeMismatch
+                 (foldr TFun resultType (replicate (length pats) (TVar (TyVar "a"))))
+                 ctorType
+                 ("Pattern constructor " ++ name ++ " expects " ++ show (length argTypes) 
+                  ++ " arguments, but got " ++ show (length pats))
+                 ctx
+          else do
+            -- Unify result type with expected type
+            s0 <- unifyTypesWithContext resultType expectedType ctx
+            let argTypes' = map (applySubst s0) argTypes
+            
+            -- Recursively infer each sub-pattern left-to-right
+            -- Left patterns' bindings are available for right patterns
+            (allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+            
+            return (allBindings, s)
+      
+      Nothing -> do
+        -- Not found in pattern environment: try data constructor from value environment
+        -- This handles data constructors used as patterns
+        env <- getEnv
+        case lookupEnv name env of
+          Just scheme -> do
+            st <- get
+            let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
+            modify $ \s -> s { inferCounter = newCounter }
+            
+            let (argTypes, resultType) = extractFunctionArgs ctorType
+            
+            if length argTypes /= length pats
+              then throwError $ TE.TypeMismatch
+                     (foldr TFun resultType (replicate (length pats) (TVar (TyVar "a"))))
+                     ctorType
+                     ("Constructor " ++ name ++ " expects " ++ show (length argTypes) 
+                      ++ " arguments, but got " ++ show (length pats))
+                     ctx
+              else do
+                s0 <- unifyTypesWithContext resultType expectedType ctx
+                let argTypes' = map (applySubst s0) argTypes
+                
+                -- Recursively infer each sub-pattern left-to-right
+                (allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+                
+                return (allBindings, s)
+          
+          Nothing -> do
+            -- Not found: generic inference
+            argTypes <- mapM (\_ -> freshVar "arg") pats
+            let resultType = TInductive name argTypes
+            
+            s0 <- unifyTypesWithContext resultType expectedType ctx
+            let argTypes' = map (applySubst s0) argTypes
+            
+            -- Recursively infer each sub-pattern left-to-right
+            (allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+            
+            return (allBindings, s)
+  
+  IIndexedPat p _indices -> do
+    -- Indexed pattern: just infer the base pattern
+    inferIPattern p expectedType ctx
+  
+  ILetPat bindings p -> do
+    -- Let pattern: infer bindings and then the pattern
+    -- For now, skip bindings inference
+    inferIPattern p expectedType ctx
+  
+  INotPat p -> do
+    -- Not pattern: infer the sub-pattern but don't use its bindings
+    (_, s) <- inferIPattern p expectedType ctx
+    return ([], s)
+  
+  IAndPat p1 p2 -> do
+    -- And pattern: both patterns must match the same type
+    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (bindings2, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let s = composeSubst s2 s1
+    return (bindings1 ++ bindings2, s)
+  
+  IOrPat p1 p2 -> do
+    -- Or pattern: both patterns must match the same type
+    -- But bindings might differ, so we only take common bindings
+    -- For now, just take bindings from first pattern
+    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (_, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let s = composeSubst s2 s1
+    return (bindings1, s)
+  
+  IForallPat p1 p2 -> do
+    -- Forall pattern: similar to and pattern
+    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (bindings2, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let s = composeSubst s2 s1
+    return (bindings1 ++ bindings2, s)
+  
+  ILoopPat var range p1 p2 -> do
+    -- Loop pattern: $var is the loop variable (Integer), range contains pattern
+    -- First, infer the range pattern (third element of ILoopRange)
+    let ILoopRange _startExpr _endExpr rangePattern = range
+    (rangeBindings, s_range) <- inferIPattern rangePattern TInt ctx
+    
+    -- Add loop variable binding (always Integer for loop index)
+    let loopVarBinding = (var, TInt)
+    
+    -- Infer sub-patterns
+    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (bindings2, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let s = foldr composeSubst emptySubst [s2, s1, s_range]
+    
+    -- Combine all bindings: loop variable + range pattern + sub-patterns
+    return (loopVarBinding : rangeBindings ++ bindings1 ++ bindings2, s)
+  
+  IContPat -> do
+    -- Continuation pattern: no bindings
+    return ([], emptySubst)
+  
+  IPApplyPat funcExpr argPats -> do
+    -- Pattern application: infer pattern function type
+    (funcType, s1) <- inferIExprWithContext funcExpr ctx
+    
+    -- Pattern function should return a pattern that matches expectedType
+    -- For now, just infer argument patterns with fresh types
+    argTypes <- mapM (\_ -> freshVar "parg") argPats
+    results <- zipWithM (\p t -> inferIPattern p t ctx) argPats argTypes
+    let (bindingsList, substs) = unzip results
+        allBindings = concat bindingsList
+        s2 = foldr composeSubst s1 substs
+    
+    return (allBindings, s2)
+  
+  IVarPat name -> do
+    -- Variable pattern (with ~): bind to expected type
+    return ([(name, expectedType)], emptySubst)
+  
+  IInductiveOrPApplyPat name pats -> do
+    -- Could be either inductive pattern or pattern application
+    -- Try inductive pattern first
+    inferIPattern (IInductivePat name pats) expectedType ctx
+  
+  ISeqNilPat -> do
+    -- Sequence nil: no bindings
+    return ([], emptySubst)
+  
+  ISeqConsPat p1 p2 -> do
+    -- Sequence cons: infer both patterns
+    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (bindings2, s2) <- inferIPattern p2 (applySubst s1 expectedType) ctx
+    let s = composeSubst s2 s1
+    return (bindings1 ++ bindings2, s)
+  
+  ILaterPatVar -> do
+    -- Later pattern variable: no immediate binding
+    return ([], emptySubst)
+  
+  IDApplyPat p pats -> do
+    -- D-apply pattern: infer base pattern and argument patterns
+    (bindings1, s1) <- inferIPattern p expectedType ctx
+    results <- mapM (\pat -> inferIPattern pat (TVar (TyVar "a")) ctx) pats
+    let (bindingsList, substs) = unzip results
+        allBindings = bindings1 ++ concat bindingsList
+        s = foldr composeSubst s1 substs
+    return (allBindings, s)
+  where
+    -- Extract function argument types and result type
+    -- e.g., a -> b -> c -> d  =>  ([a, b, c], d)
+    extractFunctionArgs :: Type -> ([Type], Type)
+    extractFunctionArgs (TFun arg rest) = 
+      let (args, result) = extractFunctionArgs rest
+      in (arg : args, result)
+    extractFunctionArgs t = ([], t)
+
+-- | Extract pattern variables from a pattern (legacy, kept for reference)
 extractPatternVars :: IPattern -> [String]
 extractPatternVars pat = case pat of
   IWildCard -> []

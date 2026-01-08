@@ -1132,7 +1132,7 @@ loopPattern =
 
     defaultEnds s =
       makeApply "from"
-                [makeApply "-'" [s, ConstantExpr (IntegerExpr 1)]]
+                [makeApply "b.-" [s, ConstantExpr (IntegerExpr 1)]]
 
 seqPattern :: Parser Pattern
 seqPattern = do
@@ -1146,8 +1146,8 @@ opPattern = do
 
 makePatternTable :: [Op] -> [[Operator Parser Pattern]]
 makePatternTable ops =
-  let ops' = map toOperator ops
-   in map (map snd) (groupBy (\x y -> fst x == fst y) ops')
+  reverse $ map (map snd) $ groupBy ((==) `on` fst) $ sortOn fst $
+    map toOperator ops
   where
     toOperator :: Op -> (Int, Operator Parser Pattern)
     toOperator op = (priority op, infixToOperator binary op)
@@ -1209,7 +1209,8 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
   where
     makeTable :: [Op] -> [[Operator Parser PrimitivePatPattern]]
     makeTable ops =
-      map (map toOperator) (groupBy (\x y -> priority x == priority y) ops)
+      reverse $ map (map toOperator) $ groupBy (\x y -> priority x == priority y) $
+        sortOn priority ops
 
     toOperator :: Op -> Operator Parser PrimitivePatPattern
     toOperator = infixToOperator inductive2
