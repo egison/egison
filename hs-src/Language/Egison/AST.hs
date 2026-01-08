@@ -423,9 +423,7 @@ data TypeExpr
   | TEMatcher TypeExpr                 -- ^ Matcher type
   | TEPattern TypeExpr                 -- ^ Pattern type, e.g., Pattern a
   | TEIO TypeExpr                      -- ^ IO type, e.g., IO ()
-  | TETensor TypeExpr TensorShapeExpr [TensorIndexExpr]
-                                      -- ^ Tensor type with shape and indices
-                                      --   e.g., Tensor Integer [2, 2]_#_#
+  | TETensor TypeExpr                  -- ^ Tensor type, e.g., Tensor a
   | TEApp TypeExpr [TypeExpr]          -- ^ Type application, e.g., List a
   | TEConstrained [ConstraintExpr] TypeExpr
                                       -- ^ Constrained type, e.g., Eq a => a

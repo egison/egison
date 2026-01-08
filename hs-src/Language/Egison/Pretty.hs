@@ -247,7 +247,7 @@ instance Pretty TypeExpr where
   pretty (TEMatcher t) = pretty "Matcher" <+> pretty t
   pretty (TEPattern t) = pretty "Pattern" <+> pretty t
   pretty (TEIO t) = pretty "IO" <+> pretty t
-  pretty (TETensor t _ _) = pretty "Tensor" <+> pretty t
+  pretty (TETensor t) = pretty "Tensor" <+> pretty t
   pretty (TEApp t args) = hsep (pretty t : map pretty args)
 
 instance Pretty ConstraintExpr where

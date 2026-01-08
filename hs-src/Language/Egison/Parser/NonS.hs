@@ -643,13 +643,8 @@ tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
   _ <- reserved "Tensor"
   elemType <- typeAtomOrParenType  -- Allow parenthesized types like (IORef [a])
-  -- Shape and indices are optional (for simple type application like "Tensor a")
-  maybeShape <- optional tensorShapeExpr
-  case maybeShape of
-    Nothing -> return $ TEApp (TEVar "Tensor") [elemType]  -- Simple type application
-    Just shape -> do
-      indices <- many tensorIndexExpr
-      return $ TETensor elemType shape indices
+  -- TETensor now only takes the element type
+  return $ TETensor elemType
 
 tensorShapeExpr :: Parser TensorShapeExpr
 tensorShapeExpr =

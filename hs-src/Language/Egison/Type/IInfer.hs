@@ -217,6 +217,16 @@ unifyTypesWithContext t1 t2 ctx = case unify t1 t2 of
     TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
     TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
 
+-- | Unify two types with context, allowing Tensor a to unify with a
+-- This is used only for top-level definitions with type annotations
+-- According to type-tensor-simple.md: "トップレベル定義のテンソルについてのみ、Tensor a型が a型とunifyするとa型になる。"
+unifyTypesWithTopLevel :: Type -> Type -> TypeErrorContext -> Infer Subst
+unifyTypesWithTopLevel t1 t2 ctx = case TU.unifyWithTopLevel t1 t2 of
+  Right s  -> return s
+  Left err -> case err of
+    TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
+    TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
+
 -- | Infer type for constants
 inferConstant :: ConstantExpr -> Infer Type
 inferConstant c = case c of
@@ -1632,7 +1642,9 @@ inferITopExpr topExpr = case topExpr of
         (exprType, subst1) <- inferIExpr expr
         
         -- Unify inferred type with expected type
-        subst2 <- unifyTypes (applySubst subst1 exprType) (applySubst subst1 expectedType)
+        -- At top-level definitions, Tensor a can unify with a
+        let exprCtx = withExpr (prettyStr expr) emptyContext
+        subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) exprCtx
         let finalSubst = composeSubst subst2 subst1
         
         -- For display purposes, use the original type from the scheme (before instantiation)

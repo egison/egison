@@ -6,7 +6,7 @@ Egisonのテンソルの添字記法に型をつけたい。
 def (.) (t1 : Tensor a) (t2 : Tensor a) : Tensor a := contractWith (+) (t1 * t2)
 ```
 
-Tensor a型は a型とunifyするとa型になる。
+トップレベル定義のテンソルについてのみ、Tensor a型が a型とunifyするとa型になる。
 Tensor a型の可能性があるデータにa型であると型注釈する場合は、本当に自信がある場合のみ間違えずに行う必要がある。
 
 ```
@@ -27,7 +27,7 @@ def g_i_j : Tensor MathExpr := [| [| 1, 0 |] [|0, r^2 |] |]_i_j
 def g~i~j : Tensor MathExpr := [| [| 1, 0 |] [|0, 1 / r^2 |] |]~i_j
 ```
 
-以下のように、注釈された型が MathExpr 型で型推論された方が Tensor MathExpr 型だった場合、 unify されると MathExpr 型となる。
+以下のように、トップレベルで注釈された型が MathExpr 型で型推論された方が Tensor MathExpr 型だった場合、 unify されると MathExpr 型となる。
 
 ```
 g_i_j . g~i~j : MathExpr -- MathExpr =:= Tensor MathExpr => MathExpr

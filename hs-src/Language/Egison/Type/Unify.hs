@@ -7,6 +7,7 @@ This module provides type unification for the Egison type system.
 
 module Language.Egison.Type.Unify
   ( unify
+  , unifyWithTopLevel
   , unifyMany
   , UnifyError(..)
   ) where
@@ -78,18 +79,6 @@ unify' (TIORef t1) (TIORef t2) = unify t1 t2
 unify' TAny _ = Right emptySubst
 unify' _ TAny = Right emptySubst
 
--- Tensor a and a unify as a (according to type-tensor-simple.md)
--- Tensor MathExpr unifies with MathExpr as MathExpr
-unify' (TTensor t1) t2 = do
-  s <- unify t1 t2
-  -- Return substitution that unifies t1 with t2, result type is t2 (scalar)
-  Right s
-
-unify' t1 (TTensor t2) = do
-  s <- unify t1 t2
-  -- Return substitution that unifies t1 with t2, result type is t1 (scalar)
-  Right s
-
 -- Mismatched types
 unify' t1 t2 = Left $ TypeMismatch t1 t2
 
@@ -104,6 +93,84 @@ unifyVar v t
 -- This prevents infinite types like a = [a]
 occursIn :: TyVar -> Type -> Bool
 occursIn v t = v `Set.member` freeTyVars t
+
+-- | Unify two types, allowing Tensor a to unify with a at top-level definitions
+-- This is used only for top-level definitions with type annotations
+-- According to type-tensor-simple.md: "トップレベル定義のテンソルについてのみ、Tensor a型が a型とunifyするとa型になる。"
+unifyWithTopLevel :: Type -> Type -> Either UnifyError Subst
+unifyWithTopLevel t1 t2 =
+  unifyWithTopLevel' (normalizeTensorType t1) (normalizeTensorType t2)
+
+unifyWithTopLevel' :: Type -> Type -> Either UnifyError Subst
+-- Same types unify trivially
+unifyWithTopLevel' TInt TInt = Right emptySubst
+unifyWithTopLevel' TFloat TFloat = Right emptySubst
+unifyWithTopLevel' TBool TBool = Right emptySubst
+unifyWithTopLevel' TChar TChar = Right emptySubst
+unifyWithTopLevel' TString TString = Right emptySubst
+
+-- Type variables
+unifyWithTopLevel' (TVar v) t = unifyVar v t
+unifyWithTopLevel' t (TVar v) = unifyVar v t
+
+unifyWithTopLevel' (TTuple ts1) (TTuple ts2)
+  | length ts1 == length ts2 = unifyManyWithTopLevel ts1 ts2
+  | otherwise = Left $ TypeMismatch (TTuple ts1) (TTuple ts2)
+
+unifyWithTopLevel' (TCollection t1) (TCollection t2) = unifyWithTopLevel t1 t2
+
+-- Inductive types
+unifyWithTopLevel' (TInductive n1 ts1) (TInductive n2 ts2)
+  | n1 == n2 && length ts1 == length ts2 = unifyManyWithTopLevel ts1 ts2
+  | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
+
+-- Tensor types
+-- Tensor a and Tensor b unify if a and b unify
+unifyWithTopLevel' (TTensor t1) (TTensor t2) = unifyWithTopLevel t1 t2
+
+unifyWithTopLevel' (THash k1 v1) (THash k2 v2) = do
+  s1 <- unifyWithTopLevel k1 k2
+  s2 <- unifyWithTopLevel (applySubst s1 v1) (applySubst s1 v2)
+  Right $ composeSubst s2 s1
+
+unifyWithTopLevel' (TMatcher t1) (TMatcher t2) = unifyWithTopLevel t1 t2
+
+unifyWithTopLevel' (TFun a1 r1) (TFun a2 r2) = do
+  s1 <- unifyWithTopLevel a1 a2
+  s2 <- unifyWithTopLevel (applySubst s1 r1) (applySubst s1 r2)
+  Right $ composeSubst s2 s1
+
+unifyWithTopLevel' (TIO t1) (TIO t2) = unifyWithTopLevel t1 t2
+
+unifyWithTopLevel' (TIORef t1) (TIORef t2) = unifyWithTopLevel t1 t2
+
+-- TAny unifies with anything
+unifyWithTopLevel' TAny _ = Right emptySubst
+unifyWithTopLevel' _ TAny = Right emptySubst
+
+-- Tensor a and a can unify as a (only at top-level definitions)
+-- Tensor MathExpr can unifies with MathExpr as MathExpr
+unifyWithTopLevel' (TTensor t1) t2 = do
+  s <- unifyWithTopLevel t1 t2
+  -- Return substitution that unifies t1 with t2, result type is t2 (scalar)
+  Right s
+
+unifyWithTopLevel' t1 (TTensor t2) = do
+  s <- unifyWithTopLevel t1 t2
+  -- Return substitution that unifies t1 with t2, result type is t1 (scalar)
+  Right s
+
+-- Mismatched types
+unifyWithTopLevel' t1 t2 = Left $ TypeMismatch t1 t2
+
+-- | Unify a list of type pairs with top-level tensor unification
+unifyManyWithTopLevel :: [Type] -> [Type] -> Either UnifyError Subst
+unifyManyWithTopLevel [] [] = Right emptySubst
+unifyManyWithTopLevel (t1:ts1) (t2:ts2) = do
+  s1 <- unifyWithTopLevel t1 t2
+  s2 <- unifyManyWithTopLevel (map (applySubst s1) ts1) (map (applySubst s1) ts2)
+  Right $ composeSubst s2 s1
+unifyManyWithTopLevel _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])  -- Length mismatch
 
 -- | Unify a list of type pairs
 unifyMany :: [Type] -> [Type] -> Either UnifyError Subst
