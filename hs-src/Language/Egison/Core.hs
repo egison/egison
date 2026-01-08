@@ -300,8 +300,6 @@ evalExprShallow env (IMemoizedLambdaExpr names body) = do
 
 evalExprShallow env (ICambdaExpr name expr) = return . Value $ CFunc env name expr
 
-evalExprShallow env (IPatternFunctionExpr names pattern) = return . Value $ PatternFunc env names pattern
-
 evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "function symbol is not bound to a variable"
 
 evalExprShallow env@(Env _ (Just (name, is))) (IFunctionExpr args) = do
@@ -414,14 +412,6 @@ evalExprShallow env (IMatchExpr pmmode target matcher clauses) = do
 evalExprShallow env (ISeqExpr expr1 expr2) = do
   _ <- evalExprDeep env expr1
   evalExprShallow env expr2
-
-evalExprShallow env (ICApplyExpr func arg) = do
-  func <- evalExprShallow env func
-  args <- evalExprDeep env arg >>= collectionToList
-  case func of
-    Value (MemoizedFunc hashRef env names body) ->
-      evalMemoizedFunc hashRef env names body args
-    _ -> applyObj env func (map (WHNF . Value) args)
 
 evalExprShallow env (IApplyExpr func args) = do
   func <- appendDF 0 <$> evalExprShallow env func

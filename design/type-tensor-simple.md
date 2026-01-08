@@ -6,13 +6,12 @@ Egisonのテンソルの添字記法に型をつけたい。
 def (.) (t1 : Tensor a) (t2 : Tensor a) : Tensor a := contractWith (+) (t1 * t2)
 ```
 
-Tensor MathExpr 型は MathExpr 型のデータにもマッチできる。
-型推論の結果が MathExpr のデータは、Tensor MathExpr 型と注釈がついていたら、型エラーとはならず、MathExprとしてunifyされる。
-逆に MathExpr 型は Tensor MathExpr 型のデータにはマッチできない。
+Tensor a型は a型とunifyするとa型になる。
+Tensor a型の可能性があるデータにa型であると型注釈する場合は、本当に自信がある場合のみ間違えずに行う必要がある。
 
 ```
-1 : Tensor Integer -- OK: Integer型になる。Integerは0階のIntegerのテンソルと考えると問題ない。
-[| 1, 2 |] : Integer -- NG: 型検査に失敗する。
+1 : Tensor Integer -- OK: Integer型になる。Integerは0階のIntegerのテンソルと考えると問題ない。実行時エラーになる心配もない。
+[| 1, 2 |] : Integer -- NG: 型検査は通るが、どこかで実行時エラーとなる可能性あり。
 ```
 
 仮引数の型が  Tensor MathExpr 型（例えばMathExpr型など）とunifyできない型の場合、 Tensor MathExpr 型のデータが引数に渡されると、Egisonの論文で記述されている方法により自動で tensorMap が挿入される。

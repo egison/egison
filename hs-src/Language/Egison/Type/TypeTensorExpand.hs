@@ -157,10 +157,6 @@ expandTensorApplications (TIExpr scheme expr) = do
         body' <- expandTIExpr body
         return $ ICambdaExpr var body'
       
-      IPatternFunctionExpr args pat -> do
-        -- Patterns don't contain IExpr directly, so just return
-        return $ IPatternFunctionExpr args pat
-      
       -- Control flow
       IIfExpr cond thenExpr elseExpr -> do
         cond' <- expandTIExpr cond
@@ -244,16 +240,6 @@ expandTensorApplications (TIExpr scheme expr) = do
         func' <- expandTIExpr (tiExpr funcTI)
         args' <- mapM (expandTIExpr . tiExpr) argsTI
         return $ IApplyExpr func' args'
-      
-      ICApplyExpr func arg -> do
-        -- Process with type information to enable tensorMap insertion
-        funcTI <- inferAndExpand func
-        argTI <- inferAndExpand arg
-        -- TODO: Check types and insert tensorMap if needed
-        -- For now, just process recursively
-        func' <- expandTIExpr (tiExpr funcTI)
-        arg' <- expandTIExpr (tiExpr argTI)
-        return $ ICApplyExpr func' arg'
       
       -- Tensor operations
       IGenerateTensorExpr expr1 expr2 -> do
