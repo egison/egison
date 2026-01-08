@@ -48,7 +48,6 @@
 | ファイル | 役割 | 主要な型・関数 | 状態 |
 |---------|------|---------------|------|
 | `hs-src/Language/Egison/Type/TypedDesugar.hs` | 型駆動変換のオーケストレーション | `desugarTypedExprT :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
-| `hs-src/Language/Egison/Type/TypeTensorExpand.hs` | テンソル変換（tensorMap挿入） | `expandTensorApplications :: TIExpr -> EvalM TIExpr` | ✅ 実装済み（フレームワーク） |
 | `hs-src/Language/Egison/Type/TypeClassExpand.hs` | 型クラス辞書展開 | `expandTypeClassMethods :: TypeCheckEnv -> Expr -> Expr` | ⏳ Expr版のみ、TIExpr版は未実装 |
 
 ### Phase 9-10: 評価
@@ -126,6 +125,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase 5-6: Type Inference (IInfer.hs)                       │
 │   IExpr → (Type, Subst)                                     │
+|   Tensor Applicationの展開
 │   基盤: Unify.hs, Subst.hs, Types.hs                       │
 └────────────┬────────────────────────────────────────────────┘
              │
@@ -140,9 +140,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase 8: TypedDesugar (TypedDesugar.hs)                    │
 │   TIExpr → TIExpr                                          │
-│   1. expandTensorApplications (TypeTensorExpand.hs)        │
-│      - tensorMap自動挿入のフレームワーク実装済み             │
-│   2. expandTypeClassMethods (TypeClassExpand.hs)           │
+│   1. expandTypeClassMethods (TypeClassExpand.hs)           │
 │      - TIExpr版は未実装（Expr版のみ存在）                   │
 └────────────┬────────────────────────────────────────────────┘
              │
@@ -170,11 +168,10 @@
    - 再帰的な型情報保持処理（各子式の型推論と処理）
 
 **実装が必要な機能**:
-1. **tensorMap自動挿入** (TypeTensorExpand.hs)
-   - ✅ フレームワーク実装済み（型情報を保持しながら再帰処理）
+1. **tensorMap自動挿入** (in IInfer.hs)
    - ⏳ 実装待ち: テンソル型の不一致検出とtensorMap挿入ロジック
-   - 関数適用時に、関数型と引数型を比較して`Tensor MathExpr`と`MathExpr`の不一致を検出
-   - 必要に応じて`tensorMap`を挿入
+   - 関数の仮引数の型が`MathExpr`などテンソルとunifyできない型であるのに、引数の型が`Tensor MathExpr`などテンソル型であった場合、`TensorMap`を挿入する。
+   - `TensorMap`がネストする場合、`TensorMap2`を使ってネストをできるだけ解消する。
    
 2. **型クラス辞書渡し** (TypeClassExpand.hs)
    - ✅ Expr版は実装済み

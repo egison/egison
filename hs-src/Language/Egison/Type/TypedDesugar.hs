@@ -7,13 +7,10 @@ It orchestrates type-driven transformations on TIExpr (Typed Internal Expression
 by calling specialized expansion modules.
 
 Type-Driven Transformations (Phase 8):
-  1. tensorMap automatic insertion (via TypeTensorExpand)
-     - Detect mismatches between Tensor MathExpr and MathExpr
-     - Insert tensorMap at appropriate positions
-  2. Type class dictionary passing (via TypeClassExpand)
+  1. Type class dictionary passing (via TypeClassExpand)
      - Instance selection based on types
      - Method call concretization
-  3. Type information optimization and embedding
+  2. Type information optimization and embedding
      - Preserve type info for better error messages during evaluation
      - Each node in TIExpr contains its type
 
@@ -30,7 +27,6 @@ module Language.Egison.Type.TypedDesugar
 
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..))
-import           Language.Egison.Type.TypeTensorExpand (expandTensorApplications)
 import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT)
 
 -- | Desugar a typed expression (TIExpr) with type-driven transformations
@@ -42,11 +38,8 @@ import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT)
 -- because type class methods might operate on tensor types.
 desugarTypedExprT :: TIExpr -> EvalM TIExpr
 desugarTypedExprT tiexpr = do
-  -- Step 1: Expand tensor applications (insert tensorMap where needed)
-  tiexpr' <- expandTensorApplications tiexpr
-  
-  -- Step 2: Expand type class methods (dictionary passing)
-  tiexpr'' <- expandTypeClassMethodsT tiexpr'
+  -- Step 1: Expand type class methods (dictionary passing)
+  tiexpr'' <- expandTypeClassMethodsT tiexpr
   
   return tiexpr''
 
