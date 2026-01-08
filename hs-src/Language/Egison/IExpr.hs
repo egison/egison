@@ -78,7 +78,6 @@ data IExpr
   | ILambdaExpr (Maybe Var) [Var] IExpr
   | IMemoizedLambdaExpr [String] IExpr
   | ICambdaExpr String IExpr
-  | IPatternFunctionExpr [String] IPattern
   | IIfExpr IExpr IExpr IExpr
   | ILetRecExpr [IBindingExpr] IExpr
   | ILetExpr [IBindingExpr] IExpr
@@ -92,7 +91,6 @@ data IExpr
   | IDoExpr [IBindingExpr] IExpr
   | ISeqExpr IExpr IExpr
   | IApplyExpr IExpr [IExpr]
-  | ICApplyExpr IExpr IExpr
   | IGenerateTensorExpr IExpr IExpr
   | ITensorExpr IExpr IExpr
   | ITensorContractExpr IExpr

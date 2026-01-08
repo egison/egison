@@ -168,7 +168,6 @@ instance Pretty Expr where
 
   pretty (SeqExpr e1 e2) = applyLike [pretty "seq", pretty' e1, pretty' e2]
   pretty (ApplyExpr x ys) = applyLike (map pretty' (x : ys))
-  pretty (CApplyExpr e1 e2) = applyLike [pretty "capply", pretty' e1, pretty' e2]
   pretty (AnonParamFuncExpr n e) = pretty n <> pretty '#' <> pretty' e
   pretty (AnonParamExpr n) = pretty '%' <> pretty n
 
@@ -395,9 +394,6 @@ instance Pretty IExpr where
   pretty (ICambdaExpr x e) =
     indentBlock (pretty "cambda" <+> pretty x <+> pretty "->") [pretty e]
   
-  pretty (IPatternFunctionExpr xs p) =
-    lambdaLike (pretty "\\") (map pretty xs) (pretty "=>") (pretty p)
-  
   pretty (IIfExpr cond thenE elseE) =
     indentBlock (pretty "if" <+> pretty cond)
       [pretty "then" <+> pretty thenE, pretty "else" <+> pretty elseE]
@@ -444,8 +440,6 @@ instance Pretty IExpr where
   pretty (ISeqExpr e1 e2) = applyLike [pretty "seq", pretty' e1, pretty' e2]
   
   pretty (IApplyExpr fn args) = applyLike (map pretty' (fn : args))
-  
-  pretty (ICApplyExpr e1 e2) = applyLike [pretty "capply", pretty' e1, pretty' e2]
   
   pretty (IGenerateTensorExpr gen shape) =
     applyLike [pretty "generateTensor", pretty' gen, pretty' shape]
@@ -661,7 +655,6 @@ instance Complex Expr where
   isAtom InfixExpr{}              = False
   isAtom (ApplyExpr _ [])         = True
   isAtom ApplyExpr{}              = False
-  isAtom CApplyExpr{}             = False
   isAtom LambdaExpr{}             = False
   isAtom MemoizedLambdaExpr{}     = False
   isAtom TypedMemoizedLambdaExpr{} = False

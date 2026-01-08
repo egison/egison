@@ -482,8 +482,10 @@ desugar (TypedMemoizedLambdaExpr params _ body) =
 desugar (CambdaExpr name expr) =
   ICambdaExpr name <$> desugar expr
 
-desugar (PatternFunctionExpr names pattern) =
-  IPatternFunctionExpr names <$> desugarPattern pattern
+desugar (PatternFunctionExpr _names _pattern) =
+  -- Pattern functions are only defined at TopExpr level
+  -- They should not appear in expression context
+  throwError $ Default "Pattern functions cannot be used as expressions"
 
 desugar (IfExpr expr0 expr1 expr2) =
   IIfExpr <$> desugar expr0 <*> desugar expr1 <*> desugar expr2
@@ -575,9 +577,6 @@ desugar (FlipIndicesExpr expr) =
 
 desugar (ApplyExpr expr args) =
   IApplyExpr <$> desugar expr <*> mapM desugar args
-
-desugar (CApplyExpr expr0 expr1) =
-  ICApplyExpr <$> desugar expr0 <*> desugar expr1
 
 desugar FreshVarExpr = do
   id <- fresh

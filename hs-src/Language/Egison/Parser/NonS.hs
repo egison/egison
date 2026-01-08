@@ -710,7 +710,6 @@ exprInOp =
    <|> withSymbolsExpr
    <|> doExpr
    <|> seqExpr
-   <|> capplyExpr
    <|> matcherExpr
    <|> algebraicDataMatcherExpr
    <|> tensorExpr
@@ -906,9 +905,6 @@ doExpr = do
 
 seqExpr :: Parser Expr
 seqExpr = SeqExpr <$> (reserved "seq" >> atomExpr) <*> atomExpr
-
-capplyExpr :: Parser Expr
-capplyExpr = CApplyExpr <$> (reserved "capply" >> atomExpr) <*> atomExpr
 
 matcherExpr :: Parser Expr
 matcherExpr = do

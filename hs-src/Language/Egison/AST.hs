@@ -203,7 +203,6 @@ data Expr
 
   | SeqExpr Expr Expr
   | ApplyExpr Expr [Expr]
-  | CApplyExpr Expr Expr
   | AnonParamFuncExpr Integer Expr      -- e.g. 2#2, 3#$1, 2#($1 + $2)
   | AnonTupleParamFuncExpr Integer Expr -- e.g. (2)#2, (3)#$1, (2)#($1 + $2)
   | AnonListParamFuncExpr Integer Expr  -- e.g. [2]#2, [3]#$1, [2]#($1 + $2)

@@ -166,10 +166,6 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       ICambdaExpr var body -> do
         body' <- expandTIExpr classEnv' body
         return $ ICambdaExpr var body'
-      
-      IPatternFunctionExpr args pat -> do
-        -- Patterns don't contain IExpr directly, so just return
-        return $ IPatternFunctionExpr args pat
   
   -- Control flow
       IIfExpr cond thenExpr elseExpr -> do
@@ -259,19 +255,6 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
             func' <- expandTIExpr classEnv' (tiExpr funcTI)
             args' <- mapM (expandTIExpr classEnv' . tiExpr) argsTI
             return $ IApplyExpr func' args'
-      
-      ICApplyExpr func arg -> do
-        -- Process with type information to enable type class expansion
-        funcTI <- inferAndExpand classEnv' func
-        argTI <- inferAndExpand classEnv' arg
-        -- Try to expand type class method calls
-        expanded <- tryExpandTypeClassCallT classEnv' funcTI [argTI]
-        case expanded of
-          Just expandedExpr -> return expandedExpr
-          Nothing -> do
-            func' <- expandTIExpr classEnv' (tiExpr funcTI)
-            arg' <- expandTIExpr classEnv' (tiExpr argTI)
-            return $ ICApplyExpr func' arg'
   
   -- Tensor operations
       IGenerateTensorExpr expr1 expr2 -> do

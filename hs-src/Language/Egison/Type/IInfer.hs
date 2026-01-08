@@ -989,8 +989,130 @@ inferIExprWithContext expr ctx = case expr of
   IQuoteExpr _ -> return (TInt, emptySubst)
   IQuoteSymbolExpr _ -> return (TInt, emptySubst)
   
-  -- Other cases: return TAny for now
-  _ -> return (TAny, emptySubst)
+  -- Indexed expression (tensor indexing)
+  IIndexedExpr _isSupported baseExpr _indices -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (baseType, s) <- inferIExprWithContext baseExpr exprCtx
+    -- For tensors, indexing returns the element type
+    case baseType of
+      TTensor elemType -> return (elemType, s)
+      TCollection elemType -> return (elemType, s)
+      _ -> return (baseType, s)  -- Fallback: return base type
+  
+  -- Subrefs expression (subscript references)
+  ISubrefsExpr _isSupported baseExpr _refExpr -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (baseType, s1) <- inferIExprWithContext baseExpr exprCtx
+    -- TODO: Properly handle subscript semantics
+    return (baseType, s1)
+  
+  -- Suprefs expression (superscript references)
+  ISuprefsExpr _isSupported baseExpr _refExpr -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (baseType, s1) <- inferIExprWithContext baseExpr exprCtx
+    -- TODO: Properly handle superscript semantics
+    return (baseType, s1)
+  
+  -- Userrefs expression (user-defined references)
+  IUserrefsExpr _isSupported baseExpr _refExpr -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (baseType, s1) <- inferIExprWithContext baseExpr exprCtx
+    -- TODO: Properly handle user-defined references
+    return (baseType, s1)
+  
+  -- Wedge apply expression (exterior product)
+  IWedgeApplyExpr func args -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (funcType, s1) <- inferIExprWithContext func exprCtx
+    -- Wedge application is similar to normal application
+    inferIApplicationWithContext funcType args s1 exprCtx
+  
+  -- Generate tensor expression
+  IGenerateTensorExpr shapeExpr genFunc -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (_, s1) <- inferIExprWithContext shapeExpr exprCtx
+    (funcType, s2) <- inferIExprWithContext genFunc exprCtx
+    -- Extract element type from function result
+    elemType <- case funcType of
+      TFun _ resultType -> return resultType
+      _ -> freshVar "tensorElem"
+    let finalS = composeSubst s2 s1
+    return (TTensor (applySubst finalS elemType), finalS)
+  
+  -- Tensor expression
+  ITensorExpr shapeExpr elemsExpr -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (_, s1) <- inferIExprWithContext shapeExpr exprCtx
+    (elemsType, s2) <- inferIExprWithContext elemsExpr exprCtx
+    -- Extract element type
+    elemType <- case elemsType of
+      TCollection t -> return t
+      _ -> freshVar "tensorElem"
+    let finalS = composeSubst s2 s1
+    return (TTensor (applySubst finalS elemType), finalS)
+  
+  -- Tensor contract expression
+  ITensorContractExpr tensorExpr -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
+    -- Contraction reduces tensor rank
+    case tensorType of
+      TTensor elemType -> return (elemType, s)
+      _ -> return (tensorType, s)
+  
+  -- Tensor map expression
+  ITensorMapExpr func tensorExpr -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (funcType, s1) <- inferIExprWithContext func exprCtx
+    (tensorType, s2) <- inferIExprWithContext tensorExpr exprCtx
+    let s12 = composeSubst s2 s1
+    -- Function maps elements: a -> b, tensor is Tensor a, result is Tensor b
+    case tensorType of
+      TTensor elemType -> do
+        resultElemType <- freshVar "tmapElem"
+        s3 <- unifyTypesWithContext (applySubst s12 funcType) (TFun elemType resultElemType) exprCtx
+        let finalS = composeSubst s3 s12
+        return (TTensor (applySubst finalS resultElemType), finalS)
+      _ -> return (tensorType, s12)
+  
+  -- Tensor map2 expression (binary map)
+  ITensorMap2Expr func tensor1 tensor2 -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (funcType, s1) <- inferIExprWithContext func exprCtx
+    (t1Type, s2) <- inferIExprWithContext tensor1 exprCtx
+    (t2Type, s3) <- inferIExprWithContext tensor2 exprCtx
+    let s123 = foldr composeSubst emptySubst [s3, s2, s1]
+    -- Function: a -> b -> c, tensors are Tensor a and Tensor b, result is Tensor c
+    case (t1Type, t2Type) of
+      (TTensor elem1, TTensor elem2) -> do
+        resultElemType <- freshVar "tmap2Elem"
+        s4 <- unifyTypesWithContext (applySubst s123 funcType) 
+                (TFun elem1 (TFun elem2 resultElemType)) exprCtx
+        let finalS = composeSubst s4 s123
+        return (TTensor (applySubst finalS resultElemType), finalS)
+      _ -> return (t1Type, s123)
+  
+  -- Transpose expression
+  ITransposeExpr tensorExpr _permExpr -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
+    -- Transpose preserves tensor type
+    return (tensorType, s)
+  
+  -- Flip indices expression
+  IFlipIndicesExpr tensorExpr -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
+    -- Flipping indices preserves tensor type
+    return (tensorType, s)
+  
+  -- Function expression (built-in function reference)
+  IFunctionExpr _names -> do
+    -- Built-in function: return a generic function type
+    -- TODO: Look up actual function signature
+    argType <- freshVar "funcArg"
+    resultType <- freshVar "funcResult"
+    return (TFun argType resultType, emptySubst)
 
 -- | Infer match clauses type
 -- All clauses should return the same type
