@@ -67,6 +67,7 @@ import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
                                               emptyContext, withExpr, withContext)
 import           Language.Egison.Type.Subst
+import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
 
@@ -347,7 +348,7 @@ inferIExprWithContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     elemType <- freshVar "vecElem"
     s <- foldM (inferListElem elemType exprCtx) emptySubst elems
-    return (TTensor (applySubst s elemType), s)
+    return (normalizeTensorType (TTensor (applySubst s elemType)), s)
     where
       inferListElem eType exprCtx s e = do
         (t, s') <- inferIExprWithContext e exprCtx
@@ -1047,7 +1048,7 @@ inferIExprWithContext expr ctx = case expr of
       TFun _ resultType -> return resultType
       _ -> freshVar "tensorElem"
     let finalS = composeSubst s2 s1
-    return (TTensor (applySubst finalS elemType), finalS)
+    return (normalizeTensorType (TTensor (applySubst finalS elemType)), finalS)
   
   -- Tensor expression
   ITensorExpr shapeExpr elemsExpr -> do
@@ -1059,7 +1060,7 @@ inferIExprWithContext expr ctx = case expr of
       TCollection t -> return t
       _ -> freshVar "tensorElem"
     let finalS = composeSubst s2 s1
-    return (TTensor (applySubst finalS elemType), finalS)
+    return (normalizeTensorType (TTensor (applySubst finalS elemType)), finalS)
   
   -- Tensor contract expression
   ITensorContractExpr tensorExpr -> do
@@ -1082,7 +1083,7 @@ inferIExprWithContext expr ctx = case expr of
         resultElemType <- freshVar "tmapElem"
         s3 <- unifyTypesWithContext (applySubst s12 funcType) (TFun elemType resultElemType) exprCtx
         let finalS = composeSubst s3 s12
-        return (TTensor (applySubst finalS resultElemType), finalS)
+        return (normalizeTensorType (TTensor (applySubst finalS resultElemType)), finalS)
       _ -> return (tensorType, s12)
   
   -- Tensor map2 expression (binary map)
@@ -1099,7 +1100,7 @@ inferIExprWithContext expr ctx = case expr of
         s4 <- unifyTypesWithContext (applySubst s123 funcType) 
                 (TFun elem1 (TFun elem2 resultElemType)) exprCtx
         let finalS = composeSubst s4 s123
-        return (TTensor (applySubst finalS resultElemType), finalS)
+        return (normalizeTensorType (TTensor (applySubst finalS resultElemType)), finalS)
       _ -> return (t1Type, s123)
   
   -- Transpose expression
@@ -1107,14 +1108,14 @@ inferIExprWithContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     (tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
     -- Transpose preserves tensor type
-    return (tensorType, s)
+    return (normalizeTensorType tensorType, s)
   
   -- Flip indices expression
   IFlipIndicesExpr tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
     -- Flipping indices preserves tensor type
-    return (tensorType, s)
+    return (normalizeTensorType tensorType, s)
   
   -- Function expression (built-in function reference)
   IFunctionExpr _names -> do
