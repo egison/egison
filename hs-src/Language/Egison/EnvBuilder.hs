@@ -281,7 +281,7 @@ typeExprToType (TEApp t1 ts) =
     TVar (TyVar name) -> TInductive name (map typeExprToType ts)  -- Type application: MyList a
     TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
     baseType -> baseType  -- Can't apply to non-inductive types
-typeExprToType (TETensor elemT _ _) = TTensor (typeExprToType elemT)
+typeExprToType (TETensor elemT) = TTensor (typeExprToType elemT)
 typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
 typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)

@@ -105,8 +105,8 @@ formatTypeError err = case err of
   UnificationError t1 t2 ctx ->
     formatWithContext ctx $
       "Cannot unify types:\n" ++
-      "  Expected: " ++ prettyType t1 ++ "\n" ++
-      "  Actual:   " ++ prettyType t2
+      "  Expected: " ++ prettyType t1 ++ " (" ++ show t1 ++ ")\n" ++
+      "  Actual:   " ++ prettyType t2 ++ " (" ++ show t2 ++ ")"
 
   OccursCheckError (TyVar v) t ctx ->
     formatWithContext ctx $

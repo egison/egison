@@ -122,8 +122,7 @@ prettyTypeExpr (TEFun t1 t2)  = prettyTypeExprArg t1 ++ " -> " ++ prettyTypeExpr
     prettyTypeExprArg t             = prettyTypeExpr t
 prettyTypeExpr (TEMatcher t)  = "Matcher " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEPattern t)  = "Pattern " ++ prettyTypeExprAtom t
-prettyTypeExpr (TETensor t sh is) =
-  "Tensor " ++ prettyTypeExprAtom t ++ " " ++ prettyShapeExpr sh ++ prettyIndexExprs is
+prettyTypeExpr (TETensor t) = "Tensor " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEApp t args) =
   prettyTypeExprAtom t ++ " " ++ unwords (map prettyTypeExprAtom args)
 
