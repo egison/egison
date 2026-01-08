@@ -7,11 +7,18 @@ def (.) (t1 : Tensor a) (t2 : Tensor a) : Tensor a := contractWith (+) (t1 * t2)
 ```
 
 Tensor MathExpr 型は MathExpr 型のデータにもマッチできる。
+型推論の結果が MathExpr のデータは、Tensor MathExpr 型と注釈がついていたら、型エラーとはならず、MathExprとしてunifyされる。
 逆に MathExpr 型は Tensor MathExpr 型のデータにはマッチできない。
-仮引数の型が  Tensor MathExpr 型にマッチしない型の場合、 Tensor MathExpr 型のデータが引数に渡されるとEgisonの論文で記述されている方法で自動で tensorMap が挿入される。
-Tensor MathExpr 型と MathExpr 型が unify されるときは、 MathExpr　型として unify される。
 
-例えば、 `+` や `*` などスカラーに対して定義された関数はテンソルに適用された場合、自動でテンソル積のような形でmapされる。
+```
+1 : Tensor Integer -- OK: Integer型になる。Integerは0階のIntegerのテンソルと考えると問題ない。
+[| 1, 2 |] : Integer -- NG: 型検査に失敗する。
+```
+
+仮引数の型が  Tensor MathExpr 型（例えばMathExpr型など）とunifyできない型の場合、 Tensor MathExpr 型のデータが引数に渡されると、Egisonの論文で記述されている方法により自動で tensorMap が挿入される。
+Tensor MathExpr型とunifyできる型の例には、Tensor MathExpr型、a型、Eq a型などがある。
+そのため、テンソルの掛け算や、foldr関数、等価演算子などには、テンソルはテンソルとしてそのまま渡される。
+対して、Num aの `+` や `-`、 `*`などの演算子については、成分ごとに処理がmapされる。
 
 テンソルの宣言は以下のようにできる。 
 
@@ -21,18 +28,17 @@ def g_i_j : Tensor MathExpr := [| [| 1, 0 |] [|0, r^2 |] |]_i_j
 def g~i~j : Tensor MathExpr := [| [| 1, 0 |] [|0, 1 / r^2 |] |]~i_j
 ```
 
-以下のように、Tensor MathExpr 型と MathExpr 型が unify されるときは、 MathExpr　型として unify される。
+以下のように、注釈された型が MathExpr 型で型推論された方が Tensor MathExpr 型だった場合、 unify されると MathExpr 型となる。
 
 ```
-g_i_j . g~i~j : MathExpr -- Tensor MathExpr => MathExpr
+g_i_j . g~i~j : MathExpr -- MathExpr =:= Tensor MathExpr => MathExpr
 ```
 
-この仕様はcontractされてスカラーになるかテンソルのままなのかこの型システムでは判断できないためである。
-ユーザがスカラーになるのか注釈する必要がある。
-しかし、テンソルの積のような演算子の型はテンソルを返すように一般化したいので、ユーザがスカラーが返ってくると明示的に記述したときのみ、スカラーとして型付けするようにしたい。
-そのために、Tensor MathExpr 型と MathExpr 型が unify されるときは、 MathExpr　型として unify されるようにする。
+この仕様はcontractされてスカラーになるかテンソルのままなのかこの型システムでは推論できないためである。
+正確に型検査するには、contractの結果、スカラーになるのかテンソルになるのかユーザが注釈する必要がある。
+そのために、注釈された型が MathExpr 型で型推論された方が Tensor MathExpr 型だった場合、 unify されると MathExpr 型となる。
 
-上記のテンソルの宣言は以下のような糖衣構文である。
+テンソルの宣言は以下のような糖衣構文である。
 添字はテンソルを使う際に初めてテンソルに渡されるという扱い。
 プレースホルダ付きのテンソル型は添字を引数にとってテンソルを返す型と考えることができる。
 `2#($1 + $2)` は `\x y -> x + y` の糖衣構文。
