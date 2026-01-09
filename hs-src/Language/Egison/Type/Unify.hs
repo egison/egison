@@ -55,10 +55,6 @@ unify' (TInductive n1 ts1) (TInductive n2 ts2)
   | n1 == n2 && length ts1 == length ts2 = unifyMany ts1 ts2
   | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
 
--- Tensor types
--- Tensor a and Tensor b unify if a and b unify
-unify' (TTensor t1) (TTensor t2) = unify t1 t2
-
 unify' (THash k1 v1) (THash k2 v2) = do
   s1 <- unify k1 k2
   s2 <- unify (applySubst s1 v1) (applySubst s1 v2)
@@ -74,6 +70,10 @@ unify' (TFun a1 r1) (TFun a2 r2) = do
 unify' (TIO t1) (TIO t2) = unify t1 t2
 
 unify' (TIORef t1) (TIORef t2) = unify t1 t2
+
+-- Tensor types
+-- Tensor a and Tensor b unify if a and b unify
+unify' (TTensor t1) (TTensor t2) = unify t1 t2
 
 -- TAny unifies with anything
 unify' TAny _ = Right emptySubst
@@ -124,10 +124,6 @@ unifyWithTopLevel' (TInductive n1 ts1) (TInductive n2 ts2)
   | n1 == n2 && length ts1 == length ts2 = unifyManyWithTopLevel ts1 ts2
   | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
 
--- Tensor types
--- Tensor a and Tensor b unify if a and b unify
-unifyWithTopLevel' (TTensor t1) (TTensor t2) = unifyWithTopLevel t1 t2
-
 unifyWithTopLevel' (THash k1 v1) (THash k2 v2) = do
   s1 <- unifyWithTopLevel k1 k2
   s2 <- unifyWithTopLevel (applySubst s1 v1) (applySubst s1 v2)
@@ -148,6 +144,9 @@ unifyWithTopLevel' (TIORef t1) (TIORef t2) = unifyWithTopLevel t1 t2
 unifyWithTopLevel' TAny _ = Right emptySubst
 unifyWithTopLevel' _ TAny = Right emptySubst
 
+-- Tensor types
+-- Tensor a and Tensor b unify if a and b unify
+unifyWithTopLevel' (TTensor t1) (TTensor t2) = unifyWithTopLevel t1 t2
 -- Tensor a and a can unify as a (only at top-level definitions)
 -- Tensor MathExpr can unifies with MathExpr as MathExpr
 unifyWithTopLevel' (TTensor t1) t2 = do
