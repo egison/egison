@@ -1518,6 +1518,95 @@ shouldInsertTensorMap argType paramType = case argType of
   -- Non-tensor argument → no insertion needed
   _ -> False
 
+-- | Generate a fresh variable name for tensorMap lambdas
+freshVarName :: String -> Infer String
+freshVarName prefix = do
+  st <- get
+  let n = inferCounter st
+  modify $ \s -> s { inferCounter = n + 1 }
+  return $ prefix ++ show n
+
+-- | Get the parameter type at the specified index from a function type
+-- Example: (a -> b -> c) at index 0 → Just a, at index 1 → Just b
+getParamType :: Type -> Int -> Maybe Type
+getParamType (TFun param _) 0 = Just param
+getParamType (TFun _ rest) n 
+  | n > 0 = getParamType rest (n - 1)
+getParamType _ _ = Nothing
+
+-- | Apply one argument to a function type
+-- Example: (a -> b -> c) → (b -> c)
+applyOneArgType :: Type -> Type
+applyOneArgType (TFun _ rest) = rest
+applyOneArgType t = t  -- No more arguments
+
+-- | Recursively wrap function application with tensorMap where needed
+-- This implements the automatic tensorMap insertion described in type-tensor-simple.md
+-- Process arguments from left to right, building nested tensorMap expressions
+wrapWithTensorMap :: 
+    IExpr           -- Current function expression (possibly partially applied)
+    -> Type         -- Current function type
+    -> [IExpr]      -- Remaining argument expressions
+    -> [Type]       -- Remaining argument types
+    -> Subst        -- Current substitution
+    -> TypeErrorContext
+    -> Infer (IExpr, Type, Subst)
+wrapWithTensorMap currentFunc currentType [] [] subst _ctx = do
+  -- All arguments processed
+  return (currentFunc, currentType, subst)
+
+wrapWithTensorMap currentFunc currentType (arg:restArgs) (argType:restTypes) subst ctx = do
+  -- Get the expected parameter type
+  let currentType' = applySubst subst currentType
+  case getParamType currentType' 0 of
+    Nothing -> throwError $ UnificationError currentType' (TFun (TVar (TyVar "a")) (TVar (TyVar "b"))) ctx
+    Just paramType -> do
+      let argType' = applySubst subst argType
+          paramType' = applySubst subst paramType
+      
+      if shouldInsertTensorMap argType' paramType'
+        then do
+          -- TensorMap insertion needed
+          varName <- freshVarName "tmapVar"
+          let var = Var varName []
+              varExpr = IVarExpr varName
+              
+          -- Build inner expression (recursive call)
+          let innerFunc = IApplyExpr currentFunc [varExpr]
+              innerType = applyOneArgType currentType'
+          
+          (innerExpr, finalType, s1) <- wrapWithTensorMap 
+                                          innerFunc 
+                                          innerType 
+                                          restArgs 
+                                          restTypes 
+                                          subst 
+                                          ctx
+          
+          -- Build lambda: \varName -> innerExpr
+          let lambda = ILambdaExpr Nothing [var] innerExpr
+              wrappedExpr = ITensorMapExpr lambda arg
+          
+          -- Calculate result type: Tensor resultType
+          -- tensorMap : (a -> b) -> Tensor a -> Tensor b
+          let resultType = normalizeTensorType (TTensor finalType)
+          
+          return (wrappedExpr, resultType, s1)
+        
+        else do
+          -- No tensorMap needed, normal application
+          -- Unify parameter and argument types
+          s <- unifyTypesWithContext paramType' argType' ctx
+          let s' = composeSubst s subst
+              appliedFunc = IApplyExpr currentFunc [arg]
+              appliedType = applyOneArgType currentType'
+          
+          -- Process remaining arguments (recursive call)
+          wrapWithTensorMap appliedFunc appliedType restArgs restTypes s' ctx
+
+wrapWithTensorMap _ currentType args argTypes _ ctx = 
+  throwError $ TE.TypeMismatch currentType (foldr TFun (TVar (TyVar "result")) argTypes) "Argument count mismatch" ctx
+
 -- | Infer application (helper) with context
 -- Returns (applied expr, type, substitution)
 -- This function implements automatic tensorMap insertion as described in type-tensor-simple.md
@@ -1533,76 +1622,16 @@ inferIApplicationWithContext funcExpr funcType args initSubst ctx = do
   resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType argTypes
   
-  -- Try to unify without tensorMap first
-  unifyResult <- tryUnifyWithContext (applySubst argSubst funcType) expectedFuncType ctx
-  
-  case unifyResult of
+  -- Try normal unification first
+  case unify (applySubst argSubst funcType) expectedFuncType of
     Right s -> do
       -- Unification succeeded without tensorMap
       let finalS = composeSubst s argSubst
       return (IApplyExpr funcExpr argExprs, applySubst finalS resultType, finalS)
     
-    Left _unifyError -> do
-      -- Unification failed, try inserting tensorMap for tensor arguments
-      let (wrappedArgs, wasWrapped) = wrapArgsWithTensorMap funcType argExprs argTypes
-      
-      if not wasWrapped
-        then do
-          -- No tensorMap was inserted, fail with original error
-          s <- unifyTypesWithContext (applySubst argSubst funcType) expectedFuncType ctx
-          let finalS = composeSubst s argSubst
-          return (IApplyExpr funcExpr argExprs, applySubst finalS resultType, finalS)
-        else do
-          -- TensorMap was inserted, re-infer with wrapped arguments
-          wrappedResults <- mapM (\arg -> inferIExprWithContext arg ctx) wrappedArgs
-          let wrappedExprs = map (\(e, _, _) -> e) wrappedResults
-              wrappedTypes = map (\(_, t, _) -> t) wrappedResults
-              wrappedSubst = foldr composeSubst argSubst (map (\(_, _, s) -> s) wrappedResults)
-          
-          -- Create new expected function type with wrapped types
-          resultType' <- freshVar "result"
-          let expectedFuncType' = foldr TFun resultType' wrappedTypes
-          
-          -- Unify with wrapped types
-          s <- unifyTypesWithContext (applySubst wrappedSubst funcType) expectedFuncType' ctx
-          let finalS = composeSubst s wrappedSubst
-          return (IApplyExpr funcExpr wrappedExprs, applySubst finalS resultType', finalS)
-  where
-    -- Try to unify types, returning Either instead of throwing error
-    tryUnifyWithContext :: Type -> Type -> TypeErrorContext -> Infer (Either TypeError Subst)
-    tryUnifyWithContext t1 t2 _ctx = case unify t1 t2 of
-      Right s -> return $ Right s
-      Left _err -> return $ Left $ UnificationError t1 t2 _ctx  -- Convert to TypeError
-    
-    -- Wrap arguments with tensorMap where needed
-    -- Returns (wrapped args, was any wrapping done)
-    wrapArgsWithTensorMap :: Type -> [IExpr] -> [Type] -> ([IExpr], Bool)
-    wrapArgsWithTensorMap fType exprs types = 
-      let paramTypes = extractParamTypes fType (length exprs)
-          results = zipWith3 wrapIfNeeded exprs types paramTypes
-          wrappedExprs = map fst results
-          anyWrapped = or (map snd results)
-      in (wrappedExprs, anyWrapped)
-    
-    -- Extract parameter types from function type
-    extractParamTypes :: Type -> Int -> [Type]
-    extractParamTypes (TFun param rest) n 
-      | n > 0 = param : extractParamTypes rest (n - 1)
-    extractParamTypes _ _ = []
-    
-    -- Wrap an argument with tensorMap if needed
-    -- Returns (wrapped expr, was wrapping done)
-    wrapIfNeeded :: IExpr -> Type -> Type -> (IExpr, Bool)
-    wrapIfNeeded argExpr argType paramType =
-      if shouldInsertTensorMap argType paramType
-        then case argType of
-          TTensor _elemType -> 
-            -- Create: tensorMap (\x -> f x) tensor
-            let varName = Var "tensorMapArg" []
-                lambda = ILambdaExpr Nothing [varName] (IVarExpr "tensorMapPlaceholder")
-            in (ITensorMapExpr lambda argExpr, True)
-          _ -> (argExpr, False)
-        else (argExpr, False)
+    Left _ -> do
+      -- Unification failed, try wrapping with tensorMap
+      wrapWithTensorMap funcExpr funcType argExprs argTypes argSubst ctx
 
 -- | Infer let bindings (non-recursive)
 -- Returns (transformed bindings, type schemes, substitution)

@@ -58,9 +58,9 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   env <- lift $ lift initialEnv
   exprs <- loadFile file
   evalTopExprsNoPrint env exprs
-where
-  assertEvalM :: EvalM a -> Assertion
-  assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
+  where
+    assertEvalM :: EvalM a -> Assertion
+    assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
 
 -- Test case for pattern environment dump
 runPatternEnvDumpTest :: Test
@@ -68,9 +68,9 @@ runPatternEnvDumpTest = TestLabel "pattern-env-dump" . TestCase . assertEvalMWit
   env <- lift $ lift initialEnv
   exprs <- loadFile "mini-test/pattern-env-dump.egi"
   evalTopExprsNoPrint env exprs
-where
-  assertEvalMWithDump :: EvalM a -> Assertion
-  assertEvalMWithDump m = fromEvalM (defaultOption { optDumpEnv = True }) m >>= assertString . either show (const "")
+  where
+    assertEvalMWithDump :: EvalM a -> Assertion
+    assertEvalMWithDump m = fromEvalM (defaultOption { optDumpEnv = True }) m >>= assertString . either show (const "")
 
 mathOutputTest :: RuntimeM Test
 mathOutputTest = do
