@@ -51,13 +51,15 @@ import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
-import           Language.Egison.IExpr (TIExpr(..), TITopExpr(..), ITopExpr(..), IExpr(..), Var, extractNameFromVar, stringToVar)
+import           Language.Egison.IExpr (TIExpr(..), TITopExpr(..), ITopExpr(..), IExpr(..), Var, extractNameFromVar, stringToVar, stripTypeTopExpr)
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
 import qualified Language.Egison.Type.Env as Env
+import qualified Data.Set as Set
+import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
@@ -159,6 +161,26 @@ iTopExprToTITopExprFromScheme _typeEnv iTopExpr typeScheme = case iTopExpr of
     -- TODO: Properly handle multiple bindings with individual type schemes
     TIDefineMany [(var, TIExpr typeScheme iexpr) | (var, iexpr) <- bindings]
 
+-- | Expand type class methods in a top-level expression
+expandTypeClassInTopExpr :: TITopExpr -> EvalM TITopExpr
+expandTypeClassInTopExpr tiTopExpr = case tiTopExpr of
+  TIDefine scheme var tiExpr -> do
+    tiExpr' <- expandTypeClassMethodsT tiExpr
+    return $ TIDefine scheme var tiExpr'
+  TITest tiExpr -> do
+    tiExpr' <- expandTypeClassMethodsT tiExpr
+    return $ TITest tiExpr'
+  TIExecute tiExpr -> do
+    tiExpr' <- expandTypeClassMethodsT tiExpr
+    return $ TIExecute tiExpr'
+  TILoadFile path -> return $ TILoadFile path
+  TILoad lib -> return $ TILoad lib
+  TIDefineMany bindings -> do
+    bindings' <- mapM (\(var, tiExpr) -> do
+      tiExpr' <- expandTypeClassMethodsT tiExpr
+      return (var, tiExpr')) bindings
+    return $ TIDefineMany bindings'
+
 evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM (Maybe EgisonValue, Env)
 evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   opts <- ask
@@ -255,6 +277,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             -- Phase 7: Convert ITopExpr + Type to TITopExpr with generalization
             -- Note: inferITopExpr already added the type scheme to the environment,
             -- so we should retrieve it from the updated environment instead of re-generalizing
+            let constraints = inferConstraints finalState  -- Get collected constraints
             let tiTopExpr = case iTopExpr' of
                   IDefine var _iexpr -> 
                     -- Get the type scheme from the updated environment (already generalized by inferITopExpr)
@@ -268,26 +291,30 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                         let typeScheme = Env.generalize updatedTypeEnv ty
                         in iTopExprToTITopExprFromScheme updatedTypeEnv iTopExpr' typeScheme
                   _ -> 
-                    -- For non-definition expressions, use the type directly
-                    let typeScheme = Types.Forall [] [] ty
+                    -- For non-definition expressions, generalize the type with constraints
+                    -- Collect constraints from finalState
+                    let envFreeVars = Env.freeVarsInEnv updatedTypeEnv
+                        typeFreeVars = Types.freeTyVars ty
+                        genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
+                        typeScheme = Types.Forall genVars constraints ty
                     in iTopExprToTITopExprFromScheme updatedTypeEnv iTopExpr' typeScheme
             
-            -- Collect typed AST for dumping if requested
-            let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExpr] else typedExprs
+            -- Phase 8: Type Class Expansion (TypedDesugar)
+            -- Expand type class method calls to dictionary-based dispatch
+            tiTopExprExpanded <- expandTypeClassInTopExpr tiTopExpr
+            
+            -- Extract ITopExpr for evaluation
+            let iTopExprExpanded = stripTypeTopExpr tiTopExprExpanded
+            
+            -- Collect typed AST for dumping if requested (use expanded version)
+            let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExprExpanded] else typedExprs
             
             -- Type scheme is already in the environment (added by inferITopExpr), no need to add again
-            
-            -- Phase 8-10: TypedDesugar → Evaluation
-            -- Note: TypedDesugar is currently a stub (TIExpr → TIExpr identity function)
-            -- For evaluation, we use IExpr directly (with type info stripped) to:
-            --   1. Allow existing eval logic in Core.hs to work unchanged
-            --   2. Optimize by removing unnecessary type info from runtime
-            --   3. Keep TIExpr only for --dump-typed and future TypedDesugar
             
             -- Phase 9-10: Evaluation using IExpr (type info stripped)
             -- Catch errors during evaluation to preserve typedExprs for dumping
             evalResult <- catchError
-              (Right <$> evalTopExpr' currentEnv iTopExpr')
+              (Right <$> evalTopExpr' currentEnv iTopExprExpanded)
               (\err -> do
                 liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
                 return $ Left err)

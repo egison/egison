@@ -31,9 +31,9 @@ import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), IExpr(..), IPattern(..),
                                              IBindingExpr, IMatchClause, ILoopRange(..),
-                                             Index(..), tiExprConstraints)
+                                             Index(..), tiExprConstraints, tiExprType)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
-                                             lookupInstances, lookupClass, generalize)
+                                             lookupInstances, lookupClass, generalize, classEnvToList)
 import           Language.Egison.Type.IInfer (runInferI, defaultInferConfig)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..))
 import           Language.Egison.Type.Unify (unify)
@@ -244,16 +244,22 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       
       -- Function application - This is where we expand type class methods!
       IApplyExpr func args -> do
-        -- Process with type information to enable type class expansion
-        funcTI <- inferAndExpand classEnv' func
-        argsTI <- mapM (inferAndExpand classEnv') args
-        -- Try to expand type class method calls
-        expanded <- tryExpandTypeClassCallT classEnv' funcTI argsTI
-        case expanded of
-          Just expandedExpr -> return expandedExpr
-          Nothing -> do
-            func' <- expandTIExpr classEnv' (tiExpr funcTI)
-            args' <- mapM (expandTIExpr classEnv' . tiExpr) argsTI
+        -- Check if this is a type class method call
+        case func of
+          IVarExpr methodName -> do
+            -- Try to expand as type class method
+            expanded <- tryExpandTypeClassMethod classEnv' methodName args
+            case expanded of
+              Just expandedExpr -> return expandedExpr
+              Nothing -> do
+                -- Not a type class method, process recursively
+                func' <- expandTIExpr classEnv' func
+                args' <- mapM (expandTIExpr classEnv') args
+                return $ IApplyExpr func' args'
+          _ -> do
+            -- Function is not a simple variable, process recursively
+            func' <- expandTIExpr classEnv' func
+            args' <- mapM (expandTIExpr classEnv') args
             return $ IApplyExpr func' args'
   
   -- Tensor operations
@@ -381,6 +387,74 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       pat' <- expandPattern classEnv' pat
       return $ ILoopRange expr1' expr2' pat'
 
+-- | Try to expand a type class method call by inferring argument types
+-- This is simpler than using TIExpr constraints
+tryExpandTypeClassMethod :: ClassEnv -> String -> [IExpr] -> EvalM (Maybe IExpr)
+tryExpandTypeClassMethod classEnv methodName args = do
+  -- Check if this method name belongs to any type class
+  let allClasses = classEnvToList classEnv
+      matchingClasses = filter (\(_, classInfo) -> 
+                                  methodName `elem` map fst (classMethods classInfo)) allClasses
+  
+  case matchingClasses of
+    [] -> return Nothing  -- Not a type class method
+    ((className, _):_) -> do
+      -- Infer argument types to determine the instance
+      typeEnv <- getTypeEnv
+      result <- liftIO $ runInferI defaultInferConfig typeEnv (IApplyExpr (IVarExpr methodName) args)
+      case result of
+        Left _ -> return Nothing
+        Right (_, _, warnings) -> do
+          -- Try to infer the first argument's type to determine the instance
+          if null args
+            then return Nothing
+            else do
+              argResult <- liftIO $ runInferI defaultInferConfig typeEnv (head args)
+              case argResult of
+                Left _ -> return Nothing
+                Right (argType, _, _) -> do
+                  -- Find matching instance for this type
+                  let instances = lookupInstances className classEnv
+                  case findMatchingInstanceForType argType instances of
+                    Just inst -> do
+                      let sanitizedMethod = sanitizeMethodName methodName
+                          instTypeName = typeToName (instType inst)
+                          dictName = resolveMethodName className sanitizedMethod instTypeName
+                      return $ Just $ IApplyExpr (IVarExpr dictName) args
+                    Nothing -> return Nothing
+  where
+    findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo
+    findMatchingInstanceForType _ [] = Nothing
+    findMatchingInstanceForType targetType (inst:insts) =
+      case unify (instType inst) targetType of
+        Right _ -> Just inst
+        Left _ -> findMatchingInstanceForType targetType insts
+    
+    sanitizeMethodName :: String -> String
+    sanitizeMethodName "==" = "eq"
+    sanitizeMethodName "/=" = "neq"
+    sanitizeMethodName "<"  = "lt"
+    sanitizeMethodName "<=" = "le"
+    sanitizeMethodName ">"  = "gt"
+    sanitizeMethodName ">=" = "ge"
+    sanitizeMethodName "+"  = "plus"
+    sanitizeMethodName "-"  = "minus"
+    sanitizeMethodName "*"  = "times"
+    sanitizeMethodName "/"  = "div"
+    sanitizeMethodName name = name
+    
+    typeToName :: Type -> String
+    typeToName TInt = "Integer"
+    typeToName TFloat = "Float"
+    typeToName TBool = "Bool"
+    typeToName TChar = "Char"
+    typeToName TString = "String"
+    typeToName (TVar (TyVar v)) = v
+    typeToName (TInductive name _) = name
+    typeToName (TCollection t) = "List" ++ typeToName t
+    typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
+    typeToName _ = "Unknown"
+
 -- | Try to expand a type class method call using type information
 -- This function uses the type information from TIExpr to select the appropriate instance
 -- and replace the method call with a dictionary-based dispatch.
@@ -392,39 +466,54 @@ tryExpandTypeClassCallT classEnv funcTI argsTI = do
       -- Check if this method name corresponds to a type class method
       -- by looking at the function's type constraints
       let constraints = tiExprConstraints funcTI
+          argTypes = map tiExprType argsTI
       
-      -- Try to find a matching constraint for this method
-      matchingConstraint <- findMatchingConstraint classEnv methodName constraints argsTI
-      case matchingConstraint of
-        Just (_, _, dictName) -> do
-          -- Replace with dictionary call: dictName args...
-          args' <- mapM (return . tiExpr) argsTI
-          return $ Just $ IApplyExpr (IVarExpr dictName) args'
-        Nothing -> return Nothing
+      -- If there are no constraints, this is not a type class method
+      if null constraints
+        then return Nothing
+        else do
+          -- Try to find a matching constraint for this method
+          matchingConstraint <- findMatchingConstraint classEnv methodName constraints argTypes
+          case matchingConstraint of
+            Just dictName -> do
+              -- Replace with dictionary call: dictName args...
+              let args' = map tiExpr argsTI
+              return $ Just $ IApplyExpr (IVarExpr dictName) args'
+            Nothing -> return Nothing
     
     _ -> return Nothing
   where
     -- Find a constraint that matches the method name and argument types
-    findMatchingConstraint :: ClassEnv -> String -> [Constraint] -> [TIExpr] -> EvalM (Maybe (String, Type, String))
+    findMatchingConstraint :: ClassEnv -> String -> [Constraint] -> [Type] -> EvalM (Maybe String)
     findMatchingConstraint _ _ [] _ = return Nothing
-    findMatchingConstraint env methodName (Constraint className constraintType : cs) args = do
+    findMatchingConstraint env methodName (Constraint className constraintType : cs) argTypes = do
       -- Look up the class to get method information
       case lookupClass className env of
         Just classInfo -> do
           -- Check if the method name is in this class
           if methodName `elem` map fst (classMethods classInfo)
             then do
+              -- Resolve the constraint type using argument types
+              resolvedType <- return $ resolveConstraintType constraintType argTypes
+              
               -- Try to find a matching instance
-              instances <- return $ lookupInstances className env
-              matchingInstance <- findMatchingInstance constraintType instances
+              let instances = lookupInstances className env
+              matchingInstance <- findMatchingInstance resolvedType instances
               case matchingInstance of
                 Just inst -> do
-                  -- Generate dictionary name
-                  let dictName = resolveMethodName className methodName (typeName constraintType)
-                  return $ Just (className, instType inst, dictName)
-                Nothing -> findMatchingConstraint env methodName cs args
-            else findMatchingConstraint env methodName cs args
-        Nothing -> findMatchingConstraint env methodName cs args
+                  -- Generate dictionary method name
+                  let sanitizedMethod = sanitizeMethodName methodName
+                      dictName = resolveMethodName className sanitizedMethod (typeName (instType inst))
+                  return $ Just dictName
+                Nothing -> findMatchingConstraint env methodName cs argTypes
+            else findMatchingConstraint env methodName cs argTypes
+        Nothing -> findMatchingConstraint env methodName cs argTypes
+    
+    -- Resolve constraint type using argument types
+    -- If constraint type is a type variable, try to unify with argument types
+    resolveConstraintType :: Type -> [Type] -> Type
+    resolveConstraintType (TVar _) (argType:_) = argType  -- Use first arg type
+    resolveConstraintType t _ = t  -- Already concrete
     
     -- Find an instance that matches the given type
     findMatchingInstance :: Type -> [InstanceInfo] -> EvalM (Maybe InstanceInfo)
@@ -433,6 +522,20 @@ tryExpandTypeClassCallT classEnv funcTI argsTI = do
       case unify (instType inst) targetType of
         Right _ -> return $ Just inst
         Left _ -> findMatchingInstance targetType insts
+    
+    -- Sanitize method name for dictionary lookup
+    sanitizeMethodName :: String -> String
+    sanitizeMethodName "==" = "eq"
+    sanitizeMethodName "/=" = "neq"
+    sanitizeMethodName "<"  = "lt"
+    sanitizeMethodName "<=" = "le"
+    sanitizeMethodName ">"  = "gt"
+    sanitizeMethodName ">=" = "ge"
+    sanitizeMethodName "+"  = "plus"
+    sanitizeMethodName "-"  = "minus"
+    sanitizeMethodName "*"  = "times"
+    sanitizeMethodName "/"  = "div"
+    sanitizeMethodName name = name
     
     -- Extract type name from Type for dictionary naming
     typeName :: Type -> String

@@ -23,13 +23,14 @@ module Language.Egison.EnvBuilder
 import           Control.Monad              (foldM)
 import           Control.Monad.Except       (throwError)
 import           Control.Monad.State
+import           Data.Char                  (toUpper, toLower)
 import qualified Data.HashMap.Strict        as HashMap
 
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
 import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
-                                             extendEnv, extendPatternEnv, addClass, addInstance)
+                                             extendEnv, extendPatternEnv, addClass, addInstance, lookupClass)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..), TensorShape(..),
                                              ClassInfo, InstanceInfo, freeTyVars)
@@ -116,8 +117,9 @@ processTopExpr result topExpr = case topExpr of
     return result
   
   -- 3. Instance Definitions (from InstanceDeclExpr)
-  InstanceDeclExpr (InstanceDecl context className instTypes _methods) -> do
+  InstanceDeclExpr (InstanceDecl context className instTypes methods) -> do
     let classEnv = ebrClassEnv result
+        typeEnv = ebrTypeEnv result
         
         -- Get the main instance type
         mainInstType = case instTypes of
@@ -134,8 +136,12 @@ processTopExpr result topExpr = case topExpr of
         
         -- Register instance
         classEnv' = addInstance className instInfo classEnv
+        
+        -- Register method type signatures for generated methods
+        -- This prevents "Unbound variable" warnings during type inference
+        typeEnv' = registerInstanceMethods className mainInstType methods classEnv' typeEnv
     
-    return result { ebrClassEnv = classEnv' }
+    return result { ebrClassEnv = classEnv', ebrTypeEnv = typeEnv' }
   
   -- 4. Type Signature Collection (from Define, DefineWithType)
   -- Note: We only collect explicit type signatures here.
@@ -242,6 +248,90 @@ registerClassMethod tyVar className typeEnv (ClassMethod methName params retType
       typeScheme = Types.Forall [tyVar] [constraint] methodType
   in
     extendEnv methName typeScheme typeEnv
+
+-- | Register type signatures for instance methods (generated during desugaring)
+-- This prevents "Unbound variable" warnings during type inference
+registerInstanceMethods :: String -> Type -> [InstanceMethod] -> ClassEnv -> TypeEnv -> TypeEnv
+registerInstanceMethods className instType methods classEnv typeEnv =
+  case lookupClass className classEnv of
+    Nothing -> typeEnv  -- Class not found, skip
+    Just classInfo -> 
+      -- Register each instance method
+      foldr (registerInstanceMethod className instType classInfo) typeEnv methods
+  where
+    registerInstanceMethod :: String -> Type -> Types.ClassInfo -> InstanceMethod -> TypeEnv -> TypeEnv
+    registerInstanceMethod clsName instTy classInfo (InstanceMethod methName _params _body) env =
+      -- Find the method in the class definition
+      case lookup methName (Types.classMethods classInfo) of
+        Nothing -> env  -- Method not in class definition, skip
+        Just methodType -> 
+          -- Substitute type variable with instance type
+          let tyVar = Types.classParam classInfo
+              substitutedType = substituteTypeVar tyVar instTy methodType
+              
+              -- Generate method name: e.g., "eqIntegerEq" for (==) in Eq Integer
+              typeName = typeToTypeName instTy
+              sanitizedName = sanitizeMethodName methName
+              generatedMethodName = lowerFirst clsName ++ typeName ++ capitalizeFirst sanitizedName
+              
+              -- No type variables or constraints in the concrete instance method
+              typeScheme = Types.Forall [] [] substitutedType
+          in
+            extendEnv generatedMethodName typeScheme env
+    
+    -- Substitute type variable with concrete type in a type expression
+    substituteTypeVar :: TyVar -> Type -> Type -> Type
+    substituteTypeVar oldVar newType = go
+      where
+        go TInt = TInt
+        go TFloat = TFloat
+        go TBool = TBool
+        go TChar = TChar
+        go TString = TString
+        go (TVar v) | v == oldVar = newType
+                    | otherwise = TVar v
+        go (TTuple ts) = TTuple (map go ts)
+        go (TCollection t) = TCollection (go t)
+        go (TInductive name ts) = TInductive name (map go ts)
+        go (TTensor t) = TTensor (go t)
+        go (THash k v) = THash (go k) (go v)
+        go (TMatcher t) = TMatcher (go t)
+        go (TFun t1 t2) = TFun (go t1) (go t2)
+        go (TIO t) = TIO (go t)
+        go (TIORef t) = TIORef (go t)
+        go TAny = TAny
+    
+    -- Convert Type to type name string for method naming
+    typeToTypeName :: Type -> String
+    typeToTypeName TInt = "Integer"
+    typeToTypeName TFloat = "Float"
+    typeToTypeName TBool = "Bool"
+    typeToTypeName TChar = "Char"
+    typeToTypeName TString = "String"
+    typeToTypeName (TInductive name _) = name
+    typeToTypeName (TVar (TyVar v)) = v
+    typeToTypeName _ = "Unknown"
+    
+    sanitizeMethodName :: String -> String
+    sanitizeMethodName "==" = "eq"
+    sanitizeMethodName "/=" = "neq"
+    sanitizeMethodName "<"  = "lt"
+    sanitizeMethodName "<=" = "le"
+    sanitizeMethodName ">"  = "gt"
+    sanitizeMethodName ">=" = "ge"
+    sanitizeMethodName "+"  = "plus"
+    sanitizeMethodName "-"  = "minus"
+    sanitizeMethodName "*"  = "times"
+    sanitizeMethodName "/"  = "div"
+    sanitizeMethodName name = name
+    
+    capitalizeFirst :: String -> String
+    capitalizeFirst []     = []
+    capitalizeFirst (c:cs) = toUpper c : cs
+    
+    lowerFirst :: String -> String
+    lowerFirst []     = []
+    lowerFirst (c:cs) = toLower c : cs
 
 -- | Extract method name from ClassMethod
 extractMethodName :: ClassMethod -> String
