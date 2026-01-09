@@ -54,6 +54,7 @@ import           Control.Monad              (foldM, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
 import           Data.Maybe                  (catMaybes)
+import qualified Data.Set                    as Set
 import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..), PMMode (..))
 import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..)
                                             , IBindingExpr
@@ -102,21 +103,22 @@ permissiveInferConfig = InferConfig
 
 -- | Inference state
 data InferState = InferState
-  { inferCounter    :: Int              -- ^ Fresh variable counter
-  , inferEnv        :: TypeEnv          -- ^ Current type environment
-  , inferWarnings   :: [TypeWarning]    -- ^ Collected warnings
-  , inferConfig     :: InferConfig      -- ^ Configuration
-  , inferClassEnv   :: ClassEnv         -- ^ Type class environment
-  , inferPatternEnv :: PatternTypeEnv   -- ^ Pattern constructor environment
+  { inferCounter     :: Int              -- ^ Fresh variable counter
+  , inferEnv         :: TypeEnv          -- ^ Current type environment
+  , inferWarnings    :: [TypeWarning]    -- ^ Collected warnings
+  , inferConfig      :: InferConfig      -- ^ Configuration
+  , inferClassEnv    :: ClassEnv         -- ^ Type class environment
+  , inferPatternEnv  :: PatternTypeEnv   -- ^ Pattern constructor environment
+  , inferConstraints :: [Constraint]     -- ^ Accumulated type class constraints
   } deriving (Show)
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv []
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv []
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -148,6 +150,28 @@ addWarning w = modify $ \st -> st { inferWarnings = w : inferWarnings st }
 -- | Clear all accumulated warnings
 clearWarnings :: Infer ()
 clearWarnings = modify $ \st -> st { inferWarnings = [] }
+
+-- | Add type class constraints
+addConstraints :: [Constraint] -> Infer ()
+addConstraints cs = modify $ \st -> st { inferConstraints = inferConstraints st ++ cs }
+
+-- | Get accumulated constraints
+getConstraints :: Infer [Constraint]
+getConstraints = inferConstraints <$> get
+
+-- | Clear accumulated constraints
+clearConstraints :: Infer ()
+clearConstraints = modify $ \st -> st { inferConstraints = [] }
+
+-- | Run an action with local constraint tracking
+withLocalConstraints :: Infer a -> Infer (a, [Constraint])
+withLocalConstraints action = do
+  oldConstraints <- getConstraints
+  clearConstraints
+  result <- action
+  newConstraints <- getConstraints
+  modify $ \st -> st { inferConstraints = oldConstraints }
+  return (result, newConstraints)
 
 -- | Check if we're in permissive mode
 isPermissive :: Infer Bool
@@ -193,9 +217,10 @@ lookupVar name = do
   case lookupEnv name env of
     Just scheme -> do
       st <- get
-      let (_constraints, t, newCounter) = instantiate scheme (inferCounter st)
-      -- TODO: Track constraints for type class resolution
+      let (constraints, t, newCounter) = instantiate scheme (inferCounter st)
+      -- Track constraints for type class resolution
       modify $ \s -> s { inferCounter = newCounter }
+      addConstraints constraints
       return t
     Nothing -> do
       permissive <- isPermissive
@@ -1791,8 +1816,16 @@ inferITopExpr topExpr = case topExpr of
       
       Nothing -> do
         -- No explicit type signature: infer and generalize as before
+        clearConstraints  -- Start with fresh constraints for this expression
         (expr', exprType, subst) <- inferIExpr expr
-        let scheme = generalize env exprType
+        constraints <- getConstraints  -- Collect constraints from type inference
+        
+        -- Generalize with constraints
+        let envFreeVars = freeVarsInEnv env
+            typeFreeVars = freeTyVars exprType
+            genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
+            scheme = Forall genVars constraints exprType
+        
         -- Add to environment
         modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
         
@@ -1800,15 +1833,62 @@ inferITopExpr topExpr = case topExpr of
         return (Just (IDefine var expr', finalType), subst)
   
   ITest expr -> do
+    clearConstraints  -- Start with fresh constraints
     (expr', exprType, subst) <- inferIExpr expr
+    -- Constraints are now in state, will be retrieved by Eval.hs
     return (Just (ITest expr', exprType), subst)
   
   IExecute expr -> do
+    clearConstraints  -- Start with fresh constraints
     (expr', exprType, subst) <- inferIExpr expr
+    -- Constraints are now in state, will be retrieved by Eval.hs
     return (Just (IExecute expr', exprType), subst)
   
   ILoadFile _path -> return (Nothing, emptySubst)
   ILoad _lib -> return (Nothing, emptySubst)
+  
+  IDefineMany bindings -> do
+    -- Process each binding in the list
+    env <- getEnv
+    results <- mapM (inferBinding env) bindings
+    let bindings' = map fst results
+        substs = map snd results
+        combinedSubst = foldr composeSubst emptySubst substs
+    -- Return the processed bindings (type is not meaningful for IDefineMany)
+    return (Just (IDefineMany bindings', TTuple []), combinedSubst)
+    where
+      inferBinding env (var, expr) = do
+        let varName = extractNameFromVar var
+        -- Check if there's an existing type signature
+        case lookupEnv varName env of
+          Just existingScheme -> do
+            -- With type signature: check type
+            st <- get
+            let (_, expectedType, newCounter) = instantiate existingScheme (inferCounter st)
+            modify $ \s -> s { inferCounter = newCounter }
+            
+            clearConstraints
+            (expr', exprType, subst1) <- inferIExpr expr
+            subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) emptyContext
+            let finalSubst = composeSubst subst2 subst1
+            return ((var, expr'), finalSubst)
+          
+          Nothing -> do
+            -- Without type signature: infer and generalize
+            clearConstraints
+            (expr', exprType, subst) <- inferIExpr expr
+            constraints <- getConstraints
+            
+            -- Generalize the type
+            let envFreeVars = freeVarsInEnv env
+                typeFreeVars = freeTyVars exprType
+                genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
+                scheme = Forall genVars constraints exprType
+            
+            -- Add to environment for subsequent bindings
+            modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
+            
+            return ((var, expr'), subst)
   
   _ -> return (Nothing, emptySubst)
 
