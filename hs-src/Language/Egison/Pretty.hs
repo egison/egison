@@ -579,8 +579,9 @@ instance Pretty ITopExpr where
 
 -- Pretty print for TIExpr and TITopExpr
 instance Pretty TIExpr where
-  pretty (TIExpr scheme iexpr) = 
-    let (Types.Forall _ _ ty) = scheme
+  pretty tiexpr = 
+    let (Types.Forall _ _ ty) = tiScheme tiexpr
+        iexpr = stripType tiexpr  -- Convert TIExpr to IExpr for pretty printing
     in parens (pretty iexpr <+> pretty ":" <+> prettyTypeDoc ty)
 
 instance Pretty TITopExpr where

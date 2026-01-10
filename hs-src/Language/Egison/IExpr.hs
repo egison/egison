@@ -21,10 +21,12 @@ module Language.Egison.IExpr
   -- Typed versions
   , TITopExpr (..)
   , TIExpr (..)
+  , TIExprNode (..)
   , TIPattern (..)
   , TILoopRange (..)
   , TIBindingExpr
   , TIMatchClause
+  , TIPatternDef
   , tiExprType
   , tiExprScheme
   , tiExprTypeVars
@@ -218,10 +220,95 @@ data TITopExpr
 -- Each expression node carries its inferred/checked type scheme with type variables and constraints.
 -- TypeScheme info is preserved for Phase 8 (TypedDesugar) to perform type-driven transformations
 -- such as type class dictionary passing and tensorMap insertion.
+--
+-- NEW: TIExpr is now RECURSIVE - each sub-expression is also a TIExpr,
+-- allowing type information to be preserved throughout the tree.
+-- This eliminates the need to re-run type inference during TypeClassExpand.
 data TIExpr = TIExpr
-  { tiScheme :: TypeScheme  -- ^ Type scheme with type variables, constraints, and type
-  , tiExpr :: IExpr         -- ^ The underlying internal expression
+  { tiScheme :: TypeScheme    -- ^ Type scheme with type variables, constraints, and type
+  , tiExprNode :: TIExprNode  -- ^ Typed expression node with typed sub-expressions
   } deriving Show
+
+-- | Typed expression node - each constructor contains typed sub-expressions (TIExpr)
+-- This mirrors IExpr but with TIExpr in place of IExpr for all sub-expressions
+data TIExprNode
+  -- Constants and variables
+  = TIConstantExpr ConstantExpr
+  | TIVarExpr String
+  
+  -- Collections
+  | TITupleExpr [TIExpr]
+  | TICollectionExpr [TIExpr]
+  | TIConsExpr TIExpr TIExpr
+  | TIJoinExpr TIExpr TIExpr
+  | TIHashExpr [(TIExpr, TIExpr)]
+  | TIVectorExpr [TIExpr]
+  
+  -- Lambda expressions
+  | TILambdaExpr (Maybe Var) [Var] TIExpr
+  | TIMemoizedLambdaExpr [String] TIExpr
+  | TICambdaExpr String TIExpr
+  
+  -- Application
+  | TIApplyExpr TIExpr [TIExpr]
+  
+  -- Control flow
+  | TIIfExpr TIExpr TIExpr TIExpr
+  
+  -- Let expressions
+  | TILetExpr [TIBindingExpr] TIExpr
+  | TILetRecExpr [TIBindingExpr] TIExpr
+  | TIWithSymbolsExpr [String] TIExpr
+  
+  -- Pattern matching
+  | TIMatchExpr PMMode TIExpr TIExpr [TIMatchClause]
+  | TIMatchAllExpr PMMode TIExpr TIExpr [TIMatchClause]
+  | TIMatcherExpr [TIPatternDef]
+  
+  -- Inductive data
+  | TIInductiveDataExpr String [TIExpr]
+  
+  -- Quote expressions
+  | TIQuoteExpr TIExpr
+  | TIQuoteSymbolExpr TIExpr
+  
+  -- Indexed expressions
+  -- TODO: Change [Index IExpr] to [Index TIExpr] later
+  | TIIndexedExpr Bool TIExpr [Index IExpr]
+  | TISubrefsExpr Bool TIExpr TIExpr
+  | TISuprefsExpr Bool TIExpr TIExpr
+  | TIUserrefsExpr Bool TIExpr TIExpr
+  
+  -- Application variants
+  | TIWedgeApplyExpr TIExpr [TIExpr]
+  
+  -- Do expressions
+  | TIDoExpr [TIBindingExpr] TIExpr
+  
+  -- Sequence
+  | TISeqExpr TIExpr TIExpr
+  
+  -- Tensor operations
+  | TIGenerateTensorExpr TIExpr TIExpr
+  | TITensorExpr TIExpr TIExpr
+  | TITensorContractExpr TIExpr
+  | TITensorMapExpr TIExpr TIExpr
+  | TITensorMap2Expr TIExpr TIExpr TIExpr
+  | TITransposeExpr TIExpr TIExpr
+  | TIFlipIndicesExpr TIExpr
+  
+  -- Function reference
+  | TIFunctionExpr [String]
+  deriving Show
+
+-- | Typed binding expression
+type TIBindingExpr = (IPrimitiveDataPattern, TIExpr)
+
+-- | Typed match clause
+type TIMatchClause = (IPattern, TIExpr)
+
+-- | Typed pattern definition (for matcher expressions)
+type TIPatternDef = (PrimitivePatPattern, TIExpr, [TIBindingExpr])
 
 -- | Get the type of a typed expression (extracts Type from TypeScheme)
 tiExprType :: TIExpr -> Type
@@ -240,8 +327,65 @@ tiExprConstraints :: TIExpr -> [Constraint]
 tiExprConstraints (TIExpr (Forall _ cs _) _) = cs
 
 -- | Strip type information, returning the untyped expression
+-- This recursively converts TIExpr back to IExpr for evaluation
 stripType :: TIExpr -> IExpr
-stripType = tiExpr
+stripType (TIExpr _ node) = case node of
+  TIConstantExpr c -> IConstantExpr c
+  TIVarExpr name -> IVarExpr name
+  TITupleExpr exprs -> ITupleExpr (map stripType exprs)
+  TICollectionExpr exprs -> ICollectionExpr (map stripType exprs)
+  TIConsExpr e1 e2 -> IConsExpr (stripType e1) (stripType e2)
+  TIJoinExpr e1 e2 -> IJoinExpr (stripType e1) (stripType e2)
+  TIHashExpr pairs -> IHashExpr [(stripType k, stripType v) | (k, v) <- pairs]
+  TIVectorExpr exprs -> IVectorExpr (map stripType exprs)
+  TILambdaExpr mVar params body -> ILambdaExpr mVar params (stripType body)
+  TIMemoizedLambdaExpr args body -> IMemoizedLambdaExpr args (stripType body)
+  TICambdaExpr var body -> ICambdaExpr var (stripType body)
+  TIApplyExpr func args -> IApplyExpr (stripType func) (map stripType args)
+  TIIfExpr cond thenE elseE -> IIfExpr (stripType cond) (stripType thenE) (stripType elseE)
+  TILetExpr bindings body -> ILetExpr (map stripTypeBinding bindings) (stripType body)
+  TILetRecExpr bindings body -> ILetRecExpr (map stripTypeBinding bindings) (stripType body)
+  TIWithSymbolsExpr syms body -> IWithSymbolsExpr syms (stripType body)
+  TIMatchExpr mode target matcher clauses -> 
+    IMatchExpr mode (stripType target) (stripType matcher) (map stripTypeClause clauses)
+  TIMatchAllExpr mode target matcher clauses -> 
+    IMatchAllExpr mode (stripType target) (stripType matcher) (map stripTypeClause clauses)
+  TIMatcherExpr patDefs -> 
+    IMatcherExpr [(pat, stripType expr, map stripTypeBinding bindings) | (pat, expr, bindings) <- patDefs]
+  TIInductiveDataExpr name exprs -> IInductiveDataExpr name (map stripType exprs)
+  TIQuoteExpr e -> IQuoteExpr (stripType e)
+  TIQuoteSymbolExpr e -> IQuoteSymbolExpr (stripType e)
+  TIIndexedExpr b expr indices -> IIndexedExpr b (stripType expr) indices
+  TISubrefsExpr b e1 e2 -> ISubrefsExpr b (stripType e1) (stripType e2)
+  TISuprefsExpr b e1 e2 -> ISuprefsExpr b (stripType e1) (stripType e2)
+  TIUserrefsExpr b e1 e2 -> IUserrefsExpr b (stripType e1) (stripType e2)
+  TIWedgeApplyExpr func args -> IWedgeApplyExpr (stripType func) (map stripType args)
+  TIDoExpr bindings body -> IDoExpr (map stripTypeBinding bindings) (stripType body)
+  TISeqExpr e1 e2 -> ISeqExpr (stripType e1) (stripType e2)
+  TIGenerateTensorExpr shape func -> IGenerateTensorExpr (stripType shape) (stripType func)
+  TITensorExpr shape elems -> ITensorExpr (stripType shape) (stripType elems)
+  TITensorContractExpr e -> ITensorContractExpr (stripType e)
+  TITensorMapExpr func tensor -> ITensorMapExpr (stripType func) (stripType tensor)
+  TITensorMap2Expr func t1 t2 -> ITensorMap2Expr (stripType func) (stripType t1) (stripType t2)
+  TITransposeExpr tensor perm -> ITransposeExpr (stripType tensor) (stripType perm)
+  TIFlipIndicesExpr tensor -> IFlipIndicesExpr (stripType tensor)
+  TIFunctionExpr names -> IFunctionExpr names
+  where
+    stripTypeBinding :: TIBindingExpr -> IBindingExpr
+    stripTypeBinding (pat, expr) = (pat, stripType expr)
+    
+    stripTypeClause :: TIMatchClause -> IMatchClause
+    stripTypeClause (pat, expr) = (pat, stripType expr)
+    
+    stripTypeIndex :: Index TIExpr -> Index IExpr
+    stripTypeIndex idx = case idx of
+      DF i1 i2 -> DF i1 i2
+      Sub e -> Sub (stripType e)
+      Sup e -> Sup (stripType e)
+      MultiSub e1 n e2 -> MultiSub (stripType e1) n (stripType e2)
+      MultiSup e1 n e2 -> MultiSup (stripType e1) n (stripType e2)
+      SupSub e -> SupSub (stripType e)
+      User e -> User (stripType e)
 
 -- | Strip type information from top-level expression
 stripTypeTopExpr :: TITopExpr -> ITopExpr
@@ -266,11 +410,8 @@ tipType (TIPattern (Forall _ _ t) _) = t
 data TILoopRange = TILoopRange TIExpr TIExpr TIPattern
   deriving Show
 
--- | Typed binding expression
-type TIBindingExpr = (IPrimitiveDataPattern, TIExpr)
-
--- | Typed match clause
-type TIMatchClause = (TIPattern, TIExpr)
+-- NOTE: TIBindingExpr, TIMatchClause, and TIPatternDef are now defined
+-- near TIExprNode (around line 302-308) to keep type definitions close together
 
 instance {-# OVERLAPPING #-} Show (Index String) where
   show (Sup s)    = "~" ++ s
