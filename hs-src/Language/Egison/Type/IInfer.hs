@@ -56,7 +56,7 @@ import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get,
 import           Data.Maybe                  (catMaybes)
 import qualified Data.Set                    as Set
 import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..), PMMode (..))
-import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..)
+import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExpr (..)
                                             , TIExpr (..), TIExprNode (..)
                                             , IBindingExpr, TIBindingExpr
                                             , IMatchClause, TIMatchClause, IPatternDef, TIPatternDef
@@ -509,22 +509,22 @@ inferIExprWithContext expr ctx = case expr of
     -- Each clause has: (PrimitivePatPattern, nextMatcherExpr, [(primitiveDataPat, targetExpr)])
     results <- mapM (inferPatternDef exprCtx) patDefs
     
-    -- Collect all substitutions
-    let substs = concatMap snd results
+    -- Collect TIPatternDefs and substitutions
+    let tiPatDefs = map fst results
+        substs = concatMap (snd . snd) results  -- Extract [Subst] from (TIPatternDef, (Type, [Subst]))
         finalSubst = foldr composeSubst emptySubst substs
     
     -- All clauses should agree on the matched type
     -- For now, we use the first clause's matched type
     matchedTy <- case results of
-      ((ty, _):_) -> return $ applySubst finalSubst ty
+      ((_, (ty, _)):_) -> return $ applySubst finalSubst ty
       [] -> freshVar "matched"  -- Empty matcher (edge case)
     
-    return (mkTIExpr (TMatcher matchedTy) (TIMatcherExpr []), finalSubst)
+    return (mkTIExpr (TMatcher matchedTy) (TIMatcherExpr tiPatDefs), finalSubst)
     where
       -- Infer a single pattern definition (matcher clause)
-      -- Returns (matched type, [substitutions])
-      -- TODO: Update to return TIPatternDef
-      inferPatternDef :: TypeErrorContext -> IPatternDef -> Infer (Type, [Subst])
+      -- Returns (TIPatternDef, (matched type, [substitutions]))
+      inferPatternDef :: TypeErrorContext -> IPatternDef -> Infer (TIPatternDef, (Type, [Subst]))
       inferPatternDef ctx (ppPat, nextMatcherExpr, dataClauses) = do
         -- Infer the type of next matcher expression
         -- It should be either a Matcher type or a tuple of Matcher types
@@ -561,7 +561,19 @@ inferIExprWithContext expr ctx = case expr of
           mapM (inferDataClauseWithCheck ctx numPatternHoles nextMatcherTypes matchedType') dataClauses
         let s2 = foldr composeSubst emptySubst dataClauseResults
         
-        return (matchedType', [s1''', s2])
+        -- Build TIPatternDef: need to convert dataClauses to TIBindingExpr
+        -- For each data clause, infer the pattern to get bindings, then infer the expression with those bindings
+        dataClauseTIs <- withEnv ppBindings $ 
+          mapM (\(pdPat, targetExpr) -> do
+            -- Infer primitive data pattern to get variable bindings
+            (_, pdBindings, _) <- inferPrimitiveDataPattern pdPat matchedType' ctx
+            -- Infer target expression with both pp variables and pd pattern variables in scope
+            (targetTI, _) <- withEnv pdBindings $ inferIExprWithContext targetExpr ctx
+            return (pdPat, targetTI)) dataClauses
+        
+        let tiPatDef = (ppPat, nextMatcherTI, dataClauseTIs)
+        
+        return (tiPatDef, (matchedType', [s1''', s2]))
       
       -- Infer PrimitivePatPattern type
       -- Returns (matched type, pattern hole types, substitution)
@@ -1925,9 +1937,8 @@ extractIBindingsFromPattern pat ty = case pat of
       _ -> []
   _ -> []
 
--- | Infer top-level IExpr and return (ITopExpr, Type) instead of TypedITopExpr
--- The typed AST (TITopExpr) will be created in a separate phase.
-inferITopExpr :: ITopExpr -> Infer (Maybe (ITopExpr, Type), Subst)
+-- | Infer top-level IExpr and return TITopExpr directly
+inferITopExpr :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
 inferITopExpr topExpr = case topExpr of
   IDefine var expr -> do
     varName <- return $ extractNameFromVar var
@@ -1944,7 +1955,6 @@ inferITopExpr topExpr = case topExpr of
         -- Infer the expression type
         (exprTI, subst1) <- inferIExpr expr
         let exprType = tiExprType exprTI
-            expr' = stripType exprTI
         
         -- Unify inferred type with expected type
         -- At top-level definitions, Tensor a can unify with a
@@ -1952,22 +1962,15 @@ inferITopExpr topExpr = case topExpr of
         subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) exprCtx
         let finalSubst = composeSubst subst2 subst1
         
-        -- For display purposes, use the original type from the scheme (before instantiation)
-        -- This preserves the original type variable names (a, b, c) instead of fresh ones (t0, t1, t2)
-        -- Extract the type from the scheme and apply the substitution
-        let (Forall _ _ originalType) = existingScheme
-        let finalType = applySubst finalSubst originalType
-        
         -- Keep the existing scheme (with explicit type signature) in the environment
         -- Don't override it with the generalized inferred type
-        return (Just (IDefine var expr', finalType), finalSubst)
+        return (Just (TIDefine existingScheme var exprTI), finalSubst)
       
       Nothing -> do
         -- No explicit type signature: infer and generalize as before
         clearConstraints  -- Start with fresh constraints for this expression
         (exprTI, subst) <- inferIExpr expr
         let exprType = tiExprType exprTI
-            expr' = stripType exprTI
         constraints <- getConstraints  -- Collect constraints from type inference
         
         -- Generalize with constraints
@@ -1979,24 +1982,19 @@ inferITopExpr topExpr = case topExpr of
         -- Add to environment
         modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
         
-        let finalType = applySubst subst exprType
-        return (Just (IDefine var expr', finalType), subst)
+        return (Just (TIDefine scheme var exprTI), subst)
   
   ITest expr -> do
     clearConstraints  -- Start with fresh constraints
     (exprTI, subst) <- inferIExpr expr
-    let exprType = tiExprType exprTI
-        expr' = stripType exprTI
     -- Constraints are now in state, will be retrieved by Eval.hs
-    return (Just (ITest expr', exprType), subst)
+    return (Just (TITest exprTI), subst)
   
   IExecute expr -> do
     clearConstraints  -- Start with fresh constraints
     (exprTI, subst) <- inferIExpr expr
-    let exprType = tiExprType exprTI
-        expr' = stripType exprTI
     -- Constraints are now in state, will be retrieved by Eval.hs
-    return (Just (IExecute expr', exprType), subst)
+    return (Just (TIExecute exprTI), subst)
   
   ILoadFile _path -> return (Nothing, emptySubst)
   ILoad _lib -> return (Nothing, emptySubst)
@@ -2005,11 +2003,10 @@ inferITopExpr topExpr = case topExpr of
     -- Process each binding in the list
     env <- getEnv
     results <- mapM (inferBinding env) bindings
-    let bindings' = map fst results
+    let bindingsTI = map fst results
         substs = map snd results
         combinedSubst = foldr composeSubst emptySubst substs
-    -- Return the processed bindings (type is not meaningful for IDefineMany)
-    return (Just (IDefineMany bindings', TTuple []), combinedSubst)
+    return (Just (TIDefineMany bindingsTI), combinedSubst)
     where
       inferBinding env (var, expr) = do
         let varName = extractNameFromVar var
@@ -2024,17 +2021,15 @@ inferITopExpr topExpr = case topExpr of
             clearConstraints
             (exprTI, subst1) <- inferIExpr expr
             let exprType = tiExprType exprTI
-                expr' = stripType exprTI
             subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) emptyContext
             let finalSubst = composeSubst subst2 subst1
-            return ((var, expr'), finalSubst)
+            return ((var, exprTI), finalSubst)
           
           Nothing -> do
             -- Without type signature: infer and generalize
             clearConstraints
             (exprTI, subst) <- inferIExpr expr
             let exprType = tiExprType exprTI
-                expr' = stripType exprTI
             constraints <- getConstraints
             
             -- Generalize the type
@@ -2046,12 +2041,12 @@ inferITopExpr topExpr = case topExpr of
             -- Add to environment for subsequent bindings
             modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
             
-            return ((var, expr'), subst)
+            return ((var, exprTI), subst)
   
   _ -> return (Nothing, emptySubst)
 
 -- | Infer multiple top-level IExprs
-inferITopExprs :: [ITopExpr] -> Infer ([Maybe (ITopExpr, Type)], Subst)
+inferITopExprs :: [ITopExpr] -> Infer ([Maybe TITopExpr], Subst)
 inferITopExprs [] = return ([], emptySubst)
 inferITopExprs (e:es) = do
   (tyE, s1) <- inferITopExpr e
