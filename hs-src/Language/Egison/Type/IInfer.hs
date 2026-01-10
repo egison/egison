@@ -52,7 +52,7 @@ module Language.Egison.Type.IInfer
 
 import           Control.Monad              (foldM, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
-import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
+import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, gets, modify, put)
 import           Data.Maybe                  (catMaybes)
 import qualified Data.Set                    as Set
 import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..), PMMode (..))
@@ -1531,16 +1531,61 @@ inferIApplication funcName funcType args initSubst = inferIApplicationWithContex
 
 -- | Check if tensorMap should be inserted for an argument
 -- This implements the type-tensor-simple.md specification
-shouldInsertTensorMap :: Type -> Type -> Bool
-shouldInsertTensorMap argType paramType = case argType of
-  TTensor _ -> case paramType of
+-- Extended to check type class instances to determine necessity
+shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
+shouldInsertTensorMap classEnv constraints argType paramType = case argType of
+  TTensor elemType -> case paramType of
     -- Tensor matched with Tensor → no insertion needed
     TTensor _ -> False
-    -- Tensor matched with type variable → no insertion needed (0-rank tensor interpretation)
-    TVar _ -> False
+    
+    -- Tensor matched with type variable → check type class instances
+    TVar tyVar -> 
+      -- Find constraints on this type variable
+      let relevantConstraints = filter (\(Constraint _ t) -> t == TVar tyVar) constraints
+      in case relevantConstraints of
+           -- No constraints → 0-rank tensor interpretation, no insertion needed
+           [] -> False
+           -- Has constraints → check if Tensor instance exists for ALL constraints
+           cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
+                 -- If any constraint lacks a Tensor instance, we need tensorMap
+    
     -- Tensor matched with concrete non-tensor type → insertion needed
     _ -> True
+    
   -- Non-tensor argument → no insertion needed
+  _ -> False
+
+-- | Check if a type class has an instance for Tensor elemType
+hasInstanceForTensor :: ClassEnv -> Type -> Constraint -> Bool
+hasInstanceForTensor classEnv elemType (Constraint className _tyVar) =
+  let tensorType = TTensor elemType
+      instances = lookupInstances className classEnv
+  in any (\inst -> matchesInstanceType tensorType (instType inst)) instances
+
+-- | Check if a query type matches an instance type
+-- This performs structural matching to determine if an instance applies
+matchesInstanceType :: Type -> Type -> Bool
+matchesInstanceType queryType instType = case (queryType, instType) of
+  -- Exact match
+  _ | queryType == instType -> True
+  
+  -- Tensor types
+  (TTensor qt, TTensor it) -> matchesInstanceType qt it
+  
+  -- Collection types
+  (TCollection qt, TCollection it) -> matchesInstanceType qt it
+  
+  -- Tuple types
+  (TTuple qts, TTuple its) 
+    | length qts == length its -> all (uncurry matchesInstanceType) (zip qts its)
+  
+  -- Inductive types
+  (TInductive qn qts, TInductive in_ its)
+    | qn == in_ && length qts == length its -> all (uncurry matchesInstanceType) (zip qts its)
+  
+  -- Type variables in instance type match any query type
+  (_, TVar _) -> True
+  
   _ -> False
 
 -- | Generate a fresh variable name for tensorMap lambdas
@@ -1581,6 +1626,10 @@ wrapWithTensorMap currentFunc currentType [] [] subst _ctx = do
   return (currentFunc, currentType, subst)
 
 wrapWithTensorMap currentFunc currentType (arg:restArgs) (argType:restTypes) subst ctx = do
+  -- Get ClassEnv and constraints from inference state
+  classEnv <- gets inferClassEnv
+  constraints <- gets inferConstraints
+  
   -- Get the expected parameter type
   let currentType' = applySubst subst currentType
   case getParamType currentType' 0 of
@@ -1589,7 +1638,7 @@ wrapWithTensorMap currentFunc currentType (arg:restArgs) (argType:restTypes) sub
       let argType' = applySubst subst argType
           paramType' = applySubst subst paramType
       
-      if shouldInsertTensorMap argType' paramType'
+      if shouldInsertTensorMap classEnv constraints argType' paramType'
         then do
           -- TensorMap insertion needed
           varName <- freshVarName "tmapVar"
@@ -1643,20 +1692,42 @@ inferIApplicationWithContext funcExpr funcType args initSubst ctx = do
       argTypes = map (\(_, t, _) -> t) argResults
       argSubst = foldr composeSubst initSubst (map (\(_, _, s) -> s) argResults)
   
-  -- Create expected function type
-  resultType <- freshVar "result"
-  let expectedFuncType = foldr TFun resultType argTypes
+  -- Get function constraints if funcExpr is a variable
+  funcConstraints <- case funcExpr of
+    IVarExpr varName -> do
+      env <- getEnv
+      case lookupEnv varName env of
+        Just (Forall _ cs _) -> do
+          -- Debug: funcConstraints が取得できた
+          return cs
+        Nothing -> return []
+    _ -> return []
   
-  -- Try normal unification first
-  case unify (applySubst argSubst funcType) expectedFuncType of
-    Right s -> do
-      -- Unification succeeded without tensorMap
-      let finalS = composeSubst s argSubst
-      return (IApplyExpr funcExpr argExprs, applySubst finalS resultType, finalS)
-    
-    Left _ -> do
-      -- Unification failed, try wrapping with tensorMap
+  -- Check if tensorMap is needed based on type class instance availability
+  classEnv <- gets inferClassEnv
+  let needsTensorMap = or [ shouldInsertTensorMap classEnv funcConstraints argT paramT
+                          | (argT, idx) <- zip argTypes [0..]
+                          , Just paramT <- [getParamType funcType idx]
+                          ]
+  
+  if needsTensorMap
+    then do
+      -- TensorMap needed, use wrapWithTensorMap
       wrapWithTensorMap funcExpr funcType argExprs argTypes argSubst ctx
+    else do
+      -- No tensorMap needed, proceed with normal application
+      resultType <- freshVar "result"
+      let expectedFuncType = foldr TFun resultType argTypes
+      
+      case unify (applySubst argSubst funcType) expectedFuncType of
+        Right s -> do
+          -- Unification succeeded
+          let finalS = composeSubst s argSubst
+          return (IApplyExpr funcExpr argExprs, applySubst finalS resultType, finalS)
+        
+        Left _ -> do
+          -- Unification failed
+          throwError $ UnificationError (applySubst argSubst funcType) expectedFuncType ctx
 
 -- | Infer let bindings (non-recursive)
 -- Returns (transformed bindings, type schemes, substitution)
