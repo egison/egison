@@ -44,12 +44,118 @@ import           Language.Egison.Type.Unify (unify)
 expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr
 expandTypeClassMethodsT (TIExpr scheme expr) = do
   classEnv <- getClassEnv
-  -- Recursively process the expression tree
-  expr' <- expandTIExpr classEnv expr
+  -- Recursively process the expression tree with constraint information
+  expr' <- expandTIExprWithConstraints classEnv scheme expr
   -- For now, preserve the original type scheme
   -- TODO: Update type scheme after dictionary passing (remove constraints)
   return $ TIExpr scheme expr'
   where
+    -- Helper function to expand IExpr with constraint information
+    expandTIExprWithConstraints :: ClassEnv -> TypeScheme -> IExpr -> EvalM IExpr
+    expandTIExprWithConstraints classEnv' (Forall _vars constraints _ty) e = 
+      expandTIExprWithConstraintList classEnv' constraints e
+    
+    -- Helper function to expand IExpr with a list of constraints
+    expandTIExprWithConstraintList :: ClassEnv -> [Constraint] -> IExpr -> EvalM IExpr
+    expandTIExprWithConstraintList classEnv' cs e = case e of
+      -- Lambda expressions: pass constraints to body
+      ILambdaExpr mVar params body -> do
+        body' <- expandTIExprWithConstraintList classEnv' cs body
+        return $ ILambdaExpr mVar params body'
+      
+      -- Method call: try to resolve using constraints
+      IApplyExpr (IVarExpr methodName) args -> do
+        -- Try to resolve method call using constraints
+        typeEnv <- getTypeEnv
+        let tryResolve = do
+              -- Find a constraint that provides this method
+              let matchingConstraint = findConstraintForMethod methodName cs
+              case matchingConstraint of
+                Nothing -> return Nothing
+                Just (Constraint className _) -> do
+                  if null args
+                    then return Nothing
+                    else do
+                      -- Infer the first argument's type
+                      argResult <- liftIO $ runInferI defaultInferConfig typeEnv (head args)
+                      -- Get argument type: either from inference or from constraint
+                      let argTypeM = case argResult of
+                            Right (argType, _, _) -> Just argType
+                            Left _ -> 
+                              -- If inference fails (e.g., unbound variable in lambda),
+                              -- we can't resolve polymorphic types without full dictionary passing
+                              Nothing
+                      case argTypeM of
+                        Nothing -> return Nothing
+                        Just argType -> do
+                          -- Find matching instance
+                          let instances = lookupInstances className classEnv'
+                          case findMatchingInst argType instances of
+                            Just inst -> do
+                              -- Generate the instance method name using sanitization
+                              let sanitized = sanitizeMeth methodName
+                                  instTypeName = getTypeName (instType inst)
+                                  instanceMethodName = lowerFirst className ++ instTypeName ++ capitalizeFirst sanitized
+                              -- Recursively expand arguments
+                              args' <- mapM (expandTIExprWithConstraintList classEnv' cs) args
+                              return $ Just $ IApplyExpr (IVarExpr instanceMethodName) args'
+                            Nothing -> return Nothing
+        resolved <- tryResolve
+        case resolved of
+          Just resolvedExpr -> return resolvedExpr
+          Nothing -> do
+            -- Fall back to old behavior
+            func' <- expandTIExprWithConstraintList classEnv' cs (IVarExpr methodName)
+            args' <- mapM (expandTIExprWithConstraintList classEnv' cs) args
+            return $ IApplyExpr func' args'
+      
+      -- Other expressions: use original expandTIExpr
+      _ -> expandTIExpr classEnv' e
+      where
+        findConstraintForMethod :: String -> [Constraint] -> Maybe Constraint
+        findConstraintForMethod methName constraints = 
+          case filter (constraintHasMeth methName) constraints of
+            (c:_) -> Just c
+            [] -> Nothing
+        
+        constraintHasMeth :: String -> Constraint -> Bool
+        constraintHasMeth methName (Constraint clsName _) =
+          case lookupClass clsName classEnv' of
+            Just classInfo -> methName `elem` map fst (classMethods classInfo)
+            Nothing -> False
+        
+        findMatchingInst :: Type -> [InstanceInfo] -> Maybe InstanceInfo
+        findMatchingInst _ [] = Nothing
+        findMatchingInst targetType (inst:insts) =
+          case unify (instType inst) targetType of
+            Right _ -> Just inst
+            Left _ -> findMatchingInst targetType insts
+        
+        sanitizeMeth :: String -> String
+        sanitizeMeth "==" = "eq"
+        sanitizeMeth "/=" = "neq"
+        sanitizeMeth "<"  = "lt"
+        sanitizeMeth "<=" = "le"
+        sanitizeMeth ">"  = "gt"
+        sanitizeMeth ">=" = "ge"
+        sanitizeMeth "+"  = "plus"
+        sanitizeMeth "-"  = "minus"
+        sanitizeMeth "*"  = "times"
+        sanitizeMeth "/"  = "div"
+        sanitizeMeth name = name
+        
+        getTypeName :: Type -> String
+        getTypeName TInt = "Integer"
+        getTypeName TFloat = "Float"
+        getTypeName TBool = "Bool"
+        getTypeName TChar = "Char"
+        getTypeName TString = "String"
+        getTypeName (TVar (TyVar v)) = v
+        getTypeName (TInductive name _) = name
+        getTypeName (TCollection t) = "List" ++ getTypeName t
+        getTypeName (TTuple ts) = "Tuple" ++ concatMap getTypeName ts
+        getTypeName _ = "Unknown"
+    
     -- Helper function to infer type for an IExpr and process it as TIExpr
     inferAndExpand :: ClassEnv -> IExpr -> EvalM TIExpr
     inferAndExpand classEnv' e = do
