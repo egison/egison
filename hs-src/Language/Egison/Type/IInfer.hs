@@ -1104,10 +1104,9 @@ inferIExprWithContext expr ctx = case expr of
   ITensorContractExpr tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (tensorExpr', tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
-    -- Contraction reduces tensor rank
-    case tensorType of
-      TTensor elemType -> return (ITensorContractExpr tensorExpr', elemType, s)
-      _ -> return (ITensorContractExpr tensorExpr', tensorType, s)
+    -- contract : Tensor a -> [Tensor a]
+    -- Wraps tensor type in a collection
+    return (ITensorContractExpr tensorExpr', TCollection tensorType, s)
   
   -- Tensor map expression
   ITensorMapExpr func tensorExpr -> do

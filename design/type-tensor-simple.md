@@ -34,6 +34,22 @@ Tensor MathExpr型とunifyできる型の例には、Tensor MathExpr型、a型�
 対して、Num aの `+` や `-`、 `*`などの演算子については、成分ごとに処理がmapされる。
 そのおかげで foldr 関数などの高階関数やスカラーである数についての演算子の定義もテンソルのことを意識せずに定義できる。
 
+```
+class Num a where
+  (+) (x: a) (y: a) : a
+
+instance Num Integer where
+  (+) x y := (b.+ x y)
+
+
+def double {Num a} (x: a) : a := x + x
+
+double t1
+```
+上記のコードの処理は以下のように行われる。
+`double t1`は`tensorMap (\te1 -> double te1) t1`にIInfer.hsで変換される。
+`tensorMap (\te1 -> double te1) t1`は、TypeClassExpand.hsで`tensorMap (\tmapVar1 -> double numInteger te1) t1`に変換される。
+
 ## テンソルの宣言について
 
 テンソルの宣言は以下のようにできる。 
@@ -96,33 +112,6 @@ def ∂/∂ (f : MathExpr) (!x : MathExpr) : MathExpr :=
 
 関数の仮引数の型と引数の型がすでに正しく推論されていると仮定する。
 下記のIApplyExprの型推論の際に型検査が失敗したら、tensorMapを挿入して型推論が通るようにプログラムを書き換える。
-```
-inferIExprWithContext :: IExpr -> TypeErrorContext -> Infer (Type, Subst)
-inferIExprWithContext expr ctx = case expr of
-
-  -- Function Application
-  IApplyExpr func args -> do
-    let exprCtx = withExpr (prettyStr expr) ctx
-    (funcType, s1) <- inferIExprWithContext func exprCtx
-    inferIApplicationWithContext funcType args s1 exprCtx
-
--- | Infer application (helper) with context
-inferIApplicationWithContext :: Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (Type, Subst)
-inferIApplicationWithContext funcType args initSubst ctx = do
-  -- Infer argument types
-  argResults <- mapM (\arg -> inferIExprWithContext arg ctx) args
-  let argTypes = map fst argResults
-      argSubst = foldr composeSubst initSubst (map snd argResults)
-  
-  -- Create expected function type
-  resultType <- freshVar "result"
-  let expectedFuncType = foldr TFun resultType argTypes
-  
-  -- Unify
-  s <- unifyTypesWithContext (applySubst argSubst funcType) expectedFuncType ctx
-  let finalS = composeSubst s argSubst
-  return (applySubst finalS resultType, finalS)
-```
 
 
 ```

@@ -36,7 +36,7 @@ import           Language.Egison.IExpr      (TIExpr(..), IExpr(..), IPattern(..)
                                              IBindingExpr, IMatchClause, ILoopRange(..),
                                              Index(..), tiExprConstraints, tiExprType)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
-                                             lookupInstances, lookupClass, generalize, classEnvToList, lookupEnv)
+                                             lookupInstances, lookupClass, generalize, classEnvToList, lookupEnv, TypeEnv)
 import           Language.Egison.Type.IInfer (runInferI, defaultInferConfig)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), typeToName, sanitizeMethodName,
                                             capitalizeFirst, lowerFirst, findMatchingInstanceForType, InstanceInfo(..))
@@ -87,6 +87,31 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
             -- Can't infer type, process normally
             lambda' <- expandTIExprWithConstraintList classEnv' cs lambda
             return $ ITensorMapExpr lambda' tensorArg'
+      
+      -- TensorMap2: process lambda body with constraints for two tensor arguments
+      ITensorMap2Expr lambda tensorArg1 tensorArg2 -> do
+        -- Expand tensor arguments
+        tensorArg1' <- expandTIExprWithConstraintList classEnv' cs tensorArg1
+        tensorArg2' <- expandTIExprWithConstraintList classEnv' cs tensorArg2
+        
+        -- Infer element types from tensor arguments
+        typeEnv <- getTypeEnv
+        tensorArg1TypeM <- liftIO $ runInferI defaultInferConfig typeEnv tensorArg1'
+        
+        case tensorArg1TypeM of
+          Right (TTensor elemType, _, _) -> do
+            -- Process lambda knowing first parameter has type elemType
+            lambda' <- expandLambdaInTensorMap classEnv' cs elemType lambda
+            return $ ITensorMap2Expr lambda' tensorArg1' tensorArg2'
+          _ -> do
+            -- Can't infer type, process normally
+            lambda' <- expandTIExprWithConstraintList classEnv' cs lambda
+            return $ ITensorMap2Expr lambda' tensorArg1' tensorArg2'
+      
+      -- TensorContract: process expression with constraints
+      ITensorContractExpr tensorExpr -> do
+        tensorExpr' <- expandTIExprWithConstraintList classEnv' cs tensorExpr
+        return $ ITensorContractExpr tensorExpr'
       
       -- Method call: try to resolve using constraints
       IApplyExpr (IVarExpr methodName) args -> do
@@ -167,25 +192,53 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
         -- Helper to expand lambda body where first parameter has known type
         expandBodyWithParamType :: ClassEnv -> [Constraint] -> Type -> IExpr -> EvalM IExpr
         expandBodyWithParamType env cs paramType body = case body of
-          -- Function application: check if we need to insert dictionary
+          -- Function application: check if it's a method or constrained function
           IApplyExpr (IVarExpr funcName) args -> do
             typeEnv <- getTypeEnv
-            case lookupEnv funcName typeEnv of
-              Just (Forall _vars funcConstraints _ty) | not (null funcConstraints) -> do
-                -- This is a constrained function, resolve dictionaries
-                -- For each constraint, find appropriate dictionary based on argument types
-                dictArgs <- mapM (resolveDictForArg env args paramType) funcConstraints
-                case sequence dictArgs of
-                  Just dicts -> do
+            
+            -- First, check if it's a type class method
+            let isMethod = any (constraintHasMeth funcName) cs
+            
+            if isMethod && not (null args)
+              then do
+                -- It's a method call - use paramType for first argument
+                let className = case filter (constraintHasMeth funcName) cs of
+                      (Constraint cn _:_) -> cn
+                      [] -> ""
+                let instances = lookupInstances className env
+                case findMatchingInstanceForType paramType instances of
+                  Just inst -> do
+                    -- Generate instance method name
+                    let sanitized = sanitizeMethodName funcName
+                        instTypeName = typeToName (instType inst)
+                        instanceMethodName = lowerFirst className ++ instTypeName ++ capitalizeFirst sanitized
+                    -- Recursively expand arguments
                     args' <- mapM (expandBodyWithParamType env cs paramType) args
-                    return $ IApplyExpr (IVarExpr funcName) (dicts ++ args')
+                    return $ IApplyExpr (IVarExpr instanceMethodName) args'
                   Nothing -> do
-                    -- Fall back to normal processing
-                    expandTIExprWithConstraintList env cs body
-              _ -> do
-                -- Not constrained, but recursively process arguments
-                args' <- mapM (expandBodyWithParamType env cs paramType) args
-                return $ IApplyExpr (IVarExpr funcName) args'
+                    -- Can't resolve, try as constrained function
+                    tryConstrainedFunction
+              else
+                -- Not a method, try as constrained function
+                tryConstrainedFunction
+            where
+              tryConstrainedFunction = do
+                typeEnv <- getTypeEnv
+                case lookupEnv funcName typeEnv of
+                  Just (Forall _vars funcConstraints _ty) | not (null funcConstraints) -> do
+                    -- This is a constrained function, resolve dictionaries
+                    dictArgs <- mapM (resolveDictForArg env args paramType) funcConstraints
+                    case sequence dictArgs of
+                      Just dicts -> do
+                        args' <- mapM (expandBodyWithParamType env cs paramType) args
+                        return $ IApplyExpr (IVarExpr funcName) (dicts ++ args')
+                      Nothing -> do
+                        -- Fall back to normal processing
+                        expandTIExprWithConstraintList env cs body
+                  _ -> do
+                    -- Not constrained, but recursively process arguments
+                    args' <- mapM (expandBodyWithParamType env cs paramType) args
+                    return $ IApplyExpr (IVarExpr funcName) args'
           
           -- Nested application: recursively process
           IApplyExpr func args -> do
@@ -209,10 +262,13 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
         -- Resolve dictionary for argument, using known parameter type if available
         resolveDictForArg :: ClassEnv -> [IExpr] -> Type -> Constraint -> EvalM (Maybe IExpr)
         resolveDictForArg env args knownParamType (Constraint className _) = do
-          -- If first argument is a variable (lambda parameter), use known type
+          -- Check if any argument is a variable (lambda parameter), use known type
           typeEnv <- getTypeEnv
           let argType = case args of
+                -- Single argument that's a variable
                 [IVarExpr _] -> Just knownParamType
+                -- Multiple arguments - check if any is a variable, use known type
+                _ | any isVarExpr args -> Just knownParamType
                 _ -> Nothing
           
           case argType of
@@ -225,6 +281,10 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
                   return $ Just $ IVarExpr dictName
                 Nothing -> return Nothing
             Nothing -> return Nothing
+        
+        isVarExpr :: IExpr -> Bool
+        isVarExpr (IVarExpr _) = True
+        isVarExpr _ = False
         
         findConstraintForMethod :: String -> [Constraint] -> Maybe Constraint
         findConstraintForMethod methName constraints = 
@@ -251,6 +311,8 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       -- Constants and variables (no sub-expressions)
       IConstantExpr c -> return $ IConstantExpr c
       IVarExpr name -> return $ IVarExpr name
+        -- Note: Eta-expansion of type class methods is handled in addDictionaryParametersT
+        -- via replaceMethodCallsWithDictAccess, not here to avoid infinite loops
       
       -- Indexed expressions
       IIndexedExpr b expr1 indices -> do
@@ -454,6 +516,35 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       
       -- Function reference
       IFunctionExpr names -> return $ IFunctionExpr names
+      where
+        -- Check if a name is a type class method
+        isTypeClassMethod :: String -> ClassEnv -> Bool
+        isTypeClassMethod methName env =
+          any (hasMethod methName) (map snd (classEnvToList env))
+          where
+            hasMethod :: String -> ClassInfo -> Bool
+            hasMethod name classInfo = name `elem` map fst (classMethods classInfo)
+        
+        -- Eta-expand a type class method: + → \x y -> x + y
+        -- The generated lambda will be processed by existing lambda handling code
+        etaExpandMethod :: String -> TypeScheme -> EvalM IExpr
+        etaExpandMethod methName (Forall _ _ ty) = do
+          let arity = getTypeArity ty
+              paramNames = ["etaVar" ++ show i | i <- [1..arity]]
+              paramVars = map stringToVar paramNames
+              paramExprs = map (IVarExpr . show) paramVars
+              -- Create: methName etaVar1 etaVar2 ... etaVarN
+              -- Important: IApplyExpr takes a list of all arguments at once
+              body = IApplyExpr (IVarExpr methName) paramExprs
+              -- Create: \etaVar1 etaVar2 ... etaVarN -> body
+              lambda = ILambdaExpr Nothing paramVars body
+          -- Expand the lambda (this will handle dictionary insertion)
+          expandTIExpr classEnv' lambda
+        
+        -- Get the arity (number of parameters) of a function type
+        getTypeArity :: Type -> Int
+        getTypeArity (TFun _ t2) = 1 + getTypeArity t2
+        getTypeArity _ = 0
     
     -- Helper function to process bindings
     expandBinding :: ClassEnv -> IBindingExpr -> EvalM IBindingExpr
@@ -614,6 +705,30 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     -- Replace method calls with dictionary access
     replaceMethodCallsWithDictAccess :: ClassEnv -> [Constraint] -> IExpr -> EvalM IExpr
     replaceMethodCallsWithDictAccess classEnv cs iexpr = case iexpr of
+      -- Standalone method reference: eta-expand then process
+      IVarExpr methodName -> do
+        case findConstraintForMethod classEnv methodName cs of
+          Just constraint -> do
+            -- This is a method used as a value - eta-expand it
+            -- Get method type to determine arity
+            typeEnv <- getTypeEnv
+            case lookupEnv methodName typeEnv of
+              Just (Forall _ _ ty) -> do
+                let arity = getMethodArity ty
+                    paramNames = ["etaVar" ++ show i | i <- [1..arity]]
+                    paramVars = map stringToVar paramNames
+                    paramExprs = map IVarExpr paramNames  -- Use paramNames directly, not show of paramVars
+                    -- Create dictionary access
+                    dictParam = constraintToDictParam constraint
+                    dictAccess = IIndexedExpr False (IVarExpr dictParam)
+                                  [Sub (IConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))]
+                    -- Create: dictAccess etaVar1 etaVar2 ... etaVarN
+                    body = IApplyExpr dictAccess paramExprs
+                    -- Create: \etaVar1 etaVar2 ... etaVarN -> body
+                return $ ILambdaExpr Nothing paramVars body
+              Nothing -> return $ IVarExpr methodName
+          Nothing -> return $ IVarExpr methodName
+      
       -- Method call: replace with dictionary access
       IApplyExpr (IVarExpr methodName) args -> do
         case findConstraintForMethod classEnv methodName cs of
@@ -677,4 +792,8 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
             then Just c
             else findConstraintForMethod env methodName cs
         Nothing -> findConstraintForMethod env methodName cs
+    
+    getMethodArity :: Type -> Int
+    getMethodArity (TFun _ t2) = 1 + getMethodArity t2
+    getMethodArity _ = 0
     
