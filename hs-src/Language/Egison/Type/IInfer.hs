@@ -234,6 +234,28 @@ lookupVar name = do
           freshVar "unbound"
         else throwError $ UnboundVariable name emptyContext
 
+-- | Lookup variable and return type with constraints
+lookupVarWithConstraints :: String -> Infer (Type, [Constraint])
+lookupVarWithConstraints name = do
+  env <- getEnv
+  case lookupEnv name env of
+    Just scheme -> do
+      st <- get
+      let (constraints, t, newCounter) = instantiate scheme (inferCounter st)
+      -- Track constraints for type class resolution
+      modify $ \s -> s { inferCounter = newCounter }
+      addConstraints constraints
+      return (t, constraints)
+    Nothing -> do
+      permissive <- isPermissive
+      if permissive
+        then do
+          -- In permissive mode, treat as a warning and return a fresh type variable
+          addWarning $ UnboundVariableWarning name emptyContext
+          t <- freshVar "unbound"
+          return (t, [])
+        else throwError $ UnboundVariable name emptyContext
+
 -- | Unify two types
 unifyTypes :: Type -> Type -> Infer Subst
 unifyTypes t1 t2 = unifyTypesWithContext t1 t2 emptyContext
@@ -298,8 +320,8 @@ inferIExprWithContext expr ctx = case expr of
   -- Variables
   IVarExpr name -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    ty <- lookupVar name
-    let scheme = Forall [] [] ty
+    (ty, constraints) <- lookupVarWithConstraints name
+    let scheme = Forall [] constraints ty
     return (TIExpr scheme (TIVarExpr name), emptySubst)
   
   -- Tuples
@@ -1809,7 +1831,12 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
           -- Unification succeeded
           let finalS = composeSubst s argSubst
               finalType = applySubst finalS resultType
-          return (mkTIExpr finalType (TIApplyExpr funcTIExpr argTIExprs), finalS)
+              -- Include constraints from function's type scheme
+              funcScheme = tiScheme funcTIExpr
+              (Forall _tvs constraints _) = funcScheme
+              -- Create result with constraints
+              resultScheme = Forall [] constraints finalType
+          return (TIExpr resultScheme (TIApplyExpr funcTIExpr argTIExprs), finalS)
         
         Left _ -> do
           -- Unification failed
