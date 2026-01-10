@@ -68,10 +68,25 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
         return $ ILambdaExpr mVar params body'
       
       -- TensorMap: process lambda body with constraints
+      -- Need special handling to infer lambda parameter type from tensor argument
       ITensorMapExpr lambda tensorArg -> do
-        lambda' <- expandTIExprWithConstraintList classEnv' cs lambda
+        -- First, expand the tensor argument
         tensorArg' <- expandTIExprWithConstraintList classEnv' cs tensorArg
-        return $ ITensorMapExpr lambda' tensorArg'
+        
+        -- Infer the type of the tensor argument to extract element type
+        typeEnv <- getTypeEnv
+        tensorArgTypeM <- liftIO $ runInferI defaultInferConfig typeEnv tensorArg'
+        
+        case tensorArgTypeM of
+          Right (TTensor elemType, _, _) -> do
+            -- Now we know lambda parameter has type elemType
+            -- Process lambda with this knowledge
+            lambda' <- expandLambdaInTensorMap classEnv' cs elemType lambda
+            return $ ITensorMapExpr lambda' tensorArg'
+          _ -> do
+            -- Can't infer type, process normally
+            lambda' <- expandTIExprWithConstraintList classEnv' cs lambda
+            return $ ITensorMapExpr lambda' tensorArg'
       
       -- Method call: try to resolve using constraints
       IApplyExpr (IVarExpr methodName) args -> do
@@ -139,6 +154,78 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       -- Other expressions: use original expandTIExpr
       _ -> expandTIExpr classEnv' e
       where
+        -- Helper to expand lambda in tensorMap context where we know parameter type
+        expandLambdaInTensorMap :: ClassEnv -> [Constraint] -> Type -> IExpr -> EvalM IExpr
+        expandLambdaInTensorMap env cs paramType lambdaExpr = case lambdaExpr of
+          ILambdaExpr mVar params body -> do
+            -- Process body, knowing that the first parameter has type paramType
+            -- When processing function calls in body, we can resolve dictionaries
+            body' <- expandBodyWithParamType env cs paramType body
+            return $ ILambdaExpr mVar params body'
+          _ -> expandTIExprWithConstraintList env cs lambdaExpr
+        
+        -- Helper to expand lambda body where first parameter has known type
+        expandBodyWithParamType :: ClassEnv -> [Constraint] -> Type -> IExpr -> EvalM IExpr
+        expandBodyWithParamType env cs paramType body = case body of
+          -- Function application: check if we need to insert dictionary
+          IApplyExpr (IVarExpr funcName) args -> do
+            typeEnv <- getTypeEnv
+            case lookupEnv funcName typeEnv of
+              Just (Forall _vars funcConstraints _ty) | not (null funcConstraints) -> do
+                -- This is a constrained function, resolve dictionaries
+                -- For each constraint, find appropriate dictionary based on argument types
+                dictArgs <- mapM (resolveDictForArg env args paramType) funcConstraints
+                case sequence dictArgs of
+                  Just dicts -> do
+                    args' <- mapM (expandBodyWithParamType env cs paramType) args
+                    return $ IApplyExpr (IVarExpr funcName) (dicts ++ args')
+                  Nothing -> do
+                    -- Fall back to normal processing
+                    expandTIExprWithConstraintList env cs body
+              _ -> do
+                -- Not constrained, but recursively process arguments
+                args' <- mapM (expandBodyWithParamType env cs paramType) args
+                return $ IApplyExpr (IVarExpr funcName) args'
+          
+          -- Nested application: recursively process
+          IApplyExpr func args -> do
+            func' <- expandBodyWithParamType env cs paramType func
+            args' <- mapM (expandBodyWithParamType env cs paramType) args
+            return $ IApplyExpr func' args'
+          
+          -- TensorMap: process recursively
+          ITensorMapExpr lambda tensorArg -> do
+            lambda' <- expandBodyWithParamType env cs paramType lambda
+            tensorArg' <- expandBodyWithParamType env cs paramType tensorArg
+            return $ ITensorMapExpr lambda' tensorArg'
+          
+          -- Lambda: process body recursively
+          ILambdaExpr mVar params lambdaBody -> do
+            lambdaBody' <- expandBodyWithParamType env cs paramType lambdaBody
+            return $ ILambdaExpr mVar params lambdaBody'
+          
+          _ -> expandTIExprWithConstraintList env cs body
+        
+        -- Resolve dictionary for argument, using known parameter type if available
+        resolveDictForArg :: ClassEnv -> [IExpr] -> Type -> Constraint -> EvalM (Maybe IExpr)
+        resolveDictForArg env args knownParamType (Constraint className _) = do
+          -- If first argument is a variable (lambda parameter), use known type
+          typeEnv <- getTypeEnv
+          let argType = case args of
+                [IVarExpr _] -> Just knownParamType
+                _ -> Nothing
+          
+          case argType of
+            Just t -> do
+              let instances = lookupInstances className env
+              case findMatchingInstanceForType t instances of
+                Just inst -> do
+                  let instTypeName = typeToName (instType inst)
+                      dictName = lowerFirst className ++ instTypeName
+                  return $ Just $ IVarExpr dictName
+                Nothing -> return Nothing
+            Nothing -> return Nothing
+        
         findConstraintForMethod :: String -> [Constraint] -> Maybe Constraint
         findConstraintForMethod methName constraints = 
           case filter (constraintHasMeth methName) constraints of
