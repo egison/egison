@@ -44,6 +44,8 @@ desugarTopExpr (Define vwi expr) = do
 desugarTopExpr (DefineWithType typedVwi expr) = do
   -- Convert typed definition to regular definition
   -- Type information is used for type checking, but the runtime representation is the same
+  -- Note: Constraints are preserved in the type scheme (by EnvBuilder),
+  -- and dictionary passing is handled in TypeClassExpand phase
   let name = typedVarName typedVwi
       indices = typedVarIndices typedVwi
       params = typedVarParams typedVwi

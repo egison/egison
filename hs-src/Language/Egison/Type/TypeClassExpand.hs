@@ -22,18 +22,21 @@ This eliminates the need for runtime dispatch functions like resolveEq.
 
 module Language.Egison.Type.TypeClassExpand
   ( expandTypeClassMethodsT
+  , addDictionaryParametersT
   ) where
 
 import           Control.Monad.IO.Class     (liftIO)
 import           Data.Char                  (toLower, toUpper)
+import           Data.Text                  (pack)
 
+import           Language.Egison.AST        (ConstantExpr(..))
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
-import           Language.Egison.IExpr      (TIExpr(..), IExpr(..), IPattern(..),
+import           Language.Egison.IExpr      (TIExpr(..), IExpr(..), IPattern(..), Var(..), stringToVar,
                                              IBindingExpr, IMatchClause, ILoopRange(..),
                                              Index(..), tiExprConstraints, tiExprType)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
-                                             lookupInstances, lookupClass, generalize, classEnvToList)
+                                             lookupInstances, lookupClass, generalize, classEnvToList, lookupEnv)
 import           Language.Egison.Type.IInfer (runInferI, defaultInferConfig)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..))
 import           Language.Egison.Type.Unify (unify)
@@ -104,10 +107,27 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
         case resolved of
           Just resolvedExpr -> return resolvedExpr
           Nothing -> do
-            -- Fall back to old behavior
-            func' <- expandTIExprWithConstraintList classEnv' cs (IVarExpr methodName)
-            args' <- mapM (expandTIExprWithConstraintList classEnv' cs) args
-            return $ IApplyExpr func' args'
+            -- Not a method call, check if it's a constrained function call
+            -- This is where we insert dictionaries for calls like `double 2`
+            case lookupEnv methodName typeEnv of
+              Just (Forall _vars funcConstraints _ty) | not (null funcConstraints) -> do
+                -- Constrained function: insert dictionary arguments
+                dictArgs <- mapM (resolveDictionary classEnv' args) funcConstraints
+                case sequence dictArgs of
+                  Just dicts -> do
+                    -- Successfully resolved all dictionaries
+                    args' <- mapM (expandTIExprWithConstraintList classEnv' cs) args
+                    return $ IApplyExpr (IVarExpr methodName) (dicts ++ args')
+                  Nothing -> do
+                    -- Could not resolve dictionaries, process normally
+                    func' <- expandTIExprWithConstraintList classEnv' cs (IVarExpr methodName)
+                    args' <- mapM (expandTIExprWithConstraintList classEnv' cs) args
+                    return $ IApplyExpr func' args'
+              _ -> do
+                -- Fall back to normal processing
+                func' <- expandTIExprWithConstraintList classEnv' cs (IVarExpr methodName)
+                args' <- mapM (expandTIExprWithConstraintList classEnv' cs) args
+                return $ IApplyExpr func' args'
       
       -- Other expressions: use original expandTIExpr
       _ -> expandTIExpr classEnv' e
@@ -350,18 +370,39 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       
       -- Function application - This is where we expand type class methods!
       IApplyExpr func args -> do
-        -- Check if this is a type class method call
+        -- Check if this is a type class method call or constrained function call
         case func of
-          IVarExpr methodName -> do
+          IVarExpr funcName -> do
             -- Try to expand as type class method
-            expanded <- tryExpandTypeClassMethod classEnv' methodName args
+            expanded <- tryExpandTypeClassMethod classEnv' funcName args
             case expanded of
               Just expandedExpr -> return expandedExpr
               Nothing -> do
-                -- Not a type class method, process recursively
-                func' <- expandTIExpr classEnv' func
-                args' <- mapM (expandTIExpr classEnv') args
-                return $ IApplyExpr func' args'
+                -- Not a type class method, check if it's a constrained function
+                typeEnv <- getTypeEnv
+                case lookupEnv funcName typeEnv of
+                  Just (Forall _vars constraints _ty) | not (null constraints) -> do
+                    -- Constrained function: insert dictionary arguments
+                    liftIO $ putStrLn $ "DEBUG: Found constrained function: " ++ funcName ++ " with constraints: " ++ show constraints
+                    dictArgs <- mapM (resolveDictionary classEnv' args) constraints
+                    liftIO $ putStrLn $ "DEBUG: Resolved dictionaries: " ++ show (fmap (const "dict") <$> dictArgs)
+                    case sequence dictArgs of
+                      Just dicts -> do
+                        -- Successfully resolved all dictionaries
+                        liftIO $ putStrLn $ "DEBUG: Inserting " ++ show (length dicts) ++ " dictionaries"
+                        func' <- expandTIExpr classEnv' func
+                        args' <- mapM (expandTIExpr classEnv') args
+                        return $ IApplyExpr func' (dicts ++ args')
+                      Nothing -> do
+                        -- Could not resolve dictionaries, process normally
+                        func' <- expandTIExpr classEnv' func
+                        args' <- mapM (expandTIExpr classEnv') args
+                        return $ IApplyExpr func' args'
+                  _ -> do
+                    -- Not a constrained function, process recursively
+                    func' <- expandTIExpr classEnv' func
+                    args' <- mapM (expandTIExpr classEnv') args
+                    return $ IApplyExpr func' args'
           _ -> do
             -- Function is not a simple variable, process recursively
             func' <- expandTIExpr classEnv' func
@@ -492,6 +533,49 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       expr2' <- expandTIExpr classEnv' expr2
       pat' <- expandPattern classEnv' pat
       return $ ILoopRange expr1' expr2' pat'
+
+-- | Resolve a dictionary for a constraint given the function arguments
+-- Returns the dictionary expression (e.g., IVarExpr "numInteger")
+resolveDictionary :: ClassEnv -> [IExpr] -> Constraint -> EvalM (Maybe IExpr)
+resolveDictionary classEnv args (Constraint className constraintType) = do
+  -- Infer argument types to determine the concrete type
+  typeEnv <- getTypeEnv
+  if null args
+    then return Nothing
+    else do
+      -- Infer the first argument's type
+      argResult <- liftIO $ runInferI defaultInferConfig typeEnv (head args)
+      case argResult of
+        Left _ -> return Nothing
+        Right (argType, _, _) -> do
+          -- Find matching instance
+          let instances = lookupInstances className classEnv
+          case findMatchingInstanceForType argType instances of
+            Just inst -> do
+              -- Generate dictionary name: e.g., "numInteger" for Num Integer
+              let instTypeName = typeToName (instType inst)
+                  dictName = lowerFirst className ++ instTypeName
+              return $ Just $ IVarExpr dictName
+            Nothing -> return Nothing
+  where
+    findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo
+    findMatchingInstanceForType _ [] = Nothing
+    findMatchingInstanceForType targetType (inst:insts) =
+      case unify (instType inst) targetType of
+        Right _ -> Just inst
+        Left _ -> findMatchingInstanceForType targetType insts
+    
+    typeToName :: Type -> String
+    typeToName TInt = "Integer"
+    typeToName TFloat = "Float"
+    typeToName TBool = "Bool"
+    typeToName TChar = "Char"
+    typeToName TString = "String"
+    typeToName (TVar (TyVar v)) = v
+    typeToName (TInductive name _) = name
+    typeToName (TCollection t) = "List" ++ typeToName t
+    typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
+    typeToName _ = "Unknown"
 
 -- | Try to expand a type class method call by inferring argument types
 -- This is simpler than using TIExpr constraints
@@ -671,3 +755,127 @@ capitalizeFirst (c:cs) = toUpper c : cs
 lowerFirst :: String -> String
 lowerFirst []     = []
 lowerFirst (c:cs) = toLower c : cs
+
+-- | Add dictionary parameters to a function based on its type scheme constraints
+-- This transforms constrained functions into dictionary-passing style
+addDictionaryParametersT :: TypeScheme -> TIExpr -> EvalM TIExpr
+addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
+  | null constraints = return tiExpr  -- No constraints, no change
+  | otherwise = do
+      classEnv <- getClassEnv
+      -- Transform the expression to add dictionary parameters
+      let TIExpr scheme expr = tiExpr
+      expr' <- addDictParamsToExpr classEnv constraints expr
+      return $ TIExpr scheme expr'
+  where
+    -- Add dictionary parameters to the expression (typically a Lambda)
+    addDictParamsToExpr :: ClassEnv -> [Constraint] -> IExpr -> EvalM IExpr
+    addDictParamsToExpr classEnv cs expr = case expr of
+      -- Lambda: add dictionary parameters before regular parameters
+      ILambdaExpr mVar params body -> do
+        -- Generate dictionary parameter names
+        let dictParams = map constraintToDictParam cs
+            dictVars = map stringToVar dictParams
+        -- Replace method calls in body with dictionary access
+        body' <- replaceMethodCallsWithDictAccess classEnv cs body
+        -- Create new lambda with dict params + regular params
+        return $ ILambdaExpr mVar (dictVars ++ params) body'
+      
+      -- Not a lambda: wrap in a lambda with dictionary parameters
+      _ -> do
+        let dictParams = map constraintToDictParam cs
+            dictVars = map stringToVar dictParams
+        body' <- replaceMethodCallsWithDictAccess classEnv cs expr
+        return $ ILambdaExpr Nothing dictVars body'
+    
+    -- Generate dictionary parameter name from constraint
+    -- E.g., Constraint "Num" (TVar "a") -> "dict_Num_a"
+    constraintToDictParam :: Constraint -> String
+    constraintToDictParam (Constraint className constraintType) =
+      "dict_" ++ className ++ "_" ++ typeSuffix constraintType
+    
+    typeSuffix :: Type -> String
+    typeSuffix (TVar (TyVar v)) = v
+    typeSuffix TInt = "Integer"
+    typeSuffix TFloat = "Float"
+    typeSuffix _ = "t"
+    
+    -- Replace method calls with dictionary access
+    replaceMethodCallsWithDictAccess :: ClassEnv -> [Constraint] -> IExpr -> EvalM IExpr
+    replaceMethodCallsWithDictAccess classEnv cs iexpr = case iexpr of
+      -- Method call: replace with dictionary access
+      IApplyExpr (IVarExpr methodName) args -> do
+        case findConstraintForMethod classEnv methodName cs of
+          Just constraint -> do
+            -- Replace with dictionary access
+            let dictParam = constraintToDictParam constraint
+                dictAccess = IIndexedExpr False (IVarExpr dictParam)
+                              [Sub (IConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))]
+            -- Recursively process arguments
+            args' <- mapM (replaceMethodCallsWithDictAccess classEnv cs) args
+            return $ IApplyExpr dictAccess args'
+          Nothing -> do
+            -- Not a method from constraints, process recursively
+            args' <- mapM (replaceMethodCallsWithDictAccess classEnv cs) args
+            return $ IApplyExpr (IVarExpr methodName) args'
+      
+      -- Lambda: recursively process body
+      ILambdaExpr mVar params body -> do
+        body' <- replaceMethodCallsWithDictAccess classEnv cs body
+        return $ ILambdaExpr mVar params body'
+      
+      -- Application: recursively process
+      IApplyExpr func args -> do
+        func' <- replaceMethodCallsWithDictAccess classEnv cs func
+        args' <- mapM (replaceMethodCallsWithDictAccess classEnv cs) args
+        return $ IApplyExpr func' args'
+      
+      -- If: recursively process
+      IIfExpr cond thenExpr elseExpr -> do
+        cond' <- replaceMethodCallsWithDictAccess classEnv cs cond
+        thenExpr' <- replaceMethodCallsWithDictAccess classEnv cs thenExpr
+        elseExpr' <- replaceMethodCallsWithDictAccess classEnv cs elseExpr
+        return $ IIfExpr cond' thenExpr' elseExpr'
+      
+      -- Let: recursively process
+      ILetExpr bindings body -> do
+        bindings' <- mapM (\(pat, e) -> do
+          e' <- replaceMethodCallsWithDictAccess classEnv cs e
+          return (pat, e')) bindings
+        body' <- replaceMethodCallsWithDictAccess classEnv cs body
+        return $ ILetExpr bindings' body'
+      
+      -- LetRec: recursively process
+      ILetRecExpr bindings body -> do
+        bindings' <- mapM (\(pat, e) -> do
+          e' <- replaceMethodCallsWithDictAccess classEnv cs e
+          return (pat, e')) bindings
+        body' <- replaceMethodCallsWithDictAccess classEnv cs body
+        return $ ILetRecExpr bindings' body'
+      
+      -- Other expressions: return as-is for now
+      -- (Can add more cases as needed)
+      _ -> return iexpr
+    
+    findConstraintForMethod :: ClassEnv -> String -> [Constraint] -> Maybe Constraint
+    findConstraintForMethod _ _ [] = Nothing
+    findConstraintForMethod env methodName (c@(Constraint className _):cs) =
+      case lookupClass className env of
+        Just classInfo ->
+          if methodName `elem` map fst (classMethods classInfo)
+            then Just c
+            else findConstraintForMethod env methodName cs
+        Nothing -> findConstraintForMethod env methodName cs
+    
+    sanitizeMethodName :: String -> String
+    sanitizeMethodName "==" = "eq"
+    sanitizeMethodName "/=" = "neq"
+    sanitizeMethodName "<"  = "lt"
+    sanitizeMethodName "<=" = "le"
+    sanitizeMethodName ">"  = "gt"
+    sanitizeMethodName ">=" = "ge"
+    sanitizeMethodName "+"  = "plus"
+    sanitizeMethodName "-"  = "minus"
+    sanitizeMethodName "*"  = "times"
+    sanitizeMethodName "/"  = "div"
+    sanitizeMethodName name = name
