@@ -370,7 +370,7 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
       
       -- Function application - This is where we expand type class methods!
       IApplyExpr func args -> do
-        -- Check if this is a type class method call or constrained function call
+        -- Check if this is a type class method call
         case func of
           IVarExpr funcName -> do
             -- Try to expand as type class method
@@ -378,31 +378,10 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
             case expanded of
               Just expandedExpr -> return expandedExpr
               Nothing -> do
-                -- Not a type class method, check if it's a constrained function
-                typeEnv <- getTypeEnv
-                case lookupEnv funcName typeEnv of
-                  Just (Forall _vars constraints _ty) | not (null constraints) -> do
-                    -- Constrained function: insert dictionary arguments
-                    liftIO $ putStrLn $ "DEBUG: Found constrained function: " ++ funcName ++ " with constraints: " ++ show constraints
-                    dictArgs <- mapM (resolveDictionary classEnv' args) constraints
-                    liftIO $ putStrLn $ "DEBUG: Resolved dictionaries: " ++ show (fmap (const "dict") <$> dictArgs)
-                    case sequence dictArgs of
-                      Just dicts -> do
-                        -- Successfully resolved all dictionaries
-                        liftIO $ putStrLn $ "DEBUG: Inserting " ++ show (length dicts) ++ " dictionaries"
-                        func' <- expandTIExpr classEnv' func
-                        args' <- mapM (expandTIExpr classEnv') args
-                        return $ IApplyExpr func' (dicts ++ args')
-                      Nothing -> do
-                        -- Could not resolve dictionaries, process normally
-                        func' <- expandTIExpr classEnv' func
-                        args' <- mapM (expandTIExpr classEnv') args
-                        return $ IApplyExpr func' args'
-                  _ -> do
-                    -- Not a constrained function, process recursively
-                    func' <- expandTIExpr classEnv' func
-                    args' <- mapM (expandTIExpr classEnv') args
-                    return $ IApplyExpr func' args'
+                -- Not a type class method, process recursively
+                func' <- expandTIExpr classEnv' func
+                args' <- mapM (expandTIExpr classEnv') args
+                return $ IApplyExpr func' args'
           _ -> do
             -- Function is not a simple variable, process recursively
             func' <- expandTIExpr classEnv' func
