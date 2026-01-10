@@ -155,10 +155,13 @@ processTopExpr result topExpr = case topExpr of
         -- Build function type
         funType = foldr TFun retType paramTypes
         
+        -- Convert constraints from AST to internal representation
+        constraints = map constraintToInternal (typedVarConstraints typedVar)
+        
         -- Generalize free type variables in the type signature
         -- This handles type parameters like {a, b, c} in def compose {a, b, c} ...
         freeVars = Set.toList (freeTyVars funType)
-        typeScheme = Types.Forall freeVars [] funType
+        typeScheme = Types.Forall freeVars constraints funType
         
         typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv name typeScheme typeEnv
