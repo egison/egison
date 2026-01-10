@@ -56,7 +56,7 @@ import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
-import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
+import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
 import qualified Language.Egison.Type.Env as Env
 import qualified Data.Set as Set
 import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT)
@@ -126,24 +126,6 @@ evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
 
 -- | Evaluate expanded top expressions using the typed pipeline with optional printing.
 -- This function implements phases 2-10 of the processing flow.
--- | Helper: Convert ITopExpr + TypeScheme to TITopExpr
--- Takes a type environment to generalize types appropriately
-iTopExprToTITopExpr :: Env.TypeEnv -> ITopExpr -> Types.Type -> TITopExpr
-iTopExprToTITopExpr typeEnv iTopExpr ty = case iTopExpr of
-  IDefine var iexpr -> 
-    let typeScheme = Env.generalize typeEnv ty
-    in TIDefine typeScheme var (TIExpr typeScheme iexpr)
-  ITest iexpr -> 
-    let typeScheme = Types.Forall [] [] ty  -- No generalization for test expressions
-    in TITest (TIExpr typeScheme iexpr)
-  IExecute iexpr -> 
-    let typeScheme = Types.Forall [] [] ty  -- No generalization for execute expressions
-    in TIExecute (TIExpr typeScheme iexpr)
-  ILoadFile path -> TILoadFile path
-  ILoad _lib -> error "ILoad should not appear after expandLoads"
-  IDefineMany bindings -> 
-    let typeScheme = Types.Forall [] [] ty  -- TODO: Properly handle multiple bindings
-    in TIDefineMany [(var, TIExpr typeScheme iexpr) | (var, iexpr) <- bindings]
 
 -- | Helper: Convert ITopExpr + TypeScheme to TITopExpr (directly from scheme)
 -- This version uses the type scheme directly, preserving original type variable names
