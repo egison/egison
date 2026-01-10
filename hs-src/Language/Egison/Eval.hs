@@ -59,7 +59,7 @@ import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarning
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, generalize, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
 import qualified Language.Egison.Type.Env as Env
 import qualified Data.Set as Set
-import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT)
+import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
@@ -165,8 +165,11 @@ iTopExprToTITopExprFromScheme _typeEnv iTopExpr typeScheme = case iTopExpr of
 expandTypeClassInTopExpr :: TITopExpr -> EvalM TITopExpr
 expandTypeClassInTopExpr tiTopExpr = case tiTopExpr of
   TIDefine scheme var tiExpr -> do
+    -- First expand methods in the expression
     tiExpr' <- expandTypeClassMethodsT tiExpr
-    return $ TIDefine scheme var tiExpr'
+    -- Then add dictionary parameters if there are constraints
+    tiExpr'' <- addDictionaryParametersT scheme tiExpr'
+    return $ TIDefine scheme var tiExpr''
   TITest tiExpr -> do
     tiExpr' <- expandTypeClassMethodsT tiExpr
     return $ TITest tiExpr'
