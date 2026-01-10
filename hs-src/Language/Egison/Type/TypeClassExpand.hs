@@ -39,7 +39,7 @@ import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), Instanc
                                              lookupInstances, lookupClass, generalize, classEnvToList, lookupEnv)
 import           Language.Egison.Type.IInfer (runInferI, defaultInferConfig)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), typeToName, sanitizeMethodName,
-                                            capitalizeFirst, lowerFirst)
+                                            capitalizeFirst, lowerFirst, findMatchingInstanceForType, InstanceInfo(..))
 import           Language.Egison.Type.Unify (unify)
 
 -- | Expand type class method calls in a typed expression (TIExpr)
@@ -472,13 +472,6 @@ resolveDictionary classEnv args (Constraint className constraintType) = do
                   dictName = lowerFirst className ++ instTypeName
               return $ Just $ IVarExpr dictName
             Nothing -> return Nothing
-  where
-    findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo
-    findMatchingInstanceForType _ [] = Nothing
-    findMatchingInstanceForType targetType (inst:insts) =
-      case unify (instType inst) targetType of
-        Right _ -> Just inst
-        Left _ -> findMatchingInstanceForType targetType insts
     
 
 -- | Add dictionary parameters to a function based on its type scheme constraints
