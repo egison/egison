@@ -260,11 +260,18 @@ iexprToTIExprSimple scheme expr = case expr of
 expandTypeClassInTopExpr :: TITopExpr -> EvalM TITopExpr
 expandTypeClassInTopExpr tiTopExpr = case tiTopExpr of
   TIDefine scheme var tiExpr -> do
-    -- First expand methods in the expression
-    tiExpr' <- expandTypeClassMethodsT tiExpr
+    -- Merge the definition's constraints into the expression's scheme
+    let tiExpr' = mergeConstraintsIntoExpr scheme tiExpr
+    -- Then expand methods in the expression
+    tiExpr'' <- expandTypeClassMethodsT tiExpr'
     -- Then add dictionary parameters if there are constraints
-    tiExpr'' <- addDictionaryParametersT scheme tiExpr'
-    return $ TIDefine scheme var tiExpr''
+    tiExpr''' <- addDictionaryParametersT scheme tiExpr''
+    return $ TIDefine scheme var tiExpr'''
+      where
+        mergeConstraintsIntoExpr :: Types.TypeScheme -> TIExpr -> TIExpr
+        mergeConstraintsIntoExpr (Types.Forall tvs cs _) (TIExpr (Types.Forall tvs' cs' ty) node) =
+          -- Merge constraints from parent scheme into expression scheme
+          TIExpr (Types.Forall (tvs ++ tvs') (cs ++ cs') ty) node
   TITest tiExpr -> do
     tiExpr' <- expandTypeClassMethodsT tiExpr
     return $ TITest tiExpr'
