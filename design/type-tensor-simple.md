@@ -127,3 +127,48 @@ f t1 --=> tensorMap (\t1e -> f t1e) t1
 
 g t1 t2 --=>  tensorMap (\t1e -> tensorMap (\t2e -> g t1e t2e) t2) t1
 ```
+
+## 関数に関数が渡されたときの扱い
+
+下記のような例が動くようにしたい。
+
+```
+def foldr {a, b} (fn : a -> b -> b) (init : b) (ls : [a]) : b :=
+  match ls as list something with
+    | [] -> init
+    | $x :: $xs -> fn x (foldr fn init xs)
+
+foldr b.+ [| 0, 0, 0 |]_i [ [| 1, 2, 3 |]_i, [| 10, 20, 30 |]_i ]
+
+foldr b.+ 0 [ [| 1, 2, 3 |], [| 10, 20, 30 |] ]
+```
+
+`(foldr b.+)`のように関数に関数が渡された際、引数の関数（この場合`b.+`）の引数の型がTensor型とunifyできない場合はtensorMapを挿入する。
+
+例えば、`id : a -> a`のような関数の場合だと、
+a は Tensor b型とunifyできる。
+このような場合は、tensorMapでwrapしない。
+`(+) : {Num a} a -> a`のような関数だとTensor bはNumのインスタンスでないのでaとTensor bはunifyできない。
+このような場合は、tensorMapでwrapする。
+
+実装は以下のようにできる。
+
+`(foldr b.+)`の例で考える。
+
+この例のように関数が関数の引数に渡される場合は、inferの処理を分岐する。
+IApplyExprをinferする際に、引数の型をinferして
+
+`(foldr (\x, y -> b.+ x y))`のようにeta展開する。
+
+このb.+ x yにwrapWithTensorMap関数を使いまわして、tensorMapを挿入する。
+このとき、
+```
+wrapWithTensorMap currentFunc currentType args argTypes subst ctx
+```
+に以下のように引数を渡せば良い。
+```
+currentFunc : b.+
+currentType : Integer -> Integer -> Integer
+args        : x y
+argTypes    : [Tensor Integer, Tensor Integer, Tensor Integer]
+```
