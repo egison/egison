@@ -67,6 +67,12 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
         body' <- expandTIExprWithConstraintList classEnv' cs body
         return $ ILambdaExpr mVar params body'
       
+      -- TensorMap: process lambda body with constraints
+      ITensorMapExpr lambda tensorArg -> do
+        lambda' <- expandTIExprWithConstraintList classEnv' cs lambda
+        tensorArg' <- expandTIExprWithConstraintList classEnv' cs tensorArg
+        return $ ITensorMapExpr lambda' tensorArg'
+      
       -- Method call: try to resolve using constraints
       IApplyExpr (IVarExpr methodName) args -> do
         -- Try to resolve method call using constraints

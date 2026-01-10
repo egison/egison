@@ -1678,23 +1678,21 @@ inferIApplicationWithContext funcExpr funcType args initSubst ctx = do
       argTypes = map (\(_, t, _) -> t) argResults
       argSubst = foldr composeSubst initSubst (map (\(_, _, s) -> s) argResults)
   
-  -- Get function constraints if funcExpr is a variable
-  funcConstraints <- case funcExpr of
-    IVarExpr varName -> do
-      env <- getEnv
-      case lookupEnv varName env of
-        Just (Forall _ cs _) -> do
-          -- Debug: funcConstraints が取得できた
-          return cs
-        Nothing -> return []
-    _ -> return []
+  -- Get all accumulated constraints (includes instantiated constraints from lookupVar)
+  -- These constraints have already been instantiated with fresh type variables
+  allConstraints <- gets inferConstraints
   
   -- Check if tensorMap is needed based on type class instance availability
   classEnv <- gets inferClassEnv
-  let needsTensorMap = or [ shouldInsertTensorMap classEnv funcConstraints argT paramT
-                          | (argT, idx) <- zip argTypes [0..]
-                          , Just paramT <- [getParamType funcType idx]
-                          ]
+  
+  -- Check each argument explicitly
+  -- Use allConstraints which includes instantiated constraints
+  let checks = map (\(argT, idx) -> 
+                     case getParamType funcType idx of
+                       Just paramT -> shouldInsertTensorMap classEnv allConstraints argT paramT
+                       Nothing -> False
+                   ) (zip argTypes [0..])
+      needsTensorMap = or checks
   
   if needsTensorMap
     then do
