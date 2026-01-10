@@ -62,7 +62,7 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , IMatchClause, TIMatchClause, IPatternDef, TIPatternDef
                                             , IPattern (..), ILoopRange (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
-                                            , extractNameFromVar, Var (..)
+                                            , extractNameFromVar, Var (..), Index (..)
                                             , tiExprType, tiExprScheme, stripType)
 import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
@@ -1127,9 +1127,21 @@ inferIExprWithContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     (baseTI, s) <- inferIExprWithContext baseExpr exprCtx
     let baseType = tiExprType baseTI
-    -- For tensors, indexing returns the element type
+    -- Check if all indices are concrete (constants) or symbolic (variables)
+    let isSymbolicIndex idx = case idx of
+          Sub (IVarExpr _) -> True
+          Sup (IVarExpr _) -> True
+          SupSub (IVarExpr _) -> True
+          User (IVarExpr _) -> True
+          _ -> False
+        hasSymbolicIndex = any isSymbolicIndex indices
+    -- For tensors with symbolic indices, keep the tensor type
+    -- For concrete indices (numeric), return element type
     let resultType = case baseType of
-          TTensor elemType -> elemType
+          TTensor elemType -> 
+            if hasSymbolicIndex
+              then TTensor elemType  -- Symbolic index: keep tensor type
+              else elemType           -- Concrete index: element access
           TCollection elemType -> elemType
           _ -> baseType  -- Fallback: return base type
     -- TODO: Infer indices as TIExpr instead of IExpr
@@ -1752,8 +1764,11 @@ wrapWithTensorMap currentFunc currentType (arg:restArgs) (argType:restTypes) sub
               varTIExpr = mkTIExpr paramType' (TIVarExpr varName)
               
           -- Build inner expression (recursive call)
-          let innerFuncTI = mkTIExpr (applyOneArgType currentType') (TIApplyExpr currentFunc [varTIExpr])
+          -- Include constraints from current function
+          let (Forall _ funcConstraints _) = tiScheme currentFunc
               innerType = applyOneArgType currentType'
+              innerFuncScheme = Forall [] funcConstraints innerType
+              innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr])
           
           (innerTIExpr, s1) <- wrapWithTensorMap 
                                  innerFuncTI
@@ -1764,15 +1779,21 @@ wrapWithTensorMap currentFunc currentType (arg:restArgs) (argType:restTypes) sub
                                  ctx
           
           let finalType = tiExprType innerTIExpr
+              -- Get constraints from inner expression
+              (Forall _ innerConstraints _) = tiScheme innerTIExpr
           
           -- Build lambda: \varName -> innerTIExpr
+          -- Include constraints from inner expression
           let lambdaType = TFun paramType' finalType
-              lambdaTI = mkTIExpr lambdaType (TILambdaExpr Nothing [var] innerTIExpr)
+              lambdaScheme = Forall [] innerConstraints lambdaType
+              lambdaTI = TIExpr lambdaScheme (TILambdaExpr Nothing [var] innerTIExpr)
               
           -- Calculate result type: Tensor resultType
           -- tensorMap : (a -> b) -> Tensor a -> Tensor b
+          -- Include constraints in the final result
           let resultType = normalizeTensorType (TTensor finalType)
-              wrappedTI = mkTIExpr resultType (TITensorMapExpr lambdaTI arg)
+              wrappedScheme = Forall [] innerConstraints resultType
+              wrappedTI = TIExpr wrappedScheme (TITensorMapExpr lambdaTI arg)
           
           return (wrappedTI, s1)
         
