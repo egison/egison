@@ -68,7 +68,10 @@ expandTypeClassMethodsT tiExpr = do
       
       -- Lambda expressions: process body with constraints
       TILambdaExpr mVar params body -> do
-        body' <- expandTIExprWithConstraints classEnv' cs body
+        -- Merge constraints from body's scheme with parent constraints
+        let (Forall _ bodyConstraints _) = tiScheme body
+            allConstraints = cs ++ bodyConstraints
+        body' <- expandTIExprWithConstraints classEnv' allConstraints body
         return $ TILambdaExpr mVar params body'
       
       -- Application: check if it's a method call
