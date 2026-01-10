@@ -57,11 +57,13 @@ import           Data.Maybe                  (catMaybes)
 import qualified Data.Set                    as Set
 import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..), PMMode (..))
 import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..)
-                                            , IBindingExpr
-                                            , IMatchClause, IPatternDef
+                                            , TIExpr (..), TIExprNode (..)
+                                            , IBindingExpr, TIBindingExpr
+                                            , IMatchClause, TIMatchClause, IPatternDef, TIPatternDef
                                             , IPattern (..), ILoopRange (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
-                                            , extractNameFromVar, Var (..))
+                                            , extractNameFromVar, Var (..)
+                                            , tiExprType, tiExprScheme, stripType)
 import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
@@ -273,26 +275,32 @@ inferConstant c = case c of
 -- * Type Inference for IExpr
 --------------------------------------------------------------------------------
 
+-- | Helper: Create a TIExpr with a simple monomorphic type (no type variables, no constraints)
+mkTIExpr :: Type -> TIExprNode -> TIExpr
+mkTIExpr ty node = TIExpr (Forall [] [] ty) node
+
 -- | Infer type for IExpr
--- Returns (transformed expr, type, substitution)
--- The transformed expr may have tensorMap inserted for automatic mapping
-inferIExpr :: IExpr -> Infer (IExpr, Type, Subst)
+-- NEW: Returns TIExpr (typed expression) instead of (IExpr, Type, Subst)
+-- This builds the recursive TIExpr structure directly during type inference
+inferIExpr :: IExpr -> Infer (TIExpr, Subst)
 inferIExpr expr = inferIExprWithContext expr emptyContext
 
 -- | Infer type for IExpr with context information
--- Returns (transformed expr, type, substitution)
-inferIExprWithContext :: IExpr -> TypeErrorContext -> Infer (IExpr, Type, Subst)
+-- NEW: Returns TIExpr (typed expression) with type information embedded
+inferIExprWithContext :: IExpr -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferIExprWithContext expr ctx = case expr of
   -- Constants
   IConstantExpr c -> do
     ty <- inferConstant c
-    return (expr, ty, emptySubst)
+    let scheme = Forall [] [] ty
+    return (TIExpr scheme (TIConstantExpr c), emptySubst)
   
   -- Variables
   IVarExpr name -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     ty <- lookupVar name
-    return (expr, ty, emptySubst)
+    let scheme = Forall [] [] ty
+    return (TIExpr scheme (TIVarExpr name), emptySubst)
   
   -- Tuples
   ITupleExpr elems -> do
@@ -300,12 +308,13 @@ inferIExprWithContext expr ctx = case expr of
     case elems of
       [] -> do
         -- Empty tuple: unit type ()
-        return (expr, TTuple [], emptySubst)
+        let scheme = Forall [] [] (TTuple [])
+        return (TIExpr scheme (TITupleExpr []), emptySubst)
       _ -> do
         results <- mapM (\e -> inferIExprWithContext e exprCtx) elems
-        let elemExprs = map (\(e, _, _) -> e) results
-            elemTypes = map (\(_, t, _) -> t) results
-            s = foldr composeSubst emptySubst (map (\(_, _, s') -> s') results)
+        let elemTIExprs = map fst results
+            elemTypes = map (tiExprType . fst) results
+            s = foldr composeSubst emptySubst (map snd results)
         
         -- Check if all elements are Matcher types
         -- If so, return Matcher (Tuple ...) instead of (Matcher ..., Matcher ...)
@@ -316,10 +325,14 @@ inferIExprWithContext expr ctx = case expr of
           then do
             -- All elements are matchers: return Matcher (Tuple ...)
             let tupleType = TTuple matcherTypes
-            return (ITupleExpr elemExprs, TMatcher tupleType, s)
-          else
+                resultType = TMatcher tupleType
+                scheme = Forall [] [] resultType
+            return (TIExpr scheme (TITupleExpr elemTIExprs), s)
+          else do
             -- Not all elements are matchers: return regular tuple
-            return (ITupleExpr elemExprs, TTuple appliedElemTypes, s)
+            let resultType = TTuple appliedElemTypes
+                scheme = Forall [] [] resultType
+            return (TIExpr scheme (TITupleExpr elemTIExprs), s)
         where
           -- Extract the inner type from Matcher a -> Just a, otherwise Nothing
           extractMatcherType :: Type -> Maybe Type
@@ -330,70 +343,84 @@ inferIExprWithContext expr ctx = case expr of
   ICollectionExpr elems -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     elemType <- freshVar "elem"
-    (elemExprs, s) <- foldM (inferListElem elemType exprCtx) ([], emptySubst) elems
-    return (ICollectionExpr (reverse elemExprs), TCollection (applySubst s elemType), s)
+    (elemTIExprs, s) <- foldM (inferListElem elemType exprCtx) ([], emptySubst) elems
+    let resultType = TCollection (applySubst s elemType)
+    return (mkTIExpr resultType (TICollectionExpr (reverse elemTIExprs)), s)
     where
       inferListElem eType exprCtx (accExprs, s) e = do
-        (e', t, s') <- inferIExprWithContext e exprCtx
+        (tiExpr, s') <- inferIExprWithContext e exprCtx
+        let t = tiExprType tiExpr
         s'' <- unifyTypesWithContext (applySubst s eType) t exprCtx
-        return (e' : accExprs, composeSubst s'' (composeSubst s' s))
+        return (tiExpr : accExprs, composeSubst s'' (composeSubst s' s))
   
   -- Cons
   IConsExpr headExpr tailExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (headExpr', headType, s1) <- inferIExprWithContext headExpr exprCtx
-    (tailExpr', tailType, s2) <- inferIExprWithContext tailExpr exprCtx
-    let s12 = composeSubst s2 s1
+    (headTI, s1) <- inferIExprWithContext headExpr exprCtx
+    (tailTI, s2) <- inferIExprWithContext tailExpr exprCtx
+    let headType = tiExprType headTI
+        tailType = tiExprType tailTI
+        s12 = composeSubst s2 s1
     s3 <- unifyTypesWithContext (TCollection (applySubst s12 headType)) (applySubst s12 tailType) exprCtx
     let finalS = composeSubst s3 s12
-    return (IConsExpr headExpr' tailExpr', applySubst finalS tailType, finalS)
+        resultType = applySubst finalS tailType
+    return (mkTIExpr resultType (TIConsExpr headTI tailTI), finalS)
   
   -- Join (list concatenation)
   IJoinExpr leftExpr rightExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (leftExpr', leftType, s1) <- inferIExprWithContext leftExpr exprCtx
-    (rightExpr', rightType, s2) <- inferIExprWithContext rightExpr exprCtx
-    let s12 = composeSubst s2 s1
+    (leftTI, s1) <- inferIExprWithContext leftExpr exprCtx
+    (rightTI, s2) <- inferIExprWithContext rightExpr exprCtx
+    let leftType = tiExprType leftTI
+        rightType = tiExprType rightTI
+        s12 = composeSubst s2 s1
     s3 <- unifyTypesWithContext (applySubst s12 leftType) (applySubst s12 rightType) exprCtx
     let finalS = composeSubst s3 s12
-    return (IJoinExpr leftExpr' rightExpr', applySubst finalS leftType, finalS)
+        resultType = applySubst finalS leftType
+    return (mkTIExpr resultType (TIJoinExpr leftTI rightTI), finalS)
   
   -- Hash (Map)
   IHashExpr pairs -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     keyType <- freshVar "hashKey"
     valType <- freshVar "hashVal"
-    (pairs', s) <- foldM (inferHashPair keyType valType exprCtx) ([], emptySubst) pairs
-    return (IHashExpr (reverse pairs'), THash (applySubst s keyType) (applySubst s valType), s)
+    (pairTIs, s) <- foldM (inferHashPair keyType valType exprCtx) ([], emptySubst) pairs
+    let resultType = THash (applySubst s keyType) (applySubst s valType)
+    return (mkTIExpr resultType (TIHashExpr (reverse pairTIs)), s)
     where
       inferHashPair kType vType exprCtx (accPairs, s') (k, v) = do
-        (k', kt, s1) <- inferIExprWithContext k exprCtx
-        (v', vt, s2) <- inferIExprWithContext v exprCtx
+        (kTI, s1) <- inferIExprWithContext k exprCtx
+        (vTI, s2) <- inferIExprWithContext v exprCtx
+        let kt = tiExprType kTI
+            vt = tiExprType vTI
         s3 <- unifyTypesWithContext (applySubst (composeSubst s2 s1) kType) kt exprCtx
         s4 <- unifyTypesWithContext (applySubst (composeSubst s3 (composeSubst s2 s1)) vType) vt exprCtx
-        return ((k', v') : accPairs, foldr composeSubst s' [s4, s3, s2, s1])
+        return ((kTI, vTI) : accPairs, foldr composeSubst s' [s4, s3, s2, s1])
   
   -- Vector (Tensor)
   IVectorExpr elems -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     elemType <- freshVar "vecElem"
-    (elemExprs, s) <- foldM (inferListElem elemType exprCtx) ([], emptySubst) elems
-    return (IVectorExpr (reverse elemExprs), normalizeTensorType (TTensor (applySubst s elemType)), s)
+    (elemTIs, s) <- foldM (inferListElem elemType exprCtx) ([], emptySubst) elems
+    let resultType = normalizeTensorType (TTensor (applySubst s elemType))
+    return (mkTIExpr resultType (TIVectorExpr (reverse elemTIs)), s)
     where
       inferListElem eType exprCtx (accExprs, s) e = do
-        (e', t, s') <- inferIExprWithContext e exprCtx
+        (tiExpr, s') <- inferIExprWithContext e exprCtx
+        let t = tiExprType tiExpr
         s'' <- unifyTypesWithContext (applySubst s eType) t exprCtx
-        return (e' : accExprs, composeSubst s'' (composeSubst s' s))
+        return (tiExpr : accExprs, composeSubst s'' (composeSubst s' s))
   
   -- Lambda
   ILambdaExpr mVar params body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     argTypes <- mapM (\_ -> freshVar "arg") params
     let bindings = zipWith makeBinding params argTypes
-    (body', bodyType, s) <- withEnv (map toScheme bindings) $ inferIExprWithContext body exprCtx
-    let finalArgTypes = map (applySubst s) argTypes
+    (bodyTIExpr, s) <- withEnv (map toScheme bindings) $ inferIExprWithContext body exprCtx
+    let bodyType = tiExprType bodyTIExpr
+        finalArgTypes = map (applySubst s) argTypes
         funType = foldr TFun bodyType finalArgTypes
-    return (ILambdaExpr mVar params body', funType, s)
+    return (mkTIExpr funType (TILambdaExpr mVar params bodyTIExpr), s)
     where
       makeBinding var t = (extractNameFromVar var, t)
       toScheme (name, t) = (name, Forall [] [] t)
@@ -401,45 +428,55 @@ inferIExprWithContext expr ctx = case expr of
   -- Function Application
   IApplyExpr func args -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (func', funcType, s1) <- inferIExprWithContext func exprCtx
-    inferIApplicationWithContext func' funcType args s1 exprCtx
+    (funcTI, s1) <- inferIExprWithContext func exprCtx
+    let funcType = tiExprType funcTI
+    inferIApplicationWithContext funcTI funcType args s1 exprCtx
   
   -- If expression
   IIfExpr cond thenExpr elseExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (cond', condType, s1) <- inferIExprWithContext cond exprCtx
+    (condTI, s1) <- inferIExprWithContext cond exprCtx
+    let condType = tiExprType condTI
     s2 <- unifyTypesWithContext condType TBool exprCtx
     let s12 = composeSubst s2 s1
-    (thenExpr', thenType, s3) <- inferIExprWithContext thenExpr exprCtx
-    (elseExpr', elseType, s4) <- inferIExprWithContext elseExpr exprCtx
+    (thenTI, s3) <- inferIExprWithContext thenExpr exprCtx
+    (elseTI, s4) <- inferIExprWithContext elseExpr exprCtx
+    let thenType = tiExprType thenTI
+        elseType = tiExprType elseTI
     s5 <- unifyTypesWithContext (applySubst s4 thenType) elseType exprCtx
     let finalS = foldr composeSubst emptySubst [s5, s4, s3, s12]
-    return (IIfExpr cond' thenExpr' elseExpr', applySubst finalS elseType, finalS)
+        resultType = applySubst finalS elseType
+    return (mkTIExpr resultType (TIIfExpr condTI thenTI elseTI), finalS)
   
   -- Let expression
   ILetExpr bindings body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     env <- getEnv
-    (bindings', extendedEnv, s1) <- inferIBindingsWithContext bindings env emptySubst exprCtx
-    (body', bodyType, s2) <- withEnv extendedEnv $ inferIExprWithContext body exprCtx
-    let finalS = composeSubst s2 s1
-    return (ILetExpr bindings' body', applySubst finalS bodyType, finalS)
+    (bindingTIs, extendedEnv, s1) <- inferIBindingsWithContext bindings env emptySubst exprCtx
+    (bodyTI, s2) <- withEnv extendedEnv $ inferIExprWithContext body exprCtx
+    let bodyType = tiExprType bodyTI
+        finalS = composeSubst s2 s1
+        resultType = applySubst finalS bodyType
+    return (mkTIExpr resultType (TILetExpr bindingTIs bodyTI), finalS)
   
   -- LetRec expression
   ILetRecExpr bindings body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     env <- getEnv
-    (bindings', extendedEnv, s1) <- inferIRecBindingsWithContext bindings env emptySubst exprCtx
-    (body', bodyType, s2) <- withEnv extendedEnv $ inferIExprWithContext body exprCtx
-    let finalS = composeSubst s2 s1
-    return (ILetRecExpr bindings' body', applySubst finalS bodyType, finalS)
+    (bindingTIs, extendedEnv, s1) <- inferIRecBindingsWithContext bindings env emptySubst exprCtx
+    (bodyTI, s2) <- withEnv extendedEnv $ inferIExprWithContext body exprCtx
+    let bodyType = tiExprType bodyTI
+        finalS = composeSubst s2 s1
+        resultType = applySubst finalS bodyType
+    return (mkTIExpr resultType (TILetRecExpr bindingTIs bodyTI), finalS)
   
   -- Sequence expression
   ISeqExpr expr1 expr2 -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (expr1', _, s1) <- inferIExprWithContext expr1 exprCtx
-    (expr2', t2, s2) <- inferIExprWithContext expr2 exprCtx
-    return (ISeqExpr expr1' expr2', t2, composeSubst s2 s1)
+    (expr1TI, s1) <- inferIExprWithContext expr1 exprCtx
+    (expr2TI, s2) <- inferIExprWithContext expr2 exprCtx
+    let t2 = tiExprType expr2TI
+    return (mkTIExpr t2 (TISeqExpr expr1TI expr2TI), composeSubst s2 s1)
   
   -- Inductive Data Constructor
   IInductiveDataExpr name args -> do
@@ -462,7 +499,7 @@ inferIExprWithContext expr ctx = case expr of
             -- In permissive mode, treat as a warning and return a fresh type variable
             addWarning $ UnboundVariableWarning name exprCtx
             resultType <- freshVar "ctor"
-            return (expr, resultType, emptySubst)
+            return (mkTIExpr resultType (TIInductiveDataExpr name []), emptySubst)
           else throwError $ UnboundVariable name exprCtx
   
   -- Matchers (return Matcher type)
@@ -482,15 +519,17 @@ inferIExprWithContext expr ctx = case expr of
       ((ty, _):_) -> return $ applySubst finalSubst ty
       [] -> freshVar "matched"  -- Empty matcher (edge case)
     
-    return (expr, TMatcher matchedTy, finalSubst)
+    return (mkTIExpr (TMatcher matchedTy) (TIMatcherExpr []), finalSubst)
     where
       -- Infer a single pattern definition (matcher clause)
       -- Returns (matched type, [substitutions])
+      -- TODO: Update to return TIPatternDef
       inferPatternDef :: TypeErrorContext -> IPatternDef -> Infer (Type, [Subst])
       inferPatternDef ctx (ppPat, nextMatcherExpr, dataClauses) = do
         -- Infer the type of next matcher expression
         -- It should be either a Matcher type or a tuple of Matcher types
-        (_, nextMatcherType, s1) <- inferIExprWithContext nextMatcherExpr ctx
+        (nextMatcherTI, s1) <- inferIExprWithContext nextMatcherExpr ctx
+        let nextMatcherType = tiExprType nextMatcherTI
         
         -- If next matcher type contains type variables, constrain them to be Matcher types
         -- This prevents infinite type errors when using matcher parameters
@@ -767,8 +806,9 @@ inferIExprWithContext expr ctx = case expr of
         let s_pd' = composeSubst s_match s_pd
         
         -- Infer the target expression with pattern variables in scope
-        (_, exprType, s1) <- withEnv bindings $ inferIExprWithContext targetExpr ctx
-        let s_combined = composeSubst s1 s_pd'
+        (targetTI, s1) <- withEnv bindings $ inferIExprWithContext targetExpr ctx
+        let exprType = tiExprType targetTI
+            s_combined = composeSubst s1 s_pd'
         
         -- Unify with actual expression type
         -- Expected: [targetType]
@@ -948,8 +988,10 @@ inferIExprWithContext expr ctx = case expr of
   -- Match expressions (pattern matching)
   IMatchExpr mode target matcher clauses -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (target', targetType, s1) <- inferIExprWithContext target exprCtx
-    (matcher', matcherType, s2) <- inferIExprWithContext matcher exprCtx
+    (targetTI, s1) <- inferIExprWithContext target exprCtx
+    (matcherTI, s2) <- inferIExprWithContext matcher exprCtx
+    let targetType = tiExprType targetTI
+        matcherType = tiExprType matcherTI
     
     -- Matcher should be TMatcher a, and target should be a
     matchedTy <- freshVar "matched"
@@ -965,18 +1007,20 @@ inferIExprWithContext expr ctx = case expr of
       [] -> do
         -- No clauses: this should not happen, but handle gracefully
         resultTy <- freshVar "matchResult"
-        return (IMatchExpr mode target' matcher' clauses, applySubst s1234 resultTy, s1234)
+        return (mkTIExpr (applySubst s1234 resultTy) (TIMatchExpr mode targetTI matcherTI []), s1234)
       _ -> do
         -- Infer type of each clause and unify them
-        (resultTy, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedTy) clauses s1234
+        (resultTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedTy) clauses s1234
         let finalS = composeSubst clauseSubst s1234
-        return (IMatchExpr mode target' matcher' clauses, applySubst finalS resultTy, finalS)
+        return (mkTIExpr (applySubst finalS resultTy) (TIMatchExpr mode targetTI matcherTI clauseTIs), finalS)
   
   -- MatchAll expressions
   IMatchAllExpr mode target matcher clauses -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (target', targetType, s1) <- inferIExprWithContext target exprCtx
-    (matcher', matcherType, s2) <- inferIExprWithContext matcher exprCtx
+    (targetTI, s1) <- inferIExprWithContext target exprCtx
+    (matcherTI, s2) <- inferIExprWithContext matcher exprCtx
+    let targetType = tiExprType targetTI
+        matcherType = tiExprType matcherTI
     
     matchedTy <- freshVar "matched"
     let s12 = composeSubst s2 s1
@@ -991,12 +1035,12 @@ inferIExprWithContext expr ctx = case expr of
       [] -> do
         -- No clauses: return empty collection type
         resultElemTy <- freshVar "matchAllElem"
-        return (IMatchAllExpr mode target' matcher' clauses, TCollection (applySubst s1234 resultElemTy), s1234)
+        return (mkTIExpr (TCollection (applySubst s1234 resultElemTy)) (TIMatchAllExpr mode targetTI matcherTI []), s1234)
       _ -> do
         -- Infer type of each clause (they should all have the same type)
-        (resultElemTy, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedTy) clauses s1234
+        (resultElemTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedTy) clauses s1234
         let finalS = composeSubst clauseSubst s1234
-        return (IMatchAllExpr mode target' matcher' clauses, TCollection (applySubst finalS resultElemTy), finalS)
+        return (mkTIExpr (TCollection (applySubst finalS resultElemTy)) (TIMatchAllExpr mode targetTI matcherTI clauseTIs), finalS)
   
   -- Memoized Lambda
   IMemoizedLambdaExpr args body -> do
@@ -1004,132 +1048,162 @@ inferIExprWithContext expr ctx = case expr of
     argTypes <- mapM (\_ -> freshVar "memoArg") args
     let bindings = zip args argTypes  -- [(String, Type)]
         schemes = map (\(name, t) -> (name, Forall [] [] t)) bindings
-    (body', bodyType, s) <- withEnv schemes $ inferIExprWithContext body exprCtx
-    let finalArgTypes = map (applySubst s) argTypes
+    (bodyTI, s) <- withEnv schemes $ inferIExprWithContext body exprCtx
+    let bodyType = tiExprType bodyTI
+        finalArgTypes = map (applySubst s) argTypes
         funType = foldr TFun bodyType finalArgTypes
-    return (IMemoizedLambdaExpr args body', funType, s)
+    return (mkTIExpr funType (TIMemoizedLambdaExpr args bodyTI), s)
   
   -- Do expression
   IDoExpr bindings body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     -- TODO: Properly handle IO monad bindings
-    (body', bodyType, s) <- inferIExprWithContext body exprCtx
-    return (IDoExpr bindings body', TIO bodyType, s)
+    -- For now, infer bindings simply
+    env <- getEnv
+    (bindingTIs, _, s1) <- inferIBindingsWithContext bindings env emptySubst exprCtx
+    (bodyTI, s2) <- inferIExprWithContext body exprCtx
+    let bodyType = tiExprType bodyTI
+        finalS = composeSubst s2 s1
+    return (mkTIExpr (TIO bodyType) (TIDoExpr bindingTIs bodyTI), finalS)
   
   -- Cambda (pattern matching lambda)
   ICambdaExpr var body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     argType <- freshVar "cambdaArg"
-    (body', bodyType, s) <- inferIExprWithContext body exprCtx
-    return (ICambdaExpr var body', TFun argType bodyType, s)
+    (bodyTI, s) <- inferIExprWithContext body exprCtx
+    let bodyType = tiExprType bodyTI
+    return (mkTIExpr (TFun argType bodyType) (TICambdaExpr var bodyTI), s)
   
   -- With symbols
   IWithSymbolsExpr syms body -> do
-    (body', bodyType, s) <- inferIExprWithContext body ctx
-    return (IWithSymbolsExpr syms body', bodyType, s)
+    (bodyTI, s) <- inferIExprWithContext body ctx
+    let bodyType = tiExprType bodyTI
+    return (mkTIExpr bodyType (TIWithSymbolsExpr syms bodyTI), s)
   
   -- Quote expressions (symbolic math)
-  IQuoteExpr e -> return (IQuoteExpr e, TInt, emptySubst)
-  IQuoteSymbolExpr e -> return (IQuoteSymbolExpr e, TInt, emptySubst)
+  IQuoteExpr e -> do
+    (eTI, s) <- inferIExprWithContext e ctx
+    return (mkTIExpr TInt (TIQuoteExpr eTI), s)
+  IQuoteSymbolExpr e -> do
+    (eTI, s) <- inferIExprWithContext e ctx
+    return (mkTIExpr TInt (TIQuoteSymbolExpr eTI), s)
   
   -- Indexed expression (tensor indexing)
   IIndexedExpr isSupported baseExpr indices -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (baseExpr', baseType, s) <- inferIExprWithContext baseExpr exprCtx
+    (baseTI, s) <- inferIExprWithContext baseExpr exprCtx
+    let baseType = tiExprType baseTI
     -- For tensors, indexing returns the element type
-    case baseType of
-      TTensor elemType -> return (IIndexedExpr isSupported baseExpr' indices, elemType, s)
-      TCollection elemType -> return (IIndexedExpr isSupported baseExpr' indices, elemType, s)
-      _ -> return (IIndexedExpr isSupported baseExpr' indices, baseType, s)  -- Fallback: return base type
+    let resultType = case baseType of
+          TTensor elemType -> elemType
+          TCollection elemType -> elemType
+          _ -> baseType  -- Fallback: return base type
+    -- TODO: Infer indices as TIExpr instead of IExpr
+    return (mkTIExpr resultType (TIIndexedExpr isSupported baseTI indices), s)
   
   -- Subrefs expression (subscript references)
   ISubrefsExpr isSupported baseExpr refExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (baseExpr', baseType, s1) <- inferIExprWithContext baseExpr exprCtx
-    (refExpr', _, s2) <- inferIExprWithContext refExpr exprCtx
-    let finalS = composeSubst s2 s1
+    (baseTI, s1) <- inferIExprWithContext baseExpr exprCtx
+    (refTI, s2) <- inferIExprWithContext refExpr exprCtx
+    let baseType = tiExprType baseTI
+        finalS = composeSubst s2 s1
     -- TODO: Properly handle subscript semantics
-    return (ISubrefsExpr isSupported baseExpr' refExpr', baseType, finalS)
+    return (mkTIExpr baseType (TISubrefsExpr isSupported baseTI refTI), finalS)
   
   -- Suprefs expression (superscript references)
   ISuprefsExpr isSupported baseExpr refExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (baseExpr', baseType, s1) <- inferIExprWithContext baseExpr exprCtx
-    (refExpr', _, s2) <- inferIExprWithContext refExpr exprCtx
-    let finalS = composeSubst s2 s1
+    (baseTI, s1) <- inferIExprWithContext baseExpr exprCtx
+    (refTI, s2) <- inferIExprWithContext refExpr exprCtx
+    let baseType = tiExprType baseTI
+        finalS = composeSubst s2 s1
     -- TODO: Properly handle superscript semantics
-    return (ISuprefsExpr isSupported baseExpr' refExpr', baseType, finalS)
+    return (mkTIExpr baseType (TISuprefsExpr isSupported baseTI refTI), finalS)
   
   -- Userrefs expression (user-defined references)
   IUserrefsExpr isSupported baseExpr refExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (baseExpr', baseType, s1) <- inferIExprWithContext baseExpr exprCtx
-    (refExpr', _, s2) <- inferIExprWithContext refExpr exprCtx
-    let finalS = composeSubst s2 s1
+    (baseTI, s1) <- inferIExprWithContext baseExpr exprCtx
+    (refTI, s2) <- inferIExprWithContext refExpr exprCtx
+    let baseType = tiExprType baseTI
+        finalS = composeSubst s2 s1
     -- TODO: Properly handle user-defined references
-    return (IUserrefsExpr isSupported baseExpr' refExpr', baseType, finalS)
+    return (mkTIExpr baseType (TIUserrefsExpr isSupported baseTI refTI), finalS)
   
   -- Wedge apply expression (exterior product)
   IWedgeApplyExpr func args -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (func', funcType, s1) <- inferIExprWithContext func exprCtx
+    (funcTI, s1) <- inferIExprWithContext func exprCtx
+    let funcType = tiExprType funcTI
     -- Wedge application is similar to normal application
-    inferIApplicationWithContext func' funcType args s1 exprCtx
+    inferIApplicationWithContext funcTI funcType args s1 exprCtx
   
   -- Generate tensor expression
   IGenerateTensorExpr shapeExpr genFunc -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (shapeExpr', _, s1) <- inferIExprWithContext shapeExpr exprCtx
-    (genFunc', funcType, s2) <- inferIExprWithContext genFunc exprCtx
+    (shapeTI, s1) <- inferIExprWithContext shapeExpr exprCtx
+    (funcTI, s2) <- inferIExprWithContext genFunc exprCtx
+    let funcType = tiExprType funcTI
     -- Extract element type from function result
     elemType <- case funcType of
       TFun _ resultType -> return resultType
       _ -> freshVar "tensorElem"
     let finalS = composeSubst s2 s1
-    return (IGenerateTensorExpr shapeExpr' genFunc', normalizeTensorType (TTensor (applySubst finalS elemType)), finalS)
+        resultType = normalizeTensorType (TTensor (applySubst finalS elemType))
+    return (mkTIExpr resultType (TIGenerateTensorExpr shapeTI funcTI), finalS)
   
   -- Tensor expression
   ITensorExpr shapeExpr elemsExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (shapeExpr', _, s1) <- inferIExprWithContext shapeExpr exprCtx
-    (elemsExpr', elemsType, s2) <- inferIExprWithContext elemsExpr exprCtx
+    (shapeTI, s1) <- inferIExprWithContext shapeExpr exprCtx
+    (elemsTI, s2) <- inferIExprWithContext elemsExpr exprCtx
+    let elemsType = tiExprType elemsTI
     -- Extract element type
     elemType <- case elemsType of
       TCollection t -> return t
       _ -> freshVar "tensorElem"
     let finalS = composeSubst s2 s1
-    return (ITensorExpr shapeExpr' elemsExpr', normalizeTensorType (TTensor (applySubst finalS elemType)), finalS)
+        resultType = normalizeTensorType (TTensor (applySubst finalS elemType))
+    return (mkTIExpr resultType (TITensorExpr shapeTI elemsTI), finalS)
   
   -- Tensor contract expression
   ITensorContractExpr tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (tensorExpr', tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
+    (tensorTI, s) <- inferIExprWithContext tensorExpr exprCtx
+    let tensorType = tiExprType tensorTI
     -- contract : Tensor a -> [Tensor a]
     -- Wraps tensor type in a collection
-    return (ITensorContractExpr tensorExpr', TCollection tensorType, s)
+    return (mkTIExpr (TCollection tensorType) (TITensorContractExpr tensorTI), s)
   
   -- Tensor map expression
   ITensorMapExpr func tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (func', funcType, s1) <- inferIExprWithContext func exprCtx
-    (tensorExpr', tensorType, s2) <- inferIExprWithContext tensorExpr exprCtx
-    let s12 = composeSubst s2 s1
+    (funcTI, s1) <- inferIExprWithContext func exprCtx
+    (tensorTI, s2) <- inferIExprWithContext tensorExpr exprCtx
+    let funcType = tiExprType funcTI
+        tensorType = tiExprType tensorTI
+        s12 = composeSubst s2 s1
     -- Function maps elements: a -> b, tensor is Tensor a, result is Tensor b
     case tensorType of
       TTensor elemType -> do
         resultElemType <- freshVar "tmapElem"
         s3 <- unifyTypesWithContext (applySubst s12 funcType) (TFun elemType resultElemType) exprCtx
         let finalS = composeSubst s3 s12
-        return (ITensorMapExpr func' tensorExpr', normalizeTensorType (TTensor (applySubst finalS resultElemType)), finalS)
-      _ -> return (ITensorMapExpr func' tensorExpr', tensorType, s12)
+            resultType = normalizeTensorType (TTensor (applySubst finalS resultElemType))
+        return (mkTIExpr resultType (TITensorMapExpr funcTI tensorTI), finalS)
+      _ -> return (mkTIExpr tensorType (TITensorMapExpr funcTI tensorTI), s12)
   
   -- Tensor map2 expression (binary map)
   ITensorMap2Expr func tensor1 tensor2 -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (func', funcType, s1) <- inferIExprWithContext func exprCtx
-    (tensor1', t1Type, s2) <- inferIExprWithContext tensor1 exprCtx
-    (tensor2', t2Type, s3) <- inferIExprWithContext tensor2 exprCtx
-    let s123 = foldr composeSubst emptySubst [s3, s2, s1]
+    (funcTI, s1) <- inferIExprWithContext func exprCtx
+    (tensor1TI, s2) <- inferIExprWithContext tensor1 exprCtx
+    (tensor2TI, s3) <- inferIExprWithContext tensor2 exprCtx
+    let funcType = tiExprType funcTI
+        t1Type = tiExprType tensor1TI
+        t2Type = tiExprType tensor2TI
+        s123 = foldr composeSubst emptySubst [s3, s2, s1]
     -- Function: a -> b -> c, tensors are Tensor a and Tensor b, result is Tensor c
     case (t1Type, t2Type) of
       (TTensor elem1, TTensor elem2) -> do
@@ -1137,22 +1211,27 @@ inferIExprWithContext expr ctx = case expr of
         s4 <- unifyTypesWithContext (applySubst s123 funcType) 
                 (TFun elem1 (TFun elem2 resultElemType)) exprCtx
         let finalS = composeSubst s4 s123
-        return (ITensorMap2Expr func' tensor1' tensor2', normalizeTensorType (TTensor (applySubst finalS resultElemType)), finalS)
-      _ -> return (ITensorMap2Expr func' tensor1' tensor2', t1Type, s123)
+            resultType = normalizeTensorType (TTensor (applySubst finalS resultElemType))
+        return (mkTIExpr resultType (TITensorMap2Expr funcTI tensor1TI tensor2TI), finalS)
+      _ -> return (mkTIExpr t1Type (TITensorMap2Expr funcTI tensor1TI tensor2TI), s123)
   
   -- Transpose expression
   ITransposeExpr tensorExpr permExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (tensorExpr', tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
+    (tensorTI, s) <- inferIExprWithContext tensorExpr exprCtx
+    (permTI, s2) <- inferIExprWithContext permExpr exprCtx
+    let tensorType = tiExprType tensorTI
+        finalS = composeSubst s2 s
     -- Transpose preserves tensor type
-    return (ITransposeExpr tensorExpr' permExpr, normalizeTensorType tensorType, s)
+    return (mkTIExpr (normalizeTensorType tensorType) (TITransposeExpr tensorTI permTI), finalS)
   
   -- Flip indices expression
   IFlipIndicesExpr tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (tensorExpr', tensorType, s) <- inferIExprWithContext tensorExpr exprCtx
+    (tensorTI, s) <- inferIExprWithContext tensorExpr exprCtx
+    let tensorType = tiExprType tensorTI
     -- Flipping indices preserves tensor type
-    return (IFlipIndicesExpr tensorExpr', normalizeTensorType tensorType, s)
+    return (mkTIExpr (normalizeTensorType tensorType) (TIFlipIndicesExpr tensorTI), s)
   
   -- Function expression (built-in function reference)
   IFunctionExpr names -> do
@@ -1160,34 +1239,36 @@ inferIExprWithContext expr ctx = case expr of
     -- TODO: Look up actual function signature
     argType <- freshVar "funcArg"
     resultType <- freshVar "funcResult"
-    return (IFunctionExpr names, TFun argType resultType, emptySubst)
+    return (mkTIExpr (TFun argType resultType) (TIFunctionExpr names), emptySubst)
 
 -- | Infer match clauses type
 -- All clauses should return the same type
-inferMatchClauses :: TypeErrorContext -> Type -> [IMatchClause] -> Subst -> Infer (Type, Subst)
+-- NEW: Returns TIMatchClause list in addition to type and subst
+inferMatchClauses :: TypeErrorContext -> Type -> [IMatchClause] -> Subst -> Infer (Type, [TIMatchClause], Subst)
 inferMatchClauses ctx matchedType clauses initSubst = do
   case clauses of
     [] -> do
       -- No clauses (should not happen)
       ty <- freshVar "clauseResult"
-      return (ty, initSubst)
+      return (ty, [], initSubst)
     (firstClause:restClauses) -> do
       -- Infer first clause
-      (firstType, s1) <- inferMatchClause ctx matchedType firstClause initSubst
+      (firstTI, firstType, s1) <- inferMatchClause ctx matchedType firstClause initSubst
       
       -- Infer rest clauses and unify with first
-      (finalType, finalSubst) <- foldM (inferAndUnifyClause ctx matchedType) (firstType, s1) restClauses
-      return (finalType, finalSubst)
+      (finalType, clauseTIs, finalSubst) <- foldM (inferAndUnifyClause ctx matchedType) (firstType, [firstTI], s1) restClauses
+      return (finalType, reverse clauseTIs, finalSubst)
   where
-    inferAndUnifyClause :: TypeErrorContext -> Type -> (Type, Subst) -> IMatchClause -> Infer (Type, Subst)
-    inferAndUnifyClause ctx' matchedTy (expectedType, accSubst) clause = do
-      (clauseType, s1) <- inferMatchClause ctx' (applySubst accSubst matchedTy) clause accSubst
+    inferAndUnifyClause :: TypeErrorContext -> Type -> (Type, [TIMatchClause], Subst) -> IMatchClause -> Infer (Type, [TIMatchClause], Subst)
+    inferAndUnifyClause ctx' matchedTy (expectedType, accClauses, accSubst) clause = do
+      (clauseTI, clauseType, s1) <- inferMatchClause ctx' (applySubst accSubst matchedTy) clause accSubst
       s2 <- unifyTypesWithContext (applySubst s1 expectedType) clauseType ctx'
       let finalS = composeSubst s2 (composeSubst s1 accSubst)
-      return (applySubst finalS expectedType, finalS)
+      return (applySubst finalS expectedType, clauseTI : accClauses, finalS)
 
 -- | Infer a single match clause
-inferMatchClause :: TypeErrorContext -> Type -> IMatchClause -> Subst -> Infer (Type, Subst)
+-- NEW: Returns TIMatchClause in addition to type and subst
+inferMatchClause :: TypeErrorContext -> Type -> IMatchClause -> Subst -> Infer (TIMatchClause, Type, Subst)
 inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
   -- Infer pattern type and extract pattern variable bindings
   -- Use pattern constructor and pattern function type information
@@ -1198,9 +1279,10 @@ inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
   let schemes = [(var, Forall [] [] ty) | (var, ty) <- bindings]
   
   -- Infer body expression type with pattern variables in scope
-  (_, bodyType, s2) <- withEnv schemes $ inferIExprWithContext bodyExpr ctx
-  let finalS = composeSubst s2 s1
-  return (applySubst finalS bodyType, finalS)
+  (bodyTI, s2) <- withEnv schemes $ inferIExprWithContext bodyExpr ctx
+  let bodyType = tiExprType bodyTI
+      finalS = composeSubst s2 s1
+  return ((pattern, bodyTI), applySubst finalS bodyType, finalS)
 
 -- | Infer multiple patterns left-to-right, making left bindings available to right patterns
 -- This enables non-linear patterns like ($p, #(p + 1))
@@ -1241,7 +1323,8 @@ inferIPattern pat expectedType ctx = case pat of
   
   IValuePat expr -> do
     -- Value pattern: infer expression type and unify with expected type
-    (_, exprType, s) <- inferIExprWithContext expr ctx
+    (exprTI, s) <- inferIExprWithContext expr ctx
+    let exprType = tiExprType exprTI
     s' <- unifyTypesWithContext (applySubst s exprType) (applySubst s expectedType) ctx
     return ([], composeSubst s' s)
   
@@ -1439,7 +1522,8 @@ inferIPattern pat expectedType ctx = case pat of
   
   IPApplyPat funcExpr argPats -> do
     -- Pattern application: infer pattern function type
-    (_, funcType, s1) <- inferIExprWithContext funcExpr ctx
+    (funcTI, s1) <- inferIExprWithContext funcExpr ctx
+    let funcType = tiExprType funcTI
     
     -- Pattern function should return a pattern that matches expectedType
     -- Infer argument patterns left-to-right with fresh types
@@ -1525,9 +1609,11 @@ extractPatternVars pat = case pat of
   IDApplyPat p ps -> extractPatternVars p ++ concatMap extractPatternVars ps
 
 -- | Infer application (helper)
--- Returns (applied expr, type, substitution)
-inferIApplication :: String -> Type -> [IExpr] -> Subst -> Infer (IExpr, Type, Subst)
-inferIApplication funcName funcType args initSubst = inferIApplicationWithContext (IVarExpr funcName) funcType args initSubst emptyContext
+-- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
+inferIApplication :: String -> Type -> [IExpr] -> Subst -> Infer (TIExpr, Subst)
+inferIApplication funcName funcType args initSubst = do
+  let funcTI = mkTIExpr funcType (TIVarExpr funcName)
+  inferIApplicationWithContext funcTI funcType args initSubst emptyContext
 
 -- | Check if tensorMap should be inserted for an argument
 -- This implements the type-tensor-simple.md specification
@@ -1598,17 +1684,18 @@ applyOneArgType t = t  -- No more arguments
 -- | Recursively wrap function application with tensorMap where needed
 -- This implements the automatic tensorMap insertion described in type-tensor-simple.md
 -- Process arguments from left to right, building nested tensorMap expressions
+-- NEW: Works with TIExpr instead of IExpr
 wrapWithTensorMap :: 
-    IExpr           -- Current function expression (possibly partially applied)
+    TIExpr          -- Current function expression (possibly partially applied)
     -> Type         -- Current function type
-    -> [IExpr]      -- Remaining argument expressions
+    -> [TIExpr]     -- Remaining argument expressions  
     -> [Type]       -- Remaining argument types
     -> Subst        -- Current substitution
     -> TypeErrorContext
-    -> Infer (IExpr, Type, Subst)
+    -> Infer (TIExpr, Subst)
 wrapWithTensorMap currentFunc currentType [] [] subst _ctx = do
   -- All arguments processed
-  return (currentFunc, currentType, subst)
+  return (currentFunc, subst)
 
 wrapWithTensorMap currentFunc currentType (arg:restArgs) (argType:restTypes) subst ctx = do
   -- Get ClassEnv and constraints from inference state
@@ -1628,54 +1715,57 @@ wrapWithTensorMap currentFunc currentType (arg:restArgs) (argType:restTypes) sub
           -- TensorMap insertion needed
           varName <- freshVarName "tmapVar"
           let var = Var varName []
-              varExpr = IVarExpr varName
+              varTIExpr = mkTIExpr paramType' (TIVarExpr varName)
               
           -- Build inner expression (recursive call)
-          let innerFunc = IApplyExpr currentFunc [varExpr]
+          let innerFuncTI = mkTIExpr (applyOneArgType currentType') (TIApplyExpr currentFunc [varTIExpr])
               innerType = applyOneArgType currentType'
           
-          (innerExpr, finalType, s1) <- wrapWithTensorMap 
-                                          innerFunc 
-                                          innerType 
-                                          restArgs 
-                                          restTypes 
-                                          subst 
-                                          ctx
+          (innerTIExpr, s1) <- wrapWithTensorMap 
+                                 innerFuncTI
+                                 innerType 
+                                 restArgs 
+                                 restTypes 
+                                 subst 
+                                 ctx
           
-          -- Build lambda: \varName -> innerExpr
-          let lambda = ILambdaExpr Nothing [var] innerExpr
-              wrappedExpr = ITensorMapExpr lambda arg
+          let finalType = tiExprType innerTIExpr
           
+          -- Build lambda: \varName -> innerTIExpr
+          let lambdaType = TFun paramType' finalType
+              lambdaTI = mkTIExpr lambdaType (TILambdaExpr Nothing [var] innerTIExpr)
+              
           -- Calculate result type: Tensor resultType
           -- tensorMap : (a -> b) -> Tensor a -> Tensor b
           let resultType = normalizeTensorType (TTensor finalType)
+              wrappedTI = mkTIExpr resultType (TITensorMapExpr lambdaTI arg)
           
-          return (wrappedExpr, resultType, s1)
+          return (wrappedTI, s1)
         
         else do
           -- No tensorMap needed, normal application
           -- Unify parameter and argument types
           s <- unifyTypesWithContext paramType' argType' ctx
           let s' = composeSubst s subst
-              appliedFunc = IApplyExpr currentFunc [arg]
               appliedType = applyOneArgType currentType'
+              appliedTI = mkTIExpr appliedType (TIApplyExpr currentFunc [arg])
           
           -- Process remaining arguments (recursive call)
-          wrapWithTensorMap appliedFunc appliedType restArgs restTypes s' ctx
+          wrapWithTensorMap appliedTI appliedType restArgs restTypes s' ctx
 
 wrapWithTensorMap _ currentType args argTypes _ ctx = 
   throwError $ TE.TypeMismatch currentType (foldr TFun (TVar (TyVar "result")) argTypes) "Argument count mismatch" ctx
 
 -- | Infer application (helper) with context
--- Returns (applied expr, type, substitution)
+-- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
 -- This function implements automatic tensorMap insertion as described in type-tensor-simple.md
-inferIApplicationWithContext :: IExpr -> Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (IExpr, Type, Subst)
-inferIApplicationWithContext funcExpr funcType args initSubst ctx = do
+inferIApplicationWithContext :: TIExpr -> Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
+inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   -- Infer argument types
   argResults <- mapM (\arg -> inferIExprWithContext arg ctx) args
-  let argExprs = map (\(e, _, _) -> e) argResults
-      argTypes = map (\(_, t, _) -> t) argResults
-      argSubst = foldr composeSubst initSubst (map (\(_, _, s) -> s) argResults)
+  let argTIExprs = map fst argResults
+      argTypes = map (tiExprType . fst) argResults
+      argSubst = foldr composeSubst initSubst (map snd argResults)
   
   -- Get all accumulated constraints (includes instantiated constraints from lookupVar)
   -- These constraints have already been instantiated with fresh type variables
@@ -1696,7 +1786,7 @@ inferIApplicationWithContext funcExpr funcType args initSubst ctx = do
   if needsTensorMap
     then do
       -- TensorMap needed, use wrapWithTensorMap
-      wrapWithTensorMap funcExpr funcType argExprs argTypes argSubst ctx
+      wrapWithTensorMap funcTIExpr funcType argTIExprs argTypes argSubst ctx
     else do
       -- No tensorMap needed, proceed with normal application
       resultType <- freshVar "result"
@@ -1706,24 +1796,26 @@ inferIApplicationWithContext funcExpr funcType args initSubst ctx = do
         Right s -> do
           -- Unification succeeded
           let finalS = composeSubst s argSubst
-          return (IApplyExpr funcExpr argExprs, applySubst finalS resultType, finalS)
+              finalType = applySubst finalS resultType
+          return (mkTIExpr finalType (TIApplyExpr funcTIExpr argTIExprs), finalS)
         
         Left _ -> do
           -- Unification failed
           throwError $ UnificationError (applySubst argSubst funcType) expectedFuncType ctx
 
 -- | Infer let bindings (non-recursive)
--- Returns (transformed bindings, type schemes, substitution)
-inferIBindings :: [IBindingExpr] -> TypeEnv -> Subst -> Infer ([IBindingExpr], [(String, TypeScheme)], Subst)
+-- NEW: Returns TIBindingExpr instead of IBindingExpr
+inferIBindings :: [IBindingExpr] -> TypeEnv -> Subst -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIBindings bindings env s = inferIBindingsWithContext bindings env s emptyContext
 
 -- | Infer let bindings (non-recursive) with context
--- Returns (transformed bindings, type schemes, substitution)
-inferIBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([IBindingExpr], [(String, TypeScheme)], Subst)
+-- NEW: Returns TIBindingExpr instead of IBindingExpr
+inferIBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIBindingsWithContext [] _env s _ctx = return ([], [], s)
 inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   -- Infer the type of the expression
-  (expr', exprType, s1) <- inferIExprWithContext expr ctx
+  (exprTI, s1) <- inferIExprWithContext expr ctx
+  let exprType = tiExprType exprTI
   
   -- Create expected type from pattern and unify with expression type
   -- This helps resolve type variables in the expression type
@@ -1739,8 +1831,8 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   
   _env' <- getEnv
   let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
-  (restBindings', restBindings, s2') <- withEnv extendedEnvList $ inferIBindingsWithContext bs env s' ctx
-  return ((pat, expr') : restBindings', bindings ++ restBindings, s2')
+  (restBindingTIs, restBindings, s2') <- withEnv extendedEnvList $ inferIBindingsWithContext bs env s' ctx
+  return ((pat, exprTI) : restBindingTIs, bindings ++ restBindings, s2')
   where
     -- Infer the type that a pattern expects
     inferPatternType :: IPrimitiveDataPattern -> Infer (Type, Subst)
@@ -1774,13 +1866,13 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
       return (ty, emptySubst)
 
 -- | Infer letrec bindings (recursive)
--- Returns (transformed bindings, type schemes, substitution)
-inferIRecBindings :: [IBindingExpr] -> TypeEnv -> Subst -> Infer ([IBindingExpr], [(String, TypeScheme)], Subst)
+-- NEW: Returns TIBindingExpr instead of IBindingExpr
+inferIRecBindings :: [IBindingExpr] -> TypeEnv -> Subst -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIRecBindings bindings env s = inferIRecBindingsWithContext bindings env s emptyContext
 
 -- | Infer letrec bindings (recursive) with context
--- Returns (transformed bindings, type schemes, substitution)
-inferIRecBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([IBindingExpr], [(String, TypeScheme)], Subst)
+-- NEW: Returns TIBindingExpr instead of IBindingExpr
+inferIRecBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIRecBindingsWithContext bindings _env s ctx = do
   -- Create placeholders with fresh type variables
   placeholders <- mapM (\(pat, _) -> do
@@ -1793,14 +1885,14 @@ inferIRecBindingsWithContext bindings _env s ctx = do
   -- Infer expressions in extended environment
   results <- withEnv placeholderBindings $ mapM (\(_, expr) -> inferIExprWithContext expr ctx) bindings
   
-  let exprs' = map (\(e, _, _) -> e) results
-      exprTypes = map (\(_, t, _) -> t) results
-      substList = map (\(_, _, s') -> s') results
+  let exprTIs = map fst results
+      exprTypes = map (tiExprType . fst) results
+      substList = map snd results
       finalS = foldr composeSubst s substList
   
   -- Re-extract bindings with inferred types
   let finalBindings = concat $ zipWith (\(pat, _) ty -> extractIBindingsFromPattern pat (applySubst finalS ty)) bindings exprTypes
-      transformedBindings = zipWith (\(pat, _) expr' -> (pat, expr')) bindings exprs'
+      transformedBindings = zipWith (\(pat, _) exprTI -> (pat, exprTI)) bindings exprTIs
   
   return (transformedBindings, finalBindings, finalS)
 
@@ -1850,7 +1942,9 @@ inferITopExpr topExpr = case topExpr of
         modify $ \s -> s { inferCounter = newCounter }
         
         -- Infer the expression type
-        (expr', exprType, subst1) <- inferIExpr expr
+        (exprTI, subst1) <- inferIExpr expr
+        let exprType = tiExprType exprTI
+            expr' = stripType exprTI
         
         -- Unify inferred type with expected type
         -- At top-level definitions, Tensor a can unify with a
@@ -1871,7 +1965,9 @@ inferITopExpr topExpr = case topExpr of
       Nothing -> do
         -- No explicit type signature: infer and generalize as before
         clearConstraints  -- Start with fresh constraints for this expression
-        (expr', exprType, subst) <- inferIExpr expr
+        (exprTI, subst) <- inferIExpr expr
+        let exprType = tiExprType exprTI
+            expr' = stripType exprTI
         constraints <- getConstraints  -- Collect constraints from type inference
         
         -- Generalize with constraints
@@ -1888,13 +1984,17 @@ inferITopExpr topExpr = case topExpr of
   
   ITest expr -> do
     clearConstraints  -- Start with fresh constraints
-    (expr', exprType, subst) <- inferIExpr expr
+    (exprTI, subst) <- inferIExpr expr
+    let exprType = tiExprType exprTI
+        expr' = stripType exprTI
     -- Constraints are now in state, will be retrieved by Eval.hs
     return (Just (ITest expr', exprType), subst)
   
   IExecute expr -> do
     clearConstraints  -- Start with fresh constraints
-    (expr', exprType, subst) <- inferIExpr expr
+    (exprTI, subst) <- inferIExpr expr
+    let exprType = tiExprType exprTI
+        expr' = stripType exprTI
     -- Constraints are now in state, will be retrieved by Eval.hs
     return (Just (IExecute expr', exprType), subst)
   
@@ -1922,7 +2022,9 @@ inferITopExpr topExpr = case topExpr of
             modify $ \s -> s { inferCounter = newCounter }
             
             clearConstraints
-            (expr', exprType, subst1) <- inferIExpr expr
+            (exprTI, subst1) <- inferIExpr expr
+            let exprType = tiExprType exprTI
+                expr' = stripType exprTI
             subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) emptyContext
             let finalSubst = composeSubst subst2 subst1
             return ((var, expr'), finalSubst)
@@ -1930,7 +2032,9 @@ inferITopExpr topExpr = case topExpr of
           Nothing -> do
             -- Without type signature: infer and generalize
             clearConstraints
-            (expr', exprType, subst) <- inferIExpr expr
+            (exprTI, subst) <- inferIExpr expr
+            let exprType = tiExprType exprTI
+                expr' = stripType exprTI
             constraints <- getConstraints
             
             -- Generalize the type
@@ -1965,7 +2069,7 @@ runInferI cfg env expr = do
   (result, warnings) <- runInferWithWarnings (inferIExpr expr) initState
   return $ case result of
     Left err -> Left err
-    Right (_, ty, subst) -> Right (ty, subst, warnings)
+    Right (tiExpr, subst) -> Right (tiExprType tiExpr, subst, warnings)
 
 -- | Run type inference on IExpr with initial environment
 runInferIWithEnv :: InferConfig -> TypeEnv -> IExpr -> IO (Either TypeError (Type, Subst, TypeEnv, [TypeWarning]))
@@ -1974,4 +2078,4 @@ runInferIWithEnv cfg env expr = do
   (result, warnings, finalState) <- runInferWithWarningsAndState (inferIExpr expr) initState
   return $ case result of
     Left err -> Left err
-    Right (_, ty, subst) -> Right (ty, subst, inferEnv finalState, warnings)
+    Right (tiExpr, subst) -> Right (tiExprType tiExpr, subst, inferEnv finalState, warnings)

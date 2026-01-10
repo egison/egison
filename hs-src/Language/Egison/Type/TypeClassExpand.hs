@@ -34,7 +34,7 @@ import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), IExpr(..), IPattern(..), Var(..), stringToVar,
                                              IBindingExpr, IMatchClause, ILoopRange(..),
-                                             Index(..), tiExprConstraints, tiExprType)
+                                             Index(..), tiExprConstraints, tiExprType, tiScheme, stripType)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, generalize, classEnvToList, lookupEnv, TypeEnv)
 import           Language.Egison.Type.IInfer (runInferI, defaultInferConfig)
@@ -46,13 +46,13 @@ import           Language.Egison.Type.Unify (unify)
 -- This function recursively processes TIExpr and replaces type class method calls
 -- with dictionary-based dispatch.
 expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr
-expandTypeClassMethodsT (TIExpr scheme expr) = do
-  classEnv <- getClassEnv
-  -- Recursively process the expression tree with constraint information
-  expr' <- expandTIExprWithConstraints classEnv scheme expr
-  -- For now, preserve the original type scheme
-  -- TODO: Update type scheme after dictionary passing (remove constraints)
-  return $ TIExpr scheme expr'
+expandTypeClassMethodsT tiExpr = do
+  -- TODO: Implement proper type class expansion with new TIExprNode structure
+  -- For now, return the original TIExpr unchanged
+  -- This means type class dictionary passing is disabled temporarily
+  return tiExpr
+
+{- OLD CODE - DISABLED TEMPORARILY
   where
     -- Helper function to expand IExpr with constraint information
     expandTIExprWithConstraints :: ClassEnv -> TypeScheme -> IExpr -> EvalM IExpr
@@ -656,7 +656,7 @@ resolveDictionary classEnv args (Constraint className constraintType) = do
                   dictName = lowerFirst className ++ instTypeName
               return $ Just $ IVarExpr dictName
             Nothing -> return Nothing
-    
+-}
 
 -- | Add dictionary parameters to a function based on its type scheme constraints
 -- This transforms constrained functions into dictionary-passing style
@@ -664,11 +664,11 @@ addDictionaryParametersT :: TypeScheme -> TIExpr -> EvalM TIExpr
 addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
   | null constraints = return tiExpr  -- No constraints, no change
   | otherwise = do
-      classEnv <- getClassEnv
-      -- Transform the expression to add dictionary parameters
-      let TIExpr scheme expr = tiExpr
-      expr' <- addDictParamsToExpr classEnv constraints expr
-      return $ TIExpr scheme expr'
+      -- TODO: Implement proper dictionary parameter addition with new TIExprNode structure
+      -- For now, return the original TIExpr unchanged
+      return tiExpr
+
+{- OLD CODE - DISABLED TEMPORARILY
   where
     -- Add dictionary parameters to the expression (typically a Lambda)
     addDictParamsToExpr :: ClassEnv -> [Constraint] -> IExpr -> EvalM IExpr
@@ -796,4 +796,4 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     getMethodArity :: Type -> Int
     getMethodArity (TFun _ t2) = 1 + getMethodArity t2
     getMethodArity _ = 0
-    
+-}

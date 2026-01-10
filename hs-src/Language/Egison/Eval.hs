@@ -51,7 +51,7 @@ import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
-import           Language.Egison.IExpr (TIExpr(..), TITopExpr(..), ITopExpr(..), IExpr(..), Var, extractNameFromVar, stringToVar, stripTypeTopExpr)
+import           Language.Egison.IExpr (TIExpr(..), TIExprNode(..), TITopExpr(..), ITopExpr(..), IExpr(..), Var, extractNameFromVar, stringToVar, stripTypeTopExpr)
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
@@ -127,21 +127,58 @@ evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
 -- | Evaluate expanded top expressions using the typed pipeline with optional printing.
 -- This function implements phases 2-10 of the processing flow.
 
+-- | Helper: Convert IExpr to TIExpr (simplified, without full type inference)
+-- This is a temporary solution that wraps IExpr nodes in TIExpr with a given type scheme
+-- TODO: Replace this with proper TIExpr construction from IInfer results
+iexprToTIExprSimple :: Types.TypeScheme -> IExpr -> TIExpr
+iexprToTIExprSimple scheme expr = case expr of
+  -- For now, we extract the type from scheme and create a minimal TIExprNode
+  -- This is not ideal but allows compilation to proceed
+  _ -> 
+    let ty = case scheme of
+              Types.Forall _ _ t -> t
+    in TIExpr scheme (iexprToTIExprNodeSimple ty expr)
+  where
+    -- Convert IExpr to TIExprNode recursively (simplified)
+    iexprToTIExprNodeSimple :: Types.Type -> IExpr -> TIExprNode
+    iexprToTIExprNodeSimple ty e = case e of
+      IConstantExpr c -> TIConstantExpr c
+      IVarExpr name -> TIVarExpr name
+      ITupleExpr exprs -> TITupleExpr (map (iexprToTIExprSimple (Types.Forall [] [] ty)) exprs)
+      ICollectionExpr exprs -> TICollectionExpr (map (iexprToTIExprSimple (Types.Forall [] [] ty)) exprs)
+      ILambdaExpr mvar vars body -> TILambdaExpr mvar vars (iexprToTIExprSimple (Types.Forall [] [] ty) body)
+      IApplyExpr func args -> TIApplyExpr 
+        (iexprToTIExprSimple (Types.Forall [] [] ty) func)
+        (map (iexprToTIExprSimple (Types.Forall [] [] ty)) args)
+      ILetExpr bindings body -> TILetExpr 
+        (map (\(v, e') -> (v, iexprToTIExprSimple (Types.Forall [] [] ty) e')) bindings)
+        (iexprToTIExprSimple (Types.Forall [] [] ty) body)
+      IIfExpr cond thenExpr elseExpr -> TIIfExpr
+        (iexprToTIExprSimple (Types.Forall [] [] ty) cond)
+        (iexprToTIExprSimple (Types.Forall [] [] ty) thenExpr)
+        (iexprToTIExprSimple (Types.Forall [] [] ty) elseExpr)
+      -- Add more common cases to avoid errors
+      ISeqExpr e1 e2 -> TISeqExpr
+        (iexprToTIExprSimple (Types.Forall [] [] ty) e1)
+        (iexprToTIExprSimple (Types.Forall [] [] ty) e2)
+      -- For unsupported cases, create a simple placeholder
+      _ -> error $ "iexprToTIExprNodeSimple: Unsupported IExpr constructor: " ++ show (take 50 $ show e)
+
 -- | Helper: Convert ITopExpr + TypeScheme to TITopExpr (directly from scheme)
 -- This version uses the type scheme directly, preserving original type variable names
 iTopExprToTITopExprFromScheme :: Env.TypeEnv -> ITopExpr -> Types.TypeScheme -> TITopExpr
 iTopExprToTITopExprFromScheme _typeEnv iTopExpr typeScheme = case iTopExpr of
   IDefine var iexpr -> 
-    TIDefine typeScheme var (TIExpr typeScheme iexpr)
+    TIDefine typeScheme var (iexprToTIExprSimple typeScheme iexpr)
   ITest iexpr -> 
-    TITest (TIExpr typeScheme iexpr)
+    TITest (iexprToTIExprSimple typeScheme iexpr)
   IExecute iexpr -> 
-    TIExecute (TIExpr typeScheme iexpr)
+    TIExecute (iexprToTIExprSimple typeScheme iexpr)
   ILoadFile path -> TILoadFile path
   ILoad _lib -> error "ILoad should not appear after expandLoads"
   IDefineMany bindings -> 
     -- TODO: Properly handle multiple bindings with individual type schemes
-    TIDefineMany [(var, TIExpr typeScheme iexpr) | (var, iexpr) <- bindings]
+    TIDefineMany [(var, iexprToTIExprSimple typeScheme iexpr) | (var, iexpr) <- bindings]
 
 -- | Expand type class methods in a top-level expression
 expandTypeClassInTopExpr :: TITopExpr -> EvalM TITopExpr
