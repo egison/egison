@@ -38,7 +38,8 @@ import           Language.Egison.IExpr      (TIExpr(..), IExpr(..), IPattern(..)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, generalize, classEnvToList, lookupEnv)
 import           Language.Egison.Type.IInfer (runInferI, defaultInferConfig)
-import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..))
+import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), typeToName, sanitizeMethodName,
+                                            capitalizeFirst, lowerFirst)
 import           Language.Egison.Type.Unify (unify)
 
 -- | Expand type class method calls in a typed expression (TIExpr)
@@ -96,8 +97,8 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
                           case findMatchingInst argType instances of
                             Just inst -> do
                               -- Generate the instance method name using sanitization
-                              let sanitized = sanitizeMeth methodName
-                                  instTypeName = getTypeName (instType inst)
+                              let sanitized = sanitizeMethodName methodName
+                                  instTypeName = typeToName (instType inst)
                                   instanceMethodName = lowerFirst className ++ instTypeName ++ capitalizeFirst sanitized
                               -- Recursively expand arguments
                               args' <- mapM (expandTIExprWithConstraintList classEnv' cs) args
@@ -151,31 +152,7 @@ expandTypeClassMethodsT (TIExpr scheme expr) = do
             Right _ -> Just inst
             Left _ -> findMatchingInst targetType insts
         
-        sanitizeMeth :: String -> String
-        sanitizeMeth "==" = "eq"
-        sanitizeMeth "/=" = "neq"
-        sanitizeMeth "<"  = "lt"
-        sanitizeMeth "<=" = "le"
-        sanitizeMeth ">"  = "gt"
-        sanitizeMeth ">=" = "ge"
-        sanitizeMeth "+"  = "plus"
-        sanitizeMeth "-"  = "minus"
-        sanitizeMeth "*"  = "times"
-        sanitizeMeth "/"  = "div"
-        sanitizeMeth name = name
-        
-        getTypeName :: Type -> String
-        getTypeName TInt = "Integer"
-        getTypeName TFloat = "Float"
-        getTypeName TBool = "Bool"
-        getTypeName TChar = "Char"
-        getTypeName TString = "String"
-        getTypeName (TVar (TyVar v)) = v
-        getTypeName (TInductive name _) = name
-        getTypeName (TCollection t) = "List" ++ getTypeName t
-        getTypeName (TTuple ts) = "Tuple" ++ concatMap getTypeName ts
-        getTypeName _ = "Unknown"
-    -- Helper function to recursively process IExpr and return IExpr
+-- Helper function to recursively process IExpr and return IExpr
     expandTIExpr :: ClassEnv -> IExpr -> EvalM IExpr
     expandTIExpr classEnv' e = case e of
       -- Constants and variables (no sub-expressions)
@@ -503,27 +480,6 @@ resolveDictionary classEnv args (Constraint className constraintType) = do
         Right _ -> Just inst
         Left _ -> findMatchingInstanceForType targetType insts
     
-    typeToName :: Type -> String
-    typeToName TInt = "Integer"
-    typeToName TFloat = "Float"
-    typeToName TBool = "Bool"
-    typeToName TChar = "Char"
-    typeToName TString = "String"
-    typeToName (TVar (TyVar v)) = v
-    typeToName (TInductive name _) = name
-    typeToName (TCollection t) = "List" ++ typeToName t
-    typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
-    typeToName _ = "Unknown"
-
--- | Capitalize first character
-capitalizeFirst :: String -> String
-capitalizeFirst []     = []
-capitalizeFirst (c:cs) = toUpper c : cs
-
--- | Lowercase first character
-lowerFirst :: String -> String
-lowerFirst []     = []
-lowerFirst (c:cs) = toLower c : cs
 
 -- | Add dictionary parameters to a function based on its type scheme constraints
 -- This transforms constrained functions into dictionary-passing style
@@ -636,15 +592,3 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
             else findConstraintForMethod env methodName cs
         Nothing -> findConstraintForMethod env methodName cs
     
-    sanitizeMethodName :: String -> String
-    sanitizeMethodName "==" = "eq"
-    sanitizeMethodName "/=" = "neq"
-    sanitizeMethodName "<"  = "lt"
-    sanitizeMethodName "<=" = "le"
-    sanitizeMethodName ">"  = "gt"
-    sanitizeMethodName ">=" = "ge"
-    sanitizeMethodName "+"  = "plus"
-    sanitizeMethodName "-"  = "minus"
-    sanitizeMethodName "*"  = "times"
-    sanitizeMethodName "/"  = "div"
-    sanitizeMethodName name = name

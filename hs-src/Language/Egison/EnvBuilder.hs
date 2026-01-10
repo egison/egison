@@ -33,7 +33,8 @@ import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, 
                                              extendEnv, extendPatternEnv, addClass, addInstance, lookupClass)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..), TensorShape(..),
-                                             ClassInfo, InstanceInfo, freeTyVars)
+                                             ClassInfo, InstanceInfo, freeTyVars, typeToName, sanitizeMethodName, typeExprToType,
+                                             capitalizeFirst, lowerFirst)
 import qualified Data.Set as Set
 
 -- | Result of environment building phase
@@ -273,9 +274,9 @@ registerInstanceMethods className instType methods classEnv typeEnv =
               substitutedType = substituteTypeVar tyVar instTy methodType
               
               -- Generate method name: e.g., "eqIntegerEq" for (==) in Eq Integer
-              typeName = typeToTypeName instTy
+              typeName' = typeToName instTy
               sanitizedName = sanitizeMethodName methName
-              generatedMethodName = lowerFirst clsName ++ typeName ++ capitalizeFirst sanitizedName
+              generatedMethodName = lowerFirst clsName ++ typeName' ++ capitalizeFirst sanitizedName
               
               -- No type variables or constraints in the concrete instance method
               typeScheme = Types.Forall [] [] substitutedType
@@ -303,38 +304,6 @@ registerInstanceMethods className instType methods classEnv typeEnv =
         go (TIO t) = TIO (go t)
         go (TIORef t) = TIORef (go t)
         go TAny = TAny
-    
-    -- Convert Type to type name string for method naming
-    typeToTypeName :: Type -> String
-    typeToTypeName TInt = "Integer"
-    typeToTypeName TFloat = "Float"
-    typeToTypeName TBool = "Bool"
-    typeToTypeName TChar = "Char"
-    typeToTypeName TString = "String"
-    typeToTypeName (TInductive name _) = name
-    typeToTypeName (TVar (TyVar v)) = v
-    typeToTypeName _ = "Unknown"
-    
-    sanitizeMethodName :: String -> String
-    sanitizeMethodName "==" = "eq"
-    sanitizeMethodName "/=" = "neq"
-    sanitizeMethodName "<"  = "lt"
-    sanitizeMethodName "<=" = "le"
-    sanitizeMethodName ">"  = "gt"
-    sanitizeMethodName ">=" = "ge"
-    sanitizeMethodName "+"  = "plus"
-    sanitizeMethodName "-"  = "minus"
-    sanitizeMethodName "*"  = "times"
-    sanitizeMethodName "/"  = "div"
-    sanitizeMethodName name = name
-    
-    capitalizeFirst :: String -> String
-    capitalizeFirst []     = []
-    capitalizeFirst (c:cs) = toUpper c : cs
-    
-    lowerFirst :: String -> String
-    lowerFirst []     = []
-    lowerFirst (c:cs) = toLower c : cs
 
 -- | Extract method name from ClassMethod
 extractMethodName :: ClassMethod -> String
@@ -357,28 +326,6 @@ constraintToInternal (ConstraintExpr clsName tyExprs) =
   Types.Constraint clsName (case tyExprs of 
     [] -> TAny
     (t:_) -> typeExprToType t)
-
--- | Convert TypeExpr to Type
-typeExprToType :: TypeExpr -> Type
-typeExprToType TEInt = TInt
-typeExprToType TEMathExpr = TInt  -- MathExpr = Integer in Egison
-typeExprToType TEFloat = TFloat
-typeExprToType TEBool = TBool
-typeExprToType TEChar = TChar
-typeExprToType TEString = TString
-typeExprToType (TEVar name) = TVar (TyVar name)
-typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
-typeExprToType (TEList t) = TCollection (typeExprToType t)
-typeExprToType (TEApp t1 ts) = 
-  case typeExprToType t1 of
-    TVar (TyVar name) -> TInductive name (map typeExprToType ts)  -- Type application: MyList a
-    TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
-    baseType -> baseType  -- Can't apply to non-inductive types
-typeExprToType (TETensor elemT) = TTensor (typeExprToType elemT)
-typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
-typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
-typeExprToType (TEIO t) = TIO (typeExprToType t)
-typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
 
 -- | Register a single pattern constructor
 registerPatternConstructor :: String -> [String] -> Type 

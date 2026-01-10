@@ -21,13 +21,20 @@ module Language.Egison.Type.Types
   , freeTyVars
   , isTensorType
   , isScalarType
+  , typeToName
+  , sanitizeMethodName
+  , typeExprToType
+  , capitalizeFirst
+  , lowerFirst
   ) where
 
+import           Data.Char        (toLower, toUpper)
 import           Data.Hashable    (Hashable)
 import           Data.Set         (Set)
 import qualified Data.Set         as Set
 import           GHC.Generics     (Generic)
 
+import           Language.Egison.AST        (TypeExpr(..))
 import           Language.Egison.Type.Index (IndexSpec, IndexKind, Index)
 
 -- | Type variable
@@ -130,4 +137,69 @@ isTensorType _           = False
 -- | Check if a type is a scalar (non-tensor) type
 isScalarType :: Type -> Bool
 isScalarType = not . isTensorType
+
+-- | Convert a Type to a string name for dictionary and method naming
+-- This is used for generating instance dictionary names and method names
+-- E.g., TInt -> "Integer", TTensor TInt -> "TensorInteger"
+typeToName :: Type -> String
+typeToName TInt = "Integer"
+typeToName TFloat = "Float"
+typeToName TBool = "Bool"
+typeToName TChar = "Char"
+typeToName TString = "String"
+typeToName (TVar (TyVar v)) = v
+typeToName (TInductive name _) = name
+typeToName (TCollection t) = "Collection" ++ typeToName t
+typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
+typeToName (TTensor t) = "Tensor" ++ typeToName t
+typeToName _ = "Unknown"
+
+-- | Sanitize method names for use in identifiers
+-- Converts operator symbols to alphanumeric names
+-- E.g., "==" -> "eq", "+" -> "plus"
+sanitizeMethodName :: String -> String
+sanitizeMethodName "==" = "eq"
+sanitizeMethodName "/=" = "neq"
+sanitizeMethodName "<"  = "lt"
+sanitizeMethodName "<=" = "le"
+sanitizeMethodName ">"  = "gt"
+sanitizeMethodName ">=" = "ge"
+sanitizeMethodName "+"  = "plus"
+sanitizeMethodName "-"  = "minus"
+sanitizeMethodName "*"  = "times"
+sanitizeMethodName "/"  = "div"
+sanitizeMethodName name = name
+
+-- | Convert TypeExpr (from AST) to Type (internal representation)
+typeExprToType :: TypeExpr -> Type
+typeExprToType TEInt = TInt
+typeExprToType TEMathExpr = TInt  -- MathExpr = Integer in Egison
+typeExprToType TEFloat = TFloat
+typeExprToType TEBool = TBool
+typeExprToType TEChar = TChar
+typeExprToType TEString = TString
+typeExprToType (TEVar name) = TVar (TyVar name)
+typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
+typeExprToType (TEList t) = TCollection (typeExprToType t)
+typeExprToType (TEApp t1 ts) = 
+  case typeExprToType t1 of
+    TVar (TyVar name) -> TInductive name (map typeExprToType ts)  -- Type application: MyList a
+    TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
+    baseType -> baseType  -- Can't apply to non-inductive types
+typeExprToType (TETensor elemT) = TTensor (typeExprToType elemT)
+typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
+typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
+typeExprToType (TEIO t) = TIO (typeExprToType t)
+typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
+typeExprToType (TEPattern t) = TInductive "Pattern" [typeExprToType t]
+
+-- | Capitalize first character
+capitalizeFirst :: String -> String
+capitalizeFirst []     = []
+capitalizeFirst (c:cs) = toUpper c : cs
+
+-- | Lowercase first character
+lowerFirst :: String -> String
+lowerFirst []     = []
+lowerFirst (c:cs) = toLower c : cs
 

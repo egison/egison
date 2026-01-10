@@ -35,6 +35,8 @@ import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.IExpr
 import           Language.Egison.RState
+import           Language.Egison.Type.Types (sanitizeMethodName, typeToName, typeExprToType,
+                                             capitalizeFirst, lowerFirst)
 
 
 desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
@@ -115,23 +117,6 @@ desugarTopExpr (ClassDeclExpr (ClassDecl classNm _typeParams _supers methods)) =
     extractParamName (TPInvertedVar name _) = name
     extractParamName (TPUntypedVar name) = name
     extractParamName _ = "x"  -- fallback
-    
-    sanitizeMethodName :: String -> String
-    sanitizeMethodName "==" = "eq"
-    sanitizeMethodName "/=" = "neq"
-    sanitizeMethodName "<"  = "lt"
-    sanitizeMethodName "<=" = "le"
-    sanitizeMethodName ">"  = "gt"
-    sanitizeMethodName ">=" = "ge"
-    sanitizeMethodName "+"  = "plus"
-    sanitizeMethodName "-"  = "minus"
-    sanitizeMethodName "*"  = "times"
-    sanitizeMethodName "/"  = "div"
-    sanitizeMethodName name = name
-    
-    capitalizeFirst :: String -> String
-    capitalizeFirst []     = []
-    capitalizeFirst (c:cs) = toUpper c : cs
 
 -- Instance declarations: generate a dictionary and individual method definitions
 -- For an instance like:
@@ -187,37 +172,9 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl _constraints classNm instTypes me
           valueExpr = IVarExpr funcName
       in (keyExpr, valueExpr)
     
-    sanitizeMethodName :: String -> String
-    sanitizeMethodName "==" = "eq"
-    sanitizeMethodName "/=" = "neq"
-    sanitizeMethodName "<"  = "lt"
-    sanitizeMethodName "<=" = "le"
-    sanitizeMethodName ">"  = "gt"
-    sanitizeMethodName ">=" = "ge"
-    sanitizeMethodName "+"  = "plus"
-    sanitizeMethodName "-"  = "minus"
-    sanitizeMethodName "*"  = "times"
-    sanitizeMethodName "/"  = "div"
-    sanitizeMethodName name = name
-    
+    -- Convert TypeExpr to string name by composing typeExprToType and typeToName
     typeExprToName :: TypeExpr -> String
-    typeExprToName TEInt = "Integer"
-    typeExprToName TEMathExpr = "MathExpr"
-    typeExprToName TEFloat = "Float"
-    typeExprToName TEBool = "Bool"
-    typeExprToName TEChar = "Char"
-    typeExprToName TEString = "String"
-    typeExprToName (TEList _) = "List"
-    typeExprToName (TEVar n) = n
-    typeExprToName _ = "Unknown"
-    
-    lowerFirst :: String -> String
-    lowerFirst []     = []
-    lowerFirst (c:cs) = toLower c : cs
-    
-    capitalizeFirst :: String -> String
-    capitalizeFirst []     = []
-    capitalizeFirst (c:cs) = toUpper c : cs
+    typeExprToName = typeToName . typeExprToType
 
 -- Inductive declarations don't produce runtime code
 -- Constructor registration is handled by the type system
