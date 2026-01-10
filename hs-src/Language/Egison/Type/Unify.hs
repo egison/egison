@@ -74,6 +74,8 @@ unify' (TIORef t1) (TIORef t2) = unify t1 t2
 -- Tensor types
 -- Tensor a and Tensor b unify if a and b unify
 unify' (TTensor t1) (TTensor t2) = unify t1 t2
+unify' (TTensor t1) t2 = unify t1 t2
+unify' t1 (TTensor t2) = unify t1 t2
 
 -- TAny unifies with anything
 unify' TAny _ = Right emptySubst
