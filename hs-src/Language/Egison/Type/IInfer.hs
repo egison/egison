@@ -71,6 +71,7 @@ import           Language.Egison.Type.Subst
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
+import qualified Language.Egison.Type.Unify as Unify
 
 --------------------------------------------------------------------------------
 -- * Infer Monad and State
@@ -1532,6 +1533,13 @@ inferIApplication funcName funcType args initSubst = inferIApplicationWithContex
 -- | Check if tensorMap should be inserted for an argument
 -- This implements the type-tensor-simple.md specification
 -- Extended to check type class instances to determine necessity
+-- | Determine if tensorMap should be inserted when passing an argument to a function parameter.
+-- 
+-- Arguments:
+--   ClassEnv     : The current type class environment (holds available type class instances).
+--   [Constraint] : The set of type class constraints in scope (e.g., Num a, Eq a).
+--   Type         : The type of the argument being applied to the function.
+--   Type         : The type of the parameter as expected by the function (i.e., declared type).
 shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
 shouldInsertTensorMap classEnv constraints argType paramType = case argType of
   TTensor elemType -> case paramType of
@@ -1556,37 +1564,15 @@ shouldInsertTensorMap classEnv constraints argType paramType = case argType of
   _ -> False
 
 -- | Check if a type class has an instance for Tensor elemType
+-- Uses unify to check if an instance type matches the query type
 hasInstanceForTensor :: ClassEnv -> Type -> Constraint -> Bool
 hasInstanceForTensor classEnv elemType (Constraint className _tyVar) =
   let tensorType = TTensor elemType
       instances = lookupInstances className classEnv
-  in any (\inst -> matchesInstanceType tensorType (instType inst)) instances
-
--- | Check if a query type matches an instance type
--- This performs structural matching to determine if an instance applies
-matchesInstanceType :: Type -> Type -> Bool
-matchesInstanceType queryType instType = case (queryType, instType) of
-  -- Exact match
-  _ | queryType == instType -> True
-  
-  -- Tensor types
-  (TTensor qt, TTensor it) -> matchesInstanceType qt it
-  
-  -- Collection types
-  (TCollection qt, TCollection it) -> matchesInstanceType qt it
-  
-  -- Tuple types
-  (TTuple qts, TTuple its) 
-    | length qts == length its -> all (uncurry matchesInstanceType) (zip qts its)
-  
-  -- Inductive types
-  (TInductive qn qts, TInductive in_ its)
-    | qn == in_ && length qts == length its -> all (uncurry matchesInstanceType) (zip qts its)
-  
-  -- Type variables in instance type match any query type
-  (_, TVar _) -> True
-  
-  _ -> False
+  in any (\inst -> case Unify.unify (instType inst) tensorType of
+                     Right _ -> True   -- Instance type unifies with Tensor type
+                     Left _  -> False  -- No match
+         ) instances
 
 -- | Generate a fresh variable name for tensorMap lambdas
 freshVarName :: String -> Infer String
