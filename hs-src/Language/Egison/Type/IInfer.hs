@@ -212,28 +212,91 @@ getClassEnv = inferClassEnv <$> get
 -- | Resolve a constraint based on available instances
 -- If the constraint type is a Tensor type and no instance exists for it,
 -- try to use the element type's instance instead
+-- | Resolve constraints in a TIExpr recursively
+resolveConstraintsInTIExpr :: ClassEnv -> Subst -> TIExpr -> TIExpr
+resolveConstraintsInTIExpr classEnv subst (TIExpr (Forall vars constraints ty) node) =
+  let resolvedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
+      resolvedNode = resolveConstraintsInNode classEnv subst node
+  in TIExpr (Forall vars resolvedConstraints ty) resolvedNode
+
+-- | Resolve constraints in a TIExprNode recursively
+resolveConstraintsInNode :: ClassEnv -> Subst -> TIExprNode -> TIExprNode
+resolveConstraintsInNode classEnv subst node = case node of
+  TIConstantExpr c -> TIConstantExpr c
+  TIVarExpr name -> TIVarExpr name
+  TILambdaExpr mVar params body ->
+    TILambdaExpr mVar params (resolveConstraintsInTIExpr classEnv subst body)
+  TIApplyExpr func args ->
+    TIApplyExpr (resolveConstraintsInTIExpr classEnv subst func)
+                (map (resolveConstraintsInTIExpr classEnv subst) args)
+  TITupleExpr exprs ->
+    TITupleExpr (map (resolveConstraintsInTIExpr classEnv subst) exprs)
+  TICollectionExpr exprs ->
+    TICollectionExpr (map (resolveConstraintsInTIExpr classEnv subst) exprs)
+  TIIfExpr cond thenExpr elseExpr ->
+    TIIfExpr (resolveConstraintsInTIExpr classEnv subst cond)
+             (resolveConstraintsInTIExpr classEnv subst thenExpr)
+             (resolveConstraintsInTIExpr classEnv subst elseExpr)
+  TILetExpr bindings body ->
+    TILetExpr (map (\(p, e) -> (p, resolveConstraintsInTIExpr classEnv subst e)) bindings)
+              (resolveConstraintsInTIExpr classEnv subst body)
+  TILetRecExpr bindings body ->
+    TILetRecExpr (map (\(p, e) -> (p, resolveConstraintsInTIExpr classEnv subst e)) bindings)
+                 (resolveConstraintsInTIExpr classEnv subst body)
+  TIIndexedExpr b expr indices ->
+    TIIndexedExpr b (resolveConstraintsInTIExpr classEnv subst expr) indices
+  TIGenerateTensorExpr shape func ->
+    TIGenerateTensorExpr (resolveConstraintsInTIExpr classEnv subst shape)
+                         (resolveConstraintsInTIExpr classEnv subst func)
+  TITensorExpr shape elems ->
+    TITensorExpr (resolveConstraintsInTIExpr classEnv subst shape)
+                 (resolveConstraintsInTIExpr classEnv subst elems)
+  TITensorContractExpr tensor ->
+    TITensorContractExpr (resolveConstraintsInTIExpr classEnv subst tensor)
+  TITensorMapExpr func tensor ->
+    TITensorMapExpr (resolveConstraintsInTIExpr classEnv subst func)
+                    (resolveConstraintsInTIExpr classEnv subst tensor)
+  TITensorMap2Expr func t1 t2 ->
+    TITensorMap2Expr (resolveConstraintsInTIExpr classEnv subst func)
+                     (resolveConstraintsInTIExpr classEnv subst t1)
+                     (resolveConstraintsInTIExpr classEnv subst t2)
+  TIMatchExpr mode target matcher clauses ->
+    TIMatchExpr mode
+                (resolveConstraintsInTIExpr classEnv subst target)
+                (resolveConstraintsInTIExpr classEnv subst matcher)
+                (map (\(p, e) -> (p, resolveConstraintsInTIExpr classEnv subst e)) clauses)
+  _ -> node
+
 resolveConstraintWithInstances :: ClassEnv -> Subst -> Constraint -> Constraint
 resolveConstraintWithInstances classEnv subst (Constraint className tyVar) =
   let resolvedType = applySubst subst tyVar
       instances = lookupInstances className classEnv
   in case resolvedType of
        TTensor elemType ->
-         -- Tensor型の場合、インスタンスを探す
-         case findMatchingInstanceForType resolvedType instances of
-           Just _ -> 
-             -- Tensor自体のインスタンスがある場合はそれを使う
-             Constraint className resolvedType
-           Nothing -> 
-             -- Tensorのインスタンスがなければ、要素型で試す
-             case findMatchingInstanceForType elemType instances of
+         -- Tensor型の場合、まず要素型が型変数かチェック
+         case elemType of
+           TVar _ ->
+             -- 要素が型変数の場合、無条件に要素型の制約を使う
+             -- (Tensor t0 の場合、instance Num (Tensor t0) は存在しないが、
+             --  instance Num t0 は型パラメータとして渡されるため)
+             Constraint className elemType
+           _ ->
+             -- 要素が具体的な型の場合、インスタンスを探す
+             case findMatchingInstanceForType resolvedType instances of
                Just _ -> 
-                 -- 要素型のインスタンスがある場合はそれを使う
-                 -- tensorMapで要素ごとに適用することを想定
-                 Constraint className elemType
-               Nothing -> 
-                 -- どちらもない場合は、解決された型をそのまま使う
-                 -- (エラーは後のPhaseで検出される)
+                 -- Tensor自体のインスタンスがある場合はそれを使う
                  Constraint className resolvedType
+               Nothing -> 
+                 -- Tensorのインスタンスがなければ、要素型で試す
+                 case findMatchingInstanceForType elemType instances of
+                   Just _ -> 
+                     -- 要素型のインスタンスがある場合はそれを使う
+                     -- tensorMapで要素ごとに適用することを想定
+                     Constraint className elemType
+                   Nothing -> 
+                     -- どちらもない場合は、解決された型をそのまま使う
+                     -- (エラーは後のPhaseで検出される)
+                     Constraint className resolvedType
        _ -> 
          -- 非Tensor型の場合は、単純に代入を適用
          Constraint className resolvedType
@@ -2015,9 +2078,13 @@ inferITopExpr topExpr = case topExpr of
         -- Apply final substitution to exprTI to resolve all type variables
         let exprTI' = applySubstToTIExpr finalSubst exprTI
         
-        -- Reconstruct type scheme from exprTI' to match actual type variables
+        -- Resolve constraints in exprTI' (Tensor t0 -> t0)
+        classEnv <- getClassEnv
+        let exprTI'' = resolveConstraintsInTIExpr classEnv finalSubst exprTI'
+        
+        -- Reconstruct type scheme from exprTI'' to match actual type variables
         -- Use instantiated constraints and apply final substitution
-        let finalType = tiExprType exprTI'
+        let finalType = tiExprType exprTI''
             constraints' = map (applySubstConstraint finalSubst) instConstraints
             envFreeVars = freeVarsInEnv env
             typeFreeVars = freeTyVars finalType
@@ -2025,7 +2092,7 @@ inferITopExpr topExpr = case topExpr of
             updatedScheme = Forall genVars constraints' finalType
         
         -- Keep the updated scheme (with actual type variables) in the environment
-        return (Just (TIDefine updatedScheme var exprTI'), finalSubst)
+        return (Just (TIDefine updatedScheme var exprTI''), finalSubst)
       
       Nothing -> do
         -- No explicit type signature: infer and generalize as before
