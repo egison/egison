@@ -14,6 +14,7 @@ module Language.Egison.Type.Subst
   , composeSubst
   , applySubst
   , applySubstScheme
+  , applySubstConstraint
   , SubstIndex
   , emptySubstIndex
   , singletonSubstIndex
