@@ -48,7 +48,8 @@
 | ファイル | 役割 | 主要な型・関数 | 状態 |
 |---------|------|---------------|------|
 | `hs-src/Language/Egison/Type/TypedDesugar.hs` | 型駆動変換のオーケストレーション | `desugarTypedExprT :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
-| `hs-src/Language/Egison/Type/TypeClassExpand.hs` | 型クラス辞書展開 | `expandTypeClassMethods :: TypeCheckEnv -> Expr -> Expr` | ⏳ Expr版のみ、TIExpr版は未実装 |
+| `hs-src/Language/Egison/Type/TypeClassExpand.hs` | 型クラスメソッド展開（第1ステップ） | `expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
+| `hs-src/Language/Egison/Type/TensorMapInsertion.hs` | tensorMap自動挿入（第2ステップ） | `insertTensorMaps :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
 
 ### Phase 9-10: 評価
 | ファイル | 役割 | 主要な型・関数 |
@@ -79,7 +80,7 @@
 | `--dump-env` | Phase 2 | 構築された環境 | `Eval.hs` | ✅ |
 | `--dump-desugared` | Phase 3-4 | `ITopExpr` (脱糖後) | `Eval.hs` + `Pretty.hs` | ✅ |
 | `--dump-typed` | Phase 5-6 | `TITopExpr` (型推論後) | `Eval.hs` + `Pretty.hs` | ✅ |
-| `--dump-ti` | Phase 8 | `TITopExpr` (TypedDesugar後) | `Eval.hs` + `Pretty.hs` | ⏳ 未実装（実装準備済み） |
+| `--dump-ti` | Phase 8 | `TITopExpr` (TypedDesugar後) | `Eval.hs` + `Pretty.hs` | ✅ 実装済み |
 | `--verbose` | 全て | 各段階の詳細 | `Eval.hs` | ✅ |
 
 **注**: すべてのダンプ出力はPretty Printされます（`Pretty.hs`）。
@@ -140,8 +141,10 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase 8: TypedDesugar (TypedDesugar.hs)                    │
 │   TIExpr → TIExpr                                          │
-│   1. expandTypeClassMethods (TypeClassExpand.hs)           │
-│      - TIExpr版は未実装（Expr版のみ存在）                   │
+│   1. expandTypeClassMethods (TypeClassExpand.hs) ✅        │
+│      - 型クラスメソッド → 具体的な関数に展開                 │
+│   2. insertTensorMaps (TensorMapInsertion.hs) ✅           │
+│      - 必要に応じてtensorMap/tensorMap2を挿入               │
 └────────────┬────────────────────────────────────────────────┘
              │
              ↓【型情報を抜く】
@@ -155,31 +158,29 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 今後の実装タスク
+## Phase 8 実装完了
 
-### Phase 8 (TypedDesugar) の実装状況
+### 実装済みの機能
 
-**現状**: 基本フレームワーク実装済み
+**TypedDesugar (TypedDesugar.hs)**: ✅ 完了
+- 型クラスメソッド展開とtensorMap挿入のオーケストレーション
 
-**実装済み**:
-1. ✅ **基本構造**
-   - `TypedDesugar.hs`: オーケストレーションモジュール
-   - `TypeTensorExpand.hs`: テンソル変換のフレームワーク
-   - 再帰的な型情報保持処理（各子式の型推論と処理）
+**TypeClassExpand (TypeClassExpand.hs)**: ✅ 完了
+- TIExpr版の実装完了
+- 型クラスメソッド → 具体的な関数への展開
+- 制約を含む式の適切な処理
 
-**実装が必要な機能**:
-1. **tensorMap自動挿入** (in IInfer.hs)
-   - ⏳ 実装待ち: テンソル型の不一致検出とtensorMap挿入ロジック
-   - 関数の仮引数の型が`MathExpr`などテンソルとunifyできない型であるのに、引数の型が`Tensor MathExpr`などテンソル型であった場合、`TensorMap`を挿入する。
-   - `TensorMap`がネストする場合、`TensorMap2`を使ってネストをできるだけ解消する。
+**TensorMapInsertion (TensorMapInsertion.hs)**: ✅ 完了
+- tensorMap/tensorMap2の自動挿入
+- 複数テンソル引数の検出とtensorMap2への最適化
+- 型クラス展開後の具体的な関数への適用
+
+### 処理順序
+1. 型クラスメソッド展開（型クラスメソッド → 具体的な関数）
+2. tensorMap挿入（具体的な関数にtensorMapを適用）
+
+この順序により、高階関数への型クラスメソッド渡しなど、より複雑なケースに対応可能。
+
+
    
-2. **型クラス辞書渡し** (TypeClassExpand.hs)
-   - ✅ Expr版は実装済み
-   - ⏳ TIExpr版の実装が必要
-   - インスタンス選択
-   - メソッド呼び出しの具体化
-   - 辞書パラメータの追加
 
-3. **型情報の最適化**
-   - 不要な型情報の削除
-   - 評価時の型チェックの最適化

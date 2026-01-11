@@ -6,7 +6,9 @@ This module expands type class method calls using type information from TIExpr.
 It transforms TIExpr to TIExpr, replacing type class method calls with
 dictionary-based dispatch.
 
-Pipeline: Phase 8 (TypedDesugar) - TypeClassExpand
+Pipeline: Phase 8 (TypedDesugar) - TypeClassExpand (first step)
+This is executed before TensorMapInsertion to resolve type class methods
+to concrete functions first.
 
 For example, if we have:
   class Eq a where (==) : a -> a -> Bool
