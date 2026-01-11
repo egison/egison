@@ -201,6 +201,15 @@ processTopExpr result topExpr = case topExpr of
     
     return result { ebrPatternTypeEnv = patternEnv' }
   
+  -- Other expressions don't contribute to environment building
+  Define {} -> return result
+  DefineWithType {} -> return result
+  Test {} -> return result
+  Execute {} -> return result
+  LoadFile {} -> return result  -- Should not appear after expandLoads
+  Load {} -> return result      -- Should not appear after expandLoads
+  InfixDecl {} -> return result
+  
   -- 7. Symbol Declarations (from DeclareSymbol)
   DeclareSymbol names mTypeExpr -> do
     let ty = case mTypeExpr of
@@ -211,15 +220,6 @@ processTopExpr result topExpr = case topExpr of
         -- Add each symbol to the type environment
         typeEnv' = foldr (\name env -> extendEnv name scheme env) typeEnv names
     return result { ebrTypeEnv = typeEnv' }
-  
-  -- Other expressions don't contribute to environment building
-  Define {} -> return result
-  DefineWithType {} -> return result
-  Test {} -> return result
-  Execute {} -> return result
-  LoadFile {} -> return result  -- Should not appear after expandLoads
-  Load {} -> return result      -- Should not appear after expandLoads
-  InfixDecl {} -> return result
 
 --------------------------------------------------------------------------------
 -- Helper Functions

@@ -457,10 +457,11 @@ declareSymbolExpr = try $ do
     else return ()
   -- Parse comma-separated list of symbol names
   names <- sepBy1 lowerId (symbol ",")
-  -- Parse optional type annotation
-  mType <- optional $ do
+  -- Parse optional type annotation (must be simple type, not function type)
+  mType <- optional $ try $ do
     _ <- symbol ":"
-    typeExpr
+    -- Use typeAtomSimple to avoid parsing across lines
+    typeAtomSimple
   return $ DeclareSymbol names mType
 
 defineExpr :: Parser TopExpr

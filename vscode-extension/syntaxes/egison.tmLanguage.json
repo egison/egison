@@ -90,7 +90,11 @@
         },
         {
           "name": "keyword.other.egison",
-          "match": "\\b(def|let|where|withSymbols|matcher|algebraicDataMatcher)\\b"
+          "match": "\\b(def|let|where|withSymbols|matcher|algebraicDataMatcher|declare|symbol)\\b"
+        },
+        {
+          "name": "keyword.other.declaration.egison",
+          "match": "\\b(class|instance|inductive|pattern)\\b"
         },
         {
           "name": "keyword.operator.egison",
