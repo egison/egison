@@ -28,7 +28,7 @@ module Language.Egison.Type.TypedDesugar
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..))
 import           Language.Egison.Type.TensorMapInsertion (insertTensorMaps)
-import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT)
+import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT)
 
 -- | Desugar a typed expression (TIExpr) with type-driven transformations
 -- This function orchestrates the transformation pipeline:
@@ -54,7 +54,9 @@ desugarTypedTopExprT :: TITopExpr -> EvalM (Maybe TITopExpr)
 desugarTypedTopExprT topExpr = case topExpr of
   TIDefine scheme var tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr
-    return $ Just (TIDefine scheme var tiexpr')
+    -- Add dictionary parameters for constrained functions
+    tiexpr'' <- addDictionaryParametersT scheme tiexpr'
+    return $ Just (TIDefine scheme var tiexpr'')
   
   TITest tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr
@@ -73,6 +75,9 @@ desugarTypedTopExprT topExpr = case topExpr of
   TIDefineMany bindings -> do
     bindings' <- mapM (\(var, tiexpr) -> do
       tiexpr' <- desugarTypedExprT tiexpr
-      return (var, tiexpr')) bindings
+      -- Add dictionary parameters using the expression's own scheme
+      let scheme = tiScheme tiexpr'
+      tiexpr'' <- addDictionaryParametersT scheme tiexpr'
+      return (var, tiexpr'')) bindings
     return $ Just (TIDefineMany bindings')
 
