@@ -1661,159 +1661,13 @@ inferIApplication funcName funcType args initSubst = do
   let funcTI = mkTIExpr funcType (TIVarExpr funcName)
   inferIApplicationWithContext funcTI funcType args initSubst emptyContext
 
--- | Check if tensorMap should be inserted for an argument
--- This implements the type-tensor-simple.md specification
--- Extended to check type class instances to determine necessity
--- | Determine if tensorMap should be inserted when passing an argument to a function parameter.
--- 
--- Arguments:
---   ClassEnv     : The current type class environment (holds available type class instances).
---   [Constraint] : The set of type class constraints in scope (e.g., Num a, Eq a).
---   Type         : The type of the argument being applied to the function.
---   Type         : The type of the parameter as expected by the function (i.e., declared type).
-shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
-shouldInsertTensorMap classEnv constraints argType paramType = case argType of
-  TTensor elemType -> case paramType of
-    -- Tensor matched with Tensor → no insertion needed
-    TTensor _ -> False
-    
-    -- Tensor matched with type variable → check type class instances
-    TVar tyVar -> 
-      -- Find constraints on this type variable
-      let relevantConstraints = filter (\(Constraint _ t) -> t == TVar tyVar) constraints
-      in case relevantConstraints of
-           -- No constraints → 0-rank tensor interpretation, no insertion needed
-           [] -> False
-           -- Has constraints → check if Tensor instance exists for ALL constraints
-           cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
-                 -- If any constraint lacks a Tensor instance, we need tensorMap
-    
-    -- Tensor matched with concrete non-tensor type → insertion needed
-    _ -> True
-    
-  -- Non-tensor argument → no insertion needed
-  _ -> False
-
--- | Check if a type class has an instance for Tensor elemType
--- Uses unify to check if an instance type matches the query type
-hasInstanceForTensor :: ClassEnv -> Type -> Constraint -> Bool
-hasInstanceForTensor classEnv elemType (Constraint className _tyVar) =
-  let tensorType = TTensor elemType
-      instances = lookupInstances className classEnv
-  in any (\inst -> case Unify.unify (instType inst) tensorType of
-                     Right _ -> True   -- Instance type unifies with Tensor type
-                     Left _  -> False  -- No match
-         ) instances
-
--- | Generate a fresh variable name for tensorMap lambdas
-freshVarName :: String -> Infer String
-freshVarName prefix = do
-  st <- get
-  let n = inferCounter st
-  modify $ \s -> s { inferCounter = n + 1 }
-  return $ prefix ++ show n
-
--- | Get the parameter type at the specified index from a function type
--- Example: (a -> b -> c) at index 0 → Just a, at index 1 → Just b
-getParamType :: Type -> Int -> Maybe Type
-getParamType (TFun param _) 0 = Just param
-getParamType (TFun _ rest) n 
-  | n > 0 = getParamType rest (n - 1)
-getParamType _ _ = Nothing
-
--- | Apply one argument to a function type
--- Example: (a -> b -> c) → (b -> c)
-applyOneArgType :: Type -> Type
-applyOneArgType (TFun _ rest) = rest
-applyOneArgType t = t  -- No more arguments
-
--- | Recursively wrap function application with tensorMap where needed
--- This implements the automatic tensorMap insertion described in type-tensor-simple.md
--- Process arguments from left to right, building nested tensorMap expressions
--- NEW: Works with TIExpr instead of IExpr
-wrapWithTensorMap :: 
-    TIExpr          -- Current function expression (possibly partially applied)
-    -> Type         -- Current function type
-    -> [TIExpr]     -- Remaining argument expressions  
-    -> [Type]       -- Remaining argument types
-    -> Subst        -- Current substitution
-    -> TypeErrorContext
-    -> Infer (TIExpr, Subst)
-wrapWithTensorMap currentFunc currentType [] [] subst _ctx = do
-  -- All arguments processed
-  return (currentFunc, subst)
-
-wrapWithTensorMap currentFunc currentType (arg:restArgs) (argType:restTypes) subst ctx = do
-  -- Get ClassEnv and constraints from inference state
-  classEnv <- gets inferClassEnv
-  constraints <- gets inferConstraints
-  
-  -- Get the expected parameter type
-  let currentType' = applySubst subst currentType
-  case getParamType currentType' 0 of
-    Nothing -> throwError $ UnificationError currentType' (TFun (TVar (TyVar "a")) (TVar (TyVar "b"))) ctx
-    Just paramType -> do
-      let argType' = applySubst subst argType
-          paramType' = applySubst subst paramType
-      
-      if shouldInsertTensorMap classEnv constraints argType' paramType'
-        then do
-          -- TensorMap insertion needed
-          varName <- freshVarName "tmapVar"
-          let var = Var varName []
-              varTIExpr = mkTIExpr paramType' (TIVarExpr varName)
-              
-          -- Build inner expression (recursive call)
-          -- Include constraints from current function
-          let (Forall _ funcConstraints _) = tiScheme currentFunc
-              innerType = applyOneArgType currentType'
-              innerFuncScheme = Forall [] funcConstraints innerType
-              innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr])
-          
-          (innerTIExpr, s1) <- wrapWithTensorMap 
-                                 innerFuncTI
-                                 innerType 
-                                 restArgs 
-                                 restTypes 
-                                 subst 
-                                 ctx
-          
-          let finalType = tiExprType innerTIExpr
-              -- Get constraints from inner expression
-              (Forall _ innerConstraints _) = tiScheme innerTIExpr
-          
-          -- Build lambda: \varName -> innerTIExpr
-          -- Include constraints from inner expression
-          let lambdaType = TFun paramType' finalType
-              lambdaScheme = Forall [] innerConstraints lambdaType
-              lambdaTI = TIExpr lambdaScheme (TILambdaExpr Nothing [var] innerTIExpr)
-              
-          -- Calculate result type: Tensor resultType
-          -- tensorMap : (a -> b) -> Tensor a -> Tensor b
-          -- Include constraints in the final result
-          let resultType = normalizeTensorType (TTensor finalType)
-              wrappedScheme = Forall [] innerConstraints resultType
-              wrappedTI = TIExpr wrappedScheme (TITensorMapExpr lambdaTI arg)
-          
-          return (wrappedTI, s1)
-        
-        else do
-          -- No tensorMap needed, normal application
-          -- Unify parameter and argument types
-          s <- unifyTypesWithContext paramType' argType' ctx
-          let s' = composeSubst s subst
-              appliedType = applyOneArgType currentType'
-              appliedTI = mkTIExpr appliedType (TIApplyExpr currentFunc [arg])
-          
-          -- Process remaining arguments (recursive call)
-          wrapWithTensorMap appliedTI appliedType restArgs restTypes s' ctx
-
-wrapWithTensorMap _ currentType args argTypes _ ctx = 
-  throwError $ TE.TypeMismatch currentType (foldr TFun (TVar (TyVar "result")) argTypes) "Argument count mismatch" ctx
+-- TensorMap insertion logic has been moved to Language.Egison.Type.TensorMapInsertion
+-- This keeps type inference focused on type checking only
 
 -- | Infer application (helper) with context
 -- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
--- This function implements automatic tensorMap insertion as described in type-tensor-simple.md
+-- TensorMap insertion has been moved to Phase 8 (TensorMapInsertion module)
+-- This function now only performs type inference and unification
 inferIApplicationWithContext :: TIExpr -> Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   -- Infer argument types
@@ -1822,46 +1676,25 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       argTypes = map (tiExprType . fst) argResults
       argSubst = foldr composeSubst initSubst (map snd argResults)
   
-  -- Get all accumulated constraints (includes instantiated constraints from lookupVar)
-  -- These constraints have already been instantiated with fresh type variables
-  allConstraints <- gets inferConstraints
+  -- Normal function application (no tensorMap insertion)
+  resultType <- freshVar "result"
+  let expectedFuncType = foldr TFun resultType argTypes
   
-  -- Check if tensorMap is needed based on type class instance availability
-  classEnv <- gets inferClassEnv
-  
-  -- Check each argument explicitly
-  -- Use allConstraints which includes instantiated constraints
-  let checks = map (\(argT, idx) -> 
-                     case getParamType funcType idx of
-                       Just paramT -> shouldInsertTensorMap classEnv allConstraints argT paramT
-                       Nothing -> False
-                   ) (zip argTypes [0..])
-      needsTensorMap = or checks
-  
-  if needsTensorMap
-    then do
-      -- TensorMap needed, use wrapWithTensorMap
-      wrapWithTensorMap funcTIExpr funcType argTIExprs argTypes argSubst ctx
-    else do
-      -- No tensorMap needed, proceed with normal application
-      resultType <- freshVar "result"
-      let expectedFuncType = foldr TFun resultType argTypes
-      
-      case unify (applySubst argSubst funcType) expectedFuncType of
-        Right s -> do
-          -- Unification succeeded
-          let finalS = composeSubst s argSubst
-              finalType = applySubst finalS resultType
-              -- Include constraints from function's type scheme
-              funcScheme = tiScheme funcTIExpr
-              (Forall _tvs constraints _) = funcScheme
-              -- Create result with constraints
-              resultScheme = Forall [] constraints finalType
-          return (TIExpr resultScheme (TIApplyExpr funcTIExpr argTIExprs), finalS)
-        
-        Left _ -> do
-          -- Unification failed
-          throwError $ UnificationError (applySubst argSubst funcType) expectedFuncType ctx
+  case unify (applySubst argSubst funcType) expectedFuncType of
+    Right s -> do
+      -- Unification succeeded
+      let finalS = composeSubst s argSubst
+          finalType = applySubst finalS resultType
+          -- Include constraints from function's type scheme
+          funcScheme = tiScheme funcTIExpr
+          (Forall _tvs constraints _) = funcScheme
+          -- Create result with constraints
+          resultScheme = Forall [] constraints finalType
+      return (TIExpr resultScheme (TIApplyExpr funcTIExpr argTIExprs), finalS)
+    
+    Left _ -> do
+      -- Unification failed
+      throwError $ UnificationError (applySubst argSubst funcType) expectedFuncType ctx
 
 -- | Infer let bindings (non-recursive)
 -- NEW: Returns TIBindingExpr instead of IBindingExpr

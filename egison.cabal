@@ -118,6 +118,7 @@ Library
                    Language.Egison.Type.Index
                    Language.Egison.Type.IInfer
                    Language.Egison.Type.Subst
+                   Language.Egison.Type.TensorMapInsertion
                    Language.Egison.Type.TypeClassExpand
                    Language.Egison.Type.Tensor
                    Language.Egison.Type.TypedDesugar

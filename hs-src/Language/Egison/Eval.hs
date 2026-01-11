@@ -60,6 +60,7 @@ import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, ex
 import qualified Language.Egison.Type.Env as Env
 import qualified Data.Set as Set
 import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT)
+import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
@@ -327,8 +328,8 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   let permissive = not (optTypeCheckStrict opts)
   
   -- Process each expression sequentially through phases 3-10, accumulating environments
-  -- Also collect typed ASTs if dump-typed is enabled
-  ((lastVal, finalEnv), typedExprs) <- foldM (\((lastVal, currentEnv), typedExprs) expr -> do
+  -- Also collect typed ASTs if dump-typed or dump-ti is enabled
+  ((lastVal, finalEnv), typedExprs, tiExprs) <- foldM (\((lastVal, currentEnv), typedExprs, tiExprs) expr -> do
     -- Get current type and class environments from EvalState
     currentTypeEnv <- getTypeEnv
     currentClassEnv <- getClassEnv
@@ -337,7 +338,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
     mITopExpr <- desugarTopExpr expr
     
     case mITopExpr of
-      Nothing -> return ((lastVal, currentEnv), typedExprs)  -- No desugared output
+      Nothing -> return ((lastVal, currentEnv), typedExprs, tiExprs)  -- No desugared output
       Just iTopExpr -> do
         -- Phase 5-6: Type Inference (ITopExpr → TypedITopExpr)
         let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
@@ -366,57 +367,72 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             -- Fallback: Use untyped evaluation if type checking fails (permissive mode)
             topExpr' <- desugarTopExpr expr
             case topExpr' of
-              Nothing -> return ((lastVal, currentEnv), typedExprs)
+              Nothing -> return ((lastVal, currentEnv), typedExprs, tiExprs)
               Just topExpr'' -> do
                 (mVal, env') <- evalTopExpr' currentEnv topExpr''
                 when printValues $ case mVal of
                   Nothing -> return ()
                   Just val -> valueToStr val >>= liftIO . putStrLn
-                return ((mVal, env'), typedExprs)
+                return ((mVal, env'), typedExprs, tiExprs)
           
           Right (Nothing, _subst) -> 
             -- No code generated (e.g., load statements that are already processed)
-            return ((lastVal, currentEnv), typedExprs)
+            return ((lastVal, currentEnv), typedExprs, tiExprs)
           
           Right (Just tiTopExpr, _subst) -> do
             -- Phase 7: inferITopExpr now returns TITopExpr directly
             -- No need for separate conversion
             
-            -- Phase 8: Type Class Expansion (TypedDesugar)
-            -- Expand type class method calls to dictionary-based dispatch
-            tiTopExprExpanded <- expandTypeClassInTopExpr tiTopExpr
+            -- Collect typed AST for --dump-typed (Phase 6: after type inference, before TypedDesugar)
+            let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExpr] else typedExprs
             
-            -- Extract ITopExpr for evaluation
-            let iTopExprExpanded = stripTypeTopExpr tiTopExprExpanded
+            -- Phase 8: TypedDesugar (TensorMap insertion + Type Class Expansion)
+            -- This phase includes:
+            --   1. insertTensorMaps: Insert tensorMap where needed
+            --   2. expandTypeClassMethods: Expand type class method calls to dictionary-based dispatch
+            mTiTopExprDesugared <- desugarTypedTopExprT tiTopExpr
             
-            -- Collect typed AST for dumping if requested (use expanded version)
-            let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExprExpanded] else typedExprs
-            
-            -- Type scheme is already in the environment (added by inferITopExpr), no need to add again
-            
-            -- Phase 9-10: Evaluation using IExpr (type info stripped)
-            -- Catch errors during evaluation to preserve typedExprs for dumping
-            evalResult <- catchError
-              (Right <$> evalTopExpr' currentEnv iTopExprExpanded)
-              (\err -> do
-                liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
-                return $ Left err)
-            
-            case evalResult of
-              Left _ -> 
-                -- Error occurred, but preserve typedExprs for dumping
-                return ((lastVal, currentEnv), typedExprs')
-              Right (mVal, env') -> do
-                -- Print value if requested
-                when printValues $ case mVal of
-                  Nothing -> return ()
-                  Just val -> valueToStr val >>= liftIO . putStrLn
-                return ((mVal, env'), typedExprs')
-    ) ((Nothing, env), []) exprs
+            case mTiTopExprDesugared of
+              Nothing -> 
+                -- Load/LoadFile statements - no evaluation needed
+                return ((Nothing, currentEnv), typedExprs', tiExprs)
+              
+              Just tiTopExprDesugared -> do
+                -- Collect TypedDesugared AST for --dump-ti (Phase 8: after TypedDesugar)
+                let tiExprs' = if optDumpTi opts then tiExprs ++ [Just tiTopExprDesugared] else tiExprs
+                
+                -- Extract ITopExpr for evaluation
+                let iTopExprExpanded = stripTypeTopExpr tiTopExprDesugared
+                
+                -- Type scheme is already in the environment (added by inferITopExpr), no need to add again
+                
+                -- Phase 9-10: Evaluation using IExpr (type info stripped)
+                -- Catch errors during evaluation to preserve typedExprs for dumping
+                evalResult <- catchError
+                  (Right <$> evalTopExpr' currentEnv iTopExprExpanded)
+                  (\err -> do
+                    liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
+                    return $ Left err)
+                
+                case evalResult of
+                  Left _ -> 
+                    -- Error occurred, but preserve typedExprs for dumping
+                    return ((lastVal, currentEnv), typedExprs', tiExprs')
+                  Right (mVal, env') -> do
+                    -- Print value if requested
+                    when printValues $ case mVal of
+                      Nothing -> return ()
+                      Just val -> valueToStr val >>= liftIO . putStrLn
+                    return ((mVal, env'), typedExprs', tiExprs')
+    ) ((Nothing, env), [], []) exprs
   
   -- Dump typed AST if requested and shouldDumpTyped is True
   when (optDumpTyped opts && shouldDumpTyped) $ do
     dumpTyped typedExprs
+  
+  -- Dump TypedDesugared AST if requested
+  when (optDumpTi opts && shouldDumpTyped) $ do
+    dumpTi tiExprs
   
   return (lastVal, finalEnv)
 
@@ -661,4 +677,19 @@ dumpTyped typedExprs = do
             putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
     putStrLn ""
     putStrLn "=== End of Typed AST ==="
+
+dumpTi :: [Maybe TITopExpr] -> EvalM ()
+dumpTi tiExprs = do
+  liftIO $ do
+    putStrLn "=== Typed AST after TypedDesugar (Phase 8: TensorMap Insertion & Type Class Expansion) ==="
+    putStrLn ""
+    if null tiExprs
+      then putStrLn "  (none)"
+      else forM_ (zip [1 :: Int ..] tiExprs) $ \(i :: Int, mExpr) ->
+        case mExpr of
+          Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
+          Just expr -> do
+            putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
+    putStrLn ""
+    putStrLn "=== End of TypedDesugar AST ==="
 
