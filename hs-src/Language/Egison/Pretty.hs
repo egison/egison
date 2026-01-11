@@ -584,8 +584,9 @@ instance Pretty TIExpr where
 -- Pretty print TIExpr with type annotations for all subexpressions
 prettyTIExprWithType :: TIExpr -> Doc ann
 prettyTIExprWithType tiexpr = 
-  let (Types.Forall _ _ ty) = tiScheme tiexpr
-  in parens (prettyTIExprNode (tiExprNode tiexpr) <+> pretty ":" <+> prettyTypeDoc ty)
+  let (Types.Forall _ constraints ty) = tiScheme tiexpr
+      constraintDoc = prettyConstraintsDoc constraints
+  in parens (prettyTIExprNode (tiExprNode tiexpr) <+> pretty ":" <+> constraintDoc <> prettyTypeDoc ty)
 
 -- Pretty print TIExprNode recursively
 prettyTIExprNode :: TIExprNode -> Doc ann
@@ -752,6 +753,18 @@ prettyVar (Var name indices) = pretty name <> hcat (map prettyVarIndex indices)
     prettyVarIndex (MultiSub _ _ _) = pretty "_..."
     prettyVarIndex (MultiSup _ _ _) = pretty "~..."
     prettyVarIndex (DF _ _) = emptyDoc
+
+-- Helper function to pretty print constraints as Doc
+prettyConstraintsDoc :: [Types.Constraint] -> Doc ann
+prettyConstraintsDoc [] = emptyDoc
+prettyConstraintsDoc [c] = pretty "{" <> prettyConstraintDoc c <> pretty "}" <+> pretty "=>" <> space
+prettyConstraintsDoc cs = 
+  pretty "{" <> hsep (punctuate comma (map prettyConstraintDoc cs)) <> pretty "}" <+> pretty "=>" <> space
+
+-- Helper function to pretty print a single constraint as Doc
+prettyConstraintDoc :: Types.Constraint -> Doc ann
+prettyConstraintDoc (Types.Constraint className tyArg) = 
+  pretty className <+> prettyTypeDoc tyArg
 
 -- Helper function to pretty print Type as Doc
 prettyTypeDoc :: Types.Type -> Doc ann
