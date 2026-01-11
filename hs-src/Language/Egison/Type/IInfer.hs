@@ -2143,25 +2143,6 @@ inferITopExpr topExpr = case topExpr of
   ILoadFile _path -> return (Nothing, emptySubst)
   ILoad _lib -> return (Nothing, emptySubst)
 
-  IDeclareSymbol names mType -> do
-    -- Register declared symbols with their types
-    let ty = case mType of
-               Just t  -> t
-               Nothing -> TInt  -- Default to Integer (MathExpr)
-    -- Add symbols to declared symbols map
-    modify $ \s -> s { declaredSymbols = 
-                        foldr (\name m -> Map.insert name ty m) 
-                              (declaredSymbols s) 
-                              names }
-    -- Also add to type environment so they can be used in subsequent expressions
-    let scheme = Forall [] [] ty
-    modify $ \s -> s { inferEnv = 
-                        foldr (\name e -> extendEnv name scheme e) 
-                              (inferEnv s) 
-                              names }
-    -- Return the typed declaration
-    return (Just (TIDeclareSymbol names ty), emptySubst)
-
   IDefineMany bindings -> do
     -- Process each binding in the list
     env <- getEnv
@@ -2211,7 +2192,24 @@ inferITopExpr topExpr = case topExpr of
             
             return ((var, exprTI), subst)
   
-  _ -> return (Nothing, emptySubst)
+  IDeclareSymbol names mType -> do
+    -- Register declared symbols with their types
+    let ty = case mType of
+               Just t  -> t
+               Nothing -> TInt  -- Default to Integer (MathExpr)
+    -- Add symbols to declared symbols map
+    modify $ \s -> s { declaredSymbols = 
+                        foldr (\name m -> Map.insert name ty m) 
+                              (declaredSymbols s) 
+                              names }
+    -- Also add to type environment so they can be used in subsequent expressions
+    let scheme = Forall [] [] ty
+    modify $ \s -> s { inferEnv = 
+                        foldr (\name e -> extendEnv name scheme e) 
+                              (inferEnv s) 
+                              names }
+    -- Return the typed declaration
+    return (Just (TIDeclareSymbol names ty), emptySubst)
 
 -- | Infer multiple top-level IExprs
 inferITopExprs :: [ITopExpr] -> Infer ([Maybe TITopExpr], Subst)

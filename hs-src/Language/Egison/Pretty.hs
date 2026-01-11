@@ -56,6 +56,12 @@ instance Pretty TopExpr where
           parens (pretty pname <+> pretty ":" <+> pretty ptype)) params
     in pretty "def" <+> pretty "pattern" <+> pretty name <+> typeParamsDoc <+> 
        paramsDoc <+> pretty ":" <+> pretty retType <+> pretty ":=" <+> pretty body
+  pretty (DeclareSymbol names mTypeExpr) =
+    let namesDoc = hsep $ punctuate (pretty ",") (map pretty names)
+        typeDoc = case mTypeExpr of
+                    Just typeExpr -> pretty ":" <+> pretty typeExpr
+                    Nothing -> emptyDoc
+    in pretty "declare" <+> pretty "symbol" <+> namesDoc <+> typeDoc
   pretty _ = error "Unsupported topexpr"
 
 instance Pretty ConstantExpr where
@@ -576,6 +582,12 @@ instance Pretty ITopExpr where
     pretty "loadFile" <+> pretty (show path)
   pretty (ILoad lib) =
     pretty "load" <+> pretty (show lib)
+  pretty (IDeclareSymbol names mType) =
+    let namesDoc = hsep $ punctuate (pretty ",") (map pretty names)
+        typeDoc = case mType of
+                    Just ty -> pretty ":" <+> prettyTypeDoc ty
+                    Nothing -> emptyDoc
+    in pretty "declare" <+> pretty "symbol" <+> namesDoc <+> typeDoc
 
 -- Pretty print for TIExpr and TITopExpr
 instance Pretty TIExpr where
@@ -736,6 +748,9 @@ instance Pretty TITopExpr where
     where
       prettyBinding (var, tiexpr) =
         prettyVar var <+> pretty ":=" <+> pretty tiexpr
+  pretty (TIDeclareSymbol names ty) =
+    let namesDoc = hsep $ punctuate (pretty ",") (map pretty names)
+    in pretty "declare" <+> pretty "symbol" <+> namesDoc <+> pretty ":" <+> prettyTypeDoc ty
 
 -- Helper function to pretty print Var
 prettyVar :: Var -> Doc ann

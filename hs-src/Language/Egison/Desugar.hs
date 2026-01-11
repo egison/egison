@@ -67,12 +67,6 @@ desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
 desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
 desugarTopExpr (Load file)     = return . Just $ ILoad file
 desugarTopExpr (LoadFile file) = return . Just $ ILoadFile file
-desugarTopExpr (DeclareSymbol names mTypeExpr) = do
-  -- Convert type expression to type (defaults to Integer if not specified)
-  let ty = case mTypeExpr of
-             Just texpr -> typeExprToType texpr
-             Nothing    -> typeExprToType TEInt
-  return . Just $ IDeclareSymbol names (Just ty)
 
 -- Type class declarations: generate dictionary-passing wrapper functions
 -- and register the class methods for dispatch
@@ -190,6 +184,14 @@ desugarTopExpr (InductiveDecl _ _ _) = return Nothing
 desugarTopExpr (InfixDecl _ _) = return Nothing
 desugarTopExpr (PatternInductiveDecl _ _ _) = return Nothing  -- Handled in environment building phase
 desugarTopExpr (PatternFunctionDecl _ _ _ _ _) = return Nothing  -- Handled in environment building phase
+
+-- Symbol declarations
+desugarTopExpr (DeclareSymbol names mTypeExpr) = do
+  -- Convert type expression to type (defaults to Integer if not specified)
+  let ty = case mTypeExpr of
+             Just texpr -> typeExprToType texpr
+             Nothing    -> typeExprToType TEInt
+  return . Just $ IDeclareSymbol names (Just ty)
 
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern

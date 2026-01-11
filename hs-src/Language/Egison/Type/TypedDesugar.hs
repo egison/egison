@@ -72,10 +72,6 @@ desugarTypedTopExprT topExpr = case topExpr of
   TILoad lib -> 
     return $ Just (TILoad lib)
   
-  TIDeclareSymbol names ty ->
-    -- Symbol declarations don't need type-driven transformations
-    return $ Just (TIDeclareSymbol names ty)
-  
   TIDefineMany bindings -> do
     bindings' <- mapM (\(var, tiexpr) -> do
       tiexpr' <- desugarTypedExprT tiexpr
@@ -84,4 +80,8 @@ desugarTypedTopExprT topExpr = case topExpr of
       tiexpr'' <- addDictionaryParametersT scheme tiexpr'
       return (var, tiexpr'')) bindings
     return $ Just (TIDefineMany bindings')
+  
+  TIDeclareSymbol names ty ->
+    -- Symbol declarations don't need type-driven transformations
+    return $ Just (TIDeclareSymbol names ty)
 
