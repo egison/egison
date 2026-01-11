@@ -1999,7 +1999,7 @@ inferITopExpr topExpr = case topExpr of
       Just existingScheme -> do
         -- There's an explicit type signature: check that the inferred type matches
         st <- get
-        let (_constraints, expectedType, newCounter) = instantiate existingScheme (inferCounter st)
+        let (instConstraints, expectedType, newCounter) = instantiate existingScheme (inferCounter st)
         modify $ \s -> s { inferCounter = newCounter }
         
         -- Infer the expression type
@@ -2012,9 +2012,20 @@ inferITopExpr topExpr = case topExpr of
         subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) exprCtx
         let finalSubst = composeSubst subst2 subst1
         
-        -- Keep the existing scheme (with explicit type signature) in the environment
-        -- Don't override it with the generalized inferred type
-        return (Just (TIDefine existingScheme var exprTI), finalSubst)
+        -- Apply final substitution to exprTI to resolve all type variables
+        let exprTI' = applySubstToTIExpr finalSubst exprTI
+        
+        -- Reconstruct type scheme from exprTI' to match actual type variables
+        -- Use instantiated constraints and apply final substitution
+        let finalType = tiExprType exprTI'
+            constraints' = map (applySubstConstraint finalSubst) instConstraints
+            envFreeVars = freeVarsInEnv env
+            typeFreeVars = freeTyVars finalType
+            genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
+            updatedScheme = Forall genVars constraints' finalType
+        
+        -- Keep the updated scheme (with actual type variables) in the environment
+        return (Just (TIDefine updatedScheme var exprTI'), finalSubst)
       
       Nothing -> do
         -- No explicit type signature: infer and generalize as before
@@ -2077,7 +2088,8 @@ inferITopExpr topExpr = case topExpr of
             let exprType = tiExprType exprTI
             subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) emptyContext
             let finalSubst = composeSubst subst2 subst1
-            return ((var, exprTI), finalSubst)
+                exprTI' = applySubstToTIExpr finalSubst exprTI
+            return ((var, exprTI'), finalSubst)
           
           Nothing -> do
             -- Without type signature: infer and generalize
