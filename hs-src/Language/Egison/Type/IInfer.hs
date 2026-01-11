@@ -54,6 +54,7 @@ import           Control.Monad              (foldM, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, gets, modify, put)
 import           Data.Maybe                  (catMaybes)
+import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
 import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..), PMMode (..))
 import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExpr (..)
@@ -114,15 +115,16 @@ data InferState = InferState
   , inferClassEnv    :: ClassEnv         -- ^ Type class environment
   , inferPatternEnv  :: PatternTypeEnv   -- ^ Pattern constructor environment
   , inferConstraints :: [Constraint]     -- ^ Accumulated type class constraints
+  , declaredSymbols  :: Map.Map String Type  -- ^ Declared symbols with their types
   } deriving (Show)
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv []
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv [] Map.empty
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv []
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv [] Map.empty
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -323,13 +325,18 @@ lookupVar name = do
       addConstraints constraints
       return t
     Nothing -> do
-      permissive <- isPermissive
-      if permissive
-        then do
-          -- In permissive mode, treat as a warning and return a fresh type variable
-          addWarning $ UnboundVariableWarning name emptyContext
-          freshVar "unbound"
-        else throwError $ UnboundVariable name emptyContext
+      -- Check if this is a declared symbol
+      st <- get
+      case Map.lookup name (declaredSymbols st) of
+        Just ty -> return ty  -- Return the declared type without warning
+        Nothing -> do
+          permissive <- isPermissive
+          if permissive
+            then do
+              -- In permissive mode, treat as a warning and return a fresh type variable
+              addWarning $ UnboundVariableWarning name emptyContext
+              freshVar "unbound"
+            else throwError $ UnboundVariable name emptyContext
 
 -- | Lookup variable and return type with constraints
 lookupVarWithConstraints :: String -> Infer (Type, [Constraint])
@@ -344,14 +351,19 @@ lookupVarWithConstraints name = do
       addConstraints constraints
       return (t, constraints)
     Nothing -> do
-      permissive <- isPermissive
-      if permissive
-        then do
-          -- In permissive mode, treat as a warning and return a fresh type variable
-          addWarning $ UnboundVariableWarning name emptyContext
-          t <- freshVar "unbound"
-          return (t, [])
-        else throwError $ UnboundVariable name emptyContext
+      -- Check if this is a declared symbol
+      st <- get
+      case Map.lookup name (declaredSymbols st) of
+        Just ty -> return (ty, [])  -- Return the declared type without warning
+        Nothing -> do
+          permissive <- isPermissive
+          if permissive
+            then do
+              -- In permissive mode, treat as a warning and return a fresh type variable
+              addWarning $ UnboundVariableWarning name emptyContext
+              t <- freshVar "unbound"
+              return (t, [])
+            else throwError $ UnboundVariable name emptyContext
 
 -- | Unify two types
 unifyTypes :: Type -> Type -> Infer Subst
@@ -2130,7 +2142,26 @@ inferITopExpr topExpr = case topExpr of
   
   ILoadFile _path -> return (Nothing, emptySubst)
   ILoad _lib -> return (Nothing, emptySubst)
-  
+
+  IDeclareSymbol names mType -> do
+    -- Register declared symbols with their types
+    let ty = case mType of
+               Just t  -> t
+               Nothing -> TInt  -- Default to Integer (MathExpr)
+    -- Add symbols to declared symbols map
+    modify $ \s -> s { declaredSymbols = 
+                        foldr (\name m -> Map.insert name ty m) 
+                              (declaredSymbols s) 
+                              names }
+    -- Also add to type environment so they can be used in subsequent expressions
+    let scheme = Forall [] [] ty
+    modify $ \s -> s { inferEnv = 
+                        foldr (\name e -> extendEnv name scheme e) 
+                              (inferEnv s) 
+                              names }
+    -- Return the typed declaration
+    return (Just (TIDeclareSymbol names ty), emptySubst)
+
   IDefineMany bindings -> do
     -- Process each binding in the list
     env <- getEnv

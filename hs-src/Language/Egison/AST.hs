@@ -84,6 +84,11 @@ data TopExpr
     -- ^ Pattern function declaration
     -- e.g., def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a := ...
     -- String: function name, [String]: type parameters, [(String, TypeExpr)]: parameters, TypeExpr: return type, Pattern: body
+  | DeclareSymbol [String] (Maybe TypeExpr)
+    -- ^ Symbol declaration
+    -- e.g., declare symbol a11, a12, a21, a22
+    --       declare symbol x, y, z : Float
+    -- [String]: symbol names, Maybe TypeExpr: optional type (defaults to Integer)
  deriving Show
 
 -- | Type class declaration

@@ -67,6 +67,12 @@ desugarTopExpr (Test expr)     = Just . ITest <$> desugar expr
 desugarTopExpr (Execute expr)  = Just . IExecute <$> desugar expr
 desugarTopExpr (Load file)     = return . Just $ ILoad file
 desugarTopExpr (LoadFile file) = return . Just $ ILoadFile file
+desugarTopExpr (DeclareSymbol names mTypeExpr) = do
+  -- Convert type expression to type (defaults to Integer if not specified)
+  let ty = case mTypeExpr of
+             Just texpr -> typeExprToType texpr
+             Nothing    -> typeExprToType TEInt
+  return . Just $ IDeclareSymbol names (Just ty)
 
 -- Type class declarations: generate dictionary-passing wrapper functions
 -- and register the class methods for dispatch

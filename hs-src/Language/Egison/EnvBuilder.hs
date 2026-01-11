@@ -201,8 +201,20 @@ processTopExpr result topExpr = case topExpr of
     
     return result { ebrPatternTypeEnv = patternEnv' }
   
+  -- 7. Symbol Declarations (from DeclareSymbol)
+  DeclareSymbol names mTypeExpr -> do
+    let ty = case mTypeExpr of
+               Just texpr -> typeExprToType texpr
+               Nothing    -> TInt  -- Default to Integer (MathExpr)
+        scheme = Forall [] [] ty
+        typeEnv = ebrTypeEnv result
+        -- Add each symbol to the type environment
+        typeEnv' = foldr (\name env -> extendEnv name scheme env) typeEnv names
+    return result { ebrTypeEnv = typeEnv' }
+  
   -- Other expressions don't contribute to environment building
   Define {} -> return result
+  DefineWithType {} -> return result
   Test {} -> return result
   Execute {} -> return result
   LoadFile {} -> return result  -- Should not appear after expandLoads
