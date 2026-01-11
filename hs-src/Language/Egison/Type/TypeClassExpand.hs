@@ -77,19 +77,21 @@ expandTypeClassMethodsT tiExpr = do
         body' <- expandTIExprWithConstraints classEnv' allConstraints body
         return $ TILambdaExpr mVar params body'
       
-      -- Application: check if it's a method call
+      -- Application: check if it's a method call or constrained function call
       TIApplyExpr func args -> do
         -- First, expand the arguments
         args' <- mapM (expandTIExprWithConstraints classEnv' cs) args
-        -- Try to resolve if func is a method call
+        
         case tiExprNode func of
           TIVarExpr methodName -> do
-            -- Try to resolve method call using constraints
+            -- Try to resolve if func is a method call
             resolved <- tryResolveMethodCall classEnv' cs methodName args'
             case resolved of
               Just result -> return result
               Nothing -> do
-                -- Not a method call or couldn't resolve: process recursively
+                -- Not a method call - process recursively
+                -- Note: Dictionary application for constrained functions
+                -- is handled in TIVarExpr case of expandTIExprWithConstraints
                 func' <- expandTIExprWithConstraints classEnv' cs func
                 return $ TIApplyExpr func' args'
           _ -> do
@@ -279,10 +281,61 @@ expandTypeClassMethodsT tiExpr = do
           -- the method call (*) using the constraints from the inner expression
           allConstraints = cs ++ exprConstraints
       
-      -- Keep methods as-is; dictionary passing will handle them later
-      expandedNode <- expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+      -- Special handling for TIVarExpr: eta-expand methods or apply dictionaries
+      expandedNode <- case tiExprNode expr of
+        TIVarExpr varName -> do
+          -- Check if this is a type class method
+          case findConstraintForMethod classEnv' varName allConstraints of
+            Just (Constraint className tyArg) -> do
+              -- Check if we have a concrete type to resolve
+              let instances = lookupInstances className classEnv'
+              case findMatchingInstanceForType tyArg instances of
+                Just inst -> do
+                  -- Found instance: eta-expand the method
+                  -- Get method type to determine arity
+                  typeEnv <- getTypeEnv
+                  case lookupEnv varName typeEnv of
+                    Just (Forall _ _ ty) -> do
+                      let arity = getMethodArity ty
+                          paramNames = ["etaVar" ++ show i | i <- [1..arity]]
+                          paramVars = map stringToVar paramNames
+                          paramExprs = map (\n -> TIExpr (Forall [] [] (TVar (TyVar "eta"))) (TIVarExpr n)) paramNames
+                          -- Generate dictionary access
+                          instTypeName = typeToName (instType inst)
+                          dictName = lowerFirst className ++ instTypeName
+                          methodKey = sanitizeMethodName varName
+                          dictType = ty
+                          dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                          dictAccess = TIExpr (Forall [] [] dictType) $
+                                       TIIndexedExpr False dictExpr
+                                         [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                          -- Create lambda: \etaVar1 etaVar2 -> dictAccess etaVar1 etaVar2
+                          body = TIExpr (Forall [] [] ty) (TIApplyExpr dictAccess paramExprs)
+                      return $ TILambdaExpr Nothing paramVars body
+                    Nothing -> checkConstrainedVariable
+                Nothing -> checkConstrainedVariable
+            Nothing -> checkConstrainedVariable
+          where
+            -- Check if this is a constrained variable (not a method)
+            checkConstrainedVariable = do
+              if not (null exprConstraints)
+                then do
+                  -- This is a constrained variable - apply dictionaries
+                  dictArgs <- mapM (resolveDictionaryArg classEnv') exprConstraints
+                  -- Create application: varName dict1 dict2 ...
+                  let varExpr = TIExpr scheme (TIVarExpr varName)
+                  return $ TIApplyExpr varExpr dictArgs
+                else
+                  -- Regular variable, no constraints
+                  expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+        _ -> expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
       
       return $ TIExpr scheme expandedNode
+    
+    -- Helper to get method arity
+    getMethodArity :: Type -> Int
+    getMethodArity (TFun _ t2) = 1 + getMethodArity t2
+    getMethodArity _ = 0
     
     -- Try to resolve a method call using type class constraints
     -- Dictionary passing: convert method calls to dictionary access
@@ -331,6 +384,23 @@ expandTypeClassMethodsT tiExpr = do
           Just classInfo -> methodName `elem` map fst (classMethods classInfo)
           Nothing -> False
       ) cs
+    
+    -- Resolve a constraint to a dictionary argument
+    resolveDictionaryArg :: ClassEnv -> Constraint -> EvalM TIExpr
+    resolveDictionaryArg classEnv (Constraint className tyArg) = do
+      let instances = lookupInstances className classEnv
+      case findMatchingInstanceForType tyArg instances of
+        Just inst -> do
+          -- Found instance: generate dictionary name (e.g., "numInteger")
+          let instTypeName = typeToName (instType inst)
+              dictName = lowerFirst className ++ instTypeName
+              -- Create a reference to the dictionary variable
+              -- Use a generic type for now
+              dictType = TVar (TyVar "dict")
+          return $ TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+        Nothing -> do
+          -- No instance found - this is an error, but return a dummy for now
+          return $ TIExpr (Forall [] [] (TVar (TyVar "error"))) (TIVarExpr "undefined")
     
     -- Check if a name is a type class method
     isTypeClassMethod :: String -> ClassEnv -> Bool
