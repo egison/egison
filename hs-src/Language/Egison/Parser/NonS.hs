@@ -90,6 +90,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
       <|> (reserved "def" >> try patternFunctionExpr <|> defineExpr)
+      <|> declareSymbolExpr
       <|> try patternInductiveExpr
       <|> inductiveExpr
       <|> classExpr
@@ -445,6 +446,22 @@ patternFunctionExpr = do
   -- Parse pattern body
   body <- pattern
   return $ PatternFunctionDecl name typeParams params retType body
+
+declareSymbolExpr :: Parser TopExpr
+declareSymbolExpr = try $ do
+  reserved "declare"
+  keyword <- lowerId
+  -- Check that the keyword is "symbol"
+  if keyword /= "symbol"
+    then fail "Expected 'symbol' after 'declare'"
+    else return ()
+  -- Parse comma-separated list of symbol names
+  names <- sepBy1 lowerId (symbol ",")
+  -- Parse optional type annotation
+  mType <- optional $ do
+    _ <- symbol ":"
+    typeExpr
+  return $ DeclareSymbol names mType
 
 defineExpr :: Parser TopExpr
 defineExpr = try defineWithType <|> defineWithoutType
@@ -1438,6 +1455,7 @@ lowerReservedWords =
   [ "loadFile"
   , "load"
   , "def"
+  , "declare"
   , "if"
   , "then"
   , "else"

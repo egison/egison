@@ -61,6 +61,7 @@ data ITopExpr
   | IExecute IExpr
   | ILoadFile String
   | ILoad String
+  | IDeclareSymbol [String] (Maybe Type)  -- Symbol declaration
   deriving Show
 
 data IExpr
@@ -214,6 +215,7 @@ data TITopExpr
   | TIExecute TIExpr                   -- ^ Execute IO expression
   | TILoadFile String                  -- ^ Load file (should not appear after expandLoads)
   | TILoad String                      -- ^ Load library (should not appear after expandLoads)
+  | TIDeclareSymbol [String] Type      -- ^ Typed symbol declaration
   deriving Show
 
 -- | Typed internal expression (Phase 9: TIExpr)
@@ -395,6 +397,7 @@ stripTypeTopExpr (TITest expr) = ITest (stripType expr)
 stripTypeTopExpr (TIExecute expr) = IExecute (stripType expr)
 stripTypeTopExpr (TILoadFile file) = ILoadFile file
 stripTypeTopExpr (TILoad file) = ILoad file
+stripTypeTopExpr (TIDeclareSymbol names ty) = IDeclareSymbol names (Just ty)
 
 -- | Typed pattern (for future use)
 data TIPattern = TIPattern

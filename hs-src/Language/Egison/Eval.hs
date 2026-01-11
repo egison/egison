@@ -558,6 +558,10 @@ evalTopExpr' env (ILoad file) = do
   (bindings, _) <- collectDefs opts exprs
   env' <- recursiveBind env bindings
   return (Nothing, env')
+evalTopExpr' env (IDeclareSymbol _names _mType) = do
+  -- Symbol declarations are only used during type inference
+  -- At runtime, they don't produce any value or modify the environment
+  return (Nothing, env)
 evalTopExpr' env (ILoadFile file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
