@@ -12,7 +12,7 @@ Processing Flow (design/implementation.md):
   5. Type Inference Phase (Constraint generation, unification, type class constraint processing)
   6. Type Check Phase (Verify type annotations, check type class constraints)
   7. TypedTopExpr (Typed AST)
-  8. TypedDesugar (Type-driven transformations: dictionary passing, tensorMap insertion)
+  8. TypedDesugar (Type-driven transformations: type class expansion, tensorMap insertion)
   9. TITopExpr (Evaluatable typed IR with type info preserved)
  10. Evaluation (Pattern matching execution, expression evaluation, IO actions)
 -}
@@ -386,10 +386,12 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             -- Collect typed AST for --dump-typed (Phase 6: after type inference, before TypedDesugar)
             let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExpr] else typedExprs
             
-            -- Phase 8: TypedDesugar (TensorMap insertion + Type Class Expansion)
-            -- This phase includes:
-            --   1. insertTensorMaps: Insert tensorMap where needed
-            --   2. expandTypeClassMethods: Expand type class method calls to dictionary-based dispatch
+            -- Phase 8: TypedDesugar (Type Class Expansion + TensorMap insertion)
+            -- This phase includes (in this order):
+            --   1. expandTypeClassMethods: Expand type class method calls to dictionary-based dispatch
+            --   2. insertTensorMaps: Insert tensorMap where needed
+            -- Processing order matters: type class methods should be resolved first,
+            -- then tensorMap is inserted for the resolved concrete functions
             mTiTopExprDesugared <- desugarTypedTopExprT tiTopExpr
             
             case mTiTopExprDesugared of
@@ -681,7 +683,7 @@ dumpTyped typedExprs = do
 dumpTi :: [Maybe TITopExpr] -> EvalM ()
 dumpTi tiExprs = do
   liftIO $ do
-    putStrLn "=== Typed AST after TypedDesugar (Phase 8: TensorMap Insertion & Type Class Expansion) ==="
+    putStrLn "=== Typed AST after TypedDesugar (Phase 8: Type Class Expansion & TensorMap Insertion) ==="
     putStrLn ""
     if null tiExprs
       then putStrLn "  (none)"
