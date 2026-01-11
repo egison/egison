@@ -279,37 +279,15 @@ expandTypeClassMethodsT tiExpr = do
           -- the method call (*) using the constraints from the inner expression
           allConstraints = cs ++ exprConstraints
       
-      -- Special handling for TIVarExpr: check if it's a method and expand if possible
-      expandedNode <- case tiExprNode expr of
-        TIVarExpr name | isTypeClassMethod name classEnv' -> do
-          -- Try to expand using all available constraints
-          case findConstraintForMethod classEnv' name allConstraints of
-            Just (Constraint className tyArg) -> 
-              case tyArg of
-                TVar _ -> 
-                  -- Type variable: cannot determine instance, keep as-is
-                  return $ TIVarExpr name
-                _ -> do
-                  -- Concrete type: try to find matching instance
-                  let instances = lookupInstances className classEnv'
-                  case findMatchingInstanceForType tyArg instances of
-                    Just inst -> do
-                      -- Expand to concrete implementation
-                      let instTypeName = typeToName (instType inst)
-                          methodFuncName = lowerFirst className ++ instTypeName ++ 
-                                         capitalizeFirst (sanitizeMethodName name)
-                      return $ TIVarExpr methodFuncName
-                    Nothing -> return $ TIVarExpr name
-            Nothing -> return $ TIVarExpr name
-        _ -> expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+      -- Keep methods as-is; dictionary passing will handle them later
+      expandedNode <- expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
       
       return $ TIExpr scheme expandedNode
     
     -- Try to resolve a method call using type class constraints
+    -- Dictionary passing: convert method calls to dictionary access
     tryResolveMethodCall :: ClassEnv -> [Constraint] -> String -> [TIExpr] -> EvalM (Maybe TIExprNode)
     tryResolveMethodCall classEnv' cs methodName expandedArgs = do
-      -- Get actual argument types to help resolve instances
-      let argTypes = map tiExprType expandedArgs
       -- Find a constraint that provides this method
       case findConstraintForMethod classEnv' methodName cs of
         Nothing -> return Nothing
@@ -322,17 +300,25 @@ expandTypeClassMethodsT tiExpr = do
                   -- Try to find an instance for the specific type
                   let instances = lookupInstances className classEnv'
                   -- Use actual argument type if constraint type is a type variable
-                  let actualType = case (tyArg, argTypes) of
-                        (TVar _, (t:_)) -> t  -- Use first argument's type if constraint is a type variable
+                  let argTypes = map tiExprType expandedArgs
+                      actualType = case (tyArg, argTypes) of
+                        (TVar _, (t:_)) -> t  -- Use first argument's type
                         _ -> tyArg
                   case findMatchingInstanceForType actualType instances of
                     Just inst -> do
-                      -- Found an instance: generate method function name
-                      -- e.g., "eqIntegerEq" for (==) method in Eq Integer instance
+                      -- Found an instance: generate dictionary access
+                      -- e.g., numInteger_"plus" for Num Integer instance
                       let instTypeName = typeToName (instType inst)
-                          methodFuncName = lowerFirst className ++ instTypeName ++ capitalizeFirst (sanitizeMethodName methodName)
-                      -- Create function application: methodFuncName arg1 arg2 ...
-                      return $ Just $ TIApplyExpr (TIExpr (Forall [] [] (tiExprType (head expandedArgs))) (TIVarExpr methodFuncName)) expandedArgs
+                          dictName = lowerFirst className ++ instTypeName
+                          methodKey = sanitizeMethodName methodName
+                      -- Create dictionary access: dictName_"methodKey"
+                      let dictType = tiExprType (head expandedArgs)  -- Approximate
+                          dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                          dictAccess = TIExpr (Forall [] [] dictType) $
+                                       TIIndexedExpr False dictExpr
+                                         [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                      -- Apply arguments: dictAccess arg1 arg2 ...
+                      return $ Just $ TIApplyExpr dictAccess expandedArgs
                     Nothing -> return Nothing
                 else return Nothing
             Nothing -> return Nothing
@@ -971,9 +957,170 @@ addDictionaryParametersT :: TypeScheme -> TIExpr -> EvalM TIExpr
 addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
   | null constraints = return tiExpr  -- No constraints, no change
   | otherwise = do
-      -- TODO: Implement proper dictionary parameter addition with new TIExprNode structure
-      -- For now, return the original TIExpr unchanged
-      return tiExpr
+      classEnv <- getClassEnv
+      -- Resolve constraints using instance information
+      -- This handles the case where Tensor T needs to use T's instance
+      let resolvedConstraints = resolveConstraints classEnv constraints
+      addDictParamsToTIExpr classEnv resolvedConstraints tiExpr
+  where
+    -- Resolve constraints based on available instances
+    resolveConstraints :: ClassEnv -> [Constraint] -> [Constraint]
+    resolveConstraints env cs = map (resolveConstraint env) cs
+    
+    resolveConstraint :: ClassEnv -> Constraint -> Constraint
+    resolveConstraint env c@(Constraint className ty) = case ty of
+      TTensor elemType ->
+        let instances = lookupInstances className env
+        in case findMatchingInstanceForType ty instances of
+             Just _ -> c  -- Tensor instance exists, use it
+             Nothing -> 
+               -- No Tensor instance, try element type
+               case findMatchingInstanceForType elemType instances of
+                 Just _ -> Constraint className elemType
+                 Nothing -> c
+      _ -> c
+    
+    -- Add dictionary parameters to a TIExpr
+    addDictParamsToTIExpr :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
+    addDictParamsToTIExpr env cs expr = case tiExprNode expr of
+      -- Lambda: add dictionary parameters before regular parameters
+      TILambdaExpr mVar params body -> do
+        let dictParams = map constraintToDictParam cs
+            dictVars = map stringToVar dictParams
+        -- Replace method calls in body with dictionary access
+        body' <- replaceMethodCallsWithDictAccessT env cs body
+        let newNode = TILambdaExpr mVar (dictVars ++ params) body'
+        return $ TIExpr (tiScheme expr) newNode
+      
+      -- Not a lambda: wrap in a lambda with dictionary parameters
+      _ -> do
+        let dictParams = map constraintToDictParam cs
+            dictVars = map stringToVar dictParams
+        expr' <- replaceMethodCallsWithDictAccessT env cs expr
+        let wrapperType = tiExprType expr
+            newNode = TILambdaExpr Nothing dictVars expr'
+            newScheme = Forall [] [] wrapperType
+        return $ TIExpr newScheme newNode
+    
+    -- Generate dictionary parameter name from constraint
+    constraintToDictParam :: Constraint -> String
+    constraintToDictParam (Constraint className constraintType) =
+      "dict_" ++ className ++ "_" ++ typeSuffix constraintType
+    
+    typeSuffix :: Type -> String
+    typeSuffix (TVar (TyVar v)) = v
+    typeSuffix TInt = "Integer"
+    typeSuffix TFloat = "Float"
+    typeSuffix (TTensor t) = "Tensor" ++ typeSuffix t
+    typeSuffix _ = "t"
+    
+    -- Replace method calls with dictionary access in TIExpr
+    replaceMethodCallsWithDictAccessT :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
+    replaceMethodCallsWithDictAccessT env cs tiExpr = do
+      let scheme = tiScheme tiExpr
+      newNode <- replaceMethodCallsInNode env cs (tiExprNode tiExpr)
+      return $ TIExpr scheme newNode
+    
+    -- Replace method calls in TIExprNode
+    replaceMethodCallsInNode :: ClassEnv -> [Constraint] -> TIExprNode -> EvalM TIExprNode
+    replaceMethodCallsInNode env cs node = case node of
+      -- Standalone method reference: eta-expand
+      TIVarExpr methodName -> do
+        case findConstraintForMethodInList env methodName cs of
+          Just constraint -> do
+            -- Get method type to determine arity
+            typeEnv <- getTypeEnv
+            case lookupEnv methodName typeEnv of
+              Just (Forall _ _ ty) -> do
+                let arity = getMethodArity ty
+                    paramNames = ["etaVar" ++ show i | i <- [1..arity]]
+                    paramVars = map stringToVar paramNames
+                    paramExprs = map (\n -> TIExpr (Forall [] [] (TVar (TyVar "eta"))) (TIVarExpr n)) paramNames
+                    -- Create dictionary access
+                    dictParam = constraintToDictParam constraint
+                    dictAccess = TIExpr (Forall [] [] ty) $
+                                 TIIndexedExpr False 
+                                   (TIExpr (Forall [] [] ty) (TIVarExpr dictParam))
+                                   [Sub (IConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))]
+                    -- Create: dictAccess etaVar1 etaVar2 ... etaVarN
+                    body = TIExpr (Forall [] [] ty) (TIApplyExpr dictAccess paramExprs)
+                return $ TILambdaExpr Nothing paramVars body
+              Nothing -> return $ TIVarExpr methodName
+          Nothing -> return $ TIVarExpr methodName
+      
+      -- Method call: replace with dictionary access
+      TIApplyExpr func args -> do
+        case tiExprNode func of
+          TIVarExpr methodName -> do
+            case findConstraintForMethodInList env methodName cs of
+              Just constraint -> do
+                -- Replace with dictionary access
+                let dictParam = constraintToDictParam constraint
+                    funcType = tiExprType func
+                    dictAccessNode = TIIndexedExpr False 
+                                     (TIExpr (Forall [] [] funcType) (TIVarExpr dictParam))
+                                     [Sub (IConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))]
+                    dictAccess = TIExpr (Forall [] [] funcType) dictAccessNode
+                -- Recursively process arguments
+                args' <- mapM (replaceMethodCallsWithDictAccessT env cs) args
+                return $ TIApplyExpr dictAccess args'
+              Nothing -> do
+                -- Not a method, process recursively
+                func' <- replaceMethodCallsWithDictAccessT env cs func
+                args' <- mapM (replaceMethodCallsWithDictAccessT env cs) args
+                return $ TIApplyExpr func' args'
+          _ -> do
+            -- Not a simple variable, process recursively
+            func' <- replaceMethodCallsWithDictAccessT env cs func
+            args' <- mapM (replaceMethodCallsWithDictAccessT env cs) args
+            return $ TIApplyExpr func' args'
+      
+      -- Lambda: recursively process body
+      TILambdaExpr mVar params body -> do
+        body' <- replaceMethodCallsWithDictAccessT env cs body
+        return $ TILambdaExpr mVar params body'
+      
+      -- If: recursively process
+      TIIfExpr cond thenExpr elseExpr -> do
+        cond' <- replaceMethodCallsWithDictAccessT env cs cond
+        thenExpr' <- replaceMethodCallsWithDictAccessT env cs thenExpr
+        elseExpr' <- replaceMethodCallsWithDictAccessT env cs elseExpr
+        return $ TIIfExpr cond' thenExpr' elseExpr'
+      
+      -- Let: recursively process
+      TILetExpr bindings body -> do
+        bindings' <- mapM (\(pat, e) -> do
+          e' <- replaceMethodCallsWithDictAccessT env cs e
+          return (pat, e')) bindings
+        body' <- replaceMethodCallsWithDictAccessT env cs body
+        return $ TILetExpr bindings' body'
+      
+      -- LetRec: recursively process
+      TILetRecExpr bindings body -> do
+        bindings' <- mapM (\(pat, e) -> do
+          e' <- replaceMethodCallsWithDictAccessT env cs e
+          return (pat, e')) bindings
+        body' <- replaceMethodCallsWithDictAccessT env cs body
+        return $ TILetRecExpr bindings' body'
+      
+      -- Other expressions: return as-is for now
+      _ -> return node
+    
+    -- Find constraint that provides a method
+    findConstraintForMethodInList :: ClassEnv -> String -> [Constraint] -> Maybe Constraint
+    findConstraintForMethodInList _ _ [] = Nothing
+    findConstraintForMethodInList env methodName (c@(Constraint className _):cs) =
+      case lookupClass className env of
+        Just classInfo ->
+          if methodName `elem` map fst (classMethods classInfo)
+            then Just c
+            else findConstraintForMethodInList env methodName cs
+        Nothing -> findConstraintForMethodInList env methodName cs
+    
+    -- Get method arity from type
+    getMethodArity :: Type -> Int
+    getMethodArity (TFun _ t2) = 1 + getMethodArity t2
+    getMethodArity _ = 0
 
 {- OLD CODE - DISABLED TEMPORARILY
   where
