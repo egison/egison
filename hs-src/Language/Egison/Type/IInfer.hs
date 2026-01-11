@@ -69,7 +69,8 @@ import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
                                               emptyContext, withExpr, withContext)
-import           Language.Egison.Type.Subst
+import           Language.Egison.Type.Subst (Subst, applySubst, applySubstConstraint,
+                                              applySubstScheme, composeSubst, emptySubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
@@ -204,6 +205,39 @@ getPatternEnv = inferPatternEnv <$> get
 setPatternEnv :: PatternTypeEnv -> Infer ()
 setPatternEnv penv = modify $ \st -> st { inferPatternEnv = penv }
 
+-- | Get the current class environment
+getClassEnv :: Infer ClassEnv
+getClassEnv = inferClassEnv <$> get
+
+-- | Resolve a constraint based on available instances
+-- If the constraint type is a Tensor type and no instance exists for it,
+-- try to use the element type's instance instead
+resolveConstraintWithInstances :: ClassEnv -> Subst -> Constraint -> Constraint
+resolveConstraintWithInstances classEnv subst (Constraint className tyVar) =
+  let resolvedType = applySubst subst tyVar
+      instances = lookupInstances className classEnv
+  in case resolvedType of
+       TTensor elemType ->
+         -- Tensor型の場合、インスタンスを探す
+         case findMatchingInstanceForType resolvedType instances of
+           Just _ -> 
+             -- Tensor自体のインスタンスがある場合はそれを使う
+             Constraint className resolvedType
+           Nothing -> 
+             -- Tensorのインスタンスがなければ、要素型で試す
+             case findMatchingInstanceForType elemType instances of
+               Just _ -> 
+                 -- 要素型のインスタンスがある場合はそれを使う
+                 -- tensorMapで要素ごとに適用することを想定
+                 Constraint className elemType
+               Nothing -> 
+                 -- どちらもない場合は、解決された型をそのまま使う
+                 -- (エラーは後のPhaseで検出される)
+                 Constraint className resolvedType
+       _ -> 
+         -- 非Tensor型の場合は、単純に代入を適用
+         Constraint className resolvedType
+
 -- | Extend the environment temporarily
 withEnv :: [(String, TypeScheme)] -> Infer a -> Infer a
 withEnv bindings action = do
@@ -300,6 +334,133 @@ inferConstant c = case c of
 -- | Helper: Create a TIExpr with a simple monomorphic type (no type variables, no constraints)
 mkTIExpr :: Type -> TIExprNode -> TIExpr
 mkTIExpr ty node = TIExpr (Forall [] [] ty) node
+
+-- | Apply a substitution to a TIExpr, updating both the type scheme and all subexpressions
+applySubstToTIExpr :: Subst -> TIExpr -> TIExpr
+applySubstToTIExpr s (TIExpr scheme node) =
+  let updatedScheme = applySubstScheme s scheme
+      updatedNode = applySubstToTIExprNode s node
+  in TIExpr updatedScheme updatedNode
+
+-- | Apply a substitution to a TIExprNode recursively
+applySubstToTIExprNode :: Subst -> TIExprNode -> TIExprNode
+applySubstToTIExprNode s node = case node of
+  TIConstantExpr c -> TIConstantExpr c
+  TIVarExpr name -> TIVarExpr name
+  
+  TILambdaExpr mVar params body ->
+    TILambdaExpr mVar params (applySubstToTIExpr s body)
+  
+  TIApplyExpr func args ->
+    TIApplyExpr (applySubstToTIExpr s func) (map (applySubstToTIExpr s) args)
+  
+  TITupleExpr exprs ->
+    TITupleExpr (map (applySubstToTIExpr s) exprs)
+  
+  TICollectionExpr exprs ->
+    TICollectionExpr (map (applySubstToTIExpr s) exprs)
+  
+  TIConsExpr h t ->
+    TIConsExpr (applySubstToTIExpr s h) (applySubstToTIExpr s t)
+  
+  TIJoinExpr l r ->
+    TIJoinExpr (applySubstToTIExpr s l) (applySubstToTIExpr s r)
+  
+  TIIfExpr cond thenE elseE ->
+    TIIfExpr (applySubstToTIExpr s cond) (applySubstToTIExpr s thenE) (applySubstToTIExpr s elseE)
+  
+  TILetExpr bindings body ->
+    TILetExpr (map (\(pat, expr) -> (pat, applySubstToTIExpr s expr)) bindings)
+              (applySubstToTIExpr s body)
+  
+  TILetRecExpr bindings body ->
+    TILetRecExpr (map (\(pat, expr) -> (pat, applySubstToTIExpr s expr)) bindings)
+                 (applySubstToTIExpr s body)
+  
+  TISeqExpr e1 e2 ->
+    TISeqExpr (applySubstToTIExpr s e1) (applySubstToTIExpr s e2)
+  
+  TIInductiveDataExpr name exprs ->
+    TIInductiveDataExpr name (map (applySubstToTIExpr s) exprs)
+  
+  TIMatcherExpr patDefs ->
+    TIMatcherExpr (map (\(pat, expr, bindings) -> (pat, applySubstToTIExpr s expr, bindings)) patDefs)
+  
+  TIMatchExpr mode target matcher clauses ->
+    TIMatchExpr mode 
+                (applySubstToTIExpr s target)
+                (applySubstToTIExpr s matcher)
+                (map (\(pat, body) -> (pat, applySubstToTIExpr s body)) clauses)
+  
+  TIMatchAllExpr mode target matcher clauses ->
+    TIMatchAllExpr mode
+                   (applySubstToTIExpr s target)
+                   (applySubstToTIExpr s matcher)
+                   (map (\(pat, body) -> (pat, applySubstToTIExpr s body)) clauses)
+  
+  TIMemoizedLambdaExpr params body ->
+    TIMemoizedLambdaExpr params (applySubstToTIExpr s body)
+  
+  TIDoExpr bindings body ->
+    TIDoExpr (map (\(pat, expr) -> (pat, applySubstToTIExpr s expr)) bindings)
+             (applySubstToTIExpr s body)
+  
+  TICambdaExpr var body ->
+    TICambdaExpr var (applySubstToTIExpr s body)
+  
+  TIWithSymbolsExpr syms body ->
+    TIWithSymbolsExpr syms (applySubstToTIExpr s body)
+  
+  TIQuoteExpr e ->
+    TIQuoteExpr (applySubstToTIExpr s e)
+  
+  TIQuoteSymbolExpr e ->
+    TIQuoteSymbolExpr (applySubstToTIExpr s e)
+  
+  TIIndexedExpr isSupported base indices ->
+    TIIndexedExpr isSupported (applySubstToTIExpr s base) indices
+  
+  TISubrefsExpr isSupported base ref ->
+    TISubrefsExpr isSupported (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
+  
+  TISuprefsExpr isSupported base ref ->
+    TISuprefsExpr isSupported (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
+  
+  TIUserrefsExpr isSupported base ref ->
+    TIUserrefsExpr isSupported (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
+  
+  TIWedgeApplyExpr func args ->
+    TIWedgeApplyExpr (applySubstToTIExpr s func) (map (applySubstToTIExpr s) args)
+  
+  TIFunctionExpr names ->
+    TIFunctionExpr names
+  
+  TIVectorExpr exprs ->
+    TIVectorExpr (map (applySubstToTIExpr s) exprs)
+  
+  TIHashExpr pairs ->
+    TIHashExpr (map (\(k, v) -> (applySubstToTIExpr s k, applySubstToTIExpr s v)) pairs)
+  
+  TIGenerateTensorExpr shape func ->
+    TIGenerateTensorExpr (applySubstToTIExpr s shape) (applySubstToTIExpr s func)
+  
+  TITensorExpr shape elems ->
+    TITensorExpr (applySubstToTIExpr s shape) (applySubstToTIExpr s elems)
+  
+  TITransposeExpr tensor perm ->
+    TITransposeExpr (applySubstToTIExpr s tensor) (applySubstToTIExpr s perm)
+  
+  TIFlipIndicesExpr tensor ->
+    TIFlipIndicesExpr (applySubstToTIExpr s tensor)
+  
+  TITensorMapExpr func tensor ->
+    TITensorMapExpr (applySubstToTIExpr s func) (applySubstToTIExpr s tensor)
+  
+  TITensorMap2Expr func t1 t2 ->
+    TITensorMap2Expr (applySubstToTIExpr s func) (applySubstToTIExpr s t1) (applySubstToTIExpr s t2)
+  
+  TITensorContractExpr tensor ->
+    TITensorContractExpr (applySubstToTIExpr s tensor)
 
 -- | Infer type for IExpr
 -- NEW: Returns TIExpr (typed expression) instead of (IExpr, Type, Subst)
@@ -1688,9 +1849,17 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
           -- Include constraints from function's type scheme
           funcScheme = tiScheme funcTIExpr
           (Forall _tvs constraints _) = funcScheme
-          -- Create result with constraints
-          resultScheme = Forall [] constraints finalType
-      return (TIExpr resultScheme (TIApplyExpr funcTIExpr argTIExprs), finalS)
+      -- Resolve constraints based on available instances
+      -- If constraint type is Tensor T and no instance exists for Tensor T,
+      -- use instance for T instead (tensorMap will be inserted later)
+      classEnv <- getClassEnv
+      let updatedConstraints = map (resolveConstraintWithInstances classEnv finalS) constraints
+          -- Create result with updated constraints
+          resultScheme = Forall [] updatedConstraints finalType
+          -- Apply substitution to all subexpressions to keep type information accurate
+          updatedFuncTI = applySubstToTIExpr finalS funcTIExpr
+          updatedArgTIs = map (applySubstToTIExpr finalS) argTIExprs
+      return (TIExpr resultScheme (TIApplyExpr updatedFuncTI updatedArgTIs), finalS)
     
     Left _ -> do
       -- Unification failed
@@ -1854,11 +2023,15 @@ inferITopExpr topExpr = case topExpr of
         let exprType = tiExprType exprTI
         constraints <- getConstraints  -- Collect constraints from type inference
         
-        -- Generalize with constraints
+        -- Resolve constraints based on available instances
+        classEnv <- getClassEnv
+        let updatedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
+        
+        -- Generalize with updated constraints
         let envFreeVars = freeVarsInEnv env
             typeFreeVars = freeTyVars exprType
             genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
-            scheme = Forall genVars constraints exprType
+            scheme = Forall genVars updatedConstraints exprType
         
         -- Add to environment
         modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
@@ -1913,11 +2086,15 @@ inferITopExpr topExpr = case topExpr of
             let exprType = tiExprType exprTI
             constraints <- getConstraints
             
+            -- Resolve constraints based on available instances
+            classEnv <- getClassEnv
+            let updatedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
+            
             -- Generalize the type
             let envFreeVars = freeVarsInEnv env
                 typeFreeVars = freeTyVars exprType
                 genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
-                scheme = Forall genVars constraints exprType
+                scheme = Forall genVars updatedConstraints exprType
             
             -- Add to environment for subsequent bindings
             modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
