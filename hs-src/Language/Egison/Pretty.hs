@@ -579,10 +579,143 @@ instance Pretty ITopExpr where
 
 -- Pretty print for TIExpr and TITopExpr
 instance Pretty TIExpr where
-  pretty tiexpr = 
-    let (Types.Forall _ _ ty) = tiScheme tiexpr
-        iexpr = stripType tiexpr  -- Convert TIExpr to IExpr for pretty printing
-    in parens (pretty iexpr <+> pretty ":" <+> prettyTypeDoc ty)
+  pretty tiexpr = prettyTIExprWithType tiexpr
+
+-- Pretty print TIExpr with type annotations for all subexpressions
+prettyTIExprWithType :: TIExpr -> Doc ann
+prettyTIExprWithType tiexpr = 
+  let (Types.Forall _ _ ty) = tiScheme tiexpr
+  in parens (prettyTIExprNode (tiExprNode tiexpr) <+> pretty ":" <+> prettyTypeDoc ty)
+
+-- Pretty print TIExprNode recursively
+prettyTIExprNode :: TIExprNode -> Doc ann
+prettyTIExprNode node = case node of
+  TIConstantExpr c -> pretty c
+  TIVarExpr name -> pretty name
+  
+  TILambdaExpr _ params body ->
+    pretty "\\" <> hsep (map prettyVar params) <+> pretty "->" <+> prettyTIExprWithType body
+  
+  TIApplyExpr func args ->
+    prettyTIExprWithType func <+> hsep (map prettyTIExprWithType args)
+  
+  TITupleExpr exprs ->
+    tupled (map prettyTIExprWithType exprs)
+  
+  TICollectionExpr exprs ->
+    brackets (hsep $ punctuate comma (map prettyTIExprWithType exprs))
+  
+  TIConsExpr h t ->
+    prettyTIExprWithType h <+> pretty "::" <+> prettyTIExprWithType t
+  
+  TIJoinExpr l r ->
+    prettyTIExprWithType l <+> pretty "++" <+> prettyTIExprWithType r
+  
+  TIIfExpr cond thenE elseE ->
+    pretty "if" <+> prettyTIExprWithType cond <+>
+    pretty "then" <+> prettyTIExprWithType thenE <+>
+    pretty "else" <+> prettyTIExprWithType elseE
+  
+  TILetExpr bindings body ->
+    pretty "let" <+> vsep (map prettyBinding bindings) <+> pretty "in" <+> prettyTIExprWithType body
+    where prettyBinding (pat, expr) = pretty pat <+> pretty ":=" <+> prettyTIExprWithType expr
+  
+  TITensorMapExpr func tensor ->
+    pretty "tensorMap" <+> prettyTIExprWithType func <+> prettyTIExprWithType tensor
+  
+  TITensorMap2Expr func t1 t2 ->
+    pretty "tensorMap2" <+> prettyTIExprWithType func <+> prettyTIExprWithType t1 <+> prettyTIExprWithType t2
+  
+  TITensorContractExpr tensor ->
+    pretty "contract" <+> prettyTIExprWithType tensor
+  
+  TITensorExpr shape elems ->
+    pretty "tensor" <+> prettyTIExprWithType shape <+> prettyTIExprWithType elems
+  
+  TIGenerateTensorExpr shape func ->
+    pretty "generateTensor" <+> prettyTIExprWithType shape <+> prettyTIExprWithType func
+  
+  TITransposeExpr tensor perm ->
+    pretty "transpose" <+> prettyTIExprWithType tensor <+> prettyTIExprWithType perm
+  
+  TIFlipIndicesExpr tensor ->
+    pretty "flipIndices" <+> prettyTIExprWithType tensor
+  
+  TIVectorExpr exprs ->
+    pretty "[|" <+> hsep (punctuate comma (map prettyTIExprWithType exprs)) <+> pretty "|]"
+  
+  TIHashExpr pairs ->
+    pretty "{|" <+> hsep (punctuate comma (map prettyPair pairs)) <+> pretty "|}"
+    where prettyPair (k, v) = parens (prettyTIExprWithType k <> comma <+> prettyTIExprWithType v)
+  
+  TISeqExpr e1 e2 ->
+    prettyTIExprWithType e1 <> pretty ";" <+> prettyTIExprWithType e2
+  
+  TIMemoizedLambdaExpr params body ->
+    pretty "memoizedLambda" <+> hsep (map pretty params) <+> pretty "->" <+> prettyTIExprWithType body
+  
+  TICambdaExpr param body ->
+    pretty "cambda" <+> pretty param <+> pretty "->" <+> prettyTIExprWithType body
+  
+  TIWithSymbolsExpr syms body ->
+    pretty "withSymbols" <+> list (map pretty syms) <+> prettyTIExprWithType body
+  
+  TIDoExpr bindings body ->
+    pretty "do" <+> vsep (map prettyBinding bindings) <+> prettyTIExprWithType body
+    where prettyBinding (pat, expr) = pretty pat <+> pretty "<-" <+> prettyTIExprWithType expr
+  
+  TIMatchExpr mode target matcher clauses ->
+    pretty "match" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
+    pretty "with" <+> vsep (map prettyClause clauses)
+    where prettyClause (pat, body) = pretty "|" <+> pretty pat <+> pretty "->" <+> prettyTIExprWithType body
+  
+  TIMatchAllExpr mode target matcher clauses ->
+    pretty "matchAll" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
+    pretty "with" <+> vsep (map prettyClause clauses)
+    where prettyClause (pat, body) = pretty "|" <+> pretty pat <+> pretty "->" <+> prettyTIExprWithType body
+  
+  TIInductiveDataExpr name exprs ->
+    pretty name <+> hsep (map prettyTIExprWithType exprs)
+  
+  TIQuoteExpr e ->
+    pretty "quote" <+> prettyTIExprWithType e
+  
+  TIQuoteSymbolExpr e ->
+    pretty "quoteSymbol" <+> prettyTIExprWithType e
+  
+  TISubrefsExpr _ base ref ->
+    pretty "subrefs" <+> prettyTIExprWithType base <+> prettyTIExprWithType ref
+  
+  TISuprefsExpr _ base ref ->
+    pretty "suprefs" <+> prettyTIExprWithType base <+> prettyTIExprWithType ref
+  
+  TIUserrefsExpr _ base ref ->
+    pretty "userrefs" <+> prettyTIExprWithType base <+> prettyTIExprWithType ref
+  
+  TIWedgeApplyExpr func args ->
+    prettyTIExprWithType func <+> pretty "^" <+> hsep (map prettyTIExprWithType args)
+  
+  TIIndexedExpr _ base indices ->
+    prettyTIExprWithType base <> hcat (map prettyIndex indices)
+    where
+      prettyIndex (Sub e) = pretty "_" <> pretty e
+      prettyIndex (Sup e) = pretty "~" <> pretty e
+      prettyIndex (SupSub e) = pretty "~_" <> pretty e
+      prettyIndex (User e) = pretty "|" <> pretty e
+      prettyIndex (MultiSub e1 n e2) = pretty "_..." <> pretty e1 <> pretty n <> pretty e2
+      prettyIndex (MultiSup e1 n e2) = pretty "~..." <> pretty e1 <> pretty n <> pretty e2
+      prettyIndex (DF i1 i2) = emptyDoc
+  
+  TIFunctionExpr names ->
+    pretty "function" <+> hsep (map pretty names)
+  
+  TILetRecExpr bindings body ->
+    pretty "letrec" <+> vsep (map prettyBinding bindings) <+> pretty "in" <+> prettyTIExprWithType body
+    where prettyBinding (pat, expr) = pretty pat <+> pretty ":=" <+> prettyTIExprWithType expr
+  
+  TIMatcherExpr patDefs ->
+    pretty "matcher" <+> vsep (map prettyPatDef patDefs)
+    where prettyPatDef (pat, expr, bindings) = pretty pat <+> pretty "->" <+> prettyTIExprWithType expr
 
 instance Pretty TITopExpr where
   pretty (TIDefine scheme var tiexpr) =

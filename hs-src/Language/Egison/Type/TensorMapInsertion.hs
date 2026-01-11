@@ -369,7 +369,7 @@ wrapWithTensorMapIfNeeded classEnv constraints func funcType args argTypes = do
       return Nothing
 
 -- | Recursively wrap function application with tensorMap where needed
--- Process arguments from left to right, building nested tensorMap expressions
+-- Process arguments from left to right, building tensorMap2 for consecutive tensor arguments
 wrapWithTensorMapRecursive :: 
     ClassEnv
     -> [Constraint]
@@ -382,57 +382,124 @@ wrapWithTensorMapRecursive _classEnv _constraints currentFunc _currentType [] []
   -- All arguments processed - return the application
   return $ tiExprNode currentFunc
 
-wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg:restArgs) (argType:restArgTypes) = do
-  -- Get the expected parameter type
+wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg1:restArgs) (argType1:restArgTypes) = do
+  -- Get the expected parameter type for first argument
   case getParamType currentType 0 of
-    Nothing -> return $ TIApplyExpr currentFunc (arg : restArgs)
-    Just paramType -> do
-      if shouldInsertTensorMap classEnv constraints argType paramType
+    Nothing -> return $ TIApplyExpr currentFunc (arg1 : restArgs)
+    Just paramType1 -> do
+      let needsTensorMap1 = shouldInsertTensorMap classEnv constraints argType1 paramType1
+      
+      if needsTensorMap1
         then do
-          -- TensorMap insertion needed
-          -- Generate a variable name for the lambda (use a simple counter-based name)
-          -- For now, use a fixed pattern since we don't have easy access to a counter
-          let varName = "tmapVar" ++ show (length restArgs)  -- Use remaining args as counter
-              var = Var varName []
-              
-              -- Extract element type from tensor
-              elemType = case argType of
-                           TTensor t -> t
-                           _ -> argType
-              
-              varScheme = Forall [] [] elemType
-              varTIExpr = TIExpr varScheme (TIVarExpr varName)
-              
-              -- Build inner expression (recursive call)
-              innerType = applyOneArgType currentType
-              funcScheme = tiScheme currentFunc
-              (Forall _ funcConstraints _) = funcScheme
-              innerFuncScheme = Forall [] funcConstraints innerType
-              innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr])
-          
-          -- Process remaining arguments
-          innerNode <- wrapWithTensorMapRecursive classEnv constraints innerFuncTI innerType restArgs restArgTypes
-          let innerTIExpr = TIExpr innerFuncScheme innerNode
-              finalType = tiExprType innerTIExpr
-              
-              -- Get constraints from inner expression
-              (Forall _ innerConstraints _) = tiScheme innerTIExpr
-          
-          -- Build lambda: \varName -> innerTIExpr
-          let lambdaType = TFun elemType finalType
-              lambdaScheme = Forall [] innerConstraints lambdaType
-              lambdaTI = TIExpr lambdaScheme (TILambdaExpr Nothing [var] innerTIExpr)
-          
-          return $ TITensorMapExpr lambdaTI arg
+          -- Check if we have a second argument that also needs tensorMap
+          -- If so, use tensorMap2 instead of nested tensorMap
+          case (restArgs, restArgTypes) of
+            (arg2:restArgs', argType2:restArgTypes') -> do
+              let innerType = applyOneArgType currentType
+              case getParamType innerType 0 of
+                Just paramType2 | shouldInsertTensorMap classEnv constraints argType2 paramType2 -> do
+                  -- Both first and second arguments need tensorMap → use tensorMap2
+                  let varName1 = "tmapVar" ++ show (length restArgs)
+                      varName2 = "tmapVar" ++ show (length restArgs')
+                      var1 = Var varName1 []
+                      var2 = Var varName2 []
+                      
+                      -- Extract element types from tensors
+                      elemType1 = case argType1 of
+                                    TTensor t -> t
+                                    _ -> argType1
+                      elemType2 = case argType2 of
+                                    TTensor t -> t
+                                    _ -> argType2
+                      
+                      varScheme1 = Forall [] [] elemType1
+                      varScheme2 = Forall [] [] elemType2
+                      varTIExpr1 = TIExpr varScheme1 (TIVarExpr varName1)
+                      varTIExpr2 = TIExpr varScheme2 (TIVarExpr varName2)
+                      
+                      -- Build inner expression with both variables applied
+                      innerType2 = applyOneArgType innerType
+                      funcScheme = tiScheme currentFunc
+                      (Forall _ funcConstraints _) = funcScheme
+                      innerFuncScheme = Forall [] funcConstraints innerType2
+                      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr1, varTIExpr2])
+                  
+                  -- Process remaining arguments after consuming two
+                  innerNode <- wrapWithTensorMapRecursive classEnv constraints innerFuncTI innerType2 restArgs' restArgTypes'
+                  let innerTIExpr = TIExpr innerFuncScheme innerNode
+                      finalType = tiExprType innerTIExpr
+                      
+                      -- Get constraints from inner expression
+                      (Forall _ innerConstraints _) = tiScheme innerTIExpr
+                  
+                  -- Build lambda: \varName1 varName2 -> innerTIExpr
+                  let lambdaType = TFun elemType1 (TFun elemType2 finalType)
+                      lambdaScheme = Forall [] innerConstraints lambdaType
+                      lambdaTI = TIExpr lambdaScheme (TILambdaExpr Nothing [var1, var2] innerTIExpr)
+                  
+                  return $ TITensorMap2Expr lambdaTI arg1 arg2
+                
+                _ -> do
+                  -- Only first argument needs tensorMap → use regular tensorMap
+                  insertSingleTensorMap classEnv constraints currentFunc currentType arg1 argType1 restArgs restArgTypes
+            
+            _ -> do
+              -- No more arguments or types → use regular tensorMap for first argument
+              insertSingleTensorMap classEnv constraints currentFunc currentType arg1 argType1 restArgs restArgTypes
         
         else do
-          -- No tensorMap needed, normal application
+          -- First argument doesn't need tensorMap, apply normally and continue
           let appliedType = applyOneArgType currentType
               appliedScheme = Forall [] constraints appliedType
-              appliedTI = TIExpr appliedScheme (TIApplyExpr currentFunc [arg])
+              appliedTI = TIExpr appliedScheme (TIApplyExpr currentFunc [arg1])
           
           -- Process remaining arguments (recursive call)
           wrapWithTensorMapRecursive classEnv constraints appliedTI appliedType restArgs restArgTypes
 
 wrapWithTensorMapRecursive _classEnv _constraints currentFunc _currentType _args _argTypes = 
   return $ TIApplyExpr currentFunc []
+
+-- | Helper function to insert a single tensorMap (when tensorMap2 is not applicable)
+insertSingleTensorMap :: 
+    ClassEnv
+    -> [Constraint]
+    -> TIExpr          -- Current function expression
+    -> Type            -- Current function type
+    -> TIExpr          -- Tensor argument
+    -> Type            -- Tensor argument type
+    -> [TIExpr]        -- Remaining arguments
+    -> [Type]          -- Remaining argument types
+    -> EvalM TIExprNode
+insertSingleTensorMap classEnv constraints currentFunc currentType arg argType restArgs restArgTypes = do
+  let varName = "tmapVar" ++ show (length restArgs)
+      var = Var varName []
+      
+      -- Extract element type from tensor
+      elemType = case argType of
+                   TTensor t -> t
+                   _ -> argType
+      
+      varScheme = Forall [] [] elemType
+      varTIExpr = TIExpr varScheme (TIVarExpr varName)
+      
+      -- Build inner expression (recursive call)
+      innerType = applyOneArgType currentType
+      funcScheme = tiScheme currentFunc
+      (Forall _ funcConstraints _) = funcScheme
+      innerFuncScheme = Forall [] funcConstraints innerType
+      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr])
+  
+  -- Process remaining arguments
+  innerNode <- wrapWithTensorMapRecursive classEnv constraints innerFuncTI innerType restArgs restArgTypes
+  let innerTIExpr = TIExpr innerFuncScheme innerNode
+      finalType = tiExprType innerTIExpr
+      
+      -- Get constraints from inner expression
+      (Forall _ innerConstraints _) = tiScheme innerTIExpr
+  
+  -- Build lambda: \varName -> innerTIExpr
+  let lambdaType = TFun elemType finalType
+      lambdaScheme = Forall [] innerConstraints lambdaType
+      lambdaTI = TIExpr lambdaScheme (TILambdaExpr Nothing [var] innerTIExpr)
+  
+  return $ TITensorMapExpr lambdaTI arg

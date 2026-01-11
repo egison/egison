@@ -270,7 +270,12 @@ expandTypeClassMethodsT tiExpr = do
     expandTIExprWithConstraints :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
     expandTIExprWithConstraints classEnv' cs expr = do
       let scheme = tiScheme expr
-      expandedNode <- expandTIExprNodeWithConstraintList classEnv' cs (tiExprNode expr)
+          (Forall _ exprConstraints _) = scheme
+          -- Merge parent constraints with expression's own constraints
+          -- This ensures that nested expressions like "contract (* x y)" can resolve
+          -- the method call (*) using the constraints from the inner expression
+          allConstraints = cs ++ exprConstraints
+      expandedNode <- expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
       return $ TIExpr scheme expandedNode
     
     -- Try to resolve a method call using type class constraints
