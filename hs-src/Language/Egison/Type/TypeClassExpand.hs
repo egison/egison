@@ -287,32 +287,44 @@ expandTypeClassMethodsT tiExpr = do
           -- Check if this is a type class method
           case findConstraintForMethod classEnv' varName allConstraints of
             Just (Constraint className tyArg) -> do
-              -- Check if we have a concrete type to resolve
-              let instances = lookupInstances className classEnv'
-              case findMatchingInstanceForType tyArg instances of
-                Just inst -> do
-                  -- Found instance: eta-expand the method
-                  -- Get method type to determine arity
-                  typeEnv <- getTypeEnv
-                  case lookupEnv varName typeEnv of
-                    Just (Forall _ _ ty) -> do
-                      let arity = getMethodArity ty
-                          paramNames = ["etaVar" ++ show i | i <- [1..arity]]
-                          paramVars = map stringToVar paramNames
-                          paramExprs = map (\n -> TIExpr (Forall [] [] (TVar (TyVar "eta"))) (TIVarExpr n)) paramNames
-                          -- Generate dictionary access
-                          instTypeName = typeToName (instType inst)
-                          dictName = lowerFirst className ++ instTypeName
-                          methodKey = sanitizeMethodName varName
+              -- Get method type to determine arity
+              typeEnv <- getTypeEnv
+              case lookupEnv varName typeEnv of
+                Just (Forall _ _ ty) -> do
+                  let arity = getMethodArity ty
+                      paramNames = ["etaVar" ++ show i | i <- [1..arity]]
+                      paramVars = map stringToVar paramNames
+                      paramExprs = map (\n -> TIExpr (Forall [] [] (TVar (TyVar "eta"))) (TIVarExpr n)) paramNames
+                      methodKey = sanitizeMethodName varName
+                  
+                  -- Determine dictionary name based on type
+                  case tyArg of
+                    TVar (TyVar v) -> do
+                      -- Type variable: use dictionary parameter name
+                      let dictParamName = "dict_" ++ className ++ "_" ++ v
                           dictType = ty
-                          dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                          dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictParamName)
                           dictAccess = TIExpr (Forall [] [] dictType) $
                                        TIIndexedExpr False dictExpr
                                          [Sub (IConstantExpr (StringExpr (pack methodKey)))]
-                          -- Create lambda: \etaVar1 etaVar2 -> dictAccess etaVar1 etaVar2
                           body = TIExpr (Forall [] [] ty) (TIApplyExpr dictAccess paramExprs)
                       return $ TILambdaExpr Nothing paramVars body
-                    Nothing -> checkConstrainedVariable
+                    _ -> do
+                      -- Concrete type: find matching instance
+                      let instances = lookupInstances className classEnv'
+                      case findMatchingInstanceForType tyArg instances of
+                        Just inst -> do
+                          -- Found instance: eta-expand with concrete dictionary
+                          let instTypeName = typeToName (instType inst)
+                              dictName = lowerFirst className ++ instTypeName
+                              dictType = ty
+                              dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                              dictAccess = TIExpr (Forall [] [] dictType) $
+                                           TIIndexedExpr False dictExpr
+                                             [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                              body = TIExpr (Forall [] [] ty) (TIApplyExpr dictAccess paramExprs)
+                          return $ TILambdaExpr Nothing paramVars body
+                        Nothing -> checkConstrainedVariable
                 Nothing -> checkConstrainedVariable
             Nothing -> checkConstrainedVariable
           where
@@ -320,14 +332,24 @@ expandTypeClassMethodsT tiExpr = do
             checkConstrainedVariable = do
               if not (null exprConstraints)
                 then do
-                  -- This is a constrained variable - apply dictionaries
-                  dictArgs <- mapM (resolveDictionaryArg classEnv') exprConstraints
-                  -- Create application: varName dict1 dict2 ...
-                  let varExpr = TIExpr scheme (TIVarExpr varName)
-                  return $ TIApplyExpr varExpr dictArgs
+                  -- Check if all constraints are on concrete types
+                  let hasOnlyConcreteConstraints = all isConcreteConstraint exprConstraints
+                  if hasOnlyConcreteConstraints
+                    then do
+                      -- This is a constrained variable with concrete types - apply dictionaries
+                      dictArgs <- mapM (resolveDictionaryArg classEnv') exprConstraints
+                      -- Create application: varName dict1 dict2 ...
+                      let varExpr = TIExpr scheme (TIVarExpr varName)
+                      return $ TIApplyExpr varExpr dictArgs
+                    else
+                      -- Has type variable constraints - leave as-is (polymorphic)
+                      expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
                 else
                   -- Regular variable, no constraints
                   expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+            
+            isConcreteConstraint (Constraint _ (TVar _)) = False
+            isConcreteConstraint _ = True
         _ -> expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
       
       return $ TIExpr scheme expandedNode
@@ -357,22 +379,25 @@ expandTypeClassMethodsT tiExpr = do
                       actualType = case (tyArg, argTypes) of
                         (TVar _, (t:_)) -> t  -- Use first argument's type
                         _ -> tyArg
-                  case findMatchingInstanceForType actualType instances of
-                    Just inst -> do
-                      -- Found an instance: generate dictionary access
-                      -- e.g., numInteger_"plus" for Num Integer instance
-                      let instTypeName = typeToName (instType inst)
-                          dictName = lowerFirst className ++ instTypeName
-                          methodKey = sanitizeMethodName methodName
-                      -- Create dictionary access: dictName_"methodKey"
-                      let dictType = tiExprType (head expandedArgs)  -- Approximate
-                          dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
-                          dictAccess = TIExpr (Forall [] [] dictType) $
-                                       TIIndexedExpr False dictExpr
-                                         [Sub (IConstantExpr (StringExpr (pack methodKey)))]
-                      -- Apply arguments: dictAccess arg1 arg2 ...
-                      return $ Just $ TIApplyExpr dictAccess expandedArgs
-                    Nothing -> return Nothing
+                  -- Skip if actualType is still a type variable
+                  case actualType of
+                    TVar _ -> return Nothing  -- Cannot resolve with type variable
+                    _ -> case findMatchingInstanceForType actualType instances of
+                      Just inst -> do
+                        -- Found an instance: generate dictionary access
+                        -- e.g., numInteger_"plus" for Num Integer instance
+                        let instTypeName = typeToName (instType inst)
+                            dictName = lowerFirst className ++ instTypeName
+                            methodKey = sanitizeMethodName methodName
+                        -- Create dictionary access: dictName_"methodKey"
+                        let dictType = tiExprType (head expandedArgs)  -- Approximate
+                            dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                            dictAccess = TIExpr (Forall [] [] dictType) $
+                                         TIIndexedExpr False dictExpr
+                                           [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                        -- Apply arguments: dictAccess arg1 arg2 ...
+                        return $ Just $ TIApplyExpr dictAccess expandedArgs
+                      Nothing -> return Nothing
                 else return Nothing
             Nothing -> return Nothing
     
@@ -388,19 +413,28 @@ expandTypeClassMethodsT tiExpr = do
     -- Resolve a constraint to a dictionary argument
     resolveDictionaryArg :: ClassEnv -> Constraint -> EvalM TIExpr
     resolveDictionaryArg classEnv (Constraint className tyArg) = do
-      let instances = lookupInstances className classEnv
-      case findMatchingInstanceForType tyArg instances of
-        Just inst -> do
-          -- Found instance: generate dictionary name (e.g., "numInteger")
-          let instTypeName = typeToName (instType inst)
-              dictName = lowerFirst className ++ instTypeName
-              -- Create a reference to the dictionary variable
-              -- Use a generic type for now
-              dictType = TVar (TyVar "dict")
-          return $ TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
-        Nothing -> do
-          -- No instance found - this is an error, but return a dummy for now
-          return $ TIExpr (Forall [] [] (TVar (TyVar "error"))) (TIVarExpr "undefined")
+      -- Only resolve if the type is concrete (not a type variable)
+      case tyArg of
+        TVar _ -> do
+          -- Type variable: cannot determine instance yet
+          -- This should not happen if constraints are properly resolved
+          -- Return a placeholder that will fail at runtime
+          return $ TIExpr (Forall [] [] (TVar (TyVar "error"))) (TIVarExpr ("dict_" ++ className ++ "_unresolved"))
+        _ -> do
+          -- Concrete type: try to find matching instance
+          let instances = lookupInstances className classEnv
+          case findMatchingInstanceForType tyArg instances of
+            Just inst -> do
+              -- Found instance: generate dictionary name (e.g., "numInteger")
+              let instTypeName = typeToName (instType inst)
+                  dictName = lowerFirst className ++ instTypeName
+                  -- Create a reference to the dictionary variable
+                  -- Use a generic type for now
+                  dictType = TVar (TyVar "dict")
+              return $ TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+            Nothing -> do
+              -- No instance found - this is an error, but return a dummy for now
+              return $ TIExpr (Forall [] [] (TVar (TyVar "error"))) (TIVarExpr "undefined")
     
     -- Check if a name is a type class method
     isTypeClassMethod :: String -> ClassEnv -> Bool
