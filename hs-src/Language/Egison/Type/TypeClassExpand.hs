@@ -64,7 +64,8 @@ expandTypeClassMethodsT tiExpr = do
     -- Expand TIExprNode with a list of constraints
     expandTIExprNodeWithConstraintList :: ClassEnv -> [Constraint] -> TIExprNode -> EvalM TIExprNode
     expandTIExprNodeWithConstraintList classEnv' cs node = case node of
-      -- Constants and variables: no expansion needed
+      -- Constants and variables: no expansion needed at node level
+      -- (TIVarExpr expansion is handled at TIExpr level in expandTIExprWithConstraints)
       TIConstantExpr c -> return $ TIConstantExpr c
       TIVarExpr name -> return $ TIVarExpr name
       
@@ -277,7 +278,31 @@ expandTypeClassMethodsT tiExpr = do
           -- This ensures that nested expressions like "contract (* x y)" can resolve
           -- the method call (*) using the constraints from the inner expression
           allConstraints = cs ++ exprConstraints
-      expandedNode <- expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+      
+      -- Special handling for TIVarExpr: check if it's a method and expand if possible
+      expandedNode <- case tiExprNode expr of
+        TIVarExpr name | isTypeClassMethod name classEnv' -> do
+          -- Try to expand using all available constraints
+          case findConstraintForMethod classEnv' name allConstraints of
+            Just (Constraint className tyArg) -> 
+              case tyArg of
+                TVar _ -> 
+                  -- Type variable: cannot determine instance, keep as-is
+                  return $ TIVarExpr name
+                _ -> do
+                  -- Concrete type: try to find matching instance
+                  let instances = lookupInstances className classEnv'
+                  case findMatchingInstanceForType tyArg instances of
+                    Just inst -> do
+                      -- Expand to concrete implementation
+                      let instTypeName = typeToName (instType inst)
+                          methodFuncName = lowerFirst className ++ instTypeName ++ 
+                                         capitalizeFirst (sanitizeMethodName name)
+                      return $ TIVarExpr methodFuncName
+                    Nothing -> return $ TIVarExpr name
+            Nothing -> return $ TIVarExpr name
+        _ -> expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+      
       return $ TIExpr scheme expandedNode
     
     -- Try to resolve a method call using type class constraints
@@ -320,6 +345,14 @@ expandTypeClassMethodsT tiExpr = do
           Just classInfo -> methodName `elem` map fst (classMethods classInfo)
           Nothing -> False
       ) cs
+    
+    -- Check if a name is a type class method
+    isTypeClassMethod :: String -> ClassEnv -> Bool
+    isTypeClassMethod methName env =
+      any (hasMethod methName) (map snd (classEnvToList env))
+      where
+        hasMethod :: String -> ClassInfo -> Bool
+        hasMethod name classInfo = name `elem` map fst (classMethods classInfo)
     
     -- Helper: lowercase first character
     lowerFirst :: String -> String
