@@ -337,9 +337,17 @@ expandTypeClassMethodsT tiExpr = do
                       -- Create application: varName dict1 dict2 ...
                       let varExpr = TIExpr scheme (TIVarExpr varName)
                       return $ TIApplyExpr varExpr dictArgs
-                    else
-                      -- Has type variable constraints - leave as-is (polymorphic)
-                      expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+                    else do
+                      -- Has type variable constraints - pass dictionary parameters
+                      -- This handles recursive calls in polymorphic functions
+                      -- Generate dictionary argument expressions for each constraint
+                      let makeDict c =
+                            let dictName = constraintToDictParam c
+                                dictType = TVar (TyVar "dict")
+                            in TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                          dictArgs = map makeDict exprConstraints
+                          varExpr = TIExpr scheme (TIVarExpr varName)
+                      return $ TIApplyExpr varExpr dictArgs
                 else
                   -- Regular variable, no constraints
                   expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
@@ -437,6 +445,24 @@ expandTypeClassMethodsT tiExpr = do
     lowerFirst [] = []
     lowerFirst (c:cs) = toLower c : cs
 
+-- | Generate dictionary parameter name from constraint
+-- Used for both dictionary parameter generation and dictionary argument passing
+constraintToDictParam :: Constraint -> String
+constraintToDictParam (Constraint className constraintType) =
+  "dict_" ++ className ++ "_" ++ typeSuffix constraintType
+
+-- | Generate type suffix for dictionary parameter names
+typeSuffix :: Type -> String
+typeSuffix (TVar (TyVar v)) = v
+typeSuffix TInt = "Integer"
+typeSuffix TFloat = "Float"
+typeSuffix TString = "String"
+typeSuffix TBool = "Bool"
+typeSuffix TChar = "Char"
+typeSuffix (TTensor t) = "Tensor" ++ typeSuffix t
+typeSuffix (TCollection t) = "Collection" ++ typeSuffix t
+typeSuffix _ = "t"
+
 -- | Add dictionary parameters to a function based on its type scheme constraints
 -- This transforms constrained functions into dictionary-passing style
 addDictionaryParametersT :: TypeScheme -> TIExpr -> EvalM TIExpr
@@ -487,18 +513,6 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
             newNode = TILambdaExpr Nothing dictVars expr'
             newScheme = Forall [] [] wrapperType
         return $ TIExpr newScheme newNode
-    
-    -- Generate dictionary parameter name from constraint
-    constraintToDictParam :: Constraint -> String
-    constraintToDictParam (Constraint className constraintType) =
-      "dict_" ++ className ++ "_" ++ typeSuffix constraintType
-    
-    typeSuffix :: Type -> String
-    typeSuffix (TVar (TyVar v)) = v
-    typeSuffix TInt = "Integer"
-    typeSuffix TFloat = "Float"
-    typeSuffix (TTensor t) = "Tensor" ++ typeSuffix t
-    typeSuffix _ = "t"
     
     -- Replace method calls with dictionary access in TIExpr
     replaceMethodCallsWithDictAccessT :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
