@@ -73,8 +73,6 @@ def id {a} (x: a) : a := x
 def fst {a, b} (x: a, _: b) : a := x
 def snd {a, b} (_: a, y: b) : b := y
 
-infixr expression 0 $
-
 def ($) {a, b} (f: a -> b) (x: a) : b := f x
 
 def compose {a, b, c} (f: a -> b) (g: b -> c) : a -> c := \x -> g (f x)

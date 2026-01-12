@@ -62,6 +62,7 @@ coreLibraries :: [String]
 coreLibraries =
   -- Libs that defines user-defined infixes comes first
   [ "lib/core/base.egi"              -- Defines (&&) (||)
+  , "lib/core/order.egi"
 --  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
 --  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
 --  , "lib/core/collection.egi"        -- Defines (++) for patterns
@@ -72,7 +73,6 @@ coreLibraries =
   , "lib/core/io.egi"
   , "lib/core/maybe.egi"
   , "lib/core/number.egi"
-  , "lib/core/order.egi"
 --  , "lib/core/random.egi"
 --  , "lib/core/string.egi"
 --  , "lib/core/sort.egi"

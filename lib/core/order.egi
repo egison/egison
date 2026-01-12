@@ -6,7 +6,12 @@
 
 inductive Ordering := | Less | Equal | Greater
 
-def ordering {a} : Matcher a :=
+inductive pattern Ordering :=
+    | less
+    | equal
+    | greater
+
+def ordering : Matcher Ordering :=
   algebraicDataMatcher
     | less
     | equal
@@ -15,39 +20,48 @@ def ordering {a} : Matcher a :=
 def min {Ord a} (x: a) (y: a) : a := if x < y then x else y
 def max {Ord a} (x: a) (y: a) : a := if x > y then x else y
 
-def minimum {Ord a} (xs: [a]) : a := foldl1 min xs
-def maximum {Ord a} (xs: [a]) : a := foldl1 max xs
+class Ord a extends Eq a where
+  compare (x: a) (y: a) : Ordering
+  (<) (x: a) (y: a) : Bool
+  (<=) (x: a) (y: a) : Bool
+  (>) (x: a) (y: a) : Bool
+  (>=) (x: a) (y: a) : Bool
+  min (x: a) (y: a) : a
+  max (x: a) (y: a) : a
 
--- splitByOrdering uses $x pattern which doesn't support type annotations
-def splitByOrdering {Ord a} (p: a) (xs: [a]) : ([a], [a], [a]) :=
-  match xs as list something with
-    | [] -> ([], [], [])
-    | $x :: $rs ->
-      let (ys1, ys2, ys3) := splitByOrdering p rs
-       in match compare x p as ordering with
-            | less -> (x :: ys1, ys2, ys3)
-            | equal -> (ys1, x :: ys2, ys3)
-            | greater -> (ys1, ys2, x :: ys3)
+-- | Ord instances for basic types
+instance Ord Integer where
+  compare x y := if x < y then Less else if x > y then Greater else Equal
+  (<) x y := x < y
+  (<=) x y := x <= y
+  (>) x y := x > y
+  (>=) x y := x >= y
+  min x y := if x < y then x else y
+  max x y := if x > y then x else y
 
-def sort {Ord a} (xs: [a]) : [a] :=
-  match xs as list something with
-    | [] -> []
-    | $x :: [] -> [x]
-    | _ ->
-      let n := length xs
-          p := nth (quotient n 2) xs
-          (ys1, ys2, ys3) := splitByOrdering p xs
-       in sort ys1 ++ ys2 ++ sort ys3
+instance Ord Float where
+  compare x y := if x < y then Less else if x > y then Greater else Equal
+  (<) x y := x < y
+  (<=) x y := x <= y
+  (>) x y := x > y
+  (>=) x y := x >= y
+  min x y := if x < y then x else y
+  max x y := if x > y then x else y
 
-def merge {Ord a} (xs: [a]) (ys: [a]) : [a] :=
-  match (xs, ys) as (list something, list something) with
-    | ([], _) -> ys
-    | (_, []) -> xs
-    | ($x :: $txs, ?(>= x) :: _) -> x :: merge txs ys
-    | (_, $y :: $tys) -> y :: merge xs tys
+instance Ord Char where
+  compare x y := if ctoi x < ctoi y then Less else if ctoi x > ctoi y then Greater else Equal
+  (<) x y := ctoi x < ctoi y
+  (<=) x y := ctoi x <= ctoi y
+  (>) x y := ctoi x > ctoi y
+  (>=) x y := ctoi x >= ctoi y
+  min x y := if ctoi x < ctoi y then x else y
+  max x y := if ctoi x > ctoi y then x else y
 
-def minimize {a, Ord b} (f: a -> b) (xs: [a]) : a :=
-  foldl1 (\x y -> if compare (f x) (f y) = Less then x else y) xs
-
-def maximize {a, Ord b} (f: a -> b) (xs: [a]) : a :=
-  foldl1 (\x y -> if compare (f x) (f y) = Greater then x else y) xs
+instance Ord String where
+  compare s1 s2 := compare (unpack s1) (unpack s2)
+  (<) s1 s2 := compare s1 s2 = Less
+  (<=) s1 s2 := compare s1 s2 != Greater
+  (>) s1 s2 := compare s1 s2 = Greater
+  (>=) s1 s2 := compare s1 s2 != Less
+  min s1 s2 := if compare s1 s2 = Less then s1 else s2
+  max s1 s2 := if compare s1 s2 = Greater then s1 else s2
