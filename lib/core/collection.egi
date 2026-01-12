@@ -136,9 +136,10 @@ def maximize {a, Ord b} (f: a -> b) (xs: [a]) : a :=
 -- Accessors
 --
 def nth {a} (n: Integer) (xs: [a]) : a :=
-  if n = 1
-  then match xs as list something with | $x :: _ -> x
-  else match xs as list something with | _ :: $rest -> nth (n + (- 1)) rest
+  match xs as list something with
+    | loop $i (1, n - 1, _)
+        (_ :: ...)
+        ($x :: _) -> x
 
 def takeAndDrop {a} (n: Integer) (xs: [a]) : ([a], [a]) :=
   match xs as list something with
