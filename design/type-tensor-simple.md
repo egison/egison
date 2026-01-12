@@ -232,13 +232,17 @@ g_i_j . g~i~j : MathExpr  -- contract されてスカラーになる場合
 高階関数にテンソル操作を渡す場合も正しく動作します：
 
 ```egison
-def foldr {a, b} (fn : a -> b -> b) (init : b) (ls : [a]) : b :=
+def foldl {a, b} (fn : b -> a -> b) (init : b) (ls : [a]) : b :=
   match ls as list something with
     | [] -> init
-    | $x :: $xs -> fn x (foldr fn init xs)
+    | $x :: $xs ->
+      let z := fn init x
+       in seq z (foldl fn z xs)
+  
+def foldl1 {a, b} (fn : b -> a -> b) (ls : [a]) : b := foldl fn (head ls) (tail ls)
 
-foldr b.+ [| 0, 0, 0 |]_i [ [| 1, 2, 3 |]_i, [| 10, 20, 30 |]_i ]
-foldr b.+ 0 [ [| 1, 2, 3 |], [| 10, 20, 30 |] ]
+def (.) {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a := 
+  foldl1 (+) (contract (t1 * t2))
 ```
 
 関数が関数の引数に渡された場合、引数の関数の引数型が `Tensor` 型とunifyできない場合は、
