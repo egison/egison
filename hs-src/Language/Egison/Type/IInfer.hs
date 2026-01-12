@@ -1940,9 +1940,6 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       throwError $ UnificationError (applySubst argSubst funcType) expectedFuncType ctx
 
 -- | Infer let bindings (non-recursive)
--- NEW: Returns TIBindingExpr instead of IBindingExpr
-inferIBindings :: [IBindingExpr] -> TypeEnv -> Subst -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
-inferIBindings bindings env s = inferIBindingsWithContext bindings env s emptyContext
 
 -- | Infer let bindings (non-recursive) with context
 -- NEW: Returns TIBindingExpr instead of IBindingExpr
@@ -2002,9 +1999,6 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
       return (ty, emptySubst)
 
 -- | Infer letrec bindings (recursive)
--- NEW: Returns TIBindingExpr instead of IBindingExpr
-inferIRecBindings :: [IBindingExpr] -> TypeEnv -> Subst -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
-inferIRecBindings bindings env s = inferIRecBindingsWithContext bindings env s emptyContext
 
 -- | Infer letrec bindings (recursive) with context
 -- NEW: Returns TIBindingExpr instead of IBindingExpr

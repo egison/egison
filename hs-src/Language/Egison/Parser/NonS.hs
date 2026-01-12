@@ -664,31 +664,6 @@ tensorTypeExpr = do
   -- TETensor now only takes the element type
   return $ TETensor elemType
 
-tensorShapeExpr :: Parser TensorShapeExpr
-tensorShapeExpr =
-      try (brackets mixedShape)
-  <|> TSVar <$> ident
-  where
-    mixedShape = do
-      dims <- shapeDim `sepBy` symbol ","
-      -- If all literals, use TSLit for backwards compatibility
-      let allLits = all isLitDim dims
-      return $ if allLits
-                 then TSLit (map extractLit dims)
-                 else TSMixed dims
-    shapeDim = SDLit <$> positiveIntegerLiteral
-           <|> SDVar <$> ident
-    isLitDim (SDLit _) = True
-    isLitDim _         = False
-    extractLit (SDLit n) = n
-    extractLit _         = 0  -- Should not happen
-
-tensorIndexExpr :: Parser TensorIndexExpr
-tensorIndexExpr =
-      TIPlaceholderSub <$ try (symbol "_#")
-  <|> TIPlaceholderSup <$ try (symbol "~#")
-  <|> TISub <$> (char '_' *> ident)
-  <|> TISup <$> (char '~' *> ident)
 
 typeVarIdent :: Parser String
 typeVarIdent = lexeme $ do

@@ -51,13 +51,13 @@ import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
-import           Language.Egison.IExpr (TIExpr(..), TIExprNode(..), TITopExpr(..), ITopExpr(..), IExpr(..), Var, stringToVar, stripTypeTopExpr)
+import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), Var, stringToVar, stripTypeTopExpr)
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
-import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT)
+import           Language.Egison.Type.TypeClassExpand ()
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
@@ -125,166 +125,6 @@ evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False
 
 -- | Evaluate expanded top expressions using the typed pipeline with optional printing.
 -- This function implements phases 2-10 of the processing flow.
-
--- | Helper: Convert IExpr to TIExpr (simplified, without full type inference)
--- This is a temporary solution that wraps IExpr nodes in TIExpr with a given type scheme
--- TODO: Replace this with proper TIExpr construction from IInfer results
-iexprToTIExprSimple :: Types.TypeScheme -> IExpr -> TIExpr
-iexprToTIExprSimple scheme expr = case expr of
-  -- For now, we extract the type from scheme and create a minimal TIExprNode
-  -- This is not ideal but allows compilation to proceed
-  _ -> 
-    let ty = case scheme of
-              Types.Forall _ _ t -> t
-    in TIExpr scheme (iexprToTIExprNodeSimple ty expr)
-  where
-    -- Convert IExpr to TIExprNode recursively (simplified)
-    iexprToTIExprNodeSimple :: Types.Type -> IExpr -> TIExprNode
-    iexprToTIExprNodeSimple ty e = case e of
-      IConstantExpr c -> TIConstantExpr c
-      IVarExpr name -> TIVarExpr name
-      
-      -- Collections
-      ITupleExpr exprs -> TITupleExpr (map (iexprToTIExprSimple (Types.Forall [] [] ty)) exprs)
-      ICollectionExpr exprs -> TICollectionExpr (map (iexprToTIExprSimple (Types.Forall [] [] ty)) exprs)
-      IConsExpr h t -> TIConsExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) h)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) t)
-      IJoinExpr l r -> TIJoinExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) l)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) r)
-      IHashExpr pairs -> TIHashExpr
-        (map (\(k, v) -> (iexprToTIExprSimple (Types.Forall [] [] ty) k,
-                          iexprToTIExprSimple (Types.Forall [] [] ty) v)) pairs)
-      IVectorExpr exprs -> TIVectorExpr (map (iexprToTIExprSimple (Types.Forall [] [] ty)) exprs)
-      
-      -- Functions
-      ILambdaExpr mvar vars body -> TILambdaExpr mvar vars (iexprToTIExprSimple (Types.Forall [] [] ty) body)
-      IMemoizedLambdaExpr vars body -> TIMemoizedLambdaExpr vars (iexprToTIExprSimple (Types.Forall [] [] ty) body)
-      ICambdaExpr var body -> TICambdaExpr var (iexprToTIExprSimple (Types.Forall [] [] ty) body)
-      IApplyExpr func args -> TIApplyExpr 
-        (iexprToTIExprSimple (Types.Forall [] [] ty) func)
-        (map (iexprToTIExprSimple (Types.Forall [] [] ty)) args)
-      
-      -- Control flow
-      IIfExpr cond thenExpr elseExpr -> TIIfExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) cond)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) thenExpr)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) elseExpr)
-      ISeqExpr e1 e2 -> TISeqExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) e1)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) e2)
-      
-      -- Let bindings
-      ILetExpr bindings body -> TILetExpr 
-        (map (\(v, e') -> (v, iexprToTIExprSimple (Types.Forall [] [] ty) e')) bindings)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) body)
-      ILetRecExpr bindings body -> TILetRecExpr
-        (map (\(v, e') -> (v, iexprToTIExprSimple (Types.Forall [] [] ty) e')) bindings)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) body)
-      
-      -- Pattern matching
-      IMatchExpr mode target matcher clauses -> TIMatchExpr mode
-        (iexprToTIExprSimple (Types.Forall [] [] ty) target)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) matcher)
-        (map (\(pat, body) -> (pat, iexprToTIExprSimple (Types.Forall [] [] ty) body)) clauses)
-      IMatchAllExpr mode target matcher clauses -> TIMatchAllExpr mode
-        (iexprToTIExprSimple (Types.Forall [] [] ty) target)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) matcher)
-        (map (\(pat, body) -> (pat, iexprToTIExprSimple (Types.Forall [] [] ty) body)) clauses)
-      IMatcherExpr patDefs -> TIMatcherExpr
-        (map (\(ppPat, nextMatcher, dataClauses) ->
-          let nextMatcherTI = iexprToTIExprSimple (Types.Forall [] [] ty) nextMatcher
-              dataClausesTI = map (\(pdPat, expr) -> 
-                (pdPat, iexprToTIExprSimple (Types.Forall [] [] ty) expr)) dataClauses
-          in (ppPat, nextMatcherTI, dataClausesTI)) patDefs)
-      
-      -- Inductive data
-      IInductiveDataExpr name exprs -> TIInductiveDataExpr name
-        (map (iexprToTIExprSimple (Types.Forall [] [] ty)) exprs)
-      
-      -- Tensors
-      IGenerateTensorExpr shape func -> TIGenerateTensorExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) shape)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) func)
-      ITensorExpr shape elems -> TITensorExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) shape)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) elems)
-      ITensorContractExpr tensor -> TITensorContractExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) tensor)
-      ITensorMapExpr func tensor -> TITensorMapExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) func)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) tensor)
-      ITensorMap2Expr func t1 t2 -> TITensorMap2Expr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) func)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) t1)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) t2)
-      ITransposeExpr tensor perm -> TITransposeExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) tensor)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) perm)
-      IFlipIndicesExpr tensor -> TIFlipIndicesExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) tensor)
-      
-      -- Other
-      IWithSymbolsExpr syms body -> TIWithSymbolsExpr syms
-        (iexprToTIExprSimple (Types.Forall [] [] ty) body)
-      IDoExpr bindings body -> TIDoExpr
-        (map (\(v, e') -> (v, iexprToTIExprSimple (Types.Forall [] [] ty) e')) bindings)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) body)
-      IQuoteExpr inner -> TIQuoteExpr (iexprToTIExprSimple (Types.Forall [] [] ty) inner)
-      IQuoteSymbolExpr inner -> TIQuoteSymbolExpr (iexprToTIExprSimple (Types.Forall [] [] ty) inner)
-      IWedgeApplyExpr func args -> TIWedgeApplyExpr
-        (iexprToTIExprSimple (Types.Forall [] [] ty) func)
-        (map (iexprToTIExprSimple (Types.Forall [] [] ty)) args)
-      IFunctionExpr names -> TIFunctionExpr names
-      
-      -- Indexed expressions (keep indices as IExpr for now)
-      IIndexedExpr b base indices -> TIIndexedExpr b
-        (iexprToTIExprSimple (Types.Forall [] [] ty) base)
-        indices
-      ISubrefsExpr b base ref -> TISubrefsExpr b
-        (iexprToTIExprSimple (Types.Forall [] [] ty) base)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) ref)
-      ISuprefsExpr b base ref -> TISuprefsExpr b
-        (iexprToTIExprSimple (Types.Forall [] [] ty) base)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) ref)
-      IUserrefsExpr b base ref -> TIUserrefsExpr b
-        (iexprToTIExprSimple (Types.Forall [] [] ty) base)
-        (iexprToTIExprSimple (Types.Forall [] [] ty) ref)
-
--- NOTE: iTopExprToTITopExprFromScheme and iexprToTIExprSimple are no longer needed
--- since inferITopExpr now returns TITopExpr directly
-
--- | Expand type class methods in a top-level expression
-expandTypeClassInTopExpr :: TITopExpr -> EvalM TITopExpr
-expandTypeClassInTopExpr tiTopExpr = case tiTopExpr of
-  TIDefine scheme var tiExpr -> do
-    -- Merge the definition's constraints into the expression's scheme
-    let tiExpr' = mergeConstraintsIntoExpr scheme tiExpr
-    -- Then expand methods in the expression
-    tiExpr'' <- expandTypeClassMethodsT tiExpr'
-    -- Then add dictionary parameters if there are constraints
-    tiExpr''' <- addDictionaryParametersT scheme tiExpr''
-    return $ TIDefine scheme var tiExpr'''
-      where
-        mergeConstraintsIntoExpr :: Types.TypeScheme -> TIExpr -> TIExpr
-        mergeConstraintsIntoExpr (Types.Forall tvs cs _) (TIExpr (Types.Forall tvs' cs' ty) node) =
-          -- Merge constraints from parent scheme into expression scheme
-          TIExpr (Types.Forall (tvs ++ tvs') (cs ++ cs') ty) node
-  TITest tiExpr -> do
-    tiExpr' <- expandTypeClassMethodsT tiExpr
-    return $ TITest tiExpr'
-  TIExecute tiExpr -> do
-    tiExpr' <- expandTypeClassMethodsT tiExpr
-    return $ TIExecute tiExpr'
-  TILoadFile path -> return $ TILoadFile path
-  TILoad lib -> return $ TILoad lib
-  TIDefineMany bindings -> do
-    bindings' <- mapM (\(var, tiExpr) -> do
-      tiExpr' <- expandTypeClassMethodsT tiExpr
-      return (var, tiExpr')) bindings
-    return $ TIDefineMany bindings'
-
 evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM (Maybe EgisonValue, Env)
 evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   opts <- ask
