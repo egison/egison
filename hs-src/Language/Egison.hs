@@ -16,6 +16,7 @@ module Language.Egison
        , module Language.Egison.RState
        -- * Environment
        , initialEnv
+       , coreLibraries
        -- * Information
        , version
       ) where
@@ -38,23 +39,14 @@ import           Language.Egison.RState
 version :: Version
 version = P.version
 
--- |Environment that contains core libraries
+-- |Create initial environment with only primitive functions
+-- Core libraries will be loaded separately to maintain consistent Env chain
 -- Returns EvalM Env to preserve EvalState (type environment, class environment)
 initialEnv :: EvalM Env
 initialEnv = do
   isNoIO <- lift $ lift $ asks optNoIO
-  isNoPrelude <- lift $ lift $ asks optNoPrelude
-  useMathNormalize <- lift $ lift $ asks optMathNormalize
   env <- liftIO $ if isNoIO then primitiveEnvNoIO else primitiveEnv
-  -- If --no-prelude is set, skip loading core libraries
-  if isNoPrelude
-    then return env
-    else do
-    -- TODO: Add back the math normalization library
---      let normalizeLib = if useMathNormalize then "lib/math/normalize.egi" else "lib/math/no-normalize.egi"
---      env' <- evalTopExprs env $ map Load (coreLibraries ++ [normalizeLib])
-      env' <- evalTopExprs env $ map Load coreLibraries
-      return env'
+  return env
 
 coreLibraries :: [String]
 coreLibraries =

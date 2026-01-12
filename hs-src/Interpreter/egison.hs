@@ -42,18 +42,27 @@ runWithOptions opts = evalRuntimeT opts run
 run :: RuntimeM ()
 run = do
   opts <- ask
-  -- Collect all files to load (libs, load files, and test files)
-  let libExprs = map Load (optLoadLibs opts)
+  -- Collect all files to load (core libs, user libs, load files, and test files)
+  -- Load core libraries first unless --no-prelude is set
+  isNoPrelude <- asks optNoPrelude
+  let coreLibExprs = if isNoPrelude then [] else map Load coreLibraries
+      libExprs = map Load (optLoadLibs opts)
       loadFileExprs = map LoadFile (optLoadFiles opts)
       -- Include test file in the initial load to preserve type class environment
       testFileExprs = case (optTestOnly opts, optExecFile opts) of
         (True, Just (file, _)) -> [LoadFile file]
         _                      -> []
-      allLoadExprs = libExprs ++ loadFileExprs ++ testFileExprs
-  -- Load core libraries and user files in a single EvalM context to preserve EvalState
+      -- Load core libraries first, then user libraries and files
+      allLoadExprs = coreLibExprs ++ libExprs ++ loadFileExprs ++ testFileExprs
+  -- Load all libraries and user files in a single EvalM context to preserve EvalState
+  liftIO $ putStrLn $ "DEBUG: Loading " ++ show (length allLoadExprs) ++ " expressions"
+  liftIO $ putStrLn $ "DEBUG: First 3 exprs: " ++ show (take 3 allLoadExprs)
   mEnv <- fromEvalT $ do
-    coreEnv <- initialEnv
-    evalTopExprs' coreEnv allLoadExprs True True
+    env <- initialEnv  -- Only primitive environment
+    liftIO $ putStrLn $ "DEBUG: initialEnv created"
+    result <- evalTopExprs' env allLoadExprs True True
+    liftIO $ putStrLn $ "DEBUG: evalTopExprs' completed"
+    return result
   case mEnv of
     Left err  -> liftIO $ print err
     Right env -> handleOption env opts
