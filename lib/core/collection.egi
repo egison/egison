@@ -78,7 +78,63 @@ instance {Eq a} Eq [a] where
       | ($x :: $xs', $y :: $ys') -> x == y && xs' == ys'
       | _ -> False
   (/=) xs ys := not (xs == ys)
-  
+
+instance {Ord a} Ord [a] where
+  compare c1 c2 :=
+    match (c1, c2) as (list something, list something) with
+      | ([], []) -> Equal
+      | ([], _) -> Less
+      | (_, []) -> Greater
+      | ($x :: $xs, #x :: $ys) -> compare xs ys
+      | ($x :: _, $y :: _) -> compare x y
+  (<) xs ys := compare xs ys = Less
+  (<=) xs ys := compare xs ys != Greater
+  (>) xs ys := compare xs ys = Greater
+  (>=) xs ys := compare xs ys != Less
+  min xs ys := if compare xs ys = Less then xs else ys
+  max xs ys := if compare xs ys = Greater then xs else ys
+
+def minimum {Ord a} (xs: [a]) : a :=
+  foldl1 min xs
+
+def maximum {Ord a} (xs: [a]) : a :=
+  foldl1 max xs
+
+-- splitByOrdering uses $x pattern which doesn't support type annotations
+def splitByOrdering {Ord a} (p: a) (xs: [a]) : ([a], [a], [a]) :=
+  match xs as list something with
+    | [] -> ([], [], [])
+    | $x :: $rs ->
+        let (ys1, ys2, ys3) := splitByOrdering p rs
+         in match compare x p as ordering with
+              | less    -> (x :: ys1, ys2, ys3)
+              | equal   -> (ys1, x :: ys2, ys3)
+              | greater -> (ys1, ys2, x :: ys3)
+
+def sort {Ord a} (xs: [a]) : [a] :=
+  match xs as list something with
+    | [] -> []
+    | $x :: [] -> [x]
+    | _ ->
+        let n := length xs
+            p := nth (quotient n 2) xs
+            (ys1, ys2, ys3) := splitByOrdering p xs
+         in sort ys1 ++ ys2 ++ sort ys3
+
+def merge {Ord a} (xs: [a]) (ys: [a]) : [a] :=
+  match (xs, ys) as (list something, list something) with
+    | ([], _) -> ys
+    | (_, []) -> xs
+    | ($x :: $txs, ?(>= x) :: _) -> x :: merge txs ys
+    | (_, $y :: $tys) -> y :: merge xs tys
+
+def minimize {a, Ord b} (f: a -> b) (xs: [a]) : a :=
+  foldl1 (\x y -> if compare (f x) (f y) = Less then x else y) xs
+
+def maximize {a, Ord b} (f: a -> b) (xs: [a]) : a :=
+  foldl1 (\x y -> if compare (f x) (f y) = Greater then x else y) xs
+
+
 --
 -- Accessors
 --

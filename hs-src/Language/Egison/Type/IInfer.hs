@@ -1262,13 +1262,34 @@ inferIExprWithContext expr ctx = case expr of
     let targetType = tiExprType targetTI
         matcherType = tiExprType matcherTI
     
-    -- Matcher should be TMatcher a, and target should be a
-    matchedTy <- freshVar "matched"
+    -- Matcher should be TMatcher a or (TMatcher a, TMatcher b, ...) which becomes TMatcher (a, b, ...)
     let s12 = composeSubst s2 s1
-    s3 <- unifyTypesWithContext (applySubst s12 matcherType) (TMatcher matchedTy) exprCtx
+        appliedMatcherType = applySubst s12 matcherType
+    
+    -- Normalize matcher type: if it's a tuple, ensure each element is a Matcher
+    (_normalizedMatcherType, matchedInnerType, s3) <- case appliedMatcherType of
+      TTuple elemTypes -> do
+        -- Each tuple element should be Matcher ai
+        matchedInnerTypes <- mapM (\_ -> freshVar "matched") elemTypes
+        s_elems <- foldM (\accS (elemTy, innerTy) -> do
+          let appliedElemTy = applySubst accS elemTy
+              appliedInnerTy = applySubst accS innerTy
+          s' <- unifyTypesWithContext appliedElemTy (TMatcher appliedInnerTy) exprCtx
+          return $ composeSubst s' accS
+          ) emptySubst (zip elemTypes matchedInnerTypes)
+        -- The tuple as a whole becomes Matcher (a1, a2, ...)
+        let finalInnerTypes = map (applySubst s_elems) matchedInnerTypes
+            tupleInnerType = TTuple finalInnerTypes
+        return (TMatcher tupleInnerType, tupleInnerType, s_elems)
+      _ -> do
+        -- Single matcher: TMatcher a
+        matchedTy <- freshVar "matched"
+        s' <- unifyTypesWithContext appliedMatcherType (TMatcher matchedTy) exprCtx
+        let finalMatchedTy = applySubst s' matchedTy
+        return (TMatcher finalMatchedTy, finalMatchedTy, s')
     
     let s123 = composeSubst s3 s12
-    s4 <- unifyTypesWithContext (applySubst s123 targetType) (applySubst s123 matchedTy) exprCtx
+    s4 <- unifyTypesWithContext (applySubst s123 targetType) (applySubst s123 matchedInnerType) exprCtx
     
     -- Infer match clauses result type
     let s1234 = composeSubst s4 s123
@@ -1279,7 +1300,7 @@ inferIExprWithContext expr ctx = case expr of
         return (mkTIExpr (applySubst s1234 resultTy) (TIMatchExpr mode targetTI matcherTI []), s1234)
       _ -> do
         -- Infer type of each clause and unify them
-        (resultTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedTy) clauses s1234
+        (resultTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedInnerType) clauses s1234
         let finalS = composeSubst clauseSubst s1234
         return (mkTIExpr (applySubst finalS resultTy) (TIMatchExpr mode targetTI matcherTI clauseTIs), finalS)
   
@@ -1291,12 +1312,34 @@ inferIExprWithContext expr ctx = case expr of
     let targetType = tiExprType targetTI
         matcherType = tiExprType matcherTI
     
-    matchedTy <- freshVar "matched"
+    -- Matcher should be TMatcher a or (TMatcher a, TMatcher b, ...) which becomes TMatcher (a, b, ...)
     let s12 = composeSubst s2 s1
-    s3 <- unifyTypesWithContext (applySubst s12 matcherType) (TMatcher matchedTy) exprCtx
+        appliedMatcherType = applySubst s12 matcherType
+    
+    -- Normalize matcher type: if it's a tuple, ensure each element is a Matcher
+    (_normalizedMatcherType, matchedInnerType, s3) <- case appliedMatcherType of
+      TTuple elemTypes -> do
+        -- Each tuple element should be Matcher ai
+        matchedInnerTypes <- mapM (\_ -> freshVar "matched") elemTypes
+        s_elems <- foldM (\accS (elemTy, innerTy) -> do
+          let appliedElemTy = applySubst accS elemTy
+              appliedInnerTy = applySubst accS innerTy
+          s' <- unifyTypesWithContext appliedElemTy (TMatcher appliedInnerTy) exprCtx
+          return $ composeSubst s' accS
+          ) emptySubst (zip elemTypes matchedInnerTypes)
+        -- The tuple as a whole becomes Matcher (a1, a2, ...)
+        let finalInnerTypes = map (applySubst s_elems) matchedInnerTypes
+            tupleInnerType = TTuple finalInnerTypes
+        return (TMatcher tupleInnerType, tupleInnerType, s_elems)
+      _ -> do
+        -- Single matcher: TMatcher a
+        matchedTy <- freshVar "matched"
+        s' <- unifyTypesWithContext appliedMatcherType (TMatcher matchedTy) exprCtx
+        let finalMatchedTy = applySubst s' matchedTy
+        return (TMatcher finalMatchedTy, finalMatchedTy, s')
     
     let s123 = composeSubst s3 s12
-    s4 <- unifyTypesWithContext (applySubst s123 targetType) (applySubst s123 matchedTy) exprCtx
+    s4 <- unifyTypesWithContext (applySubst s123 targetType) (applySubst s123 matchedInnerType) exprCtx
     
     -- MatchAll returns a collection of results from match clauses
     let s1234 = composeSubst s4 s123
@@ -1307,7 +1350,7 @@ inferIExprWithContext expr ctx = case expr of
         return (mkTIExpr (TCollection (applySubst s1234 resultElemTy)) (TIMatchAllExpr mode targetTI matcherTI []), s1234)
       _ -> do
         -- Infer type of each clause (they should all have the same type)
-        (resultElemTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedTy) clauses s1234
+        (resultElemTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedInnerType) clauses s1234
         let finalS = composeSubst clauseSubst s1234
         return (mkTIExpr (TCollection (applySubst finalS resultElemTy)) (TIMatchAllExpr mode targetTI matcherTI clauseTIs), finalS)
   
