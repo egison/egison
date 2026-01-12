@@ -39,24 +39,22 @@ version :: Version
 version = P.version
 
 -- |Environment that contains core libraries
-initialEnv :: RuntimeM Env
+-- Returns EvalM Env to preserve EvalState (type environment, class environment)
+initialEnv :: EvalM Env
 initialEnv = do
-  isNoIO <- asks optNoIO
-  isNoPrelude <- asks optNoPrelude
-  useMathNormalize <- asks optMathNormalize
+  isNoIO <- lift $ lift $ asks optNoIO
+  isNoPrelude <- lift $ lift $ asks optNoPrelude
+  useMathNormalize <- lift $ lift $ asks optMathNormalize
   env <- liftIO $ if isNoIO then primitiveEnvNoIO else primitiveEnv
   -- If --no-prelude is set, skip loading core libraries
   if isNoPrelude
     then return env
     else do
-      let normalizeLib = if useMathNormalize then "lib/math/normalize.egi" else "lib/math/no-normalize.egi"
-      ret <- local (const defaultOption)
-                   (fromEvalT (evalTopExprs env $ map Load (coreLibraries ++ [normalizeLib])))
-      case ret of
-        Left err -> do
-          liftIO $ print (show err)
-          return env
-        Right env' -> return env'
+    -- TODO: Add back the math normalization library
+--      let normalizeLib = if useMathNormalize then "lib/math/normalize.egi" else "lib/math/no-normalize.egi"
+--      env' <- evalTopExprs env $ map Load (coreLibraries ++ [normalizeLib])
+      env' <- evalTopExprs env $ map Load coreLibraries
+      return env'
 
 coreLibraries :: [String]
 coreLibraries =
@@ -65,14 +63,13 @@ coreLibraries =
   , "lib/core/order.egi"
 --  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
 --  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
---  , "lib/core/collection.egi"        -- Defines (++) for patterns
+  , "lib/core/collection.egi"        -- Defines (++) for patterns
 --  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
 
-  , "lib/core/typeclass.egi"         -- Type class definitions and instances
-  , "lib/core/assoc.egi"
-  , "lib/core/io.egi"
-  , "lib/core/maybe.egi"
-  , "lib/core/number.egi"
+--  , "lib/core/assoc.egi"
+--  , "lib/core/io.egi"
+--  , "lib/core/maybe.egi"
+--  , "lib/core/number.egi"
 --  , "lib/core/random.egi"
 --  , "lib/core/string.egi"
 --  , "lib/core/sort.egi"
