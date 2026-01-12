@@ -1777,11 +1777,29 @@ inferIPattern pat expectedType ctx = case pat of
   
   IIndexedPat p indices -> do
     -- Indexed pattern: infer base pattern and index expressions
-    (tipat, bindings, s1) <- inferIPattern p expectedType ctx
-    (indexTIs, s2) <- foldM (\(accTIs, accS) idx -> do
+    -- For $x_i pattern, x should have type Hash keyType expectedType
+    -- where expectedType is the type of the indexed result
+    
+    -- First, infer the index expressions to determine their types
+    indexTypes <- mapM (\_ -> freshVar "idx") indices
+    (indexTIs, s1) <- foldM (\(accTIs, accS) (idx, idxType) -> do
       (idxTI, idxS) <- inferIExprWithContext idx ctx
-      return (accTIs ++ [idxTI], composeSubst idxS accS)) ([], s1) indices
-    let finalS = s2
+      let actualIdxType = tiExprType idxTI
+      s' <- unifyTypesWithContext (applySubst idxS actualIdxType) (applySubst idxS idxType) ctx
+      let finalS = composeSubst s' (composeSubst idxS accS)
+      return (accTIs ++ [idxTI], finalS)) ([], emptySubst) (zip indices indexTypes)
+    
+    -- Construct the base type: Hash indexType expectedType
+    -- For simplicity, assume single index access and use THash
+    let indexType = case indexTypes of
+                      [t] -> applySubst s1 t
+                      _ -> TInt  -- Multiple indices: fallback to Int
+        baseType = THash indexType expectedType
+    
+    -- Infer base pattern with Hash type
+    (tipat, bindings, s2) <- inferIPattern p (applySubst s1 baseType) ctx
+    
+    let finalS = composeSubst s2 s1
         finalType = applySubst finalS expectedType
         tiIndexedPat = TIPattern (Forall [] [] finalType) (TIIndexedPat tipat indexTIs)
     return (tiIndexedPat, bindings, finalS)

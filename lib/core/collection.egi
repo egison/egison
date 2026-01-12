@@ -4,9 +4,6 @@
 --
 --
 
-infixr pattern 5 ++
-infixl pattern 5 *:
-
 inductive pattern [a] :=
     | []
     | (::) a [a]
@@ -287,16 +284,6 @@ def iterate {a} (fn: a -> a) (x: a) : [a] :=
       nx4 := fn nx3
       nx5 := fn nx4
    in x :: nx1 :: nx2 :: nx3 :: nx4 :: iterate fn nx5
-
-def repeatedSquaring {a} (fn: a -> a -> a) (x: a) (n: Integer) : a :=
-  match n as integer with
-    | #1 -> x
-    | ?isEven ->
-      let y := repeatedSquaring fn x (quotient n 2)
-       in fn y y
-    | ?isOdd ->
-      let y := repeatedSquaring fn x (quotient n 2)
-       in fn (fn y y) x
 
 def concat {a} (xss: [[a]]) : [a] := foldr (\xs rs -> xs ++ rs) [] xss
 

@@ -4,66 +4,6 @@
 
 
 -- | Type class for comparison and ordering
-class Ord a extends Eq a where
-  compare (x: a) (y: a) : Ordering
-  (<) (x: a) (y: a) : Bool
-  (<=) (x: a) (y: a) : Bool
-  (>) (x: a) (y: a) : Bool
-  (>=) (x: a) (y: a) : Bool
-  min (x: a) (y: a) : a
-  max (x: a) (y: a) : a
-
--- | Ord instances for basic types
-instance Ord Integer where
-  compare x y := if x < y then Less else if x > y then Greater else Equal
-  (<) x y := x < y
-  (<=) x y := x <= y
-  (>) x y := x > y
-  (>=) x y := x >= y
-  min x y := if x < y then x else y
-  max x y := if x > y then x else y
-
-instance Ord Float where
-  compare x y := if x < y then Less else if x > y then Greater else Equal
-  (<) x y := x < y
-  (<=) x y := x <= y
-  (>) x y := x > y
-  (>=) x y := x >= y
-  min x y := if x < y then x else y
-  max x y := if x > y then x else y
-
-instance Ord Char where
-  compare x y := if ctoi x < ctoi y then Less else if ctoi x > ctoi y then Greater else Equal
-  (<) x y := ctoi x < ctoi y
-  (<=) x y := ctoi x <= ctoi y
-  (>) x y := ctoi x > ctoi y
-  (>=) x y := ctoi x >= ctoi y
-  min x y := if ctoi x < ctoi y then x else y
-  max x y := if ctoi x > ctoi y then x else y
-
-instance Ord String where
-  compare s1 s2 := compare (unpack s1) (unpack s2)
-  (<) s1 s2 := compare s1 s2 = Less
-  (<=) s1 s2 := compare s1 s2 != Greater
-  (>) s1 s2 := compare s1 s2 = Greater
-  (>=) s1 s2 := compare s1 s2 != Less
-  min s1 s2 := if compare s1 s2 = Less then s1 else s2
-  max s1 s2 := if compare s1 s2 = Greater then s1 else s2
-
-instance {Ord a} Ord [a] where
-  compare c1 c2 :=
-    match (c1, c2) as (list something, list something) with
-      | ([], []) -> Equal
-      | ([], _) -> Less
-      | (_, []) -> Greater
-      | ($x :: $xs, #x :: $ys) -> compare xs ys
-      | ($x :: _, $y :: _) -> compare x y
-  (<) xs ys := compare xs ys = Less
-  (<=) xs ys := compare xs ys != Greater
-  (>) xs ys := compare xs ys = Greater
-  (>=) xs ys := compare xs ys != Less
-  min xs ys := if compare xs ys = Less then xs else ys
-  max xs ys := if compare xs ys = Greater then xs else ys
 
 -- | Type class for numeric types
 class Num a where
@@ -90,3 +30,14 @@ instance Num Float where
   negate x := f.neg x
   abs x := f.abs x
   fromInteger n := itof n
+
+def repeatedSquaring {a} (fn: a -> a -> a) (x: a) (n: Integer) : a :=
+  match n as integer with
+    | #1 -> x
+    | ?isEven ->
+      let y := repeatedSquaring fn x (quotient n 2)
+       in fn y y
+    | ?isOdd ->
+      let y := repeatedSquaring fn x (quotient n 2)
+       in fn (fn y y) x
+
