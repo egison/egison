@@ -56,7 +56,7 @@ import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
-import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
+import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv)
 import           Language.Egison.Type.TypeClassExpand ()
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
@@ -137,15 +137,25 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   --   2. Type class definitions (from ClassDeclExpr)
   --   3. Instance definitions (from InstanceDeclExpr)
   --   4. Type signatures (from DefineWithType)
+  
+  -- Get existing environments (may contain previously loaded libraries)
+  currentTypeEnv <- getTypeEnv
+  currentClassEnv <- getClassEnv
+  
+  -- Build environments from current expressions
   envResult <- buildEnvironments exprs
   
-  -- Merge builtinEnv (primitive functions) with user-defined types
-  -- builtinEnv is the base, user definitions extend it (can override primitives)
-  let initialTypeEnv = extendEnvMany (envToList (ebrTypeEnv envResult)) builtinEnv
+  -- Merge existing environments with newly built environments
+  -- New definitions extend existing ones (can override)
+  let newTypeEnv = ebrTypeEnv envResult
+      -- If currentTypeEnv is empty, use builtinEnv as base
+      baseTypeEnv = if null (envToList currentTypeEnv) then builtinEnv else currentTypeEnv
+      mergedTypeEnv = extendEnvMany (envToList newTypeEnv) baseTypeEnv
+      mergedClassEnv = mergeClassEnv currentClassEnv (ebrClassEnv envResult)
   
-  -- Update EvalState with collected environments (including builtinEnv)
-  setTypeEnv initialTypeEnv
-  setClassEnv (ebrClassEnv envResult)
+  -- Update EvalState with merged environments
+  setTypeEnv mergedTypeEnv
+  setClassEnv mergedClassEnv
   
   -- Register constructors to EvalState
   forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
@@ -153,7 +163,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   
   -- Dump environment if requested
   when (optDumpEnv opts) $ do
-    dumpEnvironment initialTypeEnv (ebrClassEnv envResult) (ebrConstructorEnv envResult) 
+    dumpEnvironment mergedTypeEnv mergedClassEnv (ebrConstructorEnv envResult) 
                     (ebrPatternConstructorEnv envResult) (ebrPatternTypeEnv envResult)
   
   -- Dump desugared AST if requested

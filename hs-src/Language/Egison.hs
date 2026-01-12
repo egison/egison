@@ -62,10 +62,10 @@ coreLibraries :: [String]
 coreLibraries =
   -- Libs that defines user-defined infixes comes first
   [ "lib/core/base.egi"              -- Defines (&&) (||)
-  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
-  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
-  , "lib/core/collection.egi"        -- Defines (++) for patterns
-  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
+--  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
+--  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+--  , "lib/core/collection.egi"        -- Defines (++) for patterns
+--  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
 
   , "lib/core/typeclass.egi"         -- Type class definitions and instances
   , "lib/core/assoc.egi"
@@ -73,17 +73,17 @@ coreLibraries =
   , "lib/core/maybe.egi"
   , "lib/core/number.egi"
   , "lib/core/order.egi"
-  , "lib/core/random.egi"
-  , "lib/core/string.egi"
-  , "lib/core/sort.egi"
-  , "lib/math/common/constants.egi"
-  , "lib/math/common/functions.egi"
-  , "lib/math/algebra/root.egi"
-  , "lib/math/algebra/equations.egi"
-  , "lib/math/algebra/inverse.egi"
-  , "lib/math/analysis/derivative.egi"
-  , "lib/math/analysis/integral.egi"
-  , "lib/math/algebra/vector.egi"
-  , "lib/math/algebra/matrix.egi"
-  , "lib/math/geometry/differential-form.egi"
+--  , "lib/core/random.egi"
+--  , "lib/core/string.egi"
+--  , "lib/core/sort.egi"
+--  , "lib/math/common/constants.egi"
+--  , "lib/math/common/functions.egi"
+--  , "lib/math/algebra/root.egi"
+--  , "lib/math/algebra/equations.egi"
+--  , "lib/math/algebra/inverse.egi"
+--  , "lib/math/analysis/derivative.egi"
+--  , "lib/math/analysis/integral.egi"
+--  , "lib/math/algebra/vector.egi"
+--  , "lib/math/algebra/matrix.egi"
+--  , "lib/math/geometry/differential-form.egi"
   ]
