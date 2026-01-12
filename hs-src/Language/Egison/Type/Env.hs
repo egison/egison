@@ -39,7 +39,6 @@ import qualified Data.Map.Strict            as Map
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 
-import           Language.Egison.Type.Subst (applySubstScheme)
 import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..),
                                              Constraint(..), ClassInfo(..), InstanceInfo(..),
                                              freeTyVars, freshTyVar)

@@ -207,7 +207,6 @@ processTopExpr result topExpr = case topExpr of
   Test {} -> return result
   Execute {} -> return result
   LoadFile {} -> return result  -- Should not appear after expandLoads
-  Load {} -> return result      -- Should not appear after expandLoads
   InfixDecl {} -> return result
   
   -- 7. Symbol Declarations (from DeclareSymbol)

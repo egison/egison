@@ -34,12 +34,12 @@ import           Data.Text                  (pack)
 import           Language.Egison.AST        (ConstantExpr(..))
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
-import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), IExpr(..), Var(..), stringToVar,
+import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), IExpr(..), stringToVar,
                                              Index(..), tiExprType, tiScheme, tiExprNode)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), typeToName, sanitizeMethodName,
-                                            capitalizeFirst, lowerFirst, findMatchingInstanceForType, InstanceInfo(..))
+                                            findMatchingInstanceForType)
 
 -- | Expand type class method calls in a typed expression (TIExpr)
 -- This function recursively processes TIExpr and replaces type class method calls
