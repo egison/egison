@@ -52,11 +52,11 @@ module Language.Egison.Type.IInfer
 
 import           Control.Monad              (foldM, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
-import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, gets, modify, put)
+import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
 import           Data.Maybe                  (catMaybes)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
-import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..), PMMode (..))
+import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..))
 import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExpr (..)
                                             , TIExpr (..), TIExprNode (..)
                                             , IBindingExpr, TIBindingExpr
@@ -69,13 +69,12 @@ import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
-                                              emptyContext, withExpr, withContext)
+                                              emptyContext, withExpr)
 import           Language.Egison.Type.Subst (Subst, applySubst, applySubstConstraint,
                                               applySubstScheme, composeSubst, emptySubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
-import qualified Language.Egison.Type.Unify as Unify
 
 --------------------------------------------------------------------------------
 -- * Infer Monad and State

@@ -35,8 +35,6 @@ builtinTypes = concat
   ]
   where
     a = TyVar "a"
-    b = TyVar "b"
-    c = TyVar "c"
 
     -- | Make a binary operator type (returns Type, not TypeScheme)
     binOpT :: Type -> Type -> Type -> Type
@@ -57,19 +55,9 @@ builtinTypes = concat
     forallA :: Type -> TypeScheme
     forallA = Forall [a] []
 
-    forallAB :: Type -> TypeScheme
-    forallAB = Forall [a, b] []
-
-    forallABC :: Type -> TypeScheme
-    forallABC = Forall [a, b, c] []
-
     -- | forallA with binary op
     forallABinOp :: Type -> Type -> Type -> TypeScheme
     forallABinOp t1 t2 t3 = Forall [a] [] $ binOpT t1 t2 t3
-
-    -- | forallAB with binary op
-    forallABBinOp :: Type -> Type -> Type -> TypeScheme
-    forallABBinOp t1 t2 t3 = Forall [a, b] [] $ binOpT t1 t2 t3
 
     -- Constants (from Primitives.hs)
     constantsTypes =

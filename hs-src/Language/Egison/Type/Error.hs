@@ -23,7 +23,7 @@ module Language.Egison.Type.Error
 import           Data.List                  (intercalate)
 import           GHC.Generics               (Generic)
 
-import           Language.Egison.Type.Index (IndexSpec, Index(..), IndexKind(..))
+import           Language.Egison.Type.Index (IndexSpec)
 import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..))
 
 -- | Source location information
@@ -236,15 +236,4 @@ prettyShape :: TensorShape -> String
 prettyShape (ShapeLit dims) = show dims
 prettyShape (ShapeVar v) = v
 prettyShape ShapeUnknown = "?"
-
--- | Pretty print indices
-prettyIndices :: IndexSpec -> String
-prettyIndices [] = ""
-prettyIndices is = concatMap prettyIndex is
-  where
-    prettyIndex (IndexSym Superscript s) = "~" ++ s
-    prettyIndex (IndexSym Subscript s) = "_" ++ s
-    prettyIndex (IndexPlaceholder Superscript) = "~#"
-    prettyIndex (IndexPlaceholder Subscript) = "_#"
-    prettyIndex (IndexVar s) = s
 
