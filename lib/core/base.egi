@@ -4,10 +4,6 @@
 --
 --
 
--- | Infix declarations for equality operators
-infixl expression 4 ==
-infixl expression 4 /=
-
 -- | Type class for equality
 class Eq a where
   (==) (x: a) (y: a) : Bool
@@ -50,6 +46,24 @@ def char : Matcher Char := eq
 def integer : Matcher Integer := eq
 def float : Matcher Float := eq
 
+class Num a where
+  (+) (x: a) (y: a) : a
+  (-) (x: a) (y: a) : a
+  (*) (x: a) (y: a) : a
+  (/) (x: a) (y: a) : a
+
+instance Num MathExpr where
+  (+) x y := (b.+ x y)
+  (-) x y := (b.- x y)
+  (*) x y := (b.* x y)
+  (/) x y := (b./ x y)
+
+instance Num Float where
+  (+) x y := (f.+ x y)
+  (-) x y := (f.- x y)
+  (*) x y := (f.* x y)
+  (/) x y := (f./ x y)
+
 --
 -- Utility
 --
@@ -78,9 +92,6 @@ def uncurry {a, b, c} (f: a -> b -> c) (x: a, y: b) : c := f x y
 --
 -- Boolean
 --
-
-infixr expression 3 &&
-infixr expression 2 ||
 
 def (&&) (b1: Bool) (b2: Bool) : Bool := if b1 then b2 else False
 def (||) (b1: Bool) (b2: Bool) : Bool := if b1 then True else b2

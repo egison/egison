@@ -43,8 +43,17 @@ run :: RuntimeM ()
 run = do
   opts <- ask
   coreEnv <- initialEnv
-  -- Load libs without dumping typed AST (dumpTyped should only show user's file)
-  mEnv <- fromEvalT $ evalTopExprs' coreEnv (map Load (optLoadLibs opts) ++ map LoadFile (optLoadFiles opts)) True False
+  -- Collect all files to load (libs, load files, and test files)
+  let libExprs = map Load (optLoadLibs opts)
+      loadFileExprs = map LoadFile (optLoadFiles opts)
+      -- Include test file in the initial load to preserve type class environment
+      testFileExprs = case (optTestOnly opts, optExecFile opts) of
+        (True, Just (file, _)) -> [LoadFile file]
+        _                      -> []
+      allLoadExprs = libExprs ++ loadFileExprs ++ testFileExprs
+  -- Load all files at once without dumping typed AST for library files
+  -- (dumpTyped should only show user's file)
+  mEnv <- fromEvalT $ evalTopExprs' coreEnv allLoadExprs True False
   case mEnv of
     Left err  -> liftIO $ print err
     Right env -> handleOption env opts
@@ -69,12 +78,12 @@ handleOption env opts =
                                       else "          in each (\\x -> print (show x)) ((" ++ sub ++ ") SH.input))"
         in executeTopExpr env expr
     -- Execute a script (test only)
-    EgisonOpts { optTestOnly = True, optExecFile = Just (file, _) } -> do
-      exprs <- liftIO $ readFile file
-      result <- if optNoIO opts
-                   then fromEvalT (runTopExprs env exprs)
-                   else fromEvalT (evalTopExprs env [LoadFile file])
-      liftIO $ either print (const $ return ()) result
+    -- Note: The test file has already been loaded in the run function
+    -- to preserve the type class environment from library files.
+    -- Here we just need to evaluate the test expressions.
+    EgisonOpts { optTestOnly = True, optExecFile = Just (_file, _) } -> do
+      -- Test file has already been loaded, nothing more to do
+      return ()
     -- Execute a script from the main function
     EgisonOpts { optExecFile = Just (file, args) } -> do
       result <- fromEvalT $ evalTopExprs env [LoadFile file, Execute (makeApply "main" [CollectionExpr (map (ConstantExpr . StringExpr . T.pack) args)])]

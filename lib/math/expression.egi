@@ -288,3 +288,16 @@ def coefficient2 (f: MathExpr) (x: MathExpr) (y: MathExpr) : MathExpr :=
     (matchAll f as mathExpr with
       | poly (term $a (#x :: #y :: $ts) :: _) / _ ->
         foldl (*') a (map (uncurry (^')) ts)) / denominator f
+
+def L./ (xs: [MathExpr]) (ys: [MathExpr]) : ([MathExpr], [MathExpr]) :=
+  if length xs < length ys
+    then ([], xs)
+    else match (ys, xs) as (list mathExpr, list mathExpr) with
+      | ($y :: $yrs, $x :: $xrs) ->
+        let (zs, rs) := L./
+                          (map2
+                             (-)
+                             (take (length yrs) xrs)
+                             (map (* (x / y)) yrs) ++ drop (length yrs) xrs)
+                          ys
+         in (x / y :: zs, rs)

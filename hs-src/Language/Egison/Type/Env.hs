@@ -26,6 +26,7 @@ module Language.Egison.Type.Env
   , lookupClass
   , lookupInstances
   , classEnvToList
+  , mergeClassEnv
   -- * Pattern type environment
   , PatternTypeEnv(..)
   , emptyPatternEnv
@@ -158,6 +159,14 @@ lookupInstances name (ClassEnv _ insts) = Map.findWithDefault [] name insts
 -- | Convert class environment to list
 classEnvToList :: ClassEnv -> [(String, ClassInfo)]
 classEnvToList (ClassEnv classes _) = Map.toList classes
+
+-- | Merge two class environments
+-- The second environment's definitions take precedence in case of conflicts
+mergeClassEnv :: ClassEnv -> ClassEnv -> ClassEnv
+mergeClassEnv (ClassEnv classes1 insts1) (ClassEnv classes2 insts2) =
+  ClassEnv
+    (Map.union classes2 classes1)  -- classes2 takes precedence
+    (Map.unionWith (++) insts2 insts1)  -- Combine instance lists
 
 --------------------------------------------------------------------------------
 -- Pattern Type Environment
