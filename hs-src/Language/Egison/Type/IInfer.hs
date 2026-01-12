@@ -1790,15 +1790,14 @@ inferIPattern pat expectedType ctx = case pat of
     -- Let pattern: infer bindings and then the pattern
     -- Infer bindings first
     env <- getEnv
-    (_, bindingSchemes, s1) <- inferIBindingsWithContext bindings env emptySubst ctx
+    (bindingTIs, bindingSchemes, s1) <- inferIBindingsWithContext bindings env emptySubst ctx
     
     -- Infer pattern with bindings in scope
     (tipat, patBindings, s2) <- withEnv bindingSchemes $ inferIPattern p (applySubst s1 expectedType) ctx
     
     let s = composeSubst s2 s1
         finalType = applySubst s expectedType
-        -- TODO: convert bindings to TIBindingExpr
-        tiLetPat = TIPattern (Forall [] [] finalType) (TILetPat [] tipat)
+        tiLetPat = TIPattern (Forall [] [] finalType) (TILetPat bindingTIs tipat)
     -- Let bindings are not exported, only pattern bindings
     return (tiLetPat, patBindings, s)
   
