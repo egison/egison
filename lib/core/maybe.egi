@@ -4,6 +4,10 @@
 --
 --
 
+inductive pattern Maybe a :=
+  | nothing
+  | just a
+
 inductive Maybe a :=
   | Nothing
   | Just a

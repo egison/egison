@@ -51,9 +51,8 @@ run = do
         (True, Just (file, _)) -> [LoadFile file]
         _                      -> []
       allLoadExprs = libExprs ++ loadFileExprs ++ testFileExprs
-  -- Load all files at once without dumping typed AST for library files
-  -- (dumpTyped should only show user's file)
-  mEnv <- fromEvalT $ evalTopExprs' coreEnv allLoadExprs True False
+  -- Load all files at once and dump typed AST if requested
+  mEnv <- fromEvalT $ evalTopExprs' coreEnv allLoadExprs True True
   case mEnv of
     Left err  -> liftIO $ print err
     Right env -> handleOption env opts
