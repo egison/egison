@@ -1422,6 +1422,7 @@ inferIExprWithContext expr ctx = case expr of
               then TTensor elemType  -- Symbolic index: keep tensor type
               else elemType           -- Concrete index: element access
           TCollection elemType -> elemType
+          THash _keyType valType -> valType  -- Hash access returns value type
           _ -> baseType  -- Fallback: return base type
     -- TODO: Infer indices as TIExpr instead of IExpr
     return (mkTIExpr resultType (TIIndexedExpr isSupported baseTI indices), s)
