@@ -26,7 +26,7 @@ module Language.Egison.Desugar
     ) where
 
 import           Control.Monad.Except   (throwError)
-import           Data.Char              (toLower, toUpper)
+import           Data.Char              (toUpper)
 import           Data.Foldable          (foldrM)
 import           Data.List              (union)
 import           Data.Text              (pack)

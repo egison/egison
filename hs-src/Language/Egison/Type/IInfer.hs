@@ -64,7 +64,7 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , IPattern (..), ILoopRange (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
                                             , extractNameFromVar, Var (..), Index (..)
-                                            , tiExprType, tiExprScheme, stripType)
+                                            , tiExprType)
 import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
