@@ -51,14 +51,12 @@ import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
-import           Language.Egison.IExpr (TIExpr(..), TIExprNode(..), TITopExpr(..), ITopExpr(..), IExpr(..), Var, extractNameFromVar, stringToVar, stripTypeTopExpr)
+import           Language.Egison.IExpr (TIExpr(..), TIExprNode(..), TITopExpr(..), ITopExpr(..), IExpr(..), Var, stringToVar, stripTypeTopExpr)
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList)
-import qualified Language.Egison.Type.Env as Env
-import qualified Data.Set as Set
 import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT)
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)

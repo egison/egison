@@ -36,7 +36,7 @@ import qualified Data.Set         as Set
 import           GHC.Generics     (Generic)
 
 import           Language.Egison.AST        (TypeExpr(..))
-import           Language.Egison.Type.Index (IndexSpec, IndexKind, Index)
+import           Language.Egison.Type.Index ()
 
 -- | Type variable
 newtype TyVar = TyVar String
