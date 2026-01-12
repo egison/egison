@@ -42,7 +42,6 @@ runWithOptions opts = evalRuntimeT opts run
 run :: RuntimeM ()
 run = do
   opts <- ask
-  coreEnv <- initialEnv
   -- Collect all files to load (libs, load files, and test files)
   let libExprs = map Load (optLoadLibs opts)
       loadFileExprs = map LoadFile (optLoadFiles opts)
@@ -51,8 +50,10 @@ run = do
         (True, Just (file, _)) -> [LoadFile file]
         _                      -> []
       allLoadExprs = libExprs ++ loadFileExprs ++ testFileExprs
-  -- Load all files at once and dump typed AST if requested
-  mEnv <- fromEvalT $ evalTopExprs' coreEnv allLoadExprs True True
+  -- Load core libraries and user files in a single EvalM context to preserve EvalState
+  mEnv <- fromEvalT $ do
+    coreEnv <- initialEnv
+    evalTopExprs' coreEnv allLoadExprs True True
   case mEnv of
     Left err  -> liftIO $ print err
     Right env -> handleOption env opts
