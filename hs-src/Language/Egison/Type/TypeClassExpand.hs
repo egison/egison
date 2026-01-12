@@ -35,7 +35,8 @@ import           Language.Egison.AST        (ConstantExpr(..))
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), IExpr(..), stringToVar,
-                                             Index(..), tiExprType, tiScheme, tiExprNode)
+                                             Index(..), tiExprType, tiScheme, tiExprNode,
+                                             TIPattern(..), TIPatternNode(..), TILoopRange(..))
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), typeToName, sanitizeMethodName,
@@ -178,16 +179,18 @@ expandTypeClassMethodsT tiExpr = do
         target' <- expandTIExprWithConstraints classEnv' cs target
         matcher' <- expandTIExprWithConstraints classEnv' cs matcher
         clauses' <- mapM (\(pat, body) -> do
+          pat' <- expandTIPattern classEnv' cs pat
           body' <- expandTIExprWithConstraints classEnv' cs body
-          return (pat, body')) clauses
+          return (pat', body')) clauses
         return $ TIMatchExpr mode target' matcher' clauses'
       
       TIMatchAllExpr mode target matcher clauses -> do
         target' <- expandTIExprWithConstraints classEnv' cs target
         matcher' <- expandTIExprWithConstraints classEnv' cs matcher
         clauses' <- mapM (\(pat, body) -> do
+          pat' <- expandTIPattern classEnv' cs pat
           body' <- expandTIExprWithConstraints classEnv' cs body
-          return (pat, body')) clauses
+          return (pat', body')) clauses
         return $ TIMatchAllExpr mode target' matcher' clauses'
       
       -- Tensor operations
@@ -357,6 +360,94 @@ expandTypeClassMethodsT tiExpr = do
         _ -> expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
       
       return $ TIExpr scheme expandedNode
+    
+    -- Expand type class methods in patterns (especially loop patterns)
+    expandTIPattern :: ClassEnv -> [Constraint] -> TIPattern -> EvalM TIPattern
+    expandTIPattern classEnv' cs (TIPattern scheme node) = do
+      node' <- expandTIPatternNode classEnv' cs node
+      return $ TIPattern scheme node'
+    
+    -- Expand pattern nodes recursively
+    expandTIPatternNode :: ClassEnv -> [Constraint] -> TIPatternNode -> EvalM TIPatternNode
+    expandTIPatternNode classEnv' cs node = case node of
+      -- Loop pattern: expand the loop range expressions
+      TILoopPat var loopRange pat1 pat2 -> do
+        loopRange' <- expandTILoopRange classEnv' cs loopRange
+        pat1' <- expandTIPattern classEnv' cs pat1
+        pat2' <- expandTIPattern classEnv' cs pat2
+        return $ TILoopPat var loopRange' pat1' pat2'
+      
+      -- Recursive pattern constructors
+      TIAndPat pat1 pat2 -> do
+        pat1' <- expandTIPattern classEnv' cs pat1
+        pat2' <- expandTIPattern classEnv' cs pat2
+        return $ TIAndPat pat1' pat2'
+      
+      TIOrPat pat1 pat2 -> do
+        pat1' <- expandTIPattern classEnv' cs pat1
+        pat2' <- expandTIPattern classEnv' cs pat2
+        return $ TIOrPat pat1' pat2'
+      
+      TIForallPat pat1 pat2 -> do
+        pat1' <- expandTIPattern classEnv' cs pat1
+        pat2' <- expandTIPattern classEnv' cs pat2
+        return $ TIForallPat pat1' pat2'
+      
+      TINotPat pat -> do
+        pat' <- expandTIPattern classEnv' cs pat
+        return $ TINotPat pat'
+      
+      TITuplePat pats -> do
+        pats' <- mapM (expandTIPattern classEnv' cs) pats
+        return $ TITuplePat pats'
+      
+      TIInductivePat name pats -> do
+        pats' <- mapM (expandTIPattern classEnv' cs) pats
+        return $ TIInductivePat name pats'
+      
+      TIIndexedPat pat exprs -> do
+        pat' <- expandTIPattern classEnv' cs pat
+        exprs' <- mapM (expandTIExprWithConstraints classEnv' cs) exprs
+        return $ TIIndexedPat pat' exprs'
+      
+      TILetPat bindings pat -> do
+        pat' <- expandTIPattern classEnv' cs pat
+        return $ TILetPat bindings pat'  -- TODO: Expand binding expressions
+      
+      TIPApplyPat funcExpr argPats -> do
+        funcExpr' <- expandTIExprWithConstraints classEnv' cs funcExpr
+        argPats' <- mapM (expandTIPattern classEnv' cs) argPats
+        return $ TIPApplyPat funcExpr' argPats'
+      
+      TIDApplyPat pat pats -> do
+        pat' <- expandTIPattern classEnv' cs pat
+        pats' <- mapM (expandTIPattern classEnv' cs) pats
+        return $ TIDApplyPat pat' pats'
+      
+      TISeqConsPat pat1 pat2 -> do
+        pat1' <- expandTIPattern classEnv' cs pat1
+        pat2' <- expandTIPattern classEnv' cs pat2
+        return $ TISeqConsPat pat1' pat2'
+      
+      -- Leaf patterns: no expansion needed
+      TIWildCard -> return TIWildCard
+      TIPatVar name -> return $ TIPatVar name
+      TIValuePat expr -> do
+        expr' <- expandTIExprWithConstraints classEnv' cs expr
+        return $ TIValuePat expr'
+      TIPredPat pred -> do
+        pred' <- expandTIExprWithConstraints classEnv' cs pred
+        return $ TIPredPat pred'
+      TIContPat -> return TIContPat
+      TILaterPatVar -> return TILaterPatVar
+    
+    -- Expand loop range expressions
+    expandTILoopRange :: ClassEnv -> [Constraint] -> TILoopRange -> EvalM TILoopRange
+    expandTILoopRange classEnv' cs (TILoopRange start end rangePat) = do
+      start' <- expandTIExprWithConstraints classEnv' cs start
+      end' <- expandTIExprWithConstraints classEnv' cs end
+      rangePat' <- expandTIPattern classEnv' cs rangePat
+      return $ TILoopRange start' end' rangePat'
     
     -- Helper to get method arity
     getMethodArity :: Type -> Int
