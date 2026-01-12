@@ -425,7 +425,7 @@ patternFunctionExpr = do
   ops <- gets exprOps
   varWithIdx <- parens (stringToVarWithIndices . repr <$> choice (map (infixLiteral . repr) ops))
             <|> varWithIndicesLiteral
-  let (name, indices) = extractVarWithIndices varWithIdx
+  let (name, _indices) = extractVarWithIndices varWithIdx
   -- Parse optional type parameters: {a, b}
   typeParams <- option [] (braces $ typeVarIdent `sepBy1` symbol ",")
   -- Parse parameters with types: (p1 : a) (p2 : MyList a)

@@ -379,8 +379,8 @@ stripType (TIExpr _ node) = case node of
     stripTypeClause :: TIMatchClause -> IMatchClause
     stripTypeClause (pat, expr) = (pat, stripType expr)
     
-    stripTypeIndex :: Index TIExpr -> Index IExpr
-    stripTypeIndex idx = case idx of
+    _stripTypeIndex :: Index TIExpr -> Index IExpr
+    _stripTypeIndex idx = case idx of
       DF i1 i2 -> DF i1 i2
       Sub e -> Sub (stripType e)
       Sup e -> Sup (stripType e)
