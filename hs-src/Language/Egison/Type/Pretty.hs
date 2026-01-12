@@ -15,10 +15,9 @@ module Language.Egison.Type.Pretty
 
 import           Data.List                  (intercalate)
 
-import           Language.Egison.AST        (ShapeDim (..), TensorIndexExpr (..), TensorShapeExpr (..),
-                                             TypeExpr (..))
+import           Language.Egison.AST        (TypeExpr (..))
 import           Language.Egison.Type.Types (Constraint(..))
-import           Language.Egison.Type.Index (Index (..), IndexKind (..), IndexSpec)
+import           Language.Egison.Type.Index (Index (..), IndexKind (..))
 import           Language.Egison.Type.Types (ShapeDimType (..), TensorShape (..), TyVar (..), Type (..),
                                              TypeScheme (..))
 
@@ -92,10 +91,6 @@ prettyShapeDimType :: ShapeDimType -> String
 prettyShapeDimType (DimLit n) = show n
 prettyShapeDimType (DimVar v) = v
 
--- | Pretty print an IndexSpec
-prettyIndices :: IndexSpec -> String
-prettyIndices = concatMap prettyIndex
-
 -- | Pretty print an Index
 prettyIndex :: Index -> String
 prettyIndex (IndexSym Subscript s)      = "_" ++ s
@@ -138,24 +133,4 @@ prettyTypeExprAtom t@(TEVar _)   = prettyTypeExpr t
 prettyTypeExprAtom t@(TEList _)  = prettyTypeExpr t
 prettyTypeExprAtom t@(TETuple _) = prettyTypeExpr t
 prettyTypeExprAtom t             = "(" ++ prettyTypeExpr t ++ ")"
-
--- | Pretty print a TensorShapeExpr
-prettyShapeExpr :: TensorShapeExpr -> String
-prettyShapeExpr (TSLit dims) = "[" ++ intercalate ", " (map show dims) ++ "]"
-prettyShapeExpr (TSVar v)    = v
-prettyShapeExpr (TSMixed dims) = "[" ++ intercalate ", " (map prettyShapeDim dims) ++ "]"
-
--- | Pretty print a ShapeDim
-prettyShapeDim :: ShapeDim -> String
-prettyShapeDim (SDLit n) = show n
-prettyShapeDim (SDVar v) = v
-
--- | Pretty print TensorIndexExprs
-prettyIndexExprs :: [TensorIndexExpr] -> String
-prettyIndexExprs = concatMap prettyIndexExpr
-  where
-    prettyIndexExpr (TISub s)        = "_" ++ s
-    prettyIndexExpr (TISup s)        = "~" ++ s
-    prettyIndexExpr TIPlaceholderSub = "_#"
-    prettyIndexExpr TIPlaceholderSup = "~#"
 

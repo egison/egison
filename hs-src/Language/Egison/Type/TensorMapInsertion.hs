@@ -28,7 +28,7 @@ import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopExpr(..), 
                                              Var(..), tiExprType, tiScheme, tiExprNode)
 import           Language.Egison.Type.Env   (ClassEnv, lookupInstances, InstanceInfo(..))
-import           Language.Egison.Type.Tensor (normalizeTensorType)
+import           Language.Egison.Type.Tensor ()
 import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..))
 import           Language.Egison.Type.Unify as Unify
 

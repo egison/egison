@@ -28,7 +28,7 @@ import           Data.HashMap.Strict              (HashMap)
 
 import           Language.Egison.IExpr
 import           Language.Egison.Type.Types       (Type, TypeScheme)
-import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv, extendEnv, extendPatternEnv)
+import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, extendEnv)
 
 -- | Instance environment: maps class name -> method name -> type -> implementation
 -- The implementation is stored as a function reference (Var name)

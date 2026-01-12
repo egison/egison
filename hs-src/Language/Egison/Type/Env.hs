@@ -39,7 +39,7 @@ import qualified Data.Map.Strict            as Map
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 
-import           Language.Egison.Type.Subst (Subst, applySubst, applySubstScheme)
+import           Language.Egison.Type.Subst (applySubstScheme)
 import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..),
                                              Constraint(..), ClassInfo(..), InstanceInfo(..),
                                              freeTyVars, freshTyVar)
@@ -92,14 +92,6 @@ generalize env t =
       genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
   in Forall genVars [] t
 
--- | Generalize a type to a type scheme with constraints
-generalizeWithConstraints :: TypeEnv -> [Constraint] -> Type -> TypeScheme
-generalizeWithConstraints env cs t =
-  let envFreeVars = freeVarsInEnv env
-      typeFreeVars = freeTyVars t
-      genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
-  in Forall genVars cs t
-
 -- | Instantiate a type scheme with fresh type variables
 -- Returns a tuple of (constraints, instantiated type, fresh variable counter)
 instantiate :: TypeScheme -> Int -> ([Constraint], Type, Int)
@@ -131,10 +123,6 @@ instantiate (Forall vs cs t) counter =
     substVar old new (TIO t') = TIO (substVar old new t')
     substVar old new (TIORef t') = TIORef (substVar old new t')
     substVar _ _ TAny = TAny
-
--- | Apply a substitution to the type environment
-applySubstEnv :: Subst -> TypeEnv -> TypeEnv
-applySubstEnv s (TypeEnv env) = TypeEnv $ Map.map (applySubstScheme s) env
 
 --------------------------------------------------------------------------------
 -- Class Environment
