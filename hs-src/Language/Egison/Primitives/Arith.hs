@@ -47,6 +47,12 @@ strictPrimitives =
   , ("<=", scalarCompare (<=))
   , (">",  scalarCompare (>))
   , (">=", scalarCompare (>=))
+  -- Primitive comparison aliases (to avoid type class method conflicts)
+  , ("prim.=",  eq)
+  , ("prim.<",  scalarCompare (<))
+  , ("prim.<=", scalarCompare (<=))
+  , ("prim.>",  scalarCompare (>))
+  , ("prim.>=", scalarCompare (>=))
 
   , ("round",    floatToIntegerOp round)
   , ("floor",    floatToIntegerOp floor)

@@ -109,6 +109,12 @@ builtinTypes = concat
       , ("<=", forallABinOp (TVar a) (TVar a) TBool)
       , (">", forallABinOp (TVar a) (TVar a) TBool)
       , (">=", forallABinOp (TVar a) (TVar a) TBool)
+      -- Primitive comparison aliases (to avoid type class method conflicts)
+      , ("prim.=", forallABinOp (TVar a) (TVar a) TBool)
+      , ("prim.<", forallABinOp (TVar a) (TVar a) TBool)
+      , ("prim.<=", forallABinOp (TVar a) (TVar a) TBool)
+      , ("prim.>", forallABinOp (TVar a) (TVar a) TBool)
+      , ("prim.>=", forallABinOp (TVar a) (TVar a) TBool)
       -- Rounding functions
       , ("round", unaryOp TFloat TInt)
       , ("floor", unaryOp TFloat TInt)

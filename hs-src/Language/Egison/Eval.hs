@@ -56,7 +56,7 @@ import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
-import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv)
+import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv, extendPatternEnv)
 import           Language.Egison.Type.TypeClassExpand ()
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
@@ -141,10 +141,11 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   -- Get existing environments (may contain previously loaded libraries)
   currentTypeEnv <- getTypeEnv
   currentClassEnv <- getClassEnv
-  
+  currentPatternEnv <- getPatternEnv
+
   -- Build environments from current expressions
   envResult <- buildEnvironments exprs
-  
+
   -- Merge existing environments with newly built environments
   -- New definitions extend existing ones (can override)
   let newTypeEnv = ebrTypeEnv envResult
@@ -152,10 +153,16 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
       baseTypeEnv = if null (envToList currentTypeEnv) then builtinEnv else currentTypeEnv
       mergedTypeEnv = extendEnvMany (envToList newTypeEnv) baseTypeEnv
       mergedClassEnv = mergeClassEnv currentClassEnv (ebrClassEnv envResult)
-  
+      -- Merge pattern environments (new definitions can override)
+      newPatternEnv = ebrPatternConstructorEnv envResult
+      mergedPatternEnv = foldr (\(name, scheme) env -> extendPatternEnv name scheme env) 
+                               currentPatternEnv 
+                               (patternEnvToList newPatternEnv)
+
   -- Update EvalState with merged environments
   setTypeEnv mergedTypeEnv
   setClassEnv mergedClassEnv
+  setPatternEnv mergedPatternEnv
   
   -- Register constructors to EvalState
   forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
@@ -190,10 +197,12 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
       Just iTopExpr -> do
         -- Phase 5-6: Type Inference (ITopExpr → TypedITopExpr)
         let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
-        let initState = (initialInferStateWithConfig inferConfig) { 
+        -- Get the current pattern environment from EvalState
+        currentPatternEnv' <- getPatternEnv
+        let initState = (initialInferStateWithConfig inferConfig) {
               inferEnv = currentTypeEnv,
               inferClassEnv = currentClassEnv,
-              inferPatternEnv = ebrPatternConstructorEnv envResult
+              inferPatternEnv = currentPatternEnv'
             }
         (result, warnings, finalState) <- liftIO $ 
           runInferWithWarningsAndState (inferITopExpr iTopExpr) initState
