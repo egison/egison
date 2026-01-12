@@ -62,6 +62,7 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , IBindingExpr, TIBindingExpr
                                             , IMatchClause, TIMatchClause, IPatternDef, TIPatternDef
                                             , IPattern (..), ILoopRange (..)
+                                            , TIPattern (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
                                             , extractNameFromVar, Var (..), Index (..)
                                             , tiExprType)
@@ -1599,6 +1600,10 @@ inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
   (bindings, s_pat) <- inferIPattern pattern matchedType ctx
   let s1 = composeSubst s_pat initSubst
   
+  -- Create TIPattern with type information
+  let patternType = applySubst s1 matchedType
+      tiPattern = TIPattern (Forall [] [] patternType) pattern
+  
   -- Convert bindings to TypeScheme format
   let schemes = [(var, Forall [] [] ty) | (var, ty) <- bindings]
   
@@ -1606,7 +1611,7 @@ inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
   (bodyTI, s2) <- withEnv schemes $ inferIExprWithContext bodyExpr ctx
   let bodyType = tiExprType bodyTI
       finalS = composeSubst s2 s1
-  return ((pattern, bodyTI), applySubst finalS bodyType, finalS)
+  return ((tiPattern, bodyTI), applySubst finalS bodyType, finalS)
 
 -- | Infer multiple patterns left-to-right, making left bindings available to right patterns
 -- This enables non-linear patterns like ($p, #(p + 1))

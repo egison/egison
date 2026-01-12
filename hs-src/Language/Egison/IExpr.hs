@@ -307,7 +307,7 @@ data TIExprNode
 type TIBindingExpr = (IPrimitiveDataPattern, TIExpr)
 
 -- | Typed match clause
-type TIMatchClause = (IPattern, TIExpr)
+type TIMatchClause = (TIPattern, TIExpr)
 
 -- | Typed pattern definition (for matcher expressions)
 type TIPatternDef = (PrimitivePatPattern, TIExpr, [TIBindingExpr])
@@ -377,7 +377,7 @@ stripType (TIExpr _ node) = case node of
     stripTypeBinding (pat, expr) = (pat, stripType expr)
     
     stripTypeClause :: TIMatchClause -> IMatchClause
-    stripTypeClause (pat, expr) = (pat, stripType expr)
+    stripTypeClause (TIPattern _ pat, expr) = (pat, stripType expr)
     
     _stripTypeIndex :: Index TIExpr -> Index IExpr
     _stripTypeIndex idx = case idx of

@@ -595,10 +595,16 @@ instance Pretty TIExpr where
 
 -- Pretty print TIExpr with type annotations for all subexpressions
 prettyTIExprWithType :: TIExpr -> Doc ann
-prettyTIExprWithType tiexpr = 
+prettyTIExprWithType tiexpr =
   let (Types.Forall _ constraints ty) = tiScheme tiexpr
       constraintDoc = prettyConstraintsDoc constraints
   in parens (prettyTIExprNode (tiExprNode tiexpr) <+> pretty ":" <+> constraintDoc <> prettyTypeDoc ty)
+
+-- Pretty print pattern with type annotations
+prettyPatternWithType :: Types.TypeScheme -> IPattern -> Doc ann
+prettyPatternWithType (Types.Forall _ constraints ty) pat =
+  let constraintDoc = prettyConstraintsDoc constraints
+  in parens (pretty pat <+> pretty ":" <+> constraintDoc <> prettyTypeDoc ty)
 
 -- Pretty print TIExprNode recursively
 prettyTIExprNode :: TIExprNode -> Doc ann
@@ -680,12 +686,14 @@ prettyTIExprNode node = case node of
   TIMatchExpr _mode target matcher clauses ->
     pretty "match" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
     pretty "with" <+> vsep (map prettyClause clauses)
-    where prettyClause (pat, body) = pretty "|" <+> pretty pat <+> pretty "->" <+> prettyTIExprWithType body
-  
+    where prettyClause (TIPattern scheme pat, body) = 
+            pretty "|" <+> prettyPatternWithType scheme pat <+> pretty "->" <+> prettyTIExprWithType body
+
   TIMatchAllExpr _mode target matcher clauses ->
     pretty "matchAll" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
     pretty "with" <+> vsep (map prettyClause clauses)
-    where prettyClause (pat, body) = pretty "|" <+> pretty pat <+> pretty "->" <+> prettyTIExprWithType body
+    where prettyClause (TIPattern scheme pat, body) = 
+            pretty "|" <+> prettyPatternWithType scheme pat <+> pretty "->" <+> prettyTIExprWithType body
   
   TIInductiveDataExpr name exprs ->
     pretty name <+> hsep (map prettyTIExprWithType exprs)
