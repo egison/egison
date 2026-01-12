@@ -28,7 +28,7 @@ import           Data.HashMap.Strict              (HashMap)
 
 import           Language.Egison.IExpr
 import           Language.Egison.Type.Types       (Type, TypeScheme)
-import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, extendEnv)
+import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv, extendEnv)
 
 -- | Instance environment: maps class name -> method name -> type -> implementation
 -- The implementation is stored as a function reference (Var name)
@@ -55,15 +55,17 @@ data EvalState = EvalState
   , constructorEnv :: ConstructorEnv -- ^ Inductive data constructor environment
   , typeEnv        :: TypeEnv        -- ^ Type environment (for type inference)
   , classEnv       :: ClassEnv       -- ^ Class environment (for type inference)
+  , patternEnv     :: PatternTypeEnv -- ^ Pattern constructor environment (for type inference)
   }
 
 initialEvalState :: EvalState
-initialEvalState = EvalState 
-  { funcNameStack = [] 
+initialEvalState = EvalState
+  { funcNameStack = []
   , instanceEnv = HashMap.empty
   , constructorEnv = HashMap.empty
   , typeEnv = emptyEnv
   , classEnv = emptyClassEnv
+  , patternEnv = emptyPatternEnv
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -86,6 +88,9 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Class environment operations
   getClassEnv :: m ClassEnv
   setClassEnv :: ClassEnv -> m ()
+  -- Pattern environment operations
+  getPatternEnv :: m PatternTypeEnv
+  setPatternEnv :: PatternTypeEnv -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -143,6 +148,11 @@ instance Monad m => MonadEval (StateT EvalState m) where
   setClassEnv env = do
     st <- get
     put $ st { classEnv = env }
+  
+  getPatternEnv = patternEnv <$> get
+  setPatternEnv env = do
+    st <- get
+    put $ st { patternEnv = env }
 
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
@@ -160,6 +170,8 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   extendTypeEnv name scheme = lift $ extendTypeEnv name scheme
   getClassEnv = lift getClassEnv
   setClassEnv = lift . setClassEnv
+  getPatternEnv = lift getPatternEnv
+  setPatternEnv = lift . setPatternEnv
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m
