@@ -22,9 +22,6 @@ import           Text.Regex.TDFA                  ((=~))
 
 import           Language.Egison
 import           Language.Egison.Completion
-import qualified Language.Egison.Parser.NonS  as NonS
-import           Language.Egison.Type.Check  (TypeCheckError (..), defaultConfig, builtinEnv)
-import           Language.Egison.Type.Pretty (prettyType)
 
 import           Options.Applicative
 
@@ -158,8 +155,6 @@ repl env = (do
       HeapOverflow  -> liftIO (putStrLn "Heap over flow!") >> repl env
       _             -> liftIO (putStrLn "error!") >> repl env
    )
-  where
-    tceError (TypeCheckError err _) = err
 
 -- | REPL input types
 data ReplInput
