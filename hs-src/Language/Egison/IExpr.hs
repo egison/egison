@@ -23,6 +23,7 @@ module Language.Egison.IExpr
   , TIExpr (..)
   , TIExprNode (..)
   , TIPattern (..)
+  , TIPatternNode (..)
   , TILoopRange (..)
   , TIBindingExpr
   , TIMatchClause
@@ -377,7 +378,34 @@ stripType (TIExpr _ node) = case node of
     stripTypeBinding (pat, expr) = (pat, stripType expr)
     
     stripTypeClause :: TIMatchClause -> IMatchClause
-    stripTypeClause (TIPattern _ pat, expr) = (pat, stripType expr)
+    stripTypeClause (tipat, expr) = (stripTypePat tipat, stripType expr)
+    
+    stripTypePat :: TIPattern -> IPattern
+    stripTypePat (TIPattern _ node) = case node of
+      TIWildCard -> IWildCard
+      TIPatVar name -> IPatVar name
+      TIValuePat expr -> IValuePat (stripType expr)
+      TIPredPat expr -> IPredPat (stripType expr)
+      TIIndexedPat pat exprs -> IIndexedPat (stripTypePat pat) (map stripType exprs)
+      TILetPat bindings pat -> ILetPat (map stripTypeBinding bindings) (stripTypePat pat)
+      TINotPat pat -> INotPat (stripTypePat pat)
+      TIAndPat p1 p2 -> IAndPat (stripTypePat p1) (stripTypePat p2)
+      TIOrPat p1 p2 -> IOrPat (stripTypePat p1) (stripTypePat p2)
+      TIForallPat p1 p2 -> IForallPat (stripTypePat p1) (stripTypePat p2)
+      TITuplePat pats -> ITuplePat (map stripTypePat pats)
+      TIInductivePat name pats -> IInductivePat name (map stripTypePat pats)
+      TILoopPat var range p1 p2 -> ILoopPat var (stripTypeLoopRange range) (stripTypePat p1) (stripTypePat p2)
+      TIContPat -> IContPat
+      TIPApplyPat func pats -> IPApplyPat (stripType func) (map stripTypePat pats)
+      TIVarPat name -> IVarPat name
+      TIInductiveOrPApplyPat name pats -> IInductiveOrPApplyPat name (map stripTypePat pats)
+      TISeqNilPat -> ISeqNilPat
+      TISeqConsPat p1 p2 -> ISeqConsPat (stripTypePat p1) (stripTypePat p2)
+      TILaterPatVar -> ILaterPatVar
+      TIDApplyPat pat pats -> IDApplyPat (stripTypePat pat) (map stripTypePat pats)
+    
+    stripTypeLoopRange :: TILoopRange -> ILoopRange
+    stripTypeLoopRange (TILoopRange e1 e2 pat) = ILoopRange (stripType e1) (stripType e2) (stripTypePat pat)
     
     _stripTypeIndex :: Index TIExpr -> Index IExpr
     _stripTypeIndex idx = case idx of
@@ -399,11 +427,36 @@ stripTypeTopExpr (TILoadFile file) = ILoadFile file
 stripTypeTopExpr (TILoad file) = ILoad file
 stripTypeTopExpr (TIDeclareSymbol names ty) = IDeclareSymbol names (Just ty)
 
--- | Typed pattern (for future use)
+-- | Typed pattern with recursive structure (like TIExpr)
 data TIPattern = TIPattern
-  { tipScheme :: TypeScheme  -- ^ Type scheme with type variables and constraints
-  , tipPattern :: IPattern   -- ^ The underlying pattern
+  { tipScheme :: TypeScheme      -- ^ Type scheme with type variables and constraints
+  , tipPatternNode :: TIPatternNode  -- ^ The pattern node
   } deriving Show
+
+-- | Pattern node with type information (recursive structure)
+data TIPatternNode
+  = TIWildCard
+  | TIPatVar String
+  | TIValuePat TIExpr
+  | TIPredPat TIExpr
+  | TIIndexedPat TIPattern [TIExpr]
+  | TILetPat [TIBindingExpr] TIPattern
+  | TINotPat TIPattern
+  | TIAndPat TIPattern TIPattern
+  | TIOrPat TIPattern TIPattern
+  | TIForallPat TIPattern TIPattern
+  | TITuplePat [TIPattern]
+  | TIInductivePat String [TIPattern]
+  | TILoopPat String TILoopRange TIPattern TIPattern
+  | TIContPat
+  | TIPApplyPat TIExpr [TIPattern]
+  | TIVarPat String
+  | TIInductiveOrPApplyPat String [TIPattern]
+  | TISeqNilPat
+  | TISeqConsPat TIPattern TIPattern
+  | TILaterPatVar
+  | TIDApplyPat TIPattern [TIPattern]
+  deriving Show
 
 -- | Get the type of a typed pattern (extracts Type from TypeScheme)
 tipType :: TIPattern -> Type

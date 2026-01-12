@@ -24,7 +24,8 @@ import           Text.Show.Unicode              (ushow)
 
 import           Language.Egison.AST
 import           Language.Egison.Data
-import           Language.Egison.IExpr
+import           Language.Egison.IExpr hiding (TIPatternNode(..))
+import           Language.Egison.IExpr (TIPatternNode(..))
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Pretty (prettyTypeScheme)
 
@@ -600,11 +601,38 @@ prettyTIExprWithType tiexpr =
       constraintDoc = prettyConstraintsDoc constraints
   in parens (prettyTIExprNode (tiExprNode tiexpr) <+> pretty ":" <+> constraintDoc <> prettyTypeDoc ty)
 
--- Pretty print pattern with type annotations
-prettyPatternWithType :: Types.TypeScheme -> IPattern -> Doc ann
-prettyPatternWithType (Types.Forall _ constraints ty) pat =
+-- Pretty print pattern with type annotations (recursive)
+prettyPatternWithType :: TIPattern -> Doc ann
+prettyPatternWithType (TIPattern (Types.Forall _ constraints ty) node) =
   let constraintDoc = prettyConstraintsDoc constraints
-  in parens (pretty pat <+> pretty ":" <+> constraintDoc <> prettyTypeDoc ty)
+  in parens (prettyTIPatternNode node <+> pretty ":" <+> constraintDoc <> prettyTypeDoc ty)
+
+-- Pretty print pattern node recursively
+prettyTIPatternNode :: TIPatternNode -> Doc ann
+prettyTIPatternNode node = case node of
+  TIWildCard -> pretty "_"
+  TIPatVar name -> pretty "$" <> pretty name
+  TIValuePat expr -> pretty "#" <> prettyTIExprWithType expr
+  TIPredPat expr -> pretty "?" <> prettyTIExprWithType expr
+  TIIndexedPat pat exprs -> prettyPatternWithType pat <> hcat (map prettyIndexExpr exprs)
+    where prettyIndexExpr e = pretty "_" <> prettyTIExprWithType e
+  TILetPat bindings pat -> pretty "let" <+> hsep (map prettyBinding bindings) <+> pretty "in" <+> prettyPatternWithType pat
+    where prettyBinding (p, e) = pretty p <+> pretty ":=" <+> prettyTIExprWithType e
+  TINotPat pat -> pretty "!" <> prettyPatternWithType pat
+  TIAndPat p1 p2 -> prettyPatternWithType p1 <+> pretty "&" <+> prettyPatternWithType p2
+  TIOrPat p1 p2 -> prettyPatternWithType p1 <+> pretty "|" <+> prettyPatternWithType p2
+  TIForallPat p1 p2 -> pretty "forall" <+> prettyPatternWithType p1 <+> prettyPatternWithType p2
+  TITuplePat pats -> tupled (map prettyPatternWithType pats)
+  TIInductivePat name pats -> pretty name <+> hsep (map prettyPatternWithType pats)
+  TILoopPat var _range p1 p2 -> pretty "loop" <+> pretty "$" <> pretty var <+> pretty "..." <+> prettyPatternWithType p1 <+> prettyPatternWithType p2
+  TIContPat -> pretty "..."
+  TIPApplyPat func pats -> prettyTIExprWithType func <+> hsep (map prettyPatternWithType pats)
+  TIVarPat name -> pretty name
+  TIInductiveOrPApplyPat name pats -> pretty name <+> hsep (map prettyPatternWithType pats)
+  TISeqNilPat -> pretty "[]"
+  TISeqConsPat p1 p2 -> prettyPatternWithType p1 <+> pretty "::" <+> prettyPatternWithType p2
+  TILaterPatVar -> pretty "..."
+  TIDApplyPat pat pats -> prettyPatternWithType pat <+> hsep (map prettyPatternWithType pats)
 
 -- Pretty print TIExprNode recursively
 prettyTIExprNode :: TIExprNode -> Doc ann
@@ -686,14 +714,14 @@ prettyTIExprNode node = case node of
   TIMatchExpr _mode target matcher clauses ->
     pretty "match" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
     pretty "with" <+> vsep (map prettyClause clauses)
-    where prettyClause (TIPattern scheme pat, body) = 
-            pretty "|" <+> prettyPatternWithType scheme pat <+> pretty "->" <+> prettyTIExprWithType body
+    where prettyClause (tipat, body) = 
+            pretty "|" <+> prettyPatternWithType tipat <+> pretty "->" <+> prettyTIExprWithType body
 
   TIMatchAllExpr _mode target matcher clauses ->
     pretty "matchAll" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
     pretty "with" <+> vsep (map prettyClause clauses)
-    where prettyClause (TIPattern scheme pat, body) = 
-            pretty "|" <+> prettyPatternWithType scheme pat <+> pretty "->" <+> prettyTIExprWithType body
+    where prettyClause (tipat, body) = 
+            pretty "|" <+> prettyPatternWithType tipat <+> pretty "->" <+> prettyTIExprWithType body
   
   TIInductiveDataExpr name exprs ->
     pretty name <+> hsep (map prettyTIExprWithType exprs)
