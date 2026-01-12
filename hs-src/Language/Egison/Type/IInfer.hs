@@ -62,7 +62,7 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , IBindingExpr, TIBindingExpr
                                             , IMatchClause, TIMatchClause, IPatternDef, TIPatternDef
                                             , IPattern (..), ILoopRange (..)
-                                            , TIPattern (..)
+                                            , TIPattern (..), TIPatternNode (..), TILoopRange (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
                                             , extractNameFromVar, Var (..), Index (..)
                                             , tiExprType)
@@ -1597,12 +1597,8 @@ inferMatchClause :: TypeErrorContext -> Type -> IMatchClause -> Subst -> Infer (
 inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
   -- Infer pattern type and extract pattern variable bindings
   -- Use pattern constructor and pattern function type information
-  (bindings, s_pat) <- inferIPattern pattern matchedType ctx
+  (tiPattern, bindings, s_pat) <- inferIPattern pattern matchedType ctx
   let s1 = composeSubst s_pat initSubst
-  
-  -- Create TIPattern with type information
-  let patternType = applySubst s1 matchedType
-      tiPattern = TIPattern (Forall [] [] patternType) pattern
   
   -- Convert bindings to TypeScheme format
   let schemes = [(var, Forall [] [] ty) | (var, ty) <- bindings]
@@ -1615,16 +1611,17 @@ inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
 
 -- | Infer multiple patterns left-to-right, making left bindings available to right patterns
 -- This enables non-linear patterns like ($p, #(p + 1))
+-- Returns (list of TIPattern, accumulated bindings, substitution)
 inferPatternsLeftToRight :: [IPattern] -> [Type] -> [(String, Type)] -> Subst -> TypeErrorContext 
-                         -> Infer ([(String, Type)], Subst)
+                         -> Infer ([TIPattern], [(String, Type)], Subst)
 inferPatternsLeftToRight [] [] accBindings accSubst _ctx = 
-  return (accBindings, accSubst)
+  return ([], accBindings, accSubst)
 inferPatternsLeftToRight (p:ps) (t:ts) accBindings accSubst ctx = do
   -- Add accumulated bindings to environment for this pattern
   let schemes = [(var, Forall [] [] ty) | (var, ty) <- accBindings]
   
   -- Infer this pattern with left bindings in scope
-  (newBindings, s) <- withEnv schemes $ inferIPattern p (applySubst accSubst t) ctx
+  (tipat, newBindings, s) <- withEnv schemes $ inferIPattern p (applySubst accSubst t) ctx
   
   -- Compose substitutions
   let accSubst' = composeSubst s accSubst
@@ -1633,34 +1630,42 @@ inferPatternsLeftToRight (p:ps) (t:ts) accBindings accSubst ctx = do
   let accBindings' = [(v, applySubst s ty) | (v, ty) <- accBindings] ++ newBindings
   
   -- Continue with remaining patterns
-  inferPatternsLeftToRight ps ts accBindings' accSubst' ctx
+  (restTipats, finalBindings, finalSubst) <- inferPatternsLeftToRight ps ts accBindings' accSubst' ctx
+  return (tipat : restTipats, finalBindings, finalSubst)
 inferPatternsLeftToRight _ _ accBindings accSubst _ = 
-  return (accBindings, accSubst)  -- Mismatched lengths
+  return ([], accBindings, accSubst)  -- Mismatched lengths
 
 -- | Infer IPattern type and extract pattern variable bindings
--- Returns (bindings, substitution)
+-- Returns (TIPattern, bindings, substitution)
 -- bindings: [(variable name, type)]
-inferIPattern :: IPattern -> Type -> TypeErrorContext -> Infer ([(String, Type)], Subst)
+inferIPattern :: IPattern -> Type -> TypeErrorContext -> Infer (TIPattern, [(String, Type)], Subst)
 inferIPattern pat expectedType ctx = case pat of
   IWildCard -> do
     -- Wildcard: no bindings
-    return ([], emptySubst)
+    let tipat = TIPattern (Forall [] [] expectedType) TIWildCard
+    return (tipat, [], emptySubst)
   
   IPatVar name -> do
     -- Pattern variable: bind to expected type
-    return ([(name, expectedType)], emptySubst)
+    let tipat = TIPattern (Forall [] [] expectedType) (TIPatVar name)
+    return (tipat, [(name, expectedType)], emptySubst)
   
   IValuePat expr -> do
     -- Value pattern: infer expression type and unify with expected type
     (exprTI, s) <- inferIExprWithContext expr ctx
     let exprType = tiExprType exprTI
     s' <- unifyTypesWithContext (applySubst s exprType) (applySubst s expectedType) ctx
-    return ([], composeSubst s' s)
+    let finalS = composeSubst s' s
+        finalType = applySubst finalS expectedType
+        tipat = TIPattern (Forall [] [] finalType) (TIValuePat exprTI)
+    return (tipat, [], finalS)
   
-  IPredPat _expr -> do
-    -- Predicate pattern: no bindings, but should check predicate type
-    -- For now, just accept any expected type
-    return ([], emptySubst)
+  IPredPat expr -> do
+    -- Predicate pattern: infer predicate expression
+    (exprTI, s) <- inferIExprWithContext expr ctx
+    let finalType = applySubst s expectedType
+        tipat = TIPattern (Forall [] [] finalType) (TIPredPat exprTI)
+    return (tipat, [], s)
   
   ITuplePat pats -> do
     -- Tuple pattern: decompose expected type
@@ -1668,8 +1673,10 @@ inferIPattern pat expectedType ctx = case pat of
       TTuple types | length types == length pats -> do
         -- Types match: infer each sub-pattern left-to-right
         -- Left patterns' bindings are available for right patterns (for non-linear patterns)
-        (allBindings, s) <- inferPatternsLeftToRight pats types [] emptySubst ctx
-        return (allBindings, s)
+        (tipats, allBindings, s) <- inferPatternsLeftToRight pats types [] emptySubst ctx
+        let finalType = applySubst s expectedType
+            tipat = TIPattern (Forall [] [] finalType) (TITuplePat tipats)
+        return (tipat, allBindings, s)
       
       TVar _ -> do
         -- Expected type is a type variable: create tuple type
@@ -1679,8 +1686,10 @@ inferIPattern pat expectedType ctx = case pat of
         
         -- Recursively infer each sub-pattern left-to-right
         let elemTypes' = map (applySubst s) elemTypes
-        (allBindings, s') <- inferPatternsLeftToRight pats elemTypes' [] s ctx
-        return (allBindings, s')
+        (tipats, allBindings, s') <- inferPatternsLeftToRight pats elemTypes' [] s ctx
+        let finalType = applySubst s' expectedType
+            tipat = TIPattern (Forall [] [] finalType) (TITuplePat tipats)
+        return (tipat, allBindings, s')
       
       _ -> do
         -- Type mismatch
@@ -1718,9 +1727,10 @@ inferIPattern pat expectedType ctx = case pat of
             
             -- Recursively infer each sub-pattern left-to-right
             -- Left patterns' bindings are available for right patterns
-            (allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
-            
-            return (allBindings, s)
+            (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+            let finalType = applySubst s expectedType
+                tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
+            return (tipat, allBindings, s)
       
       Nothing -> do
         -- Not found in pattern environment: try data constructor from value environment
@@ -1746,9 +1756,10 @@ inferIPattern pat expectedType ctx = case pat of
                 let argTypes' = map (applySubst s0) argTypes
                 
                 -- Recursively infer each sub-pattern left-to-right
-                (allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
-                
-                return (allBindings, s)
+                (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+                let finalType = applySubst s expectedType
+                    tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
+                return (tipat, allBindings, s)
           
           Nothing -> do
             -- Not found: generic inference
@@ -1759,13 +1770,21 @@ inferIPattern pat expectedType ctx = case pat of
             let argTypes' = map (applySubst s0) argTypes
             
             -- Recursively infer each sub-pattern left-to-right
-            (allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
-            
-            return (allBindings, s)
+            (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+            let finalType = applySubst s expectedType
+                tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
+            return (tipat, allBindings, s)
   
-  IIndexedPat p _indices -> do
-    -- Indexed pattern: just infer the base pattern
-    inferIPattern p expectedType ctx
+  IIndexedPat p indices -> do
+    -- Indexed pattern: infer base pattern and index expressions
+    (tipat, bindings, s1) <- inferIPattern p expectedType ctx
+    (indexTIs, s2) <- foldM (\(accTIs, accS) idx -> do
+      (idxTI, idxS) <- inferIExprWithContext idx ctx
+      return (accTIs ++ [idxTI], composeSubst idxS accS)) ([], s1) indices
+    let finalS = s2
+        finalType = applySubst finalS expectedType
+        tiIndexedPat = TIPattern (Forall [] [] finalType) (TIIndexedPat tipat indexTIs)
+    return (tiIndexedPat, bindings, finalS)
   
   ILetPat bindings p -> do
     -- Let pattern: infer bindings and then the pattern
@@ -1774,135 +1793,167 @@ inferIPattern pat expectedType ctx = case pat of
     (_, bindingSchemes, s1) <- inferIBindingsWithContext bindings env emptySubst ctx
     
     -- Infer pattern with bindings in scope
-    (patBindings, s2) <- withEnv bindingSchemes $ inferIPattern p (applySubst s1 expectedType) ctx
+    (tipat, patBindings, s2) <- withEnv bindingSchemes $ inferIPattern p (applySubst s1 expectedType) ctx
     
     let s = composeSubst s2 s1
+        finalType = applySubst s expectedType
+        -- TODO: convert bindings to TIBindingExpr
+        tiLetPat = TIPattern (Forall [] [] finalType) (TILetPat [] tipat)
     -- Let bindings are not exported, only pattern bindings
-    return (patBindings, s)
+    return (tiLetPat, patBindings, s)
   
   INotPat p -> do
     -- Not pattern: infer the sub-pattern but don't use its bindings
-    (_, s) <- inferIPattern p expectedType ctx
-    return ([], s)
+    (tipat, _, s) <- inferIPattern p expectedType ctx
+    let finalType = applySubst s expectedType
+        tiNotPat = TIPattern (Forall [] [] finalType) (TINotPat tipat)
+    return (tiNotPat, [], s)
   
   IAndPat p1 p2 -> do
     -- And pattern: both patterns must match the same type
     -- Left bindings should be available to right pattern
-    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     let s = composeSubst s2 s1
         -- Apply substitution to left bindings
         bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-    return (bindings1' ++ bindings2, s)
+        finalType = applySubst s expectedType
+        tiAndPat = TIPattern (Forall [] [] finalType) (TIAndPat tipat1 tipat2)
+    return (tiAndPat, bindings1' ++ bindings2, s)
   
   IOrPat p1 p2 -> do
     -- Or pattern: both patterns must match the same type
     -- Left bindings should be available to right pattern for non-linear patterns
-    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     let s = composeSubst s2 s1
         -- Apply substitution to left bindings
         bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
+        finalType = applySubst s expectedType
+        tiOrPat = TIPattern (Forall [] [] finalType) (TIOrPat tipat1 tipat2)
     -- For or patterns, ideally both branches should have same variables
     -- For now, we take union of bindings
-    return (bindings1' ++ bindings2, s)
+    return (tiOrPat, bindings1' ++ bindings2, s)
   
   IForallPat p1 p2 -> do
     -- Forall pattern: similar to and pattern
     -- Left bindings should be available to right pattern
-    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     let s = composeSubst s2 s1
         -- Apply substitution to left bindings
         bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-    return (bindings1' ++ bindings2, s)
+        finalType = applySubst s expectedType
+        tiForallPat = TIPattern (Forall [] [] finalType) (TIForallPat tipat1 tipat2)
+    return (tiForallPat, bindings1' ++ bindings2, s)
   
   ILoopPat var range p1 p2 -> do
     -- Loop pattern: $var is the loop variable (Integer), range contains pattern
     -- First, infer the range pattern (third element of ILoopRange)
-    let ILoopRange _startExpr _endExpr rangePattern = range
-    (rangeBindings, s_range) <- inferIPattern rangePattern TInt ctx
+    let ILoopRange startExpr endExpr rangePattern = range
+    (tiRangePat, rangeBindings, s_range) <- inferIPattern rangePattern TInt ctx
+    
+    -- Infer start and end expressions
+    (startTI, s_start) <- inferIExprWithContext startExpr ctx
+    (endTI, s_end) <- inferIExprWithContext endExpr ctx
+    let tiLoopRange = TILoopRange startTI endTI tiRangePat
     
     -- Add loop variable binding (always Integer for loop index)
     let loopVarBinding = (var, TInt)
         initialBindings = loopVarBinding : rangeBindings
         schemes0 = [(v, Forall [] [] ty) | (v, ty) <- initialBindings]
+        s_combined = foldr composeSubst emptySubst [s_end, s_start, s_range]
     
     -- Infer p1 with loop variable and range bindings in scope
-    (bindings1, s1) <- withEnv schemes0 $ inferIPattern p1 (applySubst s_range expectedType) ctx
+    (tipat1, bindings1, s1) <- withEnv schemes0 $ inferIPattern p1 (applySubst s_combined expectedType) ctx
     
     -- Infer p2 with all previous bindings in scope
     let allPrevBindings = [(v, applySubst s1 ty) | (v, ty) <- initialBindings] ++ bindings1
         schemes1 = [(v, Forall [] [] ty) | (v, ty) <- allPrevBindings]
-    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     
-    let s = foldr composeSubst emptySubst [s2, s1, s_range]
+    let s = foldr composeSubst emptySubst [s2, s1, s_combined]
         -- Apply final substitution to all bindings
         finalBindings = [(v, applySubst s ty) | (v, ty) <- loopVarBinding : rangeBindings ++ bindings1 ++ bindings2]
+        finalType = applySubst s expectedType
+        tiLoopPat = TIPattern (Forall [] [] finalType) (TILoopPat var tiLoopRange tipat1 tipat2)
     
-    return (finalBindings, s)
+    return (tiLoopPat, finalBindings, s)
   
   IContPat -> do
     -- Continuation pattern: no bindings
-    return ([], emptySubst)
+    let tipat = TIPattern (Forall [] [] expectedType) TIContPat
+    return (tipat, [], emptySubst)
   
   IPApplyPat funcExpr argPats -> do
     -- Pattern application: infer pattern function type
     (funcTI, s1) <- inferIExprWithContext funcExpr ctx
-    let funcType = tiExprType funcTI
     
     -- Pattern function should return a pattern that matches expectedType
     -- Infer argument patterns left-to-right with fresh types
     argTypes <- mapM (\_ -> freshVar "parg") argPats
-    (allBindings, s2) <- inferPatternsLeftToRight argPats argTypes [] s1 ctx
+    (tipats, allBindings, s2) <- inferPatternsLeftToRight argPats argTypes [] s1 ctx
     
-    return (allBindings, s2)
+    let finalType = applySubst s2 expectedType
+        tipat = TIPattern (Forall [] [] finalType) (TIPApplyPat funcTI tipats)
+    return (tipat, allBindings, s2)
   
   IVarPat name -> do
     -- Variable pattern (with ~): bind to expected type
-    return ([(name, expectedType)], emptySubst)
+    let tipat = TIPattern (Forall [] [] expectedType) (TIVarPat name)
+    return (tipat, [(name, expectedType)], emptySubst)
   
   IInductiveOrPApplyPat name pats -> do
     -- Could be either inductive pattern or pattern application
     -- Try inductive pattern first
-    inferIPattern (IInductivePat name pats) expectedType ctx
+    (tipat, bindings, s) <- inferIPattern (IInductivePat name pats) expectedType ctx
+    -- Wrap it as InductiveOrPApplyPat
+    let TIPattern scheme (TIInductivePat _ tipats) = tipat
+        tiInductiveOrPApplyPat = TIPattern scheme (TIInductiveOrPApplyPat name tipats)
+    return (tiInductiveOrPApplyPat, bindings, s)
   
   ISeqNilPat -> do
     -- Sequence nil: no bindings
-    return ([], emptySubst)
+    let tipat = TIPattern (Forall [] [] expectedType) TISeqNilPat
+    return (tipat, [], emptySubst)
   
   ISeqConsPat p1 p2 -> do
     -- Sequence cons: infer both patterns
     -- Left bindings should be available to right pattern
-    (bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
     let s = composeSubst s2 s1
         -- Apply substitution to left bindings
         bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-    return (bindings1' ++ bindings2, s)
+        finalType = applySubst s expectedType
+        tipat = TIPattern (Forall [] [] finalType) (TISeqConsPat tipat1 tipat2)
+    return (tipat, bindings1' ++ bindings2, s)
   
   ILaterPatVar -> do
     -- Later pattern variable: no immediate binding
-    return ([], emptySubst)
+    let tipat = TIPattern (Forall [] [] expectedType) TILaterPatVar
+    return (tipat, [], emptySubst)
   
   IDApplyPat p pats -> do
     -- D-apply pattern: infer base pattern and argument patterns
     -- Base pattern bindings should be available to argument patterns
-    (bindings1, s1) <- inferIPattern p expectedType ctx
+    (tipat, bindings1, s1) <- inferIPattern p expectedType ctx
     
     -- Infer argument patterns left-to-right with base pattern bindings in scope
     argTypes <- mapM (\_ -> freshVar "darg") pats
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (argBindings, s2) <- withEnv schemes1 $ inferPatternsLeftToRight pats argTypes [] s1 ctx
+    (tipats, argBindings, s2) <- withEnv schemes1 $ inferPatternsLeftToRight pats argTypes [] s1 ctx
     
     let s = composeSubst s2 s1
         -- Apply substitution to base bindings
         bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-    return (bindings1' ++ argBindings, s)
+        finalType = applySubst s expectedType
+        tiDApplyPat = TIPattern (Forall [] [] finalType) (TIDApplyPat tipat tipats)
+    return (tiDApplyPat, bindings1' ++ argBindings, s)
   where
     -- Extract function argument types and result type
     -- e.g., a -> b -> c -> d  =>  ([a, b, c], d)
