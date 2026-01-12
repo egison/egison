@@ -30,7 +30,6 @@ prettyType TChar            = "Char"
 prettyType TString          = "String"
 prettyType (TTuple [])      = "()"
 prettyType (TVar (TyVar v)) = v
-prettyType (TTuple [])      = "()"
 prettyType (TTuple ts)      = "(" ++ intercalate ", " (map prettyType ts) ++ ")"
 prettyType (TCollection t)  = "[" ++ prettyType t ++ "]"
 prettyType (TInductive name []) = name

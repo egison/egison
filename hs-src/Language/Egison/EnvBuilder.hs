@@ -343,7 +343,7 @@ constraintToInternal (ConstraintExpr clsName tyExprs) =
 registerPatternConstructor :: String -> [String] -> Type 
                            -> PatternConstructorEnv -> PatternConstructor 
                            -> EvalM PatternConstructorEnv
-registerPatternConstructor typeName typeParams resultType patternCtorEnv 
+registerPatternConstructor _typeName typeParams resultType patternCtorEnv 
                           (PatternConstructor ctorName argTypeExprs) = do
   let argTypes = map typeExprToType argTypeExprs
       

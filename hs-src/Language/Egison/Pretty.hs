@@ -677,12 +677,12 @@ prettyTIExprNode node = case node of
     pretty "do" <+> vsep (map prettyBinding bindings) <+> prettyTIExprWithType body
     where prettyBinding (pat, expr) = pretty pat <+> pretty "<-" <+> prettyTIExprWithType expr
   
-  TIMatchExpr mode target matcher clauses ->
+  TIMatchExpr _mode target matcher clauses ->
     pretty "match" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
     pretty "with" <+> vsep (map prettyClause clauses)
     where prettyClause (pat, body) = pretty "|" <+> pretty pat <+> pretty "->" <+> prettyTIExprWithType body
   
-  TIMatchAllExpr mode target matcher clauses ->
+  TIMatchAllExpr _mode target matcher clauses ->
     pretty "matchAll" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
     pretty "with" <+> vsep (map prettyClause clauses)
     where prettyClause (pat, body) = pretty "|" <+> pretty pat <+> pretty "->" <+> prettyTIExprWithType body
@@ -717,7 +717,7 @@ prettyTIExprNode node = case node of
       prettyIndex (User e) = pretty "|" <> pretty e
       prettyIndex (MultiSub e1 n e2) = pretty "_..." <> pretty e1 <> pretty n <> pretty e2
       prettyIndex (MultiSup e1 n e2) = pretty "~..." <> pretty e1 <> pretty n <> pretty e2
-      prettyIndex (DF i1 i2) = emptyDoc
+      prettyIndex (DF _i1 _i2) = emptyDoc
   
   TIFunctionExpr names ->
     pretty "function" <+> hsep (map pretty names)
@@ -728,7 +728,7 @@ prettyTIExprNode node = case node of
   
   TIMatcherExpr patDefs ->
     pretty "matcher" <+> vsep (map prettyPatDef patDefs)
-    where prettyPatDef (pat, expr, bindings) = pretty pat <+> pretty "->" <+> prettyTIExprWithType expr
+    where prettyPatDef (pat, expr, _bindings) = pretty pat <+> pretty "->" <+> prettyTIExprWithType expr
 
 instance Pretty TITopExpr where
   pretty (TIDefine scheme var tiexpr) =

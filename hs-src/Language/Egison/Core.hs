@@ -141,7 +141,6 @@ evalExprShallow env (IVarExpr name) =
     Nothing  -> return $ Value (symbolScalarData "" name)
     Just ref -> evalRef ref
 
-evalExprShallow _ (ITupleExpr []) = return . Value $ Tuple []
 evalExprShallow _ (ITupleExpr []) = return . Value $ Tuple []  -- Unit value ()
 evalExprShallow env (ITupleExpr [expr]) = evalExprShallow env expr
 evalExprShallow env (ITupleExpr exprs) = ITuple <$> mapM (newThunkRef env) exprs
@@ -213,7 +212,7 @@ evalExprShallow env (IHashExpr assocs) = do
       _            -> throwErrorWithTrace (TypeMismatch "integer or string" (Value val))
   makeHashKey whnf = throwErrorWithTrace (TypeMismatch "integer or string" whnf)
 
-evalExprShallow env@(Env fs _) (IIndexedExpr override expr indices) = do
+evalExprShallow env@(Env _fs _) (IIndexedExpr override expr indices) = do
   -- Tensor or hash
   whnf <- case expr of
               IVarExpr v -> do
@@ -226,7 +225,7 @@ evalExprShallow env@(Env fs _) (IIndexedExpr override expr indices) = do
     Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
       js2 <- mapM evalIndexToScalar indices
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
-    Value (Func v@(Just (Var fnName is)) env args body) -> do
+    Value (Func v@(Just (Var _fnName is)) env args body) -> do
       js <- mapM evalIndex indices
       frame <- pmIndices is js
       let env' = extendEnv env frame
@@ -1167,7 +1166,7 @@ makeBindings vs refs = zipWithM makeBinding vs refs >>= return . concat
   where
     makeBinding :: Var -> ObjectRef -> EvalM [Binding]
     makeBinding v@(Var _ [])    ref = return [(v, ref)]
-    makeBinding v@(Var name is) ref = do
+    makeBinding v@(Var _name is) ref = do
       val <- evalRefDeep ref
       case val of
         TensorData (Tensor _ _ js) -> do
