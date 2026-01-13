@@ -46,6 +46,7 @@ module Language.Egison.Data
     , EvalM
     , fromEvalM
     , fromEvalT
+    , fromEvalTWithState
     ) where
 
 import           Control.Exception
@@ -528,6 +529,14 @@ instance MonadRuntime EvalM where
 
 fromEvalT :: EvalM a -> RuntimeM (Either EgisonError a)
 fromEvalT m = runExceptT (evalStateT m initialEvalState)
+
+-- | Run EvalM with a given EvalState (for REPL to preserve state between evaluations)
+fromEvalTWithState :: EvalState -> EvalM a -> RuntimeM (Either EgisonError (a, EvalState))
+fromEvalTWithState state m = do
+  result <- runExceptT (runStateT m state)
+  case result of
+    Left err -> return $ Left err
+    Right (val, state') -> return $ Right (val, state')
 
 fromEvalM :: EgisonOpts -> EvalM a -> IO (Either EgisonError a)
 fromEvalM opts = evalRuntimeT opts . fromEvalT
