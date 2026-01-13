@@ -22,6 +22,7 @@ module Language.Egison.Type.Types
   , isTensorType
   , isScalarType
   , typeToName
+  , typeConstructorName
   , sanitizeMethodName
   , typeExprToType
   , capitalizeFirst
@@ -154,6 +155,26 @@ typeToName (TCollection t) = "Collection" ++ typeToName t
 typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
 typeToName (TTensor t) = "Tensor" ++ typeToName t
 typeToName _ = "Unknown"
+
+-- | Get the type constructor name only, without type parameters
+-- Used for generating instance dictionary names (e.g., "eqCollection" not "eqCollectiona")
+typeConstructorName :: Type -> String
+typeConstructorName TInt = "Integer"
+typeConstructorName TFloat = "Float"
+typeConstructorName TBool = "Bool"
+typeConstructorName TChar = "Char"
+typeConstructorName TString = "String"
+typeConstructorName (TVar _) = ""  -- Type variables are ignored
+typeConstructorName (TInductive name _) = name  -- Type arguments are ignored
+typeConstructorName (TCollection _) = "Collection"  -- Element type is ignored
+typeConstructorName (TTuple _) = "Tuple"
+typeConstructorName (TTensor _) = "Tensor"
+typeConstructorName (THash _ _) = "Hash"
+typeConstructorName (TMatcher _) = "Matcher"
+typeConstructorName (TFun _ _) = "Fun"
+typeConstructorName (TIO _) = "IO"
+typeConstructorName (TIORef _) = "IORef"
+typeConstructorName TAny = "Any"
 
 -- | Sanitize method names for use in identifiers
 -- Converts operator symbols to alphanumeric names
