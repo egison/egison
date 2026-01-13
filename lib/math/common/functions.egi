@@ -40,9 +40,9 @@ def tan (x: MathExpr) : MathExpr :=
     | #0 -> 0
     | _ -> 'tan x
 
-def acos : MathExpr -> MathExpr := b.acos
-def asin : MathExpr -> MathExpr := b.asin
-def atan : MathExpr -> MathExpr := b.atan
+def acos : MathExpr -> MathExpr := f.acos
+def asin : MathExpr -> MathExpr := f.asin
+def atan : MathExpr -> MathExpr := f.atan
 
 def cosh (x: MathExpr) : MathExpr :=
   match x as mathExpr with
@@ -59,9 +59,9 @@ def tanh (x: MathExpr) : MathExpr :=
     | #0 -> 0
     | _ -> 'tanh x
 
-def acosh : MathExpr -> MathExpr := b.acosh
-def asinh : MathExpr -> MathExpr := b.asinh
-def atanh : MathExpr -> MathExpr := b.atanh
+def acosh : MathExpr -> MathExpr := f.acosh
+def asinh : MathExpr -> MathExpr := f.asinh
+def atanh : MathExpr -> MathExpr := f.atanh
 
 def sinc (x: MathExpr) : MathExpr :=
   match x as mathExpr with

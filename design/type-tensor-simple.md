@@ -113,7 +113,7 @@ class Num a where
   (+) (x: a) (y: a) : a
 
 instance Num Integer where
-  (+) x y := (b.+ x y)
+  (+) x y := (i.+ x y)
 
 def double {Num a} (x: a) : a := x + x
 
