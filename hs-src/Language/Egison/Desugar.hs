@@ -35,8 +35,8 @@ import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.IExpr
 import           Language.Egison.RState
-import           Language.Egison.Type.Types (sanitizeMethodName, typeToName, typeExprToType,
-                                             capitalizeFirst, lowerFirst)
+import           Language.Egison.Type.Types (sanitizeMethodName, typeToName, typeConstructorName, 
+                                             typeExprToType, capitalizeFirst, lowerFirst)
 
 
 desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
@@ -129,37 +129,55 @@ desugarTopExpr (ClassDeclExpr (ClassDecl classNm _typeParams _supers methods)) =
 --      def eqIntegerNeq x y := not (x = y)
 --   2. A dictionary for the instance:
 --      def eqInteger := {| ("eq", eqIntegerEq), ("neq", eqIntegerNeq) |}
-desugarTopExpr (InstanceDeclExpr (InstanceDecl _constraints classNm instTypes methods)) = do
+desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes methods)) = do
   -- Check if instTypes is not empty
   if null instTypes
     then return Nothing
     else do
-      let instTypeName = typeExprToName (head instTypes)
-      -- Generate individual method definitions
-      methodDefs <- mapM (desugarInstanceMethod classNm instTypeName) methods
-      -- Generate dictionary definition
-      let dictDef = makeDictDef classNm instTypeName methods
+      -- Use type constructor name only (without type parameters)
+      -- e.g., "Collection" not "Collectiona" for [a]
+      let instTypeName = typeConstructorName (typeExprToType (head instTypes))
+      -- Generate individual method definitions with constraint parameters
+      methodDefs <- mapM (desugarInstanceMethod constraints classNm instTypeName) methods
+      -- Generate dictionary definition (with constraints if any)
+      let dictDef = makeDictDef constraints classNm instTypeName methods
       -- Return all definitions
       case methodDefs of
         []  -> return Nothing
         _   -> return $ Just $ IDefineMany (dictDef : methodDefs)
   where
-    desugarInstanceMethod :: String -> String -> InstanceMethod -> EvalM (Var, IExpr)
-    desugarInstanceMethod clsNm typNm (InstanceMethod methName params body) = do
-      -- Generate function name: e.g., "eqIntegerEq" for (==) in Eq Integer
+    desugarInstanceMethod :: [ConstraintExpr] -> String -> String -> InstanceMethod -> EvalM (Var, IExpr)
+    desugarInstanceMethod _constrs clsNm typNm (InstanceMethod methName params body) = do
+      -- Generate function name using type constructor name only
+      -- e.g., "eqCollectionEq" not "eqCollectionaEq" for instance {Eq a} Eq [a]
       let funcName = lowerFirst clsNm ++ typNm ++ capitalizeFirst (sanitizeMethodName methName)
           var = stringToVar funcName
-      -- Create lambda expression in AST then desugar
+      
+      -- Do NOT add dictionary parameters here!
+      -- Dictionary parameters will be added automatically by addDictionaryParametersT
+      -- after type inference, based on the inferred constraints.
+      -- This allows the method body to be properly type-checked with constraints.
+      
+      -- Create lambda expression with only the method parameters
       let lambdaArgs = map (\p -> Arg (APPatVar (VarWithIndices p []))) params
           lambdaExpr = if null params then body else LambdaExpr lambdaArgs body
       iexpr <- desugar lambdaExpr
       return (var, iexpr)
     
-    makeDictDef :: String -> String -> [InstanceMethod] -> (Var, IExpr)
-    makeDictDef clsNm typNm meths =
-      let dictName = lowerFirst clsNm ++ typNm  -- e.g., "eqInteger"
+    makeDictDef :: [ConstraintExpr] -> String -> String -> [InstanceMethod] -> (Var, IExpr)
+    makeDictDef _constrs clsNm typNm meths =
+      let dictName = lowerFirst clsNm ++ typNm  -- e.g., "eqCollection"
           dictVar = stringToVar dictName
-          -- Create hash entries: ("eq", eqIntegerEq), ("neq", eqIntegerNeq), ...
+          
+          -- For nested instances (with constraints), the dictionary becomes a function
+          -- that takes dictionary parameters and returns a hash.
+          -- e.g., for instance {Eq a} Eq [a]:
+          --   eqCollection = \dict_Eq -> {| ("eq", eqCollectionEq dict_Eq), ... |}
+          --
+          -- Dictionary parameters will be automatically added by addDictionaryParametersT
+          -- after type inference, so we don't add them here manually.
+          -- We just create the hash with references to the methods.
+          
           hashEntries = map (makeHashEntry clsNm typNm) meths
           hashExpr = IHashExpr hashEntries
       in (dictVar, hashExpr)
@@ -172,9 +190,6 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl _constraints classNm instTypes me
           valueExpr = IVarExpr funcName
       in (keyExpr, valueExpr)
     
-    -- Convert TypeExpr to string name by composing typeExprToType and typeToName
-    typeExprToName :: TypeExpr -> String
-    typeExprToName = typeToName . typeExprToType
 
 -- Inductive declarations don't produce runtime code
 -- Constructor registration is handled by the type system

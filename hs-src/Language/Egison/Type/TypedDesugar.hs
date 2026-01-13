@@ -26,7 +26,9 @@ module Language.Egison.Type.TypedDesugar
   ) where
 
 import           Language.Egison.Data       (EvalM)
-import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..))
+import           Language.Egison.EvalState  (MonadEval(..))
+import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..), extractNameFromVar)
+import           Language.Egison.Type.Env   (lookupEnv)
 import           Language.Egison.Type.TensorMapInsertion (insertTensorMaps)
 import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT)
 
@@ -75,8 +77,14 @@ desugarTypedTopExprT topExpr = case topExpr of
   TIDefineMany bindings -> do
     bindings' <- mapM (\(var, tiexpr) -> do
       tiexpr' <- desugarTypedExprT tiexpr
-      -- Add dictionary parameters using the expression's own scheme
-      let scheme = tiScheme tiexpr'
+      -- Add dictionary parameters using the variable's type scheme from TypeEnv
+      -- This is important for dictionary definitions where the expression (hash)
+      -- may not have constraints, but the variable has constraints in its type scheme
+      typeEnv <- getTypeEnv
+      let varName = extractNameFromVar var
+          scheme = case lookupEnv varName typeEnv of
+                     Just ts -> ts  -- Use type scheme from environment
+                     Nothing -> tiScheme tiexpr'  -- Fallback to expression's scheme
       tiexpr'' <- addDictionaryParametersT scheme tiexpr'
       return (var, tiexpr'')) bindings
     return $ Just (TIDefineMany bindings')
