@@ -640,11 +640,11 @@ applyRef _ (Value (IOFunc m)) refs = do
   case args of
     [Value World] -> m
     arg : _       -> throwErrorWithTrace (TypeMismatch "world" arg)
-applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol{}, 1)]))) refs = do
+applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol _ symName _, 1)]))) refs = do
   args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
-                            _            -> throwErrorWithTrace (EgisonBug "to use undefined functions, you have to use ScalarData args")) args
+                            _            -> throwErrorWithTrace (EgisonBug $ "to use undefined function '" ++ symName ++ "', you have to use ScalarData args")) args
   return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
 -- Type class method dispatch: look up implementation based on first argument's type
 -- Uses Type from Types.hs for dispatch (not String-based typeName)
