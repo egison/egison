@@ -182,9 +182,11 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   -- Permissive mode allows falling back to untyped evaluation on type errors
   let permissive = not (optTypeCheckStrict opts)
   
-  -- Process each expression sequentially through phases 3-10, accumulating environments
+  -- Process each expression sequentially through phases 3-8 (type inference and desugaring)
+  -- Collect all definitions to bind them together later (Phase 9)
+  -- Non-definition expressions (ITest, IExecute) will be evaluated in Phase 10
   -- Also collect typed ASTs if dump-typed or dump-ti is enabled
-  ((lastVal, finalEnv), typedExprs, tiExprs) <- foldM (\((lastVal, currentEnv), typedExprs, tiExprs) expr -> do
+  ((allBindings, nonDefExprs), typedExprs, tiExprs) <- foldM (\((bindings, nonDefs), typedExprs, tiExprs) expr -> do
     -- Get current type and class environments from EvalState
     currentTypeEnv <- getTypeEnv
     currentClassEnv <- getClassEnv
@@ -193,7 +195,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
     mITopExpr <- desugarTopExpr expr
     
     case mITopExpr of
-      Nothing -> return ((lastVal, currentEnv), typedExprs, tiExprs)  -- No desugared output
+      Nothing -> return ((bindings, nonDefs), typedExprs, tiExprs)  -- No desugared output
       Just iTopExpr -> do
         -- Phase 5-6: Type Inference (ITopExpr → TypedITopExpr)
         let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
@@ -222,19 +224,25 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
           Left err -> do
             liftIO $ hPutStrLn stderr $ "Type error:\n" ++ formatTypeError err
             -- Fallback: Use untyped evaluation if type checking fails (permissive mode)
+            -- Type errors are handled immediately, not collected
             topExpr' <- desugarTopExpr expr
             case topExpr' of
-              Nothing -> return ((lastVal, currentEnv), typedExprs, tiExprs)
+              Nothing -> return ((bindings, nonDefs), typedExprs, tiExprs)
               Just topExpr'' -> do
-                (mVal, env') <- evalTopExpr' currentEnv topExpr''
-                when printValues $ case mVal of
-                  Nothing -> return ()
-                  Just val -> valueToStr val >>= liftIO . putStrLn
-                return ((mVal, env'), typedExprs, tiExprs)
+                -- Evaluate type-error expressions immediately (not collected)
+                -- This is a fallback for permissive mode
+                case topExpr'' of
+                  IDefine name expr -> 
+                    return ((bindings ++ [(name, expr)], nonDefs), typedExprs, tiExprs)
+                  IDefineMany defs -> 
+                    return ((bindings ++ defs, nonDefs), typedExprs, tiExprs)
+                  _ -> 
+                    -- Non-definition: collect for later evaluation
+                    return ((bindings, nonDefs ++ [(topExpr'', printValues)]), typedExprs, tiExprs)
           
           Right (Nothing, _subst) -> 
             -- No code generated (e.g., load statements that are already processed)
-            return ((lastVal, currentEnv), typedExprs, tiExprs)
+            return ((bindings, nonDefs), typedExprs, tiExprs)
           
           Right (Just tiTopExpr, _subst) -> do
             -- Phase 7: inferITopExpr now returns TITopExpr directly
@@ -254,7 +262,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             case mTiTopExprDesugared of
               Nothing -> 
                 -- Load/LoadFile statements - no evaluation needed
-                return ((Nothing, currentEnv), typedExprs', tiExprs)
+                return ((bindings, nonDefs), typedExprs', tiExprs)
               
               Just tiTopExprDesugared -> do
                 -- Collect TypedDesugared AST for --dump-ti (Phase 8: after TypedDesugar)
@@ -265,25 +273,42 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                 
                 -- Type scheme is already in the environment (added by inferITopExpr), no need to add again
                 
-                -- Phase 9-10: Evaluation using IExpr (type info stripped)
-                -- Catch errors during evaluation to preserve typedExprs for dumping
-                evalResult <- catchError
-                  (Right <$> evalTopExpr' currentEnv iTopExprExpanded)
-                  (\err -> do
-                    liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
-                    return $ Left err)
-                
-                case evalResult of
-                  Left _ -> 
-                    -- Error occurred, but preserve typedExprs for dumping
-                    return ((lastVal, currentEnv), typedExprs', tiExprs')
-                  Right (mVal, env') -> do
-                    -- Print value if requested
-                    when printValues $ case mVal of
-                      Nothing -> return ()
-                      Just val -> valueToStr val >>= liftIO . putStrLn
-                    return ((mVal, env'), typedExprs', tiExprs')
-    ) ((Nothing, env), [], []) exprs
+                -- Phase 9-10: Collect definitions and non-definitions
+                -- Definitions will be bound together using recursiveBind to support mutual recursion
+                -- Non-definitions will be evaluated sequentially after all definitions are bound
+                case iTopExprExpanded of
+                  IDefine name expr -> 
+                    -- Collect definition for later binding
+                    return ((bindings ++ [(name, expr)], nonDefs), typedExprs', tiExprs')
+                  IDefineMany defs -> 
+                    -- Collect multiple definitions for later binding
+                    return ((bindings ++ defs, nonDefs), typedExprs', tiExprs')
+                  _ -> 
+                    -- Non-definition expressions (ITest, IExecute)
+                    -- Collect for evaluation after all definitions are bound
+                    return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs')
+    ) (([], []), [], []) exprs
+  
+  -- Phase 9: Bind all definitions together using recursiveBind
+  -- This ensures mutual recursion works correctly (e.g., length can reference foldl even if defined earlier)
+  env' <- recursiveBind env allBindings
+  
+  -- Phase 10: Evaluate non-definition expressions in order
+  (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) (iExpr, shouldPrint) -> do
+      evalResult <- catchError
+        (Right <$> evalTopExpr' currentEnv iExpr)
+        (\err -> do
+          liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
+          return $ Left err)
+      
+      case evalResult of
+        Left _ -> return (lastVal, currentEnv)
+        Right (mVal, env'') -> do
+          when shouldPrint $ case mVal of
+            Nothing -> return ()
+            Just val -> valueToStr val >>= liftIO . putStrLn
+          return (mVal, env'')
+    ) (Nothing, env') nonDefExprs
   
   -- Dump typed AST if requested and shouldDumpTyped is True
   when (optDumpTyped opts && shouldDumpTyped) $ do
