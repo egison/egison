@@ -60,7 +60,7 @@ coreLibraries =
 
 --  , "lib/core/assoc.egi"
 --  , "lib/core/io.egi"
---  , "lib/core/maybe.egi"
+  , "lib/core/maybe.egi"
 --  , "lib/core/number.egi"
 --  , "lib/core/random.egi"
 --  , "lib/core/string.egi"

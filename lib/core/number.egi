@@ -7,6 +7,10 @@
 --
 -- Natural Numbers
 --
+inductive pattern Integer :=
+    | o
+    | s Integer
+
 def nat : Matcher Integer :=
   matcher
     | o as () with
