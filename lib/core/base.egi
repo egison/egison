@@ -58,12 +58,6 @@ instance Num Integer where
   (*) x y := b.* x y
   (/) x y := b./ x y
 
-instance Num MathExpr where
-  (+) x y := b.+ x y
-  (-) x y := b.- x y
-  (*) x y := b.* x y
-  (/) x y := b./ x y
-
 instance Num Float where
   (+) x y := f.+ x y
   (-) x y := f.- x y

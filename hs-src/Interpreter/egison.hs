@@ -55,14 +55,9 @@ run = do
       -- Load core libraries first, then user libraries and files
       allLoadExprs = coreLibExprs ++ libExprs ++ loadFileExprs ++ testFileExprs
   -- Load all libraries and user files in a single EvalM context to preserve EvalState
-  liftIO $ putStrLn $ "DEBUG: Loading " ++ show (length allLoadExprs) ++ " expressions"
-  liftIO $ putStrLn $ "DEBUG: First 3 exprs: " ++ show (take 3 allLoadExprs)
   mEnv <- fromEvalT $ do
     env <- initialEnv  -- Only primitive environment
-    liftIO $ putStrLn $ "DEBUG: initialEnv created"
-    result <- evalTopExprs' env allLoadExprs True True
-    liftIO $ putStrLn $ "DEBUG: evalTopExprs' completed"
-    return result
+    evalTopExprs' env allLoadExprs True True
   case mEnv of
     Left err  -> liftIO $ print err
     Right env -> handleOption env opts
