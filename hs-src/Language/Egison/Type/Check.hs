@@ -101,8 +101,10 @@ builtinTypes = concat
       , ("modulo", binOp TInt TInt TInt)
       , ("quotient", binOp TInt TInt TInt)
       , ("%", binOp TInt TInt TInt)
-      , ("b.abs", unaryOp TInt TInt)
-      , ("b.neg", unaryOp TInt TInt)
+      , ("i.abs", unaryOp TInt TInt)
+      , ("i.neg", unaryOp TInt TInt)
+      , ("f.abs", unaryOp TFloat TFloat)
+      , ("f.neg", unaryOp TFloat TFloat)
       -- Comparison operators
       , ("=", forallABinOp (TVar a) (TVar a) TBool)
       , ("<", forallABinOp (TVar a) (TVar a) TBool)

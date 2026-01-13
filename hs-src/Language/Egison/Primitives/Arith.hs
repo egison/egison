@@ -39,8 +39,10 @@ strictPrimitives =
   , ("modulo",   integerBinaryOp mod)
   , ("quotient", integerBinaryOp quot)
   , ("%",        integerBinaryOp rem)
-  , ("b.abs",    rationalUnaryOp abs)
-  , ("b.neg",    rationalUnaryOp negate)
+  , ("i.abs",    integerUnaryOp abs)
+  , ("i.neg",    integerUnaryOp negate)
+  , ("f.abs",    floatUnaryOp abs)
+  , ("f.neg",    floatUnaryOp negate)
 
   -- Primitive comparison aliases (to avoid type class method conflicts)
   , ("=",  eq)
@@ -77,8 +79,8 @@ strictPrimitives =
   ]
 
 
-rationalUnaryOp :: (Rational -> Rational) -> String -> PrimitiveFunc
-rationalUnaryOp = unaryOp
+integerUnaryOp :: (Integer -> Integer) -> String -> PrimitiveFunc
+integerUnaryOp = unaryOp
 
 integerBinaryOp :: (Integer -> Integer -> Integer) -> String -> PrimitiveFunc
 integerBinaryOp = binaryOp

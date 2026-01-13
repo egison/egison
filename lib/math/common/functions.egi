@@ -2,9 +2,9 @@
 -- Mathematical Functions
 --
 
-def abs (x: MathExpr) : MathExpr := if isRational x then b.abs x else 'abs x
+def abs (x: MathExpr) : MathExpr := if isRational x then i.abs x else 'abs x
 
-def neg (x: MathExpr) : MathExpr := if isRational x then b.neg x else - x
+def neg (x: MathExpr) : MathExpr := if isRational x then i.neg x else - x
 
 def exp (x: MathExpr) : MathExpr :=
   if isTerm x
