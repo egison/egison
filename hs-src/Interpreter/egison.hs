@@ -55,15 +55,18 @@ run = do
       -- Load core libraries first, then user libraries and files
       allLoadExprs = coreLibExprs ++ libExprs ++ loadFileExprs ++ testFileExprs
   -- Load all libraries and user files in a single EvalM context to preserve EvalState
-  mEnv <- fromEvalT $ do
+  mResult <- fromEvalTWithState initialEvalState $ do
     env <- initialEnv  -- Only primitive environment
     evalTopExprs' env allLoadExprs True True
-  case mEnv of
+  case mResult of
     Left err  -> liftIO $ print err
-    Right env -> handleOption env opts
+    Right (env, evalState) -> handleOptionWithState env evalState opts
 
 handleOption :: Env -> EgisonOpts -> RuntimeM ()
-handleOption env opts =
+handleOption env opts = handleOptionWithState env initialEvalState opts
+
+handleOptionWithState :: Env -> EvalState -> EgisonOpts -> RuntimeM ()
+handleOptionWithState env evalState opts =
   case opts of
     -- Evaluate the given string
     EgisonOpts { optEvalString = Just expr } ->
@@ -99,7 +102,7 @@ handleOption env opts =
     -- Start the read-eval-print-loop
     _ -> do
       when (optShowBanner opts) (liftIO showBanner)
-      repl env
+      replWithState env evalState
       when (optShowBanner opts) (liftIO showByebyeMessage)
       liftIO exitSuccess
 
@@ -138,35 +141,38 @@ settings home env =
            }
 
 repl :: Env -> RuntimeM ()
-repl env = (do
+repl env = replWithState env initialEvalState
+
+replWithState :: Env -> EvalState -> RuntimeM ()
+replWithState env evalState = (do
   home <- liftIO getHomeDirectory
   input <- runInputT (settings home env) (getReplInput env)
   case input of
     Nothing -> return ()
     Just (ReplExpr topExpr) -> do
-      result <- fromEvalT (evalTopExprStr env topExpr)
+      result <- fromEvalTWithState evalState (evalTopExprStr env topExpr)
       case result of
-        Left err               -> liftIO (print err) >> repl env
-        Right (Just str, env') -> liftIO (putStrLn str) >> repl env'
-        Right (Nothing, env')  -> repl env'
+        Left err -> liftIO (print err) >> replWithState env evalState
+        Right ((Just str, env'), evalState') -> liftIO (putStrLn str) >> replWithState env' evalState'
+        Right ((Nothing, env'), evalState')  -> replWithState env' evalState'
     Just (ReplTypeStr exprStr) -> do
       -- Parse and type check the expression
       -- Note: This feature is temporarily disabled due to refactoring.
       -- TODO: Re-implement using IInfer pipeline.
       liftIO $ putStrLn $ "Type checking in REPL is temporarily disabled during refactoring."
       liftIO $ putStrLn $ "Expression: " ++ exprStr
-      repl env
+      replWithState env evalState
     Just ReplHelp -> do
       liftIO showReplHelp
-      repl env
+      replWithState env evalState
     Just ReplQuit -> return ()
   )
   `catch`
   (\case
-      UserInterrupt -> liftIO (putStrLn "") >> repl env
-      StackOverflow -> liftIO (putStrLn "Stack over flow!") >> repl env
-      HeapOverflow  -> liftIO (putStrLn "Heap over flow!") >> repl env
-      _             -> liftIO (putStrLn "error!") >> repl env
+      UserInterrupt -> liftIO (putStrLn "") >> replWithState env evalState
+      StackOverflow -> liftIO (putStrLn "Stack over flow!") >> replWithState env evalState
+      HeapOverflow  -> liftIO (putStrLn "Heap over flow!") >> replWithState env evalState
+      _             -> liftIO (putStrLn "error!") >> replWithState env evalState
    )
 
 -- | REPL input types
