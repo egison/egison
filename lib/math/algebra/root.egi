@@ -68,7 +68,7 @@ def sqrt {a} (x: a) : a :=
     then let m := numerator x
              n := denominator x
           in rt 2 (m * n) / n
-    else b.sqrt x
+    else f.sqrt x
 
 def rtOfUnity : MathExpr -> MathExpr := rtu
 

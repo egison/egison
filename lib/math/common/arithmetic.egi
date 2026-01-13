@@ -18,10 +18,10 @@ infixl expression 7 *'
 infixl expression 7 /'
 infixl expression 8 ^'
 
-def (+') : MathExpr -> MathExpr -> MathExpr := b.+
-def (-') : MathExpr -> MathExpr -> MathExpr := b.-
-def (*') : MathExpr -> MathExpr -> MathExpr := b.*
-def (/') : MathExpr -> MathExpr -> MathExpr := b./
+def (+') : MathExpr -> MathExpr -> MathExpr := i.+
+def (-') : MathExpr -> MathExpr -> MathExpr := i.-
+def (*') : MathExpr -> MathExpr -> MathExpr := i.*
+def (/') : MathExpr -> MathExpr -> MathExpr := i./
 
 def plusForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
   mathNormalize (x +' y)

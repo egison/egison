@@ -1116,7 +1116,7 @@ loopPattern =
 
     defaultEnds s =
       makeApply "from"
-                [makeApply "b.-" [s, ConstantExpr (IntegerExpr 1)]]
+                [makeApply "i.-" [s, ConstantExpr (IntegerExpr 1)]]
 
 seqPattern :: Parser Pattern
 seqPattern = do

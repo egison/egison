@@ -31,31 +31,31 @@ class Ord a extends Eq a where
 
 -- | Ord instances for basic types
 instance Ord Integer where
-  compare x y := if prim.< x y then Less else if prim.> x y then Greater else Equal
-  (<) x y := prim.< x y
-  (<=) x y := prim.<= x y
-  (>) x y := prim.> x y
-  (>=) x y := prim.>= x y
-  min x y := if prim.< x y then x else y
-  max x y := if prim.> x y then x else y
+  compare x y := if i.< x y then Less else if i.> x y then Greater else Equal
+  (<) x y := i.< x y
+  (<=) x y := i.<= x y
+  (>) x y := i.> x y
+  (>=) x y := i.>= x y
+  min x y := if i.< x y then x else y
+  max x y := if i.> x y then x else y
 
 instance Ord Float where
-  compare x y := if prim.< x y then Less else if prim.> x y then Greater else Equal
-  (<) x y := prim.< x y
-  (<=) x y := prim.<= x y
-  (>) x y := prim.> x y
-  (>=) x y := prim.>= x y
-  min x y := if prim.< x y then x else y
-  max x y := if prim.> x y then x else y
+  compare x y := if f.< x y then Less else if f.> x y then Greater else Equal
+  (<) x y := f.< x y
+  (<=) x y := f.<= x y
+  (>) x y := f.> x y
+  (>=) x y := f.>= x y
+  min x y := if f.< x y then x else y
+  max x y := if f.> x y then x else y
 
 instance Ord Char where
-  compare x y := if prim.< (ctoi x) (ctoi y) then Less else if prim.> (ctoi x) (ctoi y) then Greater else Equal
-  (<) x y := prim.< (ctoi x) (ctoi y)
-  (<=) x y := prim.<= (ctoi x) (ctoi y)
-  (>) x y := prim.> (ctoi x) (ctoi y)
-  (>=) x y := prim.>= (ctoi x) (ctoi y)
-  min x y := if prim.< (ctoi x) (ctoi y) then x else y
-  max x y := if prim.> (ctoi x) (ctoi y) then x else y
+  compare x y := if i.< (ctoi x) (ctoi y) then Less else if i.> (ctoi x) (ctoi y) then Greater else Equal
+  (<) x y := i.< (ctoi x) (ctoi y)
+  (<=) x y := i.<= (ctoi x) (ctoi y)
+  (>) x y := i.> (ctoi x) (ctoi y)
+  (>=) x y := i.>= (ctoi x) (ctoi y)
+  min x y := if i.< (ctoi x) (ctoi y) then x else y
+  max x y := if i.> (ctoi x) (ctoi y) then x else y
 
 instance Ord String where
   compare s1 s2 := compare (unpack s1) (unpack s2)

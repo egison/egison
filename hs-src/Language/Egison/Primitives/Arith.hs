@@ -22,10 +22,10 @@ primitiveArithFunctions =
 
 strictPrimitives :: [(String, String -> PrimitiveFunc)]
 strictPrimitives =
-  [ ("b.+", plus)
-  , ("b.-", minus)
-  , ("b.*", multiply)
-  , ("b./", divide)
+  [ ("i.+", plus)
+  , ("i.-", minus)
+  , ("i.*", multiply)
+  , ("i./", divide)
   , ("f.+", floatBinaryOp (+))
   , ("f.-", floatBinaryOp (-))
   , ("f.*", floatBinaryOp (*))
@@ -42,39 +42,38 @@ strictPrimitives =
   , ("b.abs",    rationalUnaryOp abs)
   , ("b.neg",    rationalUnaryOp negate)
 
-  , ("=",  eq)
-  , ("<",  scalarCompare (<))
-  , ("<=", scalarCompare (<=))
-  , (">",  scalarCompare (>))
-  , (">=", scalarCompare (>=))
   -- Primitive comparison aliases (to avoid type class method conflicts)
-  , ("prim.=",  eq)
-  , ("prim.<",  scalarCompare (<))
-  , ("prim.<=", scalarCompare (<=))
-  , ("prim.>",  scalarCompare (>))
-  , ("prim.>=", scalarCompare (>=))
+  , ("=",  eq)
+  , ("i.<",  integerCompare (<))
+  , ("i.<=", integerCompare (<=))
+  , ("i.>",  integerCompare (>))
+  , ("i.>=", integerCompare (>=))
+  , ("f.<",  floatCompare (<))
+  , ("f.<=", floatCompare (<=))
+  , ("f.>",  floatCompare (>))
+  , ("f.>=", floatCompare (>=))
 
   , ("round",    floatToIntegerOp round)
   , ("floor",    floatToIntegerOp floor)
   , ("ceiling",  floatToIntegerOp ceiling)
   , ("truncate", truncate')
 
-  , ("b.sqrt",  floatUnaryOp sqrt)
-  , ("b.sqrt'", floatUnaryOp sqrt)
-  , ("b.exp",   floatUnaryOp exp)
-  , ("b.log",   floatUnaryOp log)
-  , ("b.sin",   floatUnaryOp sin)
-  , ("b.cos",   floatUnaryOp cos)
-  , ("b.tan",   floatUnaryOp tan)
-  , ("b.asin",  floatUnaryOp asin)
-  , ("b.acos",  floatUnaryOp acos)
-  , ("b.atan",  floatUnaryOp atan)
-  , ("b.sinh",  floatUnaryOp sinh)
-  , ("b.cosh",  floatUnaryOp cosh)
-  , ("b.tanh",  floatUnaryOp tanh)
-  , ("b.asinh", floatUnaryOp asinh)
-  , ("b.acosh", floatUnaryOp acosh)
-  , ("b.atanh", floatUnaryOp atanh)
+  , ("f.sqrt",  floatUnaryOp sqrt)
+  , ("f.sqrt'", floatUnaryOp sqrt)
+  , ("f.exp",   floatUnaryOp exp)
+  , ("f.log",   floatUnaryOp log)
+  , ("f.sin",   floatUnaryOp sin)
+  , ("f.cos",   floatUnaryOp cos)
+  , ("f.tan",   floatUnaryOp tan)
+  , ("f.asin",  floatUnaryOp asin)
+  , ("f.acos",  floatUnaryOp acos)
+  , ("f.atan",  floatUnaryOp atan)
+  , ("f.sinh",  floatUnaryOp sinh)
+  , ("f.cosh",  floatUnaryOp cosh)
+  , ("f.tanh",  floatUnaryOp tanh)
+  , ("f.asinh", floatUnaryOp asinh)
+  , ("f.acosh", floatUnaryOp acosh)
+  , ("f.atanh", floatUnaryOp atanh)
   ]
 
 
@@ -150,17 +149,22 @@ eq :: String -> PrimitiveFunc
 eq = twoArgs' $ \val val' ->
   return $ Bool $ val == val'
 
-scalarCompare :: (forall a. Ord a => a -> a -> Bool) -> String -> PrimitiveFunc
-scalarCompare cmp = twoArgs' $ \val1 val2 ->
+integerCompare :: (forall a. Ord a => a -> a -> Bool) -> String -> PrimitiveFunc
+integerCompare cmp = twoArgs' $ \val1 val2 ->
   case (val1, val2) of
     (ScalarData _, ScalarData _) -> do
       r1 <- fromEgison val1 :: EvalM Rational
       r2 <- fromEgison val2 :: EvalM Rational
       return $ Bool (cmp r1 r2)
+    (ScalarData _, _) -> throwErrorWithTrace (TypeMismatch "integer" (Value val2))
+    _                 -> throwErrorWithTrace (TypeMismatch "integer" (Value val1))
+
+floatCompare :: (forall a. Ord a => a -> a -> Bool) -> String -> PrimitiveFunc
+floatCompare cmp = twoArgs' $ \val1 val2 ->
+  case (val1, val2) of
     (Float f1, Float f2) -> return $ Bool (cmp f1 f2)
-    (ScalarData _, _) -> throwErrorWithTrace (TypeMismatch "number" (Value val2))
-    (Float _,      _) -> throwErrorWithTrace (TypeMismatch "float"  (Value val2))
-    _                 -> throwErrorWithTrace (TypeMismatch "number" (Value val1))
+    (Float _,      _) -> throwErrorWithTrace (TypeMismatch "float" (Value val2))
+    _                 -> throwErrorWithTrace (TypeMismatch "float" (Value val1))
 
 truncate' :: String -> PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
