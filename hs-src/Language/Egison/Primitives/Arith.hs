@@ -36,9 +36,10 @@ strictPrimitives =
   , ("toMathExpr'",     toScalarData)
   , ("symbolNormalize", symbolNormalize)
 
-  , ("modulo",   integerBinaryOp mod)
-  , ("quotient", integerBinaryOp quot)
-  , ("%",        integerBinaryOp rem)
+  , ("i.modulo",   integerBinaryOp mod)
+  , ("i.quotient", integerBinaryOp quot)
+  , ("i.%",        integerBinaryOp rem)
+  , ("i.power",    integerBinaryOp (^))
   , ("i.abs",    integerUnaryOp abs)
   , ("i.neg",    integerUnaryOp negate)
   , ("f.abs",    floatUnaryOp abs)
