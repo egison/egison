@@ -19,6 +19,10 @@ def fromAssoc {a} (xs: [(a, Integer)]) : [a] :=
 --
 -- Assoc Multiset
 --
+
+inductive pattern (a, b) :=
+    | (^) a b
+
 def assocMultiset {a} (m: Matcher a) : Matcher [(a, Integer)] :=
   matcher
     | [] as () with
