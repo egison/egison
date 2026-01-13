@@ -98,9 +98,10 @@ builtinTypes = concat
       , ("toMathExpr'", unaryOp TInt TInt)
       , ("symbolNormalize", unaryOp TInt TInt)
       -- Integer operations
-      , ("modulo", binOp TInt TInt TInt)
-      , ("quotient", binOp TInt TInt TInt)
-      , ("%", binOp TInt TInt TInt)
+      , ("i.modulo", binOp TInt TInt TInt)
+      , ("i.quotient", binOp TInt TInt TInt)
+      , ("i.%", binOp TInt TInt TInt)
+      , ("i.power", binOp TInt TInt TInt)
       , ("i.abs", unaryOp TInt TInt)
       , ("i.neg", unaryOp TInt TInt)
       , ("f.abs", unaryOp TFloat TFloat)

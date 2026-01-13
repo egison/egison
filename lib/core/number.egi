@@ -7,25 +7,6 @@
 --
 -- Natural Numbers
 --
-inductive pattern Integer :=
-    | o
-    | s Integer
-
-def nat : Matcher Integer :=
-  matcher
-    | o as () with
-      | 0 -> [()]
-      | _ -> []
-    | s $ as nat with
-      | $tgt ->
-        match compare tgt 0 as ordering with
-          | greater -> [tgt - 1]
-          | _ -> []
-    | #$n as () with
-      | $tgt -> if tgt = n then [()] else []
-    | $ as (something) with
-      | $tgt -> [tgt]
-
 def nats : [Integer] :=
   [1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
    11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
@@ -55,22 +36,22 @@ def divisor (n: Integer) (d: Integer) : Bool := 0 = n % d
 
 def findFactor : Integer -> Integer :=
   memoizedLambda n ->
-    match takeWhile (<= floor (sqrt (itof n))) primes as list integer with
+    match takeWhile (<= floor (f.sqrt (itof n))) primes as list integer with
       | _ ++ (?(divisor n) & $x) :: _ -> x
       | _ -> n
 
 def primeFactorization : Integer -> [Integer] :=
   \match as integer with
     | #1 -> []
-    | ?(< 0) & $n -> (-1) :: primeFactorization (neg n)
+    | ?(< 0) & $n -> (-1) :: primeFactorization (i.neg n)
     | $n ->
       let p := findFactor n
-       in p :: primeFactorization (quotient n p)
+       in p :: primeFactorization (i.quotient n p)
 
 def pF : Integer -> [Integer] := primeFactorization
 
-def isEven (n: Integer) : Bool := 0 = modulo n 2
-def isOdd (n: Integer) : Bool := 1 = modulo n 2
+def isEven (n: Integer) : Bool := 0 = i.modulo n 2
+def isOdd (n: Integer) : Bool := 1 = i.modulo n 2
 
 def fact (n: Integer) : Integer := foldl (*) 1 [1..n]
 
@@ -81,8 +62,8 @@ def comb (n: Integer) (r: Integer) : Integer := perm n r / fact r
 def nAdic (n: Integer) (x: Integer) : [Integer] :=
   if x = 0
     then []
-    else let q := quotient x n
-             r := modulo x n
+    else let q := i.quotient x n
+             r := i.modulo x n
           in nAdic n q ++ [r]
 
 --
@@ -91,35 +72,35 @@ def nAdic (n: Integer) (x: Integer) : [Integer] :=
 def mod (m: Integer) : Matcher Integer :=
   matcher
     | #$n as () with
-      | $tgt -> if modulo tgt m = modulo n m then [()] else []
+      | $tgt -> if i.modulo tgt m = i.modulo n m then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
 
 --
 -- Floats
 --
-def exp2 (x: Float) (y: Float) : Float := exp (log x * y)
+def exp2 (x: Float) (y: Float) : Float := f.exp (f.log x * y)
 
 --
 -- Decimal Fractions
 --
 def rtodHelper (m: Integer) (n: Integer) : [(Integer, Integer)] :=
-  let q := quotient (m * 10) n
-      r := modulo (m * 10) n
+  let q := i.quotient (m * 10) n
+      r := i.modulo (m * 10) n
    in (q, r) :: rtodHelper r n
 
 def rtod (x: Integer) : (Integer, [Integer]) :=
   let m := numerator x
       n := denominator x
-      q := quotient m n
-      r := modulo m n
+      q := i.quotient m n
+      r := i.modulo m n
    in (q, map fst (rtodHelper r n))
 
 def rtod' (x: Integer) : (Integer, [Integer], [Integer]) :=
   let m := numerator x
       n := denominator x
-      q := quotient m n
-      r := modulo m n
+      q := i.quotient m n
+      r := i.modulo m n
       (s, c) := findCycle (rtodHelper r n)
    in (q, map fst s, map fst c)
 
@@ -146,27 +127,27 @@ def continuedFraction (n: Integer) (xs: [Integer]) (ys: [Integer]) : Integer :=
     | ([], []) -> n
 
 def regularContinuedFractionOfSqrtHelper (m: Integer) (a: Integer) (b: Integer) : [(Integer, Integer, Integer)] :=
-  let n := floor (f.+ (rtof a) (f.* (rtof b) (sqrt (rtof m))))
-      x := m - power n 2
+  let n := floor (f.+ (rtof a) (f.* (rtof b) (f.sqrt (rtof m))))
+      x := m - i.power n 2
    in if x = 0
         then [(a, b, n)]
-        else let y := power (n - a) 2 - b * b * m
+        else let y := i.power (n - a) 2 - b * b * m
               in (a, b, n) :: regularContinuedFractionOfSqrtHelper
                                 m
                                 ((a - n) / y)
-                                (neg (b / y))
+                                (i.neg (b / y))
 
 def regularContinuedFractionOfSqrt (m: Integer) : (Integer, [Integer]) :=
-  let n := floor (sqrt (rtof m))
-      x := m - power n 2
+  let n := floor (f.sqrt (rtof m))
+      x := m - i.power n 2
    in if x = 0
         then (n, [])
         else ( n
         , map (3)#$3 (regularContinuedFractionOfSqrtHelper m (n / x) (1 / x)) )
 
 def regularContinuedFractionOfSqrt' (m: Integer) : (Integer, [Integer], [Integer]) :=
-  let n := floor (sqrt (rtof m))
-      x := m - power n 2
+  let n := floor (f.sqrt (rtof m))
+      x := m - i.power n 2
    in if x = 0
         then (n, [], [])
         else let (s, c) := findCycle

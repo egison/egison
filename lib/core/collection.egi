@@ -114,7 +114,7 @@ def sort {Ord a} (xs: [a]) : [a] :=
     | $x :: [] -> [x]
     | _ ->
         let n := length xs
-            p := nth (quotient n 2) xs
+            p := nth (i.quotient n 2) xs
             (ys1, ys2, ys3) := splitByOrdering p xs
          in sort ys1 ++ ys2 ++ sort ys3
 

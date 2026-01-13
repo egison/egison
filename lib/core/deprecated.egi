@@ -41,3 +41,23 @@ def repeatedSquaring {a} (fn: a -> a -> a) (x: a) (n: Integer) : a :=
       let y := repeatedSquaring fn x (quotient n 2)
        in fn (fn y y) x
 
+
+inductive pattern Integer :=
+       | o
+       | s Integer
+   
+def nat : Matcher Integer :=
+     matcher
+       | o as () with
+         | 0 -> [()]
+         | _ -> []
+       | s $ as nat with
+         | $tgt ->
+           match compare tgt 0 as ordering with
+             | greater -> [tgt - 1]
+             | _ -> []
+       | #$n as () with
+         | $tgt -> if tgt = n then [()] else []
+       | $ as (something) with
+         | $tgt -> [tgt]
+   
