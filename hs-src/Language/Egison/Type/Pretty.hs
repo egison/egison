@@ -35,7 +35,11 @@ prettyType (TCollection t)  = "[" ++ prettyType t ++ "]"
 prettyType (TInductive name []) = name
 prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyTypeAtom args)
 prettyType (TTensor t)      = "Tensor " ++ prettyTypeAtom t
-prettyType (THash k v)      = "Hash " ++ prettyTypeAtom k ++ " " ++ prettyTypeAtom v
+prettyType (THash k v)      = "Hash " ++ prettyTypeAtom k ++ " " ++ prettyHashValueType v
+  where
+    -- Hash value types need parentheses if they are function types
+    prettyHashValueType t@(TFun _ _) = "(" ++ prettyType t ++ ")"
+    prettyHashValueType t            = prettyTypeAtom t
 prettyType (TMatcher t)     = "Matcher " ++ prettyTypeAtom t
 prettyType (TFun t1 t2)     = prettyTypeArg t1 ++ " -> " ++ prettyType t2
   where
@@ -62,17 +66,22 @@ prettyTypeAtom t            = "(" ++ prettyType t ++ ")"
 prettyTypeScheme :: TypeScheme -> String
 prettyTypeScheme (Forall [] [] t) = prettyType t
 prettyTypeScheme (Forall [] cs t) =
-  prettyConstraints cs ++ " => " ++ prettyType t
+  prettyConstraintsAlt cs ++ " " ++ prettyType t
 prettyTypeScheme (Forall vs [] t) =
   "∀" ++ unwords (map (\(TyVar v) -> v) vs) ++ ". " ++ prettyType t
 prettyTypeScheme (Forall vs cs t) =
-  "∀" ++ unwords (map (\(TyVar v) -> v) vs) ++ ". " ++ prettyConstraints cs ++ " => " ++ prettyType t
+  prettyConstraintsAlt cs ++ " " ++ prettyType t
 
--- | Pretty print constraints
+-- | Pretty print constraints (old format: "Eq a, Ord b")
 prettyConstraints :: [Constraint] -> String
 prettyConstraints []  = ""
 prettyConstraints [c] = prettyConstraint c
 prettyConstraints cs  = "(" ++ intercalate ", " (map prettyConstraint cs) ++ ")"
+
+-- | Pretty print constraints (new format: "{Eq a, Ord b}")
+prettyConstraintsAlt :: [Constraint] -> String
+prettyConstraintsAlt []  = ""
+prettyConstraintsAlt cs  = "{" ++ intercalate ", " (map prettyConstraint cs) ++ "}"
 
 -- | Pretty print a single constraint
 prettyConstraint :: Constraint -> String

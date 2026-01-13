@@ -808,9 +808,9 @@ prettyVar (Var name indices) = pretty name <> hcat (map prettyVarIndex indices)
 -- Helper function to pretty print constraints as Doc
 prettyConstraintsDoc :: [Types.Constraint] -> Doc ann
 prettyConstraintsDoc [] = emptyDoc
-prettyConstraintsDoc [c] = pretty "{" <> prettyConstraintDoc c <> pretty "}" <+> pretty "=>" <> space
-prettyConstraintsDoc cs = 
-  pretty "{" <> hsep (punctuate comma (map prettyConstraintDoc cs)) <> pretty "}" <+> pretty "=>" <> space
+prettyConstraintsDoc [c] = pretty "{" <> prettyConstraintDoc c <> pretty "}" <> space
+prettyConstraintsDoc cs =
+  pretty "{" <> hsep (punctuate comma (map prettyConstraintDoc cs)) <> pretty "}" <> space
 
 -- Helper function to pretty print a single constraint as Doc
 prettyConstraintDoc :: Types.Constraint -> Doc ann
@@ -832,8 +832,12 @@ prettyTypeDoc (Types.TFun t1 t2) = prettyTypeArg t1 <+> pretty "->" <+> prettyTy
     prettyTypeArg t = prettyTypeDoc t
 prettyTypeDoc (Types.TTuple ts) = tupled (map prettyTypeDoc ts)
 prettyTypeDoc (Types.TCollection t) = brackets (prettyTypeDoc t)
-prettyTypeDoc (Types.THash k v) = 
-  pretty "Hash" <+> prettyTypeDoc k <+> prettyTypeDoc v
+prettyTypeDoc (Types.THash k v) =
+  pretty "Hash" <+> prettyTypeDoc k <+> prettyHashValueTypeDoc v
+  where
+    -- Hash value types need parentheses if they are function types
+    prettyHashValueTypeDoc t@(Types.TFun _ _) = parens (prettyTypeDoc t)
+    prettyHashValueTypeDoc t = prettyTypeDoc t
 prettyTypeDoc (Types.TMatcher t) = pretty "Matcher" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TIO t) = pretty "IO" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TIORef t) = pretty "IORef" <+> prettyTypeDoc t
