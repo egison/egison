@@ -60,6 +60,11 @@ unify' (THash k1 v1) (THash k2 v2) = do
   s2 <- unify (applySubst s1 v1) (applySubst s1 v2)
   Right $ composeSubst s2 s1
 
+-- Special rule: Matcher b unifies with (t1, t2, ...) 
+-- by treating each ti as Matcher ci, resulting in b = (c1, c2, ...)
+unify' (TMatcher b) (TTuple ts) = unifyMatcherWithTuple b ts
+unify' (TTuple ts) (TMatcher b) = unifyMatcherWithTuple b ts
+
 unify' (TMatcher t1) (TMatcher t2) = unify t1 t2
 
 unify' (TFun a1 r1) (TFun a2 r2) = do
@@ -95,6 +100,42 @@ unifyVar v t
 -- This prevents infinite types like a = [a]
 occursIn :: TyVar -> Type -> Bool
 occursIn v t = v `Set.member` freeTyVars t
+
+-- | Unify Matcher b with (t1, t2, ...) by treating each ti as Matcher ci
+-- Result: b = (c1, c2, ...) where ti unifies with Matcher ci
+unifyMatcherWithTuple :: Type -> [Type] -> Either UnifyError Subst
+unifyMatcherWithTuple b ts = do
+  -- Process each element: extract inner type or create constraint
+  (innerTypes, s1) <- unifyEachAsMatcher ts emptySubst
+  -- Now unify b with (c1, c2, ...)
+  let tupleType = TTuple innerTypes
+  s2 <- unify (applySubst s1 b) tupleType
+  Right $ composeSubst s2 s1
+  where
+    -- Unify each type in the tuple with Matcher ci, extracting ci
+    unifyEachAsMatcher :: [Type] -> Subst -> Either UnifyError ([Type], Subst)
+    unifyEachAsMatcher [] s = Right ([], s)
+    unifyEachAsMatcher (t:rest) s = do
+      let t' = applySubst s t
+      (innerType, s1) <- case t' of
+        -- If already Matcher c, extract c
+        TMatcher inner -> Right (inner, emptySubst)
+        -- If type variable, unify it with Matcher (fresh variable)
+        TVar v -> do
+          -- Generate a new variable name for the inner type
+          let innerVar = TyVar (getTyVarName v ++ "'")
+              innerType = TVar innerVar
+          s' <- unify t' (TMatcher innerType)
+          Right (applySubst s' innerType, s')
+        -- Other types cannot be unified with Matcher
+        _ -> Left $ TypeMismatch (TMatcher (TVar (TyVar "?"))) t'
+      
+      let s2 = composeSubst s1 s
+      (restInnerTypes, s3) <- unifyEachAsMatcher rest s2
+      Right (applySubst s3 innerType : restInnerTypes, s3)
+    
+    getTyVarName :: TyVar -> String
+    getTyVarName (TyVar name) = name
 
 -- | Unify two types, allowing Tensor a to unify with a at top-level definitions
 -- This is used only for top-level definitions with type annotations
