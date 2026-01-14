@@ -48,18 +48,13 @@ def assocMultiset {a} (m: Matcher a) : Matcher [(a, Integer)] :=
         matchAll tgt as list (m, integer) with
           | $hs ++ (#x, $n) :: $ts ->
             if n = 1 then hs ++ ts else hs ++ (x, n - 1) :: ts
-    | $ :: $ as (m, assocMultiset m) with
-      | $tgt ->
-        matchAll tgt as list (m, integer) with
-          | $hs ++ ($x, $n) :: $ts ->
-            if n = 1 then (x, hs ++ ts) else (x, hs ++ (x, n - 1) :: ts)
     | $ as (something) with
       | $tgt -> [tgt]
 
-def AC.intersect {Eq a} (xs : [a]) (ys : [a]) : [(a, Integer)] :=
+def AC.intersect {Eq a} (xs : [(a, Integer)]) (ys : [(a, Integer)]) : [(a, Integer)] :=
   matchAll (xs, ys) as (assocMultiset something, assocMultiset something) with
     | (($x, $m) :: _, (#x, $n) :: _) -> (x, min m n)
 
-def AC.intersectAs {Eq a} (m : Matcher a) (xs : [a]) (ys : [a]) : [(a, Integer)] :=
+def AC.intersectAs {Eq a} (m : Matcher a) (xs : [(a, Integer)]) (ys : [(a, Integer)]) : [(a, Integer)] :=
   matchAll (xs, ys) as (assocMultiset m, assocMultiset m) with
     | (($x, $m) :: _, (#x, $n) :: _) -> (x, min m n)
