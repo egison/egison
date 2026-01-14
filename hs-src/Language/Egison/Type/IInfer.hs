@@ -1361,14 +1361,19 @@ inferIExprWithContext expr ctx = case expr of
   -- Do expression
   IDoExpr bindings body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    -- TODO: Properly handle IO monad bindings
-    -- For now, infer bindings simply
+    -- Infer IO monad bindings: each binding should be of type IO a
     env <- getEnv
-    (bindingTIs, _, s1) <- inferIBindingsWithContext bindings env emptySubst exprCtx
-    (bodyTI, s2) <- inferIExprWithContext body exprCtx
+    (bindingTIs, bindingSchemes, s1) <- inferIOBindingsWithContext bindings env emptySubst exprCtx
+    (bodyTI, s2) <- withEnv bindingSchemes $ inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
         finalS = composeSubst s2 s1
-    return (mkTIExpr (TIO bodyType) (TIDoExpr bindingTIs bodyTI), finalS)
+        
+    -- Verify that body type is IO a
+    bodyResultType <- freshVar "ioResult"
+    s3 <- unifyTypesWithContext (applySubst finalS bodyType) (TIO bodyResultType) exprCtx
+    let resultType = applySubst s3 (TIO bodyResultType)
+        finalS' = composeSubst s3 finalS
+    return (mkTIExpr resultType (TIDoExpr bindingTIs bodyTI), finalS')
   
   -- Cambda (pattern matching lambda)
   ICambdaExpr var body -> do
@@ -2026,25 +2031,86 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
 
 -- | Infer let bindings (non-recursive) with context
 -- NEW: Returns TIBindingExpr instead of IBindingExpr
+-- Infer IO bindings for do expressions
+inferIOBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
+inferIOBindingsWithContext [] _env s _ctx = return ([], [], s)
+inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
+  -- Infer the type of the expression
+  (exprTI, s1) <- inferIExprWithContext expr ctx
+  let exprType = tiExprType exprTI
+
+  -- The expression should be of type IO a
+  innerType <- freshVar "ioInner"
+  s2 <- unifyTypesWithContext (applySubst s1 exprType) (TIO innerType) ctx
+  let s12 = composeSubst s2 s1
+      actualInnerType = applySubst s12 innerType
+
+  -- Create expected type from pattern and unify with inner type
+  (patternType, s3) <- inferPatternType pat
+  let s123 = composeSubst s3 s12
+  s4 <- unifyTypesWithContext (applySubst s123 actualInnerType) (applySubst s123 patternType) ctx
+
+  -- Apply all substitutions and extract bindings with inner type
+  let finalS = composeSubst s4 s123
+      finalInnerType = applySubst finalS actualInnerType
+      bindings = extractIBindingsFromPattern pat finalInnerType
+      s' = composeSubst finalS s
+
+  _env' <- getEnv
+  let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
+  (restBindingTIs, restBindings, s2') <- withEnv extendedEnvList $ inferIOBindingsWithContext bs env s' ctx
+  return ((pat, exprTI) : restBindingTIs, bindings ++ restBindings, s2')
+  where
+    -- Infer the type that a pattern expects
+    inferPatternType :: IPrimitiveDataPattern -> Infer (Type, Subst)
+    inferPatternType PDWildCard = do
+      t <- freshVar "wild"
+      return (t, emptySubst)
+    inferPatternType (PDPatVar _) = do
+      t <- freshVar "patvar"
+      return (t, emptySubst)
+    inferPatternType (PDTuplePat pats) = do
+      results <- mapM inferPatternType pats
+      let types = map fst results
+          substs = map snd results
+          s = foldr composeSubst emptySubst substs
+      return (TTuple types, s)
+    inferPatternType PDEmptyPat = return (TCollection (TVar (TyVar "a")), emptySubst)
+    inferPatternType (PDConsPat _ _) = do
+      elemType <- freshVar "elem"
+      return (TCollection elemType, emptySubst)
+    inferPatternType (PDSnocPat _ _) = do
+      elemType <- freshVar "elem"
+      return (TCollection elemType, emptySubst)
+    inferPatternType (PDInductivePat name pats) = do
+      results <- mapM inferPatternType pats
+      let types = map fst results
+          substs = map snd results
+          s = foldr composeSubst emptySubst substs
+      return (TInductive name types, s)
+    inferPatternType (PDConstantPat c) = do
+      ty <- inferConstant c
+      return (ty, emptySubst)
+
 inferIBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIBindingsWithContext [] _env s _ctx = return ([], [], s)
 inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   -- Infer the type of the expression
   (exprTI, s1) <- inferIExprWithContext expr ctx
   let exprType = tiExprType exprTI
-  
+
   -- Create expected type from pattern and unify with expression type
   -- This helps resolve type variables in the expression type
   (patternType, s2) <- inferPatternType pat
   let s12 = composeSubst s2 s1
   s3 <- unifyTypesWithContext (applySubst s12 exprType) (applySubst s12 patternType) ctx
-  
+
   -- Apply all substitutions and extract bindings
   let finalS = composeSubst s3 s12
       finalExprType = applySubst finalS exprType
       bindings = extractIBindingsFromPattern pat finalExprType
       s' = composeSubst finalS s
-  
+
   _env' <- getEnv
   let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
   (restBindingTIs, restBindings, s2') <- withEnv extendedEnvList $ inferIBindingsWithContext bs env s' ctx
