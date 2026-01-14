@@ -55,18 +55,21 @@ coreLibraries =
   -- Libs that defines user-defined infixes comes first
   [ "lib/core/base.egi"              -- Defines (&&) (||)
   , "lib/core/order.egi"
---  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
---  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
   , "lib/core/collection.egi"        -- Defines (++) for patterns
---  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
+  , "lib/core/maybe.egi"
+  , "lib/core/number.egi"
+  , "lib/core/random.egi"
 
 --  , "lib/core/assoc.egi"
---  , "lib/core/io.egi"
-  , "lib/core/maybe.egi"
---  , "lib/core/number.egi"
---  , "lib/core/random.egi"
 --  , "lib/core/string.egi"
---  , "lib/core/sort.egi"
+--  , "lib/core/io.egi"
+
+
+--  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
+--  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
+--  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+
+  --  , "lib/core/sort.egi"
 --  , "lib/math/common/constants.egi"
 --  , "lib/math/common/functions.egi"
 --  , "lib/math/algebra/root.egi"
