@@ -773,12 +773,22 @@ inferIExprWithContext expr ctx = case expr of
         finalSubst = foldr composeSubst emptySubst substs
     
     -- All clauses should agree on the matched type
-    -- For now, we use the first clause's matched type
-    matchedTy <- case results of
-      ((_, (ty, _)):_) -> return $ applySubst finalSubst ty
-      [] -> freshVar "matched"  -- Empty matcher (edge case)
+    -- Unify all matched types from each pattern definition
+    let matchedTypes = [applySubst finalSubst ty | (_, (ty, _)) <- results]
+    (matchedTy, s_matched) <- case matchedTypes of
+      [] -> do
+        ty <- freshVar "matched"
+        return (ty, emptySubst)
+      (firstTy:restTys) -> do
+        -- Unify all matched types
+        s <- foldM (\accS ty -> do
+            s' <- unifyTypesWithContext (applySubst accS firstTy) (applySubst accS ty) exprCtx
+            return $ composeSubst s' accS
+          ) emptySubst restTys
+        return (applySubst s firstTy, s)
     
-    return (mkTIExpr (TMatcher matchedTy) (TIMatcherExpr tiPatDefs), finalSubst)
+    let allSubst = composeSubst s_matched finalSubst
+    return (mkTIExpr (TMatcher matchedTy) (TIMatcherExpr tiPatDefs), allSubst)
     where
       -- Infer a single pattern definition (matcher clause)
       -- Returns (TIPatternDef, (matched type, [substitutions]))
@@ -795,20 +805,21 @@ inferIExprWithContext expr ctx = case expr of
         let nextMatcherType' = applySubst s1' nextMatcherType
         
         -- Infer PrimitivePatPattern type to get matched type, pattern hole types, and variable bindings
-        (matchedType, patternHoleTypes, ppBindings, s_pp) <- inferPrimitivePatPattern ppPat nextMatcherType' ctx
+        (matchedType, patternHoleTypes, ppBindings, s_pp) <- inferPrimitivePatPattern ppPat ctx
         let s1'' = composeSubst s_pp s1'
             matchedType' = applySubst s1'' matchedType
             patternHoleTypes' = map (applySubst s1'') patternHoleTypes
             -- Apply substitution to variable bindings
             ppBindings' = [(var, applySubstScheme s1'' scheme) | (var, scheme) <- ppBindings]
         
-        -- Verify consistency: number of pattern holes should match next matcher structure
+        -- Unify pattern hole types with next matcher type
+        -- Pattern holes inferred from the pattern constructor should match the next matcher type
         let numPatternHoles = length patternHoleTypes'
         nextMatcherTypes <- extractNextMatcherTypes numPatternHoles nextMatcherType'
         
-        -- Check that pattern hole types are consistent with next matcher types
-        s_consistency <- checkPatternHoleConsistency patternHoleTypes' nextMatcherTypes ctx
-        let s1''' = composeSubst s_consistency s1''
+        -- Unify pattern hole types with next matcher types
+        s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherTypes ctx
+        let s1''' = composeSubst s_unify s1''
         
         -- Infer the type of data clauses with pp variables in scope
         -- Each data clause: (primitiveDataPattern, targetListExpr)
@@ -834,8 +845,9 @@ inferIExprWithContext expr ctx = case expr of
       -- Returns (matched type, pattern hole types, variable bindings, substitution)
       -- Pattern hole types correspond to the types that pattern holes ($) should match
       -- Variable bindings are for PPValuePat variables (#$val)
-      inferPrimitivePatPattern :: PrimitivePatPattern -> Type -> TypeErrorContext -> Infer (Type, [Type], [(String, TypeScheme)], Subst)
-      inferPrimitivePatPattern ppPat nextMatcherType ctx = case ppPat of
+      -- Note: Pattern hole types are determined by the pattern constructor, not by external context
+      inferPrimitivePatPattern :: PrimitivePatPattern -> TypeErrorContext -> Infer (Type, [Type], [(String, TypeScheme)], Subst)
+      inferPrimitivePatPattern ppPat ctx = case ppPat of
         PPWildCard -> do
           -- Wildcard pattern: no pattern holes, no bindings
           matchedTy <- freshVar "matched"
@@ -843,9 +855,12 @@ inferIExprWithContext expr ctx = case expr of
         
         PPPatVar -> do
           -- Pattern variable ($): one pattern hole, no binding
-          -- Matched type comes from next matcher
-          matchedTy <- extractMatchedTypeFromMatcher nextMatcherType
-          return (matchedTy, [nextMatcherType], [], emptySubst)
+          -- Pattern hole type and matched type share the same fresh variable
+          -- This ensures that when pattern hole type is unified with next matcher type,
+          -- the matched type is automatically updated
+          matchedTy <- freshVar "matched"
+          let patternHoleTy = TMatcher matchedTy
+          return (matchedTy, [patternHoleTy], [], emptySubst)
         
         PPValuePat var -> do
           -- Value pattern (#$val): no pattern holes, binds variable to matched type
@@ -855,16 +870,8 @@ inferIExprWithContext expr ctx = case expr of
         
         PPTuplePat ppPats -> do
           -- Tuple pattern: ($p1, $p2, ...)
-          -- Extract matcher types for each element
-          matcherTypes <- case nextMatcherType of
-            TTuple mts -> return mts
-            TMatcher (TTuple ts) -> return $ map TMatcher ts
-            _ -> do
-              -- Create fresh matcher types for each element
-              mapM (\_ -> freshVar "matcher") ppPats
-          
           -- Recursively infer each sub-pattern
-          results <- zipWithM (\pp mt -> inferPrimitivePatPattern pp mt ctx) ppPats matcherTypes
+          results <- mapM (\pp -> inferPrimitivePatPattern pp ctx) ppPats
           let matchedTypes = [mt | (mt, _, _, _) <- results]
               patternHoleLists = [phs | (_, phs, _, _) <- results]
               bindingLists = [bs | (_, _, bs, _) <- results]
@@ -900,15 +907,8 @@ inferIExprWithContext expr ctx = case expr of
                         ++ " arguments, but got " ++ show (length ppPats))
                        ctx
                 else do
-                  -- Recursively infer each sub-pattern with corresponding argument type
-                  -- For inductive patterns, the "next matcher" for each argument is derived from the arg type
-                  results <- zipWithM (\pp argTy -> do
-                      -- If argTy is Matcher a, use it; otherwise create Matcher argTy
-                      let argMatcher = case argTy of
-                            TMatcher _ -> argTy
-                            _ -> TMatcher argTy
-                      inferPrimitivePatPattern pp argMatcher ctx
-                    ) ppPats argTypes
+                  -- Recursively infer each sub-pattern
+                  results <- mapM (\pp -> inferPrimitivePatPattern pp ctx) ppPats
                   
                   let matchedTypes = [mt | (mt, _, _, _) <- results]
                       patternHoleLists = [phs | (_, phs, _, _) <- results]
@@ -919,18 +919,21 @@ inferIExprWithContext expr ctx = case expr of
                       s = foldr composeSubst emptySubst substs
                   
                   -- Verify that inferred matched types match expected argument types
+                  -- Extract inner types from Matcher types in argTypes
+                  let expectedMatchedTypes = map (\ty -> case ty of
+                        TMatcher inner -> inner
+                        _ -> ty) argTypes
                   s' <- foldM (\accS (inferredTy, expectedTy) -> do
                       s'' <- unifyTypesWithContext (applySubst accS inferredTy) (applySubst accS expectedTy) ctx
                       return $ composeSubst s'' accS
-                    ) s (zip matchedTypes argTypes)
+                    ) s (zip matchedTypes expectedMatchedTypes)
                   
                   return (applySubst s' resultType, map (applySubst s') allPatternHoles, allBindings, s')
             
             Nothing -> do
               -- Not found in pattern environment: use generic inference
               -- This is for backward compatibility
-              argTypes <- mapM (\_ -> freshVar "arg") ppPats
-              results <- zipWithM (\pp argTy -> inferPrimitivePatPattern pp (TMatcher argTy) ctx) ppPats argTypes
+              results <- mapM (\pp -> inferPrimitivePatPattern pp ctx) ppPats
               let matchedTypes = [mt | (mt, _, _, _) <- results]
                   patternHoleLists = [phs | (_, phs, _, _) <- results]
                   bindingLists = [bs | (_, _, bs, _) <- results]
@@ -952,10 +955,6 @@ inferIExprWithContext expr ctx = case expr of
       extractFunctionArgs t = ([], t)
       
       -- Extract matched type from Matcher type
-      extractMatchedTypeFromMatcher :: Type -> Infer Type
-      extractMatchedTypeFromMatcher (TMatcher t) = return t
-      extractMatchedTypeFromMatcher t = return t  -- If not Matcher, return as-is
-      
       -- Check consistency between pattern hole types and next matcher types
       checkPatternHoleConsistency :: [Type] -> [Type] -> TypeErrorContext -> Infer Subst
       checkPatternHoleConsistency [] [] _ctx = return emptySubst
