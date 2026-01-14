@@ -568,6 +568,9 @@ inferIExprWithContext expr ctx = case expr of
         -- Empty tuple: unit type ()
         let scheme = Forall [] [] (TTuple [])
         return (TIExpr scheme (TITupleExpr []), emptySubst)
+      [single] -> do
+        -- Single element tuple: same as the element itself (parentheses are just grouping)
+        inferIExprWithContext single exprCtx
       _ -> do
         results <- mapM (\e -> inferIExprWithContext e exprCtx) elems
         let elemTIExprs = map fst results
@@ -800,9 +803,10 @@ inferIExprWithContext expr ctx = case expr of
         (nextMatcherTI, s1) <- inferIExprWithContext nextMatcherExpr ctx
         let nextMatcherType = tiExprType nextMatcherTI
         
-        -- If next matcher type contains type variables, constrain them to be Matcher types
-        -- This prevents infinite type errors when using matcher parameters
-        s1' <- constrainTypeVarsAsMatcher nextMatcherType s1
+        -- nextMatcherType must be a Matcher type
+        -- Unify with Matcher a to constrain it and detect errors early
+        matcherInnerTy <- freshVar "matcherInner"
+        s1' <- unifyTypesWithContext (applySubst s1 nextMatcherType) (TMatcher matcherInnerTy) ctx
         let nextMatcherType' = applySubst s1' nextMatcherType
         
         -- Infer PrimitivePatPattern type to get matched type, pattern hole types, and variable bindings
@@ -825,7 +829,6 @@ inferIExprWithContext expr ctx = case expr of
         
         -- Infer the type of data clauses with pp variables in scope
         -- Each data clause: (primitiveDataPattern, targetListExpr)
-        let numPatternHoles = length patternHoleTypes'
         dataClauseResults <- withEnv ppBindings' $ 
           mapM (inferDataClauseWithCheck ctx nextMatcherInnerTypes matchedType') dataClauses
         let s2 = foldr composeSubst emptySubst dataClauseResults
@@ -974,23 +977,6 @@ inferIExprWithContext expr ctx = case expr of
                 s <- unifyTypesWithContext (applySubst accS holeTy) (applySubst accS matcherTy) ctx
                 return $ composeSubst s accS
               ) emptySubst (zip patternHoles nextMatchers)
-      
-      -- Constrain type variables in next matcher expression to be Matcher types
-      -- If we have a type variable t0 appearing in matcher context, unify t0 with Matcher t_new
-      -- Note: (m1, m2) tuple should become Matcher (a, b), not (Matcher a, Matcher b)
-      -- However, this function is called AFTER ITupleExpr inference, which already converts
-      -- (Matcher a, Matcher b, ...) to Matcher (a, b, ...). So we should not do anything for tuples.
-      constrainTypeVarsAsMatcher :: Type -> Subst -> Infer Subst
-      constrainTypeVarsAsMatcher ty s = case ty of
-        TVar v -> do
-          -- Type variable in matcher position: constrain to Matcher type
-          innerTy <- freshVar "inner"
-          s' <- unifyTypes (applySubst s (TVar v)) (TMatcher innerTy)
-          return $ composeSubst s' s
-        TTuple _ -> return s  -- ITupleExpr already handles tuple conversion, do nothing
-        TMatcher _ -> return s  -- Already a Matcher type, no constraint needed
-        _ -> return s  -- Other types: no constraint needed
-      
       
       -- Extract inner types from next matcher type
       -- Given Matcher a, returns [a]
@@ -1985,31 +1971,6 @@ inferIPattern pat expectedType ctx = case pat of
       let (args, result) = extractFunctionArgs rest
       in (arg : args, result)
     extractFunctionArgs t = ([], t)
-
--- | Extract pattern variables from a pattern (legacy, kept for reference)
-extractPatternVars :: IPattern -> [String]
-extractPatternVars pat = case pat of
-  IWildCard -> []
-  IPatVar name -> [name]
-  IValuePat _ -> []
-  IPredPat _ -> []
-  IIndexedPat p _ -> extractPatternVars p
-  ILetPat _ p -> extractPatternVars p
-  INotPat p -> extractPatternVars p
-  IAndPat p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
-  IOrPat p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
-  IForallPat p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
-  ITuplePat ps -> concatMap extractPatternVars ps
-  IInductivePat _ ps -> concatMap extractPatternVars ps
-  ILoopPat _ _ p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
-  IContPat -> []
-  IPApplyPat _ ps -> concatMap extractPatternVars ps
-  IVarPat name -> [name]
-  IInductiveOrPApplyPat _ ps -> concatMap extractPatternVars ps
-  ISeqNilPat -> []
-  ISeqConsPat p1 p2 -> extractPatternVars p1 ++ extractPatternVars p2
-  ILaterPatVar -> []
-  IDApplyPat p ps -> extractPatternVars p ++ concatMap extractPatternVars ps
 
 -- | Infer application (helper)
 -- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
