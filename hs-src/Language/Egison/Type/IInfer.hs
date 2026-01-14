@@ -795,7 +795,8 @@ inferIExprWithContext expr ctx = case expr of
       inferPatternDef :: TypeErrorContext -> IPatternDef -> Infer (TIPatternDef, (Type, [Subst]))
       inferPatternDef ctx (ppPat, nextMatcherExpr, dataClauses) = do
         -- Infer the type of next matcher expression
-        -- It should be either a Matcher type or a tuple of Matcher types
+        -- It should be a Matcher type (possibly Matcher of tuple, like Matcher (a, b))
+        -- Note: (integer, integer) is inferred as Matcher (Integer, Integer), not (Matcher Integer, Matcher Integer)
         (nextMatcherTI, s1) <- inferIExprWithContext nextMatcherExpr ctx
         let nextMatcherType = tiExprType nextMatcherTI
         
@@ -808,24 +809,25 @@ inferIExprWithContext expr ctx = case expr of
         (matchedType, patternHoleTypes, ppBindings, s_pp) <- inferPrimitivePatPattern ppPat ctx
         let s1'' = composeSubst s_pp s1'
             matchedType' = applySubst s1'' matchedType
-            -- Wrap pattern hole types with TMatcher for unification with next matcher types
-            patternHoleTypes' = map (TMatcher . applySubst s1'') patternHoleTypes
             -- Apply substitution to variable bindings
             ppBindings' = [(var, applySubstScheme s1'' scheme) | (var, scheme) <- ppBindings]
         
-        -- Unify pattern hole types with next matcher type
-        -- Pattern holes inferred from the pattern constructor should match the next matcher type
-        let numPatternHoles = length patternHoleTypes'
-        nextMatcherTypes <- extractNextMatcherTypes numPatternHoles nextMatcherType'
+        -- Apply substitution to pattern hole types (keep as inner types)
+        let patternHoleTypes' = map (applySubst s1'') patternHoleTypes
         
-        -- Unify pattern hole types (now wrapped with TMatcher) with next matcher types
-        s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherTypes ctx
+        -- Extract inner type(s) from next matcher type
+        -- If multiple pattern holes, combine them into a tuple to match ITupleExpr behavior
+        nextMatcherInnerTypes <- extractInnerTypesFromMatcher nextMatcherType' (length patternHoleTypes') ctx
+        
+        -- Unify pattern hole types (inner types) with next matcher inner types
+        s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherInnerTypes ctx
         let s1''' = composeSubst s_unify s1''
         
         -- Infer the type of data clauses with pp variables in scope
         -- Each data clause: (primitiveDataPattern, targetListExpr)
+        let numPatternHoles = length patternHoleTypes'
         dataClauseResults <- withEnv ppBindings' $ 
-          mapM (inferDataClauseWithCheck ctx numPatternHoles nextMatcherTypes matchedType') dataClauses
+          mapM (inferDataClauseWithCheck ctx nextMatcherInnerTypes matchedType') dataClauses
         let s2 = foldr composeSubst emptySubst dataClauseResults
         
         -- Build TIPatternDef: need to convert dataClauses to TIBindingExpr
@@ -975,6 +977,9 @@ inferIExprWithContext expr ctx = case expr of
       
       -- Constrain type variables in next matcher expression to be Matcher types
       -- If we have a type variable t0 appearing in matcher context, unify t0 with Matcher t_new
+      -- Note: (m1, m2) tuple should become Matcher (a, b), not (Matcher a, Matcher b)
+      -- However, this function is called AFTER ITupleExpr inference, which already converts
+      -- (Matcher a, Matcher b, ...) to Matcher (a, b, ...). So we should not do anything for tuples.
       constrainTypeVarsAsMatcher :: Type -> Subst -> Infer Subst
       constrainTypeVarsAsMatcher ty s = case ty of
         TVar v -> do
@@ -982,60 +987,70 @@ inferIExprWithContext expr ctx = case expr of
           innerTy <- freshVar "inner"
           s' <- unifyTypes (applySubst s (TVar v)) (TMatcher innerTy)
           return $ composeSubst s' s
-        TTuple tys -> do
-          -- Tuple of matchers: constrain each element
-          foldM (\accS t -> constrainTypeVarsAsMatcher t accS) s tys
+        TTuple _ -> return s  -- ITupleExpr already handles tuple conversion, do nothing
         TMatcher _ -> return s  -- Already a Matcher type, no constraint needed
         _ -> return s  -- Other types: no constraint needed
       
       
-      -- Extract next matcher types from the next matcher type
-      -- If n=1, returns [matcherType] as-is (keeping tuple structure if present)
-      --   Special case: (Matcher a, Matcher b, ...) is treated as Matcher (a, b, ...)
-      --   This matches the runtime behavior where single pattern hole keeps tuple intact
-      -- If n>1, returns [TMatcher a, TMatcher b, ...] for (TMatcher a, TMatcher b, ...) or Matcher (a, b, ...)
-      extractNextMatcherTypes :: Int -> Type -> Infer [Type]
-      extractNextMatcherTypes n matcherType
-        | n == 0 = return []
-        | n == 1 = do
-            -- For single pattern hole, keep the matcher type as-is
-            -- But if it's a tuple of matchers (Matcher a, Matcher b, ...), 
-            -- convert it to Matcher (a, b, ...) to match ITupleExpr behavior
-            case matcherType of
-              TTuple types -> do
-                -- Check if all elements are Matcher types
-                let matcherInners = mapM extractMatcherInner types
-                case matcherInners of
-                  Just inners -> 
-                    -- All elements are matchers: return Matcher (a, b, ...)
-                    return [TMatcher (TTuple inners)]
-                  Nothing ->
-                    -- Not all matchers: keep as tuple
-                    return [matcherType]
-              _ -> return [matcherType]
-        | otherwise = case matcherType of
-            TTuple types -> 
-              if length types == n
-                then return types
-                else throwError $ TE.TypeMismatch 
-                       (TTuple (replicate n (TVar (TyVar "a"))))  -- Expected
-                       matcherType  -- Actual
-                       ("Expected " ++ show n ++ " matchers, but got " ++ show (length types))
-                       emptyContext
-            -- Special case: Matcher (a, b, ...) can be expanded to (Matcher a, Matcher b, ...)
-            TMatcher (TTuple innerTypes) ->
-              if length innerTypes == n
-                then return (map TMatcher innerTypes)
-                else throwError $ TE.TypeMismatch
-                       (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))  -- Expected
-                       matcherType  -- Actual
-                       ("Expected matcher for tuple of " ++ show n ++ " elements, but got " ++ show (length innerTypes))
-                       emptyContext
-            _ -> throwError $ TE.TypeMismatch
-                   (TTuple (replicate n (TVar (TyVar "a"))))  -- Expected
-                   matcherType  -- Actual
-                   ("Expected tuple of " ++ show n ++ " matchers")
-                   emptyContext
+      -- Extract inner types from next matcher type
+      -- Given Matcher a, returns [a]
+      -- Given Matcher (a, b, ...) and n pattern holes, returns [a, b, ...] if n > 1, or [(a, b, ...)] if n = 1
+      -- Special case: (Matcher a, Matcher b, ...) should be converted to Matcher (a, b, ...) first
+      -- Note: Even when numHoles = 0, we extract inner types to detect mismatches in checkPatternHoleConsistency
+      extractInnerTypesFromMatcher :: Type -> Int -> TypeErrorContext -> Infer [Type]
+      extractInnerTypesFromMatcher matcherType numHoles ctx = case numHoles of
+        0 -> case matcherType of
+          -- No pattern holes, but extract inner type to allow error detection
+          TMatcher innerType -> return [innerType]
+          TTuple types -> do
+            let matcherInners = mapM extractMatcherInner types
+            case matcherInners of
+              Just inners -> return inners
+              Nothing -> return []  -- Not matcher types, return empty
+          _ -> return []  -- Not a matcher type
+        1 -> case matcherType of
+          TMatcher innerType -> return [innerType]  -- Single hole: return inner type as-is
+          -- Special case: (Matcher a, Matcher b, ...) from ITupleExpr that failed to convert
+          -- This can happen when matcher parameters are used before ITupleExpr conversion
+          TTuple types -> do
+            let matcherInners = mapM extractMatcherInner types
+            case matcherInners of
+              Just inners -> return [TTuple inners]  -- Return as single tuple type
+              Nothing -> throwError $ TE.TypeMismatch
+                           (TMatcher (TVar (TyVar "a")))
+                           matcherType
+                           "Expected Matcher type or tuple of Matcher types"
+                           ctx
+          _ -> throwError $ TE.TypeMismatch
+                 (TMatcher (TVar (TyVar "a")))
+                 matcherType
+                 "Expected Matcher type"
+                 ctx
+        n -> case matcherType of
+          -- Multiple holes: expect Matcher (tuple) and extract each element
+          TMatcher (TTuple innerTypes) ->
+            if length innerTypes == n
+              then return innerTypes
+              else throwError $ TE.TypeMismatch
+                     (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))
+                     matcherType
+                     ("Expected Matcher with tuple of " ++ show n ++ " elements, but got " ++ show (length innerTypes))
+                     ctx
+          -- Special case: (Matcher a, Matcher b, ...) - extract inner types directly
+          TTuple types -> do
+            let matcherInners = mapM extractMatcherInner types
+            case matcherInners of
+              Just inners | length inners == n -> return inners
+              _ -> throwError $ TE.TypeMismatch
+                     (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))
+                     matcherType
+                     "Expected tuple of Matcher types with correct count"
+                     ctx
+          _ -> throwError $ TE.TypeMismatch
+                 (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))
+                 matcherType
+                 ("Expected Matcher of tuple with " ++ show n ++ " elements")
+                 ctx
       
       -- Helper: Extract inner type from Matcher a -> Just a, otherwise Nothing
       extractMatcherInner :: Type -> Maybe Type
@@ -1043,23 +1058,17 @@ inferIExprWithContext expr ctx = case expr of
       extractMatcherInner _ = Nothing
       
       -- Infer a data clause with type checking
-      -- Check that the target expression returns a list of values with types matching next matchers
+      -- Check that the target expression returns a list of values with types matching next matcher inner types
       -- Also uses matched type for validation
-      inferDataClauseWithCheck :: TypeErrorContext -> Int -> [Type] -> Type -> (IPrimitiveDataPattern, IExpr) -> Infer Subst
-      inferDataClauseWithCheck ctx numHoles nextMatcherTypes matchedType (pdPat, targetExpr) = do
-        -- Extract expected element type from next matchers (the target type)
+      -- nextMatcherInnerTypes: inner types extracted from next matcher (already without TMatcher wrapper)
+      inferDataClauseWithCheck :: TypeErrorContext -> [Type] -> Type -> (IPrimitiveDataPattern, IExpr) -> Infer Subst
+      inferDataClauseWithCheck ctx nextMatcherInnerTypes matchedType (pdPat, targetExpr) = do
+        -- Extract expected element type from next matcher inner types (the target type)
         -- This is the type of elements in the list returned by the target expression
-        targetType <- case numHoles of
-          0 -> return (TTuple [])  -- No pattern holes: empty tuple () case
-          1 -> case nextMatcherTypes of
-                 [TMatcher innerType] -> return innerType
-                 [ty] -> return ty  -- May be 'something' which is polymorphic
-                 _ -> freshVar "target"
-          _ -> case nextMatcherTypes of
-                 types -> do
-                   -- Extract inner types from Matcher types
-                   innerTypes <- mapM extractMatcherInner types
-                   return (TTuple innerTypes)
+        targetType <- case nextMatcherInnerTypes of
+          [] -> return (TTuple [])  -- No pattern holes: empty tuple () case
+          [single] -> return single  -- Single pattern hole: use inner type directly
+          multiple -> return (TTuple multiple)  -- Multiple holes: tuple of inner types
         
         -- Infer PrimitiveDataPattern with matched type
         -- Primitive data pattern matches against values of the matched type
@@ -1086,10 +1095,6 @@ inferIExprWithContext expr ctx = case expr of
         
         s2 <- unifyTypesWithContext (applySubst s_combined exprType) expectedType ctx
         return $ composeSubst s2 s_combined
-        where
-          extractMatcherInner :: Type -> Infer Type
-          extractMatcherInner (TMatcher t) = return t
-          extractMatcherInner t = return t
       
       -- Infer PrimitiveDataPattern type
       -- Returns (inferred target type, variable bindings, substitution)
